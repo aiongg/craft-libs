@@ -16,9 +16,11 @@ dialogs = []
 appearance = ["dep:zbus", "dep:futures-lite", "dep:async-channel", "dep:async-io", "dep:async-process", "dep:web-sys"]
 browser = ["dep:wasm-bindgen", "dep:js-sys", "dep:web-sys"]
 egui = ["dep:egui"]
+theme = ["dep:craft-theme"]
 
 [dependencies]
 egui = { workspace = true, optional = true }
+craft-theme = { workspace = true, optional = true }
 
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))'.dependencies]
 zbus = { version = "5", default-features = false, features = ["async-io"], optional = true }

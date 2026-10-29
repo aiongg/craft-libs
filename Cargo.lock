@@ -826,6 +826,7 @@ name = "craft-design-lint"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
+ "quote",
  "serde",
  "serde_json",
  "syn 2.0.119",
@@ -1014,6 +1015,7 @@ dependencies = [
  "async-channel",
  "async-io",
  "async-process",
+ "craft-theme",
  "egui",
  "futures-lite",
  "js-sys",
@@ -1146,6 +1148,7 @@ dependencies = [
 name = "craft-ui-gallery"
 version = "0.1.0"
 dependencies = [
+ "craft-platform",
  "craft-theme",
  "craft-ui",
  "eframe",

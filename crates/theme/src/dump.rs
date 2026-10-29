@@ -304,7 +304,7 @@ fn item_lines(out: &mut Lines, key: &str, colors: &ItemColors) {
 }
 
 fn check_lines(out: &mut Lines, c: &CheckTokens) {
-    let CheckTokens { height, size, gap, label, radius, mark, dot, track, thumb_inset, off, on, thumb, .. } = c;
+    let CheckTokens { height, size, gap, label, radius, mark, dot, track, thumb_inset, off, on, thumb } = c;
     by_size(out, "check.height", height);
     by_size(out, "check.size", size);
     out.line("check.gap", len(*gap));
@@ -331,7 +331,7 @@ fn thumb_lines(out: &mut Lines, key: &str, colors: &ThumbColors) {
 }
 
 fn icon_button_lines(out: &mut Lines, i: &IconButtonTokens) {
-    let IconButtonTokens { size, icon, badge, selected, .. } = i;
+    let IconButtonTokens { size, icon, badge, selected } = i;
     by_size(out, "icon_button.size", size);
     by_size(out, "icon_button.icon", icon);
     by_size(out, "icon_button.badge", badge);
@@ -339,7 +339,7 @@ fn icon_button_lines(out: &mut Lines, i: &IconButtonTokens) {
 }
 
 fn segmented_lines(out: &mut Lines, s: &SegmentedTokens) {
-    let SegmentedTokens { height, pad_x, icon, inset, label, track, segment, selected, .. } = s;
+    let SegmentedTokens { height, pad_x, icon, inset, label, track, segment, selected } = s;
     by_size(out, "segmented.height", height);
     by_size(out, "segmented.pad_x", pad_x);
     by_size(out, "segmented.icon", icon);
@@ -372,7 +372,6 @@ fn field_lines(out: &mut Lines, f: &FieldTokens) {
         selected_text,
         caret,
         invalid,
-        ..
     } = f;
     by_size(out, "field.height", height);
     by_size(out, "field.width", width);
@@ -400,7 +399,7 @@ fn field_lines(out: &mut Lines, f: &FieldTokens) {
 }
 
 fn slider_lines(out: &mut Lines, s: &SliderTokens) {
-    let SliderTokens { height, width, thumb, track_height, radius, track, fill, thumb_colors, ring, ring_width, mark, snap, .. } = s;
+    let SliderTokens { height, width, thumb, track_height, radius, track, fill, thumb_colors, ring, ring_width, mark, snap } = s;
     by_size(out, "slider.height", height);
     by_size(out, "slider.width", width);
     by_size(out, "slider.thumb", thumb);
@@ -416,7 +415,7 @@ fn slider_lines(out: &mut Lines, s: &SliderTokens) {
 }
 
 fn toggle_button_lines(out: &mut Lines, t: &ToggleButtonTokens) {
-    let ToggleButtonTokens { on_disabled_fill, on_disabled_border, on_disabled_text, .. } = t;
+    let ToggleButtonTokens { on_disabled_fill, on_disabled_border, on_disabled_text } = t;
     out.line("toggle_button.on_disabled.fill", hex(*on_disabled_fill));
     out.line("toggle_button.on_disabled.border", hex(*on_disabled_border));
     out.line("toggle_button.on_disabled.text", hex(*on_disabled_text));
@@ -444,7 +443,6 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
         pair_ring,
         marker,
         marker_halo,
-        ..
     } = p;
     out.line("color_picker.area", len(*area));
     out.line("color_picker.area_height", len(*area_height));
@@ -469,7 +467,7 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
 }
 
 fn property_lines(out: &mut Lines, p: &PropertyTokens) {
-    let PropertyTokens { glyph_width, word_width, min_control, column_gap, link_width, .. } = p;
+    let PropertyTokens { glyph_width, word_width, min_control, column_gap, link_width } = p;
     out.line("property.glyph_width", len(*glyph_width));
     out.line("property.word_width", len(*word_width));
     out.line("property.min_control", len(*min_control));
@@ -478,7 +476,7 @@ fn property_lines(out: &mut Lines, p: &PropertyTokens) {
 }
 
 fn section_lines(out: &mut Lines, t: &SectionTokens) {
-    let SectionTokens { row_height, chevron, chevron_box, title_offset, .. } = t;
+    let SectionTokens { row_height, chevron, chevron_box, title_offset } = t;
     out.line("section.row_height", len(*row_height));
     out.line("section.chevron", len(*chevron));
     out.line("section.chevron_box", len(*chevron_box));
@@ -521,7 +519,6 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         drop_halo,
         ghost_fill,
         ghost_border,
-        ..
     } = t;
     out.line("list.row_height", len(*row_height));
     let ThumbSizes { sm, md, lg } = thumb;
@@ -596,7 +593,6 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         close_hover,
         drop,
         drop_halo,
-        ..
     } = t;
     out.line("tab.height", len(*height));
     out.line("tab.height_large", len(*height_large));
@@ -657,7 +653,6 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
         drop,
         icon_selected,
         icon_selected_text,
-        ..
     } = t;
     for (k, v) in [
         ("gap", gap),
@@ -693,7 +688,7 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
 }
 
 fn float_lines(out: &mut Lines, t: &FloatTokens) {
-    let FloatTokens { border_width, radius, shadow, fill, border, blocked, title, title_text, title_muted, grip, focus, .. } = t;
+    let FloatTokens { border_width, radius, shadow, fill, border, blocked, title, title_text, title_muted, grip, focus } = t;
     out.line("float.border_width", len(*border_width));
     out.line("float.radius", len(*radius));
     let Elevation { offset: [x, y], blur, spread, alpha } = shadow;
@@ -738,7 +733,6 @@ fn title_bar_lines(out: &mut Lines, t: &TitleBarTokens) {
         breeze_close_hover_glyph,
         breeze_close_pressed,
         breeze_close_pressed_glyph,
-        ..
     } = t;
     out.line("title_bar.height", len(*height));
     out.line("title_bar.height_adwaita", len(*height_adwaita));
@@ -768,7 +762,7 @@ fn title_bar_lines(out: &mut Lines, t: &TitleBarTokens) {
 }
 
 fn panel_header_lines(out: &mut Lines, t: &PanelHeaderTokens) {
-    let PanelHeaderTokens { height, pad, gap, button, .. } = t;
+    let PanelHeaderTokens { height, pad, gap, button } = t;
     out.line("panel_header.height", len(*height));
     out.line("panel_header.pad", len(*pad));
     out.line("panel_header.gap", len(*gap));
@@ -776,7 +770,7 @@ fn panel_header_lines(out: &mut Lines, t: &PanelHeaderTokens) {
 }
 
 fn angle_dial_lines(out: &mut Lines, t: &AngleDialTokens) {
-    let AngleDialTokens { size, needle_width, needle_inset, hub, dead_zone, face, edge, needle, hub_fill, .. } = t;
+    let AngleDialTokens { size, needle_width, needle_inset, hub, dead_zone, face, edge, needle, hub_fill } = t;
     out.line("angle_dial.size", len(*size));
     out.line("angle_dial.needle_width", len(*needle_width));
     out.line("angle_dial.needle_inset", len(*needle_inset));
@@ -806,7 +800,6 @@ fn curve_lines(out: &mut Lines, t: &CurveTokens) {
         baseline,
         point_fill,
         point_stroke,
-        ..
     } = t;
     out.line("curve.min_side", len(*min_side));
     out.line("curve.max_side", len(*max_side));
@@ -827,7 +820,7 @@ fn curve_lines(out: &mut Lines, t: &CurveTokens) {
 }
 
 fn levels_lines(out: &mut Lines, t: &LevelsTokens) {
-    let LevelsTokens { min_width, max_width, row, thumb_width, thumb_height, hit, bar, thumb_edge, disabled_edge, ring, .. } = t;
+    let LevelsTokens { min_width, max_width, row, thumb_width, thumb_height, hit, bar, thumb_edge, disabled_edge, ring } = t;
     out.line("levels.min_width", len(*min_width));
     out.line("levels.max_width", len(*max_width));
     out.line("levels.row", len(*row));
@@ -841,9 +834,7 @@ fn levels_lines(out: &mut Lines, t: &LevelsTokens) {
 }
 
 fn gradient_editor_lines(out: &mut Lines, t: &GradientEditorTokens) {
-    let GradientEditorTokens {
-        ramp_height, inset, marker, pointer, diamond, hit, diamond_hit, tear_off, drop_line, edge, marker_edge, selected, ..
-    } = t;
+    let GradientEditorTokens { ramp_height, inset, marker, pointer, diamond, hit, diamond_hit, tear_off, drop_line, edge, marker_edge, selected } = t;
     out.line("gradient_editor.ramp_height", len(*ramp_height));
     out.line("gradient_editor.inset", len(*inset));
     out.line("gradient_editor.marker", len(*marker));
@@ -859,7 +850,7 @@ fn gradient_editor_lines(out: &mut Lines, t: &GradientEditorTokens) {
 }
 
 fn histogram_lines(out: &mut Lines, t: &HistogramTokens) {
-    let HistogramTokens { height, fill_alpha, backdrop_alpha, line, marker_alpha, marker_width, .. } = t;
+    let HistogramTokens { height, fill_alpha, backdrop_alpha, line, marker_alpha, marker_width } = t;
     out.line("histogram.height", len(*height));
     out.line("histogram.fill_alpha", len(*fill_alpha));
     out.line("histogram.backdrop_alpha", len(*backdrop_alpha));
@@ -869,7 +860,7 @@ fn histogram_lines(out: &mut Lines, t: &HistogramTokens) {
 }
 
 fn guide_lines(out: &mut Lines, g: &GuideTokens) {
-    let GuideTokens { width, hit, dash, gap, dot_gap, dot_radius, measure_cap, measure_pad_x, measure_pad_y, .. } = g;
+    let GuideTokens { width, hit, dash, gap, dot_gap, dot_radius, measure_cap, measure_pad_x, measure_pad_y } = g;
     out.line("guide.width", len(*width));
     out.line("guide.hit", len(*hit));
     out.line("guide.dash", len(*dash));
@@ -898,7 +889,6 @@ fn transform_lines(out: &mut Lines, t: &TransformTokens) {
         warp_anchor,
         warp_control,
         warp_reveal,
-        ..
     } = t;
     out.line("transform.line", len(*line));
     out.line("transform.hit", len(*hit));
@@ -918,7 +908,7 @@ fn transform_lines(out: &mut Lines, t: &TransformTokens) {
 }
 
 fn gradient_line_lines(out: &mut Lines, t: &GradientLineTokens) {
-    let GradientLineTokens { line, halo, end_ring, end_width, end_halo, stop, stop_ring, diamond, hit, click_slop, tear_off, dash, gap, .. } = t;
+    let GradientLineTokens { line, halo, end_ring, end_width, end_halo, stop, stop_ring, diamond, hit, click_slop, tear_off, dash, gap } = t;
     out.line("gradient_line.line", len(*line));
     out.line("gradient_line.halo", len(*halo));
     out.line("gradient_line.end_ring", len(*end_ring));
@@ -950,7 +940,6 @@ fn bezier_lines(out: &mut Lines, t: &BezierTokens) {
         close_anchor,
         close_ring,
         close_offset,
-        ..
     } = t;
     out.line("bezier.line", len(*line));
     out.line("bezier.selected_segment", len(*selected_segment));
@@ -969,14 +958,14 @@ fn bezier_lines(out: &mut Lines, t: &BezierTokens) {
 }
 
 fn ref_point_lines(out: &mut Lines, t: &RefPointTokens) {
-    let RefPointTokens { compact, large, dot, .. } = t;
+    let RefPointTokens { compact, large, dot } = t;
     out.line("ref_point.compact", len(*compact));
     out.line("ref_point.large", len(*large));
     out.line("ref_point.dot", len(*dot));
 }
 
 fn marquee_lines(out: &mut Lines, m: &MarqueeTokens) {
-    let MarqueeTokens { dash, speed, tick_ms, band_dash, band_gap, drawing_halo, click_slop, .. } = m;
+    let MarqueeTokens { dash, speed, tick_ms, band_dash, band_gap, drawing_halo, click_slop } = m;
     out.line("marquee.dash", len(*dash));
     out.line("marquee.speed", len(*speed));
     out.line("marquee.tick_ms", tick_ms.to_string());
@@ -987,7 +976,7 @@ fn marquee_lines(out: &mut Lines, m: &MarqueeTokens) {
 }
 
 fn readout_lines(out: &mut Lines, r: &ReadoutTokens) {
-    let ReadoutTokens { offset_x, offset_y, pad_x, pad_y, col_gap, row_gap, .. } = r;
+    let ReadoutTokens { offset_x, offset_y, pad_x, pad_y, col_gap, row_gap } = r;
     out.line("readout.offset_x", len(*offset_x));
     out.line("readout.offset_y", len(*offset_y));
     out.line("readout.pad_x", len(*pad_x));
@@ -997,7 +986,7 @@ fn readout_lines(out: &mut Lines, r: &ReadoutTokens) {
 }
 
 fn ruler_lines(out: &mut Lines, r: &RulerTokens) {
-    let RulerTokens { size, label, label_pitch, label_pad, step_min, tick_mid, tick_minor, .. } = r;
+    let RulerTokens { size, label, label_pitch, label_pad, step_min, tick_mid, tick_minor } = r;
     out.line("ruler.size", len(*size));
     out.line("ruler.label", len(*label));
     out.line("ruler.label_pitch", len(*label_pitch));
@@ -1042,7 +1031,7 @@ fn cursor_lines(out: &mut Lines, c: &CursorTokens) {
 }
 
 fn handle_lines(out: &mut Lines, h: &HandleTokens) {
-    let HandleTokens { size, stroke, halo, hit, .. } = h;
+    let HandleTokens { size, stroke, halo, hit } = h;
     out.line("handle.size", len(*size));
     out.line("handle.stroke", len(*stroke));
     out.line("handle.halo", len(*halo));
@@ -1099,7 +1088,6 @@ fn listbox_lines(out: &mut Lines, l: &ListboxTokens) {
         mark,
         group,
         separator,
-        ..
     } = l;
     by_size(out, "listbox.height", height);
     out.line("listbox.pad_x", len(*pad_x));
@@ -1120,21 +1108,21 @@ fn listbox_lines(out: &mut Lines, l: &ListboxTokens) {
 }
 
 fn empty_state_lines(out: &mut Lines, e: &EmptyStateTokens) {
-    let EmptyStateTokens { max_width, text, .. } = e;
+    let EmptyStateTokens { max_width, text } = e;
     out.line("empty_state.max_width", len(*max_width));
     out.line("empty_state.text", hex(*text));
 }
 
 fn notice_lines(out: &mut Lines, n: &NoticeTokens) {
-    let NoticeTokens { icon_gap, .. } = n;
+    let NoticeTokens { icon_gap, fg } = n;
     out.line("notice.icon_gap", len(*icon_gap));
-    for tone in Tone::ALL {
-        out.line(&format!("notice.{}.fg", tone.name()), hex(n.fg(tone)));
+    for (tone, color) in Tone::ALL.into_iter().zip(fg) {
+        out.line(&format!("notice.{}.fg", tone.name()), hex(*color));
     }
 }
 
 fn toast_lines(out: &mut Lines, t: &ToastTokens) {
-    let ToastTokens { width, pad, inset, gap, radius, fill, line, more, .. } = t;
+    let ToastTokens { width, pad, inset, gap, radius, fill, line, more, edge, title } = t;
     out.line("toast.width", len(*width));
     out.line("toast.pad", len(*pad));
     out.line("toast.inset.x", len(inset[0]));
@@ -1144,14 +1132,14 @@ fn toast_lines(out: &mut Lines, t: &ToastTokens) {
     out.line("toast.fill", hex(*fill));
     out.line("toast.line", hex(*line));
     out.line("toast.more", hex(*more));
-    for tone in Tone::ALL {
-        out.line(&format!("toast.{}.edge", tone.name()), hex(t.edge(tone)));
-        out.line(&format!("toast.{}.title", tone.name()), hex(t.title(tone)));
+    for (tone, (edge, title)) in Tone::ALL.into_iter().zip(edge.iter().zip(title)) {
+        out.line(&format!("toast.{}.edge", tone.name()), hex(*edge));
+        out.line(&format!("toast.{}.title", tone.name()), hex(*title));
     }
 }
 
 fn menu_lines(out: &mut Lines, m: &MenuTokens) {
-    let MenuTokens { min_width, shortcut_gap, scroll_strip, active_fill, active_text, shortcut, tints, .. } = m;
+    let MenuTokens { min_width, shortcut_gap, scroll_strip, active_fill, active_text, shortcut, tints } = m;
     out.line("menu.min_width", len(*min_width));
     out.line("menu.shortcut_gap", len(*shortcut_gap));
     out.line("menu.scroll_strip", len(*scroll_strip));
@@ -1166,7 +1154,7 @@ fn menu_lines(out: &mut Lines, m: &MenuTokens) {
 }
 
 fn kbd_lines(out: &mut Lines, k: &KbdTokens) {
-    let KbdTokens { height, pad_y, pad_x, label, radius, fill, text, .. } = k;
+    let KbdTokens { height, pad_y, pad_x, label, radius, fill, text } = k;
     out.line("kbd.height", len(*height));
     out.line("kbd.pad_y", len(*pad_y));
     out.line("kbd.pad_x", len(*pad_x));
@@ -1177,7 +1165,7 @@ fn kbd_lines(out: &mut Lines, k: &KbdTokens) {
 }
 
 fn progress_lines(out: &mut Lines, p: &ProgressTokens) {
-    let ProgressTokens { track_height, radius, track, fill, .. } = p;
+    let ProgressTokens { track_height, radius, track, fill } = p;
     out.line("progress.track_height", len(*track_height));
     out.line("progress.radius", len(*radius));
     out.line("progress.track", hex(*track));

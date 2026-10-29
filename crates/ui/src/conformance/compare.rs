@@ -8,7 +8,7 @@ use egui::{Context, RawInput, Style, Theme};
 
 use crate::direction::HasDirection;
 use crate::testing::dump::{Dump, DumpValue};
-use crate::testing::style_dump::style_dump;
+use crate::testing::style_dump::style_dump_into;
 use crate::theme::{UiTokens, tokens_in_mode};
 
 pub(super) type Rows = Vec<(String, String)>;
@@ -54,6 +54,7 @@ impl Side {
         let mut context = Dump::new();
         context.line("theme_preference", format!("{:?}", ctx.options(|o| o.theme_preference)));
         context.line("direction", format!("{:?}", ctx.direction()));
+        context.line("zoom_factor", ctx.zoom_factor());
         let active = if ctx.theme() == Theme::Dark { Mode::Dark } else { Mode::Light };
         Side { modes, active, context: rows(&context) }
     }
@@ -92,7 +93,11 @@ fn mode_rows(mode: Mode, ui: &Arc<UiTokens>, style: &Style) -> ModeRows {
         d.line("ui", &f.ui).line("ui_semibold", &f.ui_semibold).line("mono", &f.mono).line("optical_size", f.optical_size);
     });
 
-    let mut style_rows = rows(&style_dump(style));
+    let mut style_dump = Dump::new();
+    style_dump_into(&mut style_dump, style);
+    let mut style_rows = rows(&style_dump);
+    style_rows.push(("override_font_id".to_owned(), format!("{:?}", style.override_font_id)));
+    style_rows.push(("override_text_style".to_owned(), format!("{:?}", style.override_text_style)));
     style_rows.push(("interaction.tooltip_delay".to_owned(), style.interaction.tooltip_delay.dump_value()));
     style_rows.push(("right_to_left".to_owned(), style.right_to_left.to_string()));
 

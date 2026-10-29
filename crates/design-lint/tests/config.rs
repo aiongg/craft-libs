@@ -65,8 +65,8 @@ fn check_applies_exemptions_markers_and_counts() {
             ("src/panels/c.rs".to_owned(), "marker/unused"),
         ]
     );
-    assert_eq!((report.markers, report.exemptions), (2, 1));
-    assert!(report.summary_line().ends_with("2 markers, 1 exemption"), "{}", report.summary_line());
+    assert_eq!((report.markers, report.exemptions.len()), (2, 1));
+    assert!(report.summary_line().ends_with("2 markers, 1 exemption, 0 clippy allows"), "{}", report.summary_line());
 }
 
 #[test]
@@ -83,4 +83,72 @@ fn unused_markers_fail_only_when_denied() {
     assert_eq!(check(&config, &root).unwrap().exit_code(), 1);
     let parsed = Config::parse(Path::new(ORIGIN), "[lint]\npaths = [\"src\"]\ndeny-unused = true\n").unwrap();
     assert!(parsed.deny_unused);
+}
+
+fn tree(name: &str, files: &[(&str, &str)]) -> std::path::PathBuf {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    let _ = std::fs::remove_dir_all(&root);
+    for (rel, src) in files {
+        let path = root.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, src).unwrap();
+    }
+    root
+}
+
+#[test]
+fn exemptions_never_hide_parse_findings() {
+    let root = tree("exempt-parse", &[("src/canvas/broken.rs", "fn f( {")]);
+    let config = parse("[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/canvas\"\nreason = \"document units\"\n").unwrap();
+    let report = check(&config, &root).unwrap();
+    assert!(report.findings.iter().any(|f| f.rule == "parse"), "{:#?}", report.findings);
+    assert_eq!(report.exit_code(), 1);
+
+    let err = parse("[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src\"\nrules = [\"parse\"]\nreason = \"because\"\n").unwrap_err();
+    assert!(err.contains("parse"), "{err}");
+}
+
+#[test]
+fn unused_exemptions_are_reported() {
+    let root = tree("exempt-unused", &[("src/canvas/a.rs", "fn f(ui: &mut Ui) { ui.add_space(4.0); }\n"), ("src/panels/b.rs", "fn f() {}\n")]);
+    let text = "[lint]\npaths = [\"src\"]\n\
+        [[exempt]]\npath = \"src/canvas\"\nrules = [\"literal-size\"]\nreason = \"document units\"\n\
+        [[exempt]]\npath = \"src/panels\"\nreason = \"nothing to hide\"\n\
+        [[exempt]]\npath = \"src/gone\"\nreason = \"deleted directory\"\n";
+    let mut config = parse(text).unwrap();
+    let report = check(&config, &root).unwrap();
+    let found: Vec<(String, &str, String)> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.message.clone())).collect();
+    assert_eq!(found.len(), 2, "{found:#?}");
+    assert_eq!((found[0].0.as_str(), found[0].1), ("src/gone", "exemption/unused"));
+    assert!(found[0].2.contains("matches no checked file"), "{}", found[0].2);
+    assert_eq!((found[1].0.as_str(), found[1].1), ("src/panels", "exemption/unused"));
+    assert!(found[1].2.contains("silences no finding"), "{}", found[1].2);
+    assert!(report.findings.iter().all(|f| f.severity == craft_design_lint::Severity::Warning));
+    assert_eq!(report.exit_code(), 0);
+
+    config.deny_unused = true;
+    assert_eq!(check(&config, &root).unwrap().exit_code(), 1);
+}
+
+#[test]
+fn report_lists_each_exemption_with_its_rules_and_reason() {
+    let root = tree("exempt-list", &[("src/canvas/a.rs", "fn f(ui: &mut Ui) { ui.add_space(4.0); let _ = Color32::RED; }\n")]);
+    let text = "[lint]\npaths = [\"src\"]\n\
+        [[exempt]]\npath = \"src/canvas\"\nrules = [\"literal-size\", \"raw-colour\"]\nreason = \"document units\"\n";
+    let report = check(&parse(text).unwrap(), &root).unwrap();
+    let out = report.render();
+    assert!(out.contains("exemption: src/canvas (literal-size, raw-colour): document units\n"), "{out}");
+    assert!(out.lines().last().unwrap().starts_with("design-lint: no findings"), "{out}");
+    let all = parse("[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/canvas\"\nreason = \"document units\"\n").unwrap();
+    assert!(check(&all, &root).unwrap().render().contains("exemption: src/canvas (all rules): document units\n"));
+}
+
+#[test]
+fn summary_prints_after_the_findings() {
+    let root = tree("summary-order", &[("src/a.rs", "fn f(ui: &mut Ui) { ui.add_space(4.0); }\n")]);
+    let out = check(&Config::new(["src"]), &root).unwrap().render_with_table();
+    let finding = out.find("src/a.rs:1:").unwrap();
+    let table = out.find("findings\n").unwrap();
+    let line = out.rfind("design-lint: 1 finding").unwrap();
+    assert!(finding < table && table < line, "{out}");
 }

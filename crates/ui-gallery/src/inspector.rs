@@ -4,18 +4,15 @@
 //! It reads [`craft_ui::inspect`]: the primitives' records and the AccessKit tree of the
 //! previous pass. Its colours are the gallery's own tokens, taken before the story's scope.
 
-#![allow(
-    clippy::disallowed_methods,
-    clippy::disallowed_types,
-    reason = "the gallery chrome is a developer tool built on stock egui widgets, not product UI"
-)]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use craft_theme::TypeRole;
+use craft_ui::composites::SectionHeader;
+use craft_ui::controls::Checkbox;
 use craft_ui::inspect::{self, AccessTree, Record};
-use craft_ui::theme::{ToEgui, UiTokens};
+use craft_ui::primitives::Divider;
+use craft_ui::theme::{StrokeExt, ToEgui, UiTokens, scale};
 use egui::accesskit::{Action, NodeId, Role};
 use egui::{Color32, CornerRadius, Rect, RichText, ScrollArea, Stroke, StrokeKind, Ui};
 
@@ -65,6 +62,8 @@ pub struct Inspector {
     shown: Vec<Cell>,
     /// The smallest hit area the Size preset allows, from the last cell drawn.
     min_target: f32,
+    /// Whether each cell's section in the panel is open, by position; the first starts open.
+    cell_open: HashMap<usize, bool>,
 }
 
 impl Default for Inspector {
@@ -77,6 +76,7 @@ impl Default for Inspector {
             hovered: None,
             cells: Vec::new(),
             shown: Vec::new(),
+            cell_open: HashMap::new(),
             min_target: 0.0,
         }
     }
@@ -112,7 +112,7 @@ impl Inspector {
                 for part in band_parts(record.outer, record.content) {
                     painter.rect_filled(part, CornerRadius::ZERO, band);
                 }
-                painter.rect_stroke(record.content, CornerRadius::ZERO, Stroke::new(1.0, guide), StrokeKind::Inside); // design: allow(no stroke-width token; overlay outline of a measured box)
+                painter.rect_stroke(record.content, CornerRadius::ZERO, scale::Stroke::W1.egui(ui.ctx(), guide), StrokeKind::Inside);
             }
         }
 
@@ -124,15 +124,17 @@ impl Inspector {
                 let targets = tree.interactive(node).into_iter().filter(|id| tree.node(*id).is_some_and(|n| n.role() != Role::Label));
                 for bounds in targets.filter_map(|id| tree.bounds(id)) {
                     let small = bounds.width() < min_target || bounds.height() < min_target;
-                    let (color, width) = if small { (flagged, 2.0) } else { (normal, 1.0) };
-                    painter.rect_stroke(bounds, CornerRadius::ZERO, Stroke::new(width + 2.0, halo), StrokeKind::Inside);
-                    painter.rect_stroke(bounds, CornerRadius::ZERO, Stroke::new(width, color), StrokeKind::Inside);
+                    let (color, step) = if small { (flagged, scale::Stroke::W2) } else { (normal, scale::Stroke::W1) };
+                    let line = step.egui(ui.ctx(), color);
+                    let outline = Stroke::new(line.width + scale::Stroke::W2.width(ui.pixels_per_point()), halo);
+                    painter.rect_stroke(bounds, CornerRadius::ZERO, outline, StrokeKind::Inside);
+                    painter.rect_stroke(bounds, CornerRadius::ZERO, line, StrokeKind::Inside);
                 }
             }
             if let Some(bounds) = self.hovered.filter(|id| tree.walk(node).iter().any(|(n, _)| n == id)).and_then(|id| tree.bounds(id)) {
                 let marquee = c.overlay.marquee.to_egui();
                 painter.rect_filled(bounds, CornerRadius::ZERO, marquee.gamma_multiply(0.2));
-                painter.rect_stroke(bounds, CornerRadius::ZERO, Stroke::new(2.0, marquee), StrokeKind::Outside); // design: allow(no stroke-width token; overlay marquee of the hovered node)
+                painter.rect_stroke(bounds, CornerRadius::ZERO, scale::Stroke::W2.egui(ui.ctx(), marquee), StrokeKind::Outside);
             }
             let order = tree.focus_order(node);
             badges = order.iter().map(|id| label_of(&tree, *id)).collect();
@@ -143,7 +145,7 @@ impl Inspector {
                     let centre = if rtl { bounds.right_top() } else { bounds.left_top() };
                     let galley = painter.layout_no_wrap((i + 1).to_string(), font.clone(), text);
                     let radius = (galley.size().max_elem() / 2.0 + 2.0).max(7.0);
-                    painter.circle(centre, radius, fill, Stroke::new(1.0, halo)); // design: allow(no stroke-width token; overlay halo of a focus-order badge)
+                    painter.circle(centre, radius, fill, scale::Stroke::W1.egui(ui.ctx(), halo));
                     painter.galley(centre - galley.size() / 2.0, galley, text);
                 }
             }
@@ -154,26 +156,27 @@ impl Inspector {
     /// The end-side panel: layer switches and the AccessKit tree of each cell.
     pub fn panel(&mut self, ui: &mut Ui) {
         ui.heading("Inspect");
-        ui.checkbox(&mut self.layers.padding, "Padding");
-        ui.checkbox(&mut self.layers.hits, "Hit areas");
-        ui.checkbox(&mut self.layers.focus, "Focus order");
+        let _ = Checkbox::bool("Padding", &mut self.layers.padding).show(ui);
+        let _ = Checkbox::bool("Hit areas", &mut self.layers.hits).show(ui);
+        let _ = Checkbox::bool("Focus order", &mut self.layers.focus).show(ui);
         if self.min_target > 0.0 {
             ui.label(RichText::new(format!("Hit areas under {} pt (size.control.sm) are flagged.", self.min_target)).small());
         }
-        ui.separator();
+        Divider::horizontal().show(ui);
         self.hovered = None;
-        let Some(tree) = self.tree.clone() else {
+        let (Some(tree), Some(tokens)) = (self.tree.clone(), self.tokens.clone()) else {
             ui.label("Waiting for the AccessKit tree.");
             return;
         };
-        // design: allow(fallback before the first frame captures tokens; the inspector panel is debug chrome)
-        let warn = self.tokens.as_ref().map_or(Color32::RED, |t| t.color.status.warn.fg.to_egui());
+        let warn = tokens.color.status.warn.fg.to_egui();
         let cells = self.shown.clone();
         ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             for (i, cell) in cells.iter().enumerate() {
-                egui::CollapsingHeader::new(&cell.name).id_salt(("gallery.inspect.cell", i)).default_open(i == 0).show(ui, |ui| {
+                let mut open = *self.cell_open.entry(i).or_insert(i == 0);
+                let _ = SectionHeader::new(("gallery.inspect.cell", i), &cell.name).open(&mut open).show(ui, |ui| {
                     self.tree_rows(ui, &tree, cell.node, warn);
                 });
+                self.cell_open.insert(i, open);
             }
         });
     }

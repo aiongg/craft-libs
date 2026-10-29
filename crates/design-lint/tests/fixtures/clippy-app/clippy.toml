@@ -11,7 +11,7 @@ disallowed-methods = [
     { path = "egui::Ui::selectable_value", reason = "use craft_ui::controls::Segmented or craft_ui::list::ListRow", allow-invalid = true },
     # Text and numbers
     { path = "egui::Ui::text_edit_singleline", reason = "use craft_ui::controls::TextField", allow-invalid = true },
-    { path = "egui::Ui::text_edit_multiline", reason = "no multi-line craft_ui TextField yet: allow with a reason", allow-invalid = true },
+    { path = "egui::Ui::text_edit_multiline", reason = "use craft_ui::controls::TextField::multiline", allow-invalid = true },
     { path = "egui::Ui::drag_angle", reason = "use craft_ui::composites::AngleDial", allow-invalid = true },
     { path = "egui::Ui::drag_angle_tau", reason = "use craft_ui::composites::AngleDial", allow-invalid = true },
     # Separators, links, progress
@@ -67,7 +67,7 @@ disallowed-types = [
     { path = "egui::DragValue", reason = "use craft_ui::controls::NumberField", allow-invalid = true },
     { path = "egui::Slider", reason = "use craft_ui::controls::Slider", allow-invalid = true },
     { path = "egui::RangeSlider", reason = "use craft_ui::controls::RangeSlider", allow-invalid = true },
-    { path = "egui::TextEdit", reason = "use craft_ui::controls::TextField or SearchField (multi-line: allow with a reason until TextField has it)", allow-invalid = true },
+    { path = "egui::TextEdit", reason = "use craft_ui::controls::TextField (multi-line: TextField::multiline) or SearchField", allow-invalid = true },
     { path = "egui::ProgressBar", reason = "use craft_ui::controls::Progress", allow-invalid = true },
     { path = "egui::Spinner", reason = "use craft_ui::controls::Spinner", allow-invalid = true },
     { path = "egui::Hyperlink", reason = "use craft_ui::controls::Link", allow-invalid = true },

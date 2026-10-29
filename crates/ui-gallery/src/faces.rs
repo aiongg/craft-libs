@@ -7,21 +7,15 @@
 //! desktop the UI face picker also offers the OS's own interface face ("System",
 //! [`craft_ui::fonts::poll_system_ui_face`]) once it resolves.
 
-#![allow(
-    clippy::disallowed_methods,
-    clippy::disallowed_types,
-    reason = "the gallery chrome is a developer tool built on stock egui widgets, not product UI"
-)]
-
-use std::sync::Arc;
 use std::task::Poll;
 
 use craft_theme::{InterfaceFont, Size, TypeRole};
 use craft_ui::fonts::{
     Family, I18nScripts, SEMIBOLD, SYSTEM_UI_REGULAR, SYSTEM_UI_SEMIBOLD, SystemFonts, SystemUiFace, UiFonts, poll_system_ui_face,
 };
+use craft_ui::primitives::Divider;
 use craft_ui::story::{Args, Level, Story};
-use craft_ui::theme::{FontFamilies, ToEgui, Tokens, TokensOf, margin, scope, style_for, style_format, tabular};
+use craft_ui::theme::{FontFamilies, StrokeExt, ToEgui, Tokens, TokensOf, margin, scale, scope, style_format, tabular};
 use egui::text::LayoutJob;
 use egui::{Color32, FontData, FontFamily, RichText, Ui};
 
@@ -242,36 +236,50 @@ fn digits(ui: &mut Ui, families: &FontFamilies, mono: bool) {
     }
 }
 
-/// A mock inspector panel of stock egui widgets under the style generated from the tokens.
+/// A mock inspector panel drawn in the candidate's slots at `size`: the text of the rows, fields,
+/// list items and buttons of a property panel, with their frames from the tokens. craft-ui's own
+/// controls take their faces from the installed font stack, so they would show the same face in
+/// every column.
 fn inspector(ui: &mut Ui, families: &FontFamilies, size: Size) {
     let tokens = Tokens::of(ui);
-    let style = Arc::new(style_for(&tokens, families));
-    ui.label(RichText::new(format!("Inspector, {size:?}")).font(tokens.font(TypeRole::Caption)).color(tokens.color.text.muted.to_egui()));
+    let text = tokens.color.text.normal.to_egui();
+    let role = |role: TypeRole, color: Color32| style_format(families, tokens.typography.get(role), color);
+    let line = |ui: &mut Ui, content: &str, format: egui::TextFormat| {
+        ui.label(LayoutJob::single_section(content.to_owned(), format));
+    };
+    let caption = tokens.font(TypeRole::Caption);
+    ui.label(RichText::new(format!("Inspector, {size:?}")).font(caption).color(tokens.color.text.muted.to_egui()));
     let frame = egui::Frame::new()
         .fill(tokens.color.surface.panel.to_egui())
-        .stroke(egui::Stroke::new(1.0, tokens.color.line.border.to_egui())) // design: allow(no stroke-width token; hairline frame of the specimen panel)
+        .stroke(scale::Stroke::Hairline.egui(ui.ctx(), tokens.color.line.border.to_egui()))
         .corner_radius(tokens.radius.panel)
         .inner_margin(margin(tokens.space.pad.panel));
+    let boxed = |fill: Color32, edge: egui::Stroke| {
+        egui::Frame::new().fill(fill).stroke(edge).corner_radius(tokens.radius.control).inner_margin(margin(tokens.space.pad.control))
+    };
     frame.show(ui, |ui| {
-        ui.set_style(style);
-        ui.heading("Transform");
-        ui.separator();
+        line(ui, "Transform", role(TypeRole::Heading, text));
+        Divider::horizontal().show(ui);
         egui::Grid::new("inspector").num_columns(2).show(ui, |ui| {
-            for (label, value) in [("X", 1024.5_f64), ("Y", 768.25), ("Width", 111.0), ("Height", 1000.0)] {
-                ui.label(label);
-                let mut v = value;
-                ui.add(egui::DragValue::new(&mut v));
+            for (label, value) in [("X", "1024.50"), ("Y", "768.25"), ("Width", "111.00"), ("Height", "1000.00")] {
+                line(ui, label, role(TypeRole::Label, tokens.color.text.muted.to_egui()));
+                boxed(tokens.color.surface.sunken.to_egui(), egui::Stroke::NONE).show(ui, |ui| line(ui, value, tabular(role(TypeRole::Body, text))));
                 ui.end_row();
             }
         });
-        ui.separator();
+        Divider::horizontal().show(ui);
         for (i, item) in ["Duplicate", "Group", "Arrange"].into_iter().enumerate() {
-            let _ = ui.selectable_label(i == 1, item);
+            let selected = i == 1;
+            let (fill, type_role) =
+                if selected { (tokens.color.state.selected.to_egui(), TypeRole::BodyStrong) } else { (Color32::TRANSPARENT, TypeRole::Body) };
+            boxed(fill, egui::Stroke::NONE).show(ui, |ui| line(ui, item, role(type_role, text)));
         }
-        ui.separator();
+        Divider::horizontal().show(ui);
         ui.horizontal(|ui| {
-            let _ = ui.button("Cancel");
-            ui.add(egui::Button::new("Apply").fill(Color32::TRANSPARENT).selected(true));
+            let border = scale::Stroke::Hairline.egui(ui.ctx(), tokens.color.line.border.to_egui());
+            boxed(Color32::TRANSPARENT, border).show(ui, |ui| line(ui, "Cancel", role(TypeRole::Label, text)));
+            let on_strong = tokens.color.text.on_strong.to_egui();
+            boxed(tokens.color.accent.strong.to_egui(), egui::Stroke::NONE).show(ui, |ui| line(ui, "Apply", role(TypeRole::Label, on_strong)));
         });
     });
 }

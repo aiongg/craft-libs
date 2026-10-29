@@ -9,6 +9,7 @@
 mod appearance;
 mod browser;
 pub mod faces;
+mod fields;
 mod gallery;
 mod inspector;
 mod persist;

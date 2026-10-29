@@ -3,24 +3,23 @@
 //!
 //! The page draws with the gallery's own tokens; the swatches show the explained values.
 
-#![allow(
-    clippy::disallowed_methods,
-    clippy::disallowed_types,
-    reason = "the gallery chrome is a developer tool built on stock egui widgets, not product UI"
-)]
-
 use std::sync::Arc;
 
+use craft_theme::ControlSize;
 use craft_theme::{
     AppId, Appearance, ColorOrigin, ColorSource, ColorToken, Explained, FieldOrigin, Mode, PinLayer, Rgba, StatusKind, ThemeDef, TokenRef, explain,
 };
+use craft_ui::controls::{Checkbox, SearchField, ToggleButton};
 use craft_ui::direction;
-use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf};
-use egui::{CentralPanel, Grid, RichText, ScrollArea, Sense, Stroke, StrokeKind, Ui, vec2};
+use craft_ui::primitives::Divider;
+use craft_ui::theme::{Base, StrokeExt, ToEgui, Tokens, TokensOf, scale};
+use egui::{CentralPanel, Grid, RichText, ScrollArea, Sense, StrokeKind, Ui, vec2};
 
-// design: allow(a colour chip is a specimen of the colour, not a control; no size token fits)
+use crate::fields;
+
+// design: allow[literal-size/vec2](a colour chip is a specimen of the colour, not a control; no size token fits)
 const SWATCH: egui::Vec2 = vec2(28.0, 16.0);
-// design: allow(a colour chip is a specimen of the colour, not a control; no size token fits)
+// design: allow[literal-size/vec2](a colour chip is a specimen of the colour, not a control; no size token fits)
 const RAMP_SWATCH: egui::Vec2 = vec2(22.0, 22.0);
 
 /// The browser's filters, selection and last explanation.
@@ -50,7 +49,7 @@ impl Browser {
         });
         CentralPanel::default().show(ui, |ui| {
             self.filters(ui, base, mode, &explained);
-            ui.separator();
+            Divider::horizontal().show(ui);
             ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
                 self.color_table(ui, &explained);
                 ui.add_space(Tokens::of(ui).space.gap.section);
@@ -86,10 +85,14 @@ impl Browser {
             e.resolved.warnings.len()
         ));
         ui.horizontal_wrapped(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("Filter by path"));
-            ui.checkbox(&mut self.pinned_only, "Pinned");
-            ui.checkbox(&mut self.moved_only, "Moved by contrast");
-            ui.checkbox(&mut self.failing_only, "Failing pairs only");
+            let filter = SearchField::new("gallery.tokens.filter", "Filter by path", &self.filter, "Clear filter")
+                .placeholder("Filter by path")
+                .policy(fields::policy())
+                .show(ui);
+            fields::apply(&filter, &mut self.filter);
+            let _ = Checkbox::bool("Pinned", &mut self.pinned_only).show(ui);
+            let _ = Checkbox::bool("Moved by contrast", &mut self.moved_only).show(ui);
+            let _ = Checkbox::bool("Failing pairs only", &mut self.failing_only).show(ui);
         });
     }
 
@@ -149,7 +152,8 @@ impl Browser {
     }
 
     fn path_cell(&mut self, ui: &mut Ui, token: TokenRef) {
-        if ui.selectable_label(self.selected == Some(token), RichText::new(token.path()).monospace()).clicked() {
+        let mut on = self.selected == Some(token);
+        if ui.add(ToggleButton::new(token.path(), &mut on).size(ControlSize::Sm).id_salt(("gallery.tokens.path", token.path()))).clicked() {
             self.selected = Some(token);
         }
     }
@@ -167,12 +171,12 @@ impl Browser {
                 o.reads.and_then(|t| e.color(t))
             }),
         };
-        ui.separator();
+        Divider::horizontal().show(ui);
         ui.strong("Contrast pairs");
         pairs(ui, e, selected);
         let Some(o) = origin else { return };
         if let Some((ramp, step, toward)) = e.ramps.steps_of(o.source) {
-            ui.separator();
+            Divider::horizontal().show(ui);
             // An anchored token's steps are the ramp moved to its anchor.
             match o.anchoring {
                 Some(a) => {
@@ -271,6 +275,7 @@ fn pairs(ui: &mut Ui, e: &Explained, token: TokenRef) {
 /// numbers in bold.
 fn ramp_row(ui: &mut Ui, ramp: &[Rgba; 12], used: usize, toward: Option<usize>) {
     let mark = Tokens::of(ui).color.text.normal.to_egui();
+    let ring = scale::Stroke::W2.egui(ui.ctx(), mark);
     ui.horizontal(|ui| {
         for (i, &c) in ramp.iter().enumerate() {
             let step = i + 1;
@@ -278,7 +283,7 @@ fn ramp_row(ui: &mut Ui, ramp: &[Rgba; 12], used: usize, toward: Option<usize>) 
                 let rect = swatch(ui, c, RAMP_SWATCH);
                 let label = RichText::new(step.to_string()).small();
                 if step == used || toward == Some(step) {
-                    ui.painter().rect_stroke(rect.expand(2.0), 3.0, Stroke::new(2.0, mark), StrokeKind::Outside); // design: allow(no stroke-width token; the ring marks the used ramp step)
+                    ui.painter().rect_stroke(rect.expand(scale::Space::S2.px()), scale::Radius::R3.px(), ring, StrokeKind::Outside);
                     ui.label(label.strong());
                 } else {
                     ui.label(label);
@@ -292,7 +297,8 @@ fn ramp_row(ui: &mut Ui, ramp: &[Rgba; 12], used: usize, toward: Option<usize>) 
 fn swatch(ui: &mut Ui, color: Rgba, size: egui::Vec2) -> egui::Rect {
     let border = Tokens::of(ui).color.line.border.to_egui();
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-    ui.painter().rect(rect, 2.0, color.to_egui(), Stroke::new(1.0, border), StrokeKind::Inside); // design: allow(no stroke-width token; hairline around a colour chip)
+    let hairline = scale::Stroke::Hairline.egui(ui.ctx(), border);
+    ui.painter().rect(rect, scale::Radius::R2.px(), color.to_egui(), hairline, StrokeKind::Inside);
     rect
 }
 

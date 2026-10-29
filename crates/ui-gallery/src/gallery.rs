@@ -1,26 +1,26 @@
 //! The gallery app.
-#![allow(deprecated, reason = "the gallery's own pickers use craft_ui::ComboBox until they move to craft_ui::controls::Select")]
-#![allow(
-    clippy::disallowed_methods,
-    clippy::disallowed_types,
-    reason = "the gallery chrome is a developer tool built on stock egui widgets, not product UI"
-)]
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use craft_theme::{Mode, TextSize, TokenRef, builtins};
-use craft_ui::ComboBox;
+use craft_platform::appearance::SystemReader;
+use craft_theme::{ContrastChoice, Mode, ModeChoice, SystemAppearance, TextSize, TokenRef, builtins};
+use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
+use craft_ui::composites::PropertyRow;
+use craft_ui::controls::{Button, Checkbox, NumberField, SearchField, Segmented, Select, TextField, ToggleButton};
 use craft_ui::direction;
 use craft_ui::icons::{self, IconSet};
 use craft_ui::inspect;
+use craft_ui::list::{List, ListEvent, ListRow, TreeState};
+use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::primitives::Divider;
 use craft_ui::story::{ArgValue, Args, Level, Story, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
-use egui::containers::menu::{MenuButton, MenuConfig};
-use egui::{CentralPanel, Frame, Panel, PopupCloseBehavior, ScrollArea, Ui};
+use egui::{CentralPanel, Frame, Panel, ScrollArea, Ui};
 
-use crate::appearance::{Appearance, SCALE, builtin};
+use crate::appearance::{Appearance, MotionChoice, SCALE, builtin};
 use crate::browser::Browser;
 use crate::faces;
+use crate::fields;
 use crate::inspector::Inspector;
 use crate::persist::{self, KEY, Saved};
 
@@ -34,8 +34,13 @@ pub struct Gallery {
     story_ppp: Option<f32>,
     /// Whether the OS's interface face had resolved when the faces were last installed.
     system_face_applied: bool,
+    os: SystemReader,
+    /// The OS's answer `base` was resolved with.
+    os_applied: SystemAppearance,
     base: Base,
     selected: Option<String>,
+    /// The story tree's selection and keyboard position; groups can hold them too.
+    tree: Selection<Node>,
     filter: String,
     compare: bool,
     compare_themes: Vec<String>,
@@ -61,14 +66,18 @@ impl Gallery {
         if compare_themes.is_empty() {
             compare_themes.push(saved.appearance.theme.clone());
         }
+        let tree = tree_selection(&stories, selected.as_deref());
         Self {
             stories,
-            base: saved.appearance.base(),
+            base: saved.appearance.base(SystemAppearance::default()),
             appearance: saved.appearance,
             applied: None,
             story_ppp: None,
             system_face_applied: false,
+            os: SystemReader::for_egui(),
+            os_applied: SystemAppearance::default(),
             selected,
+            tree,
             filter: saved.filter,
             compare: saved.compare,
             compare_themes,
@@ -86,6 +95,7 @@ impl Gallery {
     pub fn select(&mut self, id: &str) {
         if self.stories.iter().any(|s| s.id == id) {
             self.selected = Some(id.to_owned());
+            self.tree = tree_selection(&self.stories, Some(id));
         }
     }
 
@@ -149,7 +159,7 @@ impl Gallery {
             (Some(ppp), Some(native)) if native > 0.0 => ppp / native,
             _ => self.appearance.zoom(),
         };
-        ctx.set_zoom_factor(zoom);
+        set_zoom(ctx, zoom);
     }
 
     fn show_panels(&mut self, ui: &mut Ui) {
@@ -160,7 +170,7 @@ impl Gallery {
         let inspecting = self.inspect && !self.tokens;
         inspect::set_enabled(&ctx, inspecting);
         if self.tokens {
-            self.browser.show(ui, &self.base, self.appearance.mode());
+            self.browser.show(ui, &self.base, self.appearance.mode(shown_mode(&ctx)));
             return;
         }
         direction::start_panel(&ctx, "gallery.tree").default_size(240.0).show(ui, |ui| self.tree(ui));
@@ -176,16 +186,18 @@ impl Gallery {
 
     fn apply_appearance(&mut self, ctx: &egui::Context) {
         let system_face = faces::system_face(ctx).is_some();
-        if self.applied.as_ref() != Some(&self.appearance) || system_face != self.system_face_applied {
+        let system = SystemAppearance::from(self.os.read_in(ctx));
+        if self.applied.as_ref() != Some(&self.appearance) || system_face != self.system_face_applied || system != self.os_applied {
             let previous = self.applied.replace(self.appearance.clone());
-            self.base = self.appearance.configure(ctx, previous.as_ref(), system_face != self.system_face_applied);
+            self.base = self.appearance.configure(ctx, previous.as_ref(), system_face != self.system_face_applied, system);
+            self.os_applied = system;
             self.system_face_applied = system_face;
             if previous.as_ref().is_none_or(|p| p.icon_set != self.appearance.icon_set) {
                 icons::set_active(ctx, self.appearance.icon_set());
             }
             // A story's scale stays until it stops asking.
             if self.story_ppp.is_none() {
-                ctx.set_zoom_factor(self.appearance.zoom());
+                set_zoom(ctx, self.appearance.zoom());
             }
         }
         install(ctx, &self.base);
@@ -195,30 +207,38 @@ impl Gallery {
         let a = &mut self.appearance;
         let tokens = &mut self.tokens;
         let inspect = &mut self.inspect;
+        let numbers = LocaleNumbers::of(ui);
         ui.horizontal_wrapped(|ui| {
-            ui.toggle_value(tokens, "Tokens");
-            ui.add_enabled_ui(!*tokens, |ui| ui.toggle_value(inspect, "Inspect"));
-            ui.separator();
-            let themes = builtins();
+            ui.add(ToggleButton::new("Tokens", tokens));
+            ui.add(ToggleButton::new("Inspect", inspect).enabled(!*tokens));
+            Divider::vertical().show(ui);
+            ui.label("Theme");
             let current = builtin(&a.theme).map_or(a.theme.as_str(), |t| t.name.as_str()).to_owned();
-            let label = ui.label("Theme");
-            ComboBox::from_id_salt("gallery.theme")
-                .selected_text(current)
-                .show_ui(ui, |ui| {
-                    for theme in themes {
-                        ui.selectable_value(&mut a.theme, theme.id.as_str().to_owned(), &theme.name);
-                    }
-                })
-                .response
-                .labelled_by(label.id);
-            segmented(ui, "Mode", &mut a.dark, [("Light", false), ("Dark", true)]);
-            segmented(ui, "Contrast", &mut a.high_contrast, [("Standard", false), ("High", true)]);
+            let mut theme = Select::new("gallery.theme", "Theme", &mut a.theme).placeholder(current).fit(true);
+            for t in builtins() {
+                theme = theme.option(t.id.as_str().to_owned(), &t.name);
+            }
+            let _ = theme.policy(fields::policy()).show(ui);
+            segmented(ui, "Mode", &mut a.mode, [("Light", ModeChoice::Light), ("Dark", ModeChoice::Dark), ("System", ModeChoice::System)]);
+            segmented(
+                ui,
+                "Contrast",
+                &mut a.contrast,
+                [("Standard", ContrastChoice::Standard), ("High", ContrastChoice::High), ("System", ContrastChoice::System)],
+            );
             segmented(ui, "Size", &mut a.comfortable, [("Compact", false), ("Comfortable", true)]);
             ui.label("Text");
+            let mut text = Segmented::new("gallery.text_size", "Text", &mut a.text_size);
             for (i, size) in TextSize::ALL.iter().enumerate() {
-                ui.selectable_value(&mut a.text_size, i, text_size_name(*size));
+                text = text.item(i, text_size_name(*size));
             }
-            ui.checkbox(&mut a.reduced_motion, "Reduced motion");
+            text.show(ui);
+            segmented(
+                ui,
+                "Reduced motion",
+                &mut a.motion,
+                [("Off", MotionChoice::Full), ("On", MotionChoice::Reduced), ("System", MotionChoice::System)],
+            );
             segmented(ui, "Direction", &mut a.rtl, [("LTR", false), ("RTL", true)]);
             if faces::available() {
                 let ui_shown = faces::shown_ui_face(ui.ctx(), &a.ui_face);
@@ -226,49 +246,94 @@ impl Gallery {
                 let mono_shown = faces::shown_mono_face(&a.mono_face);
                 face_picker(ui, "Mono face", "gallery.mono_face", &mut a.mono_face, mono_shown, faces::MONO_FACES);
             }
-            let label = ui.label("Icons");
-            ComboBox::from_id_salt("gallery.icon_set")
-                .selected_text(a.icon_set().title())
-                .show_ui(ui, |ui| {
-                    for set in IconSet::ALL {
-                        ui.selectable_value(&mut a.icon_set, set.id().to_owned(), set.title());
-                    }
-                })
-                .response
-                .labelled_by(label.id);
-            let label = ui.label("Scale");
-            ui.add(egui::Slider::new(&mut a.scale, SCALE).suffix("%")).labelled_by(label.id);
+            ui.label("Icons");
+            let mut icon_set = a.icon_set().id().to_owned();
+            let mut icons = Select::new("gallery.icon_set", "Icons", &mut icon_set).fit(true);
+            for set in IconSet::ALL {
+                icons = icons.option(set.id().to_owned(), set.title());
+            }
+            if icons.policy(fields::policy()).show(ui).response.changed() {
+                a.icon_set = icon_set;
+            }
+            ui.label("Scale");
+            let scale = NumberField::new("gallery.scale", "Scale", a.scale, &numbers)
+                .range(SCALE)
+                .decimals(0..=0)
+                .unit(Unit::new("{n}%"))
+                .popup_slider("Scale slider")
+                .policy(fields::policy())
+                .show(ui);
+            let mut percent = f64::from(a.scale);
+            if fields::apply(&scale, &mut percent) {
+                a.scale = percent.round() as u32;
+            }
         });
     }
 
+    /// The story tree with its filter field.
     fn tree(&mut self, ui: &mut Ui) {
-        ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("Filter stories"));
+        let filter = SearchField::new("gallery.filter", "Filter stories", &self.filter, "Clear filter")
+            .placeholder("Filter stories")
+            .policy(fields::policy())
+            .show(ui);
+        fields::apply(&filter, &mut self.filter);
         let filter = self.filter.to_lowercase();
-        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        let ctx = ui.ctx().clone();
+        let mut open = TreeState::load(&ctx, "gallery.tree");
+        let seeded = egui::Id::NULL.with("gallery.tree.seeded");
+        if !ctx.data_mut(|d| d.get_persisted::<bool>(seeded)).unwrap_or(false) {
             for level in Level::ALL {
-                let mut components: Vec<&'static str> = Vec::new();
-                for story in self.stories.iter().filter(|s| s.level == level && matches(s, &filter)) {
-                    if !components.contains(&story.component) {
-                        components.push(story.component);
-                    }
-                }
-                if components.is_empty() {
+                open.set(&Node::Level(level), true);
+            }
+            ctx.data_mut(|d| d.insert_persisted(seeded, true));
+        }
+        // A filter shows every match, whatever the groups' state.
+        let filtering = !filter.is_empty();
+        let mut rows: Vec<RowInfo<Node>> = Vec::new();
+        let mut groups: Vec<Node> = Vec::new();
+        for (level, components) in nav(&self.stories, &filter) {
+            let level_open = filtering || open.is_open(&Node::Level(level));
+            rows.push(RowInfo::group(Node::Level(level), level_open));
+            groups.push(Node::Level(level));
+            for component in components {
+                let key = Node::Component(level, component);
+                let component_open = filtering || open.is_open(&key);
+                groups.push(key.clone());
+                if !level_open {
                     continue;
                 }
-                egui::CollapsingHeader::new(level.title()).id_salt(("gallery.level", level.slug())).default_open(true).show(ui, |ui| {
-                    for component in components {
-                        ui.collapsing(component, |ui| {
-                            for story in self.stories.iter().filter(|s| s.level == level && s.component == component && matches(s, &filter)) {
-                                let is_selected = self.selected.as_deref() == Some(story.id);
-                                if ui.selectable_label(is_selected, story.name).clicked() {
-                                    self.selected = Some(story.id.to_owned());
-                                }
-                            }
-                        });
+                rows.push(RowInfo::group(key, component_open).at_depth(1));
+                if component_open {
+                    for story in self.stories.iter().filter(|s| s.level == level && s.component == component && matches(s, &filter)) {
+                        rows.push(RowInfo::leaf(Node::Story(story.id)).at_depth(2));
                     }
-                });
+                }
             }
-        });
+        }
+        let stories = &self.stories;
+        let out = List::new("gallery.stories", "Stories", rows.as_slice())
+            .tree(true)
+            .selection(&mut self.tree)
+            .mode(SelectionMode::Single)
+            .allow_empty(false)
+            .show(ui, |_, node| ListRow::new(node.clone(), node.title(stories)));
+        for event in out.events {
+            match event {
+                ListEvent::Selection(change) => {
+                    if let Some(Node::Story(id)) = change.row {
+                        self.selected = Some(id.to_owned());
+                    }
+                }
+                ListEvent::Open(change) => open.apply(&change, groups.iter()),
+                ListEvent::Activate(Node::Story(id)) => self.selected = Some(id.to_owned()),
+                ListEvent::Activate(group) => {
+                    let now = open.is_open(&group);
+                    open.set(&group, !now);
+                }
+                _ => {}
+            }
+        }
+        open.store(&ctx);
     }
 
     fn current(&self) -> Option<Story> {
@@ -286,66 +351,68 @@ impl Gallery {
         let Some(story) = self.current() else {
             return;
         };
-        if ui.button("Reset args").clicked() {
+        if ui.add(Button::new("Reset args")).clicked() {
             self.args.insert(story.id.to_owned(), story.defaults());
             self.saved_args.remove(story.id);
         }
-        ui.separator();
+        Divider::horizontal().show(ui);
+        let numbers = LocaleNumbers::of(ui);
         let args = self.args_of(&story);
-        egui::Grid::new(("gallery.args", story.id)).num_columns(2).show(ui, |ui| {
-            for arg in args.iter_mut() {
-                let label = ui.label(arg.name);
-                let control = match &mut arg.value {
-                    ArgValue::Bool(b) => ui.checkbox(b, ""),
-                    ArgValue::Choice { options, index } => {
-                        let shown = options.get(*index).copied().unwrap_or("");
-                        ComboBox::from_id_salt(arg.name)
-                            .selected_text(shown)
-                            .show_ui(ui, |ui| {
-                                for (i, option) in options.iter().enumerate() {
-                                    ui.selectable_value(index, i, *option);
-                                }
-                            })
-                            .response
+        for arg in args.iter_mut() {
+            let id = ("gallery.arg", story.id, arg.name);
+            PropertyRow::word(arg.name).show(ui, |ui, _| match &mut arg.value {
+                ArgValue::Bool(b) => Checkbox::bool("", b).show(ui).response,
+                ArgValue::Choice { options, index } => {
+                    let mut select = Select::new(id, arg.name, index).fit(true);
+                    for (i, option) in options.iter().enumerate() {
+                        select = select.option(i, *option);
                     }
-                    ArgValue::Text(t) => ui.text_edit_singleline(t),
-                    ArgValue::Number { value, min, max } => ui.add(egui::DragValue::new(value).range(*min..=*max).speed((*max - *min) / 200.0)),
-                };
-                control.labelled_by(label.id);
-                ui.end_row();
-            }
-        });
+                    select.policy(fields::policy()).show(ui).response
+                }
+                ArgValue::Text(t) => {
+                    let edit = TextField::new(id, arg.name, t).policy(fields::policy()).show(ui);
+                    fields::apply(&edit, t);
+                    edit.response
+                }
+                ArgValue::Number { value, min, max } => {
+                    let edit = NumberField::new(id, arg.name, *value, &numbers)
+                        .range(*min..=*max)
+                        .step((*max - *min) / 200.0)
+                        .policy(fields::policy())
+                        .show(ui);
+                    fields::apply(&edit, value);
+                    edit.response
+                }
+            });
+        }
     }
 
     fn centre(&mut self, ui: &mut Ui, inspecting: bool) {
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.compare, false, "Canvas");
-            ui.selectable_value(&mut self.compare, true, "Compare");
+        ui.horizontal_wrapped(|ui| {
+            Segmented::new("gallery.view", "View", &mut self.compare).item(false, "Canvas").item(true, "Compare").show(ui);
             if self.compare {
-                // Stays open while themes are ticked; a click outside closes it.
-                let config = MenuConfig::new().close_behavior(PopupCloseBehavior::CloseOnClickOutside);
-                MenuButton::new("Themes").config(config).ui(ui, |ui| {
-                    for theme in builtins() {
-                        let id = theme.id.as_str();
-                        let mut on = self.compare_themes.iter().any(|t| t == id);
-                        if ui.checkbox(&mut on, &theme.name).changed() {
-                            if on {
-                                self.compare_themes.push(id.to_owned());
-                            } else {
-                                self.compare_themes.retain(|t| t != id);
-                            }
+                ui.label("Themes");
+                for theme in builtins() {
+                    let id = theme.id.as_str();
+                    let mut on = self.compare_themes.iter().any(|t| t == id);
+                    if Checkbox::bool(&theme.name, &mut on).show(ui).response.changed() {
+                        if on {
+                            self.compare_themes.push(id.to_owned());
+                        } else {
+                            self.compare_themes.retain(|t| t != id);
                         }
                     }
-                });
-                ui.checkbox(&mut self.compare_high, "Show high contrast variants");
+                }
+                let _ = Checkbox::bool("Show high contrast variants", &mut self.compare_high).show(ui);
             }
         });
-        ui.separator();
+        Divider::horizontal().show(ui);
         let Some(story) = self.current() else {
             ui.label("No story selected.");
             return;
         };
         let appearance = self.appearance.clone();
+        let system = self.os_applied;
         let themes = self.compare_themes.clone();
         let compare = self.compare;
         let high = self.compare_high;
@@ -355,7 +422,7 @@ impl Gallery {
             if compare {
                 compare_grid(ui, &story, args, &appearance, &themes, high, inspector);
             } else {
-                canvas(ui, &story, args, &appearance, inspector);
+                canvas(ui, &story, args, &appearance, system, inspector);
             }
         });
     }
@@ -394,6 +461,24 @@ fn args_of<'a>(args: &'a mut HashMap<String, Args>, saved: &HashMap<String, Vec<
     })
 }
 
+/// The navigation's levels in their order, each with the components that have a story matching
+/// `filter` (lowercase), sorted by name ignoring case, whatever the registration order.
+fn nav(stories: &[Story], filter: &str) -> Vec<(Level, Vec<&'static str>)> {
+    Level::ALL
+        .into_iter()
+        .filter_map(|level| {
+            let mut components: Vec<&'static str> = Vec::new();
+            for story in stories.iter().filter(|s| s.level == level && matches(s, filter)) {
+                if !components.contains(&story.component) {
+                    components.push(story.component);
+                }
+            }
+            components.sort_by_cached_key(|c| c.to_lowercase());
+            (!components.is_empty()).then_some((level, components))
+        })
+        .collect()
+}
+
 fn matches(story: &Story, filter: &str) -> bool {
     filter.is_empty() || story.id.contains(filter) || story.component.to_lowercase().contains(filter) || story.name.to_lowercase().contains(filter)
 }
@@ -410,31 +495,75 @@ fn text_size_name(size: TextSize) -> &'static str {
 /// A face picker showing `shown`, the face in use for the stored pick `value`; choosing an option
 /// stores it.
 fn face_picker(ui: &mut Ui, label: &str, id: &str, value: &mut String, shown: &str, options: &[&str]) {
-    let label = ui.label(label);
-    ComboBox::from_id_salt(id)
-        .selected_text(shown)
-        .show_ui(ui, |ui| {
-            for option in options {
-                if ui.selectable_label(*option == shown, *option).clicked() {
-                    (*option).clone_into(value);
-                }
-            }
-        })
-        .response
-        .labelled_by(label.id);
-}
-
-/// A labelled pair of exclusive choices.
-fn segmented(ui: &mut Ui, label: &str, value: &mut bool, options: [(&str, bool); 2]) {
     ui.label(label);
-    for (name, option) in options {
-        ui.selectable_value(value, option, name);
+    let mut pick = shown.to_owned();
+    let mut select = Select::new(id, label, &mut pick).fit(true);
+    for option in options {
+        select = select.option((*option).to_owned(), *option);
+    }
+    if select.policy(fields::policy()).show(ui).response.changed() {
+        *value = pick;
     }
 }
 
+/// A labelled set of exclusive choices.
+fn segmented<T: PartialEq + Clone, const N: usize>(ui: &mut Ui, label: &str, value: &mut T, options: [(&str, T); N]) {
+    ui.label(label);
+    let mut segmented = Segmented::new(("gallery.segmented", label), label, value);
+    for (name, option) in options {
+        segmented = segmented.item(option, name);
+    }
+    segmented.show(ui);
+}
+
+/// The mode `ctx` shows, which is the OS's answer while the mode choice is System.
+fn shown_mode(ctx: &egui::Context) -> Mode {
+    match ctx.theme() {
+        egui::Theme::Dark => Mode::Dark,
+        egui::Theme::Light => Mode::Light,
+    }
+}
+
+/// Sets the context's zoom factor. The gallery is the host of the craft-ui showcase: its interface
+/// scale (the appearance bar's, or a story's request) is a window setting that craft-ui has no
+/// token for.
+fn set_zoom(ctx: &egui::Context, zoom: f32) {
+    // design: allow[style-mutation](the gallery's interface scale is host configuration; craft-ui has no zoom setting)
+    ctx.set_zoom_factor(zoom);
+}
+
+/// A row of the story tree.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum Node {
+    Level(Level),
+    Component(Level, &'static str),
+    Story(&'static str),
+}
+
+impl Node {
+    fn title(&self, stories: &[Story]) -> String {
+        match self {
+            Node::Level(level) => level.title().to_owned(),
+            Node::Component(_, component) => (*component).to_owned(),
+            Node::Story(id) => stories.iter().find(|s| s.id == *id).map_or_else(|| (*id).to_owned(), |s| s.name.to_owned()),
+        }
+    }
+}
+
+/// The tree selection for the story `id`.
+fn tree_selection(stories: &[Story], id: Option<&str>) -> Selection<Node> {
+    id.and_then(|id| stories.iter().find(|s| s.id == id)).map_or_else(Selection::default, |s| Selection::only(Node::Story(s.id)))
+}
+
 /// The story on `surface.background` under the bar's appearance.
-fn canvas(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, inspector: Option<&mut Inspector>) {
-    scope(ui, |o| appearance.overrides(o), |ui| framed(ui, story, args, inspector, "Canvas", appearance.rtl));
+fn canvas(ui: &mut Ui, story: &Story, args: &mut Args, appearance: &Appearance, system: SystemAppearance, inspector: Option<&mut Inspector>) {
+    let shown = shown_mode(ui.ctx());
+    let overrides = |o: &mut craft_ui::theme::Overrides| {
+        appearance.overrides(o);
+        o.mode = Some(appearance.mode(shown));
+        o.contrast = Some(appearance.contrast(system));
+    };
+    scope(ui, overrides, |ui| framed(ui, story, args, inspector, "Canvas", appearance.rtl));
 }
 
 /// The story in its frame, with the inspector over it when there is one.
@@ -503,5 +632,25 @@ fn compare_grid(
             }
         });
         ui.add_space(Tokens::of(ui).space.gap.section);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_nav_lists_each_levels_components_alphabetically() {
+        let mut stories = registry();
+        stories.extend(faces::stories());
+        let nav = nav(&stories, "");
+        assert!(!nav.is_empty());
+        for (level, components) in &nav {
+            let keys: Vec<String> = components.iter().map(|c| c.to_lowercase()).collect();
+            assert!(keys.is_sorted(), "{level:?}: {components:?}");
+        }
+        let levels: Vec<Level> = nav.iter().map(|(level, _)| *level).collect();
+        let order: Vec<Level> = Level::ALL.into_iter().filter(|l| levels.contains(l)).collect();
+        assert_eq!(levels, order);
     }
 }
