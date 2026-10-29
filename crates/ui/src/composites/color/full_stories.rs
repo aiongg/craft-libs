@@ -110,13 +110,14 @@ fn warnings(color: Srgba) -> Vec<ColorWarning> {
 fn show_full(ui: &mut Ui, args: &mut Args) {
     let numbers = LocaleNumbers::from_tag("en");
     let start = Srgba::rgb(0.2, 0.55, 0.8);
-    crate::controls::slider::with_values(ui, "color-full", [(start, start, String::new())], |ui, state| {
-        let (color, before, last) = &mut state[0];
+    crate::controls::slider::with_values(ui, "color-full", [(start, start, String::new(), false)], |ui, state| {
+        let (color, before, last, web) = &mut state[0];
         let models = models(args.bool("CMYK (host model)"), args.bool("OKLCH"));
         let mut picker = ColorPicker::new("color-full", "Foreground colour", *color, &numbers)
             .layout(ColorPickerLayout::Full)
             .models(models)
             .alpha(args.bool("alpha"))
+            .web_colors(web)
             .enabled(!args.bool("disabled"));
         if args.bool("compare") {
             picker = picker.compare(start);

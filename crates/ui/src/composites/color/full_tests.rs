@@ -58,6 +58,8 @@ struct Rig {
     /// The area mode the host holds.
     mode: AreaMode,
     compare: Option<Srgba>,
+    /// The host's Only Web Colors setting, when the picker offers it.
+    web: Option<bool>,
     warnings: Vec<(&'static str, Srgba)>,
     /// Keeps the colour in 8 bits, as a host with `Rgba` colours does.
     eight_bit: bool,
@@ -84,6 +86,7 @@ impl Rig {
             models: vec![&HsbModel, &RgbModel, &LabModel, &Cmyk],
             mode: AreaMode::Hue,
             compare: None,
+            web: None,
             warnings: Vec::new(),
             eight_bit: false,
             scoped: false,
@@ -120,6 +123,10 @@ impl Rig {
                 if let Some(current) = self.compare {
                     picker = picker.compare(current);
                 }
+                let mut web = self.web;
+                if let Some(web) = web.as_mut() {
+                    picker = picker.web_colors(web);
+                }
                 for (tip, nearest) in &self.warnings {
                     picker = picker.warning(ColorWarning::new(*tip, *nearest));
                 }
@@ -129,6 +136,7 @@ impl Rig {
                 };
                 self.picker = picked.edit.response.id;
                 event = picked.edit.event;
+                self.web = web;
             });
         });
         if let Some(event) = event {
@@ -634,4 +642,103 @@ fn a_picker_shown_again_without_focus_on_open_leaves_the_focus() {
     rig.shown = true;
     rig.settle();
     assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"), "a dialog's picker takes it when it opens");
+}
+
+#[test]
+fn two_warning_chips_in_one_ui_keep_their_own_clicks() {
+    use crate::composites::ColorWarningChip;
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut time = 0.0;
+    // Each chip's rect, id and click in the last frame.
+    let mut frame = |events: Vec<Event>| {
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(300.0, 200.0))), time: Some(time), events, ..Default::default() };
+        time += 1.0 / 60.0;
+        let mut seen = Vec::new();
+        let output = ctx.run_ui(input, |ui| {
+            ui.horizontal(|ui| {
+                for salt in ["first", "second"] {
+                    let warning = ColorWarning::new("Not a web colour", Srgba::rgb(0.2, 0.4, 0.6));
+                    let response = ColorWarningChip::new(salt, warning).show(ui);
+                    seen.push((response.rect, response.id, response.clicked()));
+                }
+            });
+        });
+        output.drop_without_applying_deltas();
+        seen
+    };
+    let seen = frame(vec![]);
+    assert_ne!(seen[0].1, seen[1].1, "chips with different salts have different ids");
+    let at = seen[1].0.center();
+    let button = |pressed| Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(vec![Event::PointerMoved(at)]);
+    frame(vec![Event::PointerMoved(at), button(true)]);
+    let seen = frame(vec![Event::PointerMoved(at), button(false)]);
+    let clicked = [seen[0].2, seen[1].2];
+    assert_eq!(clicked, [false, true], "a click on the second chip is the second's");
+}
+
+fn is_web(color: Srgba) -> bool {
+    color.to_rgba().0[..3].iter().all(|c| c % 0x33 == 0)
+}
+
+#[test]
+fn only_web_colors_snaps_every_control_and_reports_the_snapped_model_values_in_hsb_mode() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.web = Some(true);
+    rig.settle();
+    rig.events.clear();
+    // The area takes the nearest web colour under the pointer; the report keeps HSB values.
+    let area = rig.rect(Role::Slider, AreaMode::Hue.name());
+    for (fx, fy) in [(0.3, 0.2), (0.77, 0.61), (0.52, 0.93)] {
+        rig.click(pos2(area.left() + fx * area.width(), area.top() + fy * area.height()));
+        assert!(is_web(rig.color), "{}", hex(rig.color));
+    }
+    let picked = rig.events.iter().rev().find_map(|e| e.value()).expect("the clicks reported");
+    assert_eq!(picked.model.map(|m| m.model), Some("hsb"), "the area's own values go out with the snapped colour");
+    // The strip, the hex field and a number field snap as well.
+    let strip = rig.rect(Role::Slider, "Hue");
+    rig.click(strip.center() + vec2(0.0, 17.0));
+    assert!(is_web(rig.color), "{}", hex(rig.color));
+    rig.tab_to("Hex colour");
+    rig.type_text("123456");
+    assert_eq!(hex(rig.color), "#003366");
+    rig.tab_to("Red");
+    rig.type_text("100");
+    assert!(is_web(rig.color) && rig.color.to_rgba().0[0] == 0x66, "{}", hex(rig.color));
+}
+
+#[test]
+fn the_only_web_colors_box_toggles_by_pointer_and_keyboard_and_snaps_when_it_turns_on() {
+    let mut rig = Rig::new(Rgba::rgb(0x12, 0x34, 0x56).into());
+    assert!(rig.nodes(Role::CheckBox, "Only Web Colors").is_empty(), "the box is offered only when the host holds the setting");
+    rig.web = Some(false);
+    rig.settle();
+    rig.events.clear();
+    assert_eq!(rig.node(Role::CheckBox, "Only Web Colors").toggled(), Some(Toggled::False));
+
+    let at = rig.rect(Role::CheckBox, "Only Web Colors").center();
+    rig.click(at);
+    assert_eq!(rig.web, Some(true));
+    assert_eq!(hex(rig.color), "#003366", "turning it on snaps the colour at once");
+    assert!(matches!(rig.events.as_slice(), [EditEvent::Set { .. }]), "{:?}", rig.events);
+    rig.click(at);
+    assert_eq!(rig.web, Some(false));
+    assert_eq!(hex(rig.color), "#003366", "turning it off keeps the colour");
+
+    // Ctrl+Tab (Tab only visits fields in a dialog) reaches the box and Space toggles it.
+    rig.ctx.memory_mut(|m| m.request_focus(rig.field));
+    rig.frame(vec![]);
+    let ctrl = Modifiers { ctrl: true, ..Modifiers::NONE };
+    for _ in 0..40 {
+        if rig.focused_name().as_deref() == Some("Only Web Colors") {
+            break;
+        }
+        rig.frame(vec![Event::Key { key: Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: ctrl }]);
+        rig.frame(vec![]);
+    }
+    assert_eq!(rig.focused_name().as_deref(), Some("Only Web Colors"));
+    rig.key(Key::Space);
+    assert_eq!(rig.web, Some(true));
 }

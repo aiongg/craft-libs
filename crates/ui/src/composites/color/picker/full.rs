@@ -9,7 +9,7 @@ use egui::{
 
 use super::{ColorPicker, Inner, Parts, PickerOp, RowPart, channel_name, texts, unit_of};
 use crate::composites::color::{AreaMode, ColorArea, ColorStrip};
-use crate::controls::{Button, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
+use crate::controls::{Button, Checkbox, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
 use crate::direction;
 use crate::edit::ops;
 use crate::icons::{self, Icon, IconSize};
@@ -116,6 +116,9 @@ impl ColorPicker<'_> {
                 ui.set_width(side);
                 let visible: Vec<&dyn ColorModel> = models.iter().copied().chain([mode.model()]).collect();
                 self.area_and_strip(ui, mode, &visible, inner, translate, parts, Vec2::splat(style.area), style.strip_full);
+                if self.web_colors.is_some() {
+                    only_web_colors(ui, inner.enabled, translate, parts);
+                }
                 if self.alpha {
                     self.alpha_row(ui, inner, translate, parts);
                 }
@@ -248,6 +251,19 @@ impl ColorPicker<'_> {
     }
 }
 
+/// The "Only Web Colors" check box; switching it on sets the snapped colour.
+fn only_web_colors(ui: &mut Ui, enabled: bool, translate: &dyn Fn(&str) -> String, parts: &mut Parts<'_>) {
+    let mut on = parts.web.get();
+    let changed = Checkbox::bool(translate(texts::ONLY_WEB_COLORS), &mut on).id_salt("only-web-colors").enabled(enabled).show(ui).response.changed();
+    if changed {
+        parts.web.set(on);
+        let color = parts.value().color;
+        if on && !(parts.constrain)(color).same_rgb8(color) {
+            parts.edits.input(super::Input::Click(color));
+        }
+    }
+}
+
 /// One grid row: `label` in a cell `cell` wide at the reading start, then `field` in a box
 /// `width` wide.
 fn channel_row<R>(ui: &mut Ui, cell: f32, width: f32, height: f32, gap: f32, label: impl FnOnce(&mut Ui), field: impl FnOnce(&mut Ui) -> R) -> R {
@@ -328,7 +344,7 @@ fn fill(shapes: &mut Vec<Shape>, swatch: &SwatchStyle, rect: Rect, color: Srgba)
 /// use craft_ui::composites::{ColorWarning, ColorWarningChip};
 /// # egui::__run_test_ui(|ui| { let mut color = Srgba::rgb(1.0, 0.0, 1.0);
 /// let warning = ColorWarning::new("Out of gamut for printing", Srgba::rgb(0.9, 0.1, 0.9));
-/// if ColorWarningChip::new(warning.clone()).show(ui).clicked() {
+/// if ColorWarningChip::new("warning", warning.clone()).show(ui).clicked() {
 ///     color = warning.nearest();
 /// }
 /// # });
@@ -345,14 +361,9 @@ pub struct ColorWarningChip {
 }
 
 impl ColorWarningChip {
-    pub fn new(warning: ColorWarning) -> Self {
-        Self { id_salt: IdSalt::new("craft_ui::color_warning_chip"), warning, enabled: true }
-    }
-
-    /// Keeps the chip's state apart from another chip in the same `Ui`.
-    pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
-        self.id_salt = IdSalt::new(id_salt);
-        self
+    /// A chip for `warning`; `id_salt` keeps its state apart from another chip in the same `Ui`.
+    pub fn new(id_salt: impl AsIdSalt, warning: ColorWarning) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), warning, enabled: true }
     }
 
     pub fn enabled(mut self, enabled: bool) -> Self {
@@ -397,7 +408,7 @@ impl ColorWarningChip {
 
 /// A warning: its chip; a click sets the colour.
 fn show_warning(ui: &mut Ui, index: usize, warning: &ColorWarning, enabled: bool, parts: &mut Parts<'_>) {
-    let response = ColorWarningChip::new(warning.clone()).id_salt(("warning", index)).enabled(enabled).show(ui);
+    let response = ColorWarningChip::new(("warning", index), warning.clone()).enabled(enabled).show(ui);
     if response.clicked() {
         parts.edits.input(super::Input::Click(warning.nearest));
     }

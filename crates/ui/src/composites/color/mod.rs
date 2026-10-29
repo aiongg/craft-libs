@@ -9,8 +9,6 @@
 //! drag to grey keeps the hue, a drag to black keeps hue and saturation.
 
 mod area;
-#[cfg(test)]
-mod bands_tests;
 mod full_stories;
 #[cfg(test)]
 mod full_tests;
@@ -28,6 +26,8 @@ mod picker_tests;
 pub(crate) mod popover;
 #[cfg(test)]
 mod popover_tests;
+#[cfg(test)]
+mod quantize_tests;
 mod strip;
 #[cfg(test)]
 mod tests;
@@ -240,46 +240,39 @@ fn faded_stroke(stroke: Stroke, enabled: bool) -> Stroke {
     Stroke::new(stroke.width, faded(stroke.color, enabled))
 }
 
-/// The scale of a model channel: its range, snapping to its step, or, with `bands`, to
-/// `bands` evenly spaced levels (at least two) from its low end to its high end.
-fn scale_of(model: &dyn ColorModel, channel: usize, bands: Option<usize>) -> Scale {
+/// The scale of a model channel: its range, snapping to its step.
+fn scale_of(model: &dyn ColorModel, channel: usize) -> Scale {
     let ch = model.channels()[channel];
-    let range = f64::from(ch.min)..=f64::from(ch.max);
-    match bands {
-        Some(n) => Scale::new(&range, Some((f64::from(ch.max) - f64::from(ch.min)) / (n.max(2) - 1) as f64)),
-        None => Scale::new(&range, Some(f64::from(ch.step))),
-    }
+    Scale::new(&(f64::from(ch.min)..=f64::from(ch.max)), Some(f64::from(ch.step)))
 }
 
-/// Where `value` lies in `scale`, from its start (0) to its end (1). In `bands` levels the
-/// value's band is a cell of the track, and this is the cell's centre.
-fn fraction(scale: &Scale, value: f32, bands: Option<usize>) -> f32 {
+/// Where `value` lies in `scale`, from its start (0) to its end (1).
+fn fraction(scale: &Scale, value: f32) -> f32 {
     let span = scale.max - scale.min;
-    let t = if span > 0.0 { ((scale.place(f64::from(value)) - scale.min) / span) as f32 } else { 0.0 };
-    match bands {
-        Some(n) => ((t * (n.max(2) - 1) as f32).round() + 0.5) / n.max(2) as f32,
-        None => t,
-    }
+    if span > 0.0 { ((scale.place(f64::from(value)) - scale.min) / span) as f32 } else { 0.0 }
 }
 
-/// The value at `t` (0 at the start, 1 at the end) of `scale`, on its nearest step; in `bands`
-/// levels the value of the band whose cell holds `t`.
-fn value_at(scale: &Scale, t: f32, bands: Option<usize>) -> f32 {
-    let t = t.clamp(0.0, 1.0);
-    let t = match bands {
-        Some(n) => {
-            let n = n.max(2);
-            (t * n as f32).floor().min((n - 1) as f32) / (n - 1) as f32
-        }
-        None => t,
-    };
-    scale.snap(scale.min + f64::from(t) * (scale.max - scale.min)) as f32
+/// The value at `t` (0 at the start, 1 at the end) of `scale`, on its nearest step.
+fn value_at(scale: &Scale, t: f32) -> f32 {
+    scale.snap(scale.min + f64::from(t.clamp(0.0, 1.0)) * (scale.max - scale.min)) as f32
 }
 
-/// The `bands` levels' values from the low end up, for painting their cells.
-fn band_values(scale: &Scale, bands: usize) -> impl Iterator<Item = f32> + '_ {
-    let n = bands.max(2);
-    (0..n).map(move |k| scale.snap(scale.min + (scale.max - scale.min) * k as f64 / (n - 1) as f64) as f32)
+/// Cells per side of a quantised field, and rows of a quantised strip: fine enough that the
+/// level edges follow the colour model, coarse enough to draw every frame.
+const QUANTIZE_CELLS: usize = 64;
+
+/// `values` with each red, green and blue channel of their colour on the nearest of `levels`
+/// evenly spaced levels (at least two) from 0 to 1, in the model's values again (a web-safe
+/// colour has 6). The other components are what the snapped colour gives.
+fn quantized(model: &dyn ColorModel, values: &ModelValues, levels: usize) -> ModelValues {
+    model.from_srgb(snapped(model.to_srgb(&values.values), levels))
+}
+
+/// `color` with each channel on the nearest of `levels` levels.
+fn snapped(color: craft_theme::Srgba, levels: usize) -> craft_theme::Srgba {
+    let top = (levels.max(2) - 1) as f32;
+    let snap = |v: f32| (v.clamp(0.0, 1.0) * top).round() / top;
+    craft_theme::Srgba::new(snap(color.r), snap(color.g), snap(color.b), color.a)
 }
 
 /// A component as a screen reader reads it: "Saturation 40 %", "Hue 120°", "Lightness 50".
@@ -313,7 +306,7 @@ pub(crate) fn stories() -> Vec<Story> {
                     .with_choice("mode", MODE_NAMES, 0)
                     .with_bool("compact", false)
                     .with_bool("disabled", false)
-                    .with_number("bands", 0.0, 0.0, 16.0)
+                    .with_bool("web colours only", false)
             },
             show: show_parts,
         },
@@ -379,15 +372,14 @@ fn show_compact(ui: &mut Ui, args: &mut Args) {
     slider::with_values(ui, "color-compact", [(start, start, String::new())], |ui, state| {
         let (color, before, last) = &mut state[0];
         ui.set_width(args.number("width") as f32);
+        let mut web = args.bool("web colours only");
         let mut picker = ColorPicker::new("color-compact", "Foreground colour", *color, &numbers)
+            .web_colors(&mut web)
             .alpha(args.bool("alpha"))
             .dynamic_tracks(args.bool("dynamic tracks"))
             .enabled(!args.bool("disabled"));
         if args.bool("eyedropper") {
             picker = picker.eyedropper("Pick screen color");
-        }
-        if args.bool("web colours only") {
-            picker = picker.constrain(web_color);
         }
         let picked = picker.show(ui);
         if picked.eyedropper_requested {
@@ -408,10 +400,12 @@ fn show_compact(ui: &mut Ui, args: &mut Args) {
     });
 }
 
-/// The nearest web colour: each channel on a multiple of 0x33.
+/// The levels of a web colour's channels: 0x00, 0x33 ... 0xFF.
+const WEB_LEVELS: usize = 6;
+
+/// The nearest web colour.
 fn web_color(c: craft_theme::Srgba) -> craft_theme::Srgba {
-    let snap = |v: f32| (v * 5.0).round() / 5.0;
-    craft_theme::Srgba::new(snap(c.r), snap(c.g), snap(c.b), c.a)
+    snapped(c, WEB_LEVELS)
 }
 
 /// An area and a strip in a mode, editing one colour that keeps the values last edited, as a
@@ -421,8 +415,7 @@ fn show_parts(ui: &mut Ui, args: &mut Args) {
     let mode =
         AreaMode::PHOTOSHOP.into_iter().chain(AreaMode::OKLCH).zip(MODE_NAMES).find_map(|(m, n)| (*n == chosen).then_some(m)).unwrap_or_default();
     let (compact, enabled) = (args.bool("compact"), !args.bool("disabled"));
-    // 0 shows the smooth field; from 2 the area and the strip have that many levels.
-    let bands = (args.number("bands") >= 2.0).then(|| args.number("bands") as usize);
+    let web = args.bool("web colours only");
     let model = mode.model();
     let start = craft_theme::Srgba::rgb(0.2, 0.55, 0.8);
     slider::with_values(ui, "color-parts", [(start, None::<ModelValues>)], |ui, state| {
@@ -437,8 +430,8 @@ fn show_parts(ui: &mut Ui, args: &mut Args) {
                 let mut area = ColorArea::new("color-parts-area", mode.name(), mode, values).size(Vec2::new(style.area, height)).enabled(enabled);
                 let mut strip =
                     ColorStrip::new("color-parts-strip", names(mode.strip()), mode, values).size(Vec2::new(strip_width, height)).enabled(enabled);
-                if let Some(n) = bands {
-                    (area, strip) = (area.bands(n), strip.bands(n));
+                if web {
+                    (area, strip) = (area.quantize(WEB_LEVELS), strip.quantize(WEB_LEVELS));
                 }
                 let edits = [area.show(ui), strip.show(ui)];
                 for edit in edits {

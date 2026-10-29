@@ -1,6 +1,7 @@
 //! [`ColorPicker`]: the colour picker's body, the area and strip with the channel rows, the hex
 //! field and the hooks a host adds.
 
+use std::cell::Cell;
 use std::ops::RangeInclusive;
 
 use craft_theme::{Channel, ColorModel, ControlSize, MAX_CHANNELS, ModelValues, Rgba, Srgba, TypeRole, builtin_models};
@@ -9,7 +10,7 @@ use egui::{Align, AsIdSalt, Context, Id, IdSalt, Layout, Rect, Ui, UiBuilder, Ve
 
 use super::area::{self, AreaOp};
 use super::hex::{self, HexCodec};
-use super::{AreaMode, ColorArea, ColorStrip, strip};
+use super::{AreaMode, ColorArea, ColorStrip, WEB_LEVELS, snapped, strip};
 use crate::composites::PropertyRow;
 use crate::controls::number_field::{self, FieldRule};
 use crate::controls::slider::{self, Scale};
@@ -122,7 +123,8 @@ pub struct ColorPickerResponse {
 ///   focus and goes when it leaves; signs and non-ASCII text are invalid. Another control's
 ///   change drops what was typed.
 /// - Hooks: [`eyedropper`](ColorPicker::eyedropper) and [`sampled`](ColorPicker::sampled),
-///   [`constrain`](ColorPicker::constrain), [`text`](ColorPicker::text); in the Full layout
+///   [`web_colors`](ColorPicker::web_colors), [`constrain`](ColorPicker::constrain),
+///   [`text`](ColorPicker::text); in the Full layout
 ///   [`compare`](ColorPicker::compare) and [`warning`](ColorPicker::warning), whose clicks are
 ///   [`Set`](EditEvent::Set)s.
 /// - Tab: in a dialog's [`FieldTab`](crate::behavior::FieldTab) scope Tab visits the number
@@ -135,7 +137,9 @@ pub struct ColorPickerResponse {
 ///   Full: the radios are a `RadioGroup` "Field shows" with a `RadioButton` per channel, named
 ///   by the channel's full name; the compare swatch's halves are an `Image` "New colour" and a
 ///   `Button` "Restore current colour", each with its colour's hex as value; each warning a
-///   `Button` named by its tip.
+///   `Button` named by its tip; with [`web_colors`](ColorPicker::web_colors) a `CheckBox`
+///   "Only Web Colors" under the strip (Ctrl+Tab reaches it in a [`FieldTab`](crate::behavior::FieldTab)
+///   scope, as it does every control but the fields).
 #[must_use = "show the picker with `show`"]
 pub struct ColorPicker<'a> {
     id_salt: IdSalt,
@@ -153,6 +157,7 @@ pub struct ColorPicker<'a> {
     compare: Option<Srgba>,
     warnings: Vec<ColorWarning>,
     constrain: Option<Box<Constrain<'a>>>,
+    web_colors: Option<&'a mut bool>,
     text: Option<Box<Translate<'a>>>,
     policy: EditPolicy,
     enabled: bool,
@@ -180,6 +185,7 @@ pub(super) mod texts {
     pub(crate) const RESTORE: &str = "Restore current colour";
     /// A channel's label in the Full grid; `{label}` is the channel's translated short label.
     pub(crate) const GRID_LABEL: &str = "{label}:";
+    pub(crate) const ONLY_WEB_COLORS: &str = "Only Web Colors";
 }
 
 impl ColorPicker<'_> {
@@ -187,7 +193,7 @@ impl ColorPicker<'_> {
     /// translates. A template's `{placeholder}` stays in its translation, and the picker puts the
     /// part, translated on its own, in its place. [`keys`](ColorPicker::keys) lists these with
     /// the words of the models and the area.
-    pub const TEXTS: [&'static str; 11] = [
+    pub const TEXTS: [&'static str; 12] = [
         texts::OPACITY,
         texts::HEX_COLOUR,
         texts::COLOUR_MODEL,
@@ -199,6 +205,7 @@ impl ColorPicker<'_> {
         texts::NEW_COLOUR,
         texts::RESTORE,
         texts::GRID_LABEL,
+        texts::ONLY_WEB_COLORS,
     ];
 
     /// Every key a picker offering `models` may ask [`text`](ColorPicker::text) for, each once:
@@ -241,6 +248,7 @@ impl<'a> ColorPicker<'a> {
             compare: None,
             warnings: Vec::new(),
             constrain: None,
+            web_colors: None,
             text: None,
             policy: EditPolicy::default(),
             enabled: true,
@@ -316,9 +324,24 @@ impl<'a> ColorPicker<'a> {
         self
     }
 
-    /// Applied to every colour before it is reported (PhotoCraft's Only Web Colors snaps each
-    /// edit). Values it moves the colour away from are not reported as
-    /// [`PickedColor::model`].
+    /// PhotoCraft's Only Web Colors, held by the host (kept across opens): while `on` is true
+    /// every colour the picker reports has each of red, green and blue on a multiple of 0x33,
+    /// whichever control made it. The area and strip take the nearest such colour under the
+    /// pointer, step to the next different one on a key, and draw flat cells of the snapped
+    /// colours ([`ColorArea::quantize`]); the number fields, sliders, hex field, samples and the
+    /// compare and warning clicks snap what they set. The Full layout shows the "Only Web Colors"
+    /// check box under the strip, whose toggle writes `on`; switching it on snaps the colour at
+    /// once (a [`Set`](EditEvent::Set)). The Compact layout has no box: the host sets `on`. The
+    /// colour the host passes is shown as it is until an edit or the toggle snaps it. The
+    /// [`constrain`](ColorPicker::constrain) hook runs after the snap.
+    pub fn web_colors(mut self, on: &'a mut bool) -> Self {
+        self.web_colors = Some(on);
+        self
+    }
+
+    /// Applied to every colour before it is reported, after
+    /// [`web_colors`](ColorPicker::web_colors)'s snap. Values it moves the colour away from are
+    /// not reported as [`PickedColor::model`].
     pub fn constrain(mut self, constrain: impl Fn(Srgba) -> Srgba + 'a) -> Self {
         self.constrain = Some(Box::new(constrain));
         self
@@ -396,9 +419,13 @@ impl<'a> ColorPicker<'a> {
             .unwrap_or_else(|| builtin_models().into_iter().filter(|m| if full { m.default_on().full } else { m.default_on().compact }).collect());
         let mut mode = self.mode.as_deref().copied().unwrap_or(state.mode);
         let eyedropper_requested;
+        let web = Cell::new(self.web_colors.as_deref().copied().unwrap_or(false));
         let event = {
             let translate = |s: &str| self.text.as_ref().map_or_else(|| s.to_owned(), |t| t(s));
-            let constrain = |c: Srgba| self.constrain.as_ref().map_or(c, |f| f(c));
+            let constrain = |c: Srgba| {
+                let c = if web.get() { snapped(c, WEB_LEVELS) } else { c };
+                self.constrain.as_ref().map_or(c, |f| f(c))
+            };
             let width = channel_width(ui, self.numbers, &models, &translate);
 
             let host = Picked::from_host(self.color, state.kept.as_ref());
@@ -406,7 +433,8 @@ impl<'a> ColorPicker<'a> {
             let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
             let start = outer.start().cloned();
             let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width };
-            let mut parts = Parts { edits: Edits::new(id, &state.parts, &outer, edit::in_scope(ui)), models: &models, constrain: &constrain };
+            let mut parts =
+                Parts { edits: Edits::new(id, &state.parts, &outer, edit::in_scope(ui)), models: &models, constrain: &constrain, web: &web };
             parts.replay(ui.ctx());
 
             eyedropper_requested = match self.layout {
@@ -441,6 +469,9 @@ impl<'a> ColorPicker<'a> {
             }
             event
         };
+        if let Some(held) = self.web_colors.as_deref_mut() {
+            *held = web.get();
+        }
         match self.mode.as_deref_mut() {
             Some(held) => *held = mode,
             None => state.mode = mode,
@@ -529,21 +560,28 @@ impl<'a> ColorPicker<'a> {
         let constrain = parts.constrain;
         let map = |v: ModelValues, now: &Picked| now.with_values(&v, v.values.map(f64::from), constrain);
         Row::new(Gap::Inline).show(ui, |ui| {
-            let (area, ops) = ColorArea::new("area", area_name, mode, parts.value().values_in(model).0)
+            let area = ColorArea::new("area", area_name, mode, parts.value().values_in(model).0)
                 .channel_names(channel_name(model, across, visible, translate), channel_name(model, down, visible, translate))
                 .size(area)
                 .policy(inner.policy)
                 .enabled(inner.enabled)
-                .part(true)
-                .show_with_ops(ui);
+                .part(true);
+            let (area, ops) = match parts.quantize() {
+                Some(levels) => area.quantize(levels),
+                None => area,
+            }
+            .show_with_ops(ui);
             parts.push(&area, ops.into_iter().map(|op| PickerOp::Area(op, mode)), map);
-            let (strip, ops) =
-                ColorStrip::new("strip", channel_name(model, mode.strip(), visible, translate), mode, parts.value().values_in(model).0)
-                    .size(vec2(strip, area.response.rect.height()))
-                    .policy(inner.policy)
-                    .enabled(inner.enabled)
-                    .part(true)
-                    .show_with_ops(ui);
+            let strip = ColorStrip::new("strip", channel_name(model, mode.strip(), visible, translate), mode, parts.value().values_in(model).0)
+                .size(vec2(strip, area.response.rect.height()))
+                .policy(inner.policy)
+                .enabled(inner.enabled)
+                .part(true);
+            let (strip, ops) = match parts.quantize() {
+                Some(levels) => strip.quantize(levels),
+                None => strip,
+            }
+            .show_with_ops(ui);
             parts.push(&strip, ops.into_iter().map(|op| PickerOp::Strip(op, mode)), map);
         });
     }
@@ -568,9 +606,17 @@ impl<'a> ColorPicker<'a> {
 
     /// The hex field, `width` wide.
     fn hex_field(&self, ui: &mut Ui, id: Id, width: f32, translate: &dyn Fn(&str) -> String, enabled: bool, parts: &mut Parts<'_>) {
-        let codec = HexCodec { alpha: self.alpha, digits: 2, reason: translate(texts::NOT_HEX) };
+        let codec = HexCodec { alpha: self.alpha, write_alpha: false, digits: 2, reason: translate(texts::NOT_HEX) };
         let label = translate(texts::HEX_COLOUR);
+        // A constraint moves the typed colour, and the host value that differs from what the run
+        // reported would cancel it: while the field has the focus it is given the colour it last
+        // reported when the constraint maps that to the picker's colour.
+        let reported = hex::hex_id(id).with("reported");
         let color = parts.value().color.to_rgba();
+        let color = ui
+            .data(|d| d.get_temp::<Rgba>(reported))
+            .filter(|typed| ui.memory(|m| m.has_focus(hex::hex_id(id))) && (parts.constrain)((*typed).into()).to_rgba() == color)
+            .unwrap_or(color);
         let field = ui
             .allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down_justified(Align::Min), |ui| {
                 hex::show(
@@ -584,6 +630,9 @@ impl<'a> ColorPicker<'a> {
             })
             .inner;
         let constrain = parts.constrain;
+        if let Some(rgba) = field.event.as_ref().and_then(EditEvent::value) {
+            ui.data_mut(|d| d.insert_temp(reported, *rgba));
+        }
         let ops = field.event.as_ref().and_then(EditEvent::value).map(|rgba| PickerOp::Hex(*rgba));
         parts.typing(&field, ops, |rgba, now| now.with_hex(rgba, constrain));
     }
@@ -866,11 +915,11 @@ impl Picked {
 
     /// This value with `op` applied, a channel's in its model among `models`; `None` when that
     /// model isn't one of them.
-    fn apply(&self, op: &PickerOp, models: &[&dyn ColorModel], constrain: &dyn Fn(Srgba) -> Srgba) -> Option<Picked> {
+    fn apply(&self, op: &PickerOp, models: &[&dyn ColorModel], constrain: &dyn Fn(Srgba) -> Srgba, quantize: Option<usize>) -> Option<Picked> {
         let with_values = |values: ModelValues| self.with_values(&values, values.values.map(f64::from), constrain);
         Some(match op {
-            PickerOp::Area(op, mode) => with_values(area::apply(op, &self.values_in(mode.model()).0, *mode)),
-            PickerOp::Strip(op, mode) => with_values(strip::apply(op, &self.values_in(mode.model()).0, *mode)),
+            PickerOp::Area(op, mode) => with_values(area::apply(op, &self.values_in(mode.model()).0, *mode, quantize)),
+            PickerOp::Strip(op, mode) => with_values(strip::apply(op, &self.values_in(mode.model()).0, *mode, quantize)),
             PickerOp::Channel { model, i, part, op } => {
                 let model = models.iter().copied().find(|m| m.id() == *model)?;
                 let rule = RowRule::of(model.channels().get(*i)?);
@@ -905,14 +954,21 @@ struct Parts<'a> {
     edits: Edits,
     models: &'a [&'a dyn ColorModel],
     constrain: &'a dyn Fn(Srgba) -> Srgba,
+    /// Whether Only Web Colors is on; the check box can switch it during the pass.
+    web: &'a Cell<bool>,
 }
 
 impl Parts<'_> {
+    /// The levels the area and strip quantise to, when Only Web Colors is on.
+    fn quantize(&self) -> Option<usize> {
+        self.web.get().then_some(WEB_LEVELS)
+    }
+
     /// Applies the queued operations whose turn has come ([`Edits::replay`]), before any part is
     /// drawn.
     fn replay(&mut self, ctx: &Context) {
-        let (models, constrain) = (self.models, self.constrain);
-        self.edits.replay(ctx, |op, now| now.apply(op, models, constrain));
+        let (models, constrain, quantize) = (self.models, self.constrain, self.quantize());
+        self.edits.replay(ctx, |op, now| now.apply(op, models, constrain, quantize));
     }
 
     /// The picker's value with the replay and the edits pushed so far: each part draws from it.
@@ -928,8 +984,8 @@ impl Parts<'_> {
         ops: impl IntoIterator<Item = PickerOp>,
         map: impl Fn(T, &Picked) -> Picked,
     ) {
-        let (models, constrain) = (self.models, self.constrain);
-        self.edits.push(edit, ops, |op, now| now.apply(op, models, constrain), map);
+        let (models, constrain, quantize) = (self.models, self.constrain, self.quantize());
+        self.edits.push(edit, ops, |op, now| now.apply(op, models, constrain, quantize), map);
     }
 
     /// [`push`](Parts::push) for a field whose focus is a typing run's.
@@ -939,8 +995,8 @@ impl Parts<'_> {
         ops: impl IntoIterator<Item = PickerOp>,
         map: impl Fn(T, &Picked) -> Picked,
     ) {
-        let (models, constrain) = (self.models, self.constrain);
-        self.edits.typing(field, ops, |op, now| now.apply(op, models, constrain), map);
+        let (models, constrain, quantize) = (self.models, self.constrain, self.quantize());
+        self.edits.typing(field, ops, |op, now| now.apply(op, models, constrain, quantize), map);
     }
 }
 
