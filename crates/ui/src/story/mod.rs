@@ -191,6 +191,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(controls::number_field::stories());
     all.extend(controls::angle_dial::stories());
     all.extend(composites::field::stories());
+    all.extend(composites::form_grid::stories());
     all.extend(composites::property_row::stories());
     all.extend(composites::section_header::stories());
     all.extend(composites::section_label::stories());
@@ -267,6 +268,7 @@ const DECLARED: &[&[&str]] = &[
     controls::number_field::COMPONENTS,
     controls::angle_dial::COMPONENTS,
     composites::field::COMPONENTS,
+    composites::form_grid::COMPONENTS,
     composites::property_row::COMPONENTS,
     composites::section_header::COMPONENTS,
     composites::section_label::COMPONENTS,

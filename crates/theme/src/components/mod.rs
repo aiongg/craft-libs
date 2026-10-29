@@ -17,6 +17,7 @@ mod dock;
 mod empty_state;
 mod field;
 mod float;
+mod form;
 mod gradient_editor;
 mod gradient_line;
 mod guide;
@@ -76,6 +77,7 @@ pub use dock::{DockField, DockTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
 pub use float::{FloatField, FloatTokens};
+pub use form::{FormField, FormSpacing, FormTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
 pub use gradient_line::{GradientLineField, GradientLineTokens};
 pub use guide::{GuideField, GuideTokens};
@@ -624,6 +626,8 @@ families! {
     empty_state: EmptyStateTokens => EmptyState(EmptyStateField);
     /// Floating windows: the frame and title bar of a floating panel group.
     float: FloatTokens => Float(FloatField);
+    /// Form grids: the gaps and label column of a two-column form.
+    form: FormTokens => Form(FormField);
     /// Text fields: one line of editable text in a sunken box.
     field: FieldTokens => Field(FieldField);
     /// Gradient editors: the stop bar, its markers and midpoint diamonds.

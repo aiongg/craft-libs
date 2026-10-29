@@ -6,8 +6,8 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::canvas::{BezierOverlay, GradientOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
-    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, GradientEditor, Histogram, LevelsEditor, Notice, PanelFooter, PanelHeader, PropertyRow,
-    SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
+    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, FormGrid, GradientEditor, Histogram, LevelsEditor, Notice, PanelFooter, PanelHeader,
+    PropertyRow, SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
 };
 use craft_ui::controls::{
     AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
@@ -432,6 +432,20 @@ fn property_row() {
         d.line("glyph_width", s.glyph_width).line("word_width", s.word_width).line("min_control", s.min_control);
         d.line("column_gap", s.column_gap).line("link_width", s.link_width).line("label_gap", s.label_gap).line("label_band", s.label_band);
         d.line("label_role", role(s.label_role)).line("label", s.label);
+    });
+}
+
+/// Form grids: the gaps and label column of both densities, and the label's band, role and colour.
+#[test]
+fn form_grid() {
+    check("form_grid.txt", |d, t| {
+        for (prefix, roomy) in [("", false), ("roomy_", true)] {
+            let s = FormGrid::style(t, roomy);
+            d.line(&format!("{prefix}column_gap"), s.column_gap).line(&format!("{prefix}row_gap"), s.row_gap);
+            d.line(&format!("{prefix}label_min"), s.label_min);
+        }
+        let s = FormGrid::style(t, false);
+        d.line("label_band", s.label_band).line("label_role", role(s.label_role)).line("label", s.label);
     });
 }
 

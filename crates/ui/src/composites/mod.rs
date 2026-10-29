@@ -4,6 +4,8 @@
 //! - [`Field`]: a control with its label (beside it in a label column, or above it), and help or
 //!   error text under it; the control is labelled and described by them in AccessKit.
 //! - [`FieldGroup`]: a form's fields with one label column, as wide as the widest label.
+//! - [`FormGrid`]: a dialog or preferences form as a two-column grid, labels in the first column
+//!   and controls in the second.
 //! - [`PropertyRow`]: an inspector row of a short label and a control that fills the width;
 //!   [`PropertyRow::pair`] puts two in a row, and [`PropertyGroup`] gives a section's glyph labels
 //!   one centre.
@@ -66,6 +68,9 @@ mod empty_state_tests;
 pub(crate) mod field;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tests;
+pub(crate) mod form_grid;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod form_grid_tests;
 pub mod gradient;
 pub(crate) mod histogram;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -109,6 +114,7 @@ pub use curve::Curve;
 pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampler};
 pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
+pub use form_grid::{Form, FormGrid, FormStyle, LabelAlign};
 pub use gradient::{
     ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientLabels, GradientRamp, GradientRampStyle, GradientStops,
     GradientSwatch, OpacityStop, Sampler as StopSampler, StopDrop, StopRef, StopRow, StopRows, StopRules, default_sampler,

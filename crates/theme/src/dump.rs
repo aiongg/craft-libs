@@ -8,13 +8,13 @@ use std::fmt::Write as _;
 use crate::{
     AngleDialTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens, BySize,
     CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, ControlSizes, CursorTokens,
-    CurveTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, Gaps,
-    GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens,
-    LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens,
-    Pads, PanelFooterTokens, PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens, RefPointTokens,
-    Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
-    SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
-    ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    CurveTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing,
+    FormTokens, Gaps, GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors,
+    KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens,
+    OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, ReadoutTokens,
+    RefPointTokens, Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens,
+    SpaceTokens, SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens,
+    ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -227,6 +227,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         empty_state,
         field,
         float,
+        form,
         gradient_editor,
         gradient_line,
         guide,
@@ -276,6 +277,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     empty_state_lines(out, empty_state);
     field_lines(out, field);
     float_lines(out, float);
+    form_lines(out, form);
     gradient_editor_lines(out, gradient_editor);
     gradient_line_lines(out, gradient_line);
     guide_lines(out, guide);
@@ -775,6 +777,15 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
         ("icon.selected.text", icon_selected_text),
     ] {
         out.line(&format!("dock.{k}"), hex(*c));
+    }
+}
+
+fn form_lines(out: &mut Lines, t: &FormTokens) {
+    let FormTokens { normal, roomy } = t;
+    for (prefix, FormSpacing { column_gap, row_gap, label_min }) in [("form", normal), ("form.roomy", roomy)] {
+        out.line(&format!("{prefix}.column_gap"), len(*column_gap));
+        out.line(&format!("{prefix}.row_gap"), len(*row_gap));
+        out.line(&format!("{prefix}.label_min"), len(*label_min));
     }
 }
 
