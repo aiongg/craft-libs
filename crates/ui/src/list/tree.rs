@@ -12,6 +12,7 @@ use egui::{AsIdSalt, Context, Id, Rect, Response, Shape, Stroke, Ui, pos2};
 
 use super::row::{ListRow, ListRowStyle, RowEvent, RowResponse};
 use crate::behavior::DisplayOrder;
+use crate::controls::TooltipExt as _;
 use crate::direction;
 use crate::primitives::Interactive;
 
@@ -188,7 +189,7 @@ pub(super) fn show_disclosure<K: Clone>(
         .focus_ring(false)
         .interact_at(ui, rect);
     let response = sensed.finish(ui);
-    let response = response.on_hover_text(with_row(tip, label));
+    let response = response.tooltip(with_row(tip, label));
     if response.clicked() {
         let all = ui.input(|i| i.modifiers.alt);
         events.push(RowEvent::Open(OpenChange { row: key.clone(), open: !branch.open, all }));

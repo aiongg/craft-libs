@@ -494,7 +494,7 @@ impl<'a> NumberField<'a> {
         parts.paint(ui, &self, rect, typed.text_rect(), !typed.text().is_empty());
         if let Some(reason) = typed.rejected().map(str::to_owned) {
             if focused && !popup_open {
-                response.show_tooltip_text(reason.as_str());
+                response.show_tooltip(reason.as_str());
             }
             let _ = response.clone().tooltip(reason);
         }

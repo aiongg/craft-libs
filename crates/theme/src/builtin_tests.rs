@@ -443,3 +443,30 @@ fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
         }
     }
 }
+
+/// Classic's tooltip is Windows 2000's: InfoText on InfoWindow with a black edge. Every other
+/// built-in keeps the popup surface.
+#[test]
+fn only_classic_gives_tooltips_a_look_of_their_own() {
+    for theme in builtins() {
+        for a in appearances() {
+            let t = resolve(theme, a, None).tokens;
+            let tip = &t.component.tooltip;
+            if theme.id.as_str() == "craft.classic" {
+                assert_eq!(
+                    (tip.fill, tip.text, tip.border),
+                    (Rgba::rgb(0xff, 0xff, 0xe1), t.color(ColorToken::TextNormal), t.color(ColorToken::TextNormal)),
+                    "{a:?}"
+                );
+            } else {
+                assert_eq!(
+                    (tip.fill, tip.text, tip.border),
+                    (t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextNormal), t.color(ColorToken::LineBorder)),
+                    "{} {a:?}",
+                    theme.id
+                );
+            }
+            assert_eq!(tip.radius, t.shape.radius.popup, "{} {a:?}", theme.id);
+        }
+    }
+}

@@ -13,6 +13,7 @@ use egui::{
 };
 
 use super::Edge;
+use crate::controls::TooltipExt as _;
 use crate::docking::chrome::ChromeStyle;
 
 /// Default width of the rail.
@@ -223,7 +224,7 @@ impl Rail {
                     response
                 })
                 .inner;
-            let response = if item.enabled { response.on_hover_text(&item.label) } else { response.on_disabled_hover_text(&item.label) };
+            let response = response.tooltip(&item.label);
             if !item.enabled {
                 if had_focus {
                     lost_focus = Some(place);

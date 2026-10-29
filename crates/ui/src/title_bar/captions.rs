@@ -8,6 +8,7 @@ use egui::{Color32, Id, Painter, PointerButton, Pos2, Rect, Sense, Stroke, Strok
 
 use super::resize::start_os_move;
 use super::{TitleBarStyle, WindowState};
+use crate::controls::TooltipExt as _;
 use crate::direction::is_rtl;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
@@ -327,7 +328,7 @@ impl<'a> CaptionButtons<'a> {
             if preview.is_none() {
                 let label = labels.of(c, maximized).to_owned();
                 resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
-                if resp.on_hover_text(label).clicked() {
+                if resp.tooltip(label).clicked() {
                     clicked = Some(c);
                 }
             }

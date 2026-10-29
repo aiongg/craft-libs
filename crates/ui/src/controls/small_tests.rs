@@ -6,10 +6,10 @@ use craft_theme::{BadgeStyle, BadgeTone, ControlSize, Mode, Rgba, contrast_ratio
 use egui::os::OperatingSystem;
 use egui::{Color32, Context, Event, Key, KeyboardShortcut, ModifierNames, Modifiers, Pos2, RawInput, Rect, Shape, Ui, ViewportId, vec2};
 
-use super::tests::{every_builtin, frame_at, motion_context, theme, tokens_of};
+use super::tests::{every_builtin, frame_at, motion_context, motion_context_in, theme, tokens_of};
 use super::*;
 use crate::icons::IconSize;
-use crate::primitives::{Content, Corner, Surface, SurfaceKind};
+use crate::primitives::{Content, Surface, SurfaceKind};
 use crate::theme::{ToEgui, Tokens, TokensOf as _};
 
 #[test]
@@ -53,10 +53,10 @@ fn small_control_styles_are_their_tokens() {
         let tip = Tooltip::style(&t);
         assert_eq!(tip.max_width, c.tooltip.max_width);
         assert_eq!(tip.max_width, t.style.spacing.tooltip_width, "stock tooltips wrap at the same width");
-        assert_eq!((tip.fill, tip.border.color), (t.color.surface.raised.to_egui(), t.color.line.border.to_egui()));
-        assert_eq!((tip.radius, tip.shadow), (Corner::Popup.radius(&t), t.shadow.popup));
+        assert_eq!((tip.fill, tip.border.color), (c.tooltip.fill.to_egui(), c.tooltip.border.to_egui()));
+        assert_eq!((tip.radius, tip.shadow), (crate::theme::corner_radius(c.tooltip.radius), t.shadow.popup));
         assert_eq!(tip.margin, crate::theme::margin(t.space.pad.control));
-        assert_eq!(tip.text, t.color.text.normal.to_egui());
+        assert_eq!(tip.text, c.tooltip.text.to_egui());
     }
 }
 
@@ -381,4 +381,50 @@ fn tooltips_draw_the_same_frame_stock_or_helper_and_disabled_controls_keep_their
     // Disabled controls keep theirs.
     let disabled = hover(&|ui| ui.add(Button::new("Target").enabled(false).id_salt("tip")).tooltip("Moves the layer"));
     assert_eq!(frames(&disabled), frames(&stock));
+}
+
+/// The filled, outlined rects of the first frame at which a tooltip shows after hovering the
+/// button that `add` puts in the context's theme, and the text colours drawn.
+fn hovered_tooltip(id: &str, add: impl Fn(&mut Ui) -> egui::Response) -> (Vec<(Color32, egui::Stroke, egui::CornerRadius)>, Vec<Color32>) {
+    let ctx = motion_context_in(id, true);
+    ctx.global_style_mut(|s| s.interaction.tooltip_delay = 0.0);
+    let rect = Cell::new(Rect::NOTHING);
+    let run = |time: f64, events: Vec<Event>| frame_at(&ctx, time, events, |ui| rect.set(add(ui).rect));
+    run(0.0, vec![]);
+    run(0.1, vec![Event::PointerMoved(rect.get().center())]);
+    run(0.2, vec![]);
+    let shapes = run(0.4, vec![]);
+    let frames = shapes
+        .iter()
+        .filter_map(|s| if let Shape::Rect(r) = s { (!r.stroke.is_empty()).then_some((r.fill, r.stroke, r.corner_radius)) } else { None })
+        .collect();
+    let texts =
+        shapes.iter().filter_map(|s| if let Shape::Text(t) = s { t.galley.job.sections.first().map(|s| s.format.color) } else { None }).collect();
+    (frames, texts)
+}
+
+#[test]
+fn classic_tooltips_draw_a_pale_yellow_card_with_black_text_and_edge() {
+    let tip = |ui: &mut Ui| ui.add(Button::new("Target").id_salt("tip")).tooltip("Moves the layer");
+    let (frames, texts) = hovered_tooltip("craft.classic", tip);
+    let (yellow, black) = (Color32::from_rgb(0xff, 0xff, 0xe1), Color32::BLACK);
+    let card: Vec<_> = frames.iter().filter(|f| f.0 == yellow).collect();
+    assert_eq!(card.len(), 1, "one tooltip card: {frames:?}");
+    assert_eq!((card[0].1.color, card[0].1.width, card[0].2), (black, 1.0, egui::CornerRadius::ZERO));
+    assert_eq!(texts.last(), Some(&black), "the tooltip text is drawn last");
+}
+
+#[test]
+fn other_themes_tooltips_keep_the_popup_look() {
+    for id in ["craft.artcraft", "craft.soft"] {
+        let tokens = tokens_of(&theme(id), Mode::Light);
+        let popup = egui::Frame::popup(&tokens.style);
+        let tip = |ui: &mut Ui| ui.add(Button::new("Target").id_salt("tip")).tooltip("Moves the layer");
+        let stock = |ui: &mut Ui| ui.add(Button::new("Target").id_salt("tip")).on_hover_text("Moves the layer");
+        let (frames, texts) = hovered_tooltip(id, tip);
+        let card = (popup.fill, popup.stroke, popup.corner_radius);
+        assert!(frames.contains(&card), "{id}: the popup frame is drawn: {frames:?}");
+        assert_eq!(texts.last(), Some(&tokens.color.text.normal.to_egui()), "{id}");
+        assert_eq!(hovered_tooltip(id, stock).0, frames, "{id}: as stock egui draws it");
+    }
 }

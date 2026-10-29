@@ -13,6 +13,7 @@
 //! changes the value: it is outlined in the error color with a tooltip saying why, from the
 //! catalog with [`LocaleNumbers::with_catalog`].
 
+use crate::controls::TooltipExt as _;
 use std::cell::{Cell, RefCell};
 use std::ops::RangeInclusive;
 use std::rc::Rc;
@@ -209,7 +210,7 @@ fn rejected_id(id: Id) -> Id {
 fn mark_invalid(ui: &Ui, response: &Response, radius: CornerRadius, text: String, tell: bool) {
     ui.painter().rect_stroke(response.rect, radius, Stroke::new(1.5, ui.visuals().error_fg_color), StrokeKind::Inside);
     if tell {
-        response.show_tooltip_text(text);
+        response.show_tooltip(text);
     }
 }
 
@@ -706,7 +707,7 @@ impl Widget for NumberField<'_> {
         if let Some(error) = error {
             mark_invalid(ui, &response, radius, numbers.describe(error), editing);
             if !editing {
-                response = response.on_hover_text(numbers.describe(error));
+                response = response.tooltip(numbers.describe(error));
             }
         }
         response

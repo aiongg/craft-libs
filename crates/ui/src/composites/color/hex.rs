@@ -158,7 +158,7 @@ pub(super) fn show(ui: &mut Ui, id: Id, label: &str, value: Rgba, codec: HexCode
     }
     if let Some(reason) = typed.rejected().map(str::to_owned) {
         if response.has_focus() {
-            response.show_tooltip_text(reason.as_str());
+            response.show_tooltip(reason.as_str());
         }
         let _ = response.clone().tooltip(reason);
     }
