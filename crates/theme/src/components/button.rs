@@ -1,5 +1,6 @@
 //! Push buttons: four variants, two sizes. Loading shows a spinner in the text colour and needs
-//! no tokens of its own.
+//! no tokens of its own. A theme can frame the primary button (`default_frame`); no built-in but
+//! Classic does.
 
 use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
 use crate::color::Rgba;
@@ -114,6 +115,9 @@ pub struct ButtonTokens {
     pub ghost: ButtonColors,
     /// Danger colours.
     pub danger: ButtonColors,
+    /// The one-pixel frame round a primary button, outside its bevel, as the default button had in
+    /// Windows 2000. Transparent draws none.
+    pub default_frame: Rgba,
 }
 
 impl ButtonTokens {
@@ -137,11 +141,13 @@ impl ButtonTokens {
     }
 }
 
-/// An overridable button field. Paths: `radius`, `<variant>.<part>.<state>`.
+/// An overridable button field. Paths: `radius`, `default_frame`, `<variant>.<part>.<state>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ButtonField {
     /// `button.radius`
     Radius,
+    /// `button.default_frame`
+    DefaultFrame,
     /// `button.<variant>.<part>.<state>`, e.g. `button.primary.fill.hover`.
     Color {
         /// The variant.
@@ -153,11 +159,12 @@ pub enum ButtonField {
     },
 }
 
-const FIELD_COUNT: usize = 1 + ButtonVariant::ALL.len() * ButtonPart::ALL.len() * State::ALL.len();
+const FIELD_COUNT: usize = 2 + ButtonVariant::ALL.len() * ButtonPart::ALL.len() * State::ALL.len();
 
 const FIELDS: [ButtonField; FIELD_COUNT] = {
     let mut out = [ButtonField::Radius; FIELD_COUNT];
-    let mut i = 1;
+    out[1] = ButtonField::DefaultFrame;
+    let mut i = 2;
     let (mut v, mut p, mut s) = (0, 0, 0);
     while v < ButtonVariant::ALL.len() {
         while p < ButtonPart::ALL.len() {
@@ -211,19 +218,23 @@ impl Family for ButtonTokens {
                 border: none,
                 text: text(c.text.on_status),
             },
+            default_frame: clear,
         }
     }
 
     fn path(f: ButtonField) -> String {
         match f {
             ButtonField::Radius => "radius".to_owned(),
+            ButtonField::DefaultFrame => "default_frame".to_owned(),
             ButtonField::Color { variant, part, state } => format!("{}.{}.{}", variant.name(), part.name(), state.name()),
         }
     }
 
     fn from_path(path: &str) -> Option<ButtonField> {
-        if path == "radius" {
-            return Some(ButtonField::Radius);
+        match path {
+            "radius" => return Some(ButtonField::Radius),
+            "default_frame" => return Some(ButtonField::DefaultFrame),
+            _ => {}
         }
         let mut segments = path.split('.');
         let (variant, part, state) = (segments.next()?, segments.next()?, segments.next()?);
@@ -240,6 +251,7 @@ impl Family for ButtonTokens {
     fn kind(f: ButtonField) -> FieldKind {
         match f {
             ButtonField::Radius => FieldKind::Length,
+            ButtonField::DefaultFrame => FieldKind::Color,
             ButtonField::Color { .. } => FieldKind::Color,
         }
     }
@@ -247,6 +259,7 @@ impl Family for ButtonTokens {
     fn get(&self, f: ButtonField) -> OverrideValue {
         match f {
             ButtonField::Radius => OverrideValue::Length(self.radius),
+            ButtonField::DefaultFrame => OverrideValue::Color(self.default_frame),
             ButtonField::Color { variant, part, state } => OverrideValue::Color(self.colors(variant).part(part).get(state)),
         }
     }
@@ -254,6 +267,7 @@ impl Family for ButtonTokens {
     fn set(&mut self, f: ButtonField, v: OverrideValue) {
         match (f, v) {
             (ButtonField::Radius, OverrideValue::Length(r)) => self.radius = r,
+            (ButtonField::DefaultFrame, OverrideValue::Color(c)) => self.default_frame = c,
             (ButtonField::Color { variant, part, state }, OverrideValue::Color(c)) => *self.colors_mut(variant).part_mut(part).get_mut(state) = c,
             // Mismatched kinds are rejected before this is called.
             _ => {}
