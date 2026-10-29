@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use craft_theme::{ContrastChoice, ModeChoice, Selection, Size, TextSize, ThemeId, ThemePair, Variants};
+use craft_theme::{ContrastChoice, ModeChoice, MotionChoice, Selection, Size, TextSize, ThemeId, ThemePair, Variants};
 
 use super::{Intervals, Op, OpOutput, SuiteWatch};
 use crate::{
@@ -30,7 +30,14 @@ fn id(s: &str) -> ThemeId {
 
 /// `theme` in both slots, with the defaults for every field but the mode.
 fn sel(theme: &str, mode: ModeChoice) -> Selection {
-    Selection { theme: ThemePair::same(id(theme)), mode, contrast: ContrastChoice::System, size: Size::Compact, text_size: TextSize::Default }
+    Selection {
+        theme: ThemePair::same(id(theme)),
+        mode,
+        contrast: ContrastChoice::System,
+        motion: MotionChoice::System,
+        size: Size::Compact,
+        text_size: TextSize::Default,
+    }
 }
 
 fn same(theme: &str) -> Option<ThemePair> {

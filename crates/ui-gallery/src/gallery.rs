@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use craft_platform::appearance::SystemReader;
-use craft_theme::{ContrastChoice, Mode, ModeChoice, SystemAppearance, TextSize, TokenRef, builtins};
+use craft_theme::{ContrastChoice, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, TokenRef, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
 use craft_ui::composites::PropertyRow;
 use craft_ui::controls::{Button, Checkbox, NumberField, SearchField, Segmented, Select, TextField, ToggleButton};
@@ -17,7 +17,7 @@ use craft_ui::story::{ArgValue, Args, Level, Story, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
 use egui::{CentralPanel, Frame, Panel, ScrollArea, Ui};
 
-use crate::appearance::{Appearance, MotionChoice, SCALE, builtin};
+use crate::appearance::{Appearance, SCALE, builtin};
 use crate::browser::Browser;
 use crate::faces;
 use crate::fields;
@@ -61,7 +61,7 @@ impl Gallery {
         let saved = Saved::load(storage);
         let mut stories = registry();
         stories.extend(faces::stories());
-        let selected = saved.selected.filter(|id| stories.iter().any(|s| s.id == id)).or_else(|| stories.first().map(|s| s.id.to_owned()));
+        let selected = saved.selected.filter(|id| stories.iter().any(|s| s.id == id)).or_else(|| first_story(&stories).map(str::to_owned));
         let mut compare_themes: Vec<String> = saved.compare_themes.into_iter().filter(|id| builtin(id).is_some()).collect();
         if compare_themes.is_empty() {
             compare_themes.push(saved.appearance.theme.clone());
@@ -461,6 +461,13 @@ fn args_of<'a>(args: &'a mut HashMap<String, Args>, saved: &HashMap<String, Vec<
     })
 }
 
+/// The story the navigation lists first: the first story of its first level's first component.
+fn first_story(stories: &[Story]) -> Option<&'static str> {
+    let (level, components) = nav(stories, "").into_iter().next()?;
+    let component = *components.first()?;
+    stories.iter().find(|s| s.level == level && s.component == component).map(|s| s.id)
+}
+
 /// The navigation's levels in their order, each with the components that have a story matching
 /// `filter` (lowercase), sorted by name ignoring case, whatever the registration order.
 fn nav(stories: &[Story], filter: &str) -> Vec<(Level, Vec<&'static str>)> {
@@ -652,5 +659,15 @@ mod tests {
         let levels: Vec<Level> = nav.iter().map(|(level, _)| *level).collect();
         let order: Vec<Level> = Level::ALL.into_iter().filter(|l| levels.contains(l)).collect();
         assert_eq!(levels, order);
+    }
+
+    #[test]
+    fn a_fresh_gallery_opens_the_navigations_first_story() {
+        let gallery = Gallery::new(None);
+        let nav = nav(&gallery.stories, "");
+        let (level, components) = &nav[0];
+        let first = gallery.stories.iter().find(|s| s.level == *level && s.component == components[0]).expect("the nav lists stories").id;
+        assert_eq!(gallery.selected.as_deref(), Some(first));
+        assert_eq!(first_story(&gallery.stories), Some(first));
     }
 }

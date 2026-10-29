@@ -24,6 +24,7 @@ fn selection(light: &str, dark: &str, mode: ModeChoice) -> Selection {
         theme: ThemePair { light: id(light), dark: id(dark) },
         mode,
         contrast: ContrastChoice::System,
+        motion: MotionChoice::System,
         size: Size::Compact,
         text_size: TextSize::Default,
     }
@@ -61,6 +62,7 @@ fn app_choice_over_suite_over_defaults_per_field() {
             theme: defaults.theme.clone(),
             mode: ModeChoice::Dark,
             contrast: ContrastChoice::System,
+            motion: MotionChoice::System,
             size: Size::Compact,
             text_size: TextSize::Default
         }
@@ -79,6 +81,7 @@ fn app_choice_over_suite_over_defaults_per_field() {
             theme: ThemePair { light: id("craft.pro"), dark: id("craft.studio") },
             mode: ModeChoice::Dark,
             contrast: ContrastChoice::High,
+            motion: MotionChoice::System,
             size: Size::Compact,
             text_size: TextSize::Large,
         }
@@ -154,13 +157,14 @@ fn serde_forms_round_trip() {
         theme: ThemePair { light: id("craft.pro"), dark: ThemeId::app_default() },
         mode: ModeChoice::System,
         contrast: ContrastChoice::High,
+        motion: MotionChoice::System,
         size: Size::Comfortable,
         text_size: TextSize::Larger,
     };
     let json = serde_json::to_string(&sel).unwrap();
     assert_eq!(
         json,
-        r#"{"theme":{"light":"craft.pro","dark":"craft.app-default"},"mode":"system","contrast":"high","size":"comfortable","text_size":"larger"}"#
+        r#"{"theme":{"light":"craft.pro","dark":"craft.app-default"},"mode":"system","contrast":"high","motion":"system","size":"comfortable","text_size":"larger"}"#
     );
     assert_eq!(serde_json::from_str::<Selection>(&json).unwrap(), sel);
 
@@ -171,7 +175,7 @@ fn serde_forms_round_trip() {
         ..SuiteChoice::default()
     };
     let json = serde_json::to_string(&suite).unwrap();
-    assert_eq!(json, r#"{"theme_light":null,"theme_dark":"craft.studio","mode":"dark","contrast":null,"size":null,"text_size":"default"}"#);
+    assert_eq!(json, r#"{"theme_light":null,"theme_dark":"craft.studio","mode":"dark","contrast":null,"motion":null,"size":null,"text_size":"default"}"#);
     assert_eq!(serde_json::from_str::<SuiteChoice>(&json).unwrap(), suite);
     assert_eq!(
         serde_json::from_str::<SuiteChoice>(r#"{"size":"compact"}"#).unwrap(),
@@ -188,4 +192,29 @@ fn serde_forms_round_trip() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn system_motion_follows_the_reading() {
+    let reduced = |motion, reading| {
+        let sel = Selection { motion, ..selection("craft.graphite", "craft.graphite", ModeChoice::Dark) };
+        let shown = show(&sel, SystemAppearance { reduced_motion: reading, ..SystemAppearance::default() });
+        assert_eq!(shown.appearance.reduced_motion, shown.resolved.tokens.motion.hover.millis == 0);
+        shown.appearance.reduced_motion
+    };
+    assert!(reduced(MotionChoice::System, Some(true)));
+    assert!(!reduced(MotionChoice::System, Some(false)));
+    assert!(!reduced(MotionChoice::System, None));
+    assert!(reduced(MotionChoice::Reduced, Some(false)));
+    assert!(!reduced(MotionChoice::Full, Some(true)));
+}
+
+/// `selection.json` files written before the motion choice have no such field.
+#[cfg(feature = "serde")]
+#[test]
+fn a_suite_choice_without_motion_still_parses() {
+    let choice: SuiteChoice = serde_json::from_str(r#"{"mode":"dark","contrast":"high"}"#).unwrap();
+    assert_eq!(choice.motion, None);
+    let chosen: SuiteChoice = serde_json::from_str(r#"{"motion":"reduced"}"#).unwrap();
+    assert_eq!(chosen.motion, Some(MotionChoice::Reduced));
 }

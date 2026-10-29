@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use craft_theme::{
-    AppDefaults, Appearance, Contrast, ContrastChoice, Mode, ModeChoice, Selection, Size, SystemAppearance, TextSize, ThemeDef, ThemeId, ThemePair,
-    builtins, resolve,
+    AppDefaults, Appearance, Contrast, ContrastChoice, Mode, ModeChoice, MotionChoice, Selection, Size, SystemAppearance, TextSize, ThemeDef,
+    ThemeId, ThemePair, builtins, resolve,
 };
 use egui::{Context, Popup, RawInput, Theme, Ui};
 
@@ -16,7 +16,14 @@ fn theme(id: &str) -> ThemeDef {
 
 fn base(id: &str, mode: ModeChoice) -> Base {
     let pair = ThemePair::same(theme(id).id);
-    let sel = Selection { theme: pair, mode, contrast: ContrastChoice::Standard, size: Size::Compact, text_size: TextSize::Default };
+    let sel = Selection {
+        theme: pair,
+        mode,
+        contrast: ContrastChoice::Standard,
+        motion: MotionChoice::System,
+        size: Size::Compact,
+        text_size: TextSize::Default,
+    };
     let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode, size: Size::Compact };
     Base::resolve(&sel, SystemAppearance::default(), &defaults, None, &mut |id| builtins().iter().find(|t| t.id == *id).cloned())
 }

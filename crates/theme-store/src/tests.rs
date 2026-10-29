@@ -7,8 +7,8 @@ use std::{
 };
 
 use craft_theme::{
-    Appearance, Contrast, ContrastChoice, ContrastIntent, IdError, Mode, ModeChoice, Selection, Size, SuiteChoice, TextSize, ThemeId, ThemePair,
-    builtins, resolve,
+    Appearance, Contrast, ContrastChoice, ContrastIntent, IdError, Mode, ModeChoice, MotionChoice, Selection, Size, SuiteChoice, TextSize, ThemeId,
+    ThemePair, builtins, resolve,
 };
 use serde_json::Value;
 
@@ -33,7 +33,14 @@ fn id(s: &str) -> ThemeId {
 
 /// `theme` in both slots, with the defaults for every field but the mode.
 fn sel(theme: &str, mode: ModeChoice) -> Selection {
-    Selection { theme: ThemePair::same(id(theme)), mode, contrast: ContrastChoice::System, size: Size::Compact, text_size: TextSize::Default }
+    Selection {
+        theme: ThemePair::same(id(theme)),
+        mode,
+        contrast: ContrastChoice::System,
+        motion: MotionChoice::System,
+        size: Size::Compact,
+        text_size: TextSize::Default,
+    }
 }
 
 fn whole(theme: &str, mode: ModeChoice) -> SelectionChange {
@@ -382,6 +389,7 @@ fn the_new_fields_merge_one_by_one_across_stores() {
             theme_dark: Some(id("craft.graphite")),
             mode: Some(ModeChoice::Dark),
             contrast: Some(ContrastChoice::High),
+            motion: Some(MotionChoice::System),
             size: Some(Size::Comfortable),
             text_size: Some(TextSize::Large),
         }

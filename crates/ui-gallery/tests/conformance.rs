@@ -22,6 +22,7 @@ fn appearance(case: &Case) -> Appearance {
         theme: selection.theme.light.as_str().to_owned(),
         mode: selection.mode,
         contrast: selection.contrast,
+        motion: selection.motion,
         comfortable: selection.size == Size::Comfortable,
         text_size: TextSize::ALL.iter().position(|t| *t == selection.text_size).unwrap_or(1),
         rtl: case.dir() == Direction::Rtl,
