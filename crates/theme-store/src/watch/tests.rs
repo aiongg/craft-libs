@@ -70,7 +70,11 @@ fn counter() -> (Arc<AtomicUsize>, Box<dyn Fn() + Send + Sync>) {
     (wakes, Box::new(move || _ = w.fetch_add(1, Ordering::SeqCst)))
 }
 
+/// Waits for `done`. The limit only ends a hung test: the first use of the built-in themes parses
+/// all of them (seconds in a debug build on a loaded machine) and the worker would spend the limit
+/// on that, so it is done before the clock starts.
 fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
+    let _ = craft_theme::builtins();
     let deadline = Instant::now() + Duration::from_secs(5);
     while !done() {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");

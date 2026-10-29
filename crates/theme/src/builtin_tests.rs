@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use super::builtins::{SOURCES, suite_default};
 use super::format;
-use super::semantic_tests::appearances;
+use super::semantic_tests::{appearances, resolve, resolve_with_steps};
 use super::*;
 
 #[test]
@@ -91,7 +91,7 @@ const ACCENT_TEXT_MIN_CHROMA: f64 = 0.04;
 fn builtin_field_text_and_state_edges_meet_their_minimums() {
     for theme in builtins() {
         for a in appearances() {
-            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let (_, steps) = resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Field(_)))).collect();
             // Seven on the field's fill, and the rest and hover borders on the panel and a popup.
             assert_eq!(pairs.len(), 7 + 4, "{} {a:?}", theme.id);
@@ -108,7 +108,7 @@ fn builtin_field_text_and_state_edges_meet_their_minimums() {
 fn builtin_listbox_text_and_check_mark_meet_their_minimums() {
     for theme in builtins() {
         for a in appearances() {
-            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let (_, steps) = resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Listbox(_)))).collect();
             assert_eq!(pairs.len(), 9, "{} {a:?}", theme.id);
             for p in pairs {
@@ -124,7 +124,7 @@ fn builtin_listbox_text_and_check_mark_meet_their_minimums() {
 fn builtin_menu_text_meets_its_minimum() {
     for theme in builtins() {
         for a in appearances() {
-            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let (_, steps) = resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Menu(_)))).collect();
             // The active fill, the active text and the shortcut, and each hue's text and shortcut
             // on its tint.
@@ -143,7 +143,7 @@ fn builtin_menu_text_meets_its_minimum() {
 fn builtin_list_text_and_drop_marker_meet_their_minimums() {
     for theme in builtins() {
         for a in appearances() {
-            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let (_, steps) = resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::List(_)))).collect();
             assert_eq!(pairs.len(), 21, "{} {a:?}", theme.id);
             for p in pairs {
@@ -237,7 +237,7 @@ fn builtin_accent_strong_carries_white_text() {
 fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
     for theme in builtins() {
         for a in appearances() {
-            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let (_, steps) = resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Check(_)))).collect();
             assert_eq!(pairs.len(), 7, "{} {a:?}", theme.id);
             for p in pairs {
@@ -255,7 +255,7 @@ fn builtin_check_marks_and_outlines_meet_the_non_text_minimum() {
 fn builtin_small_control_pairs_meet_their_minimums() {
     for theme in builtins() {
         for a in appearances() {
-            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let (_, steps) = resolve_with_steps(theme, a, None);
             let small = |p: &&ContrastCheck| {
                 matches!(
                     p.fg,
@@ -388,7 +388,7 @@ fn builtin_greys_from_grey_seeds_stay_neutral() {
 fn builtin_tab_text_close_and_drop_marker_meet_their_minimums() {
     for theme in builtins() {
         for a in appearances() {
-            let (_, steps) = resolve::resolve_with_steps(theme, a, None);
+            let (_, steps) = resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Tab(_)))).collect();
             assert_eq!(pairs.len(), 10, "{} {a:?}", theme.id);
             for p in pairs {

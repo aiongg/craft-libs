@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use super::semantic_tests::{app, appearances, grey_blue, hex, over, violet};
+use super::semantic_tests::{app, appearances, grey_blue, hex, over, resolve, violet};
 use super::*;
 use ColorToken as T;
 
