@@ -30,6 +30,10 @@
 //! gesture that input began (a press that became a drag), without asking it to end. An entry
 //! whose holder skipped a pass is dropped, as is the input the holder kept.
 //!
+//! A holder with several inputs that run one a pass (a composite's queue of held part events)
+//! [keeps](keep) its place at the head after each runs: an input that arrives meanwhile, a press
+//! on one of its parts among them, waits until the holder [leaves](leave) the queue.
+//!
 //! Standalone controls don't wait: the [`GestureHost`](super::GestureHost) orders their events
 //! (a `Begin` or `Set` while another gesture is under way ends that gesture first).
 
@@ -154,4 +158,31 @@ fn poll(ctx: &Context, queue: &mut Queue, i: usize, own: Option<GestureId>, pass
         e.behind = true;
     }
     Turn::Runs
+}
+
+/// Keeps holder `key`'s place at the head of the queue, for the next of the inputs it runs one a
+/// pass, also when its last ran in this pass: no input that arrives meanwhile runs before it. It
+/// also waits for `gesture` (one its input began). The holder asks for its turn with
+/// [`turn_after`] in its next pass, and gives the place up with [`leave`] once it has no input.
+pub(crate) fn keep(ctx: &Context, key: Id, gesture: Option<GestureId>) {
+    let pass = ctx.cumulative_pass_nr();
+    let mut queue = Queue::get(ctx);
+    queue.entries.retain(|e| e.polled + 1 >= pass);
+    let i = queue.entries.iter().position(|e| e.key == key).unwrap_or_else(|| {
+        queue.entries.insert(0, Entry { key, awaits: Vec::new(), polled: pass, behind: false });
+        0
+    });
+    let entry = &mut queue.entries[i];
+    entry.polled = pass;
+    if let Some(gesture) = gesture.filter(|g| !entry.awaits.contains(g)) {
+        entry.awaits.push(gesture);
+    }
+    queue.put(ctx);
+}
+
+/// Removes holder `key`'s place from the queue ([`keep`]).
+pub(crate) fn leave(ctx: &Context, key: Id) {
+    let mut queue = Queue::get(ctx);
+    queue.entries.retain(|e| e.key != key);
+    queue.put(ctx);
 }

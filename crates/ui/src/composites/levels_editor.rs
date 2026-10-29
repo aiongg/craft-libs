@@ -168,7 +168,7 @@ const CLIP: &str = "craft_ui::levels_clip";
 const STATE: &str = "craft_ui::levels_editor";
 const EDIT: &str = "craft_ui::levels_editor::edit";
 
-type Edits = parts::Edits<Levels>;
+type Edits = parts::Edits<Levels, ()>;
 
 /// The input level the gamma thumb sits at: the level that maps to 50 % grey. `values` are the
 /// input row's (black, gamma, white).
@@ -432,7 +432,7 @@ impl<'a> LevelsEditor<'a> {
         // composite's gesture applies the policy.
         let levels = *outer.shown();
         let inner = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
-        let mut edits = Edits::new(id, &state);
+        let mut edits = Edits::new(id, &state, &outer, edit::in_scope(ui));
         let stack_gap = ui.spacing().item_spacing.y;
 
         if self.captions {
@@ -477,8 +477,7 @@ impl<'a> LevelsEditor<'a> {
         // Each row's fields draw from the row's value of this pass, unless the row's edit waits
         // for another part's gesture: it isn't in the editor's value then. Each part maps onto
         // the value the parts before it in this pass left.
-        let scoped = edit::in_scope(ui);
-        let mut running = parts::Running::new(&outer, scoped, levels);
+        let mut running = parts::Running::new(levels);
         let input_rules = input.rules.clone();
         let rules = input.rules;
         edits.push_rebased(&input.edit, &levels.input(), move |row, base, now| rules.rebase(row, base, now), |v| levels.with_input(v));
@@ -512,7 +511,7 @@ impl<'a> LevelsEditor<'a> {
         // thumbs' order on the row the fields before it left.
         for (i, field) in [&b, &g, &w].into_iter().enumerate() {
             let base = *running.value();
-            edits.typing(ui.ctx(), field, |v| base.with_input(input_rules.moved(&base.input(), i, v)));
+            edits.typing_mapped(ui.ctx(), field, |v| base.with_input(input_rules.moved(&base.input(), i, v)));
             running.after(&edits, field.response.id);
         }
 
@@ -550,14 +549,14 @@ impl<'a> LevelsEditor<'a> {
         ];
         let [ob, ow] = out_fields.map(|(rect, salt, field)| show_field(ui, rect, salt, field.part(true)));
         let base = *running.value();
-        edits.typing(ui.ctx(), &ob, |v| Levels { out_black: v, ..base });
+        edits.typing_mapped(ui.ctx(), &ob, |v| Levels { out_black: v, ..base });
         running.after(&edits, ob.response.id);
         let base = *running.value();
-        edits.typing(ui.ctx(), &ow, |v| Levels { out_white: v, ..base });
+        edits.typing_mapped(ui.ctx(), &ow, |v| Levels { out_white: v, ..base });
 
         let submitted = [&b, &g, &w, &ob, &ow].iter().any(|e| e.submitted);
         let escaped = [&b, &g, &w, &ob, &ow].iter().any(|e| e.escaped);
-        let outer = edits.feed(outer, &mut state, scoped);
+        let outer = edits.feed(outer, &mut state);
         ui.data_mut(|d| d.insert_temp(id.with(STATE), state));
         (outer.finish(), submitted, escaped)
     }

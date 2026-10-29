@@ -40,6 +40,7 @@
 mod gesture;
 mod host;
 mod live;
+pub(crate) mod ops;
 pub(crate) mod order;
 pub(crate) mod parts;
 mod story;

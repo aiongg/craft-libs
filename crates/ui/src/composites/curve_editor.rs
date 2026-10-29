@@ -453,8 +453,7 @@ impl<'a> CurveEditor<'a> {
         let outer = Gesture::load(ui, id.with(EDIT), self.curve, self.policy.cancellable(false)).enabled(self.enabled && ui.is_enabled());
         let shown = outer.shown().clone();
         let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
-        let mut edits = parts::Edits::<Curve>::new(id, &state.parts);
-        let scoped = edit::in_scope(ui);
+        let mut edits = parts::Edits::<Curve, ()>::new(id, &state.parts, &outer, edit::in_scope(ui));
         let before = state.selected;
         let graph = Stack::new(Gap::Stack)
             .show(ui, |ui| {
@@ -464,7 +463,7 @@ impl<'a> CurveEditor<'a> {
                 // graph's edit waits for another part's gesture: it isn't in the editor's value
                 // then, so they draw from the shown curve, and the selection stays where it was
                 // before the edit.
-                let waits = graph.event.is_some() && !edits.applies(&outer, scoped, graph.response.id);
+                let waits = graph.event.is_some() && !edits.applies(graph.response.id);
                 if let Some(points) = points {
                     let (points, selected) = match waits {
                         false => (points, selected),
@@ -474,7 +473,7 @@ impl<'a> CurveEditor<'a> {
                         }
                     };
                     if self.fields {
-                        let mut running = parts::Running::new(&outer, scoped, Curve::Points(points.clone()));
+                        let mut running = parts::Running::new(Curve::Points(points.clone()));
                         self.fields_row(ui, id, &points, selected, policy, &mut edits, &mut running);
                     }
                 }
@@ -484,7 +483,7 @@ impl<'a> CurveEditor<'a> {
                 graph
             })
             .inner;
-        let outer = edits.feed(outer, &mut state.parts, scoped);
+        let outer = edits.feed(outer, &mut state.parts);
         ui.data_mut(|d| d.insert_temp(id.with(STATE), state));
         EditResponse::new(graph.response, outer.finish())
     }
@@ -729,8 +728,8 @@ impl<'a> CurveEditor<'a> {
         points: &[[f32; 2]],
         selected: Option<usize>,
         policy: EditPolicy,
-        edits: &mut parts::Edits<Curve>,
-        running: &mut parts::Running<'_, Curve>,
+        edits: &mut parts::Edits<Curve, ()>,
+        running: &mut parts::Running<Curve>,
     ) {
         let rules = Rules { levels: self.levels, max_points: self.max_points };
         let at = selected.and_then(|i| points.get(i).map(|p| (i, *p)));
@@ -777,10 +776,10 @@ impl<'a> CurveEditor<'a> {
         });
         let (input, output) = row.inner.inner;
         let base = running.value().clone();
-        edits.typing(ui.ctx(), &input, |v| moved(&base, 0, v));
+        edits.typing_mapped(ui.ctx(), &input, |v| moved(&base, 0, v));
         running.after(edits, input.response.id);
         let base = running.value().clone();
-        edits.typing(ui.ctx(), &output, |v| moved(&base, 1, v));
+        edits.typing_mapped(ui.ctx(), &output, |v| moved(&base, 1, v));
     }
 }
 

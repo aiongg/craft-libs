@@ -250,7 +250,7 @@ const CLAIMED: [ClaimedKey; 7] = [
 /// Stop locations as markers show them, closer than this, have no midpoint diamond between them.
 const MIN_GAP: f32 = 0.001;
 
-type Edits = parts::Edits<GradientStops>;
+type Edits = parts::Edits<GradientStops, ()>;
 
 /// What [`GradientEditor::show`] returns: the edit of the stops, whose response is the bar's, a
 /// colour stop whose colour the host is asked to edit (a double-click on it, Enter or Space while
@@ -542,15 +542,14 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let active = outer.is_active();
         let before = state.selected;
         let shown = outer.shown().clone();
-        let mut edits = Edits::new(id, &state.parts);
+        let mut edits = Edits::new(id, &state.parts, &outer, edit::in_scope(ui));
         let bar = self.bar(ui, id, style, &shown, &mut state, enabled);
         edits.push_from(&bar.edit, &shown, |stops| stops);
         // The fields, the popover and Delete draw from the bar's stops of this pass and map onto
         // them, unless the bar's edit waits for another part's gesture: it isn't in the editor's
         // value then, so they draw from the shown stops, and the selection stays where it was
         // before the edit.
-        let scoped = edit::in_scope(ui);
-        let waits = bar.edit.event.is_some() && !edits.applies(&outer, scoped, bar.edit.response.id);
+        let waits = bar.edit.event.is_some() && !edits.applies(bar.edit.response.id);
         let drawn = match waits {
             false => &bar.value,
             true => {
@@ -560,7 +559,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         };
         // Each field maps onto the stops the parts before it in this pass left, and Delete
         // removes from the stops they all left.
-        let mut running = parts::Running::new(&outer, scoped, drawn.clone());
+        let mut running = parts::Running::new(drawn.clone());
         // The one place a colour request is made: the popover takes it, or the host does.
         let mut requested = bar.color_requested;
         let mut picker = fields::PickerReport::default();
@@ -577,7 +576,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                 edits.set(stops);
             }
         }
-        let outer = edits.feed(outer, &mut state.parts, scoped);
+        let outer = edits.feed(outer, &mut state.parts);
         if !active && outer.is_active() {
             state.start_selected = before;
         }

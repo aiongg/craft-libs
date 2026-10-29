@@ -217,7 +217,7 @@ impl ColorPicker<'_> {
                                         .show(ui)
                                 },
                             );
-                            edits.typing(ui.ctx(), &edit, |x| shown.with_channel(*model, i, x, constrain));
+                            edits.typing_mapped(ui.ctx(), &edit, |x| shown.with_channel(*model, i, x, constrain));
                         }
                     }
                     if c == 0 {

@@ -59,7 +59,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         ui: &mut Ui,
         id: Id,
         stops: &GradientStops,
-        running: &mut Running<'_, GradientStops>,
+        running: &mut Running<GradientStops>,
         state: &mut State,
         edits: &mut Edits,
         enabled: bool,
@@ -91,7 +91,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                         let color = stops.color[i].color;
                         let field = self.number(ui, ("opacity", StopRow::Color), &self.labels.opacity, percent(color.a), 0.0..=100.0, 0, &look);
                         let base = running.value();
-                        edits.typing(ui.ctx(), &field, |v| {
+                        edits.typing_mapped(ui.ctx(), &field, |v| {
                             let mut out = base.clone();
                             out.color[i].color.a = (v / 100.0) as f32;
                             out
@@ -105,7 +105,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                     let opacity = stops.opacity_stops()[i].opacity;
                     let field = self.number(ui, ("opacity", StopRow::Opacity), &self.labels.opacity, percent(opacity), 0.0..=100.0, 0, &look);
                     let base = running.value();
-                    edits.typing(ui.ctx(), &field, |v| {
+                    edits.typing_mapped(ui.ctx(), &field, |v| {
                         let mut out = GradientStops { color: base.color.clone(), opacity: base.opacity_stops().into_owned() };
                         out.opacity[i].opacity = (v / 100.0) as f32;
                         out
@@ -119,7 +119,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
                     let label = &self.labels.midpoint_field;
                     let field = self.number(ui, ("midpoint", row), label, percent(midpoint(stops, row, i)), range, 0, &look);
                     let rules = &self.rules;
-                    edits.typing(ui.ctx(), &field, |v| {
+                    edits.typing_mapped(ui.ctx(), &field, |v| {
                         stops::set_midpoint(stops, row, i, (v / 100.0) as f32, rules).map_or_else(|| stops.clone(), |(s, _)| s)
                     });
                     running.after(edits, field.response.id);
@@ -254,16 +254,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     /// holds. Each value of a run moves the stop from where the run began ([`LocationRun`]); the
     /// selection follows the stop when it passes a neighbour.
     #[allow(clippy::too_many_arguments)]
-    fn location(
-        &self,
-        ui: &mut Ui,
-        row: StopRow,
-        i: usize,
-        running: &mut Running<'_, GradientStops>,
-        state: &mut State,
-        edits: &mut Edits,
-        look: &Look,
-    ) {
+    fn location(&self, ui: &mut Ui, row: StopRow, i: usize, running: &mut Running<GradientStops>, state: &mut State, edits: &mut Edits, look: &Look) {
         let stops = running.value();
         let at = locations(stops, row)[i];
         let field = self.number(ui, ("location", row), &self.labels.location, percent(at), 0.0..=100.0, self.location_decimals, look);
@@ -281,7 +272,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         {
             state.selected = Some(StopRef::stop(row, j));
         }
-        edits.typing(ui.ctx(), &field, |v| moved(v).map_or_else(|| stops.clone(), |(s, _)| s));
+        edits.typing_mapped(ui.ctx(), &field, |v| moved(v).map_or_else(|| stops.clone(), |(s, _)| s));
         state.location = run;
         running.after(edits, field.response.id);
     }

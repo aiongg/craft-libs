@@ -232,20 +232,20 @@ impl<'a> AngleDial<'a> {
         let mixed = shown.is_none();
         let shown = shown.unwrap_or(f64::NAN);
         let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
-        let mut edits = parts::Edits::<Option<f64>>::new(id, &state);
+        let mut edits = parts::Edits::<Option<f64>, ()>::new(id, &state, &outer, edit::in_scope(ui));
 
         let dial = Row::new(Gap::Inline)
             .show(ui, |ui| {
                 let dial = self.dial(ui, &style, shown, mixed, policy, enabled);
-                edits.push(&dial, Some);
+                edits.push_mapped(&dial, Some);
                 if self.field {
                     let field = self.degrees(ui, shown, policy, enabled);
-                    edits.typing(ui.ctx(), &field, Some);
+                    edits.typing_mapped(ui.ctx(), &field, Some);
                 }
                 dial
             })
             .inner;
-        let outer = edits.feed(outer, &mut state, edit::in_scope(ui));
+        let outer = edits.feed(outer, &mut state);
         ui.data_mut(|d| d.insert_temp(id, state));
         // The host's own value stands for a mixed one in the events that carry none.
         let event = outer.finish().map(|event| event.map(|value| value.unwrap_or(self.value)));

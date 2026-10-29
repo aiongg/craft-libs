@@ -723,10 +723,10 @@ fn a_composite_with_a_nan_value_repaints_only_for_an_event() {
     let mut pass = |event: Option<EditEvent<Unset>>| {
         let output = ctx.run_ui(RawInput::default(), |ui| {
             let outer = Gesture::load(ui, composite, &Unset(f64::NAN), EditPolicy::default());
-            let mut edits = parts::Edits::new(composite, &state);
+            let mut edits = parts::Edits::new(composite, &state, &outer, false);
             let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), part, Sense::click());
-            edits.push(&EditResponse::new(response, event.clone()), |v| v);
-            edits.feed(outer, &mut state, false).finish();
+            edits.push_mapped(&EditResponse::new(response, event.clone()), |v| v);
+            edits.feed(outer, &mut state).finish();
         });
         let delay = output.viewport_output.values().map(|v| v.repaint_delay).min().unwrap();
         output.drop_without_applying_deltas();
@@ -749,7 +749,7 @@ fn a_composite_with_a_nan_value_repaints_only_for_an_event() {
 #[test]
 fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
     let ctx = Context::default();
-    let mut state = parts::State::default();
+    let mut state = parts::State::<(), i32>::default();
     let host = std::cell::Cell::new(0);
     let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
     // Part `a` is a field, with the focus while `focus`, whose gesture does as `a` says; part `b`
@@ -759,23 +759,23 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
         let output = ctx.run_ui(RawInput::default(), |ui| {
             let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
             let shown = *outer.shown();
-            let mut edits = parts::Edits::new(composite, &state);
+            let mut edits = parts::Edits::new(composite, &state, &outer, false);
             let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
             if focus {
                 response.request_focus();
             }
             let mut gesture = Gesture::load(ui, a_id, &shown, EditPolicy::default());
             a(&mut gesture);
-            edits.typing(ui.ctx(), &EditResponse::new(response, gesture.finish()), |v| v);
+            edits.typing_mapped(ui.ctx(), &EditResponse::new(response, gesture.finish()), |v| v);
             let response = ui.interact(Rect::from_min_size(Pos2::new(30.0, 0.0), vec2(20.0, 20.0)), b_id, Sense::click());
-            edits.push(&EditResponse::new(response, b.clone()), |v| v);
+            edits.push_mapped(&EditResponse::new(response, b.clone()), |v| v);
             if let Some(click) = click {
                 edits.input(click);
             }
             for click in edits.inputs(ui.ctx(), &mut state) {
                 edits.set(click);
             }
-            event = edits.feed(outer, &mut state, false).finish();
+            event = edits.feed(outer, &mut state).finish();
         });
         output.drop_without_applying_deltas();
         if let Some(value) = event.as_ref().and_then(EditEvent::value) {
@@ -814,10 +814,10 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
         let mut out = None;
         let output = ctx.run_ui(RawInput::default(), |ui| {
             let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
-            let mut edits = parts::Edits::new(composite, &state);
+            let mut edits = parts::Edits::new(composite, &state, &outer, false);
             let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
-            edits.push(&EditResponse::new(response, Some(event.clone())), map);
-            out = edits.feed(outer, &mut state, false).finish();
+            edits.push_mapped(&EditResponse::new(response, Some(event.clone())), map);
+            out = edits.feed(outer, &mut state).finish();
         });
         output.drop_without_applying_deltas();
         out
@@ -838,19 +838,19 @@ fn a_parts_edit_in_the_pass_the_composites_gesture_ends_follows_the_ending() {
     // Part `a` edits the first number, part `b` the second.
     let host = std::cell::Cell::new((0, 0));
     let (a_id, b_id, composite) = (Id::unique("a"), Id::unique("b"), Id::unique("composite"));
-    type Act<'a> = &'a dyn Fn(&mut parts::Edits<(i32, i32)>, &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, (i32, i32));
+    type Act<'a> = &'a dyn Fn(&mut parts::Edits<(i32, i32), ()>, &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, (i32, i32));
     let mut pass = |act: Act| {
         let mut event = None;
         let output = ctx.run_ui(RawInput::default(), |ui| {
             let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
             let shown = *outer.shown();
-            let mut edits = parts::Edits::new(composite, &state);
+            let mut edits = parts::Edits::new(composite, &state, &outer, false);
             let part = |id: Id, event: Option<EditEvent<i32>>| {
                 let x = if id == a_id { 0.0 } else { 30.0 };
                 EditResponse::new(ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click()), event)
             };
             act(&mut edits, &part, shown);
-            event = edits.feed(outer, &mut state, false).finish();
+            event = edits.feed(outer, &mut state).finish();
         });
         output.drop_without_applying_deltas();
         if let Some(value) = event.as_ref().and_then(EditEvent::value) {
@@ -858,11 +858,11 @@ fn a_parts_edit_in_the_pass_the_composites_gesture_ends_follows_the_ending() {
         }
         event
     };
-    let a = |e: &mut parts::Edits<(i32, i32)>, part: &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, shown: (i32, i32), event| {
-        e.push(&part(a_id, event), |v| (v, shown.1));
+    let a = |e: &mut parts::Edits<(i32, i32), ()>, part: &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, shown: (i32, i32), event| {
+        e.push_mapped(&part(a_id, event), |v| (v, shown.1));
     };
-    let b = |e: &mut parts::Edits<(i32, i32)>, part: &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, shown: (i32, i32), event| {
-        e.push(&part(b_id, event), |v| (shown.0, v));
+    let b = |e: &mut parts::Edits<(i32, i32), ()>, part: &dyn Fn(Id, Option<EditEvent<i32>>) -> EditResponse<i32>, shown: (i32, i32), event| {
+        e.push_mapped(&part(b_id, event), |v| (shown.0, v));
     };
     let run = GestureId::next();
     let begun = pass(&|e, p, s| {
@@ -943,7 +943,7 @@ fn a_composites_gesture_ends_as_its_owner_part_when_that_part_is_not_drawn() {
         let mut event = None;
         let output = ctx.run_ui(RawInput::default(), |ui| {
             let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
-            let mut edits = parts::Edits::<i32>::new(composite, &state);
+            let mut edits = parts::Edits::<i32, ()>::new(composite, &state, &outer, false);
             if let Some((focus, act)) = a {
                 let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
                 match focus {
@@ -952,11 +952,11 @@ fn a_composites_gesture_ends_as_its_owner_part_when_that_part_is_not_drawn() {
                 }
                 let mut gesture = Gesture::load(ui, a_id, &(host.get() / 10), EditPolicy::default().on_release_only(true));
                 act(&mut gesture);
-                edits.push(&EditResponse::new(response, gesture.finish()), |v| v * 10);
+                edits.push_mapped(&EditResponse::new(response, gesture.finish()), |v| v * 10);
             }
             let response = ui.interact(Rect::from_min_size(Pos2::new(30.0, 0.0), vec2(20.0, 20.0)), b_id, Sense::click());
-            edits.push(&EditResponse::new(response, b.clone()), |v| v);
-            event = edits.feed(outer, &mut state, false).finish();
+            edits.push_mapped(&EditResponse::new(response, b.clone()), |v| v);
+            event = edits.feed(outer, &mut state).finish();
         });
         output.drop_without_applying_deltas();
         if let Some(value) = event.as_ref().and_then(EditEvent::value) {
@@ -1361,17 +1361,17 @@ fn a_composites_gesture_ends_with_its_owners_value_after_the_host_ended_it() {
             let ctx = ui.ctx().clone();
             let outer = Gesture::load(ui, composite, &(doc.now.0, doc.now.1), EditPolicy::default());
             let shown = *outer.shown();
-            let mut edits = parts::Edits::<(i32, i32)>::new(composite, &state);
+            let mut edits = parts::Edits::<(i32, i32), ()>::new(composite, &state, &outer, false);
             let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
             response.request_focus();
             // The field follows its own run, as a number field does.
             let value = Gesture::<i32>::reported(ui, a_id).map_or(shown.0, |(_, value)| value);
             let mut gesture = Gesture::load(ui, a_id, &value, EditPolicy::default().on_release_only(true));
             a(&mut gesture);
-            edits.typing(&ctx, &EditResponse::new(response, gesture.finish()), |v| (v, shown.1));
+            edits.typing_mapped(&ctx, &EditResponse::new(response, gesture.finish()), |v| (v, shown.1));
             let response = ui.interact(Rect::from_min_size(Pos2::new(30.0, 0.0), vec2(20.0, 20.0)), b_id, Sense::click());
-            edits.push(&EditResponse::new(response, b.clone()), |v| (shown.0, v));
-            event = edits.feed(outer, &mut state, false).finish();
+            edits.push_mapped(&EditResponse::new(response, b.clone()), |v| (shown.0, v));
+            event = edits.feed(outer, &mut state).finish();
             if let Some(event) = event.clone() {
                 host.handle(&ctx, &mut doc, event, |doc: &mut Doc<(i32, i32, i32)>, (x, y)| doc.apply(|now| (now.0, now.1) = (x, y)));
             }
@@ -1626,11 +1626,11 @@ fn a_part_event_during_another_parts_drag_waits_for_the_release() {
         let output = ctx.run_ui(RawInput::default(), |ui| {
             let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
             let shown = *outer.shown();
-            let mut edits = parts::Edits::new(composite, &state);
+            let mut edits = parts::Edits::new(composite, &state, &outer, false);
             let part = |id: Id, x: f32| ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click());
-            edits.push(&EditResponse::new(part(a_id, 0.0), a.clone()), |v| (v, shown.1));
-            edits.push(&EditResponse::new(part(b_id, 30.0), b.clone()), |v| (shown.0, v));
-            event = edits.feed(outer, &mut state, false).finish();
+            edits.push_mapped(&EditResponse::new(part(a_id, 0.0), a.clone()), |v| (v, shown.1));
+            edits.push_mapped(&EditResponse::new(part(b_id, 30.0), b.clone()), |v| (shown.0, v));
+            event = edits.feed(outer, &mut state).finish();
         });
         output.drop_without_applying_deltas();
         if let Some(value) = event.as_ref().and_then(EditEvent::value) {
@@ -1663,11 +1663,11 @@ fn a_held_part_event_that_cannot_be_rebased_is_dropped() {
         let output = ctx.run_ui(RawInput::default(), |ui| {
             let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
             let shown = *outer.shown();
-            let mut edits = parts::Edits::new(composite, &state);
+            let mut edits = parts::Edits::new(composite, &state, &outer, false);
             let part = |id: Id, x: f32| ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click());
-            edits.push(&EditResponse::new(part(a_id, 0.0), a.clone()), |v| (v, shown.1));
+            edits.push_mapped(&EditResponse::new(part(a_id, 0.0), a.clone()), |v| (v, shown.1));
             edits.push_rebased(&EditResponse::new(part(b_id, 30.0), b.clone()), &shown, |_, _, _| None, |v| v);
-            event = edits.feed(outer, &mut state, false).finish();
+            event = edits.feed(outer, &mut state).finish();
         });
         output.drop_without_applying_deltas();
         if let Some(value) = event.as_ref().and_then(EditEvent::value) {
@@ -1683,6 +1683,174 @@ fn a_held_part_event_that_cannot_be_rebased_is_dropped() {
     assert_eq!(pass(Some(EditEvent::commit(run, 6, true, Modifiers::NONE)), None), commit(id, (6, 0), true));
     assert_eq!(pass(None, None), None, "the step is dropped");
     assert_eq!(host.get(), (6, 0));
+}
+
+/// An operation on a pair, for the queue tests: a step or a set of one of its numbers, or one
+/// whose target is never there.
+#[derive(Clone, Debug, PartialEq)]
+enum PairOp {
+    By(usize, i32),
+    Set(usize, i32),
+    Lost,
+}
+
+fn apply_pair(op: &PairOp, now: &(i32, i32)) -> Option<(i32, i32)> {
+    let with = |i: usize, value: i32| Some(if i == 0 { (value, now.1) } else { (now.0, value) });
+    match *op {
+        PairOp::By(i, by) => with(i, if i == 0 { now.0 } else { now.1 } + by),
+        PairOp::Set(i, value) => with(i, value),
+        PairOp::Lost => None,
+    }
+}
+
+/// A part's event in a pass of [`QueueRig`], with the operations it made.
+type PartEdit = Option<(EditEvent<i32>, Vec<PairOp>)>;
+
+/// A composite of three parts that report operations ([`parts::Edits::push`]): `a` drags the
+/// first number, `b` and `c` step or set the second. The host takes every event's value.
+struct QueueRig {
+    ctx: Context,
+    composite: Id,
+    parts: [Id; 3],
+    state: parts::State<PairOp>,
+    host: (i32, i32),
+    /// A press that asks for its turn in every pass, once made, after the parts are drawn, and
+    /// its last turn.
+    press: Option<Id>,
+    turn: Option<order::Turn>,
+    /// Whether the last pass asked for a repaint.
+    repaint: bool,
+}
+
+impl QueueRig {
+    fn new() -> Self {
+        Self {
+            ctx: Context::default(),
+            composite: Id::unique("composite"),
+            parts: [Id::unique("a"), Id::unique("b"), Id::unique("c")],
+            state: parts::State::default(),
+            host: (0, 0),
+            press: None,
+            turn: None,
+            repaint: false,
+        }
+    }
+
+    fn pass(&mut self, edits: [PartEdit; 3]) -> Option<EditEvent<(i32, i32)>> {
+        let (composite, parts) = (self.composite, self.parts);
+        let (state, host, press) = (&mut self.state, self.host, self.press);
+        let (mut event, mut turn) = (None, None);
+        let output = self.ctx.run_ui(RawInput::default(), |ui| {
+            let outer = Gesture::load(ui, composite, &host, EditPolicy::default());
+            let mut composite_edits = parts::Edits::new(composite, state, &outer, false);
+            composite_edits.replay(ui.ctx(), apply_pair);
+            for (i, (id, edit)) in parts.into_iter().zip(edits.clone()).enumerate() {
+                let response = ui.interact(Rect::from_min_size(Pos2::new(30.0 * i as f32, 0.0), vec2(20.0, 20.0)), id, Sense::click());
+                let (part_event, ops) = edit.map_or((None, Vec::new()), |(event, ops)| (Some(event), ops));
+                let map = move |v: i32, now: &(i32, i32)| if i == 0 { (v, now.1) } else { (now.0, v) };
+                composite_edits.push(&EditResponse::new(response, part_event), ops, apply_pair, map);
+            }
+            turn = press.map(|press| order::turn(ui.ctx(), press, None));
+            event = composite_edits.feed(outer, state).finish();
+        });
+        self.repaint = output.viewport_output.values().any(|v| v.repaint_delay != Duration::MAX);
+        output.drop_without_applying_deltas();
+        if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+            self.host = *value;
+        }
+        self.turn = turn;
+        event
+    }
+
+    /// Begins a drag of part `a` and returns the composite's gesture.
+    fn begin_drag(&mut self, run: GestureId) -> GestureId {
+        match self.pass([Some((EditEvent::begin(run), Vec::new())), None, None]) {
+            Some(EditEvent::Begin { id }) => id,
+            other => panic!("expected Begin, got {other:?}"),
+        }
+    }
+}
+
+fn set_op(value: i32, ops: Vec<PairOp>) -> PartEdit {
+    Some((EditEvent::set(value, Modifiers::NONE), ops))
+}
+
+fn drag(event: EditEvent<i32>) -> PartEdit {
+    Some((event, Vec::new()))
+}
+
+/// Part events held during another part's drag wait as their operations, in arrival order across
+/// parts: a set queued before a step gives the set, then the step on the set's value.
+#[test]
+fn queued_operations_apply_in_arrival_order_across_parts() {
+    let mut rig = QueueRig::new();
+    let run = GestureId::next();
+    let id = rig.begin_drag(run);
+    let update_5 = drag(EditEvent::update(run, 5, Modifiers::NONE));
+    assert_eq!(rig.pass([update_5, None, set_op(7, vec![PairOp::Set(1, 7)])]), update(id, (5, 0)), "the set waits");
+    assert_eq!(rig.pass([None, set_op(1, vec![PairOp::By(1, 1)]), None]), None, "the step waits");
+    assert_eq!(rig.pass([drag(EditEvent::commit(run, 6, true, Modifiers::NONE)), None, None]), commit(id, (6, 0), true));
+    assert_eq!(rig.pass([None, None, None]), Some(EditEvent::set((6, 7), Modifiers::NONE)));
+    assert_eq!(rig.pass([None, None, None]), Some(EditEvent::set((6, 8), Modifiers::NONE)), "the step applies to the set's value");
+    assert_eq!(rig.pass([None, None, None]), None);
+    assert_eq!(rig.host, (6, 8));
+}
+
+/// Each queued operation goes out as its own Set in its own pass, an undo step each, with a
+/// repaint asked for while the queue holds more: three held steps on one part add up.
+#[test]
+fn each_queued_operation_goes_out_as_its_own_set_in_its_own_pass() {
+    let mut rig = QueueRig::new();
+    let run = GestureId::next();
+    let id = rig.begin_drag(run);
+    for value in 1..=3 {
+        assert_eq!(rig.pass([None, set_op(value, vec![PairOp::By(1, 1)]), None]), None, "step {value} waits");
+    }
+    assert_eq!(rig.pass([drag(EditEvent::commit(run, 6, true, Modifiers::NONE)), None, None]), commit(id, (6, 0), true));
+    for value in 1..=3 {
+        assert_eq!(rig.pass([None, None, None]), Some(EditEvent::set((6, value), Modifiers::NONE)), "step {value}");
+        assert!(rig.repaint, "step {value} asks for a repaint");
+    }
+    assert_eq!(rig.pass([None, None, None]), None);
+    assert_eq!(rig.host, (6, 3));
+}
+
+/// A queued operation whose target isn't on the value of its turn is dropped without taking a
+/// pass, and the operations after it still apply.
+#[test]
+fn an_operation_that_cannot_apply_is_dropped_and_the_rest_apply() {
+    let mut rig = QueueRig::new();
+    let run = GestureId::next();
+    let id = rig.begin_drag(run);
+    assert_eq!(rig.pass([None, set_op(4, vec![PairOp::Lost]), None]), None);
+    assert_eq!(rig.pass([None, None, set_op(2, vec![PairOp::By(1, 2)])]), None);
+    assert_eq!(rig.pass([drag(EditEvent::commit(run, 6, true, Modifiers::NONE)), None, None]), commit(id, (6, 0), true));
+    assert_eq!(rig.pass([None, None, None]), Some(EditEvent::set((6, 2), Modifiers::NONE)), "the lost operation is dropped");
+    assert_eq!(rig.pass([None, None, None]), None);
+    assert_eq!(rig.host, (6, 2));
+}
+
+/// While the queue drains, a part's new one-shot event joins its tail rather than going out in a
+/// drain pass, and a press waits until the queue is empty.
+#[test]
+fn a_one_shot_event_during_a_drain_waits_behind_the_queue() {
+    let mut rig = QueueRig::new();
+    let run = GestureId::next();
+    let id = rig.begin_drag(run);
+    assert_eq!(rig.pass([None, set_op(1, vec![PairOp::By(1, 1)]), None]), None);
+    assert_eq!(rig.pass([None, None, set_op(1, vec![PairOp::By(1, 1)])]), None);
+    assert_eq!(rig.pass([drag(EditEvent::commit(run, 6, true, Modifiers::NONE)), None, None]), commit(id, (6, 0), true));
+    rig.press = Some(Id::unique("press"));
+    let set_9 = set_op(9, vec![PairOp::Set(0, 9)]);
+    assert_eq!(rig.pass([set_9, None, None]), Some(EditEvent::set((6, 1), Modifiers::NONE)), "the queue's first entry");
+    assert_eq!(rig.turn, Some(order::Turn::Waits), "a press in a drain pass waits");
+    assert_eq!(rig.pass([None, None, None]), Some(EditEvent::set((6, 2), Modifiers::NONE)));
+    assert_eq!(rig.turn, Some(order::Turn::Waits));
+    assert_eq!(rig.pass([None, None, None]), Some(EditEvent::set((9, 2), Modifiers::NONE)), "the new event, last");
+    assert_eq!(rig.turn, Some(order::Turn::Waits));
+    assert_eq!(rig.pass([None, None, None]), None);
+    assert_eq!(rig.turn, Some(order::Turn::Runs), "the press runs once the queue is empty");
+    assert_eq!(rig.host, (9, 2));
 }
 
 /// Runs passes of `ctx` with a control `control` that has the focus and a gesture under way, made

@@ -399,7 +399,7 @@ impl<'a> ColorPicker<'a> {
             let start = outer.start().cloned();
             let shown = outer.shown().clone();
             let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width };
-            let mut edits = Edits::new(id, &state.parts);
+            let mut edits = Edits::new(id, &state.parts, &outer, edit::in_scope(ui));
 
             eyedropper_requested = match self.layout {
                 ColorPickerLayout::Compact => self.compact(ui, id, mode, &models, &mut state, &shown, inner, &translate, &constrain, &mut edits),
@@ -420,7 +420,7 @@ impl<'a> ColorPicker<'a> {
                 });
             }
 
-            let outer = edits.feed(outer, &mut state.parts, edit::in_scope(ui));
+            let outer = edits.feed(outer, &mut state.parts);
             let value = outer.shown().clone();
             let event = outer.finish_as(|p: Picked| p.report());
             match &event {
@@ -471,8 +471,8 @@ impl<'a> ColorPicker<'a> {
                 let (field, slider) =
                     slider_row(ui, ("channel", i), &name, exact[i], range, f64::from(ch.step), ch.decimals, unit, track, self.numbers, inner);
                 let map = |x| shown.with_channel(model, i, x, constrain);
-                edits.typing(ui.ctx(), &field, map);
-                edits.push(&slider, map);
+                edits.typing_mapped(ui.ctx(), &field, map);
+                edits.push_mapped(&slider, map);
             }
             if models.len() > 1 {
                 state.model = Some(model_switch(ui, models, model.id(), translate, inner.enabled));
@@ -501,8 +501,8 @@ impl<'a> ColorPicker<'a> {
         let unit = unit_of("%", translate);
         let (field, slider) = slider_row(ui, "alpha", &name, shown.alpha, 0.0..=100.0, 1.0, 0, unit, track, self.numbers, inner);
         let map = |pct| shown.with_alpha(pct, constrain);
-        edits.typing(ui.ctx(), &field, map);
-        edits.push(&slider, map);
+        edits.typing_mapped(ui.ctx(), &field, map);
+        edits.push_mapped(&slider, map);
     }
 
     /// The area `area` large and, at the reading end, the strip `strip` wide. The strip and the
@@ -600,7 +600,7 @@ impl<'a> ColorPicker<'a> {
                 )
             })
             .inner;
-        edits.typing(ui.ctx(), &field, |rgba| shown.with_hex(rgba, constrain));
+        edits.typing_mapped(ui.ctx(), &field, |rgba| shown.with_hex(rgba, constrain));
     }
 }
 
@@ -728,7 +728,7 @@ struct State {
     kept: Option<Picked>,
     /// The inner controls' edits: the owner of the picker's gesture, and the inputs (clicks and
     /// samples) that wait for their turn ([`Edits::inputs`]).
-    parts: parts::State<Input>,
+    parts: parts::State<(), Input>,
     /// The model of the Compact rows.
     model: Option<&'static str>,
     mode: AreaMode,
@@ -859,7 +859,7 @@ fn model_of(values: &ModelValues) -> Option<&'static dyn ColorModel> {
 
 /// The inner controls' edits of a pass, as the picker's values; the clicks are the colours the
 /// compare swatch's current half and the warning chips set.
-type Edits = parts::Edits<Picked, Input>;
+type Edits = parts::Edits<Picked, (), Input>;
 
 /// One of the picker's own inputs, which wait for their turn.
 #[derive(Clone, Copy, Debug)]
