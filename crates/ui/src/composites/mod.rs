@@ -16,7 +16,7 @@
 //!   keys.
 //! - [`SectionHeader`]: the header row of a panel section, collapsible (chevron, persisted open
 //!   state, Enter and Space) or always open, with an optional controls slot.
-//! - [`Histogram`]: a plot of bins, one tone channel or RGB ribbons; not interactive.
+//! - [`Histogram`]: a plot of bins, one tone channel or overlapping ribbons; interactive only with a selection or a clickable stale mark.
 //! - [`LevelsEditor`]: a histogram with the input black, gamma and white thumbs and fields under
 //!   it, and the output bar, thumbs and fields; the value is a channel's [`Levels`].
 //! - [`PanelHeader`]: the title row of a flyout or floating panel, with actions, a panel menu
@@ -101,7 +101,7 @@ pub use gradient::{
     ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientLabels, GradientRamp, GradientRampStyle, GradientStops,
     GradientSwatch, OpacityStop, Sampler as StopSampler, StopDrop, StopRef, StopRow, StopRows, StopRules, default_sampler,
 };
-pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramScale, HistogramStyle};
+pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramResponse, HistogramScale, HistogramStyle};
 pub use levels_editor::{Levels, LevelsClip, LevelsEditor, LevelsLabels, LevelsStyle};
 pub use notice::{Notice, NoticeStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};

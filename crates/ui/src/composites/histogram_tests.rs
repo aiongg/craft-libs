@@ -2,16 +2,17 @@
 
 use craft_theme::Mode;
 use egui::accesskit::Role;
-use egui::{Color32, Context, Mesh, Pos2, Rect, ThemePreference, Ui, pos2, vec2};
+use egui::{Color32, Context, Event, Key, Mesh, Modifiers, PointerButton, Pos2, Rect, ThemePreference, Ui, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::histogram::{self, outline, overlap, plot_shapes, rgb_heights, rgb_mesh, tone_heights, tone_mesh};
+use super::histogram::{self, Blend, outline, overlap, plot_shapes, product, rgb_heights, rgb_mesh, tone_heights, tone_mesh};
 use super::*;
 use crate::direction::{self, Direction};
 use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install, tokens_in_mode};
+use std::ops::RangeInclusive;
 
 fn harness<State>(dir: Direction) -> HarnessBuilder<State> {
     Harness::<State>::builder().with_size([400.0, 240.0]).with_context_setup(move |ctx: &Context| {
@@ -136,7 +137,7 @@ fn overlaps_take_the_channel_wise_maximum_whatever_the_order() {
     let colors = [Color32::from_rgb(255, 80, 80), Color32::from_rgb(80, 224, 80), Color32::from_rgb(80, 128, 255)];
     let at = |heights: [f32; 3], colors: &[Color32; 3], height: f32| {
         let h = heights.map(|v| flat(4, v));
-        color_at(&rgb_mesh(rect, &h, colors, 0.3), pos2(rect.center().x, rect.bottom() - height * rect.height()))
+        color_at(&rgb_mesh(rect, &h, colors, 0.3, Blend::Max), pos2(rect.center().x, rect.bottom() - height * rect.height()))
     };
     let red_green = overlap(&colors, 0b011);
     assert_eq!(red_green, Color32::from_rgb(255, 224, 80));
@@ -155,7 +156,7 @@ fn crossing_channels_keep_the_overlap_colour_under_both() {
     let colors = [Color32::from_rgb(255, 0, 0), Color32::from_rgb(0, 255, 0), Color32::BLUE];
     let red = vec![0.9, 0.9, 0.1, 0.1];
     let green = vec![0.1, 0.1, 0.9, 0.9];
-    let mesh = rgb_mesh(rect, &[red, green, flat(4, 0.0)], &colors, 1.0);
+    let mesh = rgb_mesh(rect, &[red, green, flat(4, 0.0)], &colors, 1.0, Blend::Max);
     for x in [0.1, 0.3, 0.5, 0.7, 0.9] {
         let point = pos2(rect.left() + x * rect.width(), rect.bottom() - 0.05 * rect.height());
         assert_eq!(color_at(&mesh, point), Some(Color32::from_rgb(255, 255, 0)), "x = {x}");
@@ -376,4 +377,166 @@ fn stories_draw_and_are_labelled_at_three_widths() {
             assert!(harness.root().children_recursive().any(|n| n.accesskit_node().role() == Role::Image), "{name} at {width}");
         }
     }
+}
+
+#[allow(clippy::expect_used)]
+fn first_mesh(shapes: &[egui::Shape]) -> &Mesh {
+    shapes.iter().find_map(|s| if let egui::Shape::Mesh(m) = s { Some(&**m) } else { None }).expect("a mesh")
+}
+
+#[test]
+fn channels_with_four_inks_draw_four_fills() {
+    let ink = |quarter: usize| -> Vec<u32> { (0..64).map(|i| if i / 16 == quarter { 100 } else { 0 }).collect() };
+    let bins: Vec<Vec<u32>> = (0..4).map(ink).collect();
+    let colors = [ChannelColor::Cyan, ChannelColor::Magenta, ChannelColor::Yellow, ChannelColor::Neutral];
+    let inks: Vec<(&[u32], ChannelColor)> = bins.iter().map(Vec::as_slice).zip(colors).collect();
+    let (rect, style) = (rect(), style());
+    let shapes = plot_shapes(rect, &HistogramData::channels(&inks), HistogramLook::Rgb, &style);
+    let mesh = first_mesh(&shapes);
+    for (quarter, color) in colors.into_iter().enumerate() {
+        let x = rect.left() + (quarter as f32 * 16.0 + 8.0) / 64.0 * rect.width();
+        let expected = style.ink(color).gamma_multiply(style.fill_alpha);
+        assert_eq!(color_at(mesh, pos2(x, rect.bottom() - 2.0)), Some(expected), "ink {quarter}");
+    }
+    let outlines = shapes.iter().filter(|s| matches!(s, egui::Shape::Path(_))).count();
+    assert_eq!(outlines, 4, "an outline per ink");
+}
+
+#[test]
+fn overlapping_inks_multiply_and_rgb_takes_the_maximum() {
+    let colors = [Color32::from_rgb(200, 100, 0), Color32::from_rgb(100, 200, 255)];
+    assert_eq!(product(&colors, 0b11), Color32::from_rgb(78, 78, 0));
+    assert_eq!(product(&colors, 0b10), colors[1]);
+    assert_eq!(product(&colors, 0), Color32::WHITE);
+    assert_eq!(overlap(&colors, 0b11), Color32::from_rgb(200, 200, 255));
+    let heights = vec![flat(8, 0.8), flat(8, 0.4)];
+    let rect = rect();
+    let at = |blend| color_at(&rgb_mesh(rect, &heights, &colors, 1.0, blend), pos2(rect.center().x, rect.bottom() - 5.0));
+    assert_eq!(at(Blend::Multiply), Some(Color32::from_rgb(78, 78, 0)));
+    assert_eq!(at(Blend::Max), Some(Color32::from_rgb(200, 200, 255)));
+}
+
+#[test]
+#[allow(clippy::expect_used)]
+fn the_outline_is_drawn_over_the_fill() {
+    let mut harness = harness(Direction::Ltr).build_ui(|ui| {
+        Histogram::new("h", "Histogram").tone(&[1u32, 5, 2, 8], ChannelColor::Red).outline(&[9u32, 3, 3, 3], ChannelColor::Neutral).show(ui);
+    });
+    harness.run();
+    let shapes = &harness.output().shapes;
+    let fill = shapes.iter().position(|c| matches!(&c.shape, egui::Shape::Mesh(_))).expect("fill");
+    let line = shapes.iter().position(|c| matches!(&c.shape, egui::Shape::Path(_))).expect("outline");
+    assert!(line > fill);
+    let egui::Shape::Path(path) = &shapes[line].shape else { panic!("not a path") };
+    assert_eq!(path.stroke.width, style().line);
+    assert_eq!(path.stroke.color, egui::epaint::ColorMode::Solid(style().tone(ChannelColor::Neutral)));
+}
+
+#[test]
+fn the_outline_shares_the_fills_scale_in_the_tone_look() {
+    let (rect, style) = (rect(), style());
+    let data = HistogramData::tone(&[10u32, 10, 10], ChannelColor::Red);
+    let egui::Shape::Path(path) = &histogram::outline_shapes(rect, &data, &[5.0, 5.0, 5.0], ChannelColor::Neutral, &style)[0] else { panic!() };
+    let fill = tone_heights(&[10.0, 10.0, 10.0], HistogramScale::Peak)[0];
+    assert!((path.points[1].y - (rect.bottom() - fill / 2.0 * rect.height())).abs() < 1e-4, "half the fill's height");
+    let egui::Shape::Path(path) = &histogram::outline_shapes(rect, &data, &[500.0; 3], ChannelColor::Neutral, &style)[0] else { panic!() };
+    assert_eq!(path.points[1].y, rect.top(), "a taller outline runs off the top");
+}
+
+/// A harness whose histogram has a selection and keeps the range the user reports.
+fn selection_harness(start: Option<RangeInclusive<f32>>) -> Harness<'static, Option<RangeInclusive<f32>>> {
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, range: &mut Option<RangeInclusive<f32>>| {
+            let shown = Histogram::new("h", "Histogram").tone(&vec![5u32; 100], ChannelColor::Neutral).selection(range.clone()).show(ui);
+            if let Some(new) = shown.selection {
+                *range = Some(new);
+            }
+        },
+        start,
+    );
+    harness.run();
+    harness
+}
+
+#[test]
+fn a_dragged_selection_reports_its_range() {
+    let mut harness = selection_harness(None);
+    let plot = harness.get_by_label("Histogram").rect();
+    let at = |bin: f32| pos2(plot.left() + (bin + 0.5) / 100.0 * plot.width(), plot.center().y);
+    harness.hover_at(at(20.0));
+    harness.event(Event::PointerButton { pos: at(20.0), button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    harness.run();
+    for bin in [40.0, 60.0] {
+        harness.event(Event::PointerMoved(at(bin)));
+        harness.run();
+    }
+    assert_eq!(harness.state().clone(), Some(20.0..=60.0));
+    harness.event(Event::PointerMoved(at(5.0)));
+    harness.run();
+    assert_eq!(harness.state().clone(), Some(5.0..=20.0), "dragging back past the start swaps the edges");
+    harness.event(Event::PointerMoved(pos2(plot.right() + 500.0, plot.center().y)));
+    harness.run();
+    assert_eq!(harness.state().clone(), Some(20.0..=99.0), "clamped to the last bin");
+}
+
+#[test]
+fn the_arrow_keys_move_the_selection_edges() {
+    let mut harness = selection_harness(Some(10.0..=20.0));
+    harness.get_by_label("Histogram").focus();
+    harness.run();
+    harness.key_press(Key::ArrowRight);
+    harness.run();
+    assert_eq!(harness.state().clone(), Some(10.0..=21.0));
+    harness.key_press_modifiers(Modifiers::SHIFT, Key::ArrowLeft);
+    harness.run();
+    assert_eq!(harness.state().clone(), Some(9.0..=21.0));
+}
+
+#[test]
+fn a_histogram_without_selection_senses_nothing() {
+    let mut harness = harness(Direction::Ltr).build_ui(|ui| {
+        Histogram::new("h", "Histogram").tone(&[1u32, 5, 2], ChannelColor::Neutral).show(ui);
+    });
+    harness.run();
+    assert!(a11y::tab_order(&mut harness).is_empty());
+}
+
+#[test]
+fn markers_draw_a_caption_each_and_name_it() {
+    let mut harness = harness(Direction::Ltr).build_ui(|ui| {
+        let markers = [(10.0, "Black".to_owned()), (250.0, "White".to_owned())];
+        Histogram::new("h", "Histogram").tone(&bell_bins(), ChannelColor::Neutral).markers(&markers).show(ui);
+    });
+    harness.run();
+    let plot = harness.get_by_label("Histogram").rect();
+    let (black, white) = (harness.get_by_label("Black").rect(), harness.get_by_label("White").rect());
+    assert!(plot.contains_rect(black) && plot.contains_rect(white), "{black:?} {white:?} in {plot:?}");
+    assert!(black.center().x < white.center().x);
+    assert!(white.right() <= plot.right(), "a caption near the end turns to the other side of its band");
+}
+
+fn bell_bins() -> Vec<u32> {
+    (0..256).map(|i| 100 + i % 7).collect()
+}
+
+#[test]
+fn the_stale_mark_is_a_button_only_with_on_stale_click() {
+    let clicks = |click: bool| {
+        let mut harness = harness(Direction::Ltr).build_ui_state(
+            move |ui, clicked: &mut u32| {
+                let histogram = Histogram::new("h", "Histogram").tone(&[1u32, 5, 2], ChannelColor::Neutral).stale(true).stale_label("Cached data");
+                let shown = if click { histogram.on_stale_click("Recalculate").show(ui) } else { histogram.show(ui) };
+                *clicked += u32::from(shown.clicked);
+            },
+            0,
+        );
+        harness.run();
+        let name = if click { "Recalculate" } else { "Cached data" };
+        let role = harness.get_by_label(name).accesskit_node().role();
+        harness.get_by_label(name).click();
+        harness.run();
+        (role, *harness.state())
+    };
+    assert_eq!(clicks(false), (Role::Image, 0));
+    assert_eq!(clicks(true), (Role::Button, 1));
 }
