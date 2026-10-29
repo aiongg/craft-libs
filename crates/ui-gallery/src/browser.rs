@@ -8,8 +8,10 @@ use std::sync::Arc;
 use craft_theme::{
     AppId, Appearance, ColorOrigin, ColorSource, ColorToken, Explained, FieldOrigin, Mode, PinLayer, Rgba, StatusKind, ThemeDef, TokenRef, explain,
 };
-use craft_theme::{ControlSize, TypeRole};
-use craft_ui::controls::{Checkbox, SearchField, ToggleButton};
+use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
+use craft_ui::controls::{Checkbox, SearchField};
+use craft_ui::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
+use craft_ui::list::{List, ListEvent, ListRow, ThumbSize};
 use craft_ui::primitives::Divider;
 use craft_ui::theme::{Base, StrokeExt, ToEgui, Tokens, TokensOf, scale};
 use egui::{Grid, RichText, ScrollArea, Sense, StrokeKind, Ui, vec2};
@@ -21,41 +23,141 @@ const SWATCH: egui::Vec2 = vec2(28.0, 16.0);
 // design: allow[literal-size/vec2](a colour chip is a specimen of the colour, not a control; no size token fits)
 const RAMP_SWATCH: egui::Vec2 = vec2(22.0, 22.0);
 
-/// The share of the panel's height under the filters that the token list takes.
-const LIST_SHARE: f32 = 0.55;
+const DEFAULT_SHARE: f32 = 0.55;
+/// Neither the list nor the detail gets less than this share.
+const MIN_SHARE: f32 = 0.15;
+/// The height of the divider between list and detail.
+const DIVIDER: f32 = 8.0;
+/// The width of the hex value at the end of a list row.
+const HEX_WIDTH: f32 = 80.0;
 
 /// The browser's filters, selection and last explanation.
-#[derive(Default)]
 pub struct Browser {
     filter: String,
     pinned_only: bool,
     moved_only: bool,
     failing_only: bool,
     selected: Option<TokenRef>,
+    /// The share of the height under the filters that the list takes.
+    share: f32,
     explained: Option<(ThemeDef, Appearance, Option<AppId>, Arc<Explained>)>,
 }
 
+/// A row of the token list: a group's heading, or a token.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Row {
+    Group(&'static str),
+    Token(TokenRef),
+}
+
+impl Default for Browser {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
+
 impl Browser {
+    /// A browser with the list taking `share` of its height, or the default share.
+    pub fn new(share: Option<f32>) -> Self {
+        let share = share.filter(|s| s.is_finite()).map_or(DEFAULT_SHARE, |s| s.clamp(MIN_SHARE, 1.0 - MIN_SHARE));
+        Self { filter: String::new(), pinned_only: false, moved_only: false, failing_only: false, selected: None, share, explained: None }
+    }
+
+    /// The share of the height the list takes, to be saved.
+    pub fn share(&self) -> f32 {
+        self.share
+    }
+
     /// Selects the row of `token`.
     pub fn select(&mut self, token: TokenRef) {
         self.selected = Some(token);
     }
 
     /// Draws the panel for the theme and appearance `base` shows in `mode`: the filters, the
-    /// token list, and under it the detail of the selected row. The list and the detail each
-    /// scroll in their own part of the panel, so both stay in view at any list length.
+    /// token list, a divider the user drags, and under it the detail of the selected row. The
+    /// list and the detail each scroll in their own part of the panel.
     pub fn show(&mut self, ui: &mut Ui, base: &Base, mode: Mode) {
         let explained = self.explained(base, mode);
         self.filters(ui, base, mode, &explained);
-        Divider::horizontal().show(ui);
-        let list_height = ui.available_height() * LIST_SHARE;
-        ScrollArea::both().id_salt("gallery.tokens.list").max_height(list_height).auto_shrink([false, false]).show(ui, |ui| {
-            self.color_list(ui, &explained);
-            ui.add_space(Tokens::of(ui).space.gap.section);
-            self.component_list(ui, &explained);
-        });
-        Divider::horizontal().show(ui);
-        ScrollArea::both().id_salt("gallery.tokens.detail").auto_shrink([false, false]).show(ui, |ui| self.detail(ui, &explained));
+        let total = (ui.available_height() - DIVIDER).max(1.0);
+        let list_height = (total * self.share).round();
+        ui.allocate_ui(vec2(ui.available_width(), list_height), |ui| self.list(ui, &explained, list_height));
+        let delta = self.divider(ui);
+        if delta != 0.0 {
+            self.share = ((list_height + delta) / total).clamp(MIN_SHARE, 1.0 - MIN_SHARE);
+        }
+        ScrollArea::vertical().id_salt("gallery.tokens.detail").auto_shrink([false, false]).show(ui, |ui| self.detail(ui, &explained));
+    }
+
+    /// The draggable and keyboard-operable divider between list and detail; returns the
+    /// requested movement in points.
+    fn divider(&mut self, ui: &mut Ui) -> f32 {
+        let tokens = Tokens::of(ui);
+        let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), DIVIDER), Sense::hover());
+        let style = ResizeHandleStyle {
+            hovered: tokens.color.accent.solid.to_egui().gamma_multiply(0.5),
+            dragged: tokens.color.accent.solid.to_egui(),
+            focused: tokens.color.line.focus.to_egui(),
+        };
+        let hairline = scale::Stroke::Hairline.egui(ui.ctx(), tokens.color.line.divider.to_egui());
+        ui.painter().hline(rect.x_range(), rect.center().y, hairline);
+        ResizeHandle::new(ui.make_persistent_id("gallery.tokens.split"), SplitAxis::Vertical, rect, "Resize the token list", style).show(ui).delta
+    }
+
+    /// The tokens as a list: group headings, then rows of path, swatch and hex.
+    fn list(&mut self, ui: &mut Ui, e: &Explained, height: f32) {
+        let mut rows: Vec<RowInfo<Row>> = Vec::new();
+        let mut group = "";
+        for o in &e.colors {
+            let token = TokenRef::Color(o.token);
+            if !self.shows(e, token, o.pin.is_some(), o.contrast_move.is_some()) {
+                continue;
+            }
+            let g = group_of(o.token);
+            if g != group {
+                group = g;
+                rows.push(RowInfo::section(Row::Group(g)));
+            }
+            rows.push(RowInfo::leaf(Row::Token(token)));
+        }
+        let components: Vec<TokenRef> = e
+            .components
+            .iter()
+            .filter(|o| self.shows(e, TokenRef::Component(o.field), o.pin.is_some(), o.contrast_move.is_some()))
+            .map(|o| TokenRef::Component(o.field))
+            .collect();
+        if !components.is_empty() {
+            rows.push(RowInfo::section(Row::Group("component colours")));
+            rows.extend(components.into_iter().map(|t| RowInfo::leaf(Row::Token(t))));
+        }
+        let mut selection =
+            self.selected.map(Row::Token).filter(|r| rows.iter().any(|i| i.key == *r)).map_or_else(Selection::default, Selection::only);
+        let out = List::new("gallery.tokens.list", "Tokens", rows.as_slice())
+            .selection(&mut selection)
+            .mode(SelectionMode::Single)
+            .type_ahead(true)
+            .max_height(height)
+            .show(ui, |_, row| match row {
+                Row::Group(name) => ListRow::new(*row, *name),
+                Row::Token(token) => {
+                    let value = value_of(e, *token);
+                    ListRow::new(*row, token.path())
+                        .thumb(ThumbSize::Small, move |painter, rect| {
+                            painter.rect_filled(rect, 0.0, value.to_egui());
+                        })
+                        .trailing_item(HEX_WIDTH, move |ui| {
+                            ui.monospace(value.to_hex());
+                        })
+                }
+            });
+        for event in out.events {
+            match event {
+                ListEvent::Selection(SelectionChange { row: Some(Row::Token(t)), .. }) | ListEvent::Activate(Row::Token(t)) => {
+                    self.selected = Some(t)
+                }
+                _ => {}
+            }
+        }
     }
 
     /// `explain` for what `base` shows in `mode`, computed again only when that changes.
@@ -103,54 +205,6 @@ impl Browser {
             && (!self.pinned_only || pinned)
             && (!self.moved_only || moved)
             && (!self.failing_only || e.pairs_of(token).any(|p| !p.pair.passes()))
-    }
-
-    fn color_list(&mut self, ui: &mut Ui, e: &Explained) {
-        ui.heading("Colour tokens");
-        let mut group = "";
-        for o in &e.colors {
-            let token = TokenRef::Color(o.token);
-            if !self.shows(e, token, o.pin.is_some(), o.contrast_move.is_some()) {
-                continue;
-            }
-            let g = group_of(o.token);
-            if g != group {
-                group = g;
-                ui.label(RichText::new(g).strong());
-            }
-            self.row(ui, token, o.value);
-        }
-    }
-
-    fn component_list(&mut self, ui: &mut Ui, e: &Explained) {
-        ui.heading("Component colours");
-        for o in &e.components {
-            let field = TokenRef::Component(o.field);
-            if !self.shows(e, field, o.pin.is_some(), o.contrast_move.is_some()) {
-                continue;
-            }
-            self.row(ui, field, o.value);
-        }
-    }
-
-    /// A list row: the token's path, the value's swatch and hex. The origin, pin and
-    /// contrast move are in the detail.
-    fn row(&mut self, ui: &mut Ui, token: TokenRef, value: Rgba) {
-        ui.horizontal(|ui| {
-            self.path_cell(ui, token);
-            swatch(ui, value, SWATCH);
-            ui.monospace(value.to_hex());
-        });
-    }
-
-    fn path_cell(&mut self, ui: &mut Ui, token: TokenRef) {
-        let mut on = self.selected == Some(token);
-        if ui
-            .add(ToggleButton::new(token.path(), &mut on).role(TypeRole::Mono).size(ControlSize::Sm).id_salt(("gallery.tokens.path", token.path())))
-            .clicked()
-        {
-            self.selected = Some(token);
-        }
     }
 
     fn detail(&mut self, ui: &mut Ui, e: &Explained) {
@@ -227,40 +281,33 @@ fn fact(ui: &mut Ui, name: &str, value: Rgba) {
     ui.end_row();
 }
 
-/// Every pair `token` takes part in. Results are words in text colours, not colour alone.
+/// Every pair `token` takes part in, each as a swatch and the other colour's path with the
+/// ratio, minimum, result and pass note wrapped under it. Results are words, not colour alone.
 fn pairs(ui: &mut Ui, e: &Explained, token: TokenRef) {
     let mut any = false;
-    Grid::new("gallery.tokens.pairs").num_columns(6).striped(true).show(ui, |ui| {
-        for p in e.pairs_of(token) {
-            if !any {
-                for title in ["", "On / under", "Ratio", "Minimum", "Result", ""] {
-                    ui.label(RichText::new(title).strong());
-                }
-                ui.end_row();
-                any = true;
-            }
-            let pair = p.pair;
-            let (other, role) = if pair.fg == token { (pair.bg, "on") } else { (pair.fg, "under") };
+    for p in e.pairs_of(token) {
+        any = true;
+        let pair = p.pair;
+        let (other, role) = if pair.fg == token { (pair.bg, "on") } else { (pair.fg, "under") };
+        ui.horizontal(|ui| {
             swatch(ui, value_of(e, other), SWATCH);
-            ui.monospace(format!("{role} {}", other.path()));
-            ui.monospace(format!("{:.2}", pair.ratio));
-            ui.monospace(format!("{:.1}", pair.minimum));
+            ui.add(egui::Label::new(RichText::new(format!("{role} {}", other.path())).monospace()).wrap());
+        });
+        ui.horizontal_wrapped(|ui| {
+            ui.monospace(format!("{:.2} of {:.1}", pair.ratio, pair.minimum));
             if pair.passes() {
                 ui.label("pass");
             } else {
                 ui.label(RichText::new("FAIL").strong());
             }
-            let pass_note = if p.fixed_by_pass {
-                format!("fixed by pass (was {:.2})", p.ratio_before)
+            if p.fixed_by_pass {
+                ui.label(format!("fixed by pass (was {:.2})", p.ratio_before));
             } else if p.moved_by_pass {
-                format!("moved (was {:.2})", p.ratio_before)
-            } else {
-                String::new()
-            };
-            ui.label(pass_note);
-            ui.end_row();
-        }
-    });
+                ui.label(format!("moved (was {:.2})", p.ratio_before));
+            }
+        });
+        ui.add_space(Tokens::of(ui).space.gap.section);
+    }
     if !any {
         ui.label("No contrast rule measures this colour.");
     }

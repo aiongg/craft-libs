@@ -82,7 +82,7 @@ impl Gallery {
             compare: saved.compare,
             compare_themes,
             compare_high: saved.compare_high,
-            browser: Browser::default(),
+            browser: Browser::new(saved.tokens_split),
             inspector: Inspector::default(),
             workspace: persist::load_layout(storage).map_or_else(default_workspace, reconciled),
             reset_layout: false,
@@ -537,7 +537,7 @@ impl DockContent<PanelId> for Panels<'_> {
 
     fn dock_heights(&self, panel: &PanelId) -> Option<DockHeights> {
         match panel {
-            PanelId::Stories => Some(DockHeights::new(170.0).compact(90.0)),
+            PanelId::Stories => Some(DockHeights::new(80.0).compact(60.0)),
             PanelId::Properties | PanelId::Inspect => Some(DockHeights::new(240.0).compact(120.0).fill(300.0)),
             _ => None,
         }
@@ -577,6 +577,7 @@ impl eframe::App for Gallery {
             selected: self.selected.clone(),
             filter: self.filter.clone(),
             view: self.view,
+            tokens_split: Some(self.browser.share()),
             compare: self.compare,
             compare_themes: self.compare_themes.clone(),
             compare_high: self.compare_high,
