@@ -12,7 +12,7 @@ use egui::text::CCursorRange;
 use egui::text_edit::TextEditState;
 use egui::{
     Align2, AsIdSalt, Color32, Context, CursorIcon, Event, EventFilter, FontId, Id, IdSalt, Key, Modifiers, PointerButton, Popup, PopupCloseBehavior,
-    Pos2, Rect, RectAlign, Response, Sense, Shape, Ui, pos2, vec2,
+    Pos2, Rect, RectAlign, Response, Sense, Shape, Ui, ViewportCommand, pos2, vec2,
 };
 
 use super::field_wheel;
@@ -153,6 +153,8 @@ pub struct NumberField<'a> {
     handle: Option<Handle>,
     scrub_by: Option<Response>,
     scrub_text: bool,
+    next: Option<Box<NextStep<'a>>>,
+    wrap: bool,
     popup: Option<String>,
     mixed: bool,
     policy: EditPolicy,
@@ -166,11 +168,12 @@ pub struct NumberField<'a> {
 impl<'a> NumberField<'a> {
     /// A field named `label` (its accessible name) showing the host's `value` in the region's
     /// digits; `id_salt` keeps its text, focus and gesture when the layout around it changes.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: f64, numbers: &'a LocaleNumbers) -> Self {
+    /// `value` may be any number that converts to `f64` (`f32`, `i32`).
+    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: impl Into<f64>, numbers: &'a LocaleNumbers) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
             label: label.into(),
-            value,
+            value: value.into(),
             numbers,
             range: f64::NEG_INFINITY..=f64::INFINITY,
             step: 1.0,
@@ -180,6 +183,8 @@ impl<'a> NumberField<'a> {
             handle: None,
             scrub_by: None,
             scrub_text: true,
+            next: None,
+            wrap: false,
             popup: None,
             mixed: false,
             policy: EditPolicy::default(),
@@ -193,8 +198,8 @@ impl<'a> NumberField<'a> {
 
     /// The values the field takes, read in ascending order; unbounded by default. A typed,
     /// scrubbed or stepped value is clamped to it; the host's value is shown as it is.
-    pub fn range(mut self, range: RangeInclusive<f64>) -> Self {
-        self.range = range;
+    pub fn range<V: Into<f64> + Copy>(mut self, range: RangeInclusive<V>) -> Self {
+        self.range = (*range.start()).into()..=(*range.end()).into();
         self
     }
 
@@ -221,6 +226,26 @@ impl<'a> NumberField<'a> {
     /// after the locale's. Arrows after typed arithmetic step from its result.
     pub fn or_parse(mut self, parser: impl Fn(&str) -> Option<f64> + 'a) -> Self {
         self.fallback = Some(Box::new(parser));
+        self
+    }
+
+    /// Up and Down, the wheel and screen-reader increments step to `next(value, direction)`
+    /// (direction is 1 or -1; one call per notch, modifiers do not scale it) instead of by
+    /// [`step`](NumberField::step): zoom levels (12.5, 25, 50, 100 ...). The result is clamped to
+    /// the range and rounded to the decimals, and a frame's steps are one
+    /// [`Set`](EditEvent::Set). A scrub is still continuous.
+    pub fn steps_with(mut self, next: impl Fn(f64, i32) -> f64 + 'a) -> Self {
+        self.next = Some(Box::new(next));
+        self
+    }
+
+    /// While the pointer scrubs in a viewport that is full screen, the pointer wraps from one
+    /// horizontal edge of the screen to the other and the scrub goes on from there; the jump
+    /// adds nothing to the value. Where the platform does not move the pointer on request
+    /// (Wayland without a pointer lock) the scrub stops at the edge. Off by default, and
+    /// ignored when the viewport is not full screen.
+    pub fn scrub_wrap(mut self, wrap: bool) -> Self {
+        self.wrap = wrap;
         self
     }
 
@@ -405,6 +430,8 @@ impl<'a> NumberField<'a> {
             id,
             base: if self.value.is_finite() { self.value } else { rule.blank() },
             step: self.step,
+            next: self.next.as_deref(),
+            wrap: self.wrap,
             rule,
             modifiers: ui.input(|i| i.modifiers),
             codec,
@@ -505,6 +532,9 @@ impl Follow {
     }
 }
 
+/// The step function of [`NumberField::steps_with`].
+type NextStep<'a> = dyn Fn(f64, i32) -> f64 + 'a;
+
 /// The ▾'s size class: a small ghost icon button inside the field.
 const POPUP_SIZE: ControlSize = ControlSize::Sm;
 
@@ -514,6 +544,8 @@ struct Input<'n> {
     /// Where scrubs and steps start in a blank field.
     base: f64,
     step: f64,
+    next: Option<&'n NextStep<'n>>,
+    wrap: bool,
     rule: FieldRule,
     modifiers: Modifiers,
     codec: Numbers<'n>,
@@ -544,7 +576,7 @@ impl<'n> Input<'n> {
         if let Some(origin) = origin {
             // A typing run ends as the focus leaves, its text read before the first step.
             ui.memory_mut(|m| m.surrender_focus(self.id));
-            ui.data_mut(|d| d.insert_temp(key, Scrub { press: Press::default(), last_x: origin.x, steps: 0.0, last: None }));
+            ui.data_mut(|d| d.insert_temp(key, Scrub { press: Press::default(), last_x: origin.x, steps: 0.0, last: None, warp: None }));
         }
         for drag in sources {
             if drag.hovered() || drag.dragged() {
@@ -567,8 +599,17 @@ impl<'n> Input<'n> {
                 } else {
                     1.0
                 };
-                scrub.steps += f64::from(pos.x - scrub.last_x) * STEPS_PER_POINT * rate;
-                scrub.last_x = pos.x;
+                let edges = (self.wrap && ui.input(|i| i.viewport().fullscreen == Some(true))).then(|| {
+                    let screen = ui.ctx().content_rect();
+                    (screen.left(), screen.right())
+                });
+                let travel = travel(scrub.last_x, pos.x, scrub.warp, edges);
+                if let Some(x) = travel.send {
+                    ui.ctx().send_viewport_cmd(ViewportCommand::CursorPosition(pos2(x, pos.y)));
+                }
+                scrub.steps += f64::from(travel.delta) * STEPS_PER_POINT * rate;
+                scrub.last_x = travel.last_x;
+                scrub.warp = travel.warp;
                 let n = scrub.steps.trunc();
                 scrub.steps -= n;
                 let gesture = typed.gesture();
@@ -741,7 +782,12 @@ impl<'n> Input<'n> {
         let op = op.filter(|_| !dragging)?;
         let from = typed.value().unwrap_or(self.base);
         let ops = if typed.is_typing() { vec![ScalarOp::Set(from), op] } else { vec![op] };
-        let v = ops.iter().fold(from, |v, op| apply(op, v, &self.rule));
+        let v = ops.iter().fold(from, |v, op| match (op, self.next) {
+            (ScalarOp::Presses(presses), Some(next)) => next_stop(next, v, presses, &self.rule),
+            _ => apply(op, v, &self.rule),
+        });
+        // Composites replay a field's operations; its own stops are not theirs to repeat.
+        let ops = if self.next.is_some() { vec![ScalarOp::Set(v)] } else { ops };
         typed.commit_with(ui, Some(v));
         if focused {
             select_all(ui.ctx(), self.id, &self.codec.format(&Some(v)));
@@ -790,6 +836,52 @@ struct Scrub {
     steps: f64,
     /// The gesture of the scrub's last change and the value it set.
     last: Option<(GestureId, Option<f64>)>,
+    /// Where the pointer was asked to go at the screen's edge, until it is seen there.
+    warp: Option<f32>,
+}
+
+/// How far from the screen's edge the pointer counts as at it, and how far inside the opposite
+/// edge it is put.
+const WRAP_EDGE: f32 = 2.0;
+
+/// What one pointer position adds to a scrub.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Travel {
+    /// Points moved, not counting a warp.
+    pub(super) delta: f32,
+    /// The x to measure the next move from.
+    pub(super) last_x: f32,
+    /// The x the pointer was asked to go to and has not been seen at.
+    pub(super) warp: Option<f32>,
+    /// The x to move the pointer to now.
+    pub(super) send: Option<f32>,
+}
+
+/// The points the pointer moved from `last_x` to `x`. With the horizontal `edges` of the screen,
+/// a move that reaches one asks for the pointer at the other (`send`); the position that then
+/// shows up there is not a move. A pointer that stays where it was (a platform that does not
+/// move it) waits; one that moves elsewhere is an ordinary move.
+pub(super) fn travel(last_x: f32, x: f32, warp: Option<f32>, edges: Option<(f32, f32)>) -> Travel {
+    let mut now = Travel { delta: x - last_x, last_x: x, warp: None, send: None };
+    if let Some(target) = warp {
+        if x == last_x {
+            return Travel { delta: 0.0, warp, ..now };
+        }
+        if (x - target).abs() < (x - last_x).abs() {
+            return Travel { delta: 0.0, ..now };
+        }
+    }
+    if let Some((left, right)) = edges {
+        let target = if now.delta > 0.0 && x >= right - WRAP_EDGE {
+            Some(left + 2.0 * WRAP_EDGE)
+        } else if now.delta < 0.0 && x <= left + WRAP_EDGE {
+            Some(right - 2.0 * WRAP_EDGE)
+        } else {
+            None
+        };
+        (now.warp, now.send) = (target, target);
+    }
+    now
 }
 
 /// `range` in ascending order, a bound that is no number left open.
@@ -840,6 +932,16 @@ pub(crate) fn apply(op: &ScalarOp, from: f64, rule: &FieldRule) -> f64 {
         ScalarOp::Set(v) => *v,
         ScalarOp::ToBound(bound) => Some(if *bound == Bound::Low { rule.bounds.0 } else { rule.bounds.1 }).filter(|b| b.is_finite()).unwrap_or(from),
     };
+    rule.settle(to)
+}
+
+/// The value `presses` reach from `from` by `next`, one call for each notch (a press of `n`
+/// notches calls it `n` times, at least once, up when positive), settled under `rule`.
+fn next_stop(next: &NextStep<'_>, from: f64, presses: &[(Modifiers, f64)], rule: &FieldRule) -> f64 {
+    let to = presses.iter().fold(from, |v, &(_, n)| {
+        let direction = if n < 0.0 { -1 } else { 1 };
+        (0..n.abs().round().max(1.0) as usize).fold(v, |v, _| rule.settle(next(v, direction)))
+    });
     rule.settle(to)
 }
 

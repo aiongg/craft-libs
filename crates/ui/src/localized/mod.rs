@@ -69,6 +69,17 @@ impl LocaleNumbers {
         LocaleNumbers::new(Arc::new(Format::from_tag(tag)))
     }
 
+    /// Makes these the numbers [`LocaleNumbers::of`] returns for every widget in `ctx`; call it
+    /// when the language changes.
+    pub fn install(self, ctx: &Context) {
+        ctx.data_mut(|d| d.insert_temp(installed_id(), Arc::new(self)));
+    }
+
+    /// The numbers installed in `ui`'s context ([`LocaleNumbers::install`]), English when none is.
+    pub fn of(ui: &Ui) -> Arc<LocaleNumbers> {
+        ui.data(|d| d.get_temp::<Arc<LocaleNumbers>>(installed_id())).unwrap_or_else(|| Arc::new(LocaleNumbers::from_tag("en")))
+    }
+
     /// The error tooltips from `i18n`'s catalog in `lang`: the plain rows keyed by the English
     /// text ([`message`]), English where a row is missing.
     pub fn with_catalog(self, i18n: &I18n, lang: Lang) -> LocaleNumbers {
@@ -382,6 +393,10 @@ impl Recessed {
             margin: Margin::symmetric(6, 0),
         }
     }
+}
+
+fn installed_id() -> Id {
+    Id::unique("craft_ui::localized::numbers")
 }
 
 pub(crate) fn first_field_id() -> Id {

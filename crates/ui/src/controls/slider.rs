@@ -120,15 +120,15 @@ pub struct Slider {
 impl Slider {
     /// A slider named `label` (its accessible name) showing the host's `value` in `range`;
     /// `id_salt` keeps its gesture, focus and animations when the layout around it changes.
-    /// A reversed range (`100.0..=0.0`) is read in ascending order. Its bounds must be finite: a
+    /// `value` and `range` may be `f32` or `f64`. A reversed range (`100.0..=0.0`) is read in ascending order. Its bounds must be finite: a
     /// bound that isn't is a debug assertion, and in release builds the range shrinks to the
     /// finite bound (or 0).
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: f64, range: RangeInclusive<f64>) -> Self {
+    pub fn new<V: Into<f64> + Copy>(id_salt: impl AsIdSalt, label: impl Into<String>, value: V, range: RangeInclusive<V>) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
             label: label.into(),
-            value,
-            range,
+            value: value.into(),
+            range: (*range.start()).into()..=(*range.end()).into(),
             step: None,
             policy: EditPolicy::default(),
             size: ControlSize::Md,
@@ -142,8 +142,8 @@ impl Slider {
 
     /// The step values snap to, and one arrow key's change. Without one the value is continuous
     /// and a key moves a hundredth of the range.
-    pub fn step(mut self, step: f64) -> Self {
-        self.step = Some(step);
+    pub fn step(mut self, step: impl Into<f64>) -> Self {
+        self.step = Some(step.into());
         self
     }
 
@@ -168,8 +168,8 @@ impl Slider {
     /// ignored). The first click of the double-click has already moved the thumb, so the reset
     /// ends the same gesture or is its own [`Set`](crate::edit::EditEvent::Set). A screen reader
     /// resets through its set-value request as ever.
-    pub fn default_value(mut self, value: f64) -> Self {
-        self.default = Some(value);
+    pub fn default_value(mut self, value: impl Into<f64>) -> Self {
+        self.default = Some(value.into());
         self
     }
 

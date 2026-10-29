@@ -592,3 +592,14 @@ fn the_wheel_scrolls_past_a_field_it_cannot_step() {
     h.ctx.input(|i| wheel_left = i.events.iter().any(|e| matches!(e, egui::Event::MouseWheel { .. })));
     assert!(wheel_left, "the wheel event stays for the panel under the field");
 }
+
+#[test]
+fn of_is_english_until_numbers_are_installed_then_the_installed_ones() {
+    let ctx = egui::Context::default();
+    let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        assert_eq!(LocaleNumbers::of(ui).format(1234.5, 0..=2), "1,234.5");
+        LocaleNumbers::from_tag("de").install(ui.ctx());
+        assert_eq!(LocaleNumbers::of(ui).format(1234.5, 0..=2), "1.234,5");
+    });
+    output.drop_without_applying_deltas();
+}

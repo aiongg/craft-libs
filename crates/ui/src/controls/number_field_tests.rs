@@ -3,8 +3,9 @@
 
 use egui::accesskit::{Action, ActionData, ActionRequest, Node, Role, TreeId};
 use egui::epaint::{ClippedShape, Shape};
-use egui::{Context, CursorIcon, Event, Id, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, Ui, pos2, vec2};
+use egui::{Context, CursorIcon, Event, Id, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, Ui, ViewportCommand, pos2, vec2};
 
+use super::number_field::{Travel, travel};
 use super::{NumberField, SIZE_NAMES, number_field};
 use crate::behavior::{Typing, TypingLook};
 use crate::direction::{self, Direction};
@@ -58,6 +59,14 @@ struct Rig {
     /// The pop-up slider's bounds while it is open.
     slider: Option<Rect>,
     cursor: CursorIcon,
+    /// The viewport is full screen.
+    fullscreen: bool,
+    /// The field steps through these stops.
+    stops: bool,
+    /// The field wraps the pointer at the screen's edges.
+    wrap: bool,
+    /// Every viewport command sent so far.
+    commands: Vec<ViewportCommand>,
     /// Whether the value lives in `doc` behind `host`.
     hosted: bool,
     doc: Doc,
@@ -106,6 +115,10 @@ impl Rig {
             children: Vec::new(),
             slider: None,
             cursor: CursorIcon::Default,
+            fullscreen: false,
+            stops: false,
+            wrap: false,
+            commands: Vec::new(),
             hosted: false,
             doc: Doc::default(),
             host: GestureHost::new(),
@@ -135,13 +148,17 @@ impl Rig {
             .collect();
         events.extend(releases);
         events.insert(0, Event::ModifiersChanged(modifiers));
-        let input =
+        let mut input =
             RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(self.time), events, ..Default::default() };
+        input.viewports.insert(egui::ViewportId::ROOT, egui::ViewportInfo { fullscreen: Some(self.fullscreen), ..Default::default() });
         self.time += 1.0 / 60.0;
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(input, |ui| self.controls(ui));
         let update = output.platform_output.accesskit_update.clone();
         self.cursor = output.platform_output.cursor_icon;
+        if let Some(root) = output.viewport_output.get(&egui::ViewportId::ROOT) {
+            self.commands.extend(root.commands.iter().cloned());
+        }
         output.drop_without_applying_deltas();
         if let Some(update) = update {
             let id = self.id.accesskit_id();
@@ -197,6 +214,10 @@ impl Rig {
         if self.scrub {
             field = field.scrub_label("W");
         }
+        if self.stops {
+            field = field.steps_with(zoom_stop);
+        }
+        field = field.scrub_wrap(self.wrap);
         if self.popup {
             field = field.popup_slider("Width slider");
         }
@@ -1151,4 +1172,103 @@ fn the_states_story_s_mixed_field_is_blank_again_after_esc_and_scrubs_while_mixe
     harness.event(pointer(from + vec2(30.0, 0.0), false));
     harness.run();
     assert!(!shown(&harness).is_empty(), "the scrub went on to its release and committed a value");
+}
+
+/// Zoom levels 12.5, 25, 50, 100, 200.
+fn zoom_stop(value: f64, direction: i32) -> f64 {
+    let stops = [12.5, 25.0, 50.0, 100.0, 200.0];
+    if direction > 0 {
+        stops.into_iter().find(|s| *s > value).unwrap_or(value)
+    } else {
+        stops.into_iter().rev().find(|s| *s < value).unwrap_or(value)
+    }
+}
+
+#[test]
+fn f32_and_i32_values_and_ranges_are_taken_as_they_are() {
+    let numbers = LocaleNumbers::from_tag("en");
+    let ctx = Context::default();
+    let output = ctx.run_ui(RawInput::default(), |ui| {
+        let a = NumberField::new("a", "A", 1.5_f32, &numbers).range(0.0_f32..=2.0).show(ui);
+        let b = NumberField::new("b", "B", 7_i32, &numbers).range(0_i32..=10).show(ui);
+        assert!(a.event.is_none() && b.event.is_none());
+        assert_eq!(crate::controls::Slider::new("c", "C", 0.25_f32, 0.0_f32..=1.0).step(0.05_f32).default_value(0.5_f32).show(ui).event, None);
+    });
+    output.drop_without_applying_deltas();
+}
+
+#[test]
+fn steps_with_zoom_levels_step_to_the_next_and_previous_level_and_clamp() {
+    let mut rig = Rig::with(100.0, |r| {
+        r.stops = true;
+        r.range = (0.0, 150.0);
+        r.decimals = (0, 1);
+    });
+    rig.focus();
+    let n = rig.events.len();
+    rig.key(Key::ArrowDown);
+    assert_eq!(rig.value, 50.0);
+    rig.key(Key::ArrowDown);
+    rig.key(Key::ArrowDown);
+    assert_eq!(rig.value, 12.5, "snapped by the decimals, not by the step");
+    rig.key(Key::ArrowUp);
+    rig.key(Key::ArrowUp);
+    rig.key(Key::ArrowUp);
+    rig.key(Key::ArrowUp);
+    assert_eq!(rig.value, 150.0, "the stop 200 is clamped to the range");
+    rig.key(Key::ArrowUp);
+    assert_eq!(rig.value, 150.0);
+    let events = since(&rig, n);
+    assert!(events.iter().all(|e| matches!(e, EditEvent::Set { .. })), "each step is one Set: {events:?}");
+    assert_eq!(events[0], set(50.0));
+    rig.chord(Modifiers::SHIFT, Key::ArrowDown);
+    assert_eq!(rig.value, 100.0, "modifiers do not scale a stop");
+}
+
+#[test]
+fn the_wrap_keeps_a_scrub_continuous_across_the_edge() {
+    let edges = Some((0.0, 800.0));
+    let start = travel(790.0, 799.0, None, edges);
+    assert_eq!(start, Travel { delta: 9.0, last_x: 799.0, warp: Some(4.0), send: Some(4.0) });
+    // The pointer has not moved yet: nothing counts, nothing is sent again.
+    let wait = travel(799.0, 799.0, start.warp, edges);
+    assert_eq!((wait.delta, wait.warp, wait.send), (0.0, Some(4.0), None));
+    // It shows up at the other edge: the jump adds nothing.
+    let arrived = travel(799.0, 4.0, wait.warp, edges);
+    assert_eq!(arrived, Travel { delta: 0.0, last_x: 4.0, warp: None, send: None });
+    assert_eq!(travel(4.0, 10.0, None, edges).delta, 6.0);
+    // Leftwards likewise.
+    assert_eq!(travel(10.0, 1.0, None, edges).send, Some(796.0));
+    // A pointer that moves elsewhere instead (no warp on this platform) is an ordinary move.
+    let moved = travel(799.0, 780.0, Some(4.0), edges);
+    assert_eq!((moved.delta, moved.warp), (-19.0, None));
+    // Away from the edges, or without them, nothing is sent.
+    assert_eq!(travel(100.0, 200.0, None, edges).send, None);
+    assert_eq!(travel(790.0, 799.0, None, None).send, None);
+}
+
+fn warps(rig: &Rig) -> Vec<Pos2> {
+    rig.commands.iter().filter_map(|c| if let ViewportCommand::CursorPosition(p) = c { Some(*p) } else { None }).collect()
+}
+
+#[test]
+fn scrub_wrap_moves_the_pointer_only_in_a_full_screen_viewport() {
+    for (fullscreen, wrap) in [(true, true), (false, true), (true, false)] {
+        let mut rig = Rig::with(10.0, |r| {
+            r.scrub = true;
+            r.fullscreen = fullscreen;
+            r.wrap = wrap;
+        });
+        let from = rig.handle();
+        rig.frame(vec![Event::PointerMoved(from), pointer(from, true)]);
+        rig.frame(vec![Event::PointerMoved(from + vec2(10.0, 0.0))]);
+        rig.frame(vec![Event::PointerMoved(pos2(799.0, from.y))]);
+        let sent = warps(&rig);
+        if fullscreen && wrap {
+            assert_eq!(sent, vec![pos2(4.0, from.y)]);
+        } else {
+            assert!(sent.is_empty(), "fullscreen {fullscreen}, wrap {wrap}: {sent:?}");
+        }
+        rig.frame(vec![pointer(pos2(799.0, from.y), false)]);
+    }
 }
