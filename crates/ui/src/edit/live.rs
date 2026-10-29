@@ -132,6 +132,13 @@ impl Live {
         }
     }
 
+    /// Whether `id`'s control was drawn in the pass of its viewport before the current one, or
+    /// since, and the host hasn't ended the gesture: what [`judge`](Live::judge) says of it from
+    /// before the current pass has drawn its controls.
+    pub(super) fn was_drawn(&self, id: GestureId, pass_for: impl Fn(ViewportId) -> u64) -> bool {
+        self.entries.iter().any(|e| e.id == id && !e.ended && e.pass + 1 >= pass_for(e.viewport))
+    }
+
     pub(super) fn ending(&self, id: GestureId) -> Option<Ending> {
         self.entries.iter().find(|e| e.id == id).map(|e| e.ending)
     }
@@ -217,6 +224,10 @@ pub(super) fn ended(ctx: &Context, id: GestureId) -> bool {
 
 pub(super) fn judge(ctx: &Context, id: GestureId) -> Judged {
     Live::get(ctx).judge(id, ctx.viewport_id(), |v| ctx.cumulative_pass_nr_for(v))
+}
+
+pub(super) fn was_drawn(ctx: &Context, id: GestureId) -> bool {
+    Live::get(ctx).was_drawn(id, |v| ctx.cumulative_pass_nr_for(v))
 }
 
 pub(super) fn ending(ctx: &Context, id: GestureId) -> Option<Ending> {
