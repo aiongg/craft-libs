@@ -14,17 +14,26 @@ pub struct RowInfo<K> {
     pub has_children: bool,
     /// Whether a group shows its children; they follow it in the display order when it does.
     pub open: bool,
+    /// Whether the row is a section label: static text between rows that is never selected,
+    /// focused or counted. See [`DisplayOrder::is_section`].
+    pub section: bool,
 }
 
 impl<K> RowInfo<K> {
     /// A top-level row without children.
     pub fn leaf(key: K) -> Self {
-        Self { key, depth: 0, has_children: false, open: false }
+        Self { key, depth: 0, has_children: false, open: false, section: false }
     }
 
     /// A top-level group, open or closed.
     pub fn group(key: K, open: bool) -> Self {
-        Self { key, depth: 0, has_children: true, open }
+        Self { key, depth: 0, has_children: true, open, section: false }
+    }
+
+    /// A section label of a flat list: it names the rows after it, and takes no part in selection
+    /// or keyboard movement. It is not a group and has no children.
+    pub fn section(key: K) -> Self {
+        Self { key, depth: 0, has_children: false, open: false, section: true }
     }
 
     /// The same row `depth` levels down.
@@ -63,6 +72,13 @@ pub trait DisplayOrder<K> {
         false
     }
 
+    /// Whether the row at `at` is a section label rather than an item: it is drawn but is never
+    /// selected, never the lead and never reached by a key, a click or type-ahead. Sections are for
+    /// flat lists; a list that reorders or shows a tree has none.
+    fn is_section(&self, _at: usize) -> bool {
+        false
+    }
+
     /// The position of `key`, if it is shown. The default looks through all rows; a host that
     /// knows the answer sooner says so.
     fn position(&self, key: &K) -> Option<usize>
@@ -93,6 +109,26 @@ impl<K> DisplayOrder<K> for [RowInfo<K>] {
     fn open(&self, at: usize) -> bool {
         self[at].open
     }
+
+    fn is_section(&self, at: usize) -> bool {
+        self[at].section
+    }
+}
+
+/// The position of the nearest item (a row that is not a section) at or after `at`, else the
+/// nearest before it.
+pub fn nearest_item<K>(order: &(impl DisplayOrder<K> + ?Sized), at: usize) -> Option<usize> {
+    (at..order.len()).find(|&p| !order.is_section(p)).or_else(|| (0..at.min(order.len())).rev().find(|&p| !order.is_section(p)))
+}
+
+/// The position of the first item.
+pub fn first_item<K>(order: &(impl DisplayOrder<K> + ?Sized)) -> Option<usize> {
+    (0..order.len()).find(|&p| !order.is_section(p))
+}
+
+/// The position of the last item.
+pub fn last_item<K>(order: &(impl DisplayOrder<K> + ?Sized)) -> Option<usize> {
+    (0..order.len()).rev().find(|&p| !order.is_section(p))
 }
 
 /// The position of the parent of the row at `at`: the nearest row above it that is shallower.
@@ -349,7 +385,7 @@ impl ListSelection {
         at: usize,
         modifiers: Modifiers,
     ) -> Option<SelectionChange<K>> {
-        if at >= order.len() {
+        if at >= order.len() || order.is_section(at) {
             return None;
         }
         let row = order.key(at).clone();
@@ -374,21 +410,20 @@ impl ListSelection {
     }
 
     /// The position the lead moves to for `step`, over `page` rows at a time, without wrapping.
-    /// With no lead, Next goes to the first row and Previous to the last. `None` for an empty list.
+    /// With no lead, Next goes to the first item and Previous to the last. Sections are skipped.
+    /// `None` for a list without items.
     pub fn target<K: PartialEq>(&self, selection: &Selection<K>, order: &(impl DisplayOrder<K> + ?Sized), step: Step, page: usize) -> Option<usize> {
-        let len = order.len();
-        if len == 0 {
-            return None;
-        }
-        let last = len - 1;
+        let (first, last) = (first_item(order)?, last_item(order)?);
         let page = page.max(1);
         let at = selection.lead.as_ref().and_then(|lead| order.position(lead));
+        // A step that lands on a section moves on to the item after it, or before it at the end.
+        let item = |p: usize| nearest_item(order, p);
         Some(match step {
-            Step::Next => at.map_or(0, |p| (p + 1).min(last)),
-            Step::Previous => at.map_or(last, |p| p.saturating_sub(1)),
-            Step::PageDown => at.map_or(0, |p| (p + page).min(last)),
-            Step::PageUp => at.map_or(last, |p| p.saturating_sub(page)),
-            Step::First => 0,
+            Step::Next => at.map_or(first, |p| item(p + 1).filter(|&n| n > p).unwrap_or(p)),
+            Step::Previous => at.map_or(last, |p| (0..p).rev().find(|&n| !order.is_section(n)).unwrap_or(p)),
+            Step::PageDown => at.map_or(first, |p| item((p + page).min(last)).unwrap_or(p)),
+            Step::PageUp => at.map_or(last, |p| item(p.saturating_sub(page).max(first)).unwrap_or(p)),
+            Step::First => first,
             Step::Last => last,
         })
     }
@@ -456,7 +491,7 @@ impl ListSelection {
         let from = shown(&selection.anchor).or_else(|| shown(&selection.lead)).unwrap_or(at);
         let (first, last) = (from.min(at), from.max(at));
         Selection {
-            items: (first..=last).map(|p| order.key(p).clone()).collect(),
+            items: (first..=last).filter(|&p| !order.is_section(p)).map(|p| order.key(p).clone()).collect(),
             lead: Some(order.key(at).clone()),
             anchor: Some(order.key(from).clone()),
         }

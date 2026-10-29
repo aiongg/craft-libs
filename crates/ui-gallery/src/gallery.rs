@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use craft_platform::appearance::SystemReader;
 use craft_theme::{ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, builtins};
-use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
-use craft_ui::composites::{PropertyRow, SectionHeader, SectionLabel};
+use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
+use craft_ui::composites::{PropertyRow, SectionHeader};
 use craft_ui::controls::{Button, Checkbox, IconButton, NumberField, SearchField, Segmented, Select, TextField};
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, PanelState, Permissions, Workspace};
@@ -306,25 +306,30 @@ impl Gallery {
         fields::apply(&filter, &mut self.filter);
         let filter = self.filter.to_lowercase();
         let current = self.current().map(|s| s.component);
+        let mut rows: Vec<RowInfo<Entry>> = Vec::new();
+        for (level, components) in nav(&self.stories, &filter) {
+            rows.push(RowInfo::section(Entry::Level(level)));
+            rows.extend(components.into_iter().map(|c| RowInfo::leaf(Entry::Component(c))));
+        }
+        let mut selection =
+            current.map(Entry::Component).filter(|e| rows.iter().any(|r| r.key == *e)).map_or_else(Selection::default, Selection::only);
+        let out = List::new("gallery.components", "Components", rows.as_slice())
+            .selection(&mut selection)
+            .mode(SelectionMode::Single)
+            .type_ahead(true)
+            .show(ui, |_, entry| match entry {
+                Entry::Level(level) => ListRow::new(*entry, level.title()),
+                Entry::Component(component) => ListRow::new(*entry, *component),
+            });
         let mut picked = None;
-        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            for (level, components) in nav(&self.stories, &filter) {
-                SectionLabel::new(level.title()).show(ui);
-                let rows: Vec<RowInfo<&'static str>> = components.iter().map(|c| RowInfo::leaf(*c)).collect();
-                let mut selection = current.filter(|c| components.contains(c)).map_or_else(Selection::default, Selection::only);
-                let out = List::new(("gallery.components", level), level.title(), rows.as_slice())
-                    .selection(&mut selection)
-                    .mode(SelectionMode::Single)
-                    .show(ui, |_, component| ListRow::new(*component, *component));
-                for event in out.events {
-                    match event {
-                        ListEvent::Selection(change) => picked = change.row.or(picked),
-                        ListEvent::Activate(component) => picked = Some(component),
-                        _ => {}
-                    }
+        for event in out.events {
+            match event {
+                ListEvent::Selection(SelectionChange { row: Some(Entry::Component(c)), .. }) | ListEvent::Activate(Entry::Component(c)) => {
+                    picked = Some(c)
                 }
+                _ => {}
             }
-        });
+        }
         if let Some(component) = picked.filter(|c| Some(*c) != current) {
             self.select_component(component);
         }
@@ -464,6 +469,13 @@ impl Gallery {
         let mode = self.appearance.mode(shown_mode(ui.ctx()));
         self.browser.show(ui, &self.base, mode);
     }
+}
+
+/// A row of the component list: a level's label, or a component.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Entry {
+    Level(Level),
+    Component(&'static str),
 }
 
 /// The panel menu's commands.

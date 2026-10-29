@@ -12,7 +12,7 @@ use egui::mutex::Mutex;
 use egui::os::OperatingSystem;
 use egui::{
     Align, AsIdSalt, Context, CornerRadius, CursorIcon, DragAndDrop, Event, EventFilter, Id, IdSalt, Key, KeyboardShortcut, Layout, Modifiers,
-    PointerButton, Pos2, Rect, Response, ScrollArea, Sense, Ui, UiBuilder, vec2,
+    PointerButton, Pos2, Rect, Response, ScrollArea, Sense, Ui, UiBuilder, WidgetInfo, pos2, text::LayoutJob, vec2,
 };
 
 use super::drag::{self, Dragging};
@@ -23,14 +23,15 @@ use super::toggle::{self, ToggleColumn, ToggleEdit};
 use super::tree::{self, Branch, OpenChange, TreeText};
 use crate::behavior::{
     Axis, DisplayOrder, DragEnd, DropPosition, ListDrag, ListKey, ListOptions, ListSelection, Listbox, Move, Reorder, ReorderGesture, Resolved,
-    RowInfo, Selection, SelectionChange, SelectionMode, StackKey, TreeMove, tree_key,
+    RowInfo, Selection, SelectionChange, SelectionMode, StackKey, TreeMove, first_item, tree_key,
 };
+use crate::composites::SectionLabel;
 use crate::direction;
 use crate::edit::{self, EditEvent, GestureId};
 use crate::popup_list;
 use crate::primitives::FocusRing;
 use crate::story::{Args, Level, Story};
-use crate::theme::{Tokens, TokensOf as _};
+use crate::theme::{Tokens, TokensOf as _, role_format};
 
 /// What a [`List`] reports, in the order it happened.
 #[derive(Clone, Debug, PartialEq)]
@@ -471,7 +472,7 @@ where
             node.remove_action(Action::Click);
             // A tree's sets are each row's siblings, which its items report.
             if !tree {
-                node.set_size_of_set(rows.len());
+                node.set_size_of_set((0..rows.len()).filter(|&at| !rows.is_section(at)).count());
             }
             if multiple {
                 node.set_multiselectable();
@@ -609,7 +610,12 @@ where
 {
     /// The lead's position, or the first row's when no lead is shown: where the focus sits.
     fn lead_at(&self) -> Option<usize> {
-        self.selection.lead.as_ref().and_then(|lead| self.rows.position(lead)).or_else(|| (!self.rows.is_empty()).then_some(0))
+        self.selection
+            .lead
+            .as_ref()
+            .and_then(|lead| self.rows.position(lead))
+            .filter(|&at| !self.rows.is_section(at))
+            .or_else(|| first_item(self.rows))
     }
 
     /// The selection as the keys see it: with the lead where the focus sits.
@@ -815,7 +821,10 @@ where
         if !ui.input(|i| i.events.iter().any(|e| matches!(e, Event::Text(_)))) {
             return;
         }
-        let labels = Labels((0..self.rows.len()).map(|at| (self.build)(at, self.rows.key(at)).label().to_owned()).collect());
+        let labels = Labels {
+            text: (0..self.rows.len()).map(|at| (self.build)(at, self.rows.key(at)).label().to_owned()).collect(),
+            sections: (0..self.rows.len()).map(|at| self.rows.is_section(at)).collect(),
+        };
         listbox.set_active(self.lead_at());
         if listbox.type_ahead(ui, &labels)
             && let Some(at) = listbox.active()
@@ -866,6 +875,10 @@ where
     fn row(&mut self, ui: &mut Ui, at: usize, rect: Rect, lead: bool, focused: bool) {
         let key = self.rows.key(at).clone();
         let mut row = (self.build)(at, &key);
+        if self.rows.is_section(at) {
+            self.section_row(ui, &key, row.label(), rect);
+            return;
+        }
         if self.tree {
             row = row.tree_text(self.tree_text.clone()).branch(Branch {
                 depth: self.rows.depth(at),
@@ -874,7 +887,7 @@ where
                 siblings: Some(tree::siblings(self.rows, at)),
             });
         } else {
-            row = row.position_in_set(at);
+            row = row.position_in_set(self.item_index(at));
         }
         debug_assert!(*row.key() == key, "the row built for {key:?} has the key {:?}", row.key());
         let renaming = match &mut self.state.renaming {
@@ -903,6 +916,31 @@ where
             }
             self.row_event(at, &event);
             self.events.push(ListEvent::Row(event));
+        }
+    }
+
+    /// How many items (rows that are not sections) come before the row at `at`.
+    fn item_index(&self, at: usize) -> usize {
+        (0..at).filter(|&p| !self.rows.is_section(p)).count()
+    }
+
+    /// Draws a section label in `rect`: [`SectionLabel`]'s text at the row's padding, at the
+    /// reading start. It takes the press, so that it does not clear the selection, and gives the
+    /// list the focus. AccessKit: a `Heading` named by the label, between the rows' nodes in
+    /// reading order.
+    fn section_row(&mut self, ui: &mut Ui, key: &K, label: &str, rect: Rect) {
+        let tokens = Tokens::of(ui);
+        let style = SectionLabel::style(&tokens);
+        let pad = ListRow::<K>::style(&tokens).pad_x;
+        let format = role_format(&tokens, style.role, style.color);
+        let galley = ui.painter().layout_job(LayoutJob::single_section(label.to_owned(), format));
+        let x = if self.rtl { rect.right() - pad - galley.size().x } else { rect.left() + pad };
+        let id = ui.scope_id().with(("section", key));
+        let response = ui.interact(rect, id, Sense::CLICK);
+        response.widget_info(|| WidgetInfo::labeled(Role::Heading, true, label));
+        ui.painter().with_clip_rect(rect.intersect(ui.clip_rect())).galley(pos2(x, rect.center().y - galley.size().y / 2.0), galley, style.color);
+        if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
+            self.focus = true;
         }
     }
 
@@ -1170,23 +1208,27 @@ fn take_command(key: Key, modifiers: Modifiers, mac: bool, column_keys: &[(usize
 }
 
 /// The rows' labels, for type-ahead.
-struct Labels(Vec<String>);
+struct Labels {
+    text: Vec<String>,
+    /// Sections are not options: type-ahead never lands on one.
+    sections: Vec<bool>,
+}
 
 impl ListOptions for Labels {
     fn len(&self) -> usize {
-        self.0.len()
+        self.text.len()
     }
 
     fn option_at(&self, at: usize) -> usize {
         at
     }
 
-    fn enabled(&self, _option: usize) -> bool {
-        true
+    fn enabled(&self, option: usize) -> bool {
+        !self.sections.get(option).copied().unwrap_or(false)
     }
 
     fn text(&self, option: usize) -> std::borrow::Cow<'_, str> {
-        self.0.get(option).map_or("", String::as_str).into()
+        self.text.get(option).map_or("", String::as_str).into()
     }
 }
 

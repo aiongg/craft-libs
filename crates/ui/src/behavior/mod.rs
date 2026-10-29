@@ -45,8 +45,8 @@ pub use edit_menu::{EditMenu, EditMenuLabels};
 pub use field_tab::FieldTab;
 pub use key_claim::{ClaimedKey, KeyClaim};
 pub use list_selection::{
-    DisplayOrder, ListKey, ListSelection, RowInfo, Selection, SelectionChange, SelectionMode, SelectionPick, Step, TreeMove, first_child, parent,
-    tree_key,
+    DisplayOrder, ListKey, ListSelection, RowInfo, Selection, SelectionChange, SelectionMode, SelectionPick, Step, TreeMove, first_child, first_item,
+    last_item, nearest_item, parent, tree_key,
 };
 pub(crate) use listbox::take_key;
 pub use listbox::{ListOptions, Listbox, TYPE_AHEAD_PAUSE};
