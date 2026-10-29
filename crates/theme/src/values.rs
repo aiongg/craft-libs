@@ -552,8 +552,6 @@ pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
 pub const HISTOGRAM_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a histogram plot (PhotoCraft's panel).
 pub const HISTOGRAM_HEIGHT: f32 = 100.0;
-/// Alpha of the RGB ribbons' fills (PhotoCraft's 0.3).
-pub const HISTOGRAM_FILL_ALPHA: f32 = 0.3;
 /// Alpha of the tone look behind a curve: PhotoCraft's grey 88 / 190 at 0.75 reads as a faint grey.
 pub const HISTOGRAM_BACKDROP_ALPHA: f32 = 0.35;
 /// Width of the RGB ribbons' outlines.

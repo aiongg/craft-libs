@@ -154,8 +154,8 @@ enum Plot {
 /// How the fills of overlapping channels combine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Blend {
-    /// Channel-wise maximum: light on the dark scope (red, green and blue).
-    Max,
+    /// Channel-wise sum, saturating: light on the dark scope (red over green is yellow, all three grey).
+    Add,
     /// Channel-wise product: inks on paper.
     Multiply,
 }
@@ -170,7 +170,7 @@ impl HistogramData {
     pub fn rgb<B: BinCount>(channels: [&[B]; 3]) -> Self {
         let colors = [ChannelColor::Red, ChannelColor::Green, ChannelColor::Blue];
         let channels = channels.iter().zip(colors).map(|(bins, color)| (bins.iter().map(|b| b.height()).collect(), color)).collect();
-        Self { plot: Plot::Channels { channels, blend: Blend::Max }, scale: HistogramScale::Peak }
+        Self { plot: Plot::Channels { channels, blend: Blend::Add }, scale: HistogramScale::Peak }
     }
 
     /// Any number of channels, each `(bins, color)`, as opaque ribbons whose fills multiply where
@@ -209,8 +209,6 @@ pub struct HistogramStyle {
     /// The colour of each [`ChannelColor`] on the scope, in [`ChannelColor::ALL`] order: its data
     /// token, `data.luma` for neutral. Read it with [`ink`](HistogramStyle::ink).
     pub inks: [Color32; 7],
-    /// Alpha of the RGB ribbons' fills: `histogram.fill_alpha`. Ink fills are opaque.
-    pub fill_alpha: f32,
     /// Alpha of the tone look behind a curve: `histogram.backdrop_alpha`.
     pub backdrop_alpha: f32,
     /// Width of the ribbons' outlines: `histogram.line`.
@@ -254,9 +252,8 @@ impl HistogramStyle {
 ///   token (`text.muted` for neutral).
 /// - **RGB look** ([`rgb`](Histogram::rgb), [`channels`](Histogram::channels)): the bins smoothed
 ///   for display with the five-bin binomial kernel (the two edge bins pinned), one shared scale
-///   and a `histogram.line` outline per channel. `rgb` fills at `histogram.fill_alpha` and takes
-///   the channel-wise maximum of the channel colours where fills overlap; `channels` fills opaque
-///   and takes their product. The plot sits on `data.scope` and draws the dark mode's data
+///   and a `histogram.line` outline per channel. Fills are opaque: `rgb` adds the channel colours where fills overlap
+///   (saturating, as light), `channels` takes their product (as inks). The plot sits on `data.scope` and draws the dark mode's data
 ///   colours.
 /// - **Outline:** the original histogram as a `histogram.line` line over the plot, on the plot's
 ///   scale in the tone look (a taller original is clamped to the top of the plot) and on its own
@@ -458,7 +455,6 @@ impl Histogram {
             tones: ChannelColor::ALL.map(|c| if c == ChannelColor::Neutral { tokens.color.text.muted.to_egui() } else { c.color(tokens) }),
             ribbons: [d.red.to_egui(), d.green.to_egui(), d.blue.to_egui()],
             inks: ChannelColor::ALL.map(|c| c.color(tokens)),
-            fill_alpha: h.fill_alpha,
             backdrop_alpha: h.backdrop_alpha,
             line: h.line,
             marker: tokens.color.text.normal.to_egui().gamma_multiply(h.marker_alpha),
@@ -513,7 +509,7 @@ impl Histogram {
                     painter.extend(outline_shapes(rect, data, bins, *channel, &style));
                 }
                 let (color, solid) = if rgb {
-                    let solid = overlap(&style.ribbons, 0b111);
+                    let solid = sum(&style.ribbons, 0b111);
                     (solid.gamma_multiply(style.marker_alpha), solid)
                 } else {
                     (style.marker, tokens.color.text.normal.to_egui())
@@ -658,12 +654,13 @@ impl HistogramData {
 }
 
 /// The colour of the area under every channel of `mask` (bit `c` for channel `c`): the
-/// channel-wise maximum of their colours, which doesn't depend on drawing order.
-pub(super) fn overlap(colors: &[Color32], mask: u32) -> Color32 {
-    let (mut r, mut g, mut b) = (0, 0, 0);
+/// channel-wise saturating sum of their colours (PhotoCraft's `mix`), black under none. It doesn't
+/// depend on drawing order.
+pub(super) fn sum(colors: &[Color32], mask: u32) -> Color32 {
+    let (mut r, mut g, mut b) = (0u8, 0u8, 0u8);
     for (c, color) in colors.iter().enumerate() {
         if mask & (1 << c) != 0 {
-            (r, g, b) = (r.max(color.r()), g.max(color.g()), b.max(color.b()));
+            (r, g, b) = (r.saturating_add(color.r()), g.saturating_add(color.g()), b.saturating_add(color.b()));
         }
     }
     Color32::from_rgb(r, g, b)
@@ -686,7 +683,7 @@ pub(super) fn product(colors: &[Color32], mask: u32) -> Color32 {
 impl Blend {
     fn color(self, colors: &[Color32], mask: u32) -> Color32 {
         match self {
-            Blend::Max => overlap(colors, mask),
+            Blend::Add => sum(colors, mask),
             Blend::Multiply => product(colors, mask),
         }
     }
@@ -711,11 +708,7 @@ pub(super) fn plot_shapes(rect: Rect, data: &HistogramData, look: HistogramLook,
             let colors: Vec<Color32> = channels.iter().map(|(_, channel)| style.ink(*channel)).collect();
             let bins: Vec<Vec<f32>> = channels.iter().map(|(bins, _)| bins.clone()).collect();
             let heights = rgb_heights(&bins, data.scale);
-            let alpha = match blend {
-                Blend::Max => style.fill_alpha,
-                Blend::Multiply => 1.0,
-            };
-            let mut shapes = vec![Shape::mesh(rgb_mesh(rect, &heights, &colors, alpha, *blend))];
+            let mut shapes = vec![Shape::mesh(rgb_mesh(rect, &heights, &colors, *blend))];
             for (values, color) in heights.iter().zip(colors) {
                 if values.iter().any(|&v| v > 0.0) {
                     shapes.push(Shape::line(outline(rect, values), Stroke::new(style.line, color)));
@@ -973,13 +966,13 @@ fn span(mesh: &mut Mesh, rect: Rect, x: [f32; 2], a: &[f32], b: &[f32], fill: &d
 }
 
 /// The ribbons' fills.
-pub(super) fn rgb_mesh(rect: Rect, heights: &[Vec<f32>], colors: &[Color32], fill_alpha: f32, blend: Blend) -> Mesh {
+pub(super) fn rgb_mesh(rect: Rect, heights: &[Vec<f32>], colors: &[Color32], blend: Blend) -> Mesh {
     let mut mesh = Mesh::default();
     let n = heights.first().map_or(0, Vec::len);
     if n == 0 || heights.iter().any(|h| h.len() != n) || colors.len() != heights.len() {
         return mesh;
     }
-    let fill = |mask: u32| blend.color(colors, mask).gamma_multiply(fill_alpha);
+    let fill = |mask: u32| blend.color(colors, mask);
     let at = |i: usize| heights.iter().map(|h| h[i]).collect::<Vec<f32>>();
     let mut previous_x = rect.left();
     let mut previous = at(0);
