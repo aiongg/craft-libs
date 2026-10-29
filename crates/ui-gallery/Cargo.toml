@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 craft-theme = { workspace = true }
-craft-ui = { workspace = true }
+craft-ui = { workspace = true, features = ["window-frame"] }
 egui = { workspace = true }
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "persistence", "wgpu"] }
 serde = { workspace = true }

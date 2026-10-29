@@ -484,6 +484,7 @@ fn title_bar() {
         d.line("bar", s.bar).line("title", s.title).line("glyph", s.glyph).line("glyph_inactive", s.glyph_inactive);
         d.line("hover", s.hover).line("pressed", s.pressed).line("separator", s.separator);
         d.line("windows_close", s.windows_close).line("windows_close_glyph", s.windows_close_glyph);
+        d.line("breeze_pressed", s.breeze_pressed);
         d.line("breeze_close_hover", s.breeze_close_hover).line("breeze_close_hover_glyph", s.breeze_close_hover_glyph);
         d.line("breeze_close_pressed", s.breeze_close_pressed).line("breeze_close_pressed_glyph", s.breeze_close_pressed_glyph);
     });

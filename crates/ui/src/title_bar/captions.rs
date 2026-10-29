@@ -2,13 +2,12 @@
 
 use std::sync::Arc;
 
-use craft_i18n::{I18n, Lang};
 use craft_window::Button;
 use craft_window::policy::{CaptionFamily, Captions};
 use egui::{Color32, Id, Painter, PointerButton, Pos2, Rect, Sense, Stroke, StrokeKind, TextureHandle, Ui, ViewportCommand, pos2, vec2};
 
-use super::TitleBarStyle;
 use super::resize::start_os_move;
+use super::{TitleBarStyle, WindowState};
 use crate::direction::is_rtl;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
@@ -66,13 +65,6 @@ impl Default for CaptionLabels {
 }
 
 impl CaptionLabels {
-    /// The labels in `lang`; a missing translation is the English.
-    pub fn from_i18n(i18n: &I18n, lang: Lang) -> Self {
-        let d = Self::default();
-        let t = |s: &str| i18n.t(lang, s).to_owned();
-        Self { minimize: t(&d.minimize), maximize: t(&d.maximize), restore: t(&d.restore), close: t(&d.close) }
-    }
-
     /// Replace each label with `translate(key)`, keeping the English where it returns `None`.
     ///
     /// | Key | English |
@@ -244,11 +236,20 @@ pub struct CaptionButtons<'a> {
     scope: Option<Id>,
     labels: Option<&'a CaptionLabels>,
     icons: Option<&'a CaptionIcons>,
+    preview: Option<WindowState>,
 }
 
 impl<'a> CaptionButtons<'a> {
     pub fn new(captions: &'a Captions, style: &'a TitleBarStyle) -> Self {
-        Self { captions, style, scope: None, labels: None, icons: None }
+        Self { captions, style, scope: None, labels: None, icons: None, preview: None }
+    }
+
+    /// Draws the buttons for a window in `state` that is not there: they show hover, take no
+    /// click, press or Tab, send no viewport command and read nothing from the viewport.
+    #[must_use]
+    pub(crate) fn preview(mut self, state: WindowState) -> Self {
+        self.preview = Some(state);
+        self
     }
 
     /// The window the buttons belong to, as the bar's `id_salt` (default: the viewport id), so
@@ -288,11 +289,12 @@ impl<'a> CaptionButtons<'a> {
         let ctx = ui.ctx().clone();
         let family = self.captions.family;
         let windows = family == CaptionFamily::Windows;
-        let maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
-        let active = ctx.input(|i| i.viewport().focused) != Some(false);
+        let preview = self.preview;
+        let maximized = preview.map_or_else(|| ctx.input(|i| i.viewport().maximized).unwrap_or(false), |p| p.maximized);
+        let active = preview.map_or_else(|| ctx.input(|i| i.viewport().focused) != Some(false), |p| p.active);
         let english = CaptionLabels::default();
         let labels = self.labels.unwrap_or(&english);
-        let window = ctx.content_rect();
+        let window = if preview.is_some() { bar } else { ctx.content_rect() };
         let scope = self.scope.unwrap_or_else(|| window_scope(ctx.viewport_id()));
         let motion = Tokens::of(ui).motion.hover;
         let (fade, easing) = (motion.millis as f32 / 1000.0, motion.easing.to_egui());
@@ -302,10 +304,14 @@ impl<'a> CaptionButtons<'a> {
         {
             // GTK's and KDE's caption buttons move the window when dragged; Windows' don't. Like the
             // OS's own, they are no Tab stops; screen readers still reach and press them.
-            let sense = if windows { Sense::CLICK } else { Sense::CLICK | Sense::DRAG };
+            let sense = match (preview.is_some(), windows) {
+                (true, _) => Sense::hover(),
+                (false, true) => Sense::CLICK,
+                (false, false) => Sense::CLICK | Sense::DRAG,
+            };
             let id = caption_id_in(scope, c);
             let resp = ui.interact(r, id, sense);
-            if !windows && resp.drag_started_by(PointerButton::Primary) {
+            if !windows && preview.is_none() && resp.drag_started_by(PointerButton::Primary) {
                 start_os_move(&ctx);
             }
             let look = Look { hovered: resp.hovered(), pressed: resp.is_pointer_button_down_on(), active, maximized };
@@ -318,10 +324,12 @@ impl<'a> CaptionButtons<'a> {
                 _ => look.level(),
             };
             paint(ui, family, c, r, centre, look, level, self.style, self.icons);
-            let label = labels.of(c, maximized).to_owned();
-            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
-            if resp.on_hover_text(label).clicked() {
-                clicked = Some(c);
+            if preview.is_none() {
+                let label = labels.of(c, maximized).to_owned();
+                resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+                if resp.on_hover_text(label).clicked() {
+                    clicked = Some(c);
+                }
             }
             rects.push((c, r));
         }
@@ -418,7 +426,7 @@ fn paint_round(
         match (look.hovered, look.pressed && look.hovered) {
             (_, true) if close => (style.breeze_close_pressed, style.breeze_close_pressed_glyph),
             (true, _) if close => (style.breeze_close_hover, style.breeze_close_hover_glyph),
-            (_, true) => (style.glyph.gamma_multiply(0.5), style.bar),
+            (_, true) => (style.breeze_pressed, style.bar),
             (true, _) => (style.glyph, style.bar),
             _ => (Color32::TRANSPARENT, glyph),
         }

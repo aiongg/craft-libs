@@ -2,7 +2,7 @@
 //!
 //! An `egui::Modal` takes the input of everything below its backdrop, the bar's drag area
 //! included. After all windows are drawn, the shell calls [`TitleBar::modal_drag_overlay`] while
-//! a modal is open: it puts a layer above the modal over the bar's free gap (the one the last pass
+//! a modal is open: it puts a layer above the modal over the bar's free gap (the one this pass
 //! measured) that moves the window.
 
 use std::hash::Hash;
@@ -65,19 +65,20 @@ impl TitleBar<'_> {
     /// while a modal is open: a primary-button drag in the gap moves the window and a double-click
     /// maximizes or restores it.
     ///
-    /// It does nothing when the last pass drew no titled bar (none, or under [`Frame::Native`]),
+    /// It does nothing when this pass drew no titled bar (none, or under [`Frame::Native`]),
     /// in full screen, while a popup is open, or when a rect of `rects` meets the gap.
     ///
     /// [`Frame::Native`]: super::Frame::Native
     pub fn modal_drag_overlay(ctx: &Context, window: impl Hash + std::fmt::Debug, rects: &ModalRects) {
         let scope = captions::window_scope(window);
-        let Some(gap) = measure::drawn(ctx, scope) else { return };
+        let Some(gap) = measure::titled_gap(ctx, scope) else { return };
         let fullscreen = ctx.input(|i| i.viewport().fullscreen).unwrap_or(false);
         if !gap.is_positive() || fullscreen || Popup::is_any_open(ctx) || rects.intersects(gap) {
             return;
         }
         Area::new(scope.with("modal_drag")).order(Order::Tooltip).fixed_pos(gap.min).movable(false).sense(Sense::hover()).show(ctx, |ui| {
-            let response = ui.allocate_rect(gap, Sense::click_and_drag());
+            // Not focusable: the overlay is no Tab stop, and sits outside the screen reader's tree.
+            let response = ui.allocate_rect(gap, Sense::CLICK | Sense::DRAG);
             if response.drag_started_by(PointerButton::Primary) {
                 resize::start_os_move(ctx);
             }

@@ -1,5 +1,6 @@
 //! The document title, centred in the bar between the app's groups.
 
+use egui::epaint::text::TextDirection;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{Rect, Ui, pos2};
 
@@ -12,11 +13,12 @@ use crate::theme::{Tokens, TokensOf as _};
 pub struct Title {
     text: String,
     unsaved: bool,
+    unsaved_label: Option<String>,
 }
 
 impl Title {
     pub fn new(text: impl Into<String>) -> Self {
-        Self { text: text.into(), unsaved: false }
+        Self { text: text.into(), unsaved: false, unsaved_label: None }
     }
 
     /// Marks the document as having unsaved changes with a bullet after the text.
@@ -26,10 +28,37 @@ impl Title {
         self
     }
 
-    /// The text as drawn, and as the drag area is named.
+    /// What a screen reader says of the bullet, already translated ("Unsaved changes"): the drag
+    /// area's accessible description while the document is [`unsaved`](Self::unsaved). Without it
+    /// the bullet is silent.
+    #[must_use]
+    pub fn unsaved_label(mut self, label: impl Into<String>) -> Self {
+        self.unsaved_label = Some(label.into());
+        self
+    }
+
+    /// The text as drawn.
     pub(super) fn text(&self) -> String {
         if self.unsaved { format!("{} \u{2022}", self.text) } else { self.text.clone() }
     }
+
+    /// The drag area's accessible name: the text alone.
+    pub(super) fn name(&self) -> &str {
+        &self.text
+    }
+
+    /// The drag area's accessible description: the unsaved label while the document is unsaved.
+    pub(super) fn description(&self) -> Option<&str> {
+        self.unsaved.then_some(self.unsaved_label.as_deref()).flatten()
+    }
+}
+
+/// The title line as one single-row job that reads left to right as a whole, so a right-to-left
+/// document name keeps its bullet after it, at the right; egui orders the name's own words.
+fn job(text: String, font: egui::FontId, color: egui::Color32) -> LayoutJob {
+    let mut job = LayoutJob::simple_singleline(text, font, color);
+    job.direction = TextDirection::LeftToRight;
+    job
 }
 
 /// Left edge for a title `width` wide: centred on `center` when it fits in the free gap from
@@ -61,20 +90,19 @@ pub(super) struct Placement {
 /// ellipsis at the side the gap's leading group is on, else nothing when the gap is not wider than
 /// [`TitleBarStyle::title_min_gap`]. Paint only: a press on it reaches the drag area below.
 ///
-/// The line is laid out left to right as a whole, so a right-to-left document name keeps its
-/// suffix after it.
+/// Both galleys come from [`job`], so the line is the same whole and cut.
 pub(super) fn paint(ui: &Ui, style: &TitleBarStyle, title: &Title, at: Placement) {
     let font = Tokens::of(ui).font(style.title_role);
     let painter = ui.painter();
     let text = title.text();
-    let galley = painter.layout_no_wrap(text.clone(), font.clone(), style.title);
+    let galley = painter.layout_job(job(text.clone(), font.clone(), style.title));
     let top = |height: f32| at.centre_line - height / 2.0;
     if let Some(x) = title_x(at.bar.center().x, at.left, at.right, galley.size().x, style.title_gap) {
         painter.galley(pos2(x, top(galley.size().y)), galley, style.title);
     } else if at.right - at.left > style.title_min_gap {
-        let mut job = LayoutJob::simple_singleline(text, font, style.title);
-        job.wrap = TextWrapping::truncate_at_width(at.right - at.left - 2.0 * style.title_gap);
-        let cut = painter.layout_job(job);
+        let mut cut_job = job(text, font, style.title);
+        cut_job.wrap = TextWrapping::truncate_at_width(at.right - at.left - 2.0 * style.title_gap);
+        let cut = painter.layout_job(cut_job);
         let x = if at.rtl { at.right - style.title_gap - cut.size().x } else { at.left + style.title_gap };
         painter.galley(pos2(x, top(cut.size().y)), cut, style.title);
     }

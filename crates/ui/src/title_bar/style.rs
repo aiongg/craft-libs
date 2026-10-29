@@ -44,6 +44,10 @@ pub struct TitleBarStyle {
     pub windows_close: Color32,
     /// The glyph on Windows' Close button.
     pub windows_close_glyph: Color32,
+    /// Breeze's disc under a pressed button: the bar's colour 70 % of the way to
+    /// [`glyph`](Self::glyph), with the bar's colour as the glyph on it. Derived, so it follows the
+    /// theme's colours and keeps the glyph's 4.5:1 against the disc in high contrast.
+    pub breeze_pressed: Color32,
     /// Breeze's Close button under the pointer.
     pub breeze_close_hover: Color32,
     /// The glyph on Breeze's hovered Close button.
@@ -53,6 +57,9 @@ pub struct TitleBarStyle {
     /// The glyph on Breeze's pressed Close button.
     pub breeze_close_pressed_glyph: Color32,
 }
+
+/// How far Breeze's pressed disc is from the bar toward the glyph colour.
+const BREEZE_PRESSED_MIX: f32 = 0.7;
 
 impl TitleBarStyle {
     /// The style for the installed theme.
@@ -76,6 +83,7 @@ impl TitleBarStyle {
             separator: b.separator.to_egui(),
             windows_close: b.windows_close.to_egui(),
             windows_close_glyph: b.windows_close_glyph.to_egui(),
+            breeze_pressed: b.bar.to_egui().lerp_to_gamma(b.glyph.to_egui(), BREEZE_PRESSED_MIX),
             breeze_close_hover: b.breeze_close_hover.to_egui(),
             breeze_close_hover_glyph: b.breeze_close_hover_glyph.to_egui(),
             breeze_close_pressed: b.breeze_close_pressed.to_egui(),

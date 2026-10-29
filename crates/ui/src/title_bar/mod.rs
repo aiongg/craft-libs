@@ -102,9 +102,29 @@ pub struct BarSlots {
     /// with Adwaita caption buttons.
     pub height: f32,
     /// The free gap between the two groups of [`TitleBar::show_titled`] on the last pass: the
-    /// bar's full height, from the leading group's inner edge to the trailing group's. Empty
-    /// until a pass has measured it, and after the window's width changed.
+    /// bar's full height, from the leading group's inner edge to the trailing group's. Measured
+    /// for every frame, [`Frame::Native`] and full screen included; empty until a pass has
+    /// measured it, and after the bar's width changed.
     pub gap: Rect,
+    /// The bar is the window's title bar on this pass: it has a drag area and, with caption
+    /// buttons, resize zones. False under [`Frame::Native`], in full screen and for a
+    /// [`preview`](TitleBar::preview).
+    pub titled: bool,
+}
+
+/// The window state a [`preview`](TitleBar::preview) bar shows, in place of the viewport's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WindowState {
+    /// The window is maximized: the caption buttons show Restore.
+    pub maximized: bool,
+    /// The window has keyboard focus: the caption glyphs are at full strength.
+    pub active: bool,
+}
+
+impl Default for WindowState {
+    fn default() -> Self {
+        Self { maximized: false, active: true }
+    }
 }
 
 /// What happened in the bar this frame.
@@ -127,11 +147,23 @@ pub struct TitleBar<'a> {
     separator: bool,
     background: bool,
     title: Option<Title>,
+    preview: Option<WindowState>,
 }
 
 impl<'a> TitleBar<'a> {
     pub fn new(frame: &'a Frame) -> Self {
-        Self { frame, salt: None, labels: None, icons: None, regions: None, native_hit_test: false, separator: false, background: true, title: None }
+        Self {
+            frame,
+            salt: None,
+            labels: None,
+            icons: None,
+            regions: None,
+            native_hit_test: false,
+            separator: false,
+            background: true,
+            title: None,
+            preview: None,
+        }
     }
 
     /// The sizes and colours the bar paints with, for the installed theme.
@@ -182,6 +214,16 @@ impl<'a> TitleBar<'a> {
     #[must_use]
     pub fn title(mut self, title: Title) -> Self {
         self.title = Some(title);
+        self
+    }
+
+    /// Draws the bar as an inert picture of a window in `state`, for galleries and documentation:
+    /// the caption buttons show hover but send no viewport command, and the bar has no drag area,
+    /// resize zones, region reports or modal overlay. It reads nothing from the viewport, and its
+    /// buttons sit at the bar's own ends, so it may be narrower or wider than the window.
+    #[must_use]
+    pub fn preview(mut self, state: WindowState) -> Self {
+        self.preview = Some(state);
         self
     }
 
@@ -253,9 +295,10 @@ impl<'a> TitleBar<'a> {
         let adwaita = matches!(self.frame, Frame::Integrated(c) if c.family == CaptionFamily::Adwaita);
         let height = if adwaita { style.height.max(style.height_adwaita) } else { style.height };
         let (_, bar) = ui.allocate_space(vec2(ui.available_width(), height));
-        let fullscreen = ctx.input(|i| i.viewport().fullscreen).unwrap_or(false);
-        let maximized = ctx.input(|i| i.viewport().maximized).unwrap_or(false);
-        let window = ctx.content_rect();
+        let preview = self.preview;
+        let fullscreen = preview.is_none() && ctx.input(|i| i.viewport().fullscreen).unwrap_or(false);
+        let maximized = preview.map_or_else(|| ctx.input(|i| i.viewport().maximized).unwrap_or(false), |p| p.maximized);
+        let window = if preview.is_some() { bar } else { ctx.content_rect() };
         let titled = !fullscreen && !matches!(self.frame, Frame::Native);
         if self.background {
             ui.painter().rect_filled(bar, 0.0, style.bar);
@@ -288,18 +331,18 @@ impl<'a> TitleBar<'a> {
         }
 
         let title = self.title.take();
-        let name = title.as_ref().map(Title::text);
-        let empty = titled.then(|| drag::area(ui, bar, scope, name.as_deref()));
+        let empty = (titled && preview.is_none()).then(|| drag::area(ui, bar, scope, title.as_ref()));
 
         let last_gap = measure::last(&ctx, scope, bar.width()).unwrap_or(Rect::NOTHING);
         let mut child = ui.new_child(UiBuilder::new().id_salt(scope).max_rect(slot).layout(direction::row(ui)));
-        let edges = content(&mut child, BarSlots { content: slot, leading_caption, trailing_caption, centre_line, height, gap: last_gap });
+        let edges = content(
+            &mut child,
+            BarSlots { content: slot, leading_caption, trailing_caption, centre_line, height, gap: last_gap, titled: empty.is_some() },
+        );
         if let Some(edges) = edges {
             let (from, to) = if rtl { (edges.trailing, edges.leading) } else { (edges.leading, edges.trailing) };
             let gap = Rect::from_min_max(pos2(from, bar.top()), pos2(to.max(from), bar.bottom()));
-            if titled {
-                measure::store(&ctx, scope, bar.width(), gap);
-            }
+            measure::store(&ctx, scope, bar.width(), gap, empty.is_some());
             if let Some(title) = title.filter(|_| !matches!(self.frame, Frame::Native)) {
                 title::paint(ui, &style, &title, title::Placement { bar, centre_line, left: from, right: to, rtl });
             }
@@ -320,24 +363,29 @@ impl<'a> TitleBar<'a> {
             if let Some(labels) = self.labels {
                 b = b.labels(labels);
             }
+            if let Some(state) = preview {
+                b = b.preview(state);
+            }
             let (c, rects) = b.window_scope(scope).show_rects(ui, bar);
             clicked = c;
-            let mut native = self.native_hit_test;
-            if let Some(regions) = self.regions {
-                native |= regions.native_hit_test();
-                regions.drag(bar);
-                for &(c, r) in &rects {
-                    regions.button(c, r);
+            if preview.is_none() {
+                let mut native = self.native_hit_test;
+                if let Some(regions) = self.regions {
+                    native |= regions.native_hit_test();
+                    regions.drag(bar);
+                    for &(c, r) in &rects {
+                        regions.button(c, r);
+                    }
+                }
+                holes.extend(rects.into_iter().map(|(_, r)| r));
+                if !native {
+                    if !maximized {
+                        resize::resize_zones(ui, &holes, scope, &style);
+                    }
+                    resize::reshow_cursor_after_os_resize(&ctx);
                 }
             }
-            holes.extend(rects.into_iter().map(|(_, r)| r));
-            if !native {
-                if !maximized {
-                    resize::resize_zones(ui, &holes, scope, &style);
-                }
-                resize::reshow_cursor_after_os_resize(&ctx);
-            }
-        } else if let (Some(regions), true) = (self.regions, titled) {
+        } else if let (Some(regions), true, true) = (self.regions, titled, preview.is_none()) {
             regions.drag(bar);
         }
         if self.separator {
