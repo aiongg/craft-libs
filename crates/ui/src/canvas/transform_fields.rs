@@ -215,6 +215,10 @@ struct Kept {
     parts: parts::State<()>,
     /// Each field's last value in the row's gesture, with that gesture and the row the value gave.
     reported: [Option<(GestureId, f64, Row)>; FIELDS],
+    /// The row the gesture the host was told of began from, kept from its Begin: a cancel that
+    /// arrives with the gesture already gone (`cancel_all`, disabling, an outside change) restores
+    /// its V skew from it.
+    start: Option<(GestureId, Row)>,
 }
 
 const FIELDS: usize = 7;
@@ -362,7 +366,6 @@ impl<'a> TransformFields<'a> {
 
         // Esc is the fields': each cancels its own gesture, which cancels the row's.
         let outer = Gesture::load(ui, id, &Row { state: *state, skew_v: *skew_v }, policy.cancellable(false)).enabled(enabled);
-        let before = outer.start().copied();
         let shown = *outer.shown();
         let mut kept: Kept = ui.data(|d| d.get_temp(kept_key)).unwrap_or_default();
         let gesture = outer.id();
@@ -472,16 +475,24 @@ impl<'a> TransformFields<'a> {
                 kept.reported[which as usize] = Some((gesture, value, row));
             }
         }
-        let (now, start) = (*outer.shown(), outer.start().copied().or(before));
+        let (now, start) = (*outer.shown(), outer.start().copied());
         let event = outer.finish_as(|row: Row| row.state);
         match &event {
-            Some(EditEvent::Cancel { .. }) => {
-                if let Some(start) = start {
+            Some(EditEvent::Begin { id, .. }) => kept.start = start.map(|start| (*id, start)),
+            Some(EditEvent::Cancel { id, .. }) => {
+                if let Some((_, start)) = kept.start.take().filter(|(of, _)| of == id) {
                     *skew_v = start.skew_v;
                 }
             }
-            Some(e) if e.value().is_some() => *skew_v = now.skew_v,
-            _ => {}
+            Some(e) => {
+                if e.value().is_some() {
+                    *skew_v = now.skew_v;
+                }
+                if matches!(e, EditEvent::Commit { .. } | EditEvent::Set { .. }) {
+                    kept.start = None;
+                }
+            }
+            None => {}
         }
 
         let (submitted, escaped) = (fields.iter().any(|(_, e)| e.submitted), fields.iter().any(|(_, e)| e.escaped));
