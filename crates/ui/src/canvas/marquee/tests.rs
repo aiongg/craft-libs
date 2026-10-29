@@ -1,7 +1,7 @@
 use egui::{Color32, Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect as ScreenRect, Sense, Shape, pos2, vec2};
 use kurbo::{Point, Rect};
 
-use super::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeResponse, MarqueeShape};
+use super::{Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeResponse, MarqueeShape, fixed_size_pixels, marquee_pixels, square_pixels};
 use crate::canvas::{CanvasView, Claim};
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 
@@ -480,6 +480,91 @@ fn a_fixed_size_is_positioned_by_the_drag() {
     assert_eq!(corners(&h.drag(A + vec2(40.0, 30.0))), [140.0, 130.0, 190.0, 150.0]);
     // Past the press the other way: the size stays.
     assert_eq!(corners(&h.drag(A - vec2(40.0, 30.0))), [60.0, 70.0, 110.0, 90.0]);
+}
+
+#[test]
+fn a_fixed_size_previews_from_the_press_before_the_slop() {
+    let mut h = Harness::new();
+    h.constraint = Constraint::Size(50.0, 20.0);
+    let press = h.press(A);
+    assert!(matches!(press.event, Some(EditEvent::Begin { .. })), "{:?}", press.event);
+    assert_eq!(corners(&press), [100.0, 100.0, 150.0, 120.0]);
+    let moved = h.drag(A + vec2(2.0, 1.0));
+    assert!(matches!(moved.event, Some(EditEvent::Update { .. })), "{:?}", moved.event);
+    assert_eq!(corners(&moved), [102.0, 101.0, 152.0, 121.0], "inside the slop it already follows the pointer");
+}
+
+#[test]
+fn a_fixed_size_click_commits_the_box_at_the_pointer() {
+    let mut h = Harness::new();
+    h.constraint = Constraint::Size(50.0, 20.0);
+    h.press(A);
+    let end = h.release(A);
+    match end.event {
+        Some(EditEvent::Commit { value, changed, .. }) => {
+            assert!(changed);
+            assert_eq!((value.a, value.b), (Point::new(100.0, 100.0), Point::new(150.0, 120.0)));
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(!end.clicked, "a fixed-size click is not a deselecting click");
+}
+
+#[test]
+fn a_fixed_size_click_with_alt_centres_the_box_on_the_pointer() {
+    let mut h = Harness::new();
+    h.constraint = Constraint::Size(50.0, 20.0);
+    h.press(A);
+    h.modifiers = Modifiers::ALT;
+    let held = h.drag(A);
+    assert_eq!(corners(&held), [75.0, 90.0, 125.0, 110.0]);
+    let end = h.release(A);
+    assert!(matches!(end.event, Some(EditEvent::Commit { .. })), "{:?}", end.event);
+    assert_eq!(corners(&end), [75.0, 90.0, 125.0, 110.0]);
+}
+
+#[test]
+fn free_and_ratio_clicks_stay_clicks() {
+    for constraint in [Constraint::Free, Constraint::Ratio(4.0, 3.0)] {
+        let mut h = Harness::new();
+        h.constraint = constraint;
+        assert_eq!(h.press(A).event, None);
+        let end = h.release(A);
+        assert!(end.clicked && end.event.is_none(), "{constraint:?}");
+    }
+}
+
+/// A shift square pressed at (50.3, 50.7) and dragged to (150.8, 90.0): the corners snapped on
+/// their own are 101 x 102; the square is 102 x 102 and covers every pixel the drag touched.
+#[test]
+fn a_square_stays_square_after_rounding_to_pixels() {
+    let (start, end) = (Point::new(50.3, 50.7), Point::new(150.8, 90.0));
+    let (a, b) = Constraint::Free.corners(start, end, true, false);
+    let snapped = marquee_pixels(a, b);
+    assert_eq!((snapped.width(), snapped.height()), (101.0, 102.0));
+    assert_eq!(square_pixels(snapped, start, end), Rect::new(50.0, 50.0, 152.0, 152.0));
+    // Dragged up and left the short side grows away from the press, towards the pointer.
+    let up = Rect::new(10.0, 20.0, 60.0, 30.0);
+    assert_eq!(square_pixels(up, Point::new(60.0, 30.0), Point::new(10.0, 20.0)), Rect::new(10.0, -20.0, 60.0, 30.0));
+    assert_eq!(square_pixels(up, Point::new(10.0, 20.0), Point::new(60.0, 30.0)), Rect::new(10.0, 20.0, 60.0, 70.0));
+}
+
+#[test]
+fn a_marquee_snaps_outwards_to_whole_pixels_from_either_corner() {
+    let (a, b) = (Point::new(50.3, 50.7), Point::new(150.8, 90.0));
+    assert_eq!(marquee_pixels(a, b), Rect::new(50.0, 50.0, 151.0, 90.0));
+    assert_eq!(marquee_pixels(b, a), marquee_pixels(a, b));
+}
+
+#[test]
+fn a_fixed_size_keeps_its_exact_pixel_size_after_rounding() {
+    for (w, h) in [(10.0, 10.0), (1.0, 1.0), (64.0, 32.0)] {
+        let (a, b) = Constraint::Size(w, h).corners(Point::ZERO, Point::new(50.4, 60.6), false, false);
+        assert_eq!(fixed_size_pixels(a, b, (w, h)), Rect::new(50.0, 61.0, 50.0 + w, 61.0 + h));
+    }
+    let (a, b) = Constraint::Size(10.0, 10.0).corners(Point::ZERO, Point::new(120.6, 100.4), false, false);
+    assert_eq!(fixed_size_pixels(a, b, (10.0, 10.0)), Rect::new(121.0, 100.0, 131.0, 110.0));
+    assert_eq!(fixed_size_pixels(Point::ZERO, Point::ZERO, (0.2, 3.6)), Rect::new(0.0, 0.0, 1.0, 4.0));
 }
 
 #[test]
