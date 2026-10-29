@@ -72,7 +72,8 @@ pub(super) fn over(fg: Rgba, bg: Rgba) -> Rgba {
     Rgba::rgb(ch(0), ch(1), ch(2))
 }
 
-const TEXT_BGS: [T; 6] = [T::SurfaceBackground, T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken, T::StateHover, T::StatePressed];
+const TEXT_BGS: [T; 7] =
+    [T::SurfaceBackground, T::SurfacePanel, T::SurfaceChrome, T::SurfaceRaised, T::SurfaceSunken, T::StateHover, T::StatePressed];
 const CONTROL_BGS: [T; 3] = [T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken];
 
 /// The §3 pairs, written out independently of the pass's own table: (fg, bg, standard, high).
@@ -94,7 +95,7 @@ fn spec_pairs() -> Vec<(T, T, f64, f64)> {
         p.extend([T::SurfacePanel, T::SurfaceRaised, bg].map(|b| (fg, b, 4.5, 7.0)));
         p.extend(solids.map(|solid| (T::TextOnStatus, solid, 4.5, 7.0)));
     }
-    p.extend([T::SurfaceBackground, T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken].map(|bg| (T::LineFocus, bg, 3.0, 4.5)));
+    p.extend([T::SurfaceBackground, T::SurfacePanel, T::SurfaceChrome, T::SurfaceRaised, T::SurfaceSunken].map(|bg| (T::LineFocus, bg, 3.0, 4.5)));
     p.extend([T::SurfacePanel, T::SurfaceRaised, T::SurfaceSunken].map(|bg| (T::AccentSolid, bg, 3.0, 4.5)));
     p
 }

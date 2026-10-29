@@ -37,6 +37,15 @@ fn mode_of(ctx: &Context) -> Mode {
 }
 
 #[test]
+fn bevelled_themes_get_solid_panel_scroll_bars() {
+    let appearance =
+        Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let classic = resolve(&theme("craft.classic"), appearance, None).tokens;
+    let style = style_for(&classic, &FontFamilies::default());
+    assert!(!style.spacing.scroll.floating, "Classic draws solid bars beside the content");
+}
+
+#[test]
 fn style_follows_the_tokens() {
     let fonts = FontFamilies::default();
     let [studio, solarized] = [("craft.studio", Mode::Dark), ("craft.solarized-dark", Mode::Dark)].map(|(id, mode)| {
@@ -50,7 +59,12 @@ fn style_follows_the_tokens() {
         let style = style_for(tokens, &fonts);
         let v = &style.visuals;
         assert!(v.dark_mode);
-        assert_eq!(v.panel_fill, tokens.color.surface.panel.to_egui());
+        assert_eq!(v.panel_fill, tokens.color.surface.chrome.to_egui());
+        assert_eq!(v.widgets.inactive.bg_fill, tokens.color.surface.sunken.to_egui(), "a scroll bar's handle at rest is the field fill");
+        assert_eq!(v.extreme_bg_color, tokens.color.surface.sunken.to_egui(), "its track");
+        let scroll = &style.spacing.scroll;
+        assert!(scroll.floating);
+        assert_eq!((scroll.floating_width, scroll.interact_handle_opacity, scroll.interact_background_opacity), (4.0, 1.0, 0.4));
         assert_eq!(v.widgets.inactive.weak_bg_fill, tokens.component.button.secondary.fill.rest.to_egui());
         assert_eq!(v.widgets.hovered.bg_fill, tokens.component.button.secondary.fill.hover.to_egui());
         assert_eq!(v.widgets.noninteractive.fg_stroke.color, tokens.color.text.normal.to_egui());
@@ -125,8 +139,8 @@ fn popups_take_the_scope_they_open_in() {
     let ctx = Context::default();
     let studio = base("craft.studio", ModeChoice::Dark);
     install(&ctx, &studio);
-    let light_fill = studio.light.resolved.tokens.color.surface.panel.to_egui();
-    let dark_fill = studio.dark.resolved.tokens.color.surface.panel.to_egui();
+    let light_fill = studio.light.resolved.tokens.color.surface.chrome.to_egui();
+    let dark_fill = studio.dark.resolved.tokens.color.surface.chrome.to_egui();
     let (plain, menu) = (std::cell::RefCell::new(Vec::new()), std::cell::RefCell::new(Vec::new()));
     for _ in 0..2 {
         frame(&ctx, |ui| {

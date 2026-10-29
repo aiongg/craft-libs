@@ -34,7 +34,7 @@ pub struct TitleBarTokens {
     pub edge: f32,
     /// Side of the resize zones at the window corners.
     pub corner: f32,
-    /// The bar's background: `surface.panel`.
+    /// The bar's background: `surface.chrome`.
     pub bar: Rgba,
     /// The title: `text.muted`.
     pub title: Rgba,
@@ -124,7 +124,7 @@ impl Family for TitleBarTokens {
 
     fn defaults(s: &Semantic<'_>) -> TitleBarTokens {
         let c = s.color;
-        let bar = c.surface.panel;
+        let bar = c.surface.chrome;
         TitleBarTokens {
             height: s.size.bar.title,
             height_adwaita: values::TITLE_BAR_HEIGHT_ADWAITA,

@@ -1,4 +1,4 @@
-//! Rulers: the strips along the top and left of a canvas. They draw in `surface.panel`,
+//! Rulers: the strips along the top and left of a canvas. They draw in `surface.chrome`,
 //! `line.divider` and the text colours; the family holds their geometry, the same at every Size
 //! and Text size (a 16 point strip has no room for larger labels).
 

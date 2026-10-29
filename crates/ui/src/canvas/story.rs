@@ -5,7 +5,7 @@ use egui::accesskit::Role;
 use egui::{Color32, EventFilter, Id, Response, Sense, Shape, Stroke, Ui, WidgetInfo, vec2};
 use kurbo::{Point, Rect};
 
-use super::{CanvasView, Claim, Readout, crisp, hit};
+use super::{CanvasScrollbars, CanvasView, Claim, Readout, ScrollbarNames, crisp, hit};
 use crate::behavior::nudge;
 use crate::primitives::{Corner, FocusRing, Handle, HandleShape};
 use crate::story::{self, Args, Level, Story};
@@ -47,6 +47,11 @@ pub(crate) fn document(ui: &mut Ui, args: &Args, label: &str) -> StoryCanvas {
 
 /// [`document`] with `margin` points left free above and left of the canvas, for rulers.
 pub(crate) fn document_in(ui: &mut Ui, args: &Args, label: &str, margin: f32) -> StoryCanvas {
+    document_at(ui, args, label, margin, DOC.center())
+}
+
+/// [`document_in`] with the view centred on `center`.
+pub(crate) fn document_at(ui: &mut Ui, args: &Args, label: &str, margin: f32, center: Point) -> StoryCanvas {
     if let Ok(ppp) = args.choice("ppp").parse::<f32>() {
         story::request_pixels_per_point(ui.ctx(), ppp);
     }
@@ -67,7 +72,7 @@ pub(crate) fn document_in(ui: &mut Ui, args: &Args, label: &str, margin: f32) ->
     let ppp = f64::from(ui.pixels_per_point());
     let view = CanvasView {
         rect,
-        center: DOC.center(),
+        center,
         zoom: args.number("zoom") / 100.0 / ppp,
         rotation: args.number("rotation"),
         flip_x: args.bool("flip"),
@@ -95,6 +100,14 @@ pub const COMPONENTS: &[&str] = &["Canvas", "Readout"];
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         Story { id: "primitives/canvas/document", level: Level::Primitives, component: "Canvas", name: "Document", args, show: show_document },
+        Story {
+            id: "primitives/canvas/scrollbars",
+            level: Level::Primitives,
+            component: "Canvas",
+            name: "Scrollbars",
+            args: || args().with_bool("overscroll", true),
+            show: show_scrollbars,
+        },
         Story {
             id: "primitives/readout/values",
             level: Level::Primitives,
@@ -146,6 +159,22 @@ fn show_document(ui: &mut Ui, args: &mut Args) {
         let at = view.to_doc(pointer);
         Readout::new("canvas-story-readout").row("X:", format!("{:.1}", at.x)).row("Y:", format!("{:.1}", at.y)).show(&ctx, pointer);
     }
+}
+
+/// The document under its scroll bars: drag a thumb, click a track to page, change the zoom to
+/// see the thumb follow. With overscroll off the view stays on the document.
+fn show_scrollbars(ui: &mut Ui, args: &mut Args) {
+    let key = ui.scope_id().with("canvas-story-scroll");
+    let center: Point = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| DOC.center());
+    let canvas = document_at(ui, args, "Document", 0.0, center);
+    let mut view = canvas.view;
+    let overscroll = args.bool("overscroll");
+    if !overscroll {
+        CanvasScrollbars::clamp(&mut view, DOC);
+    }
+    let names = ScrollbarNames::new("Horizontal scroll bar", "Vertical scroll bar");
+    let _ = CanvasScrollbars::new("canvas-story-scrollbars", names).overscroll(overscroll).show(ui, &mut view, DOC);
+    ui.data_mut(|d| d.insert_temp(key, view.center));
 }
 
 /// A readout of a transform's size and angle.
