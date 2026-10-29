@@ -27,7 +27,7 @@ pub struct ListboxTokens {
     /// more (PhotoCraft's 10 point button padding).
     pub pad_x: f32,
     /// The most a select's or combo box's list shows before it scrolls: [`values::LISTBOX_MAX_HEIGHT`]
-    /// and, above Compact, the extra height of [`values::LISTBOX_MAX_ROWS`] rows.
+    /// scaled by the control height of the size and rounded.
     pub max_height: f32,
     /// Between the check mark, an icon and the text: `space.gap.inline`.
     pub gap: f32,
@@ -111,7 +111,7 @@ impl Family for ListboxTokens {
         ListboxTokens {
             height: BySize { sm: size.control.sm, md: size.control.md },
             pad_x: s.space.pad.control + values::LISTBOX_PAD_X,
-            max_height: values::LISTBOX_MAX_HEIGHT + values::LISTBOX_MAX_ROWS * (size.control.md - values::MENU_BASE_CONTROL),
+            max_height: (values::LISTBOX_MAX_HEIGHT * size.control.md / values::MENU_BASE_CONTROL).round(),
             gap: s.space.gap.inline,
             icon: BySize { sm: size.icon.sm, md: size.icon.md },
             label: TypeRole::Body,

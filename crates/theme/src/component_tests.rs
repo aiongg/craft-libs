@@ -611,7 +611,7 @@ fn button_sizes_follow_the_size_preset() {
     assert_eq!((compact.icon.get(ControlSize::Sm), compact.icon.get(ControlSize::Md)), (12.0, 16.0));
     assert_eq!(compact.gap, 4.0);
     let comfy = at(Size::Comfortable);
-    assert_eq!((comfy.height.sm, comfy.height.md), (26.0, 34.0));
+    assert_eq!((comfy.height.sm, comfy.height.md), (22.0, 30.0));
     assert_eq!((comfy.pad_x.sm, comfy.pad_x.md), (18.0, 18.0));
     assert_eq!((comfy.icon.sm, comfy.icon.md), (14.0, 18.0));
     assert_eq!(comfy.gap, 6.0);
@@ -1249,7 +1249,7 @@ fn tab_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
 
     let comfy = at(Size::Comfortable);
     let t = &comfy.component.tab;
-    assert_eq!((t.height, t.panel_height, t.height_large, t.pad_x, t.gap, t.min_width), (30.0, 32.0, 38.0, 16.0, 6.0, 44.0));
+    assert_eq!((t.height, t.panel_height, t.height_large, t.pad_x, t.gap, t.min_width), (30.0, 40.0, 38.0, 16.0, 6.0, 44.0));
     assert_eq!((t.close_box, t.close_icon, t.overflow, t.radius, t.dividers), (16.0, 12.0, 24.0, comfy.shape.radius.control, false));
 
     let t = &compact;

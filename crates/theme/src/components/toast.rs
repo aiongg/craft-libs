@@ -13,10 +13,10 @@ use crate::values;
 pub struct ToastTokens {
     /// Outer width of a card: `toast.width`.
     pub width: f32,
-    /// Between a card's edge and its content: `toast.pad`, 10 (Comfortable 12).
+    /// Between a card's edge and its content: `toast.pad`, 10 (Comfortable 13).
     pub pad: f32,
     /// From the host rect's edge at the reading end and from its bottom edge to the stack:
-    /// `toast.inset`, 16 and 12 (Comfortable 20 and 16).
+    /// `toast.inset`, 16 and 12 (Comfortable 20 and 15).
     pub inset: [f32; 2],
     /// Between cards: `space.gap.stack`.
     pub gap: f32,

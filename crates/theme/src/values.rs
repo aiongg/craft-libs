@@ -479,7 +479,7 @@ pub(super) const COMFORTABLE: Preset = Preset {
             rounded: true,
             dividers: false,
         },
-        tab: TabSizes { panel_height: 32.0, height_large: 38.0, min_width: 44.0, close: 16.0, close_icon: 12.0, rounded: true, dividers: false },
+        tab: TabSizes { panel_height: 40.0, height_large: 38.0, min_width: 44.0, close: 16.0, close_icon: 12.0, rounded: true, dividers: false },
     },
     space: SpaceTokens { gap: Gaps { inline: 6.0, row: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
     radius: RadiusSet { control: 6.0, popup: 8.0, window: 12.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
@@ -545,13 +545,22 @@ pub const MOTION_EASING: Easing = Easing::Standard;
 /// How much of its fill a check box that is on shows while pressed (`widgets/buttons.rs:247`).
 pub const CHECK_ON_PRESSED_OPACITY: f32 = 0.75;
 
-/// Button heights in points, small and standard: Compact is PhotoCraft's status-bar button (22)
-/// and its Pro button (28); Comfortable adds the 4 and 6 points its control heights have over
-/// Compact's.
+/// The control height the Compact panel footer sizes are set for.
+pub const PANEL_FOOTER_BASE_CONTROL: f32 = 24.0;
+/// Compact height of a panel footer's bar (PhotoCraft's `FOOTER_BAR`, `widgets/panel.rs:58`).
+pub const PANEL_FOOTER_HEIGHT: f32 = 30.0;
+/// Compact gap between a panel footer's buttons.
+pub const PANEL_FOOTER_GAP: f32 = 2.0;
+/// Compact side of a panel footer's button.
+pub const PANEL_FOOTER_BUTTON: f32 = 26.0;
+
+/// Button heights in points, small and standard: PhotoCraft's status-bar button (22, the same in
+/// its Pro and Studio layouts' non-Pro branch, `status_bar.rs:8`) and its button (28 Pro, 30
+/// Studio, `widgets/buttons.rs:150`).
 pub const fn button_height(size: Size) -> (f32, f32) {
     match size {
         Size::Compact => (22.0, 28.0),
-        Size::Comfortable => (26.0, 34.0),
+        Size::Comfortable => (22.0, 30.0),
     }
 }
 
@@ -625,9 +634,6 @@ pub const LISTBOX_PAD_X: f32 = 4.0;
 /// The most a select's or combo box's list shows before it scrolls, at Compact: PhotoCraft's
 /// dropdown height (`dropdown.rs:74`).
 pub const LISTBOX_MAX_HEIGHT: f32 = 420.0;
-/// Rows a list gains of `LISTBOX_MAX_HEIGHT` for each point its control height has over the
-/// Compact one: the 12 rows a list showed.
-pub const LISTBOX_MAX_ROWS: f32 = 12.0;
 /// The control height the Compact menu sizes are set for.
 pub const MENU_BASE_CONTROL: f32 = 24.0;
 /// Compact least width of a menu (PhotoCraft's).
@@ -1168,7 +1174,7 @@ pub const TOAST_WIDTH: f32 = 360.0;
 pub const fn toast_pad(size: Size) -> f32 {
     match size {
         Size::Compact => 10.0,
-        Size::Comfortable => 12.0,
+        Size::Comfortable => 13.0,
     }
 }
 
@@ -1177,7 +1183,7 @@ pub const fn toast_pad(size: Size) -> f32 {
 pub const fn toast_inset(size: Size) -> [f32; 2] {
     match size {
         Size::Compact => [16.0, 12.0],
-        Size::Comfortable => [20.0, 16.0],
+        Size::Comfortable => [20.0, 15.0],
     }
 }
 

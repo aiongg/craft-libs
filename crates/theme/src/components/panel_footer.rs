@@ -1,6 +1,7 @@
 //! Panel footers: the bar of buttons under a panel body. Sizes only (no colours): no theme overrides them.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use crate::values;
 
 /// Panel footer tokens, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -22,10 +23,16 @@ impl Family for PanelFooterTokens {
     type Field = PanelFooterField;
     const FIELDS: &'static [PanelFooterField] = &[];
 
-    /// The buttons are 2 larger than a medium control (26 at Compact) and 2 apart (the inline gap less 2); the bar has 2 above and below them.
+    /// The Compact sizes (PhotoCraft's footer: 26 point buttons 2 apart in a 30 point bar),
+    /// scaled by the control height of the size and rounded to whole points.
     fn defaults(s: &Semantic<'_>) -> PanelFooterTokens {
-        let button = s.size.control.md + 2.0;
-        PanelFooterTokens { height: button + 4.0, gap: s.space.gap.inline - 2.0, button }
+        let k = s.size.control.md / values::PANEL_FOOTER_BASE_CONTROL;
+        let scaled = |compact: f32| (compact * k).round();
+        PanelFooterTokens {
+            height: scaled(values::PANEL_FOOTER_HEIGHT),
+            gap: scaled(values::PANEL_FOOTER_GAP),
+            button: scaled(values::PANEL_FOOTER_BUTTON),
+        }
     }
 
     fn path(f: PanelFooterField) -> String {

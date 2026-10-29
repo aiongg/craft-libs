@@ -31,7 +31,7 @@ fn the_look_follows_the_size_preset() {
     let sizes =
         |look: &DockLook| [look.tab_height, look.gap, look.tab_padding, look.title_height, look.column_bar_height, look.iconic_width, look.icon_size];
     assert_eq!(sizes(&look_at(Size::Compact, Mode::Light)), [28.0, 4.0, 24.0, 14.0, 14.0, 36.0, 20.0]);
-    assert_eq!(sizes(&look_at(Size::Comfortable, Mode::Light)), [32.0, 6.0, 32.0, 18.0, 18.0, 44.0, 22.0]);
+    assert_eq!(sizes(&look_at(Size::Comfortable, Mode::Light)), [40.0, 6.0, 32.0, 18.0, 18.0, 44.0, 22.0]);
 }
 
 /// The unmigrated flat style splits into the default config and the visuals look, field by field.
