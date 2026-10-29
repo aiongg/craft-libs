@@ -1,12 +1,13 @@
 //! The gradient overlay's story: a gradient line over the picture it colours.
 
-use egui::{Color32, IdSalt, Mesh, Ui};
+use egui::{Color32, Mesh, Ui};
 use kurbo::Point;
 
-use super::{GradientLineNames, GradientOverlay};
-use crate::canvas::{CanvasView, GradientExtent, GradientLine, gradient_line};
+use super::{GradientLineNames, GradientOverlay, GradientOverlayResponse};
+use crate::canvas::{CanvasView, GradientExtent, GradientLine, LineGradient, gradient_line};
 use crate::composites::gradient::stops::{StopRules, sample};
 use crate::composites::{ColorStop, GradientStops, StopRef, StopRow, StopRows};
+use crate::edit::{EditEvent, describe};
 use crate::story::{Args, Level, Story};
 use craft_theme::Srgba;
 
@@ -26,6 +27,7 @@ pub(crate) fn stories() -> Vec<Story> {
                 .with_choice("selected", &["None", "Stop 2", "Midpoint 1"], 1)
                 .with_bool("reverse", false)
                 .with_bool("midpoints", true)
+                .with_bool("alt copies", false)
                 .with_bool("editable", true)
         },
         show: show_edit,
@@ -53,6 +55,47 @@ pub(crate) fn story_stops(rows: StopRows) -> GradientStops {
 /// The story's line.
 pub(crate) const LINE: GradientLine = GradientLine { start: Point::new(150.0, 230.0), end: Point::new(470.0, 150.0) };
 
+/// A host's gradient, as the story and tests keep it: updates shown as they come.
+#[derive(Clone, Debug)]
+pub(crate) struct LineHost {
+    pub value: LineGradient,
+    /// The gradient when a drag began, to restore on a cancel.
+    pub before: Option<LineGradient>,
+}
+
+impl LineHost {
+    pub(crate) fn new(value: LineGradient) -> Self {
+        Self { value, before: None }
+    }
+
+    pub(crate) fn apply(&mut self, response: &GradientOverlayResponse) {
+        match &response.event {
+            Some(EditEvent::Begin { .. }) => self.before = Some(self.value.clone()),
+            Some(EditEvent::Update { value, .. }) => self.value = value.clone(),
+            Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => {
+                self.before = None;
+                self.value = value.clone();
+            }
+            Some(EditEvent::Cancel { .. }) => {
+                if let Some(before) = self.before.take() {
+                    self.value = before;
+                }
+            }
+            None => {}
+        }
+    }
+}
+
+/// The story's state: the host's gradient for a row layout, the last event and the "selected"
+/// arg last applied.
+#[derive(Clone)]
+struct StoryState {
+    rows: StopRows,
+    host: LineHost,
+    last: String,
+    selected_arg: String,
+}
+
 fn show_edit(ui: &mut Ui, args: &mut Args) {
     let rows = if args.choice("rows") == "Combined" { StopRows::Combined } else { StopRows::Split };
     let extent = match args.choice("extent") {
@@ -61,27 +104,59 @@ fn show_edit(ui: &mut Ui, args: &mut Args) {
         "Mirror" => GradientExtent::Mirror,
         _ => GradientExtent::None,
     };
+    let key = ui.scope_id().with("gradient-line-story");
+    let fresh = || StoryState {
+        rows,
+        host: LineHost::new(LineGradient { line: LINE, stops: story_stops(rows) }),
+        last: "–".into(),
+        selected_arg: String::new(),
+    };
+    let mut state = ui.data(|d| d.get_temp::<StoryState>(key)).filter(|s| s.rows == rows).unwrap_or_else(fresh);
+    let reverse = args.bool("reverse");
+    ui.label(format!(
+        "Line {:.0}, {:.0} → {:.0}, {:.0}; {} stops. Last event: {}",
+        state.host.value.line.start.x,
+        state.host.value.line.start.y,
+        state.host.value.line.end.x,
+        state.host.value.line.end.y,
+        state.host.value.stops.color.len(),
+        state.last
+    ));
     let canvas = super::super::story::document(ui, args, "Document");
     let view = &canvas.view;
-    let (stops, reverse) = (story_stops(rows), args.bool("reverse"));
-    paint_picture(ui, view, &stops, rows, reverse);
-    let overlay = GradientOverlay::new("story-gradient", &LINE, &stops, english_names())
+    paint_picture(ui, view, &state.host.value, rows, reverse);
+    let id = ui.make_persistent_id("story-gradient");
+    let selected_arg = args.choice("selected").to_owned();
+    if selected_arg != state.selected_arg {
+        let selected = match selected_arg.as_str() {
+            "Stop 2" => Some(StopRef::Color(1)),
+            "Midpoint 1" => Some(StopRef::Midpoint(StopRow::Color, 0)),
+            _ => None,
+        };
+        GradientOverlay::select(ui.ctx(), id, selected);
+        state.selected_arg = selected_arg;
+    }
+    let value = state.host.value.clone();
+    let r = GradientOverlay::new("story-gradient", &value.line, &value.stops, english_names())
         .rules(StopRules { rows, ..StopRules::default() })
         .midpoints(args.bool("midpoints"))
         .reverse(reverse)
         .extent(extent)
-        .editable(args.bool("editable"));
-    let selected = match args.choice("selected") {
-        "Stop 2" => Some(StopRef::Color(1)),
-        "Midpoint 1" => Some(StopRef::Midpoint(StopRow::Color, 0)),
-        _ => None,
-    };
-    GradientOverlay::select(ui.ctx(), ui.make_persistent_id(IdSalt::new("story-gradient")), selected);
-    let _ = overlay.show(ui, &canvas.response, view);
+        .alt_copies(args.bool("alt copies"))
+        .editable(args.bool("editable"))
+        .show(ui, &canvas.response, view);
+    state.host.apply(&r);
+    if let Some(event) = &r.event {
+        state.last = describe(&event.clone().map(|_| ()));
+    }
+    if let Some((i, _)) = r.color_requested {
+        state.last = format!("colour of stop {} requested", i + 1);
+    }
+    ui.data_mut(|d| d.insert_temp(key, state));
 }
 
 /// The gradient on the document: a grid of cells coloured by their location along the line.
-fn paint_picture(ui: &Ui, view: &CanvasView, stops: &GradientStops, rows: StopRows, reverse: bool) {
+fn paint_picture(ui: &Ui, view: &CanvasView, value: &LineGradient, rows: StopRows, reverse: bool) {
     const COLUMNS: u32 = 64;
     const ROWS: u32 = 40;
     let doc = super::super::story::DOC;
@@ -91,8 +166,8 @@ fn paint_picture(ui: &Ui, view: &CanvasView, stops: &GradientStops, rows: StopRo
             let (x0, y0) = (doc.x0 + doc.width() * f64::from(i) / f64::from(COLUMNS), doc.y0 + doc.height() * f64::from(j) / f64::from(ROWS));
             let (w, h) = (doc.width() / f64::from(COLUMNS), doc.height() / f64::from(ROWS));
             let centre = Point::new(x0 + w / 2.0, y0 + h / 2.0);
-            let (t, _) = gradient_line::project(&LINE, centre, reverse);
-            let color = Color32::from(sample(stops, rows, t));
+            let (t, _) = gradient_line::project(&value.line, centre, reverse);
+            let color = Color32::from(sample(&value.stops, rows, t));
             let base = cells.vertices.len() as u32;
             for p in [(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)] {
                 cells.colored_vertex(view.to_screen(Point::new(p.0, p.1)), color);
