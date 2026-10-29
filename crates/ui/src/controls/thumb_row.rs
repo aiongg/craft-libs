@@ -11,6 +11,7 @@ use egui::{
 };
 
 use super::slider::{self, KEY_FILTER, PressTurn, Scale, Sensing, Track, pointer, press_turn, stepped, tap};
+use crate::edit::ops::ScalarOp;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Interactive, StateLayer};
 
@@ -186,9 +187,17 @@ pub(crate) struct ThumbRowOutput<const N: usize> {
     pub shown: [f64; N],
     /// The thumb a pointer drag is moving.
     pub dragged: Option<usize>,
-    /// What the row's values may be, for an edit of the row held and applied later
-    /// ([`RowRules::rebase`]).
-    pub rules: RowRules<N>,
+    /// What the frame's Set did, in order: each applies to the row the ones before it left
+    /// ([`RowRules::apply`]).
+    pub ops: Vec<RowOp>,
+}
+
+/// An operation on one thumb of a row: what a key, the wheel, a screen-reader request, a reset or
+/// a tap off the thumbs did to it.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct RowOp {
+    pub thumb: usize,
+    pub op: ScalarOp,
 }
 
 /// What a press at a point moves.
@@ -271,29 +280,20 @@ impl<const N: usize> RowRules<N> {
         (lo.min(hi), hi)
     }
 
-    /// `row`, the row's value an edit made from `base`, with the thumbs it moved applied onto
-    /// `now` ([`Rebase`](crate::edit::parts::Rebase)): the other thumbs keep `now`'s values, and
-    /// each moved one stays within its bounds among them, where a drag of it would stop. A NaN
-    /// that stays NaN (an unset gamma) is unmoved. A row's change can always be told, so there is
-    /// always a value.
-    pub fn rebase(&self, row: [f64; N], base: &[f64; N], now: &[f64; N]) -> Option<[f64; N]> {
-        let moved: [bool; N] = std::array::from_fn(|i| !(row[i] == base[i] || (row[i].is_nan() && base[i].is_nan())));
-        let mut out: [f64; N] = std::array::from_fn(|i| if moved[i] { row[i] } else { now[i] });
-        for i in 0..N {
-            if moved[i] && out[i].is_finite() {
-                let (lo, hi) = self.bounds(&self.placed(&out), i);
-                out[i] = out[i].clamp(lo, hi);
-            }
-        }
-        Some(out)
+    /// `row` with `op` applied to its thumb ([`slider::apply`]): from where the thumb is drawn
+    /// (an unset gamma steps from where it sits), on its stops and within its bounds among the
+    /// others, so the order and the gap hold. The other thumbs keep `row`'s values.
+    pub(crate) fn apply(&self, op: &RowOp, row: &[f64; N]) -> [f64; N] {
+        let values = self.placed(row);
+        let i = op.thumb;
+        let mut out = *row;
+        out[i] = slider::apply(&op.op, values[i], self.bounds(&values, i), &self.scale_of(i));
+        out
     }
 
-    /// `now` with thumb `i` moved to `v`, within its bounds among the others, where a drag of it
-    /// would stop.
-    pub(crate) fn moved(&self, now: &[f64; N], i: usize, v: f64) -> [f64; N] {
-        let mut row = *now;
-        row[i] = v;
-        self.rebase(row, now, now).unwrap_or(row)
+    /// The operation that sets thumb `i` to its default, if it has one.
+    fn reset(&self, i: usize) -> Option<RowOp> {
+        self.thumbs[i].default.filter(|d| d.is_finite()).map(|d| RowOp { thumb: i, op: ScalarOp::Set(d) })
     }
 }
 
@@ -364,15 +364,6 @@ impl<const N: usize> Layout<'_, N> {
         out[i] = self.scale_of(i).snap(value).clamp(lo, hi);
         out
     }
-
-    /// The values `raw` with thumb `i` at its default, if it has one.
-    fn reset(&self, raw: &[f64; N], i: usize) -> Option<[f64; N]> {
-        let default = self.thumbs[i].default.filter(|d| d.is_finite())?;
-        let (lo, hi) = self.bounds(&self.placed(raw), i);
-        let mut out = *raw;
-        out[i] = self.scale_of(i).snap(default).clamp(lo, hi);
-        Some(out)
-    }
 }
 
 impl<const N: usize> ThumbRow<N> {
@@ -409,6 +400,12 @@ impl<const N: usize> ThumbRow<N> {
         self
     }
 
+    /// What the values of a row of `thumbs` on `range` with `step` may be, as [`new`](Self::new)
+    /// takes them: a composite applies the row's operations with them before drawing it.
+    pub fn rules(range: &RangeInclusive<f64>, step: Option<f64>, thumbs: &[Thumb; N]) -> RowRules<N> {
+        RowRules { thumbs: thumbs.clone(), scale: Scale::new(range, step) }
+    }
+
     /// Whether the row is a part of a composite reporting through one edit, whose press takes
     /// its turn from the edit order ([`press_turn`]).
     pub(crate) fn part(mut self, part: bool) -> Self {
@@ -431,7 +428,8 @@ impl<const N: usize> ThumbRow<N> {
 
         // The gesture lives on the row, which takes every press; the focus goes to the thumbs.
         let mut gesture = Gesture::load(ui, id, &Row(self.value), self.policy).focus_owners(&ids).event_filter(KEY_FILTER).enabled(sensing.enabled);
-        let (focus, active) = pointer_input(ui, &response, &layout, &mut gesture, PressInput { sensing, part: self.part, finite });
+        let mut ops = Vec::new();
+        let (focus, active) = pointer_input(ui, &response, &layout, &mut gesture, PressInput { sensing, part: self.part, finite }, &mut ops);
         let dragged = active.and_then(Press::single);
         let mut focus = focus.map(|i| ids[i]);
         if response.drag_stopped() && focus.is_none() {
@@ -440,21 +438,20 @@ impl<const N: usize> ThumbRow<N> {
         }
 
         for (i, &thumb) in ids.iter().enumerate() {
-            let reset = layout.reset(gesture.shown(), i).filter(|_| sensing.enabled && ui.memory(|m| m.has_focus(thumb)));
+            let reset = rules.reset(i).filter(|_| sensing.enabled && ui.memory(|m| m.has_focus(thumb)));
             // Taken during a drag too, which it doesn't change, as the arrows are.
             if let Some(reset) = reset
                 && ui.input_mut(|input| input.consume_key(Modifiers::COMMAND, Key::Backspace))
                 && !sensing.dragging
             {
-                gesture.set(Row(reset));
+                gesture.set(Row(rules.apply(&reset, gesture.shown())));
+                ops.push(reset);
             }
-            let values = layout.placed(gesture.shown());
             let sensing = Sensing { falling: rules.thumbs[i].falling, ..sensing };
-            let scale = layout.scale_of(i);
-            if let Some(op) = stepped(ui, thumb, sensing, None, &scale) {
-                let mut out = *gesture.shown();
-                out[i] = slider::apply(&op, values[i], layout.bounds(&values, i), &scale);
-                gesture.set(out);
+            if let Some(op) = stepped(ui, thumb, sensing, None, &layout.scale_of(i)) {
+                let op = RowOp { thumb: i, op };
+                gesture.set(Row(rules.apply(&op, gesture.shown())));
+                ops.push(op);
             }
         }
 
@@ -505,7 +502,7 @@ impl<const N: usize> ThumbRow<N> {
             #[cfg(test)]
             shown,
             dragged,
-            rules,
+            ops,
         }
     }
 }
@@ -521,13 +518,15 @@ struct PressInput {
 }
 
 /// Presses, drags, the release and taps on the row: the thumb to focus, and what a drag under way
-/// moves (the thumb it picked, or overlapping thumbs while it hasn't).
+/// moves (the thumb it picked, or overlapping thumbs while it hasn't). A Set's operations go to
+/// `ops`.
 fn pointer_input<const N: usize>(
     ui: &Ui,
     response: &Response,
     layout: &Layout<'_, N>,
     gesture: &mut Gesture<Row<N>>,
     input: PressInput,
+    ops: &mut Vec<RowOp>,
 ) -> (Option<usize>, Option<Press>) {
     let modifiers = ui.input(|i| i.modifiers);
     let tapped = tap(ui, response);
@@ -570,7 +569,7 @@ fn pointer_input<const N: usize>(
         gesture.update(Row(layout.moved(&anchor, &start, press, origin.x, pos.x)), modifiers);
     }
     // The reset ends the second click's gesture, or is its own Set.
-    let double = double_click(ui, response, layout, gesture, input.sensing);
+    let double = double_click(ui, response, layout, gesture, input.sensing, ops);
     if response.drag_stopped() {
         gesture.commit();
     }
@@ -579,7 +578,16 @@ fn pointer_input<const N: usize>(
         if let Some(press) = layout.press(&layout.placed(&raw), at.x) {
             focus = Some(press.focus());
             if double.is_none() && !waits {
-                gesture.set(Row(layout.moved(&raw, &raw, press, at.x, at.x)));
+                // A tap off the thumbs moves the nearest one there; one on a thumb moves none.
+                let moved = layout.moved(&raw, &raw, press, at.x, at.x);
+                match press {
+                    Press::Jump(thumb) => {
+                        let op = RowOp { thumb, op: ScalarOp::Set(moved[thumb]) };
+                        gesture.set(Row(layout.apply(&op, &raw)));
+                        ops.push(op);
+                    }
+                    _ => gesture.set(Row(moved)),
+                }
             }
         }
     }
@@ -587,19 +595,22 @@ fn pointer_input<const N: usize>(
 }
 
 /// A double-click's second click on the row sets the thumb under it to its default: the first
-/// click has moved the nearest thumb there. Returns the thumb.
+/// click has moved the nearest thumb there. Returns the thumb; the reset goes to `ops`.
 fn double_click<const N: usize>(
     ui: &Ui,
     response: &Response,
     layout: &Layout<'_, N>,
     gesture: &mut Gesture<Row<N>>,
     sensing: Sensing,
+    ops: &mut Vec<RowOp>,
 ) -> Option<usize> {
     if !(sensing.enabled && sensing.hovered && ui.input(|i| i.pointer.button_double_clicked(PointerButton::Primary))) {
         return None;
     }
     let i = layout.press(&layout.placed(gesture.shown()), response.hover_pos()?.x)?.focus();
-    gesture.set(Row(layout.reset(gesture.shown(), i)?));
+    let reset = layout.reset(i)?;
+    gesture.set(Row(layout.apply(&reset, gesture.shown())));
+    ops.push(reset);
     Some(i)
 }
 
