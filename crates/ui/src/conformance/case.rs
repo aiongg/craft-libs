@@ -1,8 +1,8 @@
 //! [`Case`]: the appearance inputs one conformance check runs for.
 
 use craft_theme::{
-    AppDefaults, AppId, ContrastChoice, InterfaceFont, Mode, ModeChoice, Selection, Size, SystemAppearance, TextSize, ThemeDef, ThemeId, ThemePair,
-    Variants, builtins,
+    AppDefaults, AppId, Contrast, ContrastChoice, InterfaceFont, Mode, ModeChoice, Selection, Size, SystemAppearance, TextSize, ThemeDef, ThemeId,
+    ThemePair, Variants, builtins,
 };
 
 use crate::direction::Direction;
@@ -157,6 +157,13 @@ impl Case {
             name.push('-');
             name.push_str(&format!("{:?}", self.selection.text_size).to_lowercase());
         }
+        if self.selection.mode == ModeChoice::System || self.selection.contrast == ContrastChoice::System {
+            for (label, value) in [("os", self.system.mode.map(mode_text)), ("os-contrast", self.system.contrast.map(contrast_text))] {
+                if let Some(value) = value {
+                    name.push_str(&format!("-{label}-{value}"));
+                }
+            }
+        }
         if self.font == InterfaceFont::System {
             name.push_str("-system");
         }
@@ -187,13 +194,21 @@ impl Case {
         cases
     }
 
-    /// The default theme with each non-default text size, the system interface font, and right
-    /// to left, one axis at a time.
+    /// The default theme with each non-default text size, the system interface font, right to
+    /// left, System mode and System contrast (each with the OS answering light and dark; the OS
+    /// asks for high contrast in the System contrast cases), one axis at a time.
     pub fn axes() -> Vec<Case> {
         let base = || Case::new(ThemeId::suite_default().as_str());
         let mut cases: Vec<Case> = TextSize::ALL.into_iter().filter(|t| *t != TextSize::Default).map(|t| base().text_size(t)).collect();
         cases.push(base().interface_font(InterfaceFont::System));
         cases.push(base().direction(Direction::Rtl));
+        for mode in [Mode::Light, Mode::Dark] {
+            cases.push(base().mode(ModeChoice::System).system(SystemAppearance { mode: Some(mode), ..SystemAppearance::default() }));
+        }
+        for mode in [Mode::Light, Mode::Dark] {
+            let system = SystemAppearance { mode: Some(mode), contrast: Some(Contrast::High), reduced_motion: None };
+            cases.push(base().contrast(ContrastChoice::System).system(system));
+        }
         cases
     }
 
@@ -212,5 +227,12 @@ pub(super) fn mode_text(mode: Mode) -> &'static str {
     match mode {
         Mode::Light => "light",
         Mode::Dark => "dark",
+    }
+}
+
+fn contrast_text(contrast: Contrast) -> &'static str {
+    match contrast {
+        Contrast::Standard => "standard",
+        Contrast::High => "high",
     }
 }

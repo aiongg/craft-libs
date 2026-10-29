@@ -39,5 +39,8 @@ fn the_gallery_appearance_matches_the_design_system() {
         },
         |ctx, font| faces::install(ctx, ui_face(font), faces::MONO_FACES[0]),
     );
-    check.assert_all(Case::matrix().into_iter().chain(Case::axes()));
+    // The appearance bar has a light/dark toggle and a high-contrast toggle, so its setup cannot
+    // follow the OS: the System mode and System contrast cases are not its to pass.
+    let selectable = |case: &Case| case.selection().mode != ModeChoice::System && case.selection().contrast != ContrastChoice::System;
+    check.assert_all(Case::matrix().into_iter().chain(Case::axes()).filter(selectable));
 }

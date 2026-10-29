@@ -65,7 +65,7 @@ impl Tone {
 pub struct NoticeTokens {
     /// Between the icon and the text: `space.gap.inline`.
     pub icon_gap: f32,
-    fg: [Rgba; Tone::ALL.len()],
+    pub(crate) fg: [Rgba; Tone::ALL.len()],
 }
 
 impl NoticeTokens {

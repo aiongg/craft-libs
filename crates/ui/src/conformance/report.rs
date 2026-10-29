@@ -41,14 +41,17 @@ impl Report {
         self.0.sections.iter().flat_map(|s| s.diffs.iter().map(move |d| format!("{}: {}", s.title, d.key)))
     }
 
-    /// The header and the first `rows` lines after it, for a summary over many cases.
+    /// The header and the first `rows` lines after it, then every hint, for a summary over many
+    /// cases.
     pub(super) fn excerpt(&self, rows: usize) -> String {
-        let text = self.to_string();
-        let lines: Vec<&str> = text.lines().collect();
+        let mut body = String::new();
+        let _ = self.0.write_body(&mut body);
+        let lines: Vec<&str> = body.lines().collect();
         let mut out: Vec<String> = lines.iter().take(rows + 1).map(|l| (*l).to_owned()).collect();
         if lines.len() > rows + 1 {
             out.push(format!("… {} more lines", lines.len() - rows - 1));
         }
+        out.extend(self.0.hints.iter().map(|h| format!("hint: {h}")));
         out.join("\n")
     }
 }
@@ -73,6 +76,17 @@ pub(super) struct Details {
 
 impl fmt::Display for Details {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.write_body(f)?;
+        for hint in &self.hints {
+            writeln!(f, "hint: {hint}")?;
+        }
+        Ok(())
+    }
+}
+
+impl Details {
+    /// Everything but the hints.
+    fn write_body(&self, f: &mut impl fmt::Write) -> fmt::Result {
         writeln!(f, "conformance failed: {} ({})", self.case, self.mode)?;
         for section in &self.sections {
             section.write(f)?;
@@ -86,15 +100,12 @@ impl fmt::Display for Details {
         for (prefix, reason) in &self.unused {
             writeln!(f, "unused allowance: {prefix}  {reason:?} (matches no difference; remove it)")?;
         }
-        for hint in &self.hints {
-            writeln!(f, "hint: {hint}")?;
-        }
         Ok(())
     }
 }
 
 impl Section {
-    fn write(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn write(&self, f: &mut impl fmt::Write) -> fmt::Result {
         if self.diffs.is_empty() {
             return writeln!(f, "{}: same", self.title);
         }

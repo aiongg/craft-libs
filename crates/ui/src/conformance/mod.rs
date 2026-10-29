@@ -6,7 +6,10 @@
 //! tokens, their egui values, the two installed styles, egui's theme preference and the
 //! direction) and compared key by key. A difference fails the app's test with a [`Report`]: the
 //! app selected the wrong theme, size or text size, changed the `Style` after `install`, set
-//! egui's theme preference itself, or installed a font stack that differs from the reference's.
+//! egui's theme preference, zoom factor, `override_font_id` or `override_text_style` itself, or
+//! installed a font stack that differs from the reference's. The reference's own font stack is
+//! checked against what craft-ui builds for the case's interface font (a `fonts` setup that
+//! ignores the font fails on its own).
 //!
 //! ```no_run
 //! use craft_ui::conformance::{Case, Conformance};
@@ -18,7 +21,7 @@
 //! check.assert_all(Case::matrix().into_iter().chain(Case::axes()));
 //! ```
 //!
-//! The closure under test is the app's production path from the selection to `install` and the
+//! The closures under test are the app's production path from the selection to `install` and the
 //! font install, shared with `main`. Fields of `Style` that no token sets are not compared (see
 //! [`style_for`](crate::theme::style_for)); an app that departs on a compared one lists it with
 //! [`Conformance::allow`] and a reason.
@@ -39,13 +42,20 @@ use compare::{Diff, Side, diff_rows};
 use report::{Details, Section};
 
 use crate::direction;
-use crate::theme::{Base, install};
+use crate::theme::{Base, FontFamilies, install};
 
 /// A style or context key prefix the app may differ on, with the reason.
 #[derive(Clone, Debug)]
 struct Allowance {
     prefix: String,
     reason: String,
+}
+
+impl Allowance {
+    /// Whether `key` is the allowed key or lies under it.
+    fn covers(&self, key: &str) -> bool {
+        key.strip_prefix(&self.prefix).is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+    }
 }
 
 type Apply<'a> = Box<dyn Fn(&Context, &Case) + 'a>;
@@ -62,7 +72,8 @@ pub struct Conformance<'a> {
 impl<'a> Conformance<'a> {
     /// `apply` is the app's real appearance setup, called once on a fresh `Context` per case.
     /// `fonts` is the app's real font-stack setup for an interface font; the reference calls it
-    /// too, so faces, `fit_interact_size` and the font families match by construction.
+    /// too, so the faces and `fit_interact_size` match. The reference's [`FontFamilies`] are
+    /// checked against the interface font of the case.
     pub fn new(apply: impl Fn(&Context, &Case) + 'a, fonts: impl Fn(&Context, InterfaceFont) + 'a) -> Self {
         Self { apply: Box::new(apply), fonts: Box::new(fonts), frames: 2, allowed: Vec::new() }
     }
@@ -73,19 +84,25 @@ impl<'a> Conformance<'a> {
         self
     }
 
-    /// Lets the keys that start with `key_prefix` (`style.` or `context.` keys) differ. The
-    /// list is the record of every place the app departs from the reference. An allowance that
-    /// matches no difference fails the check.
+    /// Lets the `style.` or `context.` key `key_prefix` and the keys under it
+    /// (`key_prefix` followed by `.`) differ: `style.spacing.scroll` covers
+    /// `style.spacing.scroll.bar_width` but not `style.spacing.scroll_other`. The list is the
+    /// record of every place the app departs from the reference. An allowance that matches no
+    /// difference fails the check.
     ///
-    /// Panics on an empty reason or a key outside `style.` and `context.`: tokens and the
-    /// converted values come from the theme and cannot differ.
+    /// Panics on an empty reason, a key outside `style.` and `context.` (tokens and the
+    /// converted values come from the theme and cannot differ), a bare section (`style.`,
+    /// `context.`) or a key that ends in `.`.
     #[allow(clippy::panic)] // a test assertion
     pub fn allow(mut self, key_prefix: &str, reason: &str) -> Self {
         if reason.trim().is_empty() {
             panic!("conformance: the allowance for `{key_prefix}` needs a reason");
         }
-        if !(key_prefix.starts_with("style.") || key_prefix.starts_with("context.")) {
+        let Some(key) = key_prefix.strip_prefix("style.").or_else(|| key_prefix.strip_prefix("context.")) else {
             panic!("conformance: `{key_prefix}` cannot be allowed; only `style.` and `context.` keys can differ");
+        };
+        if key.is_empty() || key.ends_with('.') {
+            panic!("conformance: `{key_prefix}` is not a key; name a key such as `style.visuals.striped`, without a trailing `.`");
         }
         self.allowed.push(Allowance { prefix: key_prefix.to_owned(), reason: reason.to_owned() });
         self
@@ -147,6 +164,11 @@ impl<'a> Conformance<'a> {
     }
 
     fn run(&self, case: &Case) -> Outcome {
+        // The system face resolves in the background; a stack installed before it resolves has
+        // not got it yet. Waiting here gives both sides the face from their first pass on.
+        if case.font() == InterfaceFont::System {
+            let _ = crate::fonts::system_ui_face();
+        }
         let app_ctx = Context::default();
         (self.apply)(&app_ctx, case);
         let app = Side::read(&app_ctx, self.frames);
@@ -157,6 +179,7 @@ impl<'a> Conformance<'a> {
         let base = Base::resolve(case.selection(), case.system_appearance(), case.app_defaults(), case.app_id(), &mut case.lookup());
         install(&reference_ctx, &base);
         let reference = Side::read(&reference_ctx, self.frames);
+        let fonts = font_families_diffs(&reference_ctx, case.font());
 
         let mut used = vec![0; self.allowed.len()];
         let mut sections = Vec::new();
@@ -169,6 +192,7 @@ impl<'a> Conformance<'a> {
         }
         let context = self.filter("context", diff_rows(&reference.context, &app.context), &mut used);
         sections.push(Section { title: "context".to_owned(), diffs: context });
+        sections.push(Section { title: "fonts".to_owned(), diffs: fonts });
 
         let shown = reference.modes.iter().find(|m| m.mode == reference.active).map_or(reference.active, |m| m.shown);
         let mode = format!("mode {}, shown {}", case.mode_name(), case::mode_text(shown));
@@ -184,7 +208,7 @@ impl<'a> Conformance<'a> {
             .into_iter()
             .filter(|d| {
                 let key = format!("{section}.{}", d.key);
-                match self.allowed.iter().position(|a| key.starts_with(&a.prefix)) {
+                match self.allowed.iter().position(|a| a.covers(&key)) {
                     Some(i) => {
                         used[i] += 1;
                         false
@@ -194,6 +218,22 @@ impl<'a> Conformance<'a> {
             })
             .collect()
     }
+}
+
+/// Where the families `fonts` installed differ from the ones craft-ui builds for `font`:
+/// `reference` is what the interface font implies, `app` what the stack installed. Only the
+/// optical size follows from the interface font; the families a stack offers are the app's. An
+/// app that installs no stack (no faces embedded in the build) has nothing to differ.
+fn font_families_diffs(ctx: &Context, font: InterfaceFont) -> Vec<Diff> {
+    if crate::fonts::installed_families(ctx).is_none() {
+        return Vec::new();
+    }
+    let expected = font == InterfaceFont::System && crate::fonts::system_ui_face().is_some();
+    let installed = FontFamilies::installed(ctx).optical_size;
+    if installed == expected {
+        return Vec::new();
+    }
+    vec![Diff { key: "families.optical_size".to_owned(), reference: Some(expected.to_string()), app: Some(installed.to_string()) }]
 }
 
 struct Outcome {
@@ -208,6 +248,13 @@ struct Outcome {
 fn hints(sections: &[Section]) -> Vec<String> {
     let differs = |prefix: &str| sections.iter().any(|s| s.title.starts_with(prefix) && !s.diffs.is_empty());
     let mut hints = Vec::new();
+    if differs("fonts") {
+        hints.push(
+            "the `fonts` setup does not follow the case's interface font: the system interface face is expected exactly when the case \
+             asks for `InterfaceFont::System` and the OS has one (`UiFonts::interface_font`)."
+                .to_owned(),
+        );
+    }
     if differs("tokens") {
         hints.push(
             "the tokens differ: the app resolved a different theme, size, contrast, text size, per-app override or default than the case. \

@@ -28,8 +28,8 @@ pub struct ToastTokens {
     pub line: Rgba,
     /// The "…and n more" line: `text.faint`.
     pub more: Rgba,
-    edge: [Rgba; Tone::ALL.len()],
-    title: [Rgba; Tone::ALL.len()],
+    pub(crate) edge: [Rgba; Tone::ALL.len()],
+    pub(crate) title: [Rgba; Tone::ALL.len()],
 }
 
 impl ToastTokens {
