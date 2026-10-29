@@ -4,7 +4,7 @@
 use std::borrow::Cow;
 
 use craft_theme::ControlSize;
-use egui::{Key, Modifiers, Popup, PopupAnchor, Pos2, Rect, Response, SetOpenCommand, Ui};
+use egui::{Context, Id, Key, LayerId, Modifiers, Order, Popup, PopupAnchor, Pos2, Rect, Response, SetOpenCommand, Ui};
 
 use super::item::MenuEntry;
 use super::popup::{Menu, MenuResponse};
@@ -85,7 +85,7 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
     /// Opens the menu on `widget`'s gestures and draws it while it is open.
     pub fn show(self, ui: &Ui, widget: &Response) -> MenuResponse<T> {
         let ctx = ui.ctx();
-        let popup = Popup::default_response_id(widget).with("context-menu");
+        let popup = ContextMenu::popup_id(widget);
         let open = Popup::is_id_open(ctx, popup);
         // egui drops the focus on Escape before the menu sees the key; a widget that held it
         // while the menu was open gets it back when Escape closes the menu.
@@ -133,6 +133,26 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
             ctx.data_mut(|d| d.insert_temp(held, focused));
         }
         shown
+    }
+}
+
+/// What any context menu of a widget answers, whatever its entries.
+impl ContextMenu<'_, ()> {
+    /// The popup id of the context menu of `widget`.
+    pub fn popup_id(widget: &Response) -> Id {
+        Popup::default_response_id(widget).with("context-menu")
+    }
+
+    /// Whether the context menu of `widget` is open.
+    pub fn is_open(ctx: &Context, widget: &Response) -> bool {
+        Popup::is_id_open(ctx, Self::popup_id(widget))
+    }
+
+    /// Whether the pointer is over the open context menu of `widget`: a click there is no click
+    /// away from the widget.
+    pub fn pointer_on(ctx: &Context, widget: &Response) -> bool {
+        Self::is_open(ctx, widget)
+            && ctx.pointer_interact_pos().and_then(|pos| ctx.layer_id_at(pos)) == Some(LayerId::new(Order::Foreground, Self::popup_id(widget)))
     }
 }
 

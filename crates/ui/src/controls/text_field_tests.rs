@@ -45,6 +45,11 @@ struct Rig {
     /// The keys pressed that were still in the input after the field.
     keys_after: Vec<Key>,
     edit_menu: bool,
+    password: bool,
+    /// A second field after the first, with its text.
+    second: Option<String>,
+    /// The keys still in the input after the fields in the frame of the last `choose` click.
+    keys_chosen: Vec<Key>,
     multiline: Option<usize>,
     /// The AccessKit nodes of the last frame with a label: label, rect, disabled.
     nodes: Vec<(String, Rect, bool)>,
@@ -102,6 +107,9 @@ impl Rig {
             ended: None,
             keys_after: Vec::new(),
             edit_menu: true,
+            password: false,
+            second: None,
+            keys_chosen: Vec::new(),
             multiline: None,
             nodes: Vec::new(),
             role: None,
@@ -173,7 +181,8 @@ impl Rig {
                     .policy(self.policy)
                     .enabled(self.enabled)
                     .keep_focus(self.keep_focus)
-                    .edit_menu(self.edit_menu);
+                    .edit_menu(self.edit_menu)
+                    .password(self.password);
                 match self.multiline {
                     Some(rows) => field.multiline(rows),
                     None => field,
@@ -188,6 +197,9 @@ impl Rig {
             }
         } else {
             (self.submitted, self.escaped, self.event) = (false, false, None);
+        }
+        if let Some(second) = &mut self.second {
+            let _ = TextField::new("rig-second", "Other", second).show(ui);
         }
         self.keys_after = pressed_keys(ui);
         if self.hosted {
@@ -263,8 +275,14 @@ impl Rig {
         let (rect, disabled) = self.row(label).unwrap_or_else(|| panic!("a {label} row"));
         assert!(!disabled, "{label} is enabled");
         self.frame(vec![Event::PointerMoved(rect.center())]);
-        self.click(rect.center());
+        self.frame(vec![Event::PointerMoved(rect.center()), button(rect.center(), true)]);
+        self.frame(vec![button(rect.center(), false)]);
+        // The command runs in the frame of the release.
+        let (commands, copied) = (self.commands.clone(), self.copied.clone());
+        self.keys_chosen.clone_from(&self.keys_after);
         self.frame(vec![]);
+        self.commands.extend(commands);
+        self.copied.extend(copied);
     }
 
     fn has_focus(&self) -> bool {
@@ -823,10 +841,13 @@ fn the_edit_menu_opens_on_a_secondary_press_and_keeps_the_focus() {
         assert!(rig.row(label).is_some(), "{label} is in the menu");
     }
     // A click in the menu is no click away from the field: its run is not committed.
+    rig.key(Key::Escape);
+    rig.focus();
     rig.type_text("!");
-    let run = rig.event.clone();
-    assert!(matches!(run, Some(EditEvent::Begin { .. })));
+    assert!(matches!(rig.event, Some(EditEvent::Begin { .. })));
+    rig.secondary_click(rig.rect.center());
     rig.choose("Select All");
+    assert!(!matches!(rig.event, Some(EditEvent::Commit { .. })), "the click that chose did not commit the run");
     assert!(!rig.menu_open() && rig.has_focus(), "choosing closes the menu and the field keeps the focus");
     assert_eq!(rig.cursor(), (0, 6), "Select All sent Cmd/Ctrl+A to the field");
 
@@ -966,4 +987,65 @@ fn installed_labels_name_the_menu_rows() {
     );
     rig.secondary_click(rig.rect.center());
     assert!(rig.row("Alles auswählen").is_some() && rig.row("Select All").is_none());
+}
+
+#[test]
+fn the_menu_key_then_down_down_enter_runs_a_command_and_neither_steps_nor_commits() {
+    let mut rig = Rig::new("hello");
+    rig.focus();
+    rig.type_text("!");
+    rig.key(Key::Menu);
+    rig.frame(vec![]);
+    assert!(rig.menu_open());
+    // Undo is highlighted; Cut, Copy and Delete are disabled, so ↓ ↓ reaches Select All.
+    rig.key(Key::ArrowDown);
+    rig.key(Key::ArrowDown);
+    rig.key(Key::Enter);
+    rig.frame(vec![]);
+    assert!(!rig.menu_open() && rig.has_focus());
+    assert!(!rig.submitted && !matches!(rig.event, Some(EditEvent::Commit { .. })), "Enter chose the row; the field did not commit");
+    assert_eq!(rig.value, "hello!", "the value is unchanged");
+    assert_eq!(rig.cursor(), (0, 6), "the chosen command (Select All) ran");
+}
+
+#[test]
+fn a_chosen_command_reaches_no_reader_after_the_field() {
+    let mut rig = Rig::new("hello");
+    rig.secondary_click(rig.rect.center());
+    rig.choose("Select All");
+    assert_eq!(rig.cursor(), (0, 5));
+    assert!(rig.keys_chosen.is_empty(), "the Cmd/Ctrl+A given to the field is out of the input after it: {:?}", rig.keys_chosen);
+    rig.secondary_click(rig.rect.center());
+    rig.choose("Delete");
+    assert!(rig.keys_chosen.is_empty(), "so is the Delete key: {:?}", rig.keys_chosen);
+    rig.frame(vec![]);
+    assert_eq!(rig.value, "", "and the field still acted on it");
+}
+
+#[test]
+fn a_chosen_command_does_not_fire_on_a_later_field() {
+    let mut rig = Rig::new("hello");
+    rig.second = Some("other".to_owned());
+    rig.frame(vec![]);
+    rig.secondary_click(rig.rect.center());
+    rig.choose("Select All");
+    rig.key(Key::Tab);
+    rig.frame(vec![]);
+    assert!(!rig.has_focus() && rig.ctx.memory(|m| m.focused()).is_some(), "the focus moved on to the second field");
+    assert_eq!(rig.second.as_deref(), Some("other"));
+    rig.frame(vec![]);
+    assert_eq!(rig.value, "hello");
+}
+
+#[test]
+fn a_password_field_offers_neither_cut_nor_copy() {
+    let mut rig = Rig::new("secret");
+    rig.password = true;
+    rig.frame(vec![]);
+    rig.focus();
+    rig.chord(Modifiers::COMMAND, Key::A);
+    rig.secondary_click(rig.rect.center());
+    assert_eq!(rig.row("Cut").map(|(_, disabled)| disabled), Some(true), "Cut would delete without copying");
+    assert_eq!(rig.row("Copy").map(|(_, disabled)| disabled), Some(true));
+    assert_eq!(rig.row("Delete").map(|(_, disabled)| disabled), Some(false), "Delete works on the selection");
 }

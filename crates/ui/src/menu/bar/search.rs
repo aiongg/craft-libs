@@ -175,6 +175,7 @@ impl<'m, T: Clone> Search<'m, T> {
                     .placeholder(labels.search.as_str())
                     .size(size)
                     .keep_focus(true)
+                    .edit_menu(false)
                     .keys(keys())
                     .show(ui);
                 if let Some(text) = edit.event.as_ref().and_then(|e| e.value()) {

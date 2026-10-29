@@ -4,14 +4,16 @@
 //! [`TextField`](crate::controls::TextField), [`SearchField`](crate::controls::SearchField) and
 //! [`NumberField`](crate::controls::NumberField) open it on a secondary click, and on the Menu key
 //! or Shift+F10 while they have the focus ([`ContextMenu`] does the gestures). The field keeps its
-//! focus while the menu is open and while a command runs. A command is the input the keyboard
-//! shortcut would send, given to the field in the next pass before its `TextEdit` runs, so the
-//! field's gesture sees ordinary typing: `Cut` and `Copy` events, a Delete key press, Cmd/Ctrl+A,
+//! focus while the menu is open and while a command runs. The menu is shown at the start of the
+//! control's pass, before its key readers, anchored on the field's response of the last pass. A
+//! command is the input the keyboard shortcut would send, given to the field in the same pass
+//! and taken back after its `TextEdit` ran, so the field's gesture sees ordinary typing: `Cut` and `Copy` events, a Delete key press, Cmd/Ctrl+A,
 //! Cmd/Ctrl+Z, and for Paste the window's clipboard request, which arrives as a `Paste` event.
 
 use std::sync::Arc;
 
-use egui::{Context, Event, Id, Key, KeyboardShortcut, LayerId, Modifiers, Order, Popup, Pos2, Response, Ui, ViewportCommand};
+use egui::text_edit::TextEditState;
+use egui::{Context, Event, Id, Key, KeyboardShortcut, Modifiers, Popup, Pos2, Ui, ViewportCommand};
 
 use crate::controls::Kbd;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
@@ -88,85 +90,115 @@ impl Action {
     }
 }
 
-/// The popup id of the menu of the control `field` (`ContextMenu`'s own).
-fn popup_id(field: Id) -> Id {
-    field.with("popup").with("context-menu")
-}
-
-fn pending_id(field: Id) -> Id {
-    field.with("craft_ui::behavior::edit_menu::pending")
-}
-
-/// Whether the menu of `field` is open.
+/// Whether the menu of the text control `field` is open.
+#[cfg(test)]
 pub(crate) fn is_open(ctx: &Context, field: Id) -> bool {
-    Popup::is_id_open(ctx, popup_id(field))
+    ctx.read_response(field).is_some_and(|r| ContextMenu::is_open(ctx, &r))
 }
 
-/// Whether the pointer is over the open menu of `field`: a click there is no click away from the
-/// field, which keeps its focus.
+/// Whether the pointer is over the open menu of `field`, or just chose its command or opened it:
+/// a click there is no click away from the field, which keeps its focus.
 pub(crate) fn pointer_on(ctx: &Context, field: Id) -> bool {
-    is_open(ctx, field) && ctx.pointer_interact_pos().and_then(|pos| ctx.layer_id_at(pos)) == Some(LayerId::new(Order::Foreground, popup_id(field)))
+    ctx.data(|d| d.get_temp::<u64>(kept_id(field))) == Some(ctx.cumulative_pass_nr())
+        || ctx.read_response(field).is_some_and(|r| ContextMenu::pointer_on(ctx, &r))
 }
 
-/// Esc while the menu of `field` is open closes only the menu: the press is taken before the field
-/// or its gesture sees it, and the field keeps the focus.
-pub(crate) fn close_on_escape(ui: &Ui, field: Id) {
-    if is_open(ui.ctx(), field) && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
-        Popup::close_id(ui.ctx(), popup_id(field));
-        ui.memory_mut(|m| m.request_focus(field));
+/// The pass in which the click that chose a command of the menu of `field`, or that asked to open
+/// it from a widget over the text, reached the field's `TextEdit`: the menu has closed, or the
+/// press was on the covering widget, so only this mark tells the click is no click away.
+fn kept_id(field: Id) -> Id {
+    field.with("craft_ui::behavior::edit_menu::chosen")
+}
+
+/// What the menu of `field` gave the field this pass, to take back after its `TextEdit` ran: each
+/// event with the number of equal events the input held before.
+fn injected_id(field: Id) -> Id {
+    field.with("craft_ui::behavior::edit_menu::injected")
+}
+
+/// The pass the menu of `field` was last shown in.
+fn shown_id(field: Id) -> Id {
+    field.with("craft_ui::behavior::edit_menu::shown")
+}
+
+/// Shows the menu of the text control `field` at the start of its pass, before any of the
+/// control's key readers: the menu takes its keys first, and a chosen command applies in this pass
+/// (see [`withdraw`]). It is anchored on the field's response of the last pass. `open_at` opens
+/// it there this pass, for a control whose text was covered by a widget of its own when the
+/// press came. Shown once per pass: a control that reads keys before [`Typing`](super::Typing)
+/// shows the menu itself, ahead of them.
+pub(crate) fn show(ui: &Ui, field: Id, password: bool, open_at: Option<Pos2>) {
+    let ctx = ui.ctx();
+    let pass = ctx.cumulative_pass_nr();
+    if ctx.data(|d| d.get_temp::<u64>(shown_id(field))) == Some(pass) {
+        return;
     }
-}
-
-/// Opens the menu of `field` at `pos` in the next pass: for a control whose field was covered by a
-/// widget of its own when the press came.
-pub(crate) fn request_open(ui: &Ui, field: Id, pos: Pos2) {
-    ui.data_mut(|d| d.insert_temp(open_id(field), pos));
-    ui.ctx().request_repaint();
-}
-
-fn open_id(field: Id) -> Id {
-    field.with("craft_ui::behavior::edit_menu::open")
-}
-
-/// Gives `field` the input of the command chosen in its menu last pass. Call it before the
-/// field's `TextEdit` runs.
-pub(crate) fn run_pending(ui: &Ui, field: Id) {
-    let Some(action) = ui.data_mut(|d| {
-        let action = d.get_temp::<Action>(pending_id(field));
-        d.remove::<Action>(pending_id(field));
-        action
-    }) else {
+    ctx.data_mut(|d| d.insert_temp(shown_id(field), pass));
+    let Some(response) = ctx.read_response(field) else {
         return;
     };
-    ui.memory_mut(|m| m.request_focus(field));
-    if action == Action::Paste {
-        ui.send_viewport_cmd(ViewportCommand::RequestPaste);
+    if open_at.is_some() {
+        ctx.data_mut(|d| d.insert_temp(kept_id(field), pass));
     }
-    ui.input_mut(|i| i.events.extend(action.events()));
-}
-
-/// The menu of the text control whose `TextEdit` response is `field`, with `selection` whether it
-/// has selected text (Cut, Copy and Delete need one). Opens on the gestures and draws while open.
-pub(crate) fn show(ui: &Ui, field: &Response, selection: bool) {
-    let labels = EditMenu::labels(ui.ctx());
+    // Esc closes only the menu: the press is taken before the field or its gesture sees it, and
+    // the field keeps the focus.
+    if ContextMenu::is_open(ctx, &response) && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+        Popup::close_id(ctx, ContextMenu::popup_id(&response));
+        ui.memory_mut(|m| m.request_focus(field));
+    }
+    let selection = TextEditState::load(ctx, field).and_then(|s| s.cursor.char_range()).is_some_and(|r| !r.is_empty());
+    let labels = EditMenu::labels(ctx);
     let shortcut = |key| Kbd::new(&KeyboardShortcut::new(Modifiers::COMMAND, key));
+    // A password's text stays out of the clipboard.
+    let copyable = selection && !password;
     let entries = vec![
         MenuItem::new(&labels.undo, Action::Undo).shortcut(shortcut(Key::Z)).into(),
         MenuEntry::Separator,
-        MenuItem::new(&labels.cut, Action::Cut).shortcut(shortcut(Key::X)).enabled(selection).into(),
-        MenuItem::new(&labels.copy, Action::Copy).shortcut(shortcut(Key::C)).enabled(selection).into(),
+        MenuItem::new(&labels.cut, Action::Cut).shortcut(shortcut(Key::X)).enabled(copyable).into(),
+        MenuItem::new(&labels.copy, Action::Copy).shortcut(shortcut(Key::C)).enabled(copyable).into(),
         MenuItem::new(&labels.paste, Action::Paste).shortcut(shortcut(Key::V)).into(),
         MenuItem::new(&labels.delete, Action::Delete).enabled(selection).into(),
         MenuEntry::Separator,
         MenuItem::new(&labels.select_all, Action::SelectAll).shortcut(shortcut(Key::A)).into(),
     ];
-    let at = ui.data_mut(|d| {
-        let pos = d.get_temp::<Pos2>(open_id(field.id));
-        d.remove::<Pos2>(open_id(field.id));
-        pos
-    });
-    if let Some(action) = ContextMenu::new(&entries).open_at(at.map(OpenAt::Pointer)).show(ui, field).chosen {
-        ui.data_mut(|d| d.insert_temp(pending_id(field.id), action));
-        ui.ctx().request_repaint();
+    if let Some(action) = ContextMenu::new(&entries).open_at(open_at.map(OpenAt::Pointer)).show(ui, &response).chosen {
+        run(ui, field, action);
     }
+}
+
+/// Gives `field` the input of the chosen command, for the `TextEdit` that runs later in this pass.
+fn run(ui: &Ui, field: Id, action: Action) {
+    ui.memory_mut(|m| m.request_focus(field));
+    let pass = ui.ctx().cumulative_pass_nr();
+    ui.data_mut(|d| d.insert_temp(kept_id(field), pass));
+    if action == Action::Paste {
+        ui.send_viewport_cmd(ViewportCommand::RequestPaste);
+    }
+    let events = action.events();
+    let given = ui.input_mut(|i| {
+        let given: Vec<(Event, usize)> = events.iter().map(|e| (e.clone(), i.events.iter().filter(|x| *x == e).count())).collect();
+        i.events.extend(events);
+        given
+    });
+    ui.data_mut(|d| d.insert_temp(injected_id(field), given));
+}
+
+/// Takes back the input [`show`] gave `field`, once its `TextEdit` has run: no reader after the
+/// field sees it.
+pub(crate) fn withdraw(ui: &Ui, field: Id) {
+    let Some(given) = ui.data_mut(|d| d.remove_temp::<Vec<(Event, usize)>>(injected_id(field))) else {
+        return;
+    };
+    ui.input_mut(|i| {
+        for (event, before) in given {
+            // `TextEdit` leaves what it reads in the input; one that took ours removed the first
+            // equal event, so counting what is left beyond `before` finds ours either way.
+            let extra = i.events.iter().filter(|x| **x == event).count().saturating_sub(before);
+            for _ in 0..extra {
+                if let Some(at) = i.events.iter().rposition(|x| *x == event) {
+                    i.events.remove(at);
+                }
+            }
+        }
+    });
 }

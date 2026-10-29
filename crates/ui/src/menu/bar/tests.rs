@@ -871,3 +871,19 @@ fn the_titles_rect_is_the_titles_even_when_the_row_is_wider() {
     assert!((b.titles_rect.width() - sum).abs() < 0.5);
     assert!((b.titles_rect.left() - b.rect("Help").left()).abs() < 0.5, "the inner edge is the last title's");
 }
+
+#[test]
+fn a_secondary_press_in_the_help_search_keeps_the_menu_and_opens_no_edit_menu() {
+    let mut b = Bar::wide();
+    b.search = Some(3);
+    b.click("Help");
+    let field = b.tree.iter().find(|(_, n)| n.role() == Role::SearchInput).and_then(|(_, n)| n.bounds()).expect("the search field");
+    let at = Rect::from_min_max(pos2(field.x0 as f32, field.y0 as f32), pos2(field.x1 as f32, field.y1 as f32)).center();
+    b.move_to(at);
+    for pressed in [true, false] {
+        b.events.push(Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE });
+        b.run(3);
+    }
+    assert!(!b.shown("Cut"), "the search field has no edit menu");
+    assert!(b.open() && b.shown("About"), "Help stays open");
+}

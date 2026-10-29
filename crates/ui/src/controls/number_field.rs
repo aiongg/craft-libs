@@ -404,6 +404,19 @@ impl<'a> NumberField<'a> {
             ui.memory_mut(|m| m.request_focus(id));
             select_all(ui.ctx(), id, &codec.format(&host));
         }
+        // The edit menu goes first: it takes its keys (↓ moves in it) and applies a chosen command
+        // before the arrows below or the field read the input. Over the text of a field without
+        // the focus, a secondary press belongs to the scrub (it covers the text): it gives the
+        // field the focus with its text selected, and the menu opens at the pointer.
+        if self.edit_menu && enabled {
+            let scrub_text = ui.ctx().read_response(scrub_text_id(id)).filter(|_| stepping && self.scrub_text && !ui.memory(|m| m.has_focus(id)));
+            let open_at = scrub_text.filter(Response::secondary_clicked).and_then(|r| r.interact_pointer_pos());
+            if open_at.is_some() {
+                ui.memory_mut(|m| m.request_focus(id));
+                select_all(ui.ctx(), id, &codec.format(&host));
+            }
+            edit_menu::show(ui, id, false, open_at);
+        }
         // Before `TextEdit`, which would move the caret on them; an input method's own while it
         // composes.
         let arrows = if stepping && ui.memory(|m| m.has_focus(id)) && !Typing::composing(ui, id) { take_arrows(ui) } else { Vec::new() };
@@ -460,18 +473,7 @@ impl<'a> NumberField<'a> {
             }
             // Over the text of a field without the focus, where `TextEdit` would take the press.
             if self.scrub_text && !typed.response().has_focus() {
-                let text = ui.interact(rect, id.with("craft_ui::number_field::scrub_text"), Sense::CLICK | Sense::DRAG);
-                // It covers the field, so the field's own text never sees a secondary press: the
-                // press gives the field the focus with its text selected, and the menu opens on it
-                // in the next pass.
-                if self.edit_menu
-                    && text.secondary_clicked()
-                    && let Some(pos) = text.interact_pointer_pos()
-                {
-                    ui.memory_mut(|m| m.request_focus(id));
-                    select_all(ui.ctx(), id, typed.text());
-                    edit_menu::request_open(ui, id, pos);
-                }
+                let text = ui.interact(rect, scrub_text_id(id), Sense::CLICK | Sense::DRAG);
                 sources.push(text);
             }
             input.scrub(ui, &mut typed, &sources);
@@ -1120,6 +1122,11 @@ fn take_arrows(ui: &Ui) -> Vec<(Modifiers, f64)> {
         });
     });
     steps
+}
+
+/// The id of the scrub over the text of the field `id`.
+fn scrub_text_id(id: Id) -> Id {
+    id.with("craft_ui::number_field::scrub_text")
 }
 
 /// Selects all of `text` in the text edit `id` from the next pass, so typing replaces it.

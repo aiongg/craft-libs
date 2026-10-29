@@ -1018,8 +1018,12 @@ impl List<'_> {
                     ui.memory_mut(|m| m.request_focus_with_filter(field, keys));
                     focused_search = true;
                 }
-                let edit =
-                    SearchField::new(salt, label.as_str(), &query, clear.as_str()).placeholder(label.as_str()).size(self.size).keys(keys).show(ui);
+                let edit = SearchField::new(salt, label.as_str(), &query, clear.as_str())
+                    .placeholder(label.as_str())
+                    .size(self.size)
+                    .keys(keys)
+                    .edit_menu(false)
+                    .show(ui);
                 if let Some(text) = edit.event.as_ref().and_then(|e| e.value()) {
                     query.clone_from(text);
                 }
