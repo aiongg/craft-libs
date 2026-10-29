@@ -300,7 +300,7 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
             let s = Switch::style(&t, size);
             assert_eq!((s.width, s.track_height, s.inset), (c.track.get(size), c.size.get(size), c.thumb_inset));
             assert_eq!(s.thumb, s.track_height - 2.0 * s.inset);
-            assert_eq!((s.surface, s.off, s.on.fill, s.on.border, s.on.mark), (sunken, off, on.fill, on.border, None));
+            assert_eq!((s.surface, s.off, s.on), (sunken, off, IndicatorColors::from(&c.switch)));
             assert_eq!((s.thumb_fill, s.thumb_border), (c.thumb.fill.to_egui(), c.thumb.border.to_egui()));
             assert_eq!((s.travel, s.easing), (t.motion.r#move.millis as f32 / 1000.0, t.motion.r#move.easing));
             for state in State::ALL {
