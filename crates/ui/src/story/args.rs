@@ -103,6 +103,12 @@ impl Args {
         }
     }
 
+    /// Sets a bool arg, as a story does when its own control (a dialog's close box) answers it.
+    pub fn set_bool(&mut self, name: &str, value: bool) {
+        let Some(Arg { value: ArgValue::Bool(b), .. }) = self.args.iter_mut().find(|a| a.name == name) else { self.wrong_kind(name, "bool") };
+        *b = value;
+    }
+
     /// The selected option.
     pub fn choice(&self, name: &str) -> &'static str {
         match self.value(name) {

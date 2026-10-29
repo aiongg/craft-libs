@@ -28,8 +28,8 @@ pub enum SurfaceKind {
     /// Popups and menus: `popup.fill` and `popup.border` (outlined in every edge style) with the
     /// popup shadow.
     Popup,
-    /// Dialogs: `surface.raised`, outlined with `line.border` in every edge style, with the popup
-    /// shadow.
+    /// Dialogs, which are popup frames in PhotoCraft: the popup look (`popup.fill`, `popup.border`
+    /// in every edge style, the popup shadow and radius).
     Dialog,
     /// A knob that rides on a track (slider and switch thumbs): `surface.knob` with the knob
     /// shadow, outlined with `line.knob_edge` or bevelled out. Controls give it their own corners.
@@ -69,8 +69,7 @@ impl SurfaceKind {
             SurfaceKind::Background => None,
             SurfaceKind::Panel => Some(Corner::Panel),
             SurfaceKind::Raised | SurfaceKind::Sunken | SurfaceKind::Pressed | SurfaceKind::Knob => Some(Corner::Control),
-            SurfaceKind::Popup => Some(Corner::Popup),
-            SurfaceKind::Dialog => Some(Corner::Window),
+            SurfaceKind::Popup | SurfaceKind::Dialog => Some(Corner::Popup),
         }
     }
 }
@@ -147,16 +146,15 @@ impl Surface {
         let fill = match kind {
             K::Background => c.surface.background,
             K::Panel => c.surface.panel,
-            K::Raised | K::Dialog => c.surface.raised,
-            K::Popup => tokens.component.popup.fill,
+            K::Raised => c.surface.raised,
+            K::Popup | K::Dialog => tokens.component.popup.fill,
             K::Sunken => c.surface.sunken,
             K::Pressed => c.state.pressed,
             K::Knob => c.surface.knob,
         };
         let radius = kind.corner().map_or(CornerRadius::ZERO, |corner| corner.radius(tokens));
         let shadow = match kind {
-            K::Popup => Some(tokens.shadow.popup),
-            K::Dialog => Some(tokens.shadow.popup),
+            K::Popup | K::Dialog => Some(tokens.shadow.popup),
             K::Knob => Some(tokens.shadow.knob),
             _ => None,
         }
@@ -165,8 +163,7 @@ impl Surface {
         let width = craft_theme::Stroke::W1.width(1.0);
         let edge = match (tokens.shape.edge, kind) {
             (_, K::Background | K::Panel) => SurfaceEdge::None,
-            (_, K::Popup) => SurfaceEdge::Border(Stroke::new(width, tokens.component.popup.border.to_egui())),
-            (_, K::Dialog) => SurfaceEdge::Border(Stroke::new(width, c.line.border.to_egui())),
+            (_, K::Popup | K::Dialog) => SurfaceEdge::Border(Stroke::new(width, tokens.component.popup.border.to_egui())),
             (Edge::Flat, K::Raised) => SurfaceEdge::Border(Stroke::new(width, c.line.border.to_egui())),
             (Edge::Flat, K::Sunken | K::Pressed) => SurfaceEdge::Border(Stroke::new(width, c.line.control_edge.to_egui())),
             (Edge::Flat, K::Knob) => SurfaceEdge::Border(Stroke::new(width, c.line.knob_edge.to_egui())),

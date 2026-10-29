@@ -527,6 +527,21 @@ fn panel_header() {
     });
 }
 
+/// Dialog frames: the surface, margins, gaps, title row and rule.
+#[test]
+fn dialog_frame() {
+    use craft_ui::dialog::DialogFrame;
+    check("dialog.txt", |d, t| {
+        let s = DialogFrame::style(t, 1.0);
+        d.line("fill", s.surface.fill).line("radius", s.surface.radius).line("shadow", s.surface.shadow);
+        d.line("pad", s.pad).line("pad_roomy", s.pad_roomy).line("title_gap", s.title_gap).line("body_gap", s.body_gap);
+        d.line("footer_gap", s.footer_gap).line("close_box", s.close_box);
+        d.line("drag_pad", format!("{} {} {}", s.drag_pad[0], s.drag_pad[1], s.drag_pad[2]));
+        d.line("title_role", role(s.title_role)).line("title_line", s.title_line).line("title", s.title);
+        d.line("rule", s.rule.width).line("rule_color", s.rule.color);
+    });
+}
+
 /// The dock look: every size, factor and colour `DockArea` reads from the `dock`, `float` and
 /// `tab` tokens.
 #[test]

@@ -1,0 +1,108 @@
+//! Dialogs: the frame every dialog shares. Sizes only (no colours): the look comes from the popup
+//! family and no theme overrides these.
+
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use crate::values;
+
+/// Dialog tokens, in points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct DialogTokens {
+    /// Frame inner margin: `dialog.pad`.
+    pub pad: f32,
+    /// Frame inner margin of the colour picker dialog, from `space.pad.dialog`: `dialog.pad_roomy`.
+    pub pad_roomy: f32,
+    /// Between the title and the rule: `dialog.title_gap`.
+    pub title_gap: f32,
+    /// Between the rule and the body: `dialog.body_gap`.
+    pub body_gap: f32,
+    /// Between the body and the footer: `dialog.footer_gap`.
+    pub footer_gap: f32,
+    /// Between footer buttons: `dialog.button_gap`.
+    pub button_gap: f32,
+    /// Least width of a footer button: `dialog.button_min`.
+    pub button_min: f32,
+    /// Least width of a side-column button: `dialog.side_min`.
+    pub side_min: f32,
+    /// Side of the close box (the small control height): `dialog.close_box`.
+    pub close_box: f32,
+    /// How far the title band reaches past the title, as `[side, up, down]`: `dialog.drag_pad`.
+    pub drag_pad: [f32; 3],
+    /// Greatest content width of a Compact dialog: `dialog.width_compact`.
+    pub width_compact: f32,
+    /// Least content width of a Standard or Wide dialog: `dialog.width_min`.
+    pub width_min: f32,
+    /// Greatest content width of a Standard dialog: `dialog.width_standard`.
+    pub width_standard: f32,
+    /// Greatest content width of a Wide dialog: `dialog.width_wide`.
+    pub width_wide: f32,
+    /// Space kept between a dialog and the window edge on each side: `dialog.window_margin`.
+    pub window_margin: f32,
+    /// The same for a resizable dialog's greatest size: `dialog.resize_margin`.
+    pub resize_margin: f32,
+    /// Width of a dragged dialog that must stay on screen: `dialog.keep_visible`.
+    pub keep_visible: f32,
+    /// Least height of a scrolling body: `dialog.scroll_min`.
+    pub scroll_min: f32,
+}
+
+/// Dialogs have no overridable field: their sizes come from the code, as every size does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum DialogField {}
+
+impl Family for DialogTokens {
+    type Field = DialogField;
+    const FIELDS: &'static [DialogField] = &[];
+
+    /// The Compact values (PhotoCraft's). Only the vertical gaps follow the control height of the
+    /// size, rounded to whole points; widths, margins and the footer's horizontal values are the
+    /// same in every size, as PhotoCraft's are in Pro and Studio.
+    fn defaults(s: &Semantic<'_>) -> DialogTokens {
+        let k = s.size.control.md / values::DIALOG_BASE_CONTROL;
+        let scale = |w: f32| (w * k).round();
+        DialogTokens {
+            pad: values::DIALOG_PAD,
+            pad_roomy: s.space.pad.dialog,
+            title_gap: scale(values::DIALOG_TITLE_GAP),
+            body_gap: scale(values::DIALOG_BODY_GAP),
+            footer_gap: scale(values::DIALOG_FOOTER_GAP),
+            button_gap: values::DIALOG_BUTTON_GAP,
+            button_min: values::DIALOG_BUTTON_MIN,
+            side_min: values::DIALOG_SIDE_MIN,
+            close_box: s.size.control.sm,
+            drag_pad: values::DIALOG_DRAG_PAD,
+            width_compact: values::DIALOG_WIDTH_COMPACT,
+            width_min: values::DIALOG_WIDTH_MIN,
+            width_standard: values::DIALOG_WIDTH_STANDARD,
+            width_wide: values::DIALOG_WIDTH_WIDE,
+            window_margin: values::DIALOG_WINDOW_MARGIN,
+            resize_margin: values::DIALOG_RESIZE_MARGIN,
+            keep_visible: values::DIALOG_KEEP_VISIBLE,
+            scroll_min: values::DIALOG_SCROLL_MIN,
+        }
+    }
+
+    fn path(f: DialogField) -> String {
+        match f {}
+    }
+
+    fn from_path(_: &str) -> Option<DialogField> {
+        None
+    }
+
+    fn kind(f: DialogField) -> FieldKind {
+        match f {}
+    }
+
+    fn get(&self, f: DialogField) -> OverrideValue {
+        match f {}
+    }
+
+    fn set(&mut self, f: DialogField, _: OverrideValue) {
+        match f {}
+    }
+
+    fn pairs() -> Vec<ContrastPair> {
+        Vec::new()
+    }
+}

@@ -13,6 +13,7 @@ pub mod combo;
 pub mod composites;
 pub mod conformance;
 pub mod controls;
+pub mod dialog;
 pub mod direction;
 pub mod docking;
 pub mod edit;

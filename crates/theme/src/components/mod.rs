@@ -13,6 +13,7 @@ mod check;
 mod color_picker;
 mod cursor;
 mod curve;
+mod dialog;
 mod dock;
 mod empty_state;
 mod field;
@@ -73,6 +74,7 @@ pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOn
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use cursor::{CursorField, CursorTokens};
 pub use curve::{CurveField, CurveTokens};
+pub use dialog::{DialogField, DialogTokens};
 pub use dock::{DockField, DockTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
@@ -620,6 +622,8 @@ families! {
     curve: CurveTokens => Curve(CurveField);
     /// Painted pointers: the crosshair, selection badge, distort and skew arrows.
     cursor: CursorTokens => Cursor(CursorField);
+    /// Dialogs: the frame every dialog shares.
+    dialog: DialogTokens => Dialog(DialogField);
     /// Dock areas: the panel groups, column bars and iconic columns of a docking surface.
     dock: DockTokens => Dock(DockField);
     /// Empty states: the message of an empty panel, list or canvas.

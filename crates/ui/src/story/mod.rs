@@ -214,6 +214,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(crate::title_bar::stories::stories());
     all.extend(composites::color::stories());
     all.extend(crate::docking::stories());
+    all.extend(crate::dialog::stories::stories());
     all.extend(crate::patterns::options_bar::stories());
     all.extend(crate::patterns::status_bar::stories());
     all
@@ -290,6 +291,7 @@ const DECLARED: &[&[&str]] = &[
     crate::title_bar::stories::COMPONENTS,
     composites::color::COMPONENTS,
     crate::docking::COMPONENTS,
+    crate::dialog::COMPONENTS,
     crate::patterns::options_bar::COMPONENTS,
     crate::patterns::status_bar::COMPONENTS,
 ];
