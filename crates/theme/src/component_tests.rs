@@ -104,7 +104,7 @@ fn icon_button_and_segmented_defaults_come_from_semantic_tokens_and_meet_their_m
     assert_eq!(seg.segment.text, States::new(t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextNormal), t.color(T::TextDisabled)));
 }
 
-/// The decided contrast scope: the filled part is an accent state indicator, 3:1 on the track
+/// The decided contrast scope: the filled part is `text.muted`, a state indicator 3:1 on the track
 /// (4.5:1 with high contrast).
 #[test]
 fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_minimum() {
@@ -129,7 +129,8 @@ fn slider_defaults_come_from_semantic_tokens_and_the_fill_meets_the_indicator_mi
     assert_eq!(s.width, BySize { sm: 6.0 * control.sm, md: 6.0 * control.md });
     assert_eq!((s.track_height, s.radius), (4.0, Radius::Full.px()));
     assert_eq!(s.track, t.color(T::SurfaceSunken));
-    assert_eq!(s.fill, States::new(t.color(T::AccentSolid), t.color(T::AccentHover), t.color(T::AccentPressed), t.color(T::TextDisabled)));
+    let muted = t.color(T::TextMuted);
+    assert_eq!(s.fill, States::new(muted, muted, muted, t.color(T::TextDisabled)));
     assert_eq!(s.thumb_colors, knob(&t));
     let (clear, soft) = (Rgba::TRANSPARENT, t.color(T::AccentSoft));
     assert_eq!((s.ring, s.ring_width), (States::new(clear, soft, soft, clear), 2.0));
