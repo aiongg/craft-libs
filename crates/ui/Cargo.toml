@@ -73,6 +73,7 @@ toml = { version = "1.1", default-features = false, features = ["std", "parse", 
 # serde: the IME tests read events that only the suite's egui fork has from JSON.
 egui = { workspace = true, features = ["default_fonts", "serde"] }
 serde_json = "1"
+ron = "0.12"
 egui_extras = { version = "0.37", default-features = false, features = ["svg"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 

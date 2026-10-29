@@ -518,3 +518,62 @@ fn the_list_story_names_every_control() {
         assert_eq!(harness.get_by_role(Role::ListBox).accesskit_node().size_of_set(), Some(10_000));
     }
 }
+
+/// Two sections of two items: Section 0, Row 1, Row 2, Section 3, Row 4, Row 5.
+fn sectioned() -> Host {
+    let mut host = Host::named(["Atoms", "Row 1", "Row 2", "Molecules", "Row 4", "Row 5"].map(String::from).to_vec());
+    host.rows[0] = RowInfo::section(0);
+    host.rows[3] = RowInfo::section(3);
+    host.selection = Selection::only(1);
+    host
+}
+
+#[test]
+fn arrow_keys_cross_a_section_and_home_and_end_land_on_items() {
+    let mut harness = harness(sectioned());
+    focus(&mut harness);
+    for (pressed, expected) in [(Key::ArrowDown, 2), (Key::ArrowDown, 4), (Key::ArrowDown, 5), (Key::ArrowDown, 5)] {
+        key(&mut harness, Modifiers::NONE, pressed);
+        assert_eq!(harness.state().selection, Selection::only(expected), "{pressed:?}");
+        assert_eq!(active(&harness).as_deref(), Some(format!("Row {expected}").as_str()));
+    }
+    for (pressed, expected) in [(Key::ArrowUp, 4), (Key::ArrowUp, 2), (Key::ArrowUp, 1), (Key::ArrowUp, 1)] {
+        key(&mut harness, Modifiers::NONE, pressed);
+        assert_eq!(harness.state().selection, Selection::only(expected), "{pressed:?}");
+    }
+    key(&mut harness, Modifiers::NONE, Key::End);
+    assert_eq!(harness.state().selection, Selection::only(5));
+    key(&mut harness, Modifiers::NONE, Key::Home);
+    assert_eq!(harness.state().selection, Selection::only(1), "Home skips the section above the first item");
+}
+
+#[test]
+fn a_section_is_a_heading_that_is_not_selected_focused_or_counted() {
+    let mut harness = harness(sectioned());
+    let tab_stops = a11y::tab_order(&mut harness);
+    assert_eq!(tab_stops.iter().map(|s| s.label.as_str()).collect::<Vec<_>>(), ["Row 1"], "one Tab stop, on an item");
+    assert_eq!(list(&harness).accesskit_node().size_of_set(), Some(4), "the sections are not counted");
+    assert_eq!(drawn(&harness), [0, 1, 2, 3], "item positions skip the sections");
+    for name in ["Atoms", "Molecules"] {
+        let heading = harness.get_by(|n| n.role() == Role::Heading && n.label().as_deref() == Some(name));
+        let at = heading.rect().center();
+        click_at(&mut harness, at, PointerButton::Primary);
+        assert_eq!(harness.state().selection, Selection::only(1), "a click on {name} changes nothing");
+        assert!(focused(&harness) && active(&harness).as_deref() == Some("Row 1"), "the list is focused on its lead, not on {name}");
+    }
+    assert!(harness.state_mut().take_events().iter().all(|e| !matches!(e, ListEvent::Selection(_) | ListEvent::Activate(_))));
+}
+
+#[test]
+fn type_ahead_skips_sections() {
+    let mut host = Host::named(["Citrus", "Apple", "Cherries", "Cranberry"].map(String::from).to_vec());
+    host.rows[0] = RowInfo::section(0);
+    host.rows[2] = RowInfo::section(2);
+    host.selection = Selection::only(1);
+    host.type_ahead = true;
+    let mut harness = harness(host);
+    focus(&mut harness);
+    harness.event(Event::Text("c".into()));
+    harness.run();
+    assert_eq!(harness.state().selection, Selection::only(3));
+}

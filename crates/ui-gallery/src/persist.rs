@@ -2,12 +2,18 @@
 
 use std::collections::HashMap;
 
+use craft_ui::docking::Workspace;
 use craft_ui::story::{ArgValue, Args};
 use serde::{Deserialize, Serialize};
 
 use crate::appearance::Appearance;
+use crate::layout::PanelId;
 
 pub const KEY: &str = "craft-ui-gallery";
+
+/// The dock layout has a key of its own: a layout this build cannot read (a newer format) then
+/// costs only the layout, not the rest of [`Saved`].
+pub const LAYOUT_KEY: &str = "craft-ui-gallery.layout";
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -16,10 +22,6 @@ pub struct Saved {
     pub selected: Option<String>,
     pub filter: String,
     pub compare: bool,
-    /// The token browser instead of the stories.
-    pub tokens: bool,
-    /// The inspector overlay on the story canvas.
-    pub inspect: bool,
     /// Theme ids in the compare grid.
     pub compare_themes: Vec<String>,
     /// The compare grid's high-contrast columns.
@@ -40,6 +42,11 @@ pub enum SavedValue {
     Choice(usize),
     Text(String),
     Number(f64),
+}
+
+/// The saved dock layout, if there is one and it reads.
+pub fn load_layout(storage: Option<&dyn eframe::Storage>) -> Option<Workspace<PanelId>> {
+    storage.and_then(|s| eframe::get_value(s, LAYOUT_KEY))
 }
 
 impl Saved {

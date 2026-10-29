@@ -224,25 +224,72 @@ mod floating_serde {
         }
     }
 
-    #[derive(Deserialize)]
-    #[serde(bound(deserialize = "P: Deserialize<'de>"))]
+    /// The fields of a saved window, whichever of the three shapes it was written in. A key is
+    /// read as [`Serialize`] writes it: `id`, `root`, `groups`, `panels` and `rect` plain, and the
+    /// optional `native`, `monitor` and `monitor_size` as options, which RON marks with `Some`
+    /// and JSON writes bare.
     struct Repr<P> {
-        #[serde(default)]
         id: Option<u64>,
         root: Option<Node<P>>,
         groups: Option<Vec<Group<P>>>,
         panels: Option<Vec<P>>,
-        #[serde(default)]
         active: usize,
-        rect: [f32; 4],
-        #[serde(default)]
+        rect: Option<[f32; 4]>,
         native: Option<[f32; 4]>,
-        #[serde(default)]
         monitor: Option<Monitor>,
-        #[serde(default)]
         monitor_size: Option<[f32; 2]>,
-        #[serde(default)]
         minimized: bool,
+    }
+
+    impl<'de, P: Deserialize<'de>> Deserialize<'de> for Repr<P> {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            use serde::de::{Error, MapAccess, Visitor};
+            use std::marker::PhantomData;
+
+            const FIELDS: &[&str] = &["id", "root", "groups", "panels", "active", "rect", "native", "monitor", "monitor_size", "minimized"];
+            struct V<P>(PhantomData<P>);
+
+            impl<'de, P: Deserialize<'de>> Visitor<'de> for V<P> {
+                type Value = Repr<P>;
+
+                fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    f.write_str("a floating window")
+                }
+
+                fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Repr<P>, A::Error> {
+                    let mut repr = Repr {
+                        id: None,
+                        root: None,
+                        groups: None,
+                        panels: None,
+                        active: 0,
+                        rect: None,
+                        native: None,
+                        monitor: None,
+                        monitor_size: None,
+                        minimized: false,
+                    };
+                    while let Some(key) = map.next_key::<String>()? {
+                        match key.as_str() {
+                            "id" => repr.id = Some(map.next_value()?),
+                            "root" => repr.root = Some(map.next_value()?),
+                            "groups" => repr.groups = Some(map.next_value()?),
+                            "panels" => repr.panels = Some(map.next_value()?),
+                            "active" => repr.active = map.next_value()?,
+                            "rect" => repr.rect = Some(map.next_value()?),
+                            "native" => repr.native = map.next_value()?,
+                            "monitor" => repr.monitor = map.next_value()?,
+                            "monitor_size" => repr.monitor_size = map.next_value()?,
+                            "minimized" => repr.minimized = map.next_value()?,
+                            other => return Err(Error::unknown_field(other, FIELDS)),
+                        }
+                    }
+                    Ok(repr)
+                }
+            }
+
+            deserializer.deserialize_struct("Floating", FIELDS, V(PhantomData))
+        }
     }
 
     /// Floating windows with a fresh id for each one whose id an earlier window took.
@@ -274,7 +321,7 @@ mod floating_serde {
             Ok(Floating {
                 id: repr.id.unwrap_or_else(fresh_window_id),
                 root,
-                rect: repr.rect,
+                rect: repr.rect.ok_or_else(|| serde::de::Error::missing_field("rect"))?,
                 native: repr.native,
                 monitor: repr.monitor,
                 monitor_size: repr.monitor_size,

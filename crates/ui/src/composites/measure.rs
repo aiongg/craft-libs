@@ -111,7 +111,9 @@ pub(crate) fn trailing_width(ctx: &Context, id: Id) -> Option<f32> {
 ///
 /// The row is created before its widgets, so Tab and AccessKit visit them in reading order; its
 /// start is set from the width it had on the last pass (`estimate` before the first), and a
-/// change of width discards the pass, so the row never shows away from the end. Wider than
+/// change of width discards the pass, so the row never shows away from the end. An `estimate` of
+/// 0 means the width is unknown: the first pass then lets the row take all of `rect`, so its
+/// content measures at its natural width instead of being cut to nothing. Wider than
 /// `rect`, it overflows past the reading start. `sense` is the row's own: [`Sense::DRAG`] keeps
 /// a press that starts in the row from dragging what lies under it.
 pub(crate) fn trailing_row<R>(
@@ -125,7 +127,10 @@ pub(crate) fn trailing_row<R>(
 ) -> (R, Rect) {
     let ctx = ui.ctx().clone();
     let width = ctx.data(|d| d.get_temp::<f32>(id)).unwrap_or(estimate);
-    let max = if direction::is_rtl(ui) {
+    let unknown = width <= 0.0 && !ctx.data(|d| d.get_temp::<f32>(id).is_some());
+    let max = if unknown {
+        rect
+    } else if direction::is_rtl(ui) {
         Rect::from_x_y_ranges(rect.left()..=rect.left() + width, rect.y_range())
     } else {
         Rect::from_x_y_ranges(rect.right() - width..=rect.right(), rect.y_range())

@@ -321,7 +321,7 @@ pub(super) fn display(nodes: &[(&str, usize)], open: &TreeState) -> Vec<crate::b
         if group && !is_open {
             hidden_below = Some(depth);
         }
-        rows.push(crate::behavior::RowInfo { key: at, depth, has_children: group, open: is_open });
+        rows.push(crate::behavior::RowInfo { key: at, depth, has_children: group, open: is_open, section: false });
     }
     rows
 }

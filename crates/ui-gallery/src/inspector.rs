@@ -155,7 +155,6 @@ impl Inspector {
 
     /// The end-side panel: layer switches and the AccessKit tree of each cell.
     pub fn panel(&mut self, ui: &mut Ui) {
-        ui.heading("Inspect");
         let _ = Checkbox::bool("Padding", &mut self.layers.padding).show(ui);
         let _ = Checkbox::bool("Hit areas", &mut self.layers.hits).show(ui);
         let _ = Checkbox::bool("Focus order", &mut self.layers.focus).show(ui);
