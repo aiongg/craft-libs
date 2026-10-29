@@ -1290,3 +1290,23 @@ fn a_secondary_click_opens_the_edit_menu_on_the_text_unless_the_field_turns_it_o
         assert_eq!(rig.events, vec![], "the press changes no value");
     }
 }
+
+#[test]
+fn the_menu_key_then_down_down_enter_runs_a_command_and_neither_steps_nor_commits() {
+    let mut rig = Rig::with(12.0, |_| {});
+    rig.focus();
+    rig.key(Key::ArrowRight);
+    rig.key(Key::Menu);
+    rig.frame(vec![]);
+    assert!(crate::behavior::edit_menu::is_open(&rig.ctx, rig.id));
+    // Undo is highlighted; Cut, Copy and Delete are disabled, so ↓ ↓ reaches Select All.
+    rig.key(Key::ArrowDown);
+    rig.key(Key::ArrowDown);
+    rig.key(Key::Enter);
+    rig.frame(vec![]);
+    assert!(!crate::behavior::edit_menu::is_open(&rig.ctx, rig.id) && rig.has_focus());
+    assert_eq!(rig.value, 12.0, "the arrows moved in the menu and did not step the value");
+    assert_eq!(rig.events, vec![], "Enter chose the row and committed nothing");
+    let range = egui::text_edit::TextEditState::load(&rig.ctx, rig.id).and_then(|s| s.cursor.char_range()).expect("a cursor");
+    assert!(!range.is_empty(), "Select All ran");
+}

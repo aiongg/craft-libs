@@ -921,3 +921,21 @@ fn option_tooltip_shows_after_the_delay_and_names_the_row() {
     assert_eq!(option(&harness, "Multiply").accesskit_node().data().description(), Some("Blends dark over light"));
     assert_eq!(option(&harness, "Screen").accesskit_node().data().description(), None);
 }
+
+#[test]
+fn a_secondary_press_in_the_search_field_keeps_the_list_and_opens_no_edit_menu() {
+    let mut harness = fonts();
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    let at = harness.get_by_label("Search fonts").rect().center();
+    let press = |pressed| Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    harness.event(Event::PointerMoved(at));
+    harness.run();
+    harness.event(press(true));
+    harness.run();
+    harness.event(press(false));
+    harness.run();
+    assert!(harness.query_by_label("Cut").is_none(), "the search field has no edit menu");
+    assert!(!options(&harness).is_empty(), "the list stays open");
+}

@@ -370,7 +370,7 @@ impl<'a, C: Codec> Typing<'a, C> {
             super::FieldTab::register(ui, id);
         }
         if self.edit_menu && enabled {
-            edit_menu::close_on_escape(ui, id);
+            edit_menu::show(ui, id, self.password, None);
         }
         let seen = Seen::load(ui, id);
         let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
@@ -430,9 +430,6 @@ impl<'a, C: Codec> Typing<'a, C> {
             insert_chars(&mut buffer, range.start, text);
         }
         state.store(ui.ctx(), id);
-        if self.edit_menu && enabled {
-            edit_menu::run_pending(ui, id);
-        }
 
         let mut layouter = |ui: &Ui, text: &dyn TextBuffer, _wrap: f32| tabular_line(ui, look, self.password, text.as_str());
         let edit = match self.multiline {
@@ -469,6 +466,7 @@ impl<'a, C: Codec> Typing<'a, C> {
         let mut output = edit.show(ui);
         ui.ctx().options_mut(|o| o.input_options.surrender_focus_on = surrender);
         ui.set_style(saved);
+        edit_menu::withdraw(ui, id);
         if self.edit_menu && enabled {
             keep_selection_under_secondary_press(ui, id, caret, &mut output.state, &output.response.response);
         }
@@ -479,11 +477,7 @@ impl<'a, C: Codec> Typing<'a, C> {
         let text = remove_chars(&buffer, marked);
         // `galley_pos` is where the text starts; a right-aligned galley's rect starts left of 0.
         let text_rect = Rect::from_min_size(output.galley_pos, output.galley.size());
-        let selection = output.state.cursor.char_range().is_some_and(|r| !r.is_empty());
         let response = output.response.response;
-        if self.edit_menu && enabled {
-            edit_menu::show(ui, &response, selection);
-        }
         let mut typed = Typed {
             id,
             escape: self.escape,
