@@ -100,8 +100,12 @@ pub struct TextFieldStyle {
 /// - The edge turns `field.border.focused` while the field has focus, from the keyboard or the
 ///   pointer; a focused invalid field draws the invalid colour as a line inside that edge. A
 ///   bevelled box (Classic) keeps its bevel and draws these lines inside it.
-/// - AccessKit: a `TextInput` (a `PasswordInput` with [`password`](TextField::password)) named
-///   `label`, with its value and placeholder.
+/// - A secondary click, or the Menu key or Shift+F10 in the focused field, opens the
+///   [`EditMenu`](crate::behavior::EditMenu) (Undo, Cut, Copy, Paste, Delete, Select All); the
+///   field keeps its focus. [`edit_menu(false)`](TextField::edit_menu) leaves the press to the host.
+/// - AccessKit: a `TextInput` (a `PasswordInput` with [`password`](TextField::password); a
+///   `MultilineTextInput` with [`multiline`](TextField::multiline)) named `label`, with its value
+///   and placeholder.
 #[derive(Clone, Debug)]
 #[must_use = "show the field with `show`"]
 pub struct TextField<'a> {
@@ -117,6 +121,8 @@ pub struct TextField<'a> {
     password: bool,
     char_limit: usize,
     keep_focus: bool,
+    multiline: Option<usize>,
+    edit_menu: bool,
 }
 
 impl<'a> TextField<'a> {
@@ -136,6 +142,8 @@ impl<'a> TextField<'a> {
             password: false,
             char_limit: usize::MAX,
             keep_focus: false,
+            multiline: None,
+            edit_menu: true,
         }
     }
 
@@ -193,6 +201,24 @@ impl<'a> TextField<'a> {
         self
     }
 
+    /// A field `rows` lines tall that wraps its text, for a note or a description: the first line
+    /// is `field.height` tall and every further row adds a line of text. Enter inserts a line break
+    /// and Cmd/Ctrl+Enter submits ([`submitted`](EditResponse::submitted)), commits and leaves the
+    /// field as Enter does in a line; Tab leaves it. Esc and the typing run are the line's.
+    /// AccessKit: a `MultilineTextInput`.
+    pub fn multiline(mut self, rows: usize) -> Self {
+        self.multiline = Some(rows.max(1));
+        self
+    }
+
+    /// Whether a secondary click, or the Menu key or Shift+F10 while the field has the focus,
+    /// opens the [`EditMenu`](crate::behavior::EditMenu); on by default. Turn it off where the
+    /// host answers the secondary press itself.
+    pub fn edit_menu(mut self, on: bool) -> Self {
+        self.edit_menu = on;
+        self
+    }
+
     /// Shows the field and returns this frame's edit. The response covers the box.
     pub fn show(self, ui: &mut Ui) -> EditResponse<String> {
         let spec = Spec {
@@ -210,6 +236,8 @@ impl<'a> TextField<'a> {
             char_limit: self.char_limit,
             keep_focus: self.keep_focus,
             keys: EventFilter::default(),
+            multiline: self.multiline,
+            edit_menu: self.edit_menu,
         };
         show_field(ui, &spec)
     }
@@ -282,6 +310,7 @@ pub struct SearchField<'a> {
     enabled: bool,
     keep_focus: bool,
     keys: EventFilter,
+    edit_menu: bool,
 }
 
 impl<'a> SearchField<'a> {
@@ -299,6 +328,7 @@ impl<'a> SearchField<'a> {
             enabled: true,
             keep_focus: false,
             keys: EventFilter::default(),
+            edit_menu: true,
         }
     }
 
@@ -330,6 +360,13 @@ impl<'a> SearchField<'a> {
         self
     }
 
+    /// Whether a secondary click, or the Menu key or Shift+F10 while the field has the focus,
+    /// opens the [`EditMenu`](crate::behavior::EditMenu); on by default.
+    pub fn edit_menu(mut self, on: bool) -> Self {
+        self.edit_menu = on;
+        self
+    }
+
     /// Keys an embedding control reads while the field has the focus: a popup list's arrows
     /// and Esc ([`Typing::event_filter`]).
     pub(crate) fn keys(mut self, keys: EventFilter) -> Self {
@@ -354,6 +391,8 @@ impl<'a> SearchField<'a> {
             char_limit: usize::MAX,
             keep_focus: self.keep_focus,
             keys: self.keys,
+            multiline: None,
+            edit_menu: self.edit_menu,
         };
         show_field(ui, &spec)
     }
@@ -378,6 +417,8 @@ struct Spec<'a> {
     keep_focus: bool,
     /// The embedding control's keys.
     keys: EventFilter,
+    multiline: Option<usize>,
+    edit_menu: bool,
 }
 
 /// Where the parts of a field go: the room kept at the reading start and end of the text, and
@@ -425,11 +466,18 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
     let enabled = spec.enabled && ui.is_enabled();
     let width = if ui.layout().horizontal_justify() { ui.available_width() } else { style.width };
     let (left, right) = if direction::is_rtl(ui) { (layout.end, layout.start) } else { (layout.start, layout.end) };
+    let font = tokens.font(style.role);
+    // Further rows add a line of text; the box's own padding stays the first line's.
+    let line = ui.fonts_mut(|f| f.row_height(&font)) + ui.spacing().extra_text_line_spacing;
+    let extra = spec.multiline.map_or(0.0, |rows| (rows - 1) as f32 * line);
     let look = TypingLook {
-        size: vec2(width, style.height),
-        margin: margin_x(left, right),
-        align: direction::align2(ui, Align2::LEFT_CENTER),
-        font: tokens.font(style.role),
+        size: vec2(width, style.height + extra),
+        margin: match spec.multiline {
+            Some(_) => margin_x(left, right) + egui::Margin::symmetric(0, ((style.height - line) / 2.0).max(0.0).round() as i8),
+            None => margin_x(left, right),
+        },
+        align: direction::align2(ui, if spec.multiline.is_some() { Align2::LEFT_TOP } else { Align2::LEFT_CENTER }),
+        font,
         text: if enabled { style.text } else { style.text_disabled },
         placeholder: if enabled { style.placeholder } else { style.placeholder_disabled },
         selection: style.selection,
@@ -437,7 +485,11 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
         caret: style.caret,
     };
     let id = ui.make_persistent_id(spec.id_salt);
-    let (escape, role) = if spec.clear.is_some() { (Escape::Clear, Role::SearchInput) } else { (Escape::PassThrough, Role::TextInput) };
+    let (escape, role) = match (spec.clear.is_some(), spec.multiline.is_some()) {
+        (true, _) => (Escape::Clear, Role::SearchInput),
+        (false, true) => (Escape::PassThrough, Role::MultilineTextInput),
+        (false, false) => (Escape::PassThrough, Role::TextInput),
+    };
     let typing = Typing::new(id, spec.label, spec.value)
         .placeholder(spec.placeholder)
         .policy(spec.policy)
@@ -448,7 +500,12 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
         .keep_focus(spec.keep_focus)
         .escape(escape)
         .role(role)
-        .event_filter(spec.keys);
+        .event_filter(spec.keys)
+        .edit_menu(spec.edit_menu);
+    let typing = match spec.multiline {
+        Some(rows) => typing.multiline(rows),
+        None => typing,
+    };
     // The box goes under the text, which `TextEdit` paints as it runs.
     let under = ui.painter().add(Shape::Noop);
     let mut typed = typing.show(ui, &look);

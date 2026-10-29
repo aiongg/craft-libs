@@ -8,10 +8,11 @@ use egui::accesskit::{Invalid, Role};
 use egui::text::{CCursorRange, LayoutJob};
 use egui::text_edit::TextEditState;
 use egui::{
-    Align2, Color32, Event, EventFilter, FontId, Frame, Galley, Id, ImeEvent, InputState, Key, KeyboardShortcut, Margin, Modifiers, Rect, Response,
-    TextBuffer, TextEdit, Ui, Vec2, ViewportId,
+    Align2, Color32, Event, EventFilter, FontId, Frame, Galley, Id, ImeEvent, InputState, Key, KeyboardShortcut, Margin, Modifiers, PointerButton,
+    Rect, Response, SurrenderFocusOn, TextBuffer, TextEdit, Ui, Vec2, ViewportId,
 };
 
+use super::edit_menu;
 use crate::edit::{EditPolicy, EditResponse, Gesture, GestureId, escape_pressed};
 use crate::ime::is_ime_key;
 use crate::primitives::FocusRing;
@@ -193,6 +194,8 @@ pub struct Typing<'a, C: Codec = PlainText> {
     keys: EventFilter,
     tabular: bool,
     keep_rejected: bool,
+    multiline: Option<usize>,
+    edit_menu: bool,
 }
 
 impl<'a> Typing<'a> {
@@ -258,7 +261,26 @@ impl<'a, C: Codec> Typing<'a, C> {
             keys: EventFilter::default(),
             tabular: false,
             keep_rejected: true,
+            multiline: None,
+            edit_menu: false,
         }
+    }
+
+    /// A field of `rows` lines that wraps its text: Enter inserts a line break, and Cmd/Ctrl+Enter
+    /// is what Enter is in a line (commits, leaves the field unless it
+    /// [keeps the focus](Typing::keep_focus), and reports [`submitted`](EditResponse::submitted)).
+    /// Tab leaves the field. The caller sizes the box in the [`TypingLook`] and names the AccessKit
+    /// [role](Typing::role).
+    pub fn multiline(mut self, rows: usize) -> Self {
+        self.multiline = Some(rows.max(1));
+        self
+    }
+
+    /// Whether a secondary click, or the Menu key or Shift+F10 in the focused field, opens the
+    /// [`EditMenu`](super::EditMenu); off by default.
+    pub fn edit_menu(mut self, on: bool) -> Self {
+        self.edit_menu = on;
+        self
     }
 
     /// Draws digits with tabular (equal-width) figures, so a number keeps its width as its
@@ -347,13 +369,20 @@ impl<'a, C: Codec> Typing<'a, C> {
         if enabled {
             super::FieldTab::register(ui, id);
         }
+        if self.edit_menu && enabled {
+            edit_menu::close_on_escape(ui, id);
+        }
         let seen = Seen::load(ui, id);
         let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
         let caret = state.cursor.char_range();
         let preedit = kept_preedit(ui, id, seen.as_ref(), &state);
         take_ime_keys(ui, preedit.is_some());
         let focused = enabled && ui.memory(|m| m.has_focus(id));
-        let submitted = focused && ui.input(enter_pressed);
+        let submitted = focused
+            && match self.multiline {
+                Some(_) => take_submit(ui),
+                None => ui.input(enter_pressed),
+            };
         let was_focused = seen.as_ref().is_some_and(|s| s.focused);
         // The field's Esc goes on to the host; one with the focus elsewhere (a scrub of a number
         // field) is the gesture's, as in every control.
@@ -401,11 +430,17 @@ impl<'a, C: Codec> Typing<'a, C> {
             insert_chars(&mut buffer, range.start, text);
         }
         state.store(ui.ctx(), id);
+        if self.edit_menu && enabled {
+            edit_menu::run_pending(ui, id);
+        }
 
         let mut layouter = |ui: &Ui, text: &dyn TextBuffer, _wrap: f32| tabular_line(ui, look, self.password, text.as_str());
-        let mut edit = TextEdit::singleline(&mut buffer)
+        let edit = match self.multiline {
+            Some(rows) => TextEdit::multiline(&mut buffer).desired_rows(rows).lock_focus(false),
+            None => TextEdit::singleline(&mut buffer).return_key(None::<KeyboardShortcut>),
+        };
+        let mut edit = edit
             .id(id)
-            .return_key(None::<KeyboardShortcut>)
             .frame(Frame::NONE.inner_margin(look.margin))
             .font(look.font.clone())
             .text_color(look.text)
@@ -426,8 +461,17 @@ impl<'a, C: Codec> Typing<'a, C> {
         visuals.selection.stroke.color = look.selected_text;
         visuals.text_cursor.stroke.color = look.caret;
         visuals.weak_text_color = Some(look.placeholder);
-        let output = edit.show(ui);
+        // A click in the edit menu is no click away from the field.
+        let surrender = ui.ctx().options(|o| o.input_options.surrender_focus_on);
+        if self.edit_menu && edit_menu::pointer_on(ui.ctx(), id) {
+            ui.ctx().options_mut(|o| o.input_options.surrender_focus_on = SurrenderFocusOn::Never);
+        }
+        let mut output = edit.show(ui);
+        ui.ctx().options_mut(|o| o.input_options.surrender_focus_on = surrender);
         ui.set_style(saved);
+        if self.edit_menu && enabled {
+            keep_selection_under_secondary_press(ui, id, caret, &mut output.state, &output.response.response);
+        }
 
         let marked = output.state.preedit().map(|(range, _)| range);
         let caret_moved = output.state.cursor.char_range() != caret || output.response.response.is_pointer_button_down_on();
@@ -435,7 +479,11 @@ impl<'a, C: Codec> Typing<'a, C> {
         let text = remove_chars(&buffer, marked);
         // `galley_pos` is where the text starts; a right-aligned galley's rect starts left of 0.
         let text_rect = Rect::from_min_size(output.galley_pos, output.galley.size());
+        let selection = output.state.cursor.char_range().is_some_and(|r| !r.is_empty());
         let response = output.response.response;
+        if self.edit_menu && enabled {
+            edit_menu::show(ui, &response, selection);
+        }
         let mut typed = Typed {
             id,
             escape: self.escape,
@@ -845,6 +893,35 @@ pub(crate) fn take_enter(ui: &Ui) -> bool {
         i.events.retain(|event| !is_enter_press(event));
         i.events.len() < before
     })
+}
+
+/// Takes this pass's Cmd/Ctrl+Enter presses out of `ui`'s input (a multi-line field's Enter): true
+/// when one was no key repeat.
+fn take_submit(ui: &Ui) -> bool {
+    ui.input_mut(|i| {
+        let mut pressed = false;
+        i.events.retain(|event| match event {
+            Event::Key { key: Key::Enter, pressed: true, repeat, modifiers, .. } if modifiers.command => {
+                pressed |= !repeat;
+                false
+            }
+            _ => true,
+        });
+        pressed
+    })
+}
+
+/// A secondary press in the field moves the caret like a primary one; inside the selection the
+/// field had before, the selection stays, so the menu's Cut and Copy act on it.
+fn keep_selection_under_secondary_press(ui: &Ui, id: Id, before: Option<CCursorRange>, state: &mut TextEditState, response: &Response) {
+    let (pressed, origin) = ui.input(|i| (i.pointer.button_pressed(PointerButton::Secondary), i.pointer.press_origin()));
+    let Some(before) = before.filter(|b| !b.is_empty()) else { return };
+    let inside = pressed && origin.is_some_and(|p| response.rect.contains(p));
+    let range = before.as_sorted_char_range();
+    if inside && state.cursor.char_range().is_some_and(|now| range.contains(&now.primary.index) || range.end == now.primary.index) {
+        state.cursor.set_char_range(Some(before));
+        state.clone().store(ui.ctx(), id);
+    }
 }
 
 /// The keys of both filters.

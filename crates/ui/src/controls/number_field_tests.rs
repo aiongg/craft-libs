@@ -65,6 +65,7 @@ struct Rig {
     stops: bool,
     /// The field wraps the pointer at the screen's edges.
     wrap: bool,
+    edit_menu: bool,
     /// Every viewport command sent so far.
     commands: Vec<ViewportCommand>,
     /// Whether the value lives in `doc` behind `host`.
@@ -118,6 +119,7 @@ impl Rig {
             fullscreen: false,
             stops: false,
             wrap: false,
+            edit_menu: true,
             commands: Vec::new(),
             hosted: false,
             doc: Doc::default(),
@@ -217,7 +219,7 @@ impl Rig {
         if self.stops {
             field = field.steps_with(zoom_stop);
         }
-        field = field.scrub_wrap(self.wrap);
+        field = field.scrub_wrap(self.wrap).edit_menu(self.edit_menu);
         if self.popup {
             field = field.popup_slider("Width slider");
         }
@@ -1270,5 +1272,21 @@ fn scrub_wrap_moves_the_pointer_only_in_a_full_screen_viewport() {
             assert!(sent.is_empty(), "fullscreen {fullscreen}, wrap {wrap}: {sent:?}");
         }
         rig.frame(vec![pointer(pos2(799.0, from.y), false)]);
+    }
+}
+
+#[test]
+fn a_secondary_click_opens_the_edit_menu_on_the_text_unless_the_field_turns_it_off() {
+    for on in [true, false] {
+        let mut rig = Rig::with(12.0, |r| r.edit_menu = on);
+        let at = rig.rect.center();
+        let secondary = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+        rig.frame(vec![Event::PointerMoved(at)]);
+        rig.frame(vec![secondary(true)]);
+        rig.frame(vec![secondary(false)]);
+        rig.frame(vec![]);
+        assert_eq!(crate::behavior::edit_menu::is_open(&rig.ctx, rig.id), on);
+        assert_eq!(rig.has_focus(), on, "the press focuses the field when the menu opens on its text");
+        assert_eq!(rig.events, vec![], "the press changes no value");
     }
 }

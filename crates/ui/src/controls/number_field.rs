@@ -19,7 +19,7 @@ use super::field_wheel;
 use super::slider::{PressTurn, Scale, Track, labelled, pointer, press_turn, with_values};
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, SIZE_NAMES, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size, size_arg};
-use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook};
+use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook, edit_menu};
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
@@ -163,6 +163,7 @@ pub struct NumberField<'a> {
     invalid: bool,
     keep_focus: bool,
     part: bool,
+    edit_menu: bool,
 }
 
 impl<'a> NumberField<'a> {
@@ -193,6 +194,7 @@ impl<'a> NumberField<'a> {
             invalid: false,
             keep_focus: false,
             part: false,
+            edit_menu: true,
         }
     }
 
@@ -327,6 +329,14 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// Whether a secondary click, or the Menu key or Shift+F10 while the field has the focus,
+    /// opens the [`EditMenu`](crate::behavior::EditMenu) (Undo, Cut, Copy, Paste, Delete,
+    /// Select All) on the field's text; on by default.
+    pub fn edit_menu(mut self, on: bool) -> Self {
+        self.edit_menu = on;
+        self
+    }
+
     /// Whether the field is a part of a composite reporting through one edit: a press on the
     /// scrub sources, the ▾ or the pop-up slider takes its turn from the edit order
     /// (`slider::press_turn`). While another control's typing run has the focus (a sibling
@@ -417,6 +427,7 @@ impl<'a> NumberField<'a> {
             .invalid(self.invalid)
             .keep_focus(self.keep_focus)
             .role(Role::SpinButton)
+            .edit_menu(self.edit_menu)
             .event_filter(EventFilter { vertical_arrows: true, ..EventFilter::default() })
             .tabular(true);
         // The box goes under the text, which `TextEdit` paints as it runs.
@@ -449,7 +460,19 @@ impl<'a> NumberField<'a> {
             }
             // Over the text of a field without the focus, where `TextEdit` would take the press.
             if self.scrub_text && !typed.response().has_focus() {
-                sources.push(ui.interact(rect, id.with("craft_ui::number_field::scrub_text"), Sense::CLICK | Sense::DRAG));
+                let text = ui.interact(rect, id.with("craft_ui::number_field::scrub_text"), Sense::CLICK | Sense::DRAG);
+                // It covers the field, so the field's own text never sees a secondary press: the
+                // press gives the field the focus with its text selected, and the menu opens on it
+                // in the next pass.
+                if self.edit_menu
+                    && text.secondary_clicked()
+                    && let Some(pos) = text.interact_pointer_pos()
+                {
+                    ui.memory_mut(|m| m.request_focus(id));
+                    select_all(ui.ctx(), id, typed.text());
+                    edit_menu::request_open(ui, id, pos);
+                }
+                sources.push(text);
             }
             input.scrub(ui, &mut typed, &sources);
         }

@@ -2,6 +2,8 @@
 //! each control looks. They follow the suite's apps (PhotoCraft first, then DesignCraft), and the
 //! WAI-ARIA patterns where the apps have no convention.
 //!
+//! - [`EditMenu`]: the Undo, Cut, Copy, Paste, Delete and Select All menu of text controls,
+//!   with the app's [`EditMenuLabels`].
 //! - [`FieldTab`]: a dialog's focus scope, in which Tab visits only the text and number fields.
 //! - [`RadioSelection`]: a radio group's Tab stops, focus and click selection, used by
 //!   [`RadioGroup`](crate::controls::RadioGroup), [`RadioSet`](crate::controls::RadioSet) and
@@ -21,6 +23,7 @@
 //! - [`nudge`]: an arrow key press as a move along the document axes (1 unit, Shift 10), for
 //!   canvas overlays.
 
+pub(crate) mod edit_menu;
 mod field_tab;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tab_tests;
@@ -38,6 +41,7 @@ mod reorder_tests;
 mod tests;
 mod typing;
 
+pub use edit_menu::{EditMenu, EditMenuLabels};
 pub use field_tab::FieldTab;
 pub use key_claim::{ClaimedKey, KeyClaim};
 pub use list_selection::{
