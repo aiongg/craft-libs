@@ -31,6 +31,7 @@ mod listbox;
 mod marquee;
 mod menu;
 mod notice;
+mod panel_footer;
 mod panel_header;
 mod popup;
 mod progress;
@@ -84,6 +85,7 @@ pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
+pub use panel_footer::{PanelFooterField, PanelFooterTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use popup::{PopupField, PopupTokens};
 pub use progress::{ProgressField, ProgressTokens};
@@ -642,6 +644,8 @@ families! {
     menu: MenuTokens => Menu(MenuField);
     /// Notices: inline status messages.
     notice: NoticeTokens => Notice(NoticeField);
+    /// Panel footers: the bar of buttons under a panel body.
+    panel_footer: PanelFooterTokens => PanelFooter(PanelFooterField);
     /// Panel headers: the title row of a flyout or floating panel.
     panel_header: PanelHeaderTokens => PanelHeader(PanelHeaderField);
     /// Popups: the card that holds a menu or a list under a field.

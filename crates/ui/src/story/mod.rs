@@ -144,7 +144,9 @@ pub fn registry() -> Vec<Story> {
     all.extend(composites::field::stories());
     all.extend(composites::property_row::stories());
     all.extend(composites::section_header::stories());
+    all.extend(composites::section_label::stories());
     all.extend(composites::panel_header::stories());
+    all.extend(composites::panel_footer::stories());
     all.extend(composites::toast::stories());
     all.extend(composites::notice::stories());
     all.extend(composites::empty_state::stories());
@@ -215,7 +217,9 @@ const DECLARED: &[&[&str]] = &[
     composites::field::COMPONENTS,
     composites::property_row::COMPONENTS,
     composites::section_header::COMPONENTS,
+    composites::section_label::COMPONENTS,
     composites::panel_header::COMPONENTS,
+    composites::panel_footer::COMPONENTS,
     composites::toast::COMPONENTS,
     composites::notice::COMPONENTS,
     composites::empty_state::COMPONENTS,
