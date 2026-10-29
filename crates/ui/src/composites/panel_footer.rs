@@ -3,7 +3,7 @@
 use craft_theme::ControlSize;
 use craft_theme::Stroke as Hairline;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, Rect, Response, Stroke, Ui, UiBuilder, pos2, vec2};
+use egui::{Rect, Response, Stroke, Ui, UiBuilder, pos2, vec2};
 
 use crate::controls::IconButton;
 use crate::direction;
@@ -103,20 +103,27 @@ pub(crate) fn stories() -> Vec<Story> {
     vec![Story::new("composites/panel-footer/layers", Level::Composites, "PanelFooter", "Layers", args, show_layers)]
 }
 
-/// A panel `width` wide with a body and a footer of three buttons, inside the body margin.
+/// The height of the story's panel.
+const STORY_PANEL_HEIGHT: f32 = 140.0;
+
+/// A panel `width` wide with a body and, at its bottom, a footer of three buttons, inside the body
+/// margin.
 pub(super) fn show_layers(ui: &mut Ui, args: &mut Args) {
     let width = args.number("width") as f32;
     let tokens = Tokens::of(ui);
     let margin = tokens.space.pad.panel;
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
-        egui::Frame::new().inner_margin(egui::Margin::same(margin as i8)).fill(Color32::TRANSPARENT).show(ui, |ui| {
-            ui.set_height(80.0);
+        egui::Frame::new().inner_margin(egui::Margin::same(margin as i8)).fill(tokens.color.surface.panel.to_egui()).show(ui, |ui| {
+            ui.set_width(width - 2.0 * margin);
+            ui.set_height(STORY_PANEL_HEIGHT - 2.0 * margin);
             ui.label("Layers");
-            PanelFooter::show(ui, |ui| {
-                PanelFooter::button(ui, Icon::Trash, "Delete layer");
-                PanelFooter::button(ui, Icon::Plus, "New layer");
-                PanelFooter::button(ui, Icon::Settings, "Layer settings");
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                PanelFooter::show(ui, |ui| {
+                    PanelFooter::button(ui, Icon::Trash, "Delete layer");
+                    PanelFooter::button(ui, Icon::Plus, "New layer");
+                    PanelFooter::button(ui, Icon::Settings, "Layer settings");
+                });
             });
         });
     });

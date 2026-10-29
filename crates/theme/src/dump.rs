@@ -1164,22 +1164,7 @@ fn handle_lines(out: &mut Lines, h: &HandleTokens) {
 }
 
 fn button_lines(out: &mut Lines, b: &ButtonTokens) {
-    let ButtonTokens {
-        height,
-        pad_x,
-        icon,
-        gap,
-        label,
-        radius,
-        border_width,
-        hover_opacity,
-        pressed_opacity,
-        primary,
-        secondary,
-        ghost,
-        danger,
-        default_frame,
-    } = b;
+    let ButtonTokens { height, pad_x, icon, gap, label, radius, border_width, hover_opacity, pressed_opacity, primary, secondary, ghost, danger } = b;
     by_size(out, "button.height", height);
     by_size(out, "button.pad_x", pad_x);
     by_size(out, "button.icon", icon);
@@ -1189,7 +1174,6 @@ fn button_lines(out: &mut Lines, b: &ButtonTokens) {
     out.line("button.border_width", len(*border_width));
     out.line("button.hover_opacity", len(*hover_opacity));
     out.line("button.pressed_opacity", len(*pressed_opacity));
-    out.line("button.default_frame", hex(*default_frame));
     for (k, colors) in [("primary", primary), ("secondary", secondary), ("ghost", ghost), ("danger", danger)] {
         let ButtonColors { fill, border, text } = colors;
         states(out, &format!("button.{k}.fill"), fill);
@@ -1292,10 +1276,12 @@ fn popup_lines(out: &mut Lines, p: &PopupTokens) {
 }
 
 fn menu_lines(out: &mut Lines, m: &MenuTokens) {
-    let MenuTokens { min_width, shortcut_gap, scroll_strip, active_fill, active_text, open_fill, shortcut, tints } = m;
+    let MenuTokens { min_width, shortcut_gap, scroll_strip, arrow_base, arrow_depth, active_fill, active_text, open_fill, shortcut, tints } = m;
     out.line("menu.min_width", len(*min_width));
     out.line("menu.shortcut_gap", len(*shortcut_gap));
     out.line("menu.scroll_strip", len(*scroll_strip));
+    out.line("menu.arrow_base", len(*arrow_base));
+    out.line("menu.arrow_depth", len(*arrow_depth));
     out.line("menu.active.fill", hex(*active_fill));
     out.line("menu.active.text", hex(*active_text));
     out.line("menu.open.fill", hex(*open_fill));

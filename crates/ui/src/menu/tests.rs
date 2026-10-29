@@ -1179,3 +1179,39 @@ fn a_row_tooltip_shows_after_the_delay() {
     assert_eq!(d.get("Save").description(), Some("Writes the file"));
     assert_eq!(d.get("Quit").description(), None);
 }
+
+/// The corners of the filled triangle the last frame painted inside `row`, if there is one.
+fn triangle_in(d: &Driver, row: Rect) -> Option<Vec<Pos2>> {
+    fn collect(shape: &egui::Shape, row: Rect, out: &mut Option<Vec<Pos2>>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, row, out)),
+            egui::Shape::Path(p) if p.points.len() == 3 && p.fill != egui::Color32::TRANSPARENT && p.points.iter().all(|q| row.contains(*q)) => {
+                *out = Some(p.points.clone());
+            }
+            _ => {}
+        }
+    }
+    let mut out = None;
+    d.shapes.iter().for_each(|c| collect(&c.shape, row, &mut out));
+    out
+}
+
+/// A submenu row ends in a filled triangle (PhotoCraft's, from egui) that points the way the
+/// submenu opens: right, and left in a right-to-left layout.
+#[test]
+fn a_submenu_row_ends_in_a_filled_triangle_pointing_towards_its_submenu() {
+    for rtl in [false, true] {
+        let mut d = Driver::new(vec![MenuItem::submenu("Mode", vec![item("Fast", "fast")]).into()]);
+        if rtl {
+            crate::direction::apply(&d.ctx, crate::direction::Direction::Rtl);
+        }
+        d.click("Open");
+        let row = d.rect("Mode");
+        let corners = triangle_in(&d, row).unwrap_or_else(|| panic!("a filled triangle in {row:?}"));
+        let tip = corners.iter().max_by(|a, b| (if rtl { b.x } else { a.x }).total_cmp(&if rtl { a.x } else { b.x })).copied().unwrap_or_default();
+        let (base_x, side) = (corners.iter().map(|c| c.x).filter(|x| (x - tip.x).abs() > 0.5).sum::<f32>() / 2.0, if rtl { -1.0 } else { 1.0 });
+        assert!(side * (tip.x - base_x) > 1.0, "rtl {rtl}: tip {tip:?} is beyond the base at x {base_x}");
+        let edge = if rtl { row.left() } else { row.right() };
+        assert!((edge - tip.x).abs() < row.height(), "rtl {rtl}: the arrow is at the row's end");
+    }
+}

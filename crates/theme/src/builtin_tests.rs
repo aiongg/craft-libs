@@ -425,22 +425,17 @@ fn line_mark_holds_the_non_text_minimum_on_the_control_surfaces() {
     }
 }
 
-/// Classic follows Windows 2000: white text on the navy selection, a black frame round the
-/// default (primary) button whose grey face does not change on hover or press, and a black mark on
-/// a white check box. No other built-in frames a button.
+/// Classic follows Windows 2000 as PhotoCraft draws it: white text on the navy selection, a grey
+/// face on the primary button that does not change on hover or press (no frame round it), and a
+/// black mark on a white check box.
 #[test]
-fn classic_follows_windows_2000_and_no_other_theme_frames_a_button() {
+fn classic_follows_windows_2000() {
     let black = Rgba::rgb(0, 0, 0);
     let white = Rgba::rgb(255, 255, 255);
     let face = Rgba::rgb(0xd4, 0xd0, 0xc8);
-    for theme in builtins() {
+    for theme in builtins().iter().filter(|t| t.id.as_str() == "craft.classic") {
         let t = resolve(theme, semantic_tests::app(Mode::Light, Contrast::Standard), None).tokens;
         let button = &t.component.button;
-        if theme.id.as_str() != "craft.classic" {
-            assert_eq!(button.default_frame, Rgba::TRANSPARENT, "{}", theme.id);
-            continue;
-        }
-        assert_eq!(button.default_frame, black);
         assert_eq!([button.primary.fill.rest, button.primary.fill.hover, button.primary.fill.pressed], [face; 3]);
         assert_eq!(t.color(ColorToken::TextOnSelected), white);
         assert_eq!(t.component.check.off.fill.rest, white);
@@ -449,7 +444,7 @@ fn classic_follows_windows_2000_and_no_other_theme_frames_a_button() {
 }
 
 /// Classic's switch has a navy on track, its list box and select rows highlight in navy with
-/// white text, its secondary buttons keep the face colour at rest and under the pointer, and its
+/// white text, its secondary buttons are the field white at rest and the hover fill under the pointer, and its
 /// popups are the menu grey. Other built-ins draw the switch track in the solid accent.
 #[test]
 fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
@@ -477,7 +472,7 @@ fn classic_switch_listbox_and_secondary_button_follow_windows_2000() {
             }
             assert_eq!([c.check.switch.fill.rest, c.check.switch.fill.hover, c.check.switch.fill.pressed], [navy; 3]);
             assert_eq!((c.listbox.active_fill, c.listbox.active_text), (navy, white));
-            assert_eq!([c.button.secondary.fill.rest, c.button.secondary.fill.hover], [face; 2]);
+            assert_eq!((c.button.secondary.fill.rest, c.button.secondary.fill.hover), (white, t.color(ColorToken::StateHover)));
             assert_eq!(c.button.secondary.border.pressed, Rgba::rgb(0x40, 0x40, 0x40));
             assert_eq!((t.color(ColorToken::SurfaceRaised), t.color(ColorToken::TextDisabled)), (face, Rgba::rgb(0x80, 0x80, 0x80)));
         }

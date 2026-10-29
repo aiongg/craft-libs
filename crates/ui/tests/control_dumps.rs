@@ -118,9 +118,6 @@ fn button() {
                 states(d, "fill", &s.fill);
                 states(d, "border", &s.border);
                 states(d, "text", &s.text);
-                if let Some(frame) = s.frame {
-                    d.line("frame.width", frame.width).line("frame.color", frame.color);
-                }
             });
         }
     });
@@ -860,6 +857,7 @@ fn menu() {
         }
         let s = Menu::style(t, ControlSize::Md);
         d.line("min_width", s.min_width).line("shortcut_gap", s.shortcut_gap).line("scroll_strip", s.scroll_strip);
+        d.line("arrow_base", s.arrow_base).line("arrow_depth", s.arrow_depth);
         d.line("active.fill", s.active_fill).line("active.text", s.active_text);
         d.line("shortcut", s.shortcut).line("shortcut_label", role(s.shortcut_label));
     });
