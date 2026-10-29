@@ -516,10 +516,10 @@ pub const fn text_size_factor(t: TextSize) -> f32 {
 /// Scaled type sizes round to multiples of this, in points.
 pub const TYPE_ROUNDING: f32 = 0.5;
 
-/// Elevation levels (DS-01 primitives) for the geometry of dialogs and floating surfaces; their
-/// alpha is `surface.shadow`'s.
-pub const ELEVATION_LEVELS: (usize, usize) = (3, 2);
-/// The shadow of a popup (`elevation.popup`): PhotoCraft's `popup_shadow` (`theme.rs:1037`), 6
+/// The shadow of a floating window (`elevation.floating`): PhotoCraft's `window_shadow`
+/// (`theme.rs:1036`), 10 points down with a 32 point blur, in `surface.shadow`'s alpha.
+pub const WINDOW_SHADOW: Elevation = Elevation { offset: [0.0, 10.0], blur: 32.0, spread: 0.0, alpha: 0.0 };
+/// The shadow of a popup, menu or dialog (`elevation.popup`): PhotoCraft's `popup_shadow` (`theme.rs:1037`), 6
 /// points down with a 20 point blur. Its alpha is `surface.shadow`'s, like every cast shadow's.
 pub const POPUP_SHADOW: Elevation = Elevation { offset: [0.0, 6.0], blur: 20.0, spread: 0.0, alpha: 0.0 };
 /// The alpha of `surface.shadow` in light and dark mode (0..=255): PhotoCraft's Pro

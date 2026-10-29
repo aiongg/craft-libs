@@ -1383,7 +1383,6 @@ fn a_float_shadow_override_takes_the_alpha_of_surface_shadow() {
         let t = at(mode);
         let level = Elevation::level(2);
         assert_eq!(t.component.float.shadow, Elevation { alpha: f32::from(t.color(T::SurfaceShadow).a()) / 255.0, ..level });
-        assert_eq!(t.component.float.shadow, t.elevation.floating, "{mode:?}");
     }
 }
 

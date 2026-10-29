@@ -524,9 +524,11 @@ fn every_shadow_has_the_alpha_of_surface_shadow() {
                 let id = theme.id.as_str();
                 let alpha = t.color(ColorToken::SurfaceShadow).a();
                 let e = &t.elevation;
-                for (what, got) in [("popup", e.popup.alpha), ("dialog", e.dialog.alpha), ("floating", e.floating.alpha)] {
+                for (what, got) in [("popup", e.popup.alpha), ("floating", e.floating.alpha)] {
                     assert_eq!((got * 255.0).round() as u8, alpha, "{id} {what} {a:?}");
                 }
+                assert_eq!((e.popup.offset, e.popup.blur), (values::POPUP_SHADOW.offset, values::POPUP_SHADOW.blur), "{id}");
+                assert_eq!((e.floating.offset, e.floating.blur), (values::WINDOW_SHADOW.offset, values::WINDOW_SHADOW.blur), "{id}");
                 assert_eq!(t.component.popup.shadow.a(), alpha, "{id} {a:?}");
                 assert_eq!((t.component.float.shadow.alpha * 255.0).round() as u8, alpha, "{id} {a:?}");
                 if id == "craft.classic" {

@@ -46,7 +46,6 @@ pub struct Radii {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Shadows {
     pub popup: Shadow,
-    pub dialog: Shadow,
     pub floating: Shadow,
     pub knob: Shadow,
 }
@@ -71,7 +70,7 @@ impl UiTokens {
             pill: corner_radius(r.pill),
         };
         let e = &tokens.elevation;
-        let shadow = Shadows { popup: popup_shadow(&tokens), dialog: e.dialog.to_egui(), floating: e.floating.to_egui(), knob: e.knob.to_egui() };
+        let shadow = Shadows { popup: popup_shadow(&tokens), floating: e.floating.to_egui(), knob: e.knob.to_egui() };
         let fonts = ROLES.map(|role| families.font_id(tokens.typography.get(role)));
         let style = Arc::new(style_for(&tokens, &families));
         Self { tokens: Arc::new(tokens), appearance, mode, style, radius, shadow, families, fonts }

@@ -57,7 +57,7 @@ fn surface_style_per_kind_flat_and_bevelled() {
         (K::Sunken, c.surface.sunken, t.radius.control, border(c.line.control_edge), None),
         (K::Pressed, c.state.pressed, t.radius.control, border(c.line.control_edge), None),
         (K::Popup, t.component.popup.fill, t.radius.popup, border(t.component.popup.border), Some(t.shadow.popup)),
-        (K::Dialog, c.surface.raised, t.radius.window, border(c.line.border), Some(t.shadow.dialog)),
+        (K::Dialog, c.surface.raised, t.radius.window, border(c.line.border), Some(t.shadow.popup)),
         (K::Knob, c.surface.knob, t.radius.control, border(c.line.knob_edge), Some(t.shadow.knob)),
     ];
     for (kind, fill, radius, edge, shadow) in expected {

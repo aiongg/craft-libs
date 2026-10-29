@@ -884,11 +884,9 @@ impl TypeTokens {
 /// Shadows of floating surfaces.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ElevationTokens {
-    /// Popups and menus.
+    /// Popups, menus and dialogs (PhotoCraft's dialogs are popup frames).
     pub popup: Elevation,
-    /// Dialogs.
-    pub dialog: Elevation,
-    /// Floating panels and toolbars.
+    /// Floating windows, panels and toolbars: PhotoCraft's `window_shadow`.
     pub floating: Elevation,
     /// Knobs on a track (`surface.knob`); level 0 in bevel themes, whose bevel draws the relief.
     pub knob: Elevation,

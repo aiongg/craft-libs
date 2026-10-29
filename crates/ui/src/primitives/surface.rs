@@ -28,7 +28,7 @@ pub enum SurfaceKind {
     /// Popups and menus: `popup.fill` and `popup.border` (outlined in every edge style) with the
     /// popup shadow.
     Popup,
-    /// Dialogs: `surface.raised`, outlined with `line.border` in every edge style, with the dialog
+    /// Dialogs: `surface.raised`, outlined with `line.border` in every edge style, with the popup
     /// shadow.
     Dialog,
     /// A knob that rides on a track (slider and switch thumbs): `surface.knob` with the knob
@@ -156,7 +156,7 @@ impl Surface {
         let radius = kind.corner().map_or(CornerRadius::ZERO, |corner| corner.radius(tokens));
         let shadow = match kind {
             K::Popup => Some(tokens.shadow.popup),
-            K::Dialog => Some(tokens.shadow.dialog),
+            K::Dialog => Some(tokens.shadow.popup),
             K::Knob => Some(tokens.shadow.knob),
             _ => None,
         }

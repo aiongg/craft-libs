@@ -81,7 +81,7 @@ fn mode_rows(mode: Mode, ui: &Arc<UiTokens>, style: &Style) -> ModeRows {
     });
     d.group("shadow", |d| {
         let s = &ui.shadow;
-        d.line("popup", s.popup).line("dialog", s.dialog).line("floating", s.floating).line("knob", s.knob);
+        d.line("popup", s.popup).line("floating", s.floating).line("knob", s.knob);
     });
     d.group("font", |d| {
         for (name, role) in ROLES {
