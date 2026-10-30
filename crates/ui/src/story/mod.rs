@@ -279,6 +279,7 @@ register! {
     crate::canvas::marquee,
     crate::canvas::rulers,
     crate::canvas::transform_box,
+    crate::canvas::perspective_crop,
     crate::canvas::ref_point,
     crate::canvas::bezier::story,
     crate::canvas::warp::story,

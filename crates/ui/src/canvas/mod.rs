@@ -27,6 +27,8 @@
 //! - [`TransformBox`]: the box of Free Transform, its handles and reference point.
 //! - [`CropFrame`]: the Crop tool's frame with its shield, brackets, composition guides
 //!   ([`CropGuide`]) and Classic-mode gestures.
+//! - [`PerspectiveCropQuad`]: the Perspective Crop tool's quad with its perspective grid, corner
+//!   handles and gestures.
 //! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
 //!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
 //! - [`WarpGrid`]: a warp's mesh ([`WarpMesh`]), its anchors and handles dragged and nudged.
@@ -65,6 +67,7 @@ pub mod hit;
 pub(crate) mod marquee;
 mod part_focus;
 pub(crate) mod pen;
+pub(crate) mod perspective_crop;
 pub mod quad;
 mod readout;
 pub(crate) mod ref_point;
@@ -99,6 +102,9 @@ pub use marquee::{
 };
 pub use part_focus::{Part, PartFocus, PartFocusResponse};
 pub use pen::{PenDraft, PenNames, PenResponse, PenStyle};
+pub use perspective_crop::{
+    PerspectiveCropNames, PerspectiveCropQuad, PerspectiveCropResponse, PerspectiveCropStyle, PerspectiveHit, PerspectiveQuad,
+};
 pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};

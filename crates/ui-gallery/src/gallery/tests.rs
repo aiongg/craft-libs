@@ -270,6 +270,7 @@ const FIXED_WIDTH: &[&str] = &[
     "primitives/marquee/drag",
     "primitives/rulers/canvas",
     "primitives/transform-box/free-transform",
+    "primitives/canvas/perspective-crop",
     "primitives/bezier-paths/edit",
     "primitives/warp-grid/warp",
     "primitives/pen-draft/draw",
