@@ -173,6 +173,7 @@ impl<'a> PopupList<'a> {
             None => style,
         };
         let id = popup.get_id();
+        ctx.data_mut(|d| d.insert_temp(id.with(ANCHOR), field));
         let flagged = open.is_some();
         let popup = match open {
             Some(open) => {
@@ -180,6 +181,9 @@ impl<'a> PopupList<'a> {
                 // The popup and the popups opened from inside it are one: focus and clicks in a
                 // menu opened from a button in the popup are inside.
                 let family = family(&ctx, id);
+                if take_close_request(&ctx, id) {
+                    *open = false;
+                }
                 let inside = focus_inside(&ctx, &owners, &family);
                 // A press or click inside drops a text field's focus in this pass or the next (a
                 // text field gives it up on the release of a click elsewhere): the user is still
@@ -303,6 +307,32 @@ impl<'a> PopupList<'a> {
     }
 }
 
+const ANCHOR: &str = "craft-anchor";
+const CLOSE_REQUEST: &str = "craft-close-request";
+
+/// Asks the open popups opened from inside `popup`, at any depth, to close: they do on their
+/// next pass. A popover calls it when a press lands on its own surface, so a slider or grip that
+/// never becomes a click still dismisses the menus it hides.
+pub(crate) fn close_children(ctx: &Context, popup: Id) {
+    let pass = ctx.cumulative_pass_nr();
+    for child in family(ctx, popup).into_iter().skip(1) {
+        ctx.data_mut(|d| d.insert_temp(child.with(CLOSE_REQUEST), pass));
+        Popup::close_id(ctx, child);
+    }
+}
+
+/// Whether a close was asked of `popup` by [`close_children`] this pass or the last.
+fn take_close_request(ctx: &Context, popup: Id) -> bool {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| d.remove_temp::<u64>(popup.with(CLOSE_REQUEST))).is_some_and(|asked| pass <= asked + 1)
+}
+
+/// The rect of the field each open popup opened from inside `popup` hangs from (the button that
+/// toggles it), as of its last pass.
+pub(crate) fn child_anchors(ctx: &Context, popup: Id) -> Vec<Rect> {
+    family(ctx, popup).into_iter().skip(1).filter_map(|child| ctx.data(|d| d.get_temp::<Rect>(child.with(ANCHOR)))).collect()
+}
+
 /// The popups open at the end of a pass, per viewport: those egui's popup memory doesn't know
 /// (shown with a flag of their own, [`PopupList::open`], as Select and ComboBox open their lists)
 /// and the menus. Each with the popup [drawing](Drawing) it, if any, and the pass it was last
@@ -321,7 +351,7 @@ struct OpenList {
 /// The [`PopupList`]s whose contents are being drawn, innermost last, per viewport. A popup
 /// [recorded](record_open) open while one draws is that popup's child.
 #[derive(Clone, Default)]
-struct Drawing(Vec<Id>);
+pub(crate) struct Drawing(Vec<Id>);
 
 impl Drawing {
     fn key(ctx: &Context) -> Id {
@@ -329,7 +359,7 @@ impl Drawing {
     }
 
     #[must_use = "the popup leaves the stack when the guard drops"]
-    fn enter(ctx: &Context, popup: Id) -> DrawingGuard {
+    pub(crate) fn enter(ctx: &Context, popup: Id) -> DrawingGuard {
         let key = Self::key(ctx);
         ctx.data_mut(|d| d.get_temp_mut_or_default::<Drawing>(key).0.push(popup));
         DrawingGuard { ctx: ctx.clone(), popup }
@@ -342,7 +372,7 @@ impl Drawing {
 }
 
 /// A popup's place in [`Drawing`] while its contents draw.
-struct DrawingGuard {
+pub(crate) struct DrawingGuard {
     ctx: Context,
     popup: Id,
 }
@@ -384,7 +414,7 @@ pub(crate) fn record_open(ctx: &Context, popup: Id, open: bool) {
 }
 
 /// `popup` and the open popups opened from inside it, at any depth.
-fn family(ctx: &Context, popup: Id) -> Vec<Id> {
+pub(crate) fn family(ctx: &Context, popup: Id) -> Vec<Id> {
     let pass = ctx.cumulative_pass_nr();
     let key = open_lists_id(ctx);
     let lists = ctx.data(|d| d.get_temp::<OpenLists>(key)).unwrap_or_default().0;
@@ -424,7 +454,7 @@ fn rows_list<H, R>(
 }
 
 /// The width of a surface's edge, which it draws inside its rect.
-fn edge_width(surface: &SurfaceStyle) -> f32 {
+pub(crate) fn edge_width(surface: &SurfaceStyle) -> f32 {
     match surface.edge {
         SurfaceEdge::Border(stroke) => stroke.width,
         SurfaceEdge::Bevel { width, .. } => width,
@@ -433,14 +463,14 @@ fn edge_width(surface: &SurfaceStyle) -> f32 {
 }
 
 /// Whether the keyboard focus is with one of `owners` or a widget in one of the popups `family`.
-fn focus_inside(ctx: &Context, owners: &[Id], family: &[Id]) -> bool {
+pub(crate) fn focus_inside(ctx: &Context, owners: &[Id], family: &[Id]) -> bool {
     let Some(focused) = ctx.memory(|m| m.focused()) else { return false };
     owners.contains(&focused) || ctx.read_response(focused).is_some_and(|r| family.contains(&r.layer_id.id))
 }
 
 /// Whether the pointer was pressed or clicked inside one of the popups `family` this pass: egui
 /// then drops the focus, which says nothing about where the user is going.
-fn pressed_into(ctx: &Context, family: &[Id]) -> bool {
+pub(crate) fn pressed_into(ctx: &Context, family: &[Id]) -> bool {
     let Some(pos) = ctx.input(|i| (i.pointer.any_pressed() || i.pointer.any_click()).then(|| i.pointer.interact_pos())).flatten() else {
         return false;
     };

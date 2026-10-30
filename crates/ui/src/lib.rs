@@ -30,6 +30,7 @@ pub mod localized;
 pub mod menu;
 pub mod panes;
 pub mod patterns;
+pub mod popover;
 mod popup_list;
 pub mod primitives;
 pub mod printing;

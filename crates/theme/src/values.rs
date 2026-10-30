@@ -1331,3 +1331,11 @@ pub const DIALOG_RESIZE_MARGIN: f32 = 20.0;
 pub const DIALOG_KEEP_VISIBLE: f32 = 100.0;
 /// Least height of a scrolling dialog body (PhotoCraft `max(120)`).
 pub const DIALOG_SCROLL_MIN: f32 = 120.0;
+/// Side of a popover's resize grip, in points (PhotoCraft's `GRIP`, `brush_picker.rs`).
+pub const POPOVER_GRIP_SIZE: f32 = 16.0;
+
+/// Distance between the grip's diagonal ticks, in points.
+pub const POPOVER_GRIP_PITCH: f32 = 4.0;
+
+/// Room a popover keeps between its edge and the window's, in points, when it grows or is clamped.
+pub const POPOVER_SCREEN_MARGIN: f32 = 40.0;
