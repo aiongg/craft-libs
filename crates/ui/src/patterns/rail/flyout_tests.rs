@@ -96,7 +96,7 @@ impl App {
             self.current = tool;
         }
         self.out = Some(out);
-        ui.button("Next");
+        let _ = ui.button("Next");
     }
 
     #[allow(clippy::unwrap_used)]
