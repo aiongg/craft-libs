@@ -54,6 +54,10 @@ pub(super) fn show(ui: &mut Ui, bar: Id, owner: Id, current: &str, labels: &Pres
             Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }) => cancelled = true,
             _ => {}
         }
+        if edit.submitted {
+            // The browser would read the same Enter as Activate.
+            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+        }
         if cancelled || edit.escaped {
             ended = Some(Ended::Cancel);
         } else if edit.submitted || (edit.response.lost_focus() && !fresh) {

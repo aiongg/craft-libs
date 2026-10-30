@@ -23,14 +23,17 @@ pub(super) fn show<K>(ui: &mut Ui, state: &mut PresetState<K>, labels: &PresetLa
     let rtl = direction::is_rtl(ui);
     let buttons = if view_buttons { 2.0 * side + style.toolbar_gap } else { 0.0 };
     let reserved = if view_buttons { buttons + style.toolbar_gap } else { 0.0 };
-    let field = if rtl { Rect::from_min_max(bar.min + vec2(reserved, 0.0), bar.max) } else { Rect::from_min_max(bar.min, bar.max - vec2(reserved, 0.0)) };
+    let field =
+        if rtl { Rect::from_min_max(bar.min + vec2(reserved, 0.0), bar.max) } else { Rect::from_min_max(bar.min, bar.max - vec2(reserved, 0.0)) };
     let mut child = ui.new_child(UiBuilder::new().id_salt("preset-toolbar-search").max_rect(field).layout(Layout::top_down_justified(Align::Min)));
-    let edit = SearchField::new("search", labels.search.as_str(), &state.filter, labels.clear.as_str()).placeholder(labels.search.as_str()).show(&mut child);
+    let edit =
+        SearchField::new("search", labels.search.as_str(), &state.filter, labels.clear.as_str()).placeholder(labels.search.as_str()).show(&mut child);
     if let Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) = edit.event {
         state.filter = value;
     }
     if view_buttons {
-        let x = |i: f32| if rtl { bar.right() - side - i * (side + style.toolbar_gap) } else { bar.right() - buttons + i * (side + style.toolbar_gap) };
+        let x =
+            |i: f32| if rtl { bar.right() - side - i * (side + style.toolbar_gap) } else { bar.right() - buttons + i * (side + style.toolbar_gap) };
         let top = bar.center().y - side / 2.0;
         for (i, (icon, label, view)) in
             [(Icon::LayoutGrid, &labels.grid_view, PresetView::Grid), (Icon::List, &labels.list_view, PresetView::List)].into_iter().enumerate()

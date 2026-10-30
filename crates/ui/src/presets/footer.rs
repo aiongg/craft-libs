@@ -71,7 +71,17 @@ pub struct PresetFooter<'a, K> {
 impl<'a, K> PresetFooter<'a, K> {
     /// A footer writing the thumbnail size into `state`, with `labels`' words.
     pub fn new(state: &'a mut PresetState<K>, labels: &'a PresetLabels) -> Self {
-        Self { state, labels, thumb_range: 16.0..=96.0, slider: true, count: None, leading: None, can_delete: true, new_group: true, actions: Vec::new() }
+        Self {
+            state,
+            labels,
+            thumb_range: 16.0..=96.0,
+            slider: true,
+            count: None,
+            leading: None,
+            can_delete: true,
+            new_group: true,
+            actions: Vec::new(),
+        }
     }
 
     /// The range of the slider, in points (default 16 to 96): use the browser's.
@@ -147,7 +157,8 @@ impl<'a, K> PresetFooter<'a, K> {
             if slider {
                 let value = state.thumb_in(&thumb_range);
                 let range = *thumb_range.start()..=thumb_range.end().max(*thumb_range.start());
-                let edit = Slider::new("thumb-size", labels.thumb_size.as_str(), value, range).size(ControlSize::Md).width(style.slider_width).show(start);
+                let edit =
+                    Slider::new("thumb-size", labels.thumb_size.as_str(), value, range).size(ControlSize::Md).width(style.slider_width).show(start);
                 if let Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) = edit.event {
                     state.thumb = value as f32;
                 }

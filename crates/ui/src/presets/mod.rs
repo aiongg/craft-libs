@@ -6,6 +6,8 @@
 //! host's flat display list), [`PresetState`] (the view settings the host stores),
 //! [`PresetEvent`] and [`PresetLabels`]; [`layout`] is the pure geometry of the rows.
 
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod bars_tests;
 pub mod drag;
 pub mod event;
 pub mod footer;
@@ -33,8 +35,8 @@ use crate::composites::EmptyState;
 pub use drag::PresetReorder;
 pub use event::{PresetEvent, PresetOutput};
 pub use footer::{FooterEvent, PresetFooter};
-pub use menu::PresetExtra;
 pub use labels::PresetLabels;
+pub use menu::PresetExtra;
 pub use model::{CellShape, PresetKind, PresetRow, Preview, ThumbInfo};
 pub use state::{DefaultOpen, PresetState, PresetView};
 pub use style::PresetStyle;
