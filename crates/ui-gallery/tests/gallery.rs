@@ -414,15 +414,85 @@ fn the_more_popover_holds_the_moved_settings() {
 
 #[test]
 fn the_theme_workspace_renders_both_previews_at_the_default_size() {
+    use egui::accesskit::Role;
     let ctx = Context::default();
+    ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
     gallery.set_workspace(GalleryWorkspace::Theme);
     for preview in [PreviewView::App, PreviewView::Components] {
         gallery.set_preview(preview);
-        for _ in 0..3 {
-            frame(&ctx, &mut gallery);
+        let tree = settled_tree(&ctx, &mut gallery);
+        for tab in ["Preview", "Theme", "Problems", "Changes"] {
+            assert_eq!(named(&tree, tab, Role::Tab).len(), 1, "{tab} tab");
         }
     }
+}
+
+/// What `gallery` saves under `key`.
+fn saved_under(gallery: &mut Gallery, key: &str) -> Option<String> {
+    #[derive(Default)]
+    struct Memory(std::collections::HashMap<String, String>);
+    impl eframe::Storage for Memory {
+        fn get_string(&self, key: &str) -> Option<String> {
+            self.0.get(key).cloned()
+        }
+        fn set_string(&mut self, key: &str, value: String) {
+            self.0.insert(key.to_owned(), value);
+        }
+        fn remove_string(&mut self, key: &str) {
+            self.0.remove(key);
+        }
+        fn flush(&mut self) {}
+    }
+    let mut storage = Memory::default();
+    eframe::App::save(gallery, &mut storage);
+    eframe::Storage::get_string(&storage, key)
+}
+
+#[test]
+fn the_workspace_switch_changes_workspace_and_reset_layout_resets_the_shown_one_only() {
+    const LAYOUT_KEY: &str = "craft-ui-gallery.layout.v2";
+    const THEME_LAYOUT_KEY: &str = "craft-ui-gallery.theme-layout.v1";
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let default_theme = saved_under(&mut Gallery::new(None), THEME_LAYOUT_KEY);
+    gallery.activate(PanelId::Tokens);
+    click(&ctx, &mut gallery, "Theme", Role::RadioButton);
+    assert_eq!(gallery.workspace(), GalleryWorkspace::Theme);
+    gallery.activate(PanelId::Changes);
+    let (components, theme) = (saved_under(&mut gallery, LAYOUT_KEY), saved_under(&mut gallery, THEME_LAYOUT_KEY));
+    assert_ne!(theme, default_theme);
+    click(&ctx, &mut gallery, "Reset layout", Role::Button);
+    assert_eq!(saved_under(&mut gallery, THEME_LAYOUT_KEY), default_theme);
+    assert_eq!(saved_under(&mut gallery, LAYOUT_KEY), components, "the Components layout is untouched");
+}
+
+#[test]
+fn opening_a_component_from_the_preview_closes_variants_and_fronts_the_view() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    gallery.set_view(CentreView::Component);
+    gallery.set_variants(Some(VariantAxis::Mode));
+    gallery.activate(PanelId::Tokens);
+    gallery.set_workspace(GalleryWorkspace::Theme);
+    gallery.set_preview(PreviewView::Components);
+    let tree = settled_tree(&ctx, &mut gallery);
+    let component = gallery
+        .stories()
+        .iter()
+        .filter(|s| s.level == craft_ui::story::Level::Controls)
+        .map(|s| s.component)
+        .find(|name| named(&tree, name, Role::Link).len() == 1)
+        .expect("a Controls tile link");
+    click(&ctx, &mut gallery, component, Role::Link);
+    assert_eq!(gallery.workspace(), GalleryWorkspace::Components);
+    assert_eq!(gallery.view(), CentreView::Component);
+    assert_eq!(gallery.variants(), None);
+    assert!(gallery.is_front(PanelId::View));
 }
 
 #[test]

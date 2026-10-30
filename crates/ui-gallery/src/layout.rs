@@ -199,6 +199,7 @@ pub fn default_for(workspace: GalleryWorkspace) -> Workspace<PanelId> {
 /// default has them.
 pub fn reconciled(mut saved: Workspace<PanelId>, workspace: GalleryWorkspace) -> Workspace<PanelId> {
     saved.reconcile(|panel| panel.workspace() == workspace, |panel| panel.permissions(), &default_for(workspace));
+    saved.hidden.retain(|(panel, _)| panel.workspace() == workspace);
     saved
 }
 
@@ -227,6 +228,7 @@ mod tests {
         let reconciled = reconciled(saved, GalleryWorkspace::Components);
         assert_eq!(reconciled.validate(), Ok(()));
         assert!(!reconciled.layout.contains(&PanelId::Preview));
+        assert!(reconciled.hidden.iter().all(|(panel, _)| panel.workspace() == GalleryWorkspace::Components));
         for panel in COMPONENTS {
             assert!(reconciled.layout.contains(&panel), "{panel:?}");
         }

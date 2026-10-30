@@ -5,7 +5,7 @@ use std::sync::Arc;
 use craft_platform::appearance::SystemReader;
 use craft_theme::{ButtonVariant, ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, TypeRole, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
-use craft_ui::composites::{FormGrid, PropertyRow};
+use craft_ui::composites::{EmptyState, FormGrid, PropertyRow};
 use craft_ui::controls::{Button, Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton, TooltipExt as _};
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, DockLook, PanelState, Permissions, Workspace};
@@ -163,6 +163,15 @@ impl Gallery {
     /// Brings `panel` to the front of its tab group.
     pub fn activate(&mut self, panel: PanelId) {
         let _ = self.dock_of_mut(panel.workspace()).apply(Action::Activate { panel }, PanelId::permissions);
+    }
+
+    /// Whether `panel` is the shown tab of its group in its workspace's dock.
+    pub fn is_front(&self, panel: PanelId) -> bool {
+        let dock = match panel.workspace() {
+            GalleryWorkspace::Components => &self.components_dock,
+            GalleryWorkspace::Theme => &self.theme_dock,
+        };
+        dock.layout.panel_state(&panel) == PanelState::Front
     }
 
     fn dock_of_mut(&mut self, workspace: GalleryWorkspace) -> &mut Workspace<PanelId> {
@@ -405,11 +414,16 @@ impl Gallery {
                         .tooltip("Comes with theme editing");
                     OptionsBar::divider(ui);
                 }
-                if ui.add(IconButton::new(Icon::Undo, "Reset layout").size(ControlSize::Sm)).clicked() {
+                let reset = ui.add(IconButton::new(Icon::Undo, "Reset layout").show_tooltip(false).size(ControlSize::Sm));
+                if reset.tooltip("Reset this workspace's layout").clicked() {
                     *reset_layout = true;
                 }
                 OptionsBar::cell(ui, "Workspace:", CellWidth::Content, |ui, _| {
-                    choice(ui, "Workspace", workspace, [("Components", GalleryWorkspace::Components), ("Theme", GalleryWorkspace::Theme)]);
+                    let mut segmented = Segmented::new(("gallery.segmented", "Workspace"), "Workspace", workspace).size(ControlSize::Sm);
+                    for option in GalleryWorkspace::ALL {
+                        segmented = segmented.item(option, option.title());
+                    }
+                    segmented.show(ui);
                 });
             });
         });
@@ -471,6 +485,8 @@ impl Gallery {
         self.scroll_to = None;
         self.view = CentreView::Component;
         self.workspace = GalleryWorkspace::Components;
+        self.variants = None;
+        self.activate(PanelId::View);
     }
 
     /// The selected component's stories.
@@ -643,7 +659,7 @@ impl Gallery {
             PreviewView::App => {
                 canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
                     ui.set_min_size(ui.available_size());
-                    ui.add(Text::new("The mock app preview is not built yet.").content(Content::Muted));
+                    EmptyState::centred("The mock app preview is not built yet.").show(ui);
                 });
             }
             PreviewView::Components => {
@@ -704,7 +720,7 @@ fn padded(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
 /// A panel that is not built yet: one muted line.
 fn placeholder(ui: &mut Ui, text: &str) {
     padded(ui, |ui| {
-        ui.add(Text::new(text).content(Content::Muted));
+        EmptyState::new(text).show(ui);
     });
 }
 
@@ -1362,21 +1378,6 @@ mod tests {
         let restored = Gallery::new(Some(&storage));
         assert_eq!(restored.theme_dock, crate::layout::default_theme_workspace());
         assert_eq!(restored.components_dock, gallery.components_dock);
-    }
-
-    #[test]
-    fn reset_layout_resets_the_shown_workspace_only() {
-        let ctx = egui::Context::default();
-        let mut gallery = Gallery::new(None);
-        let float = Action::Float { panel: PanelId::Stories, rect: [40.0, 40.0, 240.0, 200.0] };
-        gallery.components_dock.apply(float, PanelId::permissions).unwrap();
-        gallery.theme_dock.apply(Action::Float { panel: PanelId::Changes, rect: [40.0, 40.0, 240.0, 200.0] }, PanelId::permissions).unwrap();
-        let moved = gallery.components_dock.clone();
-        gallery.set_workspace(GalleryWorkspace::Theme);
-        gallery.reset_layout = true;
-        run_frames(&ctx, &mut gallery, 1);
-        assert_eq!(gallery.theme_dock, crate::layout::default_theme_workspace());
-        assert_eq!(gallery.components_dock, moved);
     }
 
     #[test]
