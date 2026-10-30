@@ -28,6 +28,10 @@ pub(crate) mod popover;
 mod popover_tests;
 #[cfg(test)]
 mod quantize_tests;
+mod ramp;
+mod ramp_stories;
+#[cfg(test)]
+mod ramp_tests;
 mod strip;
 #[cfg(test)]
 mod tests;
@@ -41,6 +45,7 @@ pub use pair::{PairWell, SwatchPair, SwatchPairResponse, SwatchPairStyle, Well};
 pub use palette::SwatchPalette;
 pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, ColorWarningChip, PickedColor};
 pub use popover::{ColorPopover, ColorPopoverResponse};
+pub use ramp::{ColorRamp, ColorRampResponse, RampKind, RampPick};
 pub use strip::ColorStrip;
 
 use crate::controls::slider::{self, Scale};
@@ -291,7 +296,7 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "HexField", "SwatchPair", "SwatchPalette"];
+pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "ColorRamp", "HexField", "SwatchPair", "SwatchPalette"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum ModeArg {
@@ -426,6 +431,7 @@ pub(crate) fn stories() -> Vec<Story> {
     ];
     stories.extend(full_stories::stories());
     stories.extend(pair_stories::stories());
+    stories.extend(ramp_stories::stories());
     stories
 }
 

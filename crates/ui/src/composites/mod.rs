@@ -109,6 +109,7 @@ pub use color::{
     AreaMode, ColorArea, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorPopover, ColorPopoverResponse, ColorStrip,
     ColorWarning, ColorWarningChip, HexField, PairWell, PickedColor, SwatchPair, SwatchPairResponse, SwatchPairStyle, SwatchPalette, Well,
 };
+pub use color::{ColorRamp, ColorRampResponse, RampKind, RampPick};
 pub use craft_theme::Tone;
 pub use curve::Curve;
 pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampler};
