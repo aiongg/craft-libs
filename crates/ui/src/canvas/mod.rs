@@ -25,6 +25,8 @@
 //!   [`skew_cursor`] and [`selection_cursor`] are the other painted pointers; [`PointerInk`] says
 //!   whether the system pointer stays or the pointer is painted whole.
 //! - [`TransformBox`]: the box of Free Transform, its handles and reference point.
+//! - [`CropFrame`]: the Crop tool's frame with its shield, brackets, composition guides
+//!   ([`CropGuide`]) and Classic-mode gestures.
 //! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
 //!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
 //! - [`WarpGrid`]: a warp's mesh ([`WarpMesh`]), its anchors and handles dragged and nudged.
@@ -54,6 +56,7 @@
 pub(crate) mod bezier;
 mod claim;
 mod crisp;
+pub(crate) mod crop_frame;
 pub mod crop_guides;
 pub mod gradient_line;
 pub(crate) mod gradient_overlay;
@@ -85,6 +88,7 @@ pub use bezier::{
 };
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
+pub use crop_frame::{CropBox, CropFrame, CropLabels, CropNames, CropResponse, CropStyle};
 pub use crop_guides::{CropGuide, CropShield, GuideShow, Polyline, ShieldColor};
 pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
 pub use gradient_overlay::{GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor};
