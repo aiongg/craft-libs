@@ -47,6 +47,9 @@ pub(crate) struct Tiles<'a> {
     pub selectable: bool,
     /// The key of the tile with the ring.
     pub selected: Option<&'static str>,
+    /// Whether these are Overview tiles, in which a story with a modal dialog starts it closed
+    /// ([`craft_ui::story::in_overview`]).
+    pub overview: bool,
     /// Whether the headers have the Reset and Open buttons.
     pub buttons: bool,
     /// The key of the tile to scroll to; cleared once its tile has been drawn.
@@ -166,7 +169,8 @@ pub(crate) fn tiles_view(
                     let layer = ui.layer_id();
                     let first = ui.ctx().graphics(|g| g.get(layer).map_or(0, |list| list.next_idx().0));
                     let body = ui.push_id(story.id, |ui| {
-                        (story.show)(ui, args);
+                        let ctx = ui.ctx().clone();
+                        craft_ui::story::with_overview(&ctx, config.overview, || (story.show)(ui, args));
                         ui.unique_id()
                     });
                     if config.inspector.as_ref().is_none_or(|(key, _)| *key != tile.key) {

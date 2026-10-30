@@ -32,7 +32,7 @@ pub(crate) fn stories() -> Vec<Story> {
 fn show_workspace(ui: &mut Ui, args: &mut WorkspaceArgs) {
     let key = ui.make_persistent_id("craft_ui::dialog::story-full-window");
     let mut state: DialogState<f32> = ui.data_mut(|d| d.remove_temp(key)).unwrap_or_default();
-    if args.open {
+    if crate::story::dialog_shown(ui, args.open) {
         let area = Rect::from_min_size(ui.max_rect().min, vec2(ui.available_width().min(720.0), 320.0));
         ui.allocate_rect(area, egui::Sense::hover());
         let apply = args.apply;
@@ -56,7 +56,7 @@ fn show_workspace(ui: &mut Ui, args: &mut WorkspaceArgs) {
             fx.buttons(ui, Rect::from_min_max(pos2(panel.left(), panel.bottom() - 28.0), panel.max), buttons);
         });
         if shown.outcome.is_some_and(Outcome::closes) {
-            args.open = false;
+            crate::story::dialog_closed(ui, &mut args.open);
         }
     }
     ui.data_mut(|d| d.insert_temp(key, state));

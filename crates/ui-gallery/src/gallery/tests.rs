@@ -358,6 +358,7 @@ fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
                 let mut scroll_to = None;
                 let config = Tiles {
                     one_column: false,
+                    overview: true,
                     selectable: false,
                     selected: None,
                     buttons: false,

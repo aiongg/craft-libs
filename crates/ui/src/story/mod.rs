@@ -352,6 +352,52 @@ pub fn components() -> impl Iterator<Item = &'static str> {
     DECLARED.iter().flat_map(|list| list.iter().copied())
 }
 
+fn overview_key() -> egui::Id {
+    egui::Id::NULL.with("craft_ui::story::in_overview")
+}
+
+/// Whether the story being drawn is in an Overview tile. A tile is drawn in every frame beside
+/// all the others, so a story whose dialog is modal must not open it by itself there: see
+/// [`dialog_shown`].
+pub fn in_overview(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<bool>(overview_key())).unwrap_or(false)
+}
+
+/// Runs `show` with [`in_overview`] answering `overview`; the gallery wraps each Overview tile's story in it.
+pub fn with_overview<R>(ctx: &egui::Context, overview: bool, show: impl FnOnce() -> R) -> R {
+    let before = in_overview(ctx);
+    ctx.data_mut(|d| d.insert_temp(overview_key(), overview));
+    let result = show();
+    ctx.data_mut(|d| d.insert_temp(overview_key(), before));
+    result
+}
+
+/// Whether a story draws its dialog. Outside an Overview tile that is the story's `open` arg.
+/// In a tile the dialog starts closed, with a "Show dialog" button in its place, and shows once
+/// the button is pressed; the arg does not matter there. Pair it with [`dialog_closed`].
+pub(crate) fn dialog_shown(ui: &mut egui::Ui, open: bool) -> bool {
+    if !in_overview(ui.ctx()) {
+        return open;
+    }
+    let key = ui.make_persistent_id("craft_ui::story::overview_dialog_open");
+    let mut shown = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
+    if !shown && ui.add(crate::controls::Button::new("Show dialog")).clicked() {
+        shown = true;
+        ui.data_mut(|d| d.insert_temp(key, true));
+    }
+    shown
+}
+
+/// The dialog was closed: clears `open` in a component's tab, the tile's own state in an Overview tile.
+pub(crate) fn dialog_closed(ui: &egui::Ui, open: &mut bool) {
+    if in_overview(ui.ctx()) {
+        let key = ui.make_persistent_id("craft_ui::story::overview_dialog_open");
+        ui.data_mut(|d| d.insert_temp(key, false));
+    } else {
+        *open = false;
+    }
+}
+
 fn pixels_per_point_key() -> egui::Id {
     egui::Id::unique("craft_ui::story::pixels_per_point")
 }

@@ -61,7 +61,7 @@ fn show_stack(ui: &mut Ui, args: &mut StackArgs) {
     let key = ui.make_persistent_id("craft_ui::dialog::story-stack");
     let (mut stack, mut parent, mut child): (DialogStack, DialogState, DialogState) = ui.data_mut(|d| d.remove_temp(key)).unwrap_or_default();
     let ctx = ui.ctx().clone();
-    if args.open {
+    if crate::story::dialog_shown(ui, args.open) {
         stack.push(dialog_id("story-parent"), None);
         if args.child_open {
             stack.push(dialog_id("story-child"), Some(dialog_id("story-parent")));
@@ -91,7 +91,7 @@ fn show_stack(ui: &mut Ui, args: &mut StackArgs) {
             _ => {}
         }
         if shown.outcome.is_some_and(Outcome::closes) {
-            args.open = false;
+            crate::story::dialog_closed(ui, &mut args.open);
             args.child_open = false;
             stack.remove_tree(dialog_id("story-parent"));
         }
@@ -100,13 +100,13 @@ fn show_stack(ui: &mut Ui, args: &mut StackArgs) {
 }
 
 fn show_question(ui: &mut Ui, args: &mut QuestionArgs) {
-    if !args.open {
+    if !crate::story::dialog_shown(ui, args.open) {
         return;
     }
     let ctx = ui.ctx().clone();
     if args.kind == KindArg::Alert {
         if Alert::new("story-alert", "About", "Craft design system story. Enter or Esc closes this notice.").show(&ctx) {
-            args.open = false;
+            crate::story::dialog_closed(ui, &mut args.open);
         }
         return;
     }
@@ -118,7 +118,7 @@ fn show_question(ui: &mut Ui, args: &mut QuestionArgs) {
         .answer(ButtonRole::Cancel, cancel, Some(egui::Key::C))
         .show(&ctx);
     if answer.is_some() {
-        args.open = false;
+        crate::story::dialog_closed(ui, &mut args.open);
     }
 }
 
