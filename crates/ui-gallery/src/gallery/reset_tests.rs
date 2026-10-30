@@ -183,3 +183,75 @@ fn wheel_over_an_unfocused_slider_does_not_show_reset_and_a_drag_on_it_does() {
     f.drag(slider.center(), slider.center() + vec2(20.0, 0.0));
     assert!(f.bounds_of("Reset Values", Role::Button).is_some(), "a drag on the slider");
 }
+
+impl Fixture {
+    fn show_level(&mut self, level: craft_ui::story::Level) {
+        self.gallery.picks.overview_level = Some(level);
+        self.frames(3);
+    }
+
+    fn advance(&mut self) {
+        self.time += 1.0;
+    }
+}
+
+/// A story that opens a modal layer must not block the rest of the Overview: every tile is drawn
+/// in every frame, so a click on another tile's Open button has to take effect.
+#[test]
+fn a_dialog_story_in_the_overview_starts_closed_and_does_not_block_other_tiles() {
+    for level in [craft_ui::story::Level::Patterns, craft_ui::story::Level::Controls, craft_ui::story::Level::Composites] {
+        let mut f = Fixture::new();
+        f.show_level(level);
+        assert!(!craft_ui::dialog::any_modal(&f.ctx), "no modal layer over the {level:?} Overview");
+    }
+    let mut f = Fixture::new();
+    f.show_level(craft_ui::story::Level::Patterns);
+    assert!(f.bounds_of("Show dialog", Role::Button).is_some(), "the tile of a modal story has its opener");
+    f.gallery.select_component("PreferencesWindow");
+    f.frames(3);
+    let open = f.bounds_of("Open PreferencesWindow", Role::Button).expect("Open on the Preferences tile");
+    f.click(open.center());
+    assert!(f.gallery.open_tabs().contains(&"PreferencesWindow"), "the click opened the component's tab");
+}
+
+/// The opener of a closed tile opens the dialog; in the component's own tab the story opens by default.
+#[test]
+fn the_opener_in_an_overview_tile_opens_the_dialog_and_the_component_tab_opens_it_by_default() {
+    let mut f = Fixture::new();
+    f.show_level(craft_ui::story::Level::Patterns);
+    let opener = f.bounds_of("Show dialog", Role::Button).expect("an opener");
+    f.click(opener.center());
+    assert!(craft_ui::dialog::any_modal(&f.ctx), "the opened dialog is modal");
+    let mut f = Fixture::new();
+    f.gallery.open_component("FullWindowDialog");
+    f.frames(3);
+    assert!(craft_ui::dialog::any_modal(&f.ctx), "the component tab shows the dialog open");
+}
+
+/// A pointer click on a row of the page list selects the page, inside the gallery as in the library.
+#[test]
+fn a_click_on_a_preferences_page_row_selects_the_page_in_the_gallery() {
+    for tab in [false, true] {
+        let mut f = Fixture::new();
+        if tab {
+            f.gallery.open_component("PreferencesWindow");
+            f.frames(3);
+        } else {
+            f.show_level(craft_ui::story::Level::Patterns);
+            f.gallery.select_component("PreferencesWindow");
+            f.frames(3);
+        }
+        let row = f.bounds_of("Tools", Role::ListBoxOption).expect("the Tools row");
+        f.advance();
+        f.click(row.center());
+        f.frames(2);
+        let tree = f.frames(2);
+        let id = tree
+            .walk(tree.root())
+            .into_iter()
+            .map(|(id, _)| id)
+            .find(|id| tree.name(*id).as_deref() == Some("Tools") && tree.node(*id).is_some_and(|n| n.role() == Role::ListBoxOption))
+            .expect("the Tools row");
+        assert_eq!(tree.node(id).and_then(|n| n.is_selected()), Some(true), "Tools is selected (component tab: {tab})");
+    }
+}

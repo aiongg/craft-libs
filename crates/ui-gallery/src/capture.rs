@@ -360,6 +360,7 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
                             one_column: false,
                             selectable: false,
                             selected: None,
+                            overview: false,
                             buttons: false,
                             scale_of_selected: false,
                             scroll_to: &mut scroll_to,
