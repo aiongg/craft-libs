@@ -43,7 +43,7 @@ match shown.outcome {
   keyboard move, and the band is not a Tab stop.
 - **Size.** `Width` classes cap the content width at the window less margins. `resizable` adds a
   grip, fills the area it gives and remembers the size the user left (`remember_size`).
-  `Body::Scroll` makes the body a scroll area that leaves room for the frame's other parts.
+  `Body::Scroll` makes the body a scroll area that leaves room for the frame's other parts and for the region `Dialog::show_with_below` draws under it (measured, not reserved).
 - **Modal.** Uses egui's modal layer; `Backdrop::None` draws nothing, `Backdrop::Scrim` draws
   `surface.scrim`. A click outside does nothing. The dialog node is AccessKit `Dialog` with
   `modal` set.

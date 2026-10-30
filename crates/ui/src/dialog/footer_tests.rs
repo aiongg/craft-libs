@@ -312,3 +312,29 @@ fn the_button_row_allocates_the_buttons_height() {
     let button_bottom = h.get_by_label("OK").rect().bottom();
     assert!(bottom.get() - button_bottom >= -0.01, "the standard footer's buttons reach {} past the row", button_bottom - bottom.get());
 }
+
+#[test]
+fn ok_enabled_with_follows_an_edit_of_the_same_pass() {
+    for side in [false, true] {
+        let mut harness = HarnessBuilder::default().with_size(WINDOW).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            move |ui, state: &mut (DialogState<bool>, bool)| {
+                let ctx = &ui.ctx().clone();
+                let valid = std::cell::Cell::new(state.1);
+                let footer = if side { Footer::side() } else { Footer::standard() }.ok_enabled_with(|| valid.get());
+                let (dialog, fields) = (&mut state.0, &mut state.1);
+                Dialog::new("footer-with", "Name").footer(footer).show(ctx, dialog, fields, |ui, filled| {
+                    if ui.button("Fill").clicked() {
+                        *filled = true;
+                    }
+                    valid.set(*filled);
+                });
+            },
+            (DialogState::new(), false),
+        );
+        harness.run();
+        assert!(harness.get_by_label("OK").accesskit_node().is_disabled());
+        harness.get_by_label("Fill").click();
+        harness.step();
+        assert!(!harness.get_by_label("OK").accesskit_node().is_disabled(), "side: {side}");
+    }
+}

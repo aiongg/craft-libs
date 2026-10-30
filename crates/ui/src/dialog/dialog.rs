@@ -340,6 +340,21 @@ impl<'a> Dialog<'a> {
         fields: &mut H,
         body: impl FnOnce(&mut Ui, &mut H),
     ) -> DialogResponse {
+        self.show_with_below(ctx, state, fields, body, |_, _| {})
+    }
+
+    /// [`show`](Dialog::show) with `below` drawn under the body. With [`Body::Scroll`] the region
+    /// stays put while the body scrolls (PhotoCraft's filter preview under its parameters); its
+    /// height is measured from the pass before and the scroll area gets the room that is left. It
+    /// runs inside the same [`outer_gesture`](Dialog::outer_gesture) scope as `body`.
+    pub fn show_with_below<H: Clone + PartialEq>(
+        self,
+        ctx: &Context,
+        state: &mut DialogState<H>,
+        fields: &mut H,
+        body: impl FnOnce(&mut Ui, &mut H),
+        below: impl FnOnce(&mut Ui, &mut H),
+    ) -> DialogResponse {
         let Dialog {
             id,
             title,
@@ -370,6 +385,7 @@ impl<'a> Dialog<'a> {
         let opened = !state.is_open();
         let (pin_id, size_id, chrome_id, title_id) = (id.with("pin"), id.with("laid-out-size"), id.with("chrome"), id.with("title-height"));
         let measured_id = id.with("measured-size");
+        let below_id = id.with("below-height");
         let inside_id = id.with("focus-inside");
         if opened {
             state.begin(ctx, fields.clone(), outer_gesture);
@@ -387,6 +403,8 @@ impl<'a> Dialog<'a> {
         let laid_out_size = ctx.data(|d| d.get_temp::<Vec2>(size_id)).or(measured).unwrap_or(Vec2::ZERO);
         let title_height = ctx.data(|d| d.get_temp::<f32>(title_id)).unwrap_or(t.close_box);
         let chrome = ctx.data(|d| d.get_temp::<f32>(chrome_id)).unwrap_or(0.0);
+        let below_used = ctx.data(|d| d.get_temp::<f32>(below_id)).unwrap_or(0.0);
+        let below_now = std::cell::Cell::new(0.0_f32);
         let centred = || Some(center_offset(center_over?, measured?, window));
         let start = pinned.or_else(|| place.remembered_place(ctx)).or_else(|| first_place.and_then(|first| first(ctx))).or_else(centred);
 
@@ -429,13 +447,17 @@ impl<'a> Dialog<'a> {
                 }
             };
             let draw_body = |ui: &mut Ui| {
-                let inner = |ui: &mut Ui| body(ui, fields);
-                let scoped = |ui: &mut Ui| match body_mode {
-                    Body::Fit => inner(ui),
-                    Body::Scroll { reserve } => {
-                        let height = scroll_height(&t, window.height(), chrome, reserve);
-                        ScrollArea::vertical().max_height(height).auto_shrink([false, true]).show(ui, inner);
+                let scoped = |ui: &mut Ui| {
+                    match body_mode {
+                        Body::Fit => body(ui, fields),
+                        Body::Scroll => {
+                            let height = scroll_height(&t, window.height(), chrome, below_used);
+                            ScrollArea::vertical().max_height(height).auto_shrink([false, true]).show(ui, |ui| body(ui, fields));
+                        }
                     }
+                    let top = ui.min_rect().bottom();
+                    below(ui, fields);
+                    below_now.set(ui.min_rect().bottom() - top);
                 };
                 if outer_gesture {
                     edit::scope(ui, scoped);
@@ -506,6 +528,13 @@ impl<'a> Dialog<'a> {
             ctx.request_repaint();
         }
 
+        // The scroll area was sized with the region's height from the pass before; run the pass
+        // again when it has changed.
+        let below_height = below_now.get();
+        ctx.data_mut(|d| d.insert_temp(below_id, below_height));
+        if (below_height - below_used).abs() > 0.5 {
+            ctx.request_discard("dialog region below the body changed height");
+        }
         ctx.data_mut(|d| {
             d.insert_temp(chrome_id, frame.chrome);
             d.insert_temp(title_id, frame.title_height);

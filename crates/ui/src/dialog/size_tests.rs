@@ -23,6 +23,9 @@ fn width_classes_and_the_window_cap() {
     assert_eq!(Width::Wide.range(&t, 500.0), (380.0, 452.0));
     assert_eq!(Width::Compact.range(&t, 200.0), (0.0, 152.0));
     assert_eq!(Width::Fixed(800.0).range(&t, 600.0), (552.0, 552.0));
+    assert_eq!(Width::Range { min: 460.0, max: 720.0 }.range(&t, 1280.0), (460.0, 720.0));
+    assert_eq!(Width::Range { min: 460.0, max: 720.0 }.range(&t, 600.0), (460.0, 552.0));
+    assert_eq!(Width::Range { min: 460.0, max: 720.0 }.range(&t, 400.0), (352.0, 352.0));
     assert_eq!(Width::Standard.range(&t, 30.0), (0.0, 0.0), "a window narrower than its margins leaves no width");
 }
 
@@ -58,7 +61,7 @@ fn remembered_size_keeps_only_a_users_size() {
 }
 
 #[test]
-fn scroll_height_leaves_room_for_the_chrome_and_reserve_but_not_below_the_minimum() {
+fn scroll_height_leaves_room_for_the_chrome_and_the_region_below_but_not_below_the_minimum() {
     let t = tokens(Size::Compact);
     assert_eq!(scroll_height(&t, 800.0, 150.0, 0.0), 800.0 - 48.0 - 150.0);
     assert_eq!(scroll_height(&t, 800.0, 150.0, 200.0), 800.0 - 48.0 - 150.0 - 200.0);
