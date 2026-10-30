@@ -143,7 +143,7 @@ fn movable_id(viewport: egui::ViewportId) -> egui::Id {
 /// Whether AppKit may move the window when a drag starts in the title-bar band: false while the
 /// pointer is on one of the strip's controls or on an in-window panel over the strip, so pressing
 /// and dragging there does not move the window. True when neither this pass nor the one before
-/// drew a title bar in the context's viewport.
+/// drew a title bar in the context's viewport and the app wrote nothing with [`set_window_movable`].
 pub fn window_movable(ctx: &egui::Context) -> bool {
     let id = movable_id(ctx.viewport_id());
     match ctx.data(|d| d.get_temp::<(u64, bool)>(id)) {
@@ -152,7 +152,19 @@ pub fn window_movable(ctx: &egui::Context) -> bool {
     }
 }
 
-/// Sets the `movable` flag of the context's window from this pass's [`window_movable`]. Call it
+/// Records that this pass draws no title bar in the context's viewport and the window must not be
+/// movable from the title-bar band (`movable` false), or may be (`true`). Call it in a pass where
+/// the app draws no bar, for example with its menu bar hidden: without it [`window_movable`]
+/// reports true there, and AppKit drags the window from the transparent strip. Like the record
+/// [`empty_area`] writes, it holds for this pass and the next, so write it every such pass; a
+/// drawn bar overwrites it.
+pub fn set_window_movable(ctx: &egui::Context, movable: bool) {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| d.insert_temp(movable_id(ctx.viewport_id()), (pass, movable)));
+}
+
+/// Sets the `movable` flag of the context's window from this pass's [`window_movable`], which
+/// follows [`empty_area`] or, in a pass with no bar, [`set_window_movable`]. Call it
 /// once per frame per window, after that window's UI has run. `applied` holds the value last set
 /// for this window, so AppKit is only called when it changes.
 ///
@@ -314,6 +326,29 @@ mod tests {
         }
         assert_eq!(run(ViewportId::ROOT, true), Some(false), "the pointer is on the first window's control");
         assert_eq!(run(second, false), Some(true), "the second window drew no strip, so its own flag is the default");
+    }
+
+    #[test]
+    fn an_app_without_a_bar_can_pin_the_window() {
+        let ctx = Context::default();
+        let run = |pin: Option<bool>| {
+            let mut movable = None;
+            let mut out = ctx.run_ui(RawInput::default(), |ui| {
+                if let Some(pin) = pin {
+                    set_window_movable(ui.ctx(), pin);
+                }
+                movable = Some(window_movable(ui.ctx()));
+            });
+            out.textures_delta.clear();
+            movable
+        };
+        assert_eq!(run(None), Some(true), "nothing written: the default");
+        assert_eq!(run(Some(false)), Some(false), "the app draws no bar and pins the window");
+        assert_eq!(run(Some(false)), Some(false));
+        assert_eq!(run(Some(true)), Some(true), "the app lets go");
+        assert_eq!(run(Some(false)), Some(false));
+        run(None);
+        assert_eq!(run(None), Some(true), "the pin lapses once the app stops writing it");
     }
 
     #[test]

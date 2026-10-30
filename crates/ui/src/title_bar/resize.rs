@@ -118,7 +118,8 @@ pub(crate) fn reshow_cursor_after_os_resize(ctx: &egui::Context) {
 /// The edge and corner zones alone, for windows that draw no title bar (an embedder hid its menu
 /// bar on an undecorated window). Only `Integrated` frames get them, as with [`TitleBar`], and not
 /// while maximized or in full screen. `native_hit_test` is true once the window procedure answers
-/// the hit test itself. The zones still avoid other interactive widgets in the layer.
+/// the hit test itself. The zones avoid the interactive widgets of the layer, those added so far
+/// this pass and those of the last pass, so the call may come before or after the app's panels.
 ///
 /// [`TitleBar`]: super::TitleBar
 pub fn resize_zones_only(ui: &mut Ui, frame: &super::Frame, native_hit_test: bool) {
@@ -129,8 +130,16 @@ pub fn resize_zones_only(ui: &mut Ui, frame: &super::Frame, native_hit_test: boo
     }
     if !fullscreen && !maximized {
         let layer = ui.layer_id();
-        let holes: Vec<Rect> =
-            ctx.viewport(|v| v.this_pass.widgets.get_layer(layer).filter(|w| w.sense.interactive()).map(|w| w.interact_rect).collect());
+        // Widgets added so far this pass, and those of the last pass: an app that calls this
+        // before its panels has none of this pass's yet.
+        let holes: Vec<Rect> = ctx.viewport(|v| {
+            [&v.this_pass, &v.prev_pass]
+                .into_iter()
+                .flat_map(|pass| pass.widgets.get_layer(layer))
+                .filter(|w| w.sense.interactive())
+                .map(|w| w.interact_rect)
+                .collect()
+        });
         let style = TitleBarStyle::from_tokens(&Tokens::of(ui));
         resize_zones(ui, &holes, super::captions::window_scope(ctx.viewport_id()), &style);
     }

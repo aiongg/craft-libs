@@ -50,6 +50,7 @@ struct Win {
     /// A modal window of the rect is open.
     modal_rect: Option<Rect>,
     popup: bool,
+    title_when_native: bool,
     shapes: Vec<egui::epaint::ClippedShape>,
 }
 
@@ -69,6 +70,7 @@ impl Win {
             modal: false,
             modal_rect: None,
             popup: false,
+            title_when_native: false,
             shapes: Vec::new(),
         }
     }
@@ -91,9 +93,10 @@ impl Win {
         self.regions = Recorded::default();
         let regions = &mut self.regions;
         let (titled, modal, modal_rect, popup) = (&self.titled, self.modal, self.modal_rect, self.popup);
+        let title_when_native = self.title_when_native;
         let mut response = TitleBarResponse::default();
         let mut out = self.ctx.run_ui(input, |ui| {
-            let bar = TitleBar::new(frame).regions(regions);
+            let bar = TitleBar::new(frame).regions(regions).title_when_native(title_when_native);
             response = match titled {
                 None => bar.show(ui, |ui, s| {
                     *slots = Some(s);
@@ -637,6 +640,56 @@ fn zones_alone_resize_without_a_bar() {
     assert!(!resizes_from_the_edge(&windows(), true));
 }
 
+/// An app that calls `resize_zones_only` at the start of the frame and then adds a panel with a
+/// button at the window edge: the button still gets its click and the rest of the edge resizes.
+#[test]
+fn zones_alone_called_before_the_panels_leave_edge_buttons_clickable() {
+    fn run(zones_first: bool) -> (bool, Vec<ResizeDirection>) {
+        let ctx = Context::default();
+        let frame = windows();
+        let (on_button, off_button) = (pos2(2.0, 100.0), pos2(2.0, 300.0));
+        let mut clicked = false;
+        let mut cmds = vec![];
+        let steps = [
+            vec![],
+            vec![Event::PointerMoved(on_button)],
+            vec![button(on_button, true, PointerButton::Primary)],
+            vec![button(on_button, false, PointerButton::Primary)],
+            vec![Event::PointerMoved(off_button)],
+            vec![button(off_button, true, PointerButton::Primary)],
+            vec![Event::PointerMoved(off_button + vec2(6.0, 0.0))],
+        ];
+        for (i, events) in steps.into_iter().enumerate() {
+            let input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, HEIGHT))),
+                time: Some(i as f64 * 0.05),
+                events,
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                if zones_first {
+                    resize_zones_only(ui, &frame, false);
+                }
+                egui::Panel::left("side").exact_size(60.0).frame(egui::Frame::NONE).show(ui, |ui| {
+                    let rect = Rect::from_min_size(pos2(0.0, 80.0), vec2(60.0, 40.0));
+                    clicked |= ui.put(rect, egui::Button::new("Tool")).clicked();
+                });
+                if !zones_first {
+                    resize_zones_only(ui, &frame, false);
+                }
+            });
+            out.textures_delta.clear();
+            cmds.extend(commands(out));
+        }
+        (clicked, resizes(&cmds))
+    }
+    for zones_first in [true, false] {
+        let (clicked, resized) = run(zones_first);
+        assert!(clicked, "the edge button gets its click (zones first: {zones_first})");
+        assert_eq!(resized, [ResizeDirection::West], "only the press off the button resizes (zones first: {zones_first})");
+    }
+}
+
 fn tokens(size: craft_theme::Size, mode: craft_theme::Mode, theme: &craft_theme::ThemeDef) -> crate::theme::UiTokens {
     use craft_theme::{Appearance, Contrast, TextSize, resolve};
     let appearance = Appearance { mode, contrast: Contrast::Standard, size, text_size: TextSize::default(), reduced_motion: false };
@@ -877,6 +930,17 @@ fn a_native_frame_draws_no_title_and_pads_both_ends() {
     let s = w.slots.expect("slots");
     assert_eq!((s.content.left(), s.content.right()), (78.0, 800.0 - pad));
     assert!(painted_title(&w).is_some(), "the inset window draws its own title");
+}
+
+#[test]
+fn a_native_frame_draws_the_title_when_asked_to_and_places_it_as_an_integrated_bar_does() {
+    let mut w = titled(Frame::Native, 800.0, 100.0, 100.0);
+    w.title_when_native = true;
+    w.frame(vec![]);
+    w.frame(vec![]);
+    let rect = painted_title(&w).expect("the title is drawn under a native frame");
+    assert!((rect.center().x - 400.0).abs() < 0.01, "{rect:?}");
+    assert!(!w.slots.expect("slots").titled, "the OS bar stays the title bar");
 }
 
 #[test]
