@@ -21,6 +21,7 @@ name = "capture"
 required-features = ["capture"]
 
 [dependencies]
+craft-i18n = { workspace = true }
 craft-theme = { workspace = true, features = ["serde"] }
 craft-platform = { workspace = true, features = ["appearance", "egui", "theme"] }
 craft-ui = { workspace = true, features = ["window-frame", "serde"] }

@@ -311,6 +311,12 @@ impl Gallery {
         &mut self.appearance
     }
 
+    /// The catalogs behind the installed [`Words`](craft_ui::localized::Words); in the pseudo
+    /// language it records every string looked up ([`craft_i18n::I18n::looked_up`]).
+    pub fn i18n(&self) -> &std::sync::Arc<craft_i18n::I18n> {
+        &self.applied.i18n
+    }
+
     /// Draws one frame of the gallery.
     pub fn show(&mut self, ui: &mut Ui) {
         self.show_panels(ui);

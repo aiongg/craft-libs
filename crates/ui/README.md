@@ -555,6 +555,36 @@ let edit = NumberField::new("width", i18n.t(lang, "Width"), width, &numbers)
 `localized::NumberField` and `LocalizedDragValue` are deprecated, kept until the last app moves to
 `controls::NumberField`.
 
+## Translating built-in text
+
+Every string craft-ui draws itself (button names, tooltips, screen-reader labels, key-cap words)
+is a `localized::Word`: an id such as `dock.closePanel`, its English text, and an optional
+catalog context. The app owns the catalog (a craft-i18n `I18n`, translators' rows in craft-i18n's
+shared `common.tsv`) and installs a lookup on the context once, and again when the language changes:
+
+```rust
+Words::from_i18n(i18n.clone(), lang).install(ctx);
+```
+
+- Without an install, or where the catalog has no row, the English shows. A row is found by the
+  id first, then by the English text, so a translator who knows only the English works.
+  An empty translation, or one that drops a `{placeholder}` of the English, is ignored.
+- Labels structs (`PresetLabels`, `DockConfig`, `DialogLabels`, ...) are plain data declared with
+  `words!`. `Default` is English. `Labels::of(ui)` is the English translated by the installed
+  words; take it as the base of a partial override, `PresetLabels { rename: mine, ..PresetLabels::of(ui) }`.
+  A field the host sets wins over the catalog. `localized(|key| ...)` still works over the same table.
+- A component given no labels struct uses `of(ui)` itself. Counts use `Words::count` (plural
+  forms); placeholders are filled by `Words::format`.
+- `localized::words::all()` lists every registered word, for an app's missing-translations report.
+  Nothing fails on a missing translation.
+- Adding text: declare it in the component's `words!` table (or register a `Word` table in
+  `localized/words/registry.rs`) with a `<module>.<camelCase>` id that is never reused for another
+  English text. Feature changes add English and ids only.
+- In the gallery, More > Language > Pseudo (debug builds) marks every string that goes through
+  `Words` as `⟦text⟧`; English left unmarked in a story bypasses `Words`. The test
+  `built_in_strings_are_marked_in_the_pseudo_locale` checks the accessible names of every story
+  against the registered words.
+
 ## Screenshot completion
 
 `capture::CaptureSlot` is a one-result slot for egui 0.37's one-shot screenshot callback. It is not a

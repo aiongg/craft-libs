@@ -1,13 +1,20 @@
 //! What the context has been set to: the theme base, the direction and zoom of the appearance, the
 //! faces, and the OS's answer they were resolved with.
+use std::sync::Arc;
+
+use craft_i18n::{Embedded, I18n, Lang};
 use craft_platform::appearance::SystemReader;
 use craft_theme::{Mode, SystemAppearance};
 use craft_ui::icons;
 use craft_ui::interface_scale::InterfaceScale;
+use craft_ui::localized::Words;
 use craft_ui::theme::{Base, install};
 
 use crate::appearance::Appearance;
 use crate::faces;
+
+/// The gallery ships no translations: English and the pseudo locale need none.
+static CATALOGS: &Embedded = &[];
 
 pub(super) struct Applied {
     /// The appearance `base` and the context's direction and zoom were set for.
@@ -20,6 +27,8 @@ pub(super) struct Applied {
     /// The OS's answer `base` was resolved with.
     pub(super) os_applied: SystemAppearance,
     pub(super) base: Base,
+    /// The catalogs the installed [`Words`] read; the pseudo locale records what it looked up here.
+    pub(super) i18n: Arc<I18n>,
 }
 
 impl Applied {
@@ -31,6 +40,7 @@ impl Applied {
             os: SystemReader::for_egui(),
             os_applied: SystemAppearance::default(),
             base: appearance.base(SystemAppearance::default()),
+            i18n: Arc::new(I18n::new(CATALOGS, &[]).0),
         }
     }
 
@@ -46,6 +56,10 @@ impl Applied {
             self.system_face_applied = system_face;
             if previous.as_ref().is_none_or(|p| p.icon_set != appearance.icon_set) {
                 icons::set_active(ctx, appearance.icon_set());
+            }
+            if previous.as_ref().is_none_or(|p| p.language != appearance.language) {
+                let lang = self.i18n.from_code(&appearance.language).unwrap_or(Lang::EN);
+                Words::from_i18n(Arc::clone(&self.i18n), lang).install(ctx);
             }
             // A story's scale stays until it stops asking.
             if self.story_ppp.is_none() {

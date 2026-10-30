@@ -1052,3 +1052,161 @@ fn a_double_click_on_a_tile_header_opens_the_component() {
     assert_eq!(gallery.open_tabs(), [neighbour]);
     assert_eq!(gallery.front_tab(), PanelId::Component(neighbour));
 }
+
+/// Registered English texts that still show unmarked in the pseudo locale. Each is either a
+/// component that does not take the text from `Words` yet (`ThumbRowStyle`, the toolbar key hint,
+/// the dialog default-button hint, the panel rail, the Inspector scroll bar, the colour model and
+/// channel words), or a story that builds its labels with `Default` or a literal instead of
+/// `Labels::of(ui)`, which the audit cannot tell apart. A text leaves this list when its story or
+/// component translates it; a new English text that bypasses `Words` is not on it and fails.
+const ENGLISH_ONLY: &[&str] = &[
+    "Angle",
+    "Apply",
+    "Black",
+    "Bottom edge",
+    "Bottom left corner",
+    "Bottom right corner",
+    "Brightness",
+    "Cancel",
+    "Clear",
+    "Close",
+    "Close Panel",
+    "Close panel window",
+    "Collapse column to icons",
+    "Color",
+    "Copy",
+    "Crop frame",
+    "Custom",
+    "Default",
+    "Delete",
+    "End point",
+    "Expand column",
+    "Free Transform",
+    "Gradient",
+    "Gradient line",
+    "Guides",
+    "H",
+    "Height",
+    "Hex colour",
+    "Histogram",
+    "Horizontal guide",
+    "Horizontal ruler",
+    "Horizontal scroll bar",
+    "Horizontal skew",
+    "Hue",
+    "Left edge",
+    "Maintain aspect ratio",
+    "Menu",
+    "Move panel column",
+    "Move panel window",
+    "Move tab group",
+    "Name",
+    "New",
+    "New Group",
+    "No matching commands",
+    "Not a number",
+    "OK",
+    "Opacity",
+    "Options",
+    "Output black",
+    "Output white",
+    "Pages",
+    "Panel Menu",
+    "Panel menu",
+    "Panels",
+    "Path",
+    "Path being drawn",
+    "Perspective crop",
+    "Reference point",
+    "Reset Section",
+    "Resize panel window",
+    "Resize panels",
+    "Right edge",
+    "Ruler origin",
+    "Saturation and brightness",
+    "Search",
+    "Search settings",
+    "Selection",
+    "Small",
+    "Start point",
+    "Status",
+    "Thumbnail size",
+    "Tools",
+    "Top edge",
+    "Top left corner",
+    "Top right corner",
+    "Undo",
+    "V",
+    "Vertical guide",
+    "Vertical ruler",
+    "Vertical scroll bar",
+    "Vertical skew",
+    "W",
+    "Warp",
+    "White",
+    "Whole box",
+    "Whole frame",
+    "Width",
+    "X",
+    "X position",
+    "Y",
+    "Y position",
+    "°",
+];
+
+/// In the pseudo locale every string a component takes from `Words` shows marked. A node named
+/// with the English text of a registered word, unmarked, is English that bypassed `Words` (or text
+/// a story set itself, which the exceptions list says).
+#[test]
+fn built_in_strings_are_marked_in_the_pseudo_locale() {
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    gallery.appearance_mut().language = "pseudo".to_owned();
+    let registered: std::collections::BTreeSet<&str> = craft_ui::localized::words::all().map(|word| word.english).collect();
+    let mut components: Vec<&str> = Vec::new();
+    for story in gallery.stories() {
+        if !components.contains(&story.component) {
+            components.push(story.component);
+        }
+    }
+    let mut unmarked = std::collections::BTreeMap::<String, Vec<&str>>::new();
+    let mut marked = 0;
+    for component in components {
+        let ids: Vec<&str> = gallery.stories().iter().filter(|s| s.component == component).map(|s| s.id).collect();
+        gallery.open_component(component);
+        for id in ids {
+            gallery.select(id);
+            let tree = settled_tree(&ctx, &mut gallery);
+            for (node, _) in tree.walk(tree.root()) {
+                let Some(name) = tree.name(node) else { continue };
+                if name.contains('⟦') {
+                    marked += 1;
+                } else if registered.contains(name.as_str()) && !ENGLISH_ONLY.contains(&name.as_str()) {
+                    let ids = unmarked.entry(name).or_default();
+                    if !ids.contains(&id) {
+                        ids.push(id);
+                    }
+                }
+            }
+        }
+    }
+    assert!(marked > 0, "the pseudo locale marked nothing");
+    assert!(!gallery.i18n().looked_up().is_empty(), "no word was looked up");
+    assert!(unmarked.is_empty(), "English that bypasses Words (name: stories): {unmarked:#?}");
+}
+
+#[test]
+fn the_language_picker_installs_the_pseudo_words() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    settled_tree(&ctx, &mut gallery);
+    assert!(gallery.i18n().looked_up().is_empty(), "English looks nothing up in the pseudo locale");
+    click(&ctx, &mut gallery, "More appearance settings", Role::Button);
+    click(&ctx, &mut gallery, "Pseudo", Role::RadioButton);
+    assert_eq!(gallery.appearance_mut().language, "pseudo");
+    settled_tree(&ctx, &mut gallery);
+    assert!(!gallery.i18n().looked_up().is_empty(), "built-in words are looked up after the pick");
+}

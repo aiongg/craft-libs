@@ -10,7 +10,7 @@ use craft_ui::patterns::{CellWidth, OptionsBar};
 use craft_ui::popover::{Popover, PopoverAnchor};
 use egui::Ui;
 
-use crate::appearance::{Appearance, builtin};
+use crate::appearance::{self, Appearance, builtin};
 use crate::faces;
 use crate::fields;
 use crate::layout::{GalleryWorkspace, PreviewView, VariantAxis};
@@ -101,6 +101,15 @@ impl Bar {
                                 )
                             });
                             form.row("Direction", |ui, _| choice(ui, "Direction", &mut a.rtl, [("LTR", false), ("RTL", true)]));
+                            form.row("Language", |ui, _| {
+                                let mut language = Segmented::new("gallery.language", "Language", &mut a.language).size(ControlSize::Sm);
+                                language = language.item(appearance::ENGLISH.to_owned(), "English");
+                                // The pseudo locale exists in debug builds only.
+                                if cfg!(debug_assertions) {
+                                    language = language.item(appearance::PSEUDO.to_owned(), "Pseudo");
+                                }
+                                language.show(ui)
+                            });
                             form.row("Text", |ui, _| {
                                 let mut text = Segmented::new("gallery.text_size", "Text", &mut a.text_size).size(ControlSize::Sm);
                                 for (i, size) in TextSize::ALL.iter().enumerate() {
