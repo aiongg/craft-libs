@@ -156,6 +156,13 @@ impl Explained {
         self.components.iter().find(|o| o.field == field)
     }
 
+    /// The component colour fields whose default is `token` unchanged, in [`ComponentField`]
+    /// order. Reads the origins `explain` already computed, so it depends only on the component
+    /// defaults, not on the theme's pins.
+    pub fn readers(&self, token: ColorToken) -> Vec<ComponentField> {
+        self.components.iter().filter(|o| o.reads == Some(token)).map(|o| o.field).collect()
+    }
+
     /// Every pair `token` takes part in, as foreground or background.
     pub fn pairs_of(&self, token: TokenRef) -> impl Iterator<Item = &PairReport> + '_ {
         self.pairs.iter().filter(move |p| p.involves(token))

@@ -111,6 +111,24 @@ fn component_fields_read_their_semantic_token() {
 }
 
 #[test]
+fn readers_are_the_fields_that_read_the_token() {
+    let e = explain(&graphite(), appearance(Mode::Light, Contrast::Standard, Size::Compact), None);
+    assert!(e.readers(T::AccentSolid).contains(&field("button.primary.fill.rest")));
+    for &t in ColorToken::ALL.iter() {
+        for f in e.readers(t) {
+            assert_eq!(e.field(f).unwrap().reads, Some(t));
+        }
+    }
+    let listed: usize = ColorToken::ALL.iter().map(|&t| e.readers(t).len()).sum();
+    assert_eq!(listed, e.components.iter().filter(|o| o.reads.is_some()).count(), "every reading field is listed once");
+    let order = |fs: Vec<ComponentField>| fs.iter().map(|f| ComponentField::ALL.iter().position(|a| a == f).unwrap()).collect::<Vec<_>>();
+    let idx = order(e.readers(T::AccentSolid));
+    assert!(idx.windows(2).all(|w| w[0] < w[1]), "ComponentField order");
+    let unread = ColorToken::ALL.iter().find(|&&t| e.readers(t).is_empty());
+    assert!(unread.is_some(), "some token is read by no field");
+}
+
+#[test]
 fn every_warning_is_a_failing_pair_with_its_ratio() {
     let a = appearance(Mode::Dark, Contrast::Standard, Size::Compact);
     let mut def = unpinned();
