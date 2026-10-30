@@ -883,6 +883,80 @@ carbon = "select--01"  # near: dashed square with crosshair
 tabler = "square-dashed"
 
 [[icon]]
+name = "lasso"
+directional = false
+lucide = "lasso"
+phosphor = "lasso"
+carbon = "lasso"
+tabler = "lasso"
+
+[[icon]]
+name = "lasso_magnetic"
+directional = false
+phosphor = "lasso-magnetic"
+
+[[icon]]
+name = "lasso_select"
+directional = false
+lucide = "lasso-select"
+phosphor = "lasso-select"
+
+[[icon]]
+name = "layer_mask"
+directional = false
+phosphor = "layer-mask"
+
+[[icon]]
+name = "lollipop"
+directional = false
+lucide = "lollipop"
+phosphor = "lollipop"
+tabler = "lollipop"
+
+[[icon]]
+name = "marquee_column"
+directional = false
+phosphor = "marquee-column"
+
+[[icon]]
+name = "marquee_row"
+directional = false
+phosphor = "marquee-row"
+
+[[icon]]
+name = "panel_right"
+directional = false
+lucide = "panel-right"
+phosphor = "panel-right"
+carbon = "open-panel--right"
+tabler = "layout-sidebar-right"
+
+[[icon]]
+name = "pen_add_anchor"
+directional = false
+phosphor = "pen-add-anchor"
+
+[[icon]]
+name = "pen_curvature"
+directional = false
+phosphor = "pen-curvature"
+
+[[icon]]
+name = "pen_delete_anchor"
+directional = false
+phosphor = "pen-delete-anchor"
+
+[[icon]]
+name = "pen_freeform"
+directional = false
+phosphor = "pen-freeform"
+
+[[icon]]
+name = "quick_selection"
+directional = false
+phosphor = "quick-selection"
+
+[[icon]]
 name = "new_layer"
 directional = false
 lucide = "square-plus"
