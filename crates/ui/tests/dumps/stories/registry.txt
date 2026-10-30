@@ -178,6 +178,7 @@ patterns/status-bar/error = StatusBar | Error | Chrome | message=Text("Couldn't 
 patterns/status-bar/narrow = StatusBar | Narrow | Chrome | message=Text("Exported 14 layers to the folder Documents/Exports/2026"); error=Bool(false); render_path=Bool(true); width=Number { value: 480.0, min: 160.0, max: 1200.0 }
 patterns/command-palette/photocraft = CommandPalette | PhotoCraft | Panel | open=Bool(true); recents=Bool(false)
 patterns/command-palette/recents = CommandPalette | Recent commands | Panel | open=Bool(true); recents=Bool(true)
+patterns/inspector/properties = Inspector | Properties | Panel | target=Choice { options: ["layer", "document"], index: 0 }; empty=Bool(false)
 patterns/panel/embedded = Panel | Embedded | Own | scroll=Bool(true); footer=Bool(true); height=Number { value: 240.0, min: 60.0, max: 480.0 }; width=Number { value: 260.0, min: 120.0, max: 480.0 }
 patterns/rail/panel = PanelRail | Panel rail | Chrome | open=Choice { options: ["none", "properties", "navigator", "color", "layers", "history", "brushes"], index: 4 }; height=Number { value: 320.0, min: 120.0, max: 600.0 }
 patterns/rail/flyout = FlyoutButton | Flyout button | Chrome | items=Number { value: 3.0, min: 1.0, max: 3.0 }; selected=Bool(true)
