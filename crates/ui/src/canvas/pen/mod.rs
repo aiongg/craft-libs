@@ -11,6 +11,7 @@ use super::{CanvasView, Claim, EditSubpath, HandleSide, Knot, KnotRef, Part, Par
 use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
+use crate::localized::words::format_in;
 use crate::localized::{Labels, Word, Words};
 use crate::primitives::{Handle, HandleShape, HandleStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -35,8 +36,12 @@ impl Labels for PenNames<'static> {
     }
 
     fn localized_in(self, words: &Words) -> Self {
-        let anchor = words.clone();
-        Self::new(words.get(WORDS[0]), move |i, n| anchor.format(WORDS[1], &[("i", &i.to_string()), ("n", &n.to_string())]))
+        let name = |words: Option<&Words>, i: usize, n: usize| format_in(words, WORDS[1], &[("i", &i.to_string()), ("n", &n.to_string())]);
+        let group = words.get(WORDS[0]);
+        match words.translator() {
+            Some(words) => Self::new(group, move |i, n| name(Some(&words), i, n)),
+            None => Self::new(group, move |i, n| name(None, i, n)),
+        }
     }
 }
 

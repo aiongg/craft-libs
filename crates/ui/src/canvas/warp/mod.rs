@@ -13,6 +13,7 @@ use super::{CanvasView, Claim, Part, PartFocus, RulerUnits, hit, resize_cursor};
 use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
+use crate::localized::words::format_in;
 use crate::localized::{Labels, Word, Words};
 use crate::primitives::{Handle, HandleShape, HandleStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -430,26 +431,35 @@ impl Labels for WarpNames<'static> {
     }
 
     fn localized_in(self, words: &Words) -> Self {
-        let (anchor, handle) = (words.clone(), words.clone());
-        let at = |row: usize, column: usize| (row.to_string(), column.to_string());
-        Self::new(
-            words.get(WORDS[0]),
-            move |row, column| {
-                let (row, column) = at(row, column);
-                anchor.format(WORDS[1], &[("row", &row), ("column", &column)])
-            },
-            move |row, column, side| {
-                let (row, column) = at(row, column);
-                let word = match side {
-                    WarpSide::Up => WORDS[2],
-                    WarpSide::Left => WORDS[3],
-                    WarpSide::Right => WORDS[4],
-                    WarpSide::Down => WORDS[5],
-                };
-                handle.format(word, &[("row", &row), ("column", &column)])
-            },
-        )
+        let group = words.get(WORDS[0]);
+        match words.translator() {
+            Some(words) => {
+                let handles = words.clone();
+                Self::new(
+                    group,
+                    move |row, column| anchor_name(Some(&words), row, column),
+                    move |row, column, side| handle_name(Some(&handles), row, column, side),
+                )
+            }
+            None => Self::new(group, |row, column| anchor_name(None, row, column), |row, column, side| handle_name(None, row, column, side)),
+        }
     }
+}
+
+/// The name of the anchor at a row and column in `words` (English when `None`).
+fn anchor_name(words: Option<&Words>, row: usize, column: usize) -> String {
+    format_in(words, WORDS[1], &[("row", &row.to_string()), ("column", &column.to_string())])
+}
+
+/// The name of a handle of the anchor at a row and column in `words` (English when `None`).
+fn handle_name(words: Option<&Words>, row: usize, column: usize, side: WarpSide) -> String {
+    let word = match side {
+        WarpSide::Up => WORDS[2],
+        WarpSide::Left => WORDS[3],
+        WarpSide::Right => WORDS[4],
+        WarpSide::Down => WORDS[5],
+    };
+    format_in(words, word, &[("row", &row.to_string()), ("column", &column.to_string())])
 }
 
 impl<'a> WarpNames<'a> {

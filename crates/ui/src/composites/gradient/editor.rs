@@ -93,7 +93,7 @@ pub enum StopDrop {
 
 crate::words! {
     /// The editor's words, in the installed language unless set. Templates take `{i}`, `{n}`,
-    /// `{m}`, `{location}`, `{hex}` and `{opacity}`.
+    /// `{location}`, `{hex}` and `{opacity}`.
     pub struct GradientLabels {
         /// A colour stop's accessible name: "Color stop {i} of {n}".
         color_stop: "gradient.colorStop" = "Color stop {i} of {n}";
@@ -110,8 +110,12 @@ crate::words! {
         midpoint: "gradient.midpoint" = "Midpoint {i}";
         /// An opacity midpoint's accessible name: "Opacity midpoint {i}".
         opacity_midpoint: "gradient.opacityMidpoint" = "Opacity midpoint {i}";
-        /// The bar's accessible value: "{n} color stops, {m} opacity stops".
-        bar_value: "gradient.barValue" = "{n} color stops, {m} opacity stops";
+        /// The bar's accessible value under [`StopRows::Split`], first part: "{n} color stops".
+        color_stops: "gradient.colorStops" = "{n} color stops";
+        /// The bar's accessible value under [`StopRows::Split`], second part: "{n} opacity stops".
+        opacity_stops: "gradient.opacityStops" = "{n} opacity stops";
+        /// Between the two parts of the bar's value under [`StopRows::Split`]: ", ".
+        stops_separator: "gradient.stopsSeparator" = ", ";
         /// The bar's accessible value under [`StopRows::Combined`]: "{n} stops".
         bar_stops: "gradient.barStops" = "{n} stops";
         /// A value in percent: "{n}%".
@@ -345,8 +349,8 @@ pub struct GradientEditorResponse<T = ()> {
 /// tag, an untagged one by its location. When the row can't tell which stop it was (two untagged
 /// stops moved, or the stop is gone and another untagged one moved), the edit is dropped.
 ///
-/// AccessKit: the bar is a focusable `Group` named by the label, valued "{n} color stops, {m}
-/// opacity stops", whose active descendant is the selected marker; each marker is a
+/// AccessKit: the bar is a focusable `Group` named by the label, valued "2 color stops, 1 opacity
+/// stop", whose active descendant is the selected marker; each marker is a
 /// `GraphicsObject` child ("Color stop {i} of {n}", valued "{location}, {hex}"), selected when it
 /// is. The fields are named by their labels; the Color well is a `Button` valued by its hex
 /// colour, and the Delete button is "Delete stop".
@@ -808,9 +812,13 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         drop(bar_ui);
         FocusRing::paint_radius(ui, outer, CornerRadius::ZERO, &response);
 
-        let count = |n: usize| self.numbers.format(n as f64, 0..=0);
         let value = match rows {
-            StopRows::Split => fill(&self.labels.bar_value, &[("n", &count(shown.color.len())), ("m", &count(shown.opacity_stops().len()))]),
+            StopRows::Split => {
+                let words = Words::of(ui);
+                let colors = words.counted(counts::COLOR_STOPS, &self.labels.color_stops, shown.color.len() as u64);
+                let opacities = words.counted(counts::OPACITY_STOPS, &self.labels.opacity_stops, shown.opacity_stops().len() as u64);
+                format!("{colors}{}{opacities}", self.labels.stops_separator)
+            }
             StopRows::Combined | StopRows::ColorOnly => Words::of(ui).counted(counts::BAR_STOPS, &self.labels.bar_stops, shown.color.len() as u64),
         };
         let active = selected.and_then(|s| nodes.iter().find(|(m, _)| *m == s)).map(|(_, id)| *id);

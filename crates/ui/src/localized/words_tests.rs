@@ -17,7 +17,11 @@ crate::words! {
 
 static CATALOGS: &Embedded = &[
     ("de", "\tOpacity\tDeckkraft\n@id\tprobe.gridView\tRasteransicht\n\tGrid View\tRaster\n", ""),
-    ("ru", "@plural\t{n} file|{n} files\t{n} файл|{n} файла|{n} файлов\n", ""),
+    (
+        "ru",
+        "@plural\t{n} file|{n} files\t{n} файл|{n} файла|{n} файлов\n@plural\t{n} color stop|{n} color stops\t{n} цвет|{n} цвета|{n} цветов\n",
+        "",
+    ),
 ];
 
 fn catalog() -> (Arc<I18n>, Lang, Lang) {
@@ -301,4 +305,29 @@ fn counted_words_are_registered_and_read_one_and_other_in_english() {
     let text = |n| english.counted(counts::PRESETS, &labels.count, n);
     assert_eq!((text(1), text(2)), ("1 preset".to_owned(), "2 presets".to_owned()));
     assert_eq!(english.counted(counts::PRESETS, "{n} items", 1), "1 items", "a host's text is used as given");
+}
+
+#[test]
+fn stop_and_toast_counts_read_one_and_other_in_english() {
+    use super::words::counts;
+    use crate::composites::GradientLabels;
+    let english = Words::english();
+    let labels = GradientLabels::default();
+    let colors = |n| english.counted(counts::COLOR_STOPS, &labels.color_stops, n);
+    let opacities = |n| english.counted(counts::OPACITY_STOPS, &labels.opacity_stops, n);
+    assert_eq!(format!("{}{}{}", colors(1), labels.stops_separator, opacities(2)), "1 color stop, 2 opacity stops");
+    assert_eq!((colors(2), opacities(1)), ("2 color stops".to_owned(), "1 opacity stop".to_owned()));
+    let more = |n| english.counted(counts::TOAST_MORE, "…and {n} more", n);
+    assert_eq!((more(1), more(3)), ("…and 1 more".to_owned(), "…and 3 more".to_owned()));
+}
+
+#[test]
+fn a_three_form_locale_picks_the_form_of_a_stop_count() {
+    use super::words::counts;
+    use crate::composites::GradientLabels;
+    let (i18n, _, ru) = catalog();
+    let russian = Words::from_i18n(i18n, ru);
+    let text = GradientLabels::default().color_stops;
+    let count = |n| russian.counted(counts::COLOR_STOPS, &text, n);
+    assert_eq!((count(1), count(2), count(5)), ("1 цвет".to_owned(), "2 цвета".to_owned(), "5 цветов".to_owned()));
 }

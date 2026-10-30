@@ -159,6 +159,12 @@ impl Words {
         craft_i18n::fmt(&self.get(word), args)
     }
 
+    /// A copy of these words for a closure to keep, `None` when no translator is installed: the
+    /// closure then keeps nothing, and boxing it allocates nothing.
+    pub(crate) fn translator(&self) -> Option<Words> {
+        self.lookup.is_some().then(|| self.clone())
+    }
+
     /// The English labels of `T` translated by these words, built on the first call and shared
     /// after it.
     pub fn labels<T: Labels + Send + Sync + 'static>(&self) -> Arc<T> {
@@ -189,6 +195,14 @@ impl Words {
     }
 }
 
+/// [`Words::format`] of `words`, or of the English words when it is `None` ([`Words::translator`]).
+pub(crate) fn format_in(words: Option<&Words>, word: Word, args: &[(&str, &str)]) -> String {
+    match words {
+        Some(words) => words.format(word, args),
+        None => craft_i18n::fmt(word.english, args),
+    }
+}
+
 /// A count word: the registered word is the English plural, `one` the English singular. A
 /// catalog writes the forms of a locale in an `@plural` row keyed by the two English texts.
 #[derive(Clone, Copy, Debug)]
@@ -211,11 +225,15 @@ pub(crate) mod counts {
     pub(crate) const GROUP_PRESETS: Counted = Counted::new("preset.groupCount", "{n} preset", "{n} presets");
     pub(crate) const RESULTS: Counted = Counted::new("palette.results", "{n} result", "{n} results");
     pub(crate) const BAR_STOPS: Counted = Counted::new("gradient.barStops", "{n} stop", "{n} stops");
+    pub(crate) const COLOR_STOPS: Counted = Counted::new("gradient.colorStops", "{n} color stop", "{n} color stops");
+    pub(crate) const OPACITY_STOPS: Counted = Counted::new("gradient.opacityStops", "{n} opacity stop", "{n} opacity stops");
+    pub(crate) const TOAST_MORE: Counted = Counted::new("toast.more", "…and {n} more", "…and {n} more");
     pub(crate) const GRAPH_POINTS: Counted = Counted::new("curve.graphPoints", "{n} point", "{n} points");
     pub(crate) const GRAPH_VALUE: Counted = Counted::new("curve.graphValue", "{channel}, {n} point", "{channel}, {n} points");
 
     #[cfg(test)]
-    pub(crate) const ALL: [Counted; 6] = [PRESETS, GROUP_PRESETS, RESULTS, BAR_STOPS, GRAPH_POINTS, GRAPH_VALUE];
+    pub(crate) const ALL: [Counted; 9] =
+        [PRESETS, GROUP_PRESETS, RESULTS, BAR_STOPS, COLOR_STOPS, OPACITY_STOPS, TOAST_MORE, GRAPH_POINTS, GRAPH_VALUE];
 }
 
 /// The words [`Words::install`] set, kept as a plugin so that a reset of the context's memory does

@@ -14,6 +14,7 @@ use super::{CanvasView, Claim, Marquee, MarqueeDrag, MarqueeLook, Part, PartFocu
 use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
+use crate::localized::words::format_in;
 use crate::localized::{Labels, Word, Words};
 use crate::primitives::{Handle, HandleShape, HandleStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -107,10 +108,12 @@ impl Labels for BezierNames<'static> {
     }
 
     fn localized_in(self, words: &Words) -> Self {
-        let anchor = words.clone();
-        Self::new(words.get(WORDS[0]), words.get(WORDS[1]), words.get(WORDS[2]), words.get(WORDS[3]), move |i, n| {
-            anchor.format(WORDS[4], &[("i", &i.to_string()), ("n", &n.to_string())])
-        })
+        let name = |words: Option<&Words>, i: usize, n: usize| format_in(words, WORDS[4], &[("i", &i.to_string()), ("n", &n.to_string())]);
+        let (group, in_handle, out_handle, marquee) = (words.get(WORDS[0]), words.get(WORDS[1]), words.get(WORDS[2]), words.get(WORDS[3]));
+        match words.translator() {
+            Some(words) => Self::new(group, in_handle, out_handle, marquee, move |i, n| name(Some(&words), i, n)),
+            None => Self::new(group, in_handle, out_handle, marquee, move |i, n| name(None, i, n)),
+        }
     }
 }
 

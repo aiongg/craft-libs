@@ -13,7 +13,8 @@ use super::notice::tone_icon;
 use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::{Icon, IconSize};
-use crate::localized::Labels as _;
+use crate::localized::words::counts;
+use crate::localized::{Labels as _, Words};
 use crate::primitives::{Surface, SurfaceEdge, SurfaceKind};
 use crate::story::{Level, Story, StoryArgs, ToneArg};
 use crate::theme::{ToEgui, UiTokens, corner_radius, reshape_shadow, role_format};
@@ -375,7 +376,7 @@ impl ToastStack {
             let left = toast.lines.len() - MAX_LINES;
             let text = match &self.more_label {
                 Some(more) => more(left),
-                None => craft_i18n::fmt(&ToastLabels::of(ui).more, &[("n", &left.to_string())]),
+                None => Words::of(ui).counted(counts::TOAST_MORE, &ToastLabels::of(ui).more, left as u64),
             };
             let laid = galley(style.line_role, style.more, &text, geometry.inner);
             (text, laid)
