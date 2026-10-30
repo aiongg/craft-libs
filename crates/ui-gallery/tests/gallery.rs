@@ -1410,10 +1410,6 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
     ),
 ];
 
-/// Unmarked English that a component produces itself. These entries are removed when the
-/// components branch (ds/47g-components) lands.
-const COMPONENT_BYPASS: &[(&str, &str)] = &[("patterns/panel/embedded", "Close Panel"), ("patterns/rail/panel", "Panels")];
-
 /// Whether a node is the gallery's own text: it names components and stories (the browser lists,
 /// the tabs, and the shown story's tile headings, which are the
 /// labels named `titles`), and those names can equal a word's English. `ancestors` holds
@@ -1464,7 +1460,6 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
                     marked += 1;
                 } else if registered.contains(name.as_str())
                     && !STORY_TEXT.iter().any(|(text, stories, _)| *text == name && stories.contains(&id))
-                    && !COMPONENT_BYPASS.contains(&(id, name.as_str()))
                 {
                     let ids = unmarked.entry(name).or_default();
                     if !ids.contains(&id) {
