@@ -1256,7 +1256,7 @@ name = "layout_grid"
 directional = false
 lucide = "layout-grid"
 phosphor = "squares-four"
-carbon = "apps"
+carbon = "grid"  # the 2 by 2 outline: the 3 by 3 apps glyph fills its square at 12 px
 tabler = "layout-grid"
 
 [[icon]]
