@@ -12,7 +12,7 @@ pub enum PanelId {
     Components,
     /// The selected component's stories.
     Stories,
-    /// The selected story's args, and the compare options.
+    /// The selected story's args.
     Properties,
     /// The inspector; inspect mode is on while this tab is shown.
     Inspect,
@@ -28,8 +28,41 @@ pub enum CentreView {
     /// Every component of one level, each drawn from its default story.
     #[default]
     Overview,
-    /// One component's stories, or the compare grid.
+    /// One component's stories, or its variants.
     Component,
+}
+
+/// What a Variants view repeats the story over.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VariantAxis {
+    Theme,
+    Mode,
+    Contrast,
+    Size,
+}
+
+impl VariantAxis {
+    pub const ALL: [VariantAxis; 4] = [VariantAxis::Theme, VariantAxis::Mode, VariantAxis::Contrast, VariantAxis::Size];
+
+    /// The axis in "in every ...".
+    pub fn noun(self) -> &'static str {
+        match self {
+            VariantAxis::Theme => "theme",
+            VariantAxis::Mode => "mode",
+            VariantAxis::Contrast => "contrast",
+            VariantAxis::Size => "size",
+        }
+    }
+
+    /// The Variants menu's item.
+    pub fn menu_label(self) -> &'static str {
+        match self {
+            VariantAxis::Theme => "Every theme",
+            VariantAxis::Mode => "Every mode (light, dark)",
+            VariantAxis::Contrast => "Every contrast (standard, high)",
+            VariantAxis::Size => "Every size (compact, comfortable)",
+        }
+    }
 }
 
 impl CentreView {

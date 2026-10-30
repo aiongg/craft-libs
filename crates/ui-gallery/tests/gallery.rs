@@ -1,6 +1,6 @@
 use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui_gallery::Gallery;
-use craft_ui_gallery::layout::{CentreView, PanelId};
+use craft_ui_gallery::layout::{CentreView, PanelId, VariantAxis};
 use egui::{Context, RawInput};
 
 /// The window the dock lays out in; an empty screen would draw no panel.
@@ -25,14 +25,14 @@ fn every_level_renders_in_the_overview() {
 }
 
 #[test]
-fn every_story_renders_in_canvas_and_compare_views() {
+fn every_story_renders_in_canvas_and_variants_views() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
     gallery.set_view(CentreView::Component);
     let ids: Vec<&str> = gallery.stories().iter().map(|s| s.id).collect();
     assert!(!ids.is_empty());
-    for compare in [false, true] {
-        gallery.set_compare(compare);
+    for axis in [None, Some(VariantAxis::Theme), Some(VariantAxis::Mode), Some(VariantAxis::Contrast), Some(VariantAxis::Size)] {
+        gallery.set_variants(axis);
         for id in &ids {
             gallery.select(id);
             frame(&ctx, &mut gallery);
@@ -59,15 +59,17 @@ fn appearance_changes_render() {
 }
 
 #[test]
-fn the_system_choices_render_in_canvas_and_compare_views() {
+fn the_system_choices_render_in_canvas_and_variants_views() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
     let a = gallery.appearance_mut();
     a.mode = ModeChoice::System;
     a.contrast = ContrastChoice::System;
     frame(&ctx, &mut gallery);
-    gallery.set_compare(true);
-    frame(&ctx, &mut gallery);
+    for axis in VariantAxis::ALL {
+        gallery.set_variants(Some(axis));
+        frame(&ctx, &mut gallery);
+    }
     gallery.activate(PanelId::Tokens);
     frame(&ctx, &mut gallery);
 }
@@ -90,31 +92,28 @@ fn token_browser_renders_in_both_modes_with_a_row_selected() {
 }
 
 #[test]
-fn the_inspector_numbers_the_focus_story_in_tab_order_in_both_views() {
+fn the_inspector_numbers_the_focus_story_in_tab_order() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
     gallery.set_view(CentreView::Component);
     gallery.select("primitives/focus-ring/focus");
     gallery.set_inspect(true);
     let items: Vec<String> = (1..=4).map(|i| format!("Item {i}")).collect();
-    // Canvas, compare in standard contrast, compare with the high-contrast columns.
-    for (compare, high, canvases) in [(false, false, 1), (true, false, 2), (true, true, 4)] {
-        gallery.set_compare(compare);
-        gallery.set_compare_high(high);
-        // The first pass turns AccessKit on, the second builds the tree, the third draws it.
-        for _ in 0..3 {
-            frame(&ctx, &mut gallery);
-        }
-        let badges = gallery.focus_badges();
-        assert_eq!(badges.len(), canvases, "one canvas, or one per compare column");
-        assert!(badges.iter().all(|b| *b == items), "{badges:?}");
-    }
-    // A dark-only theme draws its dark columns only; its light columns stay empty.
-    gallery.set_compare_themes(&["craft.pro-light-gray"]);
+    // The first pass turns AccessKit on, the second builds the tree, the third draws it.
     for _ in 0..3 {
         frame(&ctx, &mut gallery);
     }
-    assert_eq!(gallery.focus_badges().len(), 2, "dark standard and dark high contrast");
+    let badges = gallery.focus_badges();
+    assert_eq!(badges.len(), 1, "one canvas");
+    assert!(badges.iter().all(|b| *b == items), "{badges:?}");
+    // The inspector works on the Component view only.
+    gallery.set_variants(Some(VariantAxis::Mode));
+    frame(&ctx, &mut gallery);
+    assert!(!craft_ui::inspect::enabled(&ctx), "Variants has no inspector");
+    gallery.set_variants(None);
+    for _ in 0..3 {
+        frame(&ctx, &mut gallery);
+    }
     assert!(craft_ui::inspect::enabled(&ctx));
     gallery.activate(PanelId::Tokens);
     frame(&ctx, &mut gallery);
@@ -300,4 +299,115 @@ fn a_story_scale_applies_once_and_keyboard_zoom_stays() {
     // The request ends: back to the appearance bar's scale.
     settle(&ctx, &mut gallery, None);
     assert!((ctx.zoom_factor() - own).abs() < 1e-4, "back to the gallery's scale: {}", ctx.zoom_factor());
+}
+
+/// Frames until the tree has settled, then the last one's AccessKit tree.
+fn settled_tree(ctx: &Context, gallery: &mut Gallery) -> craft_ui::inspect::AccessTree {
+    for _ in 0..3 {
+        frame(ctx, gallery);
+    }
+    tree_of(ctx, gallery)
+}
+
+/// The nodes named `name` with the given role.
+fn named(tree: &craft_ui::inspect::AccessTree, name: &str, role: egui::accesskit::Role) -> Vec<egui::accesskit::NodeId> {
+    tree.walk(tree.root())
+        .into_iter()
+        .map(|(id, _)| id)
+        .filter(|id| tree.name(*id).as_deref() == Some(name) && tree.node(*id).is_some_and(|n| n.role() == role))
+        .collect()
+}
+
+/// Clicks the one control named `name` as a screen reader would, and runs the frame.
+fn click(ctx: &Context, gallery: &mut Gallery, name: &str, role: egui::accesskit::Role) {
+    use egui::accesskit::{Action, ActionRequest, TreeId};
+    let tree = settled_tree(ctx, gallery);
+    let nodes = named(&tree, name, role);
+    assert_eq!(nodes.len(), 1, "one control named {name:?}");
+    let mut raw = input();
+    raw.events.push(egui::Event::AccessKitActionRequest(ActionRequest {
+        action: Action::Click,
+        target_tree: TreeId::ROOT,
+        target_node: nodes[0],
+        data: None,
+    }));
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    frame(ctx, gallery);
+}
+
+#[test]
+fn variants_show_one_card_per_value_and_mark_the_current_one() {
+    use craft_theme::builtins;
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    gallery.select("controls/button/variants");
+    let themes: Vec<String> = builtins().iter().map(|t| t.name.clone()).collect();
+    let cases: [(VariantAxis, Vec<String>); 4] = [
+        (VariantAxis::Theme, themes),
+        (VariantAxis::Mode, vec!["Light".into(), "Dark".into()]),
+        (VariantAxis::Contrast, vec!["Standard".into(), "High".into()]),
+        (VariantAxis::Size, vec!["Compact".into(), "Comfortable".into()]),
+    ];
+    for (axis, names) in cases {
+        gallery.set_variants(Some(axis));
+        assert_eq!(gallery.view(), CentreView::Component, "Variants opens the Component view");
+        let tree = settled_tree(&ctx, &mut gallery);
+        for name in &names {
+            assert_eq!(named(&tree, name, Role::Button).len(), 1, "{axis:?}: a card for {name:?}");
+        }
+        assert_eq!(named(&tree, "shown now", Role::Label).len() + named(&tree, "shown now", Role::GenericContainer).len(), 1, "{axis:?}");
+    }
+}
+
+#[test]
+fn choosing_a_card_applies_its_value_and_closes_variants() {
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    gallery.select("controls/button/variants");
+    gallery.set_variants(Some(VariantAxis::Mode));
+    click(&ctx, &mut gallery, "Dark", egui::accesskit::Role::Button);
+    assert_eq!(gallery.appearance_mut().mode, ModeChoice::Dark);
+    assert_eq!(gallery.variants(), None);
+    assert_eq!(gallery.view(), CentreView::Component);
+}
+
+#[test]
+fn escape_closes_variants_and_the_overview_has_none() {
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    gallery.set_variants(Some(VariantAxis::Size));
+    frame(&ctx, &mut gallery);
+    assert_eq!(gallery.variants(), Some(VariantAxis::Size));
+    let mut raw = input();
+    raw.events.push(egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE });
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    assert_eq!(gallery.variants(), None);
+    gallery.set_variants(Some(VariantAxis::Size));
+    gallery.set_view(CentreView::Overview);
+    frame(&ctx, &mut gallery);
+    assert_eq!(gallery.variants(), None, "the Overview closes Variants");
+}
+
+#[test]
+fn the_more_popover_holds_the_moved_settings() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let tree = settled_tree(&ctx, &mut gallery);
+    for label in ["Direction", "Reduced motion", "Scale"] {
+        assert!(tree.walk(tree.root()).iter().all(|(id, _)| tree.name(*id).as_deref() != Some(label)), "{label} is not in the bar");
+    }
+    assert_eq!(named(&tree, "More appearance settings", Role::Button).len(), 1);
+    click(&ctx, &mut gallery, "More appearance settings", Role::Button);
+    let tree = settled_tree(&ctx, &mut gallery);
+    for label in ["Direction", "Reduced motion", "Text", "Icons", "Scale"] {
+        assert!(tree.walk(tree.root()).iter().any(|(id, _)| tree.name(*id).as_deref() == Some(label)), "{label} is in the popover");
+    }
+    assert!(!gallery.appearance_mut().rtl);
+    click(&ctx, &mut gallery, "RTL", Role::RadioButton);
+    assert!(gallery.appearance_mut().rtl, "Direction in the popover sets the gallery's");
 }
