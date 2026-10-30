@@ -8,16 +8,16 @@ use egui::accesskit::{Orientation, Role};
 use egui::emath::GuiRounding as _;
 use egui::{
     Align, AsIdSalt, Color32, CornerRadius, EventFilter, Frame, Id, IdSalt, Key, Layout, Margin, Modifiers, Rect, Response, ScrollArea, Sense,
-    Stroke, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2, vec2,
+    Stroke, Ui, UiBuilder, pos2, vec2,
 };
 
-use crate::controls::TooltipExt as _;
+use crate::controls::{IconButton, IconButtonStyle};
 use crate::direction;
-use crate::icons::{self, Icon, IconSize};
+use crate::icons::Icon;
 use crate::panes::Edge;
-use crate::primitives::FocusRing;
 use crate::story::{Args, Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use craft_theme::{ControlSize, States};
 
 /// A panel rail's sizes and colours, from [`PanelRail::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -27,36 +27,21 @@ pub struct PanelRailStyle {
     pub width: f32,
     /// Side of a button: `rail.panel_button`.
     pub button: f32,
-    /// Side of a glyph: `rail.panel_icon`.
-    pub icon: f32,
     /// Between buttons: `rail.panel_gap`.
     pub gap: f32,
     /// Above and below the buttons: `rail.pad_y`.
     pub pad_y: f32,
     /// Radius of the marker dot: `rail.marker_radius`.
     pub marker_radius: f32,
-    /// Width of the outline of an open panel's button: `rail.selected_border_width`.
-    pub border_width: f32,
-    /// Corners of a button's fill and outline: `rail.radius`.
-    pub radius: CornerRadius,
     /// Behind the rail: `rail.fill`.
     pub fill: Color32,
-    /// Behind an open panel's button: `rail.selected`.
-    pub selected: Color32,
-    /// Outline of that button: `rail.selected.border`.
-    pub selected_border: Color32,
-    /// Glyph on that button: `rail.selected.text`.
-    pub selected_text: Color32,
-    /// Behind a button under the pointer: `rail.hover`.
-    pub hover: Color32,
-    /// Glyph at rest: `rail.icon.panel`.
-    pub icon_color: Color32,
-    /// Glyph under the pointer: `rail.icon.hover`.
-    pub icon_hover: Color32,
     /// The marker dot: `rail.marker`.
     pub marker: Color32,
     /// The line on the canvas side: `rail.edge`.
     pub edge: Color32,
+    /// What each button is drawn with: glyph `rail.panel_icon` in `rail.icon.panel`, `rail.icon.hover`
+    /// on `rail.hover`; open: `rail.selected` inside `rail.selected.border`, glyph `rail.selected.text`.
+    pub icon_button: IconButtonStyle,
 }
 
 /// One icon of the rail, standing for the panel it opens.
@@ -190,24 +175,42 @@ impl PanelRail {
 
     pub fn style(tokens: &UiTokens) -> PanelRailStyle {
         let r = &tokens.component.rail;
+        let clear = Color32::TRANSPARENT;
+        let hover = r.hover.to_egui();
+        let icon_hover = r.icon_hover.to_egui();
+        let icon = r.panel_icon_color.to_egui();
+        let disabled = IconButton::style(tokens, ControlSize::Md);
         PanelRailStyle {
             width: r.panel_width,
             button: r.panel_button,
-            icon: r.panel_icon,
             gap: r.panel_gap,
             pad_y: r.pad_y,
             marker_radius: r.marker_radius,
-            border_width: r.selected_border_width,
-            radius: CornerRadius::same(r.radius.round().clamp(0.0, 255.0) as u8),
             fill: r.fill.to_egui(),
-            selected: r.selected.to_egui(),
-            selected_border: r.selected_border.to_egui(),
-            selected_text: r.selected_text.to_egui(),
-            hover: r.hover.to_egui(),
-            icon_color: r.panel_icon_color.to_egui(),
-            icon_hover: r.icon_hover.to_egui(),
             marker: r.marker.to_egui(),
             edge: r.edge.to_egui(),
+            icon_button: IconButtonStyle {
+                side: r.panel_button,
+                icon: r.panel_icon,
+                radius: CornerRadius::same(r.radius.round().clamp(0.0, 255.0) as u8),
+                fill: States::new(clear, hover, hover, clear),
+                text: States::new(icon, icon_hover, icon_hover, disabled.text.disabled),
+                selected_fill: States::new(r.selected.to_egui(), r.selected.to_egui(), r.selected.to_egui(), disabled.selected_fill.disabled),
+                selected_border: States::new(
+                    r.selected_border.to_egui(),
+                    r.selected_border.to_egui(),
+                    r.selected_border.to_egui(),
+                    disabled.selected_border.disabled,
+                ),
+                selected_text: States::new(
+                    r.selected_text.to_egui(),
+                    r.selected_text.to_egui(),
+                    r.selected_text.to_egui(),
+                    disabled.selected_text.disabled,
+                ),
+                selected_border_width: Some(r.selected_border_width),
+                ..disabled
+            },
         }
     }
 
@@ -303,22 +306,20 @@ impl PanelRail {
             drawn.push(id);
             let selected = open.contains(&id);
             let had_focus = ui.memory(|m| m.has_focus(id));
-            let response = ui
-                .add_enabled_ui(item.enabled, |ui| {
-                    let (rect, _) = ui.allocate_exact_size(vec2(style.button, style.button), Sense::hover());
-                    let response = ui.interact(rect, id, Sense::click());
-                    response.widget_info(|| WidgetInfo::selected(Role::Button, ui.is_enabled(), selected, &item.label));
-                    if item.marker
-                        && !selected
-                        && let Some(label) = &item.marker_label
-                    {
-                        ui.ctx().accesskit_node_builder(id, |node| node.set_description(label.as_str()));
-                    }
-                    Self::paint(ui, &response, item, selected, left, style);
-                    response
-                })
-                .inner;
-            let response = response.tooltip(&item.label);
+            let (rect, _) = ui.allocate_exact_size(vec2(style.button, style.button), Sense::hover());
+            if item.marker
+                && !selected
+                && let Some(label) = &item.marker_label
+            {
+                ui.ctx().accesskit_node_builder(id, |node| node.set_description(label.as_str()));
+            }
+            let response = IconButton::new(item.icon, item.label.as_str())
+                .with_id(id)
+                .with_style(style.icon_button)
+                .selected(selected)
+                .enabled(item.enabled)
+                .show_at(ui, rect);
+            Self::paint_marker(ui, rect, item, selected, left, style);
             responses.push((item.panel.clone(), response.clone()));
             if !item.enabled {
                 if had_focus {
@@ -369,34 +370,12 @@ impl PanelRail {
         (request, focused, responses)
     }
 
-    fn paint<P>(ui: &Ui, response: &Response, item: &PanelRailItem<P>, selected: bool, left: bool, style: &PanelRailStyle) {
-        let rect = response.rect;
-        if !ui.is_rect_visible(rect) || !rect.is_positive() {
-            return;
-        }
-        let painter = ui.painter();
-        let hovered = response.hovered() && ui.is_enabled();
-        if selected {
-            painter.rect_filled(rect, style.radius, style.selected);
-            painter.rect_stroke(rect, style.radius, Stroke::new(style.border_width, style.selected_border), StrokeKind::Inside);
-        } else if hovered {
-            painter.rect_filled(rect, style.radius, style.hover);
-        }
-        FocusRing::paint_radius(ui, rect, style.radius, response);
-        let color = if selected {
-            style.selected_text
-        } else if hovered {
-            style.icon_hover
-        } else {
-            style.icon_color
-        };
-        let glyph = Rect::from_center_size(rect.center(), vec2(style.icon, style.icon)).round_to_pixels(ui.pixels_per_point());
-        icons::paint_in(ui, glyph, item.icon, icons::active(ui.ctx()), style.icon, IconSize::Sm.stroke(), color);
-        if item.marker && !selected {
+    fn paint_marker<P>(ui: &Ui, rect: Rect, item: &PanelRailItem<P>, selected: bool, left: bool, style: &PanelRailStyle) {
+        if item.marker && !selected && ui.is_rect_visible(rect) {
             // The corner facing away from the canvas.
             let inset = 2.0 * style.marker_radius;
             let corner = if left { rect.left_top() + vec2(inset, inset) } else { rect.right_top() + vec2(-inset, inset) };
-            painter.circle_filled(corner, style.marker_radius, style.marker);
+            ui.painter().circle_filled(corner, style.marker_radius, style.marker);
         }
     }
 }
