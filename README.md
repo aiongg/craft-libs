@@ -93,6 +93,7 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   widget-state styling boundary.
 - [Panel docking](docs/ui-docking.md): validated panel moves, floating groups, workspace adapters
   and an optional egui docking surface.
+- [Dialogs](docs/ui-dialogs.md): modal and modeless dialogs, footer roles and keys, prompts, the dialog stack, canvas pass-through, viewport windows
 
 ## License and credits
 
