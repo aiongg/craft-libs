@@ -18,6 +18,9 @@ struct Rig {
     open: Option<Well>,
     swaps: usize,
     defaults: usize,
+    host_picker: bool,
+    clicked: Option<Well>,
+    double_clicked: Option<Well>,
     nodes: Vec<(NodeId, Node)>,
 }
 
@@ -35,6 +38,9 @@ impl Rig {
             open: None,
             swaps: 0,
             defaults: 0,
+            host_picker: false,
+            clicked: None,
+            double_clicked: None,
             nodes: Vec::new(),
         };
         rig.settle();
@@ -50,10 +56,13 @@ impl Rig {
         let mut shown = None;
         let output = ctx.run_ui(input, |ui| {
             let wells = [PairWell::new("Foreground colour", self.colors[0]), PairWell::new("Background colour", self.colors[1])];
+            let host = self.host_picker;
             let pair = SwatchPair::new("pair", "Colours", wells, &numbers)
                 .active(self.active)
                 .swap_button("Swap colours")
                 .default_button("Default colours")
+                .popover(!host)
+                .click_activates(!host)
                 .show(ui);
             ui.text_edit_singleline(&mut String::from("elsewhere"));
             shown = Some(pair);
@@ -61,6 +70,8 @@ impl Rig {
         let pair = shown.expect("shown");
         self.active = pair.active;
         self.open = pair.open;
+        self.clicked = pair.clicked.or(self.clicked);
+        self.double_clicked = pair.double_clicked.or(self.double_clicked);
         self.swaps += usize::from(pair.swap);
         self.defaults += usize::from(pair.defaults);
         self.nodes = output.platform_output.accesskit_update.clone().map(|u| u.nodes).unwrap_or_default();
@@ -369,4 +380,58 @@ fn the_front_well_has_a_light_inner_line_a_dark_outer_line_and_a_backdrop_gap() 
     assert_eq!(on(StrokeKind::Outside), Some(crate::theme::ToEgui::to_egui(tokens.component.field.border.rest)));
     let gap = all.iter().find(|r| r.fill == toolbar).expect("the gap");
     assert_eq!(gap.rect, fill.rect.expand(tokens.component.color_picker.pair_gap));
+}
+
+fn host_rig() -> Rig {
+    let mut rig = Rig::new(Direction::Ltr);
+    rig.host_picker = true;
+    rig.settle();
+    rig
+}
+
+#[test]
+fn in_host_picker_mode_a_click_is_reported_and_neither_opens_a_popup_nor_changes_the_active_well() {
+    let mut rig = host_rig();
+    let at = secondary_only(&rig);
+    rig.click(at);
+    assert_eq!(rig.clicked, Some(Well::Secondary));
+    assert_eq!(rig.active, Well::Primary, "the host's active well stays in front");
+    assert_eq!(rig.open, None);
+    assert!(rig.node(Role::Button, "Background colour").is_expanded().is_none(), "no popup is announced");
+    assert!(rig.node(Role::Button, "Foreground colour").is_selected() == Some(true));
+
+    rig.double_click(at);
+    assert_eq!(rig.double_clicked, Some(Well::Secondary));
+    assert_eq!(rig.open, None, "a double-click opens no popup");
+    assert_eq!(rig.active, Well::Primary);
+}
+
+#[test]
+fn in_host_picker_mode_enter_clicks_the_focused_well_and_the_arrows_only_move_the_focus() {
+    let mut rig = host_rig();
+    rig.tab_to("Foreground colour");
+    rig.key(Key::ArrowRight);
+    assert_eq!(rig.focused_name().as_deref(), Some("Background colour"));
+    assert_eq!(rig.active, Well::Primary, "the arrows do not change the active well");
+    rig.key(Key::Enter);
+    assert_eq!(rig.clicked, Some(Well::Secondary));
+    assert_eq!(rig.open, None);
+    rig.clicked = None;
+    rig.key(Key::Space);
+    assert_eq!(rig.clicked, Some(Well::Secondary), "Space clicks too");
+    rig.key(Key::ArrowUp);
+    assert_eq!(rig.focused_name().as_deref(), Some("Foreground colour"));
+    rig.key(Key::Tab);
+    assert_eq!(rig.focused_name().as_deref(), Some("Default colours"), "the wells stay one Tab stop");
+}
+
+#[test]
+fn the_default_mode_reports_clicks_as_well_as_activating() {
+    let mut rig = Rig::new(Direction::Ltr);
+    let at = secondary_only(&rig);
+    rig.click(at);
+    assert_eq!((rig.clicked, rig.active), (Some(Well::Secondary), Well::Secondary));
+    rig.double_click(at);
+    assert_eq!(rig.double_clicked, Some(Well::Secondary));
+    assert_eq!(rig.open, Some(Well::Secondary));
 }

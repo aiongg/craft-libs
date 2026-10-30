@@ -211,8 +211,8 @@ crate::words! {
 /// - **Width and columns:** [`ToolRail::metrics`]. With two columns the slots fill rows left to
 ///   right (right to left in a mirrored interface). The host owns the column count: the chevron
 ///   at the top reports [`toggle_columns`](ToolRailOutput::toggle_columns).
-/// - **Layout:** the footer lies right under the last tool (or the Edit Toolbar button). Only
-///   when the window is too short for both do the slots scroll, with the footer kept in view at
+/// - **Layout:** the footer is a column that centres its items in the rail's width. It lies right
+///   under the last tool (or the Edit Toolbar button). Only when the window is too short for both do the slots scroll, with the footer kept in view at
 ///   the bottom. Call it before the panel host, so the rail is the outermost panel on its edge.
 /// - **Keyboard:** every button is a Tab stop. The arrow keys move between the slot buttons and
 ///   the Edit Toolbar button by the grid (Up and Down; Left and Right as well in two columns),
@@ -428,7 +428,9 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         let area = Rect::from_min_max(pos2(full.left() + inset, top), pos2(full.right() - inset, top.max(ui.max_rect().bottom())));
         let columns = grid.columns;
         let shown = ui
-            .scope_builder(UiBuilder::new().id_salt("footer").max_rect(area).layout(direction::column(ui)), |ui| footer(ui, RailFooter { columns }));
+            .scope_builder(UiBuilder::new().id_salt("footer").max_rect(area).layout(direction::column(ui).with_cross_align(Align::Center)), |ui| {
+                footer(ui, RailFooter { columns })
+            });
         let measured = shown.response.rect.height();
         ui.ctx().data_mut(|d| d.insert_temp(footer_id, measured));
         if footer_height.is_none_or(|used| (used - measured).abs() > 0.5) {
