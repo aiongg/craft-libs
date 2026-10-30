@@ -128,12 +128,12 @@ fn turning_snaps_to_the_step_and_stays_in_range() {
 fn bounds_cut_an_unturned_frame_and_move_a_turned_one() {
     let bounds = Rect::new(0.0, 0.0, 400.0, 300.0);
     let out = CropBox::upright(Rect::new(-20.0, 10.0, 450.0, 200.0));
-    assert_eq!(within(out, bounds, true).unwrap().rect, Rect::new(0.0, 10.0, 400.0, 200.0));
-    assert_eq!(within(CropBox::upright(Rect::new(-20.0, 10.0, 80.0, 60.0)), bounds, false).unwrap().rect, Rect::new(0.0, 10.0, 100.0, 60.0));
+    assert_eq!(within(out, bounds, true, false).unwrap().rect, Rect::new(0.0, 10.0, 400.0, 200.0));
+    assert_eq!(within(CropBox::upright(Rect::new(-20.0, 10.0, 80.0, 60.0)), bounds, false, false).unwrap().rect, Rect::new(0.0, 10.0, 100.0, 60.0));
     let turned = CropBox { rect: Rect::new(-30.0, 100.0, 70.0, 150.0), angle: 90.0 };
-    let moved = within(turned, bounds, false).unwrap();
+    let moved = within(turned, bounds, false, false).unwrap();
     assert!(moved.turned_bounds().x0 >= -1e-9 && moved.angle == 90.0);
-    assert!(within(turned, bounds, true).is_none(), "a resize that leaves is refused");
+    assert!(within(turned, bounds, true, false).is_none(), "a resize that leaves is refused");
 }
 
 #[test]
@@ -173,6 +173,8 @@ struct Host {
     /// A text field beside the canvas takes the keyboard focus.
     text: bool,
     text_value: String,
+    /// A button beside the canvas takes the keyboard focus.
+    button: bool,
 }
 
 fn harness_with(state: CropBox, rotation: f64, flip: bool, setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
@@ -199,6 +201,7 @@ fn harness_with(state: CropBox, rotation: f64, flip: bool, setup: impl FnOnce(&m
         snap: None,
         text: false,
         text_value: String::new(),
+        button: false,
     };
     setup(&mut host);
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
@@ -207,6 +210,9 @@ fn harness_with(state: CropBox, rotation: f64, flip: bool, setup: impl FnOnce(&m
                 let label = ui.label("Name");
                 let field = ui.add(egui::TextEdit::singleline(&mut host.text_value).id_salt("text field")).labelled_by(label.id);
                 field.request_focus();
+            }
+            if host.button {
+                ui.button("Other").request_focus();
             }
             ui.add_space(40.0);
             // Not a Tab stop, so Tab goes to the frame.
@@ -957,4 +963,52 @@ fn the_style_is_the_crop_tokens_and_a_halo_shows_in_high_contrast_only() {
     assert_eq!(normal.halo.width, 0.0);
     let high = CropFrame::style(&tokens(Contrast::High));
     assert!(high.halo.width > high.bracket.width);
+}
+
+#[test]
+fn a_turn_stops_at_the_bounds() {
+    let tight = Rect::new(100.0, 80.0, 300.0, 220.0);
+    let (from, to) = (Point::new(340.0, 260.0), Point::new(300.0, 290.0));
+    let mut h = harness(|host| host.bounds = Some(tight));
+    h.run();
+    let (a, b) = (screen(&h, from), screen(&h, to));
+    drag(&mut h, a, b, Modifiers::NONE);
+    assert_eq!(state(&h), CropBox::upright(RECT), "a turn that would leave the bounds is refused");
+
+    let mut h = harness(|host| host.bounds = Some(Rect::new(0.0, 0.0, 400.0, 300.0)));
+    h.run();
+    let (a, b) = (screen(&h, from), screen(&h, to));
+    drag(&mut h, a, b, Modifiers::NONE);
+    let t = state(&h).turned_bounds();
+    assert!(state(&h).angle.abs() > 1.0 && t.x0 >= 0.0 && t.y0 >= 0.0 && t.x1 <= 400.0 && t.y1 <= 300.0, "{:?}", state(&h));
+}
+
+#[test]
+fn a_held_ratio_is_never_cut_by_the_bounds() {
+    let bounds = Rect::new(0.0, 0.0, 400.0, 300.0);
+    let wide = CropBox::upright(Rect::new(100.0, 80.0, 500.0, 280.0));
+    assert_eq!(within(wide, bounds, true, false).unwrap().rect, Rect::new(100.0, 80.0, 400.0, 280.0));
+    assert!(within(wide, bounds, true, true).is_none(), "the cut would change the 2:1 ratio");
+    assert!(within(CropBox::upright(Rect::new(100.0, 80.0, 300.0, 180.0)), bounds, true, true).is_some());
+
+    let mut h = harness_with(CropBox::upright(Rect::new(100.0, 80.0, 200.0, 180.0)), 0.0, false, |host| {
+        host.ratio = Some(1.0);
+        host.bounds = Some(bounds);
+    });
+    h.run();
+    let from = screen(&h, Point::new(200.0, 180.0));
+    let to = screen(&h, Point::new(500.0, 200.0));
+    drag(&mut h, from, to, Modifiers::NONE);
+    let r = state(&h).rect;
+    assert!((r.width() - r.height()).abs() < 1e-9 && r.x1 <= 400.0 && r.y1 <= 300.0, "{r:?}");
+}
+
+#[test]
+fn enter_is_ignored_while_another_widget_has_the_focus() {
+    let mut h = harness(|host| host.button = true);
+    h.run();
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    assert_eq!(h.state().applied, 0, "Enter belongs to the focused button");
 }

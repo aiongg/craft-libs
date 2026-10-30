@@ -446,7 +446,8 @@ impl<'a> CropFrame<'a> {
         }
         if drag.is_none_or(|d| d.cancelled) {
             // The pick is the keyboard's: without the focus the arrows move the whole frame (PC).
-            self.keys(ui, drag.is_none(), picked.filter(|_| focus.focused), &mut gesture, &mut out);
+            let enter_ok = focus.focused || ctx.memory(|m| m.focused()).is_none_or(|f| f == canvas.id);
+            self.keys(ui, drag.is_none(), enter_ok, picked.filter(|_| focus.focused), &mut gesture, &mut out);
         }
 
         let dragging = drag.filter(|d| d.began && !d.cancelled);
@@ -566,7 +567,7 @@ impl<'a> CropFrame<'a> {
     /// `None` when the frame is as it was (a draw not yet sized, or no room).
     fn dragged(&self, d: &mut Drag, to: Point, mods: Modifiers, space: bool, last_shown: CropBox) -> Option<CropBox> {
         let at = d.at_press;
-        let (next, resizing) = match &mut d.kind {
+        let (next, resizing, held) = match &mut d.kind {
             Kind::Draw { anchor, cur, last } => {
                 if space {
                     // Space: the frame being drawn follows the pointer, keeping its size.
@@ -580,25 +581,25 @@ impl<'a> CropFrame<'a> {
                 if *anchor == *cur {
                     return None;
                 }
-                (CropBox::upright(drawn(*anchor, *cur, self.ratio, mods)), true)
+                (CropBox::upright(drawn(*anchor, *cur, self.ratio, mods)), true, self.ratio.is_some() || mods.shift)
             }
-            Kind::Move => (at.moved(to - d.from), false),
+            Kind::Move => (at.moved(to - d.from), false, false),
             Kind::Resize { hx, hy } => {
                 let r = at.rect.abs();
                 let keep = (r.width() > 0.0 && r.height() > 0.0).then(|| r.width() / r.height());
                 let ratio = self.ratio.or(if mods.shift { keep } else { None });
-                (resized_turned(&at, *hx, *hy, to - d.from, ratio, mods.alt), true)
+                (resized_turned(&at, *hx, *hy, to - d.from, ratio, mods.alt), true, ratio.is_some())
             }
             Kind::Turn { grab } => {
                 let step = mods.shift.then_some(self.turn_step);
-                return Some(CropBox { rect: at.rect, angle: turned_angle(at.center(), *grab, at.angle, to, step) }).filter(CropBox::is_finite);
+                (CropBox { rect: at.rect, angle: turned_angle(at.center(), *grab, at.angle, to, step) }, true, false)
             }
         };
         if !next.is_finite() {
             return None;
         }
         match self.bounds {
-            Some(bounds) => within(next, bounds, resizing).or(Some(last_shown)),
+            Some(bounds) => within(next, bounds, resizing, held).or(Some(last_shown)),
             None => Some(next),
         }
     }
@@ -612,13 +613,14 @@ impl<'a> CropFrame<'a> {
         canvas.interact_pointer_pos().is_some_and(|p| hit(self.state, view.to_doc(p), view.doc_len(hit_reach)) == Hit::Inside)
     }
 
-    /// Enter, Esc, the arrows and X; `idle`: no press is held.
-    fn keys(&self, ui: &Ui, idle: bool, picked: Option<BoxPart>, gesture: &mut Gesture<CropBox>, out: &mut CropResponse) {
+    /// Enter, Esc, the arrows and X; `idle`: no press is held; `enter_ok`: no other widget
+    /// (a Tab-focused button) holds the keyboard, so Enter is the frame's.
+    fn keys(&self, ui: &Ui, idle: bool, enter_ok: bool, picked: Option<BoxPart>, gesture: &mut Gesture<CropBox>, out: &mut CropResponse) {
         let ctx = ui.ctx();
         if !ui.is_enabled() || ctx.text_edit_focused() || popup_list::any_open(ctx) || !ctx.memory(|m| m.allows_interaction(ui.layer_id())) {
             return;
         }
-        let (enter, escape) = ui.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::Enter), i.consume_key(Modifiers::NONE, Key::Escape)));
+        let (enter, escape) = ui.input_mut(|i| (enter_ok && i.consume_key(Modifiers::NONE, Key::Enter), i.consume_key(Modifiers::NONE, Key::Escape)));
         out.apply |= enter;
         out.discard |= escape && !enter;
         if !idle {
@@ -633,7 +635,7 @@ impl<'a> CropFrame<'a> {
         };
         if let Some(next) = next.filter(CropBox::is_finite) {
             let next = match self.bounds {
-                Some(bounds) => within(next, bounds, next.rect.size() != self.state.rect.size()).unwrap_or(*self.state),
+                Some(bounds) => within(next, bounds, next.rect.size() != self.state.rect.size(), self.ratio.is_some()).unwrap_or(*self.state),
                 None => next,
             };
             gesture.set(next);

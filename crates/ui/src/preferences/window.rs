@@ -37,6 +37,27 @@ type Decorate = Box<dyn Fn(ViewportBuilder) -> ViewportBuilder>;
 /// - **Chrome.** [`builder`](PreferencesWindow::builder) takes `craft_window::decorate`.
 /// - **Size and position.** With the `window-restore` feature,
 ///   [`remember`](PreferencesWindow::remember) keeps them per app.
+///
+/// # Quit on macOS
+///
+/// `craft_quit::on_close_request` runs before `ui` and would take a Cmd+Q or Dock Quit over while
+/// the window is open. The app asks [`refuse_close`](PreferencesWindow::refuse_close) first, in
+/// `eframe::App::logic`:
+///
+/// ```
+/// struct MyApp;
+///
+/// impl eframe::App for MyApp {
+///     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+///         if craft_ui::preferences::PreferencesWindow::refuse_close(ctx) {
+///             return;
+///         }
+///         craft_quit::on_close_request(ctx);
+///     }
+///
+///     fn ui(&mut self, _ui: &mut egui::Ui, _frame: &mut eframe::Frame) {}
+/// }
+/// ```
 #[must_use = "show the window with `show`"]
 pub struct PreferencesWindow {
     salt: Id,
@@ -147,6 +168,7 @@ impl PreferencesWindow {
             },
         );
         if out.closed.is_some() {
+            ViewportWindow::closed(ctx, viewport);
             #[cfg(feature = "window-restore")]
             if let Some(remember) = &mut self.remember {
                 remember.close();

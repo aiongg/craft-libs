@@ -20,6 +20,8 @@ pub struct Remember {
     monitors: Vec<Monitor>,
     defaults: Defaults,
     placed: Option<Placement>,
+    /// The builder fields of the placement as they were on the pass the window opened.
+    built: Option<ViewportBuilder>,
     tracker: Option<Tracker>,
 }
 
@@ -33,6 +35,7 @@ impl Remember {
             monitors: Vec::new(),
             defaults: Defaults::new(DEFAULT_SIZE.into(), MIN_SIZE.into()),
             placed: None,
+            built: None,
             tracker: None,
         }
     }
@@ -59,8 +62,21 @@ impl Remember {
         })
     }
 
-    pub(super) fn apply(&mut self, builder: ViewportBuilder, zoom: f32) -> ViewportBuilder {
-        restore::apply(builder, self.placement(), zoom)
+    /// `builder` with the placement. The size and position are worked out on the pass the window
+    /// opens, at that pass's zoom, and kept until it closes: a zoom change while it is open would
+    /// otherwise resize and move the window under the user.
+    pub(super) fn apply(&mut self, mut builder: ViewportBuilder, zoom: f32) -> ViewportBuilder {
+        if self.built.is_none() {
+            let placed = restore::apply(ViewportBuilder::default(), self.placement(), zoom);
+            self.built = Some(placed);
+        }
+        if let Some(placed) = &self.built {
+            builder.inner_size = placed.inner_size;
+            builder.position = placed.position;
+            builder.maximized = placed.maximized;
+            builder.fullscreen = placed.fullscreen;
+        }
+        builder
     }
 
     /// Call every pass from the window's own viewport.
@@ -72,6 +88,7 @@ impl Remember {
     /// The window closed: the next open works out its placement afresh.
     pub(super) fn close(&mut self) {
         self.placed = None;
+        self.built = None;
         self.tracker = None;
     }
 }

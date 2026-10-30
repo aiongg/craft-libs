@@ -251,14 +251,16 @@ pub(super) fn drawn(anchor: Point, cur: Point, ratio: Option<f64>, mods: Modifie
 
 /// `b` kept inside `bounds`: an unturned frame is cut to it; a turned one is moved by the least
 /// that brings its bounds in, and left as it is when it cannot fit. `None` when a frame that
-/// changes size cannot be kept inside (the caller keeps its last frame).
-pub(super) fn within(b: CropBox, bounds: Rect, resizing: bool) -> Option<CropBox> {
+/// changes size cannot be kept inside (the caller keeps its last frame). With `held` (a ratio is
+/// held), a cut that would change the frame's ratio is refused the same way.
+pub(super) fn within(b: CropBox, bounds: Rect, resizing: bool, held: bool) -> Option<CropBox> {
     let bounds = bounds.abs();
     if b.angle == 0.0 {
         let r = b.rect.abs();
         let cut = Rect::new(r.x0.max(bounds.x0), r.y0.max(bounds.y0), r.x1.min(bounds.x1), r.y1.min(bounds.y1));
         if resizing {
-            return (cut.width() >= 0.0 && cut.height() >= 0.0).then_some(CropBox { rect: cut, angle: 0.0 });
+            let kept = !held || (cut.width() * r.height() - cut.height() * r.width()).abs() <= 1e-9 * (r.width() * r.height()).max(1.0);
+            return (kept && cut.width() >= 0.0 && cut.height() >= 0.0).then_some(CropBox { rect: cut, angle: 0.0 });
         }
         return Some(CropBox { rect: shifted_in(r, bounds), angle: 0.0 });
     }

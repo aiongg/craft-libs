@@ -150,6 +150,20 @@ fn the_embedded_window_blocks_the_main_ui_until_it_closes() {
 }
 
 #[test]
+fn closing_ends_the_block_and_the_quit_refusal_on_the_next_pass() {
+    let mut h = app(true, true, true);
+    h.run();
+    h.get_by_label("Cancel").click();
+    while h.state().closed.is_empty() {
+        h.step();
+    }
+    h.step();
+    assert!(!h.state().blocks, "the flag drops on the pass after the close");
+    request_root_close(&mut h);
+    assert!(!commands(&h, ViewportId::ROOT).contains(&ViewportCommand::CancelClose), "closed: the app quits as usual");
+}
+
+#[test]
 fn a_backend_without_viewports_falls_back_to_the_dialog() {
     let mut h = app(false, false, true);
     h.run();
@@ -440,6 +454,41 @@ mod native {
         assert!(out.sent(ViewportId::ROOT, &ViewportCommand::CancelClose));
         assert!(out.sent(child, &ViewportCommand::Focus));
         assert_eq!(s.quit_taken.last(), Some(&false), "craft_quit sees the CancelClose and leaves the window open");
+    }
+
+    #[cfg(feature = "window-restore")]
+    #[test]
+    fn a_zoom_change_while_open_does_not_move_or_resize_the_window() {
+        use std::sync::{Arc, Mutex};
+
+        use craft_window::restore::{Placement, Store};
+
+        use super::super::Remember;
+
+        let mut store = Store::in_memory();
+        let mut placement = Placement::new([900.0, 600.0], 1.0);
+        placement.position_px = Some([120, 80]);
+        placement.normal.pos = [120.0, 80.0];
+        store.set("preferences", &placement);
+        let mut s = shell(false);
+        s.window = PreferencesWindow::new("native").remember(Remember::new(&Arc::new(Mutex::new(store)), "preferences"));
+        s.pass(true, vec![], |_| {});
+        let child = s.window.viewport_id();
+        let builder = BUILDERS.with(|b| b.borrow().get(&child).cloned()).unwrap_or_default();
+        assert_eq!(builder.inner_size, Some(egui::vec2(900.0, 600.0)));
+        s.pass(true, vec![], |_| {});
+
+        // The backend (eframe) patches the viewport with each pass's builder and sends the
+        // differences as commands.
+        let mut backend = BUILDERS.with(|b| b.borrow().get(&child).cloned()).unwrap_or_default();
+        s.ctx.set_zoom_factor(1.5);
+        for _ in 0..3 {
+            s.pass(true, vec![], |_| {});
+            let next = BUILDERS.with(|b| b.borrow().get(&child).cloned()).unwrap_or_default();
+            let (commands, _) = backend.patch(next);
+            let moved = commands.iter().any(|c| matches!(c, ViewportCommand::InnerSize(_) | ViewportCommand::OuterPosition(_)));
+            assert!(!moved && (s.ctx.zoom_factor() - 1.5).abs() < 1e-6, "{:?}", backend.inner_size);
+        }
     }
 
     #[test]

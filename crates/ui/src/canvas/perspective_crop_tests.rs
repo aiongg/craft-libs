@@ -111,6 +111,8 @@ struct Host {
     text: bool,
     text_value: String,
     disabled: bool,
+    /// A button beside the canvas takes the keyboard focus.
+    button: bool,
 }
 
 fn harness(quad: PerspectiveQuad, setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
@@ -129,6 +131,7 @@ fn harness(quad: PerspectiveQuad, setup: impl FnOnce(&mut Host)) -> Harness<'sta
         text: false,
         text_value: String::new(),
         disabled: false,
+        button: false,
     };
     setup(&mut host);
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
@@ -140,6 +143,9 @@ fn harness(quad: PerspectiveQuad, setup: impl FnOnce(&mut Host)) -> Harness<'sta
                 let label = ui.label("Name");
                 let field = ui.add(egui::TextEdit::singleline(&mut host.text_value).id_salt("text field")).labelled_by(label.id);
                 field.request_focus();
+            }
+            if host.button {
+                ui.button("Other").request_focus();
             }
             ui.add_space(40.0);
             // Not a Tab stop, so Tab goes to the quad.
@@ -391,6 +397,16 @@ fn a_valid_quad_draws_its_grid_and_an_invalid_one_draws_red_without_it() {
     h.key_press(Key::Enter);
     h.run();
     assert_eq!(h.state().applied, 0, "an invalid quad cannot be committed");
+}
+
+#[test]
+fn enter_is_ignored_while_another_widget_has_the_focus() {
+    let mut h = harness(Some(QUAD), |host| host.button = true);
+    h.run();
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    assert_eq!(h.state().applied, 0, "Enter belongs to the focused button");
 }
 
 #[test]
