@@ -168,8 +168,8 @@ pub struct AppDefaults {
     pub size: Size,
 }
 
-/// An app's own choice, kept in the app's preferences: "Use a different theme / size in this
-/// app". Fields left `None` follow the suite.
+/// An app's own choice, kept in the app's preferences: "Use a different theme / mode / size in
+/// this app". Fields left `None` follow the suite. A stored choice without `mode` reads as `None`.
 ///
 /// No `Default`: an app states what a fresh install and a legacy preference file each become, so
 /// a `#[serde(default)]` can't silently move existing users to the suite.
@@ -177,16 +177,22 @@ pub struct AppDefaults {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AppChoice {
     pub theme: Option<ThemePair>,
+    pub mode: Option<ModeChoice>,
     pub size: Option<Size>,
 }
 
 impl AppChoice {
     /// Follows the suite in every field.
-    pub const FOLLOW_SUITE: AppChoice = AppChoice { theme: None, size: None };
+    pub const FOLLOW_SUITE: AppChoice = AppChoice { theme: None, mode: None, size: None };
 
-    /// `suite` with this app's theme and size where set.
+    /// `suite` with this app's theme, mode and size where set.
     pub fn apply(&self, suite: &Selection) -> Selection {
-        Selection { theme: self.theme.clone().unwrap_or_else(|| suite.theme.clone()), size: self.size.unwrap_or(suite.size), ..suite.clone() }
+        Selection {
+            theme: self.theme.clone().unwrap_or_else(|| suite.theme.clone()),
+            mode: self.mode.unwrap_or(suite.mode),
+            size: self.size.unwrap_or(suite.size),
+            ..suite.clone()
+        }
     }
 }
 

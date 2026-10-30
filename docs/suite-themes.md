@@ -167,8 +167,8 @@ never reaches the others.
 
 - `SuiteChoice::with_defaults(&AppDefaults)` fills the unset fields from the app's
   `AppDefaults { theme: ThemePair, mode, size }`.
-- Each app keeps an `AppChoice { theme, size }` in its own preferences for "use a different
-  theme / size in this app"; `apply` lays it over the suite's selection. It has no `Default`:
+- Each app keeps an `AppChoice { theme, mode, size }` in its own preferences for "use a
+  different theme / mode / size in this app"; `apply` lays it over the suite's selection. It has no `Default`:
   the app states what a fresh install shows.
 - `resolve_selection(&selection, system, fallback_mode, &defaults, app, lookup)`, with `lookup` a
   `&mut dyn FnMut(&ThemeId) -> Option<ThemeDef>` (`&mut |id| store.theme(id)`), returns
