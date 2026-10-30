@@ -32,11 +32,11 @@ pub enum AdjustField {
 }
 
 impl Doc {
-    /// Puts the layer's edge or centre on the page's. A locked layer stays. Returns whether the
+    /// Puts the layer's edge or centre on the page's. A locked layer and an adjustment layer stay. Returns whether the
     /// layer moved.
     pub fn align(&mut self, id: LayerId, how: Align) -> bool {
         let [page_w, page_h] = self.size.map(|s| s as f32);
-        let Some(layer) = self.layer_mut(id).filter(|l| !l.locked) else { return false };
+        let Some(layer) = self.layer_mut(id).filter(|l| !l.locked && !l.is_adjustment()) else { return false };
         let [x, y, w, h] = layer.rect;
         let moved = match how {
             Align::Left => [0.0, y],
@@ -52,24 +52,27 @@ impl Doc {
         changed
     }
 
-    /// Sets one number of the layer's rectangle. Sizes stay at 1 or more. With `keep_ratio` a
-    /// width or height change scales the other to keep the ratio; the position stays. A locked
-    /// layer stays. Returns whether the rectangle changed.
-    pub fn set_rect_field(&mut self, id: LayerId, field: RectField, value: f64, keep_ratio: bool) -> bool {
+    /// Sets the layer's rectangle to `base` with one number changed, in whole pixels. Sizes stay
+    /// at 1 or more. With `keep_ratio` a width or height change scales the other to keep the
+    /// ratio of `base`; the position stays. Starting every step of an edit from the rectangle the
+    /// edit began with keeps the ratio while a value is typed or scrubbed. A locked layer stays.
+    /// Returns whether the rectangle changed.
+    pub fn set_rect_field(&mut self, id: LayerId, base: [f32; 4], field: RectField, value: f64, keep_ratio: bool) -> bool {
         let Some(layer) = self.layer_mut(id).filter(|l| !l.locked) else { return false };
-        let before = layer.rect;
-        let [x, y, w, h] = before;
-        let value = value as f32;
+        let [x, y, w, h] = base;
+        let value = value.round() as f32;
         let size = value.max(1.0);
-        layer.rect = match field {
+        let scaled = |side: f32, from: f32| (side * size / from).round().max(1.0);
+        let rect = match field {
             RectField::X => [value, y, w, h],
             RectField::Y => [x, value, w, h],
-            RectField::W if keep_ratio && w > 0.0 => [x, y, size, (h * size / w).max(1.0)],
-            RectField::H if keep_ratio && h > 0.0 => [x, y, (w * size / h).max(1.0), size],
+            RectField::W if keep_ratio && w > 0.0 => [x, y, size, scaled(h, w)],
+            RectField::H if keep_ratio && h > 0.0 => [x, y, scaled(w, h), size],
             RectField::W => [x, y, size, h],
             RectField::H => [x, y, w, size],
         };
-        let changed = layer.rect != before;
+        let changed = layer.rect != rect;
+        layer.rect = rect;
         self.modified |= changed;
         changed
     }
@@ -109,11 +112,14 @@ mod tests {
     #[test]
     fn a_linked_width_scales_the_height_and_moves_nothing_else() {
         let mut doc = Doc::default();
-        assert!(doc.set_rect_field(3, RectField::W, 250.0, true));
+        let base = doc.layer(3).unwrap().rect;
+        assert!(doc.set_rect_field(3, base, RectField::W, 250.0, true));
         assert_eq!(doc.layer(3).unwrap().rect, [500.0, 300.0, 250.0, 200.0]);
-        assert!(doc.set_rect_field(3, RectField::H, 100.0, false));
-        assert_eq!(doc.layer(3).unwrap().rect, [500.0, 300.0, 250.0, 100.0]);
-        assert!(!doc.set_rect_field(1, RectField::X, 5.0, false), "the locked background stays");
+        doc.set_rect_field(3, base, RectField::W, 333.0, true);
+        assert_eq!(doc.layer(3).unwrap().rect, [500.0, 300.0, 333.0, 266.0], "whole pixels, from the starting ratio");
+        assert!(doc.set_rect_field(3, base, RectField::H, 100.0, false));
+        assert_eq!(doc.layer(3).unwrap().rect, [500.0, 300.0, 500.0, 100.0]);
+        assert!(!doc.set_rect_field(1, base, RectField::X, 5.0, false), "the locked background stays");
     }
 
     #[test]

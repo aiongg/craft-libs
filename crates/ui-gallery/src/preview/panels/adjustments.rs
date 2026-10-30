@@ -20,19 +20,24 @@ const ADJUSTMENTS: [(Icon, &str); 6] = [
     (Icon::AdjustmentLayer, "Photo Filter"),
 ];
 
-pub fn show(ui: &mut Ui, mock: &mut Mock) {
-    Panel::new("adjustments").title("Adjustments").show(ui, |ui| {
-        ui.add(Text::new("Add an adjustment").content(Content::Muted));
-        let mut added = None;
-        ui.horizontal_wrapped(|ui| {
-            for (icon, name) in ADJUSTMENTS {
-                if ui.add(IconButton::new(icon, name).size(ControlSize::Md)).clicked() {
-                    added = Some(name);
+/// Returns whether a button added a layer, which the Properties panel then shows.
+pub fn show(ui: &mut Ui, mock: &mut Mock) -> bool {
+    Panel::new("adjustments")
+        .title("Adjustments")
+        .show(ui, |ui| {
+            ui.add(Text::new("Add an adjustment").content(Content::Muted));
+            let mut added = None;
+            ui.horizontal_wrapped(|ui| {
+                for (icon, name) in ADJUSTMENTS {
+                    if ui.add(IconButton::new(icon, name).size(ControlSize::Md)).clicked() {
+                        added = Some(name);
+                    }
                 }
-            }
-        });
-        if let Some(name) = added {
-            mock.add_adjustment(name);
-        }
-    });
+            });
+            added.is_some_and(|name| {
+                mock.add_adjustment(name);
+                true
+            })
+        })
+        .inner
 }

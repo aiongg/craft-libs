@@ -65,7 +65,7 @@ fn cells(ui: &mut Ui, mock: &mut Mock) {
             OptionsBar::divider(ui);
             check(ui, "Show Transform Controls", &mut options.transform);
             OptionsBar::divider(ui);
-            let enabled = mock.doc.selected_layer().is_some_and(|l| !l.locked);
+            let enabled = mock.doc.selected_layer().is_some_and(|l| !l.locked && !l.is_adjustment());
             for (glyph, name, how) in ALIGN {
                 if ui.add(IconButton::new(glyph, name).size(ControlSize::Sm).enabled(enabled)).clicked() {
                     mock.align_selected(how);

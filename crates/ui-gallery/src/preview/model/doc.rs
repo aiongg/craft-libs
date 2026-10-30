@@ -62,7 +62,6 @@ impl Layer {
         Self { id, name: name.into(), kind, visible: true, locked: false, opacity: 100, fill: 100, blend: Blend::Normal, rect }
     }
 
-    #[cfg(test)]
     pub fn is_adjustment(&self) -> bool {
         matches!(self.kind, LayerKind::Adjustment { .. })
     }
@@ -155,20 +154,6 @@ impl Doc {
             }
             _ => false,
         }
-    }
-
-    /// Moves a layer to `to` in the list (0 is the top), clamped to the list.
-    #[cfg(test)]
-    pub fn move_layer(&mut self, id: LayerId, to: usize) -> bool {
-        let Some(from) = self.index_of(id) else { return false };
-        let to = to.min(self.layers.len() - 1);
-        if from == to {
-            return false;
-        }
-        let layer = self.layers.remove(from);
-        self.layers.insert(to, layer);
-        self.modified = true;
-        true
     }
 
     /// The index a new layer takes: above the topmost selected layer, else at the top.

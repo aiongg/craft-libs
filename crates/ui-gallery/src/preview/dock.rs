@@ -114,7 +114,11 @@ impl DockContent<Panel> for Content<'_> {
     fn body(&mut self, ui: &mut Ui, panel: &Panel) {
         match panel {
             Panel::Canvas => self.canvas(ui),
-            other => other.show(ui, self.mock, self.panels),
+            other => {
+                if let Some(panel) = other.show(ui, self.mock, self.panels) {
+                    self.requested = Some(panel);
+                }
+            }
         }
     }
 

@@ -219,13 +219,10 @@ mod tests {
     }
 
     #[test]
-    fn layers_move_and_new_layers_go_above_the_selection() {
+    fn new_layers_go_above_the_selection() {
         let mut doc = Doc::default();
-        assert!(doc.move_layer(3, 99));
-        assert_eq!(doc.layers.iter().map(|l| l.id).collect::<Vec<_>>(), [2, 1, 3], "clamped to the bottom");
-        assert!(!doc.move_layer(3, 2));
         let id = doc.add_layer();
-        assert_eq!(doc.layers[2].id, id, "above the selected layer");
+        assert_eq!(doc.layers[0].id, id, "above the selected layer");
         assert_eq!(doc.layer(id).unwrap().name, "Layer 4");
         assert_eq!(doc.selected, vec![id]);
     }
