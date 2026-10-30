@@ -249,9 +249,9 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             });
         }
         // A list row's dimmed label and its detail line are `text.faint` on the panel.
-        for f in [ListField::Dimmed, ListField::Detail] {
+        for f in [ComponentField::List(ListField::Dimmed), ComponentField::List(ListField::Detail), ComponentField::Preset(PresetField::Count)] {
             expected.push(ContrastCheck {
-                fg: ComponentField::List(f).into(),
+                fg: f.into(),
                 bg: T::SurfacePanel.into(),
                 ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
                 minimum: 4.5,
