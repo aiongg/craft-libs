@@ -27,6 +27,7 @@ pub mod icons;
 mod id_tests;
 pub mod ime;
 pub mod inspect;
+pub mod interface_scale;
 pub mod layout;
 pub mod list;
 pub mod localized;
