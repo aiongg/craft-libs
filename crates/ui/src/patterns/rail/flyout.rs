@@ -1,7 +1,7 @@
 //! `FlyoutButton`: a rail button that stands for a group of choices and opens them as a flyout.
 
 use egui::accesskit::HasPopup;
-use egui::{AsIdSalt, Color32, IdSalt, Key, Modifiers, PointerButton, Popup, Response, SetOpenCommand, Shape, Stroke, Ui, pos2};
+use egui::{AsIdSalt, Color32, IdSalt, Key, Modifiers, PointerButton, Popup, Rect, Response, SetOpenCommand, Shape, Stroke, Ui, pos2};
 
 use super::gesture::{drag_open, long_press, long_press_wait, reclick_closes};
 use crate::controls::{IconButton, IconButtonStyle, Kbd};
@@ -337,13 +337,18 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
 /// The triangle at the bottom corner facing the canvas: the right corner, the left in a
 /// right-to-left interface.
 fn paint_indicator(ui: &Ui, response: &Response, style: &FlyoutStyle) {
-    let rect = response.rect;
+    paint_corner_triangle(ui, response.rect, style.indicator_inset, style.indicator, style.indicator_color);
+}
+
+/// A filled right triangle with legs `size`, `inset` from `rect`'s bottom-end corner. It marks a
+/// button that opens a menu.
+pub(crate) fn paint_corner_triangle(ui: &Ui, rect: Rect, inset: f32, size: f32, color: Color32) {
     let x = direction::end_x(ui, rect);
     let f = direction::forward(ui);
-    let (near, far) = (style.indicator_inset, style.indicator_inset + style.indicator);
+    let (near, far) = (inset, inset + size);
     let corner = pos2(x - f * near, rect.bottom() - near);
     let points = vec![corner, pos2(x - f * far, rect.bottom() - near), pos2(x - f * near, rect.bottom() - far)];
-    ui.painter().add(Shape::convex_polygon(points, style.indicator_color, Stroke::NONE));
+    ui.painter().add(Shape::convex_polygon(points, color, Stroke::NONE));
 }
 
 /// The components this module has stories for.

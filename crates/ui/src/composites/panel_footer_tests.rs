@@ -5,7 +5,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use egui::{Context, Margin, Rect, Ui, vec2};
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::panel_footer::{LayersArgs, show_layers};
@@ -13,7 +13,7 @@ use super::*;
 use crate::direction::{self, Direction};
 use crate::icons::Icon;
 use crate::testing::a11y;
-use crate::theme::{Base, Tokens, TokensOf as _, install};
+use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
 
 fn harness<State>(dir: Direction) -> HarnessBuilder<State> {
     Harness::<State>::builder().with_size([640.0, 320.0]).with_context_setup(move |ctx: &Context| {
@@ -93,5 +93,41 @@ fn the_story_names_every_button() {
         let mut args = LayersArgs { width: 240.0 };
         let harness = harness(dir).build_ui(move |ui| show_layers(ui, &mut args));
         a11y::assert_labelled(&harness);
+    }
+}
+
+/// The filled three-point polygons in the rail's indicator colour.
+fn triangles(harness: &Harness<'_, ()>) -> Vec<Vec<egui::Pos2>> {
+    let ctx = &harness.ctx;
+    let color = crate::theme::current(ctx).component.rail.indicator_color.to_egui();
+    harness
+        .output()
+        .shapes
+        .iter()
+        .filter_map(|s| match &s.shape {
+            egui::Shape::Path(path) if path.fill == color && path.points.len() == 3 => Some(path.points.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_menu_button_has_the_rail_indicator_in_its_end_corner_and_a_menu_popup() {
+    for (dir, right) in [(Direction::Ltr, true), (Direction::Rtl, false)] {
+        let harness = harness(dir).build_ui(|ui| {
+            PanelFooter::show(ui, |ui| {
+                PanelFooter::menu_button(ui, Icon::Plus, "New fill");
+                PanelFooter::button(ui, Icon::Trash, "Delete");
+            });
+        });
+        let rect = harness.get_by_label("New fill").rect();
+        let shapes = triangles(&harness);
+        assert_eq!(shapes.len(), 1, "{dir:?}: only the menu button is marked");
+        let points = &shapes[0];
+        assert!(points.iter().all(|p| rect.contains(*p) && p.y > rect.center().y), "{dir:?}: inside the bottom half of {rect:?}: {points:?}");
+        let x = points.iter().map(|p| p.x).sum::<f32>() / 3.0;
+        assert_eq!(x > rect.center().x, right, "{dir:?}: bottom-end corner");
+        assert_eq!(harness.get_by_label("New fill").accesskit_node().has_popup(), Some(egui::accesskit::HasPopup::Menu));
+        assert_eq!(harness.get_by_label("Delete").accesskit_node().has_popup(), None);
     }
 }
