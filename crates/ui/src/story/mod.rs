@@ -1,10 +1,58 @@
 //! Stories: named examples of a component, listed by the `craft-ui-gallery` app.
 //!
 //! A [`Story`] has a stable id (`level/component/story`), default [`Args`] and a `show` function.
-//! [`registry`] lists every story of the crate. A component module with stories exposes
-//! `pub fn stories() -> Vec<Story>` and `pub const COMPONENTS: &[&str]` (the
-//! [`Story::component`] names it covers), and is added to [`registry`] and [`components`] by
-//! hand. A test fails when a declared component has no story.
+//! [`registry`] lists every story of the crate.
+//!
+//! # Writing a story
+//!
+//! A story's args are a struct deriving [`StoryArgs`]; its fields are the arg rows of the gallery's
+//! Properties panel, in field order. Choice args are enums deriving [`StoryChoice`]. The story's
+//! function takes the struct, so a misspelt or mistyped arg does not compile.
+//! [`typed_story!`](crate::typed_story) makes the [`Story`] from the id, the default values and
+//! the function.
+//!
+//! ```
+//! use craft_ui::story::{Level, Story, StoryArgs, StoryChoice};
+//! use craft_ui::typed_story;
+//!
+//! #[derive(StoryChoice, Clone, Copy, PartialEq, Debug)]
+//! enum Tone {
+//!     Quiet,
+//!     #[choice(name = "very loud")]
+//!     Loud,
+//! }
+//!
+//! #[derive(StoryArgs, PartialEq, Debug)]
+//! struct NoteArgs {
+//!     tone: Tone,
+//!     label: String,
+//!     #[arg(range = 1.0..=10.0)]
+//!     lines: f64,
+//!     #[arg(name = "show border")]
+//!     bordered: bool,
+//! }
+//!
+//! fn show_note(ui: &mut egui::Ui, args: &mut NoteArgs) {
+//!     ui.label(format!("{:?}: {} ({} lines)", args.tone, args.label, args.lines));
+//! }
+//!
+//! let story = typed_story!(
+//!     "controls/note/playground",
+//!     Level::Controls,
+//!     "Note",
+//!     "Playground",
+//!     NoteArgs { tone: Tone::Loud, label: "Hello".into(), lines: 2.0, bordered: true },
+//!     show_note
+//! );
+//! let args = story.defaults();
+//! assert_eq!(NoteArgs::read(&args).tone, Tone::Loud);
+//! assert_eq!(args.choice("tone"), "very loud");
+//! ```
+//!
+//! A component module with stories exposes `pub fn stories() -> Vec<Story>` and
+//! `pub const COMPONENTS: &[&str]` (the [`Story::component`] names it covers), and is added to
+//! the one list in `register!` (in this file), which defines [`registry`] and [`components`]. A
+//! test fails when a declared component has no story.
 //!
 //! ```
 //! # egui::__run_test_ui(|ui| {
@@ -15,12 +63,18 @@
 //! ```
 
 mod args;
+mod choices;
 mod colours;
 mod stock_egui;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod typed_tests;
 
-pub use args::{Arg, ArgValue, Args};
+pub use args::{Arg, ArgValue, Args, StoryArgs, StoryChoice, show_typed};
+pub use choices::SizeArg;
+/// `#[derive(StoryArgs)]` and `#[derive(StoryChoice)]`; see the traits.
+pub use craft_ui_macros::{StoryArgs, StoryChoice};
 
 use crate::{composites, controls, primitives};
 
@@ -141,176 +195,123 @@ impl Story {
     }
 }
 
-/// Every story of the crate. Each module's `stories()` is listed by hand: no linker registration,
-/// so the order is fixed and the list works on wasm.
-pub fn registry() -> Vec<Story> {
-    let mut all = Vec::new();
-    all.extend(colours::stories());
-    all.extend(stock_egui::stories());
-    all.extend(crate::icons::stories());
-    all.extend(primitives::surface::stories());
-    all.extend(primitives::state_layer::stories());
-    all.extend(primitives::focus_ring::stories());
-    all.extend(primitives::divider::stories());
-    all.extend(primitives::stack::stories());
-    all.extend(primitives::interactive::stories());
-    all.extend(primitives::text::stories());
-    all.extend(primitives::icon::stories());
-    all.extend(primitives::handle::stories());
-    all.extend(crate::canvas::story::stories());
-    all.extend(crate::canvas::guides::stories());
-    all.extend(crate::canvas::marquee::stories());
-    all.extend(crate::canvas::rulers::stories());
-    all.extend(crate::canvas::transform_box::stories());
-    all.extend(crate::canvas::ref_point::stories());
-    all.extend(crate::canvas::bezier::story::stories());
-    all.extend(crate::canvas::warp::story::stories());
-    all.extend(crate::canvas::pen::story::stories());
-    all.extend(crate::canvas::gradient_overlay::story::stories());
-    all.extend(crate::edit::stories());
-    all.extend(controls::button::stories());
-    all.extend(controls::icon_button::stories());
-    all.extend(controls::toggle_button::stories());
-    all.extend(controls::segmented::stories());
-    all.extend(controls::select::stories());
-    all.extend(controls::combo_box::stories());
-    all.extend(controls::link::stories());
-    all.extend(controls::checkbox::stories());
-    all.extend(controls::radio::stories());
-    all.extend(controls::switch::stories());
-    all.extend(controls::slider::stories());
-    all.extend(controls::range_slider::stories());
-    all.extend(controls::thumb_row::stories());
-    all.extend(controls::swatch::stories());
-    all.extend(controls::badge::stories());
-    all.extend(controls::kbd::stories());
-    all.extend(controls::spinner::stories());
-    all.extend(controls::progress::stories());
-    all.extend(controls::tooltip::stories());
-    all.extend(controls::text_field::stories());
-    all.extend(controls::number_field::stories());
-    all.extend(controls::angle_dial::stories());
-    all.extend(composites::field::stories());
-    all.extend(composites::form_grid::stories());
-    all.extend(composites::property_row::stories());
-    all.extend(composites::section_header::stories());
-    all.extend(composites::section_label::stories());
-    all.extend(composites::panel_header::stories());
-    all.extend(composites::panel_footer::stories());
-    all.extend(composites::slider_row::stories());
-    all.extend(composites::toast::stories());
-    all.extend(composites::notice::stories());
-    all.extend(composites::empty_state::stories());
-    all.extend(composites::curve_editor::stories());
-    all.extend(composites::gradient::stories());
-    all.extend(crate::canvas::transform_fields::stories());
-    all.extend(composites::histogram::stories());
-    all.extend(composites::levels_editor::stories());
-    all.extend(crate::tab_strip::stories());
-    all.extend(crate::list::stories());
-    all.extend(crate::menu::stories());
-    all.extend(crate::menu::bar::stories());
-    #[cfg(feature = "window-frame")]
-    all.extend(crate::title_bar::stories::stories());
-    all.extend(composites::color::stories());
-    all.extend(crate::docking::stories());
-    all.extend(crate::dialog::stories::stories());
-    all.extend(crate::dialog::full_window_stories::stories());
-    all.extend(crate::dialog::preview_stories::stories());
-    all.extend(crate::viewport::stories::stories());
-    all.extend(crate::patterns::options_bar::stories());
-    all.extend(crate::patterns::status_bar::stories());
-    all.extend(crate::patterns::panel::stories());
-    all.extend(crate::patterns::rail::panel_rail::stories());
-    all.extend(crate::patterns::rail::flyout::stories());
-    all.extend(crate::patterns::rail::tool::stories());
-    all.extend(crate::popover::stories());
-    all
+/// A [`Story`] whose args are a [`StoryArgs`] struct: `typed_story!(id, level, component, name,
+/// defaults, show)`, where `defaults` is an expression of the args type (the story's default
+/// values) and `show` a function `fn(&mut Ui, &mut Args)` of that type, written as a path or a
+/// closure that captures nothing. See the [module](crate::story) docs.
+#[macro_export]
+macro_rules! typed_story {
+    ($id:expr, $level:expr, $component:expr, $name:expr, $defaults:expr, $show:expr $(,)?) => {
+        $crate::story::Story::new(
+            $id,
+            $level,
+            $component,
+            $name,
+            || $crate::story::StoryArgs::to_args(&$defaults),
+            |ui, args| $crate::story::show_typed(ui, args, $show),
+        )
+    };
 }
 
-/// The `COMPONENTS` list of every module with stories, in [`registry`] order.
-const DECLARED: &[&[&str]] = &[
-    colours::COMPONENTS,
-    stock_egui::COMPONENTS,
-    crate::icons::COMPONENTS,
-    primitives::surface::COMPONENTS,
-    primitives::state_layer::COMPONENTS,
-    primitives::focus_ring::COMPONENTS,
-    primitives::divider::COMPONENTS,
-    primitives::stack::COMPONENTS,
-    primitives::interactive::COMPONENTS,
-    primitives::text::COMPONENTS,
-    primitives::icon::COMPONENTS,
-    primitives::handle::COMPONENTS,
-    crate::canvas::story::COMPONENTS,
-    crate::canvas::guides::COMPONENTS,
-    crate::canvas::marquee::COMPONENTS,
-    crate::canvas::ref_point::COMPONENTS,
-    crate::canvas::transform_fields::COMPONENTS,
-    crate::canvas::rulers::COMPONENTS,
-    crate::canvas::transform_box::COMPONENTS,
-    crate::canvas::bezier::story::COMPONENTS,
-    crate::canvas::warp::story::COMPONENTS,
-    crate::canvas::pen::story::COMPONENTS,
-    crate::canvas::gradient_overlay::story::COMPONENTS,
-    crate::edit::COMPONENTS,
-    controls::button::COMPONENTS,
-    controls::icon_button::COMPONENTS,
-    controls::toggle_button::COMPONENTS,
-    controls::segmented::COMPONENTS,
-    controls::select::COMPONENTS,
-    controls::combo_box::COMPONENTS,
-    controls::link::COMPONENTS,
-    controls::checkbox::COMPONENTS,
-    controls::radio::COMPONENTS,
-    controls::switch::COMPONENTS,
-    controls::slider::COMPONENTS,
-    controls::range_slider::COMPONENTS,
-    controls::thumb_row::COMPONENTS,
-    controls::swatch::COMPONENTS,
-    controls::badge::COMPONENTS,
-    controls::kbd::COMPONENTS,
-    controls::spinner::COMPONENTS,
-    controls::progress::COMPONENTS,
-    controls::tooltip::COMPONENTS,
-    controls::text_field::COMPONENTS,
-    controls::number_field::COMPONENTS,
-    controls::angle_dial::COMPONENTS,
-    composites::field::COMPONENTS,
-    composites::form_grid::COMPONENTS,
-    composites::property_row::COMPONENTS,
-    composites::section_header::COMPONENTS,
-    composites::section_label::COMPONENTS,
-    composites::panel_header::COMPONENTS,
-    composites::panel_footer::COMPONENTS,
-    composites::slider_row::COMPONENTS,
-    composites::toast::COMPONENTS,
-    composites::notice::COMPONENTS,
-    composites::empty_state::COMPONENTS,
-    composites::curve_editor::COMPONENTS,
-    composites::gradient::COMPONENTS,
-    composites::histogram::COMPONENTS,
-    composites::levels_editor::COMPONENTS,
-    crate::tab_strip::COMPONENTS,
-    crate::list::COMPONENTS,
-    crate::menu::COMPONENTS,
-    crate::menu::bar::COMPONENTS,
+/// Lists every module with stories once and defines [`registry`] and [`components`] from the list,
+/// in the order written. Each path names a module that has `stories()` and `COMPONENTS`. The
+/// list is written out, with no linker registration, so the order is fixed and it works on wasm.
+macro_rules! register {
+    ($($(#[$cfg:meta])* $($module:ident)::+),* $(,)?) => {
+        /// Every story of the crate, in listing order.
+        pub fn registry() -> Vec<Story> {
+            let mut all = Vec::new();
+            $($(#[$cfg])* all.extend($($module)::+::stories());)*
+            all
+        }
+
+        /// The `COMPONENTS` list of every module with stories, in [`registry`] order.
+        const DECLARED: &[&[&str]] = &[$($(#[$cfg])* $($module)::+::COMPONENTS),*];
+    };
+}
+
+register! {
+    colours,
+    stock_egui,
+    crate::icons,
+    primitives::surface,
+    primitives::state_layer,
+    primitives::focus_ring,
+    primitives::divider,
+    primitives::stack,
+    primitives::interactive,
+    primitives::text,
+    primitives::icon,
+    primitives::handle,
+    crate::canvas::story,
+    crate::canvas::guides,
+    crate::canvas::marquee,
+    crate::canvas::rulers,
+    crate::canvas::transform_box,
+    crate::canvas::ref_point,
+    crate::canvas::bezier::story,
+    crate::canvas::warp::story,
+    crate::canvas::pen::story,
+    crate::canvas::gradient_overlay::story,
+    crate::edit,
+    controls::button,
+    controls::icon_button,
+    controls::toggle_button,
+    controls::segmented,
+    controls::select,
+    controls::combo_box,
+    controls::link,
+    controls::checkbox,
+    controls::radio,
+    controls::switch,
+    controls::slider,
+    controls::range_slider,
+    controls::thumb_row,
+    controls::swatch,
+    controls::badge,
+    controls::kbd,
+    controls::spinner,
+    controls::progress,
+    controls::tooltip,
+    controls::text_field,
+    controls::number_field,
+    controls::angle_dial,
+    composites::field,
+    composites::form_grid,
+    composites::property_row,
+    composites::section_header,
+    composites::section_label,
+    composites::panel_header,
+    composites::panel_footer,
+    composites::slider_row,
+    composites::toast,
+    composites::notice,
+    composites::empty_state,
+    composites::curve_editor,
+    composites::gradient,
+    crate::canvas::transform_fields,
+    composites::histogram,
+    composites::levels_editor,
+    crate::tab_strip,
+    crate::list,
+    crate::menu,
+    crate::menu::bar,
     #[cfg(feature = "window-frame")]
-    crate::title_bar::stories::COMPONENTS,
-    composites::color::COMPONENTS,
-    crate::docking::COMPONENTS,
-    crate::dialog::COMPONENTS,
-    crate::dialog::full_window_stories::COMPONENTS,
-    crate::dialog::preview_stories::COMPONENTS,
-    crate::viewport::COMPONENTS,
-    crate::patterns::options_bar::COMPONENTS,
-    crate::patterns::status_bar::COMPONENTS,
-    crate::patterns::panel::COMPONENTS,
-    crate::patterns::rail::panel_rail::COMPONENTS,
-    crate::patterns::rail::flyout::COMPONENTS,
-    crate::patterns::rail::tool::COMPONENTS,
-    crate::popover::COMPONENTS,
-];
+    crate::title_bar::stories,
+    composites::color,
+    crate::docking,
+    crate::dialog::stories,
+    crate::dialog::full_window_stories,
+    crate::dialog::preview_stories,
+    crate::viewport::stories,
+    crate::patterns::options_bar,
+    crate::patterns::status_bar,
+    crate::patterns::panel,
+    crate::patterns::rail::panel_rail,
+    crate::patterns::rail::flyout,
+    crate::patterns::rail::tool,
+    crate::popover,
+}
 
 /// Every component the crate's modules declare, in [`registry`] order.
 pub fn components() -> impl Iterator<Item = &'static str> {

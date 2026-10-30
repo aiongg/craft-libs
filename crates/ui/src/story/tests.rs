@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use egui::{Context, RawInput};
 
-use super::colours::GROUPS;
+use super::colours::Group;
 use super::*;
 
 #[test]
@@ -38,7 +38,7 @@ fn every_story_shows_with_its_default_args() {
 fn colour_groups_cover_every_token() {
     for token in craft_theme::ColorToken::ALL {
         let section = token.path().split('.').next().unwrap_or_default();
-        assert!(GROUPS.contains(&section), "no group for {}", token.path());
+        assert!(Group::OPTIONS.contains(&section), "no group for {}", token.path());
     }
 }
 
@@ -53,8 +53,8 @@ fn a_misspelt_arg_panics_with_the_story_id() {
 fn every_colour_group_renders() {
     let story = registry().into_iter().find(|s| s.id == "foundations/colours/semantic").expect("story");
     let ctx = Context::default();
-    for index in 0..GROUPS.len() {
-        let mut args = Args::new().with_choice("group", GROUPS, index).for_story(story.id);
+    for index in 0..Group::OPTIONS.len() {
+        let mut args = Args::new().with_choice("group", Group::OPTIONS, index).for_story(story.id);
         ctx.run_ui(RawInput::default(), |ui| (story.show)(ui, &mut args)).drop_without_applying_deltas();
     }
 }
@@ -94,4 +94,18 @@ fn a_story_sits_on_a_panel_unless_set() {
     assert_eq!(surface_of("Button"), Some(Surface::Panel));
     assert_eq!(surface_of("Rulers"), Some(Surface::Canvas));
     assert_eq!(surface_of("OptionsBar"), Some(Surface::Chrome));
+}
+
+/// The registry's order, and every story's component, name, surface and default args: a
+/// migration of a module to typed args must leave this file unchanged.
+#[test]
+fn registry_and_default_args_match_the_dump() {
+    use crate::testing::dump::Dump;
+    let mut dump = Dump::new();
+    dump.comment("Written by story::tests::registry_and_default_args_match_the_dump (UPDATE_DUMPS=1).");
+    for story in registry() {
+        let args: Vec<String> = story.defaults().iter().map(|a| format!("{}={:?}", a.name, a.value)).collect();
+        dump.line(story.id, format!("{} | {} | {:?} | {}", story.component, story.name, story.surface, args.join("; ")));
+    }
+    dump.check(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/dumps/stories/registry.txt"));
 }
