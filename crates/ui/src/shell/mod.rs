@@ -50,6 +50,7 @@ pub use visibility::{BodyMode, tab_toggles_chrome, take_tab_toggle};
 use ids::State;
 
 use crate::direction;
+use crate::patterns::ToolRail;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
 type SlotFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
@@ -300,8 +301,7 @@ impl<'a> AppShell<'a> {
             Edge::Top if slot.narrow => tokens.size.bar.options_narrow,
             Edge::Top => tokens.size.bar.options,
             Edge::Bottom => tokens.size.bar.status,
-            // Each added column is a button and PhotoCraft's 2 pt gap (`panels/toolbar.rs:89`).
-            Edge::Start | Edge::End => tokens.size.rail.width + f32::from(slot.columns - 1) * (tokens.size.rail.button + 2.0),
+            Edge::Start | Edge::End => ToolRail::<()>::metrics(&tokens, slot.columns).width,
         };
 
         let Self { bare, title, top, bottom, start, end, mode, allow_reveal, tabs, backdrop, body_label, level, .. } = self;

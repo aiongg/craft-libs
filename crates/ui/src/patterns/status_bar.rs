@@ -2,7 +2,7 @@
 
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
-use egui::{AsIdSalt, Color32, IdSalt, Label, Rect, Response, Sense, Ui, UiBuilder, vec2};
+use egui::{AsIdSalt, Color32, IdSalt, Label, Rect, Response, Sense, Ui, UiBuilder, emath::GuiRounding as _, vec2};
 
 use crate::composites::{live, measure};
 use crate::controls::{IconButton, NumberField, Progress};
@@ -72,6 +72,27 @@ impl StatusProgress {
         self.cancel = Some(label.into());
         self
     }
+}
+
+/// What [`StatusBar::progress`] returns.
+#[derive(Debug)]
+pub struct StatusProgressOutput {
+    /// True when the cancel button was clicked this frame.
+    pub cancel: bool,
+    /// The response of the label, bar and percentage, for a tooltip or a click.
+    pub response: Response,
+}
+
+/// Muted text drawn without an AccessKit node, for text another node already announces.
+fn paint_text(ui: &mut Ui, tokens: &UiTokens, text: &str, role: TypeRole) -> Response {
+    let format = Text::format(tokens, role, Content::Muted);
+    let color = format.color;
+    let galley = ui.painter().layout_job(LayoutJob::single_section(text.to_owned(), format));
+    let (rect, response) = ui.allocate_exact_size(galley.size(), Sense::hover());
+    if ui.is_rect_visible(rect) {
+        ui.painter().galley(rect.min.round_to_pixels(ui.pixels_per_point()), galley, color);
+    }
+    response
 }
 
 type Slot<'a> = Option<Box<dyn FnOnce(&mut Ui) + 'a>>;
@@ -263,22 +284,33 @@ impl StatusBar {
 
     /// A background task's progress, for the trailing group, in reading order: the label in
     /// `text.muted`, a [`Progress`] bar of `progress.width`, the percentage in the mono role and a
-    /// small cancel button. The bar is a progress indicator named by the label, with the fraction
-    /// as its value. Returns true when the cancel button was clicked.
-    pub fn progress(ui: &mut Ui, progress: StatusProgress) -> bool {
-        ui.add(Text::new(progress.label.as_str()).content(Content::Muted));
+    /// small cancel button. The label and percentage are painted, not AccessKit nodes: the bar is
+    /// one progress indicator named by the label, with the fraction as its value and the percentage
+    /// as its value text. The cancel button's id comes from the label. The output's `response`
+    /// covers the label, bar and percentage.
+    pub fn progress(ui: &mut Ui, progress: StatusProgress) -> StatusProgressOutput {
+        let tokens = Tokens::of(ui);
+        let mut response = paint_text(ui, &tokens, &progress.label, TypeRole::Body);
         let mut bar = Progress::indeterminate();
         if let Some(fraction) = progress.fraction {
             bar = Progress::new(fraction);
         }
-        ui.add(bar.label(progress.label));
-        if let Some(percent) = progress.percent {
-            ui.add(Text::new(percent).role(TypeRole::Mono).content(Content::Muted));
+        bar = bar.label(progress.label.as_str());
+        if let Some(percent) = &progress.percent {
+            bar = bar.value_text(percent.as_str());
         }
-        match progress.cancel {
-            Some(label) => ui.add(IconButton::new(Icon::Close, label).size(ControlSize::Sm)).clicked(),
+        response = response.union(ui.add(bar));
+        if let Some(percent) = &progress.percent {
+            response = response.union(paint_text(ui, &tokens, percent, TypeRole::Mono));
+        }
+        let cancel = match progress.cancel {
+            Some(label) => {
+                let button = IconButton::new(Icon::Close, label).size(ControlSize::Sm).id_salt(("status-progress-cancel", progress.label.as_str()));
+                ui.add(button).clicked()
+            }
             None => false,
-        }
+        };
+        StatusProgressOutput { cancel, response }
     }
 
     /// A clickable text in the warning colour, for the trailing group: the render-path label

@@ -59,22 +59,30 @@ enum Amount {
 pub struct Progress {
     amount: Amount,
     label: Option<String>,
+    value_text: Option<String>,
     width: Option<f32>,
 }
 
 impl Progress {
     /// A bar `fraction` full, clamped to 0..=1.
     pub fn new(fraction: f32) -> Self {
-        Self { amount: Amount::Fraction(fraction), label: None, width: None }
+        Self { amount: Amount::Fraction(fraction), label: None, value_text: None, width: None }
     }
 
     pub fn indeterminate() -> Self {
-        Self { amount: Amount::Indeterminate, label: None, width: None }
+        Self { amount: Amount::Indeterminate, label: None, value_text: None, width: None }
     }
 
     /// The accessible name.
     pub fn label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+
+    /// The value as the host's localized text ("45%"), which a screen reader announces instead of
+    /// formatting the fraction itself.
+    pub fn value_text(mut self, text: impl Into<String>) -> Self {
+        self.value_text = Some(text.into());
         self
     }
 
@@ -140,6 +148,9 @@ impl Widget for Progress {
             info
         });
         ui.ctx().accesskit_node_builder(response.id, |node| {
+            if let Some(text) = &self.value_text {
+                node.set_value(text.as_str());
+            }
             if value.is_some() {
                 node.set_min_numeric_value(0.0);
                 node.set_max_numeric_value(1.0);

@@ -178,7 +178,7 @@ fn the_progress_item_reports_its_fraction_and_a_cancel_click() {
         StatusBar::new("test").show(ui, |bar| {
             let seen = seen.clone();
             bar.trailing(move |ui| {
-                if StatusBar::progress(ui, StatusProgress::new("Gaussian Blur", Some(0.45)).percent("45%").cancel("Cancel")) {
+                if StatusBar::progress(ui, StatusProgress::new("Gaussian Blur", Some(0.45)).percent("45%").cancel("Cancel")).cancel {
                     seen.set(true);
                 }
             });
@@ -188,7 +188,9 @@ fn the_progress_item_reports_its_fraction_and_a_cancel_click() {
     let bar = harness.get_by_role(Role::ProgressIndicator);
     assert_eq!(bar.accesskit_node().label().as_deref(), Some("Gaussian Blur"));
     assert!((bar.accesskit_node().numeric_value().expect("value") - 0.45).abs() < 1e-6);
-    harness.get_by_label("45%");
+    assert_eq!(bar.accesskit_node().value().as_deref(), Some("45%"));
+    assert_eq!(harness.query_all_by_label("Gaussian Blur").count(), 1, "the label is announced once");
+    assert!(harness.query_by_label("45%").is_none(), "the percentage is the bar's value, not a node");
     harness.get_by_label("Cancel").click();
     harness.run();
     assert!(cancelled.get());

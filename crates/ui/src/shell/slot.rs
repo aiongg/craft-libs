@@ -23,7 +23,7 @@ pub struct Slot {
     pub(super) key: SlotKey,
     pub(super) size: Option<f32>,
     pub(super) narrow: bool,
-    pub(super) columns: u8,
+    pub(super) columns: usize,
     pub(super) visible: bool,
     pub(super) reveal: bool,
     pub(super) label: Option<String>,
@@ -56,18 +56,19 @@ impl Slot {
 
     /// A top slot takes the narrow options bar height (`bar.options_narrow`) instead of the
     /// options bar height. Serves Preferences > Workspace > "Enable Narrow Options Bar". Has no
-    /// effect on the title bar or on a slot with an exact [`size`](Self::size).
+    /// effect on the title bar or on a slot with an exact [`size`](Self::size). The slot only sizes
+    /// itself: the host passes the same choice to [`OptionsBar::narrow`](crate::patterns::OptionsBar::narrow) for the bar it draws in it.
     pub fn narrow(mut self, narrow: bool) -> Self {
         self.narrow = narrow;
         self
     }
 
     /// The number of button columns of a start or end rail: 1 (the default) is `rail.width`,
-    /// 2 adds one more button column and its gap, so the toolbar's two-column mode is
-    /// `rail.width + rail.button + 2` wide. Values above 2 add a column each; 0 counts as 1.
-    /// Has no effect on a slot with an exact [`size`](Self::size).
-    pub fn columns(mut self, columns: u8) -> Self {
-        self.columns = columns.max(1);
+    /// 2 is [`ToolRail::metrics`](crate::patterns::ToolRail::metrics) for two columns. Values are clamped to 1..=2, as `ToolRail`
+    /// does. Has no effect on a slot with an exact [`size`](Self::size). The slot only sizes
+    /// itself: the host passes the same count to [`ToolRail::columns`](crate::patterns::ToolRail::columns) for the rail it draws in it.
+    pub fn columns(mut self, columns: usize) -> Self {
+        self.columns = columns.clamp(1, 2);
         self
     }
 
