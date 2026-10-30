@@ -5,6 +5,7 @@ use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, InnerResponse, Label, Margin, Stroke, Ui, UiBuilder};
 
+use crate::controls::Checkbox;
 use crate::primitives::Content;
 use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
@@ -44,14 +45,30 @@ pub struct GroupBoxStyle {
 /// - Several boxes in a column are `group_box.gap` apart ([`GroupBox::gap`]).
 /// - **AccessKit:** a `Group` named by the title.
 #[must_use = "show the group box with `show`"]
-pub struct GroupBox {
+pub struct GroupBox<'a> {
     title: String,
     id_salt: Option<IdSalt>,
+    checkbox: Option<&'a mut bool>,
+    fill: bool,
 }
 
-impl GroupBox {
+impl<'a> GroupBox<'a> {
     pub fn new(title: impl Into<String>) -> Self {
-        Self { title: title.into(), id_salt: None }
+        Self { title: title.into(), id_salt: None, checkbox: None, fill: true }
+    }
+
+    /// Makes the title a check box on `on`; with it off, the content is disabled (Guide Layout's
+    /// Columns, Rows and Margin).
+    pub fn checkbox(mut self, on: &'a mut bool) -> Self {
+        self.checkbox = Some(on);
+        self
+    }
+
+    /// Whether the box fills the available width (the default); off, it is as wide as its content
+    /// and title, so boxes in a row sit side by side.
+    pub fn fill(mut self, fill: bool) -> Self {
+        self.fill = fill;
+        self
     }
 
     /// The box's id, when two boxes of one parent have the same title.
@@ -85,18 +102,31 @@ impl GroupBox {
         let builder = UiBuilder::new().id_salt(salt).accessibility_role(Role::Group).accessibility_label(self.title.as_str());
         ui.scope_builder(builder, |ui| {
             let width = ui.available_width();
+            let fill = self.fill;
+            let mut checkbox = self.checkbox;
             egui::Frame::new()
                 .stroke(style.edge)
                 .corner_radius(style.radius)
                 .inner_margin(Margin::same(style.padding.round() as i8))
                 .show(ui, |ui| {
-                    ui.set_width(width - 2.0 * style.padding.round() - 2.0 * style.edge.width);
-                    ui.add(
-                        Label::new(LayoutJob::single_section(self.title.clone(), role_format(&tokens, style.title_role, style.title)))
-                            .selectable(false),
-                    );
+                    if fill {
+                        ui.set_width(width - 2.0 * style.padding.round() - 2.0 * style.edge.width);
+                    }
+                    let enabled = match checkbox.as_mut() {
+                        Some(on) => {
+                            let _ = Checkbox::bool(self.title.clone(), on).show(ui);
+                            **on
+                        }
+                        None => {
+                            ui.add(
+                                Label::new(LayoutJob::single_section(self.title.clone(), role_format(&tokens, style.title_role, style.title)))
+                                    .selectable(false),
+                            );
+                            true
+                        }
+                    };
                     ui.add_space(style.title_gap);
-                    add_contents(ui)
+                    ui.add_enabled_ui(enabled, add_contents).inner
                 })
                 .inner
         })

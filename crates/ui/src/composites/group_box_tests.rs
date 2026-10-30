@@ -3,7 +3,7 @@
 use egui::accesskit::Role;
 use egui::{Context, Ui};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::group_box::{GroupArgs, show_default};
 use super::*;
@@ -31,4 +31,30 @@ fn a_box_is_a_group_named_by_its_title() {
     let last_row = harness.get_all_by_label("Another row").next().expect("the last row").rect();
     let next_title = harness.get_by_role_and_label(Role::Label, "Group 2").rect();
     assert!(next_title.top() - last_row.bottom() >= 2.0 * style.padding + style.gap - 0.5, "{last_row:?} then {next_title:?}");
+}
+
+#[test]
+fn boxes_that_do_not_fill_sit_side_by_side_and_a_title_check_box_enables_the_content() {
+    let harness =
+        Harness::builder().with_size([600.0, 200.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui: &mut Ui, on: &mut [bool; 2]| {
+                let [a, b] = on;
+                ui.horizontal_top(|ui| {
+                    GroupBox::new("Columns").checkbox(a).fill(false).show(ui, |ui| {
+                        let _ = ui.button("In columns");
+                    });
+                    GroupBox::new("Rows").checkbox(b).fill(false).show(ui, |ui| {
+                        let _ = ui.button("In rows");
+                    });
+                });
+            },
+            [true, false],
+        );
+    // Group nodes carry no bounds here, so the boxes are placed by their title check boxes and contents.
+    let first = harness.get_by_label("In columns").rect().union(harness.get_by_role_and_label(Role::CheckBox, "Columns").rect());
+    let second = harness.get_by_role_and_label(Role::CheckBox, "Rows").rect();
+    assert!(first.right() < second.left() && first.width() < 300.0, "{first:?} {second:?}");
+    assert!(!harness.get_by_label("In columns").accesskit_node().is_disabled());
+    assert!(harness.get_by_label("In rows").accesskit_node().is_disabled());
+    assert_eq!(harness.get_all_by_role_and_label(Role::CheckBox, "Rows").count(), 1);
 }
