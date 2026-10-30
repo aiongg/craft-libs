@@ -14,8 +14,9 @@ use craft_ui::fonts::{
     Family, I18nScripts, SEMIBOLD, SYSTEM_UI_REGULAR, SYSTEM_UI_SEMIBOLD, SystemFonts, SystemUiFace, UiFonts, poll_system_ui_face,
 };
 use craft_ui::primitives::Divider;
-use craft_ui::story::{Args, Level, Story};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice};
 use craft_ui::theme::{FontFamilies, StrokeExt, ToEgui, Tokens, TokensOf, margin, scale, scope, style_format, tabular};
+use craft_ui::typed_story;
 use egui::text::LayoutJob;
 use egui::{Color32, FontData, FontFamily, RichText, Ui};
 
@@ -134,32 +135,37 @@ pub fn install(ctx: &egui::Context, ui_face: &str, mono_face: &str) {
 
 /// The stories this crate adds to the registry.
 pub fn stories() -> Vec<Story> {
-    vec![Story::new(
-        "specimens/type/faces",
-        Level::Specimens,
-        "Faces",
-        "Type faces",
-        || Args::new().with_choice("group", GROUPS, 0).with_bool("tabular", false),
-        show,
-    )]
+    vec![typed_story!("specimens/type/faces", Level::Specimens, "Faces", "Type faces", FacesArgs { group: GroupArg::Ui, tabular: false }, show)]
 }
 
-const GROUPS: &[&str] = &["UI faces", "Mono faces"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum GroupArg {
+    #[choice(name = "UI faces")]
+    Ui,
+    #[choice(name = "Mono faces")]
+    Mono,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct FacesArgs {
+    group: GroupArg,
+    tabular: bool,
+}
 
 const LATIN: &str = "Sphinx of black quartz, judge my vow. 0123456789";
 const GREEK: &str = "Ξεσκεπάζω την ψυχοφθόρα βδελυγμία";
 const CYRILLIC: &str = "Съешь же ещё этих мягких французских булок";
 const CODE: &str = "fn main() { let n = 0x1F + 1_000; } // 1111 0000";
 
-fn show(ui: &mut Ui, args: &mut Args) {
+fn show(ui: &mut Ui, args: &mut FacesArgs) {
     if !available() {
         ui.colored_label(
             Tokens::of(ui).color.status.warn.fg.to_egui(),
             "Built without the candidate faces: set CRAFT_FONTS_DIR to a craft-fonts checkout (branch design-system-fonts) and rebuild. The default faces are shown.",
         );
     }
-    let mono = args.choice("group") == "Mono faces";
-    let tnum = args.bool("tabular");
+    let mono = args.group == GroupArg::Mono;
+    let tnum = args.tabular;
     let faces = if mono { MONO_FACES.to_vec() } else { ui_faces(ui.ctx()) };
     ui.columns(faces.len(), |columns| {
         for (ui, face) in columns.iter_mut().zip(&faces) {
@@ -297,7 +303,7 @@ mod tests {
         let ctx = Context::default();
         install(&ctx, "Inter", "JetBrains Mono");
         let story = stories().remove(0);
-        for group in 0..GROUPS.len() {
+        for group in 0..GroupArg::OPTIONS.len() {
             for tnum in [false, true] {
                 let mut args = story.defaults();
                 for arg in args.iter_mut() {
