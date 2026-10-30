@@ -774,9 +774,9 @@ pub const COLOR_PICKER_WARNING_ICON: f32 = 13.0;
 /// Compact size of a warning's chip of the nearest passing colour.
 pub const COLOR_PICKER_WARNING_CHIP: f32 = 10.0;
 /// Compact side of a swatch pair's well.
-pub const COLOR_PICKER_PAIR_WELL: f32 = 24.0;
+pub const COLOR_PICKER_PAIR_WELL: f32 = 18.0;
 /// Compact offset of a swatch pair's back well from its front well, on both axes.
-pub const COLOR_PICKER_PAIR_STEP: f32 = 12.0;
+pub const COLOR_PICKER_PAIR_STEP: f32 = 10.0;
 /// Compact width of the gap around a swatch pair's front well.
 pub const COLOR_PICKER_PAIR_GAP: f32 = 2.0;
 /// Compact width of a swatch pair's ring well.
