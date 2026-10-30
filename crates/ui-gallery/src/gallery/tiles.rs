@@ -126,7 +126,7 @@ pub(crate) fn tiles_view(
                         .sense(sense)
                         .max_rect(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, top + reach))),
                 );
-                let cell_id = cell.scope_id();
+                let cell_id = cell.response().id;
                 // Text in a tile is not selectable: a click on it selects the tile, as in the apps.
                 cell.style_mut().interaction.selectable_labels = false;
                 let surface = StoryFrame::of(&cell, story.surface);
@@ -170,7 +170,7 @@ pub(crate) fn tiles_view(
                         ui.unique_id()
                     });
                     if config.inspector.as_ref().is_none_or(|(key, _)| *key != tile.key) {
-                        config.states.observe(ui.ctx(), story.id, body.response.rect, cell_id);
+                        config.states.observe(ui.ctx(), story.id, body.response.rect, layer, cell_id);
                     }
                     // A story wider than the tile is cut at the tile's edges, never painted over a
                     // neighbour. A story that sets a clip rect of its own is cut here as well.

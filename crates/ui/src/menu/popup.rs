@@ -311,13 +311,6 @@ pub fn any_open(ctx: &egui::Context) -> bool {
     ctx.data(|d| d.get_temp::<OpenMenus>(open_menus_id())).is_some_and(|m| m.0.iter().any(|&(_, at)| at + 1 >= pass))
 }
 
-/// Whether a menu is open after what has been drawn so far in this pass, a press that opened it
-/// included. Unlike [`any_open`], a menu this pass's press closed does not count.
-pub(crate) fn open_in_this_pass(ctx: &egui::Context) -> bool {
-    let pass = ctx.cumulative_pass_nr();
-    ctx.data(|d| d.get_temp::<OpenMenus>(open_menus_id())).is_some_and(|m| m.0.iter().any(|&(_, at)| at >= pass))
-}
-
 impl Menu<'static, ()> {
     /// A menu's sizes and colours at `size`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> MenuStyle {

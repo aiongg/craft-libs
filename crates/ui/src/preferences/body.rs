@@ -1,10 +1,8 @@
 //! [`PreferencesBody`]: the contents of the Preferences window in any `Ui`.
 
-use std::hash::Hash;
-
 use craft_theme::{ControlSize, Tone};
 use egui::accesskit::Role;
-use egui::{Context, Event, Id, Key, KeyboardShortcut, Modifiers, Rect, ScrollArea, Sense, Ui, UiBuilder, pos2};
+use egui::{AsIdSalt, Context, Event, Id, IdSalt, Key, KeyboardShortcut, Modifiers, Rect, ScrollArea, Sense, Ui, UiBuilder, pos2};
 
 use super::host::PreferencesHost;
 use super::model::{Closed, PreferencesOutput, PreferencesTexts};
@@ -31,6 +29,10 @@ pub struct PreferencesStyle {
     /// Between the search field, the panes, the notice and the buttons, and between rows:
     /// `gap.stack`.
     pub gap: f32,
+    /// Width of a choice row's control: `preferences.choice_width`.
+    pub choice_width: f32,
+    /// Width of a text row's control: `preferences.text_width`.
+    pub text_width: f32,
 }
 
 /// What a group of the shown page draws.
@@ -75,16 +77,22 @@ struct ShownPage {
 ///   pages, the page a `Group` named by its title, and the empty-search text a polite live region.
 #[must_use = "show the body with `show`"]
 pub struct PreferencesBody {
-    id: Id,
+    id_salt: IdSalt,
     active: bool,
     cancel: bool,
     platform: Option<Platform>,
 }
 
 impl PreferencesBody {
-    /// A body; `id_salt` keeps its page, search text and scroll.
-    pub fn new(id_salt: impl Hash + std::fmt::Debug) -> Self {
-        Self { id: Id::unique(("craft_ui::preferences", id_salt)), active: true, cancel: false, platform: None }
+    /// A body; `id_salt` keeps its page, search text and scroll, under the id of the `Ui` it is
+    /// shown in.
+    pub fn new(id_salt: impl AsIdSalt) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), active: true, cancel: false, platform: None }
+    }
+
+    /// The id of the body of `id_salt` shown in `ui`, for [`state`](PreferencesBody::state).
+    pub fn id(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
+        ui.make_persistent_id(IdSalt::new(id_salt))
     }
 
     /// Whether the body takes Enter, Esc and Cmd/Ctrl+F this pass; on by default. A host turns it off
@@ -108,24 +116,30 @@ impl PreferencesBody {
 
     pub fn style(tokens: &crate::theme::UiTokens) -> PreferencesStyle {
         let p = &tokens.component.preferences;
-        PreferencesStyle { list_width: p.list_width, page_gap: p.page_gap, gap: tokens.space.gap.stack }
+        PreferencesStyle {
+            list_width: p.list_width,
+            page_gap: p.page_gap,
+            gap: tokens.space.gap.stack,
+            choice_width: p.choice_width,
+            text_width: p.text_width,
+        }
     }
 
-    /// What the body of `id_salt` remembers.
-    pub fn state(ctx: &Context, id_salt: impl Hash + std::fmt::Debug) -> PreferencesState {
-        PreferencesState::load(ctx, Id::unique(("craft_ui::preferences", id_salt)))
+    /// What the body with `id` ([`PreferencesBody::id`]) remembers.
+    pub fn state(ctx: &Context, id: Id) -> PreferencesState {
+        PreferencesState::load(ctx, id)
     }
 
-    /// Replaces what the body of `id_salt` remembers.
-    pub fn set_state(ctx: &Context, id_salt: impl Hash + std::fmt::Debug, state: PreferencesState) {
-        state.store(ctx, Id::unique(("craft_ui::preferences", id_salt)));
+    /// Replaces what the body with `id` remembers.
+    pub fn set_state(ctx: &Context, id: Id, state: PreferencesState) {
+        state.store(ctx, id);
     }
 
     /// Shows the body in the rect `ui` has left, which it fills.
     pub fn show<H: PreferencesHost + ?Sized>(self, ui: &mut Ui, host: &mut H) -> PreferencesOutput {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
-        let id = self.id;
+        let id = ui.make_persistent_id(self.id_salt);
         let mut state = PreferencesState::load(&ctx, id);
         let texts = host.texts();
         let style = PreferencesBody::style(&tokens);
@@ -136,7 +150,6 @@ impl PreferencesBody {
         let find = keys && ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::F)));
         let search_before = state.search.clone();
         let search_focused = state.search_focused;
-        let escape = keys && ctx.input(|i| i.key_pressed(Key::Escape) && i.modifiers.is_none());
 
         let search = SearchField::new((id, "search"), texts.search_label.as_str(), &state.search, texts.clear_search.as_str())
             .placeholder(texts.search_placeholder.as_str())
@@ -202,7 +215,10 @@ impl PreferencesBody {
                 .mode(SelectionMode::Single)
                 .allow_empty(false)
                 .max_height(list_rect.height())
-                .show(&mut list_ui, |at, key| ListRow::new(key.clone(), page_list[at].1.as_str()).dimmed(page_list[at].2));
+                .show(&mut list_ui, |at, key| {
+                    let row = ListRow::new(key.clone(), page_list[at].1.as_str()).dimmed(page_list[at].2);
+                    if page_list[at].2 { row.description(texts.empty_page.as_str()) } else { row }
+                });
             for event in listed.events {
                 if let ListEvent::Selection(change) = event
                     && let Some(row) = change.row
@@ -279,6 +295,8 @@ impl PreferencesBody {
             answer = pressed.clicked.map(|c| c.role);
         }
         if answer.is_none() && keys {
+            // Read after the rows: a field's gesture takes the Esc that cancels it.
+            let escape = ctx.input(|i| i.key_pressed(Key::Escape) && i.modifiers.is_none());
             // Esc and Enter in the search field are the field's: it clears, then leaves.
             let in_search = search_focused;
             let enter = ctx.input(|i| i.events.iter().any(is_enter_press)) && !in_search;

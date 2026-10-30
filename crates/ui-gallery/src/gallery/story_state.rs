@@ -3,7 +3,7 @@
 //! worked the component in its preview, which Reset offers to undo.
 use std::collections::{HashMap, HashSet};
 
-use egui::{Context, Event, Id, Key, Rect};
+use egui::{Context, Event, Id, Key, LayerId, Pos2, Rect, Vec2};
 
 /// Per story id: how many times it was reset, and whether its preview was used since.
 #[derive(Default)]
@@ -30,23 +30,53 @@ impl StoryStates {
     }
 
     /// Notes the story as touched when the user worked a widget inside `body`, the rect the story
-    /// was drawn in, this frame. `own` is the id of the surface around the story, whose click selects
-    /// the tile.
-    pub(crate) fn observe(&mut self, ctx: &Context, story: &str, body: Rect, own: Id) {
-        if !self.touched.contains(story) && used(ctx, body, own) {
+    /// was drawn in on `layer`, this frame. `own` is the id of the surface around the story, whose
+    /// click selects the tile.
+    pub(crate) fn observe(&mut self, ctx: &Context, story: &str, body: Rect, layer: LayerId, own: Id) {
+        if !self.touched.contains(story) && used(ctx, body, layer, own) {
             self.touched.insert(story.to_owned());
             ctx.request_repaint();
         }
     }
 }
 
-/// Whether a click or drag landed on a widget inside `body` this frame, or a key went to a
-/// focused widget inside it.
-fn used(ctx: &Context, body: Rect, own: Id) -> bool {
-    let inside = |id: Id| id != own && ctx.read_response(id).is_some_and(|r| body.expand(1.0).contains_rect(r.rect));
+/// Where the gesture of this frame's pointer interaction began: the press origin, or this frame's
+/// press event when egui has already cleared the origin (a click that releases in the frame it
+/// presses), or the pointer.
+fn gesture_origin(ctx: &Context) -> Option<Pos2> {
+    ctx.input(|i| {
+        i.pointer
+            .press_origin()
+            .or_else(|| {
+                i.events.iter().find_map(|e| match e {
+                    Event::PointerButton { pos, pressed: true, .. } => Some(*pos),
+                    _ => None,
+                })
+            })
+            .or_else(|| i.pointer.latest_pos())
+    })
+}
+
+/// Whether a click or drag began on `layer` inside `body` on a widget other than `own`, a wheel
+/// turn over `body` was taken by a widget (the story's widgets zero the scroll delta they use;
+/// the gallery's own scrolling reads what is left later), or a key went to a focused widget
+/// inside `body`.
+///
+/// The press origin decides for the pointer, not the widget's rect: a row half scrolled out of
+/// `body` and a control clipped at the tile's edge count as the story's.
+fn used(ctx: &Context, body: Rect, layer: LayerId, own: Id) -> bool {
+    let at = |pos: Pos2| body.contains(pos) && ctx.layer_id_at(pos) == Some(layer);
     let pointed = ctx.interaction_snapshot(|s| [s.clicked, s.drag_started, s.dragged, s.drag_stopped]);
+    let worked = pointed.into_iter().flatten().any(|id| id != own && ctx.read_response(id).is_some()) && gesture_origin(ctx).is_some_and(at);
+    let wheel = ctx.input(|i| {
+        i.events.iter().any(|e| matches!(e, Event::MouseWheel { .. }))
+            && i.smooth_scroll_delta == Vec2::ZERO
+            && i.pointer.latest_pos().is_some_and(at)
+    });
+    let inside = |id: Id| id != own && ctx.read_response(id).is_some_and(|r| body.expand(1.0).contains_rect(r.rect));
     let focused = ctx.memory(|m| m.focused());
-    pointed.into_iter().flatten().any(inside)
+    worked
+        || wheel
         || focused.is_some_and(inside)
             && ctx.input(|i| {
                 i.events.iter().any(|e| match e {

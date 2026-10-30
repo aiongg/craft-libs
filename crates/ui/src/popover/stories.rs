@@ -1,7 +1,7 @@
 //! Stories: an anchored picker with the controls a PhotoCraft picker holds, and a stroke-editor
 //! popover with live edits and child selects.
 
-use egui::{Id, Pos2, Sense, Ui, vec2};
+use egui::{Pos2, Sense, Ui, vec2};
 
 use super::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use crate::controls::{Button, SearchField, Select, Slider};
@@ -80,7 +80,7 @@ fn with_direction(ui: &mut Ui, rtl: bool, add: impl FnOnce(&mut Ui)) {
 }
 
 fn show_anchored(ui: &mut Ui, args: &mut AnchoredArgs) {
-    let state_id = Id::unique("craft-ui-popover-story-anchored");
+    let state_id = ui.make_persistent_id("craft-ui-popover-story-anchored");
     let mut demo = ui.data_mut(|d| d.get_temp::<Demo>(state_id)).unwrap_or(Demo { amount: 40.0, ..Demo::default() });
     with_direction(ui, args.rtl, |ui| {
         let size = match args.size {
@@ -141,7 +141,7 @@ fn mode_select(ui: &mut Ui, mode: &usize) -> Option<usize> {
 }
 
 fn show_stroke_editor(ui: &mut Ui, args: &mut StrokeEditorArgs) {
-    let state_id = Id::unique("craft-ui-popover-story-stroke");
+    let state_id = ui.make_persistent_id("craft-ui-popover-story-stroke");
     let mut demo = ui.data_mut(|d| d.get_temp::<Demo>(state_id)).unwrap_or(Demo { amount: 2.0, ..Demo::default() });
     with_direction(ui, args.rtl, |ui| {
         let chip = ui.add(Button::new("Stroke"));

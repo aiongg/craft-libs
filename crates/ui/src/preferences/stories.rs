@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use craft_theme::Rgba;
-use egui::{Id, Ui, vec2};
+use egui::{Ui, vec2};
 
 use super::{GroupSpec, PageSpec, PrefValue, PreferencesBody, PreferencesHost, PreferencesTexts, RowKind, RowSpec};
 use crate::direction::{self, Direction};
@@ -193,13 +193,8 @@ impl PreferencesHost for FakeHost {
 
 fn show_window(ui: &mut Ui, args: &mut WindowArgs) {
     let ctx = ui.ctx().clone();
-    let key = Id::unique("craft_ui::preferences::story");
+    let key = ui.make_persistent_id("craft_ui::preferences::story");
     let last: Option<(String, bool)> = ctx.data(|d| d.get_temp(key));
-    if last.as_ref().map(|l| &l.0) != Some(&args.search) {
-        let mut state = PreferencesBody::state(&ctx, "story");
-        state.search = args.search.clone();
-        PreferencesBody::set_state(&ctx, "story", state);
-    }
     if last.as_ref().map(|l| l.1) != Some(args.rtl) {
         direction::apply(&ctx, if args.rtl { Direction::Rtl } else { Direction::Ltr });
     }
@@ -209,6 +204,12 @@ fn show_window(ui: &mut Ui, args: &mut WindowArgs) {
     let size = vec2(args.width.min(ui.available_width()), args.height);
     ui.allocate_ui(size, |ui| {
         ui.set_min_size(size);
+        if last.as_ref().map(|l| &l.0) != Some(&args.search) {
+            let body = PreferencesBody::id(ui, "story");
+            let mut state = PreferencesBody::state(&ctx, body);
+            state.search = args.search.clone();
+            PreferencesBody::set_state(&ctx, body, state);
+        }
         let _ = PreferencesBody::new("story").show(ui, &mut host);
     });
     ctx.data_mut(|d| d.insert_temp(host_id, FakeHostBox(host)));

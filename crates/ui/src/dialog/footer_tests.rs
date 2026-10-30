@@ -297,4 +297,18 @@ fn the_button_row_allocates_the_buttons_height() {
             seen.set(ui.min_rect().bottom() - button_bottom);
         });
     assert!(gap.get() >= -0.01, "the buttons reach {} past the row", -gap.get());
+
+    let bottom = std::rc::Rc::new(std::cell::Cell::new(f32::NAN));
+    let seen = bottom.clone();
+    let mut h = Harness::builder()
+        .with_size([400.0, 200.0])
+        .with_context_setup(|ctx: &egui::Context| crate::theme::install(ctx, &crate::theme::Base::suite_default()))
+        .build_ui(move |ui| {
+            let cx = super::footer::FooterCx { id: ui.make_persistent_id("footer"), platform: super::buttons::Platform::of(ui.ctx()) };
+            super::footer::Footer::standard().show_row(ui, cx, &mut super::preview::Preview::default());
+            seen.set(ui.min_rect().bottom());
+        });
+    h.run();
+    let button_bottom = h.get_by_label("OK").rect().bottom();
+    assert!(bottom.get() - button_bottom >= -0.01, "the standard footer's buttons reach {} past the row", button_bottom - bottom.get());
 }

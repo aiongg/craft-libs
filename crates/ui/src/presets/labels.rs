@@ -20,6 +20,8 @@ pub struct PresetLabels {
     pub footer: String,
     /// The name of the search field and its placeholder.
     pub search: String,
+    /// The name of the search field's clear button: "Clear".
+    pub clear: String,
     /// The rename bar's label: "Name".
     pub name: String,
     /// Context menu, item: "Rename…".
@@ -60,6 +62,7 @@ impl Default for PresetLabels {
             thumb_size: "Thumbnail size".to_owned(),
             footer: "Preset actions".to_owned(),
             search: "Search".to_owned(),
+            clear: "Clear".to_owned(),
             name: "Name".to_owned(),
             rename: "Rename…".to_owned(),
             rename_group: "Rename Group…".to_owned(),
@@ -98,6 +101,7 @@ impl PresetLabels {
     /// | `preset.thumbSize` | `thumb_size` |
     /// | `preset.footer` | `footer` |
     /// | `preset.search` | `search` |
+    /// | `preset.clear` | `clear` |
     /// | `preset.name` | `name` |
     /// | `preset.rename` | `rename` |
     /// | `preset.renameGroup` | `rename_group` |
@@ -123,13 +127,14 @@ impl PresetLabels {
         self
     }
 
-    fn labels_mut(&mut self) -> [(&'static str, &mut String); 23] {
+    fn labels_mut(&mut self) -> [(&'static str, &mut String); 24] {
         [
             ("preset.gridView", &mut self.grid_view),
             ("preset.listView", &mut self.list_view),
             ("preset.thumbSize", &mut self.thumb_size),
             ("preset.footer", &mut self.footer),
             ("preset.search", &mut self.search),
+            ("preset.clear", &mut self.clear),
             ("preset.name", &mut self.name),
             ("preset.rename", &mut self.rename),
             ("preset.renameGroup", &mut self.rename_group),
