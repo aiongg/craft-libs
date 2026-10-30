@@ -112,8 +112,13 @@ impl Words {
 
     /// The words installed in `ui`'s context ([`Words::install`]), English when none are.
     pub fn of(ui: &Ui) -> Arc<Words> {
+        Words::of_ctx(ui.ctx())
+    }
+
+    /// [`Words::of`] for code that holds only the context (a painter's overlay).
+    pub fn of_ctx(ctx: &Context) -> Arc<Words> {
         static ENGLISH: LazyLock<Arc<Words>> = LazyLock::new(|| Arc::new(Words::english()));
-        let installed = ui.ctx().plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
+        let installed = ctx.plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
         installed.unwrap_or_else(|| Arc::clone(&ENGLISH))
     }
 

@@ -223,6 +223,7 @@ where
     let tree = rows.iter().any(PresetRow::is_group);
     let item_count = vrows.shown.iter().filter(|&&at| !rows[at].is_group()).count();
 
+    let labels = labels.unwrap_or_else(|| std::rc::Rc::new(<PresetLabels as crate::localized::Labels>::of(ui)));
     let mut pass = Pass {
         ctx: ui.ctx().clone(),
         id,

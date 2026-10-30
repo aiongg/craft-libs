@@ -117,4 +117,66 @@ fn a_labels_struct_localized_with_identity_equals_its_default() {
     });
     assert_eq!(*seen.borrow(), keys);
     assert_eq!(probe.opacity, "Deckkraft");
+
+    identity_holds::<crate::docking::DockConfig>();
+    identity_holds::<crate::presets::PresetLabels>();
+    identity_holds::<crate::list::TreeText>();
+    identity_holds::<crate::list::ThumbSizeLabels>();
+    #[cfg(feature = "window-frame")]
+    identity_holds::<crate::title_bar::CaptionLabels>();
+    identity_holds::<crate::controls::ThumbRowLabels>();
+    identity_holds::<crate::canvas::RefPointLabels>();
+}
+
+/// A table that drifted from the struct's `Default` shows here.
+fn identity_holds<L: Labels + Default + std::fmt::Debug>() {
+    let shown = |labels: L| format!("{labels:?}");
+    assert_eq!(shown(L::english().localized_in(&Words::new(|_| None))), shown(L::default()));
+    assert_eq!(shown(L::english().localized_in(&Words::english())), shown(L::default()));
+}
+
+#[test]
+fn localized_hooks_keep_their_keys() {
+    let shown = |key: &str| Some(format!("<{key}>"));
+    let dock = crate::docking::DockConfig::default().localized(shown);
+    assert_eq!(
+        (dock.float_label.as_str(), dock.panel_menu_label.as_str(), dock.float_hint_label.as_str()),
+        ("<dock.float>", "<dock.panelMenu>", "<dock.floatHint>")
+    );
+    let presets = crate::presets::PresetLabels::default().localized(shown);
+    assert_eq!(
+        (presets.grid_view.as_str(), presets.group_count.as_str(), presets.tree.collapse_tip.as_str()),
+        ("<preset.gridView>", "<preset.groupCount>", "<preset.collapseTip>")
+    );
+    #[cfg(feature = "window-frame")]
+    {
+        let captions = crate::title_bar::CaptionLabels::default().localized(shown);
+        assert_eq!((captions.minimize.as_str(), captions.restore.as_str()), ("<window.minimize>", "<window.restore>"));
+    }
+    let halves = crate::controls::ThumbRowLabels::default().localized(shown);
+    assert_eq!((halves.low.as_str(), halves.high.as_str()), ("<thumbRow.low>", "<thumbRow.high>"));
+    // Each table word reaches its own field, in the order the table lists them.
+    // Counts and the float hint need their placeholders to be accepted.
+    let by_word = Words::new(|word| Some(format!("<{}>{}", word.key(), word.english.find('{').map_or("", |at| &word.english[at..]))));
+    for (labels, words) in [
+        (format!("{:?}", crate::docking::DockConfig::english().localized_in(&by_word)), <crate::docking::DockConfig as Labels>::WORDS),
+        (format!("{:?}", crate::presets::PresetLabels::english().localized_in(&by_word)), <crate::presets::PresetLabels as Labels>::WORDS),
+    ] {
+        for word in words {
+            assert_eq!(labels.matches(&format!("\"<{}>", word.key())).count(), 1, "{}", word.key());
+        }
+    }
+}
+
+#[test]
+fn key_caps_thumb_sizes_and_reference_points_go_through_words() {
+    use crate::list::ThumbSize;
+    let fake = Words::new(|word| Some(format!("<{}>", word.english)));
+    let right = egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::PageDown);
+    assert_eq!(crate::controls::Kbd::parts_in(&right, egui::os::OperatingSystem::Nix, &fake), ["<Page Down>"]);
+    assert_eq!(crate::controls::Kbd::parts(&right, egui::os::OperatingSystem::Nix), ["Page Down"]);
+    assert_eq!(ThumbSize::Px(30).label(&fake), "<Custom>");
+    assert_eq!(ThumbSize::Large.name(), "Large");
+    let names = crate::canvas::RefPointLabels::english().localized_in(&fake).names();
+    assert_eq!((names[0].as_str(), names[8].as_str()), ("<Top left>", "<Bottom right>"));
 }

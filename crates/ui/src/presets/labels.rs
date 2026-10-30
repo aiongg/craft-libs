@@ -1,6 +1,7 @@
 //! [`PresetLabels`]: every string a preset browser shows or announces, for the host to translate.
 
 use crate::list::TreeText;
+use crate::localized::{Labels, Word, Words};
 
 /// The words of a `PresetBrowser`, its toolbar, rename bar, context menu
 /// and `PresetFooter`. Defaults are English; menu entries are in title
@@ -56,29 +57,47 @@ pub struct PresetLabels {
 
 impl Default for PresetLabels {
     fn default() -> Self {
-        Self {
-            grid_view: "Grid View".to_owned(),
-            list_view: "List View".to_owned(),
-            thumb_size: "Thumbnail size".to_owned(),
-            footer: "Preset actions".to_owned(),
-            search: "Search".to_owned(),
-            clear: "Clear".to_owned(),
-            name: "Name".to_owned(),
-            rename: "Rename…".to_owned(),
-            rename_group: "Rename Group…".to_owned(),
-            delete: "Delete".to_owned(),
-            delete_group: "Delete Group".to_owned(),
-            move_to: "Move to".to_owned(),
-            path_separator: " / ".to_owned(),
-            new: "New".to_owned(),
-            new_group: "New Group".to_owned(),
-            delete_button: "Delete".to_owned(),
-            count: "{n} presets".to_owned(),
-            empty: "No presets".to_owned(),
-            no_match: "No presets match".to_owned(),
-            group_count: "{n} presets".to_owned(),
-            tree: TreeText::default(),
+        <Self as Labels>::english()
+    }
+}
+
+/// One word per text field, in the order of [`PresetLabels::texts_mut`].
+const WORDS: [Word; 20] = [
+    Word::keyed("preset.gridView", "Grid View"),
+    Word::keyed("preset.listView", "List View"),
+    Word::keyed("preset.thumbSize", "Thumbnail size"),
+    Word::keyed("preset.footer", "Preset actions"),
+    Word::keyed("preset.search", "Search"),
+    Word::keyed("preset.clear", "Clear"),
+    Word::keyed("preset.name", "Name"),
+    Word::keyed("preset.rename", "Rename…"),
+    Word::keyed("preset.renameGroup", "Rename Group…"),
+    Word::keyed("preset.delete", "Delete"),
+    Word::keyed("preset.deleteGroup", "Delete Group"),
+    Word::keyed("preset.moveTo", "Move to"),
+    Word::keyed("preset.pathSeparator", " / "),
+    Word::keyed("preset.new", "New"),
+    Word::keyed("preset.newGroup", "New Group"),
+    Word::keyed("preset.deleteButton", "Delete"),
+    Word::keyed("preset.count", "{n} presets"),
+    Word::keyed("preset.empty", "No presets"),
+    Word::keyed("preset.noMatch", "No presets match"),
+    Word::keyed("preset.groupCount", "{n} presets"),
+];
+
+impl Labels for PresetLabels {
+    const WORDS: &'static [Word] = &WORDS;
+
+    fn english() -> Self {
+        Self::localized_in(Self::blank(), &Words::english())
+    }
+
+    fn localized_in(mut self, words: &Words) -> Self {
+        for (word, text) in WORDS.iter().zip(self.texts_mut()) {
+            *text = words.get(*word).into_owned();
         }
+        self.tree = TreeText::english().localized_in(words);
+        self
     }
 }
 
@@ -119,40 +138,63 @@ impl PresetLabels {
     /// | `preset.expand`, `preset.collapse`, `preset.expandTip`, `preset.collapseTip` | `tree` |
     #[must_use]
     pub fn localized(mut self, translate: impl Fn(&str) -> Option<String>) -> Self {
-        for (key, label) in self.labels_mut() {
-            if let Some(text) = translate(key) {
-                *label = text;
+        for (word, text) in WORDS.iter().zip(self.texts_mut()) {
+            if let Some(translated) = translate(word.key()) {
+                *text = translated;
             }
         }
+        self.tree = self.tree.localized(translate);
         self
     }
 
-    fn labels_mut(&mut self) -> [(&'static str, &mut String); 24] {
+    fn blank() -> Self {
+        Self {
+            grid_view: String::new(),
+            list_view: String::new(),
+            thumb_size: String::new(),
+            footer: String::new(),
+            search: String::new(),
+            clear: String::new(),
+            name: String::new(),
+            rename: String::new(),
+            rename_group: String::new(),
+            delete: String::new(),
+            delete_group: String::new(),
+            move_to: String::new(),
+            path_separator: String::new(),
+            new: String::new(),
+            new_group: String::new(),
+            delete_button: String::new(),
+            count: String::new(),
+            empty: String::new(),
+            no_match: String::new(),
+            group_count: String::new(),
+            tree: TreeText::english(),
+        }
+    }
+
+    fn texts_mut(&mut self) -> [&mut String; 20] {
         [
-            ("preset.gridView", &mut self.grid_view),
-            ("preset.listView", &mut self.list_view),
-            ("preset.thumbSize", &mut self.thumb_size),
-            ("preset.footer", &mut self.footer),
-            ("preset.search", &mut self.search),
-            ("preset.clear", &mut self.clear),
-            ("preset.name", &mut self.name),
-            ("preset.rename", &mut self.rename),
-            ("preset.renameGroup", &mut self.rename_group),
-            ("preset.delete", &mut self.delete),
-            ("preset.deleteGroup", &mut self.delete_group),
-            ("preset.moveTo", &mut self.move_to),
-            ("preset.pathSeparator", &mut self.path_separator),
-            ("preset.new", &mut self.new),
-            ("preset.newGroup", &mut self.new_group),
-            ("preset.deleteButton", &mut self.delete_button),
-            ("preset.count", &mut self.count),
-            ("preset.empty", &mut self.empty),
-            ("preset.noMatch", &mut self.no_match),
-            ("preset.groupCount", &mut self.group_count),
-            ("preset.expand", &mut self.tree.expand),
-            ("preset.collapse", &mut self.tree.collapse),
-            ("preset.expandTip", &mut self.tree.expand_tip),
-            ("preset.collapseTip", &mut self.tree.collapse_tip),
+            &mut self.grid_view,
+            &mut self.list_view,
+            &mut self.thumb_size,
+            &mut self.footer,
+            &mut self.search,
+            &mut self.clear,
+            &mut self.name,
+            &mut self.rename,
+            &mut self.rename_group,
+            &mut self.delete,
+            &mut self.delete_group,
+            &mut self.move_to,
+            &mut self.path_separator,
+            &mut self.new,
+            &mut self.new_group,
+            &mut self.delete_button,
+            &mut self.count,
+            &mut self.empty,
+            &mut self.no_match,
+            &mut self.group_count,
         ]
     }
 }

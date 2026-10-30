@@ -9,6 +9,7 @@ use egui::{
 use super::quad::Anchor9;
 use crate::controls::TooltipExt as _;
 use crate::edit::{EditEvent, EditResponse};
+use crate::localized::Labels as _;
 use crate::primitives::FocusRing;
 use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -82,23 +83,15 @@ pub struct ReferencePoint {
     picked: Option<Anchor9>,
     size: RefSize,
     growth: Option<(i8, i8)>,
-    label: String,
-    names: [String; 9],
+    label: Option<String>,
+    names: Option<[String; 9]>,
     enabled: bool,
 }
 
 impl ReferencePoint {
     /// A picker showing `picked`; `id_salt` keeps its keyboard cell.
     pub fn new(id_salt: impl std::hash::Hash + std::fmt::Debug, picked: Option<Anchor9>) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            picked,
-            size: RefSize::Compact,
-            growth: None,
-            label: "Reference point".into(),
-            names: Anchor9::ALL.map(|a| ENGLISH[a as usize].into()),
-            enabled: true,
-        }
+        Self { id_salt: IdSalt::new(id_salt), picked, size: RefSize::Compact, growth: None, label: None, names: None, enabled: true }
     }
 
     /// The picker's size.
@@ -116,14 +109,14 @@ impl ReferencePoint {
 
     /// The group's accessible name, translated ("Reference point" by default).
     pub fn label(mut self, label: impl Into<String>) -> Self {
-        self.label = label.into();
+        self.label = Some(label.into());
         self
     }
 
     /// The names of the nine points in [`Anchor9::ALL`] order, translated ("Top left" to "Bottom
     /// right" by default). They are also the tooltip of the cell under the pointer.
     pub fn names(mut self, names: [String; 9]) -> Self {
-        self.names = names;
+        self.names = Some(names);
         self
     }
 
@@ -155,6 +148,9 @@ impl ReferencePoint {
 
     /// Shows the picker and returns this frame's pick: a [`Set`](EditEvent::Set) of the point.
     pub fn show(self, ui: &mut Ui) -> EditResponse<Option<Anchor9>> {
+        let words = RefPointLabels::of(ui);
+        let label = self.label.clone().unwrap_or_else(|| words.group.clone());
+        let names = self.names.clone().unwrap_or_else(|| words.names());
         let tokens = Tokens::of(ui);
         let style = ReferencePoint::style(&tokens, self.size);
         let enabled = self.enabled && ui.is_enabled();
@@ -225,10 +221,10 @@ impl ReferencePoint {
             ui.painter().add(FocusRing::shape(&tokens, crate::primitives::Corner::Control, cell_rect(keyboard.unwrap_or(4))));
         }
         let active = if focused { keyboard.or(shown) } else { shown };
-        self.nodes(ui, response_id, &cell_rect, shown, active, enabled);
-        response.widget_info(|| WidgetInfo::labeled(Role::RadioGroup, enabled, &self.label));
+        self.nodes(ui, &names, response_id, &cell_rect, shown, active, enabled);
+        response.widget_info(|| WidgetInfo::labeled(Role::RadioGroup, enabled, &label));
         if let Some(i) = hovered {
-            response = response.tooltip(&self.names[i]);
+            response = response.tooltip(&names[i]);
         }
         let event = chosen.map(|i| {
             response.mark_changed();
@@ -262,9 +258,19 @@ impl ReferencePoint {
     }
 
     /// The nine radio buttons in the group's AccessKit node.
-    fn nodes(&self, ui: &mut Ui, group: Id, cell_rect: &dyn Fn(usize) -> Rect, shown: Option<usize>, active: Option<usize>, enabled: bool) {
+    #[expect(clippy::too_many_arguments)]
+    fn nodes(
+        &self,
+        ui: &mut Ui,
+        names: &[String; 9],
+        group: Id,
+        cell_rect: &dyn Fn(usize) -> Rect,
+        shown: Option<usize>,
+        active: Option<usize>,
+        enabled: bool,
+    ) {
         let nodes = ui.new_child(UiBuilder::new().max_rect(cell_rect(0).union(cell_rect(8))).accessibility_parent(group));
-        for (i, name) in self.names.iter().enumerate() {
+        for (i, name) in names.iter().enumerate() {
             let response = nodes.interact(cell_rect(i), group.with(("cell", i)), Sense::hover());
             response.widget_info(|| WidgetInfo::selected(Role::RadioButton, enabled, shown == Some(i), name));
         }
@@ -276,7 +282,29 @@ impl ReferencePoint {
     }
 }
 
-const ENGLISH: [&str; 9] = ["Top left", "Top", "Top right", "Left", "Center", "Right", "Bottom left", "Bottom", "Bottom right"];
+crate::words! {
+    /// The picker's accessible group name and the names of its nine points.
+    pub struct RefPointLabels {
+        group: "refPoint.group" = "Reference point";
+        top_left: "refPoint.topLeft" = "Top left";
+        top: "refPoint.top" = "Top";
+        top_right: "refPoint.topRight" = "Top right";
+        left: "refPoint.left" = "Left";
+        center: "refPoint.center" = "Center";
+        right: "refPoint.right" = "Right";
+        bottom_left: "refPoint.bottomLeft" = "Bottom left";
+        bottom: "refPoint.bottom" = "Bottom";
+        bottom_right: "refPoint.bottomRight" = "Bottom right";
+    }
+}
+
+impl RefPointLabels {
+    /// The nine point names in [`Anchor9::ALL`] order.
+    pub fn names(&self) -> [String; 9] {
+        [&self.top_left, &self.top, &self.top_right, &self.left, &self.center, &self.right, &self.bottom_left, &self.bottom, &self.bottom_right]
+            .map(Clone::clone)
+    }
+}
 
 fn cell_at(rect: Rect, cell: f32, p: Pos2) -> Option<usize> {
     rect.contains(p).then(|| {
