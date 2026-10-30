@@ -206,6 +206,12 @@ pub struct OverlayColors {
     pub guide_selected: Rgba,
     /// Smart guides and the distances they measure.
     pub smart_guide: Rgba,
+    /// The crop frame's line, brackets and edge bars.
+    pub crop: Rgba,
+    /// The crop frame's composition guides.
+    pub crop_guide: Rgba,
+    /// The perspective crop quad when its corners do not form a valid quad.
+    pub crop_invalid: Rgba,
     /// Canvas grid.
     pub grid: Rgba,
 }
@@ -300,6 +306,9 @@ impl ColorTokens {
                 guide: c,
                 guide_selected: c,
                 smart_guide: c,
+                crop: c,
+                crop_guide: c,
+                crop_invalid: c,
                 grid: c,
             },
             data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c, cyan: c, magenta: c, yellow: c, scope: c },
@@ -491,6 +500,12 @@ color_tokens! {
     OverlayGuideSelected = "overlay.guide_selected" => overlay.guide_selected;
     /// `overlay.smart_guide`
     OverlaySmartGuide = "overlay.smart_guide" => overlay.smart_guide;
+    /// `overlay.crop`
+    OverlayCrop = "overlay.crop" => overlay.crop;
+    /// `overlay.crop_guide`
+    OverlayCropGuide = "overlay.crop_guide" => overlay.crop_guide;
+    /// `overlay.crop_invalid`
+    OverlayCropInvalid = "overlay.crop_invalid" => overlay.crop_invalid;
     /// `overlay.grid`
     OverlayGrid = "overlay.grid" => overlay.grid;
     /// `data.series.0`

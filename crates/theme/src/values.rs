@@ -158,8 +158,7 @@ pub(super) fn panel_step(mode: Mode) -> usize {
 /// The default source of `token` in `mode`.
 pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
     use ColorSource::{
-        Accent, AccentMix, Anchored, Fixed, Lighting, Neutral, NeutralAlpha, Oklch, OnSolid, Same, ShiftedFrom, SolidFrom, StateVariant, Status,
-        StatusMix,
+        Accent, AccentMix, Anchored, Fixed, Lighting, Neutral, Oklch, OnSolid, Same, ShiftedFrom, SolidFrom, StateVariant, Status, StatusMix,
     };
     use StatusKind::{Bad, Good, Info, Warn};
     let dark = mode == Mode::Dark;
@@ -254,8 +253,12 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::OverlayGuide => Fixed(Rgba::rgb(0x4a, 0xff, 0xff)),
         T::OverlayGuideSelected => Fixed(Rgba::rgb(0x00, 0x00, 0xff)),
         T::OverlaySmartGuide => Fixed(Rgba::rgb(0xff, 0x00, 0xff)),
-        // Drawn over the document, not the panel, so not anchored.
-        T::OverlayGrid => NeutralAlpha(8, 0.5),
+        // The crop frame sits on a dimmed document, so its colours do not step with the mode.
+        T::OverlayCrop => Fixed(Rgba::WHITE),
+        T::OverlayCropGuide => Fixed(Rgba::WHITE.with_alpha(CROP_GUIDE_ALPHA)),
+        T::OverlayCropInvalid => Fixed(Rgba::rgb(0xe5, 0x3e, 0x3e)),
+        // Drawn over the document, not the panel, so one colour in both modes (PhotoCraft's default).
+        T::OverlayGrid => Fixed(Rgba::rgb(0x8c, 0x8c, 0x8c)),
         T::DataSeries0 => series(0),
         T::DataSeries1 => series(1),
         T::DataSeries2 => series(2),
@@ -1419,3 +1422,44 @@ pub const POPOVER_GRIP_PITCH: f32 = 4.0;
 
 /// Room a popover keeps between its edge and the window's, in points, when it grows or is clamped.
 pub const POPOVER_SCREEN_MARGIN: f32 = 40.0;
+
+/// Alpha (of 255) of the crop frame's composition guides (PhotoCraft's).
+pub const CROP_GUIDE_ALPHA: u8 = 90;
+/// Reach in points of the crop frame's edges and corners; inside the frame it shrinks to a quarter
+/// of the side (PhotoCraft's `HANDLE_PX`).
+pub const CROP_HIT: f32 = 8.0;
+/// Width of the crop frame line.
+pub const CROP_LINE: f32 = 1.0;
+/// Width of a composition guide line.
+pub const CROP_GUIDE_LINE: f32 = 1.0;
+/// Thickness of the corner brackets and edge bars.
+pub const CROP_BRACKET: f32 = 3.0;
+/// Arm length of a corner bracket; at most a third of the shorter side.
+pub const CROP_BRACKET_ARM: f32 = 14.0;
+/// An edge bar's half-length is `min(arm, side / bar_share) / 2`.
+pub const CROP_BAR_SHARE: f32 = 4.0;
+/// Default opacity of the crop shield.
+pub const CROP_SHIELD_OPACITY: f32 = 0.75;
+/// Share of the shield opacity kept during a gesture with Auto Adjust Opacity.
+pub const CROP_SHIELD_EDITING: f32 = 0.5;
+/// Target cell side of the Grid composition guide, in screen points.
+pub const CROP_GRID_STEP: f32 = 32.0;
+/// Most Grid guide lines per axis.
+pub const CROP_GRID_MAX: f32 = 96.0;
+/// Shortest Straighten line, in screen points.
+pub const CROP_STRAIGHTEN_MIN: f32 = 3.0;
+/// Width of the Straighten line.
+pub const CROP_STRAIGHTEN_LINE: f32 = 1.0;
+/// Width of the halo under the Straighten line.
+pub const CROP_STRAIGHTEN_HALO: f32 = 3.0;
+
+/// Canvas grid line width.
+pub const GRID_WIDTH: f32 = 1.0;
+/// Share of the grid colour's alpha that minor lines keep (PhotoCraft's).
+pub const GRID_MINOR_ALPHA: f32 = 0.45;
+/// Smallest step in screen points at which a grid axis draws.
+pub const GRID_MIN_STEP: f32 = 6.0;
+/// Side of a Crossings dot.
+pub const GRID_CROSSING: f32 = 1.5;
+/// Smallest major spacing in screen points at which Crossings draw.
+pub const GRID_CROSSING_MIN: f32 = 8.0;

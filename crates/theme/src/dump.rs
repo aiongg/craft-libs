@@ -8,15 +8,15 @@ use std::fmt::Write as _;
 use crate::{
     AngleDialTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens, BySize,
     CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens, ComponentTokens,
-    ControlSizes, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens,
-    FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens,
-    GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens, LevelsTokens, ListSizes,
-    ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens,
-    PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens,
-    RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens,
-    SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens,
-    ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle,
-    TypeTokens,
+    ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens,
+    EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens, GradientLineTokens,
+    GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors,
+    KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens,
+    OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes,
+    PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, ScrollTokens,
+    SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, States, StatusBarTokens,
+    SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
+    TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -237,6 +237,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         color_ramp,
         color_wheel,
         curve,
+        crop,
         cursor,
         dialog,
         dock,
@@ -246,6 +247,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         form,
         gradient_editor,
         gradient_line,
+        grid,
         group_box,
         gradient_palette,
         guide,
@@ -297,6 +299,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     color_ramp_lines(out, color_ramp);
     color_wheel_lines(out, color_wheel);
     curve_lines(out, curve);
+    crop_lines(out, crop);
     cursor_lines(out, cursor);
     dialog_lines(out, dialog);
     dock_lines(out, dock);
@@ -306,6 +309,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     form_lines(out, form);
     gradient_editor_lines(out, gradient_editor);
     gradient_line_lines(out, gradient_line);
+    grid_lines(out, grid);
     group_box_lines(out, group_box);
     gradient_palette_lines(out, gradient_palette);
     guide_lines(out, guide);
@@ -1261,6 +1265,46 @@ fn histogram_lines(out: &mut Lines, t: &HistogramTokens) {
     out.line("histogram.line", len(*line));
     out.line("histogram.marker_width", len(*marker_width));
     out.line("histogram.marker_height", len(*marker_height));
+}
+
+fn crop_lines(out: &mut Lines, t: &CropTokens) {
+    let CropTokens {
+        hit,
+        line,
+        guide_line,
+        bracket,
+        bracket_arm,
+        bar_share,
+        shield_opacity,
+        shield_editing,
+        grid_step,
+        grid_max,
+        straighten_min,
+        straighten_line,
+        straighten_halo,
+    } = t;
+    out.line("crop.hit", len(*hit));
+    out.line("crop.line", len(*line));
+    out.line("crop.guide_line", len(*guide_line));
+    out.line("crop.bracket", len(*bracket));
+    out.line("crop.bracket_arm", len(*bracket_arm));
+    out.line("crop.bar_share", len(*bar_share));
+    out.line("crop.shield_opacity", len(*shield_opacity));
+    out.line("crop.shield_editing", len(*shield_editing));
+    out.line("crop.grid_step", len(*grid_step));
+    out.line("crop.grid_max", len(*grid_max));
+    out.line("crop.straighten_min", len(*straighten_min));
+    out.line("crop.straighten_line", len(*straighten_line));
+    out.line("crop.straighten_halo", len(*straighten_halo));
+}
+
+fn grid_lines(out: &mut Lines, t: &GridTokens) {
+    let GridTokens { width, minor_alpha, min_step, crossing, crossing_min } = t;
+    out.line("grid.width", len(*width));
+    out.line("grid.minor_alpha", len(*minor_alpha));
+    out.line("grid.min_step", len(*min_step));
+    out.line("grid.crossing", len(*crossing));
+    out.line("grid.crossing_min", len(*crossing_min));
 }
 
 fn guide_lines(out: &mut Lines, g: &GuideTokens) {

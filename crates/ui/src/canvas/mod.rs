@@ -54,6 +54,7 @@
 pub(crate) mod bezier;
 mod claim;
 mod crisp;
+pub mod crop_guides;
 pub mod gradient_line;
 pub(crate) mod gradient_overlay;
 pub(crate) mod guides;
@@ -84,6 +85,7 @@ pub use bezier::{
 };
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
+pub use crop_guides::{CropGuide, CropShield, GuideShow, Polyline, ShieldColor};
 pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
 pub use gradient_overlay::{GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
