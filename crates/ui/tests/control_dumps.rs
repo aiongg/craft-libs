@@ -920,3 +920,17 @@ fn color_parts() {
             .line("pointer_color", s.pointer_color);
     });
 }
+
+#[test]
+fn color_ramp() {
+    check("color_ramp.txt", |d, t| {
+        let r = t.component.color_ramp;
+        d.line("height", r.height)
+            .line("height_min", r.height_min)
+            .line("boxes", r.boxes)
+            .line("boxes_gap", r.boxes_gap)
+            .line("cells_x", r.cells_x as f32)
+            .line("cells_y", r.cells_y as f32)
+            .line("edge", ColorArea::style(t).edge);
+    });
+}
