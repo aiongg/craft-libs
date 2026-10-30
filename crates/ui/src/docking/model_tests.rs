@@ -815,3 +815,43 @@ fn a_sized_split_sets_the_new_split_and_the_enclosing_one_beside_the_anchor() {
         assert_eq!(moved, layout);
     }
 }
+
+#[test]
+/// `StepGroup` swaps a docked group with its neighbour in the column, keeping its state; it
+/// refuses at either end of the column and for a floating group.
+fn step_group_moves_a_group_within_its_column() {
+    let mut layout = docked();
+    assert!(layout.can_step_group(&3, false, |_| Permissions::default()));
+    assert!(!layout.can_step_group(&3, true, |_| Permissions::default()));
+    layout.apply(Action::StepGroup { panel: 3, up: false }).unwrap();
+    assert_eq!(panels_of(&dock(&layout, Side::End)[0].groups), vec![vec![4], vec![2, 3]]);
+    assert_eq!(group_state(&layout, 3), (vec![2, 3], 3, false));
+    layout.apply(Action::StepGroup { panel: 3, up: true }).unwrap();
+    assert_eq!(layout, docked());
+
+    let before = layout.clone();
+    assert_eq!(layout.apply(Action::StepGroup { panel: 2, up: true }), Err(DockError::MissingTarget));
+    assert_eq!(layout.apply(Action::StepGroup { panel: 4, up: false }), Err(DockError::MissingTarget));
+    assert_eq!(layout.apply(Action::StepGroup { panel: 5, up: true }), Err(DockError::MissingTarget));
+    assert_eq!(layout.apply(Action::StepGroup { panel: 6, up: false }), Err(DockError::InvalidPlacement));
+    assert_eq!(layout.apply(Action::StepGroup { panel: 11, up: false }), Err(DockError::InvalidPlacement));
+    assert!(!layout.can_step_group(&6, false, |_| Permissions::default()));
+    assert_eq!(layout, before);
+}
+
+#[test]
+/// A protected panel's group is never stepped past, and a group that is not movable stays put.
+fn step_group_never_passes_a_protected_group() {
+    let column = Column::new(vec![g(&[2], 0), g(&[9], 0), g(&[4], 0)], 180.0);
+    let layout = Layout { root: Some(Node::Dock { side: Side::End, columns: vec![column] }), floating: Vec::new() };
+    let permissions = |p: &u32| if *p == 9 { Permissions::PROTECTED } else { Permissions::default() };
+    for (panel, up) in [(2, false), (4, true), (9, true), (9, false)] {
+        let mut proposed = layout.clone();
+        assert_eq!(proposed.apply_with_permissions(Action::StepGroup { panel, up }, permissions), Err(DockError::NotAllowed), "{panel} {up}");
+        assert!(!layout.can_step_group(&panel, up, permissions));
+        assert_eq!(proposed, layout);
+    }
+    let immovable = |p: &u32| if *p == 2 { Permissions { movable: false, ..Permissions::default() } } else { Permissions::default() };
+    assert!(!layout.can_step_group(&2, false, immovable));
+    assert!(!layout.can_step_group(&9, true, immovable));
+}
