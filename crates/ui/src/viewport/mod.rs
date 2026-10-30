@@ -5,6 +5,10 @@
 //! same in both hostings ([`Hosting`]); only the chrome differs: an OS window supplies its own
 //! title bar and close box, an embedded one is a resizable [`Dialog`](crate::dialog::Dialog).
 
+pub(crate) mod stories;
 mod window;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod window_tests;
 
+pub use stories::COMPONENTS;
 pub use window::{Hosting, ViewportResponse, ViewportWindow};

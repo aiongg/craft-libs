@@ -112,7 +112,8 @@ impl ViewportWindow {
     /// window.
     pub fn blocks_main(ctx: &Context) -> bool {
         let pass = ctx.cumulative_pass_nr();
-        ctx.data(|d| d.get_temp::<Seen>(blocks_key(ctx))).is_some_and(|seen| seen.pass + 1 >= pass)
+        let key = blocks_key(ctx);
+        ctx.data(|d| d.get_temp::<Seen>(key)).is_some_and(|seen| seen.pass + 1 >= pass)
     }
 
     /// Shows the window for this pass. `body` draws the contents and learns where it is hosted.
@@ -125,10 +126,11 @@ impl ViewportWindow {
         let pass = ctx.cumulative_pass_nr();
         let key = Id::unique(("craft-ui-viewport", id));
         let opened = !ctx.data(|d| d.get_temp::<Seen>(key)).is_some_and(|seen| seen.pass + 1 >= pass);
+        let blocks = blocks_key(ctx);
         ctx.data_mut(|d| {
             d.insert_temp(key, Seen { pass });
             if modal {
-                d.insert_temp(blocks_key(ctx), Seen { pass });
+                d.insert_temp(blocks, Seen { pass });
             }
         });
 

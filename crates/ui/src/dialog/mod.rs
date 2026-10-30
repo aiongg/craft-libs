@@ -26,6 +26,10 @@ mod footer_pure_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod footer_tests;
 mod frame;
+mod full_window;
+pub(crate) mod full_window_stories;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod full_window_tests;
 mod keys;
 mod placement;
 #[cfg(test)]
@@ -40,6 +44,7 @@ pub use buttons::{ButtonRole, Clicked, FooterButton, FooterButtons, FooterButton
 pub use dialog::{Backdrop, Dialog, DialogResponse, InitialFocus, Outcome};
 pub use footer::{DialogLabels, Footer, FooterFx, Reset};
 pub use frame::{DialogFrame, DialogFrameResponse, DialogFrameStyle};
+pub use full_window::{FullWindowDialog, FullWindowFx};
 pub use keys::{EnterRule, KeyInput, resolve_keys};
 pub use placement::{PlaceKey, keep_on_screen, next_pin};
 pub use size::{Body, Resize, ResizeMax, Width, remembered_size, scroll_height};
