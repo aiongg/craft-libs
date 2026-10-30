@@ -7,18 +7,18 @@ use crate::behavior::RowSpans;
 /// The rows' extents from the top of the list's content: one height for every row, or the
 /// bottom of each row (prefix sums of mixed heights), searched by bisection.
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum Spans {
+pub(crate) enum Spans {
     Uniform { height: f32, rows: usize },
     Mixed { bottoms: Vec<f32> },
 }
 
 impl Spans {
-    pub(super) fn uniform(height: f32, rows: usize) -> Self {
+    pub(crate) fn uniform(height: f32, rows: usize) -> Self {
         Spans::Uniform { height: height.max(1.0), rows }
     }
 
     /// Rows whose heights `height` gives, each at least one point.
-    pub(super) fn mixed(rows: usize, height: impl Fn(usize) -> f32) -> Self {
+    pub(crate) fn mixed(rows: usize, height: impl Fn(usize) -> f32) -> Self {
         let mut bottom = 0.0;
         Spans::Mixed {
             bottoms: (0..rows)
@@ -30,21 +30,21 @@ impl Spans {
         }
     }
 
-    pub(super) fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         match self {
             Spans::Uniform { rows, .. } => *rows,
             Spans::Mixed { bottoms } => bottoms.len(),
         }
     }
 
-    pub(super) fn top(&self, at: usize) -> f32 {
+    pub(crate) fn top(&self, at: usize) -> f32 {
         match self {
             Spans::Uniform { height, .. } => at as f32 * height,
             Spans::Mixed { bottoms } => at.checked_sub(1).and_then(|p| bottoms.get(p)).copied().unwrap_or(0.0),
         }
     }
 
-    pub(super) fn bottom(&self, at: usize) -> f32 {
+    pub(crate) fn bottom(&self, at: usize) -> f32 {
         match self {
             Spans::Uniform { height, .. } => (at + 1) as f32 * height,
             Spans::Mixed { bottoms } => bottoms.get(at).copied().unwrap_or(0.0),
@@ -52,7 +52,7 @@ impl Spans {
     }
 
     /// The height of all rows.
-    pub(super) fn total(&self) -> f32 {
+    pub(crate) fn total(&self) -> f32 {
         match self.len() {
             0 => 0.0,
             len => self.bottom(len - 1),
@@ -60,7 +60,7 @@ impl Spans {
     }
 
     /// The row whose span holds `y`, clamped to the first and last rows; `None` with no rows.
-    pub(super) fn row_at(&self, y: f32) -> Option<usize> {
+    pub(crate) fn row_at(&self, y: f32) -> Option<usize> {
         let last = self.len().checked_sub(1)?;
         Some(match self {
             Spans::Uniform { height, .. } => ((y / height).floor().max(0.0) as usize).min(last),
@@ -69,7 +69,7 @@ impl Spans {
     }
 
     /// The rows to lay out for the viewport `view`: those it shows, and one above and one below.
-    pub(super) fn in_view(&self, view: Range<f32>) -> Range<usize> {
+    pub(crate) fn in_view(&self, view: Range<f32>) -> Range<usize> {
         let (Some(first), Some(last)) = (self.row_at(view.start), self.row_at((view.end - 0.5).max(view.start))) else {
             return 0..0;
         };
@@ -77,14 +77,14 @@ impl Spans {
     }
 
     /// How many rows a page key moves: the rows the viewport `view` shows whole, at least one.
-    pub(super) fn page(&self, view: Range<f32>) -> usize {
+    pub(crate) fn page(&self, view: Range<f32>) -> usize {
         self.in_view(view.clone()).filter(|&at| self.top(at) >= view.start - 0.5 && self.bottom(at) <= view.end + 0.5).count().max(1)
     }
 
     /// The scroll offset that shows row `at` in a viewport `height` high now at `offset`, when it
     /// isn't shown whole: the row at the top when it lies above, at the bottom when below (at the
     /// top when it is taller than the viewport). `None` when it is shown whole.
-    pub(super) fn reveal(&self, at: usize, offset: f32, height: f32) -> Option<f32> {
+    pub(crate) fn reveal(&self, at: usize, offset: f32, height: f32) -> Option<f32> {
         if at >= self.len() {
             return None;
         }
