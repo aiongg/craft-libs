@@ -5,7 +5,7 @@ use std::sync::Arc;
 use craft_theme::{Stroke as Hairline, ThumbSizes, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, Id, Label, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
+use egui::{Color32, Id, Label, Painter, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 
 use super::rename;
 use super::toggle::{self, Cell, ToggleColumn, ToggleEdit};
@@ -103,6 +103,14 @@ pub enum RowEvent<K> {
     /// A tree row's disclosure triangle was clicked, or a screen reader expanded or collapsed
     /// the row.
     Open(OpenChange<K>),
+    /// The link glyph between the thumbnails was clicked ([`thumb_link`](ListRow::thumb_link)):
+    /// `linked` is the state it asks for, the opposite of what the row showed.
+    LinkToggled {
+        /// The row.
+        row: K,
+        /// The requested state.
+        linked: bool,
+    },
 }
 
 /// A trailing item of a row.
@@ -288,6 +296,8 @@ pub struct ListRow<'a, K> {
     thumb: ThumbSize,
     thumbnail: Option<Thumbnail<'a>>,
     thumb_width: Option<f32>,
+    second: Option<Thumbnail<'a>>,
+    link: Option<(bool, String)>,
     trailing: Vec<TrailingItem<'a>>,
     selected: bool,
     focused: bool,
@@ -324,6 +334,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             thumb: ThumbSize::None,
             thumbnail: None,
             thumb_width: None,
+            second: None,
+            link: None,
             trailing: Vec::new(),
             selected: false,
             focused: false,
@@ -415,6 +427,24 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
     pub fn thumb_sized(mut self, size: Vec2, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
         self.thumb_width = Some(size.x.max(0.0));
         self.thumb(ThumbSize::Px(size.y.round().clamp(0.0, f32::from(u16::MAX)) as u16), paint)
+    }
+
+    /// A second thumbnail after the first, of the same size, frame and selected ring (a layer's
+    /// mask); `paint` draws into the painter, clipped to its rect. Nothing is drawn without a
+    /// first thumbnail. A link glyph can sit between the two ([`thumb_link`](ListRow::thumb_link)).
+    pub fn second_thumb(mut self, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
+        self.second = Some(Box::new(paint));
+        self
+    }
+
+    /// A link glyph between the two thumbnails ([`Icon::Link`] when `linked`, else
+    /// [`Icon::Unlink`], dimmed), which reports [`RowEvent::LinkToggled`] when clicked. `name` is
+    /// its accessible name and tooltip, with `{row}` standing for the row's label ("Unlink mask
+    /// from {row}"). It takes a `list.icon` wide slot; without it the thumbnails are a `list.gap`
+    /// apart. Needs a [`second_thumb`](ListRow::second_thumb).
+    pub fn thumb_link(mut self, linked: bool, name: impl Into<String>) -> Self {
+        self.link = Some((linked, name.into()));
+        self
     }
 
     /// An item at the trailing end, `width` wide, that always shows. The first item added is the
@@ -559,6 +589,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             thumb,
             thumbnail,
             thumb_width,
+            second,
+            link,
             trailing,
             selected,
             focused,
@@ -612,6 +644,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             (false, Some(_)) => Some(style.icon_size),
             (false, None) => None,
         };
+        // With a second thumbnail the leading part is the two thumbnails and what is between them.
+        let second = second.filter(|_| side > 0.0 && thumb != ThumbSize::None);
+        let between = if link.is_some() { style.icon_size } else { style.gap };
+        let first_width = leading;
+        let leading = match (leading, second.is_some()) {
+            (Some(first), true) => Some(2.0 * first + between),
+            _ => leading,
+        };
         let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
         let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), columns.len(), (indent, column), leading, &widths);
         let visible = ui.is_rect_visible(rect);
@@ -637,7 +677,21 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
                 Rect::from_center_size(pos2(geometry.span(rect, geometry.leading_start, across).center().x, rect.center().y), vec2(across, high));
             let at = at.round_to_pixels(ui.pixels_per_point());
             if side > 0.0 && thumb != ThumbSize::None {
-                paint_thumb(ui, &style, at, thumbnail, selected);
+                if let (Some(second), Some(first_width)) = (second, first_width) {
+                    let part = |offset: f32, width: f32| {
+                        let span = geometry.span(rect, geometry.leading_start + offset, width);
+                        Rect::from_center_size(span.center(), vec2(width, high)).round_to_pixels(ui.pixels_per_point())
+                    };
+                    paint_thumb(ui, &style, part(0.0, first_width), thumbnail, selected);
+                    paint_thumb(ui, &style, part(first_width + between, first_width), Some(second), selected);
+                    if let Some((linked, name)) = &link {
+                        let slot = geometry.span(rect, geometry.leading_start + first_width, between);
+                        let slot = Rect::from_center_size(slot.center(), vec2(between, high));
+                        show_link(ui, &style, slot, row_id, &key, &label, (*linked, name), &mut events);
+                    }
+                } else {
+                    paint_thumb(ui, &style, at, thumbnail, selected);
+                }
             } else if let Some(icon) = icon {
                 icons::paint_in(ui, at, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), style.icon);
             }
@@ -783,6 +837,39 @@ fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, 
     }
 }
 
+/// The link glyph between two thumbnails in `slot`: a click asks for the opposite state.
+#[expect(clippy::too_many_arguments)]
+fn show_link<K: Clone>(
+    ui: &mut Ui,
+    style: &ListRowStyle,
+    slot: Rect,
+    row_id: Id,
+    key: &K,
+    row_label: &str,
+    (linked, name): (bool, &str),
+    events: &mut Vec<RowEvent<K>>,
+) {
+    let name = tree::with_row(name, row_label);
+    let response = Interactive::with_id(row_id.with("link"), Role::Button, name.clone())
+        .sense(Sense::CLICK)
+        .checked(linked)
+        .state_layer(false)
+        .focus_ring(false)
+        .interact_at(ui, slot)
+        .finish(ui);
+    let color = match (linked, response.hovered()) {
+        (_, true) => style.icon_hover,
+        (true, false) => style.icon,
+        (false, false) => style.dimmed,
+    };
+    let icon = if linked { Icon::Link } else { Icon::Unlink };
+    icons::paint_in(ui, slot, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), color);
+    if response.clicked() {
+        events.push(RowEvent::LinkToggled { row: key.clone(), linked: !linked });
+    }
+    let _ = response.on_hover_text(name);
+}
+
 /// The thumbnail with the host's painting over all of `at`, and its frame just outside it.
 fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbnail<'_>>, selected: bool) {
     if let Some(paint) = thumbnail {
@@ -813,6 +900,28 @@ fn paint_label(ui: &mut Ui, tokens: &UiTokens, style: &ListRowStyle, band: Rect,
     }
 }
 
+/// A drop indicator line for a target that is not a list row: `from` to `to` (axis-aligned,
+/// horizontal when their y matches, vertical otherwise), centred on the segment, drawn in
+/// `list.drop` at `list.drop_width` on its `list.drop_halo` outline. It is the line a
+/// [`ListRow`] draws for [`DropMark::Before`] and [`DropMark::After`], for headers, buttons and
+/// other rows of the host's own.
+pub fn drop_line(ui: &Ui, from: Pos2, to: Pos2) {
+    let style = ListRow::<u8>::style(&Tokens::of(ui));
+    paint_drop_line(ui, &style, from, to);
+}
+
+fn paint_drop_line(ui: &Ui, style: &ListRowStyle, from: Pos2, to: Pos2) {
+    let (width, halo) = (style.drop_width, style.drop_halo);
+    let painter = ui.painter();
+    let reach = |across: f32| {
+        let across = vec2(0.0, across / 2.0);
+        let (min, max) = (from.min(to), from.max(to));
+        if from.y == to.y { Rect::from_min_max(min - across, max + across) } else { Rect::from_min_max(min - across.yx(), max + across.yx()) }
+    };
+    painter.rect_filled(reach(width + 2.0 * halo.width), 0.0, halo.color);
+    painter.rect_filled(reach(width), 0.0, style.drop);
+}
+
 /// The marker on its halo, both inside the row, so a row drawn after this one can't cover the
 /// halo.
 fn paint_drop_mark(ui: &Ui, style: &ListRowStyle, rect: Rect, mark: DropMark) {
@@ -821,10 +930,8 @@ fn paint_drop_mark(ui: &Ui, style: &ListRowStyle, rect: Rect, mark: DropMark) {
     let band = width + 2.0 * halo.width;
     match mark {
         DropMark::Before | DropMark::After => {
-            let top = if mark == DropMark::Before { rect.top() } else { rect.bottom() - band };
-            let band = Rect::from_min_size(pos2(rect.left(), top), vec2(rect.width(), band));
-            painter.rect_filled(band, 0.0, halo.color);
-            painter.rect_filled(band.shrink2(vec2(0.0, halo.width)), 0.0, style.drop);
+            let y = if mark == DropMark::Before { rect.top() + band / 2.0 } else { rect.bottom() - band / 2.0 };
+            paint_drop_line(ui, style, pos2(rect.left(), y), pos2(rect.right(), y));
         }
         DropMark::Into => {
             painter.rect_stroke(rect, corner_radius(style.radius), Stroke::new(band, halo.color), StrokeKind::Inside);
@@ -870,14 +977,63 @@ pub(super) struct LayersArgs {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!(
-        "composites/list-row/layers",
-        Level::Composites,
-        "ListRow",
-        "Layers",
-        LayersArgs { thumbnails: ThumbArg::None, detail: false, highlight_second_row: false, layer_form: true, width: 280.0 },
-        show_layers
-    )]
+    vec![
+        typed_story!(
+            "composites/list-row/layers",
+            Level::Composites,
+            "ListRow",
+            "Layers",
+            LayersArgs { thumbnails: ThumbArg::None, detail: false, highlight_second_row: false, layer_form: true, width: 280.0 },
+            show_layers
+        ),
+        typed_story!(
+            "composites/list-row/masks",
+            Level::Composites,
+            "ListRow",
+            "Mask thumbnail",
+            MasksArgs { linked: true, width: 280.0 },
+            show_masks
+        ),
+    ]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct MasksArgs {
+    linked: bool,
+    #[arg(range = 120.0..=480.0)]
+    width: f32,
+}
+
+/// A layer with a mask thumbnail and a link glyph between the thumbnails, and one without a mask.
+fn show_masks(ui: &mut Ui, args: &mut MasksArgs) {
+    let width = args.width.min(ui.available_width());
+    let state_id = ui.scope_id().with("list-row-masks");
+    let mut linked = ui.data(|d| d.get_temp::<bool>(state_id)).unwrap_or(args.linked);
+    let tokens = Tokens::of(ui);
+    let (layer_fill, mask_fill) = (tokens.color.surface.raised.to_egui(), tokens.color.text.faint.to_egui());
+    ui.allocate_ui(vec2(width, 0.0), |ui| {
+        ui.set_max_width(width);
+        ui.spacing_mut().item_spacing.y = 0.0;
+        for (i, name) in ["Layer with a mask", "Layer"].into_iter().enumerate() {
+            let mut row = ListRow::new(i, name).thumb(ThumbSize::Medium, move |painter, rect| {
+                painter.rect_filled(rect, 0.0, layer_fill);
+            });
+            if i == 0 {
+                row = row
+                    .second_thumb(move |painter, rect| {
+                        painter.rect_filled(rect, 0.0, mask_fill);
+                    })
+                    .thumb_link(linked, "Link the mask to {row}")
+                    .selected(true);
+            }
+            for event in row.show(ui).events {
+                if let RowEvent::LinkToggled { linked: on, .. } = event {
+                    linked = on;
+                }
+            }
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(state_id, linked));
 }
 
 /// The state of the story's layers panel.

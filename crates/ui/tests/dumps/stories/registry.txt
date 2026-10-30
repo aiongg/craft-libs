@@ -41,6 +41,7 @@ controls/segmented/icons = Segmented | Icons | Panel | size=Choice { options: ["
 controls/select/states = Select | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); fit=Bool(false)
 controls/select/wheel-steps = Select | Wheel steps | Panel | size=Choice { options: ["sm", "md"], index: 1 }; wheel steps=Bool(true)
 controls/select/searchable = Select | Searchable | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/select/row-content = Select | Row content | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 controls/combo-box/states = Combo box | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 controls/combo-box/font-size = Combo box | Font size | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 controls/link/inline = Link | Inline | Panel | label=Text("release notes")
@@ -76,6 +77,7 @@ controls/search-field/filter = Search field | Filter | Panel | size=Choice { opt
 controls/number-field/states = Number field | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }; edit menu=Bool(true)
 controls/number-field/scrub = Number field | Scrub | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
 controls/number-field/right-to-left = Number field | Right to left | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
+controls/number-field/unit-menu = Number field | Unit menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
 controls/number-field/event-log = Number field | Event log | Panel | update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
 controls/angle-dial/dial = Angle dial | Angle dial | Panel | range=Choice { options: ["-180 to 180", "-360 to 360", "0 to 90"], index: 0 }; orientation=Choice { options: ["counter-clockwise", "clockwise"], index: 0 }; field=Bool(true); size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/angle-dial/dialog = Angle dial | Dialog (field scope) | Panel | 
@@ -89,6 +91,7 @@ composites/section-label/default = SectionLabel | Default | Panel | text=Text("B
 composites/panel-header/flyout = PanelHeader | Flyout | Panel | float=Bool(true); close=Bool(true); menu=Bool(true); actions=Bool(false); width=Number { value: 280.0, min: 60.0, max: 400.0 }
 composites/panel-footer/layers = PanelFooter | Layers | Own | width=Number { value: 240.0, min: 60.0, max: 400.0 }
 composites/slider-row/adjustments = SliderRow | Adjustments | Panel | disabled=Bool(false); width=Number { value: 260.0, min: 120.0, max: 400.0 }
+composites/slider-row/wheel-step = SliderRow | Wheel step | Panel | step=Number { value: 5.0, min: 0.5, max: 20.0 }
 composites/toast/stack = Toast | Stack | Panel | tone=Choice { options: ["neutral", "info", "good", "warn", "bad"], index: 0 }; auto_hide=Bool(false); seconds=Number { value: 6.0, min: 1.0, max: 30.0 }
 composites/notice/tones = Notice | Tones | Panel | announce=Bool(true); title=Bool(true); width=Number { value: 320.0, min: 120.0, max: 480.0 }
 composites/empty-state/panel = EmptyState | Panel | Panel | search=Text("zzz"); status=Bool(true); width=Number { value: 260.0, min: 100.0, max: 400.0 }
@@ -117,6 +120,7 @@ composites/tab-strip/documents = TabStrip | Documents | Panel | width=Number { v
 composites/tab-strip/panels = TabStrip | Panels | Panel | width=Number { value: 260.0, min: 120.0, max: 480.0 }; locked=Bool(false)
 composites/tab-strip/drops = TabStrip | Drops | Panel | width=Number { value: 480.0, min: 160.0, max: 1200.0 }
 composites/list-row/layers = ListRow | Layers | Panel | thumbnails=Choice { options: ["None", "Small", "Medium", "Large"], index: 0 }; detail=Bool(false); highlight second row=Bool(false); layer form=Bool(true); width=Number { value: 280.0, min: 60.0, max: 480.0 }
+composites/list-row/masks = ListRow | Mask thumbnail | Panel | linked=Bool(true); width=Number { value: 280.0, min: 120.0, max: 480.0 }
 composites/list/ten-thousand-rows = List | 10,000 rows | Panel | selection=Choice { options: ["Multiple", "Single"], index: 0 }; mixed heights=Bool(false); height=Number { value: 320.0, min: 120.0, max: 600.0 }
 composites/list/tree = TreeRow | Layer groups | Panel | width=Number { value: 320.0, min: 120.0, max: 480.0 }; height=Number { value: 280.0, min: 120.0, max: 480.0 }
 composites/list/reorder = List | Reorder | Panel | 

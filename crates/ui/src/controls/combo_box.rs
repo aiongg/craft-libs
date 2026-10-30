@@ -277,7 +277,15 @@ impl<'a> ComboBox<'a> {
                 let reveal = if ui.is_sizing_pass() { None } else { listbox.take_reveal() };
                 for at in 0..shown.len() {
                     let option = shown.option_at(at);
-                    let row = OptionRow { option, text: &options[option], icon: None, chosen: checked == Some(option), enabled: true, tooltip: None };
+                    let row = OptionRow {
+                        option,
+                        text: &options[option],
+                        icon: None,
+                        leading: None,
+                        chosen: checked == Some(option),
+                        enabled: true,
+                        tooltip: None,
+                    };
                     let outcome = rows.show(ui, &mut listbox, &row);
                     if outcome.picked {
                         picked = Some(option);

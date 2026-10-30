@@ -91,6 +91,7 @@ pub struct SliderRow<'a> {
     track_colors: Option<Vec<Srgba>>,
     default: Option<f64>,
     wheel: bool,
+    wheel_step: Option<f64>,
     scale: SliderScale,
     policy: EditPolicy,
     enabled: bool,
@@ -117,6 +118,7 @@ impl<'a> SliderRow<'a> {
             track_colors: None,
             default: None,
             wheel: false,
+            wheel_step: None,
             scale: SliderScale::Linear,
             policy: EditPolicy::default(),
             enabled: true,
@@ -153,6 +155,16 @@ impl<'a> SliderRow<'a> {
     /// hundredth of the range.
     pub fn wheel(mut self, on: bool) -> Self {
         self.wheel = on;
+        self
+    }
+
+    /// How far one wheel notch moves the value (Shift: ten notches), in the range's units, in
+    /// place of the slider's key step, a hundredth of the range (PhotoCraft's non-default
+    /// `RowGestures::wheel_step`). It sets the step only; [`wheel`](SliderRow::wheel) lets the
+    /// wheel step the unfocused slider, and the focused slider is always stepped by it. The
+    /// field's own wheel steps and the keys keep their steps.
+    pub fn wheel_step(mut self, step: f64) -> Self {
+        self.wheel_step = Some(step);
         self
     }
 
@@ -231,6 +243,9 @@ impl<'a> SliderRow<'a> {
             .scale(self.scale)
             .policy(self.policy)
             .enabled(self.enabled);
+        if let Some(step) = self.wheel_step {
+            slider = slider.wheel_step(step);
+        }
         if let Some(value) = self.default {
             slider = slider.default_value(value);
         }
@@ -258,14 +273,41 @@ impl<'a> SliderRow<'a> {
 pub const COMPONENTS: &[&str] = &["SliderRow"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!(
-        "composites/slider-row/adjustments",
-        Level::Composites,
-        "SliderRow",
-        "Adjustments",
-        AdjustmentsArgs { disabled: false, width: 260.0 },
-        show_adjustments
-    )]
+    vec![
+        typed_story!(
+            "composites/slider-row/adjustments",
+            Level::Composites,
+            "SliderRow",
+            "Adjustments",
+            AdjustmentsArgs { disabled: false, width: 260.0 },
+            show_adjustments
+        ),
+        typed_story!("composites/slider-row/wheel-step", Level::Composites, "SliderRow", "Wheel step", WheelStepArgs { step: 5.0 }, show_wheel_step),
+    ]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct WheelStepArgs {
+    #[arg(range = 0.5..=20.0)]
+    step: f32,
+}
+
+/// A row whose wheel notch over the slider moves the value by `step`, the unfocused slider
+/// included.
+fn show_wheel_step(ui: &mut Ui, args: &mut WheelStepArgs) {
+    let state_id = ui.scope_id().with("slider-row-wheel-step");
+    let mut value = ui.data(|d| d.get_temp::<f64>(state_id)).unwrap_or(50.0);
+    let numbers = LocaleNumbers::from_tag("en");
+    ui.allocate_ui(vec2(260.0, 0.0), |ui| {
+        ui.set_max_width(260.0);
+        let row = SliderRow::new("wheel-step", "Opacity", value, 0.0..=1000.0, &numbers).wheel(true).wheel_step(f64::from(args.step));
+        for event in row.show(ui).edits() {
+            if let EditEvent::Update { value: v, .. } | EditEvent::Set { value: v, .. } | EditEvent::Commit { value: v, .. } = event {
+                value = v;
+            }
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(state_id, value));
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]

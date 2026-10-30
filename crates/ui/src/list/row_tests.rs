@@ -181,6 +181,24 @@ fn drop_marks_draw_a_line_on_an_edge_or_an_outline_inside() {
     assert!(fills(&mark(None)).iter().all(|r| r.fill != s.drop));
 }
 
+/// The standalone line is the list's line: same colour and thickness on the same halo, whether
+/// it runs across or down.
+#[test]
+fn drop_line_matches_the_list_marker() {
+    let (ctx, s) = (context(), style());
+    let at = |from: Pos2, to: Pos2| shapes(&ctx, |ui| drop_line(ui, from, to));
+    let drawn = at(Pos2::new(10.0, 50.0), Pos2::new(90.0, 50.0));
+    let across = fills(&drawn);
+    let line = across.iter().find(|r| r.fill == s.drop).expect("line");
+    assert_eq!((line.rect.height(), line.rect.width(), line.rect.center().y), (s.drop_width, 80.0, 50.0));
+    let halo = across.iter().find(|r| r.fill == s.drop_halo.color).expect("halo");
+    assert_eq!(halo.rect.height(), s.drop_width + 2.0 * s.drop_halo.width);
+    let drawn = at(Pos2::new(30.0, 10.0), Pos2::new(30.0, 60.0));
+    let down = fills(&drawn);
+    let line = down.iter().find(|r| r.fill == s.drop).expect("line");
+    assert_eq!((line.rect.width(), line.rect.height(), line.rect.center().x), (s.drop_width, 50.0, 30.0));
+}
+
 /// The halo is painted first and covers the marker with `drop_halo.width` to spare on each side
 /// across the line, so the marker never touches a row fill; it stays inside the row.
 #[test]
@@ -704,4 +722,55 @@ fn the_layer_form_tints_the_hover_and_outlines_the_selected_row_where_photocraft
 
 fn shapes_radius(shapes: &[Shape]) -> egui::CornerRadius {
     shapes.iter().find_map(|s| if let Shape::Rect(r) = s { Some(r.corner_radius) } else { None }).unwrap_or_default()
+}
+
+/// A second thumbnail has the first one's size and frame and sits `list.icon` after it with a
+/// link glyph between (`list.gap` without one); a click on the glyph asks for the opposite state
+/// and the label starts after both.
+#[test]
+fn a_second_thumbnail_follows_the_first_with_an_optional_link_between() {
+    use std::cell::RefCell;
+    type State = (bool, RefCell<Vec<Rect>>, Vec<RowEvent<u8>>, Rect);
+    let s = style();
+    for with_link in [true, false] {
+        let mut harness = harness::<State>(Direction::Ltr).build_ui_state(
+            move |ui, (linked, painted, events, label): &mut State| {
+                painted.get_mut().clear();
+                let painted = &*painted;
+                let mut row = ListRow::new(1u8, "Layer")
+                    .selected(true)
+                    .thumb(ThumbSize::Medium, |_, rect| painted.borrow_mut().push(rect))
+                    .second_thumb(|_, rect| painted.borrow_mut().push(rect));
+                if with_link {
+                    row = row.thumb_link(*linked, "Link mask to {row}");
+                }
+                let shown = row.show(ui);
+                *label = shown.label;
+                for event in shown.events {
+                    if let RowEvent::LinkToggled { linked: on, .. } = event {
+                        *linked = on;
+                    }
+                    events.push(event);
+                }
+            },
+            (false, RefCell::default(), Vec::new(), Rect::NOTHING),
+        );
+        harness.run();
+        let (_, painted, ..) = harness.state();
+        let painted = painted.borrow().clone();
+        let [first, second] = painted[..] else { panic!("{painted:?}") };
+        assert_eq!(first.size(), second.size());
+        assert_eq!(first.size(), vec2(s.thumb.md, s.thumb.md));
+        let between = if with_link { s.icon_size } else { s.gap };
+        assert_eq!(second.left() - first.right(), between);
+        assert!(harness.state().3.left() >= second.right(), "the label follows both thumbnails");
+        if with_link {
+            harness.get_by_label("Link mask to Layer").click();
+            harness.run();
+            assert_eq!(harness.state().2, vec![RowEvent::LinkToggled { row: 1, linked: true }]);
+            assert!(harness.state().0);
+        } else {
+            assert!(harness.query_by_label("Link mask to Layer").is_none());
+        }
+    }
 }

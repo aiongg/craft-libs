@@ -24,6 +24,7 @@ use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
 use crate::localized::{LocaleNumbers, Unit, first_field_id, incomplete, round_half_away, stepped};
+use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, margin_x};
@@ -165,6 +166,13 @@ pub struct NumberField<'a> {
     keep_focus: bool,
     part: bool,
     edit_menu: bool,
+    unit_menu: Option<UnitMenu<'a>>,
+}
+
+/// The rows of [`NumberField::unit_menu`] and where its pick goes.
+struct UnitMenu<'a> {
+    entries: &'a [MenuEntry<usize>],
+    picked: &'a mut Option<usize>,
 }
 
 impl<'a> NumberField<'a> {
@@ -196,6 +204,7 @@ impl<'a> NumberField<'a> {
             keep_focus: false,
             part: false,
             edit_menu: true,
+            unit_menu: None,
         }
     }
 
@@ -338,6 +347,17 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// A secondary click on the field opens a [`ContextMenu`] of `entries` (the units to pick
+    /// from; each row's command is the host's index of that unit), in place of the
+    /// [edit menu](NumberField::edit_menu). A pick is written to `picked` (otherwise left
+    /// alone); the field does not change the value or the [`unit`](NumberField::unit): the host
+    /// applies the unit, as PhotoCraft's options bar does. Mark the current unit with
+    /// [`MenuItem::radio`](crate::menu::MenuItem::radio). The Menu key does not open it.
+    pub fn unit_menu(mut self, entries: &'a [MenuEntry<usize>], picked: &'a mut Option<usize>) -> Self {
+        self.unit_menu = Some(UnitMenu { entries, picked });
+        self
+    }
+
     /// Whether the field is a part of a composite reporting through one edit: a press on the
     /// scrub sources, the ▾ or the pop-up slider takes its turn from the edit order
     /// (`slider::press_turn`). While another control's typing run has the focus (a sibling
@@ -409,7 +429,8 @@ impl<'a> NumberField<'a> {
         // before the arrows below or the field read the input. Over the text of a field without
         // the focus, a secondary press belongs to the scrub (it covers the text): it gives the
         // field the focus with its text selected, and the menu opens at the pointer.
-        let menu = if self.edit_menu && enabled {
+        let edit_menu = self.edit_menu && self.unit_menu.is_none();
+        let menu = if edit_menu && enabled {
             let scrub_text = ui.ctx().read_response(scrub_text_id(id)).filter(|_| stepping && self.scrub_text && !ui.memory(|m| m.has_focus(id)));
             let open_at = scrub_text.filter(Response::secondary_clicked).and_then(|r| r.interact_pointer_pos());
             if open_at.is_some() {
@@ -443,7 +464,7 @@ impl<'a> NumberField<'a> {
             .invalid(self.invalid)
             .keep_focus(self.keep_focus)
             .role(Role::SpinButton)
-            .edit_menu(self.edit_menu)
+            .edit_menu(edit_menu)
             .event_filter(EventFilter { vertical_arrows: true, ..EventFilter::default() })
             .tabular(true);
         if let Some(menu) = menu {
@@ -469,6 +490,7 @@ impl<'a> NumberField<'a> {
             own,
         };
 
+        let mut secondary = None;
         if stepping {
             let mut sources = Vec::new();
             if let Some(handle) = parts.handle_rect(rect) {
@@ -482,10 +504,18 @@ impl<'a> NumberField<'a> {
                 let text = ui.interact(rect, scrub_text_id(id), Sense::CLICK | Sense::DRAG);
                 sources.push(text);
             }
+            secondary = sources.iter().find(|s| s.secondary_clicked()).and_then(|s| s.interact_pointer_pos());
             input.scrub(ui, &mut typed, &sources);
         }
         let popup_open = self.popup.is_some() && input.popup(ui, &mut typed, &self, rect, parts.popup_rect(rect), enabled);
         let response = typed.response().clone();
+        if let Some(UnitMenu { entries, picked }) = self.unit_menu.take().filter(|_| enabled) {
+            let at = secondary.or_else(|| response.secondary_clicked().then(|| response.interact_pointer_pos()).flatten());
+            let menu = ContextMenu::new(entries).size(self.size).own_gestures(false).open_at(at.map(OpenAt::Pointer)).show(ui, &response);
+            if menu.chosen.is_some() {
+                *picked = menu.chosen;
+            }
+        }
         let focused = enabled && response.has_focus();
         let stepped = input.step(ui, &mut typed, &arrows, stepping, enabled);
 
@@ -1234,6 +1264,7 @@ pub(crate) fn stories() -> Vec<Story> {
             LocaleSizeArgs::default(),
             show_right_to_left
         ),
+        typed_story!("controls/number-field/unit-menu", Level::Controls, "Number field", "Unit menu", LocaleSizeArgs::default(), show_unit_menu),
         typed_story!("controls/number-field/event-log", Level::Controls, "Number field", "Event log", PolicyArgs::default(), show_event_log),
     ]
 }
@@ -1325,6 +1356,33 @@ fn zoom_step(value: f64, notches: i32) -> f64 {
 }
 
 /// Scrub labels and icons inside the field, and a label before it.
+/// A width whose unit a secondary click picks.
+fn show_unit_menu(ui: &mut Ui, args: &mut LocaleSizeArgs) {
+    const UNITS: [&str; 3] = ["{n} px", "{n} mm", "{n} in"];
+    let size = args.size.control();
+    let numbers = args.locale.numbers();
+    let state_id = ui.scope_id().with("number-field-unit-menu");
+    let (mut value, mut unit) = ui.data(|d| d.get_temp::<(f64, usize)>(state_id)).unwrap_or((120.0, 0));
+    let entries: Vec<MenuEntry<usize>> =
+        UNITS.iter().enumerate().map(|(i, u)| MenuItem::new(u.replace("{n} ", ""), i).radio(i == unit).into()).collect();
+    let mut picked = None;
+    variant_list(ui, "number-field-unit-menu", |form| {
+        labelled(form, "Width", &format!("{value} {unit}"), |ui| {
+            let edit = NumberField::new("number-field-unit", "Width", value, &numbers)
+                .range(0.0..=10_000.0)
+                .unit(Unit::new(UNITS[unit]))
+                .unit_menu(&entries, &mut picked)
+                .size(size)
+                .show(ui);
+            super::slider::store(&edit, &mut value)
+        });
+    });
+    if let Some(picked) = picked {
+        unit = picked;
+    }
+    ui.data_mut(|d| d.insert_temp(state_id, (value, unit)));
+}
+
 fn show_scrub(ui: &mut Ui, args: &mut LocaleSizeArgs) {
     let size = args.size.control();
     let numbers = args.locale.numbers();

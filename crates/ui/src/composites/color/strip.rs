@@ -188,7 +188,7 @@ impl ColorStrip {
             set(&mut gesture, ScalarOp::Set(f64::from(component_at(pos.y))));
         }
         let sensing = Sensing { wheel: false, ..Sensing::of(&response) };
-        if let Some(op) = stepped(ui, response.id, sensing, None, &scale) {
+        if let Some(op) = stepped(ui, response.id, sensing, None, None, &scale) {
             set(&mut gesture, op);
         }
 
