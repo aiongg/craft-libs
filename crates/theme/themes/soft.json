@@ -84,6 +84,8 @@
     "listbox.chosen.text": "{text.normal}",
     "state.hover": "#444450",
     "state.pressed": "#4a4a58",
+    "status.bad.fg": "#faa0ac",
+    "status.warn.fg": "#f0c882",
     "surface.background": "#2f2f38",
     "surface.canvas": "#282830",
     "surface.chrome": "#3a3a44",
@@ -94,6 +96,12 @@
     "text.muted": "#d4d4e0",
     "text.normal": "#eeeef6",
     "text.on_accent": "#ffffff"
+  },
+  "high_contrast": {
+    "dark": {
+      "status.bad.fg": "#ffc8ce",
+      "status.warn.fg": "#f3d196"
+    }
   },
   "components": {
     "button.radius": 7.0,

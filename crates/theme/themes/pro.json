@@ -82,6 +82,8 @@
     "state.hover": "#424242",
     "state.pressed": "#4e4e4e",
     "state.selected": "#525252",
+    "status.bad.fg": "#ec5b62",
+    "status.warn.fg": "#e8b046",
     "surface.background": "#1e1e1e",
     "surface.canvas": "#282828",
     "surface.panel": "#323232",
@@ -93,6 +95,12 @@
     "text.normal": "#dedede",
     "text.on_accent": "#ffffff",
     "toggle_button.on.text": "{text.on_accent}"
+  },
+  "high_contrast": {
+    "dark": {
+      "status.bad.fg": "#ffbebc",
+      "status.warn.fg": "#f6c773"
+    }
   },
   "components": {
     "button.border_width": 1.5,

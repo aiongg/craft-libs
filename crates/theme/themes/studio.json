@@ -68,6 +68,8 @@
     "listbox.chosen.text": "{text.normal}",
     "state.hover": "#2c2c30",
     "state.pressed": "#38383e",
+    "status.bad.fg": "#f06060",
+    "status.warn.fg": "#f0be5a",
     "surface.background": "#111112",
     "surface.canvas": "#0e0e0f",
     "surface.canvas_pattern": "#2e2e32",
@@ -78,6 +80,12 @@
     "text.faint": "#606068",
     "text.muted": "#96969e",
     "text.normal": "#ececf0"
+  },
+  "high_contrast": {
+    "dark": {
+      "status.bad.fg": "#ffa09b",
+      "status.warn.fg": "#f1c675"
+    }
   },
   "components": {
     "button.radius": 6.0,
