@@ -204,6 +204,9 @@ pub struct HistogramStyle {
     /// The tone look's colour per [`ChannelColor`], in [`ChannelColor::ALL`] order: the data
     /// tokens, `text.muted` for neutral. Read it with [`tone`](HistogramStyle::tone).
     pub tones: [Color32; 7],
+    /// The tone look's outline in the neutral channel: `text.normal`, so it stands out from the
+    /// `text.muted` neutral fill.
+    pub outline_neutral: Color32,
     /// The ribbons' colours, from the tokens passed to [`Histogram::style`]: `data.red`,
     /// `data.green`, `data.blue`. [`Histogram::show`] reads them from the dark mode's tokens, since
     /// the scope is dark in every theme.
@@ -260,7 +263,7 @@ impl HistogramStyle {
 /// - **Outline:** the original histogram as a `histogram.line` line over the plot, on the plot's
 ///   scale in the tone look (a taller original is clamped to the top of the plot) and on its own
 ///   scale in the RGB look.
-/// - **Marker, markers:** a tick at a level, standing on the bottom of the plot (PhotoCraft's sampler mark); markers add a caption beside the tick.
+/// - **Marker, markers:** a tick at a level, standing on the bottom of the plot (PhotoCraft's sampler mark); markers add a caption beside the tick, level with its top.
 /// - **Selection:** a band over the whole bin slots of a range of levels with 2 pt edges, dragged
 ///   with the pointer or moved with the arrow keys (Shift moves the start edge) while the plot
 ///   has focus. A click or Esc clears it. Levels are bin positions, whole numbers.
@@ -390,8 +393,8 @@ impl Histogram {
     }
 
     /// Labelled markers, each `(level, caption)`: the black point, white point and mid of a
-    /// levels adjustment. The caption is drawn beside the band, at the top, on the side with room;
-    /// the host translates it.
+    /// levels adjustment. The caption sits beside its tick, its bottom level with the tick's top,
+    /// on the side with room; the host translates it.
     pub fn markers(mut self, markers: &[(f32, String)]) -> Self {
         self.markers = markers.to_vec();
         self
@@ -464,6 +467,7 @@ impl Histogram {
             border: tokens.component.field.border.rest.to_egui(),
             scope: d.scope.to_egui(),
             tones: ChannelColor::ALL.map(|c| if c == ChannelColor::Neutral { tokens.color.text.muted.to_egui() } else { c.color(tokens) }),
+            outline_neutral: tokens.color.text.normal.to_egui(),
             ribbons: [d.red.to_egui(), d.green.to_egui(), d.blue.to_egui()],
             inks: ChannelColor::ALL.map(|c| c.color(tokens)),
             backdrop: h.backdrop.to_egui(),
@@ -528,7 +532,16 @@ impl Histogram {
                 }
                 for (i, (level, caption)) in self.markers.iter().enumerate() {
                     painter.extend(marker_shapes(rect, bins, *level, (style.marker_width, style.marker_height), solid));
-                    Self::caption(ui, id.with(("marker", i)), rect, level_x(rect, bins, *level), caption, solid, &tokens);
+                    Self::caption(
+                        ui,
+                        id.with(("marker", i)),
+                        rect,
+                        level_x(rect, bins, *level),
+                        (style.marker_width, style.marker_height),
+                        caption,
+                        solid,
+                        &tokens,
+                    );
                 }
             }
             if self.bordered {
@@ -614,16 +627,18 @@ impl Histogram {
         changed
     }
 
-    /// Paints a marker's caption beside its band and names it for screen readers.
-    fn caption(ui: &Ui, id: egui::Id, rect: Rect, x: f32, caption: &str, color: Color32, tokens: &UiTokens) {
+    /// Paints a marker's caption beside its tick, the text's bottom level with the tick's top, and
+    /// names it for screen readers. `tick` is the tick's width and height.
+    #[allow(clippy::too_many_arguments)]
+    fn caption(ui: &Ui, id: egui::Id, rect: Rect, x: f32, tick: (f32, f32), caption: &str, color: Color32, tokens: &UiTokens) {
         if !usable(rect) || !x.is_finite() {
             return;
         }
         let gap = tokens.space.gap.inline;
         let galley = ui.painter().layout_no_wrap(caption.to_owned(), tokens.font(TypeRole::Caption), color);
-        let after = x + gap;
-        let left = if after + galley.size().x <= rect.right() { after } else { (x - gap - galley.size().x).max(rect.left()) };
-        let at = pos2(left, rect.top() + gap);
+        let (before, after) = (x - tick.0 / 2.0 - gap, x + tick.0 / 2.0 + gap);
+        let left = if after + galley.size().x <= rect.right() { after } else { (before - galley.size().x).max(rect.left()) };
+        let at = pos2(left, rect.bottom() - tick.1 - galley.size().y);
         let area = Rect::from_min_size(at, galley.size()).intersect(rect);
         ui.painter().with_clip_rect(rect).galley(at, galley, color);
         let node = ui.interact(area, id, Sense::hover());
@@ -816,7 +831,10 @@ pub(super) fn outline_shapes(rect: Rect, data: &HistogramData, bins: &[f32], cha
         return Vec::new();
     }
     let (heights, color) = match &data.plot {
-        Plot::Tone { bins: current, .. } => (normalized(bins, tone_top(current, data.scale)), style.tone(channel)),
+        Plot::Tone { bins: current, .. } => (
+            normalized(bins, tone_top(current, data.scale)),
+            if channel == ChannelColor::Neutral { style.outline_neutral } else { style.tone(channel) },
+        ),
         Plot::Channels { .. } => (tone_heights(bins, data.scale), style.ink(channel)),
     };
     vec![Shape::line(outline(rect, &heights), Stroke::new(style.line, color))]

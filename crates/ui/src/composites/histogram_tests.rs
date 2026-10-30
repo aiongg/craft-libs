@@ -434,7 +434,7 @@ fn the_outline_is_drawn_over_the_fill() {
     assert!(line > fill);
     let egui::Shape::Path(path) = &shapes[line].shape else { panic!("not a path") };
     assert_eq!(path.stroke.width, style().line);
-    assert_eq!(path.stroke.color, egui::epaint::ColorMode::Solid(style().tone(ChannelColor::Neutral)));
+    assert_eq!(path.stroke.color, egui::epaint::ColorMode::Solid(style().outline_neutral));
 }
 
 #[test]
@@ -446,6 +446,14 @@ fn the_outline_shares_the_fills_scale_in_the_tone_look() {
     assert!((path.points[1].y - (rect.bottom() - fill / 2.0 * rect.height())).abs() < 1e-4, "half the fill's height");
     let egui::Shape::Path(path) = &histogram::outline_shapes(rect, &data, &[500.0; 3], ChannelColor::Neutral, &style)[0] else { panic!() };
     assert_eq!(path.points[1].y, rect.top(), "a taller outline runs off the top");
+}
+
+#[test]
+fn a_neutral_outline_differs_from_the_neutral_fill() {
+    let (rect, style) = (rect(), style());
+    let data = HistogramData::tone(&[10u32, 10, 10], ChannelColor::Neutral);
+    let egui::Shape::Path(path) = &histogram::outline_shapes(rect, &data, &[5.0; 3], ChannelColor::Neutral, &style)[0] else { panic!() };
+    assert_ne!(path.stroke.color, egui::epaint::ColorMode::Solid(style.tone(ChannelColor::Neutral)));
 }
 
 /// A harness whose histogram has a selection and keeps the range the user reports.
@@ -518,6 +526,19 @@ fn markers_draw_a_caption_each_and_name_it() {
     assert!(plot.contains_rect(black) && plot.contains_rect(white), "{black:?} {white:?} in {plot:?}");
     assert!(black.center().x < white.center().x);
     assert!(white.right() <= plot.right(), "a caption near the end turns to the other side of its band");
+}
+
+#[test]
+fn a_marker_caption_sits_beside_the_top_of_its_tick() {
+    let mut harness = harness(Direction::Ltr).build_ui(|ui| {
+        Histogram::new("h", "Histogram").tone(&bell_bins(), ChannelColor::Neutral).markers(&[(10.0, "Black".to_owned())]).show(ui);
+    });
+    harness.run();
+    let plot = harness.get_by_label("Histogram").rect();
+    let caption = harness.get_by_label("Black").rect();
+    let height = style().marker_height;
+    assert!((caption.bottom() - (plot.bottom() - height)).abs() < 1.0, "{caption:?} in {plot:?}");
+    assert!(caption.left() > plot.left() + 10.0 / 256.0 * plot.width(), "right of the tick");
 }
 
 fn bell_bins() -> Vec<u32> {
