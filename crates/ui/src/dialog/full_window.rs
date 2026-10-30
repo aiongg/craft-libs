@@ -7,6 +7,7 @@ use super::buttons::{ButtonRole, FooterButton, FooterButtons, FooterButtonsRespo
 use super::dialog::{DialogResponse, InitialFocus, Outcome, is_enter_press};
 use super::footer::{DialogLabels, FooterCx, FooterRun};
 use super::keys::{EnterRule, KeyInput, resolve_keys};
+use super::pass::{self, Entry};
 use super::state::DialogState;
 use crate::composites::PanelHeader;
 use crate::edit;
@@ -189,6 +190,7 @@ impl<'a> FullWindowDialog<'a> {
                 outer.keep(ui);
             }
         });
+        pass::record(ctx, Entry { id, layer: shown.response.layer_id, rect: shown.response.rect, modal: true });
         let run = std::mem::take(&mut fx.run);
 
         let mut alternate = None;

@@ -123,3 +123,14 @@ fn the_dialog_is_named_by_its_title() {
     harness.run();
     assert_eq!(harness.get_by_role_and_label(Role::Dialog, "Liquify").accesskit_node().role(), Role::Dialog);
 }
+
+#[test]
+fn the_canvas_helpers_stay_out_of_the_dialog() {
+    let mut harness = harness(EnterRule::Default);
+    harness.run();
+    harness.hover_at(pos2(100.0, 100.0));
+    harness.run();
+    assert!(pass::any_modal(&harness.ctx));
+    let window = Rect::from_min_size(pos2(0.0, 0.0), WINDOW);
+    assert_eq!(pass::free_pointer_over(&harness.ctx, window), None);
+}
