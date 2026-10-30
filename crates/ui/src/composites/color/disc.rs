@@ -216,7 +216,9 @@ impl ColorDisc {
 
         let pointer_id = id.with("pointer");
         let options = InteractOptions { enabled: self.enabled, ..Default::default() };
-        let response = ui.interact_opt(area, pointer_id, Sense::DRAG, options);
+        // Only the disc and the markers' grab slack take presses; the rest of the row is the host's.
+        let reach = Rect::from_center_size(center, vec2(2.0 * (radius + style.grab), 2.0 * (radius + style.grab))).intersect(area);
+        let response = ui.interact_opt(reach, pointer_id, Sense::DRAG, options);
         let enabled = response.enabled();
 
         let tapped = tap(ui, &response);

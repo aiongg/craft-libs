@@ -400,7 +400,7 @@ fn a_click_beside_the_wheel_reaches_the_widget_under_it() {
         time += 1.0 / 60.0;
         let (g, beside) = (*geometry, Rect::from_center_size(geometry.center + vec2(geometry.outer + grab + 20.0, 0.0), vec2(10.0, 10.0)));
         let output = ctx.run_ui(input, |ui: &mut Ui| {
-            let under = ui.interact(beside, egui::Id::new("under"), Sense::click());
+            let under = ui.interact_opt(beside, ui.scope_id().with("under"), Sense::click(), Default::default());
             *clicked |= g.outer > 0.0 && under.clicked();
             let wheel = ColorWheel::new("wheel", "Color wheel", hsb(240.0, 50.0, 60.0)).show(ui);
             *geometry = wheel.geometry;

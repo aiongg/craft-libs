@@ -257,3 +257,29 @@ fn a_colour_changed_outside_the_drag_still_cancels_it() {
     rig.drag(rig.at(70.0, 0.5));
     assert!(matches!(rig.event, Some(EditEvent::Cancel { .. })), "{:?}", rig.event);
 }
+
+/// A host's widget under the disc's row, beside the disc, takes the click.
+#[test]
+fn a_click_beside_the_disc_reaches_the_widget_under_it() {
+    use egui::Sense;
+    let mut rig = Rig::new();
+    let beside = rig.center + vec2(rig.radius + rig.style.map_or(0.0, |s| s.grab) + 20.0, 0.0);
+    let mut clicked = false;
+    let colors = rig.colors;
+    let mut frame = |rig: &mut Rig, events: Vec<Event>| {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(rig.time), events, ..Default::default() };
+        rig.time += 1.0 / 60.0;
+        let ctx = rig.ctx.clone();
+        let output = ctx.run_ui(input, |ui| {
+            let under = ui.interact_opt(Rect::from_center_size(beside, vec2(10.0, 10.0)), ui.scope_id().with("under"), Sense::click(), Default::default());
+            clicked |= under.clicked();
+            ColorDisc::new("disc", "Harmony", &colors).selected(Some(0)).side(150.0).show(ui);
+        });
+        output.drop_without_applying_deltas();
+    };
+    frame(&mut rig, vec![]);
+    frame(&mut rig, vec![Event::PointerMoved(beside)]);
+    frame(&mut rig, vec![button(beside, true)]);
+    frame(&mut rig, vec![button(beside, false)]);
+    assert!(clicked, "the disc does not sense presses beside itself");
+}
