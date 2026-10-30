@@ -6,8 +6,8 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::canvas::{BezierOverlay, GradientOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
-    ChannelColor, ColorArea, CurveEditor, EmptyState, Field, FormGrid, GradientEditor, Histogram, LevelsEditor, Notice, PanelFooter, PanelHeader,
-    PropertyRow, SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
+    ChannelColor, ColorArea, ColorWheel, CurveEditor, EmptyState, Field, FormGrid, GradientEditor, Histogram, LevelsEditor, Notice, PanelFooter,
+    PanelHeader, PropertyRow, SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
 };
 use craft_ui::controls::{
     AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
@@ -918,5 +918,26 @@ fn color_parts() {
             .line("marker_outer", s.marker_outer)
             .line("pointer", s.pointer)
             .line("pointer_color", s.pointer_color);
+    });
+}
+
+#[test]
+fn color_wheel() {
+    check("color_wheel.txt", |d, t| {
+        let s = ColorWheel::style(t);
+        d.line("side", s.side)
+            .line("side_min", s.side_min)
+            .line("ring_min", s.ring_min)
+            .line("ring_max", s.ring_max)
+            .line("ring_ratio", s.ring_ratio)
+            .line("outer_inset", s.outer_inset)
+            .line("triangle_inset", s.triangle_inset)
+            .line("grab_outer", s.grab_outer)
+            .line("grab_inner", s.grab_inner)
+            .line("edge", s.edge)
+            .line("marker_inner_radius", s.marker_inner_radius)
+            .line("marker_inner", s.marker_inner)
+            .line("marker_outer_radius", s.marker_outer_radius)
+            .line("marker_outer", s.marker_outer);
     });
 }
