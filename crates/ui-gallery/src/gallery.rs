@@ -31,6 +31,7 @@ use crate::fields;
 use crate::inspector::Inspector;
 use crate::layout::{CentreView, GalleryWorkspace, PanelId, PreviewView, VariantAxis, default_for, reconciled};
 use crate::persist::{self, KEY, Saved};
+use crate::preview::AppPreview;
 use crate::problems::Problems;
 
 /// The gallery's state.
@@ -58,6 +59,8 @@ pub struct Gallery {
     scroll_to: Option<&'static str>,
     browser: Browser,
     problems: Problems,
+    /// The mock app the Theme workspace previews.
+    app: AppPreview,
     inspector: Inspector,
     /// The workspace shown.
     workspace: GalleryWorkspace,
@@ -96,6 +99,7 @@ impl Gallery {
             scroll_to: None,
             browser: Browser::new(saved.tokens_split),
             problems: Problems::default(),
+            app: AppPreview::default(),
             inspector: Inspector::default(),
             workspace: saved.workspace,
             preview: saved.preview,
@@ -664,12 +668,7 @@ impl Gallery {
     /// The Theme workspace's centre: the mock app, or the Controls level's tiles.
     fn preview_panel(&mut self, ui: &mut Ui) {
         match self.preview {
-            PreviewView::App => {
-                canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
-                    ui.set_min_size(ui.available_size());
-                    EmptyState::centred("The mock app preview is not built yet.").show(ui);
-                });
-            }
+            PreviewView::App => self.app.show(ui),
             PreviewView::Components => {
                 let components: Vec<&'static str> =
                     nav(&self.stories, "").into_iter().find(|(level, _)| *level == Level::Controls).map_or_else(Vec::new, |(_, c)| c);
