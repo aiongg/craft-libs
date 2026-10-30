@@ -850,7 +850,9 @@ fn closable_docked_tabs_have_a_close_button_that_closes_the_panel() {
     use egui_kittest::{Harness, kittest::Queryable};
     let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
         |ui, content: &mut TestContent| {
-            DockArea::new(Id::unique(AREA)).show_content(ui, &frames(), &DockStyle::from_ui(ui), content);
+            let mut style = DockStyle::from_ui(ui);
+            style.tab_close_buttons = true;
+            DockArea::new(Id::unique(AREA)).show_content(ui, &frames(), &style, content);
         },
         TestContent { protected: vec![1], ..Default::default() },
     );
@@ -860,6 +862,7 @@ fn closable_docked_tabs_have_a_close_button_that_closes_the_panel() {
     assert_eq!(h.query_all_by_label("Close Panel 1").count(), 0);
 
     let mut d = Driver::new(frames());
+    d.tweak = |style| style.tab_close_buttons = true;
     d.content.protected = vec![1];
     d.step(vec![]);
     d.step(vec![]);
@@ -880,19 +883,22 @@ fn closable_docked_tabs_have_a_close_button_that_closes_the_panel() {
     );
 
     let mut d = Driver::new(frames());
-    d.tweak = |style| style.tab_close_buttons = false;
     d.step(vec![]);
     d.step(vec![]);
-    assert!(close(&d, 2).is_none());
+    assert!(close(&d, 2).is_none(), "off by default");
 }
 
 #[test]
 /// A closable tab is as much wider than a non-closable one as the tab strip's gap and × box.
 fn a_closable_docked_tab_is_wider_by_the_close_box() {
     let mut open = Driver::new(frames());
+    open.tweak = |style| style.tab_close_buttons = true;
+    open.step(vec![]);
     open.step(vec![]);
     let mut fixed = Driver::new(frames());
+    fixed.tweak = |style| style.tab_close_buttons = true;
     fixed.content.protected = vec![2, 3];
+    fixed.step(vec![]);
     fixed.step(vec![]);
     use crate::theme::TokensOf as _;
     let mut style = None;
@@ -900,4 +906,22 @@ fn a_closable_docked_tab_is_wider_by_the_close_box() {
     let style = style.unwrap();
     let extra = open.tab(2).width() - fixed.tab(2).width();
     assert!((extra - (style.gap + style.close_box)).abs() < 0.5, "{extra}");
+}
+
+#[test]
+/// When tabs shrink to their minimum, a closable tab is wider by the close box, so its label
+/// keeps the room a non-closable tab's has.
+fn a_closable_tabs_minimum_width_includes_the_close_box() {
+    let width = |close: bool| {
+        let mut d = Driver::new(Layout { root: Some(tabs(&[1, 2, 3, 4, 5, 6, 7, 8], 0)), floating: Vec::new() });
+        d.area = Rect::from_min_size(pos2(0.0, 0.0), vec2(220.0, 400.0));
+        d.tweak = if close { |style| style.tab_close_buttons = true } else { |_| {} };
+        d.step(vec![]);
+        d.step(vec![]);
+        d.step(vec![]);
+        d.step(vec![]);
+        d.tab(1).width()
+    };
+    let (on, off) = (width(true), width(false));
+    assert!(on > off + 10.0, "{on} {off}");
 }

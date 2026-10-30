@@ -102,12 +102,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                     + self.look.tab_padding
             })
             .collect();
+        // A closable tab's narrowest width keeps the label the room a non-closable tab has.
+        let floor_close = if panels.iter().any(|p| self.tab_closable(p)) { tab_style.gap + tab_style.close_box } else { 0.0 };
         let wanted = self.content.group_extra_tabs_width(panels, selected, floating);
         let wanted = if wanted.is_finite() { wanted.clamp(0.0, tabs_width) } else { 0.0 };
         // The widest tabs shrink first, to a common width no narrower than `min_tab_width`; only
         // when every tab at that width cannot fit do the rest go to the overflow menu. A tab
         // narrower than its name cuts it with "…" and names it in a tooltip.
-        let (fit, extra_width) = fit_with_extra(&widths, active, tabs_width, wanted, self.config.tab_width_floor(self.look));
+        let (fit, extra_width) = fit_with_extra(&widths, active, tabs_width, wanted, self.config.tab_width_floor(self.look) + floor_close);
         let owner = TabGroup { panels, selected, minimized, kind, rect };
         let mut x = strip.left();
         let mut shown = Vec::new();

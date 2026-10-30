@@ -150,8 +150,9 @@ pub struct DockStyle {
     pub close_menu_items: bool,
     /// Show × on the title bar of a floating window whose panels are all closable.
     pub close_button: bool,
-    /// Show × on each docked tab whose panel is closable (the tab strip's own × and its
-    /// "Close {tab}" name). Accordion headers and iconic columns have none.
+    /// Show × on the tabs of closable panels in docked and floating groups, for tabs that
+    /// act as documents. Off: panels close from their menu. Accordion headers and iconic
+    /// columns never show it.
     pub tab_close_buttons: bool,
     /// The mouse wheel over a tab strip selects the next or previous tab, one per notch.
     pub wheel_selects_tabs: bool,
