@@ -7,7 +7,8 @@ use super::render::tab_outline;
 use super::{Column, DockArea, DockConfig, DockContent, DockLook, Floating, Group, Hit, Layout, Node, Permissions, Side, flyout, open_flyout};
 use crate::direction;
 use crate::layout::{SplitAxis, SplitSize};
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
+use crate::typed_story;
 
 const CANVAS: u32 = 0;
 const LAYERS: u32 = 1;
@@ -18,19 +19,41 @@ const SWATCHES: u32 = 5;
 const HISTORY: u32 = 6;
 
 const HEIGHT: f32 = 360.0;
-const LOCALES: &[&str] = &["en", "ar"];
+
+#[derive(StoryChoice, Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum LocaleArg {
+    #[default]
+    En,
+    Ar,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct DockArgs {
+    #[arg(range = 360.0..=960.0)]
+    width: f32,
+    locale: LocaleArg,
+}
+
+impl Default for DockArgs {
+    fn default() -> Self {
+        Self { width: 640.0, locale: LocaleArg::En }
+    }
+}
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["DockArea"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_number("width", 640.0, 360.0, 960.0).with_choice("locale", LOCALES, 0);
-    let story = |id, name, show| Story::new(id, Level::Patterns, "DockArea", name, args, show).on(Surface::Own);
+    macro_rules! dock_story {
+        ($id:expr, $name:expr, $show:expr) => {
+            typed_story!($id, Level::Patterns, "DockArea", $name, DockArgs::default(), $show).on(Surface::Own)
+        };
+    }
     vec![
-        story("patterns/dock-area/docked", "Docked", show_docked),
-        story("patterns/dock-area/floating", "Floating", show_floating),
-        story("patterns/dock-area/drag", "Drag", show_drag),
-        story("patterns/dock-area/iconic", "Iconic", show_iconic),
+        dock_story!("patterns/dock-area/docked", "Docked", show_docked),
+        dock_story!("patterns/dock-area/floating", "Floating", show_floating),
+        dock_story!("patterns/dock-area/drag", "Drag", show_drag),
+        dock_story!("patterns/dock-area/iconic", "Iconic", show_iconic),
     ]
 }
 
@@ -100,13 +123,13 @@ fn iconic_layout() -> Layout<u32> {
 
 /// Draw `initial` (kept in the context so edits stay) in an area `width` wide, and return the
 /// area's rect.
-fn show_area(ui: &mut Ui, args: &Args, salt: &'static str, initial: fn() -> Layout<u32>, open: Option<u32>) -> (Id, Rect) {
-    let width = (args.number("width") as f32).min(ui.available_width());
+fn show_area(ui: &mut Ui, args: &DockArgs, salt: &'static str, initial: fn() -> Layout<u32>, open: Option<u32>) -> (Id, Rect) {
+    let width = args.width.min(ui.available_width());
     let (rect, _) = ui.allocate_exact_size(vec2(width, HEIGHT), Sense::hover());
     let id = ui.scope_id().with(("dock-story", salt));
     let key = id.with("layout");
     let layout = ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, initial).clone());
-    let config = DockConfig { right_to_left: args.choice("locale") == "ar" || direction::is_rtl(ui), ..DockConfig::default() };
+    let config = DockConfig { right_to_left: args.locale == LocaleArg::Ar || direction::is_rtl(ui), ..DockConfig::default() };
     if let Some(panel) = open.filter(|panel| flyout::<u32>(ui.ctx(), id).is_none() && layout.contains(panel)) {
         open_flyout(ui.ctx(), id, panel);
     }
@@ -120,19 +143,19 @@ fn show_area(ui: &mut Ui, args: &Args, salt: &'static str, initial: fn() -> Layo
 }
 
 /// A right dock with two groups, tabs and a collapsed iconic column beside a canvas.
-pub(super) fn show_docked(ui: &mut Ui, args: &mut Args) {
+pub(super) fn show_docked(ui: &mut Ui, args: &mut DockArgs) {
     show_area(ui, args, "docked", docked_layout, None);
 }
 
 /// One floating window with a tab group, and one minimized.
-pub(super) fn show_floating(ui: &mut Ui, args: &mut Args) {
+pub(super) fn show_floating(ui: &mut Ui, args: &mut DockArgs) {
     show_area(ui, args, "floating", floating_layout, None);
 }
 
 /// The docked layout with the previews of a tab dragged over a group (a tab drop), over the canvas
 /// beside the dock and over the dock's edge (a new column), placed from the area's own layout and
 /// drawn as a live drop draws them. A pointer drag draws these live; the story holds them still.
-pub(super) fn show_drag(ui: &mut Ui, args: &mut Args) {
+pub(super) fn show_drag(ui: &mut Ui, args: &mut DockArgs) {
     let (id, rect) = show_area(ui, args, "drag", docked_layout, None);
     let hits = DockArea::<u32>::hit_rects(ui.ctx(), id);
     let hit = |hit: Hit<u32>| hits.iter().find(|(h, _)| *h == hit).map(|(_, rect)| *rect);
@@ -150,6 +173,6 @@ pub(super) fn show_drag(ui: &mut Ui, args: &mut Args) {
 }
 
 /// An iconic column with the flyout of its first group open.
-pub(super) fn show_iconic(ui: &mut Ui, args: &mut Args) {
+pub(super) fn show_iconic(ui: &mut Ui, args: &mut DockArgs) {
     show_area(ui, args, "iconic", iconic_layout, Some(BRUSHES));
 }
