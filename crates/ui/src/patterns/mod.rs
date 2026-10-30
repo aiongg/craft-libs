@@ -12,6 +12,8 @@ pub(crate) mod options_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod options_bar_tests;
 mod options_cell;
+pub(crate) mod panel;
+pub(crate) mod rail;
 pub(crate) mod status_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod status_bar_tests;
