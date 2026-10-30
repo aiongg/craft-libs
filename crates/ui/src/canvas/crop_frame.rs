@@ -16,6 +16,7 @@ use crate::primitives::{FocusRing, Handle, HandleShape};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 mod geometry;
+mod image_mode;
 
 pub use geometry::CropBox;
 use geometry::{Hit, direction, drawn, handle_part, hit, normalized_angle, part_handle, resized_turned, turn, turned_angle, within};
@@ -159,6 +160,9 @@ struct Drag {
     /// The press waits for another control's typing run to end ([`Claim::turn`]); nothing of it
     /// has run.
     waits: bool,
+    /// Image mode: the view at the press. Every pointer point of the drag is read in it, because
+    /// the view moves and turns with the image while the drag runs; Esc puts it back.
+    press_view: Option<CanvasView>,
 }
 
 /// The Crop tool's frame over the host's document: a shield outside it, the frame line, corner
@@ -220,6 +224,8 @@ pub struct CropFrame<'a> {
     value: Option<String>,
     policy: EditPolicy,
     modifiers: Option<Modifiers>,
+    image: bool,
+    auto_center: bool,
 }
 
 impl<'a> CropFrame<'a> {
@@ -241,6 +247,8 @@ impl<'a> CropFrame<'a> {
             value: None,
             policy: EditPolicy::default(),
             modifiers: None,
+            image: false,
+            auto_center: false,
         }
     }
 
@@ -325,6 +333,14 @@ impl<'a> CropFrame<'a> {
         self
     }
 
+    /// Auto Center Preview (Image mode, [`show_image`](Self::show_image)): a frame being resized
+    /// keeps its centre where it is on screen while the handle follows the pointer, and a drawn
+    /// frame is moved to the middle of the canvas on release.
+    pub fn auto_center(mut self, auto_center: bool) -> Self {
+        self.auto_center = auto_center;
+        self
+    }
+
     pub fn style(tokens: &UiTokens) -> CropStyle {
         let (c, o) = (&tokens.component.crop, &tokens.color.overlay);
         let halo = Handle::style(tokens, HandleShape::Square).halo;
@@ -351,8 +367,14 @@ impl<'a> CropFrame<'a> {
         ctx.memory_mut(|m| m.request_focus(id));
     }
 
-    /// Draws the frame over `view` and senses through the host's `canvas` response.
+    /// Draws the frame over `view` and senses through the host's `canvas` response. Classic mode:
+    /// the gestures move and turn the frame over the fixed image.
     pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> CropResponse {
+        let mut view = *view;
+        self.run(ui, canvas, &mut view)
+    }
+
+    fn run(self, ui: &mut Ui, canvas: &Response, view: &mut CanvasView) -> CropResponse {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         let style = CropFrame::style(&tokens);
@@ -387,6 +409,7 @@ impl<'a> CropFrame<'a> {
                 Turn::Runs => {
                     d.waits = false;
                     d.at_press = *self.state;
+                    d.press_view = self.image.then_some(*view);
                 }
                 Turn::Now => drag = None,
             }
@@ -413,6 +436,7 @@ impl<'a> CropFrame<'a> {
             && !gesture.is_active()
         {
             d.cancelled = true;
+            self.restore_view(d, view);
         }
         // Esc before the first move ends the press as it would end its drag.
         if let Some(d) = &mut drag
@@ -447,7 +471,7 @@ impl<'a> CropFrame<'a> {
         if drag.is_none_or(|d| d.cancelled) {
             // The pick is the keyboard's: without the focus the arrows move the whole frame (PC).
             let enter_ok = focus.focused || ctx.memory(|m| m.focused()).is_none_or(|f| f == canvas.id);
-            self.keys(ui, drag.is_none(), enter_ok, picked.filter(|_| focus.focused), &mut gesture, &mut out);
+            self.keys(ui, view, drag.is_none(), enter_ok, picked.filter(|_| focus.focused), &mut gesture, &mut out);
         }
 
         let dragging = drag.filter(|d| d.began && !d.cancelled);
@@ -523,7 +547,7 @@ impl<'a> CropFrame<'a> {
             return None;
         }
         let waits = Claim::turn(ctx, canvas.id, id) == Turn::Waits;
-        Some(Drag { kind, at_press: *self.state, from, press, began: false, cancelled: false, waits })
+        Some(Drag { kind, at_press: *self.state, from, press, began: false, cancelled: false, waits, press_view: self.image.then_some(*view) })
     }
 
     /// What screen point `p` is over, in the frame's own axes.
@@ -532,7 +556,7 @@ impl<'a> CropFrame<'a> {
     }
 
     /// One pass of a drag: begins it on the first move, updates it, ends it on the release.
-    fn track(&self, ctx: &Context, view: &CanvasView, d: &mut Drag, gesture: &mut Gesture<CropBox>) {
+    fn track(&self, ctx: &Context, view: &mut CanvasView, d: &mut Drag, gesture: &mut Gesture<CropBox>) {
         if d.cancelled {
             return;
         }
@@ -545,10 +569,11 @@ impl<'a> CropFrame<'a> {
                 d.began = gesture.is_active();
             }
             if d.began {
-                let to = view.to_doc(pointer);
+                let to = d.press_view.as_ref().unwrap_or(view).to_doc(pointer);
                 let to = self.snap.as_ref().map_or(to, |snap| snap(d.kind.part(), to, mods));
                 if let Some(next) = self.dragged(d, to, mods, space, *gesture.shown()) {
                     gesture.update(next, mods);
+                    self.follow(d, view, &next);
                 }
             }
         }
@@ -558,8 +583,10 @@ impl<'a> CropFrame<'a> {
         let shown = *gesture.shown();
         if shown.is_finite() && shown.size_ok() {
             gesture.commit();
+            self.centre_drawn(d, view, &shown);
         } else {
             gesture.cancel(CancelReason::Dismissed);
+            self.restore_view(d, view);
         }
     }
 
@@ -583,16 +610,27 @@ impl<'a> CropFrame<'a> {
                 }
                 (CropBox::upright(drawn(*anchor, *cur, self.ratio, mods)), true, self.ratio.is_some() || mods.shift)
             }
+            Kind::Move if self.image => (at.moved(d.from - to), false, false),
             Kind::Move => (at.moved(to - d.from), false, false),
             Kind::Resize { hx, hy } => {
                 let r = at.rect.abs();
                 let keep = (r.width() > 0.0 && r.height() > 0.0).then(|| r.width() / r.height());
                 let ratio = self.ratio.or(if mods.shift { keep } else { None });
-                (resized_turned(&at, *hx, *hy, to - d.from, ratio, mods.alt), true, ratio.is_some())
+                let next = if self.image && self.auto_center {
+                    image_mode::centred_resize(&at, *hx, *hy, to - d.from, ratio, mods.alt)?
+                } else {
+                    resized_turned(&at, *hx, *hy, to - d.from, ratio, mods.alt)
+                };
+                (next, true, ratio.is_some())
             }
             Kind::Turn { grab } => {
                 let step = mods.shift.then_some(self.turn_step);
-                (CropBox { rect: at.rect, angle: turned_angle(at.center(), *grab, at.angle, to, step) }, true, false)
+                let angle = if self.image {
+                    image_mode::image_turned_angle(at.center(), *grab, at.angle, to, step)
+                } else {
+                    turned_angle(at.center(), *grab, at.angle, to, step)
+                };
+                (CropBox { rect: at.rect, angle }, true, false)
             }
         };
         if !next.is_finite() {
@@ -615,7 +653,17 @@ impl<'a> CropFrame<'a> {
 
     /// Enter, Esc, the arrows and X; `idle`: no press is held; `enter_ok`: no other widget
     /// (a Tab-focused button) holds the keyboard, so Enter is the frame's.
-    fn keys(&self, ui: &Ui, idle: bool, enter_ok: bool, picked: Option<BoxPart>, gesture: &mut Gesture<CropBox>, out: &mut CropResponse) {
+    #[allow(clippy::too_many_arguments)]
+    fn keys(
+        &self,
+        ui: &Ui,
+        view: &mut CanvasView,
+        idle: bool,
+        enter_ok: bool,
+        picked: Option<BoxPart>,
+        gesture: &mut Gesture<CropBox>,
+        out: &mut CropResponse,
+    ) {
         let ctx = ui.ctx();
         if !ui.is_enabled() || ctx.text_edit_focused() || popup_list::any_open(ctx) || !ctx.memory(|m| m.allows_interaction(ui.layer_id())) {
             return;
@@ -626,8 +674,16 @@ impl<'a> CropFrame<'a> {
         if !idle {
             return;
         }
+        let mut image_nudge = false;
         let next = if let Some(by) = nudge::read(ui, nudge::STEP, nudge::BIG_STEP) {
-            Some(self.nudged(picked.unwrap_or(BoxPart::Inside), by))
+            match picked.unwrap_or(BoxPart::Inside) {
+                // The image moves under the frame: the frame goes the other way.
+                BoxPart::Inside if self.image => {
+                    image_nudge = true;
+                    Some(self.state.moved(-image_mode::screen_step(view, by)))
+                }
+                part => Some(self.nudged(part, by)),
+            }
         } else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::X)) {
             Some(self.state.swapped())
         } else {
@@ -638,6 +694,10 @@ impl<'a> CropFrame<'a> {
                 Some(bounds) => within(next, bounds, next.rect.size() != self.state.rect.size(), self.ratio.is_some()).unwrap_or(*self.state),
                 None => next,
             };
+            if image_nudge {
+                // The view follows the frame, so the frame stays put on screen.
+                view.center += next.center() - self.state.center();
+            }
             gesture.set(next);
         }
     }
@@ -738,8 +798,8 @@ impl<'a> CropFrame<'a> {
         let numbers = &ux.numbers;
         let rows: Vec<(String, String)> = match kind {
             Kind::Turn { .. } => {
-                let angle =
-                    format!("{}{}{}", labels.degrees.prefix(), numbers.format(fixed(normalized_angle(now.angle), 1), 1..=1), labels.degrees.suffix());
+                let turn = if self.image { image_mode::image_turn(now.angle) } else { normalized_angle(now.angle) };
+                let angle = format!("{}{}{}", labels.degrees.prefix(), numbers.format(fixed(turn, 1), 1..=1), labels.degrees.suffix());
                 vec![(labels.angle.clone(), angle)]
             }
             Kind::Draw { .. } | Kind::Resize { .. } => match now.crop_size() {
