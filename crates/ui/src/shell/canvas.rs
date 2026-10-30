@@ -23,6 +23,7 @@ use egui::{Frame, Id, Rect, Ui, UiBuilder, accesskit::Role};
 use super::slot::SlotKey;
 use super::{AppShell, BodyMode, ShellCx, ShellOutput, Slot, WindowKey};
 use crate::direction;
+use crate::localized::{Labels, Word, Words};
 use crate::theme::{Tokens, TokensOf as _};
 
 /// The slot keys of the preset.
@@ -35,12 +36,35 @@ mod key {
     pub const STATUS: SlotKey = "status";
 }
 
-/// The translated AccessKit names of the preset's regions. Unset names leave the region unnamed.
-#[derive(Clone, Debug, Default)]
+/// The translated AccessKit names of the preset's regions. `Default` is English; a `None` name
+/// leaves the region unnamed, and a shell given no labels uses [`CanvasLabels::of`].
+#[derive(Clone, Debug)]
 pub struct CanvasLabels {
     pub options: Option<String>,
     pub tools: Option<String>,
     pub status: Option<String>,
+}
+
+/// One word per name, in field order.
+const WORDS: [Word; 3] = [Word::keyed("shell.options", "Options"), Word::keyed("shell.tools", "Tools"), Word::keyed("shell.status", "Status")];
+
+impl Labels for CanvasLabels {
+    const WORDS: &'static [Word] = &WORDS;
+
+    fn english() -> Self {
+        Self { options: None, tools: None, status: None }.localized_in(&Words::english())
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let text = |i: usize| Some(words.get(WORDS[i]).into_owned());
+        Self { options: text(0), tools: text(1), status: text(2) }
+    }
+}
+
+impl Default for CanvasLabels {
+    fn default() -> Self {
+        Self::english()
+    }
 }
 
 type SlotFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
@@ -53,7 +77,7 @@ type SlotFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 #[must_use = "call `show`"]
 pub struct CanvasShell<'a> {
     shell: AppShell<'a>,
-    labels: CanvasLabels,
+    labels: Option<CanvasLabels>,
     title: Option<(bool, SlotFn<'a>)>,
     options: Option<(bool, SlotFn<'a>)>,
     tools: Option<(bool, SlotFn<'a>)>,
@@ -66,7 +90,7 @@ impl<'a> CanvasShell<'a> {
     pub fn new(window: WindowKey) -> Self {
         Self {
             shell: AppShell::new(window),
-            labels: CanvasLabels::default(),
+            labels: None,
             title: None,
             options: None,
             tools: None,
@@ -114,7 +138,7 @@ impl<'a> CanvasShell<'a> {
     }
 
     pub fn labels(mut self, labels: CanvasLabels) -> Self {
-        self.labels = labels;
+        self.labels = Some(labels);
         self
     }
 
@@ -147,6 +171,7 @@ impl<'a> CanvasShell<'a> {
     /// Lays out the slots, then the body (the dock) in what is left.
     pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui, &ShellCx) -> R + 'a) -> ShellOutput<R> {
         let Self { mut shell, labels, title, options, tools, status, top, bottom } = self;
+        let labels = labels.unwrap_or_else(|| CanvasLabels::of(ui));
         if let Some((visible, add)) = title {
             shell = shell.title(Slot::new(key::TITLE).visible(visible).reveal_if(visible), add);
         }

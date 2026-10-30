@@ -105,13 +105,15 @@ fn bar_rects(rect: ScreenRect, width: f32, horizontal: bool, vertical: bool) -> 
     (h, v)
 }
 
-/// The AccessKit names of the bars, the host's translated text.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ScrollbarNames {
-    /// The bar along the bottom ("Horizontal scroll bar").
-    pub horizontal: String,
-    /// The bar along the right ("Vertical scroll bar").
-    pub vertical: String,
+crate::words! {
+    /// The AccessKit names of the bars. `Default` is English; a host passes its own translated
+    /// text, or `ScrollbarNames::of(ui)` for the words installed in the context.
+    pub struct ScrollbarNames {
+        /// The bar along the bottom.
+        horizontal: "scroll.horizontal" = "Horizontal scroll bar";
+        /// The bar along the right.
+        vertical: "scroll.vertical" = "Vertical scroll bar";
+    }
 }
 
 impl ScrollbarNames {

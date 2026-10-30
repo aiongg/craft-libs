@@ -15,7 +15,7 @@ use crate::direction;
 use crate::edit::ops::{self, ScalarOp};
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, GestureId, parts};
 use crate::icons::Icon;
-use crate::localized::{LocaleNumbers, Unit};
+use crate::localized::{Labels, LocaleNumbers, Unit, Word, Words};
 use crate::primitives::Handle;
 use crate::primitives::HandleShape;
 use crate::story::{Level, Story, StoryChoice, Surface};
@@ -57,7 +57,8 @@ impl FieldLabel {
     }
 }
 
-/// The host's translated labels of [`TransformFields`]; `Default` is English.
+/// The labels of [`TransformFields`]; `Default` is English, and a host passes its own translated
+/// text or [`TransformFieldLabels::of`] for the words installed in the context.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TransformFieldLabels {
     pub x: FieldLabel,
@@ -75,19 +76,73 @@ pub struct TransformFieldLabels {
     pub degrees: Unit,
 }
 
+/// One word per text of [`TransformFieldLabels`], in field order: the glyph and name of X, Y, W, H,
+/// the link name, the glyph and name of Angle, skew H and skew V, then the two units.
+const WORDS: [Word; 17] = [
+    Word::keyed("transform.xGlyph", "X"),
+    Word::keyed("transform.xName", "X position"),
+    Word::keyed("transform.yGlyph", "Y"),
+    Word::keyed("transform.yName", "Y position"),
+    Word::keyed("transform.wGlyph", "W"),
+    Word::keyed("transform.wName", "Width"),
+    Word::keyed("transform.hGlyph", "H"),
+    Word::keyed("transform.hName", "Height"),
+    Word::keyed("transform.link", "Maintain aspect ratio"),
+    Word::keyed("transform.angleGlyph", "°"),
+    Word::keyed("transform.angleName", "Angle"),
+    Word::keyed("transform.skewHGlyph", "H"),
+    Word::keyed("transform.skewHName", "Horizontal skew"),
+    Word::keyed("transform.skewVGlyph", "V"),
+    Word::keyed("transform.skewVName", "Vertical skew"),
+    Word::in_context("unit", "{n}%"),
+    Word::in_context("unit", "{n}°"),
+];
+
+impl Labels for TransformFieldLabels {
+    const WORDS: &'static [Word] = &WORDS;
+
+    fn english() -> Self {
+        Self::localized_in(Self::blank(), &Words::english())
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let text = |i: usize| words.get(WORDS[i]).into_owned();
+        let field = |i: usize| FieldLabel::new(text(i), text(i + 1));
+        Self {
+            x: field(0),
+            y: field(2),
+            w: field(4),
+            h: field(6),
+            link: text(8),
+            angle: field(9),
+            skew_h: field(11),
+            skew_v: field(13),
+            percent: Unit::new(&text(15)),
+            degrees: Unit::new(&text(16)),
+        }
+    }
+}
+
 impl Default for TransformFieldLabels {
     fn default() -> Self {
+        Self::english()
+    }
+}
+
+impl TransformFieldLabels {
+    fn blank() -> Self {
+        let none = || FieldLabel::new("", "");
         Self {
-            x: FieldLabel::new("X", "X position"),
-            y: FieldLabel::new("Y", "Y position"),
-            w: FieldLabel::new("W", "Width"),
-            h: FieldLabel::new("H", "Height"),
-            link: "Maintain aspect ratio".into(),
-            angle: FieldLabel::new("°", "Angle"),
-            skew_h: FieldLabel::new("H", "Horizontal skew"),
-            skew_v: FieldLabel::new("V", "Vertical skew"),
-            percent: Unit::new("{n}%"),
-            degrees: Unit::new("{n}\u{b0}"),
+            x: none(),
+            y: none(),
+            w: none(),
+            h: none(),
+            link: String::new(),
+            angle: none(),
+            skew_h: none(),
+            skew_v: none(),
+            percent: Unit::default(),
+            degrees: Unit::default(),
         }
     }
 }

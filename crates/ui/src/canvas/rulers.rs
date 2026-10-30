@@ -84,15 +84,17 @@ pub struct RulerStyle {
     pub marker: Stroke,
 }
 
-/// The AccessKit names of the rulers, the host's translated text.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RulerNames {
-    /// The top ruler ("Horizontal ruler").
-    pub horizontal: String,
-    /// The left ruler ("Vertical ruler").
-    pub vertical: String,
-    /// The corner that holds the zero point ("Ruler origin").
-    pub origin: String,
+crate::words! {
+    /// The AccessKit names of the rulers. `Default` is English; a host passes its own translated
+    /// text, or `RulerNames::of(ui)` for the words installed in the context.
+    pub struct RulerNames {
+        /// The top ruler.
+        horizontal: "ruler.horizontal" = "Horizontal ruler";
+        /// The left ruler.
+        vertical: "ruler.vertical" = "Vertical ruler";
+        /// The corner that holds the zero point.
+        origin: "ruler.origin" = "Ruler origin";
+    }
 }
 
 impl RulerNames {

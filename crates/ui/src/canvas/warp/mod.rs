@@ -13,6 +13,7 @@ use super::{CanvasView, Claim, Part, PartFocus, RulerUnits, hit, resize_cursor};
 use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
+use crate::localized::{Labels, Word, Words};
 use crate::primitives::{Handle, HandleShape, HandleStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
@@ -398,7 +399,8 @@ pub enum WarpEdit {
     Split { split: WarpSplit, column: usize, row: usize, u: f64, v: f64, thirds: bool },
 }
 
-/// The AccessKit names of a warp mesh's parts, the host's translated text.
+/// The AccessKit names of a warp mesh's parts. [`WarpNames::english`] is English, and a host passes
+/// its own translated text or [`WarpNames::of`] for the words installed in the context.
 pub struct WarpNames<'a> {
     /// The group of parts ("Warp").
     pub group: String,
@@ -407,6 +409,47 @@ pub struct WarpNames<'a> {
     /// The name of a handle of the anchor at a row and column (from 1): "Row 2, column 3, right
     /// handle".
     pub handle: Box<dyn Fn(usize, usize, WarpSide) -> String + 'a>,
+}
+
+/// Group, the anchor's name with `{row}` and `{column}`, then a handle's name for the up, left,
+/// right and down side.
+const WORDS: [Word; 6] = [
+    Word::keyed("warp.group", "Warp"),
+    Word::keyed("warp.anchor", "Row {row}, column {column}"),
+    Word::keyed("warp.handleUp", "Row {row}, column {column}, up handle"),
+    Word::keyed("warp.handleLeft", "Row {row}, column {column}, left handle"),
+    Word::keyed("warp.handleRight", "Row {row}, column {column}, right handle"),
+    Word::keyed("warp.handleDown", "Row {row}, column {column}, down handle"),
+];
+
+impl Labels for WarpNames<'static> {
+    const WORDS: &'static [Word] = &WORDS;
+
+    fn english() -> Self {
+        Self::localized_in(Self::new("", |_, _| String::new(), |_, _, _| String::new()), &Words::english())
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let (anchor, handle) = (words.clone(), words.clone());
+        let at = |row: usize, column: usize| (row.to_string(), column.to_string());
+        Self::new(
+            words.get(WORDS[0]),
+            move |row, column| {
+                let (row, column) = at(row, column);
+                anchor.format(WORDS[1], &[("row", &row), ("column", &column)])
+            },
+            move |row, column, side| {
+                let (row, column) = at(row, column);
+                let word = match side {
+                    WarpSide::Up => WORDS[2],
+                    WarpSide::Left => WORDS[3],
+                    WarpSide::Right => WORDS[4],
+                    WarpSide::Down => WORDS[5],
+                };
+                handle.format(word, &[("row", &row), ("column", &column)])
+            },
+        )
+    }
 }
 
 impl<'a> WarpNames<'a> {
