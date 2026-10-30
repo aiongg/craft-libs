@@ -1309,3 +1309,50 @@ fn shift_tab_from_the_search_field_with_no_match_leaves_backwards_and_closes_the
     assert_eq!(harness.state().value, 0, "the value is kept");
     assert!(harness.get_by_label("Before").is_focused(), "the focus moved to the previous widget");
 }
+
+/// A list that opens in a modal after a press elsewhere in the modal is above it: egui's modal
+/// area is raised by that press in the pass the list opens in, and the list stays in front of it.
+#[test]
+fn a_list_opened_after_a_press_in_its_modal_is_in_front_of_the_modal() {
+    let mut harness = harness().build_ui_state(
+        |ui, host: &mut Host| {
+            egui::Modal::new(egui::Id::unique("host-modal")).show(ui.ctx(), |ui| {
+                ui.set_width(200.0);
+                ui.label("Paper");
+                ui.add(egui::Button::new("Other"));
+                let mut select = Select::new("paper", "Paper", &mut host.value);
+                for (i, mode) in MODES.into_iter().enumerate() {
+                    select = select.option(i, mode);
+                }
+                if let Some(event) = select.show(ui).event {
+                    host.events.push(event);
+                }
+            });
+        },
+        Host::default(),
+    );
+    harness.run();
+    let click = |harness: &mut Harness<'_, Host>, pos: Pos2| {
+        harness.hover_at(pos);
+        harness.event(press(pos, true));
+        harness.run();
+        harness.event(press(pos, false));
+        harness.run();
+    };
+    let field = harness.get_by_role(Role::ComboBox).rect().center();
+    click(&mut harness, field);
+    assert_eq!(expanded(&harness), Some(true));
+    let pick = option(&harness, "Screen").rect().center();
+    click(&mut harness, pick);
+    assert_eq!(harness.state().value, 2);
+    let other = harness.get_by(|n| n.label().as_deref() == Some("Other")).rect().center();
+    click(&mut harness, other);
+
+    click(&mut harness, field);
+    assert_eq!(expanded(&harness), Some(true), "the list opened");
+    let row = option(&harness, "Multiply").rect().center();
+    let layer = harness.ctx.layer_id_at(row).expect("a layer under the row");
+    assert!(layer.id != egui::Id::unique("host-modal"), "the row is under the modal: {layer:?}");
+    click(&mut harness, row);
+    assert_eq!(harness.state().value, 1, "the click picked the row");
+}

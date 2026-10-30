@@ -53,7 +53,7 @@ use std::time::Duration;
 use egui::{Context, Id, InnerResponse, Modifiers, Response, Ui, UiBuilder, UiStackInfo};
 
 pub use gesture::Gesture;
-pub(crate) use gesture::escape_pressed;
+pub(crate) use gesture::{escape_pressed, rounds_to};
 pub use host::{GestureHost, UndoMarks};
 pub(crate) use story::{PolicyArgs, describe, policy, stories};
 

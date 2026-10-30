@@ -236,3 +236,89 @@ fn a_stepped_row_reports_values_on_the_step_and_keeps_its_gesture() {
     assert!(events.iter().all(|e| !matches!(e, EditEvent::Cancel { .. })), "the gesture is kept: {events:?}");
     assert!(matches!(events.last(), Some(EditEvent::Commit { .. })), "{events:?}");
 }
+
+fn wheel_event() -> Event {
+    Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: vec2(0.0, 1.0),
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: Modifiers::NONE,
+    }
+}
+
+/// `wheel(false)` keeps the wheel from the focused slider too; without it the focused slider steps.
+#[test]
+fn a_row_without_the_wheel_keeps_its_value_under_the_wheel_even_when_focused() {
+    for (wheel, moves) in [(Some(false), false), (None, true)] {
+        let mut harness = harness(Direction::Ltr).build_ui_state(
+            move |ui, state: &mut State| {
+                let numbers = LocaleNumbers::from_tag("en");
+                let mut row = SliderRow::new("amount", "Amount", state.0, 0.0..=1000.0, &numbers);
+                if let Some(on) = wheel {
+                    row = row.wheel(on);
+                }
+                for event in row.show(ui).edits() {
+                    if let Some(v) = event.value() {
+                        state.0 = *v;
+                    }
+                }
+            },
+            (500.0, Vec::new()),
+        );
+        harness.run();
+        harness.get_by(|n| n.role() == Role::Slider).focus();
+        harness.run();
+        let slider = harness.get_by(|n| n.role() == Role::Slider).rect();
+        harness.event(Event::PointerMoved(slider.center()));
+        harness.run();
+        harness.event(wheel_event());
+        harness.run();
+        assert_eq!(harness.state().0 != 500.0, moves, "wheel {wheel:?}: {}", harness.state().0);
+    }
+}
+
+/// A host that stores the reported f64 as an f32 passes back the rounding, which is not an outside
+/// change: the drag goes on and ends on the stepped value.
+#[test]
+fn an_f32_host_keeps_the_gesture_through_a_drag_in_steps_of_a_hundredth_and_a_bit() {
+    type F32State = (f32, Vec<EditEvent<f64>>);
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, (value, events): &mut F32State| {
+            let numbers = LocaleNumbers::from_tag("en");
+            ui.allocate_ui(vec2(260.0, 0.0), |ui| {
+                for event in SliderRow::new("exposure", "Exposure", *value, 0.0..=1.0, &numbers).step(0.07).show(ui).edits() {
+                    if let Some(v) = event.value() {
+                        *value = *v as f32;
+                    }
+                    events.push(event);
+                }
+            });
+        },
+        (0.0, Vec::new()),
+    );
+    harness.run();
+    let slider = harness.get_by(|n| n.role() == Role::Slider).rect();
+    let (start, y) = (slider.left() + 7.0, slider.center().y);
+    harness.input_mut().events.extend([
+        Event::PointerMoved(Pos2::new(start, y)),
+        Event::PointerButton { pos: Pos2::new(start, y), button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+    ]);
+    harness.run();
+    for dx in [9.0, 17.0, 26.0, 40.0, 55.0] {
+        harness.input_mut().events.push(Event::PointerMoved(Pos2::new(start + dx, y)));
+        harness.run();
+    }
+    harness.input_mut().events.push(Event::PointerButton {
+        pos: Pos2::new(start + 55.0, y),
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    });
+    harness.run();
+    let (value, events) = harness.state();
+    assert!(events.iter().all(|e| !matches!(e, EditEvent::Cancel { .. })), "the gesture is kept: {events:?}");
+    let Some(EditEvent::Commit { value: last, .. }) = events.last() else { panic!("{events:?}") };
+    assert!((*last / 0.07).round() > 1.0 && (*last / 0.07 - (*last / 0.07).round()).abs() < 1e-9, "on the step: {last}");
+    assert_eq!(*value, *last as f32);
+}

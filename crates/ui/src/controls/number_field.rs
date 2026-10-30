@@ -605,7 +605,10 @@ impl Follow {
         let Some((gesture, reported)) = Gesture::<Option<f64>>::reported(ui, id) else { return real };
         let Some(follow) = ui.data(|d| d.get_temp::<Self>(Self::key(id))).filter(|f| f.gesture == gesture) else { return real };
         let unmoved = real == follow.seen;
-        let consistent = real == reported || (unmoved && (real.is_none() || follow.typing)) || (follow.typing && follow.sent);
+        let consistent = real == reported
+            || matches!((real, reported), (Some(real), Some(reported)) if edit::rounds_to(real, reported))
+            || (unmoved && (real.is_none() || follow.typing))
+            || (follow.typing && follow.sent);
         if consistent { reported } else { real }
     }
 

@@ -456,7 +456,7 @@ pub(in crate::docking) fn stripless<P>(panels: &[P], content: &dyn DockContent<P
 pub(in crate::docking) fn node_limits<P>(node: &Node<P>, config: &DockConfig, look: &DockLook, content: &dyn DockContent<P>) -> PanelLimits {
     match node {
         Node::Dock { columns, .. } => {
-            let width: f32 = columns.iter().map(|c| dock::column_width(c, config, look)).sum();
+            let width: f32 = columns.iter().map(|c| dock::column_width(c, config, look, content)).sum();
             PanelLimits { min: vec2(width.clamp(config.min_pane, 1_000_000.0), config.min_pane), ..PanelLimits::default() }
         }
         // A group is as large as its largest panel allows: a panel without a maximum lifts the
