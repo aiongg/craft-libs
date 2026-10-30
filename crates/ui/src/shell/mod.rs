@@ -300,6 +300,7 @@ impl<'a> AppShell<'a> {
             Edge::Top if slot.narrow => tokens.size.bar.options_narrow,
             Edge::Top => tokens.size.bar.options,
             Edge::Bottom => tokens.size.bar.status,
+            // Each added column is a button and PhotoCraft's 2 pt gap (`panels/toolbar.rs:89`).
             Edge::Start | Edge::End => tokens.size.rail.width + f32::from(slot.columns - 1) * (tokens.size.rail.button + 2.0),
         };
 

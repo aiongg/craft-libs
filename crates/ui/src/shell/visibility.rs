@@ -110,12 +110,12 @@ pub(super) fn begin_pass(
         // Reveal ends with body-only mode.
         s.tab = false;
         s.edges = [false; 3];
-    } else if s.tab {
+    } else if s.tab || !edge_reveal {
         s.edges = [false; 3];
     } else {
         // A held button or an open popup freezes the edge reveal: it neither starts nor ends.
         let frozen = ctx.input(|i| i.pointer.any_down()) || Popup::is_any_open(ctx) || crate::popup_list::any_open(ctx);
-        if !frozen && edge_reveal {
+        if !frozen {
             let pointer = ctx.input(|i| i.pointer.hover_pos()).filter(|p| window_rect.contains(*p));
             for (i, edge) in REVEALING.into_iter().enumerate() {
                 let zone = zone(ctx, window_rect, edge, edge_px);
