@@ -1,6 +1,7 @@
 //! [`SwatchPair`]: two overlapping colour wells, foreground over background or fill over stroke.
 
 use craft_theme::{ControlSize, Srgba};
+use egui::Painter;
 use egui::accesskit::{Action, Role};
 use egui::epaint::RectShape;
 use egui::{
@@ -10,12 +11,12 @@ use egui::{
 
 use super::popover::{self, ColorPopoverResponse};
 use super::{ColorPicker, PickedColor};
-use crate::controls::{IconButton, Swatch, SwatchStyle, TooltipExt as _};
+use crate::controls::swatch::checkerboard;
+use crate::controls::{Swatch, SwatchStyle, TooltipExt as _};
 use crate::direction;
 use crate::edit::EditResponse;
-use crate::icons::Icon;
 use crate::localized::LocaleNumbers;
-use crate::primitives::{FocusRing, Interactive};
+use crate::primitives::{FocusRing, Interactive, Sensed};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// One of a [`SwatchPair`]'s wells. The primary one is at the start, top, the secondary one is
@@ -107,7 +108,8 @@ pub struct SwatchPairStyle {
 ///   closes it. The response's [`edit`](SwatchPairResponse::edit) is the popup's, for
 ///   [`well`](SwatchPairResponse::well).
 /// - The optional buttons ([`swap_button`](SwatchPair::swap_button),
-///   [`default_button`](SwatchPair::default_button)) sit beside the wells; a click reports
+///   [`default_button`](SwatchPair::default_button)) are icons in a row over the wells, the default
+///   one at the start and the swap one at the end, as Photoshop's; a click reports
 ///   [`swap`](SwatchPairResponse::swap) or [`defaults`](SwatchPairResponse::defaults) for the
 ///   host to apply. The host binds the shortcuts (PhotoCraft's X and D) to the same actions.
 /// - The wells are one Tab stop: the active well. Left and Up make the primary well active, Right
@@ -226,18 +228,19 @@ impl<'a> SwatchPair<'a> {
         let id = ui.make_persistent_id(id_salt);
         let tokens = Tokens::of(ui);
         let style = SwatchPair::style(&tokens);
-        let block = Vec2::splat(style.well + style.step);
-        // The row is as tall as the wells or the button column, whatever height the parent offers.
-        let buttons = usize::from(swap.is_some()) + usize::from(defaults.is_some());
-        let column = buttons as f32 * tokens.size.control.sm + buttons.saturating_sub(1) as f32 * ui.spacing().item_spacing.y;
+        let chips = Vec2::splat(style.well + style.step);
+        // The icon row over the chips, when there is an icon.
+        let header = if swap.is_some() || defaults.is_some() { ICON + ICON_GAP } else { 0.0 };
+        let block = vec2(chips.x, header + chips.y);
         let available = ui.available_rect_before_wrap();
-        let band = Rect::from_min_size(available.min, vec2(available.width(), block.y.max(column)));
+        let band = Rect::from_min_size(available.min, vec2(available.width(), block.y));
         let builder =
             UiBuilder::new().scope_id(id).max_rect(band).layout(direction::row(ui)).accessibility_role(Role::Group).accessibility_label(label);
         let inner = ui.scope_builder(builder, |ui| {
             let swatch = Swatch::style(&tokens, ControlSize::Md);
             let (area, _) = ui.allocate_exact_size(block, Sense::hover());
-            let rects = well_rects(ui, &style, area);
+            let rects = well_rects(ui, &style, Rect::from_min_max(area.min + vec2(0.0, header), area.max));
+            let icon_rects = icon_rects(ui, area);
             let ids = [Interactive::id_in(ui, (id, "primary")), Interactive::id_in(ui, (id, "secondary"))];
             let index = |w: Well| w as usize;
 
@@ -282,6 +285,23 @@ impl<'a> SwatchPair<'a> {
             }
             let activated = now != active;
 
+            let button = |ui: &Ui, name: &str, label: &Option<String>, rect: Rect| {
+                label.as_ref().map(|label| {
+                    let element = Interactive::with_id(Interactive::id_in(ui, (id, name)), Role::Button, label.as_str())
+                        .sense(Sense::click())
+                        .state_layer(false)
+                        .focus_ring(false)
+                        .enabled(enabled);
+                    element.interact_at(ui, rect)
+                })
+            };
+            let defaults_sensed = button(ui, "defaults", &defaults, icon_rects[0]);
+            let swap_sensed = button(ui, "swap", &swap, icon_rects[1]);
+            let hovered = |s: &Option<Sensed>| s.as_ref().is_some_and(|s| s.response().hovered());
+            let (defaults_hot, swap_hot) = (hovered(&defaults_sensed), hovered(&swap_sensed));
+            let defaults_pressed = defaults_sensed.as_ref().is_some_and(|s| s.response().clicked());
+            let swap_pressed = swap_sensed.as_ref().is_some_and(|s| s.response().clicked());
+
             let mut finished: Vec<(Well, Response)> = sensed.into_iter().map(|(well, s)| (well, s.finish(ui))).collect();
             finished.sort_by_key(|(well, _)| index(*well));
             let mut anchors: Vec<Response> = finished.into_iter().map(|(_, response)| response).collect();
@@ -291,7 +311,7 @@ impl<'a> SwatchPair<'a> {
             for well in [now.other(), now] {
                 let spec = &wells[index(well)];
                 let rect = rects[index(well)];
-                paint_well(ui, &swatch, &style, rect, spec, (well == now).then_some(backdrop), enabled);
+                paint_well(ui, &tokens, &swatch, &style, rect, spec, ((well == now).then_some(backdrop), enabled));
                 anchors[index(well)] = anchors[index(well)].clone().tooltip(spec.label.as_str());
             }
             for well in [Well::Primary, Well::Secondary] {
@@ -310,17 +330,14 @@ impl<'a> SwatchPair<'a> {
                 }
             }
 
-            let (mut swap_pressed, mut defaults_pressed) = (false, false);
-            if swap.is_some() || defaults.is_some() {
-                ui.scope_builder(UiBuilder::new().layout(direction::column(ui)), |ui| {
-                    if let Some(label) = &swap {
-                        swap_pressed = ui.add(IconButton::new(Icon::SwapColors, label.as_str()).size(ControlSize::Sm).enabled(enabled)).clicked();
-                    }
-                    if let Some(label) = &defaults {
-                        defaults_pressed =
-                            ui.add(IconButton::new(Icon::DefaultColors, label.as_str()).size(ControlSize::Sm).enabled(enabled)).clicked();
-                    }
-                });
+            for (sensed, label, rect, hot, glyph) in [
+                (defaults_sensed, &defaults, icon_rects[0], defaults_hot, Glyph::Defaults),
+                (swap_sensed, &swap, icon_rects[1], swap_hot, Glyph::Swap),
+            ] {
+                let (Some(sensed), Some(label)) = (sensed, label) else { continue };
+                let response = sensed.finish(ui).tooltip(label.as_str());
+                paint_icon(ui, &tokens, &swatch, rect, (hot && enabled, enabled), glyph, backdrop);
+                FocusRing::paint_radius(ui, rect.expand(2.0), swatch.radius, &response);
             }
             (now, activated, shown, swap_pressed, defaults_pressed)
         });
@@ -377,20 +394,112 @@ fn roving_target(ui: &Ui, ids: &[Id; 2], focused: Option<usize>) -> Option<usize
     to
 }
 
+/// Side of the icon boxes over the chips, and the gap between them and the chips.
+const ICON: f32 = 13.0;
+const ICON_GAP: f32 = 3.0;
+
+#[derive(Clone, Copy)]
+enum Glyph {
+    Defaults,
+    Swap,
+}
+
+/// The default button's box at the start of the icon row and the swap button's at the end.
+fn icon_rects(ui: &Ui, area: Rect) -> [Rect; 2] {
+    let side = Vec2::splat(ICON);
+    let (left, right) = (Rect::from_min_size(area.min, side), Rect::from_min_size(pos2(area.max.x - ICON, area.min.y), side));
+    if direction::is_rtl(ui) { [right, left] } else { [left, right] }
+}
+
+/// The corner radius of the chips and of the icons' hover boxes: the swatch's, at most 3.
+fn chip_radius(swatch: &SwatchStyle) -> f32 {
+    f32::from(swatch.radius.nw).min(3.0)
+}
+
+/// One glyph in its icon box, with a `hover` box behind it while hot. `state` is hot and enabled.
+fn paint_icon(ui: &Ui, tokens: &UiTokens, swatch: &SwatchStyle, rect: Rect, (hot, enabled): (bool, bool), glyph: Glyph, chrome: Color32) {
+    let painter = ui.painter();
+    if hot {
+        painter.rect_filled(rect.expand(2.0), chip_radius(swatch), tokens.color.state.hover.to_egui());
+    }
+    let ink = if hot { tokens.color.text.normal } else { tokens.color.text.muted }.to_egui();
+    let ink = if enabled { ink } else { tokens.color.text.disabled.to_egui() };
+    match glyph {
+        Glyph::Swap => paint_swap(painter, rect.min, ink),
+        Glyph::Defaults => {
+            let small = Vec2::splat(7.0);
+            let black = Rect::from_min_size(rect.min + vec2(1.0, 1.0), small);
+            let white = Rect::from_min_size(rect.min + vec2(5.0, 5.0), small);
+            painter.rect_filled(white, 1.0, Color32::WHITE);
+            painter.rect_stroke(white, 1.0, Stroke::new(1.0, ink), StrokeKind::Inside);
+            painter.rect_filled(black.expand(1.0), 1.5, chrome);
+            painter.rect_filled(black, 1.0, Color32::BLACK);
+            painter.rect_stroke(black, 1.0, Stroke::new(1.0, ink), StrokeKind::Inside);
+        }
+    }
+}
+
+/// The swap glyph on a 13 by 13 box with its top left at `origin`: a quadratic shaft from (4, 4)
+/// to (9, 9) that leaves horizontally and ends vertically, with a filled head at each end pointing
+/// left and down.
+fn paint_swap(painter: &Painter, origin: egui::Pos2, ink: Color32) {
+    const START: egui::Pos2 = pos2(4.0, 4.0);
+    const END: egui::Pos2 = pos2(9.0, 9.0);
+    const CONTROL: egui::Pos2 = pos2(9.0, 4.0);
+    const HEAD_LEN: f32 = 3.0;
+    const HEAD_HALF: f32 = 2.8;
+    let at = |p: egui::Pos2| origin + p.to_vec2();
+    let curve: Vec<_> = (0..=10)
+        .map(|i| {
+            let t = i as f32 / 10.0;
+            let (a, b) = (1.0 - t, t);
+            at(pos2(a * a * START.x + 2.0 * a * b * CONTROL.x + b * b * END.x, a * a * START.y + 2.0 * a * b * CONTROL.y + b * b * END.y))
+        })
+        .collect();
+    painter.add(Shape::line(curve, Stroke::new(1.6, ink)));
+    for (point, out) in [(START, -(CONTROL - START).normalized()), (END, (END - CONTROL).normalized())] {
+        let side = vec2(-out.y, out.x);
+        let head = vec![at(point + out * HEAD_LEN), at(point + side * HEAD_HALF), at(point - side * HEAD_HALF)];
+        painter.add(Shape::convex_polygon(head, ink, Stroke::NONE));
+    }
+}
+
 /// The shapes of one well: for the front one the gap round it in the `gap` colour, then a filled
-/// well or a ring.
-fn paint_well(ui: &Ui, swatch: &SwatchStyle, style: &SwatchPairStyle, rect: Rect, spec: &PairWell, gap: Option<Color32>, enabled: bool) {
+/// well framed by a light line inside a dark one, or a ring.
+fn paint_well(
+    ui: &Ui,
+    tokens: &UiTokens,
+    swatch: &SwatchStyle,
+    style: &SwatchPairStyle,
+    rect: Rect,
+    spec: &PairWell,
+    (gap, enabled): (Option<Color32>, bool),
+) {
     if !ui.is_rect_visible(rect) {
         return;
     }
     let painter = ui.painter();
     let radius = swatch.radius;
     if let Some(gap) = gap {
-        painter.add(RectShape::stroke(rect, radius, Stroke::new(style.gap, gap), StrokeKind::Outside));
+        let round = CornerRadius::same(radius.nw.min(3) + style.gap.round() as u8);
+        painter.add(RectShape::filled(rect.expand(style.gap), round, gap));
     }
     let rgba = spec.color.to_rgba();
     if !spec.ring {
-        painter.extend(Swatch::shapes(swatch, rect, Some(rgba), false, enabled, ui.pixels_per_point()));
+        let radius = CornerRadius::same(radius.nw.min(3));
+        let fade = |c: Color32| if enabled { c } else { c.gamma_multiply(0.5) };
+        if rgba.a() < 255 {
+            painter.extend(checkerboard(rect, radius, swatch.checker, swatch.checker_cell));
+        }
+        painter.add(RectShape::filled(rect, radius, fade(rgba.to_egui())));
+        // A light line inside a dark one, so any colour reads against the surface.
+        painter.add(RectShape::stroke(
+            rect,
+            radius,
+            Stroke::new(1.0, fade(tokens.color.text.normal.to_egui().gamma_multiply(0.9))),
+            StrokeKind::Inside,
+        ));
+        painter.add(RectShape::stroke(rect, radius, Stroke::new(1.0, fade(tokens.component.field.border.rest.to_egui())), StrokeKind::Outside));
         return;
     }
     let fade = |c: egui::Color32| if enabled { c } else { c.gamma_multiply(0.5) };

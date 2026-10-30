@@ -177,9 +177,9 @@ fn the_wells_are_one_tab_stop() {
     let mut rig = Rig::new(Direction::Ltr);
     rig.tab_to("Foreground colour");
     rig.key(Key::Tab);
-    assert_eq!(rig.focused_name().as_deref(), Some("Swap colours"), "the next Tab leaves the wells");
+    assert_eq!(rig.focused_name().as_deref(), Some("Default colours"), "the next Tab leaves the wells");
     rig.key(Key::Tab);
-    assert_eq!(rig.focused_name().as_deref(), Some("Default colours"));
+    assert_eq!(rig.focused_name().as_deref(), Some("Swap colours"));
 }
 
 #[test]
@@ -314,28 +314,59 @@ fn a_screen_readers_focus_on_the_inactive_well_makes_it_active() {
     assert_eq!(rig.focused_name().as_deref(), Some("Background colour"));
 }
 
-/// The gap round the front well is the colour the host says the pair sits on.
+/// PhotoCraft's chips: the default button over the start of the wells and the swap button over the
+/// end, both in a row above them, mirrored right to left.
 #[test]
-fn the_gap_round_the_front_well_is_the_hosts_backdrop() {
-    fn strokes(shape: &egui::Shape, out: &mut Vec<egui::Color32>) {
+fn the_buttons_are_a_row_over_the_wells_default_at_the_start_and_swap_at_the_end() {
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        let rig = Rig::new(dir);
+        let (fg, bg) = (rig.bounds("Foreground colour"), rig.bounds("Background colour"));
+        let (default, swap) = (rig.bounds("Default colours"), rig.bounds("Swap colours"));
+        let wells = fg.union(bg);
+        assert_eq!((default.size(), swap.size()), (vec2(13.0, 13.0), vec2(13.0, 13.0)));
+        assert_eq!(default.top(), swap.top());
+        assert_eq!(wells.top() - default.top(), 16.0, "the wells start 13 + 3 points under the row");
+        assert!(default.bottom() <= wells.top());
+        if dir == Direction::Ltr {
+            assert_eq!((default.left(), swap.right()), (wells.left(), wells.right()));
+        } else {
+            assert_eq!((default.right(), swap.left()), (wells.right(), wells.left()));
+        }
+    }
+}
+
+/// The front well is a light 1 point line inside a dark one, with the backdrop's gap round them.
+#[test]
+fn the_front_well_has_a_light_inner_line_a_dark_outer_line_and_a_backdrop_gap() {
+    use egui::epaint::RectShape;
+    use egui::{Color32, Shape, StrokeKind};
+    fn rects(shape: &Shape, out: &mut Vec<RectShape>) {
         match shape {
-            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| strokes(s, out)),
-            egui::Shape::Rect(r) => out.push(r.stroke.color),
+            Shape::Vec(shapes) => shapes.iter().for_each(|s| rects(s, out)),
+            Shape::Rect(r) => out.push(r.clone()),
             _ => {}
         }
     }
-    let toolbar = egui::Color32::from_rgb(0x12, 0x34, 0x56);
+    let toolbar = Color32::from_rgb(0x12, 0x34, 0x56);
     let ctx = Context::default();
     install(&ctx, &Base::suite_default());
     let numbers = LocaleNumbers::from_tag("en");
+    let mut tokens = None;
     let output = ctx.run_ui(RawInput::default(), |ui| {
-        let wells = [PairWell::new("Foreground colour", Srgba::BLACK), PairWell::new("Background colour", Srgba::WHITE)];
+        tokens = Some(<crate::theme::Tokens as crate::theme::TokensOf>::of(ui));
+        let wells = [PairWell::new("Foreground colour", Srgba::rgb(1.0, 0.0, 0.0)), PairWell::new("Background colour", Srgba::WHITE)];
         let _ = SwatchPair::new("pair", "Colours", wells, &numbers).backdrop(toolbar).show(ui);
     });
-    let mut colors = Vec::new();
+    let mut all = Vec::new();
     for clipped in &output.shapes {
-        strokes(&clipped.shape, &mut colors);
+        rects(&clipped.shape, &mut all);
     }
     output.drop_without_applying_deltas();
-    assert!(colors.contains(&toolbar), "the gap is drawn in the backdrop's colour");
+    let tokens = tokens.expect("tokens");
+    let fill = all.iter().find(|r| r.fill == Color32::RED).expect("the front well");
+    let on = |kind| all.iter().find(|r| r.rect == fill.rect && r.stroke.width == 1.0 && r.stroke_kind == kind).map(|r| r.stroke.color);
+    assert_eq!(on(StrokeKind::Inside), Some(crate::theme::ToEgui::to_egui(tokens.color.text.normal).gamma_multiply(0.9)));
+    assert_eq!(on(StrokeKind::Outside), Some(crate::theme::ToEgui::to_egui(tokens.component.field.border.rest)));
+    let gap = all.iter().find(|r| r.fill == toolbar).expect("the gap");
+    assert_eq!(gap.rect, fill.rect.expand(tokens.component.color_picker.pair_gap));
 }
