@@ -1,17 +1,16 @@
-//! Everything between the tool rail and the end edge: the canvas region with the panel rail at
-//! its end, and the dock column.
+//! Everything between the tool rail and the end edge: the canvas region and the dock at the end
+//! edge, an iconic column beside an expanded column as in Photoshop's Essentials layout.
 
-use craft_ui::docking::{Column, DockArea, DockConfig, DockContent, DockHeights, Group, Layout, Node, PanelState, Permissions, Side, Workspace};
-use craft_ui::icons::Icon;
+use craft_ui::docking::{Column, DockArea, DockConfig, DockContent, DockEvent, DockHeights, Group, Layout, Node, Permissions, Side, Workspace};
+use craft_ui::icons::{self, Icon};
 use craft_ui::layout::{SplitAxis, SplitSize};
-use craft_ui::patterns::{PanelRail, PanelRailItem, PanelRailRequest};
-use egui::{CentralPanel, Frame, Ui};
+use egui::{CentralPanel, Color32, Frame, Painter, Rect, Ui};
 
 use super::canvas;
 use super::model::Mock;
 use super::panels::{Panel, State};
 
-/// The width of the dock column.
+/// The width of the expanded column.
 pub const WIDTH: f32 = 290.0;
 
 /// The panels in the dock and what they keep between frames.
@@ -19,11 +18,15 @@ pub const WIDTH: f32 = 290.0;
 pub struct DockState {
     workspace: Workspace<Panel>,
     panels: State,
+    /// Auto-Collapse Iconic Panels: the flyout closes on Escape or a press outside it.
+    auto_collapse: bool,
+    /// A panel whose flyout opens on the next frame, when it sits in the iconic column.
+    raise: Option<Panel>,
 }
 
 impl Default for DockState {
     fn default() -> Self {
-        Self { workspace: default_workspace(), panels: State::default() }
+        Self { workspace: default_workspace(), panels: State::default(), auto_collapse: true, raise: None }
     }
 }
 
@@ -33,9 +36,21 @@ impl DockState {
         self.workspace.layout.contains(&panel)
     }
 
-    /// Shows a hidden panel, at the place it was hidden from, and hides a shown one.
+    /// Shows a hidden panel, at the place it was hidden from, and hides a shown one. A panel in
+    /// the iconic column opens its flyout instead of hiding.
     pub fn toggle(&mut self, panel: Panel) {
-        self.set_visible(panel, !self.is_visible(panel));
+        if !(self.is_visible(panel) && self.is_iconic(panel)) {
+            self.set_visible(panel, !self.is_visible(panel));
+        }
+        if self.is_iconic(panel) {
+            self.raise = Some(panel);
+        }
+    }
+
+    /// Whether the panel is the front tab of its group (or a floating one).
+    #[cfg(test)]
+    pub fn is_front(&self, panel: Panel) -> bool {
+        self.workspace.layout.panel_state(&panel) == craft_ui::docking::PanelState::Front
     }
 
     fn set_visible(&mut self, panel: Panel, visible: bool) {
@@ -43,9 +58,9 @@ impl DockState {
         let _ = self.workspace.set_visible(panel, visible, None, Panel::permissions);
     }
 
-    /// Whether the panel is the front tab of its group (or a floating one).
-    pub fn is_front(&self, panel: Panel) -> bool {
-        self.workspace.layout.panel_state(&panel) == PanelState::Front
+    /// Whether the panel sits in an iconic column.
+    pub fn is_iconic(&self, panel: Panel) -> bool {
+        self.workspace.layout.location(&panel).ok().and_then(|l| l.group).and_then(|g| g.column).is_some_and(|c| c.iconic)
     }
 }
 
@@ -56,7 +71,7 @@ impl Panel {
         if *self == Panel::Canvas { Permissions::PROTECTED } else { Permissions::default() }
     }
 
-    fn icon(self) -> Icon {
+    fn glyph(self) -> Icon {
         match self {
             Panel::Canvas => Icon::Image,
             Panel::Swatches => Icon::SwatchBook,
@@ -69,22 +84,25 @@ impl Panel {
     }
 }
 
-/// The canvas with the panels' rail at its end, and a column at the end edge with [Swatches],
-/// [Properties, Adjustments] and [Layers, Channels, History].
+/// The canvas beside a dock at the end edge: an iconic column holding [History], then the
+/// expanded column with [Swatches], [Properties, Adjustments] and [Layers, Channels].
 fn default_workspace() -> Workspace<Panel> {
-    let column = Column::new(
+    let expanded = Column::new(
         vec![
             Group::new(vec![Panel::Swatches], 0),
             Group::new(vec![Panel::Properties, Panel::Adjustments], 0),
-            Group::new(vec![Panel::Layers, Panel::Channels, Panel::History], 0),
+            Group::new(vec![Panel::Layers, Panel::Channels], 0),
         ],
         WIDTH,
     );
+    let mut iconic = Column::new(vec![Group::new(vec![Panel::History], 0)], WIDTH);
+    iconic.iconic = true;
     let root = Node::Split {
         axis: SplitAxis::Horizontal,
         size: SplitSize::FixedSecond(WIDTH),
         first: Box::new(Node::Tabs { panels: vec![Panel::Canvas], active: 0 }),
-        second: Box::new(Node::Dock { side: Side::End, columns: vec![column] }),
+        // The first column is the one at the end edge.
+        second: Box::new(Node::Dock { side: Side::End, columns: vec![expanded, iconic] }),
     };
     Workspace::new(Layout { root: Some(root), floating: Vec::new() })
 }
@@ -92,34 +110,30 @@ fn default_workspace() -> Workspace<Panel> {
 struct Content<'a> {
     mock: &'a mut Mock,
     panels: &'a mut State,
-    /// The panels in front, which the rail marks.
-    front: Vec<Panel>,
-    /// The panel the rail asked for.
+    /// The panel a panel body asked to show.
     requested: Option<Panel>,
-}
-
-impl Content<'_> {
-    fn canvas(&mut self, ui: &mut Ui) {
-        let items: Vec<PanelRailItem<Panel>> = Panel::ALL.iter().map(|p| PanelRailItem::new(*p, p.icon(), p.label())).collect();
-        let id = ui.scope_id().with("panel-rail");
-        let out = PanelRail::new(id).show(ui, &items, &self.front, |_| {});
-        if let Some(PanelRailRequest::Open(panel) | PanelRailRequest::Close(panel)) = out.request {
-            self.requested = Some(panel);
-        }
-        CentralPanel::default().frame(Frame::NONE).show(ui, |ui| canvas::show(ui, self.mock));
-    }
 }
 
 impl DockContent<Panel> for Content<'_> {
     fn body(&mut self, ui: &mut Ui, panel: &Panel) {
         match panel {
-            Panel::Canvas => self.canvas(ui),
+            Panel::Canvas => {
+                CentralPanel::default().frame(Frame::NONE).show(ui, |ui| canvas::show(ui, self.mock));
+            }
             other => {
                 if let Some(panel) = other.show(ui, self.mock, self.panels) {
                     self.requested = Some(panel);
                 }
             }
         }
+    }
+
+    fn paint_icon(&mut self, painter: &Painter, rect: Rect, panel: &Panel, color: Color32) -> bool {
+        let ctx = painter.ctx();
+        let px = icons::pixels(rect.width(), ctx.pixels_per_point());
+        let uv = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+        painter.image(icons::texture(ctx, panel.glyph(), px), rect, uv, color);
+        true
     }
 
     fn logical_label(&self, panel: &Panel) -> String {
@@ -141,28 +155,29 @@ impl DockContent<Panel> for Content<'_> {
 }
 
 /// The dock area over everything between the tool rail and the end edge. Its protected canvas
-/// panel draws the panel rail and the canvas region.
+/// panel draws the canvas region.
 pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState) {
     let id = ui.scope_id().with("dock");
     let mut config = DockConfig::default();
     config.right_to_left = craft_ui::direction::is_rtl(ui);
-    // Panels never close by the user's hand; the Window menu and the rail hide and show them.
+    // Panels never close by the user's hand; the Window menu hides and shows them.
     config.close_menu_items = false;
     config.close_button = false;
-    let front: Vec<Panel> = Panel::ALL.into_iter().filter(|p| state.is_front(*p)).collect();
-    let DockState { workspace, panels } = state;
+    let DockState { workspace, panels, auto_collapse, raise } = state;
     // A floated panel stays inside the part of the preview that shows.
     let bounds = ui.max_rect().intersect(ui.clip_rect());
-    let mut content = Content { mock, panels, front, requested: None };
+    let mut content = Content { mock, panels, requested: None };
     let mut actions = Vec::new();
     let mut requested = None;
     CentralPanel::default().frame(Frame::NONE).show(ui, |ui| {
-        let output = DockArea::new(id).native_windows(false).float_bounds(bounds).locked(workspace.locked).show_content(
-            ui,
-            &workspace.layout,
-            &config,
-            &mut content,
-        );
+        let mut area = DockArea::new(id).native_windows(false).float_bounds(bounds).locked(workspace.locked).auto_collapse_iconic(*auto_collapse);
+        if let Some(panel) = raise.take() {
+            area = area.raise_panel(panel);
+        }
+        let output = area.show_content(ui, &workspace.layout, &config, &mut content);
+        if output.events.iter().any(|e| matches!(e, DockEvent::ToggleAutoCollapse)) {
+            *auto_collapse = !*auto_collapse;
+        }
         actions = output.actions;
         requested = content.requested;
     });

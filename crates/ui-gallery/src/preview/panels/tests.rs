@@ -137,25 +137,26 @@ fn a_swatch_sets_the_foreground() {
 }
 
 #[test]
-fn the_window_menu_hides_layers_and_the_panel_rail_brings_it_back() {
+fn the_window_menu_hides_layers_and_shows_them_again() {
     let mut fixture = Fixture::new();
     assert!(fixture.names(Role::ListBoxOption).contains(&"Shapes".to_owned()));
     fixture.click("Window", Role::MenuItem);
     fixture.click("Layers", Role::MenuItemCheckBox);
     assert!(!fixture.preview.dock.is_visible(Panel::Layers));
     assert!(!fixture.names(Role::ListBoxOption).contains(&"Shapes".to_owned()), "the Layers list is gone");
-    fixture.click("Layers", Role::Button);
+    fixture.click("Window", Role::MenuItem);
+    fixture.click("Layers", Role::MenuItemCheckBox);
     assert!(fixture.preview.dock.is_visible(Panel::Layers));
     assert!(fixture.preview.dock.is_front(Panel::Layers));
     assert!(fixture.names(Role::ListBoxOption).contains(&"Shapes".to_owned()));
 }
 
 #[test]
-fn a_panel_rail_click_fronts_channels() {
+fn a_tab_click_fronts_channels() {
     let mut fixture = Fixture::new();
     assert!(fixture.preview.dock.is_front(Panel::Layers));
     assert!(!fixture.preview.dock.is_front(Panel::Channels));
-    fixture.click("Channels", Role::Button);
+    fixture.click("Channels", Role::Tab);
     assert!(fixture.preview.dock.is_front(Panel::Channels));
     assert!(!fixture.preview.dock.is_front(Panel::Layers));
     assert!(fixture.names(Role::ListBoxOption).contains(&"Green".to_owned()));
@@ -270,7 +271,7 @@ fn an_align_button_puts_the_layers_edge_on_the_page() {
 fn the_move_bars_align_button_moves_the_layer() {
     let mut fixture = Fixture::new();
     // With Adjustments in front the Properties panel's buttons are not drawn.
-    fixture.click("Adjustments", Role::Button);
+    fixture.click("Adjustments", Role::Tab);
     fixture.click("Align bottom edges", Role::Button);
     assert_eq!(fixture.rect(3), [500.0, 400.0, 500.0, 400.0]);
 }
@@ -335,7 +336,7 @@ fn the_clip_checkbox_toggles_clip_and_adds_a_row() {
 fn an_adjustments_button_adds_a_layer_above_the_selection_and_shows_properties() {
     let mut fixture = Fixture::new();
     fixture.preview.mock.doc.selected = vec![2];
-    fixture.click("Adjustments", Role::Button);
+    fixture.click("Adjustments", Role::Tab);
     assert!(!fixture.preview.dock.is_front(Panel::Properties));
     fixture.click("Hue/Saturation", Role::Button);
     let doc = &fixture.preview.mock.doc;

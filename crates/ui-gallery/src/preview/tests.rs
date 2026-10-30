@@ -6,6 +6,7 @@ use egui::accesskit::{Action, ActionRequest, NodeId, Role, TreeId};
 use egui::{Context, Event, Key, Modifiers, RawInput, Rect, vec2};
 
 use super::model::Tool;
+use super::panels::Panel;
 use super::{AppPreview, stories};
 use crate::Appearance;
 
@@ -15,6 +16,7 @@ struct Fixture {
     ctx: Context,
     appearance: Appearance,
     preview: AppPreview,
+    time: f64,
 }
 
 impl Fixture {
@@ -23,11 +25,16 @@ impl Fixture {
         ctx.enable_accesskit();
         let appearance = Appearance { theme: theme.to_owned(), mode, ..Appearance::default() };
         appearance.configure(&ctx, None, false, SystemAppearance::default());
-        Self { ctx, appearance, preview: AppPreview::default() }
+        Self { ctx, appearance, preview: AppPreview::default(), time: 0.0 }
     }
 
     fn frame(&mut self, events: Vec<Event>) -> Option<AccessTree> {
-        let raw = RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1280.0, 800.0))), events, ..RawInput::default() };
+        let raw = RawInput {
+            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1280.0, 800.0))),
+            events,
+            time: Some(self.time),
+            ..RawInput::default()
+        };
         let base = self.appearance.base(SystemAppearance::default());
         let output = self.ctx.run_ui(raw, |ui| {
             install(ui.ctx(), &base);
@@ -55,6 +62,37 @@ impl Fixture {
         assert_eq!(nodes.len(), 1, "one {role:?} named {name:?}");
         let request = ActionRequest { action, target_tree: TreeId::ROOT, target_node: nodes[0], data: None };
         self.frame(vec![Event::AccessKitActionRequest(request)]);
+        self.frame(Vec::new());
+    }
+
+    /// A real primary click on the centre of the node, pressed and released in one frame.
+    fn pointer_click(&mut self, name: &str, role: Role) {
+        let tree = self.settled();
+        let nodes = named(&tree, name, role);
+        assert_eq!(nodes.len(), 1, "one {role:?} named {name:?}");
+        let bounds = tree.node(nodes[0]).and_then(|n| n.bounds()).expect("bounds");
+        let ppp = self.ctx.pixels_per_point();
+        let pos = egui::pos2(((bounds.x0 + bounds.x1) / 2.0) as f32 / ppp, ((bounds.y0 + bounds.y1) / 2.0) as f32 / ppp);
+        self.pointer_click_at(pos);
+    }
+
+    fn pointer_click_at(&mut self, pos: egui::Pos2) {
+        self.time += 1.0;
+        let button = |pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+        self.frame(vec![Event::PointerMoved(pos)]);
+        self.frame(vec![button(true), button(false)]);
+        self.frame(Vec::new());
+        self.frame(Vec::new());
+    }
+
+    /// A primary click whose press and release arrive in separate frames, as from a mouse at a
+    /// normal frame rate.
+    fn pointer_click_slow(&mut self, pos: egui::Pos2) {
+        self.time += 1.0;
+        let button = |pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+        self.frame(vec![Event::PointerMoved(pos)]);
+        self.frame(vec![button(true)]);
+        self.frame(vec![button(false)]);
         self.frame(Vec::new());
     }
 
@@ -176,4 +214,39 @@ fn a_letter_in_a_focused_text_field_does_not_switch_the_tool() {
     assert!(fixture.ctx.text_edit_focused(), "the zoom field is being edited");
     fixture.press(Key::B);
     assert_eq!(fixture.preview.mock.tools.current, Tool::Move);
+}
+
+#[test]
+fn history_starts_as_an_icon_and_the_other_panels_as_tabs_with_no_panel_rail() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    let tree = fixture.settled();
+    assert!(!has_name(&tree, "Panels"), "no panel rail toolbar");
+    assert!(fixture.preview.dock.is_visible(Panel::History));
+    assert!(fixture.preview.dock.is_iconic(Panel::History));
+    for panel in [Panel::Swatches, Panel::Properties, Panel::Adjustments, Panel::Layers, Panel::Channels] {
+        assert!(!fixture.preview.dock.is_iconic(panel), "{panel:?} is in the expanded column");
+        assert!(has_name(&tree, panel.label()), "{panel:?} has a tab");
+    }
+    assert_eq!(named(&tree, "History", Role::Button).len(), 1, "History's icon");
+    assert!(named(&tree, "Open", Role::ListBoxOption).is_empty(), "History's rows are not drawn until the flyout opens");
+}
+
+#[test]
+fn a_click_on_the_history_icon_opens_its_flyout_and_a_click_on_the_canvas_closes_it() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    let rows = |fixture: &mut Fixture| !named(&fixture.settled(), "Open", Role::ListBoxOption).is_empty();
+    assert!(!rows(&mut fixture));
+    fixture.pointer_click("History", Role::Button);
+    assert!(rows(&mut fixture), "the flyout shows History's rows");
+    fixture.pointer_click_slow(egui::pos2(500.0, 400.0));
+    assert!(!rows(&mut fixture), "a press outside closes the flyout");
+}
+
+#[test]
+fn the_window_menu_opens_the_flyout_of_a_collapsed_panel_and_keeps_it_shown() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    fixture.click("Window", Role::MenuItem);
+    fixture.click("History", Role::MenuItemCheckBox);
+    assert!(fixture.preview.dock.is_visible(Panel::History));
+    assert!(!named(&fixture.settled(), "Open", Role::ListBoxOption).is_empty(), "the flyout shows History's rows");
 }
