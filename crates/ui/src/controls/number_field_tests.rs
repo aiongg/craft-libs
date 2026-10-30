@@ -40,6 +40,8 @@ struct Rig {
     label: Rect,
     popup: bool,
     arithmetic: bool,
+    /// Typed inches convert to pixels at 300 ppi; the committed value keeps this many decimals.
+    inches: Option<usize>,
     drawn: bool,
     enabled: bool,
     /// What the host makes of a value it is sent (a host that snaps).
@@ -102,6 +104,7 @@ impl Rig {
             label: Rect::NOTHING,
             popup: false,
             arithmetic: false,
+            inches: None,
             drawn: true,
             enabled: true,
             adjust: |v| v,
@@ -229,6 +232,9 @@ impl Rig {
         }
         if self.arithmetic {
             field = field.or_parse(sum);
+        }
+        if let Some(places) = self.inches {
+            field = field.commit_decimals(places).or_parse(|text| Some(text.strip_suffix("in")?.trim().parse::<f64>().ok()? * 300.0));
         }
         let edit = field.show(ui);
         (self.id, self.rect, self.escaped) = (edit.response.id, edit.response.rect, edit.escaped);
@@ -710,6 +716,32 @@ fn german_and_arabic_digits_round_trip_with_the_unit_typed_or_not() {
     rig.type_text("٣٫٢٥");
     rig.key(Key::Enter);
     assert_eq!(rig.value, 3.25);
+}
+
+/// A value typed in another unit converts to the field's, and the committed value keeps the
+/// decimals `commit_decimals` allows where the field shows fewer. Without it a typed number
+/// rounds to the decimals shown.
+#[test]
+fn a_typed_unit_converts_exactly_and_keeps_the_decimals_commit_decimals_allows() {
+    let mut rig = Rig::with(100.0, |r| {
+        r.decimals = (0, 0);
+        r.inches = Some(2);
+    });
+    for (typed, committed) in [("2in", 600.0), ("1.234in", 370.2), ("0.0013in", 0.39)] {
+        rig.focus();
+        let n = rig.events.len();
+        rig.type_text(typed);
+        let id = begin_id(&since(&rig, n));
+        rig.key(Key::Enter);
+        assert_eq!(rig.event, Some(commit(id, committed, true)), "{typed}");
+    }
+    assert_eq!(rig.value, 0.39);
+
+    let mut plain = Rig::with(100.0, |r| r.decimals = (0, 0));
+    plain.focus();
+    plain.type_text("2.6");
+    plain.key(Key::Enter);
+    assert_eq!(plain.value, 3.0, "without commit_decimals a typed number rounds to the decimals shown");
 }
 
 #[test]
