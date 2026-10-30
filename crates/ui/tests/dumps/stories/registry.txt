@@ -39,7 +39,7 @@ primitives/gradient-line/with-editor = Gradient line | With editor | Canvas | zo
 foundations/edit/log = Edit lifecycle | Event log | Panel | update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false); field first=Bool(false)
 controls/button/variants = Button | Variants | Panel | label=Text("Button"); icon=Choice { options: ["none", "save", "chevron_right"], index: 0 }
 controls/button/playground = Button | Playground | Panel | variant=Choice { options: ["primary", "secondary", "ghost", "danger"], index: 0 }; size=Choice { options: ["sm", "md"], index: 1 }; icon=Choice { options: ["none", "save", "chevron_right"], index: 1 }; disabled=Bool(false); loading=Bool(false); narrow=Bool(false); label=Text("Save the document as a copy")
-controls/icon-button/plain = Icon button | Plain | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); show tooltip=Bool(true); badge=Bool(false)
+controls/icon-button/plain = Icon button | Plain | Panel | size=Choice { options: ["sm", "md"], index: 1 }; tone=Choice { options: ["neutral", "info", "good", "warn", "bad"], index: 0 }; disabled=Bool(false); show tooltip=Bool(true); badge=Bool(false)
 controls/icon-button/toggle = Icon button | Toggle | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/toggle-button/toggle = Toggle button | Toggle | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); label=Text("Snap to grid")
 controls/segmented/text = Segmented | Text | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
@@ -174,7 +174,7 @@ patterns/dialog/modeless = Dialog | Modeless | Panel | open=Bool(true); width=Ch
 patterns/dialog/footer = Dialog | Footer | Panel | open=Bool(true); shape=Choice { options: ["standard", "side"], index: 0 }; apply=Bool(true); alternate=Bool(false); ok enabled=Bool(true); alt resets=Bool(true); body owns enter=Bool(false)
 patterns/dialog/stack = Dialog | Stack | Panel | open=Bool(true); child open=Bool(false)
 patterns/dialog/prompt = Dialog | Prompt and alert | Panel | kind=Choice { options: ["prompt", "alert"], index: 0 }; open=Bool(true); translated labels=Bool(false)
-patterns/dialog/blocking = Dialog | Blocking overlay | Panel | busy for 2 s=Bool(false); scrim=Bool(false)
+patterns/dialog/blocking = Dialog | Blocking overlay | Panel | busy for 2 s=Bool(false); scrim=Bool(false); wait card=Bool(false)
 patterns/full-window/workspace = FullWindowDialog | Workspace | Panel | open=Bool(true); title strip=Bool(true); apply=Bool(false)
 patterns/dialog/preview = Dialog | Preview | Panel | open=Bool(true); preview=Bool(true); local history=Bool(true); compare button=Bool(true)
 patterns/viewport/embedded = ViewportWindow | Embedded | Panel | open=Bool(true); app modal=Bool(false); scrim=Bool(false)
