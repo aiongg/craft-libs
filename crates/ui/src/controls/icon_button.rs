@@ -1,6 +1,6 @@
 //! [`IconButton`]: a square ghost button that shows only an icon.
 
-use craft_theme::{ButtonPart, ButtonVariant, ControlSize, Srgba, States};
+use craft_theme::{ButtonPart, ButtonVariant, ControlSize, Srgba, States, Tone};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Rect, Response, Sense, Stroke, Ui, Widget, pos2, vec2};
@@ -60,6 +60,7 @@ pub struct IconButton<'a> {
     show_tooltip: bool,
     shortcut: Option<String>,
     badge: Option<Srgba>,
+    tone: Tone,
     enabled: bool,
     focusable: bool,
     id_salt: Option<IdSalt>,
@@ -78,6 +79,7 @@ impl<'a> IconButton<'a> {
             show_tooltip: true,
             shortcut: None,
             badge: None,
+            tone: Tone::Neutral,
             enabled: true,
             focusable: true,
             id_salt: None,
@@ -124,6 +126,14 @@ impl<'a> IconButton<'a> {
     /// white point), so it has no contrast pair. The label names the button, not the dot.
     pub fn badge(mut self, color: impl Into<Srgba>) -> Self {
         self.badge = Some(color.into());
+        self
+    }
+
+    /// Draws the icon in the tone's status colour (`notice.<tone>.fg`, the colour a notice of the
+    /// tone has), as for a warning the button reports. Neutral, the default, is the button's own
+    /// colour; disabled, the icon is dimmed as usual.
+    pub fn tone(mut self, tone: Tone) -> Self {
+        self.tone = tone;
         self
     }
 
@@ -195,7 +205,13 @@ impl IconButton<'_> {
     }
 
     fn show_in(self, ui: &mut Ui, rect: Option<Rect>) -> Response {
-        let style = self.style.unwrap_or_else(|| IconButton::style(&Tokens::of(ui), self.size));
+        let tokens = Tokens::of(ui);
+        let mut style = self.style.unwrap_or_else(|| IconButton::style(&tokens, self.size));
+        if self.tone != Tone::Neutral {
+            let fg = tokens.component.notice.fg(self.tone).to_egui();
+            style.text = States::new(fg, fg, fg, style.text.disabled);
+            style.selected_text = States::new(fg, fg, fg, style.selected_text.disabled);
+        }
         debug_assert!(!(self.selected.is_some() && self.on.is_some()), "IconButton: `selected` and `toggle` are exclusive");
         let mut on = self.on;
         let sense = if self.focusable { Sense::click() } else { Sense::CLICK };

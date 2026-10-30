@@ -18,4 +18,5 @@ Every set folder's files come from the npm package of the version in the table (
 - `bandage-sparkle`, `brush-replace`, `clip-below`, `clip-release`, `convert-point`, `direct-select`, `eraser-background`, `eraser-magic`, `font-similar`
 - `distribute-*`, `symmetry-*`, `painting-symmetry` (the symmetry glyphs follow PhotoCraft's axis icons)
 - `lasso`, `lasso-magnetic`, `lasso-select`, `layer-mask`, `lollipop`, `marquee-column`, `marquee-row`, `pen-add-anchor`, `pen-curvature`, `pen-delete-anchor`, `pen-freeform`, `quick-selection` (the pen nib and the quick-selection brush follow Lucide's `pen-tool` and `paintbrush`, ISC)
+- `gradient-linear`, `gradient-radial`, `gradient-angle`, `gradient-reflected`, `gradient-diamond`, `fx` (the layer-style button)
 - `font-variable`, `scaling`, `slice-select`, `square-dashed-mouse-pointer`, `text-warp`, `triangle-right`, `type-mask`, `type-mask-vertical`

@@ -8,7 +8,7 @@ use crate::direction::{self, Direction};
 use crate::icons::Icon;
 use crate::testing::{a11y, symbols};
 use crate::theme::{Base, ToEgui as _, install};
-use craft_theme::TypeRole;
+use craft_theme::{Tone, TypeRole};
 
 fn harness<State>() -> HarnessBuilder<State> {
     Harness::<State>::builder().with_size([640.0, 320.0]).with_context_setup(|ctx| {
@@ -1042,4 +1042,23 @@ fn a_secondary_button_of_the_suite_default_is_a_28_point_outlined_pill() {
     });
     assert!(outline, "the outline is drawn 1.5 points wide inside the button");
     assert_eq!(style.fill.rest, egui::Color32::TRANSPARENT);
+}
+
+#[test]
+fn a_toned_icon_button_paints_its_icon_in_the_status_colour() {
+    let painted = |tone: Tone| {
+        let mut harness = harness().build_ui(move |ui| {
+            ui.add(IconButton::new(Icon::Warning, "Comps").tone(tone));
+        });
+        harness.run();
+        let ctx = harness.ctx.clone();
+        let tokens = crate::theme::current(&ctx);
+        let warn = tokens.component.notice.fg(Tone::Warn).to_egui();
+        let ghost = IconButton::style(&tokens, ControlSize::Md).text.rest;
+        let icon =
+            |color| harness.output().shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Mesh(m) if m.vertices.iter().all(|v| v.color == color)));
+        (icon(warn), icon(ghost))
+    };
+    assert_eq!(painted(Tone::Warn), (true, false));
+    assert_eq!(painted(Tone::Neutral), (false, true));
 }

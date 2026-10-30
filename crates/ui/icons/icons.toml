@@ -1282,3 +1282,33 @@ lucide = "list"
 phosphor = "list-bullets"
 carbon = "list--bulleted"
 tabler = "list"
+
+[[icon]]
+name = "gradient_linear"
+directional = false
+phosphor = "gradient-linear"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "gradient_radial"
+directional = false
+phosphor = "gradient-radial"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "gradient_angle"
+directional = false
+phosphor = "gradient-angle"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "gradient_reflected"
+directional = false
+phosphor = "gradient-reflected"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "gradient_diamond"
+directional = false
+phosphor = "gradient-diamond"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "fx"
+directional = false
+phosphor = "fx"  # drawn in Phosphor's style: no match in any set

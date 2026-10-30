@@ -2,12 +2,14 @@
 
 use craft_theme::ControlSize;
 use craft_theme::Stroke as Hairline;
+use egui::accesskit::HasPopup;
 use egui::emath::GuiRounding as _;
 use egui::{Rect, Response, Stroke, Ui, UiBuilder, pos2, vec2};
 
 use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::Icon;
+use crate::patterns::rail::flyout::paint_corner_triangle;
 use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
@@ -90,9 +92,30 @@ impl PanelFooter {
 
     /// An icon button of the footer's button size, named `label` (its tooltip and accessible name).
     pub fn button(ui: &mut Ui, icon: Icon, label: &str) -> Response {
-        let side = Tokens::of(ui).component.panel_footer.button;
+        PanelFooter::button_in(ui, icon, label, false)
+    }
+
+    /// A footer button that opens a menu (New Fill or Adjustment Layer, layer styles): the
+    /// [`button`](PanelFooter::button) with a `rail.indicator` triangle at its bottom-end corner,
+    /// as the rail's flyout buttons have, and a `Menu` popup in AccessKit. The host opens the menu
+    /// from the response.
+    pub fn menu_button(ui: &mut Ui, icon: Icon, label: &str) -> Response {
+        PanelFooter::button_in(ui, icon, label, true)
+    }
+
+    fn button_in(ui: &mut Ui, icon: Icon, label: &str, menu: bool) -> Response {
+        let tokens = Tokens::of(ui);
+        let side = tokens.component.panel_footer.button;
         let (_, square) = ui.allocate_space(vec2(side, side));
-        IconButton::new(icon, label).size(ControlSize::Md).show_at(ui, square)
+        let response = IconButton::new(icon, label).size(ControlSize::Md).show_at(ui, square);
+        if menu {
+            let rail = &tokens.component.rail;
+            if ui.is_rect_visible(response.rect) {
+                paint_corner_triangle(ui, response.rect, rail.indicator_inset, rail.indicator_size, rail.indicator_color.to_egui());
+            }
+            response.ctx.accesskit_node_builder(response.id, |node| node.set_has_popup(HasPopup::Menu));
+        }
+        response
     }
 }
 
