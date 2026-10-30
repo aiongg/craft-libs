@@ -204,7 +204,10 @@ impl StatusBar {
         let tokens = Tokens::of(ui);
         let style = StatusBar::style(&tokens);
         let (rect, _) = ui.allocate_exact_size(vec2(style.divider_box, style.divider), Sense::hover());
-        Divider::paint(ui.painter(), rect.center_top(), rect.center_bottom(), &tokens);
+        // A narrow bar clips its leading group; a divider past the clip is not drawn.
+        if ui.is_rect_visible(rect) {
+            Divider::paint(ui.painter(), rect.center_top(), rect.center_bottom(), &tokens);
+        }
     }
 
     /// The status message, after a separator: `text.faint`, or the warning colour for an error. It

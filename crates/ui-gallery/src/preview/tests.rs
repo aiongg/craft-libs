@@ -232,6 +232,20 @@ fn a_click_on_the_history_icon_opens_its_flyout_and_a_click_on_the_canvas_closes
 }
 
 #[test]
+fn choosing_history_in_the_window_menu_with_real_clicks_closes_its_open_flyout() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    let rows = |fixture: &mut Fixture| !named(&fixture.settled(), "Open", Role::ListBoxOption).is_empty();
+    fixture.pointer_click("History", Role::Button);
+    assert!(rows(&mut fixture), "the flyout is open");
+    // The press on the menu title is not a click outside the flyout.
+    fixture.pointer_click("Window", Role::MenuItem);
+    assert!(rows(&mut fixture), "opening the menu leaves the flyout open");
+    fixture.pointer_click("History", Role::MenuItemCheckBox);
+    assert!(!rows(&mut fixture), "choosing History closes the open flyout");
+    assert!(fixture.preview.dock.is_visible(Panel::History), "the check stays on");
+}
+
+#[test]
 fn the_window_menu_opens_the_flyout_of_a_collapsed_panel_and_keeps_it_shown() {
     let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
     fixture.click("Window", Role::MenuItem);
