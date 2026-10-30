@@ -24,7 +24,13 @@
 //! `bottom` slots in call order from the bottom edge inward; then `start`, then `end`; then the
 //! body in what is left. A theme or size never changes it.
 
+mod canvas;
+#[cfg(test)]
+mod canvas_tests;
 mod ids;
+mod screen_mode;
+#[cfg(test)]
+mod screen_mode_tests;
 mod slot;
 #[cfg(test)]
 mod tests;
@@ -32,7 +38,9 @@ mod visibility;
 
 use egui::{Context, Frame, Id, Panel, Rect, Ui, UiBuilder, accesskit::Role};
 
+pub use canvas::{CanvasLabels, CanvasOutput, CanvasShell, PanelOptions, PanelRail};
 pub use ids::WindowKey;
+pub use screen_mode::{ScreenMode, full_screen_commands};
 pub use slot::{Slot, SlotKey};
 pub use visibility::{BodyMode, tab_toggles_chrome, take_tab_toggle};
 

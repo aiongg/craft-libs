@@ -52,6 +52,8 @@ pub(super) struct State {
     pub edges: [bool; 3],
     /// The slots shown on the last pass, for keeping an edge reveal while the pointer is over one.
     pub shown: Vec<(Edge, Rect)>,
+    /// The window was maximized when a screen mode took it to full screen.
+    pub was_maximized: bool,
 }
 
 /// The pass in which a window's keys were last recorded.
