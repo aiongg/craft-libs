@@ -132,7 +132,7 @@ pub(super) struct BarArgs {
 /// The bar of PhotoCraft's brush tool, with a disabled group and, while a session is on, commit and cancel.
 pub(super) fn show_story(ui: &mut Ui, args: &mut BarArgs) {
     let (narrow, session, disabled, two_rows) = (args.narrow, args.session, args.disabled, args.two_rows);
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let state_id = ui.scope_id().with("options-bar-demo");
     let mut demo = ui.data(|d| d.get_temp::<Demo>(state_id)).unwrap_or_default();
     let numbers = LocaleNumbers::from_tag("en-US");

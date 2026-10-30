@@ -436,7 +436,7 @@ fn show_compact(ui: &mut Ui, args: &mut CompactArgs) {
     let start = craft_theme::Srgba::new(0.2, 0.55, 0.8, 1.0);
     slider::with_values(ui, "color-compact", [(start, start, String::new())], |ui, state| {
         let (color, before, last) = &mut state[0];
-        ui.set_width(args.width);
+        ui.set_width(args.width.min(ui.available_width()));
         let mut web = args.web_colours_only;
         let mut picker = ColorPicker::new("color-compact", "Foreground colour", *color, &numbers)
             .web_colors(&mut web)
@@ -578,7 +578,7 @@ fn show_palette(ui: &mut Ui, args: &mut PaletteArgs) {
     let start = craft_theme::Srgba::from(craft_theme::Rgba::rgb(0x3e, 0x63, 0xdd));
     slider::with_values(ui, "color-palette", [(start, String::new())], |ui, state| {
         let (color, last) = &mut state[0];
-        ui.set_width(args.width);
+        ui.set_width(args.width.min(ui.available_width()));
         let swatches = PALETTE.map(|(name, [r, g, b])| (name, craft_theme::Srgba::from(craft_theme::Rgba::rgb(r, g, b))));
         let picked = SwatchPalette::new("color-palette", "Swatches", *color, swatches).size(size).enabled(!args.disabled).show(ui);
         if let Some(event) = &picked.event {

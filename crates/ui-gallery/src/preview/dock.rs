@@ -1,7 +1,10 @@
 //! Everything between the tool rail and the end edge: the canvas region and the dock at the end
 //! edge, an iconic column beside an expanded column as in Photoshop's Essentials layout.
 
-use craft_ui::docking::{Column, DockArea, DockConfig, DockContent, DockEvent, DockHeights, Group, Layout, Node, Permissions, Side, Workspace};
+use craft_ui::docking::{
+    Column, DockArea, DockConfig, DockContent, DockEvent, DockHeights, DockLook, Group, Layout, Node, Permissions, Side, Workspace, close_flyout,
+    flyout,
+};
 use craft_ui::icons::{self, Icon};
 use craft_ui::layout::{SplitAxis, SplitSize};
 use egui::{CentralPanel, Color32, Frame, Painter, Rect, Ui};
@@ -22,11 +25,15 @@ pub struct DockState {
     auto_collapse: bool,
     /// A panel whose flyout opens on the next frame, when it sits in the iconic column.
     raise: Option<Panel>,
+    /// An iconic panel the Window menu chose while it was shown: its flyout closes if open, else opens.
+    flip: Option<Panel>,
+    /// Whether the split has been sized for the iconic column, which needs the dock's look.
+    sized: bool,
 }
 
 impl Default for DockState {
     fn default() -> Self {
-        Self { workspace: default_workspace(), panels: State::default(), auto_collapse: true, raise: None }
+        Self { workspace: default_workspace(), panels: State::default(), auto_collapse: true, raise: None, flip: None, sized: false }
     }
 }
 
@@ -37,13 +44,18 @@ impl DockState {
     }
 
     /// Shows a hidden panel, at the place it was hidden from, and hides a shown one. A panel in
-    /// the iconic column opens its flyout instead of hiding.
+    /// the iconic column stays shown: showing it opens its flyout, and choosing it again closes the
+    /// flyout when open and opens it when closed.
     pub fn toggle(&mut self, panel: Panel) {
-        if !(self.is_visible(panel) && self.is_iconic(panel)) {
-            self.set_visible(panel, !self.is_visible(panel));
-        }
-        if self.is_iconic(panel) {
-            self.raise = Some(panel);
+        if !self.is_visible(panel) {
+            self.set_visible(panel, true);
+            if self.is_iconic(panel) {
+                self.raise = Some(panel);
+            }
+        } else if self.is_iconic(panel) {
+            self.flip = Some(panel);
+        } else {
+            self.set_visible(panel, false);
         }
     }
 
@@ -51,6 +63,12 @@ impl DockState {
     #[cfg(test)]
     pub fn is_front(&self, panel: Panel) -> bool {
         self.workspace.layout.panel_state(&panel) == craft_ui::docking::PanelState::Front
+    }
+
+    /// Hides the panel as the Window menu does.
+    #[cfg(test)]
+    pub fn hide(&mut self, panel: Panel) {
+        self.set_visible(panel, false);
     }
 
     fn set_visible(&mut self, panel: Panel, visible: bool) {
@@ -163,7 +181,21 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState) {
     // Panels never close by the user's hand; the Window menu hides and shows them.
     config.close_menu_items = false;
     config.close_button = false;
-    let DockState { workspace, panels, auto_collapse, raise } = state;
+    let DockState { workspace, panels, auto_collapse, raise, flip, sized } = state;
+    if !*sized {
+        // The dock holds the iconic column too; the expanded column keeps WIDTH beside it.
+        if let Some(Node::Split { size, .. }) = &mut workspace.layout.root {
+            *size = SplitSize::FixedSecond(WIDTH + DockLook::of(ui).iconic_width);
+        }
+        *sized = true;
+    }
+    if let Some(panel) = flip.take() {
+        if flyout::<Panel>(ui.ctx(), id) == Some(panel) {
+            close_flyout::<Panel>(ui.ctx(), id);
+        } else {
+            *raise = Some(panel);
+        }
+    }
     // A floated panel stays inside the part of the preview that shows.
     let bounds = ui.max_rect().intersect(ui.clip_rect());
     let mut content = Content { mock, panels, requested: None };

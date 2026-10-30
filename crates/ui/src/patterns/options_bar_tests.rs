@@ -245,7 +245,7 @@ fn the_story_names_every_control() {
         let story = stories().remove(0);
         let mut args = options_cell::BarArgs { narrow: false, session: true, disabled: false, two_rows, width: 1200.0 }.to_args();
         let show = story.show;
-        let mut harness = harness(dir, 800.0).build_ui(move |ui| show(ui, &mut args));
+        let mut harness = harness(dir, 1200.0).build_ui(move |ui| show(ui, &mut args));
         harness.run();
         a11y::assert_labelled(&harness);
     }

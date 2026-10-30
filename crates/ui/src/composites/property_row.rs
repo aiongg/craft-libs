@@ -577,7 +577,7 @@ fn apply(edit: &EditResponse<f64>, value: &mut f64) {
 /// section (Opacity and Angle; word labels that scrub), in a panel `width` wide. `mixed` shows
 /// every value as mixed.
 pub(super) fn show_inspector(ui: &mut Ui, args: &mut InspectorArgs) {
-    let (mixed, width) = (args.mixed, args.width);
+    let (mixed, width) = (args.mixed, args.width.min(ui.available_width()));
     let state_id = ui.scope_id().with("property-row-inspector");
     let mut v = ui.data(|d| d.get_temp::<Values>(state_id)).unwrap_or(Values {
         w: 640.0,

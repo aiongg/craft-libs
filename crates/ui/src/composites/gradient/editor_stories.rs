@@ -157,7 +157,7 @@ fn show_split(ui: &mut Ui, args: &mut SplitArgs) {
     });
     let (min, max) = (args.min, args.max);
     let (midpoints, fields, enabled) = (args.midpoints, args.fields, args.enabled);
-    host.show(ui, id, args.width, |ui, stops| {
+    host.show(ui, id, args.width.min(ui.available_width()), |ui, stops| {
         GradientEditor::new("split", "Gradient", stops, &numbers)
             .rows(rows)
             .midpoints(midpoints)
@@ -180,7 +180,7 @@ fn show_combined(ui: &mut Ui, args: &mut CombinedArgs) {
         ])
     });
     let fields = args.fields;
-    host.show(ui, id, args.width, |ui, stops| {
+    host.show(ui, id, args.width.min(ui.available_width()), |ui, stops| {
         GradientEditor::new("combined", "Gradient", stops, &numbers)
             .rows(StopRows::Combined)
             .midpoint_range(0.13..=0.87)

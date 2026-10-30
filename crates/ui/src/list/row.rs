@@ -886,7 +886,7 @@ impl Default for Layers {
 /// line, an optional trailing blend label, a hidden (dimmed) layer once its eye is off, and
 /// renaming by double click on the label. Drag down a column to sweep it.
 pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let thumb = args.thumbnails.size();
     let (detail, highlight, layer) = (args.detail, args.highlight_second_row, args.layer_form);
     let state_id = ui.scope_id().with("list-row-story");
