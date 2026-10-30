@@ -77,6 +77,7 @@ controls/search-field/filter = Search field | Filter | Panel | size=Choice { opt
 controls/number-field/states = Number field | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }; edit menu=Bool(true)
 controls/number-field/scrub = Number field | Scrub | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
 controls/number-field/right-to-left = Number field | Right to left | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
+controls/number-field/unit-menu = Number field | Unit menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
 controls/number-field/event-log = Number field | Event log | Panel | update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
 controls/angle-dial/dial = Angle dial | Angle dial | Panel | range=Choice { options: ["-180 to 180", "-360 to 360", "0 to 90"], index: 0 }; orientation=Choice { options: ["counter-clockwise", "clockwise"], index: 0 }; field=Bool(true); size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/angle-dial/dialog = Angle dial | Dialog (field scope) | Panel | 

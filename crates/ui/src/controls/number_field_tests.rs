@@ -1438,3 +1438,44 @@ fn the_menu_key_then_down_down_enter_runs_a_command_and_neither_steps_nor_commit
     let range = egui::text_edit::TextEditState::load(&rig.ctx, rig.id).and_then(|s| s.cursor.char_range()).expect("a cursor");
     assert!(!range.is_empty(), "Select All ran");
 }
+
+/// A secondary click on the field opens the unit menu in place of the edit menu, a pick is
+/// reported to the host and nothing about the value changes.
+#[test]
+fn a_secondary_click_opens_the_unit_menu_and_reports_the_pick() {
+    use crate::menu::MenuItem;
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable as _;
+    struct Host {
+        value: f64,
+        picked: Option<usize>,
+        events: usize,
+        numbers: LocaleNumbers,
+    }
+    let entries: Vec<_> = ["px", "mm", "in"].into_iter().enumerate().map(|(i, u)| MenuItem::new(u, i).radio(i == 0).into()).collect();
+    let mut harness = Harness::builder()
+        .with_size([320.0, 240.0])
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            move |ui, host: &mut Host| {
+                let edit = NumberField::new("size", "Size", host.value, &host.numbers).unit_menu(&entries, &mut host.picked).show(ui);
+                host.events += usize::from(edit.event.is_some());
+            },
+            Host { value: 12.0, picked: None, events: 0, numbers: LocaleNumbers::from_tag("en") },
+        );
+    harness.run();
+    let at = harness.get_by_role(Role::SpinButton).rect().center();
+    harness.hover_at(at);
+    harness.run();
+    let secondary = |pressed| Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    harness.event(secondary(true));
+    harness.event(secondary(false));
+    harness.run();
+    assert!(harness.query_by_label("mm").is_some(), "the unit menu is open");
+    assert!(harness.query_by_label("Undo").is_none(), "the edit menu is not");
+    harness.get_by_label("mm").click();
+    harness.run();
+    let host = harness.state();
+    assert_eq!((host.picked, host.events, host.value), (Some(1), 0, 12.0));
+    assert!(harness.query_by_label("mm").is_none(), "the pick closes the menu");
+}
