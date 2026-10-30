@@ -33,6 +33,12 @@ use egui::{
 #[allow(deprecated)]
 mod tests;
 
+#[cfg(test)]
+mod words_tests;
+
+pub mod words;
+pub use words::{Labels, Word, Words};
+
 /// How long a [`LocalizedDragValue`] keeps marking text it could not read after reverting, in
 /// seconds.
 const REJECTED_FOR: f64 = 2.5;
