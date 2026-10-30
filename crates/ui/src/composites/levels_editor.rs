@@ -826,7 +826,7 @@ fn show_levels(ui: &mut Ui, args: &mut LevelsArgs) {
         .stale(args.stale)
         .captions(args.captions)
         .enabled(!args.disabled)
-        .width(args.width)
+        .width(args.width.min(ui.available_width()))
         .range(range);
     if unit {
         editor = editor.step(0.001).decimals(3).gamma_range(0.1..=10.0);

@@ -118,7 +118,7 @@ const STORY_PANEL_HEIGHT: f32 = 140.0;
 /// A panel `width` wide with a body and, at its bottom, a footer of three buttons, inside the body
 /// margin.
 pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let tokens = Tokens::of(ui);
     let margin = tokens.space.pad.panel;
     ui.allocate_ui(vec2(width, 0.0), |ui| {

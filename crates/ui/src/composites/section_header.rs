@@ -322,7 +322,7 @@ fn opacity_row(ui: &mut Ui, v: &mut Values, numbers: &LocaleNumbers) {
 /// are open at first and Effects is closed. The Effects section's state belongs to the story
 /// (`open`); the others are kept by the headers.
 pub(super) fn show_collapsible(ui: &mut Ui, args: &mut WidthArgs) {
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let (state, mut v) = values(ui, "section-collapsible");
     let numbers = LocaleNumbers::from_tag("en");
     let open_id = state.with("effects-open");
@@ -344,7 +344,7 @@ pub(super) fn show_collapsible(ui: &mut Ui, args: &mut WidthArgs) {
 /// An always-open section header with controls at the trailing end of its title row, over the
 /// same rows.
 pub(super) fn show_always_open(ui: &mut Ui, args: &mut WidthArgs) {
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let (state, mut v) = values(ui, "section-always-open");
     let numbers = LocaleNumbers::from_tag("en");
     ui.allocate_ui(vec2(width, 0.0), |ui| {

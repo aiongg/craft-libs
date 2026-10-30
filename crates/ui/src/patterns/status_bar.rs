@@ -262,7 +262,7 @@ fn info_text(index: usize) -> &'static str {
 
 /// PhotoCraft's status bar: zoom, the chosen info and its menu, a message and the render path.
 fn show_story(ui: &mut Ui, args: &mut StatusArgs) {
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let (message, error, render_path) = (args.message.as_str(), args.error, args.render_path);
     let state_id = ui.scope_id().with("status-bar-demo");
     let mut demo = ui.data(|d| d.get_temp::<Demo>(state_id)).unwrap_or_default();

@@ -156,7 +156,7 @@ fn show_contents(ui: &mut Ui, _: &mut NoArgs) {
 }
 
 fn show_truncate(ui: &mut Ui, args: &mut TruncateArgs) {
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let text = Text::new(args.text.as_str()).role(args.role.role()).truncate();
     ui.allocate_ui(egui::vec2(width, 0.0), |ui| {
         ui.set_max_width(width);

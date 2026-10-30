@@ -58,7 +58,7 @@ fn captions(family: CaptionFamily) -> Frame {
 /// The bar `width` wide, as a picture of a window in the story's state.
 fn show(ui: &mut Ui, args: &mut BarArgs, frame: Frame) {
     let ctx = ui.ctx().clone();
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let state = WindowState { maximized: args.maximized, active: !args.inactive };
     let outer = ctx.direction();
     direction::apply(&ctx, if args.rtl { Direction::Rtl } else { Direction::Ltr });

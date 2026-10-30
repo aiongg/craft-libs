@@ -321,7 +321,7 @@ struct CanvasArgs {
 /// A list filtered by the search text: matches show as rows, none shows the inline empty state.
 fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
     const ITEMS: [&str; 3] = ["New layer", "Open file", "Save as"];
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let needle = args.search.to_lowercase();
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
@@ -339,7 +339,7 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
 
 /// The no-document screen: title, description, two actions and a footer.
 fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
-    let size = vec2(args.width, args.height);
+    let size = vec2(args.width.min(ui.available_width()), args.height);
     ui.allocate_ui(size, |ui| {
         ui.set_min_size(size);
         EmptyState::centred("No document")

@@ -233,7 +233,7 @@ struct EmbeddedArgs {
 
 /// A Layers-like panel: rows in the body and three footer buttons.
 fn show_embedded(ui: &mut Ui, args: &mut EmbeddedArgs) {
-    let size = vec2(args.width, args.height);
+    let size = vec2(args.width.min(ui.available_width()), args.height);
     let (scroll, footer) = (args.scroll, args.footer);
     ui.allocate_ui(size, |ui| {
         let mut panel = Panel::new("story").title("Layers").scroll(scroll).fill(true);
