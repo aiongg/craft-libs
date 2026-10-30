@@ -43,6 +43,7 @@
     "state.selected": "#d4d4d4",
     "surface.background": "#a8a8a8",
     "surface.canvas": "#a0a0a0",
+    "surface.canvas_pattern": "#a0a0a0",
     "surface.panel": "#b8b8b8",
     "surface.shadow": "#00000046",
     "surface.sunken": "#d6d6d6",

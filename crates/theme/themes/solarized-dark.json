@@ -39,6 +39,7 @@
     "state.pressed": "#12596b",
     "surface.background": "#00252f",
     "surface.canvas": "#002b36",
+    "surface.canvas_pattern": "#0a3d4a",
     "surface.panel": "#073642",
     "surface.sunken": "#00252f",
     "text.faint": "#586e75",

@@ -91,6 +91,7 @@ fn source_words(source: ColorSource, anchored_on: Option<ColorToken>) -> String 
         ColorSource::AccentMix { from, to, t } => format!("accent {from} → {to} at {t}"),
         ColorSource::Status(kind, n) => format!("status {} {n}", status(kind)),
         ColorSource::StatusMix { kind, from, to, t } => format!("status {} {from} → {to} at {t}", status(kind)),
+        ColorSource::Toward { from, to, t } => format!("= {} toward {} at {t}", from.path(), to.path()),
         ColorSource::Fixed(c) => format!("fixed {}", c.to_hex()),
         ColorSource::Oklch(l, c, h) => format!("oklch {l} {c} {h}"),
         ColorSource::Same(t) | ColorSource::SolidFrom(t) => format!("= {}", t.path()),
