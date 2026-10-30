@@ -4,7 +4,7 @@ use egui::Frame;
 
 /// The side a slot lies against.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Edge {
+pub enum Edge {
     Top,
     Bottom,
     /// The reading start: left, or right right to left.

@@ -41,11 +41,10 @@ use egui::{Context, Frame, Id, Panel, Rect, Ui, UiBuilder, accesskit::Role};
 pub use canvas::{CanvasLabels, CanvasOutput, CanvasShell, PanelOptions, PanelRail};
 pub use ids::WindowKey;
 pub use screen_mode::{ScreenMode, full_screen_commands};
-pub use slot::{Slot, SlotKey};
+pub use slot::{Edge, Slot, SlotKey};
 pub use visibility::{BodyMode, tab_toggles_chrome, take_tab_toggle};
 
 use ids::State;
-use slot::Edge;
 
 use crate::direction;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -60,6 +59,7 @@ pub struct ShellCx {
     mode: BodyMode,
     revealed: bool,
     tab_reveal: bool,
+    edges: [bool; 3],
     tabs: bool,
     shown: Vec<SlotKey>,
     ctx: Context,
@@ -96,8 +96,21 @@ impl ShellCx {
         self.revealed
     }
 
+    /// Is the edge reveal on for `edge`? Only the top, start and end edges reveal. False in
+    /// normal mode and during the Tab reveal.
+    pub fn edge_revealed(&self, edge: Edge) -> bool {
+        visibility::index(edge).is_some_and(|i| self.edges[i])
+    }
+
+    /// Whether the host's dock and panel rail show: in normal mode, during the Tab reveal and
+    /// during the end-edge reveal.
+    pub fn dock_visible(&self) -> bool {
+        self.mode == BodyMode::Normal || self.tab_reveal || self.edge_revealed(Edge::End)
+    }
+
     /// Registers the id of the body's canvas widget, so [`tab_toggles_chrome`] counts focus on
-    /// it as "no control has focus".
+    /// it as "no control has focus". Call it on every pass the body has a canvas; a pass
+    /// without the call (a start screen, a document switch) registers none.
     pub fn canvas(&self, id: Id) {
         ids::set_canvas(&self.ctx, id);
     }
@@ -270,6 +283,9 @@ impl<'a> AppShell<'a> {
             !bare || (title.is_none() && top.is_empty() && bottom.is_empty() && start.is_empty() && end.is_empty()),
             "craft-ui: slots added to a bare AppShell"
         );
+        // Slots shown by the edge reveal alone overlay the body; the Tab reveal pushes the layout.
+        let overlay = mode == BodyMode::Only && !state.tab;
+        let mut free = rect;
         let mut seen: Vec<SlotKey> = Vec::new();
         let mut shown: Vec<SlotKey> = Vec::new();
         let mut rects: Vec<(SlotKey, Rect)> = Vec::new();
@@ -287,22 +303,45 @@ impl<'a> AppShell<'a> {
                     continue;
                 }
                 let size = slot.size.unwrap_or_else(|| default_size(&slot, edge));
-                let panel = match edge {
-                    Edge::Top => Panel::top(ids::slot_salt(&window, slot.key)),
-                    Edge::Bottom => Panel::bottom(ids::slot_salt(&window, slot.key)),
-                    Edge::Start => direction::start_panel(&ctx, ids::slot_salt(&window, slot.key)),
-                    Edge::End => direction::end_panel(&ctx, ids::slot_salt(&window, slot.key)),
-                };
                 let mut builder = UiBuilder::new().accessibility_role(Role::Region);
                 if let Some(label) = &slot.label {
                     builder = builder.accessibility_label(label.as_str());
                 }
-                let r = panel.resizable(false).show_separator_line(false).frame(slot.frame.unwrap_or(Frame::NONE)).exact_size(size).show(ui, |ui| {
-                    ui.scope_builder(builder, add);
-                });
+                let frame = slot.frame.unwrap_or(Frame::NONE);
+                let salt = ids::slot_salt(&window, slot.key);
+                let r = if overlay {
+                    // An edge reveal floats over the body, which does not move.
+                    let rect = overlay_rect(&ctx, &mut free, edge, size);
+                    let inner = rect.size() - frame.total_margin().sum();
+                    let area = egui::Area::new(salt).order(egui::Order::Middle).fixed_pos(rect.min).constrain(false).show(&ctx, |ui| {
+                        frame.show(ui, |ui| {
+                            ui.set_min_size(inner);
+                            ui.set_max_size(inner);
+                            ui.scope_builder(builder, add);
+                        });
+                    });
+                    area.response.rect
+                } else {
+                    let panel = match edge {
+                        Edge::Top => Panel::top(salt),
+                        Edge::Bottom => Panel::bottom(salt),
+                        Edge::Start => direction::start_panel(&ctx, salt),
+                        Edge::End => direction::end_panel(&ctx, salt),
+                    };
+                    panel
+                        .resizable(false)
+                        .show_separator_line(false)
+                        .frame(frame)
+                        .exact_size(size)
+                        .show(ui, |ui| {
+                            ui.scope_builder(builder, add);
+                        })
+                        .response
+                        .rect
+                };
                 shown.push(slot.key);
-                rects.push((slot.key, r.response.rect));
-                placed.push((edge, r.response.rect));
+                rects.push((slot.key, r));
+                placed.push((edge, r));
             }
         }
 
@@ -311,7 +350,7 @@ impl<'a> AppShell<'a> {
             BodyMode::Normal => backdrop.unwrap_or_else(|| shell_tokens.backdrop.to_egui()),
         };
         let revealed = mode == BodyMode::Only && !shown.is_empty();
-        let cx = ShellCx { window: window.clone(), mode, revealed, tab_reveal: state.tab, tabs, shown, ctx: ctx.clone() };
+        let cx = ShellCx { window: window.clone(), mode, revealed, tab_reveal: state.tab, edges: state.edges, tabs, shown, ctx: ctx.clone() };
         let mut builder = UiBuilder::new().accessibility_role(Role::Main);
         if let Some(label) = &body_label {
             builder = builder.accessibility_label(label.as_str());
@@ -324,5 +363,30 @@ impl<'a> AppShell<'a> {
 
         ids::set_state(&ctx, &window, State { shown: placed, ..state });
         ShellOutput { inner, body: body_rect, revealed, slots: rects }
+    }
+}
+
+/// The rect of an overlaid slot of `size` against `edge` of `free`, which then shrinks by it.
+fn overlay_rect(ctx: &Context, free: &mut Rect, edge: Edge, size: f32) -> Rect {
+    let whole = *free;
+    match edge {
+        Edge::Top => {
+            free.min.y = (whole.min.y + size).min(whole.max.y);
+            Rect::from_min_max(whole.min, egui::pos2(whole.max.x, free.min.y))
+        }
+        Edge::Bottom => {
+            free.max.y = (whole.max.y - size).max(whole.min.y);
+            Rect::from_min_max(egui::pos2(whole.min.x, free.max.y), whole.max)
+        }
+        Edge::Start | Edge::End => {
+            let at_left = (edge == Edge::Start) != direction::is_rtl(ctx);
+            if at_left {
+                free.min.x = (whole.min.x + size).min(whole.max.x);
+                Rect::from_min_max(whole.min, egui::pos2(free.min.x, whole.max.y))
+            } else {
+                free.max.x = (whole.max.x - size).max(whole.min.x);
+                Rect::from_min_max(egui::pos2(free.max.x, whole.min.y), whole.max)
+            }
+        }
     }
 }

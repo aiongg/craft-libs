@@ -240,9 +240,9 @@ impl ShellCx {
     /// Lays out the canvas panel in `ui` (the dock's canvas panel): the panel rail at the end
     /// edge, drawn first and spanning the tabs and the document; then, in what is left, the
     /// document tab strip (only while [`tabs_visible`](Self::tabs_visible) or
-    /// [`PanelOptions::opening`]), flush against the document; then the document area, which
+    /// [`PanelOptions::opening`] in normal mode), flush against the document; then the document area, which
     /// the backdrop of the shell shows through. The rail is skipped when its `visible` flag is
-    /// off, and in body-only mode. With no documents the host draws its start screen instead
+    /// off, and when the dock is hidden ([`dock_visible`](Self::dock_visible)). With no documents the host draws its start screen instead
     /// and does not call this.
     pub fn canvas_panel_with<R>(
         &self,
@@ -254,7 +254,7 @@ impl ShellCx {
         let ctx = ui.ctx().clone();
         let tab_height = Tokens::of(ui).size.bar.tab;
         let mut rail_rect = None;
-        if let Some(rail) = options.rail.filter(|r| r.visible && self.body_mode() == BodyMode::Normal) {
+        if let Some(rail) = options.rail.filter(|r| r.visible && self.dock_visible()) {
             let salt = Id::unique(("app_shell", self.window().as_str(), "panel_rail"));
             let mut builder = UiBuilder::new().accessibility_role(Role::Region);
             if let Some(label) = &rail.label {
@@ -270,7 +270,7 @@ impl ShellCx {
             rail_rect = Some(r.response.rect);
         }
         let mut tabs_rect = None;
-        if self.tabs_visible() || options.opening {
+        if self.tabs_visible() || (options.opening && self.body_mode() == BodyMode::Normal) {
             let salt = Id::unique(("app_shell", self.window().as_str(), "document_tabs"));
             let r = egui::Panel::top(salt).resizable(false).show_separator_line(false).frame(Frame::NONE).exact_size(tab_height).show(ui, |ui| {
                 // The tab strip sits directly against the document: no gap from the parent's spacing.
