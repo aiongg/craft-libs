@@ -37,19 +37,27 @@ pub struct FlyoutItem<T> {
     icon: Icon,
     label: String,
     shortcut: Option<String>,
+    enabled: bool,
 }
 
 impl<T> FlyoutItem<T> {
     /// A choice that reports `command` when chosen. `label` is its row's text; translate it in the
     /// app.
     pub fn new(command: T, icon: Icon, label: impl Into<String>) -> Self {
-        Self { command, icon, label: label.into(), shortcut: None }
+        Self { command, icon, label: label.into(), shortcut: None, enabled: true }
     }
 
     /// The key that selects it elsewhere, shown at the row's end ("B").
     #[must_use]
     pub fn shortcut(mut self, shortcut: impl Into<String>) -> Self {
         self.shortcut = Some(shortcut.into());
+        self
+    }
+
+    /// Whether the row can be chosen; default `true`.
+    #[must_use]
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
         self
     }
 }
@@ -113,13 +121,14 @@ pub struct FlyoutButton<'a, T> {
     current: Option<&'a T>,
     selected: bool,
     enabled: bool,
+    shortcut: Option<String>,
 }
 
 impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
     /// A button showing `icon` and named `label` (its tooltip and accessible name). It has no
     /// flyout until [`items`](Self::items) gives it several choices.
     pub fn new(id_salt: impl AsIdSalt, icon: Icon, label: impl Into<String>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), icon, label: label.into(), items: &[], current: None, selected: false, enabled: true }
+        Self { id_salt: IdSalt::new(id_salt), icon, label: label.into(), items: &[], current: None, selected: false, enabled: true, shortcut: None }
     }
 
     /// The choices of the flyout. With fewer than two the button is a plain button.
@@ -143,6 +152,13 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
     /// Whether it takes input; default `true`.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// The key that selects the shown item elsewhere ("B"): the tooltip reads "Label  (B)" and the
+    /// accessible description is the key.
+    pub fn shortcut(mut self, shortcut: impl Into<String>) -> Self {
+        self.shortcut = Some(shortcut.into());
         self
     }
 
@@ -182,14 +198,16 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
         }
         let from_button = ctx.data(|d| d.get_temp::<bool>(opening_press)).unwrap_or(false);
         let tips = !open && !ui.input(|i| i.pointer.primary_down());
-        let response = ui.add(
-            IconButton::new(self.icon, self.label.as_str())
-                .with_id(id)
-                .with_style(style.icon_button)
-                .selected(self.selected)
-                .enabled(self.enabled)
-                .show_tooltip(tips),
-        );
+        let mut button = IconButton::new(self.icon, self.label.as_str())
+            .with_id(id)
+            .with_style(style.icon_button)
+            .selected(self.selected)
+            .enabled(self.enabled)
+            .show_tooltip(tips);
+        if let Some(shortcut) = &self.shortcut {
+            button = button.shortcut(shortcut.as_str());
+        }
+        let response = ui.add(button);
         if multi && ui.is_rect_visible(response.rect) {
             paint_indicator(ui, &response, &style);
         }
@@ -240,7 +258,10 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
                 .items
                 .iter()
                 .map(|item| {
-                    let row = MenuItem::new(item.label.clone(), item.command.clone()).icon(item.icon).radio(self.current == Some(&item.command));
+                    let row = MenuItem::new(item.label.clone(), item.command.clone())
+                        .icon(item.icon)
+                        .radio(self.current == Some(&item.command))
+                        .enabled(item.enabled);
                     match &item.shortcut {
                         Some(keys) => row.shortcut(Kbd::keys(&[keys])),
                         None => row,

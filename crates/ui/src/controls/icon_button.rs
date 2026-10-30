@@ -57,6 +57,7 @@ pub struct IconButton<'a> {
     on: Option<&'a mut bool>,
     selected: Option<bool>,
     show_tooltip: bool,
+    shortcut: Option<String>,
     badge: Option<Srgba>,
     enabled: bool,
     focusable: bool,
@@ -74,6 +75,7 @@ impl<'a> IconButton<'a> {
             on: None,
             selected: None,
             show_tooltip: true,
+            shortcut: None,
             badge: None,
             enabled: true,
             focusable: true,
@@ -105,6 +107,13 @@ impl<'a> IconButton<'a> {
     /// the screen reader description.
     pub fn show_tooltip(mut self, show: bool) -> Self {
         self.show_tooltip = show;
+        self
+    }
+
+    /// The key that selects the same thing elsewhere ("B"). The tooltip reads "Label  (B)"; the
+    /// label stays the accessible name and the shortcut is the description.
+    pub fn shortcut(mut self, shortcut: impl Into<String>) -> Self {
+        self.shortcut = Some(shortcut.into());
         self
     }
 
@@ -222,10 +231,19 @@ impl IconButton<'_> {
                 ui.painter().circle(center, r, Color32::from(badge), style.badge_edge);
             }
         }
+        let tip = match &self.shortcut {
+            Some(shortcut) => {
+                if response.ctx.has_accesskit_node(response.id) {
+                    response.ctx.accesskit_node_builder(response.id, |node| node.set_description(shortcut.as_str()));
+                }
+                format!("{}  ({shortcut})", self.label)
+            }
+            None => self.label.clone(),
+        };
         if self.show_tooltip {
-            response.tooltip(&self.label)
+            response.tooltip(tip)
         } else {
-            response.describe_for_accessibility(&self.label);
+            response.describe_for_accessibility(&tip);
             response
         }
     }
