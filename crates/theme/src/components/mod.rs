@@ -34,6 +34,7 @@ mod handle;
 mod histogram;
 mod icon_button;
 mod identify;
+mod inspector;
 mod kbd;
 mod levels;
 mod list;
@@ -107,6 +108,7 @@ pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use histogram::{HistogramField, HistogramTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
+pub use inspector::{InspectorField, InspectorTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use levels::{LevelsField, LevelsTokens};
 pub use list::{ListField, ListTokens};
@@ -688,6 +690,8 @@ families! {
     histogram: HistogramTokens => Histogram(HistogramField);
     /// Square icon-only buttons.
     icon_button: IconButtonTokens => IconButton(IconButtonField);
+    /// Inspectors: the body of a Properties panel and its target header.
+    inspector: InspectorTokens => Inspector(InspectorField);
     /// Key chords and keycaps.
     kbd: KbdTokens => Kbd(KbdField);
     /// Levels editors: the triangle thumbs and output bar under a histogram.

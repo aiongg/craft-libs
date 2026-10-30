@@ -718,6 +718,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 2
             // Colour wheel: the disc's spoke.
             + 1
+            // Inspector: the header's name and kind colours.
+            + 2
             // Preset browser: border, hover ring, caption and count.
             + 4
             // App shell: the backdrop.

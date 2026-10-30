@@ -1275,6 +1275,21 @@ pub const fn command_palette_row_height(size: Size) -> f32 {
     }
 }
 
+/// Height of an inspector's target header: PhotoCraft's 24 (`props_layout::header`) at Compact.
+pub const fn inspector_header_height(size: Size) -> f32 {
+    match size {
+        Size::Compact => 24.0,
+        Size::Comfortable => 30.0,
+    }
+}
+/// Side of the kind icon in an inspector's target header.
+pub const fn inspector_icon(size: Size) -> f32 {
+    match size {
+        Size::Compact => 15.0,
+        Size::Comfortable => 18.0,
+    }
+}
+
 /// The control height the Compact readout sizes are set for.
 pub const READOUT_BASE_CONTROL: f32 = 24.0;
 /// Compact distance from the pointer to a readout's corner, across and down (PhotoCraft's).

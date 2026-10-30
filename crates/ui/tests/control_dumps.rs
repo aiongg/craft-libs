@@ -16,7 +16,7 @@ use craft_ui::controls::{
 use craft_ui::docking::DockLook;
 use craft_ui::list::ListRow;
 use craft_ui::menu::Menu;
-use craft_ui::patterns::{CommandPalette, OptionsBar, StatusBar};
+use craft_ui::patterns::{CommandPalette, Inspector, OptionsBar, StatusBar};
 use craft_ui::presets::style::PresetStyle;
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::tab_strip::Tab;
@@ -545,6 +545,16 @@ fn command_palette() {
         d.line("width", s.width).line("top", s.top).line("pad", s.pad).line("row_height", s.row_height);
         d.line("max_rows", s.max_rows).line("recent", s.recent).line("scrim", s.scrim);
         surface(d, "surface", &s.surface);
+    });
+}
+
+/// Inspectors: the header row's height and icon, the body padding and the name and kind text.
+#[test]
+fn inspector() {
+    check("inspector.txt", |d, t| {
+        let s = Inspector::style(t);
+        d.line("header_height", s.header_height).line("icon", s.icon).line("pad", s.pad).line("gap", s.gap).line("icon_color", s.icon_color);
+        d.line("title_role", role(s.title_role)).line("title", s.title).line("kind_role", role(s.kind_role)).line("kind", s.kind);
     });
 }
 

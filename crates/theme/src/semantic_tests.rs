@@ -248,6 +248,13 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
                 minimum: 4.5,
             });
         }
+        // An inspector's kind text is `text.faint` on the panel.
+        expected.push(ContrastCheck {
+            fg: ComponentField::Inspector(InspectorField::Kind).into(),
+            bg: T::SurfacePanel.into(),
+            ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
+            minimum: 4.5,
+        });
         // A list row's dimmed label and its detail line are `text.faint` on the panel.
         for f in [ComponentField::List(ListField::Dimmed), ComponentField::List(ListField::Detail), ComponentField::Preset(PresetField::Count)] {
             expected.push(ContrastCheck {
@@ -706,6 +713,17 @@ fn command_palette_sizes_are_photocraft_with_a_taller_row_when_comfortable() {
     let (compact, comfy) = (at(Size::Compact), at(Size::Comfortable));
     assert_eq!((compact.width, compact.top, compact.pad, compact.row_height, compact.max_rows, compact.recent), (560.0, 110.0, 10.0, 32.0, 12, 8));
     assert_eq!((comfy.width, comfy.row_height), (560.0, 38.0));
+}
+
+#[test]
+fn inspector_sizes_are_photocraft_header_with_a_taller_row_when_comfortable() {
+    let def = grey_blue();
+    let at = |size| resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
+    let (compact, comfy) = (at(Size::Compact), at(Size::Comfortable));
+    let (c, k) = (compact.component.inspector, comfy.component.inspector);
+    assert_eq!((c.header_height, c.icon, k.header_height, k.icon), (24.0, 15.0, 30.0, 18.0));
+    assert_eq!(c.pad, compact.space.pad.panel);
+    assert_eq!((c.title, c.kind), (compact.color(T::TextNormal), compact.color(T::TextFaint)));
 }
 
 #[test]

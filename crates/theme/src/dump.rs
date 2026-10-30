@@ -11,12 +11,12 @@ use crate::{
     CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge,
     Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens,
     GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes,
-    ItemColors, KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens,
-    NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens,
-    PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens,
-    ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, States,
-    StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens,
-    Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    InspectorTokens, ItemColors, KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion,
+    MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens,
+    PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens,
+    Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
+    SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
+    ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -256,6 +256,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         handle,
         histogram,
         icon_button,
+        inspector,
         kbd,
         levels,
         list,
@@ -320,6 +321,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     handle_lines(out, handle);
     histogram_lines(out, histogram);
     icon_button_lines(out, icon_button);
+    inspector_lines(out, inspector);
     kbd_lines(out, kbd);
     levels_lines(out, levels);
     list_lines(out, list);
@@ -1647,6 +1649,15 @@ fn menu_lines(out: &mut Lines, m: &MenuTokens) {
         out.line(&format!("menu.tint.{}.text", hue.name()), hex(tint.text));
         out.line(&format!("menu.tint.{}.shortcut", hue.name()), hex(tint.shortcut));
     }
+}
+
+fn inspector_lines(out: &mut Lines, t: &InspectorTokens) {
+    let InspectorTokens { header_height, icon, pad, title, kind } = t;
+    out.line("inspector.header_height", len(*header_height));
+    out.line("inspector.icon", len(*icon));
+    out.line("inspector.pad", len(*pad));
+    out.line("inspector.title", hex(*title));
+    out.line("inspector.kind", hex(*kind));
 }
 
 fn kbd_lines(out: &mut Lines, k: &KbdTokens) {
