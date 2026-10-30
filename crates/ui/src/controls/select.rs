@@ -9,13 +9,13 @@ use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::{self, HasPopup, Role};
 use egui::emath::GuiRounding as _;
 use egui::{
-    AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Popup, PopupCloseBehavior, Rect, Shape, Stroke, Ui, UiBuilder, pos2,
-    vec2,
+    AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Painter, Popup, PopupCloseBehavior, Rect, Shape, Stroke, Ui, UiBuilder, Vec2,
+    pos2, vec2,
 };
 
 use super::field_wheel;
 use super::option_list::{
-    OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
+    Leading, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
     text_galley,
 };
 use super::text_field::{BoxState, field_box};
@@ -168,11 +168,18 @@ pub struct Select<'a, T> {
     search: Option<(String, String)>,
     wheel_steps: bool,
     fit: bool,
+    content: Option<RowContent<'a, T>>,
     highlighted: Option<&'a mut Option<T>>,
     placeholder: String,
     size: ControlSize,
     policy: EditPolicy,
     enabled: bool,
+}
+
+/// What a host draws in each row and in the closed box, before the text.
+struct RowContent<'a, T> {
+    size: Vec2,
+    paint: Box<dyn Fn(&Painter, Rect, &T) + 'a>,
 }
 
 /// `count` options of one height, each `value(index)` showing `text(index)`.
@@ -214,6 +221,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             search: None,
             wheel_steps: false,
             fit: false,
+            content: None,
             highlighted: None,
             placeholder: String::new(),
             size: ControlSize::Md,
@@ -299,6 +307,17 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
+    /// Content of the host's own before each option's text, in the list and in the closed box:
+    /// `paint` draws the option `value` into a box of `size` (centred on the row's height, after
+    /// the check mark and icon), clipped to it, in place of an icon (a gradient's preview strip).
+    /// The text stays, so the row keeps its name, search and width. The box is not measured
+    /// against the text: a `fit` box adds `size.x`. The closed box draws it only for a value that
+    /// is one of the options.
+    pub fn row_content(mut self, size: Vec2, paint: impl Fn(&Painter, Rect, &T) + 'a) -> Self {
+        self.content = Some(RowContent { size, paint: Box::new(paint) });
+        self
+    }
+
     /// While the list is open, writes the option under the pointer to `out`, else `None`. It is
     /// not an edit: hovering sends no `Update` and leaves the value alone. A host that previews
     /// the option applies `*out` and restores its own value when `*out` becomes `None`, as the
@@ -335,7 +354,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     /// Shows the box, and the list while it is open, and returns this frame's edit. The response
     /// covers the box.
     pub fn show(self, ui: &mut Ui) -> EditResponse<T> {
-        let Self { id_salt, label, value, entries, rows, search, wheel_steps, fit, highlighted, placeholder, size, policy, enabled } = self;
+        let Self { id_salt, label, value, entries, rows, search, wheel_steps, fit, content, highlighted, placeholder, size, policy, enabled } = self;
         let source = rows.map_or(Source::Entries(entries), Source::Rows);
         let tokens = Tokens::of(ui);
         let style = Select::style(&tokens, size);
@@ -375,7 +394,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             action = Some(Action::Close { reason: CancelReason::Disabled, focus: false });
         }
 
-        let width = box_width(ui, id, &style.field, fit.then_some(&options));
+        let width = box_width(ui, id, &style.field, fit.then_some(&options), content.as_ref().map(|c| c.size.x));
         let (_, rect) = ui.allocate_space(vec2(width, style.field.height));
         let response = Interactive::with_id(id, Role::ComboBox, label.as_str())
             .expanded(state.open)
@@ -420,7 +439,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
                 .height(style.list.max_height + header)
                 .surface(style.popup);
-            let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref() };
+            let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref(), content: content.as_ref() };
             keyed_active = pass.listbox.active();
             let picked = list.show(ui, popup, &mut pass, &mut drawn_active, &mut pointed);
 
@@ -489,6 +508,12 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         state.store(ui, id);
 
         let text = shown_option.map(|o| options.text(o));
+        let paint_value = |painter: &Painter, rect: Rect| {
+            if let Some(content) = &content {
+                (content.paint)(painter, rect, &*value);
+            }
+        };
+        let leading = content.as_ref().filter(|_| shown_option.is_some()).map(|c| Leading { size: c.size, paint: &paint_value });
         let focused = open || ui.memory(|m| m.has_focus(id));
         paint_box(
             ui,
@@ -497,6 +522,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             BoxContent {
                 text: text.as_deref(),
                 icon: shown_option.and_then(|o| options.icon(o)),
+                leading,
                 placeholder: &placeholder,
                 size,
                 enabled,
@@ -996,19 +1022,20 @@ fn lines<'s, T: Clone + PartialEq>(source: &'s Source<'_, T>, shown: &Shown<'_, 
 }
 
 /// The popup list of a frame.
-struct List<'l> {
+struct List<'l, T> {
     style: &'l SelectStyle,
     size: ControlSize,
     id: Id,
     chosen: Option<usize>,
     enabled: bool,
     search: Option<&'l (String, String)>,
+    content: Option<&'l RowContent<'l, T>>,
 }
 
-impl List<'_> {
+impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
     /// Shows the list in `popup` and returns the option chosen in it this frame; `drawn_active` is
     /// the active option when its row was drawn.
-    fn show<T: Clone + PartialEq + Send + Sync + 'static>(
+    fn show(
         &self,
         ui: &Ui,
         popup: PopupList<'_>,
@@ -1059,10 +1086,17 @@ impl List<'_> {
         };
         let mut option_row = |ui: &mut Ui, option: usize, listbox: &mut Listbox| {
             let text = options.text(option);
+            let value = self.content.map(|_| options.value(option));
+            let paint = |painter: &Painter, rect: Rect| {
+                if let (Some(content), Some(value)) = (self.content, &value) {
+                    (content.paint)(painter, rect, value);
+                }
+            };
             let row = OptionRow {
                 option,
                 text: &text,
                 icon: options.icon(option),
+                leading: self.content.map(|c| Leading { size: c.size, paint: &paint }),
                 chosen: self.chosen == Some(option),
                 enabled: options.enabled(option),
                 tooltip: options.tooltip(option),
@@ -1183,10 +1217,10 @@ fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<
 
 /// The box's width: all the room in a justified layout, else `field.width`, or the width that
 /// fits `fit`'s options (not rows).
-fn box_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, fit: Option<&Options<'_, '_, T>>) -> f32 {
+fn box_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, fit: Option<&Options<'_, '_, T>>, content: Option<f32>) -> f32 {
     match fit {
         _ if ui.layout().horizontal_justify() => ui.available_width(),
-        Some(options) if !options.rows() => fitted_width(ui, id, f, options),
+        Some(options) if !options.rows() => fitted_width(ui, id, f, options) + content.map_or(0.0, |w| w + f.gap),
         _ => f.width,
     }
 }
@@ -1219,6 +1253,7 @@ fn fitted_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, optio
 struct BoxContent<'b> {
     text: Option<&'b str>,
     icon: Option<Icon>,
+    leading: Option<Leading<'b>>,
     placeholder: &'b str,
     size: ControlSize,
     enabled: bool,
@@ -1250,6 +1285,10 @@ fn paint_box(ui: &Ui, style: &SelectStyle, response: &egui::Response, content: B
     if let Some(icon) = content.icon {
         icons::paint(ui, square(start + forward * f.icon / 2.0), icon, icon_size(content.size), text_color);
         start += forward * (f.icon + f.gap);
+    }
+    if let Some(leading) = content.leading {
+        leading.paint(ui, start, rect.center().y);
+        start += forward * (leading.size.x + f.gap);
     }
     let (text, color) = match content.text {
         Some(text) => (text, text_color),
@@ -1303,6 +1342,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_wheel_steps
         ),
         typed_story!("controls/select/searchable", Level::Controls, "Select", "Searchable", SearchableArgs { size: SizeArg::Md }, show_searchable),
+        typed_story!("controls/select/row-content", Level::Controls, "Select", "Row content", SearchableArgs { size: SizeArg::Md }, show_row_content),
     ]
 }
 
@@ -1491,6 +1531,36 @@ const LOG_WIDTH: f32 = 360.0;
 const FONT_STEMS: [&str; 12] =
     ["Garamond", "Helvetica", "Futura", "Baskerville", "Bodoni", "Caslon", "Didot", "Frutiger", "Gill", "Optima", "Rockwell", "Univers"];
 const FONT_STYLES: [&str; 6] = ["", " Light", " Medium", " Bold", " Condensed", " Display"];
+
+/// Gradient presets: each row and the closed box show the strip before the name.
+fn show_row_content(ui: &mut Ui, args: &mut SearchableArgs) {
+    const PRESETS: [(&str, Color32, Color32); 3] = [
+        ("Sunset", Color32::from_rgb(0xff, 0x7a, 0x18), Color32::from_rgb(0x6a, 0x1b, 0x9a)),
+        ("Ocean", Color32::from_rgb(0x2e, 0xc4, 0xb6), Color32::from_rgb(0x1b, 0x2a, 0x6a)),
+        ("Mono", Color32::WHITE, Color32::BLACK),
+    ];
+    let size = args.size.control();
+    with_choices(ui, "select-row-content", [0], |ui, choices| {
+        variant_list(ui, "select-row-content", |form| {
+            variant_row(form, "Preset", |ui| {
+                let mut select = Select::new("select-preset", "Preset", &mut choices[0]).size(size).row_content(vec2(48.0, 16.0), |painter, rect, i| {
+                    let (_, from, to) = PRESETS[*i];
+                    let steps = 12;
+                    for step in 0..steps {
+                        let t = step as f32 / (steps - 1) as f32;
+                        let x = |k: usize| rect.left() + rect.width() * k as f32 / steps as f32;
+                        let band = Rect::from_x_y_ranges(x(step)..=x(step + 1), rect.y_range());
+                        painter.rect_filled(band, 0.0, from.lerp_to_gamma(to, t));
+                    }
+                });
+                for (i, (name, ..)) in PRESETS.into_iter().enumerate() {
+                    select = select.option(i, name);
+                }
+                select.show(ui)
+            });
+        });
+    });
+}
 
 /// A searchable font list of 72 rows, laid out only in view.
 fn show_searchable(ui: &mut Ui, args: &mut SearchableArgs) {

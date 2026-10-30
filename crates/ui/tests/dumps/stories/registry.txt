@@ -41,6 +41,7 @@ controls/segmented/icons = Segmented | Icons | Panel | size=Choice { options: ["
 controls/select/states = Select | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); fit=Bool(false)
 controls/select/wheel-steps = Select | Wheel steps | Panel | size=Choice { options: ["sm", "md"], index: 1 }; wheel steps=Bool(true)
 controls/select/searchable = Select | Searchable | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/select/row-content = Select | Row content | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 controls/combo-box/states = Combo box | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 controls/combo-box/font-size = Combo box | Font size | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 controls/link/inline = Link | Inline | Panel | label=Text("release notes")

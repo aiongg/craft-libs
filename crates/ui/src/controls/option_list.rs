@@ -10,7 +10,7 @@ use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{Color32, Galley, Id, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, ViewportId, pos2, vec2};
+use egui::{Color32, Galley, Id, Painter, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, ViewportId, pos2, vec2};
 
 use super::{ListboxStyle, TextFieldStyle, TooltipExt as _, icon_size};
 use crate::behavior::Listbox;
@@ -52,11 +52,34 @@ pub(super) enum Hover {
     Highlights,
 }
 
+/// Content a host draws in an option's row, between the icon and the text, in a box of `size`
+/// centred on the row's height. The painter is clipped to the box.
+#[derive(Clone, Copy)]
+pub(super) struct Leading<'t> {
+    pub size: Vec2,
+    pub paint: &'t dyn Fn(&Painter, Rect),
+}
+
+impl Leading<'_> {
+    /// The box at `from` (a reading-start x), running forward, centred on `y`.
+    pub(super) fn rect(&self, ui: &Ui, from: f32, y: f32) -> Rect {
+        let to = from + direction::forward(ui) * self.size.x;
+        Rect::from_x_y_ranges(from.min(to)..=from.max(to), (y - self.size.y / 2.0)..=(y + self.size.y / 2.0)).round_to_pixels(ui.pixels_per_point())
+    }
+
+    /// Draws the content in its box at `from`, clipped to it.
+    pub(super) fn paint(&self, ui: &Ui, from: f32, y: f32) {
+        let rect = self.rect(ui, from, y);
+        (self.paint)(&ui.painter().with_clip_rect(rect), rect);
+    }
+}
+
 /// One option's row.
 pub(super) struct OptionRow<'t> {
     pub option: usize,
     pub text: &'t str,
     pub icon: Option<Icon>,
+    pub leading: Option<Leading<'t>>,
     pub chosen: bool,
     pub enabled: bool,
     /// A hover tooltip on the row; it is also the row's accessible description.
@@ -91,7 +114,7 @@ impl<'r> OptionRows<'r> {
     /// a click or that press's release over it picks it.
     pub(super) fn show(&self, ui: &mut Ui, listbox: &mut Listbox, row: &OptionRow<'_>) -> RowOutcome {
         let enabled = self.enabled && row.enabled;
-        let size = vec2(ui.available_width().max(self.width(ui, row.text)), self.style.height);
+        let size = vec2(ui.available_width().max(self.width(ui, row.text, row.leading)), self.style.height);
         let response = Interactive::with_id(option_id(self.owner, row.option), Role::ListBoxOption, row.text)
             .sense(Sense::CLICK)
             .selected(row.chosen)
@@ -110,8 +133,16 @@ impl<'r> OptionRows<'r> {
         // list opened on and the pointer has left is only the chosen one, as in PhotoCraft.
         let lit = (active && (listbox.keyboard() || response.contains_pointer()))
             || (self.hover == Hover::Highlights && enabled && response.contains_pointer());
-        let look =
-            RowLook { text: row.text, icon: row.icon, icons: self.icons, chosen: row.chosen, lit, focus: active && listbox.keyboard(), enabled };
+        let look = RowLook {
+            text: row.text,
+            icon: row.icon,
+            leading: row.leading,
+            icons: self.icons,
+            chosen: row.chosen,
+            lit,
+            focus: active && listbox.keyboard(),
+            enabled,
+        };
         paint_row(ui, self.style, self.size, response.rect, &look);
         let pointed = enabled && response.contains_pointer();
         let rect = response.rect;
@@ -123,10 +154,10 @@ impl<'r> OptionRows<'r> {
 
     /// The width a row needs: its text, the check mark and the icon with their gaps, and the
     /// padding.
-    fn width(&self, ui: &Ui, text: &str) -> f32 {
+    fn width(&self, ui: &Ui, text: &str, leading: Option<Leading<'_>>) -> f32 {
         let s = self.style;
         let galley = text_galley(ui, s.label, text, Color32::PLACEHOLDER, f32::INFINITY);
-        2.0 * s.pad_x + text_offset(s, self.icons) + galley.size().x
+        2.0 * s.pad_x + text_offset(s, self.icons, leading) + galley.size().x
     }
 }
 
@@ -139,6 +170,7 @@ pub(super) fn rows_in_view(ui: &Ui, row_height: f32) -> usize {
 struct RowLook<'r> {
     text: &'r str,
     icon: Option<Icon>,
+    leading: Option<Leading<'r>>,
     icons: bool,
     chosen: bool,
     /// Active with the keyboard or the pointer on it, or under the pointer where the pointer only
@@ -150,9 +182,9 @@ struct RowLook<'r> {
 }
 
 /// From a row's reading start to its text, inside the padding: the check mark and, when the list
-/// has icons, an icon, each followed by the gap.
-fn text_offset(s: &ListboxStyle, icons: bool) -> f32 {
-    (s.icon + s.gap) * if icons { 2.0 } else { 1.0 }
+/// has icons, an icon, and the host's content, each followed by the gap.
+fn text_offset(s: &ListboxStyle, icons: bool, leading: Option<Leading<'_>>) -> f32 {
+    (s.icon + s.gap) * if icons { 2.0 } else { 1.0 } + leading.map_or(0.0, |l| l.size.x + s.gap)
 }
 
 fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &RowLook<'_>) {
@@ -190,7 +222,11 @@ fn paint_row(ui: &Ui, s: &ListboxStyle, size: ControlSize, rect: Rect, look: &Ro
     if let Some(icon) = look.icon.filter(|_| look.icons) {
         icons::paint(ui, square(s.icon + s.gap), icon, icon_size(size), text);
     }
-    let offset = text_offset(s, look.icons);
+    if let Some(leading) = look.leading {
+        let from = start + forward * (text_offset(s, look.icons, None));
+        leading.paint(ui, from, rect.center().y);
+    }
+    let offset = text_offset(s, look.icons, look.leading);
     let galley = text_galley(ui, s.label, look.text, text, f32::INFINITY);
     let x = start + forward * offset;
     let x = if direction::is_rtl(ui) { x - galley.size().x } else { x };
@@ -306,7 +342,7 @@ mod tests {
         let mut out = ctx.run_ui(RawInput::default(), |ui| {
             let s = Select::style(&crate::theme::Tokens::of(ui), ControlSize::Md);
             let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(120.0, s.list.height));
-            let row = |chosen, lit| RowLook { text: "Normal", icon: None, icons: false, chosen, lit, focus: false, enabled: true };
+            let row = |chosen, lit| RowLook { text: "Normal", icon: None, leading: None, icons: false, chosen, lit, focus: false, enabled: true };
             paint_row(ui, &s.list, ControlSize::Md, rect, &row(false, false));
             paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 40.0)), &row(true, false));
             paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 80.0)), &row(false, true));
@@ -348,7 +384,7 @@ mod tests {
             let mut out = ctx.run_ui(RawInput::default(), |ui| {
                 let s = Select::style(&crate::theme::Tokens::of(ui), ControlSize::Md);
                 let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(120.0, s.list.height));
-                let row = |chosen, lit| RowLook { text: "Normal", icon: None, icons: false, chosen, lit, focus: false, enabled: true };
+                let row = |chosen, lit| RowLook { text: "Normal", icon: None, leading: None, icons: false, chosen, lit, focus: false, enabled: true };
                 paint_row(ui, &s.list, ControlSize::Md, rect, &row(true, false));
                 paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 40.0)), &row(true, true));
                 paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 80.0)), &row(false, true));

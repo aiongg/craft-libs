@@ -1,5 +1,5 @@
 use egui::accesskit::{self, Role};
-use egui::{Event, Key, Modifiers, PointerButton, Pos2};
+use egui::{Event, Key, Modifiers, PointerButton, Pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
@@ -954,3 +954,47 @@ fn a_secondary_press_in_the_search_field_keeps_the_list_and_opens_no_edit_menu()
     assert!(harness.query_by_label("Cut").is_none(), "the search field has no edit menu");
     assert!(!options(&harness).is_empty(), "the list stays open");
 }
+
+/// `row_content` draws the option's own value in a box of the asked size in every row of the open
+/// list and, for the chosen value, in the closed box, before the text.
+#[test]
+fn row_content_draws_each_options_value_in_the_list_and_the_chosen_one_in_the_box() {
+    use std::cell::RefCell;
+    type State = (usize, RefCell<Vec<(usize, egui::Rect)>>);
+    let mut harness = harness::<State>().build_ui_state(
+        |ui, (value, drawn): &mut State| {
+            let drawn = &*drawn;
+            let _ = Select::new("strip", "Strip", value)
+                .option(0, "Warm")
+                .option(1, "Cool")
+                .option(2, "Mono")
+                .row_content(vec2(30.0, 12.0), |_, rect, value| drawn.borrow_mut().push((*value, rect)))
+                .show(ui);
+        },
+        (1, RefCell::default()),
+    );
+    harness.run();
+    let field = harness.get_by_role(Role::ComboBox).rect();
+    let closed = harness.state().1.take();
+    let (value, rect) = *closed.last().expect("drawn");
+    assert!(closed.iter().all(|c| *c == (value, rect)), "{closed:?}");
+    assert_eq!((value, rect.size()), (1, vec2(30.0, 12.0)));
+    assert!(field.contains_rect(rect) && rect.center().y == field.center().y.round());
+
+    harness.event(press(field.center(), true));
+    harness.run();
+    harness.run();
+    let mut open = harness.state().1.take();
+    open.retain(|(_, r)| !field.contains_rect(*r));
+    open.sort_by_key(|(v, _)| *v);
+    open.dedup_by_key(|(v, _)| *v);
+    assert_eq!(open.iter().map(|(v, _)| *v).collect::<Vec<_>>(), [0, 1, 2], "{open:?}");
+    for (value, rect) in &open {
+        let row = option(&harness, MODES_STRIP[*value]).rect();
+        assert!(row.contains_rect(*rect), "{row:?} {rect:?}");
+        assert_eq!(rect.size(), vec2(30.0, 12.0));
+        assert_eq!(rect.left(), open[0].1.left(), "the boxes line up");
+    }
+}
+
+const MODES_STRIP: [&str; 3] = ["Warm", "Cool", "Mono"];
