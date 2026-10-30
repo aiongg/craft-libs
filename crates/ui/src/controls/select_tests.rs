@@ -79,6 +79,44 @@ fn focus_box<State>(harness: &mut Harness<'_, State>) {
     harness.run();
 }
 
+const D_MODES: [&str; 6] = ["Normal", "Darken", "Dissolve", "Multiply", "Difference", "Screen"];
+
+fn d_modes() -> Harness<'static, Host> {
+    harness().build_ui_state(
+        move |ui, host: &mut Host| {
+            let mut select = Select::new("d-modes", "Blend mode", &mut host.value);
+            for (i, mode) in D_MODES.into_iter().enumerate() {
+                select = select.option(i, mode);
+            }
+            if let Some(event) = select.show(ui).event {
+                host.events.push(event);
+            }
+        },
+        Host::default(),
+    )
+}
+
+#[test]
+fn a_repeated_letter_moves_through_the_options_with_that_initial_and_other_text_is_a_prefix() {
+    let mut harness = d_modes();
+    harness.run();
+    focus_box(&mut harness);
+    for expected in ["Darken", "Dissolve", "Difference", "Darken"] {
+        harness.event(Event::Text("d".into()));
+        harness.run();
+        assert_eq!(active(&harness).as_deref(), Some(expected), "d, d, ...");
+    }
+
+    let mut harness = d_modes();
+    harness.run();
+    focus_box(&mut harness);
+    harness.event(Event::Text("d".into()));
+    harness.event(Event::Text("i".into()));
+    harness.event(Event::Text("f".into()));
+    harness.run();
+    assert_eq!(active(&harness).as_deref(), Some("Difference"), "\"dif\" finds by prefix");
+}
+
 #[test]
 fn a_press_dragged_onto_an_option_chooses_it_on_release() {
     let mut harness = blend();
