@@ -85,17 +85,6 @@ impl Fixture {
         self.frame(Vec::new());
     }
 
-    /// A primary click whose press and release arrive in separate frames, as from a mouse at a
-    /// normal frame rate.
-    fn pointer_click_slow(&mut self, pos: egui::Pos2) {
-        self.time += 1.0;
-        let button = |pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
-        self.frame(vec![Event::PointerMoved(pos)]);
-        self.frame(vec![button(true)]);
-        self.frame(vec![button(false)]);
-        self.frame(Vec::new());
-    }
-
     fn press(&mut self, key: Key) {
         self.press_with(key, Modifiers::NONE);
     }
@@ -238,7 +227,7 @@ fn a_click_on_the_history_icon_opens_its_flyout_and_a_click_on_the_canvas_closes
     assert!(!rows(&mut fixture));
     fixture.pointer_click("History", Role::Button);
     assert!(rows(&mut fixture), "the flyout shows History's rows");
-    fixture.pointer_click_slow(egui::pos2(500.0, 400.0));
+    fixture.pointer_click_at(egui::pos2(500.0, 400.0));
     assert!(!rows(&mut fixture), "a press outside closes the flyout");
 }
 
@@ -249,4 +238,50 @@ fn the_window_menu_opens_the_flyout_of_a_collapsed_panel_and_keeps_it_shown() {
     fixture.click("History", Role::MenuItemCheckBox);
     assert!(fixture.preview.dock.is_visible(Panel::History));
     assert!(!named(&fixture.settled(), "Open", Role::ListBoxOption).is_empty(), "the flyout shows History's rows");
+}
+
+#[test]
+fn the_expanded_column_is_as_wide_as_the_dock_width_beside_the_iconic_column() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    let tree = fixture.settled();
+    let bounds =
+        |name: &str| -> Vec<_> { named(&tree, name, Role::Button).into_iter().filter_map(|id| tree.node(id).and_then(|n| n.bounds())).collect() };
+    let end = bounds("Collapse column to icons").pop().expect("the expanded column's collapse button");
+    // The iconic column has a move handle too; the expanded column's is the last one.
+    let start = bounds("Move panel column").into_iter().max_by(|a, b| a.x0.total_cmp(&b.x0)).expect("a move handle");
+    let ppp = f64::from(fixture.ctx.pixels_per_point());
+    assert_eq!((end.x1 - start.x0) / ppp, f64::from(super::dock::WIDTH));
+}
+
+#[test]
+fn choosing_a_shown_iconic_panel_in_the_window_menu_opens_and_closes_its_flyout_and_keeps_it_shown() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    let rows = |fixture: &mut Fixture| !named(&fixture.settled(), "Open", Role::ListBoxOption).is_empty();
+    for expected in [true, false, true] {
+        fixture.preview.dock.toggle(Panel::History);
+        assert_eq!(rows(&mut fixture), expected, "the flyout is open: {expected}");
+        assert!(fixture.preview.dock.is_visible(Panel::History), "the check stays on");
+    }
+}
+
+#[test]
+fn choosing_a_hidden_iconic_panel_shows_it_with_its_flyout_open() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    fixture.settled();
+    fixture.preview.dock.hide(Panel::History);
+    assert!(!fixture.preview.dock.is_visible(Panel::History));
+    assert!(named(&fixture.settled(), "Open", Role::ListBoxOption).is_empty());
+    fixture.preview.dock.toggle(Panel::History);
+    assert!(fixture.preview.dock.is_visible(Panel::History));
+    assert!(!named(&fixture.settled(), "Open", Role::ListBoxOption).is_empty(), "the flyout shows History's rows");
+}
+
+#[test]
+fn choosing_an_expanded_panel_in_the_window_menu_hides_and_shows_it() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    fixture.settled();
+    fixture.preview.dock.toggle(Panel::Layers);
+    assert!(!fixture.preview.dock.is_visible(Panel::Layers));
+    fixture.preview.dock.toggle(Panel::Layers);
+    assert!(fixture.preview.dock.is_visible(Panel::Layers));
 }
