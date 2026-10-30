@@ -1761,3 +1761,12 @@ fn rail_pairs_meet_their_minimums_in_every_appearance() {
         }
     }
 }
+
+#[test]
+fn preferences_row_widths_scale_with_the_control_height() {
+    let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.preferences;
+    let (compact, comfy) = (at(Size::Compact), at(Size::Comfortable));
+    assert_eq!((compact.choice_width, compact.text_width), (220.0, 260.0));
+    assert_eq!((comfy.choice_width, comfy.text_width), (275.0, 325.0));
+    assert_eq!(comfy.list_width, compact.list_width, "the page list is the same in every size");
+}

@@ -452,7 +452,7 @@ fn a_press_on_a_menu_title_drawn_after_the_dock_leaves_the_flyout_open() {
     let menus = vec![MenuItem::submenu("Window", vec![MenuEntry::from(MenuItem::new("Panels", 1_u32))])];
     d.after = Some(Box::new(move |ui| {
         ui.scope_builder(egui::UiBuilder::new().max_rect(Rect::from_min_size(pos2(300.0, 0.0), vec2(300.0, 28.0))), |ui| {
-            let _ = MenuBar::new(&menus).id(egui::Id::new("test-bar")).show(ui);
+            let _ = MenuBar::new(&menus).id(ui.make_persistent_id("test-bar")).show(ui);
         });
     }));
     d.settle();

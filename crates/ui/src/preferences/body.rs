@@ -29,6 +29,10 @@ pub struct PreferencesStyle {
     /// Between the search field, the panes, the notice and the buttons, and between rows:
     /// `gap.stack`.
     pub gap: f32,
+    /// Width of a choice row's control: `preferences.choice_width`.
+    pub choice_width: f32,
+    /// Width of a text row's control: `preferences.text_width`.
+    pub text_width: f32,
 }
 
 /// What a group of the shown page draws.
@@ -112,7 +116,13 @@ impl PreferencesBody {
 
     pub fn style(tokens: &crate::theme::UiTokens) -> PreferencesStyle {
         let p = &tokens.component.preferences;
-        PreferencesStyle { list_width: p.list_width, page_gap: p.page_gap, gap: tokens.space.gap.stack }
+        PreferencesStyle {
+            list_width: p.list_width,
+            page_gap: p.page_gap,
+            gap: tokens.space.gap.stack,
+            choice_width: p.choice_width,
+            text_width: p.text_width,
+        }
     }
 
     /// What the body with `id` ([`PreferencesBody::id`]) remembers.

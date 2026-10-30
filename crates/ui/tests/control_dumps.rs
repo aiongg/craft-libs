@@ -1010,6 +1010,10 @@ fn group_box() {
 fn preferences() {
     check("preferences.txt", |d, t| {
         let s = craft_ui::preferences::PreferencesBody::style(t);
-        d.line("list_width", s.list_width).line("page_gap", s.page_gap).line("gap", s.gap);
+        d.line("list_width", s.list_width)
+            .line("page_gap", s.page_gap)
+            .line("gap", s.gap)
+            .line("choice_width", s.choice_width)
+            .line("text_width", s.text_width);
     });
 }

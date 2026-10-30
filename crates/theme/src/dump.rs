@@ -1094,9 +1094,11 @@ fn group_box_lines(out: &mut Lines, t: &GroupBoxTokens) {
 }
 
 fn preferences_lines(out: &mut Lines, t: &PreferencesTokens) {
-    let PreferencesTokens { list_width, page_gap } = t;
+    let PreferencesTokens { list_width, page_gap, choice_width, text_width } = t;
     out.line("preferences.list_width", len(*list_width));
     out.line("preferences.page_gap", len(*page_gap));
+    out.line("preferences.choice_width", len(*choice_width));
+    out.line("preferences.text_width", len(*text_width));
 }
 
 fn preset_lines(out: &mut Lines, t: &PresetTokens) {
