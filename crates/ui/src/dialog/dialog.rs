@@ -1,5 +1,6 @@
 //! [`Dialog`]: placement, size, stacking layer and outcome on top of [`DialogFrame`].
 
+use egui::accesskit::Role;
 use egui::{Color32, Context, CursorIcon, Id, Key, Modal, Modifiers, Order, Rect, ScrollArea, Ui, UiKind, Vec2};
 
 use super::frame::{DialogFrame, DialogFrameResponse};
@@ -276,19 +277,23 @@ impl Dialog {
         let window = ctx.content_rect();
         let place = place.unwrap_or(PlaceKey(id));
         let opened = !state.is_open();
+        let (pin_id, size_id, chrome_id, title_id) = (id.with("pin"), id.with("laid-out-size"), id.with("chrome"), id.with("title-height"));
         if opened {
             state.begin(ctx, fields.clone(), outer_gesture);
+            ctx.data_mut(|d| {
+                d.remove_temp::<Vec2>(pin_id);
+                d.remove_temp::<Vec2>(size_id);
+            });
         }
         let outer = state.outer();
 
-        let (pin_id, size_id, chrome_id, title_id) = (id.with("pin"), id.with("laid-out-size"), id.with("chrome"), id.with("title-height"));
         let pinned = ctx.data(|d| d.get_temp::<Vec2>(pin_id));
         let laid_out_size = ctx.data(|d| d.get_temp::<Vec2>(size_id)).unwrap_or(Vec2::ZERO);
         let title_height = ctx.data(|d| d.get_temp::<f32>(title_id)).unwrap_or(t.close_box);
         let chrome = ctx.data(|d| d.get_temp::<f32>(chrome_id)).unwrap_or(0.0);
         let start = pinned.or_else(|| place.remembered_place(ctx)).or_else(|| first_place.and_then(|first| first(ctx)));
 
-        let mut area = Modal::default_area(id);
+        let mut area = Modal::default_area(id).role(Role::Dialog).accessible_name(title.as_str());
         if let Some(offset) = start {
             area = area.anchor(egui::Align2::LEFT_TOP, keep_on_screen(offset, laid_out_size, title_height, window.size(), t.keep_visible));
         }
@@ -326,7 +331,7 @@ impl Dialog {
                     Body::Fit => inner(ui),
                     Body::Scroll { reserve } => {
                         let height = scroll_height(&t, window.height(), chrome, reserve);
-                        ScrollArea::vertical().max_height(height).auto_shrink([false, true]).show(ui, |ui| inner(ui));
+                        ScrollArea::vertical().max_height(height).auto_shrink([false, true]).show(ui, inner);
                     }
                 };
                 if outer_gesture {
@@ -405,10 +410,6 @@ impl Dialog {
             if let Some(focus) = state.return_focus() {
                 ctx.memory_mut(|m| m.request_focus(focus));
             }
-            ctx.data_mut(|d| {
-                d.remove_temp::<Vec2>(pin_id);
-                d.remove_temp::<Vec2>(size_id);
-            });
             state.close();
         }
         DialogResponse { outcome, rect: response.rect, outer, opened, initial_focus: focus }

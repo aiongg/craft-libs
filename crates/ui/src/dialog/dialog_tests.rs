@@ -10,6 +10,9 @@ use crate::theme::{Base, install};
 
 const WINDOW: Vec2 = vec2(640.0, 480.0);
 
+/// What one pass reported: opened, carried an outer gesture, initial focus.
+type Pass = (bool, bool, Option<InitialFocus>);
+
 struct App {
     state: DialogState,
     open: bool,
@@ -36,7 +39,7 @@ impl App {
     }
 
     fn rect(&self) -> Rect {
-        self.last.expect("shown").rect
+        self.last.as_ref().map_or(Rect::NOTHING, |shown| shown.rect)
     }
 }
 
@@ -65,6 +68,8 @@ fn build(app: App, size: Vec2) -> Harness<'static, App> {
                 }
             });
             app.outcomes.extend(shown.outcome);
+            // A host stops showing a dialog once it has answered.
+            app.open &= !shown.outcome.is_some_and(Outcome::closes);
             app.last = Some(shown);
         },
         app,
@@ -125,8 +130,8 @@ fn a_dragged_dialog_reopens_where_it_was_left() {
     harness.key_press(Key::Escape);
     harness.run();
     assert_eq!(harness.state().outcomes, [Outcome::Cancel]);
-    assert!(!harness.state().state.is_open());
-    harness.state_mut().last = None;
+    assert!(!harness.state().state.is_open() && !harness.state().open);
+    harness.state_mut().open = true;
     harness.run();
     let reopened = harness.state().rect();
     assert!((reopened.min - moved.min).length() < 1.5, "{moved:?} {reopened:?}");
@@ -189,7 +194,7 @@ fn esc_cancels_a_modal_dialog_only() {
 #[test]
 fn the_dialog_reports_its_opening_once_and_carries_an_outer_gesture_when_asked() {
     let mut harness = harness(WINDOW).build_ui_state(
-        |ui, seen: &mut (DialogState, Vec<(bool, bool, Option<InitialFocus>)>)| {
+        |ui, seen: &mut (DialogState, Vec<Pass>)| {
             let ctx = &ui.ctx().clone();
             let shown = Dialog::new("outer", "Levels").outer_gesture(true).show(ctx, &mut seen.0, &mut (), |ui, ()| {
                 ui.label("body");
@@ -214,4 +219,17 @@ fn the_dialog_is_named_by_its_title_with_a_heading_and_a_close_button() {
     let heading = harness.get_by(|n| n.role() == Role::Heading);
     assert_eq!(heading.accesskit_node().label().as_deref(), Some("Canvas Size"));
     assert_eq!(harness.get_by_label("Close").accesskit_node().role(), Role::Button);
+}
+
+#[test]
+fn a_dialog_closed_without_an_outcome_opens_afresh() {
+    let mut harness = build(App::new(), WINDOW);
+    harness.run();
+    let centred = harness.state().rect();
+
+    harness.state_mut().state.close();
+    harness.state_mut().first = Some(vec2(40.0, 30.0));
+    harness.run();
+    let reopened = harness.state().rect();
+    assert!((reopened.min - pos2(40.0, 30.0)).length() < 1.5, "{centred:?} {reopened:?}");
 }

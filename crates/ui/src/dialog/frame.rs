@@ -195,9 +195,6 @@ impl DialogFrame {
         let rect = framed.response.rect;
         let (drag, close, title_height, content_size, inner_chrome) =
             parts.unwrap_or_else(|| (ui.interact(rect, id.with("title"), Sense::DRAG), None, style.title_line, Vec2::ZERO, 0.0));
-        // The accessible dialog: named by the title, over the whole frame.
-        let root = ui.interact(rect, id.with("root"), Sense::hover());
-        root.widget_info(|| WidgetInfo::labeled(Role::Dialog, true, title.as_str()));
         DialogFrameResponse { rect, title_height, drag, close, content_size, chrome: inner_chrome + 2.0 * pad }
     }
 }
