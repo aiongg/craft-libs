@@ -27,8 +27,8 @@ fn a_box_is_a_group_named_by_its_title() {
     install(&ctx, &Base::suite_default());
     let mut style = None;
     ctx.run_ui(egui::RawInput::default(), |ui| style = Some(GroupBox::style(&Tokens::of(ui), 1.0))).drop_without_applying_deltas();
-    let Some(style) = style else { return };
-    let last_row = harness.get_all_by_label("Another row").next().map(|n| n.rect()).unwrap_or(egui::Rect::NOTHING);
+    let style = style.expect("the pass ran the closure");
+    let last_row = harness.get_all_by_label("Another row").next().expect("the last row").rect();
     let next_title = harness.get_by_role_and_label(Role::Label, "Group 2").rect();
     assert!(next_title.top() - last_row.bottom() >= 2.0 * style.padding + style.gap - 0.5, "{last_row:?} then {next_title:?}");
 }
