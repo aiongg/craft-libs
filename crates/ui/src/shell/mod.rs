@@ -35,6 +35,9 @@ mod slot;
 #[cfg(test)]
 mod tests;
 mod visibility;
+mod window;
+#[cfg(all(test, feature = "window-frame"))]
+mod window_tests;
 
 use egui::{Context, Frame, Id, Panel, Rect, Ui, UiBuilder, accesskit::Role};
 
@@ -145,6 +148,7 @@ pub struct AppShell<'a> {
     tabs: bool,
     backdrop: Option<egui::Color32>,
     body_label: Option<String>,
+    level: window::Level<'a>,
 }
 
 impl<'a> AppShell<'a> {
@@ -162,6 +166,7 @@ impl<'a> AppShell<'a> {
             tabs: true,
             backdrop: None,
             body_label: None,
+            level: window::Level::default(),
         }
     }
 
@@ -176,7 +181,8 @@ impl<'a> AppShell<'a> {
         self.bare
     }
 
-    /// The title slot, the first top slot. `slot` should be keyed `"title"`.
+    /// The title slot, the first top slot, with plain contents. `slot` should be keyed `"title"`.
+    /// For the window's title bar use [`title_bar`](Self::title_bar) (feature `window-frame`).
     pub fn title(mut self, slot: Slot, add: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.title = Some((slot, Box::new(add)));
         self
@@ -258,8 +264,15 @@ impl<'a> AppShell<'a> {
         self.show_dyn(ui, Box::new(body))
     }
 
-    fn show_dyn<R>(self, ui: &mut Ui, body: BodyFn<'a, R>) -> ShellOutput<R> {
+    #[cfg_attr(not(feature = "window-frame"), allow(unused_mut))]
+    fn show_dyn<R>(mut self, ui: &mut Ui, body: BodyFn<'a, R>) -> ShellOutput<R> {
         let ctx = ui.ctx().clone();
+        // An app-modal window of any viewport refuses the close of this one.
+        crate::viewport::ViewportWindow::refuse_close(&ctx);
+        #[cfg(feature = "window-restore")]
+        window::track(&mut self, &ctx);
+        #[cfg(feature = "window-frame")]
+        let bar_drawn = window::bar_slot(&mut self);
         let window = self.window.clone();
         if ids::shown_before(&ctx, &window) {
             let message = format!("craft-ui: two AppShells with the window key {window:?} in one pass; give each window its own WindowKey");
@@ -269,7 +282,8 @@ impl<'a> AppShell<'a> {
         let tokens = Tokens::of(ui);
         let shell_tokens = tokens.component.app_shell;
         let rect = ui.max_rect();
-        let state = visibility::begin_pass(&ctx, &window, self.mode, self.allow_reveal, rect, shell_tokens.edge_reveal);
+        #[cfg_attr(not(feature = "window-frame"), allow(unused_mut))]
+        let mut state = visibility::begin_pass(&ctx, &window, self.mode, self.allow_reveal, rect, shell_tokens.edge_reveal);
         // Defaults from the token sizes, by edge.
         let default_size = |slot: &Slot, edge: Edge| match edge {
             Edge::Top if slot.key == "title" => tokens.size.bar.title,
@@ -278,7 +292,7 @@ impl<'a> AppShell<'a> {
             Edge::Start | Edge::End => tokens.size.rail.width,
         };
 
-        let Self { bare, title, top, bottom, start, end, mode, allow_reveal, tabs, backdrop, body_label, .. } = self;
+        let Self { bare, title, top, bottom, start, end, mode, allow_reveal, tabs, backdrop, body_label, level, .. } = self;
         debug_assert!(
             !bare || (title.is_none() && top.is_empty() && bottom.is_empty() && start.is_empty() && end.is_empty()),
             "craft-ui: slots added to a bare AppShell"
@@ -361,6 +375,10 @@ impl<'a> AppShell<'a> {
         });
         let (body_rect, inner) = central.inner;
 
+        #[cfg(feature = "window-frame")]
+        window::finish_pass(&level, ui, bar_drawn.is_some_and(|d| d.get()), &mut state);
+        #[cfg(not(feature = "window-frame"))]
+        let _ = level;
         ids::set_state(&ctx, &window, State { shown: placed, ..state });
         ShellOutput { inner, body: body_rect, revealed, slots: rects }
     }

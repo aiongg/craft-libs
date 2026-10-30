@@ -111,13 +111,21 @@ impl ViewportWindow {
 
     /// Whether an app-modal window of this viewport was shown on this or the previous pass: the
     /// host skips its shortcuts and commands while it is. Ask in the viewport that shows the
-    /// window.
+    /// window; it is false in the app's other windows (see [`any_app_modal`](Self::any_app_modal)).
     pub fn blocks_main(ctx: &Context) -> bool {
+        ctx.data(|d| d.get_temp::<Seen>(blocks_key(ctx))).is_some_and(|seen| seen.pass + 1 >= ctx.cumulative_pass_nr())
+    }
+
+    /// Whether an app-modal window of any viewport of the context was shown on its host's
+    /// current or previous pass. A multi-window app skips its shortcuts and commands in every
+    /// window while this is true, and shows its window-level dialog overlay.
+    pub fn any_app_modal(ctx: &Context) -> bool {
         Self::modal_window(ctx).is_some()
     }
 
-    /// Refuses a close request of the window that shows an app-modal window, while that window is
-    /// open: cancels the close and focuses the modal window. Returns whether it did.
+    /// Refuses a close request of any window of the app while an app-modal window is open:
+    /// cancels the close and focuses the modal window. Returns whether it did. Call it from every
+    /// viewport the app shows; the modal window's own close request is not refused.
     ///
     /// Every quit request reaches the app as a close request of its root window: the title-bar
     /// close button, the macOS Dock's Quit, and Cmd+Q through `craft_quit`'s app-menu Quit (it
@@ -127,6 +135,9 @@ impl ViewportWindow {
     /// and leaves the window open.
     pub fn refuse_close(ctx: &Context) -> bool {
         let Some(child) = Self::modal_window(ctx) else { return false };
+        if child == Some(ctx.viewport_id()) {
+            return false;
+        }
         if !ctx.input(|i| i.viewport().close_requested()) {
             return false;
         }
@@ -137,11 +148,11 @@ impl ViewportWindow {
         true
     }
 
-    /// The app-modal window this viewport shows, if it is open: its own viewport, or none when it
-    /// is embedded.
+    /// An app-modal window that is open in any viewport: its own viewport, or none when it is
+    /// embedded.
     fn modal_window(ctx: &Context) -> Option<Option<ViewportId>> {
-        let pass = ctx.cumulative_pass_nr();
-        ctx.data(|d| d.get_temp::<Seen>(blocks_key(ctx))).filter(|seen| seen.pass + 1 >= pass).map(|seen| seen.child)
+        let open = ctx.data(|d| d.get_temp::<Modals>(modals_key())).unwrap_or_default();
+        open.0.iter().find(|m| m.seen.pass + 1 >= ctx.cumulative_pass_nr_for(m.host)).map(|m| m.seen.child)
     }
 
     /// Shows the window for this pass. `body` draws the contents and learns where it is hosted.
@@ -161,10 +172,14 @@ impl ViewportWindow {
         let fallback = key.with("no-immediate-renderer");
         let embedded = force_embedded || ctx.embed_viewports() || ctx.data(|d| d.get_temp::<bool>(fallback)).unwrap_or(false);
         let seen = Seen { pass, child: (!embedded).then_some(id) };
+        let host = ctx.viewport_id();
         ctx.data_mut(|d| {
             d.insert_temp(key, seen);
             if modal {
                 d.insert_temp(blocks, seen);
+                let open = d.get_temp_mut_or_default::<Modals>(modals_key());
+                open.0.retain(|m| m.host != host);
+                open.0.push(Open { host, seen });
             }
         });
 
@@ -197,6 +212,20 @@ impl ViewportWindow {
         });
         ViewportResponse { close_requested: close, hosting: hosting.get() }
     }
+}
+
+/// The app-modal windows of the context, one per hosting viewport.
+#[derive(Clone, Default)]
+struct Modals(Vec<Open>);
+
+#[derive(Clone, Copy)]
+struct Open {
+    host: ViewportId,
+    seen: Seen,
+}
+
+fn modals_key() -> Id {
+    Id::unique("craft-ui-viewport-modals")
 }
 
 fn blocks_key(ctx: &Context) -> Id {

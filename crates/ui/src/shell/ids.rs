@@ -54,6 +54,9 @@ pub(super) struct State {
     pub shown: Vec<(Edge, Rect)>,
     /// The window was maximized when a screen mode took it to full screen.
     pub was_maximized: bool,
+    /// The `movable` flag last given to the macOS window.
+    #[cfg(target_os = "macos")]
+    pub movable_applied: Option<bool>,
 }
 
 /// The pass in which a window's keys were last recorded.

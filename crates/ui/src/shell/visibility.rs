@@ -68,7 +68,7 @@ pub(super) fn active(ctx: &Context, window: &WindowKey) -> bool {
 /// keyboard: an egui modal, an app-modal window, a menu or a popup list.
 pub fn tab_toggles_chrome(ctx: &Context) -> bool {
     if ctx.memory(|m| m.top_modal_layer().is_some())
-        || crate::viewport::ViewportWindow::blocks_main(ctx)
+        || crate::viewport::ViewportWindow::any_app_modal(ctx)
         || crate::menu::any_open(ctx)
         || crate::popup_list::any_open(ctx)
     {
