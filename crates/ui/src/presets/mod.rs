@@ -34,6 +34,8 @@ pub use model::{CellShape, PresetKind, PresetRow, Preview, ThumbInfo};
 pub use state::{DefaultOpen, PresetState, PresetView};
 pub use style::PresetStyle;
 
+type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
+
 /// A library of named presets shown as thumbnails: groups (with folders), a grid or a list, a
 /// thumbnail size, drag to reorder. The host keeps the library; the browser draws, senses and
 /// reports [`PresetEvent`]s.
@@ -77,7 +79,7 @@ pub struct PresetBrowser<'a, K> {
     default_open: DefaultOpen,
     reorder: Option<PresetReorder<'a, K>>,
     labels: PresetLabels,
-    can_rename: Option<Box<dyn Fn(&K) -> bool + 'a>>,
+    can_rename: Option<CanRename<'a, K>>,
     start_rename: Option<K>,
     view_lock: Option<PresetView>,
     max_height: Option<f32>,
