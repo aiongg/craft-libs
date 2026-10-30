@@ -41,39 +41,47 @@ pub use row::MenuStyle;
 
 use egui::{Id, Key, KeyboardShortcut, Modifiers, Ui};
 
-use crate::controls::{Button, Kbd, SIZE_NAMES, size_arg};
+use crate::controls::{Button, Kbd};
 use crate::icons::Icon;
 use crate::primitives::{Content, Gap, Row, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, SizeArg, Story, StoryArgs};
+use crate::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Menu", "ContextMenu", "PressMenu"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct MenusArgs {
+    size: SizeArg,
+    icons: bool,
+    #[arg(range = 5.0..=200.0)]
+    rows: u32,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct IconsArgs {
+    size: SizeArg,
+    icons: bool,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
-            "composites/menu/menus",
-            Level::Composites,
-            "Menu",
-            "Menus",
-            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true).with_number("rows", 40.0, 5.0, 200.0),
-            show_menus,
-        ),
-        Story::new(
+        typed_story!("composites/menu/menus", Level::Composites, "Menu", "Menus", MenusArgs { size: SizeArg::Md, icons: true, rows: 40 }, show_menus),
+        typed_story!(
             "composites/menu/context-menu",
             Level::Composites,
             "ContextMenu",
             "Context menu",
-            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true),
-            show_context_menu,
+            IconsArgs { size: SizeArg::Md, icons: true },
+            show_context_menu
         ),
-        Story::new(
+        typed_story!(
             "composites/menu/press-menu",
             Level::Composites,
             "PressMenu",
             "Press menu",
-            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("icons", true),
-            show_press_menu,
+            IconsArgs { size: SizeArg::Md, icons: true },
+            show_press_menu
         ),
     ]
 }
@@ -155,10 +163,10 @@ fn long_menu(rows: usize) -> Vec<MenuEntry<Command>> {
 
 /// Two buttons that open menus: Edit, and a long one that scrolls. The command chosen last is
 /// shown beside them.
-fn show_menus(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let edit = edit_menu(args.bool("icons"));
-    let long = long_menu(args.number("rows").round().max(1.0) as usize);
+fn show_menus(ui: &mut Ui, args: &mut MenusArgs) {
+    let size = args.size.control();
+    let edit = edit_menu(args.icons);
+    let long = long_menu(args.rows.max(1) as usize);
     let last = Id::unique("craft-ui-menu-story-last");
     Row::new(Gap::Section).show(ui, |ui| {
         for (label, entries) in [("Edit", &edit), ("Long", &long)] {
@@ -175,9 +183,9 @@ fn show_menus(ui: &mut Ui, args: &mut Args) {
 
 /// A focusable box with a context menu: secondary click, or Menu key and Shift+F10 once it has the
 /// focus (Tab to it).
-fn show_context_menu(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let entries = edit_menu(args.bool("icons"));
+fn show_context_menu(ui: &mut Ui, args: &mut IconsArgs) {
+    let size = args.size.control();
+    let entries = edit_menu(args.icons);
     let last = Id::unique("craft-ui-context-menu-story-last");
     Row::new(Gap::Section).show(ui, |ui| {
         let target = ui.add(Button::new("Right-click, or focus and press Shift+F10"));
@@ -190,9 +198,9 @@ fn show_context_menu(ui: &mut Ui, args: &mut Args) {
 }
 
 /// Two press menus side by side: press, drag onto a row and release, or click to open.
-fn show_press_menu(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let edit = edit_menu(args.bool("icons"));
+fn show_press_menu(ui: &mut Ui, args: &mut IconsArgs) {
+    let size = args.size.control();
+    let edit = edit_menu(args.icons);
     let long = long_menu(30);
     let last = Id::unique("craft-ui-press-menu-story-last");
     Row::new(Gap::Section).show(ui, |ui| {
