@@ -33,6 +33,12 @@ impl CanvasView {
         Self { rect, center, zoom, rotation: 0.0, flip_x: false, aspect: 1.0 }
     }
 
+    /// `zoom` for a view that shows `device_zoom` device pixels per document unit at
+    /// `pixels_per_point`: 1 shows one document pixel per device pixel at any interface scale.
+    pub fn points_per_unit(device_zoom: f64, pixels_per_point: f32) -> f64 {
+        device_zoom / f64::from(pixels_per_point)
+    }
+
     /// `aspect`, or 1 when it is not a positive number.
     fn sx(&self) -> f64 {
         if self.aspect.is_finite() && self.aspect > 0.0 { self.aspect } else { 1.0 }

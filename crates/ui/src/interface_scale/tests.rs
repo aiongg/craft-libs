@@ -94,3 +94,48 @@ fn keyboard_zoom_can_be_turned_off() {
     InterfaceScale::disable_keyboard_zoom(&ctx);
     assert!(!ctx.options(|o| o.zoom_with_keyboard));
 }
+
+mod fit_and_options {
+    use super::super::{Fit, InterfaceScale, InterfaceScaleLabels};
+    use crate::localized::LocaleNumbers;
+    use egui::vec2;
+
+    fn small_screen() -> Fit {
+        Fit { monitor_px: Some(vec2(1366.0, 768.0)), ..Fit::default() }
+    }
+
+    fn codes(options: &[(String, String)]) -> Vec<&str> {
+        options.iter().map(|(c, _)| c.as_str()).collect()
+    }
+
+    #[test]
+    fn fit_hides_scales_that_leave_too_small_a_window_and_keeps_the_current_one() {
+        let fit = small_screen();
+        let allowed = |p| fit.allows(InterfaceScale::percent(p));
+        assert!(allowed(125));
+        assert!(!allowed(150) && !allowed(300));
+        assert!(fit.allows(InterfaceScale::Auto));
+        assert!(Fit::default().allows(InterfaceScale::percent(300)));
+
+        let (labels, numbers) = (InterfaceScaleLabels::default(), LocaleNumbers::from_tag("en"));
+        let list = InterfaceScale::options(InterfaceScale::Auto, &labels, &numbers, fit);
+        assert_eq!(codes(&list).last(), Some(&"125"));
+        let list = InterfaceScale::options(InterfaceScale::percent(300), &labels, &numbers, fit);
+        assert_eq!(codes(&list).last(), Some(&"300"));
+        assert!(!codes(&list).contains(&"150"));
+    }
+
+    #[test]
+    fn options_add_the_current_off_step_value_once() {
+        let (labels, numbers) = (InterfaceScaleLabels::default(), LocaleNumbers::from_tag("en"));
+        let list = InterfaceScale::options(InterfaceScale::percent(112), &labels, &numbers, Fit::default());
+        assert_eq!(list.iter().filter(|(c, _)| c == "112").count(), 1);
+        assert_eq!(list[0], ("auto".to_owned(), "Auto".to_owned()));
+        let at = list.iter().position(|(c, _)| c == "112").unwrap();
+        assert_eq!(list[at].1, "112%");
+        assert_eq!((list[at - 1].0.as_str(), list[at + 1].0.as_str()), ("110", "115"));
+
+        let on_step = InterfaceScale::options(InterfaceScale::percent(100), &labels, &numbers, Fit::default());
+        assert_eq!(on_step.len(), 1 + InterfaceScale::STEPS.len());
+    }
+}

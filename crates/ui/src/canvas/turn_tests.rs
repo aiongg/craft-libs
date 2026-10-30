@@ -119,3 +119,21 @@ fn the_badge_beside_the_system_pointer_sits_clear_of_the_arrow_and_leaves_the_ic
     assert_eq!(lines.len(), 4, "a halo and an ink line for each of the plus's two bars");
     assert!(lines.iter().all(|[a, b]| (a.to_vec2() + b.to_vec2()) / 2.0 == centre.to_vec2()));
 }
+
+#[test]
+fn the_painted_turn_cursor_doubles_in_device_pixels_from_one_pixel_per_point_to_two() {
+    let extent = |ppp: f32| {
+        let h = Harness::builder()
+            .with_size([200.0, 200.0])
+            .with_pixels_per_point(ppp)
+            .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+            .build_ui(|ui| turn_cursor(ui.ctx(), AT, vec2(1.0, 1.0)));
+        let shapes: Vec<Shape> = h.output().shapes.iter().map(|s| s.shape.clone()).collect();
+        let points: Vec<Pos2> = path_shapes(&shapes).iter().flat_map(|p| p.points.clone()).collect();
+        let (lo, hi) = points.iter().fold((pos2(f32::MAX, f32::MAX), pos2(f32::MIN, f32::MIN)), |(lo, hi), p| (lo.min(*p), hi.max(*p)));
+        (hi - lo) * ppp
+    };
+    let (one, two) = (extent(1.0), extent(2.0));
+    assert!(one.x > 0.0 && one.y > 0.0);
+    assert!((two.x / one.x - 2.0).abs() < 1e-3 && (two.y / one.y - 2.0).abs() < 1e-3, "{one:?} {two:?}");
+}
