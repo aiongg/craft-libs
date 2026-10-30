@@ -4,7 +4,7 @@ use craft_ui::composites::FormGrid;
 use craft_ui::controls::{Button, IconButton, Segmented, Select, ToggleButton, TooltipExt as _};
 use craft_ui::icons::{Icon, IconSet};
 use craft_ui::interface_scale::{Fit, InterfaceScale, InterfaceScaleLabels};
-use craft_ui::localized::LocaleNumbers;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::patterns::{CellWidth, OptionsBar};
 use craft_ui::popover::{Popover, PopoverAnchor};
@@ -138,8 +138,7 @@ impl Bar {
                             form.row("Scale", |ui, _| {
                                 let mut code = a.scale.code();
                                 let mut scale = Select::new("gallery.scale", "Scale", &mut code).fit(true).size(ControlSize::Sm);
-                                for (value, label) in
-                                    InterfaceScale::options(a.scale, &InterfaceScaleLabels::default(), &numbers, monitor_fit(ui.ctx()))
+                                for (value, label) in InterfaceScale::options(a.scale, &InterfaceScaleLabels::of(ui), &numbers, monitor_fit(ui.ctx()))
                                 {
                                     scale = scale.option(value, label);
                                 }

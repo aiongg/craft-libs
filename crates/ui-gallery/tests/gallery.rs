@@ -1458,9 +1458,7 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
                 }
                 if name.contains('⟦') {
                     marked += 1;
-                } else if registered.contains(name.as_str())
-                    && !STORY_TEXT.iter().any(|(text, stories, _)| *text == name && stories.contains(&id))
-                {
+                } else if registered.contains(name.as_str()) && !STORY_TEXT.iter().any(|(text, stories, _)| *text == name && stories.contains(&id)) {
                     let ids = unmarked.entry(name).or_default();
                     if !ids.contains(&id) {
                         ids.push(id);

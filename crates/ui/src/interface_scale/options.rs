@@ -3,18 +3,13 @@
 use super::{Fit, InterfaceScale};
 use crate::localized::LocaleNumbers;
 
-/// The words of the scale row, translated by the host.
-#[derive(Clone, Debug)]
-pub struct InterfaceScaleLabels {
-    /// The follow-the-display choice: "Auto".
-    pub auto: String,
-    /// A percent, `{n}` standing for the number: "{n}%".
-    pub percent: String,
-}
-
-impl Default for InterfaceScaleLabels {
-    fn default() -> Self {
-        Self { auto: "Auto".into(), percent: "{n}%".into() }
+crate::words! {
+    /// The words of the scale row, translated by the host.
+    pub struct InterfaceScaleLabels {
+        /// The follow-the-display choice.
+        auto: "interfaceScale.auto" = "Auto";
+        /// A percent, `{n}` standing for the number.
+        percent: "interfaceScale.percent" = "{n}%";
     }
 }
 
