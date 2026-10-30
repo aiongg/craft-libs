@@ -2,6 +2,7 @@
 //! context.
 
 mod doc;
+mod layers;
 mod size;
 mod tools;
 
