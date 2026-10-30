@@ -52,6 +52,10 @@ pub struct Gallery {
     /// The component the Overview has selected: its tile has the ring, and the side panels follow
     /// it while the Overview is the front centre tab.
     overview_selected: Option<&'static str>,
+    /// The level the Overview shows; selecting a component sets it to the component's.
+    overview_level: Option<Level>,
+    /// The centre tab that was last brought to the front; the side panels follow it.
+    centre: PanelId,
     /// The story id each Overview tile shows, by component; a component without an entry shows
     /// its default story.
     overview_story: HashMap<&'static str, &'static str>,
@@ -105,6 +109,12 @@ impl Gallery {
         }
         let tab_story: HashMap<&'static str, &'static str> = saved.tab_story.iter().filter_map(|(c, id)| story(c, id)).collect();
         let components_dock = load_dock(persist::load_layout(storage), GalleryWorkspace::Components);
+        let centre = front_centre(&components_dock.layout);
+        let overview_level = saved
+            .overview_level
+            .as_deref()
+            .and_then(|slug| Level::ALL.into_iter().find(|l| l.slug() == slug))
+            .or_else(|| overview_selected.and_then(|c| stories.iter().find(|s| s.component == c)).map(|s| s.level));
         let tab_story = tab_story.into_iter().filter(|(c, _)| components_dock.layout.contains(&PanelId::Component(c))).collect();
         Self {
             stories,
@@ -116,6 +126,8 @@ impl Gallery {
             os: SystemReader::for_egui(),
             os_applied: SystemAppearance::default(),
             overview_selected,
+            overview_level,
+            centre,
             overview_story,
             tab_story,
             filter: saved.filter,
@@ -156,6 +168,7 @@ impl Gallery {
     pub fn select(&mut self, id: &str) {
         let Some(story) = self.stories.iter().find(|s| s.id == id).copied() else { return };
         self.overview_selected = Some(story.component);
+        self.overview_level = Some(story.level);
         self.overview_story.insert(story.component, story.id);
         if self.components_dock.layout.contains(&PanelId::Component(story.component)) {
             self.tab_story.insert(story.component, story.id);
@@ -173,19 +186,10 @@ impl Gallery {
         self.target().map(|s| s.id)
     }
 
-    /// The centre tab in front: the Overview, or a component's tab. With several centre tabs in
-    /// front (a floated one), the Overview and then the first in the layout.
+    /// The centre tab that was last brought to the front: the Overview, or a component's tab. The
+    /// side panels follow it, also while a floated centre tab is in front beside another.
     pub fn front_tab(&self) -> PanelId {
-        let layout = &self.components_dock.layout;
-        if layout.panel_state(&PanelId::View) == PanelState::Front {
-            return PanelId::View;
-        }
-        layout
-            .panels()
-            .into_iter()
-            .copied()
-            .find(|p| matches!(p, PanelId::Component(_)) && layout.panel_state(p) == PanelState::Front)
-            .unwrap_or(PanelId::View)
+        if self.components_dock.layout.contains(&self.centre) { self.centre } else { PanelId::View }
     }
 
     /// The args of the story with id `id`, which the Properties panel edits.
@@ -214,6 +218,7 @@ impl Gallery {
         self.variants = None;
         let panel = PanelId::Component(component);
         let _ = self.components_dock.set_visible(panel, true, Some(PanelId::View), PanelId::permissions);
+        self.centre = panel;
     }
 
     /// Shows the Variants view over `axis` in the front centre tab, or closes it. Without a
@@ -239,6 +244,9 @@ impl Gallery {
 
     /// Brings `panel` to the front of its tab group.
     pub fn activate(&mut self, panel: PanelId) {
+        if matches!(panel, PanelId::View | PanelId::Component(_)) {
+            self.centre = panel;
+        }
         let _ = self.dock_of_mut(panel.workspace()).apply(Action::Activate { panel }, PanelId::permissions);
     }
 
@@ -326,7 +334,15 @@ impl Gallery {
         CentralPanel::default().frame(Frame::NONE).show(ui, |ui| self.dock(ui, inspecting));
         if std::mem::take(&mut self.reset_layout) {
             let shown = self.workspace;
+            // Reset layout puts the panels back; the open component tabs are documents and stay.
+            let tabs = self.open_tabs();
             *self.dock_of_mut(shown) = default_for(shown);
+            if shown == GalleryWorkspace::Components {
+                for component in tabs {
+                    let _ = self.components_dock.set_visible(PanelId::Component(component), true, Some(PanelId::View), PanelId::permissions);
+                }
+                self.activate(PanelId::View);
+            }
         }
         self.forget_closed_tabs();
     }
@@ -356,6 +372,11 @@ impl Gallery {
         let mut panels = Panels { gallery: self, inspecting, control: tokens.size.control.sm };
         let output = DockArea::new(ui.make_persistent_id(id)).locked(workspace.locked).show_content(ui, &workspace.layout, &config, &mut panels);
         for action in output.actions {
+            if let Action::Activate { panel } = &action
+                && matches!(panel, PanelId::View | PanelId::Component(_))
+            {
+                self.centre = *panel;
+            }
             let _ = self.dock_of_mut(shown).apply(action, PanelId::permissions);
         }
         // Closing the tab in front shows the Overview.
@@ -582,7 +603,9 @@ impl Gallery {
         let mut activated = opened.get();
         for event in out.events {
             match event {
-                ListEvent::Selection(SelectionChange { row: Some(Entry::Component(c)), .. }) => picked = Some(c),
+                ListEvent::Selection(SelectionChange { row: Some(Entry::Component(c)), .. }) | ListEvent::Clicked(Entry::Component(c)) => {
+                    picked = Some(c)
+                }
                 ListEvent::Activate(Entry::Component(c)) => activated = Some(c),
                 _ => {}
             }
@@ -596,9 +619,11 @@ impl Gallery {
     }
 
     /// Selects `component` in the Overview, which comes to the front and scrolls to its tile.
-    fn select_component(&mut self, component: &'static str) {
+    pub fn select_component(&mut self, component: &'static str) {
         self.overview_selected = Some(component);
+        self.overview_level = default_story_of(&self.stories, component).map(|s| s.level).or(self.overview_level);
         self.scroll_to = Some(component);
+        self.variants = None;
         self.activate(PanelId::View);
     }
 
@@ -662,7 +687,9 @@ impl Gallery {
             ui.add(Text::new(story.component).role(TypeRole::Heading));
             ui.add(Text::new(story.name).content(Content::Muted));
             if changed {
-                at_trailing_end(ui, |ui| reset = ui.add(IconButton::new(Icon::Undo, "Reset args").size(ControlSize::Sm)).clicked());
+                ui.with_layout(direction::trailing(ui), |ui| {
+                    reset = ui.add(IconButton::new(Icon::Undo, "Reset args").size(ControlSize::Sm)).clicked()
+                });
             }
         });
         if reset {
@@ -750,8 +777,7 @@ impl Gallery {
         }
         let nav = nav(&self.stories, &self.filter.to_lowercase());
         let selected = self.overview_selected;
-        let shown =
-            selected.and_then(|c| default_story_of(&self.stories, c)).and_then(|s| nav.iter().position(|(level, _)| *level == s.level)).unwrap_or(0);
+        let shown = self.overview_level.and_then(|l| nav.iter().position(|(level, _)| *level == l)).unwrap_or(0);
         let appearance = self.appearance.clone();
         let system = self.os_applied;
         let mut level = shown;
@@ -785,11 +811,12 @@ impl Gallery {
                 events = tiles_view(ui, &tiles, config, &mut self.args, &self.saved_args, &appearance, system);
             });
         });
-        if let Some(first) = nav.get(level).and_then(|(_, components)| components.first()).filter(|_| level != shown) {
-            self.overview_selected = Some(*first);
+        if level != shown {
+            self.overview_level = nav.get(level).map(|(l, _)| *l);
         }
         if let Some(component) = events.picked {
             self.overview_selected = Some(component);
+            self.centre = PanelId::View;
         }
         self.apply_tile_events(&events);
     }
@@ -840,6 +867,7 @@ impl Gallery {
         });
         if let Some(id) = events.picked {
             self.tab_story.insert(component, id);
+            self.centre = PanelId::Component(component);
         }
         self.apply_tile_events(&events);
     }
@@ -935,15 +963,23 @@ fn padded(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
     Frame::new().inner_margin(margin(pad)).show(ui, add);
 }
 
+/// The centre tab that shows in `layout`: the Overview when it is in front, else the first
+/// component tab that is.
+fn front_centre(layout: &craft_ui::docking::Layout<PanelId>) -> PanelId {
+    if layout.panel_state(&PanelId::View) == PanelState::Front {
+        return PanelId::View;
+    }
+    layout
+        .panels()
+        .into_iter()
+        .copied()
+        .find(|p| matches!(p, PanelId::Component(_)) && layout.panel_state(p) == PanelState::Front)
+        .unwrap_or(PanelId::View)
+}
+
 /// What the side panels say while nothing is selected.
 fn select_a_component(ui: &mut Ui) {
     EmptyState::new("Select a component").show(ui);
-}
-
-/// Runs `add` at the trailing end of the rest of the row.
-fn at_trailing_end(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
-    let layout = if direction::is_rtl(ui) { egui::Layout::left_to_right(Align::Center) } else { egui::Layout::right_to_left(Align::Center) };
-    ui.with_layout(layout, add);
 }
 
 /// A panel that is not built yet: one muted line.
@@ -1039,6 +1075,7 @@ impl eframe::App for Gallery {
             appearance: self.appearance.clone(),
             selected: None,
             overview_selected: self.overview_selected.map(str::to_owned),
+            overview_level: self.overview_level.map(|l| l.slug().to_owned()),
             overview_story: self.overview_story.iter().map(|(c, id)| ((*c).to_owned(), (*id).to_owned())).collect(),
             tab_story: self.tab_story.iter().map(|(c, id)| ((*c).to_owned(), (*id).to_owned())).collect(),
             filter: self.filter.clone(),
@@ -1308,7 +1345,7 @@ pub(crate) fn tiles_view(
         o.contrast = Some(appearance.contrast(system));
     };
     // The ring belongs to the gallery, not to the appearance the stories are shown in.
-    let ring = Tokens::of(ui).color.accent.border.to_egui();
+    let ring = Tokens::of(ui).color.accent.solid.to_egui();
     let mut events = TileEvents::default();
     scope(ui, overrides, |ui| {
         let tokens = Tokens::of(ui);
@@ -1332,19 +1369,23 @@ pub(crate) fn tiles_view(
                 let mut cell = ui.new_child(
                     UiBuilder::new().id_salt(tile.key).sense(sense).max_rect(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, top + reach))),
                 );
+                // Text in a tile is not selectable: a click on it selects the tile, as in the apps.
+                cell.style_mut().interaction.selectable_labels = false;
                 let surface = StoryFrame::of(&cell, story.surface);
+                let mut header_rect = Rect::NOTHING;
                 let used = Frame::new().inner_margin(surface.margin).show(&mut cell, |ui| {
                     surface.space(ui);
                     ui.set_min_width(ui.available_width());
                     let args = args_of(args, saved, story);
                     let changed = *args != story.defaults();
-                    direction::horizontal(ui, |ui| {
+                    let strip = ui.painter().add(Shape::Noop);
+                    let header = direction::horizontal(ui, |ui| {
                         ui.add(Text::new(tile.title).role(TypeRole::Heading));
                         if let Some(note) = tile.note {
                             ui.add(Text::new(format!("· {note}")).content(Content::Muted));
                         }
                         if config.buttons {
-                            at_trailing_end(ui, |ui| {
+                            ui.with_layout(direction::trailing(ui), |ui| {
                                 if tile.open && ui.add(IconButton::new(Icon::Open, format!("Open {}", tile.title)).size(ControlSize::Sm)).clicked() {
                                     events.opened = Some(story.component);
                                 }
@@ -1354,6 +1395,10 @@ pub(crate) fn tiles_view(
                             });
                         }
                     });
+                    header_rect = header.response.rect;
+                    let fill = DockLook::of(ui).tab_strip;
+                    let strip_rect = Rect::from_min_max(pos2(x + 1.0, top + 1.0), pos2(x + tile_width - 1.0, header_rect.bottom() + 2.0));
+                    ui.painter().set(strip, Shape::rect_filled(strip_rect, 0.0, fill));
                     // Only the selected tile of a component tab sets the gallery's scale; the request
                     // pending before this tile drew stays.
                     let sets_scale = config.scale_of_selected && config.selected == Some(tile.key);
@@ -1384,6 +1429,10 @@ pub(crate) fn tiles_view(
                     response.widget_info(|| WidgetInfo::selected(Role::Button, true, selected, format!("Select {}", tile.title)));
                     if response.clicked() {
                         events.picked = Some(tile.key);
+                    }
+                    let on_header = response.ctx.input(|i| i.pointer.interact_pos()).is_some_and(|p| header_rect.contains(p));
+                    if tile.open && response.double_clicked() && on_header {
+                        events.opened = Some(story.component);
                     }
                 }
                 bottom = bottom.max(used.response.rect.bottom());
@@ -1584,7 +1633,7 @@ mod tests {
     }
 
     #[test]
-    fn opening_a_component_twice_makes_one_tab_and_closing_it_forgets_its_story() {
+    fn opening_a_component_twice_makes_one_tab() {
         let ctx = egui::Context::default();
         let mut gallery = Gallery::new(None);
         let (component, second) = component_with_stories(&gallery);
@@ -1595,12 +1644,30 @@ mod tests {
         assert_eq!(gallery.open_tabs(), [component]);
         assert_eq!(gallery.front_tab(), PanelId::Component(component));
         assert_eq!(gallery.selected(), Some(second.id));
-        gallery.components_dock.apply(Action::Close { panel: PanelId::Component(component) }, PanelId::permissions).unwrap();
-        run_frames(&ctx, &mut gallery, 2);
-        assert!(gallery.open_tabs().is_empty());
+    }
+
+    #[test]
+    fn the_side_panels_follow_the_centre_tab_last_brought_to_the_front_even_when_one_is_floated() {
+        let mut gallery = Gallery::new(None);
+        let (component, _) = component_with_stories(&gallery);
+        gallery.open_component(component);
+        let tab = PanelId::Component(component);
+        gallery.components_dock.apply(Action::Float { panel: tab, rect: [40.0, 40.0, 400.0, 300.0] }, PanelId::permissions).unwrap();
+        gallery.activate(PanelId::View);
         assert_eq!(gallery.front_tab(), PanelId::View);
-        assert!(gallery.tab_story.is_empty());
-        assert!(gallery.components_dock.hidden.iter().all(|(panel, _)| !matches!(panel, PanelId::Component(_))), "a closed tab does not come back");
+        gallery.activate(tab);
+        assert_eq!(gallery.front_tab(), tab);
+    }
+
+    #[test]
+    fn selecting_a_component_sets_the_overviews_level_and_the_level_survives_a_save() {
+        let mut gallery = Gallery::new(None);
+        let story = gallery.stories.iter().rev().find(|s| s.level != Level::Foundations).copied().unwrap();
+        gallery.select_component(story.component);
+        assert_eq!(gallery.overview_level, Some(story.level));
+        let mut storage = Memory::default();
+        eframe::App::save(&mut gallery, &mut storage);
+        assert_eq!(Gallery::new(Some(&storage)).overview_level, Some(story.level));
     }
 
     #[test]

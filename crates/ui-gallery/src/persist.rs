@@ -29,6 +29,8 @@ pub struct Saved {
     pub selected: Option<String>,
     /// The component the Overview has selected.
     pub overview_selected: Option<String>,
+    /// The slug of the level the Overview shows.
+    pub overview_level: Option<String>,
     /// The story id each Overview tile shows, by component name.
     pub overview_story: HashMap<String, String>,
     /// The selected story id of each component tab, by component name.

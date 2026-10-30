@@ -858,3 +858,177 @@ fn the_inspector_works_on_the_selected_tile_of_a_component_tab() {
     assert!(craft_ui::inspect::enabled(&ctx));
     assert_eq!(gallery.focus_badges().len(), 1, "one tile is inspected");
 }
+
+/// A primary click at `at` with real pointer events, a second apart from any other click so that
+/// two clicks are never a double click.
+fn pointer_click(ctx: &Context, gallery: &mut Gallery, at: egui::Pos2) {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static CLOCK: AtomicU64 = AtomicU64::new(100);
+    let mut raw = input();
+    raw.time = Some(CLOCK.fetch_add(1, Ordering::Relaxed) as f64);
+    raw.events.push(egui::Event::PointerMoved(at));
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    let mut raw = input();
+    raw.time = Some(CLOCK.fetch_add(1, Ordering::Relaxed) as f64);
+    for pressed in [true, false] {
+        raw.events.push(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+    }
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    CLOCK.fetch_add(10, Ordering::Relaxed);
+    frame(ctx, gallery);
+}
+
+fn center_of(tree: &craft_ui::inspect::AccessTree, id: egui::accesskit::NodeId) -> egui::Pos2 {
+    let b = tree.node(id).and_then(|n| n.bounds()).expect("bounds");
+    egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
+}
+
+/// The labels inside the tile `Select <title>` other than its heading.
+fn labels_in_tile(tree: &craft_ui::inspect::AccessTree, tile: egui::accesskit::NodeId, title: &str) -> Vec<egui::accesskit::NodeId> {
+    use egui::accesskit::Role;
+    let bounds = tree.node(tile).and_then(|n| n.bounds()).unwrap();
+    tree.walk(tree.root())
+        .into_iter()
+        .map(|(id, _)| id)
+        .filter(|id| tree.node(*id).is_some_and(|n| n.role() == Role::Label))
+        .filter(|id| {
+            tree.node(*id).and_then(|n| n.bounds()).is_some_and(|b| b.x0 >= bounds.x0 && b.x1 <= bounds.x1 && b.y0 >= bounds.y0 && b.y1 <= bounds.y1)
+        })
+        .filter(|id| tree.name(*id).is_some_and(|n| !n.is_empty() && n != title && !n.starts_with('·')))
+        .collect()
+}
+
+#[test]
+fn a_pointer_click_on_a_tiles_heading_or_a_label_in_its_story_selects_the_tile() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, _) = component_with_stories(&gallery);
+    let neighbour = neighbour_of(&gallery, component);
+    gallery.select_component(component);
+    let tree = settled_tree(&ctx, &mut gallery);
+    let tile = named(&tree, &format!("Select {neighbour}"), Role::Button)[0];
+    let tb = tree.node(tile).and_then(|n| n.bounds()).unwrap();
+    let heading: Vec<_> = named(&tree, neighbour, Role::Label)
+        .into_iter()
+        .filter(|id| tree.node(*id).and_then(|n| n.bounds()).is_some_and(|b| b.x0 >= tb.x0 && b.x1 <= tb.x1 && b.y0 >= tb.y0 && b.y1 <= tb.y1))
+        .collect();
+    assert_eq!(heading.len(), 1);
+    pointer_click(&ctx, &mut gallery, center_of(&tree, heading[0]));
+    assert_eq!(gallery.overview_selected(), Some(neighbour), "a click on the heading selects the tile");
+    // A tile of the same level whose story has a label.
+    let titles: Vec<&str> = gallery
+        .stories()
+        .iter()
+        .filter(|s| s.level == gallery.stories().iter().find(|o| o.component == component).unwrap().level)
+        .map(|s| s.component)
+        .collect();
+    gallery.select_component(component);
+    let tree = settled_tree(&ctx, &mut gallery);
+    let (title, label) = titles
+        .iter()
+        .filter(|t| **t != component)
+        .find_map(|t| {
+            let tile = named(&tree, &format!("Select {t}"), Role::Button).first().copied()?;
+            // On screen: a tile below the fold has no pixels to click.
+            labels_in_tile(&tree, tile, t).into_iter().find(|l| tree.node(*l).and_then(|n| n.bounds()).is_some_and(|b| b.y1 < 780.0)).map(|l| (*t, l))
+        })
+        .expect("a tile with a label in its story");
+    pointer_click(&ctx, &mut gallery, center_of(&tree, label));
+    assert_eq!(gallery.overview_selected(), Some(title), "a click on a label in the story selects the tile");
+}
+
+#[test]
+fn a_pointer_click_on_the_row_of_the_component_whose_tab_is_in_front_selects_it_in_the_overview() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, _) = component_with_stories(&gallery);
+    gallery.open_component(component);
+    assert_eq!(gallery.front_tab(), PanelId::Component(component));
+    let tree = settled_tree(&ctx, &mut gallery);
+    let row = named(&tree, component, Role::ListBoxOption);
+    assert_eq!(row.len(), 1);
+    pointer_click(&ctx, &mut gallery, center_of(&tree, row[0]));
+    assert_eq!(gallery.front_tab(), PanelId::View, "the highlighted row still answers a click");
+    assert_eq!(gallery.overview_selected(), Some(component));
+    assert_eq!(gallery.open_tabs(), [component]);
+}
+
+#[test]
+fn a_tiles_reset_and_open_leave_the_overviews_selection_alone() {
+    use craft_ui::story::ArgValue;
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, _) = component_with_stories(&gallery);
+    let neighbour = neighbour_of(&gallery, component);
+    let story = *gallery
+        .stories()
+        .iter()
+        .find(|s| s.component == neighbour && s.defaults().iter().any(|a| matches!(a.value, ArgValue::Bool(_))))
+        .unwrap_or_else(|| gallery.stories().iter().find(|s| s.component == neighbour).unwrap());
+    gallery.select_component(component);
+    let changed = gallery.args_of_story(story.id).unwrap().iter_mut().find_map(|a| match &mut a.value {
+        ArgValue::Bool(b) => {
+            *b = !*b;
+            Some(())
+        }
+        _ => None,
+    });
+    if changed.is_some() {
+        click(&ctx, &mut gallery, &format!("Reset {neighbour}"), Role::Button);
+        assert_eq!(gallery.overview_selected(), Some(component), "Reset");
+    }
+    click(&ctx, &mut gallery, &format!("Open {neighbour}"), Role::Button);
+    assert_eq!(gallery.open_tabs(), [neighbour]);
+    assert_eq!(gallery.overview_selected(), Some(component), "Open");
+}
+
+#[test]
+fn reset_layout_keeps_the_open_component_tabs() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, _) = component_with_stories(&gallery);
+    gallery.open_component(component);
+    gallery.activate(PanelId::Tokens);
+    click(&ctx, &mut gallery, "Reset layout", Role::Button);
+    assert_eq!(gallery.open_tabs(), [component]);
+    assert_eq!(gallery.front_tab(), PanelId::View);
+}
+
+#[test]
+fn a_double_click_on_a_tile_header_opens_the_component() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, _) = component_with_stories(&gallery);
+    let neighbour = neighbour_of(&gallery, component);
+    gallery.select_component(component);
+    let tree = settled_tree(&ctx, &mut gallery);
+    let tile = named(&tree, &format!("Select {neighbour}"), Role::Button)[0];
+    let tb = tree.node(tile).and_then(|n| n.bounds()).unwrap();
+    // The heading, not the Reset or Open buttons at the other end.
+    let heading = named(&tree, neighbour, Role::Label)
+        .into_iter()
+        .find(|id| tree.node(*id).and_then(|n| n.bounds()).is_some_and(|b| b.x0 >= tb.x0 && b.x1 <= tb.x1 && b.y0 >= tb.y0 && b.y1 <= tb.y1))
+        .unwrap();
+    let at = center_of(&tree, heading);
+    let mut raw = input();
+    raw.events.push(egui::Event::PointerMoved(at));
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    let mut raw = input();
+    for pressed in [true, false, true, false] {
+        raw.events.push(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+    }
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    frame(&ctx, &mut gallery);
+    assert_eq!(gallery.open_tabs(), [neighbour]);
+    assert_eq!(gallery.front_tab(), PanelId::Component(neighbour));
+}
