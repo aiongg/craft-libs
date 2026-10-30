@@ -153,6 +153,7 @@ fn the_mock_app_paints_chrome_tokens_over_a_layer_row_but_not_over_the_document(
 }
 
 #[test]
+#[ignore = "prints timings; run with --ignored --nocapture"]
 fn probe_times() {
     let appearance = Appearance::default();
     let theme = theme(&appearance);
