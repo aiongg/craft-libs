@@ -126,7 +126,7 @@ fn galley_labels_in_shrunk_tabs_end_with_an_ellipsis_inside_the_tab_active_or_no
 #[test]
 fn drag_bar_draws_no_mark_at_rest_and_a_group_drag_paints_a_filled_labeled_ghost() {
     let mut d = Driver::new(frames());
-    let visuals = d.ctx.global_style().visuals.clone();
+    let drop = crate::docking::testing::default_look().drop;
     let bar = d.rect("drag-bar", 2);
     let mark = flat(&d.shapes).into_iter().any(|(_, shape)| match shape {
         egui::Shape::LineSegment { points, .. } => bar.contains(points[0]) && bar.contains(points[1]),
@@ -135,7 +135,7 @@ fn drag_bar_draws_no_mark_at_rest_and_a_group_drag_paints_a_filled_labeled_ghost
     assert!(!mark, "a mark in the drag bar at rest");
 
     d.hold(bar.center(), pos2(150.0, 300.0));
-    let fill = visuals.selection.stroke.color.gamma_multiply(0.15);
+    let fill = drop.gamma_multiply(0.15);
     let Some(ghost) = rects(&d).into_iter().find(|r| r.fill == fill && r.stroke.width == 2.0 && r.rect.contains(pos2(150.0, 300.0))) else {
         panic!("no filled ghost under the pointer")
     };
@@ -329,7 +329,8 @@ fn a_right_to_left_title_bar_puts_its_buttons_left_and_cuts_a_galley_title() {
         let mut full = ctx.run_ui(RawInput::default(), |ui| {
             let mut style = DockStyle::from_ui(ui);
             style.right_to_left = true;
-            let chrome = chrome::ChromeStyle::from_dock(&style);
+            let (config, look) = style.split();
+            let chrome = chrome::ChromeStyle::from_look(&look, &config);
             let title = egui::WidgetText::Galley(ui.painter().layout_no_wrap("Paragraph Styles and More".into(), style.font.clone(), style.text));
             let shown = chrome::TitleBar::new(Id::unique("title"), "Move").title(title).menu("Menu").close("Close").show(ui, bar, &chrome);
             rects = (shown.bar.rect, shown.menu.unwrap().rect, shown.close.unwrap().rect);

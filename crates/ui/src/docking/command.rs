@@ -15,9 +15,7 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use super::{
-    Action, DockError, FloatSpace, Layout, Permissions, Placement, Side, Target, Workspace, Zone, dock_model::Place, surface::DEFAULT_FLOAT,
-};
+use super::{Action, DockError, FloatSpace, Layout, Permissions, Placement, Side, Target, Workspace, Zone, dock_model::Place};
 use crate::layout::SplitSize;
 
 /// A docking command, tagged by its control id under `"command"`.
@@ -396,7 +394,7 @@ impl<P: Clone + Eq + Hash> DockCommand<P> {
                 // The rect a drag would float the unit at, inside the area.
                 let placed = || {
                     let docked = layout.location(panel).ok().and_then(|l| l.group).and_then(|g| g.column).map(|c| c.width);
-                    let fallback = egui::vec2(docked.filter(|_| !matches!(unit, Unit::Panel)).unwrap_or(DEFAULT_FLOAT.x), DEFAULT_FLOAT.y);
+                    let fallback = egui::vec2(docked.filter(|_| !matches!(unit, Unit::Panel)).unwrap_or(space.default_size.x), space.default_size.y);
                     let size = match unit {
                         Unit::Panel => space.panel(panel),
                         Unit::Group => space.group(panel),

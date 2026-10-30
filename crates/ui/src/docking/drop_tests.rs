@@ -48,10 +48,10 @@ fn driver(rules: &[(u32, Permissions)]) -> Driver {
     DockDriver::new(frames(), Bodies { rules: rules.iter().copied().collect(), ..Bodies::default() })
 }
 
-/// The body of `panel` and its group's rect, the 26 pt strip included.
+/// The body of `panel` and its group's rect, the tab strip included.
 fn group(d: &Driver, panel: u32) -> (Rect, Rect) {
     let body = d.content.bodies.get(&panel).copied().unwrap_or_else(|| panic!("panel {panel} not drawn"));
-    (body, Rect::from_min_max(pos2(body.left(), body.top() - 26.0), body.max))
+    (body, Rect::from_min_max(pos2(body.left(), body.top() - crate::docking::testing::STRIP), body.max))
 }
 
 fn tab(d: &Driver, panel: u32) -> Pos2 {
@@ -77,7 +77,7 @@ fn line(rect: Rect, zone: Zone) -> Rect {
 }
 
 fn accent() -> Color32 {
-    DockStyle::default().accent
+    crate::docking::testing::default_style().accent
 }
 
 #[test]
@@ -244,7 +244,7 @@ fn between_docks_the_outer_edge_band_covers_the_part_between_them() {
     let d = driver();
     let (canvas, _) = group(&d, 0);
     let (timeline, _) = group(&d, 4);
-    let area = Rect::from_x_y_ranges(canvas.x_range(), (canvas.top() - 26.0)..=timeline.bottom());
+    let area = Rect::from_x_y_ranges(canvas.x_range(), (canvas.top() - crate::docking::testing::STRIP)..=timeline.bottom());
     let at = pos2(canvas.center().x, 590.0);
     // The line along the bottom between the docks.
     let out = previews_line(driver(), tab(&d, 3), at, line(area, Zone::Bottom));
@@ -344,7 +344,7 @@ fn without_new_dock_zones_a_canvas_that_takes_splits_takes_them_only_on_its_drop
     let low = pos2(body.left() + body.width() * 0.3, body.bottom() - 40.0);
     let high = pos2(body.right() - body.width() * 0.3, body.top() + 40.0);
     for (edges, zones) in [
-        (DockStyle::default().drop_edges, [Some(Zone::Bottom), Some(Zone::Top)]),
+        (crate::docking::testing::default_style().drop_edges, [Some(Zone::Bottom), Some(Zone::Top)]),
         (Sides::LEFT_RIGHT, [Some(Zone::Left), Some(Zone::Right)]),
         (Sides::NONE, [None, None]),
     ] {

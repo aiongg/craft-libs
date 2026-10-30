@@ -290,7 +290,7 @@ fn a_tab_dropped_on_a_seam_or_column_edge_moves_only_that_panel() {
 fn group_dropped_on_a_top_or_bottom_band_stacks_above_or_below() {
     for (at, expected) in [
         // The top quarter of group 2's body, and the bottom quarter of group 3's.
-        (pos2(120.0, 14.0 + 26.0 + 20.0), vec![vec![5], vec![2], vec![3]]),
+        (pos2(120.0, 14.0 + crate::docking::testing::STRIP + 20.0), vec![vec![5], vec![2], vec![3]]),
         (pos2(120.0, 590.0), vec![vec![2], vec![3], vec![5]]),
         // The middle of a body joins as tabs.
         (pos2(120.0, 450.0), vec![vec![2], vec![3, 5]]),
@@ -632,7 +632,7 @@ fn column_and_group_dividers_resize_and_minimized_groups_keep_their_height() {
     d.layout.apply(Action::SetMinimized { panel: 4, minimized: true }).unwrap();
     d.settle();
     assert_eq!(column(&d.layout, 0).groups[1].height, Some(243.0));
-    assert_eq!(d.tab(4).top(), 600.0 - 26.0);
+    assert_eq!(d.tab(4).top(), 600.0 - crate::docking::testing::STRIP);
 }
 
 #[test]
@@ -642,7 +642,8 @@ fn a_group_divider_dragged_past_the_lower_groups_minimum_shrinks_the_next_group(
     d.drag(divider, divider + vec2(0.0, 500.0));
     // Groups 3 and 4 are at their minimum: a tab strip and a 40 pt body.
     let heights = column(&d.layout, 0).groups.iter().map(|g| g.height).collect::<Vec<_>>();
-    assert_eq!(heights[1..], [Some(66.0), Some(66.0)], "{heights:?}");
+    let minimum = Some(crate::docking::testing::STRIP + 40.0);
+    assert_eq!(heights[1..], [minimum, minimum], "{heights:?}");
 }
 
 #[test]
@@ -654,7 +655,7 @@ fn double_click_on_a_docked_tab_minimizes_and_clicking_another_tab_expands() {
     d.click(tab);
     assert!(minimized(&d));
     d.settle();
-    assert_eq!(d.tab(4).top(), 14.0 + 26.0, "the minimized group takes its strip");
+    assert_eq!(d.tab(4).top(), 14.0 + crate::docking::testing::STRIP, "the minimized group takes its strip");
     d.wait();
     d.click(d.tab(3).center());
     assert!(!minimized(&d));
@@ -914,7 +915,7 @@ fn drawn_heights(d: &testing::DockDriver<u32, Creative>) -> [f32; 3] {
 
 #[test]
 fn a_default_column_gives_the_filler_its_fill_height() {
-    let strip = DockStyle::from_visuals(&egui::Visuals::dark()).tab_height;
+    let strip = crate::docking::testing::default_style().tab_height;
     // A 900 pt window: Properties, nearest Layers, gives way towards its compact height so
     // Layers gets the height it asks for; Color keeps its default.
     let d = sized_column(900.0, [None; 3]);
@@ -1001,7 +1002,7 @@ fn creative() -> testing::DockDriver<u32, TestContent> {
 /// The rect of the result preview the last frame painted: a 2 pt accent outline with a light
 /// fill.
 fn result_preview<C: DockContent<u32>>(d: &testing::DockDriver<u32, C>) -> Option<Rect> {
-    let fill = DockStyle::default().accent.gamma_multiply(0.08);
+    let fill = crate::docking::testing::default_style().accent.gamma_multiply(0.08);
     d.shapes()
         .iter()
         .find_map(|clipped| match &clipped.shape {

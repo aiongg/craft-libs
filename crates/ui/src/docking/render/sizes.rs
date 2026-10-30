@@ -51,7 +51,7 @@ fn along(v: egui::Vec2, axis: SplitAxis) -> f32 {
 
 impl<P> Sizer<'_, P> {
     fn limits(&self, node: &Node<P>) -> PanelLimits {
-        node_limits(node, self.config, self.look, self.content)
+        node_limits(node, self.look, self.content)
     }
 
     /// The split as drawn: its stored size, clamped so both children fit their limits.

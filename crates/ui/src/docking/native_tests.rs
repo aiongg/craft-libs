@@ -398,7 +398,7 @@ fn a_minimized_native_window_shrinks_to_its_bar_and_keeps_its_expanded_size() {
 
     // Its bar and its group's tab strip, at the same width and top-left corner; only the width
     // resizes.
-    let collapsed = BAR + super::DockStyle::default().tab_height;
+    let collapsed = BAR + crate::docking::testing::default_style().tab_height;
     d.layout.apply(Action::SetMinimized { panel: 5, minimized: true }).unwrap();
     d.settle();
     assert_eq!(os_window(&d, 5).unwrap().0, Rect::from_min_size(open.min, vec2(240.0, collapsed)));
@@ -695,8 +695,8 @@ fn a_native_window_saves_its_id_place_and_monitor() {
     assert!(serde_json::to_string(&in_window).unwrap().contains(r#""id":3"#));
 }
 
-/// Height of the bar at the top of a native window: the look's title height.
-const BAR: f32 = super::chrome::TITLE_HEIGHT;
+/// Height of the bar at the top of a native window: the Compact title height.
+const BAR: f32 = 14.0;
 /// A tab row's middle in a native window, below the bar.
 const TAB_ROW: f32 = BAR + 13.0;
 

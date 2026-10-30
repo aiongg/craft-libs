@@ -2,7 +2,7 @@
 //! the token path's accessible names, and the stories.
 
 use craft_theme::{Appearance, ComponentField, Contrast, DockField, FloatField, Mode, Pins, Rgba, Size, TabField, TextSize, builtins, resolve};
-use egui::{Context, FontId, Ui, Visuals};
+use egui::{Context, FontId, Ui};
 
 use super::testing::DockDriver;
 use super::{Column, DockArea, DockConfig, DockContent, DockLook, DockSpec, DockStyle, Floating, Group, Hit, Layout, Node, Permissions, Side};
@@ -80,29 +80,28 @@ fn stacked_controls_in_a_panel_body_are_the_body_gap_apart() {
     }
 }
 
-/// The unmigrated flat style splits into the default config and the visuals look, field by field.
+/// The flat style of a ui splits into the default config and a look with the sizes of the ui's
+/// theme.
 #[test]
-fn a_dock_style_from_visuals_splits_into_the_default_config_and_the_visuals_look() {
-    for visuals in [Visuals::dark(), Visuals::light()] {
-        let (config, look) = DockStyle::from_visuals(&visuals).split();
-        assert_eq!(format!("{config:?}"), format!("{:?}", DockConfig::default()));
-        assert_eq!(look, DockLook::from_visuals(&visuals));
-    }
+fn a_flat_style_splits_into_the_default_config_and_the_themed_sizes() {
+    let (config, look, themed) = super::testing::themed(|ui| {
+        let (config, look) = DockStyle::from_ui(ui).split();
+        (config, look, DockLook::of(ui))
+    });
+    assert_eq!(format!("{config:?}"), format!("{:?}", DockConfig::default()));
+    let sizes = |l: &DockLook| {
+        [l.tab_height, l.gap, l.body_gap, l.min_pane, l.drag_bar_width, l.iconic_width, l.iconic_max_width, l.iconic_label_width, l.title_height]
+    };
+    assert_eq!(sizes(&look), sizes(&themed));
+    assert_eq!(look.tab_padding, themed.tab_padding);
 }
 
-/// Light and dark resolve to different strips and active tabs, and neither mode's strip or drop
-/// colour is the colour `DockLook::from_visuals` takes from egui. (The drop colour is the accent,
-/// which is the same in both modes of the default theme.)
+/// Light and dark resolve to different strips and active tabs.
 #[test]
-fn the_themed_look_differs_between_modes_and_from_the_visuals_look() {
+fn the_themed_look_differs_between_modes() {
     let (light, dark) = (look_at(Size::Compact, Mode::Light), look_at(Size::Compact, Mode::Dark));
     for (name, a, b) in [("strip", light.tab_strip, dark.tab_strip), ("active", light.tab_active, dark.tab_active)] {
         assert_ne!(a, b, "{name}");
-    }
-    for (look, visuals) in [(&light, Visuals::light()), (&dark, Visuals::dark())] {
-        let plain = DockLook::from_visuals(&visuals);
-        assert_ne!(look.tab_strip, plain.tab_strip);
-        assert_ne!(look.drop, plain.drop);
     }
 }
 
@@ -146,6 +145,7 @@ fn a_look_or_config_with_a_non_finite_value_is_invalid() {
         |l| l.title_height = f32::INFINITY,
         |l| l.tab_fill = f32::NAN,
         |l| l.tab_height = 0.0,
+        |l| l.min_pane = f32::NAN,
     ] {
         let mut bad = look.clone();
         corrupt(&mut bad);
@@ -153,7 +153,7 @@ fn a_look_or_config_with_a_non_finite_value_is_invalid() {
         assert!(!super::look::valid(&config, &bad));
     }
     let mut bad = config.clone();
-    bad.min_pane = f32::NAN;
+    bad.seam_band = f32::NAN;
     assert!(!bad.valid(&look));
 }
 
@@ -346,7 +346,7 @@ fn a_rounded_floating_window_insets_its_body_below_a_title_bar_from_the_top() {
         let hit = |hit: Hit<u32>| d.hit(&hit).unwrap_or_else(|| panic!("{hit:?}"));
         (hit(Hit::Title(1)), hit(Hit::Tab(1)), hit(Hit::Resize(1, super::ResizeEdge::Top)))
     };
-    let title_height = DockLook::from_visuals(&Visuals::dark()).title_height;
+    let title_height = crate::docking::testing::default_look().title_height;
     let (title, tab, band) = at(0);
     assert_eq!((title.left(), title.top()), (100.0, 100.0));
     assert_eq!((tab.left(), tab.top()), (100.0, 100.0 + title_height));

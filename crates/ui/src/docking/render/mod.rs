@@ -245,13 +245,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             Node::Stack { entries } => {
                 let total_header = (entries.len() as f32 * self.look.tab_height).min(rect.height());
                 let remaining = (rect.height() - total_header).max(0.0);
-                let total_wanted: f64 = entries.iter().filter(|e| e.open).map(|e| f64::from(e.height.unwrap_or(self.config.min_pane).max(1.0))).sum();
+                let total_wanted: f64 = entries.iter().filter(|e| e.open).map(|e| f64::from(e.height.unwrap_or(self.look.min_pane).max(1.0))).sum();
                 let header = self.look.tab_height.min(rect.height() / entries.len().max(1) as f32);
                 let mut top = rect.top();
                 let mut dividers = Vec::new();
                 for (index, entry) in entries.iter().enumerate() {
                     let share = if entry.open && total_wanted > 0.0 {
-                        (f64::from(remaining) * f64::from(entry.height.unwrap_or(self.config.min_pane).max(1.0)) / total_wanted) as f32
+                        (f64::from(remaining) * f64::from(entry.height.unwrap_or(self.look.min_pane).max(1.0)) / total_wanted) as f32
                     } else {
                         0.0
                     };
@@ -300,7 +300,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 let scale = if total_wanted > 0.0 { f64::from(remaining) / total_wanted } else { 0.0 };
                 let body_limits = |panel: &P| {
                     let mut limits = self.limits(panel);
-                    limits.min.y = limits.min.y.max(self.config.min_pane);
+                    limits.min.y = limits.min.y.max(self.look.min_pane);
                     limits.max = limits.max.max(limits.min);
                     limits
                 };
@@ -309,7 +309,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                     .iter()
                     .map(|entry| {
                         let limits = body_limits(&entry.panel);
-                        let size = (f64::from(entry.height.unwrap_or(self.config.min_pane).max(1.0)) * scale) as f32;
+                        let size = (f64::from(entry.height.unwrap_or(self.look.min_pane).max(1.0)) * scale) as f32;
                         RowItem { size, min: limits.min.y, max: limits.max.y }
                     })
                     .collect();
@@ -453,11 +453,11 @@ pub(in crate::docking) fn stripless<P>(panels: &[P], content: &dyn DockContent<P
 }
 
 /// Size policy of a subtree, shared by the renderer and its measurements.
-pub(in crate::docking) fn node_limits<P>(node: &Node<P>, config: &DockConfig, look: &DockLook, content: &dyn DockContent<P>) -> PanelLimits {
+pub(in crate::docking) fn node_limits<P>(node: &Node<P>, look: &DockLook, content: &dyn DockContent<P>) -> PanelLimits {
     match node {
         Node::Dock { columns, .. } => {
-            let width: f32 = columns.iter().map(|c| dock::column_width(c, config, look)).sum();
-            PanelLimits { min: vec2(width.clamp(config.min_pane, 1_000_000.0), config.min_pane), ..PanelLimits::default() }
+            let width: f32 = columns.iter().map(|c| dock::column_width(c, look)).sum();
+            PanelLimits { min: vec2(width.clamp(look.min_pane, 1_000_000.0), look.min_pane), ..PanelLimits::default() }
         }
         // A group is as large as its largest panel allows: a panel without a maximum lifts the
         // maximum of the panels it joins.
@@ -465,7 +465,7 @@ pub(in crate::docking) fn node_limits<P>(node: &Node<P>, config: &DockConfig, lo
             let mut limits = PanelLimits { min: Vec2::ZERO, max: if panels.is_empty() { PanelLimits::default().max } else { Vec2::ZERO } };
             for panel in panels {
                 let policy = content.limits(panel);
-                limits.min = limits.min.max(policy.min).max(Vec2::splat(config.min_pane));
+                limits.min = limits.min.max(policy.min).max(Vec2::splat(look.min_pane));
                 limits.max = limits.max.max(policy.max);
             }
             limits.max = limits.max.max(limits.min);
@@ -482,8 +482,8 @@ pub(in crate::docking) fn node_limits<P>(node: &Node<P>, config: &DockConfig, lo
             }
             for entry in entries {
                 let policy = content.limits(&entry.panel);
-                limits.min.x = limits.min.x.max(policy.min.x).max(config.min_pane);
-                limits.min.y += if entry.open { policy.min.y.max(config.min_pane) } else { 0.0 } + look.tab_height;
+                limits.min.x = limits.min.x.max(policy.min.x).max(look.min_pane);
+                limits.min.y += if entry.open { policy.min.y.max(look.min_pane) } else { 0.0 } + look.tab_height;
                 limits.max.x = limits.max.x.max(policy.max.x);
             }
             limits.min = limits.min.min(Vec2::splat(1_000_000.0));
@@ -491,8 +491,8 @@ pub(in crate::docking) fn node_limits<P>(node: &Node<P>, config: &DockConfig, lo
             limits
         }
         Node::Split { axis, first, second, .. } => {
-            let a = node_limits(first, config, look, content);
-            let b = node_limits(second, config, look, content);
+            let a = node_limits(first, look, content);
+            let b = node_limits(second, look, content);
             let limits = match axis {
                 SplitAxis::Horizontal => PanelLimits {
                     min: vec2(a.min.x + b.min.x + look.gap, a.min.y.max(b.min.y)),

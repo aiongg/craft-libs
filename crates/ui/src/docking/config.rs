@@ -8,7 +8,6 @@ use crate::localized::{Labels as _, Words};
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct DockConfig {
-    pub min_pane: f32,
     /// Localize these action labels in the application adapter.
     pub float_label: String,
     pub close_label: String,
@@ -29,9 +28,6 @@ pub struct DockConfig {
     pub move_group_down_label: String,
     /// Group menu item that moves the whole group into another group (submenu of targets).
     pub move_group_to_label: String,
-    /// Minimum width of the drag bar left of the group header. Tabs shrink, then overflow,
-    /// before the bar narrows; a strip narrower than the header plus this width narrows it.
-    pub drag_bar_width: f32,
     /// Narrowest a tab gets before the tabs that do not fit go to the overflow menu. `None`:
     /// about three characters and the "…" at the look's font size, plus the tab's padding (54 pt
     /// at the default 12 pt font and 24 pt padding), so it follows the font. Tabs whose names
@@ -82,10 +78,6 @@ pub struct DockConfig {
     /// [D] Width of the band along the docked area's left and right edges, and inside an empty
     /// dock, that makes a new dock (28 pt).
     pub new_dock_band: f32,
-    /// [D] Widest an iconic column gets by dragging its inner edge.
-    pub iconic_max_width: f32,
-    /// [D] An iconic column at least this wide shows panel names beside the icons.
-    pub iconic_label_width: f32,
     /// [D] Column menu item that toggles Auto-Collapse Iconic Panels.
     pub auto_collapse_label: String,
     /// [D] Lay docks out right to left: `Side::Start` is the right edge. egui has no app-wide
@@ -145,7 +137,6 @@ pub struct DockConfig {
 impl Default for DockConfig {
     fn default() -> Self {
         Self {
-            min_pane: 40.0,
             float_label: String::new(),
             close_label: String::new(),
             move_panel_to_label: String::new(),
@@ -161,7 +152,6 @@ impl Default for DockConfig {
             move_group_up_label: String::new(),
             move_group_down_label: String::new(),
             move_group_to_label: String::new(),
-            drag_bar_width: 40.0,
             min_tab_width: None,
             edge_band: 28.0,
             side_edge_zones: false,
@@ -172,8 +162,6 @@ impl Default for DockConfig {
             seam_band: 28.0,
             column_edge_band: 28.0,
             new_dock_band: 28.0,
-            iconic_max_width: 240.0,
-            iconic_label_width: 96.0,
             auto_collapse_label: String::new(),
             right_to_left: false,
             move_column_label: String::new(),
@@ -246,8 +234,6 @@ impl DockConfig {
     /// positive. `look` supplies the font the default minimum tab width follows.
     pub(super) fn valid(&self, look: &super::DockLook) -> bool {
         [
-            self.min_pane,
-            self.drag_bar_width,
             self.tab_width_floor(look),
             self.edge_band,
             self.side_zone_fraction,
@@ -255,8 +241,6 @@ impl DockConfig {
             self.seam_band,
             self.column_edge_band,
             self.new_dock_band,
-            self.iconic_max_width,
-            self.iconic_label_width,
         ]
         .iter()
         .all(|v| v.is_finite() && (0.0..=4096.0).contains(v))

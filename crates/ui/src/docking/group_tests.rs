@@ -325,7 +325,7 @@ fn extra_tabs_follow_the_panel_tabs_and_overflow_with_them() {
     let (extra, bar) = (d.content.extra_rect.expect("extra tabs drawn"), d.rect("drag-bar", 1));
     assert_eq!(overflow.left(), d.tab(1).right());
     assert_eq!(extra.left(), overflow.right(), "the extra tabs follow the overflow button");
-    let min = DockStyle::default().min_tab_width;
+    let min = crate::docking::testing::default_style().min_tab_width;
     assert!(extra.width() >= min - 0.5 && extra.width() < 100.0, "{extra:?}");
     assert_eq!((bar.left(), bar.right()), (extra.right(), 200.0 - 24.0));
     assert!(bar.width() >= 40.0, "{bar:?}");
@@ -363,7 +363,7 @@ fn narrow_frames_shrink_their_tabs_before_the_rest_overflow() {
     // Both tabs show, cut to fit, with their labels inside them.
     let d = testing::DockDriver::new(layout.clone(), Named).with_area(area(168.0));
     assert!(d.hit(&Hit::Overflow(1)).is_none(), "no overflow while the tabs fit at their minimum width");
-    let min = DockStyle::default().min_tab_width;
+    let min = crate::docking::testing::default_style().min_tab_width;
     for (panel, name) in [(1, "Properties"), (2, "Layers")] {
         let tab = d.hit(&Hit::Tab(panel)).unwrap_or_else(|| panic!("{name} is hidden"));
         assert!(tab.width() >= min - 0.5, "{name}: {tab:?}");
@@ -501,7 +501,7 @@ fn floated_panel_fits_its_content_up_to_floating_size_not_the_column_height() {
         }) else {
             panic!("{:?}", out.actions)
         };
-        let fitted = crate::docking::chrome::TITLE_HEIGHT + d.rect("drag-bar", 2).height() + 200.0;
+        let fitted = crate::docking::testing::default_look().title_height + d.rect("drag-bar", 2).height() + 200.0;
         match size {
             Some(size) => assert_eq!((width, height), (size.x, size.y)),
             None => assert_eq!(height, fitted),
@@ -516,7 +516,7 @@ fn floating_window_is_opaque_with_a_transparent_host_background() {
     d.transparent = true;
     d.step(vec![]);
     let window = Rect::from_min_size(pos2(80.0, 70.0), vec2(300.0, 220.0));
-    let fill = d.ctx.global_style().visuals.window_fill;
+    let fill = crate::docking::testing::default_look().floating_background;
     assert_ne!(fill, Color32::TRANSPARENT);
     fn filled(shape: &egui::Shape, rect: Rect, fill: Color32) -> bool {
         match shape {
@@ -764,7 +764,7 @@ fn a_group_dragged_out_of_a_floating_stack_tears_out_alone() {
 /// minimum and the 320 pt docked cap; a host floating size supplies the width and caps the height,
 /// and a group uses its active panel's content height.
 fn a_short_docked_panel_floats_at_its_content_height_up_to_its_floating_size() {
-    let title = crate::docking::chrome::TITLE_HEIGHT;
+    let title = crate::docking::testing::default_look().title_height;
     let float = |body: f32, floating_size: Option<Vec2>| {
         let content = TestContent { body_height: Some(body), floating_size, ..Default::default() };
         let mut d = Driver::with(docked(), content, Rect::from_min_size(pos2(0.0, 0.0), vec2(600.0, 600.0)));

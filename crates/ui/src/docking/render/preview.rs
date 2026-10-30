@@ -25,12 +25,6 @@ pub(in crate::docking) fn tab_outline(painter: &egui::Painter, rect: Rect, look:
     painter.rect_stroke(rect, 0.0, egui::Stroke::new(look.drop_width, look.drop), egui::StrokeKind::Inside);
 }
 
-/// Height of a panel floated out of a dock column when the host gives no floating size.
-const DOCKED_FLOAT_HEIGHT: f32 = 320.0;
-
-/// Least height of a floating window or flyout fitted to a short panel's content.
-pub(super) const MIN_FITTED_HEIGHT: f32 = 120.0;
-
 /// Key of whether the area's group drag highlighted a drop target on the last frame, under the
 /// area's id. An in-window floating window that its bar drag moves fades from it on the next
 /// frame: the window draws before the preview.
@@ -282,7 +276,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         // The far side's edge at the divider is its end edge when the frame is in the second
         // child.
         let room = sizer.travel(far.0, far.1, axis, in_second).0 - DROP_MARGIN;
-        let least = along(super::node_limits(new, self.config, self.look, &*self.content).min) + DROP_MARGIN;
+        let least = along(super::node_limits(new, self.look, &*self.content).min) + DROP_MARGIN;
         let gap = self.look.gap;
         // A split frame's width is its share of the room, not one of its own.
         let saved = match self.place(panel) {
@@ -777,12 +771,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if let Some(size) = self.content.floating_size(panel).filter(|s| s.is_finite() && s.x > 0.0 && s.y > 0.0) {
             return vec2(size.x, self.fitted_height(panel, chrome, size.y).unwrap_or(size.y));
         }
-        let mut size = self.iconic.float_width(panel).map_or(source, |width| vec2(width, DOCKED_FLOAT_HEIGHT));
+        let mut size = self.iconic.float_width(panel).map_or(source, |width| vec2(width, self.look.float_height));
         if matches!(self.place(panel), Some(Place::Dock { .. } | Place::Node(_))) {
-            size.y = match self.fitted_height(panel, chrome, DOCKED_FLOAT_HEIGHT) {
+            size.y = match self.fitted_height(panel, chrome, self.look.float_height) {
                 Some(height) => height,
-                None if self.content_height(panel) == Some(None) => DOCKED_FLOAT_HEIGHT,
-                None => size.y.min(DOCKED_FLOAT_HEIGHT),
+                None if self.content_height(panel) == Some(None) => self.look.float_height,
+                None => size.y.min(self.look.float_height),
             };
         }
         let limits = self.limits(panel);
@@ -791,11 +785,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     }
 
     /// Height of a window around `panel`'s group: `chrome` (title bar and tab strip) and the
-    /// content height the panel last drew, at least [`MIN_FITTED_HEIGHT`] and at most `max`.
+    /// content height the panel last drew, at least [`self.look.min_fitted_height`] and at most `max`.
     /// `None` for a panel the area has not drawn.
     pub(super) fn fitted_height(&self, panel: &P, chrome: f32, max: f32) -> Option<f32> {
         let content = self.content_height(panel).flatten()?;
-        Some((chrome + content).max(MIN_FITTED_HEIGHT).min(max))
+        Some((chrome + content).max(self.look.min_fitted_height).min(max))
     }
 
     /// Record what a drag floats from `panels`, one group drawn at `group` whose panels drag
@@ -828,9 +822,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let host = members.iter().filter_map(|panel| self.content.floating_size(panel).filter(valid)).map(|s| s.y).reduce(f32::max);
         let docked = matches!(place, Place::Dock { .. });
         let chrome = self.look.title_height + self.look.tab_height;
-        let max = host.or(docked.then_some(DOCKED_FLOAT_HEIGHT));
+        let max = host.or(docked.then_some(self.look.float_height));
         let fitted = max.and_then(|max| self.group_active(members, place).and_then(|active| self.fitted_height(active, chrome, max)));
-        vec2(source.x, fitted.or(host).unwrap_or(if docked { source.y.min(DOCKED_FLOAT_HEIGHT) } else { source.y }))
+        vec2(source.x, fitted.or(host).unwrap_or(if docked { source.y.min(self.look.float_height) } else { source.y }))
     }
 
     /// The active panel of the group at `place` when `members` are that whole group.

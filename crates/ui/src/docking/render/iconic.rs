@@ -20,8 +20,6 @@ use crate::theme::StrokeExt;
 /// How far an icon group's drag band reaches into its first icon. The band also covers the
 /// separator room above the group; it reserves no height of its own.
 const GROUP_BAND: f32 = 4.0;
-/// Height of a flyout, or of a panel floated from an icon, when nothing else sizes it.
-const FLYOUT_HEIGHT: f32 = 320.0;
 
 /// The panel whose icon opened the flyout of an area.
 #[derive(Clone)]
@@ -146,7 +144,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// clipped to the visible `view`.
     fn icon_groups(&mut self, ui: &mut Ui, column: &Column<P>, area: Rect, view: Rect, edge: Edge) {
         let open = flyout::<P>(ui.ctx(), self.id);
-        let labels = view.width() >= self.config.iconic_label_width;
+        let labels = view.width() >= self.look.iconic_label_width;
         let xs = view.x_range();
         let separator = self.separator();
         let mut top = area.top();
@@ -203,8 +201,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let response = ui.interact(grip, self.id.with(("icon-grip", Some(first))), Sense::drag());
         let response = if movable { response.on_hover_cursor(egui::CursorIcon::Grab) } else { response };
         self.register_interaction(ui.ctx(), response.id);
-        let height = group.height.filter(|h| h.is_finite()).unwrap_or(FLYOUT_HEIGHT);
-        let source = Rect::from_min_size(pos2(grip.left(), top), vec2(width.max(self.config.min_pane), height.max(self.look.tab_height)));
+        let height = group.height.filter(|h| h.is_finite()).unwrap_or(self.look.flyout_height);
+        let source = Rect::from_min_size(pos2(grip.left(), top), vec2(width.max(self.look.min_pane), height.max(self.look.tab_height)));
         self.record_float(&group.panels, vec2(grip.width(), self.row_height()), source.size());
         response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.move_group_label));
         if movable && response.drag_started() {
@@ -309,19 +307,19 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         let bounds = self.workspace.intersect(self.float_bounds);
         // A dock scrolled out of the window has no bounds left to fit in.
-        let width = request.width.max(self.config.min_pane).min(bounds.width().max(0.0));
+        let width = request.width.max(self.look.min_pane).min(bounds.width().max(0.0));
         let max = self
             .content
             .floating_size(&active)
             .map(|size| size.y)
             .or(request.group.height)
             .filter(|h| h.is_finite() && *h > 0.0)
-            .unwrap_or(FLYOUT_HEIGHT);
+            .unwrap_or(self.look.flyout_height);
         // A flyout fits the content its panel last drew, up to that height.
         let height = self
             .fitted_height(&active, self.look.tab_height, max)
             .unwrap_or(max)
-            .max(self.look.tab_height + self.config.min_pane)
+            .max(self.look.tab_height + self.look.min_pane)
             .min(bounds.height().max(0.0));
         let left = match request.edge {
             Edge::Left => request.column.right(),

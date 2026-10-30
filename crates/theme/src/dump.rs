@@ -839,6 +839,13 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
         icon_size,
         icon_pad,
         iconic_width,
+        min_pane,
+        drag_bar_width,
+        iconic_max_width,
+        iconic_label_width,
+        flyout_height,
+        overflow_width,
+        menu_max_height,
         drop_width,
         focus_width,
         marker_radius,
@@ -865,6 +872,13 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
         ("icon_size", icon_size),
         ("icon_pad", icon_pad),
         ("iconic_width", iconic_width),
+        ("min_pane", min_pane),
+        ("drag_bar_width", drag_bar_width),
+        ("iconic_max_width", iconic_max_width),
+        ("iconic_label_width", iconic_label_width),
+        ("flyout_height", flyout_height),
+        ("overflow_width", overflow_width),
+        ("menu_max_height", menu_max_height),
         ("drop_width", drop_width),
         ("focus_width", focus_width),
         ("marker_radius", marker_radius),
@@ -941,9 +955,39 @@ fn form_lines(out: &mut Lines, t: &FormTokens) {
 }
 
 fn float_lines(out: &mut Lines, t: &FloatTokens) {
-    let FloatTokens { border_width, radius, shadow, fill, border, blocked, title, title_text, title_muted, grip, focus } = t;
+    let FloatTokens {
+        border_width,
+        radius,
+        width,
+        height,
+        min_fitted_height,
+        cascade_offset,
+        hint_offset,
+        min_width,
+        min_body_height,
+        shadow,
+        fill,
+        border,
+        blocked,
+        title,
+        title_text,
+        title_muted,
+        grip,
+        focus,
+    } = t;
     out.line("float.border_width", len(*border_width));
     out.line("float.radius", len(*radius));
+    for (k, v) in [
+        ("width", width),
+        ("height", height),
+        ("min_fitted_height", min_fitted_height),
+        ("cascade_offset", cascade_offset),
+        ("hint_offset", hint_offset),
+        ("min_width", min_width),
+        ("min_body_height", min_body_height),
+    ] {
+        out.line(&format!("float.{k}"), len(*v));
+    }
     let Elevation { offset: [x, y], blur, spread, alpha } = shadow;
     out.line("float.shadow.offset", format!("{} {}", len(*x), len(*y)));
     out.line("float.shadow.blur", len(*blur));

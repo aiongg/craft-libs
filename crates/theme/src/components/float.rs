@@ -20,6 +20,20 @@ pub struct FloatTokens {
     pub border_width: f32,
     /// Corner radius of the fill, the border and the shadow: square by default.
     pub radius: f32,
+    /// Width of a window floated without a size.
+    pub width: f32,
+    /// Height of a window floated without a size, and the tallest a docked panel floats at.
+    pub height: f32,
+    /// Least height of a window fitted to its content.
+    pub min_fitted_height: f32,
+    /// Offset of a floated window from the dock area's corner or the window it cascades from.
+    pub cascade_offset: f32,
+    /// Distance from the pointer to the centre of the float hint.
+    pub hint_offset: f32,
+    /// Narrowest a resized window gets.
+    pub min_width: f32,
+    /// Room for content that a resized window keeps below its title bar.
+    pub min_body_height: f32,
     /// The shadow: `elevation.floating`.
     pub shadow: Elevation,
     /// Behind the contents: `surface.panel`.
@@ -120,6 +134,13 @@ impl Family for FloatTokens {
         FloatTokens {
             border_width: values::FLOAT_BORDER_WIDTH,
             radius: values::FLOAT_RADIUS,
+            width: values::FLOAT_WIDTH,
+            height: values::FLOAT_HEIGHT,
+            min_fitted_height: values::FLOAT_MIN_FITTED_HEIGHT,
+            cascade_offset: values::FLOAT_CASCADE_OFFSET,
+            hint_offset: values::FLOAT_HINT_OFFSET,
+            min_width: values::FLOAT_MIN_WIDTH,
+            min_body_height: values::FLOAT_MIN_BODY_HEIGHT,
             shadow: s.elevation.floating,
             fill: c.surface.panel,
             border: c.line.border,

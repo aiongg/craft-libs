@@ -400,13 +400,3 @@ fn a_bottom_edge_draws_the_rail_at_the_end() {
     let rail = h.state().out().rect;
     assert_eq!((rail.right(), rail.height()), (R, 584.0), "{rail:?}");
 }
-
-#[test]
-fn chrome_style_from_visuals_matches_the_dock_style_it_skips() {
-    use crate::docking::{DockStyle, chrome::ChromeStyle};
-    for visuals in [egui::Visuals::light(), egui::Visuals::dark()] {
-        let direct = ChromeStyle::from_visuals(&visuals);
-        let through_dock = ChromeStyle::from_dock(&DockStyle::from_visuals(&visuals));
-        assert_eq!(format!("{direct:?}"), format!("{through_dock:?}"));
-    }
-}

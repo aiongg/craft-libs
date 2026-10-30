@@ -90,7 +90,7 @@ fn film() -> Driver {
 /// A group's rect: its active body and its tab strip.
 fn group(d: &Driver, panel: u32) -> Rect {
     let body = d.content.bodies.get(&panel).copied().unwrap_or_else(|| panic!("panel {panel} not drawn"));
-    Rect::from_min_max(pos2(body.left(), body.top() - 26.0), body.max)
+    Rect::from_min_max(pos2(body.left(), body.top() - crate::docking::testing::STRIP), body.max)
 }
 
 fn tab(d: &Driver, panel: u32) -> Pos2 {
@@ -128,7 +128,7 @@ fn a_group_is_a_picture_frame_whose_edges_split_it_in_half_and_whose_middle_join
         match zone {
             Zone::Left => pos2(timeline.left() + w, timeline.center().y + 13.0),
             Zone::Right => pos2(timeline.right() - w, timeline.center().y + 13.0),
-            Zone::Top => pos2(timeline.center().x, timeline.top() + 26.0 + h),
+            Zone::Top => pos2(timeline.center().x, timeline.top() + crate::docking::testing::STRIP + h),
             Zone::Bottom => pos2(timeline.center().x, timeline.bottom() - h),
             Zone::Center => pos2(timeline.center().x, timeline.center().y + 13.0),
         }
@@ -138,7 +138,10 @@ fn a_group_is_a_picture_frame_whose_edges_split_it_in_half_and_whose_middle_join
         let before = sizes(&d, &others);
         let at = inset(zone);
         d.hold(tab(&d, INFO), at);
-        assert!(d.filled_polygon(&zone_shape(timeline, 26.0, 40.0, zone).unwrap()), "{zone:?}: the preview fills that band");
+        assert!(
+            d.filled_polygon(&zone_shape(timeline, crate::docking::testing::STRIP, 40.0, zone).unwrap()),
+            "{zone:?}: the preview fills that band"
+        );
         let out = d.release(at);
         assert_eq!(out.actions, vec![Action::Move { panel: INFO, anchor: TIMELINE, placement: Placement::Split(zone) }], "{zone:?}");
         d.settle();
@@ -351,7 +354,7 @@ fn a_drop_beside_a_narrow_group_splits_that_group_only() {
     assert!(tools.width() > 120.0, "{tools:?}");
     let at = pos2(tools.right() - 8.0, tools.center().y + 13.0);
     d.hold(tab(&d, INFO), at);
-    assert!(d.filled_polygon(&zone_shape(tools, 26.0, 40.0, Zone::Right).unwrap()), "the preview fills Tools' right band");
+    assert!(d.filled_polygon(&zone_shape(tools, crate::docking::testing::STRIP, 40.0, Zone::Right).unwrap()), "the preview fills Tools' right band");
     let out = d.release(at);
     assert_eq!(out.actions, vec![Action::Move { panel: INFO, anchor: TOOLS, placement: Placement::Split(Zone::Right) }]);
     d.settle();
@@ -379,7 +382,7 @@ fn beside_tools(width: f32, tools: f32) -> Driver {
 fn a_drop_beside_a_frame_too_narrow_to_halve_takes_room_from_its_neighbour() {
     let mut d = beside_tools(1000.0, 60.0);
     let (tools, properties, info) = (group(&d, TOOLS), group(&d, PROPERTIES[0]), group(&d, INFO));
-    let left = zone_shape(tools, 26.0, 40.0, Zone::Left).unwrap();
+    let left = zone_shape(tools, crate::docking::testing::STRIP, 40.0, Zone::Left).unwrap();
     let at = pos2(tools.left() + 4.0, tools.center().y + 13.0);
     d.hold(tab(&d, INFO), at);
     assert!(d.filled_polygon(&left), "Tools' left zone is a target");
@@ -415,7 +418,7 @@ fn a_drop_on_the_outer_side_of_a_frame_too_narrow_to_halve_takes_room_from_the_o
     // Inside Tools' left zone, past the window edge band.
     let at = pos2(tools.left() + 12.0, tools.center().y + 13.0);
     d.hold(tab(&d, INFO), at);
-    assert!(d.filled_polygon(&zone_shape(tools, 26.0, 40.0, Zone::Left).unwrap()), "Tools' left zone is a target");
+    assert!(d.filled_polygon(&zone_shape(tools, crate::docking::testing::STRIP, 40.0, Zone::Left).unwrap()), "Tools' left zone is a target");
     let out = d.release(at);
     assert!(
         matches!(&out.actions[..], [Action::Move { panel: INFO, anchor: TOOLS, placement: Placement::SplitSized { zone: Zone::Left, .. } }]),
@@ -524,7 +527,7 @@ fn assert_dividers_travel(d: &mut Driver) {
 /// Every group at or above its minimum, and every divider with room both ways, in the docked
 /// layout and in each floating window. Reads the bodies drawn last.
 fn assert_sizes(d: &Driver, context: &str) {
-    let mut style = DockStyle::default();
+    let mut style = crate::docking::testing::default_style();
     frame_style(&mut style);
     let (config, look) = style.split();
     let sizer = Sizer { config: &config, look: &look, content: &d.content };
@@ -594,6 +597,15 @@ fn random_drops_leave_every_group_its_minimum_and_every_divider_travel() {
             let panel = panels[rng.below(panels.len())];
             let bar = d.hit(&Hit::DragBar(panel)).filter(|_| rng.below(3) == 0);
             let Some(from) = bar.or_else(|| d.hit(&Hit::Tab(panel))).map(|r| r.center()) else { continue };
+            // A window drawn over the start takes the press for its own dividers and bars.
+            let covered = d
+                .layout
+                .floating
+                .iter()
+                .any(|w| !w.contains(&panel) && Rect::from_min_size(pos2(w.rect[0], w.rect[1]), vec2(w.rect[2], w.rect[3])).contains(from));
+            if covered {
+                continue;
+            }
             let target = panels[rng.below(panels.len())];
             let Some(rect) = d.content.bodies.get(&target).copied() else { continue };
             let to = match rng.below(8) {
@@ -863,14 +875,14 @@ fn corners(rect: Rect) -> Vec<Pos2> {
 fn the_preview_fills_the_zone_under_the_pointer_and_no_result_rect() {
     let d = film();
     let timeline = group(&d, TIMELINE);
-    let strip = Rect::from_min_size(timeline.min, vec2(timeline.width(), 26.0));
+    let strip = Rect::from_min_size(timeline.min, vec2(timeline.width(), crate::docking::testing::STRIP));
     // A side band: its trapezoid, without the half the panel takes.
     for (zone, at) in
         [(Zone::Left, pos2(timeline.left() + 8.0, timeline.center().y + 13.0)), (Zone::Bottom, pos2(timeline.center().x, timeline.bottom() - 20.0))]
     {
         let mut d = film();
         d.hold(tab(&d, INFO), at);
-        assert!(d.filled_polygon(&zone_shape(timeline, 26.0, 40.0, zone).unwrap()), "{zone:?}");
+        assert!(d.filled_polygon(&zone_shape(timeline, crate::docking::testing::STRIP, 40.0, zone).unwrap()), "{zone:?}");
         assert!(!d.outlined(zone_rect(timeline, zone).unwrap().shrink(1.0)), "{zone:?}");
         d.key(egui::Key::Escape);
     }
@@ -878,7 +890,7 @@ fn the_preview_fills_the_zone_under_the_pointer_and_no_result_rect() {
     for at in [timeline.center() + vec2(0.0, 13.0), strip.center()] {
         let mut d = film();
         d.hold(tab(&d, INFO), at);
-        assert!(d.filled_polygon(&zone_shape(timeline, 26.0, 40.0, Zone::Center).unwrap()), "{at:?}");
+        assert!(d.filled_polygon(&zone_shape(timeline, crate::docking::testing::STRIP, 40.0, Zone::Center).unwrap()), "{at:?}");
         assert!(d.filled_polygon(&corners(strip)), "{at:?}");
         assert!(!d.outlined(timeline.shrink(1.0)), "{at:?}");
         d.key(egui::Key::Escape);
@@ -887,7 +899,7 @@ fn the_preview_fills_the_zone_under_the_pointer_and_no_result_rect() {
     let mut d = film();
     let bar = d.hit(&Hit::DragBar(PROJECT[0])).unwrap().center();
     d.hold(bar, pos2(timeline.left() + 8.0, timeline.center().y + 13.0));
-    assert!(d.filled_polygon(&zone_shape(timeline, 26.0, 40.0, Zone::Left).unwrap()));
+    assert!(d.filled_polygon(&zone_shape(timeline, crate::docking::testing::STRIP, 40.0, Zone::Left).unwrap()));
     assert_eq!(zone_outlines(&d).len(), 6);
     d.key(egui::Key::Escape);
 
@@ -898,7 +910,7 @@ fn the_preview_fills_the_zone_under_the_pointer_and_no_result_rect() {
     d.settle();
     let at = pos2(timeline.left() + 8.0, timeline.center().y + 13.0);
     d.hold(tab(&d, INFO), at);
-    assert!(!d.filled_polygon(&zone_shape(timeline, 26.0, 40.0, Zone::Left).unwrap()));
+    assert!(!d.filled_polygon(&zone_shape(timeline, crate::docking::testing::STRIP, 40.0, Zone::Left).unwrap()));
     assert!(zone_outlines(&d).is_empty());
     assert!(!d.filled(zone_rect(timeline, Zone::Left).unwrap().shrink(1.0)));
     let shapes = d.shapes().to_vec();
@@ -909,7 +921,7 @@ fn the_preview_fills_the_zone_under_the_pointer_and_no_result_rect() {
     let painted = |fill: egui::Color32, stroke: f32| {
         shapes.iter().any(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.rect == info.shrink(1.0) && r.fill == fill && r.stroke.width == stroke))
     };
-    let accent = DockStyle::default().accent;
+    let accent = crate::docking::testing::default_style().accent;
     assert!(painted(accent.gamma_multiply(0.08), 0.0) && painted(egui::Color32::TRANSPARENT, 2.0), "Info's rect beside the timeline");
 }
 
@@ -917,8 +929,8 @@ fn the_preview_fills_the_zone_under_the_pointer_and_no_result_rect() {
 fn a_drag_over_a_group_outlines_all_its_zones_and_fills_the_one_drop_zone_names() {
     let d = film();
     let timeline = group(&d, TIMELINE);
-    let strip = Rect::from_min_size(timeline.min, vec2(timeline.width(), 26.0));
-    let shape = |zone| zone_shape(timeline, 26.0, 40.0, zone).unwrap();
+    let strip = Rect::from_min_size(timeline.min, vec2(timeline.width(), crate::docking::testing::STRIP));
+    let shape = |zone| zone_shape(timeline, crate::docking::testing::STRIP, 40.0, zone).unwrap();
     let all: Vec<Vec<Pos2>> =
         [Zone::Left, Zone::Right, Zone::Top, Zone::Bottom, Zone::Center].map(shape).into_iter().chain([corners(strip)]).collect();
     let body = Rect::from_min_max(pos2(timeline.left(), strip.bottom()), timeline.max);
@@ -939,7 +951,7 @@ fn a_drag_over_a_group_outlines_all_its_zones_and_fills_the_one_drop_zone_names(
         let outlines = zone_outlines(&d);
         assert_eq!(outlines.len(), all.len(), "{at:?}: four sides, the center and the strip");
         assert!(all.iter().all(|zone| outlines.iter().any(|o| same_polygon(o, zone))), "{at:?}: only Timeline's zones");
-        let zone = drop_zone(timeline, 26.0, 40.0, at).unwrap();
+        let zone = drop_zone(timeline, crate::docking::testing::STRIP, 40.0, at).unwrap();
         assert!(d.filled_polygon(&shape(zone)), "{at:?}: {zone:?} is filled");
         let filled = all.iter().filter(|z| d.filled_polygon(z)).count();
         assert_eq!(filled, if zone == Zone::Center { 2 } else { 1 }, "{at:?}: only {zone:?}");
@@ -950,8 +962,8 @@ fn a_drag_over_a_group_outlines_all_its_zones_and_fills_the_one_drop_zone_names(
 #[test]
 fn zones_a_group_does_not_take_are_not_drawn() {
     let timeline = group(&film(), TIMELINE);
-    let strip = Rect::from_min_size(timeline.min, vec2(timeline.width(), 26.0));
-    let shape = |zone| zone_shape(timeline, 26.0, 40.0, zone).unwrap();
+    let strip = Rect::from_min_size(timeline.min, vec2(timeline.width(), crate::docking::testing::STRIP));
+    let shape = |zone| zone_shape(timeline, crate::docking::testing::STRIP, 40.0, zone).unwrap();
     let at = pos2(timeline.left() + 8.0, timeline.center().y + 13.0);
     let content = |rules: Permissions| Film { rules: HashMap::from([(TIMELINE, rules)]), ..Film::default() };
     // No splits: the center and the strip only, and the left band under the pointer neither
@@ -989,7 +1001,7 @@ fn a_narrow_group_splits_on_every_side_and_its_neighbours_give_the_room() {
     let d = narrow();
     let (tools, timeline) = (group(&d, TOOLS), group(&d, TIMELINE));
     assert_eq!(tools.width().round(), 80.0);
-    let body_top = tools.top() + 26.0;
+    let body_top = tools.top() + crate::docking::testing::STRIP;
     for (zone, at) in [
         (Zone::Left, pos2(tools.left() + 5.0, tools.center().y)),
         (Zone::Right, pos2(tools.right() - 5.0, tools.center().y)),
@@ -999,7 +1011,7 @@ fn a_narrow_group_splits_on_every_side_and_its_neighbours_give_the_room() {
         let mut d = narrow();
         d.hold(tab(&d, INFO), at);
         assert_eq!(zone_outlines(&d).len(), 6, "{zone:?}: four sides, the center and the strip");
-        assert!(d.filled_polygon(&zone_shape(tools, 26.0, 40.0, zone).unwrap()), "{zone:?} is filled");
+        assert!(d.filled_polygon(&zone_shape(tools, crate::docking::testing::STRIP, 40.0, zone).unwrap()), "{zone:?} is filled");
         let out = d.release(at);
         assert_eq!(out.actions, vec![Action::Move { panel: INFO, anchor: TOOLS, placement: Placement::Split(zone) }]);
         d.settle();
