@@ -4,12 +4,14 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
+use std::sync::Arc;
 
 use craft_theme::{ControlSize, Srgba, States, TypeRole};
 use egui::accesskit::{Action, ActionData, Role};
 use egui::emath::GuiRounding as _;
+use egui::text::LayoutJob;
 use egui::{
-    AsIdSalt, Color32, Event, EventFilter, Id, IdSalt, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, Rect, Response, Sense, Stroke,
+    AsIdSalt, Color32, Event, EventFilter, Galley, Id, IdSalt, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, Rect, Response, Sense, Stroke,
     StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
@@ -20,7 +22,7 @@ use crate::edit::order::{self, Turn};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::primitives::{Content, Gap, Interactive, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs, variant_list};
-use crate::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, UiTokens, corner_radius, scale};
+use crate::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format, scale};
 use crate::typed_story;
 
 /// A slider's sizes and colours, from [`Slider::style`]; [`RangeSlider`](super::RangeSlider)
@@ -120,7 +122,8 @@ pub enum SliderThumb {
 ///   step is [`step`](Slider::step), or a hundredth of the range.
 /// - The wheel steps the value while the pointer is over the focused slider, and the panel under
 ///   it doesn't scroll; over a slider without focus the wheel scrolls the panel, unless
-///   [`wheel_unfocused`](Slider::wheel_unfocused) is on.
+///   [`wheel_unfocused`](Slider::wheel_unfocused) is on. With [`wheel(false)`](Slider::wheel)
+///   the slider never takes the wheel.
 /// - With a [`default_value`](Slider::default_value), a double-click on the track or the thumb
 ///   sets it, and so does Ctrl/Cmd+Backspace while focused. A press on the thumb never moves it.
 /// - AccessKit: a `Slider` named `label` with its value, bounds and step, which takes increment,
@@ -150,12 +153,14 @@ pub struct Slider {
     enabled: bool,
     default: Option<f64>,
     wheel_unfocused: bool,
+    wheel: bool,
     wheel_step: Option<f64>,
     track_colors: Option<Vec<Srgba>>,
     part: bool,
     width: Option<f32>,
     scale: SliderScale,
     marks: Vec<f64>,
+    mark_labels: Vec<(f64, String)>,
     thumb: SliderThumb,
     ticks: usize,
 }
@@ -178,12 +183,14 @@ impl Slider {
             enabled: true,
             default: None,
             wheel_unfocused: false,
+            wheel: true,
             wheel_step: None,
             track_colors: None,
             part: false,
             width: None,
             scale: SliderScale::Linear,
             marks: Vec::new(),
+            mark_labels: Vec::new(),
             thumb: SliderThumb::Round,
             ticks: 0,
         }
@@ -230,6 +237,15 @@ impl Slider {
     /// two thumbs give a wheel over the track no one value to step.
     pub fn wheel_unfocused(mut self, on: bool) -> Self {
         self.wheel_unfocused = on;
+        self
+    }
+
+    /// Whether the wheel steps the slider at all (default on). Off, the wheel over the slider
+    /// scrolls the panel under it whether or not the slider has the focus, and
+    /// [`wheel_unfocused`](Slider::wheel_unfocused) has no effect: Photoshop's Properties panel
+    /// sliders ignore the wheel. Ctrl/Cmd+wheel is the view's either way.
+    pub fn wheel(mut self, on: bool) -> Self {
+        self.wheel = on;
         self
     }
 
@@ -283,6 +299,17 @@ impl Slider {
         self
     }
 
+    /// [`marks`](Slider::marks) at the values, each with a label centred under its tick in the
+    /// caption type role (`text.muted`); a label at an end of the track is shifted inwards to
+    /// stay inside the slider. The slider is taller by one label line. The labels are part of the
+    /// drawing only: a screen reader gets the value, not the labels. A mark outside the range
+    /// is ignored.
+    pub fn marks_labelled<S: Into<String>>(mut self, marks: impl IntoIterator<Item = (f64, S)>) -> Self {
+        self.mark_labels = marks.into_iter().map(|(m, label)| (m, label.into())).filter(|(m, _)| m.is_finite()).collect();
+        self.marks = self.mark_labels.iter().map(|(m, _)| *m).collect();
+        self
+    }
+
     /// The thumb's shape; [`SliderThumb::Triangle`] has the round thumb's fill, border and hit
     /// area, is `slider.thumb` wide and points up at the track from below.
     pub fn thumb(mut self, thumb: SliderThumb) -> Self {
@@ -301,13 +328,16 @@ impl Slider {
         let tokens = Tokens::of(ui);
         let style = Slider::style(&tokens, self.size);
         let scale = Scale::new(&self.range, self.step).with_kind(self.scale);
+        let labels = self.laid_out_labels(ui, &tokens);
+        let label_height = labels.iter().map(|(_, galley)| galley.size().y).fold(0.0, f32::max);
+        let below = if labels.is_empty() { 0.0 } else { label_height + 2.0 * style.mark };
         let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
             .sense(Sense::drag())
             .enabled(self.enabled)
             .state_layer(false)
-            .interact(ui, vec2(self.width.unwrap_or(style.width), style.height));
+            .interact(ui, vec2(self.width.unwrap_or(style.width), style.height + below));
         let response = sensed.response().clone();
-        let track = Track::new(response.rect, &style, scale);
+        let track = Track::new(Rect::from_min_size(response.rect.min, vec2(response.rect.width(), style.height)), &style, scale);
         let track = if self.track_colors.is_some() { track.with_height(style.gradient_height) } else { track };
         let sensing = Sensing::of(&response);
         let dragged_to = |start: f64, origin: f32, x: f32| track.snap_to_marks(&self.marks, style.snap, x, track.dragged(start, origin, x));
@@ -372,7 +402,8 @@ impl Slider {
         {
             set(&mut gesture, ScalarOp::Set(value));
         }
-        let wheel_over = self.wheel_unfocused.then_some(response.rect);
+        let wheel_over = (self.wheel && self.wheel_unfocused).then_some(response.rect);
+        let sensing = Sensing { wheel: self.wheel, ..sensing };
         if let Some(op) = stepped(ui, response.id, sensing, wheel_over, self.wheel_step, &scale) {
             set(&mut gesture, op);
         }
@@ -400,12 +431,24 @@ impl Slider {
             let paint =
                 ThumbPaint { fill: color(&style.thumb_fill), border: color(&style.thumb_border), ring: color(&style.ring), enabled: sensing.enabled };
             paint_marks(ui, &style, &track, &self.marks, self.ticks);
+            paint_mark_labels(ui, &style, &track, response.rect, &labels);
             match self.thumb {
                 SliderThumb::Round => _ = paint_thumb(ui, &style, pos2(x, track.y), paint),
                 SliderThumb::Triangle => paint_pointer(ui, &style, &track, x, paint),
             }
         }
         EditResponse::new(response, gesture.finish())
+    }
+
+    /// The labels of the marks in the range, shaped, each with its mark's value.
+    fn laid_out_labels(&self, ui: &Ui, tokens: &UiTokens) -> Vec<(f64, Arc<Galley>)> {
+        let scale = Scale::new(&self.range, None);
+        let format = role_format(tokens, TypeRole::Caption, Content::Muted.color(tokens).to_egui());
+        self.mark_labels
+            .iter()
+            .filter(|(m, _)| (scale.min..=scale.max).contains(m))
+            .map(|(m, label)| (*m, ui.painter().layout_job(LayoutJob::single_section(label.clone(), format.clone()))))
+            .collect()
     }
 
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
@@ -985,6 +1028,16 @@ fn paint_marks(ui: &Ui, style: &SliderStyle, track: &Track, marks: &[f64], ticks
     let stroke = scale::Stroke::Hairline.egui(ui.ctx(), style.mark_color);
     for x in ticks.into_iter().flatten().chain(marks) {
         ui.painter().line_segment([pos2(x, top), pos2(x, top + style.mark)], stroke);
+    }
+}
+
+/// The labels of the marks, centred under their ticks and kept inside `rect`.
+fn paint_mark_labels(ui: &Ui, style: &SliderStyle, track: &Track, rect: Rect, labels: &[(f64, Arc<Galley>)]) {
+    let top = track.bar(ui.pixels_per_point()).bottom() + 3.0 * style.mark;
+    for (value, galley) in labels {
+        let width = galley.size().x;
+        let left = (track.x_of(*value) - width / 2.0).clamp(rect.left(), (rect.right() - width).max(rect.left()));
+        ui.painter().galley(pos2(left, top), galley.clone(), Color32::PLACEHOLDER);
     }
 }
 
