@@ -1,1 +1,1 @@
-//! [`PanelRail`]: the rail of icons that open panels.
+//! `PanelRail`: the rail of icons that open panels.
