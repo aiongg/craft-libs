@@ -508,19 +508,15 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
             let key = source.key();
             let active = selected.as_ref() == Some(key);
             let has_spot = spot == Some(FocusSpot::Tab(at));
-            let view = TabView {
-                strip: self.id,
-                active,
-                focused: self.focused && has_spot,
-                large,
-                divider: kind.compact_dividers(),
-                text_only: kind.text_only(),
-                drop_highlight: drop_highlight.as_ref() == Some(key),
-                sense,
-                position: placed.index,
-                text: &text,
-                controls: controls.filter(|_| active),
-            };
+            let view = TabView::new(self.id, &text, placed.index)
+                .active(active)
+                .focused(self.focused && has_spot)
+                .large(large)
+                .divider(kind.compact_dividers())
+                .text_only(kind.text_only())
+                .drop_highlight(drop_highlight.as_ref() == Some(key))
+                .sense(sense)
+                .controls(controls.filter(|_| active));
             let out = tab.show_at(ui, placed.rect, &view);
             ui.ctx().accesskit_node_builder(out.tab.id, |node| {
                 node.add_action(Action::Focus);

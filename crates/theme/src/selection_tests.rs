@@ -88,11 +88,11 @@ fn app_choice_over_suite_over_defaults_per_field() {
     );
     assert_eq!(AppChoice::FOLLOW_SUITE.apply(&followed), followed);
 
-    let own_size = AppChoice { theme: None, mode: None, size: Some(Size::Comfortable) };
+    let own_size = AppChoice::FOLLOW_SUITE.with_size(Size::Comfortable);
     assert_eq!(own_size.apply(&followed), Selection { size: Size::Comfortable, ..followed.clone() });
-    let own_theme = AppChoice { theme: Some(ThemePair::same(id("craft.breeze"))), mode: None, size: None };
+    let own_theme = AppChoice::FOLLOW_SUITE.with_theme(ThemePair::same(id("craft.breeze")));
     assert_eq!(own_theme.apply(&followed), Selection { theme: ThemePair::same(id("craft.breeze")), ..followed.clone() });
-    let own_mode = AppChoice { mode: Some(ModeChoice::Light), ..AppChoice::FOLLOW_SUITE };
+    let own_mode = AppChoice::FOLLOW_SUITE.with_mode(ModeChoice::Light);
     assert_eq!(own_mode.apply(&followed), Selection { mode: ModeChoice::Light, ..followed.clone() });
 
     let full = followed.clone();
@@ -187,7 +187,7 @@ fn serde_forms_round_trip() {
         SuiteChoice { size: Some(Size::Compact), ..SuiteChoice::default() }
     );
 
-    let app = AppChoice { theme: Some(ThemePair::same(id("craft.breeze"))), mode: Some(ModeChoice::System), size: None };
+    let app = AppChoice::FOLLOW_SUITE.with_theme(ThemePair::same(id("craft.breeze"))).with_mode(ModeChoice::System);
     let json = serde_json::to_string(&app).unwrap();
     assert_eq!(json, r#"{"theme":{"light":"craft.breeze","dark":"craft.breeze"},"mode":"system","size":null}"#);
     assert_eq!(serde_json::from_str::<AppChoice>(&json).unwrap(), app);

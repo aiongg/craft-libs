@@ -175,6 +175,7 @@ pub struct AppDefaults {
 /// a `#[serde(default)]` can't silently move existing users to the suite.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct AppChoice {
     pub theme: Option<ThemePair>,
     pub mode: Option<ModeChoice>,
@@ -184,6 +185,29 @@ pub struct AppChoice {
 impl AppChoice {
     /// Follows the suite in every field.
     pub const FOLLOW_SUITE: AppChoice = AppChoice { theme: None, mode: None, size: None };
+
+    /// A choice with all three fields given.
+    pub const fn new(theme: Option<ThemePair>, mode: Option<ModeChoice>, size: Option<Size>) -> Self {
+        Self { theme, mode, size }
+    }
+
+    /// This choice with the app's own theme.
+    pub fn with_theme(mut self, theme: ThemePair) -> Self {
+        self.theme = Some(theme);
+        self
+    }
+
+    /// This choice with the app's own mode.
+    pub fn with_mode(mut self, mode: ModeChoice) -> Self {
+        self.mode = Some(mode);
+        self
+    }
+
+    /// This choice with the app's own size.
+    pub fn with_size(mut self, size: Size) -> Self {
+        self.size = Some(size);
+        self
+    }
 
     /// `suite` with this app's theme, mode and size where set.
     pub fn apply(&self, suite: &Selection) -> Selection {

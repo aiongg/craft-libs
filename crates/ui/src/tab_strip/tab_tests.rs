@@ -2,7 +2,7 @@
 //! tab, AccessKit and the story.
 
 use egui::accesskit::Role;
-use egui::{Color32, Context, Event, Modifiers, PointerButton, Pos2, Rect, Sense, Shape, Ui, pos2, vec2};
+use egui::{Color32, Context, Event, Modifiers, PointerButton, Pos2, Rect, Shape, Ui, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
@@ -115,19 +115,7 @@ struct Clicks {
 }
 
 fn view<'a>(strip: egui::Id, text: &'a TabStripText, active: bool) -> TabView<'a> {
-    TabView {
-        strip,
-        active,
-        focused: false,
-        large: false,
-        divider: false,
-        text_only: false,
-        drop_highlight: false,
-        sense: Sense::CLICK,
-        position: 2,
-        text,
-        controls: None,
-    }
+    TabView::new(strip, text, 2).active(active)
 }
 
 fn one_tab(ui: &mut Ui, clicks: &mut Clicks, tab: &Tab<u8>, active: bool) {
@@ -229,7 +217,7 @@ fn a_text_tab_draws_only_its_label_in_the_selected_or_dim_colour() {
             let text = TabStripText::default();
             let strip = ui.make_persistent_id("strip");
             let (_, at) = ui.allocate_space(vec2(220.0, 26.0));
-            let view = TabView { text_only: true, ..view(strip, &text, active) };
+            let view = view(strip, &text, active).text_only(true);
             tab.show_at(ui, at, &view);
         })
     };

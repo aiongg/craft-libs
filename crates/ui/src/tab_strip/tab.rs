@@ -380,6 +380,7 @@ pub struct TabLayout {
 
 /// How a strip shows one of its tabs.
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct TabView<'a> {
     /// The strip's id: the tab's widget id derives from it and the tab's key ([`Tab::id`]).
     pub strip: Id,
@@ -405,6 +406,82 @@ pub struct TabView<'a> {
     pub text: &'a TabStripText,
     /// The id of the host's panel node this tab controls.
     pub controls: Option<Id>,
+}
+
+impl<'a> TabView<'a> {
+    /// A plain inactive tab at `position` of the strip `strip`: it senses clicks and has no
+    /// focus, large look, divider, drop outline or controlled panel.
+    pub fn new(strip: Id, text: &'a TabStripText, position: usize) -> Self {
+        Self {
+            strip,
+            active: false,
+            focused: false,
+            large: false,
+            divider: false,
+            text_only: false,
+            drop_highlight: false,
+            sense: Sense::CLICK,
+            position,
+            text,
+            controls: None,
+        }
+    }
+
+    /// Whether the tab is the strip's selected tab.
+    #[must_use]
+    pub fn active(mut self, active: bool) -> Self {
+        self.active = active;
+        self
+    }
+
+    /// Whether the keyboard focus is on this tab.
+    #[must_use]
+    pub fn focused(mut self, focused: bool) -> Self {
+        self.focused = focused;
+        self
+    }
+
+    /// Whether the strip uses Large Tabs.
+    #[must_use]
+    pub fn large(mut self, large: bool) -> Self {
+        self.large = large;
+        self
+    }
+
+    /// Whether a divider is drawn at the tab's trailing edge.
+    #[must_use]
+    pub fn divider(mut self, divider: bool) -> Self {
+        self.divider = divider;
+        self
+    }
+
+    /// Whether the tab draws only its label.
+    #[must_use]
+    pub fn text_only(mut self, text_only: bool) -> Self {
+        self.text_only = text_only;
+        self
+    }
+
+    /// Whether a host drag is over the tab.
+    #[must_use]
+    pub fn drop_highlight(mut self, drop_highlight: bool) -> Self {
+        self.drop_highlight = drop_highlight;
+        self
+    }
+
+    /// What the tab senses.
+    #[must_use]
+    pub fn sense(mut self, sense: Sense) -> Self {
+        self.sense = sense;
+        self
+    }
+
+    /// The id of the host's panel node this tab controls.
+    #[must_use]
+    pub fn controls(mut self, controls: Option<Id>) -> Self {
+        self.controls = controls;
+        self
+    }
 }
 
 /// What [`Tab::show_at`] reports.
@@ -701,19 +778,7 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
     for (index, (tab, active, highlight, focused)) in rows.iter().enumerate() {
         let (_, row) = ui.allocate_space(vec2(width, height));
         ui.painter().rect_filled(row, 0.0, style.strip);
-        let view = TabView {
-            strip,
-            active: *active,
-            focused: *focused,
-            large,
-            divider: dividers,
-            text_only: false,
-            drop_highlight: *highlight,
-            sense: Sense::CLICK,
-            position: index,
-            text: &text,
-            controls: None,
-        };
+        let view = TabView::new(strip, &text, index).active(*active).focused(*focused).large(large).divider(dividers).drop_highlight(*highlight);
         tab.show_at(ui, row, &view);
     }
 }

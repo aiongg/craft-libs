@@ -532,19 +532,7 @@ impl Draw<'_, '_> {
             let text = self.vis(&a.label);
             let color = if on { ui.visuals().strong_text_color() } else { ui.visuals().text_color() };
             let (shaped, _) = self.one_line(ui.painter(), &[(text, TextFormat::simple(font.clone(), color))], f32::INFINITY);
-            let view = TabView {
-                strip: self.base.with("areas"),
-                active: on,
-                focused: false,
-                large: false,
-                divider: false,
-                text_only: false,
-                drop_highlight: false,
-                sense: Sense::click(),
-                position: i,
-                text: &tab_text,
-                controls: None,
-            };
+            let view = TabView::new(self.base.with("areas"), &tab_text, i).active(on).sense(Sense::click());
             let resp = Tab::new(i, &a.label).with_id(id).shaped(shaped).show_at(ui, r, &view).tab;
             self.tag(|| format!("shortcuts.area.{}", Self::area_key(&a.id)), resp.rect, &a.label);
             if resp.clicked() {

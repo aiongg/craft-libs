@@ -410,19 +410,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let tab_id = self.id.with(("tab", panel));
         let position = owner.and_then(|owner| owner.panels.iter().position(|p| p == panel)).unwrap_or(0);
         let text = crate::tab_strip::TabStripText::default();
-        let view = crate::tab_strip::TabView {
-            strip: self.id,
-            active,
-            focused: ui.memory(|m| m.has_focus(tab_id)),
-            large: false,
-            divider: false,
-            text_only: false,
-            drop_highlight: false,
-            sense: if policy.movable { Sense::click_and_drag() } else { Sense::click() },
-            position,
-            text: &text,
-            controls: None,
-        };
+        let view = crate::tab_strip::TabView::new(self.id, &text, position)
+            .active(active)
+            .focused(ui.memory(|m| m.has_focus(tab_id)))
+            .sense(if policy.movable { Sense::click_and_drag() } else { Sense::click() });
         let closable = owner.is_some() && self.tab_closable(panel);
         let shown =
             crate::tab_strip::Tab::new(panel.clone(), &label).with_id(tab_id).shaped(galley).closable(closable).show_with(ui, rect, &view, &style);
