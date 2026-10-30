@@ -73,6 +73,25 @@ crate::words! {
     }
 }
 
+crate::words! {
+    /// The description of a clipped row for a screen reader.
+    struct ClippedLabels {
+        clipped: "list.clipped" = "Clipped to the layer below";
+    }
+}
+
+impl ClippedLabels {
+    fn text(ui: &Ui) -> String {
+        crate::localized::Words::of(ui).get(<Self as crate::localized::Labels>::WORDS[0]).into_owned()
+    }
+}
+
+/// The description of a clipped row: "Clipped to the layer below", then the host's own.
+fn clipped_description(ui: &Ui, description: Option<String>) -> String {
+    let clipped = ClippedLabels::text(ui);
+    description.map_or(clipped.clone(), |description| format!("{clipped}, {description}"))
+}
+
 /// Where a drag would drop, drawn on the row that is the target.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DropMark {
@@ -126,11 +145,13 @@ pub enum RowEvent<K> {
     /// A tree row's disclosure triangle was clicked, or a screen reader expanded or collapsed
     /// the row.
     Open(OpenChange<K>),
-    /// The link glyph between the thumbnails was clicked ([`thumb_link`](ListRow::thumb_link)):
+    /// The link glyph before an extra thumbnail was clicked ([`thumb_link`](ListRow::thumb_link)):
     /// `linked` is the state it asks for, the opposite of what the row showed.
     LinkToggled {
         /// The row.
         row: K,
+        /// The extra thumbnail the glyph belongs to, counted from 0 in the order added.
+        thumb: usize,
         /// The requested state.
         linked: bool,
     },
@@ -145,13 +166,14 @@ pub enum RowEvent<K> {
     },
 }
 
-/// One of a row's two thumbnails.
+/// One of a row's thumbnails.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThumbTarget {
     /// The thumbnail ([`thumb`](ListRow::thumb)).
     First,
-    /// The second thumbnail ([`second_thumb`](ListRow::second_thumb)).
-    Second,
+    /// An extra thumbnail ([`extra_thumb`](ListRow::extra_thumb)), counted from 0 in the order
+    /// added.
+    Extra(usize),
 }
 
 /// A trailing item of a row.
@@ -162,6 +184,12 @@ pub struct TrailingItem<'a> {
 }
 
 type Thumbnail<'a> = Box<dyn FnOnce(&Painter, Rect) + 'a>;
+
+/// A thumbnail after the first (a mask), with the link glyph before it if it has one.
+struct ExtraThumb<'a> {
+    paint: Thumbnail<'a>,
+    link: Option<(bool, String)>,
+}
 
 /// What [`ListRow::show`] returns.
 #[derive(Debug)]
@@ -341,8 +369,7 @@ pub struct ListRow<'a, K> {
     thumb: ThumbSize,
     thumbnail: Option<Thumbnail<'a>>,
     thumb_width: Option<f32>,
-    second: Option<Thumbnail<'a>>,
-    link: Option<(bool, String)>,
+    extras: Vec<ExtraThumb<'a>>,
     target: Option<ThumbTarget>,
     trailing: Vec<TrailingItem<'a>>,
     selected: bool,
@@ -350,6 +377,8 @@ pub struct ListRow<'a, K> {
     dimmed: bool,
     highlight: bool,
     layer: bool,
+    clipped: bool,
+    italic: bool,
     renaming: bool,
     drop: Option<DropMark>,
     indent: f32,
@@ -380,8 +409,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             thumb: ThumbSize::None,
             thumbnail: None,
             thumb_width: None,
-            second: None,
-            link: None,
+            extras: Vec::new(),
             target: None,
             trailing: Vec::new(),
             selected: false,
@@ -389,6 +417,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             dimmed: false,
             highlight: false,
             layer: false,
+            clipped: false,
+            italic: false,
             renaming: false,
             drop: None,
             indent: 0.0,
@@ -398,6 +428,20 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             branch: None,
             tree_text: None,
         }
+    }
+
+    /// The row is clipped to the layer below: it is indented one step and shows the down-right
+    /// clipping arrow before its thumbnail or icon. AccessKit describes it as clipped (the
+    /// [`description`](ListRow::description), if given, follows).
+    pub fn clipped(mut self, clipped: bool) -> Self {
+        self.clipped = clipped;
+        self
+    }
+
+    /// The label is drawn in italics (Photoshop's Background layer).
+    pub fn italic(mut self, italic: bool) -> Self {
+        self.italic = italic;
+        self
     }
 
     /// Makes the row a tree row: indented by its depth, with a disclosure triangle when it is a
@@ -476,28 +520,32 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         self.thumb(ThumbSize::Px(size.y.round().clamp(0.0, f32::from(u16::MAX)) as u16), paint)
     }
 
-    /// A second thumbnail after the first, of the same size and frame (a layer's mask; the
-    /// selected ring is the first thumbnail's); `paint` draws into the painter, clipped to its rect. Nothing is drawn without a
-    /// first thumbnail. A link glyph can sit between the two ([`thumb_link`](ListRow::thumb_link)).
-    pub fn second_thumb(mut self, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
-        self.second = Some(Box::new(paint));
+    /// A thumbnail after the first and any earlier extra ones, of the same size and frame (a
+    /// layer's mask, then its vector mask; the selected ring is the first thumbnail's); `paint`
+    /// draws into the painter, clipped to its rect. Nothing is drawn without a first thumbnail.
+    /// Extra thumbnails never drop out for width: the label is cut first. A link glyph can sit
+    /// before each ([`thumb_link`](ListRow::thumb_link)).
+    pub fn extra_thumb(mut self, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
+        self.extras.push(ExtraThumb { paint: Box::new(paint), link: None });
         self
     }
 
-    /// A link glyph between the two thumbnails ([`Icon::Link`] when `linked`, else
+    /// A link glyph before the extra thumbnail added last ([`Icon::Link`] when `linked`, else
     /// [`Icon::Unlink`], dimmed), which reports [`RowEvent::LinkToggled`] when clicked. `name` is
     /// its accessible name and tooltip, with `{row}` standing for the row's label ("Unlink mask
-    /// from {row}"). It takes a `list.icon` wide slot; without it the thumbnails are a `list.gap`
-    /// apart. The glyph is a Tab stop and shows the focus ring. Needs a
-    /// [`second_thumb`](ListRow::second_thumb).
+    /// from {row}"); give each glyph of a row its own. It takes a `list.icon` wide slot; without
+    /// it the thumbnails are a `list.gap` apart. The glyph is a Tab stop and shows the focus ring.
+    /// Does nothing before an [`extra_thumb`](ListRow::extra_thumb).
     pub fn thumb_link(mut self, linked: bool, name: impl Into<String>) -> Self {
-        self.link = Some((linked, name.into()));
+        if let Some(extra) = self.extras.last_mut() {
+            extra.link = Some((linked, name.into()));
+        }
         self
     }
 
-    /// The thumbnail the row's editing is aimed at (a layer's pixels or its mask). On a selected
-    /// row it is framed with corner brackets, as PhotoCraft's Layers panel does. Without a call
-    /// no thumbnail is marked. A click on a thumbnail reports [`RowEvent::ThumbClicked`].
+    /// The thumbnail the row's editing is aimed at (a layer's pixels or a mask). It is framed with
+    /// corner brackets whether or not the row is selected: the host passes it for the active row
+    /// only. Without a call no thumbnail is marked. A click on a thumbnail reports [`RowEvent::ThumbClicked`].
     pub fn thumb_target(mut self, target: ThumbTarget) -> Self {
         self.target = Some(target);
         self
@@ -647,8 +695,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             thumb,
             thumbnail,
             thumb_width,
-            second,
-            link,
+            extras,
             target,
             trailing,
             selected,
@@ -656,6 +703,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             dimmed,
             highlight,
             layer,
+            clipped,
+            italic,
             renaming,
             drop,
             indent,
@@ -669,8 +718,12 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         let mut style = Self::style(&tokens);
         style.divider.width = Hairline::Hairline.width(ui.pixels_per_point());
         let height = style.height(thumb, detail.is_some());
-        let (indent, column) =
+        let indent = indent + if clipped { style.indent } else { 0.0 };
+        let (indent, disclosure) =
             branch.map_or((indent, 0.0), |b| (indent + b.steps() as f32 * style.indent, if b.group { style.disclosure } else { 0.0 }));
+        // The clipping arrow takes a column of its own after the disclosure triangle.
+        let marker = if clipped { style.icon_size } else { 0.0 };
+        let column = disclosure + marker;
         let rect = slot.unwrap_or_else(|| ui.allocate_space(vec2(ui.available_width(), height)).1);
         let row_id = row_id(ui.scope_id(), &key);
         let name = match &detail {
@@ -689,6 +742,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             element = element.position_in_set(position);
         }
         let response = element.interact_at(ui, rect).finish(ui);
+        let description = if clipped { Some(clipped_description(ui, description)) } else { description };
         if let Some(description) = description {
             ui.ctx().accesskit_node_builder(response.id, |node| node.set_description(description));
         }
@@ -703,14 +757,11 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             (false, Some(_)) => Some(style.icon_size),
             (false, None) => None,
         };
-        // With a second thumbnail the leading part is the two thumbnails and what is between them.
-        let second = second.filter(|_| side > 0.0 && thumb != ThumbSize::None);
-        let between = if link.is_some() { style.icon_size } else { style.gap };
+        // With extra thumbnails the leading part is every thumbnail and what is between them.
+        let extras = if side > 0.0 && thumb != ThumbSize::None { extras } else { Vec::new() };
+        let between = |extra: &ExtraThumb<'_>| if extra.link.is_some() { style.icon_size } else { style.gap };
         let first_width = leading;
-        let leading = match (leading, second.is_some()) {
-            (Some(first), true) => Some(2.0 * first + between),
-            _ => leading,
-        };
+        let leading = leading.map(|first| first + extras.iter().map(|extra| first + between(extra)).sum::<f32>());
         let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
         let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), columns.len(), (indent, column), leading, &widths);
         let visible = ui.is_rect_visible(rect);
@@ -725,8 +776,13 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             toggle::show(ui, &cell, column, at, &style, &mut events);
         }
 
+        if clipped && visible {
+            let at = geometry.span(rect, geometry.column_start + disclosure, marker);
+            paint_clip_arrow(ui, &style, at, geometry.rtl);
+        }
+
         if let Some(branch) = branch.filter(|b| b.group) {
-            let at = geometry.span(rect, geometry.column_start, column);
+            let at = geometry.span(rect, geometry.column_start, disclosure);
             tree::show_disclosure(ui, &style, at, &branch, &tree_text.unwrap_or_default(), row_id, &key, &label, &mut events);
         }
 
@@ -737,27 +793,34 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             let at = at.round_to_pixels(ui.pixels_per_point());
             if side > 0.0 && thumb != ThumbSize::None {
                 let mut thumbs = Vec::new();
-                if let (Some(second), Some(first_width)) = (second, first_width) {
+                if let (false, Some(first_width)) = (extras.is_empty(), first_width) {
+                    let ppp = ui.pixels_per_point();
                     let part = |offset: f32, width: f32| {
                         let span = geometry.span(rect, geometry.leading_start + offset, width);
-                        Rect::from_center_size(span.center(), vec2(width, high)).round_to_pixels(ui.pixels_per_point())
+                        Rect::from_center_size(span.center(), vec2(width, high)).round_to_pixels(ppp)
                     };
-                    let (first, other) = (part(0.0, first_width), part(first_width + between, first_width));
+                    let first = part(0.0, first_width);
                     paint_thumb(ui, &style, first, thumbnail, selected);
-                    paint_thumb(ui, &style, other, Some(second), false);
-                    thumbs.extend([(ThumbTarget::First, first), (ThumbTarget::Second, other)]);
-                    if let Some((linked, name)) = &link {
-                        let slot = geometry.span(rect, geometry.leading_start + first_width, between);
-                        let slot = Rect::from_center_size(slot.center(), vec2(between, high));
-                        show_link(ui, &style, slot, row_id, &key, &label, (*linked, name), &mut events);
+                    thumbs.push((ThumbTarget::First, first));
+                    let mut offset = first_width;
+                    for (index, extra) in extras.into_iter().enumerate() {
+                        let gap = between(&extra);
+                        let other = part(offset + gap, first_width);
+                        paint_thumb(ui, &style, other, Some(extra.paint), false);
+                        thumbs.push((ThumbTarget::Extra(index), other));
+                        if let Some((linked, name)) = &extra.link {
+                            let slot = geometry.span(rect, geometry.leading_start + offset, gap);
+                            let slot = Rect::from_center_size(slot.center(), vec2(gap, high));
+                            show_link(ui, &style, slot, (row_id, index), &key, &label, (*linked, name), &mut events);
+                        }
+                        offset += gap + first_width;
                     }
                 } else {
                     paint_thumb(ui, &style, at, thumbnail, selected);
                     thumbs.push((ThumbTarget::First, at));
                 }
-                if selected && let Some((_, r)) = thumbs.iter().find(|(which, _)| Some(*which) == target) {
-                    let color = if layer { style.layer_selected_text } else { style.selected_text };
-                    paint_brackets(ui.painter(), *r, color, &style);
+                if let Some((_, r)) = thumbs.iter().find(|(which, _)| Some(*which) == target) {
+                    paint_brackets(ui.painter(), *r, bracket_color(&style, selected, layer), &style);
                 }
                 if let Some(pos) = response.clicked().then(|| response.interact_pointer_pos()).flatten()
                     && let Some((which, _)) = thumbs.iter().find(|(_, r)| r.contains(pos))
@@ -784,7 +847,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         if renaming {
             rename::show(ui, row_id, &key, &label, band, &mut events);
         } else if visible {
-            paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), text);
+            paint_label(ui, &tokens, &style, band, &label, detail.as_deref().map(|d| (d, detail_text)), (text, italic));
         }
         for (item, at) in trailing.into_iter().zip(&geometry.items) {
             let Some((start, width)) = *at else { continue };
@@ -916,14 +979,14 @@ fn show_link<K: Clone>(
     ui: &mut Ui,
     style: &ListRowStyle,
     slot: Rect,
-    row_id: Id,
+    (row_id, index): (Id, usize),
     key: &K,
     row_label: &str,
     (linked, name): (bool, &str),
     events: &mut Vec<RowEvent<K>>,
 ) {
     let name = tree::with_row(name, row_label);
-    let response = Interactive::with_id(row_id.with("link"), Role::Button, name.clone())
+    let response = Interactive::with_id(row_id.with(("link", index)), Role::Button, name.clone())
         .sense(Sense::click())
         .checked(linked)
         .state_layer(false)
@@ -937,9 +1000,30 @@ fn show_link<K: Clone>(
     let icon = if linked { Icon::Link } else { Icon::Unlink };
     icons::paint_in(ui, slot, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), color);
     if response.clicked() {
-        events.push(RowEvent::LinkToggled { row: key.clone(), linked: !linked });
+        events.push(RowEvent::LinkToggled { row: key.clone(), thumb: index, linked: !linked });
     }
     let _ = response.on_hover_text(name);
+}
+
+/// The colour of the target brackets: the row's text colour.
+fn bracket_color(style: &ListRowStyle, selected: bool, layer: bool) -> Color32 {
+    match (selected, layer) {
+        (true, true) => style.layer_selected_text,
+        (true, false) => style.selected_text,
+        (false, _) => style.text,
+    }
+}
+
+/// The down-right clipping arrow in `slot`: a stem down from the top, then a leg to the right
+/// ending in an arrowhead (mirrored in a right-to-left row).
+fn paint_clip_arrow(ui: &Ui, style: &ListRowStyle, slot: Rect, rtl: bool) {
+    let side = slot.width().min(slot.height());
+    let box_ = Rect::from_center_size(slot.center(), Vec2::splat(side));
+    let at = |x: f32, y: f32| pos2(if rtl { box_.right() - x * side } else { box_.left() + x * side }, box_.top() + y * side);
+    let stroke = Stroke::new(IconSize::Md.stroke(), style.icon);
+    let painter = ui.painter();
+    painter.add(egui::Shape::line(vec![at(0.2, 0.2), at(0.2, 0.7), at(0.8, 0.7)], stroke));
+    painter.add(egui::Shape::line(vec![at(0.6, 0.45), at(0.85, 0.7), at(0.6, 0.95)], stroke));
 }
 
 /// Corner brackets just outside thumbnail `r`, marking it as the target of the row's editing
@@ -964,23 +1048,32 @@ fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbn
 }
 
 /// The label, and the detail line under it, centred in `band` and cut with an ellipsis.
-fn paint_label(ui: &mut Ui, tokens: &UiTokens, style: &ListRowStyle, band: Rect, label: &str, detail: Option<(&str, Color32)>, color: Color32) {
+fn paint_label(
+    ui: &mut Ui,
+    tokens: &UiTokens,
+    style: &ListRowStyle,
+    band: Rect,
+    label: &str,
+    detail: Option<(&str, Color32)>,
+    (color, italic): (Color32, bool),
+) {
     if band.width() < 1.0 {
         return;
     }
     let total = style.label_line + detail.map_or(0.0, |_| style.detail_line);
     let top = band.center().y - total / 2.0;
-    let line = |ui: &mut Ui, top: f32, height: f32, text: &str, role: TypeRole, color: Color32| {
+    let line = |ui: &mut Ui, top: f32, height: f32, text: &str, role: TypeRole, color: Color32, italics: bool| {
         let at = Rect::from_x_y_ranges(band.x_range(), top..=top + height);
-        let format = role_format(tokens, role, color);
+        let mut format = role_format(tokens, role, color);
+        format.italics = italics;
         // A child, not a scope: a scope would move the parent's cursor to the label's bottom, back
         // up into the row that was allocated whole.
         let mut child = ui.new_child(UiBuilder::new().max_rect(at).layout(direction::row(ui)));
         child.add(Label::new(egui::text::LayoutJob::single_section(text.to_owned(), format)).truncate().selectable(false));
     };
-    line(ui, top, style.label_line, label, style.label_role, color);
+    line(ui, top, style.label_line, label, style.label_role, color, italic);
     if let Some((detail, detail_color)) = detail {
-        line(ui, top + style.label_line, style.detail_line, detail, style.detail_role, detail_color);
+        line(ui, top + style.label_line, style.detail_line, detail, style.detail_role, detail_color, false);
     }
 }
 
@@ -1088,35 +1181,43 @@ struct MasksArgs {
     width: f32,
 }
 
-/// A layer with a mask thumbnail and a link glyph between the thumbnails, and one without a mask.
-/// A click on a thumbnail moves the target brackets to it.
+/// A layer with a layer mask and a vector mask, each behind its own link glyph, a clipped layer
+/// and an italic Background. A click on a thumbnail moves the target brackets to it.
 fn show_masks(ui: &mut Ui, args: &mut MasksArgs) {
     let width = args.width.min(ui.available_width());
     let state_id = ui.scope_id().with("list-row-masks");
-    let mut linked = ui.data(|d| d.get_temp::<bool>(state_id)).unwrap_or(args.linked);
+    let mut linked = ui.data(|d| d.get_temp::<[bool; 2]>(state_id)).unwrap_or([args.linked; 2]);
     let target_id = state_id.with("target");
-    let mut target = ui.data(|d| d.get_temp::<ThumbTarget>(target_id)).unwrap_or(ThumbTarget::Second);
+    let mut target = ui.data(|d| d.get_temp::<ThumbTarget>(target_id)).unwrap_or(ThumbTarget::Extra(0));
     let tokens = Tokens::of(ui);
     let (layer_fill, mask_fill) = (tokens.color.surface.raised.to_egui(), tokens.color.text.faint.to_egui());
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         ui.spacing_mut().item_spacing.y = 0.0;
-        for (i, name) in ["Layer with a mask", "Layer"].into_iter().enumerate() {
+        for (i, name) in ["Layer with masks", "Clipped layer", "Background"].into_iter().enumerate() {
             let mut row = ListRow::new(i, name).thumb(ThumbSize::Medium, move |painter, rect| {
                 painter.rect_filled(rect, 0.0, layer_fill);
             });
-            if i == 0 {
-                row = row
-                    .second_thumb(move |painter, rect| {
-                        painter.rect_filled(rect, 0.0, mask_fill);
-                    })
-                    .thumb_link(linked, "Link the mask to {row}")
-                    .thumb_target(target)
-                    .selected(true);
+            match i {
+                0 => {
+                    row = row
+                        .extra_thumb(move |painter, rect| {
+                            painter.rect_filled(rect, 0.0, mask_fill);
+                        })
+                        .thumb_link(linked[0], "Link the layer mask to {row}")
+                        .extra_thumb(move |painter, rect| {
+                            painter.rect_filled(rect, 0.0, mask_fill);
+                        })
+                        .thumb_link(linked[1], "Link the vector mask to {row}")
+                        .thumb_target(target)
+                        .selected(true);
+                }
+                1 => row = row.clipped(true),
+                _ => row = row.italic(true),
             }
             for event in row.show(ui).events {
                 match event {
-                    RowEvent::LinkToggled { linked: on, .. } => linked = on,
+                    RowEvent::LinkToggled { thumb, linked: on, .. } => linked[thumb.min(1)] = on,
                     RowEvent::ThumbClicked { which, .. } if i == 0 => target = which,
                     _ => {}
                 }
