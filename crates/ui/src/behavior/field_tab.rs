@@ -101,6 +101,13 @@ impl FieldTab {
         inner
     }
 
+    /// The first enabled field the scope `id_salt` in `ui` saw on its last pass; `ui` is the `Ui`
+    /// the scope was shown in. A dialog focuses it when it opens.
+    pub fn first(ui: &Ui, id_salt: impl AsIdSalt) -> Option<Id> {
+        let id = ui.make_persistent_id(IdSalt::new(id_salt)).with("field-tab-record");
+        ui.data(|d| d.get_temp::<Record>(id)).and_then(|record| record.fields.first().copied())
+    }
+
     /// Adds the field `id` to the Tab order of the scope `ui` is in, in layout order; outside a
     /// scope, or on another layer than the scope's (a list's popup), it does nothing. The
     /// [`Typing`](super::Typing) controls call it; a host calls it for a field of its own, each

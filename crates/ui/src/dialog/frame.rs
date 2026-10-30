@@ -11,6 +11,9 @@ use crate::icons::Icon;
 use crate::primitives::{Content, Divider, Surface, SurfaceKind, SurfaceStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 
+/// The parts of a shown frame: band, close box, title height, content size, chrome and first field.
+type Parts = (Response, Option<Response>, f32, Vec2, f32, Option<egui::Id>);
+
 /// What a dialog frame draws and measures, from [`DialogFrame::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -55,6 +58,8 @@ pub struct DialogFrameResponse {
     pub close: Option<Response>,
     /// The size the content area was given at the start of the pass (a resizable dialog's current size).
     pub content_size: Vec2,
+    /// The first enabled field of the [`FieldTab`] scope, as of this pass.
+    pub first_field: Option<egui::Id>,
     /// Height of the frame outside the body: margin, title row, rules, gaps and footer.
     pub chrome: f32,
 }
@@ -154,7 +159,7 @@ impl DialogFrame {
         let pad = if self.roomy { style.pad_roomy } else { style.pad };
         let Self { title, close_label, width, resize, field_tab, .. } = self;
 
-        let mut parts: Option<(Response, Option<Response>, f32, Vec2, f32)> = None;
+        let mut parts: Option<Parts> = None;
         let framed = Surface::new(SurfaceKind::Dialog).show(ui, |ui| {
             Frame::NONE.inner_margin(Margin::from(pad)).show(ui, |ui| {
                 let content = |ui: &mut Ui| {
@@ -178,13 +183,15 @@ impl DialogFrame {
                             footer(ui);
                         }
                     };
+                    let mut first_field = None;
                     if field_tab {
                         FieldTab::new(id.with("fields")).show(ui, inside);
+                        first_field = FieldTab::first(ui, id.with("fields"));
                     } else {
                         inside(ui);
                     }
                     let used = ui.min_rect().bottom() - top;
-                    parts = Some((drag, close, title_height, content_size, used - body_height));
+                    parts = Some((drag, close, title_height, content_size, used - body_height, first_field));
                 };
                 match resize {
                     Some(resize) => resize.show(ui, content),
@@ -193,9 +200,9 @@ impl DialogFrame {
             });
         });
         let rect = framed.response.rect;
-        let (drag, close, title_height, content_size, inner_chrome) =
-            parts.unwrap_or_else(|| (ui.interact(rect, id.with("title"), Sense::DRAG), None, style.title_line, Vec2::ZERO, 0.0));
-        DialogFrameResponse { rect, title_height, drag, close, content_size, chrome: inner_chrome + 2.0 * pad }
+        let (drag, close, title_height, content_size, inner_chrome, first_field) =
+            parts.unwrap_or_else(|| (ui.interact(rect, id.with("title"), Sense::DRAG), None, style.title_line, Vec2::ZERO, 0.0, None));
+        DialogFrameResponse { rect, title_height, drag, close, content_size, first_field, chrome: inner_chrome + 2.0 * pad }
     }
 }
 

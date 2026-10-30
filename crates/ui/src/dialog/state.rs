@@ -2,7 +2,7 @@
 
 use egui::{Context, Id};
 
-use crate::edit::OuterGesture;
+use crate::edit::{GestureHost, OuterGesture, UndoMarks};
 
 /// What a dialog needs between passes, held by the host next to its fields. It never holds the
 /// fields: [`Dialog::show`](super::Dialog::show) takes them by `&mut`. `H` is the host's fields
@@ -62,6 +62,19 @@ impl<H> DialogState<H> {
 
     pub(super) fn return_focus(&self) -> Option<Id> {
         self.return_focus
+    }
+}
+
+impl<H> DialogState<H> {
+    /// Answers [`Outcome::Apply`](super::Outcome::Apply) for a dialog with an outer gesture: the
+    /// gesture is committed (one undo step) and a new one begins, so Cancel afterwards reverts
+    /// only what came after the Apply. Does nothing without an outer gesture.
+    pub fn apply<U: UndoMarks>(&mut self, ctx: &Context, host: &mut GestureHost<U>, doc: &mut U) {
+        let Some(old) = self.outer else { return };
+        host.commit(doc, old.id());
+        let new = OuterGesture::begin(ctx);
+        host.begin_outer(ctx, doc, new);
+        self.outer = Some(new);
     }
 }
 

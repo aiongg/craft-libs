@@ -1,8 +1,8 @@
-//! Stories of the dialog frame and the modeless dialog.
+//! Stories of the dialog frame, the modeless dialog and the footer.
 
 use egui::{Id, Ui, vec2};
 
-use super::{Body, Dialog, DialogFrame, DialogState, Outcome, Resize, ResizeMax, Width};
+use super::{Body, Dialog, DialogFrame, DialogState, EnterRule, Footer, Outcome, Reset, Resize, ResizeMax, Width};
 use crate::story::{Args, Level, Story};
 
 /// The components this module has stories for.
@@ -14,9 +14,20 @@ pub(crate) fn stories() -> Vec<Story> {
     let frame = || Args::new().with_choice("width", WIDTHS, 1).with_bool("close box", true).with_bool("roomy", false);
     let modeless =
         || Args::new().with_bool("open", true).with_choice("width", WIDTHS, 1).with_bool("resizable", false).with_bool("scroll body", false);
+    let footer = || {
+        Args::new()
+            .with_bool("open", true)
+            .with_choice("shape", &["standard", "side"], 0)
+            .with_bool("apply", true)
+            .with_bool("alternate", false)
+            .with_bool("ok enabled", true)
+            .with_bool("alt resets", true)
+            .with_bool("body owns enter", false)
+    };
     vec![
         Story::new("patterns/dialog/frame", Level::Patterns, "Dialog", "Frame", frame, show_frame),
         Story::new("patterns/dialog/modeless", Level::Patterns, "Dialog", "Modeless", modeless, show_modeless),
+        Story::new("patterns/dialog/footer", Level::Patterns, "Dialog", "Footer", footer, show_footer),
     ]
 }
 
@@ -60,6 +71,35 @@ fn show_modeless(ui: &mut Ui, args: &mut Args) {
         }
         let shown = dialog.show(ui.ctx(), &mut state, &mut (), |ui, ()| lines(ui, if scroll { 60 } else { 4 }));
         if shown.outcome == Some(Outcome::Close) {
+            args.set_bool("open", false);
+        }
+    }
+    ui.data_mut(|d| d.insert_temp(key, state));
+}
+
+/// A dialog with a footer: Enter answers OK, Esc cancels, holding Alt turns Cancel into Reset.
+fn show_footer(ui: &mut Ui, args: &mut Args) {
+    let key = Id::unique("craft_ui::dialog::story-footer");
+    let mut state: DialogState = ui.data_mut(|d| d.remove_temp(key)).unwrap_or_default();
+    if args.bool("open") {
+        let mut footer = if args.choice("shape") == "side" { Footer::side().extra("Add to Swatches") } else { Footer::standard() };
+        footer = footer.ok_enabled(args.bool("ok enabled")).enter(if args.bool("body owns enter") { EnterRule::Body } else { EnterRule::Default });
+        if args.bool("apply") && args.choice("shape") != "side" {
+            footer = footer.apply("Apply");
+        }
+        if args.bool("alternate") && args.choice("shape") != "side" {
+            footer = footer.alternate("Don't Save");
+        }
+        if args.bool("alt resets") {
+            footer = footer.reset(Reset::AltCancel("Reset".into()));
+        }
+        let shown = Dialog::new("story-footer", "Canvas Size").modeless().width(Width::Compact).footer(footer).show(
+            ui.ctx(),
+            &mut state,
+            &mut (),
+            |ui, ()| lines(ui, 2),
+        );
+        if shown.outcome.is_some_and(Outcome::closes) {
             args.set_bool("open", false);
         }
     }
