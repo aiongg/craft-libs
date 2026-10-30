@@ -386,17 +386,13 @@ fn show_story(ui: &mut Ui, args: &mut StatusArgs) {
     ui.data_mut(|d| d.insert_temp(state_id, demo));
 }
 
-/// A job's progress and a save's, with the render path.
+/// A job's progress, alone so the bar fits an Overview tile.
 fn job_story(ui: &mut Ui, _: &mut NoArgs) {
     let width = 640.0_f32.min(ui.available_width());
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         StatusBar::new("status-bar-job").show(ui, |bar| {
-            bar.leading(|ui| drop(StatusBar::info(ui, "1200 px x 800 px (72 ppi)")));
-            bar.trailing(|ui| {
-                StatusBar::progress(ui, StatusProgress::new("Gaussian Blur", Some(0.45)).percent("45%").cancel("Cancel"));
-                StatusBar::warning(ui, "CPU Rendering");
-            });
+            bar.trailing(|ui| drop(StatusBar::progress(ui, StatusProgress::new("Blur", Some(0.45)).percent("45%").cancel("Cancel"))));
         });
     });
 }
