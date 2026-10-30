@@ -6,17 +6,15 @@ use std::ops::RangeInclusive;
 use craft_theme::Rgba;
 use egui::{Align, Context, Id, Layout, Ui, vec2};
 
+use super::body::PreferencesBody;
 use super::host::PreferencesHost;
 use super::model::{PrefValue, RowKind, RowSpec};
 use crate::composites::Field;
 use crate::controls::{Checkbox, NumberField, Select, Swatch, TextField};
 use crate::edit::EditEvent;
 use crate::localized::{LocaleNumbers, Unit};
+use crate::theme::{Tokens, TokensOf as _};
 
-/// Width of a choice row's control: PhotoCraft's select column.
-const CHOICE_WIDTH: f32 = 220.0;
-/// Width of a text row's control.
-const TEXT_WIDTH: f32 = 260.0;
 /// The characters of a colour's hex field: `#rrggbb`.
 const HEX_CHARS: usize = 7;
 
@@ -111,6 +109,7 @@ pub(super) fn show_row<H: PreferencesHost + ?Sized>(
     out: &mut RowsOut,
 ) {
     let ctx = ui.ctx().clone();
+    let widths = PreferencesBody::style(&Tokens::of(ui));
     let key = row.key.as_str();
     let edit_id = ui.make_persistent_id(("preferences-before", key));
     let enabled = row.enabled;
@@ -130,7 +129,7 @@ pub(super) fn show_row<H: PreferencesHost + ?Sized>(
             let mut chosen = value.clone();
             let edit = field
                 .show(ui, |ui, _| {
-                    fixed(ui, CHOICE_WIDTH, |ui| {
+                    fixed(ui, widths.choice_width, |ui| {
                         let mut select = Select::new(key, row.label.as_str(), &mut chosen).enabled(enabled);
                         for (id, label) in options {
                             select = select.option(id.clone(), label.as_str());
@@ -177,7 +176,7 @@ pub(super) fn show_row<H: PreferencesHost + ?Sized>(
         Kind::Text(value) => {
             let edit = field
                 .show(ui, |ui, invalid| {
-                    fixed(ui, TEXT_WIDTH, |ui| TextField::new(key, row.label.as_str(), value).enabled(enabled).invalid(invalid).show(ui))
+                    fixed(ui, widths.text_width, |ui| TextField::new(key, row.label.as_str(), value).enabled(enabled).invalid(invalid).show(ui))
                 })
                 .inner;
             new_value = forward(&ctx, edit_id, edit.event, PrefValue::Text(value.clone()), PrefValue::Text);

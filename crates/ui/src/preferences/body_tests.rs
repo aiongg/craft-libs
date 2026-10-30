@@ -14,6 +14,7 @@ struct State {
     host: FakeHost,
     closed: Option<Closed>,
     picked: Option<String>,
+    id: egui::Id,
 }
 
 fn builder(dir: Direction) -> HarnessBuilder<State> {
@@ -26,6 +27,7 @@ fn builder(dir: Direction) -> HarnessBuilder<State> {
 fn open_with(dir: Direction, host: FakeHost) -> Harness<'static, State> {
     builder(dir).build_ui_state(
         |ui: &mut Ui, s: &mut State| {
+            s.id = PreferencesBody::id(ui, "t");
             let out = PreferencesBody::new("t").show(ui, &mut s.host);
             if out.closed.is_some() {
                 s.closed = out.closed;
@@ -34,7 +36,7 @@ fn open_with(dir: Direction, host: FakeHost) -> Harness<'static, State> {
                 s.picked = out.pick_color;
             }
         },
-        State { host, closed: None, picked: None },
+        State { host, closed: None, picked: None, id: egui::Id::NULL },
     )
 }
 
@@ -107,7 +109,7 @@ fn esc_clears_the_search_then_leaves_it_and_only_then_cancels() {
     type_search(&mut h, "tools");
     h.key_press(Key::Escape);
     h.run();
-    assert!(PreferencesBody::state(&h.ctx, "t").search.is_empty());
+    assert!(PreferencesBody::state(&h.ctx, h.state().id).search.is_empty());
     assert_eq!(h.state().closed, None);
     h.key_press(Key::Escape);
     h.run();
@@ -156,11 +158,11 @@ fn search_filters_pages_and_rows_and_the_choice_returns_when_cleared() {
     let mut h = open();
     h.get_by_role_and_label(Role::ListBoxOption, "Tools").click();
     h.run();
-    assert_eq!(PreferencesBody::state(&h.ctx, "t").selected, "tools");
+    assert_eq!(PreferencesBody::state(&h.ctx, h.state().id).selected, "tools");
     type_search(&mut h, "language");
     assert!(h.query_by_role_and_label(Role::ListBoxOption, "Tools").is_none());
     h.get_by_role_and_label(Role::ListBoxOption, "General");
-    assert_eq!(PreferencesBody::state(&h.ctx, "t").selected, "tools");
+    assert_eq!(PreferencesBody::state(&h.ctx, h.state().id).selected, "tools");
     h.get_by_label("Clear search").click();
     h.run();
     h.get_by_role_and_label(Role::ListBoxOption, "Tools");
@@ -186,10 +188,10 @@ fn ctrl_f_focuses_the_search_field_and_arrows_change_the_page() {
     h.run();
     h.key_press(Key::ArrowDown);
     h.run();
-    assert_eq!(PreferencesBody::state(&h.ctx, "t").selected, "interface");
+    assert_eq!(PreferencesBody::state(&h.ctx, h.state().id).selected, "interface");
     h.key_press(Key::End);
     h.run();
-    assert_eq!(PreferencesBody::state(&h.ctx, "t").selected, "advanced");
+    assert_eq!(PreferencesBody::state(&h.ctx, h.state().id).selected, "advanced");
 }
 
 #[test]
@@ -266,7 +268,7 @@ fn the_body_never_draws_below_the_space_it_is_given() {
             seen.set(ui.max_rect().bottom());
             let _ = PreferencesBody::new("t").show(ui, &mut s.host);
         },
-        State { host: FakeHost::new(), closed: None, picked: None },
+        State { host: FakeHost::new(), closed: None, picked: None, id: egui::Id::NULL },
     );
     let ok = h.get_by_label("OK").rect();
     assert!(ok.bottom() <= bottom.get() + 0.5, "{ok:?} in {}", bottom.get());
@@ -279,4 +281,68 @@ fn right_to_left_moves_the_page_list_to_the_trailing_side() {
     let l = ltr.get_by_role(Role::ListBox).rect();
     let r = rtl.get_by_role(Role::ListBox).rect();
     assert!(l.center().x < 380.0 && r.center().x > 380.0, "{l:?} {r:?}");
+}
+
+#[test]
+fn esc_during_a_number_drag_cancels_the_drag_and_only_a_second_esc_cancels_the_window() {
+    let mut h = open();
+    h.get_by_role_and_label(Role::ListBoxOption, "Tools").click();
+    h.run();
+    let at = h.get_by_label("Brush size:").rect().center();
+    let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(egui::Event::PointerMoved(at));
+    h.event(button(true));
+    h.step();
+    for dx in [10.0, 20.0, 30.0] {
+        h.event(egui::Event::PointerMoved(at + egui::vec2(dx, 0.0)));
+        h.step();
+    }
+    h.key_press(Key::Escape);
+    h.step();
+    assert_eq!((h.state().host.logged("cancel"), h.state().closed), (0, None), "the Esc went to the drag");
+    h.event(button(false));
+    h.run();
+    h.key_press(Key::Escape);
+    h.run();
+    assert_eq!((h.state().host.logged("cancel"), h.state().closed), (1, Some(Closed::Cancel)));
+}
+
+#[test]
+fn two_bodies_with_one_salt_in_different_parents_keep_their_own_page() {
+    struct Two {
+        hosts: [FakeHost; 2],
+        ids: [egui::Id; 2],
+    }
+    let mut h =
+        Harness::<Two>::builder().with_size([760.0, 960.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui: &mut Ui, s: &mut Two| {
+                for n in 0..2 {
+                    ui.push_id(n, |ui| {
+                        ui.allocate_ui(egui::vec2(760.0, 470.0), |ui| {
+                            s.ids[n] = PreferencesBody::id(ui, "t");
+                            let _ = PreferencesBody::new("t").show(ui, &mut s.hosts[n]);
+                        });
+                    });
+                }
+            },
+            Two { hosts: [FakeHost::new(), FakeHost::new()], ids: [egui::Id::NULL; 2] },
+        );
+    h.run();
+    h.get_all_by_role_and_label(Role::ListBoxOption, "Tools")
+        .min_by(|a, b| a.rect().top().total_cmp(&b.rect().top()))
+        .expect("the first body's Tools page")
+        .click();
+    h.run();
+    let ids = h.state().ids;
+    assert_ne!(ids[0], ids[1]);
+    assert_eq!(PreferencesBody::state(&h.ctx, ids[0]).selected, "tools");
+    assert_eq!(PreferencesBody::state(&h.ctx, ids[1]).selected, "");
+}
+
+#[test]
+fn a_dimmed_page_in_the_list_is_described_as_unavailable_and_the_others_are_not() {
+    let h = open();
+    let empty = h.get_by_role_and_label(Role::ListBoxOption, "Plug-ins").accesskit_node();
+    assert_eq!(empty.description().as_deref(), Some("These settings aren't available yet."));
+    assert_eq!(h.get_by_role_and_label(Role::ListBoxOption, "Tools").accesskit_node().description(), None);
 }

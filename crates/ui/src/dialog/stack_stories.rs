@@ -1,6 +1,6 @@
 //! Stories of the dialog stack, prompt, alert and blocking overlay.
 
-use egui::{Id, Ui};
+use egui::Ui;
 
 use super::{Alert, BlockingOverlay, ButtonRole, Dialog, DialogStack, DialogState, Footer, Outcome, Prompt, dialog_id};
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
@@ -58,7 +58,7 @@ pub(super) fn stories() -> Vec<Story> {
 
 /// A parent dialog with a button that opens a child: only the child answers keys while it is open.
 fn show_stack(ui: &mut Ui, args: &mut StackArgs) {
-    let key = Id::unique("craft_ui::dialog::story-stack");
+    let key = ui.make_persistent_id("craft_ui::dialog::story-stack");
     let (mut stack, mut parent, mut child): (DialogStack, DialogState, DialogState) = ui.data_mut(|d| d.remove_temp(key)).unwrap_or_default();
     let ctx = ui.ctx().clone();
     if args.open {
@@ -124,7 +124,7 @@ fn show_question(ui: &mut Ui, args: &mut QuestionArgs) {
 
 /// The window takes no input for two seconds after the box is ticked.
 fn show_blocking(ui: &mut Ui, args: &mut BlockingArgs) {
-    let key = Id::unique("craft_ui::dialog::story-blocking");
+    let key = ui.make_persistent_id("craft_ui::dialog::story-blocking");
     let now = ui.input(|i| i.time);
     let until: Option<f64> = ui.data(|d| d.get_temp(key));
     if args.busy {

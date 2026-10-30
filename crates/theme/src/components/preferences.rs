@@ -12,6 +12,11 @@ pub struct PreferencesTokens {
     pub list_width: f32,
     /// Between the page list and the page: `preferences.page_gap`, `pad.panel`.
     pub page_gap: f32,
+    /// Width of a choice row's control: `preferences.choice_width`, 220 at Compact, scaled by the
+    /// control height like a dialog's sizes.
+    pub choice_width: f32,
+    /// Width of a text row's control: `preferences.text_width`, 260 at Compact, scaled likewise.
+    pub text_width: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -23,7 +28,14 @@ impl Family for PreferencesTokens {
     const FIELDS: &'static [PreferencesField] = &[];
 
     fn defaults(s: &Semantic<'_>) -> PreferencesTokens {
-        PreferencesTokens { list_width: values::PREFERENCES_LIST_WIDTH, page_gap: s.space.pad.panel }
+        let k = s.size.control.md / values::DIALOG_BASE_CONTROL;
+        let scale = |w: f32| (w * k).round();
+        PreferencesTokens {
+            list_width: values::PREFERENCES_LIST_WIDTH,
+            page_gap: s.space.pad.panel,
+            choice_width: scale(values::PREFERENCES_CHOICE_WIDTH),
+            text_width: scale(values::PREFERENCES_TEXT_WIDTH),
+        }
     }
 
     fn path(f: PreferencesField) -> String {

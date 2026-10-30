@@ -1,6 +1,6 @@
 //! Stories of the dialog frame, the modeless dialog and the footer.
 
-use egui::{Id, Ui, vec2};
+use egui::{Ui, vec2};
 
 use super::{Body, Dialog, DialogFrame, DialogState, EnterRule, Footer, Outcome, Reset, Resize, ResizeMax, Width};
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
@@ -121,7 +121,7 @@ fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
 
 /// A modeless dialog in its own area: drag the title to move it; it reopens where it was left.
 fn show_modeless(ui: &mut Ui, args: &mut ModelessArgs) {
-    let key = Id::unique("craft_ui::dialog::story-modeless");
+    let key = ui.make_persistent_id("craft_ui::dialog::story-modeless");
     let mut state: DialogState = ui.data_mut(|d| d.remove_temp(key)).unwrap_or_default();
     if args.open {
         let mut dialog = Dialog::new("story-modeless", "Tool window").modeless().width(args.width.width());
@@ -142,7 +142,7 @@ fn show_modeless(ui: &mut Ui, args: &mut ModelessArgs) {
 
 /// A dialog with a footer: Enter answers OK, Esc cancels, holding Alt turns Cancel into Reset.
 fn show_footer(ui: &mut Ui, args: &mut FooterArgs) {
-    let key = Id::unique("craft_ui::dialog::story-footer");
+    let key = ui.make_persistent_id("craft_ui::dialog::story-footer");
     let mut state: DialogState = ui.data_mut(|d| d.remove_temp(key)).unwrap_or_default();
     if args.open {
         let mut footer = if args.shape == ShapeArg::Side { Footer::side().extra("Add to Swatches") } else { Footer::standard() };

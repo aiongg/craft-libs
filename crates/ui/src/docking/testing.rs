@@ -21,6 +21,7 @@ const NUDGE: egui::Vec2 = egui::Vec2::new(8.0, 6.0);
 type StyleFn = Box<dyn Fn(&mut DockStyle)>;
 type ConfigFn = Box<dyn Fn(&mut DockConfig)>;
 type LookFn = Box<dyn Fn(&mut DockLook)>;
+type AfterFn = Box<dyn FnMut(&mut Ui)>;
 #[cfg(feature = "native-windows")]
 type InputHook = std::sync::Arc<dyn Fn(&Context, &mut RawInput) + Send + Sync>;
 
@@ -69,6 +70,8 @@ pub struct DockDriver<P, C> {
     config: Option<ConfigFn>,
     look: Option<LookFn>,
     pins: Option<Pins>,
+    /// Drawn after the dock in the same window, over the whole window.
+    pub after: Option<AfterFn>,
     shapes: Vec<ClippedShape>,
     ime: Option<egui::output::IMEOutput>,
     time: f64,
@@ -106,6 +109,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
             look: None,
             pins: None,
             shapes: Vec::new(),
+            after: None,
             ime: None,
             time: 0.0,
         };
@@ -190,6 +194,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
             self.input_blocked,
         );
         let pins = self.pins.clone();
+        let mut after = self.after.take();
         let mut full = self.ctx.run_ui(input, |ui| {
             let mut draw = |ui: &mut Ui| {
                 let mut style = DockStyle::from_ui(ui);
@@ -233,12 +238,16 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
                         None => dock.show_content(ui, layout, &style, content),
                     };
                 });
+                if let Some(after) = after.as_mut() {
+                    after(ui);
+                }
             };
             match &pins {
                 Some(pins) => crate::theme::scope(ui, |o| o.colors = pins.clone(), draw),
                 None => draw(ui),
             }
         });
+        self.after = after;
         full.textures_delta.clear();
         #[cfg(feature = "native-windows")]
         if let Some(host) = &self.host {

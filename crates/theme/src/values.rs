@@ -633,6 +633,10 @@ pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
 
 /// Width of a preferences window's page list column, at every Size (PhotoCraft's `prefs_ui` side list).
 pub const PREFERENCES_LIST_WIDTH: f32 = 170.0;
+/// Width of a choice row's control at Compact (PhotoCraft's select column); Comfortable scales it by the control height.
+pub const PREFERENCES_CHOICE_WIDTH: f32 = 220.0;
+/// Width of a text row's control at Compact; Comfortable scales it by the control height.
+pub const PREFERENCES_TEXT_WIDTH: f32 = 260.0;
 
 /// Least thumbnail side of a preset list row, at every Size.
 pub const PRESET_THUMB_LIST_MIN: f32 = 16.0;
