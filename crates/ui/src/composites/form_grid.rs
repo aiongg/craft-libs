@@ -170,6 +170,12 @@ impl Form<'_> {
     /// centres on the first. A cell that returns a
     /// [`Row`](crate::primitives::Row)'s response instead is an accessible group named by the
     /// label.
+    ///
+    /// The label replaces the control's own accessible name: a text field labelled "Name" in the
+    /// row "Name:" is named "Name:". A control that carries a name of its own that the row label
+    /// must not replace, such as a colour swatch named "Fill color" in the row "Color:", is
+    /// marked with [`FieldControl::own_name`] (`swatch.show(ui).own_name()`). It keeps its name
+    /// and is `described_by` the row label instead. The label still centres on it.
     pub fn row<C: FieldControl>(&mut self, label: impl Into<String>, add_control: impl FnOnce(&mut Ui, &RowLabel) -> C) -> InnerResponse<C> {
         self.cell(Some(label.into()).filter(|l| !l.is_empty()), add_control, true)
     }
@@ -249,7 +255,7 @@ impl Form<'_> {
             }
         }
         if names_control && let Some(label) = &label_response {
-            name_control(ui.ctx(), control.control(), label);
+            name_control(ui.ctx(), &control, label);
         }
         drop(cell);
         let response = ui.allocate_rect(row, Sense::hover());
