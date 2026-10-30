@@ -362,6 +362,7 @@ fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
                     scale_of_selected: false,
                     scroll_to: &mut scroll_to,
                     inspector: None,
+                    highlight: None,
                 };
                 ui.scope_builder(egui::UiBuilder::new().max_rect(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 800.0))), |ui| {
                     tiles_view(ui, &tiles, config, &mut args, &HashMap::new(), &appearance, system);
