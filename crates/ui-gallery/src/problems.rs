@@ -23,6 +23,8 @@ const RATIO_WIDTH: f32 = 90.0;
 #[derive(Default)]
 pub struct Problems {
     report: Option<(ThemeDef, Arc<ContrastReport>)>,
+    /// The row selected, by its pair so that it survives a new report.
+    selected: Option<(TokenRef, TokenRef)>,
 }
 
 impl Problems {
@@ -54,7 +56,11 @@ impl Problems {
             return None;
         }
         let rows: Vec<RowInfo<usize>> = (0..warnings.len()).map(RowInfo::leaf).collect();
-        let mut selection = Selection::default();
+        let mut selection =
+            self.selected.and_then(|pair| warnings.iter().position(|w| (w.fg, w.bg) == pair)).map_or_else(Selection::default, Selection::only);
+        if selection.is_empty() {
+            self.selected = None;
+        }
         let sample = egui::TextStyle::Body.resolve(ui.style());
         let out = List::new("gallery.problems.list", "Contrast problems", rows.as_slice())
             .selection(&mut selection)
@@ -73,10 +79,12 @@ impl Problems {
                         ui.monospace(format!("{:.1} of {:.1}", w.ratio, w.minimum));
                     })
             });
-        out.events.into_iter().find_map(|event| match event {
-            ListEvent::Selection(SelectionChange { row: Some(i), .. }) | ListEvent::Activate(i) => warnings.get(i).map(|w| w.fg),
+        let clicked = out.events.into_iter().find_map(|event| match event {
+            ListEvent::Selection(SelectionChange { row: Some(i), .. }) | ListEvent::Activate(i) => warnings.get(i),
             _ => None,
-        })
+        })?;
+        self.selected = Some((clicked.fg, clicked.bg));
+        Some(clicked.fg)
     }
 }
 

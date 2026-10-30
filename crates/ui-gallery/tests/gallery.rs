@@ -580,6 +580,11 @@ fn problems_lists_the_warnings_of_the_shown_appearance_and_a_click_selects_the_t
     click(&ctx, &mut gallery, &label, Role::ListBoxOption);
     assert_eq!(gallery.selected_token(), Some(fg));
     assert!(gallery.is_front(PanelId::Theme));
+    gallery.activate(PanelId::Problems);
+    let tree = settled_tree(&ctx, &mut gallery);
+    let row = named(&tree, &label, Role::ListBoxOption);
+    assert_eq!(row.len(), 1);
+    assert!(tree.node(row[0]).is_some_and(|n| n.is_selected() == Some(true)), "the clicked row stays selected");
     gallery.appearance_mut().contrast = ContrastChoice::High;
     let tree = settled_tree(&ctx, &mut gallery);
     assert!(
