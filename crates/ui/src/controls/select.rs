@@ -19,15 +19,16 @@ use super::option_list::{
     text_galley,
 };
 use super::text_field::{BoxState, field_box};
-use super::{SIZE_NAMES, SearchField, Swatch, TextField, TextFieldStyle, icon_size, size_arg};
+use super::{SearchField, Swatch, TextField, TextFieldStyle, icon_size};
 use crate::behavior::{ListOptions, Listbox, take_composing_keys, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
 use crate::popup_list::{self, PopupList};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Args, Level, Story, variant_list, variant_row};
+use crate::story::{Level, SizeArg, Story, StoryArgs, variant_list, variant_row};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
+use crate::typed_story;
 
 /// The rows of a popup list, from [`Select::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1264,32 +1265,44 @@ fn paint_box(ui: &Ui, style: &SelectStyle, response: &egui::Response, content: B
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Select"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct StatesArgs {
+    size: SizeArg,
+    disabled: bool,
+    fit: bool,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct WheelStepsArgs {
+    size: SizeArg,
+    #[arg(name = "wheel steps")]
+    wheel_steps: bool,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct SearchableArgs {
+    size: SizeArg,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "controls/select/states",
             Level::Controls,
             "Select",
             "States",
-            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_bool("fit", false),
-            show_states,
+            StatesArgs { size: SizeArg::Md, disabled: false, fit: false },
+            show_states
         ),
-        Story::new(
+        typed_story!(
             "controls/select/wheel-steps",
             Level::Controls,
             "Select",
             "Wheel steps",
-            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("wheel steps", true),
-            show_wheel_steps,
+            WheelStepsArgs { size: SizeArg::Md, wheel_steps: true },
+            show_wheel_steps
         ),
-        Story::new(
-            "controls/select/searchable",
-            Level::Controls,
-            "Select",
-            "Searchable",
-            || Args::new().with_choice("size", SIZE_NAMES, 1),
-            show_searchable,
-        ),
+        typed_story!("controls/select/searchable", Level::Controls, "Select", "Searchable", SearchableArgs { size: SizeArg::Md }, show_searchable),
     ]
 }
 
@@ -1306,9 +1319,9 @@ const UNITS: [&str; 4] = ["Pixels", "Inches", "Centimetres", "Points"];
 /// Plain, grouped with a separator and a disabled option, with icons, with no option chosen, and
 /// disabled. The `fit` argument sizes the boxes to their options; row tooltips and the pointer's
 /// highlighted option show on the first two.
-fn show_states(ui: &mut Ui, args: &mut Args) {
-    let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
-    let fit = args.bool("fit");
+fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
+    let (size, enabled) = (args.size.control(), !args.disabled);
+    let fit = args.fit;
     let hovered_id = ui.scope_id().with("select-highlighted");
     let mut hovered = ui.data(|d| d.get_temp::<Option<usize>>(hovered_id).unwrap_or_default());
     with_choices(ui, "select-states", [0, 1, 0, usize::MAX], |ui, choices| {
@@ -1423,9 +1436,9 @@ const LOG_LEN: usize = 12;
 /// Blend modes under a [`GestureHost`]: a swatch shows the document's colour, which follows the
 /// value while the list is open, Up and Down on the closed box and, with "wheel steps", the wheel
 /// over it; the events newest first and the undo-step count.
-fn show_wheel_steps(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let wheel_steps = args.bool("wheel steps");
+fn show_wheel_steps(ui: &mut Ui, args: &mut WheelStepsArgs) {
+    let size = args.size.control();
+    let wheel_steps = args.wheel_steps;
     let state_id = ui.scope_id().with("select-wheel-steps");
     let mut state = ui.data(|d| d.get_temp::<WheelStepsState>(state_id)).unwrap_or_default();
     Stack::new(Gap::Stack).show(ui, |ui| {
@@ -1480,8 +1493,8 @@ const FONT_STEMS: [&str; 12] =
 const FONT_STYLES: [&str; 6] = ["", " Light", " Medium", " Bold", " Condensed", " Display"];
 
 /// A searchable font list of 72 rows, laid out only in view.
-fn show_searchable(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
+fn show_searchable(ui: &mut Ui, args: &mut SearchableArgs) {
+    let size = args.size.control();
     let font = |i: usize| format!("{}{}", FONT_STEMS[i / FONT_STYLES.len()], FONT_STYLES[i % FONT_STYLES.len()]);
     with_choices(ui, "select-searchable", [6], |ui, choices| {
         variant_list(ui, "select-searchable", |form| {

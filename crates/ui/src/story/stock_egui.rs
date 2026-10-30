@@ -3,14 +3,20 @@
 
 use egui::{Id, Ui};
 
-use super::{Args, Level, Story};
+use super::{Level, Story, StoryArgs};
 use crate::ComboBox;
+use crate::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Stock egui"];
 
+#[derive(StoryArgs)]
+struct StockArgs {
+    enabled: bool,
+}
+
 pub(super) fn stories() -> Vec<Story> {
-    vec![Story::new("foundations/stock-egui/widgets", Level::Foundations, "Stock egui", "Widgets", || Args::new().with_bool("enabled", true), show)]
+    vec![typed_story!("foundations/stock-egui/widgets", Level::Foundations, "Stock egui", "Widgets", StockArgs { enabled: true }, show)]
 }
 
 /// A value that lives in the context between frames, keyed under `ui`.
@@ -24,8 +30,8 @@ fn keep<T: Clone + Send + Sync + 'static>(ui: &Ui, name: &str, value: T) {
     ui.data_mut(|d| d.insert_temp(id, value));
 }
 
-fn show(ui: &mut Ui, args: &mut Args) {
-    ui.add_enabled_ui(args.bool("enabled"), |ui| {
+fn show(ui: &mut Ui, args: &mut StockArgs) {
+    ui.add_enabled_ui(args.enabled, |ui| {
         ui.horizontal(|ui| {
             let _ = ui.button("Button");
             ui.add(egui::Button::new("Selected").selected(true));

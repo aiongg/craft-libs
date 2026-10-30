@@ -13,14 +13,15 @@ use egui::{
     StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
-use super::{RangeSlider, SIZE_NAMES, Swatch, field_wheel, gradient_track, size_arg};
+use super::{RangeSlider, Swatch, field_wheel, gradient_track};
 use crate::composites::Form;
 use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::order::{self, Turn};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::primitives::{Content, Gap, Interactive, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Args, Level, Story, variant_list};
+use crate::story::{Args, Level, SizeArg, Story, StoryArgs, variant_list};
 use crate::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, UiTokens, corner_radius, scale};
+use crate::typed_story;
 
 /// A slider's sizes and colours, from [`Slider::style`]; [`RangeSlider`](super::RangeSlider)
 /// draws with the same.
@@ -1005,27 +1006,49 @@ pub(super) fn knob(mut surface: SurfaceStyle, fill: Color32, border: Color32, en
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Slider"];
 
+/// The args of the stories that only pick the size and disable the sliders.
+#[derive(StoryArgs, Debug, Default, PartialEq)]
+struct SliderArgs {
+    size: SizeArg,
+    disabled: bool,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct ValuesArgs {
+    size: SizeArg,
+    disabled: bool,
+    #[arg(name = "default value (50)")]
+    default_value: bool,
+    #[arg(name = "wheel unfocused")]
+    wheel_unfocused: bool,
+}
+
+/// How a story's sliders look.
+#[derive(Clone, Copy)]
+struct Look {
+    size: ControlSize,
+    enabled: bool,
+}
+
+impl Look {
+    fn of(size: SizeArg, disabled: bool) -> Self {
+        Self { size: size.control(), enabled: !disabled }
+    }
+}
+
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false);
-    let story = |id, name, show| Story::new(id, Level::Controls, "Slider", name, args, show);
     vec![
-        Story::new(
+        typed_story!(
             "controls/slider/values",
             Level::Controls,
             "Slider",
             "Values",
-            || {
-                Args::new()
-                    .with_choice("size", SIZE_NAMES, 1)
-                    .with_bool("disabled", false)
-                    .with_bool("default value (50)", false)
-                    .with_bool("wheel unfocused", false)
-            },
-            show_values,
+            ValuesArgs { size: SizeArg::Md, disabled: false, default_value: false, wheel_unfocused: false },
+            show_values
         ),
-        story("controls/slider/step", "Step", show_step),
-        story("controls/slider/disabled", "Disabled", show_disabled),
-        story("controls/slider/right-to-left", "Right to left", show_right_to_left),
+        typed_story!("controls/slider/step", Level::Controls, "Slider", "Step", SliderArgs::default(), show_step),
+        typed_story!("controls/slider/disabled", Level::Controls, "Slider", "Disabled", SliderArgs::default(), show_disabled),
+        typed_story!("controls/slider/right-to-left", Level::Controls, "Slider", "Right to left", SliderArgs::default(), show_right_to_left),
         Story::new(
             "controls/slider/event-log",
             Level::Controls,
@@ -1071,20 +1094,20 @@ pub(super) fn labelled(form: &mut Form<'_>, label: &str, value: &str, control: i
     });
 }
 
-fn slider_row(form: &mut Form<'_>, args: &Args, salt: &str, label: &str, value: &mut f64, step: Option<f64>) {
-    slider_row_with(form, args, salt, label, value, step, |slider| slider);
+fn slider_row(form: &mut Form<'_>, look: Look, salt: &str, label: &str, value: &mut f64, step: Option<f64>) {
+    slider_row_with(form, look, salt, label, value, step, |slider| slider);
 }
 
 fn slider_row_with(
     form: &mut Form<'_>,
-    args: &Args,
+    look: Look,
     salt: &str,
     label: &str,
     value: &mut f64,
     step: Option<f64>,
     more: impl FnOnce(Slider) -> Slider,
 ) {
-    let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
+    let Look { size, enabled } = look;
     let text = format!("{value:.1}");
     labelled(form, label, &text, |ui| {
         let mut slider = Slider::new(salt, label, *value, 0.0..=100.0).size(size).enabled(enabled);
@@ -1096,18 +1119,19 @@ fn slider_row_with(
 }
 
 /// Sliders at the minimum, the middle and the maximum.
-fn show_values(ui: &mut Ui, args: &mut Args) {
+fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
+    let look = Look::of(args.size, args.disabled);
     with_values(ui, "slider-values", [0.0, 50.0, 100.0, 25.0, 100.0, 50.0, 30.0], |ui, values| {
         variant_list(ui, "slider-values", |form| {
             let (minimum_to_maximum, shaped) = values.split_at_mut(3);
             for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate() {
-                let (default, wheel) = (args.bool("default value (50)"), args.bool("wheel unfocused"));
-                slider_row_with(form, args, &format!("slider-values-{i}"), label, value, None, |slider| {
+                let (default, wheel) = (args.default_value, args.wheel_unfocused);
+                slider_row_with(form, look, &format!("slider-values-{i}"), label, value, None, |slider| {
                     let slider = slider.wheel_unfocused(wheel);
                     if default { slider.default_value(50.0) } else { slider }
                 });
             }
-            let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
+            let Look { size, enabled } = look;
             let [power, log, marked, triangle] = shaped else { return };
             labelled(form, "Power 2", &format!("{power:.1}"), |ui| {
                 let slider = Slider::new("slider-power", "Power 2", *power, 0.0..=100.0).scale(SliderScale::Power(2.0));
@@ -1130,19 +1154,20 @@ fn show_values(ui: &mut Ui, args: &mut Args) {
 }
 
 /// Steps of 10 and of 25.
-fn show_step(ui: &mut Ui, args: &mut Args) {
+fn show_step(ui: &mut Ui, args: &mut SliderArgs) {
+    let look = Look::of(args.size, args.disabled);
     with_values(ui, "slider-step", [40.0, 50.0], |ui, values| {
         variant_list(ui, "slider-step", |form| {
             for (i, (step, value)) in [10.0, 25.0].into_iter().zip(values.iter_mut()).enumerate() {
-                slider_row(form, args, &format!("slider-step-{i}"), &format!("Step {step}"), value, Some(step));
+                slider_row(form, look, &format!("slider-step-{i}"), &format!("Step {step}"), value, Some(step));
             }
         });
     });
 }
 
 /// Disabled sliders at the minimum, a value and the maximum.
-fn show_disabled(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
+fn show_disabled(ui: &mut Ui, args: &mut SliderArgs) {
+    let size = args.size.control();
     variant_list(ui, "slider-disabled", |form| {
         for (i, value) in [0.0, 30.0, 100.0].into_iter().enumerate() {
             labelled(form, &format!("Disabled {}", i + 1), &format!("{value:.1}"), |ui| {
@@ -1154,12 +1179,13 @@ fn show_disabled(ui: &mut Ui, args: &mut Args) {
 
 /// A labelled slider row: with the gallery's direction set to right to left, the row mirrors
 /// around the slider and its value.
-fn show_right_to_left(ui: &mut Ui, args: &mut Args) {
+fn show_right_to_left(ui: &mut Ui, args: &mut SliderArgs) {
+    let look = Look::of(args.size, args.disabled);
     with_values(ui, "slider-rtl", [25.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let note = "With the direction set to right to left the label moves to the right. The slider keeps its geometry: the value grows to the right and the arrow keys act as they are.";
             ui.add(Text::new(note).content(Content::Muted));
-            variant_list(ui, "slider-rtl", |form| slider_row(form, args, "slider-rtl", "Opacity", &mut values[0], Some(1.0)));
+            variant_list(ui, "slider-rtl", |form| slider_row(form, look, "slider-rtl", "Opacity", &mut values[0], Some(1.0)));
         });
     });
 }

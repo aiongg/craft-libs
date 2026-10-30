@@ -8,12 +8,13 @@ use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sense, Ui, Vec2, Widget, pos2, vec2};
 
-use super::{SIZE_NAMES, Spinner, TooltipExt as _, icon_size, salt, size_arg};
+use super::{Spinner, TooltipExt as _, icon_size, salt};
 use crate::direction;
 use crate::icons::{self, Icon};
 use crate::primitives::{Corner, Interactive, StateColors, StateLayer, SurfaceKind, Text};
-use crate::story::{Args, Level, Story, variant_cluster, variant_list};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, variant_cluster, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// A push button's sizes and colours, from [`Button::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -301,59 +302,102 @@ fn paint_galley(ui: &Ui, galley: &Arc<Galley>, pos: egui::Pos2, color: Color32) 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Button"];
 
-const VARIANT_NAMES: &[&str] = &["primary", "secondary", "ghost", "danger"];
-
-const ICON_NAMES: &[&str] = &["none", "save", "chevron_right"];
-
-pub(crate) fn variant_arg(name: &str) -> ButtonVariant {
-    ButtonVariant::ALL.into_iter().find(|v| v.name() == name).unwrap_or(ButtonVariant::Secondary)
+/// The `variant` arg: the names of [`ButtonVariant`]s.
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum VariantArg {
+    Primary,
+    Secondary,
+    Ghost,
+    Danger,
 }
 
-pub(crate) fn icon_arg(name: &str) -> Option<Icon> {
-    Icon::ALL.into_iter().find(|i| i.name() == name)
+impl VariantArg {
+    fn variant(self) -> ButtonVariant {
+        match self {
+            VariantArg::Primary => ButtonVariant::Primary,
+            VariantArg::Secondary => ButtonVariant::Secondary,
+            VariantArg::Ghost => ButtonVariant::Ghost,
+            VariantArg::Danger => ButtonVariant::Danger,
+        }
+    }
+}
+
+/// The `icon` arg: no icon or one of two.
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum IconArg {
+    None,
+    Save,
+    #[choice(name = "chevron_right")]
+    ChevronRight,
+}
+
+impl IconArg {
+    fn icon(self) -> Option<Icon> {
+        match self {
+            IconArg::None => None,
+            IconArg::Save => Some(Icon::Save),
+            IconArg::ChevronRight => Some(Icon::ChevronRight),
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct VariantsArgs {
+    label: String,
+    icon: IconArg,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct PlaygroundArgs {
+    variant: VariantArg,
+    size: SizeArg,
+    icon: IconArg,
+    disabled: bool,
+    loading: bool,
+    narrow: bool,
+    label: String,
 }
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "controls/button/variants",
             Level::Controls,
             "Button",
             "Variants",
-            || Args::new().with_text("label", "Button").with_choice("icon", ICON_NAMES, 0),
-            show_variants,
+            VariantsArgs { label: "Button".into(), icon: IconArg::None },
+            show_variants
         ),
-        Story::new(
+        typed_story!(
             "controls/button/playground",
             Level::Controls,
             "Button",
             "Playground",
-            || {
-                Args::new()
-                    .with_choice("variant", VARIANT_NAMES, 0)
-                    .with_choice("size", SIZE_NAMES, 1)
-                    .with_choice("icon", ICON_NAMES, 1)
-                    .with_bool("disabled", false)
-                    .with_bool("loading", false)
-                    .with_bool("narrow", false)
-                    .with_text("label", "Save the document as a copy")
+            PlaygroundArgs {
+                variant: VariantArg::Primary,
+                size: SizeArg::Md,
+                icon: IconArg::Save,
+                disabled: false,
+                loading: false,
+                narrow: false,
+                label: "Save the document as a copy".into(),
             },
-            show_playground,
+            show_playground
         ),
     ]
 }
 
 /// Every variant at each size (rows) in the rest, disabled and loading states.
-fn show_variants(ui: &mut Ui, args: &mut Args) {
-    let label = args.text("label").to_owned();
-    let icon = icon_arg(args.choice("icon"));
+fn show_variants(ui: &mut Ui, args: &mut VariantsArgs) {
+    let label = args.label.as_str();
+    let icon = args.icon.icon();
     variant_list(ui, "button-variants", |form| {
         for variant in ButtonVariant::ALL {
             for size in super::SIZES {
                 let size_name = super::size_name(size);
                 variant_cluster(form, &format!("{} {size_name}", variant.name()), |ui| {
                     for (state, enabled, loading) in [("rest", true, false), ("disabled", false, false), ("loading", true, true)] {
-                        let mut button = Button::new(label.as_str()).variant(variant).size(size).enabled(enabled).loading(loading).id_salt((
+                        let mut button = Button::new(label).variant(variant).size(size).enabled(enabled).loading(loading).id_salt((
                             "button-variants",
                             variant.name(),
                             size_name,
@@ -371,19 +415,19 @@ fn show_variants(ui: &mut Ui, args: &mut Args) {
 }
 
 /// One button with every property in the args; clicks count up.
-fn show_playground(ui: &mut Ui, args: &mut Args) {
+fn show_playground(ui: &mut Ui, args: &mut PlaygroundArgs) {
     let state_id = ui.scope_id().with("button-playground-count");
     let mut count = ui.data(|d| d.get_temp::<u32>(state_id).unwrap_or_default());
-    let mut button = Button::new(args.text("label"))
-        .variant(variant_arg(args.choice("variant")))
-        .size(size_arg(args.choice("size")))
-        .enabled(!args.bool("disabled"))
-        .loading(args.bool("loading"))
+    let mut button = Button::new(args.label.as_str())
+        .variant(args.variant.variant())
+        .size(args.size.control())
+        .enabled(!args.disabled)
+        .loading(args.loading)
         .id_salt("button-playground");
-    if let Some(icon) = icon_arg(args.choice("icon")) {
+    if let Some(icon) = args.icon.icon() {
         button = button.icon(icon);
     }
-    let width = if args.bool("narrow") { 120.0 } else { ui.available_width() };
+    let width = if args.narrow { 120.0 } else { ui.available_width() };
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         if ui.add(button).clicked() {

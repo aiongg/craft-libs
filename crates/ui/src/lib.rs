@@ -5,6 +5,9 @@
 //! Applications own their assets, themes, layouts, commands and document semantics. Components
 //! accept focused style values and return egui responses; no application engine is required.
 
+// The `StoryArgs` derive names this crate as `::craft_ui`.
+extern crate self as craft_ui;
+
 pub mod behavior;
 pub mod buttons;
 pub mod canvas;

@@ -1,0 +1,165 @@
+# Written by story::tests::registry_and_default_args_match_the_dump (UPDATE_DUMPS=1).
+foundations/colours/semantic = Colours | Semantic | Panel | group=Choice { options: ["all", "surface", "text", "line", "accent", "status", "state", "overlay", "data", "caption", "edge"], index: 0 }
+foundations/stock-egui/widgets = Stock egui | Widgets | Panel | enabled=Bool(true)
+specimens/icons/compare = Icons | Compare | Own | set=Choice { options: ["all", "lucide", "phosphor", "carbon", "tabler"], index: 0 }; size=Choice { options: ["16 and 20", "16", "20"], index: 0 }; mode=Choice { options: ["inherit", "light", "dark"], index: 0 }
+primitives/surface/kind = Surface | Kind | Panel | kind=Choice { options: ["background", "panel", "raised", "sunken", "pressed", "popup", "dialog", "knob"], index: 2 }
+primitives/surface/surfaces = Surface | Surfaces | Panel | 
+primitives/state-layer/states = State layer | States | Panel | disabled=Bool(false)
+primitives/focus-ring/focus = Focus ring | Focus | Panel | items=Number { value: 4.0, min: 1.0, max: 8.0 }
+primitives/focus-ring/ring = Focus ring | Ring | Panel | 
+primitives/divider/lines = Divider | Lines | Panel | 
+primitives/stack/gaps = Stack | Gaps | Panel | gap=Choice { options: ["inline", "row", "stack", "section"], index: 2 }; pad=Choice { options: ["none", "control", "panel", "dialog"], index: 2 }
+primitives/row/gaps = Row | Gaps | Panel | gap=Choice { options: ["inline", "row", "stack", "section"], index: 0 }; pad=Choice { options: ["none", "control", "panel", "dialog"], index: 2 }
+primitives/interactive/element = Interactive | Element | Panel | role=Choice { options: ["button", "check box", "tab"], index: 0 }; surface=Choice { options: ["none", "raised", "sunken", "panel"], index: 0 }; label=Text("Activate"); disabled=Bool(false)
+primitives/text/roles = Text | Roles | Panel | content=Choice { options: ["normal", "muted", "faint", "disabled", "accent", "on_accent", "on_status", "on_selected"], index: 0 }
+primitives/text/contents = Text | Contents | Panel | 
+primitives/text/truncate = Text | Truncate | Panel | role=Choice { options: ["caption", "label", "body", "body_strong", "title", "heading", "mono"], index: 2 }; text=Text("A long layer name that does not fit in the panel and ends in an ellipsis"); width=Number { value: 160.0, min: 40.0, max: 400.0 }
+primitives/icon/sizes = Icon | Sizes | Panel | content=Choice { options: ["normal", "muted", "faint", "disabled", "accent", "on_accent", "on_status", "on_selected"], index: 0 }
+primitives/handle/shapes = Handle | Shapes | Canvas | 
+primitives/canvas/document = Canvas | Document | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+primitives/canvas/scrollbars = Canvas | Scrollbars | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; overscroll=Bool(true)
+primitives/readout/values = Readout | Values | Canvas | 
+primitives/guides/guides = Guides | Guides | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; line=Choice { options: ["Solid", "Dashed", "Dots"], index: 0 }; interactive=Bool(true); locked=Bool(false); readout=Bool(true)
+primitives/smart-guides/move = Smart guides | Move | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+primitives/marquee/drag = Marquee | Drag | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; look=Choice { options: ["ants", "band", "drawing"], index: 0 }; shape=Choice { options: ["rectangle", "ellipse"], index: 0 }; style=Choice { options: ["free", "ratio 4:3", "size 200 x 120"], index: 0 }
+primitives/rulers/canvas = Rulers | Canvas | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; units=Choice { options: ["Pixels", "Millimetres", "Inches"], index: 0 }; interactive=Bool(true); locked=Bool(false)
+primitives/transform-box/free-transform = Transform box | Free transform | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; mode=Choice { options: ["Free", "Rotate", "Skew", "Distort", "Perspective"], index: 0 }; scale=Choice { options: ["Proportional", "Free"], index: 0 }; zone=Choice { options: ["Outside", "Band"], index: 0 }; readout=Bool(true)
+primitives/reference-point/picker = ReferencePoint | Picker | Chrome | shrink=Bool(false); custom pivot=Bool(false)
+primitives/bezier-paths/edit = Bezier paths | Edit | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; tool=Choice { options: ["direct", "convert", "show"], index: 0 }; handles=Choice { options: ["selected", "all"], index: 0 }
+primitives/warp-grid/warp = Warp grid | Warp | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; grid=Choice { options: ["1 × 1", "3 × 3"], index: 0 }; editable=Bool(true); split=Choice { options: ["Off", "Cross", "Vertical", "Horizontal"], index: 0 }
+primitives/pen-draft/draw = Pen draft | Draw | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+primitives/gradient-line/edit = Gradient line | Edit | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; rows=Choice { options: ["Split", "Combined"], index: 0 }; extent=Choice { options: ["None", "Circle", "Square", "Mirror"], index: 0 }; selected=Choice { options: ["None", "Stop 2", "Midpoint 1"], index: 1 }; reverse=Bool(false); midpoints=Bool(true); alt copies=Bool(false); editable=Bool(true)
+primitives/gradient-line/with-editor = Gradient line | With editor | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; rows=Choice { options: ["Split", "Combined"], index: 0 }; reverse=Bool(false); midpoints=Bool(true)
+foundations/edit/log = Edit lifecycle | Event log | Panel | update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false); field first=Bool(false)
+controls/button/variants = Button | Variants | Panel | label=Text("Button"); icon=Choice { options: ["none", "save", "chevron_right"], index: 0 }
+controls/button/playground = Button | Playground | Panel | variant=Choice { options: ["primary", "secondary", "ghost", "danger"], index: 0 }; size=Choice { options: ["sm", "md"], index: 1 }; icon=Choice { options: ["none", "save", "chevron_right"], index: 1 }; disabled=Bool(false); loading=Bool(false); narrow=Bool(false); label=Text("Save the document as a copy")
+controls/icon-button/plain = Icon button | Plain | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); show tooltip=Bool(true); badge=Bool(false)
+controls/icon-button/toggle = Icon button | Toggle | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/toggle-button/toggle = Toggle button | Toggle | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); label=Text("Snap to grid")
+controls/segmented/text = Segmented | Text | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/segmented/icons = Segmented | Icons | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/select/states = Select | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); fit=Bool(false)
+controls/select/wheel-steps = Select | Wheel steps | Panel | size=Choice { options: ["sm", "md"], index: 1 }; wheel steps=Bool(true)
+controls/select/searchable = Select | Searchable | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/combo-box/states = Combo box | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/combo-box/font-size = Combo box | Font size | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/link/inline = Link | Inline | Panel | label=Text("release notes")
+controls/link/alone = Link | Alone | Panel | label=Text("Show all shortcuts")
+controls/checkbox/states = Checkbox | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }; label=Text("Snap to grid")
+controls/radio/states = Radio | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/radio/groups = Radio | Groups | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/switch/states = Switch | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/switch/settings = Switch | Settings | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/slider/values = Slider | Values | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); default value (50)=Bool(false); wheel unfocused=Bool(false)
+controls/slider/step = Slider | Step | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/slider/disabled = Slider | Disabled | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/slider/right-to-left = Slider | Right to left | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/slider/event-log = Slider | Event log | Panel | update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
+controls/range-slider/range = Range slider | Range | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/thumb-row/rows = Thumb row | Rows | Panel | disabled=Bool(false)
+controls/swatch/states = Swatch | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/swatch/palette = Swatch | Palette | Panel | size=Choice { options: ["sm", "md"], index: 1 }
+controls/badge/tones = Badge | Tones | Panel | 
+controls/badge/counts = Badge | Counts | Panel | count=Number { value: 7.0, min: 0.0, max: 200.0 }
+controls/kbd/plain = Kbd | Plain | Panel | 
+controls/kbd/keycaps = Kbd | Keycaps | Panel | 
+controls/spinner/sizes = Spinner | Sizes | Panel | content=Choice { options: ["normal", "muted", "accent"], index: 0 }
+controls/progress/values = Progress | Values | Panel | fraction=Number { value: 0.4, min: 0.0, max: 1.0 }
+controls/progress/indeterminate = Progress | Indeterminate | Panel | 
+controls/tooltip/text = Tooltip | Text | Panel | tip=Text("Moves the selection to the next layer")
+controls/tooltip/shortcut = Tooltip | Shortcut | Panel | 
+controls/tooltip/custom = Tooltip | Custom | Panel | 
+controls/text-field/states = Text field | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }; placeholder=Text("Layer name"); edit menu=Bool(true)
+controls/text-field/event-log = Text field | Event log | Panel | update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
+controls/search-field/states = Search field | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }; placeholder=Text("Search")
+controls/search-field/filter = Search field | Filter | Panel | size=Choice { options: ["sm", "md"], index: 1 }; placeholder=Text("Search")
+controls/number-field/states = Number field | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }; edit menu=Bool(true)
+controls/number-field/scrub = Number field | Scrub | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
+controls/number-field/right-to-left = Number field | Right to left | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
+controls/number-field/event-log = Number field | Event log | Panel | update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
+controls/angle-dial/dial = Angle dial | Angle dial | Panel | range=Choice { options: ["-180 to 180", "-360 to 360", "0 to 90"], index: 0 }; orientation=Choice { options: ["counter-clockwise", "clockwise"], index: 0 }; field=Bool(true); size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
+controls/angle-dial/dialog = Angle dial | Dialog (field scope) | Panel | 
+composites/field/dialog = Field | Dialog | Panel | above=Bool(false); help=Bool(true); error=Bool(false)
+composites/form-grid/image-size = FormGrid | Image size | Panel | roomy=Bool(false); labels at start=Bool(false)
+composites/property-row/inspector = PropertyRow | Inspector | Panel | mixed=Bool(false); width=Number { value: 260.0, min: 60.0, max: 400.0 }
+composites/section-header/collapsible = SectionHeader | Collapsible | Panel | width=Number { value: 260.0, min: 60.0, max: 400.0 }
+composites/section-header/always-open = SectionHeader | Always open | Panel | width=Number { value: 260.0, min: 60.0, max: 400.0 }
+composites/section-label/default = SectionLabel | Default | Panel | text=Text("Blend mode")
+composites/panel-header/flyout = PanelHeader | Flyout | Panel | float=Bool(true); close=Bool(true); menu=Bool(true); actions=Bool(false); width=Number { value: 280.0, min: 60.0, max: 400.0 }
+composites/panel-footer/layers = PanelFooter | Layers | Own | width=Number { value: 240.0, min: 60.0, max: 400.0 }
+composites/slider-row/adjustments = SliderRow | Adjustments | Panel | disabled=Bool(false); width=Number { value: 260.0, min: 120.0, max: 400.0 }
+composites/toast/stack = Toast | Stack | Panel | tone=Choice { options: ["neutral", "info", "good", "warn", "bad"], index: 0 }; auto_hide=Bool(false); seconds=Number { value: 6.0, min: 1.0, max: 30.0 }
+composites/notice/tones = Notice | Tones | Panel | announce=Bool(true); title=Bool(true); width=Number { value: 320.0, min: 120.0, max: 480.0 }
+composites/empty-state/panel = EmptyState | Panel | Panel | search=Text("zzz"); status=Bool(true); width=Number { value: 260.0, min: 100.0, max: 400.0 }
+composites/empty-state/canvas = EmptyState | Canvas | Panel | width=Number { value: 640.0, min: 200.0, max: 800.0 }; height=Number { value: 360.0, min: 200.0, max: 600.0 }
+composites/curve-editor/curves = CurveEditor | Curves | Panel | channel=Choice { options: ["RGB", "Red", "Green", "Blue"], index: 0 }; pencil=Bool(false); histogram=Bool(true); fields=Bool(true); width=Number { value: 300.0, min: 120.0, max: 400.0 }; values=Choice { options: ["levels", "percent"], index: 0 }; update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
+composites/curve-editor/small = CurveEditor | Small | Panel | 
+composites/curve-editor/corners = CurveEditor | Corners | Panel | 
+composites/gradient/swatch = GradientSwatch | Swatch and ramp | Panel | size=Choice { options: ["sm", "md"], index: 1 }; width=Number { value: 96.0, min: 24.0, max: 300.0 }; enabled=Bool(true)
+composites/gradient/editor-split = GradientEditor | Split rows | Panel | rows=Choice { options: ["Split", "Combined", "Color only"], index: 0 }; midpoints=Bool(true); fields=Bool(true); min=Number { value: 2.0, min: 1.0, max: 4.0 }; max=Number { value: 1024.0, min: 4.0, max: 1024.0 }; enabled=Bool(true); width=Number { value: 320.0, min: 160.0, max: 480.0 }
+composites/gradient/editor-combined = GradientEditor | Combined rows | Panel | fields=Bool(true); width=Number { value: 280.0, min: 160.0, max: 480.0 }
+composites/gradient/dialog = GradientEditor | Dialog | Panel | color popover=Bool(true)
+composites/transform-fields/box = TransformFields | Box | Chrome | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; linked=Bool(true); size unit=Choice { options: ["%", "px"], index: 0 }
+composites/histogram/tone = Histogram | Tone | Panel | channel=Choice { options: ["neutral", "red", "green", "blue", "cyan", "magenta", "yellow"], index: 1 }; stale=Bool(false); marker=Bool(true); width=Number { value: 256.0, min: 80.0, max: 400.0 }
+composites/histogram/rgb = Histogram | RGB | Panel | scale=Choice { options: ["peak", "typical"], index: 0 }; marker=Bool(false); width=Number { value: 256.0, min: 80.0, max: 400.0 }
+composites/histogram/inks = Histogram | Inks | Panel | width=Number { value: 256.0, min: 80.0, max: 400.0 }
+composites/histogram/outline = Histogram | Outline | Panel | width=Number { value: 256.0, min: 80.0, max: 400.0 }
+composites/histogram/markers = Histogram | Markers | Panel | width=Number { value: 256.0, min: 80.0, max: 400.0 }
+composites/histogram/selection = Histogram | Selection | Panel | width=Number { value: 256.0, min: 80.0, max: 400.0 }
+composites/histogram/stale-click = Histogram | Stale click | Panel | width=Number { value: 256.0, min: 80.0, max: 400.0 }
+composites/levels-editor/levels = LevelsEditor | Levels | Panel | channel=Choice { options: ["RGB", "Red", "Green", "Blue"], index: 0 }; histogram=Bool(true); stale=Bool(false); range=Choice { options: ["0 to 255", "0 to 1"], index: 0 }; captions=Bool(true); disabled=Bool(false); width=Number { value: 300.0, min: 120.0, max: 400.0 }
+composites/levels-editor/event-log = LevelsEditor | Event log | Panel | update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
+composites/tab/states = Tab | States | Panel | large=Bool(false); dividers=Bool(true); width=Number { value: 180.0, min: 40.0, max: 320.0 }
+composites/tab-strip/documents = TabStrip | Documents | Panel | width=Number { value: 640.0, min: 160.0, max: 1200.0 }; large=Bool(false); tear_off=Bool(true)
+composites/tab-strip/panels = TabStrip | Panels | Panel | width=Number { value: 260.0, min: 120.0, max: 480.0 }; locked=Bool(false)
+composites/tab-strip/drops = TabStrip | Drops | Panel | width=Number { value: 480.0, min: 160.0, max: 1200.0 }
+composites/list-row/layers = ListRow | Layers | Panel | thumbnails=Choice { options: ["None", "Small", "Medium", "Large"], index: 0 }; detail=Bool(false); highlight second row=Bool(false); layer form=Bool(true); width=Number { value: 280.0, min: 60.0, max: 480.0 }
+composites/list/ten-thousand-rows = List | 10,000 rows | Panel | selection=Choice { options: ["Multiple", "Single"], index: 0 }; mixed heights=Bool(false); height=Number { value: 320.0, min: 120.0, max: 600.0 }
+composites/list/tree = TreeRow | Layer groups | Panel | width=Number { value: 320.0, min: 120.0, max: 480.0 }; height=Number { value: 280.0, min: 120.0, max: 480.0 }
+composites/list/reorder = List | Reorder | Panel | 
+composites/list/reorder-tree = List | Reorder a tree | Panel | 
+composites/list/reorder-refused = List | Refused targets | Panel | 
+composites/list/reorder-copy = List | Copy with Alt | Panel | 
+composites/menu/menus = Menu | Menus | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true); rows=Number { value: 40.0, min: 5.0, max: 200.0 }
+composites/menu/context-menu = ContextMenu | Context menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true)
+composites/menu/press-menu = PressMenu | Press menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true)
+composites/menu/menu-bar = MenuBar | Menu bar | Chrome | size=Choice { options: ["sm", "md"], index: 1 }; search=Bool(true); width=Number { value: 640.0, min: 60.0, max: 1200.0 }
+patterns/title-bar/windows = TitleBar | Windows | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+patterns/title-bar/adwaita = TitleBar | Adwaita | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+patterns/title-bar/breeze = TitleBar | Breeze | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+patterns/title-bar/generic = TitleBar | Generic | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+patterns/title-bar/mac-inset = TitleBar | Mac inset | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+patterns/title-bar/native = TitleBar | Native | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+composites/color-area/parts = ColorArea | Area and strip | Panel | mode=Choice { options: ["H", "S", "B", "R", "G", "B (blue)", "L", "a", "b", "OKLCH L", "OKLCH C", "OKLCH H"], index: 0 }; compact=Bool(false); disabled=Bool(false); web colours only=Bool(false)
+composites/color/compact = ColorPicker | Compact | Panel | alpha=Bool(false); eyedropper=Bool(true); dynamic tracks=Bool(true); web colours only=Bool(false); disabled=Bool(false); width=Number { value: 260.0, min: 160.0, max: 480.0 }
+composites/color/popover = ColorPopover | Popover | Panel | size=Choice { options: ["sm", "md"], index: 1 }; alpha=Bool(true); eyedropper=Bool(true); disabled=Bool(false)
+composites/color/hex-field = HexField | Hex field | Panel | digits=Choice { options: ["2", "1"], index: 0 }; alpha=Bool(false); disabled=Bool(false)
+composites/color/palette = SwatchPalette | Palette | Panel | size=Choice { options: ["sm", "md"], index: 1 }; width=Number { value: 200.0, min: 60.0, max: 400.0 }; disabled=Bool(false)
+composites/color/full = ColorPicker | Full | Panel | CMYK (host model)=Bool(true); OKLCH=Bool(false); compare=Bool(true); warnings=Bool(true); eyedropper=Bool(true); alpha=Bool(false); disabled=Bool(false)
+composites/color/dialog = ColorPicker | Dialog (edit scope) | Panel | CMYK (host model)=Bool(true)
+composites/color/pair-foreground = SwatchPair | Foreground and background | Panel | buttons=Bool(true); disabled=Bool(false)
+composites/color/pair-fill = SwatchPair | Fill and stroke | Panel | buttons=Bool(true); disabled=Bool(false)
+composites/color/pair-dialog = SwatchPair | Dialog (field scope) | Panel | 
+patterns/dock-area/docked = DockArea | Docked | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
+patterns/dock-area/floating = DockArea | Floating | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
+patterns/dock-area/drag = DockArea | Drag | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
+patterns/dock-area/iconic = DockArea | Iconic | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
+patterns/dialog/frame = Dialog | Frame | Panel | width=Choice { options: ["compact", "standard", "wide"], index: 1 }; close box=Bool(true); roomy=Bool(false)
+patterns/dialog/modeless = Dialog | Modeless | Panel | open=Bool(true); width=Choice { options: ["compact", "standard", "wide"], index: 1 }; resizable=Bool(false); scroll body=Bool(false)
+patterns/dialog/footer = Dialog | Footer | Panel | open=Bool(true); shape=Choice { options: ["standard", "side"], index: 0 }; apply=Bool(true); alternate=Bool(false); ok enabled=Bool(true); alt resets=Bool(true); body owns enter=Bool(false)
+patterns/dialog/stack = Dialog | Stack | Panel | open=Bool(true); child open=Bool(false)
+patterns/dialog/prompt = Dialog | Prompt and alert | Panel | kind=Choice { options: ["prompt", "alert"], index: 0 }; open=Bool(true); translated labels=Bool(false)
+patterns/dialog/blocking = Dialog | Blocking overlay | Panel | busy for 2 s=Bool(false); scrim=Bool(false)
+patterns/full-window/workspace = FullWindowDialog | Workspace | Panel | open=Bool(true); title strip=Bool(true); apply=Bool(false)
+patterns/dialog/preview = Dialog | Preview | Panel | open=Bool(true); preview=Bool(true); local history=Bool(true); compare button=Bool(true)
+patterns/viewport/embedded = ViewportWindow | Embedded | Panel | open=Bool(true); app modal=Bool(false); scrim=Bool(false)
+patterns/options-bar/brush-and-transform = OptionsBar | Brush and transform | Chrome | narrow=Bool(false); session=Bool(true); disabled=Bool(false); two_rows=Bool(false); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
+patterns/status-bar/photocraft = StatusBar | PhotoCraft | Chrome | message=Text("Saved to Documents"); error=Bool(false); render_path=Bool(true); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
+patterns/status-bar/error = StatusBar | Error | Chrome | message=Text("Couldn't save: the disk is full"); error=Bool(true); render_path=Bool(true); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
+patterns/status-bar/narrow = StatusBar | Narrow | Chrome | message=Text("Exported 14 layers to the folder Documents/Exports/2026"); error=Bool(false); render_path=Bool(true); width=Number { value: 480.0, min: 160.0, max: 1200.0 }
+patterns/panel/embedded = Panel | Embedded | Own | scroll=Bool(true); footer=Bool(true); height=Number { value: 240.0, min: 60.0, max: 480.0 }; width=Number { value: 260.0, min: 120.0, max: 480.0 }
+patterns/rail/panel = PanelRail | Panel rail | Chrome | open=Choice { options: ["none", "properties", "navigator", "color", "layers", "history", "brushes"], index: 4 }; height=Number { value: 320.0, min: 120.0, max: 600.0 }
+patterns/rail/flyout = FlyoutButton | Flyout button | Chrome | items=Number { value: 3.0, min: 1.0, max: 3.0 }; selected=Bool(true)
+patterns/rail/tool = ToolRail | Tool rail | Chrome | columns=Number { value: 1.0, min: 1.0, max: 2.0 }; hidden=Choice { options: ["none", "pencil", "stamp", "eraser tools"], index: 0 }; height=Number { value: 480.0, min: 160.0, max: 700.0 }
+patterns/popover/anchored = Popover | Anchored | Panel | anchor=Choice { options: ["control", "point"], index: 0 }; size=Choice { options: ["resizable", "fit", "fixed"], index: 0 }; enter=Bool(false); rtl=Bool(false)
+patterns/popover/stroke-editor = Popover | Stroke editor | Panel | rtl=Bool(false)

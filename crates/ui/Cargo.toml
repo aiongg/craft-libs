@@ -14,6 +14,7 @@ workspace = true
 craft-fonts-build = { workspace = true }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true, features = ["ecolor"] }
+craft-ui-macros = { workspace = true }
 craft-window = { workspace = true, features = ["egui"], optional = true }
 egui = { workspace = true }
 epaint = { version = "0.37", default-features = false }

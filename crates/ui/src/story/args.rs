@@ -62,6 +62,7 @@ impl Args {
 
     /// Adds a number arg limited to `min..=max`.
     pub fn with_number(mut self, name: &'static str, value: f64, min: f64, max: f64) -> Self {
+        assert!(min <= max, "arg `{name}` has an empty range: min {min} > max {max}");
         self.args.push(Arg { name, value: ArgValue::Number { value: value.clamp(min, max), min, max } });
         self
     }
@@ -127,6 +128,31 @@ impl Args {
         }
     }
 
+    /// The position of the selected option of a choice arg.
+    pub fn choice_index(&self, name: &str) -> usize {
+        match self.value(name) {
+            ArgValue::Choice { options, index } => (*index).min(options.len().saturating_sub(1)),
+            _ => self.wrong_kind(name, "choice"),
+        }
+    }
+
+    /// Copies the values of `after` that differ from `before` into `self`. All three list the same
+    /// args in the same order (a typed story's args before and after it has run). Args the story
+    /// left alone keep their value exactly, so a value a typed field cannot hold (a fraction in an
+    /// integer arg) is not rounded away.
+    fn apply_changes(&mut self, before: &Args, after: Args) {
+        debug_assert!(
+            self.args.len() == before.args.len() && before.args.len() == after.args.len(),
+            "story `{}`: typed args list other args",
+            self.story
+        );
+        for ((arg, old), new) in self.args.iter_mut().zip(&before.args).zip(after.args) {
+            if old.value != new.value {
+                arg.value = new.value;
+            }
+        }
+    }
+
     pub fn text(&self, name: &str) -> &str {
         match self.value(name) {
             ArgValue::Text(t) => t,
@@ -140,4 +166,86 @@ impl Args {
             _ => self.wrong_kind(name, "number"),
         }
     }
+}
+
+/// A struct of typed args that converts to and from the erased [`Args`] the gallery edits.
+///
+/// Derive it (`#[derive(StoryArgs)]`): each field is one arg, in field order. The field type picks
+/// the kind: `bool` a checkbox, `String` a text field, a number type (`f64`, `f32`, integers)
+/// a number limited by the required `#[arg(range = MIN..=MAX)]`, and any other type a choice
+/// (derive [`StoryChoice`] on it). `#[arg(name = "...")]` sets an arg's name where it is not the
+/// field name. Integer fields read the rounded value. The type is recognised by its
+/// single-segment name only (`bool`, `String`, number types); paths and aliases count as choices.
+///
+/// A number arg without a range does not compile:
+///
+/// ```compile_fail
+/// use craft_ui::story::StoryArgs;
+///
+/// #[derive(StoryArgs)]
+/// struct Missing {
+///     width: f64,
+/// }
+/// ```
+/// Two args with one name, and a `range` on a bool, do not compile either:
+///
+/// ```compile_fail
+/// use craft_ui::story::StoryArgs;
+///
+/// #[derive(StoryArgs)]
+/// struct Twice {
+///     on: bool,
+///     #[arg(name = "on")]
+///     also: bool,
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use craft_ui::story::StoryArgs;
+///
+/// #[derive(StoryArgs)]
+/// struct Ranged {
+///     #[arg(range = 0..=1)]
+///     on: bool,
+/// }
+/// ```
+pub trait StoryArgs: Sized {
+    /// The args with this value's fields as their values.
+    fn to_args(&self) -> Args;
+
+    /// The value of the args' fields. Panics like the [`Args`] getters on a name or kind the type
+    /// does not have, which only happens for args not made by [`to_args`](Self::to_args).
+    fn from_args(args: &Args) -> Self;
+}
+
+/// An enum whose variants are the options of a choice arg.
+///
+/// Derive it (`#[derive(StoryChoice)]`): an option's name is the variant name in lower case, or
+/// `#[choice(name = "...")]`; options keep the variant order.
+pub trait StoryChoice: Sized {
+    /// The option names, in variant order.
+    const OPTIONS: &'static [&'static str];
+
+    /// The position of this variant in [`OPTIONS`](Self::OPTIONS).
+    fn index(&self) -> usize;
+
+    /// The variant at `index`; an index past the end gives the last variant.
+    fn from_index(index: usize) -> Self;
+
+    /// This variant's option name.
+    fn name(&self) -> &'static str {
+        Self::OPTIONS[self.index()]
+    }
+}
+
+/// Runs a typed story function on erased args: reads them as `A`, runs `show`, and stores the
+/// values the story changed. `_defaults` ties the story's default values to `A`; it never runs.
+/// [`typed_story!`](crate::typed_story) calls this.
+#[doc(hidden)]
+pub fn show_typed<A: StoryArgs>(ui: &mut egui::Ui, args: &mut Args, _defaults: fn() -> A, show: impl FnOnce(&mut egui::Ui, &mut A)) {
+    let mut typed = A::from_args(args);
+    let before = typed.to_args();
+    show(ui, &mut typed);
+    let after = typed.to_args();
+    args.apply_changes(&before, after);
 }
