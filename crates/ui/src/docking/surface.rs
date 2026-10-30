@@ -150,6 +150,9 @@ pub struct DockStyle {
     pub close_menu_items: bool,
     /// Show × on the title bar of a floating window whose panels are all closable.
     pub close_button: bool,
+    /// Show × on each docked tab whose panel is closable (the tab strip's own × and its
+    /// "Close {tab}" name). Accordion headers and iconic columns have none.
+    pub tab_close_buttons: bool,
     /// The mouse wheel over a tab strip selects the next or previous tab, one per notch.
     pub wheel_selects_tabs: bool,
     /// A middle click on a tab closes its panel when the panel is closable.
@@ -244,6 +247,7 @@ impl DockStyle {
             title_bar_docks: c.title_bar_docks,
             close_menu_items: c.close_menu_items,
             close_button: c.close_button,
+            tab_close_buttons: c.tab_close_buttons,
             wheel_selects_tabs: c.wheel_selects_tabs,
             middle_click_closes_tabs: c.middle_click_closes_tabs,
         }
@@ -332,6 +336,7 @@ impl DockStyle {
             title_bar_docks: self.title_bar_docks,
             close_menu_items: self.close_menu_items,
             close_button: self.close_button,
+            tab_close_buttons: self.tab_close_buttons,
             wheel_selects_tabs: self.wheel_selects_tabs,
             middle_click_closes_tabs: self.middle_click_closes_tabs,
         };

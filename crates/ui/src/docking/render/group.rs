@@ -87,14 +87,18 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         // The drag bar keeps its reserved width: tabs shrink, then overflow, before it narrows.
         let bar_width = self.config.drag_bar_width.clamp(0.0, (strip.width() - header_width).max(0.0));
         let tabs_width = (strip.width() - header_width - bar_width).max(0.0);
+        let tab_style = crate::tab_strip::Tab::<P>::style(&crate::theme::Tokens::of(ui));
         let widths: Vec<f32> = panels
             .iter()
             .map(|p| {
-                self.content
-                    .label(ui, p, &self.label_of(p), &self.look.font, self.look.text)
-                    .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, self.look.font.clone())
-                    .size()
-                    .x
+                let close = if self.tab_closable(p) { tab_style.gap + tab_style.close_box } else { 0.0 };
+                close
+                    + self
+                        .content
+                        .label(ui, p, &self.label_of(p), &self.look.font, self.look.text)
+                        .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, self.look.font.clone())
+                        .size()
+                        .x
                     + self.look.tab_padding
             })
             .collect();
@@ -384,6 +388,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// the style enables it and the panel is closable. The context menu emits `Action`s, with float,
     /// move and close entries gated by the panel's permissions. `owner: None` removes minimized
     /// semantics and undock latching. An elided label exposes its full text as hover text.
+    /// Whether a tab in a strip shows its ×.
+    fn tab_closable(&self, panel: &P) -> bool {
+        self.config.tab_close_buttons && self.permissions(panel).closable
+    }
+
     pub(super) fn tab(&mut self, ui: &mut Ui, panel: &P, rect: Rect, active: bool, group: Rect, owner: Option<&TabGroup<'_, P>>) {
         let minimized = owner.filter(|owner| self.minimizes(owner)).map(|owner| owner.minimized);
         let policy = self.permissions(panel);
@@ -411,7 +420,16 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             text: &text,
             controls: None,
         };
-        let response = crate::tab_strip::Tab::new(panel.clone(), &label).with_id(tab_id).shaped(galley).show_with(ui, rect, &view, &style).tab;
+        let closable = owner.is_some() && self.tab_closable(panel);
+        let shown =
+            crate::tab_strip::Tab::new(panel.clone(), &label).with_id(tab_id).shaped(galley).closable(closable).show_with(ui, rect, &view, &style);
+        let response = shown.tab;
+        if let Some(close) = shown.close {
+            self.register_interaction(ui.ctx(), close.id);
+            if close.clicked() {
+                self.output.actions.push(Action::Close { panel: panel.clone() });
+            }
+        }
         self.register_interaction(ui.ctx(), response.id);
         // The click that expands a minimized group is not the first half of a double-click.
         let expand_key = self.id.with(("expanded-by-click", owner.map(|owner| owner.panels.first())));

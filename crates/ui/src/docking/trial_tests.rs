@@ -93,7 +93,9 @@ fn galley_labels_in_shrunk_tabs_end_with_an_ellipsis_inside_the_tab_active_or_no
         for _ in 0..2 {
             let input = RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), ..Default::default() };
             let mut full = ctx.run_ui(input, |ui| {
-                let style = DockStyle::from_ui(ui);
+                let mut style = DockStyle::from_ui(ui);
+                // The label cut is what this checks; a × would take most of a minimum-width tab.
+                style.tab_close_buttons = false;
                 ui.scope_builder(UiBuilder::new().max_rect(Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 400.0))), |ui| {
                     DockArea::new(Id::unique(AREA)).show_content(ui, &layout, &style, &mut content);
                 });

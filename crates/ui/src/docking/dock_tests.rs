@@ -649,14 +649,15 @@ fn a_group_divider_dragged_past_the_lower_groups_minimum_shrinks_the_next_group(
 fn double_click_on_a_docked_tab_minimizes_and_clicking_another_tab_expands() {
     let mut d = Driver::new(docked(Side::Start, &[&[&[2, 3], &[4]]]));
     let minimized = |d: &Driver| column(&d.layout, 0).groups[0].minimized;
-    let tab = d.tab(2).center();
+    // The label side: the × takes the right end of the tab.
+    let tab = d.tab(2).left_center() + vec2(6.0, 0.0);
     d.click(tab);
     d.click(tab);
     assert!(minimized(&d));
     d.settle();
     assert_eq!(d.tab(4).top(), 14.0 + 26.0, "the minimized group takes its strip");
     d.wait();
-    d.click(d.tab(3).center());
+    d.click(d.tab(3).left_center() + vec2(6.0, 0.0));
     assert!(!minimized(&d));
     assert_eq!(column(&d.layout, 0).groups[0].active_panel(), Some(&3));
 }
