@@ -99,8 +99,9 @@ pub enum Feedback {
     WorkerStopped,
 }
 
-/// Translated labels supplied by the app; identity never depends on their text.
-pub struct Labels<'a> {
+/// Translated labels supplied by the app; identity never depends on their text. [`PrintTexts`]
+/// holds the same labels as owned, translatable text.
+pub struct PrintLabels<'a> {
     pub printer: &'a str,
     pub select_printer: &'a str,
     pub refresh: &'a str,
@@ -111,6 +112,45 @@ pub struct Labels<'a> {
     pub long_edge: &'a str,
     pub short_edge: &'a str,
     pub grayscale: &'a str,
+}
+
+/// The former name of [`PrintLabels`].
+#[deprecated(note = "renamed to PrintLabels")]
+pub type Labels<'a> = PrintLabels<'a>;
+
+crate::words! {
+    /// The labels of [`PrintLabels`] as owned text. `Default` is English; `PrintTexts::of(ui)` reads
+    /// the words installed in the context, and [`PrintTexts::labels`] lends them to
+    /// [`State::show`].
+    pub struct PrintTexts {
+        printer: "print.printer" = "Printer";
+        select_printer: "print.selectPrinter" = "Select a printer";
+        refresh: "print.refresh" = "Refresh";
+        copies: "print.copies" = "Copies";
+        printer_default: "print.printerDefault" = "Printer default";
+        duplex: "print.duplex" = "Two-sided";
+        one_sided: "print.oneSided" = "One-sided";
+        long_edge: "print.longEdge" = "Long edge";
+        short_edge: "print.shortEdge" = "Short edge";
+        grayscale: "print.grayscale" = "Grayscale";
+    }
+}
+
+impl PrintTexts {
+    pub fn labels(&self) -> PrintLabels<'_> {
+        PrintLabels {
+            printer: &self.printer,
+            select_printer: &self.select_printer,
+            refresh: &self.refresh,
+            copies: &self.copies,
+            printer_default: &self.printer_default,
+            duplex: &self.duplex,
+            one_sided: &self.one_sided,
+            long_edge: &self.long_edge,
+            short_edge: &self.short_edge,
+            grayscale: &self.grayscale,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -203,7 +243,7 @@ impl State {
 
     /// Draw just the controls. Apps render feedback, their preview and the submit/export
     /// buttons around this component, using their own command and document state.
-    pub fn show(&mut self, ui: &mut egui::Ui, id: egui::Id, discover: &Discover, labels: &Labels<'_>) {
+    pub fn show(&mut self, ui: &mut egui::Ui, id: egui::Id, discover: &Discover, labels: &PrintLabels<'_>) {
         if !self.loaded {
             self.refresh(discover);
         }

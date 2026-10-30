@@ -28,17 +28,20 @@ use crate::localized::LocaleNumbers;
 use crate::primitives::FocusRing;
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
-/// The names a screen reader reads for the overlay's group and parts, translated by the host.
-#[derive(Clone, Debug, PartialEq)]
-pub struct GradientLineNames {
-    /// The group: "Gradient".
-    pub group: String,
-    /// The line between the handles.
-    pub line: String,
-    /// The start handle: "Start point".
-    pub start: String,
-    /// The end handle: "End point".
-    pub end: String,
+crate::words! {
+    /// The names a screen reader reads for the overlay's group and parts. `Default` is English; a
+    /// host passes its own translated text, or `GradientLineNames::of(ui)` for the words installed
+    /// in the context.
+    pub struct GradientLineNames {
+        /// The group.
+        group: "gradient.group" = "Gradient";
+        /// The line between the handles.
+        line: "gradient.line" = "Gradient line";
+        /// The start handle.
+        start: "gradient.start" = "Start point";
+        /// The end handle.
+        end: "gradient.end" = "End point";
+    }
 }
 
 /// A gradient line's look and reach, from [`GradientOverlay::style`].

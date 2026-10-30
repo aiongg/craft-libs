@@ -187,7 +187,7 @@ fn discovery_and_controls_do_not_submit_a_job() {
         sender.send(vec![queue("Office", true)]).unwrap();
         receiver
     });
-    let labels = Labels {
+    let labels = PrintLabels {
         printer: "Drucker",
         select_printer: "Wählen",
         refresh: "Aktualisieren",
@@ -222,7 +222,7 @@ fn localized_controls_fit_narrow_ui_and_disable_while_submitting() {
         sender.send(vec![queue("Office printer with a very long destination name", true)]).unwrap();
         receiver
     });
-    let labels = Labels {
+    let labels = PrintLabels {
         printer: "Drucker",
         select_printer: "Wählen",
         refresh: "Aktualisieren",

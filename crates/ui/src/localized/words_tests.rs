@@ -203,3 +203,47 @@ fn chrome_labels_localized_with_identity_equal_their_english() {
     assert_eq!(format!("{texts:?}"), format!("{:?}", PreferencesTexts::english()));
     assert_eq!(PreferencesTexts::WORDS.len(), 13);
 }
+
+#[test]
+fn canvas_and_print_labels_localized_with_identity_equal_their_english() {
+    use crate::canvas::{
+        CropLabels, CropNames, GradientLineNames, GuideNames, PerspectiveCropNames, RulerNames, ScrollbarNames, TransformFieldLabels,
+        TransformLabels, TransformNames,
+    };
+    use crate::printing::PrintTexts;
+    use crate::shell::CanvasLabels;
+
+    identity_holds::<CropNames>();
+    identity_holds::<CropLabels>();
+    identity_holds::<PerspectiveCropNames>();
+    identity_holds::<TransformNames>();
+    identity_holds::<TransformLabels>();
+    identity_holds::<TransformFieldLabels>();
+    identity_holds::<RulerNames>();
+    identity_holds::<GuideNames>();
+    identity_holds::<ScrollbarNames>();
+    identity_holds::<GradientLineNames>();
+    identity_holds::<PrintTexts>();
+    identity_holds::<CanvasLabels>();
+}
+
+#[test]
+fn canvas_names_reach_their_fields_and_closures_fill_placeholders() {
+    use crate::canvas::{BezierNames, CropNames, PenNames, TransformFieldLabels, WarpNames, WarpSide};
+
+    let by_word = Words::new(|word| Some(format!("<{}>{}", word.key(), word.english.find('{').map_or("", |at| &word.english[at..]))));
+    let crop = format!("{:?}", CropNames::english().localized_in(&by_word));
+    for word in CropNames::WORDS {
+        assert_eq!(crop.matches(&format!("\"<{}>", word.key())).count(), 1, "{}", word.key());
+    }
+    let fields = TransformFieldLabels::english().localized_in(&by_word);
+    assert_eq!((fields.skew_h.glyph.as_str(), fields.skew_v.name.as_str()), ("<transform.skewHGlyph>", "<transform.skewVName>"));
+
+    assert_eq!(PenNames::english().anchor.as_ref()(3, 5), "Anchor 3 of 5");
+    assert_eq!(BezierNames::english().anchor.as_ref()(1, 2), "Anchor 1 of 2");
+    let warp = WarpNames::english();
+    assert_eq!((warp.anchor)(2, 3), "Row 2, column 3");
+    assert_eq!((warp.handle)(2, 3, WarpSide::Right), "Row 2, column 3, right handle");
+    let german = Words::new(|word| (word.key() == "warp.handleUp").then(|| "Zeile {row}, Spalte {column}, oben".to_owned()));
+    assert_eq!((WarpNames::english().localized_in(&german).handle)(1, 2, WarpSide::Up), "Zeile 1, Spalte 2, oben");
+}

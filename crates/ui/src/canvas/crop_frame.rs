@@ -10,7 +10,7 @@ use super::{CanvasView, Claim, CropGuide, Part, PartFocus, Readout, RulerUnits, 
 use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
-use crate::localized::Unit;
+use crate::localized::{Labels, Unit, Word, Words};
 use crate::popup_list;
 use crate::primitives::{FocusRing, Handle, HandleShape};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -23,7 +23,8 @@ mod straighten;
 pub use geometry::CropBox;
 use geometry::{Hit, direction, drawn, handle_part, hit, normalized_angle, part_handle, resized_turned, turn, turned_angle, within};
 
-/// The AccessKit names of a frame and its parts, the host's translated text.
+/// The AccessKit names of a frame and its parts. `Default` is English; a host passes its own
+/// translated text, or [`CropNames::of`] for the words installed in the context.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CropNames {
     /// The group, e.g. "Crop frame".
@@ -36,8 +37,44 @@ pub struct CropNames {
     pub edges: [String; 4],
 }
 
-/// The labels of the readout beside the pointer during a gesture, the host's translated text
-/// (PhotoCraft's "W:", "H:", "Angle:").
+/// One word per field of [`CropNames`], in field order.
+const NAME_WORDS: [Word; 10] = [
+    Word::keyed("crop.group", "Crop frame"),
+    Word::keyed("crop.whole", "Whole frame"),
+    Word::keyed("crop.topLeftCorner", "Top left corner"),
+    Word::keyed("crop.topRightCorner", "Top right corner"),
+    Word::keyed("crop.bottomRightCorner", "Bottom right corner"),
+    Word::keyed("crop.bottomLeftCorner", "Bottom left corner"),
+    Word::keyed("crop.topEdge", "Top edge"),
+    Word::keyed("crop.rightEdge", "Right edge"),
+    Word::keyed("crop.bottomEdge", "Bottom edge"),
+    Word::keyed("crop.leftEdge", "Left edge"),
+];
+
+impl Labels for CropNames {
+    const WORDS: &'static [Word] = &NAME_WORDS;
+
+    fn english() -> Self {
+        Self::localized_in(
+            Self { group: String::new(), whole: String::new(), corners: Default::default(), edges: Default::default() },
+            &Words::english(),
+        )
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let text = |i: usize| words.get(NAME_WORDS[i]).into_owned();
+        Self { group: text(0), whole: text(1), corners: std::array::from_fn(|i| text(2 + i)), edges: std::array::from_fn(|i| text(6 + i)) }
+    }
+}
+
+impl Default for CropNames {
+    fn default() -> Self {
+        Self::english()
+    }
+}
+
+/// The labels of the readout beside the pointer during a gesture (PhotoCraft's "W:", "H:",
+/// "Angle:"). `Default` is English.
 #[derive(Clone, Debug)]
 pub struct CropLabels {
     pub w: String,
@@ -45,6 +82,32 @@ pub struct CropLabels {
     pub angle: String,
     /// Around the angle: `{n}°`.
     pub degrees: Unit,
+}
+
+const LABEL_WORDS: [Word; 4] = [
+    Word::keyed("crop.readoutWidth", "W:"),
+    Word::keyed("crop.readoutHeight", "H:"),
+    Word::keyed("crop.readoutAngle", "Angle:"),
+    Word::in_context("unit", "{n}°"),
+];
+
+impl Labels for CropLabels {
+    const WORDS: &'static [Word] = &LABEL_WORDS;
+
+    fn english() -> Self {
+        Self::localized_in(Self::new("", "", ""), &Words::english())
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let text = |i: usize| words.get(LABEL_WORDS[i]).into_owned();
+        Self { w: text(0), h: text(1), angle: text(2), degrees: Unit::new(&text(3)) }
+    }
+}
+
+impl Default for CropLabels {
+    fn default() -> Self {
+        Self::english()
+    }
 }
 
 impl CropLabels {

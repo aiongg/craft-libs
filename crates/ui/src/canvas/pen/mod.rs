@@ -11,15 +11,33 @@ use super::{CanvasView, Claim, EditSubpath, HandleSide, Knot, KnotRef, Part, Par
 use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
+use crate::localized::{Labels, Word, Words};
 use crate::primitives::{Handle, HandleShape, HandleStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
-/// The AccessKit names of the path being drawn, the host's translated text.
+/// The AccessKit names of the path being drawn. [`PenNames::english`] is English, and a host passes
+/// its own translated text or [`PenNames::of`] for the words installed in the context.
 pub struct PenNames<'a> {
     /// The group of anchors ("Path being drawn").
     pub group: String,
     /// The name of anchor `i` (from 1) of the draft's `n`: "Anchor 3 of 5".
     pub anchor: Box<dyn Fn(usize, usize) -> String + 'a>,
+}
+
+/// Group, then the anchor's name with `{i}` and `{n}`.
+const WORDS: [Word; 2] = [Word::keyed("pen.group", "Path being drawn"), Word::keyed("pen.anchor", "Anchor {i} of {n}")];
+
+impl Labels for PenNames<'static> {
+    const WORDS: &'static [Word] = &WORDS;
+
+    fn english() -> Self {
+        Self::localized_in(Self::new("", |_, _| String::new()), &Words::english())
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let anchor = words.clone();
+        Self::new(words.get(WORDS[0]), move |i, n| anchor.format(WORDS[1], &[("i", &i.to_string()), ("n", &n.to_string())]))
+    }
 }
 
 impl<'a> PenNames<'a> {

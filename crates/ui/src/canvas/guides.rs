@@ -201,15 +201,17 @@ pub struct GuideStyle {
     pub focus_offset: f32,
 }
 
-/// The AccessKit names of the guides, the host's translated text.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GuideNames {
-    /// The group of guides ("Guides").
-    pub group: String,
-    /// A vertical guide ("Vertical guide").
-    pub vertical: String,
-    /// A horizontal guide ("Horizontal guide").
-    pub horizontal: String,
+crate::words! {
+    /// The AccessKit names of the guides. `Default` is English; a host passes its own translated
+    /// text, or `GuideNames::of(ui)` for the words installed in the context.
+    pub struct GuideNames {
+        /// The group of guides.
+        group: "guide.group" = "Guides";
+        /// A vertical guide.
+        vertical: "guide.vertical" = "Vertical guide";
+        /// A horizontal guide.
+        horizontal: "guide.horizontal" = "Horizontal guide";
+    }
 }
 
 impl GuideNames {

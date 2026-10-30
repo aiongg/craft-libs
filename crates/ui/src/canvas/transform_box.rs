@@ -10,7 +10,7 @@ use super::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, resize_curs
 use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
-use crate::localized::Unit;
+use crate::localized::{Labels, Unit, Word, Words};
 use crate::popup_list;
 use crate::primitives::{FocusRing, Handle, HandleShape, HandleStyle};
 use crate::story::{Level, Story, StoryChoice, Surface};
@@ -29,7 +29,8 @@ pub enum RotateZone {
     Band,
 }
 
-/// The AccessKit names of a box and its parts, the host's translated text.
+/// The AccessKit names of a box and its parts. `Default` is English; a host passes its own
+/// translated text, or [`TransformNames::of`] for the words installed in the context.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TransformNames {
     /// The group, e.g. "Free Transform".
@@ -44,8 +45,49 @@ pub struct TransformNames {
     pub pivot: String,
 }
 
-/// The labels and units of a box's readout during a drag, the host's translated text
-/// (PhotoCraft's "Angle:", "W:", "H:", "ΔX:", "ΔY:").
+/// One word per field of [`TransformNames`], in field order.
+const NAME_WORDS: [Word; 11] = [
+    Word::keyed("transform.group", "Free Transform"),
+    Word::keyed("transform.whole", "Whole box"),
+    Word::keyed("transform.topLeftCorner", "Top left corner"),
+    Word::keyed("transform.topRightCorner", "Top right corner"),
+    Word::keyed("transform.bottomRightCorner", "Bottom right corner"),
+    Word::keyed("transform.bottomLeftCorner", "Bottom left corner"),
+    Word::keyed("transform.topEdge", "Top edge"),
+    Word::keyed("transform.rightEdge", "Right edge"),
+    Word::keyed("transform.bottomEdge", "Bottom edge"),
+    Word::keyed("transform.leftEdge", "Left edge"),
+    Word::keyed("transform.pivot", "Reference point"),
+];
+
+impl Labels for TransformNames {
+    const WORDS: &'static [Word] = &NAME_WORDS;
+
+    fn english() -> Self {
+        let blank = Self { group: String::new(), whole: String::new(), corners: Default::default(), edges: Default::default(), pivot: String::new() };
+        blank.localized_in(&Words::english())
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let text = |i: usize| words.get(NAME_WORDS[i]).into_owned();
+        Self {
+            group: text(0),
+            whole: text(1),
+            corners: std::array::from_fn(|i| text(2 + i)),
+            edges: std::array::from_fn(|i| text(6 + i)),
+            pivot: text(10),
+        }
+    }
+}
+
+impl Default for TransformNames {
+    fn default() -> Self {
+        Self::english()
+    }
+}
+
+/// The labels and units of a box's readout during a drag (PhotoCraft's "Angle:", "W:", "H:",
+/// "ΔX:", "ΔY:"). `Default` is English.
 #[derive(Clone, Debug)]
 pub struct TransformLabels {
     pub angle: String,
@@ -57,6 +99,35 @@ pub struct TransformLabels {
     pub percent: Unit,
     /// Around an angle: `{n}°`.
     pub degrees: Unit,
+}
+
+const LABEL_WORDS: [Word; 7] = [
+    Word::keyed("transform.readoutAngle", "Angle:"),
+    Word::keyed("transform.readoutWidth", "W:"),
+    Word::keyed("transform.readoutHeight", "H:"),
+    Word::keyed("transform.readoutDx", "ΔX:"),
+    Word::keyed("transform.readoutDy", "ΔY:"),
+    Word::in_context("unit", "{n}%"),
+    Word::in_context("unit", "{n}°"),
+];
+
+impl Labels for TransformLabels {
+    const WORDS: &'static [Word] = &LABEL_WORDS;
+
+    fn english() -> Self {
+        Self::new("", "", "", "", "").localized_in(&Words::english())
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let text = |i: usize| words.get(LABEL_WORDS[i]).into_owned();
+        Self { angle: text(0), w: text(1), h: text(2), dx: text(3), dy: text(4), percent: Unit::new(&text(5)), degrees: Unit::new(&text(6)) }
+    }
+}
+
+impl Default for TransformLabels {
+    fn default() -> Self {
+        Self::english()
+    }
 }
 
 impl TransformLabels {
@@ -920,13 +991,7 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// The English names the stories and tests use.
 pub(crate) fn english_names() -> TransformNames {
-    TransformNames {
-        group: "Free Transform".into(),
-        whole: "Whole box".into(),
-        corners: ["Top left corner", "Top right corner", "Bottom right corner", "Bottom left corner"].map(String::from),
-        edges: ["Top edge", "Right edge", "Bottom edge", "Left edge"].map(String::from),
-        pivot: "Reference point".into(),
-    }
+    TransformNames::english()
 }
 
 /// `state` with its corners on whole units, when it is an upright rectangle of at least one unit

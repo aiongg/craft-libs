@@ -14,6 +14,7 @@ use super::{CanvasView, Claim, Marquee, MarqueeDrag, MarqueeLook, Part, PartFocu
 use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
+use crate::localized::{Labels, Word, Words};
 use crate::primitives::{Handle, HandleShape, HandleStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
@@ -74,7 +75,8 @@ impl BezierHit {
     }
 }
 
-/// The AccessKit names of a path overlay's parts, the host's translated text.
+/// The AccessKit names of a path overlay's parts. [`BezierNames::english`] is English, and a host
+/// passes its own translated text or [`BezierNames::of`] for the words installed in the context.
 pub struct BezierNames<'a> {
     /// The group of parts ("Path").
     pub group: String,
@@ -86,6 +88,30 @@ pub struct BezierNames<'a> {
     pub marquee: String,
     /// The name of anchor `i` (from 1) of a path's `n`: "Anchor 3 of 12".
     pub anchor: Box<dyn Fn(usize, usize) -> String + 'a>,
+}
+
+/// Group, the two handles, the marquee, then the anchor's name with `{i}` and `{n}`.
+const WORDS: [Word; 5] = [
+    Word::keyed("bezier.group", "Path"),
+    Word::keyed("bezier.inHandle", "In handle"),
+    Word::keyed("bezier.outHandle", "Out handle"),
+    Word::keyed("bezier.marquee", "Selection"),
+    Word::keyed("bezier.anchor", "Anchor {i} of {n}"),
+];
+
+impl Labels for BezierNames<'static> {
+    const WORDS: &'static [Word] = &WORDS;
+
+    fn english() -> Self {
+        Self::localized_in(Self::new("", "", "", "", |_, _| String::new()), &Words::english())
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let anchor = words.clone();
+        Self::new(words.get(WORDS[0]), words.get(WORDS[1]), words.get(WORDS[2]), words.get(WORDS[3]), move |i, n| {
+            anchor.format(WORDS[4], &[("i", &i.to_string()), ("n", &n.to_string())])
+        })
+    }
 }
 
 impl<'a> BezierNames<'a> {

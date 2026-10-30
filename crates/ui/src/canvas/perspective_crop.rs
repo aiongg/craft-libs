@@ -12,6 +12,7 @@ use super::{CanvasView, Claim, Part, PartFocus, RulerUnits};
 use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
+use crate::localized::{Labels, Word, Words};
 use crate::popup_list;
 use crate::primitives::{Handle, HandleShape};
 use crate::story::{Level, Story, Surface};
@@ -27,13 +28,42 @@ const GRID_ALPHA: u8 = 150;
 /// Fewest and most grid steps along a side.
 const GRID_STEPS: (usize, usize) = (2, 12);
 
-/// The AccessKit names of the quad and its corners, the host's translated text.
+/// The AccessKit names of the quad and its corners. `Default` is English; a host passes its own
+/// translated text, or [`PerspectiveCropNames::of`] for the words installed in the context.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PerspectiveCropNames {
     /// The group, e.g. "Perspective crop".
     pub group: String,
     /// The corners clockwise from the top left: "Top left corner" …
     pub corners: [String; 4],
+}
+
+/// One word per field of [`PerspectiveCropNames`], in field order.
+const NAME_WORDS: [Word; 5] = [
+    Word::keyed("crop.perspectiveGroup", "Perspective crop"),
+    Word::keyed("crop.perspectiveTopLeftCorner", "Top left corner"),
+    Word::keyed("crop.perspectiveTopRightCorner", "Top right corner"),
+    Word::keyed("crop.perspectiveBottomRightCorner", "Bottom right corner"),
+    Word::keyed("crop.perspectiveBottomLeftCorner", "Bottom left corner"),
+];
+
+impl Labels for PerspectiveCropNames {
+    const WORDS: &'static [Word] = &NAME_WORDS;
+
+    fn english() -> Self {
+        Self::localized_in(Self { group: String::new(), corners: Default::default() }, &Words::english())
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let text = |i: usize| words.get(NAME_WORDS[i]).into_owned();
+        Self { group: text(0), corners: std::array::from_fn(|i| text(1 + i)) }
+    }
+}
+
+impl Default for PerspectiveCropNames {
+    fn default() -> Self {
+        Self::english()
+    }
 }
 
 /// A quad's look and reach, from [`PerspectiveCropQuad::style`].
@@ -711,12 +741,9 @@ fn clicks_key(id: Id) -> Id {
     id.with("craft_ui::canvas::PerspectiveCropQuad::clicks")
 }
 
-/// The English names the story and tests use.
+/// The English names the stories and tests use.
 pub(crate) fn english_names() -> PerspectiveCropNames {
-    PerspectiveCropNames {
-        group: "Perspective crop".into(),
-        corners: ["Top left corner", "Top right corner", "Bottom right corner", "Bottom left corner"].map(String::from),
-    }
+    PerspectiveCropNames::english()
 }
 
 /// The components this module has stories for.
