@@ -27,6 +27,9 @@
 //! - Hide ([`crate::Builtin::Hide`]) and Hide Others ([`crate::Builtin::HideOthers`]) are custom items calling
 //!   `NSApplication hide:` and `hideOtherApplications:`, because the predefined ones always take ⌘H
 //!   and ⌥⌘H.
+//! - Standard items (Services, Show All, Minimize, Zoom, Bring All to Front, Close Window) and the
+//!   Hide Others and Minimize built-ins use the system's localized titles (AppKit's `MenuCommands`
+//!   table) when the app supplies no translation, that is when the label is still the English name.
 //! - While a menu is open, changes wait until it closes: replacing or changing an `NSMenu` while
 //!   AppKit tracks it can leave the displayed menu stranded.
 
@@ -42,11 +45,12 @@ use muda::accelerator::{Accelerator, Code, Modifiers};
 use muda::{CheckMenuItem, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use objc2::MainThreadMarker;
 use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};
+use objc2_foundation::{NSBundle, NSString};
 
 use craft_keymap::{Chord, CommandRef, Key, Mods};
 
 use crate::driver::{Backend, Dispatch, Event, NativeMenu, native_ok};
-use crate::model::{Builtin, Item, ItemKind, Menu, MenuBar, MenuRole, Node, Standard, native_id, structure_key, window_key};
+use crate::model::{Builtin, Item, ItemKind, Menu, MenuBar, MenuRole, Node, Standard, label_or_system, native_id, structure_key, window_key};
 
 /// Set by [`install`]: there is one full menu bar per process.
 static INSTALLED: AtomicBool = AtomicBool::new(false);
@@ -401,7 +405,7 @@ impl MacMenu {
         for (id, e) in &mut self.entries {
             let Some(it) = items.get(id) else { continue };
             if e.label != it.label {
-                let text = escape(&it.label);
+                let text = escape(&native_label(it));
                 match &e.handle {
                     Handle::Plain(h) => h.set_text(text),
                     Handle::Check(h) => h.set_text(text),
@@ -441,6 +445,38 @@ fn submenu(entries: &mut Entries, m: &Menu) -> muda::Result<(Submenu, Vec<String
     Ok((sub, ids))
 }
 
+/// AppKit's own title for `english`: the `MenuCommands` table of the AppKit bundle in the user's
+/// language, `english` when the table has no such key. Cached per title; the user's language
+/// does not change while the app runs.
+fn system_title(english: &str) -> String {
+    thread_local! {
+        static TITLES: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    }
+    TITLES.with(|titles| {
+        titles
+            .borrow_mut()
+            .entry(english.to_owned())
+            .or_insert_with(|| {
+                let Some(bundle) = NSBundle::bundleWithIdentifier(&NSString::from_str("com.apple.AppKit")) else {
+                    return english.to_owned();
+                };
+                let value = NSString::from_str(english);
+                bundle.localizedStringForKey_value_table(&value, Some(&value), Some(&NSString::from_str("MenuCommands"))).to_string()
+            })
+            .clone()
+    })
+}
+
+/// The label shown for `it`: Hide Others and Minimize take the system title when the app has no
+/// translation.
+fn native_label(it: &Item) -> String {
+    match Builtin::of(&it.command) {
+        Some(Builtin::HideOthers) => label_or_system(&it.label, "Hide Others", system_title),
+        Some(Builtin::Minimize) => label_or_system(&it.label, Standard::Minimize.english(), system_title),
+        _ => it.label.clone(),
+    }
+}
+
 fn append(entries: &mut Entries, sub: &Submenu, nodes: &[Node]) -> muda::Result<()> {
     for n in nodes {
         match n {
@@ -451,7 +487,8 @@ fn append(entries: &mut Entries, sub: &Submenu, nodes: &[Node]) -> muda::Result<
                 sub.append(&s)?;
             }
             Node::Standard { kind, label } => {
-                let text = Some(label.as_str());
+                let title = label_or_system(label, kind.english(), system_title);
+                let text = Some(title.as_str());
                 let p = match kind {
                     Standard::Services => PredefinedMenuItem::services(text),
                     Standard::ShowAll => PredefinedMenuItem::show_all(text),
@@ -468,12 +505,12 @@ fn append(entries: &mut Entries, sub: &Submenu, nodes: &[Node]) -> muda::Result<
                 let accel = chord.as_ref().filter(|c| native_ok(c)).and_then(accelerator);
                 let handle = match it.kind {
                     ItemKind::Check(c) | ItemKind::Radio(c) => {
-                        let h = CheckMenuItem::with_id(id.clone(), escape(&it.label), it.enabled, c, accel);
+                        let h = CheckMenuItem::with_id(id.clone(), escape(&native_label(it)), it.enabled, c, accel);
                         sub.append(&h)?;
                         Handle::Check(h)
                     }
                     ItemKind::Plain => {
-                        let h = MenuItem::with_id(id.clone(), escape(&it.label), it.enabled, accel);
+                        let h = MenuItem::with_id(id.clone(), escape(&native_label(it)), it.enabled, accel);
                         sub.append(&h)?;
                         Handle::Plain(h)
                     }

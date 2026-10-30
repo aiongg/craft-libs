@@ -210,6 +210,13 @@ impl Standard {
     }
 }
 
+/// `label` unless the app supplied no translation (the label is still the English name), then the
+/// system's title for `english`.
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn label_or_system(label: &str, english: &str, system: impl FnOnce(&str) -> String) -> String {
+    if label == english { system(english) } else { label.to_owned() }
+}
+
 /// The commands of the items the crate adds itself. The crate runs them; an app sees them only
 /// in a layout's result.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

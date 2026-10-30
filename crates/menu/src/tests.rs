@@ -603,3 +603,10 @@ fn a_modal_dialog_or_shortcut_recording_lets_only_the_built_in_items_run() {
     assert!(Gate { text_editing: true, ..Gate::default() }.allows(&save));
     assert!(Gate::default().allows(&save));
 }
+
+#[test]
+fn system_title_replaces_only_untranslated_labels() {
+    let system = |english: &str| format!("sys:{english}");
+    assert_eq!(model::label_or_system("Minimize", "Minimize", system), "sys:Minimize");
+    assert_eq!(model::label_or_system("Im Dock ablegen", "Minimize", system), "Im Dock ablegen");
+}
