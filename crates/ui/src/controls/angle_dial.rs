@@ -182,7 +182,8 @@ impl<'a> AngleDial<'a> {
     /// Whether the value wraps round the range: a key step or a drag past one end continues
     /// from the other end, and the pointer's direction maps into the range modulo its span (a
     /// -90 to 90 range reads a direction whose opposite is the same line). By default it wraps
-    /// for a range of exactly one turn only.
+    /// for a range of exactly one turn only. Both ends stay reachable: a step lands on max, and
+    /// one past it continues from min by the overshoot.
     pub fn wrap(mut self, wrap: bool) -> Self {
         self.wrap = Some(wrap);
         self
@@ -450,14 +451,17 @@ impl Pointing {
             angle = (angle / OCTANT).round() * OCTANT;
         }
         let (min, max) = (self.scale.min, self.scale.max);
-        if self.wraps && max - min < 360.0 {
-            return Some(self.scale.snap(min + (angle - min).rem_euclid(max - min)));
-        }
         let nearest = (-2..=2)
             .map(|turns| angle + 360.0 * f64::from(turns))
             .filter(|v| (min..=max).contains(v))
             .min_by(|a, b| (a - current).abs().total_cmp(&(b - current).abs()));
-        Some(self.scale.snap(nearest.unwrap_or_else(|| angle.clamp(min, max))))
+        let value = match nearest {
+            Some(v) => v,
+            // A direction outside a wrapping narrow range continues from the other end.
+            None if self.wraps && max - min < 360.0 => min + (angle - min).rem_euclid(max - min),
+            None => angle.clamp(min, max),
+        };
+        Some(self.scale.snap(value))
     }
 }
 
@@ -515,10 +519,14 @@ pub(crate) fn apply(op: &ScalarOp, value: Option<f64>, scale: &Scale, wraps: boo
 }
 
 /// `value` brought back into the range from the end it passed when the dial wraps; otherwise
-/// left for the scale to clamp.
+/// left for the scale to clamp. A value inside the range, max included, stays; one past max
+/// continues from min by the overshoot and one below min from max, so both ends are reachable.
 fn wrapped(scale: &Scale, wraps: bool, value: f64) -> f64 {
     let span = scale.max - scale.min;
     if !wraps || span <= 0.0 {
+        return value;
+    }
+    if (scale.min..=scale.max).contains(&value) {
         return value;
     }
     scale.min + (value - scale.min).rem_euclid(span)
