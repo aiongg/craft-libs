@@ -68,11 +68,14 @@ fn used(ctx: &Context, body: Rect, layer: LayerId, own: Id) -> bool {
     let at = |pos: Pos2| body.contains(pos) && ctx.layer_id_at(pos) == Some(layer);
     let pointed = ctx.interaction_snapshot(|s| [s.clicked, s.drag_started, s.dragged, s.drag_stopped]);
     let worked = pointed.into_iter().flatten().any(|id| id != own && ctx.read_response(id).is_some()) && gesture_origin(ctx).is_some_and(at);
-    let wheel = ctx.input(|i| {
-        i.events.iter().any(|e| matches!(e, Event::MouseWheel { .. }))
-            && i.smooth_scroll_delta == Vec2::ZERO
-            && i.pointer.latest_pos().is_some_and(at)
-    });
+    // `at` reads the context, so it runs after `input` has released the context's lock.
+    let wheel = ctx
+        .input(|i| {
+            (i.events.iter().any(|e| matches!(e, Event::MouseWheel { .. })) && i.smooth_scroll_delta == Vec2::ZERO)
+                .then(|| i.pointer.latest_pos())
+                .flatten()
+        })
+        .is_some_and(at);
     let inside = |id: Id| id != own && ctx.read_response(id).is_some_and(|r| body.expand(1.0).contains_rect(r.rect));
     let focused = ctx.memory(|m| m.focused());
     worked
@@ -85,4 +88,33 @@ fn used(ctx: &Context, body: Rect, layer: LayerId, own: Id) -> bool {
                     _ => false,
                 })
             })
+}
+
+#[cfg(test)]
+mod tests {
+    use egui::{Context, Event, Id, LayerId, Modifiers, MouseWheelSource, MouseWheelUnit, RawInput, Rect, Vec2, pos2, vec2};
+
+    /// A wheel turn a widget took, with the pointer over the story, checks the layer under the
+    /// pointer; that check must not run while the input is read (the context's lock would deadlock).
+    #[test]
+    fn a_taken_wheel_turn_over_the_story_returns() {
+        let ctx = Context::default();
+        let pos = pos2(50.0, 50.0);
+        let events = vec![
+            Event::PointerMoved(pos),
+            Event::MouseWheel {
+                unit: MouseWheelUnit::Line,
+                delta: vec2(0.0, 1.0),
+                modifiers: Modifiers::NONE,
+                phase: egui::TouchPhase::Move,
+                source: MouseWheelSource::Wheel,
+            },
+        ];
+        let mut out = ctx.run_ui(RawInput { events, ..Default::default() }, |ui| {
+            ui.input_mut(|i| i.smooth_scroll_delta = Vec2::ZERO);
+            let body = Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 100.0));
+            let _ = super::used(ui.ctx(), body, LayerId::background(), Id::unique("own"));
+        });
+        out.textures_delta.clear();
+    }
 }
