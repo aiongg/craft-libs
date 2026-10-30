@@ -308,7 +308,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             return;
         }
         let bounds = self.workspace.intersect(self.float_bounds);
-        let width = request.width.max(self.config.min_pane).min(bounds.width());
+        // A dock scrolled out of the window has no bounds left to fit in.
+        let width = request.width.max(self.config.min_pane).min(bounds.width().max(0.0));
         let max = self
             .content
             .floating_size(&active)
@@ -321,7 +322,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             .fitted_height(&active, self.look.tab_height, max)
             .unwrap_or(max)
             .max(self.look.tab_height + self.config.min_pane)
-            .min(bounds.height());
+            .min(bounds.height().max(0.0));
         let left = match request.edge {
             Edge::Left => request.column.right(),
             Edge::Right => request.column.left() - width,
