@@ -282,14 +282,7 @@ pub(crate) fn stories() -> Vec<Story> {
             AdjustmentsArgs { disabled: false, width: 260.0 },
             show_adjustments
         ),
-        typed_story!(
-            "composites/slider-row/wheel-step",
-            Level::Composites,
-            "SliderRow",
-            "Wheel step",
-            WheelStepArgs { step: 5.0 },
-            show_wheel_step
-        ),
+        typed_story!("composites/slider-row/wheel-step", Level::Composites, "SliderRow", "Wheel step", WheelStepArgs { step: 5.0 }, show_wheel_step),
     ]
 }
 

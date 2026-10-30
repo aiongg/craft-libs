@@ -979,12 +979,12 @@ pub(super) struct LayersArgs {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-        "composites/list-row/layers",
-        Level::Composites,
-        "ListRow",
-        "Layers",
-        LayersArgs { thumbnails: ThumbArg::None, detail: false, highlight_second_row: false, layer_form: true, width: 280.0 },
-        show_layers
+            "composites/list-row/layers",
+            Level::Composites,
+            "ListRow",
+            "Layers",
+            LayersArgs { thumbnails: ThumbArg::None, detail: false, highlight_second_row: false, layer_form: true, width: 280.0 },
+            show_layers
         ),
         typed_story!(
             "composites/list-row/masks",

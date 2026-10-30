@@ -9,8 +9,8 @@ use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::{self, HasPopup, Role};
 use egui::emath::GuiRounding as _;
 use egui::{
-    AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Painter, Popup, PopupCloseBehavior, Rect, Shape, Stroke, Ui, UiBuilder, Vec2,
-    pos2, vec2,
+    AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Painter, Popup, PopupCloseBehavior, Rect, Shape, Stroke, Ui, UiBuilder,
+    Vec2, pos2, vec2,
 };
 
 use super::field_wheel;
@@ -179,8 +179,10 @@ pub struct Select<'a, T> {
 /// What a host draws in each row and in the closed box, before the text.
 struct RowContent<'a, T> {
     size: Vec2,
-    paint: Box<dyn Fn(&Painter, Rect, &T) + 'a>,
+    paint: Box<RowPaint<'a, T>>,
 }
+
+type RowPaint<'a, T> = dyn Fn(&Painter, Rect, &T) + 'a;
 
 /// `count` options of one height, each `value(index)` showing `text(index)`.
 struct Rows<'a, T> {
@@ -1543,16 +1545,17 @@ fn show_row_content(ui: &mut Ui, args: &mut SearchableArgs) {
     with_choices(ui, "select-row-content", [0], |ui, choices| {
         variant_list(ui, "select-row-content", |form| {
             variant_row(form, "Preset", |ui| {
-                let mut select = Select::new("select-preset", "Preset", &mut choices[0]).size(size).row_content(vec2(48.0, 16.0), |painter, rect, i| {
-                    let (_, from, to) = PRESETS[*i];
-                    let steps = 12;
-                    for step in 0..steps {
-                        let t = step as f32 / (steps - 1) as f32;
-                        let x = |k: usize| rect.left() + rect.width() * k as f32 / steps as f32;
-                        let band = Rect::from_x_y_ranges(x(step)..=x(step + 1), rect.y_range());
-                        painter.rect_filled(band, 0.0, from.lerp_to_gamma(to, t));
-                    }
-                });
+                let mut select =
+                    Select::new("select-preset", "Preset", &mut choices[0]).size(size).row_content(vec2(48.0, 16.0), |painter, rect, i| {
+                        let (_, from, to) = PRESETS[*i];
+                        let steps = 12;
+                        for step in 0..steps {
+                            let t = step as f32 / (steps - 1) as f32;
+                            let x = |k: usize| rect.left() + rect.width() * k as f32 / steps as f32;
+                            let band = Rect::from_x_y_ranges(x(step)..=x(step + 1), rect.y_range());
+                            painter.rect_filled(band, 0.0, from.lerp_to_gamma(to, t));
+                        }
+                    });
                 for (i, (name, ..)) in PRESETS.into_iter().enumerate() {
                     select = select.option(i, name);
                 }

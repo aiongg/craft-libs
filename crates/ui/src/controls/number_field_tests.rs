@@ -1453,16 +1453,13 @@ fn a_secondary_click_opens_the_unit_menu_and_reports_the_pick() {
         numbers: LocaleNumbers,
     }
     let entries: Vec<_> = ["px", "mm", "in"].into_iter().enumerate().map(|(i, u)| MenuItem::new(u, i).radio(i == 0).into()).collect();
-    let mut harness = Harness::builder()
-        .with_size([320.0, 240.0])
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
-        .build_ui_state(
-            move |ui, host: &mut Host| {
-                let edit = NumberField::new("size", "Size", host.value, &host.numbers).unit_menu(&entries, &mut host.picked).show(ui);
-                host.events += usize::from(edit.event.is_some());
-            },
-            Host { value: 12.0, picked: None, events: 0, numbers: LocaleNumbers::from_tag("en") },
-        );
+    let mut harness = Harness::builder().with_size([320.0, 240.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        move |ui, host: &mut Host| {
+            let edit = NumberField::new("size", "Size", host.value, &host.numbers).unit_menu(&entries, &mut host.picked).show(ui);
+            host.events += usize::from(edit.event.is_some());
+        },
+        Host { value: 12.0, picked: None, events: 0, numbers: LocaleNumbers::from_tag("en") },
+    );
     harness.run();
     let at = harness.get_by_role(Role::SpinButton).rect().center();
     harness.hover_at(at);
