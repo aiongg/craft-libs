@@ -723,3 +723,54 @@ fn the_layer_form_tints_the_hover_and_outlines_the_selected_row_where_photocraft
 fn shapes_radius(shapes: &[Shape]) -> egui::CornerRadius {
     shapes.iter().find_map(|s| if let Shape::Rect(r) = s { Some(r.corner_radius) } else { None }).unwrap_or_default()
 }
+
+/// A second thumbnail has the first one's size and frame and sits `list.icon` after it with a
+/// link glyph between (`list.gap` without one); a click on the glyph asks for the opposite state
+/// and the label starts after both.
+#[test]
+fn a_second_thumbnail_follows_the_first_with_an_optional_link_between() {
+    use std::cell::RefCell;
+    type State = (bool, RefCell<Vec<Rect>>, Vec<RowEvent<u8>>, Rect);
+    let s = style();
+    for with_link in [true, false] {
+        let mut harness = harness::<State>(Direction::Ltr).build_ui_state(
+            move |ui, (linked, painted, events, label): &mut State| {
+                painted.get_mut().clear();
+                let painted = &*painted;
+                let mut row = ListRow::new(1u8, "Layer")
+                    .selected(true)
+                    .thumb(ThumbSize::Medium, |_, rect| painted.borrow_mut().push(rect))
+                    .second_thumb(|_, rect| painted.borrow_mut().push(rect));
+                if with_link {
+                    row = row.thumb_link(*linked, "Link mask to {row}");
+                }
+                let shown = row.show(ui);
+                *label = shown.label;
+                for event in shown.events {
+                    if let RowEvent::LinkToggled { linked: on, .. } = event {
+                        *linked = on;
+                    }
+                    events.push(event);
+                }
+            },
+            (false, RefCell::default(), Vec::new(), Rect::NOTHING),
+        );
+        harness.run();
+        let (_, painted, ..) = harness.state();
+        let painted = painted.borrow().clone();
+        let [first, second] = painted[..] else { panic!("{painted:?}") };
+        assert_eq!(first.size(), second.size());
+        assert_eq!(first.size(), vec2(s.thumb.md, s.thumb.md));
+        let between = if with_link { s.icon_size } else { s.gap };
+        assert_eq!(second.left() - first.right(), between);
+        assert!(harness.state().3.left() >= second.right(), "the label follows both thumbnails");
+        if with_link {
+            harness.get_by_label("Link mask to Layer").click();
+            harness.run();
+            assert_eq!(harness.state().2, vec![RowEvent::LinkToggled { row: 1, linked: true }]);
+            assert!(harness.state().0);
+        } else {
+            assert!(harness.query_by_label("Link mask to Layer").is_none());
+        }
+    }
+}
