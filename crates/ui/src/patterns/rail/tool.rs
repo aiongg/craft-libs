@@ -636,7 +636,7 @@ fn show_story(ui: &mut Ui, args: &mut ToolArgs) {
     let mut new_mode = None;
     let out = ui
         .allocate_ui(vec2(160.0, height), |ui| {
-            ToolRail::new("story").columns(columns).column_toggle("Toolbar").edit_toolbar("Edit Toolbar…").hidden(&hidden).label("Tools").show(
+            ToolRail::new("story").columns(columns).column_toggle("Toolbar").edit_toolbar("Edit Toolbar…").hidden(&hidden).show(
                 ui,
                 &slots,
                 &current,

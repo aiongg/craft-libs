@@ -2,7 +2,8 @@
 
 use egui::{Ui, vec2};
 
-use super::{Body, Dialog, DialogFrame, DialogState, EnterRule, Footer, Outcome, Reset, Resize, ResizeMax, Width};
+use super::{Body, Dialog, DialogFrame, DialogLabels, DialogState, EnterRule, Footer, Outcome, Reset, Resize, ResizeMax, Width};
+use crate::localized::Labels as _;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::typed_story;
 
@@ -114,7 +115,7 @@ fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
     let (min, max) = args.width.width().range(&tokens.component.dialog, 2000.0);
     let mut frame = DialogFrame::new("story-frame", "Canvas Size").roomy(args.roomy).width(min, max);
     if args.close_box {
-        frame = frame.close_label("Close");
+        frame = frame.close_label(DialogLabels::of(ui).close);
     }
     frame.show(ui, |ui| lines(ui, 3));
 }
@@ -148,7 +149,7 @@ fn show_footer(ui: &mut Ui, args: &mut FooterArgs) {
         let mut footer = if args.shape == ShapeArg::Side { Footer::side().extra("Add to Swatches") } else { Footer::standard() };
         footer = footer.ok_enabled(args.ok_enabled).enter(if args.body_owns_enter { EnterRule::Body } else { EnterRule::Default });
         if args.apply && args.shape != ShapeArg::Side {
-            footer = footer.apply("Apply");
+            footer = footer.apply(DialogLabels::of(ui).apply);
         }
         if args.alternate && args.shape != ShapeArg::Side {
             footer = footer.alternate("Don't Save");

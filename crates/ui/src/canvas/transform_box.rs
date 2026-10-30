@@ -989,7 +989,8 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
-/// The English names the stories and tests use.
+/// The English names the tests use.
+#[cfg(test)]
 pub(crate) fn english_names() -> TransformNames {
     TransformNames::english()
 }
@@ -1063,8 +1064,11 @@ fn show_transform_box(ui: &mut Ui, args: &mut FreeTransformArgs) {
     }
     painter.add(picture(&host.state.quad, 220));
     let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
-    let mut b =
-        TransformBox::new("story-transform-box", &host.state, english_names()).rules(rules).rotate_zone(zone).units(&px, &px).start(PICTURE, 0.0);
+    let mut b = TransformBox::new("story-transform-box", &host.state, TransformNames::of(ui))
+        .rules(rules)
+        .rotate_zone(zone)
+        .units(&px, &px)
+        .start(PICTURE, 0.0);
     if args.readout {
         b = b.readout(TransformLabels::new("Angle:", "W:", "H:", "ΔX:", "ΔY:"));
     }

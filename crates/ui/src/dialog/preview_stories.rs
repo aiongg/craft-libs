@@ -44,7 +44,7 @@ fn show_preview(ui: &mut Ui, args: &mut PreviewArgs) {
     let mut state: DialogState<Fields> = ui.data_mut(|d| d.remove_temp(key)).unwrap_or_default();
     if args.open {
         let mut fields = ui.data_mut(|d| d.get_temp::<Fields>(key)).unwrap_or(Fields { brightness: 0.0, contrast: 0.0 });
-        let mut footer = Footer::standard().ok("OK");
+        let mut footer = Footer::standard();
         if args.preview {
             footer = footer.preview("Preview");
         }

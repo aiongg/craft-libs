@@ -7,6 +7,7 @@ use super::render::tab_outline;
 use super::{Column, DockArea, DockConfig, DockContent, DockLook, Floating, Group, Hit, Layout, Node, Permissions, Side, flyout, open_flyout};
 use crate::direction;
 use crate::layout::{SplitAxis, SplitSize};
+use crate::localized::Labels as _;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::typed_story;
 
@@ -130,7 +131,7 @@ fn show_area(ui: &mut Ui, args: &DockArgs, salt: &'static str, initial: fn() -> 
     let key = id.with("layout");
     let layout = ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, initial).clone());
     let config =
-        DockConfig { right_to_left: args.locale == LocaleArg::Ar || direction::is_rtl(ui), panel_menu_button: menu_button, ..DockConfig::default() };
+        DockConfig { right_to_left: args.locale == LocaleArg::Ar || direction::is_rtl(ui), panel_menu_button: menu_button, ..DockConfig::of(ui) };
     if let Some(panel) = open.filter(|panel| flyout::<u32>(ui.ctx(), id).is_none() && layout.contains(panel)) {
         open_flyout(ui.ctx(), id, panel);
     }

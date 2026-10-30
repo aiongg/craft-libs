@@ -628,7 +628,7 @@ fn show_story(ui: &mut Ui, args: &mut BoxArgs) {
             state.pivot = state.point_at(anchor);
         }
         ui.vertical(|ui| {
-            let edit = TransformFields::new("transform-fields", &state, rect, TransformFieldLabels::default())
+            let edit = TransformFields::new("transform-fields", &state, rect, TransformFieldLabels::of(ui))
                 .size_unit(size_unit)
                 .linked(&mut linked)
                 .skew_v(skew_v)

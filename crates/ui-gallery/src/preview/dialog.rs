@@ -28,8 +28,7 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DialogState<ImageSizeDraft
         return;
     };
     let id = ui.scope_id().with("image-size-dialog");
-    let shown =
-        Dialog::new(id, "Image Size").center_over(ui.clip_rect()).footer(Footer::standard().ok("OK").cancel("Cancel")).show(&ctx, state, draft, body);
+    let shown = Dialog::new(id, "Image Size").center_over(ui.clip_rect()).footer(Footer::standard()).show(&ctx, state, draft, body);
     match shown.outcome {
         Some(Outcome::Ok) => mock.apply_size(),
         Some(Outcome::Cancel | Outcome::Close) => mock.dialog = None,

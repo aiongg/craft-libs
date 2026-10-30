@@ -1053,106 +1053,378 @@ fn a_double_click_on_a_tile_header_opens_the_component() {
     assert_eq!(gallery.front_tab(), PanelId::Component(neighbour));
 }
 
-/// Registered English texts that still show unmarked in the pseudo locale. Each is either a
-/// component that does not take the text from `Words` yet (`ThumbRowStyle`, the toolbar key hint,
-/// the dialog default-button hint, the panel rail, the Inspector scroll bar, the colour model and
-/// channel words), or a story that builds its labels with `Default` or a literal instead of
-/// `Labels::of(ui)`, which the audit cannot tell apart. A text leaves this list when its story or
-/// component translates it; a new English text that bypasses `Words` is not on it and fails.
-const ENGLISH_ONLY: &[&str] = &[
-    "Angle",
-    "Apply",
-    "Black",
-    "Bottom edge",
-    "Bottom left corner",
-    "Bottom right corner",
-    "Brightness",
-    "Cancel",
-    "Clear",
-    "Close",
-    "Close Panel",
-    "Close panel window",
-    "Collapse column to icons",
-    "Color",
-    "Copy",
-    "Crop frame",
-    "Custom",
-    "Default",
-    "Delete",
-    "End point",
-    "Expand column",
-    "Free Transform",
-    "Gradient",
-    "Gradient line",
-    "Guides",
-    "H",
-    "Height",
-    "Hex colour",
-    "Histogram",
-    "Horizontal guide",
-    "Horizontal ruler",
-    "Horizontal scroll bar",
-    "Horizontal skew",
-    "Hue",
-    "Left edge",
-    "Maintain aspect ratio",
-    "Menu",
-    "Move panel column",
-    "Move panel window",
-    "Move tab group",
-    "Name",
-    "New",
-    "New Group",
-    "No matching commands",
-    "Not a number",
-    "OK",
-    "Opacity",
-    "Options",
-    "Output black",
-    "Output white",
-    "Pages",
-    "Panel Menu",
-    "Panel menu",
-    "Panels",
-    "Path",
-    "Path being drawn",
-    "Perspective crop",
-    "Reference point",
-    "Reset Section",
-    "Resize panel window",
-    "Resize panels",
-    "Right edge",
-    "Ruler origin",
-    "Saturation and brightness",
-    "Search",
-    "Search settings",
-    "Selection",
-    "Small",
-    "Start point",
-    "Status",
-    "Thumbnail size",
-    "Tools",
-    "Top edge",
-    "Top left corner",
-    "Top right corner",
-    "Undo",
-    "V",
-    "Vertical guide",
-    "Vertical ruler",
-    "Vertical scroll bar",
-    "Vertical skew",
-    "W",
-    "Warp",
-    "White",
-    "Whole box",
-    "Whole frame",
-    "Width",
-    "X",
-    "X position",
-    "Y",
-    "Y position",
-    "°",
+/// Host text a story writes itself that equals the English of a registered word:
+/// `(text, stories, reason)`. The same text bypassing `Words` in another story still fails.
+const STORY_TEXT: &[(&str, &[&str], &str)] = &[
+    (
+        "Angle",
+        &[
+            "composites/property-row/inspector",
+            "controls/angle-dial/dial",
+            "controls/angle-dial/dialog",
+            "controls/number-field/event-log",
+            "controls/number-field/right-to-left",
+            "controls/number-field/scrub",
+            "controls/number-field/states",
+            "controls/number-field/unit-menu",
+        ],
+        "a field or dial label the story names itself",
+    ),
+    ("Apply", &["specimens/type/faces"], "sample text of the type specimen"),
+    (
+        "Black",
+        &["patterns/app-preview/photo-editor", "shells/canvas/body_only", "shells/canvas/revealed", "shells/canvas/rtl", "shells/canvas/standard"],
+        "a swatch name of the preview app",
+    ),
+    (
+        "Brightness",
+        &[
+            "patterns/dialog/blocking",
+            "patterns/dialog/footer",
+            "patterns/dialog/frame",
+            "patterns/dialog/modeless",
+            "patterns/dialog/preview",
+            "patterns/dialog/prompt",
+            "patterns/dialog/stack",
+        ],
+        "the demo dialog's own slider label",
+    ),
+    ("Cancel", &["specimens/type/faces"], "sample text of the type specimen"),
+    (
+        "Clear",
+        &["controls/search-field/filter", "controls/search-field/states", "controls/swatch/palette", "controls/swatch/states"],
+        "a clear-button name the story gives its sample",
+    ),
+    (
+        "Color",
+        &["composites/tab-strip/documents", "composites/tab-strip/drops", "composites/tab-strip/panels", "composites/tab-strip/text"],
+        "a sample tab title",
+    ),
+    ("Copy", &["controls/icon-button/plain", "controls/icon-button/toggle"], "an icon button name the story gives"),
+    ("Custom", &["controls/tooltip/custom", "controls/tooltip/shortcut", "controls/tooltip/text"], "a sample tooltip target"),
+    (
+        "Default",
+        &[
+            "composites/group-box/default",
+            "composites/preset-browser/brushes",
+            "composites/preset-browser/gradients",
+            "composites/preset-browser/popover-grid",
+            "composites/preset-browser/reorder",
+            "composites/preset-browser/swatches",
+            "composites/preset-browser/tool-presets",
+            "composites/section-label/default",
+        ],
+        "a sample group or section title",
+    ),
+    (
+        "Delete",
+        &[
+            "composites/list/reorder",
+            "composites/list/reorder-copy",
+            "composites/list/reorder-refused",
+            "composites/list/reorder-tree",
+            "composites/list/ten-thousand-rows",
+            "controls/icon-button/plain",
+            "controls/icon-button/toggle",
+        ],
+        "an item or button name the story gives",
+    ),
+    (
+        "Gradient",
+        &[
+            "composites/gradient/dialog",
+            "composites/gradient/editor-combined",
+            "composites/gradient/editor-split",
+            "patterns/app-preview/photo-editor",
+            "patterns/rail/tool",
+            "primitives/gradient-line/edit",
+            "primitives/gradient-line/with-editor",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a sample tool, group or editor name",
+    ),
+    (
+        "Guides",
+        &["composites/list/tree", "controls/toggle-button/toggle", "primitives/guides/guides"],
+        "a sample tree row, toggle or heading named after the component",
+    ),
+    (
+        "H",
+        &[
+            "composites/property-row/inspector",
+            "composites/section-header/always-open",
+            "composites/section-header/collapsible",
+            "controls/number-field/event-log",
+            "controls/number-field/right-to-left",
+            "controls/number-field/scrub",
+            "controls/number-field/states",
+            "controls/number-field/unit-menu",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a field label the story names itself",
+    ),
+    (
+        "Height",
+        &[
+            "composites/property-row/inspector",
+            "composites/section-header/always-open",
+            "composites/section-header/collapsible",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+            "specimens/type/faces",
+        ],
+        "a field label the story names itself",
+    ),
+    ("Hex colour", &["composites/color/hex-field"], "the HexField label the story passes"),
+    (
+        "Histogram",
+        &[
+            "composites/histogram/inks",
+            "composites/histogram/markers",
+            "composites/histogram/outline",
+            "composites/histogram/rgb",
+            "composites/histogram/selection",
+            "composites/histogram/stale-click",
+            "composites/histogram/tone",
+        ],
+        "the accessible name the story gives the histogram",
+    ),
+    (
+        "Hue",
+        &["composites/color-area/parts", "composites/slider-row/adjustments", "composites/slider-row/wheel-step"],
+        "a slider label the story passes",
+    ),
+    (
+        "Name",
+        &["controls/angle-dial/dial", "controls/angle-dial/dialog", "controls/text-field/event-log", "controls/text-field/states"],
+        "a field label the story names itself",
+    ),
+    (
+        "New",
+        &[
+            "controls/segmented/icons",
+            "controls/segmented/text",
+            "patterns/title-bar/adwaita",
+            "patterns/title-bar/breeze",
+            "patterns/title-bar/generic",
+            "patterns/title-bar/mac-inset",
+            "patterns/title-bar/native",
+            "patterns/title-bar/windows",
+        ],
+        "a segment or menu item the story names",
+    ),
+    (
+        "No matching commands",
+        &["composites/empty-state/canvas", "composites/empty-state/panel", "composites/empty-state/start-screen"],
+        "the empty state's own title",
+    ),
+    (
+        "Not a number",
+        &[
+            "controls/number-field/event-log",
+            "controls/number-field/right-to-left",
+            "controls/number-field/scrub",
+            "controls/number-field/states",
+            "controls/number-field/unit-menu",
+        ],
+        "the sample's field name",
+    ),
+    ("OK", &["patterns/viewport/embedded"], "a demo button of the story"),
+    (
+        "Opacity",
+        &[
+            "composites/property-row/inspector",
+            "composites/section-header/always-open",
+            "composites/section-header/collapsible",
+            "composites/slider-row/adjustments",
+            "composites/slider-row/wheel-step",
+            "controls/number-field/event-log",
+            "controls/number-field/right-to-left",
+            "controls/number-field/scrub",
+            "controls/number-field/states",
+            "controls/number-field/unit-menu",
+            "controls/slider/disabled",
+            "controls/slider/event-log",
+            "controls/slider/right-to-left",
+            "controls/slider/step",
+            "controls/slider/values",
+            "patterns/app-preview/photo-editor",
+            "patterns/inspector/properties",
+            "patterns/options-bar/brush-and-transform",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a slider or field label the story names itself",
+    ),
+    ("Output black", &["controls/thumb-row/rows"], "a thumb name the story gives"),
+    ("Output white", &["controls/thumb-row/rows"], "a thumb name the story gives"),
+    (
+        "Panels",
+        &["composites/tab-strip/documents", "composites/tab-strip/drops", "composites/tab-strip/panels", "composites/tab-strip/text"],
+        "a sample title of the tab strip story",
+    ),
+    ("Path", &["controls/search-field/filter", "controls/search-field/states"], "a sample search field name"),
+    ("Perspective crop", &["primitives/canvas/perspective-crop"], "the story's own heading"),
+    ("Saturation and brightness", &["composites/color-area/parts"], "a slider label the story passes"),
+    (
+        "Search",
+        &[
+            "patterns/app-preview/photo-editor",
+            "patterns/command-palette/photocraft",
+            "patterns/command-palette/recents",
+            "patterns/title-bar/adwaita",
+            "patterns/title-bar/breeze",
+            "patterns/title-bar/generic",
+            "patterns/title-bar/mac-inset",
+            "patterns/title-bar/native",
+            "patterns/title-bar/windows",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a menu item, button or placeholder the story names",
+    ),
+    (
+        "Selection",
+        &[
+            "composites/histogram/inks",
+            "composites/histogram/markers",
+            "composites/histogram/outline",
+            "composites/histogram/rgb",
+            "composites/histogram/selection",
+            "composites/histogram/stale-click",
+            "composites/histogram/tone",
+        ],
+        "the story's own caption",
+    ),
+    (
+        "Small",
+        &["composites/curve-editor/corners", "composites/curve-editor/curves", "composites/curve-editor/small", "foundations/stock-egui/widgets"],
+        "the story's own caption",
+    ),
+    (
+        "Tools",
+        &["patterns/preferences/window", "patterns/toolbar/horizontal-overflow", "patterns/toolbar/vertical-liquify"],
+        "a toolbar or page name the story gives",
+    ),
+    (
+        "Undo",
+        &[
+            "controls/icon-button/plain",
+            "controls/icon-button/toggle",
+            "controls/tooltip/custom",
+            "controls/tooltip/shortcut",
+            "controls/tooltip/text",
+        ],
+        "an icon button or tooltip target the story names",
+    ),
+    (
+        "W",
+        &[
+            "composites/property-row/inspector",
+            "composites/section-header/always-open",
+            "composites/section-header/collapsible",
+            "controls/number-field/event-log",
+            "controls/number-field/right-to-left",
+            "controls/number-field/scrub",
+            "controls/number-field/states",
+            "controls/number-field/unit-menu",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "a field label the story names itself",
+    ),
+    ("Warp", &["primitives/warp-grid/warp"], "the story's own heading"),
+    (
+        "White",
+        &["patterns/app-preview/photo-editor", "shells/canvas/body_only", "shells/canvas/revealed", "shells/canvas/rtl", "shells/canvas/standard"],
+        "a swatch name of the preview app",
+    ),
+    (
+        "Width",
+        &[
+            "composites/property-row/inspector",
+            "composites/section-header/always-open",
+            "composites/section-header/collapsible",
+            "controls/number-field/event-log",
+            "controls/number-field/right-to-left",
+            "controls/number-field/scrub",
+            "controls/number-field/states",
+            "controls/number-field/unit-menu",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+            "specimens/type/faces",
+        ],
+        "a field label the story names itself",
+    ),
+    (
+        "X",
+        &[
+            "composites/property-row/inspector",
+            "composites/section-header/always-open",
+            "composites/section-header/collapsible",
+            "patterns/app-preview/photo-editor",
+            "patterns/inspector/properties",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+            "specimens/type/faces",
+        ],
+        "a field label the story names itself",
+    ),
+    (
+        "Y",
+        &[
+            "composites/property-row/inspector",
+            "composites/section-header/always-open",
+            "composites/section-header/collapsible",
+            "patterns/app-preview/photo-editor",
+            "patterns/inspector/properties",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+            "specimens/type/faces",
+        ],
+        "a field label the story names itself",
+    ),
 ];
+
+/// Unmarked English that a component produces itself. These entries are removed when the
+/// components branch (ds/47g-components) lands.
+const COMPONENT_BYPASS: &[(&str, &str)] = &[("patterns/panel/embedded", "Close Panel"), ("patterns/rail/panel", "Panels")];
+
+/// Whether a node is the gallery's own text: it names components and stories (the browser lists,
+/// the tabs, and the shown story's tile headings, which are the
+/// labels named `titles`), and those names can equal a word's English. `ancestors` holds
+/// `role:name` of the node's path, the node last.
+fn gallery_chrome(tree: &craft_ui::inspect::AccessTree, node: egui::accesskit::NodeId, ancestors: &[String], name: &str, titles: [&str; 2]) -> bool {
+    use egui::accesskit::{Action, Role};
+    let Some(data) = tree.node(node) else { return false };
+    data.role() == Role::Tab
+        || (data.role() == Role::Label && data.supports_action(Action::Click) && titles.contains(&name))
+        || ancestors.iter().any(|a| matches!(a.as_str(), "ListBox:Components" | "ListBox:Stories"))
+}
 
 /// In the pseudo locale every string a component takes from `Words` shows marked. A node named
 /// with the English text of a registered word, unmarked, is English that bypassed `Words` (or text
@@ -1173,16 +1445,27 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
     let mut unmarked = std::collections::BTreeMap::<String, Vec<&str>>::new();
     let mut marked = 0;
     for component in components {
-        let ids: Vec<&str> = gallery.stories().iter().filter(|s| s.component == component).map(|s| s.id).collect();
+        let ids: Vec<(&str, &str)> = gallery.stories().iter().filter(|s| s.component == component).map(|s| (s.id, s.name)).collect();
         gallery.open_component(component);
-        for id in ids {
+        for (id, story_name) in ids {
             gallery.select(id);
             let tree = settled_tree(&ctx, &mut gallery);
-            for (node, _) in tree.walk(tree.root()) {
-                let Some(name) = tree.name(node) else { continue };
+            let mut stack: Vec<String> = Vec::new();
+            for (node, depth) in tree.walk(tree.root()) {
+                stack.truncate(depth);
+                let name = tree.name(node);
+                let role = tree.node(node).map(|n| format!("{:?}", n.role())).unwrap_or_default();
+                stack.push(format!("{role}:{}", name.as_deref().unwrap_or_default()));
+                let Some(name) = name else { continue };
+                if gallery_chrome(&tree, node, &stack, &name, [component, story_name]) {
+                    continue;
+                }
                 if name.contains('⟦') {
                     marked += 1;
-                } else if registered.contains(name.as_str()) && !ENGLISH_ONLY.contains(&name.as_str()) {
+                } else if registered.contains(name.as_str())
+                    && !STORY_TEXT.iter().any(|(text, stories, _)| *text == name && stories.contains(&id))
+                    && !COMPONENT_BYPASS.contains(&(id, name.as_str()))
+                {
                     let ids = unmarked.entry(name).or_default();
                     if !ids.contains(&id) {
                         ids.push(id);

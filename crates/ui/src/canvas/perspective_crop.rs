@@ -741,7 +741,8 @@ fn clicks_key(id: Id) -> Id {
     id.with("craft_ui::canvas::PerspectiveCropQuad::clicks")
 }
 
-/// The English names the stories and tests use.
+/// The English names the tests use.
+#[cfg(test)]
 pub(crate) fn english_names() -> PerspectiveCropNames {
     PerspectiveCropNames::english()
 }
@@ -794,7 +795,7 @@ fn show_story(ui: &mut Ui, args: &mut PerspectiveArgs) {
         Stroke::new(1.0, Color32::from_gray(40)),
     ));
     let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
-    let r = PerspectiveCropQuad::new("story-perspective-crop", &quad, english_names()).show_grid(args.grid).units(&px, &px).show(
+    let r = PerspectiveCropQuad::new("story-perspective-crop", &quad, PerspectiveCropNames::of(ui)).show_grid(args.grid).units(&px, &px).show(
         ui,
         &canvas.response,
         view,

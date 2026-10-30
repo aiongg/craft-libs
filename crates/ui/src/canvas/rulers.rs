@@ -2,6 +2,7 @@
 //! point.
 
 use crate::canvas::story::ViewArgs;
+use crate::localized::Labels as _;
 use egui::accesskit::{self, Role};
 use egui::{
     Align2, AsIdSalt, Color32, Context, CursorIcon, FontId, Id, IdSalt, Modifiers, Painter, Pos2, Rect as ScreenRect, Sense, Stroke, Ui, WidgetInfo,
@@ -563,7 +564,7 @@ fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
         UnitsArg::Pixels => RulerUnits::pixels(numbers),
     };
 
-    let guides = Guides::new("rulers-story-guides", &host.guides, &units, &units, GuideNames::new("Guides", "Vertical guide", "Horizontal guide"))
+    let guides = Guides::new("rulers-story-guides", &host.guides, &units, &units, GuideNames::of(ui))
         .selected(host.selected)
         .interactive(args.interactive)
         .bounds(super::story::DOC)
@@ -583,11 +584,12 @@ fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
     host.apply(&guides);
 
     let locked = args.locked;
-    let rulers = Rulers::new("rulers-story", &units, &units, RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin"))
-        .zero(zero)
-        .origin_locked(locked)
-        .interactive(args.interactive)
-        .show(ui, full, view, Some(guides.id));
+    let rulers = Rulers::new("rulers-story", &units, &units, RulerNames::of(ui)).zero(zero).origin_locked(locked).interactive(args.interactive).show(
+        ui,
+        full,
+        view,
+        Some(guides.id),
+    );
     let open_menu = rulers.context.map(|_| OpenAt::Pointer(ui.input(|i| i.pointer.interact_pos()).unwrap_or(full.min)));
     let mut entries: Vec<MenuEntry<MenuCommand>> = (0..UnitsArg::OPTIONS.len())
         .map(UnitsArg::from_index)

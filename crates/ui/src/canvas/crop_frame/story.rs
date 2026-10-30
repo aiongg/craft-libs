@@ -9,7 +9,7 @@ use crate::canvas::CanvasView;
 use crate::canvas::story::{DOC, ViewArgs, document, document_with};
 use crate::canvas::{CropGuide, CropShield, RulerUnits};
 use crate::edit::EditEvent;
-use crate::localized::LocaleNumbers;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf};
 use crate::typed_story;
@@ -146,16 +146,6 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
-/// The English names the stories use.
-fn english_names() -> CropNames {
-    CropNames {
-        group: "Crop frame".into(),
-        whole: "Whole frame".into(),
-        corners: ["Top left corner", "Top right corner", "Bottom right corner", "Bottom left corner"].map(String::from),
-        edges: ["Top edge", "Right edge", "Bottom edge", "Left edge"].map(String::from),
-    }
-}
-
 /// What a story keeps between frames: the frame, and the frame a running drag started from.
 #[derive(Clone, Copy)]
 struct Kept {
@@ -175,7 +165,7 @@ fn frame_on_canvas(
     let mut kept: Kept = ui.data(|d| d.get_temp(key)).unwrap_or(Kept { frame: CropBox::upright(START), before: None });
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let frame = kept.frame;
-    let r = configure(CropFrame::new("story-crop-frame", &frame, english_names())).units(&px, &px).show(ui, &canvas.response, &canvas.view);
+    let r = configure(CropFrame::new("story-crop-frame", &frame, CropNames::of(ui))).units(&px, &px).show(ui, &canvas.response, &canvas.view);
     keep_event(&mut kept, &r.event);
     if r.apply || r.discard {
         kept = Kept { frame: CropBox::upright(START), before: None };
@@ -201,20 +191,16 @@ fn keep_event(kept: &mut Kept, event: &Option<EditEvent<CropBox>>) {
     }
 }
 
-fn labels() -> CropLabels {
-    CropLabels::new("W:", "H:", "Angle:")
-}
-
 /// The Classic frame over the document: drag inside to move, an edge or corner to resize, outside
 /// to turn (⇧ in steps), X to swap, Enter or a double-click to apply, Esc to discard. The guide
 /// and the shield's opacity are args.
 fn show_upright(ui: &mut Ui, args: &mut UprightArgs) {
     let canvas_colour = Tokens::of(ui).color.surface.canvas.to_egui();
     let shield = CropShield { opacity: args.shield, ..CropShield::default() }.fill(canvas_colour, false);
-    let (guide, readout) = (args.guide.guide(), args.readout);
+    let (guide, readout, labels) = (args.guide.guide(), args.readout, CropLabels::of(ui));
     let (_, kept, key) = frame_on_canvas(ui, args.view, |f| {
         let f = f.shield(shield).guide(guide);
-        if readout { f.readout(labels()) } else { f }
+        if readout { f.readout(labels) } else { f }
     });
     ui.data_mut(|d| d.insert_temp(key, kept));
 }
@@ -223,9 +209,8 @@ fn show_upright(ui: &mut Ui, args: &mut UprightArgs) {
 fn show_ratio(ui: &mut Ui, args: &mut RatioArgs) {
     let canvas_colour = Tokens::of(ui).color.surface.canvas.to_egui();
     let shield = CropShield::default().fill(canvas_colour, false);
-    let ratio = args.ratio.ratio();
-    let (_, kept, key) =
-        frame_on_canvas(ui, args.view, |f| f.shield(shield).guide(Some((CropGuide::Thirds, 0))).ratio(Some(ratio)).readout(labels()));
+    let (ratio, labels) = (args.ratio.ratio(), CropLabels::of(ui));
+    let (_, kept, key) = frame_on_canvas(ui, args.view, |f| f.shield(shield).guide(Some((CropGuide::Thirds, 0))).ratio(Some(ratio)).readout(labels));
     ui.data_mut(|d| d.insert_temp(key, kept));
 }
 
@@ -235,8 +220,8 @@ fn show_ratio(ui: &mut Ui, args: &mut RatioArgs) {
 fn show_straighten(ui: &mut Ui, args: &mut StraightenArgs) {
     let canvas_colour = Tokens::of(ui).color.surface.canvas.to_egui();
     let shield = CropShield::default().fill(canvas_colour, false);
-    let armed = args.armed;
-    let (r, mut kept, key) = frame_on_canvas(ui, args.view, |f| f.shield(shield).straighten(armed).readout(labels()));
+    let (armed, labels) = (args.armed, CropLabels::of(ui));
+    let (r, mut kept, key) = frame_on_canvas(ui, args.view, |f| f.shield(shield).straighten(armed).readout(labels));
     if let Some(angle) = r.straightened {
         if let Some(fitted) = kept.frame.fitted(Size::new(DOC.width(), DOC.height()), angle) {
             kept.frame = fitted;
@@ -278,12 +263,12 @@ fn show_image_mode(ui: &mut Ui, args: &mut ImageModeArgs) {
     }
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let frame = s.kept.frame;
-    let r = CropFrame::new("story-crop-frame", &frame, english_names())
+    let r = CropFrame::new("story-crop-frame", &frame, CropNames::of(ui))
         .units(&px, &px)
         .shield(shield)
         .straighten(args.armed)
         .auto_center(args.auto_center)
-        .readout(labels())
+        .readout(CropLabels::of(ui))
         .show_image(ui, &canvas.response, &mut view);
     keep_event(&mut s.kept, &r.event);
     if let Some(angle) = r.straightened {

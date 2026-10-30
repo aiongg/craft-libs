@@ -14,6 +14,7 @@ use crate::controls::checkbox::Checkbox;
 use crate::controls::slider;
 use crate::edit::EditEvent;
 use crate::icons::Icon;
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Text};
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -277,7 +278,7 @@ fn show_swatches(ui: &mut Ui, args: &mut PresetArgs) {
             .reorder(PresetReorder::items_and_groups())
             .show(ui, |painter, rect, info| paint_solid(painter, rect, color_of(*info.key, true), &tokens));
         lib.apply(out.events);
-        let events = PresetFooter::new(&mut lib.state, &PresetLabels::default()).thumb_range(16.0..=48.0).count(200).show(ui);
+        let events = PresetFooter::new(&mut lib.state, &PresetLabels::of(ui)).thumb_range(16.0..=48.0).count(200).show(ui);
         lib.footer_events(events);
         status(ui, lib);
     });
@@ -397,7 +398,7 @@ fn show_brushes(ui: &mut Ui, args: &mut PresetArgs) {
             .reorder(PresetReorder::items_and_groups().nest(1))
             .show(ui, |painter, rect, info| stroke_preview(painter, rect, *info.key));
         lib.apply(out.events);
-        let events = PresetFooter::new(&mut lib.state, &PresetLabels::default()).thumb_range(24.0..=96.0).count(BRUSHES as usize).show(ui);
+        let events = PresetFooter::new(&mut lib.state, &PresetLabels::of(ui)).thumb_range(24.0..=96.0).count(BRUSHES as usize).show(ui);
         lib.footer_events(events);
         status(ui, lib);
     });
@@ -430,7 +431,7 @@ fn show_tools(ui: &mut Ui, args: &mut PresetArgs) {
             .show(ui, |_, _, _| {});
         lib.state = browser_state;
         lib.apply(out.events);
-        let labels = PresetLabels::default();
+        let labels = PresetLabels::of(ui);
         let events = PresetFooter::new(&mut lib.state, &labels)
             .new_group(false)
             .can_delete(lib.selected.is_some())
