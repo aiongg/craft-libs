@@ -38,7 +38,6 @@ use crate::popup_list;
 use crate::primitives::{FocusRing, Interactive};
 use crate::theme::{Tokens, TokensOf as _, UiTokens, role_format};
 
-#[allow(dead_code)] // read by the context menu
 /// A context menu the browser was asked for, on the item or header `key`, which the menu code
 /// opens and clears.
 #[derive(Clone, Debug)]
@@ -182,7 +181,6 @@ where
         reorder,
         labels,
         can_rename,
-        start_rename,
         view_lock,
         max_height,
         ..
@@ -193,9 +191,6 @@ where
     let rtl = direction::is_rtl(ui);
     let view = view_lock.unwrap_or(pstate.view);
     let mut st = State::<K>::load(ui.ctx(), id);
-    if let Some(key) = start_rename.filter(|key| rows.iter().any(|r| r.key == *key)) {
-        st.renaming = Some(key);
-    }
 
     let thumb = pstate.thumb_in(&thumb_range);
     let captions = has_captions(rows);

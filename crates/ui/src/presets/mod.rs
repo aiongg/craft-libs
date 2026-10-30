@@ -24,17 +24,22 @@ mod view_tests;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
+use std::rc::Rc;
 
 use egui::{AsIdSalt, IdSalt, Painter, Rect, Ui};
 
+use crate::composites::EmptyState;
+
 pub use drag::PresetReorder;
 pub use event::{PresetEvent, PresetOutput};
+pub use footer::{FooterEvent, PresetFooter};
+pub use menu::PresetExtra;
 pub use labels::PresetLabels;
 pub use model::{CellShape, PresetKind, PresetRow, Preview, ThumbInfo};
 pub use state::{DefaultOpen, PresetState, PresetView};
 pub use style::PresetStyle;
 
-type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
+use menu::KeyTest;
 
 /// A library of named presets shown as thumbnails: groups (with folders), a grid or a list, a
 /// thumbnail size, drag to reorder. The host keeps the library; the browser draws, senses and
@@ -78,8 +83,12 @@ pub struct PresetBrowser<'a, K> {
     thumb_range: RangeInclusive<f32>,
     default_open: DefaultOpen,
     reorder: Option<PresetReorder<'a, K>>,
-    labels: PresetLabels,
-    can_rename: Option<CanRename<'a, K>>,
+    labels: Rc<PresetLabels>,
+    can_rename: Option<KeyTest<'a, K>>,
+    can_delete: Option<KeyTest<'a, K>>,
+    can_move: Option<KeyTest<'a, K>>,
+    extra_items: Vec<PresetExtra>,
+    toolbar: bool,
     start_rename: Option<K>,
     view_lock: Option<PresetView>,
     max_height: Option<f32>,
@@ -100,8 +109,12 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
             thumb_range: 16.0..=96.0,
             default_open: DefaultOpen::All,
             reorder: None,
-            labels: PresetLabels::default(),
+            labels: Rc::new(PresetLabels::default()),
             can_rename: None,
+            can_delete: None,
+            can_move: None,
+            extra_items: Vec::new(),
+            toolbar: false,
             start_rename: None,
             view_lock: None,
             max_height: None,
@@ -148,13 +161,43 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
 
     /// The browser's words (default English).
     pub fn labels(mut self, labels: PresetLabels) -> Self {
-        self.labels = labels;
+        self.labels = Rc::new(labels);
         self
     }
 
     /// Where F2 may start a rename (default: everywhere).
     pub fn can_rename(mut self, can_rename: impl Fn(&K) -> bool + 'a) -> Self {
-        self.can_rename = Some(Box::new(can_rename));
+        self.can_rename = Some(Rc::new(can_rename));
+        self
+    }
+
+    /// Which presets and groups the context menu may delete (default: all); the entry is
+    /// disabled for the others.
+    pub fn can_delete(mut self, can_delete: impl Fn(&K) -> bool + 'a) -> Self {
+        self.can_delete = Some(Rc::new(can_delete));
+        self
+    }
+
+    /// Which presets the context menu offers "Move to" for (default: all); a library without
+    /// groups has no such entry.
+    pub fn can_move(mut self, can_move: impl Fn(&K) -> bool + 'a) -> Self {
+        self.can_move = Some(Rc::new(can_move));
+        self
+    }
+
+    /// Entries added to the context menu after the standard ones; choosing one reports
+    /// [`PresetEvent::Extra`].
+    pub fn extra_items(mut self, items: impl IntoIterator<Item = PresetExtra>) -> Self {
+        self.extra_items = items.into_iter().collect();
+        self
+    }
+
+    /// A row above the list with the search field and the grid and list buttons (the buttons
+    /// are left out under [`view_lock`](PresetBrowser::view_lock)). Without it there is no
+    /// search; the host puts the view entries in its panel menu with
+    /// [`PresetState::view_menu_items`].
+    pub fn toolbar(mut self, toolbar: bool) -> Self {
+        self.toolbar = toolbar;
         self
     }
 
@@ -176,11 +219,79 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
         self
     }
 
-    /// Shows the browser across the available width. `thumb` paints the thumbnail of a preset
-    /// into a rect, clipped to it; it runs for the cells and rows in view and for the drag's
-    /// ghost.
-    pub fn show(self, ui: &mut Ui, thumb: impl FnMut(&Painter, Rect, ThumbInfo<'_, K>)) -> PresetOutput<K> {
+    /// Shows the browser across the available width: the toolbar if asked for, the rename bar
+    /// while a rename is open, then the presets, or a message when there are none to show.
+    /// `thumb` paints the thumbnail of a preset into a rect, clipped to it; it runs for the cells
+    /// and rows in view and for the drag's ghost.
+    pub fn show(mut self, ui: &mut Ui, thumb: impl FnMut(&Painter, Rect, ThumbInfo<'_, K>)) -> PresetOutput<K> {
         let id = ui.make_persistent_id(self.id_salt);
-        view::show(self, id, ui, thumb)
+        let rows = self.rows;
+        let labels = Rc::clone(&self.labels);
+        let (can_rename, can_delete, can_move) = (self.can_rename.clone(), self.can_delete.clone(), self.can_move.clone());
+        let extras = std::mem::take(&mut self.extra_items);
+        if self.toolbar {
+            toolbar::show(ui, self.state, &labels, self.view_lock.is_none());
+        }
+        let renamed = bars(ui, id, rows, &labels, self.start_rename.take());
+        let filtering = self.state.filtering();
+        let message = if rows.is_empty() && !filtering {
+            Some(&labels.empty)
+        } else if filtering && layout::shown(rows, self.state, self.default_open).is_empty() {
+            Some(&labels.no_match)
+        } else {
+            None
+        };
+        let mut out = match message {
+            Some(text) => {
+                let response = EmptyState::new(text.as_str()).status_if(filtering).id_salt(id.with("empty")).show(ui).response;
+                PresetOutput { response, events: Vec::new(), drag: None }
+            }
+            None => view::show(self, id, ui, thumb),
+        };
+        if message.is_none() {
+            let spec = menu::Spec {
+                rows,
+                labels: &labels,
+                can_rename: can_rename.as_ref(),
+                can_delete: can_delete.as_ref(),
+                can_move: can_move.as_ref(),
+                extras: &extras,
+            };
+            menu::show(ui, id, &out.response, &spec, &mut out.events);
+        }
+        out.events.splice(0..0, renamed);
+        out
     }
+}
+
+/// The rename bar of the browser `id`, when a rename is open (or `start` opens one): it ends
+/// with the `Rename` event if the name changed.
+fn bars<K>(ui: &mut Ui, id: egui::Id, rows: &[PresetRow<K>], labels: &PresetLabels, start: Option<K>) -> Option<PresetEvent<K>>
+where
+    K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
+{
+    let mut st = view::State::<K>::load(ui.ctx(), id);
+    if let Some(key) = start.filter(|key| rows.iter().any(|r| r.key == *key)) {
+        st.renaming = Some(key);
+    }
+    let row = st.renaming.as_ref().and_then(|key| rows.iter().find(|r| r.key == *key));
+    let Some(row) = row else {
+        st.renaming = None;
+        st.store(ui.ctx(), id);
+        return None;
+    };
+    let ended = rename::show(ui, id.with("rename-bar"), id.with(&row.key), &row.label, labels);
+    let mut event = None;
+    if let Some(ended) = ended {
+        let key = st.renaming.take();
+        if let (rename::Ended::Commit(text), Some(key)) = (ended, key) {
+            let text = text.trim().to_owned();
+            if !text.is_empty() && text != row.label {
+                event = Some(PresetEvent::Rename { key, text });
+            }
+        }
+        ui.memory_mut(|m| m.request_focus(id));
+    }
+    st.store(ui.ctx(), id);
+    event
 }
