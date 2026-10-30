@@ -250,7 +250,7 @@ fn the_story_names_every_control() {
             .with_bool("two_rows", two_rows)
             .with_number("width", 1200.0, 160.0, 1200.0);
         let show = story.show;
-        let mut harness = harness(dir, 800.0).build_ui(move |ui| show(ui, &mut args));
+        let mut harness = harness(dir, 1200.0).build_ui(move |ui| show(ui, &mut args));
         harness.run();
         a11y::assert_labelled(&harness);
     }
