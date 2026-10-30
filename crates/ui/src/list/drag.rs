@@ -13,7 +13,7 @@ use super::row::{ListRow, ListRowStyle, RowEvent};
 use super::toggle::ToggleColumn;
 use super::view::{List, ListEvent};
 use crate::behavior::{Axis, DisplayOrder, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
-use crate::composites::NoArgs;
+use crate::controls::NoArgs;
 use crate::controls::button::Button;
 use crate::direction;
 use crate::edit::EditEvent;

@@ -57,10 +57,6 @@
 //! # });
 //! ```
 
-/// The args of a story that has none.
-#[derive(crate::story::StoryArgs, Debug, PartialEq)]
-pub(crate) struct NoArgs {}
-
 pub(crate) mod color;
 pub(crate) mod curve;
 pub(crate) mod curve_editor;

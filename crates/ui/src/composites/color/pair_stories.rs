@@ -3,9 +3,9 @@
 use craft_theme::Srgba;
 use egui::Ui;
 
-use super::super::NoArgs;
 use super::{PairWell, SwatchPair, Well};
 use crate::behavior::FieldTab;
+use crate::controls::NoArgs;
 use crate::controls::{TextField, slider};
 use crate::edit;
 use crate::localized::LocaleNumbers;

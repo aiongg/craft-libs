@@ -17,7 +17,7 @@ use crate::edit::ops::{self, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, parts};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, Text};
-use crate::story::{Args, Level, Story, StoryArgs, StoryChoice};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
@@ -739,13 +739,13 @@ pub(crate) fn stories() -> Vec<Story> {
             },
             show_levels
         ),
-        Story::new(
+        typed_story!(
             "composites/levels-editor/event-log",
             Level::Composites,
             "LevelsEditor",
             "Event log",
-            || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
-            show_event_log,
+            edit::PolicyArgs::default(),
+            show_event_log
         ),
     ]
 }
@@ -908,7 +908,7 @@ impl LogState {
 
 /// A levels editor under a [`GestureHost`], its events newest first and the undo steps counted.
 /// Cmd/Ctrl+Z undoes a step, or cancels the gesture under way.
-fn show_event_log(ui: &mut Ui, args: &mut Args) {
+fn show_event_log(ui: &mut Ui, args: &mut edit::PolicyArgs) {
     let policy = edit::policy(args);
     let numbers = LocaleNumbers::from_tag("en");
     let state_id = ui.scope_id().with("levels-editor-event-log");

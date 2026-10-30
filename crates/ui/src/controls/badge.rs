@@ -9,7 +9,7 @@ use egui::{Color32, CornerRadius, Rect, Response, Sense, Shape, Stroke, StrokeKi
 
 pub use craft_theme::{BadgeStyle, BadgeTone};
 
-use super::NoArgs;
+use crate::controls::NoArgs;
 use crate::primitives::{Gap, Row};
 use crate::story::{Level, Story, StoryArgs, variant_cluster, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};

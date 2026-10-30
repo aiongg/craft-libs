@@ -7,7 +7,7 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::drag::show_flat;
-use crate::composites::NoArgs;
+use crate::controls::NoArgs;
 use crate::direction::{self, Direction};
 use crate::theme::{Base, install};
 
