@@ -5,9 +5,9 @@ use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
 use egui::{Color32, CornerRadius, Rect, Response, Sense, Shape, Ui, Widget, WidgetInfo, pos2, vec2};
 
-use crate::controls::NoArgs;
 use crate::direction;
 use crate::primitives::{Surface, SurfaceEdge, SurfaceKind, SurfaceStyle};
+use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs, variant_cluster, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 use crate::typed_story;

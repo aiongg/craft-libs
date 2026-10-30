@@ -6,8 +6,8 @@ use egui::epaint::{Mesh, RectShape};
 use egui::{Color32, CornerRadius, InnerResponse, Painter, Pos2, Rect, Shadow, Shape, Stroke, StrokeKind, Ui, Vec2, vec2};
 
 use super::Corner;
-use crate::canvas::story::NoArgs;
 use crate::inspect::{self, RecordKind};
+use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;

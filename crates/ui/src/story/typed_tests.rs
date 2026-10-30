@@ -63,9 +63,10 @@ fn a_typed_story_keeps_what_it_changes() {
     let mut args = story.defaults();
     assert_eq!(args, sample().to_args().for_story("controls/x/y"));
     Context::default().run_ui(RawInput::default(), |ui| (story.show)(ui, &mut args)).drop_without_applying_deltas();
-    assert!(!args.bool("on"));
-    assert_eq!(args.choice("mode"), "last");
-    assert_eq!(args.number("amount"), 42.5);
+    let after = AllKinds::from_args(&args);
+    assert!(!after.on);
+    assert_eq!(after.mode, Mode::Last);
+    assert_eq!(after.amount, 42.5);
 }
 
 #[test]
@@ -141,4 +142,33 @@ fn integer_fields_round_to_the_nearest_value() {
     let mut args = sample().to_args();
     set_number(&mut args, "rows", 7.6);
     assert_eq!(AllKinds::from_args(&args).rows, 8);
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct Shared {
+    on: bool,
+    #[arg(range = 0.0..=10.0)]
+    gap: f64,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct Flattened {
+    label: String,
+    #[arg(flatten)]
+    shared: Shared,
+    mode: Mode,
+}
+
+#[test]
+fn a_flattened_struct_lists_its_args_in_place_and_round_trips() {
+    let value = Flattened { label: "Hi".into(), shared: Shared { on: true, gap: 3.0 }, mode: Mode::Last };
+    let args = value.to_args();
+    let expected = Args::new().with_text("label", "Hi").with_bool("on", true).with_number("gap", 3.0, 0.0, 10.0).with_choice(
+        "mode",
+        &["plain", "extra wide", "last"],
+        2,
+    );
+    assert_eq!(args, expected);
+    assert_eq!(Flattened::from_args(&args), value);
+    assert_eq!(<Flattened as StoryArgs>::ARG_COUNT, 4);
 }

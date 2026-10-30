@@ -3,7 +3,7 @@
 use egui::emath::GuiRounding as _;
 use egui::{Painter, Pos2, Response, Sense, Stroke, Ui, pos2, vec2};
 
-use crate::canvas::story::NoArgs;
+use crate::story::NoArgs;
 use crate::story::{Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;

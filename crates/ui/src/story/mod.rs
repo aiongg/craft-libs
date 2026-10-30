@@ -46,13 +46,24 @@
 //! );
 //! let args = story.defaults();
 //! assert_eq!(NoteArgs::from_args(&args).tone, Tone::Loud);
-//! assert_eq!(args.choice("tone"), "very loud");
+//! assert_eq!(NoteArgs::from_args(&args).label, "Hello");
 //! ```
 //!
 //! A component module with stories exposes `pub fn stories() -> Vec<Story>` and
 //! `pub const COMPONENTS: &[&str]` (the [`Story::component`] names it covers), and is added to
 //! the one list in `register!` (in this file), which defines [`registry`] and [`components`]. A
 //! test fails when a declared component has no story.
+//!
+//! - A story with no args uses [`NoArgs`] as its args type: `typed_story!(.., NoArgs {}, show)`.
+//! - Args shared by several stories are a struct of their own, flattened into each story's struct
+//!   with `#[arg(flatten)] shared: Shared`. Its args are listed in place and read back through
+//!   its own `to_args` and `from_args`.
+//! - `typed_story!` takes a path or a closure that captures nothing. Stories that differ only in
+//!   a function or a frame share one local wrapper macro that expands to `typed_story!` calls
+//!   (as `dock_story!` and `bar_story!` do), because a closure inside `typed_story!` cannot
+//!   capture the wrapper's parameters.
+//! - The gallery reads and edits the erased [`Args`] (`story.defaults()`, [`Arg`], [`ArgValue`]);
+//!   a story reads its own struct only.
 //!
 //! ```
 //! # egui::__run_test_ui(|ui| {
@@ -71,7 +82,7 @@ mod tests;
 #[cfg(test)]
 mod typed_tests;
 
-pub use args::{Arg, ArgValue, Args, StoryArgs, StoryChoice, show_typed};
+pub use args::{Arg, ArgValue, Args, NoArgs, StoryArgs, StoryChoice, show_typed};
 pub use choices::SizeArg;
 /// `#[derive(StoryArgs)]` and `#[derive(StoryChoice)]`; see the traits.
 pub use craft_ui_macros::{StoryArgs, StoryChoice};
@@ -171,7 +182,8 @@ pub struct Story {
 }
 
 impl Story {
-    /// A story on the panel surface.
+    /// A story on the panel surface. [`typed_story!`](crate::typed_story) calls this.
+    #[doc(hidden)]
     pub const fn new(
         id: &'static str,
         level: Level,

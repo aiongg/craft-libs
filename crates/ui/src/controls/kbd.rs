@@ -7,8 +7,8 @@ use egui::os::OperatingSystem;
 use egui::text::LayoutJob;
 use egui::{Color32, Key, KeyboardShortcut, ModifierNames, Modifiers, Rect, Response, Sense, Ui, Vec2, Widget, WidgetInfo, pos2, vec2};
 
-use crate::controls::NoArgs;
 use crate::primitives::{Content, Surface, SurfaceKind, SurfaceStyle};
+use crate::story::NoArgs;
 use crate::story::{Level, Story, variant_cluster, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 use crate::typed_story;

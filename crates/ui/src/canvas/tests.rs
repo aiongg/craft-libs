@@ -383,11 +383,11 @@ impl ToEguiPos for Point {
 #[test]
 fn the_story_canvas_view_follows_its_args() {
     let mut args = super::story::PlainArgs::default();
-    let view = with_ui(|ui| super::story::document(ui, args.view(), "Document").view);
+    let view = with_ui(|ui| super::story::document(ui, args.view, "Document").view);
     assert_eq!((view.zoom, view.rotation, view.flip_x, view.aspect), (1.0, 0.0, false, 1.0));
     assert_eq!(view.center, super::story::DOC.center());
-    args.rotation = 30.0;
-    let turned = with_ui(|ui| super::story::document(ui, args.view(), "Document").view);
+    args.view.rotation = 30.0;
+    let turned = with_ui(|ui| super::story::document(ui, args.view, "Document").view);
     assert_eq!(turned.rotation, 30.0);
 }
 

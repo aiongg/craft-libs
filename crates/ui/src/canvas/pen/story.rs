@@ -108,7 +108,7 @@ pub(crate) fn finished_paths() -> Vec<EditPath> {
 fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
     let key = ui.scope_id().with("pen-story");
     let mut host: PenHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PenHost::new(finished_paths()));
-    let canvas = crate::canvas::story::document(ui, args.view(), "Document");
+    let canvas = crate::canvas::story::document(ui, args.view, "Document");
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let selection = PathSelection::default();
     let names = BezierNames::new("Paths", "In handle", "Out handle", "Selection", |i, n| format!("Anchor {i} of {n}"));

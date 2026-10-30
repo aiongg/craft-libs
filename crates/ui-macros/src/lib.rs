@@ -16,6 +16,11 @@ use syn::{Data, DeriveInput, Expr, Fields, LitStr, Type, parse_macro_input, span
 /// `#[arg(name = "...")]` sets the arg's name where it is not the field name. Two fields with the
 /// same arg name are a compile error.
 ///
+/// `#[arg(flatten)]` on a field whose type is itself `StoryArgs` lists that type's args in place
+/// (its names, kinds and order) and reads and writes them through its own `to_args` and
+/// `from_args`. It cannot be combined with `name` or `range`. Arg names are not checked across
+/// the flattened struct and its parent; a clash panics in `to_args`.
+///
 /// The kind is read from the field's type name: only the single-segment names `bool`, `String`,
 /// `f64`, `f32` and the integer types are recognised. A path (`std::string::String`) or an alias
 /// is taken as a choice type. Integer fields read back the rounded value of the number arg.
@@ -49,17 +54,20 @@ fn string_attr(attrs: &[syn::Attribute], attr: &str, key: &str) -> syn::Result<O
     Ok(found)
 }
 
-/// `#[arg(name = "...", range = MIN..=MAX)]`.
+/// `#[arg(name = "...", range = MIN..=MAX)]` or `#[arg(flatten)]`.
 struct ArgAttr {
+    flatten: bool,
     name: Option<String>,
     range: Option<(Expr, Expr)>,
 }
 
 fn arg_attr(attrs: &[syn::Attribute]) -> syn::Result<ArgAttr> {
-    let mut out = ArgAttr { name: None, range: None };
+    let mut out = ArgAttr { flatten: false, name: None, range: None };
     for a in attrs.iter().filter(|a| a.path().is_ident("arg")) {
         a.parse_nested_meta(|meta| {
-            if meta.path.is_ident("name") {
+            if meta.path.is_ident("flatten") {
+                out.flatten = true;
+            } else if meta.path.is_ident("name") {
                 out.name = Some(meta.value()?.parse::<LitStr>()?.value());
             } else if meta.path.is_ident("range") {
                 let value: Expr = meta.value()?.parse()?;
@@ -71,7 +79,7 @@ fn arg_attr(attrs: &[syn::Attribute]) -> syn::Result<ArgAttr> {
                     _ => return Err(meta.error("`range` must be a closed range: `MIN..=MAX`")),
                 }
             } else {
-                return Err(meta.error("unknown `arg` option; expected `name` or `range`"));
+                return Err(meta.error("unknown `arg` option; expected `name`, `range` or `flatten`"));
             }
             Ok(())
         })?;
@@ -112,9 +120,24 @@ fn expand_args(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let mut adds = Vec::new();
     let mut reads = Vec::new();
     let mut seen = std::collections::HashSet::new();
+    // The number of args before the current field, as an expression: flattened fields count
+    // their own type's args.
+    let mut counts = Vec::new();
     for field in &fields.named {
         let Some(ident) = &field.ident else { continue };
         let attr = arg_attr(&field.attrs)?;
+        if attr.flatten {
+            if attr.name.is_some() || attr.range.is_some() {
+                return Err(syn::Error::new(field.span(), "`flatten` cannot be combined with `name` or `range`"));
+            }
+            let ty = &field.ty;
+            let before = quote!(0usize #(+ #counts)*);
+            adds.push(quote!(.with_args(&::craft_ui::story::StoryArgs::to_args(&self.#ident))));
+            reads.push(quote!(#ident: <#ty as ::craft_ui::story::StoryArgs>::from_args(&args.slice(#before, <#ty as ::craft_ui::story::StoryArgs>::ARG_COUNT))));
+            counts.push(quote!(<#ty as ::craft_ui::story::StoryArgs>::ARG_COUNT));
+            continue;
+        }
+        counts.push(quote!(1usize));
         let arg_name = attr.name.unwrap_or_else(|| ident.to_string());
         if !seen.insert(arg_name.clone()) {
             return Err(syn::Error::new(field.span(), format!("two args are named `{arg_name}`")));
@@ -145,6 +168,8 @@ fn expand_args(input: &DeriveInput) -> syn::Result<TokenStream2> {
     }
     Ok(quote! {
         impl #impl_generics ::craft_ui::story::StoryArgs for #name #ty_generics #where_clause {
+            const ARG_COUNT: usize = 0usize #(+ #counts)*;
+
             fn to_args(&self) -> ::craft_ui::story::Args {
                 ::craft_ui::story::Args::new() #(#adds)*
             }

@@ -2,6 +2,7 @@
 //! edits as PhotoCraft's Warp does in outline (an anchor carries its handles, a pull moves the
 //! patch's control points so the surface point follows the pointer).
 
+use crate::canvas::story::ViewArgs;
 use egui::{Color32, Mesh, Ui};
 use kurbo::{Point, Rect};
 
@@ -35,7 +36,20 @@ enum SplitArg {
     Horizontal,
 }
 
-crate::canvas::story::canvas_args!(WarpArgs { grid: GridArg = GridArg::One, editable: bool = true, split: SplitArg = SplitArg::Off });
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+struct WarpArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    grid: GridArg,
+    editable: bool,
+    split: SplitArg,
+}
+
+impl Default for WarpArgs {
+    fn default() -> Self {
+        Self { view: ViewArgs::default(), grid: GridArg::One, editable: true, split: SplitArg::Off }
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!("primitives/warp-grid/warp", Level::Primitives, "Warp grid", "Warp", WarpArgs::default(), show_warp).on(Surface::Canvas)]
@@ -179,7 +193,7 @@ fn show_warp(ui: &mut Ui, args: &mut WarpArgs) {
         .data(|d| d.get_temp::<(GridArg, WarpHost)>(key))
         .filter(|(g, _)| *g == grid)
         .map_or_else(|| WarpHost::new(WarpMesh::identity(PICTURE, size, size)), |(_, host)| host);
-    let canvas = super::super::story::document(ui, args.view(), "Document");
+    let canvas = super::super::story::document(ui, args.view, "Document");
     let view = &canvas.view;
     paint_picture(ui, view, &host.mesh);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());

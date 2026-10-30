@@ -15,7 +15,6 @@ use super::curve::{Curve, CurveOp, PointKey, Rules, follow_corners};
 use super::histogram::{ChannelColor, HistogramData, HistogramLook};
 use super::{PropertyLabel, PropertyRow};
 use crate::behavior::{ClaimedKey, KeyClaim};
-use crate::controls::NoArgs;
 use crate::controls::number_field::{self, FieldRule};
 use crate::controls::{Checkbox, NumberField};
 use crate::edit::ops::{self, ScalarOp};
@@ -24,6 +23,7 @@ use crate::edit::parts::{self, Pushed};
 use crate::edit::{self, EditPolicy, EditResponse, Gesture};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
+use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
@@ -1229,9 +1229,7 @@ pub(crate) fn stories() -> Vec<Story> {
                 fields: true,
                 width: 300.0,
                 values: ValuesArg::Levels,
-                update_rate: edit::RateArg::Realtime,
-                cancellable: true,
-                on_release_only: false
+                policy: edit::PolicyArgs::default()
             },
             show_curves
         ),
@@ -1267,11 +1265,8 @@ struct CurvesArgs {
     #[arg(range = 120.0..=400.0)]
     width: f32,
     values: ValuesArg,
-    #[arg(name = "update rate")]
-    update_rate: edit::RateArg,
-    cancellable: bool,
-    #[arg(name = "on release only")]
-    on_release_only: bool,
+    #[arg(flatten)]
+    policy: edit::PolicyArgs,
 }
 
 /// A host's curves and the "before" of the gesture under way, kept between frames.
@@ -1368,11 +1363,7 @@ fn show_curves(ui: &mut Ui, args: &mut CurvesArgs) {
             .overlays(&overlays)
             .pencil(pencil)
             .fields(args.fields)
-            .policy(edit::policy(&edit::PolicyArgs {
-                update_rate: args.update_rate,
-                cancellable: args.cancellable,
-                on_release_only: args.on_release_only,
-            }))
+            .policy(edit::policy(&args.policy))
             .hint(match pencil {
                 true => "Drag to draw · Shift-click for a straight line from the last stroke · Esc cancels",
                 false => "Click to add a point · drag off or Ctrl-click or Delete to remove",

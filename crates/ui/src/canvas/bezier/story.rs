@@ -1,5 +1,6 @@
 //! The path overlay's story, and the host the story and the tests keep their paths in.
 
+use crate::canvas::story::ViewArgs;
 use egui::{Color32, Ui};
 use kurbo::{ParamCurve as _, Point};
 
@@ -28,7 +29,19 @@ enum HandlesArg {
     All,
 }
 
-crate::canvas::story::canvas_args!(EditArgs { tool: ToolArg = ToolArg::Direct, handles: HandlesArg = HandlesArg::Selected });
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+struct EditArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    tool: ToolArg,
+    handles: HandlesArg,
+}
+
+impl Default for EditArgs {
+    fn default() -> Self {
+        Self { view: ViewArgs::default(), tool: ToolArg::Direct, handles: HandlesArg::Selected }
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!("primitives/bezier-paths/edit", Level::Primitives, "Bezier paths", "Edit", EditArgs::default(), show_paths).on(Surface::Canvas)]
@@ -220,7 +233,7 @@ fn show_paths(ui: &mut Ui, args: &mut EditArgs) {
         ToolArg::Direct => BezierTool::Direct,
     };
     let handles = if args.handles == HandlesArg::All { HandlesShown::All } else { HandlesShown::Selected };
-    let canvas = crate::canvas::story::document(ui, args.view(), "Document");
+    let canvas = crate::canvas::story::document(ui, args.view, "Document");
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let names = BezierNames::new("Paths", "In handle", "Out handle", "Selection", |i, n| format!("Anchor {i} of {n}"));
     let response = BezierOverlay::new("story-bezier", &host.paths, &host.selection, &px, &px, names).tool(tool).handles(handles).show(

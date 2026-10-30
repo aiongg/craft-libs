@@ -8,7 +8,7 @@ use kurbo::{Point, Rect};
 use super::{CanvasScrollbars, CanvasView, Claim, Readout, ScrollbarNames, crisp, hit};
 use crate::behavior::nudge;
 use crate::primitives::{Corner, FocusRing, Handle, HandleShape};
-use crate::story::{self, Level, Story, StoryArgs, StoryChoice, Surface};
+use crate::story::{self, Level, NoArgs, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf};
 use crate::typed_story;
 
@@ -47,61 +47,32 @@ impl PppArg {
 
 /// The story canvas's view args as values: `zoom` in percent of device pixels per document pixel
 /// (PhotoCraft's 100 %), `rotation` in degrees, `flip`, pixel `aspect` and `ppp`. Every canvas
-/// story's args struct has them first and returns them from `view()`; [`canvas_args!`] declares
-/// such a struct.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// story's args struct flattens it as its first field (`#[arg(flatten)] view: ViewArgs`) and
+/// passes `args.view` to [`document`].
+#[derive(StoryArgs, Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ViewArgs {
+    #[arg(range = 10.0..=800.0)]
     pub zoom: f64,
+    #[arg(range = -180.0..=180.0)]
     pub rotation: f64,
     pub flip: bool,
+    #[arg(range = 0.5..=2.0)]
     pub aspect: f64,
     pub ppp: PppArg,
 }
 
-/// Declares a canvas story's args struct: the five view args (`zoom`, `rotation`, `flip`,
-/// `aspect`, `ppp`), then the given fields with their defaults. Also `Default` and `view()`.  Field types are single tokens (the derive recognises `bool`, `f64`... by name).
-macro_rules! canvas_args {
-    ($(#[$meta:meta])* $vis:vis $name:ident { $($(#[$fmeta:meta])* $field:ident: $ty:tt = $default:expr),* $(,)? }) => {
-        $(#[$meta])*
-        #[derive($crate::story::StoryArgs, Debug, PartialEq)]
-        $vis struct $name {
-            #[arg(range = 10.0..=800.0)]
-            pub(crate) zoom: f64,
-            #[arg(range = -180.0..=180.0)]
-            pub(crate) rotation: f64,
-            pub(crate) flip: bool,
-            #[arg(range = 0.5..=2.0)]
-            pub(crate) aspect: f64,
-            pub(crate) ppp: $crate::canvas::story::PppArg,
-            $($(#[$fmeta])* $field: $ty,)*
-        }
-
-        impl Default for $name {
-            fn default() -> Self {
-                Self {
-                    zoom: 100.0,
-                    rotation: 0.0,
-                    flip: false,
-                    aspect: 1.0,
-                    ppp: $crate::canvas::story::PppArg::default(),
-                    $($field: $default,)*
-                }
-            }
-        }
-
-        impl $name {
-            pub(crate) fn view(&self) -> $crate::canvas::story::ViewArgs {
-                $crate::canvas::story::ViewArgs { zoom: self.zoom, rotation: self.rotation, flip: self.flip, aspect: self.aspect, ppp: self.ppp }
-            }
-        }
-    };
+impl Default for ViewArgs {
+    fn default() -> Self {
+        Self { zoom: 100.0, rotation: 0.0, flip: false, aspect: 1.0, ppp: PppArg::default() }
+    }
 }
-pub(crate) use canvas_args;
 
-canvas_args!(
-    /// The args of a canvas story with no args of its own.
-    pub(crate) PlainArgs {}
-);
+/// The args of a canvas story with no args of its own.
+#[derive(StoryArgs, Debug, Default, PartialEq)]
+pub(crate) struct PlainArgs {
+    #[arg(flatten)]
+    pub view: ViewArgs,
+}
 
 /// The story canvas drawn by [`document`]: its response (overlays sense through it) and view.
 pub(crate) struct StoryCanvas {
@@ -163,7 +134,18 @@ pub(crate) fn document_at(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32,
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Canvas", "Readout"];
 
-canvas_args!(ScrollbarsArgs { overscroll: bool = true });
+#[derive(StoryArgs, Debug, PartialEq)]
+struct ScrollbarsArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    overscroll: bool,
+}
+
+impl Default for ScrollbarsArgs {
+    fn default() -> Self {
+        Self { view: ViewArgs::default(), overscroll: true }
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -174,15 +156,11 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
-/// The args of a story with none; the stories of other modules with no args use it too.
-#[derive(StoryArgs, Debug, PartialEq)]
-pub(crate) struct NoArgs {}
-
 /// A point on the document: drag it (it claims the press), nudge it with the arrow keys while the
 /// canvas has focus; crisp lines along the document axes through it; the pointer's document
 /// position in a readout.
 fn show_document(ui: &mut Ui, args: &mut PlainArgs) {
-    let canvas = document(ui, args.view(), "Document");
+    let canvas = document(ui, args.view, "Document");
     let (response, view) = (&canvas.response, &canvas.view);
     let tokens = Tokens::of(ui);
     let key = ui.scope_id().with("canvas-story-point");
@@ -225,7 +203,7 @@ fn show_document(ui: &mut Ui, args: &mut PlainArgs) {
 fn show_scrollbars(ui: &mut Ui, args: &mut ScrollbarsArgs) {
     let key = ui.scope_id().with("canvas-story-scroll");
     let center: Point = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| DOC.center());
-    let canvas = document_at(ui, args.view(), "Document", 0.0, center);
+    let canvas = document_at(ui, args.view, "Document", 0.0, center);
     let mut view = canvas.view;
     let overscroll = args.overscroll;
     if !overscroll {

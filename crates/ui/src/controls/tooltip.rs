@@ -3,9 +3,10 @@
 use egui::text::LayoutJob;
 use egui::{Frame, KeyboardShortcut, Label, Margin, Response, Shadow, Stroke, Ui};
 
-use super::{Kbd, NoArgs};
+use super::Kbd;
 use crate::direction;
 use crate::primitives::{Content, Gap, Row, Text};
+use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, TokensOf, UiTokens, apply_popup_style, corner_radius, current, stroke};
 use crate::typed_story;

@@ -1,6 +1,7 @@
 //! [`Guides`]: ruler guides on a canvas, and [`SmartGuides`]: the alignment lines and distances a
 //! host shows while something moves.
 
+use crate::canvas::story::ViewArgs;
 use std::ops::Range;
 
 use egui::accesskit::Role;
@@ -1006,7 +1007,21 @@ impl LineArg {
     }
 }
 
-super::story::canvas_args!(GuidesArgs { line: LineArg = LineArg::Solid, interactive: bool = true, locked: bool = false, readout: bool = true });
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+struct GuidesArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    line: LineArg,
+    interactive: bool,
+    locked: bool,
+    readout: bool,
+}
+
+impl Default for GuidesArgs {
+    fn default() -> Self {
+        Self { view: ViewArgs::default(), line: LineArg::Solid, interactive: true, locked: false, readout: true }
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -1103,7 +1118,7 @@ fn show_guides(ui: &mut Ui, args: &mut GuidesArgs) {
         g.line = line;
         g.locked = args.locked && g.key == 2;
     }
-    let canvas = super::story::document(ui, args.view(), "Document");
+    let canvas = super::story::document(ui, args.view, "Document");
     let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
     let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
     let mut guides =
@@ -1119,7 +1134,7 @@ fn show_guides(ui: &mut Ui, args: &mut GuidesArgs) {
 /// Two boxes on the story document: the moving one's top aligned with the other's, 80 units to its
 /// right.
 fn show_smart_guides(ui: &mut Ui, args: &mut super::story::PlainArgs) {
-    let canvas = super::story::document(ui, args.view(), "Document");
+    let canvas = super::story::document(ui, args.view, "Document");
     let view = &canvas.view;
     let painter = ui.painter_at(view.rect);
     let still = Rect::new(120.0, 80.0, 280.0, 200.0);

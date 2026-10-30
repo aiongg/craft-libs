@@ -1,6 +1,7 @@
 //! [`Rulers`]: the strips along the top and left of a canvas, and the corner that holds the zero
 //! point.
 
+use crate::canvas::story::ViewArgs;
 use egui::accesskit::{self, Role};
 use egui::{
     Align2, AsIdSalt, Color32, Context, CursorIcon, FontId, Id, IdSalt, Modifiers, Painter, Pos2, Rect as ScreenRect, Sense, Stroke, Ui, WidgetInfo,
@@ -494,7 +495,20 @@ enum UnitsArg {
     Inches,
 }
 
-super::story::canvas_args!(CanvasArgs { units: UnitsArg = UnitsArg::Pixels, interactive: bool = true, locked: bool = false });
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+struct CanvasArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    units: UnitsArg,
+    interactive: bool,
+    locked: bool,
+}
+
+impl Default for CanvasArgs {
+    fn default() -> Self {
+        Self { view: ViewArgs::default(), units: UnitsArg::Pixels, interactive: true, locked: false }
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!("primitives/rulers/canvas", Level::Primitives, "Rulers", "Canvas", CanvasArgs::default(), show_canvas).on(Surface::Canvas)]
@@ -518,7 +532,7 @@ fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
     use kurbo::Rect;
 
     let tokens = Tokens::of(ui);
-    let canvas = super::story::document_in(ui, args.view(), "Document", tokens.component.ruler.size);
+    let canvas = super::story::document_in(ui, args.view, "Document", tokens.component.ruler.size);
     let (response, view, full) = (&canvas.response, &canvas.view, canvas.full);
 
     let key = ui.scope_id().with("rulers-story");

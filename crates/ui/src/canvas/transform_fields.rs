@@ -1,5 +1,6 @@
 //! [`TransformFields`]: the options bar's X, Y, W, H, angle and skew fields of a transform box.
 
+use crate::canvas::story::ViewArgs;
 use craft_theme::ControlSize;
 use egui::{Align, Layout, Ui, UiBuilder, vec2};
 use kurbo::{Rect, Vec2};
@@ -540,11 +541,20 @@ enum SizeUnitArg {
     Pixels,
 }
 
-story::canvas_args!(BoxArgs {
-    linked: bool = true,
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+struct BoxArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    linked: bool,
     #[arg(name = "size unit")]
-    size_unit: SizeUnitArg = SizeUnitArg::Percent,
-});
+    size_unit: SizeUnitArg,
+}
+
+impl Default for BoxArgs {
+    fn default() -> Self {
+        Self { view: ViewArgs::default(), linked: true, size_unit: SizeUnitArg::Percent }
+    }
+}
 
 fn show_story(ui: &mut Ui, args: &mut BoxArgs) {
     let key = ui.scope_id().with("transform-fields-story");
@@ -582,7 +592,7 @@ fn show_story(ui: &mut Ui, args: &mut BoxArgs) {
             }
         });
     });
-    let canvas = story::document(ui, args.view(), "Transform fields");
+    let canvas = story::document(ui, args.view, "Transform fields");
     let tokens = Tokens::of(ui);
     let painter = ui.painter_at(canvas.view.rect);
     let corners = state.quad.map(|p| canvas.view.to_screen(p));
