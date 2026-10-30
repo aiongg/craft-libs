@@ -66,6 +66,7 @@ impl Ramps {
             Source::Fixed(_)
             | Source::Oklch(..)
             | Source::Same(_)
+            | Source::Toward { .. }
             | Source::SolidFrom(_)
             | Source::ShiftedFrom { .. }
             | Source::OnSolid(_)
@@ -201,7 +202,12 @@ fn derived_values(unpinned: &ColorTokens, before_pass: &ColorTokens, pinned: &BT
     let mut out = *unpinned;
     for &t in ColorToken::ALL {
         let value = match values::source(t, mode) {
-            Source::Same(_) | Source::SolidFrom(_) | Source::ShiftedFrom { .. } | Source::OnSolid(_) | Source::Lighting(_)
+            Source::Same(_)
+            | Source::Toward { .. }
+            | Source::SolidFrom(_)
+            | Source::ShiftedFrom { .. }
+            | Source::OnSolid(_)
+            | Source::Lighting(_)
                 if !pinned.contains(&t) =>
             {
                 before_pass.get(t)
@@ -212,6 +218,8 @@ fn derived_values(unpinned: &ColorTokens, before_pass: &ColorTokens, pinned: &BT
             }
             // Lit like the anchored greys: from the panel's own value, pinned or not.
             Source::Lighting(amount) => lighting(before_pass.surface.panel, amount),
+            // Both ends precede the token in `ALL`, so `out` holds their derived values.
+            Source::Toward { from, to, t: share } => mix(out.get(from), out.get(to), share),
             Source::OnSolid(solids) => best_extreme(unpinned, solids),
             _ => continue,
         };
@@ -399,7 +407,9 @@ fn direct(r: &Ramps, src: Source) -> Option<Rgba> {
         Source::StatusMix { kind, from, to, t } => mix(r.status.get(kind).step(from), r.status.get(kind).step(to), t),
         Source::Fixed(c) => c,
         Source::Oklch(l, c, h) => super::color::Oklch { l, c, h }.to_rgba(),
-        Source::Same(_) | Source::SolidFrom(_) | Source::ShiftedFrom { .. } | Source::OnSolid(_) | Source::Lighting(_) => return None,
+        Source::Same(_) | Source::Toward { .. } | Source::SolidFrom(_) | Source::ShiftedFrom { .. } | Source::OnSolid(_) | Source::Lighting(_) => {
+            return None;
+        }
     })
 }
 
@@ -413,6 +423,7 @@ fn follow(c: &mut ColorTokens, ramp: &ColorTokens, pinned: &BTreeSet<ColorToken>
         match values::source(t, mode) {
             Source::Same(other) if on_solid || !is_foreground(t) => c.set(t, c.get(other)),
             Source::Lighting(amount) => c.set(t, lighting(c.surface.panel, amount)),
+            Source::Toward { from, to, t: share } => c.set(t, mix(c.get(from), c.get(to), share)),
             Source::SolidFrom(other) if on_solid => c.set(t, c.get(other)),
             Source::ShiftedFrom { base, from, to, away_from } if on_solid => {
                 c.set(t, shifted(c.get(base), ramp.get(from), ramp.get(to), c.get(away_from)))

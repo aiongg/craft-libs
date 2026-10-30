@@ -635,6 +635,18 @@ fn pins_replace_defaults_and_aliases_follow() {
     assert_eq!(high.tokens.color(T::SurfaceCanvas), Rgba::BLACK, "high-contrast pins apply over mode pins");
 }
 
+#[test]
+fn the_canvas_pattern_is_a_step_from_the_canvas_toward_the_text_unless_pinned() {
+    let mut def = grey_blue();
+    def.pins.dark = Pins::from_iter([(T::SurfaceBackground, hex("#203040"))]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens;
+    let want = derive::mix(r.color(T::SurfaceCanvas), r.color(T::TextNormal), values::CANVAS_PATTERN_SHARE);
+    assert_eq!(r.color(T::SurfaceCanvasPattern), want);
+    def.pins.dark = Pins::from_iter([(T::SurfaceCanvasPattern, hex("#445566"))]);
+    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens;
+    assert_eq!(r.color(T::SurfaceCanvasPattern), hex("#445566"));
+}
+
 /// The handle outline starts from the accent, pinned or not, and in high contrast darkens only as
 /// far as the white handle fill needs: a selected anchor is filled with it, the only mark of selection.
 #[test]

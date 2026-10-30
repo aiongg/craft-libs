@@ -77,6 +77,16 @@ pub enum ColorSource {
         /// How far toward `to`, 0..=1.
         t: f64,
     },
+    /// The final value of `from` moved `t` (0..=1) of the way toward the final value of `to`, in
+    /// OKLab.
+    Toward {
+        /// The token mixed from.
+        from: ColorToken,
+        /// The token mixed toward.
+        to: ColorToken,
+        /// How far toward `to`, 0..=1.
+        t: f64,
+    },
     /// A fixed colour.
     Fixed(Rgba),
     /// An OKLCH colour (lightness, chroma, hue), gamut-mapped.
@@ -139,6 +149,10 @@ const SOLID_HOVER: usize = 10;
 /// `status.<s>.solid_pressed`).
 const SOLID_PRESSED: (usize, usize, f64) = (10, 11, 0.5);
 
+/// How far `surface.canvas_pattern` lies from `surface.canvas` toward `text.normal`, as a share of
+/// the way: PhotoCraft's canvas dots are a faint step off the canvas.
+pub const CANVAS_PATTERN_SHARE: f64 = 0.15;
+
 /// How far a bevel's lit edge (`edge.light`) lies above `surface.panel` in OKLCH lightness, in
 /// either mode. Windows 2000's #d4d0c8 face (L 0.86) has a white lit edge.
 pub const BEVEL_LIT: f64 = 0.15;
@@ -158,7 +172,7 @@ pub(super) fn panel_step(mode: Mode) -> usize {
 /// The default source of `token` in `mode`.
 pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
     use ColorSource::{
-        Accent, AccentMix, Anchored, Fixed, Lighting, Neutral, Oklch, OnSolid, Same, ShiftedFrom, SolidFrom, StateVariant, Status, StatusMix,
+        Accent, AccentMix, Anchored, Fixed, Lighting, Neutral, Oklch, OnSolid, Same, ShiftedFrom, SolidFrom, StateVariant, Status, StatusMix, Toward,
     };
     use StatusKind::{Bad, Good, Info, Warn};
     let dark = mode == Mode::Dark;
@@ -170,6 +184,7 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
     match token {
         T::SurfaceBackground => Anchored(pick(2, 3)),
         T::SurfaceCanvas => Same(T::SurfaceBackground),
+        T::SurfaceCanvasPattern => Toward { from: T::SurfaceCanvas, to: T::TextNormal, t: CANVAS_PATTERN_SHARE },
         T::SurfacePanel => Neutral(panel_step(mode)),
         T::SurfaceChrome => Same(T::SurfacePanel),
         T::SurfaceRaised => Anchored(pick(4, 1)),

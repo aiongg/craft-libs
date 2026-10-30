@@ -56,6 +56,9 @@ pub struct SurfaceColors {
     pub background: Rgba,
     /// Around the document on a canvas; follows `background` unless pinned.
     pub canvas: Rgba,
+    /// The dots or grid an app may draw on the canvas outside the document; a faint step from
+    /// `canvas` toward `text.normal` unless pinned.
+    pub canvas_pattern: Rgba,
     /// Panels, bars and rails.
     pub panel: Rgba,
     /// Window chrome: title bars, toolbars, option bars, rulers and scrollbar tracks; follows
@@ -289,7 +292,18 @@ impl ColorTokens {
     pub(super) const fn splat(c: Rgba) -> ColorTokens {
         let status = StatusColors { fg: c, bg: c, border: c, solid: c, solid_hover: c, solid_pressed: c };
         ColorTokens {
-            surface: SurfaceColors { background: c, canvas: c, panel: c, chrome: c, raised: c, sunken: c, knob: c, scrim: c, shadow: c },
+            surface: SurfaceColors {
+                background: c,
+                canvas: c,
+                canvas_pattern: c,
+                panel: c,
+                chrome: c,
+                raised: c,
+                sunken: c,
+                knob: c,
+                scrim: c,
+                shadow: c,
+            },
             text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_strong: c, on_status: c, on_selected: c },
             line: LineColors { divider: c, border: c, control_edge: c, knob_edge: c, mark: c, focus: c },
             accent: AccentColors { solid: c, hover: c, pressed: c, strong: c, strong_hover: c, strong_pressed: c, soft: c, border: c, text: c },
@@ -362,6 +376,8 @@ color_tokens! {
     SurfaceBackground = "surface.background" => surface.background;
     /// `surface.canvas`
     SurfaceCanvas = "surface.canvas" => surface.canvas;
+    /// `surface.canvas_pattern`
+    SurfaceCanvasPattern = "surface.canvas_pattern" => surface.canvas_pattern;
     /// `surface.panel`
     SurfacePanel = "surface.panel" => surface.panel;
     /// `surface.chrome`
@@ -566,8 +582,13 @@ impl ColorToken {
     /// Whether this is a surface that text and fills sit on, or a knob that covers them
     /// (`surface.*` except `scrim` and `shadow`); those must be opaque.
     pub const fn is_opaque_surface(self) -> bool {
-        use ColorToken::{SurfaceBackground, SurfaceCanvas, SurfaceChrome, SurfaceKnob, SurfacePanel, SurfaceRaised, SurfaceSunken};
-        matches!(self, SurfaceBackground | SurfaceCanvas | SurfaceChrome | SurfacePanel | SurfaceRaised | SurfaceSunken | SurfaceKnob)
+        use ColorToken::{
+            SurfaceBackground, SurfaceCanvas, SurfaceCanvasPattern, SurfaceChrome, SurfaceKnob, SurfacePanel, SurfaceRaised, SurfaceSunken,
+        };
+        matches!(
+            self,
+            SurfaceBackground | SurfaceCanvas | SurfaceCanvasPattern | SurfaceChrome | SurfacePanel | SurfaceRaised | SurfaceSunken | SurfaceKnob
+        )
     }
 }
 
