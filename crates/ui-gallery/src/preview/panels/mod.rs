@@ -48,6 +48,7 @@ impl Panel {
 pub struct State {
     layers: layers::State,
     channels: channels::State,
+    properties: properties::State,
     history: history::State,
 }
 
@@ -57,8 +58,8 @@ impl Panel {
         match self {
             Panel::Canvas => {}
             Panel::Swatches => swatches::show(ui, mock),
-            Panel::Properties => properties::show(ui),
-            Panel::Adjustments => adjustments::show(ui),
+            Panel::Properties => properties::show(ui, mock, &mut state.properties),
+            Panel::Adjustments => adjustments::show(ui, mock),
             Panel::Layers => layers::show(ui, mock, &mut state.layers),
             Panel::Channels => channels::show(ui, &mut state.channels),
             Panel::History => history::show(ui, mock, &mut state.history),

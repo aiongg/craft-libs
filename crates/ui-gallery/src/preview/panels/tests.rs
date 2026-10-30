@@ -170,3 +170,81 @@ fn history_records_one_row_per_committed_layer_property_change() {
     assert_eq!(history.len(), before + 1);
     assert_eq!(history.last().map(String::as_str), Some("Lock Layers"));
 }
+
+impl Fixture {
+    /// Focuses the number field and replaces its text, then leaves it (a typed, committed entry).
+    fn type_into(&mut self, name: &str, text: &str) {
+        let tree = self.settled();
+        let nodes: Vec<_> = tree
+            .walk(tree.root())
+            .into_iter()
+            .map(|(id, _)| id)
+            .filter(|id| tree.name(*id).as_deref() == Some(name) && tree.node(*id).is_some_and(|n| n.role() == Role::SpinButton))
+            .collect();
+        assert_eq!(nodes.len(), 1, "one control named {name:?}: {:?}", nodes.iter().map(|id| tree.node(*id).map(|n| n.role())).collect::<Vec<_>>());
+        let request = ActionRequest { action: Action::Focus, target_tree: TreeId::ROOT, target_node: nodes[0], data: None };
+        self.frame(vec![Event::AccessKitActionRequest(request)]);
+        let select_all = Event::Key { key: Key::A, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND };
+        self.frame(vec![select_all]);
+        self.frame(vec![Event::Text(text.to_owned())]);
+        self.key(Key::Tab);
+    }
+
+    fn rect(&self, id: u64) -> [f32; 4] {
+        self.preview.mock.doc.layer(id).expect("layer").rect
+    }
+}
+
+#[test]
+fn width_with_the_link_on_keeps_the_ratio_and_moves_nothing_else() {
+    let mut fixture = Fixture::new();
+    let history = fixture.preview.mock.history.len();
+    fixture.click("Constrain proportions", Role::Button);
+    fixture.type_into("Width", "250");
+    assert_eq!(fixture.rect(3), [500.0, 300.0, 250.0, 200.0]);
+    assert_eq!(fixture.preview.mock.history.len(), history + 1, "one committed edit, one row");
+    assert_eq!(fixture.preview.mock.history.last().map(String::as_str), Some("Transform"));
+    assert!(fixture.preview.mock.doc.modified);
+}
+
+#[test]
+fn an_x_edit_moves_the_layer() {
+    let mut fixture = Fixture::new();
+    fixture.type_into("X", "120");
+    assert_eq!(fixture.rect(3), [120.0, 300.0, 500.0, 400.0]);
+    assert_eq!(fixture.preview.mock.history.last().map(String::as_str), Some("Move Layer"));
+}
+
+#[test]
+fn an_align_button_puts_the_layers_edge_on_the_page() {
+    let mut fixture = Fixture::new();
+    // The Move bar has the same buttons; the Marquee bar has none.
+    fixture.preview.mock.tools.current = crate::preview::model::Tool::RectMarquee;
+    fixture.click("Align right edges", Role::Button);
+    assert_eq!(fixture.rect(3), [700.0, 300.0, 500.0, 400.0]);
+    assert_eq!(fixture.preview.mock.history.last().map(String::as_str), Some("Align"));
+}
+
+#[test]
+fn a_brightness_edit_changes_the_adjustment_and_the_layer_below() {
+    let mut fixture = Fixture::new();
+    fixture.click("New adjustment layer", Role::Button);
+    let id = fixture.preview.mock.doc.selected[0];
+    let below = fixture.preview.mock.doc.shown_color(1);
+    fixture.type_into("Brightness", "50");
+    let kind = &fixture.preview.mock.doc.layer(id).unwrap().kind;
+    assert_eq!(*kind, super::super::model::LayerKind::Adjustment { brightness: 50, contrast: 0, clip: false });
+    assert_ne!(fixture.preview.mock.doc.shown_color(1), below, "the colour of the layer below follows");
+    assert_eq!(fixture.preview.mock.history.last().map(String::as_str), Some("Brightness/Contrast"));
+}
+
+#[test]
+fn an_adjustments_button_adds_a_layer_above_the_selection_and_selects_it() {
+    let mut fixture = Fixture::new();
+    fixture.click("Adjustments", Role::Button);
+    fixture.click("Hue/Saturation", Role::Button);
+    let doc = &fixture.preview.mock.doc;
+    assert_eq!(doc.layers.len(), 4);
+    assert_eq!(doc.layers[0].name, "Hue/Saturation");
+    assert_eq!(doc.selected, [doc.layers[0].id]);
+}

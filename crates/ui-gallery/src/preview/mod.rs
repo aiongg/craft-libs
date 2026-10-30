@@ -5,8 +5,6 @@
 //! `ui.max_rect()`; the caller decides where that is (a gallery story today, the Theme
 //! workspace's centre later).
 
-#![allow(dead_code, unused_imports, reason = "the canvas, dock and dialog steps use the rest of the model and the stubs' functions")]
-
 mod canvas;
 mod chrome;
 mod dialog;

@@ -5,7 +5,7 @@ use craft_ui::controls::{Checkbox, IconButton, NumberField, Select};
 use craft_ui::dialog::{Dialog, DialogState, Footer, Outcome};
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
-use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::localized::LocaleNumbers;
 use craft_ui::primitives::Text;
 use egui::Ui;
 
