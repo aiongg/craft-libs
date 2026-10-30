@@ -31,6 +31,10 @@ pub struct OptionsBarTokens {
     pub scroll_bar: f32,
     /// Side of the Home, tool icon, commit and cancel buttons: `options_bar.button`.
     pub button: f32,
+    /// Width and height of the chevron slot beside the tool icon: `options_bar.chevron`.
+    pub chevron: [f32; 2],
+    /// Room under the content for font ink: `options_bar.ink_room`.
+    pub ink_room: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -58,6 +62,8 @@ impl Family for OptionsBarTokens {
             field_lg: scale(values::OPTIONS_BAR_FIELD_LG),
             scroll_bar: values::OPTIONS_BAR_SCROLL_BAR,
             button: s.set.options_bar_button,
+            chevron: values::OPTIONS_BAR_CHEVRON,
+            ink_room: values::OPTIONS_BAR_INK_ROOM,
         }
     }
 

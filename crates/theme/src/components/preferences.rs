@@ -17,6 +17,8 @@ pub struct PreferencesTokens {
     pub choice_width: f32,
     /// Width of a text row's control: `preferences.text_width`, 260 at Compact, scaled likewise.
     pub text_width: f32,
+    /// Height of a page body laid out in an unbounded rect: `preferences.body_fallback_height`.
+    pub body_fallback_height: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -35,6 +37,7 @@ impl Family for PreferencesTokens {
             page_gap: s.space.pad.panel,
             choice_width: scale(values::PREFERENCES_CHOICE_WIDTH),
             text_width: scale(values::PREFERENCES_TEXT_WIDTH),
+            body_fallback_height: values::PREFERENCES_BODY_FALLBACK_HEIGHT,
         }
     }
 

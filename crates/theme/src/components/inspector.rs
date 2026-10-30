@@ -16,6 +16,8 @@ pub struct InspectorTokens {
     pub icon: f32,
     /// Padding round the body: `inspector.pad` (`space.pad.panel`).
     pub pad: f32,
+    /// Least width left to the name before the kind text is dropped: `inspector.kind_min_name`.
+    pub kind_min_name: f32,
     /// The header's name: `text.normal`.
     pub title: Rgba,
     /// The header's kind text: `text.faint`.
@@ -41,6 +43,7 @@ impl Family for InspectorTokens {
             header_height: s.set.inspector_header_height,
             icon: s.set.inspector_icon,
             pad: s.space.pad.panel,
+            kind_min_name: values::INSPECTOR_KIND_MIN_NAME,
             title: s.color.text.normal,
             kind: s.color.text.faint,
         }

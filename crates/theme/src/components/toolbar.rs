@@ -3,6 +3,7 @@
 //! button is the icon button's toggle look.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use crate::values;
 
 /// Toolbar tokens, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -22,6 +23,9 @@ pub struct ToolbarTokens {
     pub width: f32,
     /// Width of the overflow button: `toolbar.overflow`.
     pub overflow: f32,
+    /// Space between two buttons laid out by the toolbar, the button's side less 2:
+    /// `toolbar.spacing`.
+    pub spacing: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -42,6 +46,7 @@ impl Family for ToolbarTokens {
             pad: s.set.toolbar_pad,
             width: s.set.toolbar_width,
             overflow: s.set.toolbar_overflow,
+            spacing: s.set.toolbar_button - values::TOOLBAR_SPACING_TRIM,
         }
     }
 

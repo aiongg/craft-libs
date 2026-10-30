@@ -60,6 +60,8 @@ pub struct ListTokens {
     pub bracket_outset: f32,
     /// Arm length of the second-thumb brackets: `list.bracket_arm`.
     pub bracket_arm: f32,
+    /// Where the drag ghost starts from the pointer toward the reading end: `list.ghost_offset`.
+    pub ghost_offset: [f32; 2],
     /// Type role of the label.
     pub label: TypeRole,
     /// Type role of the detail line under the label.
@@ -531,6 +533,7 @@ impl Family for ListTokens {
             drop_halo_width: values::LIST_DROP_HALO,
             bracket_outset: values::LIST_BRACKET_OUTSET,
             bracket_arm: values::LIST_BRACKET_ARM,
+            ghost_offset: values::LIST_GHOST_OFFSET,
             label: TypeRole::Body,
             detail_role: TypeRole::Caption,
             text: c.text.normal,

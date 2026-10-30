@@ -36,6 +36,12 @@ pub struct DialogTokens {
     pub width_standard: f32,
     /// Greatest content width of a Wide dialog: `dialog.width_wide`.
     pub width_wide: f32,
+    /// Content width of an alert or a prompt: `dialog.width_alert`.
+    pub width_alert: f32,
+    /// Default size of a secondary viewport's window: `dialog.viewport_size`.
+    pub viewport_size: [f32; 2],
+    /// Least size of a secondary viewport's window: `dialog.viewport_min`.
+    pub viewport_min: [f32; 2],
     /// Space kept between a dialog and the window edge on each side: `dialog.window_margin`.
     pub window_margin: f32,
     /// The same for a resizable dialog's greatest size: `dialog.resize_margin`.
@@ -75,6 +81,9 @@ impl Family for DialogTokens {
             width_min: values::DIALOG_WIDTH_MIN,
             width_standard: values::DIALOG_WIDTH_STANDARD,
             width_wide: values::DIALOG_WIDTH_WIDE,
+            width_alert: values::DIALOG_WIDTH_ALERT,
+            viewport_size: values::DIALOG_VIEWPORT_SIZE,
+            viewport_min: values::DIALOG_VIEWPORT_MIN,
             window_margin: values::DIALOG_WINDOW_MARGIN,
             resize_margin: values::DIALOG_RESIZE_MARGIN,
             keep_visible: values::DIALOG_KEEP_VISIBLE,

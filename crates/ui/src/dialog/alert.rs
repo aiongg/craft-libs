@@ -66,7 +66,7 @@ impl<'a> Alert<'a> {
             i.events.retain(|e| !matches!(e, Event::Key { key: Key::Enter, pressed: true, repeat, .. } if *repeat || opening));
         });
         let mut dialog = Dialog::with_id(id, title)
-            .width(Width::Fixed(420.0))
+            .width(Width::Fixed(crate::theme::current(ctx).component.dialog.width_alert))
             .footer(Footer::standard().ok(ok_label).without_cancel())
             .initial_focus(InitialFocus::DefaultButton)
             .role(Role::AlertDialog)

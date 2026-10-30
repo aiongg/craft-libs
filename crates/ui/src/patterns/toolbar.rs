@@ -187,7 +187,7 @@ impl<'a> Toolbar<'a> {
             pad: t.pad,
             width: t.width,
             overflow: t.overflow,
-            spacing: t.button - 2.0,
+            spacing: t.spacing,
             fill: tokens.color.surface.panel.to_egui(),
         }
     }

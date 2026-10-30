@@ -501,12 +501,22 @@ pub const PROPERTY_COLUMN_GAP: f32 = 8.0;
 /// Compact width of the slot between a pair's columns.
 pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
 
+/// Least width left to an inspector header's name before its kind text is dropped, in points.
+pub const INSPECTOR_KIND_MIN_NAME: f32 = 60.0;
+/// Taken from a toolbar button's side for the space between two buttons laid out by the toolbar, in points.
+pub const TOOLBAR_SPACING_TRIM: f32 = 2.0;
+/// Width and height of the chevron slot beside the options bar's tool icon, in points, at every Size.
+pub const OPTIONS_BAR_CHEVRON: [f32; 2] = [10.0, 20.0];
+/// Room under an options bar's content for font ink, in points.
+pub const OPTIONS_BAR_INK_ROOM: f32 = 2.0;
 /// Width of a preferences window's page list column, at every Size (PhotoCraft's `prefs_ui` side list).
 pub const PREFERENCES_LIST_WIDTH: f32 = 170.0;
 /// Width of a choice row's control at Compact (PhotoCraft's select column); Comfortable scales it by the control height.
 pub const PREFERENCES_CHOICE_WIDTH: f32 = 220.0;
 /// Width of a text row's control at Compact; Comfortable scales it by the control height.
 pub const PREFERENCES_TEXT_WIDTH: f32 = 260.0;
+/// Height given to a page body laid out in an unbounded rect, in points.
+pub const PREFERENCES_BODY_FALLBACK_HEIGHT: f32 = 600.0;
 
 /// Least thumbnail side of a preset list row, at every Size.
 pub const PRESET_THUMB_LIST_MIN: f32 = 16.0;
@@ -667,6 +677,10 @@ pub const COLOR_PICKER_PAIR_STEP: f32 = 10.0;
 pub const COLOR_PICKER_PAIR_GAP: f32 = 2.0;
 /// Compact width of a swatch pair's ring well.
 pub const COLOR_PICKER_PAIR_RING: f32 = 7.0;
+/// Side of the Defaults and Swap icon boxes over a swatch pair's chips, in points, at every Size.
+pub const COLOR_PICKER_PAIR_ICON: f32 = 13.0;
+/// Between those icon boxes and the chips, in points, at every Size.
+pub const COLOR_PICKER_PAIR_ICON_GAP: f32 = 3.0;
 
 /// The control height the Compact colour wheel, ramp and gradient palette sizes are set for;
 /// other sizes scale them by their control height over this.
@@ -725,6 +739,8 @@ pub const GRADIENT_PALETTE_LIST_SWATCH_WIDTH: f32 = 48.0;
 pub const GRADIENT_PALETTE_LIST_SWATCH_HEIGHT: f32 = 16.0;
 /// Compact height at which a gradient palette scrolls.
 pub const GRADIENT_PALETTE_MAX_HEIGHT: f32 = 120.0;
+/// Room round each palette cell, in points, at every Size.
+pub const GRADIENT_PALETTE_CELL_ROOM: f32 = 3.0;
 
 /// The control height the Compact curve editor sizes are set for.
 pub const CURVE_BASE_CONTROL: f32 = 24.0;
@@ -804,6 +820,8 @@ pub const LIST_DROP_HALO: f32 = 1.0;
 pub const LIST_BRACKET_OUTSET: f32 = 3.0;
 /// Arm length of the second-thumb brackets.
 pub const LIST_BRACKET_ARM: f32 = 6.0;
+/// Where a drag ghost's box starts from the pointer toward the reading end, in points (PhotoCraft).
+pub const LIST_GHOST_OFFSET: [f32; 2] = [12.0, -10.0];
 /// How far a selected row's dimmed label and detail line move from `text.on_selected` toward the
 /// selected fill (OKLab mix), before their contrast minimum.
 pub const LIST_SELECTED_QUIET: f64 = 0.4;
@@ -1186,6 +1204,8 @@ pub const PROGRESS_TRACK: f32 = 6.0;
 
 /// Widest a tooltip's text grows before it wraps, in points (PhotoCraft's `tooltip_width`, `theme.rs:1093`).
 pub const TOOLTIP_WIDTH: f32 = 280.0;
+/// Distance between the pointer and a pointer-anchored tooltip, in points, at every Size.
+pub const TOOLTIP_POINTER_GAP: f32 = 12.0;
 
 /// Outer width of a toast card, in points, at every Size.
 pub const TOAST_WIDTH: f32 = 360.0;
@@ -1281,6 +1301,12 @@ pub const DIALOG_WIDTH_MIN: f32 = 380.0;
 pub const DIALOG_WIDTH_STANDARD: f32 = 440.0;
 /// Greatest content width of a Wide dialog.
 pub const DIALOG_WIDTH_WIDE: f32 = 600.0;
+/// Content width of an alert or a prompt.
+pub const DIALOG_WIDTH_ALERT: f32 = 420.0;
+/// Default size of a secondary viewport's window, in points.
+pub const DIALOG_VIEWPORT_SIZE: [f32; 2] = [480.0, 360.0];
+/// Least size of a secondary viewport's window, in points.
+pub const DIALOG_VIEWPORT_MIN: [f32; 2] = [240.0, 160.0];
 /// Space kept between a dialog and the window edge on each side (PhotoCraft: width minus 48).
 pub const DIALOG_WINDOW_MARGIN: f32 = 24.0;
 /// The same for a resizable dialog's greatest size (PhotoCraft: minus 40 in total).

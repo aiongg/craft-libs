@@ -21,10 +21,6 @@ use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
-/// Width the name keeps before the kind text is shown (PhotoCraft's `props_layout::header`), in
-/// points.
-const KIND_MIN_NAME: f32 = 60.0;
-
 crate::words! {
     /// The text an inspector writes itself.
     pub(crate) struct InspectorLabels {
@@ -123,7 +119,7 @@ impl InspectorHeader {
         let mut name_end = end;
         let kind = self.kind.as_deref().and_then(|kind| {
             let width = ui.painter().layout_no_wrap(kind.to_owned(), tokens.font(style.kind_role), style.kind).size().x;
-            (rect.width() >= width + KIND_MIN_NAME).then_some((kind, width))
+            (rect.width() >= width + tokens.component.inspector.kind_min_name).then_some((kind, width))
         });
         if let Some((kind, width)) = kind {
             let kind_start = end - forward * width;

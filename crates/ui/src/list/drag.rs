@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use egui::mutex::Mutex;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{Id, LayerId, Order, Painter, Pos2, Rect, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
+use egui::{Id, LayerId, Order, Painter, Pos2, Rect, Stroke, StrokeKind, Ui, pos2, vec2};
 
 use super::row::{ListRow, ListRowStyle, RowEvent};
 use super::toggle::ToggleColumn;
@@ -45,9 +45,6 @@ pub(super) fn all_shown<K: Eq + Hash>(rows: &(impl DisplayOrder<K> + ?Sized), it
     missing.is_empty()
 }
 
-/// Where the ghost's box starts from the pointer (PhotoCraft), toward the reading end.
-const GHOST_OFFSET: Vec2 = Vec2::new(12.0, -10.0);
-
 /// Paints the thumbnail of a ghost into the rect, a square of the given side.
 pub(crate) type GhostThumb<'a> = (f32, &'a dyn Fn(&Painter, Rect));
 
@@ -64,8 +61,8 @@ pub(crate) fn paint_ghost(ui: &Ui, list: Id, style: &ListRowStyle, label: &str, 
     let galley = painter.layout_job(job);
     let size = vec2(galley.size().x + lead, galley.size().y.max(side)) + 2.0 * pad;
     let rtl = direction::is_rtl(ui);
-    let left = if rtl { pointer.x - GHOST_OFFSET.x - size.x } else { pointer.x + GHOST_OFFSET.x };
-    let rect = Rect::from_min_size(pos2(left, pointer.y + GHOST_OFFSET.y), size);
+    let left = if rtl { pointer.x - style.ghost_offset.x - size.x } else { pointer.x + style.ghost_offset.x };
+    let rect = Rect::from_min_size(pos2(left, pointer.y + style.ghost_offset.y), size);
     painter.rect(rect, corner_radius(style.ghost_radius), style.ghost_fill, Stroke::new(1.0, style.ghost_border), StrokeKind::Inside);
     let inner = rect.shrink2(pad);
     let text_x = if rtl { inner.right() - lead - galley.size().x } else { inner.left() + lead };

@@ -14,6 +14,8 @@ use crate::values;
 pub struct TooltipTokens {
     /// Widest the text grows before it wraps.
     pub max_width: f32,
+    /// Distance between the pointer and a pointer-anchored tooltip: `tooltip.pointer_gap`.
+    pub pointer_gap: f32,
     /// Corner radius: `shape.radius.popup`.
     pub radius: f32,
     /// Card fill: `surface.panel`, the card of PhotoCraft's windows.
@@ -45,6 +47,7 @@ impl Family for TooltipTokens {
         let c = s.color;
         TooltipTokens {
             max_width: values::TOOLTIP_WIDTH,
+            pointer_gap: values::TOOLTIP_POINTER_GAP,
             radius: s.shape.radius.popup,
             fill: c.surface.panel,
             text: c.text.normal,
