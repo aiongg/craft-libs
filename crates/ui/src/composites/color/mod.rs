@@ -9,6 +9,10 @@
 //! drag to grey keeps the hue, a drag to black keeps hue and saturation.
 
 mod area;
+mod disc;
+mod disc_stories;
+#[cfg(test)]
+mod disc_tests;
 mod full_stories;
 #[cfg(test)]
 mod full_tests;
@@ -40,6 +44,7 @@ use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, OklchModel, RgbMo
 use egui::{Color32, Stroke, Ui, Vec2, vec2};
 
 pub use area::ColorArea;
+pub use disc::{ColorDisc, ColorDiscResponse, ColorDiscStyle, DiscMove};
 pub use hex::HexField;
 pub use pair::{PairWell, SwatchPair, SwatchPairResponse, SwatchPairStyle, Well};
 pub use palette::SwatchPalette;
@@ -296,7 +301,7 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "HexField", "SwatchPair", "SwatchPalette", "ColorWheel"];
+pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "HexField", "SwatchPair", "SwatchPalette", "ColorWheel", "ColorDisc"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum ModeArg {
@@ -432,6 +437,7 @@ pub(crate) fn stories() -> Vec<Story> {
     stories.extend(full_stories::stories());
     stories.extend(pair_stories::stories());
     stories.extend(wheel_stories::stories());
+    stories.extend(disc_stories::stories());
     stories
 }
 

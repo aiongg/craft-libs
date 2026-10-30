@@ -421,7 +421,7 @@ impl ColorWheel {
     }
 }
 
-fn finite(v: f32) -> f32 {
+pub(super) fn finite(v: f32) -> f32 {
     if v.is_finite() { v } else { 0.0 }
 }
 
@@ -461,7 +461,7 @@ fn hue_applied(op: &ScalarOp, values: &ModelValues) -> ModelValues {
 }
 
 /// The colour of HSB `[h, s, b]` (degrees and percents) as a vertex colour.
-fn vertex(h: f32, s: f32, b: f32) -> egui::Color32 {
+pub(super) fn vertex(h: f32, s: f32, b: f32) -> egui::Color32 {
     HsbModel.to_srgb(&ModelValues::new("hsb", &[h, s, b]).values).into()
 }
 
