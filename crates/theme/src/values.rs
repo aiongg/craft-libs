@@ -1284,8 +1284,6 @@ pub const RAIL_TOGGLE_ICON: f32 = 11.0;
 /// Row gap of a tool rail over its column gap, as a share of the inline gap (PhotoCraft's
 /// `item_spacing` is 2 across and 3 down; Compact inline gap 4), rounded to whole points.
 pub const RAIL_ROW_GAP_RATIO: f32 = 0.75;
-/// How much taller a flyout row is than a medium control (PhotoCraft's 26 over 24).
-pub const RAIL_FLYOUT_ROW_EXTRA: f32 = 2.0;
 /// Side of the flyout indicator triangle's legs.
 pub const RAIL_INDICATOR_SIZE: f32 = 4.0;
 /// Distance of the flyout indicator from the corner of its button.

@@ -46,12 +46,8 @@ pub struct RailTokens {
     pub toggle_height: f32,
     /// Glyph of the column toggle.
     pub toggle_icon: f32,
-    /// Height of a flyout row: `size.control.md` and a little more.
-    pub flyout_row: f32,
     /// Between a button and its flyout: `space.gap.stack`.
     pub flyout_gap: f32,
-    /// Glyph in a flyout row: half way between `size.icon.sm` and `size.icon.md`.
-    pub flyout_icon: f32,
     /// Legs of the flyout indicator triangle.
     pub indicator_size: f32,
     /// Distance of the indicator from its button's corner.
@@ -187,9 +183,7 @@ impl Family for RailTokens {
             pad_y: s.space.pad.panel,
             toggle_height: values::RAIL_TOGGLE_HEIGHT,
             toggle_icon: values::RAIL_TOGGLE_ICON,
-            flyout_row: s.size.control.md + values::RAIL_FLYOUT_ROW_EXTRA,
             flyout_gap: s.space.gap.stack,
-            flyout_icon: (s.size.icon.sm + s.size.icon.md) / 2.0,
             indicator_size: values::RAIL_INDICATOR_SIZE,
             indicator_inset: values::RAIL_INDICATOR_INSET,
             marker_radius: values::RAIL_MARKER_RADIUS,

@@ -4,6 +4,7 @@
 //!   groups and cells, and a trailing slot pinned at the end.
 //! - [`Panel`]: the body of a docked panel, with padding, a scroll area and a footer.
 //! - [`PanelRail`]: the rail of icons that open panels.
+//! - [`FlyoutButton`]: a rail button that stands for a group of tools and opens them as a flyout.
 //! - [`StatusBar`]: the bar at the bottom of the window, with a leading group and a trailing group.
 //!
 //! Patterns take semantic properties only and draw with the component tokens of what they hold
@@ -25,5 +26,5 @@ mod status_bar_tests;
 pub use options_bar::{CommitCancel, OptionsBar, OptionsBarSlots, OptionsBarStyle};
 pub use options_cell::CellWidth;
 pub use panel::{Panel, PanelOutput, PanelStyle};
-pub use rail::{PanelRail, PanelRailItem, PanelRailOutput, PanelRailRequest, PanelRailStyle};
+pub use rail::{FlyoutButton, FlyoutItem, FlyoutResponse, FlyoutStyle, PanelRail, PanelRailItem, PanelRailOutput, PanelRailRequest, PanelRailStyle};
 pub use status_bar::{StatusBar, StatusBarSlots, StatusBarStyle};
