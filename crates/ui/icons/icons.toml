@@ -1013,3 +1013,48 @@ directional = false
 lucide = "text-cursor"
 phosphor = "cursor-text"
 tabler = "cursor-text"
+
+[[icon]]
+name = "bandage_sparkle"
+directional = false
+phosphor = "bandage-sparkle"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "brush_replace"
+directional = false
+phosphor = "brush-replace"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "clip_below"
+directional = false
+phosphor = "clip-below"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "clip_release"
+directional = false
+phosphor = "clip-release"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "convert_point"
+directional = false
+phosphor = "convert-point"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "direct_select"
+directional = false
+phosphor = "direct-select"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "eraser_background"
+directional = false
+phosphor = "eraser-background"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "eraser_magic"
+directional = false
+phosphor = "eraser-magic"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "font_similar"
+directional = false
+phosphor = "font-similar"  # drawn in Phosphor's style: no match in any set
