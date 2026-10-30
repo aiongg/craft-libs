@@ -19,11 +19,12 @@ use super::option_list::{
     text_galley,
 };
 use super::text_field::{BoxState, field_box};
-use super::{SearchField, Swatch, TextField, TextFieldStyle, icon_size};
+use super::{IconButton, SearchField, Swatch, TextField, TextFieldStyle, icon_size};
 use crate::behavior::{ListOptions, Listbox, take_composing_keys, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
+use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::popup_list::{self, PopupList};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs, variant_list, variant_row};
@@ -166,6 +167,7 @@ pub struct Select<'a, T> {
     entries: Vec<Entry<T>>,
     rows: Option<Rows<'a, T>>,
     search: Option<(String, String)>,
+    header_menu: Option<HeaderMenu<'a>>,
     wheel_steps: bool,
     fit: bool,
     content: Option<RowContent<'a, T>>,
@@ -174,6 +176,19 @@ pub struct Select<'a, T> {
     size: ControlSize,
     policy: EditPolicy,
     enabled: bool,
+}
+
+/// The gear menu of [`Select::header_menu`] and where its pick goes.
+struct HeaderMenu<'a> {
+    label: String,
+    entries: &'a [MenuEntry<usize>],
+    picked: &'a mut Option<usize>,
+}
+
+impl HeaderMenu<'_> {
+    fn gear(&self, select: Id) -> GearMenu<'_> {
+        GearMenu { id: select.with(GEAR), label: &self.label, entries: self.entries }
+    }
 }
 
 /// What a host draws in each row and in the closed box, before the text.
@@ -221,6 +236,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             entries: Vec::new(),
             rows: None,
             search: None,
+            header_menu: None,
             wheel_steps: false,
             fit: false,
             content: None,
@@ -293,6 +309,20 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         self
     }
 
+    /// A gear button at the end of the popup's header, on the search field's row when the select
+    /// is [`searchable`](Self::searchable), else on a row of its own above the options; it opens a
+    /// menu of `entries` (the options' actions, such as "Import .GRD"). `label` names the button
+    /// ("Gradient preset options"). The menu's pick is written into `picked`, the entry's index
+    /// as in [`NumberField::unit_menu`](super::NumberField::unit_menu); choosing it closes the menu
+    /// and the popup without changing the value.
+    ///
+    /// Tab moves the focus from the box or the search field to the button and back; the arrows
+    /// keep stepping the options.
+    pub fn header_menu(mut self, label: impl Into<String>, entries: &'a [MenuEntry<usize>], picked: &'a mut Option<usize>) -> Self {
+        self.header_menu = Some(HeaderMenu { label: label.into(), entries, picked });
+        self
+    }
+
     /// Whether a wheel gesture that starts over the closed box steps the value, one option per
     /// notch (Wheel on [`Select`]); off by default, so the wheel scrolls the panel. For a select
     /// changed often in place (a layer's blend mode).
@@ -356,11 +386,28 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     /// Shows the box, and the list while it is open, and returns this frame's edit. The response
     /// covers the box.
     pub fn show(self, ui: &mut Ui) -> EditResponse<T> {
-        let Self { id_salt, label, value, entries, rows, search, wheel_steps, fit, content, highlighted, placeholder, size, policy, enabled } = self;
+        let Self {
+            id_salt,
+            label,
+            value,
+            entries,
+            rows,
+            search,
+            mut header_menu,
+            wheel_steps,
+            fit,
+            content,
+            highlighted,
+            placeholder,
+            size,
+            policy,
+            enabled,
+        } = self;
         let source = rows.map_or(Source::Entries(entries), Source::Rows);
         let tokens = Tokens::of(ui);
         let style = Select::style(&tokens, size);
         let id = ui.make_persistent_id(id_salt);
+        let gear = header_menu.as_ref().map(|_| id.with(GEAR));
         let enabled = enabled && ui.is_enabled();
         let options = Options::new(&source);
         let (mut state, fresh) = PopupState::load(ui, id);
@@ -378,6 +425,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
 
         let box_focused = ui.memory(|m| m.has_focus(id));
         let search_focused = state.search.is_some_and(|s| ui.memory(|m| m.has_focus(s)));
+        let gear_focused = gear.is_some_and(|g| ui.memory(|m| m.has_focus(g)));
+        let menu_open = gear.is_some_and(|g| take_menu_keys(ui, g));
         let active_before = listbox.active();
         let modifiers = ui.input(|i| i.modifiers);
 
@@ -385,10 +434,12 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         // The search field's input method has its keys while it composes; the gesture, loaded
         // before the field runs, would read its Esc.
         let composing = state.search.is_some_and(|s| take_composing_keys(ui, s));
-        if enabled && (box_focused || search_focused) && !composing {
-            action = read_keys(ui, id, &mut listbox, &shown, &state, box_focused, chosen);
+        if enabled && (box_focused || search_focused) && !composing && !menu_open {
+            action = read_keys(ui, id, &mut listbox, &shown, &state, KeyFocus { on_box: box_focused, chosen, gear });
+        } else if enabled && !menu_open {
+            action = read_gear_keys(ui, id, &state, gear_focused);
         }
-        let owners: Vec<Id> = std::iter::once(id).chain(state.search).collect();
+        let owners: Vec<Id> = std::iter::once(id).chain(state.search).chain(gear).collect();
         let mut gesture = Gesture::load(ui, id, &*value, policy).enabled(enabled).cancel_on_focus_loss(true).focus_owners(&owners);
         if state.open && state.gesture.is_some() && gesture.id() != state.gesture {
             action = Some(Action::Ended);
@@ -420,7 +471,16 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             state.pressing = pressed && !state.open;
         }
 
-        let mut pass = Pass { id, modifiers, searched: false, gesture: &mut gesture, listbox: &mut listbox, state: &mut state, options: &options };
+        let mut pass = Pass {
+            id,
+            modifiers,
+            gear: gear.is_some(),
+            searched: false,
+            gesture: &mut gesture,
+            listbox: &mut listbox,
+            state: &mut state,
+            options: &options,
+        };
         if let Some(action) = action {
             pass.apply(ui, action, box_focused);
         }
@@ -432,29 +492,29 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         // highlights it and is not an update.
         let mut keyed_active = pass.listbox.active();
         if pass.state.open {
-            let header = search.as_ref().map_or(0.0, |_| style.field.height + style.list.gap);
+            let header = header_height(&style, search.is_some(), header_menu.is_some());
             let mut open = true;
-            let owners: Vec<Id> = std::iter::once(id).chain(pass.state.search).collect();
+            let owners: Vec<Id> = std::iter::once(id).chain(pass.state.search).chain(gear).collect();
             let popup = PopupList::new(ui, &response)
                 .open(&mut open)
                 .focus_owners(&owners)
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
                 .height(style.list.max_height + header)
                 .surface(style.popup);
-            let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref(), content: content.as_ref() };
+            let menu = header_menu.as_ref().map(|m| m.gear(id));
+            let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref(), menu, content: content.as_ref() };
             keyed_active = pass.listbox.active();
-            let picked = list.show(ui, popup, &mut pass, &mut drawn_active, &mut pointed);
+            let mut menu_picked = None;
+            let picked = list.show(ui, popup, &mut pass, &mut drawn_active, &mut pointed, &mut menu_picked);
 
             let released = released(ui);
-            if let Some(option) = picked {
+            if let (Some(command), Some(menu)) = (menu_picked, &mut header_menu) {
+                *menu.picked = Some(command);
+                pass.apply(ui, Action::Close { reason: CancelReason::Dismissed, focus: true }, box_focused);
+            } else if let Some(option) = picked {
                 pass.apply(ui, Action::Choose { option, focus: true }, box_focused);
             } else if !open {
-                let reason = match ui.input(|i| (i.key_pressed(Key::Escape), i.pointer.any_pressed() || i.pointer.any_click())) {
-                    (true, _) => CancelReason::Escape,
-                    (false, true) => CancelReason::Dismissed,
-                    (false, false) => CancelReason::FocusLost,
-                };
-                pass.apply(ui, Action::Close { reason, focus: false }, box_focused);
+                pass.apply(ui, Action::Close { reason: popup_close_reason(ui), focus: false }, box_focused);
             } else if pass.state.pressing && released && released_away(ui, popup_id, response.rect) {
                 pass.apply(ui, Action::Close { reason: CancelReason::Dismissed, focus: false }, box_focused);
             }
@@ -462,7 +522,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 pass.state.pressing = false;
             }
             if pass.state.open {
-                let owner = if box_focused { Some(id) } else { pass.state.search.filter(|_| search_focused) };
+                let search = pass.state.search.filter(|_| search_focused);
+                let owner = focus_owner(box_focused.then_some(id), gear.filter(|_| gear_focused), search);
                 keep_focus(ui, popup_id, owner);
             }
         }
@@ -483,7 +544,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         let search_id = state.search.filter(|_| open);
         listbox.store(ui);
         // Built after the frame's action: a list opened in this frame keeps Esc for its box.
-        let event = gesture.event_filter(key_filter(open)).finish();
+        let event = gesture.event_filter(key_filter(open, gear.is_some())).finish();
         let mut response = response;
         match &event {
             Some(EditEvent::Update { value: v, .. } | EditEvent::Set { value: v, .. }) => *value = v.clone(),
@@ -589,8 +650,10 @@ impl Select<'static, ()> {
 
 /// The keys the box or the search field keeps from egui while it has the focus: the arrows, and
 /// Esc while the list is open.
-fn key_filter(open: bool) -> EventFilter {
-    EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: open }
+///
+/// With a header menu the list keeps Tab too: it moves the focus to the gear itself.
+fn key_filter(open: bool, gear: bool) -> EventFilter {
+    EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: open && gear, escape: open }
 }
 
 /// What a frame does to the list.
@@ -609,6 +672,15 @@ enum Action {
     Ended,
 }
 
+/// Where the focus is for [`read_keys`], and what the list offers besides its options.
+struct KeyFocus {
+    /// The box has the focus, not the search field.
+    on_box: bool,
+    chosen: Option<usize>,
+    /// The header menu's button.
+    gear: Option<Id>,
+}
+
 /// The keys of a frame, while the box or the search field has the focus.
 fn read_keys<T: Clone + PartialEq>(
     ui: &Ui,
@@ -616,9 +688,9 @@ fn read_keys<T: Clone + PartialEq>(
     listbox: &mut Listbox,
     shown: &Shown<'_, '_, '_, T>,
     state: &PopupState<T>,
-    on_box: bool,
-    chosen: Option<usize>,
+    focus: KeyFocus,
 ) -> Option<Action> {
+    let KeyFocus { on_box, chosen, gear } = focus;
     let key = |modifiers, key| take_key(ui, modifiers, key);
     if state.open {
         let choose = |listbox: &Listbox, focus| listbox.active().filter(|&a| shown.enabled(a)).map(|option| Action::Choose { option, focus });
@@ -627,6 +699,15 @@ fn read_keys<T: Clone + PartialEq>(
         }
         let space = on_box && !listbox.typing(ui) && key(Modifiers::NONE, Key::Space);
         if key(Modifiers::ALT, Key::ArrowUp) || key(Modifiers::NONE, Key::Enter) || space {
+            return choose(listbox, true);
+        }
+        if let Some(gear) = gear
+            && take_key(ui, Modifiers::NONE, Key::Tab)
+        {
+            ui.memory_mut(|m| m.request_focus(gear));
+            return None;
+        }
+        if gear.is_some() && take_key(ui, Modifiers::SHIFT, Key::Tab) {
             return choose(listbox, true);
         }
         if ui.input(|i| i.key_pressed(Key::Tab)) {
@@ -657,6 +738,61 @@ fn read_keys<T: Clone + PartialEq>(
     }
     listbox.set_active(chosen);
     listbox.type_ahead(ui, shown).then(|| Action::Open { active: listbox.active(), keyboard: true })
+}
+
+/// Why the popup closed itself this pass.
+fn popup_close_reason(ui: &Ui) -> CancelReason {
+    match ui.input(|i| (i.key_pressed(Key::Escape), i.pointer.any_pressed() || i.pointer.any_click())) {
+        (true, _) => CancelReason::Escape,
+        (false, true) => CancelReason::Dismissed,
+        (false, false) => CancelReason::FocusLost,
+    }
+}
+
+/// The widget that has the keyboard focus among the box, the gear and the search field.
+fn focus_owner(boxed: Option<Id>, gear: Option<Id>, search: Option<Id>) -> Option<Id> {
+    boxed.or(gear).or(search)
+}
+
+/// The height of the popup's header: the search field and the gear in a row, then a gap or, with
+/// the gear, a separator.
+fn header_height(style: &SelectStyle, search: bool, menu: bool) -> f32 {
+    match (search, menu) {
+        (_, true) => style.field.height + 2.0 * style.list.separator_pad + 1.0,
+        (true, false) => style.field.height + style.list.gap,
+        (false, false) => 0.0,
+    }
+}
+
+/// Whether the header menu of the gear `gear` is open; an open menu takes the keys though the
+/// focus stays where it was. Esc closes the menu alone: taken here, before the select's gesture
+/// and the list's popup read it as their own.
+fn take_menu_keys(ui: &Ui, gear: Id) -> bool {
+    if !ui.data(|d| d.get_temp::<bool>(gear.with(MENU_OPEN))).unwrap_or(false) {
+        return false;
+    }
+    if let Some(popup) = ui.data(|d| d.get_temp::<Id>(gear.with(MENU_POPUP)))
+        && take_key(ui, Modifiers::NONE, Key::Escape)
+    {
+        Popup::close_id(ui.ctx(), popup);
+    }
+    true
+}
+
+/// The keys of a frame while the header menu's button has the focus and its menu is closed: Esc
+/// closes the list, Tab gives the focus back to the search field or the box.
+fn read_gear_keys<T>(ui: &Ui, id: Id, state: &PopupState<T>, gear_focused: bool) -> Option<Action> {
+    if !(gear_focused && state.open) {
+        return None;
+    }
+    if take_key(ui, Modifiers::NONE, Key::Escape) {
+        return Some(Action::Close { reason: CancelReason::Escape, focus: true });
+    }
+    if take_key(ui, Modifiers::NONE, Key::Tab) || take_key(ui, Modifiers::SHIFT, Key::Tab) {
+        let back = state.search.unwrap_or(id);
+        ui.memory_mut(|m| m.request_focus_with_filter(back, key_filter(true, true)));
+    }
+    None
 }
 
 /// The step this frame's wheel over the closed box at `rect` makes from `chosen`: one option per
@@ -788,6 +924,8 @@ fn filter<T: Clone + PartialEq>(cache: &mut Option<Filter>, options: &Options<'_
 struct Pass<'f, 's, 'a, T> {
     id: Id,
     modifiers: Modifiers,
+    /// The list has a header menu.
+    gear: bool,
     /// A search made its first match active in this pass.
     searched: bool,
     gesture: &'f mut Gesture<T>,
@@ -798,7 +936,7 @@ struct Pass<'f, 's, 'a, T> {
 
 impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
     fn keys(&self) -> EventFilter {
-        key_filter(self.state.open)
+        key_filter(self.state.open, self.gear)
     }
 
     fn apply(&mut self, ui: &Ui, action: Action, box_focused: bool) {
@@ -1024,6 +1162,17 @@ fn lines<'s, T: Clone + PartialEq>(source: &'s Source<'_, T>, shown: &Shown<'_, 
 }
 
 /// The popup list of a frame.
+/// The gear button of the popup's header and its menu.
+struct GearMenu<'l> {
+    id: Id,
+    label: &'l str,
+    entries: &'l [MenuEntry<usize>],
+}
+
+const GEAR: &str = "header-menu";
+const MENU_OPEN: &str = "menu-open";
+const MENU_POPUP: &str = "menu-popup";
+
 struct List<'l, T> {
     style: &'l SelectStyle,
     size: ControlSize,
@@ -1031,6 +1180,7 @@ struct List<'l, T> {
     chosen: Option<usize>,
     enabled: bool,
     search: Option<&'l (String, String)>,
+    menu: Option<GearMenu<'l>>,
     content: Option<&'l RowContent<'l, T>>,
 }
 
@@ -1044,6 +1194,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
         pass: &mut Pass<'_, '_, '_, T>,
         drawn_active: &mut Option<usize>,
         pointed: &mut Option<usize>,
+        menu_picked: &mut Option<usize>,
     ) -> Option<usize> {
         let mut picked = None;
         let options = pass.options;
@@ -1061,7 +1212,44 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
         let listbox = &mut *pass.listbox;
         let header = |ui: &mut Ui| {
             let before = query.clone();
-            if let Some((label, clear)) = self.search {
+            let row = self.menu.as_ref().map(|menu| {
+                let (_, row) = ui.allocate_space(vec2(ui.available_width(), self.style.field.height));
+                let side = IconButton::style(&Tokens::of(ui), self.size).side;
+                let (start, end, forward) = (direction::start_x(ui, row), direction::end_x(ui, row), direction::forward(ui));
+                let span = |a: f32, b: f32| Rect::from_min_max(pos2(a.min(b), row.top()), pos2(a.max(b), row.bottom()));
+                let button = Rect::from_center_size(span(end, end - forward * side).center(), vec2(side, side));
+                let gear = IconButton::new(Icon::Settings, menu.label).size(self.size).with_id(menu.id).show_at(ui, button);
+                // While it is open a click on the gear closes it, and Enter chooses in it.
+                let open = ui.data(|d| d.get_temp::<bool>(menu.id.with(MENU_OPEN))).unwrap_or(false);
+                let at = (gear.clicked() && !open).then_some(OpenAt::Rect(gear.rect));
+                if at.is_some() {
+                    // The key that opened the menu must not also choose its first entry.
+                    take_key(ui, Modifiers::NONE, Key::Enter);
+                    take_key(ui, Modifiers::NONE, Key::Space);
+                }
+                let shown = ContextMenu::new(menu.entries).size(self.size).own_gestures(false).open_at(at).show(ui, &gear);
+                if gear.has_focus() {
+                    // Tab returns to the search field or the box instead of leaving the list, and
+                    // Esc leaves the focus on the gear: the menu or the list closes by it, not the
+                    // gesture by a lost focus.
+                    let keep = EventFilter { tab: true, escape: true, ..EventFilter::default() };
+                    ui.memory_mut(|m| m.set_focus_lock_filter(gear.id, keep));
+                }
+                if shown.chosen.is_some() {
+                    *menu_picked = shown.chosen;
+                }
+                ui.data_mut(|d| {
+                    d.insert_temp(menu.id.with(MENU_OPEN), shown.open);
+                    d.insert_temp(menu.id.with(MENU_POPUP), ContextMenu::popup_id(&gear));
+                });
+                ui.ctx().accesskit_node_builder(menu.id, |node| {
+                    node.set_has_popup(HasPopup::Menu);
+                    node.set_expanded(shown.open);
+                });
+                span(start, end - forward * (side + self.style.list.gap))
+            });
+            let mut search_row = |ui: &mut Ui| {
+                let Some((label, clear)) = self.search else { return };
                 let salt = "craft-select-search";
                 let field = Interactive::id_in(ui, salt);
                 // egui drops a focus given during a pass that sizes the popup (its widgets are
@@ -1080,7 +1268,18 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
                     query.clone_from(text);
                 }
                 search = Some(field);
-                ui.add_space(self.style.list.gap);
+            };
+            match row {
+                Some(rect) => {
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), &mut search_row);
+                    self.separator(ui);
+                }
+                None => {
+                    search_row(ui);
+                    if self.search.is_some() {
+                        ui.add_space(self.style.list.gap);
+                    }
+                }
             }
             // Rows touch: the row height alone spaces them, as `show_rows` counts it.
             ui.spacing_mut().item_spacing.y = 0.0;
@@ -1559,7 +1758,9 @@ fn show_row_content(ui: &mut Ui, args: &mut SearchableArgs) {
                 for (i, (name, ..)) in PRESETS.into_iter().enumerate() {
                     select = select.option(i, name);
                 }
-                select.show(ui)
+                let entries: Vec<MenuEntry<usize>> = vec![MenuItem::new("Import .GRD", 0).into()];
+                let mut picked = None;
+                select.header_menu("Preset options", &entries, &mut picked).show(ui)
             });
         });
     });
