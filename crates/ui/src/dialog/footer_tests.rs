@@ -28,6 +28,7 @@ struct App {
     reset: bool,
     enter: EnterRule,
     field: bool,
+    below: bool,
     focus: InitialFocus,
     outcomes: Vec<Outcome>,
     last: Option<DialogResponse>,
@@ -46,6 +47,7 @@ impl App {
             reset: false,
             enter: EnterRule::Default,
             field: false,
+            below: false,
             focus: InitialFocus::Auto,
             outcomes: Vec::new(),
             last: None,
@@ -66,6 +68,11 @@ fn harness(app: App, os: OperatingSystem) -> Harness<'static, App> {
             }
             .ok_enabled(app.ok_enabled)
             .enter(app.enter);
+            if app.below {
+                footer = footer.below(|ui| {
+                    ui.label("Under the buttons");
+                });
+            }
             if app.apply {
                 footer = footer.apply("Apply");
             }
@@ -281,6 +288,16 @@ fn the_side_column_stacks_ok_above_cancel_at_the_trailing_side() {
     harness.key_press(Key::Enter);
     harness.run();
     assert_eq!(harness.state().outcomes, [Outcome::Ok]);
+}
+
+#[test]
+fn the_side_column_has_a_slot_under_its_last_button() {
+    let mut app = App::new(Shape::Side);
+    app.below = true;
+    let mut harness = harness(app, OperatingSystem::Nix);
+    harness.run();
+    let (extra, slot) = (rect_of(&harness, "Add to Swatches"), rect_of(&harness, "Under the buttons"));
+    assert!(slot.top() >= extra.bottom() && slot.left() >= extra.left() - 0.5 && slot.left() < extra.left() + 1.0, "{extra:?} {slot:?}");
 }
 
 /// The row's allocation is as tall as its buttons, so whatever follows it starts below them.

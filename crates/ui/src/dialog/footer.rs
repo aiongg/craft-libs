@@ -124,7 +124,8 @@ impl FooterFx {
 ///   the buttons.
 /// - [`side`](Footer::side): a column at the body's trailing side with OK above Cancel and the
 ///   [`extra`](Footer::extra) buttons under them, all as wide as the longest label and at least
-///   `dialog.side_min`; the same order on every platform.
+///   `dialog.side_min`; the same order on every platform. [`below`](Footer::below) adds content
+///   under the buttons.
 /// - [`custom`](Footer::custom): the host draws the footer and places role buttons with
 ///   [`FooterFx::buttons`].
 /// - [`none`](Footer::none): no row.
@@ -151,6 +152,7 @@ pub struct Footer<'a> {
     enter: EnterRule,
     preview: Option<String>,
     leading: Option<Slot<'a>>,
+    below: Option<Slot<'a>>,
     trailing_extra: Option<Slot<'a>>,
     custom: Option<Custom<'a>>,
 }
@@ -174,6 +176,7 @@ impl<'a> Footer<'a> {
             enter: EnterRule::Default,
             preview: None,
             leading: None,
+            below: None,
             trailing_extra: None,
             custom: None,
         }
@@ -297,6 +300,13 @@ impl<'a> Footer<'a> {
     /// Controls at the start edge of the [`standard`](Footer::standard) row.
     pub fn leading(mut self, add: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.leading = Some(Box::new(add));
+        self
+    }
+
+    /// Content under the buttons of the [`side`](Footer::side) column (a Preview check box), at
+    /// the column's start edge, a button gap below the last button.
+    pub fn below(mut self, add: impl FnOnce(&mut Ui) + 'a) -> Self {
+        self.below = Some(Box::new(add));
         self
     }
 
@@ -460,6 +470,9 @@ impl<'a> Footer<'a> {
                     run.clicked = Some(Clicked { index, role: *role, nth: 0 });
                 }
             }
+        }
+        if let Some(below) = self.below.take() {
+            below(&mut column);
         }
         ui.allocate_rect(body_ui.min_rect().union(column.min_rect()), Sense::hover());
         run

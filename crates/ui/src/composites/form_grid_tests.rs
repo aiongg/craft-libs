@@ -230,3 +230,22 @@ fn a_cell_of_several_controls_is_a_group_named_by_the_label() {
     assert_eq!(harness.query_all_by_role(Role::Group).count(), 1, "a row of one control adds no group");
     assert_eq!(text_input(&harness, "short").accesskit_node().data().labelled_by(), [id("Name:")]);
 }
+
+#[test]
+fn a_cell_of_several_controls_puts_them_in_a_row_and_names_the_first() {
+    let gap = std::cell::Cell::new(0.0);
+    let harness =
+        Harness::<()>::builder().with_size([640.0, 120.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui(|ui| {
+            gap.set(ui.spacing().item_spacing.x);
+            FormGrid::new("form").show(ui, |form| {
+                let _ = form.row("Mode:", |ui, _| {
+                    (TextField::new("mode", "Mode", "first").show(ui), TextField::new("opacity", "Opacity", "second").show(ui))
+                });
+            });
+        });
+    let (first, second) = (text_input(&harness, "first"), text_input(&harness, "second"));
+    assert!((second.rect().left() - first.rect().right() - gap.get()).abs() < 0.5, "{:?} {:?}", first.rect(), second.rect());
+    let label = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Mode:")).accesskit_node().locate().0;
+    assert_eq!(first.accesskit_node().data().labelled_by(), [label]);
+    assert!(second.accesskit_node().data().labelled_by().is_empty());
+}
