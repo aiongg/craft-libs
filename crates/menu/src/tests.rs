@@ -11,6 +11,7 @@ use crate::driver::key_event;
 mod bar;
 mod layout;
 mod native;
+mod palette;
 
 fn chord(s: &str) -> Chord {
     Chord::parse(s).unwrap()

@@ -74,7 +74,7 @@ impl Default for BarStyle {
 
 /// The platform whose key names a target's shortcut column shows; for the web, the one the
 /// browser runs on (`os`, [`egui::Context::os`]).
-fn keymap_platform(target: Target, os: egui::os::OperatingSystem) -> Platform {
+pub(crate) fn keymap_platform(target: Target, os: egui::os::OperatingSystem) -> Platform {
     use egui::os::OperatingSystem;
     match target {
         Target::Mac => Platform::Mac,
@@ -229,18 +229,18 @@ impl<'a> MenuBarUi<'a> {
 }
 
 /// What converting the model to menu items needs.
-struct Convert<'s> {
-    gate: Gate,
-    platform: Platform,
+pub(crate) struct Convert<'s> {
+    pub(crate) gate: Gate,
+    pub(crate) platform: Platform,
     /// The target has mnemonics (not a Mac).
-    mnemonics: bool,
-    english: Option<&'s EnglishHook<'s>>,
-    preferred: &'s [(&'s str, char)],
+    pub(crate) mnemonics: bool,
+    pub(crate) english: Option<&'s EnglishHook<'s>>,
+    pub(crate) preferred: &'s [(&'s str, char)],
 }
 
 impl Convert<'_> {
     /// A menu or submenu: a submenu row with the app's preferred letter and English label.
-    fn sub(&self, title: &str, children: &[Node]) -> MenuItem<CommandRef> {
+    pub(crate) fn sub(&self, title: &str, children: &[Node]) -> MenuItem<CommandRef> {
         let mut row = MenuItem::submenu(title, self.entries(children));
         if let Some(letter) = self.preferred_letter(title) {
             row = row.mnemonic(letter);
