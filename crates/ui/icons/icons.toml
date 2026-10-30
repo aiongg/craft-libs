@@ -270,6 +270,14 @@ carbon = "launch"
 tabler = "external-link"
 
 [[icon]]
+name = "open"
+directional = false
+lucide = "external-link"
+phosphor = "arrow-square-out"
+carbon = "launch"
+tabler = "external-link"
+
+[[icon]]
 name = "image"
 directional = false
 lucide = "image"
