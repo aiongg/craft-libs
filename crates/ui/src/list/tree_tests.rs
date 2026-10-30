@@ -274,3 +274,10 @@ fn names_and_tooltips_follow_the_hosts_patterns() {
     harness.run_steps(30);
     assert!(harness.query_by_label("Poster aufklappen (Alt-Klick: alle Gruppen)").is_some(), "the triangle's tooltip");
 }
+
+#[test]
+fn a_tree_row_is_found_once_by_its_name() {
+    let harness = harness(&[0, 2], 1);
+    let found: Vec<_> = harness.query_all_by_label("Frames").map(|n| n.accesskit_node().role()).collect();
+    assert_eq!(found, [Role::TreeItem], "the row is the one node the label names");
+}

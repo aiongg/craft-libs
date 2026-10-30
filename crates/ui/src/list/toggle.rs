@@ -1,12 +1,14 @@
 //! Toggle columns of a [`ListRow`](super::ListRow): an eye or lock cell per row, and the sweep.
 
+use craft_theme::LabelColor;
 use egui::accesskit::Role;
-use egui::{Id, KeyboardShortcut, Rect, Sense, Ui};
+use egui::{Id, KeyboardShortcut, Rect, Response, Sense, Ui};
 
 use super::row::{ListRowStyle, RowEvent};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, Gesture, GestureId};
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::Interactive;
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
 /// One toggle column of a row: an icon when on, nothing when off (the off icon shows under the
 /// pointer), clickable either way.
@@ -17,6 +19,7 @@ pub struct ToggleColumn {
     pub(super) off_icon: Icon,
     pub(super) on: bool,
     pub(super) key: Option<KeyboardShortcut>,
+    pub(super) label: Option<LabelColor>,
 }
 
 impl ToggleColumn {
@@ -24,7 +27,7 @@ impl ToggleColumn {
     /// pointer while off. `name` is the cell's name for a screen reader, translated by the host as
     /// a whole pattern with `{row}` for the row's label: "Visibility {row}" (PhotoCraft).
     pub fn new(name: impl Into<String>, on_icon: Icon, off_icon: Icon, on: bool) -> Self {
-        Self { name: name.into(), on_icon, off_icon, on, key: None }
+        Self { name: name.into(), on_icon, off_icon, on, key: None, label: None }
     }
 
     /// A key that toggles the column on the selected rows while a [`List`](super::List) has the
@@ -32,6 +35,14 @@ impl ToggleColumn {
     /// (PhotoCraft's Layer › Hide Layers). The list reads it from its lead row.
     pub fn key(mut self, key: KeyboardShortcut) -> Self {
         self.key = Some(key);
+        self
+    }
+
+    /// Fills the cell with a layer's label colour, as Photoshop's Layers panel fills the eye cell
+    /// of a layer that has one. The fill and the icon on it are the list's `list.label.<color>`
+    /// tokens, the same in every theme.
+    pub fn label(mut self, color: LabelColor) -> Self {
+        self.label = Some(color);
         self
     }
 
@@ -92,7 +103,7 @@ pub(super) struct Cell<'a, K> {
     pub row_label: &'a str,
 }
 
-/// Senses and paints one cell in `rect`, and reports its edits.
+/// Senses and paints one cell in `rect`, reports its edits, and returns the cell's response.
 pub(super) fn show<K: Clone>(
     ui: &mut Ui,
     cell: &Cell<'_, K>,
@@ -100,7 +111,7 @@ pub(super) fn show<K: Clone>(
     rect: Rect,
     style: &ListRowStyle,
     events: &mut Vec<RowEvent<K>>,
-) {
+) -> Response {
     let id = cell.row_id.with(("toggle", cell.index));
     let name = super::tree::with_row(&column.name, cell.row_label);
     let sensed = Interactive::with_id(id, Role::Button, name)
@@ -167,7 +178,10 @@ pub(super) fn show<K: Clone>(
             false => EditEvent::set(edit(!column.on), modifiers),
         });
     }
-    paint(ui, sensed.finish(ui).rect, column, ui.rect_contains_pointer(rect), style);
+    let hovered = ui.rect_contains_pointer(rect);
+    let response = sensed.finish(ui);
+    paint(ui, response.rect, column, hovered, style);
+    response
 }
 
 /// Where the sweep of `column` among rows shown in a `Ui` whose scope is `scope` is kept, and its
@@ -222,10 +236,21 @@ fn passed_over(rect: Rect, pointer: Option<egui::Pos2>, delta: egui::Vec2) -> bo
 }
 
 fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, hovered: bool, style: &ListRowStyle) {
-    if !ui.is_rect_visible(rect) || !(column.on || hovered) {
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let tint = column.label.map(|color| Tokens::of(ui).component.list.label(color));
+    if let Some(tint) = tint {
+        ui.painter().rect_filled(rect, 0.0, tint.fill.to_egui());
+    }
+    if !(column.on || hovered) {
         return;
     }
     let icon = if column.on { column.on_icon } else { column.off_icon };
-    let color = if hovered { style.icon_hover } else { style.icon };
+    let color = match tint {
+        Some(tint) => tint.icon.to_egui(),
+        None if hovered => style.icon_hover,
+        None => style.icon,
+    };
     icons::paint_in(ui, rect, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), color);
 }
