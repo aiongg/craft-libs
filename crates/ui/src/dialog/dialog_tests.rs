@@ -20,6 +20,7 @@ struct App {
     lines: usize,
     width: Width,
     first: Option<Vec2>,
+    over: Option<Rect>,
     last: Option<DialogResponse>,
     outcomes: Vec<Outcome>,
 }
@@ -33,6 +34,7 @@ impl App {
             lines: 2,
             width: Width::Standard,
             first: None,
+            over: None,
             last: None,
             outcomes: Vec::new(),
         }
@@ -60,6 +62,9 @@ fn build(app: App, size: Vec2) -> Harness<'static, App> {
             }
             if let Some(at) = app.first {
                 dialog = dialog.first_place(move |_| Some(at));
+            }
+            if let Some(host) = app.over {
+                dialog = dialog.center_over(host);
             }
             let lines = app.lines;
             let shown = dialog.show(ctx, &mut app.state, &mut (), |ui, ()| {
@@ -101,6 +106,22 @@ fn the_first_open_is_centred() {
     harness.run();
     let rect = harness.state().rect();
     assert!((rect.center() - Rect::from_min_size(Pos2::ZERO, WINDOW).center()).length() < 1.5, "{rect:?}");
+}
+
+#[test]
+fn the_first_open_is_centred_over_a_host_rect_by_its_measured_size() {
+    let host = Rect::from_min_max(pos2(120.0, 40.0), pos2(620.0, 300.0));
+    let mut app = App::new();
+    app.over = Some(host);
+    let mut harness = build(app, WINDOW);
+    harness.run();
+    let rect = harness.state().rect();
+    assert!((rect.center() - host.center()).length() < 1.5, "{rect:?} over {host:?}");
+
+    harness.state_mut().lines = 12;
+    harness.run();
+    let grown = harness.state().rect();
+    assert!((grown.min - rect.min).length() < 1.5, "the top-left stays once placed: {rect:?} {grown:?}");
 }
 
 #[test]

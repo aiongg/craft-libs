@@ -16,8 +16,9 @@ pub fn open_image_size(mock: &mut Mock) {
     mock.open_image_size();
 }
 
-/// Draws the dialog while `mock.dialog` is set. The library dialog is modal to the whole window
-/// and centres on it, so the gallery's own panels are blocked while it is open.
+/// Draws the dialog while `mock.dialog` is set, centred over the preview's visible rect. The
+/// library dialog is modal to the whole window, so the gallery's own panels are blocked while it
+/// is open.
 pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DialogState<ImageSizeDraft>) {
     let ctx = ui.ctx().clone();
     let Some(draft) = mock.dialog.as_mut() else {
@@ -27,7 +28,8 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DialogState<ImageSizeDraft
         return;
     };
     let id = ui.scope_id().with("image-size-dialog");
-    let shown = Dialog::new(id, "Image Size").footer(Footer::standard().ok("OK").cancel("Cancel")).show(&ctx, state, draft, body);
+    let shown =
+        Dialog::new(id, "Image Size").center_over(ui.clip_rect()).footer(Footer::standard().ok("OK").cancel("Cancel")).show(&ctx, state, draft, body);
     match shown.outcome {
         Some(Outcome::Ok) => mock.apply_size(),
         Some(Outcome::Cancel | Outcome::Close) => mock.dialog = None,

@@ -131,7 +131,7 @@ type FirstPlace = Box<dyn FnOnce(&Context) -> Option<Vec2>>;
 ///
 /// - **State stays with the host.** The fields are `&mut H` and the dialog never stores them;
 ///   `state` holds the chrome only (the outer gesture, the snapshot for Reset).
-/// - **Placement.** The first open is centred, or at `first_place`, or at the offset the user
+/// - **Placement.** The first open is centred (over the window, or over `center_over`'s rect), or at `first_place`, or at the offset the user
 ///   dragged it to (remembered under the [`PlaceKey`] in egui's persisted memory). After its first
 ///   laid-out pass its top-left stays put, so a body that grows extends down and right. The title
 ///   band drags; the offset is kept on screen by [`keep_on_screen`](super::keep_on_screen) and
@@ -158,6 +158,7 @@ pub struct Dialog<'a> {
     body: Body,
     place: Option<PlaceKey>,
     first_place: Option<FirstPlace>,
+    center_over: Option<Rect>,
     footer: Footer<'a>,
     close_label: Option<String>,
     outer_gesture: bool,
@@ -189,6 +190,7 @@ impl<'a> Dialog<'a> {
             body: Body::Fit,
             place: None,
             first_place: None,
+            center_over: None,
             footer: Footer::none(),
             close_label: Some("Close".to_owned()),
             outer_gesture: false,
@@ -273,6 +275,15 @@ impl<'a> Dialog<'a> {
         self
     }
 
+    /// Centres the first open over `host` (a rect in screen coordinates: a region of the window
+    /// the dialog belongs to) instead of over the window. The dialog is measured first and placed
+    /// by its own size, so the centre is exact. A remembered place and `first_place` come first.
+    /// The dialog stays modal to the whole window.
+    pub fn center_over(mut self, host: Rect) -> Self {
+        self.center_over = Some(host);
+        self
+    }
+
     /// Where the dialog first opens when it has no remembered place: an offset from the window's
     /// top-left (Blur Gallery: the right edge). `None` centres it.
     pub fn first_place(mut self, first: impl FnOnce(&Context) -> Option<Vec2> + 'static) -> Self {
@@ -340,6 +351,7 @@ impl<'a> Dialog<'a> {
             body: body_mode,
             place,
             first_place,
+            center_over,
             footer,
             close_label,
             outer_gesture,
@@ -357,6 +369,7 @@ impl<'a> Dialog<'a> {
         let place = place.unwrap_or(PlaceKey(id));
         let opened = !state.is_open();
         let (pin_id, size_id, chrome_id, title_id) = (id.with("pin"), id.with("laid-out-size"), id.with("chrome"), id.with("title-height"));
+        let measured_id = id.with("measured-size");
         let inside_id = id.with("focus-inside");
         if opened {
             state.begin(ctx, fields.clone(), outer_gesture);
@@ -364,15 +377,18 @@ impl<'a> Dialog<'a> {
             ctx.data_mut(|d| {
                 d.remove_temp::<Vec2>(pin_id);
                 d.remove_temp::<Vec2>(size_id);
+                d.remove_temp::<Vec2>(measured_id);
             });
         }
         let outer = state.outer();
 
         let pinned = ctx.data(|d| d.get_temp::<Vec2>(pin_id));
-        let laid_out_size = ctx.data(|d| d.get_temp::<Vec2>(size_id)).unwrap_or(Vec2::ZERO);
+        let measured = ctx.data(|d| d.get_temp::<Vec2>(measured_id));
+        let laid_out_size = ctx.data(|d| d.get_temp::<Vec2>(size_id)).or(measured).unwrap_or(Vec2::ZERO);
         let title_height = ctx.data(|d| d.get_temp::<f32>(title_id)).unwrap_or(t.close_box);
         let chrome = ctx.data(|d| d.get_temp::<f32>(chrome_id)).unwrap_or(0.0);
-        let start = pinned.or_else(|| place.remembered_place(ctx)).or_else(|| first_place.and_then(|first| first(ctx)));
+        let centred = || Some(center_offset(center_over?, measured?, window));
+        let start = pinned.or_else(|| place.remembered_place(ctx)).or_else(|| first_place.and_then(|first| first(ctx))).or_else(centred);
 
         let blocked = modal && stack.is_some_and(|s| s.blocks(id));
         let mut area = Modal::default_area(id).role(role).accessible_name(title.as_str());
@@ -470,6 +486,8 @@ impl<'a> Dialog<'a> {
             };
         };
 
+        // The sizing pass is discarded, but its size places the pass that replaces it.
+        ctx.data_mut(|d| d.insert_temp(measured_id, response.rect.size()));
         pass::record(ctx, Entry { id, layer: response.layer_id, rect: response.rect, modal });
         ctx.accesskit_node_builder(response.layer_id.id, |node| {
             if modal {
@@ -606,6 +624,11 @@ impl<'a> Dialog<'a> {
 }
 
 /// Records the fields as a history step, or takes the step Cmd/Ctrl+Z asks for.
+/// The offset from the window's top-left that centres a dialog of `size` over `host`.
+fn center_offset(host: Rect, size: Vec2, window: Rect) -> Vec2 {
+    host.center().to_vec2() - size / 2.0 - window.min.to_vec2()
+}
+
 fn local_history<H: Clone + PartialEq>(ctx: &Context, state: &mut DialogState<H>, fields: &mut H, active: bool) -> Option<Step> {
     let history = state.history.get_or_insert_with(|| LocalHistory::new(fields));
     let step = (active && !ctx.text_edit_focused()).then(|| take_step(ctx)).flatten();
