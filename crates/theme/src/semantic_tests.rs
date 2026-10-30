@@ -257,6 +257,14 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
                 minimum: 4.5,
             });
         }
+        // A panel-rail glyph at rest is `text.faint` on the rail (a mark: 3:1).
+        let rail = |f| ComponentField::Rail(f);
+        expected.push(ContrastCheck {
+            fg: rail(RailField::PanelIcon).into(),
+            bg: rail(RailField::Fill).into(),
+            ratio: contrast_ratio(pin, t.component.color(rail(RailField::Fill)).unwrap()),
+            minimum: 3.0,
+        });
         // A tab's detail text is `text.faint` on the strip and the active tab.
         let tab = ComponentField::Tab;
         for bg in [TabField::Strip, TabField::Active] {

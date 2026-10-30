@@ -709,6 +709,11 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             // Histogram: the backdrop; curve: the selected point's outline.
             + 1
             + 1
+            // Panel: fill and the header and footer lines; rail: radius and eleven colours.
+            + 3
+            + 12
+            // Popover: the grip's ticks.
+            + 1
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
@@ -1717,8 +1722,8 @@ fn panel_and_rail_paths_round_trip_and_overrides_replace_the_defaults() {
 
     let mut def = grey_blue();
     def.components.insert(ComponentField::Rail(RailField::Radius), OverrideValue::Length(5.0));
-    def.components.insert(ComponentField::Rail(RailField::Edge), OverrideValue::Color(hex("#112233")));
-    def.components.insert(ComponentField::Panel(PanelField::FooterLine), OverrideValue::Color(hex("#445566")));
+    def.pins.light.colors.insert(TokenRef::Component(ComponentField::Rail(RailField::Edge)), hex("#112233"));
+    def.pins.light.colors.insert(TokenRef::Component(ComponentField::Panel(PanelField::FooterLine)), hex("#445566"));
     let c = resolve(&def, app(Mode::Light, Contrast::Standard), None).tokens.component;
     assert_eq!((c.rail.radius, c.rail.edge, c.panel.footer_line), (5.0, hex("#112233"), hex("#445566")));
 }
