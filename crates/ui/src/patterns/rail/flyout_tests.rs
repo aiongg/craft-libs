@@ -57,6 +57,7 @@ struct App {
     time: f64,
     top: f32,
     style: Option<FlyoutStyle>,
+    hold_selects: bool,
 }
 
 impl App {
@@ -76,6 +77,7 @@ impl App {
             time: 0.0,
             top: 20.0,
             style: None,
+            hold_selects: true,
         }
     }
 
@@ -86,7 +88,12 @@ impl App {
         let align = if direction::is_rtl(ui) { egui::Align::Max } else { egui::Align::Min };
         let out = ui
             .with_layout(egui::Layout::top_down(align), |ui| {
-                FlyoutButton::new("slot", Icon::Brush, "Slot").items(&self.items).current(&self.current).selected(true).show(ui)
+                FlyoutButton::new("slot", Icon::Brush, "Slot")
+                    .items(&self.items)
+                    .current(&self.current)
+                    .selected(true)
+                    .hold_selects(self.hold_selects)
+                    .show(ui)
             })
             .inner;
         self.clicks += usize::from(out.clicked);
@@ -216,6 +223,19 @@ fn holding_the_button_for_0_35_seconds_opens_and_selects_and_its_release_keeps_i
     assert_eq!(h.state().clicks, 1);
     click_at(&mut h, at);
     assert!(!is_open(&h), "a click on the open flyout's button closes it");
+}
+
+#[test]
+fn a_hold_opens_without_selecting_when_hold_selects_is_off() {
+    let mut h = harness(3);
+    h.state_mut().hold_selects = false;
+    let at = center(&h);
+    press(&mut h, at, PointerButton::Primary);
+    step(&mut h, 0.36, vec![]);
+    step(&mut h, 0.01, vec![]);
+    assert!(is_open(&h), "held 0.37 s");
+    assert!(!h.state().out().clicked);
+    assert_eq!(h.state().clicks, 0, "the hold selects nothing");
 }
 
 #[test]

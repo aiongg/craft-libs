@@ -107,6 +107,7 @@ struct App {
     time: f64,
     out: Option<ToolRailOutput<Tool>>,
     footer: Option<RailFooter>,
+    footer_area: Option<Rect>,
     tall_footer: bool,
 }
 
@@ -127,12 +128,14 @@ impl App {
             time: 0.0,
             out: None,
             footer: None,
+            footer_area: None,
             tall_footer: false,
         }
     }
 
     fn frame(&mut self, ui: &mut Ui) {
         let mut footer = None;
+        let mut footer_area = None;
         let tall_footer = self.tall_footer;
         let mut rail = ToolRail::new("tools").edge(self.edge).columns(self.columns).hidden(&self.hidden).label("Tools");
         if self.chrome {
@@ -140,6 +143,7 @@ impl App {
         }
         let out = rail.show(ui, &self.slots, &self.current, &mut self.last, |ui, info| {
             footer = Some(info);
+            footer_area = Some(ui.max_rect());
             let _ = ui.button("Foot");
             if tall_footer {
                 let _ = ui.button("F2");
@@ -155,6 +159,7 @@ impl App {
         self.toggles += usize::from(out.toggle_columns);
         self.edits += usize::from(out.edit_toolbar);
         self.footer = footer;
+        self.footer_area = footer_area;
         self.out = Some(out);
     }
 
@@ -358,6 +363,19 @@ fn in_a_short_window_the_slots_scroll_and_the_footer_stays_in_view() {
     h.run_steps(3);
     assert!(rect(&h, "Edit Toolbar…").bottom() <= rect(&h, "Foot").top(), "the Edit Toolbar button is reachable above the footer");
     assert_eq!(rect(&h, "Foot"), foot);
+}
+
+#[test]
+fn the_footer_area_is_centred_on_the_rail_whether_or_not_the_slots_scroll() {
+    let area = |height: f32| {
+        let h = harness_in(Direction::Ltr, App::new(), height);
+        let (area, foot) = (h.state().footer_area.expect("footer area"), rect(&h, "Foot"));
+        (area.x_range(), foot.left(), h.state().out().rect.center().x)
+    };
+    let (roomy, scrolling) = (area(900.0), area(220.0));
+    assert_eq!(roomy.0, scrolling.0, "the footer area does not move when the slots scroll");
+    assert_eq!(roomy.1, scrolling.1, "nor does its content");
+    assert_eq!(roomy.0.center(), roomy.2, "the area is centred on the rail");
 }
 
 #[test]
