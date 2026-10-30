@@ -5,7 +5,7 @@
 //! items, shortcuts from [`craft_keymap::Chord`], submenus) and draws [`craft_ui::menu::MenuBar`],
 //! which owns the look and the behaviour: press-drag-release, hover switching, submenus with an
 //! aim triangle, scrolling, the keys (F10 except on a Mac target, where the native bar runs;
-//! Alt and mnemonics except where the names are a Mac's), overflow into "⋯" or one "Menu", and
+//! Alt and mnemonics except where the names are a Mac's), overflow into "…" or one "Menu", and
 //! AccessKit.
 
 use craft_keymap::{CommandRef, Platform};
@@ -158,7 +158,7 @@ impl<'a> MenuBarUi<'a> {
         self
     }
 
-    /// The app's translation of the labels the bar writes itself: `⋯` (the menu of titles that
+    /// The app's translation of the labels the bar writes itself: `…` (the menu of titles that
     /// don't fit), `Menu` (the one menu when none fits), `Scroll menu up` and `Scroll menu down`
     /// (the scroll arrows' accessible names). The same hook as [`crate::LayoutOptions::label`].
     pub fn label(mut self, label: &'a dyn Fn(&'static str) -> String) -> MenuBarUi<'a> {
@@ -186,7 +186,7 @@ impl<'a> MenuBarUi<'a> {
 
     /// Take only the width the titles need, at most `max_width` (`f32::INFINITY` for no limit)
     /// and the room the `Ui` has, so that other controls can share the row; past that the menus
-    /// overflow into "⋯". By default the bar fills the row.
+    /// overflow into "…". By default the bar fills the row.
     pub fn shrink_to_fit(mut self, max_width: f32) -> MenuBarUi<'a> {
         self.fit = Some(max_width);
         self
@@ -221,7 +221,7 @@ impl<'a> MenuBarUi<'a> {
         let menus: Vec<MenuItem<CommandRef>> = self.bar.menus.iter().map(|m| convert.sub(&m.title, &m.children)).collect();
         let hook = self.label;
         let labels = MenuBarLabels {
-            more: hook("⋯"),
+            more: hook("…"),
             all: hook("Menu"),
             scroll_up: hook("Scroll menu up"),
             scroll_down: hook("Scroll menu down"),

@@ -150,8 +150,8 @@ egui::Panel::top("menu-bar").show(ui, |ui| {
   every shortcut, the display-only ones too, in the target's names (⌘ glyphs on `Target::Mac`,
   Ctrl names on Windows and Linux, the browser's system's names on the web; `.target(..)` to
   choose).
-- **Narrow windows:** the menus that don't fit move into a trailing `⋯` menu; when not even the
-  first fits, one `Menu` title holds them all. `.label(&tr)` translates `⋯`, `Menu` and the
+- **Narrow windows:** the menus that don't fit move into a trailing `…` menu; when not even the
+  first fits, one `Menu` title holds them all. `.label(&tr)` translates `…`, `Menu` and the
   scroll arrows' names, with the same hook as `LayoutOptions::label`. The bar fills its row;
   `.shrink_to_fit(max_width)` makes it take only the width its titles need, up to `max_width`,
   so other controls can share the row, and the menus past that overflow.

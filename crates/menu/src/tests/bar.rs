@@ -377,9 +377,9 @@ fn titles_that_dont_fit_move_into_the_overflow_menu() {
         edit.x - file.x + 60.0
     };
     let mut b = Bar::new(sample(), vec2(narrow, 400.0));
-    assert!(b.title("Help").is_none() && b.title("⋯").is_some(), "Help moved into ⋯");
-    b.click("⋯");
-    assert!(b.shown("View") && b.shown("Help"), "⋯ lists the menus that don't fit");
+    assert!(b.title("Help").is_none() && b.title("…").is_some(), "Help moved into …");
+    b.click("…");
+    assert!(b.shown("View") && b.shown("Help"), "… lists the menus that don't fit");
 }
 
 #[test]
@@ -479,10 +479,10 @@ fn a_bar_shrunk_to_fit_shares_its_row() {
     b.run(2);
     let after = b.after.expect("the label after the bar");
     assert!(after < b.size.x / 2.0, "the bar takes only its titles' width: {after}");
-    assert!(b.title("Help").is_some() && b.title("⋯").is_none());
+    assert!(b.title("Help").is_some() && b.title("…").is_none());
     b.fit = Some(100.0);
     b.run(2);
-    assert!(b.title("⋯").is_some(), "the menus past 100 points overflow");
+    assert!(b.title("…").is_some(), "the menus past 100 points overflow");
     // A limit an app computed from a full row can go negative.
     b.fit = Some(-20.0);
     b.run(2);
