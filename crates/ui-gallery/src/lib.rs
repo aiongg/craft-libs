@@ -16,6 +16,7 @@ mod gallery;
 mod inspector;
 pub mod layout;
 mod persist;
+mod preview;
 
 pub use appearance::Appearance;
 pub use gallery::Gallery;
