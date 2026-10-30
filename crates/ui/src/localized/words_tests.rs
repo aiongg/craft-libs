@@ -122,6 +122,7 @@ fn a_labels_struct_localized_with_identity_equals_its_default() {
     identity_holds::<crate::presets::PresetLabels>();
     identity_holds::<crate::list::TreeText>();
     identity_holds::<crate::list::ThumbSizeLabels>();
+    identity_holds::<crate::interface_scale::InterfaceScaleLabels>();
     #[cfg(feature = "window-frame")]
     identity_holds::<crate::title_bar::CaptionLabels>();
     identity_holds::<crate::controls::ThumbRowLabels>();
