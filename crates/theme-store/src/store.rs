@@ -1,6 +1,11 @@
 //! The store: the suite selection with the lock/revision protocol, and the theme library.
 
-use std::{fmt, io, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    fmt, io,
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 use craft_theme::{
     Appearance, Contrast, ContrastIntent, Mode, Size, TextSize, ThemeDef, ThemeId, ThemePair, Variants, builtins,
@@ -138,9 +143,9 @@ pub enum Problem {
 #[derive(Clone, Debug)]
 pub struct ThemeRecord {
     pub theme: ThemeDef,
-    /// Contrast pairs below their minimum in standard contrast, over the modes the theme has.
-    /// Advisory: they never block an import or a selection.
-    pub warnings: usize,
+    /// Computed on first use and shared with clones and with the [`ThemeEntry`] made from this
+    /// record, so parsing and library scans don't resolve every theme.
+    warnings: Arc<OnceLock<usize>>,
     /// The file exactly as stored, unknown keys included.
     pub bytes: Arc<[u8]>,
 }
@@ -153,8 +158,13 @@ impl ThemeRecord {
         if let Err(e) = ThemeId::parse_user(file.theme.id.as_str()) {
             return Err(id_error(ErrorKind::BadId(e)));
         }
-        let warnings = contrast_warnings(&file.theme);
-        Ok(ThemeRecord { theme: file.theme, warnings, bytes: Arc::from(bytes) })
+        Ok(ThemeRecord { theme: file.theme, warnings: Arc::default(), bytes: Arc::from(bytes) })
+    }
+
+    /// Contrast pairs below their minimum in standard contrast, over the modes the theme has.
+    /// Advisory: they never block an import or a selection.
+    pub fn warnings(&self) -> usize {
+        *self.warnings.get_or_init(|| contrast_warnings(&self.theme))
     }
 }
 
@@ -191,14 +201,18 @@ pub struct ThemeEntry {
     pub version: u32,
     /// The parsed theme; [`ThemeDef::variants`] says which modes it has.
     pub theme: ThemeDef,
-    /// [`ThemeRecord::warnings`].
-    pub warnings: usize,
+    warnings: Arc<OnceLock<usize>>,
     /// A low-contrast theme is labelled so in the picker.
     pub contrast_intent: ContrastIntent,
     pub stamp: FileStamp,
 }
 
 impl ThemeEntry {
+    /// [`ThemeRecord::warnings`], computed on first use.
+    pub fn warnings(&self) -> usize {
+        *self.warnings.get_or_init(|| contrast_warnings(&self.theme))
+    }
+
     pub fn new(record: &ThemeRecord, stamp: FileStamp) -> Self {
         let t = &record.theme;
         ThemeEntry {
@@ -206,7 +220,7 @@ impl ThemeEntry {
             name: t.name.clone(),
             version: t.version,
             theme: t.clone(),
-            warnings: record.warnings,
+            warnings: Arc::clone(&record.warnings),
             contrast_intent: t.contrast_intent,
             stamp,
         }

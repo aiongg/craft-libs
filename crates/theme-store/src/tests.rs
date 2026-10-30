@@ -169,13 +169,13 @@ fn low_contrast_imports_succeed_with_warnings() {
     let mut store = open(tmp.path());
     let flat = theme_json("flat", r##","contrast_intent":"low","dark":{"text.normal":"#777777","surface.panel":"#777777"}"##);
     let imported = store.import(flat.as_bytes(), false).unwrap();
-    assert!(imported.record.warnings > 0);
+    assert!(imported.record.warnings() > 0);
     let entry = &store.library().entries[0];
-    assert_eq!((entry.warnings, entry.contrast_intent), (imported.record.warnings, ContrastIntent::Low));
+    assert_eq!((entry.warnings(), entry.contrast_intent), (imported.record.warnings(), ContrastIntent::Low));
     let base = store.accepted().clone();
     store.update(&base, whole("flat", ModeChoice::Dark)).unwrap();
     // A seed-only theme pins nothing, so its derived colours resolve with none.
-    assert_eq!(ThemeRecord::parse(theme_json("seeded", "").as_bytes()).unwrap().warnings, 0);
+    assert_eq!(ThemeRecord::parse(theme_json("seeded", "").as_bytes()).unwrap().warnings(), 0);
 }
 
 #[test]
