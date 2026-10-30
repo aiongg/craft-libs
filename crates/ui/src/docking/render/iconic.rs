@@ -351,7 +351,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// Escape (outside a drag) or a primary press outside the flyout, its column and any menu.
     fn flyout_dismissed(&self, ctx: &Context, id: Id, column: Rect) -> bool {
         let escape = !is_dragging::<P>(ctx, self.id) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
-        let press = ctx.input(|i| i.pointer.primary_pressed().then(|| i.pointer.press_origin()).flatten());
+        // The press event's own position: egui clears `press_origin` when the release arrives in
+        // the same frame, as a quick click does.
+        let press = ctx.input(|i| {
+            i.events.iter().find_map(|e| match e {
+                egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, .. } => Some(*pos),
+                _ => None,
+            })
+        });
         let outside = press.is_some_and(|pos| {
             let inside = ctx.memory(|m| m.area_rect(id)).is_some_and(|r| r.contains(pos)) || column.contains(pos);
             let menu = ctx.layer_id_at(pos).is_some_and(|layer| matches!(layer.order, Order::Foreground | Order::Tooltip));

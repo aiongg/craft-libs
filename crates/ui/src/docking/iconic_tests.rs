@@ -145,6 +145,13 @@ fn icon_click_opens_a_flyout_on_the_canvas_side_and_auto_collapse_closes_it() {
     d.settle();
     assert_eq!(open(&d), None);
 
+    // A quick click outside, press and release in one frame, closes it too.
+    d.click(icon);
+    d.settle();
+    d.quick_click(CANVAS);
+    d.settle();
+    assert_eq!(open(&d), None, "a one-frame click outside");
+
     // Auto-Collapse off: it stays until an icon closes it.
     d.auto_collapse = false;
     d.click(icon);

@@ -383,6 +383,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static, C: DockContent<P>> Do
         self.release(pos)
     }
 
+    /// Press and release at `pos` in one frame, as a quick click at a low frame rate arrives.
+    pub fn quick_click(&mut self, pos: Pos2) -> DockOutput<P> {
+        self.step(vec![Event::PointerMoved(pos), self.button(pos, true), self.button(pos, false)])
+    }
+
     /// Press at `from`, move past the drag threshold and on to `to`, without releasing.
     pub fn hold(&mut self, from: Pos2, to: Pos2) -> DockOutput<P> {
         self.press(from);
