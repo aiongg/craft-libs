@@ -167,3 +167,44 @@ fn every_story_names_every_control() {
         }
     }
 }
+
+/// The progress item is a progress indicator named by its label with the fraction as its value
+/// (none while it has reported nothing), and its cancel button is named and reports a click.
+#[test]
+fn the_progress_item_reports_its_fraction_and_a_cancel_click() {
+    let cancelled = Rc::new(Cell::new(false));
+    let seen = cancelled.clone();
+    let mut harness = harness(Direction::Ltr, 500.0).build_ui(move |ui| {
+        StatusBar::new("test").show(ui, |bar| {
+            let seen = seen.clone();
+            bar.trailing(move |ui| {
+                if StatusBar::progress(ui, StatusProgress::new("Gaussian Blur", Some(0.45)).percent("45%").cancel("Cancel")) {
+                    seen.set(true);
+                }
+            });
+        });
+    });
+    harness.run();
+    let bar = harness.get_by_role(Role::ProgressIndicator);
+    assert_eq!(bar.accesskit_node().label().as_deref(), Some("Gaussian Blur"));
+    assert!((bar.accesskit_node().numeric_value().expect("value") - 0.45).abs() < 1e-6);
+    harness.get_by_label("45%");
+    harness.get_by_label("Cancel").click();
+    harness.run();
+    assert!(cancelled.get());
+
+    let mut busy = harness_for_indeterminate();
+    busy.step();
+    assert_eq!(busy.get_by_role(Role::ProgressIndicator).accesskit_node().numeric_value(), None);
+    assert!(busy.query_by_label("Cancel").is_none());
+}
+
+fn harness_for_indeterminate() -> Harness<'static, ()> {
+    harness(Direction::Ltr, 500.0).build_ui(|ui| {
+        StatusBar::new("test").show(ui, |bar| {
+            bar.trailing(|ui| {
+                StatusBar::progress(ui, StatusProgress::new("Working", None));
+            });
+        });
+    })
+}

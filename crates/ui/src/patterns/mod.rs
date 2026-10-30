@@ -43,5 +43,5 @@ pub use options_cell::CellWidth;
 pub use panel::{Panel, PanelOutput, PanelStyle};
 pub use rail::{FlyoutButton, FlyoutItem, FlyoutResponse, FlyoutStyle, PanelRail, PanelRailItem, PanelRailOutput, PanelRailRequest, PanelRailStyle};
 pub use rail::{LastUsed, RailFooter, RailMetrics, RailTool, SlotId, ToolRail, ToolRailOutput, ToolSlot, shown_tool, visible_slots};
-pub use status_bar::{StatusBar, StatusBarSlots, StatusBarStyle};
+pub use status_bar::{StatusBar, StatusBarSlots, StatusBarStyle, StatusProgress};
 pub use toolbar::{Toolbar, ToolbarItem, ToolbarResponse, ToolbarStyle};
