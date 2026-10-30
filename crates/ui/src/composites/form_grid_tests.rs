@@ -1,3 +1,4 @@
+use craft_theme::ControlSize;
 use egui::accesskit::Role;
 use egui::{Context, Rect, Ui};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -111,6 +112,29 @@ fn a_label_is_centred_on_its_control() {
     let harness = shown(Direction::Ltr, FormGrid::new("form"));
     let (name, short) = (label(&harness, "Name:"), text_input(&harness, "short").rect());
     assert!((name.center().y - short.center().y).abs() < 0.5, "{name:?} {short:?}");
+}
+
+#[test]
+fn a_label_is_centred_on_a_small_control_and_on_a_control_pushed_down_by_a_taller_sibling() {
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        let harness = harness(dir).build_ui_state(
+            |ui, _| {
+                FormGrid::new("form").show(ui, |form| {
+                    let _ = form.row("Small:", |ui, _| TextField::new("small", "Small", "sm").size(ControlSize::Sm).show(ui));
+                    let _ = form.row("Mixed:", |ui, _| {
+                        let first = TextField::new("first", "First", "first").size(ControlSize::Sm).show(ui);
+                        let _ = TextField::new("second", "Second", "second").show(ui);
+                        first
+                    });
+                });
+            },
+            None,
+        );
+        for (name, value) in [("Small:", "sm"), ("Mixed:", "first")] {
+            let (label, field) = (label(&harness, name), text_input(&harness, value).rect());
+            assert!((label.center().y - field.center().y).abs() < 0.5, "{dir:?} {name} {label:?} {field:?}");
+        }
+    }
 }
 
 #[test]

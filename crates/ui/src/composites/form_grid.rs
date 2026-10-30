@@ -27,8 +27,9 @@ pub struct FormStyle {
     pub row_gap: f32,
     /// The least width of the label column: `form.label_min`, or `form.roomy.label_min`.
     pub label_min: f32,
-    /// A label is centred on a band this high from the top of its control: the control height
-    /// (`field.height`).
+    /// Where a label sits on the first pass of a row, before the control it names is measured: it
+    /// is centred on a band this high from the top of the row (`field.height.md`). From the next
+    /// pass a label is centred on its control, whatever the control's size.
     pub label_band: f32,
     /// The label's type role: `label`.
     pub label_role: TypeRole,
@@ -120,7 +121,7 @@ impl FormGrid {
         measure::group(ui, TAG, id_salt, |ui| {
             let spacing = ui.spacing().item_spacing;
             ui.spacing_mut().item_spacing.y = style.row_gap;
-            add_rows(&mut Form { ui, style, align, tokens, spacing })
+            add_rows(&mut Form { ui, style, align, tokens, spacing, rows: 0 })
         })
     }
 }
@@ -133,6 +134,8 @@ pub struct Form<'a> {
     tokens: std::sync::Arc<UiTokens>,
     /// The item spacing outside the grid, which a control cell keeps.
     spacing: egui::Vec2,
+    /// Rows shown so far, to key each row's measured control centre.
+    rows: usize,
 }
 
 impl Form<'_> {
@@ -205,12 +208,17 @@ impl Form<'_> {
             Rect::from_min_max(pos2(rect.left() + indent, rect.top()), rect.max)
         };
 
-        // The label comes first, in the first control's height, so that the control closure has
-        // its response (scrubbing) and AccessKit lists it before the control.
+        // The label comes first, so that the control closure has its response (scrubbing) and
+        // AccessKit and Tab list it before the control. It is centred on the control's centre
+        // as measured on the last pass; a change discards the pass.
+        let centre_id = ui.make_persistent_id(("form-row-centre", self.rows));
+        self.rows += 1;
+        let centre = ui.data(|d| d.get_temp::<f32>(centre_id));
         let mut row = Rect::NOTHING;
         let label_response = galley.map(|galley| {
             let x = if rtl { rect.right() - column } else { rect.left() };
-            let band = Rect::from_min_size(pos2(x, rect.top()), vec2(column, style.label_band));
+            let height = (2.0 * centre.unwrap_or(style.label_band / 2.0)).max(galley.size().y);
+            let band = Rect::from_min_size(pos2(x, rect.top()), vec2(column, height));
             let layout = match self.align {
                 LabelAlign::End => direction::trailing(ui),
                 LabelAlign::Start => direction::row(ui),
@@ -226,6 +234,16 @@ impl Form<'_> {
         row = row.union(cell.min_rect());
         row.extend_with_x(direction::start_x(ui, rect));
 
+        if label_response.is_some() {
+            let measured = control.control().rect.center().y - rect.top();
+            let used = centre.unwrap_or(style.label_band / 2.0);
+            if centre.is_none_or(|c| (c - measured).abs() > 0.1) {
+                ui.data_mut(|d| d.insert_temp(centre_id, measured));
+            }
+            if (used - measured).abs() > 0.1 {
+                ui.ctx().request_discard("FormGrid label centre");
+            }
+        }
         if names_control && let Some(label) = &label_response {
             name_control(ui.ctx(), control.control(), label);
         }
