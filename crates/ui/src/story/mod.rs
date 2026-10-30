@@ -218,6 +218,7 @@ pub fn registry() -> Vec<Story> {
     all.extend(crate::patterns::options_bar::stories());
     all.extend(crate::patterns::status_bar::stories());
     all.extend(crate::patterns::panel::stories());
+    all.extend(crate::patterns::rail::panel_rail::stories());
     all.extend(crate::popover::stories());
     all
 }
@@ -297,6 +298,7 @@ const DECLARED: &[&[&str]] = &[
     crate::patterns::options_bar::COMPONENTS,
     crate::patterns::status_bar::COMPONENTS,
     crate::patterns::panel::COMPONENTS,
+    crate::patterns::rail::panel_rail::COMPONENTS,
     crate::popover::COMPONENTS,
 ];
 
