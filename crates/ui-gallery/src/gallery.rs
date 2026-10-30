@@ -5,8 +5,8 @@ use std::sync::Arc;
 use craft_platform::appearance::SystemReader;
 use craft_theme::{ButtonVariant, ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, TypeRole, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
-use craft_ui::composites::{FormGrid, PropertyRow};
-use craft_ui::controls::{Button, Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton};
+use craft_ui::composites::{EmptyState, FormGrid, PropertyRow};
+use craft_ui::controls::{Button, Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton, TooltipExt as _};
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, DockLook, PanelState, Permissions, Workspace};
 use craft_ui::icons::{self, Icon, IconSet};
@@ -29,7 +29,7 @@ use crate::browser::Browser;
 use crate::faces;
 use crate::fields;
 use crate::inspector::Inspector;
-use crate::layout::{CentreView, PanelId, VariantAxis, default_workspace, reconciled};
+use crate::layout::{CentreView, GalleryWorkspace, PanelId, PreviewView, VariantAxis, default_for, reconciled};
 use crate::persist::{self, KEY, Saved};
 
 /// The gallery's state.
@@ -57,8 +57,14 @@ pub struct Gallery {
     scroll_to: Option<&'static str>,
     browser: Browser,
     inspector: Inspector,
-    /// The dock: where each panel is, and which tab is shown.
-    workspace: Workspace<PanelId>,
+    /// The workspace shown.
+    workspace: GalleryWorkspace,
+    /// What the Theme workspace's preview shows.
+    preview: PreviewView,
+    /// The Components workspace's dock: where each panel is, and which tab is shown.
+    components_dock: Workspace<PanelId>,
+    /// The Theme workspace's dock.
+    theme_dock: Workspace<PanelId>,
     /// Reset layout was chosen in this frame.
     reset_layout: bool,
     /// Edited args by story id; a story gets its entry when first shown.
@@ -88,11 +94,28 @@ impl Gallery {
             scroll_to: None,
             browser: Browser::new(saved.tokens_split),
             inspector: Inspector::default(),
-            workspace: persist::load_layout(storage).map_or_else(default_workspace, reconciled),
+            workspace: saved.workspace,
+            preview: saved.preview,
+            components_dock: load_dock(persist::load_layout(storage), GalleryWorkspace::Components),
+            theme_dock: load_dock(persist::load_theme_layout(storage), GalleryWorkspace::Theme),
             reset_layout: false,
             args: HashMap::new(),
             saved_args: saved.args,
         }
+    }
+
+    /// Switches to `workspace`.
+    pub fn set_workspace(&mut self, workspace: GalleryWorkspace) {
+        self.workspace = workspace;
+    }
+
+    pub fn workspace(&self) -> GalleryWorkspace {
+        self.workspace
+    }
+
+    /// Sets what the Theme workspace's preview shows.
+    pub fn set_preview(&mut self, preview: PreviewView) {
+        self.preview = preview;
     }
 
     /// Selects a story by id; unknown ids are ignored.
@@ -139,7 +162,23 @@ impl Gallery {
 
     /// Brings `panel` to the front of its tab group.
     pub fn activate(&mut self, panel: PanelId) {
-        let _ = self.workspace.apply(Action::Activate { panel }, PanelId::permissions);
+        let _ = self.dock_of_mut(panel.workspace()).apply(Action::Activate { panel }, PanelId::permissions);
+    }
+
+    /// Whether `panel` is the shown tab of its group in its workspace's dock.
+    pub fn is_front(&self, panel: PanelId) -> bool {
+        let dock = match panel.workspace() {
+            GalleryWorkspace::Components => &self.components_dock,
+            GalleryWorkspace::Theme => &self.theme_dock,
+        };
+        dock.layout.panel_state(&panel) == PanelState::Front
+    }
+
+    fn dock_of_mut(&mut self, workspace: GalleryWorkspace) -> &mut Workspace<PanelId> {
+        match workspace {
+            GalleryWorkspace::Components => &mut self.components_dock,
+            GalleryWorkspace::Theme => &mut self.theme_dock,
+        }
     }
 
     /// The labels of the focus-order badges of each canvas the inspector drew in the last frame.
@@ -191,11 +230,12 @@ impl Gallery {
         // the popups are read now.
         let escape = ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !egui::Popup::is_any_open(&ctx) && !popover::any_open(&ctx);
         Panel::top("gallery.bar").frame(Frame::NONE).show_separator_line(false).resizable(false).show(ui, |ui| self.options_bar(ui));
-        if escape || self.view == CentreView::Overview {
+        if (escape && self.workspace == GalleryWorkspace::Components) || self.view == CentreView::Overview {
             self.variants = None;
         }
-        let layout = &self.workspace.layout;
-        let inspecting = self.view == CentreView::Component
+        let layout = &self.components_dock.layout;
+        let inspecting = self.workspace == GalleryWorkspace::Components
+            && self.view == CentreView::Component
             && self.variants.is_none()
             && layout.panel_state(&PanelId::Inspect) == PanelState::Front
             && layout.panel_state(&PanelId::View) == PanelState::Front;
@@ -205,24 +245,29 @@ impl Gallery {
         }
         CentralPanel::default().frame(Frame::NONE).show(ui, |ui| self.dock(ui, inspecting));
         if std::mem::take(&mut self.reset_layout) {
-            self.workspace = default_workspace();
+            let shown = self.workspace;
+            *self.dock_of_mut(shown) = default_for(shown);
         }
     }
 
-    /// The panels in their dock. The workspace is taken out while the panels draw, because they
-    /// borrow the gallery.
+    /// The shown workspace's panels in their dock. The dock layout is taken out while the panels
+    /// draw, because they borrow the gallery.
     fn dock(&mut self, ui: &mut Ui, inspecting: bool) {
-        let mut workspace = std::mem::take(&mut self.workspace);
+        let shown = self.workspace;
+        let mut workspace = std::mem::take(self.dock_of_mut(shown));
+        let id = match shown {
+            GalleryWorkspace::Components => "gallery.dock.components",
+            GalleryWorkspace::Theme => "gallery.dock.theme",
+        };
         let tokens = Tokens::of(ui);
         let mut config = DockConfig::default();
         config.right_to_left = direction::is_rtl(ui);
         let mut panels = Panels { gallery: self, inspecting, control: tokens.size.control.sm };
-        let output =
-            DockArea::new(ui.make_persistent_id("gallery.dock")).locked(workspace.locked).show_content(ui, &workspace.layout, &config, &mut panels);
+        let output = DockArea::new(ui.make_persistent_id(id)).locked(workspace.locked).show_content(ui, &workspace.layout, &config, &mut panels);
         for action in output.actions {
             let _ = workspace.apply(action, PanelId::permissions);
         }
-        self.workspace = workspace;
+        *self.dock_of_mut(shown) = workspace;
     }
 
     fn apply_appearance(&mut self, ctx: &egui::Context) {
@@ -248,6 +293,9 @@ impl Gallery {
     fn options_bar(&mut self, ui: &mut Ui) {
         let a = &mut self.appearance;
         let view = &mut self.view;
+        let workspace = &mut self.workspace;
+        let current = *workspace;
+        let preview = &mut self.preview;
         let variants = &mut self.variants;
         let more_open = &mut self.more_open;
         let reset_layout = &mut self.reset_layout;
@@ -338,21 +386,45 @@ impl Gallery {
                     },
                 );
                 OptionsBar::divider(ui);
-                segmented(ui, "View", view, [("Overview", CentreView::Overview), ("Component", CentreView::Component)]);
-                // The toggle only shows the state; the menu opens on the press.
-                let mut shown = variants.is_some();
-                let button = ui.add(ToggleButton::new("Variants", &mut shown).trailing_icon(Icon::ChevronDown).size(ControlSize::Sm));
-                let entries: Vec<MenuEntry<VariantAxis>> =
-                    VariantAxis::ALL.into_iter().map(|axis| MenuItem::new(axis.menu_label(), axis).into()).collect();
-                if let Some(axis) = PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &button).chosen {
-                    *variants = Some(axis);
-                    *view = CentreView::Component;
+                match current {
+                    GalleryWorkspace::Components => {
+                        segmented(ui, "View", view, [("Overview", CentreView::Overview), ("Component", CentreView::Component)]);
+                        // The toggle only shows the state; the menu opens on the press.
+                        let mut shown = variants.is_some();
+                        let button = ui.add(ToggleButton::new("Variants", &mut shown).trailing_icon(Icon::ChevronDown).size(ControlSize::Sm));
+                        let entries: Vec<MenuEntry<VariantAxis>> =
+                            VariantAxis::ALL.into_iter().map(|axis| MenuItem::new(axis.menu_label(), axis).into()).collect();
+                        if let Some(axis) = PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &button).chosen {
+                            *variants = Some(axis);
+                            *view = CentreView::Component;
+                        }
+                    }
+                    GalleryWorkspace::Theme => {
+                        segmented(ui, "Preview", preview, [("App", PreviewView::App), ("Components", PreviewView::Components)]);
+                        let mut picking = false;
+                        ui.add(ToggleButton::new("Pick from preview", &mut picking).icon(Icon::Eyedropper).enabled(false).size(ControlSize::Sm))
+                            .tooltip("Comes with token picking");
+                    }
                 }
             });
             bar.trailing(|ui| {
-                if ui.add(IconButton::new(Icon::Undo, "Reset layout").size(ControlSize::Sm)).clicked() {
+                if current == GalleryWorkspace::Theme {
+                    ui.add(Button::new("Revert all").enabled(false).size(ControlSize::Sm)).tooltip("Comes with theme editing");
+                    ui.add(Button::new("Save as…").variant(ButtonVariant::Primary).enabled(false).size(ControlSize::Sm))
+                        .tooltip("Comes with theme editing");
+                    OptionsBar::divider(ui);
+                }
+                let reset = ui.add(IconButton::new(Icon::Undo, "Reset layout").show_tooltip(false).size(ControlSize::Sm));
+                if reset.tooltip("Reset this workspace's layout").clicked() {
                     *reset_layout = true;
                 }
+                OptionsBar::cell(ui, "Workspace:", CellWidth::Content, |ui, _| {
+                    let mut segmented = Segmented::new(("gallery.segmented", "Workspace"), "Workspace", workspace).size(ControlSize::Sm);
+                    for option in GalleryWorkspace::ALL {
+                        segmented = segmented.item(option, option.title());
+                    }
+                    segmented.show(ui);
+                });
             });
         });
     }
@@ -412,6 +484,9 @@ impl Gallery {
         self.select_component(component);
         self.scroll_to = None;
         self.view = CentreView::Component;
+        self.workspace = GalleryWorkspace::Components;
+        self.variants = None;
+        self.activate(PanelId::View);
     }
 
     /// The selected component's stories.
@@ -578,6 +653,36 @@ impl Gallery {
         }
     }
 
+    /// The Theme workspace's centre: the mock app, or the Controls level's tiles.
+    fn preview_panel(&mut self, ui: &mut Ui) {
+        match self.preview {
+            PreviewView::App => {
+                canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
+                    ui.set_min_size(ui.available_size());
+                    EmptyState::centred("The mock app preview is not built yet.").show(ui);
+                });
+            }
+            PreviewView::Components => {
+                let components: Vec<&'static str> =
+                    nav(&self.stories, "").into_iter().find(|(level, _)| *level == Level::Controls).map_or_else(Vec::new, |(_, c)| c);
+                let tiles = overview_tiles(&self.stories, &components, None);
+                let appearance = self.appearance.clone();
+                let system = self.os_applied;
+                let mut opened = None;
+                canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
+                    ui.set_min_size(ui.available_size());
+                    let mut scroll_to = None;
+                    ScrollArea::vertical().id_salt("gallery.preview").auto_shrink([false, false]).show(ui, |ui| {
+                        opened = overview(ui, &tiles, &mut self.args, &self.saved_args, &appearance, system, &mut scroll_to);
+                    });
+                });
+                if let Some(component) = opened {
+                    self.open_component(component);
+                }
+            }
+        }
+    }
+
     fn tokens_panel(&mut self, ui: &mut Ui) {
         let mode = self.appearance.mode(shown_mode(ui.ctx()));
         self.browser.show(ui, &self.base, mode);
@@ -612,6 +717,21 @@ fn padded(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
     Frame::new().inner_margin(margin(pad)).show(ui, add);
 }
 
+/// A panel that is not built yet: one muted line.
+fn placeholder(ui: &mut Ui, text: &str) {
+    padded(ui, |ui| {
+        EmptyState::new(text).show(ui);
+    });
+}
+
+/// The body height of the Theme workspace's Problems and Changes group.
+const PROBLEMS_HEIGHT: f32 = 210.0;
+
+/// The dock layout `saved` holds, made valid for `workspace`, or the default.
+fn load_dock(saved: Option<Workspace<PanelId>>, workspace: GalleryWorkspace) -> Workspace<PanelId> {
+    saved.map_or_else(|| default_for(workspace), |saved| reconciled(saved, workspace))
+}
+
 /// Draws `add` in a vertical scroll area inside the panel's padding.
 fn scrolled(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
     ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| padded(ui, add));
@@ -629,6 +749,10 @@ impl DockContent<PanelId> for Panels<'_> {
             PanelId::Inspect => padded(ui, |ui| self.gallery.inspector.panel(ui)),
             PanelId::View => self.gallery.view_panel(ui, self.inspecting),
             PanelId::Tokens => padded(ui, |ui| self.gallery.tokens_panel(ui)),
+            PanelId::Preview => self.gallery.preview_panel(ui),
+            PanelId::Theme => placeholder(ui, "Theme tokens and editing come here."),
+            PanelId::Problems => placeholder(ui, "Contrast problems come here."),
+            PanelId::Changes => placeholder(ui, "Changes since the last save come here."),
         }
     }
 
@@ -648,6 +772,8 @@ impl DockContent<PanelId> for Panels<'_> {
         match panel {
             PanelId::Stories => Some(DockHeights::new(80.0).compact(60.0)),
             PanelId::Properties | PanelId::Inspect => Some(DockHeights::new(240.0).compact(120.0).fill(300.0)),
+            PanelId::Theme => Some(DockHeights::new(0.0).fill(300.0)),
+            PanelId::Problems | PanelId::Changes => Some(DockHeights::new(PROBLEMS_HEIGHT)),
             _ => None,
         }
     }
@@ -686,11 +812,14 @@ impl eframe::App for Gallery {
             selected: self.selected.clone(),
             filter: self.filter.clone(),
             view: self.view,
+            workspace: self.workspace,
+            preview: self.preview,
             tokens_split: Some(self.browser.share()),
             args: saved_args,
         };
         eframe::set_value(storage, KEY, &saved);
-        eframe::set_value(storage, persist::LAYOUT_KEY, &self.workspace);
+        eframe::set_value(storage, persist::LAYOUT_KEY, &self.components_dock);
+        eframe::set_value(storage, persist::THEME_LAYOUT_KEY, &self.theme_dock);
     }
 }
 
@@ -1182,12 +1311,12 @@ mod tests {
     fn the_dock_layout_round_trips_through_storage() {
         let mut gallery = Gallery::new(None);
         gallery.activate(PanelId::Tokens);
-        gallery.workspace.apply(Action::Float { panel: PanelId::Stories, rect: [40.0, 40.0, 240.0, 200.0] }, PanelId::permissions).unwrap();
+        gallery.components_dock.apply(Action::Float { panel: PanelId::Stories, rect: [40.0, 40.0, 240.0, 200.0] }, PanelId::permissions).unwrap();
         let mut storage = Memory::default();
         eframe::App::save(&mut gallery, &mut storage);
         let restored = Gallery::new(Some(&storage));
-        assert_eq!(restored.workspace, gallery.workspace);
-        assert_ne!(restored.workspace, default_workspace());
+        assert_eq!(restored.components_dock, gallery.components_dock);
+        assert_ne!(restored.components_dock, crate::layout::default_workspace());
     }
 
     #[test]
@@ -1197,7 +1326,7 @@ mod tests {
             Workspace::new(Layout { root: Some(Node::Tabs { panels: vec![PanelId::View, PanelId::View], active: 0 }), floating: Vec::new() });
         let mut storage = Memory::default();
         eframe::set_value(&mut storage, persist::LAYOUT_KEY, &broken);
-        assert_eq!(Gallery::new(Some(&storage)).workspace, default_workspace());
+        assert_eq!(Gallery::new(Some(&storage)).components_dock, crate::layout::default_workspace());
     }
 
     #[test]
@@ -1210,8 +1339,45 @@ mod tests {
         eframe::set_value(&mut storage, KEY, &Saved { filter: "button".to_owned(), ..Saved::default() });
         eframe::set_value(&mut storage, "craft-ui-gallery.layout", &old);
         let gallery = Gallery::new(Some(&storage));
-        assert_eq!(gallery.workspace, default_workspace());
+        assert_eq!(gallery.components_dock, crate::layout::default_workspace());
         assert_eq!(gallery.filter, "button");
+    }
+
+    #[test]
+    fn a_fresh_gallery_opens_in_the_components_workspace() {
+        assert_eq!(Gallery::new(None).workspace(), GalleryWorkspace::Components);
+    }
+
+    #[test]
+    fn switching_workspaces_keeps_each_layout_as_it_was() {
+        let ctx = egui::Context::default();
+        let mut gallery = Gallery::new(None);
+        gallery.components_dock.apply(Action::Float { panel: PanelId::Stories, rect: [40.0, 40.0, 240.0, 200.0] }, PanelId::permissions).unwrap();
+        let moved = gallery.components_dock.clone();
+        gallery.set_workspace(GalleryWorkspace::Theme);
+        run_frames(&ctx, &mut gallery, 2);
+        assert_eq!(gallery.theme_dock, crate::layout::default_theme_workspace());
+        gallery.set_workspace(GalleryWorkspace::Components);
+        run_frames(&ctx, &mut gallery, 2);
+        assert_eq!(gallery.components_dock, moved);
+    }
+
+    #[test]
+    fn each_layout_saves_under_its_own_key_and_a_broken_one_costs_only_itself() {
+        let mut gallery = Gallery::new(None);
+        gallery.components_dock.apply(Action::Float { panel: PanelId::Stories, rect: [40.0, 40.0, 240.0, 200.0] }, PanelId::permissions).unwrap();
+        gallery.theme_dock.apply(Action::Float { panel: PanelId::Changes, rect: [40.0, 40.0, 240.0, 200.0] }, PanelId::permissions).unwrap();
+        let mut storage = Memory::default();
+        eframe::App::save(&mut gallery, &mut storage);
+        let restored = Gallery::new(Some(&storage));
+        assert_eq!(restored.components_dock, gallery.components_dock);
+        assert_eq!(restored.theme_dock, gallery.theme_dock);
+        assert_ne!(restored.theme_dock, crate::layout::default_theme_workspace());
+
+        eframe::Storage::set_string(&mut storage, persist::THEME_LAYOUT_KEY, "(version:9,layout:(root:Some(Frobnicate(".to_owned());
+        let restored = Gallery::new(Some(&storage));
+        assert_eq!(restored.theme_dock, crate::layout::default_theme_workspace());
+        assert_eq!(restored.components_dock, gallery.components_dock);
     }
 
     #[test]
@@ -1220,7 +1386,7 @@ mod tests {
         eframe::set_value(&mut storage, KEY, &Saved { filter: "button".to_owned(), ..Saved::default() });
         eframe::Storage::set_string(&mut storage, persist::LAYOUT_KEY, "(version:9,layout:(root:Some(Frobnicate(".to_owned());
         let gallery = Gallery::new(Some(&storage));
-        assert_eq!(gallery.workspace, default_workspace());
+        assert_eq!(gallery.components_dock, crate::layout::default_workspace());
         assert_eq!(gallery.filter, "button", "the rest of the saved state is kept");
     }
 
