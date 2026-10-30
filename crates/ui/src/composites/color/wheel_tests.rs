@@ -338,9 +338,11 @@ fn press_during_typing(waits: bool) -> (Option<EditEvent<ModelValues>>, Option<E
     let ctx = Context::default();
     install(&ctx, &Base::suite_default());
     let numbers = LocaleNumbers::from_tag("en");
-    let (mut time, mut geometry, mut event, mut field) = (0.0, WheelGeometry { center: Pos2::ZERO, inner: 0.0, outer: 0.0, triangle: 0.0 }, None, Id::NULL);
+    let (mut time, mut geometry, mut event, mut field) =
+        (0.0, WheelGeometry { center: Pos2::ZERO, inner: 0.0, outer: 0.0, triangle: 0.0 }, None, Id::NULL);
     let mut frame = |events: Vec<Event>, event: &mut Option<EditEvent<ModelValues>>, geometry: &mut WheelGeometry, field: &mut Id| {
-        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(time), events, ..Default::default() };
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(time), events, ..Default::default() };
         time += 1.0 / 60.0;
         let output = ctx.run_ui(input, |ui| {
             *field = NumberField::new("hue", "Hue", 10.0, &numbers).part(true).show(ui).response.id;
@@ -396,7 +398,8 @@ fn a_click_beside_the_wheel_reaches_the_widget_under_it() {
     let (mut time, mut geometry, mut clicked) = (0.0, WheelGeometry { center: Pos2::ZERO, inner: 0.0, outer: 0.0, triangle: 0.0 }, false);
     let grab = default_style().grab_outer;
     let mut frame = |events: Vec<Event>, geometry: &mut WheelGeometry, clicked: &mut bool| {
-        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(time), events, ..Default::default() };
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(time), events, ..Default::default() };
         time += 1.0 / 60.0;
         let (g, beside) = (*geometry, Rect::from_center_size(geometry.center + vec2(geometry.outer + grab + 20.0, 0.0), vec2(10.0, 10.0)));
         let output = ctx.run_ui(input, |ui: &mut Ui| {

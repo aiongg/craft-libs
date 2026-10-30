@@ -381,7 +381,8 @@ fn a_waiting_press_keeps_the_modifiers_it_arrived_with() {
     let mut bar = Rect::NOTHING;
     let mut field = egui::Id::NULL;
     let mut frame = |events: Vec<Event>, picks: &mut Vec<RampPick>, bar: &mut Rect, field: &mut egui::Id| {
-        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), time: Some(time), events, ..Default::default() };
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), time: Some(time), events, ..Default::default() };
         time += 1.0 / 60.0;
         let output = ctx.run_ui(input, |ui| {
             *field = NumberField::new("hue", "Hue", 10.0, &numbers).part(true).show(ui).response.id;
@@ -398,7 +399,12 @@ fn a_waiting_press_keeps_the_modifiers_it_arrived_with() {
     frame(vec![], &mut picks, &mut bar, &mut field);
     let at = bar.center();
     let alt = Modifiers::ALT;
-    frame(vec![Event::ModifiersChanged(alt), Event::PointerMoved(at), button(at, true, alt), button(at, false, alt)], &mut picks, &mut bar, &mut field);
+    frame(
+        vec![Event::ModifiersChanged(alt), Event::PointerMoved(at), button(at, true, alt), button(at, false, alt)],
+        &mut picks,
+        &mut bar,
+        &mut field,
+    );
     assert!(picks.is_empty(), "the press waits");
     frame(vec![Event::ModifiersChanged(Modifiers::NONE)], &mut picks, &mut bar, &mut field);
     assert!(!picks.is_empty() && picks.iter().all(|p| p.other), "the pick is Alt's: {picks:?}");

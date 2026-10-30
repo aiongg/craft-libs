@@ -252,7 +252,7 @@ impl<'a> ColorRamp<'a> {
         let response = sensed.response().clone();
         let (id, enabled) = (response.id, response.enabled());
         let mods = ui.input(|i| i.modifiers);
-        let menu_at = if enabled { secondary_click(ui, &response, bar) } else { None };
+        let menu_at = secondary_click(ui, &response, bar);
 
         // The host holds no pick, so the gesture compares against the one it last reported while it
         // runs: reading that as the host's echo keeps it from being cancelled as an outside change.
@@ -269,14 +269,7 @@ impl<'a> ColorRamp<'a> {
         let press_key = id.with("craft_ui::ramp_press");
         let mut press =
             ui.data(|d| d.get_temp::<Press>(press_key)).unwrap_or(Press { shift: false, alt: false, moved: false, origin: None, ends: self.ends });
-        // A press that waits keeps the modifiers it arrived with: the pass that runs it may see
-        // others.
-        let waiting_key = id.with("craft_ui::ramp_waiting_mods");
-        if waits && (started.is_some() || tapped.is_some()) {
-            ui.data_mut(|d| d.insert_temp(waiting_key, mods));
-        }
-        let held_mods = if matches!(turn, PressTurn::Held(_)) { ui.data_mut(|d| d.remove_temp::<Modifiers>(waiting_key)) } else { None };
-        let press_mods = held_mods.unwrap_or(mods);
+        let press_mods = press_modifiers(ui, id, mods, waits, started.is_some() || tapped.is_some(), matches!(turn, PressTurn::Held(_)));
         let new_press = !waits && (started.is_some() || tapped.is_some() || matches!(turn, PressTurn::Held(_)));
         if new_press {
             let origin = match turn {
@@ -394,16 +387,7 @@ impl<'a> ColorRamp<'a> {
         }
         FocusRing::paint_if(ui, all.expand(style.edge.width), CornerRadius::ZERO, focused || box_focus);
         let event = gesture.finish();
-        match &event {
-            Some(EditEvent::Update { value, .. }) => {
-                let value = *value;
-                ui.data_mut(|d| d.insert_temp(host_key, value));
-            }
-            Some(EditEvent::Begin { .. }) | None => {}
-            Some(_) => {
-                ui.data_mut(|d| d.insert_temp(host_key, NO_PICK));
-            }
-        }
+        remember_host(ui, host_key, &event);
         ColorRampResponse { edit: EditResponse::new(response.clone(), event), cycle, bar: response, menu_at }
     }
 
@@ -484,9 +468,37 @@ struct Press {
     ends: [Srgba; 2],
 }
 
+/// Keeps the pick the gesture last reported as the value it compares against while it runs, and
+/// forgets it when the gesture ends.
+fn remember_host(ui: &Ui, key: egui::Id, event: &Option<EditEvent<RampPick>>) {
+    match event {
+        Some(EditEvent::Update { value, .. }) => ui.data_mut(|d| {
+            d.insert_temp(key, *value);
+        }),
+        Some(EditEvent::Begin { .. }) | None => {}
+        Some(_) => ui.data_mut(|d| {
+            d.insert_temp(key, NO_PICK);
+        }),
+    }
+}
+
+/// The modifiers of the press this pass runs. A press that waits keeps the ones it arrived with:
+/// the pass that runs it may see others.
+fn press_modifiers(ui: &Ui, id: egui::Id, mods: Modifiers, waits: bool, arrived: bool, held: bool) -> Modifiers {
+    let key = id.with("craft_ui::ramp_waiting_mods");
+    if waits && arrived {
+        ui.data_mut(|d| d.insert_temp(key, mods));
+    }
+    let kept = if held { ui.data_mut(|d| d.remove_temp::<Modifiers>(key)) } else { None };
+    kept.unwrap_or(mods)
+}
+
 /// The position of a secondary click this frame whose press and release were both on `bar` and
 /// not under another layer. Read from the raw events because the bar senses drags only.
 fn secondary_click(ui: &Ui, response: &Response, bar: Rect) -> Option<Pos2> {
+    if !response.enabled() {
+        return None;
+    }
     let key = response.id.with("craft_ui::ramp_secondary");
     let mut origin = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
     let on_bar = |pos: Pos2| bar.contains(pos) && ui.ctx().layer_id_at(pos) == Some(response.layer_id);

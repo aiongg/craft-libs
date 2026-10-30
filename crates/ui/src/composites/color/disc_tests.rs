@@ -267,11 +267,13 @@ fn a_click_beside_the_disc_reaches_the_widget_under_it() {
     let mut clicked = false;
     let colors = rig.colors;
     let mut frame = |rig: &mut Rig, events: Vec<Event>| {
-        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(rig.time), events, ..Default::default() };
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(rig.time), events, ..Default::default() };
         rig.time += 1.0 / 60.0;
         let ctx = rig.ctx.clone();
         let output = ctx.run_ui(input, |ui| {
-            let under = ui.interact_opt(Rect::from_center_size(beside, vec2(10.0, 10.0)), ui.scope_id().with("under"), Sense::click(), Default::default());
+            let under =
+                ui.interact_opt(Rect::from_center_size(beside, vec2(10.0, 10.0)), ui.scope_id().with("under"), Sense::click(), Default::default());
             clicked |= under.clicked();
             ColorDisc::new("disc", "Harmony", &colors).selected(Some(0)).side(150.0).show(ui);
         });

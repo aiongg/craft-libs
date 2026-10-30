@@ -246,8 +246,7 @@ impl ColorDisc {
             _ => marker_value(held),
         };
 
-        let mut gesture =
-            Gesture::load(ui, pointer_id, &host, self.policy).focus_owners(&ids).event_filter(KEY_FILTER).enabled(enabled);
+        let mut gesture = Gesture::load(ui, pointer_id, &host, self.policy).focus_owners(&ids).event_filter(KEY_FILTER).enabled(enabled);
         let modifiers = || ui.input(|i| i.modifiers);
         let value_at = |base: &DiscMove, pos: Pos2| {
             let offset = pos - center;
