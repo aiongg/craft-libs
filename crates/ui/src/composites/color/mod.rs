@@ -31,6 +31,10 @@ mod quantize_tests;
 mod strip;
 #[cfg(test)]
 mod tests;
+mod wheel;
+#[cfg(test)]
+mod wheel_tests;
+mod wheel_stories;
 
 use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, OklchModel, RgbModel};
 use egui::{Color32, Stroke, Ui, Vec2, vec2};
@@ -42,6 +46,7 @@ pub use palette::SwatchPalette;
 pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, ColorWarningChip, PickedColor};
 pub use popover::{ColorPopover, ColorPopoverResponse};
 pub use strip::ColorStrip;
+pub use wheel::{ColorWheel, ColorWheelResponse, ColorWheelStyle, WheelGeometry, WheelPart};
 
 use crate::controls::slider::{self, Scale};
 use crate::edit::{self, EditEvent};
@@ -291,7 +296,7 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "HexField", "SwatchPair", "SwatchPalette"];
+pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "HexField", "SwatchPair", "SwatchPalette", "ColorWheel"];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum ModeArg {
@@ -426,6 +431,7 @@ pub(crate) fn stories() -> Vec<Story> {
     ];
     stories.extend(full_stories::stories());
     stories.extend(pair_stories::stories());
+    stories.extend(wheel_stories::stories());
     stories
 }
 
