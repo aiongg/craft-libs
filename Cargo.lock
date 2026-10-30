@@ -973,6 +973,7 @@ version = "0.1.0"
 dependencies = [
  "craft-keymap",
  "craft-quit",
+ "craft-theme",
  "craft-ui",
  "egui",
  "muda",

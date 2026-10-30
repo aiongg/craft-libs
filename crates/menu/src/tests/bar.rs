@@ -71,6 +71,8 @@ struct Bar {
     after: Option<f32>,
     /// The viewport commands the bar sent.
     sent: Vec<egui::ViewportCommand>,
+    search: bool,
+    titles: Rect,
 }
 
 impl Bar {
@@ -97,6 +99,8 @@ impl Bar {
             fit: None,
             after: None,
             sent: Vec::new(),
+            search: false,
+            titles: Rect::NOTHING,
         };
         b.run(3);
         b
@@ -114,26 +118,33 @@ impl Bar {
         };
         let (bar, gate, target, english, preferred, label, fit) =
             (&self.bar, self.gate, self.target, self.english, &self.preferred, self.label, self.fit);
+        let search = self.search;
         let mut out = Vec::new();
+        let mut titles = Rect::NOTHING;
         let mut after = None;
         let mut full = self.ctx.run_ui(raw, |ui| {
             let hook = |s: &'static str| label.map_or_else(|| s.to_owned(), |f| f(s));
-            let mut ui_bar = MenuBarUi::new(bar).gate(gate).target(target).mnemonics(preferred).label(&hook);
+            let mut ui_bar = MenuBarUi::new(bar).gate(gate).target(target).mnemonics(preferred).label(&hook).help_search(search);
             if let Some(english) = &english {
                 ui_bar = ui_bar.english(english);
             }
             match fit {
                 Some(max) => {
                     ui.horizontal(|ui| {
-                        out = ui_bar.shrink_to_fit(max).show(ui);
+                        let shown = ui_bar.shrink_to_fit(max).show(ui);
+                        (out, titles) = (shown.commands, shown.titles);
                         after = Some(ui.label("after").rect.left());
                     });
                 }
-                None => out = ui_bar.show(ui),
+                None => {
+                    let shown = ui_bar.show(ui);
+                    (out, titles) = (shown.commands, shown.titles);
+                }
             }
         });
         full.textures_delta.clear();
         self.after = after;
+        self.titles = titles;
         if let Some(root) = full.viewport_output.remove(&egui::ViewportId::ROOT) {
             self.sent.extend(root.commands);
         }
@@ -475,4 +486,26 @@ fn a_bar_shrunk_to_fit_shares_its_row() {
     // A limit an app computed from a full row can go negative.
     b.fit = Some(-20.0);
     b.run(2);
+}
+
+/// The tint and the tooltip of a model item reach the row: the tooltip is its accessible
+/// description. The Help menu opens with the search field, which finds an item by its label.
+#[test]
+fn tooltips_reach_the_rows_and_the_help_search_finds_items() {
+    let mut b = wide();
+    assert!(!b.titles.is_negative() && b.titles.width() > 0.0, "the titles' rect is returned: {:?}", b.titles);
+    b.bar.menus[1].children[0] =
+        Node::Item(item("edit.undo", "Undo").tint(craft_theme::Srgba::new(1.0, 0.0, 0.0, 1.0)).tooltip("Take back the last change"));
+    b.search = true;
+    b.run(2);
+    b.click("Edit");
+    assert_eq!(b.node("Undo").and_then(|n| n.description()), Some("Take back the last change"));
+    b.click("Edit");
+    b.click("Help");
+    for c in "redo".chars() {
+        b.letter(c);
+    }
+    assert!(b.shown("Edit › Redo"), "the search lists the item by its label");
+    b.key(Key::Enter);
+    assert_eq!(b.take(), [CommandRef::from("edit.redo")]);
 }

@@ -10,10 +10,10 @@
 
 use craft_keymap::{CommandRef, Platform};
 use craft_ui::menu::{MenuBarLabels, MenuEntry, MenuItem};
-use egui::{Id, Ui};
+use egui::{Id, Rect, Ui};
 
 use crate::model::Builtin;
-use crate::{Gate, Item, ItemKind, MenuBar, Node, Target};
+use crate::{Gate, Item, ItemKind, MenuBar, MenuRole, Node, Target};
 
 /// Whether a menu of the bar is open; [`craft_ui::menu::any_open`] answers for every menu (the
 /// bar's, context menus, press menus), and the app's single-key shortcuts wait while it is true.
@@ -92,6 +92,17 @@ fn english(label: &'static str) -> String {
     label.to_owned()
 }
 
+/// What the bar did in a frame, from [`MenuBarUi::show`].
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct MenuBarOutput {
+    /// The commands chosen (at most one), see [`MenuBarUi::show`].
+    pub commands: Vec<CommandRef>,
+    /// The menu titles alone, without the room the bar leaves after them
+    /// ([`craft_ui::menu::MenuBarResponse::titles`]).
+    pub titles: Rect,
+}
+
 /// The bar for one frame: `MenuBarUi::new(&bar).gate(gate).show(ui)` returns the commands
 /// chosen. Draw it at the top of the window, in a top panel.
 pub struct MenuBarUi<'a> {
@@ -103,6 +114,7 @@ pub struct MenuBarUi<'a> {
     preferred: &'a [(&'a str, char)],
     id: Id,
     fit: Option<f32>,
+    help_search: bool,
 }
 
 impl<'a> MenuBarUi<'a> {
@@ -117,6 +129,7 @@ impl<'a> MenuBarUi<'a> {
             preferred: &[],
             id: Id::unique("craft-menu-bar"),
             fit: None,
+            help_search: false,
         }
     }
 
@@ -179,6 +192,15 @@ impl<'a> MenuBarUi<'a> {
         self
     }
 
+    /// Start the [`MenuRole::Help`] menu with a search field over every command of the bar (see
+    /// [`craft_ui::menu::MenuBar::help_search`]). The field's name, clear button and empty
+    /// result are written through the [`label`](Self::label) hook as `Search menus`, `Clear` and
+    /// `No matching commands`. A bar with no Help menu has no field.
+    pub fn help_search(mut self, on: bool) -> MenuBarUi<'a> {
+        self.help_search = on;
+        self
+    }
+
     /// The bar's id, where its state lives in egui memory: tells two bars in one window apart.
     pub fn id(mut self, id: Id) -> MenuBarUi<'a> {
         self.id = id;
@@ -186,10 +208,10 @@ impl<'a> MenuBarUi<'a> {
     }
 
     /// Draw the bar and its open menu; returns the commands chosen this frame (at most one),
-    /// clicked or run with ↩ or Space. Disabled items, and items the gate forbids, never run.
+    /// clicked or run with ↩ or Space, and the titles' rect. Disabled items, and items the gate forbids, never run.
     /// [`Builtin::Quit`] (asks the window to close, see [`craft_quit::on_menu_event`]) and
     /// [`Builtin::Minimize`] run here and are left out.
-    pub fn show(self, ui: &mut Ui) -> Vec<CommandRef> {
+    pub fn show(self, ui: &mut Ui) -> MenuBarOutput {
         let ctx = ui.ctx().clone();
         // Option is a typing key on a Mac, also in a browser there.
         let platform = keymap_platform(self.target, ctx.os());
@@ -203,7 +225,9 @@ impl<'a> MenuBarUi<'a> {
             all: hook("Menu"),
             scroll_up: hook("Scroll menu up"),
             scroll_down: hook("Scroll menu down"),
-            ..MenuBarLabels::default()
+            search: hook("Search menus"),
+            clear: hook("Clear"),
+            no_matches: hook("No matching commands"),
         };
         let mut bar = craft_ui::menu::MenuBar::new(&menus)
             .id(self.id)
@@ -213,7 +237,13 @@ impl<'a> MenuBarUi<'a> {
         if let Some(max) = self.fit {
             bar = bar.shrink_to_fit(max);
         }
-        bar.show(ui)
+        if self.help_search
+            && let Some(help) = self.bar.menus.iter().position(|m| m.role == MenuRole::Help)
+        {
+            bar = bar.help_search(help);
+        }
+        let shown = bar.show(ui);
+        let commands = shown
             .chosen
             .into_iter()
             .filter(|command| match Builtin::of(command) {
@@ -224,7 +254,8 @@ impl<'a> MenuBarUi<'a> {
                 }
                 _ => true,
             })
-            .collect()
+            .collect();
+        MenuBarOutput { commands, titles: shown.titles }
     }
 }
 
@@ -280,6 +311,12 @@ impl Convert<'_> {
         }
         if let Some(english) = self.english_of(Labeled::Command(&item.command)) {
             row = row.english(english);
+        }
+        if let Some(tint) = item.tint {
+            row = row.tint(tint);
+        }
+        if let Some(tooltip) = &item.tooltip {
+            row = row.tooltip(tooltip.as_str());
         }
         row
     }

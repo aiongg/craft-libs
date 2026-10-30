@@ -32,7 +32,8 @@ Each item runs a `craft_keymap::CommandRef`, and a click reports it. A command t
 parameter carries it in the `CommandRef`:
 `CommandRef::with_params("file.open_recent", json!({"index": 3}))`. Items built directly use
 `Item::new(command, label)` with `.shortcut(chord)`, `.enabled(..)`, `.check(..)` or
-`.radio(..)` (the item's `ItemKind`), `.role(..)` and `.platforms(..)`; submenus use
+`.radio(..)` (the item's `ItemKind`), `.role(..)`, `.platforms(..)`, `.tint(colour)` and
+`.tooltip(text)` (both for the in-window bar only; the native macOS menu ignores them); submenus use
 `Node::submenu(label, children)`, with `.role(..)` for a tagged one. A shortcut is a
 `craft_keymap::Chord`: `cmd` is ⌘ and `ctrl` the Control key. macOS shows radio items as check
 items. The app's open documents go in `MenuBar::documents` (`Document::new(command, name)`,
@@ -99,13 +100,14 @@ are left alone. Both run on the app's bar, before the layout.
 ## Windows, Linux and web: the egui bar
 
 `MenuBarUi` draws a laid-out bar with egui, in a top panel, and returns the commands chosen that
-frame:
+frame with the titles' rect (`MenuBarOutput`). `.help_search(true)` starts the Help menu with a
+search field over every command:
 
 ```rust
 let laid_out = craft_menu::layout(&menu_bar, Target::current(), &LayoutOptions::new("PhotoCraft")).bar;
 egui::Panel::top("menu-bar").show(ui, |ui| {
     let gate = Gate { modal: dialog_open, recording_shortcut, text_editing: ui.ctx().text_edit_focused() };
-    for command in MenuBarUi::new(&laid_out).gate(gate).label(&tr).show(ui) {
+    for command in MenuBarUi::new(&laid_out).gate(gate).label(&tr).help_search(true).show(ui).commands {
         app.run(&command);
     }
 });
