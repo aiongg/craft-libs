@@ -5,11 +5,13 @@ use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, Rect, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
+use super::tool::stories;
 use super::tool::{GridMove, grid_step};
 use super::*;
 use crate::direction::{self, Direction};
 use crate::icons::Icon;
 use crate::panes::Edge;
+use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, install};
 
 type Tool = &'static str;
@@ -270,6 +272,7 @@ fn the_slot_with_the_current_tool_is_selected_and_hidden_tools_are_not_listed() 
 }
 
 #[test]
+#[allow(clippy::expect_used)]
 fn two_columns_widen_the_rail_by_a_button_and_a_gap_and_fill_rows_of_two() {
     let tokens = {
         let ctx = Context::default();
@@ -285,7 +288,7 @@ fn two_columns_widen_the_rail_by_a_button_and_a_gap_and_fill_rows_of_two() {
             ));
         })
         .drop_without_applying_deltas();
-        metrics.unwrap_or_else(|| unreachable!())
+        metrics.expect("metrics")
     };
     let (one, two, button, gap) = tokens;
     assert_eq!(two.width - one.width, button + gap);
@@ -426,4 +429,21 @@ fn accesskit_names_the_toolbar_the_slots_and_their_shortcuts() {
     assert_eq!(brush.description().as_deref(), Some("B"));
     assert_eq!(h.get_by_label("Move").accesskit_node().toggled(), Some(Toggled::True));
     assert_eq!(h.get_by_label("Stamp").accesskit_node().has_popup(), None, "a single tool opens nothing");
+}
+
+#[test]
+fn the_story_names_every_control_in_both_directions() {
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        for story in stories() {
+            let mut args = (story.args)();
+            let show = story.show;
+            let builder = HarnessBuilder::default().with_size(vec2(800.0, 700.0)).with_context_setup(move |ctx: &Context| {
+                install(ctx, &Base::suite_default());
+                direction::apply(ctx, dir);
+            });
+            let mut harness = builder.build_ui_state(move |ui, _: &mut App| show(ui, &mut args), App::new());
+            harness.run();
+            a11y::assert_labelled(&harness);
+        }
+    }
 }
