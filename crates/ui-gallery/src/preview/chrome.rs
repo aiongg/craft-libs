@@ -74,8 +74,9 @@ pub fn title_bar(ui: &mut Ui, mock: &mut Mock, dock: &mut DockState) {
     let title = Title::new(mock.doc.name.clone()).unsaved(mock.doc.modified);
     let menu_list = menus(mock, dock);
     let menu_id = ui.scope_id().with("menus");
+    let title_id = ui.scope_id().with("title");
     let mut chosen = None;
-    TitleBar::new(&frame).id_salt("craft-ui-gallery-app-preview").preview(WindowState::default()).title(title).separator(true).show_titled(
+    TitleBar::new(&frame).id_salt(title_id).preview(WindowState::default()).title(title).separator(true).show_titled(
         ui,
         |ui, _| {
             chosen = MenuBar::new(&menu_list).id(menu_id).show(ui).chosen;
@@ -92,9 +93,10 @@ pub fn title_bar(ui: &mut Ui, mock: &mut Mock, dock: &mut DockState) {
 
 /// The status bar: zoom, colour mode, size, layer count and the message.
 pub fn status_bar(ui: &mut Ui, mock: &mut Mock) {
-    let numbers = LocaleNumbers::from_tag("en-US");
+    let numbers = LocaleNumbers::of(ui);
     let [width, height] = mock.doc.size;
     let layers = mock.doc.layers.len();
+    let resolution = mock.doc.resolution;
     let mut zoom = None;
     StatusBar::new("status").show(ui, |bar| {
         bar.leading(|ui| {
@@ -108,7 +110,7 @@ pub fn status_bar(ui: &mut Ui, mock: &mut Mock) {
             });
             StatusBar::info(ui, "RGB/8");
             StatusBar::separator(ui);
-            StatusBar::info(ui, &format!("{width} x {height} px"));
+            StatusBar::info(ui, &format!("{width} x {height} px ({resolution} ppi)"));
             StatusBar::separator(ui);
             StatusBar::info(ui, &if layers == 1 { "1 layer".to_owned() } else { format!("{layers} layers") });
             StatusBar::message(ui, &mock.status, false);

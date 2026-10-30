@@ -46,17 +46,25 @@ impl Fixture {
     }
 
     fn click(&mut self, name: &str, role: Role) {
+        self.act(Action::Click, name, role);
+    }
+
+    fn act(&mut self, action: Action, name: &str, role: Role) {
         let tree = self.settled();
         let nodes = named(&tree, name, role);
         assert_eq!(nodes.len(), 1, "one {role:?} named {name:?}");
-        let request = ActionRequest { action: Action::Click, target_tree: TreeId::ROOT, target_node: nodes[0], data: None };
+        let request = ActionRequest { action, target_tree: TreeId::ROOT, target_node: nodes[0], data: None };
         self.frame(vec![Event::AccessKitActionRequest(request)]);
         self.frame(Vec::new());
     }
 
     fn press(&mut self, key: Key) {
+        self.press_with(key, Modifiers::NONE);
+    }
+
+    fn press_with(&mut self, key: Key, modifiers: Modifiers) {
         self.settled();
-        let event = |pressed| Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE };
+        let event = |pressed| Event::Key { key, physical_key: None, pressed, repeat: false, modifiers };
         self.frame(vec![event(true), event(false)]);
         self.frame(Vec::new());
     }
@@ -125,5 +133,47 @@ fn a_tool_key_switches_the_tool_and_a_tool_without_a_key_binding_is_left_alone()
     fixture.press(Key::P);
     assert_eq!(fixture.preview.mock.tools.current, Tool::Gradient, "Pen does not work in the mock");
     fixture.press(Key::V);
+    assert_eq!(fixture.preview.mock.tools.current, Tool::Move);
+}
+
+#[test]
+fn a_modified_key_leaves_the_tool_alone() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    fixture.preview.mock.select_tool(Tool::Brush);
+    fixture.press_with(Key::V, Modifiers::ALT);
+    fixture.press_with(Key::V, Modifiers::COMMAND);
+    assert_eq!(fixture.preview.mock.tools.current, Tool::Brush);
+}
+
+#[test]
+fn a_letter_with_a_menu_open_does_not_switch_the_tool() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    fixture.preview.mock.select_tool(Tool::Brush);
+    let tree = fixture.settled();
+    let titles: Vec<_> = tree.walk(tree.root()).into_iter().map(|(id, _)| id).filter(|id| tree.name(*id).as_deref() == Some("Layer")).collect();
+    let role = tree.node(titles[0]).expect("the title").role();
+    fixture.click("Layer", role);
+    fixture.settled();
+    assert!(craft_ui::menu::any_open(&fixture.ctx) || craft_ui::menu::bar::is_open(&fixture.ctx), "the Layer menu is open");
+    fixture.press(Key::V);
+    assert_eq!(fixture.preview.mock.tools.current, Tool::Brush);
+}
+
+#[test]
+fn a_letter_after_picking_a_select_value_switches_the_tool() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    fixture.click("Auto-Select target", Role::ComboBox);
+    fixture.click("Group", Role::ListBoxOption);
+    assert_eq!(fixture.preview.mock.tools.move_.target, super::model::MoveTarget::Group);
+    fixture.press(Key::B);
+    assert_eq!(fixture.preview.mock.tools.current, Tool::Brush);
+}
+
+#[test]
+fn a_letter_in_a_focused_text_field_does_not_switch_the_tool() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    fixture.act(Action::Focus, "Zoom", Role::SpinButton);
+    assert!(fixture.ctx.text_edit_focused(), "the zoom field is being edited");
+    fixture.press(Key::B);
     assert_eq!(fixture.preview.mock.tools.current, Tool::Move);
 }

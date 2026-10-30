@@ -3,6 +3,8 @@
 /// The panels the dock holds, in the order of the Window menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Panel {
+    /// The protected centre panel of the dock. Not in [`Panel::ALL`]: the Window menu cannot hide it.
+    Canvas,
     Swatches,
     Properties,
     Adjustments,
@@ -16,6 +18,7 @@ impl Panel {
 
     pub fn label(self) -> &'static str {
         match self {
+            Panel::Canvas => "Canvas",
             Panel::Swatches => "Swatches",
             Panel::Properties => "Properties",
             Panel::Adjustments => "Adjustments",

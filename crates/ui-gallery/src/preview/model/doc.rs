@@ -35,6 +35,8 @@ impl Blend {
 pub enum LayerKind {
     /// A filled block.
     Pixel { color: [u8; 3] },
+    /// A transparent pixel layer: nothing is painted.
+    Empty,
     /// A Brightness/Contrast layer; `clip` limits it to the layer below.
     Adjustment { brightness: i32, contrast: i32, clip: bool },
 }
@@ -75,18 +77,28 @@ pub struct Doc {
     pub next_id: LayerId,
     pub name: String,
     pub modified: bool,
+    /// Pixels per inch.
+    pub resolution: f64,
 }
 
 impl Default for Doc {
     /// The document of the PhotoCraft captures: a locked white background, a hidden sky and the
-    /// selected orange block.
+    /// selected orange block. It has never been saved, so it counts as modified.
     fn default() -> Self {
         let mut background = Layer::new(1, "Background", LayerKind::Pixel { color: [255, 255, 255] }, [0.0, 0.0, 1200.0, 800.0]);
         background.locked = true;
         let mut sky = Layer::new(2, "Sky", LayerKind::Pixel { color: [92, 160, 232] }, [0.0, 0.0, 1200.0, 400.0]);
         sky.visible = false;
         let shapes = Layer::new(3, "Shapes", LayerKind::Pixel { color: [240, 140, 40] }, [500.0, 300.0, 500.0, 400.0]);
-        Self { size: [1200, 800], layers: vec![shapes, sky, background], selected: vec![3], next_id: 4, name: "Untitled".into(), modified: false }
+        Self {
+            size: [1200, 800],
+            layers: vec![shapes, sky, background],
+            selected: vec![3],
+            next_id: 4,
+            name: "Untitled".into(),
+            modified: true,
+            resolution: 72.0,
+        }
     }
 }
 
@@ -169,11 +181,11 @@ impl Doc {
         id
     }
 
-    /// A transparent pixel layer named "Layer N", N counting the layers made so far.
+    /// An empty layer named "Layer N", N counting the layers made so far.
     pub fn add_layer(&mut self) -> LayerId {
         let name = format!("Layer {}", self.next_id);
         let rect = [0.0, 0.0, self.size[0] as f32, self.size[1] as f32];
-        self.add(name, LayerKind::Pixel { color: [128, 128, 128] }, rect)
+        self.add(name, LayerKind::Empty, rect)
     }
 
     /// A Brightness/Contrast layer named `name`.
@@ -203,9 +215,11 @@ impl Doc {
 
     /// The colour the pixel layer at `index` shows: its fill with the visible adjustment layers
     /// above it applied, the nearest first. A clipped adjustment applies to the layer directly
-    /// below it only. `None` for an adjustment layer.
+    /// below it only. `None` for an adjustment layer and an empty one.
     pub fn shown_color(&self, index: usize) -> Option<[u8; 3]> {
-        let LayerKind::Pixel { color } = self.layers.get(index)?.kind else { return None };
+        let LayerKind::Pixel { color } = self.layers.get(index)?.kind else {
+            return None;
+        };
         let mut shown = color;
         for above in (0..index).rev() {
             let layer = &self.layers[above];

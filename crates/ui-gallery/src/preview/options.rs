@@ -7,13 +7,13 @@ use craft_ui::localized::{LocaleNumbers, Unit};
 use craft_ui::patterns::{CellWidth, OptionsBar};
 use egui::Ui;
 
-use super::model::{Blend, MarqueeStyle, Mock, MoveTarget, SampleSize, Tool};
+use super::model::{Blend, MarqueeStyle, Mock, MoveTarget, SampleSize, Tool, View};
 use super::tools::icon;
 
-fn percent(ui: &mut Ui, numbers: &LocaleNumbers, id: &str, caption: &str, value: &mut f64) {
+fn percent(ui: &mut Ui, numbers: &LocaleNumbers, id: &str, caption: &str, min: f64, value: &mut f64) {
     OptionsBar::cell(ui, &format!("{caption}:"), CellWidth::Md, |ui, label| {
         let edit =
-            NumberField::new(id, caption, *value, numbers).range(0.0..=100.0).unit(Unit::new("{n}%")).size(ControlSize::Sm).scrub_by(label).show(ui);
+            NumberField::new(id, caption, *value, numbers).range(min..=100.0).unit(Unit::new("{n}%")).size(ControlSize::Sm).scrub_by(label).show(ui);
         if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
             *value = *v;
         }
@@ -51,16 +51,18 @@ const ALIGN: [(Icon, &str); 6] = [
 
 /// The cells of the current tool; its values live in `mock.tools`.
 fn cells(ui: &mut Ui, mock: &mut Mock) {
-    let numbers = LocaleNumbers::from_tag("en-US");
+    let numbers = LocaleNumbers::of(ui);
     let tools = &mut mock.tools;
     match tools.current {
         Tool::Move => {
             let options = &mut tools.move_;
             check(ui, "Auto-Select", &mut options.auto_select);
-            choose(ui, "move-target", "Select", &mut options.target, &[MoveTarget::Group, MoveTarget::Layer], |t| match t {
-                MoveTarget::Group => "Group",
-                MoveTarget::Layer => "Layer",
-            });
+            let mut select = Select::new("move-target", "Auto-Select target", &mut options.target).size(ControlSize::Sm);
+            for target in [MoveTarget::Layer, MoveTarget::Group] {
+                select = select.option(target, if target == MoveTarget::Layer { "Layer" } else { "Group" });
+            }
+            let _ = select.show(ui);
+            OptionsBar::divider(ui);
             check(ui, "Show Transform Controls", &mut options.transform);
             OptionsBar::divider(ui);
             for (glyph, name) in ALIGN {
@@ -69,7 +71,6 @@ fn cells(ui: &mut Ui, mock: &mut Mock) {
         }
         Tool::RectMarquee => {
             let options = &mut tools.marquee;
-            choose(ui, "marquee-style", "Style", &mut options.style, &MarqueeStyle::ALL, MarqueeStyle::label);
             OptionsBar::cell(ui, "Feather:", CellWidth::Md, |ui, label| {
                 let edit = NumberField::new("marquee-feather", "Feather", options.feather, &numbers)
                     .range(0.0..=1000.0)
@@ -81,34 +82,46 @@ fn cells(ui: &mut Ui, mock: &mut Mock) {
                     options.feather = *v;
                 }
             });
+            choose(ui, "marquee-style", "Style", &mut options.style, &MarqueeStyle::ALL, MarqueeStyle::label);
         }
         Tool::Brush => {
             let options = &mut tools.brush;
             blend(ui, "brush-mode", &mut options.mode);
-            percent(ui, &numbers, "brush-opacity", "Opacity", &mut options.opacity);
-            percent(ui, &numbers, "brush-flow", "Flow", &mut options.flow);
-            percent(ui, &numbers, "brush-smoothing", "Smoothing", &mut options.smoothing);
+            percent(ui, &numbers, "brush-opacity", "Opacity", 1.0, &mut options.opacity);
+            percent(ui, &numbers, "brush-flow", "Flow", 1.0, &mut options.flow);
+            percent(ui, &numbers, "brush-smoothing", "Smoothing", 0.0, &mut options.smoothing);
         }
         Tool::Eraser => {
             let options = &mut tools.eraser;
-            percent(ui, &numbers, "eraser-opacity", "Opacity", &mut options.opacity);
-            percent(ui, &numbers, "eraser-flow", "Flow", &mut options.flow);
+            percent(ui, &numbers, "eraser-opacity", "Opacity", 1.0, &mut options.opacity);
+            percent(ui, &numbers, "eraser-flow", "Flow", 1.0, &mut options.flow);
         }
         Tool::Gradient => {
             let options = &mut tools.gradient;
             blend(ui, "gradient-mode", &mut options.mode);
-            percent(ui, &numbers, "gradient-opacity", "Opacity", &mut options.opacity);
+            percent(ui, &numbers, "gradient-opacity", "Opacity", 1.0, &mut options.opacity);
             check(ui, "Reverse", &mut options.reverse);
         }
         Tool::Eyedropper => {
             choose(ui, "eyedropper-sample", "Sample", &mut tools.eyedropper.sample, &SampleSize::ALL, SampleSize::label);
         }
         Tool::Hand | Tool::Zoom => {
-            if ui.add(Button::new("Fit Screen").size(ControlSize::Sm)).clicked() {
-                mock.view.fit_pending = true;
-            }
-            if ui.add(Button::new("100%").size(ControlSize::Sm)).clicked() {
-                mock.view.set_zoom(1.0);
+            let fit = |ui: &mut Ui, view: &mut View| {
+                if ui.add(Button::new("Fit Screen").size(ControlSize::Sm)).clicked() {
+                    view.fit_pending = true;
+                }
+            };
+            let actual = |ui: &mut Ui, view: &mut View| {
+                if ui.add(Button::new("100%").size(ControlSize::Sm)).clicked() {
+                    view.set_zoom(1.0);
+                }
+            };
+            if tools.current == Tool::Hand {
+                actual(ui, &mut mock.view);
+                fit(ui, &mut mock.view);
+            } else {
+                fit(ui, &mut mock.view);
+                actual(ui, &mut mock.view);
             }
         }
         _ => {}

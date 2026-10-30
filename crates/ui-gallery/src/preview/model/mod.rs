@@ -154,24 +154,26 @@ impl Mock {
         self.dialog = Some(ImageSizeDraft::new(self.doc.size));
     }
 
-    /// Resizes the document to the draft and closes it. With resampling on the layers scale with
-    /// the image; off, they keep their places (a canvas resize).
+    /// Applies the draft and closes it. With resampling on the document takes the draft's pixel
+    /// size and the layers scale with it; off, the pixel count stays and only the resolution
+    /// changes, as PhotoCraft's Image Size does.
     pub fn apply_size(&mut self) {
         let Some(draft) = self.dialog.take() else { return };
         let size = draft.pixel_size();
-        if size == self.doc.size {
+        if size == self.doc.size && draft.resolution == self.doc.resolution {
             return;
         }
-        if draft.resample {
+        if draft.resample && size != self.doc.size {
             let scale = [size[0] as f32 / self.doc.size[0] as f32, size[1] as f32 / self.doc.size[1] as f32];
             for layer in &mut self.doc.layers {
                 let [x, y, w, h] = layer.rect;
                 layer.rect = [x * scale[0], y * scale[1], w * scale[0], h * scale[1]];
             }
+            self.view.center = size.map(|s| f64::from(s) / 2.0);
         }
         self.doc.size = size;
+        self.doc.resolution = draft.resolution;
         self.doc.modified = true;
-        self.view.center = size.map(|s| f64::from(s) / 2.0);
         self.record("Image size");
         self.status = format!("{} x {} px", size[0], size[1]);
     }
@@ -284,6 +286,32 @@ mod tests {
         assert_eq!(mock.doc.layer(3).unwrap().rect, [250.0, 150.0, 250.0, 200.0], "resampled layers scale");
         assert_eq!(mock.status, "600 x 400 px");
         assert_eq!(mock.history.last().map(String::as_str), Some("Image size"));
+    }
+
+    #[test]
+    fn without_resampling_only_the_resolution_changes() {
+        let mut mock = Mock::default();
+        mock.open_image_size();
+        let draft = mock.dialog.as_mut().unwrap();
+        draft.set_resample(false);
+        draft.set_width(600.0);
+        assert_eq!((draft.width, draft.height), (1200.0, 800.0), "the pixel fields are fixed");
+        draft.resolution = 150.0;
+        mock.apply_size();
+        assert_eq!(mock.doc.size, [1200, 800]);
+        assert_eq!(mock.doc.resolution, 150.0);
+        assert_eq!(mock.doc.layer(3).unwrap().rect, [500.0, 300.0, 500.0, 400.0], "the layers stay");
+        assert_eq!(mock.history.last().map(String::as_str), Some("Image size"));
+    }
+
+    #[test]
+    fn a_new_layer_is_transparent() {
+        let mut doc = Doc::default();
+        let id = doc.add_layer();
+        let index = doc.index_of(id).unwrap();
+        assert_eq!(doc.layer(id).unwrap().kind, LayerKind::Empty);
+        assert_eq!(doc.shown_color(index), None, "nothing to paint");
+        assert!(!doc.layer(id).unwrap().is_adjustment());
     }
 
     #[test]

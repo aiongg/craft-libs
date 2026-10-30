@@ -86,13 +86,20 @@ impl ImageSizeDraft {
         }
     }
 
-    /// The size the dialog would make the document, in whole pixels (at least 1).
+    /// The size the dialog would make the document, in whole pixels (at least 1). Without
+    /// resampling the pixel count is the original.
     pub fn pixel_size(&self) -> [u32; 2] {
+        if !self.resample {
+            return self.original;
+        }
         [self.pixels(self.width, self.unit_w, 0), self.pixels(self.height, self.unit_h, 1)].map(|p| p.round().max(1.0) as u32)
     }
 
     /// Sets the width; with the link on, the height keeps the original ratio.
     pub fn set_width(&mut self, width: f64) {
+        if !self.resample {
+            return;
+        }
         self.width = width;
         if self.link {
             let pixels = self.pixels(width, self.unit_w, 0) * f64::from(self.original[1]) / f64::from(self.original[0]);
@@ -102,10 +109,22 @@ impl ImageSizeDraft {
 
     /// Sets the height; with the link on, the width keeps the original ratio.
     pub fn set_height(&mut self, height: f64) {
+        if !self.resample {
+            return;
+        }
         self.height = height;
         if self.link {
             let pixels = self.pixels(height, self.unit_h, 1) * f64::from(self.original[0]) / f64::from(self.original[1]);
             self.width = self.in_unit(pixels, self.unit_w, 0);
+        }
+    }
+
+    /// Turns resampling on or off. Off, the pixel count is fixed and the fields show it.
+    pub fn set_resample(&mut self, on: bool) {
+        self.resample = on;
+        if !on {
+            self.width = self.in_unit(f64::from(self.original[0]), self.unit_w, 0);
+            self.height = self.in_unit(f64::from(self.original[1]), self.unit_h, 1);
         }
     }
 

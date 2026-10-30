@@ -1,12 +1,14 @@
 //! The tool rail at the start edge and the tool keys.
 
-use craft_theme::Srgba;
+use craft_theme::{Rgba, Srgba};
 use craft_ui::composites::{PairWell, SwatchPair, Well};
 use craft_ui::icons::Icon;
 use craft_ui::localized::LocaleNumbers;
+use craft_ui::menu;
 use craft_ui::patterns::{LastUsed, RailTool, ToolRail, ToolSlot};
+use craft_ui::popover;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
-use egui::{Key, Modifiers, Ui};
+use egui::{Event, Modifiers, Popup, Ui};
 
 use super::model::{Colors, Mock, Tool};
 
@@ -72,18 +74,18 @@ fn slots() -> Vec<ToolSlot<Tool>> {
 }
 
 fn srgba(c: [u8; 3]) -> Srgba {
-    let [r, g, b] = c.map(|v| f32::from(v) / 255.0);
-    Srgba::rgb(r, g, b)
+    Rgba::rgb(c[0], c[1], c[2]).into()
 }
 
 fn rgb8(c: Srgba) -> [u8; 3] {
-    [c.r, c.g, c.b].map(|v| (v * 255.0).round().clamp(0.0, 255.0) as u8)
+    let Rgba([r, g, b, _]) = c.into();
+    [r, g, b]
 }
 
 /// Draws the rail at the start edge and applies what was chosen in it.
 pub fn rail(ui: &mut Ui, mock: &mut Mock, last_used: &mut LastUsed<Tool>) {
     let slots = slots();
-    let numbers = LocaleNumbers::from_tag("en-US");
+    let numbers = LocaleNumbers::of(ui);
     let backdrop = Tokens::of(ui).component.rail.fill.to_egui();
     let colors = mock.colors;
     let mut after = colors;
@@ -114,18 +116,31 @@ pub fn rail(ui: &mut Ui, mock: &mut Mock, last_used: &mut LastUsed<Tool>) {
     }
 }
 
-/// The key that chooses a working tool, when no text field has the keyboard.
+/// The key that chooses a working tool. It is left alone while a menu, a popup, a popover or the
+/// dialog is open, the keyboard is on the menu bar, or a text field is being edited; with any
+/// modifier it is a shortcut of its own.
 pub fn handle_keys(ui: &Ui, mock: &mut Mock) {
-    if ui.ctx().egui_wants_keyboard_input() {
+    let ctx = ui.ctx();
+    let busy = menu::any_open(ctx)
+        || menu::bar::is_focused(ctx)
+        || Popup::is_any_open(ctx)
+        || popover::any_open(ctx)
+        || mock.dialog.is_some()
+        || ctx.text_edit_focused();
+    if busy {
         return;
     }
-    let pressed = ui.input_mut(|input| {
-        Tool::WORKING.into_iter().find(|tool| {
-            let key = tool.key().and_then(|c| Key::from_name(&c.to_string()));
-            key.is_some_and(|key| input.consume_key(Modifiers::NONE, key))
-        })
+    let tool = ui.input_mut(|input| {
+        let pressed = input.events.iter().find_map(|event| match event {
+            Event::Key { key, pressed: true, repeat: false, modifiers, .. } if modifiers.is_none() => Some(*key),
+            _ => None,
+        })?;
+        let name = pressed.name();
+        let tool = Tool::from_key(name.chars().next().filter(|_| name.len() == 1)?)?;
+        input.consume_key(Modifiers::NONE, pressed);
+        Some(tool)
     });
-    if let Some(tool) = pressed {
+    if let Some(tool) = tool {
         mock.select_tool(tool);
     }
 }
