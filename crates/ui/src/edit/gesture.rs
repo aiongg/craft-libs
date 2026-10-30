@@ -191,6 +191,24 @@ struct Cancelled {
 
 const STATE: &str = "craft_ui::edit::gesture";
 
+/// Whether a host that stores its value as an `f32` shows `reported`, an `f64` an update sent: its
+/// value is the `f32` rounding of it. That is the host's value moved by nothing but its own
+/// storage, not an outside change.
+pub(crate) fn rounds_to(host: f64, reported: f64) -> bool {
+    host == f64::from(reported as f32)
+}
+
+impl Gesture<f64> {
+    /// The host value to give [`load`](Gesture::load) for the host's `value`: the gesture's last
+    /// reported value when `value` is its `f32` rounding ([`rounds_to`]), else `value`.
+    pub(crate) fn host_value(ui: &Ui, id: Id, value: f64) -> f64 {
+        match Self::reported(ui, id) {
+            Some((_, reported)) if rounds_to(value, reported) => reported,
+            _ => value,
+        }
+    }
+}
+
 impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// The gesture state of the control with widget id `id` (its [`egui::Response::id`]), whose
     /// host value is `value`. Applies a pending [`cancel_all`](super::cancel_all), an external

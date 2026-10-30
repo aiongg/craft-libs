@@ -276,6 +276,7 @@ impl Popover {
             shut(&ctx, id, state_id);
             return None;
         }
+        popup_list::in_front_of(&ctx, ui.layer_id(), id);
 
         let frame_nr = ctx.cumulative_frame_nr();
         let stored = ctx.data(|d| d.get_temp::<State>(state_id));
