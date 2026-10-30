@@ -205,12 +205,13 @@ fn easing(e: Easing) -> &'static str {
 }
 
 fn motion_lines(out: &mut Lines, m: &MotionTokens) {
-    let MotionTokens { hover, open, r#move } = m;
+    let MotionTokens { hover, open, r#move, reduced } = m;
     for (k, motion) in [("hover", hover), ("open", open), ("move", r#move)] {
         let Motion { millis, easing: e } = motion;
         out.line(&format!("motion.{k}.millis"), millis);
         out.line(&format!("motion.{k}.easing"), easing(*e));
     }
+    out.line("motion.reduced", reduced);
 }
 
 fn by_size(out: &mut Lines, key: &str, v: &BySize<f32>) {

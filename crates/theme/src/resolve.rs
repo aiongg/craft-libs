@@ -233,7 +233,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
         size: preset.size,
         typography,
         elevation,
-        motion: MotionTokens { hover: motion(hover), open: motion(open), r#move: motion(move_) },
+        motion: MotionTokens { hover: motion(hover), open: motion(open), r#move: motion(move_), reduced: appearance.reduced_motion },
         component,
     };
     let resolved = Resolved { tokens, warnings, contrast_intent: theme.contrast_intent, variant_used: mode };

@@ -53,8 +53,8 @@ pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
     s.scroll = scroll_style(&tokens.component.scroll);
 
     style.animation_time = tokens.motion.hover.millis as f32 / 1000.0;
-    // Reduced motion zeroes every duration; scroll glide is movement within the screen.
-    if tokens.motion.r#move.millis == 0 {
+    // Scroll glide is movement within the screen.
+    if tokens.motion.reduced {
         style.scroll_animation = egui::style::ScrollAnimation::none();
     }
     style.interaction.tooltip_delay = crate::controls::Tooltip::DELAY;

@@ -965,6 +965,8 @@ pub struct MotionTokens {
     pub open: Motion,
     /// Elements moving within the screen.
     pub r#move: Motion,
+    /// The appearance asks for reduced motion: every duration above is zero.
+    pub reduced: bool,
 }
 
 /// Every resolved token: the semantic layer and the component layer.
