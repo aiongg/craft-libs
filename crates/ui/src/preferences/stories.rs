@@ -75,7 +75,7 @@ impl FakeHost {
         matches!(self.draft.get(key), Some(PrefValue::Bool(true)))
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
     pub fn logged(&self, what: &str) -> usize {
         self.log.iter().filter(|l| l.as_str() == what).count()
     }
