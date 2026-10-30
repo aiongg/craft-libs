@@ -14,8 +14,9 @@ use super::{CanvasView, Guides, Orientation, RulerUnits, crisp, resize_cursor};
 use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::Divider;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// A top-ruler label sits this far below the strip's top edge (PhotoCraft).
 const LABEL_TOP: f32 = 1.0;
@@ -483,26 +484,26 @@ fn round_zero(p: Point) -> Point {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Rulers"];
 
-const UNIT_NAMES: &[&str] = &["Pixels", "Millimetres", "Inches"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq, Eq)]
+enum UnitsArg {
+    #[choice(name = "Pixels")]
+    Pixels,
+    #[choice(name = "Millimetres")]
+    Millimetres,
+    #[choice(name = "Inches")]
+    Inches,
+}
+
+super::story::canvas_args!(CanvasArgs { units: UnitsArg = UnitsArg::Pixels, interactive: bool = true, locked: bool = false });
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![
-        Story::new(
-            "primitives/rulers/canvas",
-            Level::Primitives,
-            "Rulers",
-            "Canvas",
-            || super::story::args().with_choice("units", UNIT_NAMES, 0).with_bool("interactive", true).with_bool("locked", false),
-            show_canvas,
-        )
-        .on(Surface::Canvas),
-    ]
+    vec![typed_story!("primitives/rulers/canvas", Level::Primitives, "Rulers", "Canvas", CanvasArgs::default(), show_canvas).on(Surface::Canvas)]
 }
 
 /// A ruler menu's commands in the story.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MenuCommand {
-    Units(&'static str),
+    Units(UnitsArg),
     ResetZero,
     SetZero,
 }
@@ -511,13 +512,13 @@ enum MenuCommand {
 /// them), drag the corner to move the zero point (Shift snaps, Esc cancels, double-click resets),
 /// drag a marquee on the canvas; right-click a ruler for its unit and the zero point commands an
 /// app also has in its menu bar.
-fn show_canvas(ui: &mut Ui, args: &mut Args) {
+fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
     use super::guides::GuideHost;
     use super::{Guide, GuideNames, MarqueeDrag, MarqueeShape};
     use kurbo::Rect;
 
     let tokens = Tokens::of(ui);
-    let canvas = super::story::document_in(ui, args, "Document", tokens.component.ruler.size);
+    let canvas = super::story::document_in(ui, args.view(), "Document", tokens.component.ruler.size);
     let (response, view, full) = (&canvas.response, &canvas.view, canvas.full);
 
     let key = ui.scope_id().with("rulers-story");
@@ -528,27 +529,27 @@ fn show_canvas(ui: &mut Ui, args: &mut Args) {
     let mut selection: Option<Rect> = ui.data(|d| d.get_temp(key.with("selection")));
 
     let numbers = crate::localized::LocaleNumbers::from_tag("en").ungrouped();
-    let units = match args.choice("units") {
-        "Millimetres" => RulerUnits {
+    let units = match args.units {
+        UnitsArg::Millimetres => RulerUnits {
             per_doc: 25.4 / 96.0,
             ticks: super::Ticks::Decimal { whole: false },
             numbers,
             unit: crate::localized::Unit::new("{n} mm"),
             decimals: 2,
         },
-        "Inches" => RulerUnits {
+        UnitsArg::Inches => RulerUnits {
             per_doc: 1.0 / 96.0,
             ticks: super::Ticks::Decimal { whole: false },
             numbers,
             unit: crate::localized::Unit::new("{n} in"),
             decimals: 3,
         },
-        _ => RulerUnits::pixels(numbers),
+        UnitsArg::Pixels => RulerUnits::pixels(numbers),
     };
 
     let guides = Guides::new("rulers-story-guides", &host.guides, &units, &units, GuideNames::new("Guides", "Vertical guide", "Horizontal guide"))
         .selected(host.selected)
-        .interactive(args.bool("interactive"))
+        .interactive(args.interactive)
         .bounds(super::story::DOC)
         .zero(zero)
         .readout("X:", "Y:")
@@ -565,21 +566,23 @@ fn show_canvas(ui: &mut Ui, args: &mut Args) {
     }
     host.apply(&guides);
 
-    let locked = args.bool("locked");
+    let locked = args.locked;
     let rulers = Rulers::new("rulers-story", &units, &units, RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin"))
         .zero(zero)
         .origin_locked(locked)
-        .interactive(args.bool("interactive"))
+        .interactive(args.interactive)
         .show(ui, full, view, Some(guides.id));
     let open_menu = rulers.context.map(|_| OpenAt::Pointer(ui.input(|i| i.pointer.interact_pos()).unwrap_or(full.min)));
-    let mut entries: Vec<MenuEntry<MenuCommand>> =
-        UNIT_NAMES.iter().map(|&name| MenuItem::new(name, MenuCommand::Units(name)).radio(name == args.choice("units")).into()).collect();
+    let mut entries: Vec<MenuEntry<MenuCommand>> = (0..UnitsArg::OPTIONS.len())
+        .map(UnitsArg::from_index)
+        .map(|units| MenuItem::new(units.name(), MenuCommand::Units(units)).radio(units == args.units).into())
+        .collect();
     entries.push(MenuEntry::Separator);
     entries.push(MenuItem::new("Reset Zero Point", MenuCommand::ResetZero).enabled(!locked).into());
     entries.push(MenuItem::new("Set Zero Point…", MenuCommand::SetZero).enabled(!locked).into());
     let dialog_key = key.with("set-zero");
     match ContextMenu::new(&entries).open_at(open_menu).own_gestures(false).show(ui, response).chosen {
-        Some(MenuCommand::Units(name)) => args.set_choice("units", name),
+        Some(MenuCommand::Units(units)) => args.units = units,
         Some(MenuCommand::ResetZero) => Rulers::reset_zero(ui.ctx(), rulers.id),
         Some(MenuCommand::SetZero) => ui.data_mut(|d| {
             d.insert_temp(dialog_key, zero);

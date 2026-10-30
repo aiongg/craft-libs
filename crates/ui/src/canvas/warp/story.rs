@@ -9,29 +9,36 @@ use super::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSide, War
 use crate::canvas::RulerUnits;
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryChoice, Surface};
+use crate::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Warp grid"];
 
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum GridArg {
+    #[choice(name = "1 × 1")]
+    One,
+    #[choice(name = "3 × 3")]
+    Three,
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum SplitArg {
+    #[choice(name = "Off")]
+    Off,
+    #[choice(name = "Cross")]
+    Cross,
+    #[choice(name = "Vertical")]
+    Vertical,
+    #[choice(name = "Horizontal")]
+    Horizontal,
+}
+
+crate::canvas::story::canvas_args!(WarpArgs { grid: GridArg = GridArg::One, editable: bool = true, split: SplitArg = SplitArg::Off });
+
 pub(crate) fn stories() -> Vec<Story> {
-    vec![
-        Story::new(
-            "primitives/warp-grid/warp",
-            Level::Primitives,
-            "Warp grid",
-            "Warp",
-            || {
-                super::super::story::args().with_choice("grid", &["1 × 1", "3 × 3"], 0).with_bool("editable", true).with_choice(
-                    "split",
-                    &["Off", "Cross", "Vertical", "Horizontal"],
-                    0,
-                )
-            },
-            show_warp,
-        )
-        .on(Surface::Canvas),
-    ]
+    vec![typed_story!("primitives/warp-grid/warp", Level::Primitives, "Warp grid", "Warp", WarpArgs::default(), show_warp).on(Surface::Canvas)]
 }
 
 /// The English names the story and tests use.
@@ -164,26 +171,26 @@ pub(crate) fn edited(mesh: &WarpMesh, edit: &WarpEdit) -> WarpMesh {
 const PICTURE: Rect = Rect::new(160.0, 100.0, 480.0, 300.0);
 
 /// A checked picture warped by the mesh, a 1 × 1 (rule-of-thirds lines) or 3 × 3 grid over it.
-fn show_warp(ui: &mut Ui, args: &mut Args) {
+fn show_warp(ui: &mut Ui, args: &mut WarpArgs) {
     let key = ui.scope_id().with("warp-story");
-    let grid = args.choice("grid").to_owned();
-    let size = if grid == "3 × 3" { 3 } else { 1 };
+    let grid = args.grid;
+    let size = if grid == GridArg::Three { 3 } else { 1 };
     let mut host = ui
-        .data(|d| d.get_temp::<(String, WarpHost)>(key))
+        .data(|d| d.get_temp::<(GridArg, WarpHost)>(key))
         .filter(|(g, _)| *g == grid)
         .map_or_else(|| WarpHost::new(WarpMesh::identity(PICTURE, size, size)), |(_, host)| host);
-    let canvas = super::super::story::document(ui, args, "Document");
+    let canvas = super::super::story::document(ui, args.view(), "Document");
     let view = &canvas.view;
     paint_picture(ui, view, &host.mesh);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let mesh = host.mesh.clone();
     let r = WarpGrid::new("story-warp", &mesh, PICTURE, english_names())
-        .editable(args.bool("editable"))
-        .split(match args.choice("split") {
-            "Cross" => Some(WarpSplit::Cross),
-            "Vertical" => Some(WarpSplit::Vertical),
-            "Horizontal" => Some(WarpSplit::Horizontal),
-            _ => None,
+        .editable(args.editable)
+        .split(match args.split {
+            SplitArg::Cross => Some(WarpSplit::Cross),
+            SplitArg::Vertical => Some(WarpSplit::Vertical),
+            SplitArg::Horizontal => Some(WarpSplit::Horizontal),
+            SplitArg::Off => None,
         })
         .surface(|p| surface_at(&mesh, p))
         .units(&px, &px)
