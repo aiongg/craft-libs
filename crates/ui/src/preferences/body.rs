@@ -136,7 +136,6 @@ impl PreferencesBody {
         let find = keys && ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::F)));
         let search_before = state.search.clone();
         let search_focused = state.search_focused;
-        let escape = keys && ctx.input(|i| i.key_pressed(Key::Escape) && i.modifiers.is_none());
 
         let search = SearchField::new((id, "search"), texts.search_label.as_str(), &state.search, texts.clear_search.as_str())
             .placeholder(texts.search_placeholder.as_str())
@@ -279,6 +278,8 @@ impl PreferencesBody {
             answer = pressed.clicked.map(|c| c.role);
         }
         if answer.is_none() && keys {
+            // Read after the rows: a field's gesture takes the Esc that cancels it.
+            let escape = ctx.input(|i| i.key_pressed(Key::Escape) && i.modifiers.is_none());
             // Esc and Enter in the search field are the field's: it clears, then leaves.
             let in_search = search_focused;
             let enter = ctx.input(|i| i.events.iter().any(is_enter_press)) && !in_search;

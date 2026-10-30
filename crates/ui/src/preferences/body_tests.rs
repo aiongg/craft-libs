@@ -280,3 +280,27 @@ fn right_to_left_moves_the_page_list_to_the_trailing_side() {
     let r = rtl.get_by_role(Role::ListBox).rect();
     assert!(l.center().x < 380.0 && r.center().x > 380.0, "{l:?} {r:?}");
 }
+
+#[test]
+fn esc_during_a_number_drag_cancels_the_drag_and_only_a_second_esc_cancels_the_window() {
+    let mut h = open();
+    h.get_by_role_and_label(Role::ListBoxOption, "Tools").click();
+    h.run();
+    let at = h.get_by_label("Brush size:").rect().center();
+    let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(egui::Event::PointerMoved(at));
+    h.event(button(true));
+    h.step();
+    for dx in [10.0, 20.0, 30.0] {
+        h.event(egui::Event::PointerMoved(at + egui::vec2(dx, 0.0)));
+        h.step();
+    }
+    h.key_press(Key::Escape);
+    h.step();
+    assert_eq!((h.state().host.logged("cancel"), h.state().closed), (0, None), "the Esc went to the drag");
+    h.event(button(false));
+    h.run();
+    h.key_press(Key::Escape);
+    h.run();
+    assert_eq!((h.state().host.logged("cancel"), h.state().closed), (1, Some(Closed::Cancel)));
+}
