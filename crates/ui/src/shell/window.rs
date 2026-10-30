@@ -87,7 +87,8 @@ impl<'a> AppShell<'a> {
         self
     }
 
-    /// Call it last in the window's pass, after its dialogs and windows are drawn. While a modal
+    /// Call it last in the window's pass, after its dialogs and windows are drawn and after
+    /// [`AppShell::show`] in the same pass (the title bar's gap check reads the current pass). While a modal
     /// is open (`modal_open`, or any app-modal [`ViewportWindow`] of the context) it keeps the
     /// title bar's free gap draggable ([`TitleBar::modal_drag_overlay`]). Dialogs of the window
     /// push their rects with `ModalRects::push(ctx, window, rect)`, with the window key as

@@ -402,6 +402,10 @@ impl eframe::App for Gallery {
         self.show(ui);
     }
 
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        crate::preview::AppPreview::raw_input_hook(ctx, raw);
+    }
+
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         let picks = &self.picks;
         let saved = Saved {

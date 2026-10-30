@@ -109,16 +109,21 @@ impl ViewportWindow {
         self
     }
 
-    /// Whether an app-modal window of this viewport was shown on this or the previous pass: the
-    /// host skips its shortcuts and commands while it is. Ask in the viewport that shows the
-    /// window; it is false in the app's other windows (see [`any_app_modal`](Self::any_app_modal)).
+    /// Whether an app-modal window of this viewport is open: the host skips its shortcuts and
+    /// commands while it is. Ask in the viewport that shows the window; it is false in the app's
+    /// other windows (see [`any_app_modal`](Self::any_app_modal)).
+    ///
+    /// A window is open from the pass that shows it until it reports a close request (the same
+    /// pass), [`closed`](Self::closed) is called, or its host viewport is gone. A host that just
+    /// stops calling [`show`](Self::show) without either is noticed on its next pass.
     pub fn blocks_main(ctx: &Context) -> bool {
-        ctx.data(|d| d.get_temp::<Seen>(blocks_key(ctx))).is_some_and(|seen| seen.pass + 1 >= ctx.cumulative_pass_nr())
+        let host = ctx.viewport_id();
+        open_modals(ctx).any(|m| m.host == host)
     }
 
-    /// Whether an app-modal window of any viewport of the context was shown on its host's
-    /// current or previous pass. A multi-window app skips its shortcuts and commands in every
-    /// window while this is true, and shows its window-level dialog overlay.
+    /// Whether an app-modal window of any viewport of the context is open (see
+    /// [`blocks_main`](Self::blocks_main)). A multi-window app skips its shortcuts and commands in
+    /// every window while this is true, and shows its window-level dialog overlay.
     pub fn any_app_modal(ctx: &Context) -> bool {
         Self::modal_window(ctx).is_some()
     }
@@ -154,11 +159,9 @@ impl ViewportWindow {
     /// reopening on the next pass counts as an opening.
     pub fn closed(ctx: &Context, id: ViewportId) {
         let key = Id::unique(("craft-ui-viewport", id));
-        let blocks = blocks_key(ctx);
         let host = ctx.viewport_id();
         ctx.data_mut(|d| {
             d.remove_temp::<Seen>(key);
-            d.remove_temp::<Seen>(blocks);
             d.get_temp_mut_or_default::<Modals>(modals_key()).0.retain(|m| m.host != host);
         });
     }
@@ -166,8 +169,7 @@ impl ViewportWindow {
     /// An app-modal window that is open in any viewport: its own viewport, or none when it is
     /// embedded.
     fn modal_window(ctx: &Context) -> Option<Option<ViewportId>> {
-        let open = ctx.data(|d| d.get_temp::<Modals>(modals_key())).unwrap_or_default();
-        open.0.iter().find(|m| m.seen.pass + 1 >= ctx.cumulative_pass_nr_for(m.host)).map(|m| m.seen.child)
+        open_modals(ctx).next().map(|m| m.seen.child)
     }
 
     /// Shows the window for this pass. `body` draws the contents and learns where it is hosted.
@@ -180,7 +182,6 @@ impl ViewportWindow {
         let pass = ctx.cumulative_pass_nr();
         let key = Id::unique(("craft-ui-viewport", id));
         let opened = !ctx.data(|d| d.get_temp::<Seen>(key)).is_some_and(|seen| seen.pass + 1 >= pass);
-        let blocks = blocks_key(ctx);
         // A backend without an immediate renderer makes egui draw the viewport in its own window of
         // this context. That window sits under an app-modal layer, so the next pass uses the
         // embedded dialog instead (the pass that found out is discarded).
@@ -191,7 +192,6 @@ impl ViewportWindow {
         ctx.data_mut(|d| {
             d.insert_temp(key, seen);
             if modal {
-                d.insert_temp(blocks, seen);
                 let open = d.get_temp_mut_or_default::<Modals>(modals_key());
                 open.0.retain(|m| m.host != host);
                 open.0.push(Open { host, seen });
@@ -202,7 +202,9 @@ impl ViewportWindow {
             Self::refuse_close(ctx);
         }
         if embedded {
-            return show_embedded(ctx, key, id, &builder, &title, modal, scrim, opened, &mut body);
+            let shown = show_embedded(ctx, key, id, &builder, &title, modal, scrim, opened, &mut body);
+            end_modal_on_close(ctx, modal, shown.close_requested);
+            return shown;
         }
 
         if modal {
@@ -225,8 +227,29 @@ impl ViewportWindow {
                 && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
             escape || ctx.input(|i| i.viewport().close_requested())
         });
+        end_modal_on_close(ctx, modal, close);
         ViewportResponse { close_requested: close, hosting: hosting.get() }
     }
+}
+
+/// A window that reports a close request stops blocking in that pass; a host that keeps showing
+/// it records it as open again on the next pass.
+fn end_modal_on_close(ctx: &Context, modal: bool, close_requested: bool) {
+    if modal && close_requested {
+        let host = ctx.viewport_id();
+        ctx.data_mut(|d| d.get_temp_mut_or_default::<Modals>(modals_key()).0.retain(|m| m.host != host));
+    }
+}
+
+/// The app-modal windows still open: shown on their host's current or previous pass, and the
+/// host viewport still exists (egui counts no passes for a missing viewport).
+fn open_modals(ctx: &Context) -> impl Iterator<Item = Open> {
+    let modals = ctx.data(|d| d.get_temp::<Modals>(modals_key())).unwrap_or_default();
+    let ctx = ctx.clone();
+    modals.0.into_iter().filter(move |m| {
+        let host_pass = ctx.cumulative_pass_nr_for(m.host);
+        host_pass != 0 && m.seen.pass + 1 >= host_pass
+    })
 }
 
 /// The app-modal windows of the context, one per hosting viewport.
@@ -241,10 +264,6 @@ struct Open {
 
 fn modals_key() -> Id {
     Id::unique("craft-ui-viewport-modals")
-}
-
-fn blocks_key(ctx: &Context) -> Id {
-    Id::unique("craft-ui-viewport-blocks").with(ctx.viewport_id())
 }
 
 /// The layer over the parent window of a native app-modal window: it takes every press and drag,

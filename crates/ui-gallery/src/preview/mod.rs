@@ -20,9 +20,9 @@ use std::cell::RefCell;
 
 use craft_ui::dialog::DialogState;
 use craft_ui::patterns::LastUsed;
-use craft_ui::shell::{AppShell, BodyMode, CanvasLabels, CanvasShell, ScreenMode, WindowKey};
+use craft_ui::shell::{AppShell, BodyMode, CanvasLabels, CanvasShell, ScreenMode, WindowKey, take_tab_toggle};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
-use egui::{Rect, Ui, UiBuilder, Vec2, vec2};
+use egui::{Id, Rect, Ui, UiBuilder, Vec2, vec2};
 
 use dock::DockState;
 use model::{ImageSizeDraft, Mock, Tool};
@@ -71,8 +71,22 @@ impl AppPreview {
         WindowKey::new(format!("app-preview-{:x}", ui.scope_id().value()))
     }
 
-    /// Draws the app with the slots and screen mode of `view`. In a body-only mode, Tab with the
-    /// canvas focused toggles the shell's reveal.
+    /// For the host's `raw_input_hook`: takes the Tab press that toggles the reveal of a
+    /// body-only preview while no control has the keyboard focus, through the library's
+    /// [`take_tab_toggle`]. Any other Tab is left to egui, so focus can leave the canvas.
+    pub fn raw_input_hook(ctx: &egui::Context, raw: &mut egui::RawInput) {
+        let windows = ctx.data(|d| d.get_temp::<BodyOnly>(Id::unique("app-preview-body-only"))).unwrap_or_default().0;
+        let focused = ctx.memory(|m| m.focused());
+        let Some(window) = windows.iter().find(|w| focused == Some(canvas::canvas_id(w))).or(windows.first()).cloned() else {
+            return;
+        };
+        if take_tab_toggle(ctx, raw) {
+            ctx.data_mut(|d| d.insert_temp(Id::unique(TAB_TOGGLE), Some(window)));
+        }
+    }
+
+    /// Draws the app with the slots and screen mode of `view`. In a body-only mode, a Tab taken
+    /// by [`raw_input_hook`](Self::raw_input_hook) toggles the shell's reveal.
     pub(crate) fn show_with(&mut self, ui: &mut Ui, view: ShellView) {
         let key = Self::window_key(ui);
         let ctx = ui.ctx().clone();
@@ -88,6 +102,21 @@ impl AppPreview {
         let labels = CanvasLabels { options: Some("Options".to_owned()), tools: Some("Tools".to_owned()), status: Some("Status".to_owned()) };
         let mode = view.mode;
         let body_mode = if mode.body_only() { BodyMode::Only } else { BodyMode::Normal };
+        ctx.data_mut(|d| {
+            let windows = &mut d.get_temp_mut_or_default::<BodyOnly>(Id::unique("app-preview-body-only")).0;
+            windows.retain(|w| *w != key);
+            if mode.body_only() {
+                windows.push(key.clone());
+            }
+        });
+        let taken = ctx.data_mut(|d| {
+            d.get_temp::<Option<WindowKey>>(Id::unique(TAB_TOGGLE)).flatten().filter(|w| *w == key).inspect(|_| {
+                d.insert_temp::<Option<WindowKey>>(Id::unique(TAB_TOGGLE), None);
+            })
+        });
+        if taken.is_some() && mode.body_only() {
+            AppShell::toggle_reveal(&ctx, &key);
+        }
         let shell = CanvasShell::new(key.clone())
             .title(view.title, |ui| {
                 let mut guard = this.borrow_mut();
@@ -113,15 +142,12 @@ impl AppPreview {
             .body_mode(body_mode)
             .document_tabs(view.tabs && mode.tabs_visible())
             .body_label("Workspace");
-        let out = shell.show(ui, |ui, cx| {
+        shell.show(ui, |ui, cx| {
             let mut guard = this.borrow_mut();
             let this = &mut **guard;
             let chrome = canvas::Chrome { shell: cx, scrollbars: mode.scrollbars_visible(), dock: view.dock };
             dock::show(ui, &mut this.mock, &mut this.dock, Some(chrome))
         });
-        if out.inner {
-            AppShell::toggle_reveal(&ctx, &key);
-        }
         let this = this.into_inner();
         dialog::show(ui, &mut this.mock, &mut this.image_size);
         tools::handle_keys(ui, &mut this.mock);
@@ -148,3 +174,9 @@ impl Default for ShellView {
 
 #[cfg(test)]
 mod tests;
+
+const TAB_TOGGLE: &str = "app-preview-tab-toggle";
+
+/// The shell windows of the previews that are in a body-only mode, where Tab toggles the reveal.
+#[derive(Clone, Default)]
+struct BodyOnly(Vec<WindowKey>);

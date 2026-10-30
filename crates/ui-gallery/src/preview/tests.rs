@@ -31,12 +31,13 @@ impl Fixture {
     }
 
     fn frame(&mut self, events: Vec<Event>) -> Option<AccessTree> {
-        let raw = RawInput {
+        let mut raw = RawInput {
             screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1280.0, 800.0))),
             events,
             time: Some(self.time),
             ..RawInput::default()
         };
+        AppPreview::raw_input_hook(&self.ctx, &mut raw);
         let base = self.appearance.base(SystemAppearance::default());
         let output = self.ctx.run_ui(raw, |ui| {
             install(ui.ctx(), &base);
@@ -304,20 +305,31 @@ fn choosing_an_expanded_panel_in_the_window_menu_hides_and_shows_it() {
 }
 
 #[test]
-fn tab_toggles_the_reveal_only_while_the_canvas_has_focus() {
+fn tab_toggles_the_reveal_in_a_body_only_mode_while_no_control_has_focus() {
     let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
     fixture.view.mode = craft_ui::shell::ScreenMode::FullScreen;
     let revealed = |f: &Fixture| craft_ui::shell::AppShell::reveal_active(&f.ctx, f.key.as_ref().expect("a frame ran"));
     fixture.settled();
-    fixture.press(Key::Tab);
-    assert!(!revealed(&fixture), "Tab does nothing before the canvas has focus");
     fixture.pointer_click("Document", Role::Canvas);
     fixture.press(Key::Tab);
-    assert!(revealed(&fixture), "Tab on the focused canvas shows the chrome");
+    assert!(revealed(&fixture), "Tab on the canvas shows the chrome");
     assert!(has_name(&fixture.settled(), "Tools"), "the tool rail shows in the reveal");
     fixture.press(Key::Tab);
     assert!(!revealed(&fixture), "a second Tab hides it");
     assert!(!has_name(&fixture.settled(), "Tools"));
+}
+
+#[test]
+fn tab_moves_the_focus_off_the_canvas_in_standard_mode() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    fixture.settled();
+    let canvas = super::canvas::canvas_id(fixture.key.as_ref().expect("a frame ran"));
+    fixture.ctx.memory_mut(|m| m.request_focus(canvas));
+    fixture.settled();
+    assert_eq!(fixture.ctx.memory(|m| m.focused()), Some(canvas));
+    fixture.press(Key::Tab);
+    let focused = fixture.ctx.memory(|m| m.focused());
+    assert!(focused.is_some() && focused != Some(canvas), "Tab moves the focus to another widget");
 }
 
 #[test]

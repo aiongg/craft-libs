@@ -147,8 +147,6 @@ struct Content<'a> {
     mock: &'a mut Mock,
     panels: &'a mut State,
     chrome: Option<Chrome<'a>>,
-    /// Tab was pressed while the canvas had focus.
-    tab: bool,
     /// The panel a panel body asked to show.
     requested: Option<Panel>,
 }
@@ -157,7 +155,7 @@ impl DockContent<Panel> for Content<'_> {
     fn body(&mut self, ui: &mut Ui, panel: &Panel) {
         match panel {
             Panel::Canvas => {
-                self.tab |= canvas_region(ui, self.mock, self.chrome);
+                canvas_region(ui, self.mock, self.chrome);
             }
             other => {
                 if let Some(panel) = other.show(ui, self.mock, self.panels) {
@@ -194,26 +192,25 @@ impl DockContent<Panel> for Content<'_> {
 }
 
 /// The canvas region: inside the shell, the canvas panel (tab strip above the document, which
-/// the shell's backdrop shows through); without one, the canvas alone. Returns whether Tab was
-/// pressed on the canvas.
-fn canvas_region(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) -> bool {
+/// the shell's backdrop shows through); without one, the canvas alone.
+fn canvas_region(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) {
     let Some(chrome) = chrome else {
         CentralPanel::default().frame(Frame::NONE).show(ui, |ui| canvas::show(ui, mock));
-        return false;
+        return;
     };
     let mock = RefCell::new(mock);
-    let out = chrome.shell.canvas_panel(ui, |ui| canvas::tabs(ui, &mock.borrow()), |ui| canvas::document(ui, &mut mock.borrow_mut(), Some(chrome)));
-    out.inner
+    chrome.shell.canvas_panel(ui, |ui| canvas::tabs(ui, &mock.borrow()), |ui| canvas::document(ui, &mut mock.borrow_mut(), Some(chrome)));
 }
 
 /// The dock area over everything between the tool rail and the end edge. Its protected canvas
 /// panel draws the canvas region.
 ///
 /// With `chrome` the dock shows only while the shell's dock shows ([`ShellCx::dock_visible`]);
-/// otherwise the canvas panel fills the rect. Returns whether Tab was pressed on the canvas.
-pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState, chrome: Option<Chrome<'_>>) -> bool {
+/// otherwise the canvas panel fills the rect.
+pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState, chrome: Option<Chrome<'_>>) {
     if chrome.is_some_and(|c| !c.dock || !c.shell.dock_visible()) {
-        return canvas_region(ui, mock, chrome);
+        canvas_region(ui, mock, chrome);
+        return;
     }
     let id = ui.scope_id().with("dock");
     let mut config = DockConfig::default();
@@ -238,10 +235,9 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState, chrome: Option<
     }
     // A floated panel stays inside the part of the preview that shows.
     let bounds = ui.max_rect().intersect(ui.clip_rect());
-    let mut content = Content { mock, panels, chrome, tab: false, requested: None };
+    let mut content = Content { mock, panels, chrome, requested: None };
     let mut actions = Vec::new();
     let mut requested = None;
-    let mut tab = false;
     CentralPanel::default().frame(Frame::NONE).show(ui, |ui| {
         let mut area = DockArea::new(id).native_windows(false).float_bounds(bounds).locked(workspace.locked).auto_collapse_iconic(*auto_collapse);
         if let Some(panel) = raise.take() {
@@ -253,7 +249,6 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState, chrome: Option<
         }
         actions = output.actions;
         requested = content.requested;
-        tab = content.tab;
         *shown_flyout = flyout::<Panel>(ui.ctx(), id);
     });
     for action in actions {
@@ -262,5 +257,4 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState, chrome: Option<
     if let Some(panel) = requested {
         let _ = workspace.set_visible(panel, true, None, Panel::permissions);
     }
-    tab
 }
