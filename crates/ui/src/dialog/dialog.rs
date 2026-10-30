@@ -7,9 +7,11 @@ use super::buttons::{ButtonRole, Platform};
 use super::footer::{Footer, FooterCx, FooterRun};
 use super::frame::{DialogFrame, DialogFrameResponse};
 use super::keys::{KeyInput, resolve_keys};
+use super::pass::{self, Entry};
 use super::placement::{PlaceKey, keep_on_screen, next_pin};
 use super::size::Width;
 use super::size::{Body, Resize, remembered_size, scroll_height};
+use super::stack::{DialogId, DialogStack, dialog_id, older_above};
 use super::state::DialogState;
 use crate::edit::{self, OuterGesture};
 use crate::popup_list;
@@ -31,12 +33,14 @@ pub enum Outcome {
     Reset,
     /// The close box of a modeless dialog.
     Close,
+    /// The button of this role, for a dialog that asks a question ([`Prompt`](super::Prompt)).
+    Answer(ButtonRole),
 }
 
 impl Outcome {
     /// Whether the dialog is finished: it closes and the host takes it away.
     pub fn closes(self) -> bool {
-        matches!(self, Outcome::Ok | Outcome::Cancel | Outcome::Close | Outcome::Alternate)
+        matches!(self, Outcome::Ok | Outcome::Cancel | Outcome::Close | Outcome::Alternate | Outcome::Answer(_))
     }
 }
 
@@ -100,6 +104,9 @@ pub struct DialogResponse {
     pub alternate: Option<usize>,
     /// The side column's [`extra`](Footer::extra) button pressed this pass; the dialog stays open.
     pub extra: Option<usize>,
+    /// Whether the dialog takes the keys this pass: it is the interactive top modal with no popup
+    /// open, or a modeless dialog that holds the keyboard focus.
+    pub active: bool,
 }
 
 type FirstPlace = Box<dyn FnOnce(&Context) -> Option<Vec2>>;
@@ -152,13 +159,22 @@ pub struct Dialog<'a> {
     outer_gesture: bool,
     initial_focus: InitialFocus,
     roomy: bool,
+    stack: Option<&'a DialogStack>,
+    role: Role,
+    description: Option<String>,
+    answers: bool,
 }
 
 impl<'a> Dialog<'a> {
-    /// A modal dialog. `id` is the host's key for it: the id of its area.
+    /// A modal dialog. `id` is the host's key for it: the id of its area. [`dialog_id`] gives the
+    /// [`DialogId`] a [`DialogStack`] knows it by.
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>) -> Self {
+        Self::with_id(dialog_id(id), title)
+    }
+
+    pub(super) fn with_id(id: DialogId, title: impl Into<String>) -> Self {
         Self {
-            id: Id::unique(("craft_ui::dialog", id)),
+            id,
             title: title.into(),
             modal: true,
             backdrop: Backdrop::None,
@@ -173,7 +189,40 @@ impl<'a> Dialog<'a> {
             outer_gesture: false,
             initial_focus: InitialFocus::Auto,
             roomy: false,
+            stack: None,
+            role: Role::Dialog,
+            description: None,
+            answers: false,
         }
+    }
+
+    /// The id a [`DialogStack`] knows this dialog by.
+    pub fn id(&self) -> DialogId {
+        self.id
+    }
+
+    /// Makes this dialog take part in `stack`: while an entry above it is open, the whole dialog
+    /// is disabled, and it comes to the front when it becomes the top. Modal dialogs only; the
+    /// host pushes the id before the first `show` and removes it on the closing outcome.
+    pub fn stack(mut self, stack: &'a DialogStack) -> Self {
+        self.stack = Some(stack);
+        self
+    }
+
+    pub(super) fn role(mut self, role: Role) -> Self {
+        self.role = role;
+        self
+    }
+
+    pub(super) fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// Footer buttons and Enter answer [`Outcome::Answer`] with the button's role.
+    pub(super) fn answers(mut self) -> Self {
+        self.answers = true;
+        self
     }
 
     /// A tool window: no modal layer, no backdrop, no input block. Its body edits are the app's
@@ -273,6 +322,10 @@ impl<'a> Dialog<'a> {
             outer_gesture,
             initial_focus,
             roomy,
+            stack,
+            role,
+            description,
+            answers,
         } = self;
         let tokens = current(ctx);
         let t = tokens.component.dialog;
@@ -296,7 +349,8 @@ impl<'a> Dialog<'a> {
         let chrome = ctx.data(|d| d.get_temp::<f32>(chrome_id)).unwrap_or(0.0);
         let start = pinned.or_else(|| place.remembered_place(ctx)).or_else(|| first_place.and_then(|first| first(ctx)));
 
-        let mut area = Modal::default_area(id).role(Role::Dialog).accessible_name(title.as_str());
+        let blocked = modal && stack.is_some_and(|s| s.blocks(id));
+        let mut area = Modal::default_area(id).role(role).accessible_name(title.as_str());
         if let Some(offset) = start {
             area = area.anchor(egui::Align2::LEFT_TOP, keep_on_screen(offset, laid_out_size, title_height, window.size(), t.keep_visible));
         }
@@ -312,6 +366,9 @@ impl<'a> Dialog<'a> {
         let (sizing_out, frame_out) = (std::cell::Cell::new(false), std::cell::Cell::new(None::<DialogFrameResponse>));
         let draw = |ui: &mut Ui| {
             sizing_out.set(ui.is_sizing_pass());
+            if blocked {
+                ui.disable();
+            }
             let mut frame = DialogFrame::new(id.with("frame"), title.as_str()).field_tab(true).roomy(roomy);
             if let Some(label) = &close_label {
                 frame = frame.close_label(label.as_str());
@@ -375,8 +432,35 @@ impl<'a> Dialog<'a> {
         };
         let sizing = sizing_out.get();
         let Some(frame) = frame_out.take() else {
-            return DialogResponse { outcome: None, rect: response.rect, outer, opened, initial_focus: None, alternate: None, extra: None };
+            return DialogResponse {
+                outcome: None,
+                rect: response.rect,
+                outer,
+                opened,
+                initial_focus: None,
+                alternate: None,
+                extra: None,
+                active: false,
+            };
         };
+
+        pass::record(ctx, Entry { id, layer: response.layer_id, rect: response.rect, modal });
+        ctx.accesskit_node_builder(response.layer_id.id, |node| {
+            if modal {
+                node.set_modal();
+            }
+            if let Some(description) = description {
+                node.set_description(description);
+            }
+        });
+        if let Some(stack) = stack
+            && modal
+            && stack.is_top(id)
+            && older_above(ctx, response.layer_id, stack.ids().filter(|other| *other != id).filter_map(|other| pass::layer_of(ctx, other)))
+        {
+            ctx.move_to_top(response.layer_id);
+            ctx.request_repaint();
+        }
 
         ctx.data_mut(|d| {
             d.insert_temp(chrome_id, frame.chrome);
@@ -419,6 +503,7 @@ impl<'a> Dialog<'a> {
             && let Some(clicked) = run.clicked
         {
             outcome = Some(match clicked.role {
+                role if answers => Outcome::Answer(role),
                 ButtonRole::Default => Outcome::Ok,
                 ButtonRole::Cancel if reset_shown => Outcome::Reset,
                 ButtonRole::Cancel if modal => Outcome::Cancel,
@@ -430,11 +515,11 @@ impl<'a> Dialog<'a> {
                 }
             });
         }
+        let (active, popup_open) = match modal_state {
+            Some((top, popup)) => (top && !blocked, popup || popup_list::any_open(ctx)),
+            None => (inside_before, popup_list::any_open(ctx)),
+        };
         if outcome.is_none() {
-            let (active, popup_open) = match modal_state {
-                Some((top, popup)) => (top, popup),
-                None => (inside_before, false),
-            };
             let (enter, escape) =
                 ctx.input(|i| (!opened && i.events.iter().any(is_enter_press), i.key_pressed(Key::Escape) && i.modifiers.is_none()));
             outcome = resolve_keys(KeyInput {
@@ -443,11 +528,14 @@ impl<'a> Dialog<'a> {
                 modal,
                 active,
                 footer: has_footer,
-                popup_open: popup_open || popup_list::any_open(ctx),
+                popup_open,
                 button_focused: run.button_focused,
                 default_enabled: run.default.is_some(),
                 enter_rule,
             });
+            if answers && outcome == Some(Outcome::Ok) {
+                outcome = Some(Outcome::Answer(ButtonRole::Default));
+            }
             if outcome.is_some() {
                 ctx.input_mut(|i| {
                     i.consume_key(Modifiers::NONE, Key::Escape);
@@ -456,25 +544,35 @@ impl<'a> Dialog<'a> {
             }
         }
 
-        let focus = (!sizing && initial_focus != InitialFocus::None && state.focus_due() && !ctx.input(|i| i.pointer.any_down())).then(|| {
-            state.take_focus_due();
-            let target = match initial_focus {
-                InitialFocus::Auto => frame.first_field.or(run.default),
-                InitialFocus::FirstField => frame.first_field,
-                InitialFocus::DefaultButton => run.default,
-                InitialFocus::None => None,
-            };
-            if let Some(target) = target {
-                ctx.memory_mut(|m| m.request_focus(target));
-            }
-            initial_focus
-        });
+        let focus =
+            (!sizing && !blocked && initial_focus != InitialFocus::None && state.focus_due() && !ctx.input(|i| i.pointer.any_down())).then(|| {
+                state.take_focus_due();
+                let target = match initial_focus {
+                    InitialFocus::Auto => frame.first_field.or(run.default),
+                    InitialFocus::FirstField => frame.first_field,
+                    InitialFocus::DefaultButton => run.default,
+                    InitialFocus::None => None,
+                };
+                if let Some(target) = target {
+                    ctx.memory_mut(|m| m.request_focus(target));
+                }
+                initial_focus
+            });
         if outcome.is_some_and(Outcome::closes) {
             if let Some(focus) = state.return_focus() {
                 ctx.memory_mut(|m| m.request_focus(focus));
             }
             state.close();
         }
-        DialogResponse { outcome, rect: response.rect, outer, opened, initial_focus: focus, alternate, extra: run.extra }
+        DialogResponse {
+            outcome,
+            rect: response.rect,
+            outer,
+            opened,
+            initial_focus: focus,
+            alternate,
+            extra: run.extra,
+            active: active && !popup_open,
+        }
     }
 }
