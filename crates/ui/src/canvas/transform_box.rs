@@ -1,5 +1,6 @@
 //! [`TransformBox`]: the box of Free Transform and of a Move tool's transform controls.
 
+use crate::canvas::story::ViewArgs;
 use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, vec2};
 use kurbo::{Point, Rect, Vec2};
 
@@ -887,12 +888,21 @@ enum ZoneArg {
     Band,
 }
 
-super::story::canvas_args!(FreeTransformArgs {
-    mode: ModeArg = ModeArg::Free,
-    scale: ScaleArg = ScaleArg::Proportional,
-    zone: ZoneArg = ZoneArg::Outside,
-    readout: bool = true,
-});
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+struct FreeTransformArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    mode: ModeArg,
+    scale: ScaleArg,
+    zone: ZoneArg,
+    readout: bool,
+}
+
+impl Default for FreeTransformArgs {
+    fn default() -> Self {
+        Self { view: ViewArgs::default(), mode: ModeArg::Free, scale: ScaleArg::Proportional, zone: ZoneArg::Outside, readout: true }
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -976,7 +986,7 @@ fn show_transform_box(ui: &mut Ui, args: &mut FreeTransformArgs) {
     let scale = if args.scale == ScaleArg::Free { ScaleRule::Free } else { ScaleRule::Proportional };
     let zone = if args.zone == ZoneArg::Band { RotateZone::Band } else { RotateZone::Outside };
     let rules = BoxRules { mode, scale, rotate_step: if scale == ScaleRule::Free { 45.0 } else { 15.0 }, ..BoxRules::default() };
-    let canvas = super::story::document(ui, args.view(), "Document");
+    let canvas = super::story::document(ui, args.view, "Document");
     let view = &canvas.view;
     let painter = ui.painter_at(view.rect);
     let picture = |quad: &[Point; 4], alpha: u8| {

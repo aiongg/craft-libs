@@ -10,8 +10,8 @@ use egui_kittest::{Harness, Node};
 use super::drag::{show_copy, show_flat, show_refused, show_tree};
 use super::*;
 use crate::behavior::{Axis, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
-use crate::controls::NoArgs;
 use crate::edit::{CancelReason, EditEvent};
+use crate::story::NoArgs;
 use crate::testing::a11y;
 use crate::theme::{Base, install};
 

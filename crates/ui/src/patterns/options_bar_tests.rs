@@ -16,7 +16,7 @@ use crate::direction::{self, Direction};
 use crate::edit::EditEvent;
 use crate::icons::Icon;
 use crate::localized::LocaleNumbers;
-use crate::story::Args;
+use crate::story::StoryArgs as _;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, install};
 
@@ -243,12 +243,7 @@ fn the_leading_slot_is_at_the_right_edge_when_mirrored() {
 fn the_story_names_every_control() {
     for (dir, two_rows) in [(Direction::Ltr, false), (Direction::Rtl, false), (Direction::Ltr, true)] {
         let story = stories().remove(0);
-        let mut args = Args::new()
-            .with_bool("narrow", false)
-            .with_bool("session", true)
-            .with_bool("disabled", false)
-            .with_bool("two_rows", two_rows)
-            .with_number("width", 1200.0, 160.0, 1200.0);
+        let mut args = options_cell::BarArgs { narrow: false, session: true, disabled: false, two_rows, width: 1200.0 }.to_args();
         let show = story.show;
         let mut harness = harness(dir, 800.0).build_ui(move |ui| show(ui, &mut args));
         harness.run();

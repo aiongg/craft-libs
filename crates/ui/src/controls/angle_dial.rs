@@ -10,14 +10,15 @@ use egui::{
     Vec2, vec2,
 };
 
+use super::NumberField;
 use super::number_field::{self, FieldRule};
 use super::slider::{KEY_FILTER, PressTurn, Scale, press_turn, tap};
-use super::{NoArgs, NumberField};
 use crate::behavior::FieldTab;
 use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::{self, EditPolicy, EditResponse, Gesture, parts};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{FocusRing, Gap, Interactive, Row};
+use crate::story::NoArgs;
 use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;

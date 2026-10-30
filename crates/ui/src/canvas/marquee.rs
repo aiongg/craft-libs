@@ -5,6 +5,7 @@ mod ants;
 #[cfg(test)]
 mod tests;
 
+use crate::canvas::story::ViewArgs;
 use std::time::Duration;
 
 use egui::accesskit::Role;
@@ -689,7 +690,20 @@ enum StyleArg {
     Size,
 }
 
-super::story::canvas_args!(DragArgs { look: LookArg = LookArg::Ants, shape: ShapeArg = ShapeArg::Rectangle, style: StyleArg = StyleArg::Free });
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+struct DragArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    look: LookArg,
+    shape: ShapeArg,
+    style: StyleArg,
+}
+
+impl Default for DragArgs {
+    fn default() -> Self {
+        Self { view: ViewArgs::default(), look: LookArg::Ants, shape: ShapeArg::Rectangle, style: StyleArg::Free }
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!("primitives/marquee/drag", Level::Primitives, "Marquee", "Drag", DragArgs::default(), show_drag).on(Surface::Canvas)]
@@ -699,7 +713,7 @@ pub(crate) fn stories() -> Vec<Story> {
 /// committed rectangle stays as the selection and the arrow keys nudge it while the canvas has
 /// focus; a click deselects. The width and height follow the pointer in a readout.
 fn show_drag(ui: &mut Ui, args: &mut DragArgs) {
-    let canvas = super::story::document(ui, args.view(), "Document");
+    let canvas = super::story::document(ui, args.view, "Document");
     let (response, view) = (&canvas.response, &canvas.view);
     let look = args.look.look();
     let shape = match args.shape {

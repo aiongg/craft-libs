@@ -11,7 +11,7 @@ use crate::behavior::{Typing, TypingLook};
 use crate::direction::{self, Direction};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, GestureHost, GestureId, UndoMarks};
 use crate::localized::{LocaleNumbers, Unit, focus_first_field};
-use crate::story::Args;
+use crate::story::{ArgValue, Args};
 use crate::theme::{Base, install};
 
 /// A host with one number field after an egui button. It applies every value it is sent (as
@@ -1107,7 +1107,12 @@ fn right_to_left_story(dir: Direction) -> Vec<(String, Rect)> {
     install(&ctx, &Base::suite_default());
     direction::apply(&ctx, dir);
     let story = number_field::stories().into_iter().find(|s| s.id == "controls/number-field/right-to-left").expect("the story");
-    let mut args = Args::new().with_choice("size", &["sm", "md"], 1).with_choice("locale", &["en", "de", "ar-EG"], 1);
+    let mut args = story.defaults();
+    for arg in args.iter_mut() {
+        if let (ArgValue::Choice { index, .. }, "size" | "locale") = (&mut arg.value, arg.name) {
+            *index = 1;
+        }
+    }
     let mut texts = Vec::new();
     for _ in 0..2 {
         let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), ..Default::default() };

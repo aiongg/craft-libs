@@ -8,7 +8,7 @@ use egui::{
 };
 
 use super::Corner;
-use crate::canvas::story::NoArgs;
+use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;

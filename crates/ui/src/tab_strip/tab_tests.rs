@@ -8,7 +8,6 @@ use egui_kittest::{Harness, HarnessBuilder};
 
 use super::*;
 use crate::direction::{self, Direction};
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, install};
 
@@ -356,7 +355,10 @@ fn the_story_shows_in_both_directions_and_both_sizes() {
     let story = crate::story::registry().into_iter().find(|s| s.id == "composites/tab/states").expect("story");
     for dir in [Direction::Ltr, Direction::Rtl] {
         for large in [false, true] {
-            let mut args = Args::new().with_bool("large", large).with_bool("dividers", true).with_number("width", 180.0, 40.0, 320.0);
+            let mut args = story.defaults();
+            if let Some(arg) = args.iter_mut().find(|a| a.name == "large") {
+                arg.value = crate::story::ArgValue::Bool(large);
+            }
             let harness = harness(dir).build_ui(|ui| (story.show)(ui, &mut args));
             a11y::assert_labelled(&harness);
         }

@@ -1,5 +1,6 @@
 //! The gradient overlay's story: a gradient line over the picture it colours.
 
+use crate::canvas::story::ViewArgs;
 use egui::{Color32, Mesh, Ui};
 use kurbo::Point;
 
@@ -66,18 +67,49 @@ enum SelectedArg {
     Midpoint1,
 }
 
-crate::canvas::story::canvas_args!(EditArgs {
-    rows: RowsArg = RowsArg::Split,
-    extent: ExtentArg = ExtentArg::None,
-    selected: SelectedArg = SelectedArg::Stop2,
-    reverse: bool = false,
-    midpoints: bool = true,
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+struct EditArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    rows: RowsArg,
+    extent: ExtentArg,
+    selected: SelectedArg,
+    reverse: bool,
+    midpoints: bool,
     #[arg(name = "alt copies")]
-    alt_copies: bool = false,
-    editable: bool = true,
-});
+    alt_copies: bool,
+    editable: bool,
+}
 
-crate::canvas::story::canvas_args!(WithEditorArgs { rows: RowsArg = RowsArg::Split, reverse: bool = false, midpoints: bool = true });
+impl Default for EditArgs {
+    fn default() -> Self {
+        Self {
+            view: ViewArgs::default(),
+            rows: RowsArg::Split,
+            extent: ExtentArg::None,
+            selected: SelectedArg::Stop2,
+            reverse: false,
+            midpoints: true,
+            alt_copies: false,
+            editable: true,
+        }
+    }
+}
+
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+struct WithEditorArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    rows: RowsArg,
+    reverse: bool,
+    midpoints: bool,
+}
+
+impl Default for WithEditorArgs {
+    fn default() -> Self {
+        Self { view: ViewArgs::default(), rows: RowsArg::Split, reverse: false, midpoints: true }
+    }
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -173,7 +205,7 @@ fn show_edit(ui: &mut Ui, args: &mut EditArgs) {
         state.host.value.stops.color.len(),
         state.last
     ));
-    let canvas = super::super::story::document(ui, args.view(), "Document");
+    let canvas = super::super::story::document(ui, args.view, "Document");
     let view = &canvas.view;
     paint_picture(ui, view, &state.host.value, rows, reverse);
     let id = ui.make_persistent_id("story-gradient");
@@ -296,7 +328,7 @@ fn show_with_editor(ui: &mut Ui, args: &mut WithEditorArgs) {
                 bar.edit.response.id
             })
             .inner;
-        let canvas = super::super::story::document(ui, args.view(), "Document");
+        let canvas = super::super::story::document(ui, args.view, "Document");
         let view = &canvas.view;
         paint_picture(ui, view, &state.doc.value, rows, reverse);
         let value = state.doc.value.clone();

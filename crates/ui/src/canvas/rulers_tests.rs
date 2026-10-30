@@ -440,7 +440,8 @@ fn the_story_switches_units_from_the_menu_a_secondary_click_opens_at_the_pointer
         h.run();
     }
     h.run_steps(3);
-    assert_eq!(h.state().choice("units"), "Inches");
+    let Some(crate::story::ArgValue::Choice { options, index }) = h.state().get("units").map(|a| &a.value) else { panic!("units is a choice arg") };
+    assert_eq!(options[*index], "Inches");
     assert_eq!(h.get_by_label("Horizontal ruler").accesskit_node().data().value(), Some("in"));
 }
 

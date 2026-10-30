@@ -237,11 +237,14 @@ fn the_dock_stories_are_fully_labelled_in_both_locales() {
         for locale in ["en", "ar"] {
             for width in [360.0, 640.0, 960.0] {
                 let mut args = story.defaults();
-                args.set_choice("locale", locale);
-                if let Some(arg) = args.iter_mut().find(|a| a.name == "width")
-                    && let crate::story::ArgValue::Number { value, .. } = &mut arg.value
-                {
-                    *value = f64::from(width);
+                for arg in args.iter_mut() {
+                    match (arg.name, &mut arg.value) {
+                        ("locale", crate::story::ArgValue::Choice { options, index }) => {
+                            *index = options.iter().position(|o| *o == locale).unwrap_or(*index)
+                        }
+                        ("width", crate::story::ArgValue::Number { value, .. }) => *value = f64::from(width),
+                        _ => {}
+                    }
                 }
                 let show = story.show;
                 let mut harness = Harness::builder().with_size(egui::vec2(width + 20.0, 420.0)).build_ui(move |ui| show(ui, &mut args));

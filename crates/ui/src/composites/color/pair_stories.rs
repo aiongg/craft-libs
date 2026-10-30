@@ -5,11 +5,11 @@ use egui::Ui;
 
 use super::{PairWell, SwatchPair, Well};
 use crate::behavior::FieldTab;
-use crate::controls::NoArgs;
 use crate::controls::{TextField, slider};
 use crate::edit;
 use crate::localized::LocaleNumbers;
 use crate::primitives::{Content, Gap, Stack, Text};
+use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs};
 use crate::typed_story;
 

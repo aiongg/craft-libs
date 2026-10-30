@@ -45,11 +45,8 @@ impl Default for PolicyArgs {
 /// The args of `foundations/edit/log`: the policy args and the composite's field order.
 #[derive(StoryArgs, Debug, PartialEq)]
 struct LogArgs {
-    #[arg(name = "update rate")]
-    update_rate: RateArg,
-    cancellable: bool,
-    #[arg(name = "on release only")]
-    on_release_only: bool,
+    #[arg(flatten)]
+    policy: PolicyArgs,
     #[arg(name = "field first")]
     field_first: bool,
 }
@@ -66,7 +63,7 @@ pub(crate) fn stories() -> Vec<Story> {
         Level::Foundations,
         "Edit lifecycle",
         "Event log",
-        LogArgs { update_rate: RateArg::Realtime, cancellable: true, on_release_only: false, field_first: false },
+        LogArgs { policy: PolicyArgs::default(), field_first: false },
         show
     )]
 }
@@ -221,7 +218,7 @@ pub(crate) fn describe<T: Debug>(event: &EditEvent<T>) -> String {
 /// buttons (also Cmd/Ctrl+Z and Ctrl+Tab, which work during a drag; with no gesture under way,
 /// undo takes back one step), and the log.
 fn show(ui: &mut Ui, args: &mut LogArgs) {
-    let policy = policy(&PolicyArgs { update_rate: args.update_rate, cancellable: args.cancellable, on_release_only: args.on_release_only });
+    let policy = policy(&args.policy);
     let state_id = ui.scope_id().with("edit-story-state");
     let mut state = ui.data(|d| d.get_temp::<State>(state_id)).unwrap_or_default();
     if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
