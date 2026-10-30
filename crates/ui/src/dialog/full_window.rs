@@ -201,6 +201,7 @@ impl<'a> FullWindowDialog<'a> {
                 Outcome::Alternate
             }
         });
+        let popup_open = shown.any_popup_open || popup_list::any_open(ctx);
         if outcome.is_none() {
             let (enter_pressed, escape) =
                 ctx.input(|i| (!opened && i.events.iter().any(is_enter_press), i.key_pressed(Key::Escape) && i.modifiers.is_none()));
@@ -210,7 +211,7 @@ impl<'a> FullWindowDialog<'a> {
                 modal: true,
                 active: shown.is_top_modal,
                 footer: true,
-                popup_open: shown.any_popup_open || popup_list::any_open(ctx),
+                popup_open,
                 button_focused: run.button_focused,
                 default_enabled: run.default.is_some(),
                 enter_rule: enter,
@@ -238,6 +239,16 @@ impl<'a> FullWindowDialog<'a> {
             }
             state.close();
         }
-        DialogResponse { outcome, rect: shown.response.rect, outer, opened, initial_focus: focus, alternate, extra: None, history: None }
+        DialogResponse {
+            outcome,
+            rect: shown.response.rect,
+            outer,
+            opened,
+            initial_focus: focus,
+            alternate,
+            extra: None,
+            history: None,
+            active: shown.is_top_modal && !popup_open,
+        }
     }
 }

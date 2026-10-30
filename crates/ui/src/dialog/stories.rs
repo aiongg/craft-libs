@@ -24,11 +24,13 @@ pub(crate) fn stories() -> Vec<Story> {
             .with_bool("alt resets", true)
             .with_bool("body owns enter", false)
     };
-    vec![
+    let mut all = vec![
         Story::new("patterns/dialog/frame", Level::Patterns, "Dialog", "Frame", frame, show_frame),
         Story::new("patterns/dialog/modeless", Level::Patterns, "Dialog", "Modeless", modeless, show_modeless),
         Story::new("patterns/dialog/footer", Level::Patterns, "Dialog", "Footer", footer, show_footer),
-    ]
+    ];
+    all.extend(super::stack_stories::stories());
+    all
 }
 
 fn width_arg(args: &Args) -> Width {
