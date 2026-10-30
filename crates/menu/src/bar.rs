@@ -103,6 +103,16 @@ pub struct MenuBarOutput {
     pub titles: Rect,
 }
 
+/// The chosen commands: `for command in bar.show(ui)`.
+impl IntoIterator for MenuBarOutput {
+    type Item = CommandRef;
+    type IntoIter = std::vec::IntoIter<CommandRef>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.commands.into_iter()
+    }
+}
+
 /// The bar for one frame: `MenuBarUi::new(&bar).gate(gate).show(ui)` returns the commands
 /// chosen. Draw it at the top of the window, in a top panel.
 pub struct MenuBarUi<'a> {

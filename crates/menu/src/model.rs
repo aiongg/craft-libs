@@ -119,6 +119,7 @@ pub enum Node {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Item {
     /// What the item runs: the app's command (`file.open`), with its parameters
     /// (`CommandRef::with_params("file.open_recent", json!({"index": 3}))`), or a [`Builtin`]. A

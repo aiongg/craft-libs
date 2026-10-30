@@ -43,9 +43,9 @@ use std::time::Duration;
 
 use muda::accelerator::{Accelerator, Code, Modifiers};
 use muda::{CheckMenuItem, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
-use objc2::MainThreadMarker;
+use objc2::{MainThreadMarker, sel};
 use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};
-use objc2_foundation::{NSBundle, NSString};
+use objc2_foundation::{NSBundle, NSLocale, NSObjectProtocol, NSString};
 
 use craft_keymap::{Chord, CommandRef, Key, Mods};
 
@@ -461,7 +461,16 @@ fn system_title(english: &str) -> String {
                     return english.to_owned();
                 };
                 let value = NSString::from_str(english);
-                bundle.localizedStringForKey_value_table(&value, Some(&value), Some(&NSString::from_str("MenuCommands"))).to_string()
+                let table = NSString::from_str("MenuCommands");
+                // A framework's strings follow the main bundle's localization, which is English
+                // for an app without .lproj folders; ask in the user's languages instead
+                // (macOS 15 and later).
+                if bundle.respondsToSelector(sel!(localizedStringForKey:value:table:localizations:)) {
+                    let languages = NSLocale::preferredLanguages();
+                    bundle.localizedStringForKey_value_table_localizations(&value, Some(&value), Some(&table), &languages).to_string()
+                } else {
+                    bundle.localizedStringForKey_value_table(&value, Some(&value), Some(&table)).to_string()
+                }
             })
             .clone()
     })
