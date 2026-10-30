@@ -47,13 +47,16 @@ pub struct View {
     /// 1.0 is 100%.
     pub zoom: f64,
     pub rulers: bool,
-    /// Fit on Screen was asked for; the canvas answers it with [`View::fit`] once it knows its size.
+    /// Fit on Screen was asked for; the canvas answers it with [`View::fit`] once it knows its
+    /// size. The document opens with it set, so the first draw fits.
     pub fit_pending: bool,
+    /// The document point the rulers count from.
+    pub zero: [f64; 2],
 }
 
 impl Default for View {
     fn default() -> Self {
-        Self { center: [600.0, 400.0], zoom: 1.0, rulers: true, fit_pending: false }
+        Self { center: [600.0, 400.0], zoom: 1.0, rulers: true, fit_pending: true, zero: [0.0, 0.0] }
     }
 }
 
@@ -168,6 +171,11 @@ impl Mock {
             for layer in &mut self.doc.layers {
                 let [x, y, w, h] = layer.rect;
                 layer.rect = [x * scale[0], y * scale[1], w * scale[0], h * scale[1]];
+            }
+            // The selection scales with the layers, so it stays on the page.
+            if let Some([x0, y0, x1, y1]) = &mut self.doc.selection {
+                let scale = scale.map(f64::from);
+                (*x0, *y0, *x1, *y1) = (*x0 * scale[0], *y0 * scale[1], *x1 * scale[0], *y1 * scale[1]);
             }
             self.view.center = size.map(|s| f64::from(s) / 2.0);
         }

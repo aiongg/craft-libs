@@ -79,6 +79,8 @@ pub struct Doc {
     pub modified: bool,
     /// Pixels per inch.
     pub resolution: f64,
+    /// The marquee selection as `[x0, y0, x1, y1]` in document pixels.
+    pub selection: Option<[f64; 4]>,
 }
 
 impl Default for Doc {
@@ -98,6 +100,7 @@ impl Default for Doc {
             name: "Untitled".into(),
             modified: true,
             resolution: 72.0,
+            selection: None,
         }
     }
 }

@@ -11,7 +11,7 @@ use craft_ui::localized::{LocaleNumbers, Unit};
 use craft_ui::tab_strip::{Tab, TabKind, TabStrip};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
-use egui::{Color32, CursorIcon, Id, Key, Modifiers, PointerButton, Sense, Shape, Stroke, Ui, WidgetInfo};
+use egui::{Color32, CursorIcon, Key, Modifiers, PointerButton, Sense, Shape, Stroke, Ui, WidgetInfo};
 
 use super::model::{Doc, Mock, Tool, View};
 
@@ -93,11 +93,10 @@ pub fn show(ui: &mut Ui, mock: &mut Mock) {
     let rect = if mock.view.rulers { egui::Rect::from_min_max(full.min + egui::vec2(ruler_size, ruler_size), full.max) } else { full };
     ui.allocate_rect(full, Sense::hover());
     let ppp = f64::from(ui.pixels_per_point());
-    // The document opens fitted, and Fit on Screen asks again.
-    let fitted = id.with("fitted");
-    if mock.view.fit_pending || !ctx.data(|d| d.get_temp::<bool>(fitted)).unwrap_or(false) {
+    // The document opens with a fit pending, and Fit on Screen asks again. A sizing pass or a
+    // region without area (a dock's first frame) says nothing about the real size, so it waits.
+    if mock.view.fit_pending && !ui.is_sizing_pass() && rect.width() > 0.0 && rect.height() > 0.0 {
         mock.view.fit([f64::from(rect.width()) * ppp, f64::from(rect.height()) * ppp], mock.doc.size);
-        ctx.data_mut(|d| d.insert_temp(fitted, true));
     }
 
     let response = ui.interact(rect, id.with("canvas"), Sense::click_and_drag() | Sense::FOCUSABLE);
@@ -111,7 +110,12 @@ pub fn show(ui: &mut Ui, mock: &mut Mock) {
 
     // Ctrl or Cmd with the wheel (and a pinch) zooms about the pointer; the plain wheel scrolls.
     if response.hovered() {
-        let (zoom, scroll) = ctx.input(|i| (f64::from(i.zoom_delta()), i.smooth_scroll_delta));
+        // Taken from the input so the gallery's scroll area round the story does not move too.
+        let (zoom, scroll) = ctx.input_mut(|i| {
+            let taken = (f64::from(i.zoom_delta()), i.smooth_scroll_delta);
+            i.smooth_scroll_delta = egui::Vec2::ZERO;
+            taken
+        });
         if (zoom - 1.0).abs() > f64::EPSILON
             && let Some(pointer) = response.hover_pos()
         {
@@ -167,35 +171,36 @@ pub fn show(ui: &mut Ui, mock: &mut Mock) {
 
     // The marquee tool and its selection, which outlives the tool.
     let numbers = LocaleNumbers::of(ui);
-    let key = id.with("marquee-selection");
-    let mut selection: Option<Rect> = ctx.data(|d| d.get_temp(key));
+    let mut selection = mock.doc.selection.map(|[x0, y0, x1, y1]| Rect::new(x0, y0, x1, y1));
     let mut live = None;
+    let mut message = None;
     if tool == Tool::RectMarquee {
         let drag = MarqueeDrag::new("marquee").shape(MarqueeShape::Rect).show(ui, &response, &cv);
-        if drag.clicked {
-            selection = None;
+        if drag.clicked && selection.take().is_some() {
             mock.status.clear();
         }
         if let Some(EditEvent::Commit { value, changed: true, .. }) = &drag.event {
-            selection = Some(pixels(value.rect()));
+            let r = pixels(value.rect());
+            selection = Some(r);
+            message = Some(r);
         }
         live = drag.rect.map(pixels);
+        message = live.or(message);
     }
-    if selection.is_some() && (response.has_focus() || response.hovered()) && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+    // Esc belongs to the canvas when it has focus, or when it is hovered and nothing else has
+    // focus (a rename or a popup keeps its Esc); never under a dialog.
+    let escape = response.has_focus() || (response.hovered() && ctx.memory(|m| m.focused()).is_none());
+    if selection.is_some() && escape && mock.dialog.is_none() && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
         selection = None;
         mock.status.clear();
     }
-    if let Some(r) = live.or(selection) {
+    if let Some(r) = message {
         mock.status = format!("Marquee {} x {} px", r.width(), r.height());
+    }
+    if let Some(r) = live.or(selection) {
         MarqueeShape::Rect.marquee(r, "Selection").bounds_value(&numbers, &Unit::new("{n} px")).show(ui, &response, &cv);
     }
-    ctx.data_mut(|d| {
-        if let Some(r) = selection {
-            d.insert_temp(key, r);
-        } else {
-            d.remove::<Rect>(key);
-        }
-    });
+    mock.doc.selection = selection.map(|r| [r.x0, r.y0, r.x1, r.y1]);
 
     let names = ScrollbarNames::new("Horizontal scroll bar", "Vertical scroll bar");
     if CanvasScrollbars::new(id.with("scrollbars"), names).show(ui, &mut cv, page).changed {
@@ -203,18 +208,16 @@ pub fn show(ui: &mut Ui, mock: &mut Mock) {
     }
 
     if mock.view.rulers {
-        let zero_key = id.with("ruler-zero");
-        let mut zero: Point = ctx.data(|d| d.get_temp(zero_key)).unwrap_or(Point::ZERO);
+        let zero = Point::new(mock.view.zero[0], mock.view.zero[1]);
         let units = RulerUnits::pixels((*numbers).clone());
         let names = RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin");
         let rulers = Rulers::new(id.with("rulers"), &units, &units, names).zero(zero).show(ui, full, &cv, None);
         if rulers.reset_origin {
-            zero = Point::ZERO;
+            mock.view.zero = [0.0, 0.0];
         }
         if let Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = rulers.origin {
-            zero = value;
+            mock.view.zero = [value.x, value.y];
         }
-        ctx.data_mut(|d| d.insert_temp(zero_key, zero));
     }
 }
 
@@ -329,6 +332,17 @@ mod tests {
         assert!(host.mock.view.zoom > zoom, "Ctrl+wheel up zooms in: {zoom} -> {}", host.mock.view.zoom);
         let after = doc_at(&host.mock);
         assert!((after.x - point.x).abs() < 1e-6 && (after.y - point.y).abs() < 1e-6, "{point:?} moved to {after:?}");
+    }
+
+    #[test]
+    fn a_standing_selection_leaves_the_status_message_alone() {
+        let mut host = Host::new();
+        host.mock.tools.current = Tool::RectMarquee;
+        host.mock.doc.selection = Some([100.0, 100.0, 340.0, 260.0]);
+        host.mock.status = "Brush tool".to_owned();
+        host.settle();
+        assert_eq!(host.mock.status, "Brush tool");
+        assert_eq!(host.mock.doc.selection, Some([100.0, 100.0, 340.0, 260.0]));
     }
 
     #[test]

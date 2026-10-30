@@ -103,6 +103,7 @@ pub fn status_bar(ui: &mut Ui, mock: &mut Mock) {
             StatusBar::field(ui, |ui| {
                 let edit = NumberField::new("zoom", "Zoom", mock.view.zoom * 100.0, &numbers)
                     .range(1.0..=6400.0)
+                    .decimals(0..=1)
                     .unit(Unit::new("{n}%"))
                     .size(ControlSize::Sm)
                     .show(ui);
