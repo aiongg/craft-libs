@@ -5,7 +5,7 @@ use std::sync::Arc;
 use craft_theme::{Stroke as Hairline, ThumbSizes, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, Id, Label, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
+use egui::{Color32, Id, Label, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 
 use super::rename;
 use super::toggle::{self, Cell, ToggleColumn, ToggleEdit};
@@ -287,6 +287,7 @@ pub struct ListRow<'a, K> {
     icon: Option<Icon>,
     thumb: ThumbSize,
     thumbnail: Option<Thumbnail<'a>>,
+    thumb_width: Option<f32>,
     trailing: Vec<TrailingItem<'a>>,
     selected: bool,
     focused: bool,
@@ -322,6 +323,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             icon: None,
             thumb: ThumbSize::None,
             thumbnail: None,
+            thumb_width: None,
             trailing: Vec::new(),
             selected: false,
             focused: false,
@@ -405,6 +407,14 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         self.thumb = size;
         self.thumbnail = Some(Box::new(paint));
         self
+    }
+
+    /// A thumbnail `size` points wide and high, for a gradient or other strip that is not
+    /// square: as [`thumb`](ListRow::thumb) with a [`ThumbSize::Px`] of the height, and the
+    /// width given. The row's height follows the height as for any thumbnail.
+    pub fn thumb_sized(mut self, size: Vec2, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
+        self.thumb_width = Some(size.x.max(0.0));
+        self.thumb(ThumbSize::Px(size.y.round().clamp(0.0, f32::from(u16::MAX)) as u16), paint)
     }
 
     /// An item at the trailing end, `width` wide, that always shows. The first item added is the
@@ -548,6 +558,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             icon,
             thumb,
             thumbnail,
+            thumb_width,
             trailing,
             selected,
             focused,
@@ -597,7 +608,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
 
         let side = style.thumb_side(thumb);
         let leading = match (side > 0.0, icon) {
-            (true, _) => Some(side),
+            (true, _) => Some(thumb_width.unwrap_or(side)),
             (false, Some(_)) => Some(style.icon_size),
             (false, None) => None,
         };
@@ -620,8 +631,10 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             tree::show_disclosure(ui, &style, at, &branch, &tree_text.unwrap_or_default(), row_id, &key, &label, &mut events);
         }
 
-        if let (Some(side), true) = (leading, visible) {
-            let at = Rect::from_center_size(pos2(geometry.span(rect, geometry.leading_start, side).center().x, rect.center().y), vec2(side, side));
+        if let (Some(across), true) = (leading, visible) {
+            let high = if side > 0.0 { side } else { across };
+            let at =
+                Rect::from_center_size(pos2(geometry.span(rect, geometry.leading_start, across).center().x, rect.center().y), vec2(across, high));
             let at = at.round_to_pixels(ui.pixels_per_point());
             if side > 0.0 && thumb != ThumbSize::None {
                 paint_thumb(ui, &style, at, thumbnail, selected);

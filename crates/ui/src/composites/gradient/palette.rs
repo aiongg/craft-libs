@@ -6,7 +6,6 @@ use craft_theme::ControlSize;
 use egui::accesskit::{Action, Role};
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
-use egui::text::{LayoutJob, TextWrapping};
 use egui::{
     AsIdSalt, CornerRadius, CursorIcon, EventFilter, Id, IdSalt, Key, Modifiers, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2,
     vec2,
@@ -16,12 +15,13 @@ use super::ramp::GradientRamp;
 use super::stops::{Sampler, default_sampler};
 use super::value::{GradientStops, StopRows};
 use crate::behavior::{GridKey, GridNav};
-use crate::controls::{ListboxStyle, Select, Swatch, TooltipExt as _};
+use crate::controls::{Swatch, TooltipExt as _};
 use crate::direction;
 use crate::edit::{EditEvent, EditResponse};
+use crate::list::ListRow;
 use crate::presets::PresetStyle;
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Text};
-use crate::theme::{Tokens, TokensOf, role_format};
+use crate::theme::{Tokens, TokensOf};
 use craft_theme::TypeRole;
 
 /// Room round a grid cell for the selection ring and the focus ring, as [`Swatch`] palettes
@@ -221,7 +221,11 @@ impl<'a> GradientPalette<'a> {
         let total = entries.len();
 
         let role = if list { Role::ListBox } else { Role::Group };
-        let builder = UiBuilder::new().scope_id(id).layout(direction::column(ui)).accessibility_role(role).accessibility_label(self.label.clone());
+        let mut builder =
+            UiBuilder::new().scope_id(id).layout(direction::column(ui)).accessibility_role(role).accessibility_label(self.label.clone());
+        if list {
+            builder = builder.sense(Sense::CLICK | Sense::FOCUSABLE);
+        }
         let max_height = self.max_height.unwrap_or(tokens.component.gradient_palette.max_height);
         let inner = ui.scope_builder(builder, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, Gap::Inline.points(&tokens));
@@ -230,7 +234,13 @@ impl<'a> GradientPalette<'a> {
                 .id_salt("scroll")
                 .max_height(max_height)
                 .auto_shrink([false, true])
-                .show(ui, |ui| self.cells(ui, id, &entries, &shown, &ids, selected, enabled))
+                .show(ui, |ui| {
+                    if list {
+                        self.list_rows(ui, id, &entries, &shown, selected, enabled)
+                    } else {
+                        self.cells(ui, id, &entries, &shown, &ids, selected, enabled)
+                    }
+                })
                 .inner
         });
         let picked = inner.inner;
@@ -257,58 +267,40 @@ impl<'a> GradientPalette<'a> {
     ) -> Option<usize> {
         let tokens = Tokens::of(ui);
         let t = tokens.component.gradient_palette;
-        let list = self.layout == PaletteLayout::List;
         let rtl = direction::is_rtl(ui);
         let width = ui.available_width();
-        let (slot, columns) = if list {
-            (vec2(width, 0.0), 1)
-        } else {
-            let slot = vec2(t.cell_width + 2.0 * ROOM, t.cell_height + 2.0 * ROOM);
-            (slot, GridNav::columns(width, 0.0, 0.0, slot.x))
-        };
-        let nav = if list {
-            GridNav::wrapped(entries.len(), 1)
-        } else {
-            GridNav::ragged(shown.iter().flat_map(|(_, r)| {
-                let n = r.len();
-                (0..n.div_ceil(columns)).map(move |row| (n - row * columns).min(columns))
-            }))
-        }
+        let slot = vec2(t.cell_width + 2.0 * ROOM, t.cell_height + 2.0 * ROOM);
+        let columns = GridNav::columns(width, 0.0, 0.0, slot.x);
+        let nav = GridNav::ragged(shown.iter().flat_map(|(_, r)| {
+            let n = r.len();
+            (0..n.div_ceil(columns)).map(move |row| (n - row * columns).min(columns))
+        }))
         .rtl(rtl);
-        let (stop, moved) = roving_stop(ui, id, ids, &nav, selected.unwrap_or(0), enabled, list);
+        let (stop, moved) = roving_stop(ui, id, ids, &nav, selected.unwrap_or(0), enabled);
 
         let swatch = Swatch::style(&tokens, ControlSize::Md);
         let ramp = GradientRamp::style(&tokens);
         let preset = PresetStyle::from_tokens(&tokens);
         let default = default_sampler(self.rows);
         let sampler: &Sampler = self.sampler.unwrap_or(&default);
-        let listbox = Select::style(&tokens, ControlSize::Md).list;
         let mut picked = None;
         for (label, range) in shown {
             if !label.is_empty() {
                 ui.with_layout(direction::column(ui), |ui| ui.add(Text::new(*label).role(TypeRole::Caption).content(Content::Muted)));
             }
-            let height = if list { listbox.height.max(t.list_swatch_height + 4.0) } else { slot.y * range.len().div_ceil(columns) as f32 };
-            let area = if list { ui.allocate_space(vec2(width, height * range.len() as f32)).1 } else { ui.allocate_space(vec2(width, height)).1 };
+            let area = ui.allocate_space(vec2(width, slot.y * range.len().div_ceil(columns) as f32)).1;
             for (k, i) in range.clone().enumerate() {
                 let entry = &entries[i];
-                let rect = if list {
-                    Rect::from_min_size(area.min + vec2(0.0, k as f32 * height), vec2(width, height))
-                } else {
-                    let (row, col) = (k / columns, k % columns);
-                    let x = if rtl { area.right() - (col + 1) as f32 * slot.x } else { area.left() + col as f32 * slot.x };
-                    Rect::from_min_size(pos2(x, area.top() + row as f32 * slot.y), slot)
-                };
-                let cell = if list { rect } else { rect.shrink(ROOM) };
-                let mut element = Interactive::with_id(ids[i], if list { Role::ListBoxOption } else { Role::Button }, entry.name.as_str())
+                let (row, col) = (k / columns, k % columns);
+                let x = if rtl { area.right() - (col + 1) as f32 * slot.x } else { area.left() + col as f32 * slot.x };
+                let rect = Rect::from_min_size(pos2(x, area.top() + row as f32 * slot.y), slot);
+                let cell = rect.shrink(ROOM);
+                let element = Interactive::with_id(ids[i], Role::Button, entry.name.as_str())
                     .sense(if i == stop { Sense::click() } else { Sense::CLICK })
                     .state_layer(false)
                     .focus_ring(false)
                     .position_in_set(i)
                     .enabled(enabled);
-                if list {
-                    element = element.selected(selected == Some(i));
-                }
                 let response = element.interact_at(ui, cell).finish(ui);
                 if i != stop && enabled {
                     ui.ctx().accesskit_node_builder(response.id, |node| node.add_action(Action::Focus));
@@ -318,28 +310,12 @@ impl<'a> GradientPalette<'a> {
                 }
                 if ui.is_rect_visible(rect) {
                     let colors = GradientRamp::colors(entry.stops, sampler);
-                    if list {
-                        paint_row(
-                            ui,
-                            &listbox,
-                            &swatch.radius,
-                            &ramp,
-                            &colors,
-                            (t.list_swatch_width, t.list_swatch_height),
-                            &response,
-                            selected == Some(i),
-                            enabled,
-                            &entry.name,
-                            &tokens,
-                        );
-                    } else {
-                        GradientRamp::paint_rounded(ui.painter(), cell, f32::from(swatch.radius.nw), &colors, &ramp);
-                        ui.painter().extend(Swatch::outline(&swatch, cell, false, enabled, ui.pixels_per_point()));
-                        if selected == Some(i) {
-                            paint_selected(ui, &preset, swatch.radius, cell, enabled);
-                        }
-                        FocusRing::paint_radius(ui, cell, swatch.radius, &response);
+                    GradientRamp::paint_rounded(ui.painter(), cell, f32::from(swatch.radius.nw), &colors, &ramp);
+                    ui.painter().extend(Swatch::outline(&swatch, cell, false, enabled, ui.pixels_per_point()));
+                    if selected == Some(i) {
+                        paint_selected(ui, &preset, swatch.radius, cell, enabled);
                     }
+                    FocusRing::paint_radius(ui, cell, swatch.radius, &response);
                 }
                 let response = if enabled { response.on_hover_cursor(CursorIcon::PointingHand) } else { response };
                 if entry.tooltip {
@@ -350,6 +326,86 @@ impl<'a> GradientPalette<'a> {
                 }
             }
         }
+        picked
+    }
+}
+
+impl GradientPalette<'_> {
+    /// The List form: a [`ListRow`] per preset, the gradient as its thumbnail. The palette is the
+    /// one focus stop, as a list is; Up, Down, Home and End move its active row and Enter and
+    /// Space pick it.
+    fn list_rows(
+        &self,
+        ui: &mut Ui,
+        id: Id,
+        entries: &[Entry<'_>],
+        shown: &[(&str, Range<usize>)],
+        selected: Option<usize>,
+        enabled: bool,
+    ) -> Option<usize> {
+        let tokens = Tokens::of(ui);
+        let t = tokens.component.gradient_palette;
+        let swatch = Swatch::style(&tokens, ControlSize::Md);
+        let ramp = GradientRamp::style(&tokens);
+        let default = default_sampler(self.rows);
+        let sampler: &Sampler = self.sampler.unwrap_or(&default);
+        let active_key = id.with("active");
+        let mut active = ui.data(|d| d.get_temp::<usize>(active_key)).unwrap_or_else(|| selected.unwrap_or(0)).min(entries.len().saturating_sub(1));
+        let focused = enabled && ui.memory(|m| m.has_focus(id));
+        let mut picked = None;
+        let mut moved = false;
+        if focused && !entries.is_empty() {
+            ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { vertical_arrows: true, ..Default::default() }));
+            let last = entries.len() - 1;
+            ui.input_mut(|i| {
+                for (key, to) in
+                    [(Key::ArrowDown, (active + 1).min(last)), (Key::ArrowUp, active.saturating_sub(1)), (Key::Home, 0), (Key::End, last)]
+                {
+                    if i.consume_key(Modifiers::NONE, key) {
+                        moved |= to != active;
+                        active = to;
+                    }
+                }
+                if i.consume_key(Modifiers::NONE, Key::Enter) || i.consume_key(Modifiers::NONE, Key::Space) {
+                    picked = Some(active);
+                }
+            });
+        }
+        let mut active_row = None;
+        for (label, range) in shown {
+            if !label.is_empty() {
+                ui.with_layout(direction::column(ui), |ui| ui.add(Text::new(*label).role(TypeRole::Caption).content(Content::Muted)));
+            }
+            for i in range.clone() {
+                let entry = &entries[i];
+                let colors = GradientRamp::colors(entry.stops, sampler);
+                let (radius, ppp) = (f32::from(swatch.radius.nw), ui.pixels_per_point());
+                let row = ListRow::new(i, entry.name.as_str())
+                    .thumb_sized(vec2(t.list_swatch_width, t.list_swatch_height), |painter, rect| {
+                        GradientRamp::paint_rounded(painter, rect, radius, &colors, &ramp);
+                        painter.extend(Swatch::outline(&swatch, rect, false, enabled, ppp));
+                    })
+                    .selected(selected == Some(i))
+                    .focused(focused && active == i)
+                    .position_in_set(i)
+                    .show(ui);
+                if i == active {
+                    active_row = Some(row.response.id);
+                    if moved {
+                        ui.scroll_to_rect(row.response.rect, None);
+                    }
+                }
+                if enabled && row.response.clicked() {
+                    picked = Some(i);
+                    active = i;
+                    ui.memory_mut(|m| m.request_focus(id));
+                }
+            }
+        }
+        if let Some(row) = active_row {
+            ui.ctx().accesskit_node_builder(id, |node| node.set_active_descendant(row.accesskit_id()));
+        }
+        ui.data_mut(|d| d.insert_temp(active_key, active));
         picked
     }
 }
@@ -369,64 +425,11 @@ fn paint_selected(ui: &Ui, style: &PresetStyle, radius: CornerRadius, cell: Rect
     ui.painter().add(RectShape::stroke(cell, radius, fade(style.ring_selected), StrokeKind::Outside));
 }
 
-/// A list row as a select's popup draws one: the chosen and the lit row filled, the keyboard
-/// focus a ring inside the edge, the gradient swatch then the name.
-#[allow(clippy::too_many_arguments)]
-fn paint_row(
-    ui: &Ui,
-    s: &ListboxStyle,
-    swatch_radius: &CornerRadius,
-    ramp: &super::ramp::GradientRampStyle,
-    colors: &[(f32, craft_theme::Srgba)],
-    swatch: (f32, f32),
-    response: &egui::Response,
-    chosen: bool,
-    enabled: bool,
-    name: &str,
-    tokens: &crate::theme::UiTokens,
-) {
-    let ppp = ui.pixels_per_point();
-    let rect = response.rect.round_to_pixels(ppp);
-    let lit = enabled && response.contains_pointer();
-    let (fill, ink, border) = match () {
-        () if chosen => (Some(s.chosen_fill), s.chosen_text, Some(s.chosen_border)),
-        () if lit => (Some(s.active_fill), s.active_text, Some(s.active_border)),
-        () => (None, if enabled { s.text } else { s.text_disabled }, None),
-    };
-    let painter = ui.painter();
-    if let Some(fill) = fill.filter(|_| enabled) {
-        painter.rect_filled(rect, s.radius, fill);
-        if let Some(border) = border {
-            painter.add(RectShape::stroke(rect, s.radius, Stroke::new(1.0, border), StrokeKind::Inside));
-        }
-    }
-    if enabled && response.has_focus() && crate::primitives::FocusRing::visible(ui.ctx()) {
-        painter.add(RectShape::stroke(rect, s.radius, s.focus, StrokeKind::Inside));
-    }
-    let forward = direction::forward(ui);
-    let start = direction::start_x(ui, rect) + forward * s.pad_x;
-    let (sw, sh) = swatch;
-    let well = {
-        let x = if forward < 0.0 { start - sw } else { start };
-        Rect::from_min_size(pos2(x, rect.center().y - sh / 2.0), vec2(sw, sh)).round_to_pixels(ppp)
-    };
-    GradientRamp::paint_rounded(painter, well, f32::from(swatch_radius.nw), colors, ramp);
-    let edge = Swatch::style(tokens, ControlSize::Md);
-    painter.extend(Swatch::outline(&edge, well, false, enabled, ppp));
-    let text_start = start + forward * (sw + s.gap);
-    let room = (rect.width() - s.pad_x * 2.0 - sw - s.gap).max(0.0);
-    let mut job = LayoutJob::single_section(name.to_owned(), role_format(tokens, TypeRole::Body, ink));
-    job.wrap = TextWrapping::truncate_at_width(room);
-    let galley = painter.layout_job(job);
-    let x = if forward < 0.0 { text_start - galley.size().x } else { text_start };
-    painter.galley(pos2(x, rect.center().y - galley.size().y / 2.0).round_to_pixels(ppp), galley, ink);
-}
-
 /// The cell that is the palette's Tab stop this frame, moved by the arrow keys, Home and End
 /// (which it takes) or a screen reader's Focus request, as [`GridNav::roving_stop`] does, over
 /// the layout `nav` describes. Up and Down keep aiming at the column they started in. Returns the
 /// stop and whether a key moved it.
-fn roving_stop(ui: &Ui, id: Id, ids: &[Id], nav: &GridNav, resting: usize, enabled: bool, list: bool) -> (usize, bool) {
+fn roving_stop(ui: &Ui, id: Id, ids: &[Id], nav: &GridNav, resting: usize, enabled: bool) -> (usize, bool) {
     if !enabled || ids.is_empty() {
         return (resting.min(ids.len().saturating_sub(1)), false);
     }
@@ -439,22 +442,18 @@ fn roving_stop(ui: &Ui, id: Id, ids: &[Id], nav: &GridNav, resting: usize, enabl
     let goal_key = id.with("goal");
     let mut moved = false;
     if let Some(from) = focused {
-        ui.memory_mut(|m| m.set_focus_lock_filter(ids[from], EventFilter { horizontal_arrows: !list, vertical_arrows: true, ..Default::default() }));
+        ui.memory_mut(|m| m.set_focus_lock_filter(ids[from], EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() }));
         let mut goal = ui.data(|d| d.get_temp::<(usize, usize)>(goal_key)).filter(|&(at, _)| at == from).map(|(_, g)| g);
-        let keys: &[(Key, GridKey)] = if list {
-            &[(Key::ArrowDown, GridKey::Down), (Key::ArrowUp, GridKey::Up), (Key::Home, GridKey::Home), (Key::End, GridKey::End)]
-        } else {
-            &[
-                (Key::ArrowRight, GridKey::Right),
-                (Key::ArrowLeft, GridKey::Left),
-                (Key::ArrowDown, GridKey::Down),
-                (Key::ArrowUp, GridKey::Up),
-                (Key::Home, GridKey::Home),
-                (Key::End, GridKey::End),
-            ]
-        };
+        let keys = [
+            (Key::ArrowRight, GridKey::Right),
+            (Key::ArrowLeft, GridKey::Left),
+            (Key::ArrowDown, GridKey::Down),
+            (Key::ArrowUp, GridKey::Up),
+            (Key::Home, GridKey::Home),
+            (Key::End, GridKey::End),
+        ];
         ui.input_mut(|i| {
-            for &(key, grid_key) in keys {
+            for (key, grid_key) in keys {
                 if i.consume_key(Modifiers::NONE, key) {
                     let step = nav.step(stop, grid_key, goal);
                     stop = step.index;
