@@ -228,12 +228,7 @@ pub(crate) fn tiles_view(
                 if highlighted {
                     // Inside the selection ring when the tile has both.
                     let inset = if selected { scale::Space::S2.px() } else { 0.0 };
-                    shapes.push(Shape::Rect(RectShape::stroke(
-                        rect.shrink(inset),
-                        0.0,
-                        scale::Stroke::W2.egui(ui.ctx(), ring),
-                        StrokeKind::Inside,
-                    )));
+                    shapes.push(Shape::Rect(RectShape::stroke(rect.shrink(inset), 0.0, scale::Stroke::W2.egui(ui.ctx(), ring), StrokeKind::Inside)));
                 }
                 if selected {
                     shapes.push(Shape::Rect(RectShape::stroke(rect, 0.0, scale::Stroke::W2.egui(ui.ctx(), ring), StrokeKind::Inside)));
