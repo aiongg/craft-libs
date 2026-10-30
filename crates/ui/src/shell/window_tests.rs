@@ -1,7 +1,9 @@
+#[cfg(feature = "window-restore")]
 use std::sync::{Arc, Mutex};
 
 use craft_window::Layout;
 use craft_window::policy::{CaptionFamily, Captions};
+#[cfg(feature = "window-restore")]
 use craft_window::restore::{Defaults, MAIN, Placement, Store, Tracker, cascade_window};
 use egui::{Context, Event, FullOutput, Pos2, RawInput, Rect, ResizeDirection, ViewportCommand, ViewportId, pos2, vec2};
 
@@ -260,6 +262,7 @@ fn the_raw_input_hook_takes_tab_unless_an_app_modal_window_is_open() {
 }
 
 /// A window whose placement goes to `store` under its key.
+#[cfg(feature = "window-restore")]
 fn tracked(store: &Arc<Mutex<Store>>, key: &str, viewport: ViewportId, size: [f32; 2], at: [f32; 2]) -> Tracker {
     let mut tracker = Tracker::new(store, key, &Defaults::new([800.0, 600.0], [200.0, 100.0]));
     let ctx = Context::default();
@@ -282,6 +285,7 @@ fn tracked(store: &Arc<Mutex<Store>>, key: &str, viewport: ViewportId, size: [f3
     tracker
 }
 
+#[cfg(feature = "window-restore")]
 #[test]
 fn the_shell_stores_each_windows_placement_under_its_key_and_a_second_window_cascades_from_main() {
     let store = Arc::new(Mutex::new(Store::in_memory()));
