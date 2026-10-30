@@ -2,45 +2,32 @@
 
 use craft_ui::composites::{FormGrid, LabelAlign};
 use craft_ui::controls::{Checkbox, IconButton, NumberField, Select};
-use craft_ui::dialog::{Dialog, DialogState, Footer, Outcome, Width};
+use craft_ui::dialog::{Dialog, DialogState, Footer, Outcome};
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
 use craft_ui::localized::{LocaleNumbers, Unit};
-use egui::{Ui, Vec2};
+use craft_ui::primitives::Text;
+use egui::Ui;
 
 use super::model::{ImageSizeDraft, Mock, Resample, SizeUnit};
-
-/// The dialog's content width: the form is narrower than the library's standard class.
-const CONTENT_WIDTH: f32 = 400.0;
-/// The height the dialog is expected to take, to centre it over the preview on its first pass.
-const EXPECTED_HEIGHT: f32 = 290.0;
 
 /// Opens the dialog's draft from the document.
 pub fn open_image_size(mock: &mut Mock) {
     mock.open_image_size();
 }
 
-/// Draws the dialog while `mock.dialog` is set. The library dialog is modal to the whole window,
-/// so the gallery is blocked too while it is open; on its first pass it is centred over the
-/// preview.
-pub fn show(ui: &mut Ui, mock: &mut Mock) {
+/// Draws the dialog while `mock.dialog` is set. The library dialog is modal to the whole window
+/// and centres on it, so the gallery's own panels are blocked while it is open.
+pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DialogState<ImageSizeDraft>) {
     let ctx = ui.ctx().clone();
-    let state_id = ui.scope_id().with("image-size-dialog");
-    let mut state = ctx.data(|d| d.get_temp::<DialogState<ImageSizeDraft>>(state_id)).unwrap_or_default();
     let Some(draft) = mock.dialog.as_mut() else {
         if state.is_open() {
             state.close();
-            ctx.data_mut(|d| d.insert_temp(state_id, state));
         }
         return;
     };
-    let centre = ui.max_rect().center();
-    let shown = Dialog::new(state_id, "Image Size")
-        .width(Width::Fixed(CONTENT_WIDTH))
-        .footer(Footer::standard().ok("OK").cancel("Cancel"))
-        .first_place(move |_| Some(centre.to_vec2() - Vec2::new(CONTENT_WIDTH + 14.0, EXPECTED_HEIGHT) / 2.0))
-        .show(&ctx, &mut state, draft, body);
-    ctx.data_mut(|d| d.insert_temp(state_id, state));
+    let id = ui.scope_id().with("image-size-dialog");
+    let shown = Dialog::new(id, "Image Size").footer(Footer::standard().ok("OK").cancel("Cancel")).show(&ctx, state, draft, body);
     match shown.outcome {
         Some(Outcome::Ok) => mock.apply_size(),
         Some(Outcome::Cancel | Outcome::Close) => mock.dialog = None,
@@ -53,7 +40,7 @@ fn megabytes([w, h]: [u32; 2]) -> String {
 }
 
 fn body(ui: &mut Ui, draft: &mut ImageSizeDraft) {
-    let numbers = LocaleNumbers::of(ui);
+    let numbers = (*LocaleNumbers::of(ui)).clone().ungrouped();
     let [w, h] = draft.pixel_size();
     let (resample, original) = (draft.resample, draft.original);
     let mut widths = (None, None);
@@ -79,7 +66,7 @@ fn body(ui: &mut Ui, draft: &mut ImageSizeDraft) {
                 let edit = field.enabled(resample).show(ui);
                 *edit_out = value_of(&edit.event);
                 let mut chosen = unit;
-                let mut select = Select::new(id.to_owned() + "-unit", unit_name, &mut chosen).enabled(resample);
+                let mut select = Select::new(id.to_owned() + "-unit", unit_name, &mut chosen).enabled(resample).fit(true);
                 for u in SizeUnit::ALL {
                     select = select.option(u, u.label());
                 }
@@ -94,20 +81,18 @@ fn body(ui: &mut Ui, draft: &mut ImageSizeDraft) {
         form.row("Resolution:", |ui, _| {
             let edit = NumberField::new("resolution", "Resolution", draft.resolution, &numbers).range(1.0..=30_000.0).decimals(0..=0).show(ui);
             resolution = value_of(&edit.event);
-            ui.label("Pixels/Inch");
+            ui.add(Text::new("Pixels/Inch"));
             edit
         });
         form.space(4.0);
         form.unlabelled(|ui| {
             let check = Checkbox::bool("Resample", &mut resample_on).show(ui);
-            if resample {
-                let mut chosen = draft.method;
-                let mut select = Select::new("resample-method", "Resample method", &mut chosen);
-                for m in Resample::ALL {
-                    select = select.option(m, m.label());
-                }
-                method = value_of(&select.show(ui).event);
+            let mut chosen = draft.method;
+            let mut select = Select::new("resample-method", "Resample method", &mut chosen).enabled(resample).fit(true);
+            for m in Resample::ALL {
+                select = select.option(m, m.label());
             }
+            method = value_of(&select.show(ui).event);
             check
         });
     });
