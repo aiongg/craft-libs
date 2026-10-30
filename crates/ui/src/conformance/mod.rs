@@ -187,6 +187,7 @@ impl<'a> Conformance<'a> {
         let reference_ctx = Context::default();
         (self.fonts)(&reference_ctx, case.font());
         direction::apply(&reference_ctx, case.dir());
+        case.interface_scale().apply(&reference_ctx);
         let base = Base::resolve(case.selection(), case.system_appearance(), case.app_defaults(), case.app_id(), &mut case.lookup());
         install(&reference_ctx, &base);
         let reference = Side::read(&reference_ctx, self.frames);

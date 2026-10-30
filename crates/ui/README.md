@@ -659,3 +659,16 @@ color, spacing and stroke changes fail those comparisons. To retain reviewable P
 ```sh
 CRAFT_UI_VISUAL_DIR=/absolute/path/to/visuals cargo test -p craft-ui --test visual_regression
 ```
+
+## Interface scale
+
+`interface_scale::InterfaceScale` is the app-wide scale setting: `Auto` follows the display's native
+scale, a percent (50 to 300) sets absolute pixels per point, so 100 % is one device pixel per point
+on every display. Store it as `InterfaceScale::code` (`"auto"`, `"75"` to `"300"`) and read it back
+with `from_code`. Call `apply` every frame; it sets egui's zoom factor only when it differs. Apps
+turn egui's Ctrl +/- zoom off with `InterfaceScale::disable_keyboard_zoom` so the shortcut can zoom
+the canvas instead.
+
+A preferences row lists `InterfaceScale::options(current, labels, numbers, fit)`. `Fit` leaves out
+the sizes that would shrink the window below its minimum logical size on the current monitor; the
+current choice stays listed. `Case::scale` runs a conformance check at a given scale.

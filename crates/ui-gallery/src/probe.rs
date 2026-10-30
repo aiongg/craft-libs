@@ -13,6 +13,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use craft_theme::{ColorToken, ComponentField, Contrast, Mode, ModePins, Pins, Rgba, SystemAppearance, ThemeDef, TokenRef, resolve};
+use craft_ui::interface_scale::InterfaceScale;
 use craft_ui::story::{Args, Story};
 use craft_ui::theme::{ToEgui, install, scope};
 use egui::StrokeKind;
@@ -118,8 +119,7 @@ impl Probe {
         let ctx = Context::default();
         let base = appearance.configure(&ctx, None, false, SystemAppearance::default());
         setup(&ctx);
-        // design: allow[style-mutation](the probe context mirrors the gallery's interface scale, which craft-ui has no setting for)
-        ctx.set_zoom_factor(appearance.zoom());
+        appearance.scale.apply(&ctx);
         let mut output = None;
         for _ in 0..2 {
             let raw = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, size)), ..RawInput::default() };
@@ -181,7 +181,7 @@ pub struct Key {
 pub struct Look {
     pub comfortable: bool,
     pub text_size: usize,
-    pub scale: u32,
+    pub scale: InterfaceScale,
     pub rtl: bool,
     pub ui_face: String,
     pub mono_face: String,

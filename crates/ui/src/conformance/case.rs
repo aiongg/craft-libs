@@ -6,6 +6,7 @@ use craft_theme::{
 };
 
 use crate::direction::Direction;
+use crate::interface_scale::InterfaceScale;
 
 /// What the user picked and what the OS and the app add to it: the inputs from which the
 /// reference appearance and the app's own are both built.
@@ -17,6 +18,7 @@ pub struct Case {
     app: Option<AppId>,
     font: InterfaceFont,
     dir: Direction,
+    scale: InterfaceScale,
     themes: Vec<ThemeDef>,
 }
 
@@ -45,6 +47,7 @@ impl Case {
             app: None,
             font: InterfaceFont::Suite,
             dir: Direction::Ltr,
+            scale: InterfaceScale::Auto,
             themes: Vec::new(),
         }
     }
@@ -93,6 +96,12 @@ impl Case {
         self
     }
 
+    /// The interface scale the reference applies; the app's setup applies the same.
+    pub fn scale(mut self, scale: InterfaceScale) -> Case {
+        self.scale = scale;
+        self
+    }
+
     /// The app whose per-app theme overrides apply.
     pub fn app(mut self, app: AppId) -> Case {
         self.app = Some(app);
@@ -129,13 +138,17 @@ impl Case {
         self.dir
     }
 
+    pub fn interface_scale(&self) -> InterfaceScale {
+        self.scale
+    }
+
     /// The built-in themes and the case's own: what an app's theme lookup answers.
     pub fn lookup(&self) -> impl FnMut(&ThemeId) -> Option<ThemeDef> + '_ {
         |id| self.themes.iter().chain(builtins()).find(|t| t.id == *id).cloned()
     }
 
     /// A short unique name for messages: `pro-dark-high-compact-large-system-rtl`. Settings at
-    /// their defaults (standard contrast, default text size, suite font, left to right) are left
+    /// their defaults (standard contrast, default text size, suite font, left to right, automatic scale) are left
     /// out.
     pub fn name(&self) -> String {
         let theme = self.selection.theme.light.as_str();
@@ -170,6 +183,9 @@ impl Case {
         }
         if self.dir == Direction::Rtl {
             name.push_str("-rtl");
+        }
+        if self.scale != InterfaceScale::Auto {
+            name.push_str(&format!("-scale{}", self.scale.code()));
         }
         name
     }

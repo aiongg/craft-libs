@@ -40,6 +40,23 @@ fn the_matrix_and_axes_have_the_planned_cases() {
 }
 
 #[test]
+fn a_case_scale_is_in_its_name_and_applied_by_the_reference() {
+    use crate::interface_scale::InterfaceScale;
+    let case = dark().scale(InterfaceScale::percent(125));
+    assert_eq!(case.name(), format!("{}-scale125", dark().name()));
+    Conformance::new(
+        |ctx, case| {
+            reference(ctx, case);
+            case.interface_scale().apply(ctx);
+        },
+        no_fonts,
+    )
+    .assert(&case);
+    let unscaled = Conformance::new(reference, no_fonts);
+    assert_eq!(expect_report(&unscaled, &case).keys().collect::<Vec<_>>(), ["context: zoom_factor"]);
+}
+
+#[test]
 fn reference_conforms_to_itself() {
     Conformance::new(reference, no_fonts).assert_all(Case::matrix().into_iter().chain(Case::axes()));
 }
