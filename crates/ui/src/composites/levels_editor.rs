@@ -15,7 +15,7 @@ use crate::controls::number_field::{self, FieldRule};
 use crate::controls::thumb_row::{Follow, Order, RowOp, RowRules, Thumb, ThumbRow, ThumbRowStyle};
 use crate::edit::ops::{self, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, parts};
-use crate::localized::{LocaleNumbers, Unit};
+use crate::localized::{Labels as _, LocaleNumbers, Unit, Words};
 use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, Text};
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -82,35 +82,21 @@ pub enum LevelsClip {
     Highlights,
 }
 
-/// The editor's texts, whole phrases the host translates. Each thumb and the field under it share
-/// a name: one value, two ways to set it.
-#[derive(Clone, Debug, PartialEq)]
-pub struct LevelsLabels {
-    /// The histogram's accessible name.
-    pub histogram: String,
-    /// The caption over the histogram and the input row.
-    pub input: String,
-    /// The caption over the output bar.
-    pub output: String,
-    pub in_black: String,
-    pub gamma: String,
-    pub in_white: String,
-    pub out_black: String,
-    pub out_white: String,
-}
-
-impl Default for LevelsLabels {
-    fn default() -> Self {
-        Self {
-            histogram: "Histogram".to_owned(),
-            input: "Input Levels".to_owned(),
-            output: "Output Levels".to_owned(),
-            in_black: "Input black".to_owned(),
-            gamma: "Gamma".to_owned(),
-            in_white: "Input white".to_owned(),
-            out_black: "Output black".to_owned(),
-            out_white: "Output white".to_owned(),
-        }
+crate::words! {
+    /// The editor's texts, whole phrases in the installed language unless set. Each thumb and the
+    /// field under it share a name: one value, two ways to set it.
+    pub struct LevelsLabels {
+        /// The histogram's accessible name.
+        histogram: "" = "Histogram";
+        /// The caption over the histogram and the input row.
+        input: "levels.input" = "Input Levels";
+        /// The caption over the output bar.
+        output: "levels.output" = "Output Levels";
+        in_black: "levels.inBlack" = "Input black";
+        gamma: "" = "Gamma";
+        in_white: "levels.inWhite" = "Input white";
+        out_black: "levels.outBlack" = "Output black";
+        out_white: "levels.outWhite" = "Output white";
     }
 }
 
@@ -341,6 +327,8 @@ pub struct LevelsEditor<'a> {
     width: Option<f32>,
     policy: EditPolicy,
     labels: LevelsLabels,
+    /// Whether the host set [`labels`](LevelsEditor::labels); the installed words fill them otherwise.
+    labels_set: bool,
     enabled: bool,
 }
 
@@ -366,6 +354,7 @@ impl<'a> LevelsEditor<'a> {
             width: None,
             policy: EditPolicy::default(),
             labels: LevelsLabels::default(),
+            labels_set: false,
             enabled: true,
         }
     }
@@ -445,6 +434,7 @@ impl<'a> LevelsEditor<'a> {
 
     pub fn labels(mut self, labels: LevelsLabels) -> Self {
         self.labels = labels;
+        self.labels_set = true;
         self
     }
 
@@ -486,7 +476,10 @@ impl<'a> LevelsEditor<'a> {
     }
 
     /// Shows the editor and returns this frame's edit. The response is the group's.
-    pub fn show(self, ui: &mut Ui) -> EditResponse<Levels> {
+    pub fn show(mut self, ui: &mut Ui) -> EditResponse<Levels> {
+        if !self.labels_set {
+            self.labels = LevelsLabels::of(ui);
+        }
         let tokens = Tokens::of(ui);
         let style = LevelsEditor::style(&tokens);
         let id = ui.make_persistent_id(self.id_salt);
@@ -526,7 +519,7 @@ impl<'a> LevelsEditor<'a> {
         width: f32,
         enabled: bool,
     ) -> (Option<EditEvent<Levels>>, bool, bool) {
-        let rows = ThumbRowStyle::from(style);
+        let rows = ThumbRowStyle::from(style).localized_in(&Words::of(ui));
         let (start, end) = (self.range.start().min(*self.range.end()), self.range.start().max(*self.range.end()));
         let gap = self.min_gap * self.step;
         let mut state = ui.data(|d| d.get_temp::<parts::State<LevelsOp>>(id.with(STATE))).unwrap_or_default();

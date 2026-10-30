@@ -247,3 +247,28 @@ fn canvas_names_reach_their_fields_and_closures_fill_placeholders() {
     let german = Words::new(|word| (word.key() == "warp.handleUp").then(|| "Zeile {row}, Spalte {column}, oben".to_owned()));
     assert_eq!((WarpNames::english().localized_in(&german).handle)(1, 2, WarpSide::Up), "Zeile 1, Spalte 2, oben");
 }
+
+#[test]
+fn editor_labels_localized_with_identity_equal_their_english() {
+    use crate::composites::histogram::HistogramLabels;
+    use crate::composites::{CurveLabels, GradientLabels, LevelsLabels};
+
+    let identity = Words::new(|_| None);
+    macro_rules! check {
+        ($($labels:ty),*) => {$(
+            assert_eq!(<$labels>::english().localized_in(&identity), <$labels>::default());
+            assert_eq!(<$labels>::english().localized(|_| None), <$labels>::default());
+        )*};
+    }
+    check!(GradientLabels, CurveLabels, LevelsLabels, HistogramLabels);
+}
+
+#[test]
+fn number_errors_follow_the_words_unless_the_host_translates_them() {
+    use craft_i18n::NumberError;
+    let shown = Words::new(|word| Some(format!("<{}>", word.key())));
+    let numbers = crate::localized::LocaleNumbers::from_tag("en");
+    assert_eq!(numbers.describe_in(NumberError::Empty, &shown), "<Enter a number>");
+    let host = crate::localized::LocaleNumbers::from_tag("en").with_messages(|english| format!("host {english}"));
+    assert_eq!(host.describe_in(NumberError::Empty, &shown), "host Enter a number");
+}

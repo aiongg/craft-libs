@@ -39,4 +39,10 @@ pub(super) const TABLES: &[&[Word]] = &[
     <crate::canvas::PenNames<'static> as Labels>::WORDS,
     <crate::printing::PrintTexts as Labels>::WORDS,
     <crate::shell::CanvasLabels as Labels>::WORDS,
+    <crate::composites::GradientLabels as Labels>::WORDS,
+    <crate::composites::CurveLabels as Labels>::WORDS,
+    <crate::composites::LevelsLabels as Labels>::WORDS,
+    <crate::composites::histogram::HistogramLabels as Labels>::WORDS,
+    crate::composites::color::PICKER_WORDS,
+    super::super::ERROR_WORDS,
 ];

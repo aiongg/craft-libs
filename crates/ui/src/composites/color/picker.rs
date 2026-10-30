@@ -19,7 +19,7 @@ use crate::direction;
 use crate::edit::ops::{self, ScalarOp};
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
 use crate::icons::Icon;
-use crate::localized::{LocaleNumbers, Unit};
+use crate::localized::{LocaleNumbers, Unit, Word, Words};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Content, Gap, Row, Text};
 use crate::theme::{Tokens, TokensOf};
@@ -167,7 +167,7 @@ pub struct ColorPicker<'a> {
 /// The host's constraint on every colour reported.
 type Constrain<'a> = dyn Fn(Srgba) -> Srgba + 'a;
 /// The host's translation of the picker's words.
-type Translate<'a> = dyn Fn(&str) -> String + 'a;
+type Translate<'a> = dyn Fn(&'static str) -> String + 'a;
 
 /// The picker's own words and templates, English: the keys [`ColorPicker::text`] translates.
 pub(super) mod texts {
@@ -187,6 +187,49 @@ pub(super) mod texts {
     pub(crate) const GRID_LABEL: &str = "{label}:";
     pub(crate) const ONLY_WEB_COLORS: &str = "Only Web Colors";
 }
+
+/// `texts` in the language installed on `ui`'s context, for the parts that are shown without a
+/// host translation.
+pub(super) fn installed<const N: usize>(ui: &Ui, texts: [&'static str; N]) -> [String; N] {
+    let words = Words::of(ui);
+    texts.map(|text| words.get(Word::plain(text)).into_owned())
+}
+
+/// The picker's plain words: [`ColorPicker::TEXTS`], the other parts' texts and the areas' names.
+/// The words of the colour models and their channels come from the models.
+pub(crate) const WORDS: &[Word] = &[
+    Word::plain(texts::OPACITY),
+    Word::plain(texts::HEX_COLOUR),
+    Word::plain(texts::COLOUR_MODEL),
+    Word::plain(texts::NOT_HEX),
+    Word::plain(texts::PERCENT),
+    Word::plain(texts::FIELD_SHOWS),
+    Word::plain(texts::NEW),
+    Word::plain(texts::CURRENT),
+    Word::plain(texts::NEW_COLOUR),
+    Word::plain(texts::RESTORE),
+    Word::plain(texts::GRID_LABEL),
+    Word::plain(texts::ONLY_WEB_COLORS),
+    Word::plain("Saturation and brightness"),
+    Word::plain("Hue and brightness"),
+    Word::plain("Hue and saturation"),
+    Word::plain("Blue and green"),
+    Word::plain("Blue and red"),
+    Word::plain("Red and green"),
+    Word::plain("Green-red and blue-yellow"),
+    Word::plain("Blue-yellow and lightness"),
+    Word::plain("Green-red and lightness"),
+    Word::plain("Hue and chroma"),
+    Word::plain("Hue and lightness"),
+    Word::plain("Chroma and lightness"),
+    Word::plain("Hue"),
+    Word::plain("Saturation"),
+    Word::plain("Brightness"),
+    Word::plain("Color"),
+    Word::plain("degrees"),
+    Word::plain("White"),
+    Word::plain("Black"),
+];
 
 impl ColorPicker<'_> {
     /// The picker's own words and templates, English: keys [`text`](ColorPicker::text)
@@ -348,7 +391,7 @@ impl<'a> ColorPicker<'a> {
     }
 
     /// Translates the picker's words, given as English keys: those [`keys`](ColorPicker::keys)
-    /// lists. Unchanged without it.
+    /// lists. Without it the words installed on the context ([`Words`]) translate them.
     pub fn text(mut self, translate: impl Fn(&str) -> String + 'a) -> Self {
         self.text = Some(Box::new(translate));
         self
@@ -421,7 +464,8 @@ impl<'a> ColorPicker<'a> {
         let eyedropper_requested;
         let web = Cell::new(self.web_colors.as_deref().copied().unwrap_or(false));
         let event = {
-            let translate = |s: &str| self.text.as_ref().map_or_else(|| s.to_owned(), |t| t(s));
+            let words = Words::of(ui);
+            let translate = |s: &'static str| self.text.as_ref().map_or_else(|| words.get(Word::plain(s)).into_owned(), |t| t(s));
             let constrain = |c: Srgba| {
                 let c = if web.get() { snapped(c, WEB_LEVELS) } else { c };
                 self.constrain.as_ref().map_or(c, |f| f(c))
@@ -491,7 +535,7 @@ impl<'a> ColorPicker<'a> {
         models: &[&dyn ColorModel],
         state: &mut State,
         inner: Inner,
-        translate: &dyn Fn(&str) -> String,
+        translate: &dyn Fn(&'static str) -> String,
         parts: &mut Parts<'_>,
     ) -> bool {
         let style = ColorArea::style(&Tokens::of(ui));
@@ -528,7 +572,7 @@ impl<'a> ColorPicker<'a> {
     }
 
     /// The "Opacity" slider row, 0–100 % over the checkerboard.
-    fn alpha_row(&self, ui: &mut Ui, inner: Inner, translate: &dyn Fn(&str) -> String, parts: &mut Parts<'_>) {
+    fn alpha_row(&self, ui: &mut Ui, inner: Inner, translate: &dyn Fn(&'static str) -> String, parts: &mut Parts<'_>) {
         let name = translate(texts::OPACITY);
         let constrain = parts.constrain;
         let map = |pct, now: &Picked| now.with_alpha(pct, constrain);
@@ -549,7 +593,7 @@ impl<'a> ColorPicker<'a> {
         mode: AreaMode,
         visible: &[&dyn ColorModel],
         inner: Inner,
-        translate: &dyn Fn(&str) -> String,
+        translate: &dyn Fn(&'static str) -> String,
         parts: &mut Parts<'_>,
         area: Vec2,
         strip: f32,
@@ -587,7 +631,7 @@ impl<'a> ColorPicker<'a> {
     }
 
     /// "#", the hex field and the eyedropper button; whether the button was pressed.
-    fn hex_row(&self, ui: &mut Ui, id: Id, translate: &dyn Fn(&str) -> String, enabled: bool, parts: &mut Parts<'_>) -> bool {
+    fn hex_row(&self, ui: &mut Ui, id: Id, translate: &dyn Fn(&'static str) -> String, enabled: bool, parts: &mut Parts<'_>) -> bool {
         let tokens = Tokens::of(ui);
         let gap = Gap::Inline.points(&tokens);
         let button = self.eyedropper.as_ref().map(|_| IconButton::style(&tokens, ControlSize::Md).side + gap);
@@ -605,7 +649,7 @@ impl<'a> ColorPicker<'a> {
     }
 
     /// The hex field, `width` wide.
-    fn hex_field(&self, ui: &mut Ui, id: Id, width: f32, translate: &dyn Fn(&str) -> String, enabled: bool, parts: &mut Parts<'_>) {
+    fn hex_field(&self, ui: &mut Ui, id: Id, width: f32, translate: &dyn Fn(&'static str) -> String, enabled: bool, parts: &mut Parts<'_>) {
         let codec = HexCodec { alpha: self.alpha, write_alpha: false, digits: 2, reason: translate(texts::NOT_HEX) };
         let label = translate(texts::HEX_COLOUR);
         // A constraint moves the typed colour, and the host value that differs from what the run
@@ -650,7 +694,7 @@ struct Inner {
 
 /// The width of every channel field, in either layout: the widest value of every built-in
 /// channel and of the picker's models' channels, with its unit.
-fn channel_width(ui: &Ui, numbers: &LocaleNumbers, models: &[&dyn ColorModel], translate: &dyn Fn(&str) -> String) -> f32 {
+fn channel_width(ui: &Ui, numbers: &LocaleNumbers, models: &[&dyn ColorModel], translate: &dyn Fn(&'static str) -> String) -> f32 {
     let builtin: [&dyn ColorModel; 4] = builtin_models();
     builtin
         .into_iter()
@@ -665,7 +709,7 @@ fn channel_width(ui: &Ui, numbers: &LocaleNumbers, models: &[&dyn ColorModel], t
 
 /// Channel `channel` of `model`'s accessible name, translated: the channel's name, or its
 /// qualified name ("OKLCH hue") when another of the `visible` models has a channel of that name.
-fn channel_name(model: &dyn ColorModel, channel: usize, visible: &[&dyn ColorModel], translate: &dyn Fn(&str) -> String) -> String {
+fn channel_name(model: &dyn ColorModel, channel: usize, visible: &[&dyn ColorModel], translate: &dyn Fn(&'static str) -> String) -> String {
     let ch = model.channels()[channel];
     let clash = visible.iter().any(|m| m.id() != model.id() && m.channels().iter().any(|other| other.name == ch.name));
     translate(if clash { ch.qualified } else { ch.name })
@@ -765,7 +809,13 @@ fn at_end<R>(ui: &mut Ui, width: f32, add: impl FnOnce(&mut Ui) -> R) -> R {
 /// button with the current model's name opens a menu of the models, one radio item each. The
 /// button's accessible name is "Colour model: <model>", which holds its visible label. Returns
 /// the model chosen.
-fn model_switch(ui: &mut Ui, models: &[&dyn ColorModel], current: &'static str, translate: &dyn Fn(&str) -> String, enabled: bool) -> &'static str {
+fn model_switch(
+    ui: &mut Ui,
+    models: &[&dyn ColorModel],
+    current: &'static str,
+    translate: &dyn Fn(&'static str) -> String,
+    enabled: bool,
+) -> &'static str {
     let name = models.iter().find(|m| m.id() == current).map_or_else(String::new, |m| translate(m.name()));
     let entries: Vec<MenuEntry<&'static str>> =
         models.iter().map(|m| MenuItem::new(translate(m.name()), m.id()).radio(m.id() == current).into()).collect();
@@ -780,7 +830,7 @@ fn model_switch(ui: &mut Ui, models: &[&dyn ColorModel], current: &'static str, 
 }
 
 /// A channel's unit as a number field shows it: the template for "°" or "%", none otherwise.
-fn unit_of(unit: &str, translate: &dyn Fn(&str) -> String) -> Unit {
+fn unit_of(unit: &'static str, translate: &dyn Fn(&'static str) -> String) -> Unit {
     match unit {
         "" => Unit::default(),
         "%" => Unit::new(&translate(texts::PERCENT)),

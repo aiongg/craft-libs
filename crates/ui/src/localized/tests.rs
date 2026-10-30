@@ -482,8 +482,8 @@ fn error_tooltips_come_from_the_catalog() {
     let (i18n, _) = I18n::new(&[("fr", "\tNot a number\tPas un nombre\n", "")], &["fr"]);
     let fr = i18n.from_code("fr").unwrap_or(Lang::EN);
     let numbers = LocaleNumbers::from_tag("fr").with_catalog(&i18n, fr);
-    assert_eq!(numbers.describe(NumberError::Unexpected('x')), "Pas un nombre");
-    assert_eq!(numbers.describe(NumberError::TooLarge), "Number too large", "English where the row is missing");
+    assert_eq!(numbers.describe_in(NumberError::Unexpected('x'), &Words::english()), "Pas un nombre");
+    assert_eq!(numbers.describe_in(NumberError::TooLarge, &Words::english()), "Number too large", "English where the row is missing");
 }
 
 const PRECISE: f64 = 1.234_567_89;

@@ -12,6 +12,7 @@ use std::ops::RangeInclusive;
 use crate::controls::TooltipExt as _;
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
+use crate::localized::Labels as _;
 use crate::primitives::{Corner, FocusRing, Interactive};
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, tokens_in_mode};
@@ -240,6 +241,15 @@ impl HistogramStyle {
     }
 }
 
+crate::words! {
+    /// The histogram's accessible names, in the installed language unless the host sets them.
+    pub(crate) struct HistogramLabels {
+        selection_start: "histogram.selectionStart" = "Selection start";
+        selection_end: "histogram.selectionEnd" = "Selection end";
+        cached_data: "histogram.cachedData" = "Cached data";
+    }
+}
+
 /// A plot of bins: one tone channel (Levels, the Histogram panel) or overlapping ribbons (Camera
 /// Raw's red, green and blue, a print's inks). It senses nothing and takes no focus unless the host
 /// asks for [`selection`](Histogram::selection) or [`on_stale_click`](Histogram::on_stale_click).
@@ -282,9 +292,9 @@ pub struct Histogram {
     markers: Vec<(f32, String)>,
     outline: Option<(Vec<f32>, ChannelColor)>,
     selection: Option<Option<RangeInclusive<f32>>>,
-    selection_labels: [String; 2],
+    selection_labels: Option<[String; 2]>,
     stale: bool,
-    stale_label: String,
+    stale_label: Option<String>,
     stale_click: Option<String>,
     height: Option<f32>,
     bordered: bool,
@@ -337,9 +347,9 @@ impl Histogram {
             markers: Vec::new(),
             outline: None,
             selection: None,
-            selection_labels: ["Selection start".to_owned(), "Selection end".to_owned()],
+            selection_labels: None,
             stale: false,
-            stale_label: "Cached data".to_owned(),
+            stale_label: None,
             stale_click: None,
             height: None,
             bordered: false,
@@ -413,7 +423,7 @@ impl Histogram {
     /// The accessible names of the selection's start and end sliders; "Selection start" and
     /// "Selection end" by default. The host translates them.
     pub fn selection_labels(mut self, start: impl Into<String>, end: impl Into<String>) -> Self {
-        self.selection_labels = [start.into(), end.into()];
+        self.selection_labels = Some([start.into(), end.into()]);
         self
     }
 
@@ -426,7 +436,7 @@ impl Histogram {
     /// The stale mark's tooltip and accessible name; "Cached data" by default. The host
     /// translates it.
     pub fn stale_label(mut self, label: impl Into<String>) -> Self {
-        self.stale_label = label.into();
+        self.stale_label = Some(label.into());
         self
     }
 
@@ -568,9 +578,13 @@ impl Histogram {
         let (start, end) = ordered(range);
         let last = bins as f32 - 1.0;
         let nodes = ui.new_child(UiBuilder::new().max_rect(rect).accessibility_parent(id));
+        let labels = self.selection_labels.clone().unwrap_or_else(|| {
+            let words = HistogramLabels::of(ui);
+            [words.selection_start, words.selection_end]
+        });
         let sliders = [(start, 0.0..=end), (end, start..=last)];
         for (i, (edge, (value, bounds))) in selection_edges(band, width).into_iter().zip(sliders).enumerate() {
-            Interactive::with_id(selection_node(id, i), Role::Slider, self.selection_labels[i].as_str())
+            Interactive::with_id(selection_node(id, i), Role::Slider, labels[i].as_str())
                 .sense(Sense::hover())
                 .enabled(ui.is_enabled())
                 .state_layer(false)
@@ -652,12 +666,13 @@ impl Histogram {
         let x = direction::end_x(ui, rect) - direction::forward(ui) * (gap + side / 2.0);
         let mark = Rect::from_center_size(pos2(x, rect.top() + gap + side / 2.0), vec2(side, side));
         icons::paint(ui, mark, Icon::Warning, IconSize::Sm, color);
-        let (sense, role, label) = match &self.stale_click {
-            Some(label) => (Sense::click(), Role::Button, label),
-            None => (Sense::hover(), Role::Image, &self.stale_label),
+        let (sense, role, label) = match (&self.stale_click, &self.stale_label) {
+            (Some(label), _) => (Sense::click(), Role::Button, label.clone()),
+            (None, Some(label)) => (Sense::hover(), Role::Image, label.clone()),
+            (None, None) => (Sense::hover(), Role::Image, HistogramLabels::of(ui).cached_data),
         };
         let stale = ui.interact(mark, id.with("stale"), sense);
-        stale.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), label));
+        stale.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), &label));
         if self.stale_click.is_some() {
             FocusRing::paint(ui, mark, Corner::Control, &stale);
         }

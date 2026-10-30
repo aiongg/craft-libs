@@ -129,15 +129,21 @@ impl LocaleNumbers {
         self.format.parse(text)
     }
 
-    pub(crate) fn describe(&self, error: NumberError) -> String {
+    /// The tooltip for `error`: the host's `with_messages` text where set, else the installed
+    /// `words`.
+    pub(crate) fn describe_in(&self, error: NumberError, words: &Words) -> String {
         let english = message(error);
-        self.messages.as_ref().map_or_else(|| english.to_owned(), |translate| translate(english))
+        self.messages.as_ref().map_or_else(|| words.get(Word::plain(english)).into_owned(), |translate| translate(english))
     }
 }
 
 /// Every text [`message`] returns: the catalog rows an app adds for [`LocaleNumbers::with_catalog`].
 pub const MESSAGES: [&str; 5] =
     ["Enter a number", "Not a number", "Use one kind of digits", "Check the decimal and grouping marks", "Number too large"];
+
+/// [`MESSAGES`] as words, plain ones looked up by their English text.
+pub(crate) const ERROR_WORDS: &[Word] =
+    &[Word::plain(MESSAGES[0]), Word::plain(MESSAGES[1]), Word::plain(MESSAGES[2]), Word::plain(MESSAGES[3]), Word::plain(MESSAGES[4])];
 
 /// The English text the widgets show for `error`; a catalog key.
 pub fn message(error: NumberError) -> &'static str {
@@ -355,7 +361,8 @@ impl Widget for LocalizedDragValue<'_> {
                 if let Some(until) = r.until {
                     ui.ctx().request_repaint_after_secs((until - now) as f32);
                 }
-                mark_invalid(ui, &response, ui.visuals().widgets.inactive.corner_radius, numbers.describe(r.error), true);
+                let reason = numbers.describe_in(r.error, &Words::of(ui));
+                mark_invalid(ui, &response, ui.visuals().widgets.inactive.corner_radius, reason, true);
                 ui.data_mut(|d| d.insert_temp(key, r));
             }
             None => ui.data_mut(|d| d.remove::<Rejected>(key)),
@@ -711,9 +718,10 @@ impl Widget for NumberField<'_> {
             None => ui.data_mut(|d| d.remove::<FieldState>(id)),
         }
         if let Some(error) = error {
-            mark_invalid(ui, &response, radius, numbers.describe(error), editing);
+            let reason = numbers.describe_in(error, &Words::of(ui));
+            mark_invalid(ui, &response, radius, reason.clone(), editing);
             if !editing {
-                response = response.tooltip(numbers.describe(error));
+                response = response.tooltip(reason);
             }
         }
         response

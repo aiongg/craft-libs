@@ -52,6 +52,7 @@ pub use disc::{ColorDisc, ColorDiscResponse, ColorDiscStyle, DiscMove};
 pub use hex::HexField;
 pub use pair::{PairWell, SwatchPair, SwatchPairResponse, SwatchPairStyle, Well};
 pub use palette::SwatchPalette;
+pub(crate) use picker::WORDS as PICKER_WORDS;
 pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, ColorWarningChip, PickedColor};
 pub use popover::{ColorPopover, ColorPopoverResponse};
 pub use ramp::{ColorRamp, ColorRampResponse, RampKind, RampPick};
