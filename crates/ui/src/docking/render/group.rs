@@ -308,8 +308,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         ui.ctx().data_mut(|d| d.insert_temp(self.id.with("group-drag"), drag));
     }
 
-    /// The group items of the menu tail: Close Tab Group, Minimize or Expand, Float Tab Group
-    /// and Move Group To. `panel` is the panel whose menu this is.
+    /// The group items of the menu tail: Close Tab Group, Minimize or Expand, Float Tab Group,
+    /// Move Group Up and Down, and Move Group To. `panel` is the panel whose menu this is.
     fn group_menu(&mut self, ui: &mut Ui, owner: &TabGroup<'_, P>, panel: &P) {
         let all = |check: &dyn Fn(crate::docking::Permissions) -> bool| owner.panels.iter().all(|p| check(self.permissions(p)));
         let closable = self.config.close_menu_items && all(&|p| p.closable);
@@ -335,6 +335,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 panel: panel.clone(),
                 to: Target::Float { rect: Some([rect.left(), rect.top(), rect.width(), rect.height()]) },
             });
+        }
+        if movable && owner.kind == GroupKind::Dock {
+            for (up, label) in [(true, self.config.move_group_up_label.clone()), (false, self.config.move_group_down_label.clone())] {
+                let steps = self.layout.can_step_group(panel, up, |p| self.permissions(p));
+                if ui.add_enabled_ui(steps, |ui| self.menu_action(ui, &label)).inner {
+                    self.output.actions.push(Action::StepGroup { panel: panel.clone(), up });
+                }
+            }
         }
         let targets = if movable { self.group_targets(owner.panels) } else { Vec::new() };
         if !targets.is_empty() {

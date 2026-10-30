@@ -24,6 +24,8 @@ pub struct DockConfig {
     pub minimize_label: String,
     pub expand_label: String,
     pub float_group_label: String,
+    pub move_group_up_label: String,
+    pub move_group_down_label: String,
     /// Group menu item that moves the whole group into another group (submenu of targets).
     pub move_group_to_label: String,
     /// Minimum width of the drag bar left of the group header. Tabs shrink, then overflow,
@@ -155,6 +157,8 @@ impl Default for DockConfig {
             minimize_label: "Minimize".into(),
             expand_label: "Expand".into(),
             float_group_label: "Float Tab Group".into(),
+            move_group_up_label: "Move Group Up".into(),
+            move_group_down_label: "Move Group Down".into(),
             move_group_to_label: "Move Group To".into(),
             drag_bar_width: 40.0,
             min_tab_width: None,

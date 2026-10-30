@@ -710,6 +710,41 @@ fn the_panel_menu_button_opens_the_selected_panels_menu_when_enabled() {
 }
 
 #[test]
+/// A docked group's context menu lists Move Group Up and Down; Up is disabled at the top of the
+/// column and clicking Down emits `StepGroup`.
+fn group_menu_steps_a_docked_group_within_its_column() {
+    use egui_kittest::{
+        Harness,
+        kittest::{NodeT, Queryable},
+    };
+    let open_menu = |layout: Layout<u32>, panel: u32| {
+        let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
+            move |ui, (content, actions): &mut (TestContent, Vec<Action<u32>>)| {
+                let out = DockArea::new(Id::unique(AREA)).show_content(ui, &layout, &DockStyle::from_ui(ui), content);
+                actions.extend(out.actions);
+            },
+            (TestContent { protected: vec![0], ..Default::default() }, Vec::new()),
+        );
+        h.run_steps(2);
+        let at = h.ctx.read_response(Id::unique(AREA).with(("drag-bar", Some(&panel)))).unwrap().rect.center();
+        h.input_mut().events.extend([
+            Event::PointerMoved(at),
+            Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed: true, modifiers: Modifiers::NONE },
+        ]);
+        h.run_steps(1);
+        h.input_mut().events.push(Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed: false, modifiers: Modifiers::NONE });
+        h.run_steps(2);
+        h
+    };
+    let mut h = open_menu(docked(), 2);
+    assert_eq!(h.query_all_by_label("Move Group Up").count(), 1);
+    assert!(h.get_by_label("Move Group Up").accesskit_node().is_disabled());
+    h.get_by_label("Move Group Down").click();
+    h.run_steps(2);
+    assert_eq!(h.state().1, vec![Action::StepGroup { panel: 3, up: false }]);
+}
+
+#[test]
 /// Dragging one group out of a two-group floating stack floats only that group
 /// at the stack width and its recorded height in the stack.
 fn a_group_dragged_out_of_a_floating_stack_tears_out_alone() {

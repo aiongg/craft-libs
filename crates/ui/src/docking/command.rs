@@ -32,6 +32,7 @@ use crate::layout::SplitSize;
 /// | `window.panel.dock` | `{panel, anchor?, zone?, before?, group?, column?, side?}` |
 /// | `window.panel.activate`, `.close`, `.closeGroup`, `.closeOthers` | `{panel}` |
 /// | `window.panel.minimize` | `{panel, minimized?}`; without `minimized` it toggles |
+/// | `window.panel.stepGroup` | `{panel, up}`: the dock group moves one place up or down its column |
 /// | `window.panel.iconic` | `{panel, iconic?}`; without `iconic` it toggles |
 /// | `window.panel.window` | `{panel, native?}` (desktop) |
 /// | `window.workspace`, `.new`, `.delete` | `{name}` |
@@ -116,6 +117,9 @@ pub enum DockCommand<P> {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         minimized: Option<bool>,
     },
+    /// Move the panel's dock group one place up or down its column.
+    #[serde(rename = "window.panel.stepGroup")]
+    StepGroup { panel: P, up: bool },
     #[serde(rename = "window.panel.iconic")]
     Iconic {
         panel: P,
@@ -306,6 +310,7 @@ impl<P> DockCommand<P> {
         "window.panel.closeGroup",
         "window.panel.closeOthers",
         "window.panel.minimize",
+        "window.panel.stepGroup",
         "window.panel.iconic",
         "window.panel.window",
         "window.workspace",
@@ -461,6 +466,7 @@ impl<P: Clone + Eq + Hash> DockCommand<P> {
             Self::Close { panel } => one(Action::Close { panel: panel.clone() }),
             Self::CloseGroup { panel } => one(Action::CloseGroup { panel: panel.clone() }),
             Self::CloseOthers { panel } => one(Action::CloseOthers { panel: panel.clone() }),
+            Self::StepGroup { panel, up } => one(Action::StepGroup { panel: panel.clone(), up: *up }),
             Self::Minimize { panel, minimized } => {
                 let place = layout.place(panel).ok_or(DockError::MissingPanel)?;
                 // An accordion entry is minimized while it is closed.

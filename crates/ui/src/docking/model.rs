@@ -473,6 +473,14 @@ pub enum Action<P> {
         panel: P,
         to: Target<P>,
     },
+    /// Move the dock group containing `panel` one place up or down its column, past the
+    /// neighbouring group. Fails for a group that is not docked in a column
+    /// ([`DockError::InvalidPlacement`]), at the column's end ([`DockError::MissingTarget`]), or
+    /// beside a group that cannot move ([`DockError::NotAllowed`]; a canvas is never stepped past).
+    StepGroup {
+        panel: P,
+        up: bool,
+    },
     /// Move the dock column containing `panel`. `Float` makes a window of its groups.
     MoveColumn {
         panel: P,
@@ -770,6 +778,30 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             .collect()
     }
 
+    /// Whether [`Action::StepGroup`] would move `panel`'s group, for enabling a menu item.
+    pub fn can_step_group(&self, panel: &P, up: bool, permissions: impl Fn(&P) -> Permissions) -> bool {
+        self.step_target(panel, up, &|p| {
+            let policy = permissions(p);
+            !policy.movable || policy.is_protected()
+        })
+        .is_ok()
+    }
+
+    /// The anchor and placement that move `panel`'s dock group past its neighbour in the column.
+    /// `pinned` panels stay put: the group and its neighbour must hold none.
+    fn step_target(&self, panel: &P, up: bool, pinned: &dyn Fn(&P) -> bool) -> Result<(P, Placement<P>), DockError> {
+        let place = self.place(panel).ok_or(DockError::MissingPanel)?;
+        let Place::Dock { group, .. } = place else { return Err(DockError::InvalidPlacement) };
+        let groups = &self.column(&place).ok_or(DockError::MissingPanel)?.groups;
+        let neighbour = if up { group.checked_sub(1) } else { group.checked_add(1) }.and_then(|i| groups.get(i)).ok_or(DockError::MissingTarget)?;
+        let own = groups.get(group).ok_or(DockError::MissingPanel)?;
+        if own.panels.iter().chain(&neighbour.panels).any(pinned) {
+            return Err(DockError::NotAllowed);
+        }
+        let anchor = neighbour.panels.first().ok_or(DockError::MissingTarget)?.clone();
+        Ok((anchor, Placement::Group { below: !up, height: None }))
+    }
+
     /// Capture a panel's nearest surviving group/split neighbor before hiding it.
     pub fn location(&self, panel: &P) -> Result<Location<P>, DockError> {
         self.validate()?;
@@ -985,6 +1017,13 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             Action::Open { panel, anchor: None } if self.root.is_some() && !self.contains(&panel) => {
                 let (anchor, placement) = self.open_place(&permissions).ok_or(DockError::MissingTarget)?;
                 Action::OpenAt { panel, anchor, placement }
+            }
+            Action::StepGroup { panel, up } => {
+                let (anchor, placement) = self.step_target(&panel, up, &|p| {
+                    let policy = permissions(p);
+                    !policy.movable || policy.is_protected()
+                })?;
+                Action::MoveGroup { panel, to: Target::At { anchor, placement } }
             }
             action => action,
         };
@@ -1205,6 +1244,10 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                 }
                 let moving = self.take_unit(panel, unit)?;
                 self.insert_moving(moving, to.clone(), canvas)
+            }
+            Action::StepGroup { panel, up } => {
+                let (anchor, placement) = self.step_target(&panel, up, canvas)?;
+                self.apply_inner(Action::MoveGroup { panel, to: Target::At { anchor, placement } }, canvas)
             }
             Action::MovePanel { panel, to } => match to {
                 Target::At { anchor, placement } => self.apply_inner(Action::Move { panel, anchor, placement }, canvas),

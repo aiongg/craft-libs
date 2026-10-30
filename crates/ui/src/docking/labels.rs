@@ -30,6 +30,8 @@ impl DockConfig {
     /// | `dock.minimize` | `minimize_label` | Minimize |
     /// | `dock.expand` | `expand_label` | Expand |
     /// | `dock.floatGroup` | `float_group_label` | Float Tab Group |
+    /// | `dock.moveGroupUp` | `move_group_up_label` | Move Group Up |
+    /// | `dock.moveGroupDown` | `move_group_down_label` | Move Group Down |
     /// | `dock.moveGroupTo` | `move_group_to_label` | Move Group To |
     /// | `dock.moveColumn` | `move_column_label` | Move panel column |
     /// | `dock.collapseToIcons` | `collapse_to_icons_label` | Collapse to Icons |
@@ -54,7 +56,7 @@ impl DockConfig {
         self
     }
 
-    fn labels_mut(&mut self) -> [(&'static str, &mut String); 25] {
+    fn labels_mut(&mut self) -> [(&'static str, &mut String); 27] {
         [
             ("dock.float", &mut self.float_label),
             ("dock.close", &mut self.close_label),
@@ -67,6 +69,8 @@ impl DockConfig {
             ("dock.minimize", &mut self.minimize_label),
             ("dock.expand", &mut self.expand_label),
             ("dock.floatGroup", &mut self.float_group_label),
+            ("dock.moveGroupUp", &mut self.move_group_up_label),
+            ("dock.moveGroupDown", &mut self.move_group_down_label),
             ("dock.moveGroupTo", &mut self.move_group_to_label),
             ("dock.moveColumn", &mut self.move_column_label),
             ("dock.collapseToIcons", &mut self.collapse_to_icons_label),

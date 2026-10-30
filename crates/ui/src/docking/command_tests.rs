@@ -180,6 +180,19 @@ fn exercise_visibility_and_state_commands(seen: &mut BTreeSet<String>) {
         actions(json!({"command": "window.panel.minimize", "panel": "layers", "minimized": false})),
         vec![Action::SetMinimized { panel: s("layers"), minimized: false }]
     );
+    // stepGroup moves a docked group within its column; the ends and floating groups refuse.
+    assert_eq!(
+        actions(id(json!({"command": "window.panel.stepGroup", "panel": "layers", "up": false}))),
+        vec![Action::StepGroup { panel: s("layers"), up: false }]
+    );
+    let (stepped, _) = applied(json!({"command": "window.panel.stepGroup", "panel": "layers", "up": false}));
+    let Some(Node::Split { first, .. }) = &stepped.layout.root else { panic!() };
+    let Node::Dock { columns, .. } = &**first else { panic!() };
+    assert_eq!(columns[0].groups[1].panels, vec![s("layers"), s("channels")]);
+    rejected(json!({"command": "window.panel.stepGroup", "panel": "layers", "up": true}), DockError::MissingTarget);
+    rejected(json!({"command": "window.panel.stepGroup", "panel": "color", "up": true}), DockError::InvalidPlacement);
+    assert!(parse(json!({"command": "window.panel.stepGroup", "panel": "layers"})).is_err());
+
     assert_eq!(
         actions(id(json!({"command": "window.panel.iconic", "panel": "history"}))),
         vec![Action::SetIconic { panel: s("history"), iconic: true }]
