@@ -265,6 +265,7 @@ const FIXED_WIDTH: &[&str] = &[
     "primitives/state-layer/states",
     "primitives/canvas/document",
     "primitives/canvas/scrollbars",
+    "primitives/grid/lines",
     "primitives/guides/guides",
     "primitives/smart-guides/move",
     "primitives/marquee/drag",

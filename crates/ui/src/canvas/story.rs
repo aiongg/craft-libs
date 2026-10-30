@@ -5,7 +5,7 @@ use egui::accesskit::Role;
 use egui::{Color32, EventFilter, Id, Response, Sense, Shape, Stroke, Ui, WidgetInfo, vec2};
 use kurbo::{Point, Rect};
 
-use super::{CanvasScrollbars, CanvasView, Claim, Readout, ScrollbarNames, crisp, hit};
+use super::{CanvasGrid, CanvasScrollbars, CanvasView, Claim, GridLine, Readout, ScrollbarNames, crisp, hit};
 use crate::behavior::nudge;
 use crate::primitives::{Corner, FocusRing, Handle, HandleShape};
 use crate::story::{self, Level, NoArgs, Story, StoryArgs, StoryChoice, Surface};
@@ -132,7 +132,7 @@ pub(crate) fn document_at(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32,
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Canvas", "Readout"];
+pub const COMPONENTS: &[&str] = &["Canvas", "Grid", "Readout"];
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct ScrollbarsArgs {
@@ -147,8 +147,45 @@ impl Default for ScrollbarsArgs {
     }
 }
 
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum GridStyleArg {
+    Solid,
+    Dashed,
+    Dots,
+    Crossings,
+}
+
+impl GridStyleArg {
+    fn line(self) -> GridLine {
+        match self {
+            GridStyleArg::Solid => GridLine::Solid,
+            GridStyleArg::Dashed => GridLine::Dashed,
+            GridStyleArg::Dots => GridLine::Dots,
+            GridStyleArg::Crossings => GridLine::Crossings,
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct GridArgs {
+    #[arg(flatten)]
+    view: ViewArgs,
+    style: GridStyleArg,
+    #[arg(range = 1.0..=10.0)]
+    subdivisions: u32,
+    #[arg(range = 10.0..=200.0)]
+    spacing: f64,
+}
+
+impl Default for GridArgs {
+    fn default() -> Self {
+        Self { view: ViewArgs::default(), style: GridStyleArg::Solid, subdivisions: 4, spacing: 80.0 }
+    }
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
+        typed_story!("primitives/grid/lines", Level::Primitives, "Grid", "Lines", GridArgs::default(), show_grid).on(Surface::Canvas),
         typed_story!("primitives/canvas/document", Level::Primitives, "Canvas", "Document", PlainArgs::default(), show_document).on(Surface::Canvas),
         typed_story!("primitives/canvas/scrollbars", Level::Primitives, "Canvas", "Scrollbars", ScrollbarsArgs::default(), show_scrollbars)
             .on(Surface::Canvas),
@@ -196,6 +233,17 @@ fn show_document(ui: &mut Ui, args: &mut PlainArgs) {
         let at = view.to_doc(pointer);
         Readout::new("canvas-story-readout").row("X:", format!("{:.1}", at.x)).row("Y:", format!("{:.1}", at.y)).show(&ctx, pointer);
     }
+}
+
+/// The grid over the document, inside the document rect.
+fn show_grid(ui: &mut Ui, args: &mut GridArgs) {
+    let canvas = document(ui, args.view, "Document");
+    CanvasGrid::new("canvas-story-grid")
+        .spacing(kurbo::Vec2::new(args.spacing, args.spacing))
+        .subdivisions(args.subdivisions)
+        .bounds(DOC)
+        .line(args.style.line())
+        .show(ui, &canvas.view);
 }
 
 /// The document under its scroll bars: drag a thumb, click a track to page, change the zoom to

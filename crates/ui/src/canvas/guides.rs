@@ -905,7 +905,7 @@ fn paint_line(painter: &Painter, a: Pos2, b: Pos2, color: Color32, line: GuideLi
 }
 
 /// The dashes of a dashed line from `a` to `b`.
-fn dashes(a: Pos2, b: Pos2, dash: f32, gap: f32) -> impl Iterator<Item = (Pos2, Pos2)> {
+pub(super) fn dashes(a: Pos2, b: Pos2, dash: f32, gap: f32) -> impl Iterator<Item = (Pos2, Pos2)> {
     let length = a.distance(b);
     let dir = if length > 0.0 { (b - a) / length } else { ScreenVec::ZERO };
     let period = (dash + gap).max(0.5);

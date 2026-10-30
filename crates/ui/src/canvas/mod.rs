@@ -16,6 +16,7 @@
 //! - [`Rulers`]: the strips along the top and left of a canvas, with the zero point's corner.
 //! - [`CanvasScrollbars`]: the bars along the bottom and right of a canvas, and the clamp that keeps
 //!   the view on the document when overscroll is off.
+//! - [`CanvasGrid`]: major and minor grid lines over a document, solid, dashed, dotted or as crossings.
 //! - [`Guides`]: ruler guides; [`SmartGuides`]: alignment lines and distances during a move.
 //! - [`quad`]: transform box geometry, where a box goes when a part of it is dragged.
 //! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
@@ -62,6 +63,7 @@ pub(crate) mod crop_frame;
 pub mod crop_guides;
 pub mod gradient_line;
 pub(crate) mod gradient_overlay;
+mod grid;
 pub(crate) mod guides;
 pub mod hit;
 pub(crate) mod marquee;
@@ -95,6 +97,7 @@ pub use crop_frame::{CropBox, CropFrame, CropLabels, CropNames, CropResponse, Cr
 pub use crop_guides::{CropGuide, CropShield, GuideShow, Polyline, ShieldColor};
 pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
 pub use gradient_overlay::{GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor};
+pub use grid::{CanvasGrid, GridLine, GridStyle};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{
     Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle, fixed_size_pixels, marquee_pixels,
