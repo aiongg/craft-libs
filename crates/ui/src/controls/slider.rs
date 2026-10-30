@@ -150,6 +150,7 @@ pub struct Slider {
     enabled: bool,
     default: Option<f64>,
     wheel_unfocused: bool,
+    wheel_step: Option<f64>,
     track_colors: Option<Vec<Srgba>>,
     part: bool,
     width: Option<f32>,
@@ -177,6 +178,7 @@ impl Slider {
             enabled: true,
             default: None,
             wheel_unfocused: false,
+            wheel_step: None,
             track_colors: None,
             part: false,
             width: None,
@@ -228,6 +230,15 @@ impl Slider {
     /// two thumbs give a wheel over the track no one value to step.
     pub fn wheel_unfocused(mut self, on: bool) -> Self {
         self.wheel_unfocused = on;
+        self
+    }
+
+    /// How far one wheel notch moves the value (Shift: ten notches), in the range's units, in
+    /// place of the key step. It applies wherever the wheel steps the slider: over the focused
+    /// slider, and over an unfocused one with [`wheel_unfocused`](Slider::wheel_unfocused).
+    /// Non-finite or non-positive steps are ignored.
+    pub fn wheel_step(mut self, step: f64) -> Self {
+        self.wheel_step = Some(step).filter(|s| s.is_finite() && *s > 0.0);
         self
     }
 
@@ -362,7 +373,7 @@ impl Slider {
             set(&mut gesture, ScalarOp::Set(value));
         }
         let wheel_over = self.wheel_unfocused.then_some(response.rect);
-        if let Some(op) = stepped(ui, response.id, sensing, wheel_over, &scale) {
+        if let Some(op) = stepped(ui, response.id, sensing, wheel_over, self.wheel_step, &scale) {
             set(&mut gesture, op);
         }
         if self.part && !ops.is_empty() {
@@ -783,14 +794,15 @@ impl Sensing {
 /// rect, a thumb without focus takes the wheel gestures that start over that rect too
 /// ([`field_wheel::notches`]). A move to an end or a screen reader's value wins over the steps of
 /// the same frame.
-pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect>, scale: &Scale) -> Option<ScalarOp> {
+pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect>, wheel_step: Option<f64>, scale: &Scale) -> Option<ScalarOp> {
     let (step, page) = (scale.key_step(), scale.page_step());
+    let notch = wheel_step.unwrap_or(step);
     let focused = sensing.enabled && ui.memory(|m| m.has_focus(id));
-    let mut delta = if sensing.wheel { wheel(ui, id, step, page, focused && sensing.hovered, sensing.dragging) } else { 0.0 };
+    let mut delta = if sensing.wheel { wheel(ui, id, notch, page, focused && sensing.hovered, sensing.dragging) } else { 0.0 };
     if let Some(rect) = wheel_over
         && !focused
     {
-        delta += step * field_wheel::notches(ui, id.with("craft_ui::slider::unfocused"), false, rect, sensing.enabled && !sensing.dragging, 10.0);
+        delta += notch * field_wheel::notches(ui, id.with("craft_ui::slider::unfocused"), false, rect, sensing.enabled && !sensing.dragging, 10.0);
     }
     let mut to = None;
     let ends = if sensing.falling { (Bound::High, Bound::Low) } else { (Bound::Low, Bound::High) };

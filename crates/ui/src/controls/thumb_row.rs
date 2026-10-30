@@ -747,7 +747,7 @@ impl<const N: usize> ThumbRow<N> {
                 ops.push(reset);
             }
             let sensing = Sensing { falling: rules.thumbs[i].falling, ..sensing };
-            if let Some(op) = stepped(ui, thumb, sensing, None, &layout.scale_of(i)) {
+            if let Some(op) = stepped(ui, thumb, sensing, None, None, &layout.scale_of(i)) {
                 let op = RowOp { thumb: i, op };
                 gesture.set(Row(rules.apply(&op, gesture.shown())));
                 ops.push(op);

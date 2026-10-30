@@ -91,6 +91,7 @@ composites/section-label/default = SectionLabel | Default | Panel | text=Text("B
 composites/panel-header/flyout = PanelHeader | Flyout | Panel | float=Bool(true); close=Bool(true); menu=Bool(true); actions=Bool(false); width=Number { value: 280.0, min: 60.0, max: 400.0 }
 composites/panel-footer/layers = PanelFooter | Layers | Own | width=Number { value: 240.0, min: 60.0, max: 400.0 }
 composites/slider-row/adjustments = SliderRow | Adjustments | Panel | disabled=Bool(false); width=Number { value: 260.0, min: 120.0, max: 400.0 }
+composites/slider-row/wheel-step = SliderRow | Wheel step | Panel | step=Number { value: 5.0, min: 0.5, max: 20.0 }
 composites/toast/stack = Toast | Stack | Panel | tone=Choice { options: ["neutral", "info", "good", "warn", "bad"], index: 0 }; auto_hide=Bool(false); seconds=Number { value: 6.0, min: 1.0, max: 30.0 }
 composites/notice/tones = Notice | Tones | Panel | announce=Bool(true); title=Bool(true); width=Number { value: 320.0, min: 120.0, max: 480.0 }
 composites/empty-state/panel = EmptyState | Panel | Panel | search=Text("zzz"); status=Bool(true); width=Number { value: 260.0, min: 100.0, max: 400.0 }

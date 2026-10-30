@@ -388,7 +388,7 @@ impl ColorWheel {
         }
 
         let sensing = Sensing { wheel: false, ..Sensing::of(&response) };
-        if let Some(op) = stepped(ui, ring_id, sensing, None, &hue_scale) {
+        if let Some(op) = stepped(ui, ring_id, sensing, None, None, &hue_scale) {
             gesture.set(hue_applied(&op, gesture.shown()));
         }
         if let Some(op) = keys(ui, &triangle_response, response.dragged(), &axes) {

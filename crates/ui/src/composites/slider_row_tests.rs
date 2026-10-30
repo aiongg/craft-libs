@@ -156,3 +156,40 @@ fn the_slider_gestures_reach_the_slider_and_the_field_stays_linear() {
     }
     assert_eq!(harness.state().0, 10.0, "a double-click sets the default");
 }
+
+/// A wheel notch over the slider moves the value by `wheel_step`; without
+/// one it moves a hundredth of the range.
+#[test]
+fn a_wheel_notch_over_the_slider_moves_the_value_by_the_wheel_step() {
+    for (wheel_step, notch) in [(None, 10.0), (Some(5.0), 5.0)] {
+        let mut harness = harness(Direction::Ltr).build_ui_state(
+            move |ui, state: &mut State| {
+                let numbers = LocaleNumbers::from_tag("en");
+                let mut row = SliderRow::new("amount", "Amount", state.0, 0.0..=1000.0, &numbers).wheel(true);
+                if let Some(step) = wheel_step {
+                    row = row.wheel_step(step);
+                }
+                for event in row.show(ui).edits() {
+                    if let Some(v) = event.value() {
+                        state.0 = *v;
+                    }
+                }
+            },
+            (500.0, Vec::new()),
+        );
+        harness.run();
+        let slider = harness.get_by(|n| n.role() == Role::Slider).rect();
+        harness.event(Event::PointerMoved(slider.center()));
+        harness.run();
+        let wheel = |modifiers| Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: vec2(0.0, 1.0),
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
+            modifiers,
+        };
+        harness.event(wheel(Modifiers::NONE));
+        harness.run();
+        assert_eq!(harness.state().0, 500.0 + notch, "one notch, with the range a thousand wide");
+    }
+}
