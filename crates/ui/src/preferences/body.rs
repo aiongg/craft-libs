@@ -215,7 +215,10 @@ impl PreferencesBody {
                 .mode(SelectionMode::Single)
                 .allow_empty(false)
                 .max_height(list_rect.height())
-                .show(&mut list_ui, |at, key| ListRow::new(key.clone(), page_list[at].1.as_str()).dimmed(page_list[at].2));
+                .show(&mut list_ui, |at, key| {
+                    let row = ListRow::new(key.clone(), page_list[at].1.as_str()).dimmed(page_list[at].2);
+                    if page_list[at].2 { row.description(texts.empty_page.as_str()) } else { row }
+                });
             for event in listed.events {
                 if let ListEvent::Selection(change) = event
                     && let Some(row) = change.row

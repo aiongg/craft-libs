@@ -278,6 +278,7 @@ pub struct ListRow<'a, K> {
     key: K,
     label: String,
     detail: Option<String>,
+    description: Option<String>,
     columns: Vec<ToggleColumn>,
     icon: Option<Icon>,
     thumb: ThumbSize,
@@ -312,6 +313,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             key,
             label: label.into(),
             detail: None,
+            description: None,
             columns: Vec::new(),
             icon: None,
             thumb: ThumbSize::None,
@@ -365,6 +367,12 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
     pub(super) fn show_at(mut self, ui: &mut Ui, rect: Rect) -> RowResponse<K> {
         self.slot = Some(rect);
         self.show(ui)
+    }
+
+    /// What a screen reader adds after the row's name; not drawn. Empty is none.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into()).filter(|d| !d.is_empty());
+        self
     }
 
     /// A second line under the label in `caption` and `text.faint` (PhotoCraft Studio's kind
@@ -531,6 +539,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             key,
             label,
             detail,
+            description,
             columns,
             icon,
             thumb,
@@ -574,6 +583,9 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             element = element.position_in_set(position);
         }
         let response = element.interact_at(ui, rect).finish(ui);
+        if let Some(description) = description {
+            ui.ctx().accesskit_node_builder(response.id, |node| node.set_description(description));
+        }
         let mut events = Vec::new();
         if let Some(branch) = branch {
             tree::report(ui, &response, &branch, &key, &mut events);

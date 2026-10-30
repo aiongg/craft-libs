@@ -338,3 +338,11 @@ fn two_bodies_with_one_salt_in_different_parents_keep_their_own_page() {
     assert_eq!(PreferencesBody::state(&h.ctx, ids[0]).selected, "tools");
     assert_eq!(PreferencesBody::state(&h.ctx, ids[1]).selected, "");
 }
+
+#[test]
+fn a_dimmed_page_in_the_list_is_described_as_unavailable_and_the_others_are_not() {
+    let h = open();
+    let empty = h.get_by_role_and_label(Role::ListBoxOption, "Plug-ins").accesskit_node();
+    assert_eq!(empty.description().as_deref(), Some("These settings aren't available yet."));
+    assert_eq!(h.get_by_role_and_label(Role::ListBoxOption, "Tools").accesskit_node().description(), None);
+}
