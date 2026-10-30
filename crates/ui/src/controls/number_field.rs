@@ -94,7 +94,8 @@ enum Handle {
 ///   `5` on the way; `-` and `1,` aren't numbers yet and leave the value as it was. Enter
 ///   commits and leaves the field ([`keep_focus`](NumberField::keep_focus) keeps it there), and
 ///   the focus leaving commits: the text read back, rounded to the most decimals shown (half
-///   away from zero) and clamped to the range. The text as the field shows it stands for the
+///   away from zero; [`commit_decimals`](NumberField::commit_decimals) keeps more) and clamped
+///   to the range. The text as the field shows it stands for the
 ///   value itself, decimals the field doesn't show included. Text that can't become a number
 ///   gets the invalid edge and the reason as tooltip as it is typed (`-` and `1,` don't). Text
 ///   that isn't a number commits the value from before the run: the text stays in the field,
@@ -151,6 +152,7 @@ pub struct NumberField<'a> {
     range: RangeInclusive<f64>,
     step: f64,
     decimals: RangeInclusive<usize>,
+    commit_decimals: Option<usize>,
     unit: Unit,
     fallback: Option<Box<Reader<'a>>>,
     handle: Option<Handle>,
@@ -189,6 +191,7 @@ impl<'a> NumberField<'a> {
             range: f64::NEG_INFINITY..=f64::INFINITY,
             step: 1.0,
             decimals: 0..=6,
+            commit_decimals: None,
             unit: Unit::default(),
             fallback: None,
             handle: None,
@@ -226,6 +229,16 @@ impl<'a> NumberField<'a> {
     /// The fewest and most digits shown after the decimal mark. Default `0..=6`.
     pub fn decimals(mut self, decimals: RangeInclusive<usize>) -> Self {
         self.decimals = decimals;
+        self
+    }
+
+    /// The most decimals a typed number keeps when it is committed, where the field shows fewer
+    /// ([`decimals`](NumberField::decimals) is what it shows). A host that converts what the user
+    /// types ("2in" read by [`or_parse`](NumberField::or_parse) into pixels) keeps the conversion
+    /// exact enough to round-trip. Steps, scrubs and the pop-up slider still round to the
+    /// decimals shown. Default: the most decimals shown.
+    pub fn commit_decimals(mut self, places: usize) -> Self {
+        self.commit_decimals = Some(places);
         self
     }
 
@@ -421,6 +434,7 @@ impl<'a> NumberField<'a> {
             numbers: self.numbers,
             words: Words::of(ui),
             decimals: self.decimals.clone(),
+            commit_decimals: self.commit_decimals.unwrap_or(*self.decimals.end()).max(*self.decimals.end()),
             unit: &self.unit,
             fallback: self.fallback.as_deref(),
             bounds,
@@ -1024,6 +1038,8 @@ struct Numbers<'n> {
     numbers: &'n LocaleNumbers,
     words: Arc<Words>,
     decimals: RangeInclusive<usize>,
+    /// The most decimals a typed number keeps, at least the most shown.
+    commit_decimals: usize,
     unit: &'n Unit,
     fallback: Option<&'n Reader<'n>>,
     bounds: (f64, f64),
@@ -1033,6 +1049,11 @@ impl Numbers<'_> {
     /// `value` rounded to the most decimals shown and clamped to the range.
     fn settle(&self, value: f64) -> f64 {
         round_half_away(value, *self.decimals.end()).clamp(self.bounds.0, self.bounds.1)
+    }
+
+    /// `value` as typed, rounded to the decimals a typed number keeps and clamped to the range.
+    fn settle_typed(&self, value: f64) -> f64 {
+        round_half_away(value, self.commit_decimals).clamp(self.bounds.0, self.bounds.1)
     }
 }
 
@@ -1061,7 +1082,7 @@ impl Codec for Numbers<'_> {
         }
         let read = self.numbers.parse(bare);
         match read.as_ref().ok().copied().or_else(|| self.fallback.and_then(|f| f(text))).filter(|v| v.is_finite()) {
-            Some(v) => Ok(Some(self.settle(v))),
+            Some(v) => Ok(Some(self.settle_typed(v))),
             None => {
                 let error = read.err().unwrap_or(craft_i18n::NumberError::TooLarge);
                 Err(NotAValue { reason: self.numbers.describe_in(error, &self.words), partial: incomplete(bare, error) })
@@ -1365,7 +1386,9 @@ fn zoom_step(value: f64, notches: i32) -> f64 {
 }
 
 /// Scrub labels and icons inside the field, and a label before it.
-/// A width whose unit a secondary click picks.
+/// A width whose unit a secondary click picks. A number typed with another unit ("2in", "5mm") is
+/// converted to the field's unit at 96 pixels an inch and keeps two decimals, though the field
+/// shows one.
 fn show_unit_menu(ui: &mut Ui, args: &mut LocaleSizeArgs) {
     const UNITS: [&str; 3] = ["{n} px", "{n} mm", "{n} in"];
     let size = args.size.control();
@@ -1375,10 +1398,20 @@ fn show_unit_menu(ui: &mut Ui, args: &mut LocaleSizeArgs) {
     let entries: Vec<MenuEntry<usize>> =
         UNITS.iter().enumerate().map(|(i, u)| MenuItem::new(u.replace("{n} ", ""), i).radio(i == unit).into()).collect();
     let mut picked = None;
+    // Inches in each of the menu's units.
+    const PER_INCH: [f64; 3] = [96.0, 25.4, 1.0];
+    let convert = |text: &str| {
+        let text = text.trim();
+        let (number, from) = [("px", 0), ("mm", 1), ("in", 2)].into_iter().find_map(|(suffix, i)| Some((text.strip_suffix(suffix)?, i)))?;
+        Some(number.trim().parse::<f64>().ok()? / PER_INCH[from] * PER_INCH[unit])
+    };
     variant_list(ui, "number-field-unit-menu", |form| {
         labelled(form, "Width", &format!("{value} {unit}"), |ui| {
             let edit = NumberField::new("number-field-unit", "Width", value, &numbers)
                 .range(0.0..=10_000.0)
+                .decimals(0..=1)
+                .commit_decimals(2)
+                .or_parse(convert)
                 .unit(Unit::new(UNITS[unit]))
                 .unit_menu(&entries, &mut picked)
                 .size(size)

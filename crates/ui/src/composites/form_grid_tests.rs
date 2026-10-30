@@ -271,3 +271,63 @@ fn a_control_marked_own_name_keeps_its_name_and_is_described_by_the_label() {
     let (swatch, label) = (swatch.rect(), harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Color:")).rect());
     assert!((swatch.center().y - label.center().y).abs() < 0.5, "{swatch:?} {label:?}");
 }
+
+/// Width and Height joined by a chain bracket, the link in the state.
+fn linked_pair(dir: Direction) -> Harness<'static, bool> {
+    let numbers = LocaleNumbers::from_tag("en");
+    Harness::<bool>::builder()
+        .with_size([640.0, 320.0])
+        .with_context_setup(move |ctx: &Context| {
+            install(ctx, &Base::suite_default());
+            direction::apply(ctx, dir);
+        })
+        .build_ui_state(
+            move |ui, on| {
+                FormGrid::new("form").show(ui, |form| {
+                    form.linked("Constrain proportions", on, |form| {
+                        let _ = form.row("Width:", |ui, _| NumberField::new("w", "Width", 1200.0, &numbers).show(ui));
+                        let _ = form.row("Height:", |ui, _| NumberField::new("h", "Height", 800.0, &numbers).show(ui));
+                    });
+                });
+            },
+            true,
+        )
+}
+
+fn spin_button<State>(harness: &Harness<'_, State>, name: &str) -> Rect {
+    harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some(name)).rect()
+}
+
+#[test]
+fn linked_rows_get_a_named_toggle_that_a_click_and_space_flip() {
+    let mut harness = linked_pair(Direction::Ltr);
+    harness.get_by_label("Constrain proportions").click();
+    harness.run();
+    assert!(!*harness.state(), "a click turns the link off");
+    let toggle = harness.get_by_label("Constrain proportions");
+    toggle.focus();
+    harness.run();
+    harness.key_press(egui::Key::Space);
+    harness.run();
+    assert!(*harness.state(), "Space turns it on");
+    assert_eq!(harness.get_by_label("Constrain proportions").accesskit_node().toggled(), Some(egui::accesskit::Toggled::True));
+}
+
+#[test]
+fn the_toggle_sits_past_the_controls_between_the_two_rows_centres_and_mirrors_right_to_left() {
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        let harness = linked_pair(dir);
+        let width = label(&harness, "Width:");
+        let (w, h) = (spin_button(&harness, "Width:"), spin_button(&harness, "Height:"));
+        let toggle = harness.get_by_label("Constrain proportions").rect();
+        let middle = (w.center().y + h.center().y) / 2.0;
+        assert!((toggle.center().y - middle).abs() < 0.5, "{dir:?}: {toggle:?} {w:?} {h:?}");
+        if dir == Direction::Ltr {
+            assert!(toggle.left() >= w.right().max(h.right()), "{toggle:?} {w:?} {h:?}");
+            assert!(width.right() < w.left());
+        } else {
+            assert!(toggle.right() <= w.left().min(h.left()), "{toggle:?} {w:?} {h:?}");
+            assert!(width.left() > w.right());
+        }
+    }
+}

@@ -1,16 +1,17 @@
 //! [`FormGrid`]: the two-column grid of a dialog or a preferences page, labels in the first
 //! column and controls in the second.
 
-use craft_theme::TypeRole;
+use craft_theme::{ControlSize, TypeRole};
 use egui::text::LayoutJob;
-use egui::{AsIdSalt, Color32, IdSalt, InnerResponse, Label, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
+use egui::{AsIdSalt, Color32, IdSalt, InnerResponse, Label, Rect, Response, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
 
 use super::field::{FieldControl, name_control, one_line};
 use super::measure;
 use super::property_row::RowLabel;
-use crate::controls::{Checkbox, NumberField, Select};
+use crate::controls::{Checkbox, IconButton, NumberField, Select};
 use crate::direction;
 use crate::edit::EditEvent;
+use crate::icons::Icon;
 use crate::localized::LocaleNumbers;
 use crate::primitives::Content;
 use crate::story::{Level, Story, StoryArgs};
@@ -122,7 +123,7 @@ impl FormGrid {
         measure::group(ui, TAG, id_salt, |ui| {
             let spacing = ui.spacing().item_spacing;
             ui.spacing_mut().item_spacing.y = style.row_gap;
-            add_rows(&mut Form { ui, style, align, tokens, spacing, rows: 0 })
+            add_rows(&mut Form { ui, style, align, tokens, spacing, rows: 0, link: None })
         })
     }
 }
@@ -137,6 +138,18 @@ pub struct Form<'a> {
     spacing: egui::Vec2,
     /// Rows shown so far, to key each row's measured control centre.
     rows: usize,
+    /// The rows being added inside [`Form::linked`].
+    link: Option<Linked>,
+}
+
+/// What the rows of a [`Form::linked`] scope measured, for the bracket drawn after them.
+struct Linked {
+    /// The room kept at the control column's end for the bracket.
+    reserve: f32,
+    /// The y of each row's first control's centre.
+    centres: Vec<f32>,
+    /// The x furthest towards the reading end that a row's controls reach.
+    edge: Option<f32>,
 }
 
 impl Form<'_> {
@@ -193,6 +206,63 @@ impl Form<'_> {
         self.cell(Some(label.into()).filter(|l| !l.is_empty()), |ui, _| ui.add(Label::new(job).selectable(false)), false).inner
     }
 
+    /// Two consecutive rows joined by a chain bracket, as Width and Height are in Photoshop's
+    /// Image Size: `add_rows` adds the rows, and a bracket runs from the first row's control
+    /// centre to the second's, past the end of whatever the rows hold (unit menus included), with
+    /// a chain-link toggle in its middle. `on` is the link; the bracket shows while it is on.
+    /// `name` names the toggle for AccessKit and is its tooltip.
+    ///
+    /// The toggle is a Tab stop after the two rows. Right to left the bracket sits at the left.
+    /// The scope takes the room of the bracket from the control column, so the rows are narrower
+    /// by a column gap and a button.
+    ///
+    /// ```
+    /// # use craft_ui::composites::FormGrid;
+    /// # use craft_ui::controls::NumberField;
+    /// # use craft_ui::localized::LocaleNumbers;
+    /// # egui::__run_test_ui(|ui| { let numbers = LocaleNumbers::from_tag("en"); let mut constrain = true;
+    /// FormGrid::new("size").show(ui, |form| {
+    ///     form.linked("Constrain proportions", &mut constrain, |form| {
+    ///         form.row("Width:", |ui, _| NumberField::new("w", "Width", 1200.0, &numbers).show(ui));
+    ///         form.row("Height:", |ui, _| NumberField::new("h", "Height", 800.0, &numbers).show(ui));
+    ///     });
+    /// });
+    /// # });
+    /// ```
+    ///
+    /// The response is the toggle's; `changed()` is set on the frame it flips.
+    pub fn linked<R>(&mut self, name: impl Into<String>, on: &mut bool, add_rows: impl FnOnce(&mut Form<'_>) -> R) -> InnerResponse<R> {
+        let side = self.tokens.component.icon_button.size.get(ControlSize::Md);
+        debug_assert!(self.link.is_none(), "FormGrid::linked scopes do not nest");
+        self.link = Some(Linked { reserve: self.style.column_gap + side, centres: Vec::new(), edge: None });
+        let inner = add_rows(self);
+        let (centres, edge) = self.link.take().map_or((Vec::new(), None), |l| (l.centres, l.edge));
+        debug_assert_eq!(centres.len(), 2, "FormGrid::linked joins exactly two rows");
+        let (Some(&first), Some(&last), Some(edge)) = (centres.first(), centres.last(), edge) else {
+            return InnerResponse::new(inner, self.ui.allocate_rect(Rect::NOTHING, Sense::hover()));
+        };
+
+        let ui = &mut *self.ui;
+        let fwd = direction::forward(ui);
+        let x = edge + fwd * (self.style.column_gap + side / 2.0);
+        let middle = pos2(x, (first + last) / 2.0);
+        let button = Rect::from_center_size(middle, vec2(side, side));
+        let name = name.into();
+        let icon = if *on { Icon::Link } else { Icon::Unlink };
+        let response = IconButton::new(icon, name).toggle(on).id_salt(("form-link", self.rows)).show_at(ui, button);
+        if *on {
+            let stroke = Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), self.tokens.color.line.mark.to_egui());
+            let start = edge + fwd * self.style.column_gap;
+            let painter = ui.painter();
+            painter.line_segment([pos2(start, first), pos2(x, first)], stroke);
+            painter.line_segment([pos2(start, last), pos2(x, last)], stroke);
+            painter.line_segment([pos2(x, first), pos2(x, button.top().max(first))], stroke);
+            painter.line_segment([pos2(x, last), pos2(x, button.bottom().min(last))], stroke);
+        }
+        ui.expand_to_include_rect(button);
+        InnerResponse::new(inner, response)
+    }
+
     /// Extra space before the next row.
     pub fn space(&mut self, height: f32) {
         self.ui.add_space(height);
@@ -212,10 +282,11 @@ impl Form<'_> {
         let rtl = direction::is_rtl(ui);
         let column = measure::column(ui, TAG, galley.as_ref().map_or(0.0, |g| g.size().x)).0.max(style.label_min);
         let indent = column + style.column_gap;
+        let reserve = self.link.as_ref().map_or(0.0, |l| l.reserve);
         let control_rect = if rtl {
-            Rect::from_min_max(rect.min, pos2(rect.right() - indent, rect.bottom()))
+            Rect::from_min_max(pos2(rect.left() + reserve, rect.top()), pos2(rect.right() - indent, rect.bottom()))
         } else {
-            Rect::from_min_max(pos2(rect.left() + indent, rect.top()), rect.max)
+            Rect::from_min_max(pos2(rect.left() + indent, rect.top()), pos2(rect.right() - reserve, rect.bottom()))
         };
 
         // The label comes first, so that the control closure has its response (scrubbing) and
@@ -242,6 +313,11 @@ impl Form<'_> {
         cell.spacing_mut().item_spacing = self.spacing;
         let control = direction::horizontal(&mut cell, |ui| add_control(ui, &RowLabel::new(label_response.as_ref(), true))).inner;
         row = row.union(cell.min_rect());
+        if let Some(link) = &mut self.link {
+            link.centres.push(control.control().rect.center().y);
+            let end = direction::end_x(ui, cell.min_rect());
+            link.edge = Some(link.edge.map_or(end, |e| if rtl { e.min(end) } else { e.max(end) }));
+        }
         row.extend_with_x(direction::start_x(ui, rect));
 
         if label_response.is_some() {
@@ -294,6 +370,7 @@ struct Values {
     height: f64,
     resolution: f64,
     unit: usize,
+    constrain: bool,
     resample: bool,
     method: usize,
 }
@@ -305,7 +382,7 @@ fn apply(event: Option<EditEvent<f64>>, value: &mut f64) {
 }
 
 /// The content of PhotoCraft's Image Size dialog: two read-outs, Width and Height with a unit
-/// menu each, Resolution with its unit, and the Resample check box with its method.
+/// menu each and a chain bracket linking them, Resolution with its unit, and the Resample check box with its method.
 pub(super) fn show_image_size(ui: &mut Ui, args: &mut ImageSizeArgs) {
     let (roomy, start) = (args.roomy, args.labels_at_start);
     let state_id = ui.scope_id().with("form-grid-image-size");
@@ -314,6 +391,7 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut ImageSizeArgs) {
         height: 800.0,
         resolution: 72.0,
         unit: 0,
+        constrain: true,
         resample: true,
         method: 0,
     });
@@ -334,22 +412,29 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut ImageSizeArgs) {
             form.value("Image Size:", format!("{} (was {})", bytes(v.width, v.height), bytes(1200.0, 800.0)));
             form.value("Dimensions:", format!("{} px × {} px", v.width.round(), v.height.round()));
             form.space(6.0);
-            let width = form
-                .row("Width:", |ui, _| {
-                    let edit = NumberField::new("width", "Width", v.width, &numbers).range(1.0..=300000.0).decimals(0..=0).show(ui);
-                    let _ = unit_menu(ui, "width-unit", "Width unit", &mut v.unit);
-                    edit
-                })
-                .inner;
-            apply(width.event, &mut v.width);
-            let height = form
-                .row("Height:", |ui, _| {
-                    let edit = NumberField::new("height", "Height", v.height, &numbers).range(1.0..=300000.0).decimals(0..=0).show(ui);
-                    let _ = unit_menu(ui, "height-unit", "Height unit", &mut v.unit);
-                    edit
-                })
-                .inner;
-            apply(height.event, &mut v.height);
+            let mut constrain = v.constrain;
+            let (mut width, mut height) = (None, None);
+            form.linked("Constrain proportions", &mut constrain, |form| {
+                width = form
+                    .row("Width:", |ui, _| {
+                        let edit = NumberField::new("width", "Width", v.width, &numbers).range(1.0..=300000.0).decimals(0..=0).show(ui);
+                        let _ = unit_menu(ui, "width-unit", "Width unit", &mut v.unit);
+                        edit
+                    })
+                    .inner
+                    .event;
+                height = form
+                    .row("Height:", |ui, _| {
+                        let edit = NumberField::new("height", "Height", v.height, &numbers).range(1.0..=300000.0).decimals(0..=0).show(ui);
+                        let _ = unit_menu(ui, "height-unit", "Height unit", &mut v.unit);
+                        edit
+                    })
+                    .inner
+                    .event;
+            });
+            v.constrain = constrain;
+            apply(width, &mut v.width);
+            apply(height, &mut v.height);
             let resolution = form
                 .row("Resolution:", |ui, _| {
                     let edit = NumberField::new("resolution", "Resolution", v.resolution, &numbers).range(1.0..=30000.0).decimals(0..=0).show(ui);
