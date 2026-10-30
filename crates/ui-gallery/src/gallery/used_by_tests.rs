@@ -12,13 +12,14 @@ struct Fixture {
     ctx: Context,
     gallery: Gallery,
     time: f64,
+    shapes: Vec<egui::epaint::ClippedShape>,
 }
 
 impl Fixture {
     fn new() -> Self {
         let ctx = Context::default();
         ctx.enable_accesskit();
-        Self { ctx, gallery: Gallery::new(None), time: 0.0 }
+        Self { ctx, gallery: Gallery::new(None), time: 0.0, shapes: Vec::new() }
     }
 
     fn frame(&mut self, events: Vec<Event>) -> Option<AccessTree> {
@@ -30,6 +31,7 @@ impl Fixture {
         };
         let output = self.ctx.run_ui(raw, |ui| self.gallery.show(ui));
         let tree = output.platform_output.accesskit_update.as_ref().and_then(AccessTree::from_update);
+        self.shapes = output.shapes.clone();
         output.drop_without_applying_deltas();
         tree
     }
@@ -44,7 +46,7 @@ impl Fixture {
     /// Frames until the scan has probed every component.
     fn scan_to_end(&mut self) {
         let total = self.gallery.scan_progress().map_or(0, |(_, total)| total);
-        for _ in 0..total + 3 {
+        for _ in 0..2 * total + 3 {
             self.frame(Vec::new());
         }
         let (done, total) = self.gallery.scan_progress().expect("a scan");
@@ -106,7 +108,7 @@ fn read_by_lists_the_fields_that_default_to_the_token_and_selects_one_from_its_l
 #[test]
 fn a_change_of_appearance_restarts_the_scan() {
     let mut f = theme_workspace();
-    f.frames(4);
+    f.frames(8);
     let (before, _) = f.gallery.scan_progress().unwrap();
     assert!(before >= 3);
     f.gallery.appearance_mut().mode = ModeChoice::Dark;
@@ -124,4 +126,73 @@ fn tiles_that_paint_the_selected_token_are_outlined_and_none_is_without_a_select
     f.gallery.select_token(ACCENT);
     f.frames(3);
     assert!(f.gallery.highlighted_tiles().contains(&"Button"), "{:?}", f.gallery.highlighted_tiles());
+}
+
+#[test]
+fn nothing_is_scanned_while_no_token_is_selected_or_the_list_is_hidden() {
+    let mut f = Fixture::new();
+    f.frames(3);
+    assert_eq!(f.gallery.scan_progress(), None);
+    f.gallery.set_workspace(GalleryWorkspace::Theme);
+    f.frames(3);
+    assert_eq!(f.gallery.scan_progress(), None);
+    // A token is selected but the Used by list is on another workspace.
+    f.gallery.select_token(ACCENT);
+    f.gallery.set_workspace(GalleryWorkspace::Components);
+    f.frames(6);
+    let hidden = f.gallery.scan_progress().map_or(0, |(done, _)| done);
+    assert_eq!(hidden, 0, "a scan step ran with the list hidden");
+    f.gallery.set_workspace(GalleryWorkspace::Theme);
+    f.frames(6);
+    assert!(f.gallery.scan_progress().is_some_and(|(done, _)| done > 0));
+}
+
+#[test]
+fn a_change_of_direction_restarts_the_scan() {
+    let mut f = theme_workspace();
+    f.frames(8);
+    let (before, _) = f.gallery.scan_progress().unwrap();
+    assert!(before >= 3);
+    f.gallery.appearance_mut().rtl = true;
+    f.frame(Vec::new());
+    let (after, _) = f.gallery.scan_progress().unwrap();
+    assert!(after < before, "{after} after {before}");
+}
+
+#[test]
+#[ignore = "needs probe frame fix (W4c2)"]
+fn the_outline_sits_on_the_primary_buttons_fill() {
+    fn walk(s: &egui::Shape, out: &mut Vec<egui::epaint::RectShape>) {
+        match s {
+            egui::Shape::Rect(r) => out.push(r.clone()),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let mut f = Fixture::new();
+    f.gallery.select_component("Button");
+    f.gallery.select_token(ACCENT);
+    let tree = f.frames(4);
+    let button = tree
+        .walk(tree.root())
+        .into_iter()
+        .map(|(id, _)| id)
+        .find(|id| tree.name(*id).as_deref() == Some("Button") && tree.node(*id).is_some_and(|n| n.role() == Role::Button))
+        .and_then(|id| tree.node(id).and_then(|n| n.bounds()))
+        .expect("the first Button in the tile");
+    let ppp = f.ctx.pixels_per_point();
+    let fill =
+        Rect::from_min_max(egui::pos2(button.x0 as f32 / ppp, button.y0 as f32 / ppp), egui::pos2(button.x1 as f32 / ppp, button.y1 as f32 / ppp));
+    let mut rects = Vec::new();
+    for clipped in &f.shapes {
+        walk(&clipped.shape, &mut rects);
+    }
+    let outlines: Vec<Rect> = rects
+        .iter()
+        .filter(|r| r.stroke_kind == egui::StrokeKind::Outside && r.fill == egui::Color32::TRANSPARENT && r.rect.intersects(fill.expand(4.0)))
+        .map(|r| r.rect)
+        .collect();
+    assert_eq!(outlines.len(), 1, "{outlines:?}");
+    let o = outlines[0];
+    assert!((o.min - fill.min).abs().max_elem() < 0.6 && (o.max - fill.max).abs().max_elem() < 0.6, "{o:?} against {fill:?}");
 }

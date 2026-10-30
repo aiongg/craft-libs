@@ -271,6 +271,7 @@ struct UsedBy {
 fn used_by(ui: &mut Ui, e: &Explained, token: TokenRef, scan: &Scan) -> UsedBy {
     let mut out = UsedBy::default();
     SectionHeader::new("gallery.tokens.used_by", "Used by").show(ui, |ui| {
+        scan.mark_shown();
         let painters = scan.painters(token);
         let headline = match scan.progress() {
             Some((done, total)) if done < total => format!("Scanning stories… {done} of {total}"),
