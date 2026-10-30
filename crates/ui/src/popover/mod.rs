@@ -203,9 +203,6 @@ struct State {
     opened: u64,
     /// The focus was in the popover's family or on its anchor at the end of the last pass.
     had_focus: bool,
-    /// A pointer press the popover does not count as the focus leaving is still held, or was
-    /// released in the last pass: egui drops the focus on a click that lands on nothing.
-    grace: u8,
     /// Attempts to move the focus into it.
     focus_tries: u8,
     /// The side of the anchor it shows on: true for above.
@@ -305,14 +302,12 @@ impl Popover {
         closing = closing.or(press.closing);
         let owners: Vec<Id> = control.iter().map(|c| c.id).chain(toggle).collect();
         let inside = popup_list::focus_inside(&ctx, &owners, &family);
-        let held = ctx.input(|i| i.pointer.any_down() || i.pointer.any_released());
-        // The focus is dropped at the end of the pass the pointer is released in.
-        state.grace = if held || press.foreign { 2 } else { state.grace.saturating_sub(1) };
         let pressed = popup_list::pressed_into(&ctx, &family);
         let had = std::mem::replace(&mut state.had_focus, inside && !pressed) && shown;
-        // egui drops the focus on Esc; the Esc rule decides what that means.
-        let escaped = ctx.input(|i| i.key_pressed(Key::Escape));
-        if close.focus_left && had && !inside && !pressed && !escaped && state.grace == 0 {
+        // Only a move of the focus to a widget elsewhere counts; egui clearing it (a press on
+        // nothing, Esc) is left to the press and Esc rules.
+        let moved_away = !inside && ctx.memory(|m| m.focused()).is_some();
+        if close.focus_left && had && moved_away && !pressed {
             closing = closing.or(Some(CloseReason::FocusLeft));
         }
 
@@ -452,16 +447,13 @@ fn take_group_close(ctx: &Context, id: Id, frame_nr: u64) -> Option<CloseReason>
 /// What a press this pass means for the popover `id`.
 struct Press {
     closing: Option<CloseReason>,
-    /// The press landed on a popup that belongs to no craft-ui popover: egui drops the focus, which
-    /// says nothing about where the user is going.
-    foreign: bool,
 }
 
 /// Reads the press of this pass: a press on the popover's own surface closes its children; a
 /// press outside the popover, its children and the toggle control closes it when `outside`.
 fn read_press(ctx: &Context, id: Id, family: &[Id], toggle: Option<Id>, outside: bool) -> Press {
     let Some(pos) = ctx.input(|i| i.pointer.any_pressed().then(|| i.pointer.interact_pos()).flatten()) else {
-        return Press { closing: None, foreign: false };
+        return Press { closing: None };
     };
     let hit = ctx.layer_id_at(pos);
     let in_own = hit.is_some_and(|l| l.id == id);
@@ -474,7 +466,7 @@ fn read_press(ctx: &Context, id: Id, family: &[Id], toggle: Option<Id>, outside:
         popup_list::close_children(ctx, id);
     }
     let closing = (outside && !in_own && !in_child && !on_toggle).then_some(CloseReason::Outside);
-    Press { closing, foreign }
+    Press { closing }
 }
 
 /// Where the popover goes: the position and the pivot that keeps its corner at the anchor
