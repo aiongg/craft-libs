@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use craft_platform::appearance::SystemReader;
-use craft_theme::{ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, TypeRole, builtins};
+use craft_theme::{ButtonVariant, ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, TypeRole, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
-use craft_ui::composites::{PropertyRow, SectionHeader};
-use craft_ui::controls::{Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton, TooltipExt as _};
+use craft_ui::composites::{FormGrid, PropertyRow};
+use craft_ui::controls::{Button, Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton};
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, DockLook, PanelState, Permissions, Workspace};
 use craft_ui::icons::{self, Icon, IconSet};
@@ -15,6 +15,8 @@ use craft_ui::list::{List, ListEvent, ListRow};
 use craft_ui::localized::{LocaleNumbers, Unit};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::patterns::{CellWidth, OptionsBar};
+use craft_ui::popover::{self, Popover, PopoverAnchor};
+use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{ArgValue, Args, Level, Story, Surface, registry};
 use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
 use egui::epaint::RectShape;
@@ -27,7 +29,7 @@ use crate::browser::Browser;
 use crate::faces;
 use crate::fields;
 use crate::inspector::Inspector;
-use crate::layout::{CentreView, PanelId, default_workspace, reconciled};
+use crate::layout::{CentreView, PanelId, VariantAxis, default_workspace, reconciled};
 use crate::persist::{self, KEY, Saved};
 
 /// The gallery's state.
@@ -47,11 +49,12 @@ pub struct Gallery {
     selected: Option<String>,
     filter: String,
     view: CentreView,
-    compare: bool,
+    /// The axis the Variants view repeats the story over; not saved.
+    variants: Option<VariantAxis>,
+    /// The More popover of the options bar is open.
+    more_open: bool,
     /// The component the Overview scrolls to, until its tile has been drawn.
     scroll_to: Option<&'static str>,
-    compare_themes: Vec<String>,
-    compare_high: bool,
     browser: Browser,
     inspector: Inspector,
     /// The dock: where each panel is, and which tab is shown.
@@ -68,10 +71,6 @@ impl Gallery {
         let saved = Saved::load(storage);
         let stories = stories();
         let selected = saved.selected.filter(|id| stories.iter().any(|s| s.id == id)).or_else(|| first_story(&stories).map(str::to_owned));
-        let mut compare_themes: Vec<String> = saved.compare_themes.into_iter().filter(|id| builtin(id).is_some()).collect();
-        if compare_themes.is_empty() {
-            compare_themes.push(saved.appearance.theme.clone());
-        }
         Self {
             stories,
             base: saved.appearance.base(SystemAppearance::default()),
@@ -84,10 +83,9 @@ impl Gallery {
             selected,
             filter: saved.filter,
             view: saved.view,
-            compare: saved.compare,
+            variants: None,
+            more_open: false,
             scroll_to: None,
-            compare_themes,
-            compare_high: saved.compare_high,
             browser: Browser::new(saved.tokens_split),
             inspector: Inspector::default(),
             workspace: persist::load_layout(storage).map_or_else(default_workspace, reconciled),
@@ -117,16 +115,21 @@ impl Gallery {
         self.selected.as_deref()
     }
 
-    pub fn set_compare(&mut self, compare: bool) {
-        self.compare = compare;
+    /// Shows the Variants view over `axis` in the Component view, or closes it.
+    pub fn set_variants(&mut self, axis: Option<VariantAxis>) {
+        self.variants = axis;
+        if axis.is_some() {
+            self.view = CentreView::Component;
+        }
     }
 
-    pub fn set_compare_high(&mut self, high: bool) {
-        self.compare_high = high;
+    pub fn variants(&self) -> Option<VariantAxis> {
+        self.variants
     }
 
-    pub fn set_compare_themes(&mut self, ids: &[&str]) {
-        self.compare_themes = ids.iter().filter(|id| builtin(id).is_some()).map(|id| (*id).to_owned()).collect();
+    /// Opens or closes the options bar's More popover.
+    pub fn set_more_open(&mut self, open: bool) {
+        self.more_open = open;
     }
 
     /// Shows the inspector tab, which turns inspect mode on, instead of the properties tab.
@@ -184,9 +187,16 @@ impl Gallery {
         self.apply_appearance(ui.ctx());
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
+        // Esc closes Variants unless it closes a popup first; the bar draws before the centre, so
+        // the popups are read now.
+        let escape = ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !egui::Popup::is_any_open(&ctx) && !popover::any_open(&ctx);
         Panel::top("gallery.bar").frame(Frame::NONE).show_separator_line(false).resizable(false).show(ui, |ui| self.options_bar(ui));
+        if escape || self.view == CentreView::Overview {
+            self.variants = None;
+        }
         let layout = &self.workspace.layout;
         let inspecting = self.view == CentreView::Component
+            && self.variants.is_none()
             && layout.panel_state(&PanelId::Inspect) == PanelState::Front
             && layout.panel_state(&PanelId::View) == PanelState::Front;
         inspect::set_enabled(&ctx, inspecting);
@@ -237,8 +247,9 @@ impl Gallery {
     /// The appearance options and the view, with Reset layout pinned at the end.
     fn options_bar(&mut self, ui: &mut Ui) {
         let a = &mut self.appearance;
-        let compare = &mut self.compare;
         let view = &mut self.view;
+        let variants = &mut self.variants;
+        let more_open = &mut self.more_open;
         let reset_layout = &mut self.reset_layout;
         let numbers = LocaleNumbers::of(ui);
         let faces_shown =
@@ -262,57 +273,80 @@ impl Gallery {
                     [("Standard", ContrastChoice::Standard), ("High", ContrastChoice::High), ("System", ContrastChoice::System)],
                 );
                 segmented(ui, "Size", &mut a.comfortable, [("Compact", false), ("Comfortable", true)]);
-                segmented(
-                    ui,
-                    "Reduced motion",
-                    &mut a.motion,
-                    [("Off", MotionChoice::Full), ("On", MotionChoice::Reduced), ("System", MotionChoice::System)],
-                );
-                segmented(ui, "Direction", &mut a.rtl, [("LTR", false), ("RTL", true)]);
-            });
-            bar.row(|ui| {
-                OptionsBar::cell(ui, "Text:", CellWidth::Content, |ui, _| {
-                    let mut text = Segmented::new("gallery.text_size", "Text", &mut a.text_size).size(ControlSize::Sm);
-                    for (i, size) in TextSize::ALL.iter().enumerate() {
-                        text = text.item(i, text_size_name(*size));
-                    }
-                    text.show(ui);
-                });
-                if let Some((ui_shown, mono_shown, ui_faces)) = &faces_shown {
-                    face_picker(ui, "UI face", "gallery.ui_face", &mut a.ui_face, ui_shown, ui_faces);
-                    face_picker(ui, "Mono face", "gallery.mono_face", &mut a.mono_face, mono_shown, faces::MONO_FACES);
+                let more = ui.add(IconButton::new(Icon::More, "More appearance settings").size(ControlSize::Sm));
+                if more.clicked() {
+                    *more_open = !*more_open;
                 }
-                OptionsBar::cell(ui, "Icons:", CellWidth::Content, |ui, _| {
-                    let mut icon_set = icon_set_id;
-                    let mut icons = Select::new("gallery.icon_set", "Icons", &mut icon_set).fit(true).size(ControlSize::Sm);
-                    for set in IconSet::ALL {
-                        icons = icons.option(set.id().to_owned(), set.title());
-                    }
-                    if icons.policy(fields::policy()).show(ui).response.changed() {
-                        a.icon_set = icon_set;
-                    }
-                });
-                OptionsBar::cell(ui, "Scale:", CellWidth::Lg, |ui, caption| {
-                    let scale = NumberField::new("gallery.scale", "Scale", a.scale, &numbers)
-                        .range(SCALE)
-                        .decimals(0..=0)
-                        .unit(Unit::new("{n}%"))
-                        .popup_slider("Scale slider")
-                        .size(ControlSize::Sm)
-                        .scrub_by(caption)
-                        .policy(fields::policy())
-                        .show(ui);
-                    let mut percent = f64::from(a.scale);
-                    if fields::apply(&scale, &mut percent) {
-                        a.scale = percent.round() as u32;
-                    }
-                });
+                Popover::new("gallery.more", PopoverAnchor::Control(more.clone())).toggle(more.id).label("More appearance settings").show(
+                    ui,
+                    more_open,
+                    |ui, _| {
+                        FormGrid::new("gallery.more.form").show(ui, |form| {
+                            form.row("Reduced motion", |ui, _| {
+                                choice(
+                                    ui,
+                                    "Reduced motion",
+                                    &mut a.motion,
+                                    [("Off", MotionChoice::Full), ("On", MotionChoice::Reduced), ("System", MotionChoice::System)],
+                                )
+                            });
+                            form.row("Direction", |ui, _| choice(ui, "Direction", &mut a.rtl, [("LTR", false), ("RTL", true)]));
+                            form.row("Text", |ui, _| {
+                                let mut text = Segmented::new("gallery.text_size", "Text", &mut a.text_size).size(ControlSize::Sm);
+                                for (i, size) in TextSize::ALL.iter().enumerate() {
+                                    text = text.item(i, text_size_name(*size));
+                                }
+                                text.show(ui)
+                            });
+                            if let Some((ui_shown, mono_shown, ui_faces)) = &faces_shown {
+                                form.row("UI face", |ui, _| face_select(ui, "UI face", "gallery.ui_face", &mut a.ui_face, ui_shown, ui_faces));
+                                form.row("Mono face", |ui, _| {
+                                    face_select(ui, "Mono face", "gallery.mono_face", &mut a.mono_face, mono_shown, faces::MONO_FACES)
+                                });
+                            }
+                            form.row("Icons", |ui, _| {
+                                let mut icon_set = icon_set_id;
+                                let mut icons = Select::new("gallery.icon_set", "Icons", &mut icon_set).fit(true).size(ControlSize::Sm);
+                                for set in IconSet::ALL {
+                                    icons = icons.option(set.id().to_owned(), set.title());
+                                }
+                                let shown = icons.policy(fields::policy()).show(ui);
+                                if shown.response.changed() {
+                                    a.icon_set = icon_set;
+                                }
+                                shown.response
+                            });
+                            form.row("Scale", |ui, label| {
+                                let mut field = NumberField::new("gallery.scale", "Scale", a.scale, &numbers)
+                                    .range(SCALE)
+                                    .decimals(0..=0)
+                                    .unit(Unit::new("{n}%"))
+                                    .popup_slider("Scale slider")
+                                    .size(ControlSize::Sm)
+                                    .policy(fields::policy());
+                                if let Some(label) = label.scrub() {
+                                    field = field.scrub_by(label);
+                                }
+                                let scale = field.show(ui);
+                                let mut percent = f64::from(a.scale);
+                                if fields::apply(&scale, &mut percent) {
+                                    a.scale = percent.round() as u32;
+                                }
+                                scale.response
+                            });
+                        });
+                    },
+                );
                 OptionsBar::divider(ui);
                 segmented(ui, "View", view, [("Overview", CentreView::Overview), ("Component", CentreView::Component)]);
-                let overview = *view == CentreView::Overview;
-                let toggle = ui.add(ToggleButton::new("Compare", compare).size(ControlSize::Sm).enabled(!overview));
-                if overview {
-                    let _ = toggle.tooltip("Compare works on the Component view");
+                // The toggle only shows the state; the menu opens on the press.
+                let mut shown = variants.is_some();
+                let button = ui.add(ToggleButton::new("Variants", &mut shown).trailing_icon(Icon::ChevronDown).size(ControlSize::Sm));
+                let entries: Vec<MenuEntry<VariantAxis>> =
+                    VariantAxis::ALL.into_iter().map(|axis| MenuItem::new(axis.menu_label(), axis).into()).collect();
+                if let Some(axis) = PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &button).chosen {
+                    *variants = Some(axis);
+                    *view = CentreView::Component;
                 }
             });
             bar.trailing(|ui| {
@@ -423,24 +457,8 @@ impl Gallery {
         }
     }
 
-    /// The selected story's args, and the compare options while the compare view is on.
+    /// The selected story's args.
     fn properties_panel(&mut self, ui: &mut Ui) {
-        if self.compare {
-            SectionHeader::new("gallery.compare", "Compare").collapsible(false).show(ui, |ui| {
-                for theme in builtins() {
-                    let id = theme.id.as_str();
-                    let mut on = self.compare_themes.iter().any(|t| t == id);
-                    if Checkbox::bool(&theme.name, &mut on).show(ui).response.changed() {
-                        if on {
-                            self.compare_themes.push(id.to_owned());
-                        } else {
-                            self.compare_themes.retain(|t| t != id);
-                        }
-                    }
-                }
-                let _ = Checkbox::bool("Show high contrast variants", &mut self.compare_high).show(ui);
-            });
-        }
         let Some(story) = self.current() else {
             ui.label("No story selected.");
             return;
@@ -484,7 +502,7 @@ impl Gallery {
         }
     }
 
-    /// The story, or the grid of appearances while compare is on, each on its surface in the dock colour.
+    /// The story, or its variants while Variants is shown, each on its surface in the dock colour.
     fn component_view(&mut self, ui: &mut Ui, inspecting: bool) {
         let Some(story) = self.current() else {
             canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
@@ -495,21 +513,30 @@ impl Gallery {
         };
         let appearance = self.appearance.clone();
         let system = self.os_applied;
-        let themes = self.compare_themes.clone();
-        let compare = self.compare;
-        let high = self.compare_high;
         let args = args_of(&mut self.args, &self.saved_args, &story);
         let inspector = inspecting.then_some(&mut self.inspector);
+        let mut applied = None;
+        let mut closed = false;
         canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
             ui.set_min_size(ui.available_size());
-            ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-                if compare {
-                    compare_grid(ui, &story, args, &appearance, &themes, high, inspector);
-                } else {
-                    canvas(ui, &story, args, &appearance, system, inspector);
-                }
-            });
+            if let Some(axis) = self.variants {
+                closed = variants_header(ui, &story, axis);
+                ScrollArea::vertical().id_salt("gallery.variants").auto_shrink([false, false]).show(ui, |ui| {
+                    applied = variants_grid(ui, &story, args, &appearance, system, axis);
+                });
+            } else {
+                ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| canvas(ui, &story, args, &appearance, system, inspector));
+            }
         });
+        if let Some(from) = applied {
+            if let Some(axis) = self.variants {
+                copy_axis(axis, &from, &mut self.appearance);
+            }
+            closed = true;
+        }
+        if closed {
+            self.variants = None;
+        }
     }
 
     /// Every component of one level, each tile on its story's surface: the level follows the selected
@@ -596,7 +623,7 @@ impl DockContent<PanelId> for Panels<'_> {
             PanelId::Components => padded(ui, |ui| self.gallery.components_panel(ui)),
             PanelId::Stories => padded(ui, |ui| self.gallery.stories_panel(ui)),
             PanelId::Properties => scrolled(ui, |ui| self.gallery.properties_panel(ui)),
-            PanelId::Inspect if self.gallery.view == CentreView::Overview => padded(ui, |ui| {
+            PanelId::Inspect if self.gallery.view == CentreView::Overview || self.gallery.variants.is_some() => padded(ui, |ui| {
                 ui.label("Inspect works on the Component view.");
             }),
             PanelId::Inspect => padded(ui, |ui| self.gallery.inspector.panel(ui)),
@@ -660,9 +687,6 @@ impl eframe::App for Gallery {
             filter: self.filter.clone(),
             view: self.view,
             tokens_split: Some(self.browser.share()),
-            compare: self.compare,
-            compare_themes: self.compare_themes.clone(),
-            compare_high: self.compare_high,
             args: saved_args,
         };
         eframe::set_value(storage, KEY, &saved);
@@ -731,28 +755,33 @@ fn text_size_name(size: TextSize) -> &'static str {
 
 /// A face picker showing `shown`, the face in use for the stored pick `value`; choosing an option
 /// stores it.
-fn face_picker(ui: &mut Ui, label: &str, id: &str, value: &mut String, shown: &str, options: &[&str]) {
-    OptionsBar::cell(ui, &format!("{label}:"), CellWidth::Content, |ui, _| {
-        let mut pick = shown.to_owned();
-        let mut select = Select::new(id, label, &mut pick).fit(true).size(ControlSize::Sm);
-        for option in options {
-            select = select.option((*option).to_owned(), *option);
-        }
-        if select.policy(fields::policy()).show(ui).response.changed() {
-            *value = pick;
-        }
-    });
+fn face_select(ui: &mut Ui, label: &str, id: &str, value: &mut String, shown: &str, options: &[&str]) -> egui::Response {
+    let mut pick = shown.to_owned();
+    let mut select = Select::new(id, label, &mut pick).fit(true).size(ControlSize::Sm);
+    for option in options {
+        select = select.option((*option).to_owned(), *option);
+    }
+    let out = select.policy(fields::policy()).show(ui);
+    if out.response.changed() {
+        *value = pick;
+    }
+    out.response
 }
 
 /// A captioned set of exclusive choices in the options bar.
 fn segmented<T: PartialEq + Clone, const N: usize>(ui: &mut Ui, label: &str, value: &mut T, options: [(&str, T); N]) {
     OptionsBar::cell(ui, &format!("{label}:"), CellWidth::Content, |ui, _| {
-        let mut segmented = Segmented::new(("gallery.segmented", label), label, value).size(ControlSize::Sm);
-        for (name, option) in options {
-            segmented = segmented.item(option, name);
-        }
-        segmented.show(ui);
+        choice(ui, label, value, options);
     });
+}
+
+/// Exclusive choices as a segmented control.
+fn choice<T: PartialEq + Clone, const N: usize>(ui: &mut Ui, label: &str, value: &mut T, options: [(&str, T); N]) -> egui::Response {
+    let mut segmented = Segmented::new(("gallery.segmented", label), label, value).size(ControlSize::Sm);
+    for (name, option) in options {
+        segmented = segmented.item(option, name);
+    }
+    segmented.show(ui)
 }
 
 /// The mode `ctx` shows, which is the OS's answer while the mode choice is System.
@@ -936,56 +965,99 @@ pub(crate) fn overview(
     opened
 }
 
-/// Rows: the chosen themes. Columns: light and dark in standard contrast, each followed by its
-/// high-contrast column when `high` is set.
-/// A mode the theme doesn't have leaves its column empty.
-fn compare_grid(
+/// The cards of a Variants view: the appearance with each value of `axis` set, named by the value.
+fn variant_values(axis: VariantAxis, appearance: &Appearance) -> Vec<(String, Appearance)> {
+    let with = |name: &str, set: &dyn Fn(&mut Appearance)| {
+        let mut a = appearance.clone();
+        set(&mut a);
+        (name.to_owned(), a)
+    };
+    match axis {
+        VariantAxis::Theme => builtins().iter().map(|t| with(&t.name, &|a| a.theme = t.id.as_str().to_owned())).collect(),
+        VariantAxis::Mode => vec![with("Light", &|a| a.mode = ModeChoice::Light), with("Dark", &|a| a.mode = ModeChoice::Dark)],
+        VariantAxis::Contrast => {
+            vec![with("Standard", &|a| a.contrast = ContrastChoice::Standard), with("High", &|a| a.contrast = ContrastChoice::High)]
+        }
+        VariantAxis::Size => vec![with("Compact", &|a| a.comfortable = false), with("Comfortable", &|a| a.comfortable = true)],
+    }
+}
+
+/// Sets `to`'s value on `axis` to `from`'s.
+fn copy_axis(axis: VariantAxis, from: &Appearance, to: &mut Appearance) {
+    match axis {
+        VariantAxis::Theme => to.theme.clone_from(&from.theme),
+        VariantAxis::Mode => to.mode = from.mode,
+        VariantAxis::Contrast => to.contrast = from.contrast,
+        VariantAxis::Size => to.comfortable = from.comfortable,
+    }
+}
+
+/// Whether `a` and `b` show the same value on `axis`; the System choices count as what they show.
+fn same_on(axis: VariantAxis, a: &Appearance, b: &Appearance, shown: Mode, system: SystemAppearance) -> bool {
+    match axis {
+        VariantAxis::Theme => a.theme == b.theme,
+        VariantAxis::Mode => a.mode(shown) == b.mode(shown),
+        VariantAxis::Contrast => a.contrast(system) == b.contrast(system),
+        VariantAxis::Size => a.comfortable == b.comfortable,
+    }
+}
+
+/// The Variants view's header: what is shown and the hint, with Close at the trailing end. Returns
+/// whether Close was clicked.
+fn variants_header(ui: &mut Ui, story: &Story, axis: VariantAxis) -> bool {
+    let mut closed = false;
+    let gap = Tokens::of(ui).space.gap.section;
+    direction::horizontal(ui, |ui| {
+        ui.add(Text::new(format!("{} · {} in every {}", story.component, story.name, axis.noun())).role(TypeRole::Heading));
+        ui.add(Text::new("Click one to use it").content(Content::Muted));
+        // The strip's leftover width goes before Close, so it ends at the trailing edge.
+        let rtl = direction::is_rtl(ui);
+        let layout = if rtl { egui::Layout::left_to_right(Align::Center) } else { egui::Layout::right_to_left(Align::Center) };
+        ui.with_layout(layout, |ui| closed = ui.add(Button::new("Close").size(ControlSize::Sm)).clicked());
+    });
+    ui.add_space(gap);
+    closed
+}
+
+/// One card per value of `axis`, in one or two columns like the Overview's tiles. Each draws the
+/// story as the Component view does, under the gallery's appearance with the value set; the story
+/// stays live. Returns the appearance of the card whose header was clicked.
+fn variants_grid(
     ui: &mut Ui,
     story: &Story,
     args: &mut Args,
     appearance: &Appearance,
-    themes: &[String],
-    high: bool,
-    mut inspector: Option<&mut Inspector>,
-) {
-    const ALL: [(Mode, bool); 4] = [(Mode::Light, false), (Mode::Light, true), (Mode::Dark, false), (Mode::Dark, true)];
-    const STANDARD: [(Mode, bool); 2] = [(Mode::Light, false), (Mode::Dark, false)];
-    let columns: &[(Mode, bool)] = if high { &ALL } else { &STANDARD };
-    for id in themes {
-        let Some(theme) = builtin(id) else {
-            continue;
-        };
-        ui.heading(&theme.name);
-        ui.columns(columns.len(), |uis| {
-            for (ui, &(mode, high)) in uis.iter_mut().zip(columns) {
-                let mode_name = if mode == Mode::Dark { "Dark" } else { "Light" };
-                let name = format!("{mode_name} {}", if high { "high contrast" } else { "standard" });
-                // The label sits on the gallery's background, so it keeps the gallery's colours.
-                ui.label(name.as_str());
-                // A one-variant theme shows its other mode in this column's place; leave it empty
-                // so each column shows what its label says.
-                if theme.variants.mode_for(mode) != mode {
-                    ui.weak(format!("No {} variant", mode_name.to_lowercase()));
-                    continue;
-                }
-                ui.push_id((id, name.as_str()), |ui| {
-                    scope(
-                        ui,
-                        |o| {
-                            appearance.overrides(o);
-                            o.theme = Some(theme.clone());
-                            o.mode = Some(mode);
-                            o.contrast = Some(if high { craft_theme::Contrast::High } else { craft_theme::Contrast::Standard });
-                        },
-                        |ui| {
-                            framed(ui, story, args, inspector.as_deref_mut(), &format!("{} · {name}", theme.name), appearance.rtl);
-                        },
-                    );
+    system: SystemAppearance,
+    axis: VariantAxis,
+) -> Option<Appearance> {
+    let shown = shown_mode(ui.ctx());
+    let gap = Tokens::of(ui).space.gap.section;
+    let columns = if ui.available_width() >= 2.0 * TILE_MIN_WIDTH + gap { 2 } else { 1 };
+    let cards = variant_values(axis, appearance);
+    let mut picked = None;
+    for row in cards.chunks(columns) {
+        ui.columns(columns, |uis| {
+            for (ui, (name, card)) in uis.iter_mut().zip(row) {
+                // The header sits on the gallery's background, so it keeps the gallery's colours.
+                ui.horizontal(|ui| {
+                    if ui
+                        .add(Button::new(name.as_str()).variant(ButtonVariant::Ghost).size(ControlSize::Sm).id_salt(("gallery.variant", name)))
+                        .clicked()
+                    {
+                        picked = Some(card.clone());
+                    }
+                    if same_on(axis, card, appearance, shown, system) {
+                        ui.add(Text::new("shown now").content(Content::Muted));
+                    }
                 });
+                ui.push_id((axis.noun(), name), |ui| canvas(ui, story, args, card, system, None));
+                // A card does not change the gallery's scale.
+                let _ = craft_ui::story::take_pixels_per_point_request(ui.ctx());
             }
         });
-        ui.add_space(Tokens::of(ui).space.gap.section);
+        ui.add_space(gap);
     }
+    picked
 }
 
 #[cfg(test)]
@@ -1150,5 +1222,18 @@ mod tests {
         let gallery = Gallery::new(Some(&storage));
         assert_eq!(gallery.workspace, default_workspace());
         assert_eq!(gallery.filter, "button", "the rest of the saved state is kept");
+    }
+
+    #[test]
+    fn state_saved_with_the_removed_compare_fields_loads() {
+        let mut storage = Memory::default();
+        eframe::Storage::set_string(
+            &mut storage,
+            KEY,
+            "(filter:\"button\",compare:true,compare_themes:[\"craft.pro-light-gray\"],compare_high:true)".to_owned(),
+        );
+        let gallery = Gallery::new(Some(&storage));
+        assert_eq!(gallery.filter, "button");
+        assert_eq!(gallery.variants, None);
     }
 }

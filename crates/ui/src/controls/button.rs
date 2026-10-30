@@ -67,6 +67,7 @@ pub struct Button {
     variant: ButtonVariant,
     size: ControlSize,
     icon: Option<Icon>,
+    trailing: Option<Icon>,
     loading: bool,
     enabled: bool,
     min_width: f32,
@@ -81,6 +82,7 @@ impl Button {
             variant: ButtonVariant::Secondary,
             size: ControlSize::Md,
             icon: None,
+            trailing: None,
             loading: false,
             enabled: true,
             min_width: 0.0,
@@ -101,6 +103,13 @@ impl Button {
     /// A leading icon.
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
+        self
+    }
+
+    /// An icon at the reading end, mirrored right to left: the chevron of a button that opens a
+    /// menu.
+    pub fn trailing_icon(mut self, icon: Icon) -> Self {
+        self.trailing = Some(icon);
         self
     }
 
@@ -127,7 +136,7 @@ impl Button {
     pub fn natural_width(&self, ui: &Ui) -> f32 {
         let tokens = Tokens::of(ui);
         let style = Button::style(&tokens, self.variant, self.size);
-        let face = Face { label: &self.label, icon: self.icon, size: self.size, loading: self.loading };
+        let face = Face { label: &self.label, icon: self.icon, trailing: self.trailing, size: self.size, loading: self.loading };
         face.natural_width(ui, &tokens, &style)
     }
 
@@ -161,7 +170,7 @@ impl Widget for Button {
     fn ui(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let style = Button::style(&tokens, self.variant, self.size);
-        let face = Face { label: &self.label, icon: self.icon, size: self.size, loading: self.loading };
+        let face = Face { label: &self.label, icon: self.icon, trailing: self.trailing, size: self.size, loading: self.loading };
         let mut laid = face.layout(ui, &tokens, &style);
         laid.size.x = laid.size.x.max(self.min_width.min(ui.available_width()));
         let mut element = Interactive::salted(salt(ui, self.id_salt), Role::Button, self.label.as_str())
@@ -193,10 +202,11 @@ pub(crate) fn content_color(ui: &Ui, colors: &States<Color32>, response: &Respon
     }
 }
 
-/// What a push or toggle button shows: an optional leading icon (or spinner) and a label.
+/// What a push or toggle button shows: an optional leading icon (or spinner), a label and an optional trailing icon.
 pub(crate) struct Face<'a> {
     pub label: &'a str,
     pub icon: Option<Icon>,
+    pub trailing: Option<Icon>,
     pub size: ControlSize,
     pub loading: bool,
 }
@@ -233,7 +243,9 @@ impl Face<'_> {
 
     /// The padding and the icon with its gap: the width that is not the label.
     fn fixed(&self, style: &ButtonStyle) -> f32 {
-        2.0 * style.pad_x + if self.icon.is_some() { style.icon + style.gap } else { 0.0 }
+        2.0 * style.pad_x
+            + if self.icon.is_some() { style.icon + style.gap } else { 0.0 }
+            + if self.trailing.is_some() { style.icon + style.gap } else { 0.0 }
     }
 
     /// The label laid out with `wrap`.
@@ -244,34 +256,41 @@ impl Face<'_> {
         ui.painter().layout_job(job)
     }
 
-    /// Paints the face centred in `rect`, icon at the reading start.
+    /// Paints the face centred in `rect`: the leading icon at the reading start, the trailing icon
+    /// at the reading end.
     pub(crate) fn paint(&self, ui: &Ui, rect: Rect, laid: &Laid, style: &ButtonStyle, color: Color32) {
         if !ui.is_rect_visible(rect) {
             return;
         }
         let ppp = ui.pixels_per_point();
         let text = laid.galley.size();
-        let icon = vec2(style.icon, style.icon);
+        let side = vec2(style.icon, style.icon);
         let spinner = self.loading;
-        let Some(lead) = self.icon else {
-            // Without an icon the spinner takes the label's place; the width stays.
-            if spinner {
-                Spinner::paint(ui, Rect::from_center_size(rect.center(), icon), color);
-            } else {
-                paint_galley(ui, &laid.galley, rect.center() - text / 2.0, color);
-            }
-            return;
-        };
-        let content = style.icon + style.gap + text.x;
+        let lead = self.icon.is_some();
+        let content = text.x + if lead { style.icon + style.gap } else { 0.0 } + if self.trailing.is_some() { style.icon + style.gap } else { 0.0 };
         let start = rect.center().x - content / 2.0;
-        let (icon_x, text_x) = if direction::is_rtl(ui) { (start + content - style.icon, start) } else { (start, start + style.icon + style.gap) };
-        let icon_rect = Rect::from_min_size(pos2(icon_x, rect.center().y - style.icon / 2.0), icon).round_to_pixels(ppp);
-        if spinner {
-            Spinner::paint(ui, icon_rect, color);
-        } else {
-            icons::paint(ui, icon_rect, lead, icon_size(self.size), color);
+        let rtl = direction::is_rtl(ui);
+        // `offset` is the distance from the reading start; right to left mirrors it.
+        let x_of = |offset: f32, width: f32| if rtl { start + content - offset - width } else { start + offset };
+        let icon_rect =
+            |offset: f32| Rect::from_min_size(pos2(x_of(offset, style.icon), rect.center().y - style.icon / 2.0), side).round_to_pixels(ppp);
+        let text_offset = if lead { style.icon + style.gap } else { 0.0 };
+        if let Some(icon) = self.icon {
+            if spinner {
+                Spinner::paint(ui, icon_rect(0.0), color);
+            } else {
+                icons::paint(ui, icon_rect(0.0), icon, icon_size(self.size), color);
+            }
         }
-        paint_galley(ui, &laid.galley, pos2(text_x, rect.center().y - text.y / 2.0), color);
+        if spinner && !lead {
+            // The spinner takes the label's place; the width stays.
+            Spinner::paint(ui, Rect::from_center_size(pos2(x_of(text_offset, text.x) + text.x / 2.0, rect.center().y), side), color);
+        } else {
+            paint_galley(ui, &laid.galley, pos2(x_of(text_offset, text.x), rect.center().y - text.y / 2.0), color);
+        }
+        if let Some(icon) = self.trailing {
+            icons::paint(ui, icon_rect(text_offset + text.x + style.gap), icon, icon_size(self.size), color);
+        }
     }
 }
 

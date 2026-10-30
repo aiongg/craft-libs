@@ -40,7 +40,7 @@ struct Layers {
 /// One story canvas the overlay drew over in a frame.
 #[derive(Clone, Debug)]
 pub struct Cell {
-    /// "Canvas", or the compare cell's theme and column.
+    /// The canvas's name.
     name: String,
     /// The canvas `Ui`'s AccessKit node.
     node: NodeId,

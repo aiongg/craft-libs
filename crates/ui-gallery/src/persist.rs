@@ -25,11 +25,6 @@ pub struct Saved {
     pub view: CentreView,
     /// The share of the Tokens panel's height that its list takes.
     pub tokens_split: Option<f32>,
-    pub compare: bool,
-    /// Theme ids in the compare grid.
-    pub compare_themes: Vec<String>,
-    /// The compare grid's high-contrast columns.
-    pub compare_high: bool,
     /// Edited args by story id.
     pub args: HashMap<String, Vec<SavedArg>>,
 }
