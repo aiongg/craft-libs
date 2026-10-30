@@ -23,6 +23,8 @@ kurbo = { workspace = true }
 log = "0.4"
 # Icon rasterising; the version egui_extras's `svg` feature uses, so apps build one copy.
 resvg = { version = "0.45.1", default-features = false }
+# The XML parser usvg 0.45 uses, to parse icons with a node limit and no DTD.
+roxmltree = "0.20"
 serde = { version = "1", features = ["derive"], optional = true }
 # Same version as epaint's, for reading a face's character map.
 skrifa = { version = "0.44", default-features = false, features = ["std"] }

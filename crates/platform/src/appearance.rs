@@ -104,7 +104,11 @@ impl Shared {
     }
     #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
     fn publish_icons(&self, icons: String) {
-        self.publish_text(&self.icons, icons);
+        // The GNOME key holds a value on every desktop that has the schema (`gsettings` answers
+        // "Adwaita" on KDE), but it is the user's setting only on GNOME-like desktops.
+        if self.gnome {
+            self.publish_text(&self.icons, icons);
+        }
     }
     #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
     fn publish_text(&self, slot: &Mutex<Option<String>>, text: String) {
@@ -168,8 +172,10 @@ impl Watcher {
         self.shared.layout.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
     /// GNOME's `org.gnome.desktop.interface` `icon-theme` name as the desktop reports it, such as
-    /// `Adwaita`. `None` until the portal or the `gsettings` fallback has answered, and on targets
-    /// without a desktop watcher. Other desktops keep the name in their own files; read those with
+    /// `Adwaita`. `None` until the portal or the `gsettings` fallback has answered, on targets
+    /// without a desktop watcher, and always off GNOME-like desktops (`XDG_CURRENT_DESKTOP` names
+    /// GNOME), where the key holds the schema's default rather than the user's choice. Other
+    /// desktops keep the name in their own files; read those with
     /// `craft_window::Desktop::icon_theme`.
     ///
     /// It comes over the same connection as the theme, a change runs the same wake callback, and
@@ -709,6 +715,26 @@ mod portal {
             assert_eq!(layout_reply(&Value::from("close:"), false).as_deref(), Some("close:"));
         }
         #[test]
+        fn the_gnome_icon_key_counts_only_on_gnome_desktops() {
+            let shared = |gnome| crate::appearance::Shared {
+                value: std::sync::atomic::AtomicU8::new(0),
+                contrast: std::sync::atomic::AtomicU8::new(0),
+                motion: std::sync::atomic::AtomicU8::new(0),
+                active: std::sync::atomic::AtomicBool::new(false),
+                settled: std::sync::Mutex::new(false),
+                settled_changed: std::sync::Condvar::new(),
+                layout: std::sync::Mutex::new(None),
+                icons: std::sync::Mutex::new(None),
+                gnome,
+                wake: Box::new(|| {}),
+            };
+            let (kde, gnome) = (shared(false), shared(true));
+            kde.publish_icons("Adwaita".into());
+            gnome.publish_icons("Papirus".into());
+            assert_eq!(*kde.icons.lock().unwrap(), None);
+            assert_eq!(gnome.icons.lock().unwrap().as_deref(), Some("Papirus"));
+        }
+        #[test]
         fn icon_theme_decodes_names_and_ignores_blank_or_malformed_values() {
             use super::{decode_icons, icons_reply};
             assert_eq!(decode_icons(&Value::from("Papirus-Dark")).as_deref(), Some("Papirus-Dark"));
@@ -1004,7 +1030,8 @@ pub fn egui_service() -> Option<SystemThemeFn> {
 
 /// The desktop watcher an egui app installs once: the colour scheme for the theme callback,
 /// plus the button layout and icon theme the same watcher hears. Clones share the watcher; every
-/// accessor is non-blocking and callable from any thread. A change in any value repaints the
+/// accessor is non-blocking and callable from any thread (`SystemReader` is `Send`, checked at
+/// compile time below). A change in any value repaints the
 /// context [`EguiService::theme`] saw first.
 #[cfg(feature = "egui")]
 #[derive(Clone)]
@@ -1039,6 +1066,12 @@ impl EguiService {
         Box::new(move |ctx: &egui::Context| self.theme(ctx))
     }
 }
+
+#[cfg(feature = "egui")]
+const _: () = {
+    const fn send_sync<T: Send + Sync>() {}
+    send_sync::<EguiService>();
+};
 
 /// Start the desktop watcher behind an [`EguiService`], or return `None` when no watcher can
 /// start; the host retains its fallback policy.

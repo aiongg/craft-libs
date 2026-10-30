@@ -1137,6 +1137,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "resvg",
  "ron",
+ "roxmltree 0.20.0",
  "serde",
  "serde_json",
  "skrifa 0.44.0",

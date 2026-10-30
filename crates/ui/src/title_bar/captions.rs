@@ -115,14 +115,17 @@ pub type RenderIconFn = dyn Fn(CaptionIcon, u32) -> Option<Vec<u8>> + Send + Syn
 /// in the glyph colour as symbolic icons are. An icon the theme lacks draws the family's own.
 #[derive(Clone)]
 pub struct CaptionIcons {
-    /// The theme's name; the cached textures follow it.
+    /// The theme's name.
     pub theme: String,
+    /// Changes whenever `render` may answer differently (a reinstalled theme, a size finished
+    /// rendering); the cached textures follow it. 0 for icons that never change.
+    pub generation: u64,
     pub render: Arc<RenderIconFn>,
 }
 
 impl PartialEq for CaptionIcons {
     fn eq(&self, other: &Self) -> bool {
-        self.theme == other.theme && Arc::ptr_eq(&self.render, &other.render)
+        self.theme == other.theme && self.generation == other.generation && Arc::ptr_eq(&self.render, &other.render)
     }
 }
 
@@ -496,11 +499,15 @@ fn paint_round(
     }
 }
 
-/// `icon` from the theme at `px` device pixels, uploaded once per theme and size; `None` (also
-/// remembered) when the theme lacks it or it doesn't render.
+/// `icon` from the theme at `px` device pixels, uploaded once per load generation and size; `None`
+/// (also remembered until the generation changes) when the theme lacks it or it doesn't render.
 pub(crate) fn theme_icon(ctx: &egui::Context, icons: &CaptionIcons, icon: CaptionIcon, px: u32) -> Option<TextureHandle> {
+    // One slot per theme, icon and size, holding the generation it was made for: an older
+    // generation's texture is replaced, not kept.
     let id = Id::unique(("title_bar_caption_icon", &icons.theme, icon, px));
-    if let Some(cached) = ctx.data(|d| d.get_temp::<Option<TextureHandle>>(id)) {
+    if let Some((generation, cached)) = ctx.data(|d| d.get_temp::<(u64, Option<TextureHandle>)>(id))
+        && generation == icons.generation
+    {
         return cached;
     }
     let side = usize::try_from(px).ok().filter(|&s| (1..=256).contains(&s));
@@ -511,6 +518,6 @@ pub(crate) fn theme_icon(ctx: &egui::Context, icons: &CaptionIcons, icon: Captio
         let image = egui::ColorImage { size: [side, side], source_size: vec2(px as f32, px as f32), pixels };
         Some(ctx.load_texture(format!("caption-{icon:?}-{px}"), image, egui::TextureOptions::LINEAR))
     });
-    ctx.data_mut(|d| d.insert_temp(id, tex.clone()));
+    ctx.data_mut(|d| d.insert_temp(id, (icons.generation, tex.clone())));
     tex
 }
