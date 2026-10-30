@@ -1,6 +1,8 @@
 //! Everything between the tool rail and the end edge: the canvas region and the dock at the end
 //! edge, an iconic column beside an expanded column as in Photoshop's Essentials layout.
 
+use std::cell::RefCell;
+
 use craft_ui::docking::{
     Column, DockArea, DockConfig, DockContent, DockEvent, DockHeights, DockLook, Group, Layout, Node, Permissions, Side, Workspace, close_flyout,
     flyout,
@@ -9,7 +11,7 @@ use craft_ui::icons::{self, Icon};
 use craft_ui::layout::{SplitAxis, SplitSize};
 use egui::{CentralPanel, Color32, Frame, Painter, Rect, Ui};
 
-use super::canvas;
+use super::canvas::{self, Chrome};
 use super::model::Mock;
 use super::panels::{Panel, State};
 
@@ -144,6 +146,9 @@ fn default_workspace() -> Workspace<Panel> {
 struct Content<'a> {
     mock: &'a mut Mock,
     panels: &'a mut State,
+    chrome: Option<Chrome<'a>>,
+    /// Tab was pressed while the canvas had focus.
+    tab: bool,
     /// The panel a panel body asked to show.
     requested: Option<Panel>,
 }
@@ -152,7 +157,7 @@ impl DockContent<Panel> for Content<'_> {
     fn body(&mut self, ui: &mut Ui, panel: &Panel) {
         match panel {
             Panel::Canvas => {
-                CentralPanel::default().frame(Frame::NONE).show(ui, |ui| canvas::show(ui, self.mock));
+                self.tab |= canvas_region(ui, self.mock, self.chrome);
             }
             other => {
                 if let Some(panel) = other.show(ui, self.mock, self.panels) {
@@ -188,9 +193,28 @@ impl DockContent<Panel> for Content<'_> {
     }
 }
 
+/// The canvas region: inside the shell, the canvas panel (tab strip above the document, which
+/// the shell's backdrop shows through); without one, the canvas alone. Returns whether Tab was
+/// pressed on the canvas.
+fn canvas_region(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) -> bool {
+    let Some(chrome) = chrome else {
+        CentralPanel::default().frame(Frame::NONE).show(ui, |ui| canvas::show(ui, mock));
+        return false;
+    };
+    let mock = RefCell::new(mock);
+    let out = chrome.shell.canvas_panel(ui, |ui| canvas::tabs(ui, &mock.borrow()), |ui| canvas::document(ui, &mut mock.borrow_mut(), Some(chrome)));
+    out.inner
+}
+
 /// The dock area over everything between the tool rail and the end edge. Its protected canvas
 /// panel draws the canvas region.
-pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState) {
+///
+/// With `chrome` the dock shows only while the shell's dock shows ([`ShellCx::dock_visible`]);
+/// otherwise the canvas panel fills the rect. Returns whether Tab was pressed on the canvas.
+pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState, chrome: Option<Chrome<'_>>) -> bool {
+    if chrome.is_some_and(|c| !c.dock || !c.shell.dock_visible()) {
+        return canvas_region(ui, mock, chrome);
+    }
     let id = ui.scope_id().with("dock");
     let mut config = DockConfig::default();
     config.right_to_left = craft_ui::direction::is_rtl(ui);
@@ -214,9 +238,10 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState) {
     }
     // A floated panel stays inside the part of the preview that shows.
     let bounds = ui.max_rect().intersect(ui.clip_rect());
-    let mut content = Content { mock, panels, requested: None };
+    let mut content = Content { mock, panels, chrome, tab: false, requested: None };
     let mut actions = Vec::new();
     let mut requested = None;
+    let mut tab = false;
     CentralPanel::default().frame(Frame::NONE).show(ui, |ui| {
         let mut area = DockArea::new(id).native_windows(false).float_bounds(bounds).locked(workspace.locked).auto_collapse_iconic(*auto_collapse);
         if let Some(panel) = raise.take() {
@@ -228,6 +253,7 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState) {
         }
         actions = output.actions;
         requested = content.requested;
+        tab = content.tab;
         *shown_flyout = flyout::<Panel>(ui.ctx(), id);
     });
     for action in actions {
@@ -236,4 +262,5 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState) {
     if let Some(panel) = requested {
         let _ = workspace.set_visible(panel, true, None, Panel::permissions);
     }
+    tab
 }

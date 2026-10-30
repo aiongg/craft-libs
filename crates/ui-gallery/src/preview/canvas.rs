@@ -8,6 +8,7 @@ use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::canvas::{CanvasScrollbars, CanvasView, MarqueeDrag, MarqueeShape, RulerNames, RulerUnits, Rulers, ScrollbarNames};
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::shell::ShellCx;
 use craft_ui::tab_strip::{Tab, TabKind, TabStrip};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
@@ -77,17 +78,42 @@ fn pixels(r: Rect) -> Rect {
     Rect::new(r.x0.round(), r.y0.round(), r.x1.round(), r.y1.round())
 }
 
-/// Draws the canvas region into the rect `ui` has left and runs its pointer tools.
+/// The document tab strip.
+pub fn tabs(ui: &mut Ui, mock: &Mock) {
+    let id = ui.scope_id();
+    let tab = Tab::new(0u8, tab_title(mock)).modified(mock.doc.modified);
+    let _ = TabStrip::new(id.with("documents"), "Documents", TabKind::Document).selected(&0u8).show(ui, &[tab]);
+}
+
+/// What the app shell tells the canvas.
+#[derive(Clone, Copy)]
+pub struct Chrome<'a> {
+    /// The shell, to register the canvas with.
+    pub shell: &'a ShellCx,
+    /// Whether the scroll bars show (they hide in the full screen modes).
+    pub scrollbars: bool,
+    /// The host's flag for the dock.
+    pub dock: bool,
+}
+
+/// Draws the canvas region into the rect `ui` has left, tab strip first, and runs its pointer tools.
 pub fn show(ui: &mut Ui, mock: &mut Mock) {
+    tabs(ui, mock);
+    document(ui, mock, None);
+}
+
+/// Draws the document area into the rect `ui` has left and runs its pointer tools. Returns
+/// whether Tab was pressed while the canvas had the keyboard focus: the canvas keeps Tab then,
+/// so the host can use it to toggle the chrome.
+pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) -> bool {
     let ctx = ui.ctx().clone();
     let tokens = Tokens::of(ui);
     let pasteboard = tokens.color.surface.canvas.to_egui();
     let ruler_size = tokens.component.ruler.size;
     drop(tokens);
-    let id = ui.scope_id();
-
-    let tab = Tab::new(0u8, tab_title(mock)).modified(mock.doc.modified);
-    let _ = TabStrip::new(id.with("documents"), "Documents", TabKind::Document).selected(&0u8).show(ui, &[tab]);
+    // With a shell the canvas moves between the dock's panel and the bare body when the dock
+    // hides; its id, and so its keyboard focus, must not depend on where it is.
+    let id = chrome.map_or_else(|| ui.scope_id(), |c| egui::Id::unique(("app-preview-canvas", c.shell.window().as_str())));
 
     let full = ui.available_rect_before_wrap();
     let rect = if mock.view.rulers { egui::Rect::from_min_max(full.min + egui::vec2(ruler_size, ruler_size), full.max) } else { full };
@@ -101,6 +127,18 @@ pub fn show(ui: &mut Ui, mock: &mut Mock) {
 
     let response = ui.interact(rect, id.with("canvas"), Sense::click_and_drag() | Sense::FOCUSABLE);
     response.widget_info(|| WidgetInfo::labeled(Role::Canvas, ui.is_enabled(), "Document"));
+    let mut tab_pressed = false;
+    if let Some(chrome) = chrome {
+        chrome.shell.canvas(response.id);
+        if response.has_focus() {
+            // The canvas keeps Tab while it has focus, so the host can use it for the chrome.
+            ctx.memory_mut(|m| m.set_focus_lock_filter(response.id, egui::EventFilter { tab: true, ..Default::default() }));
+            // A Tab that moved the focus onto the canvas in this pass is not a toggle.
+            if ctx.memory(|m| m.had_focus_last_frame(response.id)) {
+                tab_pressed = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Tab));
+            }
+        }
+    }
     let tool = mock.tools.current;
     let cv = canvas_view(&mock.view, rect, ppp);
     let from_middle = |p: egui::Pos2| {
@@ -203,7 +241,7 @@ pub fn show(ui: &mut Ui, mock: &mut Mock) {
     mock.doc.selection = selection.map(|r| [r.x0, r.y0, r.x1, r.y1]);
 
     let names = ScrollbarNames::new("Horizontal scroll bar", "Vertical scroll bar");
-    if CanvasScrollbars::new(id.with("scrollbars"), names).show(ui, &mut cv, page).changed {
+    if chrome.is_none_or(|c| c.scrollbars) && CanvasScrollbars::new(id.with("scrollbars"), names).show(ui, &mut cv, page).changed {
         mock.view.center = [cv.center.x, cv.center.y];
     }
 
@@ -219,6 +257,7 @@ pub fn show(ui: &mut Ui, mock: &mut Mock) {
             mock.view.zero = [value.x, value.y];
         }
     }
+    tab_pressed
 }
 
 #[cfg(test)]
