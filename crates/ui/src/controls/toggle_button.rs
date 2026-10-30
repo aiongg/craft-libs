@@ -37,6 +37,7 @@ pub struct ToggleButton<'a> {
     on: &'a mut bool,
     size: ControlSize,
     icon: Option<Icon>,
+    trailing: Option<Icon>,
     role: Option<TypeRole>,
     enabled: bool,
     id_salt: Option<IdSalt>,
@@ -44,7 +45,7 @@ pub struct ToggleButton<'a> {
 
 impl<'a> ToggleButton<'a> {
     pub fn new(label: impl Into<String>, on: &'a mut bool) -> Self {
-        Self { label: label.into(), on, size: ControlSize::Md, icon: None, role: None, enabled: true, id_salt: None }
+        Self { label: label.into(), on, size: ControlSize::Md, icon: None, trailing: None, role: None, enabled: true, id_salt: None }
     }
 
     pub fn size(mut self, size: ControlSize) -> Self {
@@ -55,6 +56,12 @@ impl<'a> ToggleButton<'a> {
     /// A leading icon.
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
+        self
+    }
+
+    /// An icon at the reading end, mirrored right to left.
+    pub fn trailing_icon(mut self, icon: Icon) -> Self {
+        self.trailing = Some(icon);
         self
     }
 
@@ -94,7 +101,7 @@ impl Widget for ToggleButton<'_> {
         if let Some(role) = self.role {
             style.off.label = role;
         }
-        let face = Face { label: &self.label, icon: self.icon, size: self.size, loading: false };
+        let face = Face { label: &self.label, icon: self.icon, trailing: self.trailing, size: self.size, loading: false };
         let laid = face.layout(ui, &tokens, &style.off);
         let id_salt = salt(ui, self.id_salt);
         let on = self.on;

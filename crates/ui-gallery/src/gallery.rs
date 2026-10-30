@@ -341,7 +341,7 @@ impl Gallery {
                 segmented(ui, "View", view, [("Overview", CentreView::Overview), ("Component", CentreView::Component)]);
                 // The toggle only shows the state; the menu opens on the press.
                 let mut shown = variants.is_some();
-                let button = ui.add(ToggleButton::new("Variants", &mut shown).icon(Icon::ChevronDown).size(ControlSize::Sm));
+                let button = ui.add(ToggleButton::new("Variants", &mut shown).trailing_icon(Icon::ChevronDown).size(ControlSize::Sm));
                 let entries: Vec<MenuEntry<VariantAxis>> =
                     VariantAxis::ALL.into_iter().map(|axis| MenuItem::new(axis.menu_label(), axis).into()).collect();
                 if let Some(axis) = PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &button).chosen {
@@ -1002,15 +1002,20 @@ fn same_on(axis: VariantAxis, a: &Appearance, b: &Appearance, shown: Mode, syste
     }
 }
 
-/// The Variants view's header: what is shown, the hint and Close. Returns whether Close was clicked.
+/// The Variants view's header: what is shown and the hint, with Close at the trailing end. Returns
+/// whether Close was clicked.
 fn variants_header(ui: &mut Ui, story: &Story, axis: VariantAxis) -> bool {
     let mut closed = false;
-    ui.horizontal(|ui| {
+    let gap = Tokens::of(ui).space.gap.section;
+    direction::horizontal(ui, |ui| {
         ui.add(Text::new(format!("{} · {} in every {}", story.component, story.name, axis.noun())).role(TypeRole::Heading));
         ui.add(Text::new("Click one to use it").content(Content::Muted));
-        closed = ui.add(Button::new("Close").size(ControlSize::Sm)).clicked();
+        // The strip's leftover width goes before Close, so it ends at the trailing edge.
+        let rtl = direction::is_rtl(ui);
+        let layout = if rtl { egui::Layout::left_to_right(Align::Center) } else { egui::Layout::right_to_left(Align::Center) };
+        ui.with_layout(layout, |ui| closed = ui.add(Button::new("Close").size(ControlSize::Sm)).clicked());
     });
-    ui.add_space(Tokens::of(ui).space.gap.section);
+    ui.add_space(gap);
     closed
 }
 

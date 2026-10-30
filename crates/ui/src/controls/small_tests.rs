@@ -8,7 +8,7 @@ use egui::{Color32, Context, Event, Key, KeyboardShortcut, ModifierNames, Modifi
 
 use super::tests::{every_builtin, frame_at, motion_context, motion_context_in, theme, tokens_of};
 use super::*;
-use crate::icons::IconSize;
+use crate::icons::{Icon, IconSize};
 use crate::primitives::{Content, Surface, SurfaceEdge, SurfaceKind};
 use crate::theme::{ToEgui, Tokens, TokensOf as _};
 use egui::StrokeKind;
@@ -471,4 +471,26 @@ fn other_themes_tooltips_keep_the_popup_look() {
         assert_eq!(texts.last(), Some(&tokens.color.text.normal.to_egui()), "{id}");
         assert_eq!(hovered_tooltip(id, stock).0, frames, "{id}: as stock egui draws it");
     }
+}
+
+#[test]
+fn a_trailing_icon_takes_the_icon_and_gap_after_the_label() {
+    let ctx = motion_context(true);
+    let tokens = tokens_in(&ctx);
+    let style = Button::style(&tokens, craft_theme::ButtonVariant::Secondary, ControlSize::Md);
+    let measure = |trailing: bool| {
+        let rect = Cell::new(Rect::NOTHING);
+        let (shapes, _) = frame(&ctx, 0.0, |ui| {
+            let button = Button::new("Variants");
+            let button = if trailing { button.trailing_icon(Icon::ChevronDown) } else { button };
+            rect.set(ui.add(button).rect);
+        });
+        let text = shapes.iter().find_map(|s| if let Shape::Text(t) = s { Some(t.pos.x) } else { None }).unwrap();
+        (rect.get(), text)
+    };
+    let (plain, plain_text) = measure(false);
+    let (with, with_text) = measure(true);
+    assert!((with.width() - plain.width() - style.icon - style.gap).abs() < 1e-3);
+    // The label stays at the start, so the icon is after it.
+    assert!((with_text - with.min.x - style.pad_x).abs() < 1.0 && (plain_text - plain.min.x - style.pad_x).abs() < 1.0);
 }
