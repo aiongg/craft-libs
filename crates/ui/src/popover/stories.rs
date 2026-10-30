@@ -6,32 +6,57 @@ use egui::{Id, Pos2, Sense, Ui, vec2};
 use super::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use crate::controls::{Button, SearchField, Select, Slider};
 use crate::direction::{self, Direction, HasDirection as _};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Popover"];
 
-const SIZES: &[&str] = &["resizable", "fit", "fixed"];
-const ANCHORS: &[&str] = &["control", "point"];
 const MODES: &[&str] = &["Normal", "Multiply", "Screen", "Overlay"];
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum AnchorArg {
+    Control,
+    Point,
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum SizeArg {
+    Resizable,
+    Fit,
+    Fixed,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct AnchoredArgs {
+    anchor: AnchorArg,
+    size: SizeArg,
+    enter: bool,
+    rtl: bool,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct StrokeEditorArgs {
+    rtl: bool,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "patterns/popover/anchored",
             Level::Patterns,
             "Popover",
             "Anchored",
-            || Args::new().with_choice("anchor", ANCHORS, 0).with_choice("size", SIZES, 0).with_bool("enter", false).with_bool("rtl", false),
-            show_anchored,
+            AnchoredArgs { anchor: AnchorArg::Control, size: SizeArg::Resizable, enter: false, rtl: false },
+            show_anchored
         ),
-        Story::new(
+        typed_story!(
             "patterns/popover/stroke-editor",
             Level::Patterns,
             "Popover",
             "Stroke editor",
-            || Args::new().with_bool("rtl", false),
-            show_stroke_editor,
+            StrokeEditorArgs { rtl: false },
+            show_stroke_editor
         ),
     ]
 }
@@ -46,25 +71,25 @@ struct Demo {
     picked: String,
 }
 
-fn with_direction(ui: &mut Ui, args: &Args, add: impl FnOnce(&mut Ui)) {
+fn with_direction(ui: &mut Ui, rtl: bool, add: impl FnOnce(&mut Ui)) {
     let ctx = ui.ctx().clone();
     let outer = ctx.direction();
-    direction::apply(&ctx, if args.bool("rtl") { Direction::Rtl } else { Direction::Ltr });
+    direction::apply(&ctx, if rtl { Direction::Rtl } else { Direction::Ltr });
     add(ui);
     direction::apply(&ctx, outer);
 }
 
-fn show_anchored(ui: &mut Ui, args: &mut Args) {
+fn show_anchored(ui: &mut Ui, args: &mut AnchoredArgs) {
     let state_id = Id::unique("craft-ui-popover-story-anchored");
     let mut demo = ui.data_mut(|d| d.get_temp::<Demo>(state_id)).unwrap_or(Demo { amount: 40.0, ..Demo::default() });
-    with_direction(ui, args, |ui| {
-        let size = match args.choice("size") {
-            "fit" => PopoverSize::Fit,
-            "fixed" => PopoverSize::Fixed(vec2(240.0, 200.0)),
-            _ => PopoverSize::Resizable { default: vec2(300.0, 260.0), min: vec2(230.0, 170.0) },
+    with_direction(ui, args.rtl, |ui| {
+        let size = match args.size {
+            SizeArg::Fit => PopoverSize::Fit,
+            SizeArg::Fixed => PopoverSize::Fixed(vec2(240.0, 200.0)),
+            SizeArg::Resizable => PopoverSize::Resizable { default: vec2(300.0, 260.0), min: vec2(230.0, 170.0) },
         };
-        let close = PopoverClose::default().enter(args.bool("enter"));
-        let (anchor, toggle) = if args.choice("anchor") == "point" {
+        let close = PopoverClose::default().enter(args.enter);
+        let (anchor, toggle) = if args.anchor == AnchorArg::Point {
             let canvas = ui.allocate_response(vec2(320.0, 80.0), Sense::click());
             if canvas.secondary_clicked() {
                 demo.open = true;
@@ -115,10 +140,10 @@ fn mode_select(ui: &mut Ui, mode: &usize) -> Option<usize> {
     select.show(ui).event.as_ref().and_then(|e| e.value()).copied()
 }
 
-fn show_stroke_editor(ui: &mut Ui, args: &mut Args) {
+fn show_stroke_editor(ui: &mut Ui, args: &mut StrokeEditorArgs) {
     let state_id = Id::unique("craft-ui-popover-story-stroke");
     let mut demo = ui.data_mut(|d| d.get_temp::<Demo>(state_id)).unwrap_or(Demo { amount: 2.0, ..Demo::default() });
-    with_direction(ui, args, |ui| {
+    with_direction(ui, args.rtl, |ui| {
         let chip = ui.add(Button::new("Stroke"));
         if chip.clicked() {
             demo.open = !demo.open;
