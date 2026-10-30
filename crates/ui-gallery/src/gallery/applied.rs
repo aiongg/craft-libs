@@ -21,6 +21,10 @@ pub(super) struct Applied {
     applied: Option<Appearance>,
     /// The scale the shown story asks for, once applied; `None` while no story asks.
     story_ppp: Option<f32>,
+    /// The display scale the interface scale was last applied for. A fixed percent is absolute,
+    /// so it is applied again when the window moves to a display with another scale; the zoom
+    /// is otherwise left alone, so egui's Ctrl +/- zoom keeps working.
+    native_applied: Option<f32>,
     /// Whether the OS's interface face had resolved when the faces were last installed.
     system_face_applied: bool,
     os: SystemReader,
@@ -36,6 +40,7 @@ impl Applied {
         Self {
             applied: None,
             story_ppp: None,
+            native_applied: None,
             system_face_applied: false,
             os: SystemReader::for_egui(),
             os_applied: SystemAppearance::default(),
@@ -66,7 +71,20 @@ impl Applied {
                 appearance.scale.apply(ctx);
             }
         }
+        let native = ctx.native_pixels_per_point();
+        if native != self.native_applied {
+            self.native_applied = native;
+            self.scale_of(appearance).apply(ctx);
+        }
         install(ctx, &self.base);
+    }
+
+    /// The scale the story asks for, else the appearance's.
+    fn scale_of(&self, appearance: &Appearance) -> InterfaceScale {
+        match self.story_ppp {
+            Some(ppp) => InterfaceScale::percent((ppp * 100.0).round() as u16),
+            None => appearance.scale,
+        }
     }
 
     /// Sets the whole gallery's scale when a story starts or stops asking for one
@@ -79,10 +97,7 @@ impl Applied {
             return;
         }
         self.story_ppp = requested;
-        match requested {
-            Some(ppp) => InterfaceScale::percent((ppp * 100.0).round() as u16).apply(ctx),
-            None => appearance.scale.apply(ctx),
-        }
+        self.scale_of(appearance).apply(ctx);
     }
 }
 
@@ -91,5 +106,31 @@ pub(super) fn shown_mode(ctx: &egui::Context) -> Mode {
     match ctx.theme() {
         egui::Theme::Dark => Mode::Dark,
         egui::Theme::Light => Mode::Light,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use egui::{RawInput, ViewportId, ViewportInfo};
+
+    use super::*;
+
+    fn frame(ctx: &egui::Context, applied: &mut Applied, appearance: &Appearance, native: f32) {
+        let mut input = RawInput::default();
+        input.viewports.insert(ViewportId::ROOT, ViewportInfo { native_pixels_per_point: Some(native), ..Default::default() });
+        ctx.run_ui(input, |ui| applied.apply(ui.ctx(), appearance)).drop_without_applying_deltas();
+    }
+
+    #[test]
+    fn a_fixed_percent_follows_the_window_to_a_display_with_another_scale() {
+        let ctx = egui::Context::default();
+        let appearance = Appearance { scale: InterfaceScale::percent(100), ..Appearance::default() };
+        let mut applied = Applied::new(&appearance);
+        frame(&ctx, &mut applied, &appearance, 1.0);
+        frame(&ctx, &mut applied, &appearance, 1.0);
+        assert!((ctx.pixels_per_point() - 1.0).abs() < 1e-3);
+        frame(&ctx, &mut applied, &appearance, 2.0);
+        frame(&ctx, &mut applied, &appearance, 2.0);
+        assert!((ctx.pixels_per_point() - 1.0).abs() < 1e-3, "100 % stays 100 % on a 2x display, got {}", ctx.pixels_per_point());
     }
 }
