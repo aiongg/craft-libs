@@ -9,6 +9,7 @@ use egui::{Rect, Response, Stroke, Ui, UiBuilder, pos2, vec2};
 use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::Icon;
+use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::patterns::rail::flyout::paint_corner_triangle;
 use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -138,8 +139,9 @@ pub(super) struct LayersArgs {
 /// The height of the story's panel.
 const STORY_PANEL_HEIGHT: f32 = 140.0;
 
-/// A panel `width` wide with a body and, at its bottom, a footer of three buttons, inside the body
-/// margin.
+/// A panel `width` wide with a body and, at its bottom, a footer of four buttons, inside the body
+/// margin. The menu button opens the menu of new fill and adjustment layers; the body names the
+/// chosen item.
 pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
     let width = args.width.min(ui.available_width());
     let tokens = Tokens::of(ui);
@@ -149,14 +151,34 @@ pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
         egui::Frame::new().inner_margin(egui::Margin::same(margin as i8)).fill(tokens.color.surface.panel.to_egui()).show(ui, |ui| {
             ui.set_width(width - 2.0 * margin);
             ui.set_height(STORY_PANEL_HEIGHT - 2.0 * margin);
+            let state_id = ui.scope_id().with("panel-footer-layers-chosen");
+            let mut chosen = ui.data(|d| d.get_temp::<&'static str>(state_id));
             ui.label("Layers");
+            if let Some(chosen) = chosen {
+                ui.label(format!("Added: {chosen}"));
+            }
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                 PanelFooter::show(ui, |ui| {
                     PanelFooter::button(ui, Icon::Trash, "Delete layer");
                     PanelFooter::button(ui, Icon::Plus, "New layer");
                     PanelFooter::button(ui, Icon::Settings, "Layer settings");
+                    let menu_button = PanelFooter::menu_button(ui, Icon::Adjustments, "New fill or adjustment layer");
+                    let entries = [
+                        MenuEntry::Item(MenuItem::new("Solid Color...", "Solid Color")),
+                        MenuEntry::Item(MenuItem::new("Gradient...", "Gradient")),
+                        MenuEntry::Separator,
+                        MenuEntry::Item(MenuItem::new("Levels...", "Levels")),
+                    ];
+                    let at = menu_button.clicked().then_some(OpenAt::Rect(menu_button.rect));
+                    let shown = ContextMenu::new(&entries).own_gestures(false).open_at(at).show(ui, &menu_button);
+                    if shown.chosen.is_some() {
+                        chosen = shown.chosen;
+                    }
                 });
             });
+            if let Some(chosen) = chosen {
+                ui.data_mut(|d| d.insert_temp(state_id, chosen));
+            }
         });
     });
 }

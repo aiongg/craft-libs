@@ -11,7 +11,7 @@ use super::{SizeDisabledArgs, salt};
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, StateColors, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs};
+use crate::story::{Level, SizeArg, Story, StoryArgs, ToneArg};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
@@ -282,6 +282,7 @@ const SAMPLES: [(Icon, &str); 5] =
 #[derive(StoryArgs, Debug, PartialEq)]
 struct PlainArgs {
     size: SizeArg,
+    tone: ToneArg,
     disabled: bool,
     #[arg(name = "show tooltip")]
     show_tooltip: bool,
@@ -295,7 +296,7 @@ pub(crate) fn stories() -> Vec<Story> {
             Level::Controls,
             "Icon button",
             "Plain",
-            PlainArgs { size: SizeArg::Md, disabled: false, show_tooltip: true, badge: false },
+            PlainArgs { size: SizeArg::Md, tone: ToneArg::Neutral, disabled: false, show_tooltip: true, badge: false },
             show_plain
         ),
         typed_story!("controls/icon-button/toggle", Level::Controls, "Icon button", "Toggle", SizeDisabledArgs::default(), show_toggle),
@@ -307,12 +308,13 @@ pub(crate) fn stories() -> Vec<Story> {
 fn show_plain(ui: &mut Ui, args: &mut PlainArgs) {
     let size = args.size.control();
     let enabled = !args.disabled;
-    let (tooltip, badge) = (args.show_tooltip, args.badge);
+    let (tooltip, badge, tone) = (args.show_tooltip, args.badge, args.tone.tone());
     let state_id = ui.scope_id().with("icon-button-plain-count");
     let (mut count, mut tool) = ui.data(|d| d.get_temp::<(u32, usize)>(state_id).unwrap_or_default());
     Row::new(Gap::Inline).show(ui, |ui| {
         for (icon, label) in SAMPLES {
-            let mut button = IconButton::new(icon, label).size(size).enabled(enabled).show_tooltip(tooltip).id_salt(("icon-button-plain", label));
+            let mut button =
+                IconButton::new(icon, label).size(size).tone(tone).enabled(enabled).show_tooltip(tooltip).id_salt(("icon-button-plain", label));
             if badge {
                 button = button.badge(Srgba::new(0.9, 0.2, 0.2, 1.0));
             }
@@ -324,7 +326,7 @@ fn show_plain(ui: &mut Ui, args: &mut PlainArgs) {
     ui.add(Text::new(format!("Clicked {count} times")).content(Content::Muted));
     Row::new(Gap::Inline).show(ui, |ui| {
         for (i, (icon, label)) in SAMPLES.into_iter().enumerate() {
-            let button = IconButton::new(icon, label).size(size).enabled(enabled).selected(tool == i).show_tooltip(tooltip);
+            let button = IconButton::new(icon, label).size(size).tone(tone).enabled(enabled).selected(tool == i).show_tooltip(tooltip);
             if ui.add(button.id_salt(("icon-button-tool", label))).clicked() {
                 tool = i;
             }

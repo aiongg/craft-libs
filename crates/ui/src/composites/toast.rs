@@ -15,7 +15,7 @@ use crate::direction;
 use crate::icons::{Icon, IconSize};
 use crate::localized::Labels as _;
 use crate::primitives::{Surface, SurfaceEdge, SurfaceKind};
-use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::story::{Level, Story, StoryArgs, ToneArg};
 use crate::theme::{ToEgui, UiTokens, corner_radius, reshape_shadow, role_format};
 use crate::typed_story;
 
@@ -481,27 +481,6 @@ impl Geometry {
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Toast"];
-
-#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
-enum ToneArg {
-    Neutral,
-    Info,
-    Good,
-    Warn,
-    Bad,
-}
-
-impl ToneArg {
-    fn tone(self) -> Tone {
-        match self {
-            ToneArg::Neutral => Tone::Neutral,
-            ToneArg::Info => Tone::Info,
-            ToneArg::Good => Tone::Good,
-            ToneArg::Warn => Tone::Warn,
-            ToneArg::Bad => Tone::Bad,
-        }
-    }
-}
 
 #[derive(StoryArgs, Debug, PartialEq)]
 pub(super) struct StackArgs {
