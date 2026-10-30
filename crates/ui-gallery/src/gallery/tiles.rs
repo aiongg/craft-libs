@@ -55,7 +55,7 @@ pub(crate) struct Tiles<'a> {
     pub scale_of_selected: bool,
     /// The inspector, and the key of the one tile it draws over.
     pub inspector: Option<(&'static str, &'a mut Inspector)>,
-    /// The token whose shapes the tiles outline in the marquee colour.
+    /// The token whose shapes the tiles outline in the accent colour.
     pub highlight: Option<Highlight<'a>>,
 }
 
@@ -95,9 +95,8 @@ pub(crate) fn tiles_view(
         o.mode = Some(appearance.mode(shown));
         o.contrast = Some(appearance.contrast(system));
     };
-    // The ring belongs to the gallery, not to the appearance the stories are shown in.
+    // The ring and the Used by outline belong to the gallery, not to the appearance the stories are shown in.
     let ring = Tokens::of(ui).color.accent.solid.to_egui();
-    let marquee = Tokens::of(ui).color.overlay.marquee.to_egui();
     let mut events = TileEvents::default();
     scope(ui, overrides, |ui| {
         let tokens = Tokens::of(ui);
@@ -184,7 +183,7 @@ pub(crate) fn tiles_view(
                         let origin = vec2(x, body.response.rect.min.y - surface.margin.top as f32);
                         let rects = highlight.tile(ui.ctx(), appearance, story, args, size, origin);
                         if !rects.is_empty() {
-                            let stroke = scale::Stroke::W1.egui(ui.ctx(), marquee);
+                            let stroke = scale::Stroke::W1.egui(ui.ctx(), ring);
                             for rect in rects {
                                 ui.painter().rect_stroke(rect, 0.0, stroke, StrokeKind::Outside);
                             }
@@ -232,7 +231,7 @@ pub(crate) fn tiles_view(
                     shapes.push(Shape::Rect(RectShape::stroke(
                         rect.shrink(inset),
                         0.0,
-                        scale::Stroke::W2.egui(ui.ctx(), marquee),
+                        scale::Stroke::W2.egui(ui.ctx(), ring),
                         StrokeKind::Inside,
                     )));
                 }
