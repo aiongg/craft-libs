@@ -5,6 +5,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::ops::BitOr;
 
 use craft_keymap::{Chord, CommandRef};
+use craft_theme::Srgba;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MenuBar {
@@ -134,6 +135,14 @@ pub struct Item {
     /// The layout gave this item its shortcut (⌘Q on the app's Quit, ⌘, on Settings): the app's
     /// key handling doesn't know it, so a backend reports the key equivalent as a click.
     pub layout_shortcut: bool,
+    /// A label colour for the row (document data, such as a user's menu colours). The in-window
+    /// bar shades the row's background with it; the native macOS menu has no row colour and
+    /// ignores it.
+    pub tint: Option<Srgba>,
+    /// A hover tooltip. The in-window bar shows it after a delay and reports it as the row's
+    /// accessible description; the native macOS menu ignores it (muda has no handle on the
+    /// `NSMenuItem`'s tool tip).
+    pub tooltip: Option<String>,
 }
 
 /// A plain item, or one with a checked state.
@@ -253,6 +262,8 @@ impl Item {
             role: None,
             platforms: Platforms::ALL,
             layout_shortcut: false,
+            tint: None,
+            tooltip: None,
         }
     }
 
@@ -285,6 +296,18 @@ impl Item {
 
     pub fn platforms(mut self, platforms: Platforms) -> Item {
         self.platforms = platforms;
+        self
+    }
+
+    /// Colour the row's background in the in-window bar.
+    pub fn tint(mut self, color: impl Into<Srgba>) -> Item {
+        self.tint = Some(color.into());
+        self
+    }
+
+    /// Show `text` when the pointer rests on the row in the in-window bar.
+    pub fn tooltip(mut self, text: impl Into<String>) -> Item {
+        self.tooltip = Some(text.into());
         self
     }
 }

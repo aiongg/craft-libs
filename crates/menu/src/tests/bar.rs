@@ -71,6 +71,8 @@ struct Bar {
     after: Option<f32>,
     /// The viewport commands the bar sent.
     sent: Vec<egui::ViewportCommand>,
+    search: bool,
+    titles: Rect,
 }
 
 impl Bar {
@@ -97,6 +99,8 @@ impl Bar {
             fit: None,
             after: None,
             sent: Vec::new(),
+            search: false,
+            titles: Rect::NOTHING,
         };
         b.run(3);
         b
@@ -114,26 +118,33 @@ impl Bar {
         };
         let (bar, gate, target, english, preferred, label, fit) =
             (&self.bar, self.gate, self.target, self.english, &self.preferred, self.label, self.fit);
+        let search = self.search;
         let mut out = Vec::new();
+        let mut titles = Rect::NOTHING;
         let mut after = None;
         let mut full = self.ctx.run_ui(raw, |ui| {
             let hook = |s: &'static str| label.map_or_else(|| s.to_owned(), |f| f(s));
-            let mut ui_bar = MenuBarUi::new(bar).gate(gate).target(target).mnemonics(preferred).label(&hook);
+            let mut ui_bar = MenuBarUi::new(bar).gate(gate).target(target).mnemonics(preferred).label(&hook).help_search(search);
             if let Some(english) = &english {
                 ui_bar = ui_bar.english(english);
             }
             match fit {
                 Some(max) => {
                     ui.horizontal(|ui| {
-                        out = ui_bar.shrink_to_fit(max).show(ui);
+                        let shown = ui_bar.shrink_to_fit(max).show(ui);
+                        (out, titles) = (shown.commands, shown.titles);
                         after = Some(ui.label("after").rect.left());
                     });
                 }
-                None => out = ui_bar.show(ui),
+                None => {
+                    let shown = ui_bar.show(ui);
+                    (out, titles) = (shown.commands, shown.titles);
+                }
             }
         });
         full.textures_delta.clear();
         self.after = after;
+        self.titles = titles;
         if let Some(root) = full.viewport_output.remove(&egui::ViewportId::ROOT) {
             self.sent.extend(root.commands);
         }
@@ -366,9 +377,9 @@ fn titles_that_dont_fit_move_into_the_overflow_menu() {
         edit.x - file.x + 60.0
     };
     let mut b = Bar::new(sample(), vec2(narrow, 400.0));
-    assert!(b.title("Help").is_none() && b.title("⋯").is_some(), "Help moved into ⋯");
-    b.click("⋯");
-    assert!(b.shown("View") && b.shown("Help"), "⋯ lists the menus that don't fit");
+    assert!(b.title("Help").is_none() && b.title("…").is_some(), "Help moved into …");
+    b.click("…");
+    assert!(b.shown("View") && b.shown("Help"), "… lists the menus that don't fit");
 }
 
 #[test]
@@ -468,11 +479,33 @@ fn a_bar_shrunk_to_fit_shares_its_row() {
     b.run(2);
     let after = b.after.expect("the label after the bar");
     assert!(after < b.size.x / 2.0, "the bar takes only its titles' width: {after}");
-    assert!(b.title("Help").is_some() && b.title("⋯").is_none());
+    assert!(b.title("Help").is_some() && b.title("…").is_none());
     b.fit = Some(100.0);
     b.run(2);
-    assert!(b.title("⋯").is_some(), "the menus past 100 points overflow");
+    assert!(b.title("…").is_some(), "the menus past 100 points overflow");
     // A limit an app computed from a full row can go negative.
     b.fit = Some(-20.0);
     b.run(2);
+}
+
+/// The tint and the tooltip of a model item reach the row: the tooltip is its accessible
+/// description. The Help menu opens with the search field, which finds an item by its label.
+#[test]
+fn tooltips_reach_the_rows_and_the_help_search_finds_items() {
+    let mut b = wide();
+    assert!(!b.titles.is_negative() && b.titles.width() > 0.0, "the titles' rect is returned: {:?}", b.titles);
+    b.bar.menus[1].children[0] =
+        Node::Item(item("edit.undo", "Undo").tint(craft_theme::Srgba::new(1.0, 0.0, 0.0, 1.0)).tooltip("Take back the last change"));
+    b.search = true;
+    b.run(2);
+    b.click("Edit");
+    assert_eq!(b.node("Undo").and_then(|n| n.description()), Some("Take back the last change"));
+    b.click("Edit");
+    b.click("Help");
+    for c in "redo".chars() {
+        b.letter(c);
+    }
+    assert!(b.shown("Edit › Redo"), "the search lists the item by its label");
+    b.key(Key::Enter);
+    assert_eq!(b.take(), [CommandRef::from("edit.redo")]);
 }
