@@ -151,6 +151,7 @@ pub struct NumberField<'a> {
     numbers: &'a LocaleNumbers,
     range: RangeInclusive<f64>,
     step: f64,
+    snap_typed: bool,
     decimals: RangeInclusive<usize>,
     commit_decimals: Option<usize>,
     unit: Unit,
@@ -198,6 +199,7 @@ impl<'a> NumberField<'a> {
             scrub_by: None,
             scrub_text: true,
             next: None,
+            snap_typed: false,
             wrap: false,
             popup: None,
             mixed: false,
@@ -223,6 +225,14 @@ impl<'a> NumberField<'a> {
     /// Default 1.
     pub fn step(mut self, step: f64) -> Self {
         self.step = step;
+        self
+    }
+
+    /// Whether a typed value is moved to the nearest multiple of the [`step`](NumberField::step)
+    /// from the range's start (the range's end is a stop too), as a [`Slider`] with that step
+    /// snaps. Off by default; it has no effect without a step or with an open range.
+    pub fn snap_typed(mut self, snap: bool) -> Self {
+        self.snap_typed = snap;
         self
     }
 
@@ -438,6 +448,7 @@ impl<'a> NumberField<'a> {
             unit: &self.unit,
             fallback: self.fallback.as_deref(),
             bounds,
+            grid: (self.snap_typed && self.step > 0.0 && self.step.is_finite() && bounds.0.is_finite() && bounds.1.is_finite()).then_some(self.step),
         };
         let font = tokens.font(style.field.role);
         let parts = Parts::new(ui, &tokens, &style, &self, font.clone(), enabled);
@@ -1043,6 +1054,8 @@ struct Numbers<'n> {
     unit: &'n Unit,
     fallback: Option<&'n Reader<'n>>,
     bounds: (f64, f64),
+    /// The step a typed value snaps to.
+    grid: Option<f64>,
 }
 
 impl Numbers<'_> {
@@ -1053,7 +1066,11 @@ impl Numbers<'_> {
 
     /// `value` as typed, rounded to the decimals a typed number keeps and clamped to the range.
     fn settle_typed(&self, value: f64) -> f64 {
-        round_half_away(value, self.commit_decimals).clamp(self.bounds.0, self.bounds.1)
+        let value = round_half_away(value, self.commit_decimals).clamp(self.bounds.0, self.bounds.1);
+        match self.grid {
+            Some(step) => round_half_away(Scale::new(&(self.bounds.0..=self.bounds.1), Some(step)).snap(value), self.commit_decimals),
+            None => value,
+        }
     }
 }
 

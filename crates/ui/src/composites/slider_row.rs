@@ -88,6 +88,7 @@ pub struct SliderRow<'a> {
     numbers: &'a LocaleNumbers,
     unit: Unit,
     decimals: Option<usize>,
+    step: Option<f64>,
     track_colors: Option<Vec<Srgba>>,
     default: Option<f64>,
     wheel: bool,
@@ -115,6 +116,7 @@ impl<'a> SliderRow<'a> {
             numbers,
             unit: Unit::default(),
             decimals: None,
+            step: None,
             track_colors: None,
             default: None,
             wheel: false,
@@ -134,6 +136,17 @@ impl<'a> SliderRow<'a> {
     /// Places shown in the field, which also set its step (PhotoCraft's `slider_row_prec`).
     pub fn decimals(mut self, decimals: usize) -> Self {
         self.decimals = Some(decimals);
+        self
+    }
+
+    /// The step of the row: drags, taps, keys and the wheel on the slider move the value to its
+    /// multiples from the range's start ([`Slider::step`]), and the field steps by it and
+    /// moves typed values onto it ([`NumberField::snap_typed`]). Every value the row reports is
+    /// on the step, so a host that stores it as reported keeps the gesture under way. The step
+    /// replaces the one that [`decimals`](SliderRow::decimals) or the range sets; the places the
+    /// field shows stay as they are.
+    pub fn step(mut self, step: f64) -> Self {
+        self.step = Some(step).filter(|s| s.is_finite() && *s > 0.0);
         self
     }
 
@@ -226,9 +239,11 @@ impl<'a> SliderRow<'a> {
             None if (self.range.end() - self.range.start()).abs() <= 10.0 => (0..=2, 0.01),
             None => (0..=1, 1.0),
         };
+        let step = self.step.unwrap_or(step);
         let field = NumberField::new(id.with("field"), self.label.as_str(), self.value, self.numbers)
             .range(self.range.clone())
             .step(step)
+            .snap_typed(self.step.is_some())
             .decimals(places)
             .unit(self.unit)
             .scrub_by(&caption)
@@ -243,6 +258,9 @@ impl<'a> SliderRow<'a> {
             .scale(self.scale)
             .policy(self.policy)
             .enabled(self.enabled);
+        if let Some(step) = self.step {
+            slider = slider.step(step);
+        }
         if let Some(step) = self.wheel_step {
             slider = slider.wheel_step(step);
         }

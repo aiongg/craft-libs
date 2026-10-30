@@ -193,3 +193,46 @@ fn a_wheel_notch_over_the_slider_moves_the_value_by_the_wheel_step() {
         assert_eq!(harness.state().0, 500.0 + notch, "one notch, with the range a thousand wide");
     }
 }
+
+/// A row with a step reports only values on it, so a host that stores them as reported keeps the
+/// gesture, and a typed value lands on the step.
+#[test]
+fn a_stepped_row_reports_values_on_the_step_and_keeps_its_gesture() {
+    fn stepped_row(ui: &mut Ui, (value, events): &mut State) {
+        let numbers = LocaleNumbers::from_tag("en");
+        ui.allocate_ui(vec2(260.0, 0.0), |ui| {
+            for event in SliderRow::new("opacity", "Opacity", *value, 0.0..=100.0, &numbers).step(5.0).show(ui).edits() {
+                if let Some(v) = event.value() {
+                    *value = *v;
+                }
+                events.push(event);
+            }
+        });
+    }
+    let mut harness = harness(Direction::Ltr).build_ui_state(stepped_row, (50.0, Vec::new()));
+    harness.run();
+    let (_, _, slider) = rects(&harness);
+    let (start, y) = (slider.left() + 7.0 + (slider.width() - 14.0) * 0.5, slider.center().y);
+    harness.input_mut().events.extend([
+        Event::PointerMoved(Pos2::new(start, y)),
+        Event::PointerButton { pos: Pos2::new(start, y), button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+    ]);
+    harness.run();
+    for dx in [7.3, 13.1, 21.9, 31.7] {
+        harness.input_mut().events.push(Event::PointerMoved(Pos2::new(start + dx, y)));
+        harness.run();
+    }
+    harness.input_mut().events.push(Event::PointerButton {
+        pos: Pos2::new(start + 31.7, y),
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    });
+    harness.run();
+    let (value, events) = harness.state();
+    let values: Vec<f64> = events.iter().filter_map(|e| e.value().copied()).collect();
+    assert!(values.len() >= 3 && *value > 50.0, "{events:?}");
+    assert!(values.iter().all(|v| (v / 5.0).fract() == 0.0), "on the step: {values:?}");
+    assert!(events.iter().all(|e| !matches!(e, EditEvent::Cancel { .. })), "the gesture is kept: {events:?}");
+    assert!(matches!(events.last(), Some(EditEvent::Commit { .. })), "{events:?}");
+}

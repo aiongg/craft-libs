@@ -67,6 +67,8 @@ struct Rig {
     stops: bool,
     /// The field wraps the pointer at the screen's edges.
     wrap: bool,
+    /// The step typed values snap to.
+    snap: Option<f64>,
     edit_menu: bool,
     /// Every viewport command sent so far.
     commands: Vec<ViewportCommand>,
@@ -93,6 +95,7 @@ impl Rig {
             numbers: LocaleNumbers::from_tag("en"),
             range: (f64::NEG_INFINITY, f64::INFINITY),
             decimals: (0, 2),
+            snap: None,
             unit: Unit::default(),
             mixed: false,
             scrub: false,
@@ -221,6 +224,9 @@ impl Rig {
         }
         if self.stops {
             field = field.steps_with(zoom_stop);
+        }
+        if let Some(step) = self.snap {
+            field = field.step(step).snap_typed(true);
         }
         field = field.scrub_wrap(self.wrap).edit_menu(self.edit_menu);
         if self.popup {
@@ -407,6 +413,22 @@ fn typing_commits_on_enter_and_on_focus_loss_with_the_value_read_rounded_and_cla
     // Half away from zero.
     assert_eq!(rig.event, Some(commit(id, 2.38, true)));
     assert_eq!(since(&rig, n).len(), 2);
+}
+
+#[test]
+fn a_typed_value_snaps_to_the_step_when_asked_and_the_range_end_is_a_stop() {
+    let mut rig = Rig::with(5.0, |r| {
+        r.range = (0.0, 98.0);
+        r.snap = Some(5.0);
+    });
+    for (typed, committed) in [("47", 45.0), ("48", 50.0), ("97", 98.0)] {
+        rig.focus();
+        for c in typed.chars() {
+            rig.type_text(&c.to_string());
+        }
+        rig.key(Key::Enter);
+        assert_eq!(rig.value, committed, "{typed}");
+    }
 }
 
 /// A plain number applies as it is typed, one update a keystroke that makes one; `-` doesn't

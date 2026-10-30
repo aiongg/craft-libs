@@ -31,6 +31,7 @@ struct Rig {
     enabled: bool,
     default: Option<f64>,
     wheel_unfocused: bool,
+    wheel: bool,
     kind: SliderScale,
     marks: Vec<f64>,
     thumb: SliderThumb,
@@ -70,6 +71,7 @@ impl Rig {
             enabled: true,
             default: None,
             wheel_unfocused: false,
+            wheel: true,
             kind: SliderScale::Linear,
             marks: Vec::new(),
             thumb: SliderThumb::Round,
@@ -117,6 +119,7 @@ impl Rig {
         let mut slider = Slider::new("rig-slider", "Level", self.level, range.clone())
             .enabled(self.enabled)
             .wheel_unfocused(self.wheel_unfocused)
+            .wheel(self.wheel)
             .scale(self.kind)
             .marks(&self.marks)
             .thumb(self.thumb)
@@ -1070,4 +1073,75 @@ fn a_thumb_outline_is_centred_on_the_edge_of_the_face() {
     let face = rects.iter().find(|r| r.fill == egui::Color32::WHITE).expect("the thumb has a face");
     assert_eq!(face.rect, outline.rect);
     assert_eq!(face.stroke.width, 0.0);
+}
+
+/// Photoshop's Properties panel: with the wheel off a slider never steps by it, focused or not,
+/// and the panel under it scrolls.
+#[test]
+fn a_slider_with_the_wheel_off_ignores_it_focused_or_not() {
+    let mut rig = Rig::new();
+    let slider = rig.slider_id;
+    rig.focus(slider);
+    let over = rig.level_at(40.0, 0.0);
+    rig.drag(over);
+    rig.frame(vec![wheel(MouseWheelUnit::Line, 1.0)]);
+    assert_eq!(rig.level_event, set(41.0, Modifiers::NONE), "on by default: the focused slider steps");
+
+    rig.wheel = false;
+    rig.wheel_unfocused = true;
+    rig.time += 1.0;
+    rig.frame(vec![wheel(MouseWheelUnit::Line, 1.0)]);
+    assert_eq!((rig.level_event.clone(), rig.level), (None, 41.0), "focused");
+    assert!(rig.has_focus(slider));
+    rig.ctx.memory_mut(|m| m.surrender_focus(slider));
+    rig.time += 1.0;
+    rig.frame(vec![wheel(MouseWheelUnit::Line, 1.0)]);
+    assert_eq!((rig.level_event.clone(), rig.level), (None, 41.0), "unfocused, even with wheel_unfocused");
+}
+
+/// The shaped text of a frame of a labelled slider: its rect, and the labels' rects left to right.
+fn labelled_slider(labels: &[(f64, &str)], width: f32) -> (Rect, Vec<Rect>) {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut rect = Rect::NOTHING;
+    let mut slider = Slider::new("indexed", "Colors", 64.0, 8.0..=256.0).width(width);
+    if !labels.is_empty() {
+        slider = slider.marks_labelled(labels.iter().copied());
+    }
+    let output = ctx.run_ui(RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), ..Default::default() }, |ui| {
+        rect = slider.clone().show(ui).response.rect
+    });
+    let mut texts: Vec<Rect> = output
+        .shapes
+        .iter()
+        .filter_map(|c| match &c.shape {
+            egui::Shape::Text(t) => Some(t.galley.rect.translate(t.pos.to_vec2())),
+            _ => None,
+        })
+        .collect();
+    output.drop_without_applying_deltas();
+    texts.sort_by(|a, b| a.left().total_cmp(&b.left()));
+    (rect, texts)
+}
+
+#[test]
+fn labelled_marks_sit_under_their_ticks_inside_the_slider_and_add_one_line_of_height() {
+    let (plain, none) = labelled_slider(&[], 200.0);
+    assert!(none.is_empty());
+    let marks = [(8.0, "8"), (64.0, "64"), (128.0, "128"), (256.0, "256")];
+    let (rect, labels) = labelled_slider(&marks, 200.0);
+    assert_eq!(labels.len(), 4);
+    assert!(rect.height() > plain.height(), "{rect:?} {plain:?}");
+    let style = md_style();
+    let line = labels[0].height();
+    assert!(rect.height() - plain.height() < line + 4.0 * style.mark, "grows by about a line: {rect:?}");
+    for label in &labels {
+        assert!(rect.contains_rect(*label), "{label:?} in {rect:?}");
+    }
+    let track = Track::new(Rect::from_min_size(rect.min, vec2(rect.width(), style.height)), &style, Scale::new(&(8.0..=256.0), None));
+    for (label, (value, _)) in labels.iter().zip(marks).filter(|(_, (v, _))| *v == 64.0 || *v == 128.0) {
+        assert!((label.center().x - track.x_of(value)).abs() < 0.6, "centred under {value}: {label:?}");
+    }
+    assert!(labels[0].left() >= rect.left() && labels[3].right() <= rect.right() + 0.01, "ends stay inside: {labels:?}");
+    assert!(labels.iter().all(|l| l.top() > rect.top() + style.height / 2.0), "under the track");
 }
