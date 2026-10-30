@@ -674,6 +674,16 @@ fn tab_selects_the_whole_text_and_a_click_places_the_caret() {
 }
 
 #[test]
+fn a_field_focused_without_a_pointer_selects_its_text() {
+    // A dialog's initial focus is a plain `request_focus`, with no key before it.
+    let mut rig = Rig::new("Layer 1");
+    rig.ctx.memory_mut(|m| m.request_focus(rig.id));
+    rig.frame(vec![]);
+    rig.frame(vec![]);
+    assert_eq!(rig.cursor(), (0, 7));
+}
+
+#[test]
 fn a_search_field_clears_on_esc_and_the_next_esc_leaves_and_goes_on() {
     let mut rig = Rig::search("cat");
     rig.focus();

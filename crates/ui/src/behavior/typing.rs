@@ -15,7 +15,6 @@ use egui::{
 use super::edit_menu;
 use crate::edit::{EditPolicy, EditResponse, Gesture, GestureId, escape_pressed};
 use crate::ime::is_ime_key;
-use crate::primitives::FocusRing;
 use crate::theme::TABULAR_FIGURES;
 
 /// How a field draws the `TextEdit` it runs: the box `TextEdit` covers, the room the field keeps
@@ -160,7 +159,7 @@ pub enum Escape {
 /// - **Host changes**: a host value other than the last reported cancels the run
 ///   ([`CancelReason::External`](crate::edit::CancelReason::External)) and shows the host's
 ///   text; the caret stays where it was, or at the end of a shorter text.
-/// - **Focus**: Tab (or a screen reader) selects the whole text; a click places the caret. An
+/// - **Focus**: a single-line field that gains the focus other than by a press in it (Tab, a dialog's first focus, a screen reader) selects the whole text; a click places the caret. An
 ///   enabled field is a stop of the [`FieldTab`](super::FieldTab) scope it is in, which a
 ///   dialog's Tab visits.
 /// - **Keys of the embedding control**: [`event_filter`](Typing::event_filter) keeps more keys
@@ -500,6 +499,7 @@ impl<'a, C: Codec> Typing<'a, C> {
             codec: self.codec,
             host: self.value,
             was_focused,
+            single_line: self.multiline.is_none(),
             gesture,
             response,
             text,
@@ -569,6 +569,7 @@ pub struct Typed<C: Codec = PlainText> {
     host: C::Value,
     /// The field had the focus at the end of the last pass.
     was_focused: bool,
+    single_line: bool,
     gesture: Gesture<C::Value>,
     response: Response,
     text: String,
@@ -763,7 +764,10 @@ impl<C: Codec> Typed<C> {
         {
             self.rejected = Some(Rejected { text: draft.text, reason: error.reason, host: self.host.clone() });
         }
-        if focused && !self.was_focused && FocusRing::visible(ui.ctx()) {
+        // A press in the field places the caret; any other way in (Tab, a dialog's first focus,
+        // `request_focus`) selects the text.
+        let pointer = ui.input(|i| i.pointer.any_pressed() || i.pointer.any_released()) && self.response.hovered();
+        if focused && !self.was_focused && self.single_line && !pointer {
             select_all(ui, self.id, &self.buffer);
         }
         // Esc stays with the field while it is the input method's or clears text.
