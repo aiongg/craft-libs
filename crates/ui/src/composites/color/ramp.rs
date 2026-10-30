@@ -46,6 +46,11 @@ pub struct ColorRampResponse {
     pub cycle: bool,
     /// The bar's response, for the host's `ContextMenu`.
     pub bar: Response,
+    /// A secondary click that began and ended on the bar: where the host opens its menu, with
+    /// `ContextMenu::open_at(Some(OpenAt::Pointer(pos)))` and `own_gestures(false)` on
+    /// [`bar`](ColorRampResponse::bar). The bar senses drags only, so egui's own secondary click
+    /// never fires on it.
+    pub menu_at: Option<Pos2>,
 }
 
 /// The value the gesture compares picks against: no colour a pick can have.
@@ -77,8 +82,8 @@ const NO_PICK: RampPick = RampPick { color: Srgba::new(-1.0, -1.0, -1.0, -1.0), 
 ///   [`Set`](crate::edit::EditEvent::Set). A [`Between`](RampKind::Between) ramp keeps the ends
 ///   it had at the press for the whole gesture. Alt at the press sets
 ///   [`other`](RampPick::other) on every event. A press with Shift starts no gesture; releasing
-///   it without moving sets [`cycle`](ColorRampResponse::cycle). A right-click is the host's
-///   `ContextMenu` on [`bar`](ColorRampResponse::bar).
+///   it without moving sets [`cycle`](ColorRampResponse::cycle). A right-click on the bar is
+///   reported as [`menu_at`](ColorRampResponse::menu_at) for the host's `ContextMenu`.
 /// - Boxes: a click on the white or the black box (also by keyboard) is a
 ///   [`Set`](crate::edit::EditEvent::Set) of that colour; they are Tab stops of their own.
 /// - Keys, with the bar focused: it has a cursor cell, starting at the left end of the middle row,
@@ -247,6 +252,7 @@ impl<'a> ColorRamp<'a> {
         let response = sensed.response().clone();
         let (id, enabled) = (response.id, response.enabled());
         let mods = ui.input(|i| i.modifiers);
+        let menu_at = secondary_click(ui, &response, bar);
 
         // The host holds no pick, so the gesture compares against the one it last reported while it
         // runs: reading that as the host's echo keeps it from being cancelled as an outside change.
@@ -263,13 +269,14 @@ impl<'a> ColorRamp<'a> {
         let press_key = id.with("craft_ui::ramp_press");
         let mut press =
             ui.data(|d| d.get_temp::<Press>(press_key)).unwrap_or(Press { shift: false, alt: false, moved: false, origin: None, ends: self.ends });
+        let press_mods = press_modifiers(ui, id, mods, waits, started.is_some() || tapped.is_some(), matches!(turn, PressTurn::Held(_)));
         let new_press = !waits && (started.is_some() || tapped.is_some() || matches!(turn, PressTurn::Held(_)));
         if new_press {
             let origin = match turn {
                 PressTurn::Held(at) => Some(at),
                 _ => started.or(tapped),
             };
-            press = Press { shift: mods.shift, alt: mods.alt, moved: false, origin, ends: self.ends };
+            press = Press { shift: press_mods.shift, alt: press_mods.alt, moved: false, origin, ends: self.ends };
         }
         let ends = if dragging && !new_press { press.ends } else { self.ends };
         let cell_at = |pos: Pos2| cell_of(bar, nx, ny, pos);
@@ -289,7 +296,7 @@ impl<'a> ColorRamp<'a> {
                 cycle = !dragging;
             } else {
                 gesture.begin();
-                gesture.update(pick_at(held, press.alt), mods);
+                gesture.update(pick_at(held, press.alt), press_mods);
                 if !dragging {
                     gesture.commit();
                 }
@@ -366,7 +373,7 @@ impl<'a> ColorRamp<'a> {
         }
         let focused = response.has_focus();
         if ui.is_rect_visible(all) {
-            let colors = self.colors(ui, id, nx, ny);
+            let colors = self.colors(ui, id, nx, ny, ends);
             ui.painter().add(ramp_mesh(bar, &colors, nx, ny, self.web_safe));
             ui.painter().rect_stroke(bar, CornerRadius::ZERO, faded_stroke(style.edge, enabled), StrokeKind::Outside);
             if focused && FocusRing::visible(ui.ctx()) {
@@ -380,17 +387,8 @@ impl<'a> ColorRamp<'a> {
         }
         FocusRing::paint_if(ui, all.expand(style.edge.width), CornerRadius::ZERO, focused || box_focus);
         let event = gesture.finish();
-        match &event {
-            Some(EditEvent::Update { value, .. }) => {
-                let value = *value;
-                ui.data_mut(|d| d.insert_temp(host_key, value));
-            }
-            Some(EditEvent::Begin { .. }) | None => {}
-            Some(_) => {
-                ui.data_mut(|d| d.insert_temp(host_key, NO_PICK));
-            }
-        }
-        ColorRampResponse { edit: EditResponse::new(response.clone(), event), cycle, bar: response }
+        remember_host(ui, host_key, &event);
+        ColorRampResponse { edit: EditResponse::new(response.clone(), event), cycle, bar: response, menu_at }
     }
 
     /// The white and black boxes, each a [`Set`](EditEvent::Set) of its colour through `gesture`;
@@ -423,13 +421,14 @@ impl<'a> ColorRamp<'a> {
         box_focus
     }
 
-    /// The colours of the mesh, from the cache while nothing they depend on has changed: 49 by 9
+    /// The colours of the mesh for `ends` (the ones a pick uses, so a dragged Between ramp stays
+    /// as the press drew it), from the cache while nothing they depend on has changed: 49 by 9
     /// vertices, or 48 by 8 cell centres for a web-safe ramp.
-    fn colors(&self, ui: &Ui, id: egui::Id, nx: usize, ny: usize) -> Arc<Vec<Color32>> {
+    fn colors(&self, ui: &Ui, id: egui::Id, nx: usize, ny: usize, ends: [Srgba; 2]) -> Arc<Vec<Color32>> {
         let mut hasher = DefaultHasher::new();
         (self.kind, self.web_safe, nx, ny).hash(&mut hasher);
         if self.kind == RampKind::Between {
-            self.ends.iter().for_each(|c| [c.r, c.g, c.b, c.a].map(f32::to_bits).hash(&mut hasher));
+            ends.iter().for_each(|c| [c.r, c.g, c.b, c.a].map(f32::to_bits).hash(&mut hasher));
         }
         if self.kind == RampKind::Spectrum {
             (self.gamut.is_some(), self.gamut_revision).hash(&mut hasher);
@@ -446,7 +445,7 @@ impl<'a> ColorRamp<'a> {
         for row in 0..rows {
             for col in 0..cols {
                 let (x, y) = ((col as f32 + half) / nx as f32, (row as f32 + half) / ny as f32);
-                colors.push(Color32::from(ColorRamp::color_at(self.kind, self.web_safe, self.gamut, self.ends, x, y)));
+                colors.push(Color32::from(ColorRamp::color_at(self.kind, self.web_safe, self.gamut, ends, x, y)));
             }
         }
         let colors = Arc::new(colors);
@@ -467,6 +466,64 @@ struct Press {
     moved: bool,
     origin: Option<Pos2>,
     ends: [Srgba; 2],
+}
+
+/// Keeps the pick the gesture last reported as the value it compares against while it runs, and
+/// forgets it when the gesture ends.
+fn remember_host(ui: &Ui, key: egui::Id, event: &Option<EditEvent<RampPick>>) {
+    match event {
+        Some(EditEvent::Update { value, .. }) => ui.data_mut(|d| {
+            d.insert_temp(key, *value);
+        }),
+        Some(EditEvent::Begin { .. }) | None => {}
+        Some(_) => ui.data_mut(|d| {
+            d.insert_temp(key, NO_PICK);
+        }),
+    }
+}
+
+/// The modifiers of the press this pass runs. A press that waits keeps the ones it arrived with:
+/// the pass that runs it may see others.
+fn press_modifiers(ui: &Ui, id: egui::Id, mods: Modifiers, waits: bool, arrived: bool, held: bool) -> Modifiers {
+    let key = id.with("craft_ui::ramp_waiting_mods");
+    if waits && arrived {
+        ui.data_mut(|d| d.insert_temp(key, mods));
+    }
+    let kept = if held { ui.data_mut(|d| d.remove_temp::<Modifiers>(key)) } else { None };
+    kept.unwrap_or(mods)
+}
+
+/// The position of a secondary click this frame whose press and release were both on `bar` and
+/// not under another layer. Read from the raw events because the bar senses drags only.
+fn secondary_click(ui: &Ui, response: &Response, bar: Rect) -> Option<Pos2> {
+    if !response.enabled() {
+        return None;
+    }
+    let key = response.id.with("craft_ui::ramp_secondary");
+    let mut origin = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
+    let on_bar = |pos: Pos2| bar.contains(pos) && ui.ctx().layer_id_at(pos) == Some(response.layer_id);
+    let mut click = None;
+    let presses: Vec<(Pos2, bool)> = ui.input(|i| {
+        i.events
+            .iter()
+            .filter_map(|e| match e {
+                egui::Event::PointerButton { pos, button: PointerButton::Secondary, pressed, .. } => Some((*pos, *pressed)),
+                _ => None,
+            })
+            .collect()
+    });
+    for (pos, pressed) in presses {
+        if pressed {
+            origin = on_bar(pos);
+        } else {
+            if origin && on_bar(pos) {
+                click = Some(pos);
+            }
+            origin = false;
+        }
+    }
+    ui.data_mut(|d| d.insert_temp(key, origin));
+    click
 }
 
 /// `pos` as fractions of `bar`, kept inside it.

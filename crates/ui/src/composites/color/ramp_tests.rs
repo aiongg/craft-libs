@@ -28,7 +28,9 @@ struct Rig {
     gamut_calls: Cell<usize>,
     events: Vec<EditEvent<RampPick>>,
     cycles: usize,
+    menu_at: Option<Pos2>,
     bar: Rect,
+    bar_id: egui::Id,
     nodes: Vec<(NodeId, Node)>,
 }
 
@@ -47,7 +49,9 @@ impl Rig {
             gamut_calls: Cell::new(0),
             events: Vec::new(),
             cycles: 0,
+            menu_at: None,
             bar: Rect::NOTHING,
+            bar_id: egui::Id::NULL,
             nodes: Vec::new(),
         };
         rig.settle();
@@ -81,7 +85,9 @@ impl Rig {
         let Some(shown) = shown else { return };
         self.events.extend(shown.edit.event);
         self.cycles += usize::from(shown.cycle);
+        self.menu_at = shown.menu_at.or(self.menu_at);
         self.bar = shown.bar.rect;
+        self.bar_id = shown.bar.id;
         self.nodes = output.platform_output.accesskit_update.clone().map(|u| u.nodes).unwrap_or_default();
         output.drop_without_applying_deltas();
     }
@@ -314,4 +320,92 @@ fn accesskit_names_the_group_with_its_kind_and_the_boxes() {
     assert_eq!(group.value(), Some("RGB Spectrum"));
     rig.node(Role::Button, "White");
     rig.node(Role::Button, "Black");
+}
+
+#[test]
+fn a_right_click_on_the_bar_asks_the_host_for_its_menu() {
+    let mut rig = Rig::new(RampKind::Spectrum);
+    let secondary = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    let at = rig.at(0.3, 0.5);
+    rig.time += 1.0;
+    rig.frame(vec![Event::PointerMoved(at), secondary(at, true)]);
+    rig.frame(vec![secondary(at, false)]);
+    assert_eq!(rig.menu_at, Some(at));
+    assert!(rig.take().is_empty(), "a right-click picks nothing");
+
+    // One frame, and a press that began outside the bar, which is no click on it.
+    rig.menu_at = None;
+    rig.time += 1.0;
+    rig.frame(vec![Event::PointerMoved(at), secondary(at, true), secondary(at, false)]);
+    assert_eq!(rig.menu_at, Some(at), "press and release in one frame");
+    rig.menu_at = None;
+    let off = pos2(rig.bar.left() - 5.0, rig.bar.center().y);
+    rig.time += 1.0;
+    rig.frame(vec![Event::PointerMoved(off), secondary(off, true)]);
+    rig.frame(vec![Event::PointerMoved(at), secondary(at, false)]);
+    assert_eq!(rig.menu_at, None);
+}
+
+#[test]
+fn a_between_ramp_draws_the_ends_it_had_at_the_press_while_dragged() {
+    let mut rig = Rig::new(RampKind::Between);
+    let left = |rig: &Rig| {
+        let key = rig.bar_id.with("craft_ui::ramp_cache");
+        let cached = rig.ctx.data(|d| d.get_temp::<(u64, std::sync::Arc<Vec<egui::Color32>>)>(key));
+        cached.and_then(|(_, colors)| colors.first().copied())
+    };
+    assert_eq!(left(&rig), Some(egui::Color32::from(RED)));
+    let at = rig.at(0.5, 0.5);
+    rig.frame(vec![Event::PointerMoved(at), button(at, true, Modifiers::NONE)]);
+    rig.ends = [Srgba::rgb(0.0, 1.0, 0.0), Srgba::rgb(0.0, 1.0, 0.0)];
+    let to = rig.at(0.75, 0.5);
+    rig.frame(vec![Event::PointerMoved(to)]);
+    rig.frame(vec![Event::PointerMoved(to)]);
+    assert_eq!(left(&rig), Some(egui::Color32::from(RED)), "the bar keeps the press's colours under the pointer");
+    rig.frame(vec![button(to, false, Modifiers::NONE)]);
+    rig.settle();
+    assert_eq!(left(&rig), Some(egui::Color32::from(Srgba::rgb(0.0, 1.0, 0.0))), "after the release it follows the host");
+}
+
+/// A ramp beside a number field, with `press_waits`: Alt is held at the press during the field's
+/// typing run and released before the run's commit lets the press run.
+#[test]
+fn a_waiting_press_keeps_the_modifiers_it_arrived_with() {
+    use crate::controls::NumberField;
+    use crate::localized::LocaleNumbers;
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut time = 0.0;
+    let mut picks = Vec::new();
+    let mut bar = Rect::NOTHING;
+    let mut field = egui::Id::NULL;
+    let mut frame = |events: Vec<Event>, picks: &mut Vec<RampPick>, bar: &mut Rect, field: &mut egui::Id| {
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), time: Some(time), events, ..Default::default() };
+        time += 1.0 / 60.0;
+        let output = ctx.run_ui(input, |ui| {
+            *field = NumberField::new("hue", "Hue", 10.0, &numbers).part(true).show(ui).response.id;
+            let ramp = ColorRamp::new("ramp", "Color ramp", RampKind::Spectrum).press_waits(true).show(ui);
+            picks.extend(ramp.edit.event.as_ref().and_then(|e| e.value()));
+            *bar = ramp.bar.rect;
+        });
+        output.drop_without_applying_deltas();
+    };
+    frame(vec![], &mut picks, &mut bar, &mut field);
+    ctx.memory_mut(|m| m.request_focus(field));
+    frame(vec![], &mut picks, &mut bar, &mut field);
+    frame(vec![Event::Text("12".to_owned())], &mut picks, &mut bar, &mut field);
+    frame(vec![], &mut picks, &mut bar, &mut field);
+    let at = bar.center();
+    let alt = Modifiers::ALT;
+    frame(
+        vec![Event::ModifiersChanged(alt), Event::PointerMoved(at), button(at, true, alt), button(at, false, alt)],
+        &mut picks,
+        &mut bar,
+        &mut field,
+    );
+    assert!(picks.is_empty(), "the press waits");
+    frame(vec![Event::ModifiersChanged(Modifiers::NONE)], &mut picks, &mut bar, &mut field);
+    assert!(!picks.is_empty() && picks.iter().all(|p| p.other), "the pick is Alt's: {picks:?}");
 }

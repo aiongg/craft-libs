@@ -255,11 +255,10 @@ impl ColorWheel {
         self
     }
 
-    /// Whether the wheel is a part of a panel with number fields, whose press takes its turn from
-    /// the edit order ([`press_turn`]).
-    #[allow(dead_code)]
-    pub(crate) fn part(mut self, part: bool) -> Self {
-        self.part = part;
+    /// Whether a press waits for another control's typing run to commit and then edits the values
+    /// that run left: on inside a panel with number fields, off standalone.
+    pub fn press_waits(mut self, waits: bool) -> Self {
+        self.part = waits;
         self
     }
 
@@ -307,10 +306,12 @@ impl ColorWheel {
         let ring_id = Interactive::id_in(ui, "ring");
         let triangle_id = Interactive::id_in(ui, "triangle");
 
-        // One widget takes every press and drag; the focus goes to the two part widgets.
+        // One widget takes every press and drag; the focus goes to the two part widgets. It covers
+        // the wheel's square and the grab slack only, so presses beside it reach what lies there.
         let pointer_id = id.with("pointer");
         let options = InteractOptions { enabled: self.enabled, ..Default::default() };
-        let response = ui.interact_opt(area, pointer_id, Sense::DRAG, options);
+        let reach = Rect::from_center_size(geometry.center, Vec2::splat(2.0 * (geometry.outer + style.grab_outer))).intersect(area);
+        let response = ui.interact_opt(reach, pointer_id, Sense::DRAG, options);
         let enabled = response.enabled();
         let grab = |p: Pos2| geometry.part_at(p, style.grab_outer, style.grab_inner);
 
@@ -340,12 +341,17 @@ impl ColorWheel {
         let origin = response.drag_started_by(egui::PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
         let press = origin.or(tapped).filter(|p| grab(*p).is_some());
         let turn = press_turn(ui, pointer_id, self.part, gesture.id(), press);
+        // The part the press took, for the whole drag: the press is in layer coordinates, and so
+        // is every drag position.
+        let part_key = pointer_id.with("craft_ui::wheel_part");
+        let mut pressed_part = ui.data(|d| d.get_temp::<Option<WheelPart>>(part_key)).flatten();
         // The part to give the focus this frame.
         let mut focus = None;
         if let PressTurn::Held(held) = turn
             && let Some(part) = grab(held)
         {
             focus = Some(part);
+            pressed_part = Some(part);
             gesture.begin();
             if let Some(start) = gesture.start().copied() {
                 gesture.update(value_at(&geometry, &start, part, held), modifiers());
@@ -358,20 +364,22 @@ impl ColorWheel {
         if let Some(part) = origin.and_then(grab) {
             focus = Some(part);
             if !waits {
+                pressed_part = Some(part);
                 gesture.begin();
             }
         }
         if response.dragged_by(egui::PointerButton::Primary)
             && let Some(start) = gesture.start().copied()
             && let Some(pos) = response.interact_pointer_pos()
-            && let Some(origin) = ui.input(|i| i.pointer.press_origin())
-            && let Some(part) = grab(origin)
+            && let Some(part) = pressed_part
         {
             gesture.update(value_at(&geometry, &start, part, pos), modifiers());
         }
         if response.drag_stopped() {
             gesture.commit();
+            pressed_part = None;
         }
+        ui.data_mut(|d| d.insert_temp(part_key, pressed_part));
         if let Some(pos) = tapped.filter(|_| !waits)
             && let Some(part) = grab(pos)
         {

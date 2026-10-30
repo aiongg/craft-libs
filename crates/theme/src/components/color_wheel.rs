@@ -54,10 +54,11 @@ impl Family for ColorWheelTokens {
     const FIELDS: &'static [ColorWheelField] = &[ColorWheelField::Spoke];
 
     /// The Compact sizes (PhotoCraft's wheel, VectorCraft's harmony wheel), scaled by the control
-    /// height of the size and rounded to whole points; proportions stay.
+    /// height of the size; a scaled value is rounded to whole points, the Compact values are not;
+    /// proportions stay.
     fn defaults(s: &Semantic<'_>) -> ColorWheelTokens {
         let k = s.size.control.md / values::COLOR_WHEEL_BASE_CONTROL;
-        let scale = |w: f32| (w * k).round();
+        let scale = |w: f32| if k == 1.0 { w } else { (w * k).round() };
         ColorWheelTokens {
             side: scale(values::COLOR_WHEEL_SIDE),
             side_min: scale(values::COLOR_WHEEL_SIDE_MIN),

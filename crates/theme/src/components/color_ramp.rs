@@ -33,7 +33,7 @@ impl Family for ColorRampTokens {
     /// The Compact sizes, scaled by the control height of the size and rounded to whole points.
     fn defaults(s: &Semantic<'_>) -> ColorRampTokens {
         let k = s.size.control.md / values::COLOR_WHEEL_BASE_CONTROL;
-        let scale = |w: f32| (w * k).round();
+        let scale = |w: f32| if k == 1.0 { w } else { (w * k).round() };
         ColorRampTokens {
             height: scale(values::COLOR_RAMP_HEIGHT),
             height_min: scale(values::COLOR_RAMP_HEIGHT_MIN),

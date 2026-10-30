@@ -25,6 +25,8 @@ struct Rig {
     time: f64,
     colors: [Srgba; 3],
     selected: Option<usize>,
+    /// Whether the host keeps its colours to 8 bits per channel.
+    eight_bit: bool,
     pressed: Option<usize>,
     event: Option<EditEvent<DiscMove>>,
     center: Pos2,
@@ -44,6 +46,7 @@ impl Rig {
             time: 0.0,
             colors: [color(0.0, 80.0, 90.0), color(120.0, 60.0, 70.0), color(250.0, 40.0, 50.0)],
             selected: Some(0),
+            eight_bit: false,
             pressed: None,
             event: None,
             center: Pos2::ZERO,
@@ -72,7 +75,9 @@ impl Rig {
         });
         if let Some(v) = self.event.as_ref().and_then(|e| e.value()) {
             let b = hsb(self.colors[v.marker])[2];
-            self.colors[v.marker] = color(v.hue, v.saturation * 100.0, b);
+            let c = color(v.hue, v.saturation * 100.0, b);
+            let q = |x: f32| (x * 255.0).round() / 255.0;
+            self.colors[v.marker] = if self.eight_bit { Srgba::new(q(c.r), q(c.g), q(c.b), c.a) } else { c };
         }
         if let Some(p) = self.pressed {
             self.selected = Some(p);
@@ -209,4 +214,74 @@ fn accesskit_names_the_group_and_a_slider_per_marker() {
         assert_eq!(node.role(), Role::Slider);
         assert_eq!(node.value(), Some(value));
     }
+}
+
+fn moves(rig: &Rig) -> bool {
+    rig.event.as_ref().is_some_and(|e| matches!(e, EditEvent::Update { .. }))
+}
+
+#[test]
+fn a_black_marker_keeps_its_drag_when_the_host_echoes_a_colour_without_hue() {
+    let mut rig = Rig::new();
+    rig.colors[0] = color(0.0, 0.0, 0.0);
+    rig.press(rig.center);
+    assert!(matches!(rig.event, Some(EditEvent::Begin { .. })), "{:?}", rig.event);
+    for (hue, saturation) in [(90.0, 0.4), (120.0, 0.6), (200.0, 0.7)] {
+        rig.drag(rig.at(hue, saturation));
+        assert!(moves(&rig), "the drag goes on at {hue}: {:?}", rig.event);
+    }
+    rig.release(rig.at(200.0, 0.7));
+    assert!(matches!(rig.event, Some(EditEvent::Commit { changed: true, .. })), "{:?}", rig.event);
+}
+
+#[test]
+fn a_drag_near_the_centre_survives_a_host_that_loses_hue_to_8_bits() {
+    let mut rig = Rig::new();
+    rig.eight_bit = true;
+    let start = rig.at(0.0, 0.8);
+    rig.press(start);
+    for (hue, saturation) in [(90.0, 0.2), (95.0, 0.02), (100.0, 0.01), (110.0, 0.01)] {
+        rig.drag(rig.at(hue, saturation));
+        assert!(moves(&rig), "the drag goes on at {hue}, {saturation}: {:?}", rig.event);
+    }
+    rig.release(rig.center);
+    assert!(matches!(rig.event, Some(EditEvent::Commit { .. })), "{:?}", rig.event);
+}
+
+#[test]
+fn a_colour_changed_outside_the_drag_still_cancels_it() {
+    let mut rig = Rig::new();
+    rig.press(rig.at(0.0, 0.8));
+    rig.drag(rig.at(60.0, 0.5));
+    rig.colors[0] = color(200.0, 30.0, 90.0);
+    rig.drag(rig.at(70.0, 0.5));
+    assert!(matches!(rig.event, Some(EditEvent::Cancel { .. })), "{:?}", rig.event);
+}
+
+/// A host's widget under the disc's row, beside the disc, takes the click.
+#[test]
+fn a_click_beside_the_disc_reaches_the_widget_under_it() {
+    use egui::Sense;
+    let mut rig = Rig::new();
+    let beside = rig.center + vec2(rig.radius + rig.style.map_or(0.0, |s| s.grab) + 20.0, 0.0);
+    let mut clicked = false;
+    let colors = rig.colors;
+    let mut frame = |rig: &mut Rig, events: Vec<Event>| {
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(rig.time), events, ..Default::default() };
+        rig.time += 1.0 / 60.0;
+        let ctx = rig.ctx.clone();
+        let output = ctx.run_ui(input, |ui| {
+            let under =
+                ui.interact_opt(Rect::from_center_size(beside, vec2(10.0, 10.0)), ui.scope_id().with("under"), Sense::click(), Default::default());
+            clicked |= under.clicked();
+            ColorDisc::new("disc", "Harmony", &colors).selected(Some(0)).side(150.0).show(ui);
+        });
+        output.drop_without_applying_deltas();
+    };
+    frame(&mut rig, vec![]);
+    frame(&mut rig, vec![Event::PointerMoved(beside)]);
+    frame(&mut rig, vec![button(beside, true)]);
+    frame(&mut rig, vec![button(beside, false)]);
+    assert!(clicked, "the disc does not sense presses beside itself");
 }

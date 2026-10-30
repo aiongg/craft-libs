@@ -1,7 +1,7 @@
 //! [`ColorDisc`]: a hue and saturation disc with one draggable marker per colour of a set, as
 //! VectorCraft's harmony wheel.
 
-use craft_theme::{ColorModel, HsbModel, Srgba};
+use craft_theme::{ColorModel, HsbModel, ModelValues, Srgba};
 use egui::accesskit::{Action, Role};
 use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, Key, Mesh, Modifiers, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, vec2};
 
@@ -16,29 +16,14 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 const SEGMENTS: u32 = 72;
 const RINGS: u32 = 8;
 
-/// Less than this apart, two saturations are one (the colour round trip is not exact), and below
-/// it a colour is grey and has no hue.
-const SATURATION_EPSILON: f32 = 0.005;
-
 /// A marker's place on the disc: what a drag or a key changes.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DiscMove {
     pub marker: usize,
     /// Degrees, 0 to 360, red at 0 and growing counter-clockwise.
     pub hue: f32,
     /// 0 (the centre) to 1 (the rim).
     pub saturation: f32,
-}
-
-impl PartialEq for DiscMove {
-    /// Equal within the precision of a colour round trip; a grey's hue is not compared.
-    fn eq(&self, other: &Self) -> bool {
-        let apart = (self.hue - other.hue).abs().rem_euclid(360.0);
-        let apart = apart.min(360.0 - apart);
-        self.marker == other.marker
-            && (self.saturation - other.saturation).abs() < SATURATION_EPSILON
-            && (apart < 0.5 || (self.saturation < SATURATION_EPSILON && other.saturation < SATURATION_EPSILON))
-    }
 }
 
 /// The disc's sizes, colours and the strokes it shares with [`ColorWheel`], from
@@ -231,7 +216,9 @@ impl ColorDisc {
 
         let pointer_id = id.with("pointer");
         let options = InteractOptions { enabled: self.enabled, ..Default::default() };
-        let response = ui.interact_opt(area, pointer_id, Sense::DRAG, options);
+        // Only the disc and the markers' grab slack take presses; the rest of the row is the host's.
+        let reach = Rect::from_center_size(center, vec2(2.0 * (radius + style.grab), 2.0 * (radius + style.grab))).intersect(area);
+        let response = ui.interact_opt(reach, pointer_id, Sense::DRAG, options);
         let enabled = response.enabled();
 
         let tapped = tap(ui, &response);
@@ -245,11 +232,21 @@ impl ColorDisc {
         let resting = self.selected.filter(|&s| s < self.markers.len()).unwrap_or(0);
         let stop = grabbed.or(requested).unwrap_or(resting);
         // The marker a running drag moves keeps its place as the host's value.
-        let active = Gesture::<DiscMove>::reported(ui, pointer_id).map(|(_, v)| v.marker);
-        let held = grabbed.or(active).unwrap_or(stop);
+        let reported = Gesture::<DiscMove>::reported(ui, pointer_id).map(|(_, v)| v);
+        let held = grabbed.or(reported.map(|v| v.marker)).unwrap_or(stop);
+        // The host's colour need not hold what the drag reported: black has no hue, and a colour
+        // near the centre loses it to the host's precision. While the colour the reported value
+        // makes is the host's own, to its 8-bit channels, the reported value is the host's value;
+        // any other colour is an outside change, which cancels the drag.
+        let host = match (reported, hsb.get(held)) {
+            (Some(r), Some(v)) if r.marker == held => {
+                let echo = HsbModel.to_srgb(&ModelValues::new("hsb", &[r.hue, r.saturation * 100.0, v[2]]).values);
+                if echo.same_rgb8(self.markers[held]) { r } else { marker_value(held) }
+            }
+            _ => marker_value(held),
+        };
 
-        let mut gesture =
-            Gesture::load(ui, pointer_id, &marker_value(held), self.policy).focus_owners(&ids).event_filter(KEY_FILTER).enabled(enabled);
+        let mut gesture = Gesture::load(ui, pointer_id, &host, self.policy).focus_owners(&ids).event_filter(KEY_FILTER).enabled(enabled);
         let modifiers = || ui.input(|i| i.modifiers);
         let value_at = |base: &DiscMove, pos: Pos2| {
             let offset = pos - center;

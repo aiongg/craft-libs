@@ -31,7 +31,7 @@ impl Family for GradientPaletteTokens {
     /// The Compact sizes, scaled by the control height of the size and rounded to whole points.
     fn defaults(s: &Semantic<'_>) -> GradientPaletteTokens {
         let k = s.size.control.md / values::COLOR_WHEEL_BASE_CONTROL;
-        let scale = |w: f32| (w * k).round();
+        let scale = |w: f32| if k == 1.0 { w } else { (w * k).round() };
         GradientPaletteTokens {
             cell_width: scale(values::GRADIENT_PALETTE_CELL_WIDTH),
             cell_height: scale(values::GRADIENT_PALETTE_CELL_HEIGHT),
