@@ -126,9 +126,125 @@ pub struct ListTokens {
     pub ghost_fill: Rgba,
     /// The drag ghost's border: `accent.solid`.
     pub ghost_border: Rgba,
+    /// The colours of each of PhotoCraft's label colours, in [`LabelColor::ALL`] order:
+    /// `list.label.<color>.*`. Label colours are data colours, the same in every theme.
+    pub labels: [LabelTint; LabelColor::ALL.len()],
+}
+
+/// PhotoCraft's layer label colours (`LabelColor`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum LabelColor {
+    Red,
+    Orange,
+    Yellow,
+    Green,
+    Seafoam,
+    Blue,
+    Indigo,
+    Magenta,
+    Fuchsia,
+    Violet,
+    Gray,
+}
+
+impl LabelColor {
+    /// Every label colour, in path order.
+    pub const ALL: [LabelColor; 11] = [
+        LabelColor::Red,
+        LabelColor::Orange,
+        LabelColor::Yellow,
+        LabelColor::Green,
+        LabelColor::Seafoam,
+        LabelColor::Blue,
+        LabelColor::Indigo,
+        LabelColor::Magenta,
+        LabelColor::Fuchsia,
+        LabelColor::Violet,
+        LabelColor::Gray,
+    ];
+
+    /// The path segment.
+    pub const fn name(self) -> &'static str {
+        match self {
+            LabelColor::Red => "red",
+            LabelColor::Orange => "orange",
+            LabelColor::Yellow => "yellow",
+            LabelColor::Green => "green",
+            LabelColor::Seafoam => "seafoam",
+            LabelColor::Blue => "blue",
+            LabelColor::Indigo => "indigo",
+            LabelColor::Magenta => "magenta",
+            LabelColor::Fuchsia => "fuchsia",
+            LabelColor::Violet => "violet",
+            LabelColor::Gray => "gray",
+        }
+    }
+
+    fn from_name(name: &str) -> Option<LabelColor> {
+        Self::ALL.into_iter().find(|c| c.name() == name)
+    }
+
+    /// PhotoCraft's colours for this label: the eye-cell fill and the swatch.
+    const fn default_tint(self) -> LabelTint {
+        let (fill, swatch) = match self {
+            LabelColor::Red => (Rgba::rgb(0x9F, 0x2F, 0x30), Rgba::rgb(0xFC, 0x5D, 0x5B)),
+            LabelColor::Orange => (Rgba::rgb(0x93, 0x4F, 0x0C), Rgba::rgb(0xF7, 0x97, 0x44)),
+            LabelColor::Yellow => (Rgba::rgb(0x99, 0x78, 0x0C), Rgba::rgb(0xDC, 0xD6, 0x4B)),
+            LabelColor::Green => (Rgba::rgb(0x4E, 0x71, 0x2E), Rgba::rgb(0x85, 0xDC, 0x6A)),
+            LabelColor::Seafoam => (Rgba::rgb(0x0B, 0x54, 0x4F), Rgba::rgb(0x1C, 0x84, 0x88)),
+            LabelColor::Blue => (Rgba::rgb(0x41, 0x5B, 0x87), Rgba::rgb(0x78, 0xAD, 0xF6)),
+            LabelColor::Indigo => (Rgba::rgb(0x36, 0x34, 0x8E), Rgba::rgb(0x54, 0x4B, 0xE7)),
+            LabelColor::Magenta => (Rgba::rgb(0x98, 0x1B, 0x51), Rgba::rgb(0xCC, 0x1A, 0x7E)),
+            LabelColor::Fuchsia => (Rgba::rgb(0x71, 0x0F, 0x74), Rgba::rgb(0xB0, 0x14, 0xC0)),
+            LabelColor::Violet => (Rgba::rgb(0x5D, 0x3F, 0x8E), Rgba::rgb(0x91, 0x76, 0xD5)),
+            LabelColor::Gray => (Rgba::rgb(0x57, 0x57, 0x57), Rgba::rgb(0x9C, 0x9C, 0x9C)),
+        };
+        LabelTint { fill, icon: Rgba::rgb(0xE2, 0xE2, 0xE2), swatch }
+    }
+}
+
+/// The colours of one label colour.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LabelTint {
+    /// Behind a toggle cell (the eye) of a row with this label.
+    pub fill: Rgba,
+    /// The toggle cell's icon on `fill`.
+    pub icon: Rgba,
+    /// The label's swatch, as in a colour menu.
+    pub swatch: Rgba,
+}
+
+/// One colour of a [`LabelTint`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum LabelPart {
+    /// `fill`
+    Fill,
+    /// `icon`
+    Icon,
+    /// `swatch`
+    Swatch,
+}
+
+impl LabelPart {
+    /// Every part, in path order.
+    pub const ALL: [LabelPart; 3] = [LabelPart::Fill, LabelPart::Icon, LabelPart::Swatch];
+
+    /// The path segment.
+    pub const fn name(self) -> &'static str {
+        match self {
+            LabelPart::Fill => "fill",
+            LabelPart::Icon => "icon",
+            LabelPart::Swatch => "swatch",
+        }
+    }
 }
 
 impl ListTokens {
+    /// The colours of the label colour `color`.
+    pub fn label(&self, color: LabelColor) -> LabelTint {
+        self.labels[color as usize]
+    }
+
     /// The height of a row with a thumbnail of side `thumb`: the thumbnail and its padding, at
     /// least `thumb_row_min`.
     pub fn thumb_row(&self, thumb: f32) -> f32 {
@@ -204,6 +320,14 @@ impl ListTokens {
     fn color_mut(&mut self, f: ListField) -> Option<&mut Rgba> {
         Some(match f {
             ListField::Radius | ListField::ThumbRadius | ListField::LayerRadius => return None,
+            ListField::Label(color, part) => {
+                let tint = &mut self.labels[color as usize];
+                match part {
+                    LabelPart::Fill => &mut tint.fill,
+                    LabelPart::Icon => &mut tint.icon,
+                    LabelPart::Swatch => &mut tint.swatch,
+                }
+            }
             ListField::Text => &mut self.text,
             ListField::Dimmed => &mut self.dimmed,
             ListField::SelectedText => &mut self.selected_text,
@@ -237,7 +361,7 @@ impl ListTokens {
 /// `selected`, `selected.hover`, `divider`, `thumb.border`, `thumb.border.selected`, `thumb.radius`,
 /// `layer.hover`, `layer.selected`, `layer.outline`, `layer.radius`, `layer.text.selected`,
 /// `layer.text.selected.dimmed`, `layer.detail.selected`, `drop`, `drop.halo`, `ghost.fill`,
-/// `ghost.border`, e.g. `list.selected.hover`.
+/// `ghost.border` and `label.<color>.<fill|icon|swatch>`, e.g. `list.selected.hover`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ListField {
     /// `list.radius`
@@ -294,11 +418,14 @@ pub enum ListField {
     GhostFill,
     /// `list.ghost.border`
     GhostBorder,
+    /// `list.label.<color>.<fill|icon|swatch>`
+    Label(LabelColor, LabelPart),
 }
 
 impl ListField {
     const fn path(self) -> &'static str {
         match self {
+            ListField::Label(..) => "label",
             ListField::Radius => "radius",
             ListField::Text => "text",
             ListField::Dimmed => "text.dimmed",
@@ -330,37 +457,56 @@ impl ListField {
     }
 }
 
+const BASE_FIELDS: [ListField; 27] = [
+    ListField::Radius,
+    ListField::Text,
+    ListField::Dimmed,
+    ListField::SelectedText,
+    ListField::SelectedDimmed,
+    ListField::Detail,
+    ListField::SelectedDetail,
+    ListField::Icon,
+    ListField::IconHover,
+    ListField::Hover,
+    ListField::Selected,
+    ListField::SelectedHover,
+    ListField::Divider,
+    ListField::ThumbBorder,
+    ListField::ThumbBorderSelected,
+    ListField::ThumbRadius,
+    ListField::LayerHover,
+    ListField::LayerSelected,
+    ListField::LayerOutline,
+    ListField::LayerRadius,
+    ListField::LayerSelectedText,
+    ListField::LayerSelectedDimmed,
+    ListField::LayerSelectedDetail,
+    ListField::Drop,
+    ListField::DropHalo,
+    ListField::GhostFill,
+    ListField::GhostBorder,
+];
+
+const FIELD_COUNT: usize = BASE_FIELDS.len() + LabelColor::ALL.len() * LabelPart::ALL.len();
+
+const FIELDS: [ListField; FIELD_COUNT] = {
+    let mut out = [ListField::Radius; FIELD_COUNT];
+    let mut i = 0;
+    while i < BASE_FIELDS.len() {
+        out[i] = BASE_FIELDS[i];
+        i += 1;
+    }
+    while i < FIELD_COUNT {
+        let n = i - BASE_FIELDS.len();
+        out[i] = ListField::Label(LabelColor::ALL[n / LabelPart::ALL.len()], LabelPart::ALL[n % LabelPart::ALL.len()]);
+        i += 1;
+    }
+    out
+};
+
 impl Family for ListTokens {
     type Field = ListField;
-    const FIELDS: &'static [ListField] = &[
-        ListField::Radius,
-        ListField::Text,
-        ListField::Dimmed,
-        ListField::SelectedText,
-        ListField::SelectedDimmed,
-        ListField::Detail,
-        ListField::SelectedDetail,
-        ListField::Icon,
-        ListField::IconHover,
-        ListField::Hover,
-        ListField::Selected,
-        ListField::SelectedHover,
-        ListField::Divider,
-        ListField::ThumbBorder,
-        ListField::ThumbBorderSelected,
-        ListField::ThumbRadius,
-        ListField::LayerHover,
-        ListField::LayerSelected,
-        ListField::LayerOutline,
-        ListField::LayerRadius,
-        ListField::LayerSelectedText,
-        ListField::LayerSelectedDimmed,
-        ListField::LayerSelectedDetail,
-        ListField::Drop,
-        ListField::DropHalo,
-        ListField::GhostFill,
-        ListField::GhostBorder,
-    ];
+    const FIELDS: &'static [ListField] = &FIELDS;
 
     fn defaults(s: &Semantic<'_>) -> ListTokens {
         let (c, list) = (s.color, &s.size.list);
@@ -413,14 +559,22 @@ impl Family for ListTokens {
             drop_halo: c.surface.panel,
             ghost_fill: c.surface.raised,
             ghost_border: c.accent.solid,
+            labels: LabelColor::ALL.map(LabelColor::default_tint),
         }
     }
 
     fn path(f: ListField) -> String {
-        f.path().to_owned()
+        match f {
+            ListField::Label(color, part) => format!("label.{}.{}", color.name(), part.name()),
+            f => f.path().to_owned(),
+        }
     }
 
     fn from_path(path: &str) -> Option<ListField> {
+        if let Some(rest) = path.strip_prefix("label.") {
+            let (color, part) = rest.split_once('.')?;
+            return Some(ListField::Label(LabelColor::from_name(color)?, LabelPart::ALL.into_iter().find(|p| p.name() == part)?));
+        }
         Self::FIELDS.iter().copied().find(|f| f.path() == path)
     }
 

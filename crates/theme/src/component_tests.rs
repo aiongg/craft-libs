@@ -655,6 +655,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 1
             + 1
             + 7
+            // The label colours: fill, icon and swatch of each of the eleven.
+            + 11 * 3
             // Segmented: a colour per part and state of plain and selected pills, and the selected pill's outline per state.
             + 2 * 2 * 4
             + 4

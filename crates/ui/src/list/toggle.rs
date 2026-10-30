@@ -1,6 +1,6 @@
 //! Toggle columns of a [`ListRow`](super::ListRow): an eye or lock cell per row, and the sweep.
 
-use craft_theme::Srgba;
+use craft_theme::LabelColor;
 use egui::accesskit::Role;
 use egui::{Id, KeyboardShortcut, Rect, Response, Sense, Ui};
 
@@ -19,7 +19,7 @@ pub struct ToggleColumn {
     pub(super) off_icon: Icon,
     pub(super) on: bool,
     pub(super) key: Option<KeyboardShortcut>,
-    pub(super) tint: Option<Srgba>,
+    pub(super) label: Option<LabelColor>,
 }
 
 impl ToggleColumn {
@@ -27,7 +27,7 @@ impl ToggleColumn {
     /// pointer while off. `name` is the cell's name for a screen reader, translated by the host as
     /// a whole pattern with `{row}` for the row's label: "Visibility {row}" (PhotoCraft).
     pub fn new(name: impl Into<String>, on_icon: Icon, off_icon: Icon, on: bool) -> Self {
-        Self { name: name.into(), on_icon, off_icon, on, key: None, tint: None }
+        Self { name: name.into(), on_icon, off_icon, on, key: None, label: None }
     }
 
     /// A key that toggles the column on the selected rows while a [`List`](super::List) has the
@@ -38,12 +38,11 @@ impl ToggleColumn {
         self
     }
 
-    /// Fills the cell with a label colour, as Photoshop's Layers panel fills the eye cell of a
-    /// layer that has one. The fill and the icon on it are the menu's tint tokens
-    /// (`menu.tint.<hue>`) for PhotoCraft's seven label colours, else the same derivation for
-    /// the colour, so the icon keeps the text contrast on the fill.
-    pub fn tint(mut self, color: impl Into<Srgba>) -> Self {
-        self.tint = Some(color.into());
+    /// Fills the cell with a layer's label colour, as Photoshop's Layers panel fills the eye cell
+    /// of a layer that has one. The fill and the icon on it are the list's `list.label.<color>`
+    /// tokens, the same in every theme.
+    pub fn label(mut self, color: LabelColor) -> Self {
+        self.label = Some(color);
         self
     }
 
@@ -240,7 +239,7 @@ fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, hovered: bool, style: &List
     if !ui.is_rect_visible(rect) {
         return;
     }
-    let tint = column.tint.map(|color| crate::menu::row::tint_colors(&Tokens::of(ui), color));
+    let tint = column.label.map(|color| Tokens::of(ui).component.list.label(color));
     if let Some(tint) = tint {
         ui.painter().rect_filled(rect, 0.0, tint.fill.to_egui());
     }
@@ -249,7 +248,7 @@ fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, hovered: bool, style: &List
     }
     let icon = if column.on { column.on_icon } else { column.off_icon };
     let color = match tint {
-        Some(tint) => tint.text.to_egui(),
+        Some(tint) => tint.icon.to_egui(),
         None if hovered => style.icon_hover,
         None => style.icon,
     };

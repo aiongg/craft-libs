@@ -889,26 +889,24 @@ fn the_link_glyph_shows_a_focus_ring() {
 }
 
 #[test]
-fn a_tinted_toggle_cell_is_filled_and_keeps_its_icon() {
+fn a_labelled_toggle_cell_is_filled_and_keeps_its_icon() {
     let ctx = context();
-    let tint = craft_theme::MenuHue::Red.color();
-    let row = |tinted: bool| {
+    let row = |label: Option<craft_theme::LabelColor>| {
         shapes(&ctx, |ui| {
             panel(ui, 240.0, |ui| {
                 let eye = ToggleColumn::eye("Visibility {row}", true);
-                let _ = ListRow::new(1u8, "Layer").toggle(if tinted { eye.tint(tint) } else { eye }).show(ui);
+                let _ = ListRow::new(1u8, "Layer").toggle(label.map_or(eye.clone(), |c| eye.label(c))).show(ui);
             })
         })
     };
-    let (plain, tinted) = (row(false), row(true));
-    let mut expected = None;
-    ctx.run_ui(egui::RawInput::default(), |ui| expected = Some(crate::menu::row::tint_colors(&Tokens::of(ui), tint.into())))
-        .drop_without_applying_deltas();
-    let expected = expected.expect("tint");
-    let fill = crate::theme::ToEgui::to_egui(expected.fill);
+    let (plain, labelled) = (row(None), row(Some(craft_theme::LabelColor::Red)));
+    let fill = egui::Color32::from_rgb(0x9F, 0x2F, 0x30);
     assert!(fills(&plain).iter().all(|r| r.fill != fill));
-    assert_eq!(fills(&tinted).iter().filter(|r| r.fill == fill).count(), 1, "the cell is filled with the tint");
-    assert_eq!(tinted.len(), plain.len() + 1, "the eye is still painted over the fill");
+    assert_eq!(fills(&labelled).iter().filter(|r| r.fill == fill).count(), 1, "the cell is filled with list.label.red.fill");
+    assert_eq!(labelled.len(), plain.len() + 1, "the eye is still painted over the fill");
+    let grey = egui::Color32::from_gray(226);
+    let icon_colors = |shapes: &[Shape]| shapes.iter().filter(|s| format!("{s:?}").contains("#E2_E2_E2")).count();
+    assert!(icon_colors(&labelled) > icon_colors(&plain), "the eye is drawn in E2E2E2 on the fill ({grey:?})");
 }
 
 /// Which toggle cells had a secondary click, accumulated over frames.

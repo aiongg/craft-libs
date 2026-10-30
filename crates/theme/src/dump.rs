@@ -11,8 +11,8 @@ use crate::{
     CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge,
     Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens,
     GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes,
-    InspectorTokens, ItemColors, KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion,
-    MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens,
+    InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens,
+    Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens,
     PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens,
     Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
     SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
@@ -697,6 +697,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         drop_halo,
         ghost_fill,
         ghost_border,
+        labels,
     } = t;
     out.line("list.row_height", len(*row_height));
     let ThumbSizes { sm, md, lg } = thumb;
@@ -749,6 +750,11 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         ("ghost.border", ghost_border),
     ] {
         out.line(&format!("list.{k}"), hex(*c));
+    }
+    for (color, tint) in LabelColor::ALL.into_iter().zip(labels) {
+        out.line(&format!("list.label.{}.fill", color.name()), hex(tint.fill));
+        out.line(&format!("list.label.{}.icon", color.name()), hex(tint.icon));
+        out.line(&format!("list.label.{}.swatch", color.name()), hex(tint.swatch));
     }
 }
 

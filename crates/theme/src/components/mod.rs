@@ -112,7 +112,7 @@ pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use inspector::{InspectorField, InspectorTokens};
 pub use kbd::{KbdField, KbdTokens};
 pub use levels::{LevelsField, LevelsTokens};
-pub use list::{ListField, ListTokens};
+pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
