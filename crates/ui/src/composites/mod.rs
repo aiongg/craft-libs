@@ -110,6 +110,7 @@ pub use color::{
     ColorWarning, ColorWarningChip, ColorWheel, ColorWheelResponse, ColorWheelStyle, HexField, PairWell, PickedColor, SwatchPair, SwatchPairResponse,
     SwatchPairStyle, SwatchPalette, Well, WheelGeometry, WheelPart,
 };
+pub use color::{ColorRamp, ColorRampResponse, RampKind, RampPick};
 pub use craft_theme::Tone;
 pub use curve::Curve;
 pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampler};

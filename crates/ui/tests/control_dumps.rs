@@ -941,3 +941,17 @@ fn color_wheel() {
             .line("marker_outer", s.marker_outer);
     });
 }
+
+#[test]
+fn color_ramp() {
+    check("color_ramp.txt", |d, t| {
+        let r = t.component.color_ramp;
+        d.line("height", r.height)
+            .line("height_min", r.height_min)
+            .line("boxes", r.boxes)
+            .line("boxes_gap", r.boxes_gap)
+            .line("cells_x", r.cells_x as f32)
+            .line("cells_y", r.cells_y as f32)
+            .line("edge", ColorArea::style(t).edge);
+    });
+}

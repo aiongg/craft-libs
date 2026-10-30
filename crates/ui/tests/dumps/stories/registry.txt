@@ -141,6 +141,7 @@ composites/color/pair-foreground = SwatchPair | Foreground and background | Pane
 composites/color/pair-fill = SwatchPair | Fill and stroke | Panel | buttons=Bool(true); disabled=Bool(false)
 composites/color/pair-dialog = SwatchPair | Dialog (field scope) | Panel | 
 composites/color/wheel = ColorWheel | Wheel | Panel | side=Number { value: 220.0, min: 28.0, max: 400.0 }; hue on=Choice { options: ["colour", "black", "grey"], index: 0 }; disabled=Bool(false); width=Number { value: 260.0, min: 60.0, max: 480.0 }
+composites/color/ramp = ColorRamp | Ramp | Panel | kind=Choice { options: ["spectrum", "grayscale", "between"], index: 0 }; web_safe=Bool(false); boxes=Bool(true); gamut=Bool(false); disabled=Bool(false)
 patterns/dock-area/docked = DockArea | Docked | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/floating = DockArea | Floating | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/drag = DockArea | Drag | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
