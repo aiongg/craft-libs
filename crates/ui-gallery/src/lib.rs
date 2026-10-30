@@ -6,6 +6,7 @@
 //! the Inspect tab is shown: it draws padding, hit areas and focus order over the story and lists
 //! its AccessKit tree.
 
+mod app_layer;
 mod appearance;
 mod browser;
 #[cfg(feature = "capture")]

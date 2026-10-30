@@ -152,3 +152,16 @@ fn a_size_path_shared_with_a_theme_field_is_that_length() {
         }
     }
 }
+
+#[test]
+fn written_sizes_parse_back_to_the_same_overrides() {
+    let original = sizes(&json!({
+        "all": { "size.control.md": 28.5, "radius.button": "full", "size.list.rounded": true },
+        "compact": { "toolbar.pad.0": 6, "typography.body.size": 15 },
+    }));
+    let text = original.to_json();
+    assert!(text.starts_with("{\n  \"all\": {"), "{text}");
+    assert!(!text.contains("comfortable"), "an empty section is left out");
+    assert_eq!(AppSizes::parse(text.as_bytes()).unwrap(), original);
+    assert_eq!(AppSizes::default().to_json(), "{}\n");
+}

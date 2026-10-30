@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use craft_theme::{
-    AppId, Appearance, ColorOrigin, ColorSource, ColorToken, ContrastIntent, ControlSize, EdgeSeed, Explained, FieldOrigin, Mode, PinLayer, Rgba,
-    StatusKind, ThemeDef, TokenRef, TypeRole, Variants, explain,
+    AppId, AppSizes, Appearance, ColorOrigin, ColorSource, ColorToken, ContrastIntent, ControlSize, EdgeSeed, Explained, FieldOrigin, Mode, PinLayer,
+    Rgba, SizeOrigin, StatusKind, ThemeDef, TokenRef, TypeRole, Variants, explain_sized,
 };
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
 use craft_ui::composites::{FormGrid, SectionHeader};
@@ -19,6 +19,7 @@ use craft_ui::primitives::{Content, Divider, Text};
 use craft_ui::theme::{Base, StrokeExt, ToEgui, Tokens, TokensOf, scale};
 use egui::{Grid, RichText, ScrollArea, Sense, StrokeKind, Ui, vec2};
 
+use crate::app_layer::{AppLayer, layer_words, value_words};
 use crate::fields;
 use crate::usage::Scan;
 
@@ -34,6 +35,8 @@ const MIN_SHARE: f32 = 0.15;
 const DIVIDER: f32 = 8.0;
 /// The width of the hex value at the end of a list row.
 const HEX_WIDTH: f32 = 80.0;
+/// The width of the value and layer at the end of a size row.
+const SIZE_WIDTH: f32 = 130.0;
 
 /// The browser's filters, selection and last explanation.
 pub struct Browser {
@@ -42,16 +45,25 @@ pub struct Browser {
     moved_only: bool,
     failing_only: bool,
     selected: Option<TokenRef>,
+    /// The path of the selected size row; at most one of this and `selected` is set.
+    selected_size: Option<String>,
+    /// The app's size overrides and the file they come from.
+    layer: AppLayer,
     /// The share of the height under the filters that the list takes.
     share: f32,
-    explained: Option<(ThemeDef, Appearance, Option<AppId>, Arc<Explained>)>,
+    explained: Option<Cached>,
 }
+
+/// The inputs of the last explanation and the explanation.
+type Cached = (ThemeDef, Appearance, Option<AppId>, AppSizes, Arc<Explained>);
 
 /// A row of the token list: a group's heading, or a token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Row {
     Group(&'static str),
     Token(TokenRef),
+    /// An index into [`Explained::sizes`].
+    Size(usize),
 }
 
 impl Default for Browser {
@@ -64,7 +76,17 @@ impl Browser {
     /// A browser with the list taking `share` of its height, or the default share.
     pub fn new(share: Option<f32>) -> Self {
         let share = share.filter(|s| s.is_finite()).map_or(DEFAULT_SHARE, |s| s.clamp(MIN_SHARE, 1.0 - MIN_SHARE));
-        Self { filter: String::new(), pinned_only: false, moved_only: false, failing_only: false, selected: None, share, explained: None }
+        Self {
+            filter: String::new(),
+            pinned_only: false,
+            moved_only: false,
+            failing_only: false,
+            selected: None,
+            selected_size: None,
+            layer: AppLayer::default(),
+            share,
+            explained: None,
+        }
     }
 
     /// The share of the height the list takes, to be saved.
@@ -80,6 +102,12 @@ impl Browser {
     /// Selects the row of `token`.
     pub fn select(&mut self, token: TokenRef) {
         self.selected = Some(token);
+        self.selected_size = None;
+    }
+
+    /// The app's size overrides the gallery resolves with.
+    pub(crate) fn app_sizes(&self) -> &AppSizes {
+        self.layer.sizes()
     }
 
     /// Draws the panel for the theme and appearance `base` shows in `mode`: the filters, the
@@ -87,6 +115,7 @@ impl Browser {
     /// list and the detail each scroll in their own part of the panel. `scan` supplies the
     /// detail's Used by list; the component a link in it named is returned.
     pub(crate) fn show(&mut self, ui: &mut Ui, base: &Base, mode: Mode, scan: &Scan) -> Option<&'static str> {
+        self.layer.take_dropped(ui.ctx());
         let explained = self.explained(base, mode);
         self.filters(ui, base, mode, &explained);
         let total = (ui.available_height() - DIVIDER).max(1.0);
@@ -140,8 +169,23 @@ impl Browser {
             rows.push(RowInfo::section(Row::Group("component colours")));
             rows.extend(components.into_iter().map(|t| RowInfo::leaf(Row::Token(t))));
         }
-        let mut selection =
-            self.selected.map(Row::Token).filter(|r| rows.iter().any(|i| i.key == *r)).map_or_else(Selection::default, Selection::only);
+        let mut group = "";
+        for (i, o) in e.sizes.iter().enumerate() {
+            if !self.shows_size(o) {
+                continue;
+            }
+            let g = size_group(o);
+            if g != group {
+                group = g;
+                rows.push(RowInfo::section(Row::Group(g)));
+            }
+            rows.push(RowInfo::leaf(Row::Size(i)));
+        }
+        let selected_row = self
+            .selected
+            .map(Row::Token)
+            .or_else(|| self.selected_size.as_ref().and_then(|p| e.sizes.iter().position(|o| o.path == *p)).map(Row::Size));
+        let mut selection = selected_row.filter(|r| rows.iter().any(|i| i.key == *r)).map_or_else(Selection::default, Selection::only);
         let out = List::new("gallery.tokens.list", "Tokens", rows.as_slice())
             .selection(&mut selection)
             .mode(SelectionMode::Single)
@@ -149,6 +193,13 @@ impl Browser {
             .max_height(height)
             .show(ui, |_, row| match row {
                 Row::Group(name) => ListRow::new(*row, *name),
+                Row::Size(i) => {
+                    let o = &e.sizes[*i];
+                    let words = format!("{} · {}", value_words(o.value), layer_words(o.layer));
+                    ListRow::new(*row, o.path.as_str()).trailing_item(SIZE_WIDTH, move |ui| {
+                        ui.monospace(words.clone());
+                    })
+                }
                 Row::Token(token) => {
                     let value = value_of(e, *token);
                     ListRow::new(*row, token.path())
@@ -162,8 +213,10 @@ impl Browser {
             });
         for event in out.events {
             match event {
-                ListEvent::Selection(SelectionChange { row: Some(Row::Token(t)), .. }) | ListEvent::Activate(Row::Token(t)) => {
-                    self.selected = Some(t)
+                ListEvent::Selection(SelectionChange { row: Some(Row::Token(t)), .. }) | ListEvent::Activate(Row::Token(t)) => self.select(t),
+                ListEvent::Selection(SelectionChange { row: Some(Row::Size(i)), .. }) | ListEvent::Activate(Row::Size(i)) => {
+                    self.selected = None;
+                    self.selected_size = e.sizes.get(i).map(|o| o.path.clone());
                 }
                 _ => {}
             }
@@ -175,11 +228,12 @@ impl Browser {
         let theme = base.inputs.theme(mode);
         let appearance = base.shown(mode).appearance;
         let app = base.inputs.app.as_ref();
+        let sizes = &base.inputs.sizes;
         match &self.explained {
-            Some((t, a, p, e)) if t == theme && *a == appearance && p.as_ref() == app => Arc::clone(e),
+            Some((t, a, p, s, e)) if t == theme && *a == appearance && p.as_ref() == app && s == sizes => Arc::clone(e),
             _ => {
-                let e = Arc::new(explain(theme, appearance, app));
-                self.explained = Some((theme.clone(), appearance, app.cloned(), Arc::clone(&e)));
+                let e = Arc::new(explain_sized(theme, appearance, app, sizes));
+                self.explained = Some((theme.clone(), appearance, app.cloned(), sizes.clone(), Arc::clone(&e)));
                 e
             }
         }
@@ -217,9 +271,27 @@ impl Browser {
             && (!self.failing_only || e.pairs_of(token).any(|p| !p.pair.passes()))
     }
 
+    /// Whether a size row passes the filters. Contrast filters hide sizes, which have no colour.
+    fn shows_size(&self, o: &SizeOrigin) -> bool {
+        (self.filter.is_empty() || o.path.contains(&self.filter.to_lowercase()))
+            && (!self.pinned_only || o.layer.from_app())
+            && !self.moved_only
+            && !self.failing_only
+    }
+
     fn detail(&mut self, ui: &mut Ui, e: &Explained, scan: &Scan) -> Option<&'static str> {
+        let size = self.selected_size.as_ref().and_then(|p| e.sizes.iter().find(|o| o.path == *p));
+        if let Some(origin) = size {
+            ui.heading(origin.path.as_str());
+            self.layer.editor(ui, origin);
+            Divider::horizontal().show(ui);
+            SectionHeader::new("gallery.app_layer", "App sizes").show(ui, |ui| self.layer.file(ui));
+            return None;
+        }
         let Some(selected) = self.selected else {
             ui.label("Select a row to see its contrast pairs and ramp.");
+            Divider::horizontal().show(ui);
+            SectionHeader::new("gallery.app_layer", "App sizes").show(ui, |ui| self.layer.file(ui));
             return None;
         };
         ui.heading(selected.path());
@@ -473,6 +545,19 @@ pub(crate) fn value_of(e: &Explained, token: TokenRef) -> Rgba {
     }
 }
 
+/// The heading a size row is listed under: its base group, or the component sizes.
+fn size_group(o: &SizeOrigin) -> &'static str {
+    if !o.base {
+        return "component sizes";
+    }
+    match o.path.split_once('.').map_or(o.path.as_str(), |(g, _)| g) {
+        "size" => "sizes",
+        "space" => "spacing",
+        "radius" => "corner radii",
+        _ => "type",
+    }
+}
+
 /// The token's group as in `ColorTokens`: its first path segment.
 fn group_of(token: ColorToken) -> &'static str {
     let path = token.path();
@@ -516,6 +601,7 @@ fn reads_words(o: &FieldOrigin) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_theme::explain;
 
     #[test]
     fn sources_read_as_words() {

@@ -1,12 +1,12 @@
 //! Why each colour has its value: the steps of [`resolve`] for one theme and appearance, with
 //! every contrast pair the rules measure. The gallery's token browser shows them.
 
-use super::app_sizes::AppSizes;
+use super::app_sizes::{AppSizes, SizeValue, base_path};
 use super::color::Rgba;
-use super::components::{ComponentField, ComponentTokens, Semantic};
+use super::components::{ComponentField, ComponentTokens, Semantic, SizeField};
 use super::derive::{Anchoring, ContrastCheck, PassMove, Ramps};
 use super::resolve::{self, Resolved};
-use super::sizes;
+use super::sizes::{self, ComponentSizes, Preset, Slot, leaves};
 use super::theme::{Appearance, PinLayer, Size, ThemeDef};
 use super::tokens::{ColorToken, ColorTokens, ElevationTokens, ShapeTokens, StatusKind, TokenRef};
 use super::values::{self, ColorSource};
@@ -27,6 +27,47 @@ pub struct Explained {
     /// Every pair the contrast rules measure, failing or not: semantic pairs in rule order, then
     /// component pairs.
     pub pairs: Vec<PairReport>,
+    /// The base size, spacing, radius and type values in the order of a size set file, then
+    /// every component size ([`SizeField::all`] order).
+    pub sizes: Vec<SizeOrigin>,
+}
+
+/// Which layer of the size model set a value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SizeLayer {
+    /// A base value from the size set.
+    SizeSet,
+    /// A base value the app overrides.
+    App,
+    /// A component size derived from the base values and the size set's component data.
+    Derived,
+    /// A component size the app pins.
+    AppPin,
+}
+
+impl SizeLayer {
+    /// Whether the app layer set the value.
+    pub fn from_app(self) -> bool {
+        matches!(self, SizeLayer::App | SizeLayer::AppPin)
+    }
+}
+
+/// How a size, spacing, radius or type value got its value.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct SizeOrigin {
+    /// The path an app's `sizes.json` names it by, such as `size.control.md` or
+    /// `toolbar.button`.
+    pub path: String,
+    /// The layer that set it.
+    pub layer: SizeLayer,
+    /// Whether it is a base value (layers 1 and 2) rather than a component size.
+    pub base: bool,
+    /// The final value, after the theme's shape and Text size.
+    pub value: SizeValue,
+    /// The least and greatest number an app may set; `(0, 0)` for a switch.
+    pub range: (f32, f32),
 }
 
 /// How a colour token got its value.
@@ -174,7 +215,14 @@ impl Explained {
 /// Resolves `theme` for `appearance` as [`resolve`] does, and reports how every colour got its
 /// value and every contrast pair the rules measure.
 pub fn explain(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Explained {
-    let (resolved, steps) = resolve::resolve_with_steps(theme, appearance, app, &AppSizes::default());
+    explain_sized(theme, appearance, app, &AppSizes::default())
+}
+
+/// [`explain`] for the app's size overrides, as [`resolve_sized`](crate::resolve_sized) applies
+/// them: `resolved` equals `resolve_sized(theme, appearance, app, sizes)`, and `sizes` reports the
+/// layer of every size value.
+pub fn explain_sized(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>, sizes: &AppSizes) -> Explained {
+    let (resolved, steps) = resolve::resolve_with_steps(theme, appearance, app, sizes);
     let mode = resolved.variant_used;
     let final_colors = &resolved.tokens.color;
     let final_components = &resolved.tokens.component;
@@ -228,7 +276,35 @@ pub fn explain(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) ->
     };
     let pairs = steps.color.pairs.iter().chain(&steps.component_pairs).map(report).collect();
 
-    Explained { resolved, ramps: steps.color.ramps, colors, components, pairs }
+    let sizes = size_origins(&resolved, appearance.size, sizes);
+    Explained { resolved, ramps: steps.color.ramps, colors, components, pairs, sizes }
+}
+
+/// The layer of every base value and component size in `resolved`.
+fn size_origins(resolved: &Resolved, size: Size, app: &AppSizes) -> Vec<SizeOrigin> {
+    let merged = app.merged(size);
+    let tokens = &resolved.tokens;
+    let mut base =
+        Preset { size: tokens.size, space: tokens.space, radius: tokens.shape.radius, edge: tokens.shape.edge, typography: tokens.typography };
+    let mut out = Vec::new();
+    for leaf in leaves(&mut base, &mut ComponentSizes::default()) {
+        let Some(path) = leaf.path.strip_prefix("base.").filter(|p| base_path(p)) else { continue };
+        let value = match leaf.slot {
+            Slot::Num(x) | Slot::Length(x) => SizeValue::Number(*x),
+            Slot::Bool(b) => SizeValue::Switch(*b),
+            _ => continue,
+        };
+        // A theme's own corner radii win over the app's, so an override that did not take is the set's.
+        let set_by_app = merged.get(path).is_some_and(|o| !path.starts_with("radius.") || *o == value);
+        let layer = if set_by_app { SizeLayer::App } else { SizeLayer::SizeSet };
+        out.push(SizeOrigin { path: path.to_owned(), layer, base: true, value, range: (leaf.lo, leaf.hi) });
+    }
+    for field in SizeField::all() {
+        let path = field.path();
+        let layer = if merged.contains_key(&path) { SizeLayer::AppPin } else { SizeLayer::Derived };
+        out.push(SizeOrigin { path, layer, base: false, value: SizeValue::Number(field.get(&tokens.component)), range: field.range() });
+    }
+    out
 }
 
 /// Two ways to give each token its own opaque colour: channel = (index × step + offset) mod 256

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use craft_i18n::{Embedded, I18n, Lang};
 use craft_platform::appearance::SystemReader;
-use craft_theme::{Mode, SystemAppearance};
+use craft_theme::{AppSizes, Mode, SystemAppearance};
 use craft_ui::icons;
 use craft_ui::interface_scale::InterfaceScale;
 use craft_ui::localized::Words;
@@ -27,6 +27,8 @@ pub(super) struct Applied {
     native_applied: Option<f32>,
     /// Whether the OS's interface face had resolved when the faces were last installed.
     system_face_applied: bool,
+    /// The app sizes `base` was resolved with.
+    sizes: AppSizes,
     os: SystemReader,
     /// The OS's answer `base` was resolved with.
     pub(super) os_applied: SystemAppearance,
@@ -42,6 +44,7 @@ impl Applied {
             story_ppp: None,
             native_applied: None,
             system_face_applied: false,
+            sizes: AppSizes::default(),
             os: SystemReader::for_egui(),
             os_applied: SystemAppearance::default(),
             base: appearance.base(SystemAppearance::default()),
@@ -51,12 +54,13 @@ impl Applied {
 
     /// Configures the context for `appearance` when it, the faces or the OS's answer changed, and
     /// installs the base.
-    pub(super) fn apply(&mut self, ctx: &egui::Context, appearance: &Appearance) {
+    pub(super) fn apply(&mut self, ctx: &egui::Context, appearance: &Appearance, sizes: &AppSizes) {
         let system_face = faces::system_face(ctx).is_some();
         let system = SystemAppearance::from(self.os.read_in(ctx));
-        if self.applied.as_ref() != Some(appearance) || system_face != self.system_face_applied || system != self.os_applied {
+        if self.applied.as_ref() != Some(appearance) || self.sizes != *sizes || system_face != self.system_face_applied || system != self.os_applied {
             let previous = self.applied.replace(appearance.clone());
-            self.base = appearance.configure(ctx, previous.as_ref(), system_face != self.system_face_applied, system);
+            self.base = appearance.configure_with(ctx, previous.as_ref(), system_face != self.system_face_applied, system, sizes);
+            self.sizes.clone_from(sizes);
             self.os_applied = system;
             self.system_face_applied = system_face;
             if previous.as_ref().is_none_or(|p| p.icon_set != appearance.icon_set) {
@@ -118,7 +122,7 @@ mod tests {
     fn frame(ctx: &egui::Context, applied: &mut Applied, appearance: &Appearance, native: f32) {
         let mut input = RawInput::default();
         input.viewports.insert(ViewportId::ROOT, ViewportInfo { native_pixels_per_point: Some(native), ..Default::default() });
-        ctx.run_ui(input, |ui| applied.apply(ui.ctx(), appearance)).drop_without_applying_deltas();
+        ctx.run_ui(input, |ui| applied.apply(ui.ctx(), appearance, &AppSizes::default())).drop_without_applying_deltas();
     }
 
     #[test]
