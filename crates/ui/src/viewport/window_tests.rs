@@ -19,16 +19,33 @@ struct App {
     closes: usize,
     blocks: bool,
     blocks_at_close: Option<bool>,
+    any_at_start: bool,
+    closed_in_body: bool,
 }
 
 fn harness(modal: bool) -> Harness<'static, App> {
-    let app = App { open: true, modal, scrim: true, behind_clicks: 0, hostings: Vec::new(), closes: 0, blocks: false, blocks_at_close: None };
+    let app = App {
+        open: true,
+        modal,
+        scrim: true,
+        behind_clicks: 0,
+        hostings: Vec::new(),
+        closes: 0,
+        blocks: false,
+        blocks_at_close: None,
+        any_at_start: false,
+        closed_in_body: false,
+    };
     HarnessBuilder::default().with_size(WINDOW).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, app: &mut App| {
             let ctx = &ui.ctx().clone();
             app.blocks = ViewportWindow::blocks_main(ctx);
+            app.any_at_start = ViewportWindow::any_app_modal(ctx);
             if ui.button("Behind").clicked() {
                 app.behind_clicks += 1;
+            }
+            if app.closed_in_body {
+                app.open = false;
             }
             if !app.open {
                 return;
@@ -39,9 +56,14 @@ fn harness(modal: bool) -> Harness<'static, App> {
                 window = window.app_modal(app.scrim);
             }
             let hostings = &mut app.hostings;
+            let (viewport, closed_in_body) = (ViewportId(Id::unique("test")), &mut app.closed_in_body);
             let shown = window.show(ctx, |ui, hosting| {
                 hostings.push(hosting);
                 ui.label("Body");
+                if ui.button("OK").clicked() {
+                    ViewportWindow::closed(ui.ctx(), viewport);
+                    *closed_in_body = true;
+                }
             });
             app.closes += usize::from(shown.close_requested);
             if shown.close_requested {
@@ -129,4 +151,19 @@ fn a_window_shown_again_after_a_gap_opens_afresh() {
     harness.run();
     harness.run();
     harness.get_by_role_and_label(Role::Heading, "Settings");
+}
+
+/// OK in the body ends the modal in that pass: a host that then idles (shows nothing, repaints
+/// nothing) finds no modal in the very next pass.
+#[test]
+fn a_modal_closed_from_a_body_button_stops_blocking_on_the_next_pass() {
+    let mut harness = harness(true);
+    harness.run();
+    assert!(harness.state().any_at_start || harness.state().blocks);
+    harness.get_by_label("OK").click();
+    harness.step();
+    assert!(harness.state().closed_in_body);
+    harness.step();
+    assert!(!harness.state().any_at_start, "no app-modal window is open on the next pass");
+    assert!(!harness.state().blocks);
 }

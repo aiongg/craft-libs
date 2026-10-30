@@ -38,13 +38,19 @@ fn show_embedded(ui: &mut Ui, args: &mut EmbeddedArgs) {
     if args.app_modal {
         window = window.app_modal(args.scrim);
     }
+    let (id, mut ok) = (ViewportId(Id::unique("craft_ui::viewport::story")), false);
     let shown = window.show(ui.ctx(), |ui, hosting| {
         ui.label(match hosting {
             Hosting::Native => "Hosted in an OS window.",
             Hosting::Embedded => "Hosted in the main window.",
         });
+        if ui.button("OK").clicked() {
+            // Ends the app-modal record in this pass, as a button in the body must.
+            ViewportWindow::closed(ui.ctx(), id);
+            ok = true;
+        }
     });
-    if shown.close_requested {
+    if shown.close_requested || ok {
         args.open = false;
     }
 }

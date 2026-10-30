@@ -113,9 +113,11 @@ impl ViewportWindow {
     /// commands while it is. Ask in the viewport that shows the window; it is false in the app's
     /// other windows (see [`any_app_modal`](Self::any_app_modal)).
     ///
-    /// A window is open from the pass that shows it until it reports a close request (the same
-    /// pass), [`closed`](Self::closed) is called, or its host viewport is gone. A host that just
-    /// stops calling [`show`](Self::show) without either is noticed on its next pass.
+    /// A window is open from the pass that shows it until it reports a close request (that same
+    /// pass), [`closed`](Self::closed) is called, or its host viewport is gone. A window closed
+    /// from a button in its own body calls [`closed`](Self::closed) there, so the answer is false
+    /// in every viewport from that pass on, whether or not the host repaints. A host that only
+    /// stops calling [`show`](Self::show) leaves the record to expire one host pass later.
     pub fn blocks_main(ctx: &Context) -> bool {
         let host = ctx.viewport_id();
         open_modals(ctx).any(|m| m.host == host)
@@ -153,16 +155,18 @@ impl ViewportWindow {
         true
     }
 
-    /// Tells the window module that the host closed the window with `id` (it stops calling
-    /// [`show`](Self::show)): [`blocks_main`](Self::blocks_main) and
-    /// [`refuse_close`](Self::refuse_close) stop at once instead of one pass later, and a
-    /// reopening on the next pass counts as an opening.
+    /// Ends the app-modal record of the window with `id` at once: [`blocks_main`](Self::blocks_main),
+    /// [`any_app_modal`](Self::any_app_modal) and [`refuse_close`](Self::refuse_close) stop
+    /// blocking in the same pass, in every viewport, and a reopening counts as an opening.
+    ///
+    /// Call it where the window is closed: from the OK or Cancel button inside the `body` closure
+    /// (any viewport, including the window's own), or where the host decides to stop showing the
+    /// window. The host then stops calling [`show`](Self::show) for it.
     pub fn closed(ctx: &Context, id: ViewportId) {
         let key = Id::unique(("craft-ui-viewport", id));
-        let host = ctx.viewport_id();
         ctx.data_mut(|d| {
             d.remove_temp::<Seen>(key);
-            d.get_temp_mut_or_default::<Modals>(modals_key()).0.retain(|m| m.host != host);
+            d.get_temp_mut_or_default::<Modals>(modals_key()).0.retain(|m| m.id != id);
         });
     }
 
@@ -194,7 +198,7 @@ impl ViewportWindow {
             if modal {
                 let open = d.get_temp_mut_or_default::<Modals>(modals_key());
                 open.0.retain(|m| m.host != host);
-                open.0.push(Open { host, seen });
+                open.0.push(Open { id, host, seen });
             }
         });
 
@@ -203,7 +207,7 @@ impl ViewportWindow {
         }
         if embedded {
             let shown = show_embedded(ctx, key, id, &builder, &title, modal, scrim, opened, &mut body);
-            end_modal_on_close(ctx, modal, shown.close_requested);
+            end_modal_on_close(ctx, id, modal, shown.close_requested);
             return shown;
         }
 
@@ -227,21 +231,21 @@ impl ViewportWindow {
                 && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
             escape || ctx.input(|i| i.viewport().close_requested())
         });
-        end_modal_on_close(ctx, modal, close);
+        end_modal_on_close(ctx, id, modal, close);
         ViewportResponse { close_requested: close, hosting: hosting.get() }
     }
 }
 
 /// A window that reports a close request stops blocking in that pass; a host that keeps showing
 /// it records it as open again on the next pass.
-fn end_modal_on_close(ctx: &Context, modal: bool, close_requested: bool) {
+fn end_modal_on_close(ctx: &Context, id: ViewportId, modal: bool, close_requested: bool) {
     if modal && close_requested {
-        let host = ctx.viewport_id();
-        ctx.data_mut(|d| d.get_temp_mut_or_default::<Modals>(modals_key()).0.retain(|m| m.host != host));
+        ctx.data_mut(|d| d.get_temp_mut_or_default::<Modals>(modals_key()).0.retain(|m| m.id != id));
     }
 }
 
-/// The app-modal windows still open: shown on their host's current or previous pass, and the
+/// The app-modal windows still open: not ended by a close, shown on their host's current or
+/// previous pass (a host that stopped showing one without `closed` expires it this way), and the
 /// host viewport still exists (egui counts no passes for a missing viewport).
 fn open_modals(ctx: &Context) -> impl Iterator<Item = Open> {
     let modals = ctx.data(|d| d.get_temp::<Modals>(modals_key())).unwrap_or_default();
@@ -258,6 +262,7 @@ struct Modals(Vec<Open>);
 
 #[derive(Clone, Copy)]
 struct Open {
+    id: ViewportId,
     host: ViewportId,
     seen: Seen,
 }

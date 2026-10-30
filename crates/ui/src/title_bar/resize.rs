@@ -118,30 +118,23 @@ pub(crate) fn reshow_cursor_after_os_resize(ctx: &egui::Context) {
 /// The edge and corner zones alone, for windows that draw no title bar (an embedder hid its menu
 /// bar on an undecorated window). Only `Integrated` frames get them, as with [`TitleBar`], and not
 /// while maximized or in full screen. `native_hit_test` is true once the window procedure answers
-/// the hit test itself. The zones avoid the interactive widgets of the layer, those added so far
-/// this pass and those of the last pass, so the call may come before or after the app's panels.
+/// the hit test itself.
+///
+/// The band, `title_bar.edge` thick, always resizes, as an OS-drawn frame does: a full-bleed
+/// canvas or a panel at the window edge does not remove it, and the call may come before or after
+/// the app's panels. `holes` are the only places it leaves out, such as caption buttons the app
+/// draws at a corner (the way [`TitleBar`] passes its own); pass `&[]` for none.
 ///
 /// [`TitleBar`]: super::TitleBar
-pub fn resize_zones_only(ui: &mut Ui, frame: &super::Frame, native_hit_test: bool) {
+pub fn resize_zones_only(ui: &mut Ui, frame: &super::Frame, native_hit_test: bool, holes: &[Rect]) {
     let ctx = ui.ctx().clone();
     let (fullscreen, maximized) = ctx.input(|i| (i.viewport().fullscreen.unwrap_or(false), i.viewport().maximized.unwrap_or(false)));
     if !matches!(frame, super::Frame::Integrated(_)) || native_hit_test {
         return;
     }
     if !fullscreen && !maximized {
-        let layer = ui.layer_id();
-        // Widgets added so far this pass, and those of the last pass: an app that calls this
-        // before its panels has none of this pass's yet.
-        let holes: Vec<Rect> = ctx.viewport(|v| {
-            [&v.this_pass, &v.prev_pass]
-                .into_iter()
-                .flat_map(|pass| pass.widgets.get_layer(layer))
-                .filter(|w| w.sense.interactive())
-                .map(|w| w.interact_rect)
-                .collect()
-        });
         let style = TitleBarStyle::from_tokens(&Tokens::of(ui));
-        resize_zones(ui, &holes, super::captions::window_scope(ctx.viewport_id()), &style);
+        resize_zones(ui, holes, super::captions::window_scope(ctx.viewport_id()), &style);
     }
     reshow_cursor_after_os_resize(&ctx);
 }
