@@ -34,6 +34,22 @@ pub struct CropTokens {
     pub straighten_line: f32,
     /// Width of the halo under the Straighten line: `crop.straighten_halo`.
     pub straighten_halo: f32,
+    /// Side of a perspective crop's corner square: `crop.perspective_corner`.
+    pub perspective_corner: f32,
+    /// Edge width of a perspective crop's corner square and placed corner dot: `crop.perspective_corner_edge`.
+    pub perspective_corner_edge: f32,
+    /// Width of a perspective crop's outline: `crop.perspective_outline`.
+    pub perspective_outline: f32,
+    /// Width of a perspective crop's grid line: `crop.perspective_grid_width`.
+    pub perspective_grid_width: f32,
+    /// Screen points of the longest side per perspective grid step: `crop.perspective_grid_step`.
+    pub perspective_grid_step: f32,
+    /// Radius of a placed perspective corner click: `crop.perspective_click_dot`.
+    pub perspective_click_dot: f32,
+    /// Movement under which a perspective press is a click, at the default reach: `crop.perspective_click_move`.
+    pub perspective_click_move: f32,
+    /// Default reach of a perspective corner: `crop.perspective_reach`.
+    pub perspective_reach: f32,
 }
 
 /// Crop has no overridable field: its sizes come from the code, as every size does.
@@ -59,6 +75,14 @@ impl Family for CropTokens {
             straighten_min: values::CROP_STRAIGHTEN_MIN,
             straighten_line: values::CROP_STRAIGHTEN_LINE,
             straighten_halo: values::CROP_STRAIGHTEN_HALO,
+            perspective_corner: values::CROP_PERSPECTIVE_CORNER,
+            perspective_corner_edge: values::CROP_PERSPECTIVE_CORNER_EDGE,
+            perspective_outline: values::CROP_PERSPECTIVE_OUTLINE,
+            perspective_grid_width: values::CROP_PERSPECTIVE_GRID_WIDTH,
+            perspective_grid_step: values::CROP_PERSPECTIVE_GRID_STEP,
+            perspective_click_dot: values::CROP_PERSPECTIVE_CLICK_DOT,
+            perspective_click_move: values::CROP_PERSPECTIVE_CLICK_MOVE,
+            perspective_reach: values::CROP_PERSPECTIVE_REACH,
         }
     }
 

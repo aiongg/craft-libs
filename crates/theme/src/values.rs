@@ -941,6 +941,10 @@ pub const LIST_THUMB_PAD: f32 = 8.0;
 pub const LIST_DROP_WIDTH: f32 = 2.0;
 /// Width of the halo on each side of a list's drop marker, as `handle.halo` around a handle.
 pub const LIST_DROP_HALO: f32 = 1.0;
+/// How far the second-thumb brackets stand outside the thumbnail.
+pub const LIST_BRACKET_OUTSET: f32 = 3.0;
+/// Arm length of the second-thumb brackets.
+pub const LIST_BRACKET_ARM: f32 = 6.0;
 /// How far a selected row's dimmed label and detail line move from `text.on_selected` toward the
 /// selected fill (OKLab mix), before their contrast minimum.
 pub const LIST_SELECTED_QUIET: f64 = 0.4;
@@ -1535,6 +1539,22 @@ pub const CROP_STRAIGHTEN_MIN: f32 = 3.0;
 pub const CROP_STRAIGHTEN_LINE: f32 = 1.0;
 /// Width of the halo under the Straighten line.
 pub const CROP_STRAIGHTEN_HALO: f32 = 3.0;
+/// Side of a perspective crop's corner square.
+pub const CROP_PERSPECTIVE_CORNER: f32 = 8.0;
+/// Edge width of a perspective crop's corner square and placed corner dot.
+pub const CROP_PERSPECTIVE_CORNER_EDGE: f32 = 1.25;
+/// Width of a perspective crop's outline.
+pub const CROP_PERSPECTIVE_OUTLINE: f32 = 1.5;
+/// Width of a perspective crop's grid line.
+pub const CROP_PERSPECTIVE_GRID_WIDTH: f32 = 0.75;
+/// Screen points of the longest side per perspective grid step.
+pub const CROP_PERSPECTIVE_GRID_STEP: f32 = 48.0;
+/// Radius of a placed perspective corner click.
+pub const CROP_PERSPECTIVE_CLICK_DOT: f32 = 4.0;
+/// Movement under which a perspective press is a click, at the default reach.
+pub const CROP_PERSPECTIVE_CLICK_MOVE: f32 = 3.0;
+/// Default reach of a perspective corner.
+pub const CROP_PERSPECTIVE_REACH: f32 = 8.0;
 
 /// Canvas grid line width.
 pub const GRID_WIDTH: f32 = 1.0;

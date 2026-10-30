@@ -56,6 +56,10 @@ pub struct ListTokens {
     pub drop_width: f32,
     /// Width of the halo on each side of the drop marker.
     pub drop_halo_width: f32,
+    /// How far the second-thumb brackets stand outside the thumbnail: `list.bracket_outset`.
+    pub bracket_outset: f32,
+    /// Arm length of the second-thumb brackets: `list.bracket_arm`.
+    pub bracket_arm: f32,
     /// Type role of the label.
     pub label: TypeRole,
     /// Type role of the detail line under the label.
@@ -379,6 +383,8 @@ impl Family for ListTokens {
             dividers: list.dividers,
             drop_width: values::LIST_DROP_WIDTH,
             drop_halo_width: values::LIST_DROP_HALO,
+            bracket_outset: values::LIST_BRACKET_OUTSET,
+            bracket_arm: values::LIST_BRACKET_ARM,
             label: TypeRole::Body,
             detail_role: TypeRole::Caption,
             text: c.text.normal,

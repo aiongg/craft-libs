@@ -666,6 +666,8 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         dividers,
         drop_width,
         drop_halo_width,
+        bracket_outset,
+        bracket_arm,
         label,
         detail_role,
         text,
@@ -715,6 +717,8 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
     out.line("list.layer.radius", len(*layer_radius));
     out.line("list.drop_width", len(*drop_width));
     out.line("list.drop_halo_width", len(*drop_halo_width));
+    out.line("list.bracket_outset", len(*bracket_outset));
+    out.line("list.bracket_arm", len(*bracket_arm));
     out.line("list.label", role(*label));
     out.line("list.detail_role", role(*detail_role));
     for (k, c) in [
@@ -1290,6 +1294,14 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
         straighten_min,
         straighten_line,
         straighten_halo,
+        perspective_corner,
+        perspective_corner_edge,
+        perspective_outline,
+        perspective_grid_width,
+        perspective_grid_step,
+        perspective_click_dot,
+        perspective_click_move,
+        perspective_reach,
     } = t;
     out.line("crop.hit", len(*hit));
     out.line("crop.line", len(*line));
@@ -1304,6 +1316,14 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
     out.line("crop.straighten_min", len(*straighten_min));
     out.line("crop.straighten_line", len(*straighten_line));
     out.line("crop.straighten_halo", len(*straighten_halo));
+    out.line("crop.perspective_corner", len(*perspective_corner));
+    out.line("crop.perspective_corner_edge", len(*perspective_corner_edge));
+    out.line("crop.perspective_outline", len(*perspective_outline));
+    out.line("crop.perspective_grid_width", len(*perspective_grid_width));
+    out.line("crop.perspective_grid_step", len(*perspective_grid_step));
+    out.line("crop.perspective_click_dot", len(*perspective_click_dot));
+    out.line("crop.perspective_click_move", len(*perspective_click_move));
+    out.line("crop.perspective_reach", len(*perspective_reach));
 }
 
 fn grid_lines(out: &mut Lines, t: &GridTokens) {
