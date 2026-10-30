@@ -35,6 +35,7 @@ mod notice;
 mod options_bar;
 mod panel_footer;
 mod panel_header;
+mod popover;
 mod popup;
 mod progress;
 mod property;
@@ -94,6 +95,7 @@ pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
 pub use panel_footer::{PanelFooterField, PanelFooterTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
+pub use popover::{PopoverField, PopoverTokens};
 pub use popup::{PopupField, PopupTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
@@ -662,6 +664,8 @@ families! {
     panel_footer: PanelFooterTokens => PanelFooter(PanelFooterField);
     /// Panel headers: the title row of a flyout or floating panel.
     panel_header: PanelHeaderTokens => PanelHeader(PanelHeaderField);
+    /// Popovers: the padding, resize grip and screen margin of an anchored popup.
+    popover: PopoverTokens => Popover(PopoverField);
     /// Popups: the card that holds a menu or a list under a field.
     popup: PopupTokens => Popup(PopupField);
     /// Progress bars.

@@ -1270,3 +1270,12 @@ pub const SLIDER_ROW_BASE_CONTROL: f32 = 24.0;
 pub const SLIDER_ROW_FIELD_WIDTH: f32 = 74.0;
 /// Compact space after a slider row.
 pub const SLIDER_ROW_GAP: f32 = 4.0;
+
+/// Side of a popover's resize grip, in points (PhotoCraft's `GRIP`, `brush_picker.rs`).
+pub const POPOVER_GRIP_SIZE: f32 = 16.0;
+
+/// Distance between the grip's diagonal ticks, in points.
+pub const POPOVER_GRIP_PITCH: f32 = 4.0;
+
+/// Room a popover keeps between its edge and the window's, in points, when it grows or is clamped.
+pub const POPOVER_SCREEN_MARGIN: f32 = 40.0;
