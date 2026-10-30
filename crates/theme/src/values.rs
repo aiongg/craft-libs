@@ -629,6 +629,9 @@ pub const PROPERTY_COLUMN_GAP: f32 = 8.0;
 /// Compact width of the slot between a pair's columns.
 pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
 
+/// Width of a preferences window's page list column, at every Size (PhotoCraft's `prefs_ui` side list).
+pub const PREFERENCES_LIST_WIDTH: f32 = 170.0;
+
 /// The control height the Compact form grid gaps are set for; other sizes scale them by their
 /// control height over this.
 pub const FORM_BASE_CONTROL: f32 = 24.0;

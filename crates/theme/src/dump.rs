@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 use crate::{
     AngleDialTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens, BySize,
     CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, ControlSizes, CursorTokens,
-    CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot,
+    CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, GroupBoxTokens, PreferencesTokens, FloatTokens, FontSlot,
     FormSpacing, FormTokens, Gaps, GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes,
     ItemColors, KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens,
     NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, ProgressTokens,
@@ -232,6 +232,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         form,
         gradient_editor,
         gradient_line,
+        group_box,
         guide,
         handle,
         histogram,
@@ -249,6 +250,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         panel_header,
         popover,
         popup,
+        preferences,
         progress,
         property,
         rail,
@@ -286,6 +288,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     form_lines(out, form);
     gradient_editor_lines(out, gradient_editor);
     gradient_line_lines(out, gradient_line);
+    group_box_lines(out, group_box);
     guide_lines(out, guide);
     handle_lines(out, handle);
     histogram_lines(out, histogram);
@@ -303,6 +306,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     panel_header_lines(out, panel_header);
     popover_lines(out, popover);
     popup_lines(out, popup);
+    preferences_lines(out, preferences);
     progress_lines(out, progress);
     property_lines(out, property);
     rail_lines(out, rail);
@@ -1005,6 +1009,20 @@ fn rail_lines(out: &mut Lines, t: &RailTokens) {
     ] {
         out.line(&format!("rail.{k}"), hex(*c));
     }
+}
+
+fn group_box_lines(out: &mut Lines, t: &GroupBoxTokens) {
+    let GroupBoxTokens { edge, radius, padding, gap } = t;
+    out.line("group_box.edge", hex(*edge));
+    out.line("group_box.radius", len(*radius));
+    out.line("group_box.padding", len(*padding));
+    out.line("group_box.gap", len(*gap));
+}
+
+fn preferences_lines(out: &mut Lines, t: &PreferencesTokens) {
+    let PreferencesTokens { list_width, page_gap } = t;
+    out.line("preferences.list_width", len(*list_width));
+    out.line("preferences.page_gap", len(*page_gap));
 }
 
 fn panel_footer_lines(out: &mut Lines, t: &PanelFooterTokens) {

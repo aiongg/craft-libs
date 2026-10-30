@@ -70,7 +70,7 @@ pub use components::{
     BorderState, ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant, BySize, CheckField, CheckOffColors, CheckOffPart, CheckOnColors,
     CheckOnPart, CheckSwitchColors, CheckSwitchPart, CheckTokens, ColorPickerField, ColorPickerTokens, ComponentField, ComponentTokens, ControlSize,
     CursorField, CursorTokens, CurveField, CurveTokens, DialogField, DialogTokens, Dimmed, DockField, DockTokens, EmptyStateField, EmptyStateTokens,
-    FieldField, FieldKind, FieldPart, FieldTokens, FloatField, FloatTokens, FormField, FormSpacing, FormTokens, GradientEditorField,
+    FieldField, FieldKind, FieldPart, FieldTokens, FloatField, FloatTokens, FormField, FormSpacing, FormTokens, GradientEditorField, GroupBoxField, GroupBoxTokens, PreferencesField, PreferencesTokens,
     GradientEditorTokens, GradientLineField, GradientLineTokens, GuideField, GuideTokens, HandleField, HandleTokens, HistogramField, HistogramTokens,
     IconButtonField, IconButtonTokens, ItemColors, ItemPart, KbdField, KbdTokens, LevelsField, LevelsTokens, ListField, ListTokens, ListboxField,
     ListboxTokens, MarqueeField, MarqueeTokens, MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens, NoticeField, NoticeTokens, OptionsBarField,
