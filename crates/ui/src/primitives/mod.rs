@@ -179,5 +179,40 @@ impl Corner {
     }
 }
 
-/// The names of `Content::ALL`, for story args.
-const CONTENT_NAMES: &[&str] = &["normal", "muted", "faint", "disabled", "accent", "on_accent", "on_status", "on_selected"];
+/// A [`Content`] as a story arg; the options are `Content::ALL` by name.
+#[derive(crate::story::StoryChoice, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ContentArg {
+    #[default]
+    Normal,
+    Muted,
+    Faint,
+    Disabled,
+    Accent,
+    #[choice(name = "on_accent")]
+    OnAccent,
+    #[choice(name = "on_status")]
+    OnStatus,
+    #[choice(name = "on_selected")]
+    OnSelected,
+}
+
+impl ContentArg {
+    pub(crate) fn content(self) -> Content {
+        match self {
+            ContentArg::Normal => Content::Normal,
+            ContentArg::Muted => Content::Muted,
+            ContentArg::Faint => Content::Faint,
+            ContentArg::Disabled => Content::Disabled,
+            ContentArg::Accent => Content::Accent,
+            ContentArg::OnAccent => Content::OnAccent,
+            ContentArg::OnStatus => Content::OnStatus,
+            ContentArg::OnSelected => Content::OnSelected,
+        }
+    }
+}
+
+/// The args of a story with a content colour.
+#[derive(crate::story::StoryArgs, Debug, Default, PartialEq)]
+pub(crate) struct ContentStoryArgs {
+    content: ContentArg,
+}

@@ -4,8 +4,9 @@ use craft_theme::{ButtonColors, Easing, ItemColors, States};
 use egui::{Color32, Id, Rect, Response, Ui, vec2};
 
 use super::{Corner, Surface, SurfaceKind};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// The state fills and their animation, from [`StateLayer::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -140,11 +141,16 @@ impl StateLayer {
 pub const COMPONENTS: &[&str] = &["State layer"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new("primitives/state-layer/states", Level::Primitives, "State layer", "States", || Args::new().with_bool("disabled", false), show)]
+    vec![typed_story!("primitives/state-layer/states", Level::Primitives, "State layer", "States", StatesArgs::default(), show)]
+}
+
+#[derive(StoryArgs, Debug, Default, PartialEq)]
+struct StatesArgs {
+    disabled: bool,
 }
 
 /// The rest, hover and pressed fills side by side, then live ones without and with a surface.
-fn show(ui: &mut Ui, args: &mut Args) {
+fn show(ui: &mut Ui, args: &mut StatesArgs) {
     let tokens = Tokens::of(ui);
     let style = StateLayer::style(&tokens);
     let radius = Corner::Control.radius(&tokens);
@@ -160,7 +166,7 @@ fn show(ui: &mut Ui, args: &mut Args) {
             label(ui, rect, name);
         }
     });
-    ui.add_enabled_ui(!args.bool("disabled"), |ui| {
+    ui.add_enabled_ui(!args.disabled, |ui| {
         super::Row::new(super::Gap::Inline).show(ui, |ui| {
             let bare = super::Interactive::new("state-layer-live", egui::accesskit::Role::Button, "Hover or press")
                 .focus_ring(false)

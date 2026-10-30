@@ -1,3 +1,4 @@
+use crate::story::StoryChoice as _;
 use std::path::{Path, PathBuf};
 
 use craft_theme::{Appearance, Contrast, Edge, Mode, Size, TextSize, TypeRole, builtins, resolve};
@@ -236,7 +237,10 @@ fn content_colours_are_their_tokens() {
     let c = &t.color;
     let want = [c.text.normal, c.text.muted, c.text.faint, c.text.disabled, c.accent.text, c.text.on_accent, c.text.on_status, c.text.on_selected];
     assert_eq!(Content::ALL.iter().map(|content| content.color(&t)).collect::<Vec<_>>(), want);
-    assert_eq!(Content::ALL.iter().map(|c| c.name()).collect::<Vec<_>>(), CONTENT_NAMES);
+    assert_eq!(Content::ALL.iter().map(|c| c.name()).collect::<Vec<_>>(), ContentArg::OPTIONS);
+    for (i, &content) in Content::ALL.iter().enumerate() {
+        assert_eq!(ContentArg::from_index(i).content(), content);
+    }
     for &content in Content::ALL {
         assert_eq!(Content::from_name(content.name()), Some(content));
         assert_eq!(Text::format(&t, TypeRole::Label, content).color, content.color(&t).to_egui());

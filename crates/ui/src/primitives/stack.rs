@@ -5,8 +5,9 @@ use egui::{Frame, InnerResponse, Margin, Ui, vec2};
 
 use crate::direction;
 use crate::inspect::{self, RecordKind};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{Tokens, TokensOf, margin};
+use crate::typed_story;
 
 /// The space between neighbouring items: `space.gap.*`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -165,43 +166,60 @@ fn padded<R>(ui: &mut Ui, pad: Option<Pad>, kind: RecordKind, add_contents: impl
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Stack", "Row"];
 
-const GAP_NAMES: &[&str] = &["inline", "row", "stack", "section"];
-const PAD_NAMES: &[&str] = &["none", "control", "panel", "dialog"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum GapArg {
+    Inline,
+    Row,
+    Stack,
+    Section,
+}
+
+impl GapArg {
+    fn gap(self) -> Gap {
+        match self {
+            GapArg::Inline => Gap::Inline,
+            GapArg::Row => Gap::Row,
+            GapArg::Stack => Gap::Stack,
+            GapArg::Section => Gap::Section,
+        }
+    }
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum PadArg {
+    None,
+    Control,
+    Panel,
+    Dialog,
+}
+
+impl PadArg {
+    fn pad(self) -> Option<Pad> {
+        match self {
+            PadArg::None => None,
+            PadArg::Control => Some(Pad::Control),
+            PadArg::Panel => Some(Pad::Panel),
+            PadArg::Dialog => Some(Pad::Dialog),
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct GapsArgs {
+    gap: GapArg,
+    pad: PadArg,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
-            "primitives/stack/gaps",
-            Level::Primitives,
-            "Stack",
-            "Gaps",
-            || Args::new().with_choice("gap", GAP_NAMES, 2).with_choice("pad", PAD_NAMES, 2),
-            show_stack,
-        ),
-        Story::new(
-            "primitives/row/gaps",
-            Level::Primitives,
-            "Row",
-            "Gaps",
-            || Args::new().with_choice("gap", GAP_NAMES, 0).with_choice("pad", PAD_NAMES, 2),
-            show_row,
-        ),
+        typed_story!("primitives/stack/gaps", Level::Primitives, "Stack", "Gaps", GapsArgs { gap: GapArg::Stack, pad: PadArg::Panel }, show_stack),
+        typed_story!("primitives/row/gaps", Level::Primitives, "Row", "Gaps", GapsArgs { gap: GapArg::Inline, pad: PadArg::Panel }, show_row),
     ]
 }
 
-fn gap_arg(args: &Args) -> Gap {
-    let name = args.choice("gap");
-    Gap::ALL.iter().copied().find(|g| g.name() == name).unwrap_or(Gap::Stack)
-}
-
-fn pad_arg(args: &Args) -> Option<Pad> {
-    let name = args.choice("pad");
-    Pad::ALL.iter().copied().find(|p| p.name() == name)
-}
-
-fn show_stack(ui: &mut Ui, args: &mut Args) {
-    let stack = Stack::new(gap_arg(args));
-    let stack = match pad_arg(args) {
+fn show_stack(ui: &mut Ui, args: &mut GapsArgs) {
+    let stack = Stack::new(args.gap.gap());
+    let stack = match args.pad.pad() {
         Some(pad) => stack.pad(pad),
         None => stack,
     };
@@ -214,9 +232,9 @@ fn show_stack(ui: &mut Ui, args: &mut Args) {
     });
 }
 
-fn show_row(ui: &mut Ui, args: &mut Args) {
-    let row = Row::new(gap_arg(args));
-    let row = match pad_arg(args) {
+fn show_row(ui: &mut Ui, args: &mut GapsArgs) {
+    let row = Row::new(args.gap.gap());
+    let row = match args.pad.pad() {
         Some(pad) => row.pad(pad),
         None => row,
     };

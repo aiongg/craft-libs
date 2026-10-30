@@ -7,8 +7,9 @@ use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, InteractOptions, Rect, R
 
 use super::{Corner, FocusRing, StateColors, StateLayer, Surface, SurfaceEdge, SurfaceKind};
 use crate::inspect::{self, RecordKind};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf};
+use crate::typed_story;
 
 /// An interactive element: allocates its rect, senses the pointer, reports its role, label, value
 /// and state to AccessKit, and paints its fill and the [`FocusRing`].
@@ -547,38 +548,63 @@ impl Sensed {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Interactive"];
 
-const ROLE_NAMES: &[&str] = &["button", "check box", "tab"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum RoleArg {
+    Button,
+    #[choice(name = "check box")]
+    CheckBox,
+    Tab,
+}
 
-const SURFACE_NAMES: &[&str] = &["none", "raised", "sunken", "panel"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum SurfaceArg {
+    None,
+    Raised,
+    Sunken,
+    Panel,
+}
+
+impl SurfaceArg {
+    fn kind(self) -> Option<SurfaceKind> {
+        match self {
+            SurfaceArg::None => None,
+            SurfaceArg::Raised => Some(SurfaceKind::Raised),
+            SurfaceArg::Sunken => Some(SurfaceKind::Sunken),
+            SurfaceArg::Panel => Some(SurfaceKind::Panel),
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct ElementArgs {
+    role: RoleArg,
+    surface: SurfaceArg,
+    label: String,
+    disabled: bool,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "primitives/interactive/element",
         Level::Primitives,
         "Interactive",
         "Element",
-        || {
-            Args::new()
-                .with_choice("role", ROLE_NAMES, 0)
-                .with_choice("surface", SURFACE_NAMES, 0)
-                .with_text("label", "Activate")
-                .with_bool("disabled", false)
-        },
-        show,
+        ElementArgs { role: RoleArg::Button, surface: SurfaceArg::None, label: "Activate".into(), disabled: false },
+        show
     )]
 }
 
 /// One element (a check box toggles, a tab sits beside a second one); clicks, Enter and Space
 /// count up.
-fn show(ui: &mut Ui, args: &mut Args) {
+fn show(ui: &mut Ui, args: &mut ElementArgs) {
     let tokens = Tokens::of(ui);
-    let role = match args.choice("role") {
-        "check box" => Role::CheckBox,
-        "tab" => Role::Tab,
-        _ => Role::Button,
+    let role = match args.role {
+        RoleArg::CheckBox => Role::CheckBox,
+        RoleArg::Tab => Role::Tab,
+        RoleArg::Button => Role::Button,
     };
-    let surface = SurfaceKind::ALL.iter().copied().find(|k| k.name() == args.choice("surface"));
-    let label = args.text("label").to_owned();
+    let surface = args.surface.kind();
+    let label = args.label.clone();
     let state_id = ui.scope_id().with("interactive-story-state");
     let (mut count, mut checked, mut tab) = ui.data(|d| d.get_temp::<(u32, bool, usize)>(state_id).unwrap_or_default());
     let size = vec2(120.0, tokens.size.control.md);
@@ -586,7 +612,7 @@ fn show(ui: &mut Ui, args: &mut Args) {
         let color = tokens.color.text.normal.to_egui();
         ui.painter().text(response.rect.center(), egui::Align2::CENTER_CENTER, label, tokens.font(craft_theme::TypeRole::Label), color);
     };
-    ui.add_enabled_ui(!args.bool("disabled"), |ui| {
+    ui.add_enabled_ui(!args.disabled, |ui| {
         super::Row::new(super::Gap::Inline).show(ui, |ui| {
             let labels = if role == Role::Tab { vec![label.clone(), "Other".to_owned()] } else { vec![label.clone()] };
             for (i, label) in labels.iter().enumerate() {

@@ -3,10 +3,11 @@
 use egui::accesskit::Role;
 use egui::{Color32, Response, Sense, Ui, Widget, WidgetInfo, vec2};
 
-use super::{CONTENT_NAMES, Content};
+use super::{Content, ContentStoryArgs};
 use crate::icons::{self, IconSize};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// An icon's size and colour, from [`Icon::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -80,12 +81,12 @@ const SAMPLES: [icons::Icon; 6] =
     [icons::Icon::Close, icons::Icon::ChevronRight, icons::Icon::Undo, icons::Icon::Layers, icons::Icon::Eye, icons::Icon::Warning];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new("primitives/icon/sizes", Level::Primitives, "Icon", "Sizes", || Args::new().with_choice("content", CONTENT_NAMES, 0), show)]
+    vec![typed_story!("primitives/icon/sizes", Level::Primitives, "Icon", "Sizes", ContentStoryArgs::default(), show)]
 }
 
 /// A row of icons per size class; chevron and undo mirror in right-to-left.
-fn show(ui: &mut Ui, args: &mut Args) {
-    let content = Content::from_name(args.choice("content")).unwrap_or_default();
+fn show(ui: &mut Ui, args: &mut ContentStoryArgs) {
+    let content = args.content.content();
     crate::story::variant_list(ui, "icon-sizes", |form| {
         for (size, name) in IconSize::ALL.into_iter().zip(["Sm", "Md", "Lg"]) {
             crate::story::variant_cluster(form, name, |ui| {
