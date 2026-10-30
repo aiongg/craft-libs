@@ -459,10 +459,10 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         self
     }
 
-    /// Whether the midpoint diamonds show and edit, on both rows; on by default.
+    /// Whether the midpoint diamonds show and edit, on both rows; on by default. Off hides the
+    /// opacity row's too, whatever [`opacity_midpoints`](Self::opacity_midpoints) says.
     pub fn midpoints(mut self, midpoints: bool) -> Self {
         self.midpoints = midpoints;
-        self.opacity_midpoints = midpoints;
         self
     }
 
@@ -1391,5 +1391,23 @@ impl BarEdit<'_> {
         if let Some(i) = nearest {
             self.state.selected = Some(StopRef::stop(row, i));
         }
+    }
+}
+
+#[cfg(test)]
+mod order_tests {
+    use super::*;
+
+    #[test]
+    fn midpoints_and_opacity_midpoints_do_not_depend_on_call_order() {
+        let (stops, numbers) = (GradientStops::default(), LocaleNumbers::from_tag("en"));
+        let editor = || GradientEditor::new("gradient", "Gradient", &stops, &numbers);
+        let a = editor().opacity_midpoints(false).midpoints(true);
+        let b = editor().midpoints(true).opacity_midpoints(false);
+        for e in [&a, &b] {
+            assert!(e.midpoints && !e.opacity_midpoints);
+        }
+        let off = editor().opacity_midpoints(true).midpoints(false);
+        assert!(!off.midpoints && off.opacity_midpoints, "midpoints off still hides both rows through shows_midpoints");
     }
 }
