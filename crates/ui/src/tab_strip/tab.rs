@@ -79,12 +79,24 @@ pub struct Tab<K> {
     pub(crate) modified: bool,
     pub(crate) closable: bool,
     pub(crate) progress: Option<f32>,
+    pub(crate) close_label: Option<String>,
 }
 
 impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
     /// A tab with this key and label.
     pub fn new(key: K, label: impl Into<String>) -> Self {
-        Self { key, id: None, shaped: None, label: label.into(), detail: None, icon: None, modified: false, closable: false, progress: None }
+        Self {
+            key,
+            id: None,
+            shaped: None,
+            label: label.into(),
+            detail: None,
+            icon: None,
+            modified: false,
+            closable: false,
+            progress: None,
+            close_label: None,
+        }
     }
 
     /// Secondary text after the label (a colour mode, a zoom): it stays readable while the label
@@ -130,6 +142,14 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
     /// A progress bar along the tab's bottom edge, `0.0` to `1.0` (a document opening or saving).
     pub fn progress(mut self, progress: Option<f32>) -> Self {
         self.progress = progress.map(|p| p.clamp(0.0, 1.0));
+        self
+    }
+
+    /// The × 's name and tooltip, instead of the strip's [`TabStripText::close`] with the tab's
+    /// label filled in (a tab still opening a document names its × "Cancel opening"). Empty text
+    /// counts as none.
+    pub fn close_label(mut self, label: impl Into<String>) -> Self {
+        self.close_label = Some(label.into()).filter(|l| !l.is_empty());
         self
     }
 
@@ -618,13 +638,18 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
 
         let close = layout.close.map(|at| {
             let child = ui.new_child(UiBuilder::new().max_rect(at).accessibility_parent(id));
-            let name = TabStripText::fill(&view.text.close, &self.label);
+            let name = self.close_label.clone().unwrap_or_else(|| TabStripText::fill(&view.text.close, &self.label));
+            let tip = self.close_label.is_some().then(|| name.clone());
             let sensed = Interactive::with_id(id.with("close"), Role::Button, name)
                 .sense(Sense::CLICK)
                 .state_layer(false)
                 .focus_ring(false)
                 .interact_at(&child, at);
-            sensed.finish(&child)
+            let response = sensed.finish(&child);
+            match tip {
+                Some(tip) => response.on_hover_text(tip),
+                None => response,
+            }
         });
 
         if ui.is_rect_visible(rect) {

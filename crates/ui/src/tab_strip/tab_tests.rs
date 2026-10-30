@@ -172,6 +172,15 @@ fn a_tab_is_a_labelled_tab_with_a_close_button_inside_and_no_tab_stop() {
 }
 
 #[test]
+fn a_close_label_names_the_close_button_instead_of_the_strips_text() {
+    let tab = Tab::new(1u8, "Photo").closable(true).close_label("Cancel opening");
+    let mut harness = harness(Direction::Ltr).build_ui_state(|ui, clicks: &mut Clicks| one_tab(ui, clicks, &tab, false), Clicks { tab: 0, close: 0 });
+    harness.run();
+    assert_eq!(harness.get_by_label("Cancel opening").accesskit_node().role(), Role::Button);
+    assert!(harness.query_by_label("Close Photo").is_none());
+}
+
+#[test]
 fn a_tab_without_close_has_no_button() {
     let tab = Tab::new(1u8, "Panel");
     let harness = harness(Direction::Ltr).build_ui_state(|ui, clicks: &mut Clicks| one_tab(ui, clicks, &tab, false), Clicks { tab: 0, close: 0 });
