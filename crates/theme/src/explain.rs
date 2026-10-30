@@ -5,6 +5,7 @@ use super::color::Rgba;
 use super::components::{ComponentField, ComponentTokens, Semantic};
 use super::derive::{Anchoring, ContrastCheck, PassMove, Ramps};
 use super::resolve::{self, Resolved};
+use super::sizes;
 use super::theme::{Appearance, PinLayer, Size, ThemeDef};
 use super::tokens::{ColorToken, ColorTokens, ElevationTokens, ShapeTokens, StatusKind, TokenRef};
 use super::values::{self, ColorSource};
@@ -262,7 +263,8 @@ pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<Col
         // Opaque, so no probe colour equals a translucent constant such as `Rgba::TRANSPARENT`.
         probe.set(t, Rgba([channel(i, rm, ro), channel(i, gm, go), channel(i, bm, bo), 0xff]));
     }
-    let preset = values::preset(Size::Compact);
+    let set = sizes::builtin(Size::Compact);
+    let preset = &set.base;
     let shape = ShapeTokens { radius: preset.radius, edge: preset.edge };
     let elevation = { ElevationTokens { popup: values::POPUP_SHADOW, floating: values::WINDOW_SHADOW, knob: values::KNOB_SHADOW } };
     let defaults = ComponentTokens::defaults(&Semantic {
@@ -271,7 +273,7 @@ pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<Col
         space: &preset.space,
         size: &preset.size,
         elevation: &elevation,
-        preset: Size::Compact,
+        set: &set.components,
         typography: &preset.typography,
         high: false,
     });

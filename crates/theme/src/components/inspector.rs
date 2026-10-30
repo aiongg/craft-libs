@@ -38,8 +38,8 @@ impl Family for InspectorTokens {
     /// PhotoCraft's properties header (24 high) at Compact; the row and icon follow the Size.
     fn defaults(s: &Semantic<'_>) -> InspectorTokens {
         InspectorTokens {
-            header_height: values::inspector_header_height(s.preset),
-            icon: values::inspector_icon(s.preset),
+            header_height: s.set.inspector_header_height,
+            icon: s.set.inspector_icon,
             pad: s.space.pad.panel,
             title: s.color.text.normal,
             kind: s.color.text.faint,

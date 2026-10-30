@@ -45,7 +45,7 @@ impl Family for ProgressTokens {
 
     fn defaults(s: &Semantic<'_>) -> ProgressTokens {
         ProgressTokens {
-            width: values::progress_width(s.preset),
+            width: s.set.progress_width,
             track_height: values::PROGRESS_TRACK,
             radius: s.shape.radius.pill,
             track: s.color.surface.sunken,

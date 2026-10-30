@@ -35,7 +35,7 @@ pub fn write(file: &ThemeFile) -> Result<String, FormatErrors> {
     let mut raw = file.raw.clone();
     update(&mut raw, &file.theme);
     let mut out = String::new();
-    emit(&Value::Object(raw), 0, true, &mut out);
+    emit(&Value::Object(raw), 0, Some(&TOP_ORDER), &mut out);
     out.push('\n');
     Ok(out)
 }
@@ -223,6 +223,11 @@ fn length(v: f32) -> Value {
     if v == Radius::Full.px() {
         return "full".into();
     }
+    number(v)
+}
+
+/// `v` as a JSON number.
+pub(super) fn number(v: f32) -> Value {
     // Through the shortest decimal form, so 0.1f32 is written 0.1, not 0.10000000149.
     v.to_string().parse::<f64>().ok().and_then(Number::from_f64).map_or(Value::Null, Value::Number)
 }
@@ -241,13 +246,14 @@ fn edge(e: EdgeSeed) -> Value {
 }
 
 /// Two-space pretty JSON with sorted keys, the top level in [`TOP_ORDER`].
-fn emit(v: &Value, depth: usize, top: bool, out: &mut String) {
+/// Pretty-prints `v`; the keys of the top level are ordered by `top` when given, sorted otherwise.
+pub(super) fn emit(v: &Value, depth: usize, top: Option<&[&str]>, out: &mut String) {
     let pad = |n: usize| "  ".repeat(n);
     match v {
         Value::Object(o) if !o.is_empty() => {
             let mut keys: Vec<&String> = o.keys().collect();
             keys.sort_by_key(|k| {
-                let rank = if top { TOP_ORDER.iter().position(|t| t == k).unwrap_or(TOP_ORDER.len()) } else { 0 };
+                let rank = top.map_or(0, |order| order.iter().position(|t| t == k).unwrap_or(order.len()));
                 (rank, k.as_str().to_owned())
             });
             out.push_str("{\n");
@@ -255,7 +261,7 @@ fn emit(v: &Value, depth: usize, top: bool, out: &mut String) {
                 out.push_str(&pad(depth + 1));
                 out.push_str(&Value::String((*k).clone()).to_string());
                 out.push_str(": ");
-                emit(&o[*k], depth + 1, false, out);
+                emit(&o[*k], depth + 1, None, out);
                 out.push_str(if i + 1 < keys.len() { ",\n" } else { "\n" });
             }
             out.push_str(&pad(depth));
@@ -265,13 +271,24 @@ fn emit(v: &Value, depth: usize, top: bool, out: &mut String) {
             out.push_str("[\n");
             for (i, item) in a.iter().enumerate() {
                 out.push_str(&pad(depth + 1));
-                emit(item, depth + 1, false, out);
+                emit(item, depth + 1, None, out);
                 out.push_str(if i + 1 < a.len() { ",\n" } else { "\n" });
             }
             out.push_str(&pad(depth));
             out.push(']');
         }
         other => out.push_str(&other.to_string()),
+    }
+}
+
+/// Sets the value at `path` below `dst`, replacing anything that is not an object on the way.
+pub(super) fn set_path(dst: &mut Map<String, Value>, path: &[&str], value: Value) {
+    match path {
+        [] => {}
+        [key] => {
+            dst.insert((*key).to_owned(), value);
+        }
+        [key, rest @ ..] => with_object(dst, key, |o| set_path(o, rest, value)),
     }
 }
 

@@ -232,8 +232,8 @@ impl Family for ButtonTokens {
         let none = States::new(clear, clear, clear, clear);
         let text = |t: Rgba| States::new(t, t, t, c.text.disabled);
         let bad = c.status.bad;
-        let (sm, md) = values::button_height(s.preset);
-        let pad_x = values::button_pad_x(s.preset);
+        let (sm, md) = (s.set.button_height_sm, s.set.button_height_md);
+        let pad_x = s.set.button_pad_x;
         let primary = c.accent.solid;
         ButtonTokens {
             height: BySize { sm, md },

@@ -620,7 +620,7 @@ impl From<ComponentField> for TokenRef {
 }
 
 /// Corner radii in logical pixels.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct RadiusSet {
     /// Buttons other than pills, fields, small controls.
     pub control: f32,
@@ -638,9 +638,10 @@ pub struct RadiusSet {
 }
 
 /// How surfaces draw their edge. Only the `Surface` primitive reads it.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Edge {
     /// No edge effect.
+    #[default]
     Flat,
     /// A two-tone bevel: `light` on the lit sides, `dark` on the shaded ones.
     Bevel {
@@ -673,7 +674,7 @@ pub struct ShapeTokens {
 }
 
 /// Gaps between neighbouring elements, in logical pixels.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Gaps {
     /// Between items on one line.
     pub inline: f32,
@@ -686,7 +687,7 @@ pub struct Gaps {
 }
 
 /// Inner padding, in logical pixels.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Pads {
     /// Inside controls.
     pub control: f32,
@@ -697,7 +698,7 @@ pub struct Pads {
 }
 
 /// Spacing.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct SpaceTokens {
     /// Gaps.
     pub gap: Gaps,
@@ -706,7 +707,7 @@ pub struct SpaceTokens {
 }
 
 /// Control heights, in logical pixels.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ControlSizes {
     /// Small controls.
     pub sm: f32,
@@ -715,7 +716,7 @@ pub struct ControlSizes {
 }
 
 /// Icon sizes, in logical pixels.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct IconSizes {
     /// Inline and small-control icons.
     pub sm: f32,
@@ -726,7 +727,7 @@ pub struct IconSizes {
 }
 
 /// Tool-rail sizes, in logical pixels.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct RailSizes {
     /// Rail width.
     pub width: f32,
@@ -739,7 +740,7 @@ pub struct RailSizes {
 }
 
 /// Bar heights, in logical pixels.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BarSizes {
     /// Window title bar.
     pub title: f32,
@@ -754,7 +755,7 @@ pub struct BarSizes {
 }
 
 /// Fixed sizes of controls and chrome.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct SizeTokens {
     /// Control heights.
     pub control: ControlSizes,
@@ -775,7 +776,7 @@ pub struct SizeTokens {
 }
 
 /// Thumbnail sides of a list row, in logical pixels, for the three user settings.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ThumbSizes {
     /// Small.
     pub sm: f32,
@@ -786,7 +787,7 @@ pub struct ThumbSizes {
 }
 
 /// Sizes and looks of list rows that differ by Size preset.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ListSizes {
     /// Thumbnail sides.
     pub thumb: ThumbSizes,
@@ -810,7 +811,7 @@ pub struct ListSizes {
 }
 
 /// Sizes and looks of tabs that differ by Size preset.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TabSizes {
     /// Height of a dock group's tab strip (PhotoCraft's panel tabs are 2 taller than its
     /// document tabs).
@@ -830,7 +831,7 @@ pub struct TabSizes {
 }
 
 /// Sizes of preset browsers that differ by Size preset.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PresetSizes {
     /// Height of a group or folder header.
     pub header_height: f32,
@@ -847,9 +848,10 @@ pub struct PresetSizes {
 }
 
 /// The font a type role uses. `craft_ui::fonts` maps each slot to a face.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum FontSlot {
     /// The interface face, regular weight.
+    #[default]
     Ui,
     /// The interface face, semibold.
     UiSemibold,
@@ -858,7 +860,7 @@ pub enum FontSlot {
 }
 
 /// Size, line height and font of one type role.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TypeStyle {
     /// Font size in points.
     pub size: f32,
@@ -888,7 +890,7 @@ pub enum TypeRole {
 }
 
 /// Every type role.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TypeTokens {
     /// Small print, badges.
     pub caption: TypeStyle,

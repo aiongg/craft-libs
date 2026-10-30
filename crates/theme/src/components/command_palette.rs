@@ -38,7 +38,7 @@ impl Family for CommandPaletteTokens {
             width: values::COMMAND_PALETTE_WIDTH,
             top: values::COMMAND_PALETTE_TOP,
             pad: values::COMMAND_PALETTE_PAD,
-            row_height: values::command_palette_row_height(s.preset),
+            row_height: s.set.command_palette_row_height,
             max_rows: values::COMMAND_PALETTE_MAX_ROWS,
             recent: values::COMMAND_PALETTE_RECENT,
         }

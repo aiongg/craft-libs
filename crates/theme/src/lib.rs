@@ -37,6 +37,7 @@ pub mod report;
 mod resolve;
 pub mod scale;
 pub mod selection;
+pub mod sizes;
 mod theme;
 mod tokens;
 mod values;
@@ -57,6 +58,8 @@ mod report_tests;
 mod selection_tests;
 #[cfg(test)]
 mod semantic_tests;
+#[cfg(test)]
+mod sizes_tests;
 #[cfg(test)]
 mod tests;
 

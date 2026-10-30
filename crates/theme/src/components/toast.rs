@@ -100,8 +100,8 @@ impl Family for ToastTokens {
         let c = s.color;
         ToastTokens {
             width: values::TOAST_WIDTH,
-            pad: values::toast_pad(s.preset),
-            inset: values::toast_inset(s.preset),
+            pad: s.set.toast_pad,
+            inset: s.set.toast_inset,
             gap: s.space.gap.stack,
             radius: s.shape.radius.popup,
             fill: c.surface.panel,

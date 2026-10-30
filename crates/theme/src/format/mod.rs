@@ -13,10 +13,12 @@ use super::theme::ThemeDef;
 use crate::IdError;
 
 mod parse;
+mod sizes;
 mod validate;
 mod write;
 
 pub use parse::parse;
+pub use sizes::{SIZES_SCHEMA, SIZES_SCHEMA_VERSION, SizeSetFile, parse_sizes, sizes_to_file, write_sizes};
 pub use write::write;
 
 /// The `schema` value of a theme file.
@@ -127,6 +129,18 @@ pub enum ErrorKind {
         /// The token paths of the references that still change after the last round.
         tokens: Vec<String>,
     },
+    /// A number outside the range its path allows.
+    OutOfRange {
+        /// The least value.
+        min: f32,
+        /// The greatest value.
+        max: f32,
+    },
+    /// A value that breaks a relation to another value.
+    CrossRule {
+        /// What the value must be, such as "at most base.size.control.md".
+        rule: &'static str,
+    },
     /// A translucent colour on a surface (`surface.*` except `surface.scrim` and `surface.shadow`).
     NotOpaque,
 }
@@ -175,6 +189,8 @@ impl FormatError {
                 format!("references depend on themselves through derivation and never settle: {}", tokens.join(", "))
             }
             ErrorKind::ReferenceCycle { chain } => format!("references form a cycle: {}", chain.join(" -> ")),
+            ErrorKind::OutOfRange { min, max } => format!("outside {min} to {max}"),
+            ErrorKind::CrossRule { rule } => format!("must be {rule}"),
             ErrorKind::NotOpaque => "surfaces must be opaque".to_owned(),
         }
     }

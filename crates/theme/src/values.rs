@@ -4,12 +4,9 @@
 
 use super::color::Rgba;
 use super::ramp::Mode;
-use super::scale::{Duration, Easing, Elevation, Radius};
-use super::theme::{Size, TextSize};
-use super::tokens::{
-    BarSizes, ColorToken, ControlSizes, Edge, FontSlot, Gaps, IconSizes, ListSizes, Pads, PresetSizes, RadiusSet, RailSizes, SizeTokens, SpaceTokens,
-    StatusKind, TabSizes, ThumbSizes, TypeStyle, TypeTokens,
-};
+use super::scale::{Duration, Easing, Elevation};
+use super::theme::TextSize;
+use super::tokens::{ColorToken, StatusKind};
 
 use Bg::{HaloOver, Token};
 use ColorToken as T;
@@ -415,100 +412,6 @@ pub(super) const RULES: &[PairRule] = &[
     // the same reason.
 ];
 
-/// The Size-dependent values: sizes, spacing, default shape and type roles.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct Preset {
-    pub size: SizeTokens,
-    pub space: SpaceTokens,
-    pub radius: RadiusSet,
-    pub edge: Edge,
-    pub typography: TypeTokens,
-}
-
-const fn style(size: f32, line_height: f32, font: FontSlot) -> TypeStyle {
-    TypeStyle { size, line_height, font }
-}
-
-/// Compact (Pro).
-pub(super) const COMPACT: Preset = Preset {
-    size: SizeTokens {
-        control: ControlSizes { sm: 20.0, md: 24.0 },
-        icon: IconSizes { sm: 12.0, md: 16.0, lg: 20.0 },
-        rail: RailSizes { width: 40.0, button: 30.0, panel_width: 36.0, panel_button: 28.0 },
-        bar: BarSizes { title: 32.0, tab: 26.0, status: 24.0, options: 36.0, options_narrow: 30.0 },
-        panel_header: 28.0,
-        list: ListSizes {
-            thumb: ThumbSizes { sm: 18.0, md: 24.0, lg: 48.0 },
-            thumb_row_min: 32.0,
-            indent: 14.0,
-            disclosure: 14.0,
-            toggle_column: 30.0,
-            min_label: 64.0,
-            trailing_pad: 10.0,
-            rounded: false,
-            dividers: true,
-        },
-        tab: TabSizes { panel_height: 28.0, height_large: 34.0, min_width: 40.0, close: 14.0, close_icon: 10.0, rounded: false, dividers: true },
-        preset: PresetSizes { header_height: 24.0, grid_gap: 4.0, grid_inset: 8.0, cell_radius: 2.0, caption_gap: 2.0, slider_width: 90.0 },
-    },
-    space: SpaceTokens { gap: Gaps { inline: 4.0, row: 4.0, stack: 6.0, section: 12.0 }, pad: Pads { control: 6.0, panel: 8.0, dialog: 16.0 } },
-    radius: RadiusSet { control: 3.0, popup: 4.0, window: 6.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
-    edge: Edge::Flat,
-    typography: TypeTokens {
-        caption: style(10.5, 14.0, FontSlot::Ui),
-        label: style(11.5, 16.0, FontSlot::Ui),
-        body: style(12.0, 16.0, FontSlot::Ui),
-        body_strong: style(12.0, 16.0, FontSlot::UiSemibold),
-        title: style(13.0, 18.0, FontSlot::UiSemibold),
-        heading: style(15.0, 20.0, FontSlot::UiSemibold),
-        mono: style(11.5, 16.0, FontSlot::Mono),
-    },
-};
-
-/// Comfortable (Studio).
-pub(super) const COMFORTABLE: Preset = Preset {
-    size: SizeTokens {
-        control: ControlSizes { sm: 24.0, md: 30.0 },
-        icon: IconSizes { sm: 14.0, md: 18.0, lg: 22.0 },
-        rail: RailSizes { width: 50.0, button: 36.0, panel_width: 44.0, panel_button: 32.0 },
-        bar: BarSizes { title: 38.0, tab: 30.0, status: 30.0, options: 42.0, options_narrow: 34.0 },
-        panel_header: 34.0,
-        list: ListSizes {
-            thumb: ThumbSizes { sm: 18.0, md: 34.0, lg: 48.0 },
-            thumb_row_min: 40.0,
-            indent: 18.0,
-            disclosure: 18.0,
-            toggle_column: 36.0,
-            min_label: 80.0,
-            trailing_pad: 12.0,
-            rounded: true,
-            dividers: false,
-        },
-        tab: TabSizes { panel_height: 40.0, height_large: 38.0, min_width: 44.0, close: 16.0, close_icon: 12.0, rounded: true, dividers: false },
-        preset: PresetSizes { header_height: 30.0, grid_gap: 6.0, grid_inset: 12.0, cell_radius: 6.0, caption_gap: 3.0, slider_width: 108.0 },
-    },
-    space: SpaceTokens { gap: Gaps { inline: 6.0, row: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
-    radius: RadiusSet { control: 6.0, popup: 8.0, window: 12.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
-    edge: Edge::Flat,
-    typography: TypeTokens {
-        caption: style(11.5, 16.0, FontSlot::Ui),
-        label: style(12.5, 18.0, FontSlot::Ui),
-        body: style(13.0, 18.0, FontSlot::Ui),
-        body_strong: style(13.0, 18.0, FontSlot::UiSemibold),
-        title: style(14.0, 20.0, FontSlot::UiSemibold),
-        heading: style(17.0, 24.0, FontSlot::UiSemibold),
-        mono: style(12.5, 18.0, FontSlot::Mono),
-    },
-};
-
-/// The preset for `size`.
-pub(super) const fn preset(size: Size) -> &'static Preset {
-    match size {
-        Size::Compact => &COMPACT,
-        Size::Comfortable => &COMFORTABLE,
-    }
-}
-
 /// Multiplier on type sizes and line heights per text-size step.
 pub const fn text_size_factor(t: TextSize) -> f32 {
     match t {
@@ -551,24 +454,6 @@ pub const MOTION_EASING: Easing = Easing::Standard;
 /// How much of its fill a check box that is on shows while pressed (`widgets/buttons.rs:247`).
 pub const CHECK_ON_PRESSED_OPACITY: f32 = 0.75;
 
-/// Side of the options bar's icon buttons: PhotoCraft's tool icon button (26 Pro, 28 Studio,
-/// `panels/options_bar.rs:57`).
-pub const fn options_bar_button(size: Size) -> f32 {
-    match size {
-        Size::Compact => 26.0,
-        Size::Comfortable => 28.0,
-    }
-}
-
-/// A progress bar's length when the caller gives none: PhotoCraft's job progress bar (120 Pro,
-/// 140 Studio, `jobs_ui.rs:655`).
-pub const fn progress_width(size: Size) -> f32 {
-    match size {
-        Size::Compact => 120.0,
-        Size::Comfortable => 140.0,
-    }
-}
-
 /// The control height the Compact panel footer sizes are set for.
 pub const PANEL_FOOTER_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a panel footer's bar (PhotoCraft's `FOOTER_BAR`, `widgets/panel.rs:58`).
@@ -577,25 +462,6 @@ pub const PANEL_FOOTER_HEIGHT: f32 = 30.0;
 pub const PANEL_FOOTER_GAP: f32 = 2.0;
 /// Compact side of a panel footer's button.
 pub const PANEL_FOOTER_BUTTON: f32 = 26.0;
-
-/// Button heights in points, small and standard: PhotoCraft's status-bar button (22, the same in
-/// its Pro and Studio layouts' non-Pro branch, `status_bar.rs:8`) and its button (28 Pro, 30
-/// Studio, `widgets/buttons.rs:150`).
-pub const fn button_height(size: Size) -> (f32, f32) {
-    match size {
-        Size::Compact => (22.0, 28.0),
-        Size::Comfortable => (22.0, 30.0),
-    }
-}
-
-/// Button padding at the start and end, in points, at both button sizes: PhotoCraft's 14 at
-/// Compact, and the 4 points Comfortable's control padding adds.
-pub const fn button_pad_x(size: Size) -> f32 {
-    match size {
-        Size::Compact => 14.0,
-        Size::Comfortable => 18.0,
-    }
-}
 
 /// Button outline width ([`Stroke::W1`](super::scale::Stroke::W1)); control borders are 1 point.
 pub const BUTTON_BORDER_WIDTH: f32 = 1.0;
@@ -732,14 +598,6 @@ pub const SECTION_TITLE_OFFSET: f32 = 18.0;
 pub const DOCK_BASE_CONTROL: f32 = 24.0;
 /// Compact height of a floating window's title bar and of a collapsed column's bar.
 pub const DOCK_BAR_HEIGHT: f32 = 14.0;
-/// The vertical gap between stacked controls in a panel body: PhotoCraft's dock bodies set item
-/// spacing to 0 in the Pro layout and 6 otherwise (`panels/panel_docking.rs:1229`).
-pub const fn dock_body_gap(size: Size) -> f32 {
-    match size {
-        Size::Compact => 0.0,
-        Size::Comfortable => 6.0,
-    }
-}
 /// Added to the icon size for the height of an iconic column's row.
 pub const DOCK_ICON_PAD: f32 = 10.0;
 /// Width of a group's border.
@@ -1254,13 +1112,6 @@ pub const STATUS_BAR_GAP: f32 = 8.0;
 pub const STATUS_BAR_GROUP_GAP: f32 = 12.0;
 /// Length of a divider in the status bar (`widgets::vline(ui, 16.0)`), Compact.
 pub const STATUS_BAR_DIVIDER: f32 = 16.0;
-/// Width of the zoom field cell: PhotoCraft's Pro 64 at Compact (`chrome_ui.rs`, `status_bar_pro`), its 78 at Comfortable.
-pub const fn status_bar_field_width(size: Size) -> f32 {
-    match size {
-        Size::Compact => 64.0,
-        Size::Comfortable => 78.0,
-    }
-}
 
 /// Width of the command palette's box (PhotoCraft `dialogs/palette.rs`), the same at every Size.
 pub const COMMAND_PALETTE_WIDTH: f32 = 560.0;
@@ -1272,78 +1123,6 @@ pub const COMMAND_PALETTE_PAD: f32 = 10.0;
 pub const COMMAND_PALETTE_MAX_ROWS: usize = 12;
 /// Commands the palette remembers for the empty query.
 pub const COMMAND_PALETTE_RECENT: usize = 8;
-/// Height of a palette result row: PhotoCraft's 32 at Compact.
-pub const fn command_palette_row_height(size: Size) -> f32 {
-    match size {
-        Size::Compact => 32.0,
-        Size::Comfortable => 38.0,
-    }
-}
-
-/// Height of an inspector's target header: PhotoCraft's 24 (`props_layout::header`) at Compact.
-pub const fn inspector_header_height(size: Size) -> f32 {
-    match size {
-        Size::Compact => 24.0,
-        Size::Comfortable => 30.0,
-    }
-}
-/// Side of the kind icon in an inspector's target header.
-pub const fn inspector_icon(size: Size) -> f32 {
-    match size {
-        Size::Compact => 15.0,
-        Size::Comfortable => 18.0,
-    }
-}
-
-/// Side of a horizontal toolbar's button (PhotoCraft and CraftApps' 26).
-pub const fn toolbar_button(size: Size) -> f32 {
-    match size {
-        Size::Compact => 26.0,
-        Size::Comfortable => 32.0,
-    }
-}
-/// Side of a vertical toolbar strip's button (PhotoCraft's Liquify strip: 34).
-pub const fn toolbar_button_large(size: Size) -> f32 {
-    match size {
-        Size::Compact => 34.0,
-        Size::Comfortable => 42.0,
-    }
-}
-/// Between the buttons of a toolbar group.
-pub const fn toolbar_gap(size: Size) -> f32 {
-    match size {
-        Size::Compact => 4.0,
-        Size::Comfortable => 5.0,
-    }
-}
-/// Between the groups of a vertical toolbar strip (Liquify's extra 6).
-pub const fn toolbar_group_gap(size: Size) -> f32 {
-    match size {
-        Size::Compact => 6.0,
-        Size::Comfortable => 8.0,
-    }
-}
-/// Inset of a vertical toolbar strip, across and along.
-pub const fn toolbar_pad(size: Size) -> [f32; 2] {
-    match size {
-        Size::Compact => [6.0, 8.0],
-        Size::Comfortable => [8.0, 10.0],
-    }
-}
-/// Width of a vertical toolbar strip.
-pub const fn toolbar_width(size: Size) -> f32 {
-    match size {
-        Size::Compact => 48.0,
-        Size::Comfortable => 60.0,
-    }
-}
-/// Width of a horizontal toolbar's overflow button.
-pub const fn toolbar_overflow(size: Size) -> f32 {
-    match size {
-        Size::Compact => 30.0,
-        Size::Comfortable => 38.0,
-    }
-}
 
 /// The control height the Compact readout sizes are set for.
 pub const READOUT_BASE_CONTROL: f32 = 24.0;
@@ -1410,23 +1189,6 @@ pub const TOOLTIP_WIDTH: f32 = 280.0;
 
 /// Outer width of a toast card, in points, at every Size.
 pub const TOAST_WIDTH: f32 = 360.0;
-
-/// Between a toast card's edge and its content, in points: Compact, Comfortable.
-pub const fn toast_pad(size: Size) -> f32 {
-    match size {
-        Size::Compact => 10.0,
-        Size::Comfortable => 13.0,
-    }
-}
-
-/// From the host rect's reading-end edge and from its bottom edge to the toast stack, in points:
-/// Compact, Comfortable.
-pub const fn toast_inset(size: Size) -> [f32; 2] {
-    match size {
-        Size::Compact => [16.0, 12.0],
-        Size::Comfortable => [20.0, 15.0],
-    }
-}
 
 /// Offset of a toast card's shadow, in points (PhotoCraft `notices.rs:238`: offset (0, 2)).
 pub const TOAST_SHADOW_OFFSET: [f32; 2] = [0.0, 2.0];

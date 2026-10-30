@@ -42,7 +42,7 @@ impl Family for StatusBarTokens {
             gap: scale(values::STATUS_BAR_GAP),
             group_gap: scale(values::STATUS_BAR_GROUP_GAP),
             divider: scale(values::STATUS_BAR_DIVIDER),
-            field_width: values::status_bar_field_width(s.preset),
+            field_width: s.set.status_bar_field_width,
         }
     }
 

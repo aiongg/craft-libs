@@ -140,7 +140,7 @@ impl Family for DockTokens {
         let (icon_selected, icon_selected_text) = Identify::on(&[c.surface.panel], s.high).fill(c.state.selected, c.text.on_selected);
         DockTokens {
             gap: s.space.gap.inline,
-            body_gap: values::dock_body_gap(s.preset),
+            body_gap: s.set.dock_body_gap,
             border_width: values::DOCK_BORDER_WIDTH,
             title_height: (values::DOCK_BAR_HEIGHT * k).round(),
             column_bar_height: (values::DOCK_BAR_HEIGHT * k).round(),

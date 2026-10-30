@@ -57,7 +57,7 @@ impl Family for OptionsBarTokens {
             field_md: scale(values::OPTIONS_BAR_FIELD_MD),
             field_lg: scale(values::OPTIONS_BAR_FIELD_LG),
             scroll_bar: values::OPTIONS_BAR_SCROLL_BAR,
-            button: values::options_bar_button(s.preset),
+            button: s.set.options_bar_button,
         }
     }
 

@@ -6,6 +6,7 @@ use super::components::{ComponentField, ComponentTokens, Semantic};
 use super::derive::{self, ColorSteps, ContrastCheck};
 use super::ramp::Mode;
 use super::scale::Elevation;
+use super::sizes;
 use super::theme::{Appearance, Contrast, ContrastIntent, PinLayer, Pins, ThemeDef};
 use super::tokens::{ColorToken, Edge, ElevationTokens, Motion, MotionTokens, ShapeTokens, TokenRef, Tokens};
 use super::values;
@@ -189,7 +190,8 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
     let mode = theme.variants.mode_for(appearance.mode);
     let (color, color_steps) = derive::colors(theme, app, mode, appearance.contrast);
     let mut warnings: Vec<ContrastCheck> = color_steps.warnings().collect();
-    let preset = values::preset(appearance.size);
+    let set = sizes::builtin(appearance.size);
+    let preset = &set.base;
 
     let seed = theme.shape;
     let radius = seed.and_then(|s| s.radius).unwrap_or(preset.radius);
@@ -216,7 +218,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
         space: &preset.space,
         size: &preset.size,
         elevation: &elevation,
-        preset: appearance.size,
+        set: &set.components,
         typography: &typography,
         high: appearance.contrast == Contrast::High,
     });
@@ -249,13 +251,14 @@ fn components_before(theme: &ThemeDef, appearance: Appearance, app: Option<&AppI
     let high = appearance.contrast == Contrast::High;
     let before = &core.color.before_pass;
     let on_accent_pinned = core.color.pins.contains_key(&ColorToken::TextOnAccent);
+    let set = sizes::builtin(appearance.size);
     let mut component = ComponentTokens::defaults(&Semantic {
         color: before,
         shape: &tokens.shape,
         space: &tokens.space,
         size: &tokens.size,
         elevation: &tokens.elevation,
-        preset: appearance.size,
+        set: &set.components,
         typography: &tokens.typography,
         high,
     });

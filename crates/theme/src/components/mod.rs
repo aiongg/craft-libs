@@ -76,7 +76,7 @@ use std::fmt;
 
 use super::color::Rgba;
 use super::scale::Elevation;
-use super::theme::Size;
+use super::sizes::ComponentSizes;
 use identify::Identify;
 
 use super::tokens::{ColorTokens, ElevationTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
@@ -156,8 +156,8 @@ pub(crate) struct Semantic<'a> {
     pub size: &'a SizeTokens,
     /// Shadows.
     pub elevation: &'a ElevationTokens,
-    /// The Size preset, for the few values a family sets per preset.
-    pub preset: Size,
+    /// The size set's component values.
+    pub set: &'a ComponentSizes,
     /// After the Text size setting.
     pub typography: &'a TypeTokens,
     /// High contrast: the derived colours of a family aim for the high minimums.

@@ -3,7 +3,6 @@
 //! button is the icon button's toggle look.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
-use crate::values;
 
 /// Toolbar tokens, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -36,13 +35,13 @@ impl Family for ToolbarTokens {
     /// PhotoCraft's Liquify strip and the horizontal 26 point toolbar at Compact.
     fn defaults(s: &Semantic<'_>) -> ToolbarTokens {
         ToolbarTokens {
-            button: values::toolbar_button(s.preset),
-            button_large: values::toolbar_button_large(s.preset),
-            gap: values::toolbar_gap(s.preset),
-            group_gap: values::toolbar_group_gap(s.preset),
-            pad: values::toolbar_pad(s.preset),
-            width: values::toolbar_width(s.preset),
-            overflow: values::toolbar_overflow(s.preset),
+            button: s.set.toolbar_button,
+            button_large: s.set.toolbar_button_large,
+            gap: s.set.toolbar_gap,
+            group_gap: s.set.toolbar_group_gap,
+            pad: s.set.toolbar_pad,
+            width: s.set.toolbar_width,
+            overflow: s.set.toolbar_overflow,
         }
     }
 
