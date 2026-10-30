@@ -154,3 +154,32 @@ fn reset_restores_the_value_a_story_kept() {
     f.click(chip.center());
     assert_eq!(f.width(), Some(first), "the story starts again");
 }
+
+impl Fixture {
+    fn wheel(&mut self, pos: Pos2, delta: egui::Vec2) {
+        self.frame_with(vec![Event::PointerMoved(pos)]);
+        self.frame_with(Vec::new());
+        self.frame_with(vec![Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta,
+            phase: egui::TouchPhase::Move,
+            modifiers: Modifiers::NONE,
+            source: egui::MouseWheelSource::Wheel,
+        }]);
+        self.frame_with(Vec::new());
+    }
+}
+
+/// A wheel turn over a slider that does not take it (the gallery scrolls instead) is not using
+/// the story; a drag on the slider is.
+#[test]
+fn wheel_over_an_unfocused_slider_does_not_show_reset_and_a_drag_on_it_does() {
+    let mut f = Fixture::new();
+    f.gallery.open_component("Slider");
+    f.frames(3);
+    let slider = f.bounds_of("Middle", Role::Slider).expect("slider");
+    f.wheel(slider.center(), vec2(0.0, 3.0));
+    assert!(f.bounds_of("Reset Values", Role::Button).is_none(), "a wheel the slider does not take");
+    f.drag(slider.center(), slider.center() + vec2(20.0, 0.0));
+    assert!(f.bounds_of("Reset Values", Role::Button).is_some(), "a drag on the slider");
+}
