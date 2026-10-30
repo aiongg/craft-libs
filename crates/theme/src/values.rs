@@ -1257,6 +1257,24 @@ pub const fn status_bar_field_width(size: Size) -> f32 {
     }
 }
 
+/// Width of the command palette's box (PhotoCraft `dialogs/palette.rs`), the same at every Size.
+pub const COMMAND_PALETTE_WIDTH: f32 = 560.0;
+/// From the window's top to the palette box's top.
+pub const COMMAND_PALETTE_TOP: f32 = 110.0;
+/// Inner margin of the palette box.
+pub const COMMAND_PALETTE_PAD: f32 = 10.0;
+/// Result rows the palette shows before it scrolls.
+pub const COMMAND_PALETTE_MAX_ROWS: usize = 12;
+/// Commands the palette remembers for the empty query.
+pub const COMMAND_PALETTE_RECENT: usize = 8;
+/// Height of a palette result row: PhotoCraft's 32 at Compact.
+pub const fn command_palette_row_height(size: Size) -> f32 {
+    match size {
+        Size::Compact => 32.0,
+        Size::Comfortable => 38.0,
+    }
+}
+
 /// The control height the Compact readout sizes are set for.
 pub const READOUT_BASE_CONTROL: f32 = 24.0;
 /// Compact distance from the pointer to a readout's corner, across and down (PhotoCraft's).

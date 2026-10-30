@@ -8,15 +8,15 @@ use std::fmt::Write as _;
 use crate::{
     AngleDialTokens, AppShellTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens,
     BySize, CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens,
-    ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens,
-    EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens, GradientLineTokens,
-    GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors,
-    KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens,
-    OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes,
-    PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, ScrollTokens,
-    SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, States, StatusBarTokens,
-    SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
-    TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge,
+    Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens,
+    GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes,
+    ItemColors, KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens,
+    NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens,
+    PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens,
+    ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, States,
+    StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens,
+    Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -237,6 +237,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         color_picker,
         color_ramp,
         color_wheel,
+        command_palette,
         curve,
         crop,
         cursor,
@@ -300,6 +301,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     color_picker_lines(out, color_picker);
     color_ramp_lines(out, color_ramp);
     color_wheel_lines(out, color_wheel);
+    command_palette_lines(out, command_palette);
     curve_lines(out, curve);
     crop_lines(out, crop);
     cursor_lines(out, cursor);
@@ -1685,6 +1687,16 @@ fn tooltip_lines(out: &mut Lines, t: &TooltipTokens) {
     out.line("tooltip.fill", hex(*fill));
     out.line("tooltip.text", hex(*text));
     out.line("tooltip.border", hex(*border));
+}
+
+fn command_palette_lines(out: &mut Lines, t: &CommandPaletteTokens) {
+    let CommandPaletteTokens { width, top, pad, row_height, max_rows, recent } = t;
+    out.line("command_palette.width", len(*width));
+    out.line("command_palette.top", len(*top));
+    out.line("command_palette.pad", len(*pad));
+    out.line("command_palette.row_height", len(*row_height));
+    out.line("command_palette.max_rows", max_rows.to_string());
+    out.line("command_palette.recent", recent.to_string());
 }
 
 fn status_bar_lines(out: &mut Lines, t: &StatusBarTokens) {

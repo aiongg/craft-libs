@@ -14,6 +14,7 @@ mod check;
 mod color_picker;
 mod color_ramp;
 mod color_wheel;
+mod command_palette;
 mod crop;
 mod cursor;
 mod curve;
@@ -87,6 +88,7 @@ pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOn
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use color_ramp::{ColorRampField, ColorRampTokens};
 pub use color_wheel::{ColorWheelField, ColorWheelTokens};
+pub use command_palette::{CommandPaletteField, CommandPaletteTokens};
 pub use crop::{CropField, CropTokens};
 pub use cursor::{CursorField, CursorTokens};
 pub use curve::{CurveField, CurveTokens};
@@ -648,6 +650,8 @@ families! {
     color_ramp: ColorRampTokens => ColorRamp(ColorRampField);
     /// Colour wheels and discs: the hue ring and triangle, and the harmony disc.
     color_wheel: ColorWheelTokens => ColorWheel(ColorWheelField);
+    /// Command palettes: the modal search box over the app's commands.
+    command_palette: CommandPaletteTokens => CommandPalette(CommandPaletteField);
     /// Curve editors: the graph, points and gradient bars of a tone curve.
     curve: CurveTokens => Curve(CurveField);
     /// The crop frame and its shield.

@@ -2,6 +2,8 @@
 //! each control looks. They follow the suite's apps (PhotoCraft first, then DesignCraft), and the
 //! WAI-ARIA patterns where the apps have no convention.
 //!
+//! - [`CommandSearch`]: the ranking of commands against a typed query (the command palette's and the
+//!   menu bar's Help search), over [`PaletteEntry`] values.
 //! - [`EditMenu`]: the Undo, Cut, Copy, Paste, Delete and Select All menu of text controls,
 //!   with the app's [`EditMenuLabels`].
 //! - [`FieldTab`]: a dialog's focus scope, in which Tab visits only the text and number fields.
@@ -27,6 +29,7 @@
 //! - [`nudge`]: an arrow key press as a move along the document axes (1 unit, Shift 10), for
 //!   canvas overlays.
 
+mod command_search;
 pub(crate) mod edit_menu;
 mod field_tab;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -47,6 +50,7 @@ mod reorder_tests;
 mod tests;
 mod typing;
 
+pub use command_search::{CommandSearch, Match, PaletteEntry};
 pub use edit_menu::{EditMenu, EditMenuLabels};
 pub use field_tab::FieldTab;
 pub use grid_drop::{GridDrop, GridGeometry, grid_drop};

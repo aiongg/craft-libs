@@ -16,7 +16,7 @@ use craft_ui::controls::{
 use craft_ui::docking::DockLook;
 use craft_ui::list::ListRow;
 use craft_ui::menu::Menu;
-use craft_ui::patterns::{OptionsBar, StatusBar};
+use craft_ui::patterns::{CommandPalette, OptionsBar, StatusBar};
 use craft_ui::presets::style::PresetStyle;
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::tab_strip::Tab;
@@ -534,6 +534,17 @@ fn status_bar() {
         d.line("height", s.height).line("pad", s.pad).line("gap", s.gap).line("group_gap", s.group_gap);
         d.line("divider", s.divider).line("divider_box", s.divider_box).line("field_width", s.field_width);
         d.line("fill", s.fill).line("text", s.text).line("message", s.message).line("warning", s.warning);
+    });
+}
+
+/// Command palettes: the box, row and list sizes, the scrim and the box's surface.
+#[test]
+fn command_palette() {
+    check("command_palette.txt", |d, t| {
+        let s = CommandPalette::style(t);
+        d.line("width", s.width).line("top", s.top).line("pad", s.pad).line("row_height", s.row_height);
+        d.line("max_rows", s.max_rows).line("recent", s.recent).line("scrim", s.scrim);
+        surface(d, "surface", &s.surface);
     });
 }
 
