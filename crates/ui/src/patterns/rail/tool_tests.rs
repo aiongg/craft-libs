@@ -8,11 +8,13 @@ use egui_kittest::{Harness, HarnessBuilder};
 use super::tool::stories;
 use super::tool::{GridMove, chevron, grid_step};
 use super::*;
+use crate::composites::{PairWell, SwatchPair};
 use crate::direction::{self, Direction};
 use crate::icons::Icon;
 use crate::panes::Edge;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, install};
+use craft_theme::Srgba;
 
 type Tool = &'static str;
 
@@ -109,6 +111,7 @@ struct App {
     footer: Option<RailFooter>,
     footer_area: Option<Rect>,
     tall_footer: bool,
+    pair_footer: bool,
 }
 
 impl App {
@@ -130,6 +133,7 @@ impl App {
             footer: None,
             footer_area: None,
             tall_footer: false,
+            pair_footer: false,
         }
     }
 
@@ -137,6 +141,7 @@ impl App {
         let mut footer = None;
         let mut footer_area = None;
         let tall_footer = self.tall_footer;
+        let pair_footer = self.pair_footer;
         let mut rail = ToolRail::new("tools").edge(self.edge).columns(self.columns).hidden(&self.hidden).label("Tools");
         if self.chrome {
             rail = rail.column_toggle("Toolbar").edit_toolbar("Edit Toolbar…");
@@ -145,6 +150,12 @@ impl App {
             footer = Some(info);
             footer_area = Some(ui.max_rect());
             let _ = ui.button("Foot");
+            if pair_footer {
+                let numbers = crate::localized::LocaleNumbers::from_tag("en");
+                let wells =
+                    [PairWell::new("Foreground colour", Srgba::rgb(0.0, 0.0, 0.0)), PairWell::new("Background colour", Srgba::rgb(1.0, 1.0, 1.0))];
+                let _ = SwatchPair::new("colours", "Colours", wells, &numbers).show(ui);
+            }
             if tall_footer {
                 let _ = ui.button("F2");
                 let _ = ui.button("F3");
@@ -634,4 +645,14 @@ fn a_footer_that_changes_height_settles_under_the_last_button() {
 fn an_empty_shortcut_is_none() {
     assert_eq!(RailTool::new("a", Icon::Move, "A").shortcut("").shortcut, None);
     assert_eq!(RailTool::new("a", Icon::Move, "A").shortcut("V").shortcut.as_deref(), Some("V"));
+}
+
+#[test]
+fn a_swatch_pair_in_the_footer_is_centred_on_the_rail() {
+    let mut app = App::new();
+    app.pair_footer = true;
+    let h = harness_in(Direction::Ltr, app, 900.0);
+    let (fg, bg) = (rect(&h, "Foreground colour"), rect(&h, "Background colour"));
+    let chips = fg.union(bg);
+    assert!((chips.center().x - h.state().out().rect.center().x).abs() <= 0.5, "chips {chips:?} on rail {:?}", h.state().out().rect);
 }

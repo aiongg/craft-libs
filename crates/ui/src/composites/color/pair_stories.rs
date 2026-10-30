@@ -31,6 +31,14 @@ pub(super) fn stories() -> Vec<Story> {
             PairArgs::default(),
             |ui: &mut Ui, args: &mut PairArgs| show(ui, args, "fill-stroke", ["Fill colour", "Stroke colour"], true)
         ),
+        typed_story!(
+            "composites/color/pair-host-picker",
+            Level::Composites,
+            "SwatchPair",
+            "Host picker",
+            PairArgs::default(),
+            |ui: &mut Ui, args: &mut PairArgs| show_host_picker(ui, args)
+        ),
         typed_story!("composites/color/pair-dialog", Level::Composites, "SwatchPair", "Dialog (field scope)", NoArgs {}, show_dialog),
     ]
 }
@@ -119,5 +127,34 @@ fn show_dialog(ui: &mut Ui, _: &mut NoArgs) {
                 }
             });
         });
+    });
+}
+
+/// A pair whose clicks the host reports: no popup, and the active well stays the host's.
+fn show_host_picker(ui: &mut Ui, args: &PairArgs) {
+    let numbers = LocaleNumbers::from_tag("en");
+    slider::with_values(ui, "host-picker", [(String::from("Nothing yet"), [Srgba::rgb(0.0, 0.0, 0.0), Srgba::rgb(1.0, 1.0, 1.0)])], |ui, state| {
+        let (note, colors) = &mut state[0];
+        let names = ["Foreground colour", "Background colour"];
+        let mut pair = SwatchPair::new("host-picker", "Colours", [PairWell::new(names[0], colors[0]), PairWell::new(names[1], colors[1])], &numbers)
+            .enabled(!args.disabled)
+            .popover(false)
+            .click_activates(false);
+        if args.buttons {
+            pair = pair.swap_button("Swap colours").default_button("Default colours");
+        }
+        let shown = pair.show(ui);
+        if shown.swap {
+            colors.swap(0, 1);
+        }
+        if shown.defaults {
+            *colors = [Srgba::rgb(0.0, 0.0, 0.0), Srgba::rgb(1.0, 1.0, 1.0)];
+        }
+        if let Some(well) = shown.double_clicked {
+            *note = format!("Double-clicked {}", names[well as usize]);
+        } else if let Some(well) = shown.clicked {
+            *note = format!("Clicked {}", names[well as usize]);
+        }
+        ui.add(Text::new(note.clone()).content(Content::Muted));
     });
 }

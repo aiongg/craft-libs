@@ -5,8 +5,8 @@ use egui::Painter;
 use egui::accesskit::{Action, Role};
 use egui::epaint::RectShape;
 use egui::{
-    AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder, Vec2,
-    pos2, vec2,
+    Align, AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder,
+    Vec2, pos2, vec2,
 };
 
 use super::popover::{self, ColorPopoverResponse};
@@ -107,6 +107,15 @@ pub struct SwatchPairStyle {
 ///   popup under that well, which edits the well's colour as the popover does; a click outside
 ///   closes it. The response's [`edit`](SwatchPairResponse::edit) is the popup's, for
 ///   [`well`](SwatchPairResponse::well).
+/// - Host-picker mode, as PhotoCraft's tool rail: [`popover(false)`](SwatchPair::popover) turns the
+///   pair's own popup off, so a click, or Enter or Space on the focused well, reports
+///   [`clicked`](SwatchPairResponse::clicked) and a double-click
+///   [`double_clicked`](SwatchPairResponse::double_clicked) for the host to open its own picker.
+///   [`click_activates(false)`](SwatchPair::click_activates) keeps the host's active well in front
+///   whatever is clicked; the arrow keys then move the focus between the wells without changing
+///   it, and the focused well is the Tab stop while the focus is in the pair.
+/// - In a column that centres its items (the [`ToolRail`](crate::patterns::ToolRail) footer) the
+///   pair centres itself in the column's width.
 /// - The optional buttons ([`swap_button`](SwatchPair::swap_button),
 ///   [`default_button`](SwatchPair::default_button)) are icons in a row over the wells, the default
 ///   one at the start and the swap one at the end, as Photoshop's; a click reports
@@ -118,7 +127,8 @@ pub struct SwatchPairStyle {
 ///   non-field control: Ctrl+Tab reaches it. The buttons are Tab stops of their own.
 /// - AccessKit: a `Group` named `label` holding two `Button`s named by their wells' labels, with
 ///   the hex colour as value, selected for the active one, and the popup's `has_popup` and
-///   expanded state; then the buttons named by their labels. A screen reader's Focus action on
+///   expanded state only while the pair's own popover is on; then the buttons named by their
+///   labels. A screen reader's Focus action on
 ///   the inactive well makes it active.
 #[must_use = "show the pair with `show`"]
 pub struct SwatchPair<'a> {
@@ -132,6 +142,8 @@ pub struct SwatchPair<'a> {
     enabled: bool,
     backdrop: Option<Color32>,
     picker: Option<Box<dyn Fn(ColorPicker<'a>) -> ColorPicker<'a> + 'a>>,
+    popover: bool,
+    click_activates: bool,
 }
 
 /// What [`SwatchPair::show`] returns.
@@ -145,6 +157,12 @@ pub struct SwatchPairResponse {
     pub active: Well,
     /// The user made another well active this frame.
     pub activated: bool,
+    /// The well clicked this frame: by the pointer, or Enter or Space on the focused well (with
+    /// the pair's own popover on, Enter opens the popup instead). Reported whether or not the
+    /// click made the well active.
+    pub clicked: Option<Well>,
+    /// The well double-clicked this frame.
+    pub double_clicked: Option<Well>,
     /// The edit of the picker in the popup; the response is the group's. Without an event while
     /// no popup is open.
     pub edit: EditResponse<PickedColor>,
@@ -177,6 +195,8 @@ impl<'a> SwatchPair<'a> {
             enabled: true,
             backdrop: None,
             picker: None,
+            popover: true,
+            click_activates: true,
         }
     }
 
@@ -217,13 +237,30 @@ impl<'a> SwatchPair<'a> {
         self
     }
 
+    /// Whether a double-click or Enter opens the pair's own colour popup; on by default. Off, the
+    /// host opens its own picker from [`SwatchPairResponse::clicked`] or
+    /// [`double_clicked`](SwatchPairResponse::double_clicked), and Enter and Space on a well
+    /// click it.
+    pub fn popover(mut self, popover: bool) -> Self {
+        self.popover = popover;
+        self
+    }
+
+    /// Whether a click on a well makes it active; on by default. Off, the host's
+    /// [`active`](SwatchPair::active) stays in front whatever is clicked, and the arrow keys move
+    /// the focus between the wells without changing it.
+    pub fn click_activates(mut self, click_activates: bool) -> Self {
+        self.click_activates = click_activates;
+        self
+    }
+
     pub fn style(tokens: &UiTokens) -> SwatchPairStyle {
         let t = &tokens.component.color_picker;
         SwatchPairStyle { well: t.pair_well, step: t.pair_step, gap: t.pair_gap, ring: t.pair_ring }
     }
 
     pub fn show(self, ui: &mut Ui) -> SwatchPairResponse {
-        let Self { id_salt, label, wells, numbers, active, swap, defaults, enabled, backdrop, picker } = self;
+        let Self { id_salt, label, wells, numbers, active, swap, defaults, enabled, backdrop, picker, popover, click_activates } = self;
         let enabled = enabled && ui.is_enabled();
         let id = ui.make_persistent_id(id_salt);
         let tokens = Tokens::of(ui);
@@ -233,7 +270,13 @@ impl<'a> SwatchPair<'a> {
         let header = if swap.is_some() || defaults.is_some() { ICON + ICON_GAP } else { 0.0 };
         let block = vec2(chips.x, header + chips.y);
         let available = ui.available_rect_before_wrap();
-        let band = Rect::from_min_size(available.min, vec2(available.width(), block.y));
+        // In a column that centres its items (a tool rail's footer) the block is centred.
+        let layout = ui.layout();
+        let band = if layout.main_dir().is_vertical() && layout.horizontal_align() == Align::Center {
+            Rect::from_center_size(pos2(available.center().x, available.min.y + block.y / 2.0), block)
+        } else {
+            Rect::from_min_size(available.min, vec2(available.width(), block.y))
+        };
         let builder =
             UiBuilder::new().scope_id(id).max_rect(band).layout(direction::row(ui)).accessibility_role(Role::Group).accessibility_label(label);
         let inner = ui.scope_builder(builder, |ui| {
@@ -246,18 +289,33 @@ impl<'a> SwatchPair<'a> {
 
             let mut now = active;
             let focused = ids.iter().position(|&i| ui.memory(|m| m.has_focus(i)));
-            let entered = enabled && focused.is_some() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter));
+            let entered = enabled && popover && focused.is_some() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter));
+            // The well with the Tab stop: the active one, or while the arrows move the focus
+            // without activating, the focused one.
+            let mut stop = match focused {
+                Some(i) if !click_activates => {
+                    if i == 0 {
+                        Well::Primary
+                    } else {
+                        Well::Secondary
+                    }
+                }
+                _ => now,
+            };
             if enabled && let Some(to) = roving_target(ui, &ids, focused) {
-                now = if to == 0 { Well::Primary } else { Well::Secondary };
-                ui.memory_mut(|m| m.request_focus(ids[index(now)]));
+                stop = if to == 0 { Well::Primary } else { Well::Secondary };
+                if click_activates {
+                    now = stop;
+                }
+                ui.memory_mut(|m| m.request_focus(ids[index(stop)]));
             }
 
             // The inactive well senses first so that the active one, in front, takes the hits
-            // where they overlap. Only the active well is a Tab stop.
+            // where they overlap. Only one well is a Tab stop.
             let mut sensed = Vec::new();
             for well in [now.other(), now] {
                 let spec = &wells[index(well)];
-                let sense = if well == now { Sense::click() } else { Sense::CLICK };
+                let sense = if well == stop { Sense::click() } else { Sense::CLICK };
                 let element = Interactive::with_id(ids[index(well)], Role::Button, spec.label.as_str())
                     .sense(sense)
                     .state_layer(false)
@@ -267,20 +325,27 @@ impl<'a> SwatchPair<'a> {
                     .value(Swatch::hex(spec.color.to_rgba()));
                 sensed.push((well, element.interact_at(ui, rects[index(well)])));
                 // Not a Tab stop, but a screen reader may focus it: that makes it active.
-                if well != now && enabled {
+                if well != stop && enabled {
                     ui.ctx().accesskit_node_builder(ids[index(well)], |node| node.add_action(Action::Focus));
                 }
             }
             let mut toggled = entered.then_some(focused.map(|i| if i == 0 { Well::Primary } else { Well::Secondary })).flatten();
+            let (mut clicked, mut double_clicked) = (None, None);
             for (well, s) in &sensed {
                 let r = s.response();
-                if enabled && r.clicked() && *well != now {
-                    now = *well;
+                if enabled && r.clicked() {
+                    clicked = Some(*well);
+                    if click_activates {
+                        now = *well;
+                    }
                 }
                 // A double-click is reported on the second release, so the popup opens with the
                 // button up and no later release over the well takes the focus back.
                 if enabled && r.double_clicked() {
-                    toggled = Some(*well);
+                    double_clicked = Some(*well);
+                    if popover {
+                        toggled = Some(*well);
+                    }
                 }
             }
             let activated = now != active;
@@ -320,7 +385,7 @@ impl<'a> SwatchPair<'a> {
             }
 
             let mut shown: Option<(Well, ColorPopoverResponse)> = None;
-            for well in [Well::Primary, Well::Secondary] {
+            for well in [Well::Primary, Well::Secondary].into_iter().filter(|_| popover) {
                 let spec = &wells[index(well)];
                 let setup = picker.as_deref().map(|setup| Box::new(setup) as Box<dyn FnOnce(ColorPicker<'a>) -> ColorPicker<'a> + '_>);
                 let response =
@@ -339,9 +404,9 @@ impl<'a> SwatchPair<'a> {
                 paint_icon(ui, &tokens, &swatch, rect, (hot && enabled, enabled), glyph, backdrop);
                 FocusRing::paint_radius(ui, rect.expand(2.0), swatch.radius, &response);
             }
-            (now, activated, shown, swap_pressed, defaults_pressed)
+            (now, activated, shown, swap_pressed, defaults_pressed, clicked, double_clicked)
         });
-        let (now, activated, shown, swap, defaults) = inner.inner;
+        let (now, activated, shown, swap, defaults, clicked, double_clicked) = inner.inner;
         let mut response = inner.response;
         if activated {
             response.mark_changed();
@@ -355,6 +420,8 @@ impl<'a> SwatchPair<'a> {
             response,
             active: now,
             activated,
+            clicked,
+            double_clicked,
             well,
             swap,
             defaults,
