@@ -24,6 +24,9 @@ struct Host {
     left: f32,
     point: Option<Pos2>,
     extra: bool,
+    labels_only: bool,
+    nested: bool,
+    child_open: bool,
     foreign: bool,
     mode: usize,
     amount: f64,
@@ -45,6 +48,9 @@ impl Default for Host {
             left: 0.0,
             point: None,
             extra: false,
+            labels_only: false,
+            nested: false,
+            child_open: false,
             foreign: false,
             mode: 0,
             amount: 40.0,
@@ -81,11 +87,23 @@ fn app(ui: &mut Ui, host: &mut Host) {
     if host.point.is_none() {
         popover = popover.toggle(chip.id);
     }
-    let (extra, mode, amount) = (host.extra, &mut host.mode, &mut host.amount);
+    let (extra, labels_only, nested, child_open) = (host.extra, host.labels_only, host.nested, &mut host.child_open);
+    let (mode, amount) = (&mut host.mode, &mut host.amount);
     let mut id = Id::NULL;
     let shown = popover.show(ui, &mut host.open, |ui, pop| {
         id = pop.id();
+        if labels_only {
+            ui.label("Nothing to focus");
+            return;
+        }
         let _ = ui.button("Inner");
+        if nested {
+            let opener = ui.button("Child");
+            if opener.clicked() {
+                *child_open = !*child_open;
+            }
+            let _ = Popover::new("child", PopoverAnchor::Control(opener)).label("Nested").show(ui, child_open, |ui, _| ui.label("In the child"));
+        }
         let _ = Slider::new("amount", "Amount", *amount, 0.0..=100.0).show(ui);
         let _ = Select::new("mode", "Mode", mode).option(0, "A").option(1, "B").show(ui);
         if extra {
@@ -94,6 +112,7 @@ fn app(ui: &mut Ui, host: &mut Host) {
             }
         }
     });
+    let _ = ui.button("After");
     if let Some(shown) = shown {
         host.popover = id;
         host.rect = shown.rect;
@@ -154,8 +173,8 @@ fn the_press_that_opens_it_is_not_outside() {
     h.run();
     h.event(press(pos(470.0, 630.0), false));
     h.run();
-    assert!(h.state().open);
     assert!(h.state().closed.is_empty(), "{:?}", h.state().closed);
+    assert!(h.state().open);
 }
 
 fn pos(x: f32, y: f32) -> Pos2 {
@@ -255,21 +274,50 @@ fn the_focus_moves_into_the_popover_on_open() {
 }
 
 #[test]
-fn a_press_on_the_popover_leaves_an_open_child_above_it() {
+fn an_open_child_is_above_its_parent() {
     let mut h = opened(host(Host::default()));
     open_select(&mut h);
-    let rect = h.state().rect;
-    let blank = rect.left_top() + vec2(2.0, 2.0);
-    h.hover_at(blank);
-    h.event(press(blank, true));
-    h.run();
-    h.event(press(blank, false));
-    h.run();
     let parent = LayerId::new(Order::Foreground, h.state().popover);
     let family = popup_list::family(&h.ctx, h.state().popover);
     let child = LayerId::new(Order::Foreground, family[1]);
     let at = |layer: LayerId| h.ctx.memory(|m| m.layer_ids().position(|l| l == layer));
     assert!(at(child) > at(parent), "the child is above its parent: {:?} {:?}", at(child), at(parent));
+}
+
+#[test]
+fn a_popover_without_controls_leaves_the_focus_where_it_was() {
+    let mut h = host(Host { labels_only: true, ..Host::default() });
+    h.get_by_label("Chip").focus();
+    h.run();
+    let chip = h.state().chip;
+    h.state_mut().open = true;
+    for _ in 0..6 {
+        h.run();
+    }
+    assert!(h.state().open, "{:?}", h.state().closed);
+    assert!(h.ctx.memory(|m| m.has_focus(chip)), "the anchor keeps the focus");
+}
+
+#[test]
+fn a_nested_popover_closes_with_a_press_on_its_parent_and_with_the_parent() {
+    let mut h = opened(host(Host { nested: true, ..Host::default() }));
+    let opener = h.get_by_label("Child").rect().center();
+    click(&mut h, opener);
+    assert!(h.state().child_open);
+    let blank = h.state().rect.left_top() + vec2(2.0, 2.0);
+    click(&mut h, blank);
+    h.run();
+    assert!(h.state().open, "{:?}", h.state().closed);
+    assert!(!h.state().child_open, "a press on the parent closes the child");
+
+    h.state_mut().child_open = true;
+    h.run();
+    h.state_mut().open = false;
+    h.run();
+    h.state_mut().open = true;
+    h.run();
+    h.run();
+    assert!(!h.state().child_open, "closing the parent closed the child");
 }
 
 #[test]
@@ -297,10 +345,10 @@ fn a_point_anchor_keeps_it_inside_the_window() {
 
 #[test]
 fn it_starts_at_the_leading_edge_of_the_control() {
-    let ltr = opened(host(Host { left: 300.0, ..Host::default() }));
+    let ltr = opened(host(Host { left: 200.0, ..Host::default() }));
     assert!((ltr.state().rect.left() - ltr.state().chip_rect.left()).abs() < 1.5, "{:?}", ltr.state().rect);
 
-    let mut rtl = harness(Direction::Rtl).build_ui_state(app, Host { left: 300.0, ..Host::default() });
+    let mut rtl = harness(Direction::Rtl).build_ui_state(app, Host { left: 200.0, ..Host::default() });
     rtl.run();
     let rtl = opened(rtl);
     assert!((rtl.state().rect.right() - rtl.state().chip_rect.right()).abs() < 1.5, "{:?}", rtl.state().rect);
@@ -318,7 +366,7 @@ fn the_grip_resizes_within_the_limits_and_overshoot_is_not_banked() {
     let at = grip(&h, false);
     h.hover_at(at);
     h.run();
-    assert_eq!(h.ctx.output(|o| o.cursor_icon), CursorIcon::ResizeNwSe);
+    assert_eq!(h.output().platform_output.cursor_icon, CursorIcon::ResizeNwSe);
     h.event(press(at, true));
     h.run();
     h.hover_at(at + vec2(30.0, 20.0));
@@ -372,13 +420,13 @@ fn the_size_is_remembered_and_a_corrupt_one_falls_back_to_the_default() {
 fn the_grip_has_no_accessibility_node_and_mirrors() {
     let mut h = opened(host(Host { size: RESIZABLE, ..Host::default() }));
     a11y::assert_labelled(&h);
-    let mut rtl = harness(Direction::Rtl).build_ui_state(app, Host { size: RESIZABLE, left: 300.0, ..Host::default() });
+    let mut rtl = harness(Direction::Rtl).build_ui_state(app, Host { size: RESIZABLE, left: 200.0, ..Host::default() });
     rtl.run();
     let mut rtl = opened(rtl);
     let at = grip(&rtl, true);
     rtl.hover_at(at);
     rtl.run();
-    assert_eq!(rtl.ctx.output(|o| o.cursor_icon), CursorIcon::ResizeNeSw);
+    assert_eq!(rtl.output().platform_output.cursor_icon, CursorIcon::ResizeNeSw);
     let before = rtl.state().content;
     rtl.event(press(at, true));
     rtl.run();
