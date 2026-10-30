@@ -536,3 +536,72 @@ fn a_preview_tile_link_opens_the_component_in_the_components_workspace() {
     assert_eq!(gallery.view(), CentreView::Component);
     assert_eq!(gallery.selected().and_then(|id| gallery.stories().iter().find(|s| s.id == id)).map(|s| s.component), Some(component));
 }
+
+/// A built-in theme with a pair below its minimum in Standard contrast, compact, light, and
+/// that pair's row label and foreground.
+fn theme_with_a_problem() -> (String, String, craft_theme::TokenRef) {
+    use craft_theme::report::contrast_report;
+    use craft_theme::{Contrast, Mode, Size};
+    craft_theme::builtins()
+        .iter()
+        .find_map(|t| {
+            let report = contrast_report(t);
+            let w = report.for_appearance(None, Mode::Light, Contrast::Standard, Size::Compact)?.warnings.first().copied()?;
+            Some((t.id.as_str().to_owned(), format!("{} on {}", w.fg.path(), w.bg.path()), w.fg))
+        })
+        .expect("a built-in theme with a contrast warning")
+}
+
+fn problems_gallery(theme: &str) -> Gallery {
+    let mut gallery = Gallery::new(None);
+    gallery.set_workspace(GalleryWorkspace::Theme);
+    let a = gallery.appearance_mut();
+    a.theme = theme.to_owned();
+    a.mode = ModeChoice::Light;
+    a.contrast = ContrastChoice::Standard;
+    a.comfortable = false;
+    gallery
+}
+
+#[test]
+fn problems_lists_the_warnings_of_the_shown_appearance_and_a_click_selects_the_token() {
+    use egui::accesskit::Role;
+    let (theme, label, fg) = theme_with_a_problem();
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = problems_gallery(&theme);
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert_eq!(named(&tree, &label, Role::ListBoxOption).len(), 1, "the pair is listed");
+    assert!(
+        tree.walk(tree.root()).iter().any(|(id, _)| tree.name(*id).is_some_and(|n| n.starts_with("Light: ") && n.ends_with("below minimum"))),
+        "Standard contrast reports pairs below minimum"
+    );
+    assert_ne!(gallery.selected_token(), Some(fg));
+    click(&ctx, &mut gallery, &label, Role::ListBoxOption);
+    assert_eq!(gallery.selected_token(), Some(fg));
+    assert!(gallery.is_front(PanelId::Theme));
+    gallery.appearance_mut().contrast = ContrastChoice::High;
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert!(
+        tree.walk(tree.root()).iter().any(|(id, _)| tree.name(*id).is_some_and(|n| n.starts_with("Light: ") && !n.contains("below minimum"))),
+        "High contrast does not say below minimum"
+    );
+}
+
+#[test]
+fn the_tokens_tab_and_the_theme_panel_share_the_selection() {
+    use craft_theme::{ColorToken, TokenRef};
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    gallery.activate(PanelId::Tokens);
+    let token = TokenRef::Color(ColorToken::TextFaint);
+    gallery.select_token(token);
+    let shows =
+        |tree: &craft_ui::inspect::AccessTree| tree.walk(tree.root()).iter().any(|(id, _)| tree.name(*id).as_deref() == Some(token.path().as_str()));
+    for workspace in [GalleryWorkspace::Components, GalleryWorkspace::Theme, GalleryWorkspace::Components] {
+        gallery.set_workspace(workspace);
+        assert!(shows(&settled_tree(&ctx, &mut gallery)), "the detail of {} in {workspace:?}", token.path());
+        assert_eq!(gallery.selected_token(), Some(token));
+    }
+}

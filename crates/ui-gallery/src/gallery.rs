@@ -25,12 +25,13 @@ use egui::{
 };
 
 use crate::appearance::{Appearance, SCALE, builtin};
-use crate::browser::Browser;
+use crate::browser::{self, Browser};
 use crate::faces;
 use crate::fields;
 use crate::inspector::Inspector;
 use crate::layout::{CentreView, GalleryWorkspace, PanelId, PreviewView, VariantAxis, default_for, reconciled};
 use crate::persist::{self, KEY, Saved};
+use crate::problems::Problems;
 
 /// The gallery's state.
 pub struct Gallery {
@@ -56,6 +57,7 @@ pub struct Gallery {
     /// The component the Overview scrolls to, until its tile has been drawn.
     scroll_to: Option<&'static str>,
     browser: Browser,
+    problems: Problems,
     inspector: Inspector,
     /// The workspace shown.
     workspace: GalleryWorkspace,
@@ -93,6 +95,7 @@ impl Gallery {
             more_open: false,
             scroll_to: None,
             browser: Browser::new(saved.tokens_split),
+            problems: Problems::default(),
             inspector: Inspector::default(),
             workspace: saved.workspace,
             preview: saved.preview,
@@ -189,6 +192,11 @@ impl Gallery {
     /// Selects a row of the token browser.
     pub fn select_token(&mut self, token: craft_theme::TokenRef) {
         self.browser.select(token);
+    }
+
+    /// The row selected in the token browser, which the Tokens tab and the Theme panel share.
+    pub fn selected_token(&self) -> Option<craft_theme::TokenRef> {
+        self.browser.selected()
     }
 
     pub fn stories(&self) -> &[Story] {
@@ -687,6 +695,28 @@ impl Gallery {
         let mode = self.appearance.mode(shown_mode(ui.ctx()));
         self.browser.show(ui, &self.base, mode);
     }
+
+    /// The Theme workspace's Theme panel: the theme's basics above the token browser, which is
+    /// the one the Tokens tab draws.
+    fn theme_panel(&mut self, ui: &mut Ui) {
+        let mode = self.appearance.mode(shown_mode(ui.ctx()));
+        let theme = self.base.inputs.theme(mode).clone();
+        let max = (ui.available_height() * BASICS_SHARE).round();
+        ScrollArea::vertical().id_salt("gallery.theme.basics.scroll").max_height(max).auto_shrink([false, true]).show(ui, |ui| {
+            browser::basics(ui, &theme, mode);
+        });
+        self.browser.show(ui, &self.base, mode);
+    }
+
+    /// The Problems panel; a click on a row selects its foreground token in the Theme panel.
+    fn problems_panel(&mut self, ui: &mut Ui) {
+        let mode = self.appearance.mode(shown_mode(ui.ctx()));
+        let explained = self.browser.explained(&self.base, mode);
+        if let Some(token) = self.problems.show(ui, &self.base, mode, &explained) {
+            self.browser.select(token);
+            self.activate(PanelId::Theme);
+        }
+    }
 }
 
 /// A row of the component list: a level's label, or a component.
@@ -724,6 +754,9 @@ fn placeholder(ui: &mut Ui, text: &str) {
     });
 }
 
+/// The share of the Theme panel's height the Basics section may take.
+const BASICS_SHARE: f32 = 0.4;
+
 /// The body height of the Theme workspace's Problems and Changes group.
 const PROBLEMS_HEIGHT: f32 = 210.0;
 
@@ -750,8 +783,8 @@ impl DockContent<PanelId> for Panels<'_> {
             PanelId::View => self.gallery.view_panel(ui, self.inspecting),
             PanelId::Tokens => padded(ui, |ui| self.gallery.tokens_panel(ui)),
             PanelId::Preview => self.gallery.preview_panel(ui),
-            PanelId::Theme => placeholder(ui, "Theme tokens and editing come here."),
-            PanelId::Problems => placeholder(ui, "Contrast problems come here."),
+            PanelId::Theme => padded(ui, |ui| self.gallery.theme_panel(ui)),
+            PanelId::Problems => padded(ui, |ui| self.gallery.problems_panel(ui)),
             PanelId::Changes => placeholder(ui, "Changes since the last save come here."),
         }
     }

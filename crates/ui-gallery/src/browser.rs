@@ -6,10 +6,12 @@
 use std::sync::Arc;
 
 use craft_theme::{
-    AppId, Appearance, ColorOrigin, ColorSource, ColorToken, Explained, FieldOrigin, Mode, PinLayer, Rgba, StatusKind, ThemeDef, TokenRef, explain,
+    AppId, Appearance, ColorOrigin, ColorSource, ColorToken, ContrastIntent, ControlSize, EdgeSeed, Explained, FieldOrigin, Mode, PinLayer, Rgba,
+    StatusKind, ThemeDef, TokenRef, Variants, explain,
 };
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
-use craft_ui::controls::{Checkbox, SearchField};
+use craft_ui::composites::{FormGrid, SectionHeader};
+use craft_ui::controls::{Checkbox, SearchField, Swatch};
 use craft_ui::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 use craft_ui::list::{List, ListEvent, ListRow, ThumbSize};
 use craft_ui::primitives::Divider;
@@ -66,6 +68,11 @@ impl Browser {
     /// The share of the height the list takes, to be saved.
     pub fn share(&self) -> f32 {
         self.share
+    }
+
+    /// The selected row.
+    pub fn selected(&self) -> Option<TokenRef> {
+        self.selected
     }
 
     /// Selects the row of `token`.
@@ -161,7 +168,7 @@ impl Browser {
     }
 
     /// `explain` for what `base` shows in `mode`, computed again only when that changes.
-    fn explained(&mut self, base: &Base, mode: Mode) -> Arc<Explained> {
+    pub(crate) fn explained(&mut self, base: &Base, mode: Mode) -> Arc<Explained> {
         let theme = base.inputs.theme(mode);
         let appearance = base.shown(mode).appearance;
         let app = base.inputs.app.as_ref();
@@ -238,6 +245,61 @@ impl Browser {
                 }
             }
         }
+    }
+}
+
+/// The theme's seeds and shape as read-only rows: a swatch and hex per colour seed, then the
+/// modes, corners, edge and contrast intent. Seeds are those `mode` derives from.
+pub fn basics(ui: &mut Ui, theme: &ThemeDef, mode: Mode) {
+    SectionHeader::new("gallery.theme.basics", "Basics").show(ui, |ui| {
+        let seeds = theme.seeds_for(mode);
+        FormGrid::new("gallery.theme.basics.grid").show(ui, |form| {
+            let colours = [
+                ("Neutral", seeds.neutral),
+                ("Accent", seeds.accent),
+                ("Good", seeds.status.good),
+                ("Warn", seeds.status.warn),
+                ("Bad", seeds.status.bad),
+                ("Info", seeds.status.info),
+            ];
+            for (name, color) in colours {
+                form.row(format!("{name}:"), |ui, _| {
+                    let swatch =
+                        ui.add(Swatch::new(("gallery.theme.seed", name), format!("{name} seed"), color).size(ControlSize::Sm).enabled(false));
+                    ui.monospace(color.to_hex());
+                    swatch
+                });
+            }
+            form.value("Modes:", variants_words(theme.variants));
+            form.value("Corners:", corners_words(theme));
+            form.value("Edge:", edge_words(theme));
+            form.value("Contrast:", if theme.contrast_intent == ContrastIntent::Low { "deliberately low" } else { "standard" });
+        });
+    });
+}
+
+fn variants_words(variants: Variants) -> &'static str {
+    match variants {
+        Variants::Both => "light and dark",
+        Variants::LightOnly => "light only",
+        Variants::DarkOnly => "dark only",
+    }
+}
+
+fn corners_words(theme: &ThemeDef) -> String {
+    let Some(shape) = theme.shape else { return "from the Size preset".to_owned() };
+    match (shape.radius, shape.radius_offset) {
+        (Some(r), _) => format!("control {}, popup {}, window {}, panel {}, button {}", r.control, r.popup, r.window, r.panel, r.button),
+        (None, Some(o)) => format!("preset, control {:+}, popup {:+}, window {:+}", o.control, o.popup, o.window),
+        (None, None) => "from the Size preset".to_owned(),
+    }
+}
+
+fn edge_words(theme: &ThemeDef) -> String {
+    match theme.shape.and_then(|s| s.edge) {
+        Some(EdgeSeed::Flat) => "flat".to_owned(),
+        Some(EdgeSeed::Bevel { width }) => format!("bevel, {width} px"),
+        None => "from the Size preset".to_owned(),
     }
 }
 
@@ -344,7 +406,7 @@ fn swatch(ui: &mut Ui, color: Rgba, size: egui::Vec2) -> egui::Rect {
     rect
 }
 
-fn value_of(e: &Explained, token: TokenRef) -> Rgba {
+pub(crate) fn value_of(e: &Explained, token: TokenRef) -> Rgba {
     match token {
         TokenRef::Color(t) => e.resolved.tokens.color(t),
         TokenRef::Component(f) => e.resolved.tokens.component.color(f).unwrap_or(Rgba::TRANSPARENT),
