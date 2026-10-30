@@ -23,7 +23,7 @@ use serde_json::{Map, Value};
 
 use crate::appearance::{Appearance, builtin};
 use crate::faces;
-use crate::gallery::{args_of, canvas, canvas_frame, default_story_of, nav, overview, stories};
+use crate::gallery::{Tile, Tiles, args_of, canvas, canvas_frame, default_story_of, nav, stories, tiles_view};
 
 /// The width, in points, of a shot that gives none. The story's frame fills the width it is
 /// given, so a story has no intrinsic width to fit.
@@ -315,7 +315,10 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
     let measured = Rc::clone(&used);
     let (tiles, initial) = match &shot.content {
         Content::Story(story, args) => (Vec::new(), HashMap::from([(story.id.to_owned(), args.clone())])),
-        Content::Overview(tiles) => (tiles.clone(), HashMap::new()),
+        Content::Overview(tiles) => (
+            tiles.iter().map(|s| Tile { key: s.component, story: *s, title: s.component, note: None, open: false }).collect::<Vec<_>>(),
+            HashMap::new(),
+        ),
     };
     let story = match &shot.content {
         Content::Story(story, _) => Some(*story),
@@ -337,7 +340,17 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
                         canvas(ui, story, args, &appearance, system, None);
                     }
                     None => {
-                        overview(ui, &tiles, args, &HashMap::new(), &appearance, system, &mut None);
+                        let mut scroll_to = None;
+                        let config = Tiles {
+                            one_column: false,
+                            selectable: false,
+                            selected: None,
+                            buttons: false,
+                            scale_of_selected: false,
+                            scroll_to: &mut scroll_to,
+                            inspector: None,
+                        };
+                        tiles_view(ui, &tiles, config, args, &HashMap::new(), &appearance, system);
                     }
                 }
             });

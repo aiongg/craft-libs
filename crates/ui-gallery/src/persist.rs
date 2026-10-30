@@ -7,7 +7,7 @@ use craft_ui::story::{ArgValue, Args};
 use serde::{Deserialize, Serialize};
 
 use crate::appearance::Appearance;
-use crate::layout::{CentreView, GalleryWorkspace, PanelId, PreviewView};
+use crate::layout::{GalleryWorkspace, PanelId, PreviewView};
 
 pub const KEY: &str = "craft-ui-gallery";
 
@@ -24,9 +24,16 @@ pub const THEME_LAYOUT_KEY: &str = "craft-ui-gallery.theme-layout.v1";
 #[serde(default)]
 pub struct Saved {
     pub appearance: Appearance,
+    /// The story selected before the Overview and the component tabs kept their own: read once as
+    /// the Overview's selection.
     pub selected: Option<String>,
+    /// The component the Overview has selected.
+    pub overview_selected: Option<String>,
+    /// The story id each Overview tile shows, by component name.
+    pub overview_story: HashMap<String, String>,
+    /// The selected story id of each component tab, by component name.
+    pub tab_story: HashMap<String, String>,
     pub filter: String,
-    pub view: CentreView,
     pub workspace: GalleryWorkspace,
     pub preview: PreviewView,
     /// The share of the Tokens panel's height that its list takes.

@@ -1,4 +1,5 @@
 //! The gallery app.
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -6,7 +7,7 @@ use craft_platform::appearance::SystemReader;
 use craft_theme::{ButtonVariant, ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, SystemAppearance, TextSize, TypeRole, builtins};
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
 use craft_ui::composites::{EmptyState, FormGrid, PropertyRow};
-use craft_ui::controls::{Button, Checkbox, IconButton, Link, NumberField, SearchField, Segmented, Select, TextField, ToggleButton, TooltipExt as _};
+use craft_ui::controls::{Button, Checkbox, IconButton, NumberField, SearchField, Segmented, Select, TextField, ToggleButton, TooltipExt as _};
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, DockLook, PanelState, Permissions, Workspace};
 use craft_ui::icons::{self, Icon, IconSet};
@@ -18,10 +19,10 @@ use craft_ui::patterns::{CellWidth, OptionsBar};
 use craft_ui::popover::{self, Popover, PopoverAnchor};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{ArgValue, Args, Level, Story, Surface, registry};
-use craft_ui::theme::{Base, ToEgui, Tokens, TokensOf, install, margin, scope};
+use craft_ui::theme::{Base, StrokeExt as _, ToEgui, Tokens, TokensOf, install, margin, scale, scope};
 use egui::epaint::RectShape;
 use egui::{
-    Align, CentralPanel, Color32, Frame, Margin, Panel, Rect, ScrollArea, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder, Widget as _, pos2,
+    Align, CentralPanel, Color32, Frame, Margin, Panel, Rect, Role, ScrollArea, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2,
 };
 
 use crate::appearance::{Appearance, SCALE, builtin};
@@ -29,7 +30,7 @@ use crate::browser::{self, Browser};
 use crate::faces;
 use crate::fields;
 use crate::inspector::Inspector;
-use crate::layout::{CentreView, GalleryWorkspace, PanelId, PreviewView, VariantAxis, default_for, reconciled};
+use crate::layout::{GalleryWorkspace, PanelId, PreviewView, VariantAxis, default_for, reconciled};
 use crate::persist::{self, KEY, Saved};
 use crate::preview::AppPreview;
 use crate::problems::Problems;
@@ -48,14 +49,24 @@ pub struct Gallery {
     /// The OS's answer `base` was resolved with.
     os_applied: SystemAppearance,
     base: Base,
-    selected: Option<String>,
+    /// The component the Overview has selected: its tile has the ring, and the side panels follow
+    /// it while the Overview is the front centre tab.
+    overview_selected: Option<&'static str>,
+    /// The story id each Overview tile shows, by component; a component without an entry shows
+    /// its default story.
+    overview_story: HashMap<&'static str, &'static str>,
+    /// The selected story id of each component tab; a tab without an entry has its default story
+    /// selected.
+    tab_story: HashMap<&'static str, &'static str>,
     filter: String,
-    view: CentreView,
     /// The axis the Variants view repeats the story over; not saved.
     variants: Option<VariantAxis>,
+    /// The centre tab Variants shows in; it closes when another centre tab comes to the front.
+    variants_tab: PanelId,
     /// The More popover of the options bar is open.
     more_open: bool,
-    /// The component the Overview scrolls to, until its tile has been drawn.
+    /// The tile to scroll to, until it has been drawn: a component in the Overview, a story id in
+    /// a component tab.
     scroll_to: Option<&'static str>,
     browser: Browser,
     problems: Problems,
@@ -81,7 +92,20 @@ impl Gallery {
     pub fn new(storage: Option<&dyn eframe::Storage>) -> Self {
         let saved = Saved::load(storage);
         let stories = stories();
-        let selected = saved.selected.filter(|id| stories.iter().any(|s| s.id == id)).or_else(|| first_story(&stories).map(str::to_owned));
+        let component = |name: &str| stories.iter().find(|s| s.component == name).map(|s| s.component);
+        let story = |component: &str, id: &str| stories.iter().find(|s| s.component == component && s.id == id).map(|s| (s.component, s.id));
+        let mut overview_selected = saved.overview_selected.as_deref().and_then(component);
+        let mut overview_story: HashMap<&'static str, &'static str> = saved.overview_story.iter().filter_map(|(c, id)| story(c, id)).collect();
+        // A state from before the Overview kept its own selection holds one selected story.
+        if overview_selected.is_none()
+            && let Some(old) = saved.selected.as_deref().and_then(|id| stories.iter().find(|s| s.id == id))
+        {
+            overview_selected = Some(old.component);
+            overview_story.entry(old.component).or_insert(old.id);
+        }
+        let tab_story: HashMap<&'static str, &'static str> = saved.tab_story.iter().filter_map(|(c, id)| story(c, id)).collect();
+        let components_dock = load_dock(persist::load_layout(storage), GalleryWorkspace::Components);
+        let tab_story = tab_story.into_iter().filter(|(c, _)| components_dock.layout.contains(&PanelId::Component(c))).collect();
         Self {
             stories,
             base: saved.appearance.base(SystemAppearance::default()),
@@ -91,10 +115,12 @@ impl Gallery {
             system_face_applied: false,
             os: SystemReader::for_egui(),
             os_applied: SystemAppearance::default(),
-            selected,
+            overview_selected,
+            overview_story,
+            tab_story,
             filter: saved.filter,
-            view: saved.view,
             variants: None,
+            variants_tab: PanelId::View,
             more_open: false,
             scroll_to: None,
             browser: Browser::new(saved.tokens_split),
@@ -103,7 +129,7 @@ impl Gallery {
             inspector: Inspector::default(),
             workspace: saved.workspace,
             preview: saved.preview,
-            components_dock: load_dock(persist::load_layout(storage), GalleryWorkspace::Components),
+            components_dock,
             theme_dock: load_dock(persist::load_theme_layout(storage), GalleryWorkspace::Theme),
             reset_layout: false,
             args: HashMap::new(),
@@ -125,32 +151,76 @@ impl Gallery {
         self.preview = preview;
     }
 
-    /// Selects a story by id; unknown ids are ignored.
+    /// Selects a story by id in the Overview, and in the component's tab when it is open; unknown
+    /// ids are ignored.
     pub fn select(&mut self, id: &str) {
-        if self.stories.iter().any(|s| s.id == id) {
-            self.selected = Some(id.to_owned());
+        let Some(story) = self.stories.iter().find(|s| s.id == id).copied() else { return };
+        self.overview_selected = Some(story.component);
+        self.overview_story.insert(story.component, story.id);
+        if self.components_dock.layout.contains(&PanelId::Component(story.component)) {
+            self.tab_story.insert(story.component, story.id);
         }
     }
 
-    pub fn set_view(&mut self, view: CentreView) {
-        self.view = view;
+    /// The component the Overview has selected.
+    pub fn overview_selected(&self) -> Option<&'static str> {
+        self.overview_selected
     }
 
-    pub fn view(&self) -> CentreView {
-        self.view
+    /// The id of the story the side panels follow: the selected tile's in the Overview, the
+    /// selected story's in a component tab.
+    pub fn selected(&self) -> Option<&'static str> {
+        self.target().map(|s| s.id)
     }
 
-    /// The id of the selected story.
-    pub fn selected(&self) -> Option<&str> {
-        self.selected.as_deref()
+    /// The centre tab in front: the Overview, or a component's tab. With several centre tabs in
+    /// front (a floated one), the Overview and then the first in the layout.
+    pub fn front_tab(&self) -> PanelId {
+        let layout = &self.components_dock.layout;
+        if layout.panel_state(&PanelId::View) == PanelState::Front {
+            return PanelId::View;
+        }
+        layout
+            .panels()
+            .into_iter()
+            .copied()
+            .find(|p| matches!(p, PanelId::Component(_)) && layout.panel_state(p) == PanelState::Front)
+            .unwrap_or(PanelId::View)
     }
 
-    /// Shows the Variants view over `axis` in the Component view, or closes it.
+    /// The args of the story with id `id`, which the Properties panel edits.
+    pub fn args_of_story(&mut self, id: &str) -> Option<&mut Args> {
+        let story = self.stories.iter().find(|s| s.id == id).copied()?;
+        Some(self.args_of(&story))
+    }
+
+    /// The components that have a tab, in the layout's order.
+    pub fn open_tabs(&self) -> Vec<&'static str> {
+        self.components_dock
+            .layout
+            .panels()
+            .into_iter()
+            .filter_map(|p| match p {
+                PanelId::Component(c) => Some(*c),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Opens `component`'s tab in the Components workspace and fronts it. A tab that is open comes
+    /// to the front; a new one joins the group of the Overview.
+    pub fn open_component(&mut self, component: &'static str) {
+        self.workspace = GalleryWorkspace::Components;
+        self.variants = None;
+        let panel = PanelId::Component(component);
+        let _ = self.components_dock.set_visible(panel, true, Some(PanelId::View), PanelId::permissions);
+    }
+
+    /// Shows the Variants view over `axis` in the front centre tab, or closes it. Without a
+    /// selected component there is nothing to repeat, so it stays closed.
     pub fn set_variants(&mut self, axis: Option<VariantAxis>) {
-        self.variants = axis;
-        if axis.is_some() {
-            self.view = CentreView::Component;
-        }
+        self.variants = axis.filter(|_| self.target().is_some());
+        self.variants_tab = self.front_tab();
     }
 
     pub fn variants(&self) -> Option<VariantAxis> {
@@ -242,15 +312,13 @@ impl Gallery {
         // the popups are read now.
         let escape = ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !egui::Popup::is_any_open(&ctx) && !popover::any_open(&ctx);
         Panel::top("gallery.bar").frame(Frame::NONE).show_separator_line(false).resizable(false).show(ui, |ui| self.options_bar(ui));
-        if (escape && self.workspace == GalleryWorkspace::Components) || self.view == CentreView::Overview {
+        if (escape && self.workspace == GalleryWorkspace::Components) || self.front_tab() != self.variants_tab {
             self.variants = None;
         }
-        let layout = &self.components_dock.layout;
         let inspecting = self.workspace == GalleryWorkspace::Components
-            && self.view == CentreView::Component
             && self.variants.is_none()
-            && layout.panel_state(&PanelId::Inspect) == PanelState::Front
-            && layout.panel_state(&PanelId::View) == PanelState::Front;
+            && self.target().is_some()
+            && self.components_dock.layout.panel_state(&PanelId::Inspect) == PanelState::Front;
         inspect::set_enabled(&ctx, inspecting);
         if inspecting {
             self.inspector.begin(&ctx, Arc::clone(&tokens));
@@ -260,13 +328,24 @@ impl Gallery {
             let shown = self.workspace;
             *self.dock_of_mut(shown) = default_for(shown);
         }
+        self.forget_closed_tabs();
     }
 
-    /// The shown workspace's panels in their dock. The dock layout is taken out while the panels
-    /// draw, because they borrow the gallery.
+    /// Drops what a component tab that is no longer in the layout kept: its selected story, and
+    /// the place the dock recorded for it. A closed tab does not come back from `hidden`.
+    fn forget_closed_tabs(&mut self) {
+        let layout = &self.components_dock.layout;
+        self.tab_story.retain(|c, _| layout.contains(&PanelId::Component(c)));
+        self.components_dock.hidden.retain(|(panel, _)| !matches!(panel, PanelId::Component(_)));
+    }
+
+    /// The shown workspace's panels in their dock. The panels draw from a copy of the layout,
+    /// because they borrow the gallery and may change its dock (opening a tab); the dock's own
+    /// actions of this frame are applied to the gallery's layout afterwards.
     fn dock(&mut self, ui: &mut Ui, inspecting: bool) {
         let shown = self.workspace;
-        let mut workspace = std::mem::take(self.dock_of_mut(shown));
+        let front = self.front_tab();
+        let workspace = self.dock_of_mut(shown).clone();
         let id = match shown {
             GalleryWorkspace::Components => "gallery.dock.components",
             GalleryWorkspace::Theme => "gallery.dock.theme",
@@ -277,9 +356,12 @@ impl Gallery {
         let mut panels = Panels { gallery: self, inspecting, control: tokens.size.control.sm };
         let output = DockArea::new(ui.make_persistent_id(id)).locked(workspace.locked).show_content(ui, &workspace.layout, &config, &mut panels);
         for action in output.actions {
-            let _ = workspace.apply(action, PanelId::permissions);
+            let _ = self.dock_of_mut(shown).apply(action, PanelId::permissions);
         }
-        *self.dock_of_mut(shown) = workspace;
+        // Closing the tab in front shows the Overview.
+        if shown == GalleryWorkspace::Components && !self.components_dock.layout.contains(&front) {
+            self.activate(PanelId::View);
+        }
     }
 
     fn apply_appearance(&mut self, ctx: &egui::Context) {
@@ -303,8 +385,10 @@ impl Gallery {
 
     /// The appearance options and the view, with Reset layout pinned at the end.
     fn options_bar(&mut self, ui: &mut Ui) {
+        let has_target = self.target().is_some();
+        let front = self.front_tab();
         let a = &mut self.appearance;
-        let view = &mut self.view;
+        let variants_tab = &mut self.variants_tab;
         let workspace = &mut self.workspace;
         let current = *workspace;
         let preview = &mut self.preview;
@@ -400,15 +484,15 @@ impl Gallery {
                 OptionsBar::divider(ui);
                 match current {
                     GalleryWorkspace::Components => {
-                        segmented(ui, "View", view, [("Overview", CentreView::Overview), ("Component", CentreView::Component)]);
                         // The toggle only shows the state; the menu opens on the press.
                         let mut shown = variants.is_some();
                         let button = ui.add(ToggleButton::new("Variants", &mut shown).trailing_icon(Icon::ChevronDown).size(ControlSize::Sm));
+                        let button = if has_target { button } else { button.tooltip("Select a component first") };
                         let entries: Vec<MenuEntry<VariantAxis>> =
-                            VariantAxis::ALL.into_iter().map(|axis| MenuItem::new(axis.menu_label(), axis).into()).collect();
+                            VariantAxis::ALL.into_iter().map(|axis| MenuItem::new(axis.menu_label(), axis).enabled(has_target).into()).collect();
                         if let Some(axis) = PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &button).chosen {
                             *variants = Some(axis);
-                            *view = CentreView::Component;
+                            *variants_tab = front;
                         }
                     }
                     GalleryWorkspace::Theme => {
@@ -441,7 +525,22 @@ impl Gallery {
         });
     }
 
-    /// The components that have a story matching the filter, under a label for each level.
+    /// The story of `component` that `picks` names, or its default story.
+    fn story_in(&self, picks: &HashMap<&'static str, &'static str>, component: &str) -> Option<Story> {
+        picks.get(component).and_then(|id| self.stories.iter().find(|s| s.id == *id)).or_else(|| default_story_of(&self.stories, component)).copied()
+    }
+
+    /// The story the side panels follow: the Overview's selected tile's, or the front component
+    /// tab's selected story. None while the Overview has no selection.
+    fn target(&self) -> Option<Story> {
+        match self.front_tab() {
+            PanelId::Component(component) => self.story_in(&self.tab_story, component),
+            _ => self.overview_selected.and_then(|component| self.story_in(&self.overview_story, component)),
+        }
+    }
+
+    /// The components that have a story matching the filter, under a label for each level. A click
+    /// selects a component in the Overview; Open, Enter and a double click open its tab.
     fn components_panel(&mut self, ui: &mut Ui) {
         let filter = SearchField::new("gallery.filter", "Filter components", &self.filter, "Clear filter")
             .placeholder("Filter components")
@@ -449,7 +548,7 @@ impl Gallery {
             .show(ui);
         fields::apply(&filter, &mut self.filter);
         let filter = self.filter.to_lowercase();
-        let current = self.current().map(|s| s.component);
+        let current = self.target().map(|s| s.component);
         let mut rows: Vec<RowInfo<Entry>> = Vec::new();
         for (level, components) in nav(&self.stories, &filter) {
             rows.push(RowInfo::section(Entry::Level(level)));
@@ -457,79 +556,79 @@ impl Gallery {
         }
         let mut selection =
             current.map(Entry::Component).filter(|e| rows.iter().any(|r| r.key == *e)).map_or_else(Selection::default, Selection::only);
+        let open_button = Tokens::of(ui).size.control.sm;
+        let opened = Cell::new(None);
+        let report = &opened;
         let out = List::new("gallery.components", "Components", rows.as_slice())
             .selection(&mut selection)
             .mode(SelectionMode::Single)
             .type_ahead(true)
             .show(ui, |_, entry| match entry {
                 Entry::Level(level) => ListRow::new(*entry, level.title()),
-                Entry::Component(component) => ListRow::new(*entry, *component),
+                Entry::Component(component) => {
+                    let (component, on) = (*component, current == Some(*component));
+                    ListRow::new(*entry, component).trailing_item(open_button, move |ui| {
+                        // The item is as tall as the row; the list's clip is as wide.
+                        let row = Rect::from_x_y_ranges(ui.clip_rect().x_range(), ui.max_rect().y_range());
+                        if (on || ui.rect_contains_pointer(row))
+                            && ui.add(IconButton::new(Icon::Open, format!("Open {component}")).size(ControlSize::Sm)).clicked()
+                        {
+                            report.set(Some(component));
+                        }
+                    })
+                }
             });
         let mut picked = None;
-        let mut activated = false;
+        let mut activated = opened.get();
         for event in out.events {
             match event {
                 ListEvent::Selection(SelectionChange { row: Some(Entry::Component(c)), .. }) => picked = Some(c),
-                ListEvent::Activate(Entry::Component(c)) => {
-                    picked = Some(c);
-                    activated = true;
-                }
+                ListEvent::Activate(Entry::Component(c)) => activated = Some(c),
                 _ => {}
             }
         }
-        // Enter on the current component scrolls the Overview back to it.
-        if let Some(component) = picked.filter(|c| activated || Some(*c) != current) {
+        if let Some(component) = picked {
             self.select_component(component);
         }
-    }
-
-    /// Opens the default story of `component`; the Overview scrolls to its tile.
-    fn select_component(&mut self, component: &'static str) {
-        if let Some(story) = default_story_of(&self.stories, component) {
-            self.selected = Some(story.id.to_owned());
-            self.scroll_to = Some(component);
+        if let Some(component) = activated {
+            self.open_component(component);
         }
     }
 
-    /// Opens `component` in the Component view, on its default story.
-    fn open_component(&mut self, component: &'static str) {
-        self.select_component(component);
-        self.scroll_to = None;
-        self.view = CentreView::Component;
-        self.workspace = GalleryWorkspace::Components;
-        self.variants = None;
+    /// Selects `component` in the Overview, which comes to the front and scrolls to its tile.
+    fn select_component(&mut self, component: &'static str) {
+        self.overview_selected = Some(component);
+        self.scroll_to = Some(component);
         self.activate(PanelId::View);
     }
 
-    /// The selected component's stories.
+    /// The target component's stories. In the Overview a pick changes what the selected tile
+    /// shows; in a component tab it selects that story's tile.
     fn stories_panel(&mut self, ui: &mut Ui) {
-        let Some(component) = self.current().map(|s| s.component) else {
+        let Some(target) = self.target() else {
+            select_a_component(ui);
             return;
         };
-        let stories: Vec<Story> = self.stories.iter().filter(|s| s.component == component).copied().collect();
+        let stories: Vec<Story> = self.stories.iter().filter(|s| s.component == target.component).copied().collect();
         let rows: Vec<RowInfo<&'static str>> = stories.iter().map(|s| RowInfo::leaf(s.id)).collect();
-        let mut selection =
-            self.selected.as_deref().and_then(|id| stories.iter().find(|s| s.id == id)).map_or_else(Selection::default, |s| Selection::only(s.id));
+        let mut selection = Selection::only(target.id);
         let out = List::new("gallery.stories", "Stories", rows.as_slice())
             .selection(&mut selection)
             .mode(SelectionMode::Single)
             .show(ui, |_, id| ListRow::new(*id, stories.iter().find(|s| s.id == *id).map_or(*id, |s| s.name)));
         for event in out.events {
             match event {
-                ListEvent::Selection(change) => {
-                    if let Some(id) = change.row {
-                        self.selected = Some(id.to_owned());
+                ListEvent::Selection(SelectionChange { row: Some(id), .. }) | ListEvent::Activate(id) => {
+                    if matches!(self.front_tab(), PanelId::Component(_)) {
+                        self.tab_story.insert(target.component, id);
+                        self.scroll_to = Some(id);
+                    } else {
+                        self.overview_story.insert(target.component, id);
                     }
                 }
-                ListEvent::Activate(id) => self.selected = Some(id.to_owned()),
                 _ => {}
             }
         }
-    }
-
-    fn current(&self) -> Option<Story> {
-        let id = self.selected.as_deref()?;
-        self.stories.iter().find(|s| s.id == id).copied()
     }
 
     /// The args of `story`, from the saved values on first use.
@@ -537,19 +636,38 @@ impl Gallery {
         args_of(&mut self.args, &self.saved_args, story)
     }
 
-    fn reset_args(&mut self) {
-        if let Some(story) = self.current() {
+    /// Puts the args of the story with id `id` back to its defaults.
+    fn reset_story(&mut self, id: &str) {
+        if let Some(story) = self.stories.iter().find(|s| s.id == id) {
             self.args.insert(story.id.to_owned(), story.defaults());
             self.saved_args.remove(story.id);
         }
     }
 
-    /// The selected story's args.
+    fn reset_args(&mut self) {
+        if let Some(story) = self.target() {
+            self.reset_story(story.id);
+        }
+    }
+
+    /// The target story's args, under a header with its name and Reset.
     fn properties_panel(&mut self, ui: &mut Ui) {
-        let Some(story) = self.current() else {
-            ui.label("No story selected.");
+        let Some(story) = self.target() else {
+            select_a_component(ui);
             return;
         };
+        let changed = *self.args_of(&story) != story.defaults();
+        let mut reset = false;
+        direction::horizontal(ui, |ui| {
+            ui.add(Text::new(story.component).role(TypeRole::Heading));
+            ui.add(Text::new(story.name).content(Content::Muted));
+            if changed {
+                at_trailing_end(ui, |ui| reset = ui.add(IconButton::new(Icon::Undo, "Reset args").size(ControlSize::Sm)).clicked());
+            }
+        });
+        if reset {
+            self.reset_story(story.id);
+        }
         let numbers = LocaleNumbers::of(ui);
         let args = self.args_of(&story);
         for arg in args.iter_mut() {
@@ -581,44 +699,26 @@ impl Gallery {
         }
     }
 
-    /// The centre: the current view.
-    fn view_panel(&mut self, ui: &mut Ui, inspecting: bool) {
-        match self.view {
-            CentreView::Overview => self.overview_view(ui),
-            CentreView::Component => self.component_view(ui, inspecting),
-        }
-    }
-
-    /// The story, or its variants while Variants is shown, each on its surface in the dock colour.
-    fn component_view(&mut self, ui: &mut Ui, inspecting: bool) {
-        let Some(story) = self.current() else {
-            canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
-                ui.set_min_size(ui.available_size());
-                ui.label("No story selected.");
-            });
+    /// The Variants view of the target story, in the front centre tab.
+    fn variants_view(&mut self, ui: &mut Ui, axis: VariantAxis) {
+        let Some(story) = self.target() else {
+            self.variants = None;
             return;
         };
         let appearance = self.appearance.clone();
         let system = self.os_applied;
         let args = args_of(&mut self.args, &self.saved_args, &story);
-        let inspector = inspecting.then_some(&mut self.inspector);
         let mut applied = None;
         let mut closed = false;
         canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
             ui.set_min_size(ui.available_size());
-            if let Some(axis) = self.variants {
-                closed = variants_header(ui, &story, axis);
-                ScrollArea::vertical().id_salt("gallery.variants").auto_shrink([false, false]).show(ui, |ui| {
-                    applied = variants_grid(ui, &story, args, &appearance, system, axis);
-                });
-            } else {
-                ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| canvas(ui, &story, args, &appearance, system, inspector));
-            }
+            closed = variants_header(ui, &story, axis);
+            ScrollArea::vertical().id_salt("gallery.variants").auto_shrink([false, false]).show(ui, |ui| {
+                applied = variants_grid(ui, &story, args, &appearance, system, axis);
+            });
         });
         if let Some(from) = applied {
-            if let Some(axis) = self.variants {
-                copy_axis(axis, &from, &mut self.appearance);
-            }
+            copy_axis(axis, &from, &mut self.appearance);
             closed = true;
         }
         if closed {
@@ -626,19 +726,40 @@ impl Gallery {
         }
     }
 
-    /// Every component of one level, each tile on its story's surface: the level follows the selected
-    /// story. Each tile draws the component's default story; its name opens the Component view.
-    fn overview_view(&mut self, ui: &mut Ui) {
+    /// The Variants view when it shows in `tab`.
+    fn variants_in(&self, tab: PanelId) -> Option<VariantAxis> {
+        self.variants.filter(|_| self.variants_tab == tab)
+    }
+
+    /// Applies what a set of tiles reported, other than a pick, which the tab interprets.
+    fn apply_tile_events(&mut self, events: &TileEvents) {
+        if let Some(id) = events.reset {
+            self.reset_story(id);
+        }
+        if let Some(component) = events.opened {
+            self.open_component(component);
+        }
+    }
+
+    /// The Overview tab: every component of one level, each tile on its story's surface. The
+    /// level follows the selected component; each tile draws the story it was given.
+    fn overview_tab(&mut self, ui: &mut Ui, inspecting: bool) {
+        if let Some(axis) = self.variants_in(PanelId::View) {
+            self.variants_view(ui, axis);
+            return;
+        }
         let nav = nav(&self.stories, &self.filter.to_lowercase());
-        let current = self.current();
-        let shown = current.and_then(|s| nav.iter().position(|(level, _)| *level == s.level)).unwrap_or(0);
+        let selected = self.overview_selected;
+        let shown =
+            selected.and_then(|c| default_story_of(&self.stories, c)).and_then(|s| nav.iter().position(|(level, _)| *level == s.level)).unwrap_or(0);
         let appearance = self.appearance.clone();
         let system = self.os_applied;
         let mut level = shown;
-        let mut opened = None;
+        let mut events = TileEvents::default();
+        let tiles = nav.get(shown).map(|(_, components)| self.component_tiles(components)).unwrap_or_default();
         canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
             ui.set_min_size(ui.available_size());
-            let Some((shown_level, components)) = nav.get(shown) else {
+            let Some((shown_level, _)) = nav.get(shown) else {
                 ui.label("No components match the filter.");
                 return;
             };
@@ -650,19 +771,77 @@ impl Gallery {
                 }
                 let _ = select.policy(fields::policy()).show(ui);
             });
-            let tiles = overview_tiles(&self.stories, components, current);
-            let scroll_to = &mut self.scroll_to;
+            let inspector = selected.filter(|_| inspecting).map(|c| (c, &mut self.inspector));
+            let config = Tiles {
+                one_column: false,
+                selectable: true,
+                selected,
+                buttons: true,
+                scale_of_selected: false,
+                scroll_to: &mut self.scroll_to,
+                inspector,
+            };
             ScrollArea::vertical().id_salt(shown_level.slug()).auto_shrink([false, false]).show(ui, |ui| {
-                opened = overview(ui, &tiles, &mut self.args, &self.saved_args, &appearance, system, scroll_to);
+                events = tiles_view(ui, &tiles, config, &mut self.args, &self.saved_args, &appearance, system);
             });
         });
-        let first = nav.get(level).and_then(|(_, components)| components.first()).and_then(|c| default_story_of(&self.stories, c));
-        if let Some(story) = first.filter(|_| level != shown) {
-            self.selected = Some(story.id.to_owned());
+        if let Some(first) = nav.get(level).and_then(|(_, components)| components.first()).filter(|_| level != shown) {
+            self.overview_selected = Some(*first);
         }
-        if let Some(component) = opened {
-            self.open_component(component);
+        if let Some(component) = events.picked {
+            self.overview_selected = Some(component);
         }
+        self.apply_tile_events(&events);
+    }
+
+    /// One tile per component: the story the Overview shows for it.
+    fn component_tiles(&self, components: &[&'static str]) -> Vec<Tile> {
+        components
+            .iter()
+            .filter_map(|c| {
+                let story = self.story_in(&self.overview_story, c)?;
+                let default = default_story_of(&self.stories, c)?;
+                Some(Tile { key: c, story, title: c, note: (story.id != default.id).then_some(story.name), open: true })
+            })
+            .collect()
+    }
+
+    /// A component's tab: every story of the component as a tile in one column.
+    fn component_tab(&mut self, ui: &mut Ui, component: &'static str, inspecting: bool) {
+        if let Some(axis) = self.variants_in(PanelId::Component(component)) {
+            self.variants_view(ui, axis);
+            return;
+        }
+        let tiles: Vec<Tile> = self
+            .stories
+            .iter()
+            .filter(|s| s.component == component)
+            .map(|s| Tile { key: s.id, story: *s, title: s.name, note: None, open: false })
+            .collect();
+        let selected = self.story_in(&self.tab_story, component).map(|s| s.id);
+        let appearance = self.appearance.clone();
+        let system = self.os_applied;
+        let mut events = TileEvents::default();
+        canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
+            ui.set_min_size(ui.available_size());
+            let inspector = selected.filter(|_| inspecting).map(|id| (id, &mut self.inspector));
+            let config = Tiles {
+                one_column: true,
+                selectable: true,
+                selected,
+                buttons: true,
+                scale_of_selected: true,
+                scroll_to: &mut self.scroll_to,
+                inspector,
+            };
+            ScrollArea::vertical().id_salt(("gallery.tab", component)).auto_shrink([false, false]).show(ui, |ui| {
+                events = tiles_view(ui, &tiles, config, &mut self.args, &self.saved_args, &appearance, system);
+            });
+        });
+        if let Some(id) = events.picked {
+            self.tab_story.insert(component, id);
+        }
+        self.apply_tile_events(&events);
     }
 
     /// The Theme workspace's centre: the mock app, or the Controls level's tiles.
@@ -672,20 +851,30 @@ impl Gallery {
             PreviewView::Components => {
                 let components: Vec<&'static str> =
                     nav(&self.stories, "").into_iter().find(|(level, _)| *level == Level::Controls).map_or_else(Vec::new, |(_, c)| c);
-                let tiles = overview_tiles(&self.stories, &components, None);
+                let tiles: Vec<Tile> = components
+                    .iter()
+                    .filter_map(|c| default_story_of(&self.stories, c).map(|story| Tile { key: c, story: *story, title: c, note: None, open: true }))
+                    .collect();
                 let appearance = self.appearance.clone();
                 let system = self.os_applied;
-                let mut opened = None;
+                let mut events = TileEvents::default();
                 canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
                     ui.set_min_size(ui.available_size());
                     let mut scroll_to = None;
+                    let config = Tiles {
+                        one_column: false,
+                        selectable: false,
+                        selected: None,
+                        buttons: true,
+                        scale_of_selected: false,
+                        scroll_to: &mut scroll_to,
+                        inspector: None,
+                    };
                     ScrollArea::vertical().id_salt("gallery.preview").auto_shrink([false, false]).show(ui, |ui| {
-                        opened = overview(ui, &tiles, &mut self.args, &self.saved_args, &appearance, system, &mut scroll_to);
+                        events = tiles_view(ui, &tiles, config, &mut self.args, &self.saved_args, &appearance, system);
                     });
                 });
-                if let Some(component) = opened {
-                    self.open_component(component);
-                }
+                self.apply_tile_events(&events);
             }
         }
     }
@@ -746,6 +935,17 @@ fn padded(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
     Frame::new().inner_margin(margin(pad)).show(ui, add);
 }
 
+/// What the side panels say while nothing is selected.
+fn select_a_component(ui: &mut Ui) {
+    EmptyState::new("Select a component").show(ui);
+}
+
+/// Runs `add` at the trailing end of the rest of the row.
+fn at_trailing_end(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
+    let layout = if direction::is_rtl(ui) { egui::Layout::left_to_right(Align::Center) } else { egui::Layout::right_to_left(Align::Center) };
+    ui.with_layout(layout, add);
+}
+
 /// A panel that is not built yet: one muted line.
 fn placeholder(ui: &mut Ui, text: &str) {
     padded(ui, |ui| {
@@ -775,11 +975,11 @@ impl DockContent<PanelId> for Panels<'_> {
             PanelId::Components => padded(ui, |ui| self.gallery.components_panel(ui)),
             PanelId::Stories => padded(ui, |ui| self.gallery.stories_panel(ui)),
             PanelId::Properties => scrolled(ui, |ui| self.gallery.properties_panel(ui)),
-            PanelId::Inspect if self.gallery.view == CentreView::Overview || self.gallery.variants.is_some() => padded(ui, |ui| {
-                ui.label("Inspect works on the Component view.");
-            }),
+            PanelId::Inspect if self.gallery.target().is_none() => padded(ui, select_a_component),
+            PanelId::Inspect if self.gallery.variants.is_some() => placeholder(ui, "Inspect is off while Variants shows."),
             PanelId::Inspect => padded(ui, |ui| self.gallery.inspector.panel(ui)),
-            PanelId::View => self.gallery.view_panel(ui, self.inspecting),
+            PanelId::View => self.gallery.overview_tab(ui, self.inspecting),
+            PanelId::Component(component) => self.gallery.component_tab(ui, component, self.inspecting),
             PanelId::Tokens => padded(ui, |ui| self.gallery.tokens_panel(ui)),
             PanelId::Preview => self.gallery.preview_panel(ui),
             PanelId::Theme => padded(ui, |ui| self.gallery.theme_panel(ui)),
@@ -789,11 +989,7 @@ impl DockContent<PanelId> for Panels<'_> {
     }
 
     fn logical_label(&self, panel: &PanelId) -> String {
-        match panel {
-            PanelId::View => self.gallery.view.title(),
-            _ => panel.title(),
-        }
-        .to_owned()
+        panel.title().to_owned()
     }
 
     fn permissions(&self, panel: &PanelId) -> Permissions {
@@ -841,9 +1037,11 @@ impl eframe::App for Gallery {
         }
         let saved = Saved {
             appearance: self.appearance.clone(),
-            selected: self.selected.clone(),
+            selected: None,
+            overview_selected: self.overview_selected.map(str::to_owned),
+            overview_story: self.overview_story.iter().map(|(c, id)| ((*c).to_owned(), (*id).to_owned())).collect(),
+            tab_story: self.tab_story.iter().map(|(c, id)| ((*c).to_owned(), (*id).to_owned())).collect(),
             filter: self.filter.clone(),
-            view: self.view,
             workspace: self.workspace,
             preview: self.preview,
             tokens_split: Some(self.browser.share()),
@@ -875,13 +1073,6 @@ pub(crate) fn stories() -> Vec<Story> {
 /// which shows the component at rest.
 pub(crate) fn default_story_of<'a>(stories: &'a [Story], component: &str) -> Option<&'a Story> {
     stories.iter().find(|s| s.component == component)
-}
-
-/// The story the navigation lists first: the first story of its first level's first component.
-fn first_story(stories: &[Story]) -> Option<&'static str> {
-    let (level, components) = nav(stories, "").into_iter().next()?;
-    let component = *components.first()?;
-    stories.iter().find(|s| s.level == level && s.component == component).map(|s| s.id)
 }
 
 /// The navigation's levels in their order, each with the components that have a story matching
@@ -1048,40 +1239,83 @@ fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut In
     }
 }
 
-/// The story each of `components` draws in the Overview: its default story, except the selected
-/// component's, which draws the selected story so Stories and Properties change what is seen.
-fn overview_tiles(stories: &[Story], components: &[&'static str], selected: Option<Story>) -> Vec<Story> {
-    components.iter().filter_map(|c| selected.filter(|s| s.component == *c).or_else(|| default_story_of(stories, c).copied())).collect()
+/// One tile of an Overview or a component tab.
+#[derive(Clone, Copy)]
+pub(crate) struct Tile {
+    /// What a pick and a scroll request name: the component in the Overview, the story's id in a
+    /// component tab.
+    pub key: &'static str,
+    pub story: Story,
+    /// The header's heading: the component, or the story.
+    pub title: &'static str,
+    /// The story's name after the heading, when the tile shows other than the default story.
+    pub note: Option<&'static str>,
+    /// Whether the header has an Open button (for the component).
+    pub open: bool,
+}
+
+/// How a set of tiles looks and what it reports.
+pub(crate) struct Tiles<'a> {
+    /// One full-width column; otherwise one or two, by the width.
+    pub one_column: bool,
+    /// Whether a click on a tile selects it. Without it no tile has the ring.
+    pub selectable: bool,
+    /// The key of the tile with the ring.
+    pub selected: Option<&'static str>,
+    /// Whether the headers have the Reset and Open buttons.
+    pub buttons: bool,
+    /// The key of the tile to scroll to; cleared once its tile has been drawn.
+    pub scroll_to: &'a mut Option<&'static str>,
+    /// Whether the selected tile's request for a scale ([`craft_ui::story::request_pixels_per_point`])
+    /// stands; every other tile's is dropped, as a tile does not change the gallery's scale.
+    pub scale_of_selected: bool,
+    /// The inspector, and the key of the one tile it draws over.
+    pub inspector: Option<(&'static str, &'a mut Inspector)>,
+}
+
+/// What a set of tiles reported in a frame.
+#[derive(Default)]
+pub(crate) struct TileEvents {
+    /// The key of the tile that was clicked.
+    pub picked: Option<&'static str>,
+    /// The component whose Open was pressed.
+    pub opened: Option<&'static str>,
+    /// The id of the story whose Reset was pressed.
+    pub reset: Option<&'static str>,
 }
 
 /// The narrowest a tile may be: PhotoCraft's dock panels are 290 pt wide, and a story drawn in
 /// less than a panel's width is no longer what the apps show.
 const TILE_MIN_WIDTH: f32 = 290.0;
 
-/// The tiles of one level in one or two columns: two once each column keeps [`TILE_MIN_WIDTH`].
-/// A row's tiles share its height. Returns the component whose name was clicked.
-pub(crate) fn overview(
+/// The tiles in one or two columns: two once each column keeps [`TILE_MIN_WIDTH`]. A row's tiles
+/// share its height. A tile has a header (the heading, Reset while the story's args differ from
+/// its defaults, Open) above its story; a click on the tile that none of its controls takes picks
+/// it.
+pub(crate) fn tiles_view(
     ui: &mut Ui,
-    tiles: &[Story],
+    tiles: &[Tile],
+    mut config: Tiles<'_>,
     args: &mut HashMap<String, Args>,
     saved: &HashMap<String, Vec<persist::SavedArg>>,
     appearance: &Appearance,
     system: SystemAppearance,
-    scroll_to: &mut Option<&'static str>,
-) -> Option<&'static str> {
+) -> TileEvents {
     let shown = shown_mode(ui.ctx());
     let overrides = |o: &mut craft_ui::theme::Overrides| {
         appearance.overrides(o);
         o.mode = Some(appearance.mode(shown));
         o.contrast = Some(appearance.contrast(system));
     };
-    let mut opened = None;
+    // The ring belongs to the gallery, not to the appearance the stories are shown in.
+    let ring = Tokens::of(ui).color.accent.border.to_egui();
+    let mut events = TileEvents::default();
     scope(ui, overrides, |ui| {
         let tokens = Tokens::of(ui);
         let gap = tokens.space.gap.section;
         let rtl = direction::is_rtl(ui);
         let width = ui.available_width();
-        let columns = if width >= 2.0 * TILE_MIN_WIDTH + gap { 2 } else { 1 };
+        let columns = if config.one_column || width < 2.0 * TILE_MIN_WIDTH + gap { 1 } else { 2 };
         let tile_width = (width - gap * (columns - 1) as f32) / columns as f32;
         let area = ui.available_rect_before_wrap();
         // A tile is as tall as its story; a story that fills the height it is given gets a viewport's.
@@ -1090,41 +1324,87 @@ pub(crate) fn overview(
             let top = ui.cursor().min.y;
             let mut bottom = top;
             let mut placed = Vec::new();
-            for (i, story) in row.iter().enumerate() {
+            for (i, tile) in row.iter().enumerate() {
+                let story = &tile.story;
                 let x = if rtl { area.max.x - (i + 1) as f32 * tile_width - i as f32 * gap } else { area.min.x + i as f32 * (tile_width + gap) };
                 let slot = ui.painter().add(Shape::Noop);
-                let mut cell =
-                    ui.new_child(UiBuilder::new().id_salt(story.id).max_rect(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, top + reach))));
+                let sense = if config.selectable { Sense::CLICK } else { Sense::hover() };
+                let mut cell = ui.new_child(
+                    UiBuilder::new().id_salt(tile.key).sense(sense).max_rect(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, top + reach))),
+                );
                 let surface = StoryFrame::of(&cell, story.surface);
                 let used = Frame::new().inner_margin(surface.margin).show(&mut cell, |ui| {
                     surface.space(ui);
                     ui.set_min_width(ui.available_width());
-                    if Link::new(story.component).role(TypeRole::Heading).id_salt(("tile", story.id)).ui(ui).clicked() {
-                        opened = Some(story.component);
-                    }
                     let args = args_of(args, saved, story);
-                    ui.push_id(story.id, |ui| (story.show)(ui, args));
-                    // A tile does not change the gallery's scale.
-                    let _ = craft_ui::story::take_pixels_per_point_request(ui.ctx());
+                    let changed = *args != story.defaults();
+                    direction::horizontal(ui, |ui| {
+                        ui.add(Text::new(tile.title).role(TypeRole::Heading));
+                        if let Some(note) = tile.note {
+                            ui.add(Text::new(format!("· {note}")).content(Content::Muted));
+                        }
+                        if config.buttons {
+                            at_trailing_end(ui, |ui| {
+                                if tile.open && ui.add(IconButton::new(Icon::Open, format!("Open {}", tile.title)).size(ControlSize::Sm)).clicked() {
+                                    events.opened = Some(story.component);
+                                }
+                                if changed && ui.add(IconButton::new(Icon::Undo, format!("Reset {}", tile.title)).size(ControlSize::Sm)).clicked() {
+                                    events.reset = Some(story.id);
+                                }
+                            });
+                        }
+                    });
+                    // Only the selected tile of a component tab sets the gallery's scale; the request
+                    // pending before this tile drew stays.
+                    let sets_scale = config.scale_of_selected && config.selected == Some(tile.key);
+                    let pending = if sets_scale { None } else { craft_ui::story::take_pixels_per_point_request(ui.ctx()) };
+                    let body = ui.push_id(story.id, |ui| {
+                        (story.show)(ui, args);
+                        ui.unique_id()
+                    });
+                    if !sets_scale {
+                        let _ = craft_ui::story::take_pixels_per_point_request(ui.ctx());
+                        if let Some(ppp) = pending {
+                            craft_ui::story::request_pixels_per_point(ui.ctx(), ppp);
+                        }
+                    }
+                    if let Some((key, inspector)) = config.inspector.as_mut()
+                        && *key == tile.key
+                    {
+                        inspector.overlay(ui, "Canvas".to_owned(), body.response.rect, body.inner.accesskit_id(), tokens.size.control.sm, rtl);
+                    }
                 });
-                if *scroll_to == Some(story.component) {
+                if config.scroll_to.is_some_and(|key| key == tile.key) {
                     cell.scroll_to_rect(used.response.rect, Some(Align::TOP));
-                    *scroll_to = None;
+                    *config.scroll_to = None;
+                }
+                let selected = config.selected == Some(tile.key);
+                if config.selectable {
+                    let response = cell.response();
+                    response.widget_info(|| WidgetInfo::selected(Role::Button, true, selected, format!("Select {}", tile.title)));
+                    if response.clicked() {
+                        events.picked = Some(tile.key);
+                    }
                 }
                 bottom = bottom.max(used.response.rect.bottom());
-                placed.push((slot, x, surface));
+                placed.push((slot, x, surface, selected));
             }
-            for (slot, x, surface) in placed {
+            for (slot, x, surface, selected) in placed {
+                let rect = Rect::from_min_max(pos2(x, top), pos2(x + tile_width, bottom));
+                let mut shapes = Vec::new();
                 if let Some(fill) = surface.fill {
-                    let rect = Rect::from_min_max(pos2(x, top), pos2(x + tile_width, bottom));
-                    ui.painter().set(slot, Shape::Rect(RectShape::new(rect, 0.0, fill, surface.edge, StrokeKind::Inside)));
+                    shapes.push(Shape::Rect(RectShape::new(rect, 0.0, fill, surface.edge, StrokeKind::Inside)));
                 }
+                if selected {
+                    shapes.push(Shape::Rect(RectShape::stroke(rect, 0.0, scale::Stroke::W2.egui(ui.ctx(), ring), StrokeKind::Inside)));
+                }
+                ui.painter().set(slot, Shape::Vec(shapes));
             }
             ui.allocate_rect(Rect::from_min_max(pos2(area.min.x, top), pos2(area.max.x, bottom)), Sense::hover());
             ui.add_space(gap);
         }
     });
-    opened
+    events
 }
 
 /// The cards of a Variants view: the appearance with each value of `axis` set, named by the value.
@@ -1265,21 +1545,6 @@ mod tests {
         assert_eq!(levels, order);
     }
 
-    #[test]
-    fn a_fresh_gallery_opens_the_navigations_first_story() {
-        let gallery = Gallery::new(None);
-        let nav = nav(&gallery.stories, "");
-        let (level, components) = &nav[0];
-        let first = gallery.stories.iter().find(|s| s.level == *level && s.component == components[0]).expect("the nav lists stories").id;
-        assert_eq!(gallery.selected.as_deref(), Some(first));
-        assert_eq!(first_story(&gallery.stories), Some(first));
-    }
-
-    #[test]
-    fn a_fresh_gallery_opens_in_the_overview() {
-        assert_eq!(Gallery::new(None).view, CentreView::Overview);
-    }
-
     /// Frames of the gallery in a 1280 x 800 window.
     fn run_frames(ctx: &egui::Context, gallery: &mut Gallery, frames: usize) {
         let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
@@ -1288,56 +1553,110 @@ mod tests {
         }
     }
 
+    /// A component with several stories, and its second story.
+    fn component_with_stories(gallery: &Gallery) -> (&'static str, Story) {
+        let multi = gallery.stories.iter().find(|s| gallery.stories.iter().filter(|o| o.component == s.component).count() > 1).unwrap().component;
+        (multi, *gallery.stories.iter().filter(|s| s.component == multi).nth(1).unwrap())
+    }
+
     #[test]
-    fn picking_a_component_in_the_overview_scrolls_to_it_and_keeps_the_overview() {
+    fn a_fresh_gallery_shows_the_overview_with_nothing_selected() {
+        let gallery = Gallery::new(None);
+        assert_eq!(gallery.front_tab(), PanelId::View);
+        assert_eq!(gallery.overview_selected(), None);
+        assert_eq!(gallery.selected(), None);
+        assert!(gallery.open_tabs().is_empty());
+    }
+
+    #[test]
+    fn picking_a_component_scrolls_the_overview_to_it_and_opens_no_tab() {
         let ctx = egui::Context::default();
         let mut gallery = Gallery::new(None);
-        let current = gallery.current().unwrap();
         // The last component of another level, so the pick changes the level shown.
-        let story = gallery.stories.iter().rev().find(|s| s.level != current.level && s.level != Level::Specimens).copied().unwrap();
+        let story = gallery.stories.iter().rev().find(|s| s.level != Level::Specimens).copied().unwrap();
         gallery.select_component(story.component);
         assert_eq!(gallery.scroll_to, Some(story.component));
-        assert_eq!(gallery.view, CentreView::Overview);
         run_frames(&ctx, &mut gallery, 2);
         assert_eq!(gallery.scroll_to, None, "the tile was drawn and scrolled to");
-        assert_eq!(gallery.view, CentreView::Overview);
-        assert_eq!(gallery.current().unwrap().component, story.component);
+        assert_eq!(gallery.front_tab(), PanelId::View);
+        assert!(gallery.open_tabs().is_empty());
+        assert_eq!(gallery.selected(), default_story_of(&gallery.stories, story.component).map(|s| s.id));
     }
 
     #[test]
-    fn the_selected_components_tile_draws_the_selected_story() {
-        let stories = stories();
-        let multi = stories.iter().find(|s| stories.iter().filter(|o| o.component == s.component).count() > 1).unwrap().component;
-        let other = stories.iter().find(|s| s.component != multi && s.level == stories.iter().find(|m| m.component == multi).unwrap().level).unwrap();
-        let second = *stories.iter().filter(|s| s.component == multi).nth(1).unwrap();
-        let components = [multi, other.component];
-        let tiles = overview_tiles(&stories, &components, Some(second));
-        assert_eq!(tiles[0].id, second.id);
-        assert_eq!(tiles[1].id, default_story_of(&stories, other.component).unwrap().id);
-        assert_eq!(overview_tiles(&stories, &components, None)[0].id, default_story_of(&stories, multi).unwrap().id);
-    }
-
-    #[test]
-    fn a_tiles_link_opens_the_component_view_on_the_default_story() {
+    fn opening_a_component_twice_makes_one_tab_and_closing_it_forgets_its_story() {
+        let ctx = egui::Context::default();
         let mut gallery = Gallery::new(None);
-        let story = gallery.stories.iter().rev().find(|s| s.component != gallery.current().unwrap().component).unwrap();
-        let (component, first) = (story.component, gallery.stories.iter().find(|s| s.component == story.component).unwrap().id);
+        let (component, second) = component_with_stories(&gallery);
         gallery.open_component(component);
-        assert_eq!(gallery.view, CentreView::Component);
-        assert_eq!(gallery.selected.as_deref(), Some(first));
-        assert_eq!(gallery.scroll_to, None);
+        gallery.select(second.id);
+        gallery.open_component(component);
+        run_frames(&ctx, &mut gallery, 2);
+        assert_eq!(gallery.open_tabs(), [component]);
+        assert_eq!(gallery.front_tab(), PanelId::Component(component));
+        assert_eq!(gallery.selected(), Some(second.id));
+        gallery.components_dock.apply(Action::Close { panel: PanelId::Component(component) }, PanelId::permissions).unwrap();
+        run_frames(&ctx, &mut gallery, 2);
+        assert!(gallery.open_tabs().is_empty());
+        assert_eq!(gallery.front_tab(), PanelId::View);
+        assert!(gallery.tab_story.is_empty());
+        assert!(gallery.components_dock.hidden.iter().all(|(panel, _)| !matches!(panel, PanelId::Component(_))), "a closed tab does not come back");
     }
 
     #[test]
-    fn picking_a_component_opens_its_first_story() {
+    fn open_tabs_and_the_selections_survive_a_save_and_load() {
+        let ctx = egui::Context::default();
         let mut gallery = Gallery::new(None);
-        let (component, first) = {
-            let story = gallery.stories.iter().rev().find(|s| s.component != gallery.current().unwrap().component).unwrap();
-            let first = gallery.stories.iter().find(|s| s.component == story.component).unwrap().id;
-            (story.component, first)
+        let (component, second) = component_with_stories(&gallery);
+        let other = gallery.stories.iter().find(|s| s.component != component).unwrap().component;
+        gallery.open_component(component);
+        run_frames(&ctx, &mut gallery, 2);
+        gallery.select(second.id);
+        gallery.open_component(other);
+        run_frames(&ctx, &mut gallery, 2);
+        let mut storage = Memory::default();
+        eframe::App::save(&mut gallery, &mut storage);
+        let restored = Gallery::new(Some(&storage));
+        assert_eq!(restored.open_tabs(), gallery.open_tabs());
+        assert_eq!(restored.front_tab(), PanelId::Component(other));
+        assert_eq!(restored.overview_selected(), Some(component));
+        assert_eq!(restored.overview_story, gallery.overview_story);
+        assert_eq!(restored.tab_story, gallery.tab_story);
+        assert_eq!(restored.tab_story.get(component), Some(&second.id));
+    }
+
+    #[test]
+    fn a_component_the_registry_lacks_is_dropped_from_the_saved_layout_and_selections() {
+        use craft_ui::docking::{Layout, Node};
+        let centre = Node::Tabs { panels: vec![PanelId::View, PanelId::Component("No such component")], active: 1 };
+        let mut storage = Memory::default();
+        eframe::set_value(&mut storage, persist::LAYOUT_KEY, &Workspace::new(Layout { root: Some(centre), floating: Vec::new() }));
+        let saved = Saved {
+            overview_selected: Some("No such component".to_owned()),
+            tab_story: HashMap::from([("No such component".to_owned(), "nope/nope/nope".to_owned())]),
+            ..Saved::default()
         };
-        gallery.select_component(component);
-        assert_eq!(gallery.selected.as_deref(), Some(first));
+        eframe::set_value(&mut storage, KEY, &saved);
+        let gallery = Gallery::new(Some(&storage));
+        assert!(gallery.open_tabs().is_empty());
+        assert!(gallery.components_dock.hidden.iter().all(|(panel, _)| panel.is_registered()));
+        assert_eq!(gallery.components_dock.validate(), Ok(()));
+        assert_eq!(gallery.overview_selected(), None);
+        assert!(gallery.tab_story.is_empty());
+    }
+
+    #[test]
+    fn state_saved_with_a_view_and_a_selected_story_loads() {
+        let ctx = egui::Context::default();
+        let gallery = Gallery::new(None);
+        let (component, second) = component_with_stories(&gallery);
+        let mut storage = Memory::default();
+        eframe::Storage::set_string(&mut storage, KEY, format!("(selected:Some(\"{}\"),view:Component,filter:\"x\")", second.id));
+        let mut gallery = Gallery::new(Some(&storage));
+        run_frames(&ctx, &mut gallery, 2);
+        assert_eq!(gallery.filter, "x");
+        assert_eq!(gallery.overview_selected(), Some(component));
+        assert_eq!(gallery.selected(), Some(second.id));
     }
 
     #[test]

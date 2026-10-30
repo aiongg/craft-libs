@@ -3,10 +3,16 @@
 
 use craft_ui::docking::{Column, Group, Layout, Node, Permissions, Side, Workspace};
 use craft_ui::layout::{SplitAxis, SplitSize};
+use std::sync::OnceLock;
+
 use serde::{Deserialize, Serialize};
 
 /// A panel of the gallery's dock.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// Saved layouts name a [`PanelId::Component`] by its component's name; the name is mapped back to
+/// the registry's own string on load, and a name the registry no longer has loads as a panel that
+/// [`PanelId::is_registered`] rejects, so the layout reconciliation drops it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PanelId {
     /// The flat component list with its filter.
     Components,
@@ -16,8 +22,10 @@ pub enum PanelId {
     Properties,
     /// The inspector; inspect mode is on while this tab is shown.
     Inspect,
-    /// The centre: the current [`CentreView`].
+    /// The centre's first tab: every component of one level as tiles.
     View,
+    /// A centre tab with every story of one component as tiles.
+    Component(&'static str),
     /// The token browser.
     Tokens,
     /// The Theme workspace's centre: the current [`PreviewView`].
@@ -61,16 +69,6 @@ pub enum PreviewView {
     Components,
 }
 
-/// What the centre shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CentreView {
-    /// Every component of one level, each drawn from its default story.
-    #[default]
-    Overview,
-    /// One component's stories, or its variants.
-    Component,
-}
-
 /// What a Variants view repeats the story over.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VariantAxis {
@@ -104,15 +102,6 @@ impl VariantAxis {
     }
 }
 
-impl CentreView {
-    pub fn title(self) -> &'static str {
-        match self {
-            CentreView::Overview => "Overview",
-            CentreView::Component => "Component",
-        }
-    }
-}
-
 impl PanelId {
     pub fn title(self) -> &'static str {
         match self {
@@ -120,7 +109,8 @@ impl PanelId {
             PanelId::Stories => "Stories",
             PanelId::Properties => "Properties",
             PanelId::Inspect => "Inspect",
-            PanelId::View => "View",
+            PanelId::View => "Overview",
+            PanelId::Component(component) => component,
             PanelId::Tokens => "Tokens",
             PanelId::Preview => "Preview",
             PanelId::Theme => "Theme",
@@ -132,17 +122,112 @@ impl PanelId {
     /// The workspace whose layout holds the panel.
     pub fn workspace(self) -> GalleryWorkspace {
         match self {
-            PanelId::Components | PanelId::Stories | PanelId::Properties | PanelId::Inspect | PanelId::View | PanelId::Tokens => {
-                GalleryWorkspace::Components
-            }
+            PanelId::Components
+            | PanelId::Stories
+            | PanelId::Properties
+            | PanelId::Inspect
+            | PanelId::View
+            | PanelId::Component(_)
+            | PanelId::Tokens => GalleryWorkspace::Components,
             PanelId::Preview | PanelId::Theme | PanelId::Problems | PanelId::Changes => GalleryWorkspace::Theme,
         }
     }
 
-    /// Panels move, float and tab freely but never close: a closed panel would have no way back
-    /// besides Reset layout.
+    /// Panels move, float and tab freely. Only a component tab closes: any other closed panel
+    /// would have no way back besides Reset layout.
     pub fn permissions(&self) -> Permissions {
-        Permissions { closable: false, ..Permissions::default() }
+        Permissions { closable: matches!(self, PanelId::Component(_)), ..Permissions::default() }
+    }
+
+    /// Whether the gallery has this panel: every panel but a component tab whose component the
+    /// registry no longer has.
+    pub fn is_registered(self) -> bool {
+        match self {
+            PanelId::Component(component) => known_components().contains(&component),
+            _ => true,
+        }
+    }
+}
+
+/// The names of the components that have stories.
+fn known_components() -> &'static [&'static str] {
+    static NAMES: OnceLock<Vec<&'static str>> = OnceLock::new();
+    NAMES.get_or_init(|| {
+        let mut names: Vec<&'static str> = Vec::new();
+        for story in crate::gallery::stories() {
+            if !names.contains(&story.component) {
+                names.push(story.component);
+            }
+        }
+        names
+    })
+}
+
+/// [`PanelId`] as saved: the same variants, with a component tab named by an owned string.
+#[derive(Serialize, Deserialize)]
+enum PanelRepr {
+    Components,
+    Stories,
+    Properties,
+    Inspect,
+    View,
+    Component(String),
+    Tokens,
+    Preview,
+    Theme,
+    Problems,
+    Changes,
+}
+
+impl Serialize for PanelId {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        PanelRepr::from(*self).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for PanelId {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        PanelRepr::deserialize(deserializer).map(PanelId::from)
+    }
+}
+
+impl From<PanelId> for PanelRepr {
+    fn from(panel: PanelId) -> Self {
+        match panel {
+            PanelId::Components => PanelRepr::Components,
+            PanelId::Stories => PanelRepr::Stories,
+            PanelId::Properties => PanelRepr::Properties,
+            PanelId::Inspect => PanelRepr::Inspect,
+            PanelId::View => PanelRepr::View,
+            PanelId::Component(component) => PanelRepr::Component(component.to_owned()),
+            PanelId::Tokens => PanelRepr::Tokens,
+            PanelId::Preview => PanelRepr::Preview,
+            PanelId::Theme => PanelRepr::Theme,
+            PanelId::Problems => PanelRepr::Problems,
+            PanelId::Changes => PanelRepr::Changes,
+        }
+    }
+}
+
+impl From<PanelRepr> for PanelId {
+    fn from(repr: PanelRepr) -> Self {
+        match repr {
+            PanelRepr::Components => PanelId::Components,
+            PanelRepr::Stories => PanelId::Stories,
+            PanelRepr::Properties => PanelId::Properties,
+            PanelRepr::Inspect => PanelId::Inspect,
+            PanelRepr::View => PanelId::View,
+            // A name the registry lacks keeps its own (leaked) string so that two stale names stay
+            // two panels; `is_registered` rejects it and the reconciliation drops it.
+            PanelRepr::Component(name) => {
+                PanelId::Component(known_components().iter().copied().find(|c| *c == name).unwrap_or_else(|| Box::leak(name.into_boxed_str())))
+            }
+            PanelRepr::Tokens => PanelId::Tokens,
+            PanelRepr::Preview => PanelId::Preview,
+            PanelRepr::Theme => PanelId::Theme,
+            PanelRepr::Problems => PanelId::Problems,
+            PanelRepr::Changes => PanelId::Changes,
+        }
     }
 }
 
@@ -198,8 +283,9 @@ pub fn default_for(workspace: GalleryWorkspace) -> Workspace<PanelId> {
 /// panels of the other workspace are dropped, and panels that are missing come back where the
 /// default has them.
 pub fn reconciled(mut saved: Workspace<PanelId>, workspace: GalleryWorkspace) -> Workspace<PanelId> {
-    saved.reconcile(|panel| panel.workspace() == workspace, |panel| panel.permissions(), &default_for(workspace));
-    saved.hidden.retain(|(panel, _)| panel.workspace() == workspace);
+    let registered = |panel: &PanelId| panel.workspace() == workspace && panel.is_registered();
+    saved.reconcile(registered, |panel| panel.permissions(), &default_for(workspace));
+    saved.hidden.retain(|(panel, _)| registered(panel));
     saved
 }
 

@@ -1,6 +1,6 @@
 use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui_gallery::Gallery;
-use craft_ui_gallery::layout::{CentreView, GalleryWorkspace, PanelId, PreviewView, VariantAxis};
+use craft_ui_gallery::layout::{GalleryWorkspace, PanelId, PreviewView, VariantAxis};
 use egui::{Context, RawInput};
 
 /// The window the dock lays out in; an empty screen would draw no panel.
@@ -16,7 +16,7 @@ fn frame(ctx: &Context, gallery: &mut Gallery) {
 fn every_level_renders_in_the_overview() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
-    assert_eq!(gallery.view(), CentreView::Overview);
+    assert_eq!(gallery.front_tab(), PanelId::View);
     let ids: Vec<&str> = gallery.stories().iter().map(|s| s.id).collect();
     for id in ids {
         gallery.select(id);
@@ -25,18 +25,27 @@ fn every_level_renders_in_the_overview() {
 }
 
 #[test]
-fn every_story_renders_in_canvas_and_variants_views() {
+fn every_story_renders_in_its_component_tab_and_in_variants_views() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
-    gallery.set_view(CentreView::Component);
-    let ids: Vec<&str> = gallery.stories().iter().map(|s| s.id).collect();
-    assert!(!ids.is_empty());
-    for axis in [None, Some(VariantAxis::Theme), Some(VariantAxis::Mode), Some(VariantAxis::Contrast), Some(VariantAxis::Size)] {
-        gallery.set_variants(axis);
-        for id in &ids {
-            gallery.select(id);
-            frame(&ctx, &mut gallery);
+    let mut components: Vec<&str> = Vec::new();
+    for story in gallery.stories() {
+        if !components.contains(&story.component) {
+            components.push(story.component);
         }
+    }
+    assert!(!components.is_empty());
+    for component in components {
+        let ids: Vec<&str> = gallery.stories().iter().filter(|s| s.component == component).map(|s| s.id).collect();
+        gallery.open_component(component);
+        for axis in [None, Some(VariantAxis::Theme), Some(VariantAxis::Mode), Some(VariantAxis::Contrast), Some(VariantAxis::Size)] {
+            gallery.set_variants(axis);
+            for id in &ids {
+                gallery.select(id);
+                frame(&ctx, &mut gallery);
+            }
+        }
+        gallery.set_variants(None);
     }
 }
 
@@ -65,6 +74,7 @@ fn the_system_choices_render_in_canvas_and_variants_views() {
     let a = gallery.appearance_mut();
     a.mode = ModeChoice::System;
     a.contrast = ContrastChoice::System;
+    gallery.select("controls/button/variants");
     frame(&ctx, &mut gallery);
     for axis in VariantAxis::ALL {
         gallery.set_variants(Some(axis));
@@ -95,7 +105,6 @@ fn token_browser_renders_in_both_modes_with_a_row_selected() {
 fn the_inspector_numbers_the_focus_story_in_tab_order() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
-    gallery.set_view(CentreView::Component);
     gallery.select("primitives/focus-ring/focus");
     gallery.set_inspect(true);
     let items: Vec<String> = (1..=4).map(|i| format!("Item {i}")).collect();
@@ -106,7 +115,7 @@ fn the_inspector_numbers_the_focus_story_in_tab_order() {
     let badges = gallery.focus_badges();
     assert_eq!(badges.len(), 1, "one canvas");
     assert!(badges.iter().all(|b| *b == items), "{badges:?}");
-    // The inspector works on the Component view only.
+    // Variants has no inspector.
     gallery.set_variants(Some(VariantAxis::Mode));
     frame(&ctx, &mut gallery);
     assert!(!craft_ui::inspect::enabled(&ctx), "Variants has no inspector");
@@ -266,7 +275,7 @@ fn a_system_pick_installs_the_system_face_where_it_resolves_and_is_kept_where_no
 fn a_story_scale_applies_once_and_keyboard_zoom_stays() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
-    gallery.set_view(CentreView::Component);
+    gallery.open_component("Canvas");
     gallery.select("primitives/canvas/document");
     let run = |ctx: &Context, gallery: &mut Gallery, ppp: Option<f32>| {
         let mut input = input();
@@ -352,7 +361,7 @@ fn variants_show_one_card_per_value_and_mark_the_current_one() {
     ];
     for (axis, names) in cases {
         gallery.set_variants(Some(axis));
-        assert_eq!(gallery.view(), CentreView::Component, "Variants opens the Component view");
+        assert_eq!(gallery.variants(), Some(axis));
         let tree = settled_tree(&ctx, &mut gallery);
         for name in &names {
             assert_eq!(named(&tree, name, Role::Button).len(), 1, "{axis:?}: a card for {name:?}");
@@ -371,13 +380,15 @@ fn choosing_a_card_applies_its_value_and_closes_variants() {
     click(&ctx, &mut gallery, "Dark", egui::accesskit::Role::Button);
     assert_eq!(gallery.appearance_mut().mode, ModeChoice::Dark);
     assert_eq!(gallery.variants(), None);
-    assert_eq!(gallery.view(), CentreView::Component);
 }
 
 #[test]
-fn escape_closes_variants_and_the_overview_has_none() {
+fn escape_closes_variants_and_so_does_fronting_another_centre_tab() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
+    gallery.set_variants(Some(VariantAxis::Size));
+    assert_eq!(gallery.variants(), None, "nothing is selected to repeat");
+    gallery.select("controls/button/variants");
     gallery.set_variants(Some(VariantAxis::Size));
     frame(&ctx, &mut gallery);
     assert_eq!(gallery.variants(), Some(VariantAxis::Size));
@@ -385,10 +396,13 @@ fn escape_closes_variants_and_the_overview_has_none() {
     raw.events.push(egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE });
     ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
     assert_eq!(gallery.variants(), None);
+    gallery.open_component("Button");
     gallery.set_variants(Some(VariantAxis::Size));
-    gallery.set_view(CentreView::Overview);
     frame(&ctx, &mut gallery);
-    assert_eq!(gallery.variants(), None, "the Overview closes Variants");
+    assert_eq!(gallery.variants(), Some(VariantAxis::Size), "Variants shows in the Button tab");
+    gallery.activate(PanelId::View);
+    frame(&ctx, &mut gallery);
+    assert_eq!(gallery.variants(), None, "fronting the Overview closes Variants");
 }
 
 #[test]
@@ -470,12 +484,12 @@ fn the_workspace_switch_changes_workspace_and_reset_layout_resets_the_shown_one_
 }
 
 #[test]
-fn opening_a_component_from_the_preview_closes_variants_and_fronts_the_view() {
+fn opening_a_component_from_the_preview_closes_variants_and_fronts_its_tab() {
     use egui::accesskit::Role;
     let ctx = Context::default();
     ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
-    gallery.set_view(CentreView::Component);
+    gallery.select("controls/button/variants");
     gallery.set_variants(Some(VariantAxis::Mode));
     gallery.activate(PanelId::Tokens);
     gallery.set_workspace(GalleryWorkspace::Theme);
@@ -486,20 +500,20 @@ fn opening_a_component_from_the_preview_closes_variants_and_fronts_the_view() {
         .iter()
         .filter(|s| s.level == craft_ui::story::Level::Controls)
         .map(|s| s.component)
-        .find(|name| named(&tree, name, Role::Link).len() == 1)
-        .expect("a Controls tile link");
-    click(&ctx, &mut gallery, component, Role::Link);
+        .find(|name| named(&tree, &format!("Open {name}"), Role::Button).len() == 1)
+        .expect("a Controls tile Open button");
+    click(&ctx, &mut gallery, &format!("Open {component}"), Role::Button);
     assert_eq!(gallery.workspace(), GalleryWorkspace::Components);
-    assert_eq!(gallery.view(), CentreView::Component);
     assert_eq!(gallery.variants(), None);
-    assert!(gallery.is_front(PanelId::View));
+    assert_eq!(gallery.open_tabs(), [component]);
+    assert!(gallery.is_front(PanelId::Component(component)));
 }
 
 #[test]
 fn the_inspector_is_off_in_the_theme_workspace() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
-    gallery.set_view(CentreView::Component);
+    gallery.select("controls/button/variants");
     gallery.set_inspect(true);
     for _ in 0..3 {
         frame(&ctx, &mut gallery);
@@ -529,11 +543,11 @@ fn a_preview_tile_link_opens_the_component_in_the_components_workspace() {
         .iter()
         .filter(|s| s.level == craft_ui::story::Level::Controls)
         .map(|s| s.component)
-        .find(|name| named(&tree, name, Role::Link).len() == 1)
-        .expect("a Controls tile link");
-    click(&ctx, &mut gallery, component, Role::Link);
+        .find(|name| named(&tree, &format!("Open {name}"), Role::Button).len() == 1)
+        .expect("a Controls tile Open button");
+    click(&ctx, &mut gallery, &format!("Open {component}"), Role::Button);
     assert_eq!(gallery.workspace(), GalleryWorkspace::Components);
-    assert_eq!(gallery.view(), CentreView::Component);
+    assert_eq!(gallery.front_tab(), PanelId::Component(component));
     assert_eq!(gallery.selected().and_then(|id| gallery.stories().iter().find(|s| s.id == id)).map(|s| s.component), Some(component));
 }
 
@@ -609,4 +623,238 @@ fn the_tokens_tab_and_the_theme_panel_share_the_selection() {
         assert!(shows(&settled_tree(&ctx, &mut gallery)), "the detail of {} in {workspace:?}", token.path());
         assert_eq!(gallery.selected_token(), Some(token));
     }
+}
+
+/// The nodes named `name` with `role`, leftmost first.
+fn named_left_to_right(tree: &craft_ui::inspect::AccessTree, name: &str, role: egui::accesskit::Role) -> Vec<egui::accesskit::NodeId> {
+    let mut nodes = named(tree, name, role);
+    nodes.sort_by(|a, b| {
+        let x = |id: &egui::accesskit::NodeId| tree.node(*id).and_then(|n| n.bounds()).map_or(0.0, |b| b.x0);
+        x(a).total_cmp(&x(b))
+    });
+    nodes
+}
+
+/// Clicks the `nth` node (leftmost first) named `name` with `role`, as a screen reader would.
+fn click_nth(ctx: &Context, gallery: &mut Gallery, name: &str, role: egui::accesskit::Role, nth: usize) {
+    use egui::accesskit::{Action, ActionRequest, TreeId};
+    let tree = settled_tree(ctx, gallery);
+    let nodes = named_left_to_right(&tree, name, role);
+    assert!(nodes.len() > nth, "{} controls named {name:?}", nodes.len());
+    let mut raw = input();
+    raw.events.push(egui::Event::AccessKitActionRequest(ActionRequest {
+        action: Action::Click,
+        target_tree: TreeId::ROOT,
+        target_node: nodes[nth],
+        data: None,
+    }));
+    ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    frame(ctx, gallery);
+}
+
+/// A component with several stories: its name and the ids of its stories. It is the first by name
+/// in the first level that has one, so its row is near the top of the list.
+fn component_with_stories(gallery: &Gallery) -> (&'static str, Vec<&'static str>) {
+    let stories = gallery.stories();
+    let several = |c: &str| stories.iter().filter(|s| s.component == c).count() > 1;
+    let level = craft_ui::story::Level::ALL.into_iter().find(|l| stories.iter().any(|s| s.level == *l && several(s.component))).expect("a level");
+    let component =
+        stories.iter().filter(|s| s.level == level && several(s.component)).map(|s| s.component).min_by_key(|c| c.to_lowercase()).unwrap();
+    (component, stories.iter().filter(|s| s.component == component).map(|s| s.id).collect())
+}
+
+/// The first component by name in `component`'s level other than `component`.
+fn neighbour_of(gallery: &Gallery, component: &str) -> &'static str {
+    let stories = gallery.stories();
+    let level = stories.iter().find(|s| s.component == component).map(|s| s.level).unwrap();
+    stories.iter().filter(|s| s.level == level && s.component != component).map(|s| s.component).min_by_key(|c| c.to_lowercase()).unwrap()
+}
+
+fn story_name(gallery: &Gallery, id: &str) -> &'static str {
+    gallery.stories().iter().find(|s| s.id == id).map(|s| s.name).expect("a story")
+}
+
+#[test]
+fn a_list_row_click_selects_the_component_in_the_overview_without_opening_a_tab() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, _) = component_with_stories(&gallery);
+    let other = gallery.stories().iter().find(|s| s.component != component).unwrap().component;
+    gallery.open_component(other);
+    assert_eq!(gallery.front_tab(), PanelId::Component(other));
+    click(&ctx, &mut gallery, component, Role::ListBoxOption);
+    assert_eq!(gallery.overview_selected(), Some(component));
+    assert_eq!(gallery.front_tab(), PanelId::View);
+    assert_eq!(gallery.open_tabs(), [other], "no tab was added or replaced");
+}
+
+#[test]
+fn open_on_a_row_and_open_on_a_tile_open_one_tab_between_them() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, _) = component_with_stories(&gallery);
+    click(&ctx, &mut gallery, component, Role::ListBoxOption);
+    let open = format!("Open {component}");
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert_eq!(named(&tree, &open, Role::Button).len(), 2, "the selected row and its tile each have Open");
+    click_nth(&ctx, &mut gallery, &open, Role::Button, 0);
+    assert_eq!(gallery.open_tabs(), [component]);
+    assert_eq!(gallery.front_tab(), PanelId::Component(component));
+    gallery.activate(PanelId::View);
+    click_nth(&ctx, &mut gallery, &open, Role::Button, 1);
+    assert_eq!(gallery.open_tabs(), [component], "a second Open fronts the one tab");
+    assert_eq!(gallery.front_tab(), PanelId::Component(component));
+}
+
+/// Opens the context menu of the tab named `name`, as a secondary click does.
+fn open_tab_menu(ctx: &Context, gallery: &mut Gallery, name: &str) {
+    use egui::accesskit::Role;
+    let tree = settled_tree(ctx, gallery);
+    let tab = named(&tree, name, Role::Tab);
+    assert_eq!(tab.len(), 1, "one tab named {name:?}");
+    let b = tree.node(tab[0]).and_then(|n| n.bounds()).expect("the tab's bounds");
+    let at = egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32);
+    for pressed in [None, Some(true), Some(false)] {
+        let mut raw = input();
+        raw.events.push(egui::Event::PointerMoved(at));
+        if let Some(pressed) = pressed {
+            raw.events.push(egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Secondary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            });
+        }
+        ctx.run_ui(raw, |ui| gallery.show(ui)).drop_without_applying_deltas();
+    }
+}
+
+#[test]
+fn closing_a_tab_fronts_the_overview_and_drops_the_story() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, ids) = component_with_stories(&gallery);
+    let other = gallery.stories().iter().find(|s| s.component != component).unwrap().component;
+    gallery.open_component(other);
+    gallery.open_component(component);
+    gallery.select(ids[1]);
+    assert_eq!(gallery.selected(), Some(ids[1]));
+    open_tab_menu(&ctx, &mut gallery, component);
+    click(&ctx, &mut gallery, "Close Panel", Role::Button);
+    assert_eq!(gallery.open_tabs(), [other]);
+    assert_eq!(gallery.front_tab(), PanelId::View);
+    gallery.open_component(component);
+    assert_eq!(gallery.selected(), gallery.stories().iter().find(|s| s.component == component).map(|s| s.id), "the story was forgotten");
+}
+
+#[test]
+fn a_tile_click_moves_the_side_panels_and_a_story_pick_changes_the_tile() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, ids) = component_with_stories(&gallery);
+    let neighbour = neighbour_of(&gallery, component);
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert_eq!(gallery.selected(), None);
+    assert!(
+        named(&tree, "Select a component", Role::Label).len() + named(&tree, "Select a component", Role::GenericContainer).len() >= 2,
+        "Stories and Properties ask for a selection"
+    );
+    gallery.select(ids[0]);
+    click(&ctx, &mut gallery, &format!("Select {neighbour}"), Role::Button);
+    assert_eq!(gallery.overview_selected(), Some(neighbour));
+    click(&ctx, &mut gallery, &format!("Select {component}"), Role::Button);
+    assert_eq!(gallery.overview_selected(), Some(component));
+    assert_eq!(gallery.selected(), Some(ids[0]));
+    let tree = settled_tree(&ctx, &mut gallery);
+    for id in &ids {
+        assert_eq!(named(&tree, story_name(&gallery, id), Role::ListBoxOption).len(), 1, "Stories lists {id}");
+    }
+    let second = story_name(&gallery, ids[1]);
+    click(&ctx, &mut gallery, second, Role::ListBoxOption);
+    assert_eq!(gallery.selected(), Some(ids[1]));
+    let tree = settled_tree(&ctx, &mut gallery);
+    let note = format!("· {second}");
+    assert_eq!(named(&tree, &note, Role::Label).len() + named(&tree, &note, Role::GenericContainer).len(), 1, "the tile names the story it shows");
+}
+
+#[test]
+fn a_component_tab_has_a_tile_per_story_and_a_stories_row_selects_its_tile() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, ids) = component_with_stories(&gallery);
+    gallery.open_component(component);
+    let tree = settled_tree(&ctx, &mut gallery);
+    for id in &ids {
+        let name = format!("Select {}", story_name(&gallery, id));
+        assert_eq!(named(&tree, &name, Role::Button).len(), 1, "a tile for {id}");
+    }
+    let (second, first) = (story_name(&gallery, ids[1]), format!("Select {}", story_name(&gallery, ids[0])));
+    click(&ctx, &mut gallery, second, Role::ListBoxOption);
+    assert_eq!(gallery.selected(), Some(ids[1]));
+    click(&ctx, &mut gallery, &first, Role::Button);
+    assert_eq!(gallery.selected(), Some(ids[0]), "a tile click selects its story");
+    let tree = settled_tree(&ctx, &mut gallery);
+    let ring = |id: &str| {
+        let name = format!("Select {}", story_name(&gallery, id));
+        named(&tree, &name, Role::Button).first().and_then(|n| tree.node(*n)).and_then(|n| n.toggled())
+    };
+    assert_eq!(ring(ids[0]), Some(egui::accesskit::Toggled::True));
+    assert_eq!(ring(ids[1]), Some(egui::accesskit::Toggled::False));
+}
+
+#[test]
+fn reset_shows_on_the_tile_and_in_properties_only_while_args_differ() {
+    use craft_ui::story::ArgValue;
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let story = *gallery
+        .stories()
+        .iter()
+        .find(|s| s.level == craft_ui::story::Level::Controls && s.defaults().iter().any(|a| matches!(a.value, ArgValue::Bool(_))))
+        .expect("a controls story with a bool arg");
+    gallery.select(story.id);
+    let reset_tile = format!("Reset {}", story.component);
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert!(named(&tree, &reset_tile, Role::Button).is_empty() && named(&tree, "Reset args", Role::Button).is_empty(), "defaults: no Reset");
+    {
+        let args = gallery.args_of_story(story.id).unwrap();
+        let arg = args.iter_mut().find(|a| matches!(a.value, ArgValue::Bool(_))).unwrap();
+        if let ArgValue::Bool(b) = &mut arg.value {
+            *b = !*b;
+        }
+    }
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert_eq!(named(&tree, &reset_tile, Role::Button).len(), 1);
+    assert_eq!(named(&tree, "Reset args", Role::Button).len(), 1);
+    click(&ctx, &mut gallery, &reset_tile, Role::Button);
+    assert_eq!(*gallery.args_of_story(story.id).unwrap(), story.defaults());
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert!(named(&tree, &reset_tile, Role::Button).is_empty() && named(&tree, "Reset args", Role::Button).is_empty());
+}
+
+#[test]
+fn the_inspector_works_on_the_selected_tile_of_a_component_tab() {
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    let (component, ids) = component_with_stories(&gallery);
+    gallery.open_component(component);
+    gallery.select(ids[1]);
+    gallery.set_inspect(true);
+    for _ in 0..4 {
+        frame(&ctx, &mut gallery);
+    }
+    assert!(craft_ui::inspect::enabled(&ctx));
+    assert_eq!(gallery.focus_badges().len(), 1, "one tile is inspected");
 }
