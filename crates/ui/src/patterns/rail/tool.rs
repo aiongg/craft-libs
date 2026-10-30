@@ -37,7 +37,8 @@ impl<T> RailTool<T> {
 
     #[must_use]
     pub fn shortcut(mut self, shortcut: impl Into<String>) -> Self {
-        self.shortcut = Some(shortcut.into());
+        let shortcut = shortcut.into();
+        self.shortcut = (!shortcut.is_empty()).then_some(shortcut);
         self
     }
 
@@ -140,10 +141,12 @@ pub fn visible_slots<'a, T: PartialEq>(slots: &'a [ToolSlot<T>], hidden: &[T]) -
 }
 
 /// The tool a slot shows: the current tool when the slot has it, else the one remembered in
-/// `last_used` if it is still among the visible `tools`, else the first. `None` for an empty slot.
+/// `last_used` if it is still among the visible `tools` and enabled, else the first enabled tool,
+/// else the first. `None` for an empty slot.
 pub fn shown_tool<'a, T: PartialEq>(current: &T, slot: SlotId, tools: &[&'a RailTool<T>], last_used: &LastUsed<T>) -> Option<&'a RailTool<T>> {
     let find = |id: &T| tools.iter().copied().find(|tool| tool.id == *id);
-    find(current).or_else(|| last_used.get(slot).and_then(find)).or_else(|| tools.first().copied())
+    let stored = last_used.get(slot).and_then(find).filter(|tool| tool.enabled);
+    find(current).or(stored).or_else(|| tools.iter().copied().find(|tool| tool.enabled)).or_else(|| tools.first().copied())
 }
 
 /// A move between the rail's buttons, which lie in rows of `columns` in reading order.
@@ -197,9 +200,9 @@ pub(super) fn grid_step(index: usize, enabled: &[bool], columns: usize, movement
 /// - **Width and columns:** [`ToolRail::metrics`]. With two columns the slots fill rows left to
 ///   right (right to left in a mirrored interface). The host owns the column count: the chevron
 ///   at the top reports [`toggle_columns`](ToolRailOutput::toggle_columns).
-/// - **Layout:** the slots and the Edit Toolbar button scroll in a short window; the footer is a
-///   bottom panel of its own and stays in view. Call it before the panel host, so the rail is the
-///   outermost panel on its edge.
+/// - **Layout:** the footer lies right under the last tool (or the Edit Toolbar button). Only
+///   when the window is too short for both do the slots scroll, with the footer kept in view at
+///   the bottom. Call it before the panel host, so the rail is the outermost panel on its edge.
 /// - **Keyboard:** every button is a Tab stop. The arrow keys move between the slot buttons and
 ///   the Edit Toolbar button by the grid (Up and Down; Left and Right as well in two columns),
 ///   except while a flyout is open, whose menu then reads them.
@@ -288,7 +291,9 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
     }
 
     /// Draws the rail. `current` is the host's tool; `last_used` is updated with it. `footer`
-    /// draws below the slots, always visible (colour chips, Quick Mask, Screen Mode).
+    /// draws under the last tool (colour chips, Quick Mask, Screen Mode); it stays in view when the
+    /// window is short. It must size to its content: its height is measured on one pass and used
+    /// on the next, so a footer that fills the available height never settles.
     pub fn show(
         self,
         ui: &mut Ui,
@@ -297,6 +302,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         last_used: &mut LastUsed<T>,
         footer: impl FnOnce(&mut Ui, RailFooter),
     ) -> ToolRailOutput<T> {
+        let left = self.left(ui);
         let tokens = Tokens::of(ui);
         let metrics = Self::metrics(&tokens, self.columns);
         let r = &tokens.component.rail;
@@ -308,13 +314,13 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             toggle_height: r.toggle_height,
             toggle_icon: r.toggle_icon,
             pad_x: metrics.pad_x,
+            left,
         };
         let (fill, pad_y) = (r.fill.to_egui(), r.pad_y);
         let style = FlyoutButton::<T>::style(&tokens).icon_button;
         drop(tokens);
 
         let id = ui.make_persistent_id(self.id_salt);
-        let left = self.left(ui);
         let panel = if left { egui::Panel::left(id.with("panel")) } else { egui::Panel::right(id.with("panel")) };
         let frame = Frame::NONE.fill(fill).inner_margin(Margin::symmetric(0, pad_y.round() as i8));
         let mut out =
@@ -344,11 +350,12 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         out: &mut ToolRailOutput<T>,
     ) {
         ui.spacing_mut().item_spacing = vec2(grid.gap, grid.row_gap);
+        let rtl_icons = direction::is_rtl(ui);
+        let center_x = ui.max_rect().center().x;
         if let Some(label) = &self.column_toggle {
             let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), grid.toggle_height), Sense::hover());
             let rect = Rect::from_center_size(rect.center(), vec2(grid.button, grid.toggle_height));
-            // Directional icons mirror in a right-to-left interface.
-            let icon = if grid.columns > 1 { Icon::ChevronsLeft } else { Icon::ChevronsRight };
+            let icon = chevron(grid.columns, grid.left, rtl_icons);
             let toggle = IconButtonStyle { icon: grid.toggle_icon, ..style };
             let response = IconButton::new(icon, label.as_str()).with_id(rail.with("column-toggle")).with_style(toggle).show_at(ui, rect);
             out.toggle_columns = response.clicked();
@@ -377,7 +384,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
                     (_, Some(rect)) => rect,
                 };
                 row = Some(row_rect);
-                let cell = grid.cell(row_rect, column, rtl);
+                let cell = grid.cell(row_rect.top(), center_x, column, rtl);
                 let response = match visible.get(k) {
                     Some((index, tools)) => self.slot(ui, &slots[*index], tools, current, last_used, cell, out),
                     None => {
@@ -446,7 +453,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
                     .items(&items)
                     .current(&shown.id)
                     .selected(selected)
-                    .enabled(shown.enabled);
+                    .enabled(tools.iter().any(|tool| tool.enabled));
                 if let Some(shortcut) = &shown.shortcut {
                     button = button.shortcut(shortcut.as_str());
                 }
@@ -455,7 +462,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             .inner;
         if let Some(tool) = flyout.chosen {
             out.select = Some(tool);
-        } else if flyout.clicked {
+        } else if flyout.clicked && shown.enabled {
             out.select = Some(shown.id.clone());
         }
         if flyout.double_clicked {
@@ -493,9 +500,18 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         });
         let enabled: Vec<bool> = cells.iter().map(|(_, enabled)| *enabled).collect();
         if let Some(target) = movement.and_then(|movement| grid_step(index, &enabled, columns, movement)) {
-            ui.memory_mut(|m| m.request_focus(cells[target].0));
+            let filter = EventFilter { vertical_arrows: true, horizontal_arrows: two, ..Default::default() };
+            ui.memory_mut(|m| m.request_focus_with_filter(cells[target].0, filter));
         }
     }
+}
+
+/// The column toggle's icon. Widening (from one column) points away from the rail's edge, towards
+/// the canvas; narrowing points back to the edge. Directional icons mirror in a right-to-left
+/// interface, so the icon that draws pointing right there is the left one.
+pub(super) fn chevron(columns: usize, left: bool, rtl: bool) -> Icon {
+    let points_right = (columns == 1) == left;
+    if points_right != rtl { Icon::ChevronsRight } else { Icon::ChevronsLeft }
 }
 
 /// The sizes the grid of buttons is laid out with.
@@ -507,17 +523,19 @@ struct Grid {
     toggle_height: f32,
     toggle_icon: f32,
     pad_x: f32,
+    /// The rail is against the left edge of the window.
+    left: bool,
 }
 
 impl Grid {
-    /// The rect of the button in `column` of the row at `row`, which fills the rail's width: the
-    /// buttons are centred as a group, and the first column is at the reading start.
-    fn cell(&self, row: Rect, column: usize, rtl: bool) -> Rect {
+    /// The rect of the button in `column` of the row at `top`: the buttons are centred as a group
+    /// on the panel's full width (`center_x`, not what a solid scroll bar leaves), and the first column is at the reading start.
+    fn cell(&self, top: f32, center_x: f32, column: usize, rtl: bool) -> Rect {
         let used = self.columns as f32 * self.button + (self.columns - 1) as f32 * self.gap;
-        let start = row.center().x - used / 2.0;
+        let start = center_x - used / 2.0;
         let offset = column as f32 * (self.button + self.gap);
         let x = if rtl { start + used - self.button - offset } else { start + offset };
-        Rect::from_min_size(pos2(x, row.top()), vec2(self.button, self.button))
+        Rect::from_min_size(pos2(x, top), vec2(self.button, self.button))
     }
 }
 
@@ -535,8 +553,8 @@ fn story_slots() -> Vec<ToolSlot<StoryTool>> {
             vec![
                 tool("marquee", Icon::MarqueeRect, "Rectangular Marquee", "M"),
                 tool("ellipse", Icon::MarqueeEllipse, "Elliptical Marquee", "M"),
-                tool("row", Icon::MarqueeRow, "Single Row Marquee", ""),
-                tool("column", Icon::MarqueeColumn, "Single Column Marquee", ""),
+                RailTool::new("row", Icon::MarqueeRow, "Single Row Marquee"),
+                RailTool::new("column", Icon::MarqueeColumn, "Single Column Marquee"),
             ],
         ),
         ToolSlot::new(2, vec![tool("lasso", Icon::Lasso, "Lasso", "L"), tool("magnetic", Icon::LassoMagnetic, "Magnetic Lasso", "L")]),

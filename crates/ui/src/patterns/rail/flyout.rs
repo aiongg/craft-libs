@@ -50,7 +50,8 @@ impl<T> FlyoutItem<T> {
     /// The key that selects it elsewhere, shown at the row's end ("B").
     #[must_use]
     pub fn shortcut(mut self, shortcut: impl Into<String>) -> Self {
-        self.shortcut = Some(shortcut.into());
+        let shortcut = shortcut.into();
+        self.shortcut = (!shortcut.is_empty()).then_some(shortcut);
         self
     }
 
@@ -158,7 +159,8 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
     /// The key that selects the shown item elsewhere ("B"): the tooltip reads "Label  (B)" and the
     /// accessible description is the key.
     pub fn shortcut(mut self, shortcut: impl Into<String>) -> Self {
-        self.shortcut = Some(shortcut.into());
+        let shortcut = shortcut.into();
+        self.shortcut = (!shortcut.is_empty()).then_some(shortcut);
         self
     }
 

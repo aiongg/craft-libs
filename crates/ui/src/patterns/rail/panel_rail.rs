@@ -345,7 +345,7 @@ impl PanelRail {
             // Focus moves to the nearest enabled item below, else above, else leaves the rail.
             let next = enabled.iter().find(|(p, ..)| *p > place).or_else(|| enabled.iter().rev().find(|(p, ..)| *p < place));
             if let Some(&(_, next, panel)) = next {
-                ui.memory_mut(|m| m.request_focus(next));
+                ui.memory_mut(|m| m.request_focus_with_filter(next, EventFilter { vertical_arrows: true, ..Default::default() }));
                 focused = Some(panel.clone());
             }
         }
@@ -364,7 +364,7 @@ impl PanelRail {
                 }
             });
             if let Some(&(_, next, _)) = next.flatten().and_then(|i| enabled.get(i)) {
-                ui.memory_mut(|m| m.request_focus(next));
+                ui.memory_mut(|m| m.request_focus_with_filter(next, EventFilter { vertical_arrows: true, ..Default::default() }));
             }
         }
         (request, focused, responses)

@@ -335,3 +335,18 @@ fn every_story_names_every_control() {
         }
     }
 }
+
+#[test]
+fn arrow_presses_in_consecutive_passes_move_exactly_one_item_each() {
+    let mut app = App::new();
+    app.items[1].enabled = true;
+    let mut h = harness(app, 600.0);
+    focus(&mut h, Tool::Comments);
+    for k in [Key::ArrowDown, Key::ArrowDown] {
+        for pressed in [true, false] {
+            h.input_mut().events.push(Event::Key { key: k, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE });
+            h.run_steps(1);
+        }
+    }
+    assert_eq!(focused(&h), Some(Tool::Pages), "Comments, Bookmarks, Pages");
+}

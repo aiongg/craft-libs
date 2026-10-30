@@ -6,7 +6,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::tool::stories;
-use super::tool::{GridMove, grid_step};
+use super::tool::{GridMove, chevron, grid_step};
 use super::*;
 use crate::direction::{self, Direction};
 use crate::icons::Icon;
@@ -107,6 +107,7 @@ struct App {
     time: f64,
     out: Option<ToolRailOutput<Tool>>,
     footer: Option<RailFooter>,
+    tall_footer: bool,
 }
 
 impl App {
@@ -126,11 +127,13 @@ impl App {
             time: 0.0,
             out: None,
             footer: None,
+            tall_footer: false,
         }
     }
 
     fn frame(&mut self, ui: &mut Ui) {
         let mut footer = None;
+        let tall_footer = self.tall_footer;
         let mut rail = ToolRail::new("tools").edge(self.edge).columns(self.columns).hidden(&self.hidden).label("Tools");
         if self.chrome {
             rail = rail.column_toggle("Toolbar").edit_toolbar("Edit Toolbar…");
@@ -138,6 +141,10 @@ impl App {
         let out = rail.show(ui, &self.slots, &self.current, &mut self.last, |ui, info| {
             footer = Some(info);
             let _ = ui.button("Foot");
+            if tall_footer {
+                let _ = ui.button("F2");
+                let _ = ui.button("F3");
+            }
         });
         egui::CentralPanel::default().show(ui, |ui| ui.label("Document"));
         if let Some(tool) = out.select {
@@ -158,8 +165,13 @@ impl App {
 }
 
 fn harness_in(dir: Direction, app: App, height: f32) -> Harness<'static, App> {
+    harness_with(dir, app, height, 0.5)
+}
+
+fn harness_with(dir: Direction, app: App, height: f32, tooltip_delay: f32) -> Harness<'static, App> {
     let builder = HarnessBuilder::default().with_size(vec2(800.0, height)).with_context_setup(move |ctx: &Context| {
         install(ctx, &Base::suite_default());
+        ctx.global_style_mut(|s| s.interaction.tooltip_delay = tooltip_delay);
         direction::apply(ctx, dir);
     });
     let mut h = builder.build_ui_state(|ui, app: &mut App| app.frame(ui), app);
@@ -461,4 +473,147 @@ fn the_story_names_every_control_in_both_directions() {
             a11y::assert_labelled(&harness);
         }
     }
+}
+
+fn slots_with_disabled_first() -> Vec<ToolSlot<Tool>> {
+    let mut slots = slots();
+    slots[1].tools[0].enabled = false;
+    slots
+}
+
+#[test]
+fn a_slot_shows_an_enabled_tool_and_is_disabled_only_when_none_is() {
+    let slots = slots_with_disabled_first();
+    let visible = visible_slots(&slots, &[]);
+    let mut last = LastUsed::default();
+    assert_eq!(shown_tool(&"move", 1, &visible[1].1, &last).map(|tool| tool.id), Some("pencil"), "the first enabled tool");
+    last.set(1, "brush");
+    assert_eq!(shown_tool(&"move", 1, &visible[1].1, &last).map(|tool| tool.id), Some("pencil"), "a stored tool the host disabled");
+    let mut all_off = slots_with_disabled_first();
+    all_off[1].tools[1].enabled = false;
+    let visible = visible_slots(&all_off, &[]);
+    assert_eq!(shown_tool(&"move", 1, &visible[1].1, &LastUsed::default()).map(|tool| tool.id), Some("brush"));
+
+    let mut app = App::new();
+    app.slots = slots_with_disabled_first();
+    let mut h = harness(app);
+    let button = h.get_by_role_and_label(Role::Button, "Pencil");
+    assert!(!button.accesskit_node().is_disabled());
+    click_on_with(&mut h, "Pencil", PointerButton::Secondary);
+    assert_eq!(h.state().out().flyout, Some(1), "the flyout is reachable");
+    assert!(h.get_by_role_and_label(Role::MenuItemRadio, "Brush").accesskit_node().is_disabled());
+
+    let mut app = App::new();
+    app.slots = all_off;
+    let h = harness(app);
+    assert!(h.get_by_role_and_label(Role::Button, "Brush").accesskit_node().is_disabled());
+}
+
+#[test]
+fn arrow_presses_in_consecutive_passes_move_exactly_one_button_each() {
+    let mut h = harness(App::new());
+    h.get_by_label("Move").focus();
+    h.run_steps(2);
+    for k in [Key::ArrowDown, Key::ArrowDown] {
+        for pressed in [true, false] {
+            step(&mut h, vec![Event::Key { key: k, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE }]);
+        }
+    }
+    assert_eq!(focused(&h).as_deref(), Some("Stamp"), "Move, Brush, Stamp");
+}
+
+#[test]
+fn a_pointer_opened_flyout_keeps_the_arrow_keys_from_the_rail() {
+    let mut h = harness(App::new());
+    h.get_by_role_and_label(Role::Button, "Brush").focus();
+    h.run_steps(2);
+    click_on_with(&mut h, "Brush", PointerButton::Secondary);
+    assert_eq!(h.state().out().flyout, Some(1));
+    key(&mut h, Key::ArrowDown);
+    assert_eq!(h.state().out().flyout, Some(1));
+    assert_ne!(focused(&h).as_deref(), Some("Stamp"));
+}
+
+#[test]
+fn the_column_toggle_points_away_from_the_rails_edge_to_widen() {
+    for rtl in [false, true] {
+        for left in [false, true] {
+            for columns in [1, 2] {
+                let icon = chevron(columns, left, rtl);
+                // Where the glyph points on screen: directional icons mirror in RTL.
+                let points_right = (icon == Icon::ChevronsRight) != rtl;
+                let towards_canvas = points_right == left;
+                assert_eq!(towards_canvas, columns == 1, "rtl {rtl} left {left} columns {columns}");
+            }
+        }
+    }
+}
+
+fn indicator_color() -> egui::Color32 {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut color = egui::Color32::TRANSPARENT;
+    ctx.run_ui(egui::RawInput::default(), |ui| color = FlyoutButton::<Tool>::style(&Tokens::of(ui)).indicator_color).drop_without_applying_deltas();
+    color
+}
+
+#[test]
+fn the_indicator_faces_the_canvas_and_the_flyout_reports_expanded() {
+    for (dir, edge, left) in [(Direction::Ltr, Edge::Start, true), (Direction::Rtl, Edge::Start, false)] {
+        let mut app = App::new();
+        app.edge = edge;
+        let h = harness_in(dir, app, 700.0);
+        let color = indicator_color();
+        let brush = rect(&h, "Brush");
+        let triangle = h.output().shapes.iter().find_map(|s| match &s.shape {
+            egui::Shape::Path(path) if path.fill == color && path.points.len() == 3 && brush.contains(path.points[0]) => Some(path.points.clone()),
+            _ => None,
+        });
+        let x = triangle.map_or(f32::NAN, |p| p.iter().map(|p| p.x).sum::<f32>() / 3.0);
+        // The rail is at the start edge, so the canvas lies towards the end.
+        assert_eq!(x > brush.center().x, dir == Direction::Ltr, "{dir:?} left {left}");
+    }
+    let mut h = harness(App::new());
+    assert_eq!(h.get_by_role_and_label(Role::Button, "Brush").accesskit_node().data().is_expanded(), Some(false));
+    click_on_with(&mut h, "Brush", PointerButton::Secondary);
+    assert_eq!(h.get_by_role_and_label(Role::Button, "Brush").accesskit_node().data().is_expanded(), Some(true));
+}
+
+#[test]
+fn the_tooltip_names_the_shown_tool_and_its_shortcut() {
+    let mut h = harness_with(Direction::Ltr, App::new(), 700.0, 0.0);
+    let over = at(&h, "Brush");
+    step(&mut h, vec![Event::PointerMoved(over)]);
+    h.state_mut().time += 1.0;
+    step(&mut h, vec![]);
+    assert!(h.query_by_label("Brush  (B)").is_some());
+}
+
+#[test]
+fn a_footer_that_changes_height_settles_under_the_last_button() {
+    let mut h = harness_in(Direction::Ltr, App::new(), 900.0);
+    let before = rect(&h, "Foot");
+    h.state_mut().tall_footer = true;
+    h.run();
+    let (edit, foot, last) = (rect(&h, "Edit Toolbar…"), rect(&h, "Foot"), rect(&h, "F3"));
+    assert_eq!(foot.top(), before.top(), "the footer starts where it did");
+    assert!(foot.top() > edit.bottom() && last.bottom() < 900.0 - 100.0, "{edit:?} {foot:?} {last:?}");
+
+    let mut h = harness_in(Direction::Ltr, App::new(), 260.0);
+    h.state_mut().tall_footer = true;
+    h.run();
+    assert!(
+        rect(&h, "F3").bottom() <= 260.0,
+        "{:?} {:?} {:?} a taller footer stays fully in view when the window is short",
+        rect(&h, "Foot"),
+        rect(&h, "F3"),
+        rect(&h, "Move")
+    );
+    assert!(rect(&h, "Foot").top() >= rect(&h, "Move").top());
+}
+
+#[test]
+fn an_empty_shortcut_is_none() {
+    assert_eq!(RailTool::new("a", Icon::Move, "A").shortcut("").shortcut, None);
+    assert_eq!(RailTool::new("a", Icon::Move, "A").shortcut("V").shortcut.as_deref(), Some("V"));
 }

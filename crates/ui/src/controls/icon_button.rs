@@ -113,7 +113,8 @@ impl<'a> IconButton<'a> {
     /// The key that selects the same thing elsewhere ("B"). The tooltip reads "Label  (B)"; the
     /// label stays the accessible name and the shortcut is the description.
     pub fn shortcut(mut self, shortcut: impl Into<String>) -> Self {
-        self.shortcut = Some(shortcut.into());
+        let shortcut = shortcut.into();
+        self.shortcut = (!shortcut.is_empty()).then_some(shortcut);
         self
     }
 
