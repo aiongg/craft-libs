@@ -102,6 +102,7 @@ composites/toast/stack = Toast | Stack | Panel | tone=Choice { options: ["neutra
 composites/notice/tones = Notice | Tones | Panel | announce=Bool(true); title=Bool(true); width=Number { value: 320.0, min: 120.0, max: 480.0 }
 composites/empty-state/panel = EmptyState | Panel | Panel | search=Text("zzz"); status=Bool(true); width=Number { value: 260.0, min: 100.0, max: 400.0 }
 composites/empty-state/canvas = EmptyState | Canvas | Panel | width=Number { value: 640.0, min: 200.0, max: 800.0 }; height=Number { value: 360.0, min: 200.0, max: 600.0 }
+composites/empty-state/start-screen = EmptyState | Start screen | Panel | width=Number { value: 640.0, min: 200.0, max: 800.0 }; height=Number { value: 420.0, min: 200.0, max: 600.0 }
 composites/curve-editor/curves = CurveEditor | Curves | Panel | channel=Choice { options: ["RGB", "Red", "Green", "Blue"], index: 0 }; pencil=Bool(false); histogram=Bool(true); fields=Bool(true); width=Number { value: 300.0, min: 120.0, max: 400.0 }; values=Choice { options: ["levels", "percent"], index: 0 }; update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
 composites/curve-editor/small = CurveEditor | Small | Panel | 
 composites/curve-editor/corners = CurveEditor | Corners | Panel | 

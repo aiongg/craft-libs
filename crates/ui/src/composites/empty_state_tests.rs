@@ -9,7 +9,7 @@ use super::*;
 use crate::controls::Button;
 use crate::direction::{self, Direction};
 use crate::testing::a11y;
-use crate::theme::{Base, install};
+use crate::theme::{Base, Tokens, TokensOf as _, install};
 
 fn harness<'a>(size: [f32; 2], show: impl FnMut(&mut Ui) + 'a) -> Harness<'a, ()> {
     let builder: HarnessBuilder<()> = Harness::builder().with_size(size).with_context_setup(|ctx: &Context| {
@@ -123,4 +123,34 @@ fn the_stories_are_labelled() {
         harness.run();
         a11y::assert_labelled(&harness);
     }
+}
+
+#[test]
+fn a_start_screen_has_a_brand_heading_equal_actions_and_a_slot_between_actions_and_footer() {
+    let min = std::cell::Cell::new(0.0);
+    let mut harness = harness([640.0, 500.0], |ui| {
+        min.set(EmptyState::style(&Tokens::of(ui)).action_min_width);
+        EmptyState::centred("Sample App")
+            .brand("open source")
+            .action(Button::new("New"))
+            .action(Button::new("Open…"))
+            .below_actions(|ui| {
+                ui.label("Drop hint");
+            })
+            .footer(|ui| {
+                ui.label("Footer");
+            })
+            .show(ui);
+    });
+    harness.run();
+    let heading = harness.get_by(|n| n.role() == Role::Heading);
+    assert_eq!(heading.accesskit_node().label().as_deref(), Some("Sample App"));
+    let byline = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("open source"));
+    assert!(byline.rect().left() >= heading.rect().right(), "byline after the title");
+    let (new, open) = (button_rect(&harness, "New"), button_rect(&harness, "Open…"));
+    let min = min.get();
+    assert!((new.width() - open.width()).abs() < 0.5 && new.width() >= min - 0.5, "{new:?} {open:?} {min}");
+    let hint = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Drop hint")).rect();
+    let footer = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Footer")).rect();
+    assert!(hint.top() >= new.bottom() && footer.top() >= hint.bottom(), "{new:?} {hint:?} {footer:?}");
 }

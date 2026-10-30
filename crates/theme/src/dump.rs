@@ -1605,9 +1605,18 @@ fn listbox_lines(out: &mut Lines, l: &ListboxTokens) {
 }
 
 fn empty_state_lines(out: &mut Lines, e: &EmptyStateTokens) {
-    let EmptyStateTokens { max_width, text } = e;
+    let EmptyStateTokens { max_width, text, action_min_width, brand_title, brand_byline, brand_gap, brand_byline_lift } = e;
     out.line("empty_state.max_width", len(*max_width));
     out.line("empty_state.text", hex(*text));
+    out.line("empty_state.action_min_width", len(*action_min_width));
+    for (k, style) in [("brand_title", brand_title), ("brand_byline", brand_byline)] {
+        let TypeStyle { size, line_height, font } = style;
+        out.line(&format!("empty_state.{k}.size"), len(*size));
+        out.line(&format!("empty_state.{k}.line_height"), len(*line_height));
+        out.line(&format!("empty_state.{k}.font"), slot(*font));
+    }
+    out.line("empty_state.brand_gap", len(*brand_gap));
+    out.line("empty_state.brand_byline_lift", len(*brand_byline_lift));
 }
 
 fn notice_lines(out: &mut Lines, n: &NoticeTokens) {

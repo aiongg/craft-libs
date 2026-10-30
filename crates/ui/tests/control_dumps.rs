@@ -677,6 +677,13 @@ fn empty_state() {
         let s = EmptyState::style(t);
         d.line("max_width", s.max_width).line("gap", s.gap).line("section_gap", s.section_gap).line("message", s.message);
         d.line("message_role", role(s.message_role)).line("title_role", role(s.title_role)).line("description_role", role(s.description_role));
+        d.line("action_min_width", s.action_min_width).line("brand_byline_color", s.brand_byline_color).line("brand_gap", s.brand_gap);
+        d.line("brand_byline_lift", s.brand_byline_lift);
+        for (key, ts) in [("brand_title", s.brand_title), ("brand_byline", s.brand_byline)] {
+            d.line(&format!("{key}.size"), ts.size)
+                .line(&format!("{key}.line_height"), ts.line_height)
+                .line(&format!("{key}.font"), format!("{:?}", ts.font));
+        }
     });
 }
 
