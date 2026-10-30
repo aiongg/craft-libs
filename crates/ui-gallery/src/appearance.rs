@@ -32,6 +32,9 @@ pub struct Appearance {
     pub mono_face: String,
     /// The candidate icon set every story draws from: an [`IconSet::id`].
     pub icon_set: String,
+    /// The interface language's code: `"en"`, or `"pseudo"` (debug builds), which marks every
+    /// built-in string that goes through [`craft_ui::localized::Words`].
+    pub language: String,
 }
 
 impl Default for Appearance {
@@ -48,9 +51,15 @@ impl Default for Appearance {
             ui_face: crate::faces::UI_FACES[0].to_owned(),
             mono_face: crate::faces::MONO_FACES[0].to_owned(),
             icon_set: IconSet::Lucide.id().to_owned(),
+            language: ENGLISH.to_owned(),
         }
     }
 }
+
+/// The code of English, the default language.
+pub const ENGLISH: &str = "en";
+/// The code of the pseudo locale, which marks looked-up strings.
+pub const PSEUDO: &str = "pseudo";
 
 /// The built-in theme named `id`.
 pub fn builtin(id: &str) -> Option<&'static ThemeDef> {
