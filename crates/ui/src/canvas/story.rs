@@ -96,6 +96,19 @@ pub(crate) fn document_in(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32)
 
 /// [`document_in`] with the view centred on `center`.
 pub(crate) fn document_at(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32, center: Point) -> StoryCanvas {
+    document_with(ui, view, label, margin, |rect, ppp| CanvasView {
+        rect,
+        center,
+        zoom: view.zoom / 100.0 / ppp,
+        rotation: view.rotation,
+        flip_x: view.flip,
+        aspect: view.aspect,
+    })
+}
+
+/// [`document_at`] under the view `make` gives for the canvas rectangle and the pixels per point,
+/// for a story that keeps its own view.
+pub(crate) fn document_with(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32, make: impl FnOnce(egui::Rect, f64) -> CanvasView) -> StoryCanvas {
     if let Some(ppp) = view.ppp.pixels_per_point() {
         story::request_pixels_per_point(ui.ctx(), ppp);
     }
@@ -114,7 +127,7 @@ pub(crate) fn document_at(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32,
     let arrows = EventFilter { horizontal_arrows: true, vertical_arrows: true, ..EventFilter::default() };
     ui.memory_mut(|m| m.set_focus_lock_filter(response.id, arrows));
     let ppp = f64::from(ui.pixels_per_point());
-    let view = CanvasView { rect, center, zoom: view.zoom / 100.0 / ppp, rotation: view.rotation, flip_x: view.flip, aspect: view.aspect };
+    let view = make(rect, ppp);
     let tokens = Tokens::of(ui);
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 0.0, tokens.color.surface.canvas.to_egui());

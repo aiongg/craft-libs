@@ -175,7 +175,7 @@ struct Drag {
 /// - A quad that is not convex or is wound differently from its box draws in
 ///   `overlay.crop_invalid` without the grid and is not committable.
 /// - Keys, whenever no text field has focus and no popup is open: Enter applies; Esc cancels a
-///   drag, ends a held press before its first move, drops the clicks and otherwise discards; the
+///   drag, ends a held press before its first move, drops the clicks, or with none discards; the
 ///   arrows move the picked corner (1 point, ⇧ 10), or the whole quad while the quad has no
 ///   keyboard focus. With the focus (one Tab stop, [`PartFocus`]) Page Down and Page Up pick the
 ///   next and previous corner.
@@ -541,7 +541,7 @@ impl<'a> PerspectiveCropQuad<'a> {
         }
         let (enter, escape) = ui.input_mut(|i| (enter_ok && i.consume_key(Modifiers::NONE, Key::Enter), i.consume_key(Modifiers::NONE, Key::Escape)));
         out.apply |= enter;
-        out.discard |= escape && !enter;
+        out.discard |= escape && !enter && clicks.is_empty();
         if escape {
             clicks.clear();
         }
@@ -760,6 +760,8 @@ const PAGE: [Point; 4] = [Point::new(250.0, 110.0), Point::new(430.0, 130.0), Po
 fn show_story(ui: &mut Ui, args: &mut PerspectiveArgs) {
     let key = ui.scope_id().with("perspective-crop-story");
     let mut quad: PerspectiveQuad = ui.data(|d| d.get_temp(key)).unwrap_or(None);
+    let before_key = key.with("before");
+    let mut before: PerspectiveQuad = ui.data(|d| d.get_temp(before_key)).unwrap_or(None);
     let canvas = super::story::document(ui, args.view, "Document");
     let view = &canvas.view;
     ui.painter_at(view.rect).add(Shape::convex_polygon(
@@ -773,9 +775,13 @@ fn show_story(ui: &mut Ui, args: &mut PerspectiveArgs) {
         &canvas.response,
         view,
     );
-    if let Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = &r.edit {
-        quad = *value;
+    match &r.edit {
+        Some(EditEvent::Begin { .. }) => before = quad,
+        Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => quad = *value,
+        Some(EditEvent::Cancel { .. }) => quad = before,
+        None => {}
     }
+    ui.data_mut(|d| d.insert_temp(before_key, before));
     if r.apply || r.discard {
         quad = None;
         PerspectiveCropQuad::clear(ui.ctx(), r.id);

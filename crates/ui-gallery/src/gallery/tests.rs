@@ -275,6 +275,7 @@ const FIXED_WIDTH: &[&str] = &[
     "primitives/crop-frame/upright",
     "primitives/crop-frame/ratio",
     "primitives/crop-frame/straighten",
+    "primitives/crop-frame/image-mode",
     "primitives/bezier-paths/edit",
     "primitives/warp-grid/warp",
     "primitives/pen-draft/draw",
