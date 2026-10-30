@@ -745,7 +745,7 @@ fn pick_key(id: Id) -> Id {
 }
 
 /// The [`Part`] key of a box part.
-fn part_key(part: BoxPart) -> u64 {
+pub(super) fn part_key(part: BoxPart) -> u64 {
     match part {
         BoxPart::Inside | BoxPart::Outside => 0,
         BoxPart::Corner(i) => 1 + u64::from(i % 4),
@@ -754,7 +754,7 @@ fn part_key(part: BoxPart) -> u64 {
     }
 }
 
-fn key_part(key: u64) -> Option<BoxPart> {
+pub(super) fn key_part(key: u64) -> Option<BoxPart> {
     match key {
         0 => Some(BoxPart::Inside),
         1..=4 => Some(BoxPart::Corner((key - 1) as u8)),
@@ -770,7 +770,7 @@ fn on_screen(view: &CanvasView, s: &BoxState) -> BoxState {
     BoxState { quad: s.quad.map(|p| a * p), pivot: a * s.pivot }
 }
 
-fn pos(p: Point) -> Pos2 {
+pub(super) fn pos(p: Point) -> Pos2 {
     Pos2::new(p.x as f32, p.y as f32)
 }
 
@@ -818,7 +818,7 @@ fn bisector(screen: &BoxState, i: usize) -> egui::Vec2 {
 
 /// The closed polygon `corners` moved `by` points outward, each corner along its mitre (kept
 /// within four times `by` at a sharp corner).
-fn outset(corners: &[Pos2; 4], by: f32) -> [Pos2; 4] {
+pub(super) fn outset(corners: &[Pos2; 4], by: f32) -> [Pos2; 4] {
     let area: f32 = (0..4).map(|i| corners[i].x * corners[(i + 1) % 4].y - corners[(i + 1) % 4].x * corners[i].y).sum();
     let side = if area >= 0.0 { 1.0 } else { -1.0 };
     let normal = |a: Pos2, b: Pos2| {
@@ -837,7 +837,7 @@ fn outset(corners: &[Pos2; 4], by: f32) -> [Pos2; 4] {
 }
 
 /// `v` rounded to `places` decimals, with no negative zero (a hair below zero never reads "-0").
-fn fixed(v: f64, places: i32) -> f64 {
+pub(super) fn fixed(v: f64, places: i32) -> f64 {
     let k = 10f64.powi(places);
     let v = (v * k).round() / k;
     if v == 0.0 { 0.0 } else { v }
