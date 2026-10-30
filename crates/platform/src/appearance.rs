@@ -44,6 +44,8 @@ struct Shared {
     settled_changed: Condvar,
     /// GNOME's `button-layout` as the desktop reported it; `None` until an answer arrives.
     layout: Mutex<Option<String>>,
+    /// GNOME's `icon-theme` name as the desktop reported it; `None` until an answer arrives.
+    icons: Mutex<Option<String>>,
     /// `XDG_CURRENT_DESKTOP` names GNOME; read once when the watcher starts.
     #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
     gnome: bool,
@@ -98,11 +100,19 @@ impl Shared {
     }
     #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
     fn publish_layout(&self, layout: String) {
-        let mut current = self.layout.lock().unwrap_or_else(PoisonError::into_inner);
-        if current.as_deref() == Some(layout.as_str()) {
+        self.publish_text(&self.layout, layout);
+    }
+    #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+    fn publish_icons(&self, icons: String) {
+        self.publish_text(&self.icons, icons);
+    }
+    #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+    fn publish_text(&self, slot: &Mutex<Option<String>>, text: String) {
+        let mut current = slot.lock().unwrap_or_else(PoisonError::into_inner);
+        if current.as_deref() == Some(text.as_str()) {
             return;
         }
-        *current = Some(layout);
+        *current = Some(text);
         drop(current);
         if self.active.load(Ordering::Acquire) {
             (self.wake)();
@@ -156,6 +166,17 @@ impl Watcher {
     /// decides when it applies. [`Watcher::wait_first`] does not wait for it.
     pub fn button_layout(&self) -> Option<String> {
         self.shared.layout.lock().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+    /// GNOME's `org.gnome.desktop.interface` `icon-theme` name as the desktop reports it, such as
+    /// `Adwaita`. `None` until the portal or the `gsettings` fallback has answered, and on targets
+    /// without a desktop watcher. Other desktops keep the name in their own files; read those with
+    /// `craft_window::Desktop::icon_theme`.
+    ///
+    /// It comes over the same connection as the theme, a change runs the same wake callback, and
+    /// [`Watcher::wait_first`] does not wait for it. A name that is empty or has no theme folder is
+    /// the caller's to ignore.
+    pub fn icon_theme(&self) -> Option<String> {
+        self.shared.icons.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
     /// The desktop's contrast preference, from the portal's `org.freedesktop.appearance`
     /// `contrast`. `None` until the portal answers, when it has no such key, and on targets
@@ -220,6 +241,7 @@ impl Watcher {
             settled: Mutex::new(false),
             settled_changed: Condvar::new(),
             layout: Mutex::new(None),
+            icons: Mutex::new(None),
             gnome,
             wake: Box::new(wake),
         });
@@ -300,6 +322,7 @@ mod portal {
     const KEY: &str = "color-scheme";
     const WM: &str = "org.gnome.desktop.wm.preferences";
     const LAYOUT_KEY: &str = "button-layout";
+    const ICONS_KEY: &str = "icon-theme";
     const CONTRAST_KEY: &str = "contrast";
     const MOTION_KEY: &str = "reduced-motion";
     const ANIMATIONS_KEY: &str = "enable-animations";
@@ -367,6 +390,14 @@ mod portal {
     fn layout_reply(value: &Value<'_>, legacy: bool) -> Option<String> {
         decode_layout(unwrap_legacy(value, legacy)?)
     }
+    // `None` means malformed. A blank name is no answer.
+    fn decode_icons(value: &Value<'_>) -> Option<String> {
+        let Value::Str(s) = value else { return None };
+        Some(s.as_str().trim().to_string()).filter(|name| !name.is_empty())
+    }
+    fn icons_reply(value: &Value<'_>, legacy: bool) -> Option<String> {
+        decode_icons(unwrap_legacy(value, legacy)?)
+    }
     fn combined(standard: Option<Option<Theme>>, gnome: Option<Option<Theme>>) -> Option<Option<Theme>> {
         if standard.is_none() && gnome.is_none() { None } else { Some(standard.flatten().or(gnome.flatten())) }
     }
@@ -415,15 +446,16 @@ mod portal {
     pub(super) struct Fallbacks {
         theme_used: bool,
         layout_used: bool,
+        icons_used: bool,
         path: Option<std::ffi::OsString>,
     }
     impl Fallbacks {
         fn from_env() -> Self {
-            Self { theme_used: false, layout_used: false, path: std::env::var_os("PATH") }
+            Self { theme_used: false, layout_used: false, icons_used: false, path: std::env::var_os("PATH") }
         }
         #[cfg(test)]
         pub(super) fn used() -> Self {
-            Self { theme_used: true, layout_used: true, path: None }
+            Self { theme_used: true, layout_used: true, icons_used: true, path: None }
         }
         async fn get(&self, schema: &str, key: &str) -> Option<String> {
             let exe = gsettings_exe(self.path.as_deref())?;
@@ -438,6 +470,16 @@ mod portal {
                 && let Some(answer) = decode(GNOME, &Value::from(text.as_str()), shared.gnome)
             {
                 shared.publish(answer);
+            }
+        }
+        async fn icons(&mut self, shared: &Shared) {
+            if std::mem::replace(&mut self.icons_used, true) {
+                return;
+            }
+            if let Some(text) = self.get(GNOME, ICONS_KEY).await
+                && let Some(answer) = decode_icons(&Value::from(text.as_str()))
+            {
+                shared.publish_icons(answer);
             }
         }
         async fn layout(&mut self, shared: &Shared) {
@@ -480,6 +522,7 @@ mod portal {
         let Some(connection) = connection else {
             fallbacks.theme(shared).await;
             fallbacks.layout(shared).await;
+            fallbacks.icons(shared).await;
             return None;
         };
         watch_connection(shared, fallbacks, connected, connection).await
@@ -507,6 +550,11 @@ mod portal {
                 (WM, LAYOUT_KEY) => {
                     if let Some(layout) = decode_layout(value) {
                         shared.publish_layout(layout);
+                    }
+                }
+                (GNOME, ICONS_KEY) => {
+                    if let Some(icons) = decode_icons(value) {
+                        shared.publish_icons(icons);
                     }
                 }
                 (STANDARD, CONTRAST_KEY) => {
@@ -557,6 +605,7 @@ mod portal {
         let mut settings = [
             subscribe(&connection, rule(KEY), 64).await?,
             subscribe(&connection, rule(LAYOUT_KEY), 8).await?,
+            subscribe(&connection, rule(ICONS_KEY), 8).await?,
             subscribe(&connection, rule(CONTRAST_KEY), 8).await?,
             subscribe(&connection, rule(MOTION_KEY), 8).await?,
             subscribe(&connection, rule(ANIMATIONS_KEY), 8).await?,
@@ -588,6 +637,7 @@ mod portal {
             None => {
                 fallbacks.theme(shared).await;
                 fallbacks.layout(shared).await;
+                fallbacks.icons(shared).await;
                 return None;
             }
         }
@@ -595,6 +645,10 @@ mod portal {
         match read_with(&connection, WM, LAYOUT_KEY, layout_reply).await {
             Some(layout) => shared.publish_layout(layout),
             None => fallbacks.layout(shared).await,
+        }
+        match read_with(&connection, GNOME, ICONS_KEY, icons_reply).await {
+            Some(icons) => shared.publish_icons(icons),
+            None => fallbacks.icons(shared).await,
         }
         loop {
             let message = match next_event(&mut settings, &mut owners).await? {
@@ -655,6 +709,19 @@ mod portal {
             assert_eq!(layout_reply(&Value::from("close:"), false).as_deref(), Some("close:"));
         }
         #[test]
+        fn icon_theme_decodes_names_and_ignores_blank_or_malformed_values() {
+            use super::{decode_icons, icons_reply};
+            assert_eq!(decode_icons(&Value::from("Papirus-Dark")).as_deref(), Some("Papirus-Dark"));
+            assert_eq!(decode_icons(&Value::from(" Adwaita ")).as_deref(), Some("Adwaita"));
+            assert_eq!(decode_icons(&Value::from("")), None);
+            assert_eq!(decode_icons(&Value::U32(1)), None);
+            let wrapped = Value::Value(Box::new(Value::from("breeze")));
+            assert_eq!(icons_reply(&wrapped, true).as_deref(), Some("breeze"));
+            assert_eq!(icons_reply(&wrapped, false), None);
+            assert_eq!(icons_reply(&Value::from("breeze"), true), None);
+            assert_eq!(icons_reply(&Value::from("breeze"), false).as_deref(), Some("breeze"));
+        }
+        #[test]
         fn without_a_portal_gsettings_supplies_theme_and_button_layout() -> Result<(), Box<dyn std::error::Error>> {
             use std::os::unix::fs::PermissionsExt;
             struct Fixture(std::path::PathBuf);
@@ -681,7 +748,7 @@ mod portal {
                 false,
                 || {},
                 move |shared| async move {
-                    let mut fallbacks = super::Fallbacks { theme_used: false, layout_used: false, path: Some(path) };
+                    let mut fallbacks = super::Fallbacks { theme_used: false, layout_used: false, icons_used: false, path: Some(path) };
                     fallbacks.theme(&shared).await;
                     fallbacks.layout(&shared).await;
                 },
@@ -927,12 +994,58 @@ mod portal {
 pub type SystemThemeFn = Box<dyn Fn(&egui::Context) -> Option<egui::Theme>>;
 /// Create an egui theme callback over a [`SystemReader`] that wakes the first context it is
 /// called with. Return `None` when no desktop watcher can start; the host retains its fallback
-/// policy. It answers the colour scheme only: a host that also follows contrast or reduced
-/// motion uses [`SystemReader`] directly.
+/// policy. It answers the colour scheme only: a host that also needs the button layout or icon
+/// theme uses [`egui_system_service`], and one that follows contrast or reduced motion uses
+/// [`SystemReader`] directly.
 #[cfg(feature = "egui")]
 pub fn egui_service() -> Option<SystemThemeFn> {
+    egui_system_service().map(EguiService::into_theme_fn)
+}
+
+/// The desktop watcher an egui app installs once: the colour scheme for the theme callback,
+/// plus the button layout and icon theme the same watcher hears. Clones share the watcher; every
+/// accessor is non-blocking and callable from any thread. A change in any value repaints the
+/// context [`EguiService::theme`] saw first.
+#[cfg(feature = "egui")]
+#[derive(Clone)]
+pub struct EguiService {
+    reader: std::sync::Arc<Mutex<SystemReader>>,
+}
+
+#[cfg(feature = "egui")]
+impl EguiService {
+    fn with<T>(&self, f: impl FnOnce(&SystemReader) -> T) -> T {
+        f(&self.reader.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    /// The observed colour scheme, as [`SystemThemeFn`] returns it. Call it once per frame: it
+    /// registers `ctx` for wake-ups and hands the native window the observed scheme.
+    pub fn theme(&self, ctx: &egui::Context) -> Option<egui::Theme> {
+        self.with(|reader| reader.observed_theme(ctx))
+    }
+
+    /// GNOME's `button-layout`; see [`Watcher::button_layout`].
+    pub fn button_layout(&self) -> Option<String> {
+        self.with(SystemReader::button_layout)
+    }
+
+    /// GNOME's `icon-theme` name; see [`Watcher::icon_theme`].
+    pub fn icon_theme(&self) -> Option<String> {
+        self.with(SystemReader::icon_theme)
+    }
+
+    /// The colour scheme as an owned [`SystemThemeFn`]; the other accessors stay on clones.
+    pub fn into_theme_fn(self) -> SystemThemeFn {
+        Box::new(move |ctx: &egui::Context| self.theme(ctx))
+    }
+}
+
+/// Start the desktop watcher behind an [`EguiService`], or return `None` when no watcher can
+/// start; the host retains its fallback policy.
+#[cfg(feature = "egui")]
+pub fn egui_system_service() -> Option<EguiService> {
     let reader = SystemReader::for_egui();
-    reader.watching().then(|| Box::new(move |ctx: &egui::Context| reader.observed_theme(ctx)) as SystemThemeFn)
+    reader.watching().then(|| EguiService { reader: std::sync::Arc::new(Mutex::new(reader)) })
 }
 
 /// Supply the portal answer for native window decorations without changing egui's theme choice

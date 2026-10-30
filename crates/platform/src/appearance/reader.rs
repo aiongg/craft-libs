@@ -87,6 +87,18 @@ impl SystemReader {
         self.watcher.is_some()
     }
 
+    /// GNOME's `button-layout` as the watcher last heard it; see [`Watcher::button_layout`].
+    /// `None` on the web and where no watcher runs.
+    pub fn button_layout(&self) -> Option<String> {
+        self.watcher.as_ref().and_then(Watcher::button_layout)
+    }
+
+    /// GNOME's `icon-theme` name as the watcher last heard it; see [`Watcher::icon_theme`].
+    /// `None` on the web and where no watcher runs.
+    pub fn icon_theme(&self) -> Option<String> {
+        self.watcher.as_ref().and_then(Watcher::icon_theme)
+    }
+
     /// The preferences now, without blocking.
     pub fn read(&self) -> Reading {
         #[cfg(target_arch = "wasm32")]
