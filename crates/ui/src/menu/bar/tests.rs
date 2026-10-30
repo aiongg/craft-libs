@@ -342,6 +342,17 @@ fn hovering_another_title_switches_menus_only_while_one_is_open_and_the_pointer_
 }
 
 #[test]
+fn hovering_another_title_at_the_screen_top_edge_switches_menus() {
+    let mut b = Bar::wide();
+    assert!(b.rect("Edit").top() <= 0.0, "the titles touch the top of the window");
+    b.click("File");
+    let x = b.point("Edit").x;
+    b.move_to(pos2(x, 0.0));
+    b.run(3);
+    assert!(b.shown("Undo") && !b.shown("New"), "a pointer at y = 0 over Edit switches to it");
+}
+
+#[test]
 fn right_and_left_open_the_neighbouring_menus_and_wrap() {
     let mut b = Bar::wide();
     b.click("File");
@@ -544,10 +555,10 @@ fn titles_that_dont_fit_move_into_the_overflow_menu() {
         let b = Bar::wide();
         b.rect("Edit").right() - b.rect("File").left()
     };
-    let mut b = Bar::new(sample(), vec2(file_and_edit + 30.0, 400.0));
-    assert_eq!(b.titles(), ["File", "Edit", "⋯"], "View and Help moved into ⋯");
-    b.click("⋯");
-    assert!(b.shown("View") && b.shown("Help"), "⋯ lists the menus that don't fit");
+    let mut b = Bar::new(sample(), vec2(file_and_edit + 40.0, 400.0));
+    assert_eq!(b.titles(), ["File", "Edit", "…"], "View and Help moved into …");
+    b.click("…");
+    assert!(b.shown("View") && b.shown("Help"), "… lists the menus that don't fit");
     b.hover("Help");
     b.run(3);
     b.click("About");
@@ -563,7 +574,7 @@ fn titles_that_dont_fit_move_into_the_overflow_menu() {
     assert_eq!(b.titles().len(), 4);
     b.fit = Some(100.0);
     b.run(2);
-    assert_eq!(b.titles().last().map(String::as_str), Some("⋯"), "past its limit the titles overflow");
+    assert_eq!(b.titles().last().map(String::as_str), Some("…"), "past its limit the titles overflow");
     assert!(b.after.is_some_and(|x| x <= 100.0 + 8.0 + 0.5), "{:?}", b.after);
 }
 
@@ -601,6 +612,24 @@ fn the_help_search_lists_matches_takes_typing_and_runs_a_match() {
     assert!(b.ctx.text_edit_focused(), "focused again");
     b.typed("zzz");
     assert!(b.tree.iter().any(|(_, n)| n.value() == Some("No matching commands")));
+}
+
+#[test]
+fn the_help_search_ranks_a_label_prefix_then_a_word_prefix_then_a_substring_then_a_path_match() {
+    let menus = vec![
+        MenuItem::submenu(
+            "Blurry Tools",
+            vec![item("Motion Unblurring", "motion"), item("Gaussian Blur", "gaussian"), item("Blur", "blur"), item("Sharpen", "sharpen")],
+        ),
+        MenuItem::submenu("Help", vec![item("About", "help.about")]),
+    ];
+    let mut b = Bar::new(menus, vec2(800.0, 600.0));
+    b.search = Some(1);
+    b.click("Help");
+    b.typed("blur");
+    let rows: Vec<_> = ["Blur", "Gaussian Blur", "Motion Unblurring", "Sharpen"].map(|l| b.rect(&format!("Blurry Tools › {l}")).top()).into();
+    assert!(rows[0] < rows[1] && rows[1] < rows[2], "prefix, then word prefix, then substring: {rows:?}");
+    assert!(rows[2] < rows[3], "a match in the path only comes last: {rows:?}");
 }
 
 #[test]

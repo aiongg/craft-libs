@@ -9,7 +9,7 @@
 //!   tracks the highlight, the pointer heading for a submenu, and the keys, and returns the
 //!   command run ([`MenuResponse`]).
 //! - [`MenuBar`]: a row of titles, each opening a [`Menu`], with PhotoCraft's press-drag-release,
-//!   hover switching, Alt / F10 / Alt+letter, overflow into "⋯" and the Help menu's search field;
+//!   hover switching, Alt / F10 / Alt+letter, overflow into "…" and the Help menu's search field;
 //!   [`bar::is_open`], [`bar::is_focused`] and [`bar::leave_for_shortcut`] for the app's keys.
 //! - [`mnemonics`]: whether menus have mnemonics here (off on macOS); [`set_mnemonics`] overrides.
 //! - [`any_open`]: whether any menu is open, for the app's single-key shortcuts, which wait

@@ -5,7 +5,7 @@
 //! it, and while one is open the pointer moving onto another title opens that one. ← and → at a
 //! menu's top level open the neighbouring menu. F10 puts the keyboard on the bar, and where menus
 //! have [`mnemonics`](super::mnemonics) a tap on Alt does too and Alt+letter opens a menu at once
-//! ([`keys`]). Titles that don't fit move into a trailing "⋯" menu, or all of
+//! ([`keys`]). Titles that don't fit move into a trailing "…" menu, or all of
 //! them into one "Menu". The Help menu can start with a search field over every command of the bar
 //! ([`search`]).
 
@@ -43,7 +43,7 @@ pub const COMPONENTS: &[&str] = &["MenuBar"];
 /// The labels a menu bar writes itself, translated by the app.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MenuBarLabels {
-    /// The menu of the titles that don't fit: "⋯".
+    /// The menu of the titles that don't fit: "…".
     pub more: String,
     /// The one menu that holds every title when none fits: "Menu".
     pub all: String,
@@ -61,7 +61,7 @@ pub struct MenuBarLabels {
 impl Default for MenuBarLabels {
     fn default() -> Self {
         Self {
-            more: "⋯".into(),
+            more: "…".into(),
             all: "Menu".into(),
             search: "Search menus".into(),
             clear: "Clear".into(),
@@ -118,7 +118,7 @@ impl Default for MenuBarLabels {
 /// While the bar has the keyboard or a menu is open, the app leaves the keys to it ([`is_open`],
 /// [`is_focused`]); [`leave_for_shortcut`] lets a command shortcut still run.
 ///
-/// Titles that don't fit move into a trailing "⋯" menu that holds them as submenus, or all of
+/// Titles that don't fit move into a trailing "…" menu that holds them as submenus, or all of
 /// them into one "Menu"; [`shrink_to_fit`](MenuBar::shrink_to_fit) leaves the rest of the row to
 /// other controls.
 ///
@@ -154,7 +154,7 @@ pub struct MenuBarResponse<T> {
     pub focused: bool,
     /// The bar.
     pub response: Response,
-    /// The menu titles alone (with "⋯" when it shows), from the first title's reading start to the
+    /// The menu titles alone (with "…" when it shows), from the first title's reading start to the
     /// last title's inner edge. With no titles, an empty rect at the bar's reading start.
     pub titles: Rect,
 }
@@ -170,7 +170,7 @@ struct BarState {
 }
 
 /// A title of the bar: a menu, or the overflow menu holding the menus from `from` on as submenus
-/// ("Menu" when `from` is 0, else "⋯").
+/// ("Menu" when `from` is 0, else "…").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Top {
     Menu(usize),
@@ -268,7 +268,7 @@ impl<'a, T: Clone> MenuBar<'a, T> {
 
     /// Take only the width the titles need, at most `max_width` (`f32::INFINITY` for no limit)
     /// and the room the `Ui` has, so that other controls can share the row; past that the menus
-    /// overflow into "⋯". By default the bar fills the row.
+    /// overflow into "…". By default the bar fills the row.
     pub fn shrink_to_fit(mut self, max_width: f32) -> Self {
         self.fit = Some(max_width);
         self
@@ -278,7 +278,7 @@ impl<'a, T: Clone> MenuBar<'a, T> {
     /// bar, as PhotoCraft's Help menu: typing lists up to 15 matches by label or menu path, each
     /// shown with its path ("Image › Adjustments › Levels…"); a click, ↓ then Enter, or Enter in
     /// the field runs one. The field has the keys while focused, so letters type into it. A menu
-    /// moved into "⋯" has no field.
+    /// moved into "…" has no field.
     ///
     /// A command in several menus is listed once, at its best match: hence `T: PartialEq`, the
     /// only place the bar compares commands. The commands are also kept between passes (`Send +
@@ -324,7 +324,7 @@ impl<'a, T: Clone> MenuBar<'a, T> {
 
         let room = self.fit.map_or(ui.available_width(), |max| max.min(ui.available_width())).max(0.0);
         let width = match self.fit {
-            // The half point keeps rounding from pushing the last title into "⋯".
+            // The half point keeps rounding from pushing the last title into "…".
             Some(_) => (titles.widths(ui, &titles.all()).iter().sum::<f32>() + 0.5).min(room),
             None => room,
         };
@@ -521,7 +521,7 @@ impl<T> Titles<'_, T> {
             match *top {
                 Top::Menu(i) => self.menus.get(i).map_or(("", None, None), |m| (m.label(), m.english_of(), m.preferred())),
                 Top::Rest(0) => (&self.labels.all, Some("Menu"), None),
-                Top::Rest(_) => (&self.labels.more, Some("⋯"), None),
+                Top::Rest(_) => (&self.labels.more, Some("…"), None),
             }
         };
         let names: Vec<_> = tops.iter().map(name).collect();
@@ -540,7 +540,7 @@ impl<T> Titles<'_, T> {
     }
 
     /// The titles to draw in `room`: every menu when they fit; else the menus that fit with room
-    /// for a "⋯" menu holding the rest; else one "Menu" holding them all.
+    /// for a "…" menu holding the rest; else one "Menu" holding them all.
     fn fit(&self, ui: &Ui, room: f32) -> Vec<Top> {
         let all = self.all();
         let widths = self.widths(ui, &all);
