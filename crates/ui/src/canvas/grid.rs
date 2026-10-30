@@ -151,6 +151,8 @@ impl CanvasGrid {
     }
 
     /// Draws nothing while the view's zoom is below `min_zoom` (VectorCraft's pixel grid: 6).
+    /// `min_zoom` is in points per unit, like `CanvasView.zoom`. A threshold in device pixels per
+    /// unit (VectorCraft's 600 %) is divided by the context's `pixels_per_point` first.
     pub fn min_zoom(mut self, min_zoom: Option<f64>) -> Self {
         self.min_zoom = min_zoom;
         self

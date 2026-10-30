@@ -1,4 +1,4 @@
-//! Inspector tests: state keyed by the target, header truncation and kind hiding by width, the
+//! Inspector tests: control state keyed by the target, section states kept by the host, header truncation and kind hiding by width, the
 //! empty state and the header's AccessKit node, with a raw egui context driven frame by frame.
 
 use egui::accesskit::{self, NodeId, Role};
@@ -17,6 +17,10 @@ struct Host {
     target: &'static str,
     empty: bool,
     header: Option<(&'static str, Option<&'static str>)>,
+    /// The section's open state, held by the host so it outlives a target change.
+    open: bool,
+    /// The id a control inside the content gets in the last pass.
+    field_id: egui::Id,
     events: Vec<Event>,
     time: f64,
     tree: Vec<(NodeId, accesskit::Node)>,
@@ -27,7 +31,18 @@ impl Host {
         let ctx = egui::Context::default();
         install(&ctx, &Base::suite_default());
         ctx.enable_accesskit();
-        let mut host = Self { ctx, width: 400.0, target: "a", empty: false, header: None, events: Vec::new(), time: 0.0, tree: Vec::new() };
+        let mut host = Self {
+            ctx,
+            width: 400.0,
+            target: "a",
+            empty: false,
+            header: None,
+            open: true,
+            field_id: egui::Id::NULL,
+            events: Vec::new(),
+            time: 0.0,
+            tree: Vec::new(),
+        };
         host.run(4);
         host
     }
@@ -42,6 +57,8 @@ impl Host {
             ..Default::default()
         };
         let (target, empty, header) = (self.target, self.empty, self.header);
+        let mut open = self.open;
+        let mut field_id = self.field_id;
         let mut full = self.ctx.run_ui(raw, |ui| {
             let mut inspector = Inspector::new("properties").target(target).empty("No properties").show_empty(empty);
             if let Some((name, kind)) = header {
@@ -52,11 +69,14 @@ impl Host {
                 });
             }
             inspector.show(ui, |ui| {
-                SectionHeader::new("transform", "Transform").show(ui, |ui| {
+                field_id = ui.make_persistent_id("field");
+                SectionHeader::new("transform", "Transform").open(&mut open).show(ui, |ui| {
                     ui.label("Body");
                 });
             });
         });
+        self.open = open;
+        self.field_id = field_id;
         full.textures_delta.clear();
         if let Some(update) = full.platform_output.accesskit_update {
             self.tree = update.nodes;
@@ -100,17 +120,19 @@ impl Host {
 }
 
 #[test]
-fn a_target_change_resets_the_state_of_the_content() {
+fn a_target_change_keeps_the_open_sections_and_resets_the_state_of_the_controls() {
     let mut host = Host::new();
     assert!(host.body_shown());
+    let field_a = host.field_id;
     host.click_section();
     assert!(!host.body_shown(), "the section closed");
     host.target = "b";
     host.run(3);
-    assert!(host.body_shown(), "a new target starts with the section open");
+    assert!(!host.body_shown(), "the host's open state outlives the target");
+    assert_ne!(host.field_id, field_a, "scrub and text-edit state are keyed by the target");
     host.target = "a";
     host.run(3);
-    assert!(!host.body_shown(), "the first target keeps its own state");
+    assert_eq!(host.field_id, field_a);
 }
 
 #[test]

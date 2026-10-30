@@ -3,6 +3,8 @@
 //! named by its path ("Image › Adjustments › Levels…").
 
 use craft_theme::ControlSize;
+use std::sync::Arc;
+
 use egui::{Align, EventFilter, Id, Layout, Margin, Ui};
 
 use super::MenuBarLabels;
@@ -30,7 +32,9 @@ struct State {
 /// The search field of one pass.
 pub(super) struct Search<T> {
     id: Id,
+    bar: Id,
     same: Same<T>,
+    entries: Entries<T>,
     state: State,
     found: Vec<PaletteEntry<T>>,
     submitted: bool,
@@ -39,14 +43,35 @@ pub(super) struct Search<T> {
 /// Whether two commands are the same command.
 pub(super) type Same<T> = fn(&T, &T) -> bool;
 
-/// The commands under `menus` matching `query`, best first and in menu order within a rank, at
-/// most [`MAX_RESULTS`]. A command in several menus is listed once, at its best match.
-fn matches<T: Clone>(menus: &[MenuItem<T>], query: &str, same: Same<T>) -> Vec<PaletteEntry<T>> {
-    if query.trim().is_empty() {
-        return Vec::new();
+/// The entries of the menus of the bar `bar`, as of the last pass: see [`cached_entries`].
+pub(super) type Entries<T> = fn(&egui::Context, Id, &[MenuItem<T>]) -> Arc<Vec<PaletteEntry<T>>>;
+
+/// The menu tree and the entries built from it.
+struct Cached<T> {
+    menus: Vec<MenuItem<T>>,
+    entries: Arc<Vec<PaletteEntry<T>>>,
+}
+
+/// The palette entries of `menus`, built again only when the tree differs from the one they were
+/// built from, so a pass with a query does not clone every label of the bar.
+pub(super) fn cached_entries<T: Clone + PartialEq + Send + Sync + 'static>(
+    ctx: &egui::Context,
+    bar: Id,
+    menus: &[MenuItem<T>],
+) -> Arc<Vec<PaletteEntry<T>>> {
+    let id = bar.with("search-entries");
+    if let Some(cached) = ctx.data(|d| d.get_temp::<Arc<Cached<T>>>(id)).filter(|c| c.menus == menus) {
+        return Arc::clone(&cached.entries);
     }
-    let entries = PaletteEntry::from_menu(menus);
-    let found = CommandSearch::new(&entries).query(query).fuzzy(false).same(same).results(MAX_RESULTS);
+    let entries = Arc::new(PaletteEntry::from_menu(menus));
+    ctx.data_mut(|d| d.insert_temp(id, Arc::new(Cached { menus: menus.to_vec(), entries: Arc::clone(&entries) })));
+    entries
+}
+
+/// The commands among `entries` matching `query`, best first and in menu order within a rank, at
+/// most [`MAX_RESULTS`]. A command in several menus is listed once, at its best match.
+fn matches<T: Clone>(entries: &[PaletteEntry<T>], query: &str, same: Same<T>) -> Vec<PaletteEntry<T>> {
+    let found = CommandSearch::new(entries).query(query).fuzzy(false).same(same).results(MAX_RESULTS);
     found.into_iter().map(|m| m.entry.clone()).collect()
 }
 
@@ -57,9 +82,9 @@ fn keys() -> EventFilter {
 
 impl<T: Clone> Search<T> {
     /// The field of the bar `bar`, as the last pass left it; `same` tells commands apart.
-    pub fn load(ctx: &egui::Context, bar: Id, same: Same<T>) -> Self {
+    pub fn load(ctx: &egui::Context, bar: Id, same: Same<T>, entries: Entries<T>) -> Self {
         let id = bar.with("search");
-        Self { id, same, state: ctx.data(|d| d.get_temp(id)).unwrap_or_default(), found: Vec::new(), submitted: false }
+        Self { id, bar, same, entries, state: ctx.data(|d| d.get_temp(id)).unwrap_or_default(), found: Vec::new(), submitted: false }
     }
 
     /// The Help menu `popup` shows this pass: a fresh opening starts empty, with the field
@@ -68,7 +93,11 @@ impl<T: Clone> Search<T> {
         if ctx.read_response(popup).is_none() {
             self.state = State { query: String::new(), focus: true };
         }
-        self.found = matches(menus, &self.state.query, self.same);
+        if !self.state.query.trim().is_empty() {
+            self.found = matches(&(self.entries)(ctx, self.bar, menus), &self.state.query, self.same);
+        } else {
+            self.found.clear();
+        }
     }
 
     /// The Help menu's entries: the matches, a separator, then `help`. `None` without matches.
@@ -159,9 +188,24 @@ mod tests {
             ),
             MenuItem::submenu("Select", vec![MenuItem::new("All", 3).into(), MenuItem::new("Level Horizon", 4).into()]),
         ];
-        let found: Vec<(String, u8)> = matches(&menus, " LEV ", u8::eq).iter().map(|f| (f.path_of().join(PATH_SEPARATOR), *f.command())).collect();
+        let found: Vec<(String, u8)> =
+            matches(&PaletteEntry::from_menu(&menus), " LEV ", u8::eq).iter().map(|f| (f.path_of().join(PATH_SEPARATOR), *f.command())).collect();
         assert_eq!(found, [("Image › Adjustments".to_owned(), 2), ("Select".to_owned(), 4)]);
         let many: Vec<MenuItem<usize>> = vec![MenuItem::submenu("Many", (0..40).map(|i| MenuItem::new(format!("Row {i}"), i).into()).collect())];
-        assert_eq!(matches(&many, "row", usize::eq).len(), MAX_RESULTS);
+        assert_eq!(matches(&PaletteEntry::from_menu(&many), "row", usize::eq).len(), MAX_RESULTS);
+    }
+
+    #[test]
+    fn entries_are_reused_until_the_menus_change() {
+        let ctx = egui::Context::default();
+        let bar = Id::unique("bar");
+        let menus: Vec<MenuItem<u8>> = vec![MenuItem::submenu("Select", vec![MenuItem::new("All", 1).into()])];
+        let first = cached_entries(&ctx, bar, &menus);
+        assert!(Arc::ptr_eq(&first, &cached_entries(&ctx, bar, &menus)));
+        let edited: Vec<MenuItem<u8>> = vec![MenuItem::submenu("Select", vec![MenuItem::new("All", 1).enabled(false).into()])];
+        let second = cached_entries(&ctx, bar, &edited);
+        assert!(!Arc::ptr_eq(&first, &second));
+        assert!(!second[0].is_enabled());
+        assert!(Arc::ptr_eq(&second, &cached_entries(&ctx, bar, &edited)));
     }
 }

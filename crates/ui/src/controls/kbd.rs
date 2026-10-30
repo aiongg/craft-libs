@@ -31,7 +31,7 @@ pub struct KbdStyle {
     pub keycap: SurfaceStyle,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum Chord {
     Shortcut(KeyboardShortcut),
     Keys(Vec<String>),
@@ -49,7 +49,7 @@ enum Chord {
 /// A chord keeps its order right to left
 /// ([`Unmirrored::KeyChord`](crate::direction::Unmirrored::KeyChord)). It has no input and no Tab
 /// stop; AccessKit sees a label with the names (`Cmd+Shift+S`).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Kbd {
     chord: Chord,
     keycaps: bool,

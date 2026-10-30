@@ -1,6 +1,11 @@
 //! `Inspector`: the body of a Properties panel, with a header for what it shows, an empty state and
 //! widget state keyed by the target. `InspectorHeader` is the target's row. The look is the
 //! `inspector.*` tokens.
+//!
+//! The target keys the controls' scrub and text-edit state. A host that keeps section open states
+//! across targets, as PhotoCraft does across layers, gives each `SectionHeader` its state with
+//! `.open(&mut bool)` from its own state: a header's id is relative to the target, so an id alone
+//! restarts with it.
 
 use craft_theme::TypeRole;
 use egui::accesskit::Role;
@@ -151,9 +156,11 @@ enum HeaderKind {
 /// ```
 ///
 /// - The area fills the panel; the host's dock draws the panel frame, tabs and close.
-/// - **Target.** [`target`](Inspector::target) keys the content's id, so section open states, scrub
-///   state and text editing restart when the selection changes. A gesture on a control is dropped
-///   with it: the host cancels the edit (`CancelReason::DocumentSwitched`).
+/// - **Target.** [`target`](Inspector::target) keys the content's id, so scrub state and text
+///   editing restart when the selection changes. A gesture on a control is dropped with it: the
+///   host cancels the edit (`CancelReason::DocumentSwitched`). Section open states restart too
+///   unless the host holds them: give each `SectionHeader` `.open(&mut bool)` from host state to
+///   keep them across targets.
 /// - **Empty.** With [`show_empty`](Inspector::show_empty) the message of [`empty`](Inspector::empty)
 ///   replaces the content, as an inline [`EmptyState`] and a polite status region.
 /// - The inspector adds no row layout and no edit lifecycle: the controls inside keep theirs.
@@ -181,8 +188,9 @@ impl Inspector {
         }
     }
 
-    /// What the inspector shows: a document, a layer, a mask. The content's state is kept per
-    /// target.
+    /// What the inspector shows: a document, a layer, a mask. The controls' state is kept per
+    /// target. A `SectionHeader`'s id is relative to the target, so a host that wants the open
+    /// states to survive a target change gives the header `.open(&mut bool)` from its own state.
     pub fn target(mut self, target: impl AsIdSalt) -> Self {
         self.target = Some(IdSalt::new(target));
         self
@@ -304,17 +312,53 @@ struct Values {
     opacity: f64,
 }
 
+/// What a target keeps: its values, and the values a running drag or scrub started from.
+#[derive(Clone, Copy, Debug)]
+struct Kept {
+    values: Values,
+    before: Option<Values>,
+}
+
+/// The section open states; one set for every target, as PhotoCraft keeps them across layers.
+#[derive(Clone, Copy, Debug)]
+struct Open {
+    transform: bool,
+    appearance: bool,
+}
+
+/// Applies a control's event to the kept values; `set` writes the control's value. A cancel puts
+/// back the values at the Begin.
+fn keep(kept: &mut Kept, event: Option<crate::edit::EditEvent<f64>>, set: fn(&mut Values, f64)) {
+    use crate::edit::EditEvent;
+    match event {
+        Some(EditEvent::Begin { .. }) => kept.before = Some(kept.values),
+        Some(EditEvent::Update { value, .. }) => set(&mut kept.values, value),
+        Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => {
+            kept.before = None;
+            set(&mut kept.values, value);
+        }
+        Some(EditEvent::Cancel { .. }) => {
+            if let Some(before) = kept.before.take() {
+                kept.values = before;
+            }
+        }
+        _ => {}
+    }
+}
+
 /// PhotoCraft's Properties body: the target header, a Transform section and an Appearance
-/// section. Each target keeps its own values and section states.
+/// section. Each target keeps its own values; the sections' open states are shared.
 fn show_story(ui: &mut Ui, args: &mut InspectorArgs) {
     use crate::composites::{PropertyGroup, PropertyLabel, PropertyRow, SectionHeader};
     use crate::controls::{NumberField, Slider};
-    use crate::edit::EditEvent;
     use crate::localized::LocaleNumbers;
 
     let layer = args.target == TargetArg::Layer;
     let state_id = ui.scope_id().with("inspector-story").with(layer);
-    let mut values = ui.data(|d| d.get_temp::<Values>(state_id)).unwrap_or(Values { x: 12.0, y: 8.0, opacity: 100.0 });
+    let open_id = ui.scope_id().with("inspector-story-open");
+    let mut kept = ui.data(|d| d.get_temp::<Kept>(state_id)).unwrap_or(Kept { values: Values { x: 12.0, y: 8.0, opacity: 100.0 }, before: None });
+    let mut open = ui.data(|d| d.get_temp::<Open>(open_id)).unwrap_or(Open { transform: true, appearance: true });
+    let values = kept.values;
     let numbers = LocaleNumbers::from_tag("en");
     let (header, target) = if layer {
         (InspectorHeader::new(Icon::Layers, "Layer 1").kind("Pixel layer"), "layer-1")
@@ -323,7 +367,7 @@ fn show_story(ui: &mut Ui, args: &mut InspectorArgs) {
     };
     ui.allocate_ui(vec2(280.0_f32.min(ui.available_width()), 360.0), |ui| {
         Inspector::new("properties").target(target).header(header).empty("No properties").show_empty(args.empty).show(ui, |ui| {
-            SectionHeader::new("transform", "Transform").show(ui, |ui| {
+            SectionHeader::new("transform", "Transform").open(&mut open.transform).show(ui, |ui| {
                 PropertyGroup::new("transform-rows").show(ui, |ui| {
                     let (x, y) = PropertyRow::pair(PropertyLabel::glyph("X"), PropertyLabel::glyph("Y"))
                         .show(
@@ -332,25 +376,19 @@ fn show_story(ui: &mut Ui, args: &mut InspectorArgs) {
                             |ui, _| NumberField::new("y", "Y", values.y, &numbers).show(ui),
                         )
                         .inner;
-                    for (edit, value) in [(x, &mut values.x), (y, &mut values.y)] {
-                        if let Some(EditEvent::Update { value: v, .. } | EditEvent::Set { value: v, .. } | EditEvent::Commit { value: v, .. }) =
-                            edit.event
-                        {
-                            *value = v;
-                        }
-                    }
+                    keep(&mut kept, x.event, |v, x| v.x = x);
+                    keep(&mut kept, y.event, |v, y| v.y = y);
                 });
             });
             if layer {
-                SectionHeader::new("appearance", "Appearance").show(ui, |ui| {
-                    if let Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) =
-                        Slider::new("opacity", "Opacity", values.opacity, 0.0..=100.0).show(ui).event
-                    {
-                        values.opacity = value;
-                    }
+                SectionHeader::new("appearance", "Appearance").open(&mut open.appearance).show(ui, |ui| {
+                    keep(&mut kept, Slider::new("opacity", "Opacity", values.opacity, 0.0..=100.0).show(ui).event, |v, o| v.opacity = o);
                 });
             }
         });
     });
-    ui.data_mut(|d| d.insert_temp(state_id, values));
+    ui.data_mut(|d| {
+        d.insert_temp(state_id, kept);
+        d.insert_temp(open_id, open);
+    });
 }

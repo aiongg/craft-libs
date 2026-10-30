@@ -13,8 +13,21 @@ pub enum InterfaceScale {
     /// Follows the display's native scale, fractional scales included.
     #[default]
     Auto,
-    /// An absolute percent: 100 is one device pixel per point.
-    Percent(u16),
+    /// An absolute percent: 100 is one device pixel per point. Built by
+    /// [`InterfaceScale::percent`], so it is always within `MIN..=MAX`.
+    Percent(Pct),
+}
+
+/// A percent within [`InterfaceScale::MIN`]..=[`InterfaceScale::MAX`]; only
+/// [`InterfaceScale::percent`] makes one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Pct(u16);
+
+impl Pct {
+    /// The percent, e.g. 125.
+    pub fn get(self) -> u16 {
+        self.0
+    }
 }
 
 /// A zoom change smaller than this is not written, so `apply` is cheap every frame.
@@ -30,14 +43,14 @@ impl InterfaceScale {
 
     /// A fixed percent, clamped to `MIN..=MAX`.
     pub fn percent(p: u16) -> InterfaceScale {
-        InterfaceScale::Percent(p.clamp(Self::MIN, Self::MAX))
+        InterfaceScale::Percent(Pct(p.clamp(Self::MIN, Self::MAX)))
     }
 
     /// The stored string: `"auto"` or the percent, e.g. `"125"`.
     pub fn code(self) -> String {
         match self {
             InterfaceScale::Auto => "auto".to_owned(),
-            InterfaceScale::Percent(p) => p.to_string(),
+            InterfaceScale::Percent(p) => p.get().to_string(),
         }
     }
 
@@ -55,7 +68,7 @@ impl InterfaceScale {
     pub fn pixels_per_point(self, native: Option<f32>) -> f32 {
         match self {
             InterfaceScale::Auto => native.unwrap_or(1.0),
-            InterfaceScale::Percent(p) => f32::from(p.clamp(Self::MIN, Self::MAX)) / 100.0,
+            InterfaceScale::Percent(p) => f32::from(p.get()) / 100.0,
         }
     }
 
@@ -99,7 +112,7 @@ impl InterfaceScale {
         let wanted = factor * native.unwrap_or(1.0) * 100.0;
         let nearest =
             Self::STEPS.iter().copied().min_by(|a, b| (f32::from(*a) - wanted).abs().total_cmp(&(f32::from(*b) - wanted).abs())).unwrap_or(100);
-        InterfaceScale::Percent(nearest)
+        InterfaceScale::percent(nearest)
     }
 }
 

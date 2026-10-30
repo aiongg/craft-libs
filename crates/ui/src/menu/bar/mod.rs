@@ -136,7 +136,7 @@ pub struct MenuBar<'a, T> {
     labels: Option<&'a MenuBarLabels>,
     fit: Option<f32>,
     /// The Help menu's index, and how its search tells commands apart.
-    search: Option<(usize, search::Same<T>)>,
+    search: Option<(usize, search::Same<T>, search::Entries<T>)>,
     keyboard: bool,
     text_editing: bool,
 }
@@ -281,12 +281,15 @@ impl<'a, T: Clone> MenuBar<'a, T> {
     /// moved into "⋯" has no field.
     ///
     /// A command in several menus is listed once, at its best match: hence `T: PartialEq`, the
-    /// only place the bar compares commands.
+    /// only place the bar compares commands. The commands are also kept between passes (`Send +
+    /// Sync + 'static`), for the entries the search lists, which are rebuilt only when the menus
+    /// change. Matches are ranked as [`CommandSearch`](crate::behavior::CommandSearch) does: a
+    /// command named exactly as the query comes before every other.
     pub fn help_search(mut self, index: usize) -> Self
     where
-        T: PartialEq,
+        T: PartialEq + Send + Sync + 'static,
     {
-        self.search = Some((index, T::eq));
+        self.search = Some((index, T::eq, search::cached_entries::<T>));
         self
     }
 
@@ -336,8 +339,8 @@ impl<'a, T: Clone> MenuBar<'a, T> {
             state.keys.off();
         }
         let underline = keys_on && mnemonics && state.keys.show_underlines(&ctx);
-        let mut search = self.search.map(|(_, same)| Search::load(&ctx, self.id, same));
-        let help = self.search.map(|(i, _)| i);
+        let mut search = self.search.map(|(_, same, entries)| Search::load(&ctx, self.id, same, entries));
+        let help = self.search.map(|(i, ..)| i);
 
         let height = style.rows.height;
         let mut chosen = None;

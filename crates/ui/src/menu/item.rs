@@ -30,7 +30,7 @@ impl ItemKind {
 /// One entry of a menu: a row, or a separator between groups of rows.
 ///
 /// Separators at the start or end of a menu, and a separator after another, are not drawn.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum MenuEntry<T> {
     Item(MenuItem<T>),
     Separator,
@@ -53,7 +53,7 @@ impl<T> From<MenuItem<T>> for MenuEntry<T> {
 }
 
 /// What a row does.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum Action<T> {
     /// Runs the command: the menu returns it.
     Run(T),
@@ -76,7 +76,7 @@ enum Action<T> {
 ///     MenuItem::submenu("Zoom", vec![MenuItem::new("Fit", "fit").into(), MenuItem::new("100%", "actual").into()]).into(),
 /// ];
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MenuItem<T> {
     label: String,
     english: Option<String>,
