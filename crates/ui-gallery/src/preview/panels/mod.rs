@@ -1,4 +1,17 @@
-//! The dock's panels. Each has its own file, filled by the dock step.
+//! The dock's panels, one file each, drawn into the body the dock gives them.
+
+mod adjustments;
+mod channels;
+mod history;
+mod layers;
+mod properties;
+mod swatches;
+#[cfg(test)]
+mod tests;
+
+use egui::Ui;
+
+use super::model::Mock;
 
 /// The panels the dock holds, in the order of the Window menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -25,6 +38,30 @@ impl Panel {
             Panel::Layers => "Layers",
             Panel::Channels => "Channels",
             Panel::History => "History",
+        }
+    }
+}
+
+/// What the panels keep between frames besides the document: list selections and the channels'
+/// eyes.
+#[derive(Clone, Debug, Default)]
+pub struct State {
+    layers: layers::State,
+    channels: channels::State,
+    history: history::State,
+}
+
+impl Panel {
+    /// The panel's body. The canvas is the dock's own.
+    pub fn show(self, ui: &mut Ui, mock: &mut Mock, state: &mut State) {
+        match self {
+            Panel::Canvas => {}
+            Panel::Swatches => swatches::show(ui, mock),
+            Panel::Properties => properties::show(ui),
+            Panel::Adjustments => adjustments::show(ui),
+            Panel::Layers => layers::show(ui, mock, &mut state.layers),
+            Panel::Channels => channels::show(ui, &mut state.channels),
+            Panel::History => history::show(ui, mock, &mut state.history),
         }
     }
 }
