@@ -28,6 +28,7 @@ struct Rig {
     gamut_calls: Cell<usize>,
     events: Vec<EditEvent<RampPick>>,
     cycles: usize,
+    menu_at: Option<Pos2>,
     bar: Rect,
     nodes: Vec<(NodeId, Node)>,
 }
@@ -47,6 +48,7 @@ impl Rig {
             gamut_calls: Cell::new(0),
             events: Vec::new(),
             cycles: 0,
+            menu_at: None,
             bar: Rect::NOTHING,
             nodes: Vec::new(),
         };
@@ -81,6 +83,7 @@ impl Rig {
         let Some(shown) = shown else { return };
         self.events.extend(shown.edit.event);
         self.cycles += usize::from(shown.cycle);
+        self.menu_at = shown.menu_at.or(self.menu_at);
         self.bar = shown.bar.rect;
         self.nodes = output.platform_output.accesskit_update.clone().map(|u| u.nodes).unwrap_or_default();
         output.drop_without_applying_deltas();
@@ -314,4 +317,28 @@ fn accesskit_names_the_group_with_its_kind_and_the_boxes() {
     assert_eq!(group.value(), Some("RGB Spectrum"));
     rig.node(Role::Button, "White");
     rig.node(Role::Button, "Black");
+}
+
+#[test]
+fn a_right_click_on_the_bar_asks_the_host_for_its_menu() {
+    let mut rig = Rig::new(RampKind::Spectrum);
+    let secondary = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    let at = rig.at(0.3, 0.5);
+    rig.time += 1.0;
+    rig.frame(vec![Event::PointerMoved(at), secondary(at, true)]);
+    rig.frame(vec![secondary(at, false)]);
+    assert_eq!(rig.menu_at, Some(at));
+    assert!(rig.take().is_empty(), "a right-click picks nothing");
+
+    // One frame, and a press that began outside the bar, which is no click on it.
+    rig.menu_at = None;
+    rig.time += 1.0;
+    rig.frame(vec![Event::PointerMoved(at), secondary(at, true), secondary(at, false)]);
+    assert_eq!(rig.menu_at, Some(at), "press and release in one frame");
+    rig.menu_at = None;
+    let off = pos2(rig.bar.left() - 5.0, rig.bar.center().y);
+    rig.time += 1.0;
+    rig.frame(vec![Event::PointerMoved(off), secondary(off, true)]);
+    rig.frame(vec![Event::PointerMoved(at), secondary(at, false)]);
+    assert_eq!(rig.menu_at, None);
 }

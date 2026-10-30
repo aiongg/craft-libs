@@ -46,6 +46,11 @@ pub struct ColorRampResponse {
     pub cycle: bool,
     /// The bar's response, for the host's `ContextMenu`.
     pub bar: Response,
+    /// A secondary click that began and ended on the bar: where the host opens its menu, with
+    /// `ContextMenu::open_at(Some(OpenAt::Pointer(pos)))` and `own_gestures(false)` on
+    /// [`bar`](ColorRampResponse::bar). The bar senses drags only, so egui's own secondary click
+    /// never fires on it.
+    pub menu_at: Option<Pos2>,
 }
 
 /// The value the gesture compares picks against: no colour a pick can have.
@@ -77,8 +82,8 @@ const NO_PICK: RampPick = RampPick { color: Srgba::new(-1.0, -1.0, -1.0, -1.0), 
 ///   [`Set`](crate::edit::EditEvent::Set). A [`Between`](RampKind::Between) ramp keeps the ends
 ///   it had at the press for the whole gesture. Alt at the press sets
 ///   [`other`](RampPick::other) on every event. A press with Shift starts no gesture; releasing
-///   it without moving sets [`cycle`](ColorRampResponse::cycle). A right-click is the host's
-///   `ContextMenu` on [`bar`](ColorRampResponse::bar).
+///   it without moving sets [`cycle`](ColorRampResponse::cycle). A right-click on the bar is
+///   reported as [`menu_at`](ColorRampResponse::menu_at) for the host's `ContextMenu`.
 /// - Boxes: a click on the white or the black box (also by keyboard) is a
 ///   [`Set`](crate::edit::EditEvent::Set) of that colour; they are Tab stops of their own.
 /// - Keys, with the bar focused: it has a cursor cell, starting at the left end of the middle row,
@@ -247,6 +252,7 @@ impl<'a> ColorRamp<'a> {
         let response = sensed.response().clone();
         let (id, enabled) = (response.id, response.enabled());
         let mods = ui.input(|i| i.modifiers);
+        let menu_at = if enabled { secondary_click(ui, &response, bar) } else { None };
 
         // The host holds no pick, so the gesture compares against the one it last reported while it
         // runs: reading that as the host's echo keeps it from being cancelled as an outside change.
@@ -390,7 +396,7 @@ impl<'a> ColorRamp<'a> {
                 ui.data_mut(|d| d.insert_temp(host_key, NO_PICK));
             }
         }
-        ColorRampResponse { edit: EditResponse::new(response.clone(), event), cycle, bar: response }
+        ColorRampResponse { edit: EditResponse::new(response.clone(), event), cycle, bar: response, menu_at }
     }
 
     /// The white and black boxes, each a [`Set`](EditEvent::Set) of its colour through `gesture`;
@@ -467,6 +473,36 @@ struct Press {
     moved: bool,
     origin: Option<Pos2>,
     ends: [Srgba; 2],
+}
+
+/// The position of a secondary click this frame whose press and release were both on `bar` and
+/// not under another layer. Read from the raw events because the bar senses drags only.
+fn secondary_click(ui: &Ui, response: &Response, bar: Rect) -> Option<Pos2> {
+    let key = response.id.with("craft_ui::ramp_secondary");
+    let mut origin = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
+    let on_bar = |pos: Pos2| bar.contains(pos) && ui.ctx().layer_id_at(pos) == Some(response.layer_id);
+    let mut click = None;
+    let presses: Vec<(Pos2, bool)> = ui.input(|i| {
+        i.events
+            .iter()
+            .filter_map(|e| match e {
+                egui::Event::PointerButton { pos, button: PointerButton::Secondary, pressed, .. } => Some((*pos, *pressed)),
+                _ => None,
+            })
+            .collect()
+    });
+    for (pos, pressed) in presses {
+        if pressed {
+            origin = on_bar(pos);
+        } else {
+            if origin && on_bar(pos) {
+                click = Some(pos);
+            }
+            origin = false;
+        }
+    }
+    ui.data_mut(|d| d.insert_temp(key, origin));
+    click
 }
 
 /// `pos` as fractions of `bar`, kept inside it.
