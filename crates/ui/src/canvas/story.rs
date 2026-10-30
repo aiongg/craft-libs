@@ -1,6 +1,7 @@
 //! The gallery's story canvas: a checkerboard document under a [`CanvasView`] set by the story's
 //! args, which every canvas overlay story draws on.
 
+use crate::localized::Labels as _;
 use egui::accesskit::Role;
 use egui::{Color32, EventFilter, Id, Response, Sense, Shape, Stroke, Ui, WidgetInfo, vec2};
 use kurbo::{Point, Rect};
@@ -270,7 +271,7 @@ fn show_scrollbars(ui: &mut Ui, args: &mut ScrollbarsArgs) {
     if !overscroll {
         CanvasScrollbars::clamp(&mut view, DOC);
     }
-    let names = ScrollbarNames::new("Horizontal scroll bar", "Vertical scroll bar");
+    let names = ScrollbarNames::of(ui);
     let _ = CanvasScrollbars::new("canvas-story-scrollbars", names).overscroll(overscroll).show(ui, &mut view, DOC);
     ui.data_mut(|d| d.insert_temp(key, view.center));
 }

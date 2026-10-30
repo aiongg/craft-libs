@@ -1,5 +1,6 @@
 //! Stories of [`TabStrip`]: a document strip and panel groups.
 
+use crate::localized::Labels as _;
 use std::sync::Arc;
 
 use craft_theme::ControlSize;
@@ -340,7 +341,8 @@ fn show_panels(ui: &mut Ui, args: &mut PanelsArgs) {
                             MenuItem::new("Close", PanelCommand::Close).into(),
                             MenuItem::new("Close Tab Group", PanelCommand::CloseGroup).into(),
                         ];
-                        let response = ui.add(IconButton::new(Icon::More, "Panel menu").size(ControlSize::Sm));
+                        let response = ui
+                            .add(IconButton::new(Icon::More, crate::composites::panel_header::PanelHeaderLabels::of(ui).menu).size(ControlSize::Sm));
                         chosen = PressMenu::new(&entries).show(ui, &response).chosen;
                     })
                     .show(ui, &tabs)

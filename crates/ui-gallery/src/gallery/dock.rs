@@ -5,6 +5,7 @@ use craft_ui::controls::IconButton;
 use craft_ui::direction;
 use craft_ui::docking::{Action, DockArea, DockConfig, DockContent, DockHeights, Permissions, Workspace};
 use craft_ui::icons::Icon;
+use craft_ui::localized::Labels as _;
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::story::Story;
 use craft_ui::theme::{Tokens, TokensOf, margin};
@@ -48,7 +49,7 @@ impl Gallery {
             GalleryWorkspace::Theme => "gallery.dock.theme",
         };
         let tokens = Tokens::of(ui);
-        let mut config = DockConfig::default();
+        let mut config = DockConfig::of(ui);
         config.right_to_left = direction::is_rtl(ui);
         // Component tabs are documents: they close from their ×.
         config.tab_close_buttons = true;
@@ -349,7 +350,7 @@ impl DockContent<PanelId> for Panels<'_> {
         }
         let entries: Vec<MenuEntry<PanelCommand>> =
             vec![MenuItem::new("Reset args", PanelCommand::ResetArgs).into(), MenuItem::new("Reset layout", PanelCommand::ResetLayout).into()];
-        let button = ui.add(IconButton::new(Icon::More, "Panel menu").size(ControlSize::Sm));
+        let button = ui.add(IconButton::new(Icon::More, "Panel actions").size(ControlSize::Sm));
         match PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &button).chosen {
             Some(PanelCommand::ResetArgs) => self.gallery.reset_args(),
             Some(PanelCommand::ResetLayout) => self.gallery.reset_layout = true,

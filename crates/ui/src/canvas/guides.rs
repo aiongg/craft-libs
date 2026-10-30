@@ -2,6 +2,7 @@
 //! host shows while something moves.
 
 use crate::canvas::story::ViewArgs;
+use crate::localized::Labels as _;
 use std::ops::Range;
 
 use egui::accesskit::Role;
@@ -1122,7 +1123,7 @@ fn show_guides(ui: &mut Ui, args: &mut GuidesArgs) {
     }
     let canvas = super::story::document(ui, args.view, "Document");
     let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
-    let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
+    let names = GuideNames::of(ui);
     let mut guides =
         Guides::new("story-guides", &host.guides, &px, &px, names).selected(host.selected).interactive(args.interactive).bounds(super::story::DOC);
     if args.readout {

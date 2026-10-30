@@ -1,6 +1,7 @@
 //! The path overlay's story, and the host the story and the tests keep their paths in.
 
 use crate::canvas::story::ViewArgs;
+use crate::localized::Labels as _;
 use egui::{Color32, Ui};
 use kurbo::{ParamCurve as _, Point};
 
@@ -235,7 +236,7 @@ fn show_paths(ui: &mut Ui, args: &mut EditArgs) {
     let handles = if args.handles == HandlesArg::All { HandlesShown::All } else { HandlesShown::Selected };
     let canvas = crate::canvas::story::document(ui, args.view, "Document");
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
-    let names = BezierNames::new("Paths", "In handle", "Out handle", "Selection", |i, n| format!("Anchor {i} of {n}"));
+    let names = BezierNames::of(ui);
     let response = BezierOverlay::new("story-bezier", &host.paths, &host.selection, &px, &px, names).tool(tool).handles(handles).show(
         ui,
         &canvas.response,

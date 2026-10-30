@@ -443,7 +443,7 @@ fn show_story(ui: &mut Ui, args: &mut RailArgs) {
         .collect();
     let open: Vec<&str> = args.open.panel().into_iter().collect();
     ui.allocate_ui(vec2(120.0, height), |ui| {
-        PanelRail::new("story").label("Panels").show(ui, &items, &open, |_| {});
+        PanelRail::new("story").show(ui, &items, &open, |_| {});
     });
 }
 

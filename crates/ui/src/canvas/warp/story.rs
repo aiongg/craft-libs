@@ -3,10 +3,11 @@
 //! patch's control points so the surface point follows the pointer).
 
 use crate::canvas::story::ViewArgs;
+use crate::localized::Labels as _;
 use egui::{Color32, Mesh, Ui};
 use kurbo::{Point, Rect};
 
-use super::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSide, WarpSplit, cubic};
+use super::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSplit, cubic};
 use crate::canvas::RulerUnits;
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
@@ -55,12 +56,14 @@ pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!("primitives/warp-grid/warp", Level::Primitives, "Warp grid", "Warp", WarpArgs::default(), show_warp).on(Surface::Canvas)]
 }
 
-/// The English names the story and tests use.
+/// The English names the tests use.
+#[cfg(test)]
 pub(crate) fn english_names() -> WarpNames<'static> {
     WarpNames::new(
         "Warp",
         |row, column| format!("Row {row}, column {column}"),
         |row, column, side| {
+            use super::super::WarpSide;
             let side = match side {
                 WarpSide::Up => "up",
                 WarpSide::Left => "left",
@@ -198,7 +201,7 @@ fn show_warp(ui: &mut Ui, args: &mut WarpArgs) {
     paint_picture(ui, view, &host.mesh);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let mesh = host.mesh.clone();
-    let r = WarpGrid::new("story-warp", &mesh, PICTURE, english_names())
+    let r = WarpGrid::new("story-warp", &mesh, PICTURE, WarpNames::of(ui))
         .editable(args.editable)
         .split(match args.split {
             SplitArg::Cross => Some(WarpSplit::Cross),

@@ -7,7 +7,7 @@
 use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::canvas::{CanvasScrollbars, CanvasView, MarqueeDrag, MarqueeShape, RulerNames, RulerUnits, Rulers, ScrollbarNames};
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
 use craft_ui::shell::{ShellCx, WindowKey};
 use craft_ui::tab_strip::{Tab, TabKind, TabStrip};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -238,7 +238,7 @@ pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) {
     }
     mock.doc.selection = selection.map(|r| [r.x0, r.y0, r.x1, r.y1]);
 
-    let names = ScrollbarNames::new("Horizontal scroll bar", "Vertical scroll bar");
+    let names = ScrollbarNames::of(ui);
     if chrome.is_none_or(|c| c.scrollbars) && CanvasScrollbars::new(id.with("scrollbars"), names).show(ui, &mut cv, page).changed {
         mock.view.center = [cv.center.x, cv.center.y];
     }
@@ -246,7 +246,7 @@ pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) {
     if mock.view.rulers {
         let zero = Point::new(mock.view.zero[0], mock.view.zero[1]);
         let units = RulerUnits::pixels((*numbers).clone());
-        let names = RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin");
+        let names = RulerNames::of(ui);
         let rulers = Rulers::new(id.with("rulers"), &units, &units, names).zero(zero).show(ui, full, &cv, None);
         if rulers.reset_origin {
             mock.view.zero = [0.0, 0.0];

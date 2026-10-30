@@ -9,6 +9,7 @@ use craft_ui::docking::{
 };
 use craft_ui::icons::{self, Icon};
 use craft_ui::layout::{SplitAxis, SplitSize};
+use craft_ui::localized::Labels as _;
 use egui::{CentralPanel, Color32, Frame, Painter, Rect, Ui};
 
 use super::canvas::{self, Chrome};
@@ -213,7 +214,7 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState, chrome: Option<
         return;
     }
     let id = ui.scope_id().with("dock");
-    let mut config = DockConfig::default();
+    let mut config = DockConfig::of(ui);
     config.right_to_left = craft_ui::direction::is_rtl(ui);
     // Panels never close by the user's hand; the Window menu hides and shows them.
     config.close_menu_items = false;

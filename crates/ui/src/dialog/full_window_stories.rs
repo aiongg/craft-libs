@@ -2,7 +2,8 @@
 
 use egui::{Rect, Ui, pos2, vec2};
 
-use super::{ButtonRole, DialogState, FooterButton, FullWindowDialog, Outcome};
+use super::{ButtonRole, DialogLabels, DialogState, FooterButton, FullWindowDialog, Outcome};
+use crate::localized::Labels as _;
 use crate::story::{Level, Story, StoryArgs};
 use crate::typed_story;
 
@@ -49,9 +50,10 @@ fn show_workspace(ui: &mut Ui, args: &mut WorkspaceArgs) {
             ui.scope_builder(egui::UiBuilder::new().max_rect(Rect::from_min_max(pos2(panel.left(), panel.top() + 36.0), panel.max)), |ui| {
                 ui.add(egui::Slider::new(brush, 1.0..=100.0).text("Brush size"));
             });
-            let mut buttons = vec![FooterButton::new(ButtonRole::Default, "OK"), FooterButton::new(ButtonRole::Cancel, "Cancel")];
+            let labels = DialogLabels::of(ui);
+            let mut buttons = vec![FooterButton::new(ButtonRole::Default, labels.ok), FooterButton::new(ButtonRole::Cancel, labels.cancel)];
             if apply {
-                buttons.push(FooterButton::new(ButtonRole::Apply, "Apply"));
+                buttons.push(FooterButton::new(ButtonRole::Apply, labels.apply));
             }
             fx.buttons(ui, Rect::from_min_max(pos2(panel.left(), panel.bottom() - 28.0), panel.max), buttons);
         });

@@ -9,7 +9,7 @@ use crate::canvas::{CanvasView, GradientExtent, GradientLine, LineGradient, grad
 use crate::composites::gradient::stops::{StopRules, sample};
 use crate::composites::{ColorStop, GradientEditor, GradientStops, StopRef, StopRow, StopRows};
 use crate::edit::{EditEvent, GestureHost, UndoMarks, describe};
-use crate::localized::LocaleNumbers;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::story::{Level, Story, StoryChoice, Surface};
 use crate::typed_story;
 use craft_theme::Srgba;
@@ -126,7 +126,8 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
-/// The English names the story and tests use.
+/// The English names the tests use.
+#[cfg(test)]
 pub(crate) fn english_names() -> GradientLineNames {
     GradientLineNames { group: "Gradient".into(), line: "Gradient line".into(), start: "Start point".into(), end: "End point".into() }
 }
@@ -220,7 +221,7 @@ fn show_edit(ui: &mut Ui, args: &mut EditArgs) {
         state.selected_arg = Some(selected_arg);
     }
     let value = state.host.value.clone();
-    let r = GradientOverlay::new("story-gradient", &value.line, &value.stops, english_names())
+    let r = GradientOverlay::new("story-gradient", &value.line, &value.stops, GradientLineNames::of(ui))
         .rules(StopRules { rows, ..StopRules::default() })
         .midpoints(args.midpoints)
         .reverse(reverse)
@@ -332,7 +333,7 @@ fn show_with_editor(ui: &mut Ui, args: &mut WithEditorArgs) {
         let view = &canvas.view;
         paint_picture(ui, view, &state.doc.value, rows, reverse);
         let value = state.doc.value.clone();
-        let r = GradientOverlay::new("story-gradient", &value.line, &value.stops, english_names())
+        let r = GradientOverlay::new("story-gradient", &value.line, &value.stops, GradientLineNames::of(ui))
             .rules(rules.clone())
             .midpoints(args.midpoints)
             .reverse(reverse)

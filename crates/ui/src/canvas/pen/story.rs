@@ -1,5 +1,6 @@
 //! The pen draft's story, and the host the story and the tests keep their paths and draft in.
 
+use crate::localized::Labels as _;
 use egui::{Key, Modifiers, Ui};
 use kurbo::Point;
 
@@ -111,7 +112,7 @@ fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
     let canvas = crate::canvas::story::document(ui, args.view, "Document");
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let selection = PathSelection::default();
-    let names = BezierNames::new("Paths", "In handle", "Out handle", "Selection", |i, n| format!("Anchor {i} of {n}"));
+    let names = BezierNames::of(ui);
     let shown = BezierOverlay::new("story-pen-paths", &host.paths, &selection, &px, &px, names).tool(BezierTool::Show).show(
         ui,
         &canvas.response,
@@ -122,7 +123,7 @@ fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
         PenDraft::remove_last(ui.ctx(), ui.make_persistent_id("story-pen"));
     }
     let ends = host.ends();
-    let names = PenNames::new("Path being drawn", |i, n| format!("Anchor {i} of {n}"));
+    let names = PenNames::of(ui);
     let response = PenDraft::new("story-pen", host.draft.as_ref(), names).ends(&ends).units(&px, &px).show(ui, &canvas.response, &canvas.view);
     host.apply(&response);
     ui.data_mut(|d| d.insert_temp(key, host));

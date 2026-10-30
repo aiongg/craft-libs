@@ -1,6 +1,8 @@
 //! The gradient editor's stories: PhotoCraft's split bar, DesignCraft's and VectorCraft's
 //! combined one, and PhotoCraft's Gradient Editor dialog.
 
+use crate::dialog::DialogLabels;
+use crate::localized::Labels as _;
 use craft_theme::{Rgba, Srgba};
 use egui::{Id, Ui, vec2};
 
@@ -241,8 +243,8 @@ fn show_dialog(ui: &mut Ui, args: &mut DialogArgs) {
                     }
                 });
                 Row::new(Gap::Inline).show(ui, |ui| {
-                    ok = ui.add(Button::new("OK").variant(ButtonVariant::Primary)).clicked();
-                    cancel = ui.add(Button::new("Cancel")).clicked();
+                    ok = ui.add(Button::new(DialogLabels::of(ui).ok).variant(ButtonVariant::Primary)).clicked();
+                    cancel = ui.add(Button::new(DialogLabels::of(ui).cancel)).clicked();
                 });
             });
             ui.add(Text::new(format!("Updates: {}", dialog.updates)).content(Content::Muted));

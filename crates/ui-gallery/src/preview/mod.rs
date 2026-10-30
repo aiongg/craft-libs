@@ -19,6 +19,7 @@ mod tools;
 use std::cell::RefCell;
 
 use craft_ui::dialog::DialogState;
+use craft_ui::localized::Labels as _;
 use craft_ui::patterns::LastUsed;
 use craft_ui::shell::{AppShell, BodyMode, CanvasLabels, CanvasShell, ScreenMode, WindowKey, take_tab_toggle};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -101,7 +102,7 @@ impl AppPreview {
         ui.painter().rect_filled(layout, 0.0, background);
         // The slot closures and the body run one after the other; the cell hands each the app.
         let this = RefCell::new(&mut *self);
-        let labels = CanvasLabels { options: Some("Options".to_owned()), tools: Some("Tools".to_owned()), status: Some("Status".to_owned()) };
+        let labels = CanvasLabels::of(ui);
         let mode = view.mode;
         let body_mode = if mode.body_only() { BodyMode::Only } else { BodyMode::Normal };
         let pass = ctx.cumulative_pass_nr();

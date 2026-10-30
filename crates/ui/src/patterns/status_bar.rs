@@ -8,7 +8,7 @@ use crate::composites::{live, measure};
 use crate::controls::{IconButton, NumberField, Progress};
 use crate::direction;
 use crate::icons::Icon;
-use crate::localized::{LocaleNumbers, Unit};
+use crate::localized::{Labels as _, LocaleNumbers, Unit};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Content, Divider, Text};
 use crate::story::{Level, NoArgs, Story, StoryArgs, Surface};
@@ -392,7 +392,12 @@ fn job_story(ui: &mut Ui, _: &mut NoArgs) {
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         StatusBar::new("status-bar-job").show(ui, |bar| {
-            bar.trailing(|ui| drop(StatusBar::progress(ui, StatusProgress::new("Blur", Some(0.45)).percent("45%").cancel("Cancel"))));
+            bar.trailing(|ui| {
+                drop(StatusBar::progress(
+                    ui,
+                    StatusProgress::new("Blur", Some(0.45)).percent("45%").cancel(crate::dialog::DialogLabels::of(ui).cancel),
+                ))
+            });
         });
     });
 }
