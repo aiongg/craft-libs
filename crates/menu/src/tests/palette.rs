@@ -32,7 +32,7 @@ fn bar() -> MenuBar {
 }
 
 fn entries(target: Target) -> Vec<craft_ui::behavior::PaletteEntry<CommandRef>> {
-    bar().palette_entries(&keys(), target, &LayoutOptions::new("Sample"), &egui::Context::default())
+    bar().palette_entries(&keys(), target, &LayoutOptions::new("Sample"), None, &egui::Context::default())
 }
 
 fn find<'a>(all: &'a [craft_ui::behavior::PaletteEntry<CommandRef>], id: &str) -> &'a craft_ui::behavior::PaletteEntry<CommandRef> {
@@ -72,4 +72,17 @@ fn a_search_finds_a_nested_command_by_a_word_of_its_path() {
     let all = entries(Target::Linux);
     let found = CommandSearch::new(&all).query("adjustments").results(5);
     assert_eq!(found.first().map(|m| m.entry.command().id.as_str()), Some("image.curves"));
+}
+
+#[test]
+fn a_translated_command_is_found_by_its_english_name() {
+    let bar = MenuBar { menus: vec![Menu::new("Datei", vec![Item::new("file.save", "Speichern").into()])], documents: Vec::new() };
+    let english = |l: Labeled<'_>| match l {
+        Labeled::Command(c) if c.id == "file.save" => Some("Save".to_owned()),
+        Labeled::Title("Datei") => Some("File".to_owned()),
+        _ => None,
+    };
+    let all = bar.palette_entries(&keys(), Target::Linux, &LayoutOptions::new("Sample"), Some(&english), &egui::Context::default());
+    assert_eq!(CommandSearch::new(&all).query("save").results(5).len(), 1);
+    assert_eq!(CommandSearch::new(&all).query("speich").results(5).len(), 1);
 }
