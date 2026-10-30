@@ -86,7 +86,7 @@ pub struct TreeRow<'a, K> {
     branch: Branch,
 }
 
-impl<'a, K: Hash + Debug + Clone> TreeRow<'a, K> {
+impl<'a, K: Hash + Debug + Clone + Send + Sync + 'static> TreeRow<'a, K> {
     /// `row` at `depth` levels down; `has_children` shows the triangle, `open` its state.
     pub fn new(row: ListRow<'a, K>, depth: usize, has_children: bool, open: bool) -> Self {
         Self { row, branch: Branch { depth, group: has_children, open: has_children && open, siblings: None } }

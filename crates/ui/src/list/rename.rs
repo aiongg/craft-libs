@@ -21,6 +21,25 @@ struct Draft {
     tab: Option<bool>,
 }
 
+/// The row whose rename is open, kept in egui memory per key type: only one field holds the focus.
+#[derive(Clone, Debug)]
+struct Open<K> {
+    row_id: Id,
+    key: K,
+}
+
+fn open_slot() -> Id {
+    Id::NULL.with("craft-list-open-rename")
+}
+
+/// Takes the open rename of whichever row with key type `K` has one: its key and its text.
+pub(super) fn take_open_draft<K: Clone + Send + Sync + 'static>(ctx: &egui::Context) -> Option<(K, String)> {
+    let open = ctx.data(|d| d.get_temp::<Option<Open<K>>>(open_slot())).flatten();
+    ctx.data_mut(|d| d.insert_temp(open_slot(), None::<Open<K>>));
+    let open = open?;
+    take_draft(ctx, open.row_id).map(|text| (open.key, text))
+}
+
 /// Takes the text typed into the open rename of the row `row_id`, closing it; `None` when no
 /// field was shown for it.
 pub(super) fn take_draft(ctx: &egui::Context, row_id: Id) -> Option<String> {
@@ -31,7 +50,7 @@ pub(super) fn take_draft(ctx: &egui::Context, row_id: Id) -> Option<String> {
 }
 
 /// Shows the rename field in `band` and reports how the rename ends, if it does.
-pub(super) fn show<K: Clone>(ui: &mut Ui, row_id: Id, key: &K, label: &str, band: Rect, events: &mut Vec<RowEvent<K>>) {
+pub(super) fn show<K: Clone + Send + Sync + 'static>(ui: &mut Ui, row_id: Id, key: &K, label: &str, band: Rect, events: &mut Vec<RowEvent<K>>) {
     let memory = row_id.with("rename");
     let stored = ui.data(|d| d.get_temp::<Option<Draft>>(memory)).flatten();
     let fresh = stored.is_none();
@@ -83,14 +102,20 @@ pub(super) fn show<K: Clone>(ui: &mut Ui, row_id: Id, key: &K, label: &str, band
     };
     match end {
         Some(end) => {
-            ui.data_mut(|d| d.insert_temp(memory, None::<Draft>));
+            ui.data_mut(|d| {
+                d.insert_temp(memory, None::<Draft>);
+                d.insert_temp(open_slot(), None::<Open<K>>);
+            });
             if end != RenameEnd::Escape && text != label {
                 events.push(RowEvent::Renamed { row: key.clone(), text });
             }
             events.push(RowEvent::RenameEnded { row: key.clone(), end });
         }
         None => {
-            ui.data_mut(|d| d.insert_temp(memory, Some(Draft { text, tab })));
+            ui.data_mut(|d| {
+                d.insert_temp(memory, Some(Draft { text, tab }));
+                d.insert_temp(open_slot(), Some(Open { row_id, key: key.clone() }));
+            });
         }
     }
 }

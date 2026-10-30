@@ -1113,3 +1113,79 @@ fn the_host_commits_an_open_rename_when_it_starts_another() {
     assert_eq!(harness.query_all_by_role(Role::TextInput).count(), 1);
     assert_eq!(harness.get_by_role(Role::TextInput).accesskit_node().label().as_deref(), Some("Layer 2"));
 }
+
+/// A row too narrow for its required parts keeps the label's least width, reports the width it
+/// needs, and the row's edge cuts what doesn't fit.
+#[test]
+fn a_row_too_narrow_for_its_parts_keeps_the_label_and_clips_at_its_edge() {
+    use std::cell::{Cell, RefCell};
+    let s = style();
+    let ctx = context();
+    let run = |width: f32| {
+        let (label, min, measured, row) = (Cell::new(Rect::NOTHING), Cell::new(0.0), Cell::new(0.0), Cell::new(Rect::NOTHING));
+        let build = || {
+            ListRow::new(1u8, "A layer with a long name")
+                .thumb(ThumbSize::Medium, |_, _| {})
+                .extra_thumb(|_, _| {})
+                .thumb_link(true, "Link {row}")
+                .extra_thumb(|_, _| {})
+                .trailing_item(16.0, |_| {})
+                .trailing_item(20.0, |_| {})
+                .optional_item(40.0, |_| {})
+        };
+        let shapes = RefCell::new(Vec::new());
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            panel(ui, width, |ui| {
+                measured.set(build().min_width(ui));
+                let out = build().show(ui);
+                (label.set(out.label), min.set(out.min_width), row.set(out.response.rect));
+            })
+        });
+        output.shapes.iter().for_each(|s| shapes.borrow_mut().push(s.clip_rect));
+        output.drop_without_applying_deltas();
+        (label.get(), min.get(), measured.get(), row.get(), shapes.into_inner())
+    };
+    let (_, needed, measured, ..) = run(1000.0);
+    let side = s.thumb_side(ThumbSize::Medium);
+    let leading = 3.0 * side + s.icon_size + s.gap;
+    let expected = s.pad_x + leading + s.gap + (16.0 + s.gap) + (20.0 + s.gap) + s.min_label + s.trailing_pad;
+    assert!((needed - expected).abs() < 0.01, "{needed} vs {expected}");
+    assert_eq!(measured, needed, "the measure equals what the row lays out");
+    for width in [needed, needed - 40.0, 90.0] {
+        let (label, min, _, row, clips) = run(width);
+        assert_eq!(min, needed, "{width}");
+        assert!(label.width() >= s.min_label - 0.5, "{width}: {label:?}");
+        assert!(clips.iter().all(|c| c.right() <= row.right() + 0.5), "{width}: nothing is painted outside the row: {clips:?} {row:?}");
+    }
+}
+
+/// The host takes the open rename's draft with the context alone, as a menu command does.
+#[test]
+fn the_context_takes_the_open_rename_with_its_key() {
+    struct State {
+        renaming: bool,
+        ended: bool,
+    }
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, state: &mut State| {
+            panel(ui, 240.0, |ui| {
+                let out = ListRow::new(7usize, "Layer 1").renaming(state.renaming).show(ui);
+                for event in out.events {
+                    if let RowEvent::RenameEnded { .. } = event {
+                        state.renaming = false;
+                        state.ended = true;
+                    }
+                }
+            })
+        },
+        State { renaming: true, ended: false },
+    );
+    harness.run();
+    harness.event(Event::Text("Sky".to_owned()));
+    harness.run();
+    assert_eq!(ListRow::<usize>::take_open_rename_draft(&harness.ctx), Some((7, "Sky".to_owned())));
+    assert_eq!(ListRow::<usize>::take_open_rename_draft(&harness.ctx), None, "taking ends the rename");
+    harness.state_mut().renaming = false;
+    harness.run();
+    assert_eq!(harness.query_all_by_role(Role::TextInput).count(), 0);
+}

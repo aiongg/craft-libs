@@ -208,6 +208,11 @@ pub struct RowResponse<K> {
     /// click (PhotoCraft's menu on the eye), the hover and the focus from it. Primary clicks and
     /// drags are the cell's [`RowEvent::Toggle`] edits.
     pub toggles: Vec<Response>,
+    /// The least width the row needs: its required parts (toggle columns, disclosure, thumbnails
+    /// and links, required trailing items) and `list.min_label` for the label. The same as
+    /// [`ListRow::min_width`]. A narrower row is clipped at its trailing edge. A host sets its
+    /// panel's minimum width from this.
+    pub min_width: f32,
 }
 
 /// A row's sizes and colours, from [`ListRow::style`].
@@ -353,7 +358,9 @@ impl ListRowStyle {
 ///   items are placed first, from the trailing edge inward; those marked
 ///   [optional](ListRow::optional_item) drop out, in the order given, before the label would
 ///   get narrower than `list.min_label`, and the indent shrinks before the label gets narrower
-///   than that.
+///   than that. The label is never narrower than `list.min_label`: a row too narrow for its
+///   required parts and that label is clipped at the trailing edge, and
+///   [`min_width`](ListRow::min_width) is the width it needs.
 /// - **Rename.** While [`renaming`](ListRow::renaming), a [`TextField`](crate::controls::TextField)
 ///   with the whole label selected replaces the label and has the focus. Enter, Tab, Shift+Tab or
 ///   the focus leaving commit; Esc cancels; unchanged text renames nothing. A rename ends with
@@ -400,7 +407,7 @@ pub(super) fn row_id<K: std::hash::Hash + std::fmt::Debug>(scope: Id, key: &K) -
     scope.with(("list-row", key))
 }
 
-impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
+impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> ListRow<'a, K> {
     /// A row for `key`, which keeps its state (the open rename) across frames and names it in
     /// events, showing `label`.
     pub fn new(key: K, label: impl Into<String>) -> Self {
@@ -469,6 +476,32 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
     /// [`renaming`](ListRow::renaming) any more.
     pub fn take_rename_draft(ui: &Ui, key: &K) -> Option<String> {
         rename::take_draft(ui.ctx(), row_id(ui.scope_id(), key))
+    }
+
+    /// Takes the open rename of whichever row with this key type is renaming, closing it, and
+    /// returns that row's key with the text typed; `None` when no rename is open. Only one rename
+    /// is open at a time, since the field holds the keyboard focus. For a host command that runs
+    /// with the [`Context`](egui::Context) only (a menu item): apply the text as
+    /// [`RowEvent::Renamed`] would.
+    pub fn take_open_rename_draft(ctx: &egui::Context) -> Option<(K, String)> {
+        rename::take_open_draft(ctx)
+    }
+
+    /// The width the row needs in `ui`'s theme: its required parts and `list.min_label` for the
+    /// label, whatever the indent (which shrinks). Equals [`RowResponse::min_width`] of the shown
+    /// row; measures without showing.
+    pub fn min_width(&self, ui: &Ui) -> f32 {
+        let style = Self::style(&Tokens::of(ui));
+        let (column, leading) = self.extent(&style);
+        let widths: Vec<(f32, bool)> = self.trailing.iter().map(|t| (t.width, t.optional)).collect();
+        min_width(&style, self.columns.len(), column, leading, &widths)
+    }
+
+    /// The width of a tree row's disclosure and clipping columns, and of the leading part.
+    fn extent(&self, style: &ListRowStyle) -> (f32, Option<f32>) {
+        let disclosure = self.branch.map_or(0.0, |b| if b.group { style.disclosure } else { 0.0 });
+        let marker = if self.clipped { style.icon_size } else { 0.0 };
+        (disclosure + marker, leading_width(style, self.thumb, self.icon.is_some(), self.thumb_width, &self.extras))
     }
 
     /// The row's key.
@@ -766,18 +799,15 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         }
 
         let side = style.thumb_side(thumb);
-        let leading = match (side > 0.0, icon) {
-            (true, _) => Some(thumb_width.unwrap_or(side)),
-            (false, Some(_)) => Some(style.icon_size),
-            (false, None) => None,
-        };
-        // With extra thumbnails the leading part is every thumbnail and what is between them.
+        let first_width = (side > 0.0).then(|| thumb_width.unwrap_or(side));
+        let leading = leading_width(&style, thumb, icon.is_some(), thumb_width, &extras);
         let extras = if side > 0.0 && thumb != ThumbSize::None { extras } else { Vec::new() };
-        let between = |extra: &ExtraThumb<'_>| if extra.link.is_some() { style.icon_size } else { style.gap };
-        let first_width = leading;
-        let leading = leading.map(|first| first + extras.iter().map(|extra| first + between(extra)).sum::<f32>());
         let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
+        let min_width = min_width(&style, columns.len(), column, leading, &widths);
         let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), columns.len(), (indent, column), leading, &widths);
+        // Parts that don't fit stay in their place and the row's trailing edge cuts them.
+        let outer_clip = ui.clip_rect();
+        ui.set_clip_rect(outer_clip.intersect(rect));
         let visible = ui.is_rect_visible(rect);
         let hovered = ui.rect_contains_pointer(rect) && ui.is_enabled();
         if visible {
@@ -819,7 +849,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
                     thumbs.push((ThumbTarget::First, first));
                     let mut offset = first_width;
                     for (index, extra) in extras.into_iter().enumerate() {
-                        let gap = between(&extra);
+                        let gap = between(&style, &extra);
                         let other = part(offset + gap, first_width);
                         paint_thumb(ui, &style, other, Some(extra.paint), false);
                         thumbs.push((ThumbTarget::Extra(index), other));
@@ -870,12 +900,40 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             let mut child = ui.new_child(UiBuilder::new().max_rect(at).layout(direction::row(ui)));
             (item.add)(&mut child);
         }
+        ui.set_clip_rect(outer_clip);
         if let Some(mark) = drop {
             paint_drop_mark(ui, &style, rect, mark);
         }
         FocusRing::paint_if(ui, rect, corner_radius(style.radius), focused);
-        RowResponse { response, events, label: band, toggles }
+        RowResponse { response, events, label: band, toggles, min_width }
     }
+}
+
+/// The space between a thumbnail and the one after it: the link glyph's slot, or the gap.
+fn between(style: &ListRowStyle, extra: &ExtraThumb<'_>) -> f32 {
+    if extra.link.is_some() { style.icon_size } else { style.gap }
+}
+
+/// The width of a row's leading part (every thumbnail and what is between them, or the icon),
+/// without the gap after it; `None` for a row without one.
+fn leading_width(style: &ListRowStyle, thumb: ThumbSize, has_icon: bool, thumb_width: Option<f32>, extras: &[ExtraThumb<'_>]) -> Option<f32> {
+    let side = style.thumb_side(thumb);
+    match (side > 0.0, has_icon) {
+        (true, _) => {
+            let first = thumb_width.unwrap_or(side);
+            let extras = if thumb != ThumbSize::None { extras } else { &[] };
+            Some(first + extras.iter().map(|extra| first + between(style, extra)).sum::<f32>())
+        }
+        (false, true) => Some(style.icon_size),
+        (false, false) => None,
+    }
+}
+
+/// The least width of a row: everything but the indent and the optional items, and `min_label`.
+fn min_width(style: &ListRowStyle, columns: usize, column: f32, leading: Option<f32>, items: &[(f32, bool)]) -> f32 {
+    let required: f32 = items.iter().filter(|(_, optional)| !optional).map(|(w, _)| w + style.gap).sum();
+    let leading = leading.map_or(0.0, |side| side + style.gap);
+    columns as f32 * style.toggle_column + style.pad_x + column + leading + style.min_label + required + style.trailing_pad
 }
 
 /// Where the parts of a row lie, as offsets from the reading start of the row.
@@ -913,7 +971,11 @@ impl Geometry {
                 used += width + style.gap;
             }
         }
+        // A row too narrow for its required parts keeps the label's least width; the items that
+        // follow it move out with it and the row's edge cuts them.
         let label_end = end - used;
+        let overflow = (base + column + leading_width + style.min_label - label_end).max(0.0);
+        let label_end = label_end + overflow;
         let indent = indent.min((label_end - base - column - leading_width - style.min_label).max(0.0));
         let mut from_end = 0.0;
         let items = items
@@ -921,7 +983,7 @@ impl Geometry {
             .zip(&kept)
             .map(|((width, _), kept)| {
                 kept.then(|| {
-                    let start = end - from_end - width;
+                    let start = end - from_end - width + overflow;
                     from_end += width + style.gap;
                     (start, *width)
                 })
