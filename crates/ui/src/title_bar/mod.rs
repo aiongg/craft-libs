@@ -147,6 +147,7 @@ pub struct TitleBar<'a> {
     separator: bool,
     background: bool,
     title: Option<Title>,
+    title_when_native: bool,
     preview: Option<WindowState>,
 }
 
@@ -162,6 +163,7 @@ impl<'a> TitleBar<'a> {
             separator: false,
             background: true,
             title: None,
+            title_when_native: false,
             preview: None,
         }
     }
@@ -210,10 +212,20 @@ impl<'a> TitleBar<'a> {
     }
 
     /// The document title, centred between the groups of [`show_titled`](Self::show_titled). Drawn
-    /// only when the OS does not draw one: never under [`Frame::Native`].
+    /// only when the OS does not draw one: not under [`Frame::Native`] unless
+    /// [`title_when_native`](Self::title_when_native) is set.
     #[must_use]
     pub fn title(mut self, title: Title) -> Self {
         self.title = Some(title);
+        self
+    }
+
+    /// Draws the [`title`](Self::title) under [`Frame::Native`] too, placed as in an integrated
+    /// bar. For hosts with no OS title to show it, such as an embedder or the web build. Off by
+    /// default: the OS bar draws the title.
+    #[must_use]
+    pub fn title_when_native(mut self, draw: bool) -> Self {
+        self.title_when_native = draw;
         self
     }
 
@@ -343,7 +355,7 @@ impl<'a> TitleBar<'a> {
             let (from, to) = if rtl { (edges.trailing, edges.leading) } else { (edges.leading, edges.trailing) };
             let gap = Rect::from_min_max(pos2(from, bar.top()), pos2(to.max(from), bar.bottom()));
             measure::store(&ctx, scope, bar.width(), gap, empty.is_some());
-            if let Some(title) = title.filter(|_| !matches!(self.frame, Frame::Native)) {
+            if let Some(title) = title.filter(|_| self.title_when_native || !matches!(self.frame, Frame::Native)) {
                 title::paint(ui, &style, &title, title::Placement { bar, centre_line, left: from, right: to, rtl });
             }
         }
