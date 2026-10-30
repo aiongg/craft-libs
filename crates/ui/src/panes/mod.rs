@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 
 mod rail;
 
+#[allow(deprecated)]
 pub use rail::{RAIL_BUTTON, RAIL_WIDTH, Rail, RailItem, RailOutput, RailRequest};
 
 /// A title dragged this far out of a docked pane floats it; a pane dropped this close to the
@@ -949,6 +950,7 @@ pub fn float_rect(saved: Option<[f32; 4]>, bounds: Rect, min: Vec2) -> Rect {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod rail_tests;
 #[cfg(test)]
 mod tests;

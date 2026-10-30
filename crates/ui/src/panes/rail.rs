@@ -5,6 +5,9 @@
 //! that pane with [`super::PaneHost`] ([`super::SidePolicy::OneSlot`], not movable), and runs the
 //! [`RailRequest`] a click returns.
 
+// The module implements the deprecated types, so its own uses of them are not warned about.
+#![allow(deprecated)]
+
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -17,8 +20,10 @@ use crate::controls::TooltipExt as _;
 use crate::docking::chrome::ChromeStyle;
 
 /// Default width of the rail.
+#[deprecated(note = "use `patterns::PanelRail`")]
 pub const RAIL_WIDTH: f32 = 48.0;
 /// Default width and height of one item.
+#[deprecated(note = "use `patterns::PanelRail`")]
 pub const RAIL_BUTTON: f32 = 34.0;
 /// Room between two items.
 const SPACING: f32 = 4.0;
@@ -31,6 +36,7 @@ const MAX_SIZE: f32 = 4096.0;
 
 /// One icon of the rail, standing for the pane it opens.
 #[derive(Clone, Debug)]
+#[deprecated(note = "use `patterns::PanelRail`")]
 pub struct RailItem<P> {
     pub pane: P,
     /// Painted tinted with the chrome's text colors, like docking's panel icons.
@@ -72,6 +78,7 @@ impl<P> RailItem<P> {
 /// What a click on an item asks the app to do.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[deprecated(note = "use `patterns::PanelRail`")]
 pub enum RailRequest<P> {
     /// Open this pane in place of the open one.
     Open(P),
@@ -82,6 +89,7 @@ pub enum RailRequest<P> {
 /// What [`Rail::show`] returns.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[deprecated(note = "use `patterns::PanelRail`")]
 pub struct RailOutput<P> {
     /// The click of this frame, if any.
     pub request: Option<RailRequest<P>>,
@@ -92,6 +100,7 @@ pub struct RailOutput<P> {
 }
 
 /// Draws the icon rail. Build it every frame.
+#[deprecated(note = "use `patterns::PanelRail`")]
 pub struct Rail {
     id: Id,
     edge: Edge,
