@@ -6,6 +6,7 @@
 //! A family is one file here plus one line in the `families!` list at the end of this file.
 
 mod angle_dial;
+mod app_shell;
 mod badge;
 mod bezier;
 mod button;
@@ -78,6 +79,7 @@ use identify::Identify;
 use super::tokens::{ColorTokens, ElevationTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
 
 pub use angle_dial::{AngleDialField, AngleDialTokens};
+pub use app_shell::{AppShellField, AppShellTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use bezier::{BezierField, BezierTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
@@ -630,6 +632,8 @@ impl ComponentTokens {
 families! {
     /// Angle dials: the round face and needle that point in a direction.
     angle_dial: AngleDialTokens => AngleDial(AngleDialField);
+    /// The app shell: the backdrop behind the document and the edge reveal zone.
+    app_shell: AppShellTokens => AppShell(AppShellField);
     /// Badges: small labels in a tone.
     badge: BadgeTokens => Badge(BadgeField);
     /// Paths: outlines, anchors, direction handles and the path being drawn.

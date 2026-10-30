@@ -6,9 +6,9 @@
 use std::fmt::Write as _;
 
 use crate::{
-    AngleDialTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens, BySize,
-    CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens, ComponentTokens,
-    ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens,
+    AngleDialTokens, AppShellTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens,
+    BySize, CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens,
+    ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens,
     EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens, GradientLineTokens,
     GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors,
     KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens,
@@ -229,6 +229,7 @@ fn states(out: &mut Lines, key: &str, v: &States<Rgba>) {
 fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     let ComponentTokens {
         angle_dial,
+        app_shell,
         badge,
         bezier,
         button,
@@ -291,6 +292,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         transform,
     } = c;
     angle_dial_lines(out, angle_dial);
+    app_shell_lines(out, app_shell);
     badge_lines(out, badge);
     bezier_lines(out, bezier);
     button_lines(out, button);
@@ -1699,4 +1701,11 @@ fn spinner_lines(out: &mut Lines, t: &SpinnerTokens) {
     let SpinnerTokens { inset, stroke } = t;
     out.line("spinner.inset", len(*inset));
     out.line("spinner.stroke", len(*stroke));
+}
+
+fn app_shell_lines(out: &mut Lines, t: &AppShellTokens) {
+    let AppShellTokens { edge_reveal, backdrop, body_only_backdrop } = t;
+    out.line("app_shell.edge_reveal", len(*edge_reveal));
+    out.line("app_shell.backdrop", hex(*backdrop));
+    out.line("app_shell.body_only_backdrop", hex(*body_only_backdrop));
 }

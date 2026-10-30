@@ -1463,3 +1463,7 @@ pub const GRID_MIN_STEP: f32 = 6.0;
 pub const GRID_CROSSING: f32 = 1.5;
 /// Smallest major spacing in screen points at which Crossings draw.
 pub const GRID_CROSSING_MIN: f32 = 8.0;
+/// Width of the app shell's edge reveal zone along the window edges, at every Size.
+pub const APP_SHELL_EDGE_REVEAL: f32 = 4.0;
+/// Behind the document in body-only mode, in every theme: black, as Photoshop's Full Screen Mode.
+pub const APP_SHELL_BODY_ONLY_BACKDROP: Rgba = Rgba::BLACK;
