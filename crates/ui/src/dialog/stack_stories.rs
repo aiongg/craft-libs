@@ -32,6 +32,8 @@ struct BlockingArgs {
     #[arg(name = "busy for 2 s")]
     busy: bool,
     scrim: bool,
+    #[arg(name = "wait card")]
+    card: bool,
 }
 
 pub(super) fn stories() -> Vec<Story> {
@@ -50,7 +52,7 @@ pub(super) fn stories() -> Vec<Story> {
             Level::Patterns,
             "Dialog",
             "Blocking overlay",
-            BlockingArgs { busy: false, scrim: false },
+            BlockingArgs { busy: false, scrim: false, card: false },
             show_blocking
         ),
     ]
@@ -134,7 +136,14 @@ fn show_blocking(ui: &mut Ui, args: &mut BlockingArgs) {
             args.busy = false;
             ui.data_mut(|d| d.remove_temp::<f64>(key));
         } else {
-            BlockingOverlay::new("story-busy").scrim(args.scrim).name("Working").show(ui.ctx());
+            let mut overlay = BlockingOverlay::new("story-busy").scrim(args.scrim).name("Working");
+            if args.card {
+                overlay = overlay.message("Pick a screen pixel or press Esc to cancel").cancel("Cancel");
+            }
+            if overlay.show(ui.ctx()) {
+                args.busy = false;
+                ui.data_mut(|d| d.remove_temp::<f64>(key));
+            }
             ui.ctx().request_repaint();
         }
     }

@@ -298,3 +298,24 @@ fn any_modal_sees_an_egui_modal_that_is_not_a_dialog() {
     harness.run();
     assert!(!harness.state().any_modal);
 }
+
+#[test]
+fn the_wait_card_is_announced_and_cancel_and_esc_both_report_cancel() {
+    let mut harness = HarnessBuilder::default().with_size(WINDOW).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, cancels: &mut usize| {
+            if BlockingOverlay::new("wait").message("Pick a screen pixel").cancel("Cancel").show(ui.ctx()) {
+                *cancels += 1;
+            }
+        },
+        0usize,
+    );
+    harness.run_steps(3);
+    assert_eq!(*harness.state(), 0);
+    assert_eq!(harness.get_by_role(egui::accesskit::Role::Dialog).accesskit_node().label().as_deref(), Some("Pick a screen pixel"));
+    harness.get_by_label("Cancel").click();
+    harness.run_steps(3);
+    assert_eq!(*harness.state(), 1, "the button");
+    harness.key_press(Key::Escape);
+    harness.run_steps(3);
+    assert_eq!(*harness.state(), 2, "Esc");
+}

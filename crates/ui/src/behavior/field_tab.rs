@@ -1,13 +1,14 @@
-//! [`FieldTab`]: a dialog's focus scope, in which Tab and Shift+Tab visit only the text and number
-//! fields, as in PhotoCraft's dialogs.
+//! [`FieldTab`]: a dialog's focus scope, in which Tab and Shift+Tab visit the text and number
+//! fields and then the footer buttons, as in PhotoCraft's dialogs.
 
 use egui::{AsIdSalt, Context, Event, FocusDirection, Id, IdSalt, InnerResponse, Key, LayerId, Modifiers, Rect, Ui, UiBuilder};
 
 use crate::popup_list;
 
-/// A dialog's focus scope: wrap a dialog's contents in it, and Tab and Shift+Tab visit only its
+/// A dialog's focus scope: wrap a dialog's contents in it, and Tab and Shift+Tab visit its
 /// text and number fields, as in PhotoCraft (Name, Width, Height, Resolution in New Document),
-/// never its sliders, lists, check boxes or buttons:
+/// then the controls that registered as [stops](FieldTab::register_stop) (the footer's buttons),
+/// never its sliders, lists or check boxes:
 ///
 /// ```
 /// # use craft_ui::behavior::FieldTab;
@@ -20,10 +21,10 @@ use crate::popup_list;
 /// # });
 /// ```
 ///
-/// - **Tab, Shift+Tab** move the focus to the next or previous field in layout order, wrapping
-///   around; from no field (nothing focused, or another control), Tab goes to the first field
-///   and Shift+Tab to the last. The field reached has its text selected, so typing replaces it. In
-///   a scope without fields Tab does nothing.
+/// - **Tab, Shift+Tab** move the focus to the next or previous field or stop in layout order,
+///   wrapping around; from no stop (nothing focused, or another control), Tab goes to the first
+///   and Shift+Tab to the last. A field reached has its text selected, so typing replaces it. In
+///   a scope without fields Tab walks the stops, and without either it does nothing.
 /// - **Ctrl+Tab, Ctrl+Shift+Tab** (Control on macOS too) move the focus as Tab does outside a
 ///   scope: through every control, in egui's order. With them every control stays reachable from
 ///   a field, whose arrow keys are its own. It is the key GTK and macOS give for leaving a control
@@ -52,6 +53,8 @@ pub struct FieldTab {
 struct Record {
     rect: Rect,
     fields: Vec<Id>,
+    /// Fields and [stops](FieldTab::register_stop) together, in layout order: what Tab walks.
+    order: Vec<Id>,
 }
 
 /// A scope whose contents are being laid out, collecting its fields.
@@ -59,6 +62,7 @@ struct Record {
 struct Collecting {
     layer: LayerId,
     fields: Vec<Id>,
+    order: Vec<Id>,
 }
 
 /// A press of Tab this pass, as the scope reads it.
@@ -86,18 +90,22 @@ impl FieldTab {
         let press = if holds_focus(&ctx, layer, record.as_ref()) { take_press(&ctx) } else { None };
 
         let stack = collecting_id(&ctx);
-        ctx.data_mut(|d| d.get_temp_mut_or_default::<Vec<Collecting>>(stack).push(Collecting { layer, fields: Vec::new() }));
+        ctx.data_mut(|d| d.get_temp_mut_or_default::<Vec<Collecting>>(stack).push(Collecting { layer, fields: Vec::new(), order: Vec::new() }));
         let inner = ui.scope_builder(UiBuilder::new().id_salt(self.id_salt), add_contents);
-        let fields = ctx.data_mut(|d| d.get_temp_mut_or_default::<Vec<Collecting>>(stack).pop()).map(|c| c.fields).unwrap_or_default();
+        let Collecting { fields, order, .. } = ctx.data_mut(|d| d.get_temp_mut_or_default::<Vec<Collecting>>(stack).pop()).unwrap_or(Collecting {
+            layer,
+            fields: Vec::new(),
+            order: Vec::new(),
+        });
 
         if let Some(Press::Field(step)) = press
-            && let Some(next) = step_through(&fields, ctx.memory(|m| m.focused()), step)
+            && let Some(next) = step_through(&order, ctx.memory(|m| m.focused()), step)
         {
             // The field sees the focus arrive on the next pass and selects its text.
             ctx.memory_mut(|m| m.request_focus(next));
             ctx.request_repaint();
         }
-        ctx.data_mut(|d| d.insert_temp(id, Record { rect: inner.response.rect, fields }));
+        ctx.data_mut(|d| d.insert_temp(id, Record { rect: inner.response.rect, fields, order }));
         inner
     }
 
@@ -118,6 +126,21 @@ impl FieldTab {
         ui.data_mut(|d| {
             if let Some(scope) = d.get_temp_mut_or_default::<Vec<Collecting>>(stack).last_mut().filter(|c| c.layer == layer) {
                 scope.fields.push(id);
+                scope.order.push(id);
+            }
+        });
+    }
+
+    /// Adds the control `id` to the Tab order of the scope `ui` is in, in layout order, as a stop
+    /// that is not a field: Tab and Shift+Tab visit it between the fields around it and nothing
+    /// is selected on arrival. The dialog footer's buttons call it. Outside a scope, or on
+    /// another layer than the scope's, it does nothing.
+    pub fn register_stop(ui: &Ui, id: Id) {
+        let layer = ui.layer_id();
+        let stack = collecting_id(ui.ctx());
+        ui.data_mut(|d| {
+            if let Some(scope) = d.get_temp_mut_or_default::<Vec<Collecting>>(stack).last_mut().filter(|c| c.layer == layer) {
+                scope.order.push(id);
             }
         });
     }
@@ -134,7 +157,7 @@ fn holds_focus(ctx: &Context, layer: LayerId, record: Option<&Record>) -> bool {
     }
     match ctx.memory(|m| m.focused()) {
         Some(focused) => record.is_some_and(|record| {
-            record.fields.contains(&focused)
+            record.order.contains(&focused)
                 || ctx.read_response(focused).is_some_and(|r| r.layer_id == layer && record.rect.contains(r.rect.center()))
         }),
         None => ctx.memory(|m| m.top_modal_layer()) == Some(layer),
@@ -182,7 +205,7 @@ fn read_tab(m: Modifiers) -> Option<Press> {
     })
 }
 
-/// The field `step` fields on from `focused` in `fields`, wrapping around; from a focus that is
+/// The stop `step` stops on from `focused` in `fields`, wrapping around; from a focus that is
 /// none of them, the first for a step forward and the last for one back.
 fn step_through(fields: &[Id], focused: Option<Id>, step: i32) -> Option<Id> {
     let count = i32::try_from(fields.len()).ok().filter(|&n| n > 0 && step != 0)?;

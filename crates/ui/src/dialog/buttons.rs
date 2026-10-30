@@ -120,6 +120,7 @@ pub struct FooterButtonsResponse {
 ///
 /// - The [`Default`](ButtonRole::Default) button is the primary one and is described as the
 ///   default to a screen reader ([`default_hint`](FooterButtons::default_hint)).
+/// - In a [`FieldTab`](crate::behavior::FieldTab) scope Tab and Shift+Tab visit the buttons after the fields.
 /// - Arrow keys move the focus between buttons; Space and Enter press the focused one. A disabled
 ///   button takes no focus and no click.
 /// - A role appears once, except [`Alternate`](ButtonRole::Alternate), which may appear twice.
@@ -184,6 +185,9 @@ impl FooterButtons {
                 b.role,
                 nth(i),
             )));
+            if b.enabled {
+                crate::behavior::FieldTab::register_stop(row, response.id);
+            }
             if b.role == ButtonRole::Default && b.enabled {
                 let hint = self.default_hint.clone();
                 row.ctx().accesskit_node_builder(response.id, |node| node.set_description(hint));

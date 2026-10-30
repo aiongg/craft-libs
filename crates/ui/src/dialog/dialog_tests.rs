@@ -254,3 +254,45 @@ fn a_dialog_closed_without_an_outcome_opens_afresh() {
     let reopened = harness.state().rect();
     assert!((reopened.min - pos2(40.0, 30.0)).length() < 1.5, "{centred:?} {reopened:?}");
 }
+
+fn focused(harness: &Harness<'_, impl Sized>) -> Option<String> {
+    harness.query_by(|n| n.is_focused()).and_then(|n| n.accesskit_node().label())
+}
+
+fn tab_cycle(harness: &mut Harness<'_, impl Sized>, modifiers: Modifiers, presses: usize) -> Vec<Option<String>> {
+    (0..presses)
+        .map(|_| {
+            harness.key_press_modifiers(modifiers, Key::Tab);
+            harness.run();
+            focused(harness)
+        })
+        .collect()
+}
+
+#[test]
+fn tab_walks_the_fields_then_the_footer_buttons_and_wraps() {
+    let numbers = crate::localized::LocaleNumbers::from_tag("en");
+    let mut harness = harness(WINDOW).build_ui_state(
+        move |ui, state: &mut DialogState| {
+            let _ = Dialog::new("tab", "Size").footer(Footer::standard().labels(DialogLabels::default())).show(
+                &ui.ctx().clone(),
+                state,
+                &mut (),
+                |ui, ()| {
+                    let _ = crate::controls::NumberField::new("width", "Width", 10.0, &numbers).show(ui);
+                },
+            );
+        },
+        DialogState::new(),
+    );
+    harness.run();
+    let forward = tab_cycle(&mut harness, Modifiers::NONE, 4);
+    let labels: Vec<_> = forward.iter().map(|l| l.clone().unwrap_or_default()).collect();
+    assert_eq!(labels[3], labels[0], "Tab wraps after the buttons: {labels:?}");
+    assert_eq!(labels.iter().filter(|l| *l == "Width").count(), 1, "{labels:?}");
+    let at = labels.iter().position(|l| l == "Width").unwrap();
+    assert_eq!(labels[(at + 1) % 3].replace(['(', ')'], ""), "OK", "{labels:?}");
+    assert!(labels[(at + 2) % 3].replace(['(', ')'], "").starts_with("Cancel"), "{labels:?}");
+    let back = tab_cycle(&mut harness, Modifiers::SHIFT, 2);
+    assert_eq!([back[0].as_ref(), back[1].as_ref()], [forward[2].as_ref(), forward[1].as_ref()], "Shift+Tab reverses");
+}

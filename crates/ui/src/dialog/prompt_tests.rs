@@ -176,3 +176,21 @@ fn esc_and_ok_close_an_alert() {
     harness.run();
     assert_eq!(harness.state().alerts, 1);
 }
+
+#[test]
+fn tab_and_shift_tab_walk_a_prompts_buttons() {
+    let mut harness = harness(App::prompt(), OperatingSystem::Windows);
+    harness.run();
+    let focused = |h: &Harness<'_, App>| h.query_by(|n| n.is_focused()).and_then(|n| n.accesskit_node().label());
+    let press = |h: &mut Harness<'_, App>, modifiers| {
+        h.key_press_modifiers(modifiers, Key::Tab);
+        h.run();
+        focused(h)
+    };
+    assert_eq!(focused(&harness).as_deref(), Some("(Y)es"));
+    assert_eq!(press(&mut harness, Modifiers::NONE).as_deref(), Some("(N)o"));
+    assert_eq!(press(&mut harness, Modifiers::NONE).as_deref(), Some("(C)ancel"));
+    assert_eq!(press(&mut harness, Modifiers::NONE).as_deref(), Some("(Y)es"), "wraps");
+    assert_eq!(press(&mut harness, Modifiers::SHIFT).as_deref(), Some("(C)ancel"));
+    assert_eq!(press(&mut harness, Modifiers::SHIFT).as_deref(), Some("(N)o"));
+}

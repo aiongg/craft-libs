@@ -406,6 +406,9 @@ impl<'a> Footer<'a> {
             let enabled = *role != ButtonRole::Default || self.ok_enabled;
             let response = column.add(Button::new(label.as_str()).variant(variant).enabled(enabled).min_width(width).id_salt((cx.id, "side", index)));
             run.button_focused |= response.has_focus();
+            if enabled {
+                crate::behavior::FieldTab::register_stop(&column, response.id);
+            }
             if *role == ButtonRole::Default && enabled {
                 run.default = Some(response.id);
                 let hint = self.labels.default_hint.clone();
