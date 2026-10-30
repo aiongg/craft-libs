@@ -1,6 +1,7 @@
 use craft_window::{Button, Layout};
 use egui::{
-    Color32, Context, CursorIcon, Event, FullOutput, PointerButton, Pos2, RawInput, Rect, ResizeDirection, ViewportCommand, ViewportId, pos2, vec2,
+    Color32, Context, CursorIcon, Event, FullOutput, PointerButton, Pos2, RawInput, Rect, ResizeDirection, Sense, ViewportCommand, ViewportId, pos2,
+    vec2,
 };
 
 use super::captions::{metrics, theme_icon};
@@ -629,7 +630,7 @@ fn zones_alone_resize_without_a_bar() {
                 events,
                 ..Default::default()
             };
-            let mut out = ctx.run_ui(input, |ui| resize_zones_only(ui, frame, native));
+            let mut out = ctx.run_ui(input, |ui| resize_zones_only(ui, frame, native, &[]));
             out.textures_delta.clear();
             cmds.extend(commands(out));
         }
@@ -640,53 +641,73 @@ fn zones_alone_resize_without_a_bar() {
     assert!(!resizes_from_the_edge(&windows(), true));
 }
 
-/// An app that calls `resize_zones_only` at the start of the frame and then adds a panel with a
-/// button at the window edge: the button still gets its click and the rest of the edge resizes.
+/// The edge band always resizes, even over a panel button or a full-bleed canvas, whether the
+/// app calls `resize_zones_only` before or after its panels; a click on the button outside the
+/// band reaches the button. The band is the `title_bar.edge` token: a few points, not a button.
 #[test]
-fn zones_alone_called_before_the_panels_leave_edge_buttons_clickable() {
-    fn run(zones_first: bool) -> (bool, Vec<ResizeDirection>) {
+fn zones_alone_resize_over_panels_and_canvas_outside_the_band_clicks_pass() {
+    struct Out {
+        tool_clicked: bool,
+        canvas_pressed: bool,
+        edge: f32,
+        resized: Vec<ResizeDirection>,
+    }
+    fn run(zones_first: bool) -> Out {
         let ctx = Context::default();
         let frame = windows();
-        let (on_button, off_button) = (pos2(2.0, 100.0), pos2(2.0, 300.0));
-        let mut clicked = false;
+        let (in_band, past_band, canvas_band) = (pos2(1.0, 100.0), pos2(30.0, 100.0), pos2(799.0, 200.0));
+        let mut o = Out { tool_clicked: false, canvas_pressed: false, edge: 0.0, resized: vec![] };
         let mut cmds = vec![];
         let steps = [
             vec![],
-            vec![Event::PointerMoved(on_button)],
-            vec![button(on_button, true, PointerButton::Primary)],
-            vec![button(on_button, false, PointerButton::Primary)],
-            vec![Event::PointerMoved(off_button)],
-            vec![button(off_button, true, PointerButton::Primary)],
-            vec![Event::PointerMoved(off_button + vec2(6.0, 0.0))],
+            vec![Event::PointerMoved(in_band)],
+            vec![button(in_band, true, PointerButton::Primary)],
+            vec![Event::PointerMoved(in_band + vec2(6.0, 0.0))],
+            vec![button(in_band + vec2(6.0, 0.0), false, PointerButton::Primary)],
+            vec![Event::PointerMoved(canvas_band)],
+            vec![button(canvas_band, true, PointerButton::Primary)],
+            vec![Event::PointerMoved(canvas_band - vec2(6.0, 0.0))],
+            vec![button(canvas_band - vec2(6.0, 0.0), false, PointerButton::Primary)],
+            vec![Event::PointerMoved(past_band)],
+            vec![button(past_band, true, PointerButton::Primary)],
+            vec![button(past_band, false, PointerButton::Primary)],
         ];
         for (i, events) in steps.into_iter().enumerate() {
             let input = RawInput {
-                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, HEIGHT))),
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 400.0))),
                 time: Some(i as f64 * 0.05),
                 events,
                 ..Default::default()
             };
             let mut out = ctx.run_ui(input, |ui| {
+                o.edge = TitleBarStyle::from_tokens(&Tokens::of(ui)).edge;
                 if zones_first {
-                    resize_zones_only(ui, &frame, false);
+                    resize_zones_only(ui, &frame, false, &[]);
                 }
                 egui::Panel::left("side").exact_size(60.0).frame(egui::Frame::NONE).show(ui, |ui| {
                     let rect = Rect::from_min_size(pos2(0.0, 80.0), vec2(60.0, 40.0));
-                    clicked |= ui.put(rect, egui::Button::new("Tool")).clicked();
+                    o.tool_clicked |= ui.put(rect, egui::Button::new("Tool")).clicked();
+                });
+                egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| {
+                    let canvas = ui.allocate_rect(ui.max_rect(), Sense::click_and_drag());
+                    o.canvas_pressed |= canvas.drag_started() || canvas.clicked();
                 });
                 if !zones_first {
-                    resize_zones_only(ui, &frame, false);
+                    resize_zones_only(ui, &frame, false, &[]);
                 }
             });
             out.textures_delta.clear();
             cmds.extend(commands(out));
         }
-        (clicked, resizes(&cmds))
+        o.resized = resizes(&cmds);
+        o
     }
     for zones_first in [true, false] {
-        let (clicked, resized) = run(zones_first);
-        assert!(clicked, "the edge button gets its click (zones first: {zones_first})");
-        assert_eq!(resized, [ResizeDirection::West], "only the press off the button resizes (zones first: {zones_first})");
+        let o = run(zones_first);
+        assert!((2.0..=12.0).contains(&o.edge), "the band is a few points ({}), not a button", o.edge);
+        assert!(o.tool_clicked, "the button outside the band gets its click (zones first: {zones_first})");
+        assert!(!o.canvas_pressed, "the canvas gets nothing from a press in the band (zones first: {zones_first})");
+        assert_eq!(o.resized, [ResizeDirection::West, ResizeDirection::East], "presses in the band resize (zones first: {zones_first})");
     }
 }
 

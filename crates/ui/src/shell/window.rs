@@ -142,7 +142,7 @@ pub(super) fn track(shell: &mut AppShell<'_>, ctx: &egui::Context) {
 pub(super) fn finish_pass(level: &Level<'_>, ui: &mut Ui, bar_drawn: bool, state: &mut super::State) {
     let Some(frame) = level.frame else { return };
     if !bar_drawn {
-        resize_zones_only(ui, frame, level.native_hit_test);
+        resize_zones_only(ui, frame, level.native_hit_test, &[]);
     }
     #[cfg(target_os = "macos")]
     if matches!(frame, Frame::Inset(_)) {
