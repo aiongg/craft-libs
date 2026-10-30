@@ -84,7 +84,6 @@
     "state.selected_hover": "{accent.solid}",
     "surface.background": "#d4d0c8",
     "surface.canvas": "#808080",
-    "surface.canvas_pattern": "#808080",
     "surface.knob": "{surface.background}",
     "surface.panel": "{surface.background}",
     "surface.raised": "{surface.background}",

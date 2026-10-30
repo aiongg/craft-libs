@@ -56,8 +56,8 @@ pub struct SurfaceColors {
     pub background: Rgba,
     /// Around the document on a canvas; follows `background` unless pinned.
     pub canvas: Rgba,
-    /// The dots or grid an app may draw on the canvas outside the document; a faint step from
-    /// `canvas` toward `text.normal` unless pinned.
+    /// The dots or grid an app may draw on the canvas outside the document. Equal to `canvas` (no
+    /// pattern) unless the theme sets it.
     pub canvas_pattern: Rgba,
     /// Panels, bars and rails.
     pub panel: Rgba,
