@@ -276,6 +276,20 @@ fn tab_cycle(harness: &mut Harness<'_, impl Sized>, modifiers: Modifiers, presse
 }
 
 #[test]
+fn the_close_box_takes_the_labels_the_host_gave_the_footer() {
+    let mut harness = harness(WINDOW).build_ui_state(
+        |ui, state: &mut DialogState| {
+            let labels = DialogLabels { close: "Fermer".into(), ..DialogLabels::default() };
+            let _ = Dialog::new("close", "Size").footer(Footer::standard().labels(labels)).show(&ui.ctx().clone(), state, &mut (), |_, ()| {});
+        },
+        DialogState::new(),
+    );
+    harness.run();
+    assert_eq!(harness.get_by_label("Fermer").accesskit_node().role(), Role::Button);
+    assert!(harness.query_by_label("Close").is_none());
+}
+
+#[test]
 fn tab_walks_the_fields_then_the_footer_buttons_and_wraps() {
     let numbers = crate::localized::LocaleNumbers::from_tag("en");
     let mut harness = harness(WINDOW).build_ui_state(

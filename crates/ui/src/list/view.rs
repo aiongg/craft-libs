@@ -28,6 +28,7 @@ use crate::behavior::{
 use crate::composites::SectionLabel;
 use crate::direction;
 use crate::edit::{self, EditEvent, GestureId};
+use crate::localized::SharedLabels as _;
 use crate::patterns::panel::ScrollBarLabels;
 use crate::popup_list;
 use crate::primitives::FocusRing;
@@ -198,7 +199,7 @@ pub struct List<'a, K, O: ?Sized> {
     start_rename: Option<K>,
     reorder: Option<Reorder<'a, K>>,
     tree: bool,
-    tree_text: Arc<TreeText>,
+    tree_text: Option<Arc<TreeText>>,
 }
 
 impl<'a, K, O> List<'a, K, O>
@@ -225,13 +226,13 @@ where
             start_rename: None,
             reorder: None,
             tree: false,
-            tree_text: Arc::default(),
+            tree_text: None,
         }
     }
 
     /// The words of the tree's disclosure triangles, translated by the host.
     pub fn tree_text(mut self, text: TreeText) -> Self {
-        self.tree_text = Arc::new(text);
+        self.tree_text = Some(Arc::new(text));
         self
     }
 
@@ -402,7 +403,7 @@ where
             target: None,
             drag_gesture: reorder.is_some().then(|| ReorderGesture::load(ui, id)),
             tree,
-            tree_text,
+            tree_text: tree_text.unwrap_or_else(|| TreeText::shared(ui)),
             rtl: direction::is_rtl(ui),
         };
 

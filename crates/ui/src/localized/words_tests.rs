@@ -272,3 +272,32 @@ fn number_errors_follow_the_words_unless_the_host_translates_them() {
     let host = crate::localized::LocaleNumbers::from_tag("en").with_messages(|english| format!("host {english}"));
     assert_eq!(host.describe_in(NumberError::Empty, &shown), "host Enter a number");
 }
+
+#[test]
+fn labels_are_built_once_per_installed_words() {
+    use super::SharedLabels as _;
+    let ctx = Context::default();
+    let first = Probe::shared_ctx(&ctx);
+    assert!(Arc::ptr_eq(&first, &Probe::shared_ctx(&ctx)), "English labels are built once");
+    assert_eq!(*first, Probe::default());
+    let (i18n, de, _) = catalog();
+    Words::from_i18n(i18n, de).install(&ctx);
+    let german = Probe::shared_ctx(&ctx);
+    assert!(Arc::ptr_eq(&german, &Probe::shared_ctx(&ctx)));
+    assert_eq!(german.grid, "Rasteransicht");
+    assert_eq!(Probe::of_ctx(&ctx), *german);
+}
+
+#[test]
+fn counted_words_are_registered_and_read_one_and_other_in_english() {
+    use super::words::counts;
+    let all: Vec<Word> = super::words::all().collect();
+    for count in counts::ALL {
+        assert!(all.contains(&count.word), "{:?} is not a registered word", count.word);
+    }
+    let english = Words::english();
+    let labels = crate::presets::PresetLabels::default();
+    let text = |n| english.counted(counts::PRESETS, &labels.count, n);
+    assert_eq!((text(1), text(2)), ("1 preset".to_owned(), "2 presets".to_owned()));
+    assert_eq!(english.counted(counts::PRESETS, "{n} items", 1), "1 items", "a host's text is used as given");
+}

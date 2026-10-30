@@ -14,7 +14,6 @@ use super::mnemonic;
 use super::nav::{MenuStep, Nav, Row, Strips};
 use super::row::{self, Columns, MenuStyle, RowContent, RowPainter, RowState};
 use crate::controls::TooltipExt as _;
-use crate::localized::Labels as _;
 use crate::popup_list;
 use crate::primitives::Interactive;
 use crate::theme::{Tokens, TokensOf as _, UiTokens};
@@ -198,11 +197,12 @@ impl<'a, T: Clone> Menu<'a, T> {
         let escape = shown_before && ctx.input(|i| i.key_pressed(Key::Escape));
         let underline = mnemonics && (nav.underline || ctx.input(|i| i.modifiers.alt));
         let released = ctx.input(|i| i.pointer.primary_released());
+        let installed;
         let (scroll_up, scroll_down) = match &self.scroll_labels {
             Some((up, down)) => (up.clone(), down.clone()),
             None => {
-                let labels = MenuBarLabels::of(ui);
-                (Cow::Owned(labels.scroll_up), Cow::Owned(labels.scroll_down))
+                installed = <MenuBarLabels as crate::localized::SharedLabels>::shared(ui);
+                (Cow::Borrowed(installed.scroll_up.as_str()), Cow::Borrowed(installed.scroll_down.as_str()))
             }
         };
         let mut draw = Draw {

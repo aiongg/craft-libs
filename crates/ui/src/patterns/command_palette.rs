@@ -7,6 +7,7 @@ use crate::behavior::{CommandSearch, ListOptions, Listbox, PaletteEntry, take_ke
 use crate::composites::live;
 use crate::controls::{Kbd, SearchField};
 use crate::dialog::pass::{self, Entry};
+use crate::localized::words::counts;
 use crate::localized::{Labels as _, Words};
 use crate::menu::row::{Columns, MenuStyle, RowContent, RowPainter, RowState};
 use crate::menu::{self, ItemKind, MenuEntry, MenuItem};
@@ -311,7 +312,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> CommandPalette<'a, '_, T>
         let count = if state.query.trim().is_empty() { None } else { Some(shown.len()) };
         let announcement = match count {
             Some(0) => Some(self.labels.empty.clone()),
-            Some(n) => Some(craft_i18n::fmt(&self.labels.results, &[("n", &n.to_string())])),
+            Some(n) => Some(Words::of(ui).counted(counts::RESULTS, &self.labels.results, n as u64)),
             None => None,
         };
         if let Some(text) = announcement {

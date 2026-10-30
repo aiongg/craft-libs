@@ -37,7 +37,9 @@ mod tests;
 mod words_tests;
 
 pub mod words;
-pub use words::{Labels, Word, Words};
+#[doc(hidden)]
+pub use egui as __egui;
+pub use words::{Labels, SharedLabels, Word, Words};
 
 /// How long a [`LocalizedDragValue`] keeps marking text it could not read after reverting, in
 /// seconds.

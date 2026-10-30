@@ -34,6 +34,8 @@ use crate::icons::{self, Icon};
 use crate::list::drag::paint_ghost;
 use crate::list::spans::Spans;
 use crate::list::{DropMark, ListRow, ListRowStyle, OpenChange, RowEvent, ThumbSize, TreeRow};
+use crate::localized::Words;
+use crate::localized::words::counts;
 use crate::popup_list;
 use crate::primitives::{FocusRing, Interactive};
 use crate::theme::{Tokens, TokensOf as _, UiTokens, role_format};
@@ -596,7 +598,7 @@ where
             self.lead_row = Some((out.response.id, rect));
             self.st.lead_rect = Some(rect);
         }
-        let value = row.count.map(|n| self.labels.group_count.replace("{n}", &n.to_string()));
+        let value = row.count.map(|n| Words::of_ctx(&self.ctx).counted(counts::GROUP_PRESETS, &self.labels.group_count, n as u64));
         self.ctx.accesskit_node_builder(out.response.id, |node| {
             node.add_action(Action::Focus);
             node.add_action(Action::ScrollIntoView);
