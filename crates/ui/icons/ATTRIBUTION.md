@@ -14,3 +14,4 @@ Carbon's licence file is the repository's root `LICENSE` (the icons package has 
 Every set folder's files come from the npm package of the version in the table (`@phosphor-icons/core` 2.0.8, `lucide-static` 1.63.0, `@carbon/icons` 11.91.0, `@tabler/icons` 3.50.0), the same releases as the tags above. Phosphor files are all `regular` weight.
 
 Phosphor has no glyph for `bandage-sparkle`, `brush-replace`, `clip-below`, `clip-release`, `convert-point`, `direct-select`, `eraser-background`, `eraser-magic` and `font-similar`. Their files in `phosphor/` are our own drawings, in Phosphor's regular weight (16-unit stroke on the 256 view box, round caps and joins), after PhotoCraft's glyphs.
+`phosphor/` also holds drawings made for this library in Phosphor's style (256 view box, 16-unit round-capped strokes): `distribute-*`, `symmetry-*` and `painting-symmetry`. The symmetry glyphs follow PhotoCraft's own axis icons.

@@ -582,6 +582,46 @@ carbon = "diamond--outline"
 tabler = "diamond"
 
 [[icon]]
+name = "distribute_bottom"
+directional = false
+phosphor = "distribute-bottom"
+
+[[icon]]
+name = "distribute_hcenter"
+directional = false
+phosphor = "distribute-hcenter"
+
+[[icon]]
+name = "distribute_horizontal"
+directional = false
+phosphor = "distribute-horizontal"
+
+[[icon]]
+name = "distribute_left"
+directional = false
+phosphor = "distribute-left"
+
+[[icon]]
+name = "distribute_right"
+directional = false
+phosphor = "distribute-right"
+
+[[icon]]
+name = "distribute_top"
+directional = false
+phosphor = "distribute-top"
+
+[[icon]]
+name = "distribute_vcenter"
+directional = false
+phosphor = "distribute-vcenter"
+
+[[icon]]
+name = "distribute_vertical"
+directional = false
+phosphor = "distribute-vertical"
+
+[[icon]]
 name = "droplet"
 directional = false
 lucide = "droplet"
@@ -708,6 +748,11 @@ lucide = "navigation"
 phosphor = "navigation-arrow"
 carbon = "location--current"  # near: arrow in a circle
 tabler = "navigation"
+
+[[icon]]
+name = "painting_symmetry"
+directional = false
+phosphor = "painting-symmetry"
 
 [[icon]]
 name = "palette"
@@ -884,6 +929,26 @@ lucide = "swatch-book"
 phosphor = "swatches"
 carbon = "color-palette"  # near: palette, not swatch book
 tabler = "color-swatch"
+
+[[icon]]
+name = "symmetry_diagonal"
+directional = false
+phosphor = "symmetry-diagonal"
+
+[[icon]]
+name = "symmetry_dual"
+directional = false
+phosphor = "symmetry-dual"
+
+[[icon]]
+name = "symmetry_horizontal"
+directional = false
+phosphor = "symmetry-horizontal"
+
+[[icon]]
+name = "symmetry_vertical"
+directional = false
+phosphor = "symmetry-vertical"
 
 [[icon]]
 name = "toggle_left"
