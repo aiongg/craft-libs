@@ -45,7 +45,7 @@ impl ResizeGrip {
         let rtl = direction::is_rtl(ui);
         let parts = Tokens::of(ui).component.popover;
         let rect = Self::rect(ui, frame);
-        let response = ui.interact(rect, self.id, Sense::drag());
+        let response = ui.interact(rect, self.id, Sense::DRAG);
         if response.hovered() || response.dragged() {
             ui.ctx().set_cursor_icon(if rtl { CursorIcon::ResizeNeSw } else { CursorIcon::ResizeNwSe });
         }

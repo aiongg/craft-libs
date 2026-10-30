@@ -74,6 +74,8 @@ pub enum CloseReason {
     Content,
     /// Another popover of the same [group](Popover::group) opened.
     Group,
+    /// The popover it was opened from took a press or closed.
+    Parent,
 }
 
 /// Which rules close a popover. Closing from the contents ([`PopoverCtx::close`]) is always
@@ -280,11 +282,7 @@ impl Popover {
         let fresh = stored.is_none();
         let mut state = stored.unwrap_or(State { opened: frame_nr, ..State::default() });
         if let (true, Some(group)) = (fresh, group) {
-            let previous = ctx.data_mut(|d| d.get_temp::<Id>(group.with(GROUP)).filter(|&p| p != id));
-            ctx.data_mut(|d| d.insert_temp(group.with(GROUP), id));
-            if let Some(previous) = previous {
-                ctx.data_mut(|d| d.insert_temp(previous.with(GROUP_CLOSE), frame_nr));
-            }
+            join_group(&ctx, group, id, frame_nr);
         }
 
         let tokens = Tokens::of(ui);
@@ -296,29 +294,20 @@ impl Popover {
         let had_children = family.len() > 1;
 
         // Rules that close it before its contents run.
-        let mut closing = None;
-        if ctx.data_mut(|d| d.remove_temp::<u64>(id.with(GROUP_CLOSE))).is_some_and(|frame| frame_nr <= frame + 1) {
-            closing = Some(CloseReason::Group);
+        let mut closing = take_group_close(&ctx, id, frame_nr);
+        if popup_list::take_parent_close(&ctx, id) && !fresh {
+            closing = closing.or(Some(CloseReason::Parent));
         }
-        let press = ctx.input(|i| i.pointer.any_pressed().then(|| i.pointer.interact_pos()).flatten());
-        if let Some(pos) = press {
-            let hit = ctx.layer_id_at(pos);
-            let in_own = hit.is_some_and(|l| l.id == id);
-            // A craft-ui child is in the family; a plain egui popup is any other foreground layer.
-            let in_child = hit.is_some_and(|l| l.id != id && (family.contains(&l.id) || l.order == Order::Foreground));
-            let on_toggle = toggle.and_then(|t| ctx.read_response(t)).is_some_and(|r| r.rect.contains(pos));
-            if in_own && !popup_list::child_anchors(&ctx, id).iter().any(|r| r.contains(pos)) {
-                popup_list::close_children(&ctx, id);
-            }
-            if close.outside && !in_own && !in_child && !on_toggle && frame_nr != state.opened {
-                closing = closing.or(Some(CloseReason::Outside));
-            }
-        }
+        let press = read_press(&ctx, id, &family, toggle, close.outside && frame_nr != state.opened);
+        closing = closing.or(press.closing);
         let owners: Vec<Id> = control.iter().map(|c| c.id).chain(toggle).collect();
         let inside = popup_list::focus_inside(&ctx, &owners, &family);
         let pressed = popup_list::pressed_into(&ctx, &family);
         let had = std::mem::replace(&mut state.had_focus, inside && !pressed) && shown;
-        if close.focus_left && had && !inside && !pressed {
+        // Only a move of the focus to a widget elsewhere counts; egui clearing it (a press on
+        // nothing, Esc) is left to the press and Esc rules.
+        let moved_away = !inside && ctx.memory(|m| m.focused()).is_some();
+        if close.focus_left && had && moved_away && !pressed {
             closing = closing.or(Some(CloseReason::FocusLeft));
         }
 
@@ -333,46 +322,26 @@ impl Popover {
 
         // Where it goes. The pivot keeps the corner at the anchor whatever the size.
         let last = shown.then(|| ctx.memory(|m| m.area_rect(id))).flatten();
-        let (pos, pivot) = match &anchor {
-            PopoverAnchor::Control(r) => {
-                let a = r.rect;
-                let above = state.above.or_else(|| {
-                    last.map(|l| {
-                        let (below, over) = (screen.bottom() - a.bottom(), a.top() - screen.top());
-                        below < l.height() && over > below
-                    })
-                });
-                state.above = above;
-                let x = if rtl { a.right() } else { a.left() };
-                match (above.unwrap_or(false), rtl) {
-                    (false, false) => (pos2(x, a.bottom()), Align2::LEFT_TOP),
-                    (false, true) => (pos2(x, a.bottom()), Align2::RIGHT_TOP),
-                    (true, false) => (pos2(x, a.top()), Align2::LEFT_BOTTOM),
-                    (true, true) => (pos2(x, a.top()), Align2::RIGHT_BOTTOM),
-                }
-            }
-            PopoverAnchor::Point(p) => (*p, if rtl { Align2::RIGHT_TOP } else { Align2::LEFT_TOP }),
-        };
+        let (pos, pivot) = placement(&anchor, rtl, screen, last, &mut state.above);
 
         let surface = Surface::style(&tokens, SurfaceKind::Popup);
         let inner_margin = Margin::same((parts.padding + popup_list::edge_width(&surface)).ceil() as i8);
         let pop = PopoverCtx { id, content_size, close: Cell::new(false), initial: Cell::new(None) };
-        let area_id = id;
         let drawing = Drawing::enter(&ctx, id);
-        let area = Area::new(area_id)
+        let area = Area::new(id)
             .order(Order::Foreground)
             .fixed_pos(pos)
             .pivot(pivot)
             .constrain_to(screen)
-            .sense(Sense::click())
+            .sense(Sense::CLICK)
             .role(Role::Dialog)
             .accessible_name(label);
         let drawn = area.show(&ctx, |ui| {
             apply_popup_style(ui);
-            if shown && state.focus_tries < 3 && !focus_in(&ctx, id) {
+            let entry = (shown && state.focus_tries < 3 && !focus_in(&ctx, id)).then(|| {
                 state.focus_tries += 1;
-                move_focus_in(&ctx, id);
-            }
+                begin_focus_entry(&ctx, id)
+            });
             let slot = ui.painter().add(Shape::Noop);
             let framed = Frame::NONE.inner_margin(inner_margin).show(ui, |ui| {
                 ui.set_max_size(room);
@@ -390,22 +359,18 @@ impl Popover {
                 let inner = add(ui, &pop);
                 (inner, ui.min_rect().size())
             });
+            if let Some(previous) = entry
+                && !end_focus_entry(&ctx, id, previous)
+            {
+                state.focus_tries = u8::MAX;
+            }
             let rect = framed.response.rect;
             ui.painter().set(slot, Shape::Vec(surface.shapes(rect, ui.pixels_per_point())));
             let (inner, used) = framed.inner;
-            let mut resized = None;
-            if let PopoverSize::Resizable { min, .. } = size {
-                let grip = ResizeGrip::new(id.with("grip")).show(ui, rect);
-                let start_id = id.with("grip-start");
-                if grip.started {
-                    ctx.data_mut(|d| d.insert_temp(start_id, content_size));
-                }
-                if let (Some(growth), Some(start)) = (grip.growth, ctx.data(|d| d.get_temp::<Vec2>(start_id))) {
-                    let grown = size::clamp(start + growth, min, room);
-                    size::write(&ctx, id, grown);
-                    resized = Some(grown);
-                }
-            }
+            let resized = match size {
+                PopoverSize::Resizable { min, .. } => grip_resize(ui, id, rect, content_size, min, room),
+                _ => None,
+            };
             (inner, rect, used, resized)
         });
         drop(drawing);
@@ -427,10 +392,12 @@ impl Popover {
                 reason = reason.or(Some(CloseReason::Enter));
             }
         }
-        if let Some(focus) = pop.initial.get() {
-            if state.focus_tries < 3 && shown && !focus_in(&ctx, id) {
-                ctx.memory_mut(|m| m.request_focus(focus));
-            }
+        if let Some(focus) = pop.initial.get()
+            && state.focus_tries < 3
+            && shown
+            && !focus_in(&ctx, id)
+        {
+            ctx.memory_mut(|m| m.request_focus(focus));
         }
 
         let layer = LayerId::new(Order::Foreground, id);
@@ -445,12 +412,11 @@ impl Popover {
         match reason {
             Some(reason) => {
                 *open = false;
-                if matches!(reason, CloseReason::Escape | CloseReason::Enter) {
-                    if let Some(control) = &control {
-                        if focus_free_or_inside(&ctx, &family) {
-                            ctx.memory_mut(|m| m.request_focus(control.id));
-                        }
-                    }
+                if matches!(reason, CloseReason::Escape | CloseReason::Enter)
+                    && let Some(control) = &control
+                    && focus_free_or_inside(&ctx, &family)
+                {
+                    ctx.memory_mut(|m| m.request_focus(control.id));
                 }
                 shut(&ctx, id, state_id);
             }
@@ -461,6 +427,84 @@ impl Popover {
         }
         Some(PopoverResponse { inner, rect, closed_by: reason, size: size_now })
     }
+}
+
+/// Registers `id` as the open popover of `group` and asks the one it replaces to close.
+fn join_group(ctx: &Context, group: Id, id: Id, frame_nr: u64) {
+    let previous = ctx.data_mut(|d| d.get_temp::<Id>(group.with(GROUP)).filter(|&p| p != id));
+    ctx.data_mut(|d| d.insert_temp(group.with(GROUP), id));
+    if let Some(previous) = previous {
+        ctx.data_mut(|d| d.insert_temp(previous.with(GROUP_CLOSE), frame_nr));
+    }
+}
+
+/// [`CloseReason::Group`] when another popover of the group opened in this frame or the last.
+fn take_group_close(ctx: &Context, id: Id, frame_nr: u64) -> Option<CloseReason> {
+    let asked = ctx.data_mut(|d| d.remove_temp::<u64>(id.with(GROUP_CLOSE)));
+    asked.filter(|&frame| frame_nr <= frame + 1).map(|_| CloseReason::Group)
+}
+
+/// What a press this pass means for the popover `id`.
+struct Press {
+    closing: Option<CloseReason>,
+}
+
+/// Reads the press of this pass: a press on the popover's own surface closes its children; a
+/// press outside the popover, its children and the toggle control closes it when `outside`.
+fn read_press(ctx: &Context, id: Id, family: &[Id], toggle: Option<Id>, outside: bool) -> Press {
+    let Some(pos) = ctx.input(|i| i.pointer.any_pressed().then(|| i.pointer.interact_pos()).flatten()) else {
+        return Press { closing: None };
+    };
+    let hit = ctx.layer_id_at(pos);
+    let in_own = hit.is_some_and(|l| l.id == id);
+    // A plain egui popup is any foreground layer that no craft-ui popup owns; a parent popover
+    // owns its layer, so a press on it is outside its child.
+    let foreign = hit.is_some_and(|l| l.id != id && l.order == Order::Foreground && !family.contains(&l.id) && !popup_list::is_open_popup(ctx, l.id));
+    let in_child = foreign || hit.is_some_and(|l| l.id != id && family.contains(&l.id));
+    let on_toggle = toggle.and_then(|t| ctx.read_response(t)).is_some_and(|r| r.rect.contains(pos));
+    if in_own && !popup_list::child_anchors(ctx, id).iter().any(|r| r.contains(pos)) {
+        popup_list::close_children(ctx, id);
+    }
+    let closing = (outside && !in_own && !in_child && !on_toggle).then_some(CloseReason::Outside);
+    Press { closing }
+}
+
+/// Where the popover goes: the position and the pivot that keeps its corner at the anchor
+/// whatever its size. A control anchor keeps the side (`above`) it first chose.
+fn placement(anchor: &PopoverAnchor, rtl: bool, screen: Rect, last: Option<Rect>, above: &mut Option<bool>) -> (egui::Pos2, Align2) {
+    match anchor {
+        PopoverAnchor::Control(r) => {
+            let a = r.rect;
+            *above = above.or_else(|| {
+                last.map(|l| {
+                    let (below, over) = (screen.bottom() - a.bottom(), a.top() - screen.top());
+                    below < l.height() && over > below
+                })
+            });
+            let x = if rtl { a.right() } else { a.left() };
+            match (above.unwrap_or(false), rtl) {
+                (false, false) => (pos2(x, a.bottom()), Align2::LEFT_TOP),
+                (false, true) => (pos2(x, a.bottom()), Align2::RIGHT_TOP),
+                (true, false) => (pos2(x, a.top()), Align2::LEFT_BOTTOM),
+                (true, true) => (pos2(x, a.top()), Align2::RIGHT_BOTTOM),
+            }
+        }
+        PopoverAnchor::Point(p) => (*p, if rtl { Align2::RIGHT_TOP } else { Align2::LEFT_TOP }),
+    }
+}
+
+/// Shows the resize grip over `rect` and returns the new content size while it is dragged.
+fn grip_resize(ui: &mut Ui, id: Id, rect: Rect, content_size: Vec2, min: Vec2, room: Vec2) -> Option<Vec2> {
+    let ctx = ui.ctx().clone();
+    let grip = ResizeGrip::new(id.with("grip")).show(ui, rect);
+    let start_id = id.with("grip-start");
+    if grip.started {
+        ctx.data_mut(|d| d.insert_temp(start_id, content_size));
+    }
+    let (growth, start) = (grip.growth?, ctx.data(|d| d.get_temp::<Vec2>(start_id))?);
+    let grown = size::clamp(start + growth, min, room);
+    size::write(&ctx, id, grown);
+    Some(grown)
 }
 
 /// Forgets the state of the popover `id` and closes its children, once, after it was open.
@@ -476,15 +520,38 @@ fn focus_in(ctx: &Context, id: Id) -> bool {
     ctx.memory(|m| m.focused()).and_then(|f| ctx.read_response(f)).is_some_and(|r| r.layer_id.id == id)
 }
 
-/// Gives the focus to the first control drawn after this call: the next one in egui's order from
-/// a stand-in that has it.
-fn move_focus_in(ctx: &Context, id: Id) {
+/// Starts handing the keyboard focus to the first control drawn after this call: a stand-in has
+/// the focus and egui passes it on to the next widget that wants it. Returns the focus to restore
+/// when there is no such control in the popover; pair it with [`end_focus_entry`] after the
+/// contents.
+fn begin_focus_entry(ctx: &Context, id: Id) -> Option<Id> {
     let stand_in = id.with("focus-entry");
     ctx.memory_mut(|m| {
+        let previous = m.focused();
         m.request_focus(stand_in);
-        m.interested_in_focus(stand_in, LayerId::new(Order::Foreground, id));
         m.move_focus(FocusDirection::Next);
-    });
+        m.interested_in_focus(stand_in, LayerId::new(Order::Foreground, id));
+        previous
+    })
+}
+
+/// Ends [`begin_focus_entry`] after the contents ran. A marker control after them catches the
+/// hand-off when no control in the popover took it; the focus then goes back to where it was.
+/// Returns whether the focus is in the popover.
+fn end_focus_entry(ctx: &Context, id: Id, previous: Option<Id>) -> bool {
+    let tail = id.with("focus-exit");
+    ctx.memory_mut(|m| {
+        m.interested_in_focus(tail, LayerId::new(Order::Foreground, id));
+        m.move_focus(FocusDirection::None);
+        let caught = m.focused() == Some(tail);
+        if caught {
+            match previous {
+                Some(previous) => m.request_focus(previous),
+                None => m.surrender_focus(tail),
+            }
+        }
+        !caught
+    })
 }
 
 /// Whether no control has the focus, or the focused one is in the popover or a child: a close

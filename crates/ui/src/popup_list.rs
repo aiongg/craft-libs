@@ -309,6 +309,19 @@ impl<'a> PopupList<'a> {
 
 const ANCHOR: &str = "craft-anchor";
 const CLOSE_REQUEST: &str = "craft-close-request";
+const PARENT_CLOSE: &str = "craft-parent-close";
+
+/// Whether [`close_children`] asked the popover `popup` to close since it last asked. It does not
+/// expire: a popover drawn inside a closed parent reads it when the parent is drawn again.
+pub(crate) fn take_parent_close(ctx: &Context, popup: Id) -> bool {
+    ctx.data_mut(|d| d.remove_temp::<()>(popup.with(PARENT_CLOSE))).is_some()
+}
+
+/// Whether `popup` is recorded open (see [`record_open`]).
+pub(crate) fn is_open_popup(ctx: &Context, popup: Id) -> bool {
+    let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
+    ctx.data(|d| d.get_temp::<OpenLists>(key)).is_some_and(|l| l.0.iter().any(|l| l.popup == popup && l.pass + 1 >= pass))
+}
 
 /// Asks the open popups opened from inside `popup`, at any depth, to close: they do on their
 /// next pass. A popover calls it when a press lands on its own surface, so a slider or grip that
@@ -316,7 +329,10 @@ const CLOSE_REQUEST: &str = "craft-close-request";
 pub(crate) fn close_children(ctx: &Context, popup: Id) {
     let pass = ctx.cumulative_pass_nr();
     for child in family(ctx, popup).into_iter().skip(1) {
-        ctx.data_mut(|d| d.insert_temp(child.with(CLOSE_REQUEST), pass));
+        ctx.data_mut(|d| {
+            d.insert_temp(child.with(CLOSE_REQUEST), pass);
+            d.insert_temp(child.with(PARENT_CLOSE), ());
+        });
         Popup::close_id(ctx, child);
     }
 }
