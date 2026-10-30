@@ -1,6 +1,6 @@
 use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui_gallery::Gallery;
-use craft_ui_gallery::layout::{CentreView, PanelId, VariantAxis};
+use craft_ui_gallery::layout::{CentreView, GalleryWorkspace, PanelId, PreviewView, VariantAxis};
 use egui::{Context, RawInput};
 
 /// The window the dock lays out in; an empty screen would draw no panel.
@@ -410,4 +410,59 @@ fn the_more_popover_holds_the_moved_settings() {
     assert!(!gallery.appearance_mut().rtl);
     click(&ctx, &mut gallery, "RTL", Role::RadioButton);
     assert!(gallery.appearance_mut().rtl, "Direction in the popover sets the gallery's");
+}
+
+#[test]
+fn the_theme_workspace_renders_both_previews_at_the_default_size() {
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    gallery.set_workspace(GalleryWorkspace::Theme);
+    for preview in [PreviewView::App, PreviewView::Components] {
+        gallery.set_preview(preview);
+        for _ in 0..3 {
+            frame(&ctx, &mut gallery);
+        }
+    }
+}
+
+#[test]
+fn the_inspector_is_off_in_the_theme_workspace() {
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    gallery.set_view(CentreView::Component);
+    gallery.set_inspect(true);
+    for _ in 0..3 {
+        frame(&ctx, &mut gallery);
+    }
+    assert!(craft_ui::inspect::enabled(&ctx));
+    gallery.set_workspace(GalleryWorkspace::Theme);
+    frame(&ctx, &mut gallery);
+    assert!(!craft_ui::inspect::enabled(&ctx), "the Theme workspace has no inspector");
+    gallery.set_workspace(GalleryWorkspace::Components);
+    for _ in 0..3 {
+        frame(&ctx, &mut gallery);
+    }
+    assert!(craft_ui::inspect::enabled(&ctx));
+}
+
+#[test]
+fn a_preview_tile_link_opens_the_component_in_the_components_workspace() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    gallery.set_workspace(GalleryWorkspace::Theme);
+    gallery.set_preview(PreviewView::Components);
+    let tree = settled_tree(&ctx, &mut gallery);
+    let component = gallery
+        .stories()
+        .iter()
+        .filter(|s| s.level == craft_ui::story::Level::Controls)
+        .map(|s| s.component)
+        .find(|name| named(&tree, name, Role::Link).len() == 1)
+        .expect("a Controls tile link");
+    click(&ctx, &mut gallery, component, Role::Link);
+    assert_eq!(gallery.workspace(), GalleryWorkspace::Components);
+    assert_eq!(gallery.view(), CentreView::Component);
+    assert_eq!(gallery.selected().and_then(|id| gallery.stories().iter().find(|s| s.id == id)).map(|s| s.component), Some(component));
 }

@@ -7,7 +7,7 @@ use craft_ui::story::{ArgValue, Args};
 use serde::{Deserialize, Serialize};
 
 use crate::appearance::Appearance;
-use crate::layout::{CentreView, PanelId};
+use crate::layout::{CentreView, GalleryWorkspace, PanelId, PreviewView};
 
 pub const KEY: &str = "craft-ui-gallery";
 
@@ -16,6 +16,10 @@ pub const KEY: &str = "craft-ui-gallery";
 /// saved under an earlier version (the token browser in the centre) are not read.
 pub const LAYOUT_KEY: &str = "craft-ui-gallery.layout.v2";
 
+/// The Theme workspace's dock layout, kept apart from the Components one so that neither costs
+/// the other when it cannot be read.
+pub const THEME_LAYOUT_KEY: &str = "craft-ui-gallery.theme-layout.v1";
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Saved {
@@ -23,6 +27,8 @@ pub struct Saved {
     pub selected: Option<String>,
     pub filter: String,
     pub view: CentreView,
+    pub workspace: GalleryWorkspace,
+    pub preview: PreviewView,
     /// The share of the Tokens panel's height that its list takes.
     pub tokens_split: Option<f32>,
     /// Edited args by story id.
@@ -46,6 +52,11 @@ pub enum SavedValue {
 /// The saved dock layout, if there is one and it reads.
 pub fn load_layout(storage: Option<&dyn eframe::Storage>) -> Option<Workspace<PanelId>> {
     storage.and_then(|s| eframe::get_value(s, LAYOUT_KEY))
+}
+
+/// The saved Theme dock layout, if there is one and it reads.
+pub fn load_theme_layout(storage: Option<&dyn eframe::Storage>) -> Option<Workspace<PanelId>> {
+    storage.and_then(|s| eframe::get_value(s, THEME_LAYOUT_KEY))
 }
 
 impl Saved {
