@@ -36,6 +36,7 @@ pub use item::{ItemKind, MenuEntry, MenuItem};
 pub use mnemonic::{mnemonics, set_mnemonics};
 pub use nav::MenuStep;
 pub use popup::{Menu, MenuResponse, any_open};
+pub(crate) use popup::open_in_this_pass;
 pub use press::PressMenu;
 pub use row::MenuStyle;
 

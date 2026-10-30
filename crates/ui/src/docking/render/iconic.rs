@@ -348,7 +348,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
     }
 
-    /// Escape (outside a drag) or a primary press outside the flyout, its column and any menu.
+    /// Escape (outside a drag) or a primary press outside the flyout, its column and any menu. A
+    /// press that leaves a menu open, as one on a menu bar's title does, opens that menu and is
+    /// not outside.
     fn flyout_dismissed(&self, ctx: &Context, id: Id, column: Rect) -> bool {
         let escape = !is_dragging::<P>(ctx, self.id) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
         // The press event's own position: egui clears `press_origin` when the release arrives in
@@ -362,7 +364,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let outside = press.is_some_and(|pos| {
             let inside = ctx.memory(|m| m.area_rect(id)).is_some_and(|r| r.contains(pos)) || column.contains(pos);
             let menu = ctx.layer_id_at(pos).is_some_and(|layer| matches!(layer.order, Order::Foreground | Order::Tooltip));
-            !inside && !menu
+            !inside && !menu && !crate::menu::open_in_this_pass(ctx)
         });
         escape || outside
     }
