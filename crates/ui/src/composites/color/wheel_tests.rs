@@ -387,3 +387,31 @@ fn a_drag_keeps_the_part_it_pressed_in_a_moved_layer() {
     assert_eq!(rig.event, update(id, hsb(150.0, 50.0, 60.0)), "the drag turns the hue it pressed on");
 }
 
+/// A host's widget under the wheel's row, beside the wheel, takes the click.
+#[test]
+fn a_click_beside_the_wheel_reaches_the_widget_under_it() {
+    use egui::{Sense, Ui};
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let (mut time, mut geometry, mut clicked) = (0.0, WheelGeometry { center: Pos2::ZERO, inner: 0.0, outer: 0.0, triangle: 0.0 }, false);
+    let grab = default_style().grab_outer;
+    let mut frame = |events: Vec<Event>, geometry: &mut WheelGeometry, clicked: &mut bool| {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(time), events, ..Default::default() };
+        time += 1.0 / 60.0;
+        let (g, beside) = (*geometry, Rect::from_center_size(geometry.center + vec2(geometry.outer + grab + 20.0, 0.0), vec2(10.0, 10.0)));
+        let output = ctx.run_ui(input, |ui: &mut Ui| {
+            let under = ui.interact(beside, egui::Id::new("under"), Sense::click());
+            *clicked |= g.outer > 0.0 && under.clicked();
+            let wheel = ColorWheel::new("wheel", "Color wheel", hsb(240.0, 50.0, 60.0)).show(ui);
+            *geometry = wheel.geometry;
+        });
+        output.drop_without_applying_deltas();
+    };
+    frame(vec![], &mut geometry, &mut clicked);
+    frame(vec![], &mut geometry, &mut clicked);
+    let at = geometry.center + vec2(geometry.outer + grab + 20.0, 0.0);
+    frame(vec![Event::PointerMoved(at)], &mut geometry, &mut clicked);
+    frame(vec![button(at, true)], &mut geometry, &mut clicked);
+    frame(vec![button(at, false)], &mut geometry, &mut clicked);
+    assert!(clicked, "the wheel does not sense presses beside itself");
+}

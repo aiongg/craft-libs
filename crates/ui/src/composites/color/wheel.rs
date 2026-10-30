@@ -306,10 +306,12 @@ impl ColorWheel {
         let ring_id = Interactive::id_in(ui, "ring");
         let triangle_id = Interactive::id_in(ui, "triangle");
 
-        // One widget takes every press and drag; the focus goes to the two part widgets.
+        // One widget takes every press and drag; the focus goes to the two part widgets. It covers
+        // the wheel's square and the grab slack only, so presses beside it reach what lies there.
         let pointer_id = id.with("pointer");
         let options = InteractOptions { enabled: self.enabled, ..Default::default() };
-        let response = ui.interact_opt(area, pointer_id, Sense::DRAG, options);
+        let reach = Rect::from_center_size(geometry.center, Vec2::splat(2.0 * (geometry.outer + style.grab_outer))).intersect(area);
+        let response = ui.interact_opt(reach, pointer_id, Sense::DRAG, options);
         let enabled = response.enabled();
         let grab = |p: Pos2| geometry.part_at(p, style.grab_outer, style.grab_inner);
 
