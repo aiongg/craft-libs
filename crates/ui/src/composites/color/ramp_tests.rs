@@ -30,6 +30,7 @@ struct Rig {
     cycles: usize,
     menu_at: Option<Pos2>,
     bar: Rect,
+    bar_id: egui::Id,
     nodes: Vec<(NodeId, Node)>,
 }
 
@@ -50,6 +51,7 @@ impl Rig {
             cycles: 0,
             menu_at: None,
             bar: Rect::NOTHING,
+            bar_id: egui::Id::NULL,
             nodes: Vec::new(),
         };
         rig.settle();
@@ -85,6 +87,7 @@ impl Rig {
         self.cycles += usize::from(shown.cycle);
         self.menu_at = shown.menu_at.or(self.menu_at);
         self.bar = shown.bar.rect;
+        self.bar_id = shown.bar.id;
         self.nodes = output.platform_output.accesskit_update.clone().map(|u| u.nodes).unwrap_or_default();
         output.drop_without_applying_deltas();
     }
@@ -341,4 +344,25 @@ fn a_right_click_on_the_bar_asks_the_host_for_its_menu() {
     rig.frame(vec![Event::PointerMoved(off), secondary(off, true)]);
     rig.frame(vec![Event::PointerMoved(at), secondary(at, false)]);
     assert_eq!(rig.menu_at, None);
+}
+
+#[test]
+fn a_between_ramp_draws_the_ends_it_had_at_the_press_while_dragged() {
+    let mut rig = Rig::new(RampKind::Between);
+    let left = |rig: &Rig| {
+        let key = rig.bar_id.with("craft_ui::ramp_cache");
+        let cached = rig.ctx.data(|d| d.get_temp::<(u64, std::sync::Arc<Vec<egui::Color32>>)>(key));
+        cached.and_then(|(_, colors)| colors.first().copied())
+    };
+    assert_eq!(left(&rig), Some(egui::Color32::from(RED)));
+    let at = rig.at(0.5, 0.5);
+    rig.frame(vec![Event::PointerMoved(at), button(at, true, Modifiers::NONE)]);
+    rig.ends = [Srgba::rgb(0.0, 1.0, 0.0), Srgba::rgb(0.0, 1.0, 0.0)];
+    let to = rig.at(0.75, 0.5);
+    rig.frame(vec![Event::PointerMoved(to)]);
+    rig.frame(vec![Event::PointerMoved(to)]);
+    assert_eq!(left(&rig), Some(egui::Color32::from(RED)), "the bar keeps the press's colours under the pointer");
+    rig.frame(vec![button(to, false, Modifiers::NONE)]);
+    rig.settle();
+    assert_eq!(left(&rig), Some(egui::Color32::from(Srgba::rgb(0.0, 1.0, 0.0))), "after the release it follows the host");
 }

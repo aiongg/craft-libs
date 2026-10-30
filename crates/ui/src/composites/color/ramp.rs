@@ -372,7 +372,7 @@ impl<'a> ColorRamp<'a> {
         }
         let focused = response.has_focus();
         if ui.is_rect_visible(all) {
-            let colors = self.colors(ui, id, nx, ny);
+            let colors = self.colors(ui, id, nx, ny, ends);
             ui.painter().add(ramp_mesh(bar, &colors, nx, ny, self.web_safe));
             ui.painter().rect_stroke(bar, CornerRadius::ZERO, faded_stroke(style.edge, enabled), StrokeKind::Outside);
             if focused && FocusRing::visible(ui.ctx()) {
@@ -429,13 +429,14 @@ impl<'a> ColorRamp<'a> {
         box_focus
     }
 
-    /// The colours of the mesh, from the cache while nothing they depend on has changed: 49 by 9
+    /// The colours of the mesh for `ends` (the ones a pick uses, so a dragged Between ramp stays
+    /// as the press drew it), from the cache while nothing they depend on has changed: 49 by 9
     /// vertices, or 48 by 8 cell centres for a web-safe ramp.
-    fn colors(&self, ui: &Ui, id: egui::Id, nx: usize, ny: usize) -> Arc<Vec<Color32>> {
+    fn colors(&self, ui: &Ui, id: egui::Id, nx: usize, ny: usize, ends: [Srgba; 2]) -> Arc<Vec<Color32>> {
         let mut hasher = DefaultHasher::new();
         (self.kind, self.web_safe, nx, ny).hash(&mut hasher);
         if self.kind == RampKind::Between {
-            self.ends.iter().for_each(|c| [c.r, c.g, c.b, c.a].map(f32::to_bits).hash(&mut hasher));
+            ends.iter().for_each(|c| [c.r, c.g, c.b, c.a].map(f32::to_bits).hash(&mut hasher));
         }
         if self.kind == RampKind::Spectrum {
             (self.gamut.is_some(), self.gamut_revision).hash(&mut hasher);
@@ -452,7 +453,7 @@ impl<'a> ColorRamp<'a> {
         for row in 0..rows {
             for col in 0..cols {
                 let (x, y) = ((col as f32 + half) / nx as f32, (row as f32 + half) / ny as f32);
-                colors.push(Color32::from(ColorRamp::color_at(self.kind, self.web_safe, self.gamut, self.ends, x, y)));
+                colors.push(Color32::from(ColorRamp::color_at(self.kind, self.web_safe, self.gamut, ends, x, y)));
             }
         }
         let colors = Arc::new(colors);
