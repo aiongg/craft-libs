@@ -41,7 +41,7 @@ impl Outcome {
 }
 
 /// A plain press of Enter that is not a key repeat, as the fields count it.
-fn is_enter_press(event: &egui::Event) -> bool {
+pub(super) fn is_enter_press(event: &egui::Event) -> bool {
     matches!(event, egui::Event::Key { key: Key::Enter, pressed: true, repeat: false, modifiers, .. } if Modifiers { shift: false, ..*modifiers }.is_none())
 }
 
