@@ -5,8 +5,10 @@ use egui_kittest::{Harness, HarnessBuilder, Node};
 
 use super::form_grid::show_image_size;
 use super::*;
-use crate::controls::{Checkbox, TextField};
+use crate::controls::{Checkbox, NumberField, TextField};
 use crate::direction::{self, Direction};
+use crate::localized::LocaleNumbers;
+use crate::primitives::{Gap, Row};
 use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf, install};
@@ -32,8 +34,8 @@ fn form(grid: FormGrid) -> impl Fn(&mut Ui, &mut Option<FormStyle>) {
     move |ui, style| {
         *style = Some(FormGrid::style(&Tokens::of(ui), false));
         grid.show(ui, |form| {
-            let _ = form.row("Name:", |ui| TextField::new("name", "Name", "short").show(ui));
-            let _ = form.row("Resolution:", |ui| TextField::new("res", "Resolution", "long").show(ui));
+            let _ = form.row("Name:", |ui, _| TextField::new("name", "Name", "short").show(ui));
+            let _ = form.row("Resolution:", |ui, _| TextField::new("res", "Resolution", "long").show(ui));
             let _ = form.value("Size:", "3.7M");
             let mut on = false;
             let _ = form.unlabelled(|ui| Checkbox::bool("Resample", &mut on).show(ui));
@@ -72,7 +74,7 @@ fn the_roomy_grid_has_the_wider_gaps_and_the_label_column_minimum() {
         |ui, style| {
             *style = Some(FormGrid::style(&Tokens::of(ui), true));
             FormGrid::new("form").roomy(true).show(ui, |form| {
-                let _ = form.row("Name:", |ui| TextField::new("name", "Name", "short").show(ui));
+                let _ = form.row("Name:", |ui, _| TextField::new("name", "Name", "short").show(ui));
             });
         },
         None,
@@ -147,4 +149,64 @@ fn the_image_size_story_is_labelled_and_mirrors() {
             Direction::Rtl => assert!(field.right() < width.left(), "{width:?} {field:?}"),
         }
     }
+}
+
+#[test]
+fn a_label_scrubs_its_field_in_the_grid() {
+    let mut harness =
+        Harness::<f64>::builder().with_size([640.0, 120.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, value: &mut f64| {
+                let numbers = LocaleNumbers::from_tag("en");
+                FormGrid::new("form").show(ui, |form| {
+                    let _ = form.row("Radius:", |ui, label| {
+                        let field = NumberField::new("radius", "Radius", *value, &numbers).range(0.0..=500.0);
+                        let edit = match label.scrub() {
+                            Some(label) => field.scrub_by(label),
+                            None => field,
+                        }
+                        .show(ui);
+                        if let Some(event) = edit.event.as_ref().and_then(|e| e.value().copied()) {
+                            *value = event;
+                        }
+                        edit
+                    });
+                });
+            },
+            4.0,
+        );
+    let from = label(&harness, "Radius:").center();
+    let button = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+    harness.event(egui::Event::PointerMoved(from));
+    harness.event(button(from, true));
+    harness.run();
+    for dx in [10.0, 20.0] {
+        harness.event(egui::Event::PointerMoved(from + egui::vec2(dx, 0.0)));
+        harness.run();
+    }
+    harness.event(button(from + egui::vec2(20.0, 0.0), false));
+    harness.run();
+    assert!(*harness.state() > 4.0, "dragging the label scrubbed the value: {}", harness.state());
+}
+
+#[test]
+fn a_cell_of_several_controls_is_a_group_named_by_the_label() {
+    let harness =
+        Harness::<()>::builder().with_size([640.0, 120.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui(|ui| {
+            FormGrid::new("form").show(ui, |form| {
+                let _ = form.row("Actions:", |ui, _| {
+                    Row::new(Gap::Inline)
+                        .show(ui, |ui| {
+                            let _ = ui.button("One");
+                            let _ = ui.button("Two");
+                        })
+                        .response
+                });
+                let _ = form.row("Name:", |ui, _| TextField::new("name", "Name", "short").show(ui));
+            });
+        });
+    let id = |value: &str| harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some(value)).accesskit_node().locate().0;
+    let group = harness.get_by_role(Role::Group);
+    assert_eq!(group.accesskit_node().data().labelled_by(), [id("Actions:")]);
+    assert_eq!(harness.query_all_by_role(Role::Group).count(), 1, "a row of one control adds no group");
+    assert_eq!(text_input(&harness, "short").accesskit_node().data().labelled_by(), [id("Name:")]);
 }

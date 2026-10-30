@@ -320,7 +320,7 @@ pub fn take_pixels_per_point_request(ctx: &egui::Context) -> Option<f32> {
 /// A row of a story that lists labelled variants: `label` in the label column of a
 /// [`FormGrid`](composites::FormGrid), the control beside it at its own width.
 pub(crate) fn variant_row<C: composites::FieldControl>(form: &mut composites::Form<'_>, label: &str, control: impl FnOnce(&mut egui::Ui) -> C) {
-    form.row(label, control);
+    form.row(label, |ui, _| control(ui));
 }
 
 /// As [`variant_row`] for a row of several controls side by side.

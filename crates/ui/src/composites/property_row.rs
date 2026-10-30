@@ -9,7 +9,7 @@ use egui::{
     Align, AsIdSalt, Color32, Context, Galley, Id, IdSalt, InnerResponse, Label, LayerId, Layout, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2,
 };
 
-use super::field::{FieldControl, one_line};
+use super::field::{FieldControl, name_control, one_line};
 use super::measure;
 use crate::controls::{IconButton, NumberField, Swatch};
 use crate::direction;
@@ -101,6 +101,10 @@ pub struct RowLabel<'a> {
 }
 
 impl<'a> RowLabel<'a> {
+    pub(super) fn new(response: Option<&'a Response>, scrubs: bool) -> Self {
+        Self { response, scrubs }
+    }
+
     /// The visible label's response; `None` while the label is hidden.
     pub fn response(&self) -> Option<&'a Response> {
         self.response
@@ -430,19 +434,11 @@ impl Setup {
         let control_rect = Rect::from_min_max(pos2(x0, rect.top()), pos2(x1, rect.bottom()));
         let mut child =
             ui.new_child(UiBuilder::new().max_rect(control_rect).layout(Layout::top_down(direction::start_align(ui)).with_cross_justify(true)));
-        let control = add_control(&mut child, &RowLabel { response: label_response.as_ref(), scrubs: label.scrubs });
+        let control = add_control(&mut child, &RowLabel::new(label_response.as_ref(), label.scrubs));
         bottom = bottom.max(child.min_rect().bottom());
 
         if let Some(label) = label_response.as_ref().filter(|_| label.kind == LabelKind::Word) {
-            let id = control.control().id;
-            let ctx = ui.ctx().clone();
-            if ctx.has_accesskit_node(id) {
-                ctx.accesskit_node_builder(id, |node| {
-                    // The node's own label would win over `labelled_by`.
-                    node.clear_label();
-                    node.push_labelled_by(label.id.accesskit_id());
-                });
-            }
+            name_control(ui.ctx(), control.control(), label);
         }
         (control, bottom)
     }
