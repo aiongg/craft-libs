@@ -74,7 +74,7 @@ pub struct ViewportWindow {
 }
 
 /// What the previous pass recorded about a window, to tell when it opens.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct Seen {
     pass: u64,
     /// The window's own viewport, for [`ViewportWindow::refuse_close`]; none when it is embedded.
@@ -135,6 +135,19 @@ impl ViewportWindow {
             ctx.send_viewport_cmd_to(child, ViewportCommand::Focus);
         }
         true
+    }
+
+    /// Tells the window module that the host closed the window with `id` (it stops calling
+    /// [`show`](Self::show)): [`blocks_main`](Self::blocks_main) and
+    /// [`refuse_close`](Self::refuse_close) stop at once instead of one pass later, and a
+    /// reopening on the next pass counts as an opening.
+    pub fn closed(ctx: &Context, id: ViewportId) {
+        let key = Id::unique(("craft-ui-viewport", id));
+        let blocks = blocks_key(ctx);
+        ctx.data_mut(|d| {
+            d.remove_temp::<Seen>(key);
+            d.remove_temp::<Seen>(blocks);
+        });
     }
 
     /// The app-modal window this viewport shows, if it is open: its own viewport, or none when it
