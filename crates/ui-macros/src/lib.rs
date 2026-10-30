@@ -19,7 +19,8 @@ use syn::{Data, DeriveInput, Expr, Fields, LitStr, Type, parse_macro_input, span
 /// `#[arg(flatten)]` on a field whose type is itself `StoryArgs` lists that type's args in place
 /// (its names, kinds and order) and reads and writes them through its own `to_args` and
 /// `from_args`. It cannot be combined with `name` or `range`. Arg names are not checked across
-/// the flattened struct and its parent; a clash panics in `to_args`.
+/// the flattened struct and its parent at compile time; a clash, in either order of the fields,
+/// panics in `to_args`.
 ///
 /// The kind is read from the field's type name: only the single-segment names `bool`, `String`,
 /// `f64`, `f32` and the integer types are recognised. A path (`std::string::String`) or an alias

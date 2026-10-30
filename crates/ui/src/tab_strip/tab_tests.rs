@@ -356,9 +356,7 @@ fn the_story_shows_in_both_directions_and_both_sizes() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         for large in [false, true] {
             let mut args = story.defaults();
-            if let Some(arg) = args.iter_mut().find(|a| a.name == "large") {
-                arg.value = crate::story::ArgValue::Bool(large);
-            }
+            args.iter_mut().find(|a| a.name == "large").expect("a `large` arg").value = crate::story::ArgValue::Bool(large);
             let harness = harness(dir).build_ui(|ui| (story.show)(ui, &mut args));
             a11y::assert_labelled(&harness);
         }

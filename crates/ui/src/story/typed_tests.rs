@@ -172,3 +172,15 @@ fn a_flattened_struct_lists_its_args_in_place_and_round_trips() {
     assert_eq!(Flattened::from_args(&args), value);
     assert_eq!(<Flattened as StoryArgs>::ARG_COUNT, 4);
 }
+
+#[test]
+#[should_panic(expected = "two args are named `on`")]
+fn an_arg_named_like_an_earlier_flattened_arg_panics() {
+    let _ = Args::new().with_args(&Shared { on: true, gap: 1.0 }.to_args()).with_bool("on", false);
+}
+
+#[test]
+#[should_panic(expected = "two args are named `on`")]
+fn a_flattened_arg_named_like_an_earlier_arg_panics() {
+    let _ = Args::new().with_bool("on", false).with_args(&Shared { on: true, gap: 1.0 }.to_args());
+}
