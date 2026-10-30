@@ -20,8 +20,9 @@ use crate::behavior::nudge;
 use crate::edit::order::Turn;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use crate::primitives::FocusRing;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// Within this many points of its press a guide's release is a click (PhotoCraft's
 /// `finish_drag`).
@@ -985,25 +986,40 @@ impl<'a> SmartGuides<'a> {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Guides", "Smart guides"];
 
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum LineArg {
+    #[choice(name = "Solid")]
+    Solid,
+    #[choice(name = "Dashed")]
+    Dashed,
+    #[choice(name = "Dots")]
+    Dots,
+}
+
+impl LineArg {
+    fn line(self) -> GuideLine {
+        match self {
+            LineArg::Solid => GuideLine::Solid,
+            LineArg::Dashed => GuideLine::Dashed,
+            LineArg::Dots => GuideLine::Dots,
+        }
+    }
+}
+
+super::story::canvas_args!(GuidesArgs { line: LineArg = LineArg::Solid, interactive: bool = true, locked: bool = false, readout: bool = true });
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
-            "primitives/guides/guides",
+        typed_story!("primitives/guides/guides", Level::Primitives, "Guides", "Guides", GuidesArgs::default(), show_guides).on(Surface::Canvas),
+        typed_story!(
+            "primitives/smart-guides/move",
             Level::Primitives,
-            "Guides",
-            "Guides",
-            || {
-                super::story::args()
-                    .with_choice("line", &["Solid", "Dashed", "Dots"], 0)
-                    .with_bool("interactive", true)
-                    .with_bool("locked", false)
-                    .with_bool("readout", true)
-            },
-            show_guides,
+            "Smart guides",
+            "Move",
+            super::story::PlainArgs::default(),
+            show_smart_guides
         )
         .on(Surface::Canvas),
-        Story::new("primitives/smart-guides/move", Level::Primitives, "Smart guides", "Move", super::story::args, show_smart_guides)
-            .on(Surface::Canvas),
     ]
 }
 
@@ -1072,7 +1088,7 @@ impl GuideHost {
 
 /// Guides on the story document: drag them (new ones come out of the rulers in the Rulers story),
 /// Shift snaps to the ticks; Tab to them, Page Up and Page Down, the arrows and Delete.
-fn show_guides(ui: &mut Ui, args: &mut Args) {
+fn show_guides(ui: &mut Ui, args: &mut GuidesArgs) {
     let key = ui.scope_id().with("guides-story");
     let mut host: GuideHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| {
         GuideHost::new(vec![
@@ -1082,23 +1098,17 @@ fn show_guides(ui: &mut Ui, args: &mut Args) {
             Guide { span: Some(0.0..320.0), ..Guide::new(4, Orientation::Horizontal, 280.0) },
         ])
     });
-    let line = match args.choice("line") {
-        "Dashed" => GuideLine::Dashed,
-        "Dots" => GuideLine::Dots,
-        _ => GuideLine::Solid,
-    };
+    let line = args.line.line();
     for g in &mut host.guides {
         g.line = line;
-        g.locked = args.bool("locked") && g.key == 2;
+        g.locked = args.locked && g.key == 2;
     }
-    let canvas = super::story::document(ui, args, "Document");
+    let canvas = super::story::document(ui, args.view(), "Document");
     let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
     let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
-    let mut guides = Guides::new("story-guides", &host.guides, &px, &px, names)
-        .selected(host.selected)
-        .interactive(args.bool("interactive"))
-        .bounds(super::story::DOC);
-    if args.bool("readout") {
+    let mut guides =
+        Guides::new("story-guides", &host.guides, &px, &px, names).selected(host.selected).interactive(args.interactive).bounds(super::story::DOC);
+    if args.readout {
         guides = guides.readout("X:", "Y:");
     }
     let response = guides.show(ui, &canvas.response, &canvas.view);
@@ -1108,8 +1118,8 @@ fn show_guides(ui: &mut Ui, args: &mut Args) {
 
 /// Two boxes on the story document: the moving one's top aligned with the other's, 80 units to its
 /// right.
-fn show_smart_guides(ui: &mut Ui, args: &mut Args) {
-    let canvas = super::story::document(ui, args, "Document");
+fn show_smart_guides(ui: &mut Ui, args: &mut super::story::PlainArgs) {
+    let canvas = super::story::document(ui, args.view(), "Document");
     let view = &canvas.view;
     let painter = ui.painter_at(view.rect);
     let still = Rect::new(120.0, 80.0, 280.0, 200.0);

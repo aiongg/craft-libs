@@ -17,8 +17,9 @@ use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::Handle;
 use crate::primitives::HandleShape;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf};
+use crate::typed_story;
 
 /// The largest position of the box's reference point, in document units (PhotoCraft).
 pub const POSITION_LIMIT: f64 = 300_000.0;
@@ -531,16 +532,30 @@ impl<'a> TransformFields<'a> {
 
 /// A box with the fields above it and a reference point picker beside them: edit the box with the
 /// fields or pick its reference point.
-fn show_story(ui: &mut Ui, args: &mut Args) {
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum SizeUnitArg {
+    #[choice(name = "%")]
+    Percent,
+    #[choice(name = "px")]
+    Pixels,
+}
+
+story::canvas_args!(BoxArgs {
+    linked: bool = true,
+    #[arg(name = "size unit")]
+    size_unit: SizeUnitArg = SizeUnitArg::Percent,
+});
+
+fn show_story(ui: &mut Ui, args: &mut BoxArgs) {
     let key = ui.scope_id().with("transform-fields-story");
     let rect = Rect::new(200.0, 120.0, 440.0, 280.0);
     let (mut state, mut skew_v, mut before): (BoxState, f64, Option<TransformRow>) =
         ui.data(|d| d.get_temp(key)).unwrap_or((BoxState::from_rect(rect), 0.0, None));
-    let mut linked = args.bool("linked");
+    let mut linked = args.linked;
     let numbers = LocaleNumbers::from_tag("en");
-    let size_unit = match args.choice("size unit") {
-        "px" => SizeUnit::Length { x: RulerUnits::pixels(numbers.clone()), y: RulerUnits::pixels(numbers) },
-        _ => SizeUnit::Percent,
+    let size_unit = match args.size_unit {
+        SizeUnitArg::Pixels => SizeUnit::Length { x: RulerUnits::pixels(numbers.clone()), y: RulerUnits::pixels(numbers) },
+        SizeUnitArg::Percent => SizeUnit::Percent,
     };
     ui.horizontal(|ui| {
         let edit = super::ReferencePoint::new("transform-fields-pivot", state.anchor_of_pivot()).show(ui);
@@ -567,7 +582,7 @@ fn show_story(ui: &mut Ui, args: &mut Args) {
             }
         });
     });
-    let canvas = story::document(ui, args, "Transform fields");
+    let canvas = story::document(ui, args.view(), "Transform fields");
     let tokens = Tokens::of(ui);
     let painter = ui.painter_at(canvas.view.rect);
     let corners = state.quad.map(|p| canvas.view.to_screen(p));
@@ -582,15 +597,8 @@ pub const COMPONENTS: &[&str] = &["TransformFields"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
-            "composites/transform-fields/box",
-            Level::Composites,
-            "TransformFields",
-            "Box",
-            || story::args().with_bool("linked", true).with_choice("size unit", &["%", "px"], 0),
-            show_story,
-        )
-        .on(Surface::Chrome),
+        typed_story!("composites/transform-fields/box", Level::Composites, "TransformFields", "Box", BoxArgs::default(), show_story)
+            .on(Surface::Chrome),
     ]
 }
 

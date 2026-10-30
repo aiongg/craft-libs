@@ -12,8 +12,9 @@ use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::localized::Unit;
 use crate::popup_list;
 use crate::primitives::{FocusRing, Handle, HandleShape, HandleStyle};
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// Where a press outside the box rotates it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -844,21 +845,64 @@ fn fixed(v: f64, places: i32) -> f64 {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Transform box"];
 
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ModeArg {
+    #[choice(name = "Free")]
+    Free,
+    #[choice(name = "Rotate")]
+    Rotate,
+    #[choice(name = "Skew")]
+    Skew,
+    #[choice(name = "Distort")]
+    Distort,
+    #[choice(name = "Perspective")]
+    Perspective,
+}
+
+impl ModeArg {
+    fn mode(self) -> TransformMode {
+        match self {
+            ModeArg::Free => TransformMode::Free,
+            ModeArg::Rotate => TransformMode::Rotate,
+            ModeArg::Skew => TransformMode::Skew,
+            ModeArg::Distort => TransformMode::Distort,
+            ModeArg::Perspective => TransformMode::Perspective,
+        }
+    }
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ScaleArg {
+    #[choice(name = "Proportional")]
+    Proportional,
+    #[choice(name = "Free")]
+    Free,
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ZoneArg {
+    #[choice(name = "Outside")]
+    Outside,
+    #[choice(name = "Band")]
+    Band,
+}
+
+super::story::canvas_args!(FreeTransformArgs {
+    mode: ModeArg = ModeArg::Free,
+    scale: ScaleArg = ScaleArg::Proportional,
+    zone: ZoneArg = ZoneArg::Outside,
+    readout: bool = true,
+});
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "primitives/transform-box/free-transform",
             Level::Primitives,
             "Transform box",
             "Free transform",
-            || {
-                super::story::args()
-                    .with_choice("mode", &["Free", "Rotate", "Skew", "Distort", "Perspective"], 0)
-                    .with_choice("scale", &["Proportional", "Free"], 0)
-                    .with_choice("zone", &["Outside", "Band"], 0)
-                    .with_bool("readout", true)
-            },
-            show_transform_box,
+            FreeTransformArgs::default(),
+            show_transform_box
         )
         .on(Surface::Canvas),
     ]
@@ -924,21 +968,15 @@ const PICTURE: Rect = Rect::new(200.0, 120.0, 440.0, 280.0);
 
 /// A picture under a Free Transform box: Enter, a click outside or a double-click inside applies
 /// it (the picture stays and a new box opens on a fresh one), Esc puts it back.
-fn show_transform_box(ui: &mut Ui, args: &mut Args) {
+fn show_transform_box(ui: &mut Ui, args: &mut FreeTransformArgs) {
     let key = ui.scope_id().with("transform-box-story");
     let (mut host, mut applied): (BoxHost, Vec<[Point; 4]>) =
         ui.data(|d| d.get_temp(key)).unwrap_or_else(|| (BoxHost::new(BoxState::from_rect(PICTURE)), Vec::new()));
-    let mode = match args.choice("mode") {
-        "Rotate" => TransformMode::Rotate,
-        "Skew" => TransformMode::Skew,
-        "Distort" => TransformMode::Distort,
-        "Perspective" => TransformMode::Perspective,
-        _ => TransformMode::Free,
-    };
-    let scale = if args.choice("scale") == "Free" { ScaleRule::Free } else { ScaleRule::Proportional };
-    let zone = if args.choice("zone") == "Band" { RotateZone::Band } else { RotateZone::Outside };
+    let mode = args.mode.mode();
+    let scale = if args.scale == ScaleArg::Free { ScaleRule::Free } else { ScaleRule::Proportional };
+    let zone = if args.zone == ZoneArg::Band { RotateZone::Band } else { RotateZone::Outside };
     let rules = BoxRules { mode, scale, rotate_step: if scale == ScaleRule::Free { 45.0 } else { 15.0 }, ..BoxRules::default() };
-    let canvas = super::story::document(ui, args, "Document");
+    let canvas = super::story::document(ui, args.view(), "Document");
     let view = &canvas.view;
     let painter = ui.painter_at(view.rect);
     let picture = |quad: &[Point; 4], alpha: u8| {
@@ -952,7 +990,7 @@ fn show_transform_box(ui: &mut Ui, args: &mut Args) {
     let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
     let mut b =
         TransformBox::new("story-transform-box", &host.state, english_names()).rules(rules).rotate_zone(zone).units(&px, &px).start(PICTURE, 0.0);
-    if args.bool("readout") {
+    if args.readout {
         b = b.readout(TransformLabels::new("Angle:", "W:", "H:", "ΔX:", "ΔY:"));
     }
     let r = b.show(ui, &canvas.response, view);

@@ -6,9 +6,11 @@ use egui::epaint::{Mesh, RectShape};
 use egui::{Color32, CornerRadius, InnerResponse, Painter, Pos2, Rect, Shadow, Shape, Stroke, StrokeKind, Ui, Vec2, vec2};
 
 use super::Corner;
+use crate::canvas::story::NoArgs;
 use crate::inspect::{self, RecordKind};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// What a surface is, which sets every part of its look.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -255,27 +257,51 @@ fn bevel(rect: Rect, radius: CornerRadius, width: f32, top_left: Color32, bottom
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Surface"];
 
-const KIND_NAMES: &[&str] = &["background", "panel", "raised", "sunken", "pressed", "popup", "dialog", "knob"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum KindArg {
+    Background,
+    Panel,
+    Raised,
+    Sunken,
+    Pressed,
+    Popup,
+    Dialog,
+    Knob,
+}
+
+impl KindArg {
+    fn kind(self) -> SurfaceKind {
+        match self {
+            KindArg::Background => SurfaceKind::Background,
+            KindArg::Panel => SurfaceKind::Panel,
+            KindArg::Raised => SurfaceKind::Raised,
+            KindArg::Sunken => SurfaceKind::Sunken,
+            KindArg::Pressed => SurfaceKind::Pressed,
+            KindArg::Popup => SurfaceKind::Popup,
+            KindArg::Dialog => SurfaceKind::Dialog,
+            KindArg::Knob => SurfaceKind::Knob,
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct KindArgs {
+    kind: KindArg,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new("primitives/surface/kind", Level::Primitives, "Surface", "Kind", || Args::new().with_choice("kind", KIND_NAMES, 2), show_kind),
-        Story::new("primitives/surface/surfaces", Level::Primitives, "Surface", "Surfaces", Args::new, show_surfaces),
+        typed_story!("primitives/surface/kind", Level::Primitives, "Surface", "Kind", KindArgs { kind: KindArg::Raised }, show_kind),
+        typed_story!("primitives/surface/surfaces", Level::Primitives, "Surface", "Surfaces", NoArgs {}, show_surfaces),
     ]
 }
 
-fn kind_arg(args: &Args) -> SurfaceKind {
-    let name = args.choice("kind");
-    SurfaceKind::ALL.iter().copied().find(|k| k.name() == name).unwrap_or(SurfaceKind::Raised)
-}
-
-fn show_kind(ui: &mut Ui, args: &mut Args) {
-    let kind = kind_arg(args);
-    sample(ui, kind);
+fn show_kind(ui: &mut Ui, args: &mut KindArgs) {
+    sample(ui, args.kind.kind());
 }
 
 /// Every kind on `Background`, so a bevel shows against the window colour.
-fn show_surfaces(ui: &mut Ui, _: &mut Args) {
+fn show_surfaces(ui: &mut Ui, _: &mut NoArgs) {
     Surface::new(SurfaceKind::Background).show(ui, |ui| {
         super::Stack::new(super::Gap::Stack).pad(super::Pad::Panel).show(ui, |ui| {
             for &kind in SurfaceKind::ALL {

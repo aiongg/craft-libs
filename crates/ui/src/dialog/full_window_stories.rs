@@ -3,26 +3,41 @@
 use egui::{Rect, Ui, pos2, vec2};
 
 use super::{ButtonRole, DialogState, FooterButton, FullWindowDialog, Outcome};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
+use crate::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["FullWindowDialog"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct WorkspaceArgs {
+    open: bool,
+    #[arg(name = "title strip")]
+    title_strip: bool,
+    apply: bool,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
-    let workspace = || Args::new().with_bool("open", true).with_bool("title strip", true).with_bool("apply", false);
-    vec![Story::new("patterns/full-window/workspace", Level::Patterns, "FullWindowDialog", "Workspace", workspace, show_workspace)]
+    vec![typed_story!(
+        "patterns/full-window/workspace",
+        Level::Patterns,
+        "FullWindowDialog",
+        "Workspace",
+        WorkspaceArgs { open: true, title_strip: true, apply: false },
+        show_workspace
+    )]
 }
 
 /// A workspace over the story's area: a view on the left, settings and the footer on the right.
-fn show_workspace(ui: &mut Ui, args: &mut Args) {
+fn show_workspace(ui: &mut Ui, args: &mut WorkspaceArgs) {
     let key = egui::Id::unique("craft_ui::dialog::story-full-window");
     let mut state: DialogState<f32> = ui.data_mut(|d| d.remove_temp(key)).unwrap_or_default();
-    if args.bool("open") {
+    if args.open {
         let area = Rect::from_min_size(ui.max_rect().min, vec2(ui.available_width().min(720.0), 320.0));
         ui.allocate_rect(area, egui::Sense::hover());
-        let apply = args.bool("apply");
+        let apply = args.apply;
         let mut dialog = FullWindowDialog::new("story-full-window").rect(area);
-        if args.bool("title strip") {
+        if args.title_strip {
             dialog = dialog.title("Liquify");
         }
         let mut brush = 50.0_f32;
@@ -41,7 +56,7 @@ fn show_workspace(ui: &mut Ui, args: &mut Args) {
             fx.buttons(ui, Rect::from_min_max(pos2(panel.left(), panel.bottom() - 28.0), panel.max), buttons);
         });
         if shown.outcome.is_some_and(Outcome::closes) {
-            args.set_bool("open", false);
+            args.open = false;
         }
     }
     ui.data_mut(|d| d.insert_temp(key, state));

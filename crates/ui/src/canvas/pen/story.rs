@@ -5,16 +5,18 @@ use kurbo::Point;
 
 use super::{PenDraft, PenNames, PenResponse};
 use crate::canvas::bezier::story::sample_paths;
+use crate::canvas::story::PlainArgs;
 use crate::canvas::{BezierNames, BezierOverlay, BezierTool, EditPath, EditSubpath, KnotRef, PathSelection, RulerUnits};
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, Surface};
+use crate::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Pen draft"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new("primitives/pen-draft/draw", Level::Primitives, "Pen draft", "Draw", crate::canvas::story::args, show_pen).on(Surface::Canvas)]
+    vec![typed_story!("primitives/pen-draft/draw", Level::Primitives, "Pen draft", "Draw", PlainArgs::default(), show_pen).on(Surface::Canvas)]
 }
 
 /// A host's finished paths and open draft, as the story and the tests keep them: it keeps the
@@ -103,10 +105,10 @@ pub(crate) fn finished_paths() -> Vec<EditPath> {
 /// handles (⇧ at 45°, ⌥ breaks the pair); press on the last anchor to retract its handle, ⌥ on a
 /// handle to move it alone; click the first anchor to close; press on an open path's end to carry
 /// on with it. Enter or Esc ends the path, Backspace removes the last anchor, ⌘Z does too.
-fn show_pen(ui: &mut Ui, args: &mut Args) {
+fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
     let key = ui.scope_id().with("pen-story");
     let mut host: PenHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PenHost::new(finished_paths()));
-    let canvas = crate::canvas::story::document(ui, args, "Document");
+    let canvas = crate::canvas::story::document(ui, args.view(), "Document");
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let selection = PathSelection::default();
     let names = BezierNames::new("Paths", "In handle", "Out handle", "Selection", |i, n| format!("Anchor {i} of {n}"));

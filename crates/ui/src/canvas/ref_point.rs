@@ -10,8 +10,9 @@ use super::quad::Anchor9;
 use crate::controls::TooltipExt as _;
 use crate::edit::{EditEvent, EditResponse};
 use crate::primitives::FocusRing;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// The size of a [`ReferencePoint`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -298,10 +299,17 @@ fn paint_arrow(painter: &egui::Painter, centre: Pos2, dir: Vec2, scale: f32, col
 
 /// The picker in both sizes: pick with the pointer or the arrow keys and Space; `growth` shows the
 /// Canvas Size arrows.
-fn show_story(ui: &mut Ui, args: &mut Args) {
+#[derive(StoryArgs, Debug, Default, PartialEq)]
+struct PickerArgs {
+    shrink: bool,
+    #[arg(name = "custom pivot")]
+    custom_pivot: bool,
+}
+
+fn show_story(ui: &mut Ui, args: &mut PickerArgs) {
     let key = ui.scope_id().with("ref-point-story");
     let mut picked: Option<Anchor9> = ui.data(|d| d.get_temp(key)).unwrap_or(Some(Anchor9::Center));
-    let grow = if args.bool("shrink") { -1 } else { 1 };
+    let grow = if args.shrink { -1 } else { 1 };
     ui.horizontal(|ui| {
         let compact = ReferencePoint::new("compact", picked).show(ui);
         ui.add_space(24.0);
@@ -312,7 +320,7 @@ fn show_story(ui: &mut Ui, args: &mut Args) {
             }
         }
     });
-    if args.bool("custom pivot") {
+    if args.custom_pivot {
         ui.add_space(8.0);
         let _ = ReferencePoint::new("custom", None).show(ui);
     }
@@ -324,15 +332,8 @@ pub const COMPONENTS: &[&str] = &["ReferencePoint"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
-            "primitives/reference-point/picker",
-            Level::Primitives,
-            "ReferencePoint",
-            "Picker",
-            || Args::new().with_bool("shrink", false).with_bool("custom pivot", false),
-            show_story,
-        )
-        .on(Surface::Chrome),
+        typed_story!("primitives/reference-point/picker", Level::Primitives, "ReferencePoint", "Picker", PickerArgs::default(), show_story)
+            .on(Surface::Chrome),
     ]
 }
 

@@ -3,8 +3,10 @@
 use egui::emath::GuiRounding as _;
 use egui::{Painter, Pos2, Response, Sense, Stroke, Ui, pos2, vec2};
 
-use crate::story::{Args, Level, Story};
+use crate::canvas::story::NoArgs;
+use crate::story::{Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// A divider's line, from [`Divider::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -67,10 +69,10 @@ impl Divider {
 pub const COMPONENTS: &[&str] = &["Divider"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new("primitives/divider/lines", Level::Primitives, "Divider", "Lines", Args::new, show)]
+    vec![typed_story!("primitives/divider/lines", Level::Primitives, "Divider", "Lines", NoArgs {}, show)]
 }
 
-fn show(ui: &mut Ui, _: &mut Args) {
+fn show(ui: &mut Ui, _: &mut NoArgs) {
     super::Stack::new(super::Gap::Stack).show(ui, |ui| {
         ui.add(super::Text::new("Above"));
         Divider::horizontal().show(ui);

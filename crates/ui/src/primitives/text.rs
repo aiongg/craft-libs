@@ -4,9 +4,11 @@ use craft_theme::TypeRole;
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Label, Response, Ui, Widget};
 
-use super::{CONTENT_NAMES, Content};
-use crate::story::{Args, Level, Story};
+use super::{Content, ContentStoryArgs};
+use crate::canvas::story::NoArgs;
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// Text in a type role ([`TypeRole::Body`] by default) and a [`Content`] colour
 /// ([`Content::Normal`] by default): `ui.add(Text::new("Layers").role(TypeRole::Title))`.
@@ -64,47 +66,72 @@ impl Widget for Text {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Text"];
 
-const ROLE_NAMES: &[&str] = &["caption", "label", "body", "body_strong", "title", "heading", "mono"];
-const ROLES: [TypeRole; 7] =
-    [TypeRole::Caption, TypeRole::Label, TypeRole::Body, TypeRole::BodyStrong, TypeRole::Title, TypeRole::Heading, TypeRole::Mono];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum RoleArg {
+    Caption,
+    Label,
+    Body,
+    #[choice(name = "body_strong")]
+    BodyStrong,
+    Title,
+    Heading,
+    Mono,
+}
+
+impl RoleArg {
+    fn role(self) -> TypeRole {
+        match self {
+            RoleArg::Caption => TypeRole::Caption,
+            RoleArg::Label => TypeRole::Label,
+            RoleArg::Body => TypeRole::Body,
+            RoleArg::BodyStrong => TypeRole::BodyStrong,
+            RoleArg::Title => TypeRole::Title,
+            RoleArg::Heading => TypeRole::Heading,
+            RoleArg::Mono => TypeRole::Mono,
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct TruncateArgs {
+    role: RoleArg,
+    text: String,
+    #[arg(range = 40.0..=400.0)]
+    width: f32,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new("primitives/text/roles", Level::Primitives, "Text", "Roles", || Args::new().with_choice("content", CONTENT_NAMES, 0), show_roles),
-        Story::new("primitives/text/contents", Level::Primitives, "Text", "Contents", Args::new, show_contents),
-        Story::new(
+        typed_story!("primitives/text/roles", Level::Primitives, "Text", "Roles", ContentStoryArgs::default(), show_roles),
+        typed_story!("primitives/text/contents", Level::Primitives, "Text", "Contents", NoArgs {}, show_contents),
+        typed_story!(
             "primitives/text/truncate",
             Level::Primitives,
             "Text",
             "Truncate",
-            || {
-                Args::new()
-                    .with_choice("role", ROLE_NAMES, 2)
-                    .with_text("text", "A long layer name that does not fit in the panel and ends in an ellipsis")
-                    .with_number("width", 160.0, 40.0, 400.0)
+            TruncateArgs {
+                role: RoleArg::Body,
+                text: "A long layer name that does not fit in the panel and ends in an ellipsis".into(),
+                width: 160.0,
             },
-            show_truncate,
+            show_truncate
         ),
     ]
 }
 
-fn role_arg(args: &Args) -> TypeRole {
-    let name = args.choice("role");
-    ROLE_NAMES.iter().position(|n| *n == name).map_or(TypeRole::Body, |i| ROLES[i])
-}
-
 /// Every role in the chosen content colour.
-fn show_roles(ui: &mut Ui, args: &mut Args) {
-    let content = Content::from_name(args.choice("content")).unwrap_or_default();
+fn show_roles(ui: &mut Ui, args: &mut ContentStoryArgs) {
+    let content = args.content.content();
     crate::story::variant_list(ui, "text-roles", |form| {
-        for (role, name) in ROLES.into_iter().zip(ROLE_NAMES) {
+        for index in 0..RoleArg::OPTIONS.len() {
+            let (role, name) = (RoleArg::from_index(index).role(), RoleArg::OPTIONS[index]);
             crate::story::variant_row(form, name, |ui| ui.add(Text::new("The quick brown fox").role(role).content(content)));
         }
     });
 }
 
 /// Every content colour on the surface it is meant for.
-fn show_contents(ui: &mut Ui, _: &mut Args) {
+fn show_contents(ui: &mut Ui, _: &mut NoArgs) {
     let tokens = Tokens::of(ui);
     let c = &tokens.color;
     super::Stack::new(super::Gap::Inline).show(ui, |ui| {
@@ -128,9 +155,9 @@ fn show_contents(ui: &mut Ui, _: &mut Args) {
     });
 }
 
-fn show_truncate(ui: &mut Ui, args: &mut Args) {
-    let width = args.number("width") as f32;
-    let text = Text::new(args.text("text")).role(role_arg(args)).truncate();
+fn show_truncate(ui: &mut Ui, args: &mut TruncateArgs) {
+    let width = args.width;
+    let text = Text::new(args.text.as_str()).role(args.role.role()).truncate();
     ui.allocate_ui(egui::vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         ui.add(text);

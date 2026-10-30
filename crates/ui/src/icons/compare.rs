@@ -4,12 +4,55 @@ use craft_theme::{Mode, TypeRole};
 use egui::{Align2, Frame, Rect, Sense, Ui, vec2};
 
 use super::{Icon, IconSet, IconSize, paint_in};
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, scope};
+use crate::typed_story;
 
-const SETS: &[&str] = &["all", "lucide", "phosphor", "carbon", "tabler"];
-const SIZES: &[&str] = &["16 and 20", "16", "20"];
-const MODES: &[&str] = &["inherit", "light", "dark"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum SetArg {
+    All,
+    Lucide,
+    Phosphor,
+    Carbon,
+    Tabler,
+}
+
+impl SetArg {
+    /// The set to show, or `None` for every set.
+    fn set(self) -> Option<IconSet> {
+        match self {
+            SetArg::All => None,
+            SetArg::Lucide => Some(IconSet::Lucide),
+            SetArg::Phosphor => Some(IconSet::Phosphor),
+            SetArg::Carbon => Some(IconSet::Carbon),
+            SetArg::Tabler => Some(IconSet::Tabler),
+        }
+    }
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum SizesArg {
+    #[choice(name = "16 and 20")]
+    Both,
+    #[choice(name = "16")]
+    Sixteen,
+    #[choice(name = "20")]
+    Twenty,
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ModeArg {
+    Inherit,
+    Light,
+    Dark,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct CompareArgs {
+    set: SetArg,
+    size: SizesArg,
+    mode: ModeArg,
+}
 
 const NAME_WIDTH: f32 = 176.0;
 const CELL: f32 = 36.0;
@@ -17,30 +60,29 @@ const CELL: f32 = 36.0;
 /// The icon module's stories.
 pub fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "specimens/icons/compare",
             Level::Specimens,
             "Icons",
             "Compare",
-            || Args::new().with_choice("set", SETS, 0).with_choice("size", SIZES, 0).with_choice("mode", MODES, 0),
-            show,
+            CompareArgs { set: SetArg::All, size: SizesArg::Both, mode: ModeArg::Inherit },
+            show
         )
         .on(Surface::Own),
     ]
 }
 
-fn show(ui: &mut Ui, args: &mut Args) {
-    let mode = match args.choice("mode") {
-        "light" => Some(Mode::Light),
-        "dark" => Some(Mode::Dark),
-        _ => None,
+fn show(ui: &mut Ui, args: &mut CompareArgs) {
+    let mode = match args.mode {
+        ModeArg::Light => Some(Mode::Light),
+        ModeArg::Dark => Some(Mode::Dark),
+        ModeArg::Inherit => None,
     };
-    let filter = args.choice("set");
-    let sets: Vec<IconSet> = IconSet::ALL.into_iter().filter(|set| filter == "all" || set.id() == filter).collect();
-    let sizes: &[f32] = match args.choice("size") {
-        "16" => &[16.0],
-        "20" => &[20.0],
-        _ => &[16.0, 20.0],
+    let sets: Vec<IconSet> = IconSet::ALL.into_iter().filter(|&set| args.set.set().is_none_or(|only| only == set)).collect();
+    let sizes: &[f32] = match args.size {
+        SizesArg::Sixteen => &[16.0],
+        SizesArg::Twenty => &[20.0],
+        SizesArg::Both => &[16.0, 20.0],
     };
     scope(ui, |o| o.mode = mode, |ui| table(ui, &sets, sizes));
 }

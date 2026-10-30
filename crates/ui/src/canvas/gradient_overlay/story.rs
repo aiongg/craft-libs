@@ -9,39 +9,86 @@ use crate::composites::gradient::stops::{StopRules, sample};
 use crate::composites::{ColorStop, GradientEditor, GradientStops, StopRef, StopRow, StopRows};
 use crate::edit::{EditEvent, GestureHost, UndoMarks, describe};
 use crate::localized::LocaleNumbers;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryChoice, Surface};
+use crate::typed_story;
 use craft_theme::Srgba;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Gradient line"];
 
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum RowsArg {
+    #[choice(name = "Split")]
+    Split,
+    #[choice(name = "Combined")]
+    Combined,
+}
+
+impl RowsArg {
+    fn rows(self) -> StopRows {
+        match self {
+            RowsArg::Split => StopRows::Split,
+            RowsArg::Combined => StopRows::Combined,
+        }
+    }
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ExtentArg {
+    #[choice(name = "None")]
+    None,
+    #[choice(name = "Circle")]
+    Circle,
+    #[choice(name = "Square")]
+    Square,
+    #[choice(name = "Mirror")]
+    Mirror,
+}
+
+impl ExtentArg {
+    fn extent(self) -> GradientExtent {
+        match self {
+            ExtentArg::None => GradientExtent::None,
+            ExtentArg::Circle => GradientExtent::Circle,
+            ExtentArg::Square => GradientExtent::Square,
+            ExtentArg::Mirror => GradientExtent::Mirror,
+        }
+    }
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum SelectedArg {
+    #[choice(name = "None")]
+    None,
+    #[choice(name = "Stop 2")]
+    Stop2,
+    #[choice(name = "Midpoint 1")]
+    Midpoint1,
+}
+
+crate::canvas::story::canvas_args!(EditArgs {
+    rows: RowsArg = RowsArg::Split,
+    extent: ExtentArg = ExtentArg::None,
+    selected: SelectedArg = SelectedArg::Stop2,
+    reverse: bool = false,
+    midpoints: bool = true,
+    #[arg(name = "alt copies")]
+    alt_copies: bool = false,
+    editable: bool = true,
+});
+
+crate::canvas::story::canvas_args!(WithEditorArgs { rows: RowsArg = RowsArg::Split, reverse: bool = false, midpoints: bool = true });
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
-            "primitives/gradient-line/edit",
-            Level::Primitives,
-            "Gradient line",
-            "Edit",
-            || {
-                super::super::story::args()
-                    .with_choice("rows", &["Split", "Combined"], 0)
-                    .with_choice("extent", &["None", "Circle", "Square", "Mirror"], 0)
-                    .with_choice("selected", &["None", "Stop 2", "Midpoint 1"], 1)
-                    .with_bool("reverse", false)
-                    .with_bool("midpoints", true)
-                    .with_bool("alt copies", false)
-                    .with_bool("editable", true)
-            },
-            show_edit,
-        )
-        .on(Surface::Canvas),
-        Story::new(
+        typed_story!("primitives/gradient-line/edit", Level::Primitives, "Gradient line", "Edit", EditArgs::default(), show_edit).on(Surface::Canvas),
+        typed_story!(
             "primitives/gradient-line/with-editor",
             Level::Primitives,
             "Gradient line",
             "With editor",
-            || super::super::story::args().with_choice("rows", &["Split", "Combined"], 0).with_bool("reverse", false).with_bool("midpoints", true),
-            show_with_editor,
+            WithEditorArgs::default(),
+            show_with_editor
         )
         .on(Surface::Canvas),
     ]
@@ -106,26 +153,17 @@ struct StoryState {
     rows: StopRows,
     host: LineHost,
     last: String,
-    selected_arg: String,
+    selected_arg: Option<SelectedArg>,
 }
 
-fn show_edit(ui: &mut Ui, args: &mut Args) {
-    let rows = if args.choice("rows") == "Combined" { StopRows::Combined } else { StopRows::Split };
-    let extent = match args.choice("extent") {
-        "Circle" => GradientExtent::Circle,
-        "Square" => GradientExtent::Square,
-        "Mirror" => GradientExtent::Mirror,
-        _ => GradientExtent::None,
-    };
+fn show_edit(ui: &mut Ui, args: &mut EditArgs) {
+    let rows = args.rows.rows();
+    let extent = args.extent.extent();
     let key = ui.scope_id().with("gradient-line-story");
-    let fresh = || StoryState {
-        rows,
-        host: LineHost::new(LineGradient { line: LINE, stops: story_stops(rows) }),
-        last: "–".into(),
-        selected_arg: String::new(),
-    };
+    let fresh =
+        || StoryState { rows, host: LineHost::new(LineGradient { line: LINE, stops: story_stops(rows) }), last: "–".into(), selected_arg: None };
     let mut state = ui.data(|d| d.get_temp::<StoryState>(key)).filter(|s| s.rows == rows).unwrap_or_else(fresh);
-    let reverse = args.bool("reverse");
+    let reverse = args.reverse;
     ui.label(format!(
         "Line {:.0}, {:.0} → {:.0}, {:.0}; {} stops. Last event: {}",
         state.host.value.line.start.x,
@@ -135,28 +173,28 @@ fn show_edit(ui: &mut Ui, args: &mut Args) {
         state.host.value.stops.color.len(),
         state.last
     ));
-    let canvas = super::super::story::document(ui, args, "Document");
+    let canvas = super::super::story::document(ui, args.view(), "Document");
     let view = &canvas.view;
     paint_picture(ui, view, &state.host.value, rows, reverse);
     let id = ui.make_persistent_id("story-gradient");
-    let selected_arg = args.choice("selected").to_owned();
-    if selected_arg != state.selected_arg {
-        let selected = match selected_arg.as_str() {
-            "Stop 2" => Some(StopRef::Color(1)),
-            "Midpoint 1" => Some(StopRef::Midpoint(StopRow::Color, 0)),
-            _ => None,
+    let selected_arg = args.selected;
+    if Some(selected_arg) != state.selected_arg {
+        let selected = match selected_arg {
+            SelectedArg::Stop2 => Some(StopRef::Color(1)),
+            SelectedArg::Midpoint1 => Some(StopRef::Midpoint(StopRow::Color, 0)),
+            SelectedArg::None => None,
         };
         GradientOverlay::select(ui.ctx(), id, selected);
-        state.selected_arg = selected_arg;
+        state.selected_arg = Some(selected_arg);
     }
     let value = state.host.value.clone();
     let r = GradientOverlay::new("story-gradient", &value.line, &value.stops, english_names())
         .rules(StopRules { rows, ..StopRules::default() })
-        .midpoints(args.bool("midpoints"))
+        .midpoints(args.midpoints)
         .reverse(reverse)
         .extent(extent)
-        .alt_copies(args.bool("alt copies"))
-        .editable(args.bool("editable"))
+        .alt_copies(args.alt_copies)
+        .editable(args.editable)
         .show(ui, &canvas.response, view);
     state.host.apply(&r);
     if let Some(event) = &r.event {
@@ -233,13 +271,13 @@ struct WithEditor {
     host: GestureHost<Doc>,
 }
 
-fn show_with_editor(ui: &mut Ui, args: &mut Args) {
-    let rows = if args.choice("rows") == "Combined" { StopRows::Combined } else { StopRows::Split };
+fn show_with_editor(ui: &mut Ui, args: &mut WithEditorArgs) {
+    let rows = args.rows.rows();
     let key = ui.scope_id().with("gradient-line-with-editor");
     let fresh =
         || WithEditor { rows, doc: Doc { value: LineGradient { line: LINE, stops: story_stops(rows) }, undo: Vec::new() }, host: GestureHost::new() };
     let mut state = ui.data(|d| d.get_temp::<WithEditor>(key)).filter(|s| s.rows == rows).unwrap_or_else(fresh);
-    let (reverse, ctx) = (args.bool("reverse"), ui.ctx().clone());
+    let (reverse, ctx) = (args.reverse, ui.ctx().clone());
     let numbers = LocaleNumbers::from_tag("en");
     let rules = StopRules { rows, ..StopRules::default() };
     ui.label(format!("Undo steps: {}", state.doc.undo.len()));
@@ -258,13 +296,13 @@ fn show_with_editor(ui: &mut Ui, args: &mut Args) {
                 bar.edit.response.id
             })
             .inner;
-        let canvas = super::super::story::document(ui, args, "Document");
+        let canvas = super::super::story::document(ui, args.view(), "Document");
         let view = &canvas.view;
         paint_picture(ui, view, &state.doc.value, rows, reverse);
         let value = state.doc.value.clone();
         let r = GradientOverlay::new("story-gradient", &value.line, &value.stops, english_names())
             .rules(rules.clone())
-            .midpoints(args.bool("midpoints"))
+            .midpoints(args.midpoints)
             .reverse(reverse)
             .selection_of(editor_id)
             .show(ui, &canvas.response, view);

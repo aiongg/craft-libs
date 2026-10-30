@@ -4,9 +4,11 @@ use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{AsIdSalt, Color32, CursorIcon, IdSalt, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, vec2};
 
+use crate::canvas::story::NoArgs;
 use crate::inspect::{self, RecordKind};
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 use craft_theme::Contrast;
 
 /// What a handle does, which sets its shape and pointer.
@@ -214,11 +216,11 @@ impl Handle {
 pub const COMPONENTS: &[&str] = &["Handle"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new("primitives/handle/shapes", Level::Primitives, "Handle", "Shapes", Args::new, show).on(Surface::Canvas)]
+    vec![typed_story!("primitives/handle/shapes", Level::Primitives, "Handle", "Shapes", NoArgs {}, show).on(Surface::Canvas)]
 }
 
 /// The three shapes on a light and a dark strip, draggable.
-fn show(ui: &mut Ui, _: &mut Args) {
+fn show(ui: &mut Ui, _: &mut NoArgs) {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width().min(320.0), 96.0), Sense::hover());
     let painter = ui.painter_at(rect);
     let (top, bottom) = rect.split_top_bottom_at_fraction(0.5);

@@ -15,8 +15,9 @@ use super::{CanvasView, Claim, Readout};
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::localized::{LocaleNumbers, Unit};
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 use ants::Ants;
 
@@ -36,20 +37,6 @@ pub enum MarqueeLook {
     /// An outline still being drawn (a lasso): a dark 1 point line over a wider translucent light
     /// line. A polygon is an open path in this look.
     Drawing,
-}
-
-impl MarqueeLook {
-    /// Every look, in declaration order.
-    pub const ALL: &'static [MarqueeLook] = &[MarqueeLook::Ants, MarqueeLook::Band, MarqueeLook::Drawing];
-
-    /// The name in story args.
-    pub const fn name(self) -> &'static str {
-        match self {
-            MarqueeLook::Ants => "ants",
-            MarqueeLook::Band => "band",
-            MarqueeLook::Drawing => "drawing",
-        }
-    }
 }
 
 /// A marquee's look, from [`Marquee::style`].
@@ -670,36 +657,59 @@ impl<'a> MarqueeDrag<'a> {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Marquee"];
 
-const SHAPES: &[&str] = &["rectangle", "ellipse"];
-const CONSTRAINTS: &[&str] = &["free", "ratio 4:3", "size 200 x 120"];
-const LOOKS: &[&str] = &["ants", "band", "drawing"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum LookArg {
+    Ants,
+    Band,
+    Drawing,
+}
+
+impl LookArg {
+    fn look(self) -> MarqueeLook {
+        match self {
+            LookArg::Ants => MarqueeLook::Ants,
+            LookArg::Band => MarqueeLook::Band,
+            LookArg::Drawing => MarqueeLook::Drawing,
+        }
+    }
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ShapeArg {
+    Rectangle,
+    Ellipse,
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum StyleArg {
+    Free,
+    #[choice(name = "ratio 4:3")]
+    Ratio,
+    #[choice(name = "size 200 x 120")]
+    Size,
+}
+
+super::story::canvas_args!(DragArgs { look: LookArg = LookArg::Ants, shape: ShapeArg = ShapeArg::Rectangle, style: StyleArg = StyleArg::Free });
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![
-        Story::new(
-            "primitives/marquee/drag",
-            Level::Primitives,
-            "Marquee",
-            "Drag",
-            || super::story::args().with_choice("look", LOOKS, 0).with_choice("shape", SHAPES, 0).with_choice("style", CONSTRAINTS, 0),
-            show_drag,
-        )
-        .on(Surface::Canvas),
-    ]
+    vec![typed_story!("primitives/marquee/drag", Level::Primitives, "Marquee", "Drag", DragArgs::default(), show_drag).on(Surface::Canvas)]
 }
 
 /// Drag a marquee on the document: ⇧ square, ⌥ from the centre, Space moves it, Esc cancels. The
 /// committed rectangle stays as the selection and the arrow keys nudge it while the canvas has
 /// focus; a click deselects. The width and height follow the pointer in a readout.
-fn show_drag(ui: &mut Ui, args: &mut Args) {
-    let canvas = super::story::document(ui, args, "Document");
+fn show_drag(ui: &mut Ui, args: &mut DragArgs) {
+    let canvas = super::story::document(ui, args.view(), "Document");
     let (response, view) = (&canvas.response, &canvas.view);
-    let look = MarqueeLook::ALL.iter().copied().find(|l| l.name() == args.choice("look")).unwrap_or_default();
-    let shape = if args.choice("shape") == SHAPES[1] { MarqueeShape::Ellipse } else { MarqueeShape::Rect };
-    let constraint = match args.choice("style") {
-        "ratio 4:3" => Constraint::Ratio(4.0, 3.0),
-        "size 200 x 120" => Constraint::Size(200.0, 120.0),
-        _ => Constraint::Free,
+    let look = args.look.look();
+    let shape = match args.shape {
+        ShapeArg::Rectangle => MarqueeShape::Rect,
+        ShapeArg::Ellipse => MarqueeShape::Ellipse,
+    };
+    let constraint = match args.style {
+        StyleArg::Ratio => Constraint::Ratio(4.0, 3.0),
+        StyleArg::Size => Constraint::Size(200.0, 120.0),
+        StyleArg::Free => Constraint::Free,
     };
     let selection_key = ui.scope_id().with("marquee-story-selection");
     let mut selection: Option<Rect> = ui.data(|d| d.get_temp(selection_key));

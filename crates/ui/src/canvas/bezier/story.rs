@@ -9,26 +9,29 @@ use super::{
 use crate::canvas::RulerUnits;
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryChoice, Surface};
+use crate::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Bezier paths"];
 
-const TOOLS: &[&str] = &["direct", "convert", "show"];
-const HANDLES: &[&str] = &["selected", "all"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ToolArg {
+    Direct,
+    Convert,
+    Show,
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum HandlesArg {
+    Selected,
+    All,
+}
+
+crate::canvas::story::canvas_args!(EditArgs { tool: ToolArg = ToolArg::Direct, handles: HandlesArg = HandlesArg::Selected });
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![
-        Story::new(
-            "primitives/bezier-paths/edit",
-            Level::Primitives,
-            "Bezier paths",
-            "Edit",
-            || crate::canvas::story::args().with_choice("tool", TOOLS, 0).with_choice("handles", HANDLES, 0),
-            show_paths,
-        )
-        .on(Surface::Canvas),
-    ]
+    vec![typed_story!("primitives/bezier-paths/edit", Level::Primitives, "Bezier paths", "Edit", EditArgs::default(), show_paths).on(Surface::Canvas)]
 }
 
 /// A host's paths and selection, as the story and the tests keep them: it applies each edit to
@@ -208,16 +211,16 @@ pub(crate) fn sample_paths() -> Vec<EditPath> {
 /// anchors, handles (⌥ alone) and segments, drag a marquee on empty canvas; Convert: click an
 /// anchor for a corner, drag from it for smooth handles. Tab to the paths: Page keys pick, the
 /// arrows move, Insert and Delete add and remove anchors, Esc deselects.
-fn show_paths(ui: &mut Ui, args: &mut Args) {
+fn show_paths(ui: &mut Ui, args: &mut EditArgs) {
     let key = ui.scope_id().with("bezier-story");
     let mut host: PathHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PathHost::new(sample_paths()));
-    let tool = match args.choice("tool") {
-        "convert" => BezierTool::Convert,
-        "show" => BezierTool::Show,
-        _ => BezierTool::Direct,
+    let tool = match args.tool {
+        ToolArg::Convert => BezierTool::Convert,
+        ToolArg::Show => BezierTool::Show,
+        ToolArg::Direct => BezierTool::Direct,
     };
-    let handles = if args.choice("handles") == "all" { HandlesShown::All } else { HandlesShown::Selected };
-    let canvas = crate::canvas::story::document(ui, args, "Document");
+    let handles = if args.handles == HandlesArg::All { HandlesShown::All } else { HandlesShown::Selected };
+    let canvas = crate::canvas::story::document(ui, args.view(), "Document");
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let names = BezierNames::new("Paths", "In handle", "Out handle", "Selection", |i, n| format!("Anchor {i} of {n}"));
     let response = BezierOverlay::new("story-bezier", &host.paths, &host.selection, &px, &px, names).tool(tool).handles(handles).show(

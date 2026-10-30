@@ -8,8 +8,10 @@ use egui::{
 };
 
 use super::Corner;
-use crate::story::{Args, Level, Story};
+use crate::canvas::story::NoArgs;
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// The ring's stroke and its distance from the element, from [`FocusRing::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -150,22 +152,21 @@ pub const COMPONENTS: &[&str] = &["Focus ring"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
-            "primitives/focus-ring/focus",
-            Level::Primitives,
-            "Focus ring",
-            "Focus",
-            || Args::new().with_number("items", 4.0, 1.0, 8.0),
-            show_focus,
-        ),
-        Story::new("primitives/focus-ring/ring", Level::Primitives, "Focus ring", "Ring", Args::new, show_ring),
+        typed_story!("primitives/focus-ring/focus", Level::Primitives, "Focus ring", "Focus", FocusArgs { items: 4 }, show_focus),
+        typed_story!("primitives/focus-ring/ring", Level::Primitives, "Focus ring", "Ring", NoArgs {}, show_ring),
     ]
 }
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct FocusArgs {
+    #[arg(range = 1.0..=8.0)]
+    items: u32,
+}
+
 /// A row of items to Tab through: rings show after Tab, not after a click.
-fn show_focus(ui: &mut Ui, args: &mut Args) {
+fn show_focus(ui: &mut Ui, args: &mut FocusArgs) {
     let tokens = Tokens::of(ui);
-    let count = args.number("items").round().clamp(1.0, 8.0) as usize;
+    let count = args.items.clamp(1, 8) as usize;
     super::Row::new(super::Gap::Inline).show(ui, |ui| {
         for i in 1..=count {
             let label = format!("Item {i}");
@@ -177,7 +178,7 @@ fn show_focus(ui: &mut Ui, args: &mut Args) {
 }
 
 /// The ring drawn without focus, to review its colour and offset.
-fn show_ring(ui: &mut Ui, _: &mut Args) {
+fn show_ring(ui: &mut Ui, _: &mut NoArgs) {
     let tokens = Tokens::of(ui);
     super::Row::new(super::Gap::Section).show(ui, |ui| {
         for corner in [Corner::Control, Corner::Button] {

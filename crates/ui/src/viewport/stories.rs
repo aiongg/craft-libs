@@ -3,25 +3,40 @@
 use egui::{Id, Ui, ViewportBuilder, ViewportId, vec2};
 
 use super::{Hosting, ViewportWindow};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
+use crate::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["ViewportWindow"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let embedded = || Args::new().with_bool("open", true).with_bool("app modal", false).with_bool("scrim", false);
-    vec![Story::new("patterns/viewport/embedded", Level::Patterns, "ViewportWindow", "Embedded", embedded, show_embedded)]
+    vec![typed_story!(
+        "patterns/viewport/embedded",
+        Level::Patterns,
+        "ViewportWindow",
+        "Embedded",
+        EmbeddedArgs { open: true, app_modal: false, scrim: false },
+        show_embedded
+    )]
 }
 
 /// The window hosted inside the gallery; a native window is not shown here.
-fn show_embedded(ui: &mut Ui, args: &mut Args) {
-    if !args.bool("open") {
+#[derive(StoryArgs, Debug, PartialEq)]
+struct EmbeddedArgs {
+    open: bool,
+    #[arg(name = "app modal")]
+    app_modal: bool,
+    scrim: bool,
+}
+
+fn show_embedded(ui: &mut Ui, args: &mut EmbeddedArgs) {
+    if !args.open {
         return;
     }
     let builder = ViewportBuilder::default().with_inner_size(vec2(360.0, 200.0)).with_min_inner_size(vec2(240.0, 140.0));
     let mut window = ViewportWindow::new(ViewportId(Id::unique("craft_ui::viewport::story")), builder).title("Settings").embedded(true);
-    if args.bool("app modal") {
-        window = window.app_modal(args.bool("scrim"));
+    if args.app_modal {
+        window = window.app_modal(args.scrim);
     }
     let shown = window.show(ui.ctx(), |ui, hosting| {
         ui.label(match hosting {
@@ -30,6 +45,6 @@ fn show_embedded(ui: &mut Ui, args: &mut Args) {
         });
     });
     if shown.close_requested {
-        args.set_bool("open", false);
+        args.open = false;
     }
 }
