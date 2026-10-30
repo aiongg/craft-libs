@@ -9,8 +9,8 @@ use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::{self, HasPopup, Role};
 use egui::emath::GuiRounding as _;
 use egui::{
-    AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Painter, Popup, PopupCloseBehavior, Rect, Shape, Stroke, Ui, UiBuilder,
-    Vec2, pos2, vec2,
+    AsIdSalt, Color32, CornerRadius, EventFilter, FocusDirection, Id, IdSalt, Key, Modifiers, Painter, Popup, PopupCloseBehavior, Rect, Shape,
+    Stroke, Ui, UiBuilder, Vec2, pos2, vec2,
 };
 
 use super::field_wheel;
@@ -314,10 +314,12 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     /// menu of `entries` (the options' actions, such as "Import .GRD"). `label` names the button
     /// ("Gradient preset options"). The menu's pick is written into `picked`, the entry's index
     /// as in [`NumberField::unit_menu`](super::NumberField::unit_menu); choosing it closes the menu
-    /// and the popup without changing the value.
+    /// and the popup and keeps the value as it is.
     ///
-    /// Tab moves the focus from the box or the search field to the button and back; the arrows
-    /// keep stepping the options.
+    /// Tab moves the focus from the box or the search field to the button, and from the button on
+    /// out of the control with the active option chosen; Shift+Tab goes back from the button to
+    /// the search field or the box, and from those out of the control backwards, also choosing the
+    /// active option. The arrows keep stepping the options.
     pub fn header_menu(mut self, label: impl Into<String>, entries: &'a [MenuEntry<usize>], picked: &'a mut Option<usize>) -> Self {
         self.header_menu = Some(HeaderMenu { label: label.into(), entries, picked });
         self
@@ -437,7 +439,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         if enabled && (box_focused || search_focused) && !composing && !menu_open {
             action = read_keys(ui, id, &mut listbox, &shown, &state, KeyFocus { on_box: box_focused, chosen, gear });
         } else if enabled && !menu_open {
-            action = read_gear_keys(ui, id, &state, gear_focused);
+            action = read_gear_keys(ui, id, &listbox, &shown, &state, gear_focused);
         }
         let owners: Vec<Id> = std::iter::once(id).chain(state.search).chain(gear).collect();
         let mut gesture = Gesture::load(ui, id, &*value, policy).enabled(enabled).cancel_on_focus_loss(true).focus_owners(&owners);
@@ -510,7 +512,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             let released = released(ui);
             if let (Some(command), Some(menu)) = (menu_picked, &mut header_menu) {
                 *menu.picked = Some(command);
-                pass.apply(ui, Action::Close { reason: CancelReason::Dismissed, focus: true }, box_focused);
+                pass.apply(ui, Action::Commit { focus: true }, box_focused);
             } else if let Some(option) = picked {
                 pass.apply(ui, Action::Choose { option, focus: true }, box_focused);
             } else if !open {
@@ -663,6 +665,9 @@ enum Action {
     Open { active: Option<usize>, keyboard: bool },
     /// Closes the list without a choice; with `focus`, the box takes the focus.
     Close { reason: CancelReason, focus: bool },
+    /// Closes the list keeping the value as it is, the keys' steps included; with `focus`, the box
+    /// takes the focus back.
+    Commit { focus: bool },
     /// Chooses the option and closes the list; with `focus`, the box takes the focus back.
     Choose { option: usize, focus: bool },
     /// Sets the value to the option with the list closed: Up, Down or the wheel on the box.
@@ -679,6 +684,16 @@ struct KeyFocus {
     chosen: Option<usize>,
     /// The header menu's button.
     gear: Option<Id>,
+}
+
+/// Moves the focus on from the box, once the list has chosen, in `direction`: egui does it when
+/// the box senses later in this pass. A list with a header menu keeps Tab from egui while the box
+/// or the search field has the focus, so the move is asked for here.
+fn leave(ui: &Ui, id: Id, direction: FocusDirection) {
+    ui.memory_mut(|m| {
+        m.request_focus(id);
+        m.move_focus(direction);
+    });
 }
 
 /// The keys of a frame, while the box or the search field has the focus.
@@ -708,10 +723,10 @@ fn read_keys<T: Clone + PartialEq>(
             return None;
         }
         if gear.is_some() && take_key(ui, Modifiers::SHIFT, Key::Tab) {
-            return choose(listbox, true);
+            leave(ui, id, FocusDirection::Previous);
+            return choose(listbox, false);
         }
         if ui.input(|i| i.key_pressed(Key::Tab)) {
-            // egui moves the focus on from the box when the box senses later in this pass.
             if !on_box {
                 ui.memory_mut(|m| m.request_focus(id));
             }
@@ -780,15 +795,27 @@ fn take_menu_keys(ui: &Ui, gear: Id) -> bool {
 }
 
 /// The keys of a frame while the header menu's button has the focus and its menu is closed: Esc
-/// closes the list, Tab gives the focus back to the search field or the box.
-fn read_gear_keys<T>(ui: &Ui, id: Id, state: &PopupState<T>, gear_focused: bool) -> Option<Action> {
+/// closes the list, Tab chooses the active option and moves the focus on, Shift+Tab gives the
+/// focus back to the search field or the box.
+fn read_gear_keys<T: Clone + PartialEq>(
+    ui: &Ui,
+    id: Id,
+    listbox: &Listbox,
+    shown: &Shown<'_, '_, '_, T>,
+    state: &PopupState<T>,
+    gear_focused: bool,
+) -> Option<Action> {
     if !(gear_focused && state.open) {
         return None;
     }
     if take_key(ui, Modifiers::NONE, Key::Escape) {
         return Some(Action::Close { reason: CancelReason::Escape, focus: true });
     }
-    if take_key(ui, Modifiers::NONE, Key::Tab) || take_key(ui, Modifiers::SHIFT, Key::Tab) {
+    if take_key(ui, Modifiers::NONE, Key::Tab) {
+        leave(ui, id, FocusDirection::Next);
+        return listbox.active().filter(|&a| shown.enabled(a)).map(|option| Action::Choose { option, focus: false });
+    }
+    if take_key(ui, Modifiers::SHIFT, Key::Tab) {
         let back = state.search.unwrap_or(id);
         ui.memory_mut(|m| m.request_focus_with_filter(back, key_filter(true, true)));
     }
@@ -958,6 +985,12 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
             Action::Close { reason, focus } => {
                 if self.gesture.is_active() {
                     self.gesture.cancel(reason);
+                }
+                self.close(ui, focus && !box_focused);
+            }
+            Action::Commit { focus } => {
+                if self.gesture.is_active() {
+                    self.gesture.commit();
                 }
                 self.close(ui, focus && !box_focused);
             }

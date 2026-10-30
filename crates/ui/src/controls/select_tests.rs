@@ -1006,11 +1006,13 @@ struct Gear {
     picked: Option<usize>,
 }
 
-/// A searchable select of blend modes with a gear menu of one entry ("Import").
+/// A select of blend modes, optionally searchable, with a gear menu of one entry ("Import"),
+/// between the buttons "Before" and "After".
 fn gear(searchable: bool) -> Harness<'static, Gear> {
     harness().build_ui_state(
         move |ui, host: &mut Gear| {
             let entries: Vec<MenuEntry<usize>> = vec![MenuItem::new("Import", 7).into()];
+            let _ = ui.button("Before");
             let mut select = Select::new("blend", "Blend mode", &mut host.value).header_menu("Preset options", &entries, &mut host.picked);
             for (i, mode) in MODES.into_iter().enumerate() {
                 select = select.option(i, mode);
@@ -1019,6 +1021,7 @@ fn gear(searchable: bool) -> Harness<'static, Gear> {
                 select = select.searchable("Search modes", "Clear");
             }
             let _ = select.show(ui);
+            let _ = ui.button("After");
         },
         Gear::default(),
     )
@@ -1060,7 +1063,7 @@ fn choosing_a_gear_menu_entry_reports_it_and_closes_the_menu_and_the_list() {
         harness.run();
         harness.run();
         assert_eq!(harness.state().picked, Some(7));
-        assert_eq!(harness.state().value, 0, "the value is untouched");
+        assert_eq!(harness.state().value, 0, "the value is kept");
         assert!(menu_items(&harness).is_empty(), "the menu closed");
         assert_eq!(expanded(&harness), Some(false), "the list closed");
     }
@@ -1115,7 +1118,7 @@ fn tab_reaches_the_gear_and_back_while_the_arrows_step_the_options_past_it() {
 }
 
 #[test]
-fn tab_from_the_gear_returns_to_the_search_field() {
+fn shift_tab_from_the_gear_returns_to_the_search_field() {
     let mut harness = gear(true);
     harness.run();
     harness.get_by_role(Role::ComboBox).click();
@@ -1123,10 +1126,71 @@ fn tab_from_the_gear_returns_to_the_search_field() {
     harness.key_press(Key::Tab);
     harness.run();
     assert!(gear_button(&harness).is_focused());
-    harness.key_press(Key::Tab);
+    harness.key_press_modifiers(Modifiers::SHIFT, Key::Tab);
     harness.run();
     harness.event(Event::Text("scr".into()));
     harness.run();
     assert_eq!(harness.get_by_label("Search modes").accesskit_node().value().as_deref(), Some("scr"), "typing goes to the search field");
     assert_eq!(expanded(&harness), Some(true));
+}
+
+#[test]
+fn tab_from_the_gear_chooses_the_active_option_and_leaves_the_control() {
+    for searchable in [false, true] {
+        let mut harness = gear(searchable);
+        harness.run();
+        harness.get_by_role(Role::ComboBox).click();
+        harness.run();
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        harness.key_press(Key::Tab);
+        harness.run();
+        assert!(gear_button(&harness).is_focused());
+        harness.key_press(Key::Tab);
+        harness.run();
+        harness.run();
+        assert_eq!(expanded(&harness), Some(false), "the list closed");
+        assert_eq!(harness.state().value, 1, "the active option is chosen");
+        assert!(harness.get_by_label("After").is_focused(), "the focus moved to the next widget");
+    }
+}
+
+#[test]
+fn shift_tab_from_the_box_or_the_search_field_chooses_the_active_option_and_leaves_backwards() {
+    for searchable in [false, true] {
+        let mut harness = gear(searchable);
+        harness.run();
+        harness.get_by_role(Role::ComboBox).click();
+        harness.run();
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        harness.key_press_modifiers(Modifiers::SHIFT, Key::Tab);
+        harness.run();
+        harness.run();
+        assert_eq!(expanded(&harness), Some(false), "the list closed");
+        assert_eq!(harness.state().value, 1, "the active option is chosen");
+        assert!(harness.get_by_label("Before").is_focused(), "the focus moved to the previous widget");
+    }
+}
+
+#[test]
+fn a_gear_entry_after_an_arrow_step_keeps_the_stepped_value() {
+    for searchable in [false, true] {
+        let mut harness = gear(searchable);
+        harness.run();
+        harness.get_by_role(Role::ComboBox).click();
+        harness.run();
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        gear_button(&harness).click();
+        harness.run();
+        harness.get_by_role(Role::MenuItem).click();
+        harness.run();
+        harness.run();
+        assert_eq!(harness.state().picked, Some(7));
+        assert_eq!(harness.state().value, 2, "the stepped value is kept");
+        assert_eq!(expanded(&harness), Some(false));
+    }
 }
