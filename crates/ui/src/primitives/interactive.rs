@@ -3,7 +3,7 @@
 use std::ops::RangeInclusive;
 
 use egui::accesskit::{Action, Role};
-use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, Rect, Response, Sense, Stroke, Ui, Vec2, WidgetInfo, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, InteractOptions, Rect, Response, Sense, Stroke, Ui, Vec2, WidgetInfo, vec2};
 
 use super::{Corner, FocusRing, StateColors, StateLayer, Surface, SurfaceEdge, SurfaceKind};
 use crate::inspect::{self, RecordKind};
@@ -80,6 +80,7 @@ struct Numeric {
 struct Look {
     surface: Option<SurfaceKind>,
     corner: Option<Corner>,
+    radius: Option<CornerRadius>,
     border_width: Option<f32>,
     outline: bool,
     raised_outline: bool,
@@ -153,6 +154,7 @@ impl<'a> Interactive<'a> {
             look: Look {
                 surface: None,
                 corner: None,
+                radius: None,
                 border_width: None,
                 outline: false,
                 raised_outline: false,
@@ -240,6 +242,13 @@ impl<'a> Interactive<'a> {
     /// [`Corner::Control`] without a surface.
     pub fn corner(mut self, corner: Corner) -> Self {
         self.look.corner = Some(corner);
+        self
+    }
+
+    /// Corners of the fill and the focus ring from a component's own radius token, in place of
+    /// [`corner`](Interactive::corner)'s.
+    pub fn corner_radius(mut self, radius: CornerRadius) -> Self {
+        self.look.radius = Some(radius);
         self
     }
 
@@ -487,11 +496,11 @@ impl Sensed {
             kind => kind,
         };
         let surface = kind.map(|kind| Surface::style(&tokens, kind));
-        let radius = match (look.corner, look.surface) {
+        let radius = look.radius.unwrap_or_else(|| match (look.corner, look.surface) {
             (Some(corner), _) => corner.radius(&tokens),
             (None, Some(kind)) => Surface::style(&tokens, kind).radius,
             (None, None) => Corner::Control.radius(&tokens),
-        };
+        });
         if ui.is_rect_visible(rect) {
             let colors = if on { look.on_colors.or(look.colors) } else { look.colors };
             let fills = colors.map_or_else(|| StateLayer::fills(&tokens, look.surface), |c| c.fill);

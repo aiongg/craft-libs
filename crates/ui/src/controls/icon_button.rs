@@ -3,7 +3,7 @@
 use craft_theme::{ButtonPart, ButtonVariant, ControlSize, Srgba, States};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Rect, Response, Sense, Stroke, Ui, Widget, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Rect, Response, Sense, Stroke, Ui, Widget, pos2, vec2};
 
 use super::TooltipExt as _;
 use super::button::content_color;
@@ -34,6 +34,8 @@ pub struct IconButtonStyle {
     pub selected_border: States<Color32>,
     /// Toggled on: `icon_button.selected.text`.
     pub selected_text: States<Color32>,
+    /// Width of the toggled-on outline in points; `None`: the surface's, one point.
+    pub selected_border_width: Option<f32>,
     /// Diameter of the badge dot: `icon_button.badge`.
     pub badge: f32,
     /// The ring around the badge dot: `line.mark`.
@@ -59,6 +61,8 @@ pub struct IconButton<'a> {
     enabled: bool,
     focusable: bool,
     id_salt: Option<IdSalt>,
+    style: Option<IconButtonStyle>,
+    id: Option<Id>,
 }
 
 impl<'a> IconButton<'a> {
@@ -74,6 +78,8 @@ impl<'a> IconButton<'a> {
             enabled: true,
             focusable: true,
             id_salt: None,
+            style: None,
+            id: None,
         }
     }
 
@@ -130,6 +136,22 @@ impl<'a> IconButton<'a> {
         self
     }
 
+    /// The exact widget id, wherever the button is placed, for a host that needs it to move
+    /// keyboard focus. Takes the place of [`id_salt`](IconButton::id_salt).
+    pub fn with_id(mut self, id: Id) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    /// Draws with `style` in place of [`IconButton::style`], for a component whose buttons take
+    /// their colours and corners from its own tokens (a rail). The size class then only picks the
+    /// badge and the layout side of [`show`](Widget::ui); [`show_at`](IconButton::show_at) fits
+    /// the rect it is given.
+    pub fn with_style(mut self, style: IconButtonStyle) -> Self {
+        self.style = Some(style);
+        self
+    }
+
     pub fn style(tokens: &UiTokens, size: ControlSize) -> IconButtonStyle {
         let c = &tokens.component;
         let ghost = c.button.colors(ButtonVariant::Ghost);
@@ -147,6 +169,7 @@ impl<'a> IconButton<'a> {
             selected_fill: held(ButtonPart::Fill),
             selected_border: held(ButtonPart::Border),
             selected_text: held(ButtonPart::Text),
+            selected_border_width: None,
             badge: c.icon_button.badge.get(size),
             badge_edge: Stroke::new(craft_theme::Stroke::W1.width(1.0), tokens.color.line.mark.to_egui()),
         }
@@ -161,17 +184,23 @@ impl IconButton<'_> {
     }
 
     fn show_in(self, ui: &mut Ui, rect: Option<Rect>) -> Response {
-        let style = IconButton::style(&Tokens::of(ui), self.size);
+        let style = self.style.unwrap_or_else(|| IconButton::style(&Tokens::of(ui), self.size));
         debug_assert!(!(self.selected.is_some() && self.on.is_some()), "IconButton: `selected` and `toggle` are exclusive");
         let mut on = self.on;
         let sense = if self.focusable { Sense::click() } else { Sense::CLICK };
-        let mut element = Interactive::salted(salt(ui, self.id_salt), Role::Button, self.label.as_str())
-            .sense(sense)
-            .colors(StateColors { fill: style.fill, border: None })
-            .on_colors(StateColors { fill: style.selected_fill, border: Some(style.selected_border) })
-            .outline()
-            .corner(Corner::Control)
-            .enabled(self.enabled);
+        let mut element = match self.id {
+            Some(id) => Interactive::with_id(id, Role::Button, self.label.as_str()),
+            None => Interactive::salted(salt(ui, self.id_salt), Role::Button, self.label.as_str()),
+        }
+        .sense(sense)
+        .colors(StateColors { fill: style.fill, border: None })
+        .on_colors(StateColors { fill: style.selected_fill, border: Some(style.selected_border) })
+        .outline()
+        .corner_radius(style.radius)
+        .enabled(self.enabled);
+        if let Some(width) = style.selected_border_width {
+            element = element.border_width(width);
+        }
         if let Some(on) = on.as_deref_mut() {
             element = element.toggle(on);
         } else if let Some(selected) = self.selected {
