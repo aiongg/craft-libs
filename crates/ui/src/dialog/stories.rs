@@ -130,7 +130,7 @@ fn show_modeless(ui: &mut Ui, args: &mut ModelessArgs) {
         }
         let scroll = args.scroll_body;
         if scroll {
-            dialog = dialog.body(Body::Scroll { reserve: 0.0 });
+            dialog = dialog.body(Body::Scroll);
         }
         let shown = dialog.show(ui.ctx(), &mut state, &mut (), |ui, ()| lines(ui, if scroll { 60 } else { 4 }));
         if shown.outcome == Some(Outcome::Close) {

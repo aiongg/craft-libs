@@ -64,6 +64,7 @@ impl Label {
     }
 }
 
+type Enabled<'a> = Box<dyn FnOnce() -> bool + 'a>;
 type Slot<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 type Custom<'a> = Box<dyn FnOnce(&mut Ui, &mut FooterFx) + 'a>;
 
@@ -142,6 +143,8 @@ pub struct Footer<'a> {
     extras: Vec<String>,
     ok_enabled: bool,
     apply_enabled: bool,
+    ok_when: Option<Enabled<'a>>,
+    apply_when: Option<Enabled<'a>>,
     reset: Option<Reset>,
     enter: EnterRule,
     preview: Option<String>,
@@ -162,6 +165,8 @@ impl<'a> Footer<'a> {
             extras: Vec::new(),
             ok_enabled: true,
             apply_enabled: true,
+            ok_when: None,
+            apply_when: None,
             reset: None,
             enter: EnterRule::Default,
             preview: None,
@@ -253,6 +258,26 @@ impl<'a> Footer<'a> {
         self
     }
 
+    /// Like [`ok_enabled`](Footer::ok_enabled), but decided by `enabled` once the body has run in
+    /// the same pass, so an edit in the body enables OK at once. The body and `enabled` share the
+    /// answer through a `Cell` the body sets.
+    pub fn ok_enabled_with(mut self, enabled: impl FnOnce() -> bool + 'a) -> Self {
+        self.ok_when = Some(Box::new(enabled));
+        self
+    }
+
+    /// [`apply_enabled`](Footer::apply_enabled), decided after the body like
+    /// [`ok_enabled_with`](Footer::ok_enabled_with).
+    pub fn apply_enabled_with(mut self, enabled: impl FnOnce() -> bool + 'a) -> Self {
+        self.apply_when = Some(Box::new(enabled));
+        self
+    }
+
+    fn resolve_enabled(&mut self) {
+        self.ok_enabled = self.ok_when.take().map_or(self.ok_enabled, |f| f());
+        self.apply_enabled = self.apply_when.take().map_or(self.apply_enabled, |f| f());
+    }
+
     /// Opts in to Alt turning Cancel into Reset.
     pub fn reset(mut self, reset: Reset) -> Self {
         self.reset = Some(reset);
@@ -338,6 +363,7 @@ impl<'a> Footer<'a> {
             draw(ui, &mut fx);
             return fx.run;
         }
+        self.resolve_enabled();
         let tokens = Tokens::of(ui);
         let gap = tokens.component.dialog.button_gap;
         let (_, rect) = ui.allocate_space(vec2(ui.available_width(), tokens.component.button.height.get(ControlSize::Md)));
@@ -377,7 +403,7 @@ impl<'a> Footer<'a> {
 
     /// Shows a [`side`](Footer::side) footer: `body` at the start side and the button column at
     /// the trailing side of the room `ui` has.
-    pub(super) fn show_side(self, ui: &mut Ui, cx: FooterCx, body: impl FnOnce(&mut Ui)) -> FooterRun {
+    pub(super) fn show_side(mut self, ui: &mut Ui, cx: FooterCx, body: impl FnOnce(&mut Ui)) -> FooterRun {
         let tokens = Tokens::of(ui);
         let t = tokens.component.dialog;
         let mut labels: Vec<(ButtonRole, String)> = Vec::new();
@@ -395,6 +421,7 @@ impl<'a> Footer<'a> {
             ui.new_child(UiBuilder::new().max_rect(egui::Rect::from_x_y_ranges(span(start, body_end), room.y_range())).layout(direction::column(ui)));
         body_ui.set_min_width((body_end - start).abs());
         body(&mut body_ui);
+        self.resolve_enabled();
 
         let mut column = ui.new_child(
             UiBuilder::new().max_rect(egui::Rect::from_x_y_ranges(span(end - forward * width, end), room.y_range())).layout(direction::column(ui)),

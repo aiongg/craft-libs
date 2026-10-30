@@ -171,7 +171,13 @@ fn a_dialog_is_dragged_no_further_than_the_window() {
 #[test]
 fn width_classes_set_the_frame_width_within_the_window() {
     // The frame is the content width plus `dialog.pad` on each side.
-    for (width, expected) in [(Width::Compact, 274.0), (Width::Standard, 454.0), (Width::Wide, 614.0), (Width::Fixed(300.0), 314.0)] {
+    for (width, expected) in [
+        (Width::Compact, 274.0),
+        (Width::Standard, 454.0),
+        (Width::Wide, 614.0),
+        (Width::Fixed(300.0), 314.0),
+        (Width::Range { min: 100.0, max: 500.0 }, 514.0),
+    ] {
         let mut app = App::new();
         app.width = width;
         let mut harness = build(app, vec2(1000.0, 480.0));
@@ -253,4 +259,44 @@ fn a_dialog_closed_without_an_outcome_opens_afresh() {
     harness.run();
     let reopened = harness.state().rect();
     assert!((reopened.min - pos2(40.0, 30.0)).length() < 1.5, "{centred:?} {reopened:?}");
+}
+
+#[test]
+fn a_region_below_a_scrolling_body_stays_put_and_fits_the_window() {
+    let mut harness = harness(WINDOW).build_ui_state(
+        |ui, state: &mut DialogState| {
+            let ctx = &ui.ctx().clone();
+            Dialog::new("below", "Filter").body(Body::Scroll).footer(Footer::standard()).show_with_below(
+                ctx,
+                state,
+                &mut (),
+                |ui, ()| {
+                    for n in 0..80 {
+                        ui.label(format!("Parameter {n}"));
+                    }
+                },
+                |ui, ()| {
+                    ui.add_space(120.0);
+                    ui.label("Preview");
+                },
+            );
+        },
+        DialogState::new(),
+    );
+    harness.run();
+    let (preview, ok) = (harness.get_by_label("Preview").rect(), harness.get_by_label("OK").rect());
+    assert!(preview.bottom() < ok.top() && ok.bottom() <= WINDOW.y, "{preview:?} {ok:?}");
+    let first = harness.get_by_label("Parameter 0").rect().top();
+    harness.event(Event::PointerMoved(harness.get_by_label("Parameter 0").rect().center()));
+    harness.run();
+    harness.event(Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: vec2(0.0, -200.0),
+        modifiers: Modifiers::NONE,
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+    });
+    harness.run();
+    assert!(harness.get_by_label("Parameter 0").rect().top() < first - 50.0, "the body scrolls");
+    assert_eq!(harness.get_by_label("Preview").rect().top(), preview.top());
 }

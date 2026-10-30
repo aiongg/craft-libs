@@ -15,6 +15,8 @@ pub enum Width {
     Wide,
     /// Exactly this wide (New Document 800, About 700), within the window.
     Fixed(f32),
+    /// At least `min`, at most `max` (Shortcuts 460 to 720), within the window.
+    Range { min: f32, max: f32 },
 }
 
 impl Width {
@@ -28,6 +30,7 @@ impl Width {
             Width::Standard => (tokens.width_min, tokens.width_standard),
             Width::Wide => (tokens.width_min, tokens.width_wide),
             Width::Fixed(width) => (width, width),
+            Width::Range { min, max } => (min, max.max(min)),
         };
         let max = max.min(cap);
         (min.min(cap).min(max), max)
@@ -77,12 +80,13 @@ pub enum Body {
     /// The body takes the height it needs.
     #[default]
     Fit,
-    /// A vertical scroll area; `reserve` is the height of a region the host draws under it.
-    Scroll { reserve: f32 },
+    /// A vertical scroll area. A region drawn with [`Dialog::show_with_below`](super::Dialog::show_with_below)
+    /// stays under it, and the area leaves room for that region's measured height.
+    Scroll,
 }
 
 /// The greatest height of a scrolling body: the window height less the dialog's margins, the
-/// measured `chrome` (everything but the body) and `reserve`, and at least `dialog.scroll_min`.
-pub fn scroll_height(tokens: &DialogTokens, window_height: f32, chrome: f32, reserve: f32) -> f32 {
-    (window_height - 2.0 * tokens.window_margin - chrome - reserve).max(tokens.scroll_min)
+/// measured `chrome` (everything but the body) and the measured `below` region, and at least `dialog.scroll_min`.
+pub fn scroll_height(tokens: &DialogTokens, window_height: f32, chrome: f32, below: f32) -> f32 {
+    (window_height - 2.0 * tokens.window_margin - chrome - below).max(tokens.scroll_min)
 }
