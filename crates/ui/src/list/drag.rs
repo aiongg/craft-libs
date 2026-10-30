@@ -53,15 +53,7 @@ pub(crate) type GhostThumb<'a> = (f32, &'a dyn Fn(&Painter, Rect));
 
 /// The ghost: the grabbed row's label in a box beside the pointer on the tooltip layer, cut to
 /// `max_width`; with `thumb` (its side and painter), a thumbnail before the label.
-pub(crate) fn paint_ghost(
-    ui: &Ui,
-    list: Id,
-    style: &ListRowStyle,
-    label: &str,
-    pointer: Pos2,
-    max_width: f32,
-    thumb: Option<GhostThumb<'_>>,
-) {
+pub(crate) fn paint_ghost(ui: &Ui, list: Id, style: &ListRowStyle, label: &str, pointer: Pos2, max_width: f32, thumb: Option<GhostThumb<'_>>) {
     let tokens = Tokens::of(ui);
     let pad = vec2(style.pad_x, style.gap);
     let mut job = LayoutJob::single_section(label.to_owned(), role_format(&tokens, style.label_role, style.text));
