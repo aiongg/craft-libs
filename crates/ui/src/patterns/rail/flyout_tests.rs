@@ -96,6 +96,7 @@ impl App {
             self.current = tool;
         }
         self.out = Some(out);
+        ui.button("Next");
     }
 
     #[allow(clippy::unwrap_used)]
@@ -240,7 +241,10 @@ fn a_press_outside_or_escape_closes_and_escape_returns_the_focus() {
     press(&mut h, at, PointerButton::Secondary);
     release(&mut h, at, PointerButton::Secondary);
     assert!(is_open(&h));
-    click_at(&mut h, pos2(400.0, 300.0));
+    // A drag that starts on the canvas is no click, but its press closes the flyout.
+    press(&mut h, pos2(400.0, 300.0), PointerButton::Primary);
+    step(&mut h, 0.016, vec![Event::PointerMoved(pos2(470.0, 340.0))]);
+    release(&mut h, pos2(470.0, 340.0), PointerButton::Primary);
     assert!(!is_open(&h));
     assert!(h.state().chosen.is_empty());
 
@@ -276,6 +280,33 @@ fn tab_closes_the_flyout() {
     key(&mut h, Key::Menu, Modifiers::NONE);
     assert!(is_open(&h));
     key(&mut h, Key::Tab, Modifiers::NONE);
+    assert!(!is_open(&h));
+    assert!(h.get_by_label("Next").accesskit_node().is_focused(), "the focus moved on");
+}
+
+#[test]
+fn a_press_on_the_canvas_dragged_onto_a_row_chooses_nothing() {
+    let mut h = harness(3);
+    let at = center(&h);
+    press(&mut h, at, PointerButton::Secondary);
+    release(&mut h, at, PointerButton::Secondary);
+    let eraser = row(&h, "Eraser");
+    press(&mut h, pos2(400.0, 300.0), PointerButton::Primary);
+    step(&mut h, 0.016, vec![Event::PointerMoved(eraser)]);
+    release(&mut h, eraser, PointerButton::Primary);
+    assert!(h.state().chosen.is_empty());
+    assert!(!is_open(&h));
+}
+
+#[test]
+fn only_the_primary_button_long_presses() {
+    let mut h = harness(3);
+    let at = center(&h);
+    press(&mut h, at, PointerButton::Middle);
+    step(&mut h, 0.4, vec![]);
+    assert!(!is_open(&h));
+    assert_eq!(h.state().clicks, 0);
+    release(&mut h, at, PointerButton::Middle);
     assert!(!is_open(&h));
 }
 
@@ -344,13 +375,14 @@ fn the_indicator_sits_at_the_corner_facing_the_canvas() {
 #[test]
 fn accesskit_names_the_popup_and_the_radio_rows() {
     let mut h = harness(3);
-    let button = h.get_by_label("Slot");
+    let button = h.get_by_role_and_label(Role::Button, "Slot");
     assert_eq!(button.accesskit_node().has_popup(), Some(HasPopup::Menu));
     assert_eq!(button.accesskit_node().data().is_expanded(), Some(false));
     let at = center(&h);
     press(&mut h, at, PointerButton::Secondary);
     release(&mut h, at, PointerButton::Secondary);
-    assert_eq!(h.get_by_label("Slot").accesskit_node().data().is_expanded(), Some(true));
+    assert_eq!(h.get_by_role_and_label(Role::Button, "Slot").accesskit_node().data().is_expanded(), Some(true));
+    assert!(h.get_by_role_and_label(Role::Menu, "Slot").accesskit_node().data().label().is_some(), "the flyout is a named menu");
     let brush = h.get_by_label("Brush");
     assert_eq!(brush.accesskit_node().role(), Role::MenuItemRadio);
     assert_eq!(brush.accesskit_node().toggled(), Some(Toggled::True));
@@ -368,7 +400,21 @@ fn no_tooltip_shows_over_an_open_flyout() {
     release(&mut h, at, PointerButton::Secondary);
     step(&mut h, 1.0, vec![]);
     assert!(is_open(&h));
-    assert_eq!(h.get_all_by_label("Slot").count(), 1, "the button alone");
+    assert_eq!(h.get_all_by_role_and_label(Role::Button, "Slot").count(), 1, "no tooltip over an open flyout");
+    assert_eq!(h.get_all_by_label("Slot").count(), 2, "the button and the named menu");
+}
+
+#[test]
+fn no_tooltip_shows_while_the_button_is_held() {
+    let mut h = harness(3);
+    let at = center(&h);
+    step(&mut h, 0.016, vec![Event::PointerMoved(at)]);
+    step(&mut h, 0.1, vec![]);
+    assert_eq!(h.get_all_by_label("Slot").count(), 2, "a tooltip shows at rest");
+    press(&mut h, at, PointerButton::Primary);
+    step(&mut h, 0.1, vec![]);
+    assert!(!is_open(&h));
+    assert_eq!(h.get_all_by_label("Slot").count(), 1, "held, before the long press");
 }
 
 #[test]
