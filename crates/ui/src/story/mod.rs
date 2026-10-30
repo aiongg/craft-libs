@@ -310,6 +310,7 @@ register! {
     composites::field,
     composites::form_grid,
     composites::property_row,
+    composites::group_box,
     composites::section_header,
     composites::section_label,
     composites::panel_header,

@@ -82,6 +82,7 @@ controls/angle-dial/dialog = Angle dial | Dialog (field scope) | Panel |
 composites/field/dialog = Field | Dialog | Panel | above=Bool(false); help=Bool(true); error=Bool(false)
 composites/form-grid/image-size = FormGrid | Image size | Panel | roomy=Bool(false); labels at start=Bool(false)
 composites/property-row/inspector = PropertyRow | Inspector | Panel | mixed=Bool(false); width=Number { value: 260.0, min: 60.0, max: 400.0 }
+composites/group-box/default = GroupBox | Default | Panel | second=Bool(true); width=Number { value: 320.0, min: 120.0, max: 480.0 }
 composites/section-header/collapsible = SectionHeader | Collapsible | Panel | width=Number { value: 260.0, min: 60.0, max: 400.0 }
 composites/section-header/always-open = SectionHeader | Always open | Panel | width=Number { value: 260.0, min: 60.0, max: 400.0 }
 composites/section-label/default = SectionLabel | Default | Panel | text=Text("Blend mode")
