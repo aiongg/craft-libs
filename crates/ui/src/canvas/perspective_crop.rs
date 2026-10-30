@@ -358,7 +358,8 @@ impl<'a> PerspectiveCropQuad<'a> {
             picked = pick.map(|k| (k as usize).min(3));
         }
         if drag.is_none_or(|d| d.cancelled) {
-            self.keys(ui, drag.is_none(), picked.filter(|_| focus.focused), &mut gesture, &mut clicks, &mut out, shown);
+            let enter_ok = focus.focused || ctx.memory(|m| m.focused()).is_none_or(|f| f == canvas.id);
+            self.keys(ui, drag.is_none(), enter_ok, picked.filter(|_| focus.focused), &mut gesture, &mut clicks, &mut out, shown);
         }
 
         let other = Claim::owner(&ctx, canvas.id).is_some_and(|owner| owner != id);
@@ -520,12 +521,14 @@ impl<'a> PerspectiveCropQuad<'a> {
         }
     }
 
-    /// Enter, Esc and the arrows; `idle`: no press is held.
+    /// Enter, Esc and the arrows; `idle`: no press is held; `enter_ok`: no other widget (a
+    /// Tab-focused button) holds the keyboard, so Enter is the quad's.
     #[allow(clippy::too_many_arguments)]
     fn keys(
         &self,
         ui: &Ui,
         idle: bool,
+        enter_ok: bool,
         picked: Option<usize>,
         gesture: &mut Gesture<PerspectiveQuad>,
         clicks: &mut Vec<Point>,
@@ -536,7 +539,7 @@ impl<'a> PerspectiveCropQuad<'a> {
         if !ui.is_enabled() || ctx.text_edit_focused() || popup_list::any_open(ctx) || !ctx.memory(|m| m.allows_interaction(ui.layer_id())) {
             return;
         }
-        let (enter, escape) = ui.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::Enter), i.consume_key(Modifiers::NONE, Key::Escape)));
+        let (enter, escape) = ui.input_mut(|i| (enter_ok && i.consume_key(Modifiers::NONE, Key::Enter), i.consume_key(Modifiers::NONE, Key::Escape)));
         out.apply |= enter;
         out.discard |= escape && !enter;
         if escape {
