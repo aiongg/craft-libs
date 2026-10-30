@@ -212,7 +212,9 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
             paint_indicator(ui, &response, &style);
         }
 
-        let held_for = response.is_pointer_button_down_on().then(|| ui.input(|i| i.pointer.press_start_time().map(|start| i.time - start))).flatten();
+        let held_for = (response.is_pointer_button_down_on() && ui.input(|i| i.pointer.button_down(PointerButton::Primary)))
+            .then(|| ui.input(|i| i.pointer.press_start_time().map(|start| i.time - start)))
+            .flatten();
         if multi
             && !open
             && let Some(wait) = long_press_wait(held_for)
@@ -229,7 +231,10 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
         let mut command = None;
         let mut keyboard = false;
         let tab = open && ctx.input(|i| i.key_pressed(Key::Tab));
-        let close = reclick_closes(open, response.secondary_clicked(), by_pointer, from_button) || (open && by_other && !keys_are_menus) || tab;
+        // On a touch screen, holding on after the long press opened the flyout is egui's long touch,
+        // which reads as a secondary click: not a click on the open flyout's button.
+        let secondary = response.secondary_clicked() && !(from_button && response.long_touched());
+        let close = reclick_closes(open, secondary, by_pointer, from_button) || (open && by_other && !keys_are_menus) || tab;
         if close {
             command = Some(SetOpenCommand::Bool(false));
         } else if multi && !open && (response.secondary_clicked() || long || dragged) {
@@ -269,10 +274,28 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
                     .into()
                 })
                 .collect();
-            let popup = Popup::menu(&response).open_memory(command).align(direction::beside(ui)).align_alternatives(&[]).gap(style.gap);
+            let popup = Popup::menu(&response)
+                .open_memory(command)
+                .align(direction::beside(ui))
+                .align_alternatives(&[])
+                .gap(style.gap)
+                .accessible_name(self.label.as_str());
             let shown = Menu::new(&entries).size(ControlSize::Md).pressing(from_button).opened_by_keyboard(keyboard).show(ui, popup);
             chosen = shown.chosen;
             now_open = shown.open;
+            // A press that began outside the list and its button closes it, whether or not it ends
+            // in a click (a drag on the canvas is none).
+            if open && now_open {
+                let list = shown.popup.as_ref().map(|r| r.rect);
+                let outside = ui.input(|i| {
+                    i.pointer.any_pressed()
+                        && i.pointer.press_origin().is_some_and(|p| !response.rect.contains(p) && !list.is_some_and(|rect| rect.contains(p)))
+                });
+                if outside {
+                    Popup::close_id(&ctx, popup_id);
+                    now_open = false;
+                }
+            }
             if escaped && !shown.open && ctx.data(|d| d.get_temp::<bool>(focus_held)).unwrap_or(false) {
                 response.request_focus();
             } else if shown.open {
