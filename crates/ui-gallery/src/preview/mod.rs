@@ -41,6 +41,19 @@ pub struct AppPreview {
 }
 
 impl AppPreview {
+    /// A copy to draw in another context, with the dock flyout that is open here open there too.
+    pub(crate) fn for_probe(&self) -> Self {
+        let mut copy = self.clone();
+        copy.dock.reopen_flyout();
+        copy
+    }
+
+    /// Opens the History flyout.
+    #[cfg(test)]
+    pub(crate) fn open_history_flyout(&mut self) {
+        self.dock.toggle(panels::Panel::History);
+    }
+
     /// Draws the whole app into `ui.max_rect()`, laid out at least [`MIN_SIZE`] and clipped to the rect.
     ///
     /// The bars are `egui::Panel`s shown inside a child `Ui` limited to that rectangle, so the

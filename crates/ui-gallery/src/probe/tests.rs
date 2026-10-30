@@ -204,10 +204,10 @@ fn a_story_is_probed_without_its_surface_frame() {
 fn a_popup_over_content_is_found_before_what_is_below_it() {
     let popup = egui::Id::NULL.with("probe-test-popup");
     let draw = |ui: &mut Ui| {
-        let below = token_color(ui, |t| t.color.surface.panel.into());
+        let below = token_color(ui, |t| t.color.surface.panel);
         ui.painter().rect_filled(Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(100.0, 100.0)), 0.0, below);
         if ui.ctx().data(|d| d.get_temp::<bool>(popup)).unwrap_or(false) {
-            let above = token_color(ui, |t| t.color.accent.solid.into());
+            let above = token_color(ui, |t| t.color.accent.solid);
             egui::Area::new(popup).order(egui::Order::Foreground).fade_in(false).fixed_pos(Pos2::new(60.0, 60.0)).show(ui.ctx(), |ui| {
                 let (rect, _) = ui.allocate_exact_size(vec2(100.0, 100.0), egui::Sense::hover());
                 ui.painter().rect_filled(rect, 0.0, above);
@@ -216,7 +216,14 @@ fn a_popup_over_content_is_found_before_what_is_below_it() {
     };
     let closed = small(|_| {}, draw);
     assert_eq!(closed.at(Pos2::new(80.0, 80.0)), Some(TokenRef::Color(ColorToken::SurfacePanel)));
-    let open = small(|ctx| ctx.data_mut(|d| drop(d.insert_temp(popup, true))), draw);
+    let open = small(
+        |ctx| {
+            ctx.data_mut(|d| {
+                d.insert_temp(popup, true);
+            })
+        },
+        draw,
+    );
     assert_eq!(open.at(Pos2::new(80.0, 80.0)), Some(TokenRef::Color(ColorToken::AccentSolid)), "the setup hook opened the popup");
     assert_eq!(open.at(Pos2::new(20.0, 20.0)), Some(TokenRef::Color(ColorToken::SurfacePanel)));
 }
@@ -226,8 +233,8 @@ fn a_scroll_area_clips_what_it_paints() {
     let usage = small(
         |_| {},
         |ui| {
-            let backdrop = token_color(ui, |t| t.color.surface.panel.into());
-            let content = token_color(ui, |t| t.color.accent.solid.into());
+            let backdrop = token_color(ui, |t| t.color.surface.panel);
+            let content = token_color(ui, |t| t.color.accent.solid);
             ui.painter().rect_filled(Rect::from_min_size(Pos2::ZERO, SMALL), 0.0, backdrop);
             egui::ScrollArea::vertical().max_height(50.0).auto_shrink([false, false]).show(ui, |ui| {
                 let (rect, _) = ui.allocate_exact_size(vec2(100.0, 300.0), egui::Sense::hover());
@@ -247,7 +254,7 @@ fn a_computed_paint_over_a_token_is_found_as_computed() {
     let usage = small(
         |_| {},
         |ui| {
-            let base = token_color(ui, |t| t.color.surface.panel.into());
+            let base = token_color(ui, |t| t.color.surface.panel);
             ui.painter().rect_filled(Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(100.0, 100.0)), 0.0, base);
             ui.painter().rect_filled(Rect::from_min_size(Pos2::new(60.0, 60.0), vec2(100.0, 100.0)), 0.0, base.gamma_multiply(0.5));
         },
@@ -263,8 +270,8 @@ fn a_ring_does_not_claim_what_it_encloses() {
     let usage = small(
         |_| {},
         |ui| {
-            let fill = token_color(ui, |t| t.color.surface.panel.into());
-            let ring = token_color(ui, |t| t.color.accent.solid.into());
+            let fill = token_color(ui, |t| t.color.surface.panel);
+            let ring = token_color(ui, |t| t.color.accent.solid);
             let rect = Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(100.0, 100.0));
             ui.painter().rect_filled(rect, 0.0, fill);
             ui.painter().circle_stroke(rect.center(), 40.0, egui::Stroke::new(3.0, ring));
@@ -285,6 +292,28 @@ fn a_paint_callback_is_computed() {
         },
     );
     assert!(usage.use_at(Pos2::new(20.0, 20.0)).is_some_and(|u| u.token.is_none()));
+}
+
+#[test]
+fn a_probe_copy_of_the_app_has_the_flyout_open_that_the_live_one_has() {
+    let appearance = Appearance::default();
+    let ctx = Context::default();
+    let base = appearance.configure(&ctx, None, false, SystemAppearance::default());
+    let mut live = AppPreview::default();
+    live.open_history_flyout();
+    for _ in 0..4 {
+        let raw = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, APP_SIZE)), ..RawInput::default() };
+        let output = ctx.run_ui(raw, |ui| {
+            craft_ui::theme::install(ui.ctx(), &base);
+            live.show(ui);
+        });
+        output.drop_without_applying_deltas();
+    }
+    let probe =
+        |mut preview: AppPreview| Probe::run(theme(&appearance), &appearance, Mode::Light, Pass::Semantic, APP_SIZE, |_| {}, |ui| preview.show(ui));
+    let closed = probe(live.clone());
+    let open = probe(live.for_probe());
+    assert!(open.uses.len() > closed.uses.len(), "the flyout adds paint: {} / {}", open.uses.len(), closed.uses.len());
 }
 
 #[test]

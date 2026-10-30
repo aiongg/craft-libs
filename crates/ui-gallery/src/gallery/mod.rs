@@ -17,6 +17,7 @@ mod catalog;
 mod components;
 mod dock;
 mod options_bar;
+mod pick;
 mod picks;
 mod properties;
 mod stories;
@@ -24,6 +25,8 @@ mod tabs;
 mod tiles;
 mod variants;
 
+#[cfg(test)]
+mod pick_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -41,6 +44,7 @@ use self::applied::Applied;
 use self::components::ComponentList;
 use self::dock::load_dock;
 use self::options_bar::{Bar, BarInput, BarOutput};
+use self::pick::Picker;
 use self::picks::Picks;
 use self::properties::ArgStore;
 use self::variants::Variants;
@@ -84,6 +88,8 @@ pub struct Gallery {
     scan: Scan,
     /// The keys of the tiles that outlined the selected token's shapes in the last frame.
     highlighted: Vec<&'static str>,
+    /// Pick from preview: whether it is on, and what the preview offers to pick.
+    pick: Picker,
     /// The workspace shown.
     workspace: GalleryWorkspace,
     /// What the Theme workspace's preview shows.
@@ -116,6 +122,7 @@ impl Gallery {
             inspector: Inspector::default(),
             scan: Scan::default(),
             highlighted: Vec::new(),
+            pick: Picker::default(),
             workspace: saved.workspace,
             preview: saved.preview,
             components_dock,
@@ -259,6 +266,22 @@ impl Gallery {
         self.browser.selected()
     }
 
+    /// Whether Pick from preview is on.
+    pub fn picking(&self) -> bool {
+        self.pick.on
+    }
+
+    /// Turns Pick from preview on or off.
+    pub fn set_picking(&mut self, on: bool) {
+        self.pick.set(on);
+    }
+
+    /// The token or field painted under the pointer in the preview, in the last frame; `None` when
+    /// nothing is, and the inner `None` for a colour that no token painted.
+    pub fn picked_hover(&self) -> Option<Option<craft_theme::TokenRef>> {
+        self.pick.hovered.map(|h| h.token)
+    }
+
     /// The keys of the tiles that outlined the shapes painted with the selected token in the last
     /// frame.
     pub fn highlighted_tiles(&self) -> &[&'static str] {
@@ -307,8 +330,15 @@ impl Gallery {
         let front = self.front_tab();
         let mut bar = BarOutput::default();
         Panel::top("gallery.bar").frame(Frame::NONE).show_separator_line(false).resizable(false).show(ui, |ui| {
-            bar = self.bar.show(ui, &mut self.appearance, &mut self.workspace, &mut self.preview, &input);
+            let mut picking = self.pick.on;
+            bar = self.bar.show(ui, &mut self.appearance, &mut self.workspace, &mut self.preview, &mut picking, &input);
+            self.pick.set(picking);
         });
+        // Picking belongs to the Theme workspace's preview; Escape ends it.
+        self.pick.tiles.clear();
+        if self.workspace != GalleryWorkspace::Theme || escape {
+            self.pick.set(false);
+        }
         if let Some(axis) = bar.variants {
             self.variants.set(Some(axis), front);
         }

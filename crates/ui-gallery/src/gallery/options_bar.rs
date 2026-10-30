@@ -51,6 +51,7 @@ impl Bar {
         a: &mut Appearance,
         workspace: &mut GalleryWorkspace,
         preview: &mut PreviewView,
+        picking: &mut bool,
         input: &BarInput,
     ) -> BarOutput {
         let BarInput { has_target, variants_shown } = *input;
@@ -158,9 +159,8 @@ impl Bar {
                     }
                     GalleryWorkspace::Theme => {
                         segmented(ui, "Preview", preview, [("App", PreviewView::App), ("Components", PreviewView::Components)]);
-                        let mut picking = false;
-                        ui.add(ToggleButton::new("Pick from preview", &mut picking).icon(Icon::Eyedropper).enabled(false).size(ControlSize::Sm))
-                            .tooltip("Comes with token picking");
+                        ui.add(ToggleButton::new("Pick from preview", picking).icon(Icon::Eyedropper).size(ControlSize::Sm))
+                            .tooltip("Click a shape in the preview to select its token; Alt picks the component field");
                     }
                 }
             });

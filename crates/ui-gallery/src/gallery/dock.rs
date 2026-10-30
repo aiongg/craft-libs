@@ -11,12 +11,14 @@ use craft_ui::theme::{Tokens, TokensOf, margin};
 use egui::{Frame, ScrollArea, Ui};
 
 use super::applied::shown_mode;
+use super::pick::{Hit, Picker};
 use super::tabs::{self, TabEnv};
 use super::tiles::TileEvents;
 use super::{Gallery, stories, variants};
 use crate::browser;
 use crate::layout::{GalleryWorkspace, PanelId, PreviewView, VariantAxis, default_for, reconciled};
-use crate::usage::Highlight;
+use crate::probe::{Key, Pass, Probe};
+use crate::usage::{Highlight, TilePick};
 
 /// The panel menu's commands.
 #[derive(Clone, Copy)]
@@ -121,8 +123,11 @@ impl Gallery {
     /// What the tabs that draw tiles need.
     fn tab_env(&mut self, ui: &Ui, inspecting: bool) -> TabEnv<'_> {
         let mode = self.appearance.mode(shown_mode(ui.ctx()));
+        let token = self.browser.selected();
+        let tiles = self.workspace == GalleryWorkspace::Theme && self.preview == PreviewView::Components && self.pick.on;
+        let pick = tiles.then(|| TilePick { pass: pass_of_pick(Picker::field_requested(ui.ctx())), tiles: &mut self.pick.tiles });
         let highlight =
-            self.browser.selected().map(|token| Highlight { scan: &mut self.scan, token, theme: self.applied.base.inputs.theme(mode), mode });
+            (token.is_some() || pick.is_some()).then(|| Highlight::new(&mut self.scan, token, pick, self.applied.base.inputs.theme(mode), mode));
         TabEnv {
             highlight,
             stories: &self.stories,
@@ -170,11 +175,55 @@ impl Gallery {
     /// The Theme workspace's centre: the mock app, or the Controls level's tiles.
     fn preview_panel(&mut self, ui: &mut Ui) {
         match self.preview {
-            PreviewView::App => self.app.show(ui),
+            PreviewView::App => {
+                self.app.show(ui);
+                if self.pick.on {
+                    self.pick_in_app(ui);
+                }
+            }
             PreviewView::Components => {
                 let events = tabs::preview_components(ui, &mut self.tab_env(ui, false));
                 self.apply_tile_events(&events);
+                if self.pick.on {
+                    let rect = ui.max_rect().intersect(ui.clip_rect());
+                    let picked = self.pick.overlay(ui, rect, false, Picker::tile_hit);
+                    self.select_picked(picked);
+                }
             }
+        }
+    }
+
+    /// The overlay over the mock app: the app drawn in a copy under probe colours, at the size it
+    /// shows, tells what is under the pointer. The probe runs when picking turns on and after
+    /// each click, and when the size or appearance changes.
+    fn pick_in_app(&mut self, ui: &mut Ui) {
+        let rect = ui.max_rect().intersect(ui.clip_rect());
+        let mode = self.appearance.mode(shown_mode(ui.ctx()));
+        let theme = self.applied.base.inputs.theme(mode);
+        let pass = pass_of_pick(Picker::field_requested(ui.ctx()));
+        let (app, appearance, generation) = (&self.app, &self.appearance, self.pick.generation);
+        let key = Key::new(theme, "preview:app", format!("{generation}"), appearance, mode, pass, rect.size());
+        let usage = self.scan.usage(key, || {
+            let mut copy = app.for_probe();
+            Probe::run(theme, appearance, mode, pass, rect.size(), |_| {}, |ui| copy.show(ui))
+        });
+        let origin = rect.min.to_vec2();
+        let find = |_: &Picker, pos: egui::Pos2| {
+            let used = usage.use_at(pos - origin)?;
+            Some(Hit { token: used.token, rect: used.visible().translate(origin) })
+        };
+        let picked = self.pick.overlay(ui, rect, true, find);
+        if picked.is_some() {
+            self.pick.generation += 1;
+        }
+        self.select_picked(picked);
+    }
+
+    /// Selects the token a click in the preview picked, in the Theme panel.
+    fn select_picked(&mut self, picked: Option<craft_theme::TokenRef>) {
+        if let Some(token) = picked {
+            self.browser.select(token);
+            self.activate(PanelId::Theme);
         }
     }
 
@@ -213,6 +262,11 @@ impl Gallery {
             self.activate(PanelId::Theme);
         }
     }
+}
+
+/// The pass that picks a semantic token, or with Alt the component field.
+fn pass_of_pick(field: bool) -> Pass {
+    if field { Pass::Component } else { Pass::Semantic }
 }
 
 /// Draws `add` inside the panel's padding.

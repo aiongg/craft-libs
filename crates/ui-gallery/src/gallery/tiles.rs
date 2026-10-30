@@ -166,14 +166,13 @@ pub(crate) fn tiles_view(
                     }
                     if let Some(highlight) = config.highlight.as_mut() {
                         let size = vec2(tile_width.floor(), TILE_HEIGHT);
-                        if let Some(rects) = highlight.rects(ui.ctx(), appearance, story, args, size)
-                            && !rects.is_empty()
-                        {
-                            // The probe drew the story on its surface at the origin; here the header sits above it.
-                            let origin = vec2(x, body.response.rect.min.y - surface.margin.top as f32);
+                        // The probe drew the story at the origin; here the header sits above it.
+                        let origin = vec2(x, body.response.rect.min.y - surface.margin.top as f32);
+                        let rects = highlight.tile(ui.ctx(), appearance, story, args, size, origin);
+                        if !rects.is_empty() {
                             let stroke = scale::Stroke::W1.egui(ui.ctx(), marquee);
                             for rect in rects {
-                                ui.painter().rect_stroke(rect.translate(origin), 0.0, stroke, StrokeKind::Outside);
+                                ui.painter().rect_stroke(rect, 0.0, stroke, StrokeKind::Outside);
                             }
                             events.highlighted.push(tile.key);
                         }
@@ -200,6 +199,9 @@ pub(crate) fn tiles_view(
                     if tile.open && response.double_clicked() && on_header {
                         events.opened = Some(story.component);
                     }
+                }
+                if let Some(highlight) = config.highlight.as_mut() {
+                    highlight.clip_last(used.response.rect);
                 }
                 bottom = bottom.max(used.response.rect.bottom());
                 placed.push((slot, x, surface, selected, highlighted));

@@ -64,6 +64,7 @@ pub struct Usage {
     pub uses: Vec<Use>,
 }
 
+#[allow(dead_code, reason = "the picking overlay and the tests look up by position")]
 impl Usage {
     /// Every token or field painted with its own colour.
     pub fn tokens(&self) -> BTreeSet<TokenRef> {

@@ -123,33 +123,84 @@ fn key_of(theme: &ThemeDef, story: &Story, args: &Args, appearance: &Appearance,
     Key::new(theme, story.id, format!("{args:?}"), appearance, mode, pass, size)
 }
 
-/// The token whose shapes the tiles outline, with what probing a tile needs.
-pub(crate) struct Highlight<'a> {
-    pub(crate) scan: &'a mut Scan,
-    pub(crate) token: TokenRef,
-    pub(crate) theme: &'a ThemeDef,
-    pub(crate) mode: Mode,
+/// A tile's story as picking sees it.
+pub(crate) struct TileProbe {
+    /// Where the probe's origin lies on screen.
+    pub(crate) origin: Vec2,
+    /// The tile's rect on screen: picking works inside it.
+    pub(crate) clip: Rect,
+    pub(crate) usage: Arc<Usage>,
 }
 
-impl Highlight<'_> {
-    /// Where `story` with `args` paints with the token when drawn `size` large, in the drawing's
-    /// coordinates. `None` while the story has not been probed: a probe runs now if this frame's
-    /// is unused, else the next frame asks again.
-    pub(crate) fn rects(&mut self, ctx: &Context, appearance: &Appearance, story: &Story, args: &Args, size: Vec2) -> Option<Vec<Rect>> {
-        let pass = pass_of(self.token);
+/// Picking in the tiles: the pass to probe in, and where the tiles report their stories.
+pub(crate) struct TilePick<'a> {
+    pub(crate) pass: Pass,
+    pub(crate) tiles: &'a mut Vec<TileProbe>,
+}
+
+/// What the tiles need to outline a token's shapes and to be picked from, with what probing a
+/// tile needs.
+pub(crate) struct Highlight<'a> {
+    pub(crate) scan: &'a mut Scan,
+    /// The token whose shapes the tiles outline.
+    pub(crate) token: Option<TokenRef>,
+    pub(crate) pick: Option<TilePick<'a>>,
+    pub(crate) theme: &'a ThemeDef,
+    pub(crate) mode: Mode,
+    /// The entry of `pick.tiles` the last tile added, until its rect is known.
+    pending: Option<usize>,
+}
+
+impl<'a> Highlight<'a> {
+    pub(crate) fn new(scan: &'a mut Scan, token: Option<TokenRef>, pick: Option<TilePick<'a>>, theme: &'a ThemeDef, mode: Mode) -> Self {
+        Self { scan, token, pick, theme, mode, pending: None }
+    }
+
+    /// The usage of `story` with `args` drawn `size` large in `pass`. `None` while it has not been
+    /// probed: a probe runs now if this frame's is unused, else the next frame asks again.
+    fn usage(&mut self, ctx: &Context, appearance: &Appearance, story: &Story, args: &Args, size: Vec2, pass: Pass) -> Option<Arc<Usage>> {
         let key = key_of(self.theme, story, args, appearance, self.mode, pass, size);
-        let usage: Arc<Usage> = match self.scan.cache.get(&key) {
-            Some(usage) => usage,
+        match self.scan.cache.get(&key) {
+            Some(usage) => Some(usage),
             None if std::mem::take(&mut self.scan.budget) => {
-                let theme = self.theme;
-                let mode = self.mode;
-                self.scan.cache.get_or_run(key, || Probe::story(theme, appearance, mode, pass, size, story, &mut args.clone()))
+                let (theme, mode) = (self.theme, self.mode);
+                Some(self.scan.cache.get_or_run(key, || Probe::story(theme, appearance, mode, pass, size, story, &mut args.clone())))
             }
             None => {
                 ctx.request_repaint();
-                return None;
+                None
             }
-        };
-        Some(usage.rects(self.token))
+        }
+    }
+
+    /// Where `story` with `args`, drawn `size` large with its origin at `origin` on screen, paints
+    /// with the token, in screen coordinates; empty while the story has not been probed or when no
+    /// token is selected. The story is also recorded for picking.
+    pub(crate) fn tile(&mut self, ctx: &Context, appearance: &Appearance, story: &Story, args: &Args, size: Vec2, origin: Vec2) -> Vec<Rect> {
+        self.pending = None;
+        if let Some(pick) = self.pick.as_ref().map(|p| p.pass)
+            && let Some(usage) = self.usage(ctx, appearance, story, args, size, pick)
+            && let Some(pick) = self.pick.as_mut()
+        {
+            self.pending = Some(pick.tiles.len());
+            pick.tiles.push(TileProbe { origin, clip: Rect::from_min_size(origin.to_pos2(), size), usage });
+        }
+        let Some(token) = self.token else { return Vec::new() };
+        let Some(usage) = self.usage(ctx, appearance, story, args, size, pass_of(token)) else { return Vec::new() };
+        usage.rects(token).into_iter().map(|r| r.translate(origin)).collect()
+    }
+
+    /// Sets the screen rect of the tile `tile` added last.
+    pub(crate) fn clip_last(&mut self, rect: Rect) {
+        if let (Some(i), Some(pick)) = (self.pending.take(), self.pick.as_mut()) {
+            pick.tiles[i].clip = rect;
+        }
+    }
+}
+
+impl Scan {
+    /// The usage cached for `key`, probed with `run` when none is.
+    pub(crate) fn usage(&mut self, key: Key, run: impl FnOnce() -> Usage) -> Arc<Usage> {
+        self.cache.get_or_run(key, run)
     }
 }

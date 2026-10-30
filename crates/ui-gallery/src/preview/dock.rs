@@ -22,15 +22,23 @@ pub struct DockState {
     auto_collapse: bool,
     /// A panel whose flyout opens on the next frame, when it sits in the iconic column.
     raise: Option<Panel>,
+    /// The panel whose flyout was open when the dock was last drawn.
+    flyout: Option<Panel>,
 }
 
 impl Default for DockState {
     fn default() -> Self {
-        Self { workspace: default_workspace(), panels: State::default(), auto_collapse: true, raise: None }
+        Self { workspace: default_workspace(), panels: State::default(), auto_collapse: true, raise: None, flyout: None }
     }
 }
 
 impl DockState {
+    /// Opens the flyout that was open when the dock was last drawn, on the next draw. The flyout
+    /// lives in egui memory, which a copy drawn in another context does not have.
+    pub fn reopen_flyout(&mut self) {
+        self.raise = self.flyout.or(self.raise);
+    }
+
     /// Whether the panel is in the dock, docked or floating, and not hidden by the Window menu.
     pub fn is_visible(&self, panel: Panel) -> bool {
         self.workspace.layout.contains(&panel)
@@ -163,7 +171,7 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState) {
     // Panels never close by the user's hand; the Window menu hides and shows them.
     config.close_menu_items = false;
     config.close_button = false;
-    let DockState { workspace, panels, auto_collapse, raise } = state;
+    let DockState { workspace, panels, auto_collapse, raise, flyout } = state;
     // A floated panel stays inside the part of the preview that shows.
     let bounds = ui.max_rect().intersect(ui.clip_rect());
     let mut content = Content { mock, panels, requested: None };
@@ -180,6 +188,7 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState) {
         }
         actions = output.actions;
         requested = content.requested;
+        *flyout = craft_ui::docking::flyout::<Panel>(ui.ctx(), id);
     });
     for action in actions {
         let _ = workspace.apply(action, Panel::permissions);
