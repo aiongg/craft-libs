@@ -740,7 +740,7 @@ fn a_second_thumbnail_follows_the_first_with_an_optional_link_between() {
                 let mut row = ListRow::new(1u8, "Layer")
                     .selected(true)
                     .thumb(ThumbSize::Medium, |_, rect| painted.borrow_mut().push(rect))
-                    .second_thumb(|_, rect| painted.borrow_mut().push(rect));
+                    .extra_thumb(|_, rect| painted.borrow_mut().push(rect));
                 if with_link {
                     row = row.thumb_link(*linked, "Link mask to {row}");
                 }
@@ -767,7 +767,7 @@ fn a_second_thumbnail_follows_the_first_with_an_optional_link_between() {
         if with_link {
             harness.get_by_label("Link mask to Layer").click();
             harness.run();
-            assert_eq!(harness.state().2, vec![RowEvent::LinkToggled { row: 1, linked: true }]);
+            assert_eq!(harness.state().2, vec![RowEvent::LinkToggled { row: 1, thumb: 0, linked: true }]);
             assert!(harness.state().0);
         } else {
             assert!(harness.query_by_label("Link mask to Layer").is_none());
@@ -785,7 +785,7 @@ fn thumbs_harness(target: Option<ThumbTarget>, selected: bool) -> Harness<'stati
             let mut row = ListRow::new(1u8, "Layer")
                 .selected(selected)
                 .thumb(ThumbSize::Medium, |_, rect| painted.borrow_mut().push(rect))
-                .second_thumb(|_, rect| painted.borrow_mut().push(rect))
+                .extra_thumb(|_, rect| painted.borrow_mut().push(rect))
                 .thumb_link(true, "Link mask to {row}");
             if let Some(target) = *target {
                 row = row.thumb_target(target);
@@ -828,11 +828,11 @@ fn bracket_segments(h: &Harness<'_, Thumbs>, color: egui::Color32) -> Vec<[Pos2;
 }
 
 /// The target brackets are eight 1.5-wide segments 6 long at the corners of the targeted
-/// thumbnail grown by 3; nothing is marked without a target or on a row that is not selected.
+/// thumbnail grown by 3; nothing is marked without a target.
 #[test]
 fn the_targeted_thumbnail_has_corner_brackets() {
     let color = style().selected_text;
-    for target in [ThumbTarget::First, ThumbTarget::Second] {
+    for target in [ThumbTarget::First, ThumbTarget::Extra(0)] {
         let h = thumbs_harness(Some(target), true);
         let [first, second] = h.state().1.borrow()[..] else { panic!("two thumbnails") };
         let marked = if target == ThumbTarget::First { first } else { second }.expand(3.0);
@@ -844,7 +844,6 @@ fn the_targeted_thumbnail_has_corner_brackets() {
         }
     }
     assert!(bracket_segments(&thumbs_harness(None, true), color).is_empty(), "no target, no brackets");
-    assert!(bracket_segments(&thumbs_harness(Some(ThumbTarget::Second), false), color).is_empty(), "a row that is not selected");
 }
 
 /// A click on a thumbnail reports it and the row is clicked too; the link glyph between the
@@ -854,7 +853,7 @@ fn a_click_on_a_thumbnail_reports_which_and_still_clicks_the_row() {
     let mut h = thumbs_harness(Some(ThumbTarget::First), true);
     let [first, second] = h.state().1.borrow()[..] else { panic!("two thumbnails") };
     click_at(&mut h, second.center());
-    assert_eq!(h.state().2, vec![RowEvent::ThumbClicked { row: 1, which: ThumbTarget::Second }]);
+    assert_eq!(h.state().2, vec![RowEvent::ThumbClicked { row: 1, which: ThumbTarget::Extra(0) }]);
     assert_eq!(h.state().3, 1, "the row selects as for any click");
     later(&mut h);
     click_at(&mut h, first.center());
@@ -883,4 +882,133 @@ fn the_link_glyph_shows_a_focus_ring() {
     h.key_press(Key::Tab);
     h.run();
     assert_eq!(focus_rects(&h), 1, "Tab reaches the glyph and rings it");
+}
+
+/// Extra thumbnails follow the first in the order added, each behind its own link glyph with its
+/// own name; every glyph reports which thumbnail it belongs to.
+#[test]
+fn two_extra_thumbnails_are_laid_out_named_and_linked() {
+    use std::cell::RefCell;
+    type State = (RefCell<Vec<Rect>>, Vec<RowEvent<u8>>);
+    let s = style();
+    let mut h = harness::<State>(Direction::Ltr).build_ui_state(
+        |ui, (painted, events): &mut State| {
+            painted.get_mut().clear();
+            let painted = &*painted;
+            let shown = ListRow::new(1u8, "Layer")
+                .thumb(ThumbSize::Medium, |_, rect| painted.borrow_mut().push(rect))
+                .extra_thumb(|_, rect| painted.borrow_mut().push(rect))
+                .thumb_link(true, "Link layer mask to {row}")
+                .extra_thumb(|_, rect| painted.borrow_mut().push(rect))
+                .thumb_link(false, "Link vector mask to {row}")
+                .show(ui);
+            events.extend(shown.events);
+        },
+        (RefCell::default(), Vec::new()),
+    );
+    h.run();
+    let painted = h.state().0.borrow().clone();
+    let [first, mask, vector] = painted[..] else { panic!("{painted:?}") };
+    assert_eq!(mask.left() - first.right(), s.icon_size);
+    assert_eq!(vector.left() - mask.right(), s.icon_size);
+    assert_eq!((first.size(), mask.size()), (mask.size(), vector.size()));
+    h.get_by_label("Link layer mask to Layer");
+    h.get_by_label("Link vector mask to Layer").click();
+    h.run();
+    assert_eq!(h.state().1, vec![RowEvent::LinkToggled { row: 1, thumb: 1, linked: true }]);
+}
+
+/// On a narrow row the thumbnails keep their size and place and the label is cut.
+#[test]
+fn a_narrow_row_keeps_every_thumbnail_and_cuts_the_label() {
+    use std::cell::RefCell;
+    let thumbs = |width: f32| {
+        let painted = RefCell::new(Vec::new());
+        let ctx = context();
+        let mut label = Rect::NOTHING;
+        let _ = shapes(&ctx, |ui| {
+            panel(ui, width, |ui| {
+                label = ListRow::new(1u8, "A layer with a long name")
+                    .thumb(ThumbSize::Medium, |_, rect| painted.borrow_mut().push(rect))
+                    .extra_thumb(|_, rect| painted.borrow_mut().push(rect))
+                    .thumb_link(true, "Link {row}")
+                    .extra_thumb(|_, rect| painted.borrow_mut().push(rect))
+                    .optional_item(40.0, |_| {})
+                    .show(ui)
+                    .label;
+            })
+        });
+        (painted.into_inner(), label)
+    };
+    let (wide, wide_label) = thumbs(400.0);
+    let (narrow, narrow_label) = thumbs(150.0);
+    assert_eq!(wide.len(), 3);
+    assert_eq!(narrow, wide, "the thumbnails don't move or drop out");
+    assert!(narrow_label.width() < wide_label.width());
+}
+
+/// A clipped row is indented one step, shows the clipping arrow in a slot before its thumbnail
+/// and is described as clipped for a screen reader.
+#[test]
+fn a_clipped_row_is_indented_marked_and_described() {
+    use std::cell::Cell;
+    let s = style();
+    let first = |clipped: bool| {
+        let at = Cell::new(Rect::NOTHING);
+        let ctx = context();
+        let _ = shapes(&ctx, |ui| {
+            panel(ui, 240.0, |ui| {
+                let _ = ListRow::new(1u8, "Layer").thumb(ThumbSize::Medium, |_, rect| at.set(rect)).clipped(clipped).show(ui);
+            })
+        });
+        at.get()
+    };
+    assert_eq!(first(true).left() - first(false).left(), s.indent + s.icon_size);
+
+    let arrows = |clipped: bool| {
+        let ctx = context();
+        shapes(&ctx, |ui| {
+            panel(ui, 240.0, |ui| {
+                let _ = ListRow::new(1u8, "Layer").clipped(clipped).show(ui);
+            })
+        })
+        .iter()
+        .filter(|shape| matches!(shape, Shape::Path(path) if path.stroke.color == egui::epaint::ColorMode::Solid(s.icon)))
+        .count()
+    };
+    assert_eq!((arrows(false), arrows(true)), (0, 2), "a stem with the leg, and the head");
+
+    let h = harness::<()>(Direction::Ltr).build_ui(|ui| {
+        let _ = ListRow::new(1u8, "Layer").clipped(true).description("Raster").show(ui);
+    });
+    let node = h.get_by_role(Role::ListBoxOption);
+    let description = node.accesskit_node().description().unwrap_or_default();
+    assert!(description.starts_with("Clipped") && description.ends_with("Raster"), "{description}");
+}
+
+/// `italic(true)` draws the label, not the detail line, in italics.
+#[test]
+fn an_italic_row_draws_its_label_in_italics() {
+    let ctx = context();
+    let italics = |italic: bool| {
+        shapes(&ctx, |ui| {
+            panel(ui, 240.0, |ui| {
+                let _ = ListRow::new(1u8, "Background").detail("Raster").italic(italic).show(ui);
+            })
+        })
+        .iter()
+        .filter_map(
+            |s| if let Shape::Text(t) = s { t.galley.job.sections.first().map(|s| (t.galley.text().to_owned(), s.format.italics)) } else { None },
+        )
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(italics(false), [("Background".to_owned(), false), ("Raster".to_owned(), false)]);
+    assert_eq!(italics(true), [("Background".to_owned(), true), ("Raster".to_owned(), false)]);
+}
+
+/// The target brackets follow `thumb_target` alone: they show on a row that is not selected.
+#[test]
+fn the_brackets_do_not_need_a_selected_row() {
+    let color = style().text;
+    assert_eq!(bracket_segments(&thumbs_harness(Some(ThumbTarget::First), false), color).len(), 8);
 }
