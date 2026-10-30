@@ -40,6 +40,11 @@ pub enum ListEvent<K> {
     /// The selection changed (a click, a key, type-ahead); the list has applied it to the
     /// selection it was given. A host with its own selection rules runs the pick instead.
     Selection(SelectionChange<K>),
+    /// A primary click on a row, whether or not it changed the selection (a click on the row that
+    /// is already the only one selected changes nothing, so reports no [`Selection`](ListEvent::Selection)).
+    /// Reported after the click's `Selection`. A double click reports [`Activate`](ListEvent::Activate)
+    /// instead of its second `Clicked`.
+    Clicked(K),
     /// The lead moved without changing the selection (Control+Up or Down, a screen reader's
     /// focus on a row).
     LeadMoved(K),
@@ -1003,10 +1008,11 @@ where
             } else {
                 self.events.push(ListEvent::Activate(key.clone()));
             }
-        } else if response.clicked()
-            && let Some(change) = self.rules.click(self.selection, self.rows, at, modifiers)
-        {
-            self.apply(change);
+        } else if response.clicked() {
+            if let Some(change) = self.rules.click(self.selection, self.rows, at, modifiers) {
+                self.apply(change);
+            }
+            self.events.push(ListEvent::Clicked(key.clone()));
         }
         if self.reorder.is_some() && self.state.drag.is_none() && response.drag_started_by(PointerButton::Primary) {
             self.start_drag(at, key);

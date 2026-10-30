@@ -561,7 +561,20 @@ fn a_section_is_a_heading_that_is_not_selected_focused_or_counted() {
         assert_eq!(harness.state().selection, Selection::only(1), "a click on {name} changes nothing");
         assert!(focused(&harness) && active(&harness).as_deref() == Some("Row 1"), "the list is focused on its lead, not on {name}");
     }
-    assert!(harness.state_mut().take_events().iter().all(|e| !matches!(e, ListEvent::Selection(_) | ListEvent::Activate(_))));
+    assert!(harness.state_mut().take_events().iter().all(|e| !matches!(e, ListEvent::Selection(_) | ListEvent::Activate(_) | ListEvent::Clicked(_))));
+}
+
+#[test]
+fn a_primary_click_on_the_selected_row_is_reported_though_the_selection_stays() {
+    let mut harness = harness(sectioned());
+    assert_eq!(harness.state().selection, Selection::only(1));
+    let row = harness.get_by(|n| n.role() == Role::ListBoxOption && n.label().as_deref() == Some("Row 1"));
+    let at = row.rect().center();
+    harness.state_mut().take_events();
+    click_at(&mut harness, at, PointerButton::Primary);
+    let events = harness.state_mut().take_events();
+    assert!(events.contains(&ListEvent::Clicked(1)), "{events:?}");
+    assert!(events.iter().all(|e| !matches!(e, ListEvent::Selection(_))), "the selection did not change: {events:?}");
 }
 
 #[test]
