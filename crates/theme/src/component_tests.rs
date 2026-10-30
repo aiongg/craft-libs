@@ -1181,6 +1181,28 @@ fn list_sizes_follow_the_size_preset_and_colours_the_semantic_tokens() {
     assert_eq!((l.drop, l.drop_halo), (t.color(T::AccentSolid), t.color(T::SurfacePanel)));
 }
 
+/// The colour controls' sizes are DS-45's token table: the Compact values as written (a half point
+/// stays), the Comfortable ones scaled and rounded.
+#[test]
+fn colour_control_sizes_follow_the_table_at_both_presets() {
+    let at = |size| resolve(&grey_blue(), Appearance { size, ..app(Mode::Dark, Contrast::Standard) }, None).tokens;
+    let c = at(Size::Compact).component;
+    let w = c.color_wheel;
+    assert_eq!((w.side, w.side_min, w.ring_min, w.ring_max, w.outer_inset, w.triangle_inset), (220.0, 28.0, 6.0, 22.0, 2.0, 1.0));
+    assert_eq!((w.grab_outer, w.grab_inner, w.disc_inset, w.disc_marker, w.disc_marker_selected, w.disc_grab), (7.0, 2.0, 10.0, 5.5, 8.0, 14.0));
+    assert_eq!((c.color_ramp.height, c.color_ramp.height_min, c.color_ramp.boxes, c.color_ramp.boxes_gap), (36.0, 28.0, 16.0, 2.0));
+    let g = c.gradient_palette;
+    assert_eq!((g.cell_width, g.cell_height, g.list_swatch_width, g.list_swatch_height, g.max_height), (32.0, 18.0, 48.0, 16.0, 120.0));
+
+    let c = at(Size::Comfortable).component;
+    let w = c.color_wheel;
+    assert_eq!((w.side, w.side_min, w.ring_min, w.ring_max, w.outer_inset, w.triangle_inset), (275.0, 35.0, 8.0, 28.0, 3.0, 1.0));
+    assert_eq!((w.grab_outer, w.grab_inner, w.disc_inset, w.disc_marker, w.disc_marker_selected, w.disc_grab), (9.0, 3.0, 13.0, 7.0, 10.0, 18.0));
+    assert_eq!((c.color_ramp.height, c.color_ramp.height_min, c.color_ramp.boxes, c.color_ramp.boxes_gap), (45.0, 35.0, 20.0, 3.0));
+    let g = c.gradient_palette;
+    assert_eq!((g.cell_width, g.cell_height, g.list_swatch_width, g.list_swatch_height, g.max_height), (40.0, 23.0, 60.0, 20.0, 150.0));
+}
+
 /// The drop marker meets its minimum on its halo in every built-in and mode in high contrast.
 #[test]
 fn builtin_drop_markers_meet_their_minimum_on_their_halo() {
