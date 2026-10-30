@@ -26,6 +26,8 @@ struct Rig {
     fields: (Id, Id),
     style: ColorWheelStyle,
     nodes: Vec<(NodeId, Node)>,
+    /// How far the layer sits from the screen's origin; `geometry` stays in layer coordinates.
+    offset: egui::Vec2,
 }
 
 impl Rig {
@@ -45,6 +47,7 @@ impl Rig {
             fields: (Id::NULL, Id::NULL),
             style: default_style(),
             nodes: Vec::new(),
+            offset: egui::Vec2::ZERO,
         };
         rig.frame(vec![]);
         rig
@@ -59,7 +62,9 @@ impl Rig {
             RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(self.time), events, ..Default::default() };
         self.time += 1.0 / 60.0;
         let ctx = self.ctx.clone();
+        let offset = self.offset;
         let output = ctx.run_ui(input, |ui| {
+            ui.ctx().set_transform_layer(ui.layer_id(), egui::emath::TSTransform::from_translation(offset));
             let style = ColorWheel::style(&Tokens::of(ui));
             self.style = style;
             FieldTab::new("dialog").show(ui, |ui| {
@@ -365,3 +370,20 @@ fn a_press_waits_for_a_typing_run_only_when_the_host_says_so() {
     assert_eq!(pressed, None, "in a panel: the press waits for the run's commit");
     assert!(next.is_some(), "and edits in the next pass: {next:?}");
 }
+
+#[test]
+fn a_drag_keeps_the_part_it_pressed_in_a_moved_layer() {
+    let mut rig = Rig::new(hsb(240.0, 50.0, 60.0));
+    rig.offset = vec2(0.0, 120.0);
+    rig.frame(vec![]);
+    rig.frame(vec![]);
+    let screen = |rig: &Rig, p: Pos2| p + rig.offset;
+    let at = screen(&rig, rig.on_ring(90.0));
+    rig.press(at);
+    let id = begin(rig.event.clone());
+    rig.frame(vec![]);
+    let to = screen(&rig, rig.on_ring(150.0));
+    rig.drag(to);
+    assert_eq!(rig.event, update(id, hsb(150.0, 50.0, 60.0)), "the drag turns the hue it pressed on");
+}
+

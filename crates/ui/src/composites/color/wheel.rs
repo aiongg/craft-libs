@@ -339,12 +339,17 @@ impl ColorWheel {
         let origin = response.drag_started_by(egui::PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
         let press = origin.or(tapped).filter(|p| grab(*p).is_some());
         let turn = press_turn(ui, pointer_id, self.part, gesture.id(), press);
+        // The part the press took, for the whole drag: the press is in layer coordinates, and so
+        // is every drag position.
+        let part_key = pointer_id.with("craft_ui::wheel_part");
+        let mut pressed_part = ui.data(|d| d.get_temp::<Option<WheelPart>>(part_key)).flatten();
         // The part to give the focus this frame.
         let mut focus = None;
         if let PressTurn::Held(held) = turn
             && let Some(part) = grab(held)
         {
             focus = Some(part);
+            pressed_part = Some(part);
             gesture.begin();
             if let Some(start) = gesture.start().copied() {
                 gesture.update(value_at(&geometry, &start, part, held), modifiers());
@@ -357,20 +362,22 @@ impl ColorWheel {
         if let Some(part) = origin.and_then(grab) {
             focus = Some(part);
             if !waits {
+                pressed_part = Some(part);
                 gesture.begin();
             }
         }
         if response.dragged_by(egui::PointerButton::Primary)
             && let Some(start) = gesture.start().copied()
             && let Some(pos) = response.interact_pointer_pos()
-            && let Some(origin) = ui.input(|i| i.pointer.press_origin())
-            && let Some(part) = grab(origin)
+            && let Some(part) = pressed_part
         {
             gesture.update(value_at(&geometry, &start, part, pos), modifiers());
         }
         if response.drag_stopped() {
             gesture.commit();
+            pressed_part = None;
         }
+        ui.data_mut(|d| d.insert_temp(part_key, pressed_part));
         if let Some(pos) = tapped.filter(|_| !waits)
             && let Some(part) = grab(pos)
         {
