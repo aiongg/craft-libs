@@ -8,7 +8,7 @@ use super::scale::{Duration, Easing, Elevation, Radius};
 use super::theme::{Size, TextSize};
 use super::tokens::{
     BarSizes, ColorToken, ControlSizes, Edge, FontSlot, Gaps, IconSizes, ListSizes, Pads, RadiusSet, RailSizes, SizeTokens, SpaceTokens, StatusKind,
-    TabSizes, ThumbSizes, TypeStyle, TypeTokens,
+    PresetSizes, TabSizes, ThumbSizes, TypeStyle, TypeTokens,
 };
 
 use Bg::{HaloOver, Token};
@@ -445,6 +445,7 @@ pub(super) const COMPACT: Preset = Preset {
             dividers: true,
         },
         tab: TabSizes { panel_height: 28.0, height_large: 34.0, min_width: 40.0, close: 14.0, close_icon: 10.0, rounded: false, dividers: true },
+        preset: PresetSizes { header_height: 24.0, grid_gap: 4.0, grid_inset: 8.0, cell_radius: 2.0, caption_gap: 2.0, slider_width: 90.0 },
     },
     space: SpaceTokens { gap: Gaps { inline: 4.0, row: 4.0, stack: 6.0, section: 12.0 }, pad: Pads { control: 6.0, panel: 8.0, dialog: 16.0 } },
     radius: RadiusSet { control: 3.0, popup: 4.0, window: 6.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
@@ -480,6 +481,7 @@ pub(super) const COMFORTABLE: Preset = Preset {
             dividers: false,
         },
         tab: TabSizes { panel_height: 40.0, height_large: 38.0, min_width: 44.0, close: 16.0, close_icon: 12.0, rounded: true, dividers: false },
+        preset: PresetSizes { header_height: 30.0, grid_gap: 6.0, grid_inset: 12.0, cell_radius: 6.0, caption_gap: 3.0, slider_width: 108.0 },
     },
     space: SpaceTokens { gap: Gaps { inline: 6.0, row: 6.0, stack: 8.0, section: 16.0 }, pad: Pads { control: 8.0, panel: 12.0, dialog: 20.0 } },
     radius: RadiusSet { control: 6.0, popup: 8.0, window: 12.0, panel: 0.0, button: Radius::Full.px(), pill: Radius::Full.px() },
@@ -631,6 +633,21 @@ pub const PROPERTY_LINK_WIDTH: f32 = 20.0;
 
 /// Width of a preferences window's page list column, at every Size (PhotoCraft's `prefs_ui` side list).
 pub const PREFERENCES_LIST_WIDTH: f32 = 170.0;
+
+/// Least thumbnail side of a preset list row, at every Size.
+pub const PRESET_THUMB_LIST_MIN: f32 = 16.0;
+
+/// Greatest thumbnail side of a preset list row, at every Size.
+pub const PRESET_THUMB_LIST_MAX: f32 = 64.0;
+
+/// Side of the thumbnail in a preset's drag ghost (PhotoCraft's 28).
+pub const PRESET_GHOST_THUMB: f32 = 28.0;
+
+/// Width of the ring outside a hovered preset cell.
+pub const PRESET_RING_HOVER_WIDTH: f32 = 1.0;
+
+/// Width of the `overlay.halo` line outside the selected preset's ring.
+pub const PRESET_RING_HALO_WIDTH: f32 = 1.0;
 
 /// The control height the Compact form grid gaps are set for; other sizes scale them by their
 /// control height over this.

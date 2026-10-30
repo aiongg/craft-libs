@@ -12,7 +12,7 @@ use crate::{
     FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens,
     GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens, LevelsTokens, ListSizes,
     ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens,
-    PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens,
+    PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens,
     ReadoutTokens, RefPointTokens, Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens,
     SliderTokens, SpaceTokens, SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes,
     TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
@@ -93,7 +93,7 @@ fn space_lines(out: &mut Lines, space: &SpaceTokens) {
 }
 
 fn size_lines(out: &mut Lines, size: &SizeTokens) {
-    let SizeTokens { control, icon, rail, bar, panel_header, list, tab: tab_sizes } = size;
+    let SizeTokens { control, icon, rail, bar, panel_header, list, tab: tab_sizes, preset } = size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
     out.line("size.control.md", len(*md));
@@ -132,6 +132,17 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.tab.close_icon", len(*close_icon));
     out.line("size.tab.rounded", rounded);
     out.line("size.tab.dividers", dividers);
+    let PresetSizes { header_height, grid_gap, grid_inset, cell_radius, caption_gap, slider_width } = preset;
+    for (k, v) in [
+        ("header_height", header_height),
+        ("grid_gap", grid_gap),
+        ("grid_inset", grid_inset),
+        ("cell_radius", cell_radius),
+        ("caption_gap", caption_gap),
+        ("slider_width", slider_width),
+    ] {
+        out.line(&format!("size.preset.{k}"), len(*v));
+    }
 }
 
 fn slot(s: FontSlot) -> &'static str {
@@ -254,6 +265,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         popover,
         popup,
         preferences,
+        preset,
         progress,
         property,
         rail,
@@ -313,6 +325,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     popover_lines(out, popover);
     popup_lines(out, popup);
     preferences_lines(out, preferences);
+    preset_lines(out, preset);
     progress_lines(out, progress);
     property_lines(out, property);
     rail_lines(out, rail);
@@ -1083,6 +1096,59 @@ fn preferences_lines(out: &mut Lines, t: &PreferencesTokens) {
     let PreferencesTokens { list_width, page_gap } = t;
     out.line("preferences.list_width", len(*list_width));
     out.line("preferences.page_gap", len(*page_gap));
+}
+
+fn preset_lines(out: &mut Lines, t: &PresetTokens) {
+    let PresetTokens {
+        header_height,
+        grid_gap,
+        grid_inset,
+        cell_radius,
+        caption_gap,
+        slider_width,
+        thumb_list_min,
+        thumb_list_max,
+        ghost_thumb,
+        toolbar_gap,
+        ring_hover_width,
+        ring_halo_width,
+        border,
+        ring_hover,
+        ring_halo,
+        caption,
+        caption_selected,
+        count,
+        header_text,
+        header_icon,
+    } = t;
+    for (k, v) in [
+        ("header_height", header_height),
+        ("grid_gap", grid_gap),
+        ("grid_inset", grid_inset),
+        ("cell_radius", cell_radius),
+        ("caption_gap", caption_gap),
+        ("slider_width", slider_width),
+        ("thumb_list_min", thumb_list_min),
+        ("thumb_list_max", thumb_list_max),
+        ("ghost_thumb", ghost_thumb),
+        ("toolbar_gap", toolbar_gap),
+        ("ring.hover_width", ring_hover_width),
+        ("ring.halo_width", ring_halo_width),
+    ] {
+        out.line(&format!("preset.{k}"), len(*v));
+    }
+    for (k, c) in [
+        ("border", border),
+        ("ring.hover", ring_hover),
+        ("ring.halo", ring_halo),
+        ("caption", caption),
+        ("caption.selected", caption_selected),
+        ("count", count),
+        ("header.text", header_text),
+        ("header.icon", header_icon),
+    ] {
+        out.line(&format!("preset.{k}"), hex(*c));
+    }
 }
 
 fn panel_footer_lines(out: &mut Lines, t: &PanelFooterTokens) {

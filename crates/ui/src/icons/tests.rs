@@ -118,6 +118,17 @@ fn every_photocraft_button_icon_resolves_in_the_base_set() {
     }
 }
 
+/// The preset browser's view switch and new-group button (DS-44).
+#[test]
+fn the_preset_browser_icons_are_drawn_in_every_set() {
+    for (icon, name) in [(Icon::LayoutGrid, "layout_grid"), (Icon::List, "list"), (Icon::NewFolder, "new_folder"), (Icon::Folder, "folder")] {
+        assert_eq!(icon.name(), name);
+        for set in IconSet::ALL {
+            assert!(icon.drawn_in(set), "{name} in {}", set.id());
+        }
+    }
+}
+
 #[test]
 fn a_pack_without_an_icon_draws_the_base_set_file() {
     let missing: Vec<(Icon, IconSet)> = Icon::ALL.iter().flat_map(|i| IconSet::ALL.map(|s| (*i, s))).filter(|(i, s)| !i.drawn_in(*s)).collect();

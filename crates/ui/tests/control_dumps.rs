@@ -17,6 +17,7 @@ use craft_ui::docking::DockLook;
 use craft_ui::list::ListRow;
 use craft_ui::menu::Menu;
 use craft_ui::patterns::{OptionsBar, StatusBar};
+use craft_ui::presets::style::PresetStyle;
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::tab_strip::Tab;
 use craft_ui::testing::dump::Dump;
@@ -362,6 +363,26 @@ fn swatch() {
             .line("selected", s.selected)
             .line("mixed.fill", s.mixed_fill)
             .line("mixed.mark", s.mixed_mark);
+    });
+}
+
+/// Preset browsers: the grid and header sizes, the rings, the captions and the insertion line.
+#[test]
+fn preset_style() {
+    check("preset.txt", |d, t| {
+        let s = PresetStyle::from_tokens(t);
+        d.line("header_height", s.header_height).line("grid_gap", s.grid_gap).line("grid_inset", s.grid_inset);
+        d.line("cell_radius", s.cell_radius.nw).line("caption_gap", s.caption_gap).line("slider_width", s.slider_width);
+        d.line("thumb_list_min", s.thumb_list_min).line("thumb_list_max", s.thumb_list_max).line("ghost_thumb", s.ghost_thumb);
+        d.line("toolbar_gap", s.toolbar_gap);
+        for (key, stroke) in [("border", s.border), ("ring.hover", s.ring_hover), ("ring.selected", s.ring_selected), ("ring.halo", s.ring_halo)] {
+            d.line(&format!("{key}.width"), stroke.width).line(&format!("{key}.color"), stroke.color);
+        }
+        d.line("caption", s.caption).line("caption.selected", s.caption_selected).line("count", s.count);
+        d.line("header.text", s.header_text).line("header.icon", s.header_icon);
+        d.line("insert", s.insert).line("insert.halo", s.insert_halo).line("insert.width", s.insert_width);
+        d.line("checker.a", s.checker[0]).line("checker.b", s.checker[1]).line("checker_cell", s.checker_cell);
+        d.line("inner_edge.red", s.inner_edge(craft_theme::Rgba([255, 0, 0, 255])));
     });
 }
 

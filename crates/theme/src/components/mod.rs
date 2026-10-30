@@ -43,6 +43,7 @@ mod panel_footer;
 mod panel_header;
 mod popover;
 mod popup;
+mod preset;
 mod preferences;
 mod progress;
 mod property;
@@ -112,6 +113,7 @@ pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use popover::{PopoverField, PopoverTokens};
 pub use popup::{PopupField, PopupTokens};
 pub use preferences::{PreferencesField, PreferencesTokens};
+pub use preset::{PresetField, PresetTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
 pub use rail::{RailField, RailTokens};
@@ -698,6 +700,8 @@ families! {
     popup: PopupTokens => Popup(PopupField);
     /// Preferences windows: the page list column and the gap to the page.
     preferences: PreferencesTokens => Preferences(PreferencesField);
+    /// Preset browsers: the grid, headers and captions of a library of thumbnails.
+    preset: PresetTokens => Preset(PresetField);
     /// Progress bars.
     progress: ProgressTokens => Progress(ProgressField);
     /// Property rows: the label, control and column widths of an inspector row.

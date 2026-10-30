@@ -734,6 +734,8 @@ pub struct SizeTokens {
     pub list: ListSizes,
     /// Tabs.
     pub tab: TabSizes,
+    /// Preset browsers.
+    pub preset: PresetSizes,
 }
 
 /// Thumbnail sides of a list row, in logical pixels, for the three user settings.
@@ -789,6 +791,23 @@ pub struct TabSizes {
     pub rounded: bool,
     /// Document tabs have a divider at their trailing edge.
     pub dividers: bool,
+}
+
+/// Sizes of preset browsers that differ by Size preset.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PresetSizes {
+    /// Height of a group or folder header.
+    pub header_height: f32,
+    /// Between grid cells.
+    pub grid_gap: f32,
+    /// Between the grid and the panel edge.
+    pub grid_inset: f32,
+    /// Corner radius of a grid cell.
+    pub cell_radius: f32,
+    /// Between a thumbnail and its caption.
+    pub caption_gap: f32,
+    /// Width of the thumbnail size slider.
+    pub slider_width: f32,
 }
 
 /// The font a type role uses. `craft_ui::fonts` maps each slot to a face.

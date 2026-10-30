@@ -1250,3 +1250,19 @@ phosphor = "eraser-magic"  # drawn in Phosphor's style: no match in any set
 name = "font_similar"
 directional = false
 phosphor = "font-similar"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "layout_grid"
+directional = false
+lucide = "layout-grid"
+phosphor = "squares-four"
+carbon = "apps"
+tabler = "layout-grid"
+
+[[icon]]
+name = "list"
+directional = false
+lucide = "list"
+phosphor = "list-bullets"
+carbon = "list--bulleted"
+tabler = "list"
