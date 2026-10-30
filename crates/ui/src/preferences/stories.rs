@@ -42,6 +42,8 @@ pub(crate) struct FakeHost {
     pub log: Vec<String>,
     pub fail: Option<String>,
     pub can_ok: bool,
+    /// A nested dialog is open (the window refuses OK and takes no keys).
+    pub nested: bool,
 }
 
 impl FakeHost {
@@ -59,7 +61,7 @@ impl FakeHost {
         ] {
             saved.insert(k.to_owned(), v);
         }
-        Self { draft: saved.clone(), saved, log: Vec::new(), fail: None, can_ok: true }
+        Self { draft: saved.clone(), saved, log: Vec::new(), fail: None, can_ok: true, nested: false }
     }
 
     fn text(&self, key: &str) -> &str {
@@ -189,6 +191,16 @@ impl PreferencesHost for FakeHost {
     fn reset_page(&mut self, page: &str) {
         self.log.push(format!("reset {page}"));
     }
+
+    fn nested(&mut self, _ctx: &egui::Context) {
+        if self.nested {
+            self.log.push("nested".into());
+        }
+    }
+
+    fn nested_open(&self) -> bool {
+        self.nested
+    }
 }
 
 fn show_window(ui: &mut Ui, args: &mut WindowArgs) {
@@ -226,6 +238,7 @@ impl Clone for FakeHostBox {
             log: self.0.log.clone(),
             fail: self.0.fail.clone(),
             can_ok: self.0.can_ok,
+            nested: self.0.nested,
         })
     }
 }

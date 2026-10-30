@@ -1117,6 +1117,7 @@ version = "0.1.0"
 dependencies = [
  "craft-fonts-build",
  "craft-i18n",
+ "craft-quit",
  "craft-theme",
  "craft-ui-macros",
  "craft-window",

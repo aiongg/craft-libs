@@ -77,6 +77,8 @@ pub struct ViewportWindow {
 #[derive(Clone, Copy)]
 struct Seen {
     pass: u64,
+    /// The window's own viewport, for [`ViewportWindow::refuse_close`]; none when it is embedded.
+    child: Option<ViewportId>,
 }
 
 impl ViewportWindow {
@@ -111,9 +113,35 @@ impl ViewportWindow {
     /// host skips its shortcuts and commands while it is. Ask in the viewport that shows the
     /// window.
     pub fn blocks_main(ctx: &Context) -> bool {
+        Self::modal_window(ctx).is_some()
+    }
+
+    /// Refuses a close request of the window that shows an app-modal window, while that window is
+    /// open: cancels the close and focuses the modal window. Returns whether it did.
+    ///
+    /// Every quit request reaches the app as a close request of its root window: the title-bar
+    /// close button, the macOS Dock's Quit, and Cmd+Q through `craft_quit`'s app-menu Quit (it
+    /// sends `ViewportCommand::Close` to the root). [`show`](Self::show) calls this each pass; an
+    /// app on macOS also calls it in `eframe::App::logic` before `craft_quit::on_close_request`,
+    /// which runs before `ui` and would take the quit over otherwise. It sees the `CancelClose`
+    /// and leaves the window open.
+    pub fn refuse_close(ctx: &Context) -> bool {
+        let Some(child) = Self::modal_window(ctx) else { return false };
+        if !ctx.input(|i| i.viewport().close_requested()) {
+            return false;
+        }
+        ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+        if let Some(child) = child {
+            ctx.send_viewport_cmd_to(child, ViewportCommand::Focus);
+        }
+        true
+    }
+
+    /// The app-modal window this viewport shows, if it is open: its own viewport, or none when it
+    /// is embedded.
+    fn modal_window(ctx: &Context) -> Option<Option<ViewportId>> {
         let pass = ctx.cumulative_pass_nr();
-        let key = blocks_key(ctx);
-        ctx.data(|d| d.get_temp::<Seen>(key)).is_some_and(|seen| seen.pass + 1 >= pass)
+        ctx.data(|d| d.get_temp::<Seen>(blocks_key(ctx))).filter(|seen| seen.pass + 1 >= pass).map(|seen| seen.child)
     }
 
     /// Shows the window for this pass. `body` draws the contents and learns where it is hosted.
@@ -127,14 +155,23 @@ impl ViewportWindow {
         let key = Id::unique(("craft-ui-viewport", id));
         let opened = !ctx.data(|d| d.get_temp::<Seen>(key)).is_some_and(|seen| seen.pass + 1 >= pass);
         let blocks = blocks_key(ctx);
+        // A backend without an immediate renderer makes egui draw the viewport in its own window of
+        // this context. That window sits under an app-modal layer, so the next pass uses the
+        // embedded dialog instead (the pass that found out is discarded).
+        let fallback = key.with("no-immediate-renderer");
+        let embedded = force_embedded || ctx.embed_viewports() || ctx.data(|d| d.get_temp::<bool>(fallback)).unwrap_or(false);
+        let seen = Seen { pass, child: (!embedded).then_some(id) };
         ctx.data_mut(|d| {
-            d.insert_temp(key, Seen { pass });
+            d.insert_temp(key, seen);
             if modal {
-                d.insert_temp(blocks, Seen { pass });
+                d.insert_temp(blocks, seen);
             }
         });
 
-        if force_embedded || ctx.embed_viewports() {
+        if modal {
+            Self::refuse_close(ctx);
+        }
+        if embedded {
             return show_embedded(ctx, key, id, &builder, &title, modal, scrim, opened, &mut body);
         }
 
@@ -145,6 +182,11 @@ impl ViewportWindow {
         let close = ctx.show_viewport_immediate(id, builder, |ui, class| {
             let ctx = ui.ctx().clone();
             hosting.set(if class == egui::ViewportClass::EmbeddedWindow { Hosting::Embedded } else { Hosting::Native });
+            if hosting.get() == Hosting::Embedded {
+                ctx.data_mut(|d| d.insert_temp(fallback, true));
+                ctx.request_discard("the backend has no immediate viewport renderer");
+                return false;
+            }
             let fill = current(&ctx).color.surface.panel.to_egui();
             egui::CentralPanel::default().frame(Frame::NONE.fill(fill)).show(ui, |ui| body(ui, hosting.get()));
             let escape = modal
@@ -198,7 +240,8 @@ fn block_parent(ctx: &Context, key: Id, child: ViewportId, scrim: bool, opened: 
         if response.hovered() {
             ui.ctx().set_cursor_icon(CursorIcon::NotAllowed);
         }
-        if response.is_pointer_button_down_on() {
+        // A press of any length: a click that ends in the frame it began is not "down" at its end.
+        if response.hovered() && ui.input(|i| i.pointer.any_pressed()) {
             ui.ctx().send_viewport_cmd_to(child, ViewportCommand::Focus);
         }
     });
