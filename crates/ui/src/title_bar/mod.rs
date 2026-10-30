@@ -38,6 +38,8 @@
 
 mod captions;
 mod drag;
+#[cfg(target_os = "linux")]
+mod icon_theme;
 mod measure;
 mod modal;
 mod resize;
@@ -53,6 +55,8 @@ pub use captions::{
     Caption, CaptionButtons, CaptionIcon, CaptionIcons, CaptionLabels, RenderIconFn, WINDOWS_BUTTON_WIDTH, caption_buttons, caption_id,
 };
 pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};
+#[cfg(target_os = "linux")]
+pub use icon_theme::{CaptionIconCache, caption_icon_theme};
 pub use modal::ModalRects;
 pub use resize::{release_after_os_resize, resize_zones_only};
 pub use style::TitleBarStyle;
