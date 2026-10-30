@@ -3,9 +3,9 @@
 
 use std::process::ExitCode;
 
-use craft_theme::AppId;
+use craft_theme::ThemeDef;
 use craft_theme::format;
-use craft_theme::{Appearance, Contrast, Mode, Size, TextSize, ThemeDef, Variants, resolve};
+use craft_theme::report::contrast_report;
 use serde_json::{Value, json};
 
 const USAGE: &str = "usage: craft-theme check <file>... [--json]";
@@ -76,30 +76,11 @@ fn check(path: &str) -> Report {
 /// Every contrast warning of the theme in each mode it has, contrast and size, for the theme
 /// itself and for each of its apps.
 fn warnings(theme: &ThemeDef) -> Vec<Warning> {
-    let modes: &[Mode] = match theme.variants {
-        Variants::Both => &[Mode::Light, Mode::Dark],
-        Variants::LightOnly => &[Mode::Light],
-        Variants::DarkOnly => &[Mode::Dark],
-    };
-    let apps: Vec<Option<&AppId>> = std::iter::once(None).chain(theme.apps.keys().map(Some)).collect();
     let mut out = Vec::new();
-    for app in apps {
-        for &mode in modes {
-            for contrast in [Contrast::Standard, Contrast::High] {
-                for size in [Size::Compact, Size::Comfortable] {
-                    let appearance = Appearance { mode, contrast, size, text_size: TextSize::Default, reduced_motion: false };
-                    let label = format!(
-                        "{}{}/{}/{}",
-                        app.map_or(String::new(), |a| format!("{a}: ")),
-                        if mode == Mode::Light { "light" } else { "dark" },
-                        if contrast == Contrast::High { "high" } else { "standard" },
-                        if size == Size::Compact { "compact" } else { "comfortable" },
-                    );
-                    for w in resolve(theme, appearance, app).warnings {
-                        out.push(Warning { appearance: label.clone(), fg: w.fg.path(), bg: w.bg.path(), ratio: w.ratio, minimum: w.minimum });
-                    }
-                }
-            }
+    for entry in &contrast_report(theme) {
+        let label = entry.label();
+        for w in &entry.warnings {
+            out.push(Warning { appearance: label.clone(), fg: w.fg.path(), bg: w.bg.path(), ratio: w.ratio, minimum: w.minimum });
         }
     }
     out

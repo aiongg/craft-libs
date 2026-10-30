@@ -33,6 +33,7 @@ mod explain;
 pub mod format;
 mod id;
 pub mod ramp;
+pub mod report;
 mod resolve;
 pub mod scale;
 pub mod selection;
@@ -50,6 +51,8 @@ mod component_tests;
 mod explain_tests;
 #[cfg(test)]
 mod format_tests;
+#[cfg(test)]
+mod report_tests;
 #[cfg(test)]
 mod selection_tests;
 #[cfg(test)]
