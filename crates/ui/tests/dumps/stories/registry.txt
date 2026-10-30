@@ -184,6 +184,8 @@ patterns/status-bar/narrow = StatusBar | Narrow | Chrome | message=Text("Exporte
 patterns/command-palette/photocraft = CommandPalette | PhotoCraft | Panel | open=Bool(true); recents=Bool(false)
 patterns/command-palette/recents = CommandPalette | Recent commands | Panel | open=Bool(true); recents=Bool(true)
 patterns/inspector/properties = Inspector | Properties | Panel | target=Choice { options: ["layer", "document"], index: 0 }; empty=Bool(false)
+patterns/toolbar/vertical-liquify = Toolbar | Vertical | Own | 
+patterns/toolbar/horizontal-overflow = Toolbar | Overflow | Chrome | width=Number { value: 260.0, min: 60.0, max: 640.0 }
 patterns/panel/embedded = Panel | Embedded | Own | scroll=Bool(true); footer=Bool(true); height=Number { value: 240.0, min: 60.0, max: 480.0 }; width=Number { value: 260.0, min: 120.0, max: 480.0 }
 patterns/rail/panel = PanelRail | Panel rail | Chrome | open=Choice { options: ["none", "properties", "navigator", "color", "layers", "history", "brushes"], index: 4 }; height=Number { value: 320.0, min: 120.0, max: 600.0 }
 patterns/rail/flyout = FlyoutButton | Flyout button | Chrome | items=Number { value: 3.0, min: 1.0, max: 3.0 }; selected=Bool(true)

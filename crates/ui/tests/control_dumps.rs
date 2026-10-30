@@ -16,7 +16,7 @@ use craft_ui::controls::{
 use craft_ui::docking::DockLook;
 use craft_ui::list::ListRow;
 use craft_ui::menu::Menu;
-use craft_ui::patterns::{CommandPalette, Inspector, OptionsBar, StatusBar};
+use craft_ui::patterns::{CommandPalette, Inspector, OptionsBar, StatusBar, Toolbar};
 use craft_ui::presets::style::PresetStyle;
 use craft_ui::primitives::{SurfaceEdge, SurfaceKind, SurfaceStyle};
 use craft_ui::tab_strip::Tab;
@@ -555,6 +555,21 @@ fn inspector() {
         let s = Inspector::style(t);
         d.line("header_height", s.header_height).line("icon", s.icon).line("pad", s.pad).line("gap", s.gap).line("icon_color", s.icon_color);
         d.line("title_role", role(s.title_role)).line("title", s.title).line("kind_role", role(s.kind_role)).line("kind", s.kind);
+    });
+}
+
+/// Toolbars: the button sides, gaps, strip inset and width, the overflow button and the strip fill.
+#[test]
+fn toolbar() {
+    check("toolbar.txt", |d, t| {
+        let s = Toolbar::style(t);
+        d.line("button", s.button).line("button_large", s.button_large).line("gap", s.gap).line("group_gap", s.group_gap);
+        d.line("pad_x", s.pad[0])
+            .line("pad_y", s.pad[1])
+            .line("width", s.width)
+            .line("overflow", s.overflow)
+            .line("spacing", s.spacing)
+            .line("fill", s.fill);
     });
 }
 

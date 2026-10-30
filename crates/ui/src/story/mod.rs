@@ -344,6 +344,7 @@ register! {
     crate::patterns::status_bar,
     crate::patterns::command_palette,
     crate::patterns::inspector,
+    crate::patterns::toolbar,
     crate::patterns::panel,
     crate::patterns::rail::panel_rail,
     crate::patterns::rail::flyout,

@@ -4,6 +4,7 @@
 //!   groups and cells, and a trailing slot pinned at the end.
 //! - [`CommandPalette`]: search over the app's commands, tools and panels in a modal box.
 //! - [`Inspector`]: the body of a Properties panel, with the target's header and an empty state.
+//! - [`Toolbar`]: a row or column of icon-button groups with shortcut hints and an overflow menu.
 //! - [`Panel`]: the body of a docked panel, with padding, a scroll area and a footer.
 //! - [`PanelRail`]: the rail of icons that open panels.
 //! - [`FlyoutButton`]: a rail button that stands for a group of tools and opens them as a flyout.
@@ -30,6 +31,9 @@ pub(crate) mod rail;
 pub(crate) mod status_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod status_bar_tests;
+pub(crate) mod toolbar;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod toolbar_tests;
 
 pub use crate::behavior::PaletteEntry;
 pub use command_palette::{CommandPalette, CommandPaletteStyle, PaletteLabels};
@@ -40,3 +44,4 @@ pub use panel::{Panel, PanelOutput, PanelStyle};
 pub use rail::{FlyoutButton, FlyoutItem, FlyoutResponse, FlyoutStyle, PanelRail, PanelRailItem, PanelRailOutput, PanelRailRequest, PanelRailStyle};
 pub use rail::{LastUsed, RailFooter, RailMetrics, RailTool, SlotId, ToolRail, ToolRailOutput, ToolSlot, shown_tool, visible_slots};
 pub use status_bar::{StatusBar, StatusBarSlots, StatusBarStyle};
+pub use toolbar::{Toolbar, ToolbarItem, ToolbarResponse, ToolbarStyle};

@@ -1290,6 +1290,56 @@ pub const fn inspector_icon(size: Size) -> f32 {
     }
 }
 
+/// Side of a horizontal toolbar's button (PhotoCraft and CraftApps' 26).
+pub const fn toolbar_button(size: Size) -> f32 {
+    match size {
+        Size::Compact => 26.0,
+        Size::Comfortable => 32.0,
+    }
+}
+/// Side of a vertical toolbar strip's button (PhotoCraft's Liquify strip: 34).
+pub const fn toolbar_button_large(size: Size) -> f32 {
+    match size {
+        Size::Compact => 34.0,
+        Size::Comfortable => 42.0,
+    }
+}
+/// Between the buttons of a toolbar group.
+pub const fn toolbar_gap(size: Size) -> f32 {
+    match size {
+        Size::Compact => 4.0,
+        Size::Comfortable => 5.0,
+    }
+}
+/// Between the groups of a vertical toolbar strip (Liquify's extra 6).
+pub const fn toolbar_group_gap(size: Size) -> f32 {
+    match size {
+        Size::Compact => 6.0,
+        Size::Comfortable => 8.0,
+    }
+}
+/// Inset of a vertical toolbar strip, across and along.
+pub const fn toolbar_pad(size: Size) -> [f32; 2] {
+    match size {
+        Size::Compact => [6.0, 8.0],
+        Size::Comfortable => [8.0, 10.0],
+    }
+}
+/// Width of a vertical toolbar strip.
+pub const fn toolbar_width(size: Size) -> f32 {
+    match size {
+        Size::Compact => 48.0,
+        Size::Comfortable => 60.0,
+    }
+}
+/// Width of a horizontal toolbar's overflow button.
+pub const fn toolbar_overflow(size: Size) -> f32 {
+    match size {
+        Size::Compact => 30.0,
+        Size::Comfortable => 38.0,
+    }
+}
+
 /// The control height the Compact readout sizes are set for.
 pub const READOUT_BASE_CONTROL: f32 = 24.0;
 /// Compact distance from the pointer to a readout's corner, across and down (PhotoCraft's).

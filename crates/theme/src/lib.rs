@@ -82,7 +82,7 @@ pub use components::{
     RefPointTokens, RulerField, RulerTokens, ScrollField, ScrollTokens, SectionField, SectionTokens, SegmentedField, SegmentedTokens, SliderField,
     SliderRowField, SliderRowTokens, SliderTokens, SpinnerField, SpinnerTokens, State, States, StatusBarField, StatusBarTokens, SwatchColor,
     SwatchField, SwatchTokens, TabField, TabTokens, ThumbColors, ThumbPart, TitleBarField, TitleBarTokens, ToastField, ToastTokens,
-    ToggleButtonField, ToggleButtonTokens, Tone, TooltipField, TooltipTokens, TransformField, TransformTokens,
+    ToggleButtonField, ToggleButtonTokens, Tone, ToolbarField, ToolbarTokens, TooltipField, TooltipTokens, TransformField, TransformTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};

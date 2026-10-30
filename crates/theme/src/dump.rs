@@ -16,7 +16,7 @@ use crate::{
     PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens,
     Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
     SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
-    ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    ToggleButtonTokens, Tokens, Tone, ToolbarTokens, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -290,6 +290,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         title_bar,
         toast,
         toggle_button,
+        toolbar,
         tooltip,
         transform,
     } = c;
@@ -355,6 +356,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     title_bar_lines(out, title_bar);
     toast_lines(out, toast);
     toggle_button_lines(out, toggle_button);
+    toolbar_lines(out, toolbar);
     tooltip_lines(out, tooltip);
     transform_lines(out, transform);
 }
@@ -1689,6 +1691,17 @@ fn swatch_lines(out: &mut Lines, s: &SwatchTokens) {
     for color in SwatchColor::ALL {
         out.line(&format!("swatch.{}", color.name()), hex(s.color(color)));
     }
+}
+
+fn toolbar_lines(out: &mut Lines, t: &ToolbarTokens) {
+    let ToolbarTokens { button, button_large, gap, group_gap, pad, width, overflow } = t;
+    out.line("toolbar.button", len(*button));
+    out.line("toolbar.button_large", len(*button_large));
+    out.line("toolbar.gap", len(*gap));
+    out.line("toolbar.group_gap", len(*group_gap));
+    out.line("toolbar.pad", format!("{} {}", len(pad[0]), len(pad[1])));
+    out.line("toolbar.width", len(*width));
+    out.line("toolbar.overflow", len(*overflow));
 }
 
 fn tooltip_lines(out: &mut Lines, t: &TooltipTokens) {

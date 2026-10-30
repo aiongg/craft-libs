@@ -727,6 +727,15 @@ fn inspector_sizes_are_photocraft_header_with_a_taller_row_when_comfortable() {
 }
 
 #[test]
+fn toolbar_sizes_are_photocraft_with_larger_buttons_when_comfortable() {
+    let def = grey_blue();
+    let at = |size| resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.toolbar;
+    let (c, k) = (at(Size::Compact), at(Size::Comfortable));
+    assert_eq!((c.button, c.button_large, c.gap, c.group_gap, c.pad, c.width, c.overflow), (26.0, 34.0, 4.0, 6.0, [6.0, 8.0], 48.0, 30.0));
+    assert_eq!((k.button, k.button_large, k.gap, k.group_gap, k.pad, k.width, k.overflow), (32.0, 42.0, 5.0, 8.0, [8.0, 10.0], 60.0, 38.0));
+}
+
+#[test]
 fn size_presets_text_size_shape_and_motion() {
     let def = grey_blue();
     let at = |size, text_size| resolve(&def, Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;

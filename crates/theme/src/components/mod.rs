@@ -68,6 +68,7 @@ mod tab;
 mod title_bar;
 mod toast;
 mod toggle_button;
+mod toolbar;
 mod tooltip;
 mod transform;
 
@@ -142,6 +143,7 @@ pub use tab::{TabField, TabTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
+pub use toolbar::{ToolbarField, ToolbarTokens};
 pub use tooltip::{TooltipField, TooltipTokens};
 pub use transform::{TransformField, TransformTokens};
 
@@ -758,6 +760,8 @@ families! {
     toast: ToastTokens => Toast(ToastField);
     /// Toggle buttons that are on.
     toggle_button: ToggleButtonTokens => ToggleButton(ToggleButtonField);
+    /// Toolbars: a row or column of icon-button groups.
+    toolbar: ToolbarTokens => Toolbar(ToolbarField);
     /// Tooltips.
     tooltip: TooltipTokens => Tooltip(TooltipField);
     /// Transform boxes and warp meshes.
