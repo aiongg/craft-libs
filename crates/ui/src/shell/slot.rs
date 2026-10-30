@@ -22,6 +22,8 @@ pub type SlotKey = &'static str;
 pub struct Slot {
     pub(super) key: SlotKey,
     pub(super) size: Option<f32>,
+    pub(super) narrow: bool,
+    pub(super) columns: u8,
     pub(super) visible: bool,
     pub(super) reveal: bool,
     pub(super) label: Option<String>,
@@ -33,7 +35,7 @@ impl Slot {
     /// show in a reveal. Without a size it takes the token default of its edge: the title bar,
     /// options bar, status bar or rail width.
     pub fn new(key: SlotKey) -> Self {
-        Self { key, size: None, visible: true, reveal: false, label: None, frame: None }
+        Self { key, size: None, narrow: false, columns: 1, visible: true, reveal: false, label: None, frame: None }
     }
 
     /// The exact height of a top or bottom slot, the exact width of a start or end slot.
@@ -50,6 +52,23 @@ impl Slot {
     /// The exact width of a start or end slot.
     pub fn width(self, width: f32) -> Self {
         self.size(width)
+    }
+
+    /// A top slot takes the narrow options bar height (`bar.options_narrow`) instead of the
+    /// options bar height. Serves Preferences > Workspace > "Enable Narrow Options Bar". Has no
+    /// effect on the title bar or on a slot with an exact [`size`](Self::size).
+    pub fn narrow(mut self, narrow: bool) -> Self {
+        self.narrow = narrow;
+        self
+    }
+
+    /// The number of button columns of a start or end rail: 1 (the default) is `rail.width`,
+    /// 2 adds one more button column and its gap, so the toolbar's two-column mode is
+    /// `rail.width + rail.button + 2` wide. Values above 2 add a column each; 0 counts as 1.
+    /// Has no effect on a slot with an exact [`size`](Self::size).
+    pub fn columns(mut self, columns: u8) -> Self {
+        self.columns = columns.max(1);
+        self
     }
 
     /// Whether the slot shows in normal mode: the host's flag, passed every frame. A slot that

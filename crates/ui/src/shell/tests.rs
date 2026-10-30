@@ -338,6 +338,46 @@ fn tab_toggles_the_chrome_only_while_the_canvas_has_focus() {
     assert_eq!(run(&mut win, tab()), ["title", "options", "tools", "panels"]);
 }
 
+/// A token-sized shell with the options bar and the tool rail built from the given choices.
+fn pref_shell<'a>(narrow: bool, columns: u8, edge_reveal: bool, mode: BodyMode) -> AppShell<'a> {
+    AppShell::new(WindowKey::new("main"))
+        .top(Slot::new("options").narrow(narrow).reveal(), |_| ())
+        .start(Slot::new("tools").columns(columns).reveal(), |_| ())
+        .body_mode(mode)
+        .edge_reveal(edge_reveal)
+}
+
+fn pref_show(win: &mut Win, events: Vec<Event>, narrow: bool, columns: u8, edge_reveal: bool, mode: BodyMode) -> ShellOutput {
+    let mut shown = None;
+    win.frame(events, |ui| shown = Some(pref_shell(narrow, columns, edge_reveal, mode).show(ui, |_, _| ())));
+    shown.expect("the shell ran")
+}
+
+#[test]
+fn the_narrow_options_bar_and_two_rail_columns_take_their_token_sizes() {
+    let mut win = Win::new();
+    let mut tokens = None;
+    win.frame(vec![], |ui| tokens = Some(Tokens::of(ui)));
+    let size = tokens.expect("ran").size;
+    let out = pref_show(&mut win, vec![], false, 1, true, BodyMode::Normal);
+    assert_eq!((rect(&out, "options").height(), rect(&out, "tools").width()), (size.bar.options, size.rail.width));
+    let out = pref_show(&mut win, vec![], true, 2, true, BodyMode::Normal);
+    assert_eq!(rect(&out, "options").height(), size.bar.options_narrow);
+    assert_eq!(rect(&out, "tools").width(), size.rail.width + size.rail.button + 2.0);
+}
+
+#[test]
+fn with_the_edge_reveal_off_the_pointer_reveals_nothing_but_tab_does() {
+    let mut win = Win::new();
+    win.host_tab = true;
+    let only = BodyMode::Only;
+    pref_show(&mut win, vec![], false, 1, false, only);
+    assert!(pref_show(&mut win, vec![Event::PointerMoved(pos2(400.0, 1.0))], false, 1, false, only).slots.is_empty());
+    assert!(pref_show(&mut win, vec![Event::PointerMoved(pos2(1.0, 300.0))], false, 1, false, only).slots.is_empty());
+    let tab = vec![Event::Key { key: Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }];
+    assert_eq!(keys(&pref_show(&mut win, tab, false, 1, false, only)), ["options", "tools"]);
+}
+
 #[test]
 fn the_pointer_at_an_edge_shows_that_sides_reveal_slots_and_leaving_hides_them() {
     let cfg = Cfg::new().only();

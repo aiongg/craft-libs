@@ -145,6 +145,7 @@ pub struct AppShell<'a> {
     end: Vec<(Slot, SlotFn<'a>)>,
     mode: BodyMode,
     allow_reveal: bool,
+    edge_reveal: bool,
     tabs: bool,
     backdrop: Option<egui::Color32>,
     body_label: Option<String>,
@@ -163,6 +164,7 @@ impl<'a> AppShell<'a> {
             end: Vec::new(),
             mode: BodyMode::Normal,
             allow_reveal: true,
+            edge_reveal: true,
             tabs: true,
             backdrop: None,
             body_label: None,
@@ -221,6 +223,14 @@ impl<'a> AppShell<'a> {
     /// mode. Off for a presentation. Default on.
     pub fn allow_reveal(mut self, allow: bool) -> Self {
         self.allow_reveal = allow;
+        self
+    }
+
+    /// Whether the pointer at the top, start or end edge reveals the hidden bars in body-only
+    /// mode. Serves Preferences > Workspace > "Auto-Show Hidden Panels". Default on. Off, the
+    /// Tab reveal ([`toggle_reveal`](Self::toggle_reveal)) still works.
+    pub fn edge_reveal(mut self, on: bool) -> Self {
+        self.edge_reveal = on;
         self
     }
 
@@ -283,13 +293,14 @@ impl<'a> AppShell<'a> {
         let shell_tokens = tokens.component.app_shell;
         let rect = ui.max_rect();
         #[cfg_attr(not(feature = "window-frame"), allow(unused_mut))]
-        let mut state = visibility::begin_pass(&ctx, &window, self.mode, self.allow_reveal, rect, shell_tokens.edge_reveal);
+        let mut state = visibility::begin_pass(&ctx, &window, self.mode, self.allow_reveal, self.edge_reveal, rect, shell_tokens.edge_reveal);
         // Defaults from the token sizes, by edge.
         let default_size = |slot: &Slot, edge: Edge| match edge {
             Edge::Top if slot.key == "title" => tokens.size.bar.title,
+            Edge::Top if slot.narrow => tokens.size.bar.options_narrow,
             Edge::Top => tokens.size.bar.options,
             Edge::Bottom => tokens.size.bar.status,
-            Edge::Start | Edge::End => tokens.size.rail.width,
+            Edge::Start | Edge::End => tokens.size.rail.width + f32::from(slot.columns - 1) * (tokens.size.rail.button + 2.0),
         };
 
         let Self { bare, title, top, bottom, start, end, mode, allow_reveal, tabs, backdrop, body_label, level, .. } = self;

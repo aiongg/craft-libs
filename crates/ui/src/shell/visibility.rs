@@ -95,7 +95,15 @@ pub fn take_tab_toggle(ctx: &Context, raw: &mut RawInput) -> bool {
 
 /// Updates the Tab and edge reveal at the start of a pass and returns the state to draw with.
 /// `window_rect` is the shell's rect; `edge_px` the zone's width.
-pub(super) fn begin_pass(ctx: &Context, window: &WindowKey, mode: BodyMode, allow_reveal: bool, window_rect: Rect, edge_px: f32) -> State {
+pub(super) fn begin_pass(
+    ctx: &Context,
+    window: &WindowKey,
+    mode: BodyMode,
+    allow_reveal: bool,
+    edge_reveal: bool,
+    window_rect: Rect,
+    edge_px: f32,
+) -> State {
     let mut s = state(ctx, window);
     let only = mode == BodyMode::Only;
     if !only || !allow_reveal {
@@ -107,7 +115,7 @@ pub(super) fn begin_pass(ctx: &Context, window: &WindowKey, mode: BodyMode, allo
     } else {
         // A held button or an open popup freezes the edge reveal: it neither starts nor ends.
         let frozen = ctx.input(|i| i.pointer.any_down()) || Popup::is_any_open(ctx) || crate::popup_list::any_open(ctx);
-        if !frozen {
+        if !frozen && edge_reveal {
             let pointer = ctx.input(|i| i.pointer.hover_pos()).filter(|p| window_rect.contains(*p));
             for (i, edge) in REVEALING.into_iter().enumerate() {
                 let zone = zone(ctx, window_rect, edge, edge_px);
