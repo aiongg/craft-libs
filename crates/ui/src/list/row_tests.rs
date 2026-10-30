@@ -1138,7 +1138,9 @@ fn a_row_too_narrow_for_its_parts_keeps_the_label_and_clips_at_its_edge() {
             panel(ui, width, |ui| {
                 measured.set(build().min_width(ui));
                 let out = build().show(ui);
-                (label.set(out.label), min.set(out.min_width), row.set(out.response.rect));
+                label.set(out.label);
+                min.set(out.min_width);
+                row.set(out.response.rect);
             })
         });
         output.shapes.iter().for_each(|s| shapes.borrow_mut().push(s.clip_rect));
