@@ -6,8 +6,8 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::canvas::{BezierOverlay, GradientOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
-    ChannelColor, ColorArea, ColorWheel, CurveEditor, EmptyState, Field, FormGrid, GroupBox, GradientEditor, Histogram, LevelsEditor, Notice, PanelFooter,
-    PanelHeader, PropertyRow, SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
+    ChannelColor, ColorArea, ColorWheel, CurveEditor, EmptyState, Field, FormGrid, GradientEditor, GroupBox, Histogram, LevelsEditor, Notice,
+    PanelFooter, PanelHeader, PropertyRow, SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
 };
 use craft_ui::controls::{
     AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
