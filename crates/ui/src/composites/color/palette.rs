@@ -1,11 +1,10 @@
 //! [`SwatchPalette`]: a grid of colour wells that is a radio group.
 
 use craft_theme::{ControlSize, Srgba};
-use egui::accesskit::Action;
 use egui::accesskit::Role;
-use egui::{Align, AsIdSalt, EventFilter, Id, IdSalt, Key, Layout, Modifiers, Rect, Sense, Ui, UiBuilder, Vec2};
+use egui::{Align, AsIdSalt, Id, IdSalt, Layout, Rect, Sense, Ui, UiBuilder, Vec2};
 
-use crate::behavior::RadioSelection;
+use crate::behavior::{GridNav, RadioSelection};
 use crate::controls::{Swatch, TooltipExt as _};
 use crate::direction;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
@@ -94,7 +93,7 @@ impl SwatchPalette {
             let ids: Vec<_> = (0..self.swatches.len()).map(|i| (Swatch::id_in(ui, (id, i)), enabled)).collect();
             let selected = self.swatches.iter().position(|(_, c)| c.to_rgba() == self.color.to_rgba());
             let swatch_ids: Vec<Id> = ids.iter().map(|&(id, _)| id).collect();
-            let stop = roving_stop(ui, &swatch_ids, selected, enabled);
+            let stop = GridNav::roving_stop(ui, &swatch_ids, selected, enabled);
             let mut radios = RadioSelection::new(ids, selected);
             radios.report_size(ui, id);
             radios.click_from_input(ui);
@@ -127,66 +126,4 @@ impl SwatchPalette {
         }
         EditResponse::new(response, gesture.finish())
     }
-}
-
-/// The swatch that is the palette's Tab stop this frame: the focused one, moved by this frame's
-/// keys (which it takes) or a screen reader's Focus request, else the selected one, else the
-/// first. A swatch the focus moves to is focused at once.
-fn roving_stop(ui: &Ui, ids: &[Id], selected: Option<usize>, enabled: bool) -> usize {
-    let resting = selected.unwrap_or(0);
-    if !enabled || ids.is_empty() {
-        return resting;
-    }
-    let focused = ids.iter().position(|&id| ui.memory(|m| m.has_focus(id)));
-    let mut stop = focused.unwrap_or(resting);
-    if let Some(requested) = ids.iter().position(|&id| ui.input(|i| i.has_accesskit_action_request(id, Action::Focus))) {
-        stop = requested;
-    }
-    if let Some(from) = focused {
-        ui.memory_mut(|m| m.set_focus_lock_filter(ids[from], EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() }));
-        let rects: Vec<Option<Rect>> = ids.iter().map(|&id| ui.ctx().read_response(id).map(|r| r.rect)).collect();
-        let (back, forward) = if direction::is_rtl(ui) { (Key::ArrowRight, Key::ArrowLeft) } else { (Key::ArrowLeft, Key::ArrowRight) };
-        let last = ids.len() - 1;
-        ui.input_mut(|i| {
-            if i.consume_key(Modifiers::NONE, forward) {
-                stop = (from + 1).min(last);
-            }
-            if i.consume_key(Modifiers::NONE, back) {
-                stop = from.saturating_sub(1);
-            }
-            if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
-                stop = in_next_row(&rects, from, true).unwrap_or(from);
-            }
-            if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
-                stop = in_next_row(&rects, from, false).unwrap_or(from);
-            }
-            if i.consume_key(Modifiers::NONE, Key::Home) {
-                stop = 0;
-            }
-            if i.consume_key(Modifiers::NONE, Key::End) {
-                stop = last;
-            }
-        });
-    }
-    if focused.is_some_and(|f| f != stop) || (focused.is_none() && stop != resting) {
-        ui.memory_mut(|m| m.request_focus(ids[stop]));
-    }
-    stop
-}
-
-/// The swatch in the row below (or above) `from` whose centre is nearest to its column.
-fn in_next_row(rects: &[Option<Rect>], from: usize, down: bool) -> Option<usize> {
-    let here = rects[from]?;
-    let rows = rects.iter().flatten().map(|r| r.min.y).filter(|&y| if down { y > here.min.y + 1.0 } else { y < here.min.y - 1.0 });
-    let row = if down { rows.fold(f32::INFINITY, f32::min) } else { rows.fold(f32::NEG_INFINITY, f32::max) };
-    if !row.is_finite() {
-        return None;
-    }
-    let distance = |r: &Rect| (r.center().x - here.center().x).abs();
-    rects
-        .iter()
-        .enumerate()
-        .filter_map(|(i, r)| r.filter(|r| (r.min.y - row).abs() < 1.0).map(|r| (i, distance(&r))))
-        .min_by(|a, b| a.1.total_cmp(&b.1))
-        .map(|(i, _)| i)
 }

@@ -17,6 +17,10 @@
 //!   keys), kept in a host-owned [`Selection`].
 //! - [`Reorder`]: drag-to-reorder targets, keyboard moves and edge scrolling over a list or a strip,
 //!   without drawing, reported as an [`EditEvent`](crate::edit::EditEvent) sequence of [`Move`]s.
+//! - [`GridNav`]: the lead's moves over a wrapped grid or rows of unequal length (arrows, Home,
+//!   End, Page Up and Down, mirrored in right-to-left), and the Tab stop of a grid, used by
+//!   [`SwatchPalette`](crate::composites::SwatchPalette).
+//! - [`grid_drop`]: the cell and side a drag over a wrapped grid drops at.
 //! - [`Typing`]: a line of text typed into egui's `TextEdit` and reported as one edit gesture per
 //!   typing run, used by [`TextField`](crate::controls::TextField),
 //!   [`SearchField`](crate::controls::SearchField) and [`ComboBox`](crate::controls::ComboBox).
@@ -27,6 +31,8 @@ pub(crate) mod edit_menu;
 mod field_tab;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod field_tab_tests;
+mod grid_drop;
+mod grid_nav;
 mod key_claim;
 mod list_selection;
 #[cfg(test)]
@@ -43,6 +49,8 @@ mod typing;
 
 pub use edit_menu::{EditMenu, EditMenuLabels};
 pub use field_tab::FieldTab;
+pub use grid_drop::{GridDrop, GridGeometry, grid_drop};
+pub use grid_nav::{GridKey, GridNav, GridStep};
 pub use key_claim::{ClaimedKey, KeyClaim};
 pub use list_selection::{
     DisplayOrder, ListKey, ListSelection, RowInfo, Selection, SelectionChange, SelectionMode, SelectionPick, Step, TreeMove, first_child, first_item,

@@ -32,7 +32,7 @@ mod reorder_tests;
 mod row;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod row_tests;
-mod spans;
+pub(crate) mod spans;
 mod toggle;
 mod tree;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
