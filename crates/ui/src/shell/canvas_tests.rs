@@ -35,9 +35,13 @@ fn stub(color: Color32) -> impl FnOnce(&mut Ui) {
 }
 
 fn run(ctx: &Context, cfg: &Cfg) -> Frame {
+    run_events(ctx, cfg, vec![])
+}
+
+fn run_events(ctx: &Context, cfg: &Cfg, events: Vec<egui::Event>) -> Frame {
     let mut out = None;
     let mut tab_height = 0.0;
-    let raw = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(W, H))), ..Default::default() };
+    let raw = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(W, H))), events, ..Default::default() };
     let mut full = ctx.run_ui(raw, |ui| {
         tab_height = Tokens::of(ui).size.bar.tab;
         let cfg = cfg.clone();
@@ -145,4 +149,34 @@ fn the_reveal_shows_title_options_and_tools_but_not_status() {
     let f = run(&ctx, &cfg);
     let keys: Vec<_> = f.shell.slots.iter().map(|(k, _)| *k).collect();
     assert_eq!(keys, ["title", "options", "tools"]);
+}
+
+#[test]
+fn the_rail_shows_on_the_tab_reveal_and_the_end_edge_reveal_in_body_only_mode() {
+    let cfg = Cfg { mode: BodyMode::Only, ..Cfg::new() };
+    // Tab reveal.
+    let ctx = ctx();
+    run(&ctx, &cfg);
+    AppShell::toggle_reveal(&ctx, &WindowKey::main());
+    assert!(run(&ctx, &cfg).shell.inner.rail.is_some(), "Tab reveal");
+    // End-edge reveal.
+    let ctx = self::ctx();
+    run(&ctx, &cfg);
+    let at = Pos2::new(W - 1.0, 300.0);
+    let f = run_events(&ctx, &cfg, vec![egui::Event::PointerMoved(at)]);
+    assert!(f.shell.inner.rail.is_some(), "end-edge reveal");
+    // The start edge does not show the dock.
+    let ctx = self::ctx();
+    run(&ctx, &cfg);
+    let f = run_events(&ctx, &cfg, vec![egui::Event::PointerMoved(Pos2::new(1.0, 300.0))]);
+    assert!(f.shell.inner.rail.is_none(), "start-edge reveal");
+}
+
+#[test]
+fn opening_documents_show_the_tab_strip_only_in_normal_mode() {
+    let ctx = ctx();
+    let cfg = Cfg { tabs: false, opening: true, mode: BodyMode::Only, ..Cfg::new() };
+    assert!(run(&ctx, &cfg).shell.inner.tabs.is_none());
+    AppShell::toggle_reveal(&ctx, &WindowKey::main());
+    assert!(run(&ctx, &cfg).shell.inner.tabs.is_none(), "not during the Tab reveal either");
 }

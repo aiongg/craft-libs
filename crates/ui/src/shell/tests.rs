@@ -504,3 +504,153 @@ fn accesskit_has_a_main_body_and_named_regions_for_shown_slots_only() {
     // Slots without a label are still regions.
     assert!(all.iter().filter(|(r, _)| *r == Role::Region).count() >= 5, "{all:?}");
 }
+
+/// Runs `cfg` with `extra` drawn after the shell, as the host's dialogs are.
+fn show_with(win: &mut Win, cfg: &Cfg, events: Vec<Event>, mut extra: impl FnMut(&Context)) -> ShellOutput {
+    let calls = Calls::default();
+    let mut out = None;
+    win.frame(events, |ui| {
+        out = Some(shell(cfg, &calls).show(ui, |_, cx| cx.canvas(Id::unique("canvas"))));
+        extra(ui.ctx());
+    });
+    out.expect("ran")
+}
+
+fn tab() -> Vec<Event> {
+    vec![key_event(Key::Tab, true), key_event(Key::Tab, false)]
+}
+
+#[test]
+fn tab_belongs_to_an_open_dialog_menu_or_popup() {
+    let cfg = Cfg::new().only();
+    let modal = |ctx: &Context| {
+        egui::Modal::new(Id::unique("dialog")).show(ctx, |ui| {
+            let _ = ui.button("First");
+            let _ = ui.button("Second");
+        });
+    };
+    let mut win = Win::new();
+    win.host_tab = true;
+    show_with(&mut win, &cfg, vec![], modal);
+    show_with(&mut win, &cfg, vec![], modal);
+    assert!(!tab_toggles_chrome(&win.ctx), "a modal is on top");
+    show_with(&mut win, &cfg, tab(), modal);
+    assert_eq!(win.toggles, 0, "Tab is the dialog's");
+    assert!(win.ctx.memory(|m| m.focused()).is_some(), "Tab reached the dialog's first control");
+    assert!(!AppShell::reveal_active(&win.ctx, &main_key()));
+
+    // An open popup or menu.
+    let mut win = Win::new();
+    win.host_tab = true;
+    show_with(&mut win, &cfg, vec![], |_| ());
+    egui::Popup::open_id(&win.ctx, Id::unique("popup"));
+    assert!(!tab_toggles_chrome(&win.ctx));
+    show_with(&mut win, &cfg, tab(), |_| ());
+    assert_eq!(win.toggles, 0, "Tab is the popup's");
+    egui::Popup::close_all(&win.ctx);
+    assert!(tab_toggles_chrome(&win.ctx));
+    show_with(&mut win, &cfg, tab(), |_| ());
+    assert_eq!(win.toggles, 1);
+}
+
+#[test]
+fn a_stale_canvas_id_does_not_count_after_a_document_switch() {
+    let mut win = Win::new();
+    let cfg = Cfg::new().only();
+    show_with(&mut win, &cfg, vec![], |_| ());
+    let canvas = Id::unique("canvas");
+    win.ctx.memory_mut(|m| m.request_focus(canvas));
+    assert!(tab_toggles_chrome(&win.ctx), "the registered canvas has focus");
+    // The next documents' body registers no canvas for two passes (a start screen).
+    for _ in 0..2 {
+        win.frame(vec![], |ui| {
+            shell(&cfg, &Calls::default()).show(ui, |_, _| ());
+        });
+    }
+    win.ctx.memory_mut(|m| m.request_focus(canvas));
+    assert!(!tab_toggles_chrome(&win.ctx), "the old canvas id is no longer the canvas");
+}
+
+fn bare_body(win: &mut Win, cfg: &Cfg, events: Vec<Event>) -> ShellOutput {
+    win.show(cfg, events).0
+}
+
+#[test]
+fn an_edge_reveal_overlays_the_body_and_the_tab_reveal_pushes_it() {
+    let cfg = Cfg::new().only();
+    let mut win = Win::new();
+    let plain = bare_body(&mut win, &cfg, vec![]).body;
+    for at in [pos2(1.0, 300.0), pos2(W - 1.0, 300.0), pos2(400.0, 1.0)] {
+        let mut win = Win::new();
+        win.show(&cfg, vec![]);
+        let out = win.show(&cfg, vec![Event::PointerMoved(at)]).0;
+        assert!(out.revealed && !out.slots.is_empty());
+        assert_eq!(out.body, plain, "the body stays put for the reveal at {at:?}");
+    }
+    // The overlaid slot covers the body's edge and keeps the reveal while hovered.
+    let mut win = Win::new();
+    win.show(&cfg, vec![]);
+    let out = win.show(&cfg, vec![Event::PointerMoved(pos2(1.0, 300.0))]).0;
+    let tools = rect(&out, "tools");
+    assert!(near(tools.left(), 0.0) && near(tools.width(), 40.0) && tools.intersects(out.body));
+    let out = win.show(&cfg, vec![Event::PointerMoved(pos2(30.0, 300.0))]).0;
+    assert_eq!(keys(&out), ["tools"], "hovering the overlaid slot keeps it");
+    // A press on the overlaid slot goes to the slot, not the body underneath.
+    let mut win = Win::new();
+    let (hit, slot_hit) = (std::cell::Cell::new(false), std::cell::Cell::new(false));
+    let run = |win: &mut Win, events: Vec<Event>| {
+        win.frame(events, |ui| {
+            AppShell::new(WindowKey::main())
+                .start(Slot::new("tools").width(40.0).reveal(), |ui| {
+                    slot_hit.set(slot_hit.get() | ui.put(Rect::from_min_size(pos2(0.0, 280.0), vec2(40.0, 40.0)), egui::Button::new("t")).clicked());
+                })
+                .body_mode(BodyMode::Only)
+                .show(ui, |ui, _| {
+                    hit.set(hit.get() | ui.put(Rect::from_min_size(pos2(0.0, 280.0), vec2(40.0, 40.0)), egui::Button::new("b")).clicked());
+                });
+        });
+    };
+    run(&mut win, vec![]);
+    run(&mut win, vec![Event::PointerMoved(pos2(1.0, 300.0))]);
+    run(&mut win, vec![Event::PointerMoved(pos2(20.0, 300.0))]);
+    run(&mut win, click(pos2(20.0, 300.0)));
+    assert!(slot_hit.get() && !hit.get(), "the overlaid slot takes the press");
+
+    // The Tab reveal shrinks the body.
+    let mut win = Win::new();
+    win.show(&cfg, vec![]);
+    AppShell::toggle_reveal(&win.ctx, &main_key());
+    let out = win.show(&cfg, vec![]).0;
+    assert!(out.body.width() < plain.width() && out.body.height() < plain.height());
+}
+
+#[test]
+fn the_shell_context_tells_which_edge_is_revealed() {
+    let cfg = Cfg::new().only();
+    let probe = |win: &mut Win, events: Vec<Event>| {
+        let calls = Calls::default();
+        let mut seen = None;
+        win.frame(events, |ui| {
+            shell(&cfg, &calls).show(ui, |_, cx| {
+                seen = Some((cx.edge_revealed(Edge::Start), cx.edge_revealed(Edge::End), cx.edge_revealed(Edge::Top), cx.dock_visible()));
+            });
+        });
+        seen.expect("ran")
+    };
+    let mut win = Win::new();
+    probe(&mut win, vec![]);
+    assert_eq!(probe(&mut win, vec![]), (false, false, false, false));
+    assert_eq!(probe(&mut win, vec![Event::PointerMoved(pos2(1.0, 300.0))]), (true, false, false, false));
+    assert_eq!(probe(&mut win, vec![Event::PointerMoved(pos2(W - 1.0, 300.0))]), (false, true, false, true));
+    assert_eq!(probe(&mut win, vec![Event::PointerMoved(pos2(400.0, 1.0))]), (false, false, true, false));
+    probe(&mut win, vec![Event::PointerMoved(pos2(400.0, 300.0))]);
+    AppShell::toggle_reveal(&win.ctx, &main_key());
+    assert_eq!(probe(&mut win, vec![]), (false, false, false, true), "Tab reveal");
+    let normal = Cfg::new();
+    let mut win = Win::new();
+    let mut dock = false;
+    win.frame(vec![], |ui| {
+        shell(&normal, &Calls::default()).show(ui, |_, cx| dock = cx.dock_visible());
+    });
+    assert!(dock);
+}

@@ -20,7 +20,7 @@ pub enum BodyMode {
 /// The edges with an edge reveal, indexing [`State::edges`].
 const REVEALING: [Edge; 3] = [Edge::Top, Edge::Start, Edge::End];
 
-fn index(edge: Edge) -> Option<usize> {
+pub(super) fn index(edge: Edge) -> Option<usize> {
     REVEALING.iter().position(|e| *e == edge)
 }
 
@@ -64,8 +64,16 @@ pub(super) fn active(ctx: &Context, window: &WindowKey) -> bool {
 }
 
 /// True while Tab should toggle the chrome: no control has keyboard focus, or the body's canvas
-/// has it. Inside a control Tab moves focus as usual.
+/// has it. Inside a control Tab moves focus as usual. False while something else owns the
+/// keyboard: an egui modal, an app-modal window, a menu or a popup list.
 pub fn tab_toggles_chrome(ctx: &Context) -> bool {
+    if ctx.memory(|m| m.top_modal_layer().is_some())
+        || crate::viewport::ViewportWindow::blocks_main(ctx)
+        || crate::menu::any_open(ctx)
+        || crate::popup_list::any_open(ctx)
+    {
+        return false;
+    }
     let focused = ctx.memory(|m| m.focused());
     focused.is_none() || focused == super::ids::canvas(ctx)
 }
@@ -98,7 +106,7 @@ pub(super) fn begin_pass(ctx: &Context, window: &WindowKey, mode: BodyMode, allo
         s.edges = [false; 3];
     } else {
         // A held button or an open popup freezes the edge reveal: it neither starts nor ends.
-        let frozen = ctx.input(|i| i.pointer.any_down()) || Popup::is_any_open(ctx);
+        let frozen = ctx.input(|i| i.pointer.any_down()) || Popup::is_any_open(ctx) || crate::popup_list::any_open(ctx);
         if !frozen {
             let pointer = ctx.input(|i| i.pointer.hover_pos()).filter(|p| window_rect.contains(*p));
             for (i, edge) in REVEALING.into_iter().enumerate() {
