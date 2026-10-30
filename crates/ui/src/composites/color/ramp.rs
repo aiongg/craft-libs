@@ -269,13 +269,21 @@ impl<'a> ColorRamp<'a> {
         let press_key = id.with("craft_ui::ramp_press");
         let mut press =
             ui.data(|d| d.get_temp::<Press>(press_key)).unwrap_or(Press { shift: false, alt: false, moved: false, origin: None, ends: self.ends });
+        // A press that waits keeps the modifiers it arrived with: the pass that runs it may see
+        // others.
+        let waiting_key = id.with("craft_ui::ramp_waiting_mods");
+        if waits && (started.is_some() || tapped.is_some()) {
+            ui.data_mut(|d| d.insert_temp(waiting_key, mods));
+        }
+        let held_mods = if matches!(turn, PressTurn::Held(_)) { ui.data_mut(|d| d.remove_temp::<Modifiers>(waiting_key)) } else { None };
+        let press_mods = held_mods.unwrap_or(mods);
         let new_press = !waits && (started.is_some() || tapped.is_some() || matches!(turn, PressTurn::Held(_)));
         if new_press {
             let origin = match turn {
                 PressTurn::Held(at) => Some(at),
                 _ => started.or(tapped),
             };
-            press = Press { shift: mods.shift, alt: mods.alt, moved: false, origin, ends: self.ends };
+            press = Press { shift: press_mods.shift, alt: press_mods.alt, moved: false, origin, ends: self.ends };
         }
         let ends = if dragging && !new_press { press.ends } else { self.ends };
         let cell_at = |pos: Pos2| cell_of(bar, nx, ny, pos);
@@ -295,7 +303,7 @@ impl<'a> ColorRamp<'a> {
                 cycle = !dragging;
             } else {
                 gesture.begin();
-                gesture.update(pick_at(held, press.alt), mods);
+                gesture.update(pick_at(held, press.alt), press_mods);
                 if !dragging {
                     gesture.commit();
                 }

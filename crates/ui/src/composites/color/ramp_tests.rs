@@ -366,3 +366,40 @@ fn a_between_ramp_draws_the_ends_it_had_at_the_press_while_dragged() {
     rig.settle();
     assert_eq!(left(&rig), Some(egui::Color32::from(Srgba::rgb(0.0, 1.0, 0.0))), "after the release it follows the host");
 }
+
+/// A ramp beside a number field, with `press_waits`: Alt is held at the press during the field's
+/// typing run and released before the run's commit lets the press run.
+#[test]
+fn a_waiting_press_keeps_the_modifiers_it_arrived_with() {
+    use crate::controls::NumberField;
+    use crate::localized::LocaleNumbers;
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut time = 0.0;
+    let mut picks = Vec::new();
+    let mut bar = Rect::NOTHING;
+    let mut field = egui::Id::NULL;
+    let mut frame = |events: Vec<Event>, picks: &mut Vec<RampPick>, bar: &mut Rect, field: &mut egui::Id| {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), time: Some(time), events, ..Default::default() };
+        time += 1.0 / 60.0;
+        let output = ctx.run_ui(input, |ui| {
+            *field = NumberField::new("hue", "Hue", 10.0, &numbers).part(true).show(ui).response.id;
+            let ramp = ColorRamp::new("ramp", "Color ramp", RampKind::Spectrum).press_waits(true).show(ui);
+            picks.extend(ramp.edit.event.as_ref().and_then(|e| e.value()));
+            *bar = ramp.bar.rect;
+        });
+        output.drop_without_applying_deltas();
+    };
+    frame(vec![], &mut picks, &mut bar, &mut field);
+    ctx.memory_mut(|m| m.request_focus(field));
+    frame(vec![], &mut picks, &mut bar, &mut field);
+    frame(vec![Event::Text("12".to_owned())], &mut picks, &mut bar, &mut field);
+    frame(vec![], &mut picks, &mut bar, &mut field);
+    let at = bar.center();
+    let alt = Modifiers::ALT;
+    frame(vec![Event::ModifiersChanged(alt), Event::PointerMoved(at), button(at, true, alt), button(at, false, alt)], &mut picks, &mut bar, &mut field);
+    assert!(picks.is_empty(), "the press waits");
+    frame(vec![Event::ModifiersChanged(Modifiers::NONE)], &mut picks, &mut bar, &mut field);
+    assert!(!picks.is_empty() && picks.iter().all(|p| p.other), "the pick is Alt's: {picks:?}");
+}
