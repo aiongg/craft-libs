@@ -6,6 +6,7 @@ use craft_theme::ControlSize;
 use egui::{Align, EventFilter, Id, Layout, Margin, Ui};
 
 use super::MenuBarLabels;
+use crate::behavior::{CommandSearch, PaletteEntry};
 use crate::controls::SearchField;
 use crate::menu::item::{MenuEntry, MenuItem};
 use crate::menu::row::{MenuStyle, RowPainter};
@@ -26,56 +27,13 @@ struct State {
     focus: bool,
 }
 
-/// A match: the command's row and its path of menu titles.
-struct Found<'m, T> {
-    path: Vec<&'m str>,
-    item: &'m MenuItem<T>,
-}
-
 /// The search field of one pass.
-pub(super) struct Search<'m, T> {
+pub(super) struct Search<T> {
     id: Id,
     same: Same<T>,
     state: State,
-    found: Vec<Found<'m, T>>,
+    found: Vec<PaletteEntry<T>>,
     submitted: bool,
-}
-
-/// How well `query` (lower case) matches a label: the label starting with it, then a word of the
-/// label starting with it, then anywhere in the label. `None` when it doesn't match.
-fn label_rank(query: &str, label: &str) -> Option<u8> {
-    let l = label.to_lowercase();
-    if l.starts_with(query) {
-        Some(0)
-    } else if l.split(|c: char| !c.is_alphanumeric()).any(|w| w.starts_with(query)) {
-        Some(1)
-    } else if l.contains(query) {
-        Some(2)
-    } else {
-        None
-    }
-}
-
-/// How well `query` (lower case) matches a command: by its label or English label
-/// ([`label_rank`]), else anywhere in one of the menu titles above it (3).
-fn rank<T>(query: &str, item: &MenuItem<T>, path: &[&MenuItem<T>]) -> Option<u8> {
-    let names = |it: &MenuItem<T>| [Some(it.label()), it.english_of()].into_iter().flatten().map(str::to_owned).collect::<Vec<_>>();
-    let by_label = names(item).iter().filter_map(|l| label_rank(query, l)).min();
-    by_label.or_else(|| path.iter().flat_map(|m| names(m)).any(|t| t.to_lowercase().contains(query)).then_some(3))
-}
-
-/// Every command under `entries`, depth first, with the menus above it.
-fn commands<'m, T>(entries: &'m [MenuEntry<T>], path: &mut Vec<&'m MenuItem<T>>, out: &mut Vec<(Vec<&'m MenuItem<T>>, &'m MenuItem<T>)>) {
-    for item in entries.iter().filter_map(MenuEntry::item) {
-        match item.children() {
-            Some(children) => {
-                path.push(item);
-                commands(children, path, out);
-                path.pop();
-            }
-            None => out.push((path.clone(), item)),
-        }
-    }
 }
 
 /// Whether two commands are the same command.
@@ -83,36 +41,13 @@ pub(super) type Same<T> = fn(&T, &T) -> bool;
 
 /// The commands under `menus` matching `query`, best first and in menu order within a rank, at
 /// most [`MAX_RESULTS`]. A command in several menus is listed once, at its best match.
-fn matches<'m, T>(menus: &'m [MenuItem<T>], query: &str, same: Same<T>) -> Vec<Found<'m, T>> {
-    let q = query.trim().to_lowercase();
-    if q.is_empty() {
+fn matches<T: Clone>(menus: &[MenuItem<T>], query: &str, same: Same<T>) -> Vec<PaletteEntry<T>> {
+    if query.trim().is_empty() {
         return Vec::new();
     }
-    let mut all = Vec::new();
-    for menu in menus {
-        let mut path = vec![menu];
-        commands(menu.children().unwrap_or(&[]), &mut path, &mut all);
-    }
-    let mut hits: Vec<(u8, usize, Found<'m, T>)> = all
-        .into_iter()
-        .enumerate()
-        .filter_map(|(i, (path, item))| {
-            let r = rank(&q, item, &path)?;
-            Some((r, i, Found { path: path.iter().map(|m| m.label()).collect(), item }))
-        })
-        .collect();
-    hits.sort_by_key(|(r, i, _)| (*r, *i));
-    let mut found: Vec<Found<'m, T>> = Vec::with_capacity(MAX_RESULTS);
-    for (_, _, f) in hits {
-        let listed = |f: &Found<'m, T>, g: &Found<'m, T>| f.item.command().zip(g.item.command()).is_some_and(|(a, b)| same(a, b));
-        if !found.iter().any(|g| listed(&f, g)) {
-            found.push(f);
-        }
-        if found.len() == MAX_RESULTS {
-            break;
-        }
-    }
-    found
+    let entries = PaletteEntry::from_menu(menus);
+    let found = CommandSearch::new(&entries).query(query).fuzzy(false).same(same).results(MAX_RESULTS);
+    found.into_iter().map(|m| m.entry.clone()).collect()
 }
 
 /// The keys the field leaves to the menu: ↑ / ↓ move its highlight, Esc closes it.
@@ -120,7 +55,7 @@ fn keys() -> EventFilter {
     EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false }
 }
 
-impl<'m, T: Clone> Search<'m, T> {
+impl<T: Clone> Search<T> {
     /// The field of the bar `bar`, as the last pass left it; `same` tells commands apart.
     pub fn load(ctx: &egui::Context, bar: Id, same: Same<T>) -> Self {
         let id = bar.with("search");
@@ -129,7 +64,7 @@ impl<'m, T: Clone> Search<'m, T> {
 
     /// The Help menu `popup` shows this pass: a fresh opening starts empty, with the field
     /// focused; the matches are those of the query so far.
-    pub fn begin(&mut self, ctx: &egui::Context, popup: Id, menus: &'m [MenuItem<T>]) {
+    pub fn begin(&mut self, ctx: &egui::Context, popup: Id, menus: &[MenuItem<T>]) {
         if ctx.read_response(popup).is_none() {
             self.state = State { query: String::new(), focus: true };
         }
@@ -141,14 +76,13 @@ impl<'m, T: Clone> Search<'m, T> {
         if self.found.is_empty() {
             return None;
         }
-        let rows = self.found.iter().filter_map(|f| {
-            let mut trail = f.path.clone();
-            trail.push(f.item.label());
-            let mut row = MenuItem::new(trail.join(PATH_SEPARATOR), f.item.command()?.clone()).enabled(f.item.is_enabled()).without_mnemonic();
-            if let Some(kbd) = f.item.shortcut_of() {
+        let rows = self.found.iter().map(|f| {
+            let trail = f.path_of().iter().map(String::as_str).chain([f.label()]).collect::<Vec<_>>();
+            let mut row = MenuItem::new(trail.join(PATH_SEPARATOR), f.command().clone()).enabled(f.is_enabled()).without_mnemonic();
+            if let Some(kbd) = f.shortcut_of() {
                 row = row.shortcut(kbd.clone());
             }
-            Some(MenuEntry::Item(row))
+            MenuEntry::Item(row)
         });
         Some(rows.chain([MenuEntry::Separator]).chain(help.iter().cloned()).collect())
     }
@@ -204,7 +138,7 @@ impl<'m, T: Clone> Search<'m, T> {
 
     /// The command of the first enabled match.
     pub fn first_enabled(&self) -> Option<T> {
-        self.found.iter().find(|f| f.item.is_enabled()).and_then(|f| f.item.command().cloned())
+        self.found.iter().find(|f| f.is_enabled()).map(|f| f.command().clone())
     }
 
     pub fn store(self, ctx: &egui::Context) {
@@ -217,11 +151,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn matches_rank_label_starts_then_word_starts_then_anywhere_then_the_path() {
-        assert_eq!(label_rank("lev", "Levels…"), Some(0));
-        assert_eq!(label_rank("sat", "Hue/Saturation…"), Some(1));
-        assert_eq!(label_rank("vel", "Levels…"), Some(2));
-        assert_eq!(label_rank("zz", "Levels…"), None);
+    fn matches_list_menu_commands_by_path_and_stop_at_the_limit() {
         let menus: Vec<MenuItem<u8>> = vec![
             MenuItem::submenu(
                 "Image",
@@ -229,11 +159,8 @@ mod tests {
             ),
             MenuItem::submenu("Select", vec![MenuItem::new("All", 3).into(), MenuItem::new("Level Horizon", 4).into()]),
         ];
-        let found: Vec<(String, u8)> =
-            matches(&menus, " LEV ", u8::eq).iter().map(|f| (f.path.join(PATH_SEPARATOR), *f.item.command().unwrap())).collect();
+        let found: Vec<(String, u8)> = matches(&menus, " LEV ", u8::eq).iter().map(|f| (f.path_of().join(PATH_SEPARATOR), *f.command())).collect();
         assert_eq!(found, [("Image › Adjustments".to_owned(), 2), ("Select".to_owned(), 4)]);
-        let by_path: Vec<u8> = matches(&menus, "adjust", u8::eq).iter().map(|f| *f.item.command().unwrap()).collect();
-        assert_eq!(by_path, [1, 2], "a menu title matches every command under it");
         let many: Vec<MenuItem<usize>> = vec![MenuItem::submenu("Many", (0..40).map(|i| MenuItem::new(format!("Row {i}"), i).into()).collect())];
         assert_eq!(matches(&many, "row", usize::eq).len(), MAX_RESULTS);
     }

@@ -26,7 +26,7 @@ mod mnemonic;
 mod nav;
 mod popup;
 mod press;
-mod row;
+pub(crate) mod row;
 #[cfg(test)]
 mod tests;
 

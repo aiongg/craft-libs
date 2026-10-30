@@ -244,6 +244,33 @@ impl RowPainter<'_> {
         }
     }
 
+    /// The width of `kbd` as a row shows it at its end.
+    pub fn shortcut_width(&self, ui: &Ui, kbd: &Kbd) -> f32 {
+        self.shortcut_galley(ui, kbd, Color32::PLACEHOLDER).size().x
+    }
+
+    /// Paints `text` in the shortcut's role and colour at the reading end of `rect`, ending
+    /// `trailing` points before the row's padding and cut with an ellipsis to `room` points: a
+    /// command's path before its shortcut in a palette row.
+    pub fn detail(&self, ui: &Ui, rect: Rect, text: &str, trailing: f32, room: f32, state: RowState) {
+        if text.is_empty() || room <= 0.0 || !ui.is_rect_visible(rect) {
+            return;
+        }
+        let color = match (state.enabled, state.active) {
+            (false, _) => self.style.rows.text_disabled,
+            (true, true) => self.style.active_text,
+            (true, false) => self.style.shortcut,
+        };
+        let mut job = LayoutJob::single_section(text.to_owned(), role_format(self.tokens, self.style.shortcut_label, color));
+        job.wrap.max_width = room;
+        job.wrap.max_rows = 1;
+        let galley = ui.painter().layout_job(job);
+        let forward = direction::forward(ui);
+        let end = direction::end_x(ui, rect) - forward * (self.style.rows.pad_x + trailing);
+        let x = if direction::is_rtl(ui) { end } else { end - galley.size().x };
+        ui.painter().galley(pos2(x, rect.center().y - galley.size().y / 2.0).round_to_pixels(ui.pixels_per_point()), galley, color);
+    }
+
     /// A separator: its line between `separator_pad` above and below.
     pub fn separator(&self, ui: &mut Ui, width: f32) {
         let s = &self.style.rows;

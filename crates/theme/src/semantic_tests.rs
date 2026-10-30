@@ -700,6 +700,15 @@ fn status_bar_sizes_are_photocraft_compact_scaled_by_the_control_height() {
 }
 
 #[test]
+fn command_palette_sizes_are_photocraft_with_a_taller_row_when_comfortable() {
+    let def = grey_blue();
+    let at = |size| resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.command_palette;
+    let (compact, comfy) = (at(Size::Compact), at(Size::Comfortable));
+    assert_eq!((compact.width, compact.top, compact.pad, compact.row_height, compact.max_rows, compact.recent), (560.0, 110.0, 10.0, 32.0, 12, 8));
+    assert_eq!((comfy.width, comfy.row_height), (560.0, 38.0));
+}
+
+#[test]
 fn size_presets_text_size_shape_and_motion() {
     let def = grey_blue();
     let at = |size, text_size| resolve(&def, Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
