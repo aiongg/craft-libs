@@ -16,7 +16,7 @@ use crate::theme::{Base, Tokens, TokensOf as _, install};
 
 #[derive(Default)]
 struct Host {
-    selected: Option<usize>,
+    selected: Option<(usize, usize)>,
     grid: bool,
     clicked: Option<(usize, usize)>,
     rects: Vec<Rect>,
@@ -51,7 +51,7 @@ fn app(orientation: Orientation, overflow: bool) -> impl FnMut(&mut egui::Ui, &m
         if let Some(clicked) = out.clicked {
             host.clicked = Some(clicked);
             if clicked.0 < 2 {
-                host.selected = Some(clicked.0 * 2 + clicked.1);
+                host.selected = Some(clicked);
             }
         }
     }
@@ -154,8 +154,8 @@ fn a_narrow_row_moves_the_groups_that_do_not_fit_into_a_menu_that_runs_them() {
 
 #[test]
 fn the_overflow_menu_checks_the_selected_item() {
-    let mut h =
-        harness(Direction::Ltr, [190.0, 200.0]).build_ui_state(app(Orientation::Horizontal, true), Host { selected: Some(3), ..Host::default() });
+    let mut h = harness(Direction::Ltr, [190.0, 200.0])
+        .build_ui_state(app(Orientation::Horizontal, true), Host { selected: Some((1, 1)), ..Host::default() });
     h.run();
     h.get_by_label("More").click();
     h.run();
@@ -186,6 +186,14 @@ fn a_horizontal_row_mirrors_in_a_right_to_left_ui() {
     assert!(l[0].left() < l[1].left() && l[1].left() < l[4].left());
     assert!(r[0].left() > r[1].left() && r[1].left() > r[4].left());
     assert!((l[0].left() - ltr.state().area[0]).abs() < 1.0 && (r[0].right() - rtl.state().area[2]).abs() < 1.0);
+}
+
+#[test]
+fn a_scrolling_row_opens_at_the_reading_start_in_a_right_to_left_ui() {
+    let h = run(Direction::Rtl, [120.0, 60.0], Orientation::Horizontal, false);
+    let area = h.state().area;
+    let first = h.state().rects[0];
+    assert!(first.right() <= area[2] + 1.0 && first.left() >= area[0], "first item {first:?} outside {area:?}");
 }
 
 #[test]

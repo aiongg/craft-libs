@@ -95,7 +95,7 @@ pub struct ToolbarResponse {
 /// let out = Toolbar::new("tools", Orientation::Horizontal)
 ///     .label("Tools")
 ///     .group([ToolbarItem::new(Icon::Brush, "Brush"), ToolbarItem::new(Icon::Eraser, "Eraser")])
-///     .selected(Some(0))
+///     .selected(Some((0, 0)))
 ///     .overflow(true)
 ///     .show(ui);
 /// if let Some((_group, _item)) = out.clicked {}
@@ -109,7 +109,7 @@ pub struct ToolbarResponse {
 ///   [`overflow`](Toolbar::overflow) the groups that do not fit move to a menu behind a "More"
 ///   button at the end ([`fit_toolbar`]); without it, or when even the button does not fit, the row
 ///   scrolls. Every item stays reachable.
-/// - **Selection:** [`selected`](Toolbar::selected) marks one item (counted across groups) with the
+/// - **Selection:** [`selected`](Toolbar::selected) marks one item, given as `(group, item)` like [`ToolbarResponse::clicked`], with the
 ///   toggled look; toggle items keep their own state.
 /// - **Keyboard:** every drawn button is a Tab stop in reading order; a hidden item is reached
 ///   through the overflow menu. A horizontal toolbar mirrors in a right-to-left UI.
@@ -121,7 +121,7 @@ pub struct Toolbar<'a> {
     id_salt: IdSalt,
     orientation: Orientation,
     groups: Vec<Vec<ToolbarItem<'a>>>,
-    selected: Option<usize>,
+    selected: Option<(usize, usize)>,
     overflow: bool,
     label: String,
     more_label: String,
@@ -164,7 +164,7 @@ impl<'a> Toolbar<'a> {
 
     /// The exclusive mode: the item at this index, counted across groups, has the toggled look and
     /// every other item is plain and not toggled. `None` (the default) leaves items plain.
-    pub fn selected(mut self, selected: Option<usize>) -> Self {
+    pub fn selected(mut self, selected: Option<(usize, usize)>) -> Self {
         self.selected = selected;
         self
     }
@@ -224,8 +224,7 @@ impl Flow {
 }
 
 struct Pass<'p> {
-    selected: Option<usize>,
-    base: usize,
+    selected: Option<(usize, usize)>,
     out: &'p mut ToolbarResponse,
 }
 
@@ -247,12 +246,6 @@ impl<'a> Toolbar<'a> {
         bar.ctx().accesskit_node_builder(bar.unique_id(), |node| node.set_orientation(orientation));
 
         let mut out = ToolbarResponse::default();
-        let mut bases = Vec::with_capacity(self.groups.len());
-        let mut count = 0;
-        for group in &self.groups {
-            bases.push(count);
-            count += group.len();
-        }
 
         if vertical {
             self.paint_strip(&bar, rect, &tokens, &style);
@@ -269,7 +262,7 @@ impl<'a> Toolbar<'a> {
                 let (content, _) = ui.allocate_exact_size(vec2(flow.side, height), Sense::hover());
                 let mut along = 0.0;
                 for (g, items) in self.groups.iter_mut().enumerate() {
-                    along = draw_group(ui, &flow, content, along, g, items, &mut Pass { selected: self.selected, base: bases[g], out: &mut out });
+                    along = draw_group(ui, &flow, content, along, g, items, &mut Pass { selected: self.selected, out: &mut out });
                     along += flow.group_gap;
                 }
             });
@@ -281,21 +274,27 @@ impl<'a> Toolbar<'a> {
         let fit = if self.overflow { fit_toolbar(&natural, rect.width(), style.spacing, style.overflow) } else { None };
         match fit {
             Some(fit) if fit.overflow.is_empty() => {
-                self.draw_row(&mut bar, &flow, rect, &style, &bases, &mut out, self.groups.len());
+                self.draw_row(&mut bar, &flow, rect, &style, &mut out, self.groups.len());
             }
             Some(fit) => {
-                let end = self.draw_row(&mut bar, &flow, rect, &style, &bases, &mut out, fit.shown.len());
+                let end = self.draw_row(&mut bar, &flow, rect, &style, &mut out, fit.shown.len());
                 let along = if fit.shown.is_empty() { 0.0 } else { end + style.spacing };
-                self.draw_overflow(&mut bar, &flow, rect, &style, along, &fit.overflow, &bases, &mut out);
+                self.draw_overflow(&mut bar, &flow, rect, &style, along, &fit.overflow, &mut out);
             }
             None if total <= rect.width() => {
-                self.draw_row(&mut bar, &flow, rect, &style, &bases, &mut out, self.groups.len());
+                self.draw_row(&mut bar, &flow, rect, &style, &mut out, self.groups.len());
             }
             None => {
-                ScrollArea::horizontal().id_salt("scroll").auto_shrink([false, false]).show(&mut bar, |ui| {
+                let mut scroll = ScrollArea::horizontal().id_salt("scroll").auto_shrink([false, false]);
+                // The first item is at the reading start; in a right-to-left UI that is the
+                // far end, so a scroll area without saved state opens there.
+                if rtl && egui::scroll_area::State::load(bar.ctx(), bar.make_persistent_id("scroll")).is_none() {
+                    scroll = scroll.scroll_offset(vec2((total - rect.width()).max(0.0), 0.0));
+                }
+                scroll.show(&mut bar, |ui| {
                     let (content, _) = ui.allocate_exact_size(vec2(total, style.button), Sense::hover());
                     let mut bar = ui.new_child(UiBuilder::new().max_rect(content));
-                    self.draw_row(&mut bar, &flow, content, &style, &bases, &mut out, self.groups.len());
+                    self.draw_row(&mut bar, &flow, content, &style, &mut out, self.groups.len());
                 });
             }
         }
@@ -311,16 +310,7 @@ impl<'a> Toolbar<'a> {
 
     /// Draws the first `shown` groups with dividers between them and returns the length they use.
     #[allow(clippy::too_many_arguments)]
-    fn draw_row(
-        &mut self,
-        ui: &mut Ui,
-        flow: &Flow,
-        area: Rect,
-        style: &ToolbarStyle,
-        bases: &[usize],
-        out: &mut ToolbarResponse,
-        shown: usize,
-    ) -> f32 {
+    fn draw_row(&mut self, ui: &mut Ui, flow: &Flow, area: Rect, style: &ToolbarStyle, out: &mut ToolbarResponse, shown: usize) -> f32 {
         let tokens = Tokens::of(ui);
         let mut along = 0.0;
         let selected = self.selected;
@@ -334,24 +324,14 @@ impl<'a> Toolbar<'a> {
                 }
                 along += style.spacing;
             }
-            along = draw_group(ui, flow, area, along, g, items, &mut Pass { selected, base: bases[g], out });
+            along = draw_group(ui, flow, area, along, g, items, &mut Pass { selected, out });
         }
         along - flow.gap
     }
 
     /// The "More" button at `along` and its menu of the hidden groups' items.
     #[allow(clippy::too_many_arguments)]
-    fn draw_overflow(
-        &mut self,
-        ui: &mut Ui,
-        flow: &Flow,
-        area: Rect,
-        style: &ToolbarStyle,
-        along: f32,
-        hidden: &[usize],
-        bases: &[usize],
-        out: &mut ToolbarResponse,
-    ) {
+    fn draw_overflow(&mut self, ui: &mut Ui, flow: &Flow, area: Rect, style: &ToolbarStyle, along: f32, hidden: &[usize], out: &mut ToolbarResponse) {
         let cell = flow.cell(area, along);
         let rect =
             Rect::from_min_size(if flow.rtl { pos2(cell.right() - style.overflow, cell.top()) } else { cell.min }, vec2(style.overflow, flow.side));
@@ -365,7 +345,7 @@ impl<'a> Toolbar<'a> {
             for (i, item) in self.groups[g].iter().enumerate() {
                 let on = match &item.toggle {
                     Some(on) => Some(**on),
-                    None => self.selected.map(|s| s == bases[g] + i),
+                    None => self.selected.map(|s| s == (g, i)),
                 };
                 let mut row = MenuItem::new(item.label.clone(), (g, i)).icon(item.icon).enabled(item.enabled);
                 if let Some(on) = on {
@@ -399,7 +379,7 @@ fn draw_group(ui: &mut Ui, flow: &Flow, area: Rect, mut along: f32, g: usize, it
         button = match item.toggle.as_deref_mut() {
             Some(on) => button.toggle(on),
             None => match pass.selected {
-                Some(s) => button.selected(s == pass.base + i),
+                Some(s) => button.selected(s == (g, i)),
                 None => button,
             },
         };
@@ -441,7 +421,7 @@ fn shortcut_for(index: usize) -> KeyboardShortcut {
 
 fn show_vertical(ui: &mut Ui, _: &mut NoArgs) {
     let id = ui.scope_id().with("toolbar-vertical");
-    let mut selected = ui.data(|d| d.get_temp::<usize>(id)).unwrap_or(0);
+    let mut selected = ui.data(|d| d.get_temp::<(usize, usize)>(id)).unwrap_or((0, 0));
     ui.allocate_ui(vec2(ui.available_width(), 480.0), |ui| {
         let mut toolbar = Toolbar::new("liquify-tools", Orientation::Vertical).label("Liquify tools").selected(Some(selected));
         let mut index = 0;
@@ -457,7 +437,7 @@ fn show_vertical(ui: &mut Ui, _: &mut NoArgs) {
             toolbar = toolbar.group(items);
         }
         if let Some((g, i)) = toolbar.show(ui).clicked {
-            selected = LIQUIFY[..g].iter().map(|g| g.len()).sum::<usize>() + i;
+            selected = (g, i);
         }
     });
     ui.data_mut(|d| d.insert_temp(id, selected));
@@ -465,7 +445,7 @@ fn show_vertical(ui: &mut Ui, _: &mut NoArgs) {
 
 fn show_horizontal(ui: &mut Ui, args: &mut WidthArgs) {
     let id = ui.scope_id().with("toolbar-horizontal");
-    let mut state = ui.data(|d| d.get_temp::<(usize, bool)>(id)).unwrap_or((0, false));
+    let mut state = ui.data(|d| d.get_temp::<((usize, usize), bool)>(id)).unwrap_or(((0, 0), false));
     let width = args.width.min(ui.available_width());
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
@@ -487,7 +467,7 @@ fn show_horizontal(ui: &mut Ui, args: &mut WidthArgs) {
         if let Some((g, i)) = toolbar.show(ui).clicked
             && g < 2
         {
-            state.0 = LIQUIFY[..g].iter().map(|g| g.len()).sum::<usize>() + i;
+            state.0 = (g, i);
         }
         state.1 = grid;
     });
