@@ -7,18 +7,20 @@ use std::sync::Arc;
 
 use craft_theme::{
     AppId, Appearance, ColorOrigin, ColorSource, ColorToken, ContrastIntent, ControlSize, EdgeSeed, Explained, FieldOrigin, Mode, PinLayer, Rgba,
-    StatusKind, ThemeDef, TokenRef, Variants, explain,
+    StatusKind, ThemeDef, TokenRef, TypeRole, Variants, explain,
 };
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
 use craft_ui::composites::{FormGrid, SectionHeader};
-use craft_ui::controls::{Checkbox, SearchField, Swatch};
+use craft_ui::controls::{Checkbox, Link, SearchField, Swatch};
+use craft_ui::direction;
 use craft_ui::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 use craft_ui::list::{List, ListEvent, ListRow, ThumbSize};
-use craft_ui::primitives::Divider;
+use craft_ui::primitives::{Content, Divider, Text};
 use craft_ui::theme::{Base, StrokeExt, ToEgui, Tokens, TokensOf, scale};
 use egui::{Grid, RichText, ScrollArea, Sense, StrokeKind, Ui, vec2};
 
 use crate::fields;
+use crate::usage::Scan;
 
 // design: allow[literal-size/vec2](a colour chip is a specimen of the colour, not a control; no size token fits)
 const SWATCH: egui::Vec2 = vec2(28.0, 16.0);
@@ -82,8 +84,9 @@ impl Browser {
 
     /// Draws the panel for the theme and appearance `base` shows in `mode`: the filters, the
     /// token list, a divider the user drags, and under it the detail of the selected row. The
-    /// list and the detail each scroll in their own part of the panel.
-    pub fn show(&mut self, ui: &mut Ui, base: &Base, mode: Mode) {
+    /// list and the detail each scroll in their own part of the panel. `scan` supplies the
+    /// detail's Used by list; the component a link in it named is returned.
+    pub(crate) fn show(&mut self, ui: &mut Ui, base: &Base, mode: Mode, scan: &Scan) -> Option<&'static str> {
         let explained = self.explained(base, mode);
         self.filters(ui, base, mode, &explained);
         let total = (ui.available_height() - DIVIDER).max(1.0);
@@ -93,7 +96,7 @@ impl Browser {
         if delta != 0.0 {
             self.share = ((list_height + delta) / total).clamp(MIN_SHARE, 1.0 - MIN_SHARE);
         }
-        ScrollArea::vertical().id_salt("gallery.tokens.detail").auto_shrink([false, false]).show(ui, |ui| self.detail(ui, &explained));
+        ScrollArea::vertical().id_salt("gallery.tokens.detail").auto_shrink([false, false]).show(ui, |ui| self.detail(ui, &explained, scan)).inner
     }
 
     /// The draggable and keyboard-operable divider between list and detail; returns the
@@ -214,10 +217,10 @@ impl Browser {
             && (!self.failing_only || e.pairs_of(token).any(|p| !p.pair.passes()))
     }
 
-    fn detail(&mut self, ui: &mut Ui, e: &Explained) {
+    fn detail(&mut self, ui: &mut Ui, e: &Explained, scan: &Scan) -> Option<&'static str> {
         let Some(selected) = self.selected else {
             ui.label("Select a row to see its contrast pairs and ramp.");
-            return;
+            return None;
         };
         ui.heading(selected.path());
         let origin = match selected {
@@ -227,10 +230,14 @@ impl Browser {
                 o.reads.and_then(|t| e.color(t))
             }),
         };
+        let used = used_by(ui, e, selected, scan);
+        if let Some(token) = used.select {
+            self.selected = Some(token);
+        }
         Divider::horizontal().show(ui);
         ui.strong("Contrast pairs");
         pairs(ui, e, selected);
-        let Some(o) = origin else { return };
+        let Some(o) = origin else { return used.open };
         if let Some((ramp, step, toward)) = e.ramps.steps_of(o.source) {
             Divider::horizontal().show(ui);
             // An anchored token's steps are the ramp moved to its anchor.
@@ -245,7 +252,59 @@ impl Browser {
                 }
             }
         }
+        used.open
     }
+}
+
+/// What the Used by and Read by sections reported.
+#[derive(Default)]
+struct UsedBy {
+    /// The component a link named.
+    open: Option<&'static str>,
+    /// The token a link named.
+    select: Option<TokenRef>,
+}
+
+/// The components that paint with `token` (from the scan, which fills in as it runs) and the
+/// tokens it is read through: the component fields that default to a semantic token, or the
+/// semantic token a field reads.
+fn used_by(ui: &mut Ui, e: &Explained, token: TokenRef, scan: &Scan) -> UsedBy {
+    let mut out = UsedBy::default();
+    SectionHeader::new("gallery.tokens.used_by", "Used by").show(ui, |ui| {
+        let painters = scan.painters(token);
+        let headline = match scan.progress() {
+            Some((done, total)) if done < total => format!("Scanning stories… {done} of {total}"),
+            Some(_) if painters.is_empty() => "Not painted by any component at rest".to_owned(),
+            Some(_) => format!("Painted by {} {}", painters.len(), if painters.len() == 1 { "component" } else { "components" }),
+            None => String::new(),
+        };
+        ui.add(Text::new(headline));
+        for (component, shapes) in painters {
+            direction::horizontal(ui, |ui| {
+                if ui.add(Link::new(component).id_salt(("gallery.tokens.used_by", component))).clicked() {
+                    out.open = Some(component);
+                }
+                ui.add(Text::new(format!("{shapes} {}", if shapes == 1 { "shape" } else { "shapes" })).content(Content::Muted));
+            });
+        }
+        ui.add(Text::new("Stories at rest; blended colours not counted").role(TypeRole::Caption).content(Content::Muted));
+    });
+    let read: Vec<TokenRef> = match token {
+        TokenRef::Color(t) => e.readers(t).into_iter().map(TokenRef::Component).collect(),
+        TokenRef::Component(f) => e.field(f).and_then(|o| o.reads).map(TokenRef::Color).into_iter().collect(),
+    };
+    let title = if matches!(token, TokenRef::Color(_)) { "Read by" } else { "Reads" };
+    SectionHeader::new("gallery.tokens.read_by", title).show(ui, |ui| {
+        if read.is_empty() {
+            ui.add(Text::new("Nothing reads it by default").content(Content::Muted));
+        }
+        for other in read {
+            if ui.add(Link::new(other.path()).role(TypeRole::Mono).id_salt(("gallery.tokens.read_by", other.path()))).clicked() {
+                out.select = Some(other);
+            }
+        }
+    });
+    out
 }
 
 /// The theme's seeds and shape as read-only rows: a swatch and hex per colour seed, then the

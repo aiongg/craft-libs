@@ -42,6 +42,7 @@ pub struct Use {
     pub border: Option<f32>,
 }
 
+#[allow(dead_code, reason = "Pick from preview uses it")]
 impl Use {
     /// Whether `pos` is on what was painted.
     pub fn contains(&self, pos: Pos2) -> bool {
@@ -55,6 +56,7 @@ pub struct Usage {
     pub uses: Vec<Use>,
 }
 
+#[allow(dead_code, reason = "Pick from preview uses the lookups by position")]
 impl Usage {
     /// Every token or field painted with its own colour.
     pub fn tokens(&self) -> BTreeSet<TokenRef> {
@@ -154,6 +156,11 @@ pub struct Cache {
 impl Cache {
     /// Most usages kept.
     const CAPACITY: usize = 256;
+
+    /// The usage cached for `key`.
+    pub fn get(&self, key: &Key) -> Option<Arc<Usage>> {
+        self.entries.iter().find(|(k, _)| k == key).map(|(_, usage)| Arc::clone(usage))
+    }
 
     /// The usage for `key`, probed with `run` when none is cached.
     pub fn get_or_run(&mut self, key: Key, run: impl FnOnce() -> Usage) -> Arc<Usage> {
