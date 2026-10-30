@@ -361,6 +361,46 @@ fn an_app_modal_window_blocks_every_window_of_the_context() {
 }
 
 #[test]
+fn a_modal_of_a_vanished_viewport_stops_blocking_and_the_root_closes() {
+    use crate::viewport::ViewportWindow;
+    let ctx = Context::default();
+    let child = ViewportId::from_hash_of("child");
+    let mut root = Win::new(&ctx, ViewportId::ROOT, "main");
+    let mut child_win = Win::new(&ctx, child, "child");
+    root.bar = false;
+    child_win.bar = false;
+    let run = |win: &mut Win, close: bool, show_modal: bool| {
+        let mut raw = win.raw(vec![]);
+        if close {
+            raw.viewports.entry(win.viewport).or_default().events.push(egui::ViewportEvent::Close);
+        }
+        let mut seen = (false, false);
+        let mut out = ctx.run_ui(raw, |ui| {
+            if show_modal {
+                ViewportWindow::new(ViewportId::from_hash_of("settings"), egui::ViewportBuilder::default()).embedded(true).app_modal(true).show(
+                    ui.ctx(),
+                    |ui, _| {
+                        ui.label("Settings");
+                    },
+                );
+            }
+            seen = (ViewportWindow::any_app_modal(ui.ctx()), ViewportWindow::refuse_close(ui.ctx()));
+        });
+        (seen, commands(&mut out, win.viewport))
+    };
+    run(&mut root, false, false);
+    run(&mut child_win, false, true);
+    assert!(run(&mut root, false, false).0.0, "the child's modal blocks the root");
+    // The child viewport is not shown any more.
+    for _ in 0..2 {
+        run(&mut root, false, false);
+    }
+    let ((modal, refused), cmds) = run(&mut root, true, false);
+    assert!(!modal && !refused, "a vanished viewport's modal does not block");
+    assert!(!cmds.iter().any(|c| matches!(c, ViewportCommand::CancelClose)));
+}
+
+#[test]
 fn each_window_has_its_own_title_bar_and_overlay() {
     // Separate contexts: a context only counts passes of its root viewport outside a real viewport.
     let (ctx_a, ctx_b) = (Context::default(), Context::default());

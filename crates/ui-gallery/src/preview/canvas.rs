@@ -8,7 +8,7 @@ use craft_ui::canvas::kurbo::{Point, Rect};
 use craft_ui::canvas::{CanvasScrollbars, CanvasView, MarqueeDrag, MarqueeShape, RulerNames, RulerUnits, Rulers, ScrollbarNames};
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::{LocaleNumbers, Unit};
-use craft_ui::shell::ShellCx;
+use craft_ui::shell::{ShellCx, WindowKey};
 use craft_ui::tab_strip::{Tab, TabKind, TabStrip};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
@@ -102,10 +102,17 @@ pub fn show(ui: &mut Ui, mock: &mut Mock) {
     document(ui, mock, None);
 }
 
-/// Draws the document area into the rect `ui` has left and runs its pointer tools. Returns
-/// whether Tab was pressed while the canvas had the keyboard focus: the canvas keeps Tab then,
-/// so the host can use it to toggle the chrome.
-pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) -> bool {
+/// The id of the canvas widget of the shell window `window`.
+pub fn canvas_id(window: &WindowKey) -> egui::Id {
+    base_id(window).with("canvas")
+}
+
+fn base_id(window: &WindowKey) -> egui::Id {
+    egui::Id::unique(("app-preview-canvas", window.as_str()))
+}
+
+/// Draws the document area into the rect `ui` has left and runs its pointer tools.
+pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) {
     let ctx = ui.ctx().clone();
     let tokens = Tokens::of(ui);
     let pasteboard = tokens.color.surface.canvas.to_egui();
@@ -113,7 +120,7 @@ pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) -> boo
     drop(tokens);
     // With a shell the canvas moves between the dock's panel and the bare body when the dock
     // hides; its id, and so its keyboard focus, must not depend on where it is.
-    let id = chrome.map_or_else(|| ui.scope_id(), |c| egui::Id::unique(("app-preview-canvas", c.shell.window().as_str())));
+    let id = chrome.map_or_else(|| ui.scope_id(), |c| base_id(c.shell.window()));
 
     let full = ui.available_rect_before_wrap();
     let rect = if mock.view.rulers { egui::Rect::from_min_max(full.min + egui::vec2(ruler_size, ruler_size), full.max) } else { full };
@@ -127,17 +134,8 @@ pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) -> boo
 
     let response = ui.interact(rect, id.with("canvas"), Sense::click_and_drag() | Sense::FOCUSABLE);
     response.widget_info(|| WidgetInfo::labeled(Role::Canvas, ui.is_enabled(), "Document"));
-    let mut tab_pressed = false;
     if let Some(chrome) = chrome {
         chrome.shell.canvas(response.id);
-        if response.has_focus() {
-            // The canvas keeps Tab while it has focus, so the host can use it for the chrome.
-            ctx.memory_mut(|m| m.set_focus_lock_filter(response.id, egui::EventFilter { tab: true, ..Default::default() }));
-            // A Tab that moved the focus onto the canvas in this pass is not a toggle.
-            if ctx.memory(|m| m.had_focus_last_frame(response.id)) {
-                tab_pressed = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Tab));
-            }
-        }
     }
     let tool = mock.tools.current;
     let cv = canvas_view(&mock.view, rect, ppp);
@@ -257,7 +255,6 @@ pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) -> boo
             mock.view.zero = [value.x, value.y];
         }
     }
-    tab_pressed
 }
 
 #[cfg(test)]

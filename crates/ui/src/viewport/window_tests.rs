@@ -18,10 +18,11 @@ struct App {
     hostings: Vec<Hosting>,
     closes: usize,
     blocks: bool,
+    blocks_at_close: Option<bool>,
 }
 
 fn harness(modal: bool) -> Harness<'static, App> {
-    let app = App { open: true, modal, scrim: true, behind_clicks: 0, hostings: Vec::new(), closes: 0, blocks: false };
+    let app = App { open: true, modal, scrim: true, behind_clicks: 0, hostings: Vec::new(), closes: 0, blocks: false, blocks_at_close: None };
     HarnessBuilder::default().with_size(WINDOW).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, app: &mut App| {
             let ctx = &ui.ctx().clone();
@@ -43,6 +44,9 @@ fn harness(modal: bool) -> Harness<'static, App> {
                 ui.label("Body");
             });
             app.closes += usize::from(shown.close_requested);
+            if shown.close_requested {
+                app.blocks_at_close = Some(ViewportWindow::blocks_main(ctx));
+            }
         },
         app,
     )
@@ -85,6 +89,16 @@ fn an_app_modal_window_blocks_the_main_ui_and_reports_it() {
     harness.get_by_label("Behind").click();
     harness.run();
     assert_eq!(harness.state().behind_clicks, 1);
+}
+
+#[test]
+fn a_modal_stops_blocking_in_the_pass_that_reports_its_close() {
+    let mut harness = harness(true);
+    harness.run();
+    harness.key_press(Key::Escape);
+    harness.run();
+    // Read in the pass that reported the close; the host would stop showing the window now.
+    assert_eq!(harness.state().blocks_at_close, Some(false));
 }
 
 #[test]
