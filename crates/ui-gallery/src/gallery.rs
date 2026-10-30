@@ -369,6 +369,8 @@ impl Gallery {
         let tokens = Tokens::of(ui);
         let mut config = DockConfig::default();
         config.right_to_left = direction::is_rtl(ui);
+        // Component tabs are documents: they close from their ×.
+        config.tab_close_buttons = true;
         let mut panels = Panels { gallery: self, inspecting, control: tokens.size.control.sm };
         let output = DockArea::new(ui.make_persistent_id(id)).locked(workspace.locked).show_content(ui, &workspace.layout, &config, &mut panels);
         for action in output.actions {

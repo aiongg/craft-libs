@@ -754,6 +754,21 @@ fn closing_a_tab_fronts_the_overview_and_drops_the_story() {
 }
 
 #[test]
+fn a_component_tab_closes_from_its_close_button_and_the_overview_has_none() {
+    use egui::accesskit::Role;
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    let mut gallery = Gallery::new(None);
+    let (component, _) = component_with_stories(&gallery);
+    gallery.open_component(component);
+    let tree = settled_tree(&ctx, &mut gallery);
+    assert!(named(&tree, "Close Overview", Role::Button).is_empty());
+    click(&ctx, &mut gallery, &format!("Close {component}"), Role::Button);
+    assert!(gallery.open_tabs().is_empty());
+    assert_eq!(gallery.front_tab(), PanelId::View);
+}
+
+#[test]
 fn a_tile_click_moves_the_side_panels_and_a_story_pick_changes_the_tile() {
     use egui::accesskit::Role;
     let ctx = Context::default();
