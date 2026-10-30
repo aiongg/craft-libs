@@ -77,6 +77,18 @@ pub(crate) fn canvas(
     scope(ui, overrides, |ui| framed(ui, story, args, inspector, "Canvas", appearance.rtl));
 }
 
+/// The story with its surface's margin and no fill or edge, as the tiles draw it over the fill
+/// they paint themselves: what the paint probe draws, so that its rects sit where the tile's do
+/// and the frame is not recorded as paint.
+pub(crate) fn bare(ui: &mut Ui, story: &Story, args: &mut Args) {
+    let surface = StoryFrame::of(ui, story.surface);
+    Frame::new().inner_margin(surface.margin).show(ui, |ui| {
+        ui.set_min_width(ui.available_width());
+        surface.space(ui);
+        ui.push_id(story.id, |ui| (story.show)(ui, args));
+    });
+}
+
 /// The story in its frame, with the inspector over it when there is one.
 pub(crate) fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut Inspector>, name: &str, rtl: bool) {
     let tokens = Tokens::of(ui);

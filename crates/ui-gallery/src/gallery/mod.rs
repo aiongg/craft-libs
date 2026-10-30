@@ -53,9 +53,9 @@ use crate::preview::AppPreview;
 use crate::problems::Problems;
 use crate::usage::Scan;
 
+pub(crate) use self::canvas::bare;
 #[cfg(any(feature = "capture", test))]
 pub(crate) use self::canvas::canvas;
-pub(crate) use self::canvas::framed;
 pub(crate) use self::catalog::{default_story_of, stories};
 #[cfg(feature = "capture")]
 pub(crate) use self::{

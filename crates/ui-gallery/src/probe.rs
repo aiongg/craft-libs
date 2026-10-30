@@ -7,7 +7,9 @@
 //! painted. Colours that are not probe colours (blends, scaled colours, constants) count as
 //! computed. States a drawing does not show, and closed popups, are not painted and so not found.
 
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeSet, HashMap};
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use craft_theme::{ColorToken, ComponentField, Contrast, Mode, ModePins, Pins, Rgba, SystemAppearance, ThemeDef, TokenRef, resolve};
@@ -35,18 +37,24 @@ pub enum Pass {
 pub struct Use {
     /// The token or field the colour is the probe colour of; `None` for a computed colour.
     pub token: Option<TokenRef>,
-    /// Where it was painted, in the drawing's coordinates, clipped to the clip rect it was
-    /// painted under.
+    /// Where it was painted, in the drawing's coordinates, as the shape drew it: not cut by the
+    /// clip rect, so a clip edge is not mistaken for the edge of a stroke.
     pub rect: Rect,
-    /// For the stroke of a rectangle: its width. Only that band inside `rect` was painted.
+    /// The clip rect it was painted under; only the part of `rect` inside it shows.
+    pub clip: Rect,
+    /// For the stroke of a closed shape: its width. Only that band inside `rect` was painted.
     pub border: Option<f32>,
 }
 
-#[allow(dead_code, reason = "Pick from preview uses it")]
 impl Use {
+    /// The part of `rect` that shows.
+    pub fn visible(&self) -> Rect {
+        self.rect.intersect(self.clip)
+    }
+
     /// Whether `pos` is on what was painted.
     pub fn contains(&self, pos: Pos2) -> bool {
-        self.rect.contains(pos) && self.border.is_none_or(|width| !self.rect.shrink(width).contains(pos))
+        self.clip.contains(pos) && self.rect.contains(pos) && self.border.is_none_or(|width| !self.rect.shrink(width).contains(pos))
     }
 }
 
@@ -56,7 +64,6 @@ pub struct Usage {
     pub uses: Vec<Use>,
 }
 
-#[allow(dead_code, reason = "Pick from preview uses the lookups by position")]
 impl Usage {
     /// Every token or field painted with its own colour.
     pub fn tokens(&self) -> BTreeSet<TokenRef> {
@@ -68,16 +75,22 @@ impl Usage {
         self.uses.iter().filter(|u| u.token.is_none()).count()
     }
 
+    /// The paint on top at `pos`: the last painted wins. `None` when nothing was painted there;
+    /// a computed colour is a use without a token.
+    pub fn use_at(&self, pos: Pos2) -> Option<&Use> {
+        self.uses.iter().rev().find(|u| u.contains(pos))
+    }
+
     /// The token painted last at `pos`; `None` when nothing was painted there or the last paint
     /// there was a computed colour.
     pub fn at(&self, pos: Pos2) -> Option<TokenRef> {
-        self.uses.iter().rev().find(|u| u.contains(pos)).and_then(|u| u.token)
+        self.use_at(pos).and_then(|u| u.token)
     }
 
-    /// Where `token` was painted.
+    /// Where `token` was painted, the parts that show.
     pub fn rects(&self, token: impl Into<TokenRef>) -> Vec<Rect> {
         let token = token.into();
-        self.uses.iter().filter(|u| u.token == Some(token)).map(|u| u.rect).collect()
+        self.uses.iter().filter(|u| u.token == Some(token)).map(Use::visible).collect()
     }
 }
 
@@ -87,12 +100,23 @@ pub struct Probe;
 impl Probe {
     /// Draws `draw` at the origin of a headless context `size` large, with the fonts, direction,
     /// scale and size of `appearance` and the colours of `theme` replaced by probe colours
-    /// (Standard contrast, `mode`), and reads back what it painted. `draw` runs twice, so the
-    /// second pass has settled layout; the usage is that of the second.
-    pub fn run(theme: &ThemeDef, appearance: &Appearance, mode: Mode, pass: Pass, size: Vec2, mut draw: impl FnMut(&mut Ui)) -> Usage {
+    /// (Standard contrast, `mode`), and reads back what it painted. `setup` runs on the fresh
+    /// context before the first frame, so a drawing can start with the state of a live one (an
+    /// open flyout, menu or popup lives in egui memory). `draw` runs twice, so the second pass has
+    /// settled layout; the usage is that of the second.
+    pub fn run(
+        theme: &ThemeDef,
+        appearance: &Appearance,
+        mode: Mode,
+        pass: Pass,
+        size: Vec2,
+        setup: impl FnOnce(&Context),
+        mut draw: impl FnMut(&mut Ui),
+    ) -> Usage {
         let (probe, names) = probe_theme(theme, appearance, mode, pass);
         let ctx = Context::default();
         let base = appearance.configure(&ctx, None, false, SystemAppearance::default());
+        setup(&ctx);
         // design: allow[style-mutation](the probe context mirrors the gallery's interface scale, which craft-ui has no setting for)
         ctx.set_zoom_factor(appearance.zoom());
         let mut output = None;
@@ -123,28 +147,84 @@ impl Probe {
         Usage { uses: reader.uses }
     }
 
-    /// A story with `args` on its surface frame, as the gallery's canvas draws it.
+    /// A story with `args` in its surface's margin, where the gallery's tiles draw it. The surface's
+    /// fill and edge are not drawn: the tiles paint them, and they would be recorded as uses.
     pub fn story(theme: &ThemeDef, appearance: &Appearance, mode: Mode, pass: Pass, size: Vec2, story: &Story, args: &mut Args) -> Usage {
-        let rtl = appearance.rtl;
-        Self::run(theme, appearance, mode, pass, size, |ui| {
-            crate::gallery::framed(ui, story, args, None, "", rtl);
-        })
+        Self::run(theme, appearance, mode, pass, size, |_| {}, |ui| crate::gallery::bare(ui, story, args))
     }
 }
 
-/// What a cached usage was probed for. The theme's edited values are not part of it: they never
-/// change which token a shape paints with.
+/// What a cached usage was probed for. The theme's edited colours are not part of it: they never
+/// change which token a shape paints with; its component overrides are.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Key {
+    /// The theme's id. Its colours are replaced by probe colours, but its identity decides which
+    /// theme the usage is of.
+    pub theme: String,
+    /// A hash of the theme's component overrides, which change which field paints what.
+    pub overrides: u64,
     /// The drawing: a story id, or the name of another draw function.
     pub what: String,
     /// What the drawing's arguments were; empty for none.
     pub args: String,
-    pub appearance: Appearance,
+    pub look: Look,
     pub mode: Mode,
     pub pass: Pass,
     /// The size drawn at, in whole points.
     pub size: [u32; 2],
+}
+
+/// The parts of an [`Appearance`] that change what the probe draws. Contrast and motion are not
+/// among them: the probe fixes the contrast, and nothing it paints moves.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Look {
+    pub comfortable: bool,
+    pub text_size: usize,
+    pub scale: u32,
+    pub rtl: bool,
+    pub ui_face: String,
+    pub mono_face: String,
+    pub icon_set: String,
+}
+
+impl Look {
+    fn of(a: &Appearance) -> Self {
+        Self {
+            comfortable: a.comfortable,
+            text_size: a.text_size,
+            scale: a.scale,
+            rtl: a.rtl,
+            ui_face: a.ui_face.clone(),
+            mono_face: a.mono_face.clone(),
+            icon_set: a.icon_set.clone(),
+        }
+    }
+}
+
+impl Key {
+    /// The key of `what` drawn with `args` under `theme` and `appearance`.
+    pub fn new(
+        theme: &ThemeDef,
+        what: impl Into<String>,
+        args: impl Into<String>,
+        appearance: &Appearance,
+        mode: Mode,
+        pass: Pass,
+        size: Vec2,
+    ) -> Self {
+        let mut hasher = DefaultHasher::new();
+        format!("{:?}", theme.components).hash(&mut hasher);
+        Self {
+            theme: theme.id.as_str().to_owned(),
+            overrides: hasher.finish(),
+            what: what.into(),
+            args: args.into(),
+            look: Look::of(appearance),
+            mode,
+            pass,
+            size: [size.x as u32, size.y as u32],
+        }
+    }
 }
 
 /// The most recent usages, so a view that asks every frame probes once.
@@ -224,23 +304,24 @@ struct Reader<'a> {
 impl Reader<'_> {
     fn shape(&mut self, shape: &Shape) {
         match shape {
-            Shape::Noop | Shape::Callback(_) => {}
+            Shape::Noop => {}
+            Shape::Callback(c) => self.record(None, c.rect, None),
             Shape::Vec(shapes) => shapes.iter().for_each(|s| self.shape(s)),
             Shape::Circle(c) => {
                 let rect = Rect::from_center_size(c.center, Vec2::splat(2.0 * c.radius));
                 self.fill(c.fill, rect);
-                self.stroke(c.stroke.color, c.stroke.width, rect);
+                self.stroke(c.stroke.color, c.stroke.width, rect, true);
             }
             Shape::Ellipse(e) => {
                 let rect = Rect::from_center_size(e.center, 2.0 * e.radius);
                 self.fill(e.fill, rect);
-                self.stroke(e.stroke.color, e.stroke.width, rect);
+                self.stroke(e.stroke.color, e.stroke.width, rect, true);
             }
-            Shape::LineSegment { points, stroke } => self.stroke(stroke.color, stroke.width, Rect::from_two_pos(points[0], points[1])),
+            Shape::LineSegment { points, stroke } => self.stroke(stroke.color, stroke.width, Rect::from_two_pos(points[0], points[1]), false),
             Shape::Path(p) => {
                 let rect = Rect::from_points(&p.points);
                 self.fill(p.fill, rect);
-                self.path_stroke(&p.stroke, rect);
+                self.path_stroke(&p.stroke, rect, p.closed);
             }
             Shape::Band(b) => {
                 let mut rect = Rect::NOTHING;
@@ -249,7 +330,7 @@ impl Reader<'_> {
                     rect.extend_with(Pos2::new(point.x, point.y.max));
                 }
                 self.fill(b.fill, rect);
-                self.stroke(b.stroke.color, b.stroke.width, rect);
+                self.stroke(b.stroke.color, b.stroke.width, rect, false);
             }
             Shape::Rect(r) => {
                 self.fill(r.fill, r.rect);
@@ -276,27 +357,29 @@ impl Reader<'_> {
             Shape::QuadraticBezier(b) => {
                 let rect = Rect::from_points(&b.points);
                 self.fill(b.fill, rect);
-                self.path_stroke(&b.stroke, rect);
+                self.path_stroke(&b.stroke, rect, b.closed);
             }
             Shape::CubicBezier(b) => {
                 let rect = Rect::from_points(&b.points);
                 self.fill(b.fill, rect);
-                self.path_stroke(&b.stroke, rect);
+                self.path_stroke(&b.stroke, rect, b.closed);
             }
         }
     }
 
-    fn path_stroke(&mut self, stroke: &egui::epaint::PathStroke, rect: Rect) {
+    fn path_stroke(&mut self, stroke: &egui::epaint::PathStroke, rect: Rect, closed: bool) {
         if let ColorMode::Solid(color) = stroke.color {
-            self.stroke(color, stroke.width, rect);
+            self.stroke(color, stroke.width, rect, closed);
         } else {
             self.record(None, rect, None);
         }
     }
 
-    fn stroke(&mut self, color: Color32, width: f32, rect: Rect) {
+    /// A stroke around `rect`'s centre line. A closed shape paints only the band along its edge,
+    /// so a ring does not claim what it encloses; an open line or path keeps its bounding rect.
+    fn stroke(&mut self, color: Color32, width: f32, rect: Rect, closed: bool) {
         if width > 0.0 {
-            self.add(color, rect.expand(width / 2.0));
+            self.add_with(color, rect.expand(width / 2.0), closed.then_some(width));
         }
     }
 
@@ -331,7 +414,7 @@ impl Reader<'_> {
         }
         if text.underline.width > 0.0 {
             let rect = text.galley.rect.translate(text.pos.to_vec2());
-            self.stroke(text.underline.color, text.underline.width, Rect::from_min_max(rect.left_bottom(), rect.right_bottom()));
+            self.stroke(text.underline.color, text.underline.width, Rect::from_min_max(rect.left_bottom(), rect.right_bottom()), false);
         }
     }
 
@@ -348,14 +431,14 @@ impl Reader<'_> {
         self.record(self.names.get(&color).copied(), rect, border);
     }
 
-    /// Records a paint of `token` (`None`: computed, such as a gradient or a rotated text) over
-    /// `rect`, unless `rect` is outside the clip rect.
+    /// Records a paint of `token` (`None`: computed, such as a gradient, a rotated text or a
+    /// paint callback) over `rect`, unless `rect` is outside the clip rect.
     fn record(&mut self, token: Option<TokenRef>, rect: Rect, border: Option<f32>) {
-        let rect = rect.intersect(self.clip);
-        if rect.min.x > rect.max.x || rect.min.y > rect.max.y {
+        let shown = rect.intersect(self.clip);
+        if shown.min.x > shown.max.x || shown.min.y > shown.max.y {
             return;
         }
-        self.uses.push(Use { token, rect, border });
+        self.uses.push(Use { token, rect, clip: self.clip, border });
     }
 }
 

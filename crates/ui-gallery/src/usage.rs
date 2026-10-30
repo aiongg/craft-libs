@@ -92,7 +92,7 @@ impl Scan {
         }
         let ScanContext { appearance, mode } = &run.context;
         for pass in [Pass::Semantic, Pass::Component] {
-            let key = key_of(&story, &story.defaults(), appearance, *mode, pass, SCAN_SIZE);
+            let key = key_of(theme, &story, &story.defaults(), appearance, *mode, pass, SCAN_SIZE);
             let usage = self.cache.get_or_run(key, || Probe::story(theme, appearance, *mode, pass, SCAN_SIZE, &story, &mut story.defaults()));
             for used in &usage.uses {
                 if let Some(token) = used.token.filter(|t| pass_of(*t) == pass) {
@@ -119,8 +119,8 @@ impl Scan {
     }
 }
 
-fn key_of(story: &Story, args: &Args, appearance: &Appearance, mode: Mode, pass: Pass, size: Vec2) -> Key {
-    Key { what: story.id.to_owned(), args: format!("{args:?}"), appearance: appearance.clone(), mode, pass, size: [size.x as u32, size.y as u32] }
+fn key_of(theme: &ThemeDef, story: &Story, args: &Args, appearance: &Appearance, mode: Mode, pass: Pass, size: Vec2) -> Key {
+    Key::new(theme, story.id, format!("{args:?}"), appearance, mode, pass, size)
 }
 
 /// The token whose shapes the tiles outline, with what probing a tile needs.
@@ -137,7 +137,7 @@ impl Highlight<'_> {
     /// is unused, else the next frame asks again.
     pub(crate) fn rects(&mut self, ctx: &Context, appearance: &Appearance, story: &Story, args: &Args, size: Vec2) -> Option<Vec<Rect>> {
         let pass = pass_of(self.token);
-        let key = key_of(story, args, appearance, self.mode, pass, size);
+        let key = key_of(self.theme, story, args, appearance, self.mode, pass, size);
         let usage: Arc<Usage> = match self.scan.cache.get(&key) {
             Some(usage) => usage,
             None if std::mem::take(&mut self.scan.budget) => {
