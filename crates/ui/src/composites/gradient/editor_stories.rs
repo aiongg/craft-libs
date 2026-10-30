@@ -12,44 +12,76 @@ use crate::controls::{Button, ButtonVariant};
 use crate::edit::{self, EditEvent, OuterGesture};
 use crate::localized::LocaleNumbers;
 use crate::primitives::{Content, Gap, Row, Stack, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::typed_story;
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "composites/gradient/editor-split",
             Level::Composites,
             "GradientEditor",
             "Split rows",
-            || {
-                Args::new()
-                    .with_choice("rows", &["Split", "Combined", "Color only"], 0)
-                    .with_bool("midpoints", true)
-                    .with_bool("fields", true)
-                    .with_number("min", 2.0, 1.0, 4.0)
-                    .with_number("max", 1024.0, 4.0, 1024.0)
-                    .with_bool("enabled", true)
-                    .with_number("width", 320.0, 160.0, 480.0)
-            },
-            show_split,
+            SplitArgs { rows: RowsArg::Split, midpoints: true, fields: true, min: 2, max: 1024, enabled: true, width: 320.0 },
+            show_split
         ),
-        Story::new(
+        typed_story!(
             "composites/gradient/editor-combined",
             Level::Composites,
             "GradientEditor",
             "Combined rows",
-            || Args::new().with_bool("fields", true).with_number("width", 280.0, 160.0, 480.0),
-            show_combined,
+            CombinedArgs { fields: true, width: 280.0 },
+            show_combined
         ),
-        Story::new(
-            "composites/gradient/dialog",
-            Level::Composites,
-            "GradientEditor",
-            "Dialog",
-            || Args::new().with_bool("color popover", true),
-            show_dialog,
-        ),
+        typed_story!("composites/gradient/dialog", Level::Composites, "GradientEditor", "Dialog", DialogArgs { color_popover: true }, show_dialog),
     ]
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum RowsArg {
+    #[choice(name = "Split")]
+    Split,
+    #[choice(name = "Combined")]
+    Combined,
+    #[choice(name = "Color only")]
+    ColorOnly,
+}
+
+impl RowsArg {
+    fn rows(self) -> StopRows {
+        match self {
+            RowsArg::Split => StopRows::Split,
+            RowsArg::Combined => StopRows::Combined,
+            RowsArg::ColorOnly => StopRows::ColorOnly,
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct SplitArgs {
+    rows: RowsArg,
+    midpoints: bool,
+    fields: bool,
+    #[arg(range = 1..=4)]
+    min: usize,
+    #[arg(range = 4..=1024)]
+    max: usize,
+    enabled: bool,
+    #[arg(range = 160.0..=480.0)]
+    width: f32,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct CombinedArgs {
+    fields: bool,
+    #[arg(range = 160.0..=480.0)]
+    width: f32,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct DialogArgs {
+    #[arg(name = "color popover")]
+    color_popover: bool,
 }
 
 /// A host's stops, the "before" of the gesture under way and the last colour request, kept
@@ -111,13 +143,9 @@ fn rgb(r: u8, g: u8, b: u8) -> Srgba {
 }
 
 /// PhotoCraft's Gradient Editor: opacity stops above the ramp, colour stops and midpoints below.
-fn show_split(ui: &mut Ui, args: &mut Args) {
+fn show_split(ui: &mut Ui, args: &mut SplitArgs) {
     let numbers = LocaleNumbers::from_tag("en");
-    let rows = match args.choice("rows") {
-        "Combined" => StopRows::Combined,
-        "Color only" => StopRows::ColorOnly,
-        _ => StopRows::Split,
-    };
+    let rows = args.rows.rows();
     let (id, host) = StoryHost::load(ui, "gradient-editor-split", || {
         let mut stops = GradientStops::new(vec![
             ColorStop::new(0.0, rgb(0xf5, 0xa5, 0x24)),
@@ -127,9 +155,9 @@ fn show_split(ui: &mut Ui, args: &mut Args) {
         stops.opacity = vec![OpacityStop::new(0.0, 1.0), OpacityStop::new(0.7, 0.3), OpacityStop::new(1.0, 1.0)];
         stops
     });
-    let (min, max) = (args.number("min") as usize, args.number("max") as usize);
-    let (midpoints, fields, enabled) = (args.bool("midpoints"), args.bool("fields"), args.bool("enabled"));
-    host.show(ui, id, args.number("width") as f32, |ui, stops| {
+    let (min, max) = (args.min, args.max);
+    let (midpoints, fields, enabled) = (args.midpoints, args.fields, args.enabled);
+    host.show(ui, id, args.width, |ui, stops| {
         GradientEditor::new("split", "Gradient", stops, &numbers)
             .rows(rows)
             .midpoints(midpoints)
@@ -142,7 +170,7 @@ fn show_split(ui: &mut Ui, args: &mut Args) {
 
 /// DesignCraft's and VectorCraft's bar: one row, each stop's opacity in its colour, midpoints
 /// 13–87 % above the ramp; a stop's colour in a popover, as VectorCraft's.
-fn show_combined(ui: &mut Ui, args: &mut Args) {
+fn show_combined(ui: &mut Ui, args: &mut CombinedArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let (id, host) = StoryHost::load(ui, "gradient-editor-combined", || {
         GradientStops::new(vec![
@@ -151,8 +179,8 @@ fn show_combined(ui: &mut Ui, args: &mut Args) {
             ColorStop::new(1.0, Srgba::new(0.19, 0.64, 0.42, 1.0)),
         ])
     });
-    let fields = args.bool("fields");
-    host.show(ui, id, args.number("width") as f32, |ui, stops| {
+    let fields = args.fields;
+    host.show(ui, id, args.width, |ui, stops| {
         GradientEditor::new("combined", "Gradient", stops, &numbers)
             .rows(StopRows::Combined)
             .midpoint_range(0.13..=0.87)
@@ -176,7 +204,7 @@ struct Dialog {
 /// PhotoCraft's Gradient Editor as a dialog: inside an [`edit::scope`] the editor reports only
 /// updates, which the dialog applies to its draft; OK makes one undo step of the draft, Cancel
 /// none. In its [`FieldTab`] scope Tab visits the fields and Ctrl+Tab reaches the bar.
-fn show_dialog(ui: &mut Ui, args: &mut Args) {
+fn show_dialog(ui: &mut Ui, args: &mut DialogArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let applied = GradientStops::new(vec![ColorStop::new(0.0, rgb(0x12, 0xa5, 0x94)), ColorStop::new(1.0, rgb(0x8e, 0x4e, 0xc6))]);
     let initial = Dialog { applied, open: None, opened: false, steps: 0, updates: 0 };
@@ -202,7 +230,7 @@ fn show_dialog(ui: &mut Ui, args: &mut Args) {
                 ui.allocate_ui(vec2(320.0, 0.0), |ui| {
                     ui.set_max_width(320.0);
                     let response = edit::scope(ui, |ui| {
-                        GradientEditor::new("gradient-dialog-editor", "Gradient", &draft, &numbers).color_popover(args.bool("color popover")).show(ui)
+                        GradientEditor::new("gradient-dialog-editor", "Gradient", &draft, &numbers).color_popover(args.color_popover).show(ui)
                     })
                     .inner;
                     if let Some(event) = &response.edit.event {

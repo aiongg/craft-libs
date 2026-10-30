@@ -7,8 +7,9 @@ use egui::{Rect, Response, Sense, Shape, Stroke, Ui, Widget, WidgetInfo, vec2};
 
 use crate::icons::IconSize;
 use crate::primitives::{Content, Icon, IconStyle};
-use crate::story::{Args, Level, Story, variant_cluster, variant_list};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, variant_cluster, variant_list};
 use crate::theme::{Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// The widest the arc gets, in degrees (egui's stock spinner).
 const SWEEP: f32 = 240.0;
@@ -119,22 +120,35 @@ impl Widget for Spinner {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Spinner"];
 
-const CONTENT_NAMES: &[&str] = &["normal", "muted", "accent"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ContentArg {
+    Normal,
+    Muted,
+    Accent,
+}
+
+impl ContentArg {
+    fn content(self) -> Content {
+        match self {
+            ContentArg::Normal => Content::Normal,
+            ContentArg::Muted => Content::Muted,
+            ContentArg::Accent => Content::Accent,
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct SizesArgs {
+    content: ContentArg,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
-        "controls/spinner/sizes",
-        Level::Controls,
-        "Spinner",
-        "Sizes",
-        || Args::new().with_choice("content", CONTENT_NAMES, 0),
-        show_sizes,
-    )]
+    vec![typed_story!("controls/spinner/sizes", Level::Controls, "Spinner", "Sizes", SizesArgs { content: ContentArg::Normal }, show_sizes)]
 }
 
 /// One spinner per icon size and the default control height, each named for a screen reader.
-fn show_sizes(ui: &mut Ui, args: &mut Args) {
-    let content = Content::from_name(args.choice("content")).unwrap_or(Content::Normal);
+fn show_sizes(ui: &mut Ui, args: &mut SizesArgs) {
+    let content = args.content.content();
     let sizes = IconSize::ALL.map(Some).into_iter().chain([None]);
     variant_list(ui, "spinner-sizes", |form| {
         for (size, name) in sizes.zip(["Sm", "Md", "Lg", "Control"]) {

@@ -14,35 +14,43 @@ use crate::controls::IconButton;
 use crate::edit::EditEvent;
 use crate::icons::Icon;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt, PressMenu};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{Tokens, TokensOf as _, role_format};
+use crate::typed_story;
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct DocumentsArgs {
+    #[arg(range = 160.0..=1200.0)]
+    width: f64,
+    large: bool,
+    tear_off: bool,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct PanelsArgs {
+    #[arg(range = 120.0..=480.0)]
+    width: f64,
+    locked: bool,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct DropsArgs {
+    #[arg(range = 160.0..=1200.0)]
+    width: f64,
+}
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "composites/tab-strip/documents",
             Level::Composites,
             "TabStrip",
             "Documents",
-            || Args::new().with_number("width", 640.0, 160.0, 1200.0).with_bool("large", false).with_bool("tear_off", true),
-            show_documents,
+            DocumentsArgs { width: 640.0, large: false, tear_off: true },
+            show_documents
         ),
-        Story::new(
-            "composites/tab-strip/panels",
-            Level::Composites,
-            "TabStrip",
-            "Panels",
-            || Args::new().with_number("width", 260.0, 120.0, 480.0).with_bool("locked", false),
-            show_panels,
-        ),
-        Story::new(
-            "composites/tab-strip/drops",
-            Level::Composites,
-            "TabStrip",
-            "Drops",
-            || Args::new().with_number("width", 480.0, 160.0, 1200.0),
-            show_drops,
-        ),
+        typed_story!("composites/tab-strip/panels", Level::Composites, "TabStrip", "Panels", PanelsArgs { width: 260.0, locked: false }, show_panels),
+        typed_story!("composites/tab-strip/drops", Level::Composites, "TabStrip", "Drops", DropsArgs { width: 480.0 }, show_drops),
     ]
 }
 
@@ -152,8 +160,8 @@ fn apply_move<T>(items: &mut Vec<T>, key: impl Fn(&T) -> u32, mv: &Move<u32>) {
 /// macOS, Shift to the ends) on the focused tab; with `tear_off`, a drag past the band shows a log
 /// line and a release there reports the tab leaving. The line under the strip shows the last
 /// event.
-fn show_documents(ui: &mut Ui, args: &mut Args) {
-    let (width, large, tear_off) = (args.number("width") as f32, args.bool("large"), args.bool("tear_off"));
+fn show_documents(ui: &mut Ui, args: &mut DocumentsArgs) {
+    let (width, large, tear_off) = (args.width as f32, args.large, args.tear_off);
     let shared = shared(ui, "tab-strip-documents", Docs::new);
     let mut docs = shared.lock();
     let tabs: Vec<Tab<u32>> = docs
@@ -280,8 +288,8 @@ enum PanelCommand {
 /// button at the reading start and a panel menu at the end, double click to collapse, a group
 /// drag from the empty strip, and a context menu. `locked` stops tab drags, so a drag on a tab
 /// moves the group.
-fn show_panels(ui: &mut Ui, args: &mut Args) {
-    let (width, locked) = (args.number("width") as f32, args.bool("locked"));
+fn show_panels(ui: &mut Ui, args: &mut PanelsArgs) {
+    let (width, locked) = (args.width as f32, args.locked);
     let shared = shared(ui, "tab-strip-panels", Panels::new);
     let mut state = shared.lock();
     let button = Tab::<u32>::style(&Tokens::of(ui)).height;
@@ -400,8 +408,8 @@ struct Drops {
     last: String,
 }
 
-fn show_drops(ui: &mut Ui, args: &mut Args) {
-    let width = args.number("width") as f32;
+fn show_drops(ui: &mut Ui, args: &mut DropsArgs) {
+    let width = args.width as f32;
     let shared = shared(ui, "tab-strip-drops", || Drops {
         names: ["Cover", "Chapter 1", "Chapter 2", "Notes"].iter().copied().zip(1..).map(|(name, key)| (key, name)).collect(),
         selected: 1,

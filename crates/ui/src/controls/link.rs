@@ -8,8 +8,9 @@ use egui::{AsIdSalt, Color32, CursorIcon, IdSalt, OpenUrl, Response, Stroke, Ui,
 
 use super::salt;
 use crate::primitives::{Content, Corner, Gap, Interactive, Stack, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// A link's look, from [`Link::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -97,16 +98,21 @@ impl Widget for Link {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Link"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct LinkArgs {
+    label: String,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new("controls/link/inline", Level::Controls, "Link", "Inline", || Args::new().with_text("label", "release notes"), show_inline),
-        Story::new("controls/link/alone", Level::Controls, "Link", "Alone", || Args::new().with_text("label", "Show all shortcuts"), show_alone),
+        typed_story!("controls/link/inline", Level::Controls, "Link", "Inline", LinkArgs { label: "release notes".into() }, show_inline),
+        typed_story!("controls/link/alone", Level::Controls, "Link", "Alone", LinkArgs { label: "Show all shortcuts".into() }, show_alone),
     ]
 }
 
 /// A link inside a wrapping paragraph.
-fn show_inline(ui: &mut Ui, args: &mut Args) {
-    let label = args.text("label").to_owned();
+fn show_inline(ui: &mut Ui, args: &mut LinkArgs) {
+    let label = args.label.clone();
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         ui.add(Text::new("This version changes how layers are saved. Read the "));
@@ -116,11 +122,11 @@ fn show_inline(ui: &mut Ui, args: &mut Args) {
 }
 
 /// Links on their own, one reporting clicks, one in a smaller role.
-fn show_alone(ui: &mut Ui, args: &mut Args) {
+fn show_alone(ui: &mut Ui, args: &mut LinkArgs) {
     let state_id = ui.scope_id().with("link-alone-count");
     let mut count = ui.data(|d| d.get_temp::<u32>(state_id).unwrap_or_default());
     Stack::new(Gap::Stack).show(ui, |ui| {
-        if ui.add(Link::new(args.text("label")).id_salt("link-alone")).clicked() {
+        if ui.add(Link::new(args.label.as_str()).id_salt("link-alone")).clicked() {
             count += 1;
         }
         ui.add(Link::new("Privacy policy").role(TypeRole::Caption).url("https://example.com/privacy").id_salt("link-caption"));

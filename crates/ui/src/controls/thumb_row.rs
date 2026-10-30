@@ -15,8 +15,9 @@ use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{FocusRing, Interactive, StateLayer};
 use crate::primitives::{Gap, Stack};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// Width of a thumb's edge, in points.
 const EDGE: f32 = 1.0;
@@ -990,14 +991,19 @@ fn paint_triangle(ui: &Ui, style: &ThumbRowStyle, tip: Pos2, half: Option<Half>,
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Thumb row"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct RowsArgs {
+    disabled: bool,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new("controls/thumb-row/rows", Level::Controls, "Thumb row", "Rows", || Args::new().with_bool("disabled", false), show)]
+    vec![typed_story!("controls/thumb-row/rows", Level::Controls, "Thumb row", "Rows", RowsArgs { disabled: false }, show)]
 }
 
 /// Two free thumbs, a split black and a split white thumb (Alt-drag moves a half alone), a
 /// hue range that wraps round, and a four-thumb hue range bar ordered round from its first thumb.
-fn show(ui: &mut Ui, args: &mut Args) {
-    let enabled = !args.bool("disabled");
+fn show(ui: &mut Ui, args: &mut RowsArgs) {
+    let enabled = !args.disabled;
     let style = ThumbRow::<2>::style(&Tokens::of(ui));
     let faces = [Color32::BLACK, Color32::WHITE];
     Stack::new(Gap::Stack).show(ui, |ui| {

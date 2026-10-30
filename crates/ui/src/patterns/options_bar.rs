@@ -3,13 +3,15 @@
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, Id, IdSalt, Key, KeyboardShortcut, Modifiers, Rect, Response, ScrollArea, Sense, Ui, UiBuilder, Vec2, vec2};
 
+use super::options_cell::{BarArgs, show_story};
 use crate::composites::measure;
 use crate::controls::{IconButton, TooltipExt as _};
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{Content, Divider, FocusRing};
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// An options bar's sizes and colours, from [`OptionsBar::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -318,20 +320,13 @@ pub const COMPONENTS: &[&str] = &["OptionsBar"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "patterns/options-bar/brush-and-transform",
             Level::Patterns,
             "OptionsBar",
             "Brush and transform",
-            || {
-                Args::new()
-                    .with_bool("narrow", false)
-                    .with_bool("session", true)
-                    .with_bool("disabled", false)
-                    .with_bool("two_rows", false)
-                    .with_number("width", 640.0, 160.0, 1200.0)
-            },
-            super::options_cell::show_story,
+            BarArgs { narrow: false, session: true, disabled: false, two_rows: false, width: 640.0 },
+            show_story
         )
         .on(Surface::Chrome),
     ]

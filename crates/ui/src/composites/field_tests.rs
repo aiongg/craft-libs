@@ -3,12 +3,11 @@ use egui::{Context, Rect, Ui};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder, Node};
 
-use super::field::show_dialog;
+use super::field::{DialogArgs, show_dialog};
 use super::*;
 use crate::controls::{Checkbox, NumberField, Select, Slider, TextField};
 use crate::direction::{self, Direction};
 use crate::localized::LocaleNumbers;
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, install};
 
@@ -170,7 +169,7 @@ fn every_kind_of_control_is_labelled_described_and_given_its_error() {
 fn the_dialog_story_names_every_control() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         for (above, error) in [(false, false), (true, true)] {
-            let mut args = Args::new().with_bool("above", above).with_bool("help", true).with_bool("error", error);
+            let mut args = DialogArgs { above, help: true, error };
             let harness = harness(dir).build_ui(move |ui| show_dialog(ui, &mut args));
             a11y::assert_labelled(&harness);
             assert_eq!(text_input(&harness, "Layer 1").accesskit_node().label().as_deref(), Some("Name:"));

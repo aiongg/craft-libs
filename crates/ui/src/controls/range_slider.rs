@@ -6,16 +6,17 @@ use craft_theme::{ControlSize, States};
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, PointerButton, Sense, Stroke, Ui, Vec2, pos2};
 
+use super::Slider;
 use super::slider::{
     KEY_FILTER, Scale, Sensing, SliderStyle, ThumbPaint, Track, apply, labelled, paint_fill, paint_thumb, paint_track, pointer, stepped, store, tap,
     with_values,
 };
-use super::{SIZE_NAMES, Slider, size_arg};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::SurfaceEdge;
 use crate::primitives::{FocusRing, Interactive, StateLayer};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, SizeArg, Story, StoryArgs};
 use crate::theme::{ToEgui as _, Tokens, TokensOf, UiTokens, corner_radius};
+use crate::typed_story;
 
 /// A range within a range, set with two thumbs on one track:
 ///
@@ -314,20 +315,26 @@ fn dragged(track: &Track, scale: &Scale, part: Part, anchor: (f64, f64), start: 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Range slider"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct RangeArgs {
+    size: SizeArg,
+    disabled: bool,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "controls/range-slider/range",
         Level::Controls,
         "Range slider",
         "Range",
-        || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false),
-        show,
+        RangeArgs { size: SizeArg::Md, disabled: false },
+        show
     )]
 }
 
 /// A continuous range and one in steps of 5.
-fn show(ui: &mut Ui, args: &mut Args) {
-    let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
+fn show(ui: &mut Ui, args: &mut RangeArgs) {
+    let (size, enabled) = (args.size.control(), !args.disabled);
     with_values(ui, "range-slider", [(20.0, 60.0), (25.0, 75.0)], |ui, values| {
         crate::story::variant_list(ui, "range-slider", |form| {
             for (i, (name, value)) in ["Levels", "Steps of 5"].into_iter().zip(values.iter_mut()).enumerate() {

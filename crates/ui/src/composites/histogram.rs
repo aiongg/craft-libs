@@ -13,8 +13,9 @@ use crate::controls::TooltipExt as _;
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{Corner, FocusRing, Interactive};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, tokens_in_mode};
+use crate::typed_story;
 
 /// The colour of a channel in curves and histograms: a data token.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -997,22 +998,90 @@ pub(super) fn rgb_mesh(rect: Rect, heights: &[Vec<f32>], colors: &[Color32], ble
 pub const COMPONENTS: &[&str] = &["Histogram"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    const CHANNELS: &[&str] = &["neutral", "red", "green", "blue", "cyan", "magenta", "yellow"];
-    const SCALES: &[&str] = &["peak", "typical"];
-    let tone = || {
-        Args::new().with_choice("channel", CHANNELS, 1).with_bool("stale", false).with_bool("marker", true).with_number("width", 256.0, 80.0, 400.0)
-    };
-    let plain = || Args::new().with_number("width", 256.0, 80.0, 400.0);
-    let rgb = || Args::new().with_choice("scale", SCALES, 0).with_bool("marker", false).with_number("width", 256.0, 80.0, 400.0);
     vec![
-        Story::new("composites/histogram/tone", Level::Composites, "Histogram", "Tone", tone, show_tone),
-        Story::new("composites/histogram/rgb", Level::Composites, "Histogram", "RGB", rgb, show_rgb),
-        Story::new("composites/histogram/inks", Level::Composites, "Histogram", "Inks", plain, show_inks),
-        Story::new("composites/histogram/outline", Level::Composites, "Histogram", "Outline", plain, show_outline),
-        Story::new("composites/histogram/markers", Level::Composites, "Histogram", "Markers", plain, show_markers),
-        Story::new("composites/histogram/selection", Level::Composites, "Histogram", "Selection", plain, show_selection),
-        Story::new("composites/histogram/stale-click", Level::Composites, "Histogram", "Stale click", plain, show_stale_click),
+        typed_story!(
+            "composites/histogram/tone",
+            Level::Composites,
+            "Histogram",
+            "Tone",
+            ToneArgs { channel: ChannelArg::Red, stale: false, marker: true, width: 256.0 },
+            show_tone
+        ),
+        typed_story!(
+            "composites/histogram/rgb",
+            Level::Composites,
+            "Histogram",
+            "RGB",
+            RgbArgs { scale: ScaleArg::Peak, marker: false, width: 256.0 },
+            show_rgb
+        ),
+        typed_story!("composites/histogram/inks", Level::Composites, "Histogram", "Inks", WidthArgs::default(), show_inks),
+        typed_story!("composites/histogram/outline", Level::Composites, "Histogram", "Outline", WidthArgs::default(), show_outline),
+        typed_story!("composites/histogram/markers", Level::Composites, "Histogram", "Markers", WidthArgs::default(), show_markers),
+        typed_story!("composites/histogram/selection", Level::Composites, "Histogram", "Selection", WidthArgs::default(), show_selection),
+        typed_story!("composites/histogram/stale-click", Level::Composites, "Histogram", "Stale click", WidthArgs::default(), show_stale_click),
     ]
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+pub(super) enum ChannelArg {
+    Neutral,
+    Red,
+    Green,
+    Blue,
+    Cyan,
+    Magenta,
+    Yellow,
+}
+
+impl ChannelArg {
+    fn color(self) -> ChannelColor {
+        match self {
+            ChannelArg::Neutral => ChannelColor::Neutral,
+            ChannelArg::Red => ChannelColor::Red,
+            ChannelArg::Green => ChannelColor::Green,
+            ChannelArg::Blue => ChannelColor::Blue,
+            ChannelArg::Cyan => ChannelColor::Cyan,
+            ChannelArg::Magenta => ChannelColor::Magenta,
+            ChannelArg::Yellow => ChannelColor::Yellow,
+        }
+    }
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+pub(super) enum ScaleArg {
+    Peak,
+    Typical,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct ToneArgs {
+    pub(super) channel: ChannelArg,
+    pub(super) stale: bool,
+    pub(super) marker: bool,
+    #[arg(range = 80.0..=400.0)]
+    pub(super) width: f32,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct RgbArgs {
+    pub(super) scale: ScaleArg,
+    pub(super) marker: bool,
+    #[arg(range = 80.0..=400.0)]
+    pub(super) width: f32,
+}
+
+/// The args of the stories that only pick the column width.
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct WidthArgs {
+    #[arg(range = 80.0..=400.0)]
+    width: f32,
+}
+
+impl Default for WidthArgs {
+    fn default() -> Self {
+        Self { width: 256.0 }
+    }
 }
 
 /// A bell curve of `count` pixels around `centre` with spread `width`, over 256 bins.
@@ -1020,29 +1089,28 @@ fn bell(centre: f32, width: f32, count: f32) -> Vec<u32> {
     (0..256).map(|i| (count * (-((i as f32 - centre) / width).powi(2) / 2.0).exp()) as u32).collect()
 }
 
-fn channel_of(name: &str) -> ChannelColor {
-    ChannelColor::ALL.into_iter().find(|c| c.name() == name).unwrap_or_default()
-}
-
-pub(super) fn show_tone(ui: &mut Ui, args: &mut Args) {
-    let width = args.number("width") as f32;
-    let channel = channel_of(args.choice("channel"));
+pub(super) fn show_tone(ui: &mut Ui, args: &mut ToneArgs) {
+    let width = args.width;
+    let channel = args.channel.color();
     let bins = bell(90.0, 30.0, 9000.0).iter().zip(bell(190.0, 14.0, 6000.0)).map(|(a, b)| a + b).collect::<Vec<_>>();
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
-        let marker = args.bool("marker").then_some(128.0);
+        let marker = args.marker.then_some(128.0);
         Histogram::new("story-tone", "Histogram")
             .tone(&bins, channel)
             .value(format!("{} channel", channel.name()))
             .marker(marker)
-            .stale(args.bool("stale"))
+            .stale(args.stale)
             .show(ui);
     });
 }
 
-pub(super) fn show_rgb(ui: &mut Ui, args: &mut Args) {
-    let width = args.number("width") as f32;
-    let scale = if args.choice("scale") == "typical" { HistogramScale::Typical } else { HistogramScale::Peak };
+pub(super) fn show_rgb(ui: &mut Ui, args: &mut RgbArgs) {
+    let width = args.width;
+    let scale = match args.scale {
+        ScaleArg::Typical => HistogramScale::Typical,
+        ScaleArg::Peak => HistogramScale::Peak,
+    };
     let (mut r, mut g, mut b) = (bell(100.0, 36.0, 9000.0), bell(120.0, 40.0, 8000.0), bell(150.0, 30.0, 7000.0));
     // Clipped pixels at both ends, far above the interior.
     for (bins, edges) in [(&mut r, (60_000, 9000)), (&mut g, (30_000, 2000)), (&mut b, (20_000, 40_000))] {
@@ -1051,14 +1119,14 @@ pub(super) fn show_rgb(ui: &mut Ui, args: &mut Args) {
     }
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
-        let marker = args.bool("marker").then_some(100.0);
+        let marker = args.marker.then_some(100.0);
         Histogram::new("story-rgb", "RGB histogram").rgb([&r, &g, &b]).scale(scale).value("Red, green and blue channels").marker(marker).show(ui);
     });
 }
 
 /// `story` in a column `width` wide.
-fn sized(ui: &mut Ui, args: &Args, story: impl FnOnce(&mut Ui)) {
-    let width = args.number("width") as f32;
+fn sized(ui: &mut Ui, args: &WidthArgs, story: impl FnOnce(&mut Ui)) {
+    let width = args.width;
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         story(ui);
@@ -1069,7 +1137,7 @@ fn story_bins() -> Vec<u32> {
     bell(90.0, 30.0, 9000.0).iter().zip(bell(190.0, 14.0, 6000.0)).map(|(a, b)| a + b).collect()
 }
 
-pub(super) fn show_inks(ui: &mut Ui, args: &mut Args) {
+pub(super) fn show_inks(ui: &mut Ui, args: &mut WidthArgs) {
     let (c, m, y, k) = (bell(70.0, 30.0, 9000.0), bell(110.0, 36.0, 8000.0), bell(150.0, 30.0, 7000.0), bell(40.0, 20.0, 6000.0));
     sized(ui, args, |ui| {
         let inks: [(&[u32], ChannelColor); 4] =
@@ -1078,7 +1146,7 @@ pub(super) fn show_inks(ui: &mut Ui, args: &mut Args) {
     });
 }
 
-pub(super) fn show_outline(ui: &mut Ui, args: &mut Args) {
+pub(super) fn show_outline(ui: &mut Ui, args: &mut WidthArgs) {
     let original = bell(120.0, 50.0, 12_000.0);
     sized(ui, args, |ui| {
         Histogram::new("story-outline", "Histogram")
@@ -1089,14 +1157,14 @@ pub(super) fn show_outline(ui: &mut Ui, args: &mut Args) {
     });
 }
 
-pub(super) fn show_markers(ui: &mut Ui, args: &mut Args) {
+pub(super) fn show_markers(ui: &mut Ui, args: &mut WidthArgs) {
     sized(ui, args, |ui| {
         let markers = [(12.0, "0".to_owned()), (128.0, "1.00".to_owned()), (243.0, "255".to_owned())];
         Histogram::new("story-markers", "Histogram").tone(&story_bins(), ChannelColor::Neutral).markers(&markers).value("Levels points").show(ui);
     });
 }
 
-pub(super) fn show_selection(ui: &mut Ui, args: &mut Args) {
+pub(super) fn show_selection(ui: &mut Ui, args: &mut WidthArgs) {
     sized(ui, args, |ui| {
         let id = ui.scope_id().with("story-selection");
         let current = ui.data(|d| d.get_temp::<Option<(f32, f32)>>(id)).flatten().map(|(a, b)| a..=b);
@@ -1112,7 +1180,7 @@ pub(super) fn show_selection(ui: &mut Ui, args: &mut Args) {
     });
 }
 
-pub(super) fn show_stale_click(ui: &mut Ui, args: &mut Args) {
+pub(super) fn show_stale_click(ui: &mut Ui, args: &mut WidthArgs) {
     sized(ui, args, |ui| {
         let id = ui.scope_id().with("story-recalculated");
         let count = ui.data(|d| d.get_temp::<u32>(id)).unwrap_or(0);

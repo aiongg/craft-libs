@@ -5,12 +5,11 @@ use egui::{Context, Event, Modifiers, PointerButton, Pos2, Rect, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder, Node};
 
-use super::panel_header::show_flyout;
+use super::panel_header::{FlyoutArgs, show_flyout};
 use super::*;
 use crate::controls::IconButton;
 use crate::direction::{self, Direction};
 use crate::icons::Icon;
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, install};
 use craft_theme::ControlSize;
@@ -232,12 +231,7 @@ fn a_press_on_a_button_or_an_action_never_drags_the_panel() {
 fn the_flyout_story_names_every_control_in_both_directions() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         for width in [60.0, 150.0, 260.0] {
-            let mut a = Args::new()
-                .with_bool("float", true)
-                .with_bool("close", true)
-                .with_bool("menu", true)
-                .with_bool("actions", true)
-                .with_number("width", width, 60.0, 400.0);
+            let mut a = FlyoutArgs { float: true, close: true, menu: true, actions: true, width };
             let harness = harness(dir).build_ui(move |ui| show_flyout(ui, &mut a));
             a11y::assert_labelled(&harness);
         }

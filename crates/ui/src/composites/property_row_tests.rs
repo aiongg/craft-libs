@@ -4,14 +4,13 @@ use egui::{Context, Event, Modifiers, PointerButton, Pos2, Rect, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder, Node};
 
-use super::property_row::show_inspector;
+use super::property_row::{InspectorArgs, show_inspector};
 use super::*;
 use crate::controls::{IconButton, NumberField};
 use crate::direction::{self, Direction};
 use crate::edit::EditEvent;
 use crate::icons::Icon;
 use crate::localized::LocaleNumbers;
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, install};
 use craft_theme::ControlSize;
@@ -322,7 +321,7 @@ fn a_scrubbing_label_changes_the_value() {
 fn the_inspector_story_names_every_control_at_every_width() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         for (width, mixed) in [(60.0, false), (150.0, true), (260.0, false)] {
-            let mut args = Args::new().with_bool("mixed", mixed).with_number("width", width, 60.0, 400.0);
+            let mut args = InspectorArgs { mixed, width };
             let harness = harness(dir).build_ui(move |ui| show_inspector(ui, &mut args));
             a11y::assert_labelled(&harness);
         }

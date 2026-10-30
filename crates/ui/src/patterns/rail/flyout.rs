@@ -8,8 +8,9 @@ use crate::controls::{IconButton, IconButtonStyle, Kbd};
 use crate::direction;
 use crate::icons::Icon;
 use crate::menu::{Menu, MenuEntry, MenuItem};
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 use craft_theme::ControlSize;
 
 /// A flyout button's sizes and colours, from [`FlyoutButton::style`].
@@ -329,9 +330,16 @@ fn paint_indicator(ui: &Ui, response: &Response, style: &FlyoutStyle) {
 pub const COMPONENTS: &[&str] = &["FlyoutButton"];
 
 /// One button standing for three tools, and the response of the last pass that had one.
-fn show_story(ui: &mut Ui, args: &mut Args) {
-    let count = args.number("items").round() as usize;
-    let selected = args.bool("selected");
+#[derive(StoryArgs, Debug, PartialEq)]
+struct FlyoutArgs {
+    #[arg(range = 1..=3)]
+    items: usize,
+    selected: bool,
+}
+
+fn show_story(ui: &mut Ui, args: &mut FlyoutArgs) {
+    let count = args.items;
+    let selected = args.selected;
     let all = [
         FlyoutItem::new("brush", Icon::Brush, "Brush").shortcut("B"),
         FlyoutItem::new("stamp", Icon::Stamp, "Stamp").shortcut("N"),
@@ -356,6 +364,8 @@ fn show_story(ui: &mut Ui, args: &mut Args) {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_number("items", 3.0, 1.0, 3.0).with_bool("selected", true);
-    vec![Story::new("patterns/rail/flyout", Level::Patterns, "FlyoutButton", "Flyout button", args, show_story).on(Surface::Chrome)]
+    vec![
+        typed_story!("patterns/rail/flyout", Level::Patterns, "FlyoutButton", "Flyout button", FlyoutArgs { items: 3, selected: true }, show_story)
+            .on(Surface::Chrome),
+    ]
 }

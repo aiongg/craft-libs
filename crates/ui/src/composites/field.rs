@@ -14,8 +14,9 @@ use crate::direction;
 use crate::edit::{EditEvent, EditResponse};
 use crate::localized::LocaleNumbers;
 use crate::primitives::Content;
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// A field's gaps, type roles and colours, from [`Field::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -310,8 +311,21 @@ fn column_width(ui: &Ui, own: f32) -> f32 {
 pub const COMPONENTS: &[&str] = &["Field"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_bool("above", false).with_bool("help", true).with_bool("error", false);
-    vec![Story::new("composites/field/dialog", Level::Composites, "Field", "Dialog", args, show_dialog)]
+    vec![typed_story!(
+        "composites/field/dialog",
+        Level::Composites,
+        "Field",
+        "Dialog",
+        DialogArgs { above: false, help: true, error: false },
+        show_dialog
+    )]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct DialogArgs {
+    pub(super) above: bool,
+    pub(super) help: bool,
+    pub(super) error: bool,
 }
 
 const MODES: [&str; 3] = ["Normal", "Multiply", "Screen"];
@@ -327,8 +341,8 @@ struct Dialog {
 
 /// A New Layer dialog: name, mode and opacity in one label column, a check box under them in the
 /// control column, in a `FieldTab` scope. `error` shows the name's error in place of its help.
-pub(super) fn show_dialog(ui: &mut Ui, args: &mut Args) {
-    let (above, help, error) = (args.bool("above"), args.bool("help"), args.bool("error"));
+pub(super) fn show_dialog(ui: &mut Ui, args: &mut DialogArgs) {
+    let (above, help, error) = (args.above, args.help, args.error);
     let state_id = ui.scope_id().with("field-dialog");
     let mut v = ui.data(|d| d.get_temp::<Dialog>(state_id)).unwrap_or(Dialog { name: "Layer 1".into(), mode: 0, opacity: 100.0, clip: false });
     let numbers = LocaleNumbers::from_tag("en");

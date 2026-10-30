@@ -15,8 +15,9 @@ use crate::controls::{IconButton, IconButtonStyle};
 use crate::direction;
 use crate::icons::Icon;
 use crate::panes::Edge;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 use craft_theme::{ControlSize, States};
 
 /// A panel rail's sizes and colours, from [`PanelRail::style`].
@@ -392,25 +393,64 @@ const PANELS: [(&str, Icon, &str); 6] = [
     ("brushes", Icon::Brush, "Brushes"),
 ];
 
-const OPEN: &[&str] = &["none", "properties", "navigator", "color", "layers", "history", "brushes"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum OpenArg {
+    None,
+    Properties,
+    Navigator,
+    Color,
+    Layers,
+    History,
+    Brushes,
+}
+
+impl OpenArg {
+    /// The id of the open panel, if any.
+    fn panel(self) -> Option<&'static str> {
+        match self {
+            OpenArg::None => None,
+            OpenArg::Properties => Some("properties"),
+            OpenArg::Navigator => Some("navigator"),
+            OpenArg::Color => Some("color"),
+            OpenArg::Layers => Some("layers"),
+            OpenArg::History => Some("history"),
+            OpenArg::Brushes => Some("brushes"),
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct RailArgs {
+    open: OpenArg,
+    #[arg(range = 120.0..=600.0)]
+    height: f32,
+}
 
 /// PhotoCraft's panel rail: six panel icons, markers on History and Brushes.
-fn show_story(ui: &mut Ui, args: &mut Args) {
-    let open = args.choice("open");
-    let height = args.number("height") as f32;
+fn show_story(ui: &mut Ui, args: &mut RailArgs) {
+    let height = args.height;
     let items: Vec<PanelRailItem<&'static str>> = PANELS
         .iter()
         .map(|(panel, icon, label)| {
             PanelRailItem::new(*panel, *icon, *label).marker(matches!(*panel, "history" | "brushes")).marker_label("Has content")
         })
         .collect();
-    let open: Vec<&str> = OPEN.iter().copied().filter(|panel| *panel == open && *panel != "none").collect();
+    let open: Vec<&str> = args.open.panel().into_iter().collect();
     ui.allocate_ui(vec2(120.0, height), |ui| {
         PanelRail::new("story").label("Panels").show(ui, &items, &open, |_| {});
     });
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_choice("open", OPEN, 4).with_number("height", 320.0, 120.0, 600.0);
-    vec![Story::new("patterns/rail/panel", Level::Patterns, "PanelRail", "Panel rail", args, show_story).on(Surface::Chrome)]
+    vec![
+        typed_story!(
+            "patterns/rail/panel",
+            Level::Patterns,
+            "PanelRail",
+            "Panel rail",
+            RailArgs { open: OpenArg::Layers, height: 320.0 },
+            show_story
+        )
+        .on(Surface::Chrome),
+    ]
 }

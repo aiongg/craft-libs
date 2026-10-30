@@ -6,11 +6,10 @@ use egui::{Event, Key, Modifiers, Ui};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
-use super::tree::{NODES, display, is_group, show_tree};
+use super::tree::{NODES, TreeArgs, display, is_group, show_tree};
 use super::*;
 use crate::behavior::Selection;
 use crate::direction::{self, Direction};
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, install};
 
@@ -219,7 +218,7 @@ fn tree_state_applies_one_group_or_all() {
 
 #[test]
 fn the_tree_story_names_every_control() {
-    let mut args = Args::new().with_number("width", 320.0, 120.0, 480.0).with_number("height", 280.0, 120.0, 480.0);
+    let mut args = TreeArgs { width: 320.0, height: 280.0 };
     let harness = Harness::builder()
         .with_size([400.0, 320.0])
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))

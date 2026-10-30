@@ -332,13 +332,14 @@ fn lines_beyond_eight_become_one_more_line() {
 fn the_story_is_labelled() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         let mut args = (toast::stories()[0].args)();
+        let show = toast::stories()[0].show;
         let mut harness = Harness::<()>::builder()
             .with_size([640.0, 480.0])
             .with_context_setup(move |ctx: &Context| {
                 install(ctx, &Base::suite_default());
                 direction::apply(ctx, dir);
             })
-            .build_ui(move |ui| toast::show_stack(ui, &mut args));
+            .build_ui(move |ui| show(ui, &mut args));
         harness.run();
         a11y::assert_labelled(&harness);
     }

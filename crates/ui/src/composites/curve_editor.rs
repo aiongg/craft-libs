@@ -15,6 +15,7 @@ use super::curve::{Curve, CurveOp, PointKey, Rules, follow_corners};
 use super::histogram::{ChannelColor, HistogramData, HistogramLook};
 use super::{PropertyLabel, PropertyRow};
 use crate::behavior::{ClaimedKey, KeyClaim};
+use crate::controls::NoArgs;
 use crate::controls::number_field::{self, FieldRule};
 use crate::controls::{Checkbox, NumberField};
 use crate::edit::ops::{self, ScalarOp};
@@ -23,8 +24,9 @@ use crate::edit::parts::{self, Pushed};
 use crate::edit::{self, EditPolicy, EditResponse, Gesture};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// One channel of a curve dialog: its name ("Red"; the host's text) and colour.
 #[derive(Clone, Debug, PartialEq)]
@@ -1215,28 +1217,61 @@ pub const COMPONENTS: &[&str] = &["CurveEditor"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "composites/curve-editor/curves",
             Level::Composites,
             "CurveEditor",
             "Curves",
-            || {
-                Args::new()
-                    .with_choice("channel", &["RGB", "Red", "Green", "Blue"], 0)
-                    .with_bool("pencil", false)
-                    .with_bool("histogram", true)
-                    .with_bool("fields", true)
-                    .with_number("width", 300.0, 120.0, 400.0)
-                    .with_choice("values", &["levels", "percent"], 0)
-                    .with_choice("update rate", edit::RATES, 0)
-                    .with_bool("cancellable", true)
-                    .with_bool("on release only", false)
+            CurvesArgs {
+                channel: ChannelArg::Rgb,
+                pencil: false,
+                histogram: true,
+                fields: true,
+                width: 300.0,
+                values: ValuesArg::Levels,
+                update_rate: edit::RateArg::Realtime,
+                cancellable: true,
+                on_release_only: false
             },
-            show_curves,
+            show_curves
         ),
-        Story::new("composites/curve-editor/small", Level::Composites, "CurveEditor", "Small", Args::new, show_small),
-        Story::new("composites/curve-editor/corners", Level::Composites, "CurveEditor", "Corners", Args::new, show_corners),
+        typed_story!("composites/curve-editor/small", Level::Composites, "CurveEditor", "Small", NoArgs {}, show_small),
+        typed_story!("composites/curve-editor/corners", Level::Composites, "CurveEditor", "Corners", NoArgs {}, show_corners),
     ]
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ChannelArg {
+    #[choice(name = "RGB")]
+    Rgb,
+    #[choice(name = "Red")]
+    Red,
+    #[choice(name = "Green")]
+    Green,
+    #[choice(name = "Blue")]
+    Blue,
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ValuesArg {
+    Levels,
+    Percent,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct CurvesArgs {
+    channel: ChannelArg,
+    pencil: bool,
+    histogram: bool,
+    fields: bool,
+    #[arg(range = 120.0..=400.0)]
+    width: f32,
+    values: ValuesArg,
+    #[arg(name = "update rate")]
+    update_rate: edit::RateArg,
+    cancellable: bool,
+    #[arg(name = "on release only")]
+    on_release_only: bool,
 }
 
 /// A host's curves and the "before" of the gesture under way, kept between frames.
@@ -1296,14 +1331,20 @@ fn story_points(map: &[f32]) -> Curve {
 /// PhotoCraft's Curves on an RGB image: a channel per arg, the other channels' curves and a
 /// histogram behind the RGB curve, a pencil mode, a hint, the fields in levels or percent, and
 /// the host's edit policy.
-fn show_curves(ui: &mut Ui, args: &mut Args) {
+fn show_curves(ui: &mut Ui, args: &mut CurvesArgs) {
     let channels = [
         CurveChannel::new("RGB", ChannelColor::Neutral),
         CurveChannel::new("Red", ChannelColor::Red),
         CurveChannel::new("Green", ChannelColor::Green),
         CurveChannel::new("Blue", ChannelColor::Blue),
     ];
-    let channel = channels.iter().position(|c| c.label == args.choice("channel")).unwrap_or(0);
+    let channel_label = match args.channel {
+        ChannelArg::Rgb => "RGB",
+        ChannelArg::Red => "Red",
+        ChannelArg::Green => "Green",
+        ChannelArg::Blue => "Blue",
+    };
+    let channel = channels.iter().position(|c| c.label == channel_label).unwrap_or(0);
     let numbers = LocaleNumbers::from_tag("en");
     let (id, mut host) = story_curves(ui, "curve-editor-curves", || {
         let mut curves = vec![Curve::identity(255.0); 4];
@@ -1311,8 +1352,8 @@ fn show_curves(ui: &mut Ui, args: &mut Args) {
         curves[1] = Curve::smooth(vec![[0.0, 12.0], [128.0, 140.0], [255.0, 255.0]]);
         curves
     });
-    let width = args.number("width") as f32;
-    let pencil = args.bool("pencil");
+    let width = args.width;
+    let pencil = args.pencil;
     if !pencil && let Curve::Map(map) = &host.curves[channel] {
         host.curves[channel] = story_points(map);
     }
@@ -1326,16 +1367,20 @@ fn show_curves(ui: &mut Ui, args: &mut Args) {
             .channel(channel)
             .overlays(&overlays)
             .pencil(pencil)
-            .fields(args.bool("fields"))
-            .policy(edit::policy(args))
+            .fields(args.fields)
+            .policy(edit::policy(&edit::PolicyArgs {
+                update_rate: args.update_rate,
+                cancellable: args.cancellable,
+                on_release_only: args.on_release_only,
+            }))
             .hint(match pencil {
                 true => "Drag to draw · Shift-click for a straight line from the last stroke · Esc cancels",
                 false => "Click to add a point · drag off or Ctrl-click or Delete to remove",
             });
-        if args.bool("histogram") {
+        if args.histogram {
             editor = editor.histogram(&data);
         }
-        if args.choice("values") == "percent" {
+        if args.values == ValuesArg::Percent {
             editor = editor.percent();
         }
         let edit = editor.show(ui);
@@ -1346,7 +1391,7 @@ fn show_curves(ui: &mut Ui, args: &mut Args) {
 }
 
 /// Camera Raw's tone curve: 260 square, no fields, no channels.
-fn show_small(ui: &mut Ui, _: &mut Args) {
+fn show_small(ui: &mut Ui, _: &mut NoArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let (id, mut host) = story_curves(ui, "curve-editor-small", || vec![Curve::smooth(vec![[0.0, 0.0], [96.0, 80.0], [255.0, 255.0]])]);
     let edit = CurveEditor::new("tone-curve", "Tone curve", &host.curves[0], &numbers).side(260.0).fields(false).show(ui);
@@ -1356,7 +1401,7 @@ fn show_small(ui: &mut Ui, _: &mut Args) {
 }
 
 /// The contour editor: 220 square, percent fields, the Corner checkbox toggles the selected point.
-fn show_corners(ui: &mut Ui, _: &mut Args) {
+fn show_corners(ui: &mut Ui, _: &mut NoArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let (id, mut host) = story_curves(ui, "curve-editor-corners", || {
         vec![Curve::from_parts(

@@ -30,8 +30,9 @@ use crate::direction;
 use crate::edit::{self, EditEvent, GestureId};
 use crate::popup_list;
 use crate::primitives::FocusRing;
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{Tokens, TokensOf as _, role_format};
+use crate::typed_story;
 
 /// What a [`List`] reports, in the order it happened.
 #[derive(Clone, Debug, PartialEq)]
@@ -1239,19 +1240,31 @@ impl ListOptions for Labels {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "composites/list/ten-thousand-rows",
         Level::Composites,
         "List",
         "10,000 rows",
-        || {
-            Args::new()
-                .with_choice("selection", &["Multiple", "Single"], 0)
-                .with_bool("mixed heights", false)
-                .with_number("height", 320.0, 120.0, 600.0)
-        },
-        show_rows,
+        RowsArgs { selection: SelectionArg::Multiple, mixed_heights: false, height: 320.0 },
+        show_rows
     )]
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+pub(super) enum SelectionArg {
+    #[choice(name = "Multiple")]
+    Multiple,
+    #[choice(name = "Single")]
+    Single,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct RowsArgs {
+    pub(super) selection: SelectionArg,
+    #[arg(name = "mixed heights")]
+    pub(super) mixed_heights: bool,
+    #[arg(range = 120.0..=600.0)]
+    pub(super) height: f32,
 }
 
 /// The state of the story's list.
@@ -1280,10 +1293,13 @@ impl Rows {
 /// 10,000 layers with an eye column (Cmd/Ctrl+, hides the selected layers), rename by double
 /// click or F2, and with mixed heights a taller row with a detail line every fourth row. The line
 /// under the list shows the last default action or context menu asked for.
-pub(super) fn show_rows(ui: &mut Ui, args: &mut Args) {
-    let mode = if args.choice("selection") == "Single" { SelectionMode::Single } else { SelectionMode::Multiple };
-    let mixed = args.bool("mixed heights");
-    let height = args.number("height") as f32;
+pub(super) fn show_rows(ui: &mut Ui, args: &mut RowsArgs) {
+    let mode = match args.selection {
+        SelectionArg::Single => SelectionMode::Single,
+        SelectionArg::Multiple => SelectionMode::Multiple,
+    };
+    let mixed = args.mixed_heights;
+    let height = args.height;
     let style = ListRow::<'_, usize>::style(&Tokens::of(ui));
     let (plain, tall) = (style.height(ThumbSize::None, false), style.height(ThumbSize::None, true));
     let state_id = ui.scope_id().with("list-story");

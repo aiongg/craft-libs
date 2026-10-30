@@ -17,8 +17,9 @@ use crate::edit::ops::{self, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, parts};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// One channel's levels: the input black and white points with the gamma between them, and the
 /// output black and white points.
@@ -722,32 +723,75 @@ pub const COMPONENTS: &[&str] = &["LevelsEditor"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "composites/levels-editor/levels",
             Level::Composites,
             "LevelsEditor",
             "Levels",
-            || {
-                Args::new()
-                    .with_choice("channel", &["RGB", "Red", "Green", "Blue"], 0)
-                    .with_bool("histogram", true)
-                    .with_bool("stale", false)
-                    .with_choice("range", &["0 to 255", "0 to 1"], 0)
-                    .with_bool("captions", true)
-                    .with_bool("disabled", false)
-                    .with_number("width", 300.0, 120.0, 400.0)
+            LevelsArgs {
+                channel: ChannelArg::Rgb,
+                histogram: true,
+                stale: false,
+                range: RangeArg::Byte,
+                captions: true,
+                disabled: false,
+                width: 300.0
             },
-            show_levels,
+            show_levels
         ),
-        Story::new(
+        typed_story!(
             "composites/levels-editor/event-log",
             Level::Composites,
             "LevelsEditor",
             "Event log",
-            || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
-            show_event_log,
+            edit::PolicyArgs::default(),
+            show_event_log
         ),
     ]
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ChannelArg {
+    #[choice(name = "RGB")]
+    Rgb,
+    #[choice(name = "Red")]
+    Red,
+    #[choice(name = "Green")]
+    Green,
+    #[choice(name = "Blue")]
+    Blue,
+}
+
+impl ChannelArg {
+    /// The index into [`STORY_CHANNELS`].
+    fn index(self) -> usize {
+        match self {
+            ChannelArg::Rgb => 0,
+            ChannelArg::Red => 1,
+            ChannelArg::Green => 2,
+            ChannelArg::Blue => 3,
+        }
+    }
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum RangeArg {
+    #[choice(name = "0 to 255")]
+    Byte,
+    #[choice(name = "0 to 1")]
+    Unit,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct LevelsArgs {
+    channel: ChannelArg,
+    histogram: bool,
+    stale: bool,
+    range: RangeArg,
+    captions: bool,
+    disabled: bool,
+    #[arg(range = 120.0..=400.0)]
+    width: f32,
 }
 
 const STORY_CHANNELS: [(&str, ChannelColor); 4] =
@@ -756,26 +800,22 @@ const STORY_CHANNELS: [(&str, ChannelColor); 4] =
 /// A host's levels per channel and range, and the "before" of the gesture under way.
 #[derive(Clone, Debug, Default)]
 struct StoryLevels {
-    range: String,
+    unit: bool,
     channels: Vec<Levels>,
     before: Option<Levels>,
 }
 
 /// PhotoCraft's Levels on an RGB image, a [`Levels`] per channel; or EffectCraft's on 0 to 1.
-fn show_levels(ui: &mut Ui, args: &mut Args) {
+fn show_levels(ui: &mut Ui, args: &mut LevelsArgs) {
     let numbers = LocaleNumbers::from_tag("en");
-    let channel = STORY_CHANNELS.iter().position(|(name, _)| *name == args.choice("channel")).unwrap_or(0);
+    let channel = args.channel.index();
     let (name, color) = STORY_CHANNELS[channel];
-    let unit = args.choice("range") == "0 to 1";
+    let unit = args.range == RangeArg::Unit;
     let range = if unit { 0.0..=1.0 } else { 0.0..=255.0 };
     let id = ui.scope_id().with("levels-editor-levels");
     let mut host = ui.data(|d| d.get_temp::<StoryLevels>(id)).unwrap_or_default();
-    if host.range != args.choice("range") || host.channels.len() != STORY_CHANNELS.len() {
-        host = StoryLevels {
-            range: args.choice("range").to_owned(),
-            channels: vec![Levels::identity(range.clone()); STORY_CHANNELS.len()],
-            before: None,
-        };
+    if host.unit != unit || host.channels.len() != STORY_CHANNELS.len() {
+        host = StoryLevels { unit, channels: vec![Levels::identity(range.clone()); STORY_CHANNELS.len()], before: None };
     }
     let bins = story_bins([0.0, 0.0, 12.0, -12.0][channel]);
     let data = HistogramData::tone(&bins, color);
@@ -783,15 +823,15 @@ fn show_levels(ui: &mut Ui, args: &mut Args) {
     let mut editor = LevelsEditor::new("levels", "Levels", &levels, &numbers)
         .channel(color)
         .value(format!("{name} channel"))
-        .stale(args.bool("stale"))
-        .captions(args.bool("captions"))
-        .enabled(!args.bool("disabled"))
-        .width(args.number("width") as f32)
+        .stale(args.stale)
+        .captions(args.captions)
+        .enabled(!args.disabled)
+        .width(args.width)
         .range(range);
     if unit {
         editor = editor.step(0.001).decimals(3).gamma_range(0.1..=10.0);
     }
-    if args.bool("histogram") {
+    if args.histogram {
         editor = editor.histogram(&data);
     }
     let edit = editor.show(ui);
@@ -868,7 +908,7 @@ impl LogState {
 
 /// A levels editor under a [`GestureHost`], its events newest first and the undo steps counted.
 /// Cmd/Ctrl+Z undoes a step, or cancels the gesture under way.
-fn show_event_log(ui: &mut Ui, args: &mut Args) {
+fn show_event_log(ui: &mut Ui, args: &mut edit::PolicyArgs) {
     let policy = edit::policy(args);
     let numbers = LocaleNumbers::from_tag("en");
     let state_id = ui.scope_id().with("levels-editor-event-log");

@@ -14,8 +14,9 @@ use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::{Icon, IconSize};
 use crate::primitives::{Surface, SurfaceEdge, SurfaceKind};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, UiTokens, corner_radius, reshape_shadow, role_format};
+use crate::typed_story;
 
 /// Most cards shown at once.
 const MAX_TOASTS: usize = 3;
@@ -463,24 +464,51 @@ impl Geometry {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Toast"];
 
-const TONE_NAMES: &[&str] = &["neutral", "info", "good", "warn", "bad"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ToneArg {
+    Neutral,
+    Info,
+    Good,
+    Warn,
+    Bad,
+}
+
+impl ToneArg {
+    fn tone(self) -> Tone {
+        match self {
+            ToneArg::Neutral => Tone::Neutral,
+            ToneArg::Info => Tone::Info,
+            ToneArg::Good => Tone::Good,
+            ToneArg::Warn => Tone::Warn,
+            ToneArg::Bad => Tone::Bad,
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct StackArgs {
+    tone: ToneArg,
+    auto_hide: bool,
+    #[arg(range = 1.0..=30.0)]
+    seconds: f64,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "composites/toast/stack",
         Level::Composites,
         "Toast",
         "Stack",
-        || Args::new().with_choice("tone", TONE_NAMES, 0).with_bool("auto_hide", false).with_number("seconds", 6.0, 1.0, 30.0),
-        show_stack,
+        StackArgs { tone: ToneArg::Neutral, auto_hide: false, seconds: 6.0 },
+        show_stack
     )]
 }
 
 /// A neutral notice, a warning with ten lines and an error in the bottom corner of the story's
 /// area; closed ones stay gone.
-pub(super) fn show_stack(ui: &mut Ui, args: &mut Args) {
-    let tone = Tone::from_name(args.choice("tone")).unwrap_or_default();
-    let auto_hide = args.bool("auto_hide").then(|| Duration::from_secs_f64(args.number("seconds")));
+pub(super) fn show_stack(ui: &mut Ui, args: &mut StackArgs) {
+    let tone = args.tone.tone();
+    let auto_hide = args.auto_hide.then(|| Duration::from_secs_f64(args.seconds));
     let id = ui.scope_id().with("toast-story");
     let mut closed: Vec<u64> = ui.data(|d| d.get_temp(id)).unwrap_or_default();
     let area = ui.available_rect_before_wrap();

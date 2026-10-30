@@ -10,36 +10,40 @@ use crate::controls::{Button, ButtonVariant, Swatch};
 use crate::edit::{self, EditEvent, OuterGesture};
 use crate::localized::LocaleNumbers;
 use crate::primitives::{Content, Gap, Row, Stack, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
+use crate::typed_story;
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "composites/color/full",
             Level::Composites,
             "ColorPicker",
             "Full",
-            || {
-                Args::new()
-                    .with_bool("CMYK (host model)", true)
-                    .with_bool("OKLCH", false)
-                    .with_bool("compare", true)
-                    .with_bool("warnings", true)
-                    .with_bool("eyedropper", true)
-                    .with_bool("alpha", false)
-                    .with_bool("disabled", false)
-            },
-            show_full,
+            FullArgs { cmyk: true, oklch: false, compare: true, warnings: true, eyedropper: true, alpha: false, disabled: false },
+            show_full
         ),
-        Story::new(
-            "composites/color/dialog",
-            Level::Composites,
-            "ColorPicker",
-            "Dialog (edit scope)",
-            || Args::new().with_bool("CMYK (host model)", true),
-            show_dialog,
-        ),
+        typed_story!("composites/color/dialog", Level::Composites, "ColorPicker", "Dialog (edit scope)", DialogArgs { cmyk: true }, show_dialog),
     ]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct FullArgs {
+    #[arg(name = "CMYK (host model)")]
+    cmyk: bool,
+    #[arg(name = "OKLCH")]
+    oklch: bool,
+    compare: bool,
+    warnings: bool,
+    eyedropper: bool,
+    alpha: bool,
+    disabled: bool,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct DialogArgs {
+    #[arg(name = "CMYK (host model)")]
+    cmyk: bool,
 }
 
 /// A naive CMYK in percent, without a working space: a host's model for the stories. A real host
@@ -107,27 +111,27 @@ fn warnings(color: Srgba) -> Vec<ColorWarning> {
 
 /// A Full picker editing one colour as a panel does, with the colour it started from in the
 /// compare swatch; the eyedropper "samples" orange at once.
-fn show_full(ui: &mut Ui, args: &mut Args) {
+fn show_full(ui: &mut Ui, args: &mut FullArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let start = Srgba::rgb(0.2, 0.55, 0.8);
     crate::controls::slider::with_values(ui, "color-full", [(start, start, String::new(), false)], |ui, state| {
         let (color, before, last, web) = &mut state[0];
-        let models = models(args.bool("CMYK (host model)"), args.bool("OKLCH"));
+        let models = models(args.cmyk, args.oklch);
         let mut picker = ColorPicker::new("color-full", "Foreground colour", *color, &numbers)
             .layout(ColorPickerLayout::Full)
             .models(models)
-            .alpha(args.bool("alpha"))
+            .alpha(args.alpha)
             .web_colors(web)
-            .enabled(!args.bool("disabled"));
-        if args.bool("compare") {
+            .enabled(!args.disabled);
+        if args.compare {
             picker = picker.compare(start);
         }
-        if args.bool("warnings") {
+        if args.warnings {
             for warning in warnings(*color) {
                 picker = picker.warning(warning);
             }
         }
-        if args.bool("eyedropper") {
+        if args.eyedropper {
             picker = picker.eyedropper("Pick screen color");
         }
         let picked = picker.show(ui);
@@ -162,7 +166,7 @@ struct Dialog {
 
 /// A colour opened in a Full picker dialog: inside an [`edit::scope`] the picker reports only
 /// updates, and the dialog's [`OuterGesture`] makes OK one undo step and Cancel none.
-fn show_dialog(ui: &mut Ui, args: &mut Args) {
+fn show_dialog(ui: &mut Ui, args: &mut DialogArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let initial = Dialog { applied: Srgba::rgb(0.8, 0.3, 0.2), open: None, steps: 0, updates: 0, last: String::new() };
     crate::controls::slider::with_values(ui, "color-dialog", [initial], |ui, state| {
@@ -187,7 +191,7 @@ fn show_dialog(ui: &mut Ui, args: &mut Args) {
                     let picked = edit::scope(ui, |ui| {
                         ColorPicker::new("color-dialog-picker", "Fill colour", color, &numbers)
                             .layout(ColorPickerLayout::Full)
-                            .models(models(args.bool("CMYK (host model)"), false))
+                            .models(models(args.cmyk, false))
                             .compare(dialog.applied)
                             .show(ui)
                     })

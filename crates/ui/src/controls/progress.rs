@@ -5,10 +5,12 @@ use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
 use egui::{Color32, CornerRadius, Rect, Response, Sense, Shape, Ui, Widget, WidgetInfo, pos2, vec2};
 
+use crate::controls::NoArgs;
 use crate::direction;
 use crate::primitives::{Surface, SurfaceEdge, SurfaceKind, SurfaceStyle};
-use crate::story::{Args, Level, Story, variant_cluster, variant_list};
+use crate::story::{Level, Story, StoryArgs, variant_cluster, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
+use crate::typed_story;
 
 /// Seconds for the indeterminate segment to cross the track (PhotoCraft's `jobs_ui::bar`, 0.8 turns
 /// a second).
@@ -185,23 +187,22 @@ fn dashes(width: f32, height: f32) -> Vec<(f32, f32)> {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Progress"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct ValuesArgs {
+    #[arg(range = 0.0..=1.0)]
+    fraction: f64,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
-            "controls/progress/values",
-            Level::Controls,
-            "Progress",
-            "Values",
-            || Args::new().with_number("fraction", 0.4, 0.0, 1.0),
-            show_values,
-        ),
-        Story::new("controls/progress/indeterminate", Level::Controls, "Progress", "Indeterminate", Args::new, show_indeterminate),
+        typed_story!("controls/progress/values", Level::Controls, "Progress", "Values", ValuesArgs { fraction: 0.4 }, show_values),
+        typed_story!("controls/progress/indeterminate", Level::Controls, "Progress", "Indeterminate", NoArgs {}, show_indeterminate),
     ]
 }
 
 /// Empty, the args' fraction, and full.
-fn show_values(ui: &mut Ui, args: &mut Args) {
-    let chosen = args.number("fraction") as f32;
+fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
+    let chosen = args.fraction as f32;
     variant_list(ui, "progress-values", |form| {
         for (name, fraction) in [("Empty", 0.0), ("Chosen", chosen), ("Full", 1.0)] {
             variant_cluster(form, &format!("{:.0}%", fraction * 100.0), |ui| {
@@ -211,7 +212,7 @@ fn show_values(ui: &mut Ui, args: &mut Args) {
     });
 }
 
-fn show_indeterminate(ui: &mut Ui, _: &mut Args) {
+fn show_indeterminate(ui: &mut Ui, _: &mut NoArgs) {
     variant_list(ui, "progress-indeterminate", |form| {
         variant_cluster(form, "Working", |ui| {
             ui.add(Progress::indeterminate().label("Working"));

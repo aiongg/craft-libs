@@ -13,8 +13,9 @@ use crate::direction;
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
 use crate::primitives::Content;
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// A form grid's gaps, label column and label look, from [`FormGrid::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -257,8 +258,21 @@ impl Form<'_> {
 pub const COMPONENTS: &[&str] = &["FormGrid"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_bool("roomy", false).with_bool("labels at start", false);
-    vec![Story::new("composites/form-grid/image-size", Level::Composites, "FormGrid", "Image size", args, show_image_size)]
+    vec![typed_story!(
+        "composites/form-grid/image-size",
+        Level::Composites,
+        "FormGrid",
+        "Image size",
+        ImageSizeArgs { roomy: false, labels_at_start: false },
+        show_image_size
+    )]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct ImageSizeArgs {
+    pub(super) roomy: bool,
+    #[arg(name = "labels at start")]
+    pub(super) labels_at_start: bool,
 }
 
 const UNITS: [&str; 4] = ["Pixels", "Percent", "Inches", "Centimeters"];
@@ -283,8 +297,8 @@ fn apply(event: Option<EditEvent<f64>>, value: &mut f64) {
 
 /// The content of PhotoCraft's Image Size dialog: two read-outs, Width and Height with a unit
 /// menu each, Resolution with its unit, and the Resample check box with its method.
-pub(super) fn show_image_size(ui: &mut Ui, args: &mut Args) {
-    let (roomy, start) = (args.bool("roomy"), args.bool("labels at start"));
+pub(super) fn show_image_size(ui: &mut Ui, args: &mut ImageSizeArgs) {
+    let (roomy, start) = (args.roomy, args.labels_at_start);
     let state_id = ui.scope_id().with("form-grid-image-size");
     let mut v = ui.data(|d| d.get_temp::<Values>(state_id)).unwrap_or(Values {
         width: 1200.0,

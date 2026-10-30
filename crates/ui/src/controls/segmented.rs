@@ -11,13 +11,14 @@ use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sens
 
 use super::TooltipExt as _;
 use super::button::content_color;
-use super::{SIZE_NAMES, icon_size, size_arg};
+use super::{SizeDisabledArgs, icon_size};
 use crate::behavior::RadioSelection;
 use crate::direction;
 use crate::icons::{self, Icon};
 use crate::primitives::{Content, Corner, Gap, Interactive, Stack, StateColors, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// A segmented control's sizes and colours, from [`Segmented::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -238,10 +239,9 @@ const ICON_ITEMS: [(Icon, &str); 5] =
     [(Icon::Move, "Move"), (Icon::Hand, "Hand"), (Icon::Brush, "Brush"), (Icon::Eraser, "Eraser"), (Icon::Eyedropper, "Eyedropper")];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false);
     vec![
-        Story::new("controls/segmented/text", Level::Controls, "Segmented", "Text", args, show_text),
-        Story::new("controls/segmented/icons", Level::Controls, "Segmented", "Icons", args, show_icons),
+        typed_story!("controls/segmented/text", Level::Controls, "Segmented", "Text", SizeDisabledArgs::default(), show_text),
+        typed_story!("controls/segmented/icons", Level::Controls, "Segmented", "Icons", SizeDisabledArgs::default(), show_icons),
     ]
 }
 
@@ -254,8 +254,8 @@ fn with_choices(ui: &mut Ui, key: &str, show: impl FnOnce(&mut Ui, &mut [usize; 
 }
 
 /// Three and five text segments.
-fn show_text(ui: &mut Ui, args: &mut Args) {
-    let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
+fn show_text(ui: &mut Ui, args: &mut SizeDisabledArgs) {
+    let (size, enabled) = (args.size.control(), !args.disabled);
     with_choices(ui, "segmented-text", |ui, choices| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             for (n, choice) in [3, 5].into_iter().zip(choices.iter_mut()) {
@@ -271,8 +271,8 @@ fn show_text(ui: &mut Ui, args: &mut Args) {
 }
 
 /// Three and five icon segments.
-fn show_icons(ui: &mut Ui, args: &mut Args) {
-    let (size, enabled) = (size_arg(args.choice("size")), !args.bool("disabled"));
+fn show_icons(ui: &mut Ui, args: &mut SizeDisabledArgs) {
+    let (size, enabled) = (args.size.control(), !args.disabled);
     with_choices(ui, "segmented-icons", |ui, choices| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             for (n, choice) in [3, 5].into_iter().zip(choices.iter_mut()) {

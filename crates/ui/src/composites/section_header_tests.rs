@@ -5,12 +5,11 @@ use egui::{Context, Key, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder, Node};
 
-use super::section_header::{show_always_open, show_collapsible};
+use super::section_header::{WidthArgs, show_always_open, show_collapsible};
 use super::*;
 use crate::controls::IconButton;
 use crate::direction::{self, Direction};
 use crate::icons::Icon;
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
 use craft_theme::ControlSize;
@@ -303,11 +302,10 @@ fn a_section_has_the_row_gap_above_its_rule_and_half_of_it_under_the_row() {
 fn the_stories_name_every_control_in_both_directions() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         for width in [60.0, 150.0, 260.0] {
-            let args = Args::new().with_number("width", width, 60.0, 400.0);
-            let mut a = args.clone();
+            let mut a = WidthArgs { width };
             let harness = harness(dir).build_ui(move |ui| show_collapsible(ui, &mut a));
             a11y::assert_labelled(&harness);
-            let mut a = args.clone();
+            let mut a = WidthArgs { width };
             let harness = self::harness(dir).build_ui(move |ui| show_always_open(ui, &mut a));
             a11y::assert_labelled(&harness);
         }

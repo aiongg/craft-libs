@@ -3,8 +3,9 @@
 use egui::{Color32, Label, Response, Ui};
 
 use crate::primitives::Content;
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 use craft_theme::TypeRole;
 
 /// A section label's type role and colour, from [`SectionLabel::style`].
@@ -56,10 +57,21 @@ impl SectionLabel {
 pub const COMPONENTS: &[&str] = &["SectionLabel"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_text("text", "Blend mode");
-    vec![Story::new("composites/section-label/default", Level::Composites, "SectionLabel", "Default", args, show_label)]
+    vec![typed_story!(
+        "composites/section-label/default",
+        Level::Composites,
+        "SectionLabel",
+        "Default",
+        LabelArgs { text: "Blend mode".into() },
+        show_label
+    )]
 }
 
-fn show_label(ui: &mut Ui, args: &mut Args) {
-    let _ = SectionLabel::new(args.text("text")).show(ui);
+#[derive(StoryArgs, Debug, PartialEq)]
+struct LabelArgs {
+    text: String,
+}
+
+fn show_label(ui: &mut Ui, args: &mut LabelArgs) {
+    let _ = SectionLabel::new(args.text.as_str()).show(ui);
 }

@@ -11,8 +11,9 @@ use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::Icon;
 use crate::primitives::Content;
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// A panel header's height, padding, buttons and title, from [`PanelHeader::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -215,22 +216,31 @@ impl PanelHeader {
 pub const COMPONENTS: &[&str] = &["PanelHeader"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || {
-        Args::new()
-            .with_bool("float", true)
-            .with_bool("close", true)
-            .with_bool("menu", true)
-            .with_bool("actions", false)
-            .with_number("width", 280.0, 60.0, 400.0)
-    };
-    vec![Story::new("composites/panel-header/flyout", Level::Composites, "PanelHeader", "Flyout", args, show_flyout)]
+    vec![typed_story!(
+        "composites/panel-header/flyout",
+        Level::Composites,
+        "PanelHeader",
+        "Flyout",
+        FlyoutArgs { float: true, close: true, menu: true, actions: false, width: 280.0 },
+        show_flyout
+    )]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct FlyoutArgs {
+    pub(super) float: bool,
+    pub(super) close: bool,
+    pub(super) menu: bool,
+    pub(super) actions: bool,
+    #[arg(range = 60.0..=400.0)]
+    pub(super) width: f32,
 }
 
 /// A flyout's header in a panel `width` wide, with the buttons and an action chosen by args. The
 /// line under it shows what the host got.
-pub(super) fn show_flyout(ui: &mut Ui, args: &mut Args) {
-    let (width, actions) = (args.number("width") as f32, args.bool("actions"));
-    let header = PanelHeader::new("brush-settings", "Brush settings").menu(args.bool("menu")).float(args.bool("float")).close(args.bool("close"));
+pub(super) fn show_flyout(ui: &mut Ui, args: &mut FlyoutArgs) {
+    let (width, actions) = (args.width, args.actions);
+    let header = PanelHeader::new("brush-settings", "Brush settings").menu(args.menu).float(args.float).close(args.close);
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         let shown = header.show(ui, |ui| {

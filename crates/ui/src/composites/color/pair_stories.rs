@@ -5,37 +5,51 @@ use egui::Ui;
 
 use super::{PairWell, SwatchPair, Well};
 use crate::behavior::FieldTab;
+use crate::controls::NoArgs;
 use crate::controls::{TextField, slider};
 use crate::edit;
 use crate::localized::LocaleNumbers;
 use crate::primitives::{Content, Gap, Stack, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
+use crate::typed_story;
 
 pub(super) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "composites/color/pair-foreground",
             Level::Composites,
             "SwatchPair",
             "Foreground and background",
-            || Args::new().with_bool("buttons", true).with_bool("disabled", false),
-            |ui, args| show(ui, args, "fg-bg", ["Foreground colour", "Background colour"], false),
+            PairArgs::default(),
+            |ui: &mut Ui, args: &mut PairArgs| show(ui, args, "fg-bg", ["Foreground colour", "Background colour"], false)
         ),
-        Story::new(
+        typed_story!(
             "composites/color/pair-fill",
             Level::Composites,
             "SwatchPair",
             "Fill and stroke",
-            || Args::new().with_bool("buttons", true).with_bool("disabled", false),
-            |ui, args| show(ui, args, "fill-stroke", ["Fill colour", "Stroke colour"], true),
+            PairArgs::default(),
+            |ui: &mut Ui, args: &mut PairArgs| show(ui, args, "fill-stroke", ["Fill colour", "Stroke colour"], true)
         ),
-        Story::new("composites/color/pair-dialog", Level::Composites, "SwatchPair", "Dialog (field scope)", Args::new, show_dialog),
+        typed_story!("composites/color/pair-dialog", Level::Composites, "SwatchPair", "Dialog (field scope)", NoArgs {}, show_dialog),
     ]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct PairArgs {
+    buttons: bool,
+    disabled: bool,
+}
+
+impl Default for PairArgs {
+    fn default() -> Self {
+        Self { buttons: true, disabled: false }
+    }
 }
 
 /// A pair editing two colours: swap exchanges them and the default button sets black and white.
 /// With `stroke_ring` the secondary well is a ring, as DesignCraft's stroke.
-fn show(ui: &mut Ui, args: &mut Args, key: &str, names: [&str; 2], stroke_ring: bool) {
+fn show(ui: &mut Ui, args: &PairArgs, key: &str, names: [&str; 2], stroke_ring: bool) {
     let numbers = LocaleNumbers::from_tag("en");
     let black = Srgba::rgb(0.0, 0.0, 0.0);
     let white = Srgba::rgb(1.0, 1.0, 1.0);
@@ -45,9 +59,9 @@ fn show(ui: &mut Ui, args: &mut Args, key: &str, names: [&str; 2], stroke_ring: 
         let mut pair =
             SwatchPair::new(key, "Colours", [PairWell::new(names[0], *first), PairWell::new(names[1], *second).ring(stroke_ring)], &numbers)
                 .active(*active)
-                .enabled(!args.bool("disabled"))
+                .enabled(!args.disabled)
                 .picker(|p| p.alpha(false));
-        if args.bool("buttons") {
+        if args.buttons {
             pair = pair.swap_button("Swap colours").default_button("Default colours");
         }
         let shown = pair.show(ui);
@@ -73,7 +87,7 @@ fn show(ui: &mut Ui, args: &mut Args, key: &str, names: [&str; 2], stroke_ring: 
 
 /// A pair between two text fields in a dialog's [`FieldTab`] scope: Tab goes from field to field
 /// and passes the pair; Ctrl+Tab reaches it.
-fn show_dialog(ui: &mut Ui, _: &mut Args) {
+fn show_dialog(ui: &mut Ui, _: &mut NoArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let start = (String::from("Spring"), String::from("Warm tones"), Srgba::rgb(0.2, 0.55, 0.8), Srgba::rgb(0.9, 0.35, 0.2));
     slider::with_values(ui, "pair-dialog", [(start, Well::Primary)], |ui, state| {

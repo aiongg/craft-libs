@@ -10,8 +10,8 @@ use egui_kittest::{Harness, Node};
 use super::drag::{show_copy, show_flat, show_refused, show_tree};
 use super::*;
 use crate::behavior::{Axis, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
+use crate::controls::NoArgs;
 use crate::edit::{CancelReason, EditEvent};
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, install};
 
@@ -374,7 +374,7 @@ fn tree_keys_and_stacking_keys_work_together_in_a_tree() {
 #[test]
 fn the_reorder_stories_name_every_control() {
     for show in [show_flat, show_tree, show_refused, show_copy] {
-        let mut args = Args::new();
+        let mut args = NoArgs {};
         let harness = Harness::builder()
             .with_size([400.0, 420.0])
             .with_context_setup(|ctx| install(ctx, &Base::suite_default()))

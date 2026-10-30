@@ -13,14 +13,15 @@ use super::option_list::{
     Hover, OptionRow, OptionRows, keep_focus, load_kept, option_id, paint_chevron, pressed_on, released, released_away, rows_in_view, store_kept,
 };
 use super::text_field::{BoxState, Held, field_box};
-use super::{SIZE_NAMES, Select, size_arg};
+use super::{Select, SizeArgs};
 use crate::behavior::{ListOptions, Listbox, Typed, Typing, TypingLook, take_enter, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditPolicy, EditResponse, GestureId};
 use crate::popup_list::{self, PopupList};
 use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, Text};
-use crate::story::{Args, Level, Story, variant_list, variant_row};
+use crate::story::{Level, Story, variant_list, variant_row};
 use crate::theme::{Tokens, TokensOf, margin_x};
+use crate::typed_story;
 
 /// A line of text with a list of suggestions:
 ///
@@ -593,22 +594,8 @@ pub const COMPONENTS: &[&str] = &["Combo box"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
-            "controls/combo-box/states",
-            Level::Controls,
-            "Combo box",
-            "States",
-            || Args::new().with_choice("size", SIZE_NAMES, 1),
-            show_states,
-        ),
-        Story::new(
-            "controls/combo-box/font-size",
-            Level::Controls,
-            "Combo box",
-            "Font size",
-            || Args::new().with_choice("size", SIZE_NAMES, 1),
-            show_font_size,
-        ),
+        typed_story!("controls/combo-box/states", Level::Controls, "Combo box", "States", SizeArgs::default(), show_states),
+        typed_story!("controls/combo-box/font-size", Level::Controls, "Combo box", "Font size", SizeArgs::default(), show_font_size),
     ]
 }
 
@@ -618,8 +605,8 @@ const FONT_SIZES: [&str; 16] =
 const FONTS: [&str; 8] = ["Baskerville", "Bodoni", "Caslon", "Futura", "Garamond", "Gill Sans", "Helvetica", "Optima"];
 
 /// Empty with a placeholder, an option's text, free text, and disabled.
-fn show_states(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
+fn show_states(ui: &mut Ui, args: &mut SizeArgs) {
+    let size = args.size.control();
     let initial = [Held::new(""), Held::new("12 pt"), Held::new("13.5 pt"), Held::new("Garamond")];
     super::slider::with_values(ui, "combo-box-states", initial, |ui, values| {
         variant_list(ui, "combo-box-states", |form| {
@@ -653,8 +640,8 @@ const LOG_LEN: usize = 12;
 
 /// A font size typed or picked: a sample drawn at the size the text reads as, and the events
 /// newest first.
-fn show_font_size(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
+fn show_font_size(ui: &mut Ui, args: &mut SizeArgs) {
+    let size = args.size.control();
     let initial = [FontSize { held: Held::new("12 pt"), log: VecDeque::new() }];
     super::slider::with_values(ui, "combo-box-font-size", initial, |ui, values| {
         let state = &mut values[0];

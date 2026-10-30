@@ -9,8 +9,9 @@ use crate::controls::{IconButton, IconButtonStyle};
 use crate::direction;
 use crate::icons::Icon;
 use crate::panes::Edge;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 use egui::AsIdSalt;
 
 /// Names a slot of the rail. The host numbers its slots; [`LastUsed`] remembers a tool under it.
@@ -576,18 +577,39 @@ fn story_slots() -> Vec<ToolSlot<StoryTool>> {
     ]
 }
 
-const HIDDEN: &[&str] = &["none", "pencil", "stamp", "eraser tools"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum HiddenArg {
+    None,
+    Pencil,
+    Stamp,
+    #[choice(name = "eraser tools")]
+    EraserTools,
+}
+
+impl HiddenArg {
+    fn tools(self) -> Vec<StoryTool> {
+        match self {
+            HiddenArg::None => Vec::new(),
+            HiddenArg::Pencil => vec!["pencil"],
+            HiddenArg::Stamp => vec!["stamp"],
+            HiddenArg::EraserTools => vec!["eraser", "background", "magic"],
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct ToolArgs {
+    #[arg(range = 1..=2)]
+    columns: usize,
+    hidden: HiddenArg,
+    #[arg(range = 160.0..=700.0)]
+    height: f32,
+}
 
 /// PhotoCraft's slot list. The column toggle reports in the line under the rail.
-fn show_story(ui: &mut Ui, args: &mut Args) {
-    let columns = args.number("columns").round() as usize;
-    let height = args.number("height") as f32;
-    let hidden: Vec<StoryTool> = match args.choice("hidden") {
-        "pencil" => vec!["pencil"],
-        "stamp" => vec!["stamp"],
-        "eraser tools" => vec!["eraser", "background", "magic"],
-        _ => Vec::new(),
-    };
+fn show_story(ui: &mut Ui, args: &mut ToolArgs) {
+    let (columns, height) = (args.columns, args.height);
+    let hidden = args.hidden.tools();
     let state = ui.make_persistent_id("tool-rail-story");
     let current = ui.data(|d| d.get_temp::<StoryTool>(state)).unwrap_or("brush");
     let mut last_used = ui.data(|d| d.get_temp::<LastUsed<StoryTool>>(state.with("last"))).unwrap_or_default();
@@ -641,6 +663,15 @@ fn show_story(ui: &mut Ui, args: &mut Args) {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_number("columns", 1.0, 1.0, 2.0).with_choice("hidden", HIDDEN, 0).with_number("height", 480.0, 160.0, 700.0);
-    vec![Story::new("patterns/rail/tool", Level::Patterns, "ToolRail", "Tool rail", args, show_story).on(Surface::Chrome)]
+    vec![
+        typed_story!(
+            "patterns/rail/tool",
+            Level::Patterns,
+            "ToolRail",
+            "Tool rail",
+            ToolArgs { columns: 1, hidden: HiddenArg::None, height: 480.0 },
+            show_story
+        )
+        .on(Surface::Chrome),
+    ]
 }

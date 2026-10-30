@@ -327,25 +327,33 @@ pub(super) fn display(nodes: &[(&str, usize)], open: &TreeState) -> Vec<crate::b
 }
 
 pub(crate) fn stories() -> Vec<crate::story::Story> {
-    use crate::story::{Args, Level, Story};
-    vec![Story::new(
+    use crate::story::Level;
+    vec![crate::typed_story!(
         "composites/list/tree",
         Level::Composites,
         "TreeRow",
         "Layer groups",
-        || Args::new().with_number("width", 320.0, 120.0, 480.0).with_number("height", 280.0, 120.0, 480.0),
-        show_tree,
+        TreeArgs { width: 320.0, height: 280.0 },
+        show_tree
     )]
+}
+
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+pub(super) struct TreeArgs {
+    #[arg(range = 120.0..=480.0)]
+    pub(super) width: f32,
+    #[arg(range = 120.0..=480.0)]
+    pub(super) height: f32,
 }
 
 /// A layers tree: ↑ and ↓ move through the rows shown, → opens a closed group or enters an open
 /// one, ← closes an open group or leaves it, Alt+→ and Alt+← open or close every group, and
 /// Alt-click on a triangle does the same. The open state is a [`TreeState`].
-pub(super) fn show_tree(ui: &mut Ui, args: &mut crate::story::Args) {
+pub(super) fn show_tree(ui: &mut Ui, args: &mut TreeArgs) {
     use super::{List, ListEvent};
     use crate::behavior::Selection;
     use crate::icons::Icon;
-    let (width, height) = (args.number("width") as f32, args.number("height") as f32);
+    let (width, height) = (args.width, args.height);
     let state_id = ui.scope_id().with("tree-story");
     let mut selection = ui.data(|d| d.get_temp::<Selection<usize>>(state_id)).unwrap_or_else(|| Selection::only(0));
     let mut open = TreeState::load(ui.ctx(), state_id);
