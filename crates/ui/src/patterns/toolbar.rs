@@ -250,17 +250,28 @@ impl<'a> Toolbar<'a> {
 
         if vertical {
             self.paint_strip(&bar, rect, &tokens, &style);
-            let inner = rect.shrink2(vec2(style.pad[0], style.pad[1]));
             let height: f32 = self.groups.iter().map(|g| flow.group_width(g.len())).sum::<f32>()
                 + self.groups.len().saturating_sub(1) as f32 * (flow.gap + flow.group_gap);
+            let scrolls = height > rect.height() - 2.0 * style.pad[1];
+            // A scrolling strip gives the bar the strip's edge, which egui puts at the reading end
+            // of the area (the left in a right-to-left UI), and centres the buttons in the rest.
+            let inner = if scrolls { rect.shrink2(vec2(0.0, style.pad[1])) } else { rect.shrink2(vec2(style.pad[0], style.pad[1])) };
             let mut inner_ui = bar.new_child(UiBuilder::new().max_rect(inner));
-            let scroll = ScrollArea::vertical().id_salt("scroll").auto_shrink([false, false]).scroll_bar_visibility(if height > inner.height() {
+            if scrolls {
+                let scroll = &mut inner_ui.spacing_mut().scroll;
+                if scroll.floating {
+                    scroll.floating_allocated_width = scroll.bar_width;
+                }
+            }
+            let scroll = ScrollArea::vertical().id_salt("scroll").auto_shrink([false, false]).scroll_bar_visibility(if scrolls {
                 egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded
             } else {
                 egui::scroll_area::ScrollBarVisibility::AlwaysHidden
             });
             scroll.show(&mut inner_ui, |ui| {
-                let (content, _) = ui.allocate_exact_size(vec2(flow.side, height), Sense::hover());
+                let (column, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
+                // The button column is centred, so it mirrors by itself in a right-to-left UI.
+                let content = Rect::from_min_size(pos2(column.center().x - flow.side / 2.0, column.top()), vec2(flow.side, height));
                 let mut along = 0.0;
                 for (g, items) in self.groups.iter_mut().enumerate() {
                     along = draw_group(ui, &flow, content, along, g, items, &mut Pass { selected: self.selected, out: &mut out });

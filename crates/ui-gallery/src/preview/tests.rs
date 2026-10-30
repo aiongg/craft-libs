@@ -324,7 +324,10 @@ fn tab_is_not_taken_after_leaving_a_body_only_preview() {
     let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
     fixture.view.mode = craft_ui::shell::ScreenMode::FullScreen;
     fixture.settled();
-    let tab = || RawInput { events: vec![Event::Key { key: Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }], ..RawInput::default() };
+    let tab = || RawInput {
+        events: vec![Event::Key { key: Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }],
+        ..RawInput::default()
+    };
     let mut raw = tab();
     AppPreview::raw_input_hook(&fixture.ctx, &mut raw);
     assert!(raw.events.is_empty(), "Tab is taken while a body-only preview is shown");

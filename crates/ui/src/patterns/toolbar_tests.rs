@@ -80,12 +80,44 @@ fn a_vertical_strip_stacks_buttons_with_the_token_sizes() {
     assert_eq!(r.len(), 5);
     assert!(r.iter().all(|r| r.width() == t.button_large && r.height() == t.button_large));
     let area = Rect::from_min_max(egui::pos2(h.state().area[0], h.state().area[1]), egui::pos2(h.state().area[2], h.state().area[3]));
-    assert_eq!(r[0].left() - area.left(), t.pad[0]);
+    assert_eq!(r[0].left() - area.left(), (t.width - t.button_large) / 2.0);
     assert_eq!(r[0].top() - area.top(), t.pad[1]);
     assert_eq!(r[1].top() - r[0].bottom(), t.gap);
     assert_eq!(r[2].top() - r[1].bottom(), t.gap + t.group_gap);
     assert!(r[0].right() + t.pad[0] <= area.left() + t.width);
     assert_eq!(r[0].center().x, r[4].center().x);
+}
+
+#[test]
+fn a_vertical_strip_centres_its_buttons_in_both_directions() {
+    let t = tokens();
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        let h = run(dir, [200.0, 400.0], Orientation::Vertical, false);
+        let area = h.state().area;
+        let strip_centre = area[0] + t.width / 2.0;
+        for r in &h.state().rects {
+            assert!((r.center().x - strip_centre).abs() < 0.01, "{dir:?}: button {r:?} not centred on x {strip_centre}");
+        }
+    }
+}
+
+#[test]
+fn a_scrolling_vertical_strip_keeps_its_scroll_bar_off_the_buttons() {
+    let t = tokens();
+    for dir in [Direction::Ltr, Direction::Rtl] {
+        let h = run(dir, [200.0, 120.0], Orientation::Vertical, false);
+        let area = h.state().area;
+        let (strip_left, strip_right) = (area[0], area[0] + t.width);
+        let bar = h.ctx.global_style().spacing.scroll.bar_width;
+        for r in &h.state().rects {
+            // The bar is at the strip's reading end: the right edge, the left in a right-to-left UI.
+            if dir == Direction::Rtl {
+                assert!(r.left() >= strip_left + bar - 0.01, "{dir:?}: {r:?} under the bar");
+            } else {
+                assert!(r.right() <= strip_right - bar + 0.01, "{dir:?}: {r:?} under the bar");
+            }
+        }
+    }
 }
 
 #[test]
