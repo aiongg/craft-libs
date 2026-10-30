@@ -255,6 +255,21 @@ fn a_wrapping_dial_continues_from_the_other_end_of_a_narrow_range() {
 }
 
 #[test]
+fn a_wrapping_dial_on_a_partial_turn_reaches_its_max_by_keys() {
+    let mut rig = Rig::new();
+    rig.range = (0.0, 270.0);
+    rig.wrap = Some(true);
+    rig.angle = 269.0;
+    assert_eq!(rig.key(Key::ArrowRight, Modifiers::NONE), Some(270.0));
+    // One step past max continues from min.
+    rig.angle = 270.0;
+    assert_eq!(rig.key(Key::ArrowRight, Modifiers::NONE), Some(1.0));
+    // Below min continues from max.
+    rig.angle = 0.0;
+    assert_eq!(rig.key(Key::ArrowLeft, Modifiers::NONE), Some(269.0));
+}
+
+#[test]
 fn keys_change_nothing_during_a_drag() {
     let mut rig = Rig::new();
     rig.press(rig.at(vec2(20.0, 0.0)));

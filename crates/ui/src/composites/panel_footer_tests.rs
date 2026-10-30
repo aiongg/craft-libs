@@ -116,7 +116,7 @@ fn a_menu_button_has_the_rail_indicator_in_its_end_corner_and_a_menu_popup() {
     for (dir, right) in [(Direction::Ltr, true), (Direction::Rtl, false)] {
         let harness = harness(dir).build_ui(|ui| {
             PanelFooter::show(ui, |ui| {
-                PanelFooter::menu_button(ui, Icon::Plus, "New fill");
+                PanelFooter::menu_button(ui, Icon::Plus, "New fill", false);
                 PanelFooter::button(ui, Icon::Trash, "Delete");
             });
         });
@@ -129,5 +129,17 @@ fn a_menu_button_has_the_rail_indicator_in_its_end_corner_and_a_menu_popup() {
         assert_eq!(x > rect.center().x, right, "{dir:?}: bottom-end corner");
         assert_eq!(harness.get_by_label("New fill").accesskit_node().has_popup(), Some(egui::accesskit::HasPopup::Menu));
         assert_eq!(harness.get_by_label("Delete").accesskit_node().has_popup(), None);
+        assert_eq!(harness.get_by_label("New fill").accesskit_node().data().is_expanded(), Some(false));
+        assert_eq!(harness.get_by_label("Delete").accesskit_node().data().is_expanded(), None);
     }
+}
+
+#[test]
+fn a_menu_button_reports_the_hosts_open_state() {
+    let harness = harness(Direction::Ltr).build_ui(|ui| {
+        PanelFooter::show(ui, |ui| {
+            PanelFooter::menu_button(ui, Icon::Plus, "New fill", true);
+        });
+    });
+    assert_eq!(harness.get_by_label("New fill").accesskit_node().data().is_expanded(), Some(true));
 }

@@ -93,28 +93,33 @@ impl PanelFooter {
 
     /// An icon button of the footer's button size, named `label` (its tooltip and accessible name).
     pub fn button(ui: &mut Ui, icon: Icon, label: &str) -> Response {
-        PanelFooter::button_in(ui, icon, label, false)
+        PanelFooter::button_in(ui, icon, label, None)
     }
 
     /// A footer button that opens a menu (New Fill or Adjustment Layer, layer styles): the
     /// [`button`](PanelFooter::button) with a `rail.indicator` triangle at its bottom-end corner,
     /// as the rail's flyout buttons have, and a `Menu` popup in AccessKit. The host opens the menu
-    /// from the response.
-    pub fn menu_button(ui: &mut Ui, icon: Icon, label: &str) -> Response {
-        PanelFooter::button_in(ui, icon, label, true)
+    /// from the response and passes in `open` whether its menu is open (the last pass's
+    /// [`MenuResponse::open`](crate::menu::MenuResponse::open)), which AccessKit reports as the
+    /// button's expanded state.
+    pub fn menu_button(ui: &mut Ui, icon: Icon, label: &str, open: bool) -> Response {
+        PanelFooter::button_in(ui, icon, label, Some(open))
     }
 
-    fn button_in(ui: &mut Ui, icon: Icon, label: &str, menu: bool) -> Response {
+    fn button_in(ui: &mut Ui, icon: Icon, label: &str, menu: Option<bool>) -> Response {
         let tokens = Tokens::of(ui);
         let side = tokens.component.panel_footer.button;
         let (_, square) = ui.allocate_space(vec2(side, side));
         let response = IconButton::new(icon, label).size(ControlSize::Md).show_at(ui, square);
-        if menu {
+        if let Some(open) = menu {
             let rail = &tokens.component.rail;
             if ui.is_rect_visible(response.rect) {
                 paint_corner_triangle(ui, response.rect, rail.indicator_inset, rail.indicator_size, rail.indicator_color.to_egui());
             }
-            response.ctx.accesskit_node_builder(response.id, |node| node.set_has_popup(HasPopup::Menu));
+            response.ctx.accesskit_node_builder(response.id, |node| {
+                node.set_has_popup(HasPopup::Menu);
+                node.set_expanded(open);
+            });
         }
         response
     }
@@ -153,6 +158,8 @@ pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
             ui.set_height(STORY_PANEL_HEIGHT - 2.0 * margin);
             let state_id = ui.scope_id().with("panel-footer-layers-chosen");
             let mut chosen = ui.data(|d| d.get_temp::<&'static str>(state_id));
+            let open_id = state_id.with("open");
+            let was_open = ui.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
             ui.label("Layers");
             if let Some(chosen) = chosen {
                 ui.label(format!("Added: {chosen}"));
@@ -162,7 +169,7 @@ pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
                     PanelFooter::button(ui, Icon::Trash, "Delete layer");
                     PanelFooter::button(ui, Icon::Plus, "New layer");
                     PanelFooter::button(ui, Icon::Settings, "Layer settings");
-                    let menu_button = PanelFooter::menu_button(ui, Icon::Adjustments, "New fill or adjustment layer");
+                    let menu_button = PanelFooter::menu_button(ui, Icon::Adjustments, "New fill or adjustment layer", was_open);
                     let entries = [
                         MenuEntry::Item(MenuItem::new("Solid Color...", "Solid Color")),
                         MenuEntry::Item(MenuItem::new("Gradient...", "Gradient")),
@@ -171,6 +178,7 @@ pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
                     ];
                     let at = menu_button.clicked().then_some(OpenAt::Rect(menu_button.rect));
                     let shown = ContextMenu::new(&entries).own_gestures(false).open_at(at).show(ui, &menu_button);
+                    ui.data_mut(|d| d.insert_temp(open_id, shown.open));
                     if shown.chosen.is_some() {
                         chosen = shown.chosen;
                     }
