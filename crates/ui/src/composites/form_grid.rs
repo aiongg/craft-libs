@@ -165,8 +165,11 @@ impl Form<'_> {
     /// # });
     /// ```
     ///
-    /// A cell of several controls side by side (a [`Row`](crate::primitives::Row) the closure
-    /// returns the response of) is an accessible group named by the label.
+    /// A cell of several controls returns their responses as a tuple, `(select.show(ui),
+    /// field.show(ui))`: they sit side by side, an item gap apart, and the label names and
+    /// centres on the first. A cell that returns a
+    /// [`Row`](crate::primitives::Row)'s response instead is an accessible group named by the
+    /// label.
     pub fn row<C: FieldControl>(&mut self, label: impl Into<String>, add_control: impl FnOnce(&mut Ui, &RowLabel) -> C) -> InnerResponse<C> {
         self.cell(Some(label.into()).filter(|l| !l.is_empty()), add_control, true)
     }

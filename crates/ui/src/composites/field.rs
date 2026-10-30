@@ -73,6 +73,21 @@ impl FieldControl for Response {
     }
 }
 
+/// A cell of several controls: the first is the one the row's label names and centres on; the
+/// others follow it in the cell's row, an item gap apart. `(a.show(ui), b.show(ui))` draws them
+/// in that order.
+impl<A: FieldControl, B> FieldControl for (A, B) {
+    fn control(&self) -> &Response {
+        self.0.control()
+    }
+}
+
+impl<A: FieldControl, B, C> FieldControl for (A, B, C) {
+    fn control(&self) -> &Response {
+        self.0.control()
+    }
+}
+
 impl<T> FieldControl for EditResponse<T> {
     fn control(&self) -> &Response {
         &self.response
