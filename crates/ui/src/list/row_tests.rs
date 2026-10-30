@@ -181,6 +181,24 @@ fn drop_marks_draw_a_line_on_an_edge_or_an_outline_inside() {
     assert!(fills(&mark(None)).iter().all(|r| r.fill != s.drop));
 }
 
+/// The standalone line is the list's line: same colour and thickness on the same halo, whether
+/// it runs across or down.
+#[test]
+fn drop_line_matches_the_list_marker() {
+    let (ctx, s) = (context(), style());
+    let at = |from: Pos2, to: Pos2| shapes(&ctx, |ui| drop_line(ui, from, to));
+    let drawn = at(Pos2::new(10.0, 50.0), Pos2::new(90.0, 50.0));
+    let across = fills(&drawn);
+    let line = across.iter().find(|r| r.fill == s.drop).expect("line");
+    assert_eq!((line.rect.height(), line.rect.width(), line.rect.center().y), (s.drop_width, 80.0, 50.0));
+    let halo = across.iter().find(|r| r.fill == s.drop_halo.color).expect("halo");
+    assert_eq!(halo.rect.height(), s.drop_width + 2.0 * s.drop_halo.width);
+    let drawn = at(Pos2::new(30.0, 10.0), Pos2::new(30.0, 60.0));
+    let down = fills(&drawn);
+    let line = down.iter().find(|r| r.fill == s.drop).expect("line");
+    assert_eq!((line.rect.width(), line.rect.height(), line.rect.center().x), (s.drop_width, 50.0, 30.0));
+}
+
 /// The halo is painted first and covers the marker with `drop_halo.width` to spare on each side
 /// across the line, so the marker never touches a row fill; it stays inside the row.
 #[test]

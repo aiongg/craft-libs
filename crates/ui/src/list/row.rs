@@ -5,7 +5,7 @@ use std::sync::Arc;
 use craft_theme::{Stroke as Hairline, ThumbSizes, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, Id, Label, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
+use egui::{Color32, Id, Label, Painter, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 
 use super::rename;
 use super::toggle::{self, Cell, ToggleColumn, ToggleEdit};
@@ -813,6 +813,28 @@ fn paint_label(ui: &mut Ui, tokens: &UiTokens, style: &ListRowStyle, band: Rect,
     }
 }
 
+/// A drop indicator line for a target that is not a list row: `from` to `to` (axis-aligned,
+/// horizontal when their y matches, vertical otherwise), centred on the segment, drawn in
+/// `list.drop` at `list.drop_width` on its `list.drop_halo` outline. It is the line a
+/// [`ListRow`] draws for [`DropMark::Before`] and [`DropMark::After`], for headers, buttons and
+/// other rows of the host's own.
+pub fn drop_line(ui: &Ui, from: Pos2, to: Pos2) {
+    let style = ListRow::<u8>::style(&Tokens::of(ui));
+    paint_drop_line(ui, &style, from, to);
+}
+
+fn paint_drop_line(ui: &Ui, style: &ListRowStyle, from: Pos2, to: Pos2) {
+    let (width, halo) = (style.drop_width, style.drop_halo);
+    let painter = ui.painter();
+    let reach = |across: f32| {
+        let across = vec2(0.0, across / 2.0);
+        let (min, max) = (from.min(to), from.max(to));
+        if from.y == to.y { Rect::from_min_max(min - across, max + across) } else { Rect::from_min_max(min - across.yx(), max + across.yx()) }
+    };
+    painter.rect_filled(reach(width + 2.0 * halo.width), 0.0, halo.color);
+    painter.rect_filled(reach(width), 0.0, style.drop);
+}
+
 /// The marker on its halo, both inside the row, so a row drawn after this one can't cover the
 /// halo.
 fn paint_drop_mark(ui: &Ui, style: &ListRowStyle, rect: Rect, mark: DropMark) {
@@ -821,10 +843,8 @@ fn paint_drop_mark(ui: &Ui, style: &ListRowStyle, rect: Rect, mark: DropMark) {
     let band = width + 2.0 * halo.width;
     match mark {
         DropMark::Before | DropMark::After => {
-            let top = if mark == DropMark::Before { rect.top() } else { rect.bottom() - band };
-            let band = Rect::from_min_size(pos2(rect.left(), top), vec2(rect.width(), band));
-            painter.rect_filled(band, 0.0, halo.color);
-            painter.rect_filled(band.shrink2(vec2(0.0, halo.width)), 0.0, style.drop);
+            let y = if mark == DropMark::Before { rect.top() + band / 2.0 } else { rect.bottom() - band / 2.0 };
+            paint_drop_line(ui, style, pos2(rect.left(), y), pos2(rect.right(), y));
         }
         DropMark::Into => {
             painter.rect_stroke(rect, corner_radius(style.radius), Stroke::new(band, halo.color), StrokeKind::Inside);
