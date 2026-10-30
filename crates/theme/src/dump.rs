@@ -8,13 +8,7 @@ use std::fmt::Write as _;
 use crate::{
     AngleDialTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens, BySize,
     CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, ControlSizes, CursorTokens,
-    CurveTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing,
-    FormTokens, Gaps, GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors,
-    KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens,
-    OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes,
-    RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens,
-    SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors,
-    ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens, LevelsTokens, ListboxTokens, ListSizes, ListTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -223,6 +217,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         color_picker,
         curve,
         cursor,
+        dialog,
         dock,
         empty_state,
         field,
@@ -275,6 +270,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     color_picker_lines(out, color_picker);
     curve_lines(out, curve);
     cursor_lines(out, cursor);
+    dialog_lines(out, dialog);
     dock_lines(out, dock);
     empty_state_lines(out, empty_state);
     field_lines(out, field);
@@ -782,6 +778,47 @@ fn dock_lines(out: &mut Lines, t: &DockTokens) {
     ] {
         out.line(&format!("dock.{k}"), hex(*c));
     }
+}
+
+fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
+    let DialogTokens {
+        pad,
+        pad_roomy,
+        title_gap,
+        body_gap,
+        footer_gap,
+        button_gap,
+        button_min,
+        side_min,
+        close_box,
+        drag_pad,
+        width_compact,
+        width_min,
+        width_standard,
+        width_wide,
+        window_margin,
+        resize_margin,
+        keep_visible,
+        scroll_min,
+    } = t;
+    out.line("dialog.pad", len(*pad));
+    out.line("dialog.pad_roomy", len(*pad_roomy));
+    out.line("dialog.title_gap", len(*title_gap));
+    out.line("dialog.body_gap", len(*body_gap));
+    out.line("dialog.footer_gap", len(*footer_gap));
+    out.line("dialog.button_gap", len(*button_gap));
+    out.line("dialog.button_min", len(*button_min));
+    out.line("dialog.side_min", len(*side_min));
+    out.line("dialog.close_box", len(*close_box));
+    out.line("dialog.drag_pad", format!("{} {} {}", len(drag_pad[0]), len(drag_pad[1]), len(drag_pad[2])));
+    out.line("dialog.width_compact", len(*width_compact));
+    out.line("dialog.width_min", len(*width_min));
+    out.line("dialog.width_standard", len(*width_standard));
+    out.line("dialog.width_wide", len(*width_wide));
+    out.line("dialog.window_margin", len(*window_margin));
+    out.line("dialog.resize_margin", len(*resize_margin));
+    out.line("dialog.keep_visible", len(*keep_visible));
+    out.line("dialog.scroll_min", len(*scroll_min));
 }
 
 fn form_lines(out: &mut Lines, t: &FormTokens) {

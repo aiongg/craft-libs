@@ -143,9 +143,9 @@ pub enum Corner {
     /// Push and toggle buttons: `button.radius` (`radius.button` unless the theme overrides
     /// it).
     Button,
-    /// Popups and menus: `radius.popup`.
+    /// Popups, menus and dialogs: `radius.popup`.
     Popup,
-    /// Windows and dialogs: `radius.window`.
+    /// Windows: `radius.window`.
     Window,
     /// Docked panels: `radius.panel`.
     Panel,

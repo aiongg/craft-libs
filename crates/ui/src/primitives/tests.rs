@@ -57,7 +57,7 @@ fn surface_style_per_kind_flat_and_bevelled() {
         (K::Sunken, c.surface.sunken, t.radius.control, border(c.line.control_edge), None),
         (K::Pressed, c.state.pressed, t.radius.control, border(c.line.control_edge), None),
         (K::Popup, t.component.popup.fill, t.radius.popup, border(t.component.popup.border), Some(t.shadow.popup)),
-        (K::Dialog, c.surface.raised, t.radius.window, border(c.line.border), Some(t.shadow.popup)),
+        (K::Dialog, t.component.popup.fill, t.radius.popup, border(t.component.popup.border), Some(t.shadow.popup)),
         (K::Knob, c.surface.knob, t.radius.control, border(c.line.knob_edge), Some(t.shadow.knob)),
     ];
     for (kind, fill, radius, edge, shadow) in expected {
@@ -73,8 +73,7 @@ fn surface_style_per_kind_flat_and_bevelled() {
         let want = match kind {
             K::Background | K::Panel => SurfaceEdge::None,
             K::Raised | K::Knob => SurfaceEdge::Bevel { top_left: light, bottom_right: dark, width },
-            K::Popup => SurfaceEdge::Border(Stroke::new(1.0, classic.component.popup.border.to_egui())),
-            K::Dialog => SurfaceEdge::Border(Stroke::new(1.0, classic.color.line.border.to_egui())),
+            K::Popup | K::Dialog => SurfaceEdge::Border(Stroke::new(1.0, classic.component.popup.border.to_egui())),
             K::Sunken | K::Pressed => SurfaceEdge::Bevel { top_left: dark, bottom_right: light, width },
         };
         assert_eq!(Surface::style(&classic, kind).edge, want, "{kind:?}");

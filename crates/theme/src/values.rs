@@ -1294,3 +1294,40 @@ pub const RAIL_INDICATOR_INSET: f32 = 2.0;
 pub const RAIL_MARKER_RADIUS: f32 = 3.0;
 /// Width of the outline of a selected rail button.
 pub const RAIL_SELECTED_BORDER_WIDTH: f32 = 1.0;
+/// The control height the Compact dialog gaps are set for; the vertical gaps of other sizes scale
+/// by their control height over this.
+pub const DIALOG_BASE_CONTROL: f32 = 24.0;
+/// Frame inner margin of a dialog: PhotoCraft's `Frame::popup` (`menu_margin` 6 plus the 1 pt stroke).
+pub const DIALOG_PAD: f32 = 7.0;
+/// Compact gap between the title and the rule, and the rule and the body's start: PhotoCraft's
+/// `add_space(4)` above the rule.
+pub const DIALOG_TITLE_GAP: f32 = 4.0;
+/// Compact gap between the rule and the body (PhotoCraft `add_space(8)`).
+pub const DIALOG_BODY_GAP: f32 = 8.0;
+/// Compact gap between the body and the footer (PhotoCraft `add_space(8)`).
+pub const DIALOG_FOOTER_GAP: f32 = 8.0;
+/// Gap between footer buttons (PhotoCraft `button_row`).
+pub const DIALOG_BUTTON_GAP: f32 = 10.0;
+/// Least width of a footer button (PhotoCraft).
+pub const DIALOG_BUTTON_MIN: f32 = 84.0;
+/// Least width of a side-column button (PhotoCraft).
+pub const DIALOG_SIDE_MIN: f32 = 96.0;
+/// How far the title band reaches past the title on the left, right and top, then below
+/// (PhotoCraft `dialogs.rs:670`).
+pub const DIALOG_DRAG_PAD: [f32; 3] = [7.0, 7.0, 4.0];
+/// Greatest content width of a Compact dialog (PhotoCraft `__compact`).
+pub const DIALOG_WIDTH_COMPACT: f32 = 260.0;
+/// Least content width of a Standard or Wide dialog.
+pub const DIALOG_WIDTH_MIN: f32 = 380.0;
+/// Greatest content width of a Standard dialog.
+pub const DIALOG_WIDTH_STANDARD: f32 = 440.0;
+/// Greatest content width of a Wide dialog.
+pub const DIALOG_WIDTH_WIDE: f32 = 600.0;
+/// Space kept between a dialog and the window edge on each side (PhotoCraft: width minus 48).
+pub const DIALOG_WINDOW_MARGIN: f32 = 24.0;
+/// The same for a resizable dialog's greatest size (PhotoCraft: minus 40 in total).
+pub const DIALOG_RESIZE_MARGIN: f32 = 20.0;
+/// Width of a dragged dialog that stays on screen (DesignCraft `KEEP_VISIBLE`).
+pub const DIALOG_KEEP_VISIBLE: f32 = 100.0;
+/// Least height of a scrolling dialog body (PhotoCraft `max(120)`).
+pub const DIALOG_SCROLL_MIN: f32 = 120.0;
