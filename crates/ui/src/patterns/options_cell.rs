@@ -8,7 +8,7 @@ use crate::controls::{CheckState, Checkbox, NumberField, Select};
 use crate::direction;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, Text};
-use crate::story::Args;
+use crate::story::StoryArgs;
 use crate::theme::{Tokens, TokensOf};
 use craft_theme::{ControlSize, TypeRole};
 
@@ -118,10 +118,21 @@ fn sample_group(ui: &mut Ui, state: &mut CheckState, disabled: bool) {
     });
 }
 
+/// The args of the options bar story.
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct BarArgs {
+    pub(super) narrow: bool,
+    pub(super) session: bool,
+    pub(super) disabled: bool,
+    pub(super) two_rows: bool,
+    #[arg(range = 160.0..=1200.0)]
+    pub(super) width: f32,
+}
+
 /// The bar of PhotoCraft's brush tool, with a disabled group and, while a session is on, commit and cancel.
-pub(super) fn show_story(ui: &mut Ui, args: &mut Args) {
-    let (narrow, session, disabled, two_rows) = (args.bool("narrow"), args.bool("session"), args.bool("disabled"), args.bool("two_rows"));
-    let width = args.number("width") as f32;
+pub(super) fn show_story(ui: &mut Ui, args: &mut BarArgs) {
+    let (narrow, session, disabled, two_rows) = (args.narrow, args.session, args.disabled, args.two_rows);
+    let width = args.width;
     let state_id = ui.scope_id().with("options-bar-demo");
     let mut demo = ui.data(|d| d.get_temp::<Demo>(state_id)).unwrap_or_default();
     let numbers = LocaleNumbers::from_tag("en-US");

@@ -8,8 +8,9 @@ use egui::{AsIdSalt, Frame, IdSalt, Margin, Rect, ScrollArea, Sense, Ui, UiBuild
 use crate::composites::PanelFooter;
 use crate::docking::DockLook;
 use crate::icons::Icon;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 type FooterContent<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 
@@ -207,20 +208,33 @@ impl<'a> Panel<'a> {
 pub const COMPONENTS: &[&str] = &["Panel"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || {
-        Args::new()
-            .with_bool("scroll", true)
-            .with_bool("footer", true)
-            .with_number("height", 240.0, 60.0, 480.0)
-            .with_number("width", 260.0, 120.0, 480.0)
-    };
-    vec![Story::new("patterns/panel/embedded", Level::Patterns, "Panel", "Embedded", args, show_embedded).on(Surface::Own)]
+    vec![
+        typed_story!(
+            "patterns/panel/embedded",
+            Level::Patterns,
+            "Panel",
+            "Embedded",
+            EmbeddedArgs { scroll: true, footer: true, height: 240.0, width: 260.0 },
+            show_embedded
+        )
+        .on(Surface::Own),
+    ]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct EmbeddedArgs {
+    scroll: bool,
+    footer: bool,
+    #[arg(range = 60.0..=480.0)]
+    height: f32,
+    #[arg(range = 120.0..=480.0)]
+    width: f32,
 }
 
 /// A Layers-like panel: rows in the body and three footer buttons.
-fn show_embedded(ui: &mut Ui, args: &mut Args) {
-    let size = vec2(args.number("width") as f32, args.number("height") as f32);
-    let (scroll, footer) = (args.bool("scroll"), args.bool("footer"));
+fn show_embedded(ui: &mut Ui, args: &mut EmbeddedArgs) {
+    let size = vec2(args.width, args.height);
+    let (scroll, footer) = (args.scroll, args.footer);
     ui.allocate_ui(size, |ui| {
         let mut panel = Panel::new("story").title("Layers").scroll(scroll).fill(true);
         if footer {

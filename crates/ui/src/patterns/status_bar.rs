@@ -11,8 +11,9 @@ use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Content, Divider, Text};
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 use craft_theme::{ControlSize, TypeRole};
 
 /// A status bar's sizes and colours, from [`StatusBar::style`].
@@ -260,9 +261,9 @@ fn info_text(index: usize) -> &'static str {
 }
 
 /// PhotoCraft's status bar: zoom, the chosen info and its menu, a message and the render path.
-fn show_story(ui: &mut Ui, args: &mut Args) {
-    let width = args.number("width") as f32;
-    let (message, error, render_path) = (args.text("message").to_owned(), args.bool("error"), args.bool("render_path"));
+fn show_story(ui: &mut Ui, args: &mut StatusArgs) {
+    let width = args.width;
+    let (message, error, render_path) = (args.message.as_str(), args.error, args.render_path);
     let state_id = ui.scope_id().with("status-bar-demo");
     let mut demo = ui.data(|d| d.get_temp::<Demo>(state_id)).unwrap_or_default();
     let numbers = LocaleNumbers::from_tag("en-US");
@@ -288,7 +289,7 @@ fn show_story(ui: &mut Ui, args: &mut Args) {
                 if let Some(chosen) = PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &button).chosen {
                     demo.info = chosen;
                 }
-                StatusBar::message(ui, &message, error);
+                StatusBar::message(ui, message, error);
             });
             if render_path {
                 bar.trailing(|ui| {
@@ -302,50 +303,41 @@ fn show_story(ui: &mut Ui, args: &mut Args) {
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "patterns/status-bar/photocraft",
             Level::Patterns,
             "StatusBar",
             "PhotoCraft",
-            || {
-                Args::new()
-                    .with_text("message", "Saved to Documents")
-                    .with_bool("error", false)
-                    .with_bool("render_path", true)
-                    .with_number("width", 640.0, 160.0, 1200.0)
-            },
-            show_story,
+            StatusArgs { message: "Saved to Documents".into(), error: false, render_path: true, width: 640.0 },
+            show_story
         )
         .on(Surface::Chrome),
-        Story::new(
+        typed_story!(
             "patterns/status-bar/error",
             Level::Patterns,
             "StatusBar",
             "Error",
-            || {
-                Args::new()
-                    .with_text("message", "Couldn't save: the disk is full")
-                    .with_bool("error", true)
-                    .with_bool("render_path", true)
-                    .with_number("width", 640.0, 160.0, 1200.0)
-            },
-            show_story,
+            StatusArgs { message: "Couldn't save: the disk is full".into(), error: true, render_path: true, width: 640.0 },
+            show_story
         )
         .on(Surface::Chrome),
-        Story::new(
+        typed_story!(
             "patterns/status-bar/narrow",
             Level::Patterns,
             "StatusBar",
             "Narrow",
-            || {
-                Args::new()
-                    .with_text("message", "Exported 14 layers to the folder Documents/Exports/2026")
-                    .with_bool("error", false)
-                    .with_bool("render_path", true)
-                    .with_number("width", 480.0, 160.0, 1200.0)
-            },
-            show_story,
+            StatusArgs { message: "Exported 14 layers to the folder Documents/Exports/2026".into(), error: false, render_path: true, width: 480.0 },
+            show_story
         )
         .on(Surface::Chrome),
     ]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct StatusArgs {
+    message: String,
+    error: bool,
+    render_path: bool,
+    #[arg(range = 160.0..=1200.0)]
+    width: f32,
 }
