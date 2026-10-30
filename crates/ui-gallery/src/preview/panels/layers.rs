@@ -19,6 +19,7 @@ use egui::text::LayoutJob;
 use egui::{Color32, CornerRadius, Label, Painter, Rect, Response, Ui, vec2};
 
 use super::super::model::{Blend, LayerId, LayerKind, Mock};
+use super::{Outcome, resolve};
 
 /// Which layers the list shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -56,6 +57,8 @@ pub struct State {
     /// Lock transparent pixels, image pixels and position: the mock layers have no such locks, so
     /// the buttons only keep their state.
     partial_locks: [bool; 3],
+    /// The opacity or fill from before the running edit, for a cancel.
+    before: Option<u8>,
 }
 
 /// What the footer asked for.
@@ -106,8 +109,8 @@ fn caption(ui: &mut Ui, text: &str) -> Response {
 }
 
 /// A percent field named `caption`, at the end edge of the row, scrubbed by its caption. Returns
-/// the value it took and whether that edit is committed (a typed entry or the end of a scrub).
-fn percent(ui: &mut Ui, id: &str, text: &str, numbers: &LocaleNumbers, value: u8, enabled: bool) -> Option<(u8, bool)> {
+/// its event.
+fn percent(ui: &mut Ui, id: &str, text: &str, numbers: &LocaleNumbers, value: u8, enabled: bool) -> Option<EditEvent<f64>> {
     let tokens = Tokens::of(ui);
     let style = OptionsBar::style(&tokens, false);
     let width = {
@@ -128,11 +131,7 @@ fn percent(ui: &mut Ui, id: &str, text: &str, numbers: &LocaleNumbers, value: u8
                     .enabled(enabled)
                     .scrub_by(label)
                     .show(ui);
-                edit = match field.event {
-                    Some(EditEvent::Commit { value, changed: true, .. } | EditEvent::Set { value, .. }) => Some((value.round() as u8, true)),
-                    Some(EditEvent::Update { value, .. }) => Some((value.round() as u8, false)),
-                    _ => None,
-                };
+                edit = field.event;
             });
         });
     });
@@ -162,8 +161,8 @@ fn header(ui: &mut Ui, mock: &mut Mock, state: &mut State) {
         if select.show(ui).response.changed() {
             edits.push(Edit { change: Change::Blend(shown), commit: true });
         }
-        if let Some((v, commit)) = percent(ui, "layers.opacity", "Opacity", &numbers, opacity, enabled) {
-            edits.push(Edit { change: Change::Opacity(v), commit });
+        if let Some(event) = percent(ui, "layers.opacity", "Opacity", &numbers, opacity, enabled) {
+            edits.extend(percent_edit(&event, opacity, &mut state.before, Change::Opacity));
         }
     });
     ui.horizontal(|ui| {
@@ -177,8 +176,8 @@ fn header(ui: &mut Ui, mock: &mut Mock, state: &mut State) {
         if all != locked {
             edits.push(Edit { change: Change::Locked(all), commit: true });
         }
-        if let Some((v, commit)) = percent(ui, "layers.fill", "Fill", &numbers, fill, enabled) {
-            edits.push(Edit { change: Change::Fill(v), commit });
+        if let Some(event) = percent(ui, "layers.fill", "Fill", &numbers, fill, enabled) {
+            edits.extend(percent_edit(&event, fill, &mut state.before, Change::Fill));
         }
     });
     mock.doc.modified |= !edits.is_empty();
@@ -210,6 +209,15 @@ fn header(ui: &mut Ui, mock: &mut Mock, state: &mut State) {
     for name in history {
         mock.record(name);
     }
+}
+
+/// The change a percent field's event asks for: a step shows its value, the end of a changed
+/// gesture commits it, and a cancel puts the value from before the gesture back.
+fn percent_edit(event: &EditEvent<f64>, current: u8, before: &mut Option<u8>, change: fn(u8) -> Change) -> Option<Edit> {
+    Some(match resolve(event, &current, before)? {
+        Outcome::Apply { value, record } => Edit { change: change(value.round() as u8), commit: record },
+        Outcome::Restore(value) => Edit { change: change(value), commit: false },
+    })
 }
 
 /// One change to the selected layer; `commit` is false while a drag is still going.

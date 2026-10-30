@@ -7,7 +7,7 @@ use craft_ui::localized::{LocaleNumbers, Unit};
 use craft_ui::patterns::{CellWidth, OptionsBar};
 use egui::Ui;
 
-use super::model::{Blend, MarqueeStyle, Mock, MoveTarget, SampleSize, Tool, View};
+use super::model::{Align, Blend, MarqueeStyle, Mock, MoveTarget, SampleSize, Tool, View};
 use super::tools::icon;
 
 fn percent(ui: &mut Ui, numbers: &LocaleNumbers, id: &str, caption: &str, min: f64, value: &mut f64) {
@@ -40,13 +40,13 @@ fn check(ui: &mut Ui, label: &str, value: &mut bool) {
     *value = state == CheckState::Checked;
 }
 
-const ALIGN: [(Icon, &str); 6] = [
-    (Icon::AlignEdgeLeft, "Align left edges"),
-    (Icon::AlignEdgeHcenter, "Align horizontal centres"),
-    (Icon::AlignEdgeRight, "Align right edges"),
-    (Icon::AlignEdgeTop, "Align top edges"),
-    (Icon::AlignEdgeVcenter, "Align vertical centres"),
-    (Icon::AlignEdgeBottom, "Align bottom edges"),
+pub(super) const ALIGN: [(Icon, &str, Align); 6] = [
+    (Icon::AlignEdgeLeft, "Align left edges", Align::Left),
+    (Icon::AlignEdgeHcenter, "Align horizontal centres", Align::Centre),
+    (Icon::AlignEdgeRight, "Align right edges", Align::Right),
+    (Icon::AlignEdgeTop, "Align top edges", Align::Top),
+    (Icon::AlignEdgeVcenter, "Align vertical centres", Align::Middle),
+    (Icon::AlignEdgeBottom, "Align bottom edges", Align::Bottom),
 ];
 
 /// The cells of the current tool; its values live in `mock.tools`.
@@ -65,8 +65,11 @@ fn cells(ui: &mut Ui, mock: &mut Mock) {
             OptionsBar::divider(ui);
             check(ui, "Show Transform Controls", &mut options.transform);
             OptionsBar::divider(ui);
-            for (glyph, name) in ALIGN {
-                ui.add(IconButton::new(glyph, name).size(ControlSize::Sm));
+            let enabled = mock.doc.selected_layer().is_some_and(|l| !l.locked && !l.is_adjustment());
+            for (glyph, name, how) in ALIGN {
+                if ui.add(IconButton::new(glyph, name).size(ControlSize::Sm).enabled(enabled)).clicked() {
+                    mock.align_selected(how);
+                }
             }
         }
         Tool::RectMarquee => {

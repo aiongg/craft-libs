@@ -156,19 +156,6 @@ impl Doc {
         }
     }
 
-    /// Moves a layer to `to` in the list (0 is the top), clamped to the list.
-    pub fn move_layer(&mut self, id: LayerId, to: usize) -> bool {
-        let Some(from) = self.index_of(id) else { return false };
-        let to = to.min(self.layers.len() - 1);
-        if from == to {
-            return false;
-        }
-        let layer = self.layers.remove(from);
-        self.layers.insert(to, layer);
-        self.modified = true;
-        true
-    }
-
     /// The index a new layer takes: above the topmost selected layer, else at the top.
     fn insert_at(&self) -> usize {
         self.selected.iter().filter_map(|id| self.index_of(*id)).min().unwrap_or(0)

@@ -3,14 +3,14 @@
 
 mod doc;
 mod layers;
+mod properties;
 mod size;
 mod tools;
 
-pub use doc::{Blend, Doc, Layer, LayerId, LayerKind, adjust};
+pub use doc::{Blend, Doc, Layer, LayerId, LayerKind};
+pub use properties::{AdjustField, Align, RectField};
 pub use size::{ImageSizeDraft, Resample, SizeUnit};
-pub use tools::{
-    BrushOptions, EraserOptions, EyedropperOptions, GradientOptions, MarqueeOptions, MarqueeStyle, MoveOptions, MoveTarget, SampleSize, Tool, Tools,
-};
+pub use tools::{MarqueeStyle, MoveTarget, SampleSize, Tool, Tools};
 
 /// The foreground and background colours.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,6 +35,7 @@ impl Colors {
     }
 
     /// Sets the active well's colour.
+    #[cfg(test)]
     pub fn set_active(&mut self, color: [u8; 3]) {
         *(if self.bg_active { &mut self.bg } else { &mut self.fg }) = color;
     }
@@ -130,12 +131,6 @@ impl Mock {
         }
     }
 
-    pub fn move_layer(&mut self, id: LayerId, to: usize) {
-        if self.doc.move_layer(id, to) {
-            self.record("Move layer");
-        }
-    }
-
     pub fn add_layer(&mut self) {
         self.doc.add_layer();
         self.record("New layer");
@@ -190,6 +185,7 @@ impl Mock {
 
 #[cfg(test)]
 mod tests {
+    use super::doc::adjust;
     use super::*;
 
     #[test]
@@ -223,13 +219,10 @@ mod tests {
     }
 
     #[test]
-    fn layers_move_and_new_layers_go_above_the_selection() {
+    fn new_layers_go_above_the_selection() {
         let mut doc = Doc::default();
-        assert!(doc.move_layer(3, 99));
-        assert_eq!(doc.layers.iter().map(|l| l.id).collect::<Vec<_>>(), [2, 1, 3], "clamped to the bottom");
-        assert!(!doc.move_layer(3, 2));
         let id = doc.add_layer();
-        assert_eq!(doc.layers[2].id, id, "above the selected layer");
+        assert_eq!(doc.layers[0].id, id, "above the selected layer");
         assert_eq!(doc.layer(id).unwrap().name, "Layer 4");
         assert_eq!(doc.selected, vec![id]);
     }
