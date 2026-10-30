@@ -46,6 +46,18 @@ fn bevelled_themes_get_solid_panel_scroll_bars() {
 }
 
 #[test]
+fn reduced_motion_stops_scroll_glide() {
+    let [normal, reduced] = [false, true].map(|reduced_motion| {
+        let appearance =
+            Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion };
+        style_for(&resolve(&theme("craft.studio"), appearance, None).tokens, &FontFamilies::default())
+    });
+    assert_eq!(normal.scroll_animation, egui::style::ScrollAnimation::default());
+    assert_eq!(reduced.scroll_animation, egui::style::ScrollAnimation::none());
+    assert_eq!(reduced.animation_time, 0.0);
+}
+
+#[test]
 fn style_follows_the_tokens() {
     let fonts = FontFamilies::default();
     let [studio, solarized] = [("craft.studio", Mode::Dark), ("craft.solarized-dark", Mode::Dark)].map(|(id, mode)| {

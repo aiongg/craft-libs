@@ -22,8 +22,8 @@ use super::convert::{FontFamilies, ToEgui, corner_radius, margin, stroke};
 ///   `menu_width`, `menu_spacing`, `indent_ends_with_horizontal_line`,
 ///   `combo_height`.
 /// - `Style`: everything outside `visuals`, `spacing`, `text_styles` and `animation_time`
-///   (interaction but `tooltip_delay`, wrapping, number formatting, scroll animation, debug
-///   options, direction). `TextStyle::Name` styles are not added.
+///   (interaction but `tooltip_delay`, wrapping, number formatting, scroll animation unless motion
+///   is reduced, debug options, direction). `TextStyle::Name` styles are not added.
 pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
     let mut style = Style { visuals: visuals(tokens), ..Style::default() };
 
@@ -53,6 +53,10 @@ pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
     s.scroll = scroll_style(&tokens.component.scroll);
 
     style.animation_time = tokens.motion.hover.millis as f32 / 1000.0;
+    // Reduced motion zeroes every duration; scroll glide is movement within the screen.
+    if tokens.motion.r#move.millis == 0 {
+        style.scroll_animation = egui::style::ScrollAnimation::none();
+    }
     style.interaction.tooltip_delay = crate::controls::Tooltip::DELAY;
     style
 }
