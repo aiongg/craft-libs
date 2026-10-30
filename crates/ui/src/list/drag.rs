@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use egui::mutex::Mutex;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{Id, LayerId, Order, Pos2, Rect, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
+use egui::{Id, LayerId, Order, Painter, Pos2, Rect, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
 
 use super::row::{ListRow, ListRowStyle, RowEvent};
 use super::toggle::ToggleColumn;
@@ -48,20 +48,33 @@ pub(super) fn all_shown<K: Eq + Hash>(rows: &(impl DisplayOrder<K> + ?Sized), it
 /// Where the ghost's box starts from the pointer (PhotoCraft), toward the reading end.
 const GHOST_OFFSET: Vec2 = Vec2::new(12.0, -10.0);
 
+/// Paints the thumbnail of a ghost into the rect, a square of the given side.
+pub(crate) type GhostThumb<'a> = (f32, &'a dyn Fn(&Painter, Rect));
+
 /// The ghost: the grabbed row's label in a box beside the pointer on the tooltip layer, cut to
-/// `max_width`.
-pub(super) fn paint_ghost(ui: &Ui, list: Id, style: &ListRowStyle, label: &str, pointer: Pos2, max_width: f32) {
+/// `max_width`; with `thumb` (its side and painter), a thumbnail before the label.
+pub(crate) fn paint_ghost(ui: &Ui, list: Id, style: &ListRowStyle, label: &str, pointer: Pos2, max_width: f32, thumb: Option<GhostThumb<'_>>) {
     let tokens = Tokens::of(ui);
     let pad = vec2(style.pad_x, style.gap);
     let mut job = LayoutJob::single_section(label.to_owned(), role_format(&tokens, style.label_role, style.text));
-    job.wrap = TextWrapping::truncate_at_width((max_width - 2.0 * pad.x).max(style.min_label));
+    let side = thumb.map_or(0.0, |(side, _)| side);
+    let lead = if side > 0.0 { side + style.gap } else { 0.0 };
+    job.wrap = TextWrapping::truncate_at_width((max_width - 2.0 * pad.x - lead).max(style.min_label));
     let painter = ui.ctx().layer_painter(LayerId::new(Order::Tooltip, list.with("drag-ghost")));
     let galley = painter.layout_job(job);
-    let size = galley.size() + 2.0 * pad;
-    let left = if direction::is_rtl(ui) { pointer.x - GHOST_OFFSET.x - size.x } else { pointer.x + GHOST_OFFSET.x };
+    let size = vec2(galley.size().x + lead, galley.size().y.max(side)) + 2.0 * pad;
+    let rtl = direction::is_rtl(ui);
+    let left = if rtl { pointer.x - GHOST_OFFSET.x - size.x } else { pointer.x + GHOST_OFFSET.x };
     let rect = Rect::from_min_size(pos2(left, pointer.y + GHOST_OFFSET.y), size);
     painter.rect(rect, corner_radius(style.ghost_radius), style.ghost_fill, Stroke::new(1.0, style.ghost_border), StrokeKind::Inside);
-    painter.galley(rect.min + pad, galley, style.text);
+    let inner = rect.shrink2(pad);
+    let text_x = if rtl { inner.right() - lead - galley.size().x } else { inner.left() + lead };
+    if let Some((side, paint)) = thumb.filter(|(side, _)| *side > 0.0) {
+        let x = if rtl { inner.right() - side } else { inner.left() };
+        let at = Rect::from_min_size(pos2(x, inner.center().y - side / 2.0), vec2(side, side));
+        paint(&painter.with_clip_rect(at), at);
+    }
+    painter.galley(pos2(text_x, inner.center().y - galley.size().y / 2.0), galley, style.text);
 }
 
 pub(crate) fn stories() -> Vec<Story> {

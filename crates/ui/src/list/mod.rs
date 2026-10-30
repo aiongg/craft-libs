@@ -23,7 +23,7 @@
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod context_menu_tests;
-mod drag;
+pub(crate) mod drag;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod list_tests;
 mod rename;
