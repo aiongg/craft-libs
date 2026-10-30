@@ -4,6 +4,7 @@ use egui::{Id, Sense, Ui, UiBuilder, vec2};
 
 use super::buttons::{ButtonRole, Clicked, FooterButton, FooterButtons, FooterButtonsResponse, Platform};
 use super::keys::EnterRule;
+use super::preview::Preview;
 use crate::composites::measure;
 use crate::controls::Button;
 use crate::direction;
@@ -142,6 +143,7 @@ pub struct Footer<'a> {
     apply_enabled: bool,
     reset: Option<Reset>,
     enter: EnterRule,
+    preview: Option<String>,
     leading: Option<Slot<'a>>,
     trailing_extra: Option<Slot<'a>>,
     custom: Option<Custom<'a>>,
@@ -161,6 +163,7 @@ impl<'a> Footer<'a> {
             apply_enabled: true,
             reset: None,
             enter: EnterRule::Default,
+            preview: None,
             leading: None,
             trailing_extra: None,
             custom: None,
@@ -267,6 +270,16 @@ impl<'a> Footer<'a> {
         self
     }
 
+    /// The Preview check box (the dialog's [`Preview`] flags, see
+    /// [`DialogState::preview`](super::DialogState::preview)) at the start edge of the
+    /// [`standard`](Footer::standard) row, before any [`leading`](Footer::leading) controls. A host
+    /// that places the box in the body keeps its own [`Preview`] and draws it with
+    /// [`Preview::checkbox`].
+    pub fn preview(mut self, label: impl Into<String>) -> Self {
+        self.preview = Some(label.into());
+        self
+    }
+
     /// Controls before the buttons, at the trailing edge of the [`standard`](Footer::standard) row
     /// (Color Table's Load and Save).
     pub fn trailing_extra(mut self, add: impl FnOnce(&mut Ui) + 'a) -> Self {
@@ -318,7 +331,7 @@ impl<'a> Footer<'a> {
 
     /// Shows a [`standard`](Footer::standard) or [`custom`](Footer::custom) footer in the room
     /// `ui` has.
-    pub(super) fn show_row(mut self, ui: &mut Ui, cx: FooterCx) -> FooterRun {
+    pub(super) fn show_row(mut self, ui: &mut Ui, cx: FooterCx, preview: &mut Preview) -> FooterRun {
         if let Some(draw) = self.custom.take() {
             let mut fx = FooterFx { cx, hint: self.labels.default_hint.clone(), run: FooterRun::default(), rows: 0 };
             draw(ui, &mut fx);
@@ -342,12 +355,20 @@ impl<'a> Footer<'a> {
             }
             buttons.place(row, buttons_id)
         });
-        if let Some(add) = self.leading.take() {
+        let (check, add) = (self.preview.take(), self.leading.take());
+        if check.is_some() || add.is_some() {
             let start = direction::start_x(ui, rect);
             let end = if used.width() > 0.0 { direction::start_x(ui, used) - direction::forward(ui) * gap } else { direction::end_x(ui, rect) };
             if direction::forward(ui) * (end - start) >= 1.0 {
                 let band = egui::Rect::from_x_y_ranges(start.min(end)..=start.max(end), rect.y_range());
-                lead.scope_builder(UiBuilder::new().max_rect(band).layout(direction::row(ui)), add);
+                lead.scope_builder(UiBuilder::new().max_rect(band).layout(direction::row(ui)), |ui| {
+                    if let Some(label) = check {
+                        preview.checkbox(ui, label);
+                    }
+                    if let Some(add) = add {
+                        add(ui);
+                    }
+                });
             }
         }
         self.run_of(row, reset.is_some())

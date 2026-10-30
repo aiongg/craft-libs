@@ -6,6 +6,7 @@ use egui::{Color32, Context, CursorIcon, Id, Key, Modal, Modifiers, Order, Rect,
 use super::buttons::{ButtonRole, Platform};
 use super::footer::{Footer, FooterCx, FooterRun};
 use super::frame::{DialogFrame, DialogFrameResponse};
+use super::history::{LocalHistory, Step, take_step};
 use super::keys::{KeyInput, resolve_keys};
 use super::placement::{PlaceKey, keep_on_screen, next_pin};
 use super::size::Width;
@@ -100,6 +101,9 @@ pub struct DialogResponse {
     pub alternate: Option<usize>,
     /// The side column's [`extra`](Footer::extra) button pressed this pass; the dialog stays open.
     pub extra: Option<usize>,
+    /// The step the dialog-local history took this pass (see [`Dialog::history`]); `fields` already
+    /// hold the restored value.
+    pub history: Option<Step>,
 }
 
 type FirstPlace = Box<dyn FnOnce(&Context) -> Option<Vec2>>;
@@ -152,6 +156,7 @@ pub struct Dialog<'a> {
     outer_gesture: bool,
     initial_focus: InitialFocus,
     roomy: bool,
+    history: bool,
 }
 
 impl<'a> Dialog<'a> {
@@ -173,6 +178,7 @@ impl<'a> Dialog<'a> {
             outer_gesture: false,
             initial_focus: InitialFocus::Auto,
             roomy: false,
+            history: false,
         }
     }
 
@@ -255,8 +261,25 @@ impl<'a> Dialog<'a> {
         self
     }
 
+    /// Keeps a [`LocalHistory`] of the fields: Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z step them while the
+    /// dialog is the top modal (or has the focus, when modeless) and no text field is editing, and
+    /// the keys never reach the document. A drag or typing run is one step.
+    /// [`DialogResponse::history`] reports a step so an edit preview re-applies the restored
+    /// fields as an update. The history covers the whole of `H`: the host keeps chrome that
+    /// should not be undone outside it.
+    pub fn history(mut self, history: bool) -> Self {
+        self.history = history;
+        self
+    }
+
     /// Shows the dialog for this pass. `body` draws the controls over `fields`.
-    pub fn show<H: Clone>(self, ctx: &Context, state: &mut DialogState<H>, fields: &mut H, body: impl FnOnce(&mut Ui, &mut H)) -> DialogResponse {
+    pub fn show<H: Clone + PartialEq>(
+        self,
+        ctx: &Context,
+        state: &mut DialogState<H>,
+        fields: &mut H,
+        body: impl FnOnce(&mut Ui, &mut H),
+    ) -> DialogResponse {
         let Dialog {
             id,
             title,
@@ -273,6 +296,7 @@ impl<'a> Dialog<'a> {
             outer_gesture,
             initial_focus,
             roomy,
+            history,
         } = self;
         let tokens = current(ctx);
         let t = tokens.component.dialog;
@@ -283,6 +307,7 @@ impl<'a> Dialog<'a> {
         let inside_id = id.with("focus-inside");
         if opened {
             state.begin(ctx, fields.clone(), outer_gesture);
+            state.history = history.then(|| LocalHistory::new(fields));
             ctx.data_mut(|d| {
                 d.remove_temp::<Vec2>(pin_id);
                 d.remove_temp::<Vec2>(size_id);
@@ -354,7 +379,7 @@ impl<'a> Dialog<'a> {
                 })
             } else {
                 frame.show_footer(ui, draw_body, |ui| {
-                    run_out.replace(footer.show_row(ui, cx));
+                    run_out.replace(footer.show_row(ui, cx, state.preview_mut()));
                 })
             };
             if let Some(outer) = outer {
@@ -375,7 +400,16 @@ impl<'a> Dialog<'a> {
         };
         let sizing = sizing_out.get();
         let Some(frame) = frame_out.take() else {
-            return DialogResponse { outcome: None, rect: response.rect, outer, opened, initial_focus: None, alternate: None, extra: None };
+            return DialogResponse {
+                outcome: None,
+                rect: response.rect,
+                outer,
+                opened,
+                initial_focus: None,
+                alternate: None,
+                extra: None,
+                history: None,
+            };
         };
 
         ctx.data_mut(|d| {
@@ -412,6 +446,11 @@ impl<'a> Dialog<'a> {
         let inside_before = ctx.data(|d| d.get_temp::<bool>(inside_id)).unwrap_or(false);
         let inside_now = focus_inside(ctx, response.layer_id);
         ctx.data_mut(|d| d.insert_temp(inside_id, inside_now));
+        let active = match modal_state {
+            Some((top, _)) => top,
+            None => inside_before,
+        };
+        let stepped = history.then(|| local_history(ctx, state, fields, active)).flatten();
         let reset_shown = run.reset;
         let mut alternate = None;
         let mut outcome = frame.close.as_ref().filter(|close| close.clicked()).map(|_| if modal { Outcome::Cancel } else { Outcome::Close });
@@ -431,10 +470,7 @@ impl<'a> Dialog<'a> {
             });
         }
         if outcome.is_none() {
-            let (active, popup_open) = match modal_state {
-                Some((top, popup)) => (top, popup),
-                None => (inside_before, false),
-            };
+            let popup_open = modal_state.is_some_and(|(_, popup)| popup);
             let (enter, escape) =
                 ctx.input(|i| (!opened && i.events.iter().any(is_enter_press), i.key_pressed(Key::Escape) && i.modifiers.is_none()));
             outcome = resolve_keys(KeyInput {
@@ -475,6 +511,19 @@ impl<'a> Dialog<'a> {
             }
             state.close();
         }
-        DialogResponse { outcome, rect: response.rect, outer, opened, initial_focus: focus, alternate, extra: run.extra }
+        DialogResponse { outcome, rect: response.rect, outer, opened, initial_focus: focus, alternate, extra: run.extra, history: stepped }
     }
+}
+
+/// Records the fields as a history step, or takes the step Cmd/Ctrl+Z asks for.
+fn local_history<H: Clone + PartialEq>(ctx: &Context, state: &mut DialogState<H>, fields: &mut H, active: bool) -> Option<Step> {
+    let history = state.history.get_or_insert_with(|| LocalHistory::new(fields));
+    let step = (active && !ctx.text_edit_focused()).then(|| take_step(ctx)).flatten();
+    let stepped = step.filter(|&step| history.step(fields, step));
+    if stepped.is_none() {
+        history.settle(fields, ctx.input(|i| i.pointer.any_down()) || edit::focused_gesture(ctx).is_some());
+    } else {
+        ctx.request_repaint();
+    }
+    stepped
 }

@@ -238,6 +238,6 @@ impl<'a> FullWindowDialog<'a> {
             }
             state.close();
         }
-        DialogResponse { outcome, rect: shown.response.rect, outer, opened, initial_focus: focus, alternate, extra: None }
+        DialogResponse { outcome, rect: shown.response.rect, outer, opened, initial_focus: focus, alternate, extra: None, history: None }
     }
 }

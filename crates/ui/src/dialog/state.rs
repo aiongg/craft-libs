@@ -2,6 +2,8 @@
 
 use egui::{Context, Id};
 
+use super::history::LocalHistory;
+use super::preview::Preview;
 use crate::edit::{GestureHost, OuterGesture, UndoMarks};
 
 /// What a dialog needs between passes, held by the host next to its fields. It never holds the
@@ -14,11 +16,13 @@ pub struct DialogState<H = ()> {
     snapshot: Option<H>,
     return_focus: Option<Id>,
     focus_due: bool,
+    preview: Preview,
+    pub(super) history: Option<LocalHistory<H>>,
 }
 
 impl<H> Default for DialogState<H> {
     fn default() -> Self {
-        Self { open: false, outer: None, snapshot: None, return_focus: None, focus_due: false }
+        Self { open: false, outer: None, snapshot: None, return_focus: None, focus_due: false, preview: Preview::default(), history: None }
     }
 }
 
@@ -35,6 +39,21 @@ impl<H> DialogState<H> {
     /// The outer gesture begun when the dialog opened, while it is open.
     pub fn outer(&self) -> Option<OuterGesture> {
         self.outer
+    }
+
+    /// The Preview flags; [`Footer::preview`](super::Footer::preview) draws the check box for
+    /// these. They return to their defaults when the dialog closes.
+    pub fn preview(&self) -> &Preview {
+        &self.preview
+    }
+
+    pub fn preview_mut(&mut self) -> &mut Preview {
+        &mut self.preview
+    }
+
+    /// The dialog-local history of a [`Dialog::history`](super::Dialog::history) dialog.
+    pub fn history(&self) -> Option<&LocalHistory<H>> {
+        self.history.as_ref()
     }
 
     /// Marks the dialog open: the next [`Dialog::show`](super::Dialog::show) opens it afresh.

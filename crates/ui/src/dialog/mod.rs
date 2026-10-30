@@ -8,6 +8,8 @@
 //! - [`Footer`], [`FooterButtons`], [`ButtonRole`], [`Platform`]: the role-based button area in
 //!   each platform's order, with Reset on Alt, Apply and the Enter and Esc rules
 //!   ([`resolve_keys`]).
+//! - [`Preview`], [`LocalHistory`], [`take_step`]: the Preview check box with hold-to-compare, and
+//!   undo inside a dialog ([`Dialog::history`]).
 //! - [`keep_on_screen`], [`remembered_size`], [`Width::range`], [`scroll_height`]: the placement and
 //!   size rules, as pure functions.
 //!
@@ -30,10 +32,15 @@ mod full_window;
 pub(crate) mod full_window_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod full_window_tests;
+mod history;
 mod keys;
 mod placement;
 #[cfg(test)]
 mod placement_tests;
+mod preview;
+pub(crate) mod preview_stories;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod preview_tests;
 mod size;
 #[cfg(test)]
 mod size_tests;
@@ -45,8 +52,10 @@ pub use dialog::{Backdrop, Dialog, DialogResponse, InitialFocus, Outcome};
 pub use footer::{DialogLabels, Footer, FooterFx, Reset};
 pub use frame::{DialogFrame, DialogFrameResponse, DialogFrameStyle};
 pub use full_window::{FullWindowDialog, FullWindowFx};
+pub use history::{LocalHistory, Step, take_step};
 pub use keys::{EnterRule, KeyInput, resolve_keys};
 pub use placement::{PlaceKey, keep_on_screen, next_pin};
+pub use preview::Preview;
 pub use size::{Body, Resize, ResizeMax, Width, remembered_size, scroll_height};
 pub use state::DialogState;
 pub use stories::COMPONENTS;
