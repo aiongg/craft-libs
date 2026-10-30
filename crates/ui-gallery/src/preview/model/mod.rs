@@ -182,7 +182,7 @@ impl Mock {
         self.doc.size = size;
         self.doc.resolution = draft.resolution;
         self.doc.modified = true;
-        self.record("Image size");
+        self.record("Image Size");
         self.status = format!("{} x {} px", size[0], size[1]);
     }
 }
@@ -293,7 +293,7 @@ mod tests {
         assert!(mock.dialog.is_none());
         assert_eq!(mock.doc.layer(3).unwrap().rect, [250.0, 150.0, 250.0, 200.0], "resampled layers scale");
         assert_eq!(mock.status, "600 x 400 px");
-        assert_eq!(mock.history.last().map(String::as_str), Some("Image size"));
+        assert_eq!(mock.history.last().map(String::as_str), Some("Image Size"));
     }
 
     #[test]
@@ -309,7 +309,7 @@ mod tests {
         assert_eq!(mock.doc.size, [1200, 800]);
         assert_eq!(mock.doc.resolution, 150.0);
         assert_eq!(mock.doc.layer(3).unwrap().rect, [500.0, 300.0, 500.0, 400.0], "the layers stay");
-        assert_eq!(mock.history.last().map(String::as_str), Some("Image size"));
+        assert_eq!(mock.history.last().map(String::as_str), Some("Image Size"));
     }
 
     #[test]

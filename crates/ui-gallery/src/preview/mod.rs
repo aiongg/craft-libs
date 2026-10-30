@@ -17,12 +17,13 @@ mod panels;
 mod story;
 mod tools;
 
+use craft_ui::dialog::DialogState;
 use craft_ui::patterns::LastUsed;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::{Frame, Panel, Rect, Ui, UiBuilder, Vec2, vec2};
 
 use dock::DockState;
-use model::{Mock, Tool};
+use model::{ImageSizeDraft, Mock, Tool};
 
 pub(crate) use story::stories;
 
@@ -38,6 +39,7 @@ pub struct AppPreview {
     dock: DockState,
     last_used: LastUsed<Tool>,
     home: bool,
+    image_size: DialogState<ImageSizeDraft>,
 }
 
 impl AppPreview {
@@ -65,7 +67,7 @@ impl AppPreview {
         });
         tools::rail(ui, &mut self.mock, &mut self.last_used);
         dock::show(ui, &mut self.mock, &mut self.dock);
-        dialog::show(ui, &mut self.mock);
+        dialog::show(ui, &mut self.mock, &mut self.image_size);
         tools::handle_keys(ui, &mut self.mock);
     }
 }
