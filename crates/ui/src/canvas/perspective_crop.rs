@@ -22,26 +22,10 @@ use crate::typed_story;
 /// right, bottom left; `None` before one is drawn.
 pub type PerspectiveQuad = Option<[Point; 4]>;
 
-/// Side of a corner square in screen points (PhotoCraft).
-const CORNER: f32 = 8.0;
-/// The corner square's edge.
-const CORNER_EDGE: f32 = 1.25;
-/// The quad's outline.
-const OUTLINE: f32 = 1.5;
-/// A grid line.
-const GRID_WIDTH: f32 = 0.75;
 /// A grid line's alpha, of 255.
 const GRID_ALPHA: u8 = 150;
-/// Screen points of the longest side per grid step.
-const GRID_STEP: f32 = 48.0;
 /// Fewest and most grid steps along a side.
 const GRID_STEPS: (usize, usize) = (2, 12);
-/// Radius of a placed corner click.
-const CLICK_DOT: f32 = 4.0;
-/// A press that moves less than this (screen points, at the default reach) is a click.
-const CLICK_MOVE: f32 = 3.0;
-/// The reach the click distance scales with.
-const DEFAULT_REACH: f32 = 8.0;
 
 /// The AccessKit names of the quad and its corners, the host's translated text.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -70,8 +54,16 @@ pub struct PerspectiveCropStyle {
     pub halo: Stroke,
     /// A perspective grid line: `overlay.crop` at a part of its alpha.
     pub grid: Stroke,
-    /// Reach of a corner in screen points (the default of [`PerspectiveCropQuad::tolerance`]).
+    /// Reach of a corner in screen points (the default of [`PerspectiveCropQuad::tolerance`]):
+    /// `crop.perspective_reach`.
     pub reach: f32,
+    /// Screen points of the longest side per grid step: `crop.perspective_grid_step`.
+    pub grid_step: f32,
+    /// Radius of a placed corner click: `crop.perspective_click_dot`.
+    pub click_dot: f32,
+    /// A press that moves less than this (screen points) is a click: `crop.perspective_click_move`
+    /// scaled by `reach` over `crop.perspective_reach`.
+    pub click_move: f32,
 }
 
 /// What a press at a screen point would take.
@@ -238,15 +230,19 @@ impl<'a> PerspectiveCropQuad<'a> {
     pub fn style(tokens: &UiTokens) -> PerspectiveCropStyle {
         let o = &tokens.color.overlay;
         let handle = Handle::style(tokens, HandleShape::Square);
+        let c = &tokens.component.crop;
         PerspectiveCropStyle {
-            outline: Stroke::new(OUTLINE, o.line.to_egui()),
-            invalid: Stroke::new(OUTLINE, o.crop_invalid.to_egui()),
-            corner: CORNER,
+            outline: Stroke::new(c.perspective_outline, o.line.to_egui()),
+            invalid: Stroke::new(c.perspective_outline, o.crop_invalid.to_egui()),
+            corner: c.perspective_corner,
             corner_fill: handle.fill,
-            corner_edge: CORNER_EDGE,
+            corner_edge: c.perspective_corner_edge,
             halo: handle.halo,
-            grid: Stroke::new(GRID_WIDTH, o.crop.to_egui().gamma_multiply(f32::from(GRID_ALPHA) / 255.0)),
-            reach: DEFAULT_REACH,
+            grid: Stroke::new(c.perspective_grid_width, o.crop.to_egui().gamma_multiply(f32::from(GRID_ALPHA) / 255.0)),
+            reach: c.perspective_reach,
+            grid_step: c.perspective_grid_step,
+            click_dot: c.perspective_click_dot,
+            click_move: c.perspective_click_move,
         }
     }
 
@@ -271,6 +267,7 @@ impl<'a> PerspectiveCropQuad<'a> {
         let tokens = Tokens::of(ui);
         let mut style = PerspectiveCropQuad::style(&tokens);
         if let Some(t) = self.tolerance {
+            style.click_move *= t / style.reach;
             style.reach = t;
         }
         let id = ui.make_persistent_id(self.id_salt);
@@ -467,7 +464,7 @@ impl<'a> PerspectiveCropQuad<'a> {
             return;
         }
         let (pointer, down) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down()));
-        let click = CLICK_MOVE * style.reach / DEFAULT_REACH;
+        let click = style.click_move;
         if let Some(pointer) = pointer {
             let far = match d.kind {
                 Kind::Draw { .. } => (pointer - d.press.origin).abs().max_elem() > click,
@@ -600,7 +597,7 @@ impl<'a> PerspectiveCropQuad<'a> {
             let stroke = if valid { style.outline } else { style.invalid };
             let pts: Vec<Pos2> = q.iter().map(|&c| at(c)).collect();
             if valid && self.show_grid {
-                for [a, b] in grid_lines(view, &q) {
+                for [a, b] in grid_lines(view, &q, style.grid_step) {
                     painter.line_segment([a, b], style.grid);
                 }
             }
@@ -621,11 +618,11 @@ impl<'a> PerspectiveCropQuad<'a> {
         }
         let dots: Vec<Pos2> = clicks.iter().map(|&c| at(c)).collect();
         if dots.len() > 1 {
-            painter.add(Shape::line(dots.clone(), Stroke::new(OUTLINE, accent)));
+            painter.add(Shape::line(dots.clone(), Stroke::new(style.outline.width, accent)));
         }
         for c in dots {
-            painter.circle_filled(c, CLICK_DOT, style.corner_fill);
-            painter.circle_stroke(c, CLICK_DOT, Stroke::new(CORNER_EDGE, accent));
+            painter.circle_filled(c, style.click_dot, style.corner_fill);
+            painter.circle_stroke(c, style.click_dot, Stroke::new(style.corner_edge, accent));
         }
     }
 }
@@ -667,19 +664,19 @@ fn finite(q: &[Point; 4]) -> bool {
     q.iter().all(|p| p.x.is_finite() && p.y.is_finite())
 }
 
-/// Grid steps along a side that is about `side` screen points: one per 48, from 2 to 12.
-pub fn grid_steps(side: f32) -> usize {
-    ((side / GRID_STEP).round() as usize).clamp(GRID_STEPS.0, GRID_STEPS.1)
+/// Grid steps along a side that is about `side` screen points: one per `step`, from 2 to 12.
+pub fn grid_steps(side: f32, step: f32) -> usize {
+    ((side / step).round() as usize).clamp(GRID_STEPS.0, GRID_STEPS.1)
 }
 
 /// The grid of the valid quad `q` on screen: its inner lines at equal steps of the unit square
 /// mapped through the quad's homography, so they converge like the object's own lines. The step
 /// count follows the longest of the first three sides, as PhotoCraft's.
-pub fn grid_lines(view: &CanvasView, q: &[Point; 4]) -> Vec<[Pos2; 2]> {
+pub fn grid_lines(view: &CanvasView, q: &[Point; 4], step: f32) -> Vec<[Pos2; 2]> {
     let Some(h) = Homography::unit_to_quad(*q) else { return Vec::new() };
     let pts = q.map(|c| view.to_screen(c));
     let side = pts.iter().zip(pts.iter().skip(1)).map(|(a, b)| a.distance(*b)).fold(0.0, f32::max);
-    let n = grid_steps(side);
+    let n = grid_steps(side, step);
     let at = |u: f64, v: f64| view.to_screen(h.apply(Point::new(u, v)));
     let mut out = Vec::with_capacity(2 * (n - 1));
     for k in 1..n {

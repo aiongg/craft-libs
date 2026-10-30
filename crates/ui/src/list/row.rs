@@ -186,6 +186,10 @@ pub struct ListRowStyle {
     pub dividers: bool,
     /// `list.drop_width`.
     pub drop_width: f32,
+    /// How far the second-thumb brackets stand outside the thumbnail: `list.bracket_outset`.
+    pub bracket_outset: f32,
+    /// Arm length of the second-thumb brackets: `list.bracket_arm`.
+    pub bracket_arm: f32,
     /// Side of an icon: `size.icon.md`.
     pub icon_size: f32,
     /// Type role of the label: `list.label`.
@@ -571,6 +575,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             radius: l.radius,
             dividers: l.dividers,
             drop_width: l.drop_width,
+            bracket_outset: l.bracket_outset,
+            bracket_arm: l.bracket_arm,
             icon_size: tokens.size.icon.md,
             label_role: l.label,
             detail_role: l.detail_role,
@@ -728,7 +734,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
                 }
                 if selected && let Some((_, r)) = thumbs.iter().find(|(which, _)| Some(*which) == target) {
                     let color = if layer { style.layer_selected_text } else { style.selected_text };
-                    paint_brackets(ui.painter(), *r, color);
+                    paint_brackets(ui.painter(), *r, color, &style);
                 }
                 if let Some(pos) = response.clicked().then(|| response.interact_pointer_pos()).flatten()
                     && let Some((which, _)) = thumbs.iter().find(|(_, r)| r.contains(pos))
@@ -915,14 +921,13 @@ fn show_link<K: Clone>(
 
 /// Corner brackets just outside thumbnail `r`, marking it as the target of the row's editing
 /// (PhotoCraft's `paint_brackets`: 3 points out, 6 long, 1.5 wide).
-fn paint_brackets(painter: &Painter, r: Rect, color: Color32) {
-    const OUTSET: f32 = 3.0;
-    const ARM: f32 = 6.0;
-    let r = r.expand(OUTSET);
+fn paint_brackets(painter: &Painter, r: Rect, color: Color32, style: &ListRowStyle) {
+    let (outset, arm) = (style.bracket_outset, style.bracket_arm);
+    let r = r.expand(outset);
     let stroke = Stroke::new(1.5, color);
     for (corner, dx, dy) in [(r.left_top(), 1.0, 1.0), (r.right_top(), -1.0, 1.0), (r.right_bottom(), -1.0, -1.0), (r.left_bottom(), 1.0, -1.0)] {
-        painter.line_segment([corner, corner + vec2(ARM * dx, 0.0)], stroke);
-        painter.line_segment([corner, corner + vec2(0.0, ARM * dy)], stroke);
+        painter.line_segment([corner, corner + vec2(arm * dx, 0.0)], stroke);
+        painter.line_segment([corner, corner + vec2(0.0, arm * dy)], stroke);
     }
 }
 

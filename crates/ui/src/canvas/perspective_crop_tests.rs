@@ -56,16 +56,16 @@ fn the_nearest_corner_within_reach_wins_over_inside() {
 
 #[test]
 fn the_grid_step_count_follows_the_side_and_stays_from_2_to_12() {
-    assert_eq!(grid_steps(10.0), 2);
-    assert_eq!(grid_steps(48.0 * 5.0), 5);
-    assert_eq!(grid_steps(48.0 * 5.4), 5);
-    assert_eq!(grid_steps(48.0 * 5.6), 6);
-    assert_eq!(grid_steps(10_000.0), 12);
+    assert_eq!(grid_steps(10.0, 48.0), 2);
+    assert_eq!(grid_steps(48.0 * 5.0, 48.0), 5);
+    assert_eq!(grid_steps(48.0 * 5.4, 48.0), 5);
+    assert_eq!(grid_steps(48.0 * 5.6, 48.0), 6);
+    assert_eq!(grid_steps(10_000.0, 48.0), 12);
     let view = CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), p(200.0, 150.0), 1.0);
     for side in [30.0, 240.0, 5000.0] {
         let q = [p(0.0, 0.0), p(side, 0.0), p(side, side), p(0.0, side)];
-        let n = grid_steps(side as f32);
-        assert_eq!(grid_lines(&view, &q).len(), 2 * (n - 1), "side {side}");
+        let n = grid_steps(side as f32, 48.0);
+        assert_eq!(grid_lines(&view, &q, 48.0).len(), 2 * (n - 1), "side {side}");
     }
 }
 
@@ -73,7 +73,7 @@ fn the_grid_step_count_follows_the_side_and_stays_from_2_to_12() {
 fn grid_lines_meet_at_the_quads_vanishing_points() {
     let view = CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), p(200.0, 150.0), 1.0);
     let q = [p(100.0, 80.0), p(300.0, 100.0), p(260.0, 240.0), p(130.0, 200.0)];
-    let lines = grid_lines(&view, &q);
+    let lines = grid_lines(&view, &q, 48.0);
     assert!(lines.len() >= 6);
     let meet = |a: [Pos2; 2], b: [Pos2; 2]| {
         let (d1, d2) = (a[1] - a[0], b[1] - b[0]);
@@ -381,7 +381,7 @@ fn a_valid_quad_draws_its_grid_and_an_invalid_one_draws_red_without_it() {
     h.run();
     let grid = grid_color(&h);
     let is_grid = move |s: &Shape| matches!(s, Shape::LineSegment { stroke, .. } if stroke.color == grid && (stroke.width - 0.75).abs() < 1e-6);
-    let n = grid_steps(200.0);
+    let n = grid_steps(200.0, 48.0);
     assert!(h.state().committable);
     assert_eq!(shapes_of(&h, is_grid), 2 * (n - 1));
     let mut h = harness(Some(QUAD), |host| host.grid = false);
