@@ -206,6 +206,32 @@ fn record_open(ctx: &egui::Context, bar: Id, open: bool) {
     });
 }
 
+fn rects_id() -> Id {
+    Id::unique("craft-ui-menu-bar-title-rects")
+}
+
+/// The title strips of the bars, each with the last pass it was drawn in.
+#[derive(Clone, Debug, Default)]
+struct BarRects(Vec<(Id, Rect, u64)>);
+
+/// Records the title strip of the bar `bar` drawn in this pass.
+fn record_titles(ctx: &egui::Context, bar: Id, rect: Rect) {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| {
+        let bars = &mut d.get_temp_mut_or_default::<BarRects>(rects_id()).0;
+        bars.retain(|&(id, _, seen)| id != bar && seen + 2 >= pass);
+        bars.push((bar, rect, pass));
+    });
+}
+
+/// Whether `pos` is on the title strip of a menu bar drawn in this pass or the last, whatever
+/// the order the bar and the caller are drawn in. A press there opens or switches a menu, so
+/// it is not a press elsewhere for a popup that closes on one.
+pub(crate) fn on_titles(ctx: &egui::Context, pos: egui::Pos2) -> bool {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data(|d| d.get_temp::<BarRects>(rects_id())).is_some_and(|bars| bars.0.iter().any(|&(_, rect, seen)| seen + 1 >= pass && rect.contains(pos)))
+}
+
 impl<'a, T: Clone> MenuBar<'a, T> {
     /// A bar of `menus`, each a [`MenuItem::submenu`] (a command item is a title with an empty
     /// menu).
@@ -455,6 +481,7 @@ impl<'a, T: Clone> MenuBar<'a, T> {
             let edge = direction::start_x(ui, bar.response.rect);
             Rect::from_min_max(pos2(edge, bar.response.rect.top()), pos2(edge, bar.response.rect.bottom()))
         });
+        record_titles(&ctx, self.id, titles_rect);
         MenuBarResponse { chosen, open, focused, response: bar.response, titles: titles_rect }
     }
 }

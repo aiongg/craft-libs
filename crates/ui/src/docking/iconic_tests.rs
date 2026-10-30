@@ -441,3 +441,29 @@ fn floating_windows_stay_inside_the_float_bounds() {
     let title = hit(&d, Hit::Title(5));
     assert!(title.top() >= 30.0, "{title:?}");
 }
+
+/// A press on a menu bar's title is not a press outside the flyout, whichever of the dock and the
+/// bar is drawn first; the dock draws first here, so it cannot see the menu the press opens.
+#[test]
+fn a_press_on_a_menu_title_drawn_after_the_dock_leaves_the_flyout_open() {
+    use crate::menu::{MenuBar, MenuEntry, MenuItem};
+    let mut d = DockDriver::new(docked(&[&[1, 2], &[3]], true), Content);
+    d.auto_collapse = true;
+    let menus = vec![MenuItem::submenu("Window", vec![MenuEntry::from(MenuItem::new("Panels", 1_u32))])];
+    d.after = Some(Box::new(move |ui| {
+        ui.scope_builder(egui::UiBuilder::new().max_rect(Rect::from_min_size(pos2(300.0, 0.0), vec2(300.0, 28.0))), |ui| {
+            let _ = MenuBar::new(&menus).id(egui::Id::new("test-bar")).show(ui);
+        });
+    }));
+    d.settle();
+    d.click(hit(&d, Hit::Icon(2)).center());
+    d.settle();
+    assert_eq!(open(&d), Some(2));
+    d.click(pos2(320.0, 14.0));
+    d.settle();
+    assert!(crate::menu::any_open(&d.ctx), "the press opened the menu");
+    assert_eq!(open(&d), Some(2), "the press on the title is not outside the flyout");
+    d.click(CANVAS);
+    d.settle();
+    assert_eq!(open(&d), None, "a press on the canvas still closes it");
+}
