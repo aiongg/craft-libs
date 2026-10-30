@@ -6,8 +6,9 @@
 //! English where no translator is installed or a row is missing. A labels struct is plain data: a
 //! host that sets a field gets exactly that text.
 
+use std::any::{Any, TypeId};
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex, PoisonError};
 
 use craft_i18n::{I18n, Lang};
@@ -58,6 +59,18 @@ type Plural = Arc<dyn Fn(&'static str, u64, &'static str, &'static str) -> Optio
 pub struct Words {
     lookup: Option<Lookup>,
     plural: Option<Plural>,
+    labels: LabelCache,
+}
+
+/// The labels structs built from one [`Words`], by type, so that a component asking for its
+/// labels every frame builds them once. A clone starts empty: it may get a different lookup.
+#[derive(Default)]
+struct LabelCache(Mutex<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>);
+
+impl Clone for LabelCache {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
 }
 
 impl std::fmt::Debug for Words {
@@ -74,7 +87,7 @@ impl Words {
 
     /// Words translated by `lookup`, which returns `None` where it has no text.
     pub fn new(lookup: impl Fn(Word) -> Option<String> + Send + Sync + 'static) -> Words {
-        Words { lookup: Some(Arc::new(lookup)), plural: None }
+        Words { lookup: Some(Arc::new(lookup)), plural: None, labels: LabelCache::default() }
     }
 
     /// Counts ([`Words::count`]) written by `plural(id, n, one, other)`, which returns `None` to
@@ -146,6 +159,25 @@ impl Words {
         craft_i18n::fmt(&self.get(word), args)
     }
 
+    /// The English labels of `T` translated by these words, built on the first call and shared
+    /// after it.
+    pub fn labels<T: Labels + Send + Sync + 'static>(&self) -> Arc<T> {
+        let mut cache = self.labels.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let shared = cache.entry(TypeId::of::<T>()).or_insert_with(|| Arc::new(T::english().localized_in(self)));
+        Arc::clone(shared).downcast::<T>().unwrap_or_else(|_| Arc::new(T::english().localized_in(self)))
+    }
+
+    /// `n` things written by the labels field `text` of `count`'s word: the plural forms of the
+    /// locale while `text` is still the words' own text, and exactly `text` with `{n}` filled when
+    /// the host set it.
+    pub(crate) fn counted(&self, count: Counted, text: &str, n: u64) -> String {
+        if text == self.get(count.word) {
+            self.count(count.word.key(), n, count.one, count.word.english)
+        } else {
+            craft_i18n::fmt(text, &[("n", &n.to_string())])
+        }
+    }
+
     /// `n` things: `one` when `n` is 1 and `other` otherwise in English, the locale's plural forms
     /// when the installed translator has them. `{n}` stands for the number; `id` names the count
     /// for a custom [`Words::with_plural`].
@@ -155,6 +187,35 @@ impl Words {
         }
         craft_i18n::fmt(if n == 1 { one } else { other }, &[("n", &n.to_string())])
     }
+}
+
+/// A count word: the registered word is the English plural, `one` the English singular. A
+/// catalog writes the forms of a locale in an `@plural` row keyed by the two English texts.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Counted {
+    pub word: Word,
+    pub one: &'static str,
+}
+
+impl Counted {
+    pub(crate) const fn new(id: &'static str, one: &'static str, other: &'static str) -> Counted {
+        Counted { word: Word::keyed(id, other), one }
+    }
+}
+
+/// The count words components write with [`Words::counted`].
+pub(crate) mod counts {
+    use super::Counted;
+
+    pub(crate) const PRESETS: Counted = Counted::new("preset.count", "{n} preset", "{n} presets");
+    pub(crate) const GROUP_PRESETS: Counted = Counted::new("preset.groupCount", "{n} preset", "{n} presets");
+    pub(crate) const RESULTS: Counted = Counted::new("palette.results", "{n} result", "{n} results");
+    pub(crate) const BAR_STOPS: Counted = Counted::new("gradient.barStops", "{n} stop", "{n} stops");
+    pub(crate) const GRAPH_POINTS: Counted = Counted::new("curve.graphPoints", "{n} point", "{n} points");
+    pub(crate) const GRAPH_VALUE: Counted = Counted::new("curve.graphValue", "{channel}, {n} point", "{channel}, {n} points");
+
+    #[cfg(test)]
+    pub(crate) const ALL: [Counted; 6] = [PRESETS, GROUP_PRESETS, RESULTS, BAR_STOPS, GRAPH_POINTS, GRAPH_VALUE];
 }
 
 /// The words [`Words::install`] set, kept as a plugin so that a reset of the context's memory does
@@ -195,6 +256,23 @@ pub trait Labels: Sized {
     }
 }
 
+/// Labels that are plain data, shared between the frames of one installed [`Words`].
+pub trait SharedLabels: Labels + Send + Sync + 'static {
+    /// [`Labels::of`] without the copy: the labels are built once per installed [`Words`], so
+    /// that a component reading them every frame allocates nothing. Use it where a component
+    /// reads its labels every frame.
+    fn shared(ui: &Ui) -> Arc<Self> {
+        Self::shared_ctx(ui.ctx())
+    }
+
+    /// [`SharedLabels::shared`] for code that has a context and no `Ui`.
+    fn shared_ctx(ctx: &Context) -> Arc<Self> {
+        Words::of_ctx(ctx).labels::<Self>()
+    }
+}
+
+impl<T: Labels + Send + Sync + 'static> SharedLabels for T {}
+
 /// Every registered word, once, in registration order.
 pub fn all() -> impl Iterator<Item = Word> {
     let mut seen = HashSet::new();
@@ -227,6 +305,14 @@ macro_rules! words {
 
             fn localized_in(self, words: &$crate::localized::Words) -> Self {
                 Self { $($field: words.get($crate::localized::Word::keyed($id, $english)).into_owned()),* }
+            }
+
+            fn of(ui: &$crate::localized::__egui::Ui) -> Self {
+                ::std::clone::Clone::clone(&*<Self as $crate::localized::SharedLabels>::shared(ui))
+            }
+
+            fn of_ctx(ctx: &$crate::localized::__egui::Context) -> Self {
+                ::std::clone::Clone::clone(&*<Self as $crate::localized::SharedLabels>::shared_ctx(ctx))
             }
         }
 

@@ -10,6 +10,8 @@ use crate::controls::Slider;
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::Icon;
+use crate::localized::Words;
+use crate::localized::words::counts;
 use crate::theme::{Tokens, TokensOf as _};
 use craft_theme::ControlSize;
 
@@ -164,7 +166,7 @@ impl<'a, K> PresetFooter<'a, K> {
                 }
             }
             if let Some(n) = count {
-                start.label(egui::RichText::new(labels.count.replace("{n}", &n.to_string())).color(style.count));
+                start.label(egui::RichText::new(Words::of(start).counted(counts::PRESETS, &labels.count, n as u64)).color(style.count));
             }
         });
         events

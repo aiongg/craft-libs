@@ -10,7 +10,6 @@ use super::resize::start_os_move;
 use super::{TitleBarStyle, WindowState};
 use crate::controls::TooltipExt as _;
 use crate::direction::is_rtl;
-use crate::localized::Labels as _;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
 /// The width of one Windows caption button, as the native ones.
@@ -269,8 +268,14 @@ impl<'a> CaptionButtons<'a> {
         let preview = self.preview;
         let maximized = preview.map_or_else(|| ctx.input(|i| i.viewport().maximized).unwrap_or(false), |p| p.maximized);
         let active = preview.map_or_else(|| ctx.input(|i| i.viewport().focused) != Some(false), |p| p.active);
-        let english = CaptionLabels::of(ui);
-        let labels = self.labels.unwrap_or(&english);
+        let installed;
+        let labels = match self.labels {
+            Some(labels) => labels,
+            None => {
+                installed = <CaptionLabels as crate::localized::SharedLabels>::shared(ui);
+                &*installed
+            }
+        };
         let window = if preview.is_some() { bar } else { ctx.content_rect() };
         let scope = self.scope.unwrap_or_else(|| window_scope(ctx.viewport_id()));
         let motion = Tokens::of(ui).motion.hover;

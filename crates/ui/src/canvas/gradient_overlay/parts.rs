@@ -10,7 +10,8 @@ use crate::canvas::{CanvasView, LineGradient, LinePart, Part, PartFocus};
 use crate::composites::curve_editor::fill;
 use crate::composites::gradient::marker_texts;
 use crate::composites::{StopRef, StopRow};
-use crate::localized::LocaleNumbers;
+use crate::localized::words::counts;
+use crate::localized::{LocaleNumbers, Words};
 
 /// The parts in keyboard order: the line, the start, the stops and midpoints by location, the end.
 pub(super) struct Parts {
@@ -50,10 +51,10 @@ impl GradientOverlay<'_> {
     }
 
     /// The group's accessible value.
-    pub(super) fn group_value(&self, value: &LineGradient, numbers: &LocaleNumbers) -> String {
+    pub(super) fn group_value(&self, value: &LineGradient, ctx: &egui::Context) -> String {
         match &self.value {
             Some(text) => text.clone(),
-            None => fill(&self.labels.bar_stops, &[("n", &numbers.format(value.stops.color.len() as f64, 0..=0))]),
+            None => Words::of_ctx(ctx).counted(counts::BAR_STOPS, &self.labels.bar_stops, value.stops.color.len() as u64),
         }
     }
 
@@ -66,7 +67,7 @@ impl GradientOverlay<'_> {
         let end_value = |p: kurbo::Point| {
             self.units.map(|(x, y)| fill(&self.labels.point_value, &[("x", &x.format_value(p.x, 0.0)), ("y", &y.format_value(p.y, 0.0))]))
         };
-        let group = self.group_value(shown, numbers);
+        let group = self.group_value(shown, pass.ctx);
         let part = |part: LinePart, name: &str, value: Option<String>, rect: Rect, selected: bool| Part {
             key: part_key(part),
             name: name.to_owned(),

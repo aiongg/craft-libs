@@ -478,7 +478,7 @@ impl<'a> GradientOverlay<'a> {
         };
         let parts = self.parts(&pass, gesture.shown(), numbers, sel.selected.filter(|_| editable));
         let mut focus = PartFocus::new(id, &self.names.group).parts(&parts.list).picked(sel.picked.map(parts::part_key)).focusable(editable);
-        focus = focus.value(self.group_value(gesture.shown(), numbers));
+        focus = focus.value(self.group_value(gesture.shown(), ui.ctx()));
         let focus = focus.show(ui, canvas);
         match focus.pick {
             Some(Some(key)) => {

@@ -21,7 +21,8 @@ use crate::edit::ops::{self, ScalarOp};
 use crate::edit::order::{self, Turn};
 use crate::edit::parts::{self, Pushed};
 use crate::edit::{self, EditPolicy, EditResponse, Gesture};
-use crate::localized::{Labels as _, LocaleNumbers, Unit};
+use crate::localized::words::counts;
+use crate::localized::{Labels as _, LocaleNumbers, Unit, Words};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
 use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
@@ -660,11 +661,12 @@ impl<'a> CurveEditor<'a> {
 
         let n = shown.points().map_or(0, <[_]>::len);
         let drawn = self.pencil || shown.points().is_none();
+        let words = Words::of(ui);
         let value = match channel {
             Some(c) if drawn => fill(&self.labels.graph_drawn, &[("channel", &c.label)]),
             None if drawn => self.labels.drawn.clone(),
-            Some(c) => fill(&self.labels.graph_value, &[("channel", &c.label), ("n", &self.numbers.format(n as f64, 0..=0))]),
-            None => fill(&self.labels.graph_points, &[("n", &self.numbers.format(n as f64, 0..=0))]),
+            Some(c) => fill(&words.counted(counts::GRAPH_VALUE, &self.labels.graph_value, n as u64), &[("channel", &c.label)]),
+            None => words.counted(counts::GRAPH_POINTS, &self.labels.graph_points, n as u64),
         };
         let active = selected.and_then(|i| point_ids.get(i).copied());
         // A `Ui`'s node gets no bounds of its own from egui.

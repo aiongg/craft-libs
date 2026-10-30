@@ -26,7 +26,8 @@ use crate::edit::ops::ScalarOp;
 use crate::edit::order::{self, Turn};
 use crate::edit::parts::{self, Pushed};
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
-use crate::localized::{self, Labels as _, LocaleNumbers};
+use crate::localized::words::counts;
+use crate::localized::{self, Labels as _, LocaleNumbers, Words};
 use crate::primitives::{FocusRing, Gap, Stack};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
@@ -810,7 +811,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let count = |n: usize| self.numbers.format(n as f64, 0..=0);
         let value = match rows {
             StopRows::Split => fill(&self.labels.bar_value, &[("n", &count(shown.color.len())), ("m", &count(shown.opacity_stops().len()))]),
-            StopRows::Combined | StopRows::ColorOnly => fill(&self.labels.bar_stops, &[("n", &count(shown.color.len()))]),
+            StopRows::Combined | StopRows::ColorOnly => Words::of(ui).counted(counts::BAR_STOPS, &self.labels.bar_stops, shown.color.len() as u64),
         };
         let active = selected.and_then(|s| nodes.iter().find(|(m, _)| *m == s)).map(|(_, id)| *id);
         // A `Ui`'s node gets no bounds of its own from egui.

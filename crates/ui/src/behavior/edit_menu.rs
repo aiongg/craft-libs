@@ -10,14 +10,14 @@
 //! and taken back after its `TextEdit` ran, so the field's gesture sees ordinary typing: `Cut` and `Copy` events, a Delete key press, Cmd/Ctrl+A,
 //! Cmd/Ctrl+Z, and for Paste the window's clipboard request, which arrives as a `Paste` event.
 
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use egui::plugin::Plugin;
 use egui::text_edit::TextEditState;
 use egui::{Context, Event, Id, Key, KeyboardShortcut, Modifiers, Popup, Pos2, Ui, ViewportCommand};
 
 use crate::controls::Kbd;
-use crate::localized::Labels as _;
+use crate::localized::SharedLabels as _;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 
 crate::words! {
@@ -49,14 +49,14 @@ impl EditMenu {
     /// installed words' translation of the English.
     pub fn labels_of(ui: &Ui) -> Arc<EditMenuLabels> {
         let installed = ui.ctx().plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
-        installed.unwrap_or_else(|| Arc::new(EditMenuLabels::of(ui)))
+        installed.unwrap_or_else(|| EditMenuLabels::shared(ui))
     }
 
-    /// The labels installed with [`EditMenu::install`] in `ctx`, English when none are.
+    /// The labels installed with [`EditMenu::install`] in `ctx`, else the installed words'
+    /// translation of the English.
     pub fn labels(ctx: &Context) -> Arc<EditMenuLabels> {
-        static ENGLISH: LazyLock<Arc<EditMenuLabels>> = LazyLock::new(Arc::default);
         let installed = ctx.plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
-        installed.unwrap_or_else(|| Arc::clone(&ENGLISH))
+        installed.unwrap_or_else(|| EditMenuLabels::shared_ctx(ctx))
     }
 }
 
@@ -201,4 +201,21 @@ pub(crate) fn withdraw(ui: &Ui, field: Id) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::localized::Words;
+
+    #[test]
+    fn the_labels_fall_back_to_the_installed_words() {
+        let ctx = Context::default();
+        assert_eq!(EditMenu::labels(&ctx).copy, "Copy");
+        Words::new(|word| (word.key() == "edit.copy").then(|| "Copier".to_owned())).install(&ctx);
+        assert_eq!(EditMenu::labels(&ctx).copy, "Copier");
+        let mine = EditMenuLabels { copy: "Mine".into(), ..EditMenuLabels::default() };
+        EditMenu::install(&ctx, mine);
+        assert_eq!(EditMenu::labels(&ctx).copy, "Mine");
+    }
 }

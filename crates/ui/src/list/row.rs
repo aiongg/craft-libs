@@ -14,6 +14,7 @@ use super::tree::{self, Branch, OpenChange, TreeText};
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::{self, Icon, IconSize};
+use crate::localized::SharedLabels as _;
 use crate::localized::{Labels, Word, Words};
 use crate::primitives::{FocusRing, Interactive};
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
@@ -797,7 +798,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
 
         if let Some(branch) = branch.filter(|b| b.group) {
             let at = geometry.span(rect, geometry.column_start, disclosure);
-            tree::show_disclosure(ui, &style, at, &branch, &tree_text.unwrap_or_default(), row_id, &key, &label, &mut events);
+            tree::show_disclosure(ui, &style, at, &branch, &tree_text.unwrap_or_else(|| TreeText::shared(ui)), row_id, &key, &label, &mut events);
         }
 
         if let (Some(across), true) = (leading, visible) {

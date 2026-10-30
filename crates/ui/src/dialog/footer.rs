@@ -210,6 +210,11 @@ impl<'a> Footer<'a> {
         self
     }
 
+    /// The close box label of the labels the host passed to [`labels`](Footer::labels).
+    pub(super) fn host_close_label(&self) -> Option<&str> {
+        self.labels_set.then_some(self.labels.close.as_str())
+    }
+
     /// The Default button's label.
     pub fn ok(mut self, label: impl Into<String>) -> Self {
         self.ok = Label::Text(label.into());

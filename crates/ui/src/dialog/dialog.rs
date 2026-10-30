@@ -423,6 +423,7 @@ impl<'a> Dialog<'a> {
         let pad = if roomy { t.pad_roomy } else { t.pad };
         let remembered = resize.and_then(|_| place.remembered_size(ctx));
         let resize_sizes = resize.map(|r| (r, r.max_size(&t, window.size())));
+        let footer_close = footer.host_close_label().map(str::to_owned);
         let (has_footer, enter_rule) = (!footer.is_none(), footer.enter_rule());
         let run_out = std::cell::RefCell::new(FooterRun::default());
         let (sizing_out, frame_out) = (std::cell::Cell::new(false), std::cell::Cell::new(None::<DialogFrameResponse>));
@@ -433,7 +434,7 @@ impl<'a> Dialog<'a> {
             }
             let mut frame = DialogFrame::new(id.with("frame"), title.as_str()).field_tab(true).roomy(roomy);
             match &close_label {
-                None => frame = frame.close_label(DialogLabels::of(ui).close),
+                None => frame = frame.close_label(footer_close.clone().unwrap_or_else(|| DialogLabels::of(ui).close)),
                 Some(Some(label)) => frame = frame.close_label(label.as_str()),
                 Some(None) => {}
             }

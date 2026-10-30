@@ -1057,6 +1057,24 @@ fn a_double_click_on_a_tile_header_opens_the_component() {
 /// `(text, stories, reason)`. The same text bypassing `Words` in another story still fails.
 const STORY_TEXT: &[(&str, &[&str], &str)] = &[
     (
+        "V",
+        &[
+            "patterns/app-preview/photo-editor",
+            "patterns/rail/tool",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+            "shells/canvas/standard",
+        ],
+        "the shortcut letter of the story's Move tool",
+    ),
+    (
+        "H",
+        &["patterns/rail/tool", "patterns/toolbar/horizontal-overflow", "patterns/toolbar/vertical-liquify"],
+        "the shortcut letter of the story's Hand tool, or a scrub label the story names itself",
+    ),
+    ("W", &["patterns/toolbar/horizontal-overflow", "patterns/toolbar/vertical-liquify"], "a scrub label the story names itself"),
+    (
         "Angle",
         &[
             "composites/property-row/inspector",
@@ -1417,14 +1435,22 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
 fn gallery_chrome(tree: &craft_ui::inspect::AccessTree, node: egui::accesskit::NodeId, ancestors: &[String], name: &str, titles: [&str; 2]) -> bool {
     use egui::accesskit::{Action, Role};
     let Some(data) = tree.node(node) else { return false };
-    data.role() == Role::Tab
+    // The gallery's own tab bars sit directly in its window and panes; a component's tabs are
+    // nested deeper, under its story's content.
+    let own_tab_bar =
+        ancestors.len() > 1 && ancestors[..ancestors.len() - 1].iter().all(|a| matches!(a.as_str(), "Window:" | "GenericContainer:" | "Pane:"));
+    (data.role() == Role::Tab && own_tab_bar)
         || (data.role() == Role::Label && data.supports_action(Action::Click) && titles.contains(&name))
         || ancestors.iter().any(|a| matches!(a.as_str(), "ListBox:Components" | "ListBox:Stories"))
 }
 
-/// In the pseudo locale every string a component takes from `Words` shows marked. A node named
-/// with the English text of a registered word, unmarked, is English that bypassed `Words` (or text
-/// a story set itself, which the exceptions list says).
+/// In the pseudo locale every string a component takes from `Words` shows marked. A node whose
+/// name, description or tooltip is the English text of a registered word, unmarked, is English that
+/// bypassed `Words` (or text a story set itself, which the exceptions list says). Only the
+/// gallery's own tab bars are skipped, by position; a component's tabs are checked.
+///
+/// Templated words (`Close {tab}`, counts) are out of scope: their filled-in text never equals the
+/// template, so a bypass in one is not seen.
 #[test]
 fn built_in_strings_are_marked_in_the_pseudo_locale() {
     let ctx = Context::default();
@@ -1452,16 +1478,25 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
                 let name = tree.name(node);
                 let role = tree.node(node).map(|n| format!("{:?}", n.role())).unwrap_or_default();
                 stack.push(format!("{role}:{}", name.as_deref().unwrap_or_default()));
-                let Some(name) = name else { continue };
-                if gallery_chrome(&tree, node, &stack, &name, [component, story_name]) {
+                let node_data = tree.node(node);
+                let texts = [
+                    name.clone(),
+                    node_data.and_then(|n| n.description().map(str::to_owned)),
+                    node_data.and_then(|n| n.tooltip().map(str::to_owned)),
+                ];
+                if texts.iter().all(Option::is_none)
+                    || gallery_chrome(&tree, node, &stack, name.as_deref().unwrap_or_default(), [component, story_name])
+                {
                     continue;
                 }
-                if name.contains('⟦') {
-                    marked += 1;
-                } else if registered.contains(name.as_str()) && !STORY_TEXT.iter().any(|(text, stories, _)| *text == name && stories.contains(&id)) {
-                    let ids = unmarked.entry(name).or_default();
-                    if !ids.contains(&id) {
-                        ids.push(id);
+                for text in texts.into_iter().flatten() {
+                    if text.contains('⟦') {
+                        marked += 1;
+                    } else if registered.contains(text.as_str()) && !STORY_TEXT.iter().any(|(t, stories, _)| *t == text && stories.contains(&id)) {
+                        let ids = unmarked.entry(text).or_default();
+                        if !ids.contains(&id) {
+                            ids.push(id);
+                        }
                     }
                 }
             }
