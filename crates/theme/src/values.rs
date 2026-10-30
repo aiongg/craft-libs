@@ -1419,3 +1419,8 @@ pub const POPOVER_GRIP_PITCH: f32 = 4.0;
 
 /// Room a popover keeps between its edge and the window's, in points, when it grows or is clamped.
 pub const POPOVER_SCREEN_MARGIN: f32 = 40.0;
+
+/// Width of the app shell's edge reveal zone along the window edges, at every Size.
+pub const APP_SHELL_EDGE_REVEAL: f32 = 4.0;
+/// Behind the document in body-only mode, in every theme: black, as Photoshop's Full Screen Mode.
+pub const APP_SHELL_BODY_ONLY_BACKDROP: Rgba = Rgba::BLACK;

@@ -720,6 +720,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 1
             // Preset browser: border, hover ring, caption and count.
             + 4
+            // App shell: the backdrop.
+            + 1
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
