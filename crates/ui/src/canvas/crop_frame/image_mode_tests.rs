@@ -14,6 +14,9 @@ struct Host {
     before: Option<(CropBox, CanvasView)>,
     view: CanvasView,
     auto_center: bool,
+    snap_x0: bool,
+    default_frame: bool,
+    told: std::rc::Rc<std::cell::Cell<Point>>,
     events: Vec<EditEvent<CropBox>>,
 }
 
@@ -29,13 +32,30 @@ fn names() -> CropNames {
 /// A frame turned `angle` in a view that shows it upright, as the host sets it on picking the tool.
 fn harness(angle: f64, auto_center: bool) -> Harness<'static, Host> {
     let state = CropBox { rect: RECT, angle };
-    let host = Host { state, before: None, view: CanvasView::new(egui::Rect::ZERO, Point::new(200.0, 150.0), 1.0), auto_center, events: Vec::new() };
+    let host = Host {
+        state,
+        before: None,
+        view: CanvasView::new(egui::Rect::ZERO, Point::new(200.0, 150.0), 1.0),
+        auto_center,
+        snap_x0: false,
+        default_frame: false,
+        told: Default::default(),
+        events: Vec::new(),
+    };
     let mut h = Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
             host.view.rect = rect;
             let state = host.state;
-            let r = CropFrame::new("crop", &state, names()).auto_center(host.auto_center).show_image(ui, &canvas, &mut host.view);
+            let (snap_x0, told) = (host.snap_x0, host.told.clone());
+            let r = CropFrame::new("crop", &state, names())
+                .auto_center(host.auto_center)
+                .default_frame(host.default_frame)
+                .snap(move |_, p, _| {
+                    told.set(p);
+                    if snap_x0 { Point::new(0.0, p.y) } else { p }
+                })
+                .show_image(ui, &canvas, &mut host.view);
             match &r.event {
                 Some(EditEvent::Begin { .. }) => host.before = Some((host.state, host.view)),
                 Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => host.state = *value,
@@ -194,4 +214,76 @@ fn arrows_move_the_image_under_the_frame() {
     let d = super::screen_step(&v0, Vec2::new(1.0, 0.0));
     assert!(same(before, quad(&h)), "the frame stays put on screen");
     assert!((view(&h).center - (v0.center - d)).hypot() < 1e-6);
+}
+
+#[test]
+fn a_move_is_snapped_as_the_grabbed_point_of_the_frame() {
+    let mut h = harness(0.0, false);
+    h.state_mut().snap_x0 = true;
+    let from = screen(&h, RECT.center());
+    press(&mut h, from);
+    move_to(&mut h, from + vec2(30.0, 20.0), Modifiers::NONE);
+    release(&mut h, from + vec2(30.0, 20.0));
+    // The grabbed point (x 200) lands on the snap at x 0; the y offset is the drag's.
+    let b = h.state().state;
+    assert!((b.rect.x0 - (RECT.x0 - 200.0)).abs() < 1e-3, "{b:?}");
+    assert!((b.rect.y0 - (RECT.y0 - 20.0)).abs() < 1e-3, "{b:?}");
+}
+
+#[test]
+fn a_snap_is_told_the_document_point_under_the_pointer_in_the_view_as_it_is_now() {
+    let mut h = harness(0.0, true);
+    let corner = screen(&h, Point::new(RECT.x1, RECT.y1));
+    press(&mut h, corner);
+    move_to(&mut h, corner + vec2(40.0, 25.0), Modifiers::NONE);
+    // Auto Center slid the view with the frame during the drag.
+    let at = corner + vec2(60.0, 25.0);
+    move_to(&mut h, at, Modifiers::NONE);
+    assert!(view(&h).center != Point::new(200.0, 150.0));
+    let told = h.state().told.get();
+    assert!(told.distance(view(&h).to_doc(at)) < 1e-1, "{told:?} vs {:?}", view(&h).to_doc(at));
+    release(&mut h, at);
+}
+
+#[test]
+fn straightening_then_syncing_the_view_turns_it_by_minus_the_angle() {
+    let h = harness(0.0, false);
+    let fitted = CropBox { rect: RECT, angle: 0.0 }.fitted(kurbo::Size::new(640.0, 400.0), 7.0).expect("fits");
+    let mut v = view(&h);
+    CropFrame::sync_view(&mut v, &fitted);
+    assert!((v.rotation + fitted.angle).abs() < 1e-9 && fitted.angle != 0.0, "{v:?} {fitted:?}");
+}
+
+#[test]
+fn a_drawn_frame_turns_the_view_upright_and_centres_only_with_auto_center() {
+    for auto_center in [false, true] {
+        let mut h = harness(0.0, auto_center);
+        {
+            let host = h.state_mut();
+            host.default_frame = true;
+            host.view.rotation = 20.0;
+        }
+        h.run();
+        let from = screen(&h, RECT.center());
+        press(&mut h, from);
+        move_to(&mut h, from + vec2(40.0, 30.0), Modifiers::NONE);
+        release(&mut h, from + vec2(40.0, 30.0));
+        let (b, v) = (h.state().state, view(&h));
+        assert!(v.rotation.abs() < 1e-9, "upright at auto_center={auto_center}: {v:?}");
+        assert_eq!((v.center - b.center()).hypot() < 1e-6, auto_center, "{v:?} {b:?}");
+    }
+}
+
+#[test]
+fn x_centres_the_view_on_the_swapped_frame_with_auto_center() {
+    for auto_center in [false, true] {
+        let mut h = harness(0.0, auto_center);
+        h.state_mut().view.center += Vec2::new(30.0, 0.0);
+        h.run();
+        h.key_press(Key::X);
+        h.run();
+        let (b, v) = (h.state().state, view(&h));
+        assert!(b.rect.width() < RECT.width(), "swapped {b:?}");
+        assert_eq!((v.center - b.center()).hypot() < 1e-6, auto_center, "{v:?} {b:?}");
+    }
 }

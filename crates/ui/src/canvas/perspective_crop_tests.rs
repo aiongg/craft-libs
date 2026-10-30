@@ -352,7 +352,10 @@ fn esc_drops_the_pending_clicks() {
     assert_eq!(h.state().placing, 1);
     h.key_press(Key::Escape);
     h.run();
-    assert_eq!((h.state().placing, h.state().discarded), (0, 1));
+    assert_eq!((h.state().placing, h.state().discarded), (0, 0), "the first Esc drops the clicks only");
+    h.key_press(Key::Escape);
+    h.run();
+    assert_eq!(h.state().discarded, 1);
 }
 
 fn shapes_of(h: &Harness<'_, Host>, keep: impl Fn(&Shape) -> bool) -> usize {

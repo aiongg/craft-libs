@@ -18,11 +18,19 @@ impl CropFrame<'_> {
     ///
     /// The frame's events carry the box only; this call changes `view` itself, and a cancelled drag
     /// puts back both the box and the view as they were at the press. Every pointer point of a
-    /// drag is read in the view of the press. The host sets the view with [`view_for`](Self::view_for)
-    /// when the tool is picked and after a commit.
+    /// drag is read in the view of the press. The host sets the view with [`sync_view`](Self::sync_view)
+    /// when the tool is picked, after a commit and after any box change it makes itself (Straighten,
+    /// the W×H fields, ratio presets); a frame that is not synced shows turned over an upright image.
     pub fn show_image(mut self, ui: &mut Ui, canvas: &Response, view: &mut CanvasView) -> CropResponse {
         self.image = true;
         self.run(ui, canvas, view)
+    }
+
+    /// Sets `view` to [`view_for`](Self::view_for) `b`. An Image-mode host calls it after any box
+    /// change it makes itself: Straighten (`fitted`, from [`CropResponse::straightened`]), the W×H
+    /// fields, ratio presets, picking the tool.
+    pub fn sync_view(view: &mut CanvasView, b: &CropBox) {
+        *view = Self::view_for(b, view);
     }
 
     /// `view` turned so the frame `b` shows upright (rotation `-b.angle`), the frame's centre kept
@@ -55,11 +63,13 @@ impl CropFrame<'_> {
         };
     }
 
-    /// A drawn frame is moved to the middle of the canvas on release (Auto Center Preview).
+    /// A drawn frame turns the view upright on release, and with Auto Center Preview moves to the middle of the canvas.
     pub(super) fn centre_drawn(&self, d: &Drag, view: &mut CanvasView, shown: &CropBox) {
-        if self.auto_center && matches!(d.kind, Kind::Draw { .. }) && d.press_view.is_some() {
+        if matches!(d.kind, Kind::Draw { .. }) && d.press_view.is_some() {
             *view = Self::view_for(shown, view);
-            view.center = shown.center();
+            if self.auto_center {
+                view.center = shown.center();
+            }
         }
     }
 

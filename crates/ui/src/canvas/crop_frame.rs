@@ -125,6 +125,8 @@ pub struct CropResponse {
     /// that levels the line, or plumbs it when it is nearer vertical. The host applies it, with
     /// [`CropBox::fitted`], as one box step, and disarms Straighten. The drag itself sends no
     /// edit event.
+    /// An Image-mode host calls [`CropFrame::sync_view`] after applying this, so the frame shows
+    /// upright over the turned image.
     pub straightened: Option<f64>,
 }
 
@@ -302,7 +304,9 @@ impl<'a> CropFrame<'a> {
 
     /// The host's snapping: where a drag takes the pointer's document point, with the modifiers
     /// held, told which part it drags (a draw drags the bottom right corner; a move, the whole
-    /// frame).
+    /// frame). In Image mode the point is the document point under the pointer in the view as it
+    /// is now (the view moves with the image), as in Classic mode; a move is told the point of the
+    /// frame that was grabbed, where the frame would have it.
     pub fn snap(mut self, snap: impl Fn(BoxPart, Point, Modifiers) -> Point + 'a) -> Self {
         self.snap = Some(Box::new(snap));
         self
@@ -602,8 +606,7 @@ impl<'a> CropFrame<'a> {
                 d.began = gesture.is_active();
             }
             if d.began {
-                let to = d.press_view.as_ref().unwrap_or(view).to_doc(pointer);
-                let to = self.snap.as_ref().map_or(to, |snap| snap(d.kind.part(), to, mods));
+                let to = self.drag_point(d, view, pointer, mods);
                 if let Some(next) = self.dragged(d, to, mods, space, *gesture.shown()) {
                     gesture.update(next, mods);
                     self.follow(d, view, &next);
@@ -621,6 +624,26 @@ impl<'a> CropFrame<'a> {
             gesture.cancel(CancelReason::Dismissed);
             self.restore_view(d, view);
         }
+    }
+
+    /// The drag's document point for `pointer`, after the host's snap. In Image mode the point is in
+    /// the view of the press, but the host is told the point in the current view (which moves with
+    /// the image), and a Move is snapped as the frame's grab point, which the drag carries.
+    fn drag_point(&self, d: &Drag, view: &CanvasView, pointer: Pos2, mods: Modifiers) -> Point {
+        let Some(press) = d.press_view.as_ref() else {
+            let to = view.to_doc(pointer);
+            return self.snap.as_ref().map_or(to, |snap| snap(d.kind.part(), to, mods));
+        };
+        let to = press.to_doc(pointer);
+        let Some(snap) = self.snap.as_ref() else { return to };
+        if matches!(d.kind, Kind::Move) {
+            let grab = d.from + (d.from - to);
+            let snapped = snap(BoxPart::Inside, grab, mods);
+            return if snapped == grab { to } else { d.from + (d.from - snapped) };
+        }
+        let now = view.to_doc(pointer);
+        let snapped = snap(d.kind.part(), now, mods);
+        if snapped == now { to } else { press.to_doc(view.to_screen(snapped)) }
     }
 
     /// The frame a drag gives with the pointer at document point `to`, kept inside the bounds;
@@ -708,6 +731,7 @@ impl<'a> CropFrame<'a> {
             return;
         }
         let mut image_nudge = false;
+        let mut swapped = false;
         let next = if let Some(by) = nudge::read(ui, nudge::STEP, nudge::BIG_STEP) {
             match picked.unwrap_or(BoxPart::Inside) {
                 // The image moves under the frame: the frame goes the other way.
@@ -718,6 +742,7 @@ impl<'a> CropFrame<'a> {
                 part => Some(self.nudged(part, by)),
             }
         } else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::X)) {
+            swapped = true;
             Some(self.state.swapped())
         } else {
             None
@@ -730,6 +755,10 @@ impl<'a> CropFrame<'a> {
             if image_nudge {
                 // The view follows the frame, so the frame stays put on screen.
                 view.center += next.center() - self.state.center();
+            }
+            if swapped && self.image && self.auto_center {
+                *view = Self::view_for(&next, view);
+                view.center = next.center();
             }
             gesture.set(next);
         }
