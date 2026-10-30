@@ -3,12 +3,16 @@
 use egui::accesskit::Role;
 use egui::{Color32, Context, CursorIcon, Id, Key, Modal, Modifiers, Order, Rect, ScrollArea, Ui, UiKind, Vec2};
 
+use super::buttons::{ButtonRole, Platform};
+use super::footer::{Footer, FooterCx, FooterRun};
 use super::frame::{DialogFrame, DialogFrameResponse};
+use super::keys::{KeyInput, resolve_keys};
 use super::placement::{PlaceKey, keep_on_screen, next_pin};
 use super::size::Width;
 use super::size::{Body, Resize, remembered_size, scroll_height};
 use super::state::DialogState;
 use crate::edit::{self, OuterGesture};
+use crate::popup_list;
 use crate::theme::{ToEgui, current};
 
 /// How a dialog was answered.
@@ -34,6 +38,16 @@ impl Outcome {
     pub fn closes(self) -> bool {
         matches!(self, Outcome::Ok | Outcome::Cancel | Outcome::Close | Outcome::Alternate)
     }
+}
+
+/// A plain press of Enter that is not a key repeat, as the fields count it.
+fn is_enter_press(event: &egui::Event) -> bool {
+    matches!(event, egui::Event::Key { key: Key::Enter, pressed: true, repeat: false, modifiers, .. } if Modifiers { shift: false, ..*modifiers }.is_none())
+}
+
+/// Whether the keyboard focus is on a widget of `layer`.
+fn focus_inside(ctx: &Context, layer: egui::LayerId) -> bool {
+    ctx.memory(|m| m.focused()).and_then(|focused| ctx.read_response(focused)).is_some_and(|r| r.layer_id == layer)
 }
 
 /// What lies behind a modal dialog.
@@ -62,25 +76,6 @@ pub enum InitialFocus {
     None,
 }
 
-#[derive(Clone, Copy, Debug)]
-enum FooterKind {
-    None,
-}
-
-/// A dialog's button area.
-#[derive(Clone, Copy, Debug)]
-#[must_use]
-pub struct Footer {
-    kind: FooterKind,
-}
-
-impl Footer {
-    /// No row: tool windows and blocking prompts.
-    pub fn none() -> Self {
-        Self { kind: FooterKind::None }
-    }
-}
-
 /// What [`Dialog::show`] reports for one pass.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
@@ -100,6 +95,11 @@ pub struct DialogResponse {
     /// Set once, on the first laid-out pass that is not a pointer press: the host (or the footer)
     /// moves the focus now.
     pub initial_focus: Option<InitialFocus>,
+    /// Which Alternate button was pressed (0 or 1, in listed order) when the outcome is
+    /// [`Outcome::Alternate`].
+    pub alternate: Option<usize>,
+    /// The side column's [`extra`](Footer::extra) button pressed this pass; the dialog stays open.
+    pub extra: Option<usize>,
 }
 
 type FirstPlace = Box<dyn FnOnce(&Context) -> Option<Vec2>>;
@@ -129,14 +129,14 @@ type FirstPlace = Box<dyn FnOnce(&Context) -> Option<Vec2>>;
 ///   [`resizable`](Dialog::resizable) adds a grip and remembers the size the user left it at.
 ///   [`Body::Scroll`] makes the body a scroll area that leaves room for the frame's other parts.
 /// - **Modal** dialogs use egui's modal layer with no backdrop by default. A click outside does
-///   nothing. Esc cancels when the dialog is the top modal and no popup is open. The close box is
+///   nothing. Enter and Esc follow [`resolve_keys`]: Esc cancels when the dialog is the top modal and no popup is open. The close box is
 ///   Cancel. **Modeless** dialogs block nothing, return `Close` from the close box and raise when
 ///   pressed.
 /// - **Edits.** With [`outer_gesture`](Dialog::outer_gesture) the body runs inside
 ///   [`edit::scope`], so its controls report only updates, and `outer` carries the gesture to
 ///   commit on Ok and cancel on Cancel.
 #[must_use = "show the dialog with `show`"]
-pub struct Dialog {
+pub struct Dialog<'a> {
     id: Id,
     title: String,
     modal: bool,
@@ -147,14 +147,14 @@ pub struct Dialog {
     body: Body,
     place: Option<PlaceKey>,
     first_place: Option<FirstPlace>,
-    footer: Footer,
+    footer: Footer<'a>,
     close_label: Option<String>,
     outer_gesture: bool,
     initial_focus: InitialFocus,
     roomy: bool,
 }
 
-impl Dialog {
+impl<'a> Dialog<'a> {
     /// A modal dialog. `id` is the host's key for it: the id of its area.
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>) -> Self {
         Self {
@@ -225,7 +225,9 @@ impl Dialog {
         self
     }
 
-    pub fn footer(mut self, footer: Footer) -> Self {
+    /// The button area; [`Footer::none`] by default. See [`Footer`] for the shapes and
+    /// [`resolve_keys`] for Enter and Esc.
+    pub fn footer(mut self, footer: Footer<'a>) -> Self {
         self.footer = footer;
         self
     }
@@ -278,6 +280,7 @@ impl Dialog {
         let place = place.unwrap_or(PlaceKey(id));
         let opened = !state.is_open();
         let (pin_id, size_id, chrome_id, title_id) = (id.with("pin"), id.with("laid-out-size"), id.with("chrome"), id.with("title-height"));
+        let inside_id = id.with("focus-inside");
         if opened {
             state.begin(ctx, fields.clone(), outer_gesture);
             ctx.data_mut(|d| {
@@ -304,6 +307,8 @@ impl Dialog {
         let pad = if roomy { t.pad_roomy } else { t.pad };
         let remembered = resize.and_then(|_| place.remembered_size(ctx));
         let resize_sizes = resize.map(|r| (r, r.max_size(&t, window.size())));
+        let (has_footer, enter_rule) = (!footer.is_none(), footer.enter_rule());
+        let run_out = std::cell::RefCell::new(FooterRun::default());
         let (sizing_out, frame_out) = (std::cell::Cell::new(false), std::cell::Cell::new(None::<DialogFrameResponse>));
         let draw = |ui: &mut Ui| {
             sizing_out.set(ui.is_sizing_pass());
@@ -340,8 +345,17 @@ impl Dialog {
                     scoped(ui);
                 }
             };
-            let shown = match footer.kind {
-                FooterKind::None => frame.show(ui, draw_body),
+            let cx = FooterCx { id: id.with("footer"), platform: Platform::of(ui.ctx()) };
+            let shown = if !has_footer {
+                frame.show(ui, draw_body)
+            } else if footer.is_side() {
+                frame.show(ui, |ui| {
+                    run_out.replace(footer.show_side(ui, cx, draw_body));
+                })
+            } else {
+                frame.show_footer(ui, draw_body, |ui| {
+                    run_out.replace(footer.show_row(ui, cx));
+                })
             };
             if let Some(outer) = outer {
                 outer.keep(ui);
@@ -361,7 +375,7 @@ impl Dialog {
         };
         let sizing = sizing_out.get();
         let Some(frame) = frame_out.take() else {
-            return DialogResponse { outcome: None, rect: response.rect, outer, opened, initial_focus: None };
+            return DialogResponse { outcome: None, rect: response.rect, outer, opened, initial_focus: None, alternate: None, extra: None };
         };
 
         ctx.data_mut(|d| {
@@ -392,18 +406,67 @@ impl Dialog {
             ctx.set_cursor_icon(CursorIcon::Grab);
         }
 
+        let run = run_out.take();
+        // Esc and a field's Enter take the focus away within the pass, so the keys go by where
+        // the focus was when the pass began.
+        let inside_before = ctx.data(|d| d.get_temp::<bool>(inside_id)).unwrap_or(false);
+        let inside_now = focus_inside(ctx, response.layer_id);
+        ctx.data_mut(|d| d.insert_temp(inside_id, inside_now));
+        let reset_shown = run.reset;
+        let mut alternate = None;
         let mut outcome = frame.close.as_ref().filter(|close| close.clicked()).map(|_| if modal { Outcome::Cancel } else { Outcome::Close });
         if outcome.is_none()
-            && let Some((top, popup)) = modal_state
-            && top
-            && !popup
-            && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
+            && let Some(clicked) = run.clicked
         {
-            outcome = Some(Outcome::Cancel);
+            outcome = Some(match clicked.role {
+                ButtonRole::Default => Outcome::Ok,
+                ButtonRole::Cancel if reset_shown => Outcome::Reset,
+                ButtonRole::Cancel if modal => Outcome::Cancel,
+                ButtonRole::Cancel => Outcome::Close,
+                ButtonRole::Apply => Outcome::Apply,
+                ButtonRole::Alternate => {
+                    alternate = Some(clicked.nth);
+                    Outcome::Alternate
+                }
+            });
+        }
+        if outcome.is_none() {
+            let (active, popup_open) = match modal_state {
+                Some((top, popup)) => (top, popup),
+                None => (inside_before, false),
+            };
+            let (enter, escape) =
+                ctx.input(|i| (!opened && i.events.iter().any(is_enter_press), i.key_pressed(Key::Escape) && i.modifiers.is_none()));
+            outcome = resolve_keys(KeyInput {
+                enter,
+                escape,
+                modal,
+                active,
+                footer: has_footer,
+                popup_open: popup_open || popup_list::any_open(ctx),
+                button_focused: run.button_focused,
+                default_enabled: run.default.is_some(),
+                enter_rule,
+            });
+            if outcome.is_some() {
+                ctx.input_mut(|i| {
+                    i.consume_key(Modifiers::NONE, Key::Escape);
+                    i.events.retain(|event| !is_enter_press(event));
+                });
+            }
         }
 
         let focus = (!sizing && initial_focus != InitialFocus::None && state.focus_due() && !ctx.input(|i| i.pointer.any_down())).then(|| {
             state.take_focus_due();
+            let target = match initial_focus {
+                InitialFocus::Auto => frame.first_field.or(run.default),
+                InitialFocus::FirstField => frame.first_field,
+                InitialFocus::DefaultButton => run.default,
+                InitialFocus::None => None,
+            };
+            if let Some(target) = target {
+                ctx.memory_mut(|m| m.request_focus(target));
+            }
             initial_focus
         });
         if outcome.is_some_and(Outcome::closes) {
@@ -412,6 +475,6 @@ impl Dialog {
             }
             state.close();
         }
-        DialogResponse { outcome, rect: response.rect, outer, opened, initial_focus: focus }
+        DialogResponse { outcome, rect: response.rect, outer, opened, initial_focus: focus, alternate, extra: run.extra }
     }
 }
