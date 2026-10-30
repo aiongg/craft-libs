@@ -6,8 +6,8 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::canvas::{BezierOverlay, GradientOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
-    ChannelColor, ColorArea, ColorWheel, CurveEditor, EmptyState, Field, FormGrid, GradientEditor, Histogram, LevelsEditor, Notice, PanelFooter,
-    PanelHeader, PropertyRow, SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
+    ChannelColor, ColorArea, ColorDisc, ColorWheel, CurveEditor, EmptyState, Field, FormGrid, GradientEditor, Histogram, LevelsEditor, Notice,
+    PanelFooter, PanelHeader, PropertyRow, SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
 };
 use craft_ui::controls::{
     AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
@@ -953,5 +953,23 @@ fn color_ramp() {
             .line("cells_x", r.cells_x as f32)
             .line("cells_y", r.cells_y as f32)
             .line("edge", ColorArea::style(t).edge);
+    });
+}
+
+#[test]
+fn color_disc() {
+    check("color_disc.txt", |d, t| {
+        let s = ColorDisc::style(t);
+        d.line("side", s.side)
+            .line("side_min", s.side_min)
+            .line("inset", s.inset)
+            .line("marker", s.marker)
+            .line("marker_selected", s.marker_selected)
+            .line("grab", s.grab)
+            .line("floor", s.floor)
+            .line("spoke", s.spoke)
+            .line("edge", s.wheel.edge)
+            .line("marker_inner", s.wheel.marker_inner)
+            .line("marker_outer", s.wheel.marker_outer);
     });
 }
