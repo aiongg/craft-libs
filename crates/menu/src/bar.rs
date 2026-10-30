@@ -169,7 +169,8 @@ impl<'a> MenuBarUi<'a> {
     /// The English label of a row or title, for labels the keyboard can't type a letter of
     /// (Chinese, Japanese, Korean…): such a label shows its English label's mnemonic after it,
     /// "文件(F)", before a trailing ellipsis ("開く(O)…"), as Windows menus do. Without this hook (or when it returns `None`) such a label
-    /// has no mnemonic. Not asked on a Mac target, which has no mnemonics.
+    /// has no mnemonic. The Help menu's search also matches the English labels, on every target;
+    /// a Mac target shows no mnemonics.
     pub fn english(mut self, english: &'a dyn Fn(Labeled<'_>) -> Option<String>) -> MenuBarUi<'a> {
         self.english = Some(english);
         self
@@ -217,7 +218,7 @@ impl<'a> MenuBarUi<'a> {
         let platform = keymap_platform(self.target, ctx.os());
         let mnemonics = platform != Platform::Mac;
         craft_ui::menu::set_mnemonics(&ctx, Some(mnemonics));
-        let convert = Convert { gate: self.gate, platform, mnemonics, english: self.english, preferred: self.preferred };
+        let convert = Convert { gate: self.gate, platform, english: self.english, preferred: self.preferred };
         let menus: Vec<MenuItem<CommandRef>> = self.bar.menus.iter().map(|m| convert.sub(&m.title, &m.children)).collect();
         let hook = self.label;
         let labels = MenuBarLabels {
@@ -263,8 +264,6 @@ impl<'a> MenuBarUi<'a> {
 pub(crate) struct Convert<'s> {
     pub(crate) gate: Gate,
     pub(crate) platform: Platform,
-    /// The target has mnemonics (not a Mac).
-    pub(crate) mnemonics: bool,
     pub(crate) english: Option<&'s EnglishHook<'s>>,
     pub(crate) preferred: &'s [(&'s str, char)],
 }
@@ -327,6 +326,6 @@ impl Convert<'_> {
     }
 
     fn english_of(&self, labeled: Labeled<'_>) -> Option<String> {
-        self.english.filter(|_| self.mnemonics).and_then(|f| f(labeled))
+        self.english.and_then(|f| f(labeled))
     }
 }

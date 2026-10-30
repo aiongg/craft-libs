@@ -36,7 +36,7 @@ impl MenuBar {
         let mut bar = self.clone();
         apply_keymap(&mut bar, keymap);
         let laid_out = layout(&bar, target, options).bar;
-        let convert = Convert { gate: Gate::default(), platform: keymap_platform(target, os), mnemonics: true, english, preferred: &[] };
+        let convert = Convert { gate: Gate::default(), platform: keymap_platform(target, os), english, preferred: &[] };
         let menus: Vec<MenuItem<CommandRef>> = laid_out.menus.iter().map(|m| convert.sub(&m.title, &m.children)).collect();
         let mut entries = PaletteEntry::from_menu(&menus);
         entries.retain(|e| Builtin::of(e.command()).is_none());
