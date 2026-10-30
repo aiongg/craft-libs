@@ -124,11 +124,12 @@ impl FooterFx {
 ///   the buttons.
 /// - [`side`](Footer::side): a column at the body's trailing side with OK above Cancel and the
 ///   [`extra`](Footer::extra) buttons under them, all as wide as the longest label and at least
-///   `dialog.side_min`; the same order on every platform. [`below`](Footer::below) adds content
-///   under the buttons.
+///   `dialog.side_min`; the same order on every platform.
 /// - [`custom`](Footer::custom): the host draws the footer and places role buttons with
 ///   [`FooterFx::buttons`].
 /// - [`none`](Footer::none): no row.
+///
+/// [`below`](Footer::below) adds content under the buttons of the first three.
 ///
 /// The buttons the host doesn't name take their labels from [`labels`](Footer::labels), or from the
 /// installed [`Words`](crate::localized::Words) when none were given.
@@ -303,8 +304,9 @@ impl<'a> Footer<'a> {
         self
     }
 
-    /// Content under the buttons of the [`side`](Footer::side) column (a Preview check box), at
-    /// the column's start edge, a button gap below the last button.
+    /// Content under the buttons (a Preview check box), at the start edge, a button gap below the
+    /// last button: under the [`side`](Footer::side) column's buttons, or under the row of a
+    /// [`standard`](Footer::standard) or [`custom`](Footer::custom) footer.
     pub fn below(mut self, add: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.below = Some(Box::new(add));
         self
@@ -382,6 +384,7 @@ impl<'a> Footer<'a> {
         if let Some(draw) = self.custom.take() {
             let mut fx = FooterFx { cx, hint: self.labels.default_hint.clone(), run: FooterRun::default(), rows: 0 };
             draw(ui, &mut fx);
+            self.show_below(ui);
             return fx.run;
         }
         self.resolve_enabled();
@@ -419,7 +422,17 @@ impl<'a> Footer<'a> {
                 });
             }
         }
+        self.show_below(ui);
         self.run_of(row, reset.is_some())
+    }
+
+    /// Draws the [`below`](Footer::below) content, a button gap under the footer's last row.
+    fn show_below(&mut self, ui: &mut Ui) {
+        if let Some(below) = self.below.take() {
+            let gap = Tokens::of(ui).component.dialog.button_gap;
+            ui.add_space(gap);
+            below(ui);
+        }
     }
 
     /// Shows a [`side`](Footer::side) footer: `body` at the start side and the button column at
