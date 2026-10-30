@@ -32,9 +32,9 @@ mod strip;
 #[cfg(test)]
 mod tests;
 mod wheel;
+mod wheel_stories;
 #[cfg(test)]
 mod wheel_tests;
-mod wheel_stories;
 
 use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, OklchModel, RgbModel};
 use egui::{Color32, Stroke, Ui, Vec2, vec2};

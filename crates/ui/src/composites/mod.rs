@@ -106,9 +106,9 @@ pub(crate) mod toast;
 mod toast_tests;
 
 pub use color::{
-    AreaMode, ColorArea, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorPopover, ColorPopoverResponse, ColorStrip, ColorWheel,
-    ColorWheelResponse, ColorWheelStyle, WheelGeometry, WheelPart,
-    ColorWarning, ColorWarningChip, HexField, PairWell, PickedColor, SwatchPair, SwatchPairResponse, SwatchPairStyle, SwatchPalette, Well,
+    AreaMode, ColorArea, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorPopover, ColorPopoverResponse, ColorStrip,
+    ColorWarning, ColorWarningChip, ColorWheel, ColorWheelResponse, ColorWheelStyle, HexField, PairWell, PickedColor, SwatchPair, SwatchPairResponse,
+    SwatchPairStyle, SwatchPalette, Well, WheelGeometry, WheelPart,
 };
 pub use craft_theme::Tone;
 pub use curve::Curve;
