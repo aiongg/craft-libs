@@ -21,7 +21,7 @@ pub struct PanelFooterStyle {
     pub gap: f32,
     /// Side of a footer button: `panel_footer.button`.
     pub button: f32,
-    /// The rule over the bar: `line.divider`, one physical pixel.
+    /// The rule over the bar: `panel.footer.line`, one physical pixel.
     pub rule: Stroke,
     /// The panel body's margin, which the rule runs across and the bar runs over:
     /// `space.pad.panel`.
@@ -60,7 +60,7 @@ impl PanelFooter {
             height: f.height,
             gap: f.gap,
             button: f.button,
-            rule: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.color.line.divider.to_egui()),
+            rule: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.component.panel.footer_line.to_egui()),
             margin: tokens.space.pad.panel,
         }
     }

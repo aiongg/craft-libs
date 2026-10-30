@@ -53,7 +53,7 @@ pub struct RailTokens {
     /// Glyph in a flyout row: half way between `size.icon.sm` and `size.icon.md`.
     pub flyout_icon: f32,
     /// Legs of the flyout indicator triangle.
-    pub indicator: f32,
+    pub indicator_size: f32,
     /// Distance of the indicator from its button's corner.
     pub indicator_inset: f32,
     /// Radius of the open-panel marker dot.
@@ -190,7 +190,7 @@ impl Family for RailTokens {
             flyout_row: s.size.control.md + values::RAIL_FLYOUT_ROW_EXTRA,
             flyout_gap: s.space.gap.stack,
             flyout_icon: (s.size.icon.sm + s.size.icon.md) / 2.0,
-            indicator: values::RAIL_INDICATOR,
+            indicator_size: values::RAIL_INDICATOR_SIZE,
             indicator_inset: values::RAIL_INDICATOR_INSET,
             marker_radius: values::RAIL_MARKER_RADIUS,
             selected_border_width: values::RAIL_SELECTED_BORDER_WIDTH,

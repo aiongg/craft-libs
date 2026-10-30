@@ -1287,7 +1287,7 @@ pub const RAIL_ROW_GAP_RATIO: f32 = 0.75;
 /// How much taller a flyout row is than a medium control (PhotoCraft's 26 over 24).
 pub const RAIL_FLYOUT_ROW_EXTRA: f32 = 2.0;
 /// Side of the flyout indicator triangle's legs.
-pub const RAIL_INDICATOR: f32 = 4.0;
+pub const RAIL_INDICATOR_SIZE: f32 = 4.0;
 /// Distance of the flyout indicator from the corner of its button.
 pub const RAIL_INDICATOR_INSET: f32 = 2.0;
 /// Radius of the open-panel marker dot.

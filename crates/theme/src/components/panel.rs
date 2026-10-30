@@ -1,5 +1,5 @@
 //! Panels: the body of a docked or floating panel, with an optional footer bar. A floating panel's
-//! frame reads `float.*` and its header `panel_header.*`.
+//! frame reads `float.*`, its header `panel_header.*` and its footer bar `panel_footer.*`.
 //!
 //! The lines are one physical pixel and are design targets with no minimum.
 
@@ -12,11 +12,6 @@ use crate::color::Rgba;
 pub struct PanelTokens {
     /// Padding on every side of the body: `space.pad.panel`.
     pub pad: f32,
-    /// Height of the footer bar under its line: `size.control.md + space.pad.control` (PhotoCraft's
-    /// bar is 30).
-    pub footer_height: f32,
-    /// Between footer buttons: half the inline gap (PhotoCraft's `item_spacing.x` is 2).
-    pub footer_gap: f32,
     /// Behind the body: `surface.panel`.
     pub fill: Rgba,
     /// Under a floating panel's header: `line.divider`.
@@ -62,14 +57,7 @@ impl Family for PanelTokens {
 
     fn defaults(s: &Semantic<'_>) -> PanelTokens {
         let c = s.color;
-        PanelTokens {
-            pad: s.space.pad.panel,
-            footer_height: s.size.control.md + s.space.pad.control,
-            footer_gap: s.space.gap.inline / 2.0,
-            fill: c.surface.panel,
-            header_line: c.line.divider,
-            footer_line: c.line.divider,
-        }
+        PanelTokens { pad: s.space.pad.panel, fill: c.surface.panel, header_line: c.line.divider, footer_line: c.line.divider }
     }
 
     fn path(f: PanelField) -> String {
