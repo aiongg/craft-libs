@@ -477,7 +477,7 @@ pub(super) fn motion_context(reduced: bool) -> Context {
 /// [`motion_context`] showing the built-in theme `id`.
 pub(super) fn motion_context_in(id: &str, reduced: bool) -> Context {
     use craft_theme::{AppDefaults, ModeChoice, SuiteChoice, SystemAppearance, ThemePair};
-    let defaults = AppDefaults { theme: ThemePair::same(theme(id).id), mode: ModeChoice::Light, size: Size::Compact };
+    let defaults = AppDefaults { theme: ThemePair::same(theme(id).id), mode: ModeChoice::Light, size: Size::Compact, sizes: Default::default() };
     let system = SystemAppearance { reduced_motion: Some(reduced), ..Default::default() };
     let base = Base::resolve(&SuiteChoice::default().with_defaults(&defaults), system, &defaults, None, &mut |id| {
         builtins().iter().find(|t| t.id == *id).cloned()

@@ -5,7 +5,7 @@
 //! own contrast is the document's. The body-only backdrop is a fixed black that no theme
 //! overrides, like the desktops' Close reds of the title bar.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::values;
 
@@ -31,6 +31,9 @@ pub enum AppShellField {
 impl Family for AppShellTokens {
     type Field = AppShellField;
     const FIELDS: &'static [AppShellField] = &[AppShellField::Backdrop];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { AppShellTokens;
+        "edge_reveal" 0.0..=1024.0 => edge_reveal;
+    };
 
     fn defaults(s: &Semantic<'_>) -> AppShellTokens {
         AppShellTokens {

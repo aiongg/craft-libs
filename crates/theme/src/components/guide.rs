@@ -2,7 +2,7 @@
 //! `overlay.guide`, `overlay.guide_selected` and `overlay.smart_guide`; the family holds their
 //! geometry, the same at every Size because guides sit on the document.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Guide tokens.
@@ -36,6 +36,17 @@ pub enum GuideField {}
 impl Family for GuideTokens {
     type Field = GuideField;
     const FIELDS: &'static [GuideField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { GuideTokens;
+        "width" 0.0..=1024.0 => width;
+        "hit" 0.0..=64.0 => hit;
+        "dash" 0.0..=16.0 => dash;
+        "gap" 0.0..=64.0 => gap;
+        "dot_gap" 0.0..=64.0 => dot_gap;
+        "dot_radius" 0.0..=1024.0 => dot_radius;
+        "measure_cap" 0.0..=1024.0 => measure_cap;
+        "measure_pad_x" 0.0..=64.0 => measure_pad_x;
+        "measure_pad_y" 0.0..=64.0 => measure_pad_y;
+    };
 
     fn defaults(_: &Semantic<'_>) -> GuideTokens {
         GuideTokens {

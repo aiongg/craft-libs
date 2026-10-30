@@ -1,9 +1,34 @@
 //! Component tokens: one struct per component family, every field concrete, filled from the
 //! semantic tokens. A theme may override a curated set of fields ([`ComponentField`]): colours,
-//! radii and shadows. Sizes, padding, gaps and type roles come from the Size preset only. Edges
+//! radii and shadows. Sizes, padding, gaps and type roles come from the Size preset only, and an
+//! app may pin any of them ([`SizeField`]). Edges
 //! are not among them: the `Surface` primitive draws every edge from `shape.edge`.
 //!
 //! A family is one file here plus one line in the `families!` list at the end of this file.
+
+/// One size of a family, addressed by a path after the family name: how an app pins it. The
+/// range is what [`AppSizes`](crate::AppSizes) accepts.
+pub(crate) struct SizeLeaf<T> {
+    pub path: &'static str,
+    pub lo: f32,
+    pub hi: f32,
+    pub get: fn(&T) -> f32,
+    pub set: fn(&mut T, f32),
+}
+
+/// A family's `SIZES`: one line per length, `"path" lo..=hi => place;`, where `place` is the
+/// field (`height.md`, `pad[0]`) of the family's tokens.
+macro_rules! sizes {
+    ($tokens:ident; $( $path:literal $lo:literal..=$hi:literal => $first:ident $(. $rest:ident)* $([$index:literal])?; )*) => {
+        &[ $( SizeLeaf::<$tokens> {
+            path: $path,
+            lo: $lo,
+            hi: $hi,
+            get: |t| t.$first $(. $rest)* $([$index])?,
+            set: |t, v| t.$first $(. $rest)* $([$index])? = v,
+        } ),* ]
+    };
+}
 
 mod angle_dial;
 mod app_shell;
@@ -503,7 +528,7 @@ pub(crate) struct ContrastPair {
 
 /// What a family file provides. The `families!` list turns these into [`ComponentTokens`] and
 /// [`ComponentField`].
-trait Family: Sized {
+trait Family: Sized + 'static {
     /// The family's overridable fields.
     type Field: Copy + 'static;
     /// Every overridable field, in path order.
@@ -522,6 +547,9 @@ trait Family: Sized {
     fn set(&mut self, f: Self::Field, v: OverrideValue);
     /// The family's contrast pairs.
     fn pairs() -> Vec<ContrastPair>;
+    /// Every size of the family that an app may pin, in path order. The paths are separate from
+    /// [`FIELDS`](Family::FIELDS): a theme file never sets them.
+    const SIZES: &'static [SizeLeaf<Self>] = &[];
 }
 
 /// Defines [`ComponentTokens`] and [`ComponentField`] from one list of families. The struct field
@@ -591,6 +619,59 @@ macro_rules! families {
             /// The kind of value the field takes.
             pub fn kind(self) -> FieldKind {
                 match self { $(ComponentField::$var(f) => <$tokens as Family>::kind(f),)+ }
+            }
+        }
+
+        /// Names one size of one family, such as `"toolbar.button"`: the lengths an app pins.
+        /// Theme files don't accept these paths.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        pub struct SizeField(SizeRef);
+
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        enum SizeRef {
+            $( $var(usize), )+
+        }
+
+        impl SizeField {
+            /// Every size, family by family.
+            pub fn all() -> Vec<SizeField> {
+                let mut out = Vec::new();
+                $( out.extend((0..<$tokens as Family>::SIZES.len()).map(|i| SizeField(SizeRef::$var(i)))); )+
+                out
+            }
+
+            /// The dotted path, e.g. `"toolbar.button"`.
+            pub fn path(self) -> String {
+                match self.0 { $(SizeRef::$var(i) => format!("{}.{}", stringify!($name), <$tokens as Family>::SIZES[i].path),)+ }
+            }
+
+            /// The size whose [`path`](SizeField::path) is `path`.
+            pub fn from_path(path: &str) -> Option<SizeField> {
+                let (family, rest) = path.split_once('.')?;
+                match family {
+                    $(stringify!($name) => <$tokens as Family>::SIZES.iter().position(|l| l.path == rest).map(|i| SizeField(SizeRef::$var(i))),)+
+                    _ => None,
+                }
+            }
+
+            /// The kind of value a size takes.
+            pub const fn kind(self) -> FieldKind {
+                FieldKind::Length
+            }
+
+            /// The least and greatest value an app may pin.
+            pub fn range(self) -> (f32, f32) {
+                match self.0 { $(SizeRef::$var(i) => { let l = &<$tokens as Family>::SIZES[i]; (l.lo, l.hi) },)+ }
+            }
+
+            /// The size in `tokens`.
+            pub fn get(self, tokens: &ComponentTokens) -> f32 {
+                match self.0 { $(SizeRef::$var(i) => (<$tokens as Family>::SIZES[i].get)(&tokens.$name),)+ }
+            }
+
+            /// Sets the size in `tokens`.
+            pub fn set(self, tokens: &mut ComponentTokens, value: f32) {
+                match self.0 { $(SizeRef::$var(i) => (<$tokens as Family>::SIZES[i].set)(&mut tokens.$name, value),)+ }
             }
         }
 

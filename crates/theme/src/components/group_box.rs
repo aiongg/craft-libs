@@ -1,7 +1,7 @@
 //! Group boxes: the outlined, titled group of a dialog or preferences page. The edge colour and
 //! radius are overridable; the padding and gap come from the Size preset.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 
 /// Group box tokens.
@@ -30,6 +30,10 @@ pub enum GroupBoxField {
 impl Family for GroupBoxTokens {
     type Field = GroupBoxField;
     const FIELDS: &'static [GroupBoxField] = &[GroupBoxField::Edge, GroupBoxField::Radius];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { GroupBoxTokens;
+        "padding" 0.0..=64.0 => padding;
+        "gap" 0.0..=64.0 => gap;
+    };
 
     fn defaults(s: &Semantic<'_>) -> GroupBoxTokens {
         GroupBoxTokens { edge: s.color.line.divider, radius: s.shape.radius.panel, padding: s.space.pad.panel, gap: s.space.gap.stack }

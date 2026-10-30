@@ -14,7 +14,7 @@
 //! hue over `popup.fill`) and the row's text and shortcut on it, derived per theme, mode and
 //! contrast by [`MenuTint::derive`]. Other colours get the same derivation at paint time.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, ListboxField, OverrideValue, PopupField, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, ListboxField, OverrideValue, PopupField, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::contrast::{contrast_ratio, ensure_contrast};
 use crate::derive::over;
@@ -218,6 +218,11 @@ impl MenuTokens {
 impl Family for MenuTokens {
     type Field = MenuField;
     const FIELDS: &'static [MenuField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { MenuTokens;
+        "min_width" 0.0..=1024.0 => min_width;
+        "shortcut_gap" 0.0..=64.0 => shortcut_gap;
+        "scroll_strip" 0.0..=1024.0 => scroll_strip;
+    };
 
     /// The Compact sizes (PhotoCraft's), scaled by the control height of the size and rounded to
     /// whole points.

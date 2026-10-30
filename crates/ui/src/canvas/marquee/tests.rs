@@ -55,7 +55,8 @@ fn a_drawn_polygon_is_open_and_traced_segments_are_separate() {
 fn motion_context(reduced: bool) -> Context {
     use crate::theme::Base;
     use craft_theme::{AppDefaults, ModeChoice, Size, SuiteChoice, SystemAppearance, ThemeId, ThemePair, builtins};
-    let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Compact };
+    let defaults =
+        AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Compact, sizes: Default::default() };
     let system = SystemAppearance { reduced_motion: Some(reduced), ..Default::default() };
     let base = Base::resolve(&SuiteChoice::default().with_defaults(&defaults), system, &defaults, None, &mut |id| {
         builtins().iter().find(|t| t.id == *id).cloned()

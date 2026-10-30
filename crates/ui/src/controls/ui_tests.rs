@@ -754,7 +754,7 @@ fn a_palette_row_is_a_tab_stop_per_swatch_with_one_selected() {
 fn focusing_a_selected_swatch_draws_the_focus_ring_outside_the_selection_ring() {
     use craft_theme::{AppDefaults, ModeChoice, Size, SystemAppearance, ThemePair, builtins};
     let studio = builtins().iter().find(|t| t.id.as_str() == "craft.studio").unwrap().id.clone();
-    let defaults = AppDefaults { theme: ThemePair::same(studio), mode: ModeChoice::Dark, size: Size::Compact };
+    let defaults = AppDefaults { theme: ThemePair::same(studio), mode: ModeChoice::Dark, size: Size::Compact, sizes: Default::default() };
     let base =
         Base::resolve(&craft_theme::SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |id| {
             builtins().iter().find(|t| t.id == *id).cloned()

@@ -116,7 +116,8 @@ impl Appearance {
             size: self.size(),
             text_size: self.text_size(),
         };
-        let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: self.mode, size: self.size() };
+        let defaults =
+            AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: self.mode, size: self.size(), sizes: Default::default() };
         Base::resolve(&selection, system, &defaults, None, &mut |id| builtins().iter().find(|t| t.id == *id).cloned())
     }
 

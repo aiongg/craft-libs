@@ -1,7 +1,7 @@
 //! Preferences windows: the page list column and the gap between it and the page. Sizes only (no
 //! colours): the look is the list, field and surface families'.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Preferences window tokens, in points.
@@ -26,6 +26,12 @@ pub enum PreferencesField {}
 impl Family for PreferencesTokens {
     type Field = PreferencesField;
     const FIELDS: &'static [PreferencesField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { PreferencesTokens;
+        "list_width" 0.0..=1024.0 => list_width;
+        "page_gap" 0.0..=64.0 => page_gap;
+        "choice_width" 0.0..=1024.0 => choice_width;
+        "text_width" 0.0..=1024.0 => text_width;
+    };
 
     fn defaults(s: &Semantic<'_>) -> PreferencesTokens {
         let k = s.size.control.md / values::DIALOG_BASE_CONTROL;

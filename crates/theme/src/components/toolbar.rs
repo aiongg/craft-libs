@@ -2,7 +2,7 @@
 //! draws in `surface.panel` with a `line.divider` hairline on its inner edge, and the selected
 //! button is the icon button's toggle look.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 
 /// Toolbar tokens, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -31,6 +31,16 @@ pub enum ToolbarField {}
 impl Family for ToolbarTokens {
     type Field = ToolbarField;
     const FIELDS: &'static [ToolbarField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ToolbarTokens;
+        "button" 0.0..=1024.0 => button;
+        "button_large" 0.0..=1024.0 => button_large;
+        "gap" 0.0..=64.0 => gap;
+        "group_gap" 0.0..=64.0 => group_gap;
+        "pad.0" 0.0..=64.0 => pad[0];
+        "pad.1" 0.0..=64.0 => pad[1];
+        "width" 0.0..=1024.0 => width;
+        "overflow" 0.0..=1024.0 => overflow;
+    };
 
     /// PhotoCraft's Liquify strip and the horizontal 26 point toolbar at Compact.
     fn defaults(s: &Semantic<'_>) -> ToolbarTokens {

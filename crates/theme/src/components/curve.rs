@@ -1,7 +1,7 @@
 //! Curve editors: the graph of a tone curve, its points and its gradient bars. Sizes scale with
 //! the Size preset; the colours are overridable.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{ColorToken as T, TokenRef};
 use crate::values;
@@ -121,6 +121,17 @@ impl CurveTokens {
 impl Family for CurveTokens {
     type Field = CurveField;
     const FIELDS: &'static [CurveField] = &CurveField::ALL;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { CurveTokens;
+        "min_side" 0.0..=1024.0 => min_side;
+        "max_side" 0.0..=1024.0 => max_side;
+        "pad" 0.0..=64.0 => pad;
+        "bar" 0.0..=1024.0 => bar;
+        "bar_gap" 0.0..=64.0 => bar_gap;
+        "hit" 0.0..=64.0 => hit;
+        "drag_off" 0.0..=64.0 => drag_off;
+        "width" 0.0..=1024.0 => width;
+        "other_width" 0.0..=16.0 => other_width;
+    };
 
     /// The Compact sizes (PhotoCraft's Curves), scaled by the control height of the size and
     /// rounded to whole points; widths and the opacity stay as they are.

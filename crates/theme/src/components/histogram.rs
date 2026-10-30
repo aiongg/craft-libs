@@ -1,6 +1,6 @@
 //! Histograms: the plot height, the backdrop behind a curve, the outline width and the marker of the tone and RGB looks. The channel colours are the `data.*` tokens.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::values;
 
@@ -32,6 +32,12 @@ pub enum HistogramField {
 impl Family for HistogramTokens {
     type Field = HistogramField;
     const FIELDS: &'static [HistogramField] = &[HistogramField::Backdrop];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { HistogramTokens;
+        "height" 0.0..=1024.0 => height;
+        "line" 0.0..=16.0 => line;
+        "marker_width" 0.0..=1024.0 => marker_width;
+        "marker_height" 0.0..=1024.0 => marker_height;
+    };
 
     /// The Compact height (PhotoCraft's panel), scaled by the control height of the size and rounded to whole points.
     fn defaults(s: &Semantic<'_>) -> HistogramTokens {

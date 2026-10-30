@@ -159,7 +159,7 @@ fn start_and_end_swap_sides_in_rtl_and_top_and_bottom_do_not() {
 fn the_order_is_the_same_in_every_theme_and_size() {
     for theme in builtins() {
         for size in [Size::Compact, Size::Comfortable] {
-            let defaults = AppDefaults { theme: ThemePair::same(theme.id.clone()), mode: ModeChoice::System, size };
+            let defaults = AppDefaults { theme: ThemePair::same(theme.id.clone()), mode: ModeChoice::System, size, sizes: Default::default() };
             let base = Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |id| {
                 builtins().iter().find(|t| t.id == *id).cloned()
             });
@@ -356,7 +356,7 @@ fn pref_show(win: &mut Win, events: Vec<Event>, narrow: bool, columns: usize, ed
 #[test]
 fn the_narrow_options_bar_and_two_rail_columns_take_their_token_sizes() {
     for size in [Size::Compact, Size::Comfortable] {
-        let defaults = AppDefaults { theme: ThemePair::same(builtins()[0].id.clone()), mode: ModeChoice::System, size };
+        let defaults = AppDefaults { theme: ThemePair::same(builtins()[0].id.clone()), mode: ModeChoice::System, size, sizes: Default::default() };
         let base = Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |id| {
             builtins().iter().find(|t| t.id == *id).cloned()
         });

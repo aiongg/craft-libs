@@ -4,7 +4,7 @@
 //! the colour it sits on; its two rings contrast with each other, so one of them reads on any
 //! colour. The picker's other colours come from the line and text tokens.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::TokenRef;
 use crate::values;
@@ -68,6 +68,26 @@ pub enum ColorPickerField {
 impl Family for ColorPickerTokens {
     type Field = ColorPickerField;
     const FIELDS: &'static [ColorPickerField] = &[ColorPickerField::Marker, ColorPickerField::MarkerHalo];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ColorPickerTokens;
+        "area" 0.0..=1024.0 => area;
+        "area_height" 0.0..=1024.0 => area_height;
+        "strip_full" 0.0..=1024.0 => strip_full;
+        "strip" 0.0..=1024.0 => strip;
+        "compare_width" 0.0..=1024.0 => compare_width;
+        "compare_height" 0.0..=1024.0 => compare_height;
+        "marker_inner_radius" 0.0..=1024.0 => marker_inner_radius;
+        "marker_inner_width" 0.0..=16.0 => marker_inner_width;
+        "marker_outer_radius" 0.0..=1024.0 => marker_outer_radius;
+        "marker_outer_width" 0.0..=16.0 => marker_outer_width;
+        "pointer_width" 0.0..=1024.0 => pointer_width;
+        "pointer_height" 0.0..=1024.0 => pointer_height;
+        "warning_icon" 0.0..=1024.0 => warning_icon;
+        "warning_chip" 0.0..=1024.0 => warning_chip;
+        "pair_well" 0.0..=1024.0 => pair_well;
+        "pair_step" 0.0..=1024.0 => pair_step;
+        "pair_gap" 0.0..=64.0 => pair_gap;
+        "pair_ring" 0.0..=16.0 => pair_ring;
+    };
 
     /// The Compact sizes (PhotoCraft's), scaled by the control height of the size. Sizes of
     /// strokes and shapes round to half points, the rest to whole points.

@@ -12,12 +12,18 @@ use super::components::FieldKind;
 use super::theme::ThemeDef;
 use crate::IdError;
 
+mod app_sizes;
 mod parse;
 mod sizes;
 mod validate;
 mod write;
 
 pub use parse::parse;
+
+/// Reads an app's size overrides: [`AppSizes::parse`](crate::AppSizes::parse).
+pub fn parse_app_sizes(bytes: &[u8]) -> Result<crate::AppSizes, FormatErrors> {
+    app_sizes::parse(bytes)
+}
 pub use sizes::{SIZES_SCHEMA, SIZES_SCHEMA_VERSION, SizeSetFile, parse_sizes, sizes_to_file, write_sizes};
 pub use write::write;
 

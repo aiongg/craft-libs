@@ -2,7 +2,7 @@
 //! semantic `overlay.marquee` and `overlay.marquee_dash`; the family holds their geometry and
 //! timing, the same at every Size because marquees sit on the document.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Marquee tokens.
@@ -32,6 +32,13 @@ pub enum MarqueeField {}
 impl Family for MarqueeTokens {
     type Field = MarqueeField;
     const FIELDS: &'static [MarqueeField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { MarqueeTokens;
+        "dash" 0.0..=16.0 => dash;
+        "band_dash" 0.0..=16.0 => band_dash;
+        "band_gap" 0.0..=64.0 => band_gap;
+        "drawing_halo" 0.0..=16.0 => drawing_halo;
+        "click_slop" 0.0..=64.0 => click_slop;
+    };
 
     fn defaults(_: &Semantic<'_>) -> MarqueeTokens {
         MarqueeTokens {

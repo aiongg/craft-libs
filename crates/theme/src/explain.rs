@@ -1,6 +1,7 @@
 //! Why each colour has its value: the steps of [`resolve`] for one theme and appearance, with
 //! every contrast pair the rules measure. The gallery's token browser shows them.
 
+use super::app_sizes::AppSizes;
 use super::color::Rgba;
 use super::components::{ComponentField, ComponentTokens, Semantic};
 use super::derive::{Anchoring, ContrastCheck, PassMove, Ramps};
@@ -173,7 +174,7 @@ impl Explained {
 /// Resolves `theme` for `appearance` as [`resolve`] does, and reports how every colour got its
 /// value and every contrast pair the rules measure.
 pub fn explain(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Explained {
-    let (resolved, steps) = resolve::resolve_with_steps(theme, appearance, app);
+    let (resolved, steps) = resolve::resolve_with_steps(theme, appearance, app, &AppSizes::default());
     let mode = resolved.variant_used;
     let final_colors = &resolved.tokens.color;
     let final_components = &resolved.tokens.component;

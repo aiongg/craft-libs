@@ -2,7 +2,7 @@
 //! tokens; the family holds their sizes, the same at every Size because they stand for document
 //! positions.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Reference point picker tokens.
@@ -25,6 +25,11 @@ pub enum RefPointField {}
 impl Family for RefPointTokens {
     type Field = RefPointField;
     const FIELDS: &'static [RefPointField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { RefPointTokens;
+        "compact" 0.0..=1024.0 => compact;
+        "large" 0.0..=1024.0 => large;
+        "dot" 0.0..=1024.0 => dot;
+    };
 
     fn defaults(_: &Semantic<'_>) -> RefPointTokens {
         RefPointTokens { compact: values::REF_POINT_COMPACT, large: values::REF_POINT_LARGE, dot: values::REF_POINT_DOT }

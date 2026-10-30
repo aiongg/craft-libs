@@ -16,7 +16,12 @@ fn lookup(id: &ThemeId) -> Option<ThemeDef> {
 }
 
 fn defaults() -> AppDefaults {
-    AppDefaults { theme: ThemePair { light: id("craft.pro"), dark: id("craft.pro") }, mode: ModeChoice::Dark, size: Size::Compact }
+    AppDefaults {
+        theme: ThemePair { light: id("craft.pro"), dark: id("craft.pro") },
+        mode: ModeChoice::Dark,
+        size: Size::Compact,
+        sizes: AppSizes::default(),
+    }
 }
 
 fn selection(light: &str, dark: &str, mode: ModeChoice) -> Selection {

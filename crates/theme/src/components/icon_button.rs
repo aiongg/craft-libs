@@ -3,7 +3,7 @@
 //! toggle button that is on (`accent.soft` inside a 1 pt `accent.border` outline, the glyph in
 //! `accent.text`).
 
-use super::{ButtonPart, BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, ToggleButtonTokens};
+use super::{ButtonPart, BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf, ToggleButtonTokens};
 use crate::tokens::{ColorToken, TokenRef};
 use crate::values;
 
@@ -47,6 +47,14 @@ const FIELDS: [IconButtonField; 2 * ButtonPart::ALL.len()] = {
 impl Family for IconButtonTokens {
     type Field = IconButtonField;
     const FIELDS: &'static [IconButtonField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { IconButtonTokens;
+        "size.sm" 0.0..=1024.0 => size.sm;
+        "size.md" 0.0..=1024.0 => size.md;
+        "icon.sm" 0.0..=1024.0 => icon.sm;
+        "icon.md" 0.0..=1024.0 => icon.md;
+        "badge.sm" 0.0..=1024.0 => badge.sm;
+        "badge.md" 0.0..=1024.0 => badge.md;
+    };
 
     fn defaults(s: &Semantic<'_>) -> IconButtonTokens {
         let size = s.size;

@@ -3,7 +3,7 @@
 //!
 //! The lines are one physical pixel and are design targets with no minimum.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 
 /// Panel tokens.
@@ -54,6 +54,9 @@ impl PanelField {
 impl Family for PanelTokens {
     type Field = PanelField;
     const FIELDS: &'static [PanelField] = &[PanelField::Fill, PanelField::HeaderLine, PanelField::FooterLine];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { PanelTokens;
+        "pad" 0.0..=64.0 => pad;
+    };
 
     fn defaults(s: &Semantic<'_>) -> PanelTokens {
         let c = s.color;

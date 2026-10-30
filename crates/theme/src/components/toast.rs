@@ -2,7 +2,7 @@
 //! corner and colours, and each tone's edge and title colour.
 
 use super::notice::Tone;
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::TokenRef;
 use crate::values;
@@ -95,6 +95,13 @@ fn shown(tone: Tone) -> Tone {
 impl Family for ToastTokens {
     type Field = ToastField;
     const FIELDS: &'static [ToastField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ToastTokens;
+        "width" 0.0..=1024.0 => width;
+        "pad" 0.0..=64.0 => pad;
+        "inset.0" 0.0..=64.0 => inset[0];
+        "inset.1" 0.0..=64.0 => inset[1];
+        "gap" 0.0..=64.0 => gap;
+    };
 
     fn defaults(s: &Semantic<'_>) -> ToastTokens {
         let c = s.color;

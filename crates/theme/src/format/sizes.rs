@@ -241,7 +241,7 @@ impl SizeSet {
 
     /// Relations between values that each lie in range. The error is at the value that is too
     /// large (or too small, for a line height).
-    fn cross_rules(&self, errors: &mut Vec<FormatError>) {
+    pub(super) fn cross_rules(&self, errors: &mut Vec<FormatError>) {
         let s = &self.base.size;
         let mut le = |path: &str, v: f32, other: &'static str, limit: f32| {
             if v > limit {

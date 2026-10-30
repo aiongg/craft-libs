@@ -2,7 +2,7 @@
 //! (the tone's solid fill with `text.on_status`). The family holds the shape and every tone's
 //! colours.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{TokenRef, TypeRole};
 use crate::values;
@@ -200,6 +200,11 @@ const FIELDS: [BadgeField; FIELD_COUNT] = {
 impl Family for BadgeTokens {
     type Field = BadgeField;
     const FIELDS: &'static [BadgeField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { BadgeTokens;
+        "height" 0.0..=1024.0 => height;
+        "pad_y" 0.0..=64.0 => pad_y;
+        "pad_x" 0.0..=64.0 => pad_x;
+    };
 
     fn defaults(s: &Semantic<'_>) -> BadgeTokens {
         let c = s.color;

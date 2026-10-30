@@ -19,7 +19,7 @@
 
 use super::identify::identifiable_outline;
 use super::{
-    BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States, THUMB_FIELDS, ThumbColors, ThumbPart,
+    BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf, State, States, THUMB_FIELDS, ThumbColors, ThumbPart,
     thumb_from_path, thumb_path,
 };
 use crate::color::Rgba;
@@ -260,6 +260,24 @@ const FIELDS: [CheckField; FIELD_COUNT] = {
 impl Family for CheckTokens {
     type Field = CheckField;
     const FIELDS: &'static [CheckField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { CheckTokens;
+        "height.sm" 0.0..=1024.0 => height.sm;
+        "height.md" 0.0..=1024.0 => height.md;
+        "size.sm" 0.0..=1024.0 => size.sm;
+        "size.md" 0.0..=1024.0 => size.md;
+        "gap" 0.0..=64.0 => gap;
+        "box_size.sm" 0.0..=1024.0 => box_size.sm;
+        "box_size.md" 0.0..=1024.0 => box_size.md;
+        "box_gap" 0.0..=64.0 => box_gap;
+        "outline" 0.0..=16.0 => outline;
+        "mark.sm" 0.0..=1024.0 => mark.sm;
+        "mark.md" 0.0..=1024.0 => mark.md;
+        "dot.sm" 0.0..=1024.0 => dot.sm;
+        "dot.md" 0.0..=1024.0 => dot.md;
+        "track.sm" 0.0..=1024.0 => track.sm;
+        "track.md" 0.0..=1024.0 => track.md;
+        "thumb_inset" 0.0..=64.0 => thumb_inset;
+    };
 
     fn defaults(s: &Semantic<'_>) -> CheckTokens {
         let (c, size) = (s.color, s.size);

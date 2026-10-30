@@ -2,7 +2,7 @@
 //! takes its edge from the `Surface` primitive. This family holds the keycap's size, corner and
 //! colours.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{TokenRef, TypeRole};
 use crate::values;
@@ -44,6 +44,11 @@ pub enum KbdField {
 impl Family for KbdTokens {
     type Field = KbdField;
     const FIELDS: &'static [KbdField] = &[KbdField::Radius, KbdField::Fill, KbdField::Text];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { KbdTokens;
+        "height" 0.0..=1024.0 => height;
+        "pad_y" 0.0..=64.0 => pad_y;
+        "pad_x" 0.0..=64.0 => pad_x;
+    };
 
     fn defaults(s: &Semantic<'_>) -> KbdTokens {
         let label = TypeRole::Caption;

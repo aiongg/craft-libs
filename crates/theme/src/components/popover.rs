@@ -3,7 +3,7 @@
 //! to the window's edge. The grip's ticks are a pointer affordance for a function the keyboard
 //! does not need, so they carry no contrast minimum.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::values;
 
@@ -33,6 +33,12 @@ pub enum PopoverField {
 impl Family for PopoverTokens {
     type Field = PopoverField;
     const FIELDS: &'static [PopoverField] = &[PopoverField::GripTick];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { PopoverTokens;
+        "padding" 0.0..=64.0 => padding;
+        "grip_size" 0.0..=1024.0 => grip_size;
+        "grip_pitch" 0.0..=64.0 => grip_pitch;
+        "screen_margin" 0.0..=64.0 => screen_margin;
+    };
 
     fn defaults(s: &Semantic<'_>) -> PopoverTokens {
         PopoverTokens {

@@ -2,7 +2,7 @@
 //! scale with the Size preset; the thumb edge and ring colours are overridable. The thumbs' faces
 //! (black, grey, white) are image tones, not tokens.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf, State, States};
 use crate::color::Rgba;
 use crate::tokens::{ColorToken, TokenRef};
 use crate::values;
@@ -79,6 +79,16 @@ impl LevelsTokens {
 impl Family for LevelsTokens {
     type Field = LevelsField;
     const FIELDS: &'static [LevelsField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { LevelsTokens;
+        "min_width" 0.0..=1024.0 => min_width;
+        "max_width" 0.0..=1024.0 => max_width;
+        "row" 0.0..=1024.0 => row;
+        "thumb_width" 0.0..=1024.0 => thumb_width;
+        "thumb_height" 0.0..=1024.0 => thumb_height;
+        "hit" 0.0..=64.0 => hit;
+        "histogram" 0.0..=1024.0 => histogram;
+        "bar" 0.0..=1024.0 => bar;
+    };
 
     /// The Compact sizes (PhotoCraft's Levels), scaled by the control height of the size and
     /// rounded to whole points.

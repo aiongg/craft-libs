@@ -2,7 +2,7 @@
 //! preset; the colours are overridable. Stop colours, the opacity markers' greys and the ramp are
 //! content and have no token.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{ColorToken as T, TokenRef};
 use crate::values;
@@ -81,6 +81,17 @@ impl GradientEditorTokens {
 impl Family for GradientEditorTokens {
     type Field = GradientEditorField;
     const FIELDS: &'static [GradientEditorField] = &GradientEditorField::ALL;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { GradientEditorTokens;
+        "ramp_height" 0.0..=1024.0 => ramp_height;
+        "inset" 0.0..=64.0 => inset;
+        "marker" 0.0..=1024.0 => marker;
+        "pointer" 0.0..=1024.0 => pointer;
+        "diamond" 0.0..=1024.0 => diamond;
+        "hit" 0.0..=64.0 => hit;
+        "diamond_hit" 0.0..=64.0 => diamond_hit;
+        "tear_off" 0.0..=64.0 => tear_off;
+        "drop_line" 0.0..=16.0 => drop_line;
+    };
 
     /// The Compact sizes (PhotoCraft's Gradient Editor), scaled by the control height of the size
     /// and rounded to whole points.
