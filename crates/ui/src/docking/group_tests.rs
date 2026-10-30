@@ -59,6 +59,8 @@ struct TestContent {
     body_height: Option<f32>,
     /// Every body takes its whole rect.
     fill: bool,
+    /// The host adds a "Host Item" to every panel menu.
+    menu_item: bool,
 }
 
 impl DockContent<u32> for TestContent {
@@ -84,6 +86,11 @@ impl DockContent<u32> for TestContent {
     }
     fn floating_size(&self, _: &u32) -> Option<Vec2> {
         self.floating_size
+    }
+    fn panel_menu(&mut self, ui: &mut egui::Ui, _: &u32) {
+        if self.menu_item {
+            let _ = ui.button("Host Item");
+        }
     }
     fn resolve_drag(&mut self, _: &Context, _: &DockStyle, request: &DropRequest<'_, u32>) -> Option<DropFeedback> {
         self.whole_group |= request.whole_group;
@@ -671,6 +678,35 @@ fn drag_bar_menu_has_the_group_items_and_opens_from_the_keyboard() {
     h.input_mut().events.push(key(egui::Key::Enter));
     h.run_steps(2);
     assert!(egui::Popup::is_any_open(&h.ctx));
+}
+
+#[test]
+/// With `panel_menu_button` on, each strip ends with a "Panel Menu" button that opens the selected
+/// panel's menu (the host's items and the group items); off, there is no such button.
+fn the_panel_menu_button_opens_the_selected_panels_menu_when_enabled() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let build = |enabled: bool| {
+        let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
+            |ui, (content, enabled): &mut (TestContent, bool)| {
+                let mut style = DockStyle::from_ui(ui);
+                style.panel_menu_button = *enabled;
+                DockArea::new(Id::unique(AREA)).show_content(ui, &docked(), &style, content);
+            },
+            (TestContent { protected: vec![0], menu_item: true, ..Default::default() }, enabled),
+        );
+        h.run_steps(2);
+        h
+    };
+    let off = build(false);
+    assert_eq!(off.query_all_by_label("Panel Menu").count(), 0);
+
+    let mut on = build(true);
+    // One button per group of the docked layout.
+    assert_eq!(on.query_all_by_label("Panel Menu").count(), 2);
+    on.query_all_by_label("Panel Menu").next().unwrap().click();
+    on.run_steps(3);
+    assert_eq!(on.query_all_by_label("Host Item").count(), 1);
+    assert_eq!(on.query_all_by_label("Close Tab Group").count(), 1);
 }
 
 #[test]

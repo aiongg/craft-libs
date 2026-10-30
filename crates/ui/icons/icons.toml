@@ -102,6 +102,14 @@ carbon = "overflow-menu--horizontal"
 tabler = "dots"
 
 [[icon]]
+name = "menu"
+directional = false
+lucide = "menu"
+phosphor = "list"
+carbon = "menu"
+tabler = "menu-2"
+
+[[icon]]
 name = "plus"
 directional = false
 lucide = "plus"

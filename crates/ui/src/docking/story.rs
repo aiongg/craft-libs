@@ -122,14 +122,15 @@ fn iconic_layout() -> Layout<u32> {
 }
 
 /// Draw `initial` (kept in the context so edits stay) in an area `width` wide, and return the
-/// area's rect.
-fn show_area(ui: &mut Ui, args: &DockArgs, salt: &'static str, initial: fn() -> Layout<u32>, open: Option<u32>) -> (Id, Rect) {
+/// area's rect. `menu_button` ends each group's strip with the panel-menu button.
+fn show_area(ui: &mut Ui, args: &DockArgs, salt: &'static str, initial: fn() -> Layout<u32>, open: Option<u32>, menu_button: bool) -> (Id, Rect) {
     let width = args.width.min(ui.available_width());
     let (rect, _) = ui.allocate_exact_size(vec2(width, HEIGHT), Sense::hover());
     let id = ui.scope_id().with(("dock-story", salt));
     let key = id.with("layout");
     let layout = ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, initial).clone());
-    let config = DockConfig { right_to_left: args.locale == LocaleArg::Ar || direction::is_rtl(ui), ..DockConfig::default() };
+    let config =
+        DockConfig { right_to_left: args.locale == LocaleArg::Ar || direction::is_rtl(ui), panel_menu_button: menu_button, ..DockConfig::default() };
     if let Some(panel) = open.filter(|panel| flyout::<u32>(ui.ctx(), id).is_none() && layout.contains(panel)) {
         open_flyout(ui.ctx(), id, panel);
     }
@@ -144,19 +145,19 @@ fn show_area(ui: &mut Ui, args: &DockArgs, salt: &'static str, initial: fn() -> 
 
 /// A right dock with two groups, tabs and a collapsed iconic column beside a canvas.
 pub(super) fn show_docked(ui: &mut Ui, args: &mut DockArgs) {
-    show_area(ui, args, "docked", docked_layout, None);
+    show_area(ui, args, "docked", docked_layout, None, true);
 }
 
 /// One floating window with a tab group, and one minimized.
 pub(super) fn show_floating(ui: &mut Ui, args: &mut DockArgs) {
-    show_area(ui, args, "floating", floating_layout, None);
+    show_area(ui, args, "floating", floating_layout, None, false);
 }
 
 /// The docked layout with the previews of a tab dragged over a group (a tab drop), over the canvas
 /// beside the dock and over the dock's edge (a new column), placed from the area's own layout and
 /// drawn as a live drop draws them. A pointer drag draws these live; the story holds them still.
 pub(super) fn show_drag(ui: &mut Ui, args: &mut DockArgs) {
-    let (id, rect) = show_area(ui, args, "drag", docked_layout, None);
+    let (id, rect) = show_area(ui, args, "drag", docked_layout, None, false);
     let hits = DockArea::<u32>::hit_rects(ui.ctx(), id);
     let hit = |hit: Hit<u32>| hits.iter().find(|(h, _)| *h == hit).map(|(_, rect)| *rect);
     let (Some(bar), Some(strip), Some(icons)) = (hit(Hit::ColumnBar(LAYERS)), hit(Hit::Tab(PROPERTIES)), hit(Hit::Icon(BRUSHES))) else { return };
@@ -174,5 +175,5 @@ pub(super) fn show_drag(ui: &mut Ui, args: &mut DockArgs) {
 
 /// An iconic column with the flyout of its first group open.
 pub(super) fn show_iconic(ui: &mut Ui, args: &mut DockArgs) {
-    show_area(ui, args, "iconic", iconic_layout, Some(BRUSHES));
+    show_area(ui, args, "iconic", iconic_layout, Some(BRUSHES), false);
 }
