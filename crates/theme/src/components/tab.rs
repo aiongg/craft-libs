@@ -10,7 +10,7 @@
 //! The fills themselves, the active tab against the strip among them, are design targets with no
 //! minimum, as row selection fills are.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, FloatField, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, FloatField, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{TokenRef, TypeRole};
 use crate::values;
@@ -187,6 +187,22 @@ impl Family for TabTokens {
         TabField::DropHalo,
         TabField::Indicator,
     ];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { TabTokens;
+        "height" 0.0..=1024.0 => height;
+        "panel_height" 0.0..=1024.0 => panel_height;
+        "height_large" 0.0..=1024.0 => height_large;
+        "pad_x" 0.0..=64.0 => pad_x;
+        "gap" 0.0..=64.0 => gap;
+        "min_width" 0.0..=1024.0 => min_width;
+        "close_box" 0.0..=1024.0 => close_box;
+        "close_icon" 0.0..=1024.0 => close_icon;
+        "overflow" 0.0..=1024.0 => overflow;
+        "drop_width" 0.0..=1024.0 => drop_width;
+        "drop_halo_width" 0.0..=16.0 => drop_halo_width;
+        "progress_height" 0.0..=1024.0 => progress_height;
+        "indicator_width" 0.0..=16.0 => indicator_width;
+        "tear_off" 0.0..=64.0 => tear_off;
+    };
 
     fn defaults(s: &Semantic<'_>) -> TabTokens {
         let (c, tab) = (s.color, &s.size.tab);

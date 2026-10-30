@@ -124,7 +124,8 @@ fn plain_keys_take_the_content_colour_and_keycaps_their_own() {
 #[test]
 fn badge_and_keycap_labels_fit_at_the_largest_text_size() {
     use craft_theme::{AppDefaults, ModeChoice, Size, SuiteChoice, SystemAppearance, TextSize, ThemeId, ThemePair};
-    let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Comfortable };
+    let defaults =
+        AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Comfortable, sizes: Default::default() };
     let mut choice = SuiteChoice::default().with_defaults(&defaults);
     choice.text_size = TextSize::Large;
     let base = crate::theme::Base::resolve(&choice, SystemAppearance::default(), &defaults, None, &mut |id| {

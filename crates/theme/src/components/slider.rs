@@ -4,7 +4,7 @@
 //! family holds the sizes, corners and colours.
 
 use super::{
-    BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States, THUMB_FIELDS, ThumbColors, ThumbPart,
+    BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf, State, States, THUMB_FIELDS, ThumbColors, ThumbPart,
     thumb_from_path, thumb_path,
 };
 use crate::color::Rgba;
@@ -137,6 +137,27 @@ impl SliderTokens {
 impl Family for SliderTokens {
     type Field = SliderField;
     const FIELDS: &'static [SliderField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { SliderTokens;
+        "height.sm" 0.0..=1024.0 => height.sm;
+        "height.md" 0.0..=1024.0 => height.md;
+        "width.sm" 0.0..=1024.0 => width.sm;
+        "width.md" 0.0..=1024.0 => width.md;
+        "thumb.sm" 0.0..=1024.0 => thumb.sm;
+        "thumb.md" 0.0..=1024.0 => thumb.md;
+        "thumb_width.sm" 0.0..=1024.0 => thumb_width.sm;
+        "thumb_width.md" 0.0..=1024.0 => thumb_width.md;
+        "range_thumb_width.sm" 0.0..=16.0 => range_thumb_width.sm;
+        "range_thumb_width.md" 0.0..=16.0 => range_thumb_width.md;
+        "range_thumb_height.sm" 0.0..=1024.0 => range_thumb_height.sm;
+        "range_thumb_height.md" 0.0..=1024.0 => range_thumb_height.md;
+        "track_height" 0.0..=1024.0 => track_height;
+        "gradient_height" 0.0..=1024.0 => gradient_height;
+        "ring_width" 0.0..=16.0 => ring_width;
+        "ring_offset" 0.0..=64.0 => ring_offset;
+        "mark.sm" 0.0..=1024.0 => mark.sm;
+        "mark.md" 0.0..=1024.0 => mark.md;
+        "snap" 0.0..=1024.0 => snap;
+    };
 
     fn defaults(s: &Semantic<'_>) -> SliderTokens {
         let (c, size) = (s.color, s.size);

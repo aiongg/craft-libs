@@ -24,7 +24,7 @@ fn base(id: &str, mode: ModeChoice) -> Base {
         size: Size::Compact,
         text_size: TextSize::Default,
     };
-    let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode, size: Size::Compact };
+    let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode, size: Size::Compact, sizes: Default::default() };
     Base::resolve(&sel, SystemAppearance::default(), &defaults, None, &mut |id| builtins().iter().find(|t| t.id == *id).cloned())
 }
 

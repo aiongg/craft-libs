@@ -3,7 +3,8 @@
 
 use super::list::half;
 use super::{
-    BySize, ComponentField, ContrastPair, Family, FieldKind, ITEM_FIELDS, Identify, ItemColors, ItemPart, OverrideValue, Semantic, State, States,
+    BySize, ComponentField, ContrastPair, Family, FieldKind, ITEM_FIELDS, Identify, ItemColors, ItemPart, OverrideValue, Semantic, SizeLeaf, State,
+    States,
 };
 use crate::color::Rgba;
 use crate::tokens::{ColorToken, TokenRef, TypeRole};
@@ -88,6 +89,15 @@ impl SegmentedTokens {
 impl Family for SegmentedTokens {
     type Field = SegmentedField;
     const FIELDS: &'static [SegmentedField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { SegmentedTokens;
+        "height.sm" 0.0..=1024.0 => height.sm;
+        "height.md" 0.0..=1024.0 => height.md;
+        "pad_x.sm" 0.0..=64.0 => pad_x.sm;
+        "pad_x.md" 0.0..=64.0 => pad_x.md;
+        "icon.sm" 0.0..=1024.0 => icon.sm;
+        "icon.md" 0.0..=1024.0 => icon.md;
+        "gap" 0.0..=64.0 => gap;
+    };
 
     fn defaults(s: &Semantic<'_>) -> SegmentedTokens {
         let (c, size, space) = (s.color, s.size, s.space);

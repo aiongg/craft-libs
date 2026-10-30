@@ -1,7 +1,7 @@
 //! Canvas grid: major and minor lines over a document. Colours are the semantic `overlay.*` tokens; the family holds sizes and
 //! shares, the same at every Size because the overlay sits on the document.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Grid tokens.
@@ -27,6 +27,12 @@ pub enum GridField {}
 impl Family for GridTokens {
     type Field = GridField;
     const FIELDS: &'static [GridField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { GridTokens;
+        "width" 0.0..=1024.0 => width;
+        "min_step" 0.0..=1024.0 => min_step;
+        "crossing" 0.0..=1024.0 => crossing;
+        "crossing_min" 0.0..=1024.0 => crossing_min;
+    };
 
     fn defaults(_: &Semantic<'_>) -> GridTokens {
         GridTokens {

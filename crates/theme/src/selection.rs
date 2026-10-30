@@ -2,9 +2,10 @@
 //! choice, an app's own choice and the app's defaults combine, and resolution of the result
 //! against what the OS reports.
 
+use super::app_sizes::AppSizes;
 use super::builtins;
 use super::ramp::Mode;
-use super::resolve::{Resolved, resolve};
+use super::resolve::{Resolved, resolve_sized};
 use super::theme::{Appearance, Contrast, Size, TextSize, ThemeDef, Variants};
 use crate::{AppId, ThemeId};
 
@@ -161,11 +162,14 @@ impl From<Selection> for SuiteChoice {
 ///
 /// Each app states its own, normally [`crate::SUITE_DEFAULT`] in both slots with the mode and
 /// size that suit it (the creative apps Dark and Compact; office apps may ship Light).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AppDefaults {
     pub theme: ThemePair,
     pub mode: ModeChoice,
     pub size: Size,
+    /// The app's own sizes: base overrides and component pins, applied to whichever size set is
+    /// chosen.
+    pub sizes: AppSizes,
 }
 
 /// An app's own choice, kept in the app's preferences: "Use a different theme / mode / size in
@@ -303,7 +307,7 @@ pub fn resolve_selection(
     }
     let theme = found.unwrap_or_else(|| builtins::suite_default().clone());
 
-    let resolved = resolve(&theme, appearance, app);
+    let resolved = resolve_sized(&theme, appearance, app, &defaults.sizes);
     if resolved.variant_used != mode {
         notices.push(Fallback::OnlyVariant(resolved.variant_used));
     }

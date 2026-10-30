@@ -2,7 +2,7 @@
 //! guide's position). They draw in `surface.raised`, `line.border` and the text colours; the family
 //! holds their placement and spacing.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Readout tokens.
@@ -30,6 +30,14 @@ pub enum ReadoutField {}
 impl Family for ReadoutTokens {
     type Field = ReadoutField;
     const FIELDS: &'static [ReadoutField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ReadoutTokens;
+        "offset_x" 0.0..=64.0 => offset_x;
+        "offset_y" 0.0..=64.0 => offset_y;
+        "pad_x" 0.0..=64.0 => pad_x;
+        "pad_y" 0.0..=64.0 => pad_y;
+        "col_gap" 0.0..=64.0 => col_gap;
+        "row_gap" 0.0..=64.0 => row_gap;
+    };
 
     /// The Compact sizes (PhotoCraft's), scaled by the control height of the size and rounded to whole points.
     fn defaults(s: &Semantic<'_>) -> ReadoutTokens {

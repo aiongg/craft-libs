@@ -1,6 +1,6 @@
 //! Panel headers: the title row of a flyout or floating panel. Sizes only (no colours): no theme overrides them.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 
 /// Panel headers tokens, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -23,6 +23,12 @@ pub enum PanelHeaderField {}
 impl Family for PanelHeaderTokens {
     type Field = PanelHeaderField;
     const FIELDS: &'static [PanelHeaderField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { PanelHeaderTokens;
+        "height" 0.0..=1024.0 => height;
+        "pad" 0.0..=64.0 => pad;
+        "gap" 0.0..=64.0 => gap;
+        "button" 0.0..=1024.0 => button;
+    };
 
     /// The height is the size preset's `panel_header`; the buttons are a small control square, as an `IconButton` of `ControlSize::Sm`.
     fn defaults(s: &Semantic<'_>) -> PanelHeaderTokens {

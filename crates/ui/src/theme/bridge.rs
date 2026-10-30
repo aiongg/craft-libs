@@ -6,8 +6,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock};
 
 use craft_theme::{
-    AppDefaults, AppId, Appearance, Contrast, Mode, ModeChoice, Pins, Selection, Shown, Size, SuiteChoice, SystemAppearance, ThemeDef, ThemeId,
-    ThemePair, Tokens, builtins, resolve, resolve_selection,
+    AppDefaults, AppId, AppSizes, Appearance, Contrast, Mode, ModeChoice, Pins, Selection, Shown, Size, SuiteChoice, SystemAppearance, ThemeDef,
+    ThemeId, ThemePair, Tokens, builtins, resolve_selection, resolve_sized,
 };
 use egui::{Context, Id, Style, Theme, ThemePreference, Ui, ViewportId};
 
@@ -32,6 +32,8 @@ pub struct Inputs {
     pub light: ThemeDef,
     pub dark: ThemeDef,
     pub app: Option<AppId>,
+    /// The app's size overrides, applied at every resolution.
+    pub sizes: AppSizes,
 }
 
 impl Base {
@@ -54,7 +56,12 @@ impl Base {
             (shown, theme)
         };
         let ((light, light_theme), (dark, dark_theme)) = (shown(Mode::Light), shown(Mode::Dark));
-        Base { light, dark, mode: sel.mode, inputs: Inputs { light: light_theme, dark: dark_theme, app: app.cloned() } }
+        Base {
+            light,
+            dark,
+            mode: sel.mode,
+            inputs: Inputs { light: light_theme, dark: dark_theme, app: app.cloned(), sizes: defaults.sizes.clone() },
+        }
     }
 
     /// The suite default theme in both modes, standard contrast, compact, following the system
@@ -83,7 +90,8 @@ impl Inputs {
 }
 
 static SUITE_DEFAULT_BASE: LazyLock<Base> = LazyLock::new(|| {
-    let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::System, size: Size::default() };
+    let defaults =
+        AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::System, size: Size::default(), sizes: Default::default() };
     Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut builtin)
 });
 
@@ -364,7 +372,7 @@ impl Installed {
                 }
             }
         }
-        let resolved = resolve(&theme, appearance, app);
+        let resolved = resolve_sized(&theme, appearance, app, &self.base.inputs.sizes);
         ui_tokens(resolved.tokens, appearance, resolved.variant_used, &self.env)
     }
 }

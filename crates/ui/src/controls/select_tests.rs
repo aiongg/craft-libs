@@ -785,7 +785,7 @@ fn a_closed_select_of_rows_reads_a_few_rows_a_frame() {
 fn dark(id: &str) -> Option<Base> {
     use craft_theme::{AppDefaults, ModeChoice, Size, SuiteChoice, SystemAppearance, ThemePair, builtins};
     let theme = builtins().iter().find(|t| t.id.as_str() == id)?.id.clone();
-    let defaults = AppDefaults { theme: ThemePair::same(theme), mode: ModeChoice::Dark, size: Size::Compact };
+    let defaults = AppDefaults { theme: ThemePair::same(theme), mode: ModeChoice::Dark, size: Size::Compact, sizes: Default::default() };
     Some(Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |id| {
         builtins().iter().find(|t| t.id == *id).cloned()
     }))

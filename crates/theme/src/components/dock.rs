@@ -7,7 +7,7 @@
 //! on the dock background (3:1, 4.5:1); the label of the selected icon cell is text on that cell.
 //! The borders and fills are design targets with no minimum.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, Identify, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, Identify, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::TokenRef;
 use crate::values;
@@ -132,6 +132,18 @@ impl Family for DockTokens {
         DockField::IconRadius,
         DockField::HintRadius,
     ];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { DockTokens;
+        "gap" 0.0..=64.0 => gap;
+        "body_gap" 0.0..=64.0 => body_gap;
+        "border_width" 0.0..=16.0 => border_width;
+        "title_height" 0.0..=1024.0 => title_height;
+        "column_bar_height" 0.0..=1024.0 => column_bar_height;
+        "icon_size" 0.0..=1024.0 => icon_size;
+        "icon_pad" 0.0..=64.0 => icon_pad;
+        "iconic_width" 0.0..=1024.0 => iconic_width;
+        "drop_width" 0.0..=1024.0 => drop_width;
+        "focus_width" 0.0..=16.0 => focus_width;
+    };
 
     /// The Compact bar heights are the docking code's own 14, scaled by the control height of the size and rounded to whole points.
     fn defaults(s: &Semantic<'_>) -> DockTokens {

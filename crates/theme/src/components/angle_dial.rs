@@ -1,7 +1,7 @@
 //! Angle dials: the round face with a needle that points in a direction. Sizes scale with the
 //! Size preset; the colours are overridable.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::TokenRef;
 use crate::values;
@@ -81,6 +81,14 @@ impl AngleDialTokens {
 impl Family for AngleDialTokens {
     type Field = AngleDialField;
     const FIELDS: &'static [AngleDialField] = &AngleDialField::ALL;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { AngleDialTokens;
+        "size" 0.0..=1024.0 => size;
+        "margin" 0.0..=64.0 => margin;
+        "needle_width" 0.0..=1024.0 => needle_width;
+        "needle_inset" 0.0..=64.0 => needle_inset;
+        "hub" 0.0..=1024.0 => hub;
+        "dead_zone" 0.0..=1024.0 => dead_zone;
+    };
 
     /// The Compact sizes (PhotoCraft's `angle_dial_row`), scaled by the control height of the size
     /// and rounded to whole points.

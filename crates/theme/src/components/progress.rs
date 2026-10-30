@@ -1,7 +1,7 @@
 //! Progress bars: a sunken track and a fill from the reading start. The track takes its edge from
 //! the `Surface` primitive; this family holds its thickness, corners and colours.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{ColorToken, TokenRef};
 use crate::values;
@@ -42,6 +42,10 @@ pub enum ProgressField {
 impl Family for ProgressTokens {
     type Field = ProgressField;
     const FIELDS: &'static [ProgressField] = &[ProgressField::Radius, ProgressField::Track, ProgressField::Edge, ProgressField::Fill];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ProgressTokens;
+        "width" 0.0..=1024.0 => width;
+        "track_height" 0.0..=1024.0 => track_height;
+    };
 
     fn defaults(s: &Semantic<'_>) -> ProgressTokens {
         ProgressTokens {

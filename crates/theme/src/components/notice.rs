@@ -1,7 +1,7 @@
 //! Notices: an inline status message with the tone's icon and colour, and no fill or border. The
 //! family holds each tone's colour and the gap after the icon. [`Tone`] is shared with toasts.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{ColorToken, ColorTokens, StatusColors, StatusKind, TokenRef};
 use crate::values;
@@ -91,6 +91,9 @@ impl Family for NoticeTokens {
         NoticeField::Fg(Tone::Warn),
         NoticeField::Fg(Tone::Bad),
     ];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { NoticeTokens;
+        "icon_gap" 0.0..=64.0 => icon_gap;
+    };
 
     fn defaults(s: &Semantic<'_>) -> NoticeTokens {
         NoticeTokens { icon_gap: s.space.gap.inline, fg: Tone::ALL.map(|t| t.colors(s.color).map_or(s.color.text.muted, |c| c.fg)) }

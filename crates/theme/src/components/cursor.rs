@@ -3,7 +3,7 @@
 //! only their geometry, which no theme overrides. The rotate pointer's geometry is
 //! `transform.turn_*`.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Painted-pointer tokens, in points, the same at every Size.
@@ -48,6 +48,22 @@ pub enum CursorField {}
 impl Family for CursorTokens {
     type Field = CursorField;
     const FIELDS: &'static [CursorField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { CursorTokens;
+        "crosshair_reach" 0.0..=64.0 => crosshair_reach;
+        "crosshair_gap" 0.0..=64.0 => crosshair_gap;
+        "badge_half" 0.0..=1024.0 => badge_half;
+        "badge_offset" 0.0..=64.0 => badge_offset;
+        "badge_beside_x" 0.0..=1024.0 => badge_beside_x;
+        "badge_beside_y" 0.0..=1024.0 => badge_beside_y;
+        "dart_length" 0.0..=1024.0 => dart_length;
+        "dart_half_width" 0.0..=16.0 => dart_half_width;
+        "dart_outline" 0.0..=16.0 => dart_outline;
+        "skew_gap" 0.0..=64.0 => skew_gap;
+        "skew_half_length" 0.0..=1024.0 => skew_half_length;
+        "skew_head" 0.0..=1024.0 => skew_head;
+        "skew_back" 0.0..=1024.0 => skew_back;
+        "skew_head_outline" 0.0..=16.0 => skew_head_outline;
+    };
 
     fn defaults(_: &Semantic<'_>) -> CursorTokens {
         CursorTokens {

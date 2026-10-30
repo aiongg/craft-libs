@@ -1,6 +1,6 @@
 //! Section headers: the row, chevron and title of a collapsible section. Sizes only (no colours): no theme overrides them.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Section headers tokens, in points.
@@ -24,6 +24,12 @@ pub enum SectionField {}
 impl Family for SectionTokens {
     type Field = SectionField;
     const FIELDS: &'static [SectionField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { SectionTokens;
+        "row_height" 0.0..=1024.0 => row_height;
+        "chevron" 0.0..=1024.0 => chevron;
+        "chevron_box" 0.0..=1024.0 => chevron_box;
+        "title_offset" 0.0..=64.0 => title_offset;
+    };
 
     /// The Compact sizes (PhotoCraft's), scaled by the control height of the size and rounded to whole points.
     fn defaults(s: &Semantic<'_>) -> SectionTokens {

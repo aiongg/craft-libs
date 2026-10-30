@@ -8,7 +8,7 @@
 //! that show the field's state (3:1, 4.5:1 with high contrast) on the field's fill. The resting
 //! and hovered edges are design targets with no minimum. Each pair is measured at rest.
 
-use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{ColorToken, TokenRef, TypeRole};
 use crate::values;
@@ -266,6 +266,20 @@ const fn enablement(disabled: bool) -> &'static str {
 impl Family for FieldTokens {
     type Field = FieldField;
     const FIELDS: &'static [FieldField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { FieldTokens;
+        "height.sm" 0.0..=1024.0 => height.sm;
+        "height.md" 0.0..=1024.0 => height.md;
+        "width.sm" 0.0..=1024.0 => width.sm;
+        "width.md" 0.0..=1024.0 => width.md;
+        "number_width.sm" 0.0..=1024.0 => number_width.sm;
+        "number_width.md" 0.0..=1024.0 => number_width.md;
+        "pad_x" 0.0..=64.0 => pad_x;
+        "icon.sm" 0.0..=1024.0 => icon.sm;
+        "icon.md" 0.0..=1024.0 => icon.md;
+        "gap" 0.0..=64.0 => gap;
+        "label_gap" 0.0..=64.0 => label_gap;
+        "help_gap" 0.0..=64.0 => help_gap;
+    };
 
     fn defaults(s: &Semantic<'_>) -> FieldTokens {
         let (c, size) = (s.color, s.size);

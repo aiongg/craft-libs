@@ -3,7 +3,7 @@
 //! them only to give tooltips a look of their own (Classic: black text on a pale yellow card with
 //! a black edge). The card's margin and shadow are the popup's.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::TokenRef;
 use crate::values;
@@ -42,6 +42,10 @@ pub enum TooltipField {
 impl Family for TooltipTokens {
     type Field = TooltipField;
     const FIELDS: &'static [TooltipField] = &[TooltipField::Radius, TooltipField::Fill, TooltipField::Text, TooltipField::Border];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { TooltipTokens;
+        "max_width" 0.0..=1024.0 => max_width;
+        "pointer_gap" 0.0..=64.0 => pointer_gap;
+    };
 
     fn defaults(s: &Semantic<'_>) -> TooltipTokens {
         let c = s.color;

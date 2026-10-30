@@ -17,7 +17,7 @@
 //! separator is a design target with no minimum. Each pair is measured at rest.
 
 use super::list::{SelectedLook, visible_hover};
-use super::{BySize, ComponentField, ContrastPair, Dimmed, Family, FieldKind, OverrideValue, PopupField, Semantic};
+use super::{BySize, ComponentField, ContrastPair, Dimmed, Family, FieldKind, OverrideValue, PopupField, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{ColorTokens, TokenRef, TypeRole};
 use crate::values;
@@ -150,6 +150,16 @@ impl Family for ListboxTokens {
         ListboxField::Group,
         ListboxField::Separator,
     ];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ListboxTokens;
+        "height.sm" 0.0..=1024.0 => height.sm;
+        "height.md" 0.0..=1024.0 => height.md;
+        "pad_x" 0.0..=64.0 => pad_x;
+        "max_height" 0.0..=1024.0 => max_height;
+        "gap" 0.0..=64.0 => gap;
+        "icon.sm" 0.0..=1024.0 => icon.sm;
+        "icon.md" 0.0..=1024.0 => icon.md;
+        "separator_pad" 0.0..=64.0 => separator_pad;
+    };
 
     fn defaults(s: &Semantic<'_>) -> ListboxTokens {
         let (c, size) = (s.color, s.size);

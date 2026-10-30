@@ -1,6 +1,6 @@
 //! Spinners: the ring of an indeterminate wait (egui's stock spinner, which PhotoCraft draws). Sizes only; the colour is a text role.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 
 /// Panel footer tokens, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -20,6 +20,10 @@ pub enum SpinnerField {}
 impl Family for SpinnerTokens {
     type Field = SpinnerField;
     const FIELDS: &'static [SpinnerField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { SpinnerTokens;
+        "inset" 0.0..=64.0 => inset;
+        "stroke" 0.0..=16.0 => stroke;
+    };
 
     /// Half the inline gap (2 at Compact, 3 at Comfortable) and one more.
     fn defaults(s: &Semantic<'_>) -> SpinnerTokens {

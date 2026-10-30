@@ -1,7 +1,7 @@
 //! Slider rows: the number field width and the space after a caption, field and slider row. Sizes only (no colours): they scale with the
 //! control height, and no theme overrides them.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Slider row tokens, in points.
@@ -21,6 +21,10 @@ pub enum SliderRowField {}
 impl Family for SliderRowTokens {
     type Field = SliderRowField;
     const FIELDS: &'static [SliderRowField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { SliderRowTokens;
+        "field_width" 0.0..=1024.0 => field_width;
+        "gap" 0.0..=64.0 => gap;
+    };
 
     /// The Compact sizes (PhotoCraft's), scaled by the control height of the size and rounded to
     /// whole points.

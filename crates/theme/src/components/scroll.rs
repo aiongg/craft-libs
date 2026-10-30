@@ -3,7 +3,7 @@
 //! size. The colours are semantic tokens: the canvas bars' track is `surface.chrome` with a
 //! `line.divider` edge, the thumb `text.faint` at rest and `text.muted` while hot.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::tokens::Edge;
 use crate::values;
 
@@ -35,6 +35,12 @@ pub enum ScrollField {}
 impl Family for ScrollTokens {
     type Field = ScrollField;
     const FIELDS: &'static [ScrollField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ScrollTokens;
+        "floating_width" 0.0..=1024.0 => floating_width;
+        "canvas_width" 0.0..=1024.0 => canvas_width;
+        "thumb_inset" 0.0..=64.0 => thumb_inset;
+        "thumb_min" 0.0..=1024.0 => thumb_min;
+    };
 
     fn defaults(s: &Semantic<'_>) -> ScrollTokens {
         ScrollTokens {

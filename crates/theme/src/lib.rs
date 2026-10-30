@@ -22,6 +22,7 @@
 //! assert!(resolved.warnings.is_empty());
 //! ```
 
+mod app_sizes;
 mod builtins;
 pub mod color;
 mod color_model;
@@ -43,6 +44,8 @@ mod tokens;
 mod values;
 
 #[cfg(test)]
+mod app_sizes_tests;
+#[cfg(test)]
 mod builtin_tests;
 #[cfg(test)]
 mod color_model_tests;
@@ -63,6 +66,7 @@ mod sizes_tests;
 #[cfg(test)]
 mod tests;
 
+pub use app_sizes::{AppSizes, SizeMap, SizeValue};
 pub use builtins::builtins;
 pub use color::{Hsb, Lab, Oklab, Oklch, Rgba, Srgba};
 pub use color_model::{
@@ -83,17 +87,17 @@ pub use components::{
     PanelFooterTokens, PanelHeaderField, PanelHeaderTokens, PanelTokens, PopoverField, PopoverTokens, PopupField, PopupTokens, PreferencesField,
     PreferencesTokens, PresetField, PresetTokens, ProgressField, ProgressTokens, PropertyField, PropertyTokens, RailField, RailTokens, ReadoutField,
     ReadoutTokens, RefPointField, RefPointTokens, RulerField, RulerTokens, ScrollField, ScrollTokens, SectionField, SectionTokens, SegmentedField,
-    SegmentedTokens, SliderField, SliderRowField, SliderRowTokens, SliderTokens, SpinnerField, SpinnerTokens, State, States, StatusBarField,
-    StatusBarTokens, SwatchColor, SwatchField, SwatchTokens, TabField, TabTokens, ThumbColors, ThumbPart, TitleBarField, TitleBarTokens, ToastField,
-    ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone, ToolbarField, ToolbarTokens, TooltipField, TooltipTokens, TransformField,
-    TransformTokens,
+    SegmentedTokens, SizeField, SliderField, SliderRowField, SliderRowTokens, SliderTokens, SpinnerField, SpinnerTokens, State, States,
+    StatusBarField, StatusBarTokens, SwatchColor, SwatchField, SwatchTokens, TabField, TabTokens, ThumbColors, ThumbPart, TitleBarField,
+    TitleBarTokens, ToastField, ToastTokens, ToggleButtonField, ToggleButtonTokens, Tone, ToolbarField, ToolbarTokens, TooltipField, TooltipTokens,
+    TransformField, TransformTokens,
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};
 pub use explain::{ColorOrigin, Explained, FieldOrigin, PairReport, explain};
 pub use id::{APP_DEFAULT, AppId, IdError, RESERVED_PREFIX, SUITE_DEFAULT, ThemeId};
 pub use ramp::{Mode, Ramp, RampKind};
-pub use resolve::{Resolved, resolve};
+pub use resolve::{Resolved, resolve, resolve_sized};
 pub use scale::{Duration, Easing, Elevation, Opacity, Radius, Space, Stroke};
 pub use selection::{
     AppChoice, AppDefaults, ContrastChoice, Fallback, ModeChoice, MotionChoice, Selection, Shown, SuiteChoice, SystemAppearance, ThemePair,

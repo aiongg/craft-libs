@@ -2,7 +2,7 @@
 //! no tokens of its own. The defaults are PhotoCraft's filled look; the Pro themes pin its outlined
 //! secondary button.
 
-use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, State, States};
+use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf, State, States};
 use crate::color::Rgba;
 use crate::contrast::ensure_contrast;
 use crate::derive::over;
@@ -224,6 +224,16 @@ const FIELDS: [ButtonField; FIELD_COUNT] = {
 impl Family for ButtonTokens {
     type Field = ButtonField;
     const FIELDS: &'static [ButtonField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ButtonTokens;
+        "height.sm" 0.0..=1024.0 => height.sm;
+        "height.md" 0.0..=1024.0 => height.md;
+        "pad_x.sm" 0.0..=64.0 => pad_x.sm;
+        "pad_x.md" 0.0..=64.0 => pad_x.md;
+        "icon.sm" 0.0..=1024.0 => icon.sm;
+        "icon.md" 0.0..=1024.0 => icon.md;
+        "gap" 0.0..=64.0 => gap;
+        "border_width" 0.0..=16.0 => border_width;
+    };
 
     fn defaults(s: &Semantic<'_>) -> ButtonTokens {
         let c = s.color;
