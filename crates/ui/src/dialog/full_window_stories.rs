@@ -30,7 +30,7 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// A workspace over the story's area: a view on the left, settings and the footer on the right.
 fn show_workspace(ui: &mut Ui, args: &mut WorkspaceArgs) {
-    let key = egui::Id::unique("craft_ui::dialog::story-full-window");
+    let key = ui.make_persistent_id("craft_ui::dialog::story-full-window");
     let mut state: DialogState<f32> = ui.data_mut(|d| d.remove_temp(key)).unwrap_or_default();
     if args.open {
         let area = Rect::from_min_size(ui.max_rect().min, vec2(ui.available_width().min(720.0), 320.0));

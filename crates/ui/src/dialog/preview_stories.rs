@@ -1,6 +1,6 @@
 //! Story of the dialog Preview check box, hold-to-compare and dialog-local history.
 
-use egui::{Id, Ui};
+use egui::Ui;
 
 use super::{Dialog, DialogState, Footer, Outcome, Width};
 use crate::controls::{Button, Slider};
@@ -40,7 +40,7 @@ pub(crate) fn stories() -> Vec<Story> {
 /// Brightness and Contrast with a Preview check box: Cmd/Ctrl+Z steps the sliders, the compare
 /// button shows the original while held.
 fn show_preview(ui: &mut Ui, args: &mut PreviewArgs) {
-    let key = Id::unique("craft_ui::dialog::story-preview");
+    let key = ui.make_persistent_id("craft_ui::dialog::story-preview");
     let mut state: DialogState<Fields> = ui.data_mut(|d| d.remove_temp(key)).unwrap_or_default();
     if args.open {
         let mut fields = ui.data_mut(|d| d.get_temp::<Fields>(key)).unwrap_or(Fields { brightness: 0.0, contrast: 0.0 });

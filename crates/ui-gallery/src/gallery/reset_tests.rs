@@ -116,3 +116,41 @@ fn selecting_a_tile_by_its_empty_area_does_not_show_reset() {
     f.click(spot);
     assert!(!f.reset_shown());
 }
+
+impl Fixture {
+    fn key(&mut self, key: egui::Key) {
+        let event = |pressed| Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE };
+        self.frame_with(vec![event(true), event(false)]);
+        self.frames(2);
+    }
+
+    fn width(&mut self) -> Option<f64> {
+        let tree = self.frames(2);
+        let id = tree
+            .walk(tree.root())
+            .into_iter()
+            .map(|(id, _)| id)
+            .find(|id| tree.name(*id).as_deref() == Some("Width") && tree.node(*id).is_some_and(|n| n.role() == Role::Slider))?;
+        tree.node(id)?.numeric_value()
+    }
+}
+
+/// A story's own state lives under the tile's ids, so Reset gives the story back as it first
+/// showed: here the stroke width set in a popover is the first one again. The component's own tab
+/// keeps the full-window dialog story's modal layer from covering the tile.
+#[test]
+fn reset_restores_the_value_a_story_kept() {
+    let mut f = Fixture::new();
+    f.gallery.open_component("Popover");
+    f.frames(3);
+    let chip = f.bounds_of("Stroke", Role::Button).expect("the Stroke button");
+    f.click(chip.center());
+    let first = f.width().expect("the popover is open");
+    f.key(egui::Key::ArrowRight);
+    let changed = f.width().expect("the popover stays open");
+    assert_ne!(changed, first, "the key moved the slider");
+    let reset = f.bounds_of("Reset Stroke editor", Role::Button).expect("Reset after using the story");
+    f.click(reset.center());
+    f.click(chip.center());
+    assert_eq!(f.width(), Some(first), "the story starts again");
+}

@@ -1,10 +1,8 @@
 //! [`PreferencesBody`]: the contents of the Preferences window in any `Ui`.
 
-use std::hash::Hash;
-
 use craft_theme::{ControlSize, Tone};
 use egui::accesskit::Role;
-use egui::{Context, Event, Id, Key, KeyboardShortcut, Modifiers, Rect, ScrollArea, Sense, Ui, UiBuilder, pos2};
+use egui::{AsIdSalt, Context, Event, Id, IdSalt, Key, KeyboardShortcut, Modifiers, Rect, ScrollArea, Sense, Ui, UiBuilder, pos2};
 
 use super::host::PreferencesHost;
 use super::model::{Closed, PreferencesOutput, PreferencesTexts};
@@ -75,16 +73,22 @@ struct ShownPage {
 ///   pages, the page a `Group` named by its title, and the empty-search text a polite live region.
 #[must_use = "show the body with `show`"]
 pub struct PreferencesBody {
-    id: Id,
+    id_salt: IdSalt,
     active: bool,
     cancel: bool,
     platform: Option<Platform>,
 }
 
 impl PreferencesBody {
-    /// A body; `id_salt` keeps its page, search text and scroll.
-    pub fn new(id_salt: impl Hash + std::fmt::Debug) -> Self {
-        Self { id: Id::unique(("craft_ui::preferences", id_salt)), active: true, cancel: false, platform: None }
+    /// A body; `id_salt` keeps its page, search text and scroll, under the id of the `Ui` it is
+    /// shown in.
+    pub fn new(id_salt: impl AsIdSalt) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), active: true, cancel: false, platform: None }
+    }
+
+    /// The id of the body of `id_salt` shown in `ui`, for [`state`](PreferencesBody::state).
+    pub fn id(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
+        ui.make_persistent_id(IdSalt::new(id_salt))
     }
 
     /// Whether the body takes Enter, Esc and Cmd/Ctrl+F this pass; on by default. A host turns it off
@@ -111,21 +115,21 @@ impl PreferencesBody {
         PreferencesStyle { list_width: p.list_width, page_gap: p.page_gap, gap: tokens.space.gap.stack }
     }
 
-    /// What the body of `id_salt` remembers.
-    pub fn state(ctx: &Context, id_salt: impl Hash + std::fmt::Debug) -> PreferencesState {
-        PreferencesState::load(ctx, Id::unique(("craft_ui::preferences", id_salt)))
+    /// What the body with `id` ([`PreferencesBody::id`]) remembers.
+    pub fn state(ctx: &Context, id: Id) -> PreferencesState {
+        PreferencesState::load(ctx, id)
     }
 
-    /// Replaces what the body of `id_salt` remembers.
-    pub fn set_state(ctx: &Context, id_salt: impl Hash + std::fmt::Debug, state: PreferencesState) {
-        state.store(ctx, Id::unique(("craft_ui::preferences", id_salt)));
+    /// Replaces what the body with `id` remembers.
+    pub fn set_state(ctx: &Context, id: Id, state: PreferencesState) {
+        state.store(ctx, id);
     }
 
     /// Shows the body in the rect `ui` has left, which it fills.
     pub fn show<H: PreferencesHost + ?Sized>(self, ui: &mut Ui, host: &mut H) -> PreferencesOutput {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
-        let id = self.id;
+        let id = ui.make_persistent_id(self.id_salt);
         let mut state = PreferencesState::load(&ctx, id);
         let texts = host.texts();
         let style = PreferencesBody::style(&tokens);

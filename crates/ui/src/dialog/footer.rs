@@ -8,8 +8,8 @@ use super::preview::Preview;
 use crate::composites::measure;
 use crate::controls::Button;
 use crate::direction;
-use craft_theme::ControlSize;
 use crate::theme::{Tokens, TokensOf};
+use craft_theme::ControlSize;
 
 /// English defaults for the footer's labels; the host passes its translations.
 #[derive(Clone, Debug, PartialEq, Eq)]
