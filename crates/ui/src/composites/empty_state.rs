@@ -1,6 +1,6 @@
 //! [`EmptyState`]: the message of an empty panel, list or canvas.
 
-use craft_theme::{ButtonVariant, TypeRole};
+use craft_theme::{ButtonVariant, TypeRole, TypeStyle};
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{Align, AsIdSalt, Color32, Id, IdSalt, Label, Layout, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
@@ -11,7 +11,7 @@ use crate::direction;
 use crate::icons::{Icon, IconSize};
 use crate::primitives::{Content, Icon as IconWidget};
 use crate::story::{Level, Story, StoryArgs};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format, style_format};
 use crate::typed_story;
 
 /// An empty state's sizes, type roles and colours, from [`EmptyState::style`].
@@ -33,6 +33,18 @@ pub struct EmptyStateStyle {
     pub title_role: TypeRole,
     /// The centred description's type role: `body`.
     pub description_role: TypeRole,
+    /// Least width of each action: `empty_state.action_min_width`.
+    pub action_min_width: f32,
+    /// The brand title's size, weight and line height: `empty_state.brand_title`.
+    pub brand_title: TypeStyle,
+    /// The brand byline's size, weight and line height: `empty_state.brand_byline`.
+    pub brand_byline: TypeStyle,
+    /// The brand byline: `empty_state.text`.
+    pub brand_byline_color: Color32,
+    /// Between the brand title and its byline: `empty_state.brand_gap`.
+    pub brand_gap: f32,
+    /// How far the byline's bottom edge sits above the brand title's: `empty_state.brand_byline_lift`.
+    pub brand_byline_lift: f32,
 }
 
 /// What [`EmptyState::show`] shows.
@@ -55,7 +67,9 @@ type Footer<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 struct Centred<'a> {
     description: Option<String>,
     icon: Option<Icon>,
+    byline: Option<String>,
     actions: Vec<Button>,
+    below_actions: Option<Footer<'a>>,
     footer: Option<Footer<'a>>,
 }
 
@@ -75,9 +89,11 @@ struct Centred<'a> {
 ///   `Status` live region, so "No matching commands" is announced when it appears.
 /// - **Centred** ([`centred`](EmptyState::centred)): no document in a canvas or workspace. A column
 ///   centred in the available rect, at most `empty_state.max_width` wide: an optional icon, the
-///   title, a description, actions and a footer for the host's own content. The actions are laid
-///   side by side, `gap.section` apart, when they fit at the width of the widest one, and stacked
-///   otherwise; the first is primary. The branding, drop hint and background stay with the host.
+///   title, a description, actions, a slot under the actions and a footer for the host's own
+///   content. The actions are laid side by side, `gap.section` apart, when they fit at the width of
+///   the widest one (at least `empty_state.action_min_width`), and stacked otherwise; the first is
+///   primary. [`brand`](EmptyState::brand) draws the title as the app's name with a byline. The
+///   background stays with the host.
 ///   No live region: the state appears with its screen, not after an action.
 /// - **AccessKit:** the centred column is a `GenericContainer` named by its title, which is a
 ///   `Heading`.
@@ -128,10 +144,30 @@ impl<'a> EmptyState<'a> {
         self
     }
 
+    /// Draws the title of a centred state as the app's brand: `empty_state.brand_title` (semibold)
+    /// with this byline in `empty_state.brand_byline` after it, `empty_state.brand_gap` away and
+    /// raised by `empty_state.brand_byline_lift`; under the title when both don't fit the column.
+    /// The title stays the heading; the byline is plain text.
+    pub fn brand(mut self, byline: impl Into<String>) -> Self {
+        if let Kind::Centred(c) = &mut self.kind {
+            c.byline = Some(byline.into());
+        }
+        self
+    }
+
     /// Adds an action to a centred state. The first is the primary button, the others secondary.
     pub fn action(mut self, button: Button) -> Self {
         if let Kind::Centred(c) = &mut self.kind {
             c.actions.push(button);
+        }
+        self
+    }
+
+    /// The host's own content between the actions and the footer of a centred state, such as a
+    /// drop hint.
+    pub fn below_actions(mut self, add: impl FnOnce(&mut Ui) + 'a) -> Self {
+        if let Kind::Centred(c) = &mut self.kind {
+            c.below_actions = Some(Box::new(add));
         }
         self
     }
@@ -161,6 +197,12 @@ impl<'a> EmptyState<'a> {
             message: e.text.to_egui(),
             title_role: TypeRole::Heading,
             description_role: TypeRole::Body,
+            action_min_width: e.action_min_width,
+            brand_title: e.brand_title,
+            brand_byline: e.brand_byline,
+            brand_byline_color: e.text.to_egui(),
+            brand_gap: e.brand_gap,
+            brand_byline_lift: e.brand_byline_lift,
         }
     }
 
@@ -224,7 +266,11 @@ fn show_centred(ui: &mut Ui, tokens: &UiTokens, style: &EmptyStateStyle, title: 
                 ui.add(IconWidget::new(icon).size(IconSize::Lg).content(Content::Faint));
                 ui.add_space(style.gap);
             }
-            let heading = ui.add(label(tokens, style.title_role, Content::Normal.color(tokens).to_egui(), title, Align::Center));
+            let color = Content::Normal.color(tokens).to_egui();
+            let heading = match &centred.byline {
+                Some(byline) => show_brand(ui, tokens, style, title, byline, width, color),
+                None => ui.add(label(tokens, style.title_role, color, title, Align::Center)),
+            };
             title_id = Some((id, heading.id));
             if let Some(description) = &centred.description {
                 ui.add_space(style.gap);
@@ -233,6 +279,10 @@ fn show_centred(ui: &mut Ui, tokens: &UiTokens, style: &EmptyStateStyle, title: 
             if !centred.actions.is_empty() {
                 ui.add_space(style.section_gap);
                 actions = show_actions(ui, style, width, centred.actions);
+            }
+            if let Some(add) = centred.below_actions {
+                ui.add_space(style.section_gap);
+                add(ui);
             }
             if let Some(footer) = centred.footer {
                 ui.add_space(style.section_gap);
@@ -259,9 +309,41 @@ fn show_centred(ui: &mut Ui, tokens: &UiTokens, style: &EmptyStateStyle, title: 
     EmptyStateResponse { response, actions }
 }
 
+/// The brand title and its byline, in a row centred in the column when both fit, else stacked.
+/// Returns the title's response.
+fn show_brand(ui: &mut Ui, tokens: &UiTokens, style: &EmptyStateStyle, title: &str, byline: &str, width: f32, color: Color32) -> Response {
+    let job = |text: &str, ts: TypeStyle, color: Color32| {
+        let mut job = LayoutJob::single_section(text.to_owned(), style_format(tokens.families(), ts, color));
+        job.halign = Align::Center;
+        job
+    };
+    let title_job = job(title, style.brand_title, color);
+    let byline_job = job(byline, style.brand_byline, style.brand_byline_color);
+    let title_size = ui.painter().layout_job(title_job.clone()).size();
+    let byline_size = ui.painter().layout_job(byline_job.clone()).size();
+    let row = title_size.x + style.brand_gap + byline_size.x;
+    if row > width {
+        let heading = ui.add(Label::new(title_job).wrap());
+        ui.add_space(style.gap);
+        ui.add(Label::new(byline_job).wrap());
+        return heading;
+    }
+    let layout = Layout { cross_align: Align::Max, ..direction::row(ui) };
+    ui.allocate_ui_with_layout(vec2(row, title_size.y), layout, |ui| {
+        ui.spacing_mut().item_spacing.x = style.brand_gap;
+        let heading = ui.add(Label::new(title_job).extend());
+        ui.scope_builder(UiBuilder::new().layout(Layout::top_down(Align::Min)), |ui| {
+            ui.add(Label::new(byline_job).extend());
+            ui.add_space(style.brand_byline_lift);
+        });
+        heading
+    })
+    .inner
+}
+
 /// Side by side when they fit at the widest one's width, else stacked at that width.
 fn show_actions(ui: &mut Ui, style: &EmptyStateStyle, width: f32, buttons: Vec<Button>) -> Vec<Response> {
-    let common = buttons.iter().map(|b| b.natural_width(ui)).fold(0.0, f32::max);
+    let common = buttons.iter().map(|b| b.natural_width(ui)).fold(style.action_min_width, f32::max);
     let count = buttons.len() as f32;
     let side_by_side = count * common + (count - 1.0) * style.section_gap <= width;
     let block = if side_by_side { count * common + (count - 1.0) * style.section_gap } else { common.min(width) };
@@ -298,6 +380,14 @@ pub(crate) fn stories() -> Vec<Story> {
             "Canvas",
             CanvasArgs { width: 640.0, height: 360.0 },
             show_canvas
+        ),
+        typed_story!(
+            "composites/empty-state/start-screen",
+            Level::Composites,
+            "EmptyState",
+            "Start screen",
+            CanvasArgs { width: 640.0, height: 420.0 },
+            show_start_screen
         ),
     ]
 }
@@ -349,6 +439,27 @@ fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
             .action(Button::new("Open…"))
             .footer(|ui| {
                 ui.label("Drop an image here to open it");
+            })
+            .show(ui);
+    });
+}
+
+/// An app's start screen: brand title with byline, description, actions, a drop hint under the
+/// actions and a footer.
+fn show_start_screen(ui: &mut Ui, args: &mut CanvasArgs) {
+    let size = vec2(args.width.min(ui.available_width()), args.height);
+    ui.allocate_ui(size, |ui| {
+        ui.set_min_size(size);
+        EmptyState::centred("Sample App")
+            .brand("open source")
+            .description("Create a new document or open an existing file.")
+            .action(Button::new("New document…"))
+            .action(Button::new("Open…"))
+            .below_actions(|ui| {
+                ui.label("Drop an image here to open it");
+            })
+            .footer(|ui| {
+                ui.label("No recent files");
             })
             .show(ui);
     });

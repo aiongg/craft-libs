@@ -1436,6 +1436,31 @@ pub const TOAST_SHADOW_BLUR: f32 = 8.0;
 /// Widest the column of a centred empty state grows, in points, at every Size.
 pub const EMPTY_STATE_MAX_WIDTH: f32 = 460.0;
 
+/// Least width of each action of a centred empty state, in points, at every Size. PhotoCraft's
+/// Home screen buttons (`start_screen.rs` `HOME_BUTTON_WIDTH`).
+pub const EMPTY_STATE_ACTION_MIN_WIDTH: f32 = 190.0;
+
+/// The brand title's size in points, at every Size: PhotoCraft's Home screen name
+/// (`start_screen.rs`, `semibold(38.0)`).
+pub const EMPTY_STATE_BRAND_TITLE_SIZE: f32 = 38.0;
+
+/// The brand title's line height in points.
+pub const EMPTY_STATE_BRAND_TITLE_LINE_HEIGHT: f32 = 46.0;
+
+/// The brand byline's size in points: PhotoCraft's "open source" (`start_screen.rs`,
+/// `proportional(13.0)`).
+pub const EMPTY_STATE_BRAND_BYLINE_SIZE: f32 = 13.0;
+
+/// The brand byline's line height in points.
+pub const EMPTY_STATE_BRAND_BYLINE_LINE_HEIGHT: f32 = 18.0;
+
+/// Between the brand title and its byline, in points (`start_screen.rs`, the `+ 10.0`).
+pub const EMPTY_STATE_BRAND_GAP: f32 = 10.0;
+
+/// How far the byline's bottom edge sits above the brand title's, in points (`start_screen.rs`,
+/// the `- 8.0`).
+pub const EMPTY_STATE_BRAND_BYLINE_LIFT: f32 = 8.0;
+
 /// The control height the Compact slider row sizes are set for; other sizes scale them by their
 /// control height over this.
 pub const SLIDER_ROW_BASE_CONTROL: f32 = 24.0;
