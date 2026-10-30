@@ -339,7 +339,7 @@ fn tab_toggles_the_chrome_only_while_the_canvas_has_focus() {
 }
 
 /// A token-sized shell with the options bar and the tool rail built from the given choices.
-fn pref_shell<'a>(narrow: bool, columns: u8, edge_reveal: bool, mode: BodyMode) -> AppShell<'a> {
+fn pref_shell<'a>(narrow: bool, columns: usize, edge_reveal: bool, mode: BodyMode) -> AppShell<'a> {
     AppShell::new(WindowKey::new("main"))
         .top(Slot::new("options").narrow(narrow).reveal(), |_| ())
         .start(Slot::new("tools").columns(columns).reveal(), |_| ())
@@ -347,7 +347,7 @@ fn pref_shell<'a>(narrow: bool, columns: u8, edge_reveal: bool, mode: BodyMode) 
         .edge_reveal(edge_reveal)
 }
 
-fn pref_show(win: &mut Win, events: Vec<Event>, narrow: bool, columns: u8, edge_reveal: bool, mode: BodyMode) -> ShellOutput {
+fn pref_show(win: &mut Win, events: Vec<Event>, narrow: bool, columns: usize, edge_reveal: bool, mode: BodyMode) -> ShellOutput {
     let mut shown = None;
     win.frame(events, |ui| shown = Some(pref_shell(narrow, columns, edge_reveal, mode).show(ui, |_, _| ())));
     shown.expect("the shell ran")
@@ -355,15 +355,35 @@ fn pref_show(win: &mut Win, events: Vec<Event>, narrow: bool, columns: u8, edge_
 
 #[test]
 fn the_narrow_options_bar_and_two_rail_columns_take_their_token_sizes() {
+    for size in [Size::Compact, Size::Comfortable] {
+        let defaults = AppDefaults { theme: ThemePair::same(builtins()[0].id.clone()), mode: ModeChoice::System, size };
+        let base = Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |id| {
+            builtins().iter().find(|t| t.id == *id).cloned()
+        });
+        let mut win = Win::with_base(&base);
+        let mut tokens = None;
+        win.frame(vec![], |ui| tokens = Some(Tokens::of(ui)));
+        let tokens = tokens.expect("ran");
+        let out = pref_show(&mut win, vec![], false, 1, true, BodyMode::Normal);
+        assert_eq!(rect(&out, "options").height(), tokens.size.bar.options, "{size:?}");
+        assert_eq!(rect(&out, "tools").width(), ToolRail::<()>::metrics(&tokens, 1).width, "{size:?}");
+        let out = pref_show(&mut win, vec![], true, 2, true, BodyMode::Normal);
+        assert_eq!(rect(&out, "options").height(), tokens.size.bar.options_narrow, "{size:?}");
+        assert_eq!(rect(&out, "tools").width(), ToolRail::<()>::metrics(&tokens, 2).width, "{size:?}");
+        let out = pref_show(&mut win, vec![], true, 5, true, BodyMode::Normal);
+        assert_eq!(rect(&out, "tools").width(), ToolRail::<()>::metrics(&tokens, 2).width, "{size:?}: more than two columns count as two");
+    }
+}
+
+#[test]
+fn turning_the_edge_reveal_off_hides_slots_the_pointer_revealed_and_on_shows_them_again() {
     let mut win = Win::new();
-    let mut tokens = None;
-    win.frame(vec![], |ui| tokens = Some(Tokens::of(ui)));
-    let size = tokens.expect("ran").size;
-    let out = pref_show(&mut win, vec![], false, 1, true, BodyMode::Normal);
-    assert_eq!((rect(&out, "options").height(), rect(&out, "tools").width()), (size.bar.options, size.rail.width));
-    let out = pref_show(&mut win, vec![], true, 2, true, BodyMode::Normal);
-    assert_eq!(rect(&out, "options").height(), size.bar.options_narrow);
-    assert_eq!(rect(&out, "tools").width(), size.rail.width + size.rail.button + 2.0);
+    let only = BodyMode::Only;
+    let top = vec![Event::PointerMoved(pos2(400.0, 1.0))];
+    pref_show(&mut win, vec![], false, 1, true, only);
+    assert_eq!(keys(&pref_show(&mut win, top, false, 1, true, only)), ["options"]);
+    assert!(pref_show(&mut win, vec![], false, 1, false, only).slots.is_empty());
+    assert_eq!(keys(&pref_show(&mut win, vec![], false, 1, true, only)), ["options"]);
 }
 
 #[test]
