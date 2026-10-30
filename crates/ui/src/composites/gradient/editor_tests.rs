@@ -43,6 +43,7 @@ struct Host {
     stop_fields: bool,
     popover: bool,
     location_decimals: usize,
+    opacity_midpoints: bool,
     /// The editor isn't drawn.
     hidden: bool,
     /// The popover's picker gets an eyedropper through `color_picker`; the editor's last report
@@ -77,6 +78,7 @@ impl Host {
             stop_fields: true,
             popover: false,
             location_decimals: 0,
+            opacity_midpoints: true,
             hidden: false,
             eyedropper: false,
             eyedropper_requested: false,
@@ -120,6 +122,7 @@ impl Host {
             .fields(self.stop_fields)
             .color_popover(self.popover)
             .location_decimals(self.location_decimals)
+            .opacity_midpoints(self.opacity_midpoints)
             .drop_target::<Payload>();
         let editor = match self.eyedropper {
             true => editor.color_picker(|picker| picker.eyedropper("Pick screen color")),
@@ -617,6 +620,28 @@ fn a_drop_reports_the_stop_or_the_location_it_lands_on() {
         harness.state_mut().dropped = None;
     }
     assert!(harness.state().events.is_empty(), "the host applies a drop");
+}
+
+#[test]
+fn colour_only_midpoints_leave_the_opacity_row_without_diamonds_or_focus_stops() {
+    use StopRef::{Color, Opacity};
+    let mut stops = three();
+    stops.opacity = vec![OpacityStop::new(0.0, 1.0), OpacityStop::new(1.0, 0.4)];
+    let mut host = Host::new(stops);
+    host.opacity_midpoints = false;
+    let mut harness = harness_with(host);
+    let names: Vec<_> = markers(&harness).iter().map(|n| n.accesskit_node().label().unwrap_or_default()).collect();
+    assert_eq!(
+        names,
+        ["Opacity stop 1 of 2", "Opacity stop 2 of 2", "Color stop 1 of 3", "Midpoint 1", "Color stop 2 of 3", "Midpoint 2", "Color stop 3 of 3"]
+    );
+    focus(&mut harness);
+    select(&mut harness, Some(Opacity(0)));
+    key(&mut harness, Modifiers::NONE, Key::Plus);
+    assert_eq!(selected(&harness), Some(Opacity(1)), "Plus skips the absent opacity midpoint");
+    select(&mut harness, Some(Color(0)));
+    key(&mut harness, Modifiers::NONE, Key::Plus);
+    assert_eq!(selected(&harness), Some(StopRef::Midpoint(StopRow::Color, 0)), "the colour row keeps its midpoints");
 }
 
 #[test]

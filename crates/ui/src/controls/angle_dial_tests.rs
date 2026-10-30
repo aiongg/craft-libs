@@ -17,6 +17,7 @@ struct Rig {
     modifiers: Modifiers,
     angle: f64,
     range: (f64, f64),
+    wrap: Option<bool>,
     orientation: AngleOrientation,
     enabled: bool,
     event: Option<EditEvent<f64>>,
@@ -36,6 +37,7 @@ impl Rig {
             modifiers: Modifiers::NONE,
             angle: 120.0,
             range: (-180.0, 180.0),
+            wrap: None,
             orientation: AngleOrientation::CounterClockwise,
             enabled: true,
             event: None,
@@ -56,11 +58,12 @@ impl Rig {
         let numbers = LocaleNumbers::from_tag("en");
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(input, |ui| {
-            let edit = AngleDial::new("dial", "Angle", self.angle, &numbers)
-                .range(self.range.0..=self.range.1)
-                .orientation(self.orientation)
-                .enabled(self.enabled)
-                .show(ui);
+            let dial = AngleDial::new("dial", "Angle", self.angle, &numbers).range(self.range.0..=self.range.1);
+            let dial = match self.wrap {
+                Some(wrap) => dial.wrap(wrap),
+                None => dial,
+            };
+            let edit = dial.orientation(self.orientation).enabled(self.enabled).show(ui);
             ui.text_edit_singleline(&mut String::from("elsewhere"));
             self.rect = edit.response.rect;
             self.dial = edit.response.id;
@@ -223,6 +226,32 @@ fn keys_step_wrap_inside_a_turn_and_step_on_in_a_wider_range() {
     assert_eq!(rig.key(Key::ArrowRight, Modifiers::SHIFT), Some(90.0));
     assert_eq!(rig.key(Key::End, none), None);
     assert_eq!(rig.key(Key::Home, none), None);
+}
+
+#[test]
+fn a_wrapping_dial_continues_from_the_other_end_of_a_narrow_range() {
+    let mut rig = Rig::new();
+    rig.range = (-90.0, 90.0);
+    rig.wrap = Some(true);
+    rig.angle = 80.0;
+    // A drag from 80 degrees on to 100 reads -80: the opposite direction is the same line.
+    rig.press(rig.at(vec2(20.0 * 80f32.to_radians().cos(), -20.0 * 80f32.to_radians().sin())));
+    rig.drag(rig.at(vec2(20.0 * 100f32.to_radians().cos(), -20.0 * 100f32.to_radians().sin())));
+    assert_eq!(rig.event.as_ref().and_then(EditEvent::value), Some(&-80.0));
+    rig.release(rig.at(vec2(0.0, 20.0)));
+
+    rig.angle = 90.0;
+    assert_eq!(rig.key(Key::ArrowRight, Modifiers::NONE), Some(-89.0));
+
+    // Without wrap the same range holds the angle at its end.
+    rig.wrap = None;
+    rig.angle = 90.0;
+    assert_eq!(rig.key(Key::ArrowRight, Modifiers::NONE), None);
+    // A full turn can be told not to wrap.
+    rig.range = (-180.0, 180.0);
+    rig.wrap = Some(false);
+    rig.angle = 180.0;
+    assert_eq!(rig.key(Key::ArrowRight, Modifiers::NONE), None);
 }
 
 #[test]

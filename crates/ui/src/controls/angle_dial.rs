@@ -116,7 +116,8 @@ pub struct AngleDialStyle {
 ///   that end, and a range wider than a turn takes the angle nearest the current value.
 /// - **Keys** on the focused dial: Right and Up raise the value by a step, Left and Down lower it,
 ///   Shift takes ten steps, Page Up and Page Down 45 degrees. A range of exactly one turn (the
-///   default, -180 to 180) wraps round; any other range stops at its ends. Keys change nothing
+///   default, -180 to 180) wraps round, and [`wrap`](AngleDial::wrap) sets it for other ranges;
+///   a dial that doesn't wrap stops at its ends. Keys change nothing
 ///   during a drag. There is no wheel and no Home or End: the ends of a turn point the same way.
 ///   Esc cancels a drag.
 /// - **Tab**: the dial and the field are a Tab stop each. In a [`FieldTab`] scope Tab visits the
@@ -147,6 +148,7 @@ pub struct AngleDial<'a> {
     size: ControlSize,
     enabled: bool,
     field: bool,
+    wrap: Option<bool>,
 }
 
 impl<'a> AngleDial<'a> {
@@ -166,6 +168,7 @@ impl<'a> AngleDial<'a> {
             size: ControlSize::Md,
             enabled: true,
             field: true,
+            wrap: None,
         }
     }
 
@@ -173,6 +176,15 @@ impl<'a> AngleDial<'a> {
     /// finite.
     pub fn range(mut self, range: RangeInclusive<f64>) -> Self {
         self.range = range;
+        self
+    }
+
+    /// Whether the value wraps round the range: a key step or a drag past one end continues
+    /// from the other end, and the pointer's direction maps into the range modulo its span (a
+    /// -90 to 90 range reads a direction whose opposite is the same line). By default it wraps
+    /// for a range of exactly one turn only.
+    pub fn wrap(mut self, wrap: bool) -> Self {
+        self.wrap = Some(wrap);
         self
     }
 
@@ -246,10 +258,10 @@ impl<'a> AngleDial<'a> {
         let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
         let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
         let mut edits = parts::Edits::<Option<f64>, DialOp>::new(id, &state, &outer, edit::in_scope(ui));
-        let (scale, rule) = (self.scale(), self.rule());
+        let (scale, rule, wraps) = (self.scale(), self.rule(), self.wraps());
         let apply_op = |op: &DialOp, now: &Option<f64>| {
             Some(Some(match op {
-                DialOp::Dial(op) => apply(op, *now, &scale),
+                DialOp::Dial(op) => apply(op, *now, &scale, wraps),
                 DialOp::Field(op) => number_field::apply(op, now.unwrap_or_else(|| rule.blank()), &rule),
             }))
         };
@@ -272,6 +284,10 @@ impl<'a> AngleDial<'a> {
         // The host's own value stands for a mixed one in the events that carry none.
         let event = outer.finish().map(|event| event.map(|value| value.unwrap_or(self.value)));
         EditResponse::new(dial.response, event)
+    }
+
+    fn wraps(&self) -> bool {
+        self.wrap.unwrap_or_else(|| (self.range.end() - self.range.start() - 360.0).abs() <= 1e-9)
     }
 
     fn scale(&self) -> Scale {
@@ -316,7 +332,8 @@ impl<'a> AngleDial<'a> {
             .interact(ui, Vec2::splat(style.size));
         let response = sensed.response().clone();
         let (rect, dragging) = (response.rect, response.dragged());
-        let pointing = Pointing { scale, orientation: self.orientation, dead_zone: style.dead_zone, center: rect.center() };
+        let wraps = self.wraps();
+        let pointing = Pointing { scale, wraps, orientation: self.orientation, dead_zone: style.dead_zone, center: rect.center() };
 
         let mut gesture = Gesture::load(ui, response.id, &shown, policy).event_filter(KEY_FILTER).enabled(enabled);
         let shift = || ui.input(|i| i.modifiers.shift);
@@ -362,7 +379,7 @@ impl<'a> AngleDial<'a> {
         let mut ops = Vec::new();
         let mut set = |gesture: &mut Gesture<f64>, op: ScalarOp| {
             let now = *gesture.shown();
-            gesture.set(apply(&op, now.is_finite().then_some(now), &scale));
+            gesture.set(apply(&op, now.is_finite().then_some(now), &scale, wraps));
             ops.push(op);
         };
         if let Some(pos) = tapped.filter(|_| !waits)
@@ -413,6 +430,7 @@ fn decimals_of(step: f64) -> usize {
 /// Where the pointer points the dial.
 struct Pointing {
     scale: Scale,
+    wraps: bool,
     orientation: AngleOrientation,
     dead_zone: f32,
     center: Pos2,
@@ -432,6 +450,9 @@ impl Pointing {
             angle = (angle / OCTANT).round() * OCTANT;
         }
         let (min, max) = (self.scale.min, self.scale.max);
+        if self.wraps && max - min < 360.0 {
+            return Some(self.scale.snap(min + (angle - min).rem_euclid(max - min)));
+        }
         let nearest = (-2..=2)
             .map(|turns| angle + 360.0 * f64::from(turns))
             .filter(|v| (min..=max).contains(v))
@@ -481,8 +502,8 @@ fn keys(ui: &Ui, response: &Response, dragging: bool, scale: &Scale) -> Option<S
 /// The value `op` gives a dial at `value` (`None`: mixed, which steps from the range's start), on
 /// the step grid and in the range. A step wraps round a range of exactly one turn ([`wrapped`]);
 /// [`Presses`](ScalarOp::Presses) count as arrow keys (Shift: ten steps).
-pub(crate) fn apply(op: &ScalarOp, value: Option<f64>, scale: &Scale) -> f64 {
-    let by = |delta| wrapped(scale, scale.moved(scale.place(value.unwrap_or(f64::NAN)), delta));
+pub(crate) fn apply(op: &ScalarOp, value: Option<f64>, scale: &Scale, wraps: bool) -> f64 {
+    let by = |delta| wrapped(scale, wraps, scale.moved(scale.place(value.unwrap_or(f64::NAN)), delta));
     let target = match op {
         ScalarOp::By(delta) => by(*delta),
         ScalarOp::Presses(presses) => by(scale.key_step() * presses.iter().map(|(m, n)| if m.shift { 10.0 * n } else { *n }).sum::<f64>()),
@@ -493,11 +514,11 @@ pub(crate) fn apply(op: &ScalarOp, value: Option<f64>, scale: &Scale) -> f64 {
     scale.snap(target)
 }
 
-/// `value` brought back into a range of exactly one turn from the end it passed; any other range
-/// leaves it for the scale to clamp.
-fn wrapped(scale: &Scale, value: f64) -> f64 {
+/// `value` brought back into the range from the end it passed when the dial wraps; otherwise
+/// left for the scale to clamp.
+fn wrapped(scale: &Scale, wraps: bool, value: f64) -> f64 {
     let span = scale.max - scale.min;
-    if (span - 360.0).abs() > 1e-9 {
+    if !wraps || span <= 0.0 {
         return value;
     }
     scale.min + (value - scale.min).rem_euclid(span)

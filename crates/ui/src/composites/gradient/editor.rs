@@ -357,6 +357,7 @@ pub struct GradientEditor<'a, T = ()> {
     numbers: &'a LocaleNumbers,
     rules: StopRules,
     midpoints: bool,
+    opacity_midpoints: bool,
     sampler: Option<&'a Sampler>,
     location_decimals: usize,
     policy: EditPolicy,
@@ -385,6 +386,7 @@ impl<'a> GradientEditor<'a> {
             numbers,
             rules: StopRules::default(),
             midpoints: true,
+            opacity_midpoints: true,
             sampler: None,
             location_decimals: 0,
             policy: EditPolicy::default(),
@@ -457,9 +459,18 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         self
     }
 
-    /// Whether the midpoint diamonds show and edit; on by default.
+    /// Whether the midpoint diamonds show and edit, on both rows; on by default.
     pub fn midpoints(mut self, midpoints: bool) -> Self {
         self.midpoints = midpoints;
+        self.opacity_midpoints = midpoints;
+        self
+    }
+
+    /// Whether the opacity row of a split bar has midpoint diamonds, for a host whose opacity
+    /// stops carry none; on by default. Needs [`midpoints`](Self::midpoints) on for the colour
+    /// row's diamonds to show.
+    pub fn opacity_midpoints(mut self, opacity_midpoints: bool) -> Self {
+        self.opacity_midpoints = opacity_midpoints;
         self
     }
 
@@ -528,6 +539,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             numbers,
             rules,
             midpoints,
+            opacity_midpoints,
             sampler,
             location_decimals,
             policy,
@@ -546,6 +558,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             numbers,
             rules,
             midpoints,
+            opacity_midpoints,
             sampler,
             location_decimals,
             policy,
@@ -710,7 +723,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let ramp =
             Rect::from_min_size(pos2(outer.left() + style.inset, outer.top() + top), vec2((width - 2.0 * style.inset).max(1.0), style.ramp_height))
                 .round_to_pixels(ui.pixels_per_point());
-        let geo = Geometry { ramp, rows, midpoints: self.midpoints, style: *style };
+        let geo = Geometry { ramp, rows, midpoints: self.midpoints, opacity_midpoints: self.opacity_midpoints, style: *style };
 
         let mut builder = UiBuilder::new()
             .scope_id(id)
@@ -976,6 +989,7 @@ struct Geometry {
     ramp: Rect,
     rows: StopRows,
     midpoints: bool,
+    opacity_midpoints: bool,
     style: GradientEditorStyle,
 }
 
@@ -1001,15 +1015,19 @@ impl Geometry {
     fn valid(&self, stops: &GradientStops, m: StopRef) -> bool {
         let has = |row| row == StopRow::Color || self.rows == StopRows::Split;
         match m {
-            StopRef::Midpoint(row, i) => self.midpoints && has(row) && i + 1 < stops.len(row),
+            StopRef::Midpoint(row, i) => self.shows_midpoints(row) && has(row) && i + 1 < stops.len(row),
             m => has(m.row()) && m.index() < stops.len(m.row()),
         }
+    }
+
+    fn shows_midpoints(&self, row: StopRow) -> bool {
+        self.midpoints && (row == StopRow::Color || self.opacity_midpoints)
     }
 
     /// The midpoints of `row` the bar shows, with their locations: between stops more than
     /// [`MIN_GAP`] apart.
     fn diamonds(&self, stops: &GradientStops, row: StopRow) -> Vec<(usize, f32)> {
-        if !self.midpoints {
+        if !self.shows_midpoints(row) {
             return Vec::new();
         }
         let at = locations(stops, row);
