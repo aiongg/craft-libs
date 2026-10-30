@@ -52,6 +52,18 @@ impl CropBox {
         [Point::new(r.x0, r.y0), Point::new(r.x1, r.y0), Point::new(r.x1, r.y1), Point::new(r.x0, r.y1)].map(|p| turn(p, c, self.angle))
     }
 
+    /// The document point of `part` on the turned frame: a corner or an edge handle, or the
+    /// centre for [`BoxPart::Inside`]; none for the other parts.
+    pub fn part_point(&self, part: BoxPart) -> Option<Point> {
+        let c = self.center();
+        if part == BoxPart::Inside {
+            return Some(c);
+        }
+        let (hx, hy) = part_handle(part)?;
+        let r = self.rect_abs();
+        Some(turn(Point::new(c.x + f64::from(hx) * r.width() / 2.0, c.y + f64::from(hy) * r.height() / 2.0), c, self.angle))
+    }
+
     /// The axis-aligned bounds of the turned frame.
     pub fn turned_bounds(&self) -> Rect {
         let [first, rest @ ..] = self.corners();

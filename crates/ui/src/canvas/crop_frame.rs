@@ -130,8 +130,8 @@ pub struct CropResponse {
     pub straightened: Option<f64>,
 }
 
-/// The host's snapping of a dragged point ([`CropFrame::snap`]).
-type Snap<'a> = Box<dyn Fn(BoxPart, Point, Modifiers) -> Point + 'a>;
+/// The host's snapping of a dragged part ([`CropFrame::snap`]).
+type Snap<'a> = Box<dyn Fn(BoxPart, &CropBox, Modifiers) -> Vec2 + 'a>;
 
 /// What a drag does to the frame.
 #[derive(Clone, Copy, Debug)]
@@ -145,18 +145,6 @@ enum Kind {
     Resize { hx: i8, hy: i8 },
     /// Turns the frame about its centre; `grab` is the pointer's direction from it at the press.
     Turn { grab: f64 },
-}
-
-impl Kind {
-    /// The part the host's snap is told of.
-    fn part(self) -> BoxPart {
-        match self {
-            Kind::Draw { .. } => BoxPart::Corner(2),
-            Kind::Move => BoxPart::Inside,
-            Kind::Resize { hx, hy } => handle_part(hx, hy),
-            Kind::Turn { .. } => BoxPart::Outside,
-        }
-    }
 }
 
 /// A drag in progress, kept between passes.
@@ -302,12 +290,21 @@ impl<'a> CropFrame<'a> {
         self
     }
 
-    /// The host's snapping: where a drag takes the pointer's document point, with the modifiers
-    /// held, told which part it drags (a draw drags the bottom right corner; a move, the whole
-    /// frame). In Image mode the point is the document point under the pointer in the view as it
-    /// is now (the view moves with the image), as in Classic mode; a move is told the point of the
-    /// frame that was grabbed, where the frame would have it.
-    pub fn snap(mut self, snap: impl Fn(BoxPart, Point, Modifiers) -> Point + 'a) -> Self {
+    /// The host's snapping. During a drag it is told which part the drag moves and the frame the
+    /// pointer gives now, with the modifiers held, and returns the document vector that moves
+    /// that part onto its snap target (zero for none):
+    ///
+    /// - a resize: the dragged handle, whose position is [`CropBox::part_point`] of the frame;
+    /// - a draw: the corner of the new frame that follows the pointer;
+    /// - a move: the whole frame ([`BoxPart::Inside`]); the vector moves the frame, so a snap of
+    ///   the frame's left edge to x = 0 returns `(-frame.rect.x0, 0)`.
+    ///
+    /// A turn is not snapped. The frame is computed from the pointer in the view of the press (in
+    /// Image mode the view moves with the image, and the drag never reads it), and the vector is
+    /// turned back into pointer travel, so the snapped frame does not depend on where the view
+    /// has since moved. Where a handle moves farther than the pointer (Auto Center in Image mode
+    /// moves it twice as far), the travel is scaled down to match.
+    pub fn snap(mut self, snap: impl Fn(BoxPart, &CropBox, Modifiers) -> Vec2 + 'a) -> Self {
         self.snap = Some(Box::new(snap));
         self
     }
@@ -606,7 +603,7 @@ impl<'a> CropFrame<'a> {
                 d.began = gesture.is_active();
             }
             if d.began {
-                let to = self.drag_point(d, view, pointer, mods);
+                let to = self.drag_point(d, view, pointer, mods, space, *gesture.shown());
                 if let Some(next) = self.dragged(d, to, mods, space, *gesture.shown()) {
                     gesture.update(next, mods);
                     self.follow(d, view, &next);
@@ -626,24 +623,25 @@ impl<'a> CropFrame<'a> {
         }
     }
 
-    /// The drag's document point for `pointer`, after the host's snap. In Image mode the point is in
-    /// the view of the press, but the host is told the point in the current view (which moves with
-    /// the image), and a Move is snapped as the frame's grab point, which the drag carries.
-    fn drag_point(&self, d: &Drag, view: &CanvasView, pointer: Pos2, mods: Modifiers) -> Point {
-        let Some(press) = d.press_view.as_ref() else {
-            let to = view.to_doc(pointer);
-            return self.snap.as_ref().map_or(to, |snap| snap(d.kind.part(), to, mods));
-        };
-        let to = press.to_doc(pointer);
+    /// The drag's document point for `pointer`, after the host's snap. In Image mode the point is
+    /// in the view of the press, which the moving view never feeds back into: the host is told the
+    /// frame that point gives, and its correction is turned back into pointer travel.
+    fn drag_point(&self, d: &Drag, view: &CanvasView, pointer: Pos2, mods: Modifiers, space: bool, last_shown: CropBox) -> Point {
+        let to = d.press_view.as_ref().unwrap_or(view).to_doc(pointer);
         let Some(snap) = self.snap.as_ref() else { return to };
-        if matches!(d.kind, Kind::Move) {
-            let grab = d.from + (d.from - to);
-            let snapped = snap(BoxPart::Inside, grab, mods);
-            return if snapped == grab { to } else { d.from + (d.from - snapped) };
+        if matches!(d.kind, Kind::Turn { .. }) {
+            return to;
         }
-        let now = view.to_doc(pointer);
-        let snapped = snap(d.kind.part(), now, mods);
-        if snapped == now { to } else { press.to_doc(view.to_screen(snapped)) }
+        let mut probe = *d;
+        let Some(candidate) = self.dragged(&mut probe, to, mods, space, last_shown) else { return to };
+        let (part, travel_per_unit) = match probe.kind {
+            Kind::Draw { anchor, cur, .. } => (handle_part(if cur.x >= anchor.x { 1 } else { -1 }, if cur.y >= anchor.y { 1 } else { -1 }), 1.0),
+            Kind::Move => (BoxPart::Inside, if self.image { -1.0 } else { 1.0 }),
+            Kind::Resize { hx, hy } => (handle_part(hx, hy), if self.image && self.auto_center && !mods.alt { 0.5 } else { 1.0 }),
+            Kind::Turn { .. } => return to,
+        };
+        let by = snap(part, &candidate, mods);
+        if by.x.is_finite() && by.y.is_finite() { to + by * travel_per_unit } else { to }
     }
 
     /// The frame a drag gives with the pointer at document point `to`, kept inside the bounds;

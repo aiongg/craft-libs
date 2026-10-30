@@ -229,7 +229,10 @@ fn harness_with(state: CropBox, rotation: f64, flip: bool, setup: impl FnOnce(&m
                 .default_frame(host.default_frame)
                 .units(&px, &px);
             if let Some(pitch) = pitch {
-                frame = frame.snap(move |_, p, _| Point::new((p.x / pitch).round() * pitch, (p.y / pitch).round() * pitch));
+                frame = frame.snap(move |part, b, _| {
+                    let p = b.part_point(part).unwrap_or_default();
+                    Vec2::new((p.x / pitch).round() * pitch - p.x, (p.y / pitch).round() * pitch - p.y)
+                });
             }
             if let Some(bounds) = host.bounds {
                 frame = frame.bounds(bounds);
@@ -927,7 +930,7 @@ fn guides_draw_in_the_guide_colour_only_when_the_host_passes_one() {
 }
 
 #[test]
-fn bounds_keep_the_frame_inside_and_the_host_snap_sees_the_dragged_point() {
+fn bounds_keep_the_frame_inside_and_the_host_snap_moves_the_dragged_handle() {
     let mut h = harness(|host| host.bounds = Some(Rect::new(0.0, 0.0, 400.0, 300.0)));
     h.run();
     let from = screen(&h, Point::new(300.0, 220.0));

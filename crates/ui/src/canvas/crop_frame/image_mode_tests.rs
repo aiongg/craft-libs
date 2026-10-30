@@ -3,6 +3,7 @@ use egui_kittest::Harness;
 use kurbo::{Point, Rect, Vec2};
 
 use super::{CropBox, CropFrame};
+use crate::canvas::quad::BoxPart;
 use crate::canvas::{CanvasView, CropNames};
 use crate::edit::EditEvent;
 use crate::theme::{Base, install};
@@ -14,9 +15,10 @@ struct Host {
     before: Option<(CropBox, CanvasView)>,
     view: CanvasView,
     auto_center: bool,
-    snap_x0: bool,
+    /// The host snaps the dragged part's x (a move: the frame's left edge) to this document x.
+    snap_x: Option<f64>,
     default_frame: bool,
-    told: std::rc::Rc<std::cell::Cell<Point>>,
+    told: std::rc::Rc<std::cell::Cell<Option<(BoxPart, CropBox)>>>,
     events: Vec<EditEvent<CropBox>>,
 }
 
@@ -37,7 +39,7 @@ fn harness(angle: f64, auto_center: bool) -> Harness<'static, Host> {
         before: None,
         view: CanvasView::new(egui::Rect::ZERO, Point::new(200.0, 150.0), 1.0),
         auto_center,
-        snap_x0: false,
+        snap_x: None,
         default_frame: false,
         told: Default::default(),
         events: Vec::new(),
@@ -47,13 +49,14 @@ fn harness(angle: f64, auto_center: bool) -> Harness<'static, Host> {
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
             host.view.rect = rect;
             let state = host.state;
-            let (snap_x0, told) = (host.snap_x0, host.told.clone());
+            let (snap_x, told) = (host.snap_x, host.told.clone());
             let r = CropFrame::new("crop", &state, names())
                 .auto_center(host.auto_center)
                 .default_frame(host.default_frame)
-                .snap(move |_, p, _| {
-                    told.set(p);
-                    if snap_x0 { Point::new(0.0, p.y) } else { p }
+                .snap(move |part, b, _| {
+                    told.set(Some((part, *b)));
+                    let x = if part == BoxPart::Inside { b.rect.x0 } else { b.part_point(part).map_or(0.0, |p| p.x) };
+                    Vec2::new(snap_x.map_or(0.0, |target| target - x), 0.0)
                 })
                 .show_image(ui, &canvas, &mut host.view);
             match &r.event {
@@ -217,31 +220,60 @@ fn arrows_move_the_image_under_the_frame() {
 }
 
 #[test]
-fn a_move_is_snapped_as_the_grabbed_point_of_the_frame() {
-    let mut h = harness(0.0, false);
-    h.state_mut().snap_x0 = true;
-    let from = screen(&h, RECT.center());
-    press(&mut h, from);
-    move_to(&mut h, from + vec2(30.0, 20.0), Modifiers::NONE);
-    release(&mut h, from + vec2(30.0, 20.0));
-    // The grabbed point (x 200) lands on the snap at x 0; the y offset is the drag's.
-    let b = h.state().state;
-    assert!((b.rect.x0 - (RECT.x0 - 200.0)).abs() < 1e-3, "{b:?}");
-    assert!((b.rect.y0 - (RECT.y0 - 20.0)).abs() < 1e-3, "{b:?}");
+fn a_move_snaps_the_frame_and_stays_snapped_while_the_pointer_is_still() {
+    for auto_center in [false, true] {
+        let mut h = harness(0.0, auto_center);
+        h.state_mut().snap_x = Some(0.0);
+        let from = screen(&h, RECT.center());
+        press(&mut h, from);
+        // Raw: the frame's left edge would be at x = -3; the image follows the frame.
+        let at = from + vec2(-103.0, 20.0);
+        for pass in 0..4 {
+            move_to(&mut h, at, Modifiers::NONE);
+            let b = h.state().state;
+            assert!(b.rect.x0.abs() < 1e-3, "pass {pass}, auto_center={auto_center}: {b:?}");
+            assert!((b.rect.y0 - (RECT.y0 - 20.0)).abs() < 1e-3, "pass {pass}: {b:?}");
+        }
+        assert_eq!(h.state().told.get().map(|(part, _)| part), Some(BoxPart::Inside));
+        release(&mut h, at);
+    }
 }
 
 #[test]
-fn a_snap_is_told_the_document_point_under_the_pointer_in_the_view_as_it_is_now() {
+fn an_auto_center_resize_snaps_the_handle_and_stays_there_while_the_pointer_is_still() {
     let mut h = harness(0.0, true);
-    let corner = screen(&h, Point::new(RECT.x1, RECT.y1));
-    press(&mut h, corner);
-    move_to(&mut h, corner + vec2(40.0, 25.0), Modifiers::NONE);
-    // Auto Center slid the view with the frame during the drag.
-    let at = corner + vec2(60.0, 25.0);
+    h.state_mut().snap_x = Some(250.0);
+    let edge = screen(&h, Point::new(RECT.x1, 150.0));
+    press(&mut h, edge);
+    // The handle moves twice the pointer's travel: raw x1 would be 300 - 44 = 256.
+    let at = edge + vec2(-22.0, 0.0);
+    for pass in 0..4 {
+        move_to(&mut h, at, Modifiers::NONE);
+        let b = h.state().state;
+        assert!((b.rect.x1 - 250.0).abs() < 1e-3 && (b.rect.x0 - RECT.x0).abs() < 1e-3, "pass {pass}: {b:?}");
+    }
+    assert!(view(&h).center != Point::new(200.0, 150.0), "the view slid with the frame");
+    let (part, candidate) = h.state().told.get().expect("told");
+    assert_eq!(part, BoxPart::Edge(1));
+    assert!((candidate.rect.x1 - 256.0).abs() < 1e-3, "the candidate is the frame the pointer gives: {candidate:?}");
+    release(&mut h, at);
+    assert!((h.state().state.rect.x1 - 250.0).abs() < 1e-3);
+}
+
+#[test]
+fn a_turn_with_a_still_pointer_gives_the_same_frame_every_pass() {
+    let mut h = harness(0.0, true);
+    h.state_mut().snap_x = Some(0.0);
+    let from = screen(&h, Point::new(340.0, 260.0));
+    press(&mut h, from);
+    let at = screen(&h, Point::new(300.0, 290.0));
     move_to(&mut h, at, Modifiers::NONE);
-    assert!(view(&h).center != Point::new(200.0, 150.0));
-    let told = h.state().told.get();
-    assert!(told.distance(view(&h).to_doc(at)) < 1e-1, "{told:?} vs {:?}", view(&h).to_doc(at));
+    let (b, v) = (h.state().state, view(&h));
+    assert!(b.angle != 0.0);
+    for _ in 0..3 {
+        move_to(&mut h, at, Modifiers::NONE);
+        assert_eq!((h.state().state, view(&h)), (b, v));
+    }
     release(&mut h, at);
 }
 
