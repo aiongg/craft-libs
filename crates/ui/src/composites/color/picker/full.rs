@@ -32,12 +32,18 @@ impl ColorWarning {
         Self { tip: tip.into(), nearest, icon: Icon::Warning }
     }
 
+    /// A warning that the colour is not a web-safe colour (the cube Photoshop's Color Picker shows),
+    /// offering `nearest`, the nearest web colour.
+    pub fn web_colors(tip: impl Into<String>, nearest: Srgba) -> Self {
+        Self::new(tip, nearest).icon(Icon::WebColors)
+    }
+
     /// The colour that passes, nearest the warned one: what a click on the warning sets.
     pub fn nearest(&self) -> Srgba {
         self.nearest
     }
 
-    /// The icon over the chip; `warning` by default.
+    /// The icon over the chip; `warning` by default ([`ColorWarning::web_colors`] sets `web_colors`).
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = icon;
         self
@@ -411,5 +417,17 @@ fn show_warning(ui: &mut Ui, index: usize, warning: &ColorWarning, enabled: bool
     let response = ColorWarningChip::new(("warning", index), warning.clone()).enabled(enabled).show(ui);
     if response.clicked() {
         parts.edits.input(super::Input::Click(warning.nearest));
+    }
+}
+
+#[cfg(test)]
+mod warning_tests {
+    use super::*;
+
+    #[test]
+    fn the_web_colour_warning_shows_the_cube_and_the_gamut_warning_the_triangle() {
+        let nearest = Srgba::rgb(0.2, 0.4, 0.6);
+        assert_eq!(ColorWarning::web_colors("Not a web colour", nearest).icon, Icon::WebColors);
+        assert_eq!(ColorWarning::new("Out of gamut for printing", nearest).icon, Icon::Warning);
     }
 }

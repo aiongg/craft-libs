@@ -104,7 +104,7 @@ fn warnings(color: Srgba) -> Vec<ColorWarning> {
     }
     let web = web_color(color);
     if !web.same_rgb8(color) {
-        out.push(ColorWarning::new("Not a web colour", web));
+        out.push(ColorWarning::web_colors("Not a web colour", web));
     }
     out
 }

@@ -402,6 +402,14 @@ carbon = "warning--alt"
 tabler = "alert-triangle"
 
 [[icon]]
+name = "web_colors"
+directional = false
+lucide = "box"
+phosphor = "cube"
+carbon = "cube"
+tabler = "cube"
+
+[[icon]]
 name = "success"
 directional = false
 lucide = "circle-check"

@@ -15,6 +15,10 @@ pub enum TabKind {
     Document,
     /// Panel tabs: tabs shrink before they overflow, no ×, only the hidden tabs in the overflow menu.
     Panel,
+    /// Text tabs: only the labels, the selected one in the text colour and the others dimmed, no
+    /// tab surface, divider or ×. Whole titles, every tab in the overflow menu (a row of
+    /// categories in a dialog).
+    Text,
 }
 
 /// How tab widths are fitted to the strip.
@@ -47,21 +51,21 @@ pub enum OverflowMenu {
 impl TabKind {
     pub fn fit_mode(self) -> FitMode {
         match self {
-            Self::Document => FitMode::Whole,
+            Self::Document | Self::Text => FitMode::Whole,
             Self::Panel => FitMode::Shrink,
         }
     }
 
     pub fn overflow_place(self) -> OverflowPlace {
         match self {
-            Self::Document => OverflowPlace::StripEnd,
+            Self::Document | Self::Text => OverflowPlace::StripEnd,
             Self::Panel => OverflowPlace::AfterTabs,
         }
     }
 
     pub fn overflow_menu(self) -> OverflowMenu {
         match self {
-            Self::Document => OverflowMenu::AllTabs,
+            Self::Document | Self::Text => OverflowMenu::AllTabs,
             Self::Panel => OverflowMenu::HiddenOnly,
         }
     }
@@ -69,6 +73,11 @@ impl TabKind {
     /// Whether closable tabs show a × on the tab; a panel's Close is in the host's context menu.
     pub fn shows_close(self) -> bool {
         self == Self::Document
+    }
+
+    /// Whether tabs draw only their label, with no surface, indicator or strip fill.
+    pub fn text_only(self) -> bool {
+        self == Self::Text
     }
 
     /// The default of `middle_click_closes`.

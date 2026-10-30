@@ -538,6 +538,7 @@ impl Draw<'_, '_> {
                 focused: false,
                 large: false,
                 divider: false,
+                text_only: false,
                 drop_highlight: false,
                 sense: Sense::click(),
                 position: i,
