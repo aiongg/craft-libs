@@ -8,7 +8,9 @@ use super::flyout::{FlyoutButton, FlyoutItem};
 use crate::controls::{IconButton, IconButtonStyle};
 use crate::direction;
 use crate::icons::Icon;
+use crate::localized::Labels as _;
 use crate::panes::Edge;
+use crate::patterns::panel::ScrollBarLabels;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
@@ -177,6 +179,14 @@ pub(super) fn grid_step(index: usize, enabled: &[bool], columns: usize, movement
     }
 }
 
+crate::words! {
+    /// The text a tool rail writes itself.
+    pub(crate) struct RailLabels {
+        /// The toolbar's accessible name.
+        tools: "rail.tools" = "Tools";
+    }
+}
+
 /// The rail of tool slots, as a side panel at one edge of the window.
 ///
 /// ```
@@ -218,8 +228,10 @@ pub struct ToolRail<'a, T> {
     column_toggle: Option<String>,
     edit_toolbar: Option<String>,
     hidden: &'a [T],
-    label: String,
-    scroll_bar_label: String,
+    /// `None`: the installed words' "Tools".
+    label: Option<String>,
+    /// `None`: the installed words' "Scroll bar".
+    scroll_bar_label: Option<String>,
 }
 
 impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
@@ -231,8 +243,8 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             column_toggle: None,
             edit_toolbar: None,
             hidden: &[],
-            label: "Tools".to_owned(),
-            scroll_bar_label: "Scroll bar".to_owned(),
+            label: None,
+            scroll_bar_label: None,
         }
     }
 
@@ -267,15 +279,15 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         self
     }
 
-    /// The toolbar's translated accessible name (default "Tools").
+    /// The toolbar's translated accessible name (default the installed words' "Tools").
     pub fn label(mut self, label: impl Into<String>) -> Self {
-        self.label = label.into();
+        self.label = Some(label.into());
         self
     }
 
-    /// The scroll bar's translated accessible name (default "Scroll bar").
+    /// The scroll bar's translated accessible name (default the installed words' "Scroll bar").
     pub fn scroll_bar_label(mut self, label: impl Into<String>) -> Self {
-        self.scroll_bar_label = label.into();
+        self.scroll_bar_label = Some(label.into());
         self
     }
 
@@ -322,12 +334,13 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         drop(tokens);
 
         let id = ui.make_persistent_id(self.id_salt);
+        let label = self.label.clone().unwrap_or_else(|| RailLabels::of(ui).tools);
         let panel = if left { egui::Panel::left(id.with("panel")) } else { egui::Panel::right(id.with("panel")) };
         let frame = Frame::NONE.fill(fill).inner_margin(Margin::symmetric(0, pad_y.round() as i8));
         let mut out =
             ToolRailOutput { select: None, double_clicked: None, toggle_columns: false, edit_toolbar: false, flyout: None, rect: Rect::NOTHING };
         let shown = panel.exact_size(metrics.width).resizable(false).show_separator_line(false).frame(frame).show(ui, |ui| {
-            let toolbar = UiBuilder::new().id_salt("toolbar").accessibility_role(Role::Toolbar).accessibility_label(self.label.as_str());
+            let toolbar = UiBuilder::new().id_salt("toolbar").accessibility_role(Role::Toolbar).accessibility_label(label.as_str());
             ui.scope_builder(toolbar, |ui| {
                 ui.ctx().accesskit_node_builder(ui.unique_id(), |node| node.set_orientation(Orientation::Vertical));
                 self.body(ui, id, &layout, style, slots, current, last_used, footer, &mut out);
@@ -369,11 +382,12 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         let footer_id = rail.with("footer-height");
         let footer_height = ui.ctx().data(|d| d.get_temp::<f32>(footer_id));
         let reserved = footer_height.map_or(0.0, |height| height + grid.row_gap);
+        let scroll_bar_label = self.scroll_bar_label.clone().unwrap_or_else(|| ScrollBarLabels::name(ui));
         let scroll = ScrollArea::vertical()
             .id_salt(rail.with("slots"))
             .auto_shrink([false, true])
             .max_height((ui.available_height() - reserved).max(0.0))
-            .vertical_scroll_bar_label(&self.scroll_bar_label);
+            .vertical_scroll_bar_label(&scroll_bar_label);
         scroll.show(ui, |ui| {
             // Each button with whether it takes input, in reading order.
             let mut cells: Vec<(Id, bool)> = Vec::new();

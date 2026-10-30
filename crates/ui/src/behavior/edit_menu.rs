@@ -17,29 +17,19 @@ use egui::text_edit::TextEditState;
 use egui::{Context, Event, Id, Key, KeyboardShortcut, Modifiers, Popup, Pos2, Ui, ViewportCommand};
 
 use crate::controls::Kbd;
+use crate::localized::Labels as _;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 
-/// The menu's labels, translated by the app. English by default.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EditMenuLabels {
-    pub undo: String,
-    pub cut: String,
-    pub copy: String,
-    pub paste: String,
-    pub delete: String,
-    pub select_all: String,
-}
-
-impl Default for EditMenuLabels {
-    fn default() -> Self {
-        Self {
-            undo: "Undo".into(),
-            cut: "Cut".into(),
-            copy: "Copy".into(),
-            paste: "Paste".into(),
-            delete: "Delete".into(),
-            select_all: "Select All".into(),
-        }
+crate::words! {
+    /// The menu's labels, English by default. [`EditMenu::labels`] gives the ones installed with
+    /// [`EditMenu::install`], else the installed words' translation.
+    pub struct EditMenuLabels {
+        undo: "edit.undo" = "Undo";
+        cut: "edit.cut" = "Cut";
+        copy: "edit.copy" = "Copy";
+        paste: "edit.paste" = "Paste";
+        delete: "edit.delete" = "Delete";
+        select_all: "edit.selectAll" = "Select All";
     }
 }
 
@@ -55,7 +45,14 @@ impl EditMenu {
         ctx.plugin_or_default::<Installed>().lock().0 = Some(Arc::new(labels));
     }
 
-    /// The labels installed in `ctx`, English when none are.
+    /// The labels the menus of `ui` show: those installed with [`EditMenu::install`], else the
+    /// installed words' translation of the English.
+    pub fn labels_of(ui: &Ui) -> Arc<EditMenuLabels> {
+        let installed = ui.ctx().plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
+        installed.unwrap_or_else(|| Arc::new(EditMenuLabels::of(ui)))
+    }
+
+    /// The labels installed with [`EditMenu::install`] in `ctx`, English when none are.
     pub fn labels(ctx: &Context) -> Arc<EditMenuLabels> {
         static ENGLISH: LazyLock<Arc<EditMenuLabels>> = LazyLock::new(Arc::default);
         let installed = ctx.plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
@@ -150,7 +147,7 @@ pub(crate) fn show(ui: &Ui, field: Id, password: bool, open_at: Option<Pos2>) ->
         ui.memory_mut(|m| m.request_focus(field));
     }
     let selection = TextEditState::load(ctx, field).and_then(|s| s.cursor.char_range()).is_some_and(|r| !r.is_empty());
-    let labels = EditMenu::labels(ctx);
+    let labels = EditMenu::labels_of(ui);
     let shortcut = |key| Kbd::new(&KeyboardShortcut::new(Modifiers::COMMAND, key));
     // A password's text stays out of the clipboard.
     let copyable = selection && !password;

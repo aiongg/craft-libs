@@ -10,6 +10,7 @@ use super::measure;
 use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::Icon;
+use crate::localized::Labels as _;
 use crate::primitives::Content;
 use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
@@ -89,15 +90,25 @@ pub struct PanelHeader {
     close: Slot,
 }
 
-/// One of the header's buttons: whether it is shown, and its accessible name.
+crate::words! {
+    /// The accessible names of the header's buttons, unless the host names them.
+    pub(crate) struct PanelHeaderLabels {
+        menu: "panelHeader.menu" = "Panel menu";
+        float: "panelHeader.float" = "Float panel";
+        close: "panelHeader.close" = "Close panel";
+    }
+}
+
+/// One of the header's buttons: whether it is shown, and its accessible name (`None`: the
+/// installed words').
 struct Slot {
     shown: bool,
-    label: String,
+    label: Option<String>,
 }
 
 impl Slot {
-    fn new(shown: bool, label: &str) -> Self {
-        Self { shown, label: label.to_owned() }
+    fn new(shown: bool) -> Self {
+        Self { shown, label: None }
     }
 }
 
@@ -105,13 +116,7 @@ impl PanelHeader {
     /// A header titled `title`. `id_salt` is its id, so that its state and the buttons' focus
     /// don't depend on the translated title.
     pub fn new(id_salt: impl egui::AsIdSalt, title: impl Into<String>) -> Self {
-        Self {
-            title: title.into(),
-            id_salt: egui::IdSalt::new(id_salt),
-            menu: Slot::new(true, "Panel menu"),
-            float: Slot::new(false, "Float panel"),
-            close: Slot::new(false, "Close panel"),
-        }
+        Self { title: title.into(), id_salt: egui::IdSalt::new(id_salt), menu: Slot::new(true), float: Slot::new(false), close: Slot::new(false) }
     }
 
     /// Whether the panel menu button is shown; on by default.
@@ -122,7 +127,7 @@ impl PanelHeader {
 
     /// Shows the panel menu button with this accessible name.
     pub fn menu_label(mut self, label: impl Into<String>) -> Self {
-        self.menu = Slot { shown: true, label: label.into() };
+        self.menu = Slot { shown: true, label: Some(label.into()) };
         self
     }
 
@@ -134,7 +139,7 @@ impl PanelHeader {
 
     /// Shows the float button with this accessible name.
     pub fn float_label(mut self, label: impl Into<String>) -> Self {
-        self.float = Slot { shown: true, label: label.into() };
+        self.float = Slot { shown: true, label: Some(label.into()) };
         self
     }
 
@@ -146,7 +151,7 @@ impl PanelHeader {
 
     /// Shows the close button with this accessible name.
     pub fn close_label(mut self, label: impl Into<String>) -> Self {
-        self.close = Slot { shown: true, label: label.into() };
+        self.close = Slot { shown: true, label: Some(label.into()) };
         self
     }
 
@@ -180,16 +185,24 @@ impl PanelHeader {
         // that AccessKit lists it first.
         let inner = rect.shrink2(vec2(style.pad, 0.0));
         let mut title_ui = ui.new_child(UiBuilder::new().max_rect(inner));
-        let slots = [(Icon::More, "menu", &self.menu), (Icon::Float, "float", &self.float), (Icon::Close, "close", &self.close)];
-        let count = slots.iter().filter(|(_, _, slot)| slot.shown).count() as f32;
+        let words = PanelHeaderLabels::of(ui);
+        let slots = [
+            (Icon::More, "menu", &self.menu, &words.menu),
+            (Icon::Float, "float", &self.float, &words.float),
+            (Icon::Close, "close", &self.close, &words.close),
+        ];
+        let count = slots.iter().filter(|(_, _, slot, _)| slot.shown).count() as f32;
         let estimate = (count * (style.button + style.gap) - style.gap).max(0.0);
         // The row senses drags so that a press on its widgets never reaches the background.
         let ([menu, float, close], used) = measure::trailing_row(ui, id.with("trailing"), inner, Sense::DRAG, style.gap, estimate, |row| {
             add_actions(row);
-            slots.map(|(icon, salt, slot)| {
+            slots.map(|(icon, salt, slot, default)| {
                 slot.shown.then(|| {
                     let (_, square) = row.allocate_space(vec2(style.button, style.button));
-                    IconButton::new(icon, slot.label.as_str()).size(ControlSize::Sm).id_salt((id, salt)).show_at(row, square)
+                    IconButton::new(icon, slot.label.as_ref().unwrap_or(default).as_str())
+                        .size(ControlSize::Sm)
+                        .id_salt((id, salt))
+                        .show_at(row, square)
                 })
             })
         });

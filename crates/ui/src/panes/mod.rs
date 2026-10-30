@@ -21,6 +21,7 @@ use egui::{
 use crate::docking::PanelLimits;
 use crate::docking::chrome::{self, ChromeStyle, FloatingFrame, MoveStep, TitleBar};
 use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
+use crate::localized::Labels as _;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -166,34 +167,21 @@ pub trait PaneContent<P> {
     fn menu(&mut self, _ui: &mut Ui, _pane: &P) {}
 }
 
-/// Labels of the chrome; translate them in the app.
-#[derive(Clone, Debug)]
-pub struct PaneLabels {
-    pub menu: String,
-    pub move_start: String,
-    pub move_end: String,
-    pub move_bottom: String,
-    pub float: String,
-    pub close: String,
-    /// Accessibility label of the title bar. `{title}` is replaced with the pane's title, so
-    /// each title bar has its own name.
-    pub move_pane: String,
-    /// Accessibility label of the resize edges.
-    pub resize: String,
-}
-
-impl Default for PaneLabels {
-    fn default() -> Self {
-        Self {
-            menu: "Pane options".into(),
-            move_start: "Move to Start".into(),
-            move_end: "Move to End".into(),
-            move_bottom: "Move to Bottom".into(),
-            float: "Float".into(),
-            close: "Close".into(),
-            move_pane: "Move {title} pane".into(),
-            resize: "Resize pane".into(),
-        }
+crate::words! {
+    /// Labels of the chrome, English by default; a host the app gave no labels takes them from the
+    /// installed [`Words`](crate::localized::Words).
+    pub struct PaneLabels {
+        menu: "pane.menu" = "Pane options";
+        move_start: "pane.moveStart" = "Move to Start";
+        move_end: "pane.moveEnd" = "Move to End";
+        move_bottom: "pane.moveBottom" = "Move to Bottom";
+        float: "pane.float" = "Float";
+        close: "pane.close" = "Close";
+        /// Accessibility label of the title bar. `{title}` is replaced with the pane's title, so
+        /// each title bar has its own name.
+        move_pane: "pane.movePane" = "Move {title} pane";
+        /// Accessibility label of the resize edges.
+        resize: "pane.resize" = "Resize pane";
     }
 }
 
@@ -205,6 +193,8 @@ pub struct PaneHost {
     max_fraction: f32,
     f6: bool,
     labels: PaneLabels,
+    /// The host passed `labels`; otherwise they are read from the installed words when shown.
+    labels_set: bool,
     frame: Option<Frame>,
     margin: Margin,
 }
@@ -312,6 +302,7 @@ impl PaneHost {
             max_fraction: 1.0,
             f6: true,
             labels: PaneLabels::default(),
+            labels_set: false,
             frame: None,
             margin: Margin::same(8),
         }
@@ -343,6 +334,7 @@ impl PaneHost {
 
     pub fn labels(mut self, labels: PaneLabels) -> Self {
         self.labels = labels;
+        self.labels_set = true;
         self
     }
 
@@ -388,12 +380,15 @@ impl PaneHost {
     /// host kept from earlier requests, else the pane's default). Call between the app's top
     /// and bottom bars and its `CentralPanel`.
     pub fn show<P: Clone + Hash + Debug, C: PaneContent<P>>(
-        self,
+        mut self,
         ui: &mut Ui,
         open: &[P],
         states: impl Fn(&P) -> Option<PaneState>,
         content: &mut C,
     ) -> PaneOutput<P> {
+        if !self.labels_set {
+            self.labels = PaneLabels::of(ui);
+        }
         let ctx = ui.ctx().clone();
         let bounds = ui.available_rect_before_wrap();
         let style = ChromeStyle { right_to_left: self.rtl, ..ChromeStyle::from_ui(ui) };
@@ -886,7 +881,7 @@ impl PaneHost {
         let movable = content.movable(&s.pane);
         let closable = content.closable(&s.pane);
         let title = content.title(&s.pane);
-        let move_label = self.labels.move_pane.replace("{title}", &title);
+        let move_label = craft_i18n::fmt(&self.labels.move_pane, &[("title", &title)]);
         let mut bar = TitleBar::new(s.id.with("title"), &move_label).title(title).menu(&self.labels.menu).movable(movable);
         if closable {
             bar = bar.close(&self.labels.close);

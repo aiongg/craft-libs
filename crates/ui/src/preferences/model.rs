@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 
 use craft_theme::Rgba;
 
-use crate::localized::LocaleNumbers;
+use crate::localized::{Labels, LocaleNumbers, Word, Words};
 
 /// A setting's value as it crosses the boundary between the window and the host.
 #[derive(Clone, Debug, PartialEq)]
@@ -181,24 +181,82 @@ pub struct PreferencesTexts {
     pub numbers: LocaleNumbers,
 }
 
+const TITLE: Word = Word::keyed("pref.title", "Preferences");
+const SEARCH_LABEL: Word = Word::keyed("pref.searchLabel", "Search settings");
+const SEARCH_PLACEHOLDER: Word = Word::keyed("pref.searchPlaceholder", "Search");
+const CLEAR_SEARCH: Word = Word::keyed("pref.clearSearch", "Clear search");
+const PAGES_LABEL: Word = Word::keyed("pref.pagesLabel", "Pages");
+const NO_MATCHES: Word = Word::keyed("pref.noMatches", "No matching settings");
+const EMPTY_PAGE: Word = Word::keyed("pref.emptyPage", "These settings aren't available yet.");
+const OK: Word = Word::keyed("pref.ok", "OK");
+const CANCEL: Word = Word::keyed("pref.cancel", "Cancel");
+const APPLY: Word = Word::keyed("pref.apply", "Apply");
+const RESET_SECTION: Word = Word::keyed("pref.resetSection", "Reset Section");
+const HEX_LABEL: Word = Word::keyed("pref.hexLabel", "Hex colour");
+const DEFAULT_HINT: Word = Word::keyed("pref.defaultHint", "Default");
+
 impl PreferencesTexts {
     /// English captions and English numbers.
     pub fn english() -> Self {
+        let english = |word: Word| word.english.to_owned();
         Self {
-            title: "Preferences".into(),
-            search_label: "Search settings".into(),
-            search_placeholder: "Search".into(),
-            clear_search: "Clear search".into(),
-            pages_label: "Pages".into(),
-            no_matches: "No matching settings".into(),
-            empty_page: "These settings aren't available yet.".into(),
-            ok: "OK".into(),
-            cancel: "Cancel".into(),
-            apply: "Apply".into(),
-            reset_section: "Reset Section".into(),
-            hex_label: "Hex colour".into(),
-            default_hint: "Default".into(),
+            title: english(TITLE),
+            search_label: english(SEARCH_LABEL),
+            search_placeholder: english(SEARCH_PLACEHOLDER),
+            clear_search: english(CLEAR_SEARCH),
+            pages_label: english(PAGES_LABEL),
+            no_matches: english(NO_MATCHES),
+            empty_page: english(EMPTY_PAGE),
+            ok: english(OK),
+            cancel: english(CANCEL),
+            apply: english(APPLY),
+            reset_section: english(RESET_SECTION),
+            hex_label: english(HEX_LABEL),
+            default_hint: english(DEFAULT_HINT),
             numbers: LocaleNumbers::from_tag("en"),
+        }
+    }
+}
+
+/// The numbers stay as they are: they follow [`LocaleNumbers`], not a catalog row.
+impl Labels for PreferencesTexts {
+    const WORDS: &'static [Word] = &[
+        TITLE,
+        SEARCH_LABEL,
+        SEARCH_PLACEHOLDER,
+        CLEAR_SEARCH,
+        PAGES_LABEL,
+        NO_MATCHES,
+        EMPTY_PAGE,
+        OK,
+        CANCEL,
+        APPLY,
+        RESET_SECTION,
+        HEX_LABEL,
+        DEFAULT_HINT,
+    ];
+
+    fn english() -> Self {
+        PreferencesTexts::english()
+    }
+
+    fn localized_in(self, words: &Words) -> Self {
+        let get = |word: Word| words.get(word).into_owned();
+        Self {
+            title: get(TITLE),
+            search_label: get(SEARCH_LABEL),
+            search_placeholder: get(SEARCH_PLACEHOLDER),
+            clear_search: get(CLEAR_SEARCH),
+            pages_label: get(PAGES_LABEL),
+            no_matches: get(NO_MATCHES),
+            empty_page: get(EMPTY_PAGE),
+            ok: get(OK),
+            cancel: get(CANCEL),
+            apply: get(APPLY),
+            reset_section: get(RESET_SECTION),
+            hex_label: get(HEX_LABEL),
+            default_hint: get(DEFAULT_HINT),
+            numbers: self.numbers,
         }
     }
 }

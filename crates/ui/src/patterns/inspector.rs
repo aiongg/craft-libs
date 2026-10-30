@@ -15,6 +15,7 @@ use crate::composites::EmptyState;
 use crate::direction;
 use crate::docking::DockLook;
 use crate::icons::{self, Icon, IconSize};
+use crate::localized::Labels as _;
 use crate::primitives::Content;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
@@ -23,6 +24,14 @@ use crate::typed_story;
 /// Width the name keeps before the kind text is shown (PhotoCraft's `props_layout::header`), in
 /// points.
 const KIND_MIN_NAME: f32 = 60.0;
+
+crate::words! {
+    /// The text an inspector writes itself.
+    pub(crate) struct InspectorLabels {
+        /// The message shown when nothing is inspected.
+        empty: "inspector.empty" = "No properties";
+    }
+}
 
 /// An inspector's sizes and colours, from [`Inspector::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -170,7 +179,8 @@ pub struct Inspector {
     id_salt: IdSalt,
     target: Option<IdSalt>,
     header: HeaderKind,
-    empty: String,
+    /// `None`: the installed words' "No properties".
+    empty: Option<String>,
     show_empty: bool,
     scroll_bar_label: Option<String>,
 }
@@ -178,14 +188,7 @@ pub struct Inspector {
 impl Inspector {
     /// An inspector with this id. Its message when empty is "No properties".
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            target: None,
-            header: HeaderKind::None,
-            empty: "No properties".to_owned(),
-            show_empty: false,
-            scroll_bar_label: None,
-        }
+        Self { id_salt: IdSalt::new(id_salt), target: None, header: HeaderKind::None, empty: None, show_empty: false, scroll_bar_label: None }
     }
 
     /// What the inspector shows: a document, a layer, a mask. The controls' state is kept per
@@ -209,7 +212,7 @@ impl Inspector {
 
     /// The message shown when [`show_empty`](Inspector::show_empty) is on.
     pub fn empty(mut self, message: impl Into<String>) -> Self {
-        self.empty = message.into();
+        self.empty = Some(message.into());
         self
     }
 
@@ -267,7 +270,7 @@ impl Inspector {
                             header.show(ui);
                         }
                         if self.show_empty {
-                            Inspector::empty_state(ui, self.empty);
+                            Inspector::empty_state(ui, self.empty.unwrap_or_else(|| InspectorLabels::of(ui).empty));
                         } else {
                             add_contents(ui);
                         }

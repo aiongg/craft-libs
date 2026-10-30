@@ -8,24 +8,23 @@ use super::preview::Preview;
 use crate::composites::measure;
 use crate::controls::Button;
 use crate::direction;
+use crate::localized::Labels as _;
 use crate::theme::{Tokens, TokensOf};
 use craft_theme::ControlSize;
 
-/// English defaults for the footer's labels; the host passes its translations.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct DialogLabels {
-    pub ok: String,
-    pub cancel: String,
-    pub apply: String,
-    pub reset: String,
-    /// A screen reader's description of the default button.
-    pub default_hint: String,
-}
-
-impl Default for DialogLabels {
-    fn default() -> Self {
-        Self { ok: "OK".into(), cancel: "Cancel".into(), apply: "Apply".into(), reset: "Reset".into(), default_hint: "Default".into() }
+crate::words! {
+    /// The labels of the buttons a footer names itself, English by default; a footer the host gave
+    /// no labels takes them from the installed [`Words`](crate::localized::Words).
+    #[non_exhaustive]
+    pub struct DialogLabels {
+        ok: "dialog.ok" = "OK";
+        cancel: "dialog.cancel" = "Cancel";
+        apply: "dialog.apply" = "Apply";
+        reset: "dialog.reset" = "Reset";
+        /// A screen reader's description of the default button.
+        default_hint: "dialog.defaultHint" = "Default";
+        /// The accessible name of a dialog frame's close box.
+        close: "dialog.close" = "Close";
     }
 }
 
@@ -130,12 +129,15 @@ impl FooterFx {
 ///   [`FooterFx::buttons`].
 /// - [`none`](Footer::none): no row.
 ///
-/// The labels are the host's translated strings; [`DialogLabels`] holds the English defaults.
+/// The buttons the host doesn't name take their labels from [`labels`](Footer::labels), or from the
+/// installed [`Words`](crate::localized::Words) when none were given.
 /// OK disabled ([`ok_enabled`](Footer::ok_enabled)) takes no click and no Enter.
 #[must_use = "give the footer to `Dialog::footer`"]
 pub struct Footer<'a> {
     kind: Kind,
     labels: DialogLabels,
+    /// The host passed `labels`; otherwise they are read from the installed words when shown.
+    labels_set: bool,
     ok: Label,
     cancel: Label,
     apply: Option<String>,
@@ -158,6 +160,7 @@ impl<'a> Footer<'a> {
         Self {
             kind,
             labels: DialogLabels::default(),
+            labels_set: false,
             ok: Label::Default,
             cancel: Label::Default,
             apply: None,
@@ -199,6 +202,7 @@ impl<'a> Footer<'a> {
     /// The translated labels of the buttons the host doesn't name.
     pub fn labels(mut self, labels: DialogLabels) -> Self {
         self.labels = labels;
+        self.labels_set = true;
         self
     }
 
@@ -325,6 +329,12 @@ impl<'a> Footer<'a> {
         self.enter
     }
 
+    fn resolve_labels(&mut self, ui: &Ui) {
+        if !self.labels_set {
+            self.labels = DialogLabels::of(ui);
+        }
+    }
+
     fn alt_reset(&self, ui: &Ui) -> Option<&str> {
         let Reset::AltCancel(label) = self.reset.as_ref()?;
         ui.input(|i| i.modifiers.alt).then_some(label.as_str())
@@ -358,6 +368,7 @@ impl<'a> Footer<'a> {
     /// Shows a [`standard`](Footer::standard) or [`custom`](Footer::custom) footer in the room
     /// `ui` has.
     pub(super) fn show_row(mut self, ui: &mut Ui, cx: FooterCx, preview: &mut Preview) -> FooterRun {
+        self.resolve_labels(ui);
         if let Some(draw) = self.custom.take() {
             let mut fx = FooterFx { cx, hint: self.labels.default_hint.clone(), run: FooterRun::default(), rows: 0 };
             draw(ui, &mut fx);
@@ -404,6 +415,7 @@ impl<'a> Footer<'a> {
     /// Shows a [`side`](Footer::side) footer: `body` at the start side and the button column at
     /// the trailing side of the room `ui` has.
     pub(super) fn show_side(mut self, ui: &mut Ui, cx: FooterCx, body: impl FnOnce(&mut Ui)) -> FooterRun {
+        self.resolve_labels(ui);
         let tokens = Tokens::of(ui);
         let t = tokens.component.dialog;
         let mut labels: Vec<(ButtonRole, String)> = Vec::new();

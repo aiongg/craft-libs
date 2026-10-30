@@ -8,11 +8,13 @@ use egui::containers::menu::{MenuConfig, MenuState, SubMenu};
 use egui::style::StyleModifier;
 use egui::{Align, Id, Key, Layout, Modifiers, Popup, PopupCloseBehavior, PopupKind, Response, Sense, Ui, UiKind, UiStackInfo, Vec2, vec2};
 
+use super::bar::MenuBarLabels;
 use super::item::{MenuEntry, MenuItem, at_path};
 use super::mnemonic;
 use super::nav::{MenuStep, Nav, Row, Strips};
 use super::row::{self, Columns, MenuStyle, RowContent, RowPainter, RowState};
 use crate::controls::TooltipExt as _;
+use crate::localized::Labels as _;
 use crate::popup_list;
 use crate::primitives::Interactive;
 use crate::theme::{Tokens, TokensOf as _, UiTokens};
@@ -87,8 +89,8 @@ pub struct Menu<'a, T> {
     pressing: bool,
     keyboard: bool,
     top_limit: Option<f32>,
-    scroll_up: Cow<'a, str>,
-    scroll_down: Cow<'a, str>,
+    /// `None`: the installed words' strip names.
+    scroll_labels: Option<(Cow<'a, str>, Cow<'a, str>)>,
     header: Option<&'a mut dyn FnMut(&mut Ui) -> bool>,
     restart: bool,
 }
@@ -114,17 +116,7 @@ pub struct MenuResponse<T> {
 
 impl<'a, T: Clone> Menu<'a, T> {
     pub fn new(entries: &'a [MenuEntry<T>]) -> Self {
-        Self {
-            entries,
-            size: ControlSize::Md,
-            pressing: false,
-            keyboard: false,
-            top_limit: None,
-            scroll_up: Cow::Borrowed("Scroll menu up"),
-            scroll_down: Cow::Borrowed("Scroll menu down"),
-            header: None,
-            restart: false,
-        }
+        Self { entries, size: ControlSize::Md, pressing: false, keyboard: false, top_limit: None, scroll_labels: None, header: None, restart: false }
     }
 
     /// The rows' size; [`ControlSize::Md`] by default.
@@ -154,11 +146,10 @@ impl<'a, T: Clone> Menu<'a, T> {
         self
     }
 
-    /// The accessible names of the scroll strips, translated; "Scroll menu up" and "Scroll menu
-    /// down" by default.
+    /// The accessible names of the scroll strips, translated; the installed words' ("Scroll menu up"
+    /// and "Scroll menu down" in English) by default.
     pub fn scroll_labels(mut self, up: impl Into<Cow<'a, str>>, down: impl Into<Cow<'a, str>>) -> Self {
-        self.scroll_up = up.into();
-        self.scroll_down = down.into();
+        self.scroll_labels = Some((up.into(), down.into()));
         self
     }
 
@@ -207,18 +198,19 @@ impl<'a, T: Clone> Menu<'a, T> {
         let escape = shown_before && ctx.input(|i| i.key_pressed(Key::Escape));
         let underline = mnemonics && (nav.underline || ctx.input(|i| i.modifiers.alt));
         let released = ctx.input(|i| i.pointer.primary_released());
+        let (scroll_up, scroll_down) = match &self.scroll_labels {
+            Some((up, down)) => (up.clone(), down.clone()),
+            None => {
+                let labels = MenuBarLabels::of(ui);
+                (Cow::Owned(labels.scroll_up), Cow::Owned(labels.scroll_down))
+            }
+        };
         let mut draw = Draw {
             painter: RowPainter { style: &style, tokens: &tokens, size: self.size },
             pressing: self.pressing && released,
             mnemonics,
             underline,
-            strips: Strips {
-                height: style.scroll_strip,
-                live: style.rows.text,
-                dead: style.rows.text_disabled,
-                up: &self.scroll_up,
-                down: &self.scroll_down,
-            },
+            strips: Strips { height: style.scroll_strip, live: style.rows.text, dead: style.rows.text_disabled, up: &scroll_up, down: &scroll_down },
             chosen: None,
             header: self.header.map(|h| h as &mut dyn FnMut(&mut Ui) -> bool),
             typing: false,

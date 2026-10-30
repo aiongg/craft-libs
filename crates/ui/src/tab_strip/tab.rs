@@ -19,28 +19,24 @@ use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 use crate::typed_story;
 
-/// The words of a strip the host translates: the overflow button's name, the × and the modified
-/// state. `{tab}` stands for the tab's label.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TabStripText {
-    /// The name of the overflow button ("More documents", "More panels").
-    pub more: String,
-    /// The name of a tab's × ("Close {tab}").
-    pub close: String,
-    /// The name of a modified tab ("{tab}, modified").
-    pub modified: String,
-}
-
-impl Default for TabStripText {
-    fn default() -> Self {
-        Self { more: "More tabs".to_owned(), close: "Close {tab}".to_owned(), modified: "{tab}, modified".to_owned() }
+crate::words! {
+    /// The words of a strip: the overflow button's name, the × and the modified state. `{tab}`
+    /// stands for the tab's label. A strip the host gave no text takes it from the installed
+    /// [`Words`](crate::localized::Words).
+    pub struct TabStripText {
+        /// The name of the overflow button ("More documents", "More panels").
+        more: "tab.more" = "More tabs";
+        /// The name of a tab's × .
+        close: "tab.close" = "Close {tab}";
+        /// The name of a modified tab.
+        modified: "tab.modified" = "{tab}, modified";
     }
 }
 
 impl TabStripText {
     /// `pattern` with `{tab}` replaced by `tab`.
     pub fn fill(pattern: &str, tab: &str) -> String {
-        pattern.replace("{tab}", tab)
+        craft_i18n::fmt(pattern, &[("tab", tab)])
     }
 }
 

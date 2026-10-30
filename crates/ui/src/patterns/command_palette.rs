@@ -7,6 +7,7 @@ use crate::behavior::{CommandSearch, ListOptions, Listbox, PaletteEntry, take_ke
 use crate::composites::live;
 use crate::controls::{Kbd, SearchField};
 use crate::dialog::pass::{self, Entry};
+use crate::localized::{Labels as _, Words};
 use crate::menu::row::{Columns, MenuStyle, RowContent, RowPainter, RowState};
 use crate::menu::{self, ItemKind, MenuEntry, MenuItem};
 use crate::primitives::{Content, Divider, Interactive, Surface, SurfaceKind, SurfaceStyle, Text};
@@ -43,36 +44,24 @@ pub struct CommandPaletteStyle {
     pub surface: SurfaceStyle,
 }
 
-/// The texts of a palette, translated by the host.
-#[derive(Clone, Debug)]
-pub struct PaletteLabels {
-    /// The dialog's accessible name: "Command palette".
-    pub name: String,
-    /// The search field's name: "Search commands".
-    pub search: String,
-    /// The field's placeholder: "Search commands, tools and panels…".
-    pub placeholder: String,
-    /// The field's clear button: "Clear".
-    pub clear: String,
-    /// Shown when nothing matches: "No matching commands".
-    pub empty: String,
-    /// The key hint under the list: "↑↓ navigate  Enter run  esc close".
-    pub hint: String,
-    /// The announcement of the number of results, `{n}` standing for it: "{n} results".
-    pub results: String,
-}
-
-impl Default for PaletteLabels {
-    fn default() -> Self {
-        Self {
-            name: "Command palette".into(),
-            search: "Search commands".into(),
-            placeholder: "Search commands, tools and panels…".into(),
-            clear: "Clear".into(),
-            empty: "No matching commands".into(),
-            hint: "↑↓ navigate  Enter run  esc close".into(),
-            results: "{n} results".into(),
-        }
+crate::words! {
+    /// The texts of a palette, English by default; a palette the host gave no labels takes them
+    /// from the installed [`Words`](crate::localized::Words).
+    pub struct PaletteLabels {
+        /// The dialog's accessible name.
+        name: "palette.name" = "Command palette";
+        /// The search field's name.
+        search: "palette.search" = "Search commands";
+        /// The field's placeholder.
+        placeholder: "palette.placeholder" = "Search commands, tools and panels…";
+        /// The field's clear button.
+        clear: "palette.clear" = "Clear";
+        /// Shown when nothing matches.
+        empty: "palette.empty" = "No matching commands";
+        /// The key hint under the list.
+        hint: "palette.hint" = "↑↓ navigate  Enter run  esc close";
+        /// The announcement of the number of results, `{n}` standing for it.
+        results: "palette.results" = "{n} results";
     }
 }
 
@@ -132,17 +121,20 @@ pub struct CommandPalette<'a, 'r, T> {
     id: Id,
     entries: &'a [PaletteEntry<T>],
     labels: PaletteLabels,
+    /// The host passed `labels`; otherwise they are read from the installed words when shown.
+    labels_set: bool,
     recents: Option<&'r mut Vec<T>>,
 }
 
 impl<'a, 'r, T> CommandPalette<'a, 'r, T> {
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug, entries: &'a [PaletteEntry<T>]) -> Self {
-        Self { id: Id::unique(("craft_ui::command_palette", id)), entries, labels: PaletteLabels::default(), recents: None }
+        Self { id: Id::unique(("craft_ui::command_palette", id)), entries, labels: PaletteLabels::english(), labels_set: false, recents: None }
     }
 
     /// The texts, translated.
     pub fn labels(mut self, labels: PaletteLabels) -> Self {
         self.labels = labels;
+        self.labels_set = true;
         self
     }
 
@@ -212,6 +204,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> CommandPalette<'a, '_, T>
             return None;
         }
         let mut state: State = ctx.data(|d| d.get_temp(state_id)).unwrap_or_default();
+        if !self.labels_set {
+            self.labels = PaletteLabels::english().localized_in(&Words::of_ctx(ctx));
+        }
         let tokens = current(ctx);
         let style = CommandPalette::style(&tokens);
         let recents_id = self.id.with("recent");
@@ -316,7 +311,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> CommandPalette<'a, '_, T>
         let count = if state.query.trim().is_empty() { None } else { Some(shown.len()) };
         let announcement = match count {
             Some(0) => Some(self.labels.empty.clone()),
-            Some(n) => Some(self.labels.results.replace("{n}", &n.to_string())),
+            Some(n) => Some(craft_i18n::fmt(&self.labels.results, &[("n", &n.to_string())])),
             None => None,
         };
         if let Some(text) = announcement {

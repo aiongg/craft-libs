@@ -20,6 +20,7 @@ use crate::behavior::{Axis, DragEnd, DropPosition, ListDrag, Move, Reorder, Reor
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::{self, Icon, IconSize};
+use crate::localized::Labels as _;
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::popup_list;
 use crate::primitives::{FocusRing, Interactive};
@@ -204,6 +205,8 @@ pub struct TabStrip<'a, K> {
     leading: Option<HostArea<'a>>,
     trailing: Option<HostArea<'a>>,
     text: TabStripText,
+    /// The host passed `text`; otherwise it is read from the installed words when shown.
+    text_set: bool,
     controls: Option<Id>,
 }
 
@@ -226,6 +229,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TabStrip<'a, K> {
             leading: None,
             trailing: None,
             text: TabStripText::default(),
+            text_set: false,
             controls: None,
         }
     }
@@ -304,6 +308,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TabStrip<'a, K> {
     /// The strip's words, translated by the host.
     pub fn text(mut self, text: TabStripText) -> Self {
         self.text = text;
+        self.text_set = true;
         self
     }
 
@@ -314,7 +319,10 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TabStrip<'a, K> {
     }
 
     /// Draws the strip on the available width and reads its input.
-    pub fn show(self, ui: &mut Ui, tabs: &[Tab<K>]) -> TabStripOutput<K> {
+    pub fn show(mut self, ui: &mut Ui, tabs: &[Tab<K>]) -> TabStripOutput<K> {
+        if !self.text_set {
+            self.text = TabStripText::of(ui);
+        }
         let id = ui.make_persistent_id(self.id_salt);
         let rtl = direction::is_rtl(ui);
         let style = Tab::<K>::style(&Tokens::of(ui));

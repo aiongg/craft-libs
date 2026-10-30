@@ -118,3 +118,26 @@ fn a_labels_struct_localized_with_identity_equals_its_default() {
     assert_eq!(*seen.borrow(), keys);
     assert_eq!(probe.opacity, "Deckkraft");
 }
+
+#[test]
+fn chrome_labels_localized_with_identity_equal_their_english() {
+    use crate::behavior::EditMenuLabels;
+    use crate::dialog::DialogLabels;
+    use crate::menu::MenuBarLabels;
+    use crate::panes::PaneLabels;
+    use crate::patterns::PaletteLabels;
+    use crate::preferences::PreferencesTexts;
+    use crate::tab_strip::TabStripText;
+
+    let identity = Words::new(|_| None);
+    macro_rules! check {
+        ($($labels:ty),*) => {$(
+            assert_eq!(<$labels>::english().localized_in(&identity), <$labels>::default());
+            assert_eq!(<$labels>::english().localized(|_| None), <$labels>::default());
+        )*};
+    }
+    check!(DialogLabels, MenuBarLabels, EditMenuLabels, PaletteLabels, TabStripText, PaneLabels);
+    let texts = <PreferencesTexts as Labels>::english().localized_in(&identity);
+    assert_eq!(format!("{texts:?}"), format!("{:?}", PreferencesTexts::english()));
+    assert_eq!(PreferencesTexts::WORDS.len(), 13);
+}

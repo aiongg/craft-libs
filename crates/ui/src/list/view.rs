@@ -28,6 +28,7 @@ use crate::behavior::{
 use crate::composites::SectionLabel;
 use crate::direction;
 use crate::edit::{self, EditEvent, GestureId};
+use crate::patterns::panel::ScrollBarLabels;
 use crate::popup_list;
 use crate::primitives::FocusRing;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
@@ -183,7 +184,8 @@ type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 pub struct List<'a, K, O: ?Sized> {
     id_salt: IdSalt,
     label: String,
-    scroll_bar_label: String,
+    /// `None`: the installed words' "Scroll bar".
+    scroll_bar_label: Option<String>,
     rows: &'a O,
     selection: Option<&'a mut Selection<K>>,
     mode: SelectionMode,
@@ -210,7 +212,7 @@ where
         Self {
             id_salt: IdSalt::new(id_salt),
             label: label.into(),
-            scroll_bar_label: "Scroll bar".to_owned(),
+            scroll_bar_label: None,
             rows,
             selection: None,
             mode: SelectionMode::Multiple,
@@ -294,7 +296,7 @@ where
 
     /// The scroll bar's name for a screen reader, translated by the host (default "Scroll bar").
     pub fn scroll_bar_label(mut self, label: impl Into<String>) -> Self {
-        self.scroll_bar_label = label.into();
+        self.scroll_bar_label = Some(label.into());
         self
     }
 
@@ -426,6 +428,7 @@ where
 
         let scroll_to = pass.scroll_target(&spans).or_else(|| pass.drag_scroll(&spans));
         let multiple = mode == SelectionMode::Multiple;
+        let scroll_bar_label = scroll_bar_label.unwrap_or_else(|| ScrollBarLabels::name(ui));
         let builder = UiBuilder::new()
             .scope_id(id)
             .sense(Sense::CLICK | Sense::FOCUSABLE)

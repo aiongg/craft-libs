@@ -30,6 +30,7 @@ use super::item::{MenuEntry, MenuItem};
 use super::{Menu, MenuStep, MenuStyle, mnemonic};
 use crate::controls::Kbd;
 use crate::direction;
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Interactive, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs, Surface};
 use crate::theme::{Tokens, TokensOf as _, UiTokens, role_format};
@@ -40,35 +41,23 @@ use search::Search;
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["MenuBar"];
 
-/// The labels a menu bar writes itself, translated by the app.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MenuBarLabels {
-    /// The menu of the titles that don't fit: "…".
-    pub more: String,
-    /// The one menu that holds every title when none fits: "Menu".
-    pub all: String,
-    /// The Help menu's search field: its name and placeholder, "Search menus".
-    pub search: String,
-    /// The search field's clear button: "Clear".
-    pub clear: String,
-    /// Shown below the search field when no command matches: "No matching commands".
-    pub no_matches: String,
-    /// The accessible names of a tall menu's scroll strips.
-    pub scroll_up: String,
-    pub scroll_down: String,
-}
-
-impl Default for MenuBarLabels {
-    fn default() -> Self {
-        Self {
-            more: "…".into(),
-            all: "Menu".into(),
-            search: "Search menus".into(),
-            clear: "Clear".into(),
-            no_matches: "No matching commands".into(),
-            scroll_up: "Scroll menu up".into(),
-            scroll_down: "Scroll menu down".into(),
-        }
+crate::words! {
+    /// The labels a menu bar writes itself, English by default; a bar the host gave no labels takes
+    /// them from the installed [`Words`](crate::localized::Words).
+    pub struct MenuBarLabels {
+        /// The menu of the titles that don't fit.
+        more: "menuBar.more" = "…";
+        /// The one menu that holds every title when none fits.
+        all: "menuBar.all" = "Menu";
+        /// The Help menu's search field: its name and placeholder.
+        search: "menuBar.search" = "Search menus";
+        /// The search field's clear button.
+        clear: "menuBar.clear" = "Clear";
+        /// Shown below the search field when no command matches.
+        no_matches: "menuBar.noMatches" = "No matching commands";
+        /// The accessible names of a tall menu's scroll strips.
+        scroll_up: "scroll.menuUp" = "Scroll menu up";
+        scroll_down: "scroll.menuDown" = "Scroll menu down";
     }
 }
 
@@ -314,8 +303,14 @@ impl<'a, T: Clone> MenuBar<'a, T> {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         let style = Menu::style(&tokens, self.size);
-        let default_labels = MenuBarLabels::default();
-        let labels = self.labels.unwrap_or(&default_labels);
+        let default_labels;
+        let labels = match self.labels {
+            Some(labels) => labels,
+            None => {
+                default_labels = MenuBarLabels::of(ui);
+                &default_labels
+            }
+        };
         let mut state: BarState = ctx.data(|d| d.get_temp(self.id)).unwrap_or_default();
         state.keys.take_leave(&ctx);
         let mnemonics = mnemonic::mnemonics(&ctx);

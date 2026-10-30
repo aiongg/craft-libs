@@ -4,6 +4,7 @@ use egui::accesskit::Role;
 use egui::{Color32, Context, CursorIcon, Id, Key, Modal, Modifiers, Order, Rect, ScrollArea, Ui, UiKind, Vec2};
 
 use super::buttons::{ButtonRole, Platform};
+use super::footer::DialogLabels;
 use super::footer::{Footer, FooterCx, FooterRun};
 use super::frame::{DialogFrame, DialogFrameResponse};
 use super::history::{LocalHistory, Step, take_step};
@@ -15,6 +16,7 @@ use super::size::{Body, Resize, remembered_size, scroll_height};
 use super::stack::{DialogId, DialogStack, dialog_id, older_above};
 use super::state::DialogState;
 use crate::edit::{self, OuterGesture};
+use crate::localized::Labels as _;
 use crate::popup_list;
 use crate::theme::{ToEgui, current};
 
@@ -160,7 +162,8 @@ pub struct Dialog<'a> {
     first_place: Option<FirstPlace>,
     center_over: Option<Rect>,
     footer: Footer<'a>,
-    close_label: Option<String>,
+    /// `None`: the installed words' "Close"; `Some(None)`: no close box.
+    close_label: Option<Option<String>>,
     outer_gesture: bool,
     initial_focus: InitialFocus,
     roomy: bool,
@@ -192,7 +195,7 @@ impl<'a> Dialog<'a> {
             first_place: None,
             center_over: None,
             footer: Footer::none(),
-            close_label: Some("Close".to_owned()),
+            close_label: None,
             outer_gesture: false,
             initial_focus: InitialFocus::Auto,
             roomy: false,
@@ -298,9 +301,9 @@ impl<'a> Dialog<'a> {
         self
     }
 
-    /// The close box's accessible name (default "Close"); `None` removes the box.
+    /// The close box's accessible name (default the installed words' "Close"); `None` removes the box.
     pub fn close_label(mut self, label: Option<String>) -> Self {
-        self.close_label = label;
+        self.close_label = Some(label);
         self
     }
 
@@ -429,8 +432,10 @@ impl<'a> Dialog<'a> {
                 ui.disable();
             }
             let mut frame = DialogFrame::new(id.with("frame"), title.as_str()).field_tab(true).roomy(roomy);
-            if let Some(label) = &close_label {
-                frame = frame.close_label(label.as_str());
+            match &close_label {
+                None => frame = frame.close_label(DialogLabels::of(ui).close),
+                Some(Some(label)) => frame = frame.close_label(label.as_str()),
+                Some(None) => {}
             }
             frame = match resize_sizes {
                 Some((r, max)) => frame.resize(

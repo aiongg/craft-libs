@@ -36,6 +36,20 @@ pub struct PanelOutput<R> {
     pub footer: Option<Rect>,
 }
 
+crate::words! {
+    /// The name every scroll area gives its scroll bar.
+    pub(crate) struct ScrollBarLabels {
+        name: "scroll.bar" = "Scroll bar";
+    }
+}
+
+impl ScrollBarLabels {
+    /// The scroll bar's name in the language of `ui`.
+    pub(crate) fn name(ui: &Ui) -> String {
+        crate::localized::Words::of(ui).get(<Self as crate::localized::Labels>::WORDS[0]).into_owned()
+    }
+}
+
 /// A panel body: padding, a vertical scroll area and an optional footer fixed under it.
 ///
 /// ```
@@ -67,20 +81,13 @@ pub struct Panel<'a> {
     fill: bool,
     footer: Option<FooterContent<'a>>,
     footer_label: Option<String>,
-    scroll_bar_label: String,
+    /// `None`: the installed words' "Scroll bar".
+    scroll_bar_label: Option<String>,
 }
 
 impl<'a> Panel<'a> {
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            title: None,
-            scroll: true,
-            fill: false,
-            footer: None,
-            footer_label: None,
-            scroll_bar_label: "Scroll bar".to_owned(),
-        }
+        Self { id_salt: IdSalt::new(id_salt), title: None, scroll: true, fill: false, footer: None, footer_label: None, scroll_bar_label: None }
     }
 
     /// The panel's accessible name. An embedded panel shows no title: the dock's tab does.
@@ -118,10 +125,10 @@ impl<'a> Panel<'a> {
         self
     }
 
-    /// The scroll bar's translated accessible name (default "Scroll bar").
+    /// The scroll bar's translated accessible name (default the installed words' "Scroll bar").
     #[must_use]
     pub fn scroll_bar_label(mut self, label: impl Into<String>) -> Self {
-        self.scroll_bar_label = label.into();
+        self.scroll_bar_label = Some(label.into());
         self
     }
 
@@ -156,7 +163,8 @@ impl<'a> Panel<'a> {
         }
         let footer_height = if self.footer.is_some() { style.footer_height.min(rect.height()) } else { 0.0 };
         let body = Rect::from_min_max(rect.min, pos2(rect.right(), rect.bottom() - footer_height));
-        let inner = Panel::show_body(&mut panel, body, &style, self.scroll.then_some(self.scroll_bar_label.as_str()), add);
+        let scroll_bar_label = self.scroll_bar_label.clone().unwrap_or_else(|| ScrollBarLabels::name(ui));
+        let inner = Panel::show_body(&mut panel, body, &style, self.scroll.then_some(scroll_bar_label.as_str()), add);
         let footer = self.footer.map(|add| {
             let footer = Rect::from_min_max(pos2(rect.left(), rect.bottom() - footer_height), rect.max);
             Panel::show_footer(&mut panel, footer, &tokens, self.footer_label.as_deref(), add);

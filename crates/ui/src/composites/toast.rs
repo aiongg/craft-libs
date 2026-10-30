@@ -13,6 +13,7 @@ use super::notice::tone_icon;
 use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::{Icon, IconSize};
+use crate::localized::Labels as _;
 use crate::primitives::{Surface, SurfaceEdge, SurfaceKind};
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, UiTokens, corner_radius, reshape_shadow, role_format};
@@ -131,6 +132,16 @@ struct Laid {
     height: f32,
 }
 
+crate::words! {
+    /// The text a toast stack writes itself.
+    pub(crate) struct ToastLabels {
+        /// The accessible name of a card's close button.
+        dismiss: "toast.dismiss" = "Dismiss";
+        /// The line that stands for the bullets left out; `{n}` is their number.
+        more: "toast.more" = "…and {n} more";
+    }
+}
+
 /// A stack of toast cards in the bottom corner at the reading end of a rect: bottom right, or
 /// bottom left in a right-to-left interface. Newest at the bottom, nearest the corner, at most
 /// three; each card is a popup surface with the tone's icon, title and edge, an optional list of
@@ -172,8 +183,10 @@ struct Laid {
 pub struct ToastStack {
     id: Id,
     auto_hide: Option<Duration>,
-    dismiss_label: String,
-    more_label: Box<dyn Fn(usize) -> String>,
+    /// `None`: the installed words' "Dismiss".
+    dismiss_label: Option<String>,
+    /// `None`: the installed words' "…and {n} more".
+    more_label: Option<Box<dyn Fn(usize) -> String>>,
 }
 
 impl ToastStack {
@@ -182,8 +195,8 @@ impl ToastStack {
         Self {
             id: Id::unique("craft_ui::composites::ToastStack").with(id_salt),
             auto_hide: Some(Duration::from_secs(6)),
-            dismiss_label: "Dismiss".to_owned(),
-            more_label: Box::new(|n| format!("…and {n} more")),
+            dismiss_label: None,
+            more_label: None,
         }
     }
 
@@ -195,13 +208,13 @@ impl ToastStack {
 
     /// The accessible name and tooltip of the close button; the host passes the translation.
     pub fn dismiss_label(mut self, label: impl Into<String>) -> Self {
-        self.dismiss_label = label.into();
+        self.dismiss_label = Some(label.into());
         self
     }
 
     /// The "…and n more" line, given the number of lines left out.
     pub fn more_label(mut self, label: impl Fn(usize) -> String + 'static) -> Self {
-        self.more_label = Box::new(label);
+        self.more_label = Some(Box::new(label));
         self
     }
 
@@ -359,7 +372,11 @@ impl ToastStack {
         let line_width = (geometry.inner - bullet.size().x - geometry.gap).max(0.0);
         let lines: Vec<_> = toast.lines.iter().take(MAX_LINES).map(|line| galley(style.line_role, style.line, line, line_width)).collect();
         let more = (toast.lines.len() > MAX_LINES).then(|| {
-            let text = (self.more_label)(toast.lines.len() - MAX_LINES);
+            let left = toast.lines.len() - MAX_LINES;
+            let text = match &self.more_label {
+                Some(more) => more(left),
+                None => craft_i18n::fmt(&ToastLabels::of(ui).more, &[("n", &left.to_string())]),
+            };
             let laid = galley(style.line_role, style.more, &text, geometry.inner);
             (text, laid)
         });
@@ -376,6 +393,7 @@ impl ToastStack {
         let geometry = Geometry::new(tokens, &style, toast.tone, rect.width());
         let slot = ui.painter().add(Shape::Noop);
         let (role, politeness) = live::for_tone(toast.tone);
+        let dismiss = self.dismiss_label.clone().unwrap_or_else(|| ToastLabels::of(ui).dismiss);
         let content = UiBuilder::new().max_rect(rect.shrink(style.pad)).layout(direction::column(ui));
         let button = ui
             .scope_builder(content, |ui| {
@@ -392,7 +410,7 @@ impl ToastStack {
                             labels.add(toast.title.as_str());
                         });
                         let (_, square) = ui.allocate_space(vec2(geometry.side, geometry.side));
-                        IconButton::new(Icon::Close, self.dismiss_label.as_str()).size(ControlSize::Sm).id_salt("dismiss").show_at(ui, square)
+                        IconButton::new(Icon::Close, dismiss.as_str()).size(ControlSize::Sm).id_salt("dismiss").show_at(ui, square)
                     });
                     for (line, galley) in toast.lines.iter().zip(&laid.lines) {
                         let height = galley.size().y.max(laid.bullet.size().y);
