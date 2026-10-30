@@ -7,10 +7,11 @@ use egui::{CursorIcon, Response, Ui, vec2};
 use super::ramp::GradientRamp;
 use super::stops::{Sampler, default_sampler};
 use super::value::{ColorStop, GradientStops, OpacityStop, StopRows};
-use crate::controls::{SIZE_NAMES, Swatch, size_arg};
+use crate::controls::Swatch;
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, SizeArg, Story, StoryArgs};
 use crate::theme::{Tokens, TokensOf};
+use crate::typed_story;
 use egui::{AsIdSalt, IdSalt};
 
 /// A well that shows a gradient and reports a click, as [`Swatch`] does for a colour:
@@ -108,20 +109,27 @@ impl<'a> GradientSwatch<'a> {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "composites/gradient/swatch",
         Level::Composites,
         "GradientSwatch",
         "Swatch and ramp",
-        || Args::new().with_choice("size", SIZE_NAMES, 1).with_number("width", 96.0, 24.0, 300.0).with_bool("enabled", true),
-        show_swatch,
+        SwatchArgs { size: SizeArg::Md, width: 96.0, enabled: true },
+        show_swatch
     )]
 }
 
-fn show_swatch(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let width = args.number("width") as f32;
-    let enabled = args.bool("enabled");
+#[derive(StoryArgs, Debug, PartialEq)]
+struct SwatchArgs {
+    size: SizeArg,
+    #[arg(range = 24.0..=300.0)]
+    width: f32,
+    enabled: bool,
+}
+
+fn show_swatch(ui: &mut Ui, args: &mut SwatchArgs) {
+    let size = args.size.control();
+    let (width, enabled) = (args.width, args.enabled);
     let color = |at: f32, [r, g, b]: [u8; 3]| ColorStop::new(at, Srgba::from(Rgba::rgb(r, g, b)));
     let mut centred = GradientStops::new(vec![color(0.0, [0xf5, 0xa5, 0x24]), color(1.0, [0x3e, 0x63, 0xdd])]);
     let mut skewed = centred.clone();

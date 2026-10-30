@@ -8,8 +8,9 @@ use egui::{Align, AsIdSalt, Color32, IdSalt, Label, Response, Ui, UiBuilder, vec
 use super::live;
 use crate::direction;
 use crate::icons::{self, IconSize};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// A notice's sizes, type roles and colours, from [`Notice::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -165,19 +166,27 @@ pub(super) fn tone_icon(ui: &mut Ui, tone: Tone, size: IconSize, line_height: f3
 pub const COMPONENTS: &[&str] = &["Notice"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "composites/notice/tones",
         Level::Composites,
         "Notice",
         "Tones",
-        || Args::new().with_bool("announce", true).with_bool("title", true).with_number("width", 320.0, 120.0, 480.0),
-        show_tones,
+        TonesArgs { announce: true, title: true, width: 320.0 },
+        show_tones
     )]
 }
 
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct TonesArgs {
+    announce: bool,
+    title: bool,
+    #[arg(range = 120.0..=480.0)]
+    width: f32,
+}
+
 /// The five tones on the panel and on a dialog surface.
-pub(super) fn show_tones(ui: &mut Ui, args: &mut Args) {
-    let (width, announce, title) = (args.number("width") as f32, args.bool("announce"), args.bool("title"));
+pub(super) fn show_tones(ui: &mut Ui, args: &mut TonesArgs) {
+    let (width, announce, title) = (args.width, args.announce, args.title);
     for (surface, name) in [(crate::primitives::SurfaceKind::Panel, "Panel"), (crate::primitives::SurfaceKind::Dialog, "Dialog")] {
         ui.add(crate::primitives::Text::new(name).role(TypeRole::Label).content(crate::primitives::Content::Muted));
         ui.allocate_ui(vec2(width, 0.0), |ui| {

@@ -10,8 +10,9 @@ use crate::controls::Button;
 use crate::direction;
 use crate::icons::{Icon, IconSize};
 use crate::primitives::{Content, Icon as IconWidget};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// An empty state's sizes, type roles and colours, from [`EmptyState::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -282,36 +283,52 @@ pub const COMPONENTS: &[&str] = &["EmptyState"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "composites/empty-state/panel",
             Level::Composites,
             "EmptyState",
             "Panel",
-            || Args::new().with_text("search", "zzz").with_bool("status", true).with_number("width", 260.0, 100.0, 400.0),
-            show_panel,
+            PanelArgs { search: "zzz".into(), status: true, width: 260.0 },
+            show_panel
         ),
-        Story::new(
+        typed_story!(
             "composites/empty-state/canvas",
             Level::Composites,
             "EmptyState",
             "Canvas",
-            || Args::new().with_number("width", 640.0, 200.0, 800.0).with_number("height", 360.0, 200.0, 600.0),
-            show_canvas,
+            CanvasArgs { width: 640.0, height: 360.0 },
+            show_canvas
         ),
     ]
 }
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct PanelArgs {
+    search: String,
+    status: bool,
+    #[arg(range = 100.0..=400.0)]
+    width: f32,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct CanvasArgs {
+    #[arg(range = 200.0..=800.0)]
+    width: f32,
+    #[arg(range = 200.0..=600.0)]
+    height: f32,
+}
+
 /// A list filtered by the search text: matches show as rows, none shows the inline empty state.
-fn show_panel(ui: &mut Ui, args: &mut Args) {
+fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
     const ITEMS: [&str; 3] = ["New layer", "Open file", "Save as"];
-    let width = args.number("width") as f32;
-    let needle = args.text("search").to_lowercase();
+    let width = args.width;
+    let needle = args.search.to_lowercase();
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         let matches: Vec<&str> = ITEMS.into_iter().filter(|item| item.to_lowercase().contains(&needle)).collect();
         if matches.is_empty() {
             let empty = EmptyState::new("No matching commands");
-            empty.status_if(args.bool("status")).show(ui);
+            empty.status_if(args.status).show(ui);
         } else {
             for item in matches {
                 ui.label(item);
@@ -321,8 +338,8 @@ fn show_panel(ui: &mut Ui, args: &mut Args) {
 }
 
 /// The no-document screen: title, description, two actions and a footer.
-fn show_canvas(ui: &mut Ui, args: &mut Args) {
-    let size = vec2(args.number("width") as f32, args.number("height") as f32);
+fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
+    let size = vec2(args.width, args.height);
     ui.allocate_ui(size, |ui| {
         ui.set_min_size(size);
         EmptyState::centred("No document")

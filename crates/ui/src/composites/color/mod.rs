@@ -47,8 +47,9 @@ use crate::controls::slider::{self, Scale};
 use crate::edit::{self, EditEvent};
 use crate::localized::LocaleNumbers;
 use crate::primitives::{Content, Gap, Row, Stack, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// What the area and the strip show: the strip's component and the area's two, across (growing to
 /// the right) and down (growing upwards). The nine modes of PhotoCraft's Color Picker, with
@@ -292,69 +293,135 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["ColorArea", "ColorPicker", "ColorPopover", "HexField", "SwatchPair", "SwatchPalette"];
 
-const MODE_NAMES: &[&str] = &["H", "S", "B", "R", "G", "B (blue)", "L", "a", "b", "OKLCH L", "OKLCH C", "OKLCH H"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum ModeArg {
+    #[choice(name = "H")]
+    H,
+    #[choice(name = "S")]
+    S,
+    #[choice(name = "B")]
+    B,
+    #[choice(name = "R")]
+    R,
+    #[choice(name = "G")]
+    G,
+    #[choice(name = "B (blue)")]
+    BBlue,
+    #[choice(name = "L")]
+    L,
+    #[choice(name = "a")]
+    A,
+    #[choice(name = "b")]
+    Bb,
+    #[choice(name = "OKLCH L")]
+    OklchL,
+    #[choice(name = "OKLCH C")]
+    OklchC,
+    #[choice(name = "OKLCH H")]
+    OklchH,
+}
+
+impl ModeArg {
+    /// The mode at this option's position in [`AreaMode::PHOTOSHOP`] then [`AreaMode::OKLCH`].
+    fn mode(self) -> AreaMode {
+        AreaMode::PHOTOSHOP.into_iter().chain(AreaMode::OKLCH).nth(self as usize).unwrap_or_default()
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct PartsArgs {
+    mode: ModeArg,
+    compact: bool,
+    disabled: bool,
+    #[arg(name = "web colours only")]
+    web_colours_only: bool,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct CompactArgs {
+    alpha: bool,
+    eyedropper: bool,
+    #[arg(name = "dynamic tracks")]
+    dynamic_tracks: bool,
+    #[arg(name = "web colours only")]
+    web_colours_only: bool,
+    disabled: bool,
+    #[arg(range = 160.0..=480.0)]
+    width: f32,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct PopoverArgs {
+    size: SizeArg,
+    alpha: bool,
+    eyedropper: bool,
+    disabled: bool,
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum DigitsArg {
+    #[choice(name = "2")]
+    Two,
+    #[choice(name = "1")]
+    One,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct HexFieldArgs {
+    digits: DigitsArg,
+    alpha: bool,
+    disabled: bool,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct PaletteArgs {
+    size: SizeArg,
+    #[arg(range = 60.0..=400.0)]
+    width: f32,
+    disabled: bool,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     let mut stories = vec![
-        Story::new(
+        typed_story!(
             "composites/color-area/parts",
             Level::Composites,
             "ColorArea",
             "Area and strip",
-            || {
-                Args::new()
-                    .with_choice("mode", MODE_NAMES, 0)
-                    .with_bool("compact", false)
-                    .with_bool("disabled", false)
-                    .with_bool("web colours only", false)
-            },
-            show_parts,
+            PartsArgs { mode: ModeArg::H, compact: false, disabled: false, web_colours_only: false },
+            show_parts
         ),
-        Story::new(
+        typed_story!(
             "composites/color/compact",
             Level::Composites,
             "ColorPicker",
             "Compact",
-            || {
-                Args::new()
-                    .with_bool("alpha", false)
-                    .with_bool("eyedropper", true)
-                    .with_bool("dynamic tracks", true)
-                    .with_bool("web colours only", false)
-                    .with_bool("disabled", false)
-                    .with_number("width", 260.0, 160.0, 480.0)
-            },
-            show_compact,
+            CompactArgs { alpha: false, eyedropper: true, dynamic_tracks: true, web_colours_only: false, disabled: false, width: 260.0 },
+            show_compact
         ),
-        Story::new(
+        typed_story!(
             "composites/color/popover",
             Level::Composites,
             "ColorPopover",
             "Popover",
-            || {
-                Args::new()
-                    .with_choice("size", crate::controls::SIZE_NAMES, 1)
-                    .with_bool("alpha", true)
-                    .with_bool("eyedropper", true)
-                    .with_bool("disabled", false)
-            },
-            show_popover,
+            PopoverArgs { size: SizeArg::Md, alpha: true, eyedropper: true, disabled: false },
+            show_popover
         ),
-        Story::new(
+        typed_story!(
             "composites/color/hex-field",
             Level::Composites,
             "HexField",
             "Hex field",
-            || Args::new().with_choice("digits", &["2", "1"], 0).with_bool("alpha", false).with_bool("disabled", false),
-            show_hex_field,
+            HexFieldArgs { digits: DigitsArg::Two, alpha: false, disabled: false },
+            show_hex_field
         ),
-        Story::new(
+        typed_story!(
             "composites/color/palette",
             Level::Composites,
             "SwatchPalette",
             "Palette",
-            || Args::new().with_choice("size", crate::controls::SIZE_NAMES, 1).with_number("width", 200.0, 60.0, 400.0).with_bool("disabled", false),
-            show_palette,
+            PaletteArgs { size: SizeArg::Md, width: 200.0, disabled: false },
+            show_palette
         ),
     ];
     stories.extend(full_stories::stories());
@@ -364,19 +431,19 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// A Compact picker editing one colour as a panel does: every event applied, a cancel puts the
 /// colour from before the gesture back; the eyedropper "samples" orange at once.
-fn show_compact(ui: &mut Ui, args: &mut Args) {
+fn show_compact(ui: &mut Ui, args: &mut CompactArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let start = craft_theme::Srgba::new(0.2, 0.55, 0.8, 1.0);
     slider::with_values(ui, "color-compact", [(start, start, String::new())], |ui, state| {
         let (color, before, last) = &mut state[0];
-        ui.set_width(args.number("width") as f32);
-        let mut web = args.bool("web colours only");
+        ui.set_width(args.width);
+        let mut web = args.web_colours_only;
         let mut picker = ColorPicker::new("color-compact", "Foreground colour", *color, &numbers)
             .web_colors(&mut web)
-            .alpha(args.bool("alpha"))
-            .dynamic_tracks(args.bool("dynamic tracks"))
-            .enabled(!args.bool("disabled"));
-        if args.bool("eyedropper") {
+            .alpha(args.alpha)
+            .dynamic_tracks(args.dynamic_tracks)
+            .enabled(!args.disabled);
+        if args.eyedropper {
             picker = picker.eyedropper("Pick screen color");
         }
         let picked = picker.show(ui);
@@ -408,12 +475,10 @@ fn web_color(c: craft_theme::Srgba) -> craft_theme::Srgba {
 
 /// An area and a strip in a mode, editing one colour that keeps the values last edited, as a
 /// picker keeps them.
-fn show_parts(ui: &mut Ui, args: &mut Args) {
-    let chosen = args.choice("mode");
-    let mode =
-        AreaMode::PHOTOSHOP.into_iter().chain(AreaMode::OKLCH).zip(MODE_NAMES).find_map(|(m, n)| (*n == chosen).then_some(m)).unwrap_or_default();
-    let (compact, enabled) = (args.bool("compact"), !args.bool("disabled"));
-    let web = args.bool("web colours only");
+fn show_parts(ui: &mut Ui, args: &mut PartsArgs) {
+    let mode = args.mode.mode();
+    let (compact, enabled) = (args.compact, !args.disabled);
+    let web = args.web_colours_only;
     let model = mode.model();
     let start = craft_theme::Srgba::rgb(0.2, 0.55, 0.8);
     slider::with_values(ui, "color-parts", [(start, None::<ModelValues>)], |ui, state| {
@@ -447,18 +512,17 @@ fn show_parts(ui: &mut Ui, args: &mut Args) {
 
 /// A colour popover on a colour that a palette under it also sets; the eyedropper "samples" orange
 /// at once.
-fn show_popover(ui: &mut Ui, args: &mut Args) {
+fn show_popover(ui: &mut Ui, args: &mut PopoverArgs) {
     let numbers = LocaleNumbers::from_tag("en");
-    let size = crate::controls::size_arg(args.choice("size"));
+    let size = args.size.control();
     let start = craft_theme::Srgba::new(0.2, 0.55, 0.8, 1.0);
     slider::with_values(ui, "color-popover", [(start, String::new())], |ui, state| {
         let (color, last) = &mut state[0];
-        let (alpha, eyedropper) = (args.bool("alpha"), args.bool("eyedropper"));
-        let popover =
-            ColorPopover::new("color-popover", "Fill colour", *color, &numbers).size(size).enabled(!args.bool("disabled")).picker(|picker| {
-                let picker = picker.alpha(alpha);
-                if eyedropper { picker.eyedropper("Pick screen color") } else { picker }
-            });
+        let (alpha, eyedropper) = (args.alpha, args.eyedropper);
+        let popover = ColorPopover::new("color-popover", "Fill colour", *color, &numbers).size(size).enabled(!args.disabled).picker(|picker| {
+            let picker = picker.alpha(alpha);
+            if eyedropper { picker.eyedropper("Pick screen color") } else { picker }
+        });
         let shown = popover.show(ui);
         if shown.eyedropper_requested
             && let Some(id) = shown.picker_id
@@ -476,14 +540,13 @@ fn show_popover(ui: &mut Ui, args: &mut Args) {
 }
 
 /// A hex field on a colour; one digit per channel takes web colours as `RGB`.
-fn show_hex_field(ui: &mut Ui, args: &mut Args) {
+fn show_hex_field(ui: &mut Ui, args: &mut HexFieldArgs) {
     let start = craft_theme::Rgba::rgb(0x33, 0x66, 0x99);
     slider::with_values(ui, "color-hex-field", [(start, String::new())], |ui, state| {
         let (color, last) = &mut state[0];
-        let digits = if args.choice("digits") == "1" { 1 } else { 2 };
+        let digits = if args.digits == DigitsArg::One { 1 } else { 2 };
         ui.set_width(160.0);
-        let edit =
-            HexField::new("color-hex-field", "Hex colour", *color).digits(digits).alpha(args.bool("alpha")).enabled(!args.bool("disabled")).show(ui);
+        let edit = HexField::new("color-hex-field", "Hex colour", *color).digits(digits).alpha(args.alpha).enabled(!args.disabled).show(ui);
         if let Some(event) = &edit.event {
             if let Some(c) = event.value() {
                 *color = *c;
@@ -510,14 +573,14 @@ const PALETTE: [(&str, [u8; 3]); 12] = [
 ];
 
 /// Twelve swatches wrapping to the width, choosing one colour.
-fn show_palette(ui: &mut Ui, args: &mut Args) {
-    let size = crate::controls::size_arg(args.choice("size"));
+fn show_palette(ui: &mut Ui, args: &mut PaletteArgs) {
+    let size = args.size.control();
     let start = craft_theme::Srgba::from(craft_theme::Rgba::rgb(0x3e, 0x63, 0xdd));
     slider::with_values(ui, "color-palette", [(start, String::new())], |ui, state| {
         let (color, last) = &mut state[0];
-        ui.set_width(args.number("width") as f32);
+        ui.set_width(args.width);
         let swatches = PALETTE.map(|(name, [r, g, b])| (name, craft_theme::Srgba::from(craft_theme::Rgba::rgb(r, g, b))));
-        let picked = SwatchPalette::new("color-palette", "Swatches", *color, swatches).size(size).enabled(!args.bool("disabled")).show(ui);
+        let picked = SwatchPalette::new("color-palette", "Swatches", *color, swatches).size(size).enabled(!args.disabled).show(ui);
         if let Some(event) = &picked.event {
             if let Some(c) = event.value() {
                 *color = *c;

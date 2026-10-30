@@ -8,8 +8,9 @@ use egui::{Rect, Response, Stroke, Ui, UiBuilder, pos2, vec2};
 use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::Icon;
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// A panel footer's bar, rule and buttons, from [`PanelFooter::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -99,8 +100,16 @@ impl PanelFooter {
 pub const COMPONENTS: &[&str] = &["PanelFooter"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_number("width", 240.0, 60.0, 400.0);
-    vec![Story::new("composites/panel-footer/layers", Level::Composites, "PanelFooter", "Layers", args, show_layers).on(Surface::Own)]
+    vec![
+        typed_story!("composites/panel-footer/layers", Level::Composites, "PanelFooter", "Layers", LayersArgs { width: 240.0 }, show_layers)
+            .on(Surface::Own),
+    ]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct LayersArgs {
+    #[arg(range = 60.0..=400.0)]
+    pub(super) width: f32,
 }
 
 /// The height of the story's panel.
@@ -108,8 +117,8 @@ const STORY_PANEL_HEIGHT: f32 = 140.0;
 
 /// A panel `width` wide with a body and, at its bottom, a footer of three buttons, inside the body
 /// margin.
-pub(super) fn show_layers(ui: &mut Ui, args: &mut Args) {
-    let width = args.number("width") as f32;
+pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
+    let width = args.width;
     let tokens = Tokens::of(ui);
     let margin = tokens.space.pad.panel;
     ui.allocate_ui(vec2(width, 0.0), |ui| {

@@ -2,14 +2,15 @@
 
 use craft_theme::Mode;
 use egui::accesskit::{Action, ActionData, ActionRequest, Role, TreeId};
-use egui::{Color32, Context, Event, Key, Mesh, Modifiers, PointerButton, Pos2, Rect, ThemePreference, Ui, pos2, vec2};
+use egui::{Color32, Context, Event, Key, Mesh, Modifiers, PointerButton, Pos2, Rect, ThemePreference, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::histogram::{self, Blend, outline, plot_shapes, product, rgb_heights, rgb_mesh, sum, tone_heights, tone_mesh};
+use super::histogram::{
+    self, Blend, ChannelArg, RgbArgs, ScaleArg, ToneArgs, outline, plot_shapes, product, rgb_heights, rgb_mesh, sum, tone_heights, tone_mesh,
+};
 use super::*;
 use crate::direction::{self, Direction};
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install, tokens_in_mode};
 use std::ops::RangeInclusive;
@@ -367,16 +368,14 @@ fn stale_adds_a_named_mark_at_the_trailing_top_corner() {
 
 #[test]
 fn stories_draw_and_are_labelled_at_three_widths() {
-    for (show, name) in [(histogram::show_tone as fn(&mut Ui, &mut Args), "tone"), (histogram::show_rgb, "rgb")] {
+    for name in ["tone", "rgb"] {
         for width in [80.0, 256.0, 400.0] {
             let mut harness = harness(Direction::Ltr).build_ui(move |ui| {
-                let mut args = Args::new()
-                    .with_choice("channel", &["neutral", "red"], 1)
-                    .with_choice("scale", &["peak", "typical"], 1)
-                    .with_bool("stale", true)
-                    .with_bool("marker", true)
-                    .with_number("width", width, 80.0, 400.0);
-                show(ui, &mut args);
+                if name == "tone" {
+                    histogram::show_tone(ui, &mut ToneArgs { channel: ChannelArg::Red, stale: true, marker: true, width });
+                } else {
+                    histogram::show_rgb(ui, &mut RgbArgs { scale: ScaleArg::Typical, marker: true, width });
+                }
             });
             harness.run();
             a11y::assert_labelled(&harness);

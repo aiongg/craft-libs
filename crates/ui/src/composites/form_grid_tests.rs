@@ -4,13 +4,12 @@ use egui::{Context, Rect, Ui};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder, Node};
 
-use super::form_grid::show_image_size;
+use super::form_grid::{ImageSizeArgs, show_image_size};
 use super::*;
 use crate::controls::{Checkbox, NumberField, TextField};
 use crate::direction::{self, Direction};
 use crate::localized::LocaleNumbers;
 use crate::primitives::{Gap, Row};
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf, install};
 
@@ -161,10 +160,7 @@ fn the_image_size_story_is_labelled_and_mirrors() {
                 install(ctx, &Base::suite_default());
                 direction::apply(ctx, dir);
             })
-            .build_ui_state(
-                |ui, args: &mut Args| show_image_size(ui, args),
-                Args::new().with_bool("roomy", false).with_bool("labels at start", false),
-            );
+            .build_ui_state(|ui, args: &mut ImageSizeArgs| show_image_size(ui, args), ImageSizeArgs { roomy: false, labels_at_start: false });
         a11y::assert_labelled(&harness);
         let width = label(&harness, "Width:");
         let field = harness.get_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Width:")).rect();

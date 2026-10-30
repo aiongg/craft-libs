@@ -11,8 +11,9 @@ use crate::direction;
 use crate::edit::{EditEvent, EditPolicy, EditResponse};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::Content;
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// A slider row's sizes, type role and colour, from [`SliderRow::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -257,14 +258,27 @@ impl<'a> SliderRow<'a> {
 pub const COMPONENTS: &[&str] = &["SliderRow"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_bool("disabled", false).with_number("width", 260.0, 120.0, 400.0);
-    vec![Story::new("composites/slider-row/adjustments", Level::Composites, "SliderRow", "Adjustments", args, show_adjustments)]
+    vec![typed_story!(
+        "composites/slider-row/adjustments",
+        Level::Composites,
+        "SliderRow",
+        "Adjustments",
+        AdjustmentsArgs { disabled: false, width: 260.0 },
+        show_adjustments
+    )]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct AdjustmentsArgs {
+    pub(super) disabled: bool,
+    #[arg(range = 120.0..=400.0)]
+    pub(super) width: f32,
 }
 
 /// Opacity in percent, Exposure with two places, a gradient Hue row and an Amount row, in a
 /// panel `width` wide; `disabled` disables the Amount row.
-pub(super) fn show_adjustments(ui: &mut Ui, args: &mut Args) {
-    let (disabled, width) = (args.bool("disabled"), args.number("width") as f32);
+pub(super) fn show_adjustments(ui: &mut Ui, args: &mut AdjustmentsArgs) {
+    let (disabled, width) = (args.disabled, args.width);
     let state_id = ui.scope_id().with("slider-row-adjustments");
     let mut values = ui.data(|d| d.get_temp::<[f64; 4]>(state_id)).unwrap_or([80.0, 0.5, 210.0, 35.0]);
     let numbers = LocaleNumbers::from_tag("en");

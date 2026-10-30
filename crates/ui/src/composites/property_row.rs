@@ -17,8 +17,9 @@ use crate::edit::{EditEvent, EditResponse};
 use crate::icons::Icon;
 use crate::localized::LocaleNumbers;
 use crate::primitives::Content;
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
+use crate::typed_story;
 
 /// A property row's widths, gap and label look, from [`PropertyRow::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -537,8 +538,21 @@ impl PropertyGroup {
 pub const COMPONENTS: &[&str] = &["PropertyRow"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_bool("mixed", false).with_number("width", 260.0, 60.0, 400.0);
-    vec![Story::new("composites/property-row/inspector", Level::Composites, "PropertyRow", "Inspector", args, show_inspector)]
+    vec![typed_story!(
+        "composites/property-row/inspector",
+        Level::Composites,
+        "PropertyRow",
+        "Inspector",
+        InspectorArgs { mixed: false, width: 260.0 },
+        show_inspector
+    )]
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct InspectorArgs {
+    pub(super) mixed: bool,
+    #[arg(range = 60.0..=400.0)]
+    pub(super) width: f32,
 }
 
 /// The values of the inspector story.
@@ -562,8 +576,8 @@ fn apply(edit: &EditResponse<f64>, value: &mut f64) {
 /// A Transform section (W and H with a link toggle, X and Y; glyph labels) and an Appearance
 /// section (Opacity and Angle; word labels that scrub), in a panel `width` wide. `mixed` shows
 /// every value as mixed.
-pub(super) fn show_inspector(ui: &mut Ui, args: &mut Args) {
-    let (mixed, width) = (args.bool("mixed"), args.number("width") as f32);
+pub(super) fn show_inspector(ui: &mut Ui, args: &mut InspectorArgs) {
+    let (mixed, width) = (args.mixed, args.width);
     let state_id = ui.scope_id().with("property-row-inspector");
     let mut v = ui.data(|d| d.get_temp::<Values>(state_id)).unwrap_or(Values {
         w: 640.0,

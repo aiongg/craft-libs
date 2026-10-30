@@ -8,11 +8,10 @@ use egui::{Context, Margin, Rect, Ui, vec2};
 use egui_kittest::kittest::Queryable as _;
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::panel_footer::show_layers;
+use super::panel_footer::{LayersArgs, show_layers};
 use super::*;
 use crate::direction::{self, Direction};
 use crate::icons::Icon;
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, install};
 
@@ -91,7 +90,7 @@ fn the_buttons_run_from_the_right_edge_when_mirrored() {
 #[test]
 fn the_story_names_every_button() {
     for dir in [Direction::Ltr, Direction::Rtl] {
-        let mut args = Args::new().with_number("width", 240.0, 60.0, 400.0);
+        let mut args = LayersArgs { width: 240.0 };
         let harness = harness(dir).build_ui(move |ui| show_layers(ui, &mut args));
         a11y::assert_labelled(&harness);
     }

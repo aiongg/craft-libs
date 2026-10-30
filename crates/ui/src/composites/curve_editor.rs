@@ -11,6 +11,7 @@ use egui::{
 use craft_theme::{Rgba, TypeRole};
 
 use super::Histogram;
+use super::NoArgs;
 use super::curve::{Curve, CurveOp, PointKey, Rules, follow_corners};
 use super::histogram::{ChannelColor, HistogramData, HistogramLook};
 use super::{PropertyLabel, PropertyRow};
@@ -25,6 +26,7 @@ use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
 use crate::story::{Args, Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// One channel of a curve dialog: its name ("Red"; the host's text) and colour.
 #[derive(Clone, Debug, PartialEq)]
@@ -1234,8 +1236,8 @@ pub(crate) fn stories() -> Vec<Story> {
             },
             show_curves,
         ),
-        Story::new("composites/curve-editor/small", Level::Composites, "CurveEditor", "Small", Args::new, show_small),
-        Story::new("composites/curve-editor/corners", Level::Composites, "CurveEditor", "Corners", Args::new, show_corners),
+        typed_story!("composites/curve-editor/small", Level::Composites, "CurveEditor", "Small", NoArgs {}, show_small),
+        typed_story!("composites/curve-editor/corners", Level::Composites, "CurveEditor", "Corners", NoArgs {}, show_corners),
     ]
 }
 
@@ -1346,7 +1348,7 @@ fn show_curves(ui: &mut Ui, args: &mut Args) {
 }
 
 /// Camera Raw's tone curve: 260 square, no fields, no channels.
-fn show_small(ui: &mut Ui, _: &mut Args) {
+fn show_small(ui: &mut Ui, _: &mut NoArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let (id, mut host) = story_curves(ui, "curve-editor-small", || vec![Curve::smooth(vec![[0.0, 0.0], [96.0, 80.0], [255.0, 255.0]])]);
     let edit = CurveEditor::new("tone-curve", "Tone curve", &host.curves[0], &numbers).side(260.0).fields(false).show(ui);
@@ -1356,7 +1358,7 @@ fn show_small(ui: &mut Ui, _: &mut Args) {
 }
 
 /// The contour editor: 220 square, percent fields, the Corner checkbox toggles the selected point.
-fn show_corners(ui: &mut Ui, _: &mut Args) {
+fn show_corners(ui: &mut Ui, _: &mut NoArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let (id, mut host) = story_curves(ui, "curve-editor-corners", || {
         vec![Curve::from_parts(

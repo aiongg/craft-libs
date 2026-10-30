@@ -3,12 +3,11 @@ use egui::{Context, Event, Modifiers, PointerButton, Pos2, Rect, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::slider_row::show_adjustments;
+use super::slider_row::{AdjustmentsArgs, show_adjustments};
 use super::*;
 use crate::direction::{self, Direction};
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, install};
 
@@ -121,7 +120,7 @@ fn a_slider_drag_and_a_caption_scrub_each_end_in_one_commit() {
 fn the_story_names_every_control_at_every_width() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         for (width, disabled) in [(120.0, false), (260.0, true), (400.0, false)] {
-            let mut args = Args::new().with_bool("disabled", disabled).with_number("width", width, 120.0, 400.0);
+            let mut args = AdjustmentsArgs { disabled, width };
             let harness = harness::<()>(dir).build_ui(move |ui| show_adjustments(ui, &mut args));
             a11y::assert_labelled(&harness);
         }

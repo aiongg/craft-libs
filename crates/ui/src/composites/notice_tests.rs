@@ -108,7 +108,8 @@ fn a_widget_appearing_before_a_notice_keeps_its_region() {
 fn the_story_is_labelled_in_both_directions() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         let mut args = (notice::stories()[0].args)();
-        let mut harness = harness(dir, move |ui| notice::show_tones(ui, &mut args));
+        let show = notice::stories()[0].show;
+        let mut harness = harness(dir, move |ui| show(ui, &mut args));
         harness.run();
         a11y::assert_labelled(&harness);
     }
