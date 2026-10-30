@@ -298,6 +298,7 @@ const FIXED_WIDTH: &[&str] = &[
     "composites/list/reorder-copy",
     "composites/menu/context-menu",
     "composites/color/full",
+    "patterns/preferences/window",
     "patterns/options-bar/brush-and-transform",
     "patterns/app-preview/photo-editor",
     "patterns/dock-area/floating",
