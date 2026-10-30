@@ -103,8 +103,12 @@ fn double_click(harness: &mut Harness<'_, Host>, pos: Pos2) {
 }
 
 fn press_key(harness: &mut Harness<'_, Host>, modifiers: Modifiers, key: Key) {
-    frame(harness, 0.5, vec![Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }]);
-    frame(harness, 0.016, vec![Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers }]);
+    frame(harness, 0.5, vec![Event::ModifiersChanged(modifiers), Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }]);
+    frame(
+        harness,
+        0.016,
+        vec![Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers }, Event::ModifiersChanged(Modifiers::NONE)],
+    );
 }
 
 fn drag(harness: &mut Harness<'_, Host>, from: Pos2, to: Pos2) {
@@ -241,4 +245,119 @@ fn list_view_has_one_row_per_preset_and_its_arrows_follow_the_tree() {
     assert_eq!(harness.state().lead, Some(100), "Left from a preset goes to its group");
     press_key(&mut harness, Modifiers::NONE, Key::ArrowLeft);
     assert!(harness.state().state.toggled.contains(&100), "Left on an open group closes it");
+}
+
+/// Ctrl, the command key off macOS (where the tests run), as the window delivers it.
+const STACK: Modifiers = Modifiers { ctrl: true, command: true, ..Modifiers::NONE };
+
+fn commits(events: &[PresetEvent<Key32>]) -> Vec<&Move<Key32>> {
+    reorders(events).into_iter().filter_map(|e| if let EditEvent::Commit { value, .. } = e { Some(value) } else { None }).collect()
+}
+
+fn click_with(harness: &mut Harness<'_, Host>, pos: Pos2, modifiers: Modifiers) {
+    let events = vec![Event::ModifiersChanged(modifiers), Event::PointerMoved(pos), button(pos, true, modifiers), button(pos, false, modifiers)];
+    frame(harness, 1.0, events);
+    frame(harness, 0.016, vec![Event::ModifiersChanged(Modifiers::NONE)]);
+}
+
+#[test]
+fn a_click_reports_the_modifiers_held() {
+    let mut harness = harness(Host::new(library()));
+    let pos = center(&harness, "Brush 4");
+    click_with(&mut harness, pos, Modifiers::ALT);
+    let events = harness.state_mut().take();
+    assert!(matches!(&events[..], [PresetEvent::Select { key: 4, modifiers }] if modifiers.alt), "{events:?}");
+}
+
+#[test]
+fn alt_click_on_a_header_toggles_every_group() {
+    let mut harness = harness(Host::new(library()));
+    let pos = center(&harness, "Round");
+    click_with(&mut harness, pos, Modifiers::ALT);
+    let events = harness.state_mut().take();
+    let [PresetEvent::Open(change)] = &events[..] else { panic!("{events:?}") };
+    assert!(change.all && !change.open && change.row == 100, "{change:?}");
+    assert!(harness.query_by(|n| n.label().as_deref() == Some("Brush 8")).is_none(), "the other group closed too");
+    assert!(harness.state().state.toggled.contains(&200));
+}
+
+#[test]
+fn enter_activates_a_preset_and_toggles_a_header() {
+    let mut harness = harness(Host::new(library()));
+    let pos = center(&harness, "Brush 2");
+    click(&mut harness, pos);
+    harness.state_mut().take();
+    press_key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert!(matches!(harness.state_mut().take()[..], [PresetEvent::Activate { key: 2, .. }]));
+    let pos = center(&harness, "Square");
+    click(&mut harness, pos);
+    harness.state_mut().take();
+    press_key(&mut harness, Modifiers::NONE, Key::Enter);
+    let events = harness.state_mut().take();
+    assert!(matches!(&events[..], [PresetEvent::Open(c)] if c.row == 200 && c.open), "Enter reopens the group the click closed: {events:?}");
+}
+
+#[test]
+fn command_bracket_moves_the_lead_preset_as_one_set() {
+    let mut harness = harness(Host::new(library()));
+    let pos = center(&harness, "Brush 3");
+    click(&mut harness, pos);
+    harness.state_mut().take();
+    press_key(&mut harness, STACK, Key::CloseBracket);
+    let events = harness.state_mut().take();
+    let sets: Vec<_> = reorders(&events).into_iter().filter_map(|e| if let EditEvent::Set { value, .. } = e { Some(value) } else { None }).collect();
+    assert_eq!(sets.len(), 1, "{events:?} lead {:?}", harness.state().lead);
+    assert_eq!(sets[0].items, [3]);
+    assert_eq!(sets[0].target, 2, "toward the start: before the previous preset");
+    press_key(&mut harness, STACK, Key::OpenBracket);
+    let events = harness.state_mut().take();
+    let sets: Vec<_> = reorders(&events).into_iter().filter_map(|e| if let EditEvent::Set { value, .. } = e { Some(value) } else { None }).collect();
+    assert_eq!((sets.len(), sets[0].items.clone(), sets[0].target), (1, vec![3], 4), "toward the end: after the next preset");
+}
+
+#[test]
+fn escape_cancels_a_drag_without_a_commit() {
+    let mut harness = harness(Host::new(library()));
+    let from = center(&harness, "Brush 1");
+    let to = center(&harness, "Brush 5");
+    frame(&mut harness, 1.0, vec![Event::PointerMoved(from), button(from, true, Modifiers::NONE)]);
+    frame(&mut harness, 0.016, vec![Event::PointerMoved(from + vec2(8.0, 0.0))]);
+    frame(&mut harness, 0.016, vec![Event::PointerMoved(to)]);
+    press_key(&mut harness, Modifiers::NONE, Key::Escape);
+    frame(&mut harness, 0.016, vec![Event::PointerMoved(to), button(to, false, Modifiers::NONE)]);
+    let events = harness.state_mut().take();
+    let gesture = reorders(&events);
+    assert!(matches!(gesture.first(), Some(EditEvent::Begin { .. })), "{events:?}");
+    assert!(matches!(gesture.last(), Some(EditEvent::Cancel { .. })), "{events:?}");
+    assert!(commits(&events).is_empty() && !events.iter().any(|e| matches!(e, PresetEvent::Select { .. })));
+}
+
+#[test]
+fn a_drag_held_at_the_bottom_edge_scrolls_the_list() {
+    let rows = (0..10_000).map(|n| PresetRow::item(n, format!("Preset {n}"), 0)).collect();
+    let mut host = Host::new(rows);
+    host.state.view = PresetView::List;
+    let mut harness = harness(host);
+    let from = center(&harness, "Preset 1");
+    frame(&mut harness, 1.0, vec![Event::PointerMoved(from), button(from, true, Modifiers::NONE)]);
+    frame(&mut harness, 0.016, vec![Event::PointerMoved(from + vec2(0.0, 8.0))]);
+    let bottom = Pos2::new(from.x, 298.0);
+    frame(&mut harness, 0.016, vec![Event::PointerMoved(bottom)]);
+    for _ in 0..30 {
+        frame(&mut harness, 0.016, vec![]);
+    }
+    assert!(harness.query_by(|n| n.label().as_deref() == Some("Preset 2")).is_none(), "the list scrolled away from the first rows");
+    frame(&mut harness, 0.016, vec![Event::PointerMoved(bottom), button(bottom, false, Modifiers::NONE)]);
+    assert!(harness.state().painted < 120, "still only the rows in view: {}", harness.state().painted);
+}
+
+#[test]
+fn ten_thousand_list_rows_run_the_thumbnail_closure_for_the_rows_in_view_only() {
+    let rows = (0..10_000).map(|n| PresetRow::item(n, format!("Preset {n}"), 0)).collect();
+    let mut host = Host::new(rows);
+    host.state.view = PresetView::List;
+    let harness = harness(host);
+    let painted = harness.state().painted;
+    assert!((1..60).contains(&painted), "painted {painted} thumbnails");
+    assert!(harness.query_all_by_role(Role::ListBoxOption).count() < 60);
 }

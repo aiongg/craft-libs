@@ -331,6 +331,7 @@ register! {
     #[cfg(feature = "window-frame")]
     crate::title_bar::stories,
     composites::color,
+    crate::presets::stories,
     crate::docking,
     crate::dialog::stories,
     crate::dialog::full_window_stories,

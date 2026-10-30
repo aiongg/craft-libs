@@ -17,6 +17,7 @@ pub mod menu;
 pub mod model;
 pub mod rename;
 pub mod state;
+pub(crate) mod stories;
 pub mod style;
 pub mod toolbar;
 pub mod view;

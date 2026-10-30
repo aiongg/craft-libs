@@ -146,6 +146,12 @@ composites/color/pair-dialog = SwatchPair | Dialog (field scope) | Panel |
 composites/color/wheel = ColorWheel | Wheel | Panel | side=Number { value: 220.0, min: 28.0, max: 400.0 }; hue on=Choice { options: ["colour", "black", "grey"], index: 0 }; disabled=Bool(false); width=Number { value: 260.0, min: 60.0, max: 480.0 }
 composites/color/ramp = ColorRamp | Ramp | Panel | kind=Choice { options: ["spectrum", "grayscale", "between"], index: 0 }; web_safe=Bool(false); boxes=Bool(true); gamut=Bool(false); disabled=Bool(false)
 composites/color/disc = ColorDisc | Disc | Panel | selected=Number { value: 0.0, min: 0.0, max: 3.0 }; brightness=Number { value: 1.0, min: 0.0, max: 1.0 }; side=Number { value: 150.0, min: 28.0, max: 400.0 }; disabled=Bool(false)
+composites/preset-browser/swatches = Preset browser | Swatches | Panel | view=Choice { options: ["grid", "list"], index: 0 }; size=Number { value: 28.0, min: 16.0, max: 96.0 }
+composites/preset-browser/gradients = Preset browser | Gradients | Panel | view=Choice { options: ["grid", "list"], index: 0 }; size=Number { value: 64.0, min: 16.0, max: 96.0 }
+composites/preset-browser/brushes = Preset browser | Brushes | Panel | view=Choice { options: ["grid", "list"], index: 1 }; size=Number { value: 32.0, min: 16.0, max: 96.0 }
+composites/preset-browser/tool-presets = Preset browser | Tool presets | Panel | view=Choice { options: ["grid", "list"], index: 1 }; size=Number { value: 32.0, min: 16.0, max: 96.0 }
+composites/preset-browser/reorder = Preset browser | Reorder | Panel | view=Choice { options: ["grid", "list"], index: 0 }; size=Number { value: 36.0, min: 16.0, max: 96.0 }
+composites/preset-browser/popover-grid = Preset browser | Popover grid | Panel | view=Choice { options: ["grid", "list"], index: 0 }; size=Number { value: 40.0, min: 16.0, max: 96.0 }
 patterns/dock-area/docked = DockArea | Docked | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/floating = DockArea | Floating | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/drag = DockArea | Drag | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
