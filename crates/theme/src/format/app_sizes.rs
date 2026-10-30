@@ -110,3 +110,31 @@ fn cross_rules(sizes: &AppSizes, errors: &mut Vec<FormatError>) {
         }
     }
 }
+
+/// The block as pretty-printed JSON ending in a newline: the sections that have values, each
+/// with its paths in order. [`AppSizes::parse`] reads it back to the same value when the values
+/// are valid.
+pub fn write_app_sizes(sizes: &AppSizes) -> String {
+    let mut top = Map::new();
+    for (name, map) in [("all", &sizes.all), ("compact", &sizes.compact), ("comfortable", &sizes.comfortable)] {
+        if map.is_empty() {
+            continue;
+        }
+        let section = map
+            .iter()
+            .map(|(path, value)| {
+                let json = match value {
+                    SizeValue::Switch(b) => Value::Bool(*b),
+                    SizeValue::Number(n) if *n == FULL && path.starts_with("radius.") => "full".into(),
+                    SizeValue::Number(n) => super::write::number(*n),
+                };
+                (path.clone(), json)
+            })
+            .collect();
+        top.insert(name.to_owned(), Value::Object(section));
+    }
+    let mut out = String::new();
+    super::write::emit(&Value::Object(top), 0, Some(&SECTIONS), &mut out);
+    out.push('\n');
+    out
+}

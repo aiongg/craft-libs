@@ -94,7 +94,7 @@ pub use components::{
 };
 pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps};
-pub use explain::{ColorOrigin, Explained, FieldOrigin, PairReport, explain};
+pub use explain::{ColorOrigin, Explained, FieldOrigin, PairReport, SizeLayer, SizeOrigin, explain, explain_sized};
 pub use id::{APP_DEFAULT, AppId, IdError, RESERVED_PREFIX, SUITE_DEFAULT, ThemeId};
 pub use ramp::{Mode, Ramp, RampKind};
 pub use resolve::{Resolved, resolve, resolve_sized};

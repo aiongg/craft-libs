@@ -1,8 +1,8 @@
 //! The appearance bar's settings and what they resolve to.
 
 use craft_theme::{
-    AppDefaults, Contrast, ContrastChoice, Mode, ModeChoice, MotionChoice, Selection, Size, SystemAppearance, TextSize, ThemeDef, ThemeId, ThemePair,
-    builtins,
+    AppDefaults, AppSizes, Contrast, ContrastChoice, Mode, ModeChoice, MotionChoice, Selection, Size, SystemAppearance, TextSize, ThemeDef, ThemeId,
+    ThemePair, builtins,
 };
 use craft_ui::direction::Direction;
 use craft_ui::icons::IconSet;
@@ -107,6 +107,11 @@ impl Appearance {
     /// The theme and settings resolved for the gallery's own chrome, with `system` as the OS's
     /// answer for the System choices.
     pub fn base(&self, system: SystemAppearance) -> Base {
+        self.base_with(system, &AppSizes::default())
+    }
+
+    /// [`base`](Self::base) with an app's size overrides.
+    pub fn base_with(&self, system: SystemAppearance, sizes: &AppSizes) -> Base {
         let id = builtin(&self.theme).map_or_else(ThemeId::suite_default, |t| t.id.clone());
         let selection = Selection {
             theme: ThemePair::same(id),
@@ -116,8 +121,7 @@ impl Appearance {
             size: self.size(),
             text_size: self.text_size(),
         };
-        let defaults =
-            AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: self.mode, size: self.size(), sizes: Default::default() };
+        let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: self.mode, size: self.size(), sizes: sizes.clone() };
         Base::resolve(&selection, system, &defaults, None, &mut |id| builtins().iter().find(|t| t.id == *id).cloned())
     }
 
@@ -127,6 +131,18 @@ impl Appearance {
     /// what the OS reports for the System mode and contrast. Returns the base for
     /// [`install`](craft_ui::theme::install), which the caller runs every frame.
     pub fn configure(&self, ctx: &egui::Context, previous: Option<&Appearance>, system_face_changed: bool, system: SystemAppearance) -> Base {
+        self.configure_with(ctx, previous, system_face_changed, system, &AppSizes::default())
+    }
+
+    /// [`configure`](Self::configure) with an app's size overrides.
+    pub fn configure_with(
+        &self,
+        ctx: &egui::Context,
+        previous: Option<&Appearance>,
+        system_face_changed: bool,
+        system: SystemAppearance,
+        sizes: &AppSizes,
+    ) -> Base {
         if previous.is_none_or(|p| p.rtl != self.rtl) {
             craft_ui::direction::apply(ctx, self.direction());
         }
@@ -134,7 +150,7 @@ impl Appearance {
         if crate::faces::available() && (faces_changed || system_face_changed) {
             crate::faces::install(ctx, &self.ui_face, &self.mono_face);
         }
-        self.base(system)
+        self.base_with(system, sizes)
     }
 
     /// The overrides that show the bar's theme and size in a scope; the mode and contrast are the

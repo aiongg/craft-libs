@@ -324,7 +324,7 @@ impl Gallery {
     }
 
     fn show_panels(&mut self, ui: &mut Ui) {
-        self.applied.apply(ui.ctx(), &self.appearance);
+        self.applied.apply(ui.ctx(), &self.appearance, self.browser.app_sizes());
         let ctx = ui.ctx().clone();
         self.scan.begin_frame();
         self.highlighted.clear();

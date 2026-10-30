@@ -24,6 +24,7 @@ pub use parse::parse;
 pub fn parse_app_sizes(bytes: &[u8]) -> Result<crate::AppSizes, FormatErrors> {
     app_sizes::parse(bytes)
 }
+pub use app_sizes::write_app_sizes;
 pub use sizes::{SIZES_SCHEMA, SIZES_SCHEMA_VERSION, SizeSetFile, parse_sizes, sizes_to_file, write_sizes};
 pub use write::write;
 

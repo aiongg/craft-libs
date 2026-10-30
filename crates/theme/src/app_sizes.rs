@@ -45,7 +45,7 @@ pub(crate) enum Target {
 
 /// The base paths an app may override: sizes, spacing, corner radii and type sizes, not the
 /// edge, fonts or the set's component values.
-fn base_path(path: &str) -> bool {
+pub(crate) fn base_path(path: &str) -> bool {
     ["size.", "space.", "radius."].iter().any(|p| path.starts_with(p))
         || path.strip_prefix("typography.").is_some_and(|rest| rest.ends_with(".size") || rest.ends_with(".line_height"))
 }
@@ -68,6 +68,11 @@ impl AppSizes {
     /// file fails their CI.
     pub fn parse(bytes: &[u8]) -> Result<AppSizes, FormatErrors> {
         format::parse_app_sizes(bytes)
+    }
+
+    /// The block as `sizes.json` text, which [`AppSizes::parse`] reads back.
+    pub fn to_json(&self) -> String {
+        format::write_app_sizes(self)
     }
 
     /// Whether no path is overridden.

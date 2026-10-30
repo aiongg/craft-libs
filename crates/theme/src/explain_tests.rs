@@ -286,3 +286,28 @@ fn a_pulled_anchored_token_names_its_target_and_the_pair() {
     let anchoring = raised.anchoring.unwrap();
     assert_eq!((anchoring.on, anchoring.steps.step(4)), (T::SurfacePanel, raised.derived), "the strip holds the target");
 }
+
+#[test]
+fn explained_sizes_name_the_layer_that_set_each_value() {
+    let sizes =
+        AppSizes::parse(br#"{ "all": { "size.control.md": 28, "typography.body.size": 15 }, "comfortable": { "toolbar.button": 40 } }"#).unwrap();
+    let theme = unpinned();
+    let origin = |e: &Explained, path: &str| e.sizes.iter().find(|o| o.path == path).cloned().unwrap_or_else(|| panic!("no size {path}"));
+
+    let plain = explain(&theme, appearance(Mode::Dark, Contrast::Standard, Size::Comfortable), None);
+    assert!(plain.sizes.iter().all(|o| !o.layer.from_app()), "no app layer, no app origin");
+    assert_eq!(origin(&plain, "size.control.md").layer, SizeLayer::SizeSet);
+    assert_eq!(origin(&plain, "list.row_height").layer, SizeLayer::Derived);
+
+    let comfortable = explain_sized(&theme, appearance(Mode::Dark, Contrast::Standard, Size::Comfortable), None, &sizes);
+    assert_eq!(comfortable.resolved, resolve_sized(&theme, appearance(Mode::Dark, Contrast::Standard, Size::Comfortable), None, &sizes));
+    let control = origin(&comfortable, "size.control.md");
+    assert_eq!((control.layer, control.value, control.range), (SizeLayer::App, SizeValue::Number(28.0), (16.0, 48.0)));
+    assert_eq!(origin(&comfortable, "list.row_height").layer, SizeLayer::Derived, "derived from the override, not set by it");
+    assert_eq!(origin(&comfortable, "list.row_height").value, SizeValue::Number(28.0));
+    assert_eq!(origin(&comfortable, "toolbar.button").layer, SizeLayer::AppPin);
+    assert_eq!(origin(&comfortable, "space.gap.row").layer, SizeLayer::SizeSet);
+
+    let compact = explain_sized(&theme, appearance(Mode::Dark, Contrast::Standard, Size::Compact), None, &sizes);
+    assert_eq!(origin(&compact, "toolbar.button").layer, SizeLayer::Derived, "a pin for the other set does not apply");
+}
