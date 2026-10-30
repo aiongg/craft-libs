@@ -463,7 +463,7 @@ fn theme_icons_are_cached_and_fall_back() {
             _ => None,
         }
     };
-    let icons = CaptionIcons { theme: "Test".into(), render: std::sync::Arc::new(render) };
+    let icons = CaptionIcons { theme: "Test".into(), generation: 0, render: std::sync::Arc::new(render) };
     let ctx = Context::default();
     let mut out = ctx.run_ui(RawInput::default(), |ui| {
         let tex = theme_icon(ui.ctx(), &icons, CaptionIcon::Close, 16);

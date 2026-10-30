@@ -3,8 +3,10 @@
 //! its directories from the best fit for a 16 px icon down. Only SVG files are used: symbolic
 //! icons are drawn as a coverage mask in the button's ink colour.
 
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use super::{CaptionIcon, CaptionIcons};
 
@@ -15,6 +17,11 @@ const MAX_DIRS: usize = 4096;
 /// How deep an index's unlisted directories are looked for (`symbolic/ui`, `16x16@2/actions`).
 const SCAN_DEPTH: usize = 3;
 const MAX_FILE: u64 = 1 << 20;
+/// File-existence probes one theme load makes while looking for the four icons, over all themes
+/// of the chain. A theme listing thousands of directories hits it and gets the family's glyphs.
+const MAX_PROBES: usize = 20_000;
+/// Elements and text nodes an icon SVG may have; a glyph has a handful.
+const MAX_SVG_NODES: u32 = 10_000;
 /// The size the caption glyphs are drawn at, in the spec's units.
 const ICON_SIZE: i64 = 16;
 
@@ -23,9 +30,13 @@ fn valid_name(name: &str) -> bool {
     !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', '\0'])
 }
 
-/// At most [`MAX_FILE`] bytes of a file (settings, theme indexes and icons are small).
+/// At most [`MAX_FILE`] bytes of a regular file (settings, theme indexes and icons are small).
+/// A FIFO or device in a theme directory would block `open` or never end, so it is not opened.
 fn read_small(path: &Path) -> Option<Vec<u8>> {
     use std::io::Read;
+    if !std::fs::metadata(path).ok()?.is_file() {
+        return None;
+    }
     let mut bytes = vec![];
     std::fs::File::open(path).ok()?.take(MAX_FILE).read_to_end(&mut bytes).ok()?;
     Some(bytes)
@@ -48,21 +59,25 @@ fn base_dirs(var: &dyn Fn(&str) -> Option<String>) -> Vec<PathBuf> {
     dirs
 }
 
-/// One `[section]` of an `index.theme`, as (key, value) pairs.
-fn section<'a>(index: &'a str, name: &str) -> Vec<(&'a str, &'a str)> {
-    let mut inside = false;
-    let mut pairs = vec![];
+/// The `[sections]` of an `index.theme` as (key, value) pairs, parsed once. A section named
+/// twice keeps its first body.
+fn sections(index: &str) -> HashMap<&str, Vec<(&str, &str)>> {
+    let mut map: HashMap<&str, Vec<(&str, &str)>> = HashMap::new();
+    let mut current: Option<&str> = None;
     for line in index.lines().map(str::trim) {
-        if let Some(s) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
-            if inside {
-                break;
+        if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
+            current = if map.contains_key(name) { None } else { Some(name) };
+            if let Some(name) = current {
+                map.insert(name, vec![]);
             }
-            inside = s == name;
-        } else if inside && let Some((k, v)) = line.split_once('=') {
+        } else if let Some(name) = current
+            && let Some((k, v)) = line.split_once('=')
+            && let Some(pairs) = map.get_mut(name)
+        {
             pairs.push((k.trim(), v.trim()));
         }
     }
-    pairs
+    map
 }
 
 fn list(value: Option<&str>) -> impl Iterator<Item = &str> {
@@ -133,6 +148,8 @@ impl Theme {
 /// A theme and the themes it inherits, in search order.
 struct IconTheme {
     themes: Vec<Theme>,
+    /// Probes left for [`IconTheme::find_svg`], over all four icons of a load.
+    probes: std::cell::Cell<usize>,
 }
 
 impl IconTheme {
@@ -159,13 +176,14 @@ impl IconTheme {
             // The first index wins; a theme can still be spread over several base directories.
             let Some(index) = roots.iter().find_map(|r| read_small(&r.join("index.theme"))) else { continue };
             let index = String::from_utf8_lossy(&index);
-            let head = section(&index, "Icon Theme");
+            let sections = sections(&index);
+            let head = sections.get("Icon Theme").map(Vec::as_slice).unwrap_or_default();
             let get = |k: &str| head.iter().find(|(key, _)| *key == k).map(|(_, v)| *v);
             let mut subdirs: Vec<((i64, i64), &str)> = list(get("Directories"))
                 .chain(list(get("ScaledDirectories")))
                 .filter(|d| !d.split('/').any(|part| part == ".." || part.is_empty()))
                 .take(MAX_DIRS)
-                .map(|d| (distance(&section(&index, d)), d))
+                .map(|d| (distance(sections.get(d).map(Vec::as_slice).unwrap_or_default()), d))
                 .collect();
             subdirs.sort_by_key(|(key, _)| *key);
             // Not checked for existence: a theme lists hundreds, and the search stops at a hit.
@@ -177,7 +195,7 @@ impl IconTheme {
             }
             themes.push(Theme { roots, listed, unlisted: std::cell::OnceCell::new() });
         }
-        (!themes.is_empty()).then_some(Self { themes })
+        (!themes.is_empty()).then_some(Self { themes, probes: std::cell::Cell::new(MAX_PROBES) })
     }
 
     /// The first `<icon>.svg` in search order: each theme's listed directories, then its unlisted
@@ -187,7 +205,13 @@ impl IconTheme {
             return None;
         }
         let file = format!("{icon}.svg");
-        let hit = |dirs: &[PathBuf]| dirs.iter().map(|d| d.join(&file)).find(|p| p.is_file());
+        let hit = |dirs: &[PathBuf]| {
+            dirs.iter().map(|d| d.join(&file)).find(|p| {
+                let Some(left) = self.probes.get().checked_sub(1) else { return false };
+                self.probes.set(left);
+                p.is_file()
+            })
+        };
         self.themes.iter().find_map(|t| hit(&t.listed).or_else(|| hit(t.unlisted())))
     }
 }
@@ -205,7 +229,13 @@ fn rasterize_mask(svg: &[u8], px: u32) -> Option<Vec<u8>> {
         image_href_resolver: usvg::ImageHrefResolver { resolve_data: Box::new(|_, _, _| None), resolve_string: Box::new(|_, _| None) },
         ..usvg::Options::default()
     };
-    let tree = usvg::Tree::from_data(svg, &opts).ok()?;
+    // `Tree::from_data` would gunzip with no size limit and allow DTDs, so parse the XML here.
+    if svg.starts_with(&[0x1f, 0x8b]) {
+        return None;
+    }
+    let xml = roxmltree::ParsingOptions { allow_dtd: false, nodes_limit: MAX_SVG_NODES };
+    let doc = roxmltree::Document::parse_with_options(std::str::from_utf8(svg).ok()?, xml).ok()?;
+    let tree = usvg::Tree::from_xmltree(&doc, &opts).ok()?;
     let size = tree.size();
     let side = size.width().max(size.height());
     if !side.is_finite() || side <= 0.0 {
@@ -218,54 +248,153 @@ fn rasterize_mask(svg: &[u8], px: u32) -> Option<Vec<u8>> {
     Some(pixmap.data().as_chunks::<4>().0.iter().map(|[_, _, _, a]| *a).collect())
 }
 
+const ICONS: [CaptionIcon; 4] = [CaptionIcon::Minimize, CaptionIcon::Maximize, CaptionIcon::Restore, CaptionIcon::Close];
+type Files = [Option<Arc<[u8]>>; 4];
+
 impl CaptionIcons {
     /// The caption glyphs of icon theme `name` (`window-*-symbolic.svg`), read now and rendered at
-    /// whatever size the bar asks for. `None` when the theme (with its parents) has none of them.
+    /// whatever size the bar asks for, on the calling thread. `None` when the theme (with its
+    /// parents) has none of them. A frame loop uses [`CaptionIconCache`] instead.
     pub fn from_icon_theme(name: &str) -> Option<CaptionIcons> {
         load_icons(name, &base_dirs(&|k: &str| std::env::var(k).ok()))
     }
 }
 
-fn load_icons(name: &str, bases: &[PathBuf]) -> Option<CaptionIcons> {
+/// The four glyph files of theme `name`, in [`ICONS`] order. `None` when it has none of them.
+fn load_files(name: &str, bases: &[PathBuf]) -> Option<Files> {
     let found = IconTheme::load(name, bases)?;
     let svg = |icon: &str| found.find_svg(icon).and_then(|p| read_small(&p)).map(Arc::<[u8]>::from);
     let files = [svg("window-minimize-symbolic"), svg("window-maximize-symbolic"), svg("window-restore-symbolic"), svg("window-close-symbolic")];
-    if files.iter().all(Option::is_none) {
-        return None;
+    files.iter().any(Option::is_some).then_some(files)
+}
+
+fn index_of(icon: CaptionIcon) -> usize {
+    ICONS.iter().position(|i| *i == icon).unwrap_or_default()
+}
+
+fn load_icons(name: &str, bases: &[PathBuf]) -> Option<CaptionIcons> {
+    let files = load_files(name, bases)?;
+    let render = move |icon: CaptionIcon, px: u32| files.get(index_of(icon))?.as_deref().and_then(|svg| rasterize_mask(svg, px));
+    Some(CaptionIcons { theme: name.to_string(), generation: 0, render: Arc::new(render) })
+}
+
+/// The glyph files of one loaded theme and the masks rendered from them, per size.
+struct Masks {
+    files: Files,
+    sizes: Mutex<MaskSizes>,
+    generation: Arc<AtomicU64>,
+    wake: Arc<dyn Fn() + Send + Sync>,
+}
+
+#[derive(Default)]
+struct MaskSizes {
+    done: HashMap<u32, Arc<[Option<Vec<u8>>; 4]>>,
+    pending: HashSet<u32>,
+}
+
+impl Masks {
+    /// The mask of `icon` at `px`, or `None` while the size is still rendering (a background
+    /// thread renders all four icons of a size once, bumps the generation and wakes the host).
+    fn get(self: &Arc<Self>, icon: CaptionIcon, px: u32) -> Option<Vec<u8>> {
+        let mut sizes = self.sizes.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(done) = sizes.done.get(&px) {
+            return done[index_of(icon)].clone();
+        }
+        if sizes.pending.insert(px) {
+            let this = Arc::clone(self);
+            let started = std::thread::Builder::new().name("caption-icon-masks".into()).spawn(move || {
+                let masks = this.files.each_ref().map(|f| f.as_deref().and_then(|svg| rasterize_mask(svg, px)));
+                let mut sizes = this.sizes.lock().unwrap_or_else(PoisonError::into_inner);
+                sizes.pending.remove(&px);
+                sizes.done.insert(px, Arc::new(masks));
+                drop(sizes);
+                this.generation.fetch_add(1, Ordering::AcqRel);
+                (this.wake)();
+            });
+            if started.is_err() {
+                sizes.pending.remove(&px);
+                sizes.done.insert(px, Arc::new([None, None, None, None]));
+            }
+        }
+        None
     }
-    let render = move |icon: CaptionIcon, px: u32| {
-        let i = match icon {
-            CaptionIcon::Minimize => 0,
-            CaptionIcon::Maximize => 1,
-            CaptionIcon::Restore => 2,
-            CaptionIcon::Close => 3,
-        };
-        files.get(i)?.as_deref().and_then(|svg| rasterize_mask(svg, px))
-    };
-    Some(CaptionIcons { theme: name.to_string(), render: Arc::new(render) })
 }
 
 /// The icon theme the glyphs come from: the portal's answer, the desktop's setting, or Adwaita.
+/// The portal's answer is the GNOME key, which the watcher reports on GNOME-like desktops only
+/// (`craft_platform::appearance::Watcher::icon_theme`); elsewhere the desktop's own setting
+/// (`craft_window::Desktop::icon_theme`) is the one that counts.
 pub fn caption_icon_theme(portal: Option<&str>, desktop: Option<&str>) -> String {
     portal.or(desktop).unwrap_or("Adwaita").to_string()
 }
 
-/// [`CaptionIcons::from_icon_theme`] for the last theme asked for, kept, so a repeated request for
-/// the same theme (the portal re-sends its setting) doesn't reread its files.
 #[derive(Default)]
-pub struct CaptionIconCache(std::sync::Mutex<Option<(String, Option<CaptionIcons>)>>);
+struct CacheState {
+    /// The theme last asked for, loaded or loading.
+    wanted: Option<String>,
+    /// How many loads were started; a finished load that is not the latest is dropped.
+    loads: u64,
+    /// The last finished load: its name and masks.
+    loaded: Option<(String, Arc<Masks>)>,
+}
+
+/// [`CaptionIcons::from_icon_theme`] for the last theme asked for, kept, and loaded on a
+/// background thread: [`get`](Self::get) never reads a file or renders on the caller's thread.
+///
+/// Asked for a new theme, it starts the load and returns the previous theme's icons (or `None`)
+/// until the load is done, then repaints the context. A size's masks render the same way:
+/// the first draw at a size shows the family's own glyphs, and the context repaints when the
+/// theme's are ready. [`CaptionIcons::generation`] changes with each of those steps.
+#[derive(Default)]
+pub struct CaptionIconCache {
+    state: Arc<Mutex<CacheState>>,
+    generation: Arc<AtomicU64>,
+}
 
 impl CaptionIconCache {
-    pub fn get(&self, theme: &str) -> Option<CaptionIcons> {
-        let mut last = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some((name, icons)) = last.as_ref()
-            && name == theme
-        {
-            return icons.clone();
+    /// The icons of `theme` once loaded, the previous theme's (or `None`) until then.
+    pub fn get(&self, theme: &str, ctx: &egui::Context) -> Option<CaptionIcons> {
+        self.get_with(theme, || {
+            let ctx = ctx.clone();
+            (base_dirs(&|k: &str| std::env::var(k).ok()), Arc::new(move || ctx.request_repaint()))
+        })
+    }
+
+    /// [`get`](Self::get) with the search directories and the wake-up supplied by `start`, which
+    /// runs only when a load begins.
+    fn get_with(&self, theme: &str, start: impl FnOnce() -> (Vec<PathBuf>, Arc<dyn Fn() + Send + Sync>)) -> Option<CaptionIcons> {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        if state.wanted.as_deref() != Some(theme) {
+            state.wanted = Some(theme.to_string());
+            state.loads += 1;
+            let id = state.loads;
+            let (bases, wake) = start();
+            let (shared, generation, name) = (Arc::clone(&self.state), Arc::clone(&self.generation), theme.to_string());
+            let spawned = std::thread::Builder::new().name("caption-icon-theme".into()).spawn(move || {
+                let files = load_files(&name, &bases);
+                let mut state = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                if state.loads != id {
+                    return;
+                }
+                let found = files.is_some();
+                let masks =
+                    Masks { files: files.unwrap_or_default(), sizes: Mutex::default(), generation: Arc::clone(&generation), wake: Arc::clone(&wake) };
+                state.loaded = Some(name).zip(found.then(|| Arc::new(masks)));
+                drop(state);
+                generation.fetch_add(1, Ordering::AcqRel);
+                wake();
+            });
+            if spawned.is_err() {
+                state.loaded = None;
+            }
         }
-        let icons = CaptionIcons::from_icon_theme(theme);
-        *last = Some((theme.to_string(), icons.clone()));
-        icons
+        let (name, masks) = state.loaded.as_ref()?;
+        let masks = Arc::clone(masks);
+        Some(CaptionIcons {
+            theme: name.clone(),
+            generation: self.generation.load(Ordering::Acquire),
+            render: Arc::new(move |icon, px| masks.get(icon, px)),
+        })
     }
 }
 
@@ -395,6 +524,94 @@ mod tests {
         let mask = (icons.render)(CaptionIcon::Close, 16).expect("renders");
         assert!(mask.iter().any(|a| *a > 0));
         assert!((icons.render)(CaptionIcon::Minimize, 16).is_none(), "the theme lacks it");
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    /// A gzip stream's start: the data after it is never looked at.
+    fn gzip(rest: &[u8]) -> Vec<u8> {
+        [&[0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 0, 0xff][..], rest].concat()
+    }
+
+    #[test]
+    fn hostile_svgs_are_refused() {
+        assert!(rasterize_mask(&gzip(SQUARE.as_bytes()), 16).is_none(), "gzip is never expanded");
+        assert!(rasterize_mask(&gzip(&[0; 64]), 16).is_none());
+        let dtd = r##"<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "x">]><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><path d="M4 4h8v8H4z"/></svg>"##;
+        assert!(rasterize_mask(dtd.as_bytes(), 16).is_none());
+        let many = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">{}</svg>"#, "<g/>".repeat(20_000));
+        assert!(rasterize_mask(many.as_bytes(), 16).is_none());
+    }
+
+    #[test]
+    fn a_fifo_index_is_not_opened() {
+        let base = tree("fifo", &[("T/s/window-close-symbolic.svg", SQUARE)]);
+        let fifo = base.join("T/index.theme");
+        assert!(std::process::Command::new("mkfifo").arg(&fifo).status().unwrap().success());
+        // Opening it for reading would block until a writer appears.
+        assert!(read_small(&fifo).is_none());
+        assert!(load_icons("T", std::slice::from_ref(&base)).is_none());
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn the_index_is_parsed_once_into_sections() {
+        let map = sections("junk=1\n[A]\nx = 1\n[B]\ny=2\n[A]\nz=3\n");
+        assert_eq!(map.get("A").map(Vec::as_slice), Some(&[("x", "1")][..]), "the first body of a repeated section");
+        assert_eq!(map.get("B").map(Vec::as_slice), Some(&[("y", "2")][..]));
+        assert_eq!(map.len(), 2);
+    }
+
+    #[test]
+    fn probes_are_capped_per_load() {
+        let base = tree("probes", &[("T/index.theme", "[Icon Theme]\nDirectories=s\n[s]\nSize=16\n"), ("T/s/a.svg", SQUARE)]);
+        let theme = IconTheme::load("T", std::slice::from_ref(&base)).unwrap();
+        assert!(theme.find_svg("a").is_some());
+        theme.probes.set(0);
+        assert!(theme.find_svg("a").is_none(), "no probes left");
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn the_cache_shows_the_old_icons_until_the_new_theme_has_loaded() {
+        let base = tree(
+            "cache",
+            &[
+                ("T/index.theme", "[Icon Theme]\nDirectories=s\n[s]\nSize=16\nType=Fixed\n"),
+                ("T/s/window-close-symbolic.svg", SQUARE),
+                ("U/index.theme", "[Icon Theme]\nDirectories=s\n[s]\nSize=16\nType=Fixed\n"),
+                ("U/s/window-close-symbolic.svg", SQUARE),
+            ],
+        );
+        let cache = CaptionIconCache::default();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let start = |tx: std::sync::mpsc::Sender<()>| {
+            let bases = vec![base.clone()];
+            move || {
+                (
+                    bases,
+                    Arc::new(move || {
+                        let _ = tx.send(());
+                    }) as Arc<dyn Fn() + Send + Sync>,
+                )
+            }
+        };
+        assert!(cache.get_with("T", start(tx.clone())).is_none(), "nothing before the first load ends");
+        rx.recv().unwrap();
+        let t = cache.get_with("T", start(tx.clone())).expect("T loaded");
+        assert_eq!(t.theme, "T");
+        assert!(cache.get_with("T", || panic!("the same theme starts no load")).is_some());
+        // A size renders in the background: nothing at first, the mask after the wake-up.
+        assert!((t.render)(CaptionIcon::Close, 16).is_none());
+        rx.recv().unwrap();
+        let t2 = cache.get_with("T", || panic!("no load")).unwrap();
+        assert_ne!(t2.generation, t.generation);
+        assert!((t2.render)(CaptionIcon::Close, 16).is_some_and(|m| m.iter().any(|a| *a > 0)));
+        assert!((t2.render)(CaptionIcon::Minimize, 16).is_none(), "the theme lacks it");
+        // A new theme: T's icons until U has loaded.
+        let during = cache.get_with("U", start(tx.clone())).expect("the old icons");
+        assert_eq!(during.theme, "T");
+        rx.recv().unwrap();
+        assert_eq!(cache.get_with("U", || panic!("no load")).unwrap().theme, "U");
         let _ = std::fs::remove_dir_all(base);
     }
 
