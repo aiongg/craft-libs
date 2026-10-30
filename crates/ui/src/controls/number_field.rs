@@ -4,6 +4,7 @@
 
 use std::collections::VecDeque;
 use std::ops::RangeInclusive;
+use std::sync::Arc;
 
 use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::{Action, ActionData, Role};
@@ -23,7 +24,7 @@ use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook, edit_menu};
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
-use crate::localized::{LocaleNumbers, Unit, first_field_id, incomplete, round_half_away, stepped};
+use crate::localized::{LocaleNumbers, Unit, Words, first_field_id, incomplete, round_half_away, stepped};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, variant_list};
@@ -416,7 +417,14 @@ impl<'a> NumberField<'a> {
         let id = ui.make_persistent_id(self.id_salt);
         let real = (!self.mixed && self.value.is_finite()).then_some(self.value);
         let host = Follow::host(ui, id, real);
-        let codec = Numbers { numbers: self.numbers, decimals: self.decimals.clone(), unit: &self.unit, fallback: self.fallback.as_deref(), bounds };
+        let codec = Numbers {
+            numbers: self.numbers,
+            words: Words::of(ui),
+            decimals: self.decimals.clone(),
+            unit: &self.unit,
+            fallback: self.fallback.as_deref(),
+            bounds,
+        };
         let font = tokens.font(style.field.role);
         let parts = Parts::new(ui, &tokens, &style, &self, font.clone(), enabled);
         let stepping = enabled && self.step != 0.0 && self.step.is_finite();
@@ -1014,6 +1022,7 @@ fn next_stop(next: &NextStep<'_>, from: f64, presses: &[(Modifiers, f64)], rule:
 #[derive(Clone)]
 struct Numbers<'n> {
     numbers: &'n LocaleNumbers,
+    words: Arc<Words>,
     decimals: RangeInclusive<usize>,
     unit: &'n Unit,
     fallback: Option<&'n Reader<'n>>,
@@ -1055,7 +1064,7 @@ impl Codec for Numbers<'_> {
             Some(v) => Ok(Some(self.settle(v))),
             None => {
                 let error = read.err().unwrap_or(craft_i18n::NumberError::TooLarge);
-                Err(NotAValue { reason: self.numbers.describe(error), partial: incomplete(bare, error) })
+                Err(NotAValue { reason: self.numbers.describe_in(error, &self.words), partial: incomplete(bare, error) })
             }
         }
     }

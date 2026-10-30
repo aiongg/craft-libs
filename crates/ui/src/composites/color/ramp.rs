@@ -7,6 +7,7 @@ use craft_theme::{Hsb, Srgba};
 use egui::accesskit::{Action, Role};
 use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Key, Mesh, Modifiers, PointerButton, Pos2, Rect, Response, Sense, StrokeKind, Ui, pos2, vec2};
 
+use super::picker::installed;
 use super::{ColorArea, ColorPartsStyle, faded_stroke};
 use crate::controls::slider::{KEY_FILTER, PressTurn, press_turn, tap};
 use crate::edit::{EditEvent, EditPolicy, EditResponse, Gesture};
@@ -109,7 +110,7 @@ pub struct ColorRamp<'a> {
     policy: EditPolicy,
     enabled: bool,
     press_waits: bool,
-    texts: [String; 2],
+    texts: Option<[String; 2]>,
 }
 
 impl<'a> ColorRamp<'a> {
@@ -133,7 +134,7 @@ impl<'a> ColorRamp<'a> {
             policy: EditPolicy::default(),
             enabled: true,
             press_waits: false,
-            texts: Self::TEXTS.map(str::to_owned),
+            texts: None,
         }
     }
 
@@ -202,7 +203,7 @@ impl<'a> ColorRamp<'a> {
     /// The boxes' accessible names, translated by the host, as [`TEXTS`](ColorRamp::TEXTS) lists
     /// them: the white box's, then the black one's.
     pub fn texts(mut self, white: impl Into<String>, black: impl Into<String>) -> Self {
-        self.texts = [white.into(), black.into()];
+        self.texts = Some([white.into(), black.into()]);
         self
     }
 
@@ -399,10 +400,11 @@ impl<'a> ColorRamp<'a> {
         let white_rect = Rect::from_min_max(boxes.min, pos2(boxes.right(), half));
         let black_rect = Rect::from_min_max(pos2(boxes.left(), half), boxes.max);
         let mut box_focus = false;
+        let texts = self.texts.clone().unwrap_or_else(|| installed(ui, Self::TEXTS));
         if self.boxes {
             for (index, (rect, color)) in [(white_rect, Srgba::rgb(1.0, 1.0, 1.0)), (black_rect, Srgba::rgb(0.0, 0.0, 0.0))].into_iter().enumerate() {
                 let name = if index == 0 { "white" } else { "black" };
-                let sensed = Interactive::with_id(Interactive::id_in(ui, (id, name)), Role::Button, self.texts[index].as_str())
+                let sensed = Interactive::with_id(Interactive::id_in(ui, (id, name)), Role::Button, texts[index].as_str())
                     .sense(Sense::click())
                     .enabled(self.enabled)
                     .state_layer(false)

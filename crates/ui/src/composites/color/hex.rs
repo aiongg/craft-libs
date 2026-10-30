@@ -7,6 +7,7 @@ use egui::text::CCursorRange;
 use egui::text_edit::TextEditState;
 use egui::{Align2, AsIdSalt, Color32, Context, Id, IdSalt, Pos2, Shape, Ui, vec2};
 
+use super::picker::installed;
 use crate::behavior::{Codec, NotAValue, Typing, TypingLook};
 use crate::controls::text_field::{BoxState, field_box};
 use crate::controls::{TextField, TooltipExt as _};
@@ -196,7 +197,7 @@ pub struct HexField {
     value: Rgba,
     digits: usize,
     alpha: bool,
-    reason: String,
+    reason: Option<String>,
     policy: EditPolicy,
     enabled: bool,
 }
@@ -214,7 +215,7 @@ impl HexField {
             value,
             digits: 2,
             alpha: false,
-            reason: NOT_HEX.to_owned(),
+            reason: None,
             policy: EditPolicy::default(),
             enabled: true,
         }
@@ -234,9 +235,9 @@ impl HexField {
     }
 
     /// The tooltip of a draft that can't become a colour, translated by the host; "Not a hex
-    /// colour" without it.
+    /// colour" in the installed language without it.
     pub fn reason(mut self, reason: impl Into<String>) -> Self {
-        self.reason = reason.into();
+        self.reason = Some(reason.into());
         self
     }
 
@@ -256,7 +257,11 @@ impl HexField {
         let id = ui.make_persistent_id(self.id_salt);
         // The limit leaves room for a pasted `#`.
         let char_limit = (3 + usize::from(self.alpha)) * self.digits + 1;
-        let codec = HexCodec { alpha: self.alpha, write_alpha: self.alpha, digits: self.digits, reason: self.reason };
+        let reason = self.reason.unwrap_or_else(|| {
+            let [reason] = installed(ui, Self::TEXTS);
+            reason
+        });
+        let codec = HexCodec { alpha: self.alpha, write_alpha: self.alpha, digits: self.digits, reason };
         show(ui, id, &self.label, self.value, codec, Options { policy: self.policy, enabled: self.enabled, prefix: true, char_limit })
     }
 }

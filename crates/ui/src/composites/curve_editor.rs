@@ -21,7 +21,7 @@ use crate::edit::ops::{self, ScalarOp};
 use crate::edit::order::{self, Turn};
 use crate::edit::parts::{self, Pushed};
 use crate::edit::{self, EditPolicy, EditResponse, Gesture};
-use crate::localized::{LocaleNumbers, Unit};
+use crate::localized::{Labels as _, LocaleNumbers, Unit};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
 use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
@@ -41,49 +41,32 @@ impl CurveChannel {
     }
 }
 
-/// The editor's words; translate them in the app. Templates take `{i}`, `{n}`, `{x}`, `{y}` and
-/// `{channel}`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CurveLabels {
-    /// The selected point's input field: "Input".
-    pub input: String,
-    /// The selected point's output field: "Output".
-    pub output: String,
-    /// A point's accessible name: "Point {i} of {n}".
-    pub point: String,
-    /// A point's accessible value: "Input {x}, Output {y}".
-    pub point_value: String,
-    /// The selected point's checkbox that makes it a corner point ([`CurveEditor::corners`]): "Corner".
-    pub corner: String,
-    /// A corner point's accessible value: "Input {x}, Output {y}, corner".
-    pub corner_value: String,
-    /// The graph's accessible value: "{channel}, {n} points".
-    pub graph_value: String,
-    /// The graph's accessible value without channels: "{n} points".
-    pub graph_points: String,
-    /// The accessible value of a drawn curve: "{channel}, drawn".
-    pub graph_drawn: String,
-    /// The accessible value of a drawn curve without channels: "Drawn".
-    pub drawn: String,
-    /// The unit of a value in percent ([`CurveEditor::percent`]): "{n}%".
-    pub percent: String,
-}
-
-impl Default for CurveLabels {
-    fn default() -> Self {
-        Self {
-            input: "Input".into(),
-            output: "Output".into(),
-            point: "Point {i} of {n}".into(),
-            point_value: "Input {x}, Output {y}".into(),
-            corner: "Corner".into(),
-            corner_value: "Input {x}, Output {y}, corner".into(),
-            graph_value: "{channel}, {n} points".into(),
-            graph_points: "{n} points".into(),
-            graph_drawn: "{channel}, drawn".into(),
-            drawn: "Drawn".into(),
-            percent: "{n}%".into(),
-        }
+crate::words! {
+    /// The editor's words, in the installed language unless set. Templates take `{i}`, `{n}`,
+    /// `{x}`, `{y}` and `{channel}`.
+    pub struct CurveLabels {
+        /// The selected point's input field: "Input".
+        input: "" = "Input";
+        /// The selected point's output field: "Output".
+        output: "" = "Output";
+        /// A point's accessible name: "Point {i} of {n}".
+        point: "curve.point" = "Point {i} of {n}";
+        /// A point's accessible value: "Input {x}, Output {y}".
+        point_value: "curve.pointValue" = "Input {x}, Output {y}";
+        /// The selected point's checkbox that makes it a corner point ([`CurveEditor::corners`]): "Corner".
+        corner: "" = "Corner";
+        /// A corner point's accessible value: "Input {x}, Output {y}, corner".
+        corner_value: "curve.cornerValue" = "Input {x}, Output {y}, corner";
+        /// The graph's accessible value: "{channel}, {n} points".
+        graph_value: "curve.graphValue" = "{channel}, {n} points";
+        /// The graph's accessible value without channels: "{n} points".
+        graph_points: "curve.graphPoints" = "{n} points";
+        /// The accessible value of a drawn curve: "{channel}, drawn".
+        graph_drawn: "curve.graphDrawn" = "{channel}, drawn";
+        /// The accessible value of a drawn curve without channels: "Drawn".
+        drawn: "curve.drawn" = "Drawn";
+        /// The unit of a value in percent ([`CurveEditor::percent`]): "{n}%".
+        percent: "curve.percent" = "{n}%";
     }
 }
 
@@ -307,6 +290,8 @@ pub struct CurveEditor<'a> {
     hint: Option<String>,
     policy: EditPolicy,
     labels: CurveLabels,
+    /// Whether the host set [`labels`](CurveEditor::labels); the installed words fill them otherwise.
+    labels_set: bool,
     enabled: bool,
     pencil: bool,
     corners: bool,
@@ -334,6 +319,7 @@ impl<'a> CurveEditor<'a> {
             hint: None,
             policy: EditPolicy::default(),
             labels: CurveLabels::default(),
+            labels_set: false,
             enabled: true,
             pencil: false,
             corners: false,
@@ -409,6 +395,7 @@ impl<'a> CurveEditor<'a> {
     /// The editor's words in the interface language.
     pub fn labels(mut self, labels: CurveLabels) -> Self {
         self.labels = labels;
+        self.labels_set = true;
         self
     }
 
@@ -508,7 +495,10 @@ impl<'a> CurveEditor<'a> {
     }
 
     /// Shows the editor and returns this frame's edit event. The response is the graph's.
-    pub fn show(self, ui: &mut Ui) -> EditResponse<Curve> {
+    pub fn show(mut self, ui: &mut Ui) -> EditResponse<Curve> {
+        if !self.labels_set {
+            self.labels = CurveLabels::of(ui);
+        }
         let tokens = Tokens::of(ui);
         let style = CurveEditor::style(&tokens);
         let id = ui.make_persistent_id(self.id_salt);

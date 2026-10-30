@@ -26,7 +26,7 @@ use crate::edit::ops::ScalarOp;
 use crate::edit::order::{self, Turn};
 use crate::edit::parts::{self, Pushed};
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture};
-use crate::localized::{self, LocaleNumbers};
+use crate::localized::{self, Labels as _, LocaleNumbers};
 use crate::primitives::{FocusRing, Gap, Stack};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
@@ -90,63 +90,41 @@ pub enum StopDrop {
     At(f32),
 }
 
-/// The editor's words; translate them in the app. Templates take `{i}`, `{n}`, `{m}`,
-/// `{location}`, `{hex}` and `{opacity}`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct GradientLabels {
-    /// A colour stop's accessible name: "Color stop {i} of {n}".
-    pub color_stop: String,
-    /// A colour stop's accessible value: "{location}, {hex}".
-    pub color_value: String,
-    /// A colour stop's accessible value under [`StopRows::Combined`]: "{location}, {hex}, opacity
-    /// {opacity}".
-    pub color_opacity_value: String,
-    /// An opacity stop's accessible name: "Opacity stop {i} of {n}".
-    pub opacity_stop: String,
-    /// An opacity stop's accessible value: "{location}, opacity {opacity}".
-    pub opacity_value: String,
-    /// A colour midpoint's accessible name: "Midpoint {i}".
-    pub midpoint: String,
-    /// An opacity midpoint's accessible name: "Opacity midpoint {i}".
-    pub opacity_midpoint: String,
-    /// The bar's accessible value: "{n} color stops, {m} opacity stops".
-    pub bar_value: String,
-    /// The bar's accessible value under [`StopRows::Combined`]: "{n} stops".
-    pub bar_stops: String,
-    /// A value in percent: "{n}%".
-    pub percent: String,
-    /// A canvas gradient overlay's end handle value, a point in document units: "{x}, {y}".
-    pub point_value: String,
-    /// The fields row's labels, which name their fields: "Color", "Opacity", "Location",
-    /// "Midpoint".
-    pub color: String,
-    pub opacity: String,
-    pub location: String,
-    pub midpoint_field: String,
-    /// The Delete button's accessible name and tooltip: "Delete stop".
-    pub delete: String,
-}
-
-impl Default for GradientLabels {
-    fn default() -> Self {
-        Self {
-            color_stop: "Color stop {i} of {n}".into(),
-            color_value: "{location}, {hex}".into(),
-            color_opacity_value: "{location}, {hex}, opacity {opacity}".into(),
-            opacity_stop: "Opacity stop {i} of {n}".into(),
-            opacity_value: "{location}, opacity {opacity}".into(),
-            midpoint: "Midpoint {i}".into(),
-            opacity_midpoint: "Opacity midpoint {i}".into(),
-            bar_value: "{n} color stops, {m} opacity stops".into(),
-            bar_stops: "{n} stops".into(),
-            percent: "{n}%".into(),
-            point_value: "{x}, {y}".into(),
-            color: "Color".into(),
-            opacity: "Opacity".into(),
-            location: "Location".into(),
-            midpoint_field: "Midpoint".into(),
-            delete: "Delete stop".into(),
-        }
+crate::words! {
+    /// The editor's words, in the installed language unless set. Templates take `{i}`, `{n}`,
+    /// `{m}`, `{location}`, `{hex}` and `{opacity}`.
+    pub struct GradientLabels {
+        /// A colour stop's accessible name: "Color stop {i} of {n}".
+        color_stop: "gradient.colorStop" = "Color stop {i} of {n}";
+        /// A colour stop's accessible value: "{location}, {hex}".
+        color_value: "gradient.colorValue" = "{location}, {hex}";
+        /// A colour stop's accessible value under [`StopRows::Combined`]: "{location}, {hex}, opacity
+        /// {opacity}".
+        color_opacity_value: "gradient.colorOpacityValue" = "{location}, {hex}, opacity {opacity}";
+        /// An opacity stop's accessible name: "Opacity stop {i} of {n}".
+        opacity_stop: "gradient.opacityStop" = "Opacity stop {i} of {n}";
+        /// An opacity stop's accessible value: "{location}, opacity {opacity}".
+        opacity_value: "gradient.opacityValue" = "{location}, opacity {opacity}";
+        /// A colour midpoint's accessible name: "Midpoint {i}".
+        midpoint: "gradient.midpoint" = "Midpoint {i}";
+        /// An opacity midpoint's accessible name: "Opacity midpoint {i}".
+        opacity_midpoint: "gradient.opacityMidpoint" = "Opacity midpoint {i}";
+        /// The bar's accessible value: "{n} color stops, {m} opacity stops".
+        bar_value: "gradient.barValue" = "{n} color stops, {m} opacity stops";
+        /// The bar's accessible value under [`StopRows::Combined`]: "{n} stops".
+        bar_stops: "gradient.barStops" = "{n} stops";
+        /// A value in percent: "{n}%".
+        percent: "gradient.percent" = "{n}%";
+        /// A canvas gradient overlay's end handle value, a point in document units: "{x}, {y}".
+        point_value: "gradient.pointValue" = "{x}, {y}";
+        /// The fields row's labels, which name their fields: "Color", "Opacity", "Location",
+        /// "Midpoint".
+        color: "" = "Color";
+        opacity: "" = "Opacity";
+        location: "" = "Location";
+        midpoint_field: "" = "Midpoint";
+        /// The Delete button's accessible name and tooltip: "Delete stop".
+        delete: "gradient.deleteStop" = "Delete stop";
     }
 }
 
@@ -383,6 +361,8 @@ pub struct GradientEditor<'a, T = ()> {
     location_decimals: usize,
     policy: EditPolicy,
     labels: GradientLabels,
+    /// Whether the host set [`labels`](GradientEditor::labels); the installed words fill them otherwise.
+    labels_set: bool,
     enabled: bool,
     fields: bool,
     color_popover: bool,
@@ -409,6 +389,7 @@ impl<'a> GradientEditor<'a> {
             location_decimals: 0,
             policy: EditPolicy::default(),
             labels: GradientLabels::default(),
+            labels_set: false,
             enabled: true,
             fields: true,
             color_popover: false,
@@ -503,6 +484,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     /// The editor's words in the interface language.
     pub fn labels(mut self, labels: GradientLabels) -> Self {
         self.labels = labels;
+        self.labels_set = true;
         self
     }
 
@@ -550,6 +532,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             location_decimals,
             policy,
             labels,
+            labels_set,
             enabled,
             fields,
             color_popover,
@@ -567,6 +550,7 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
             location_decimals,
             policy,
             labels,
+            labels_set,
             enabled,
             fields,
             color_popover,
@@ -577,7 +561,10 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
     }
 
     /// Shows the editor and returns this frame's edit.
-    pub fn show(self, ui: &mut Ui) -> GradientEditorResponse<T> {
+    pub fn show(mut self, ui: &mut Ui) -> GradientEditorResponse<T> {
+        if !self.labels_set {
+            self.labels = GradientLabels::of(ui);
+        }
         let style = GradientEditor::style(&Tokens::of(ui));
         let id = ui.make_persistent_id(self.id_salt);
         Stack::new(Gap::Stack).show(ui, |ui| self.show_inside(ui, id, &style)).inner

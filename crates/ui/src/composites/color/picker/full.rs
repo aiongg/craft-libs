@@ -95,7 +95,7 @@ impl ColorPicker<'_> {
         mode: &mut AreaMode,
         models: &[&dyn ColorModel],
         inner: Inner,
-        translate: &dyn Fn(&str) -> String,
+        translate: &dyn Fn(&'static str) -> String,
         parts: &mut Parts<'_>,
     ) -> bool {
         let tokens = Tokens::of(ui);
@@ -168,7 +168,7 @@ impl ColorPicker<'_> {
         offered: &[AreaMode],
         models: &[&dyn ColorModel],
         inner: Inner,
-        translate: &dyn Fn(&str) -> String,
+        translate: &dyn Fn(&'static str) -> String,
         parts: &mut Parts<'_>,
     ) {
         let tokens = Tokens::of(ui);
@@ -258,7 +258,7 @@ impl ColorPicker<'_> {
 }
 
 /// The "Only Web Colors" check box; switching it on sets the snapped colour.
-fn only_web_colors(ui: &mut Ui, enabled: bool, translate: &dyn Fn(&str) -> String, parts: &mut Parts<'_>) {
+fn only_web_colors(ui: &mut Ui, enabled: bool, translate: &dyn Fn(&'static str) -> String, parts: &mut Parts<'_>) {
     let mut on = parts.web.get();
     let changed = Checkbox::bool(translate(texts::ONLY_WEB_COLORS), &mut on).id_salt("only-web-colors").enabled(enabled).show(ui).response.changed();
     if changed {
@@ -283,7 +283,7 @@ fn channel_row<R>(ui: &mut Ui, cell: f32, width: f32, height: f32, gap: f32, lab
 
 /// The compare swatch: the colour being edited ("new") over `current`, with their captions; a
 /// click on `current` sets it.
-fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, enabled: bool, translate: &dyn Fn(&str) -> String, parts: &mut Parts<'_>) {
+fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, enabled: bool, translate: &dyn Fn(&'static str) -> String, parts: &mut Parts<'_>) {
     let t = &tokens.component.color_picker;
     let new = parts.value().color;
     let swatch = Swatch::style(tokens, ControlSize::Md);

@@ -9,6 +9,7 @@ use egui::epaint::PathShape;
 use egui::{AsIdSalt, Id, IdSalt, InteractOptions, Mesh, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, UiBuilder, Vec2, vec2};
 
 use super::area::{Axes, keys};
+use super::picker::installed;
 use super::{AreaMode, faded_stroke, parts_style, scale_of, spoken};
 use crate::controls::slider::{KEY_FILTER, PressTurn, Sensing, press_turn, stepped, tap};
 use crate::edit::ops::{Bound, ScalarOp};
@@ -194,7 +195,7 @@ pub struct ColorWheel {
     policy: EditPolicy,
     enabled: bool,
     part: bool,
-    names: [String; 4],
+    names: Option<[String; 4]>,
 }
 
 /// What [`ColorWheel::show`] reports.
@@ -228,7 +229,7 @@ impl ColorWheel {
             policy: EditPolicy::default(),
             enabled: true,
             part: false,
-            names: Self::TEXTS.map(str::to_owned),
+            names: None,
         }
     }
 
@@ -251,7 +252,7 @@ impl ColorWheel {
 
     /// Translates the wheel's words, given as the English [`TEXTS`](ColorWheel::TEXTS).
     pub fn text(mut self, translate: impl Fn(&str) -> String) -> Self {
-        self.names = Self::TEXTS.map(translate);
+        self.names = Some(Self::TEXTS.map(translate));
         self
     }
 
@@ -320,13 +321,14 @@ impl ColorWheel {
         let ring_rect = Rect::from_center_size(geometry.center, Vec2::splat(2.0 * geometry.outer));
         let corners = geometry.corners(self.values.values[0], 0.0);
         let triangle_rect = Rect::from_points(&corners).intersect(ring_rect).expand(1.0);
-        let ring = Interactive::new("ring", Role::Slider, self.names[0].as_str())
+        let names = self.names.clone().unwrap_or_else(|| installed(ui, Self::TEXTS));
+        let ring = Interactive::new("ring", Role::Slider, names[0].as_str())
             .sense(Sense::FOCUSABLE)
             .enabled(enabled)
             .state_layer(false)
             .focus_ring(false)
             .interact_at(ui, ring_rect);
-        let triangle = Interactive::new("triangle", Role::Slider, self.names[1].as_str())
+        let triangle = Interactive::new("triangle", Role::Slider, names[1].as_str())
             .sense(Sense::FOCUSABLE)
             .enabled(enabled)
             .state_layer(false)
@@ -407,7 +409,7 @@ impl ColorWheel {
         let shown = *gesture.shown();
         let [hue, saturation, brightness] = [0, 1, 2].map(|c| finite(shown.values[c]));
         let model = &HsbModel as &dyn ColorModel;
-        let text = format!("{}, {}", spoken(&self.names[2], model, 1, saturation), spoken(&self.names[3], model, 2, brightness));
+        let text = format!("{}, {}", spoken(&names[2], model, 1, saturation), spoken(&names[3], model, 2, brightness));
         let hue_value = hue_scale.place(f64::from(hue)).rem_euclid(360.0);
         let ring_response = ring.numeric(hue_value, 0.0..=360.0, 1.0).finish(ui);
         let triangle_response = triangle.value(text).finish(ui);

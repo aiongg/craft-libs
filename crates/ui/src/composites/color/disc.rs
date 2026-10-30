@@ -5,6 +5,7 @@ use craft_theme::{ColorModel, HsbModel, ModelValues, Srgba};
 use egui::accesskit::{Action, Role};
 use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, Key, Mesh, Modifiers, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, vec2};
 
+use super::picker::installed;
 use super::wheel::{ColorWheelStyle, finite, hue_at, hue_direction, vertex};
 use super::{ColorWheel, faded_stroke};
 use crate::controls::slider::{KEY_FILTER, tap};
@@ -89,7 +90,7 @@ pub struct ColorDisc {
     policy: EditPolicy,
     enabled: bool,
     marker_names: Vec<String>,
-    words: [String; 4],
+    words: Option<[String; 4]>,
 }
 
 /// What [`ColorDisc::show`] reports.
@@ -123,7 +124,7 @@ impl ColorDisc {
             policy: EditPolicy::default(),
             enabled: true,
             marker_names: Vec::new(),
-            words: Self::TEXTS.map(str::to_owned),
+            words: None,
         }
     }
 
@@ -164,7 +165,7 @@ impl ColorDisc {
 
     /// Translates the disc's words, given as the English [`TEXTS`](ColorDisc::TEXTS).
     pub fn text(mut self, translate: impl Fn(&str) -> String) -> Self {
-        self.words = Self::TEXTS.map(translate);
+        self.words = Some(Self::TEXTS.map(translate));
         self
     }
 
@@ -298,12 +299,12 @@ impl ColorDisc {
 
         // The markers, for the keyboard and a screen reader; only the stop takes the focus.
         let shown = *gesture.shown();
+        let words = self.words.clone().unwrap_or_else(|| installed(ui, Self::TEXTS));
         let mut parts = Vec::with_capacity(ids.len());
         for i in 0..ids.len() {
             let live = if i == shown.marker { shown } else { marker_value(i) };
-            let name = self.marker_names.get(i).cloned().unwrap_or_else(|| format!("{} {}", self.words[0], i + 1));
-            let value =
-                format!("{} {:.0} {}, {} {:.0} %", self.words[1], live.hue.rem_euclid(360.0), self.words[3], self.words[2], live.saturation * 100.0);
+            let name = self.marker_names.get(i).cloned().unwrap_or_else(|| format!("{} {}", words[0], i + 1));
+            let value = format!("{} {:.0} {}, {} {:.0} %", words[1], live.hue.rem_euclid(360.0), words[3], words[2], live.saturation * 100.0);
             let big = Some(i) == self.selected;
             let r = if big { style.marker_selected } else { style.marker };
             let rect = Rect::from_center_size(at_value(center, radius, &live), vec2(2.0 * r, 2.0 * r));
