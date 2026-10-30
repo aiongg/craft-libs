@@ -440,7 +440,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let galley = self.tab_label(ui, panel, &label, style.label_color(active), f32::INFINITY);
         let tab_id = self.id.with(("tab", panel));
         let position = owner.and_then(|owner| owner.panels.iter().position(|p| p == panel)).unwrap_or(0);
-        let text = crate::tab_strip::TabStripText::default();
+        let text = <crate::tab_strip::TabStripText as crate::localized::Labels>::of(ui);
         let view = crate::tab_strip::TabView::new(self.id, &text, position)
             .active(active)
             .focused(ui.memory(|m| m.has_focus(tab_id)))

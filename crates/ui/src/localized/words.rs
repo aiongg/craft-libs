@@ -188,6 +188,11 @@ pub trait Labels: Sized {
     fn of(ui: &Ui) -> Self {
         Self::english().localized_in(&Words::of(ui))
     }
+
+    /// [`Labels::of`] for code that has a context and no `Ui`.
+    fn of_ctx(ctx: &Context) -> Self {
+        Self::english().localized_in(&Words::of_ctx(ctx))
+    }
 }
 
 /// Every registered word, once, in registration order.

@@ -386,7 +386,7 @@ fn draw_group(ui: &mut Ui, flow: &Flow, area: Rect, mut along: f32, g: usize, it
         let os = ui.ctx().os();
         let mut button = IconButton::new(item.icon, item.label.clone()).with_id(ui.make_persistent_id(("item", g, i))).enabled(item.enabled);
         if let Some(shortcut) = &item.shortcut {
-            button = button.shortcut(Kbd::new(shortcut).text(os));
+            button = button.shortcut(Kbd::new(shortcut).text_in(os, &crate::localized::Words::of(ui)));
         }
         button = match item.toggle.as_deref_mut() {
             Some(on) => button.toggle(on),

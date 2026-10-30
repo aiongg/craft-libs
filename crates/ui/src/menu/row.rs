@@ -141,7 +141,7 @@ impl RowPainter<'_> {
     }
 
     fn shortcut_galley(&self, ui: &Ui, kbd: &Kbd, color: Color32) -> Arc<Galley> {
-        let text = kbd.text(kbd.os_in(ui.ctx()));
+        let text = kbd.text_in(kbd.os_in(ui.ctx()), &crate::localized::Words::of(ui));
         ui.painter().layout_job(LayoutJob::single_section(text, role_format(self.tokens, self.style.shortcut_label, color)))
     }
 

@@ -254,13 +254,11 @@ impl Inspector {
         let tokens = Tokens::of(ui);
         let style = Inspector::style(&tokens);
         let body_gap = DockLook::of(ui).body_gap;
-        let scroll_bar_label = self.scroll_bar_label;
+        let scroll_bar_label = self.scroll_bar_label.unwrap_or_else(|| crate::patterns::panel::ScrollBarLabels::name(ui));
         let builder = UiBuilder::new().id_salt(self.id_salt).accessibility_role(Role::GenericContainer);
         ui.scope_builder(builder, |ui| {
             let mut area = ScrollArea::vertical().id_salt("scroll").auto_shrink([false, false]);
-            if let Some(label) = scroll_bar_label {
-                area = area.vertical_scroll_bar_label(label);
-            }
+            area = area.vertical_scroll_bar_label(scroll_bar_label);
             area.show(ui, |ui| {
                 Frame::new().inner_margin(Margin::same(style.pad.round() as i8)).show(ui, |ui| {
                     ui.set_width(ui.available_width());

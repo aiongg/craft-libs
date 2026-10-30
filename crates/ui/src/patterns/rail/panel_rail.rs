@@ -14,7 +14,9 @@ use egui::{
 use crate::controls::{IconButton, IconButtonStyle};
 use crate::direction;
 use crate::icons::Icon;
+use crate::localized::{Word, Words};
 use crate::panes::Edge;
+use crate::patterns::panel::ScrollBarLabels;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
@@ -143,13 +145,16 @@ pub struct PanelRailOutput<P> {
 pub struct PanelRail {
     id_salt: IdSalt,
     edge: Edge,
-    label: String,
-    scroll_bar_label: String,
+    label: Option<String>,
+    scroll_bar_label: Option<String>,
 }
+
+/// The rail's name, the same word as the dock's "Panels".
+const RAIL_NAME: Word = Word::keyed("dock.panels", "Panels");
 
 impl PanelRail {
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), edge: Edge::End, label: "Panels".to_owned(), scroll_bar_label: "Scroll bar".to_owned() }
+        Self { id_salt: IdSalt::new(id_salt), edge: Edge::End, label: None, scroll_bar_label: None }
     }
 
     /// The edge the rail sits at (default [`Edge::End`]). The rail is vertical, so
@@ -163,14 +168,14 @@ impl PanelRail {
     /// The toolbar's translated accessible name (default "Panels").
     #[must_use]
     pub fn label(mut self, label: impl Into<String>) -> Self {
-        self.label = label.into();
+        self.label = Some(label.into());
         self
     }
 
     /// The scroll bar's translated accessible name (default "Scroll bar").
     #[must_use]
     pub fn scroll_bar_label(mut self, label: impl Into<String>) -> Self {
-        self.scroll_bar_label = label.into();
+        self.scroll_bar_label = Some(label.into());
         self
     }
 
@@ -242,6 +247,8 @@ impl PanelRail {
     ) -> PanelRailOutput<P> {
         let style = PanelRail::style(&Tokens::of(ui));
         let id = ui.make_persistent_id(self.id_salt);
+        let label = self.label.clone().unwrap_or_else(|| Words::of(ui).get(RAIL_NAME).into_owned());
+        let scroll_bar_label = self.scroll_bar_label.clone().unwrap_or_else(|| ScrollBarLabels::name(ui));
         let left = self.left(ui);
         let panel = if left { egui::Panel::left(id.with("panel")) } else { egui::Panel::right(id.with("panel")) };
         let frame = Frame::NONE.fill(style.fill).inner_margin(Margin::symmetric(0, style.pad_y.round() as i8));
@@ -251,11 +258,10 @@ impl PanelRail {
             egui::Panel::bottom(id.with("foot")).frame(Frame::NONE).show_separator_line(false).resizable(false).show(ui, |ui| {
                 ui.with_layout(Layout::top_down(Align::Center), foot);
             });
-            let scroll =
-                ScrollArea::vertical().id_salt(id.with("items")).auto_shrink([false, false]).vertical_scroll_bar_label(&self.scroll_bar_label);
+            let scroll = ScrollArea::vertical().id_salt(id.with("items")).auto_shrink([false, false]).vertical_scroll_bar_label(&scroll_bar_label);
             scroll
                 .show(ui, |ui| {
-                    let toolbar = UiBuilder::new().id_salt("toolbar").accessibility_role(Role::Toolbar).accessibility_label(self.label.as_str());
+                    let toolbar = UiBuilder::new().id_salt("toolbar").accessibility_role(Role::Toolbar).accessibility_label(label.as_str());
                     ui.scope_builder(toolbar, |ui| {
                         ui.ctx().accesskit_node_builder(ui.unique_id(), |node| node.set_orientation(Orientation::Vertical));
                         ui.with_layout(Layout::top_down(Align::Center), |ui| {

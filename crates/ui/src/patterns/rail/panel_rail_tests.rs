@@ -38,17 +38,20 @@ struct App {
     log: Vec<PanelRailRequest<Tool>>,
     edge: Edge,
     foot: bool,
+    unnamed: bool,
     out: Option<PanelRailOutput<Tool>>,
 }
 
 impl App {
     fn new() -> Self {
-        Self { items: items(), open: Vec::new(), log: Vec::new(), edge: Edge::End, foot: false, out: None }
+        Self { items: items(), open: Vec::new(), log: Vec::new(), edge: Edge::End, foot: false, unnamed: false, out: None }
     }
 
     fn frame(&mut self, ui: &mut Ui) {
         let foot = self.foot;
-        let out = PanelRail::new("rail").edge(self.edge).label("Panels").show(ui, &self.items, &self.open, |ui| {
+        let rail = PanelRail::new("rail").edge(self.edge);
+        let rail = if self.unnamed { rail } else { rail.label("Panels") };
+        let out = rail.show(ui, &self.items, &self.open, |ui| {
             if foot {
                 let _ = ui.button("Foot");
             }
@@ -246,6 +249,17 @@ fn in_a_short_window_the_items_scroll_and_the_foot_stays_visible() {
     h.run_steps(3);
     assert!(h.state().rect(Tool::Tags).bottom() <= h.get_by_label("Foot").rect().top(), "the last item is above the foot after scrolling");
     assert_eq!(h.get_by_label("Foot").rect(), foot);
+}
+
+#[test]
+fn an_unnamed_rail_takes_its_name_from_the_installed_words() {
+    let mut app = App::new();
+    app.unnamed = true;
+    let mut h = builder(Direction::Ltr, 600.0).build_ui_state(|ui, app: &mut App| app.frame(ui), app);
+    crate::localized::Words::new(|word| (word.id == "dock.panels").then(|| "Panneaux".to_owned())).install(&h.ctx);
+    h.input_mut().focused = true;
+    h.run_steps(2);
+    assert_eq!(h.get_by_role(Role::Toolbar).accesskit_node().label().as_deref(), Some("Panneaux"));
 }
 
 #[test]

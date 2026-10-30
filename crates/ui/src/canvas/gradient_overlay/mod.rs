@@ -24,7 +24,7 @@ use crate::composites::{
     GradientEditor, GradientLabels, GradientStops, StopRef, StopRow, StopRows, StopRules, StopSampler as Sampler, default_sampler,
 };
 use crate::edit::{EditEvent, EditPolicy, Gesture};
-use crate::localized::LocaleNumbers;
+use crate::localized::{Labels, LocaleNumbers};
 use crate::primitives::FocusRing;
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
@@ -206,6 +206,7 @@ pub struct GradientOverlay<'a> {
     cursor: Option<Cursor<'a>>,
     policy: EditPolicy,
     labels: GradientLabels,
+    labels_set: bool,
     numbers: Option<&'a LocaleNumbers>,
     location_decimals: usize,
     units: Option<(&'a RulerUnits, &'a RulerUnits)>,
@@ -233,6 +234,7 @@ impl<'a> GradientOverlay<'a> {
             cursor: None,
             policy: EditPolicy::default(),
             labels: GradientLabels::default(),
+            labels_set: false,
             numbers: None,
             location_decimals: 0,
             units: None,
@@ -292,6 +294,7 @@ impl<'a> GradientOverlay<'a> {
     /// canvas.
     pub fn labels(mut self, labels: GradientLabels) -> Self {
         self.labels = labels;
+        self.labels_set = true;
         self
     }
 
@@ -417,7 +420,10 @@ impl<'a> GradientOverlay<'a> {
     }
 
     /// Draws the gradient over `view` and senses through the host's `canvas` response.
-    pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> GradientOverlayResponse {
+    pub fn show(mut self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> GradientOverlayResponse {
+        if !self.labels_set {
+            self.labels = GradientLabels::of(ui);
+        }
         let ctx = ui.ctx().clone();
         let id = ui.make_persistent_id(self.id_salt);
         let style = GradientOverlay::style(&Tokens::of(ui));

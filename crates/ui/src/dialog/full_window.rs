@@ -74,7 +74,7 @@ pub struct FullWindowDialog<'a> {
     outer_gesture: bool,
     enter: EnterRule,
     initial_focus: InitialFocus,
-    labels: DialogLabels,
+    labels: Option<DialogLabels>,
 }
 
 impl<'a> FullWindowDialog<'a> {
@@ -87,7 +87,7 @@ impl<'a> FullWindowDialog<'a> {
             outer_gesture: false,
             enter: EnterRule::Default,
             initial_focus: InitialFocus::None,
-            labels: DialogLabels::default(),
+            labels: None,
         }
     }
 
@@ -135,7 +135,7 @@ impl<'a> FullWindowDialog<'a> {
 
     /// The translated "default" hint the Default button is described with.
     pub fn labels(mut self, labels: DialogLabels) -> Self {
-        self.labels = labels;
+        self.labels = Some(labels);
         self
     }
 
@@ -149,6 +149,7 @@ impl<'a> FullWindowDialog<'a> {
         body: impl FnOnce(&mut Ui, &mut H, &mut FullWindowFx),
     ) -> DialogResponse {
         let FullWindowDialog { id, title, title_actions, rect, outer_gesture, enter, initial_focus, labels } = self;
+        let labels = labels.unwrap_or_else(|| <DialogLabels as crate::localized::Labels>::of_ctx(ctx));
         let rect = rect.unwrap_or_else(|| ctx.content_rect());
         let opened = !state.is_open();
         if opened {
