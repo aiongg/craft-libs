@@ -282,3 +282,19 @@ fn the_side_column_stacks_ok_above_cancel_at_the_trailing_side() {
     harness.run();
     assert_eq!(harness.state().outcomes, [Outcome::Ok]);
 }
+
+/// The row's allocation is as tall as its buttons, so whatever follows it starts below them.
+#[test]
+fn the_button_row_allocates_the_buttons_height() {
+    let gap = std::rc::Rc::new(std::cell::Cell::new(f32::NAN));
+    let seen = gap.clone();
+    let _h = Harness::builder()
+        .with_size([400.0, 200.0])
+        .with_context_setup(|ctx: &egui::Context| crate::theme::install(ctx, &crate::theme::Base::suite_default()))
+        .build_ui(move |ui| {
+            let shown = super::FooterButtons::new("row", vec![super::FooterButton::new(super::ButtonRole::Default, "OK")]).show(ui);
+            let button_bottom = shown.responses.iter().map(|r| r.rect.bottom()).fold(0.0, f32::max);
+            seen.set(ui.min_rect().bottom() - button_bottom);
+        });
+    assert!(gap.get() >= -0.01, "the buttons reach {} past the row", -gap.get());
+}

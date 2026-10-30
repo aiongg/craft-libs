@@ -16,6 +16,7 @@
 //!   a well that shows one.
 //! - [`GradientEditor`]: the gradient stop bar, its markers and midpoints edited by pointer and
 //!   keys.
+//! - [`GroupBox`]: an outlined group with a title, for a dialog's or preferences page's rows.
 //! - [`SectionHeader`]: the header row of a panel section, collapsible (chevron, persisted open
 //!   state, Enter and Space) or always open, with an optional controls slot.
 //! - [`SectionLabel`]: the static caption over a group of controls in a panel.
@@ -72,6 +73,9 @@ pub(crate) mod form_grid;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod form_grid_tests;
 pub mod gradient;
+pub(crate) mod group_box;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod group_box_tests;
 pub(crate) mod histogram;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod histogram_tests;
@@ -121,6 +125,7 @@ pub use gradient::{
     ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientLabels, GradientRamp, GradientRampStyle, GradientStops,
     GradientSwatch, OpacityStop, Sampler as StopSampler, StopDrop, StopRef, StopRow, StopRows, StopRules, default_sampler,
 };
+pub use group_box::{GroupBox, GroupBoxStyle};
 pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramResponse, HistogramScale, HistogramStyle};
 pub use levels_editor::{Levels, LevelsClip, LevelsEditor, LevelsLabels, LevelsStyle};
 pub use notice::{Notice, NoticeStyle};

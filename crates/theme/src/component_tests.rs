@@ -714,6 +714,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 12
             // Popover: the grip's ticks.
             + 1
+            // Group box: edge and radius.
+            + 2
             // Colour wheel: the disc's spoke.
             + 1
     );

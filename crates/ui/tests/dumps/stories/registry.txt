@@ -82,6 +82,7 @@ controls/angle-dial/dialog = Angle dial | Dialog (field scope) | Panel |
 composites/field/dialog = Field | Dialog | Panel | above=Bool(false); help=Bool(true); error=Bool(false)
 composites/form-grid/image-size = FormGrid | Image size | Panel | roomy=Bool(false); labels at start=Bool(false)
 composites/property-row/inspector = PropertyRow | Inspector | Panel | mixed=Bool(false); width=Number { value: 260.0, min: 60.0, max: 400.0 }
+composites/group-box/default = GroupBox | Default | Panel | second=Bool(true); width=Number { value: 320.0, min: 120.0, max: 480.0 }
 composites/section-header/collapsible = SectionHeader | Collapsible | Panel | width=Number { value: 260.0, min: 60.0, max: 400.0 }
 composites/section-header/always-open = SectionHeader | Always open | Panel | width=Number { value: 260.0, min: 60.0, max: 400.0 }
 composites/section-label/default = SectionLabel | Default | Panel | text=Text("Blend mode")
@@ -156,6 +157,7 @@ patterns/dialog/blocking = Dialog | Blocking overlay | Panel | busy for 2 s=Bool
 patterns/full-window/workspace = FullWindowDialog | Workspace | Panel | open=Bool(true); title strip=Bool(true); apply=Bool(false)
 patterns/dialog/preview = Dialog | Preview | Panel | open=Bool(true); preview=Bool(true); local history=Bool(true); compare button=Bool(true)
 patterns/viewport/embedded = ViewportWindow | Embedded | Panel | open=Bool(true); app modal=Bool(false); scrim=Bool(false)
+patterns/preferences/window = PreferencesWindow | Window | Panel | search=Text(""); width=Number { value: 760.0, min: 560.0, max: 1040.0 }; height=Number { value: 480.0, min: 400.0, max: 800.0 }; rtl=Bool(false)
 patterns/options-bar/brush-and-transform = OptionsBar | Brush and transform | Chrome | narrow=Bool(false); session=Bool(true); disabled=Bool(false); two_rows=Bool(false); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
 patterns/status-bar/photocraft = StatusBar | PhotoCraft | Chrome | message=Text("Saved to Documents"); error=Bool(false); render_path=Bool(true); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
 patterns/status-bar/error = StatusBar | Error | Chrome | message=Text("Couldn't save: the disk is full"); error=Bool(true); render_path=Bool(true); width=Number { value: 640.0, min: 160.0, max: 1200.0 }

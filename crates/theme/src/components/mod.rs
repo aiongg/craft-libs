@@ -24,6 +24,7 @@ mod form;
 mod gradient_editor;
 mod gradient_line;
 mod gradient_palette;
+mod group_box;
 mod guide;
 mod handle;
 mod histogram;
@@ -42,6 +43,7 @@ mod panel_footer;
 mod panel_header;
 mod popover;
 mod popup;
+mod preferences;
 mod progress;
 mod property;
 mod rail;
@@ -91,6 +93,7 @@ pub use form::{FormField, FormSpacing, FormTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
 pub use gradient_line::{GradientLineField, GradientLineTokens};
 pub use gradient_palette::{GradientPaletteField, GradientPaletteTokens};
+pub use group_box::{GroupBoxField, GroupBoxTokens};
 pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use histogram::{HistogramField, HistogramTokens};
@@ -108,6 +111,7 @@ pub use panel_footer::{PanelFooterField, PanelFooterTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
 pub use popover::{PopoverField, PopoverTokens};
 pub use popup::{PopupField, PopupTokens};
+pub use preferences::{PreferencesField, PreferencesTokens};
 pub use progress::{ProgressField, ProgressTokens};
 pub use property::{PropertyField, PropertyTokens};
 pub use rail::{RailField, RailTokens};
@@ -654,6 +658,8 @@ families! {
     gradient_editor: GradientEditorTokens => GradientEditor(GradientEditorField);
     /// Gradient lines: the line, end handles, stops and midpoints of a gradient on the canvas.
     gradient_line: GradientLineTokens => GradientLine(GradientLineField);
+    /// Group boxes: the outlined, titled group of a dialog or preferences page.
+    group_box: GroupBoxTokens => GroupBox(GroupBoxField);
     /// Gradient palettes: the grid and list of gradient presets.
     gradient_palette: GradientPaletteTokens => GradientPalette(GradientPaletteField);
     /// Ruler guides and smart guides.
@@ -690,6 +696,8 @@ families! {
     popover: PopoverTokens => Popover(PopoverField);
     /// Popups: the card that holds a menu or a list under a field.
     popup: PopupTokens => Popup(PopupField);
+    /// Preferences windows: the page list column and the gap to the page.
+    preferences: PreferencesTokens => Preferences(PreferencesField);
     /// Progress bars.
     progress: ProgressTokens => Progress(ProgressField);
     /// Property rows: the label, control and column widths of an inspector row.

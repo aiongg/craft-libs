@@ -6,8 +6,8 @@
 use craft_theme::{Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, States, TextSize, TypeRole, Variants, builtins, resolve};
 use craft_ui::canvas::{BezierOverlay, GradientOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
-    ChannelColor, ColorArea, ColorDisc, ColorWheel, CurveEditor, EmptyState, Field, FormGrid, GradientEditor, Histogram, LevelsEditor, Notice,
-    PanelFooter, PanelHeader, PropertyRow, SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
+    ChannelColor, ColorArea, ColorDisc, ColorWheel, CurveEditor, EmptyState, Field, FormGrid, GradientEditor, GroupBox, Histogram, LevelsEditor,
+    Notice, PanelFooter, PanelHeader, PropertyRow, SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
 };
 use craft_ui::controls::{
     AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
@@ -971,5 +971,24 @@ fn color_disc() {
             .line("edge", s.wheel.edge)
             .line("marker_inner", s.wheel.marker_inner)
             .line("marker_outer", s.wheel.marker_outer);
+    });
+}
+
+/// Group boxes: the outline, radius, padding, gaps and title.
+#[test]
+fn group_box() {
+    check("group_box.txt", |d, t| {
+        let s = GroupBox::style(t, 1.0);
+        d.line("edge", s.edge.width).line("edge_color", s.edge.color).line("radius", s.radius.nw).line("padding", s.padding);
+        d.line("gap", s.gap).line("title_gap", s.title_gap).line("title_role", role(s.title_role)).line("title", s.title);
+    });
+}
+
+/// Preferences windows: the page list column and the gaps.
+#[test]
+fn preferences() {
+    check("preferences.txt", |d, t| {
+        let s = craft_ui::preferences::PreferencesBody::style(t);
+        d.line("list_width", s.list_width).line("page_gap", s.page_gap).line("gap", s.gap);
     });
 }

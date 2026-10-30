@@ -1,7 +1,7 @@
 //! The role-based button row every dialog footer uses: [`ButtonRole`], [`Platform`], the order
 //! rules ([`ButtonRole::slot`], [`order`]) and [`FooterButtons`].
 
-use craft_theme::ButtonVariant;
+use craft_theme::{ButtonVariant, ControlSize};
 use egui::os::OperatingSystem;
 use egui::{AsIdSalt, Context, Id, IdSalt, Response, Sense, Ui, vec2};
 
@@ -161,7 +161,7 @@ impl FooterButtons {
     pub fn show(self, ui: &mut Ui) -> FooterButtonsResponse {
         let tokens = Tokens::of(ui);
         let id = ui.make_persistent_id(self.id_salt);
-        let (_, rect) = ui.allocate_space(vec2(ui.available_width(), tokens.size.control.md));
+        let (_, rect) = ui.allocate_space(vec2(ui.available_width(), tokens.component.button.height.get(ControlSize::Md)));
         let (shown, _) =
             measure::trailing_row(ui, id.with("row"), rect, Sense::hover(), tokens.component.dialog.button_gap, 0.0, |row| self.place(row, id));
         shown
