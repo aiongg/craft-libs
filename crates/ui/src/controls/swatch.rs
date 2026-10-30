@@ -207,7 +207,7 @@ impl Swatch {
 
 /// A checkerboard of `cell_size` cells over `rect`, the light cell at its top left, with the
 /// corners of `radius` where a cell meets a corner of `rect`.
-pub(crate) fn checkerboard(rect: Rect, radius: CornerRadius, checker: [Color32; 2], cell_size: f32) -> Vec<Shape> {
+pub fn checkerboard(rect: Rect, radius: CornerRadius, checker: [Color32; 2], cell_size: f32) -> Vec<Shape> {
     let mut out = vec![Shape::Rect(RectShape::filled(rect, radius, checker[0]))];
     let (cols, rows) = ((rect.width() / cell_size).ceil() as usize, (rect.height() / cell_size).ceil() as usize);
     for row in 0..rows {

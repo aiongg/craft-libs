@@ -5,8 +5,8 @@ use craft_theme::ControlSize;
 use craft_theme::TypeRole;
 use craft_ui::behavior::{Axis, DropPosition, Reorder, RowInfo, Selection};
 use craft_ui::composites::PanelFooter;
-use craft_ui::controls::Swatch;
 use craft_ui::controls::{IconButton, NumberField, Select};
+use craft_ui::controls::{Swatch, checkerboard};
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
 use craft_ui::list::{List, ListEvent, ListRow, RowEvent, ThumbSize, ToggleColumn};
@@ -16,7 +16,7 @@ use craft_ui::patterns::{CellWidth, OptionsBar};
 use craft_ui::primitives::{Content, Text};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::text::LayoutJob;
-use egui::{Color32, Label, Painter, Rect, Response, Ui, vec2};
+use egui::{Color32, CornerRadius, Label, Painter, Rect, Response, Ui, vec2};
 
 use super::super::model::{Blend, LayerId, LayerKind, Mock};
 
@@ -225,8 +225,7 @@ enum Change {
     Locked(bool),
 }
 
-/// The checkerboard colours and cell side of a swatch: the library's own `checkerboard` is
-/// private to the crate, so the thumbnail repaints it from the same tokens.
+/// The checkerboard colours and cell side of a swatch.
 struct Checker {
     colors: [Color32; 2],
     cell: f32,
@@ -240,14 +239,7 @@ fn thumb(painter: &Painter, rect: Rect, shown: Option<[u8; 3]>, checker: &Checke
             painter.rect_filled(rect, 0.0, Color32::from_rgb(r, g, b));
         }
         None => {
-            painter.rect_filled(rect, 0.0, checker.colors[0]);
-            let (cols, rows) = ((rect.width() / checker.cell).ceil() as usize, (rect.height() / checker.cell).ceil() as usize);
-            for row in 0..rows {
-                for col in (0..cols).filter(|col| (row + col) % 2 == 1) {
-                    let min = rect.min + vec2(col as f32 * checker.cell, row as f32 * checker.cell);
-                    painter.rect_filled(Rect::from_min_size(min, vec2(checker.cell, checker.cell)).intersect(rect), 0.0, checker.colors[1]);
-                }
-            }
+            painter.extend(checkerboard(rect, CornerRadius::ZERO, checker.colors, checker.cell));
         }
     }
 }

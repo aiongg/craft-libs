@@ -117,7 +117,7 @@ pub use segmented::{Segmented, SegmentedStyle};
 pub use select::{ListboxStyle, Select, SelectStyle};
 pub use slider::{Slider, SliderScale, SliderStyle, SliderThumb};
 pub use spinner::Spinner;
-pub use swatch::{Swatch, SwatchStyle};
+pub use swatch::{Swatch, SwatchStyle, checkerboard};
 pub use switch::{Switch, SwitchStyle};
 pub use text_field::{SearchField, TextField, TextFieldStyle};
 pub use thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowOutput, ThumbRowStyle};
