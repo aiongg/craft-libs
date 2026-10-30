@@ -416,6 +416,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             focused: ui.memory(|m| m.has_focus(tab_id)),
             large: false,
             divider: false,
+            text_only: false,
             drop_highlight: false,
             sense: if policy.movable { Sense::click_and_drag() } else { Sense::click() },
             position,

@@ -445,7 +445,9 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
         let style = self.style;
         let height = if kind == TabKind::Panel { style.panel_height } else { style.strip_height(large) };
         let (_, rect) = ui.allocate_space(vec2(ui.available_width(), height));
-        ui.painter().rect_filled(rect, 0.0, style.strip);
+        if !kind.text_only() {
+            ui.painter().rect_filled(rect, 0.0, style.strip);
+        }
         let shows_close = kind.shows_close();
         let natural: Vec<f32> = tabs.iter().map(|tab| tab.natural_width(ui, large, shows_close)).collect();
         let selected_at = selected.as_ref().and_then(|key| tabs.iter().position(|tab| tab.key() == key));
@@ -512,6 +514,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
                 focused: self.focused && has_spot,
                 large,
                 divider: kind.compact_dividers(),
+                text_only: kind.text_only(),
                 drop_highlight: drop_highlight.as_ref() == Some(key),
                 sense,
                 position: placed.index,

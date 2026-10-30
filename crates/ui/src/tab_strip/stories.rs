@@ -39,6 +39,12 @@ struct DropsArgs {
     width: f64,
 }
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct TextArgs {
+    #[arg(range = 160.0..=1200.0)]
+    width: f64,
+}
+
 pub(super) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
@@ -51,7 +57,24 @@ pub(super) fn stories() -> Vec<Story> {
         ),
         typed_story!("composites/tab-strip/panels", Level::Composites, "TabStrip", "Panels", PanelsArgs { width: 260.0, locked: false }, show_panels),
         typed_story!("composites/tab-strip/drops", Level::Composites, "TabStrip", "Drops", DropsArgs { width: 480.0 }, show_drops),
+        typed_story!("composites/tab-strip/text", Level::Composites, "TabStrip", "Text", TextArgs { width: 640.0 }, show_text),
     ]
+}
+
+/// Text tabs as in a New Document dialog's categories: labels only, the selected one in the text
+/// colour and the others dimmed.
+fn show_text(ui: &mut Ui, args: &mut TextArgs) {
+    let width = (args.width as f32).min(ui.available_width());
+    let shared = shared(ui, "tab-strip-text", || 0_u32);
+    let mut selected = shared.lock();
+    let names = ["Recent", "Saved", "Photo", "Print", "Art & Illustration", "Web", "Mobile", "Film & Video"];
+    let tabs: Vec<Tab<u32>> = names.iter().zip(0..).map(|(name, key)| Tab::new(key, *name)).collect();
+    let out = ui.allocate_ui(vec2(width, 0.0), |ui| TabStrip::new("text", "Categories", TabKind::Text).selected(&*selected).show(ui, &tabs)).inner;
+    for event in out.events {
+        if let TabEvent::Activate(key) = event {
+            *selected = key;
+        }
+    }
 }
 
 /// The state shared between frames of a story.

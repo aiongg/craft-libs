@@ -121,6 +121,7 @@ fn view<'a>(strip: egui::Id, text: &'a TabStripText, active: bool) -> TabView<'a
         focused: false,
         large: false,
         divider: false,
+        text_only: false,
         drop_highlight: false,
         sense: Sense::CLICK,
         position: 2,
@@ -213,6 +214,27 @@ fn the_active_tab_takes_the_active_fill_and_the_text_colour() {
     let (on, off) = (paint(true), paint(false));
     assert_eq!(fills(&on), [s.active]);
     assert!(fills(&off).is_empty(), "an inactive tab at rest draws no fill: the strip shows");
+    assert_eq!(label_colour(&on, "Photo"), Some(s.text));
+    assert_eq!(label_colour(&off, "Photo"), Some(s.inactive_text));
+}
+
+/// A text tab (PhotoCraft's category tabs) draws its label only: the text colour when selected,
+/// the dim one otherwise, no fill even under the pointer, and still a selected AccessKit Tab.
+#[test]
+fn a_text_tab_draws_only_its_label_in_the_selected_or_dim_colour() {
+    let s = style();
+    let tab = Tab::new(1u8, "Photo");
+    let paint = |active| {
+        shapes(|ui| {
+            let text = TabStripText::default();
+            let strip = ui.make_persistent_id("strip");
+            let (_, at) = ui.allocate_space(vec2(220.0, 26.0));
+            let view = TabView { text_only: true, ..view(strip, &text, active) };
+            tab.show_at(ui, at, &view);
+        })
+    };
+    let (on, off) = (paint(true), paint(false));
+    assert!(fills(&on).is_empty() && fills(&off).is_empty(), "no tab surface");
     assert_eq!(label_colour(&on, "Photo"), Some(s.text));
     assert_eq!(label_colour(&off, "Photo"), Some(s.inactive_text));
 }

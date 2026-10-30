@@ -225,6 +225,23 @@ fn the_strip_is_one_tab_stop_and_the_arrows_move_the_focus_without_switching() {
 }
 
 #[test]
+fn a_text_strip_keeps_the_tab_role_selection_and_arrow_keys_of_the_other_kinds() {
+    let mut host = Host::new(4, 1);
+    host.kind = TabKind::Text;
+    host.tabs = (0..4).map(|i| Tab::new(i, format!("Category {i}"))).collect();
+    let mut harness = harness(host);
+    let node = tab(&harness, "Category 1");
+    assert_eq!((node.accesskit_node().role(), node.accesskit_node().is_selected()), (Role::Tab, Some(true)));
+    assert_eq!(tab(&harness, "Category 2").accesskit_node().is_selected(), Some(false));
+
+    focus(&mut harness);
+    key(&mut harness, Modifiers::NONE, Key::ArrowRight);
+    assert_eq!(active(&harness).as_deref(), Some("Category 2"));
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state_mut().take(), [TabEvent::Activate(2)]);
+}
+
+#[test]
 fn the_arrows_swap_right_to_left() {
     let mut harness = harness_in(Host::new(4, 1), Direction::Rtl);
     focus(&mut harness);

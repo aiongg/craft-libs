@@ -125,6 +125,7 @@ composites/tab/states = Tab | States | Panel | large=Bool(false); dividers=Bool(
 composites/tab-strip/documents = TabStrip | Documents | Panel | width=Number { value: 640.0, min: 160.0, max: 1200.0 }; large=Bool(false); tear_off=Bool(true)
 composites/tab-strip/panels = TabStrip | Panels | Panel | width=Number { value: 260.0, min: 120.0, max: 480.0 }; locked=Bool(false)
 composites/tab-strip/drops = TabStrip | Drops | Panel | width=Number { value: 480.0, min: 160.0, max: 1200.0 }
+composites/tab-strip/text = TabStrip | Text | Panel | width=Number { value: 640.0, min: 160.0, max: 1200.0 }
 composites/list-row/layers = ListRow | Layers | Panel | thumbnails=Choice { options: ["None", "Small", "Medium", "Large"], index: 0 }; detail=Bool(false); highlight second row=Bool(false); layer form=Bool(true); width=Number { value: 280.0, min: 60.0, max: 480.0 }
 composites/list-row/masks = ListRow | Mask thumbnail | Panel | linked=Bool(true); width=Number { value: 280.0, min: 120.0, max: 480.0 }
 composites/list/ten-thousand-rows = List | 10,000 rows | Panel | selection=Choice { options: ["Multiple", "Single"], index: 0 }; mixed heights=Bool(false); height=Number { value: 320.0, min: 120.0, max: 600.0 }

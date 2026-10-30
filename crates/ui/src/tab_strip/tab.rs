@@ -391,6 +391,9 @@ pub struct TabView<'a> {
     pub large: bool,
     /// A divider is drawn at the tab's trailing edge (document tabs in Compact).
     pub divider: bool,
+    /// The tab draws only its label, in `tab.text` when active and `tab.text.inactive` otherwise:
+    /// no surface, indicator or divider ([`TabKind::Text`]).
+    pub text_only: bool,
     /// A host drag is over the tab: an outline of `tab.drop` inside it.
     pub drop_highlight: bool,
     /// What the tab senses. `Sense::CLICK` is not focusable, so a strip that is one Tab stop
@@ -574,9 +577,11 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         let hovered = (tab.hovered() || close.is_some_and(Response::hovered)) && ui.is_enabled();
         let rtl = direction::is_rtl(ui);
         let ppp = ui.pixels_per_point();
-        style.paint_surface(ui.painter(), rect, view.active || hovered);
-        if view.active {
-            style.paint_indicator(ui.painter(), rect);
+        if !view.text_only {
+            style.paint_surface(ui.painter(), rect, view.active || hovered);
+            if view.active {
+                style.paint_indicator(ui.painter(), rect);
+            }
         }
         if view.divider && style.dividers {
             let x = if rtl { rect.left() + style.divider.width / 2.0 } else { rect.right() - style.divider.width / 2.0 };
@@ -702,6 +707,7 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
             focused: *focused,
             large,
             divider: dividers,
+            text_only: false,
             drop_highlight: *highlight,
             sense: Sense::CLICK,
             position: index,
