@@ -75,7 +75,9 @@ impl AppPreview {
     /// body-only preview while no control has the keyboard focus, through the library's
     /// [`take_tab_toggle`]. Any other Tab is left to egui, so focus can leave the canvas.
     pub fn raw_input_hook(ctx: &egui::Context, raw: &mut egui::RawInput) {
-        let windows = ctx.data(|d| d.get_temp::<BodyOnly>(Id::unique("app-preview-body-only"))).unwrap_or_default().0;
+        let state = ctx.data(|d| d.get_temp::<BodyOnly>(Id::unique("app-preview-body-only"))).unwrap_or_default();
+        // Only previews drawn in the last pass count; an older list is stale.
+        let windows = if state.pass + 1 == ctx.cumulative_pass_nr() { state.windows } else { Vec::new() };
         let focused = ctx.memory(|m| m.focused());
         let Some(window) = windows.iter().find(|w| focused == Some(canvas::canvas_id(w))).or(windows.first()).cloned() else {
             return;
@@ -102,11 +104,14 @@ impl AppPreview {
         let labels = CanvasLabels { options: Some("Options".to_owned()), tools: Some("Tools".to_owned()), status: Some("Status".to_owned()) };
         let mode = view.mode;
         let body_mode = if mode.body_only() { BodyMode::Only } else { BodyMode::Normal };
+        let pass = ctx.cumulative_pass_nr();
         ctx.data_mut(|d| {
-            let windows = &mut d.get_temp_mut_or_default::<BodyOnly>(Id::unique("app-preview-body-only")).0;
-            windows.retain(|w| *w != key);
+            let state = d.get_temp_mut_or_default::<BodyOnly>(Id::unique("app-preview-body-only"));
+            if state.pass != pass {
+                *state = BodyOnly { pass, windows: Vec::new() };
+            }
             if mode.body_only() {
-                windows.push(key.clone());
+                state.windows.push(key.clone());
             }
         });
         let taken = ctx.data_mut(|d| {
@@ -177,6 +182,10 @@ mod tests;
 
 const TAB_TOGGLE: &str = "app-preview-tab-toggle";
 
-/// The shell windows of the previews that are in a body-only mode, where Tab toggles the reveal.
+/// The shell windows of the previews that were in a body-only mode in pass `pass`, where Tab
+/// toggles the reveal. A new pass starts a new list.
 #[derive(Clone, Default)]
-struct BodyOnly(Vec<WindowKey>);
+struct BodyOnly {
+    pass: u64,
+    windows: Vec<WindowKey>,
+}
