@@ -32,7 +32,7 @@ fn bar() -> MenuBar {
 }
 
 fn entries(target: Target) -> Vec<craft_ui::behavior::PaletteEntry<CommandRef>> {
-    bar().palette_entries(&keys(), target, &LayoutOptions::new("Sample"), None, &egui::Context::default())
+    bar().palette_entries(&keys(), target, &LayoutOptions::new("Sample"), None, egui::os::OperatingSystem::Nix)
 }
 
 fn find<'a>(all: &'a [craft_ui::behavior::PaletteEntry<CommandRef>], id: &str) -> &'a craft_ui::behavior::PaletteEntry<CommandRef> {
@@ -82,7 +82,7 @@ fn a_translated_command_is_found_by_its_english_name() {
         Labeled::Title("Datei") => Some("File".to_owned()),
         _ => None,
     };
-    let all = bar.palette_entries(&keys(), Target::Linux, &LayoutOptions::new("Sample"), Some(&english), &egui::Context::default());
+    let all = bar.palette_entries(&keys(), Target::Linux, &LayoutOptions::new("Sample"), Some(&english), egui::os::OperatingSystem::Nix);
     assert_eq!(CommandSearch::new(&all).query("save").results(5).len(), 1);
     assert_eq!(CommandSearch::new(&all).query("speich").results(5).len(), 1);
 }

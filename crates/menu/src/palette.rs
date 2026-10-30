@@ -19,6 +19,10 @@ impl MenuBar {
     /// listed; the open documents of the Window menu are. A check or radio item is a plain entry:
     /// the palette has no checked state.
     ///
+    /// `os` is the host's operating system (`ctx.os()`), which picks the platform the shortcuts
+    /// are written for on a non-Mac target. Building the list lays out the whole bar, so a host
+    /// caches the result and rebuilds it when the bar or the keymap changes, not every frame.
+    ///
     /// `english` gives a command's or menu title's English name (as [`crate::MenuBarUi::english`]),
     /// asked on every target, so the search finds a translated command by its English name.
     pub fn palette_entries(
@@ -27,12 +31,12 @@ impl MenuBar {
         target: Target,
         options: &LayoutOptions,
         english: Option<&EnglishHook<'_>>,
-        ctx: &egui::Context,
+        os: egui::os::OperatingSystem,
     ) -> Vec<PaletteEntry<CommandRef>> {
         let mut bar = self.clone();
         apply_keymap(&mut bar, keymap);
         let laid_out = layout(&bar, target, options).bar;
-        let convert = Convert { gate: Gate::default(), platform: keymap_platform(target, ctx.os()), mnemonics: true, english, preferred: &[] };
+        let convert = Convert { gate: Gate::default(), platform: keymap_platform(target, os), mnemonics: true, english, preferred: &[] };
         let menus: Vec<MenuItem<CommandRef>> = laid_out.menus.iter().map(|m| convert.sub(&m.title, &m.children)).collect();
         let mut entries = PaletteEntry::from_menu(&menus);
         entries.retain(|e| Builtin::of(e.command()).is_none());

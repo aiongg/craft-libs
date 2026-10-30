@@ -30,7 +30,7 @@ pub enum Labeled<'s> {
 }
 
 /// The app's English labels ([`MenuBarUi::english`]).
-pub(crate) type EnglishHook<'h> = dyn Fn(Labeled<'_>) -> Option<String> + 'h;
+pub type EnglishHook<'h> = dyn Fn(Labeled<'_>) -> Option<String> + 'h;
 
 /// How the bar looked before it took its look from the theme. Nothing reads it any more.
 #[deprecated(note = "the bar's look comes from the theme; this is ignored")]

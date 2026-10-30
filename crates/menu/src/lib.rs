@@ -89,7 +89,7 @@ mod palette;
 pub mod mac;
 
 #[allow(deprecated)]
-pub use bar::{BarStyle, Labeled, MenuBarUi};
+pub use bar::{BarStyle, EnglishHook, Labeled, MenuBarUi};
 pub use craft_keymap::{Chord, CommandRef};
 pub use driver::{Backend, ClipboardKeys, CommandHook, Dispatch, Event, Gate, NativeMenu, had_input};
 pub use keymap::{ItemState, apply_keymap, apply_state};
