@@ -11,6 +11,8 @@ mod bezier;
 mod button;
 mod check;
 mod color_picker;
+mod color_ramp;
+mod color_wheel;
 mod cursor;
 mod curve;
 mod dialog;
@@ -21,6 +23,7 @@ mod float;
 mod form;
 mod gradient_editor;
 mod gradient_line;
+mod gradient_palette;
 mod guide;
 mod handle;
 mod histogram;
@@ -75,6 +78,8 @@ pub use bezier::{BezierField, BezierTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckSwitchColors, CheckSwitchPart, CheckTokens};
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
+pub use color_ramp::{ColorRampField, ColorRampTokens};
+pub use color_wheel::{ColorWheelField, ColorWheelTokens};
 pub use cursor::{CursorField, CursorTokens};
 pub use curve::{CurveField, CurveTokens};
 pub use dialog::{DialogField, DialogTokens};
@@ -85,6 +90,7 @@ pub use float::{FloatField, FloatTokens};
 pub use form::{FormField, FormSpacing, FormTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
 pub use gradient_line::{GradientLineField, GradientLineTokens};
+pub use gradient_palette::{GradientPaletteField, GradientPaletteTokens};
 pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use histogram::{HistogramField, HistogramTokens};
@@ -624,6 +630,10 @@ families! {
     check: CheckTokens => Check(CheckField);
     /// Colour pickers: the sizes of the area, strip, compare swatch and marker.
     color_picker: ColorPickerTokens => ColorPicker(ColorPickerField);
+    /// Colour ramps: the bar under the slider rows, with its white and black boxes.
+    color_ramp: ColorRampTokens => ColorRamp(ColorRampField);
+    /// Colour wheels and discs: the hue ring and triangle, and the harmony disc.
+    color_wheel: ColorWheelTokens => ColorWheel(ColorWheelField);
     /// Curve editors: the graph, points and gradient bars of a tone curve.
     curve: CurveTokens => Curve(CurveField);
     /// Painted pointers: the crosshair, selection badge, distort and skew arrows.
@@ -644,6 +654,8 @@ families! {
     gradient_editor: GradientEditorTokens => GradientEditor(GradientEditorField);
     /// Gradient lines: the line, end handles, stops and midpoints of a gradient on the canvas.
     gradient_line: GradientLineTokens => GradientLine(GradientLineField);
+    /// Gradient palettes: the grid and list of gradient presets.
+    gradient_palette: GradientPaletteTokens => GradientPalette(GradientPaletteField);
     /// Ruler guides and smart guides.
     guide: GuideTokens => Guide(GuideField);
     /// Canvas handles.

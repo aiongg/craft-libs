@@ -7,15 +7,15 @@ use std::fmt::Write as _;
 
 use crate::{
     AngleDialTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens, BySize,
-    CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorToken, ComponentTokens, ControlSizes, CursorTokens,
-    CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot,
-    FormSpacing, FormTokens, Gaps, GradientEditorTokens, GradientLineTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes,
-    ItemColors, KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens,
-    NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, ProgressTokens,
-    PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens,
-    ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes,
-    TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole,
-    TypeStyle, TypeTokens,
+    CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens, ComponentTokens,
+    ControlSizes, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens,
+    FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GuideTokens,
+    HandleTokens, HistogramTokens, IconButtonTokens, IconSizes, ItemColors, KbdTokens, LevelsTokens, ListSizes, ListTokens, ListboxTokens,
+    MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens,
+    PanelTokens, PopoverTokens, PopupTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba,
+    RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens,
+    States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
+    ToggleButtonTokens, Tokens, Tone, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -222,6 +222,8 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         button,
         check,
         color_picker,
+        color_ramp,
+        color_wheel,
         curve,
         cursor,
         dialog,
@@ -232,6 +234,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         form,
         gradient_editor,
         gradient_line,
+        gradient_palette,
         guide,
         handle,
         histogram,
@@ -276,6 +279,8 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     button_lines(out, button);
     check_lines(out, check);
     color_picker_lines(out, color_picker);
+    color_ramp_lines(out, color_ramp);
+    color_wheel_lines(out, color_wheel);
     curve_lines(out, curve);
     cursor_lines(out, cursor);
     dialog_lines(out, dialog);
@@ -286,6 +291,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     form_lines(out, form);
     gradient_editor_lines(out, gradient_editor);
     gradient_line_lines(out, gradient_line);
+    gradient_palette_lines(out, gradient_palette);
     guide_lines(out, guide);
     handle_lines(out, handle);
     histogram_lines(out, histogram);
@@ -489,6 +495,60 @@ fn toggle_button_lines(out: &mut Lines, t: &ToggleButtonTokens) {
     out.line("toggle_button.on_disabled.fill", hex(*on_disabled_fill));
     out.line("toggle_button.on_disabled.border", hex(*on_disabled_border));
     out.line("toggle_button.on_disabled.text", hex(*on_disabled_text));
+}
+
+fn color_wheel_lines(out: &mut Lines, t: &ColorWheelTokens) {
+    let ColorWheelTokens {
+        side,
+        side_min,
+        ring_min,
+        ring_max,
+        ring_ratio,
+        outer_inset,
+        triangle_inset,
+        grab_outer,
+        grab_inner,
+        disc_inset,
+        disc_marker,
+        disc_marker_selected,
+        disc_grab,
+        disc_floor,
+        spoke,
+    } = t;
+    out.line("color_wheel.side", len(*side));
+    out.line("color_wheel.side_min", len(*side_min));
+    out.line("color_wheel.ring_min", len(*ring_min));
+    out.line("color_wheel.ring_max", len(*ring_max));
+    out.line("color_wheel.ring_ratio", len(*ring_ratio));
+    out.line("color_wheel.outer_inset", len(*outer_inset));
+    out.line("color_wheel.triangle_inset", len(*triangle_inset));
+    out.line("color_wheel.grab_outer", len(*grab_outer));
+    out.line("color_wheel.grab_inner", len(*grab_inner));
+    out.line("color_wheel.disc_inset", len(*disc_inset));
+    out.line("color_wheel.disc_marker", len(*disc_marker));
+    out.line("color_wheel.disc_marker_selected", len(*disc_marker_selected));
+    out.line("color_wheel.disc_grab", len(*disc_grab));
+    out.line("color_wheel.disc_floor", len(*disc_floor));
+    out.line("color_wheel.spoke", hex(*spoke));
+}
+
+fn color_ramp_lines(out: &mut Lines, t: &ColorRampTokens) {
+    let ColorRampTokens { height, height_min, boxes, boxes_gap, cells_x, cells_y } = t;
+    out.line("color_ramp.height", len(*height));
+    out.line("color_ramp.height_min", len(*height_min));
+    out.line("color_ramp.boxes", len(*boxes));
+    out.line("color_ramp.boxes_gap", len(*boxes_gap));
+    out.line("color_ramp.cells_x", *cells_x);
+    out.line("color_ramp.cells_y", *cells_y);
+}
+
+fn gradient_palette_lines(out: &mut Lines, t: &GradientPaletteTokens) {
+    let GradientPaletteTokens { cell_width, cell_height, list_swatch_width, list_swatch_height, max_height } = t;
+    out.line("gradient_palette.cell_width", len(*cell_width));
+    out.line("gradient_palette.cell_height", len(*cell_height));
+    out.line("gradient_palette.list_swatch_width", len(*list_swatch_width));
+    out.line("gradient_palette.list_swatch_height", len(*list_swatch_height));
+    out.line("gradient_palette.max_height", len(*max_height));
 }
 
 fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {

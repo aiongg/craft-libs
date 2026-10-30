@@ -782,6 +782,64 @@ pub const COLOR_PICKER_PAIR_GAP: f32 = 2.0;
 /// Compact width of a swatch pair's ring well.
 pub const COLOR_PICKER_PAIR_RING: f32 = 7.0;
 
+/// The control height the Compact colour wheel, ramp and gradient palette sizes are set for;
+/// other sizes scale them by their control height over this.
+pub const COLOR_WHEEL_BASE_CONTROL: f32 = 24.0;
+/// Compact default height of a colour wheel's area (PhotoCraft's `min(220)`).
+pub const COLOR_WHEEL_SIDE: f32 = 220.0;
+/// Compact least height of a colour wheel's area.
+pub const COLOR_WHEEL_SIDE_MIN: f32 = 28.0;
+/// Compact least width of the hue ring.
+pub const COLOR_WHEEL_RING_MIN: f32 = 6.0;
+/// Compact greatest width of the hue ring.
+pub const COLOR_WHEEL_RING_MAX: f32 = 22.0;
+/// Ring width as a proportion of the outer radius; a proportion, so no size scales it.
+pub const COLOR_WHEEL_RING_RATIO: f32 = 0.09;
+/// Compact distance from the area's edge to the ring's outer edge.
+pub const COLOR_WHEEL_OUTER_INSET: f32 = 2.0;
+/// Compact distance from the ring's inner edge to the triangle's circumscribed circle.
+pub const COLOR_WHEEL_TRIANGLE_INSET: f32 = 1.0;
+/// Compact distance outside the ring's outer edge within which a press still takes the ring.
+pub const COLOR_WHEEL_GRAB_OUTER: f32 = 7.0;
+/// Compact distance inside the ring's inner edge from which a press takes the ring.
+pub const COLOR_WHEEL_GRAB_INNER: f32 = 2.0;
+/// Compact distance from a colour disc's area edge to the disc.
+pub const COLOR_WHEEL_DISC_INSET: f32 = 10.0;
+/// Compact radius of a colour disc's marker.
+pub const COLOR_WHEEL_DISC_MARKER: f32 = 5.5;
+/// Compact radius of a colour disc's selected marker.
+pub const COLOR_WHEEL_DISC_MARKER_SELECTED: f32 = 8.0;
+/// Compact distance from a press within which a colour disc grabs its nearest marker.
+pub const COLOR_WHEEL_DISC_GRAB: f32 = 14.0;
+/// Least brightness a colour disc draws, so the disc never goes black; a proportion.
+pub const COLOR_WHEEL_DISC_FLOOR: f32 = 0.15;
+/// A colour disc's spokes: white at alpha 160.
+pub const COLOR_WHEEL_SPOKE: Rgba = Rgba([255, 255, 255, 160]);
+
+/// Compact height of a colour ramp (PhotoCraft's colour panel).
+pub const COLOR_RAMP_HEIGHT: f32 = 36.0;
+/// Compact least height of a colour ramp.
+pub const COLOR_RAMP_HEIGHT_MIN: f32 = 28.0;
+/// Compact width of the white and black boxes at a ramp's end.
+pub const COLOR_RAMP_BOXES: f32 = 16.0;
+/// Compact gap between a ramp's bar and its boxes.
+pub const COLOR_RAMP_BOXES_GAP: f32 = 2.0;
+/// Cells across a ramp's bar; a count, so no size scales it.
+pub const COLOR_RAMP_CELLS_X: u32 = 48;
+/// Cells down a ramp's bar; a count, so no size scales it.
+pub const COLOR_RAMP_CELLS_Y: u32 = 8;
+
+/// Compact width of a gradient palette's grid cell (PhotoCraft's gradient popover).
+pub const GRADIENT_PALETTE_CELL_WIDTH: f32 = 32.0;
+/// Compact height of a gradient palette's grid cell.
+pub const GRADIENT_PALETTE_CELL_HEIGHT: f32 = 18.0;
+/// Compact width of a gradient palette's list swatch (PhotoCraft's Gradient Map list).
+pub const GRADIENT_PALETTE_LIST_SWATCH_WIDTH: f32 = 48.0;
+/// Compact height of a gradient palette's list swatch.
+pub const GRADIENT_PALETTE_LIST_SWATCH_HEIGHT: f32 = 16.0;
+/// Compact height at which a gradient palette scrolls.
+pub const GRADIENT_PALETTE_MAX_HEIGHT: f32 = 120.0;
+
 /// The control height the Compact curve editor sizes are set for.
 pub const CURVE_BASE_CONTROL: f32 = 24.0;
 /// Compact least side of a curve editor's graph, bars included (PhotoCraft's Curves).
