@@ -6,6 +6,12 @@
 
 use egui::Context;
 
+mod fit;
+mod options;
+
+pub use fit::Fit;
+pub use options::InterfaceScaleLabels;
+
 /// The interface scale a user chose. Stored as the string `"auto"` or `"75"` .. `"300"`
 /// (see [`InterfaceScale::code`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

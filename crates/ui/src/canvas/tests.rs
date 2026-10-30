@@ -582,3 +582,15 @@ fn a_new_press_does_not_inherit_the_queue_entry_of_a_superseded_one() {
     })
     .drop_without_applying_deltas();
 }
+
+#[test]
+fn points_per_unit_shows_one_document_pixel_per_device_pixel_at_every_scale() {
+    assert_eq!(CanvasView::points_per_unit(1.0, 1.0), 1.0);
+    for ppp in [1.25_f32, 1.5, 2.0] {
+        let zoom = CanvasView::points_per_unit(1.0, ppp);
+        assert!((zoom - 1.0 / f64::from(ppp)).abs() < 1e-12);
+        let view = CanvasView::new(screen(), Point::new(0.0, 0.0), zoom);
+        let step = view.to_screen(Point::new(100.0, 0.0)).x - view.to_screen(Point::new(0.0, 0.0)).x;
+        assert!((step * ppp - 100.0).abs() < 1e-3, "{ppp}: {step}");
+    }
+}
