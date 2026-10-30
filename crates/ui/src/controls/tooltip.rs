@@ -3,11 +3,12 @@
 use egui::text::LayoutJob;
 use egui::{Frame, KeyboardShortcut, Label, Margin, Response, Shadow, Stroke, Ui};
 
-use super::Kbd;
+use super::{Kbd, NoArgs};
 use crate::direction;
 use crate::primitives::{Content, Gap, Row, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, TokensOf, UiTokens, apply_popup_style, corner_radius, current, stroke};
+use crate::typed_story;
 use craft_theme::TypeRole;
 
 /// A tooltip's frame and text, from [`Tooltip::style`].
@@ -184,26 +185,31 @@ fn set_shortcut(response: &Response, shortcut: &str) {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Tooltip"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct TextArgs {
+    tip: String,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "controls/tooltip/text",
             Level::Controls,
             "Tooltip",
             "Text",
-            || Args::new().with_text("tip", "Moves the selection to the next layer"),
-            show_text,
+            TextArgs { tip: "Moves the selection to the next layer".into() },
+            show_text
         ),
-        Story::new("controls/tooltip/shortcut", Level::Controls, "Tooltip", "Shortcut", Args::new, show_shortcut),
-        Story::new("controls/tooltip/custom", Level::Controls, "Tooltip", "Custom", Args::new, show_custom),
+        typed_story!("controls/tooltip/shortcut", Level::Controls, "Tooltip", "Shortcut", NoArgs {}, show_shortcut),
+        typed_story!("controls/tooltip/custom", Level::Controls, "Tooltip", "Custom", NoArgs {}, show_custom),
     ]
 }
 
 /// Hover targets: an enabled and a disabled button, and a stock egui tooltip beside them, which
 /// keeps the popup look.
-fn show_text(ui: &mut Ui, args: &mut Args) {
+fn show_text(ui: &mut Ui, args: &mut TextArgs) {
     use super::Button;
-    let tip = args.text("tip").to_owned();
+    let tip = args.tip.clone();
     Row::new(Gap::Inline).show(ui, |ui| {
         ui.add(Button::new("Next layer").id_salt("tooltip-text-enabled")).tooltip(&tip);
         ui.add(Button::new("Disabled").enabled(false).id_salt("tooltip-text-disabled")).tooltip(&tip);
@@ -211,7 +217,7 @@ fn show_text(ui: &mut Ui, args: &mut Args) {
     });
 }
 
-fn show_shortcut(ui: &mut Ui, _: &mut Args) {
+fn show_shortcut(ui: &mut Ui, _: &mut NoArgs) {
     use super::Button;
     use egui::{Key, Modifiers};
     Row::new(Gap::Inline).show(ui, |ui| {
@@ -222,7 +228,7 @@ fn show_shortcut(ui: &mut Ui, _: &mut Args) {
     });
 }
 
-fn show_custom(ui: &mut Ui, _: &mut Args) {
+fn show_custom(ui: &mut Ui, _: &mut NoArgs) {
     use super::Button;
     ui.add(Button::new("Colour").id_salt("tooltip-custom")).tooltip_ui(|ui| {
         ui.add(Text::new("Document colour").role(craft_theme::TypeRole::BodyStrong));

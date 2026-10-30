@@ -6,11 +6,12 @@ use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, IdSalt, Rect, Shape, Str
 
 use super::button::content_color;
 use super::check::{IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
-use super::{SIZE_NAMES, salt, size_arg};
+use super::salt;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{Gap, Interactive, Stack};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, SizeArg, Story, StoryArgs};
 use crate::theme::{Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// A check box's state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -247,21 +248,27 @@ pub const COMPONENTS: &[&str] = &["Checkbox"];
 /// A label long enough to wrap in a narrow panel.
 pub(crate) const LONG_LABEL: &str = "Show the transform controls on the selected layer whenever the move tool is active";
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct StatesArgs {
+    size: SizeArg,
+    label: String,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "controls/checkbox/states",
         Level::Controls,
         "Checkbox",
         "States",
-        || Args::new().with_choice("size", SIZE_NAMES, 1).with_text("label", "Snap to grid"),
-        show,
+        StatesArgs { size: SizeArg::Md, label: "Snap to grid".into() },
+        show
     )]
 }
 
 /// Unchecked, checked and mixed boxes, enabled and disabled, then a long label. The enabled ones toggle.
-fn show(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let label = args.text("label").to_owned();
+fn show(ui: &mut Ui, args: &mut StatesArgs) {
+    let size = args.size.control();
+    let label = args.label.clone();
     let state_id = ui.scope_id().with("checkbox-states");
     let initial = [CheckState::Unchecked, CheckState::Checked, CheckState::Mixed];
     let (mut states, mut long) = ui.data(|d| d.get_temp::<([CheckState; 3], bool)>(state_id).unwrap_or((initial, true)));

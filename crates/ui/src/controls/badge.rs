@@ -9,9 +9,11 @@ use egui::{Color32, CornerRadius, Rect, Response, Sense, Shape, Stroke, StrokeKi
 
 pub use craft_theme::{BadgeStyle, BadgeTone};
 
+use super::NoArgs;
 use crate::primitives::{Gap, Row};
-use crate::story::{Args, Level, Story, variant_cluster, variant_list};
+use crate::story::{Level, Story, StoryArgs, variant_cluster, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
+use crate::typed_story;
 
 /// The largest count a count badge shows; more reads `99+`.
 pub const MAX_COUNT: u32 = 99;
@@ -108,15 +110,21 @@ pub const COMPONENTS: &[&str] = &["Badge"];
 
 const SAMPLES: [&str; 3] = ["Beta", "Synced", "Needs review"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct CountsArgs {
+    #[arg(range = 0.0..=200.0)]
+    count: u32,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new("controls/badge/tones", Level::Controls, "Badge", "Tones", Args::new, show_tones),
-        Story::new("controls/badge/counts", Level::Controls, "Badge", "Counts", || Args::new().with_number("count", 7.0, 0.0, 200.0), show_counts),
+        typed_story!("controls/badge/tones", Level::Controls, "Badge", "Tones", NoArgs {}, show_tones),
+        typed_story!("controls/badge/counts", Level::Controls, "Badge", "Counts", CountsArgs { count: 7 }, show_counts),
     ]
 }
 
 /// Every tone in each style.
-fn show_tones(ui: &mut Ui, _: &mut Args) {
+fn show_tones(ui: &mut Ui, _: &mut NoArgs) {
     variant_list(ui, "badge-tones", |form| {
         for style in BadgeStyle::ALL {
             variant_cluster(form, style.name(), |ui| {
@@ -129,8 +137,8 @@ fn show_tones(ui: &mut Ui, _: &mut Args) {
 }
 
 /// Counts below, at and above the cap, and the count of the args.
-fn show_counts(ui: &mut Ui, args: &mut Args) {
-    let chosen = args.number("count") as u32;
+fn show_counts(ui: &mut Ui, args: &mut CountsArgs) {
+    let chosen = args.count;
     Row::new(Gap::Inline).show(ui, |ui| {
         for n in [chosen, 1, 9, 10, 99, 100, 1234] {
             ui.add(Badge::count(n));

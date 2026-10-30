@@ -14,10 +14,45 @@ use super::ops::{self, Bound, ScalarOp};
 use super::{CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, UpdateRate, cancel_all, in_scope, parts};
 use crate::controls::slider::{PressTurn, press_turn};
 use crate::primitives::{Content, Gap, Interactive, Row, Stack, Surface, SurfaceKind, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf};
+use crate::typed_story;
 
-pub(crate) const RATES: &[&str] = &["realtime", "debounced 300 ms"];
+/// The `update rate` arg.
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+pub(crate) enum RateArg {
+    Realtime,
+    #[choice(name = "debounced 300 ms")]
+    Debounced,
+}
+
+/// The args that set an event-log story's [`EditPolicy`].
+#[derive(StoryArgs, Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PolicyArgs {
+    #[arg(name = "update rate")]
+    pub(crate) update_rate: RateArg,
+    pub(crate) cancellable: bool,
+    #[arg(name = "on release only")]
+    pub(crate) on_release_only: bool,
+}
+
+impl Default for PolicyArgs {
+    fn default() -> Self {
+        Self { update_rate: RateArg::Realtime, cancellable: true, on_release_only: false }
+    }
+}
+
+/// The args of `foundations/edit/log`: the policy args and the composite's field order.
+#[derive(StoryArgs, Debug, PartialEq)]
+struct LogArgs {
+    #[arg(name = "update rate")]
+    update_rate: RateArg,
+    cancellable: bool,
+    #[arg(name = "on release only")]
+    on_release_only: bool,
+    #[arg(name = "field first")]
+    field_first: bool,
+}
 
 /// Events kept in the log.
 const LOG_LEN: usize = 20;
@@ -26,30 +61,24 @@ const LOG_LEN: usize = 20;
 pub(super) const SLIDER_MAX: f32 = 100.0;
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "foundations/edit/log",
         Level::Foundations,
         "Edit lifecycle",
         "Event log",
-        || {
-            Args::new()
-                .with_choice("update rate", RATES, 0)
-                .with_bool("cancellable", true)
-                .with_bool("on release only", false)
-                .with_bool("field first", false)
-        },
-        show,
+        LogArgs { update_rate: RateArg::Realtime, cancellable: true, on_release_only: false, field_first: false },
+        show
     )]
 }
 
 /// The story's policy for its controls, from the `update rate`, `cancellable` and `on release
 /// only` args.
-pub(crate) fn policy(args: &Args) -> EditPolicy {
-    let update = match args.choice("update rate") {
-        "debounced 300 ms" => UpdateRate::Debounced(Duration::from_millis(300)),
-        _ => UpdateRate::Realtime,
+pub(crate) fn policy(args: &PolicyArgs) -> EditPolicy {
+    let update = match args.update_rate {
+        RateArg::Debounced => UpdateRate::Debounced(Duration::from_millis(300)),
+        RateArg::Realtime => UpdateRate::Realtime,
     };
-    EditPolicy::default().update(update).cancellable(args.bool("cancellable")).on_release_only(args.bool("on release only"))
+    EditPolicy::default().update(update).cancellable(args.cancellable).on_release_only(args.on_release_only)
 }
 
 /// A document of the story: two fields and an undo history of whole snapshots.
@@ -191,8 +220,8 @@ pub(crate) fn describe<T: Debug>(event: &EditEvent<T>) -> String {
 /// The controls, the composite (its field drawn first with `field first`), the undo and switch
 /// buttons (also Cmd/Ctrl+Z and Ctrl+Tab, which work during a drag; with no gesture under way,
 /// undo takes back one step), and the log.
-fn show(ui: &mut Ui, args: &mut Args) {
-    let policy = policy(args);
+fn show(ui: &mut Ui, args: &mut LogArgs) {
+    let policy = policy(&PolicyArgs { update_rate: args.update_rate, cancellable: args.cancellable, on_release_only: args.on_release_only });
     let state_id = ui.scope_id().with("edit-story-state");
     let mut state = ui.data(|d| d.get_temp::<State>(state_id)).unwrap_or_default();
     if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
@@ -212,7 +241,7 @@ fn show(ui: &mut Ui, args: &mut Args) {
         });
         let value = (state.doc().level, state.doc().label.clone());
         let id = Interactive::id_in(ui, "edit-story-composite");
-        let composite = Composite { field_first: args.bool("field first"), ..Composite::default() }.show(ui, id, &value, policy);
+        let composite = Composite { field_first: args.field_first, ..Composite::default() }.show(ui, id, &value, policy);
         state.handle(ui, "composite", composite.event, |doc, (level, label)| {
             doc.edit(|d| (d.level, d.label) = (level, label));
         });

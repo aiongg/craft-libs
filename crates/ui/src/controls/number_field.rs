@@ -18,15 +18,16 @@ use egui::{
 use super::field_wheel;
 use super::slider::{PressTurn, Scale, Track, labelled, pointer, press_turn, with_values};
 use super::text_field::{BoxState, field_box};
-use super::{IconButton, SIZE_NAMES, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size, size_arg};
+use super::{IconButton, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size};
 use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook, edit_menu};
 use crate::edit::ops::{Bound, ScalarOp};
-use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
+use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
 use crate::localized::{LocaleNumbers, Unit, first_field_id, incomplete, round_half_away, stepped};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
-use crate::story::{Args, Level, Story, variant_list};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, margin_x};
+use crate::typed_story;
 
 /// A number field's colours beyond a text field's, from [`NumberField::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1181,43 +1182,68 @@ fn report(ctx: &Context, typed: &Typed<Numbers<'_>>, (lo, hi): (f64, f64), unit:
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Number field"];
 
-const LOCALES: &[&str] = &["en", "de", "ar-EG"];
+#[derive(StoryChoice, Clone, Copy, Debug, Default, PartialEq)]
+enum LocaleArg {
+    #[default]
+    En,
+    De,
+    #[choice(name = "ar-EG")]
+    ArEg,
+}
+
+impl LocaleArg {
+    fn numbers(self) -> LocaleNumbers {
+        LocaleNumbers::from_tag(match self {
+            LocaleArg::En => "en",
+            LocaleArg::De => "de",
+            LocaleArg::ArEg => "ar-EG",
+        })
+    }
+}
+
+#[derive(StoryArgs, Debug, Default, PartialEq)]
+struct LocaleSizeArgs {
+    size: SizeArg,
+    locale: LocaleArg,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct StatesArgs {
+    size: SizeArg,
+    locale: LocaleArg,
+    #[arg(name = "edit menu")]
+    edit_menu: bool,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", LOCALES, 0);
-    let story = |id, name, show| Story::new(id, Level::Controls, "Number field", name, args, show);
     vec![
-        Story::new(
+        typed_story!(
             "controls/number-field/states",
             Level::Controls,
             "Number field",
             "States",
-            || Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", LOCALES, 0).with_bool("edit menu", true),
-            show_states,
+            StatesArgs { size: SizeArg::Md, locale: LocaleArg::En, edit_menu: true },
+            show_states
         ),
-        story("controls/number-field/scrub", "Scrub", show_scrub),
-        story("controls/number-field/right-to-left", "Right to left", show_right_to_left),
-        Story::new(
-            "controls/number-field/event-log",
+        typed_story!("controls/number-field/scrub", Level::Controls, "Number field", "Scrub", LocaleSizeArgs::default(), show_scrub),
+        typed_story!(
+            "controls/number-field/right-to-left",
             Level::Controls,
             "Number field",
-            "Event log",
-            || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
-            show_event_log,
+            "Right to left",
+            LocaleSizeArgs::default(),
+            show_right_to_left
         ),
+        typed_story!("controls/number-field/event-log", Level::Controls, "Number field", "Event log", PolicyArgs::default(), show_event_log),
     ]
 }
 
-fn numbers(args: &Args) -> LocaleNumbers {
-    LocaleNumbers::from_tag(args.choice("locale"))
-}
-
 /// Plain, with a unit, mixed, invalid, with a pop-up slider, and disabled.
-fn show_states(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let numbers = numbers(args);
+fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
+    let size = args.size.control();
+    let numbers = args.locale.numbers();
     let sum = |text: &str| text.split_once('+').and_then(|(a, b)| Some(a.trim().parse::<f64>().ok()? + b.trim().parse::<f64>().ok()?));
-    let edit_menu = args.bool("edit menu");
+    let edit_menu = args.edit_menu;
     let mixed_key = ui.scope_id().with("number-field-mixed");
     let is_mixed = ui.data(|d| d.get_temp::<bool>(mixed_key)).unwrap_or(true);
     with_values(ui, "number-field-states", [42.0, 12.5, 30.0, 7.0, 100.0, 100.0], |ui, values| {
@@ -1299,9 +1325,9 @@ fn zoom_step(value: f64, notches: i32) -> f64 {
 }
 
 /// Scrub labels and icons inside the field, and a label before it.
-fn show_scrub(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let numbers = numbers(args);
+fn show_scrub(ui: &mut Ui, args: &mut LocaleSizeArgs) {
+    let size = args.size.control();
+    let numbers = args.locale.numbers();
     with_values(ui, "number-field-scrub", [1920.0, 1080.0, 15.0, 4.0, 50.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let [w, h, angle, radius, wrapped] = values;
@@ -1358,9 +1384,9 @@ fn show_scrub(ui: &mut Ui, args: &mut Args) {
 }
 
 /// A labelled row right to left: the label mirrors, the field keeps its geometry.
-fn show_right_to_left(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let numbers = numbers(args);
+fn show_right_to_left(ui: &mut Ui, args: &mut LocaleSizeArgs) {
+    let size = args.size.control();
+    let numbers = args.locale.numbers();
     with_values(ui, "number-field-rtl", [12.5], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let note = "With the direction set to right to left the label moves to the right. The field keeps its geometry: digits stay centred, the unit stays at the box's end and the scrub label stays at the left.";
@@ -1455,7 +1481,7 @@ impl LogState {
 /// The inspector pattern: a slider and a number field showing one value under a
 /// [`GestureHost`], their events newest first and the undo-step count. Cmd/Ctrl+Z outside the
 /// field undoes a step, or cancels the gesture under way.
-fn show_event_log(ui: &mut Ui, args: &mut Args) {
+fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
     let policy = edit::policy(args);
     let numbers = LocaleNumbers::from_tag("en");
     let state_id = ui.scope_id().with("number-field-event-log");

@@ -9,12 +9,13 @@ use super::button::content_color;
 use super::check::{IndicatorColors, Labelled, Layout, Paint, indicator_shapes, label_colors};
 use super::checkbox::LONG_LABEL;
 use super::slider::knob;
-use super::{SIZE_NAMES, salt, size_arg};
+use super::{SizeArgs, salt};
 use crate::direction::{self, Direction};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{Divider, Gap, Interactive, Stack, StateLayer, Surface, SurfaceKind, SurfaceStyle};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// A switch's sizes, colours and motion, from [`Switch::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -182,16 +183,15 @@ impl<'a> Switch<'a> {
 pub const COMPONENTS: &[&str] = &["Switch"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_choice("size", SIZE_NAMES, 1);
     vec![
-        Story::new("controls/switch/states", Level::Controls, "Switch", "States", args, show_states),
-        Story::new("controls/switch/settings", Level::Controls, "Switch", "Settings", args, show_settings),
+        typed_story!("controls/switch/states", Level::Controls, "Switch", "States", SizeArgs::default(), show_states),
+        typed_story!("controls/switch/settings", Level::Controls, "Switch", "Settings", SizeArgs::default(), show_settings),
     ]
 }
 
 /// Off and on, enabled and disabled, a long label. The enabled ones flip.
-fn show_states(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
+fn show_states(ui: &mut Ui, args: &mut SizeArgs) {
+    let size = args.size.control();
     let state_id = ui.scope_id().with("switch-states");
     let mut on = ui.data(|d| d.get_temp::<[bool; 3]>(state_id).unwrap_or([false, true, true]));
     Stack::new(Gap::Stack).show(ui, |ui| {
@@ -208,8 +208,8 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
 const SETTINGS: [&str; 4] = ["Autosave every five minutes", "Show rulers", "Snap to the pixel grid", "Use the graphics card"];
 
 /// A settings list: one switch per row between dividers, the last one disabled.
-fn show_settings(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
+fn show_settings(ui: &mut Ui, args: &mut SizeArgs) {
+    let size = args.size.control();
     let state_id = ui.scope_id().with("switch-settings");
     let mut on = ui.data(|d| d.get_temp::<[bool; 4]>(state_id).unwrap_or([true, false, true, true]));
     Stack::new(Gap::Stack).show(ui, |ui| {
