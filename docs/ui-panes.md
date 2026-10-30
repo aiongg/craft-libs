@@ -78,6 +78,9 @@ State:
 
 ## Rail
 
+> **Deprecated.** `panes::Rail` and its types are replaced by `craft_ui::patterns::PanelRail`
+> (see below). They keep working unchanged until the apps have moved.
+
 `panes::Rail` is a vertical strip of icons, always shown at one edge. Each icon stands for a
 task pane, and one pane at a time is open beside the strip. A click on an icon opens its pane in
 place of the open one; a click on the open pane's icon closes it. The rail stores nothing: the
@@ -173,3 +176,25 @@ panes with `panes::focus_next`.
 - No pane prefs today: return `None` from `states`.
 - Code Editor (#1193) and Queries & Connections (#1203) become slot panes. The formula bar,
   sheet tabs and status bar stay plain panels.
+
+## `PanelRail` (replaces `Rail`)
+
+`patterns::PanelRail` is the rail of icons that open panels, drawn with the `rail.panel_*`,
+`rail.icon.panel`, `rail.selected*` and `rail.marker*` tokens. It differs from `panes::Rail` as
+follows.
+
+| `panes::Rail` | `patterns::PanelRail` |
+|---|---|
+| `Rail::new(Id)`, `.rtl(bool)` | `PanelRail::new(id_salt)`; the direction comes from the context |
+| `RailItem { pane, icon: ImageSource, .. }` | `PanelRailItem { panel, icon: icons::Icon, .. }` |
+| `show(ui, &items, open: Option<&P>, foot)` | `show(ui, &items, open: &[P], foot)`: every panel the host shows is selected |
+| `RailRequest::{Open, Close}` | `PanelRailRequest::{Open, Close}` |
+| `RailOutput { request, focused, rect }` | `PanelRailOutput { request, focused, responses, rect }`; `responses` holds each icon's `Response` for a context menu or a dock drag |
+| `.width(w)`, `.button_size(s)`, `.frame(f)` | none: sizes and colours are `rail.*` tokens (`PanelRail::style`) |
+| `item_id(&pane)` | `item_id(&ui, &panel)` |
+| none | `.label(..)` names the toolbar, `.scroll_bar_label(..)` the scroll bar |
+
+Edges, Tab and arrow keys, the focus hand-off from a disabled icon, the marker rule (shown only
+while the panel is closed, at the corner away from the canvas) and the AccessKit roles are the
+same. The rail is a vertical `Toolbar`; an icon is a `Button` with `selected` while its panel is
+open.

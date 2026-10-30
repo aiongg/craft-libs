@@ -63,10 +63,12 @@ impl App {
         self.out = Some(out);
     }
 
+    #[allow(clippy::unwrap_used)]
     fn out(&self) -> &PanelRailOutput<Tool> {
         self.out.as_ref().unwrap()
     }
 
+    #[allow(clippy::unwrap_used)]
     fn rect(&self, tool: Tool) -> Rect {
         self.out().responses.iter().find(|(p, _)| *p == tool).unwrap().1.rect
     }
@@ -114,6 +116,7 @@ fn focused(h: &Harness<'_, App>) -> Option<Tool> {
     h.state().out().focused
 }
 
+#[allow(clippy::unwrap_used)]
 fn focus(h: &mut Harness<'_, App>, tool: Tool) {
     let id = h.state().out().responses.iter().find(|(p, _)| *p == tool).unwrap().1.id;
     h.ctx.memory_mut(|m| m.request_focus(id));
