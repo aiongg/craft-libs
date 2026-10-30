@@ -311,10 +311,25 @@ fn two_columns_widen_the_rail_by_a_button_and_a_gap_and_fill_rows_of_two() {
 }
 
 #[test]
+fn in_a_tall_window_the_footer_lies_right_under_the_last_button() {
+    let h = harness_in(Direction::Ltr, App::new(), 900.0);
+    let (edit, foot) = (rect(&h, "Edit Toolbar…"), rect(&h, "Foot"));
+    let gap = {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let mut gap = 0.0;
+        ctx.run_ui(egui::RawInput::default(), |ui| gap = Tokens::of(ui).component.rail.row_gap).drop_without_applying_deltas();
+        gap
+    };
+    assert_eq!(foot.top() - edit.bottom(), gap, "{edit:?} {foot:?}");
+    assert!(foot.bottom() < 900.0 - 100.0, "not pinned to the window bottom");
+}
+
+#[test]
 fn in_a_short_window_the_slots_scroll_and_the_footer_stays_in_view() {
     let mut h = harness_in(Direction::Ltr, App::new(), 220.0);
     let foot = rect(&h, "Foot");
-    assert!(foot.bottom() <= 220.0, "{foot:?}");
+    assert!(foot.bottom() <= 220.0 && foot.bottom() > 220.0 - 20.0 - 8.0, "the footer is fully visible at the bottom: {foot:?}");
     assert!(rect(&h, "Eraser").bottom() > foot.top(), "the last slot starts out of view");
 
     let over = at(&h, "Move");

@@ -307,6 +307,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             row_gap: r.row_gap,
             toggle_height: r.toggle_height,
             toggle_icon: r.toggle_icon,
+            pad_x: metrics.pad_x,
         };
         let (fill, pad_y) = (r.fill.to_egui(), r.pad_y);
         let style = FlyoutButton::<T>::style(&tokens).icon_button;
@@ -319,17 +320,10 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         let mut out =
             ToolRailOutput { select: None, double_clicked: None, toggle_columns: false, edit_toolbar: false, flyout: None, rect: Rect::NOTHING };
         let shown = panel.exact_size(metrics.width).resizable(false).show_separator_line(false).frame(frame).show(ui, |ui| {
-            // The footer is a panel of its own, so that in a short window the slots scroll instead
-            // of running into it.
-            let columns = self.columns;
-            let foot = Frame::NONE.inner_margin(Margin::symmetric(metrics.pad_x.round() as i8, 0));
-            egui::Panel::bottom(id.with("foot")).frame(foot).show_separator_line(false).resizable(false).show(ui, |ui| {
-                ui.with_layout(Layout::top_down(Align::Min), |ui| footer(ui, RailFooter { columns }));
-            });
             let toolbar = UiBuilder::new().id_salt("toolbar").accessibility_role(Role::Toolbar).accessibility_label(self.label.as_str());
             ui.scope_builder(toolbar, |ui| {
                 ui.ctx().accesskit_node_builder(ui.unique_id(), |node| node.set_orientation(Orientation::Vertical));
-                self.body(ui, id, &layout, style, slots, current, last_used, &mut out);
+                self.body(ui, id, &layout, style, slots, current, last_used, footer, &mut out);
             });
         });
         out.rect = shown.response.rect;
@@ -346,6 +340,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         slots: &[ToolSlot<T>],
         current: &T,
         last_used: &mut LastUsed<T>,
+        footer: impl FnOnce(&mut Ui, RailFooter),
         out: &mut ToolRailOutput<T>,
     ) {
         ui.spacing_mut().item_spacing = vec2(grid.gap, grid.row_gap);
@@ -361,7 +356,16 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         let visible = visible_slots(slots, self.hidden);
         let edit = usize::from(self.edit_toolbar.is_some());
         let rtl = direction::is_rtl(ui);
-        let scroll = ScrollArea::vertical().id_salt(rail.with("slots")).auto_shrink([false, false]).vertical_scroll_bar_label(&self.scroll_bar_label);
+        // The footer lies right under the last button. Its height is the one measured on the last
+        // pass; the slots scroll only when they and the footer do not fit.
+        let footer_id = rail.with("footer-height");
+        let footer_height = ui.ctx().data(|d| d.get_temp::<f32>(footer_id));
+        let reserved = footer_height.map_or(0.0, |height| height + grid.row_gap);
+        let scroll = ScrollArea::vertical()
+            .id_salt(rail.with("slots"))
+            .auto_shrink([false, true])
+            .max_height((ui.available_height() - reserved).max(0.0))
+            .vertical_scroll_bar_label(&self.scroll_bar_label);
         scroll.show(ui, |ui| {
             // Each button with whether it takes input, in reading order.
             let mut cells: Vec<(Id, bool)> = Vec::new();
@@ -394,6 +398,18 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
                 Self::arrows(ui, grid.columns, &cells);
             }
         });
+        let width = ui.max_rect().width();
+        let inset = grid.pad_x.min(width / 2.0);
+        let top = ui.cursor().top();
+        let area = Rect::from_min_max(pos2(ui.max_rect().left() + inset, top), pos2(ui.max_rect().right() - inset, top.max(ui.max_rect().bottom())));
+        let columns = grid.columns;
+        let shown = ui
+            .scope_builder(UiBuilder::new().id_salt("footer").max_rect(area).layout(direction::column(ui)), |ui| footer(ui, RailFooter { columns }));
+        let measured = shown.response.rect.height();
+        ui.ctx().data_mut(|d| d.insert_temp(footer_id, measured));
+        if footer_height.is_none_or(|used| (used - measured).abs() > 0.5) {
+            ui.ctx().request_discard("ToolRail footer height");
+        }
     }
 
     /// One slot's button at `cell`. `None` for a slot without tools.
@@ -490,6 +506,7 @@ struct Grid {
     row_gap: f32,
     toggle_height: f32,
     toggle_icon: f32,
+    pad_x: f32,
 }
 
 impl Grid {
