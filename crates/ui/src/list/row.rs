@@ -111,6 +111,24 @@ pub enum RowEvent<K> {
         /// The requested state.
         linked: bool,
     },
+    /// A click landed on a thumbnail. The row's own response is clicked as well, so the host
+    /// selects the row as for any click and also learns which thumbnail it hit (a layer's pixels
+    /// or its mask become the target).
+    ThumbClicked {
+        /// The row.
+        row: K,
+        /// The thumbnail.
+        which: ThumbTarget,
+    },
+}
+
+/// One of a row's two thumbnails.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThumbTarget {
+    /// The thumbnail ([`thumb`](ListRow::thumb)).
+    First,
+    /// The second thumbnail ([`second_thumb`](ListRow::second_thumb)).
+    Second,
 }
 
 /// A trailing item of a row.
@@ -298,6 +316,7 @@ pub struct ListRow<'a, K> {
     thumb_width: Option<f32>,
     second: Option<Thumbnail<'a>>,
     link: Option<(bool, String)>,
+    target: Option<ThumbTarget>,
     trailing: Vec<TrailingItem<'a>>,
     selected: bool,
     focused: bool,
@@ -336,6 +355,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             thumb_width: None,
             second: None,
             link: None,
+            target: None,
             trailing: Vec::new(),
             selected: false,
             focused: false,
@@ -429,8 +449,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         self.thumb(ThumbSize::Px(size.y.round().clamp(0.0, f32::from(u16::MAX)) as u16), paint)
     }
 
-    /// A second thumbnail after the first, of the same size, frame and selected ring (a layer's
-    /// mask); `paint` draws into the painter, clipped to its rect. Nothing is drawn without a
+    /// A second thumbnail after the first, of the same size and frame (a layer's mask; the
+    /// selected ring is the first thumbnail's); `paint` draws into the painter, clipped to its rect. Nothing is drawn without a
     /// first thumbnail. A link glyph can sit between the two ([`thumb_link`](ListRow::thumb_link)).
     pub fn second_thumb(mut self, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
         self.second = Some(Box::new(paint));
@@ -441,9 +461,18 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
     /// [`Icon::Unlink`], dimmed), which reports [`RowEvent::LinkToggled`] when clicked. `name` is
     /// its accessible name and tooltip, with `{row}` standing for the row's label ("Unlink mask
     /// from {row}"). It takes a `list.icon` wide slot; without it the thumbnails are a `list.gap`
-    /// apart. Needs a [`second_thumb`](ListRow::second_thumb).
+    /// apart. The glyph is a Tab stop and shows the focus ring. Needs a
+    /// [`second_thumb`](ListRow::second_thumb).
     pub fn thumb_link(mut self, linked: bool, name: impl Into<String>) -> Self {
         self.link = Some((linked, name.into()));
+        self
+    }
+
+    /// The thumbnail the row's editing is aimed at (a layer's pixels or its mask). On a selected
+    /// row it is framed with corner brackets, as PhotoCraft's Layers panel does. Without a call
+    /// no thumbnail is marked. A click on a thumbnail reports [`RowEvent::ThumbClicked`].
+    pub fn thumb_target(mut self, target: ThumbTarget) -> Self {
+        self.target = Some(target);
         self
     }
 
@@ -591,6 +620,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             thumb_width,
             second,
             link,
+            target,
             trailing,
             selected,
             focused,
@@ -677,13 +707,16 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
                 Rect::from_center_size(pos2(geometry.span(rect, geometry.leading_start, across).center().x, rect.center().y), vec2(across, high));
             let at = at.round_to_pixels(ui.pixels_per_point());
             if side > 0.0 && thumb != ThumbSize::None {
+                let mut thumbs = Vec::new();
                 if let (Some(second), Some(first_width)) = (second, first_width) {
                     let part = |offset: f32, width: f32| {
                         let span = geometry.span(rect, geometry.leading_start + offset, width);
                         Rect::from_center_size(span.center(), vec2(width, high)).round_to_pixels(ui.pixels_per_point())
                     };
-                    paint_thumb(ui, &style, part(0.0, first_width), thumbnail, selected);
-                    paint_thumb(ui, &style, part(first_width + between, first_width), Some(second), selected);
+                    let (first, other) = (part(0.0, first_width), part(first_width + between, first_width));
+                    paint_thumb(ui, &style, first, thumbnail, selected);
+                    paint_thumb(ui, &style, other, Some(second), false);
+                    thumbs.extend([(ThumbTarget::First, first), (ThumbTarget::Second, other)]);
                     if let Some((linked, name)) = &link {
                         let slot = geometry.span(rect, geometry.leading_start + first_width, between);
                         let slot = Rect::from_center_size(slot.center(), vec2(between, high));
@@ -691,6 +724,16 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
                     }
                 } else {
                     paint_thumb(ui, &style, at, thumbnail, selected);
+                    thumbs.push((ThumbTarget::First, at));
+                }
+                if selected && let Some((_, r)) = thumbs.iter().find(|(which, _)| Some(*which) == target) {
+                    let color = if layer { style.layer_selected_text } else { style.selected_text };
+                    paint_brackets(ui.painter(), *r, color);
+                }
+                if let Some(pos) = response.clicked().then(|| response.interact_pointer_pos()).flatten()
+                    && let Some((which, _)) = thumbs.iter().find(|(_, r)| r.contains(pos))
+                {
+                    events.push(RowEvent::ThumbClicked { row: key.clone(), which: *which });
                 }
             } else if let Some(icon) = icon {
                 icons::paint_in(ui, at, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), style.icon);
@@ -837,7 +880,8 @@ fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, 
     }
 }
 
-/// The link glyph between two thumbnails in `slot`: a click asks for the opposite state.
+/// The link glyph between two thumbnails in `slot`: a click asks for the opposite state. It is a
+/// Tab stop that shows the focus ring, so the keyboard reaches it.
 #[expect(clippy::too_many_arguments)]
 fn show_link<K: Clone>(
     ui: &mut Ui,
@@ -851,10 +895,9 @@ fn show_link<K: Clone>(
 ) {
     let name = tree::with_row(name, row_label);
     let response = Interactive::with_id(row_id.with("link"), Role::Button, name.clone())
-        .sense(Sense::CLICK)
+        .sense(Sense::click())
         .checked(linked)
         .state_layer(false)
-        .focus_ring(false)
         .interact_at(ui, slot)
         .finish(ui);
     let color = match (linked, response.hovered()) {
@@ -868,6 +911,19 @@ fn show_link<K: Clone>(
         events.push(RowEvent::LinkToggled { row: key.clone(), linked: !linked });
     }
     let _ = response.on_hover_text(name);
+}
+
+/// Corner brackets just outside thumbnail `r`, marking it as the target of the row's editing
+/// (PhotoCraft's `paint_brackets`: 3 points out, 6 long, 1.5 wide).
+fn paint_brackets(painter: &Painter, r: Rect, color: Color32) {
+    const OUTSET: f32 = 3.0;
+    const ARM: f32 = 6.0;
+    let r = r.expand(OUTSET);
+    let stroke = Stroke::new(1.5, color);
+    for (corner, dx, dy) in [(r.left_top(), 1.0, 1.0), (r.right_top(), -1.0, 1.0), (r.right_bottom(), -1.0, -1.0), (r.left_bottom(), 1.0, -1.0)] {
+        painter.line_segment([corner, corner + vec2(ARM * dx, 0.0)], stroke);
+        painter.line_segment([corner, corner + vec2(0.0, ARM * dy)], stroke);
+    }
 }
 
 /// The thumbnail with the host's painting over all of `at`, and its frame just outside it.
@@ -1005,10 +1061,13 @@ struct MasksArgs {
 }
 
 /// A layer with a mask thumbnail and a link glyph between the thumbnails, and one without a mask.
+/// A click on a thumbnail moves the target brackets to it.
 fn show_masks(ui: &mut Ui, args: &mut MasksArgs) {
     let width = args.width.min(ui.available_width());
     let state_id = ui.scope_id().with("list-row-masks");
     let mut linked = ui.data(|d| d.get_temp::<bool>(state_id)).unwrap_or(args.linked);
+    let target_id = state_id.with("target");
+    let mut target = ui.data(|d| d.get_temp::<ThumbTarget>(target_id)).unwrap_or(ThumbTarget::Second);
     let tokens = Tokens::of(ui);
     let (layer_fill, mask_fill) = (tokens.color.surface.raised.to_egui(), tokens.color.text.faint.to_egui());
     ui.allocate_ui(vec2(width, 0.0), |ui| {
@@ -1024,16 +1083,22 @@ fn show_masks(ui: &mut Ui, args: &mut MasksArgs) {
                         painter.rect_filled(rect, 0.0, mask_fill);
                     })
                     .thumb_link(linked, "Link the mask to {row}")
+                    .thumb_target(target)
                     .selected(true);
             }
             for event in row.show(ui).events {
-                if let RowEvent::LinkToggled { linked: on, .. } = event {
-                    linked = on;
+                match event {
+                    RowEvent::LinkToggled { linked: on, .. } => linked = on,
+                    RowEvent::ThumbClicked { which, .. } if i == 0 => target = which,
+                    _ => {}
                 }
             }
         }
     });
-    ui.data_mut(|d| d.insert_temp(state_id, linked));
+    ui.data_mut(|d| {
+        d.insert_temp(state_id, linked);
+        d.insert_temp(target_id, target);
+    });
 }
 
 /// The state of the story's layers panel.

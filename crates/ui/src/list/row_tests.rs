@@ -2,7 +2,7 @@
 //! rename field, AccessKit and mirroring.
 
 use egui::accesskit::Role;
-use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, Rect, Shape, Ui, vec2};
+use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, Rect, Shape, Ui, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
@@ -773,4 +773,114 @@ fn a_second_thumbnail_follows_the_first_with_an_optional_link_between() {
             assert!(harness.query_by_label("Link mask to Layer").is_none());
         }
     }
+}
+
+type Thumbs = (Option<ThumbTarget>, std::cell::RefCell<Vec<Rect>>, Vec<RowEvent<u8>>, usize);
+
+fn thumbs_harness(target: Option<ThumbTarget>, selected: bool) -> Harness<'static, Thumbs> {
+    let mut h = harness::<Thumbs>(Direction::Ltr).build_ui_state(
+        move |ui, (target, painted, events, clicks): &mut Thumbs| {
+            painted.get_mut().clear();
+            let painted = &*painted;
+            let mut row = ListRow::new(1u8, "Layer")
+                .selected(selected)
+                .thumb(ThumbSize::Medium, |_, rect| painted.borrow_mut().push(rect))
+                .second_thumb(|_, rect| painted.borrow_mut().push(rect))
+                .thumb_link(true, "Link mask to {row}");
+            if let Some(target) = *target {
+                row = row.thumb_target(target);
+            }
+            let shown = row.show(ui);
+            *clicks += usize::from(shown.response.clicked());
+            events.extend(shown.events);
+        },
+        (target, std::cell::RefCell::default(), Vec::new(), 0),
+    );
+    h.run();
+    h
+}
+
+fn click_at(h: &mut Harness<'_, Thumbs>, pos: Pos2) {
+    h.event(Event::PointerMoved(pos));
+    h.event(button(pos, true, Modifiers::NONE));
+    h.event(button(pos, false, Modifiers::NONE));
+    h.run();
+}
+
+/// Advances the clock so the next press is a separate click.
+fn later(h: &mut Harness<'_, Thumbs>) {
+    let now = h.ctx.input(|i| i.time);
+    h.input_mut().time = Some(now + 1.0);
+}
+
+/// The end points of the 1.5-wide bracket segments in `color` the last frame painted.
+fn bracket_segments(h: &Harness<'_, Thumbs>, color: egui::Color32) -> Vec<[Pos2; 2]> {
+    fn collect(shape: &Shape, color: egui::Color32, out: &mut Vec<[Pos2; 2]>) {
+        match shape {
+            Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, color, out)),
+            Shape::LineSegment { points, stroke } if stroke.color == color && (stroke.width - 1.5).abs() < 1e-3 => out.push(*points),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    h.output().shapes.iter().for_each(|s| collect(&s.shape, color, &mut out));
+    out
+}
+
+/// The target brackets are eight 1.5-wide segments 6 long at the corners of the targeted
+/// thumbnail grown by 3; nothing is marked without a target or on a row that is not selected.
+#[test]
+fn the_targeted_thumbnail_has_corner_brackets() {
+    let color = style().selected_text;
+    for target in [ThumbTarget::First, ThumbTarget::Second] {
+        let h = thumbs_harness(Some(target), true);
+        let [first, second] = h.state().1.borrow()[..] else { panic!("two thumbnails") };
+        let marked = if target == ThumbTarget::First { first } else { second }.expand(3.0);
+        let segments = bracket_segments(&h, color);
+        assert_eq!(segments.len(), 8, "{target:?}");
+        let corners = [marked.left_top(), marked.right_top(), marked.right_bottom(), marked.left_bottom()];
+        for [a, b] in segments {
+            assert!(corners.contains(&a) && ((a - b).length() - 6.0).abs() < 1e-3, "{target:?}: {a:?} {b:?}");
+        }
+    }
+    assert!(bracket_segments(&thumbs_harness(None, true), color).is_empty(), "no target, no brackets");
+    assert!(bracket_segments(&thumbs_harness(Some(ThumbTarget::Second), false), color).is_empty(), "a row that is not selected");
+}
+
+/// A click on a thumbnail reports it and the row is clicked too; the link glyph between the
+/// thumbnails and the label report no thumbnail.
+#[test]
+fn a_click_on_a_thumbnail_reports_which_and_still_clicks_the_row() {
+    let mut h = thumbs_harness(Some(ThumbTarget::First), true);
+    let [first, second] = h.state().1.borrow()[..] else { panic!("two thumbnails") };
+    click_at(&mut h, second.center());
+    assert_eq!(h.state().2, vec![RowEvent::ThumbClicked { row: 1, which: ThumbTarget::Second }]);
+    assert_eq!(h.state().3, 1, "the row selects as for any click");
+    later(&mut h);
+    click_at(&mut h, first.center());
+    assert_eq!(h.state().2.last(), Some(&RowEvent::ThumbClicked { row: 1, which: ThumbTarget::First }));
+    assert_eq!(h.state().3, 2);
+
+    let before = h.state().2.len();
+    later(&mut h);
+    click_at(&mut h, pos2(second.right() + 200.0, second.center().y));
+    assert_eq!(h.state().2.len(), before, "a click beside the thumbnails reports none");
+    assert_eq!(h.state().3, 3);
+}
+
+/// The link glyph shows the focus ring when it has the keyboard focus.
+#[test]
+fn the_link_glyph_shows_a_focus_ring() {
+    let ctx = context();
+    let mut ring = None;
+    ctx.run_ui(egui::RawInput::default(), |ui| ring = Some(crate::primitives::FocusRing::style(&Tokens::of(ui)).stroke.color))
+        .drop_without_applying_deltas();
+    let ring = ring.unwrap_or_default();
+    let mut h = thumbs_harness(Some(ThumbTarget::First), true);
+    let focus_rects =
+        |h: &Harness<'_, Thumbs>| h.output().shapes.iter().filter(|s| matches!(&s.shape, Shape::Rect(r) if r.stroke.color == ring)).count();
+    assert_eq!(focus_rects(&h), 0);
+    h.key_press(Key::Tab);
+    h.run();
+    assert_eq!(focus_rects(&h), 1, "Tab reaches the glyph and rings it");
 }
