@@ -7,6 +7,7 @@ use super::*;
 use crate::direction::{self, Direction};
 use crate::edit::{self, CancelReason, EditEvent};
 use crate::icons::Icon;
+use crate::menu::{MenuEntry, MenuItem};
 use crate::testing::a11y;
 use crate::theme::{Base, ToEgui as _, install};
 
@@ -998,3 +999,134 @@ fn row_content_draws_each_options_value_in_the_list_and_the_chosen_one_in_the_bo
 }
 
 const MODES_STRIP: [&str; 3] = ["Warm", "Cool", "Mono"];
+
+#[derive(Default)]
+struct Gear {
+    value: usize,
+    picked: Option<usize>,
+}
+
+/// A searchable select of blend modes with a gear menu of one entry ("Import").
+fn gear(searchable: bool) -> Harness<'static, Gear> {
+    harness().build_ui_state(
+        move |ui, host: &mut Gear| {
+            let entries: Vec<MenuEntry<usize>> = vec![MenuItem::new("Import", 7).into()];
+            let mut select = Select::new("blend", "Blend mode", &mut host.value).header_menu("Preset options", &entries, &mut host.picked);
+            for (i, mode) in MODES.into_iter().enumerate() {
+                select = select.option(i, mode);
+            }
+            if searchable {
+                select = select.searchable("Search modes", "Clear");
+            }
+            let _ = select.show(ui);
+        },
+        Gear::default(),
+    )
+}
+
+fn gear_button<'h, State>(harness: &'h Harness<'_, State>) -> egui_kittest::Node<'h> {
+    harness.get_by_role_and_label(Role::Button, "Preset options")
+}
+
+fn menu_items<State>(harness: &Harness<'_, State>) -> Vec<String> {
+    harness.query_all_by_role(Role::MenuItem).filter_map(|n| n.accesskit_node().label()).collect()
+}
+
+#[test]
+fn the_gear_is_a_button_named_by_its_label_with_a_menu_popup() {
+    for searchable in [false, true] {
+        let mut harness = gear(searchable);
+        harness.run();
+        harness.get_by_role(Role::ComboBox).click();
+        harness.run();
+        let data = gear_button(&harness).accesskit_node().data().clone();
+        assert_eq!(data.has_popup(), Some(accesskit::HasPopup::Menu));
+        assert_eq!(data.is_expanded(), Some(false));
+    }
+}
+
+#[test]
+fn choosing_a_gear_menu_entry_reports_it_and_closes_the_menu_and_the_list() {
+    for searchable in [false, true] {
+        let mut harness = gear(searchable);
+        harness.run();
+        harness.get_by_role(Role::ComboBox).click();
+        harness.run();
+        gear_button(&harness).click();
+        harness.run();
+        assert_eq!(menu_items(&harness), ["Import"], "the gear opens its menu");
+        assert_eq!(expanded(&harness), Some(true));
+        harness.get_by_role(Role::MenuItem).click();
+        harness.run();
+        harness.run();
+        assert_eq!(harness.state().picked, Some(7));
+        assert_eq!(harness.state().value, 0, "the value is untouched");
+        assert!(menu_items(&harness).is_empty(), "the menu closed");
+        assert_eq!(expanded(&harness), Some(false), "the list closed");
+    }
+}
+
+#[test]
+fn esc_in_the_gear_menu_closes_only_the_menu() {
+    for searchable in [false, true] {
+        let mut harness = gear(searchable);
+        harness.run();
+        harness.get_by_role(Role::ComboBox).click();
+        harness.run();
+        gear_button(&harness).click();
+        harness.run();
+        assert_eq!(menu_items(&harness).len(), 1);
+        harness.key_press(Key::Escape);
+        harness.run();
+        assert!(menu_items(&harness).is_empty(), "the menu closed");
+        assert_eq!(expanded(&harness), Some(true), "the list stays open");
+        harness.key_press(Key::Escape);
+        harness.run();
+        assert_eq!(expanded(&harness), Some(false), "a second Esc closes the list");
+    }
+}
+
+#[test]
+fn tab_reaches_the_gear_and_back_while_the_arrows_step_the_options_past_it() {
+    for searchable in [false, true] {
+        let mut harness = gear(searchable);
+        harness.run();
+        harness.get_by_role(Role::ComboBox).click();
+        harness.run();
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        assert_eq!(active(&harness).as_deref(), Some("Multiply"));
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        assert_eq!(active(&harness).as_deref(), Some("Screen"), "the gear is not an option");
+        harness.key_press(Key::Tab);
+        harness.run();
+        assert!(gear_button(&harness).is_focused(), "Tab moves to the gear");
+        assert_eq!((expanded(&harness), harness.state().value), (Some(true), 2), "the list stays open with the keys' value");
+        harness.key_press(Key::Enter);
+        harness.run();
+        assert_eq!(menu_items(&harness), ["Import"], "Enter on the gear opens its menu");
+        harness.key_press(Key::Enter);
+        harness.run();
+        harness.run();
+        assert_eq!(harness.state().picked, Some(7), "Enter chooses the entry");
+        assert_eq!(expanded(&harness), Some(false));
+    }
+}
+
+#[test]
+fn tab_from_the_gear_returns_to_the_search_field() {
+    let mut harness = gear(true);
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    harness.key_press(Key::Tab);
+    harness.run();
+    assert!(gear_button(&harness).is_focused());
+    harness.key_press(Key::Tab);
+    harness.run();
+    harness.event(Event::Text("scr".into()));
+    harness.run();
+    assert_eq!(harness.get_by_label("Search modes").accesskit_node().value().as_deref(), Some("scr"), "typing goes to the search field");
+    assert_eq!(expanded(&harness), Some(true));
+}
