@@ -233,7 +233,7 @@ pub(super) fn apply(op: &AreaOp, values: &ModelValues, mode: AreaMode, quantize:
 }
 
 /// The area's two channels and their scales.
-struct Axes {
+pub(super) struct Axes {
     across: usize,
     down: usize,
     x: Scale,
@@ -243,7 +243,7 @@ struct Axes {
 }
 
 impl Axes {
-    fn of(mode: AreaMode, quantize: Option<usize>) -> Axes {
+    pub(super) fn of(mode: AreaMode, quantize: Option<usize>) -> Axes {
         let model = mode.model();
         let [across, down] = mode.area();
         Axes { across, down, x: scale_of(model, across), y: scale_of(model, down), quantize: quantize.map(|levels| (model, levels)) }
@@ -315,7 +315,7 @@ impl Axes {
 
 /// The operation this frame's keys make on the focused area; `None` when no key asked for a
 /// change, and during a drag, which keys don't change (they are still taken).
-fn keys(ui: &Ui, response: &Response, dragging: bool, axes: &Axes) -> Option<AreaOp> {
+pub(super) fn keys(ui: &Ui, response: &Response, dragging: bool, axes: &Axes) -> Option<AreaOp> {
     if !response.enabled() || !response.has_focus() {
         return None;
     }

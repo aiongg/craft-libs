@@ -1,4 +1,4 @@
-//! The options bar: the appearance options and the view, with Reset layout pinned at the end.
+//! The options bar: the theme and mode, the rarer appearance options in More, and the view, with Reset layout pinned at the end.
 use craft_theme::{ButtonVariant, ContrastChoice, ControlSize, ModeChoice, MotionChoice, TextSize, builtins};
 use craft_ui::composites::FormGrid;
 use craft_ui::controls::{Button, IconButton, NumberField, Segmented, Select, ToggleButton, TooltipExt as _};
@@ -73,13 +73,6 @@ impl Bar {
                     let _ = theme.policy(fields::policy()).show(ui);
                 });
                 segmented(ui, "Mode", &mut a.mode, [("Light", ModeChoice::Light), ("Dark", ModeChoice::Dark), ("System", ModeChoice::System)]);
-                segmented(
-                    ui,
-                    "Contrast",
-                    &mut a.contrast,
-                    [("Standard", ContrastChoice::Standard), ("High", ContrastChoice::High), ("System", ContrastChoice::System)],
-                );
-                segmented(ui, "Size", &mut a.comfortable, [("Compact", false), ("Comfortable", true)]);
                 let more = ui.add(IconButton::new(Icon::More, "More appearance settings").size(ControlSize::Sm));
                 if more.clicked() {
                     *more_open = !*more_open;
@@ -89,6 +82,15 @@ impl Bar {
                     more_open,
                     |ui, _| {
                         FormGrid::new("gallery.more.form").show(ui, |form| {
+                            form.row("Contrast", |ui, _| {
+                                choice(
+                                    ui,
+                                    "Contrast",
+                                    &mut a.contrast,
+                                    [("Standard", ContrastChoice::Standard), ("High", ContrastChoice::High), ("System", ContrastChoice::System)],
+                                )
+                            });
+                            form.row("Size", |ui, _| choice(ui, "Size", &mut a.comfortable, [("Compact", false), ("Comfortable", true)]));
                             form.row("Reduced motion", |ui, _| {
                                 choice(
                                     ui,

@@ -20,6 +20,19 @@ use crate::list::{List, ListEvent, ListRow};
 use crate::primitives::{Content, Divider, Text};
 use crate::theme::{Tokens, TokensOf as _};
 
+/// The sizes of the body, from [`PreferencesBody::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct PreferencesStyle {
+    /// Width of the page list column: `preferences.list_width`.
+    pub list_width: f32,
+    /// Between the page list and the page: `preferences.page_gap`.
+    pub page_gap: f32,
+    /// Between the search field, the panes, the notice and the buttons, and between rows:
+    /// `gap.stack`.
+    pub gap: f32,
+}
+
 /// What a group of the shown page draws.
 struct ShownGroup {
     title: Option<String>,
@@ -93,6 +106,11 @@ impl PreferencesBody {
         self
     }
 
+    pub fn style(tokens: &crate::theme::UiTokens) -> PreferencesStyle {
+        let p = &tokens.component.preferences;
+        PreferencesStyle { list_width: p.list_width, page_gap: p.page_gap, gap: tokens.space.gap.stack }
+    }
+
     /// What the body of `id_salt` remembers.
     pub fn state(ctx: &Context, id_salt: impl Hash + std::fmt::Debug) -> PreferencesState {
         PreferencesState::load(ctx, Id::unique(("craft_ui::preferences", id_salt)))
@@ -110,7 +128,8 @@ impl PreferencesBody {
         let id = self.id;
         let mut state = PreferencesState::load(&ctx, id);
         let texts = host.texts();
-        let gap = tokens.space.gap.stack;
+        let style = PreferencesBody::style(&tokens);
+        let gap = style.gap;
         let keys = self.active && !host.nested_open();
         let mut out = PreferencesOutput::default();
 
@@ -147,12 +166,12 @@ impl PreferencesBody {
 
         let rect = ui.available_rect_before_wrap();
         let rect = if rect.height().is_finite() { rect } else { Rect::from_min_size(rect.min, egui::vec2(rect.width(), 600.0)) };
-        let button_height = tokens.size.control.md.max(tokens.component.button.height.get(ControlSize::Md));
+        let button_height = tokens.component.button.height.get(ControlSize::Md);
         let notice_height = if state.error.is_some() { state.notice_height + gap } else { 0.0 };
         let footer_height = button_height + gap + notice_height;
         let content = Rect::from_min_max(rect.min, pos2(rect.max.x, (rect.max.y - footer_height).max(rect.min.y)));
-        let list_width = tokens.component.preferences.list_width.min(content.width() / 2.0);
-        let page_gap = tokens.component.preferences.page_gap;
+        let list_width = style.list_width.min(content.width() / 2.0);
+        let page_gap = style.page_gap;
         let rtl = direction::is_rtl(ui);
         let (list_rect, page_rect, divider_x) = if rtl {
             (

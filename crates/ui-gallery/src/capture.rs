@@ -291,6 +291,18 @@ fn apply_args(args: &mut Args, overrides: &Map<String, Value>) -> Result<(), Str
     Ok(())
 }
 
+/// egui's own faces behind the suite's. A font set with only Latin and symbol faces has no
+/// "⋯" (U+22EF), which the menu bar's overflow menu is titled with, and the harness refuses to
+/// draw a glyph no installed face has.
+fn install_fallback_glyphs(ctx: &egui::Context) {
+    for (name, data) in egui::FontDefinitions::default().font_data {
+        let families = [egui::FontFamily::Proportional, egui::FontFamily::Monospace]
+            .map(|family| egui::epaint::text::InsertFontFamily { family, priority: egui::epaint::text::FontPriority::Lowest })
+            .into();
+        ctx.add_font(egui::epaint::text::FontInsert::new(&name, (*data).clone(), families));
+    }
+}
+
 /// Draws the shot and returns its image.
 pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
     let system = SystemAppearance::default();
@@ -307,6 +319,9 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
         .with_context_setup(move |ctx| {
             symbols::install(ctx);
             setup.configure(ctx, None, false, system);
+            if faces::available() {
+                install_fallback_glyphs(ctx);
+            }
         });
     if !faces::available() {
         builder = builder.allow_missing_glyphs();

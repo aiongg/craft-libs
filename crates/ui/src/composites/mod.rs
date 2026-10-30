@@ -111,7 +111,8 @@ mod toast_tests;
 
 pub use color::{
     AreaMode, ColorArea, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorPopover, ColorPopoverResponse, ColorStrip,
-    ColorWarning, ColorWarningChip, HexField, PairWell, PickedColor, SwatchPair, SwatchPairResponse, SwatchPairStyle, SwatchPalette, Well,
+    ColorWarning, ColorWarningChip, ColorWheel, ColorWheelResponse, ColorWheelStyle, HexField, PairWell, PickedColor, SwatchPair, SwatchPairResponse,
+    SwatchPairStyle, SwatchPalette, Well, WheelGeometry, WheelPart,
 };
 pub use craft_theme::Tone;
 pub use curve::Curve;

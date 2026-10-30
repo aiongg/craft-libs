@@ -23,7 +23,7 @@ mod search_tests;
 mod state;
 pub(crate) mod stories;
 
-pub use body::PreferencesBody;
+pub use body::{PreferencesBody, PreferencesStyle};
 pub use host::PreferencesHost;
 pub use model::{Closed, Columns, GroupSpec, PageSpec, PrefValue, PreferencesOutput, PreferencesTexts, RowKind, RowSpec};
 pub use search::{Listed, list_pages, matches, row_matches, row_shown, shown_position};

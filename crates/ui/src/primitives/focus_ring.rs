@@ -1,10 +1,10 @@
 //! [`FocusRing`]: the keyboard focus outline, shown only while the user works with the keyboard.
 
 use egui::accesskit::Role;
-use egui::epaint::RectShape;
+use egui::epaint::{CircleShape, PathShape, RectShape};
 use egui::plugin::Plugin;
 use egui::{
-    Color32, Context, CornerRadius, Event, LayerId, Painter, RawInput, Rect, Response, Shape, Stroke, StrokeKind, TouchPhase, Ui, Vec2, vec2,
+    Color32, Context, CornerRadius, Event, LayerId, Painter, Pos2, RawInput, Rect, Response, Shape, Stroke, StrokeKind, TouchPhase, Ui, Vec2, vec2,
 };
 
 use super::Corner;
@@ -85,11 +85,82 @@ impl FocusRing {
         painter.add(FocusRing::ring(&tokens, radius, rect));
     }
 
+    /// The ring round a circle of `radius` at `center`: one circle outside it at the ring's
+    /// distance. With `inner` (the inner radius of an annulus such as a hue ring), a second circle
+    /// inside the inner edge, at the same distance.
+    pub fn circle_shapes(tokens: &UiTokens, center: Pos2, radius: f32, inner: Option<f32>) -> Vec<Shape> {
+        let style = FocusRing::style(tokens);
+        let half = style.stroke.width / 2.0;
+        let mut shapes = vec![Shape::Circle(CircleShape::stroke(center, radius + style.offset + half, style.stroke))];
+        if let Some(inner) = inner {
+            let r = inner - style.offset - half;
+            if r > 0.0 {
+                shapes.push(Shape::Circle(CircleShape::stroke(center, r, style.stroke)));
+            }
+        }
+        shapes
+    }
+
+    /// The ring round the convex polygon `points` (in either winding): its outline moved out by
+    /// the ring's distance, with mitred corners.
+    pub fn polygon_shape(tokens: &UiTokens, points: &[Pos2]) -> Shape {
+        let style = FocusRing::style(tokens);
+        let outline = offset_convex(points, style.offset + style.stroke.width / 2.0);
+        Shape::Path(PathShape::closed_line(outline, style.stroke))
+    }
+
+    /// Paints [`FocusRing::circle_shapes`] when `focused` and [`FocusRing::visible`].
+    pub fn paint_circle(ui: &Ui, center: Pos2, radius: f32, inner: Option<f32>, focused: bool) {
+        if !(focused && ui.is_visible() && FocusRing::visible(ui.ctx())) {
+            return;
+        }
+        let tokens = Tokens::of(ui);
+        let painter = ring_painter(ui, FocusRing::style(&tokens).outset());
+        painter.extend(FocusRing::circle_shapes(&tokens, center, radius, inner));
+    }
+
+    /// Paints [`FocusRing::polygon_shape`] when `focused` and [`FocusRing::visible`].
+    pub fn paint_polygon(ui: &Ui, points: &[Pos2], focused: bool) {
+        if !(focused && ui.is_visible() && FocusRing::visible(ui.ctx())) {
+            return;
+        }
+        let tokens = Tokens::of(ui);
+        let painter = ring_painter(ui, FocusRing::style(&tokens).outset());
+        painter.add(FocusRing::polygon_shape(&tokens, points));
+    }
+
     /// Whether the last input in `ctx` came from the keyboard, so focus rings show. False until
     /// [`theme::install`](crate::theme::install) has run in `ctx`.
     pub fn visible(ctx: &Context) -> bool {
         ctx.with_plugin(|m: &mut Modality| m.keyboard).unwrap_or(false)
     }
+}
+
+/// `points` (a convex polygon, either winding) moved outwards by `distance`: every vertex moves
+/// along the bisector of its two edges, far enough that each edge moves by `distance`. A vertex
+/// of a near-degenerate spike moves at most four times `distance`.
+fn offset_convex(points: &[Pos2], distance: f32) -> Vec<Pos2> {
+    let n = points.len();
+    if n < 3 {
+        return points.to_vec();
+    }
+    let area: f32 = (0..n).map(|i| points[i].to_vec2().x * points[(i + 1) % n].y - points[(i + 1) % n].x * points[i].y).sum();
+    // Rotating a counter-clockwise (positive area, y up) edge direction a quarter turn clockwise
+    // points outwards; the signs flip with the winding.
+    let sign = if area >= 0.0 { 1.0 } else { -1.0 };
+    let normal = |a: Pos2, b: Pos2| {
+        let d = (b - a).normalized();
+        vec2(d.y, -d.x) * sign
+    };
+    (0..n)
+        .map(|i| {
+            let prev = points[(i + n - 1) % n];
+            let next = points[(i + 1) % n];
+            let (n1, n2) = (normal(prev, points[i]), normal(points[i], next));
+            let scale = (1.0 / (1.0 + n1.dot(n2)).max(0.0625)).min(4.0);
+            points[i] + (n1 + n2) * scale * distance
+        })
+        .collect()
 }
 
 /// A painter for rings around the widgets of `ui`: on a sublayer of `ui`'s layer, with its
@@ -197,4 +268,26 @@ fn item_size(tokens: &UiTokens) -> Vec2 {
 fn paint_label(ui: &Ui, tokens: &UiTokens, rect: Rect, text: &str) {
     let color: Color32 = tokens.color.text.normal.to_egui();
     ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, text, tokens.font(craft_theme::TypeRole::Label), color);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::pos2;
+
+    /// Each edge of the offset polygon lies `distance` outside the original, whichever way the
+    /// polygon winds.
+    #[test]
+    fn offset_convex_moves_every_edge_out_by_the_distance() {
+        let square = [pos2(0.0, 0.0), pos2(10.0, 0.0), pos2(10.0, 10.0), pos2(0.0, 10.0)];
+        for points in [square.to_vec(), square.iter().rev().copied().collect()] {
+            let out = offset_convex(&points, 2.0);
+            let xs: Vec<f32> = out.iter().map(|p| p.x).collect();
+            let ys: Vec<f32> = out.iter().map(|p| p.y).collect();
+            assert_eq!(xs.iter().copied().fold(f32::MAX, f32::min), -2.0);
+            assert_eq!(xs.iter().copied().fold(f32::MIN, f32::max), 12.0);
+            assert_eq!(ys.iter().copied().fold(f32::MAX, f32::min), -2.0);
+            assert_eq!(ys.iter().copied().fold(f32::MIN, f32::max), 12.0);
+        }
+    }
 }

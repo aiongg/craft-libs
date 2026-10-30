@@ -154,3 +154,14 @@ fn an_alt_click_picks_the_component_field() {
     f.click(pos, Modifiers::ALT);
     assert!(matches!(f.gallery.selected_token(), Some(TokenRef::Component(_))), "{:?}", f.gallery.selected_token());
 }
+
+#[test]
+fn the_options_bar_shows_the_whole_pick_toggle_at_1280_pt() {
+    let mut f = Fixture::new(PreviewView::App);
+    let toggle = f.bounds_of("Pick from preview", Role::Button);
+    let trailing = f.bounds_of("Revert all", Role::Button);
+    let font = egui::TextStyle::Button.resolve(&f.ctx.global_style());
+    let label = f.ctx.fonts_mut(|fonts| fonts.layout_no_wrap("Pick from preview".to_owned(), font, egui::Color32::WHITE).size().x);
+    assert!(toggle.width() > label, "the toggle ({}) holds the label ({label})", toggle.width());
+    assert!(toggle.right() <= trailing.left(), "the toggle ends at {} before the trailing buttons at {}", toggle.right(), trailing.left());
+}
