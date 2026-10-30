@@ -194,7 +194,7 @@ impl PropertyRow {
 
     /// Two columns, each with its label and control, of equal width.
     pub fn pair(first: PropertyLabel, second: PropertyLabel) -> PropertyPair {
-        PropertyPair { first, second, size: ControlSize::Md }
+        PropertyPair { first, second, size: ControlSize::Md, link_slot: false }
     }
 
     /// See [`PropertyLabel::redundant`].
@@ -251,6 +251,7 @@ pub struct PropertyPair {
     first: PropertyLabel,
     second: PropertyLabel,
     size: ControlSize,
+    link_slot: bool,
 }
 
 impl PropertyPair {
@@ -260,7 +261,16 @@ impl PropertyPair {
         self
     }
 
-    /// Shows the two columns, `property.column_gap` apart. Each has the width the other has, less
+    /// Keeps the width and gaps of [`show_linked`](PropertyPair::show_linked)'s link slot empty
+    /// in [`show`](PropertyPair::show), so a pair under a linked pair (X and Y under W and H) has
+    /// the same field columns as the row above.
+    pub fn reserve_link_slot(mut self) -> Self {
+        self.link_slot = true;
+        self
+    }
+
+    /// Shows the two columns, `property.column_gap` apart (or around an empty link slot with
+    /// [`reserve_link_slot`](PropertyPair::reserve_link_slot)). Each has the width the other has, less
     /// what its label takes (equal for labels of one kind). The response covers the row.
     pub fn show<A: FieldControl, B: FieldControl>(
         self,
@@ -268,8 +278,10 @@ impl PropertyPair {
         first: impl FnOnce(&mut Ui, &RowLabel) -> A,
         second: impl FnOnce(&mut Ui, &RowLabel) -> B,
     ) -> InnerResponse<(A, B)> {
+        let link_slot = self.link_slot;
         let pair = Pair::new(ui, self);
-        let gap = pair.setup.style.column_gap;
+        let style = &pair.setup.style;
+        let gap = if link_slot { style.link_width + 2.0 * style.column_gap } else { style.column_gap };
         let width = pair.column_width(gap);
         let (a, a_bottom) = pair.setup.cell(ui, pair.at(0.0, width), &pair.labels[0], pair.widest, first);
         let (b, b_bottom) = pair.setup.cell(ui, pair.at(width + gap, width), &pair.labels[1], pair.widest, second);
@@ -585,6 +597,7 @@ pub(super) fn show_inspector(ui: &mut Ui, args: &mut Args) {
             apply(&w, &mut v.w);
             apply(&h, &mut v.h);
             let (x, y) = PropertyRow::pair(PropertyLabel::glyph("X"), PropertyLabel::glyph("Y"))
+                .reserve_link_slot()
                 .show(ui, |ui, _| number("x", "X", v.x).show(ui), |ui, _| number("y", "Y", v.y).show(ui))
                 .inner;
             apply(&x, &mut v.x);

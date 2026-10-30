@@ -145,6 +145,30 @@ fn a_pair_splits_the_width_equally_around_the_link_slot() {
 }
 
 #[test]
+fn a_pair_with_a_reserved_link_slot_has_the_columns_of_a_linked_pair() {
+    let harness = harness(Direction::Ltr).build_ui(|ui| {
+        let numbers = LocaleNumbers::from_tag("en");
+        panel(ui, 300.0, |ui| {
+            let _ = PropertyRow::pair(PropertyLabel::glyph("W"), PropertyLabel::glyph("H")).show_linked(
+                ui,
+                |ui, _| number("w", "Width", 1.0, &numbers).show(ui),
+                |ui| ui.label("link"),
+                |ui, _| number("h", "Height", 2.0, &numbers).show(ui),
+            );
+            let _ = PropertyRow::pair(PropertyLabel::glyph("X"), PropertyLabel::glyph("Y")).reserve_link_slot().show(
+                ui,
+                |ui, _| number("x", "X position", 1.0, &numbers).show(ui),
+                |ui, _| number("y", "Y position", 2.0, &numbers).show(ui),
+            );
+        });
+    });
+    for (above, below) in [("Width", "X position"), ("Height", "Y position")] {
+        let (a, b) = (spin(&harness, above).rect(), spin(&harness, below).rect());
+        assert!((a.left() - b.left()).abs() < 0.5 && (a.right() - b.right()).abs() < 0.5, "{above} {a:?} {below} {b:?}");
+    }
+}
+
+#[test]
 fn a_pair_without_a_link_is_split_by_the_column_gap() {
     let style = tokens_style();
     for dir in [Direction::Ltr, Direction::Rtl] {

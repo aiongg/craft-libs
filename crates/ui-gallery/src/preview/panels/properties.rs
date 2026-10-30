@@ -113,6 +113,7 @@ fn transform(ui: &mut Ui, mock: &mut Mock, layer: &Layer, state: &mut State) {
                 .inner;
             let (c, d) = PropertyRow::pair(glyph("X"), glyph("Y"))
                 .size(ControlSize::Sm)
+                .reserve_link_slot()
                 .show(
                     ui,
                     |ui, label| field(ui, label, "properties.x", "X", x, &numbers, enabled),
