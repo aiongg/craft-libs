@@ -11,6 +11,7 @@ use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{ArgValue, Args, Story};
 use egui::Ui;
 
+use super::story_state::StoryStates;
 use crate::fields;
 use crate::persist;
 
@@ -18,11 +19,12 @@ use crate::persist;
 pub(super) struct ArgStore {
     edited: HashMap<String, Args>,
     saved: HashMap<String, Vec<persist::SavedArg>>,
+    states: StoryStates,
 }
 
 impl ArgStore {
     pub(super) fn new(saved: HashMap<String, Vec<persist::SavedArg>>) -> Self {
-        Self { edited: HashMap::new(), saved }
+        Self { edited: HashMap::new(), saved, states: StoryStates::default() }
     }
 
     /// The args of `story`, from the saved values on first use.
@@ -31,14 +33,15 @@ impl ArgStore {
     }
 
     /// The edited and the saved args, for code that draws several stories at once.
-    pub(super) fn parts(&mut self) -> (&mut HashMap<String, Args>, &HashMap<String, Vec<persist::SavedArg>>) {
-        (&mut self.edited, &self.saved)
+    pub(super) fn parts(&mut self) -> (&mut HashMap<String, Args>, &HashMap<String, Vec<persist::SavedArg>>, &mut StoryStates) {
+        (&mut self.edited, &self.saved, &mut self.states)
     }
 
-    /// Puts the args of `story` back to its defaults.
+    /// Puts the args of `story` back to its defaults and drops the state its widgets kept.
     pub(super) fn reset(&mut self, story: &Story) {
         self.edited.insert(story.id.to_owned(), story.defaults());
         self.saved.remove(story.id);
+        self.states.reset(story.id);
     }
 
     /// The saved args with the edited ones written over them.
@@ -50,9 +53,10 @@ impl ArgStore {
         saved
     }
 
-    /// The target story's args, under a header with its name and Reset.
+    /// The target story's args, under a header with its name and Reset (while the args differ from the
+    /// defaults or the story's preview was used).
     pub(super) fn show(&mut self, ui: &mut Ui, story: &Story) {
-        let changed = *self.get(story) != story.defaults();
+        let changed = *self.get(story) != story.defaults() || self.states.touched(story.id);
         let mut reset = false;
         direction::horizontal(ui, |ui| {
             ui.add(Text::new(story.component).role(TypeRole::Heading));

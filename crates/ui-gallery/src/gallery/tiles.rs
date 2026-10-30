@@ -18,6 +18,7 @@ use egui::{Align, Frame, Rect, Role, Sense, Shape, StrokeKind, Ui, UiBuilder, Wi
 use super::applied::shown_mode;
 use super::canvas::StoryFrame;
 use super::properties::args_of;
+use super::story_state::StoryStates;
 use crate::appearance::Appearance;
 use crate::inspector::Inspector;
 use crate::persist;
@@ -57,6 +58,8 @@ pub(crate) struct Tiles<'a> {
     pub inspector: Option<(&'static str, &'a mut Inspector)>,
     /// The token whose shapes the tiles outline in the accent colour.
     pub highlight: Option<Highlight<'a>>,
+    /// What the stories keep besides their args; a reset and the touched flag live here.
+    pub states: &'a mut StoryStates,
 }
 
 /// What a set of tiles reported in a frame.
@@ -78,7 +81,7 @@ pub(super) const TILE_MIN_WIDTH: f32 = 290.0;
 
 /// The tiles in one or two columns: two once each column keeps [`TILE_MIN_WIDTH`]. A row's tiles
 /// share its height. A tile has a header (the heading, Reset while the story's args differ from
-/// its defaults, Open) above its story; a click on the tile that none of its controls takes picks
+/// its defaults or its preview was used, Open) above its story; a click on the tile that none of its controls takes picks
 /// it.
 pub(crate) fn tiles_view(
     ui: &mut Ui,
@@ -118,8 +121,12 @@ pub(crate) fn tiles_view(
                 let slot = ui.painter().add(Shape::Noop);
                 let sense = if config.selectable { Sense::CLICK } else { Sense::hover() };
                 let mut cell = ui.new_child(
-                    UiBuilder::new().id_salt(tile.key).sense(sense).max_rect(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, top + reach))),
+                    UiBuilder::new()
+                        .id_salt((tile.key, config.states.generation(story.id)))
+                        .sense(sense)
+                        .max_rect(Rect::from_min_max(pos2(x, top), pos2(x + tile_width, top + reach))),
                 );
+                let cell_id = cell.scope_id();
                 // Text in a tile is not selectable: a click on it selects the tile, as in the apps.
                 cell.style_mut().interaction.selectable_labels = false;
                 let surface = StoryFrame::of(&cell, story.surface);
@@ -130,7 +137,7 @@ pub(crate) fn tiles_view(
                     ui.set_clip_rect(ui.clip_rect().intersect(tile_columns));
                     ui.set_min_width(ui.available_width());
                     let args = args_of(args, saved, story);
-                    let changed = *args != story.defaults();
+                    let changed = *args != story.defaults() || config.states.touched(story.id);
                     let strip = ui.painter().add(Shape::Noop);
                     let header = direction::horizontal(ui, |ui| {
                         ui.add(Text::new(tile.title).role(TypeRole::Heading));
@@ -162,6 +169,9 @@ pub(crate) fn tiles_view(
                         (story.show)(ui, args);
                         ui.unique_id()
                     });
+                    if config.inspector.as_ref().is_none_or(|(key, _)| *key != tile.key) {
+                        config.states.observe(ui.ctx(), story.id, body.response.rect, cell_id);
+                    }
                     // A story wider than the tile is cut at the tile's edges, never painted over a
                     // neighbour. A story that sets a clip rect of its own is cut here as well.
                     ui.ctx().graphics_mut(|g| {
