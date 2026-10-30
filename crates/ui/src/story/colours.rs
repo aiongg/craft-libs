@@ -3,22 +3,41 @@
 use craft_theme::{ColorToken, Rgba, TypeRole};
 use egui::{Align2, Sense, Stroke, StrokeKind, Ui, vec2};
 
-use super::{Args, Level, Story};
+use super::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf};
+use crate::typed_story;
 
 /// The groups of [`ColorTokens`](craft_theme::ColorTokens): the first segment of the token paths.
-pub(super) const GROUPS: &[&str] = &["all", "surface", "text", "line", "accent", "status", "state", "overlay", "data", "caption", "edge"];
+#[derive(StoryChoice, Clone, Copy)]
+pub(super) enum Group {
+    All,
+    Surface,
+    Text,
+    Line,
+    Accent,
+    Status,
+    State,
+    Overlay,
+    Data,
+    Caption,
+    Edge,
+}
+
+#[derive(StoryArgs)]
+struct ColourArgs {
+    group: Group,
+}
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Colours"];
 
 pub(super) fn stories() -> Vec<Story> {
-    vec![Story::new("foundations/colours/semantic", Level::Foundations, "Colours", "Semantic", || Args::new().with_choice("group", GROUPS, 0), show)]
+    vec![typed_story!("foundations/colours/semantic", Level::Foundations, "Colours", "Semantic", ColourArgs { group: Group::All }, show)]
 }
 
-fn show(ui: &mut Ui, args: &mut Args) {
+fn show(ui: &mut Ui, args: &mut ColourArgs) {
     let tokens = Tokens::of(ui);
-    let group = args.choice("group");
+    let group = args.group.name();
     let mut last = "";
     for token in ColorToken::ALL {
         let path = token.path();
