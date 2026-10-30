@@ -7,7 +7,7 @@ use egui::{Context, Event, Key, Modifiers, RawInput, Rect, vec2};
 
 use super::model::Tool;
 use super::panels::Panel;
-use super::{AppPreview, stories};
+use super::{AppPreview, ShellView, stories};
 use crate::Appearance;
 
 /// A context with the gallery's theme installed, and a preview in the window the gallery gives
@@ -16,6 +16,8 @@ struct Fixture {
     ctx: Context,
     appearance: Appearance,
     preview: AppPreview,
+    view: ShellView,
+    key: Option<craft_ui::shell::WindowKey>,
     time: f64,
 }
 
@@ -25,7 +27,7 @@ impl Fixture {
         ctx.enable_accesskit();
         let appearance = Appearance { theme: theme.to_owned(), mode, ..Appearance::default() };
         appearance.configure(&ctx, None, false, SystemAppearance::default());
-        Self { ctx, appearance, preview: AppPreview::default(), time: 0.0 }
+        Self { ctx, appearance, preview: AppPreview::default(), view: ShellView::default(), key: None, time: 0.0 }
     }
 
     fn frame(&mut self, events: Vec<Event>) -> Option<AccessTree> {
@@ -38,7 +40,8 @@ impl Fixture {
         let base = self.appearance.base(SystemAppearance::default());
         let output = self.ctx.run_ui(raw, |ui| {
             install(ui.ctx(), &base);
-            self.preview.show(ui);
+            self.key = Some(AppPreview::window_key(ui));
+            self.preview.show_with(ui, self.view);
         });
         let tree = output.platform_output.accesskit_update.as_ref().and_then(AccessTree::from_update);
         output.drop_without_applying_deltas();
@@ -298,4 +301,43 @@ fn choosing_an_expanded_panel_in_the_window_menu_hides_and_shows_it() {
     assert!(!fixture.preview.dock.is_visible(Panel::Layers));
     fixture.preview.dock.toggle(Panel::Layers);
     assert!(fixture.preview.dock.is_visible(Panel::Layers));
+}
+
+#[test]
+fn tab_toggles_the_reveal_only_while_the_canvas_has_focus() {
+    let mut fixture = Fixture::new("craft.artcraft", ModeChoice::Dark);
+    fixture.view.mode = craft_ui::shell::ScreenMode::FullScreen;
+    let revealed = |f: &Fixture| craft_ui::shell::AppShell::reveal_active(&f.ctx, f.key.as_ref().expect("a frame ran"));
+    fixture.settled();
+    fixture.press(Key::Tab);
+    assert!(!revealed(&fixture), "Tab does nothing before the canvas has focus");
+    fixture.pointer_click("Document", Role::Canvas);
+    fixture.press(Key::Tab);
+    assert!(revealed(&fixture), "Tab on the focused canvas shows the chrome");
+    assert!(has_name(&fixture.settled(), "Tools"), "the tool rail shows in the reveal");
+    fixture.press(Key::Tab);
+    assert!(!revealed(&fixture), "a second Tab hides it");
+    assert!(!has_name(&fixture.settled(), "Tools"));
+}
+
+#[test]
+fn the_shell_stories_lay_out_inside_their_rect() {
+    for story in stories().into_iter().filter(|s| s.id.starts_with("shells/canvas/")) {
+        let ctx = Context::default();
+        let appearance = Appearance { theme: "craft.artcraft".to_owned(), mode: ModeChoice::Dark, ..Appearance::default() };
+        appearance.configure(&ctx, None, false, SystemAppearance::default());
+        let mut args: Args = story.defaults();
+        let mut bottom = 0.0;
+        for _ in 0..4 {
+            let raw = RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1280.0, 900.0))), ..RawInput::default() };
+            let base = appearance.base(SystemAppearance::default());
+            let output = ctx.run_ui(raw, |ui| {
+                install(ui.ctx(), &base);
+                (story.show)(ui, &mut args);
+                bottom = ui.min_rect().bottom();
+            });
+            output.drop_without_applying_deltas();
+        }
+        assert!(bottom <= 601.0, "{} stays within its 600 pt rect (bottom {bottom})", story.id);
+    }
 }
