@@ -16,6 +16,7 @@ use super::tiles::TileEvents;
 use super::{Gallery, stories, variants};
 use crate::browser;
 use crate::layout::{GalleryWorkspace, PanelId, PreviewView, VariantAxis, default_for, reconciled};
+use crate::usage::Highlight;
 
 /// The panel menu's commands.
 #[derive(Clone, Copy)]
@@ -118,8 +119,12 @@ impl Gallery {
     }
 
     /// What the tabs that draw tiles need.
-    fn tab_env(&mut self, inspecting: bool) -> TabEnv<'_> {
+    fn tab_env(&mut self, ui: &Ui, inspecting: bool) -> TabEnv<'_> {
+        let mode = self.appearance.mode(shown_mode(ui.ctx()));
+        let highlight =
+            self.browser.selected().map(|token| Highlight { scan: &mut self.scan, token, theme: self.applied.base.inputs.theme(mode), mode });
         TabEnv {
+            highlight,
             stories: &self.stories,
             filter: &self.components.filter,
             appearance: &self.appearance,
@@ -139,6 +144,7 @@ impl Gallery {
         if let Some(component) = events.opened {
             self.open_component(component);
         }
+        self.highlighted.extend(&events.highlighted);
     }
 
     /// The Overview tab, or the Variants view when it shows there.
@@ -147,7 +153,7 @@ impl Gallery {
             self.variants_view(ui, axis);
             return;
         }
-        let events = tabs::overview(ui, &mut self.tab_env(inspecting));
+        let events = tabs::overview(ui, &mut self.tab_env(ui, inspecting));
         self.apply_tile_events(&events);
     }
 
@@ -157,7 +163,7 @@ impl Gallery {
             self.variants_view(ui, axis);
             return;
         }
-        let events = tabs::component_tab(ui, &mut self.tab_env(inspecting), component);
+        let events = tabs::component_tab(ui, &mut self.tab_env(ui, inspecting), component);
         self.apply_tile_events(&events);
     }
 
@@ -166,7 +172,7 @@ impl Gallery {
         match self.preview {
             PreviewView::App => self.app.show(ui),
             PreviewView::Components => {
-                let events = tabs::preview_components(ui, &mut self.tab_env(false));
+                let events = tabs::preview_components(ui, &mut self.tab_env(ui, false));
                 self.apply_tile_events(&events);
             }
         }
@@ -174,7 +180,15 @@ impl Gallery {
 
     fn tokens_panel(&mut self, ui: &mut Ui) {
         let mode = self.appearance.mode(shown_mode(ui.ctx()));
-        self.browser.show(ui, &self.applied.base, mode);
+        let opened = self.browser.show(ui, &self.applied.base, mode, &self.scan);
+        self.open_requested(opened);
+    }
+
+    /// Opens the component a Used by link named.
+    fn open_requested(&mut self, component: Option<&'static str>) {
+        if let Some(component) = component {
+            self.open_component(component);
+        }
     }
 
     /// The Theme workspace's Theme panel: the theme's basics above the token browser, which is
@@ -186,7 +200,8 @@ impl Gallery {
         ScrollArea::vertical().id_salt("gallery.theme.basics.scroll").max_height(max).auto_shrink([false, true]).show(ui, |ui| {
             browser::basics(ui, &theme, mode);
         });
-        self.browser.show(ui, &self.applied.base, mode);
+        let opened = self.browser.show(ui, &self.applied.base, mode, &self.scan);
+        self.open_requested(opened);
     }
 
     /// The Problems panel; a click on a row selects its foreground token in the Theme panel.

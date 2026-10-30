@@ -26,6 +26,8 @@ mod variants;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod used_by_tests;
 
 use std::sync::Arc;
 
@@ -49,15 +51,16 @@ use crate::layout::{GalleryWorkspace, PanelId, PreviewView, VariantAxis, default
 use crate::persist::{self, KEY, Saved};
 use crate::preview::AppPreview;
 use crate::problems::Problems;
+use crate::usage::Scan;
 
 #[cfg(any(feature = "capture", test))]
 pub(crate) use self::canvas::canvas;
 pub(crate) use self::canvas::framed;
-pub(crate) use self::catalog::stories;
+pub(crate) use self::catalog::{default_story_of, stories};
 #[cfg(feature = "capture")]
 pub(crate) use self::{
     canvas::canvas_frame,
-    catalog::{default_story_of, nav},
+    catalog::nav,
     properties::args_of,
     tiles::{Tile, Tiles, tiles_view},
 };
@@ -77,6 +80,10 @@ pub struct Gallery {
     /// The mock app the Theme workspace previews.
     app: AppPreview,
     inspector: Inspector,
+    /// The scan behind the token detail's Used by list, and the probes of the highlighted tiles.
+    scan: Scan,
+    /// The keys of the tiles that outlined the selected token's shapes in the last frame.
+    highlighted: Vec<&'static str>,
     /// The workspace shown.
     workspace: GalleryWorkspace,
     /// What the Theme workspace's preview shows.
@@ -107,6 +114,8 @@ impl Gallery {
             problems: Problems::default(),
             app: AppPreview::default(),
             inspector: Inspector::default(),
+            scan: Scan::default(),
+            highlighted: Vec::new(),
             workspace: saved.workspace,
             preview: saved.preview,
             components_dock,
@@ -250,6 +259,23 @@ impl Gallery {
         self.browser.selected()
     }
 
+    /// The keys of the tiles that outlined the shapes painted with the selected token in the last
+    /// frame.
+    pub fn highlighted_tiles(&self) -> &[&'static str] {
+        &self.highlighted
+    }
+
+    /// How many components the Used by scan has probed, and how many there are; `None` before a
+    /// token is selected.
+    pub fn scan_progress(&self) -> Option<(usize, usize)> {
+        self.scan.progress()
+    }
+
+    /// The components that painted with `token` in the scan so far, with their shape counts.
+    pub fn painters(&self, token: craft_theme::TokenRef) -> Vec<(&'static str, usize)> {
+        self.scan.painters(token)
+    }
+
     pub fn stories(&self) -> &[Story] {
         &self.stories
     }
@@ -267,6 +293,12 @@ impl Gallery {
     fn show_panels(&mut self, ui: &mut Ui) {
         self.applied.apply(ui.ctx(), &self.appearance);
         let ctx = ui.ctx().clone();
+        self.scan.begin_frame();
+        self.highlighted.clear();
+        if self.browser.selected().is_some() {
+            let mode = self.appearance.mode(applied::shown_mode(&ctx));
+            self.scan.ensure(&self.stories, &self.appearance, mode);
+        }
         let tokens = Tokens::of(ui);
         // Esc closes Variants unless it closes a popup first; the bar draws before the centre, so
         // the popups are read now.
@@ -293,6 +325,8 @@ impl Gallery {
             self.inspector.begin(&ctx, Arc::clone(&tokens));
         }
         CentralPanel::default().frame(Frame::NONE).show(ui, |ui| self.dock(ui, inspecting));
+        let mode = self.appearance.mode(applied::shown_mode(&ctx));
+        self.scan.step(&ctx, self.applied.base.inputs.theme(mode));
         if std::mem::take(&mut self.reset_layout) {
             let shown = self.workspace;
             // Reset layout puts the panels back; the open component tabs are documents and stay.

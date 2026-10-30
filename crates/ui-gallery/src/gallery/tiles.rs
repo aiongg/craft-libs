@@ -12,7 +12,7 @@ use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Args, Story};
 use craft_ui::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, scale, scope};
 use egui::epaint::RectShape;
-use egui::{Align, Frame, Rect, Role, Sense, Shape, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2};
+use egui::{Align, Frame, Rect, Role, Sense, Shape, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2, vec2};
 
 use super::applied::shown_mode;
 use super::canvas::StoryFrame;
@@ -20,6 +20,7 @@ use super::properties::args_of;
 use crate::appearance::Appearance;
 use crate::inspector::Inspector;
 use crate::persist;
+use crate::usage::{Highlight, TILE_HEIGHT};
 
 /// One tile of an Overview or a component tab.
 #[derive(Clone, Copy)]
@@ -53,6 +54,8 @@ pub(crate) struct Tiles<'a> {
     pub scale_of_selected: bool,
     /// The inspector, and the key of the one tile it draws over.
     pub inspector: Option<(&'static str, &'a mut Inspector)>,
+    /// The token whose shapes the tiles outline in the marquee colour.
+    pub highlight: Option<Highlight<'a>>,
 }
 
 /// What a set of tiles reported in a frame.
@@ -64,6 +67,8 @@ pub(crate) struct TileEvents {
     pub opened: Option<&'static str>,
     /// The id of the story whose Reset was pressed.
     pub reset: Option<&'static str>,
+    /// The keys of the tiles that outlined shapes painted with the highlighted token.
+    pub highlighted: Vec<&'static str>,
 }
 
 /// The narrowest a tile may be: PhotoCraft's dock panels are 290 pt wide, and a story drawn in
@@ -91,6 +96,7 @@ pub(crate) fn tiles_view(
     };
     // The ring belongs to the gallery, not to the appearance the stories are shown in.
     let ring = Tokens::of(ui).color.accent.solid.to_egui();
+    let marquee = Tokens::of(ui).color.overlay.marquee.to_egui();
     let mut events = TileEvents::default();
     scope(ui, overrides, |ui| {
         let tokens = Tokens::of(ui);
@@ -158,6 +164,20 @@ pub(crate) fn tiles_view(
                             craft_ui::story::request_pixels_per_point(ui.ctx(), ppp);
                         }
                     }
+                    if let Some(highlight) = config.highlight.as_mut() {
+                        let size = vec2(tile_width.floor(), TILE_HEIGHT);
+                        if let Some(rects) = highlight.rects(ui.ctx(), appearance, story, args, size)
+                            && !rects.is_empty()
+                        {
+                            // The probe drew the story on its surface at the origin; here the header sits above it.
+                            let origin = vec2(x, body.response.rect.min.y - surface.margin.top as f32);
+                            let stroke = scale::Stroke::W1.egui(ui.ctx(), marquee);
+                            for rect in rects {
+                                ui.painter().rect_stroke(rect.translate(origin), 0.0, stroke, StrokeKind::Outside);
+                            }
+                            events.highlighted.push(tile.key);
+                        }
+                    }
                     if let Some((key, inspector)) = config.inspector.as_mut()
                         && *key == tile.key
                     {
@@ -169,6 +189,7 @@ pub(crate) fn tiles_view(
                     *config.scroll_to = None;
                 }
                 let selected = config.selected == Some(tile.key);
+                let highlighted = events.highlighted.last() == Some(&tile.key);
                 if config.selectable {
                     let response = cell.response();
                     response.widget_info(|| WidgetInfo::selected(Role::Button, true, selected, format!("Select {}", tile.title)));
@@ -181,13 +202,23 @@ pub(crate) fn tiles_view(
                     }
                 }
                 bottom = bottom.max(used.response.rect.bottom());
-                placed.push((slot, x, surface, selected));
+                placed.push((slot, x, surface, selected, highlighted));
             }
-            for (slot, x, surface, selected) in placed {
+            for (slot, x, surface, selected, highlighted) in placed {
                 let rect = Rect::from_min_max(pos2(x, top), pos2(x + tile_width, bottom));
                 let mut shapes = Vec::new();
                 if let Some(fill) = surface.fill {
                     shapes.push(Shape::Rect(RectShape::new(rect, 0.0, fill, surface.edge, StrokeKind::Inside)));
+                }
+                if highlighted {
+                    // Inside the selection ring when the tile has both.
+                    let inset = if selected { scale::Space::S2.px() } else { 0.0 };
+                    shapes.push(Shape::Rect(RectShape::stroke(
+                        rect.shrink(inset),
+                        0.0,
+                        scale::Stroke::W2.egui(ui.ctx(), marquee),
+                        StrokeKind::Inside,
+                    )));
                 }
                 if selected {
                     shapes.push(Shape::Rect(RectShape::stroke(rect, 0.0, scale::Stroke::W2.egui(ui.ctx(), ring), StrokeKind::Inside)));

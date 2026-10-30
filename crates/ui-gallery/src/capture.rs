@@ -349,6 +349,7 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
                             scale_of_selected: false,
                             scroll_to: &mut scroll_to,
                             inspector: None,
+                            highlight: None,
                         };
                         tiles_view(ui, &tiles, config, args, &HashMap::new(), &appearance, system);
                     }

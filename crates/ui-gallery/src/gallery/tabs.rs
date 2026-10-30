@@ -15,6 +15,7 @@ use super::tiles::{Tile, TileEvents, Tiles, tiles_view};
 use crate::appearance::Appearance;
 use crate::fields;
 use crate::inspector::Inspector;
+use crate::usage::Highlight;
 
 /// What a tab draws from and reports its picks to.
 pub(super) struct TabEnv<'a> {
@@ -28,6 +29,8 @@ pub(super) struct TabEnv<'a> {
     pub(super) picks: &'a mut Picks,
     /// Inspect mode is on.
     pub(super) inspecting: bool,
+    /// The token whose shapes the tiles outline, while one is selected.
+    pub(super) highlight: Option<Highlight<'a>>,
 }
 
 impl TabEnv<'_> {
@@ -77,6 +80,7 @@ pub(super) fn overview(ui: &mut Ui, env: &mut TabEnv<'_>) -> TileEvents {
             scale_of_selected: false,
             scroll_to: &mut env.picks.scroll_to,
             inspector,
+            highlight: env.highlight.take(),
         };
         ScrollArea::vertical().id_salt(shown_level.slug()).auto_shrink([false, false]).show(ui, |ui| {
             let (args, saved) = env.args.parts();
@@ -114,6 +118,7 @@ pub(super) fn component_tab(ui: &mut Ui, env: &mut TabEnv<'_>, component: &'stat
             scale_of_selected: true,
             scroll_to: &mut env.picks.scroll_to,
             inspector,
+            highlight: None,
         };
         ScrollArea::vertical().id_salt(("gallery.tab", component)).auto_shrink([false, false]).show(ui, |ui| {
             let (args, saved) = env.args.parts();
@@ -147,6 +152,7 @@ pub(super) fn preview_components(ui: &mut Ui, env: &mut TabEnv<'_>) -> TileEvent
             scale_of_selected: false,
             scroll_to: &mut scroll_to,
             inspector: None,
+            highlight: env.highlight.take(),
         };
         ScrollArea::vertical().id_salt("gallery.preview").auto_shrink([false, false]).show(ui, |ui| {
             let (args, saved) = env.args.parts();
