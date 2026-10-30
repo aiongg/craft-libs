@@ -332,6 +332,7 @@ const DECORATION_SLACK: f32 = 2.5;
 /// Returns the ids of the stories with a shape beyond the tile's left or right edge before any
 /// clip, and the ids with a shape whose clip rect reaches past the tile.
 fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
+    use super::story_state::StoryStates;
     use super::tiles::{Tile, Tiles, tiles_view};
     use craft_theme::SystemAppearance;
     use craft_ui::theme::install;
@@ -364,6 +365,7 @@ fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
                     scroll_to: &mut scroll_to,
                     inspector: None,
                     highlight: None,
+                    states: &mut StoryStates::default(),
                 };
                 ui.scope_builder(egui::UiBuilder::new().max_rect(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 800.0))), |ui| {
                     tiles_view(ui, &tiles, config, &mut args, &HashMap::new(), &appearance, system);

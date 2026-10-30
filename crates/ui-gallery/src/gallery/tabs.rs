@@ -72,6 +72,7 @@ pub(super) fn overview(ui: &mut Ui, env: &mut TabEnv<'_>) -> TileEvents {
             let _ = select.policy(fields::policy()).show(ui);
         });
         let inspector = selected.filter(|_| inspecting).map(|c| (c, &mut *env.inspector));
+        let (args, saved, states) = env.args.parts();
         let config = Tiles {
             one_column: false,
             selectable: true,
@@ -81,9 +82,9 @@ pub(super) fn overview(ui: &mut Ui, env: &mut TabEnv<'_>) -> TileEvents {
             scroll_to: &mut env.picks.scroll_to,
             inspector,
             highlight: env.highlight.take(),
+            states,
         };
         ScrollArea::vertical().id_salt(shown_level.slug()).auto_shrink([false, false]).show(ui, |ui| {
-            let (args, saved) = env.args.parts();
             events = tiles_view(ui, &tiles, config, args, saved, appearance, system);
         });
     });
@@ -110,6 +111,7 @@ pub(super) fn component_tab(ui: &mut Ui, env: &mut TabEnv<'_>, component: &'stat
     canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
         ui.set_min_size(ui.available_size());
         let inspector = selected.filter(|_| inspecting).map(|id| (id, &mut *env.inspector));
+        let (args, saved, states) = env.args.parts();
         let config = Tiles {
             one_column: true,
             selectable: true,
@@ -119,9 +121,9 @@ pub(super) fn component_tab(ui: &mut Ui, env: &mut TabEnv<'_>, component: &'stat
             scroll_to: &mut env.picks.scroll_to,
             inspector,
             highlight: None,
+            states,
         };
         ScrollArea::vertical().id_salt(("gallery.tab", component)).auto_shrink([false, false]).show(ui, |ui| {
-            let (args, saved) = env.args.parts();
             events = tiles_view(ui, &tiles, config, args, saved, appearance, system);
         });
     });
@@ -144,6 +146,7 @@ pub(super) fn preview_components(ui: &mut Ui, env: &mut TabEnv<'_>) -> TileEvent
     canvas_frame(&Tokens::of(ui)).show(ui, |ui| {
         ui.set_min_size(ui.available_size());
         let mut scroll_to = None;
+        let (args, saved, states) = env.args.parts();
         let config = Tiles {
             one_column: false,
             selectable: false,
@@ -153,9 +156,9 @@ pub(super) fn preview_components(ui: &mut Ui, env: &mut TabEnv<'_>) -> TileEvent
             scroll_to: &mut scroll_to,
             inspector: None,
             highlight: env.highlight.take(),
+            states,
         };
         ScrollArea::vertical().id_salt("gallery.preview").auto_shrink([false, false]).show(ui, |ui| {
-            let (args, saved) = env.args.parts();
             events = tiles_view(ui, &tiles, config, args, saved, appearance, system);
         });
     });

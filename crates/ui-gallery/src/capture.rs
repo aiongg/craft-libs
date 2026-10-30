@@ -23,7 +23,7 @@ use serde_json::{Map, Value};
 
 use crate::appearance::{Appearance, builtin};
 use crate::faces;
-use crate::gallery::{Tile, Tiles, args_of, canvas, canvas_frame, default_story_of, nav, stories, tiles_view};
+use crate::gallery::{StoryStates, Tile, Tiles, args_of, canvas, canvas_frame, default_story_of, nav, stories, tiles_view};
 
 /// The width, in points, of a shot that gives none. The story's frame fills the width it is
 /// given, so a story has no intrinsic width to fit.
@@ -365,6 +365,7 @@ pub fn render(shot: &Resolved) -> Result<image::RgbaImage, String> {
                             scroll_to: &mut scroll_to,
                             inspector: None,
                             highlight: None,
+                            states: &mut StoryStates::default(),
                         };
                         tiles_view(ui, &tiles, config, args, &HashMap::new(), &appearance, system);
                     }

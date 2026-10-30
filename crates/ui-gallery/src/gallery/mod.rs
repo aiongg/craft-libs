@@ -21,12 +21,15 @@ mod pick;
 mod picks;
 mod properties;
 mod stories;
+mod story_state;
 mod tabs;
 mod tiles;
 mod variants;
 
 #[cfg(test)]
 mod pick_tests;
+#[cfg(test)]
+mod reset_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -66,6 +69,7 @@ pub(crate) use self::{
     canvas::canvas_frame,
     catalog::nav,
     properties::args_of,
+    story_state::StoryStates,
     tiles::{Tile, Tiles, tiles_view},
 };
 
