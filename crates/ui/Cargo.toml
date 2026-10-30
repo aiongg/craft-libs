@@ -60,6 +60,8 @@ color_fonts = ["epaint/color_fonts"]
 system_fonts = ["dep:fontique", "dep:unicode-script"]
 # `title_bar`: the app-drawn caption row that is the window's title bar (desktop only).
 window-frame = ["dep:craft-window", "craft-window/egui"]
+# `PreferencesWindow::remember`: the window's size and position kept by craft-window's window-restore store.
+window-restore = ["window-frame", "craft-window/restore-egui"]
 # `docking::testing`: a headless driver for application docking tests.
 testing = []
 # craft_ui::testing: per-language screenshot tests and IME smoke tests with egui_kittest
@@ -101,6 +103,7 @@ required-features = ["screen-testing"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu"] }
+craft-quit = { workspace = true, features = ["egui"] }
 eframe = { version = "0.37", default-features = false, features = ["wgpu", "x11", "default_fonts"] }
 
 # The browser test (tests/web_fonts.rs).
