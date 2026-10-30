@@ -12,14 +12,15 @@ use egui::{
 
 use super::number_field::{self, FieldRule};
 use super::slider::{KEY_FILTER, PressTurn, Scale, press_turn, tap};
-use super::{NumberField, SIZE_NAMES, size_arg};
+use super::{NoArgs, NumberField};
 use crate::behavior::FieldTab;
 use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::{self, EditPolicy, EditResponse, Gesture, parts};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{FocusRing, Gap, Interactive, Row};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// Degrees of a quarter turn's half: the step Page Up and Page Down take, and the grid Shift
 /// snaps the pointer to.
@@ -504,48 +505,74 @@ fn wrapped(scale: &Scale, value: f64) -> f64 {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Angle dial"];
 
-const RANGES: &[&str] = &["-180 to 180", "-360 to 360", "0 to 90"];
-const ORIENTATIONS: &[&str] = &["counter-clockwise", "clockwise"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum RangeArg {
+    #[choice(name = "-180 to 180")]
+    Half,
+    #[choice(name = "-360 to 360")]
+    Full,
+    #[choice(name = "0 to 90")]
+    Quarter,
+}
 
-fn range_of(name: &str) -> RangeInclusive<f64> {
-    match name {
-        "-360 to 360" => -360.0..=360.0,
-        "0 to 90" => 0.0..=90.0,
-        _ => -180.0..=180.0,
+impl RangeArg {
+    fn range(self) -> RangeInclusive<f64> {
+        match self {
+            RangeArg::Half => -180.0..=180.0,
+            RangeArg::Full => -360.0..=360.0,
+            RangeArg::Quarter => 0.0..=90.0,
+        }
     }
+}
+
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+enum OrientationArg {
+    #[choice(name = "counter-clockwise")]
+    CounterClockwise,
+    Clockwise,
+}
+
+impl OrientationArg {
+    fn orientation(self) -> AngleOrientation {
+        match self {
+            OrientationArg::CounterClockwise => AngleOrientation::CounterClockwise,
+            OrientationArg::Clockwise => AngleOrientation::Clockwise,
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct DialArgs {
+    range: RangeArg,
+    orientation: OrientationArg,
+    field: bool,
+    size: SizeArg,
+    disabled: bool,
 }
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "controls/angle-dial/dial",
             Level::Controls,
             "Angle dial",
             "Angle dial",
-            || {
-                Args::new()
-                    .with_choice("range", RANGES, 0)
-                    .with_choice("orientation", ORIENTATIONS, 0)
-                    .with_bool("field", true)
-                    .with_choice("size", SIZE_NAMES, 1)
-                    .with_bool("disabled", false)
-            },
-            show_dial,
+            DialArgs { range: RangeArg::Half, orientation: OrientationArg::CounterClockwise, field: true, size: SizeArg::Md, disabled: false },
+            show_dial
         ),
-        Story::new("controls/angle-dial/dialog", Level::Controls, "Angle dial", "Dialog (field scope)", Args::new, show_dialog),
+        typed_story!("controls/angle-dial/dialog", Level::Controls, "Angle dial", "Dialog (field scope)", NoArgs {}, show_dialog),
     ]
 }
 
-fn show_dial(ui: &mut Ui, args: &mut Args) {
+fn show_dial(ui: &mut Ui, args: &mut DialArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     super::slider::with_values(ui, "angle-dial", [120.0], |ui, state| {
-        let clockwise = args.choice("orientation") == ORIENTATIONS[1];
         let dial = AngleDial::new("angle-dial", "Angle", state[0], &numbers)
-            .range(range_of(args.choice("range")))
-            .orientation(if clockwise { AngleOrientation::Clockwise } else { AngleOrientation::CounterClockwise })
-            .field(args.bool("field"))
-            .size(size_arg(args.choice("size")))
-            .enabled(!args.bool("disabled"))
+            .range(args.range.range())
+            .orientation(args.orientation.orientation())
+            .field(args.field)
+            .size(args.size.control())
+            .enabled(!args.disabled)
             .show(ui);
         super::slider::store(&dial, &mut state[0]);
         let last = dial.event.as_ref().map(edit::describe);
@@ -563,7 +590,7 @@ fn show_dial(ui: &mut Ui, args: &mut Args) {
 
 /// A dial between two text fields in a dialog's [`FieldTab`] scope: Tab goes from field to field
 /// and passes the dial; Ctrl+Tab reaches it.
-fn show_dialog(ui: &mut Ui, _: &mut Args) {
+fn show_dialog(ui: &mut Ui, _: &mut NoArgs) {
     use crate::controls::TextField;
     use crate::primitives::Stack;
     let numbers = LocaleNumbers::from_tag("en");

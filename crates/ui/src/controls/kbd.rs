@@ -7,9 +7,11 @@ use egui::os::OperatingSystem;
 use egui::text::LayoutJob;
 use egui::{Color32, Key, KeyboardShortcut, ModifierNames, Modifiers, Rect, Response, Sense, Ui, Vec2, Widget, WidgetInfo, pos2, vec2};
 
+use super::NoArgs;
 use crate::primitives::{Content, Surface, SurfaceKind, SurfaceStyle};
-use crate::story::{Args, Level, Story, variant_cluster, variant_list};
+use crate::story::{Level, Story, variant_cluster, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
+use crate::typed_story;
 
 /// A key chord's sizes and colours, from [`Kbd::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -260,8 +262,8 @@ const CHORDS: [(Modifiers, Key); 4] = [
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new("controls/kbd/plain", Level::Controls, "Kbd", "Plain", Args::new, |ui, _| show(ui, false)),
-        Story::new("controls/kbd/keycaps", Level::Controls, "Kbd", "Keycaps", Args::new, |ui, _| show(ui, true)),
+        typed_story!("controls/kbd/plain", Level::Controls, "Kbd", "Plain", NoArgs {}, |ui, _| show(ui, false)),
+        typed_story!("controls/kbd/keycaps", Level::Controls, "Kbd", "Keycaps", NoArgs {}, |ui, _| show(ui, true)),
     ]
 }
 

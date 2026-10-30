@@ -5,11 +5,12 @@ use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, IdSalt, Response, Ui, Widget};
 
 use super::button::{ButtonStyle, Face, content_color};
-use super::{SIZE_NAMES, salt, size_arg};
+use super::salt;
 use crate::icons::Icon;
 use crate::primitives::{Corner, Gap, Interactive, Row, StateColors, SurfaceKind};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, SizeArg, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// A toggle button's look, from [`ToggleButton::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -123,22 +124,29 @@ impl Widget for ToggleButton<'_> {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Toggle button"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct ToggleArgs {
+    size: SizeArg,
+    disabled: bool,
+    label: String,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "controls/toggle-button/toggle",
         Level::Controls,
         "Toggle button",
         "Toggle",
-        || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_text("label", "Snap to grid"),
-        show,
+        ToggleArgs { size: SizeArg::Md, disabled: false, label: "Snap to grid".into() },
+        show
     )]
 }
 
 /// One toggle off and one on, with and without an icon.
-fn show(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let enabled = !args.bool("disabled");
-    let label = args.text("label").to_owned();
+fn show(ui: &mut Ui, args: &mut ToggleArgs) {
+    let size = args.size.control();
+    let enabled = !args.disabled;
+    let label = args.label.clone();
     let state_id = ui.scope_id().with("toggle-button-state");
     let (mut snap, mut guides) = ui.data(|d| d.get_temp::<(bool, bool)>(state_id).unwrap_or((false, true)));
     Row::new(Gap::Inline).show(ui, |ui| {

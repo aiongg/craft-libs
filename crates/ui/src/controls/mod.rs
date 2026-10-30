@@ -143,6 +143,23 @@ pub(crate) fn salt(ui: &mut Ui, id_salt: Option<IdSalt>) -> IdSalt {
     })
 }
 
+/// The args of a story that has none.
+#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+pub(crate) struct NoArgs {}
+
+/// The args of the stories that only pick the size.
+#[derive(crate::story::StoryArgs, Debug, Default, PartialEq)]
+pub(crate) struct SizeArgs {
+    pub(crate) size: crate::story::SizeArg,
+}
+
+/// The args of the stories that only pick the size and disable the controls.
+#[derive(crate::story::StoryArgs, Debug, Default, PartialEq)]
+pub(crate) struct SizeDisabledArgs {
+    pub(crate) size: crate::story::SizeArg,
+    pub(crate) disabled: bool,
+}
+
 /// The names of `ControlSize`s, for story args and dumps.
 pub(crate) const fn size_name(size: ControlSize) -> &'static str {
     match size {

@@ -7,12 +7,13 @@ use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Rect, Response, Sense, S
 
 use super::TooltipExt as _;
 use super::button::content_color;
-use super::{SIZE_NAMES, salt, size_arg};
+use super::{SizeDisabledArgs, salt};
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, StateColors, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, SizeArg, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// An icon button's sizes and colours, from [`IconButton::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -262,33 +263,35 @@ pub const COMPONENTS: &[&str] = &["Icon button"];
 const SAMPLES: [(Icon, &str); 5] =
     [(Icon::Undo, "Undo"), (Icon::Redo, "Redo"), (Icon::Copy, "Copy"), (Icon::Trash, "Delete"), (Icon::Settings, "Settings")];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct PlainArgs {
+    size: SizeArg,
+    disabled: bool,
+    #[arg(name = "show tooltip")]
+    show_tooltip: bool,
+    badge: bool,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "controls/icon-button/plain",
             Level::Controls,
             "Icon button",
             "Plain",
-            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false).with_bool("show tooltip", true).with_bool("badge", false),
-            show_plain,
+            PlainArgs { size: SizeArg::Md, disabled: false, show_tooltip: true, badge: false },
+            show_plain
         ),
-        Story::new(
-            "controls/icon-button/toggle",
-            Level::Controls,
-            "Icon button",
-            "Toggle",
-            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false),
-            show_toggle,
-        ),
+        typed_story!("controls/icon-button/toggle", Level::Controls, "Icon button", "Toggle", SizeDisabledArgs::default(), show_toggle),
     ]
 }
 
 /// A toolbar row of icon buttons; clicks count up. A second row is a tool strip whose selected
 /// button the host owns.
-fn show_plain(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let enabled = !args.bool("disabled");
-    let (tooltip, badge) = (args.bool("show tooltip"), args.bool("badge"));
+fn show_plain(ui: &mut Ui, args: &mut PlainArgs) {
+    let size = args.size.control();
+    let enabled = !args.disabled;
+    let (tooltip, badge) = (args.show_tooltip, args.badge);
     let state_id = ui.scope_id().with("icon-button-plain-count");
     let (mut count, mut tool) = ui.data(|d| d.get_temp::<(u32, usize)>(state_id).unwrap_or_default());
     Row::new(Gap::Inline).show(ui, |ui| {
@@ -316,9 +319,9 @@ fn show_plain(ui: &mut Ui, args: &mut Args) {
 }
 
 /// Visibility and lock toggles, one of each on.
-fn show_toggle(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let enabled = !args.bool("disabled");
+fn show_toggle(ui: &mut Ui, args: &mut SizeDisabledArgs) {
+    let size = args.size.control();
+    let enabled = !args.disabled;
     let state_id = ui.scope_id().with("icon-button-toggle-state");
     let (mut visible, mut locked) = ui.data(|d| d.get_temp::<(bool, bool)>(state_id).unwrap_or((true, false)));
     Row::new(Gap::Inline).show(ui, |ui| {

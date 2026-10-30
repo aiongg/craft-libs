@@ -6,10 +6,11 @@ use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
 use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, Widget, pos2, vec2};
 
-use super::{SIZE_NAMES, size_arg};
+use super::SizeArgs;
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
+use crate::typed_story;
 
 /// A swatch's size and the colours it draws itself, from [`Swatch::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -281,14 +282,14 @@ const PALETTE: [[u8; 3]; 12] = [
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new("controls/swatch/states", Level::Controls, "Swatch", "States", || Args::new().with_choice("size", SIZE_NAMES, 1), show_states),
-        Story::new("controls/swatch/palette", Level::Controls, "Swatch", "Palette", || Args::new().with_choice("size", SIZE_NAMES, 1), show_palette),
+        typed_story!("controls/swatch/states", Level::Controls, "Swatch", "States", SizeArgs::default(), show_states),
+        typed_story!("controls/swatch/palette", Level::Controls, "Swatch", "Palette", SizeArgs::default(), show_palette),
     ]
 }
 
 /// Opaque, translucent, a colour equal to the panel, mixed, selected and disabled, each named.
-fn show_states(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
+fn show_states(ui: &mut Ui, args: &mut SizeArgs) {
+    let size = args.size.control();
     let panel = Tokens::of(ui).color.surface.panel;
     let samples: [(&str, Swatch); 7] = [
         ("Opaque", Swatch::new("opaque", "Opaque", Rgba::rgb(0x3e, 0x63, 0xdd))),
@@ -315,8 +316,8 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
 }
 
 /// A row of 12 swatches, one selected, each a Tab stop.
-fn show_palette(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
+fn show_palette(ui: &mut Ui, args: &mut SizeArgs) {
+    let size = args.size.control();
     let state_id = ui.scope_id().with("swatch-palette");
     let mut chosen = ui.data(|d| d.get_temp::<usize>(state_id).unwrap_or(7));
     Row::new(Gap::Inline).show(ui, |ui| {

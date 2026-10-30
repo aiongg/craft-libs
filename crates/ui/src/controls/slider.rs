@@ -17,9 +17,9 @@ use super::{RangeSlider, Swatch, field_wheel, gradient_track};
 use crate::composites::Form;
 use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::order::{self, Turn};
-use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
+use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::primitives::{Content, Gap, Interactive, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Args, Level, SizeArg, Story, StoryArgs, variant_list};
+use crate::story::{Level, SizeArg, Story, StoryArgs, variant_list};
 use crate::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, UiTokens, corner_radius, scale};
 use crate::typed_story;
 
@@ -1049,14 +1049,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!("controls/slider/step", Level::Controls, "Slider", "Step", SliderArgs::default(), show_step),
         typed_story!("controls/slider/disabled", Level::Controls, "Slider", "Disabled", SliderArgs::default(), show_disabled),
         typed_story!("controls/slider/right-to-left", Level::Controls, "Slider", "Right to left", SliderArgs::default(), show_right_to_left),
-        Story::new(
-            "controls/slider/event-log",
-            Level::Controls,
-            "Slider",
-            "Event log",
-            || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
-            show_event_log,
-        ),
+        typed_story!("controls/slider/event-log", Level::Controls, "Slider", "Event log", PolicyArgs::default(), show_event_log),
     ]
 }
 
@@ -1280,7 +1273,7 @@ impl LogState {
 
 /// A slider and a range slider in steps of 1 under a [`GestureHost`], their events newest first.
 /// Cmd/Ctrl+Z undoes a step, or cancels the gesture under way (it works during a drag).
-fn show_event_log(ui: &mut Ui, args: &mut Args) {
+fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
     let policy = edit::policy(args);
     let state_id = ui.scope_id().with("slider-event-log");
     let mut state = ui.data(|d| d.get_temp::<LogState>(state_id)).unwrap_or_default();

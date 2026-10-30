@@ -7,16 +7,17 @@ use craft_theme::{ControlSize, States, TypeRole};
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Ui, UiBuilder, Vec2, vec2};
 
+use super::SizeDisabledArgs;
 use super::button::content_color;
 use super::check::{IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
 use super::checkbox::LONG_LABEL;
-use super::{SIZE_NAMES, size_arg};
 use crate::behavior::RadioSelection;
 use crate::direction;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{Content, Gap, Interactive, Row, Sensed, Stack, Text};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story};
 use crate::theme::{Tokens, TokensOf, UiTokens};
+use crate::typed_story;
 
 /// A radio button's sizes and colours, from [`RadioGroup::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -383,18 +384,17 @@ pub const COMPONENTS: &[&str] = &["Radio"];
 const OPTIONS: [&str; 5] = ["Pixels", "Millimetres", "Inches", "Points", "Picas"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("disabled", false);
     vec![
-        Story::new("controls/radio/states", Level::Controls, "Radio", "States", args, show_states),
-        Story::new("controls/radio/groups", Level::Controls, "Radio", "Groups", args, show_groups),
+        typed_story!("controls/radio/states", Level::Controls, "Radio", "States", SizeDisabledArgs::default(), show_states),
+        typed_story!("controls/radio/groups", Level::Controls, "Radio", "Groups", SizeDisabledArgs::default(), show_groups),
     ]
 }
 
 /// A radio set with an option followed by its field and a long label; a disabled option; a
 /// disabled set, selected and not.
-fn show_states(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let enabled = !args.bool("disabled");
+fn show_states(ui: &mut Ui, args: &mut SizeDisabledArgs) {
+    let size = args.size.control();
+    let enabled = !args.disabled;
     let state_id = ui.scope_id().with("radio-states");
     let mut choice = ui.data(|d| d.get_temp::<usize>(state_id).unwrap_or(0));
     Stack::new(Gap::Stack).show(ui, |ui| {
@@ -422,9 +422,9 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
 }
 
 /// Groups of three and five options side by side; the five have a disabled option.
-fn show_groups(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let enabled = !args.bool("disabled");
+fn show_groups(ui: &mut Ui, args: &mut SizeDisabledArgs) {
+    let size = args.size.control();
+    let enabled = !args.disabled;
     let state_id = ui.scope_id().with("radio-groups");
     let mut choices = ui.data(|d| d.get_temp::<[usize; 2]>(state_id).unwrap_or([0, 2]));
     Stack::new(Gap::Stack).show(ui, |ui| {

@@ -11,14 +11,15 @@ use egui::{
 };
 
 use super::slider::with_values;
-use super::{IconButton, SIZE_NAMES, icon_size, size_arg};
+use super::{IconButton, icon_size};
 use crate::behavior::{Escape, Typing, TypingLook};
 use crate::direction;
-use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, UndoMarks};
+use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, GestureHost, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
 use crate::primitives::{Content, Gap, Stack, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Args, Level, Story, variant_list, variant_row};
+use crate::story::{Level, SizeArg, Story, StoryArgs, variant_list, variant_row};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, margin_x};
+use crate::typed_story;
 
 /// A text field's sizes and colours, from [`TextField::style`]; [`SearchField`] draws with the
 /// same.
@@ -599,21 +600,47 @@ fn border_color(surface: &SurfaceStyle) -> Color32 {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Text field", "Search field"];
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct StatesArgs {
+    size: SizeArg,
+    placeholder: String,
+    #[arg(name = "edit menu")]
+    edit_menu: bool,
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct SearchArgs {
+    size: SizeArg,
+    placeholder: String,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
-    let args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_text("placeholder", "Layer name").with_bool("edit menu", true);
-    let search_args = || Args::new().with_choice("size", SIZE_NAMES, 1).with_text("placeholder", "Search");
     vec![
-        Story::new("controls/text-field/states", Level::Controls, "Text field", "States", args, show_states),
-        Story::new(
-            "controls/text-field/event-log",
+        typed_story!(
+            "controls/text-field/states",
             Level::Controls,
             "Text field",
-            "Event log",
-            || Args::new().with_choice("update rate", edit::RATES, 0).with_bool("cancellable", true).with_bool("on release only", false),
-            show_event_log,
+            "States",
+            StatesArgs { size: SizeArg::Md, placeholder: "Layer name".into(), edit_menu: true },
+            show_states
         ),
-        Story::new("controls/search-field/states", Level::Controls, "Search field", "States", search_args, show_search_states),
-        Story::new("controls/search-field/filter", Level::Controls, "Search field", "Filter", search_args, show_filter),
+        typed_story!("controls/text-field/event-log", Level::Controls, "Text field", "Event log", PolicyArgs::default(), show_event_log),
+        typed_story!(
+            "controls/search-field/states",
+            Level::Controls,
+            "Search field",
+            "States",
+            SearchArgs { size: SizeArg::Md, placeholder: "Search".into() },
+            show_search_states
+        ),
+        typed_story!(
+            "controls/search-field/filter",
+            Level::Controls,
+            "Search field",
+            "Filter",
+            SearchArgs { size: SizeArg::Md, placeholder: "Search".into() },
+            show_filter
+        ),
     ]
 }
 
@@ -655,10 +682,10 @@ const STATE_ROWS: [(&str, &str); 6] = [
 
 /// Empty, filled, long, invalid, password and leading-icon fields, a multiline one, then two
 /// disabled ones. A secondary click opens the edit menu unless the argument turns it off.
-fn show_states(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let placeholder = args.text("placeholder").to_owned();
-    let edit_menu = args.bool("edit menu");
+fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
+    let size = args.size.control();
+    let placeholder = args.placeholder.clone();
+    let edit_menu = args.edit_menu;
     let initial: [Held; STATE_ROWS.len() + 1] =
         std::array::from_fn(|i| Held::new(STATE_ROWS.get(i).map_or("Shot list\nGolden hour, wide\nDetail of the hands", |(_, text)| text)));
     with_values(ui, "text-field-states", initial, |ui, values| {
@@ -691,9 +718,9 @@ fn show_states(ui: &mut Ui, args: &mut Args) {
 }
 
 /// Empty, filled and disabled search fields.
-fn show_search_states(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let placeholder = args.text("placeholder").to_owned();
+fn show_search_states(ui: &mut Ui, args: &mut SearchArgs) {
+    let size = args.size.control();
+    let placeholder = args.placeholder.clone();
     with_values(ui, "search-field-states", [Held::new(""), Held::new("brush")], |ui, values| {
         variant_list(ui, "search-field-states", |form| {
             for (i, (name, held)) in ["Empty", "With text"].into_iter().zip(values.iter_mut()).enumerate() {
@@ -717,9 +744,9 @@ const NAMES: [&str; 12] =
     ["Background", "Sky", "Clouds", "Mountains", "Lake", "Reflection", "Trees", "Path", "Hiker", "Backpack", "Sun flare", "Vignette"];
 
 /// A search field filtering a list of layer names as the user types.
-fn show_filter(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
-    let placeholder = args.text("placeholder").to_owned();
+fn show_filter(ui: &mut Ui, args: &mut SearchArgs) {
+    let size = args.size.control();
+    let placeholder = args.placeholder.clone();
     with_values(ui, "search-field-filter", [Held::new("")], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let query = &mut values[0];
@@ -800,7 +827,7 @@ impl LogState {
 
 /// A field under a [`GestureHost`], its events newest first and the undo-step count. Cmd/Ctrl+Z
 /// in the field is the field's own undo; outside it, it undoes a step of the document.
-fn show_event_log(ui: &mut Ui, args: &mut Args) {
+fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
     let policy = edit::policy(args);
     let state_id = ui.scope_id().with("text-field-event-log");
     let mut state = ui.data(|d| d.get_temp::<LogState>(state_id)).unwrap_or_default();

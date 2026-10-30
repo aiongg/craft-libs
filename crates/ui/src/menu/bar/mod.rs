@@ -28,11 +28,12 @@ use egui::{
 
 use super::item::{MenuEntry, MenuItem};
 use super::{Menu, MenuStep, MenuStyle, mnemonic};
-use crate::controls::{Kbd, SIZE_NAMES, size_arg};
+use crate::controls::Kbd;
 use crate::direction;
 use crate::primitives::{Content, Interactive, Text};
-use crate::story::{Args, Level, Story, Surface};
+use crate::story::{Level, SizeArg, Story, StoryArgs, Surface};
 use crate::theme::{Tokens, TokensOf as _, UiTokens, role_format};
+use crate::typed_story;
 use keys::Keys;
 use search::Search;
 
@@ -597,15 +598,23 @@ fn switch_on_hover(ctx: &egui::Context, titles: &[Response], popups: &[Id]) {
     }
 }
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct BarArgs {
+    size: SizeArg,
+    search: bool,
+    #[arg(range = 60.0..=1200.0)]
+    width: f64,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new(
+        typed_story!(
             "composites/menu/menu-bar",
             Level::Composites,
             "MenuBar",
             "Menu bar",
-            || Args::new().with_choice("size", SIZE_NAMES, 1).with_bool("search", true).with_number("width", 640.0, 60.0, 1200.0),
-            show_bar,
+            BarArgs { size: SizeArg::Md, search: true, width: 640.0 },
+            show_bar
         )
         .on(Surface::Chrome),
     ]
@@ -653,12 +662,12 @@ pub(crate) fn story_bar() -> Vec<MenuItem<super::Command>> {
 
 /// The bar in a row as wide as `width`, past which titles overflow; the command chosen last shows
 /// below it.
-fn show_bar(ui: &mut Ui, args: &mut Args) {
-    let size = size_arg(args.choice("size"));
+fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
+    let size = args.size.control();
     let menus = story_bar();
     let last = Id::unique("craft-ui-menu-bar-story-last");
-    let mut bar = MenuBar::new(&menus).id(last.with("bar")).size(size).shrink_to_fit(args.number("width") as f32);
-    if args.bool("search") {
+    let mut bar = MenuBar::new(&menus).id(last.with("bar")).size(size).shrink_to_fit(args.width as f32);
+    if args.search {
         bar = bar.help_search(menus.len() - 1);
     }
     let shown = bar.show(ui);

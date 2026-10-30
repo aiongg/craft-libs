@@ -15,8 +15,9 @@ use crate::controls::TooltipExt as _;
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{FocusRing, Interactive};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
+use crate::typed_story;
 
 /// The words of a strip the host translates: the overflow button's name, the × and the modified
 /// state. `{tab}` stands for the tab's label.
@@ -651,22 +652,30 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
     }
 }
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct StatesArgs {
+    large: bool,
+    dividers: bool,
+    #[arg(range = 40.0..=320.0)]
+    width: f64,
+}
+
 pub(super) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "composites/tab/states",
         Level::Composites,
         "Tab",
         "States",
-        || Args::new().with_bool("large", false).with_bool("dividers", true).with_number("width", 180.0, 40.0, 320.0),
-        show_states,
+        StatesArgs { large: false, dividers: true, width: 180.0 },
+        show_states
     )]
 }
 
 /// Tabs in each state on a strip: inactive, hovered by the pointer, active, modified, with a
 /// detail, with an icon, opening with progress, a long label cut with its tooltip, a drop
 /// highlight and the keyboard focus ring.
-fn show_states(ui: &mut Ui, args: &mut Args) {
-    let (large, dividers, width) = (args.bool("large"), args.bool("dividers"), args.number("width") as f32);
+fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
+    let (large, dividers, width) = (args.large, args.dividers, args.width as f32);
     let tokens = Tokens::of(ui);
     let style = Tab::<u8>::style(&tokens);
     let height = style.strip_height(large);
