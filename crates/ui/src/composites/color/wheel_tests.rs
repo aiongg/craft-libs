@@ -324,3 +324,44 @@ fn the_ring_then_the_triangle_are_two_tab_stops_and_a_field_scope_skips_them() {
     rig.key(Key::Tab, Modifiers::CTRL);
     assert_eq!(rig.focused(), Some(rig.ids.1), "and then the triangle");
 }
+
+/// A wheel between number fields: with `press_waits` a press during a field's typing run lets the
+/// run commit first and edits in the next pass; without it the press edits at once.
+fn press_during_typing(waits: bool) -> (Option<EditEvent<ModelValues>>, Option<EditEvent<ModelValues>>) {
+    use crate::controls::NumberField;
+    use crate::localized::LocaleNumbers;
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let numbers = LocaleNumbers::from_tag("en");
+    let (mut time, mut geometry, mut event, mut field) = (0.0, WheelGeometry { center: Pos2::ZERO, inner: 0.0, outer: 0.0, triangle: 0.0 }, None, Id::NULL);
+    let mut frame = |events: Vec<Event>, event: &mut Option<EditEvent<ModelValues>>, geometry: &mut WheelGeometry, field: &mut Id| {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), time: Some(time), events, ..Default::default() };
+        time += 1.0 / 60.0;
+        let output = ctx.run_ui(input, |ui| {
+            *field = NumberField::new("hue", "Hue", 10.0, &numbers).part(true).show(ui).response.id;
+            let wheel = ColorWheel::new("wheel", "Color wheel", hsb(240.0, 50.0, 60.0)).press_waits(waits).show(ui);
+            *event = wheel.edit.event;
+            *geometry = wheel.geometry;
+        });
+        output.drop_without_applying_deltas();
+    };
+    frame(vec![], &mut event, &mut geometry, &mut field);
+    ctx.memory_mut(|m| m.request_focus(field));
+    frame(vec![], &mut event, &mut geometry, &mut field);
+    frame(vec![Event::Text("12".to_owned())], &mut event, &mut geometry, &mut field);
+    frame(vec![], &mut event, &mut geometry, &mut field);
+    let at = geometry.ring_knob(90.0);
+    frame(vec![Event::PointerMoved(at), button(at, true), button(at, false)], &mut event, &mut geometry, &mut field);
+    let pressed = event.clone();
+    frame(vec![], &mut event, &mut geometry, &mut field);
+    (pressed, event)
+}
+
+#[test]
+fn a_press_waits_for_a_typing_run_only_when_the_host_says_so() {
+    let (pressed, _) = press_during_typing(false);
+    assert!(pressed.is_some(), "standalone: the press edits at once");
+    let (pressed, next) = press_during_typing(true);
+    assert_eq!(pressed, None, "in a panel: the press waits for the run's commit");
+    assert!(next.is_some(), "and edits in the next pass: {next:?}");
+}

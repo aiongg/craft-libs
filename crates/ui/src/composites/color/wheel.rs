@@ -255,11 +255,10 @@ impl ColorWheel {
         self
     }
 
-    /// Whether the wheel is a part of a panel with number fields, whose press takes its turn from
-    /// the edit order ([`press_turn`]).
-    #[allow(dead_code)]
-    pub(crate) fn part(mut self, part: bool) -> Self {
-        self.part = part;
+    /// Whether a press waits for another control's typing run to commit and then edits the values
+    /// that run left: on inside a panel with number fields, off standalone.
+    pub fn press_waits(mut self, waits: bool) -> Self {
+        self.part = waits;
         self
     }
 
