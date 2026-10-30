@@ -868,6 +868,7 @@ pub(crate) fn args_of<'a>(args: &'a mut HashMap<String, Args>, saved: &HashMap<S
 pub(crate) fn stories() -> Vec<Story> {
     let mut stories = registry();
     stories.extend(faces::stories());
+    stories.extend(crate::preview::stories());
     stories
 }
 

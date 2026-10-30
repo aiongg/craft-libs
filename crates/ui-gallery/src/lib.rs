@@ -16,6 +16,7 @@ mod gallery;
 mod inspector;
 pub mod layout;
 mod persist;
+mod preview;
 mod problems;
 
 pub use appearance::Appearance;
