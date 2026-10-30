@@ -12,6 +12,7 @@ use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Args, Story};
 use craft_ui::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, scale, scope};
 use egui::epaint::RectShape;
+use egui::layers::ShapeIdx;
 use egui::{Align, Frame, Rect, Role, Sense, Shape, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2, vec2};
 
 use super::applied::shown_mode;
@@ -126,6 +127,8 @@ pub(crate) fn tiles_view(
                 let mut header_rect = Rect::NOTHING;
                 let used = Frame::new().inner_margin(surface.margin).show(&mut cell, |ui| {
                     surface.space(ui);
+                    let tile_columns = Rect::from_x_y_ranges(x..=x + tile_width, f32::MIN..=f32::MAX);
+                    ui.set_clip_rect(ui.clip_rect().intersect(tile_columns));
                     ui.set_min_width(ui.available_width());
                     let args = args_of(args, saved, story);
                     let changed = *args != story.defaults();
@@ -154,9 +157,20 @@ pub(crate) fn tiles_view(
                     // pending before this tile drew stays.
                     let sets_scale = config.scale_of_selected && config.selected == Some(tile.key);
                     let pending = if sets_scale { None } else { craft_ui::story::take_pixels_per_point_request(ui.ctx()) };
+                    let layer = ui.layer_id();
+                    let first = ui.ctx().graphics(|g| g.get(layer).map_or(0, |list| list.next_idx().0));
                     let body = ui.push_id(story.id, |ui| {
                         (story.show)(ui, args);
                         ui.unique_id()
+                    });
+                    // A story wider than the tile is cut at the tile's edges, never painted over a
+                    // neighbour. A story that sets a clip rect of its own is cut here as well.
+                    ui.ctx().graphics_mut(|g| {
+                        if let Some(list) = g.get_mut(layer) {
+                            for i in first..list.next_idx().0 {
+                                list.mutate_shape(ShapeIdx(i), |shape| shape.clip_rect = shape.clip_rect.intersect(tile_columns));
+                            }
+                        }
                     });
                     if !sets_scale {
                         let _ = craft_ui::story::take_pixels_per_point_request(ui.ctx());

@@ -48,21 +48,21 @@ impl Args {
     /// Adds a checkbox arg.
     #[doc(hidden)]
     pub fn with_bool(mut self, name: &'static str, value: bool) -> Self {
-        self.args.push(Arg { name, value: ArgValue::Bool(value) });
+        self.push(Arg { name, value: ArgValue::Bool(value) });
         self
     }
 
     /// Adds a choice arg with `options[index]` selected.
     #[doc(hidden)]
     pub fn with_choice(mut self, name: &'static str, options: &'static [&'static str], index: usize) -> Self {
-        self.args.push(Arg { name, value: ArgValue::Choice { options, index: index.min(options.len().saturating_sub(1)) } });
+        self.push(Arg { name, value: ArgValue::Choice { options, index: index.min(options.len().saturating_sub(1)) } });
         self
     }
 
     /// Adds a text arg.
     #[doc(hidden)]
     pub fn with_text(mut self, name: &'static str, value: impl Into<String>) -> Self {
-        self.args.push(Arg { name, value: ArgValue::Text(value.into()) });
+        self.push(Arg { name, value: ArgValue::Text(value.into()) });
         self
     }
 
@@ -70,7 +70,7 @@ impl Args {
     #[doc(hidden)]
     pub fn with_number(mut self, name: &'static str, value: f64, min: f64, max: f64) -> Self {
         assert!(min <= max, "arg `{name}` has an empty range: min {min} > max {max}");
-        self.args.push(Arg { name, value: ArgValue::Number { value: value.clamp(min, max), min, max } });
+        self.push(Arg { name, value: ArgValue::Number { value: value.clamp(min, max), min, max } });
         self
     }
 
@@ -78,15 +78,27 @@ impl Args {
     #[doc(hidden)]
     pub fn with_args(mut self, other: &Args) -> Self {
         for arg in &other.args {
-            assert!(self.get(arg.name).is_none(), "two args are named `{}`", arg.name);
-            self.args.push(arg.clone());
+            self.push(arg.clone());
         }
         self
+    }
+
+    /// Adds `arg`, panicking when an arg of that name exists: `from_args` reads by name and the
+    /// write-back by position, so a duplicate would read one arg and write the other.
+    fn push(&mut self, arg: Arg) {
+        assert!(
+            self.get(arg.name).is_none(),
+            "two args are named `{}`{}",
+            arg.name,
+            if self.story.is_empty() { String::new() } else { format!(" in story `{}`", self.story) }
+        );
+        self.args.push(arg);
     }
 
     /// The `len` args from position `from`, for a flattened struct to read.
     #[doc(hidden)]
     pub fn slice(&self, from: usize, len: usize) -> Args {
+        debug_assert!(from + len <= self.args.len(), "story `{}`: slice {from}..{} of {} args", self.story, from + len, self.args.len());
         Args { story: self.story, args: self.args[from..from + len].to_vec() }
     }
 
@@ -184,7 +196,7 @@ impl Args {
 /// the same names, kinds and order as if its fields were written here. The field is read and
 /// written through the type's own `to_args` and `from_args`. A shared set of args (the canvas
 /// stories' view) is declared once and flattened into each story's struct. `flatten` does not
-/// combine with `name` or `range`, and two args with one name panic in `to_args`.
+/// combine with `name` or `range`, and two args with one name, whichever comes first, panic in `to_args`.
 ///
 /// A number arg without a range does not compile:
 ///

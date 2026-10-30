@@ -1347,7 +1347,7 @@ fn show_curves(ui: &mut Ui, args: &mut CurvesArgs) {
         curves[1] = Curve::smooth(vec![[0.0, 12.0], [128.0, 140.0], [255.0, 255.0]]);
         curves
     });
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let pencil = args.pencil;
     if !pencil && let Curve::Map(map) = &host.curves[channel] {
         host.curves[channel] = story_points(map);

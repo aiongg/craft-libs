@@ -1090,7 +1090,7 @@ fn bell(centre: f32, width: f32, count: f32) -> Vec<u32> {
 }
 
 pub(super) fn show_tone(ui: &mut Ui, args: &mut ToneArgs) {
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let channel = args.channel.color();
     let bins = bell(90.0, 30.0, 9000.0).iter().zip(bell(190.0, 14.0, 6000.0)).map(|(a, b)| a + b).collect::<Vec<_>>();
     ui.allocate_ui(vec2(width, 0.0), |ui| {
@@ -1106,7 +1106,7 @@ pub(super) fn show_tone(ui: &mut Ui, args: &mut ToneArgs) {
 }
 
 pub(super) fn show_rgb(ui: &mut Ui, args: &mut RgbArgs) {
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     let scale = match args.scale {
         ScaleArg::Typical => HistogramScale::Typical,
         ScaleArg::Peak => HistogramScale::Peak,
@@ -1126,7 +1126,7 @@ pub(super) fn show_rgb(ui: &mut Ui, args: &mut RgbArgs) {
 
 /// `story` in a column `width` wide.
 fn sized(ui: &mut Ui, args: &WidthArgs, story: impl FnOnce(&mut Ui)) {
-    let width = args.width;
+    let width = args.width.min(ui.available_width());
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         story(ui);

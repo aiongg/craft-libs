@@ -186,13 +186,14 @@ pub(super) struct TonesArgs {
 
 /// The five tones on the panel and on a dialog surface.
 pub(super) fn show_tones(ui: &mut Ui, args: &mut TonesArgs) {
-    let (width, announce, title) = (args.width, args.announce, args.title);
+    let (width, announce, title) = (args.width.min(ui.available_width()), args.announce, args.title);
     for (surface, name) in [(crate::primitives::SurfaceKind::Panel, "Panel"), (crate::primitives::SurfaceKind::Dialog, "Dialog")] {
         ui.add(crate::primitives::Text::new(name).role(TypeRole::Label).content(crate::primitives::Content::Muted));
         ui.allocate_ui(vec2(width, 0.0), |ui| {
             ui.set_max_width(width);
+            let pad = crate::theme::Tokens::of(ui).space.pad.dialog;
             crate::primitives::Surface::new(surface).show(ui, |ui| {
-                ui.set_width(width);
+                ui.set_width((width - 2.0 * pad).max(0.0));
                 crate::primitives::Stack::new(crate::primitives::Gap::Stack).pad(crate::primitives::Pad::Dialog).show(ui, |ui| {
                     for tone in Tone::ALL {
                         let mut notice = Notice::new(format!("{} message that wraps onto a second line when the room runs out.", tone.name()))

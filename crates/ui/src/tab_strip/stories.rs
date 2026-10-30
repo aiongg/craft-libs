@@ -161,7 +161,7 @@ fn apply_move<T>(items: &mut Vec<T>, key: impl Fn(&T) -> u32, mv: &Move<u32>) {
 /// line and a release there reports the tab leaving. The line under the strip shows the last
 /// event.
 fn show_documents(ui: &mut Ui, args: &mut DocumentsArgs) {
-    let (width, large, tear_off) = (args.width as f32, args.large, args.tear_off);
+    let (width, large, tear_off) = ((args.width as f32).min(ui.available_width()), args.large, args.tear_off);
     let shared = shared(ui, "tab-strip-documents", Docs::new);
     let mut docs = shared.lock();
     let tabs: Vec<Tab<u32>> = docs
@@ -289,7 +289,7 @@ enum PanelCommand {
 /// drag from the empty strip, and a context menu. `locked` stops tab drags, so a drag on a tab
 /// moves the group.
 fn show_panels(ui: &mut Ui, args: &mut PanelsArgs) {
-    let (width, locked) = (args.width as f32, args.locked);
+    let (width, locked) = ((args.width as f32).min(ui.available_width()), args.locked);
     let shared = shared(ui, "tab-strip-panels", Panels::new);
     let mut state = shared.lock();
     let button = Tab::<u32>::style(&Tokens::of(ui)).height;
@@ -409,7 +409,7 @@ struct Drops {
 }
 
 fn show_drops(ui: &mut Ui, args: &mut DropsArgs) {
-    let width = args.width as f32;
+    let width = (args.width as f32).min(ui.available_width());
     let shared = shared(ui, "tab-strip-drops", || Drops {
         names: ["Cover", "Chapter 1", "Chapter 2", "Notes"].iter().copied().zip(1..).map(|(name, key)| (key, name)).collect(),
         selected: 1,

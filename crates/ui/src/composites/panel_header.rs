@@ -239,7 +239,7 @@ pub(super) struct FlyoutArgs {
 /// A flyout's header in a panel `width` wide, with the buttons and an action chosen by args. The
 /// line under it shows what the host got.
 pub(super) fn show_flyout(ui: &mut Ui, args: &mut FlyoutArgs) {
-    let (width, actions) = (args.width, args.actions);
+    let (width, actions) = (args.width.min(ui.available_width()), args.actions);
     let header = PanelHeader::new("brush-settings", "Brush settings").menu(args.menu).float(args.float).close(args.close);
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);

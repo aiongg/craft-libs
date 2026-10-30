@@ -278,7 +278,7 @@ pub(super) struct AdjustmentsArgs {
 /// Opacity in percent, Exposure with two places, a gradient Hue row and an Amount row, in a
 /// panel `width` wide; `disabled` disables the Amount row.
 pub(super) fn show_adjustments(ui: &mut Ui, args: &mut AdjustmentsArgs) {
-    let (disabled, width) = (args.disabled, args.width);
+    let (disabled, width) = (args.disabled, args.width.min(ui.available_width()));
     let state_id = ui.scope_id().with("slider-row-adjustments");
     let mut values = ui.data(|d| d.get_temp::<[f64; 4]>(state_id)).unwrap_or([80.0, 0.5, 210.0, 35.0]);
     let numbers = LocaleNumbers::from_tag("en");

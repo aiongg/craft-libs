@@ -353,7 +353,7 @@ pub(super) fn show_tree(ui: &mut Ui, args: &mut TreeArgs) {
     use super::{List, ListEvent};
     use crate::behavior::Selection;
     use crate::icons::Icon;
-    let (width, height) = (args.width, args.height);
+    let (width, height) = (args.width.min(ui.available_width()), args.height);
     let state_id = ui.scope_id().with("tree-story");
     let mut selection = ui.data(|d| d.get_temp::<Selection<usize>>(state_id)).unwrap_or_else(|| Selection::only(0));
     let mut open = TreeState::load(ui.ctx(), state_id);

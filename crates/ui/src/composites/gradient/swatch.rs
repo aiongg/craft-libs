@@ -129,7 +129,7 @@ struct SwatchArgs {
 
 fn show_swatch(ui: &mut Ui, args: &mut SwatchArgs) {
     let size = args.size.control();
-    let (width, enabled) = (args.width, args.enabled);
+    let (width, enabled) = (args.width.min(ui.available_width()), args.enabled);
     let color = |at: f32, [r, g, b]: [u8; 3]| ColorStop::new(at, Srgba::from(Rgba::rgb(r, g, b)));
     let mut centred = GradientStops::new(vec![color(0.0, [0xf5, 0xa5, 0x24]), color(1.0, [0x3e, 0x63, 0xdd])]);
     let mut skewed = centred.clone();

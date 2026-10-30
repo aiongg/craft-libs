@@ -1,12 +1,13 @@
 //! Which components paint with a token: the scan behind the Theme panel's "Used by" list, and the
 //! probe lookups that outline a token's shapes in the tiles.
 //!
-//! The scan probes the default story of each component at rest, one component per frame
-//! ([`Probe`] takes about 50 ms per story in a debug build), in both passes: pass A names the
-//! semantic tokens, pass B the component colour fields. Results are cached by the probe's
+//! The scan probes the default story of each component at rest in both passes (pass A names the
+//! semantic tokens, pass B the component colour fields), one probe per frame ([`Probe`] takes
+//! about 50 ms per story in a debug build). It runs only while the Used by list is on screen. Results are cached by the probe's
 //! [`Key`], which holds the appearance but not the theme's edited values, so editing a colour
 //! never scans again.
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -44,6 +45,8 @@ struct Run {
     context: ScanContext,
     stories: Vec<Story>,
     next: usize,
+    /// The pass of story `next` that is probed next.
+    pass: Pass,
     /// For each token, the shapes each component painted with it.
     painters: HashMap<TokenRef, BTreeMap<&'static str, usize>>,
 }
@@ -56,12 +59,23 @@ pub(crate) struct Scan {
     run: Option<Run>,
     /// Whether this frame's probe has not been used yet.
     budget: bool,
+    /// Whether the Used by list was drawn this frame.
+    shown: Cell<bool>,
+    /// The last usage each tile got, by its probe key with the args blanked: shown while the
+    /// pointer is down, when the args may change every frame.
+    last: Vec<(Key, Arc<Usage>)>,
 }
 
 impl Scan {
     /// Starts a frame: one more probe may run.
     pub(crate) fn begin_frame(&mut self) {
         self.budget = true;
+        self.shown.set(false);
+    }
+
+    /// Records that the Used by list is on screen this frame.
+    pub(crate) fn mark_shown(&self) {
+        self.shown.set(true);
     }
 
     /// Starts a scan for `appearance` in `mode` unless one for it exists, restarting when either
@@ -78,30 +92,47 @@ impl Scan {
             }
         }
         let stories = components.into_iter().filter_map(|c| default_story_of(stories, c).copied()).collect();
-        self.run = Some(Run { context, stories, next: 0, painters: HashMap::new() });
+        self.run = Some(Run { context, stories, next: 0, pass: Pass::Semantic, painters: HashMap::new() });
     }
 
-    /// Probes the next component if this frame's probe is unused, and asks for another frame
-    /// while any are left.
+    /// Runs the scan's next probe if the Used by list is on screen and this frame's probe is
+    /// unused. Probes already cached fill in at once and do not use the frame's probe. Asks for
+    /// another frame only while probes are left.
     pub(crate) fn step(&mut self, ctx: &Context, theme: &ThemeDef) {
-        let Some(run) = self.run.as_mut() else { return };
-        let Some(story) = run.stories.get(run.next).copied() else { return };
-        if !std::mem::take(&mut self.budget) {
-            ctx.request_repaint();
+        if !self.shown.get() {
             return;
         }
-        let ScanContext { appearance, mode } = &run.context;
-        for pass in [Pass::Semantic, Pass::Component] {
+        let Some(run) = self.run.as_mut() else { return };
+        while let Some(story) = run.stories.get(run.next).copied() {
+            let ScanContext { appearance, mode } = &run.context;
+            let pass = run.pass;
             let key = key_of(theme, &story, &story.defaults(), appearance, *mode, pass, SCAN_SIZE);
-            let usage = self.cache.get_or_run(key, || Probe::story(theme, appearance, *mode, pass, SCAN_SIZE, &story, &mut story.defaults()));
+            let (usage, probed) = match self.cache.get(&key) {
+                Some(usage) => (usage, false),
+                None if std::mem::take(&mut self.budget) => {
+                    (self.cache.get_or_run(key, || Probe::story(theme, appearance, *mode, pass, SCAN_SIZE, &story, &mut story.defaults())), true)
+                }
+                None => break,
+            };
             for used in &usage.uses {
                 if let Some(token) = used.token.filter(|t| pass_of(*t) == pass) {
                     *run.painters.entry(token).or_default().entry(story.component).or_default() += 1;
                 }
             }
+            match pass {
+                Pass::Semantic => run.pass = Pass::Component,
+                Pass::Component => {
+                    run.pass = Pass::Semantic;
+                    run.next += 1;
+                }
+            }
+            if probed {
+                break;
+            }
         }
-        run.next += 1;
-        ctx.request_repaint();
+        if run.next < run.stories.len() {
+            ctx.request_repaint();
+        }
     }
 
     /// How many components have been probed and how many there are; `None` before a scan starts.
@@ -157,20 +188,39 @@ impl<'a> Highlight<'a> {
     }
 
     /// The usage of `story` with `args` drawn `size` large in `pass`. `None` while it has not been
-    /// probed: a probe runs now if this frame's is unused, else the next frame asks again.
+    /// probed: a probe runs now if this frame's is unused, else the next frame asks again. While
+    /// the pointer is down, when the args may change every frame, the last usage the tile got
+    /// stands.
     fn usage(&mut self, ctx: &Context, appearance: &Appearance, story: &Story, args: &Args, size: Vec2, pass: Pass) -> Option<Arc<Usage>> {
         let key = key_of(self.theme, story, args, appearance, self.mode, pass, size);
-        match self.scan.cache.get(&key) {
-            Some(usage) => Some(usage),
+        let pointer_down = ctx.input(|i| i.pointer.any_down());
+        let mut blank = key.clone();
+        blank.args.clear();
+        let usage: Arc<Usage> = match self.scan.cache.get(&key) {
+            Some(usage) => usage,
+            None if pointer_down && self.scan.last.iter().any(|(k, _)| *k == blank) => {
+                let (_, usage) = self.scan.last.iter().find(|(k, _)| *k == blank).expect("checked above");
+                return Some(Arc::clone(usage));
+            }
             None if std::mem::take(&mut self.scan.budget) => {
                 let (theme, mode) = (self.theme, self.mode);
-                Some(self.scan.cache.get_or_run(key, || Probe::story(theme, appearance, mode, pass, size, story, &mut args.clone())))
+                self.scan.cache.get_or_run(key, || Probe::story(theme, appearance, mode, pass, size, story, &mut args.clone()))
             }
             None => {
                 ctx.request_repaint();
-                None
+                return None;
+            }
+        };
+        match self.scan.last.iter_mut().find(|(k, _)| *k == blank) {
+            Some(entry) => entry.1 = Arc::clone(&usage),
+            None => {
+                if self.scan.last.len() >= 64 {
+                    self.scan.last.remove(0);
+                }
+                self.scan.last.push((blank, Arc::clone(&usage)));
             }
         }
+        Some(usage)
     }
 
     /// Where `story` with `args`, drawn `size` large with its origin at `origin` on screen, paints

@@ -255,3 +255,142 @@ fn state_saved_with_the_removed_compare_fields_loads() {
     assert_eq!(gallery.components.filter, "button");
     assert_eq!(gallery.variants.axis(), None);
 }
+
+/// Stories whose content has a width of its own and so cannot shrink to a narrow tile: pictures
+/// of a document or a window, rows of controls that do not wrap, event logs and floating
+/// layers. The tile's clip cuts them at the tile's edges.
+const FIXED_WIDTH: &[&str] = &[
+    "specimens/icons/compare",
+    "specimens/type/faces",
+    "primitives/state-layer/states",
+    "primitives/canvas/document",
+    "primitives/canvas/scrollbars",
+    "primitives/guides/guides",
+    "primitives/smart-guides/move",
+    "primitives/marquee/drag",
+    "primitives/rulers/canvas",
+    "primitives/transform-box/free-transform",
+    "primitives/bezier-paths/edit",
+    "primitives/warp-grid/warp",
+    "primitives/pen-draft/draw",
+    "primitives/gradient-line/edit",
+    "primitives/gradient-line/with-editor",
+    "foundations/edit/log",
+    "controls/segmented/text",
+    "controls/select/wheel-steps",
+    "controls/combo-box/font-size",
+    "controls/slider/event-log",
+    "controls/swatch/palette",
+    "controls/badge/tones",
+    "controls/kbd/plain",
+    "controls/kbd/keycaps",
+    "controls/text-field/states",
+    "controls/text-field/event-log",
+    "controls/number-field/event-log",
+    "composites/form-grid/image-size",
+    "composites/gradient/dialog",
+    "composites/transform-fields/box",
+    "composites/levels-editor/event-log",
+    "composites/list/ten-thousand-rows",
+    "composites/list/reorder",
+    "composites/list/reorder-tree",
+    "composites/list/reorder-refused",
+    "composites/list/reorder-copy",
+    "composites/menu/context-menu",
+    "composites/color/full",
+    "patterns/options-bar/brush-and-transform",
+    "patterns/app-preview/photo-editor",
+    "patterns/dock-area/floating",
+    "patterns/dialog/frame",
+    "patterns/dialog/modeless",
+    "patterns/dialog/footer",
+    "patterns/dialog/stack",
+    "patterns/dialog/prompt",
+    "patterns/dialog/preview",
+    "patterns/full-window/workspace",
+    "patterns/viewport/embedded",
+];
+
+/// Stories that draw in layers of their own (dialogs, windows) and are placed on the screen, not
+/// in the tile; a tile cannot clip another layer.
+const FLOATING: &[&str] = &[
+    "patterns/dock-area/floating",
+    "patterns/dialog/modeless",
+    "patterns/dialog/footer",
+    "patterns/dialog/stack",
+    "patterns/dialog/prompt",
+    "patterns/dialog/preview",
+    "patterns/full-window/workspace",
+    "patterns/viewport/embedded",
+];
+
+/// How far a focus ring, edge or shadow may reach past its widget; the tile's margin takes it.
+const DECORATION_SLACK: f32 = 2.5;
+
+/// Draws every story in an Overview tile at the narrowest tile width.
+/// Returns the ids of the stories with a shape beyond the tile's left or right edge before any
+/// clip, and the ids with a shape whose clip rect reaches past the tile.
+fn drawn_past_their_tile(width: f32) -> (Vec<&'static str>, Vec<&'static str>) {
+    use super::tiles::{Tile, Tiles, tiles_view};
+    use craft_theme::SystemAppearance;
+    use craft_ui::theme::install;
+
+    let gallery = Gallery::new(None);
+    let appearance = gallery.appearance.clone();
+    let system = SystemAppearance::default();
+    let (mut painted, mut clipped) = (Vec::new(), Vec::new());
+    for story in gallery.stories().to_vec() {
+        let ctx = egui::Context::default();
+        let base = appearance.configure(&ctx, None, false, system);
+        let tiles = [Tile { key: story.component, story, title: story.component, note: None, open: false }];
+        let mut args = HashMap::new();
+        // The screen is wider than the tile, so only the tile's own clip keeps a shape inside it.
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width + 400.0, 800.0))),
+            ..egui::RawInput::default()
+        };
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let mut out = ctx.run_ui(input.clone(), |ui| {
+                install(ui.ctx(), &base);
+                let mut scroll_to = None;
+                let config = Tiles {
+                    one_column: false,
+                    selectable: false,
+                    selected: None,
+                    buttons: false,
+                    scale_of_selected: false,
+                    scroll_to: &mut scroll_to,
+                    inspector: None,
+                    highlight: None,
+                };
+                ui.scope_builder(egui::UiBuilder::new().max_rect(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 800.0))), |ui| {
+                    tiles_view(ui, &tiles, config, &mut args, &HashMap::new(), &appearance, system);
+                });
+            });
+            shapes = std::mem::take(&mut out.shapes);
+            out.drop_without_applying_deltas();
+        }
+        let outside = |r: Rect| r.min.x < -DECORATION_SLACK || r.max.x > width + DECORATION_SLACK;
+        let bounds = |c: &egui::epaint::ClippedShape| {
+            let r = c.shape.visual_bounding_rect();
+            (r.is_finite() && r.is_positive()).then_some(r)
+        };
+        if shapes.iter().filter_map(bounds).any(outside) {
+            painted.push(story.id);
+        }
+        if shapes.iter().filter_map(|c| bounds(c).filter(|r| r.intersects(c.clip_rect)).map(|r| r.intersect(c.clip_rect))).any(outside) {
+            clipped.push(story.id);
+        }
+    }
+    (painted, clipped)
+}
+
+#[test]
+fn no_story_paints_past_its_overview_tile() {
+    let (painted, clipped) = drawn_past_their_tile(super::tiles::TILE_MIN_WIDTH);
+    let clipped: Vec<_> = clipped.into_iter().filter(|id| !FLOATING.contains(id)).collect();
+    assert!(clipped.is_empty(), "stories visible outside a {} pt tile: {clipped:?}", super::tiles::TILE_MIN_WIDTH);
+    let painted: Vec<_> = painted.into_iter().filter(|id| !FIXED_WIDTH.contains(id)).collect();
+    assert!(painted.is_empty(), "stories that paint outside a {} pt tile: {painted:?}", super::tiles::TILE_MIN_WIDTH);
+}
