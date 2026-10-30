@@ -97,7 +97,9 @@ fn a_story_sits_on_a_panel_unless_set() {
 }
 
 /// The registry's order, and every story's component, name, surface and default args: a
-/// migration of a module to typed args must leave this file unchanged.
+/// migration of a module to typed args must leave this file unchanged. The dump lists the
+/// `window-frame` stories too, so the test runs only with that feature (CI uses `--all-features`).
+#[cfg(feature = "window-frame")]
 #[test]
 fn registry_and_default_args_match_the_dump() {
     use crate::testing::dump::Dump;

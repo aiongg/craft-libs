@@ -124,6 +124,12 @@ composites/menu/menus = Menu | Menus | Panel | size=Choice { options: ["sm", "md
 composites/menu/context-menu = ContextMenu | Context menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true)
 composites/menu/press-menu = PressMenu | Press menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true)
 composites/menu/menu-bar = MenuBar | Menu bar | Chrome | size=Choice { options: ["sm", "md"], index: 1 }; search=Bool(true); width=Number { value: 640.0, min: 60.0, max: 1200.0 }
+patterns/title-bar/windows = TitleBar | Windows | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+patterns/title-bar/adwaita = TitleBar | Adwaita | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+patterns/title-bar/breeze = TitleBar | Breeze | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+patterns/title-bar/generic = TitleBar | Generic | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+patterns/title-bar/mac-inset = TitleBar | Mac inset | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
+patterns/title-bar/native = TitleBar | Native | Chrome | maximized=Bool(false); inactive=Bool(false); title=Text("Poster.psd"); unsaved=Bool(true); width=Number { value: 720.0, min: 120.0, max: 1400.0 }; rtl=Bool(false)
 composites/color-area/parts = ColorArea | Area and strip | Panel | mode=Choice { options: ["H", "S", "B", "R", "G", "B (blue)", "L", "a", "b", "OKLCH L", "OKLCH C", "OKLCH H"], index: 0 }; compact=Bool(false); disabled=Bool(false); web colours only=Bool(false)
 composites/color/compact = ColorPicker | Compact | Panel | alpha=Bool(false); eyedropper=Bool(true); dynamic tracks=Bool(true); web colours only=Bool(false); disabled=Bool(false); width=Number { value: 260.0, min: 160.0, max: 480.0 }
 composites/color/popover = ColorPopover | Popover | Panel | size=Choice { options: ["sm", "md"], index: 1 }; alpha=Bool(true); eyedropper=Bool(true); disabled=Bool(false)

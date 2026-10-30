@@ -1007,16 +1007,10 @@ pub(super) fn knob(mut surface: SurfaceStyle, fill: Color32, border: Color32, en
 pub const COMPONENTS: &[&str] = &["Slider"];
 
 /// The args of the stories that only pick the size and disable the sliders.
-#[derive(StoryArgs, Debug, PartialEq)]
+#[derive(StoryArgs, Debug, Default, PartialEq)]
 struct SliderArgs {
     size: SizeArg,
     disabled: bool,
-}
-
-impl SliderArgs {
-    fn defaults() -> Self {
-        Self { size: SizeArg::Md, disabled: false }
-    }
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]
@@ -1052,9 +1046,9 @@ pub(crate) fn stories() -> Vec<Story> {
             ValuesArgs { size: SizeArg::Md, disabled: false, default_value: false, wheel_unfocused: false },
             show_values
         ),
-        typed_story!("controls/slider/step", Level::Controls, "Slider", "Step", SliderArgs::defaults(), show_step),
-        typed_story!("controls/slider/disabled", Level::Controls, "Slider", "Disabled", SliderArgs::defaults(), show_disabled),
-        typed_story!("controls/slider/right-to-left", Level::Controls, "Slider", "Right to left", SliderArgs::defaults(), show_right_to_left),
+        typed_story!("controls/slider/step", Level::Controls, "Slider", "Step", SliderArgs::default(), show_step),
+        typed_story!("controls/slider/disabled", Level::Controls, "Slider", "Disabled", SliderArgs::default(), show_disabled),
+        typed_story!("controls/slider/right-to-left", Level::Controls, "Slider", "Right to left", SliderArgs::default(), show_right_to_left),
         Story::new(
             "controls/slider/event-log",
             Level::Controls,

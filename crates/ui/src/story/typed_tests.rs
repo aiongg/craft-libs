@@ -40,7 +40,7 @@ fn derived_args_list_the_fields_in_order_and_round_trip() {
         .with_number("rows", 7.0, 1.0, 40.0)
         .with_choice("mode", &["plain", "extra wide", "last"], 1);
     assert_eq!(args, expected);
-    assert_eq!(AllKinds::read(&args), sample());
+    assert_eq!(AllKinds::from_args(&args), sample());
 }
 
 #[test]
@@ -93,4 +93,52 @@ fn migrated_stories_build_the_args_they_had_by_hand() {
             .with_bool("wheel unfocused", false)
             .for_story("controls/slider/values")
     );
+}
+
+fn set_number(args: &mut Args, name: &str, to: f64) {
+    for arg in args.iter_mut().filter(|a| a.name == name) {
+        if let ArgValue::Number { value, .. } = &mut arg.value {
+            *value = to;
+        }
+    }
+}
+
+fn run(story: &Story, args: &mut Args) {
+    Context::default().run_ui(RawInput::default(), |ui| (story.show)(ui, args)).drop_without_applying_deltas();
+}
+
+#[test]
+fn a_story_that_writes_nothing_leaves_fractional_values_alone() {
+    fn idle(_: &mut egui::Ui, _: &mut AllKinds) {}
+    let story = typed_story!("controls/x/y", Level::Controls, "X", "Y", sample(), idle);
+    let mut args = story.defaults();
+    for arg in args.iter_mut() {
+        if let ArgValue::Number { value, .. } = &mut arg.value {
+            *value += 0.3;
+        }
+    }
+    let before = args.clone();
+    run(&story, &mut args);
+    assert_eq!(args, before);
+}
+
+#[test]
+fn a_story_that_writes_one_field_changes_only_that_field() {
+    fn bump(_: &mut egui::Ui, args: &mut AllKinds) {
+        args.rows = 9;
+    }
+    let story = typed_story!("controls/x/y", Level::Controls, "X", "Y", sample(), bump);
+    let mut args = story.defaults();
+    set_number(&mut args, "amount", 42.4);
+    let mut expected = args.clone();
+    run(&story, &mut args);
+    set_number(&mut expected, "rows", 9.0);
+    assert_eq!(args, expected);
+}
+
+#[test]
+fn integer_fields_round_to_the_nearest_value() {
+    let mut args = sample().to_args();
+    set_number(&mut args, "rows", 7.6);
+    assert_eq!(AllKinds::from_args(&args).rows, 8);
 }

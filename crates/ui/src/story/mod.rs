@@ -45,7 +45,7 @@
 //!     show_note
 //! );
 //! let args = story.defaults();
-//! assert_eq!(NoteArgs::read(&args).tone, Tone::Loud);
+//! assert_eq!(NoteArgs::from_args(&args).tone, Tone::Loud);
 //! assert_eq!(args.choice("tone"), "very loud");
 //! ```
 //!
@@ -197,8 +197,27 @@ impl Story {
 
 /// A [`Story`] whose args are a [`StoryArgs`] struct: `typed_story!(id, level, component, name,
 /// defaults, show)`, where `defaults` is an expression of the args type (the story's default
-/// values) and `show` a function `fn(&mut Ui, &mut Args)` of that type, written as a path or a
+/// values) and `show` a function `fn(&mut Ui, &mut A)` of that type `A`, written as a path or a
 /// closure that captures nothing. See the [module](crate::story) docs.
+///
+/// The defaults and the function must use the same args type:
+///
+/// ```compile_fail
+/// use craft_ui::story::{Level, StoryArgs};
+/// use craft_ui::typed_story;
+///
+/// #[derive(StoryArgs)]
+/// struct One {
+///     on: bool,
+/// }
+/// #[derive(StoryArgs)]
+/// struct Two {
+///     off: bool,
+/// }
+/// fn show(_: &mut egui::Ui, _: &mut Two) {}
+///
+/// let _ = typed_story!("controls/a/b", Level::Controls, "A", "B", One { on: true }, show);
+/// ```
 #[macro_export]
 macro_rules! typed_story {
     ($id:expr, $level:expr, $component:expr, $name:expr, $defaults:expr, $show:expr $(,)?) => {
@@ -208,7 +227,7 @@ macro_rules! typed_story {
             $component,
             $name,
             || $crate::story::StoryArgs::to_args(&$defaults),
-            |ui, args| $crate::story::show_typed(ui, args, $show),
+            |ui, args| $crate::story::show_typed(ui, args, || $defaults, $show),
         )
     };
 }
