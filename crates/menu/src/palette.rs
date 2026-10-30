@@ -4,7 +4,7 @@ use craft_keymap::{CommandRef, Keymap};
 use craft_ui::behavior::PaletteEntry;
 use craft_ui::menu::MenuItem;
 
-use crate::bar::{Convert, Labeled, keymap_platform};
+use crate::bar::{Convert, EnglishHook, keymap_platform};
 use crate::model::Builtin;
 use crate::{Gate, LayoutOptions, MenuBar, Target, apply_keymap, layout};
 
@@ -26,7 +26,7 @@ impl MenuBar {
         keymap: &Keymap,
         target: Target,
         options: &LayoutOptions,
-        english: Option<&dyn Fn(Labeled<'_>) -> Option<String>>,
+        english: Option<&EnglishHook<'_>>,
         ctx: &egui::Context,
     ) -> Vec<PaletteEntry<CommandRef>> {
         let mut bar = self.clone();
