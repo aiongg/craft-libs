@@ -6,11 +6,9 @@ use craft_theme::{
 };
 use craft_ui::direction::Direction;
 use craft_ui::icons::IconSet;
+use craft_ui::interface_scale::InterfaceScale;
 use craft_ui::theme::{Base, Overrides};
 use serde::{Deserialize, Serialize};
-
-/// Interface scale limits, in percent.
-pub const SCALE: std::ops::RangeInclusive<u32> = 75..=200;
 
 /// Everything the appearance bar sets.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -25,8 +23,8 @@ pub struct Appearance {
     pub text_size: usize,
     pub motion: MotionChoice,
     pub rtl: bool,
-    /// Interface scale in percent.
-    pub scale: u32,
+    /// Stored as the interface scale's code (`"auto"` or a percent).
+    pub scale: InterfaceScale,
     /// The interface face in the UI slots: a candidate or [`crate::faces::SYSTEM`] (see
     /// [`crate::faces`]).
     pub ui_face: String,
@@ -46,7 +44,7 @@ impl Default for Appearance {
             text_size: 1,
             motion: MotionChoice::Full,
             rtl: false,
-            scale: 100,
+            scale: InterfaceScale::Auto,
             ui_face: crate::faces::UI_FACES[0].to_owned(),
             mono_face: crate::faces::MONO_FACES[0].to_owned(),
             icon_set: IconSet::Lucide.id().to_owned(),
@@ -95,10 +93,6 @@ impl Appearance {
     /// The icon set, Lucide when the saved id is unknown.
     pub fn icon_set(&self) -> IconSet {
         IconSet::ALL.into_iter().find(|s| s.id() == self.icon_set).unwrap_or(IconSet::Lucide)
-    }
-
-    pub fn zoom(&self) -> f32 {
-        self.scale.clamp(*SCALE.start(), *SCALE.end()) as f32 / 100.0
     }
 
     /// The theme and settings resolved for the gallery's own chrome, with `system` as the OS's

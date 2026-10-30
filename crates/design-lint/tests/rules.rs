@@ -294,6 +294,8 @@ fn style_mutation_is_flagged() {
         let found = rules(&format!("fn f(ui: &mut Ui, ctx: &Context) {{ {call}; }}"));
         assert!(found.contains(&"style-mutation"), "{call}: {found:?}");
     }
+    let zoom = run("fn f(ctx: &Context) { ctx.set_zoom_factor(1.5); }");
+    assert!(zoom.iter().any(|f| f.message.contains("InterfaceScale::apply")), "{zoom:?}");
     let src = "fn f(ui: &mut Ui) { ui.override_font_id(id); }";
     assert!(flagged(src, "style-mutation"));
     assert!(clean("fn f(ui: &Ui) { let _ = ui.style(); let _ = ui.spacing(); let _ = ctx.zoom_factor(); }"));

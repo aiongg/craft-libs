@@ -1,15 +1,16 @@
 //! The options bar: the theme and mode, the rarer appearance options in More, and the view, with Reset layout pinned at the end.
 use craft_theme::{ButtonVariant, ContrastChoice, ControlSize, ModeChoice, MotionChoice, TextSize, builtins};
 use craft_ui::composites::FormGrid;
-use craft_ui::controls::{Button, IconButton, NumberField, Segmented, Select, ToggleButton, TooltipExt as _};
+use craft_ui::controls::{Button, IconButton, Segmented, Select, ToggleButton, TooltipExt as _};
 use craft_ui::icons::{Icon, IconSet};
-use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::interface_scale::{Fit, InterfaceScale, InterfaceScaleLabels};
+use craft_ui::localized::LocaleNumbers;
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::patterns::{CellWidth, OptionsBar};
 use craft_ui::popover::{Popover, PopoverAnchor};
 use egui::Ui;
 
-use crate::appearance::{Appearance, SCALE, builtin};
+use crate::appearance::{Appearance, builtin};
 use crate::faces;
 use crate::fields;
 use crate::layout::{GalleryWorkspace, PreviewView, VariantAxis};
@@ -125,23 +126,21 @@ impl Bar {
                                 }
                                 shown.response
                             });
-                            form.row("Scale", |ui, label| {
-                                let mut field = NumberField::new("gallery.scale", "Scale", a.scale, &numbers)
-                                    .range(SCALE)
-                                    .decimals(0..=0)
-                                    .unit(Unit::new("{n}%"))
-                                    .popup_slider("Scale slider")
-                                    .size(ControlSize::Sm)
-                                    .policy(fields::policy());
-                                if let Some(label) = label.scrub() {
-                                    field = field.scrub_by(label);
+                            form.row("Scale", |ui, _| {
+                                let mut code = a.scale.code();
+                                let mut scale = Select::new("gallery.scale", "Scale", &mut code).fit(true).size(ControlSize::Sm);
+                                for (value, label) in
+                                    InterfaceScale::options(a.scale, &InterfaceScaleLabels::default(), &numbers, monitor_fit(ui.ctx()))
+                                {
+                                    scale = scale.option(value, label);
                                 }
-                                let scale = field.show(ui);
-                                let mut percent = f64::from(a.scale);
-                                if fields::apply(&scale, &mut percent) {
-                                    a.scale = percent.round() as u32;
+                                let shown = scale.policy(fields::policy()).show(ui);
+                                if shown.response.changed()
+                                    && let Some(chosen) = InterfaceScale::from_code(&code)
+                                {
+                                    a.scale = chosen;
                                 }
-                                scale.response
+                                shown.response
                             });
                         });
                     },
@@ -197,6 +196,14 @@ fn text_size_name(size: TextSize) -> &'static str {
         TextSize::Large => "Large",
         TextSize::Larger => "Larger",
     }
+}
+
+/// The sizes that leave a usable window on the monitor the window is on: the viewport's monitor
+/// size is in points at the current scale, so the device pixels are that times the current
+/// pixels per point.
+fn monitor_fit(ctx: &egui::Context) -> Fit {
+    let monitor_px = ctx.input(|i| i.viewport().monitor_size).map(|size| size * ctx.pixels_per_point());
+    Fit { monitor_px, ..Fit::default() }
 }
 
 /// A face picker showing `shown`, the face in use for the stored pick `value`; choosing an option

@@ -3,6 +3,7 @@
 use craft_platform::appearance::SystemReader;
 use craft_theme::{Mode, SystemAppearance};
 use craft_ui::icons;
+use craft_ui::interface_scale::InterfaceScale;
 use craft_ui::theme::{Base, install};
 
 use crate::appearance::Appearance;
@@ -48,7 +49,7 @@ impl Applied {
             }
             // A story's scale stays until it stops asking.
             if self.story_ppp.is_none() {
-                set_zoom(ctx, appearance.zoom());
+                appearance.scale.apply(ctx);
             }
         }
         install(ctx, &self.base);
@@ -64,11 +65,10 @@ impl Applied {
             return;
         }
         self.story_ppp = requested;
-        let zoom = match (requested, ctx.native_pixels_per_point()) {
-            (Some(ppp), Some(native)) if native > 0.0 => ppp / native,
-            _ => appearance.zoom(),
-        };
-        set_zoom(ctx, zoom);
+        match requested {
+            Some(ppp) => InterfaceScale::percent((ppp * 100.0).round() as u16).apply(ctx),
+            None => appearance.scale.apply(ctx),
+        }
     }
 }
 
@@ -78,12 +78,4 @@ pub(super) fn shown_mode(ctx: &egui::Context) -> Mode {
         egui::Theme::Dark => Mode::Dark,
         egui::Theme::Light => Mode::Light,
     }
-}
-
-/// Sets the context's zoom factor. The gallery is the host of the craft-ui showcase: its interface
-/// scale (the appearance bar's, or a story's request) is a window setting that craft-ui has no
-/// token for.
-fn set_zoom(ctx: &egui::Context, zoom: f32) {
-    // design: allow[style-mutation](the gallery's interface scale is host configuration; craft-ui has no zoom setting)
-    ctx.set_zoom_factor(zoom);
 }

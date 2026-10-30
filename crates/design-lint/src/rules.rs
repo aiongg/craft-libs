@@ -641,7 +641,12 @@ impl Linter<'_> {
             }
             n if STYLE_MUTATORS.contains(&n) || n.starts_with("override_") => {
                 let snippet = self.snippet(span);
-                self.report(STYLE_MUTATION, span, format!("`{snippet}` changes the style from app code; {}", hint(STYLE_MUTATION)));
+                let message = if n == "set_zoom_factor" {
+                    format!("`{snippet}` changes the interface scale from app code; set it with `InterfaceScale::apply` (craft_ui::interface_scale)")
+                } else {
+                    format!("`{snippet}` changes the style from app code; {}", hint(STYLE_MUTATION))
+                };
+                self.report(STYLE_MUTATION, span, message);
             }
             _ => {}
         }

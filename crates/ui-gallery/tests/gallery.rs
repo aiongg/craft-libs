@@ -1,4 +1,5 @@
 use craft_theme::{ContrastChoice, ModeChoice};
+use craft_ui::interface_scale::InterfaceScale;
 use craft_ui_gallery::Gallery;
 use craft_ui_gallery::layout::{GalleryWorkspace, PanelId, PreviewView, VariantAxis};
 use egui::{Context, RawInput};
@@ -61,7 +62,7 @@ fn appearance_changes_render() {
         a.comfortable = true;
         a.rtl = true;
         a.text_size = 3;
-        a.scale = 150;
+        a.scale = InterfaceScale::percent(150);
     }
     frame(&ctx, &mut gallery);
     frame(&ctx, &mut gallery);
@@ -272,7 +273,7 @@ fn a_system_pick_installs_the_system_face_where_it_resolves_and_is_kept_where_no
 }
 
 #[test]
-fn a_story_scale_applies_once_and_keyboard_zoom_stays() {
+fn the_bar_scale_sets_the_zoom_and_a_story_scale_applies_once_and_keyboard_zoom_stays() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
     gallery.open_component("Canvas");
@@ -294,7 +295,11 @@ fn a_story_scale_applies_once_and_keyboard_zoom_stays() {
     // frame after it is made.
     let settle = |ctx: &Context, gallery: &mut Gallery, ppp: Option<f32>| (0..3).for_each(|_| run(ctx, gallery, ppp));
     settle(&ctx, &mut gallery, None);
+    assert!((ctx.zoom_factor() - 1.0).abs() < 1e-4, "Auto at native scale 1: {}", ctx.zoom_factor());
+    gallery.appearance_mut().scale = InterfaceScale::percent(125);
+    settle(&ctx, &mut gallery, None);
     let own = ctx.zoom_factor();
+    assert!((own - 1.25).abs() < 1e-4, "the chosen step: {own}");
     // egui's Ctrl +/− sets the zoom factor; the gallery leaves it.
     ctx.set_zoom_factor(own * 1.1);
     settle(&ctx, &mut gallery, None);
