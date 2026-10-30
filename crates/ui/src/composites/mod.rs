@@ -122,8 +122,9 @@ pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
 pub use form_grid::{Form, FormGrid, FormStyle, LabelAlign};
 pub use gradient::{
-    ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientLabels, GradientRamp, GradientRampStyle, GradientStops,
-    GradientSwatch, OpacityStop, Sampler as StopSampler, StopDrop, StopRef, StopRow, StopRows, StopRules, default_sampler,
+    ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientGroup, GradientItem, GradientLabels, GradientPalette,
+    GradientRamp, GradientRampStyle, GradientRef, GradientStops, GradientSwatch, OpacityStop, PaletteLayout, Sampler as StopSampler, StopDrop,
+    StopRef, StopRow, StopRows, StopRules, default_sampler,
 };
 pub use group_box::{GroupBox, GroupBoxStyle};
 pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramResponse, HistogramScale, HistogramStyle};

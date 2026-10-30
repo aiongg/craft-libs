@@ -14,6 +14,10 @@ mod editor;
 mod editor_stories;
 #[cfg(test)]
 mod editor_tests;
+mod palette;
+mod palette_stories;
+#[cfg(test)]
+mod palette_tests;
 mod ramp;
 pub mod stops;
 #[cfg(test)]
@@ -25,16 +29,18 @@ mod value;
 
 pub(crate) use editor::marker_texts;
 pub use editor::{GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientLabels, StopDrop, StopRef};
+pub use palette::{GradientGroup, GradientItem, GradientPalette, GradientRef, PaletteLayout};
 pub use ramp::{GradientRamp, GradientRampStyle};
 pub use stops::{Sampler, StopRules, default_sampler};
 pub use swatch::GradientSwatch;
 pub use value::{ColorStop, GradientStops, OpacityStop, StopRow, StopRows};
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["GradientSwatch", "GradientEditor"];
+pub const COMPONENTS: &[&str] = &["GradientSwatch", "GradientEditor", "GradientPalette"];
 
 pub(crate) fn stories() -> Vec<crate::story::Story> {
     let mut all = swatch::stories();
     all.extend(editor_stories::stories());
+    all.extend(palette_stories::stories());
     all
 }
