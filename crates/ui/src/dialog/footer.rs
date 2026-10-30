@@ -8,6 +8,7 @@ use super::preview::Preview;
 use crate::composites::measure;
 use crate::controls::Button;
 use crate::direction;
+use craft_theme::ControlSize;
 use crate::theme::{Tokens, TokensOf};
 
 /// English defaults for the footer's labels; the host passes its translations.
@@ -339,7 +340,7 @@ impl<'a> Footer<'a> {
         }
         let tokens = Tokens::of(ui);
         let gap = tokens.component.dialog.button_gap;
-        let (_, rect) = ui.allocate_space(vec2(ui.available_width(), tokens.size.control.md));
+        let (_, rect) = ui.allocate_space(vec2(ui.available_width(), tokens.component.button.height.get(ControlSize::Md)));
         // The leading `Ui` is made first so that AccessKit lists it first; it is filled once the
         // trailing side's width is known.
         let mut lead = ui.new_child(UiBuilder::new().max_rect(rect));
