@@ -95,7 +95,8 @@ pub struct FlyoutResponse<T> {
 /// - **Look:** the button is an [`IconButton`] drawn from the `rail.*` tokens; a button with
 ///   several items has a `rail.indicator` triangle at the corner facing the canvas. The list is a
 ///   [`Menu`] of radio rows (the current item marked, its icon, its label, its shortcut at the
-///   end) beside the button towards the canvas, `rail.flyout_gap` away, and mirrors in a
+///   end) beside the button towards the canvas, `rail.flyout_gap` away, never on another side (when it would leave
+///   the screen it moves up by the overflow), and mirrors in a
 ///   right-to-left interface.
 /// - **Keyboard:** the Menu key and Shift+F10 open the flyout of the focused button, as a secondary
 ///   click does. Then the menu's keys apply (Up, Down, Home, End, Enter, Space); Esc closes it and
@@ -247,7 +248,7 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
                     .into()
                 })
                 .collect();
-            let popup = Popup::menu(&response).open_memory(command).align(direction::beside(ui)).gap(style.gap);
+            let popup = Popup::menu(&response).open_memory(command).align(direction::beside(ui)).align_alternatives(&[]).gap(style.gap);
             let shown = Menu::new(&entries).size(ControlSize::Md).pressing(from_button).opened_by_keyboard(keyboard).show(ui, popup);
             chosen = shown.chosen;
             now_open = shown.open;

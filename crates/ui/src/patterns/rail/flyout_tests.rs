@@ -55,6 +55,7 @@ struct App {
     doubles: usize,
     chosen: Vec<&'static str>,
     time: f64,
+    top: f32,
     style: Option<FlyoutStyle>,
 }
 
@@ -73,12 +74,13 @@ impl App {
             doubles: 0,
             chosen: Vec::new(),
             time: 0.0,
+            top: 20.0,
             style: None,
         }
     }
 
     fn frame(&mut self, ui: &mut Ui) {
-        ui.add_space(20.0);
+        ui.add_space(self.top);
         self.style = Some(FlyoutButton::<&str>::style(&Tokens::of(ui)));
         // A rail sits at the reading start edge, which a plain `Ui` does not mirror.
         let align = if direction::is_rtl(ui) { egui::Align::Max } else { egui::Align::Min };
@@ -367,4 +369,26 @@ fn no_tooltip_shows_over_an_open_flyout() {
     step(&mut h, 1.0, vec![]);
     assert!(is_open(&h));
     assert_eq!(h.get_all_by_label("Slot").count(), 1, "the button alone");
+}
+
+#[test]
+fn near_the_bottom_the_list_moves_up_and_stays_beside_the_button() {
+    for (dir, ltr) in [(Direction::Ltr, true), (Direction::Rtl, false)] {
+        let mut h = harness_in(dir, 3);
+        h.state_mut().top = 350.0;
+        h.run_steps(2);
+        let button = h.state().out().response.rect;
+        let gap = h.state().style.map_or(0.0, |s| s.gap);
+        let at = button.center();
+        press(&mut h, at, PointerButton::Secondary);
+        release(&mut h, at, PointerButton::Secondary);
+        step(&mut h, 0.016, vec![]);
+        assert!(is_open(&h), "{dir:?}");
+        let id = h.state().out().response.id.with("popup");
+        let list = h.ctx.memory(|m| m.area_rect(id)).unwrap_or(Rect::NOTHING);
+        assert!(list.top() < button.top(), "{dir:?}: {list:?} {button:?}");
+        assert!(list.bottom() <= 400.0 + 0.5, "{dir:?}: inside the screen");
+        let edge = if ltr { list.left() - button.right() } else { button.left() - list.right() };
+        assert!((edge - gap).abs() < 0.5, "{dir:?}: {edge} from the button, want {gap}");
+    }
 }

@@ -1682,7 +1682,7 @@ fn panel_and_rail_sizes_follow_photocraft_compact_and_the_size_preset() {
     assert_eq!((rail.width, rail.button, rail.panel_width, rail.panel_button), (40.0, 30.0, 36.0, 28.0));
     assert_eq!((rail.icon, rail.panel_icon), (20.0, 15.0));
     assert_eq!((rail.gap, rail.row_gap, rail.panel_gap, rail.pad_y), (2.0, 3.0, 4.0, 8.0));
-    assert_eq!((rail.flyout_row, rail.flyout_gap, rail.flyout_icon), (26.0, 6.0, 14.0));
+    assert_eq!(rail.flyout_gap, 6.0);
     assert_eq!((rail.toggle_height, rail.toggle_icon), (14.0, 11.0));
     assert_eq!((rail.indicator_size, rail.indicator_inset, rail.marker_radius, rail.selected_border_width), (4.0, 2.0, 3.0, 1.0));
     assert_eq!(rail.radius, 3.0);
@@ -1716,7 +1716,7 @@ fn panel_and_rail_paths_round_trip_and_overrides_replace_the_defaults() {
     }
     assert_eq!(ComponentField::Rail(RailField::Radius).kind(), FieldKind::Length);
     assert_eq!(ComponentField::Rail(RailField::SelectedText).kind(), FieldKind::Color);
-    for sized in ["panel.pad", "rail.width", "rail.panel_button", "rail.flyout_row", "rail.marker_radius"] {
+    for sized in ["panel.pad", "rail.width", "rail.panel_button", "rail.flyout_gap", "rail.marker_radius"] {
         assert_eq!(ComponentField::from_path(sized), None, "{sized}");
     }
 
