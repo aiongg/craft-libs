@@ -30,6 +30,8 @@ pub enum ThumbSize {
     Medium,
     /// `list.thumb.lg`.
     Large,
+    /// A side in points, for a thumbnail that follows a slider (a preset browser's list view).
+    Px(u16),
 }
 
 impl ThumbSize {
@@ -43,6 +45,7 @@ impl ThumbSize {
             ThumbSize::Small => "Small",
             ThumbSize::Medium => "Medium",
             ThumbSize::Large => "Large",
+            ThumbSize::Px(_) => "Custom",
         }
     }
 }
@@ -228,6 +231,7 @@ impl ListRowStyle {
             ThumbSize::Small => self.thumb.sm,
             ThumbSize::Medium => self.thumb.md,
             ThumbSize::Large => self.thumb.lg,
+            ThumbSize::Px(side) => f32::from(side),
         }
     }
 }

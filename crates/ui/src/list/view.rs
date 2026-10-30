@@ -1167,7 +1167,7 @@ where
             ctx.set_cursor_icon(CursorIcon::Copy);
         }
         if let Some(pointer) = pointer {
-            drag::paint_ghost(ui, self.id, style, &drag.label, pointer, width);
+            drag::paint_ghost(ui, self.id, style, &drag.label, pointer, width, None);
         }
         self.state.drag = Some(drag);
     }

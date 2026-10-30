@@ -2,8 +2,7 @@
 //! groups), how they flatten to visual rows (headers, list rows, wrapped lines of grid cells),
 //! how tall each is, and how the lead moves through them. Nothing here reads egui input.
 
-// The browser engine (DS-44 task 3) is the only caller outside the tests.
-#![allow(dead_code)]
+
 
 use std::hash::Hash;
 use std::ops::Range;
