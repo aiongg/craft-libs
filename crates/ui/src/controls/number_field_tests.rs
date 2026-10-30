@@ -6,7 +6,7 @@ use egui::epaint::{ClippedShape, Shape};
 use egui::{Context, CursorIcon, Event, Id, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, Ui, ViewportCommand, pos2, vec2};
 
 use super::number_field::{Travel, travel};
-use super::{NumberField, SIZE_NAMES, number_field};
+use super::{NumberField, number_field};
 use crate::behavior::{Typing, TypingLook};
 use crate::direction::{self, Direction};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, GestureHost, GestureId, UndoMarks};
@@ -1107,7 +1107,7 @@ fn right_to_left_story(dir: Direction) -> Vec<(String, Rect)> {
     install(&ctx, &Base::suite_default());
     direction::apply(&ctx, dir);
     let story = number_field::stories().into_iter().find(|s| s.id == "controls/number-field/right-to-left").expect("the story");
-    let mut args = Args::new().with_choice("size", SIZE_NAMES, 1).with_choice("locale", &["en", "de", "ar-EG"], 1);
+    let mut args = Args::new().with_choice("size", &["sm", "md"], 1).with_choice("locale", &["en", "de", "ar-EG"], 1);
     let mut texts = Vec::new();
     for _ in 0..2 {
         let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), ..Default::default() };

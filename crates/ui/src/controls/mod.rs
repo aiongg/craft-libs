@@ -160,7 +160,7 @@ pub(crate) struct SizeDisabledArgs {
     pub(crate) disabled: bool,
 }
 
-/// The names of `ControlSize`s, for story args and dumps.
+/// The names of `ControlSize`s, for dumps and story labels.
 pub(crate) const fn size_name(size: ControlSize) -> &'static str {
     match size {
         ControlSize::Sm => "sm",
@@ -170,11 +170,3 @@ pub(crate) const fn size_name(size: ControlSize) -> &'static str {
 
 /// Every control size, small first.
 pub(crate) const SIZES: [ControlSize; 2] = [ControlSize::Sm, ControlSize::Md];
-
-/// Story arg options for sizes, in `SIZES` order.
-pub(crate) const SIZE_NAMES: &[&str] = &["sm", "md"];
-
-/// The size a story's `size` arg names.
-pub(crate) fn size_arg(name: &str) -> ControlSize {
-    SIZES.into_iter().find(|s| size_name(*s) == name).unwrap_or(ControlSize::Md)
-}
