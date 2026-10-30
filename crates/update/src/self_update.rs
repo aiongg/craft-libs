@@ -9,7 +9,7 @@
 //! | Installed as | Swap |
 //! |---|---|
 //! | macOS `.app` | copy the new bundle from the DMG over this one (fine while running), reopen it |
-//! | Windows MSI (per-user, any folder) | after exit, run the new MSI (it reinstalls into the same folder), then start the exe |
+//! | Windows MSI (any folder, for one account or everyone) | after exit, run the new MSI in the copy's own context (everyone asks for permission), then start the exe it registers |
 //! | Windows portable zip | after exit, unzip over this folder (settings in `ArtCraftLauncherData` stay) |
 //! | Linux AppImage | rename the new AppImage over this one (fine while running), start it |
 //! | Linux `.deb` / `.rpm` | the system package manager, with the password prompt; then restart |
@@ -182,18 +182,17 @@ fn detect(app: &App, exe: &Path) -> Option<Install> {
     None
 }
 
+/// How the Windows copy at `exe` was installed: portable (a `portable.txt` beside it), by its MSI
+/// (registered in either context, or the launcher's own per-user package), else a loose folder.
 #[cfg(windows)]
 fn detect(app: &App, exe: &Path) -> Option<Install> {
     let dir = exe.parent()?;
     if dir.join("portable.txt").is_file() {
         return Some(Install::Portable(exe.to_path_buf()));
     }
-    // The MSI installs per user, into the folder chosen in its wizard (which it records in the
-    // registry) or by default %LOCALAPPDATA%\Programs\<App Name>.
-    let canonical = |p: PathBuf| p.canonicalize().unwrap_or(p);
-    let recorded = msi_install_dir(app).map(canonical);
-    let default = crate::folders::data_local_dir().map(|d| canonical(d.join("Programs").join(app.name)));
-    if [recorded, default].into_iter().flatten().any(|d| d == dir) {
+    // Any folder, either context: the MSI's own registration says so (see `msi_copy`). A copy
+    // installed for everyone must never be unpacked over as if it were a loose folder.
+    if crate::msi_copy::windows::find(app, exe).is_some() {
         return Some(Install::Msi(exe.to_path_buf()));
     }
     if exe.is_file() {
@@ -202,16 +201,29 @@ fn detect(app: &App, exe: &Path) -> Option<Install> {
     None
 }
 
-/// The folder the MSI installed into, as it records it.
+/// What `exe`'s MSI update does (update in place, or move a per-user copy to everyone), or why it
+/// stops. Asked while the app still runs (so it can show the error) and again by the helper.
 #[cfg(windows)]
-fn msi_install_dir(app: &App) -> Option<PathBuf> {
-    use winreg::RegKey;
-    use winreg::enums::HKEY_CURRENT_USER;
-    let subkey = format!(r"Software\Learning Machines LLC\{}", app.name);
-    let key = RegKey::predef(HKEY_CURRENT_USER).open_subkey(&subkey).ok()?;
-    let dir: String = key.get_value("InstallDir").ok()?;
-    let dir = dir.trim();
-    (!dir.is_empty()).then(|| PathBuf::from(dir))
+fn msi_step(app: &App, exe: &Path) -> Result<crate::msi_migrate::Step, String> {
+    crate::msi_migrate::windows::step(app, exe)
+}
+
+/// Whether the helper starts the app after the update step: always after a successful one, and
+/// after a failed one only while its exe is still there.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn restarts(step_succeeded: bool, exe_exists: bool) -> bool {
+    step_succeeded || exe_exists
+}
+
+/// The exe to start after an MSI update of a registered copy: the one its registrations name now
+/// (the package may have moved an exact old default folder), else `exe`.
+#[cfg(windows)]
+fn exe_after_msi(app: &App, registered: bool, exe: &Path) -> PathBuf {
+    registered
+        .then(|| crate::msi_copy::registered_exe(&crate::msi_copy::windows::registered_exes(app)))
+        .flatten()
+        .filter(|moved| is_own_executable(app, moved))
+        .unwrap_or_else(|| exe.to_path_buf())
 }
 
 #[cfg(target_os = "linux")]
@@ -305,8 +317,9 @@ pub fn update(
 ) -> Result<(), String> {
     let cur_v = running_version.and_then(|v| current_version(app, v));
     if let (Some(rel_v), Some(cur_v)) = (release.version.as_ref(), cur_v.as_ref())
-        && !version::is_newer(rel_v, cur_v)
+        && !version::offers_update(rel_v, cur_v)
     {
+        // A build from source is only replaced by a strictly higher release (see `offers_update`).
         return Err(format!("{} {} is not newer than currently running version {}", app.name, release.version_label(), cur_v));
     }
     let (asset, _) = pick_asset(release, &[app.id], platform, &[install.kind()])
@@ -628,11 +641,20 @@ pub fn finish(app: &App, args: &[OsString]) -> Option<Result<(), String>> {
         record_failure(&paths, &e);
         return Some(Err(e));
     }
+    // Read before the step: the update may move or replace the old exe.
+    let registered =
+        matches!(step, Finish::Msi(_)) && matches!(crate::msi_copy::windows::find(app, &exe), Some(crate::msi_copy::MsiCopy::Registered { .. }));
     let done = run_step(app, &me, pid, &exe, &step, std::time::Duration::from_secs(60));
     if let Err(e) = &done {
         record_failure(&paths, e);
     }
     // The new app, or the old one when the step failed.
+    let exe = if done.is_ok() { exe_after_msi(app, registered, &exe) } else { exe };
+    // A failed move can leave no program to start; its recorded error already says how to get
+    // the app back, and a restart error must not replace it.
+    if !restarts(done.is_ok(), exe.is_file()) {
+        return Some(done);
+    }
     let started = signed_like(app, &me, &exe)
         .and_then(|()| process::spawn_detached(std::process::Command::new(&exe)).map_err(|e| format!("couldn't start {} ({e})", exe.display())));
     if let Err(e) = &started {
@@ -688,6 +710,7 @@ fn windows_precheck(app: &App, install: &Install, paths: &Paths, download: &Path
     let me = std::env::current_exe().map_err(|e| format!("couldn't find this program ({e})"))?;
     match install {
         Install::Msi(exe) => signed_like(app, &me, exe)
+            .and_then(|()| msi_step(app, exe).map(drop))
             .and_then(|()| signed_like(app, &me, download))
             .and_then(|()| own_executable(app, exe))
             .and_then(|()| same_cache_as_helper(app, paths, exe)),
@@ -824,7 +847,9 @@ fn run_step(app: &App, reference: &Path, pid: u32, exe: &Path, step: &Finish, wa
     wait_watch::returned(pid, waited);
     let result = if waited {
         match step {
-            Finish::Msi(msi) => signed_like(app, reference, msi).and_then(|()| install::windows::reinstall(msi)),
+            Finish::Msi(msi) => {
+                signed_like(app, reference, msi).and_then(|()| msi_step(app, exe)).and_then(|step| crate::msi_migrate::windows::run(msi, &step))
+            }
             Finish::Portable { zip, tmp } => match (exe.parent(), exe.file_name()) {
                 (Some(dir), Some(executable)) => crate::portable::unpack_over(zip, tmp, dir, executable, &|file| {
                     // The expected executable must be signed even when its contents aren't a PE file.
@@ -1712,6 +1737,14 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_step_that_removed_the_app_starts_nothing_and_keeps_its_message() {
+        assert!(restarts(true, true));
+        assert!(restarts(true, false));
+        assert!(restarts(false, true));
+        assert!(!restarts(false, false));
+    }
+
+    #[test]
     fn update_refuses_to_downgrade_when_release_is_older() {
         let dir = tempfile::tempdir().unwrap();
         let paths = Paths::under(dir.path());
@@ -1735,6 +1768,23 @@ mod tests {
         let platform = Platform { os: Os::Linux, arch: Arch::X64 };
         let result = update(&crate::suite::LAUNCHER, &install, &release, platform, &http, &paths, &stop, &mut phase, &last, Some("0.2.0"));
         assert!(result.is_err());
+        assert!(result.unwrap_err().contains("is not newer than currently running version"));
+    }
+
+    #[test]
+    fn a_build_from_main_refuses_to_install_the_release_it_already_contains() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths::under(dir.path());
+        let http = Http::new(crate::TEST_AGENT).unwrap();
+        let mut phase = |_| ();
+        let last = || Ok(());
+        let stop = Stop::default();
+        let release = Release { version: version::parse("0.2.0"), tag: "v0.2.0".into(), ..Release::default() };
+        let install = Install::AppImage(dir.path().join("launcher.AppImage"));
+        use crate::{Arch, Os};
+        let platform = Platform { os: Os::Linux, arch: Arch::X64 };
+        let running = Some("0.2.0-integration.20261029.f5b3f123");
+        let result = update(&crate::suite::LAUNCHER, &install, &release, platform, &http, &paths, &stop, &mut phase, &last, running);
         assert!(result.unwrap_err().contains("is not newer than currently running version"));
     }
 
