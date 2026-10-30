@@ -17,6 +17,8 @@ mod inspector;
 pub mod layout;
 mod persist;
 mod preview;
+#[allow(dead_code, reason = "the Theme panel and the preview picker use the probe next")]
+mod probe;
 mod problems;
 
 pub use appearance::Appearance;
