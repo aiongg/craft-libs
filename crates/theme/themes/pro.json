@@ -96,12 +96,6 @@
     "text.on_accent": "#ffffff",
     "toggle_button.on.text": "{text.on_accent}"
   },
-  "high_contrast": {
-    "dark": {
-      "status.bad.fg": "#ffbebc",
-      "status.warn.fg": "#f6c773"
-    }
-  },
   "components": {
     "button.border_width": 1.5,
     "button.hover_opacity": 0.9,

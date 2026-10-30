@@ -49,12 +49,6 @@
     "text.normal": "#839496",
     "toggle_button.on.text": "#fdf6e3"
   },
-  "high_contrast": {
-    "dark": {
-      "status.bad.fg": "#ffbeb4",
-      "status.warn.fg": "#f0c973"
-    }
-  },
   "components": {
     "list.thumb.radius": 5.0,
     "listbox.radius": 6.0

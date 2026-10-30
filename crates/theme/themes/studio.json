@@ -81,12 +81,6 @@
     "text.muted": "#96969e",
     "text.normal": "#ececf0"
   },
-  "high_contrast": {
-    "dark": {
-      "status.bad.fg": "#ffa09b",
-      "status.warn.fg": "#f1c675"
-    }
-  },
   "components": {
     "button.radius": 6.0,
     "list.thumb.radius": 5.0,

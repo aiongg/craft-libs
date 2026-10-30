@@ -89,12 +89,6 @@
     "text.normal": "#fafbfd",
     "text.on_accent": "#ffffff"
   },
-  "high_contrast": {
-    "dark": {
-      "status.bad.fg": "#ff9ea5",
-      "status.warn.fg": "#ffa56d"
-    }
-  },
   "components": {
     "list.thumb.radius": 5.0
   }
