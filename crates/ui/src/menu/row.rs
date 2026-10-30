@@ -110,6 +110,15 @@ pub(crate) struct RowState {
     pub open: bool,
 }
 
+/// The colours of a row or cell with label colour `tint`: the theme's tokens for PhotoCraft's
+/// seven hues, else the same derivation for the colour.
+pub(crate) fn tint_colors(tokens: &UiTokens, tint: Srgba) -> craft_theme::MenuTint {
+    let tint = craft_theme::Rgba::from(tint);
+    tokens.component.menu.tint_of(tint).unwrap_or_else(|| {
+        craft_theme::MenuTint::derive(tint, tokens.component.popup.fill, &tokens.color, tokens.appearance.contrast == craft_theme::Contrast::High)
+    })
+}
+
 /// Draws rows with `style` at `size`.
 pub(crate) struct RowPainter<'s> {
     pub style: &'s MenuStyle,
@@ -121,15 +130,7 @@ impl RowPainter<'_> {
     /// The colours of a row with label colour `tint`: the theme's tokens for PhotoCraft's seven
     /// hues, else the same derivation for the colour.
     pub fn tint_colors(&self, tint: Srgba) -> craft_theme::MenuTint {
-        let tint = craft_theme::Rgba::from(tint);
-        self.tokens.component.menu.tint_of(tint).unwrap_or_else(|| {
-            craft_theme::MenuTint::derive(
-                tint,
-                self.tokens.component.popup.fill,
-                &self.tokens.color,
-                self.tokens.appearance.contrast == craft_theme::Contrast::High,
-            )
-        })
+        tint_colors(self.tokens, tint)
     }
 
     fn label_galley(&self, ui: &Ui, row: &RowContent<'_>, color: Color32) -> Arc<Galley> {

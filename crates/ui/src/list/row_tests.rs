@@ -291,18 +291,20 @@ fn optional_items_drop_out_before_the_label_gets_too_narrow() {
 #[test]
 fn a_long_label_is_cut_before_the_trailing_items_and_keeps_its_name() {
     let s = style();
+    let band = std::cell::Cell::new(Rect::NOTHING);
     let harness = harness(Direction::Ltr).build_ui(|ui| {
         panel(ui, 150.0, |ui| {
-            let _ = ListRow::new(1u8, "A layer with a long name that cannot fit")
+            let out = ListRow::new(1u8, "A layer with a long name that cannot fit")
                 .trailing_item(16.0, |ui| {
                     ui.label("fx");
                 })
                 .show(ui);
+            band.set(out.label);
         })
     });
     let row = harness.get_by_role(Role::ListBoxOption);
     assert_eq!(row.accesskit_node().label().as_deref(), Some("A layer with a long name that cannot fit"));
-    let text = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("A layer with a long name that cannot fit")).rect();
+    let text = band.get();
     let fx = harness.get_by_label("fx").rect();
     assert!(text.right() <= fx.left() + 0.5, "{text:?} {fx:?}");
     assert!(fx.right() <= row.rect().right() - s.trailing_pad + 0.5, "the scroll bar's room is kept: {fx:?}");
@@ -342,6 +344,7 @@ fn a_row_is_a_labelled_list_box_option_and_no_tab_stop() {
     let row = harness.get_by_role(Role::ListBoxOption);
     let node = row.accesskit_node();
     assert_eq!(node.label().as_deref(), Some("Layer 1, Raster layer"));
+    assert_eq!(harness.query_all_by_label("Layer 1, Raster layer").count(), 1, "the label text is not a second node");
     assert_eq!(node.is_selected(), Some(true));
     assert_eq!(node.position_in_set(), Some(4));
     let eye = harness.get_by_label("Visibility Layer 1");
@@ -883,4 +886,104 @@ fn the_link_glyph_shows_a_focus_ring() {
     h.key_press(Key::Tab);
     h.run();
     assert_eq!(focus_rects(&h), 1, "Tab reaches the glyph and rings it");
+}
+
+#[test]
+fn a_tinted_toggle_cell_is_filled_and_keeps_its_icon() {
+    let ctx = context();
+    let tint = craft_theme::MenuHue::Red.color();
+    let row = |tinted: bool| {
+        shapes(&ctx, |ui| {
+            panel(ui, 240.0, |ui| {
+                let eye = ToggleColumn::eye("Visibility {row}", true);
+                let _ = ListRow::new(1u8, "Layer").toggle(if tinted { eye.tint(tint) } else { eye }).show(ui);
+            })
+        })
+    };
+    let (plain, tinted) = (row(false), row(true));
+    let mut expected = None;
+    ctx.run_ui(egui::RawInput::default(), |ui| expected = Some(crate::menu::row::tint_colors(&Tokens::of(ui), tint.into())))
+        .drop_without_applying_deltas();
+    let expected = expected.expect("tint");
+    let fill = crate::theme::ToEgui::to_egui(expected.fill);
+    assert!(fills(&plain).iter().all(|r| r.fill != fill));
+    assert_eq!(fills(&tinted).iter().filter(|r| r.fill == fill).count(), 1, "the cell is filled with the tint");
+    assert_eq!(tinted.len(), plain.len() + 1, "the eye is still painted over the fill");
+}
+
+/// Which toggle cells had a secondary click, accumulated over frames.
+#[derive(Default)]
+struct Cells {
+    secondary: [bool; 2],
+    toggles: usize,
+}
+
+#[test]
+fn a_toggle_cell_reports_its_own_response() {
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, cells: &mut Cells| {
+            panel(ui, 240.0, |ui| {
+                let out = ListRow::new(1u8, "Layer 1")
+                    .toggle(ToggleColumn::eye("Visibility {row}", true))
+                    .toggle(ToggleColumn::lock("Lock {row}", false))
+                    .show(ui);
+                for (seen, response) in cells.secondary.iter_mut().zip(&out.toggles) {
+                    *seen |= response.secondary_clicked();
+                }
+                cells.toggles += out.events.iter().filter(|e| matches!(e, RowEvent::Toggle(_))).count();
+            })
+        },
+        Cells::default(),
+    );
+    harness.run();
+    let at = harness.get_by_label("Visibility Layer 1").rect().center();
+    harness.event(Event::PointerMoved(at));
+    harness.run();
+    for pressed in [true, false] {
+        harness.event(Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE });
+        harness.run();
+    }
+    assert_eq!((harness.state().secondary, harness.state().toggles), ([true, false], 0), "the eye's secondary click, and no toggle");
+}
+
+/// Two renamable rows; `start` opens the rename of the other one by a command of the host.
+struct Commands {
+    labels: [String; 2],
+    renaming: Option<usize>,
+    start: Option<usize>,
+}
+
+#[test]
+fn the_host_commits_an_open_rename_when_it_starts_another() {
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, state: &mut Commands| {
+            panel(ui, 240.0, |ui| {
+                if let Some(next) = state.start.take()
+                    && let Some(open) = state.renaming.replace(next)
+                    && let Some(text) = ListRow::<usize>::take_rename_draft(ui, &open)
+                {
+                    state.labels[open] = text;
+                }
+                for at in 0..2 {
+                    let out = ListRow::new(at, state.labels[at].clone()).renaming(state.renaming == Some(at)).show(ui);
+                    for event in out.events {
+                        if let RowEvent::RenameEnded { .. } = event {
+                            state.renaming = None;
+                        }
+                    }
+                }
+            })
+        },
+        Commands { labels: ["Layer 1".into(), "Layer 2".into()], renaming: Some(0), start: None },
+    );
+    harness.run();
+    harness.event(Event::Text("Sky".to_owned()));
+    harness.run();
+    harness.state_mut().start = Some(1);
+    harness.run();
+    harness.run();
+    let state = harness.state();
+    assert_eq!((state.labels[0].as_str(), state.renaming), ("Sky", Some(1)), "the open rename was committed");
+    assert_eq!(harness.query_all_by_role(Role::TextInput).count(), 1);
+    assert_eq!(harness.get_by_role(Role::TextInput).accesskit_node().label().as_deref(), Some("Layer 2"));
 }

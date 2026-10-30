@@ -6,7 +6,7 @@ use std::sync::Arc;
 use craft_theme::{Stroke as Hairline, ThumbSizes, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, Id, Label, Painter, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
+use egui::{Color32, Id, Painter, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 
 use super::rename;
 use super::toggle::{self, Cell, ToggleColumn, ToggleEdit};
@@ -175,6 +175,10 @@ pub struct RowResponse<K> {
     /// Where the label (and detail) is drawn, the full height of the row: a double click on it
     /// starts a rename.
     pub label: Rect,
+    /// The response of each toggle cell, in [`ListRow::toggle`] order: a host reads a secondary
+    /// click (PhotoCraft's menu on the eye), the hover and the focus from it. Primary clicks and
+    /// drags are the cell's [`RowEvent::Toggle`] edits.
+    pub toggles: Vec<Response>,
 }
 
 /// A row's sizes and colours, from [`ListRow::style`].
@@ -411,6 +415,15 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
         self.branch = Some(branch);
         self.role = Role::TreeItem;
         self
+    }
+
+    /// Takes the text typed into the open rename of the row `key` shown in `ui`'s scope, closing
+    /// the rename; `None` when it has none. A host that starts another rename by a command
+    /// calls this for the one that is open and applies the text as [`RowEvent::Renamed`] would
+    /// (a [`List`](super::List) does this itself). The row then isn't shown with
+    /// [`renaming`](ListRow::renaming) any more.
+    pub fn take_rename_draft(ui: &Ui, key: &K) -> Option<String> {
+        rename::take_draft(ui.ctx(), row_id(ui.scope_id(), key))
     }
 
     /// The row's key.
@@ -719,10 +732,11 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer }, columns.len(), &geometry);
         }
 
+        let mut toggles = Vec::with_capacity(columns.len());
         for (index, column) in columns.iter().enumerate() {
             let cell = Cell { index, row_id, key: &key, row_label: &label };
             let at = geometry.span(rect, index as f32 * style.toggle_column, style.toggle_column);
-            toggle::show(ui, &cell, column, at, &style, &mut events);
+            toggles.push(toggle::show(ui, &cell, column, at, &style, &mut events));
         }
 
         if let Some(branch) = branch.filter(|b| b.group) {
@@ -796,7 +810,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone> ListRow<'a, K> {
             paint_drop_mark(ui, &style, rect, mark);
         }
         FocusRing::paint_if(ui, rect, corner_radius(style.radius), focused);
-        RowResponse { response, events, label: band }
+        RowResponse { response, events, label: band, toggles }
     }
 }
 
@@ -964,19 +978,22 @@ fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbn
 }
 
 /// The label, and the detail line under it, centred in `band` and cut with an ellipsis.
-fn paint_label(ui: &mut Ui, tokens: &UiTokens, style: &ListRowStyle, band: Rect, label: &str, detail: Option<(&str, Color32)>, color: Color32) {
+fn paint_label(ui: &Ui, tokens: &UiTokens, style: &ListRowStyle, band: Rect, label: &str, detail: Option<(&str, Color32)>, color: Color32) {
     if band.width() < 1.0 {
         return;
     }
     let total = style.label_line + detail.map_or(0.0, |_| style.detail_line);
     let top = band.center().y - total / 2.0;
-    let line = |ui: &mut Ui, top: f32, height: f32, text: &str, role: TypeRole, color: Color32| {
+    // Painted, not a `Label`: the row's own node carries the text, so a label node would name it twice.
+    let line = |ui: &Ui, top: f32, height: f32, text: &str, role: TypeRole, color: Color32| {
         let at = Rect::from_x_y_ranges(band.x_range(), top..=top + height);
-        let format = role_format(tokens, role, color);
-        // A child, not a scope: a scope would move the parent's cursor to the label's bottom, back
-        // up into the row that was allocated whole.
-        let mut child = ui.new_child(UiBuilder::new().max_rect(at).layout(direction::row(ui)));
-        child.add(Label::new(egui::text::LayoutJob::single_section(text.to_owned(), format)).truncate().selectable(false));
+        let mut job = egui::text::LayoutJob::single_section(text.to_owned(), role_format(tokens, role, color));
+        job.wrap.max_width = at.width();
+        job.wrap.max_rows = 1;
+        job.wrap.break_anywhere = true;
+        let galley = ui.painter().layout_job(job);
+        let x = if direction::is_rtl(ui) { at.right() - galley.size().x } else { at.left() };
+        ui.painter().galley(pos2(x, at.center().y - galley.size().y / 2.0), galley, color);
     };
     line(ui, top, style.label_line, label, style.label_role, color);
     if let Some((detail, detail_color)) = detail {
