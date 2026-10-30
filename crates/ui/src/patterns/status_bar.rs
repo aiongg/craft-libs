@@ -5,13 +5,13 @@ use egui::text::LayoutJob;
 use egui::{AsIdSalt, Color32, IdSalt, Label, Rect, Response, Sense, Ui, UiBuilder, vec2};
 
 use crate::composites::{live, measure};
-use crate::controls::{IconButton, NumberField};
+use crate::controls::{IconButton, NumberField, Progress};
 use crate::direction;
 use crate::icons::Icon;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Content, Divider, Text};
-use crate::story::{Level, Story, StoryArgs, Surface};
+use crate::story::{Level, NoArgs, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 use craft_theme::{ControlSize, TypeRole};
@@ -42,6 +42,36 @@ pub struct StatusBarStyle {
     pub message: Color32,
     /// An error and the render-path label: `status.warn.fg`.
     pub warning: Color32,
+}
+
+/// A background task's readout for the trailing group, added with [`StatusBar::progress`]: a label,
+/// a [`Progress`] bar, the percentage and an optional cancel button.
+#[derive(Clone, Debug)]
+pub struct StatusProgress {
+    label: String,
+    fraction: Option<f32>,
+    percent: Option<String>,
+    cancel: Option<String>,
+}
+
+impl StatusProgress {
+    /// A task named `label` (translated by the host), `fraction` done between 0 and 1, or `None`
+    /// while it has reported nothing yet: the bar then shows a busy segment.
+    pub fn new(label: impl Into<String>, fraction: Option<f32>) -> Self {
+        Self { label: label.into(), fraction, percent: None, cancel: None }
+    }
+
+    /// The percentage text after the bar ("45%"), formatted by the host; none by default.
+    pub fn percent(mut self, text: impl Into<String>) -> Self {
+        self.percent = Some(text.into());
+        self
+    }
+
+    /// Adds a cancel button named and given its tooltip by `label` ("Cancel").
+    pub fn cancel(mut self, label: impl Into<String>) -> Self {
+        self.cancel = Some(label.into());
+        self
+    }
 }
 
 type Slot<'a> = Option<Box<dyn FnOnce(&mut Ui) + 'a>>;
@@ -231,6 +261,26 @@ impl StatusBar {
         });
     }
 
+    /// A background task's progress, for the trailing group, in reading order: the label in
+    /// `text.muted`, a [`Progress`] bar of `progress.width`, the percentage in the mono role and a
+    /// small cancel button. The bar is a progress indicator named by the label, with the fraction
+    /// as its value. Returns true when the cancel button was clicked.
+    pub fn progress(ui: &mut Ui, progress: StatusProgress) -> bool {
+        ui.add(Text::new(progress.label.as_str()).content(Content::Muted));
+        let mut bar = Progress::indeterminate();
+        if let Some(fraction) = progress.fraction {
+            bar = Progress::new(fraction);
+        }
+        ui.add(bar.label(progress.label));
+        if let Some(percent) = progress.percent {
+            ui.add(Text::new(percent).role(TypeRole::Mono).content(Content::Muted));
+        }
+        match progress.cancel {
+            Some(label) => ui.add(IconButton::new(Icon::Close, label).size(ControlSize::Sm)).clicked(),
+            None => false,
+        }
+    }
+
     /// A clickable text in the warning colour, for the trailing group: the render-path label
     /// ("CPU Rendering"). The host handles the click and gives it a tooltip.
     pub fn warning(ui: &mut Ui, text: &str) -> Response {
@@ -304,6 +354,21 @@ fn show_story(ui: &mut Ui, args: &mut StatusArgs) {
     ui.data_mut(|d| d.insert_temp(state_id, demo));
 }
 
+/// A job's progress and a save's, with the render path.
+fn job_story(ui: &mut Ui, _: &mut NoArgs) {
+    let width = 640.0_f32.min(ui.available_width());
+    ui.allocate_ui(vec2(width, 0.0), |ui| {
+        ui.set_max_width(width);
+        StatusBar::new("status-bar-job").show(ui, |bar| {
+            bar.leading(|ui| drop(StatusBar::info(ui, "1200 px x 800 px (72 ppi)")));
+            bar.trailing(|ui| {
+                StatusBar::progress(ui, StatusProgress::new("Gaussian Blur", Some(0.45)).percent("45%").cancel("Cancel"));
+                StatusBar::warning(ui, "CPU Rendering");
+            });
+        });
+    });
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
@@ -315,6 +380,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_story
         )
         .on(Surface::Chrome),
+        typed_story!("patterns/status-bar/job", Level::Patterns, "StatusBar", "Job", NoArgs {}, job_story).on(Surface::Chrome),
         typed_story!(
             "patterns/status-bar/error",
             Level::Patterns,
