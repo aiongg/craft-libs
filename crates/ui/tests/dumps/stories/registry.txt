@@ -154,6 +154,7 @@ composites/color/full = ColorPicker | Full | Panel | CMYK (host model)=Bool(true
 composites/color/dialog = ColorPicker | Dialog (edit scope) | Panel | CMYK (host model)=Bool(true)
 composites/color/pair-foreground = SwatchPair | Foreground and background | Panel | buttons=Bool(true); disabled=Bool(false)
 composites/color/pair-fill = SwatchPair | Fill and stroke | Panel | buttons=Bool(true); disabled=Bool(false)
+composites/color/pair-host-picker = SwatchPair | Host picker | Panel | buttons=Bool(true); disabled=Bool(false)
 composites/color/pair-dialog = SwatchPair | Dialog (field scope) | Panel | 
 composites/color/wheel = ColorWheel | Wheel | Panel | side=Number { value: 220.0, min: 28.0, max: 400.0 }; hue on=Choice { options: ["colour", "black", "grey"], index: 0 }; disabled=Bool(false); width=Number { value: 260.0, min: 60.0, max: 480.0 }
 composites/color/ramp = ColorRamp | Ramp | Panel | kind=Choice { options: ["spectrum", "grayscale", "between"], index: 0 }; web_safe=Bool(false); boxes=Bool(true); gamut=Bool(false); disabled=Bool(false)
