@@ -32,6 +32,8 @@ pub struct DockStyle {
     /// Accessibility label of a group's drag bar and top border.
     pub move_group_label: String,
     pub close_group_label: String,
+    /// Tooltip and accessible name of the panel-menu button ([`Self::panel_menu_button`]).
+    pub panel_menu_label: String,
     pub minimize_label: String,
     pub expand_label: String,
     pub float_group_label: String,
@@ -148,6 +150,9 @@ pub struct DockStyle {
     /// Close Other Panels in Group) for closable panels. A host that draws its own Close items
     /// turns this off and keeps [`Permissions::closable`], so its close actions still apply.
     pub close_menu_items: bool,
+    /// End every group's tab strip with a ≡ button that opens the selected panel's menu, the one
+    /// its tab opens. The host's group header sits before it.
+    pub panel_menu_button: bool,
     /// Show × on the title bar of a floating window whose panels are all closable.
     pub close_button: bool,
     /// Show × on the tabs of closable panels in docked and floating groups, for tabs that
@@ -203,6 +208,7 @@ impl DockStyle {
             resize_window_label: c.resize_window_label,
             move_group_label: c.move_group_label,
             close_group_label: c.close_group_label,
+            panel_menu_label: c.panel_menu_label,
             minimize_label: c.minimize_label,
             expand_label: c.expand_label,
             float_group_label: c.float_group_label,
@@ -247,6 +253,7 @@ impl DockStyle {
             float_on_empty_drop: c.float_on_empty_drop,
             title_bar_docks: c.title_bar_docks,
             close_menu_items: c.close_menu_items,
+            panel_menu_button: c.panel_menu_button,
             close_button: c.close_button,
             tab_close_buttons: c.tab_close_buttons,
             wheel_selects_tabs: c.wheel_selects_tabs,
@@ -299,6 +306,7 @@ impl DockStyle {
             resize_window_label: self.resize_window_label.clone(),
             move_group_label: self.move_group_label.clone(),
             close_group_label: self.close_group_label.clone(),
+            panel_menu_label: self.panel_menu_label.clone(),
             minimize_label: self.minimize_label.clone(),
             expand_label: self.expand_label.clone(),
             float_group_label: self.float_group_label.clone(),
@@ -336,6 +344,7 @@ impl DockStyle {
             float_on_empty_drop: self.float_on_empty_drop,
             title_bar_docks: self.title_bar_docks,
             close_menu_items: self.close_menu_items,
+            panel_menu_button: self.panel_menu_button,
             close_button: self.close_button,
             tab_close_buttons: self.tab_close_buttons,
             wheel_selects_tabs: self.wheel_selects_tabs,

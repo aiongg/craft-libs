@@ -19,6 +19,8 @@ pub struct DockConfig {
     /// Accessibility label of a group's drag bar and top border.
     pub move_group_label: String,
     pub close_group_label: String,
+    /// Tooltip and accessible name of the panel-menu button ([`Self::panel_menu_button`]).
+    pub panel_menu_label: String,
     pub minimize_label: String,
     pub expand_label: String,
     pub float_group_label: String,
@@ -122,6 +124,9 @@ pub struct DockConfig {
     /// Close Other Panels in Group) for closable panels. A host that draws its own Close items
     /// turns this off and keeps [`Permissions::closable`], so its close actions still apply.
     pub close_menu_items: bool,
+    /// End every group's tab strip with a ≡ button that opens the selected panel's menu, the one
+    /// its tab opens. The host's group header sits before it.
+    pub panel_menu_button: bool,
     /// Show × on the title bar of a floating window whose panels are all closable.
     pub close_button: bool,
     /// Show × on the tabs of closable panels in docked and floating groups, for tabs that
@@ -146,6 +151,7 @@ impl Default for DockConfig {
             resize_window_label: "Resize panel window".into(),
             move_group_label: "Move tab group".into(),
             close_group_label: "Close Tab Group".into(),
+            panel_menu_label: "Panel Menu".into(),
             minimize_label: "Minimize".into(),
             expand_label: "Expand".into(),
             float_group_label: "Float Tab Group".into(),
@@ -183,6 +189,7 @@ impl Default for DockConfig {
             float_on_empty_drop: true,
             title_bar_docks: true,
             close_menu_items: true,
+            panel_menu_button: false,
             close_button: true,
             tab_close_buttons: false,
             wheel_selects_tabs: false,

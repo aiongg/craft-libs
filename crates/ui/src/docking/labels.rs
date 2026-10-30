@@ -43,6 +43,7 @@ impl DockConfig {
     /// | `dock.restoreFrame` | `restore_frame_label` | Restore Frame Size |
     /// | `dock.autoCollapse` | `auto_collapse_label` | Auto-Collapse Iconic Panels |
     /// | `dock.floatHint` | `float_hint_label` | Hold {key} to undock |
+    /// | `dock.panelMenu` | `panel_menu_label` | Panel Menu |
     #[must_use]
     pub fn localized(mut self, translate: impl Fn(&str) -> Option<String>) -> Self {
         for (key, label) in self.labels_mut() {
@@ -53,7 +54,7 @@ impl DockConfig {
         self
     }
 
-    fn labels_mut(&mut self) -> [(&'static str, &mut String); 24] {
+    fn labels_mut(&mut self) -> [(&'static str, &mut String); 25] {
         [
             ("dock.float", &mut self.float_label),
             ("dock.close", &mut self.close_label),
@@ -79,6 +80,7 @@ impl DockConfig {
             ("dock.restoreFrame", &mut self.restore_frame_label),
             ("dock.autoCollapse", &mut self.auto_collapse_label),
             ("dock.floatHint", &mut self.float_hint_label),
+            ("dock.panelMenu", &mut self.panel_menu_label),
         ]
     }
 }

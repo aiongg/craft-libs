@@ -3,7 +3,9 @@ use std::{fmt::Debug, hash::Hash, sync::Arc};
 use egui::{Color32, Galley, Key, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
 
 use super::{Renderer, clamp_float, stripless};
-use crate::docking::{Action, DockContent, DropTarget, GroupDrag, GroupGesture, Placement, Target, begin_drag};
+use crate::controls::{ControlSize, IconButton};
+use crate::docking::{Action, DockContent, DropTarget, GroupDrag, GroupGesture, Permissions, Placement, Target, begin_drag};
+use crate::icons::Icon;
 use crate::tabs;
 use crate::theme::TokensOf as _;
 
@@ -80,8 +82,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         };
         let requested = self.content.group_header_width(panels, selected, floating, strip.width());
         let header_width = if requested.is_finite() { requested.clamp(0.0, strip.width()) } else { 0.0 };
-        if header_width > 0.0 {
-            let header = mirror(Rect::from_min_max(pos2(strip.right() - header_width, strip.top()), strip.max));
+        // The panel-menu button is a square at the trailing end; the host's header sits before it
+        // and the button's width comes out of the strip as the header's does.
+        let menu_width = if self.config.panel_menu_button { strip.height().min(strip.width()) } else { 0.0 };
+        let header_width = (header_width + menu_width).min(strip.width());
+        let host_width = header_width - menu_width;
+        if host_width > 0.0 {
+            let header =
+                mirror(Rect::from_min_max(pos2(strip.right() - header_width, strip.top()), pos2(strip.right() - menu_width, strip.bottom())));
             self.host_area(ui, "header", header, selected, |content, ui| content.group_header(ui, panels, selected, floating));
         }
         // The drag bar keeps its reserved width: tabs shrink, then overflow, before it narrows.
@@ -111,6 +119,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         // narrower than its name cuts it with "…" and names it in a tooltip.
         let (fit, extra_width) = fit_with_extra(&widths, active, tabs_width, wanted, self.config.tab_width_floor(self.look) + floor_close);
         let owner = TabGroup { panels, selected, minimized, kind, rect };
+        if menu_width > 0.0 {
+            self.panel_menu_button(ui, mirror(Rect::from_min_max(pos2(strip.right() - menu_width, strip.top()), strip.max)), &owner, policy);
+        }
         let mut x = strip.left();
         let mut shown = Vec::new();
         for (index, width) in &fit.shown {
@@ -184,6 +195,18 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if child.rect_contains_pointer(rect) && child.input(|i| i.pointer.any_pressed()) {
             self.output.focused = Some(selected.clone());
         }
+    }
+
+    /// The panel-menu button at `rect`: opens the selected panel's menu, the one its tab opens.
+    fn panel_menu_button(&mut self, ui: &mut Ui, rect: Rect, owner: &TabGroup<'_, P>, policy: Permissions) {
+        let label = self.config.panel_menu_label.clone();
+        let id = self.id.with(("panel-menu", owner.panels.first()));
+        let response = IconButton::new(Icon::Menu, label).size(ControlSize::Sm).with_id(id).show_at(ui, rect);
+        self.register_interaction(ui.ctx(), response.id);
+        if response.clicked() {
+            self.output.focused = Some(owner.selected.clone());
+        }
+        egui::Popup::menu(&response).show(|ui| self.panel_menu_items(ui, Some(owner), owner.selected, policy, owner.rect));
     }
 
     /// The drag bar (`drag-bar`: drag, double-click, and the group menu on a right click, Enter
@@ -454,54 +477,59 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if policy.movable && response.drag_started() && begin_drag(ui.ctx(), self.id, panel.clone(), group) {
             self.latch_undock(ui.ctx(), owner.map(|owner| owner.kind));
         }
-        response.context_menu(|ui| {
-            self.content.panel_menu(ui, panel);
-            if policy.movable && policy.floatable {
-                let logical = self.config.float_label.clone();
-                let text = self.content.action_label(ui, &logical, &self.look.font, self.look.text);
-                let response = ui.button(text);
-                response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &logical));
-                if response.clicked() {
-                    let size = self.float_size(panel, group.size());
-                    let rect = clamp_float(Rect::from_min_size(group.min + vec2(24.0, 24.0), size), self.float_bounds);
-                    self.output.actions.push(Action::Float { panel: panel.clone(), rect: [rect.left(), rect.top(), rect.width(), rect.height()] });
-                    ui.close();
-                }
+        response.context_menu(|ui| self.panel_menu_items(ui, owner, panel, policy, group));
+    }
+
+    /// The items of a panel's menu: the host's own, Float, Move Panel To, Close and, for a panel in
+    /// a group, the group items. Shared by the tab's context menu and the strip's panel-menu
+    /// button. `group` is the rect of the panel's group.
+    fn panel_menu_items(&mut self, ui: &mut Ui, owner: Option<&TabGroup<'_, P>>, panel: &P, policy: crate::docking::Permissions, group: Rect) {
+        self.content.panel_menu(ui, panel);
+        if policy.movable && policy.floatable {
+            let logical = self.config.float_label.clone();
+            let text = self.content.action_label(ui, &logical, &self.look.font, self.look.text);
+            let response = ui.button(text);
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &logical));
+            if response.clicked() {
+                let size = self.float_size(panel, group.size());
+                let rect = clamp_float(Rect::from_min_size(group.min + vec2(24.0, 24.0), size), self.float_bounds);
+                self.output.actions.push(Action::Float { panel: panel.clone(), rect: [rect.left(), rect.top(), rect.width(), rect.height()] });
+                ui.close();
             }
-            let targets: Vec<P> =
-                if policy.movable { self.layout.move_targets(panel, |p| self.permissions(p)).into_iter().cloned().collect() } else { Vec::new() };
-            if !targets.is_empty() {
-                let text = self.content.action_label(ui, &self.config.move_panel_to_label, &self.look.font, self.look.text);
-                let response = ui.menu_button(text, |ui| {
-                    egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
-                        for target in &targets {
-                            if self.menu_label(ui, target).clicked() {
-                                self.output.actions.push(Action::Move {
-                                    panel: panel.clone(),
-                                    anchor: target.clone(),
-                                    placement: Placement::Tab { before: None },
-                                });
-                                ui.close();
-                            }
+        }
+        let targets: Vec<P> =
+            if policy.movable { self.layout.move_targets(panel, |p| self.permissions(p)).into_iter().cloned().collect() } else { Vec::new() };
+        if !targets.is_empty() {
+            let text = self.content.action_label(ui, &self.config.move_panel_to_label, &self.look.font, self.look.text);
+            let response = ui.menu_button(text, |ui| {
+                egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+                    for target in &targets {
+                        if self.menu_label(ui, target).clicked() {
+                            self.output.actions.push(Action::Move {
+                                panel: panel.clone(),
+                                anchor: target.clone(),
+                                placement: Placement::Tab { before: None },
+                            });
+                            ui.close();
                         }
-                    });
+                    }
                 });
-                response.response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.move_panel_to_label));
+            });
+            response.response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.move_panel_to_label));
+        }
+        if policy.closable && self.config.close_menu_items {
+            let text = self.content.action_label(ui, &self.config.close_label, &self.look.font, self.look.text);
+            let response = ui.button(text);
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.close_label));
+            if response.clicked() {
+                self.output.actions.push(Action::Close { panel: panel.clone() });
+                ui.close();
             }
-            if policy.closable && self.config.close_menu_items {
-                let text = self.content.action_label(ui, &self.config.close_label, &self.look.font, self.look.text);
-                let response = ui.button(text);
-                response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.close_label));
-                if response.clicked() {
-                    self.output.actions.push(Action::Close { panel: panel.clone() });
-                    ui.close();
-                }
-            }
-            if let Some(owner) = owner {
-                ui.separator();
-                self.group_menu(ui, owner, panel);
-            }
-        });
+        }
+        if let Some(owner) = owner {
+            ui.separator();
+            self.group_menu(ui, owner, panel);
+        }
     }
 }
 
