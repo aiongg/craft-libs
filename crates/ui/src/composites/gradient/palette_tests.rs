@@ -128,7 +128,7 @@ impl Rig {
         let selected = self.selected;
         let output = self.ctx.clone().run_ui(input, |ui| {
             ui.set_width(self.width);
-            GradientPalette::new("palette", "Presets", &self.groups).layout(self.layout).selected(selected).show(ui);
+            let _ = GradientPalette::new("palette", "Presets", &self.groups).layout(self.layout).selected(selected).show(ui);
         });
         let n = output.shapes.iter().filter(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.stroke_kind == egui::StrokeKind::Outside)).count();
         output.drop_without_applying_deltas();
