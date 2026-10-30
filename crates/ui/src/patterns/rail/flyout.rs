@@ -71,7 +71,7 @@ pub struct FlyoutResponse<T> {
     /// The button's response.
     pub response: Response,
     /// The shown item is selected: a click on the button, Enter or Space on it, or a long press
-    /// (which also opens the flyout).
+    /// (which also opens the flyout), unless [`hold_selects`](FlyoutButton::hold_selects) is off.
     pub clicked: bool,
     /// A double click on the button; the host decides what it means.
     pub double_clicked: bool,
@@ -97,7 +97,8 @@ pub struct FlyoutResponse<T> {
 ///
 /// - **Pointer:** a click selects the shown item ([`clicked`](FlyoutResponse::clicked)). A button
 ///   with several items opens its flyout on a secondary click, on holding the primary button for
-///   0.35 s (which also selects the shown item), or on pressing and dragging away from the button.
+///   0.35 s (which also selects the shown item unless [`hold_selects`](Self::hold_selects) is
+///   off, as for a command button), or on pressing and dragging away from the button.
 ///   A click on the button of the open flyout closes it, but not the release that ends the press
 ///   that opened it. Releasing over a row after such a press chooses it; so does a click on a row.
 ///   A press outside, or Esc, closes it. No tooltip shows while a flyout is open or a button is
@@ -123,6 +124,7 @@ pub struct FlyoutButton<'a, T> {
     current: Option<&'a T>,
     selected: bool,
     enabled: bool,
+    hold_selects: bool,
     shortcut: Option<String>,
 }
 
@@ -130,7 +132,17 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
     /// A button showing `icon` and named `label` (its tooltip and accessible name). It has no
     /// flyout until [`items`](Self::items) gives it several choices.
     pub fn new(id_salt: impl AsIdSalt, icon: Icon, label: impl Into<String>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), icon, label: label.into(), items: &[], current: None, selected: false, enabled: true, shortcut: None }
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            icon,
+            label: label.into(),
+            items: &[],
+            current: None,
+            selected: false,
+            enabled: true,
+            hold_selects: true,
+            shortcut: None,
+        }
     }
 
     /// The choices of the flyout. With fewer than two the button is a plain button.
@@ -154,6 +166,14 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
     /// Whether it takes input; default `true`.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// Whether a long press also selects the shown item; default `true`, which suits tool buttons.
+    /// A command button (Screen Mode: a click cycles the mode) turns it off, so a hold only opens
+    /// the flyout.
+    pub fn hold_selects(mut self, hold_selects: bool) -> Self {
+        self.hold_selects = hold_selects;
         self
     }
 
@@ -252,7 +272,7 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
             keyboard = true;
         }
 
-        let clicked = self.enabled && (long || if open { by_pointer && !from_button } else { response.clicked() });
+        let clicked = self.enabled && ((long && self.hold_selects) || if open { by_pointer && !from_button } else { response.clicked() });
         let double_clicked = response.double_clicked();
 
         let mut chosen = None;

@@ -365,7 +365,10 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
     ) {
         ui.spacing_mut().item_spacing = vec2(grid.gap, grid.row_gap);
         let rtl_icons = direction::is_rtl(ui);
-        let center_x = ui.max_rect().center().x;
+        // Taken before the scroll area: a scroll bar narrows the Ui's rect afterwards, which would
+        // shift the footer sideways while the slots scroll.
+        let full = ui.max_rect();
+        let center_x = full.center().x;
         if let Some(label) = &self.column_toggle {
             let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), grid.toggle_height), Sense::hover());
             let rect = Rect::from_center_size(rect.center(), vec2(grid.button, grid.toggle_height));
@@ -420,10 +423,9 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
                 Self::arrows(ui, grid.columns, &cells);
             }
         });
-        let width = ui.max_rect().width();
-        let inset = grid.pad_x.min(width / 2.0);
+        let inset = grid.pad_x.min(full.width() / 2.0);
         let top = ui.cursor().top();
-        let area = Rect::from_min_max(pos2(ui.max_rect().left() + inset, top), pos2(ui.max_rect().right() - inset, top.max(ui.max_rect().bottom())));
+        let area = Rect::from_min_max(pos2(full.left() + inset, top), pos2(full.right() - inset, top.max(ui.max_rect().bottom())));
         let columns = grid.columns;
         let shown = ui
             .scope_builder(UiBuilder::new().id_salt("footer").max_rect(area).layout(direction::column(ui)), |ui| footer(ui, RailFooter { columns }));
