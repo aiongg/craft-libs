@@ -13,6 +13,7 @@ mod check;
 mod color_picker;
 mod color_ramp;
 mod color_wheel;
+mod crop;
 mod cursor;
 mod curve;
 mod dialog;
@@ -24,6 +25,7 @@ mod form;
 mod gradient_editor;
 mod gradient_line;
 mod gradient_palette;
+mod grid;
 mod group_box;
 mod guide;
 mod handle;
@@ -83,6 +85,7 @@ pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOn
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use color_ramp::{ColorRampField, ColorRampTokens};
 pub use color_wheel::{ColorWheelField, ColorWheelTokens};
+pub use crop::{CropField, CropTokens};
 pub use cursor::{CursorField, CursorTokens};
 pub use curve::{CurveField, CurveTokens};
 pub use dialog::{DialogField, DialogTokens};
@@ -94,6 +97,7 @@ pub use form::{FormField, FormSpacing, FormTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
 pub use gradient_line::{GradientLineField, GradientLineTokens};
 pub use gradient_palette::{GradientPaletteField, GradientPaletteTokens};
+pub use grid::{GridField, GridTokens};
 pub use group_box::{GroupBoxField, GroupBoxTokens};
 pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
@@ -642,6 +646,8 @@ families! {
     color_wheel: ColorWheelTokens => ColorWheel(ColorWheelField);
     /// Curve editors: the graph, points and gradient bars of a tone curve.
     curve: CurveTokens => Curve(CurveField);
+    /// The crop frame and its shield.
+    crop: CropTokens => Crop(CropField);
     /// Painted pointers: the crosshair, selection badge, distort and skew arrows.
     cursor: CursorTokens => Cursor(CursorField);
     /// Dialogs: the frame every dialog shares.
@@ -660,6 +666,8 @@ families! {
     gradient_editor: GradientEditorTokens => GradientEditor(GradientEditorField);
     /// Gradient lines: the line, end handles, stops and midpoints of a gradient on the canvas.
     gradient_line: GradientLineTokens => GradientLine(GradientLineField);
+    /// Canvas grid lines.
+    grid: GridTokens => Grid(GridField);
     /// Group boxes: the outlined, titled group of a dialog or preferences page.
     group_box: GroupBoxTokens => GroupBox(GroupBoxField);
     /// Gradient palettes: the grid and list of gradient presets.

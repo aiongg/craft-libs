@@ -568,7 +568,16 @@ fn dark_accent_seed_in_light_mode_still_meets_the_overlay_pairs() {
 fn guide_colours_are_exempt_from_the_overlay_pairs() {
     let mut def = grey_blue();
     let faint = hex("#202020");
-    let guides = [T::OverlayGuide, T::OverlayGuideSelected, T::OverlaySmartGuide, T::OverlayLine];
+    let guides = [
+        T::OverlayGuide,
+        T::OverlayGuideSelected,
+        T::OverlaySmartGuide,
+        T::OverlayLine,
+        T::OverlayCrop,
+        T::OverlayCropGuide,
+        T::OverlayCropInvalid,
+        T::OverlayGrid,
+    ];
     def.pins.dark = Pins::from_iter(guides.map(|t| (t, faint)).into_iter().chain([(T::OverlayMarquee, hex("#101010"))]));
     let standard = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
     for t in guides {
@@ -586,6 +595,23 @@ fn guide_colours_are_exempt_from_the_overlay_pairs() {
     }
     let ratio = contrast_ratio(high.tokens.color(T::OverlayMarquee), high.tokens.color(T::OverlayMarqueeDash));
     assert!(ratio >= 4.5, "high contrast fixes the pinned marquee: {ratio:.2}");
+}
+
+/// The crop and grid overlays sit on the document, so they keep one value in every built-in mode.
+#[test]
+fn crop_and_grid_overlay_colours_are_fixed() {
+    for theme in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            if matches!((theme.variants, mode), (Variants::LightOnly, Mode::Dark) | (Variants::DarkOnly, Mode::Light)) {
+                continue;
+            }
+            let c = resolve(theme, app(mode, Contrast::Standard), None).tokens.color;
+            assert_eq!(c.overlay.crop, Rgba::WHITE);
+            assert_eq!(c.overlay.crop_guide, Rgba::WHITE.with_alpha(90));
+            assert_eq!(c.overlay.crop_invalid, hex("#e53e3e"));
+            assert_eq!(c.overlay.grid, hex("#8c8c8c"));
+        }
+    }
 }
 
 #[test]
