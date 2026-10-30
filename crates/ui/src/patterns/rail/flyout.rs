@@ -194,10 +194,11 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
         }
 
         let held_for = response.is_pointer_button_down_on().then(|| ui.input(|i| i.pointer.press_start_time().map(|start| i.time - start))).flatten();
-        if multi && !open {
-            if let Some(wait) = long_press_wait(held_for) {
-                ctx.request_repaint_after(wait);
-            }
+        if multi
+            && !open
+            && let Some(wait) = long_press_wait(held_for)
+        {
+            ctx.request_repaint_after(wait);
         }
         let long = multi && !open && long_press(held_for);
         let dragged =
@@ -208,9 +209,9 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
 
         let mut command = None;
         let mut keyboard = false;
-        if multi && reclick_closes(open, response.secondary_clicked(), by_pointer, from_button) {
-            command = Some(SetOpenCommand::Bool(false));
-        } else if multi && by_other && open && !keys_are_menus {
+        let tab = open && ctx.input(|i| i.key_pressed(Key::Tab));
+        let close = reclick_closes(open, response.secondary_clicked(), by_pointer, from_button) || (open && by_other && !keys_are_menus) || tab;
+        if close {
             command = Some(SetOpenCommand::Bool(false));
         } else if multi && !open && (response.secondary_clicked() || long || dragged) {
             command = Some(SetOpenCommand::Bool(true));
@@ -222,8 +223,6 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
         {
             command = Some(SetOpenCommand::Bool(true));
             keyboard = true;
-        } else if open && ctx.input(|i| i.key_pressed(Key::Tab)) {
-            command = Some(SetOpenCommand::Bool(false));
         }
 
         let clicked = self.enabled && (long || if open { by_pointer && !from_button } else { response.clicked() });
