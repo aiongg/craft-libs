@@ -85,16 +85,20 @@ impl GroupBox {
         let builder = UiBuilder::new().id_salt(salt).accessibility_role(Role::Group).accessibility_label(self.title.as_str());
         ui.scope_builder(builder, |ui| {
             let width = ui.available_width();
-            egui::Frame::new().stroke(style.edge).corner_radius(style.radius).inner_margin(Margin::same(style.padding.round() as i8)).show(
-                ui,
-                |ui| {
+            egui::Frame::new()
+                .stroke(style.edge)
+                .corner_radius(style.radius)
+                .inner_margin(Margin::same(style.padding.round() as i8))
+                .show(ui, |ui| {
                     ui.set_width(width - 2.0 * style.padding.round() - 2.0 * style.edge.width);
-                    ui.add(Label::new(LayoutJob::single_section(self.title.clone(), role_format(&tokens, style.title_role, style.title))).selectable(false));
+                    ui.add(
+                        Label::new(LayoutJob::single_section(self.title.clone(), role_format(&tokens, style.title_role, style.title)))
+                            .selectable(false),
+                    );
                     ui.add_space(style.title_gap);
                     add_contents(ui)
-                },
-            )
-            .inner
+                })
+                .inner
         })
     }
 }

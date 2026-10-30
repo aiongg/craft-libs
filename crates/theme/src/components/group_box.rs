@@ -32,12 +32,7 @@ impl Family for GroupBoxTokens {
     const FIELDS: &'static [GroupBoxField] = &[GroupBoxField::Edge, GroupBoxField::Radius];
 
     fn defaults(s: &Semantic<'_>) -> GroupBoxTokens {
-        GroupBoxTokens {
-            edge: s.color.line.divider,
-            radius: s.shape.radius.panel,
-            padding: s.space.pad.panel,
-            gap: s.space.gap.stack,
-        }
+        GroupBoxTokens { edge: s.color.line.divider, radius: s.shape.radius.panel, padding: s.space.pad.panel, gap: s.space.gap.stack }
     }
 
     fn path(f: GroupBoxField) -> String {

@@ -336,6 +336,7 @@ register! {
     crate::dialog::full_window_stories,
     crate::dialog::preview_stories,
     crate::viewport::stories,
+    crate::preferences::stories,
     crate::patterns::options_bar,
     crate::patterns::status_bar,
     crate::patterns::panel,
