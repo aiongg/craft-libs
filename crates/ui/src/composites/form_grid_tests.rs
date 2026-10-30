@@ -6,7 +6,7 @@ use egui_kittest::{Harness, HarnessBuilder, Node};
 
 use super::form_grid::{ImageSizeArgs, show_image_size};
 use super::*;
-use crate::controls::{Checkbox, NumberField, TextField};
+use crate::controls::{Checkbox, NumberField, Swatch, TextField};
 use crate::direction::{self, Direction};
 use crate::localized::LocaleNumbers;
 use crate::primitives::{Gap, Row};
@@ -248,4 +248,26 @@ fn a_cell_of_several_controls_puts_them_in_a_row_and_names_the_first() {
     let label = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Mode:")).accesskit_node().locate().0;
     assert_eq!(first.accesskit_node().data().labelled_by(), [label]);
     assert!(second.accesskit_node().data().labelled_by().is_empty());
+}
+
+#[test]
+fn a_control_marked_own_name_keeps_its_name_and_is_described_by_the_label() {
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, _| {
+            FormGrid::new("form").show(ui, |form| {
+                let _ = form.row("Name:", |ui, _| TextField::new("name", "Name", "short").show(ui));
+                let _ = form.row("Color:", |ui, _| ui.add(Swatch::new("fill", "Fill color", egui::Color32::RED)).own_name());
+            });
+        },
+        None,
+    );
+    harness.run();
+    let swatch = harness.get_by_label("Fill color");
+    let label = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Color:")).accesskit_node().locate().0;
+    assert!(swatch.accesskit_node().data().labelled_by().is_empty());
+    assert_eq!(swatch.accesskit_node().data().described_by(), [label]);
+    let name = text_input(&harness, "short");
+    assert_eq!(name.accesskit_node().label().as_deref(), Some("Name:"));
+    let (swatch, label) = (swatch.rect(), harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("Color:")).rect());
+    assert!((swatch.center().y - label.center().y).abs() < 0.5, "{swatch:?} {label:?}");
 }

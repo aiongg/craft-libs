@@ -451,7 +451,7 @@ impl Setup {
         bottom = bottom.max(child.min_rect().bottom());
 
         if let Some(label) = label_response.as_ref().filter(|_| label.kind == LabelKind::Word) {
-            name_control(ui.ctx(), control.control(), label);
+            name_control(ui.ctx(), &control, label);
         }
         (control, bottom)
     }

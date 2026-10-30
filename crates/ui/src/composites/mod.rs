@@ -119,7 +119,7 @@ pub use craft_theme::Tone;
 pub use curve::Curve;
 pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampler};
 pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
-pub use field::{Field, FieldControl, FieldGroup, FieldStyle};
+pub use field::{Field, FieldControl, FieldGroup, FieldStyle, OwnName};
 pub use form_grid::{Form, FormGrid, FormStyle, LabelAlign};
 pub use gradient::{
     ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientGroup, GradientItem, GradientLabels, GradientPalette,

@@ -48,12 +48,53 @@ pub struct FieldStyle {
 pub trait FieldControl {
     /// The response whose AccessKit node is the control.
     fn control(&self) -> &Response;
+
+    /// Whether the control keeps its own accessible name when a row labels it. Only
+    /// [`own_name`](FieldControl::own_name) sets it.
+    fn keeps_name(&self) -> bool {
+        false
+    }
+
+    /// Marks the control as one that carries its own accessible name (a colour swatch named
+    /// "Fill color" in a row "Color:"). The row does not replace the name with its label; the
+    /// control is `described_by` the label instead.
+    fn own_name(self) -> OwnName<Self>
+    where
+        Self: Sized,
+    {
+        OwnName(self)
+    }
+}
+
+/// A control that keeps its own accessible name in a row, from [`FieldControl::own_name`]. It
+/// dereferences to the control.
+#[derive(Clone, Debug)]
+pub struct OwnName<C>(pub C);
+
+impl<C: FieldControl> FieldControl for OwnName<C> {
+    fn control(&self) -> &Response {
+        self.0.control()
+    }
+
+    fn keeps_name(&self) -> bool {
+        true
+    }
+}
+
+impl<C> std::ops::Deref for OwnName<C> {
+    type Target = C;
+
+    fn deref(&self) -> &C {
+        &self.0
+    }
 }
 
 /// Names the control of a row by its visible `label` (`labelled_by`). A cell of several controls
 /// has no node of a widget but its layout's container: that becomes a group, so the label names
-/// the cluster.
-pub(super) fn name_control(ctx: &egui::Context, control: &Response, label: &Response) {
+/// the cluster. A control that keeps its name is `described_by` the label instead.
+pub(super) fn name_control(ctx: &egui::Context, control: &impl FieldControl, label: &Response) {
+    let keeps = control.keeps_name();
+    let control = control.control();
     if !ctx.has_accesskit_node(control.id) {
         return;
     }
@@ -61,9 +102,13 @@ pub(super) fn name_control(ctx: &egui::Context, control: &Response, label: &Resp
         if node.role() == Role::GenericContainer {
             node.set_role(Role::Group);
         }
-        // The node's own label would win over `labelled_by`.
-        node.clear_label();
-        node.push_labelled_by(label.id.accesskit_id());
+        if keeps {
+            node.push_described_by(label.id.accesskit_id());
+        } else {
+            // The node's own label would win over `labelled_by`.
+            node.clear_label();
+            node.push_labelled_by(label.id.accesskit_id());
+        }
     });
 }
 
@@ -80,11 +125,19 @@ impl<A: FieldControl, B> FieldControl for (A, B) {
     fn control(&self) -> &Response {
         self.0.control()
     }
+
+    fn keeps_name(&self) -> bool {
+        self.0.keeps_name()
+    }
 }
 
 impl<A: FieldControl, B, C> FieldControl for (A, B, C) {
     fn control(&self) -> &Response {
         self.0.control()
+    }
+
+    fn keeps_name(&self) -> bool {
+        self.0.keeps_name()
     }
 }
 
@@ -246,13 +299,18 @@ impl Field {
         }
 
         let id = control.control().id;
+        let keeps_name = control.keeps_name();
         let ctx = ui.ctx().clone();
         if ctx.has_accesskit_node(id) {
             ctx.accesskit_node_builder(id, |node| {
                 if let Some(label) = &label_response {
-                    // The node's own label would win over `labelled_by`.
-                    node.clear_label();
-                    node.push_labelled_by(label.id.accesskit_id());
+                    if keeps_name {
+                        node.push_described_by(label.id.accesskit_id());
+                    } else {
+                        // The node's own label would win over `labelled_by`.
+                        node.clear_label();
+                        node.push_labelled_by(label.id.accesskit_id());
+                    }
                 }
                 if let Some(message) = &message {
                     node.push_described_by(message.id.accesskit_id());
