@@ -139,7 +139,8 @@ fn a_swatch_sets_the_foreground() {
 fn the_window_menu_hides_layers_and_the_panel_rail_brings_it_back() {
     let mut fixture = Fixture::new();
     assert!(fixture.names(Role::ListBoxOption).contains(&"Shapes".to_owned()));
-    fixture.preview.dock.toggle(Panel::Layers);
+    fixture.click("Window", Role::MenuItem);
+    fixture.click("Layers", Role::MenuItemCheckBox);
     assert!(!fixture.preview.dock.is_visible(Panel::Layers));
     assert!(!fixture.names(Role::ListBoxOption).contains(&"Shapes".to_owned()), "the Layers list is gone");
     fixture.click("Layers", Role::Button);
@@ -157,4 +158,15 @@ fn a_panel_rail_click_fronts_channels() {
     assert!(fixture.preview.dock.is_front(Panel::Channels));
     assert!(!fixture.preview.dock.is_front(Panel::Layers));
     assert!(fixture.names(Role::ListBoxOption).contains(&"Green".to_owned()));
+}
+
+#[test]
+fn history_records_one_row_per_committed_layer_property_change() {
+    let mut fixture = Fixture::new();
+    let before = fixture.preview.mock.history.len();
+    fixture.click("Lock all", Role::Button);
+    assert!(fixture.preview.mock.doc.layers[0].locked);
+    let history = &fixture.preview.mock.history;
+    assert_eq!(history.len(), before + 1);
+    assert_eq!(history.last().map(String::as_str), Some("Lock Layers"));
 }

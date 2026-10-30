@@ -152,11 +152,18 @@ pub fn show(ui: &mut Ui, mock: &mut Mock, state: &mut DockState) {
     config.close_button = false;
     let front: Vec<Panel> = Panel::ALL.into_iter().filter(|p| state.is_front(*p)).collect();
     let DockState { workspace, panels } = state;
+    // A floated panel stays inside the part of the preview that shows.
+    let bounds = ui.max_rect().intersect(ui.clip_rect());
     let mut content = Content { mock, panels, front, requested: None };
     let mut actions = Vec::new();
     let mut requested = None;
     CentralPanel::default().frame(Frame::NONE).show(ui, |ui| {
-        let output = DockArea::new(id).native_windows(false).locked(workspace.locked).show_content(ui, &workspace.layout, &config, &mut content);
+        let output = DockArea::new(id).native_windows(false).float_bounds(bounds).locked(workspace.locked).show_content(
+            ui,
+            &workspace.layout,
+            &config,
+            &mut content,
+        );
         actions = output.actions;
         requested = content.requested;
     });
