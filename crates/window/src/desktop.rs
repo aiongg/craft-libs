@@ -69,6 +69,7 @@ const TILING: &[&str] = &["sway", "hyprland", "i3", "niri", "river", "bspwm", "a
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", test))]
 /// The desktop kind from the first of its variables that is set (`XDG_CURRENT_DESKTOP`,
 /// `XDG_SESSION_DESKTOP`, `DESKTOP_SESSION`). `ubuntu:GNOME` and `Budgie:GNOME` count as GNOME.
+/// craft-platform's `is_gnome_session` (appearance.rs) repeats these rules; change both together.
 pub(crate) fn kind_from_env(var: &dyn Fn(&str) -> Option<String>) -> DesktopKind {
     // A compositor's own socket variable names it even when the desktop variables are missing.
     if ["SWAYSOCK", "I3SOCK", "HYPRLAND_INSTANCE_SIGNATURE", "NIRI_SOCKET"].iter().any(|k| var(k).is_some_and(|v| !v.is_empty())) {

@@ -238,7 +238,7 @@ impl Watcher {
         wake: impl Fn() + Send + Sync + 'static,
         source: impl FnOnce(Arc<Shared>) -> F + Send + 'static,
     ) -> Option<Self> {
-        let gnome = is_gnome(std::env::var("XDG_CURRENT_DESKTOP").ok().as_deref());
+        let gnome = is_gnome_session(&|k| std::env::var(k).ok());
         let shared = Arc::new(Shared {
             value: AtomicU8::new(0),
             contrast: AtomicU8::new(0),
@@ -308,10 +308,23 @@ fn media_matches(query: &str) -> Option<bool> {
     (list.media() != "not all").then(|| list.matches())
 }
 
-/// Whether a colon-separated `XDG_CURRENT_DESKTOP` value names GNOME.
+/// Whether the session is GNOME, by the same rules as `kind_from_env` in craft-window's
+/// `desktop.rs` (the crates don't depend on each other, so change both together): a compositor
+/// socket or a tiling entry means no; otherwise the first set of `XDG_CURRENT_DESKTOP`,
+/// `XDG_SESSION_DESKTOP`, `DESKTOP_SESSION` decides by containing "gnome"; with none set,
+/// `KDE_FULL_SESSION` means no and `GNOME_DESKTOP_SESSION_ID` means yes.
 #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
-fn is_gnome(desktop: Option<&str>) -> bool {
-    desktop.is_some_and(|list| list.split(':').any(|name| name.eq_ignore_ascii_case("gnome")))
+fn is_gnome_session(var: &dyn Fn(&str) -> Option<String>) -> bool {
+    const TILING: &[&str] =
+        &["sway", "hyprland", "i3", "niri", "river", "bspwm", "awesome", "dwl", "qtile", "herbstluftwm", "leftwm", "xmonad", "dwm"];
+    if ["SWAYSOCK", "I3SOCK", "HYPRLAND_INSTANCE_SIGNATURE", "NIRI_SOCKET"].iter().any(|k| var(k).is_some_and(|v| !v.is_empty())) {
+        return false;
+    }
+    for key in ["XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "DESKTOP_SESSION"] {
+        let Some(v) = var(key).map(|v| v.to_ascii_lowercase()).filter(|v| !v.trim().is_empty()) else { continue };
+        return !v.split(':').map(str::trim).any(|entry| TILING.contains(&entry)) && v.contains("gnome");
+    }
+    var("KDE_FULL_SESSION").is_none() && var("GNOME_DESKTOP_SESSION_ID").is_some()
 }
 
 #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
@@ -791,7 +804,7 @@ mod portal {
         }
 
         use super::{GNOME, STANDARD, combined, decode, reply};
-        use crate::appearance::is_gnome;
+        use crate::appearance::is_gnome_session;
         use crate::appearance::{Contrast, Theme, Watcher};
         use std::{
             sync::{Arc, atomic::Ordering},
@@ -832,12 +845,21 @@ mod portal {
                 assert_eq!(decode(STANDARD, &Value::U32(1), gnome), Some(Some(Theme::Dark)));
                 assert_eq!(decode(STANDARD, &Value::U32(2), gnome), Some(Some(Theme::Light)));
             }
-            assert!(is_gnome(Some("GNOME")));
-            assert!(is_gnome(Some("ubuntu:GNOME")));
-            assert!(is_gnome(Some("gnome-classic:gnome")));
-            assert!(!is_gnome(Some("KDE")));
-            assert!(!is_gnome(Some("X-Cinnamon")));
-            assert!(!is_gnome(None));
+            let gnome = |pairs: &[(&str, &str)]| {
+                let pairs: Vec<(String, String)> = pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+                is_gnome_session(&move |k| pairs.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone()))
+            };
+            assert!(gnome(&[("XDG_CURRENT_DESKTOP", "ubuntu:GNOME")]));
+            assert!(gnome(&[("XDG_CURRENT_DESKTOP", "Budgie:GNOME")]));
+            assert!(gnome(&[("XDG_CURRENT_DESKTOP", "GNOME-Flashback:GNOME")]));
+            assert!(gnome(&[("XDG_CURRENT_DESKTOP", " "), ("XDG_SESSION_DESKTOP", "gnome")]));
+            assert!(gnome(&[("GNOME_DESKTOP_SESSION_ID", "x")]));
+            assert!(!gnome(&[("XDG_CURRENT_DESKTOP", "KDE")]));
+            assert!(!gnome(&[("XDG_CURRENT_DESKTOP", "X-Cinnamon"), ("GNOME_DESKTOP_SESSION_ID", "x")]));
+            assert!(!gnome(&[("KDE_FULL_SESSION", "true"), ("GNOME_DESKTOP_SESSION_ID", "x")]));
+            assert!(!gnome(&[("XDG_CURRENT_DESKTOP", "i3:GNOME-Flashback")]));
+            assert!(!gnome(&[("SWAYSOCK", "/run/sway.sock"), ("XDG_CURRENT_DESKTOP", "GNOME")]));
+            assert!(!gnome(&[]));
         }
         fn spawn_idle(source: impl FnOnce(Arc<crate::appearance::Shared>) + Send + 'static) -> Result<Watcher, &'static str> {
             Watcher::spawn(false, || {}, move |shared| async move { source(shared) }).ok_or("worker creation failed")
