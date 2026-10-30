@@ -162,8 +162,9 @@ impl<'a> Toolbar<'a> {
         self
     }
 
-    /// The exclusive mode: the item at this index, counted across groups, has the toggled look and
-    /// every other item is plain and not toggled. `None` (the default) leaves items plain.
+    /// The exclusive mode: the item at `(group, item)`, both indices counted from 0 within the
+    /// groups added with [`group`](Self::group) (empty groups are not kept), has the toggled look
+    /// and every other item is plain and not toggled. `None` (the default) leaves items plain.
     pub fn selected(mut self, selected: Option<(usize, usize)>) -> Self {
         self.selected = selected;
         self
