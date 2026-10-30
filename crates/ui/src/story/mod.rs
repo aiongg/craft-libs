@@ -280,6 +280,7 @@ register! {
     crate::canvas::rulers,
     crate::canvas::transform_box,
     crate::canvas::perspective_crop,
+    crate::canvas::crop_frame::story,
     crate::canvas::ref_point,
     crate::canvas::bezier::story,
     crate::canvas::warp::story,

@@ -16,6 +16,8 @@ use crate::primitives::{FocusRing, Handle, HandleShape};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 mod geometry;
+pub(crate) mod story;
+mod straighten;
 
 pub use geometry::CropBox;
 use geometry::{Hit, direction, drawn, handle_part, hit, normalized_angle, part_handle, resized_turned, turn, turned_angle, within};
@@ -80,6 +82,12 @@ pub struct CropStyle {
     pub focus_halo: Stroke,
     /// From the frame line to the focus line: the focus ring's offset.
     pub focus_offset: f32,
+    /// The Straighten line: `crop.straighten_line` of `overlay.stroke`.
+    pub straighten: Stroke,
+    /// Under the Straighten line: `crop.straighten_halo` of `overlay.halo`.
+    pub straighten_halo: Stroke,
+    /// The shortest Straighten line, in screen points: `crop.straighten_min`.
+    pub straighten_min: f32,
 }
 
 /// What [`CropFrame::show`] reports.
@@ -112,6 +120,11 @@ pub struct CropResponse {
     pub turning: Option<f64>,
     /// The size Enter would crop to while the frame is drawn or resized.
     pub sizing: Option<(f64, f64)>,
+    /// The angle a released Straighten line gives ([`CropFrame::straighten`]): the frame angle
+    /// that levels the line, or plumbs it when it is nearer vertical. The host applies it, with
+    /// [`CropBox::fitted`], as one box step, and disarms Straighten. The drag itself sends no
+    /// edit event.
+    pub straightened: Option<f64>,
 }
 
 /// The host's snapping of a dragged point ([`CropFrame::snap`]).
@@ -215,6 +228,7 @@ pub struct CropFrame<'a> {
     turn_step: f64,
     snap: Option<Snap<'a>>,
     readout: Option<CropLabels>,
+    straighten: bool,
     bounds: Option<Rect>,
     units: Option<(&'a RulerUnits, &'a RulerUnits)>,
     value: Option<String>,
@@ -236,6 +250,7 @@ impl<'a> CropFrame<'a> {
             turn_step: 15.0,
             snap: None,
             readout: None,
+            straighten: false,
             bounds: None,
             units: None,
             value: None,
@@ -293,6 +308,16 @@ impl<'a> CropFrame<'a> {
         self
     }
 
+    /// Straighten is armed (the options bar's button for one line, or ⌘ held; the host reads the
+    /// modifiers and resets the one-shot): a drag on the canvas draws a line instead of a frame
+    /// gesture, and its release gives [`CropResponse::straightened`] when the line is at least
+    /// `crop.straighten_min` screen points long. The pointer is a crosshair; with a
+    /// [readout](Self::readout) the line's angle shows beside it.
+    pub fn straighten(mut self, armed: bool) -> Self {
+        self.straighten = armed;
+        self
+    }
+
     /// The area the frame may not leave; none by default (PhotoCraft lets it leave the canvas).
     /// An unturned frame is cut to it; a turned frame stops where its bounds would leave.
     pub fn bounds(mut self, bounds: Rect) -> Self {
@@ -343,6 +368,9 @@ impl<'a> CropFrame<'a> {
             focus: ring.stroke,
             focus_halo: Stroke::new(ring.stroke.width + 2.0 * handle_halo, o.halo.to_egui()),
             focus_offset: ring.offset,
+            straighten: Stroke::new(c.straighten_line, o.stroke.to_egui()),
+            straighten_halo: Stroke::new(c.straighten_halo, o.halo.to_egui()),
+            straighten_min: c.straighten_min,
         }
     }
 
@@ -368,6 +396,7 @@ impl<'a> CropFrame<'a> {
             dragging: false,
             turning: None,
             sizing: None,
+            straightened: None,
         };
         if !self.state.is_finite() {
             return out;
@@ -391,7 +420,9 @@ impl<'a> CropFrame<'a> {
                 Turn::Now => drag = None,
             }
         }
-        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) {
+        let line = self.straighten_pass(ui, canvas, view, &style, id, drag.is_some());
+        out.straightened = line.straightened;
+        if drag.is_none() && !line.claimed && !self.straighten && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) {
             drag = self.press(ui, canvas, view, &style, id);
             if let Some(d) = drag {
                 picked = match d.kind {
@@ -447,7 +478,7 @@ impl<'a> CropFrame<'a> {
         if drag.is_none_or(|d| d.cancelled) {
             // The pick is the keyboard's: without the focus the arrows move the whole frame (PC).
             let enter_ok = focus.focused || ctx.memory(|m| m.focused()).is_none_or(|f| f == canvas.id);
-            self.keys(ui, drag.is_none(), enter_ok, picked.filter(|_| focus.focused), &mut gesture, &mut out);
+            self.keys(ui, drag.is_none() && !line.claimed, enter_ok, picked.filter(|_| focus.focused), &mut gesture, &mut out);
         }
 
         let dragging = drag.filter(|d| d.began && !d.cancelled);
@@ -463,6 +494,8 @@ impl<'a> CropFrame<'a> {
                 Kind::Draw { .. } | Kind::Resize { .. } => out.sizing = shown.crop_size(),
                 Kind::Move => {}
             }
+        } else if self.straighten && drag.is_none() && !other && canvas.hover_pos().is_some() {
+            ctx.set_cursor_icon(CursorIcon::Crosshair);
         } else if drag.is_none()
             && !other
             && let Some(pointer) = canvas.hover_pos()
