@@ -7,6 +7,7 @@ use egui::os::OperatingSystem;
 use egui::text::LayoutJob;
 use egui::{Color32, Key, KeyboardShortcut, ModifierNames, Modifiers, Rect, Response, Sense, Ui, Vec2, Widget, WidgetInfo, pos2, vec2};
 
+use crate::localized::{Word, Words};
 use crate::primitives::{Content, Surface, SurfaceKind, SurfaceStyle};
 use crate::story::NoArgs;
 use crate::story::{Level, Story, variant_cluster, variant_list};
@@ -98,16 +99,26 @@ impl Kbd {
     /// The keys of `shortcut` for `os`, modifiers first in the platform's order: Apple's ⌃⌥⇧⌘ on
     /// macOS, Ctrl, Alt, Shift elsewhere.
     pub fn parts(shortcut: &KeyboardShortcut, os: OperatingSystem) -> Vec<String> {
+        Kbd::parts_in(shortcut, os, &Words::english())
+    }
+
+    /// [`parts`](Kbd::parts) with the names of the arrow and page keys in the language of `words`.
+    pub fn parts_in(shortcut: &KeyboardShortcut, os: OperatingSystem, words: &Words) -> Vec<String> {
         let mac = is_mac(os);
         let mut out = modifier_names(&shortcut.modifiers, mac, if mac { &ModifierNames::SYMBOLS } else { &ModifierNames::NAMES });
-        out.push(key_name(shortcut.logical_key, mac));
+        out.push(key_name(shortcut.logical_key, mac, words));
         out
     }
 
     /// The chord as one line for `os`: a shortcut's macOS symbols with no separator, its names
     /// elsewhere and caller-named keys everywhere joined with `+`.
     pub fn text(&self, os: OperatingSystem) -> String {
-        let keys = self.keys_for(os);
+        self.text_in(os, &Words::english())
+    }
+
+    /// [`text`](Kbd::text) with the names of the arrow and page keys in the language of `words`.
+    pub fn text_in(&self, os: OperatingSystem, words: &Words) -> String {
+        let keys = self.keys_for(os, words);
         let symbols = matches!(self.chord, Chord::Shortcut(_)) && is_mac(os);
         keys.join(if symbols { "" } else { "+" })
     }
@@ -130,9 +141,9 @@ impl Kbd {
         self.os.unwrap_or_else(|| ctx.os())
     }
 
-    fn keys_for(&self, os: OperatingSystem) -> Vec<String> {
+    fn keys_for(&self, os: OperatingSystem, words: &Words) -> Vec<String> {
         match &self.chord {
-            Chord::Shortcut(shortcut) => Kbd::parts(shortcut, os),
+            Chord::Shortcut(shortcut) => Kbd::parts_in(shortcut, os, words),
             Chord::Keys(keys) => keys.clone(),
         }
     }
@@ -153,9 +164,22 @@ pub(crate) fn is_mac(os: OperatingSystem) -> bool {
     matches!(os, OperatingSystem::Mac | OperatingSystem::IOS)
 }
 
+/// The key-cap words, looked up in the catalog's `key` context. The float hint's `Ctrl` and `⌘`
+/// are in the same context.
+pub(crate) const KEY_WORDS: &[Word] = &[
+    Word::in_context("key", "Up"),
+    Word::in_context("key", "Down"),
+    Word::in_context("key", "Left"),
+    Word::in_context("key", "Right"),
+    Word::in_context("key", "Page Up"),
+    Word::in_context("key", "Page Down"),
+    Word::in_context("key", "Ctrl"),
+    Word::in_context("key", "⌘"),
+];
+
 /// The key as the suite writes it (craft-keymap's `Chord::display`): arrows and editing keys as
 /// Apple's glyphs on a Mac, names elsewhere, punctuation as the character it types.
-fn key_name(key: Key, mac: bool) -> String {
+fn key_name(key: Key, mac: bool, words: &Words) -> String {
     if mac {
         let glyph = match key {
             Key::ArrowUp => "↑",
@@ -173,13 +197,19 @@ fn key_name(key: Key, mac: bool) -> String {
             return glyph.to_owned();
         }
     }
+    let worded = match key {
+        Key::ArrowUp => Some(KEY_WORDS[0]),
+        Key::ArrowDown => Some(KEY_WORDS[1]),
+        Key::ArrowLeft => Some(KEY_WORDS[2]),
+        Key::ArrowRight => Some(KEY_WORDS[3]),
+        Key::PageUp => Some(KEY_WORDS[4]),
+        Key::PageDown => Some(KEY_WORDS[5]),
+        _ => None,
+    };
+    if let Some(word) = worded {
+        return words.get(word).into_owned();
+    }
     let name = match key {
-        Key::ArrowUp => "Up",
-        Key::ArrowDown => "Down",
-        Key::ArrowLeft => "Left",
-        Key::ArrowRight => "Right",
-        Key::PageUp => "Page Up",
-        Key::PageDown => "Page Down",
         Key::Minus => "-",
         Key::Plus => "+",
         Key::Equals => "=",
@@ -208,7 +238,8 @@ impl Widget for Kbd {
         let tokens = Tokens::of(ui);
         let style = Kbd::style(&tokens);
         let os = self.os.unwrap_or_else(|| ui.ctx().os());
-        let keys = self.keys_for(os);
+        let words = Words::of(ui);
+        let keys = self.keys_for(os, &words);
         let color = if self.keycaps { style.text } else { self.content.color(&tokens).to_egui() };
         let format = role_format(&tokens, style.label, color);
         let layout = |text: String| ui.painter().layout_job(LayoutJob::single_section(text, format.clone()));
@@ -229,7 +260,7 @@ impl Widget for Kbd {
             let width = boxes.last().map_or(0.0, |(_, r)| r.max.x);
             (boxes, vec2(width, style.height))
         } else {
-            let galley = layout(self.text(os));
+            let galley = layout(self.text_in(os, &words));
             let size = galley.size();
             (vec![(galley, Rect::from_min_size(pos2(0.0, 0.0), size))], size)
         };

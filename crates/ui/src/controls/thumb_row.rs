@@ -13,6 +13,7 @@ use egui::{
 use super::slider::{self, KEY_FILTER, PressTurn, Scale, Sensing, Track, pointer, press_turn, stepped, tap};
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
+use crate::localized::{Labels as _, Words};
 use crate::primitives::{FocusRing, Interactive, StateLayer};
 use crate::primitives::{Gap, Stack};
 use crate::story::{Level, Story, StoryArgs};
@@ -71,23 +72,39 @@ pub struct ThumbRowStyle {
     pub high_label: String,
 }
 
+crate::words! {
+    /// The accessible names of a split thumb's halves; `{name}` is the thumb's label.
+    pub struct ThumbRowLabels {
+        low: "thumbRow.low" = "{name} low";
+        high: "thumbRow.high" = "{name} high";
+    }
+}
+
 impl ThumbRowStyle {
-    /// Replace the half labels with `translate(key)`, keeping the English default where it
-    /// returns `None`. Keys: `thumbRow.low` ("{name} low") and `thumbRow.high` ("{name} high"),
-    /// with `{name}` standing for the thumb's label.
+    /// Replace the half labels with `translate(key)`, keeping the current text where it returns
+    /// `None`. Keys: `thumbRow.low` ("{name} low") and `thumbRow.high` ("{name} high"), with
+    /// `{name}` standing for the thumb's label.
     #[must_use]
     pub fn localized(mut self, translate: impl Fn(&str) -> Option<String>) -> Self {
-        for (key, label) in [("thumbRow.low", &mut self.low_label), ("thumbRow.high", &mut self.high_label)] {
-            if let Some(text) = translate(key) {
-                *label = text;
-            }
-        }
+        let halves = ThumbRowLabels { low: self.low_label, high: self.high_label }.localized(translate);
+        self.low_label = halves.low;
+        self.high_label = halves.high;
+        self
+    }
+
+    /// The half labels in the words installed in `ui`'s context.
+    #[must_use]
+    pub fn localized_in(mut self, words: &Words) -> Self {
+        let halves = ThumbRowLabels::english().localized_in(words);
+        self.low_label = halves.low;
+        self.high_label = halves.high;
         self
     }
 
     /// The default names of a split thumb's halves.
     pub(crate) fn half_labels() -> (String, String) {
-        ("{name} low".to_owned(), "{name} high".to_owned())
+        let halves = ThumbRowLabels::english();
+        (halves.low, halves.high)
     }
 
     /// How far a thumb's centre stays inside each end of the row: half a thumb, so the triangles

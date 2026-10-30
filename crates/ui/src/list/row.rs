@@ -1,5 +1,6 @@
 //! [`ListRow`]: one row of a list.
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use craft_theme::{Stroke as Hairline, ThumbSizes, TypeRole};
@@ -13,6 +14,7 @@ use super::tree::{self, Branch, OpenChange, TreeText};
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::{self, Icon, IconSize};
+use crate::localized::{Labels, Word, Words};
 use crate::primitives::{FocusRing, Interactive};
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
@@ -38,15 +40,36 @@ impl ThumbSize {
     /// Every setting.
     pub const ALL: [ThumbSize; 4] = [ThumbSize::None, ThumbSize::Small, ThumbSize::Medium, ThumbSize::Large];
 
-    /// The setting's name, for settings and stories.
+    /// The setting's English name, for settings and stories.
     pub const fn name(self) -> &'static str {
-        match self {
-            ThumbSize::None => "None",
-            ThumbSize::Small => "Small",
-            ThumbSize::Medium => "Medium",
-            ThumbSize::Large => "Large",
-            ThumbSize::Px(_) => "Custom",
-        }
+        self.word().english
+    }
+
+    /// The setting's name in the language of `words`.
+    pub fn label(self, words: &Words) -> Cow<'static, str> {
+        words.get(self.word())
+    }
+
+    const fn word(self) -> Word {
+        let index = match self {
+            ThumbSize::None => 0,
+            ThumbSize::Small => 1,
+            ThumbSize::Medium => 2,
+            ThumbSize::Large => 3,
+            ThumbSize::Px(_) => 4,
+        };
+        <ThumbSizeLabels as Labels>::WORDS[index]
+    }
+}
+
+crate::words! {
+    /// The names of the [`ThumbSize`] settings.
+    pub struct ThumbSizeLabels {
+        none: "list.thumbNone" = "None";
+        small: "list.thumbSmall" = "Small";
+        medium: "list.thumbMedium" = "Medium";
+        large: "list.thumbLarge" = "Large";
+        custom: "list.thumbCustom" = "Custom";
     }
 }
 

@@ -1,6 +1,7 @@
 //! One keyed hook for every label in [`DockConfig`].
 
 use super::{DockConfig, DockStyle};
+use crate::localized::{Labels, Word, Words};
 
 impl DockConfig {
     /// Replace every `*_label` field with `translate(key)`, keeping the English default where it
@@ -48,44 +49,90 @@ impl DockConfig {
     /// | `dock.panelMenu` | `panel_menu_label` | Panel Menu |
     #[must_use]
     pub fn localized(mut self, translate: impl Fn(&str) -> Option<String>) -> Self {
-        for (key, label) in self.labels_mut() {
-            if let Some(text) = translate(key) {
+        for (word, label) in WORDS.iter().zip(self.labels_mut()) {
+            if let Some(text) = translate(word.key()) {
                 *label = text;
             }
         }
         self
     }
 
-    fn labels_mut(&mut self) -> [(&'static str, &mut String); 27] {
+    fn labels_mut(&mut self) -> [&mut String; 27] {
         [
-            ("dock.float", &mut self.float_label),
-            ("dock.close", &mut self.close_label),
-            ("dock.movePanelTo", &mut self.move_panel_to_label),
-            ("dock.panels", &mut self.panels_label),
-            ("dock.resize", &mut self.resize_label),
-            ("dock.resizeWindow", &mut self.resize_window_label),
-            ("dock.moveGroup", &mut self.move_group_label),
-            ("dock.closeGroup", &mut self.close_group_label),
-            ("dock.minimize", &mut self.minimize_label),
-            ("dock.expand", &mut self.expand_label),
-            ("dock.floatGroup", &mut self.float_group_label),
-            ("dock.moveGroupUp", &mut self.move_group_up_label),
-            ("dock.moveGroupDown", &mut self.move_group_down_label),
-            ("dock.moveGroupTo", &mut self.move_group_to_label),
-            ("dock.moveColumn", &mut self.move_column_label),
-            ("dock.collapseToIcons", &mut self.collapse_to_icons_label),
-            ("dock.expandPanels", &mut self.expand_panels_label),
-            ("dock.collapseColumn", &mut self.collapse_column_label),
-            ("dock.expandColumn", &mut self.expand_column_label),
-            ("dock.moveWindow", &mut self.move_window_label),
-            ("dock.closeWindow", &mut self.close_window_label),
-            ("dock.closeOthers", &mut self.close_others_label),
-            ("dock.maximize", &mut self.maximize_label),
-            ("dock.restoreFrame", &mut self.restore_frame_label),
-            ("dock.autoCollapse", &mut self.auto_collapse_label),
-            ("dock.floatHint", &mut self.float_hint_label),
-            ("dock.panelMenu", &mut self.panel_menu_label),
+            &mut self.float_label,
+            &mut self.close_label,
+            &mut self.move_panel_to_label,
+            &mut self.panels_label,
+            &mut self.resize_label,
+            &mut self.resize_window_label,
+            &mut self.move_group_label,
+            &mut self.close_group_label,
+            &mut self.minimize_label,
+            &mut self.expand_label,
+            &mut self.float_group_label,
+            &mut self.move_group_up_label,
+            &mut self.move_group_down_label,
+            &mut self.move_group_to_label,
+            &mut self.move_column_label,
+            &mut self.collapse_to_icons_label,
+            &mut self.expand_panels_label,
+            &mut self.collapse_column_label,
+            &mut self.expand_column_label,
+            &mut self.move_window_label,
+            &mut self.close_window_label,
+            &mut self.close_others_label,
+            &mut self.maximize_label,
+            &mut self.restore_frame_label,
+            &mut self.auto_collapse_label,
+            &mut self.float_hint_label,
+            &mut self.panel_menu_label,
         ]
+    }
+}
+
+/// One word per label field, in the order of [`DockConfig::labels_mut`].
+const WORDS: [Word; 27] = [
+    Word::keyed("dock.float", "Float Panel"),
+    Word::keyed("dock.close", "Close Panel"),
+    Word::keyed("dock.movePanelTo", "Move Panel to Group"),
+    Word::keyed("dock.panels", "Panels"),
+    Word::keyed("dock.resize", "Resize panels"),
+    Word::keyed("dock.resizeWindow", "Resize panel window"),
+    Word::keyed("dock.moveGroup", "Move tab group"),
+    Word::keyed("dock.closeGroup", "Close Tab Group"),
+    Word::keyed("dock.minimize", "Minimize"),
+    Word::keyed("dock.expand", "Expand"),
+    Word::keyed("dock.floatGroup", "Float Tab Group"),
+    Word::keyed("dock.moveGroupUp", "Move Group Up"),
+    Word::keyed("dock.moveGroupDown", "Move Group Down"),
+    Word::keyed("dock.moveGroupTo", "Move Group To"),
+    Word::keyed("dock.moveColumn", "Move panel column"),
+    Word::keyed("dock.collapseToIcons", "Collapse to Icons"),
+    Word::keyed("dock.expandPanels", "Expand Panels"),
+    Word::keyed("dock.collapseColumn", "Collapse column to icons"),
+    Word::keyed("dock.expandColumn", "Expand column"),
+    Word::keyed("dock.moveWindow", "Move panel window"),
+    Word::keyed("dock.closeWindow", "Close panel window"),
+    Word::keyed("dock.closeOthers", "Close Other Panels in Group"),
+    Word::keyed("dock.maximize", "Maximize Frame"),
+    Word::keyed("dock.restoreFrame", "Restore Frame Size"),
+    Word::keyed("dock.autoCollapse", "Auto-Collapse Iconic Panels"),
+    Word::keyed("dock.floatHint", "Hold {key} to undock"),
+    Word::keyed("dock.panelMenu", "Panel Menu"),
+];
+
+impl Labels for DockConfig {
+    const WORDS: &'static [Word] = &WORDS;
+
+    fn english() -> Self {
+        Self::default()
+    }
+
+    fn localized_in(mut self, words: &Words) -> Self {
+        for (word, label) in WORDS.iter().zip(self.labels_mut()) {
+            *label = words.get(*word).into_owned();
+        }
+        self
     }
 }
 

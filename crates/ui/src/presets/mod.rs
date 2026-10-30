@@ -86,7 +86,7 @@ pub struct PresetBrowser<'a, K> {
     thumb_range: RangeInclusive<f32>,
     default_open: DefaultOpen,
     reorder: Option<PresetReorder<'a, K>>,
-    labels: Rc<PresetLabels>,
+    labels: Option<Rc<PresetLabels>>,
     can_rename: Option<KeyTest<'a, K>>,
     can_delete: Option<KeyTest<'a, K>>,
     can_move: Option<KeyTest<'a, K>>,
@@ -112,7 +112,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
             thumb_range: 16.0..=96.0,
             default_open: DefaultOpen::All,
             reorder: None,
-            labels: Rc::new(PresetLabels::default()),
+            labels: None,
             can_rename: None,
             can_delete: None,
             can_move: None,
@@ -164,7 +164,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
 
     /// The browser's words (default English).
     pub fn labels(mut self, labels: PresetLabels) -> Self {
-        self.labels = Rc::new(labels);
+        self.labels = Some(Rc::new(labels));
         self
     }
 
@@ -229,7 +229,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
     pub fn show(mut self, ui: &mut Ui, thumb: impl FnMut(&Painter, Rect, ThumbInfo<'_, K>)) -> PresetOutput<K> {
         let id = ui.make_persistent_id(self.id_salt);
         let rows = self.rows;
-        let labels = Rc::clone(&self.labels);
+        let labels = self.labels.clone().unwrap_or_else(|| Rc::new(<PresetLabels as crate::localized::Labels>::of(ui)));
         let (can_rename, can_delete, can_move) = (self.can_rename.clone(), self.can_delete.clone(), self.can_move.clone());
         let extras = std::mem::take(&mut self.extra_items);
         if self.toolbar {

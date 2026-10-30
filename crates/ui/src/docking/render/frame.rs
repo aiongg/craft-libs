@@ -10,6 +10,7 @@ use crate::docking::{
     Action, Column, DockContent, DockEvent, Floating, Group, HidePanels, Layout, Node, Placement, Target, Zone,
     dock_model::{Place, node_at, tree_panels},
 };
+use crate::localized::{Word, Words};
 use crate::theme::StrokeExt;
 
 /// How far below the pointer the float hint sits, clear of the cursor.
@@ -294,9 +295,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if !self.config.float_hint || self.config.float_hint_label.is_empty() {
             return;
         }
-        let key = if ctx.os() == egui::os::OperatingSystem::Mac { "⌘" } else { "Ctrl" };
+        let modifier = if ctx.os() == egui::os::OperatingSystem::Mac { Word::in_context("key", "⌘") } else { Word::in_context("key", "Ctrl") };
+        let key = Words::of_ctx(ctx).get(modifier);
         let painter = self.preview_painter(ctx);
-        let galley = painter.layout_no_wrap(self.config.float_hint_label.replace("{key}", key), self.look.font.clone(), self.look.text);
+        let galley = painter.layout_no_wrap(self.config.float_hint_label.replace("{key}", &key), self.look.font.clone(), self.look.text);
         let rect = Rect::from_center_size(pointer + vec2(0.0, HINT_OFFSET), galley.size() + vec2(2.0 * self.look.pad, self.look.pad));
         let rect = crate::docking::chrome::clamp(rect, self.float_bounds);
         painter.rect(

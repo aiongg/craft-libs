@@ -120,7 +120,7 @@ pub use spinner::Spinner;
 pub use swatch::{Swatch, SwatchStyle, checkerboard};
 pub use switch::{Switch, SwitchStyle};
 pub use text_field::{SearchField, TextField, TextFieldStyle};
-pub use thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowOutput, ThumbRowStyle};
+pub use thumb_row::{Follow, Order, Thumb, ThumbRow, ThumbRowLabels, ThumbRowOutput, ThumbRowStyle};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
 pub use tooltip::{Tooltip, TooltipExt, TooltipStyle};
 

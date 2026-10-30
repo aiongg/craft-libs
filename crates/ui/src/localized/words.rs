@@ -115,7 +115,7 @@ impl Words {
         Words::of_ctx(ui.ctx())
     }
 
-    /// [`Words::of`] for code that has a context and no `Ui` yet (a modal's area).
+    /// [`Words::of`] for code that has a context and no `Ui` (a modal's area, a painter's overlay).
     pub fn of_ctx(ctx: &Context) -> Arc<Words> {
         static ENGLISH: LazyLock<Arc<Words>> = LazyLock::new(|| Arc::new(Words::english()));
         let installed = ctx.plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());

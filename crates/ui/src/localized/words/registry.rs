@@ -15,4 +15,13 @@ pub(super) const TABLES: &[&[Word]] = &[
     <crate::panes::PaneLabels as Labels>::WORDS,
     <crate::composites::panel_header::PanelHeaderLabels as Labels>::WORDS,
     <crate::composites::toast::ToastLabels as Labels>::WORDS,
+    <crate::docking::DockConfig as Labels>::WORDS,
+    <crate::presets::PresetLabels as Labels>::WORDS,
+    <crate::list::TreeText as Labels>::WORDS,
+    #[cfg(feature = "window-frame")]
+    <crate::title_bar::CaptionLabels as Labels>::WORDS,
+    <crate::controls::ThumbRowLabels as Labels>::WORDS,
+    <crate::list::ThumbSizeLabels as Labels>::WORDS,
+    <crate::canvas::RefPointLabels as Labels>::WORDS,
+    crate::controls::kbd::KEY_WORDS,
 ];

@@ -28,29 +28,19 @@ pub struct OpenChange<K> {
     pub all: bool,
 }
 
-/// The words of a tree's disclosure triangle, for a host to translate. Each is a whole pattern,
-/// so a language puts the row where its grammar wants it: `{row}` stands for the row's label.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TreeText {
-    /// The name of a closed group's triangle for a screen reader: "Expand {row}".
-    pub expand: String,
-    /// The name of an open group's triangle: "Collapse {row}".
-    pub collapse: String,
-    /// The tooltip of a closed group's triangle, with what Alt does (PhotoCraft):
-    /// "Expand  (Alt-click: all groups)".
-    pub expand_tip: String,
-    /// The tooltip of an open group's triangle: "Collapse  (Alt-click: all groups)".
-    pub collapse_tip: String,
-}
-
-impl Default for TreeText {
-    fn default() -> Self {
-        Self {
-            expand: "Expand {row}".to_owned(),
-            collapse: "Collapse {row}".to_owned(),
-            expand_tip: "Expand  (Alt-click: all groups)".to_owned(),
-            collapse_tip: "Collapse  (Alt-click: all groups)".to_owned(),
-        }
+crate::words! {
+    /// The words of a tree's disclosure triangle, for a host to translate. Each is a whole pattern,
+    /// so a language puts the row where its grammar wants it: `{row}` stands for the row's label.
+    pub struct TreeText {
+        /// The name of a closed group's triangle for a screen reader: "Expand {row}".
+        expand: "preset.expand" = "Expand {row}";
+        /// The name of an open group's triangle: "Collapse {row}".
+        collapse: "preset.collapse" = "Collapse {row}";
+        /// The tooltip of a closed group's triangle, with what Alt does (PhotoCraft):
+        /// "Expand  (Alt-click: all groups)".
+        expand_tip: "preset.expandTip" = "Expand  (Alt-click: all groups)";
+        /// The tooltip of an open group's triangle: "Collapse  (Alt-click: all groups)".
+        collapse_tip: "preset.collapseTip" = "Collapse  (Alt-click: all groups)";
     }
 }
 

@@ -1,6 +1,7 @@
 //! Behaviour and labels of a dock area, apart from how it looks ([`super::DockLook`]).
 
 use super::{Sides, ZoneRule};
+use crate::localized::{Labels as _, Words};
 
 /// Behaviour and labels of a [`super::DockArea`]. Body renderers retain their own UI style and
 /// contents.
@@ -145,21 +146,21 @@ impl Default for DockConfig {
     fn default() -> Self {
         Self {
             min_pane: 40.0,
-            float_label: "Float Panel".into(),
-            close_label: "Close Panel".into(),
-            move_panel_to_label: "Move Panel to Group".into(),
-            panels_label: "Panels".into(),
-            resize_label: "Resize panels".into(),
-            resize_window_label: "Resize panel window".into(),
-            move_group_label: "Move tab group".into(),
-            close_group_label: "Close Tab Group".into(),
-            panel_menu_label: "Panel Menu".into(),
-            minimize_label: "Minimize".into(),
-            expand_label: "Expand".into(),
-            float_group_label: "Float Tab Group".into(),
-            move_group_up_label: "Move Group Up".into(),
-            move_group_down_label: "Move Group Down".into(),
-            move_group_to_label: "Move Group To".into(),
+            float_label: String::new(),
+            close_label: String::new(),
+            move_panel_to_label: String::new(),
+            panels_label: String::new(),
+            resize_label: String::new(),
+            resize_window_label: String::new(),
+            move_group_label: String::new(),
+            close_group_label: String::new(),
+            panel_menu_label: String::new(),
+            minimize_label: String::new(),
+            expand_label: String::new(),
+            float_group_label: String::new(),
+            move_group_up_label: String::new(),
+            move_group_down_label: String::new(),
+            move_group_to_label: String::new(),
             drag_bar_width: 40.0,
             min_tab_width: None,
             edge_band: 28.0,
@@ -173,21 +174,21 @@ impl Default for DockConfig {
             new_dock_band: 28.0,
             iconic_max_width: 240.0,
             iconic_label_width: 96.0,
-            auto_collapse_label: "Auto-Collapse Iconic Panels".into(),
+            auto_collapse_label: String::new(),
             right_to_left: false,
-            move_column_label: "Move panel column".into(),
-            collapse_to_icons_label: "Collapse to Icons".into(),
-            expand_panels_label: "Expand Panels".into(),
-            collapse_column_label: "Collapse column to icons".into(),
-            expand_column_label: "Expand column".into(),
-            move_window_label: "Move panel window".into(),
-            close_window_label: "Close panel window".into(),
-            close_others_label: "Close Other Panels in Group".into(),
+            move_column_label: String::new(),
+            collapse_to_icons_label: String::new(),
+            expand_panels_label: String::new(),
+            collapse_column_label: String::new(),
+            expand_column_label: String::new(),
+            move_window_label: String::new(),
+            close_window_label: String::new(),
+            close_others_label: String::new(),
             close_others_item: false,
-            maximize_label: "Maximize Frame".into(),
-            restore_frame_label: "Restore Frame Size".into(),
+            maximize_label: String::new(),
+            restore_frame_label: String::new(),
             maximize_item: false,
-            float_hint_label: "Hold {key} to undock".into(),
+            float_hint_label: String::new(),
             float_hint: false,
             command_press_floats: false,
             float_on_empty_drop: true,
@@ -199,6 +200,7 @@ impl Default for DockConfig {
             wheel_selects_tabs: false,
             middle_click_closes_tabs: false,
         }
+        .localized_in(&Words::english())
     }
 }
 

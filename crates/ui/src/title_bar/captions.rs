@@ -10,6 +10,7 @@ use super::resize::start_os_move;
 use super::{TitleBarStyle, WindowState};
 use crate::controls::TooltipExt as _;
 use crate::direction::is_rtl;
+use crate::localized::Labels as _;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
 /// The width of one Windows caption button, as the native ones.
@@ -50,46 +51,18 @@ pub(crate) fn caption_id_in(scope: Id, c: Caption) -> Id {
     scope.with(("caption", c))
 }
 
-/// Tooltips and accessibility labels of the caption buttons.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CaptionLabels {
-    pub minimize: String,
-    pub maximize: String,
-    pub restore: String,
-    pub close: String,
-}
-
-impl Default for CaptionLabels {
-    fn default() -> Self {
-        Self { minimize: "Minimize".into(), maximize: "Maximize".into(), restore: "Restore".into(), close: "Close".into() }
+crate::words! {
+    /// Tooltips and accessibility labels of the caption buttons.
+    pub struct CaptionLabels {
+        minimize: "window.minimize" = "Minimize";
+        maximize: "window.maximize" = "Maximize";
+        restore: "window.restore" = "Restore";
+        close: "window.close" = "Close";
     }
 }
 
 impl CaptionLabels {
-    /// Replace each label with `translate(key)`, keeping the English where it returns `None`.
-    ///
-    /// | Key | English |
-    /// |---|---|
-    /// | `window.minimize` | Minimize |
-    /// | `window.maximize` | Maximize |
-    /// | `window.restore` | Restore |
-    /// | `window.close` | Close |
-    #[must_use]
-    pub fn localized(mut self, translate: impl Fn(&str) -> Option<String>) -> Self {
-        for (key, label) in [
-            ("window.minimize", &mut self.minimize),
-            ("window.maximize", &mut self.maximize),
-            ("window.restore", &mut self.restore),
-            ("window.close", &mut self.close),
-        ] {
-            if let Some(text) = translate(key) {
-                *label = text;
-            }
-        }
-        self
-    }
-
-    fn of(&self, c: Caption, maximized: bool) -> &str {
+    fn label(&self, c: Caption, maximized: bool) -> &str {
         match c {
             Caption::Minimize => &self.minimize,
             Caption::Maximize if maximized => &self.restore,
@@ -296,7 +269,7 @@ impl<'a> CaptionButtons<'a> {
         let preview = self.preview;
         let maximized = preview.map_or_else(|| ctx.input(|i| i.viewport().maximized).unwrap_or(false), |p| p.maximized);
         let active = preview.map_or_else(|| ctx.input(|i| i.viewport().focused) != Some(false), |p| p.active);
-        let english = CaptionLabels::default();
+        let english = CaptionLabels::of(ui);
         let labels = self.labels.unwrap_or(&english);
         let window = if preview.is_some() { bar } else { ctx.content_rect() };
         let scope = self.scope.unwrap_or_else(|| window_scope(ctx.viewport_id()));
@@ -329,7 +302,7 @@ impl<'a> CaptionButtons<'a> {
             };
             paint(ui, family, c, r, centre, look, level, self.style, self.icons);
             if preview.is_none() {
-                let label = labels.of(c, maximized).to_owned();
+                let label = labels.label(c, maximized).to_owned();
                 resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
                 if resp.tooltip(label).clicked() {
                     clicked = Some(c);

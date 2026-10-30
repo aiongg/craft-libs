@@ -109,7 +109,7 @@ pub use perspective_crop::{
     PerspectiveCropNames, PerspectiveCropQuad, PerspectiveCropResponse, PerspectiveCropStyle, PerspectiveHit, PerspectiveQuad,
 };
 pub use readout::{Readout, ReadoutStyle};
-pub use ref_point::{RefSize, ReferencePoint, ReferencePointStyle};
+pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
 pub use transform_box::{RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle};
