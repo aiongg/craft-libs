@@ -13,13 +13,15 @@ use super::row::{ListRow, ListRowStyle, RowEvent};
 use super::toggle::ToggleColumn;
 use super::view::{List, ListEvent};
 use crate::behavior::{Axis, DisplayOrder, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
+use crate::composites::NoArgs;
 use crate::controls::button::Button;
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::Icon;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story};
 use crate::theme::{Tokens, TokensOf as _, corner_radius, role_format};
+use crate::typed_story;
 
 /// A drag of rows under way.
 #[derive(Clone)]
@@ -64,32 +66,32 @@ pub(super) fn paint_ghost(ui: &Ui, list: Id, style: &ListRowStyle, label: &str, 
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        Story::new("composites/list/reorder", Level::Composites, "List", "Reorder", Args::new, show_flat),
-        Story::new("composites/list/reorder-tree", Level::Composites, "List", "Reorder a tree", Args::new, show_tree),
-        Story::new("composites/list/reorder-refused", Level::Composites, "List", "Refused targets", Args::new, show_refused),
-        Story::new("composites/list/reorder-copy", Level::Composites, "List", "Copy with Alt", Args::new, show_copy),
+        typed_story!("composites/list/reorder", Level::Composites, "List", "Reorder", NoArgs {}, show_flat),
+        typed_story!("composites/list/reorder-tree", Level::Composites, "List", "Reorder a tree", NoArgs {}, show_tree),
+        typed_story!("composites/list/reorder-refused", Level::Composites, "List", "Refused targets", NoArgs {}, show_refused),
+        typed_story!("composites/list/reorder-copy", Level::Composites, "List", "Copy with Alt", NoArgs {}, show_copy),
     ]
 }
 
 /// Drag a layer or the selection; the edges scroll; Delete takes a dragged layer. Cmd+] and
 /// Cmd+[ (Ctrl off macOS) move the selection, Shift to the ends.
-pub(super) fn show_flat(ui: &mut Ui, _: &mut Args) {
+pub(super) fn show_flat(ui: &mut Ui, _: &mut NoArgs) {
     show_story(ui, Preset::Flat);
 }
 
 /// Groups take drops into their middle; their triangles and → and ← open and close them.
-pub(super) fn show_tree(ui: &mut Ui, _: &mut Args) {
+pub(super) fn show_tree(ui: &mut Ui, _: &mut NoArgs) {
     show_story(ui, Preset::Tree);
 }
 
 /// Background stays at the bottom; locked layers take no drops beside or into them unless
 /// Cmd/Ctrl is held.
-pub(super) fn show_refused(ui: &mut Ui, _: &mut Args) {
+pub(super) fn show_refused(ui: &mut Ui, _: &mut NoArgs) {
     show_story(ui, Preset::Refused);
 }
 
 /// Alt held while dropping copies the layers, also onto their own edges.
-pub(super) fn show_copy(ui: &mut Ui, _: &mut Args) {
+pub(super) fn show_copy(ui: &mut Ui, _: &mut NoArgs) {
     show_story(ui, Preset::Copy);
 }
 

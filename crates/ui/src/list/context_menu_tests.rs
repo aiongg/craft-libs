@@ -7,45 +7,45 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::drag::show_flat;
+use crate::composites::NoArgs;
 use crate::direction::{self, Direction};
-use crate::story::Args;
 use crate::theme::{Base, install};
 
-fn harness() -> Harness<'static, Args> {
+fn harness() -> Harness<'static, NoArgs> {
     harness_in(Direction::Ltr)
 }
 
-fn harness_in(dir: Direction) -> Harness<'static, Args> {
-    let mut harness = Harness::<Args>::builder()
+fn harness_in(dir: Direction) -> Harness<'static, NoArgs> {
+    let mut harness = Harness::<NoArgs>::builder()
         .with_size([420.0, 420.0])
         .with_step_dt(0.05)
         .with_context_setup(move |ctx| {
             install(ctx, &Base::suite_default());
             direction::apply(ctx, dir);
         })
-        .build_ui_state(show_flat, Args::new());
+        .build_ui_state(show_flat, NoArgs {});
     harness.run();
     harness
 }
 
-fn row_rect(harness: &Harness<'_, Args>, label: &str) -> egui::Rect {
+fn row_rect(harness: &Harness<'_, NoArgs>, label: &str) -> egui::Rect {
     harness.get_by(|n| n.role() == Role::ListBoxOption && n.label().as_deref() == Some(label)).rect()
 }
 
-fn menu_item_rect(harness: &Harness<'_, Args>, label: &str) -> Option<egui::Rect> {
+fn menu_item_rect(harness: &Harness<'_, NoArgs>, label: &str) -> Option<egui::Rect> {
     harness.query_by(|n| matches!(n.role(), Role::MenuItem | Role::MenuItemCheckBox) && n.label().as_deref() == Some(label)).map(|n| n.rect())
 }
 
-fn list_focused(harness: &Harness<'_, Args>) -> bool {
+fn list_focused(harness: &Harness<'_, NoArgs>) -> bool {
     harness.get_by_role(Role::ListBox).accesskit_node().active_descendant().is_some()
 }
 
 /// Whether egui's keyboard focus is on `list`; AccessKit's focus is on the open menu.
-fn has_focus(harness: &Harness<'_, Args>, list: egui::Id) -> bool {
+fn has_focus(harness: &Harness<'_, NoArgs>, list: egui::Id) -> bool {
     harness.ctx.memory(|m| m.has_focus(list))
 }
 
-fn secondary_click(harness: &mut Harness<'_, Args>, pos: Pos2) {
+fn secondary_click(harness: &mut Harness<'_, NoArgs>, pos: Pos2) {
     harness.event(Event::PointerMoved(pos));
     for pressed in [true, false] {
         harness.event(Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE });
@@ -54,7 +54,7 @@ fn secondary_click(harness: &mut Harness<'_, Args>, pos: Pos2) {
     harness.run_steps(3);
 }
 
-fn key(harness: &mut Harness<'_, Args>, key: Key, modifiers: Modifiers) {
+fn key(harness: &mut Harness<'_, NoArgs>, key: Key, modifiers: Modifiers) {
     for pressed in [true, false] {
         harness.event(Event::Key { key, physical_key: None, pressed, repeat: false, modifiers });
     }
@@ -105,7 +105,7 @@ fn a_row_menu_opens_at_the_pointer_or_the_lead_and_the_list_keeps_the_focus() {
 }
 
 #[allow(clippy::expect_used)]
-fn lead(harness: &Harness<'_, Args>) -> String {
+fn lead(harness: &Harness<'_, NoArgs>) -> String {
     harness.get_by_role(Role::ListBox).accesskit_node().active_descendant().and_then(|n| n.label()).expect("lead")
 }
 

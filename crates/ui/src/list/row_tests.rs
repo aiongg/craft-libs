@@ -6,12 +6,11 @@ use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, Rect, Shape, Ui,
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::row::show_layers;
+use super::row::{LayersArgs, ThumbArg, show_layers};
 use super::*;
 use crate::direction::{self, Direction};
 use crate::edit::{EditEvent, GestureHost, UndoMarks};
 use crate::icons::Icon;
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, Tokens, TokensOf as _, corner_radius, install, scope};
 use craft_theme::Size;
@@ -637,13 +636,8 @@ fn the_list_story_names_every_control_in_both_directions() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         for width in [60.0, 160.0, 320.0] {
             for thumbs in ["None", "Large"] {
-                let args = Args::new()
-                    .with_choice("thumbnails", &["None", "Small", "Medium", "Large"], if thumbs == "None" { 0 } else { 3 })
-                    .with_bool("detail", true)
-                    .with_bool("highlight second row", true)
-                    .with_bool("layer form", true)
-                    .with_number("width", width, 60.0, 480.0);
-                let mut a = args.clone();
+                let thumbnails = if thumbs == "None" { ThumbArg::None } else { ThumbArg::Large };
+                let mut a = LayersArgs { thumbnails, detail: true, highlight_second_row: true, layer_form: true, width };
                 let harness = harness(dir).build_ui(move |ui| show_layers(ui, &mut a));
                 a11y::assert_labelled(&harness);
             }

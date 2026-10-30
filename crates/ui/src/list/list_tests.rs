@@ -7,11 +7,10 @@ use egui::{Event, Key, KeyboardShortcut, Modifiers, MouseWheelSource, MouseWheel
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
-use super::view::show_rows;
+use super::view::{RowsArgs, SelectionArg, show_rows};
 use super::*;
 use crate::behavior::{RowInfo, Selection};
 use crate::edit::EditEvent;
-use crate::story::Args;
 use crate::testing::a11y;
 use crate::theme::{Base, install};
 
@@ -506,10 +505,7 @@ fn type_ahead_is_off_by_default_and_moves_by_label_when_on() {
 #[test]
 fn the_list_story_names_every_control() {
     for mixed in [false, true] {
-        let mut args = Args::new()
-            .with_choice("selection", &["Multiple", "Single"], 0)
-            .with_bool("mixed heights", mixed)
-            .with_number("height", 320.0, 120.0, 600.0);
+        let mut args = RowsArgs { selection: SelectionArg::Multiple, mixed_heights: mixed, height: 320.0 };
         let harness = Harness::builder()
             .with_size([400.0, 420.0])
             .with_context_setup(|ctx| install(ctx, &Base::suite_default()))

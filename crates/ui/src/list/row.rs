@@ -14,8 +14,9 @@ use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{FocusRing, Interactive};
-use crate::story::{Args, Level, Story};
+use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
+use crate::typed_story;
 
 /// The thumbnail setting of a list (PhotoCraft's Layers Panel Options), which the host stores.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -804,23 +805,49 @@ fn paint_drop_mark(ui: &Ui, style: &ListRowStyle, rect: Rect, mark: DropMark) {
     }
 }
 
-const THUMB_NAMES: &[&str] = &["None", "Small", "Medium", "Large"];
+#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
+pub(super) enum ThumbArg {
+    #[choice(name = "None")]
+    None,
+    #[choice(name = "Small")]
+    Small,
+    #[choice(name = "Medium")]
+    Medium,
+    #[choice(name = "Large")]
+    Large,
+}
+
+impl ThumbArg {
+    fn size(self) -> ThumbSize {
+        match self {
+            ThumbArg::None => ThumbSize::None,
+            ThumbArg::Small => ThumbSize::Small,
+            ThumbArg::Medium => ThumbSize::Medium,
+            ThumbArg::Large => ThumbSize::Large,
+        }
+    }
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+pub(super) struct LayersArgs {
+    pub(super) thumbnails: ThumbArg,
+    pub(super) detail: bool,
+    #[arg(name = "highlight second row")]
+    pub(super) highlight_second_row: bool,
+    #[arg(name = "layer form")]
+    pub(super) layer_form: bool,
+    #[arg(range = 60.0..=480.0)]
+    pub(super) width: f32,
+}
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![Story::new(
+    vec![typed_story!(
         "composites/list-row/layers",
         Level::Composites,
         "ListRow",
         "Layers",
-        || {
-            Args::new()
-                .with_choice("thumbnails", THUMB_NAMES, 0)
-                .with_bool("detail", false)
-                .with_bool("highlight second row", false)
-                .with_bool("layer form", true)
-                .with_number("width", 280.0, 60.0, 480.0)
-        },
-        show_layers,
+        LayersArgs { thumbnails: ThumbArg::None, detail: false, highlight_second_row: false, layer_form: true, width: 280.0 },
+        show_layers
     )]
 }
 
@@ -858,10 +885,10 @@ impl Default for Layers {
 /// A layers panel `width` wide: eye and lock columns, a thumbnail of the chosen size, a detail
 /// line, an optional trailing blend label, a hidden (dimmed) layer once its eye is off, and
 /// renaming by double click on the label. Drag down a column to sweep it.
-pub(super) fn show_layers(ui: &mut Ui, args: &mut Args) {
-    let width = args.number("width") as f32;
-    let thumb = ThumbSize::ALL.into_iter().find(|t| t.name() == args.choice("thumbnails")).unwrap_or_default();
-    let (detail, highlight, layer) = (args.bool("detail"), args.bool("highlight second row"), args.bool("layer form"));
+pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
+    let width = args.width;
+    let thumb = args.thumbnails.size();
+    let (detail, highlight, layer) = (args.detail, args.highlight_second_row, args.layer_form);
     let state_id = ui.scope_id().with("list-row-story");
     let mut layers = ui.data(|d| d.get_temp::<Layers>(state_id)).unwrap_or_default();
     ui.allocate_ui(vec2(width, 0.0), |ui| {
