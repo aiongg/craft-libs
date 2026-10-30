@@ -78,7 +78,7 @@ pub(crate) fn canvas(
 }
 
 /// The story in its frame, with the inspector over it when there is one.
-fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut Inspector>, name: &str, rtl: bool) {
+pub(crate) fn framed(ui: &mut Ui, story: &Story, args: &mut Args, inspector: Option<&mut Inspector>, name: &str, rtl: bool) {
     let tokens = Tokens::of(ui);
     let surface = StoryFrame::of(ui, story.surface);
     let framed = surface.frame().show(ui, |ui| {

@@ -52,6 +52,7 @@ use crate::problems::Problems;
 
 #[cfg(any(feature = "capture", test))]
 pub(crate) use self::canvas::canvas;
+pub(crate) use self::canvas::framed;
 pub(crate) use self::catalog::stories;
 #[cfg(feature = "capture")]
 pub(crate) use self::{
