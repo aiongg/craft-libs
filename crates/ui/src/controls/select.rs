@@ -724,7 +724,7 @@ fn read_keys<T: Clone + PartialEq>(
         }
         if gear.is_some() && take_key(ui, Modifiers::SHIFT, Key::Tab) {
             leave(ui, id, FocusDirection::Previous);
-            return choose(listbox, false);
+            return choose(listbox, false).or(Some(Action::Commit { focus: false }));
         }
         if ui.input(|i| i.key_pressed(Key::Tab)) {
             if !on_box {
@@ -813,7 +813,8 @@ fn read_gear_keys<T: Clone + PartialEq>(
     }
     if take_key(ui, Modifiers::NONE, Key::Tab) {
         leave(ui, id, FocusDirection::Next);
-        return listbox.active().filter(|&a| shown.enabled(a)).map(|option| Action::Choose { option, focus: false });
+        let chosen = listbox.active().filter(|&a| shown.enabled(a)).map(|option| Action::Choose { option, focus: false });
+        return chosen.or(Some(Action::Commit { focus: false }));
     }
     if take_key(ui, Modifiers::SHIFT, Key::Tab) {
         let back = state.search.unwrap_or(id);

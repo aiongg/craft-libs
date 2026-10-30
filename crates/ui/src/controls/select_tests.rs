@@ -1004,6 +1004,7 @@ const MODES_STRIP: [&str; 3] = ["Warm", "Cool", "Mono"];
 struct Gear {
     value: usize,
     picked: Option<usize>,
+    events: Vec<EditEvent<usize>>,
 }
 
 /// A select of blend modes, optionally searchable, with a gear menu of one entry ("Import"),
@@ -1020,7 +1021,7 @@ fn gear(searchable: bool) -> Harness<'static, Gear> {
             if searchable {
                 select = select.searchable("Search modes", "Clear");
             }
-            let _ = select.show(ui);
+            host.events.extend(select.show(ui).event);
             let _ = ui.button("After");
         },
         Gear::default(),
@@ -1064,6 +1065,7 @@ fn choosing_a_gear_menu_entry_reports_it_and_closes_the_menu_and_the_list() {
         harness.run();
         assert_eq!(harness.state().picked, Some(7));
         assert_eq!(harness.state().value, 0, "the value is kept");
+        assert_eq!(commits(&harness), [false], "one commit, without a change: {:?}", harness.state().events);
         assert!(menu_items(&harness).is_empty(), "the menu closed");
         assert_eq!(expanded(&harness), Some(false), "the list closed");
     }
@@ -1191,6 +1193,81 @@ fn a_gear_entry_after_an_arrow_step_keeps_the_stepped_value() {
         harness.run();
         assert_eq!(harness.state().picked, Some(7));
         assert_eq!(harness.state().value, 2, "the stepped value is kept");
+        assert_eq!(commits(&harness), [true], "one commit with the change, no cancel: {:?}", harness.state().events);
+        assert!(!harness.state().events.iter().any(|e| matches!(e, EditEvent::Cancel { .. })), "{:?}", harness.state().events);
         assert_eq!(expanded(&harness), Some(false));
     }
+}
+
+#[test]
+fn a_gear_entry_pressed_and_released_in_separate_frames_keeps_the_stepped_value() {
+    for searchable in [false, true] {
+        let mut harness = gear(searchable);
+        harness.run();
+        harness.get_by_role(Role::ComboBox).click();
+        harness.run();
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        harness.key_press(Key::ArrowDown);
+        harness.run();
+        gear_button(&harness).click();
+        harness.run();
+        let pos = harness.get_by_role(Role::MenuItem).rect().center();
+        let mut time = 10.0;
+        let mut button = |harness: &mut Harness<'_, Gear>, pressed| {
+            time += 0.2;
+            harness.input_mut().time = Some(time);
+            harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+            harness.run();
+        };
+        harness.event(Event::PointerMoved(pos));
+        harness.run();
+        button(&mut harness, true);
+        button(&mut harness, false);
+        harness.run();
+        assert_eq!(harness.state().picked, Some(7));
+        assert_eq!(harness.state().value, 2, "the stepped value is kept");
+        assert_eq!(commits(&harness), [true], "{:?}", harness.state().events);
+        assert_eq!(expanded(&harness), Some(false));
+    }
+}
+
+/// The `changed` flags of the commits the gear harness reported.
+fn commits(harness: &Harness<'_, Gear>) -> Vec<bool> {
+    harness.state().events.iter().filter_map(|e| if let EditEvent::Commit { changed, .. } = e { Some(*changed) } else { None }).collect()
+}
+
+#[test]
+fn tab_with_no_matching_option_leaves_the_control_and_closes_the_list() {
+    let mut harness = gear(true);
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    harness.event(Event::Text("zzzz".into()));
+    harness.run();
+    harness.key_press(Key::Tab);
+    harness.run();
+    assert!(gear_button(&harness).is_focused());
+    harness.key_press(Key::Tab);
+    harness.run();
+    harness.run();
+    assert_eq!(expanded(&harness), Some(false), "the list closed");
+    assert_eq!(harness.state().value, 0, "the value is kept");
+    assert!(harness.get_by_label("After").is_focused(), "the focus moved to the next widget");
+}
+
+#[test]
+fn shift_tab_from_the_search_field_with_no_match_leaves_backwards_and_closes_the_list() {
+    let mut harness = gear(true);
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    harness.event(Event::Text("zzzz".into()));
+    harness.run();
+    harness.key_press_modifiers(Modifiers::SHIFT, Key::Tab);
+    harness.run();
+    harness.run();
+    assert_eq!(expanded(&harness), Some(false), "the list closed");
+    assert_eq!(harness.state().value, 0, "the value is kept");
+    assert!(harness.get_by_label("Before").is_focused(), "the focus moved to the previous widget");
 }
