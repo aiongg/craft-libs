@@ -3,7 +3,7 @@
 
 use egui::{Rect, Ui, vec2};
 
-use super::arrange::{Arrangement, ArrangeLabels, arrange_entries, arrange_rects};
+use super::arrange::{ArrangeLabels, Arrangement, arrange_entries, arrange_rects};
 use super::chrome::{ChromeStyle, FloatingFrame, TitleBar};
 use super::panel_menu::{PanelMenu, PanelMenuLabels};
 use super::workspaces::{NamedWorkspace, WorkspaceChrome, WorkspaceLabels, WorkspaceSet, WorkspaceSwitcher};
@@ -43,10 +43,8 @@ pub(crate) fn stories() -> Vec<Story> {
 }
 
 fn show_panel_menu(ui: &mut Ui, _args: &mut NoArgs) {
-    let entries: Vec<MenuEntry<String>> = vec![
-        MenuItem::new("Show Thumbnails", "thumbnails".to_owned()).check(true).into(),
-        MenuItem::new("Merge Down", "merge".to_owned()).into(),
-    ];
+    let entries: Vec<MenuEntry<String>> =
+        vec![MenuItem::new("Show Thumbnails", "thumbnails".to_owned()).check(true).into(), MenuItem::new("Merge Down", "merge".to_owned()).into()];
     let words = PanelMenuLabels::of(ui);
     let targets = vec!["Properties".to_owned(), "Channels".to_owned()];
     let group_items = PanelMenu::group_items(Permissions::default(), &targets, true, &words);
@@ -77,13 +75,10 @@ fn show_titled_frame(ui: &mut Ui, args: &mut FrameArgs) {
     let style = ChromeStyle::from_ui(ui);
     let bar = TitleBar::new(id.with("bar"), "Move window").title("Styles").close("Close window");
     let contents = args.contents;
-    let shown = FloatingFrame::new(id, rect).bounds(area).auto_height(args.auto_height).title_bar(bar).show_titled::<_, ()>(
-        ui.ctx(),
-        &style,
-        |ui, _| {
+    let shown =
+        FloatingFrame::new(id, rect).bounds(area).auto_height(args.auto_height).title_bar(bar).show_titled::<_, ()>(ui.ctx(), &style, |ui, _| {
             ui.allocate_space(vec2(40.0, contents));
-        },
-    );
+        });
     let mut next = shown.moved.unwrap_or(rect);
     if let Some(height) = shown.content_height {
         next.set_height(height + style.title_height + style.body_inset());

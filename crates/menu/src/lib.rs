@@ -104,10 +104,8 @@ pub use keymap::{ItemState, apply_keymap, apply_state};
 pub use language::{LANGUAGE_COMMAND, LanguageChoice, LanguageLabels, LanguageMenu, LanguageRow};
 pub use layout::{Clash, Layout, LayoutOptions, Target, desktop_layout, layout, mac_layout, web_layout};
 /// The labels tables of the Help and Language menus, for the words registry.
-pub const WORDS: &[&[craft_ui::localized::Word]] = &[
-    <HelpLabels as craft_ui::localized::Labels>::WORDS,
-    <LanguageLabels as craft_ui::localized::Labels>::WORDS,
-];
+pub const WORDS: &[&[craft_ui::localized::Word]] =
+    &[<HelpLabels as craft_ui::localized::Labels>::WORDS, <LanguageLabels as craft_ui::localized::Labels>::WORDS];
 
 pub use modal::{ModalRules, NAVIGATION_COMMANDS, PendingRule};
 pub use model::{

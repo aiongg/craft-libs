@@ -26,10 +26,7 @@ impl Family for StartTokens {
     };
 
     fn defaults(_: &Semantic<'_>) -> StartTokens {
-        StartTokens {
-            card_min: values::START_CARD_MIN,
-            card_max: values::START_CARD_MAX,
-        }
+        StartTokens { card_min: values::START_CARD_MIN, card_max: values::START_CARD_MAX }
     }
 
     fn path(f: StartField) -> String {

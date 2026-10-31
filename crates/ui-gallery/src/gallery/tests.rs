@@ -329,6 +329,9 @@ const FIXED_WIDTH: &[&str] = &[
     "patterns/dialog/preview",
     "patterns/full-window/workspace",
     "patterns/viewport/embedded",
+    "patterns/shell/tour",
+    "patterns/shell/toolbar-drawer",
+    "patterns/shell/start",
 ];
 
 /// Stories that draw in layers of their own (dialogs, windows) and are placed on the screen, not
@@ -342,6 +345,8 @@ const FLOATING: &[&str] = &[
     "patterns/dialog/preview",
     "patterns/full-window/workspace",
     "patterns/viewport/embedded",
+    "patterns/shell/tour",
+    "patterns/shell/toolbar-drawer",
 ];
 
 /// How far a focus ring, edge or shadow may reach past its widget; the tile's margin takes it.

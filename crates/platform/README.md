@@ -16,6 +16,11 @@ third-party dependencies. Enable only the services a host uses.
 | `clock` | `clock::Clock`: monotonic seconds (`web-time`, so also in the browser) for animation, autosave and deadlines, with a manual mode tests set and advance; `monotonic_ms`, `unix_ms`. |
 | `pacing` | `FrameCap` (desktop frame-rate cap without vsync), `WindowState` (shown or hidden from the viewport info), `WorkBudget`/`WorkSlice` (background work per call, paused or sliced while hidden), `repaint_in`, `paint_while_hidden`. Adds `clock` and egui. |
 | `logs` | The app log: `log` records to standard error and `<dir>/<app>.log` with `RUST_LOG`-style filters, rotation to `.1`/`.2`, per-instance logs while another instance runs, a size cap; `logs::crash`: the panic hook, crash log, last panic for the error window, and `catch`. |
+| `session` | `session::Session` and `SessionKeeper`: the documents open at the last quit and where the user was in each, stored in the app's settings (serde) for a "Reopen Last Session" preference; `to_reopen` skips what is already open; a stored list longer than 64 documents is cut. No egui. |
+| `usage` | `usage::sample`: the process's resident memory and the memory it may still use (`MemorySample`, `None` when unknown), for the status readout's Scratch and Efficiency items. Linux reads `/proc`; other platforms return `None`. |
+| `open` | `open::FileIntake`: one queue for files the OS asks the app to open and files dropped on the window; `natural_cmp` and `same_file` for opening order and duplicates; `reveal` and `open_external`; the shared open-error texts. No egui. |
+| `autosave` | `autosave::Autosave` (the timer: which documents are due, results by revision), `recovery_dir` and the recovery folder of copies with a JSON sidecar each. The app serializes its documents. The bodies are not filled yet. |
+| `screen` | Screen capture for the screen colour picker (`craft_platform::screen`). |
 
 
 ## Native dialogs

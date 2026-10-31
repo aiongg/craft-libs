@@ -34,10 +34,10 @@ pub(crate) mod panel;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod panel_tests;
 pub(crate) mod rail;
+pub(crate) mod shell_stories;
 pub(crate) mod status_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod status_bar_tests;
-pub(crate) mod shell_stories;
 pub(crate) mod status_readout;
 #[cfg(test)]
 mod status_readout_tests;

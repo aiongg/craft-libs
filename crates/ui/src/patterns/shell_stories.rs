@@ -29,7 +29,12 @@ fn show_tour(ui: &mut Ui, _args: &mut NoArgs) {
     let steps = [
         TourStep { id: "layers-panel".into(), title: "Layers".into(), body: "Layers stack the parts of a document.".into(), target: Some(target) },
         TourStep { id: "welcome".into(), title: "Welcome".into(), body: "A step without a target is centred.".into(), target: None },
-        TourStep { id: "done".into(), title: "That is all".into(), body: "The last step offers Done.".into(), target: Some(target.translate(vec2(160.0, 0.0))) },
+        TourStep {
+            id: "done".into(),
+            title: "That is all".into(),
+            body: "The last step offers Done.".into(),
+            target: Some(target.translate(vec2(160.0, 0.0))),
+        },
     ];
     let key = ui.scope_id().with("tour-story");
     let mut index = ui.data(|d| d.get_temp::<Option<usize>>(key)).unwrap_or(Some(0));

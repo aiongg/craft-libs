@@ -90,10 +90,10 @@ mod readout;
 pub(crate) mod ref_point;
 pub(crate) mod rulers;
 mod scrollbars;
-pub(crate) mod shell_stories;
 mod selection_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod selection_bar_tests;
+pub(crate) mod shell_stories;
 mod snap;
 #[cfg(test)]
 mod snap_tests;

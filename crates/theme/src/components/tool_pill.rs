@@ -23,9 +23,7 @@ impl Family for ToolPillTokens {
     };
 
     fn defaults(s: &Semantic<'_>) -> ToolPillTokens {
-        ToolPillTokens {
-            inset: values::SCROLL_CANVAS_WIDTH + s.space.pad.panel,
-        }
+        ToolPillTokens { inset: values::SCROLL_CANVAS_WIDTH + s.space.pad.panel }
     }
 
     fn path(f: ToolPillField) -> String {
