@@ -657,6 +657,9 @@ pub enum DockEvent<P> {
     /// iconic, or [`super::open_flyout`] and [`super::close_flyout`]. It comes once per change,
     /// in the frame that draws the change.
     FlyoutChanged { panel: Option<P> },
+    /// A row of the panel's menu ([`DockContent::panel_menu_entries`]) was chosen; `command` is
+    /// the row's id. The host runs it as it runs a menu bar command.
+    PanelCommand { panel: P, command: super::panel_menu::PanelCommand },
 }
 
 /// Which panels [`DockArea::hide_panels`] hides. Protected panels always stay.
@@ -969,6 +972,14 @@ pub trait DockContent<P> {
         logical.into()
     }
     fn panel_menu(&mut self, _ui: &mut Ui, _panel: &P) {}
+    /// The rows of `panel`'s menu as library menu entries (checks, radios, submenus,
+    /// separators), translated. When non-empty they replace [`Self::panel_menu`]: the renderer
+    /// shows them with the group items in one [`crate::menu::Menu`]
+    /// ([`super::panel_menu::PanelMenu`]) and reports a chosen row as
+    /// [`DockEvent::PanelCommand`]. Default: none, so hosts on `panel_menu` keep working.
+    fn panel_menu_entries(&mut self, _panel: &P) -> Vec<crate::menu::MenuEntry<super::panel_menu::PanelCommand>> {
+        Vec::new()
+    }
     /// Width of the group header at the strip's end (the host's ≡ and its own tabs).
     /// `strip_width` is the whole tab strip; the header gets at most that, and the drag bar and
     /// the group's tabs share what is left.

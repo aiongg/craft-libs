@@ -584,3 +584,83 @@ pub fn live_move(ctx: &Context, bar: &Response, rect: Rect, bounds: Rect) -> Opt
     forget();
     None
 }
+
+/// Where a titled floating frame may dock when its title bar is dragged over the dock.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum FrameDrop<P> {
+    /// Released over a dock zone: the proposal the dock resolved for the frame.
+    Dock(super::DropProposal<P>),
+    /// Released elsewhere: stays floating at this rect.
+    Float(Rect),
+}
+
+/// What a titled frame ([`FloatingFrame::show_titled`]) did this pass, beyond [`FrameResponse`].
+pub struct TitledFrameResponse<R, P = ()> {
+    pub frame: FrameResponse<R>,
+    pub title: TitleResponse,
+    /// The rect a title-bar drag asks for this pass ([`live_move`]); the host stores it.
+    pub moved: Option<Rect>,
+    /// A drag ended: dock here or stay floating.
+    pub dropped: Option<FrameDrop<P>>,
+    /// The height the contents took when [`FloatingFrame::auto_height`] is on, for the host to
+    /// store as the frame's height next pass.
+    pub content_height: Option<f32>,
+}
+
+impl<'a> FloatingFrame<'a> {
+    /// A title bar on the frame's top edge: its drag moves the frame ([`live_move`]), double
+    /// click is reported on [`TitledFrameResponse::title`]. The frame's `limits` keep room for
+    /// [`ChromeStyle::title_height`]. Gap 7.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/panels/panel_docking.rs:826 `body` floating presets and
+    // crates/ui-egui/src/type_panels_ui.rs:132 (the hand-made card frames PhotoCraft deletes).
+    pub fn title_bar(self, title: TitleBar<'a>) -> Self {
+        todo!()
+    }
+
+    /// Size the frame to its contents each pass (at least the title bar and
+    /// [`PanelLimits::min`]), instead of the given rect's height. Resize handles then move
+    /// only the width. Gap 13.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/preset_panels (float windows sized to their card list).
+    pub fn auto_height(self, on: bool) -> Self {
+        todo!()
+    }
+
+    /// A geometry request from the host's controller (automation `setRect`, a Window › Arrange
+    /// cell, restore from settings): drawn at `rect` this pass, clamped to the bounds, and
+    /// reported back as [`TitledFrameResponse::moved`] so the host's stored rect follows.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/panels/panel_docking.rs:389 `dock_command` (`setRect`).
+    pub fn request(self, rect: Option<Rect>) -> Self {
+        todo!()
+    }
+
+    /// While the title bar is dragged, offer the dock's drop zones of `area_id` (the id given
+    /// to [`super::DockArea::new`]); the release reports [`FrameDrop::Dock`]. Off by default.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+    // new: the panel-tab drag of render/body_drag.rs applied to a whole frame.
+    pub fn dock_into(self, area_id: Option<Id>) -> Self {
+        todo!()
+    }
+
+    /// [`Self::show`] with the title bar, move, auto height, request and dock drop above. The
+    /// contents get the rect under the title bar.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+    // new: composes FloatingFrame::show, TitleBar::show and live_move; the body of
+    // render/floating.rs:97 is the model.
+    pub fn show_titled<R, P>(self, ctx: &Context, style: &ChromeStyle, add_contents: impl FnOnce(&mut Ui, Rect) -> R) -> TitledFrameResponse<R, P> {
+        todo!()
+    }
+}
+
+impl ChromeStyle {
+    /// The chrome of the context's theme, for hosts that draw a frame outside any `Ui` (a
+    /// floating preset window drawn from the app's top level). Gap 13.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+    // new: ChromeStyle::themed without a Ui (DockLook::of needs only the installed tokens).
+    pub fn of_ctx(ctx: &Context) -> Self {
+        todo!()
+    }
+}

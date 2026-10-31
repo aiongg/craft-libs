@@ -908,3 +908,27 @@ fn an_in_window_floating_window_fades_only_while_its_title_bar_drag_highlights_a
     d.step(vec![button(strip, false)]);
     assert!(window_of(&d.layout, 8).is_some());
 }
+
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+// A title-bar drag moves a titled frame and reports the new rect; Escape returns it to the start rect.
+fn titled_frame_moves_with_its_title_bar() {
+    todo!()
+}
+
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+// With auto_height the frame is as tall as its contents and the title bar, never shorter than the limits.
+fn auto_height_frame_fits_its_contents() {
+    todo!()
+}
+
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+// Releasing a dragged titled frame over a dock zone reports FrameDrop::Dock with that zone's proposal.
+fn titled_frame_drag_can_dock() {
+    todo!()
+}
