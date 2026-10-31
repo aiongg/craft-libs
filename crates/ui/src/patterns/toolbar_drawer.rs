@@ -67,7 +67,7 @@ pub struct ToolbarDrawerOutput<T> {
 
 /// The All Tools drawer, opened by the rail's Edit Toolbar button ([`super::ToolRail::edit_toolbar`],
 /// [`super::ToolRailOutput::edit_toolbar`]) and drawn beside the rail while the host keeps it
-/// open.
+/// open and tells the rail with [`super::ToolRail::editing`].
 ///
 /// ```no_run
 /// use craft_ui::patterns::{DrawerGroup, ToolbarDrawer, ToolSlot};
@@ -128,12 +128,13 @@ impl ToolbarDrawer {
         toolbar: &[ToolSlot<T>],
     ) -> ToolbarDrawerOutput<T> {
         let Self { id, labels } = self;
+        // Scoped by the Ui, so the same drawer drawn twice in a pass (once per theme in a variants
+        // view) does not put one widget id on two layers.
+        let id = ui.id().with(id);
         let ctx = ui.ctx().clone();
         let labels = labels.unwrap_or_else(|| ToolbarDrawerLabels::of(ui));
         let tokens = Tokens::of(ui);
         let mut out = ToolbarDrawerOutput { edits: Vec::new(), select: None, closed: false };
-        let pass = ctx.cumulative_pass_nr();
-        edit_update(&ctx, |edit| edit.drawer_pass = Some(pass));
         let edit = edit_state(&ctx);
         let state_id = id.with("state");
         let mut state = ctx.data(|d| d.get_temp::<State>(state_id)).unwrap_or_default();
@@ -309,10 +310,7 @@ impl ToolbarDrawer {
         if leave || shown.is_none() {
             out.closed = true;
             state = State::default();
-            edit_update(&ctx, |edit| {
-                edit.target = None;
-                edit.drawer_pass = None;
-            });
+            edit_update(&ctx, |edit| edit.target = None);
             if let Some(button) = edit.button {
                 ctx.memory_mut(|m| m.request_focus(button));
             }

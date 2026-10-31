@@ -65,7 +65,7 @@ impl App {
     }
 
     fn frame(&mut self, ui: &mut Ui) {
-        let out = ToolRail::new("tools").edit_toolbar("Edit Toolbar…").show(ui, &self.slots, &"move", &mut self.last, |_, _| {});
+        let out = ToolRail::new("tools").edit_toolbar("Edit Toolbar…").editing(self.open).show(ui, &self.slots, &"move", &mut self.last, |_, _| {});
         egui::CentralPanel::default().show(ui, |ui| ui.label("Document"));
         if out.edit_toolbar {
             self.open = !self.open;
