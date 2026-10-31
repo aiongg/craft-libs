@@ -236,3 +236,32 @@ fn the_host_driven_line_gives_the_angle_show_gives() {
     let short = f.press(&view, &style, from).expect("a line");
     assert_eq!(f.release(&mut v, &style, &short, Some(from + vec2(1.0, 0.0))), super::super::CropRelease::Nothing);
 }
+
+/// Both end points of the line take the host's snap as a point gesture: a zero-size frame at the
+/// point, its bottom-right corner.
+#[test]
+fn the_end_points_of_the_line_take_the_host_snap() {
+    use super::super::CropRelease;
+    use craft_ui::canvas::quad::BoxPart;
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let style = CropFrame::style(&craft_ui::theme::current(&ctx));
+    let mut view = CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
+    let b = CropBox::upright(RECT);
+    let grid = |part: BoxPart, frame: &CropBox, _: Modifiers| {
+        assert_eq!(part, BoxPart::Corner(2));
+        assert_eq!(frame.rect.size(), Size::ZERO);
+        let p = frame.rect.origin();
+        Vec2::new((p.x / 10.0).round() * 10.0 - p.x, (p.y / 10.0).round() * 10.0 - p.y)
+    };
+    let f = CropFrame::new("crop", &b, CropNames::default()).straighten(true).snap(grid);
+    let (a, z) = (Point::new(123.0, 97.0), Point::new(229.0, 111.0));
+    let mut press = f.press(&view, &style, view.to_screen(a)).expect("a line");
+    let z_screen = view.to_screen(z);
+    f.track(&mut view, &mut press, z_screen, Modifiers::NONE, false);
+    let (a, z) = (Point::new(120.0, 100.0), Point::new(230.0, 110.0));
+    let [p, q] = press.line().expect("a line");
+    assert!(view.to_doc(p).distance(a) < 1e-6 && view.to_doc(q).distance(z) < 1e-6, "{p:?} {q:?}");
+    let want = CropBox::level_angle(a, z).expect("an angle");
+    assert_eq!(f.release(&mut view, &style, &press, Some(z_screen)), CropRelease::Straighten(want));
+}

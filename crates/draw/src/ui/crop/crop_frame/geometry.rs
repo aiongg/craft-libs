@@ -28,6 +28,21 @@ impl CropBox {
         Self { rect, angle: 0.0 }
     }
 
+    /// The part a press at `point` (document units) lands on, with `reach` document units of
+    /// reach: a corner or an edge ([`BoxPart::Corner`], [`BoxPart::Edge`]), [`BoxPart::Inside`]
+    /// or [`BoxPart::Outside`] (the turn zone). Outside the frame the full reach applies, inside
+    /// it at most a quarter of the side, so a small frame stays movable. A host takes `reach`
+    /// from the `crop.hit` token in screen points through [`CanvasView::doc_len`].
+    ///
+    /// [`CanvasView::doc_len`]: craft_ui::canvas::CanvasView::doc_len
+    pub fn part_at(&self, point: Point, reach: f64) -> BoxPart {
+        match hit(self, point, reach) {
+            Hit::Handle(hx, hy) => handle_part(hx, hy),
+            Hit::Inside => BoxPart::Inside,
+            Hit::Outside => BoxPart::Outside,
+        }
+    }
+
     /// The rect with `x0 <= x1` and `y0 <= y1`.
     fn rect_abs(&self) -> Rect {
         self.rect.abs()
@@ -180,6 +195,12 @@ pub(super) fn hit(b: &CropBox, p: Point, tol: f64) -> Hit {
     } else {
         Hit::Outside
     }
+}
+
+/// [`CropBox::part_at`] for a plain upright `rect`, with no frame or view: the Artboard tool's
+/// hit test.
+pub fn hit_rect(rect: Rect, point: Point, reach: f64) -> BoxPart {
+    CropBox::upright(rect).part_at(point, reach)
 }
 
 /// The frame angle after turning it from `from` degrees by the pointer's sweep about `c`, from

@@ -1011,6 +1011,89 @@ fn the_host_driven_hit_and_double_click_follow_the_frame() {
     assert_eq!(s.hit(&view, &style, at(Point::new(150.0, 110.0))), None);
 }
 
+fn plain_view() -> CanvasView {
+    CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0)
+}
+
+/// A press reports what it does, for the host's cursor and readout.
+#[test]
+fn a_press_reports_its_kind() {
+    use super::CropPressKind::{Draw, Move, Resize, Straighten, Turn};
+    let style = crop_style();
+    let view = plain_view();
+    let b = CropBox::upright(RECT);
+    let kind = |f: &CropFrame<'_>, p: Point| f.press(&view, &style, view.to_screen(p)).expect("press").kind();
+    let f = CropFrame::new("crop", &b, names());
+    assert_eq!(kind(&f, Point::new(150.0, 110.0)), Move);
+    assert_eq!(kind(&f, Point::new(300.0, 220.0)), Resize(BoxPart::Corner(2)));
+    assert_eq!(kind(&f, Point::new(200.0, 80.0)), Resize(BoxPart::Edge(0)));
+    assert_eq!(kind(&f, Point::new(20.0, 20.0)), Turn);
+    assert_eq!(kind(&CropFrame::new("crop", &b, names()).default_frame(true), Point::new(150.0, 110.0)), Draw);
+    assert_eq!(kind(&CropFrame::new("crop", &b, names()).straighten(true), Point::new(150.0, 110.0)), Straighten);
+}
+
+/// Without a frame every press draws one from the press point.
+#[test]
+fn a_press_with_no_frame_draws_a_new_frame() {
+    let style = crop_style();
+    let mut view = plain_view();
+    let f = CropFrame::unframed("crop", names());
+    let (from, to) = (view.to_screen(Point::new(50.0, 60.0)), view.to_screen(Point::new(150.0, 120.0)));
+    assert_eq!(f.hit(&view, &style, from), Some(BoxPart::Inside));
+    assert!(!f.double_click(&view, &style, from));
+    let mut press = f.press(&view, &style, from).expect("press");
+    assert_eq!(press.kind(), super::CropPressKind::Draw);
+    let end = f.track(&mut view, &mut press, to, Modifiers::NONE, false).state.expect("a frame");
+    assert_eq!(end.rect, Rect::new(50.0, 60.0, 150.0, 120.0));
+    assert_eq!(f.release(&mut view, &style, &press, Some(to)), super::CropRelease::Commit(end));
+}
+
+/// The plain-rect hit test and the frame's give the same parts and reach.
+#[test]
+fn the_rect_hit_is_the_frames_hit() {
+    let style = crop_style();
+    let view = plain_view();
+    let b = CropBox::upright(RECT);
+    let f = CropFrame::new("crop", &b, names());
+    let reach = view.doc_len(style.hit);
+    for p in [(150.0, 110.0), (300.0, 220.0), (205.0, 76.0), (100.0, 150.0), (20.0, 20.0), (306.0, 150.0), (320.0, 150.0)] {
+        let p = Point::new(p.0, p.1);
+        assert_eq!(f.hit(&view, &style, view.to_screen(p)), Some(super::hit_rect(RECT, p, reach)), "{p:?}");
+    }
+    assert_eq!(super::hit_rect(RECT, Point::new(100.0, 80.0), reach), BoxPart::Corner(0));
+    assert_eq!(super::hit_rect(RECT, Point::new(200.0, 224.0), reach), BoxPart::Edge(2));
+    assert_eq!(super::hit_rect(RECT, Point::new(20.0, 20.0), reach), BoxPart::Outside);
+}
+
+/// The host-driven gesture readout is written with the units the host passes, from a bare
+/// context, and not at all when it passes none.
+#[test]
+fn paint_gesture_takes_the_labels_and_units_as_values() {
+    use egui::{LayerId, Order};
+    let style = crop_style();
+    let view = plain_view();
+    let b = CropBox::upright(RECT);
+    let labels = CropLabels::new("W:", "H:", "Angle:");
+    let units = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
+    let tooltips = |readout: Option<(&CropLabels, &RulerUnits)>| {
+        let ctx = egui::Context::default();
+        let mut found = 0;
+        ctx.run_ui(Default::default(), |ui| {
+            let f = CropFrame::new("crop", &b, names());
+            let mut v = view;
+            let from = view.to_screen(Point::new(300.0, 220.0));
+            let mut press = f.press(&v, &style, from).expect("press");
+            f.track(&mut v, &mut press, from + vec2(20.0, 10.0), Modifiers::NONE, false);
+            f.paint_gesture(&ui.painter_at(view.rect), &style, &press, from + vec2(20.0, 10.0), readout);
+        })
+        .drop_without_applying_deltas();
+        ctx.memory(|m| found += m.areas().visible_layer_ids().iter().filter(|l: &&LayerId| l.order == Order::Tooltip).count());
+        found
+    };
+    assert_eq!(tooltips(None), 0);
+    assert_eq!(tooltips(Some((&labels, &units))), 1);
+}
+
 #[test]
 fn the_style_is_the_crop_tokens_and_a_halo_shows_in_high_contrast_only() {
     let tokens = |contrast| {
