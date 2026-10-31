@@ -12,15 +12,18 @@ pub struct ControlClient {
 }
 
 impl ControlClient {
-    /// Connect and send `auth`; `Err` with the server's error text when the token is refused.
+    /// Connect (read timeout [`crate::security::IO_TIMEOUT`]), send
+    /// `{"id": 1, "method": "auth", "params": {"token": token}}` and read one reply line; `Err` with
+    /// the reply's `error` text when it isn't `ok`, or the I/O error's message.
     pub fn connect(addr: SocketAddr, token: &str) -> Result<Self, String> {
-        // pc: apps/photocraft-cli/src/automation.rs:14 (commands)
+        // new: PhotoCraft has no client type; the exchange is its test's, apps/photocraft/src/control_server.rs:203 (and crates/automation/src/bridge.rs:141 auth)
         todo!()
     }
 
-    /// Send `method` with `params`; `Ok(result)` or `Err(error)` from the reply.
+    /// Send `{"id": n, "method", "params"}` as one line (ids count up from 2) and read one reply
+    /// line; `Ok(result)` (`null` when absent) for `"ok": true`, `Err(error)` otherwise.
     pub fn call(&mut self, method: &str, params: Value) -> Result<Value, String> {
-        // pc: apps/photocraft-cli/src/automation.rs:14
+        // new: as connect, apps/photocraft/src/control_server.rs:247
         todo!()
     }
 }

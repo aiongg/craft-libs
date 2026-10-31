@@ -2,9 +2,11 @@
 //! Frame timing trace: every frame of a gesture (a brush stroke, a drag) as a row, so a tester on
 //! any platform reports a per-stage breakdown instead of one input-to-pixel number.
 //!
-//! Set `<APP>_FRAME_TRACE` before launching: `1` prints a [`Summary`] to stderr when each gesture
-//! ends; a file path also appends every frame of every gesture to that CSV. The last summary is in
-//! the control channel's `perf` output (`frameTrace`). The trace keeps no clock: each row is the
+//! Set the app's trace variable before launching ([`FrameTrace::from_env`]; PhotoCraft keeps
+//! `PHOTOCRAFT_STROKE_TRACE`): `1` prints a [`Summary`] to stderr when each gesture ends; a file
+//! path also appends every frame of every gesture to that CSV. The last summary is in the control
+//! channel's `perf` output under `frameTrace` (PhotoCraft's `strokeTrace`, renamed with
+//! `gesture_ms`; spec Q-S3T-5). The trace keeps no clock: each row is the
 //! frame's [`FrameStages`], so the slow-frame ring and the trace read one record.
 
 use crate::profiler::FrameStages;
@@ -67,13 +69,14 @@ pub struct FrameTrace {
 impl FrameTrace {
     /// Reads the environment variable `var`.
     pub fn from_env(var: &str) -> Self {
-        // pc: crates/ui-egui/src/tools/stroke_trace.rs:114
+        // pc: crates/ui-egui/src/tools/stroke_trace.rs:124
         todo!()
     }
 
-    /// `""`, `"0"`, `"off"` is off; `"1"`, `"stderr"` prints summaries; anything else is a CSV path.
+    /// `v` trimmed: `""`, `"0"`, `"off"` or `"false"` is off; `"1"`, `"stderr"` or `"true"` prints
+    /// summaries; anything else is a CSV path. Always off on wasm (no clock there).
     pub fn from_value(v: &str) -> Self {
-        // pc: crates/ui-egui/src/tools/stroke_trace.rs:126
+        // pc: crates/ui-egui/src/tools/stroke_trace.rs:135
         todo!()
     }
 
@@ -83,21 +86,21 @@ impl FrameTrace {
 
     /// Turn summaries on or off (the control channel's `ui.set`); never sets a path.
     pub fn set_on(&mut self, on: bool) {
-        // pc: crates/ui-egui/src/tools/stroke_trace.rs (ui.set strokeTrace)
+        // pc: crates/ui-egui/src/tools/stroke_trace.rs:147 (ui.set strokeTrace)
         todo!()
     }
 
     /// Record `stages` when `in_gesture`; the first frame after a gesture ends summarises it,
     /// with `backend` named in the summary.
     pub fn frame(&mut self, stages: &FrameStages, in_gesture: bool, backend: impl FnOnce() -> String) {
-        // pc: crates/ui-egui/src/tools/stroke_trace.rs (frame)
+        // pc: crates/ui-egui/src/tools/stroke_trace.rs:160 (frame)
         todo!()
     }
 }
 
 /// `[p50, p95]` of `v`, nearest rank, rounded to 0.01; zeros when empty.
 pub fn percentiles(v: Vec<f64>) -> [f64; 2] {
-    // pc: crates/ui-egui/src/tools/stroke_trace.rs:112
+    // pc: crates/ui-egui/src/tools/stroke_trace.rs:111
     todo!()
 }
 

@@ -17,8 +17,10 @@ tcp = []
 
 [dependencies]
 base64 = "0.22"
+craft-platform = { workspace = true, features = ["clock"] }
 craft-ui = { workspace = true }
 egui = { workspace = true }
+getrandom = "0.3"
 log = "0.4"
 png = "0.17"
 serde = { workspace = true }

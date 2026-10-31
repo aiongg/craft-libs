@@ -168,9 +168,15 @@ impl Captures {
         todo!()
     }
 
-    /// Admit a request against the budget. `Err` returns the reply sender with the error text
-    /// (`too many pending screenshots`, `the image exceeds the … budget`). With no geometry yet
-    /// the request waits.
+    /// Admit a request against the budget. `Err` returns the reply sender with the error text,
+    /// PhotoCraft's word for word: `screenshot token {token} is already pending`,
+    /// `too many screenshots pending (at most {MAX_PENDING})`,
+    /// `the viewport is not capturable ({w}×{h} points at {ppp} px/pt, texture side {side})`,
+    /// `a {N} MiB screenshot is over the {MAX_IMAGE_BYTES / 1 MiB} MiB per-image limit` (`N` the
+    /// expected bytes / 1 MiB, integer division), or
+    /// `screenshot budget exhausted: {total} bytes reserved of a {MAX_TOTAL_BYTES}-byte aggregate limit`
+    /// (pc `screenshot.rs:299`, `:302`, `:544`, `:549`, `:558`). With no geometry yet the request
+    /// waits.
     pub fn admit(
         &mut self,
         token: u64,
@@ -229,16 +235,30 @@ pub fn send_command(ctx: &Context, callback: ScreenshotCallback) {
     todo!()
 }
 
-/// Encode RGBA pixels as PNG.
+/// Encode unmultiplied RGBA pixels as an 8-bit RGBA PNG (the `png` crate, default
+/// compression); an encoder error is its message. PhotoCraft encodes through its codecs crate.
 pub fn encode_png(width: usize, height: usize, rgba: &[u8]) -> Result<Vec<u8>, String> {
-    // pc: crates/ui-egui/src/control/inspect.rs:115 (save_screenshot_rgba)
+    // pc: apps/photocraft/src/services.rs:694 (the encode_png service)
     todo!()
 }
 
-/// The reply for a finished image: written to `path` (`{"ok": true, "path", "width", "height"}`)
-/// or inlined when at most [`crate::protocol::MAX_PNG_BYTES`] (`{"ok": true, "png": base64, …}`).
-pub fn screenshot_reply(token: u64, image: &ColorImage, path: Option<&str>) -> ControlResponse {
-    // pc: crates/ui-egui/src/control/inspect.rs:106, app/screenshot.rs:35
+/// Writes a screenshot's PNG bytes to an automation path: the app's file authority (PhotoCraft's
+/// `automation_write`, limited to its authorized workspace). `Err` is the reply's error text.
+pub type PngWriter<'a> = dyn FnMut(&str, &[u8]) -> Result<(), String> + 'a;
+
+/// The reply for a finished image, PhotoCraft's shapes:
+/// - an image over [`MAX_IMAGE_BYTES`] as RGBA (or whose size overflows):
+///   `{"ok": false, "error": "screenshot {token} failed: the image exceeds the {MAX_IMAGE_BYTES / 1 MiB} MiB encode budget"}`;
+/// - no `path`: `{"ok": true, "result": {"base64": <standard base64 of the PNG>, "mime": "image/png", "width", "height"}}`,
+///   with no size limit beyond the encode budget;
+/// - a `path`: the PNG goes to `write(path, bytes)`, the app's file authority (PhotoCraft's
+///   `automation_write`, limited to its authorized workspace), and the reply is
+///   `{"ok": true, "result": {"path", "width", "height"}}`;
+/// - an encode or write error `e`: `{"ok": false, "error": e}`.
+///
+/// Flatten the pixels to RGBA and drop the image before encoding, so the two copies don't overlap.
+pub fn screenshot_reply(token: u64, image: Arc<ColorImage>, path: Option<&str>, write: &mut PngWriter<'_>) -> ControlResponse {
+    // pc: crates/ui-egui/src/app/screenshot.rs:32 (finish_captures) and control/inspect.rs:115 (save_screenshot_rgba)
     todo!()
 }
 

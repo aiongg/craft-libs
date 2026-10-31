@@ -124,9 +124,10 @@ impl serde::Serialize for SlowFrames {
     }
 }
 
-/// Monotonic milliseconds since the first call (the profiler's clock).
+/// Monotonic milliseconds since the first call in this process: `craft_platform::clock::monotonic_ms`,
+/// so profiler rows, traces, screenshot deadlines and the app's own timers share one origin.
 pub fn now_ms() -> f64 {
-    // pc: crates/ui-egui/src/gpu_canvas.rs (now_ms)
+    // pc: crates/ui-egui/src/canvas/gpu_canvas/perf.rs:12
     todo!()
 }
 

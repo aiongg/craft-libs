@@ -85,14 +85,14 @@ impl ControlOptions {
     /// The values from the environment alone: a blank variable is unset; a bad port is
     /// [`OptionsError::NotAPort`] naming the variable.
     pub fn from_env(names: &EnvNames) -> Result<Self, OptionsError> {
-        // pc: crates/automation/src/args.rs:41 (blank_env_is_unset), apps/photocraft/src/main.rs:22
+        // pc: crates/automation/src/args.rs:65 (blank_env_is_unset), apps/photocraft/src/launch_args.rs:55 (PHOTOCRAFT_CONTROL_PORT), crates/automation/src/args.rs:24, :28 (the token variables)
         todo!()
     }
 
     /// `flags` (what the command line gave, each with `Source::Flag`) over `env`: a flag wins
     /// over its variable, and a variable is never read when its flag is present.
     pub fn merged(flags: Self, env: Self) -> Self {
-        // pc: apps/photocraft/tests/it/command_line_usage.rs:131 (variables are the flags' fallbacks)
+        // pc: apps/photocraft/tests/it/command_line_usage.rs:137 (variables are the flags' fallbacks)
         todo!()
     }
 
@@ -100,7 +100,7 @@ impl ControlOptions {
     /// variable each came from). Only checked when `port` is set: without `--control` the token
     /// pair is ignored, as in PhotoCraft.
     pub fn check(&self, flags: &FlagNames, names: &EnvNames) -> Result<(), OptionsError> {
-        // pc: crates/automation/src/args.rs:68 (conflict), tests/it/control_exit_code.rs:63
+        // pc: crates/automation/src/args.rs:91 (conflict), tests/it/control_exit_code.rs:59
         todo!()
     }
 
@@ -130,16 +130,16 @@ pub struct FlagNames {
 }
 
 impl Default for FlagNames {
-    /// PhotoCraft's spellings.
+    /// PhotoCraft's spellings: `--control`, `--control-token`, `--control-token-file`.
     fn default() -> Self {
-        // pc: crates/automation/src/args.rs:13, apps/photocraft/src/main.rs:22
+        // pc: apps/photocraft/src/launch_args.rs:55, crates/automation/src/args.rs:24, :28
         todo!()
     }
 }
 
 /// `"0"`–`"65535"` with surrounding spaces to a port.
 pub fn control_port(s: &str) -> Result<u16, NotAPort> {
-    // pc: crates/automation/src/args.rs:34
+    // pc: crates/automation/src/args.rs:54
     todo!()
 }
 

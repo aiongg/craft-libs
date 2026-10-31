@@ -4,8 +4,8 @@
 //! Request: `{"id": 1, "method": "ui.click", "params": {"x": 10, "y": 20}}` on one line. Reply:
 //! `{"id": 1, "ok": true, "result": …}` or `{"id": 1, "ok": false, "error": "…"}` on one line,
 //! at most [`MAX_RESPONSE_BYTES`]. Validators reject unknown fields, wrong types, unknown choices
-//! and out-of-range numbers before a method acts, naming the parameter
-//! (`ui.click: 'button' must be one of left, right, secondary, middle`).
+//! and out-of-range numbers before a method acts, with PhotoCraft's `control/params.rs` messages
+//! (``unknown button `x` (left, right, secondary, middle)``, `params.rs:187`).
 
 use std::io::Write;
 
@@ -13,7 +13,9 @@ use serde_json::{Map, Value};
 
 /// Longest reply, in bytes; a longer one is replaced by an error reply naming the method.
 pub const MAX_RESPONSE_BYTES: usize = 8 << 20;
-/// Largest PNG the screenshot reply inlines as base64; larger images need a `path`.
+/// Largest PNG a headless render may return or write: `automation PNG exceeds {MAX_PNG_BYTES}
+/// bytes` otherwise (PhotoCraft `crates/automation/src/budgets.rs:15`, checked at `:42`). The
+/// UI screenshot reply doesn't apply it; [`crate::screenshot::MAX_IMAGE_BYTES`] bounds that.
 pub const MAX_PNG_BYTES: usize = 5 << 20;
 
 /// One parsed request line.
