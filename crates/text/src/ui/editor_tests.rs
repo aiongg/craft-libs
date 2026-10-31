@@ -88,3 +88,12 @@ fn escape_commits_or_cancels() {
 fn vertical_text_turns_the_arrows() {
     todo!()
 }
+
+// `insert` puts a glyph at the selection with no smart quotes and moves the caret after it; `cut`
+// copies the selection to the clipboard output and deletes it.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn menu_insert_copy_and_cut() {
+    todo!()
+}

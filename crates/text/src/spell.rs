@@ -1,4 +1,5 @@
-//! Spelling (F14.06): Edit › Check Spelling and the misspelling marks under text.
+//! Spelling (F14.06): Edit › Check Spelling, and the suggestions in the type tool's context menu
+//! over a misspelled word.
 //!
 //! [`Dictionary::english`] is SCOWL size 50 (American English, about 72,000 words), deflated into
 //! the binary and decoded on first use. Words are grouped by SCOWL level (10 = most common … 50),

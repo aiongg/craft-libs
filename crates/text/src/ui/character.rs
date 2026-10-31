@@ -54,6 +54,9 @@ craft_ui::words! {
         ordinals: "type.openType.ordinals" = "Ordinals";
         fractions: "type.openType.fractions" = "Fractions";
         language: "character.language" = "Language";
+        points: "character.unitPoints" = "pt";
+        pixels: "character.unitPixels" = "px";
+        millimeters: "character.unitMillimeters" = "mm";
     }
 }
 
@@ -112,9 +115,10 @@ impl TypeUnit {
         todo!()
     }
 
-    /// "pt", "px" or "mm".
+    /// The unit's word in `labels` (`points`, `pixels`, `millimeters`; English "pt", "px", "mm");
+    /// [`ParagraphControls`] uses the same words.
     // pc: crates/ui-egui/src/tools/type_tool/defaults.rs:62 `type_unit`.
-    pub fn suffix(self) -> &'static str {
+    pub fn suffix(self, labels: &CharacterLabels) -> &str {
         todo!()
     }
 }

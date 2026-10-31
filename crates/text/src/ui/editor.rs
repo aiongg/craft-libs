@@ -292,6 +292,30 @@ impl TextEditor {
         todo!()
     }
 
+    /// Replace the selection with `text` as if typed, without smart quotes: a glyph from the Glyphs
+    /// panel, Type › Paste Lorem Ipsum, a suggestion from the context menu over a misspelled word.
+    /// The caret ends after it. A composition in progress ends first, its marked text kept.
+    /// Edit › Paste from a menu goes through the clipboard instead
+    /// (`ViewportCommand::RequestPaste`; the text arrives in the next [`update`](Self::update)).
+    // pc: crates/ui-egui/src/panels/type_panels_ui.rs:608 `insert_glyph`;
+    // crates/ui-egui/src/tools/type_tool/editing.rs:141 `insert`, :118 `request_paste`.
+    pub fn insert(&mut self, ctx: &Context, host: &mut impl TextEditorHost, text: &str, kind: EditKind) -> bool {
+        todo!()
+    }
+
+    /// Edit › Copy from a menu: the selected chars to the clipboard (`Context::copy_text`).
+    /// Nothing with an empty selection.
+    // pc: crates/ui-egui/src/tools/type_tool/editing.rs:108 `copy_selection`.
+    pub fn copy(&self, ctx: &Context, host: &impl TextEditorHost) {
+        todo!()
+    }
+
+    /// Edit › Cut from a menu: copy, then delete the selection ([`EditKind::Deleted`]).
+    // pc: crates/ui-egui/src/tools/type_tool/editing.rs:131 `cut_selection`.
+    pub fn cut(&mut self, ctx: &Context, host: &mut impl TextEditorHost) {
+        todo!()
+    }
+
     /// A press on the canvas at `at` (document units, `screen` on screen) at egui time `time`. Inside the text: places
     /// the caret (Shift extends), counts the click run and selects by it, and starts a drag;
     /// returns `true`. Outside: ends a composition with its marked text kept and returns `false`,
