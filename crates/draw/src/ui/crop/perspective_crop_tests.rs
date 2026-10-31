@@ -6,10 +6,10 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::Point;
 
 use super::{PerspectiveCropQuad, PerspectiveHit, PerspectiveQuad, english_names, grid_lines, grid_steps, hit, is_valid, ordered};
-use crate::canvas::{CanvasView, RulerUnits};
-use crate::edit::EditEvent;
-use crate::localized::LocaleNumbers;
-use crate::theme::{Base, ToEgui, current, install};
+use craft_ui::canvas::{CanvasView, RulerUnits};
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::theme::{Base, ToEgui, current, install};
 
 /// A valid quad: a skewed page.
 const QUAD: [Point; 4] = [Point::new(100.0, 80.0), Point::new(300.0, 100.0), Point::new(280.0, 220.0), Point::new(120.0, 200.0)];
@@ -167,7 +167,7 @@ fn harness(quad: PerspectiveQuad, setup: impl FnOnce(&mut Host)) -> Harness<'sta
                         host.quad = before;
                     }
                 }
-                None => {}
+                Some(_) | None => {}
             }
             host.events.extend(r.edit.clone());
             host.applied += usize::from(r.apply);
@@ -233,6 +233,7 @@ fn kinds(h: &Harness<'_, Host>) -> Vec<&'static str> {
             EditEvent::Commit { .. } => "commit",
             EditEvent::Cancel { .. } => "cancel",
             EditEvent::Set { .. } => "set",
+            _ => "other",
         })
         .collect()
 }

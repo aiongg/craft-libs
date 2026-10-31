@@ -6,9 +6,9 @@ use kurbo::{Point, Rect, Size};
 
 use super::geometry::normalized_angle;
 use super::{CropBox, CropFrame, CropStyle};
-use crate::canvas::claim::PrimaryPress;
-use crate::canvas::transform_box::fixed;
-use crate::canvas::{CanvasView, Claim, Readout};
+use crate::ui::transform::transform_box::fixed;
+use craft_ui::canvas::claim::PrimaryPress;
+use craft_ui::canvas::{CanvasView, Claim, Readout};
 
 /// The line being drawn, in screen points, kept between passes.
 #[derive(Clone, Copy, Debug)]

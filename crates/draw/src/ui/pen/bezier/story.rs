@@ -1,18 +1,18 @@
 //! The path overlay's story, and the host the story and the tests keep their paths in.
 
-use crate::canvas::story::ViewArgs;
-use crate::localized::Labels as _;
+use craft_ui::localized::Labels as _;
+use craft_ui::testing::canvas_story::ViewArgs;
 use egui::{Color32, Ui};
 use kurbo::{ParamCurve as _, Point};
 
 use super::{
     BezierNames, BezierOverlay, BezierResponse, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, PathEdit, PathSelection,
 };
-use crate::canvas::RulerUnits;
-use crate::edit::EditEvent;
-use crate::localized::LocaleNumbers;
-use crate::story::{Level, Story, StoryChoice, Surface};
-use crate::typed_story;
+use craft_ui::canvas::RulerUnits;
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::story::{Level, Story, StoryChoice, Surface};
+use craft_ui::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Bezier paths"];
@@ -30,7 +30,7 @@ enum HandlesArg {
     All,
 }
 
-#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+#[derive(craft_ui::story::StoryArgs, Debug, PartialEq)]
 struct EditArgs {
     #[arg(flatten)]
     view: ViewArgs,
@@ -88,7 +88,7 @@ impl PathHost {
                     self.paths = before;
                 }
             }
-            None => {}
+            Some(_) | None => {}
         }
         if let Some((path, at, t)) = r.insert
             && let Some(knot) = insert(&mut self.paths, path, at, t)
@@ -234,7 +234,7 @@ fn show_paths(ui: &mut Ui, args: &mut EditArgs) {
         ToolArg::Direct => BezierTool::Direct,
     };
     let handles = if args.handles == HandlesArg::All { HandlesShown::All } else { HandlesShown::Selected };
-    let canvas = crate::canvas::story::document(ui, args.view, "Document");
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let names = BezierNames::of(ui);
     let response = BezierOverlay::new("story-bezier", &host.paths, &host.selection, &px, &px, names).tool(tool).handles(handles).show(

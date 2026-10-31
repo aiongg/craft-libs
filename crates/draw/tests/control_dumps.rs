@@ -1,8 +1,8 @@
-//! Component dumps of the gradient widgets: each one's resolved style (its pure `style` function) in
+//! Component dumps of the draw widgets: each one's resolved style (its pure `style` function) in
 //! every built-in and mode, as text under `tests/dumps/components/`. Rewrite with
 //! `UPDATE_DUMPS=1 cargo test -p craft-draw --features ui --test control_dumps`.
 
-use craft_draw::ui::{GradientEditor, GradientOverlay};
+use craft_draw::ui::{BezierOverlay, GradientEditor, GradientOverlay, PenDraft, TransformBox};
 use craft_ui::presets::style::PresetStyle;
 
 use craft_ui::testing::dump::{Dump, check_component};
@@ -55,5 +55,50 @@ fn gradient_palette() {
             .line("max_height", g.max_height)
             .line("ring_selected", ring.ring_selected)
             .line("ring_halo", ring.ring_halo);
+    });
+}
+
+/// Paths: outline and selected segment widths, the default path colour, the anchor, selected
+/// anchor and handle end looks, the handle line, hit, click slop and flattening tolerance.
+#[test]
+fn bezier() {
+    check("bezier.txt", |d, t| {
+        let s = BezierOverlay::style(t);
+        d.line("line", s.line).line("selected_segment", s.selected_segment).line("color", s.color);
+        for (key, h) in [("anchor", &s.anchor), ("selected_anchor", &s.selected_anchor), ("control", &s.control)] {
+            d.line(&format!("{key}.size"), h.size).line(&format!("{key}.fill"), h.fill);
+            d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
+        }
+        d.line("control_line", s.control_line).line("hit", s.hit).line("click_slop", s.click_slop).line("flatten", s.flatten);
+    });
+}
+
+/// The pen draft: the path so far, the rubber band's width and dashes, the anchor looks, the close
+/// cue's anchor, ring and offset, the hit and click slop.
+#[test]
+fn pen() {
+    check("pen.txt", |d, t| {
+        let s = PenDraft::style(t);
+        d.line("draft_line", s.draft_line).line("color", s.color);
+        d.line("rubber_width", s.rubber_width).line("rubber_dash", s.rubber_dash).line("rubber_gap", s.rubber_gap);
+        for (key, h) in [("anchor", &s.anchor), ("selected_anchor", &s.selected_anchor), ("control", &s.control), ("close_anchor", &s.close_anchor)] {
+            d.line(&format!("{key}.size"), h.size).line(&format!("{key}.fill"), h.fill);
+            d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
+        }
+        d.line("control_line", s.control_line).line("close_ring", s.close_ring).line("close_offset", s.close_offset);
+        d.line("hit", s.hit).line("click_slop", s.click_slop).line("flatten", s.flatten);
+    });
+}
+
+/// Transform boxes: the box line, the reach of handles, the rotate zones and a click, the
+/// reference point's sizes and lines, and the focus line round the whole box.
+#[test]
+fn transform() {
+    check("transform.txt", |d, t| {
+        let s = TransformBox::style(t);
+        d.line("line", s.line).line("handle_size", s.handle.size).line("hit", s.hit).line("rotate_reach", s.rotate_reach);
+        d.line("band_inner", s.band_inner).line("band_outer", s.band_outer).line("click_slop", s.click_slop);
+        d.line("pivot_radius", s.pivot_radius).line("pivot_arm", s.pivot_arm).line("pivot", s.pivot).line("pivot_halo", s.pivot_halo);
+        d.line("focus", s.focus).line("focus_halo", s.focus_halo).line("focus_offset", s.focus_offset);
     });
 }

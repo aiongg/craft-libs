@@ -9,12 +9,12 @@ use super::{
     BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, MAX_ANCHORS,
     PathEdit, PathSelection,
 };
-use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
-use crate::edit::{CancelReason, EditEvent};
-use crate::localized::LocaleNumbers;
-use crate::primitives::FocusRing;
-use crate::testing::TypingField;
-use crate::theme::{Base, current, install};
+use craft_ui::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
+use craft_ui::edit::{CancelReason, EditEvent};
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::primitives::FocusRing;
+use craft_ui::testing::TypingField;
+use craft_ui::theme::{Base, current, install};
 
 /// A host with a 400 × 300 canvas showing document (0, 0)–(400, 300) at zoom 1.
 struct Host {
@@ -163,6 +163,7 @@ fn kind<T>(e: &EditEvent<T>) -> &'static str {
         EditEvent::Commit { .. } => "commit",
         EditEvent::Cancel { .. } => "cancel",
         EditEvent::Set { .. } => "set",
+        _ => "other",
     }
 }
 

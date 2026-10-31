@@ -787,12 +787,12 @@ impl BoxState {
 /// A projective map of the plane: the unit square onto a box, so a box scales along its own axes
 /// whatever its shape. Hosts that draw pixels through a box keep their own.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Homography([f64; 9]);
+pub struct Homography([f64; 9]);
 
 impl Homography {
     /// The map taking (0, 0), (1, 0), (1, 1), (0, 1) to `q`'s corners; `None` for a degenerate
     /// box.
-    pub(crate) fn unit_to_quad(q: [Point; 4]) -> Option<Homography> {
+    pub fn unit_to_quad(q: [Point; 4]) -> Option<Homography> {
         let [p0, p1, p2, p3] = q;
         let (sx, sy) = (p0.x - p1.x + p2.x - p3.x, p0.y - p1.y + p2.y - p3.y);
         if sx.abs() < 1e-12 && sy.abs() < 1e-12 {
@@ -808,13 +808,15 @@ impl Homography {
         Some(Homography([p1.x - p0.x + g * p1.x, p3.x - p0.x + h * p3.x, p0.x, p1.y - p0.y + g * p1.y, p3.y - p0.y + h * p3.y, p0.y, g, h, 1.0]))
     }
 
-    pub(crate) fn apply(&self, p: Point) -> Point {
+    /// `p` of the unit square, carried to the box.
+    pub fn apply(&self, p: Point) -> Point {
         let m = &self.0;
         let w = m[6] * p.x + m[7] * p.y + m[8];
         Point::new((m[0] * p.x + m[1] * p.y + m[2]) / w, (m[3] * p.x + m[4] * p.y + m[5]) / w)
     }
 
-    pub(crate) fn inverse(&self) -> Option<Homography> {
+    /// The map back from the box to the unit square; `None` when the map is singular.
+    pub fn inverse(&self) -> Option<Homography> {
         let m = &self.0;
         let c = [
             m[4] * m[8] - m[5] * m[7],

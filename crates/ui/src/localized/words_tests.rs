@@ -207,37 +207,13 @@ fn chrome_labels_localized_with_identity_equal_their_english() {
 
 #[test]
 fn canvas_and_print_labels_localized_with_identity_equal_their_english() {
-    use crate::canvas::{
-        CropLabels, CropNames, GuideNames, PerspectiveCropNames, RulerNames, ScrollbarNames, TransformFieldLabels, TransformLabels, TransformNames,
-    };
+    use crate::canvas::{GuideNames, RulerNames, ScrollbarNames};
     use crate::shell::CanvasLabels;
 
-    identity_holds::<CropNames>();
-    identity_holds::<CropLabels>();
-    identity_holds::<PerspectiveCropNames>();
-    identity_holds::<TransformNames>();
-    identity_holds::<TransformLabels>();
-    identity_holds::<TransformFieldLabels>();
     identity_holds::<RulerNames>();
     identity_holds::<GuideNames>();
     identity_holds::<ScrollbarNames>();
     identity_holds::<CanvasLabels>();
-}
-
-#[test]
-fn canvas_names_reach_their_fields_and_closures_fill_placeholders() {
-    use crate::canvas::{BezierNames, CropNames, PenNames, TransformFieldLabels};
-
-    let by_word = Words::new(|word| Some(format!("<{}>{}", word.key(), word.english.find('{').map_or("", |at| &word.english[at..]))));
-    let crop = format!("{:?}", CropNames::english().localized_in(&by_word));
-    for word in CropNames::WORDS {
-        assert_eq!(crop.matches(&format!("\"<{}>", word.key())).count(), 1, "{}", word.key());
-    }
-    let fields = TransformFieldLabels::english().localized_in(&by_word);
-    assert_eq!((fields.skew_h.glyph.as_str(), fields.skew_v.name.as_str()), ("<transform.skewHGlyph>", "<transform.skewVName>"));
-
-    assert_eq!(PenNames::english().anchor.as_ref()(3, 5), "Anchor 3 of 5");
-    assert_eq!(BezierNames::english().anchor.as_ref()(1, 2), "Anchor 1 of 2");
 }
 
 #[test]

@@ -1,26 +1,26 @@
 //! [`TransformFields`]: the options bar's X, Y, W, H, angle and skew fields of a transform box.
 
-use crate::canvas::story::ViewArgs;
 use craft_theme::ControlSize;
+use craft_ui::testing::canvas_story::ViewArgs;
 use egui::{Align, Layout, Ui, UiBuilder, vec2};
 use kurbo::{Rect, Vec2};
 
-use super::RulerUnits;
-use super::quad::{BoxState, SKEW_LIMIT};
-use super::story;
-use crate::composites::{PropertyLabel, PropertyRow};
-use crate::controls::number_field::{self, FieldRule};
-use crate::controls::{IconButton, NumberField};
-use crate::direction;
-use crate::edit::ops::{self, ScalarOp};
-use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, GestureId, parts};
-use crate::icons::Icon;
-use crate::localized::{Labels, LocaleNumbers, Unit, Word, Words};
-use crate::primitives::Handle;
-use crate::primitives::HandleShape;
-use crate::story::{Level, Story, StoryChoice, Surface};
-use crate::theme::{ToEgui, Tokens, TokensOf};
-use crate::typed_story;
+use craft_ui::canvas::quad::{BoxState, SKEW_LIMIT};
+use craft_ui::canvas::{ReferencePoint, RulerUnits};
+use craft_ui::composites::{PropertyLabel, PropertyRow};
+use craft_ui::controls::number_field::{self, FieldRule};
+use craft_ui::controls::{IconButton, NumberField};
+use craft_ui::direction;
+use craft_ui::edit::ops::{self, ScalarOp};
+use craft_ui::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, GestureId, parts};
+use craft_ui::icons::Icon;
+use craft_ui::localized::{Labels, LocaleNumbers, Unit, Word, Words};
+use craft_ui::primitives::Handle;
+use craft_ui::primitives::HandleShape;
+use craft_ui::story::{Level, Story, StoryChoice, Surface};
+use craft_ui::testing::canvas_story as story;
+use craft_ui::theme::{ToEgui, Tokens, TokensOf};
+use craft_ui::typed_story;
 
 /// The largest position of the box's reference point, in document units (PhotoCraft).
 pub const POSITION_LIMIT: f64 = 300_000.0;
@@ -288,7 +288,7 @@ const FIELDS: usize = 7;
 /// ```
 /// use craft_ui::canvas::kurbo::Rect;
 /// use craft_ui::canvas::quad::BoxState;
-/// use craft_ui::canvas::{TransformFields, TransformFieldLabels};
+/// use craft_draw::ui::{TransformFields, TransformFieldLabels};
 /// # egui::__run_test_ui(|ui| {
 /// let rect = Rect::new(0.0, 0.0, 200.0, 100.0);
 /// let mut state = BoxState::from_rect(rect);
@@ -385,7 +385,7 @@ impl<'a> TransformFields<'a> {
     }
 
     /// The aspect link, which the host also gives
-    /// [`BoxRules::aspect_linked`](super::quad::BoxRules::aspect_linked). The toggle edits it.
+    /// [`BoxRules::aspect_linked`](craft_ui::canvas::quad::BoxRules::aspect_linked). The toggle edits it.
     pub fn linked(mut self, linked: &'a mut bool) -> Self {
         self.linked = Some(linked);
         self
@@ -410,7 +410,7 @@ impl<'a> TransformFields<'a> {
     }
 
     /// How the row reports its edits: a host previewing a large layer asks for
-    /// [`Debounced`](crate::edit::UpdateRate::Debounced) updates or
+    /// [`Debounced`](craft_ui::edit::UpdateRate::Debounced) updates or
     /// [`on_release_only`](EditPolicy::on_release_only).
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
@@ -596,7 +596,7 @@ enum SizeUnitArg {
     Pixels,
 }
 
-#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+#[derive(craft_ui::story::StoryArgs, Debug, PartialEq)]
 struct BoxArgs {
     #[arg(flatten)]
     view: ViewArgs,
@@ -623,7 +623,7 @@ fn show_story(ui: &mut Ui, args: &mut BoxArgs) {
         SizeUnitArg::Percent => SizeUnit::Percent,
     };
     ui.horizontal(|ui| {
-        let edit = super::ReferencePoint::new("transform-fields-pivot", state.anchor_of_pivot()).show(ui);
+        let edit = ReferencePoint::new("transform-fields-pivot", state.anchor_of_pivot()).show(ui);
         if let Some(EditEvent::Set { value: Some(anchor), .. }) = edit.event {
             state.pivot = state.point_at(anchor);
         }

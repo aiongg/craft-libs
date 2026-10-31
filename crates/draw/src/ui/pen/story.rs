@@ -1,17 +1,18 @@
 //! The pen draft's story, and the host the story and the tests keep their paths and draft in.
 
-use crate::localized::Labels as _;
+use craft_ui::localized::Labels as _;
 use egui::{Key, Modifiers, Ui};
 use kurbo::Point;
 
+use super::bezier::story::sample_paths;
 use super::{PenDraft, PenNames, PenResponse};
-use crate::canvas::bezier::story::sample_paths;
-use crate::canvas::story::PlainArgs;
-use crate::canvas::{BezierNames, BezierOverlay, BezierTool, EditPath, EditSubpath, KnotRef, PathSelection, RulerUnits};
-use crate::edit::EditEvent;
-use crate::localized::LocaleNumbers;
-use crate::story::{Level, Story, Surface};
-use crate::typed_story;
+use crate::ui::pen::bezier::{BezierNames, BezierOverlay, BezierTool, EditPath, EditSubpath, KnotRef, PathSelection};
+use craft_ui::canvas::RulerUnits;
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::story::{Level, Story, Surface};
+use craft_ui::testing::canvas_story::PlainArgs;
+use craft_ui::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Pen draft"];
@@ -72,7 +73,7 @@ impl PenHost {
                 self.draft = None;
             }
             Some(EditEvent::Cancel { .. }) => self.draft = None,
-            Some(EditEvent::Begin { .. }) | None => {}
+            Some(_) | None => {}
         }
         if r.finished {
             self.draft = None;
@@ -109,7 +110,7 @@ pub(crate) fn finished_paths() -> Vec<EditPath> {
 fn show_pen(ui: &mut Ui, args: &mut PlainArgs) {
     let key = ui.scope_id().with("pen-story");
     let mut host: PenHost = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| PenHost::new(finished_paths()));
-    let canvas = crate::canvas::story::document(ui, args.view, "Document");
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let selection = PathSelection::default();
     let names = BezierNames::of(ui);

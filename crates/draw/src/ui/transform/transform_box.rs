@@ -1,21 +1,21 @@
 //! [`TransformBox`]: the box of Free Transform and of a Move tool's transform controls.
 
-use crate::canvas::story::ViewArgs;
+use craft_ui::testing::canvas_story::ViewArgs;
 use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, vec2};
 use kurbo::{Point, Rect, Vec2};
 
-use super::claim::PrimaryPress;
-use super::quad::{self, BoxPart, BoxRules, BoxState, ScaleRule, TransformMode};
-use super::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, resize_cursor, turn_cursor};
-use crate::behavior::nudge;
-use crate::edit::order::Turn;
-use crate::edit::{EditEvent, EditPolicy, Gesture};
-use crate::localized::{Labels, Unit, Word, Words};
-use crate::popup_list;
-use crate::primitives::{FocusRing, Handle, HandleShape, HandleStyle};
-use crate::story::{Level, Story, StoryChoice, Surface};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
-use crate::typed_story;
+use craft_ui::behavior::nudge;
+use craft_ui::canvas::claim::PrimaryPress;
+use craft_ui::canvas::quad::{self, BoxPart, BoxRules, BoxState, ScaleRule, TransformMode};
+use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, resize_cursor, turn_cursor};
+use craft_ui::edit::order::Turn;
+use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
+use craft_ui::localized::{Labels, Unit, Word, Words};
+use craft_ui::popup_list;
+use craft_ui::primitives::{FocusRing, Handle, HandleShape, HandleStyle};
+use craft_ui::story::{Level, Story, StoryChoice, Surface};
+use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use craft_ui::typed_story;
 
 /// Where a press outside the box rotates it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -273,7 +273,8 @@ struct Drag {
 /// the pointer through [`quad::drag`]'s rules, moved and picked from the keyboard.
 ///
 /// ```
-/// use craft_ui::canvas::{CanvasView, TransformBox, TransformNames, kurbo::{Point, Rect}, quad::BoxState};
+/// use craft_draw::ui::{TransformBox, TransformNames};
+/// use craft_ui::canvas::{CanvasView, kurbo::{Point, Rect}, quad::BoxState};
 /// # egui::__run_test_ui(|ui| {
 /// let (rect, canvas) = ui.allocate_exact_size(egui::vec2(400.0, 300.0), egui::Sense::click_and_drag());
 /// let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
@@ -820,7 +821,7 @@ impl<'a> TransformBox<'a> {
 
     /// The pointer for `part` at screen point `pointer`; `dragging`: during its drag.
     fn cursor(&self, ctx: &Context, view: &CanvasView, screen: &BoxState, part: BoxPart, pointer: Pos2, dragging: bool) {
-        let style = TransformBox::style(&crate::theme::current(ctx));
+        let style = TransformBox::style(&craft_ui::theme::current(ctx));
         if !self.rules.allows(part) {
             ctx.set_cursor_icon(CursorIcon::Default);
             return;
@@ -948,7 +949,7 @@ fn pick_key(id: Id) -> Id {
 }
 
 /// The [`Part`] key of a box part.
-pub(super) fn part_key(part: BoxPart) -> u64 {
+pub(crate) fn part_key(part: BoxPart) -> u64 {
     match part {
         BoxPart::Inside | BoxPart::Outside => 0,
         BoxPart::Corner(i) => 1 + u64::from(i % 4),
@@ -957,7 +958,7 @@ pub(super) fn part_key(part: BoxPart) -> u64 {
     }
 }
 
-pub(super) fn key_part(key: u64) -> Option<BoxPart> {
+pub(crate) fn key_part(key: u64) -> Option<BoxPart> {
     match key {
         0 => Some(BoxPart::Inside),
         1..=4 => Some(BoxPart::Corner((key - 1) as u8)),
@@ -973,7 +974,7 @@ fn on_screen(view: &CanvasView, s: &BoxState) -> BoxState {
     BoxState { quad: s.quad.map(|p| a * p), pivot: a * s.pivot }
 }
 
-pub(super) fn pos(p: Point) -> Pos2 {
+pub(crate) fn pos(p: Point) -> Pos2 {
     Pos2::new(p.x as f32, p.y as f32)
 }
 
@@ -1021,7 +1022,7 @@ fn bisector(screen: &BoxState, i: usize) -> egui::Vec2 {
 
 /// The closed polygon `corners` moved `by` points outward, each corner along its mitre (kept
 /// within four times `by` at a sharp corner).
-pub(super) fn outset(corners: &[Pos2; 4], by: f32) -> [Pos2; 4] {
+pub(crate) fn outset(corners: &[Pos2; 4], by: f32) -> [Pos2; 4] {
     let area: f32 = (0..4).map(|i| corners[i].x * corners[(i + 1) % 4].y - corners[(i + 1) % 4].x * corners[i].y).sum();
     let side = if area >= 0.0 { 1.0 } else { -1.0 };
     let normal = |a: Pos2, b: Pos2| {
@@ -1040,7 +1041,7 @@ pub(super) fn outset(corners: &[Pos2; 4], by: f32) -> [Pos2; 4] {
 }
 
 /// `v` rounded to `places` decimals, with no negative zero (a hair below zero never reads "-0").
-pub(super) fn fixed(v: f64, places: i32) -> f64 {
+pub(crate) fn fixed(v: f64, places: i32) -> f64 {
     let k = 10f64.powi(places);
     let v = (v * k).round() / k;
     if v == 0.0 { 0.0 } else { v }
@@ -1091,7 +1092,7 @@ enum ZoneArg {
     Band,
 }
 
-#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+#[derive(craft_ui::story::StoryArgs, Debug, PartialEq)]
 struct FreeTransformArgs {
     #[arg(flatten)]
     view: ViewArgs,
@@ -1166,7 +1167,7 @@ impl BoxHost {
                     self.state = before;
                 }
             }
-            None => {}
+            Some(_) | None => {}
         }
     }
 }
@@ -1184,7 +1185,7 @@ fn show_transform_box(ui: &mut Ui, args: &mut FreeTransformArgs) {
     let scale = if args.scale == ScaleArg::Free { ScaleRule::Free } else { ScaleRule::Proportional };
     let zone = if args.zone == ZoneArg::Band { RotateZone::Band } else { RotateZone::Outside };
     let rules = BoxRules { mode, scale, rotate_step: if scale == ScaleRule::Free { 45.0 } else { 15.0 }, ..BoxRules::default() };
-    let canvas = super::story::document(ui, args.view, "Document");
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
     let view = &canvas.view;
     let painter = ui.painter_at(view.rect);
     let picture = |quad: &[Point; 4], alpha: u8| {
@@ -1195,7 +1196,7 @@ fn show_transform_box(ui: &mut Ui, args: &mut FreeTransformArgs) {
         painter.add(picture(quad, 140));
     }
     painter.add(picture(&host.state.quad, 220));
-    let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
+    let px = RulerUnits::pixels(craft_ui::localized::LocaleNumbers::from_tag("en").ungrouped());
     let mut b = TransformBox::new("story-transform-box", &host.state, TransformNames::of(ui))
         .rules(rules)
         .rotate_zone(zone)

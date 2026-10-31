@@ -4,20 +4,20 @@
 use egui::{Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Pos2, Response, Shape, Stroke, StrokeKind, Ui};
 use kurbo::{Point, Vec2};
 
-use super::claim::PrimaryPress;
-use super::quad::Homography;
-use super::story::ViewArgs;
-use super::transform_box::fixed;
-use super::{CanvasView, Claim, Part, PartFocus, RulerUnits};
-use crate::behavior::nudge;
-use crate::edit::order::Turn;
-use crate::edit::{EditEvent, EditPolicy, Gesture};
-use crate::localized::{Labels, Word, Words};
-use crate::popup_list;
-use crate::primitives::{Handle, HandleShape};
-use crate::story::{Level, Story, Surface};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
-use crate::typed_story;
+use crate::ui::transform::transform_box::fixed;
+use craft_ui::behavior::nudge;
+use craft_ui::canvas::claim::PrimaryPress;
+use craft_ui::canvas::quad::Homography;
+use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, RulerUnits};
+use craft_ui::edit::order::Turn;
+use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
+use craft_ui::localized::{Labels, Word, Words};
+use craft_ui::popup_list;
+use craft_ui::primitives::{Handle, HandleShape};
+use craft_ui::story::{Level, Story, Surface};
+use craft_ui::testing::canvas_story::ViewArgs;
+use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use craft_ui::typed_story;
 
 /// The quad of a perspective crop in document units, corners ordered top left, top right, bottom
 /// right, bottom left; `None` before one is drawn.
@@ -169,7 +169,8 @@ struct Drag {
 /// the mapping, the W × H fields and the undo step stay in the app.
 ///
 /// ```
-/// use craft_ui::canvas::{CanvasView, PerspectiveCropNames, PerspectiveCropQuad, PerspectiveQuad, kurbo::Point};
+/// use craft_draw::ui::{PerspectiveCropNames, PerspectiveCropQuad, PerspectiveQuad};
+/// use craft_ui::canvas::{CanvasView, kurbo::Point};
 /// # egui::__run_test_ui(|ui| {
 /// let (rect, canvas) = ui.allocate_exact_size(egui::vec2(400.0, 300.0), egui::Sense::click_and_drag());
 /// let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
@@ -190,7 +191,7 @@ struct Drag {
 ///   the quad is [committable](PerspectiveCropResponse::committable), and drops the quad (passes
 ///   `None` and calls [`clear`](Self::clear)) when the active document changes.
 /// - With no quad, a drag draws an upright box, or four clicks (a press that moves under 3 screen
-///   points) place corners one by one; the fourth makes the quad, corners [`ordered`]. A drag
+///   points) place corners one by one; the fourth makes the quad, corners put in order. A drag
 ///   clears the clicks.
 /// - With a quad, the nearest corner within [`tolerance`](Self::tolerance) moves alone, keeping
 ///   the press offset; inside moves the quad; a press elsewhere does nothing.
@@ -750,7 +751,7 @@ pub(crate) fn english_names() -> PerspectiveCropNames {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Perspective crop quad"];
 
-#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+#[derive(craft_ui::story::StoryArgs, Debug, PartialEq)]
 struct PerspectiveArgs {
     #[arg(flatten)]
     view: ViewArgs,
@@ -787,14 +788,14 @@ fn show_story(ui: &mut Ui, args: &mut PerspectiveArgs) {
     let mut quad: PerspectiveQuad = ui.data(|d| d.get_temp(key)).unwrap_or(None);
     let before_key = key.with("before");
     let mut before: PerspectiveQuad = ui.data(|d| d.get_temp(before_key)).unwrap_or(None);
-    let canvas = super::story::document(ui, args.view, "Document");
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
     let view = &canvas.view;
     ui.painter_at(view.rect).add(Shape::convex_polygon(
         PAGE.iter().map(|&p| view.to_screen(p)).collect(),
         Color32::from_rgb(70, 130, 180),
         Stroke::new(1.0, Color32::from_gray(40)),
     ));
-    let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
+    let px = RulerUnits::pixels(craft_ui::localized::LocaleNumbers::from_tag("en").ungrouped());
     let r = PerspectiveCropQuad::new("story-perspective-crop", &quad, PerspectiveCropNames::of(ui)).show_grid(args.grid).units(&px, &px).show(
         ui,
         &canvas.response,
@@ -804,7 +805,7 @@ fn show_story(ui: &mut Ui, args: &mut PerspectiveArgs) {
         Some(EditEvent::Begin { .. }) => before = quad,
         Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => quad = *value,
         Some(EditEvent::Cancel { .. }) => quad = before,
-        None => {}
+        Some(_) | None => {}
     }
     ui.data_mut(|d| d.insert_temp(before_key, before));
     if r.apply || r.discard {

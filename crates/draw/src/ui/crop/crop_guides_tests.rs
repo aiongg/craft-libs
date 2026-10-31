@@ -1,8 +1,8 @@
 use egui::Color32;
 
 use super::*;
-use crate::theme::{Base, install, tokens_in_mode};
 use craft_theme::Mode;
+use craft_ui::theme::{Base, install, tokens_in_mode};
 
 fn all_points(g: &[Polyline]) -> impl Iterator<Item = [f32; 2]> + '_ {
     g.iter().flatten().copied()

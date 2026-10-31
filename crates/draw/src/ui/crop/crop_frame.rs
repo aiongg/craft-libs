@@ -3,17 +3,18 @@
 use egui::{Color32, Context, CursorIcon, Id, IdSalt, Key, Mesh, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, pos2};
 use kurbo::{Point, Rect, Vec2};
 
-use super::claim::PrimaryPress;
-use super::quad::BoxPart;
-use super::transform_box::{fixed, key_part, outset, part_key, pos};
-use super::{CanvasView, Claim, CropGuide, Part, PartFocus, Readout, RulerUnits, crisp, resize_cursor, turn_cursor};
-use crate::behavior::nudge;
-use crate::edit::order::Turn;
-use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
-use crate::localized::{Labels, Unit, Word, Words};
-use crate::popup_list;
-use crate::primitives::{FocusRing, Handle, HandleShape};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use super::crop_guides::CropGuide;
+use crate::ui::transform::transform_box::{fixed, key_part, outset, part_key, pos};
+use craft_ui::behavior::nudge;
+use craft_ui::canvas::claim::PrimaryPress;
+use craft_ui::canvas::quad::BoxPart;
+use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, crisp, resize_cursor, turn_cursor};
+use craft_ui::edit::order::Turn;
+use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
+use craft_ui::localized::{Labels, Unit, Word, Words};
+use craft_ui::popup_list;
+use craft_ui::primitives::{FocusRing, Handle, HandleShape};
+use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 mod geometry;
 mod image_mode;
@@ -236,7 +237,8 @@ struct Drag {
 /// mode has it, moved and picked from the keyboard.
 ///
 /// ```
-/// use craft_ui::canvas::{CanvasView, CropBox, CropFrame, CropNames, kurbo::{Point, Rect}};
+/// use craft_draw::ui::{CropBox, CropFrame, CropNames};
+/// use craft_ui::canvas::{CanvasView, kurbo::{Point, Rect}};
 /// # egui::__run_test_ui(|ui| {
 /// let (rect, canvas) = ui.allocate_exact_size(egui::vec2(400.0, 300.0), egui::Sense::click_and_drag());
 /// let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);

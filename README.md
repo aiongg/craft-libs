@@ -48,7 +48,8 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   document may be opened. Paths stored in documents are followed only when they are local or on the
   document's own network share; other network paths, device paths and non-file URLs are refused.
 - [`craft-draw`](crates/draw/README.md): vector and shape tools; the gradient editor and
-  on-canvas gradient overlay (`ui` feature).
+  on-canvas gradient overlay, the pen and path overlays, the crop frame and perspective crop, and the
+  free transform box and fields (`ui` feature).
 - [`craft-imaging`](crates/imaging/README.md): raster image editing; the warp grid and the levels
   editor (`ui` feature).
 - [`craft-font-catalog`](crates/font-catalog/README.md): the installed fonts on every platform

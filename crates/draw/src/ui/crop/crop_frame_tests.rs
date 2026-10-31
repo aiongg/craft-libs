@@ -8,11 +8,12 @@ use kurbo::{Point, Rect, Vec2};
 
 use super::geometry::{Hit, drawn, handle_part, hit, resized, resized_turned, turn, turned_angle, within};
 use super::{CropBox, CropFrame, CropLabels, CropNames, turn_toward};
-use crate::canvas::quad::BoxPart;
-use crate::canvas::{CanvasView, CropGuide, RulerUnits};
-use crate::edit::{CancelReason, EditEvent};
-use crate::localized::LocaleNumbers;
-use crate::theme::{Base, FontFamilies, ToEgui, UiTokens, current, install};
+use crate::ui::CropGuide;
+use craft_ui::canvas::quad::BoxPart;
+use craft_ui::canvas::{CanvasView, RulerUnits};
+use craft_ui::edit::{CancelReason, EditEvent};
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::theme::{Base, FontFamilies, ToEgui, UiTokens, current, install};
 
 /// The frame before any gesture.
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
@@ -253,7 +254,7 @@ fn harness_with(state: CropBox, rotation: f64, flip: bool, setup: impl FnOnce(&m
                         host.state = before;
                     }
                 }
-                None => {}
+                Some(_) | None => {}
             }
             host.events.extend(r.event.clone());
             host.applied += usize::from(r.apply);
@@ -321,6 +322,7 @@ fn kinds(h: &Harness<'_, Host>) -> Vec<&'static str> {
             EditEvent::Commit { .. } => "commit",
             EditEvent::Cancel { .. } => "cancel",
             EditEvent::Set { .. } => "set",
+            _ => "other",
         })
         .collect()
 }

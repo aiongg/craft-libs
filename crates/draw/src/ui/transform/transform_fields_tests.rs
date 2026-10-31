@@ -4,11 +4,11 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect};
 
-use super::super::quad::Anchor9;
 use super::*;
-use crate::direction::{self, Direction};
-use crate::edit::{self, CancelReason, EditEvent};
-use crate::theme::{Base, install};
+use craft_ui::canvas::quad::Anchor9;
+use craft_ui::direction::{self, Direction};
+use craft_ui::edit::{self, CancelReason, EditEvent};
+use craft_ui::theme::{Base, install};
 
 const RECT: Rect = Rect::new(100.0, 50.0, 300.0, 150.0);
 
@@ -120,6 +120,7 @@ impl Host {
                 EditEvent::Commit { .. } => "Commit",
                 EditEvent::Cancel { .. } => "Cancel",
                 EditEvent::Set { .. } => "Set",
+                _ => "other",
             })
             .collect()
     }
@@ -162,7 +163,7 @@ fn harness_with(dir: Direction, setup: impl FnOnce(&mut Host)) -> Harness<'stati
                             (host.state, host.skew_v) = (start.state, start.skew_v);
                         }
                     }
-                    None => {}
+                    Some(_) | None => {}
                 }
                 host.passes.extend(edit.event.iter().map(|_| ui.ctx().cumulative_pass_nr()));
                 host.events.extend(edit.event);

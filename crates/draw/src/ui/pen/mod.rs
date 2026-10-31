@@ -1,20 +1,25 @@
 //! [`PenDraft`]: the path being drawn with the Pen, as PhotoCraft's Pen tool draws it.
 
+pub(crate) mod bezier;
 pub(crate) mod story;
 
 use egui::{AsIdSalt, Color32, Context, Id, IdSalt, Key, Modifiers, Response, Shape, Stroke, Ui, vec2};
 use kurbo::Point;
 
-use super::bezier::{constrain, outline};
-use super::claim::PrimaryPress;
-use super::{CanvasView, Claim, EditSubpath, HandleSide, Knot, KnotRef, Part, PartFocus, RulerUnits, hit};
-use crate::behavior::nudge;
-use crate::edit::order::Turn;
-use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
-use crate::localized::words::format_in;
-use crate::localized::{Labels, Word, Words};
-use crate::primitives::{Handle, HandleShape, HandleStyle};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+pub use bezier::{
+    BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,
+    MAX_ANCHORS, PathEdit, PathSelection,
+};
+use bezier::{adjusted, constrain, outline};
+use craft_ui::behavior::nudge;
+use craft_ui::canvas::claim::PrimaryPress;
+use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, RulerUnits, hit};
+use craft_ui::edit::order::Turn;
+use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
+use craft_ui::localized::words::format_in;
+use craft_ui::localized::{Labels, Word, Words};
+use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
+use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// The AccessKit names of the path being drawn. [`PenNames::english`] is English, and a host passes
 /// its own translated text or [`PenNames::of`] for the words installed in the context.
@@ -146,7 +151,8 @@ struct Drag {
 /// from the events and ends it with the commit.
 ///
 /// ```
-/// use craft_ui::canvas::{CanvasView, EditSubpath, PenDraft, PenNames, kurbo::Point};
+/// use craft_draw::ui::{EditSubpath, PenDraft, PenNames};
+/// use craft_ui::canvas::{CanvasView, kurbo::Point};
 /// # egui::__run_test_ui(|ui| {
 /// let (rect, canvas) = ui.allocate_exact_size(egui::vec2(400.0, 300.0), egui::Sense::click_and_drag());
 /// let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
@@ -183,8 +189,8 @@ struct Drag {
 ///   next change begins a new gesture ([`Gesture`]'s rule for gestures the host ended). Ending
 ///   the draft is tool state, not an edit: the host ends it on [`finished`](PenResponse::finished),
 ///   since a draft ended with no change after such a step has no event to report.
-///   [`GestureHost`](crate::edit::GestureHost) judges an interruption from
-///   [`ending`](crate::edit::ending).
+///   [`GestureHost`](craft_ui::edit::GestureHost) judges an interruption from
+///   [`ending`](craft_ui::edit::ending).
 /// - Order: the host shows the pen after its handles and guides, as it is a tool.
 pub struct PenDraft<'a> {
     id_salt: IdSalt,
@@ -229,8 +235,9 @@ impl<'a> PenDraft<'a> {
 
     pub fn style(tokens: &UiTokens) -> PenStyle {
         let b = &tokens.component.bezier;
-        let anchor = HandleStyle { size: b.anchor, hit: 2.0 * b.hit, ..Handle::style(tokens, HandleShape::Square) };
-        let selected_anchor = HandleStyle { size: b.anchor, hit: 2.0 * b.hit, ..Handle::selected_style(tokens, HandleShape::Square) };
+        let sized = |style: HandleStyle, size| adjusted(style, |h| (h.size, h.hit) = (size, 2.0 * b.hit));
+        let anchor = sized(Handle::style(tokens, HandleShape::Square), b.anchor);
+        let selected_anchor = sized(Handle::selected_style(tokens, HandleShape::Square), b.anchor);
         PenStyle {
             draft_line: b.draft_line,
             color: tokens.color.overlay.line.to_egui(),
@@ -239,9 +246,9 @@ impl<'a> PenDraft<'a> {
             rubber_gap: b.rubber_gap,
             anchor,
             selected_anchor,
-            control: HandleStyle { size: b.control, hit: 2.0 * b.hit, ..Handle::style(tokens, HandleShape::Rotate) },
+            control: sized(Handle::style(tokens, HandleShape::Rotate), b.control),
             control_line: b.control_line,
-            close_anchor: HandleStyle { size: b.close_anchor, ..selected_anchor },
+            close_anchor: adjusted(selected_anchor, |h| h.size = b.close_anchor),
             close_ring: b.close_ring,
             close_offset: b.close_offset,
             hit: b.hit,

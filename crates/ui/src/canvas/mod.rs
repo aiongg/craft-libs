@@ -1,6 +1,5 @@
-//! Canvas overlays: what the design system draws over a document (marquees, guides, rulers,
-//! transform boxes, paths) and the foundation they share. Overlays draw and sense; the document,
-//! its undo and the tool logic stay in the app.
+//! Canvas overlays: what the design system draws over a document (marquees, guides, rulers) and
+//! the foundation they share. Overlays draw and sense; the document, its undo and the tool logic stay in the app.
 //!
 //! - [`CanvasView`]: the mapping between document and screen (centre, zoom, rotation, flip,
 //!   pixel aspect). Apps convert their own view type into it once per frame.
@@ -20,19 +19,10 @@
 //! - [`Guides`]: ruler guides; [`SmartGuides`]: alignment lines and distances during a move.
 //! - [`quad`]: transform box geometry, where a box goes when a part of it is dragged.
 //! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
-//! - [`TransformFields`]: the options bar's X, Y, W, H, angle and skew fields of a transform box;
-//!   [`ReferencePoint`]: the 3 × 3 picker of its reference point.
+//! - [`ReferencePoint`]: the 3 × 3 picker of a transform box's reference point.
 //! - [`turn_cursor`]: the rotate pointer outside a transform box's corners; [`distort_cursor`],
 //!   [`skew_cursor`] and [`selection_cursor`] are the other painted pointers; [`PointerInk`] says
 //!   whether the system pointer stays or the pointer is painted whole.
-//! - [`TransformBox`]: the box of Free Transform, its handles and reference point.
-//! - [`CropFrame`]: the Crop tool's frame with its shield, brackets, composition guides
-//!   ([`CropGuide`]) and Classic-mode gestures.
-//! - [`PerspectiveCropQuad`]: the Perspective Crop tool's quad with its perspective grid, corner
-//!   handles and gestures.
-//! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
-//!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
-//! - [`PenDraft`]: the path being drawn with the Pen, its gestures and keys.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
@@ -53,18 +43,13 @@
 //! # });
 //! ```
 
-pub(crate) mod bezier;
 pub mod claim;
 mod crisp;
-pub(crate) mod crop_frame;
-pub mod crop_guides;
 mod grid;
 pub mod guides;
 pub mod hit;
 pub(crate) mod marquee;
 mod part_focus;
-pub(crate) mod pen;
-pub(crate) mod perspective_crop;
 pub mod quad;
 mod readout;
 pub(crate) mod ref_point;
@@ -73,22 +58,14 @@ mod scrollbars;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
-pub(crate) mod transform_box;
-pub(crate) mod transform_fields;
 mod turn;
 mod units;
 mod view;
 
 pub use crate::edit::order::Turn;
 pub use ::kurbo;
-pub use bezier::{
-    BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,
-    MAX_ANCHORS, PathEdit, PathSelection,
-};
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
-pub use crop_frame::{CropBox, CropFrame, CropLabels, CropNames, CropResponse, CropStyle};
-pub use crop_guides::{CropGuide, CropShield, GuideShow, Polyline, ShieldColor};
 pub use grid::{CanvasGrid, GridLine, GridStyle};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{
@@ -96,18 +73,10 @@ pub use marquee::{
     square_pixels,
 };
 pub use part_focus::{Part, PartFocus, PartFocusResponse};
-pub use pen::{PenDraft, PenNames, PenResponse, PenStyle};
-pub use perspective_crop::{
-    PerspectiveCropNames, PerspectiveCropQuad, PerspectiveCropResponse, PerspectiveCropStyle, PerspectiveHit, PerspectiveQuad,
-};
 pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
-pub use transform_box::{
-    BoxPress, BoxRelease, BoxTrack, RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle, paint_pivot,
-};
-pub use transform_fields::{FieldLabel, SizeUnit, TransformFieldLabels, TransformFields, TransformRow};
 pub use turn::{
     PointerInk, SelectionBadge, distort_cursor, selection_badge_at, selection_badge_beside_pointer, selection_cursor, skew_cursor, turn_cursor,
     turn_cursor_with,

@@ -9,15 +9,22 @@ use kurbo::{Affine, BezPath, CubicBez, ParamCurve as _, ParamCurveNearest as _, 
 
 pub use model::{EditPath, EditSubpath, HandleSide, Knot, KnotRef, PathEdit, PathSelection};
 
-use super::claim::PrimaryPress;
-use super::{CanvasView, Claim, Marquee, MarqueeDrag, MarqueeLook, Part, PartFocus, RulerUnits, hit};
-use crate::behavior::nudge;
-use crate::edit::order::Turn;
-use crate::edit::{EditEvent, EditPolicy, Gesture};
-use crate::localized::words::format_in;
-use crate::localized::{Labels, Word, Words};
-use crate::primitives::{Handle, HandleShape, HandleStyle};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use craft_ui::behavior::nudge;
+use craft_ui::canvas::claim::PrimaryPress;
+use craft_ui::canvas::{CanvasView, Claim, Marquee, MarqueeDrag, MarqueeLook, Part, PartFocus, RulerUnits, hit};
+use craft_ui::edit::order::Turn;
+use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
+use craft_ui::localized::words::format_in;
+use craft_ui::localized::{Labels, Word, Words};
+use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
+use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+
+/// `style` with `change` applied: handle styles are `#[non_exhaustive]`, so a struct update is not
+/// available outside craft-ui.
+pub(crate) fn adjusted(mut style: HandleStyle, change: impl FnOnce(&mut HandleStyle)) -> HandleStyle {
+    change(&mut style);
+    style
+}
 
 /// Above this many anchors in the paths shown, the overlay draws outlines only and puts no anchor
 /// in the AccessKit tree (VectorCraft's `OVERLAY_MAX_ANCHORS`).
@@ -169,9 +176,12 @@ impl BezierStyle {
     /// overlay's handle colours, which keep the handle contrast rule.
     fn looks(&self, color: Option<Color32>) -> (HandleStyle, HandleStyle, HandleStyle) {
         let Some(color) = color else { return (self.anchor, self.selected_anchor, self.control) };
-        let anchor = HandleStyle { stroke: Stroke::new(self.anchor.stroke.width, color), ..self.anchor };
-        let selected = HandleStyle { fill: color, stroke: Stroke::new(self.selected_anchor.stroke.width, color), ..self.selected_anchor };
-        let control = HandleStyle { fill: color, ..self.control };
+        let anchor = adjusted(self.anchor, |h| h.stroke = Stroke::new(self.anchor.stroke.width, color));
+        let selected = adjusted(self.selected_anchor, |h| {
+            h.fill = color;
+            h.stroke = Stroke::new(self.selected_anchor.stroke.width, color);
+        });
+        let control = adjusted(self.control, |h| h.fill = color);
         (anchor, selected, control)
     }
 }
@@ -286,7 +296,8 @@ struct Pass<'p> {
 /// paths back each frame. The overlay never edits a path.
 ///
 /// ```
-/// use craft_ui::canvas::{BezierNames, BezierOverlay, CanvasView, EditPath, EditSubpath, Knot, PathSelection, RulerUnits, kurbo::Point};
+/// use craft_draw::ui::{BezierNames, BezierOverlay, EditPath, EditSubpath, Knot, PathSelection};
+/// use craft_ui::canvas::{CanvasView, RulerUnits, kurbo::Point};
 /// use craft_ui::localized::LocaleNumbers;
 /// # egui::__run_test_ui(|ui| {
 /// let (rect, canvas) = ui.allocate_exact_size(egui::vec2(400.0, 300.0), egui::Sense::click_and_drag());
@@ -436,9 +447,10 @@ impl<'a> BezierOverlay<'a> {
 
     pub fn style(tokens: &UiTokens) -> BezierStyle {
         let b = &tokens.component.bezier;
-        let anchor = HandleStyle { size: b.anchor, hit: 2.0 * b.hit, ..Handle::style(tokens, HandleShape::Square) };
-        let selected_anchor = HandleStyle { size: b.anchor, hit: 2.0 * b.hit, ..Handle::selected_style(tokens, HandleShape::Square) };
-        let control = HandleStyle { size: b.control, hit: 2.0 * b.hit, ..Handle::style(tokens, HandleShape::Rotate) };
+        let sized = |style: HandleStyle, size| adjusted(style, |h| (h.size, h.hit) = (size, 2.0 * b.hit));
+        let anchor = sized(Handle::style(tokens, HandleShape::Square), b.anchor);
+        let selected_anchor = sized(Handle::selected_style(tokens, HandleShape::Square), b.anchor);
+        let control = sized(Handle::style(tokens, HandleShape::Rotate), b.control);
         BezierStyle {
             line: b.line,
             selected_segment: b.selected_segment,
@@ -1036,7 +1048,7 @@ impl<'a> BezierOverlay<'a> {
             BezierHit::Handle { knot, side, .. } => (path.knot(knot).map(|k| k.handle(side)), HandleShape::Rotate, control),
         };
         if let Some(at) = point {
-            let look = HandleStyle { size: style.highlight_anchor, ..base };
+            let look = adjusted(base, |h| h.size = style.highlight_anchor);
             painter.extend(Handle::shapes_with(&look, shape, view.to_screen(at), ppp));
         }
     }

@@ -6,12 +6,12 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect};
 
 use super::{BoxHost, BoxRelease, RotateZone, TransformBox, TransformLabels, english_names};
-use crate::canvas::guides::GuideHost;
-use crate::canvas::quad::{self, BoxPart, BoxRules, BoxState, TransformMode};
-use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
-use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
-use crate::localized::LocaleNumbers;
-use crate::theme::{Base, current, install};
+use craft_ui::canvas::guides::GuideHost;
+use craft_ui::canvas::quad::{self, BoxPart, BoxRules, BoxState, TransformMode};
+use craft_ui::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
+use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::theme::{Base, current, install};
 
 /// The box before any drag.
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
@@ -192,6 +192,7 @@ fn kinds(h: &Harness<'_, Host>) -> Vec<&'static str> {
             EditEvent::Commit { .. } => "commit",
             EditEvent::Cancel { .. } => "cancel",
             EditEvent::Set { .. } => "set",
+            _ => "other",
         })
         .collect()
 }

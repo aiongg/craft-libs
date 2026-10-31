@@ -4,13 +4,14 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Vec2};
 
+use super::bezier::{EditPath, EditSubpath, HandleSide, Knot, KnotRef};
 use super::story::PenHost;
 use super::{PenDraft, PenNames, PenResponse};
-use crate::canvas::{CanvasView, EditPath, EditSubpath, Guide, GuideNames, Guides, Knot, KnotRef, Orientation, RulerUnits};
-use crate::edit::{self, CancelReason, EditEvent, Ending, GestureHost, UndoMarks};
-use crate::localized::LocaleNumbers;
-use crate::testing::TypingField;
-use crate::theme::{Base, install};
+use craft_ui::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
+use craft_ui::edit::{self, CancelReason, EditEvent, Ending, GestureHost, UndoMarks};
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::testing::TypingField;
+use craft_ui::theme::{Base, install};
 
 /// A host with a 400 × 300 canvas showing document (0, 0)–(400, 300) at zoom 1.
 struct Host {
@@ -155,6 +156,7 @@ fn kinds(h: &Harness<'_, Host>) -> Vec<&'static str> {
             EditEvent::Commit { .. } => "commit",
             EditEvent::Cancel { .. } => "cancel",
             EditEvent::Set { .. } => "set",
+            _ => "other",
         })
         .collect()
 }
@@ -230,7 +232,7 @@ fn a_press_on_the_last_anchor_retracts_its_out_handle_and_a_drag_sets_it_alone()
     click(&mut h, from, Modifiers::NONE);
     let k = draft(&h).knots[1];
     assert_eq!(draft(&h).knots.len(), 2, "no new anchor");
-    assert!(k.retracted(crate::canvas::HandleSide::Out) && k.in_ctrl == before.in_ctrl, "{k:?}");
+    assert!(k.retracted(HandleSide::Out) && k.in_ctrl == before.in_ctrl, "{k:?}");
     drag(&mut h, from, from + vec2(0.0, 40.0), Modifiers::NONE);
     let k = draft(&h).knots[1];
     assert!(near(k.out_ctrl, doc(160.0, 100.0)) && k.in_ctrl == before.in_ctrl && !k.smooth, "{k:?}");
@@ -337,7 +339,7 @@ fn shapes(h: &Harness<'_, Host>) -> Vec<Shape> {
 
 /// The end points of the dashes of the rubber band: the dashed segments are 1 pt wide.
 fn rubber_end(h: &Harness<'_, Host>) -> Option<Pos2> {
-    let tokens = crate::theme::current(&h.ctx);
+    let tokens = craft_ui::theme::current(&h.ctx);
     let width = tokens.component.bezier.line;
     shapes(h)
         .iter()
@@ -383,7 +385,7 @@ fn over_the_first_anchor_the_close_cue_shows() {
     assert_eq!(circles(&h), 0);
     let first = screen(&h, doc(60.0, 60.0));
     move_to(&mut h, first + vec2(2.0, 2.0), Modifiers::NONE);
-    let tokens = crate::theme::current(&h.ctx);
+    let tokens = craft_ui::theme::current(&h.ctx);
     let b = tokens.component.bezier;
     let ring = shapes(&h).into_iter().find_map(|s| match s {
         Shape::Circle(c) if c.fill == egui::Color32::TRANSPARENT && c.stroke.width > 0.0 => Some(c),

@@ -5,14 +5,15 @@ use egui::Ui;
 use kurbo::{Rect, Size};
 
 use super::{CropBox, CropFrame, CropLabels, CropNames};
-use crate::canvas::CanvasView;
-use crate::canvas::story::{DOC, ViewArgs, document, document_with};
-use crate::canvas::{CropGuide, CropShield, RulerUnits};
-use crate::edit::EditEvent;
-use crate::localized::{Labels as _, LocaleNumbers};
-use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
-use crate::theme::{ToEgui, Tokens, TokensOf};
-use crate::typed_story;
+use crate::ui::{CropGuide, CropShield};
+use craft_ui::canvas::CanvasView;
+use craft_ui::canvas::RulerUnits;
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface};
+use craft_ui::testing::canvas_story::{DOC, ViewArgs, document, document_with};
+use craft_ui::theme::{ToEgui, Tokens, TokensOf};
+use craft_ui::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Crop frame"];
@@ -187,7 +188,7 @@ fn keep_event(kept: &mut Kept, event: &Option<EditEvent<CropBox>>) {
                 kept.frame = before;
             }
         }
-        None => {}
+        Some(_) | None => {}
     }
 }
 

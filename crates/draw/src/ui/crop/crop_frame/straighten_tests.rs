@@ -5,10 +5,11 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect, Size, Vec2};
 
 use super::{CropBox, level_angle};
-use crate::canvas::{CanvasView, CropFrame, CropLabels, CropNames, RulerUnits};
-use crate::edit::EditEvent;
-use crate::localized::LocaleNumbers;
-use crate::theme::{Base, install};
+use crate::ui::{CropFrame, CropLabels, CropNames};
+use craft_ui::canvas::{CanvasView, RulerUnits};
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::theme::{Base, install};
 
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
 

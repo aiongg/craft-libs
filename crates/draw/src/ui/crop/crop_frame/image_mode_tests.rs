@@ -3,10 +3,11 @@ use egui_kittest::Harness;
 use kurbo::{Point, Rect, Vec2};
 
 use super::{CropBox, CropFrame};
-use crate::canvas::quad::BoxPart;
-use crate::canvas::{CanvasView, CropNames};
-use crate::edit::EditEvent;
-use crate::theme::{Base, install};
+use crate::ui::CropNames;
+use craft_ui::canvas::CanvasView;
+use craft_ui::canvas::quad::BoxPart;
+use craft_ui::edit::EditEvent;
+use craft_ui::theme::{Base, install};
 
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
 
@@ -67,7 +68,7 @@ fn harness(angle: f64, auto_center: bool) -> Harness<'static, Host> {
                         host.state = before;
                     }
                 }
-                None => {}
+                Some(_) | None => {}
             }
             host.events.extend(r.event);
         },

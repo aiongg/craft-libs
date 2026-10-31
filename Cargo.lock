@@ -883,6 +883,8 @@ dependencies = [
  "egui",
  "egui_kittest",
  "kurbo 0.13.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

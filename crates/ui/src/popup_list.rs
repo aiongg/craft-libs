@@ -480,7 +480,7 @@ pub(crate) fn family(ctx: &Context, popup: Id) -> Vec<Id> {
 /// earlier in this one. Keys a popup takes while it is open (Tab in a select's list) are read at
 /// the start of a pass, before the popup's owner runs, so this is what a control reads to leave
 /// them alone.
-pub(crate) fn any_open(ctx: &Context) -> bool {
+pub fn any_open(ctx: &Context) -> bool {
     let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
     Popup::is_any_open(ctx) || ctx.data(|d| d.get_temp::<OpenLists>(key)).is_some_and(|l| l.0.iter().any(|l| l.pass + 1 >= pass))
 }

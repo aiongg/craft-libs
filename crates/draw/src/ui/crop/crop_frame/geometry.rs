@@ -4,8 +4,8 @@
 use egui::Modifiers;
 use kurbo::{Point, Rect, Vec2};
 
-use crate::canvas::Constraint;
-use crate::canvas::quad::BoxPart;
+use craft_ui::canvas::Constraint;
+use craft_ui::canvas::quad::BoxPart;
 
 /// Smallest side (document units) a gesture may leave behind.
 pub(super) const MIN_FRAME: f64 = 1.0;
