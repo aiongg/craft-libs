@@ -207,7 +207,7 @@ tooltip. Shrunk tabs keep their hit areas, drag and keyboard behaviour, and acce
 with the full names.
 
 No tab shrinks below `DockStyle::min_tab_width`: by default about three characters and the "…"
-plus the tab's padding, 54 pt at the 12 pt font. Only when the tabs at that width do not all fit
+plus the tab's padding, 52.75 pt in Compact: the Label role's 11.5 pt font and 24 pt padding. Only when the tabs at that width do not all fit
 do the rest go to the "…" button at the end of the strip, whose menu lists the hidden panels;
 choosing one makes it active. The active tab is always shown, in its logical place, and the
 others take the remaining room in their order. An active tab with less room than its minimum

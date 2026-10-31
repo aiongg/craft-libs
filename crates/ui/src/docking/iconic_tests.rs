@@ -467,3 +467,27 @@ fn a_press_on_a_menu_title_drawn_after_the_dock_leaves_the_flyout_open() {
     d.settle();
     assert_eq!(open(&d), None, "a press on the canvas still closes it");
 }
+
+/// Panels that need more width than their iconic column stored for its expanded form.
+struct Wide;
+
+impl DockContent<u32> for Wide {
+    fn body(&mut self, ui: &mut egui::Ui, _: &u32) {
+        ui.label("Body");
+    }
+    fn limits(&self, _: &u32) -> PanelLimits {
+        PanelLimits { min: vec2(300.0, 0.0), ..PanelLimits::default() }
+    }
+}
+
+#[test]
+fn a_flyout_is_never_narrower_than_its_panels_minimum() {
+    let mut d = DockDriver::new(docked(&[&[1]], true), Wide);
+    assert_eq!(first_column(&d.layout).width, 240.0, "the stored width is below the minimum");
+    let icon = d.hit(&Hit::Icon(1)).unwrap().center();
+    d.click(icon);
+    d.settle();
+    assert_eq!(flyout::<u32>(&d.ctx, d.id), Some(1));
+    let width = d.hit(&Hit::Border(1)).expect("the flyout's strip").width();
+    assert!(width >= 299.5, "the flyout is {width} wide");
+}

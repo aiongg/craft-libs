@@ -484,3 +484,47 @@ fn the_stories_are_labelled_in_both_directions() {
         }
     }
 }
+
+/// A list opened from a popover that sits in a modal is in front of both, after presses in the
+/// modal and the popover raised their layers.
+#[test]
+fn a_select_in_a_popover_in_a_modal_is_in_front_of_both() {
+    let modal = Id::NULL.with("host-modal");
+    let depth = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let seen = depth.clone();
+    let mut h = harness(Direction::Ltr).build_ui_state(
+        move |ui, host: &mut Host| {
+            egui::Modal::new(modal).show(ui.ctx(), |ui| app(ui, host));
+            // egui leaves sublayers of sublayers unspecified.
+            let deepest = ui.ctx().memory(|mem| {
+                mem.areas()
+                    .visible_layer_ids()
+                    .into_iter()
+                    .map(|mut layer| {
+                        let mut levels = 0;
+                        while let Some(parent) = mem.areas().parent_layer(layer) {
+                            layer = parent;
+                            levels += 1;
+                        }
+                        levels
+                    })
+                    .max()
+                    .unwrap_or(0)
+            });
+            seen.fetch_max(deepest, std::sync::atomic::Ordering::Relaxed);
+        },
+        Host::default(),
+    );
+    h.run();
+    let chip = h.state().chip_rect.center();
+    click(&mut h, chip);
+    assert!(h.state().open, "the popover opened");
+    let field = h.get_by_role(Role::ComboBox).rect().center();
+    click(&mut h, field);
+    let row = h.get_by_role_and_label(Role::ListBoxOption, "B").rect().center();
+    let layer = h.ctx.layer_id_at(row).expect("a layer under the row");
+    assert!(layer.id != modal && layer.id != h.state().popover, "the row is under the modal or the popover: {layer:?}");
+    click(&mut h, row);
+    assert_eq!(h.state().mode, 1, "the click picked the row");
+    assert_eq!(depth.load(std::sync::atomic::Ordering::Relaxed), 1, "the lists are sublayers of the modal, one level deep");
+}

@@ -108,8 +108,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// The body of an iconic column: icon groups top to bottom, scrolling when they do not fit.
     pub(super) fn iconic_column(&mut self, ui: &mut Ui, column: &Column<P>, body: Rect, edge: Edge) {
         self.iconic.columns.push(body);
+        let width = super::dock::expanded_width(column, self.look, self.content);
         for panel in column.groups.iter().flat_map(|g| g.panels.iter()) {
-            self.iconic.widths.push((panel.clone(), column.width));
+            self.iconic.widths.push((panel.clone(), width));
         }
         // Opening a panel from the Window menu opens its flyout (U3).
         if let Some(panel) = self.activation.as_ref().filter(|p| column.groups.iter().any(|g| g.panels.contains(p))) {
@@ -170,7 +171,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             self.icon_grip(ui, group, band, rect.top(), column.width);
             // The state again: a click above may have opened or closed this group's flyout.
             if flyout::<P>(ui.ctx(), self.id).is_some_and(|p| group.panels.contains(&p)) {
-                self.iconic.request = Some(Request { group: group.clone(), icons: rect.intersect(view), column: view, edge, width: column.width });
+                self.iconic.request = Some(Request {
+                    group: group.clone(),
+                    icons: rect.intersect(view),
+                    column: view,
+                    edge,
+                    width: super::dock::expanded_width(column, self.look, self.content),
+                });
             }
             bands.push((first.clone(), rect));
             top = rect.bottom();

@@ -785,7 +785,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     }
 
     /// Height of a window around `panel`'s group: `chrome` (title bar and tab strip) and the
-    /// content height the panel last drew, at least [`self.look.min_fitted_height`] and at most `max`.
+    /// content height the panel last drew, at least `look.min_fitted_height` and at most `max`.
     /// `None` for a panel the area has not drawn.
     pub(super) fn fitted_height(&self, panel: &P, chrome: f32, max: f32) -> Option<f32> {
         let content = self.content_height(panel).flatten()?;
