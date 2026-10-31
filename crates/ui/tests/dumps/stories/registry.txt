@@ -133,6 +133,7 @@ composites/preset-browser/brushes = Preset browser | Brushes | Panel | view=Choi
 composites/preset-browser/tool-presets = Preset browser | Tool presets | Panel | view=Choice { options: ["grid", "list"], index: 1 }; size=Number { value: 32.0, min: 16.0, max: 96.0 }
 composites/preset-browser/reorder = Preset browser | Reorder | Panel | view=Choice { options: ["grid", "list"], index: 0 }; size=Number { value: 36.0, min: 16.0, max: 96.0 }
 composites/preset-browser/popover-grid = Preset browser | Popover grid | Panel | view=Choice { options: ["grid", "list"], index: 0 }; size=Number { value: 40.0, min: 16.0, max: 96.0 }
+composites/preset-browser/short-list = Preset browser | Short list | Panel | view=Choice { options: ["grid", "list"], index: 1 }; size=Number { value: 28.0, min: 16.0, max: 96.0 }
 patterns/dock-area/docked = DockArea | Docked | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/floating = DockArea | Floating | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/drag = DockArea | Drag | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }

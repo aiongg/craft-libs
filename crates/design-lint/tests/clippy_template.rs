@@ -53,6 +53,30 @@ fn declares(files: &[PathBuf], name: &str) -> bool {
 /// Names a reason mentions that are not craft-ui or craft-theme items.
 const NOT_CRAFT: &[&str] = &["Color32"];
 
+/// Member crate directory behind each `craft::<module>` the facade re-exports.
+fn facade_modules() -> BTreeMap<String, PathBuf> {
+    let crates = manifest_dir().join("..");
+    let mut by_package = BTreeMap::new();
+    for entry in std::fs::read_dir(&crates).unwrap() {
+        let dir = entry.unwrap().path();
+        let Ok(manifest) = std::fs::read_to_string(dir.join("Cargo.toml")) else { continue };
+        if let Some(name) = manifest.lines().find_map(|l| l.strip_prefix("name = \"")?.strip_suffix('"')) {
+            by_package.insert(name.replace('-', "_"), dir);
+        }
+    }
+    let lib = std::fs::read_to_string(crates.join("craft/src/lib.rs")).unwrap();
+    lib.lines()
+        .filter_map(|l| {
+            let (krate, module) = l.strip_prefix("pub use ")?.strip_suffix(';')?.split_once(" as ")?;
+            Some((module.to_owned(), by_package.get(krate)?.clone()))
+        })
+        .collect()
+}
+
+fn module_exists(src: &Path, module: &str) -> bool {
+    src.join(module).is_dir() || src.join(format!("{module}.rs")).exists()
+}
+
 #[test]
 fn template_replacements_exist() {
     let ui = manifest_dir().join("../ui/src");
@@ -61,22 +85,45 @@ fn template_replacements_exist() {
     rust_files(&ui, &mut ui_files);
     rust_files(&theme, &mut all_files);
     all_files.extend(ui_files.iter().cloned());
+    let facade = facade_modules();
 
     let mut missing = Vec::new();
     for reason in reasons() {
         for token in reason.split(|c: char| !c.is_alphanumeric() && c != '_' && c != ':') {
             let segments: Vec<&str> = token.split("::").filter(|s| !s.is_empty()).collect();
             let upper = |s: &str| s.starts_with(|c: char| c.is_ascii_uppercase());
+            let item = segments.iter().copied().find(|s| upper(s));
             if segments.len() > 1 && segments[0] == "craft_ui" {
                 let module = segments[1];
-                let in_module = [ui.join(module), ui.join(format!("{module}.rs"))].iter().any(|p| p.exists());
-                if !in_module {
+                if !module_exists(&ui, module) {
                     missing.push(format!("{token}: no module `{module}`"));
                 }
-                if let Some(name) = segments.iter().copied().find(|s| upper(s))
+                if let Some(name) = item
                     && !declares(&ui_files, name)
                 {
                     missing.push(format!("{token}: no `pub` item `{name}` in craft-ui"));
+                }
+            } else if segments.len() > 1 && segments[0] == "craft" {
+                // `craft::<module>::...` resolves to the member crate the facade re-exports.
+                let Some(dir) = facade.get(segments[1]) else {
+                    missing.push(format!("{token}: the craft facade has no module `{}`", segments[1]));
+                    continue;
+                };
+                let src = dir.join("src");
+                let mut path = src.clone();
+                for module in segments[2..].iter().copied().take_while(|s| !upper(s)) {
+                    if !module_exists(&path, module) {
+                        missing.push(format!("{token}: no module `{module}` in {}", dir.file_name().unwrap().to_string_lossy()));
+                        break;
+                    }
+                    path = path.join(module);
+                }
+                let mut files = Vec::new();
+                rust_files(&src, &mut files);
+                if let Some(name) = item
+                    && !declares(&files, name)
+                {
+                    missing.push(format!("{token}: no `pub` item `{name}` in {}", dir.file_name().unwrap().to_string_lossy()));
                 }
             } else if let Some(name) = segments.first().copied().filter(|s| upper(s))
                 && !NOT_CRAFT.contains(&name)
@@ -86,7 +133,7 @@ fn template_replacements_exist() {
             }
         }
     }
-    assert!(missing.is_empty(), "replacements named in the template that craft-ui does not export:\n{}", missing.join("\n"));
+    assert!(missing.is_empty(), "replacements named in the template that their crate does not export:\n{}", missing.join("\n"));
 }
 
 #[test]
