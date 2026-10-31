@@ -1191,3 +1191,51 @@ fn the_context_takes_the_open_rename_with_its_key() {
     harness.run();
     assert_eq!(harness.query_all_by_role(Role::TextInput).count(), 0);
 }
+
+/// Rows 0 and 3 plain, rows 1 and 2 with their eye after a 14 pt indent.
+fn indented_sweeping(ui: &mut Ui, state: &mut Sweeps) {
+    panel(ui, 240.0, |ui| {
+        for row in 0..4 {
+            let indented = row == 1 || row == 2;
+            let out = ListRow::new(row, format!("Row {row}"))
+                .toggle(ToggleColumn::eye("Visibility {row}", state.on[row]))
+                .indent(if indented { 14.0 } else { 0.0 })
+                .indented_toggles(indented)
+                .show(ui);
+            for event in out.events {
+                if let RowEvent::Toggle(event) = event {
+                    if let EditEvent::Update { value, .. } | EditEvent::Set { value, .. } = &event {
+                        state.on[value.row] = value.on;
+                    }
+                    state.events.push(event);
+                }
+            }
+        }
+    });
+}
+
+#[test]
+fn indented_toggles_follow_the_indent_and_a_sweep_runs_down_the_leading_column_through_them() {
+    let s = style();
+    let mut harness = harness(Direction::Ltr).build_ui_state(indented_sweeping, Sweeps { on: [true; 4], events: Vec::new() });
+    harness.run();
+    let (row, plain, indented) = (
+        harness.get_all_by_role(Role::ListBoxOption).next().map(|n| n.rect()).unwrap_or(Rect::NOTHING),
+        harness.get_by_label("Visibility Row 0").rect(),
+        harness.get_by_label("Visibility Row 1").rect(),
+    );
+    assert_eq!((plain.left() - row.left(), indented.width()), (0.0, s.toggle_column));
+    assert_eq!(indented.left() - row.left(), s.toggle_column + 14.0, "after the empty leading column and the indent");
+    let (start, end) = (plain.center(), harness.get_by_label("Visibility Row 3").rect().center());
+    harness.event(Event::PointerMoved(start));
+    harness.run();
+    harness.event(button(start, true, Modifiers::NONE));
+    harness.run();
+    for t in [0.25, 0.5, 0.75, 1.0] {
+        harness.event(Event::PointerMoved(start + (end - start) * t));
+        harness.run();
+    }
+    harness.event(button(end, false, Modifiers::NONE));
+    harness.run();
+    assert_eq!(harness.state().on, [false; 4], "the indented rows take the sweep too");
+}

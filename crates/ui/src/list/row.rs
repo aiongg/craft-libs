@@ -396,6 +396,7 @@ pub struct ListRow<'a, K> {
     renaming: bool,
     drop: Option<DropMark>,
     indent: f32,
+    indented_toggles: bool,
     role: Role,
     position: Option<usize>,
     slot: Option<Rect>,
@@ -436,6 +437,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             renaming: false,
             drop: None,
             indent: 0.0,
+            indented_toggles: false,
             role: Role::ListBoxOption,
             position: None,
             slot: None,
@@ -496,7 +498,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let style = Self::style(&Tokens::of(ui));
         let (column, leading) = self.extent(&style);
         let widths: Vec<(f32, bool)> = self.trailing.iter().map(|t| (t.width, t.optional)).collect();
-        min_width(&style, self.columns.len(), column, leading, &widths)
+        min_width(&style, (self.columns.len(), self.indented_toggles), column, leading, &widths)
     }
 
     /// The width of a tree row's disclosure and clipping columns, and of the leading part.
@@ -666,6 +668,16 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
+    /// Puts the [toggle columns](ListRow::toggle) after the [indent](ListRow::indent) instead of at
+    /// the leading edge: a sub-row's eye sits under its parent's. The leading edge keeps its
+    /// columns' width, empty, so the dividers and the parent's eye column run on through the row.
+    /// A [sweep](ToggleEdit) over the column takes the row wherever the pointer crosses it between
+    /// the leading edge and its cell, so one sweep runs down normal and indented rows alike.
+    pub fn indented_toggles(mut self, indented: bool) -> Self {
+        self.indented_toggles = indented;
+        self
+    }
+
     /// The AccessKit role: `ListBoxOption` by default.
     pub fn role(mut self, role: Role) -> Self {
         self.role = role;
@@ -758,6 +770,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             renaming,
             drop,
             indent,
+            indented_toggles,
             role,
             position,
             slot,
@@ -806,8 +819,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let leading = leading_width(&style, thumb, icon.is_some(), thumb_width, &extras);
         let extras = if side > 0.0 && thumb != ThumbSize::None { extras } else { Vec::new() };
         let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
-        let min_width = min_width(&style, columns.len(), column, leading, &widths);
-        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), columns.len(), (indent, column), leading, &widths);
+        let min_width = min_width(&style, (columns.len(), indented_toggles), column, leading, &widths);
+        let geometry = Geometry::new(&style, rect, direction::is_rtl(ui), (columns.len(), indented_toggles), (indent, column), leading, &widths);
         // Parts that don't fit stay in their place and the row's trailing edge cuts them.
         let outer_clip = ui.clip_rect();
         ui.set_clip_rect(outer_clip.intersect(rect));
@@ -820,8 +833,11 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let mut toggles = Vec::with_capacity(columns.len());
         for (index, column) in columns.iter().enumerate() {
             let cell = Cell { index, row_id, key: &key, row_label: &label };
-            let at = geometry.span(rect, index as f32 * style.toggle_column, style.toggle_column);
-            toggles.push(toggle::show(ui, &cell, column, at, &style, &mut events));
+            let offset = geometry.toggles_start + index as f32 * style.toggle_column;
+            let at = geometry.span(rect, offset, style.toggle_column);
+            // A sweep crosses an indented cell anywhere between the leading edge and the cell.
+            let reach = if indented_toggles { geometry.span(rect, 0.0, offset + style.toggle_column) } else { at };
+            toggles.push(toggle::show(ui, &cell, column, (at, reach), &style, &mut events));
         }
 
         if clipped && visible {
@@ -932,16 +948,24 @@ fn leading_width(style: &ListRowStyle, thumb: ThumbSize, has_icon: bool, thumb_w
     }
 }
 
+/// How many times the toggle columns' width the row spends before its label: twice when the
+/// toggles come after the indent, since the leading edge keeps its empty columns.
+fn toggle_rooms(indented: bool) -> f32 {
+    if indented { 2.0 } else { 1.0 }
+}
+
 /// The least width of a row: everything but the indent and the optional items, and `min_label`.
-fn min_width(style: &ListRowStyle, columns: usize, column: f32, leading: Option<f32>, items: &[(f32, bool)]) -> f32 {
+fn min_width(style: &ListRowStyle, (columns, indented): (usize, bool), column: f32, leading: Option<f32>, items: &[(f32, bool)]) -> f32 {
     let required: f32 = items.iter().filter(|(_, optional)| !optional).map(|(w, _)| w + style.gap).sum();
     let leading = leading.map_or(0.0, |side| side + style.gap);
-    columns as f32 * style.toggle_column + style.pad_x + column + leading + style.min_label + required + style.trailing_pad
+    columns as f32 * style.toggle_column * toggle_rooms(indented) + style.pad_x + column + leading + style.min_label + required + style.trailing_pad
 }
 
 /// Where the parts of a row lie, as offsets from the reading start of the row.
 struct Geometry {
     rtl: bool,
+    /// Where the first toggle cell starts.
+    toggles_start: f32,
     column_start: f32,
     leading_start: f32,
     label_start: f32,
@@ -956,12 +980,13 @@ impl Geometry {
         style: &ListRowStyle,
         rect: Rect,
         rtl: bool,
-        columns: usize,
+        (columns, indented): (usize, bool),
         (indent, column): (f32, f32),
         leading: Option<f32>,
         items: &[(f32, bool)],
     ) -> Geometry {
-        let base = columns as f32 * style.toggle_column + style.pad_x;
+        let leading_columns = columns as f32 * style.toggle_column;
+        let base = leading_columns * toggle_rooms(indented) + style.pad_x;
         let end = rect.width() - style.trailing_pad;
         let leading_width = leading.map_or(0.0, |side| side + style.gap);
         // Trailing items are placed first. Optional ones stay while the label keeps its least
@@ -992,8 +1017,11 @@ impl Geometry {
                 })
             })
             .collect();
+        // Indented toggles follow the empty columns of the leading edge and the indent.
+        let toggles_start = if indented { leading_columns + indent } else { 0.0 };
         Geometry {
             rtl,
+            toggles_start,
             column_start: base + indent,
             leading_start: base + indent + column,
             label_start: base + indent + column + leading_width,

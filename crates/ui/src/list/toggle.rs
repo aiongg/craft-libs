@@ -103,12 +103,12 @@ pub(super) struct Cell<'a, K> {
     pub row_label: &'a str,
 }
 
-/// Senses and paints one cell in `rect`, reports its edits, and returns the cell's response.
+/// Senses and paints one cell in `rect`, whose column a sweep crosses anywhere in `reach`, reports its edits, and returns the cell's response.
 pub(super) fn show<K: Clone>(
     ui: &mut Ui,
     cell: &Cell<'_, K>,
     column: &ToggleColumn,
-    rect: Rect,
+    (rect, reach): (Rect, Rect),
     style: &ListRowStyle,
     events: &mut Vec<RowEvent<K>>,
 ) -> Response {
@@ -163,7 +163,7 @@ pub(super) fn show<K: Clone>(
     } else if let Some(mut sweep) = sweep
         && down
         && !sweep.seen.contains(&id)
-        && passed_over(rect, pointer, delta)
+        && passed_over(reach, pointer, delta)
     {
         sweep.seen.push(id);
         if column.on != sweep.on {
