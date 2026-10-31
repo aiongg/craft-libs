@@ -3,7 +3,8 @@
 //! holds the frame's own size rules ([`Width`](super::Width), [`Body`](super::Body)).
 
 use egui::accesskit::Role;
-use egui::{Color32, Context, Pos2, Rect, Response, Shape, Stroke, Ui, UiBuilder, Vec2, vec2};
+use egui::text::LayoutJob;
+use egui::{Align, Color32, Context, Label, Layout, Pos2, Rect, Response, Shape, Stroke, Ui, UiBuilder, Vec2, vec2};
 
 use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
@@ -15,8 +16,8 @@ use crate::composites::{Form, FormGrid, RowLabel};
 use crate::controls::{Checkbox, NumberField, Select};
 use crate::edit::{EditEvent, EditResponse};
 use crate::localized::{Labels as _, LocaleNumbers, SharedLabels};
-use crate::primitives::{Divider, Interactive, StateColors, SurfaceKind};
-use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
+use crate::primitives::{Content, Divider, Interactive, StateColors, SurfaceKind};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 
 crate::words! {
     /// The words of the size dialogs, English by default.
@@ -650,7 +651,8 @@ impl<'a> AnchorGrid<'a> {
     pub fn show(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let labels = SizingLabels::shared(ui);
-        let side = tokens.component.dialog.anchor_cell;
+        let dialog_tokens = tokens.component.dialog;
+        let side = dialog_tokens.anchor_cell;
         let scale = side / PC_ANCHOR_CELL;
         let (_, grid) = ui.allocate_space(vec2(side * 3.0, side * 3.0));
         let group = ui.new_child(
@@ -670,7 +672,7 @@ impl<'a> AnchorGrid<'a> {
             .map(|(i, cell)| {
                 let (column, row) = cell.cell();
                 let rect = Rect::from_min_size(grid.min + vec2(column as f32 * side, row as f32 * side), vec2(side, side))
-                    .shrink(tokens.component.button.border_width);
+                    .shrink(dialog_tokens.anchor_inset);
                 Interactive::new(("anchor", i), Role::RadioButton, labels.anchor_cell(*cell))
                     .position_in_set(i)
                     .surface(SurfaceKind::Sunken)
@@ -692,7 +694,7 @@ impl<'a> AnchorGrid<'a> {
                 let center = response.rect.center();
                 if selected == Some(i) {
                     let half = 4.0 * scale;
-                    ui.painter().rect_filled(Rect::from_center_size(center, vec2(2.0 * half, 2.0 * half)), tokens.component.check.radius, mark);
+                    ui.painter().rect_filled(Rect::from_center_size(center, vec2(2.0 * half, 2.0 * half)), dialog_tokens.anchor_mark_radius, mark);
                 } else if let Some((dx, dy)) = arrow_direction(*self.anchor, Anchor::ALL[i], self.delta) {
                     ui.painter().extend(arrow_shapes(center, vec2(dx as f32, dy as f32).normalized(), scale, arrow));
                 }
@@ -736,6 +738,27 @@ pub fn human_bytes(bytes: f64) -> String {
 }
 
 /// The file size of a document of `size` at `bytes_per_pixel`, as the readouts show it.
+/// A readout row whose text is set after the rows below it have taken this frame's edits.
+struct Readout(Rect);
+
+impl Readout {
+    /// Takes the row's place in the grid, with the label and no text.
+    fn reserve(form: &mut Form<'_>, label: &str) -> Self {
+        Self(form.value(label, "").rect)
+    }
+
+    /// Draws `text` in the reserved row. `ui` is the parent of the grid.
+    fn put(&self, ui: &mut Ui, text: String) {
+        let tokens = Tokens::of(ui);
+        let format = role_format(&tokens, craft_theme::TypeRole::Body, Content::Normal.color(&tokens).to_egui());
+        let job = LayoutJob::single_section(text, format);
+        let rect = Rect::from_min_max(self.0.min, Pos2::new(ui.max_rect().right().max(self.0.min.x), self.0.max.y));
+        ui.scope_builder(UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(Align::Center)), |ui| {
+            ui.add(Label::new(job).selectable(false));
+        });
+    }
+}
+
 fn file_size(size: PixelSize, bytes_per_pixel: f64) -> String {
     human_bytes(f64::from(size.width) * f64::from(size.height) * bytes_per_pixel)
 }
@@ -818,15 +841,9 @@ impl StackDialog for ImageSizeDialog {
             .stack(stack)
             .footer(Footer::standard().reset(Reset::AltCancel(reset)))
             .show(ctx, &mut self.state, &mut fields, |ui, (fields, resample, scale_styles)| {
-                FormGrid::new("image-size").show(ui, |form| {
-                    let (original, current) = (fields.original, fields.current);
-                    let was = file_size(original, bytes_per_pixel);
-                    form.value(
-                        &labels.image_size,
-                        craft_i18n::fmt(&labels.size_was, &[("size", &file_size(current, bytes_per_pixel)), ("old", &was)]),
-                    );
-                    let (width, height) = (current.width.to_string(), current.height.to_string());
-                    form.value(&labels.dimensions, craft_i18n::fmt(&labels.dimensions_value, &[("width", &width), ("height", &height)]));
+                let readouts = FormGrid::new("image-size").show(ui, |form| {
+                    let size_row = Readout::reserve(form, &labels.image_size);
+                    let dimensions_row = Readout::reserve(form, &labels.dimensions);
                     form.space(gaps.stack);
                     let _ = fields.rows(form, &labels, true);
                     form.space(gaps.row);
@@ -856,7 +873,14 @@ impl StackDialog for ImageSizeDialog {
                         check
                     });
                     form.unlabelled(|ui| Checkbox::bool(&labels.scale_styles, scale_styles).enabled(fields.constrain || !fields.resampling).show(ui));
+                    (size_row, dimensions_row)
                 });
+                let (size_row, dimensions_row) = readouts.inner;
+                let (original, current) = (fields.original, fields.current);
+                let was = file_size(original, bytes_per_pixel);
+                size_row.put(ui, craft_i18n::fmt(&labels.size_was, &[("size", &file_size(current, bytes_per_pixel)), ("old", &was)]));
+                let (width, height) = (current.width.to_string(), current.height.to_string());
+                dimensions_row.put(ui, craft_i18n::fmt(&labels.dimensions_value, &[("width", &width), ("height", &height)]));
             });
         let ImageSizeDialog { fields: kept, resample, scale_styles, .. } = self;
         match shown.outcome {
@@ -969,14 +993,13 @@ impl StackDialog for CanvasSizeDialog {
             .stack(stack)
             .footer(Footer::standard().reset(Reset::AltCancel(reset)))
             .show(ctx, &mut self.state, &mut fields, |ui, (fields, anchor, extension)| {
-                FormGrid::new("canvas-size").show(ui, |form| {
+                let new_size_row = FormGrid::new("canvas-size").show(ui, |form| {
                     let original = fields.original;
                     form.value(&labels.current_size, file_size(original, bytes_per_pixel));
                     form.value(&labels.current_width, craft_i18n::fmt(&labels.pixels_value, &[("n", &original.width.to_string())]));
                     form.value(&labels.current_height, craft_i18n::fmt(&labels.pixels_value, &[("n", &original.height.to_string())]));
                     form.spanning(|ui| Divider::horizontal().show(ui));
-                    let current = fields.current;
-                    form.value(&labels.new_size, file_size(current, bytes_per_pixel));
+                    let new_size_row = Readout::reserve(form, &labels.new_size);
                     let _ = fields.rows(form, &labels, false);
                     let current = fields.current;
                     form.unlabelled(|ui| Checkbox::bool(&labels.relative, &mut fields.relative).show(ui));
@@ -1009,7 +1032,9 @@ impl StackDialog for CanvasSizeDialog {
                         }
                         edit
                     });
+                    new_size_row
                 });
+                new_size_row.inner.put(ui, file_size(fields.current, bytes_per_pixel));
             });
         let CanvasSizeDialog { fields: kept, anchor, extension, has_background, .. } = self;
         match shown.outcome {

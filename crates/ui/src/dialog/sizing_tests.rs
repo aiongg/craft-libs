@@ -295,3 +295,23 @@ fn canvas_size_readouts_and_fields_have_distinct_names() {
     harness.get_by_label("New Size:");
     assert_eq!(harness.get_all_by_label("Width:").count(), 1);
 }
+
+// The size readouts show a keystroke's result in the pass that handles it, not one pass later.
+#[test]
+fn size_readouts_follow_the_fields_in_the_same_pass() {
+    let mut harness = host_with(|dialogs| {
+        dialogs.open(ImageSizeDialog::new(size(1200, 800, 72.0)));
+    });
+    harness.get_by_role_and_label(Role::SpinButton, "Width:").focus();
+    harness.run();
+    harness.event(egui::Event::Text("1".into()));
+    // The frame that updates the linked Height field also shows the new size.
+    let mut frames = 0;
+    while harness.get_by_role_and_label(Role::SpinButton, "Height:").accesskit_node().numeric_value() == Some(800.0) {
+        harness.step();
+        frames += 1;
+        assert!(frames < 6, "the typed width never reached the height");
+    }
+    // 1 x 1 px at 4 bytes per pixel.
+    harness.get_by_value(&format!("{} (was {})", human_bytes(4.0), human_bytes(1200.0 * 800.0 * 4.0)));
+}

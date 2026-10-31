@@ -60,6 +60,10 @@ pub struct DialogTokens {
     pub scroll_min: f32,
     /// Side of one cell of Canvas Size's anchor grid: `dialog.anchor_cell`.
     pub anchor_cell: f32,
+    /// Inset of each anchor cell's rectangle, which leaves the gap between cells: `dialog.anchor_inset`.
+    pub anchor_inset: f32,
+    /// Corner radius of the mark in the chosen anchor cell: `dialog.anchor_mark_radius`.
+    pub anchor_mark_radius: f32,
 }
 
 /// Dialogs have no overridable field: their sizes come from the code, as every size does.
@@ -92,6 +96,8 @@ impl Family for DialogTokens {
         "keep_visible" 0.0..=1024.0 => keep_visible;
         "scroll_min" 0.0..=1024.0 => scroll_min;
         "anchor_cell" 0.0..=256.0 => anchor_cell;
+        "anchor_inset" 0.0..=16.0 => anchor_inset;
+        "anchor_mark_radius" 0.0..=16.0 => anchor_mark_radius;
         "width_alert" 0.0..=1024.0 => width_alert;
         "viewport_size.0" 0.0..=4096.0 => viewport_size[0];
         "viewport_size.1" 0.0..=4096.0 => viewport_size[1];
@@ -133,6 +139,8 @@ impl Family for DialogTokens {
             keep_visible: values::DIALOG_KEEP_VISIBLE,
             scroll_min: values::DIALOG_SCROLL_MIN,
             anchor_cell: values::DIALOG_ANCHOR_CELL,
+            anchor_inset: values::DIALOG_ANCHOR_INSET,
+            anchor_mark_radius: values::DIALOG_ANCHOR_MARK_RADIUS,
         }
     }
 
