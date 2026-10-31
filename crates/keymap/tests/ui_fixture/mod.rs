@@ -9,7 +9,6 @@ use craft_i18n::{Embedded, Format, I18n, Lang};
 use craft_keymap::ui::{COUNTS, WORDS};
 use craft_keymap::{Bindable, Binding, Chord, Key, Keymap, KeymapCommands, Kind, Platform, Scope, Scopes};
 use craft_ui::direction::{self, Direction};
-use craft_ui::localized::words::Words;
 
 fn binding(text: &str) -> Binding {
     Binding::parse(text).unwrap_or_else(|e| panic!("{text}: {e}"))
@@ -48,8 +47,8 @@ pub fn with_long_label(km: Keymap) -> Keymap {
 }
 
 /// The words, command labels and direction a test installs on the egui context, as an app does:
-/// `Words` from a craft-i18n catalog, a Host whose `Commands` are `KeymapCommands`, and the
-/// interface direction.
+/// a Host over a craft-i18n catalog whose `Commands` are `KeymapCommands`, and the interface
+/// direction.
 #[allow(dead_code)]
 pub struct Locale {
     i18n: Option<(Arc<I18n>, Lang)>,
@@ -131,7 +130,6 @@ impl Locale {
     pub fn install(&self, ctx: &egui::Context) {
         direction::apply(ctx, if self.rtl { Direction::Rtl } else { Direction::Ltr });
         let Some((i18n, lang)) = &self.i18n else { return };
-        Words::from_i18n(Arc::clone(i18n), *lang).install(ctx);
         let app = AppInfo { id: "keymap-tests", name: "Keymap tests", version: "0" };
         let commands = KeymapCommands::new(Arc::clone(i18n), *lang);
         Host::builder(app).i18n(Arc::clone(i18n)).lang(*lang).commands(Arc::new(commands)).build().install(ctx);
