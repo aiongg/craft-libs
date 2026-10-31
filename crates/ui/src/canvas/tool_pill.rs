@@ -1,13 +1,18 @@
 //! [`ToolPill`]: a floating pill of tools over the canvas (FigCraft's bottom toolbar), for apps
 //! whose tools don't sit in a rail.
 
-#![expect(dead_code, unused_variables, unused_mut, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::hash::Hash;
 
-use egui::{AsIdSalt, Id, Rect, Ui};
+use egui::accesskit::Role;
+use egui::{Area, AsIdSalt, EventFilter, Id, Key, Modifiers, Order, Rect, Sense, Shape, Ui, Vec2, pos2, vec2};
 
-use crate::patterns::ToolSlot;
+use crate::direction;
+use crate::focus::{Region, RegionFocus};
+use crate::localized::Labels as _;
+use crate::patterns::rail::tool::{SlotMode, slot_button};
+use crate::patterns::{LastUsed, ToolSlot, visible_slots};
+use crate::primitives::{Surface, SurfaceKind};
+use crate::theme::{Tokens, TokensOf};
 
 /// Where the pill sits on the canvas.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -53,16 +58,18 @@ pub struct ToolPill {
 
 impl ToolPill {
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        todo!()
+        Self { id: Id::unique("craft-ui-tool-pill").with(id_salt), place: PillPlace::default(), labels: None }
     }
 
     pub fn place(mut self, place: PillPlace) -> Self {
-        todo!()
+        self.place = place;
+        self
     }
 
     /// Translated labels; default the installed words.
     pub fn labels(mut self, labels: ToolPillLabels) -> Self {
-        todo!()
+        self.labels = Some(labels);
+        self
     }
 
     /// Draws the pill over `canvas` with `slots`, `current` shown pressed.
@@ -75,7 +82,91 @@ impl ToolPill {
         slots: &[ToolSlot<T>],
         current: &T,
     ) -> ToolPillResponse<T> {
-        todo!()
+        let Self { id, place, labels } = self;
+        let ctx = ui.ctx().clone();
+        let id = ui.make_persistent_id(id);
+        let labels = labels.unwrap_or_else(|| ToolPillLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let rail = &tokens.component.rail;
+        let (side, gap, pad) = (rail.button, rail.gap, rail.pad_y);
+        // Clear of the canvas's scroll bars along its edges.
+        let inset = tokens.component.scroll.canvas_width + pad;
+        let visible = visible_slots(slots, &[]);
+        let count = visible.len() as f32;
+        let natural = count * side + (count - 1.0).max(0.0) * gap + 2.0 * pad;
+        let size = vec2(natural.min((canvas.width() - 2.0 * inset).max(0.0)), side + 2.0 * pad);
+        let top = match place {
+            PillPlace::BottomCenter => canvas.bottom() - inset - size.y,
+            PillPlace::TopCenter => canvas.top() + inset,
+        };
+        let rect = Rect::from_min_size(pos2(canvas.center().x - size.x / 2.0, top), size);
+        if visible.is_empty() {
+            return ToolPillResponse { select: None, rect };
+        }
+
+        let surface = Surface::style(&tokens, SurfaceKind::Popup);
+        let last_id = id.with("last-used");
+        let mut last = ctx.data(|d| d.get_temp::<LastUsed<T>>(last_id)).unwrap_or_default();
+        let rtl = direction::is_rtl(ui);
+        let mut select = None;
+        let mut cells: Vec<(Id, bool)> = Vec::new();
+        let mut flyout_open = false;
+        // The pill takes the press and the drag over it, so the canvas under it gets neither.
+        Area::new(id.with("area"))
+            .order(Order::Foreground)
+            .fixed_pos(rect.min)
+            .sense(Sense::click_and_drag())
+            .role(Role::Toolbar)
+            .accessible_name(labels.name.as_str())
+            .show(&ctx, |ui| {
+                let (rect, _) = ui.allocate_exact_size(rect.size(), Sense::hover());
+                ui.painter().add(Shape::Vec(surface.shapes(rect, ui.pixels_per_point())));
+                ui.set_clip_rect(rect);
+                for (k, (index, tools)) in visible.iter().enumerate() {
+                    let offset = pad + k as f32 * (side + gap);
+                    let x = if rtl { rect.right() - offset - side } else { rect.left() + offset };
+                    let cell = egui::Rect::from_min_size(pos2(x, rect.top() + pad), Vec2::splat(side));
+                    let mode = SlotMode { editing: false, down_opens: true };
+                    if let Some(button) = slot_button(ui, &slots[*index], tools, current, &mut last, cell, mode) {
+                        if select.is_none() {
+                            select = button.select;
+                        }
+                        flyout_open |= button.open;
+                        cells.push((button.response.id, button.response.enabled()));
+                    }
+                }
+            });
+        ctx.data_mut(|d| d.insert_temp(last_id, last));
+        if !flyout_open {
+            arrows(&ctx, rtl, &cells);
+        }
+        RegionFocus::new(&ctx).region(&ctx, Region::new("toolPill", labels.name.as_str()), rect, cells.first().map(|(id, _)| *id));
+        ToolPillResponse { select, rect }
+    }
+}
+
+/// Left and Right move the focus between the pill's buttons (swapped in a mirrored interface),
+/// skipping disabled ones; the keys stay out of egui's geometric focus movement.
+fn arrows(ctx: &egui::Context, rtl: bool, cells: &[(Id, bool)]) {
+    let Some(at) = cells.iter().position(|(id, _)| ctx.memory(|m| m.has_focus(*id))) else {
+        return;
+    };
+    let filter = EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() };
+    ctx.memory_mut(|m| m.set_focus_lock_filter(cells[at].0, filter));
+    let (previous, next) = if rtl { (Key::ArrowRight, Key::ArrowLeft) } else { (Key::ArrowLeft, Key::ArrowRight) };
+    let forward = ctx.input_mut(|input| {
+        if input.consume_key(Modifiers::NONE, next) {
+            Some(true)
+        } else if input.consume_key(Modifiers::NONE, previous) {
+            Some(false)
+        } else {
+            None
+        }
+    });
+    let Some(forward) = forward else { return };
+    let candidates: Vec<usize> = if forward { (at + 1..cells.len()).collect() } else { (0..at).rev().collect() };
+    if let Some(to) = candidates.into_iter().find(|to| cells[*to].1) {
+        ctx.memory_mut(|m| m.request_focus_with_filter(cells[to].0, filter));
     }
 }
 

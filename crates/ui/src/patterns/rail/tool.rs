@@ -2,7 +2,10 @@
 //! two columns, drawn with the `rail.*` tokens.
 
 use egui::accesskit::{Orientation, Role};
-use egui::{Align, EventFilter, Frame, Id, IdSalt, Key, Layout, Margin, Modifiers, Rect, Response, ScrollArea, Sense, Ui, UiBuilder, pos2, vec2};
+use egui::{
+    Align, Context, DragAndDrop, EventFilter, Frame, Id, IdSalt, Key, Layout, Margin, Modifiers, Popup, Pos2, Rect, Response, ScrollArea, Sense,
+    Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2,
+};
 
 use super::flyout::{FlyoutButton, FlyoutItem};
 use crate::controls::{IconButton, IconButtonStyle};
@@ -11,6 +14,7 @@ use crate::icons::Icon;
 use crate::localized::Labels as _;
 use crate::panes::Edge;
 use crate::patterns::panel::ScrollBarLabels;
+use crate::patterns::toolbar_drawer::DropAt;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
@@ -91,6 +95,92 @@ impl<T: PartialEq> LastUsed<T> {
             None => self.tools.push((slot, tool)),
         }
     }
+}
+
+/// How a slot's button behaves where it is shown.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SlotMode {
+    /// The Edit Toolbar drawer is open: a drag picks the tool up, and the button has no flyout.
+    pub editing: bool,
+    /// Down and Alt+Down on the focused button open its flyout (a row of buttons, where Down is no
+    /// move between buttons).
+    pub down_opens: bool,
+}
+
+/// What one slot's button reports.
+pub(crate) struct SlotButton<T> {
+    pub response: Response,
+    /// The tool to make current: the shown tool of a clicked slot, or the tool chosen in the flyout.
+    pub select: Option<T>,
+    pub double_clicked: Option<T>,
+    /// The flyout is open.
+    pub open: bool,
+}
+
+/// One slot's button at `cell`, showing the slot's [shown tool](shown_tool), with its flyout of
+/// the slot's tools. `None` for a slot without tools. The rail and the tool pill draw their
+/// buttons with it.
+pub(crate) fn slot_button<T: Clone + PartialEq>(
+    ui: &mut Ui,
+    slot: &ToolSlot<T>,
+    tools: &[&RailTool<T>],
+    current: &T,
+    last_used: &mut LastUsed<T>,
+    cell: Rect,
+    mode: SlotMode,
+) -> Option<SlotButton<T>> {
+    let selected = tools.iter().any(|tool| tool.id == *current);
+    if selected {
+        last_used.set(slot.id, current.clone());
+    }
+    let shown = shown_tool(current, slot.id, tools, last_used)?;
+    let items: Vec<FlyoutItem<T>> = tools
+        .iter()
+        .map(|tool| {
+            let item = FlyoutItem::new(tool.id.clone(), tool.icon, tool.label.as_str()).enabled(tool.enabled);
+            match &tool.shortcut {
+                Some(shortcut) => item.shortcut(shortcut.as_str()),
+                None => item,
+            }
+        })
+        .collect();
+    let builder = UiBuilder::new().id_salt(("tool-slot", slot.id)).max_rect(cell).layout(Layout::top_down(Align::Min));
+    // While the drawer is open a drag picks the tool up, so a drag out of the button opens no flyout.
+    let listed: &[FlyoutItem<T>] = if mode.editing { &[] } else { &items };
+    let dragged = ToolDrag::Rail { slot: slot.id, index: slot.tools.iter().position(|tool| tool.id == shown.id).unwrap_or(0) };
+    let flyout = ui
+        .scope_builder(builder, |ui| {
+            let mut button = FlyoutButton::new("button", shown.icon, shown.label.as_str())
+                .items(listed)
+                .current(&shown.id)
+                .selected(selected)
+                .enabled(tools.iter().any(|tool| tool.enabled));
+            if let Some(shortcut) = &shown.shortcut {
+                button = button.shortcut(shortcut.as_str());
+            }
+            let response = button.show(ui);
+            if mode.down_opens && listed.len() > 1 && response.response.has_focus() {
+                // Down is no move between a row's buttons, so the focused button keeps it.
+                let filter = EventFilter { vertical_arrows: true, horizontal_arrows: true, ..Default::default() };
+                ui.memory_mut(|m| m.set_focus_lock_filter(response.response.id, filter));
+                if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown) || i.consume_key(Modifiers::ALT, Key::ArrowDown)) {
+                    Popup::open_id(ui.ctx(), response.response.id.with("popup"));
+                }
+            }
+            if mode.editing {
+                ui.interact(cell, ui.scope_id().with("edit-drag"), Sense::drag()).dnd_set_drag_payload(dragged);
+            }
+            response
+        })
+        .inner;
+    let select = if let Some(tool) = flyout.chosen {
+        Some(tool)
+    } else if flyout.clicked && shown.enabled {
+        Some(shown.id.clone())
+    } else {
+        None
+    };
+    Some(SlotButton { select, double_clicked: flyout.double_clicked.then(|| shown.id.clone()), open: flyout.open, response: flyout.response })
 }
 
 /// What the footer closure of [`ToolRail::show`] is told.
@@ -232,6 +322,8 @@ pub struct ToolRail<'a, T> {
     label: Option<String>,
     /// `None`: the installed words' "Scroll bar".
     scroll_bar_label: Option<String>,
+    /// The Edit Toolbar drawer is open: the buttons drag and show no flyouts.
+    editing: bool,
 }
 
 impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
@@ -245,6 +337,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             hidden: &[],
             label: None,
             scroll_bar_label: None,
+            editing: false,
         }
     }
 
@@ -308,13 +401,14 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
     /// window is short. It must size to its content: its height is measured on one pass and used
     /// on the next, so a footer that fills the available height never settles.
     pub fn show(
-        self,
+        mut self,
         ui: &mut Ui,
         slots: &[ToolSlot<T>],
         current: &T,
         last_used: &mut LastUsed<T>,
         footer: impl FnOnce(&mut Ui, RailFooter),
     ) -> ToolRailOutput<T> {
+        self.editing = editing(ui.ctx());
         let left = self.left(ui);
         let tokens = Tokens::of(ui);
         let metrics = Self::metrics(&tokens, self.columns);
@@ -339,14 +433,20 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         let frame = Frame::NONE.fill(fill).inner_margin(Margin::symmetric(0, pad_y.round() as i8));
         let mut out =
             ToolRailOutput { select: None, double_clicked: None, toggle_columns: false, edit_toolbar: false, flyout: None, rect: Rect::NOTHING };
+        let mut placed = Vec::new();
         let shown = panel.exact_size(metrics.width).resizable(false).show_separator_line(false).frame(frame).show(ui, |ui| {
             let toolbar = UiBuilder::new().id_salt("toolbar").accessibility_role(Role::Toolbar).accessibility_label(label.as_str());
             ui.scope_builder(toolbar, |ui| {
                 ui.ctx().accesskit_node_builder(ui.unique_id(), |node| node.set_orientation(Orientation::Vertical));
-                self.body(ui, id, &layout, style, slots, current, last_used, footer, &mut out);
+                self.body(ui, id, &layout, style, slots, current, last_used, footer, &mut out, &mut placed);
             });
         });
         out.rect = shown.response.rect;
+        let (columns, rtl, total) = (self.columns, direction::is_rtl(ui), slots.len());
+        let button = self.edit_toolbar.is_some().then(|| id.with("edit-toolbar"));
+        edit_update(ui.ctx(), |edit| {
+            *edit = RailEdit { rect: Some(out.rect), placed, total, columns, rtl, button, ..std::mem::take(edit) };
+        });
         out
     }
 
@@ -362,6 +462,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         last_used: &mut LastUsed<T>,
         footer: impl FnOnce(&mut Ui, RailFooter),
         out: &mut ToolRailOutput<T>,
+        placed: &mut Vec<Placed>,
     ) {
         ui.spacing_mut().item_spacing = vec2(grid.gap, grid.row_gap);
         let rtl_icons = direction::is_rtl(ui);
@@ -404,7 +505,11 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
                 row = Some(row_rect);
                 let cell = grid.cell(row_rect.top(), center_x, column, rtl);
                 let response = match visible.get(k) {
-                    Some((index, tools)) => self.slot(ui, &slots[*index], tools, current, last_used, cell, out),
+                    Some((index, tools)) => {
+                        let response = self.slot(ui, &slots[*index], tools, current, last_used, cell, out);
+                        placed.push(Placed { index: *index, slot: slots[*index].id, rect: cell, tools: slots[*index].tools.len() });
+                        response
+                    }
                     None => {
                         let label = self.edit_toolbar.as_deref().unwrap_or_default();
                         let response = IconButton::new(Icon::More, label).with_id(rail.with("edit-toolbar")).with_style(style).show_at(ui, cell);
@@ -421,6 +526,12 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
             }
             if out.flyout.is_none() {
                 Self::arrows(ui, grid.columns, &cells);
+            }
+            if self.editing {
+                let target = pointer_target(ui.ctx(), full, placed, grid.columns, rtl, slots.len()).or_else(|| edit_state(ui.ctx()).target);
+                if let Some(target) = target {
+                    paint_target(ui, grid.columns, rtl, placed, target);
+                }
             }
         });
         let inset = grid.pad_x.min(full.width() / 2.0);
@@ -450,47 +561,17 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         cell: Rect,
         out: &mut ToolRailOutput<T>,
     ) -> Option<Response> {
-        let selected = tools.iter().any(|tool| tool.id == *current);
-        if selected {
-            last_used.set(slot.id, current.clone());
+        let button = slot_button(ui, slot, tools, current, last_used, cell, SlotMode { editing: self.editing, down_opens: false })?;
+        if button.select.is_some() {
+            out.select = button.select;
         }
-        let shown = shown_tool(current, slot.id, tools, last_used)?;
-        let items: Vec<FlyoutItem<T>> = tools
-            .iter()
-            .map(|tool| {
-                let item = FlyoutItem::new(tool.id.clone(), tool.icon, tool.label.as_str()).enabled(tool.enabled);
-                match &tool.shortcut {
-                    Some(shortcut) => item.shortcut(shortcut.as_str()),
-                    None => item,
-                }
-            })
-            .collect();
-        let builder = UiBuilder::new().id_salt(("tool-slot", slot.id)).max_rect(cell).layout(Layout::top_down(Align::Min));
-        let flyout = ui
-            .scope_builder(builder, |ui| {
-                let mut button = FlyoutButton::new("button", shown.icon, shown.label.as_str())
-                    .items(&items)
-                    .current(&shown.id)
-                    .selected(selected)
-                    .enabled(tools.iter().any(|tool| tool.enabled));
-                if let Some(shortcut) = &shown.shortcut {
-                    button = button.shortcut(shortcut.as_str());
-                }
-                button.show(ui)
-            })
-            .inner;
-        if let Some(tool) = flyout.chosen {
-            out.select = Some(tool);
-        } else if flyout.clicked && shown.enabled {
-            out.select = Some(shown.id.clone());
+        if button.double_clicked.is_some() {
+            out.double_clicked = button.double_clicked;
         }
-        if flyout.double_clicked {
-            out.double_clicked = Some(shown.id.clone());
-        }
-        if flyout.open {
+        if button.open {
             out.flyout = Some(slot.id);
         }
-        Some(flyout.response)
+        Some(button.response)
     }
 
     /// Moves the focus between the rail's buttons by the grid. The keys the focused button's
@@ -521,6 +602,146 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         if let Some(target) = movement.and_then(|movement| grid_step(index, &enabled, columns, movement)) {
             let filter = EventFilter { vertical_arrows: true, horizontal_arrows: two, ..Default::default() };
             ui.memory_mut(|m| m.request_focus_with_filter(cells[target].0, filter));
+        }
+    }
+}
+
+/// What a drag between the Edit Toolbar drawer and the rail carries (egui's `DragAndDrop`
+/// payload). Positions, not tools: each side resolves them against the slots it was given.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ToolDrag {
+    /// A row of the drawer: its group and its place in the group.
+    Drawer { group: usize, index: usize },
+    /// A rail slot's shown tool: the slot and the tool's place in it.
+    Rail { slot: SlotId, index: usize },
+}
+
+/// A slot button as the last pass drew it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Placed {
+    /// The slot's index in the host's slots.
+    pub index: usize,
+    pub slot: SlotId,
+    pub rect: Rect,
+    /// How many tools the slot holds.
+    pub tools: usize,
+}
+
+/// What the rail and the Edit Toolbar drawer tell each other, kept in egui temp data by window.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RailEdit {
+    /// The pass the drawer last drew in.
+    pub drawer_pass: Option<u64>,
+    /// Where the rail was drawn.
+    pub rect: Option<Rect>,
+    pub placed: Vec<Placed>,
+    /// The host's slot count.
+    pub total: usize,
+    pub columns: usize,
+    pub rtl: bool,
+    /// The Edit Toolbar button.
+    pub button: Option<Id>,
+    /// The place a keyboard move would drop at.
+    pub target: Option<DropAt>,
+}
+
+fn edit_id(ctx: &Context) -> Id {
+    Id::unique("craft-ui-rail-edit").with(ctx.viewport_id())
+}
+
+pub(crate) fn edit_state(ctx: &Context) -> RailEdit {
+    let id = edit_id(ctx);
+    ctx.data(|d| d.get_temp::<RailEdit>(id)).unwrap_or_default()
+}
+
+pub(crate) fn edit_update(ctx: &Context, update: impl FnOnce(&mut RailEdit)) {
+    let id = edit_id(ctx);
+    ctx.data_mut(|d| update(d.get_temp_mut_or_default::<RailEdit>(id)));
+}
+
+/// The drawer drew in this pass or the one before: the rail takes drags and shows drop targets.
+fn editing(ctx: &Context) -> bool {
+    edit_state(ctx).drawer_pass.is_some_and(|pass| pass + 1 >= ctx.cumulative_pass_nr())
+}
+
+/// Where the payload being dragged would drop on the rail, when the pointer is over `bounds`.
+fn pointer_target(ctx: &Context, bounds: Rect, placed: &[Placed], columns: usize, rtl: bool, total: usize) -> Option<DropAt> {
+    DragAndDrop::payload::<ToolDrag>(ctx)?;
+    let at = ctx.pointer_interact_pos().filter(|at| bounds.contains(*at))?;
+    Some(drop_at(placed, at, columns, rtl, total))
+}
+
+/// [`pointer_target`] over the rail as the last pass drew it.
+pub(crate) fn dragged_target(ctx: &Context) -> Option<DropAt> {
+    let edit = edit_state(ctx);
+    pointer_target(ctx, edit.rect?, &edit.placed, edit.columns, edit.rtl, edit.total)
+}
+
+/// Where a tool dropped at `at` goes: onto a button's middle it joins the slot's group; onto its
+/// leading or trailing third (top and bottom in one column, the sides in two) it becomes a slot of
+/// its own beside it; elsewhere it goes beside the nearest button.
+pub(crate) fn drop_at(placed: &[Placed], at: Pos2, columns: usize, rtl: bool, total: usize) -> DropAt {
+    let Some(p) = placed.iter().min_by(|a, b| a.rect.distance_sq_to_pos(at).total_cmp(&b.rect.distance_sq_to_pos(at))) else {
+        return DropAt::NewSlot { before: total };
+    };
+    let r = p.rect;
+    if r.contains(at) {
+        let f = if columns <= 1 {
+            (at.y - r.top()) / r.height().max(1.0)
+        } else {
+            let f = (at.x - r.left()) / r.width().max(1.0);
+            if rtl { 1.0 - f } else { f }
+        };
+        return if f < 0.3 {
+            DropAt::NewSlot { before: p.index }
+        } else if f > 0.7 {
+            DropAt::NewSlot { before: p.index + 1 }
+        } else {
+            DropAt::Slot { slot: p.slot, index: p.tools }
+        };
+    }
+    let beside = if rtl { at.x > r.center().x } else { at.x < r.center().x };
+    let before = at.y < r.top() || (at.y <= r.bottom() && beside);
+    DropAt::NewSlot { before: if before { p.index } else { p.index + 1 } }
+}
+
+/// Every place a keyboard move can drop at, in reading order: before each button, into it, and
+/// after the last.
+pub(crate) fn drop_places(placed: &[Placed], total: usize) -> Vec<DropAt> {
+    let mut places: Vec<DropAt> =
+        placed.iter().flat_map(|p| [DropAt::NewSlot { before: p.index }, DropAt::Slot { slot: p.slot, index: p.tools }]).collect();
+    places.push(DropAt::NewSlot { before: total });
+    places
+}
+
+/// Marks `target`: a line at the edge a new slot goes to, or an outline on the slot it joins.
+fn paint_target(ui: &Ui, columns: usize, rtl: bool, placed: &[Placed], target: DropAt) {
+    let tokens = Tokens::of(ui);
+    let r = &tokens.component.rail;
+    let stroke = Stroke::new(r.selected_border_width, r.selected_border.to_egui());
+    let painter = ui.painter();
+    match target {
+        DropAt::Slot { slot, .. } => {
+            if let Some(p) = placed.iter().find(|p| p.slot == slot) {
+                let radius = egui::CornerRadius::same(r.radius.round().clamp(0.0, 255.0) as u8);
+                painter.rect_stroke(p.rect, radius, stroke, StrokeKind::Inside);
+            }
+        }
+        DropAt::NewSlot { before } => {
+            let (rect, after) = match placed.iter().find(|p| p.index >= before) {
+                Some(p) => (p.rect, false),
+                None => match placed.last() {
+                    Some(p) => (p.rect, true),
+                    None => return,
+                },
+            };
+            if columns <= 1 {
+                painter.hline(rect.x_range(), if after { rect.bottom() } else { rect.top() }, stroke);
+            } else {
+                let leading = if rtl { rect.right() } else { rect.left() };
+                let trailing = if rtl { rect.left() } else { rect.right() };
+                painter.vline(if after { trailing } else { leading }, rect.y_range(), stroke);
+            }
         }
     }
 }
