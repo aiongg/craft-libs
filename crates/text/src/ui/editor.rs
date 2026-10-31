@@ -32,15 +32,16 @@
 
 #![expect(unused_variables, reason = "the default `style_key` takes no formatting")]
 
+use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::ops::Range;
 
-use craft_ui::canvas::CanvasView;
 use craft_ui::canvas::kurbo::Point;
+use craft_ui::canvas::{CanvasTool, CanvasView, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
 use craft_ui::ime::{Composer, Edit, surrounding_chars};
 use craft_ui::theme::ToEgui;
 use egui::ime_context::ImeMutationStamp;
-use egui::{Color32, Context, Event, Id, Key, Modifiers, Painter, Rect, Shape, Stroke};
+use egui::{Color32, Context, CursorIcon, Event, Id, Key, Modifiers, Painter, Rect, Shape, Stroke};
 
 use crate::quotes::{QuoteStyle, smart_quotes};
 
@@ -1069,19 +1070,58 @@ pub fn flow_key(key: Key, vertical: bool) -> Key {
 /// - Cursor: the I-beam (the vertical I-beam over vertical text); paint: the editor's paint.
 /// - No snapping; autoscroll on, so a selection drag past the edge scrolls.
 ///
+/// The app runs [`TextEditor::update`] before the tool host in a pass (it reads the keys and the
+/// input method, and a press in the same pass counts on it) and [`TextEditor::finish_pass`] after
+/// it; the host has no per-pass hook for a tool.
+///
 /// The paragraph box's handles are not the editor's: the app draws them with the transform box
 /// before the tool host runs, so their presses never reach it.
-// needs: S3-canvas tool_host — `impl<H: TextEditorHost> CanvasTool for TextEditorTool<'_, H>`
-// (`cursor`, `press` → `ToolAction::Claimed` / `Ignored`, `drag`, `release`, `cancel`, `key` → true
-// with `cx.keep_keys()`, `paint`, `autoscrolls` → true), written once `craft_ui::canvas::{CanvasTool,
-// ToolContext, ToolPointer, ToolAction, ToolKey}` are on this branch.
 pub struct TextEditorTool<'a, H: TextEditorHost> {
     pub editor: &'a mut TextEditor,
-    pub host: &'a mut H,
+    // `CanvasTool::paint` takes `&self` and the host's layout calls take `&mut self`.
+    host: RefCell<&'a mut H>,
 }
 
 impl<'a, H: TextEditorHost> TextEditorTool<'a, H> {
     pub fn new(editor: &'a mut TextEditor, host: &'a mut H) -> Self {
-        TextEditorTool { editor, host }
+        TextEditorTool { editor, host: RefCell::new(host) }
+    }
+}
+
+impl<H: TextEditorHost> CanvasTool for TextEditorTool<'_, H> {
+    fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
+        let vertical = self.host.borrow().vertical();
+        ToolCursor::System(if vertical { CursorIcon::VerticalText } else { CursorIcon::Text })
+    }
+
+    fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+        if self.editor.press(*self.host.get_mut(), pointer.doc, pointer.screen, pointer.modifiers, pointer.time) {
+            ToolAction::Claimed
+        } else {
+            ToolAction::Ignored
+        }
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+        self.editor.drag(*self.host.get_mut(), pointer.doc);
+    }
+
+    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+        self.editor.release();
+    }
+
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+        self.editor.release();
+    }
+
+    /// Keys the editor took are already out of the input; what is left are the ⌘ chords it does
+    /// not know, which stay for the app.
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+        cx.keep_keys();
+        !key.modifiers.command
+    }
+
+    fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
+        self.editor.paint(painter, cx.view, *self.host.borrow_mut());
     }
 }
