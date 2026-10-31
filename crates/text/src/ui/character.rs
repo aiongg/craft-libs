@@ -19,10 +19,9 @@ use craft_ui::icons::Icon;
 use craft_ui::localized::units::{LengthUnit, UnitContext};
 use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
-use craft_ui::primitives::{Content, Text};
+use craft_ui::primitives::{Content, Icon as Mark, Text};
 use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::load::Bytes;
-use egui::{Color32, ImageSource, Ui, vec2};
+use egui::{Color32, Ui, vec2};
 
 craft_ui::words! {
     /// The Character controls' words, English by default (PhotoCraft's tooltips).
@@ -234,7 +233,9 @@ pub enum CharacterChange {
 /// What the Character controls did this pass.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CharacterResponse {
-    pub change: Option<CharacterChange>,
+    /// Every change made this pass, in the order of the controls (usually one; a preset pick
+    /// and a toggle in the same pass are two). The app applies them in order.
+    pub changes: Vec<CharacterChange>,
     /// The family under the pointer in the open font list, for a live preview of the selected
     /// text (`FontPickerResponse::preview`; only with `font-picker`).
     pub preview_family: Option<String>,
@@ -256,16 +257,16 @@ pub struct CharacterResponse {
 ///
 /// ```ignore
 /// let r = CharacterControls::new(&values, &families, &styles).unit(TypeUnit::Points).show(ui);
-/// if let Some(change) = r.change { apply_to_selection(change) }
+/// for change in r.changes { apply_to_selection(change) }
 /// ```
 ///
 /// - Fields fill two columns of the available width with an icon label each (PhotoCraft's glyph
 ///   labels: "tT", "A↕", "VA", "↕T", "↔T", "Aª"); size, leading and tracking have a preset menu in
 ///   the field (presets are shortcuts, not limits: any value in range can be typed). Ranges in
 ///   points: size 0.1–1296, leading 0.1–5000, baseline shift −1296–1296; tracking −1000–10000;
-///   scales 0–1000 %. Kerning takes Metrics, Optical or a number. The leading field's Auto
-///   preset (and a typed or scrubbed 0) is [`Leading::Auto`]; while leading is Auto the field
-///   shows the font size × 120 %.
+///   scales 0–1000 %. Kerning takes Metrics, Optical or a number. The leading field's menu
+///   starts with an Auto row ([`Leading::Auto`]); while leading is Auto the field shows the font
+///   size × 120 %.
 /// - Family: craft-font-manager's `FontPicker` with `font-picker` and
 ///   [`font_picker`](Self::font_picker), else a `Select` of `families`.
 /// - Toggles are toggle buttons in one row, pressed while on; Tab reaches each.
@@ -340,8 +341,7 @@ impl<'a> CharacterControls<'a> {
         let suffix = self.unit.suffix(&labels).to_owned();
         let template = format!("{{n}} {suffix}");
         let size_presets: Vec<(String, f32)> = SIZE_PRESETS.iter().map(|&p| (preset_label(f64::from(p) * scale, &suffix), p)).collect();
-        let mut leading_presets = vec![(labels.auto.clone(), 0.0)];
-        leading_presets.extend(size_presets.iter().cloned());
+        let auto_row = [labels.auto.clone()];
         let tracking_presets: Vec<(String, f32)> =
             TRACKING_PRESETS.iter().flat_map(|group| group.iter()).map(|&p| (preset_label(f64::from(p), ""), p)).collect();
         let mut pass = Pass::default();
@@ -356,7 +356,7 @@ impl<'a> CharacterControls<'a> {
                     let r = FontPicker::new("family", catalog, &mut family).settings(&mut *settings).filters(filters).width(width).show(ui);
                     if let Some(picked) = r.picked {
                         settings.note_recent(&picked);
-                        pass.change = Some(CharacterChange::Family(picked));
+                        pass.changes.push(CharacterChange::Family(picked));
                     }
                     pass.preview = r.preview;
                     return;
@@ -370,7 +370,7 @@ impl<'a> CharacterControls<'a> {
                     |i| self.families[i].clone(),
                     |i| self.families[i].clone(),
                 ) {
-                    pass.change = Some(CharacterChange::Family(family));
+                    pass.changes.push(CharacterChange::Family(family));
                 }
             });
             cell(ui, |ui| {
@@ -383,7 +383,7 @@ impl<'a> CharacterControls<'a> {
                     |i| self.styles[i].clone(),
                     |i| self.styles[i].clone(),
                 ) {
-                    pass.change = Some(CharacterChange::Style(style));
+                    pass.changes.push(CharacterChange::Style(style));
                 }
             });
 
@@ -424,17 +424,18 @@ impl<'a> CharacterControls<'a> {
                     Some(Leading::Auto) => auto_leading,
                     None => None,
                 };
-                let leading = Metric { presets: leading_presets.clone(), ..metric("leading", "A↕", &labels.leading, leading_value, (0.0, 5000.0)) };
-                if let Some(moved) = cell(&mut cols[1], |ui| field(ui, leading)) {
-                    pass.moved(
-                        moved,
-                        |p| if p <= 0.0 { CharacterChange::Leading(Leading::Auto) } else { CharacterChange::Leading(Leading::Points(p)) },
-                    );
+                let leading = Metric { presets: size_presets.clone(), ..metric("leading", "A↕", &labels.leading, leading_value, (0.1, 5000.0)) };
+                let (moved, row) = cell(&mut cols[1], |ui| field_rows(ui, leading, &auto_row));
+                if let Some(moved) = moved {
+                    pass.moved(moved, |p| CharacterChange::Leading(Leading::Points(p)));
+                }
+                if row == Some(0) {
+                    pass.changes.push(CharacterChange::Leading(Leading::Auto));
                 }
             });
             ui.columns(2, |cols| {
                 if let Some(kerning) = cell(&mut cols[0], |ui| kerning_field(ui, &labels, values.kerning)) {
-                    pass.change = Some(CharacterChange::Kerning(kerning));
+                    pass.changes.push(CharacterChange::Kerning(kerning));
                 }
                 let tracking = Metric {
                     presets: tracking_presets.clone(),
@@ -475,56 +476,56 @@ impl<'a> CharacterControls<'a> {
 
             let caps = values.caps;
             let position = values.position;
-            let styles: [(&str, &str, &str, bool, CharacterChange); 4] = [
+            let styles: [(&str, Icon, &str, bool, CharacterChange); 4] = [
                 (
                     "faux_bold",
-                    FAUX_BOLD,
+                    Icon::TextBold,
                     &labels.faux_bold,
                     values.faux_bold == Some(true),
                     CharacterChange::FauxBold(values.faux_bold != Some(true)),
                 ),
                 (
                     "faux_italic",
-                    FAUX_ITALIC,
+                    Icon::TextItalic,
                     &labels.faux_italic,
                     values.faux_italic == Some(true),
                     CharacterChange::FauxItalic(values.faux_italic != Some(true)),
                 ),
                 (
                     "all_caps",
-                    ALL_CAPS,
+                    Icon::TextAllCaps,
                     &labels.all_caps,
                     caps == Some(Caps::AllCaps),
                     CharacterChange::Caps(if caps == Some(Caps::AllCaps) { Caps::Normal } else { Caps::AllCaps }),
                 ),
                 (
                     "small_caps",
-                    SMALL_CAPS,
+                    Icon::TextSmallCaps,
                     &labels.small_caps,
                     caps == Some(Caps::SmallCaps),
                     CharacterChange::Caps(if caps == Some(Caps::SmallCaps) { Caps::Normal } else { Caps::SmallCaps }),
                 ),
             ];
-            let decorations: [(&str, &str, &str, bool, CharacterChange); 2] = [
+            let decorations: [(&str, Icon, &str, bool, CharacterChange); 2] = [
                 (
                     "underline",
-                    UNDERLINE,
+                    Icon::TextUnderline,
                     &labels.underline,
                     values.underline == Some(true),
                     CharacterChange::Underline(values.underline != Some(true)),
                 ),
                 (
                     "strikethrough",
-                    STRIKETHROUGH,
+                    Icon::TextStrikethrough,
                     &labels.strikethrough,
                     values.strikethrough == Some(true),
                     CharacterChange::Strikethrough(values.strikethrough != Some(true)),
                 ),
             ];
-            let positions: [(&str, &str, &str, bool, CharacterChange); 2] = [
+            let positions: [(&str, Icon, &str, bool, CharacterChange); 2] = [
                 (
                     "superscript",
-                    SUPERSCRIPT,
+                    Icon::TextSuperscript,
                     &labels.superscript,
                     position == Some(BaselinePosition::Superscript),
                     CharacterChange::Position(if position == Some(BaselinePosition::Superscript) {
@@ -535,7 +536,7 @@ impl<'a> CharacterControls<'a> {
                 ),
                 (
                     "subscript",
-                    SUBSCRIPT,
+                    Icon::TextSubscript,
                     &labels.subscript,
                     position == Some(BaselinePosition::Subscript),
                     CharacterChange::Position(if position == Some(BaselinePosition::Subscript) {
@@ -558,9 +559,9 @@ impl<'a> CharacterControls<'a> {
                 &labels.ordinals,
                 &labels.fractions,
             ];
-            let features = OPENTYPE_FEATURES.iter().zip(OPENTYPE_GLYPHS).zip(names).map(|((&tag, svg), name)| {
+            let features = OPENTYPE_FEATURES.iter().zip(OPENTYPE_ICONS).zip(names).map(|((&tag, icon), name)| {
                 let on = values.opentype.contains(&tag);
-                (tag, svg, name.as_str(), on, CharacterChange::OpenType { tag, on: !on })
+                (tag, icon, name.as_str(), on, CharacterChange::OpenType { tag, on: !on })
             });
             buttons(ui, features, |_| true, &mut pass);
 
@@ -569,12 +570,12 @@ impl<'a> CharacterControls<'a> {
                     let current = values.language.as_deref();
                     let tags = |i: usize| languages[i].0.clone();
                     if let Some(tag) = choose(ui, "language", &labels.language, current, languages.len(), tags, |i| languages[i].1.clone()) {
-                        pass.change = Some(CharacterChange::Language(tag));
+                        pass.changes.push(CharacterChange::Language(tag));
                     }
                 });
             }
         });
-        CharacterResponse { change: pass.change, preview_family: pass.preview, pick_color: pass.pick_color, scrubbing: pass.scrubbing }
+        CharacterResponse { changes: pass.changes, preview_family: pass.preview, pick_color: pass.pick_color, scrubbing: pass.scrubbing }
     }
 }
 
@@ -628,9 +629,10 @@ pub enum ParagraphChange {
 }
 
 /// What the Paragraph controls did this pass.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct ParagraphResponse {
-    pub change: Option<ParagraphChange>,
+    /// As [`CharacterResponse::changes`].
+    pub changes: Vec<ParagraphChange>,
     /// As [`CharacterResponse::scrubbing`].
     pub scrubbing: bool,
 }
@@ -697,13 +699,13 @@ impl<'a> ParagraphControls<'a> {
         ui.push_id("craft_text::paragraph", |ui| {
             use TextAlign::*;
             let aligns = [
-                ("left", ALIGN_LEFT, &labels.left, Left),
-                ("center", ALIGN_CENTER, &labels.center, Center),
-                ("right", ALIGN_RIGHT, &labels.right, Right),
-                ("justify_left", JUSTIFY_LEFT, &labels.justify_left, JustifyLeft),
-                ("justify_center", JUSTIFY_CENTER, &labels.justify_center, JustifyCenter),
-                ("justify_right", JUSTIFY_RIGHT, &labels.justify_right, JustifyRight),
-                ("justify_all", JUSTIFY_ALL, &labels.justify_all, JustifyAll),
+                ("left", Icon::AlignLeft, &labels.left, Left),
+                ("center", Icon::AlignCenter, &labels.center, Center),
+                ("right", Icon::AlignRight, &labels.right, Right),
+                ("justify_left", Icon::AlignJustify, &labels.justify_left, JustifyLeft),
+                ("justify_center", Icon::AlignJustify, &labels.justify_center, JustifyCenter),
+                ("justify_right", Icon::AlignJustify, &labels.justify_right, JustifyRight),
+                ("justify_all", Icon::AlignJustify, &labels.justify_all, JustifyAll),
             ];
             let row = aligns
                 .into_iter()
@@ -717,9 +719,9 @@ impl<'a> ParagraphControls<'a> {
 
             use ParagraphDirection::*;
             let directions = [
-                ("direction_auto", DIRECTION_AUTO, &labels.direction_auto, Automatic),
-                ("direction_ltr", DIRECTION_LTR, &labels.direction_ltr, LeftToRight),
-                ("direction_rtl", DIRECTION_RTL, &labels.direction_rtl, RightToLeft),
+                ("direction_auto", Icon::Pilcrow, &labels.direction_auto, Automatic),
+                ("direction_ltr", Icon::PilcrowRight, &labels.direction_ltr, LeftToRight),
+                ("direction_rtl", Icon::PilcrowLeft, &labels.direction_rtl, RightToLeft),
             ];
             let row = directions
                 .into_iter()
@@ -756,11 +758,11 @@ impl<'a> ParagraphControls<'a> {
                 let mut state = values.hyphenate.map_or(CheckState::Mixed, CheckState::from);
                 let edit = Checkbox::new(&labels.hyphenate, &mut state).size(ControlSize::Sm).id_salt("hyphenate").show(ui);
                 if let Some(state) = edit.committed() {
-                    pass.change = Some(ParagraphChange::Hyphenate(*state == CheckState::Checked));
+                    pass.changes.push(ParagraphChange::Hyphenate(*state == CheckState::Checked));
                 }
             });
         });
-        ParagraphResponse { change: pass.change, scrubbing: pass.scrubbing }
+        ParagraphResponse { changes: pass.changes, scrubbing: pass.scrubbing }
     }
 }
 
@@ -781,7 +783,7 @@ impl TypeUnit {
 /// What the controls collected this pass. Only the last change is kept: one control is used per
 /// pass.
 struct Pass<C> {
-    change: Option<C>,
+    changes: Vec<C>,
     scrubbing: bool,
     preview: Option<String>,
     pick_color: bool,
@@ -789,13 +791,13 @@ struct Pass<C> {
 
 impl<C> Default for Pass<C> {
     fn default() -> Self {
-        Pass { change: None, scrubbing: false, preview: None, pick_color: false }
+        Pass { changes: Vec::new(), scrubbing: false, preview: None, pick_color: false }
     }
 }
 
 impl<C> Pass<C> {
     fn moved(&mut self, moved: Moved, change: impl FnOnce(f32) -> C) {
-        self.change = Some(change(moved.value));
+        self.changes.push(change(moved.value));
         self.scrubbing |= moved.live;
     }
 }
@@ -838,6 +840,11 @@ fn cell<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
 }
 
 fn field(ui: &mut Ui, m: Metric) -> Option<Moved> {
+    field_rows(ui, m, &[]).0
+}
+
+/// [`field`] with `rows` before the presets in its menu; the second result is the row picked.
+fn field_rows(ui: &mut Ui, m: Metric, rows: &[String]) -> (Option<Moved>, Option<usize>) {
     let numbers = LocaleNumbers::of(ui);
     let scale = m.scale;
     let presets: Vec<(String, f64)> = m.presets.iter().map(|(text, value)| (text.clone(), f64::from(*value) * scale)).collect();
@@ -858,20 +865,27 @@ fn field(ui: &mut Ui, m: Metric) -> Option<Moved> {
     if !presets.is_empty() {
         number = number.presets(&presets);
     }
+    let mut row = None;
+    if !rows.is_empty() {
+        number = number.preset_rows(rows, &mut row);
+    }
     // A picked preset is the model's own number: the field's rounded text would give 11.99 for 12 pt in mm.
     let model =
         |shown: f64| m.presets.iter().find(|(_, p)| (f64::from(*p) * scale - shown).abs() <= 0.0051).map_or((shown / scale) as f32, |(_, p)| *p);
-    match number.show(ui).event? {
-        EditEvent::Begin { value, .. } => {
+    let event = number.show(ui).event;
+    let moved = match event {
+        None => None,
+        Some(EditEvent::Begin { value, .. }) => {
             ui.data_mut(|d| d.insert_temp(before, m.value));
             value.map(|v| Moved { value: model(v), live: true })
         }
-        EditEvent::Update { value, .. } => Some(Moved { value: model(value), live: true }),
-        EditEvent::Set { value, .. } => Some(Moved { value: model(value), live: false }),
-        EditEvent::Commit { value, changed, .. } => changed.then(|| Moved { value: model(value), live: false }),
-        EditEvent::Cancel { .. } => ui.data(|d| d.get_temp::<Option<f32>>(before)).flatten().map(|value| Moved { value, live: false }),
+        Some(EditEvent::Update { value, .. }) => Some(Moved { value: model(value), live: true }),
+        Some(EditEvent::Set { value, .. }) => Some(Moved { value: model(value), live: false }),
+        Some(EditEvent::Commit { value, changed, .. }) => changed.then(|| Moved { value: model(value), live: false }),
+        Some(EditEvent::Cancel { .. }) => ui.data(|d| d.get_temp::<Option<f32>>(before)).flatten().map(|value| Moved { value, live: false }),
         _ => None,
-    }
+    };
+    (moved, row)
 }
 
 /// A select over `count` choices, `current` selected (empty while the selection mixes values).
@@ -929,7 +943,7 @@ fn kerning_field(ui: &mut Ui, labels: &CharacterLabels, kerning: Option<Kerning>
 
 fn kerning_row(ui: &mut Ui, labels: &CharacterLabels, kerning: Option<Kerning>) -> Option<Kerning> {
     let mut chosen = None;
-    ui.add(Text::new("VA").content(Content::Muted));
+    ui.add(Mark::new(Icon::TextCursor).content(Content::Muted).label(&labels.kerning));
     let side = IconButton::style(&Tokens::of(ui), ControlSize::Sm).side;
     let shown = kerning_text(labels, kerning);
     let width = (ui.available_width() - side).max(0.0);
@@ -968,69 +982,24 @@ fn kerning_row(ui: &mut Ui, labels: &CharacterLabels, kerning: Option<Kerning>) 
 /// `allowed(change)` is false is disabled. The pressed one reports its change when clicked.
 fn buttons<'a, C>(
     ui: &mut Ui,
-    items: impl IntoIterator<Item = (&'static str, &'static str, &'a str, bool, C)>,
+    items: impl IntoIterator<Item = (&'static str, Icon, &'a str, bool, C)>,
     allowed: impl Fn(&C) -> bool,
     pass: &mut Pass<C>,
 ) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
-        for (salt, svg, name, on, change) in items {
-            let source = ImageSource::Bytes { uri: format!("bytes://craft-text/character/{salt}.svg").into(), bytes: Bytes::Static(svg.as_bytes()) };
-            let button = IconButton::new(source, name).size(ControlSize::Sm).selected(on).enabled(allowed(&change)).id_salt(salt);
+        for (salt, icon, name, on, change) in items {
+            let button = IconButton::new(icon, name).size(ControlSize::Sm).selected(on).enabled(allowed(&change)).id_salt(salt);
             if ui.add(button).clicked() {
-                pass.change = Some(change);
+                pass.changes.push(change);
             }
         }
     });
 }
 
-/// A 24 × 24 drawing of strokes in white, tinted by the button.
-macro_rules! glyph {
-    ($width:literal, $path:literal) => {
-        concat!(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width=""#,
-            $width,
-            r#"" stroke-linecap="round" stroke-linejoin="round"><path d=""#,
-            $path,
-            r#""/></svg>"#
-        )
-    };
-}
-
-// The type-style marks: a T with the mark of the style. The crate has no icons for them and
-// carries no font in the drawing, so each is a few strokes.
-const FAUX_BOLD: &str = glyph!("3.6", "M6 5h12M12 5v14");
-const FAUX_ITALIC: &str = glyph!("2", "M9 5h10M15.5 5l-3.5 14");
-const ALL_CAPS: &str = glyph!("2", "M2.5 8h9M7 8v10M12.5 8h9M17 8v10");
-const SMALL_CAPS: &str = glyph!("2", "M3 5h11M8.5 5v14M14.5 11h7M18 11v8");
-const SUPERSCRIPT: &str = glyph!("2", "M3 9h10M8 9v11M16 3h5M18.5 3v6");
-const SUBSCRIPT: &str = glyph!("2", "M3 4h10M8 4v11M16 15h5M18.5 15v6");
-const UNDERLINE: &str = glyph!("2", "M6 4h12M12 4v12M5 20h14");
-const STRIKETHROUGH: &str = glyph!("2", "M6 4h12M12 4v16M4 12h16");
-
-/// The OpenType marks in [`OPENTYPE_FEATURES`] order: fi, st, ct with its ligature arc, a swash A,
-/// aa, a titling T, 1st and ½.
-const OPENTYPE_GLYPHS: [&str; 8] = [
-    glyph!("1.8", "M9 19V8a3 3 0 0 1 3-3M6 11h7M16 11v8M16 7v.01"),
-    glyph!("1.8", "M10 10c-1-1.5-5-1.5-5 .8s5 1.7 5 4S5.500 18 4 16M15 6v10a2 2 0 0 0 3 .8M12 10h7"),
-    glyph!("1.8", "M10 10a4 4 0 1 0 0 7M16 6v9a2 2 0 0 0 3 1M13 10h7M8 8Q12 3 17 6"),
-    glyph!("1.8", "M5 17L10 5l5 12M7 13h6M3 21q9-3 18-1"),
-    glyph!("1.8", "M10 14a3 3 0 1 0-6 0 3 3 0 1 0 6 0M10 11v6M21 14a3 3 0 1 0-6 0 3 3 0 1 0 6 0M21 11v6"),
-    glyph!("2.4", "M5 5h14M12 5v14M8 19h8"),
-    glyph!("1.8", "M4 11l2-2v10M12 15h7M15.500 12v6a1.500 1.500 0 0 0 2 .5M10 7h6"),
-    glyph!("1.8", "M5 9l2-2v8M18 5L7 19M13 17a2 2 0 0 1 4 0c0 2-4 2-4 4h4"),
-];
-
-// Alignment: four lines whose lengths show the mode (PhotoCraft's `align_glyph`).
-const ALIGN_LEFT: &str = glyph!("1.6", "M4 5h16M4 9.700h9.900M4 14.300h16M4 19h9.900");
-const ALIGN_CENTER: &str = glyph!("1.6", "M4 5h16M7 9.700h10M4 14.300h16M7 19h10");
-const ALIGN_RIGHT: &str = glyph!("1.6", "M4 5h16M10 9.700h10M4 14.300h16M10 19h10");
-const JUSTIFY_LEFT: &str = glyph!("1.6", "M4 5h16M4 9.700h16M4 14.300h16M4 19h8.800");
-const JUSTIFY_CENTER: &str = glyph!("1.6", "M4 5h16M4 9.700h16M4 14.300h16M7.600 19h8.800");
-const JUSTIFY_RIGHT: &str = glyph!("1.6", "M4 5h16M4 9.700h16M4 14.300h16M11.200 19h8.800");
-const JUSTIFY_ALL: &str = glyph!("1.6", "M4 5h16M4 9.700h16M4 14.300h16M4 19h16");
-
-// Direction: a pilcrow over an arrow the way the paragraph runs; Auto points both ways.
-const DIRECTION_LTR: &str = glyph!("1.8", "M13 3v9M16 3v9M16 3h-4.500a3.200 3.200 0 0 0 0 6.400H13M4 19h16M17 16l3 3-3 3");
-const DIRECTION_RTL: &str = glyph!("1.8", "M13 3v9M16 3v9M16 3h-4.500a3.200 3.200 0 0 0 0 6.400H13M4 19h16M7 16l-3 3 3 3");
-const DIRECTION_AUTO: &str = glyph!("1.8", "M13 3v9M16 3v9M16 3h-4.500a3.200 3.200 0 0 0 0 6.400H13M4 19h16M17 16l3 3-3 3M7 16l-3 3 3 3");
+/// The OpenType buttons' icons in [`OPENTYPE_FEATURES`] order. The sets have no OpenType marks:
+/// the three ligature features share the ligature icon, swash and stylistic alternates use the
+/// variable-font and similar-font icons, titling the type icon, ordinals the superscript icon and
+/// fractions the slash.
+const OPENTYPE_ICONS: [Icon; 8] =
+    [Icon::Ligature, Icon::Ligature, Icon::Ligature, Icon::FontVariable, Icon::FontSimilar, Icon::Text, Icon::TextSuperscript, Icon::Slash];

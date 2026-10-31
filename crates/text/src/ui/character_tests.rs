@@ -36,7 +36,7 @@ fn character(values: CharacterValues, unit: TypeUnit) -> Harness<'static, Charac
             |ui, s: &mut Character| {
                 let families = ["Hack".to_owned(), "Ubuntu".to_owned()];
                 let r = CharacterControls::new(&s.values, &families, &families).unit(s.unit).show(ui);
-                if let Some(change) = r.change {
+                for change in r.changes {
                     apply(&mut s.values, &change);
                     s.changes.push(change);
                 }
@@ -125,9 +125,7 @@ fn justify_buttons_need_a_box() {
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui_state(
             |ui, s: &mut Paragraph| {
-                if let Some(change) = ParagraphControls::new(&s.values).point_text(s.point_text).show(ui).change {
-                    s.changes.push(change);
-                }
+                s.changes.extend(ParagraphControls::new(&s.values).point_text(s.point_text).show(ui).changes);
             },
             state,
         );
@@ -140,4 +138,16 @@ fn justify_buttons_need_a_box() {
     h.get_by_role_and_label(Role::Button, &labels.left).click();
     h.run();
     assert_eq!(h.state().changes, [ParagraphChange::Align(TextAlign::Left)]);
+}
+
+// The leading menu's Auto row returns `Leading(Auto)` and leaves 0 out of the field's range.
+#[test]
+fn leading_menu_has_an_auto_row() {
+    let labels = CharacterLabels::english();
+    let mut h = character(CharacterValues { leading: Some(Leading::Points(20.0)), ..base() }, TypeUnit::Points);
+    h.get_by_role_and_label(Role::Button, &labels.leading).click();
+    h.run();
+    h.get_by_label(&labels.auto).click();
+    h.run();
+    assert_eq!(h.state().changes, [CharacterChange::Leading(Leading::Auto)]);
 }
