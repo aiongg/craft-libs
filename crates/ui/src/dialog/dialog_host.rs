@@ -58,6 +58,20 @@ pub trait StackDialog: Any + Send {
 
     /// Draws one pass; `Some` when the dialog finished this pass.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<Self::Result>>;
+
+    /// The key of the command the dialog answers for, when it has one. The host keeps it with the
+    /// dialog's result, so a [`Cancel`](DialogResult::Cancel) still says which dialog it was
+    /// ([`DialogHost::take_keyed`]).
+    fn key(&self) -> Option<&str> {
+        None
+    }
+
+    /// Answers OK as a click on the default button would, without drawing: runs what OK runs
+    /// (storing remembered values) and returns the answer. `None` when OK is disabled or the
+    /// dialog has no programmatic OK (the default). Used by [`DialogHost::confirm`].
+    fn confirm(&mut self, _ctx: &Context) -> Option<Self::Result> {
+        None
+    }
 }
 
 /// Where a startup modal goes in the queue when several apply at launch (spec question 5).
@@ -76,6 +90,8 @@ pub enum StartupStage {
 trait AnyStackDialog: Send {
     fn id(&self) -> DialogId;
     fn result_type(&self) -> TypeId;
+    fn key(&self) -> Option<String>;
+    fn confirm_erased(&mut self, ctx: &Context) -> Option<Box<dyn Any + Send>>;
     fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send>>;
     /// `DialogResult::<D::Result>::Cancel`, boxed, for a dialog closed from outside.
     fn cancelled(&self) -> Box<dyn Any + Send>;
@@ -90,6 +106,14 @@ impl<D: StackDialog> AnyStackDialog for D {
 
     fn result_type(&self) -> TypeId {
         TypeId::of::<D>()
+    }
+
+    fn key(&self) -> Option<String> {
+        StackDialog::key(self).map(str::to_owned)
+    }
+
+    fn confirm_erased(&mut self, ctx: &Context) -> Option<Box<dyn Any + Send>> {
+        self.confirm(ctx).map(|result| Box::new(DialogResult::Ok(result)) as Box<dyn Any + Send>)
     }
 
     fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send>> {
@@ -140,7 +164,14 @@ pub struct DialogHost {
     stack: DialogStack,
     open: Vec<Box<dyn AnyStackDialog>>,
     queued: Vec<(StartupStage, Box<dyn AnyStackDialog>)>,
-    results: Vec<(TypeId, Box<dyn Any + Send>)>,
+    results: Vec<StoredResult>,
+}
+
+/// A finished dialog's answer, with the key the dialog had.
+struct StoredResult {
+    type_id: TypeId,
+    key: Option<String>,
+    result: Box<dyn Any + Send>,
 }
 
 impl fmt::Debug for DialogHost {
@@ -205,7 +236,7 @@ impl DialogHost {
         for (id, result) in finished {
             let Some(at) = self.open.iter().position(|dialog| dialog.id() == id) else { continue };
             let dialog = self.open.remove(at);
-            self.store_result(dialog.result_type(), result);
+            self.store_result(dialog.as_ref(), result);
             self.stack.remove_tree(id);
             self.cancel_orphans();
         }
@@ -220,9 +251,32 @@ impl DialogHost {
     /// `Cancel` waits instead. Results are per type, so the app tells two `D` apart by what the
     /// result carries (a key, a tag).
     pub fn take<D: StackDialog>(&mut self) -> Option<DialogResult<D::Result>> {
-        let at = self.results.iter().position(|(type_id, _)| *type_id == TypeId::of::<D>())?;
-        let (_, result) = self.results.remove(at);
-        result.downcast::<DialogResult<D::Result>>().ok().map(|result| *result)
+        self.take_keyed::<D>().map(|(result, _)| result)
+    }
+
+    /// [`take`](DialogHost::take) with the key the dialog had ([`StackDialog::key`]): what a
+    /// `Cancel` after a replace-by-open needs to tell which command it was. `None` key for a
+    /// dialog without one.
+    pub fn take_keyed<D: StackDialog>(&mut self) -> Option<(DialogResult<D::Result>, Option<String>)> {
+        let at = self.results.iter().position(|stored| stored.type_id == TypeId::of::<D>())?;
+        let stored = self.results.remove(at);
+        let result = stored.result.downcast::<DialogResult<D::Result>>().ok()?;
+        Some((*result, stored.key))
+    }
+
+    /// Answers the open `D` with OK, as its default button would (for automation: no pointer, no
+    /// pass): runs what OK runs, closes the dialog and its children, and keeps the answer for
+    /// [`take`](DialogHost::take). `false` when no `D` is open, OK is disabled, or `D` has no
+    /// programmatic OK.
+    pub fn confirm<D: StackDialog>(&mut self, ctx: &Context) -> bool {
+        let Some(at) = self.position::<D>() else { return false };
+        let Some(result) = self.open[at].confirm_erased(ctx) else { return false };
+        let id = self.open[at].id();
+        let dialog = self.open.remove(at);
+        self.store_result(dialog.as_ref(), result);
+        self.stack.remove_tree(id);
+        self.cancel_orphans();
+        true
     }
 
     /// Closes the open `D` with [`DialogResult::Cancel`] (and its children), as Esc would.
@@ -230,14 +284,34 @@ impl DialogHost {
         let Some(at) = self.position::<D>() else { return false };
         let id = self.open[at].id();
         let dialog = self.open.remove(at);
-        self.store_result(dialog.result_type(), dialog.cancelled());
+        self.store_result(dialog.as_ref(), dialog.cancelled());
         self.stack.remove_tree(id);
         self.cancel_orphans();
         true
     }
 
+    /// The top dialog of the stack, whoever shows it (the host or the app).
+    pub fn top_id(&self) -> Option<DialogId> {
+        self.stack.top()
+    }
+
+    /// The open dialog `id` ([`dialog_id`](super::dialog_id) of its key) as `Any`, for an app with
+    /// many dialog types that looks the top one up by id and downcasts.
+    pub fn get_dyn(&self, id: DialogId) -> Option<&dyn Any> {
+        self.open.iter().find(|dialog| dialog.id() == id).map(|dialog| dialog.as_any())
+    }
+
+    pub fn get_dyn_mut(&mut self, id: DialogId) -> Option<&mut dyn Any> {
+        self.open.iter_mut().find(|dialog| dialog.id() == id).map(|dialog| dialog.as_any_mut())
+    }
+
+    /// The open `D` when it is the dialog `id` names (the host holds one `D` at a time; the id
+    /// tells which command it is).
+    pub fn get_by_id<D: StackDialog>(&self, id: DialogId) -> Option<&D> {
+        self.get_dyn(id)?.downcast_ref()
+    }
+
     /// The open `D`, for the app to feed (a preview image) or a script to read.
-    // new.
     pub fn get<D: StackDialog>(&self) -> Option<&D> {
         self.open.iter().find(|dialog| dialog.result_type() == TypeId::of::<D>())?.as_any().downcast_ref()
     }
@@ -250,18 +324,19 @@ impl DialogHost {
         self.open.iter().position(|dialog| dialog.result_type() == TypeId::of::<D>())
     }
 
-    fn store_result(&mut self, type_id: TypeId, result: Box<dyn Any + Send>) {
-        self.results.retain(|(stored, _)| *stored != type_id);
-        self.results.push((type_id, result));
+    fn store_result(&mut self, dialog: &dyn AnyStackDialog, result: Box<dyn Any + Send>) {
+        let type_id = dialog.result_type();
+        self.results.retain(|stored| stored.type_id != type_id);
+        self.results.push(StoredResult { type_id, key: dialog.key(), result });
     }
 
     fn open_with_parent(&mut self, dialog: Box<dyn AnyStackDialog>, parent: Option<DialogId>) -> DialogId {
         let type_id = dialog.result_type();
-        self.results.retain(|(stored, _)| *stored != type_id);
+        self.results.retain(|stored| stored.type_id != type_id);
         if let Some(at) = self.open.iter().position(|open| open.result_type() == type_id) {
             let old = self.open.remove(at);
             self.stack.remove_tree(old.id());
-            self.store_result(type_id, old.cancelled());
+            self.store_result(old.as_ref(), old.cancelled());
             self.cancel_orphans();
         }
         let id = dialog.id();
@@ -276,7 +351,7 @@ impl DialogHost {
         let (kept, orphans): (Vec<_>, Vec<_>) = std::mem::take(&mut self.open).into_iter().partition(|dialog| self.stack.contains(dialog.id()));
         self.open = kept;
         for dialog in orphans {
-            self.store_result(dialog.result_type(), dialog.cancelled());
+            self.store_result(dialog.as_ref(), dialog.cancelled());
         }
     }
 

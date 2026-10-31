@@ -1,11 +1,14 @@
 //! [`ParamDialog`]: a filter or command dialog built from a parameter list, with Preview and
 //! Reset. [`Param`] and [`ParamKind`] are the list; [`CommandForm`](super::CommandForm) shares them.
 
+use std::fmt;
+use std::sync::Arc;
+
 use craft_host::Host;
 use craft_settings::Remembered;
 use craft_theme::{ControlSize, Rgba};
 use egui::load::SizedTexture;
-use egui::{Color32, Context, CornerRadius, Id, Rect, Sense, Ui, Vec2, pos2, vec2};
+use egui::{Color32, Context, CornerRadius, Id, Rect, Response, Sense, Ui, Vec2, pos2, vec2};
 
 use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
@@ -14,9 +17,9 @@ use super::footer::{DialogLabels, Footer, Reset};
 use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
-use crate::composites::{Form, FormGrid};
+use crate::composites::{FieldControl as _, Form, FormGrid};
 use crate::controls::text_field::{BoxState, TextField, field_box};
-use crate::controls::{AngleDial, Checkbox, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, checkerboard};
+use crate::controls::{AngleDial, Button, Checkbox, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, checkerboard};
 use crate::edit::{self, EditResponse};
 use crate::localized::{Labels as _, LocaleNumbers, Unit, focus_first_field};
 use crate::theme::{Tokens, TokensOf};
@@ -51,6 +54,54 @@ pub enum ParamKind {
     Channel { names: Vec<String>, default: usize },
     /// A [`TextField`](crate::controls::TextField).
     Text { default: String },
+    /// A number that may be unset: a "Custom" check box switches the field on. Unset the key is
+    /// absent from the [`DialogFields`] (PhotoCraft's Batch quality: `null` keeps the command's
+    /// own default). `initial` is what the field shows the first time the box is checked.
+    OptionalNumber { min: f64, max: f64, default: Option<f64>, initial: f64 },
+    /// A row the host draws: see [`Param::custom`]. It has no value of its own.
+    Custom(CustomRow),
+}
+
+/// What draws a [`ParamKind::Custom`] row: it gets the row's control cell and the dialog's values
+/// and returns the response the row label names and centres on. Equal only to itself.
+#[derive(Clone)]
+pub struct CustomRow(Arc<CustomDraw>);
+
+type CustomDraw = dyn Fn(&mut Ui, &mut DialogFields) -> Response + Send + Sync;
+
+impl CustomRow {
+    pub fn new(draw: impl Fn(&mut Ui, &mut DialogFields) -> Response + Send + Sync + 'static) -> Self {
+        Self(Arc::new(draw))
+    }
+}
+
+impl fmt::Debug for CustomRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("CustomRow")
+    }
+}
+
+impl PartialEq for CustomRow {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+/// What a text row's Browse button picks.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PathKind {
+    #[default]
+    Folder,
+    OpenFile,
+    SaveFile,
+}
+
+/// A pressed Browse button: the host opens its file dialog for `kind` and writes the answer with
+/// `fields_mut().set(key, FieldValue::Text(path))`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PathRequest {
+    pub key: String,
+    pub kind: PathKind,
 }
 
 impl ParamKind {
@@ -85,6 +136,8 @@ impl ParamKind {
             ParamKind::Point { default } => FieldValue::Point(*default),
             ParamKind::Channel { default, .. } => FieldValue::Int(i64::try_from(*default).unwrap_or(0)),
             ParamKind::Text { default } => FieldValue::Text(default.clone()),
+            ParamKind::OptionalNumber { default, .. } => FieldValue::Number((*default)?),
+            ParamKind::Custom(_) => return None,
         })
     }
 
@@ -107,6 +160,7 @@ impl ParamKind {
             (ParamKind::Point { .. }, FieldValue::Point(p)) => p.iter().all(|v| v.is_finite()),
             (ParamKind::Channel { names, .. }, FieldValue::Int(i)) => usize::try_from(*i).is_ok_and(|i| i < names.len()),
             (ParamKind::Text { .. }, FieldValue::Text(_)) => true,
+            (ParamKind::OptionalNumber { min, max, .. }, v) => number(v).is_some_and(|n| n.is_finite() && n >= *min && n <= *max),
             _ => false,
         }
     }
@@ -123,11 +177,45 @@ pub struct Param {
     pub kind: ParamKind,
     /// Shown after the number (`px`, `%`, `°`); formats through the locale.
     pub unit: Option<Unit>,
+    /// The row takes input only while `fields[key]` equals the value (Replace Color's Range is
+    /// enabled only when Localized Color Clusters is checked).
+    pub enabled_when: Option<(String, FieldValue)>,
+    /// A Browse button after a [`ParamKind::Text`] field.
+    pub browse: Option<PathKind>,
 }
 
 impl Param {
     pub fn new(key: impl Into<String>, label: impl Into<String>, kind: ParamKind) -> Self {
-        Self { key: key.into(), label: label.into(), kind, unit: None }
+        Self { key: key.into(), label: label.into(), kind, unit: None, enabled_when: None, browse: None }
+    }
+
+    /// A row the host draws (PhotoCraft's Zoom center picker, Indexed Color's color count). `draw`
+    /// gets the control cell and the dialog's values; the row label names the response it returns.
+    /// The row has no default and nothing remembered; `draw` reads and writes
+    /// [`DialogFields`] under whatever keys it likes.
+    pub fn custom(
+        key: impl Into<String>,
+        label: impl Into<String>,
+        draw: impl Fn(&mut Ui, &mut DialogFields) -> Response + Send + Sync + 'static,
+    ) -> Self {
+        Self::new(key, label, ParamKind::Custom(CustomRow::new(draw)))
+    }
+
+    /// The row takes input only while `fields[key]` equals `value`; otherwise it is drawn disabled.
+    pub fn enabled_when(mut self, key: impl Into<String>, value: impl Into<FieldValue>) -> Self {
+        self.enabled_when = Some((key.into(), value.into()));
+        self
+    }
+
+    /// A Browse button after the field of a [`ParamKind::Text`] row. The press is reported by
+    /// [`ParamDialog::pick_path`] / [`CommandForm::pick_path`](super::CommandForm::pick_path).
+    pub fn browse(mut self, kind: PathKind) -> Self {
+        self.browse = Some(kind);
+        self
+    }
+
+    fn enabled(&self, fields: &DialogFields) -> bool {
+        self.enabled_when.as_ref().is_none_or(|(key, value)| fields.get(key) == Some(value))
     }
 
     pub fn unit(mut self, unit: Unit) -> Self {
@@ -172,11 +260,13 @@ impl Param {
         let key = self.key.as_str();
         let default = self.kind.default_value();
         let unit = &self.unit;
+        let enabled = self.enabled(fields);
         match &self.kind {
             ParamKind::Range { min, max, scale, .. } => {
                 let value = fields.number(key).or_else(|| number_of(default.as_ref())).unwrap_or(*min);
                 let (places, step) = if (max - min).abs() <= 10.0 { (0..=2, 0.01) } else { (0..=1, 1.0) };
                 form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let slider = Slider::new((key, "slider"), label.as_str(), value, *min..=*max).scale(*scale).show(ui);
                         let field = NumberField::new((key, "field"), label.as_str(), value, numbers).range(*min..=*max).step(step).decimals(places);
@@ -193,6 +283,7 @@ impl Param {
                 let value = fields.int(key).or_else(|| number_of(default.as_ref()).map(|n| n as i64)).unwrap_or(0);
                 let range = min.map_or(f64::NEG_INFINITY, |m| m as f64)..=max.map_or(f64::INFINITY, |m| m as f64);
                 form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let field = NumberField::new((key, "field"), label.as_str(), value as f64, numbers).range(range).decimals(0..=0);
                         let field = with_unit(field, unit).show(ui);
@@ -208,6 +299,7 @@ impl Param {
                 let mut value = fields.bool(key).unwrap_or(*default);
                 let text = label.trim_end_matches([':', '：']);
                 form.unlabelled(|ui| {
+                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let check = Checkbox::bool(text, &mut value).id_salt(key).show(ui);
                         if let Some(v) = edited(&check) {
@@ -221,6 +313,7 @@ impl Param {
             ParamKind::Choice { options, .. } => {
                 let mut value = fields.text(key).map(str::to_owned).or_else(|| text_of(default.as_ref())).unwrap_or_default();
                 form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let mut select = Select::new((key, "select"), label.as_str(), &mut value);
                         for (id, text) in options {
@@ -238,6 +331,7 @@ impl Param {
             ParamKind::Angle { default } => {
                 let value = fields.number(key).unwrap_or(*default);
                 form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let dial = AngleDial::new((key, "angle"), label.as_str(), value, numbers).show(ui);
                         if let Some(v) = edited(&dial) {
@@ -252,6 +346,7 @@ impl Param {
                 let color = fields.color(key);
                 let shown = color.map_or(Rgba::BLACK, |c| Rgba::rgb(encode(c[0]), encode(c[1]), encode(c[2])));
                 form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
                     let swatch = ui.add(Swatch::new((key, "swatch"), label.as_str(), shown).mixed(color.is_none()));
                     if swatch.clicked() {
                         ui.ctx().data_mut(|d| d.insert_temp(color_press_id(dialog), key.to_owned()));
@@ -269,6 +364,7 @@ impl Param {
                     },
                 };
                 form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let mut next = cells.clone();
                         let mut first = None;
@@ -298,6 +394,7 @@ impl Param {
             ParamKind::Point { default } => {
                 let value = fields.point(key).unwrap_or(*default);
                 form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let picker = PointPicker::new((key, "point"), label.as_str(), value, preview.copied()).show(ui);
                         if let Some(v) = edited(&picker) {
@@ -312,6 +409,7 @@ impl Param {
                 let value = fields.int(key).and_then(|i| usize::try_from(i).ok()).unwrap_or(*default);
                 let mut index = value;
                 form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let mut select = Select::new((key, "channel"), label.as_str(), &mut index);
                         for (i, name) in names.iter().enumerate() {
@@ -329,17 +427,72 @@ impl Param {
             ParamKind::Text { default } => {
                 let value = fields.text(key).unwrap_or(default).to_owned();
                 form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let text = TextField::new((key, "text"), label.as_str(), &value).show(ui);
                         if let Some(v) = edited(&text) {
                             fields.set(key, FieldValue::Text(v));
                         }
-                        text
+                        let browse = self.browse.map(|kind| {
+                            let words = DialogLabels::of_ctx(&ctx);
+                            let button = ui.add(Button::new(words.browse.as_str()).id_salt((key, "browse")));
+                            if button.clicked() {
+                                let request = PathRequest { key: key.to_owned(), kind };
+                                ui.ctx().data_mut(|d| d.insert_temp(path_press_id(dialog), request));
+                            }
+                            button
+                        });
+                        (text, browse)
                     })
                     .inner
                 });
             }
+            ParamKind::OptionalNumber { min, max, initial, .. } => {
+                let stored = fields.number(key);
+                let last_id = Id::unique(("craft_ui::dialog::params::optional_last", dialog, key));
+                let last = stored.or_else(|| ctx.data(|d| d.get_temp::<f64>(last_id))).unwrap_or(*initial);
+                let mut on = stored.is_some();
+                let words = DialogLabels::of_ctx(&ctx);
+                form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
+                    edit::scope(ui, |ui| {
+                        let check = Checkbox::bool(words.custom.as_str(), &mut on).id_salt((key, "custom")).show(ui);
+                        match edited(&check) {
+                            Some(true) => fields.set(key, FieldValue::Number(last)),
+                            Some(false) => {
+                                ui.ctx().data_mut(|d| d.insert_temp(last_id, last));
+                                fields.remove(key);
+                            }
+                            None => {}
+                        }
+                        let field = ui
+                            .add_enabled_ui(fields.number(key).is_some(), |ui| {
+                                let field = NumberField::new((key, "field"), label.as_str(), last, numbers).range(*min..=*max).decimals(0..=2);
+                                with_unit(field, unit).show(ui)
+                            })
+                            .inner;
+                        if let Some(v) = edited(&field) {
+                            fields.set(key, FieldValue::Number(v));
+                        }
+                        (check.own_name(), field)
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Custom(row) => {
+                form.row(label.as_str(), |ui, _| {
+                    gate(ui, enabled);
+                    (row.0)(ui, fields)
+                });
+            }
         }
+    }
+}
+
+/// Draws the rest of `ui` disabled when the row's `enabled_when` is not met.
+fn gate(ui: &mut Ui, enabled: bool) {
+    if !enabled {
+        ui.disable();
     }
 }
 
@@ -395,6 +548,15 @@ fn color_press_id(dialog: DialogId) -> Id {
 /// dialog, so a parent and its child form never take each other's press.
 pub(super) fn take_color_press(ctx: &Context, dialog: DialogId) -> Option<String> {
     ctx.data_mut(|d| d.remove_temp::<String>(color_press_id(dialog)))
+}
+
+fn path_press_id(dialog: DialogId) -> Id {
+    Id::unique(("craft_ui::dialog::params::path_press", dialog))
+}
+
+/// The Browse button of `dialog` pressed this pass.
+pub(super) fn take_path_press(ctx: &Context, dialog: DialogId) -> Option<PathRequest> {
+    ctx.data_mut(|d| d.remove_temp::<PathRequest>(path_press_id(dialog)))
 }
 
 /// Fills the keys `params` have defaults for and the fields lack, and takes the opening snapshot.
@@ -630,8 +792,17 @@ pub struct ParamDialog {
     preview_image: Option<SizedTexture>,
     remember_key: Option<String>,
     picked_color: Option<String>,
+    picked_path: Option<PathRequest>,
+    reset_target: Option<DialogFields>,
+    ok_enabled: bool,
+    history: bool,
+    close_label: Option<Option<String>>,
+    footer_extra: Option<FooterExtra>,
     state: DialogState<DialogFields>,
 }
+
+/// What a dialog draws before its buttons ([`ParamDialog::footer_extra`]).
+pub(super) type FooterExtra = Box<dyn FnMut(&mut Ui) + Send>;
 
 impl ParamDialog {
     /// A dialog for `params`, opening with their defaults. `key` names the dialog for the stack
@@ -650,6 +821,12 @@ impl ParamDialog {
             preview_image: None,
             remember_key: None,
             picked_color: None,
+            picked_path: None,
+            reset_target: None,
+            ok_enabled: true,
+            history: false,
+            close_label: None,
+            footer_extra: None,
             state: DialogState::new(),
         }
     }
@@ -671,6 +848,52 @@ impl ParamDialog {
     /// (spec question 2).
     pub fn remember(mut self, key: impl Into<String>) -> Self {
         self.remember_key = Some(key.into());
+        self
+    }
+
+    /// Whether OK can be pressed; for a dialog already open use
+    /// [`set_ok_enabled`](ParamDialog::set_ok_enabled). Enter does nothing while it is off.
+    pub fn ok_enabled(mut self, enabled: bool) -> Self {
+        self.ok_enabled = enabled;
+        self
+    }
+
+    /// [`ok_enabled`](ParamDialog::ok_enabled) for a dialog already open: the host updates it
+    /// through [`DialogHost::get_mut`](super::DialogHost::get_mut) when it depends on the values
+    /// (a filter that needs an input).
+    pub fn set_ok_enabled(&mut self, enabled: bool) {
+        self.ok_enabled = enabled;
+    }
+
+    /// The values Alt+Reset sets (PhotoCraft's `reset_fields`: schema defaults, the foreground
+    /// color), instead of the values from when the dialog opened. Keys the target lacks keep their
+    /// value. The host may call [`set_reset_to`](ParamDialog::set_reset_to) while the dialog is open.
+    pub fn reset_to(mut self, target: DialogFields) -> Self {
+        self.reset_target = Some(target);
+        self
+    }
+
+    /// [`reset_to`](ParamDialog::reset_to) for a dialog already open.
+    pub fn set_reset_to(&mut self, target: DialogFields) {
+        self.reset_target = Some(target);
+    }
+
+    /// Cmd/Ctrl+Z steps the dialog's own settings ([`Dialog::history`]).
+    pub fn history(mut self, history: bool) -> Self {
+        self.history = history;
+        self
+    }
+
+    /// The close box's accessible name; `None` removes the box ([`Dialog::close_label`]).
+    pub fn close_label(mut self, label: Option<String>) -> Self {
+        self.close_label = Some(label);
+        self
+    }
+
+    /// Controls before the buttons in the [`ParamLayout::BottomFooter`] row (Color Table's Load
+    /// and Save). The side column has no such row and ignores it.
+    pub fn footer_extra(mut self, add: impl FnMut(&mut Ui) + Send + 'static) -> Self {
+        self.footer_extra = Some(Box::new(add));
         self
     }
 
@@ -724,6 +947,12 @@ impl ParamDialog {
     /// colour picker for it and writes the pick with `fields_mut().set(key, FieldValue::Color(..))`.
     pub fn pick_color(&mut self) -> Option<String> {
         self.picked_color.take()
+    }
+
+    /// The Browse button of a [`Param::browse`] row the user pressed, once: the host opens its
+    /// file dialog and writes the path with `fields_mut().set(key, FieldValue::Text(..))`.
+    pub fn pick_path(&mut self) -> Option<PathRequest> {
+        self.picked_path.take()
     }
 
     /// Loads the remembered values (if `remember` was set and the Host has them) and takes the
@@ -807,6 +1036,14 @@ impl ParamResult {
     }
 }
 
+impl ParamDialog {
+    /// OK: stores the remembered values and builds the answer.
+    fn answer(&self, ctx: &Context) -> ParamResult {
+        self.store(ctx);
+        ParamResult { key: self.key.clone(), fields: self.fields.clone() }
+    }
+}
+
 impl StackDialog for ParamDialog {
     type Result = ParamResult;
 
@@ -828,7 +1065,7 @@ impl StackDialog for ParamDialog {
         let reset = Reset::AltCancel(labels.reset.clone());
         let footer = match layout {
             ParamLayout::SideColumn => {
-                let footer = Footer::side().reset(reset);
+                let footer = Footer::side().reset(reset).ok_enabled(self.ok_enabled);
                 if has_preview {
                     footer.below(|ui| {
                         preview.checkbox(ui, preview_label);
@@ -838,7 +1075,10 @@ impl StackDialog for ParamDialog {
                 }
             }
             ParamLayout::BottomFooter => {
-                let footer = Footer::standard().reset(reset);
+                let mut footer = Footer::standard().reset(reset).ok_enabled(self.ok_enabled);
+                if let Some(extra) = &mut self.footer_extra {
+                    footer = footer.trailing_extra(|ui| extra(ui));
+                }
                 if has_preview {
                     footer.leading(|ui| {
                         preview.checkbox(ui, preview_label);
@@ -850,7 +1090,12 @@ impl StackDialog for ParamDialog {
         };
         let image = self.preview_image.as_ref();
         let (params, id) = (&self.params, self.id);
-        let shown = Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).show_with_below(
+        let mut dialog =
+            Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).history(self.history);
+        if let Some(label) = &self.close_label {
+            dialog = dialog.close_label(label.clone());
+        }
+        let shown = dialog.show_with_below(
             ctx,
             &mut self.state,
             &mut self.fields,
@@ -870,17 +1115,38 @@ impl StackDialog for ParamDialog {
             *self.state.preview_mut() = preview;
         }
         self.picked_color = take_color_press(ctx, self.id).or(self.picked_color.take());
+        self.picked_path = take_path_press(ctx, self.id).or(self.picked_path.take());
         match shown.outcome? {
-            Outcome::Ok => {
-                self.store(ctx);
-                Some(DialogResult::Ok(ParamResult { key: self.key.clone(), fields: self.fields.clone() }))
-            }
+            Outcome::Ok => Some(DialogResult::Ok(self.answer(ctx))),
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
             Outcome::Reset => {
-                self.fields.reset();
+                match &self.reset_target {
+                    Some(target) => {
+                        for (key, value) in target.iter() {
+                            self.fields.set(key, value.clone());
+                        }
+                    }
+                    None => {
+                        self.fields.reset();
+                    }
+                }
                 None
             }
             _ => None,
         }
+    }
+
+    fn key(&self) -> Option<&str> {
+        Some(&self.key)
+    }
+
+    fn confirm(&mut self, ctx: &Context) -> Option<ParamResult> {
+        if !self.ok_enabled {
+            return None;
+        }
+        if !self.state.is_open() {
+            self.open(ctx);
+        }
+        Some(self.answer(ctx))
     }
 }

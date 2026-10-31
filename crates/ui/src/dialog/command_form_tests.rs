@@ -6,7 +6,7 @@ use egui::{Event, Key, Modifiers, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::{CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamKind, ParamResult};
+use super::{CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamKind, ParamResult, PathKind, PathRequest};
 use crate::theme::{Base, install};
 
 struct App {
@@ -99,4 +99,27 @@ fn alt_cancel_resets_the_form() {
     harness.key_press_modifiers(Modifiers::ALT, Key::Space);
     harness.run();
     assert_eq!(harness.state().host.get::<CommandForm>().expect("still open").fields().text("name"), Some("given"));
+}
+
+// A section under the rows reads the values; Browse reports the pressed row; confirm answers OK.
+#[test]
+fn the_form_draws_a_read_only_section_and_reports_browse() {
+    let rows = vec![Param::new("dest", "Destination:", ParamKind::Text { default: "out".into() }).browse(PathKind::OpenFile)];
+    let mut harness = harness(CommandForm::new("info", "File Info", rows).below(|ui, fields| {
+        ui.label(format!("Camera: {}", fields.text("dest").unwrap_or_default()));
+    }));
+    harness.run();
+    harness.get_by_label("Camera: out");
+    harness.get_by_label("Browse…").click();
+    harness.run();
+    assert_eq!(
+        harness.state_mut().host.get_mut::<CommandForm>().unwrap().pick_path(),
+        Some(PathRequest { key: "dest".into(), kind: PathKind::OpenFile })
+    );
+
+    let ctx = harness.ctx.clone();
+    assert!(harness.state_mut().host.confirm::<CommandForm>(&ctx));
+    harness.run();
+    let [DialogResult::Ok(ParamResult { key, .. })] = &harness.state().answers[..] else { panic!("one OK, got {:?}", harness.state().answers) };
+    assert_eq!(key, "info");
 }

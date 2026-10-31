@@ -112,7 +112,7 @@ pub use frame::{DialogFrame, DialogFrameResponse, DialogFrameStyle};
 pub use full_window::{FullWindowDialog, FullWindowFx};
 pub use history::{LocalHistory, Step, take_step};
 pub use keys::{EnterRule, KeyInput, resolve_keys};
-pub use params::{Param, ParamDialog, ParamKind, ParamLayout, ParamResult};
+pub use params::{CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, PathKind, PathRequest};
 pub use pass::any_modal;
 pub use placement::{PlaceKey, keep_on_screen, next_pin};
 pub use preview::Preview;
