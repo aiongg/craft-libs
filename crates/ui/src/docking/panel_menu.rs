@@ -19,7 +19,7 @@ pub struct PanelMenu<'a> {
     /// The host's rows (checks, radios, submenus, separators), already translated.
     pub entries: &'a [MenuEntry<PanelCommand>],
     /// The dock's own group items after a separator; empty when the group is locked.
-    pub group_items: Vec<MenuEntry<GroupItem>>,
+    pub group_entries: Vec<MenuEntry<GroupItem>>,
 }
 
 /// The dock's rows at the end of every panel menu.
@@ -86,14 +86,14 @@ impl PanelMenu<'_> {
         let mut all: Vec<_> =
             self.entries.iter().map(|entry| entry.map(&|command: &PanelCommand| PanelMenuChoice::Command(command.clone()))).collect();
         all.push(MenuEntry::Separator);
-        all.extend(self.group_items.iter().map(|entry| entry.map(&|item: &GroupItem| PanelMenuChoice::Group(*item))));
+        all.extend(self.group_entries.iter().map(|entry| entry.map(&|item: &GroupItem| PanelMenuChoice::Group(*item))));
         all
     }
 
     /// The group items for `policy`: Float when movable and floatable, Move Panel To with one
     /// submenu row per target label, Close when closable and the config shows close items.
     // new: the rules of render/group.rs:492 `panel_menu_items` as data.
-    pub fn group_items(policy: super::Permissions, targets: &[String], close_item: bool, labels: &PanelMenuLabels) -> Vec<MenuEntry<GroupItem>> {
+    pub fn group_entries(policy: super::Permissions, targets: &[String], close_item: bool, labels: &PanelMenuLabels) -> Vec<MenuEntry<GroupItem>> {
         let mut items = Vec::new();
         if policy.movable && policy.floatable {
             items.push(MenuItem::new(labels.float.clone(), GroupItem::Float).into());

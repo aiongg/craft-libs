@@ -54,7 +54,7 @@ fn show_tour(ui: &mut Ui, _args: &mut NoArgs) {
 /// The readout in a status bar with every item to choose from.
 fn show_readout(ui: &mut Ui, _args: &mut NoArgs) {
     let key = ui.scope_id().with("readout-story");
-    let (mut zoom, mut item) = ui.data(|d| d.get_temp::<(f32, StatusItem)>(key)).unwrap_or((100.0, StatusItem::DocumentSizes));
+    let (mut zoom, mut item) = ui.data(|d| d.get_temp::<(f64, StatusItem)>(key)).unwrap_or((100.0, StatusItem::DocumentSizes));
     let values = StatusValues {
         document_sizes: Some((26_100_000, 74_500_000)),
         document_profile: Some("sRGB IEC61966-2.1".to_owned()),
@@ -69,7 +69,7 @@ fn show_readout(ui: &mut Ui, _args: &mut NoArgs) {
     StatusBar::new("readout-story").show(ui, |bar| {
         bar.leading(|ui| {
             let out = StatusReadout::new("readout").show(ui, zoom, item, &values);
-            if let Some(next) = out.zoom {
+            if let Some(&next) = out.zoom.as_ref().and_then(|e| e.value()) {
                 zoom = next;
             }
             if let Some(next) = out.item {
@@ -90,5 +90,5 @@ fn show_drawer(ui: &mut Ui, _args: &mut NoArgs) {
         DrawerGroup { label: "Paint".to_owned(), tools: slots[5].tools.iter().chain(&slots[8].tools).cloned().collect() },
     ];
     let toolbar = &slots[..3];
-    ToolbarDrawer::new("drawer-story").show(ui, rail, &groups, toolbar);
+    ToolbarDrawer::new("drawer-story").rail("story").show(ui, rail, &groups, toolbar);
 }

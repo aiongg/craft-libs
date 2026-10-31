@@ -239,12 +239,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             auto_collapse: self.shaped(ui, &words.auto_collapse),
         };
         let targets: Vec<String> = self.panel_targets(panel, policy).iter().map(|target| self.shaped_panel(ui, target)).collect();
-        let mut group_items = PanelMenu::group_items(policy, &targets, config.close_menu_items, &labels);
+        let mut group_entries = PanelMenu::group_entries(policy, &targets, config.close_menu_items, &labels);
         if let Some(owner) = owner {
-            group_items.push(MenuEntry::Separator);
-            group_items.extend(self.group_tail(ui, owner, panel));
+            group_entries.push(MenuEntry::Separator);
+            group_entries.extend(self.group_tail(ui, owner, panel));
         }
-        PanelMenu { entries, group_items }
+        PanelMenu { entries, group_entries }
     }
 
     /// Stock action text as the host shapes it (the visible text of

@@ -7,7 +7,8 @@
 //! own and the set changes at least one shortcut; every outcome is remembered so a later launch
 //! never asks again.
 
-use craft_ui::dialog::{ButtonRole, Prompt};
+use craft_ui::dialog::{ButtonRole, DialogId, DialogResult, DialogStack, Prompt, StackDialog, dialog_id};
+use craft_ui::localized::Labels as _;
 use craft_ui::localized::LocaleNumbers;
 use serde::{Deserialize, Serialize};
 
@@ -58,6 +59,7 @@ pub struct ImportOffer {
     pub plan: ImportPlan,
     /// Shortcuts the import changes.
     pub changes: usize,
+    labels: Option<ImportOfferLabels>,
 }
 
 /// The user's answer.
@@ -94,7 +96,7 @@ impl ImportOffer {
             .clone()
             .or_else(|| std::path::Path::new(source).file_name().map(|f| f.to_string_lossy().into_owned()))
             .unwrap_or_else(|| source.to_owned());
-        Ok(ImportOffer { source: source.to_owned(), set_name, plan, changes })
+        Ok(ImportOffer { source: source.to_owned(), set_name, plan, changes, labels: None })
     }
 
     /// The record to store for `answer`.
@@ -102,13 +104,30 @@ impl ImportOffer {
         OfferRecord { source: self.source.clone(), imported: answer == OfferAnswer::Import }
     }
 
-    /// The prompt, a craft-ui alert dialog centred on the window: "Import keyboard shortcuts?",
-    /// the line naming the set and the count, the line on undoing it (Reset All to Defaults), and
-    /// Import (default, Enter) and Don't Import (Esc). Returns the answer in the frame it is
-    /// given; the app applies the plan on Import ([`ImportPlan::apply`]), stores
-    /// [`ImportOffer::record`] either way and posts a notice that the set is in use.
+    /// The offer's texts, instead of the ones installed on the context.
+    pub fn labels(mut self, labels: ImportOfferLabels) -> Self {
+        self.labels = Some(labels);
+        self
+    }
+}
+
+/// The prompt on the dialog stack, queued at [`StartupStage::Offer`](craft_ui::dialog::StartupStage::Offer):
+/// "Import keyboard shortcuts?", the line naming the set and the count, the line on undoing it
+/// (Reset All to Defaults), and Import (default, Enter) and Don't Import (Esc). Esc and the
+/// button both answer [`OfferAnswer::DontImport`]; a dialog closed from outside gives
+/// [`DialogResult::Cancel`], which the app does not record, so the next launch asks again. On
+/// `Ok` the app applies the plan on Import ([`ImportPlan::apply`]), stores [`ImportOffer::record`]
+/// either way and posts a notice that the set is in use.
+impl StackDialog for ImportOffer {
+    type Result = OfferAnswer;
+
+    fn id(&self) -> DialogId {
+        dialog_id(("keymap-import-offer", &self.source))
+    }
+
     // pc: crates/ui-egui/src/prefs/kys_import.rs:214 `show_offer`, :187 `answer_offer`.
-    pub fn show(&self, ctx: &egui::Context, labels: &ImportOfferLabels) -> Option<OfferAnswer> {
+    fn show(&mut self, ctx: &egui::Context, stack: &DialogStack) -> Option<DialogResult<OfferAnswer>> {
+        let labels = self.labels.clone().unwrap_or_else(|| ImportOfferLabels::of_ctx(ctx));
         let app = craft_host::Host::try_of_ctx(ctx).map_or("Craft", |host| host.app().name);
         let found = craft_i18n::fmt(
             &labels.found,
@@ -117,8 +136,9 @@ impl ImportOffer {
         let role = Prompt::new(("keymap-import-offer", &self.source), &labels.title, format!("{found}\n\n{}", labels.undo))
             .answer(ButtonRole::Default, &labels.import, None)
             .answer(ButtonRole::Cancel, &labels.dont_import, None)
+            .stack(stack)
             .show(ctx)?;
-        Some(if role == ButtonRole::Default { OfferAnswer::Import } else { OfferAnswer::DontImport })
+        Some(DialogResult::Ok(if role == ButtonRole::Default { OfferAnswer::Import } else { OfferAnswer::DontImport }))
     }
 }
 

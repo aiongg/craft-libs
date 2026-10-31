@@ -2,6 +2,8 @@
 //! chosen information item and the ▸ menu that chooses it.
 
 use craft_theme::ControlSize;
+use std::ops::RangeInclusive;
+
 use egui::{AsIdSalt, Context, Id, Ui};
 
 use super::StatusBar;
@@ -10,6 +12,8 @@ use crate::edit::EditEvent;
 use crate::localized::words::counts;
 use crate::localized::{Labels as _, LocaleNumbers, Unit, Words};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
+
+const DEFAULT_RANGE: RangeInclusive<f64> = 0.01..=100_000.0;
 
 /// Shown for an item whose value the host does not know.
 const MISSING: &str = "—";
@@ -56,8 +60,9 @@ pub struct StatusValues {
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct StatusReadoutOutput {
-    /// The zoom percentage typed and committed in the zoom field.
-    pub zoom: Option<f32>,
+    /// The zoom field's edit in percent: every scrub step as it happens (`Begin` with a value,
+    /// `Update`), a typed value on `Commit` or `Set`, and `Cancel`.
+    pub zoom: Option<EditEvent<f64>>,
     /// The item chosen in the ▸ menu; the host stores it.
     pub item: Option<StatusItem>,
 }
@@ -66,7 +71,7 @@ pub struct StatusReadoutOutput {
 ///
 /// ```no_run
 /// use craft_ui::patterns::{StatusBar, StatusItem, StatusReadout, StatusValues};
-/// # fn demo(ui: &mut egui::Ui, zoom: f32, item: &mut StatusItem, values: &StatusValues) {
+/// # fn demo(ui: &mut egui::Ui, zoom: f64, item: &mut StatusItem, values: &StatusValues) {
 /// StatusBar::new("status").show(ui, |slots| {
 ///     slots.leading(|ui| {
 ///         let out = StatusReadout::new("readout").show(ui, zoom, *item, values);
@@ -87,11 +92,20 @@ pub struct StatusReadoutOutput {
 pub struct StatusReadout {
     id: Id,
     labels: Option<StatusReadoutLabels>,
+    range: RangeInclusive<f64>,
 }
 
 impl StatusReadout {
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        Self { id: Id::unique("craft_ui::patterns::StatusReadout").with(id_salt), labels: None }
+        Self { id: Id::unique("craft_ui::patterns::StatusReadout").with(id_salt), labels: None, range: DEFAULT_RANGE }
+    }
+
+    /// The zoom field's range in percent: the host's zoom ladder limits for the document
+    /// ([`ZoomLadder::percent_range`](crate::canvas::ZoomLadder::percent_range)). Default
+    /// 0.01–100000.
+    pub fn range(mut self, percent: RangeInclusive<f64>) -> Self {
+        self.range = percent;
+        self
     }
 
     pub fn labels(mut self, labels: StatusReadoutLabels) -> Self {
@@ -103,21 +117,19 @@ impl StatusReadout {
     // pc: crates/ui-egui/src/panels/status_bar.rs:11 `status_bar`, crates/ui-egui/src/panels/chrome_ui.rs:143
     // `status_bar_pro` (zoom field, text, ▸ popup), chrome_ui.rs:45 `STATUS_INFO`. PhotoCraft's
     // Efficiency is always "100%" and it has no Timing; both are new here.
-    pub fn show(self, ui: &mut Ui, zoom: f32, item: StatusItem, values: &StatusValues) -> StatusReadoutOutput {
+    pub fn show(self, ui: &mut Ui, zoom: f64, item: StatusItem, values: &StatusValues) -> StatusReadoutOutput {
         let labels = self.labels.unwrap_or_else(|| StatusReadoutLabels::of(ui));
         let numbers = LocaleNumbers::of(ui);
         let mut out = StatusReadoutOutput::default();
         StatusBar::field(ui, |ui| {
             let edit = NumberField::new(self.id.with("zoom"), labels.zoom.as_str(), zoom, &numbers)
-                .range(0.01..=100_000.0)
+                .range(self.range)
                 .decimals(0..=2)
-                .unit(Unit::new("{n}%"))
+                .unit(Unit::new(&labels.percent))
                 .scrub_wrap(true)
                 .size(ControlSize::Sm)
                 .show(ui);
-            if let Some(EditEvent::Commit { value, changed: true, .. } | EditEvent::Set { value, .. }) = edit.event {
-                out.zoom = Some(value as f32);
-            }
+            out.zoom = edit.event;
         });
         StatusBar::info(ui, &item.text(values, &labels, &numbers, ui.ctx()));
         let button = StatusBar::menu_button(ui, &labels.menu);
@@ -211,6 +223,8 @@ crate::words! {
     #[non_exhaustive]
     pub struct StatusReadoutLabels {
         zoom: "statusReadout.zoom" = "Zoom";
+        /// The zoom field's unit: `{n}` is the percentage.
+        percent: "statusReadout.percent" = "{n}%";
         menu: "statusReadout.menu" = "Show";
         document_sizes: "statusReadout.documentSizes" = "Document Sizes";
         document_profile: "statusReadout.documentProfile" = "Document Profile";

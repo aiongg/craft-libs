@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use egui::{Context, Rect};
+use egui::{AsIdSalt, Context, Id, Rect};
 
 use super::{Toast, ToastEnd, ToastStack, Tone};
 use crate::localized::SharedLabels as _;
@@ -49,12 +49,24 @@ pub enum NoticeEnd {
     },
 }
 
+/// What [`NoticeCenter::post`] returns.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[must_use = "handle `dropped`"]
+pub struct NoticePost {
+    /// The new notice's id; `None` when its dismiss key is silenced.
+    pub id: Option<u64>,
+    /// [`NoticeEnd::Dropped`] for each notice the cap removed to make room, reported now: the
+    /// app handles them in the pass that posted.
+    pub dropped: Vec<NoticeEnd>,
+}
+
 /// The app's notices, kept with its UI state between frames.
 ///
 /// ```no_run
 /// use craft_ui::composites::{NoticeCenter, Tone};
 /// # fn demo(ctx: &egui::Context, body: egui::Rect, center: &mut NoticeCenter, silenced: &[String]) {
-/// center.post("Exported", vec!["poster.png".into()], Tone::Good, None, silenced);
+/// let posted = center.post("Exported", vec!["poster.png".into()], Tone::Good, None, silenced);
+/// for end in posted.dropped { /* the cap removed a notice */ }
 /// for end in center.show(ctx, body) { /* store a Silenced key */ }
 /// # }
 /// ```
@@ -70,8 +82,7 @@ pub struct NoticeCenter {
     notices: Vec<PostedNotice>,
     next_id: u64,
     auto_hide: Option<Duration>,
-    /// Notices the cap dropped since the last [`NoticeCenter::show`].
-    dropped: Vec<u64>,
+    id: Id,
 }
 
 impl Default for NoticeCenter {
@@ -83,7 +94,13 @@ impl Default for NoticeCenter {
 impl NoticeCenter {
     /// An empty center, auto-hiding after six seconds.
     pub fn new() -> Self {
-        Self { notices: Vec::new(), next_id: 1, auto_hide: Some(DEFAULT_AUTO_HIDE), dropped: Vec::new() }
+        Self { notices: Vec::new(), next_id: 1, auto_hide: Some(DEFAULT_AUTO_HIDE), id: Id::unique("craft_ui::composites::NoticeCenter") }
+    }
+
+    /// The id salt of the toast stack, for an app with two centers in one viewport.
+    pub fn id_salt(mut self, id_salt: impl AsIdSalt) -> Self {
+        self.id = Id::unique("craft_ui::composites::NoticeCenter").with(id_salt);
+        self
     }
 
     /// The auto-hide time; `None` keeps notices until closed.
@@ -94,27 +111,21 @@ impl NoticeCenter {
         self
     }
 
-    /// Posts a notice and returns its id; `None` when its `dismiss_key` is in `silenced`.
+    /// Posts a notice. No notice is posted when its `dismiss_key` is in `silenced`.
     // pc: crates/ui-egui/src/notices.rs:49 `post`, :56 `cap_notices`, :13 `MAX_NOTICES` (3).
-    pub fn post(
-        &mut self,
-        title: impl Into<String>,
-        lines: Vec<String>,
-        tone: Tone,
-        dismiss_key: Option<String>,
-        silenced: &[String],
-    ) -> Option<u64> {
+    pub fn post(&mut self, title: impl Into<String>, lines: Vec<String>, tone: Tone, dismiss_key: Option<String>, silenced: &[String]) -> NoticePost {
         if dismiss_key.as_ref().is_some_and(|key| silenced.contains(key)) {
-            return None;
+            return NoticePost { id: None, dropped: Vec::new() };
         }
         let id = self.next_id;
         self.next_id += 1;
         self.notices.push(PostedNotice { id, title: title.into(), lines, tone, dismiss_key, sticky: false });
+        let mut dropped = Vec::new();
         while self.notices.len() > MAX_NOTICES {
             let oldest = self.notices.iter().position(|n| n.dismiss_key.is_none()).unwrap_or(0);
-            self.dropped.push(self.notices.remove(oldest).id);
+            dropped.push(NoticeEnd::Dropped(self.notices.remove(oldest).id));
         }
-        Some(id)
+        NoticePost { id: Some(id), dropped }
     }
 
     /// Keeps notice `id` until it is closed, whatever the auto-hide time (an error the user must
@@ -139,13 +150,13 @@ impl NoticeCenter {
     // pc: crates/ui-egui/src/notices.rs:216 `show` (bottom right, inset (-16, -36), 340 pt wide),
     // :183 `expire` (hover restarts the timer), :149 `dismiss` (writes `prefs.dialogs[key]`).
     pub fn show(&mut self, ctx: &Context, body: Rect) -> Vec<NoticeEnd> {
-        let mut ends: Vec<NoticeEnd> = self.dropped.drain(..).map(NoticeEnd::Dropped).collect();
+        let mut ends = Vec::new();
         let label = NoticeCenterLabels::shared_ctx(ctx).dont_show_again.clone();
         let toasts = self.notices.iter().map(|n| {
             let toast = Toast::new(n.id, n.title.as_str()).tone(n.tone).lines(n.lines.iter().map(String::as_str)).persistent(n.sticky);
             if n.dismiss_key.is_some() { toast.action(label.as_str()) } else { toast }
         });
-        let ended = ToastStack::new("craft_ui::composites::NoticeCenter").auto_hide(self.auto_hide).show(ctx, body, toasts);
+        let ended = ToastStack::new(self.id).auto_hide(self.auto_hide).show(ctx, body, toasts);
         for (id, end) in ended {
             let key = self.notices.iter().find(|n| n.id == id).and_then(|n| n.dismiss_key.clone());
             ends.push(match (end, key) {

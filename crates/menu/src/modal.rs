@@ -6,7 +6,7 @@
 //! shortcuts and menus; Camera Raw and the full-window workspaces (Liquify, Select and Mask) block
 //! every command; a pending crop greys most of Image, Layer and Select but leaves the view and
 //! Help commands. [`ModalRules`] says that per command, and [`Gate::allows_under`] applies it.
-//! The app sets the rules every frame beside the gate ([`crate::NativeMenu::set_modal_rules`],
+//! The app sets the rules when they change, beside the gate ([`crate::NativeMenu::set_modal_rules`],
 //! [`crate::MenuBarUi::modal_rules`], [`crate::CommandContextMenu::modal_rules`]).
 
 use std::fmt;

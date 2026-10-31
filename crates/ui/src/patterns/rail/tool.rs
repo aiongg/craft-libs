@@ -450,7 +450,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         out.rect = shown.response.rect;
         let (columns, rtl, total) = (self.columns, direction::is_rtl(ui), slots.len());
         let button = self.edit_toolbar.is_some().then(|| id.with("edit-toolbar"));
-        edit_update(ui.ctx(), |edit| {
+        edit_update(ui.ctx(), self.id_salt, |edit| {
             *edit = RailEdit { rect: Some(out.rect), placed, total, columns, rtl, button, ..std::mem::take(edit) };
         });
         out
@@ -534,7 +534,8 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
                 Self::arrows(ui, grid.columns, &cells);
             }
             if self.editing {
-                let target = pointer_target(ui.ctx(), full, placed, grid.columns, rtl, slots.len()).or_else(|| edit_state(ui.ctx()).target);
+                let target =
+                    pointer_target(ui.ctx(), full, placed, grid.columns, rtl, slots.len()).or_else(|| edit_state(ui.ctx(), self.id_salt).target);
                 if let Some(target) = target {
                     paint_target(ui, grid.columns, rtl, placed, target);
                 }
@@ -649,17 +650,18 @@ pub(crate) struct RailEdit {
     pub target: Option<DropAt>,
 }
 
-fn edit_id(ctx: &Context) -> Id {
-    Id::unique("craft-ui-rail-edit").with(ctx.viewport_id())
+/// The state of the rail `rail` in this viewport: two rails (or two drawers) do not share it.
+fn edit_id(ctx: &Context, rail: IdSalt) -> Id {
+    Id::unique("craft-ui-rail-edit").with(ctx.viewport_id()).with(rail)
 }
 
-pub(crate) fn edit_state(ctx: &Context) -> RailEdit {
-    let id = edit_id(ctx);
+pub(crate) fn edit_state(ctx: &Context, rail: IdSalt) -> RailEdit {
+    let id = edit_id(ctx, rail);
     ctx.data(|d| d.get_temp::<RailEdit>(id)).unwrap_or_default()
 }
 
-pub(crate) fn edit_update(ctx: &Context, update: impl FnOnce(&mut RailEdit)) {
-    let id = edit_id(ctx);
+pub(crate) fn edit_update(ctx: &Context, rail: IdSalt, update: impl FnOnce(&mut RailEdit)) {
+    let id = edit_id(ctx, rail);
     ctx.data_mut(|d| update(d.get_temp_mut_or_default::<RailEdit>(id)));
 }
 
@@ -671,8 +673,8 @@ fn pointer_target(ctx: &Context, bounds: Rect, placed: &[Placed], columns: usize
 }
 
 /// [`pointer_target`] over the rail as the last pass drew it.
-pub(crate) fn dragged_target(ctx: &Context) -> Option<DropAt> {
-    let edit = edit_state(ctx);
+pub(crate) fn dragged_target(ctx: &Context, rail: IdSalt) -> Option<DropAt> {
+    let edit = edit_state(ctx, rail);
     pointer_target(ctx, edit.rect?, &edit.placed, edit.columns, edit.rtl, edit.total)
 }
 

@@ -8,14 +8,17 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
 use super::*;
+use crate::edit::EditEvent;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::theme::{Base, install};
 
 #[derive(Default)]
 struct App {
-    zoom: f32,
+    zoom: f64,
+    range: Option<std::ops::RangeInclusive<f64>>,
     item: StatusItem,
     out: StatusReadoutOutput,
+    zoom_events: Vec<EditEvent<f64>>,
 }
 
 fn harness() -> Harness<'static, App> {
@@ -25,8 +28,17 @@ fn harness() -> Harness<'static, App> {
                 StatusBar::new("bar").show(ui, |bar| {
                     bar.leading(|ui| {
                         let values = StatusValues { scratch_sizes: Some((1 << 30, 8 << 30)), ..StatusValues::default() };
-                        let out = StatusReadout::new("readout").show(ui, app.zoom, app.item, &values);
-                        app.out.zoom = app.out.zoom.or(out.zoom);
+                        let mut readout = StatusReadout::new("readout");
+                        if let Some(range) = app.range.clone() {
+                            readout = readout.range(range);
+                        }
+                        let out = readout.show(ui, app.zoom, app.item, &values);
+                        if let Some(event) = out.zoom {
+                            if let Some(&value) = event.value() {
+                                app.zoom = value;
+                            }
+                            app.zoom_events.push(event);
+                        }
                         app.out.item = app.out.item.or(out.item);
                     });
                 });
@@ -62,7 +74,7 @@ fn readout_menu_chooses_the_item() {
 }
 
 #[test]
-// Typing 200 and Enter in the zoom field returns zoom Some(200.0); Esc reverts.
+// Typing 200 and Enter in the zoom field commits 200; Esc after typing cancels.
 fn zoom_field_commits_a_typed_percentage() {
     let mut harness = harness();
     let field = harness.get_by_label("Zoom");
@@ -74,7 +86,11 @@ fn zoom_field_commits_a_typed_percentage() {
     harness.run();
     harness.key_press(Key::Escape);
     harness.run();
-    assert_eq!(harness.state().out.zoom, None, "Esc reverts");
+    assert!(
+        matches!(harness.state().zoom_events.last(), Some(EditEvent::Cancel { .. })),
+        "Esc cancels the preview: {:?}",
+        harness.state().zoom_events
+    );
 
     harness.get_by_label("Zoom").focus();
     harness.run();
@@ -84,7 +100,30 @@ fn zoom_field_commits_a_typed_percentage() {
     harness.run();
     harness.key_press(Key::Enter);
     harness.run();
-    assert_eq!(harness.state().out.zoom, Some(200.0));
+    assert!(matches!(harness.state().zoom_events.last(), Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) if *value == 200.0));
+}
+
+#[test]
+// A drag on the field's text zooms while it goes on: Begin and Update reach the host before the
+// button is released, and the range limits them.
+fn zoom_field_reports_a_scrub_live_within_the_range() {
+    let mut harness = harness();
+    harness.state_mut().range = Some(50.0..=150.0);
+    harness.run();
+    let rect = harness.get_by_label("Zoom").rect();
+    let from = rect.center();
+    harness.event(egui::Event::PointerMoved(from));
+    harness.run();
+    harness.event(egui::Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    harness.run();
+    for dx in [10.0, 40.0, 300.0] {
+        harness.event(egui::Event::PointerMoved(from + egui::vec2(dx, 0.0)));
+        harness.run();
+    }
+    let events = &harness.state().zoom_events;
+    assert!(events.iter().any(|e| matches!(e, EditEvent::Update { .. } | EditEvent::Begin { value: Some(_), .. })), "live: {events:?}");
+    assert!(events.iter().all(|e| !matches!(e, EditEvent::Commit { .. })), "not released yet: {events:?}");
+    assert!(events.iter().filter_map(EditEvent::value).all(|v| (50.0..=150.0).contains(v)), "{events:?}");
 }
 
 #[test]

@@ -20,7 +20,7 @@ const MIN_VISIBLE: f32 = 160.0;
 
 /// How the window sits on its monitor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WindowState {
+pub enum WindowMode {
     Normal,
     Maximized,
     /// Full screen covers the taskbar on purpose: all of it can be seen.
@@ -30,7 +30,7 @@ pub enum WindowState {
 /// Where the window's content can be seen, in egui points. `monitor` is the monitor's size and
 /// `inner` the content's rect on the desktop (both from [`egui::ViewportInfo`]).
 ///
-/// - No monitor, a monitor size that isn't finite or under 1 pt, or [`WindowState::FullScreen`]:
+/// - No monitor, a monitor size that isn't finite or under 1 pt, or [`WindowMode::FullScreen`]:
 ///   `content`.
 /// - Maximized with no position (Wayland): `content`. Maximized with a position is checked like any
 ///   other window (an X11 window manager that reserves no panel space maximizes over the panel).
@@ -42,12 +42,12 @@ pub enum WindowState {
 /// - A result that isn't positive, or under 160 pt (or the content's size, if smaller) in either
 ///   direction, means the guess went wrong: `content`.
 // pc: crates/ui-egui/src/work_area.rs:24 `visible_part`, :19 `MIN_VISIBLE` (160), :82 `trusted`.
-pub fn visible_part(content: Rect, monitor: Option<Vec2>, inner: Option<Rect>, state: WindowState) -> Rect {
+pub fn visible_part(content: Rect, monitor: Option<Vec2>, inner: Option<Rect>, state: WindowMode) -> Rect {
     let Some(m) = monitor else { return content };
-    if state == WindowState::FullScreen || !m.x.is_finite() || !m.y.is_finite() || m.x < 1.0 || m.y < 1.0 {
+    if state == WindowMode::FullScreen || !m.x.is_finite() || !m.y.is_finite() || m.x < 1.0 || m.y < 1.0 {
         return content;
     }
-    if state == WindowState::Maximized && inner.is_none() {
+    if state == WindowMode::Maximized && inner.is_none() {
         return content;
     }
     let Some(inner) = inner else {
@@ -64,7 +64,7 @@ pub fn visible_part(content: Rect, monitor: Option<Vec2>, inner: Option<Rect>, s
     trusted(content, usable.translate(content.min - inner.min))
 }
 
-impl WindowState {
+impl WindowMode {
     fn of(viewport: &egui::ViewportInfo) -> Self {
         if viewport.fullscreen == Some(true) {
             Self::FullScreen
@@ -86,12 +86,12 @@ fn trusted(content: Rect, usable: Rect) -> Rect {
 }
 
 /// [`visible_part`] for this frame's viewport.
-// pc: crates/ui-egui/src/work_area.rs:91 `visible_rect` (state from `WindowState::of(viewport)`).
+// pc: crates/ui-egui/src/work_area.rs:91 `visible_rect` (state from `WindowMode::of(viewport)`).
 pub fn visible_rect(ctx: &Context) -> Rect {
     let content = ctx.content_rect();
     ctx.input(|i| {
         let v = i.viewport();
-        visible_part(content, v.monitor_size, v.inner_rect, WindowState::of(v))
+        visible_part(content, v.monitor_size, v.inner_rect, WindowMode::of(v))
     })
 }
 

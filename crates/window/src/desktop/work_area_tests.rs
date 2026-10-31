@@ -1,7 +1,7 @@
 //! The visible part of the window.
 
 use super::work_area::*;
-use WindowState::{FullScreen, Maximized, Normal};
+use WindowMode::{FullScreen, Maximized, Normal};
 use egui::{Rect, Vec2, pos2, vec2};
 
 const MONITOR: Vec2 = vec2(1366.0, 768.0);
