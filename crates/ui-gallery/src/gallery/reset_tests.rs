@@ -219,7 +219,16 @@ fn a_dialog_story_in_the_overview_starts_closed_and_does_not_block_other_tiles()
 fn the_opener_in_an_overview_tile_opens_the_dialog_and_the_component_tab_opens_it_by_default() {
     let mut f = Fixture::new();
     f.show_level(craft_ui::story::Level::Patterns);
-    let opener = f.bounds_of("Show dialog", Role::Button).expect("an opener");
+    f.gallery.select_component("FullWindowDialog");
+    let tree = f.frames(3);
+    // The first opener below the top edge: tiles above it are scrolled away.
+    let opener = tree
+        .walk(tree.root())
+        .into_iter()
+        .filter(|(id, _)| tree.name(*id).as_deref() == Some("Show dialog"))
+        .filter_map(|(id, _)| tree.bounds(id))
+        .find(|b| b.min.y >= 0.0)
+        .expect("an opener in view");
     f.click(opener.center());
     assert!(craft_ui::dialog::any_modal(&f.ctx), "the opened dialog is modal");
     let mut f = Fixture::new();
