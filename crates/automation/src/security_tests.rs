@@ -6,13 +6,7 @@ use super::*;
 const TOKEN: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
 fn names() -> (crate::args::FlagNames, crate::args::EnvNames) {
-    let flags = crate::args::FlagNames { port: "--control".into(), token: "--control-token".into(), token_file: "--control-token-file".into() };
-    let env = crate::args::EnvNames {
-        port: "PHOTOCRAFT_CONTROL_PORT".into(),
-        token: "PHOTOCRAFT_CONTROL_TOKEN".into(),
-        token_file: "PHOTOCRAFT_CONTROL_TOKEN_FILE".into(),
-    };
-    (flags, env)
+    (crate::args::FlagNames::default(), crate::args::EnvNames::for_app("PHOTOCRAFT"))
 }
 
 fn scratch_dir(name: &str) -> std::path::PathBuf {

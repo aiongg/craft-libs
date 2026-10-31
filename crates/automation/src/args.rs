@@ -1,4 +1,3 @@
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! The control channel's command-line values and their environment fallbacks.
 //!
 //! An app's command line has `--control <PORT>`, `--control-token <64-HEX>` and
@@ -34,8 +33,7 @@ pub struct EnvNames {
 impl EnvNames {
     /// Names with `prefix` (`"PHOTOCRAFT"` gives `PHOTOCRAFT_CONTROL_PORT` and friends).
     pub fn for_app(prefix: &str) -> Self {
-        // new: PhotoCraft hard-codes the names in `clap` attributes (crates/automation/src/args.rs:13)
-        todo!()
+        Self { port: format!("{prefix}_CONTROL_PORT"), token: format!("{prefix}_CONTROL_TOKEN"), token_file: format!("{prefix}_CONTROL_TOKEN_FILE") }
     }
 }
 
@@ -85,38 +83,75 @@ impl ControlOptions {
     /// The values from the environment alone: a blank variable is unset; a bad port is
     /// [`OptionsError::NotAPort`] naming the variable.
     pub fn from_env(names: &EnvNames) -> Result<Self, OptionsError> {
-        // pc: crates/automation/src/args.rs:65 (blank_env_is_unset), apps/photocraft/src/launch_args.rs:55 (PHOTOCRAFT_CONTROL_PORT), crates/automation/src/args.rs:24, :28 (the token variables)
-        todo!()
+        Self::from_lookup(names, |name| std::env::var_os(name))
+    }
+
+    /// [`Self::from_env`] over any variable source, so tests need not touch the process
+    /// environment.
+    fn from_lookup(names: &EnvNames, get: impl Fn(&str) -> Option<std::ffi::OsString>) -> Result<Self, OptionsError> {
+        let read = |name: &str| get(name).and_then(|v| v.into_string().ok()).filter(|v| !v.trim().is_empty());
+        let port = match read(&names.port) {
+            Some(value) => Some(control_port(&value).map_err(|_| OptionsError::NotAPort { value, shown: names.port.clone() })?),
+            None => None,
+        };
+        let token = read(&names.token);
+        let token_file = read(&names.token_file).map(PathBuf::from);
+        let from_env = Some(Source::Env);
+        Ok(Self {
+            sources: Sources { port: port.and(from_env), token: token.as_ref().and(from_env), token_file: token_file.as_ref().and(from_env) },
+            port,
+            token,
+            token_file,
+        })
     }
 
     /// `flags` (what the command line gave, each with `Source::Flag`) over `env`: a flag wins
-    /// over its variable, and a variable is never read when its flag is present.
+    /// over its variable, field by field.
     pub fn merged(flags: Self, env: Self) -> Self {
-        // pc: apps/photocraft/tests/it/command_line_usage.rs:137 (variables are the flags' fallbacks)
-        todo!()
+        fn pick<T>(flag: Option<T>, flag_source: Option<Source>, env: Option<T>, env_source: Option<Source>) -> (Option<T>, Option<Source>) {
+            if flag.is_some() { (flag, flag_source) } else { (env, env_source) }
+        }
+        let (port, port_source) = pick(flags.port, flags.sources.port, env.port, env.sources.port);
+        let (token, token_source) = pick(flags.token, flags.sources.token, env.token, env.sources.token);
+        let (token_file, token_file_source) = pick(flags.token_file, flags.sources.token_file, env.token_file, env.sources.token_file);
+        Self { port, token, token_file, sources: Sources { port: port_source, token: token_source, token_file: token_file_source } }
     }
 
     /// Rejects `token` together with `token_file` ([`OptionsError::Conflict`], naming the flag or
     /// variable each came from). Only checked when `port` is set: without `--control` the token
     /// pair is ignored, as in PhotoCraft.
     pub fn check(&self, flags: &FlagNames, names: &EnvNames) -> Result<(), OptionsError> {
-        // pc: crates/automation/src/args.rs:91 (conflict), tests/it/control_exit_code.rs:59
-        todo!()
+        if self.port.is_none() || self.token.is_none() || self.token_file.is_none() {
+            return Ok(());
+        }
+        let shown = |source: Option<Source>, flag: &str, var: &str| match source {
+            Some(Source::Env) => var.to_owned(),
+            _ => flag.to_owned(),
+        };
+        Err(OptionsError::Conflict {
+            a: shown(self.sources.token, &flags.token, &names.token),
+            b: shown(self.sources.token_file, &flags.token_file, &names.token_file),
+        })
     }
 
     /// The server token: the supplied one (validated), the file's content, or a fresh one.
     /// `Err` is "cannot configure control authentication", exit 2.
     pub fn server_token(&self) -> Result<String, AutomationError> {
-        // pc: crates/automation/src/security.rs:185 (server_token)
-        todo!()
+        crate::security::server_token(self.token.as_deref(), self.token_file.as_deref())
     }
 
-    /// The lines the app prints to stderr about the token: the file path, `control token: <t>`
-    /// for a generated one, `using supplied control token` otherwise. The token is printed only
-    /// when the app generated it.
+    /// The line the app prints to stderr about the token, without the app's name prefix or a
+    /// trailing newline: `control token file: <path>`, `control token: <t>` for a generated
+    /// one, `using supplied control token` otherwise. The token is printed only when the app
+    /// generated it.
     pub fn token_notice(&self, token: &str) -> String {
-        // pc: apps/photocraft/src/main.rs:302
-        todo!()
+        if let Some(path) = &self.token_file {
+            format!("control token file: {}", path.display())
+        } else if self.token.is_none() {
+            format!("control token: {token}")
+        } else {
+            "using supplied control token".to_owned()
+        }
     }
 }
 
@@ -132,15 +167,13 @@ pub struct FlagNames {
 impl Default for FlagNames {
     /// PhotoCraft's spellings: `--control`, `--control-token`, `--control-token-file`.
     fn default() -> Self {
-        // pc: apps/photocraft/src/launch_args.rs:55, crates/automation/src/args.rs:24, :28
-        todo!()
+        Self { port: "--control".into(), token: "--control-token".into(), token_file: "--control-token-file".into() }
     }
 }
 
 /// `"0"`–`"65535"` with surrounding spaces to a port.
 pub fn control_port(s: &str) -> Result<u16, NotAPort> {
-    // pc: crates/automation/src/args.rs:54
-    todo!()
+    s.trim().parse().map_err(|_| NotAPort)
 }
 
 /// Not a port number.
