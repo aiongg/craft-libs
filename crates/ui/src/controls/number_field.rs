@@ -168,6 +168,7 @@ pub struct NumberField<'a> {
     enabled: bool,
     invalid: bool,
     keep_focus: bool,
+    max_chars: usize,
     part: bool,
     edit_menu: bool,
     unit_menu: Option<UnitMenu<'a>>,
@@ -231,6 +232,7 @@ impl<'a> NumberField<'a> {
             enabled: true,
             invalid: false,
             keep_focus: false,
+            max_chars: DEFAULT_MAX_CHARS,
             part: false,
             edit_menu: true,
             unit_menu: None,
@@ -379,6 +381,13 @@ impl<'a> NumberField<'a> {
     /// Draws the invalid edge and reports the value invalid (the host rejects it).
     pub fn invalid(mut self, invalid: bool) -> Self {
         self.invalid = invalid;
+        self
+    }
+
+    /// The most characters the text can have (128 by default, PhotoCraft's numeric input limit).
+    /// Typed or pasted text that would make more is rejected whole, not cut short.
+    pub fn max_chars(mut self, max: usize) -> Self {
+        self.max_chars = max;
         self
     }
 
@@ -547,6 +556,7 @@ impl<'a> NumberField<'a> {
             .enabled(self.enabled)
             .invalid(self.invalid)
             .keep_focus(self.keep_focus)
+            .reject_over(self.max_chars)
             .role(Role::SpinButton)
             .edit_menu(edit_menu)
             .event_filter(EventFilter { vertical_arrows: true, ..EventFilter::default() })
@@ -684,6 +694,9 @@ impl Follow {
         });
     }
 }
+
+/// The default of [`NumberField::max_chars`].
+const DEFAULT_MAX_CHARS: usize = 128;
 
 /// The step function of [`NumberField::steps_with`].
 type NextStep<'a> = dyn Fn(f64, i32) -> f64 + 'a;

@@ -1607,3 +1607,17 @@ fn a_scrub_rounds_to_the_step_grid_before_adding_its_steps() {
     rig.drag(rig.handle(), &[7.0], Modifiers::NONE, false);
     assert_eq!(rig.value, 62.0);
 }
+
+/// Text over the character limit is rejected whole: a paste of 129 characters types nothing,
+/// where one of 128 is typed.
+#[test]
+fn a_paste_over_the_character_limit_is_rejected_not_cut() {
+    let mut rig = Rig::new(4.0);
+    rig.focus();
+    let n = rig.events.len();
+    rig.frame(vec![Event::Paste("1".repeat(129))]);
+    assert!(since(&rig, n).is_empty(), "{:?}", since(&rig, n));
+    assert_eq!(rig.value, 4.0);
+    rig.frame(vec![Event::Paste("1".repeat(128))]);
+    assert!(matches!(since(&rig, n)[..], [EditEvent::Begin { value: Some(_), .. }]), "{:?}", since(&rig, n));
+}
