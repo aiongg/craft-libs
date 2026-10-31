@@ -13,6 +13,16 @@ No feature is enabled by default.
 | `write-pdf` | `write` plus Krilla's embedded-PDF support |
 | `write-simple-text` | `write` plus Krilla's optional text shaper and `draw_text` |
 
+## Export settings
+
+`settings` (always available, no dependencies) holds the PDF export settings a shared export
+dialog edits and a preset stores: `PdfSettings` with its sections, the choice enums (each with a
+stable `id`, `from_id` and English `label`, listed by the `Choice` trait), the built-in presets
+(`builtin_presets(app)`), and the checks that refuse settings a writer can't honour
+(`PdfSettings::check`, `check_values`, `warnings`). Errors and warnings are English text with a
+stable `id` each. Checks that depend on colour profiles ask an app-supplied `ProfileCatalog`.
+There is no serde derive: apps save settings through the ids.
+
 ## Reading and rendering
 
 `open` accepts shared bytes without copying. `open_slice` reserves storage fallibly before
