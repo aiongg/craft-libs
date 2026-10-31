@@ -185,6 +185,8 @@ where
         can_rename,
         view_lock,
         max_height,
+        min_height,
+        shrink_to_content,
         ..
     } = browser;
     let tokens = Tokens::of(ui);
@@ -286,8 +288,17 @@ where
                 .auto_shrink([false, false])
                 .content_margin(0.0)
                 .scroll_source(ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL);
-            if let Some(height) = max_height {
-                scroll = scroll.max_height(height);
+            if shrink_to_content {
+                let content = pass.spans.total() + 2.0 * pass.edge;
+                let height = content.min(max_height.unwrap_or_else(|| ui.available_height())).max(min_height.unwrap_or(0.0));
+                scroll = scroll.max_height(height).min_scrolled_height(height);
+            } else {
+                if let Some(height) = max_height {
+                    scroll = scroll.max_height(height);
+                }
+                if let Some(height) = min_height {
+                    scroll = scroll.min_scrolled_height(height);
+                }
             }
             if let Some(offset) = scroll_to {
                 scroll = scroll.vertical_scroll_offset(offset);

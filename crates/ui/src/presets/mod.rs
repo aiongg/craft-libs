@@ -29,7 +29,7 @@ use std::hash::Hash;
 use std::ops::RangeInclusive;
 use std::rc::Rc;
 
-use egui::{AsIdSalt, IdSalt, Painter, Rect, Ui};
+use egui::{AsIdSalt, IdSalt, Painter, Rect, Ui, vec2};
 
 use crate::composites::EmptyState;
 
@@ -95,6 +95,8 @@ pub struct PresetBrowser<'a, K> {
     start_rename: Option<K>,
     view_lock: Option<PresetView>,
     max_height: Option<f32>,
+    min_height: Option<f32>,
+    shrink_to_content: bool,
 }
 
 impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a, K> {
@@ -121,6 +123,8 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
             start_rename: None,
             view_lock: None,
             max_height: None,
+            min_height: None,
+            shrink_to_content: false,
         }
     }
 
@@ -222,6 +226,20 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
         self
     }
 
+    /// The browser's least height, for a short or empty list; egui's 64 pt scroll minimum
+    /// otherwise.
+    pub fn min_height(mut self, height: f32) -> Self {
+        self.min_height = Some(height);
+        self
+    }
+
+    /// Makes the browser as tall as its rows, up to [`Self::max_height`] or the height
+    /// available, and at least [`Self::min_height`]; it fills that height otherwise.
+    pub fn shrink_to_content(mut self, shrink: bool) -> Self {
+        self.shrink_to_content = shrink;
+        self
+    }
+
     /// Shows the browser across the available width: the toolbar if asked for, the rename bar
     /// while a rename is open, then the presets, or a message when there are none to show.
     /// `thumb` paints the thumbnail of a preset into a rect, clipped to it; it runs for the cells
@@ -244,9 +262,13 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
         } else {
             None
         };
+        let min_height = self.min_height;
         let mut out = match message {
             Some(text) => {
                 let response = EmptyState::new(text.as_str()).status_if(filtering).id_salt(id.with("empty")).show(ui).response;
+                if let Some(short) = min_height.map(|min| min - response.rect.height()).filter(|&short| short > 0.0) {
+                    ui.allocate_space(vec2(0.0, short));
+                }
                 PresetOutput { response, events: Vec::new(), drag: None }
             }
             None => view::show(self, id, ui, thumb),
