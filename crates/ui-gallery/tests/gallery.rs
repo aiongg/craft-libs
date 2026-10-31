@@ -1119,7 +1119,7 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
         &["composites/tab-strip/documents", "composites/tab-strip/drops", "composites/tab-strip/panels", "composites/tab-strip/text"],
         "a sample tab title",
     ),
-    ("Copy", &["controls/icon-button/plain", "controls/icon-button/toggle"], "an icon button name the story gives"),
+    ("Copy", &["controls/icon-button/app-icon", "controls/icon-button/plain", "controls/icon-button/toggle"], "an icon button name the story gives"),
     ("Custom", &["controls/tooltip/custom", "controls/tooltip/shortcut", "controls/tooltip/text"], "a sample tooltip target"),
     (
         "Default",
@@ -1129,6 +1129,7 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
             "composites/preset-browser/gradients",
             "composites/preset-browser/popover-grid",
             "composites/preset-browser/reorder",
+            "composites/preset-browser/short-list",
             "composites/preset-browser/swatches",
             "composites/preset-browser/tool-presets",
             "composites/section-label/default",
@@ -1143,6 +1144,7 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
             "composites/list/reorder-refused",
             "composites/list/reorder-tree",
             "composites/list/ten-thousand-rows",
+            "controls/icon-button/app-icon",
             "controls/icon-button/plain",
             "controls/icon-button/toggle",
         ],
@@ -1342,6 +1344,7 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
     (
         "Undo",
         &[
+            "controls/icon-button/app-icon",
             "controls/icon-button/plain",
             "controls/icon-button/toggle",
             "controls/tooltip/custom",
