@@ -21,7 +21,7 @@ mod image_mode;
 pub(crate) mod story;
 mod straighten;
 
-pub use geometry::CropBox;
+pub use geometry::{CropBox, hit_rect};
 use geometry::{Hit, direction, drawn, handle_part, hit, normalized_angle, part_handle, resized_turned, turn, turned_angle, within};
 
 /// The AccessKit names of a frame and its parts. `Default` is English; a host passes its own
@@ -233,7 +233,33 @@ pub struct CropPress {
     press_view: Option<CanvasView>,
 }
 
+/// What a [`CropPress`] does, for the host's cursor and readout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CropPressKind {
+    /// Draws a new frame from the press point.
+    Draw,
+    /// Moves the frame.
+    Move,
+    /// Drags the corner ([`BoxPart::Corner`]) or edge ([`BoxPart::Edge`]).
+    Resize(BoxPart),
+    /// Turns the frame about its centre.
+    Turn,
+    /// Draws a Straighten line.
+    Straighten,
+}
+
 impl CropPress {
+    /// What the press does.
+    pub fn kind(&self) -> CropPressKind {
+        match self.kind {
+            Kind::Draw { .. } => CropPressKind::Draw,
+            Kind::Move => CropPressKind::Move,
+            Kind::Resize { hx, hy } => CropPressKind::Resize(handle_part(hx, hy)),
+            Kind::Turn { .. } => CropPressKind::Turn,
+            Kind::Line { .. } => CropPressKind::Straighten,
+        }
+    }
+
     /// Whether the drag has begun (any move from the press point).
     pub fn began(&self) -> bool {
         self.began
@@ -342,6 +368,8 @@ struct Drag {
 pub struct CropFrame<'a> {
     id_salt: IdSalt,
     state: &'a CropBox,
+    /// Whether the host has a frame; without one every press draws a new frame.
+    framed: bool,
     names: CropNames,
     shield: Option<Color32>,
     guide: Option<(CropGuide, u8)>,
@@ -366,6 +394,7 @@ impl<'a> CropFrame<'a> {
         Self {
             id_salt: IdSalt::new(id_salt),
             state,
+            framed: true,
             names,
             shield: None,
             guide: None,
@@ -383,6 +412,13 @@ impl<'a> CropFrame<'a> {
             image: false,
             auto_center: false,
         }
+    }
+
+    /// A frame for a host that has none yet: every press draws a new frame from the press point
+    /// ([`CropPressKind::Draw`]) and [`hit`](Self::hit) gives [`BoxPart::Inside`] everywhere.
+    pub fn unframed(id_salt: impl egui::AsIdSalt, names: CropNames) -> CropFrame<'static> {
+        static NONE: CropBox = CropBox { rect: Rect::ZERO, angle: 0.0 };
+        CropFrame { framed: false, ..CropFrame::new(id_salt, &NONE, names) }
     }
 
     /// The fill outside the frame ([`CropShield::fill`](super::CropShield::fill)); none draws no
@@ -425,7 +461,9 @@ impl<'a> CropFrame<'a> {
     /// - a resize: the dragged handle, whose position is [`CropBox::part_point`] of the frame;
     /// - a draw: the corner of the new frame that follows the pointer;
     /// - a move: the whole frame ([`BoxPart::Inside`]); the vector moves the frame, so a snap of
-    ///   the frame's left edge to x = 0 returns `(-frame.rect.x0, 0)`.
+    ///   the frame's left edge to x = 0 returns `(-frame.rect.x0, 0)`;
+    /// - a Straighten line's end point: a zero-size frame at the point and [`BoxPart::Corner`] 2,
+    ///   so the vector moves the point onto its target on both axes.
     ///
     /// A turn is not snapped. The frame is computed from the pointer in the view of the press (in
     /// Image mode the view moves with the image, and the drag never reads it), and the vector is
@@ -650,7 +688,7 @@ impl<'a> CropFrame<'a> {
             && let Some(pointer) = pointer
         {
             self.cursor(&ctx, view, &shown, d.core.kind, pointer);
-            self.show_readout(&ctx, id, d.core.kind, &shown, pointer);
+            self.show_readout(&ctx, id, d.core.kind, &shown, pointer, self.readout_values());
             out.dragging = true;
             match d.core.kind {
                 Kind::Turn { .. } => out.turning = Some(shown.angle),
@@ -708,7 +746,8 @@ impl<'a> CropFrame<'a> {
         if !(view.rect.contains(press.origin) && canvas.contains_pointer()) {
             return None;
         }
-        let core = self.press(view, style, press.origin)?;
+        let held = ctx.input(|i| i.modifiers);
+        let core = self.press_with(view, style, press.origin, self.mods(held))?;
         if !Claim::take(ctx, canvas.id, id) {
             return None;
         }
@@ -729,27 +768,29 @@ impl<'a> CropFrame<'a> {
         if self.straighten {
             return None;
         }
-        Some(match self.over(view, point, style) {
-            Hit::Handle(hx, hy) => handle_part(hx, hy),
-            Hit::Inside => BoxPart::Inside,
-            Hit::Outside => BoxPart::Outside,
-        })
+        Some(if self.framed { self.state.part_at(view.to_doc(point), view.doc_len(style.hit)) } else { BoxPart::Inside })
     }
 
     /// A press at canvas point `origin`: the press to track, a Straighten line while that is
     /// armed. The host's frame at this call is the press's start; the host owns the claim on the
     /// press and calls this only for presses on the canvas. `None` for a frame that is not finite.
     pub fn press(&self, view: &CanvasView, style: &CropStyle, origin: Pos2) -> Option<CropPress> {
+        self.press_with(view, style, origin, self.mods(Modifiers::NONE))
+    }
+
+    /// [`press`](Self::press) with `mods` held for the host's snap of a Straighten line's start.
+    fn press_with(&self, view: &CanvasView, style: &CropStyle, origin: Pos2, mods: Modifiers) -> Option<CropPress> {
         if !self.state.is_finite() {
             return None;
         }
+        let origin = if self.straighten { self.snap_point(view, origin, mods) } else { origin };
         let from = view.to_doc(origin);
         let kind = if self.straighten {
             Kind::Line { to: origin }
         } else {
             match self.over(view, origin, style) {
                 Hit::Handle(hx, hy) => Kind::Resize { hx, hy },
-                Hit::Inside if !self.default_frame => Kind::Move,
+                Hit::Inside if self.framed && !self.default_frame => Kind::Move,
                 Hit::Outside => Kind::Turn { grab: direction(self.state.center(), from) },
                 Hit::Inside => Kind::Draw { anchor: from, cur: from, last: from },
             }
@@ -759,6 +800,9 @@ impl<'a> CropFrame<'a> {
 
     /// What screen point `p` is over, in the frame's own axes.
     fn over(&self, view: &CanvasView, p: Pos2, style: &CropStyle) -> Hit {
+        if !self.framed {
+            return Hit::Inside;
+        }
         hit(self.state, view.to_doc(p), view.doc_len(style.hit))
     }
 
@@ -783,7 +827,7 @@ impl<'a> CropFrame<'a> {
     ) -> CropTrack {
         let mut track = CropTrack { begun: false, state: None };
         if let Kind::Line { to } = &mut press.kind {
-            *to = pointer;
+            *to = self.snap_point(view, pointer, mods);
         }
         if !press.began && pointer != press.origin {
             press.began = begin();
@@ -808,7 +852,7 @@ impl<'a> CropFrame<'a> {
     /// (and centres it with [`auto_center`](Self::auto_center)).
     pub fn release(&self, view: &mut CanvasView, style: &CropStyle, press: &CropPress, pointer: Option<Pos2>) -> CropRelease {
         if let Kind::Line { to } = press.kind {
-            let to = pointer.unwrap_or(to);
+            let to = pointer.map_or(to, |p| self.snap_point(view, p, self.mods(Modifiers::NONE)));
             return Self::line_angle(view, style, press.origin, to).map_or(CropRelease::Nothing, CropRelease::Straighten);
         }
         self.finish(view, press)
@@ -952,7 +996,7 @@ impl<'a> CropFrame<'a> {
     /// the frame is not the untouched [default](Self::default_frame): the host applies the crop on
     /// it, as [`show`](Self::show) does ([`CropResponse::apply`]).
     pub fn double_click(&self, view: &CanvasView, style: &CropStyle, point: Pos2) -> bool {
-        !self.default_frame && self.over(view, point, style) == Hit::Inside
+        self.framed && !self.default_frame && self.over(view, point, style) == Hit::Inside
     }
 
     /// Enter, Esc, the arrows and X; `idle`: no press is held; `enter_ok`: no other widget
@@ -1103,9 +1147,14 @@ impl<'a> CropFrame<'a> {
         turn_cursor(ctx, pointer, turn_toward(view, frame, pointer));
     }
 
+    /// The labels and x-axis units [`show`](Self::show) writes its readouts with.
+    fn readout_values(&self) -> Option<(&CropLabels, &RulerUnits)> {
+        self.readout.as_ref().zip(self.units.map(|(x, _)| x))
+    }
+
     /// The readout of a drag of `kind`: the frame's size as Enter would crop it, or its angle.
-    fn show_readout(&self, ctx: &Context, id: Id, kind: Kind, now: &CropBox, pointer: Pos2) {
-        let (Some(labels), Some((ux, _))) = (&self.readout, self.units) else { return };
+    fn show_readout(&self, ctx: &Context, id: Id, kind: Kind, now: &CropBox, pointer: Pos2, values: Option<(&CropLabels, &RulerUnits)>) {
+        let Some((labels, ux)) = values else { return };
         let numbers = &ux.numbers;
         let rows: Vec<(String, String)> = match kind {
             Kind::Turn { .. } => {
@@ -1129,13 +1178,15 @@ impl<'a> CropFrame<'a> {
     }
 
     /// Draws what a host-driven drag shows beside the pointer at canvas point `pointer`: the
-    /// readout of a frame drag (needs [`readout`](Self::readout) and [`units`](Self::units)), or
-    /// the Straighten line with its angle. The pointer cursors are the host's.
-    pub fn paint_gesture(&self, painter: &Painter, style: &CropStyle, press: &CropPress, pointer: Pos2) {
+    /// readout of a frame drag, or the Straighten line with its angle. `readout` is the labels
+    /// and the ruler units of the document's x axis that write the numbers; the host passes
+    /// `None` when it shows no readouts (the Straighten line is still drawn). The pointer cursors
+    /// are the host's.
+    pub fn paint_gesture(&self, painter: &Painter, style: &CropStyle, press: &CropPress, pointer: Pos2, readout: Option<(&CropLabels, &RulerUnits)>) {
         let id = Id::NULL.with(("craft_draw::CropFrame::host", self.id_salt));
         match press.kind {
-            Kind::Line { to } => self.paint_line(painter, style, id, press.origin, to),
-            kind if press.began => self.show_readout(painter.ctx(), id, kind, &press.last, pointer),
+            Kind::Line { to } => self.paint_line(painter, style, id, press.origin, to, readout),
+            kind if press.began => self.show_readout(painter.ctx(), id, kind, &press.last, pointer, readout),
             _ => {}
         }
     }

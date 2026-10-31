@@ -5,10 +5,11 @@ use egui::{Context, CursorIcon, Id, Key, Modifiers, Painter, Pos2, Response, Sha
 use kurbo::{Point, Rect, Size};
 
 use super::geometry::normalized_angle;
-use super::{CropBox, CropFrame, CropStyle};
+use super::{CropBox, CropFrame, CropLabels, CropStyle};
 use crate::ui::transform::transform_box::fixed;
 use craft_ui::canvas::claim::PrimaryPress;
-use craft_ui::canvas::{CanvasView, Claim, Readout};
+use craft_ui::canvas::quad::BoxPart;
+use craft_ui::canvas::{CanvasView, Claim, Readout, RulerUnits};
 
 /// The line being drawn, in screen points, kept between passes.
 #[derive(Clone, Copy, Debug)]
@@ -87,12 +88,13 @@ impl CropFrame<'_> {
             return pass;
         };
         let pointer = ctx.input(|i| i.pointer.latest_pos());
+        let mods = self.mods(ctx.input(|i| i.modifiers));
         if let Some(p) = pointer {
-            l.to = p;
+            l.to = self.snap_point(view, p, mods);
         }
         let dropped = ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
         let down = ctx.input(|i| i.pointer.primary_down());
-        let from = l.press.origin;
+        let from = self.snap_point(view, l.press.origin, mods);
         if dropped || !down {
             ctx.data_mut(|d| d.remove::<Line>(key));
             if !dropped {
@@ -102,7 +104,7 @@ impl CropFrame<'_> {
         }
         ctx.data_mut(|d| d.insert_temp(key, l));
         ctx.set_cursor_icon(CursorIcon::Crosshair);
-        self.paint_line(&ui.painter_at(view.rect), style, id, from, l.to);
+        self.paint_line(&ui.painter_at(view.rect), style, id, from, l.to, self.readout_values());
         pass.claimed = true;
         pass
     }
@@ -119,6 +121,17 @@ impl CropFrame<'_> {
         Some(Line { press, to: press.origin })
     }
 
+    /// Canvas point `p` moved by the host's [`snap`](Self::snap), for an end point of a Straighten
+    /// line. The point is the same gesture a frame corner is: the snap sees a zero-size frame at
+    /// the point and its bottom-right corner ([`BoxPart::Corner`] 2), so it moves both axes onto
+    /// its targets.
+    pub(super) fn snap_point(&self, view: &CanvasView, p: Pos2, mods: Modifiers) -> Pos2 {
+        let Some(snap) = self.snap.as_ref() else { return p };
+        let at = view.to_doc(p);
+        let by = snap(BoxPart::Corner(2), &CropBox::upright(Rect::from_points(at, at)), mods);
+        if by.x.is_finite() && by.y.is_finite() { view.to_screen(at + by) } else { p }
+    }
+
     /// The angle a Straighten line from canvas point `from` to `to` gives, when it is at least
     /// `crop.straighten_min` screen points long.
     pub(super) fn line_angle(view: &CanvasView, style: &CropStyle, from: Pos2, to: Pos2) -> Option<f64> {
@@ -129,10 +142,10 @@ impl CropFrame<'_> {
     }
 
     /// The line over its halo, and its angle beside the pointer.
-    pub(super) fn paint_line(&self, painter: &Painter, style: &CropStyle, id: Id, from: Pos2, to: Pos2) {
+    pub(super) fn paint_line(&self, painter: &Painter, style: &CropStyle, id: Id, from: Pos2, to: Pos2, readout: Option<(&CropLabels, &RulerUnits)>) {
         painter.add(Shape::line_segment([from, to], style.straighten_halo));
         painter.add(Shape::line_segment([from, to], style.straighten));
-        let (Some(labels), Some((ux, _))) = (&self.readout, self.units) else { return };
+        let Some((labels, ux)) = readout else { return };
         let d = to - from;
         if d == egui::Vec2::ZERO {
             return;
