@@ -541,11 +541,19 @@ pub struct AnchorGrid<'a> {
     anchor: &'a mut Anchor,
     /// The change in width and height in pixels; the arrows' direction.
     delta: (f64, f64),
+    arrows: bool,
 }
 
 impl<'a> AnchorGrid<'a> {
     pub fn new(anchor: &'a mut Anchor, delta: (f64, f64)) -> Self {
-        Self { anchor, delta }
+        Self { anchor, delta, arrows: true }
+    }
+
+    /// Whether the neighbouring cells show the growth arrows; on by default. A grid that only
+    /// picks a position (the export watermark's) turns them off.
+    pub fn arrows(mut self, arrows: bool) -> Self {
+        self.arrows = arrows;
+        self
     }
 
     /// Draws the grid. `changed()` is set on the pass the anchor changes.
@@ -601,7 +609,9 @@ impl<'a> AnchorGrid<'a> {
                 if selected == Some(i) {
                     let half = 4.0 * scale;
                     ui.painter().rect_filled(Rect::from_center_size(center, vec2(2.0 * half, 2.0 * half)), dialog_tokens.anchor_mark_radius, mark);
-                } else if let Some((dx, dy)) = arrow_direction(*self.anchor, Anchor::ALL[i], self.delta) {
+                } else if self.arrows
+                    && let Some((dx, dy)) = arrow_direction(*self.anchor, Anchor::ALL[i], self.delta)
+                {
                     ui.painter().extend(arrow_shapes(center, vec2(dx as f32, dy as f32).normalized(), scale, arrow));
                 }
             }
