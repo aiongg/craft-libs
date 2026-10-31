@@ -15,9 +15,9 @@ use crate::{
     ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
     PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens,
     PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens,
-    ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitTokens,
-    States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens,
-    ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolbarTokens, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitTokens,
+    StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens,
+    ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -291,10 +291,12 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         scroll,
         section,
         segmented,
+        selection_bar,
         slider,
         slider_row,
         spinner,
         split,
+        start,
         status_bar,
         swatch,
         swatch_palette,
@@ -302,8 +304,10 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         title_bar,
         toast,
         toggle_button,
+        tool_pill,
         toolbar,
         tooltip,
+        tour,
         transform,
     } = c;
     angle_dial_lines(out, angle_dial);
@@ -365,10 +369,12 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     scroll_lines(out, scroll);
     section_lines(out, section);
     segmented_lines(out, segmented);
+    selection_bar_lines(out, selection_bar);
     slider_lines(out, slider);
     slider_row_lines(out, slider_row);
     spinner_lines(out, spinner);
     split_lines(out, split);
+    start_lines(out, start);
     status_bar_lines(out, status_bar);
     swatch_lines(out, swatch);
     swatch_palette_lines(out, swatch_palette);
@@ -376,8 +382,10 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     title_bar_lines(out, title_bar);
     toast_lines(out, toast);
     toggle_button_lines(out, toggle_button);
+    tool_pill_lines(out, tool_pill);
     toolbar_lines(out, toolbar);
     tooltip_lines(out, tooltip);
+    tour_lines(out, tour);
     transform_lines(out, transform);
 }
 
@@ -1972,4 +1980,36 @@ fn harmony_lines(out: &mut Lines, t: &HarmonyTokens) {
     out.line("harmony.strip", len(*strip));
     out.line("harmony.row", len(*row));
     out.line("harmony.cell", len(*cell));
+}
+
+fn start_lines(out: &mut Lines, t: &StartTokens) {
+    let StartTokens { card_min, card_max } = t;
+    out.line("start.card_min", len(*card_min));
+    out.line("start.card_max", len(*card_max));
+}
+
+fn tool_pill_lines(out: &mut Lines, t: &ToolPillTokens) {
+    let ToolPillTokens { inset } = t;
+    out.line("tool_pill.inset", len(*inset));
+}
+
+fn tour_lines(out: &mut Lines, t: &TourTokens) {
+    let TourTokens { card_width, target_gap, highlight_offset, highlight_pulse } = t;
+    out.line("tour.card_width", len(*card_width));
+    out.line("tour.target_gap", len(*target_gap));
+    out.line("tour.highlight_offset", len(*highlight_offset));
+    out.line("tour.highlight_pulse", len(*highlight_pulse));
+}
+
+fn selection_bar_lines(out: &mut Lines, t: &SelectionBarTokens) {
+    let SelectionBarTokens { height, gap_below, gap_above, inset, first_width, grip_width, grip_height, grip_dot, grip_pitch } = t;
+    out.line("selection_bar.height", len(*height));
+    out.line("selection_bar.gap_below", len(*gap_below));
+    out.line("selection_bar.gap_above", len(*gap_above));
+    out.line("selection_bar.inset", len(*inset));
+    out.line("selection_bar.first_width", len(*first_width));
+    out.line("selection_bar.grip_width", len(*grip_width));
+    out.line("selection_bar.grip_height", len(*grip_height));
+    out.line("selection_bar.grip_dot", len(*grip_dot));
+    out.line("selection_bar.grip_pitch", len(*grip_pitch));
 }

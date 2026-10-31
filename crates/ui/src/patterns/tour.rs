@@ -15,13 +15,6 @@ use crate::primitives::{Content, Corner, Gap, Stack, Text};
 use crate::theme::{ToEgui, current};
 use craft_theme::TypeRole;
 
-/// Width of the card's contents.
-const CARD_WIDTH: f32 = 340.0;
-/// Between the highlighted target (at its widest pulse) and the card.
-const TARGET_GAP: f32 = 12.0;
-/// How far the highlight stands off the target at rest and how far the pulse adds to it.
-const HIGHLIGHT_OFFSET: f32 = 3.0;
-const HIGHLIGHT_PULSE: f32 = 2.0;
 /// Pulse speed in radians per second.
 const PULSE_RATE: f64 = 4.0;
 const REPAINT: Duration = Duration::from_millis(33);
@@ -93,7 +86,7 @@ struct Visit {
 /// The card's top left corner. Beside the target on the first side with room (right, left, below,
 /// above), else at the bottom right; centred without a target. `margin` is kept to the screen's
 /// edge.
-pub(super) fn card_position(target: Option<Rect>, card: Vec2, screen: Rect, margin: f32) -> Pos2 {
+pub(super) fn card_position(target: Option<Rect>, card: Vec2, screen: Rect, margin: f32, gap: f32) -> Pos2 {
     let room = screen.shrink(margin);
     let clamp_x = |x: f32| x.clamp(room.min.x, (room.max.x - card.x).max(room.min.x));
     let clamp_y = |y: f32| y.clamp(room.min.y, (room.max.y - card.y).max(room.min.y));
@@ -101,10 +94,10 @@ pub(super) fn card_position(target: Option<Rect>, card: Vec2, screen: Rect, marg
         return pos2(clamp_x(room.center().x - card.x / 2.0), clamp_y(room.center().y - card.y / 2.0));
     };
     let beside = [
-        pos2(t.max.x + TARGET_GAP, clamp_y(t.center().y - card.y / 2.0)),
-        pos2(t.min.x - TARGET_GAP - card.x, clamp_y(t.center().y - card.y / 2.0)),
-        pos2(clamp_x(t.center().x - card.x / 2.0), t.max.y + TARGET_GAP),
-        pos2(clamp_x(t.center().x - card.x / 2.0), t.min.y - TARGET_GAP - card.y),
+        pos2(t.max.x + gap, clamp_y(t.center().y - card.y / 2.0)),
+        pos2(t.min.x - gap - card.x, clamp_y(t.center().y - card.y / 2.0)),
+        pos2(clamp_x(t.center().x - card.x / 2.0), t.max.y + gap),
+        pos2(clamp_x(t.center().x - card.x / 2.0), t.min.y - gap - card.y),
     ];
     beside
         .into_iter()
@@ -130,6 +123,7 @@ impl Tour {
         let last = index + 1 == steps.len();
         let labels = self.labels.clone().unwrap_or_else(|| TourLabels::of_ctx(ctx));
         let tokens = current(ctx);
+        let tour = tokens.component.tour;
         let frame = ctx.cumulative_frame_nr();
         let visit_id = self.id.with("visit");
         let began = ctx.data(|d| d.get_temp::<Visit>(visit_id)).is_none_or(|v| v.frame + 1 < frame);
@@ -144,7 +138,7 @@ impl Tour {
                 ThemeStroke::W2.width(ctx.pixels_per_point()),
                 tokens.color.accent.solid.to_egui().gamma_multiply(0.6 + 0.4 * pulse),
             );
-            let rect = target.expand(HIGHLIGHT_OFFSET + HIGHLIGHT_PULSE * pulse);
+            let rect = target.expand(tour.highlight_offset + tour.highlight_pulse * pulse);
             painter.rect_stroke(rect, Corner::Control.radius(&tokens), stroke, StrokeKind::Outside);
             if !still {
                 ctx.request_repaint_after(REPAINT);
@@ -157,15 +151,15 @@ impl Tour {
             let salt = ("card", index);
             let card_id = ui.make_persistent_id(salt);
             let popover = tokens.component.popover;
-            let estimate = vec2(CARD_WIDTH + 2.0 * (popover.padding + 1.0), 4.0 * CARD_WIDTH / 7.0);
+            let estimate = vec2(tour.card_width + 2.0 * (popover.padding + 1.0), 4.0 * tour.card_width / 7.0);
             let size = ctx.memory(|m| m.area_rect(card_id)).map_or(estimate, |r| r.size());
-            let at = card_position(step.target, size, ctx.content_rect(), popover.screen_margin);
+            let at = card_position(step.target, size, ctx.content_rect(), popover.screen_margin, tour.target_gap);
             let mut open = true;
             let shown = Popover::new(salt, PopoverAnchor::Point(at))
                 .close(PopoverClose::default().outside(false).focus_left(false).enter(true))
                 .label(step.title.clone())
                 .show(ui, &mut open, |ui, pop| {
-                    ui.set_width(CARD_WIDTH);
+                    ui.set_width(tour.card_width);
                     let mut clicked = None;
                     Stack::new(Gap::Row).show(ui, |ui| {
                         direction::horizontal(ui, |ui| {

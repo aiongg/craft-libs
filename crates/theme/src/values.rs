@@ -1515,3 +1515,48 @@ pub const HARMONY_STRIP: f32 = 20.0;
 pub const HARMONY_ROW: f32 = 18.0;
 /// Compact height of a variation cell.
 pub const HARMONY_CELL: f32 = 17.0;
+
+/// Least width of a card in the start screen grid (PhotoCraft's).
+pub const START_CARD_MIN: f32 = 260.0;
+
+/// Widest a card in the start screen grid grows (PhotoCraft's).
+pub const START_CARD_MAX: f32 = 360.0;
+
+/// Width of a tour card's contents (PhotoCraft's).
+pub const TOUR_CARD_WIDTH: f32 = 340.0;
+
+/// Gap between a tour target's highlight and its card (PhotoCraft's).
+pub const TOUR_TARGET_GAP: f32 = 12.0;
+
+/// How far a tour highlight stands off its target at rest (PhotoCraft's).
+pub const TOUR_HIGHLIGHT_OFFSET: f32 = 3.0;
+
+/// How far a tour highlight pulse adds to its offset (PhotoCraft's).
+pub const TOUR_HIGHLIGHT_PULSE: f32 = 2.0;
+
+/// Height of the selection bar (PhotoCraft's).
+pub const SELECTION_BAR_HEIGHT: f32 = 36.0;
+
+/// Gap between a selection and the bar below it (PhotoCraft's).
+pub const SELECTION_BAR_GAP_BELOW: f32 = 14.0;
+
+/// Gap between a selection and the bar above it (PhotoCraft's).
+pub const SELECTION_BAR_GAP_ABOVE: f32 = 8.0;
+
+/// Selection bar inset from the canvas edge (PhotoCraft's).
+pub const SELECTION_BAR_INSET: f32 = 8.0;
+
+/// Selection bar width before it is measured (PhotoCraft's).
+pub const SELECTION_BAR_FIRST_WIDTH: f32 = 420.0;
+
+/// Width of the selection bar grip (PhotoCraft's).
+pub const SELECTION_BAR_GRIP_WIDTH: f32 = 12.0;
+
+/// Height of the selection bar grip (PhotoCraft's).
+pub const SELECTION_BAR_GRIP_HEIGHT: f32 = 20.0;
+
+/// Radius of a selection bar grip dot (PhotoCraft's).
+pub const SELECTION_BAR_GRIP_DOT: f32 = 1.0;
+
+/// Distance between selection bar grip dots (PhotoCraft's).
+pub const SELECTION_BAR_GRIP_PITCH: f32 = 4.0;

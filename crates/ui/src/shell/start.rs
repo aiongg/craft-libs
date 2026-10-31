@@ -22,11 +22,6 @@ use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Pad, Row, Stack, Surface, SurfaceKind, Text};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
-/// The narrowest and widest a card gets; columns come and go to keep cards within them
-/// (FigCraft's home screen).
-const CARD_MIN: f32 = 260.0;
-const CARD_MAX: f32 = 360.0;
-
 /// A recent file as the start screen lists it. The host keeps the list (craft-platform's recent
 /// files in step 4) and passes it every frame.
 #[derive(Clone, Debug, PartialEq)]
@@ -400,8 +395,9 @@ fn card_grid(ui: &mut Ui, id: Id, labels: &StartLabels, cards: &[Card], recent: 
     let detail_format = Text::format(&tokens, TypeRole::Caption, Content::Muted);
     let line = |format: &egui::TextFormat| format.line_height.unwrap_or(format.font_id.size);
     let width = ui.available_width();
-    let columns = GridNav::columns(width, 0.0, gap, CARD_MIN);
-    let card_w = ((width - gap * (columns - 1) as f32) / columns as f32).min(CARD_MAX);
+    // Columns come and go to keep cards between the start tokens' card_min and card_max (FigCraft's home screen).
+    let columns = GridNav::columns(width, 0.0, gap, tokens.component.start.card_min);
+    let card_w = ((width - gap * (columns - 1) as f32) / columns as f32).min(tokens.component.start.card_max);
     let thumb_w = card_w - 2.0 * inset;
     let thumb_h = (thumb_w * 9.0 / 16.0).round();
     let card_h = inset + thumb_h + inset + line(&name_format) + line(&detail_format) + inset;
