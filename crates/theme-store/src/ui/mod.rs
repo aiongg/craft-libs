@@ -2,6 +2,7 @@
 //! [`ThemeChip`]s.
 
 use craft_theme::{Appearance, Contrast, ContrastChoice, Mode, ModeChoice, MotionChoice, Size, TextSize, ThemeDef, ThemeId, TypeRole, Variants};
+use craft_ui::behavior::GridNav;
 use craft_ui::composites::{Form, FormGrid, LabelAlign};
 use craft_ui::controls::Select;
 use craft_ui::direction;
@@ -11,7 +12,7 @@ use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem};
 use craft_ui::primitives::{Content, Interactive, Text};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
-use egui::{Color32, CornerRadius, Id, Key, Modifiers, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
+use egui::{Color32, CornerRadius, Id, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 
 use crate::{SelectionChange, SuiteClient};
 
@@ -19,21 +20,31 @@ use crate::{SelectionChange, SuiteClient};
 mod tests;
 
 /// A chip's size.
+// S4-F18: theme_chip.size
 const CHIP_SIZE: Vec2 = vec2(30.0, 26.0);
 /// From the outline to the fill.
+// S4-F18: theme_chip.inset
 const CHIP_INSET: f32 = 3.0;
 /// The chrome strip along the top of the fill.
+// S4-F18: theme_chip.strip
 const CHIP_STRIP: f32 = 5.0;
 /// The accent dot's radius and its distance from the fill's bottom-end corner, on both axes.
+// S4-F18: theme_chip.dot_radius
 const CHIP_DOT_RADIUS: f32 = 2.5;
+// S4-F18: theme_chip.dot_offset
 const CHIP_DOT_OFFSET: f32 = 6.0;
 /// The outline's and the fill's corner radii.
+// S4-F18: theme_chip.outline_radius
 const CHIP_OUTLINE_RADIUS: u8 = 3;
+// S4-F18: theme_chip.fill_radius
 const CHIP_FILL_RADIUS: f32 = 2.0;
 /// The star badge's radius, and how far its centre sits inside the chip's top end corner.
+// S4-F18: theme_chip.badge_radius
 const BADGE_RADIUS: f32 = 7.0;
+// S4-F18: theme_chip.badge_inset
 const BADGE_INSET: Vec2 = vec2(3.0, 3.0);
 /// Between two chips: room for the badge that overhangs the chip's corner.
+// S4-F18: theme_chip.gap
 const CHIP_GAP: f32 = 6.0;
 
 craft_ui::words! {
@@ -266,14 +277,13 @@ impl ChipRow<'_> {
                 group.spacing_mut().item_spacing.x = CHIP_GAP;
                 let ids: Vec<Id> = themes.iter().map(|t| group.scope_id().with(t.id.as_str())).collect();
                 let mut selected = themes.iter().position(|t| Some(&t.id) == self.chosen);
-                if let Some(to) = arrow_target(group, &ids) {
-                    group.memory_mut(|m| m.request_focus(ids[to]));
-                    if selected != Some(to) {
-                        picked = Some(themes[to].id.clone());
-                        selected = Some(to);
-                    }
+                // Arrows pick the chip the focus moves to.
+                let focused = ids.iter().any(|id| group.memory(|m| m.has_focus(*id)));
+                let tab_stop = GridNav::roving_stop(group, &ids, selected, true);
+                if focused && selected != Some(tab_stop) {
+                    picked = Some(themes[tab_stop].id.clone());
+                    selected = Some(tab_stop);
                 }
-                let tab_stop = selected.unwrap_or(0);
                 group.ctx().accesskit_node_builder(group.unique_id(), |node| node.set_size_of_set(themes.len()));
                 for (i, theme) in themes.iter().enumerate() {
                     let favorite = self.favorites.contains(&theme.id);
@@ -297,25 +307,6 @@ impl ChipRow<'_> {
         });
         (picked, toggled)
     }
-}
-
-/// The chip the arrow keys move to from the focused chip of a row, consuming the key. The ends
-/// leave the key to the focus movement between controls.
-fn arrow_target(ui: &Ui, ids: &[Id]) -> Option<usize> {
-    let focused = ids.iter().position(|id| ui.memory(|m| m.has_focus(*id)))?;
-    let moves = [
-        (Key::ArrowLeft, direction::step(ui, Key::ArrowLeft)),
-        (Key::ArrowRight, direction::step(ui, Key::ArrowRight)),
-        (Key::ArrowUp, Some(direction::Step::Previous)),
-        (Key::ArrowDown, Some(direction::Step::Next)),
-    ];
-    moves.into_iter().find_map(|(key, step)| {
-        let to = match step? {
-            direction::Step::Previous => focused.checked_sub(1),
-            direction::Step::Next => Some(focused + 1).filter(|to| *to < ids.len()),
-        }?;
-        ui.input_mut(|i| i.consume_key(Modifiers::NONE, key)).then_some(to)
-    })
 }
 
 /// A 30 × 26 miniature of a theme, after PhotoCraft's theme swatch (gap 64).
