@@ -144,6 +144,9 @@ pub mod egui;
 pub mod import;
 pub mod keymap;
 pub mod layout;
+mod parity;
+#[cfg(test)]
+mod parity_tests;
 pub mod profiles;
 pub mod reserved;
 pub mod scope;
@@ -161,5 +164,8 @@ pub use keymap::{
     MAX_BINDINGS, MAX_COMMANDS, MAX_CONFLICTS, Overrides, Policy, Problem, TypingRule, text_editing_chords,
 };
 pub use layout::{KeyInput, Layout};
+pub use parity::ReturnGlyph;
+#[cfg(feature = "ui")]
+pub use parity::{ClipboardPress, clipboard_presses};
 pub use profiles::{Builtins, MAX_EXPORT_BYTES, MAX_SET_NAME, MAX_SETS, ProfileError, Profiles, SetProblem};
 pub use scope::{Active, MAX_SCOPE_NAME, Scope, ScopeKind, Scopes};

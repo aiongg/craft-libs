@@ -5,6 +5,9 @@
 //! returns an [`ImportReport`]. Matching and the apply rules are ported from the DesignCraft
 //! InDesign importer (#1180).
 
+pub mod kys;
+#[cfg(test)]
+mod kys_tests;
 pub mod namematch;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
