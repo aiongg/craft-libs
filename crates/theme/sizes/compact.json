@@ -89,6 +89,11 @@
         "line_height": 16.0,
         "size": 12.0
       },
+      "body_large": {
+        "font": "ui",
+        "line_height": 20.0,
+        "size": 15.0
+      },
       "body_strong": {
         "font": "ui_semibold",
         "line_height": 16.0,
@@ -113,6 +118,11 @@
         "font": "mono",
         "line_height": 16.0,
         "size": 11.5
+      },
+      "overline": {
+        "font": "ui",
+        "line_height": 14.0,
+        "size": 11.0
       },
       "title": {
         "font": "ui_semibold",

@@ -5,11 +5,12 @@ use egui::{Context, Key, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder, Node};
 
-use super::section_header::{WidthArgs, show_always_open, show_collapsible};
+use super::section_header::{WidthArgs, show_always_open, show_collapsible, uppercase_latin};
 use super::*;
 use crate::controls::IconButton;
 use crate::direction::{self, Direction};
 use crate::icons::Icon;
+use crate::primitives::Content;
 use crate::testing::a11y;
 use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
 use craft_theme::ControlSize;
@@ -310,4 +311,49 @@ fn the_stories_name_every_control_in_both_directions() {
             a11y::assert_labelled(&harness);
         }
     }
+}
+
+/// The text shapes one pass paints.
+fn painted_texts(add: impl FnOnce(&mut Ui)) -> Vec<egui::epaint::TextShape> {
+    fn walk(shape: &egui::Shape, out: &mut Vec<egui::epaint::TextShape>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, out)),
+            egui::Shape::Text(text) => out.push(text.clone()),
+            _ => {}
+        }
+    }
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut add = Some(add);
+    let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        if let Some(add) = add.take() {
+            add(ui);
+        }
+    });
+    let mut out = Vec::new();
+    output.shapes.iter().for_each(|clipped| walk(&clipped.shape, &mut out));
+    output.drop_without_applying_deltas();
+    out
+}
+
+#[test]
+fn a_caption_header_is_eleven_point_faint_capitals() {
+    let tokens = tokens();
+    let texts = painted_texts(|ui| {
+        let _ = SectionHeader::new("details", "Preset details").caption(true).show(ui, |_| {});
+    });
+    let shape = texts.iter().find(|t| t.galley.text() == "PRESET DETAILS").expect("the capitals are painted");
+    let format = &shape.galley.job.sections[0].format;
+    assert_eq!(format.font_id.size, tokens.typography.overline.size);
+    assert_eq!(format.font_id.size, 11.0);
+    assert_eq!(format.color, Content::Faint.color(&tokens).to_egui());
+    let plain = painted_texts(|ui| {
+        let _ = SectionHeader::new("details", "Preset details").show(ui, |_| {});
+    });
+    assert!(plain.iter().any(|t| t.galley.text() == "Preset details"), "the default title keeps its case");
+}
+
+#[test]
+fn capitals_leave_other_scripts_alone() {
+    assert_eq!(uppercase_latin("Straße ünï 日本 Ωμέγα ñ"), "STRAßE ÜNÏ 日本 Ωμέγα Ñ");
 }

@@ -29,6 +29,8 @@ fn role(role: TypeRole) -> &'static str {
         TypeRole::BodyStrong => "body_strong",
         TypeRole::Title => "title",
         TypeRole::Heading => "heading",
+        TypeRole::BodyLarge => "body_large",
+        TypeRole::Overline => "overline",
         TypeRole::Mono => "mono",
     }
 }

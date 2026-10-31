@@ -207,7 +207,17 @@ fn every_role_maps_to_its_slot_family_size_and_line_height() {
         Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
     let tokens = resolve(&theme("craft.studio"), appearance, None).tokens;
     let ui_tokens = UiTokens::new(tokens.clone(), appearance, Mode::Light, families.clone());
-    for role in [TypeRole::Caption, TypeRole::Label, TypeRole::Body, TypeRole::BodyStrong, TypeRole::Title, TypeRole::Heading, TypeRole::Mono] {
+    for role in [
+        TypeRole::Caption,
+        TypeRole::Label,
+        TypeRole::Body,
+        TypeRole::BodyStrong,
+        TypeRole::Title,
+        TypeRole::Heading,
+        TypeRole::BodyLarge,
+        TypeRole::Overline,
+        TypeRole::Mono,
+    ] {
         let style = tokens.typography.get(role);
         let expected = match style.font {
             FontSlot::Ui => FontFamily::Proportional,

@@ -1,8 +1,8 @@
 use std::cell::Cell;
 
 use craft_theme::{
-    Appearance, ButtonVariant, ComponentField, Contrast, ControlSize, Mode, OverrideValue, Size, State, TextSize, ThemeDef, builtins, contrast_ratio,
-    resolve,
+    Appearance, ButtonVariant, ComponentField, Contrast, ControlSize, Mode, OverrideValue, Size, State, TextSize, ThemeDef, TypeRole, builtins,
+    contrast_ratio, resolve,
 };
 use egui::epaint::Vertex;
 use egui::{Color32, Context, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, Shape, Ui, Vec2, vec2};
@@ -875,4 +875,27 @@ fn badge_is_at_the_end_corner_in_both_directions() {
         assert_eq!(dot.center.x > rect.center().x, end_is_right, "{dir:?}: the reading end");
         assert!(rect.expand(0.5).contains(dot.center));
     }
+}
+
+#[test]
+fn a_text_field_with_a_role_lays_out_text_of_that_role() {
+    let breeze = theme("craft.breeze");
+    let t = tokens_of(&breeze, Mode::Light);
+    let size_of = |large: bool| {
+        let ctx = context();
+        let shapes = pass(&ctx, &breeze, vec![], |ui| {
+            let field = TextField::new("name", "Name", "Untitled");
+            let _ = if large { field.role(TypeRole::BodyLarge) } else { field }.show(ui);
+        });
+        shapes
+            .iter()
+            .find_map(|s| match s {
+                Shape::Text(text) if text.galley.text() == "Untitled" => Some(text.galley.job.sections[0].format.font_id.size),
+                _ => None,
+            })
+            .expect("the value is painted")
+    };
+    assert_eq!(size_of(false), t.typography.body.size);
+    assert_eq!(size_of(true), t.typography.body_large.size);
+    assert_eq!(t.typography.body_large.size, 15.0);
 }

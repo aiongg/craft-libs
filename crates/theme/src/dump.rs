@@ -162,12 +162,14 @@ fn role(r: TypeRole) -> &'static str {
         TypeRole::BodyStrong => "body_strong",
         TypeRole::Title => "title",
         TypeRole::Heading => "heading",
+        TypeRole::BodyLarge => "body_large",
+        TypeRole::Overline => "overline",
         TypeRole::Mono => "mono",
     }
 }
 
 fn type_lines(out: &mut Lines, t: &TypeTokens) {
-    let TypeTokens { caption, label, body, body_strong, title, heading, mono } = t;
+    let TypeTokens { caption, label, body, body_strong, title, heading, body_large, overline, mono } = t;
     let roles = [
         ("caption", caption),
         ("label", label),
@@ -175,6 +177,8 @@ fn type_lines(out: &mut Lines, t: &TypeTokens) {
         ("body_strong", body_strong),
         ("title", title),
         ("heading", heading),
+        ("body_large", body_large),
+        ("overline", overline),
         ("mono", mono),
     ];
     for (k, style) in roles {
@@ -936,6 +940,7 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
     let DialogTokens {
         pad,
         pad_roomy,
+        title_role,
         title_gap,
         body_gap,
         footer_gap,
@@ -958,6 +963,7 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
     } = t;
     out.line("dialog.pad", len(*pad));
     out.line("dialog.pad_roomy", len(*pad_roomy));
+    out.line("dialog.title_role", role(*title_role));
     out.line("dialog.title_gap", len(*title_gap));
     out.line("dialog.body_gap", len(*body_gap));
     out.line("dialog.footer_gap", len(*footer_gap));

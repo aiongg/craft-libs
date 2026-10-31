@@ -25,7 +25,7 @@ pub struct UiTokens {
     pub radius: Radii,
     pub shadow: Shadows,
     families: FontFamilies,
-    fonts: [FontId; 7],
+    fonts: [FontId; 9],
 }
 
 /// `shape.radius` as egui radii.
@@ -50,8 +50,17 @@ pub struct Shadows {
     pub knob: Shadow,
 }
 
-const ROLES: [TypeRole; 7] =
-    [TypeRole::Caption, TypeRole::Label, TypeRole::Body, TypeRole::BodyStrong, TypeRole::Title, TypeRole::Heading, TypeRole::Mono];
+const ROLES: [TypeRole; 9] = [
+    TypeRole::Caption,
+    TypeRole::Label,
+    TypeRole::Body,
+    TypeRole::BodyStrong,
+    TypeRole::Title,
+    TypeRole::Heading,
+    TypeRole::BodyLarge,
+    TypeRole::Overline,
+    TypeRole::Mono,
+];
 
 /// The popup shadow: `elevation.popup`'s offset and blur in the colour of `popup.shadow`.
 pub(crate) fn popup_shadow(tokens: &Tokens) -> Shadow {

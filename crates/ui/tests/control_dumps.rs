@@ -46,6 +46,8 @@ fn role(role: TypeRole) -> &'static str {
         TypeRole::BodyStrong => "body_strong",
         TypeRole::Title => "title",
         TypeRole::Heading => "heading",
+        TypeRole::BodyLarge => "body_large",
+        TypeRole::Overline => "overline",
         TypeRole::Mono => "mono",
     }
 }
@@ -455,6 +457,7 @@ fn section_header() {
             .line("title_offset", s.title_offset);
         d.line("hairline", s.hairline.width).line("hairline_color", s.hairline.color).line("chevron_color", s.chevron_color);
         d.line("title_role", role(s.title_role)).line("title", s.title);
+        d.line("caption_role", role(s.caption_role)).line("caption", s.caption);
     });
 }
 

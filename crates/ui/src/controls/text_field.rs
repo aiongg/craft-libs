@@ -115,6 +115,7 @@ pub struct TextField<'a> {
     value: &'a str,
     placeholder: String,
     size: ControlSize,
+    role: Option<TypeRole>,
     policy: EditPolicy,
     enabled: bool,
     invalid: bool,
@@ -136,6 +137,7 @@ impl<'a> TextField<'a> {
             value,
             placeholder: String::new(),
             size: ControlSize::Md,
+            role: None,
             policy: EditPolicy::default(),
             enabled: true,
             invalid: false,
@@ -156,6 +158,14 @@ impl<'a> TextField<'a> {
 
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The type role of the text and the placeholder instead of `field.role`, for a prominent
+    /// field such as [`TypeRole::BodyLarge`]. The box grows to the role's line height when the
+    /// size's height is less.
+    pub fn role(mut self, role: TypeRole) -> Self {
+        self.role = Some(role);
         self
     }
 
@@ -228,6 +238,7 @@ impl<'a> TextField<'a> {
             value: self.value,
             placeholder: &self.placeholder,
             size: self.size,
+            role: self.role,
             enabled: self.enabled,
             invalid: self.invalid,
             leading: self.leading,
@@ -383,6 +394,7 @@ impl<'a> SearchField<'a> {
             value: self.value,
             placeholder: &self.placeholder,
             size: self.size,
+            role: None,
             enabled: self.enabled,
             invalid: false,
             leading: Some(Icon::Search),
@@ -406,6 +418,7 @@ struct Spec<'a> {
     value: &'a str,
     placeholder: &'a str,
     size: ControlSize,
+    role: Option<TypeRole>,
     enabled: bool,
     invalid: bool,
     leading: Option<Icon>,
@@ -462,7 +475,11 @@ const CLEAR_SIZE: ControlSize = ControlSize::Sm;
 
 fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
     let tokens = Tokens::of(ui);
-    let style = TextField::style(&tokens, spec.size);
+    let mut style = TextField::style(&tokens, spec.size);
+    if let Some(role) = spec.role {
+        style.role = role;
+        style.height = style.height.max(tokens.typography.get(role).line_height);
+    }
     let layout = Layout::new(&style, spec, IconButton::style(&tokens, CLEAR_SIZE).side);
     let enabled = spec.enabled && ui.is_enabled();
     let width = if ui.layout().horizontal_justify() { ui.available_width() } else { style.width };
