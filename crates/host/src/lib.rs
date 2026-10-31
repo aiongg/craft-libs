@@ -1,11 +1,13 @@
 #![doc = include_str!("../README.md")]
 
+mod files;
 mod services;
 
 use std::sync::Arc;
 
 use craft_i18n::{I18n, Lang};
 
+pub use files::{FileError, FileFilter, Files, NoPickFiles, PickAnswer, PickId, PickKind, PickRequest, Picked};
 #[cfg(not(target_arch = "wasm32"))]
 pub use services::ThreadJobs;
 pub use services::{AppInfo, Commands, InlineJobs, Jobs, MemorySections, NoCommands, Section, SectionStore};
@@ -20,6 +22,7 @@ pub struct Host {
     settings: Arc<dyn SectionStore>,
     commands: Arc<dyn Commands>,
     jobs: Arc<dyn Jobs>,
+    files: Arc<dyn Files>,
 }
 
 /// Collects a [`Host`]'s services; each one defaults when not set.
@@ -30,11 +33,12 @@ pub struct HostBuilder {
     settings: Option<Arc<dyn SectionStore>>,
     commands: Option<Arc<dyn Commands>>,
     jobs: Option<Arc<dyn Jobs>>,
+    files: Option<Arc<dyn Files>>,
 }
 
 impl Host {
     pub fn builder(app: AppInfo) -> HostBuilder {
-        HostBuilder { app, i18n: None, lang: None, settings: None, commands: None, jobs: None }
+        HostBuilder { app, i18n: None, lang: None, settings: None, commands: None, jobs: None, files: None }
     }
 
     pub fn app(&self) -> &AppInfo {
@@ -61,6 +65,11 @@ impl Host {
 
     pub fn commands(&self) -> &dyn Commands {
         &*self.commands
+    }
+
+    /// The file service: pickers, reads and writes (`craft_dialogs::FileService` on native).
+    pub fn files(&self) -> &dyn Files {
+        &*self.files
     }
 
     pub fn jobs(&self) -> &dyn Jobs {
@@ -116,6 +125,12 @@ impl HostBuilder {
         self
     }
 
+    /// Default: [`NoPickFiles`] (every picker answers Cancelled; plain file system reads and writes).
+    pub fn files(mut self, files: Arc<dyn Files>) -> Self {
+        self.files = Some(files);
+        self
+    }
+
     pub fn build(self) -> Host {
         let lang = self.lang.or_else(|| self.i18n.as_ref().map(|i18n| i18n.system_lang())).unwrap_or(Lang::EN);
         Host {
@@ -125,6 +140,7 @@ impl HostBuilder {
             settings: self.settings.unwrap_or_else(|| Arc::new(MemorySections::default())),
             commands: self.commands.unwrap_or_else(|| Arc::new(NoCommands)),
             jobs: self.jobs.unwrap_or_else(default_jobs),
+            files: self.files.unwrap_or_else(|| Arc::new(NoPickFiles::default())),
         }
     }
 
