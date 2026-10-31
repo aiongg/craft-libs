@@ -47,7 +47,7 @@ mod toolbar_drawer_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod toolbar_tests;
 pub(crate) mod tour;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tour_tests;
 
 pub use crate::behavior::PaletteEntry;

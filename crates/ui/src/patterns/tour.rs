@@ -1,9 +1,30 @@
 //! [`Tour`]: coach marks that walk the user through the interface, one step at a time, each
 //! pointing at a part of the window.
 
-#![expect(dead_code, unused_variables, unused_mut, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use std::time::Duration;
 
-use egui::{AsIdSalt, Context, Id, Rect};
+use craft_theme::Stroke as ThemeStroke;
+use egui::{Area, AsIdSalt, Context, Id, LayerId, Order, Pos2, Rect, StrokeKind, Vec2, pos2, vec2};
+
+use crate::controls::{Button, ButtonVariant, ControlSize, IconButton};
+use crate::direction;
+use crate::icons::Icon;
+use crate::localized::Labels as _;
+use crate::popover::{CloseReason, Popover, PopoverAnchor, PopoverClose};
+use crate::primitives::{Content, Corner, Gap, Stack, Text};
+use crate::theme::{ToEgui, current};
+use craft_theme::TypeRole;
+
+/// Width of the card's contents.
+const CARD_WIDTH: f32 = 340.0;
+/// Between the highlighted target (at its widest pulse) and the card.
+const TARGET_GAP: f32 = 12.0;
+/// How far the highlight stands off the target at rest and how far the pulse adds to it.
+const HIGHLIGHT_OFFSET: f32 = 3.0;
+const HIGHLIGHT_PULSE: f32 = 2.0;
+/// Pulse speed in radians per second.
+const PULSE_RATE: f64 = 4.0;
+const REPAINT: Duration = Duration::from_millis(33);
 
 /// One step: what it points at and what it says.
 #[derive(Clone, Debug, PartialEq)]
@@ -62,20 +83,140 @@ pub struct Tour {
     labels: Option<TourLabels>,
 }
 
+/// Where the keyboard focus was when the tour began, to give it back when the tour ends.
+#[derive(Clone, Copy, Default)]
+struct Visit {
+    frame: u64,
+    previous: Option<Id>,
+}
+
+/// The card's top left corner. Beside the target on the first side with room (right, left, below,
+/// above), else at the bottom right; centred without a target. `margin` is kept to the screen's
+/// edge.
+pub(super) fn card_position(target: Option<Rect>, card: Vec2, screen: Rect, margin: f32) -> Pos2 {
+    let room = screen.shrink(margin);
+    let clamp_x = |x: f32| x.clamp(room.min.x, (room.max.x - card.x).max(room.min.x));
+    let clamp_y = |y: f32| y.clamp(room.min.y, (room.max.y - card.y).max(room.min.y));
+    let Some(t) = target else {
+        return pos2(clamp_x(room.center().x - card.x / 2.0), clamp_y(room.center().y - card.y / 2.0));
+    };
+    let beside = [
+        pos2(t.max.x + TARGET_GAP, clamp_y(t.center().y - card.y / 2.0)),
+        pos2(t.min.x - TARGET_GAP - card.x, clamp_y(t.center().y - card.y / 2.0)),
+        pos2(clamp_x(t.center().x - card.x / 2.0), t.max.y + TARGET_GAP),
+        pos2(clamp_x(t.center().x - card.x / 2.0), t.min.y - TARGET_GAP - card.y),
+    ];
+    beside
+        .into_iter()
+        .find(|&at| room.contains_rect(Rect::from_min_size(at, card)))
+        .unwrap_or_else(|| pos2(clamp_x(room.max.x - card.x), clamp_y(room.max.y - card.y)))
+}
+
 impl Tour {
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        todo!()
+        Self { id: Id::unique(id_salt), labels: None }
     }
 
     pub fn labels(mut self, labels: TourLabels) -> Self {
-        todo!()
+        self.labels = Some(labels);
+        self
     }
 
     /// Shows step `index` of `steps` on the foreground layer; returns the user's move this frame.
     // effectcraft: crates/ui-egui/src/panels/learn.rs:80 `coach` (card bottom right, target pulse
     // `sin(time * 4)`, 2 pt stroke, repaint every 33 ms, hidden under the Home screen).
     pub fn show(self, ctx: &Context, steps: &[TourStep], index: usize) -> Option<TourEvent> {
-        todo!()
+        let step = steps.get(index)?;
+        let last = index + 1 == steps.len();
+        let labels = self.labels.clone().unwrap_or_else(|| TourLabels::of_ctx(ctx));
+        let tokens = current(ctx);
+        let frame = ctx.cumulative_frame_nr();
+        let visit_id = self.id.with("visit");
+        let began = ctx.data(|d| d.get_temp::<Visit>(visit_id)).is_none_or(|v| v.frame + 1 < frame);
+        let previous = if began { ctx.memory(|m| m.focused()) } else { ctx.data(|d| d.get_temp::<Visit>(visit_id)).and_then(|v| v.previous) };
+        ctx.data_mut(|d| d.insert_temp(visit_id, Visit { frame, previous }));
+
+        if let Some(target) = step.target {
+            let still = tokens.appearance.reduced_motion;
+            let pulse = if still { 1.0 } else { (0.5 + 0.5 * (ctx.input(|i| i.time) * PULSE_RATE).sin()) as f32 };
+            let painter = ctx.layer_painter(LayerId::new(Order::Foreground, self.id.with("highlight")));
+            let stroke = egui::Stroke::new(
+                ThemeStroke::W2.width(ctx.pixels_per_point()),
+                tokens.color.accent.solid.to_egui().gamma_multiply(0.6 + 0.4 * pulse),
+            );
+            let rect = target.expand(HIGHLIGHT_OFFSET + HIGHLIGHT_PULSE * pulse);
+            painter.rect_stroke(rect, Corner::Control.radius(&tokens), stroke, StrokeKind::Outside);
+            if !still {
+                ctx.request_repaint_after(REPAINT);
+            }
+        }
+
+        let mut event = None;
+        let host = Area::new(self.id.with("host")).order(Order::Foreground).fixed_pos(Pos2::ZERO).interactable(false);
+        host.show(ctx, |ui| {
+            let salt = ("card", index);
+            let card_id = ui.make_persistent_id(salt);
+            let popover = tokens.component.popover;
+            let estimate = vec2(CARD_WIDTH + 2.0 * (popover.padding + 1.0), 4.0 * CARD_WIDTH / 7.0);
+            let size = ctx.memory(|m| m.area_rect(card_id)).map_or(estimate, |r| r.size());
+            let at = card_position(step.target, size, ctx.content_rect(), popover.screen_margin);
+            let mut open = true;
+            let shown = Popover::new(salt, PopoverAnchor::Point(at))
+                .close(PopoverClose::default().outside(false).focus_left(false).enter(true))
+                .label(step.title.clone())
+                .show(ui, &mut open, |ui, pop| {
+                    ui.set_width(CARD_WIDTH);
+                    let mut clicked = None;
+                    Stack::new(Gap::Row).show(ui, |ui| {
+                        direction::horizontal(ui, |ui| {
+                            let progress = labels.progress.replace("{n}", &(index + 1).to_string()).replace("{total}", &steps.len().to_string());
+                            ui.add(Text::new(progress).role(TypeRole::Caption).content(Content::Muted));
+                            ui.with_layout(direction::trailing(ui), |ui| {
+                                let close = IconButton::new(Icon::Close, labels.skip.clone()).size(ControlSize::Sm).id_salt("close");
+                                if ui.add(close).clicked() {
+                                    clicked = Some(TourEvent::Skipped);
+                                }
+                            });
+                        });
+                        ui.add(Text::new(step.title.clone()).role(TypeRole::Title));
+                        ui.add(Text::new(step.body.clone()));
+                        direction::horizontal(ui, |ui| {
+                            if ui.add(Button::new(labels.skip.clone()).variant(ButtonVariant::Ghost).id_salt("skip")).clicked() {
+                                clicked = Some(TourEvent::Skipped);
+                            }
+                            ui.with_layout(direction::trailing(ui), |ui| {
+                                let (name, done) = if last { (&labels.done, TourEvent::Finished) } else { (&labels.next, TourEvent::Next) };
+                                let next = ui.add(Button::new(name.clone()).variant(ButtonVariant::Primary).id_salt("next"));
+                                pop.initial_focus(next.id);
+                                if next.clicked() {
+                                    clicked = Some(done);
+                                }
+                                if ui.add(Button::new(labels.back.clone()).enabled(index > 0).id_salt("back")).clicked() {
+                                    clicked = Some(TourEvent::Back);
+                                }
+                            });
+                        });
+                    });
+                    clicked
+                });
+            ctx.accesskit_node_builder(card_id, |node| node.set_description(step.body.clone()));
+            if let Some(shown) = shown {
+                event = shown.inner.or(match shown.closed_by {
+                    Some(CloseReason::Escape) => Some(TourEvent::Skipped),
+                    Some(CloseReason::Enter) if last => Some(TourEvent::Finished),
+                    Some(CloseReason::Enter) => Some(TourEvent::Next),
+                    _ => None,
+                });
+            }
+        });
+
+        if matches!(event, Some(TourEvent::Finished | TourEvent::Skipped)) {
+            ctx.data_mut(|d| d.remove_temp::<Visit>(visit_id));
+            if let Some(previous) = previous {
+                ctx.memory_mut(|m| m.request_focus(previous));
+            }
+        }
+        event
     }
 }
 

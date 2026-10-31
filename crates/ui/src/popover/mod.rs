@@ -375,6 +375,7 @@ impl Popover {
                 let inner = add(ui, &pop);
                 (inner, ui.min_rect().size())
             });
+            let entered = entry.is_some();
             if let Some(previous) = entry
                 && !end_focus_entry(&ctx, id, previous)
             {
@@ -387,10 +388,10 @@ impl Popover {
                 PopoverSize::Resizable { min, .. } => grip_resize(ui, id, rect, content_size, min, room),
                 _ => None,
             };
-            (inner, rect, used, resized)
+            (inner, rect, used, resized, entered)
         });
         drop(drawing);
-        let (inner, rect, used, resized) = drawn.inner;
+        let (inner, rect, used, resized, entered) = drawn.inner;
         if matches!(size, PopoverSize::Fit) {
             ctx.data_mut(|d| d.insert_temp(id.with("fit-size"), used));
         }
@@ -411,7 +412,7 @@ impl Popover {
         if let Some(focus) = pop.initial.get()
             && state.focus_tries < 3
             && shown
-            && !focus_in(&ctx, id)
+            && (entered || !focus_in(&ctx, id))
         {
             ctx.memory_mut(|m| m.request_focus(focus));
         }

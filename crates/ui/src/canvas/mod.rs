@@ -91,7 +91,7 @@ pub(crate) mod ref_point;
 pub(crate) mod rulers;
 mod scrollbars;
 mod selection_bar;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod selection_bar_tests;
 mod snap;
 #[cfg(test)]

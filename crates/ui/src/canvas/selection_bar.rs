@@ -1,9 +1,66 @@
 //! [`SelectionBar`]: a small floating toolbar over a selection on the canvas (Photoshop's
 //! Contextual Task Bar; WordCraft's mini toolbar over selected text).
 
-#![expect(dead_code, unused_variables, unused_mut, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use egui::accesskit::Role;
+use egui::{Area, AsIdSalt, CursorIcon, Id, Order, Pos2, Rect, Sense, Ui, WidgetInfo, pos2, vec2};
 
-use egui::{AsIdSalt, Id, Pos2, Rect, Ui};
+use crate::controls::{ControlSize, IconButton};
+use crate::direction;
+use crate::focus::{Region, RegionFocus};
+use crate::icons::Icon;
+use crate::localized::Labels as _;
+use crate::menu::{MenuEntry, MenuItem, PressMenu};
+use crate::primitives::{Gap, Surface, SurfaceKind};
+use crate::theme::{ToEgui, Tokens, TokensOf};
+
+/// The bar's height (DesignCraft's `HEIGHT`).
+const HEIGHT: f32 = 36.0;
+/// Between the selection and the bar when it sits below (Photoshop's Contextual Task Bar) or above.
+const GAP_BELOW: f32 = 14.0;
+const GAP_ABOVE: f32 = 8.0;
+/// Kept between the bar and the canvas's edge.
+const INSET: f32 = 8.0;
+/// The width assumed before the bar has been measured.
+const FIRST_WIDTH: f32 = 420.0;
+/// The grip: its box, the dot radius and the distance between dots.
+const GRIP_SIZE: egui::Vec2 = vec2(12.0, 20.0);
+const GRIP_DOT: f32 = 1.0;
+const GRIP_PITCH: f32 = 4.0;
+
+/// The position the user dragged the bar to, relative to the canvas's top left.
+#[derive(Clone, Copy, Default)]
+struct Pin(Pos2);
+
+/// The ⋯ menu's commands.
+#[derive(Clone, Copy, PartialEq)]
+enum More {
+    Hide,
+    Reset,
+}
+
+/// `at` moved as little as needed for a bar `width` wide to sit inside `canvas`.
+fn inside(at: Pos2, width: f32, canvas: Rect) -> Pos2 {
+    let x = at.x.min(canvas.max.x - width - INSET).max(canvas.min.x + INSET);
+    let y = at.y.min(canvas.max.y - HEIGHT - INSET).max(canvas.min.y + INSET);
+    pos2(x, y)
+}
+
+/// The bar's top left corner next to `selection`: below it, or above it when `above`; on the
+/// other side when that does not fit, and at the canvas's bottom when neither does.
+pub(super) fn place(canvas: Rect, selection: Rect, width: f32, above: bool) -> Pos2 {
+    let x = (selection.center().x - width / 2.0).clamp(canvas.min.x + INSET, (canvas.max.x - width - INSET).max(canvas.min.x + INSET));
+    let gap = if above { GAP_ABOVE } else { GAP_BELOW };
+    let over = selection.min.y - HEIGHT - gap;
+    let under = selection.max.y + gap;
+    let fits_over = over >= canvas.min.y + INSET;
+    let fits_under = under + HEIGHT <= canvas.max.y - INSET;
+    let y = match (above, fits_over, fits_under) {
+        (false, _, true) | (true, false, true) => under,
+        (false, true, false) | (true, true, _) => over,
+        (_, false, false) => (canvas.max.y - INSET - HEIGHT).max(canvas.min.y + INSET),
+    };
+    pos2(x, y)
+}
 
 /// What [`SelectionBar::show`] returns.
 #[derive(Clone, Debug)]
@@ -44,8 +101,8 @@ pub struct SelectionBarResponse<R> {
 ///   dragged it, kept inside the canvas.
 /// - **Look:** a popup surface with the toolbar's controls at the small control size, a grip at the
 ///   start and a ⋯ menu at the end (Hide Bar, Reset Bar Position). Themes change colours only.
-/// - **Keyboard:** not in the Tab order of the window until the user moves there (F6 lists it
-///   as a region while it shows, [`crate::focus::RegionFocus`]); Esc returns focus to the canvas.
+/// - **Keyboard:** F6 lists it as a region while it shows ([`crate::focus::RegionFocus`], region
+///   `selectionBar`); Esc clears the focus, which leaves the keys to the canvas.
 /// - **AccessKit:** a `Toolbar` named by [`SelectionBarLabels::name`] ("Selection").
 #[must_use = "show the bar with `show`"]
 pub struct SelectionBar {
@@ -57,28 +114,32 @@ pub struct SelectionBar {
 
 impl SelectionBar {
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        todo!()
+        Self { id: Id::unique(id_salt), above: false, pinned: None, labels: None }
     }
 
     /// Translated labels; default the installed words.
     pub fn labels(mut self, labels: SelectionBarLabels) -> Self {
-        todo!()
+        self.labels = Some(labels);
+        self
     }
 
     /// Places the bar 8 pt above the selection, flipping below when tight.
     // wordcraft: crates/ui-egui/src/mini_toolbar.rs:12 `VGAP` (8 pt).
     pub fn above(mut self, above: bool) -> Self {
-        todo!()
+        self.above = above;
+        self
     }
 
     /// Keeps the bar at a stored position (relative to the canvas rect's top left).
     pub fn pinned(mut self, at: Option<Pos2>) -> Self {
-        todo!()
+        self.pinned = at;
+        self
     }
 
     /// Forgets the pinned position; the bar follows the selection again.
     pub fn unpin(ui: &Ui, id_salt: impl AsIdSalt) {
-        todo!()
+        let pin = Id::unique(id_salt).with("pin");
+        ui.ctx().data_mut(|d| d.remove_temp::<Pin>(pin));
     }
 
     /// Draws the bar over `canvas` above `selection` (screen rects) with `add`'s controls.
@@ -86,7 +147,82 @@ impl SelectionBar {
     // button is down off egui :22, `HEIGHT` 36 pt :11); wordcraft: crates/ui-egui/src/mini_toolbar.rs:166
     // `show`.
     pub fn show<R>(self, ui: &mut Ui, canvas: Rect, selection: Option<Rect>, add: impl FnOnce(&mut Ui) -> R) -> SelectionBarResponse<R> {
-        todo!()
+        let ctx = ui.ctx().clone();
+        let hidden = SelectionBarResponse { inner: None, rect: None, pinned_at: None, hide_requested: false, position_reset: false };
+        let grip_id = self.id.with("grip");
+        let pin_id = self.id.with("pin");
+        let dragging = ctx.dragged_id() == Some(grip_id);
+        // Two separate context calls: `is_pointer_over_egui` inside an `input` closure deadlocks.
+        let pressing_canvas = ctx.input(|i| i.pointer.any_down()) && !ctx.is_pointer_over_egui();
+        let Some(selection) = selection else { return hidden };
+        if pressing_canvas && !dragging {
+            return hidden;
+        }
+
+        let labels = self.labels.clone().unwrap_or_else(|| SelectionBarLabels::of_ctx(&ctx));
+        let tokens = Tokens::of(ui);
+        let width = ctx.memory(|m| m.area_rect(self.id)).map_or(FIRST_WIDTH, |r| r.width());
+        let pinned = ctx.data(|d| d.get_temp::<Pin>(pin_id)).map(|p| p.0).or(self.pinned);
+        let at = match pinned {
+            Some(p) => inside(canvas.min + p.to_vec2(), width, canvas),
+            None => place(canvas, selection, width, self.above),
+        };
+
+        let mut pinned_at = None;
+        let mut hide_requested = false;
+        let mut position_reset = false;
+        let shown = Area::new(self.id).order(Order::Middle).fixed_pos(at).role(Role::Toolbar).accessible_name(labels.name.clone()).show(&ctx, |ui| {
+            crate::theme::apply_popup_style(ui);
+            Surface::new(SurfaceKind::Popup)
+                .show(ui, |ui| {
+                    ui.set_height(HEIGHT);
+                    ui.spacing_mut().item_spacing.x = Gap::Inline.points(&tokens);
+                    ui.with_layout(direction::row(ui), |ui| {
+                        ui.add_space(tokens.space.pad.control);
+                        let (cell, _) = ui.allocate_exact_size(GRIP_SIZE, Sense::hover());
+                        let grip = ui.interact(cell, grip_id, Sense::drag());
+                        grip.widget_info(|| WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &labels.grip));
+                        let ink = if grip.hovered() || grip.dragged() { tokens.color.text.normal } else { tokens.color.text.muted };
+                        for column in [-0.5, 0.5] {
+                            for row in [-1.0, 0.0, 1.0] {
+                                let centre = cell.center() + vec2(column, row) * GRIP_PITCH;
+                                ui.painter().circle_filled(centre, GRIP_DOT, ink.to_egui());
+                            }
+                        }
+                        if grip.dragged() {
+                            ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+                            let to = (inside(at + grip.drag_delta(), width, canvas) - canvas.min).to_pos2();
+                            ui.ctx().data_mut(|d| d.insert_temp(pin_id, Pin(to)));
+                            pinned_at = Some(to);
+                        } else if grip.hovered() {
+                            ui.ctx().set_cursor_icon(CursorIcon::Grab);
+                        }
+
+                        let inner = add(ui);
+
+                        let more = ui.add(IconButton::new(Icon::More, labels.more.clone()).size(ControlSize::Sm).id_salt("more"));
+                        let entries: Vec<MenuEntry<More>> = vec![
+                            MenuItem::new(labels.hide.clone(), More::Hide).into(),
+                            MenuItem::new(labels.reset_position.clone(), More::Reset).enabled(pinned.is_some()).into(),
+                        ];
+                        match PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &more).chosen {
+                            Some(More::Hide) => hide_requested = true,
+                            Some(More::Reset) => position_reset = true,
+                            None => {}
+                        }
+                        inner
+                    })
+                    .inner
+                })
+                .inner
+        });
+        if position_reset {
+            ctx.data_mut(|d| d.remove_temp::<Pin>(pin_id));
+            pinned_at = None;
+        }
+        let rect = shown.response.rect;
+        RegionFocus::new(&ctx).region(&ctx, Region::new("selectionBar", labels.name), rect, None);
+        SelectionBarResponse { inner: Some(shown.inner), rect: Some(rect), pinned_at, hide_requested, position_reset }
     }
 }
 
