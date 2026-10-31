@@ -325,7 +325,7 @@ pub(super) fn reveal_focused_control(ui: &Ui, outset: f32) {
 pub const COMPONENTS: &[&str] = &["OptionsBar"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![
+    let mut all = vec![
         typed_story!(
             "patterns/options-bar/brush-and-transform",
             Level::Patterns,
@@ -335,5 +335,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_story
         )
         .on(Surface::Chrome),
-    ]
+    ];
+    all.extend(super::options_cell_stories::stories());
+    all
 }

@@ -6,22 +6,24 @@ use kurbo::Point;
 use super::*;
 use crate::theme::{Base, install};
 
+const GAP: f32 = 2.0;
+
 fn full() -> ScreenRect {
     ScreenRect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0))
 }
 
 #[test]
 fn two_views_put_the_main_view_on_the_right() {
-    let rects = SplitLayout::Two.rects(full());
+    let rects = SplitLayout::Two.rects(GAP, full());
     assert_eq!(rects.len(), 2);
-    assert_eq!(rects[0].min.x - rects[1].max.x, SplitLayout::GAP);
+    assert_eq!(rects[0].min.x - rects[1].max.x, GAP);
     assert_eq!((rects[0].max, rects[1].min), (full().max, full().min));
-    let four = SplitLayout::Four.rects(full());
+    let four = SplitLayout::Four.rects(GAP, full());
     assert_eq!(four.len(), 4);
     assert_eq!(four[0].max, full().max, "the main view is at the bottom right");
-    assert_eq!(four[0].min.x - four[1].max.x, SplitLayout::GAP);
-    assert_eq!(four[0].min.y - four[1].max.y, SplitLayout::GAP);
-    assert_eq!(SplitLayout::One.rects(full()), vec![full()]);
+    assert_eq!(four[0].min.x - four[1].max.x, GAP);
+    assert_eq!(four[0].min.y - four[1].max.y, GAP);
+    assert_eq!(SplitLayout::One.rects(GAP, full()), vec![full()]);
 }
 
 fn press(at: egui::Pos2, pressed: bool) -> Event {

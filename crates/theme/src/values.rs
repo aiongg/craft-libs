@@ -1127,6 +1127,14 @@ pub const GRADIENT_LINE_DASH: f32 = 5.0;
 /// Gap between a mirrored extent's dashes.
 pub const GRADIENT_LINE_GAP: f32 = 4.0;
 
+/// Side of the Rotate View compass, in points (PhotoCraft's `rotate_view.rs` `S`).
+pub const CANVAS_COMPASS: f32 = 36.0;
+/// Distance of the compass from the canvas's top and right edges (PhotoCraft's `M`).
+pub const CANVAS_COMPASS_MARGIN: f32 = 10.0;
+
+/// Points between split view panes (EffectCraft's `view.rs`).
+pub const SPLIT_GAP: f32 = 2.0;
+
 /// Side of the compact reference point picker, in points, at every Size (PhotoCraft's options bar).
 pub const REF_POINT_COMPACT: f32 = 16.0;
 /// Side of the large reference point picker (PhotoCraft's Canvas Size).

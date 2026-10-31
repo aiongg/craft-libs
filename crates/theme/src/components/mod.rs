@@ -35,6 +35,7 @@ mod app_shell;
 mod badge;
 mod bezier;
 mod button;
+mod canvas;
 mod check;
 mod color_picker;
 mod color_ramp;
@@ -92,6 +93,7 @@ mod segmented;
 mod slider;
 mod slider_row;
 mod spinner;
+mod split;
 mod status_bar;
 mod swatch;
 mod swatch_palette;
@@ -117,6 +119,7 @@ pub use app_shell::{AppShellField, AppShellTokens};
 pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, BadgeTone};
 pub use bezier::{BezierField, BezierTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
+pub use canvas::{CanvasField, CanvasTokens};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckSwitchColors, CheckSwitchPart, CheckTokens};
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use color_ramp::{ColorRampField, ColorRampTokens};
@@ -173,6 +176,7 @@ pub use segmented::{SegmentedField, SegmentedTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
+pub use split::{SplitField, SplitTokens};
 pub use status_bar::{StatusBarField, StatusBarTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
@@ -739,6 +743,8 @@ families! {
     bezier: BezierTokens => Bezier(BezierField);
     /// Push buttons.
     button: ButtonTokens => Button(ButtonField);
+    /// The canvas: the Rotate View compass.
+    canvas: CanvasTokens => Canvas(CanvasField);
     /// Check boxes, radio buttons and switches.
     check: CheckTokens => Check(CheckField);
     /// Colour pickers: the sizes of the area, strip, compare swatch and marker.
@@ -851,6 +857,8 @@ families! {
     slider_row: SliderRowTokens => SliderRow(SliderRowField);
     /// Spinners: the ring of an indeterminate wait.
     spinner: SpinnerTokens => Spinner(SpinnerField);
+    /// Split views: the gap between panes.
+    split: SplitTokens => Split(SplitField);
     /// Status bars: the bar at the bottom of the window.
     status_bar: StatusBarTokens => StatusBar(StatusBarField);
     /// Colour wells.
