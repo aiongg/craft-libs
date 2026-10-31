@@ -113,6 +113,48 @@ impl Default for BoxAllow {
     }
 }
 
+/// What a drag of a box part does ([`BoxRules::drag_kind`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoxDrag {
+    /// Moves the box (a ⇧ move keeps to eight directions).
+    Move,
+    /// Moves the reference point.
+    Pivot,
+    /// Turns the box about its reference point (⇧ snaps the angle).
+    Rotate,
+    /// Scales the box from a corner or an edge.
+    Scale,
+    /// Moves one corner freely.
+    Distort,
+    /// Moves a corner along its dominant axis and its neighbour the opposite way.
+    Perspective,
+    /// Slides an edge along itself (Skew mode) or with its two corners (⌘ on an edge).
+    Skew,
+    /// Skew mode on a corner: the corner slides along one of its two edges.
+    SlideCorner,
+}
+
+/// What a drag of `part` does in `mode` with `mods` already through [`BoxRules::drag_modifiers`].
+fn resolve_kind(mode: TransformMode, part: BoxPart, mods: Modifiers) -> BoxDrag {
+    match (mode, part) {
+        (TransformMode::Skew, BoxPart::Corner(i)) if i < 4 => BoxDrag::SlideCorner,
+        (TransformMode::Rotate, BoxPart::Corner(_) | BoxPart::Edge(_)) => BoxDrag::Rotate,
+        (TransformMode::Skew, BoxPart::Edge(_)) => BoxDrag::Skew,
+        _ => {
+            let mods = mode_mods(mode, part, mods);
+            match part {
+                BoxPart::Inside => BoxDrag::Move,
+                BoxPart::Pivot => BoxDrag::Pivot,
+                BoxPart::Outside => BoxDrag::Rotate,
+                BoxPart::Corner(_) if mods.command && mods.alt && mods.shift => BoxDrag::Perspective,
+                BoxPart::Corner(_) if mods.command => BoxDrag::Distort,
+                BoxPart::Edge(_) if mods.command => BoxDrag::Skew,
+                BoxPart::Corner(_) | BoxPart::Edge(_) => BoxDrag::Scale,
+            }
+        }
+    }
+}
+
 /// How drags change a box.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BoxRules {
@@ -156,6 +198,30 @@ impl BoxRules {
         };
         by_mode && (self.allow.rotate || part != BoxPart::Outside)
     }
+
+    /// The modifiers a drag of `part` acts on, from the keys held: ⌘ is dropped on a corner or
+    /// edge the content refuses to distort or skew, and the legacy scale rule
+    /// ([`ScaleRule::Free`]) or an unlinked aspect ratio turns ⇧ over on corners and edges. Mode
+    /// keys ([`TransformMode::Distort`], [`TransformMode::Perspective`]) are not added here: they
+    /// are part of [`drag_kind`](Self::drag_kind). [`drag`] acts on these modifiers.
+    pub fn drag_modifiers(&self, part: BoxPart, mods: Modifiers) -> Modifiers {
+        let mut mods = mods;
+        // ⌘-drags the content refuses scale like plain drags, ⌥ and ⇧ keeping their meaning.
+        match part {
+            BoxPart::Corner(_) if !self.allow.distort => mods.command = false,
+            BoxPart::Edge(_) if !self.allow.skew => mods.command = false,
+            _ => {}
+        }
+        let legacy = self.scale == ScaleRule::Free;
+        legacy_mods(legacy, part, unlinked_mods(!self.aspect_linked, legacy, part, mods))
+    }
+
+    /// What a drag of `part` with `mods` held (as the host has them, before
+    /// [`drag_modifiers`](Self::drag_modifiers)) does to the box, or `None` where the rules
+    /// refuse the part ([`allows`](Self::allows)). [`drag`] acts on this kind.
+    pub fn drag_kind(&self, part: BoxPart, mods: Modifiers) -> Option<BoxDrag> {
+        self.allows(part).then(|| resolve_kind(self.effective_mode(), part, self.drag_modifiers(part, mods)))
+    }
 }
 
 /// The box after dragging `part` from `from` to `to` (document points) with `mods` held, from the
@@ -166,15 +232,7 @@ pub fn drag(start: &BoxState, last: &BoxState, part: BoxPart, from: Point, to: P
     if !rules.allows(part) {
         return *last;
     }
-    let mut mods = mods;
-    // ⌘-drags the content refuses scale like plain drags, ⌥ and ⇧ keeping their meaning.
-    match part {
-        BoxPart::Corner(_) if !rules.allow.distort => mods.command = false,
-        BoxPart::Edge(_) if !rules.allow.skew => mods.command = false,
-        _ => {}
-    }
-    let legacy = rules.scale == ScaleRule::Free;
-    let mods = legacy_mods(legacy, part, unlinked_mods(!rules.aspect_linked, legacy, part, mods));
+    let mods = rules.drag_modifiers(part, mods);
     let g = Gesture { part, start: from, quad0: start.quad, pivot0: start.pivot, last: last.quad[0] - start.quad[0] };
     apply_mode_drag(&g, to, rules.effective_mode(), !rules.allow.distort, mods, rules.rotate_step)
 }
@@ -228,10 +286,10 @@ struct Gesture {
 /// A drag in `mode`. `parallel`: the content stays a parallelogram (editable type), so a Skew
 /// corner slides its whole edge.
 fn apply_mode_drag(g: &Gesture, p: Point, mode: TransformMode, parallel: bool, mut mods: Modifiers, rotate_step: f64) -> BoxState {
-    match (mode, g.part) {
+    match (resolve_kind(mode, g.part, mods), g.part) {
         // A corner moves alone along one of its two edges, whichever the drag mostly follows; ⌥
         // moves the opposite corner the other way.
-        (TransformMode::Skew, BoxPart::Corner(i)) if i < 4 => {
+        (BoxDrag::SlideCorner, BoxPart::Corner(i)) => {
             let (i, d, q0) = (usize::from(i), p - g.start, g.quad0);
             let along = |j: usize| {
                 let e = q0[i] - q0[j];
@@ -259,12 +317,12 @@ fn apply_mode_drag(g: &Gesture, p: Point, mode: TransformMode, parallel: bool, m
             BoxState { quad, pivot: carry_pivot(q0, quad, g.pivot0) }
         }
         // Corners and edges turn the box as the outside does.
-        (TransformMode::Rotate, BoxPart::Corner(_) | BoxPart::Edge(_)) => {
+        (BoxDrag::Rotate, BoxPart::Corner(_) | BoxPart::Edge(_)) => {
             let g = Gesture { part: BoxPart::Outside, ..*g };
             apply_drag(&g, p, mods, rotate_step)
         }
         // An edge slides only along itself.
-        (TransformMode::Skew, BoxPart::Edge(_)) => {
+        (BoxDrag::Skew, BoxPart::Edge(_)) if mode == TransformMode::Skew => {
             mods.command = true;
             mods.shift = true;
             apply_drag(g, p, mods, rotate_step)

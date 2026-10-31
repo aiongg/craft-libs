@@ -460,3 +460,44 @@ fn points_and_the_affine_of_a_box() {
     assert!(!distorted.is_parallelogram());
     assert_eq!(distorted.affine_from(rect()), None);
 }
+
+/// The public modifiers and kind are what a drag acts on: dragging with the keys held under the
+/// rules equals dragging with `drag_modifiers` under rules that add nothing, and the kind names
+/// what happened.
+#[test]
+fn the_effective_modifiers_and_kind_are_what_the_drag_acts_on() {
+    use super::BoxDrag;
+    let none = Modifiers::NONE;
+    let cmd = Modifiers::COMMAND;
+    let cases = [
+        // (rules, part, held keys, kind)
+        (BoxRules::default(), BoxPart::Corner(2), none, BoxDrag::Scale),
+        (BoxRules { scale: ScaleRule::Free, ..BoxRules::default() }, BoxPart::Corner(2), none, BoxDrag::Scale),
+        (BoxRules { scale: ScaleRule::Free, ..BoxRules::default() }, BoxPart::Edge(1), none, BoxDrag::Scale),
+        (BoxRules { aspect_linked: false, ..BoxRules::default() }, BoxPart::Corner(2), Modifiers::SHIFT, BoxDrag::Scale),
+        (BoxRules::default(), BoxPart::Corner(2), cmd, BoxDrag::Distort),
+        (BoxRules::default(), BoxPart::Edge(1), cmd, BoxDrag::Skew),
+        (BoxRules { mode: TransformMode::Distort, ..BoxRules::default() }, BoxPart::Corner(2), none, BoxDrag::Distort),
+        (BoxRules { mode: TransformMode::Perspective, ..BoxRules::default() }, BoxPart::Corner(2), none, BoxDrag::Perspective),
+        (BoxRules { mode: TransformMode::Rotate, ..BoxRules::default() }, BoxPart::Corner(2), none, BoxDrag::Rotate),
+        (BoxRules { mode: TransformMode::Skew, ..BoxRules::default() }, BoxPart::Corner(2), none, BoxDrag::SlideCorner),
+        (BoxRules { mode: TransformMode::Skew, ..BoxRules::default() }, BoxPart::Edge(1), none, BoxDrag::Skew),
+        // The content refuses distorting: ⌘ on a corner scales.
+        (BoxRules { allow: BoxAllow { distort: false, ..BoxAllow::default() }, ..BoxRules::default() }, BoxPart::Corner(2), cmd, BoxDrag::Scale),
+    ];
+    let (from, to) = (p(100.0, 50.0), p(130.0, 65.0));
+    let edge_from = p(100.0, 25.0);
+    for (rules, part, held, kind) in cases {
+        let from = if matches!(part, BoxPart::Edge(_)) { edge_from } else { from };
+        let to = if matches!(part, BoxPart::Edge(_)) { p(130.0, 25.0) } else { to };
+        assert_eq!(rules.drag_kind(part, held), Some(kind), "{rules:?} {part:?} {held:?}");
+        let s = session();
+        let held_result = super::drag(&s, &s, part, from, to, held, &rules);
+        let plain = BoxRules { mode: rules.effective_mode(), allow: rules.allow, ..BoxRules::default() };
+        let effective = super::drag(&s, &s, part, from, to, rules.drag_modifiers(part, held), &plain);
+        assert_eq!(held_result, effective, "{rules:?} {part:?} {held:?}");
+    }
+    let refused = BoxRules { mode: TransformMode::Distort, ..BoxRules::default() };
+    assert_eq!(refused.drag_kind(BoxPart::Edge(1), none), None, "Distort leaves the edges alone");
+    assert!(BoxRules { scale: ScaleRule::Free, ..BoxRules::default() }.drag_modifiers(BoxPart::Corner(2), none).shift);
+}
