@@ -88,6 +88,10 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   (app menu, Window, Help, system-key clashes), a platform backend trait, and key equivalents
   fed back to egui as the input egui-winit would have made. Commands and their enabled state
   stay in each app.
+- [`craft-pages`](crates/pages/README.md): pages for the document apps: page layout and fit modes,
+  paper sizes and page setup, page ranges and numbering; with `ui`, the page view, thumbnails, Page
+  Setup, margin handles, header and footer zones, text selection, reading view, page list and
+  document tables. The document, its layout and rendering stay in each app.
 - [`craft-print`](crates/print/README.md): PDF submission to CUPS and Windows, printer discovery,
   duplex/copies/colour and driver preferences. PDF generation stays in each app.
 
@@ -98,7 +102,9 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [`craft-text`](crates/text/README.md): text processing below the composer. Its `hyphen` module finds
   hyphenation points, with a bundled US English dictionary and patterns and optional hypher patterns
   for 47 more languages (one cargo feature each). With `ui`, the canvas text editor, Character and
-  Paragraph controls, text style panels and Check Spelling dialog; `spell` and `quotes` without egui.
+  Paragraph controls, text style panels and Check Spelling dialog, and the paged-text controls
+  (ruler, Tabs, Paragraph, Columns and Hyperlink dialogs, notes editor, find); `spell`, `quotes`,
+  `find`, `styles` and `lists` without egui.
 - [`craft-ui`](crates/ui/README.md): SVG catalogs, icon buttons, tabs, pane controls, transactional docking, print settings and theme helpers for egui frontends;
   assets, themes, localization and command handling stay in each app. Requires Rust 1.95 or later.
 - `craft-ui-macros`: the `StoryArgs` and `StoryChoice` derives for `craft_ui::story`; use them through `craft-ui`.

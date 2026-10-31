@@ -45,6 +45,7 @@ craft-keymap = { path = "crates/keymap" }
 craft-media = { path = "crates/media" }
 craft-menu = { path = "crates/menu" }
 craft-prepress = { path = "crates/prepress" }
+craft-pages = { path = "crates/pages" }
 craft-print = { path = "crates/print" }
 craft-quit = { path = "crates/quit" }
 craft-settings = { path = "crates/settings" }

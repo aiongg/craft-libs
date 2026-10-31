@@ -11,7 +11,10 @@ plain text and a language and return what layout needs before it shapes and plac
 | `linebreak` | `linebreak` (default) | Line breaking on a box/glue/penalty model |
 | `spell` | `spell` | Spelling with a bundled US English word list (SCOWL 50), suggestions and the user's words |
 | `quotes` | `quotes` | Smart quotes: typed straight quotes become the language's quotation marks |
-| `ui` | `ui` | On craft-ui: the canvas text editor, Character and Paragraph controls, text style panels, Check Spelling dialog |
+| `find` | `find` | Find and replace patterns (Acrobat's and Word's options, Word's `^` codes and wildcards) and the matches across pages |
+| `styles` | `styles` | Named style lists: folders in names, the next free name |
+| `lists` | `lists` | Bullet and number markers per list level; the number styles page numbers use too |
+| `ui` | `ui` | On craft-ui: the canvas text editor, Character and Paragraph controls and the Paragraph dialog, text style panels and the style chip, Check Spelling dialog; the text ruler, Tabs dialog, notes editor, Columns and Hyperlink dialogs, find bar and Find and Replace |
 | | `font-picker` | The Character controls' family field is craft-font-manager's font picker |
 
 Language features (`spanish`, `german`, …, `all-languages`) add the data for one language to every

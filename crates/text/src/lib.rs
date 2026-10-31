@@ -13,19 +13,34 @@
 //! - [`linebreak`] (default): line breaking on a font-independent box/glue/penalty model.
 //! - [`spell`]: spelling, with a bundled US English word list and suggestions.
 //! - [`quotes`]: smart quotes, the straight quotes typed into text turned into the language's own.
-//! - [`ui`] (egui, on craft-ui): the canvas text editor, the Character and Paragraph controls, the
-//!   text style panels and the Check Spelling dialog. With `font-picker`, the Character controls'
-//!   family field is craft-font-manager's font picker.
+//! - [`find`]: find and replace patterns (Acrobat's and Word's options, Word's codes and
+//!   wildcards) and the matches of a search across pages.
+//! - [`styles`]: the rules named style lists share (folders in names, the next free name).
+//! - [`lists`]: bullet and number markers per list level, and the number styles page numbers use
+//!   too.
+//! - [`ui`] (egui, on craft-ui): the canvas text editor, the Character and Paragraph controls and
+//!   the Paragraph dialog, the text style panels and the style picker, the Check Spelling dialog,
+//!   and the paged-text controls: the text ruler, the Tabs dialog, the notes editor, the Columns
+//!   and Hyperlink dialogs, the find bar and the Find and Replace dialog. With `font-picker`, the
+//!   Character controls' family field is craft-font-manager's font picker.
 //!
 //! Language features (`spanish`, `german`, …, `all-languages`) add data for that language and
 //! turn on the modules that use it.
 
 #[cfg(feature = "bidi")]
 pub mod bidi;
+#[cfg(feature = "find")]
+pub mod find;
+#[cfg(all(test, feature = "find"))]
+mod find_tests;
 #[cfg(feature = "hyphen")]
 pub mod hyphen;
 #[cfg(feature = "linebreak")]
 pub mod linebreak;
+#[cfg(feature = "lists")]
+pub mod lists;
+#[cfg(all(test, feature = "lists"))]
+mod lists_tests;
 #[cfg(feature = "quotes")]
 pub mod quotes;
 #[cfg(all(test, feature = "quotes"))]
@@ -36,5 +51,9 @@ pub mod segment;
 pub mod spell;
 #[cfg(all(test, feature = "spell"))]
 mod spell_tests;
+#[cfg(feature = "styles")]
+pub mod styles;
+#[cfg(all(test, feature = "styles"))]
+mod styles_tests;
 #[cfg(feature = "ui")]
 pub mod ui;

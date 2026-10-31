@@ -8,6 +8,12 @@
 
 use egui::{Response, Ui};
 
+mod picker;
+#[cfg(test)]
+mod picker_tests;
+
+pub use picker::{NamedStyleRow, StyleChip, StyleChipResponse, StylePickerLabels, StylePickerView, StylePreview};
+
 craft_ui::words! {
     /// The panels' words, English by default (PhotoCraft's strings).
     #[non_exhaustive]
@@ -24,6 +30,7 @@ craft_ui::words! {
         new_style: "textStyles.new" = "Create new style (from the selected type)";
         delete: "textStyles.delete" = "Delete style";
         no_document: "textStyles.noDocument" = "No document";
+        select_unused: "textStyles.selectUnused" = "Select All Unused";
     }
 }
 
@@ -64,6 +71,13 @@ pub enum TextStyleAction {
     /// Style Options for a style: a double-click on a row or the footer button (not for
     /// character style 0). The app shows its options editor under the list, as PhotoCraft.
     Options(u64),
+    /// Duplicate (the footer button, the panel menu, or rows dropped on New) with several rows
+    /// highlighted ([`TextStylesPanel::highlighted`]): every highlighted style, in list order.
+    DuplicateHighlighted,
+    /// Delete with several rows highlighted: every highlighted style but id 0.
+    DeleteHighlighted,
+    /// The panel menu's Select All Unused: the app highlights the styles no text uses.
+    SelectUnused,
 }
 
 /// The panel's result.
@@ -102,13 +116,14 @@ pub struct TextStylesPanel<'a> {
     current: Option<u64>,
     overridden: bool,
     target: bool,
+    highlighted: Option<&'a mut Vec<u64>>,
     labels: Option<TextStylesLabels>,
 }
 
 impl<'a> TextStylesPanel<'a> {
     /// The panel over `rows`; `selected` is the row the footer acts on, kept by the app.
     pub fn new(kind: TextStyleKind, rows: &'a [TextStyleRow], selected: &'a mut Option<u64>) -> Self {
-        TextStylesPanel { kind, rows, selected, current: None, overridden: false, target: false, labels: None }
+        TextStylesPanel { kind, rows, selected, current: None, overridden: false, target: false, highlighted: None, labels: None }
     }
 
     /// The style at the type target (the selection's start, or the edited layer) and whether the
@@ -122,6 +137,19 @@ impl<'a> TextStylesPanel<'a> {
     /// Whether there is type to apply styles to (a type layer selected or being edited).
     pub fn target(mut self, on: bool) -> Self {
         self.target = on;
+        self
+    }
+
+    /// VectorCraft's and InDesign's multi-row highlight, kept by the app in list order of picking:
+    /// ⇧-click highlights every row from the last plain click through this one, ⌘/Ctrl-click adds
+    /// or removes one, both leaving the text as it is. A row dragged onto New or Delete carries
+    /// every highlighted style when it is one of them ([`crate::styles::dragged_styles`]), else
+    /// itself; New and Delete outline while a row is held over them. A highlighted style no longer
+    /// listed is dropped from the highlight. Without this, the panel highlights one row
+    /// (PhotoCraft).
+    // vectorcraft: crates/ui-egui/src/panels/text_styles.rs:64 `highlighted`, :131 `row_dropped`.
+    pub fn highlighted(mut self, highlighted: &'a mut Vec<u64>) -> Self {
+        self.highlighted = Some(highlighted);
         self
     }
 

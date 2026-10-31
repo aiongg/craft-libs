@@ -37,6 +37,8 @@ pub use craft_keymap as keymap;
 pub use craft_media as media;
 #[cfg(feature = "menu")]
 pub use craft_menu as menu;
+#[cfg(feature = "pages")]
+pub use craft_pages as pages;
 #[cfg(feature = "pdf")]
 pub use craft_pdf as pdf;
 #[cfg(feature = "platform")]

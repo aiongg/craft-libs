@@ -15,6 +15,12 @@ use craft_font_manager::Catalog;
 use craft_font_manager::picker::{FontFilters, FontPickerSettings};
 use egui::{Color32, Ui};
 
+mod paragraph_dialog;
+#[cfg(test)]
+mod paragraph_dialog_tests;
+
+pub use paragraph_dialog::{LineSpacing, ParagraphAlign, ParagraphAnswer, ParagraphDialog, ParagraphDialogLabels, ParagraphFormat, SpecialIndent};
+
 craft_ui::words! {
     /// The Character controls' words, English by default (PhotoCraft's tooltips).
     #[non_exhaustive]

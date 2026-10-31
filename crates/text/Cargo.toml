@@ -46,9 +46,20 @@ linebreak = []
 spell = ["dep:miniz_oxide"]
 # Smart quotes: straight quotes typed into text become the language's curly quotes.
 quotes = []
+# Find and replace: plain matching with Acrobat's and Word's options, Word's `^` codes and wildcards,
+# and the matches across pages. The fill adds `regex` for wildcards and regular expressions.
+find = []
+# Named styles: folders in style names, the next free name, styles grouped by folder.
+styles = []
+# Serde impls of the list, find and style types.
+serde = ["dep:serde"]
+# Lists: bullet and number markers per paragraph level, and the number styles (1, i, A, 01…) that
+# page numbers use too.
+lists = []
 # The egui parts: `ui::editor` (canvas text editor on craft-ui's IME composer), `ui::style_panel`,
-# `ui::character` and `ui::spelling`.
-ui = ["dep:egui", "dep:craft-ui", "dep:craft-host", "dep:serde", "quotes", "spell"]
+# `ui::character`, `ui::spelling`, and the paged-text controls (`ui::ruler`, `ui::tabs_dialog`,
+# `ui::notes`, `ui::columns`, `ui::hyperlink`, `ui::find`).
+ui = ["dep:egui", "dep:craft-ui", "dep:craft-host", "serde", "quotes", "spell", "find", "styles", "lists"]
 # `ui::character` shows craft-font-manager's font picker (stars, recents, previews, filters)
 # instead of a plain family list. Pulls the bundled font indexes; apps that only want the panels
 # leave it off.

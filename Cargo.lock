@@ -819,6 +819,7 @@ dependencies = [
  "craft-keymap",
  "craft-media",
  "craft-menu",
+ "craft-pages",
  "craft-pdf",
  "craft-platform",
  "craft-prepress",
@@ -1109,6 +1110,18 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "serde_json",
+]
+
+[[package]]
+name = "craft-pages"
+version = "0.1.0"
+dependencies = [
+ "craft-host",
+ "craft-text",
+ "craft-ui",
+ "egui",
+ "kurbo 0.13.1",
+ "serde",
 ]
 
 [[package]]
