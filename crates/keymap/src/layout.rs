@@ -96,7 +96,7 @@ impl KeyInput {
 }
 
 /// The active keyboard layout, as far as the platform reports it or typing has shown it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Layout {
     reported_latin: Option<bool>,
     seen_latin: Option<bool>,
@@ -104,6 +104,14 @@ pub struct Layout {
     chars: BTreeMap<Key, char>,
     /// The character, lower case, typed without Cmd, Ctrl or Alt at each letter position.
     letters: BTreeMap<Key, char>,
+    /// See [`Layout::with_position_fallback`].
+    pub(crate) position_fallback: bool,
+}
+
+impl Default for Layout {
+    fn default() -> Layout {
+        Layout { reported_latin: None, seen_latin: None, chars: BTreeMap::new(), letters: BTreeMap::new(), position_fallback: true }
+    }
 }
 
 /// US base keys and the key egui reports for them with Shift held.
@@ -115,6 +123,21 @@ const SHIFTED: &[(Key, Key)] = &[
     (Key::CloseBracket, Key::CloseCurlyBracket),
     (Key::Equals, Key::Plus),
     (Key::Num1, Key::Exclamationmark),
+];
+
+/// Punctuation positions whose US key a binding on them also matches ([`Layout::with_position_fallback`]).
+pub(crate) const POSITION_FALLBACK: [Key; 11] = [
+    Key::OpenBracket,
+    Key::CloseBracket,
+    Key::Semicolon,
+    Key::Quote,
+    Key::Backslash,
+    Key::Comma,
+    Key::Period,
+    Key::Slash,
+    Key::Backtick,
+    Key::Minus,
+    Key::Equals,
 ];
 
 fn us_base(shifted: Key) -> Option<Key> {
@@ -275,6 +298,13 @@ impl Layout {
             && first.key.is_symbol()
         {
             push(Chord::new(input.mods, digit));
+        }
+        // Shift that typed the character (German ⇧ß is `?`) says nothing about the US key.
+        if self.position_fallback
+            && first.mods.shift == input.mods.shift
+            && let Some(position) = input.physical.filter(|k| POSITION_FALLBACK.contains(k))
+        {
+            push(Chord::new(input.mods, position));
         }
         out
     }

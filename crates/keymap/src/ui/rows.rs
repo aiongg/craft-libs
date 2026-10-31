@@ -79,6 +79,8 @@ pub(crate) struct Row {
     /// Translated path parts between the group header and the label, shown dim before it.
     pub prefix: Vec<String>,
     pub chips: Vec<Chip>,
+    /// Override texts that do not parse, as written.
+    pub unparsed: Vec<String>,
     /// An overrides entry exists.
     pub changed: bool,
     /// A tool sharing a key with another tool of its group.
@@ -345,7 +347,7 @@ fn build(keymap: &Keymap, options: &Options, text: &Say, view: &View) -> Built {
     for (b, list) in catalog.iter().zip(&bindings) {
         if let Kind::Tool { group } = &b.kind {
             for x in list {
-                *tool_keys.entry((group.as_deref(), x.trigger.effective(platform))).or_default() += 1;
+                *tool_keys.entry((group.as_deref().filter(|_| !keymap.shares_tool_keys()), x.trigger.effective(platform))).or_default() += 1;
             }
         }
     }
@@ -390,10 +392,13 @@ fn build(keymap: &Keymap, options: &Options, text: &Say, view: &View) -> Built {
             })
             .collect();
         let cycles = match &b.kind {
-            Kind::Tool { group } => list.iter().any(|x| tool_keys.get(&(group.as_deref(), x.trigger.effective(platform))).is_some_and(|n| *n > 1)),
+            Kind::Tool { group } => list.iter().any(|x| {
+                tool_keys.get(&(group.as_deref().filter(|_| !keymap.shares_tool_keys()), x.trigger.effective(platform))).is_some_and(|n| *n > 1)
+            }),
             Kind::Command => false,
         };
-        let row = Row { index, command: b.command.clone(), key, label: text.command(b), prefix, chips, changed, cycles, conflict };
+        let unparsed = keymap.unparsed_texts(&b.command).into_iter().map(str::to_owned).collect();
+        let row = Row { index, command: b.command.clone(), key, label: text.command(b), prefix, chips, unparsed, changed, cycles, conflict };
         match groups.iter_mut().find(|(r, h, _)| *r == rank && *h == header) {
             Some((_, _, rows)) => rows.push(row),
             None => groups.push((rank, header, vec![row])),

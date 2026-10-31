@@ -8,6 +8,7 @@ use std::fmt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::layout::Layout;
+use crate::parity::ReturnGlyph;
 
 pub mod foreign;
 
@@ -256,13 +257,13 @@ impl Key {
     }
 
     /// The key as macOS menus show it: arrows and editing keys as glyphs.
-    pub(crate) fn mac_symbol(self) -> &'static str {
+    pub(crate) fn mac_symbol(self, glyph: ReturnGlyph) -> &'static str {
         match self {
             Key::Up => "↑",
             Key::Down => "↓",
             Key::Left => "←",
             Key::Right => "→",
-            Key::Enter => "⏎",
+            Key::Enter => glyph.symbol(),
             Key::Backspace => "⌫",
             Key::Delete => "⌦",
             Key::Escape => "⎋",
@@ -324,6 +325,26 @@ impl Mods {
 
     pub const fn is_none(self) -> bool {
         !(self.cmd || self.ctrl || self.alt || self.shift)
+    }
+
+    /// The modifiers' text before a key: `⌃⌥⇧⌘` on macOS, `Ctrl+Alt+Shift+` elsewhere.
+    pub(crate) fn prefix(self, platform: Platform) -> String {
+        let m = self.effective(platform);
+        let mut s = String::new();
+        if platform.is_mac() {
+            for (on, glyph) in [(m.ctrl, "⌃"), (m.alt, "⌥"), (m.shift, "⇧"), (m.cmd, "⌘")] {
+                if on {
+                    s.push_str(glyph);
+                }
+            }
+        } else {
+            for (on, name) in [(m.cmd, "Ctrl+"), (m.alt, "Alt+"), (m.shift, "Shift+")] {
+                if on {
+                    s.push_str(name);
+                }
+            }
+        }
+        s
     }
 
     /// The modifiers as `platform` sees them: off macOS `ctrl` becomes `cmd`.
@@ -516,23 +537,12 @@ impl Chord {
     }
 
     fn display_key(&self, platform: Platform, key_text: Option<&str>) -> String {
-        let m = self.mods.effective(platform);
-        let mut s = String::new();
-        if platform.is_mac() {
-            for (on, glyph) in [(m.ctrl, "⌃"), (m.alt, "⌥"), (m.shift, "⇧"), (m.cmd, "⌘")] {
-                if on {
-                    s.push_str(glyph);
-                }
-            }
-            s.push_str(key_text.unwrap_or(self.key.mac_symbol()));
-        } else {
-            for (on, name) in [(m.cmd, "Ctrl+"), (m.alt, "Alt+"), (m.shift, "Shift+")] {
-                if on {
-                    s.push_str(name);
-                }
-            }
-            s.push_str(key_text.unwrap_or(self.key.text_name()));
-        }
+        self.display_key_with(platform, key_text, ReturnGlyph::Enter)
+    }
+
+    pub(crate) fn display_key_with(&self, platform: Platform, key_text: Option<&str>, glyph: ReturnGlyph) -> String {
+        let mut s = self.mods.prefix(platform);
+        s.push_str(key_text.unwrap_or(if platform.is_mac() { self.key.mac_symbol(glyph) } else { self.key.text_name() }));
         s
     }
 

@@ -204,6 +204,8 @@ pub struct Dispatcher {
     /// Whether right Alt is held. egui-winit reports AltGr with neither Ctrl nor Alt, so its
     /// presses would otherwise teach the layout as plain ones.
     right_alt: bool,
+    /// See [`Dispatcher::with_delete_equivalence`].
+    pub(crate) delete_equivalence: bool,
 }
 
 /// eframe's web build sends a press's Text event first when no text field has focus.
@@ -211,7 +213,15 @@ const TEXT_FIRST: bool = cfg!(target_arch = "wasm32");
 
 impl Default for Dispatcher {
     fn default() -> Dispatcher {
-        Dispatcher { last: None, repeat: false, clipboard: false, text_first: TEXT_FIRST, layout: Layout::new(), right_alt: false }
+        Dispatcher {
+            last: None,
+            repeat: false,
+            clipboard: false,
+            text_first: TEXT_FIRST,
+            layout: Layout::new(),
+            right_alt: false,
+            delete_equivalence: true,
+        }
     }
 }
 
@@ -382,8 +392,20 @@ impl Dispatcher {
     }
 
     fn press(&mut self, input: &KeyInput, repeat: bool, now: f64, keymap: &Keymap, active: &Active) -> Option<Hit> {
-        let chords = self.layout.candidates(input);
+        let mut chords = self.layout.candidates(input);
         let first = *chords.first()?;
+        if self.delete_equivalence {
+            // Delete and Backspace stand for each other, after the press's own chords.
+            let twins: Vec<Chord> = chords
+                .iter()
+                .filter_map(|c| match c.key {
+                    Key::Delete => Some(Chord::new(c.mods, Key::Backspace)),
+                    Key::Backspace => Some(Chord::new(c.mods, Key::Delete)),
+                    _ => None,
+                })
+                .collect();
+            chords.extend(twins);
+        }
         let find = |double: bool| {
             chords.iter().find_map(|&chord| Hit::from_lookup(keymap.lookup(&chord, double, active), Trigger { chord, double }, chord == first))
         };
@@ -408,8 +430,6 @@ pub(crate) enum Clip {
     Paste,
 }
 
-/// For each clipboard key press whose clipboard event comes later in the frame, as the web build
-/// sends them: the index of that event, and the text of a Paste event.
 /// The suite's egui fork has an inherent `InputState::keyboard_layout_is_latin`; crates.io egui
 /// has neither the method nor the field. A method call picks an inherent method over a trait
 /// method of the same name, so [`Dispatcher::dispatch`] reaches egui's method on the fork and
@@ -437,7 +457,7 @@ impl LatinLayoutChar for InputState {}
 
 /// A press as [`KeyInput::from_egui`] reads it, with the Latin layout's character `input` reports
 /// for its key.
-fn key_input(event: &Event, platform: Platform, input: &InputState) -> KeyInput {
+pub(crate) fn key_input(event: &Event, platform: Platform, input: &InputState) -> KeyInput {
     let mut key = KeyInput::from_egui(event, platform).unwrap_or_default();
     if let Event::Key { physical_key: Some(physical), .. } = event {
         key.latin = input.latin_layout_char(*physical);
@@ -445,7 +465,14 @@ fn key_input(event: &Event, platform: Platform, input: &InputState) -> KeyInput 
     key
 }
 
-fn clipboard_event_follows(events: &[Event], layout: &Layout, platform: Platform, input: &InputState) -> Vec<Option<(usize, Option<String>)>> {
+/// For each clipboard key press whose clipboard event comes later in the frame, as the web build
+/// sends them: the index of that event, and the text of a Paste event.
+pub(crate) fn clipboard_event_follows(
+    events: &[Event],
+    layout: &Layout,
+    platform: Platform,
+    input: &InputState,
+) -> Vec<Option<(usize, Option<String>)>> {
     let mut out = vec![None; events.len()];
     let mut ahead: [Option<usize>; 3] = [None; 3];
     for (i, event) in events.iter().enumerate().rev() {
@@ -492,7 +519,7 @@ fn text_of_press(events: &[Event], text_first: bool) -> Vec<Option<usize>> {
     out
 }
 
-fn event_clip(event: &Event) -> Option<Clip> {
+pub(crate) fn event_clip(event: &Event) -> Option<Clip> {
     match event {
         Event::Copy => Some(Clip::Copy),
         Event::Cut => Some(Clip::Cut),

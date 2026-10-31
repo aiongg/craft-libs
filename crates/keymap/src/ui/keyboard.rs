@@ -15,6 +15,7 @@ use super::{Draw, fill};
 use crate::chord::{Chord, Key, Mods, Trigger};
 use crate::command::CommandRef;
 use crate::keymap::{Binding, Holder, Keymap, Overrides};
+use crate::parity::ReturnGlyph;
 use crate::scope::Scope;
 
 /// The keyboard's width and height in key units: 15 for the main block, a gap, 3 for the
@@ -283,7 +284,7 @@ fn cap_name(key: Key, mac: bool) -> &'static str {
         (Key::PageDown, false) => "PgDn",
         (Key::Delete, false) => "Del",
         (Key::Space, true) => "",
-        (Key::Up | Key::Down | Key::Left | Key::Right, _) => key.mac_symbol(),
+        (Key::Up | Key::Down | Key::Left | Key::Right, _) => key.mac_symbol(ReturnGlyph::Enter),
         (k, _) => k.text_name(),
     }
 }
