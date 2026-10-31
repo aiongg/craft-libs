@@ -54,7 +54,9 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 ///   the press to the host instead, [`EditResponse::escaped`](super::EditResponse::escaped)) when
 ///   the policy is [`cancellable`](EditPolicy::cancellable) and no modal layer is above the
 ///   control; on [`cancel_all`](super::cancel_all); and when the host's value changed other than by the
-///   gesture's updates ([`CancelReason::External`]). [`enabled`](Gesture::enabled) cancels when
+///   gesture's updates ([`CancelReason::External`]); the host's value in the pass after an update is its write-back of it
+///   (rounded, clamped or mapped) and not such a change; an outside change in the same pass as the
+///   control's own report is read as that write-back. [`enabled`](Gesture::enabled) cancels when
 ///   the control is disabled.
 /// - [`set`](Gesture::set) for a one-shot change; during a gesture it is an update.
 /// - A control that is not drawn in a pass loses its gesture (see [`is_live`](super::is_live))
@@ -183,6 +185,11 @@ struct Active<T> {
     /// The `Begin` carries the value when the frame that begins the gesture already changed it
     /// ([`Gesture::begin_with_value`]).
     first_value: bool,
+    /// Whether the last pass reported an update (or a `Begin` with a value): this pass's host
+    /// value is the host's write-back of it.
+    after_report: bool,
+    /// The host's value as it wrote back the last report, when that differs from it.
+    echo: Option<T>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -202,17 +209,6 @@ const STATE: &str = "craft_ui::edit::gesture";
 pub(crate) fn equals_to_f32(host: f64, reported: f64) -> bool {
     host == reported
         || host.is_finite() && reported.is_finite() && (host - reported).abs() <= 2.0 * f64::from(f32::EPSILON) * host.abs().max(reported.abs())
-}
-
-impl Gesture<f64> {
-    /// The host value to give [`load`](Gesture::load) for the host's `value`: the gesture's last
-    /// reported value when `value` equals it to `f32` precision ([`equals_to_f32`]), else `value`.
-    pub(crate) fn host_value(ui: &Ui, id: Id, value: f64) -> f64 {
-        match Self::reported(ui, id) {
-            Some((_, reported)) if equals_to_f32(value, reported) => reported,
-            _ => value,
-        }
-    }
 }
 
 impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
@@ -431,6 +427,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             held: false,
             waits: false,
             first_value: false,
+            after_report: false,
+            echo: None,
         });
     }
 
@@ -511,7 +509,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             Phase::Active(a) => {
                 self.cancelled = Some(Cancelled { id: a.id, reason, announced: a.announced });
                 self.ended = Some(a.id);
-                if a.announced && !self.scoped && self.host == a.reported && self.host != a.start {
+                if a.announced && !self.scoped && (self.host == a.reported || a.echo.as_ref() == Some(&self.host)) && self.host != a.start {
                     self.stored.phase = Phase::Restoring { start: a.start, host: self.host.clone() };
                 }
             }
@@ -614,10 +612,17 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     }
 
     /// Cancels when the host's value is no longer the one the gesture reported.
+    ///
+    /// The pass after one that reported an update takes the host's value as the host's write-back
+    /// of that report (it may have rounded, clamped or mapped it) and the gesture goes on; later
+    /// passes cancel when the host's value is neither the reported value nor that write-back.
     fn apply_external(&mut self) {
-        if let Phase::Active(a) = &self.stored.phase
-            && self.host != a.reported
-        {
+        let host = self.host.clone();
+        let Phase::Active(a) = &mut self.stored.phase else { return };
+        if std::mem::take(&mut a.after_report) && host != a.reported {
+            a.echo = Some(host.clone());
+        }
+        if host != a.reported && a.echo.as_ref() != Some(&host) {
             self.cancel(CancelReason::External);
         }
     }
@@ -691,6 +696,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
                 let value = (a.first_value && a.current != a.start).then(|| a.current.clone());
                 if value.is_some() {
                     a.reported = a.current.clone();
+                    a.after_report = true;
+                    a.echo = None;
                 }
                 return Some(EditEvent::Begin { id: a.id, value });
             }
@@ -703,6 +710,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             return None;
         }
         a.reported = a.current.clone();
+        a.after_report = true;
+        a.echo = None;
         Some(EditEvent::Update { id: a.id, value: a.current.clone(), modifiers: a.modifiers })
     }
 

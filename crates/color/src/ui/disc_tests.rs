@@ -253,6 +253,8 @@ fn a_colour_changed_outside_the_drag_still_cancels_it() {
     let mut rig = Rig::new();
     rig.press(rig.at(0.0, 0.8));
     rig.drag(rig.at(60.0, 0.5));
+    // The pass after an update takes the host's colour as its write-back; a change after that is outside.
+    rig.drag(rig.at(60.0, 0.5));
     rig.colors[0] = color(200.0, 30.0, 90.0);
     rig.drag(rig.at(70.0, 0.5));
     assert!(matches!(rig.event, Some(EditEvent::Cancel { .. })), "{:?}", rig.event);
