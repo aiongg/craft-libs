@@ -452,7 +452,7 @@ fn a_field_no_longer_drawn_keeps_the_text_no_update_reported_as_one_step() {
         rig.type_text("a");
         let id = begin(rig.event.take());
         rig.type_text("b");
-        assert_eq!((rig.event.clone(), rig.doc.text.as_str()), (None, if policy.on_release_only { "" } else { "a" }), "{policy:?}");
+        assert_eq!((rig.event.clone(), rig.doc.text.as_str()), (None, ""), "{policy:?}");
         rig.drawn = false;
         rig.frame(vec![]);
         assert_eq!(rig.ended, Some(EditEvent::Commit { id, value: (), changed: true, modifiers: Modifiers::NONE }), "{policy:?}");
@@ -1111,4 +1111,21 @@ fn installed_labels_survive_a_memory_reset() {
     crate::behavior::EditMenu::install(&rig.ctx, labels);
     rig.ctx.memory_mut(|m| *m = egui::Memory::default());
     assert_eq!(crate::behavior::EditMenu::labels(&rig.ctx).undo, "Widerrufen");
+}
+
+/// A debounced run promises the host no value before the wait ends: its Begin carries none, and
+/// the first character arrives with the update after the wait.
+#[test]
+fn a_debounced_runs_first_character_waits_for_the_update() {
+    let mut rig = Rig::new("");
+    rig.policy = EditPolicy::default().update(UpdateRate::Debounced(Duration::from_secs(1)));
+    rig.focus();
+    rig.type_text("a");
+    let id = begin(rig.event.take());
+    assert_eq!(rig.value, "", "the Begin carries no value");
+    rig.frame(vec![]);
+    assert_eq!(rig.event, None);
+    rig.time += 2.0;
+    rig.frame(vec![]);
+    assert_eq!(rig.event, update(id, "a"));
 }
