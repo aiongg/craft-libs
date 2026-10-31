@@ -21,7 +21,7 @@ fn high_contrast_tokens(id: &str, mode: Mode) -> UiTokens {
 
 fn tokens_at(id: &str, mode: Mode, contrast: Contrast) -> UiTokens {
     let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap();
-    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     UiTokens::new(resolve(theme, appearance, None).tokens, appearance, mode, FontFamilies::default())
 }
 

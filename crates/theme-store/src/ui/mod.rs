@@ -48,10 +48,10 @@ craft_ui::words! {
         compact: "appearance.compact" = "Compact";
         comfortable: "appearance.comfortable" = "Comfortable";
         text_size: "appearance.textSize" = "UI Font Size";
+        text_tiny: "appearance.textTiny" = "Tiny";
         text_small: "appearance.textSmall" = "Small";
-        text_default: "appearance.textDefault" = "Default";
+        text_medium: "appearance.textMedium" = "Medium";
         text_large: "appearance.textLarge" = "Large";
-        text_larger: "appearance.textLarger" = "Larger";
         contrast: "appearance.contrast" = "Contrast";
         contrast_system: "appearance.contrastSystem" = "Sync with system";
         contrast_standard: "appearance.contrastStandard" = "Standard";
@@ -172,10 +172,10 @@ impl<'a> AppearancePage<'a> {
             }
             if text_size {
                 let steps = [
+                    (TextSize::Tiny, labels.text_tiny.as_str()),
                     (TextSize::Small, labels.text_small.as_str()),
-                    (TextSize::Default, labels.text_default.as_str()),
+                    (TextSize::Medium, labels.text_medium.as_str()),
                     (TextSize::Large, labels.text_large.as_str()),
-                    (TextSize::Larger, labels.text_larger.as_str()),
                 ];
                 if let Some(step) = select_row(form, "text_size", &labels.text_size, shown.text_size.unwrap_or_default(), &steps) {
                     draft.text_size = Some(step);
@@ -445,7 +445,7 @@ fn sample(ctx: &egui::Context, theme: &ThemeDef, dark: bool) -> Sample {
         mode: if dark { Mode::Dark } else { Mode::Light },
         contrast: Contrast::Standard,
         size: Size::Compact,
-        text_size: TextSize::Default,
+        text_size: TextSize::Small,
         reduced_motion: false,
     };
     let color = craft_theme::resolve(theme, appearance, None).tokens.color;

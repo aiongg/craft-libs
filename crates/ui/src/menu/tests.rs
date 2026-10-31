@@ -1091,7 +1091,7 @@ fn fills(d: &Driver) -> Vec<egui::Color32> {
 
 fn tokens_in(theme: &craft_theme::ThemeDef, mode: craft_theme::Mode, contrast: craft_theme::Contrast) -> crate::theme::UiTokens {
     use craft_theme::{Appearance, Size, TextSize};
-    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     crate::theme::UiTokens::new(craft_theme::resolve(theme, appearance, None).tokens, appearance, mode, crate::theme::FontFamilies::default())
 }
 

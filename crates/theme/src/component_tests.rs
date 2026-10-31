@@ -1052,7 +1052,7 @@ fn small_control_defaults_come_from_semantic_tokens_and_their_pairs_meet_the_min
 fn badge_and_keycap_heights_follow_the_text_size() {
     for size in [Size::Compact, Size::Comfortable] {
         let at = |text_size| resolve(&grey_blue(), Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
-        let (default, large) = (at(TextSize::Default), at(TextSize::Large));
+        let (default, large) = (at(TextSize::Small), at(TextSize::Medium));
         for t in [&default, &large] {
             let line = t.typography.caption.line_height;
             assert_eq!(t.component.badge.height, line + 2.0 * t.component.badge.pad_y, "{size:?}");

@@ -75,7 +75,7 @@ pub fn contrast_report(theme: &ThemeDef) -> ContrastReport {
         for &mode in modes {
             for contrast in [Contrast::Standard, Contrast::High] {
                 for size in [Size::Compact, Size::Comfortable] {
-                    let appearance = Appearance { mode, contrast, size, text_size: TextSize::Default, reduced_motion: false };
+                    let appearance = Appearance { mode, contrast, size, text_size: TextSize::Small, reduced_motion: false };
                     let warnings = resolve(theme, appearance, app).warnings;
                     appearances.push(AppearanceReport { app: app.cloned(), appearance, warnings });
                 }

@@ -5,7 +5,6 @@
 use super::color::Rgba;
 use super::ramp::Mode;
 use super::scale::{Duration, Easing, Elevation};
-use super::theme::TextSize;
 use super::tokens::{ColorToken, StatusKind};
 
 use Bg::{HaloOver, Token};
@@ -411,16 +410,6 @@ pub(super) const RULES: &[PairRule] = &[
     // preferences, and a bare line on an image can't promise a ratio. `overlay.line` neither, for
     // the same reason.
 ];
-
-/// Multiplier on type sizes and line heights per text-size step.
-pub const fn text_size_factor(t: TextSize) -> f32 {
-    match t {
-        TextSize::Small => 0.9,
-        TextSize::Default => 1.0,
-        TextSize::Large => 1.15,
-        TextSize::Larger => 1.3,
-    }
-}
 
 /// Scaled type sizes round to multiples of this, in points.
 pub const TYPE_ROUNDING: f32 = 0.5;

@@ -31,7 +31,7 @@ fn selection(light: &str, dark: &str, mode: ModeChoice) -> Selection {
         contrast: ContrastChoice::System,
         motion: MotionChoice::System,
         size: Size::Compact,
-        text_size: TextSize::Default,
+        text_size: TextSize::Small,
     }
 }
 
@@ -69,14 +69,14 @@ fn app_choice_over_suite_over_defaults_per_field() {
             contrast: ContrastChoice::System,
             motion: MotionChoice::System,
             size: Size::Compact,
-            text_size: TextSize::Default
+            text_size: TextSize::Small
         }
     );
 
     let suite = SuiteChoice {
         theme_dark: Some(id("craft.studio")),
         contrast: Some(ContrastChoice::High),
-        text_size: Some(TextSize::Large),
+        text_size: Some(TextSize::Medium),
         ..SuiteChoice::default()
     };
     let followed = suite.with_defaults(&defaults);
@@ -88,7 +88,7 @@ fn app_choice_over_suite_over_defaults_per_field() {
             contrast: ContrastChoice::High,
             motion: MotionChoice::System,
             size: Size::Compact,
-            text_size: TextSize::Large,
+            text_size: TextSize::Medium,
         }
     );
     assert_eq!(AppChoice::FOLLOW_SUITE.apply(&followed), followed);
@@ -166,25 +166,25 @@ fn serde_forms_round_trip() {
         contrast: ContrastChoice::High,
         motion: MotionChoice::System,
         size: Size::Comfortable,
-        text_size: TextSize::Larger,
+        text_size: TextSize::Large,
     };
     let json = serde_json::to_string(&sel).unwrap();
     assert_eq!(
         json,
-        r#"{"theme":{"light":"craft.pro","dark":"craft.app-default"},"mode":"system","contrast":"high","motion":"system","size":"comfortable","text_size":"larger"}"#
+        r#"{"theme":{"light":"craft.pro","dark":"craft.app-default"},"mode":"system","contrast":"high","motion":"system","size":"comfortable","text_size":"large"}"#
     );
     assert_eq!(serde_json::from_str::<Selection>(&json).unwrap(), sel);
 
     let suite = SuiteChoice {
         theme_dark: Some(id("craft.studio")),
         mode: Some(ModeChoice::Dark),
-        text_size: Some(TextSize::Default),
+        text_size: Some(TextSize::Small),
         ..SuiteChoice::default()
     };
     let json = serde_json::to_string(&suite).unwrap();
     assert_eq!(
         json,
-        r#"{"theme_light":null,"theme_dark":"craft.studio","mode":"dark","contrast":null,"motion":null,"size":null,"text_size":"default"}"#
+        r#"{"theme_light":null,"theme_dark":"craft.studio","mode":"dark","contrast":null,"motion":null,"size":null,"text_size":"small"}"#
     );
     assert_eq!(serde_json::from_str::<SuiteChoice>(&json).unwrap(), suite);
     assert_eq!(
@@ -201,7 +201,7 @@ fn serde_forms_round_trip() {
     assert_eq!(serde_json::from_str::<AppChoice>(legacy).unwrap(), AppChoice { mode: None, ..app.clone() });
     assert!(
         serde_json::from_str::<Selection>(
-            r#"{"theme":{"light":"Bad Id","dark":"craft.studio"},"mode":"dark","contrast":"system","size":"compact","text_size":"default"}"#
+            r#"{"theme":{"light":"Bad Id","dark":"craft.studio"},"mode":"dark","contrast":"system","size":"compact","text_size":"small"}"#
         )
         .is_err()
     );

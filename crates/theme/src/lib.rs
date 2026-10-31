@@ -17,7 +17,7 @@
 //!     "seeds": {"neutral": "#8b8d98", "accent": "#3e63dd",
 //!               "status": {"good": "#30a46c", "warn": "#ffc53d", "bad": "#e5484d", "info": "#0090ff"}}}"##;
 //! let theme = format::parse(file).unwrap().theme;
-//! let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+//! let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
 //! let resolved = resolve(&theme, appearance, None);
 //! assert!(resolved.warnings.is_empty());
 //! ```
