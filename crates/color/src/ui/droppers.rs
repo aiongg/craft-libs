@@ -25,12 +25,10 @@ use craft_ui::controls::IconButton;
 use craft_ui::icons::Icon;
 use egui::{AsIdSalt, Context, Id, IdSalt, Response, Ui};
 
-/// The armed dropper, kept in egui memory: who armed it, the pass it was last drawn in, and a
-/// sample waiting for it.
+/// The armed dropper, kept in egui memory: who armed it and a sample waiting for it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Armed {
     owner: Id,
-    pass: u64,
     sample: Option<Srgba>,
 }
 
@@ -38,31 +36,27 @@ struct Armed {
 /// asks whether one is [`armed`](Self::armed) and [`deliver`](Self::deliver)s the colour under a
 /// click; the dropper [`take`](Self::take)s it, which disarms it.
 ///
-/// A dropper that is not drawn for a pass (its dialog closed, its popup hidden) is disarmed:
-/// [`armed`](Self::armed) returns `None` once the owner has missed a pass, so a closed dialog
-/// never leaves the canvas sampling for nobody. Esc on the canvas while armed disarms
-/// ([`disarm`](Self::disarm)).
+/// The owner ends its dropper: [`disarm`](Self::disarm) when its dialog closes or its button
+/// toggles off, or [`take`](Self::take) of a sample. A new [`arm`](Self::arm) from another owner
+/// replaces the record. Esc on the canvas while armed disarms.
 pub struct DropperState;
 
 fn state_key() -> Id {
     Id::unique("craft_color::ui::droppers::armed")
 }
 
-/// The armed record, if its owner was drawn in this pass or the one before.
+/// The armed record.
 fn record(ctx: &Context) -> Option<Armed> {
-    let armed: Option<Armed> = ctx.data(|d| d.get_temp(state_key()));
-    let pass = ctx.cumulative_pass_nr();
-    armed.filter(|a| a.pass.saturating_add(1) >= pass)
+    ctx.data(|d| d.get_temp(state_key()))
 }
 
 impl DropperState {
-    /// Arms `owner`'s dropper (the one armed before is disarmed). Called each pass the owner is
-    /// drawn and wants samples.
+    /// Arms `owner`'s dropper (the one armed before is disarmed). Arming again keeps a sample
+    /// the owner has not taken.
     // inv-effectcraft: crates/ui-egui/src/color_picker.rs:163 `arm`, :175 `refresh_armed`.
     pub fn arm(ctx: &Context, owner: Id) {
         let sample = record(ctx).filter(|a| a.owner == owner).and_then(|a| a.sample);
-        let pass = ctx.cumulative_pass_nr();
-        ctx.data_mut(|d| d.insert_temp(state_key(), Armed { owner, pass, sample }));
+        ctx.data_mut(|d| d.insert_temp(state_key(), Armed { owner, sample }));
     }
 
     /// Disarms `owner`'s dropper, if it is the armed one.
@@ -73,9 +67,8 @@ impl DropperState {
         }
     }
 
-    /// The armed dropper's owner, if one is armed and was drawn in the last pass.
-    // inv-effectcraft: crates/ui-egui/src/color_picker.rs:159 `eyedropper_armed` (and the pass check
-    // in `armed_record`).
+    /// The armed dropper's owner, if one is armed.
+    // inv-effectcraft: crates/ui-egui/src/color_picker.rs:159 `eyedropper_armed`.
     pub fn armed(ctx: &Context) -> Option<Id> {
         record(ctx).map(|a| a.owner)
     }

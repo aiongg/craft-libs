@@ -16,7 +16,7 @@ fn frame(ctx: &Context, events: Vec<Event>, add: impl FnOnce(&mut egui::Ui)) -> 
     nodes
 }
 
-/// A dropper not drawn for two passes is no longer armed.
+/// Runs `passes` empty frames.
 fn age(ctx: &Context, passes: usize) {
     for _ in 0..passes {
         frame(ctx, Vec::new(), |_| {});
@@ -44,15 +44,17 @@ fn one_dropper_is_armed_and_takes_its_sample_once() {
     assert_eq!(DropperState::take(&ctx, b), None, "nothing is armed to receive");
 }
 
-/// A dropper not drawn for a pass is no longer armed.
+/// A dropper stays armed until its owner disarms or takes; a new arm replaces it.
 #[test]
-fn an_undrawn_dropper_is_disarmed() {
+fn a_dropper_stays_armed_until_its_owner_ends_it() {
     let ctx = Context::default();
-    let owner = Id::unique("owner");
-    DropperState::arm(&ctx, owner);
-    age(&ctx, 1);
-    assert_eq!(DropperState::armed(&ctx), Some(owner), "it was drawn in the pass before");
-    age(&ctx, 1);
+    let (a, b) = (Id::unique("a"), Id::unique("b"));
+    DropperState::arm(&ctx, a);
+    age(&ctx, 3);
+    assert_eq!(DropperState::armed(&ctx), Some(a));
+    DropperState::disarm(&ctx, b);
+    assert_eq!(DropperState::armed(&ctx), Some(a), "only the owner disarms");
+    DropperState::disarm(&ctx, a);
     assert_eq!(DropperState::armed(&ctx), None);
 }
 
