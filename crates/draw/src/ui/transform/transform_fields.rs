@@ -867,7 +867,12 @@ fn show_story(ui: &mut Ui, args: &mut BoxArgs) {
                 .skew_v(skew_v)
                 .show(ui);
             match edit.event {
-                Some(EditEvent::Begin { .. }) => before = Some(TransformRow { state, skew_v }),
+                Some(EditEvent::Begin { value, .. }) => {
+                    before = Some(TransformRow { state, skew_v });
+                    if let Some(value) = value {
+                        (state, skew_v) = (value.state, value.skew_v);
+                    }
+                }
                 Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => {
                     (state, skew_v) = (value.state, value.skew_v)
                 }

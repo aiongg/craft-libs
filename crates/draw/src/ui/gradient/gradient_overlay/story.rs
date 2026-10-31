@@ -164,7 +164,12 @@ impl LineHost {
 
     pub(crate) fn apply(&mut self, response: &GradientOverlayResponse) {
         match &response.event {
-            Some(EditEvent::Begin { .. }) => self.before = Some(self.value.clone()),
+            Some(EditEvent::Begin { value, .. }) => {
+                self.before = Some(self.value.clone());
+                if let Some(value) = value {
+                    self.value = value.clone();
+                }
+            }
             Some(EditEvent::Update { value, .. }) => self.value = value.clone(),
             Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => {
                 self.before = None;

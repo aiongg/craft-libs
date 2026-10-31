@@ -328,7 +328,12 @@ struct Open {
 fn keep(kept: &mut Kept, event: Option<crate::edit::EditEvent<f64>>, set: fn(&mut Values, f64)) {
     use crate::edit::EditEvent;
     match event {
-        Some(EditEvent::Begin { .. }) => kept.before = Some(kept.values),
+        Some(EditEvent::Begin { value, .. }) => {
+            kept.before = Some(kept.values);
+            if let Some(value) = value {
+                set(&mut kept.values, value);
+            }
+        }
         Some(EditEvent::Update { value, .. }) => set(&mut kept.values, value),
         Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => {
             kept.before = None;
@@ -388,4 +393,21 @@ fn show_story(ui: &mut Ui, args: &mut InspectorArgs) {
         d.insert_temp(state_id, kept);
         d.insert_temp(open_id, open);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_begin_that_carries_the_first_typed_value_keeps_the_values_before_it_for_a_cancel() {
+        use crate::edit::{CancelReason, EditEvent, GestureId};
+        let values = Values { x: 12.0, y: 8.0, opacity: 100.0 };
+        let mut kept = Kept { values, before: None };
+        let id = GestureId::next();
+        keep(&mut kept, Some(EditEvent::begin_with(id, 5.0)), |v, x| v.x = x);
+        assert_eq!(kept.values.x, 5.0, "the first typed value is applied on the Begin");
+        keep(&mut kept, Some(EditEvent::Cancel { id, reason: CancelReason::Escape }), |v, x| v.x = x);
+        assert_eq!(kept.values.x, 12.0, "a cancel restores the value from before the run");
+    }
 }
