@@ -11,10 +11,11 @@ use crate::controls::expr::{self, ExprUnits};
 use crate::controls::{CheckState, Checkbox, NumberField, Select};
 use crate::direction;
 use crate::edit::EditResponse;
+use crate::localized::Labels as _;
 use crate::localized::units::{LengthUnit, UnitContext};
 use crate::localized::{LocaleNumbers, Unit, Word, Words};
 use crate::primitives::{Content, FocusRing, Text};
-use crate::story::StoryArgs;
+use crate::story::{StoryArgs, StoryLabels};
 use crate::theme::{Tokens, TokensOf};
 use craft_theme::{ControlSize, TypeRole};
 
@@ -198,11 +199,7 @@ pub fn unit_number_field<'a>(
     let reader = move |text: &str| {
         if suffix.is_empty() { expr::parse(text) } else { expr::parse_with_units(text, &ExprUnits { unit, suffix: &suffix, context }) }
     };
-    NumberField::new(id_salt, caption, shown, numbers)
-        .decimals(0..=places)
-        .unit(Unit::new(&template))
-        .or_parse(reader)
-        .size(ControlSize::Sm)
+    NumberField::new(id_salt, caption, shown, numbers).decimals(0..=places).unit(Unit::new(&template)).or_parse(reader).size(ControlSize::Sm)
 }
 
 /// Percentage points a caption drag adds per screen point ([`NumberField::scrub_rate`]).
@@ -252,8 +249,9 @@ impl Default for Demo {
 }
 
 fn brush_cells(ui: &mut Ui, numbers: &LocaleNumbers, size: &mut f64, opacity: &mut f64, mode: &mut String) {
+    let words = StoryLabels::of(ui);
     OptionsBar::cell(ui, "Size:", super::CellWidth::Sm, |ui, caption| {
-        let edit = NumberField::new("demo-size", "Size", *size, numbers)
+        let edit = NumberField::new("demo-size", &words.size, *size, numbers)
             .range(1.0..=5000.0)
             .unit(Unit::new("{n} px"))
             .size(ControlSize::Sm)
@@ -264,7 +262,7 @@ fn brush_cells(ui: &mut Ui, numbers: &LocaleNumbers, size: &mut f64, opacity: &m
         }
     });
     OptionsBar::cell(ui, "Opacity:", super::CellWidth::Md, |ui, caption| {
-        let edit = NumberField::new("demo-opacity", "Opacity", *opacity, numbers)
+        let edit = NumberField::new("demo-opacity", &words.opacity, *opacity, numbers)
             .range(1.0..=100.0)
             .unit(Unit::new("{n}%"))
             .size(ControlSize::Sm)

@@ -6,8 +6,9 @@
 //! [`Audit`]; any word left outside `⟦…⟧` was drawn as a literal. Text the author or the machine
 //! supplied (document text, font names, file names, shortcuts) is [`Exempt`].
 //!
-//! The audit reads what was painted (`Shape::Text`), not accessibility labels, so a tooltip or a
-//! value drawn by hand is caught too. Nothing here depends on catalogs, so a missing translation
+//! The audit reads what was painted (`Shape::Text`), so a tooltip or a value drawn by hand is
+//! caught too. An app that checks controls by their accessible names reads them with
+//! [`accesskit_texts`] instead. Nothing here depends on catalogs, so a missing translation
 //! never fails it: the pseudo locale marks every lookup, translated or not.
 //!
 //! ```ignore
@@ -60,6 +61,15 @@ pub fn drawn_texts(output: &egui::FullOutput) -> Vec<String> {
         collect(&clipped.shape, &mut out);
     }
     out
+}
+
+/// The texts one node of an AccessKit tree shows a screen reader: its name, description and
+/// tooltip, in that order. For an app whose controls are checked by name rather than by what they
+/// paint; record them with [`Audit::record`] like [`drawn_texts`], so the same [`Exempt`] rules
+/// apply.
+pub fn accesskit_texts(tree: &crate::inspect::AccessTree, node: egui::accesskit::NodeId) -> Vec<String> {
+    let Some(data) = tree.node(node) else { return Vec::new() };
+    [tree.name(node), data.description().map(str::to_owned), data.tooltip().map(str::to_owned)].into_iter().flatten().collect()
 }
 
 /// Text that is right to show untranslated.

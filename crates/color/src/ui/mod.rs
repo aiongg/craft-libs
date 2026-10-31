@@ -130,7 +130,7 @@ use craft_ui::controls::slider::{self, Scale};
 use craft_ui::edit::{self, EditEvent};
 use craft_ui::localized::{Labels, LocaleNumbers};
 use craft_ui::primitives::{Content, Gap, Row, Stack, Text};
-use craft_ui::story::{Level, SizeArg, Story, StoryArgs, StoryChoice};
+use craft_ui::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, StoryLabels};
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use craft_ui::typed_story;
 
@@ -600,7 +600,8 @@ fn show_palette_table(ui: &mut Ui, args: &mut PaletteTableArgs) {
             };
             (format!("Index {i}: {}", color.to_rgba().to_hex()), color)
         });
-        let mut table = SwatchPalette::table("color-palette-table", "Color Table", entries).selected(*selected).enabled(!args.disabled);
+        let mut table =
+            SwatchPalette::table("color-palette-table", &StoryLabels::of(ui).color_table, entries).selected(*selected).enabled(!args.disabled);
         if args.sixteen_columns {
             table = table.columns(16);
         } else {

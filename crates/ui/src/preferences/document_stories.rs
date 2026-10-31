@@ -156,6 +156,13 @@ fn show_document(ui: &mut Ui, args: &mut DocumentArgs) {
     let ctx = ui.ctx().clone();
     let key = ui.make_persistent_id("craft_ui::preferences::document-story");
     let model: Shared = ctx.data(|d| d.get_temp::<Shared>(key)).unwrap_or_else(|| Arc::new(Mutex::new(document())));
+    // The labels follow the installed Host's language, as an app relabels its document.
+    if let Some(host) = craft_host::Host::try_of(ui)
+        && ctx.data(|d| d.get_temp::<craft_i18n::Lang>(key.with("lang"))) != Some(host.lang())
+    {
+        model.lock().unwrap_or_else(PoisonError::into_inner).relabel(&host);
+        ctx.data_mut(|d| d.insert_temp(key.with("lang"), host.lang()));
+    }
     let last_search: Option<String> = ctx.data(|d| d.get_temp(key.with("search")));
     let size = vec2(args.width.min(ui.available_width()), args.height);
     let mut model_guard = model.lock().unwrap_or_else(PoisonError::into_inner);

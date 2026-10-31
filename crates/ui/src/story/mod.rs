@@ -81,11 +81,13 @@ mod stock_egui;
 mod tests;
 #[cfg(test)]
 mod typed_tests;
+mod words;
 
 pub use args::{Arg, ArgValue, Args, NoArgs, StoryArgs, StoryChoice, show_typed};
 pub use choices::{SizeArg, ToneArg};
 /// `#[derive(StoryArgs)]` and `#[derive(StoryChoice)]`; see the traits.
 pub use craft_ui_macros::{StoryArgs, StoryChoice};
+pub use words::StoryLabels;
 
 use crate::{composites, controls, primitives};
 

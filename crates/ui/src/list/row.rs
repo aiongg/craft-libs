@@ -17,7 +17,7 @@ use crate::icons::{self, Icon, IconSize};
 use crate::localized::SharedLabels as _;
 use crate::localized::{Labels, Word, Words};
 use crate::primitives::{FocusRing, Interactive};
-use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 use crate::typed_story;
 
@@ -1401,12 +1401,12 @@ fn layer(name: &str, locked: bool) -> Layer {
     Layer { name: name.to_owned(), visible: true, locked }
 }
 
-impl Default for Layers {
-    fn default() -> Self {
+impl Layers {
+    fn new(words: &StoryLabels) -> Self {
         let rows = vec![
             layer("Headline", false),
             layer("Photo with a name too long for the panel to show whole", false),
-            layer("Shadow", false),
+            layer(&words.shadow, false),
             layer("Background", true),
         ];
         Self { rows, selected: Some(0), renaming: None }
@@ -1421,7 +1421,7 @@ pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
     let thumb = args.thumbnails.size();
     let (detail, highlight, layer) = (args.detail, args.highlight_second_row, args.layer_form);
     let state_id = ui.scope_id().with("list-row-story");
-    let mut layers = ui.data(|d| d.get_temp::<Layers>(state_id)).unwrap_or_default();
+    let mut layers = ui.data(|d| d.get_temp::<Layers>(state_id)).unwrap_or_else(|| Layers::new(&StoryLabels::of(ui)));
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         ui.spacing_mut().item_spacing.y = 0.0;

@@ -20,7 +20,7 @@ use craft_ui::localized::{Labels, LocaleNumbers};
 use craft_ui::menu::MenuEntry;
 use craft_ui::patterns::OptionsBar;
 use craft_ui::primitives::{Content, Gap, Row, Stack, Text};
-use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, Surface, dialog_closed, dialog_shown};
+use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, StoryLabels, Surface, dialog_closed, dialog_shown};
 use craft_ui::typed_story;
 use egui::{Color32, Context, Id, Rect, Sense, TextureHandle, TextureOptions, Ui, pos2, vec2};
 
@@ -552,11 +552,12 @@ fn show_paint_chip(ui: &mut Ui, args: &mut PaintChipArgs) {
 }
 
 fn show_choice(ui: &mut Ui, args: &mut ChoiceArgs) {
+    let words = StoryLabels::of(ui);
     let state = shared(ui, "choice", || (ChosenColor::Named("default".to_owned()), Srgba::rgb(0.2, 0.45, 0.7)));
     let mut state = lock(&state);
     let gray = |v: f32| Some(Srgba::rgb(v, v, v));
     let named = [
-        NamedColor::new("default", "Default", None),
+        NamedColor::new("default", &words.default, None),
         NamedColor::new("black", "Black", gray(0.0)),
         NamedColor::new("darkGray", "Dark Gray", gray(0.2)),
         NamedColor::new("mediumGray", "Medium Gray", gray(0.5)),
@@ -643,7 +644,7 @@ fn show_lut_picker(ui: &mut Ui, args: &mut LutArgs) {
     if let Some(Ok(lut)) = shown.loaded {
         *value = LutChoice::Loaded { name: lut.title, size: lut.size };
     }
-    muted(ui, format!("{:?}", *value));
+    muted(ui, format!("Chosen: {:?}", *value));
 }
 
 fn show_profile_dialog(ui: &mut Ui, args: &mut ProfileArgs) {
