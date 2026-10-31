@@ -28,7 +28,7 @@ One library, `craft-libs`, supplies everything the Craft apps have in common:
 - **Tokens and themes.** Colours, sizes, type and shape as data, with built-in themes, light and dark modes, and high contrast.
 - **Components.** Primitives, controls, composites and patterns that read those tokens.
 - **Shells.** The window skeleton, docking, title bar, panel rails and options bar.
-- **Shared features.** Complete features an app gets in one call, for example `ColorPickerDialog::new()`: the picker body, gamut and web-colour chips, OK and Cancel, remembered mode, and colour management through `craft-cms`.
+- **Shared features.** Complete features an app adds with little code of its own. A colour picker dialog, for example, comes with its picker body, gamut and web-colour chips, OK and Cancel, remembered mode, and colour management through `craft-cms`. Each feature's API is settled in the spec of the step that builds it.
 
 The apps differ in what they edit. The pieces around the editing are the same: a colour picker, docking, preferences, dialogs, file pickers, shortcut editing, font selection. Today each app writes its own version. Copies drift apart in look, behaviour, accessibility and translation, and a fix in one does not reach the others.
 
@@ -164,7 +164,7 @@ A family is a set of features a developer looks for together. The brush cursor, 
 
 ### The `craft` facade
 
-An app has one dependency, one pin and one import root.
+An app has one dependency, one pin and one import root. Feature and type names in the examples below show the path convention; they are not settled APIs.
 
 ```toml
 [dependencies]
@@ -175,12 +175,11 @@ craft = { git = "https://github.com/storytold/craft-libs", rev = "...", features
 
 ```rust
 use craft::prelude::*;
-use craft::color::ui::ColorPickerDialog;
-use craft::layers::ui::LayersPanel;
-use craft::theme_store::ui::AppearancePage;
+use craft::color::ui::{ColorPicker, SwatchPalette};
+use craft::draw::ui::{CropFrame, GradientOverlay};
 ```
 
-- Every public UI type is re-exported at `<crate>::ui`; every core type at the crate root. The facade gives `craft::color::ui::ColorPickerDialog` and `craft::color::Palette`.
+- Every public UI type is re-exported at `<crate>::ui`; every core type at the crate root. The facade gives paths such as `craft::color::ui::<Type>` and `craft::color::Palette`.
 - A feature can move between crates without touching any app, as long as `craft::<family>` stays.
 - `craft::prelude` holds `AppInfo`, `Host`, `Section`, `Tokens`, `EditEvent`, `DialogStack` and `Outcome`. There are no other preludes.
 - `craft::story::all()` and `craft::words::all()` collect the stories and word tables of every enabled crate.
@@ -222,7 +221,7 @@ fn setup(ctx: &egui::Context, app: &App) {
 | Commands | A feature exports its command catalog. The app registers it with `craft-keymap`. Automation dispatches through the host's commands |
 | Files | Features ask the host for pick, read and write. Native crates implement the service; apps on the web implement it over the browser |
 
-What an app writes: one dependency, one `Host`, one trait implementation per document feature, and the code that applies edits. The sketch below shows the target API; `ColorPickerDialog` lands in step 4 and the typed `take` in step 2.
+What an app writes: one dependency, one `Host`, one trait implementation per document feature, and the code that applies edits. The sketch below shows the shape of that code, not a settled API: the dialog stack's typed results are designed in step 2, and the colour picker dialog in step 4.
 
 ```rust
 fn frame(ui: &mut egui::Ui, doc: &mut Document, dialogs: &mut DialogStack) {
@@ -248,7 +247,7 @@ Conventions:
 
 - Crates are `craft-<family>`, one word where possible. No `-ui` or `-core` suffix.
 - Modules are nouns, one level below the crate root. `ui` is the only module that nests a second level (`craft_pages::ui::table`).
-- Types carry their full name: `ColorPickerDialog`, `LayersPanel`, `TimelineRuler`, never `color::PickerDialog`.
+- Types carry their full name (for example `LayersPanel`, not `layers::Panel`), so they read the same wherever they are imported.
 - In a family crate, a module `ui::x` is the egui side and a bare `x` is core.
 
 Twenty crates are new relative to upstream. Ten exist on the `design-system` branch: `craft`, `craft-color`, `craft-design-lint`, `craft-draw`, `craft-host`, `craft-imaging`, `craft-theme`, `craft-theme-store`, `craft-ui-gallery`, `craft-ui-macros`. Ten are planned: `craft-audio`, `craft-automation`, `craft-browse`, `craft-code`, `craft-gpu`, `craft-layers`, `craft-pages`, `craft-review`, `craft-table`, `craft-timeline`.
@@ -375,7 +374,7 @@ Colour for apps: picker, wells, swatch tables, ramps, hex field. New on the bran
 | `ui::palette` | Swatch palette | exists |
 | `ui::panel` | Colour panel modes and menus | planned, step 4 |
 | `ui::picker`, `ui::popover` | The colour picker and its popover | exists |
-| `ui::picker_dialog` | `ColorPickerDialog`: the complete picker dialog | planned, step 4 |
+| `ui::picker_dialog` | The complete colour picker dialog | planned, step 4 |
 | `ui::profile_prompts` | Profile mismatch prompts | planned, step 4 |
 | `ui::swatches` | Swatch panel | planned, step 4 |
 | `web` | Web-safe colours | exists |
@@ -1184,7 +1183,7 @@ Size: about 185 library tasks in all, plus about 28 PhotoCraft tasks and about 2
 
 **Step 4: files, preferences, text and fonts, colour, previews.** The shared features every app has.
 
-- Delivers: the file service, New Document, export dialogs, print, file intake; preferences over a settings document with `AppearancePage` and recovery; font picker, canvas text editor, style panels; `ColorPickerDialog`, droppers, samplers, screen picker, swatch panel, palettes, CMS additions; preview panes and job progress.
+- Delivers: the file service, New Document, export dialogs, print, file intake; preferences over a settings document with `AppearancePage` and recovery; font picker, canvas text editor, style panels; a colour picker dialog, droppers, samplers, screen picker, swatch panel, palettes, CMS additions; preview panes and job progress.
 - PhotoCraft adopts all of it. It deletes its file dialogs, most of its preferences code, its recovery and path code, the family picker, its colour panel and picker bodies, and its job UI.
 - VectorCraft adopts steps 1 to 4 on its port branch in one pass.
 
