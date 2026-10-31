@@ -123,10 +123,18 @@ impl SwatchColor {
             SwatchColor::Rgb(v) => Srgba::from_rgb_array(v.map(unit)),
             SwatchColor::Hsb(v) => Srgba::from_rgb_array(hsb_to_rgb(v)),
             SwatchColor::Cmyk(v) => Srgba::from_rgb_array(cmyk.to_srgb(v.map(unit)).map(unit)),
-            SwatchColor::Lab([l, a, b]) => Srgba::from_lab(Lab { l: finite(l), a: finite(a), b: finite(b) }),
+            SwatchColor::Lab([l, a, b]) => {
+                let (l, a, b) = (finite(l), finite(a), finite(b));
+                // ICC v4 Lab encoding (the Lab D50 profile's device values).
+                let encoded = [unit(l / 100.0), unit((a + 128.0) / 255.0), unit((b + 128.0) / 255.0)];
+                match profile_to_srgb(&working_transforms().lab, &encoded) {
+                    Some(rgb) => Srgba::from_rgb_array(rgb),
+                    None => Srgba::from_lab(Lab { l, a, b }),
+                }
+            }
             SwatchColor::Gray(k) => {
                 let level = 1.0 - unit(k);
-                Srgba::rgb(level, level, level)
+                Srgba::from_rgb_array(profile_to_srgb(&working_transforms().gray, &[level]).unwrap_or([level; 3]))
             }
             SwatchColor::Book { .. } => Srgba::rgb(0.0, 0.0, 0.0),
         }
@@ -180,9 +188,11 @@ pub struct SwatchReport {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SwatchNote {
-    /// Colour-book colours read as black (`.aco`, `.ase` colours in a space this crate does not
-    /// model), with their count.
+    /// Colour-book colours (`.aco` colours in a space this crate does not model) read as black,
+    /// or left out of a format that cannot hold them, with their count.
     BookColors(usize),
+    /// `.ase` colours in a colour model this crate does not read were skipped, with their count.
+    Skipped(usize),
     /// The format has no groups: the swatches were written as one list.
     GroupsFlattened,
     /// The format has only 8-bit RGB: CMYK, Lab and grey colours were converted, with their count.
@@ -256,20 +266,19 @@ pub fn read_swatches(bytes: &[u8], file_name: &str) -> Result<(Vec<SwatchGroup>,
         }
         SwatchFormat::Ase => {
             let items = parse_ase(bytes).map_err(|e| malformed(format, e))?;
-            let (mut n, mut books) = (0usize, 0usize);
+            let (mut n, mut skipped) = (0usize, 0usize);
             let mut convert = |s: &AseSwatch| {
-                if matches!(s.color, AseColor::Other) {
-                    books += 1;
-                }
                 n += 1;
-                SwatchEntry { name: entry_name(n - 1, &s.name), color: from_ase(&s.color), kind: s.kind }
+                let entry = from_ase(&s.color).map(|color| SwatchEntry { name: entry_name(n - 1, &s.name), color, kind: s.kind });
+                skipped += usize::from(entry.is_none());
+                entry
             };
             let mut loose = Vec::new();
             for item in &items {
                 match item {
-                    AseItem::Swatch(s) => loose.push(convert(s)),
+                    AseItem::Swatch(s) => loose.extend(convert(s)),
                     AseItem::Group(name, swatches) => {
-                        let entries = swatches.iter().map(&mut convert).collect();
+                        let entries = swatches.iter().filter_map(&mut convert).collect();
                         let name = clip_name(name);
                         groups.push(SwatchGroup { name: if name.is_empty() { stem.clone() } else { name }, entries });
                     }
@@ -278,7 +287,7 @@ pub fn read_swatches(bytes: &[u8], file_name: &str) -> Result<(Vec<SwatchGroup>,
             if !loose.is_empty() || groups.is_empty() {
                 groups.insert(0, SwatchGroup { name: stem, entries: loose });
             }
-            push_note(&mut report, books, SwatchNote::BookColors);
+            push_note(&mut report, skipped, SwatchNote::Skipped);
         }
         SwatchFormat::Gpl => groups = read_gpl(bytes, file_name),
     }
@@ -477,6 +486,29 @@ const ACO_MAX_SWATCHES: usize = u16::MAX as usize;
 const ACT_COLORS: usize = 256;
 const ACT_PALETTE_LEN: usize = ACT_COLORS * 3;
 const ACT_TRAILER_LEN: usize = 4;
+
+/// Transforms from the Lab D50 and sGray profiles to sRGB (relative colorimetric, black point
+/// compensation); `None` when one does not link.
+struct WorkingTransforms {
+    lab: Option<std::sync::Arc<craft_cms::Transform>>,
+    gray: Option<std::sync::Arc<craft_cms::Transform>>,
+}
+
+fn working_transforms() -> &'static WorkingTransforms {
+    static TRANSFORMS: std::sync::OnceLock<WorkingTransforms> = std::sync::OnceLock::new();
+    TRANSFORMS.get_or_init(|| {
+        let opts = craft_cms::TransformOptions { intent: craft_cms::Intent::RelativeColorimetric, bpc: true, ..Default::default() };
+        let srgb = craft_cms::Builtin::Srgb.profile();
+        let link = |source: &craft_cms::Profile| craft_cms::cached(source, srgb, opts).ok();
+        WorkingTransforms { lab: link(craft_cms::Builtin::LabD50.profile()), gray: link(craft_cms::Builtin::SGray.profile()) }
+    })
+}
+
+fn profile_to_srgb(transform: &Option<std::sync::Arc<craft_cms::Transform>>, input: &[f32]) -> Option<[f32; 3]> {
+    let mut out = [0.0f32; 3];
+    transform.as_ref()?.eval(input, &mut out).ok()?;
+    Some(out.map(unit))
+}
 
 fn malformed(format: SwatchFormat, message: impl Into<String>) -> SwatchError {
     SwatchError::Malformed(format, message.into())
@@ -752,16 +784,16 @@ fn act_used(data: &[u8]) -> Result<Vec<[u8; 3]>, String> {
 
 // ---------------------------------------------------------------- .ase
 
-fn from_ase(c: &AseColor) -> SwatchColor {
-    match *c {
+fn from_ase(c: &AseColor) -> Option<SwatchColor> {
+    Some(match *c {
         AseColor::Rgb(v) => SwatchColor::Rgb(v),
         AseColor::Cmyk(v) => SwatchColor::Cmyk(v),
         // L is stored as a fraction (L*/100); a few writers store L* itself, which can only be told
         // apart above 1.
         AseColor::Lab([l, a, b]) => SwatchColor::Lab([if l > 1.0 { l } else { l * 100.0 }, a, b]),
         AseColor::Gray(g) => SwatchColor::Gray(1.0 - g),
-        AseColor::Other => SwatchColor::Rgb([0.0; 3]),
-    }
+        AseColor::Other => return None,
+    })
 }
 
 fn to_ase(c: &SwatchColor) -> Option<AseColor> {
@@ -784,7 +816,7 @@ enum AseColor {
     Cmyk([f32; 4]),
     Lab([f32; 3]),
     Gray(f32),
-    /// A colour model this crate does not model.
+    /// A colour model this crate does not read.
     Other,
 }
 
@@ -1165,6 +1197,19 @@ mod tests {
         assert_eq!(back[0].entries[1].kind, SwatchKind::Spot);
         assert_same(&back[0].entries[1].color, &groups[0].entries[1].color);
         assert_same(&back[1].entries[0].color, &SwatchColor::Gray(0.5));
+
+        // A colour in a model this crate does not read is skipped and counted.
+        let mut unknown = Vec::new();
+        put_ase_name(&mut unknown, "Odd");
+        unknown.extend(b"XYZ ");
+        unknown.extend([0u8; 12]);
+        unknown.extend(2u16.to_be_bytes());
+        let mut file = ase.clone();
+        put_ase_block(&mut file, ASE_COLOR, &unknown);
+        file[8..12].copy_from_slice(&(u32::from_be_bytes(ase[8..12].try_into().unwrap()) + 1).to_be_bytes());
+        let (skipped, report) = read_swatches(&file, "x.ase").unwrap();
+        assert_eq!(report.notes, [SwatchNote::Skipped(1)]);
+        assert_eq!(count_swatches(&skipped), 3);
 
         let (aco, report) = write_swatches(&groups, SwatchFormat::Aco).unwrap();
         assert_eq!(report.notes, [SwatchNote::GroupsFlattened, SwatchNote::KindsDropped(1)]);
