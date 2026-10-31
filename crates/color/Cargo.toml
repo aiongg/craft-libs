@@ -12,6 +12,8 @@ workspace = true
 
 [features]
 default = []
+# `Serialize` and `Deserialize` for the plain-data types.
+serde = ["dep:serde"]
 # The colour widgets (`craft_color::ui`).
 ui = ["dep:craft-ui", "dep:egui"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
@@ -22,8 +24,10 @@ craft-i18n = { workspace = true }
 craft-theme = { workspace = true, features = ["ecolor"] }
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
 
 [dev-dependencies]
+serde_json = { workspace = true }
 egui = { workspace = true, features = ["default_fonts", "serde"] }
 
 [[test]]

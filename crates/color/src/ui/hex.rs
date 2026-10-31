@@ -114,9 +114,58 @@ impl Options {
     }
 }
 
+/// A codec of hex digits: what a hex field needs besides the typing.
+pub(super) trait HexDigits: Codec {
+    /// Whether pasting `text` replaces the field's whole text, as a whole value does.
+    fn is_whole(&self, text: &str, value: &Self::Value) -> bool;
+}
+
+impl HexDigits for HexCodec {
+    fn is_whole(&self, text: &str, value: &Rgba) -> bool {
+        parse_hex(text, *value, self.alpha, self.digits).is_ok()
+    }
+}
+
+/// A byte as two hex digits: a Web Color slider's field.
+#[derive(Clone, Debug)]
+pub(super) struct PairCodec {
+    /// The invalid field's tooltip, translated.
+    pub reason: String,
+}
+
+impl Codec for PairCodec {
+    type Value = u8;
+
+    fn format(&self, value: &u8) -> String {
+        format!("{value:02X}")
+    }
+
+    fn parse(&self, text: &str, _start: &u8) -> Result<u8, NotAValue> {
+        // Two hex digits only: `from_str_radix` would also take a sign.
+        let text = text.trim();
+        match u8::from_str_radix(text, 16) {
+            Ok(v) if text.len() == 2 && text.bytes().all(|b| b.is_ascii_hexdigit()) => Ok(v),
+            _ => Err(NotAValue { reason: self.reason.clone(), partial: text.len() < 2 && text.bytes().all(|b| b.is_ascii_hexdigit()) }),
+        }
+    }
+
+    fn applies_as_typed(&self, _text: &str) -> bool {
+        true
+    }
+}
+
+impl HexDigits for PairCodec {
+    fn is_whole(&self, text: &str, value: &u8) -> bool {
+        self.parse(text, value).is_ok()
+    }
+}
+
 /// Shows the hex field, as wide as the `Ui`'s justified width (a text field's otherwise), for
 /// the colour `value`.
-pub(super) fn show(ui: &mut Ui, id: Id, label: &str, value: Rgba, codec: HexCodec, options: Options) -> EditResponse<Rgba> {
+pub(super) fn show<C: HexDigits>(ui: &mut Ui, id: Id, label: &str, value: C::Value, codec: C, options: Options) -> EditResponse<C::Value>
+where
+    C::Value: Clone + PartialEq + Send + Sync + 'static,
+{
     let Options { policy, enabled, prefix, char_limit } = options;
     let tokens = Tokens::of(ui);
     let style = TextField::style(&tokens, ControlSize::Md);
@@ -149,8 +198,7 @@ pub(super) fn show(ui: &mut Ui, id: Id, label: &str, value: Rgba, codec: HexCode
     // A paste of a whole colour replaces the field's text; anything shorter is edited in at the
     // cursor as in any text field.
     if enabled && ui.memory(|m| m.has_focus(id)) {
-        let whole =
-            ui.input(|i| i.events.iter().any(|e| matches!(e, Event::Paste(text) if parse_hex(text, value, codec.alpha, codec.digits).is_ok())));
+        let whole = ui.input(|i| i.events.iter().any(|e| matches!(e, Event::Paste(text) if codec.is_whole(text, &value))));
         if whole {
             let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
             // Past the end, which the editor clamps: the draft's length isn't known here.
@@ -277,5 +325,79 @@ impl HexField {
         });
         let codec = HexCodec { alpha: self.alpha, write_alpha: self.alpha, digits: self.digits, reason };
         show(ui, id, &self.label, self.value, codec, Options { policy: self.policy, enabled: self.enabled, prefix: true, char_limit })
+    }
+}
+
+/// A byte as two hex digits, in the mono type role: the Web Color sliders' field. The text is a
+/// draft that applies as soon as it is two hex digits ([`EditResponse`] reports each applied
+/// value); anything else marks the field invalid, with the reason as its tooltip.
+///
+/// ```
+/// use craft_color::ui::HexPairField;
+/// # egui::__run_test_ui(|ui| { let mut red = 0x33u8;
+/// let edit = HexPairField::new("red-hex", "Red", red).show(ui);
+/// if let Some(v) = edit.event.as_ref().and_then(|e| e.value()) {
+///     red = *v;
+/// }
+/// # });
+/// ```
+///
+/// AccessKit: a `TextInput` named `label`. Focus, selection and the edit menu are the text
+/// field's.
+#[derive(Clone, Debug)]
+#[must_use = "show the field with `show`"]
+pub struct HexPairField {
+    id_salt: IdSalt,
+    label: String,
+    value: u8,
+    reason: Option<String>,
+    policy: EditPolicy,
+    enabled: bool,
+}
+
+impl HexPairField {
+    /// The words the field shows besides its label, English: the keys of [`reason`](HexPairField::reason).
+    pub const TEXTS: [&'static str; 1] = [NOT_HEX];
+
+    /// A field named `label` (its accessible name, translated by the host) showing `value`;
+    /// `id_salt` keeps its draft and focus when the layout around it changes.
+    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: u8) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), label: label.into(), value, reason: None, policy: EditPolicy::default(), enabled: true }
+    }
+
+    /// The tooltip of a draft that isn't two hex digits, translated by the host; "Not a hex
+    /// colour" in the installed language without it.
+    pub fn reason(mut self, reason: impl Into<String>) -> Self {
+        self.reason = Some(reason.into());
+        self
+    }
+
+    /// How the gesture reports ([`EditPolicy`]); the default reports every change at once.
+    pub fn policy(mut self, policy: EditPolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Shows the field, as wide as the `Ui`'s justified width (a text field's otherwise).
+    pub fn show(self, ui: &mut Ui) -> EditResponse<u8> {
+        let id = ui.make_persistent_id(self.id_salt);
+        let reason = self.reason.unwrap_or_else(|| {
+            let [reason] = installed(ui, Self::TEXTS);
+            reason
+        });
+        // The limit leaves room for a pasted space.
+        show(
+            ui,
+            id,
+            &self.label,
+            self.value,
+            PairCodec { reason },
+            Options { policy: self.policy, enabled: self.enabled, prefix: false, char_limit: 3 },
+        )
     }
 }

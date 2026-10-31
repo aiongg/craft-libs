@@ -16,10 +16,14 @@ use craft_ui::theme::{Tokens, TokensOf};
 
 /// Which colours the ramp shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub enum RampKind {
     /// Hue across; white at the top through the full colour in the middle to black at the bottom.
     #[default]
     Spectrum,
+    /// The [`Spectrum`](RampKind::Spectrum) in the host's CMYK gamut: each colour goes through
+    /// [`gamut`](ColorRamp::gamut) (a CMYK round trip). Without a `gamut` it is the spectrum.
+    CmykSpectrum,
     /// White at the left to black at the right.
     Grayscale,
     /// From one colour at the left to another at the right, in encoded sRGB
@@ -144,7 +148,7 @@ impl<'a> ColorRamp<'a> {
         self
     }
 
-    /// Maps each colour of a [`Spectrum`](RampKind::Spectrum) to the host's gamut (a CMYK round
+    /// Maps each colour of a [`Spectrum`](RampKind::Spectrum) or [`CmykSpectrum`](RampKind::CmykSpectrum) to the host's gamut (a CMYK round
     /// trip). It runs for the cached vertices only, and again for a pick.
     pub fn gamut(mut self, gamut: &'a dyn Fn(Srgba) -> Srgba) -> Self {
         self.gamut = Some(gamut);
@@ -215,7 +219,7 @@ impl<'a> ColorRamp<'a> {
         let unit = |v: f32| if v.is_finite() { v.clamp(0.0, 1.0) } else { 0.0 };
         let (x, y) = (unit(x), unit(y));
         let color = match kind {
-            RampKind::Spectrum => {
+            RampKind::Spectrum | RampKind::CmykSpectrum => {
                 let (s, b) = if y < 0.5 { (y * 2.0, 1.0) } else { (1.0, 1.0 - (y - 0.5) * 2.0) };
                 let color = Srgba::from_hsb(Hsb { h: x.min(0.9999) * 360.0, s, b });
                 gamut.map_or(color, |g| g(color))
@@ -432,7 +436,7 @@ impl<'a> ColorRamp<'a> {
         if self.kind == RampKind::Between {
             ends.iter().for_each(|c| [c.r, c.g, c.b, c.a].map(f32::to_bits).hash(&mut hasher));
         }
-        if self.kind == RampKind::Spectrum {
+        if matches!(self.kind, RampKind::Spectrum | RampKind::CmykSpectrum) {
             (self.gamut.is_some(), self.gamut_revision).hash(&mut hasher);
         }
         let signature = hasher.finish();
