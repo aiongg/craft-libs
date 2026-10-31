@@ -2,17 +2,17 @@
 //! edits as PhotoCraft's Warp does in outline (an anchor carries its handles, a pull moves the
 //! patch's control points so the surface point follows the pointer).
 
-use crate::canvas::story::ViewArgs;
-use crate::localized::Labels as _;
+use craft_ui::localized::Labels as _;
+use craft_ui::testing::canvas_story::ViewArgs;
 use egui::{Color32, Mesh, Ui};
 use kurbo::{Point, Rect};
 
 use super::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSplit, cubic};
-use crate::canvas::RulerUnits;
-use crate::edit::EditEvent;
-use crate::localized::LocaleNumbers;
-use crate::story::{Level, Story, StoryChoice, Surface};
-use crate::typed_story;
+use craft_ui::canvas::RulerUnits;
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::story::{Level, Story, StoryChoice, Surface};
+use craft_ui::typed_story;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Warp grid"];
@@ -37,7 +37,7 @@ enum SplitArg {
     Horizontal,
 }
 
-#[derive(crate::story::StoryArgs, Debug, PartialEq)]
+#[derive(craft_ui::story::StoryArgs, Debug, PartialEq)]
 struct WarpArgs {
     #[arg(flatten)]
     view: ViewArgs,
@@ -52,7 +52,7 @@ impl Default for WarpArgs {
     }
 }
 
-pub(crate) fn stories() -> Vec<Story> {
+pub fn stories() -> Vec<Story> {
     vec![typed_story!("primitives/warp-grid/warp", Level::Primitives, "Warp grid", "Warp", WarpArgs::default(), show_warp).on(Surface::Canvas)]
 }
 
@@ -63,7 +63,7 @@ pub(crate) fn english_names() -> WarpNames<'static> {
         "Warp",
         |row, column| format!("Row {row}, column {column}"),
         |row, column, side| {
-            use super::super::WarpSide;
+            use super::WarpSide;
             let side = match side {
                 WarpSide::Up => "up",
                 WarpSide::Left => "left",
@@ -106,7 +106,7 @@ impl WarpHost {
                     self.mesh = before;
                 }
             }
-            None => {}
+            Some(_) | None => {}
         }
     }
 }
@@ -196,7 +196,7 @@ fn show_warp(ui: &mut Ui, args: &mut WarpArgs) {
         .data(|d| d.get_temp::<(GridArg, WarpHost)>(key))
         .filter(|(g, _)| *g == grid)
         .map_or_else(|| WarpHost::new(WarpMesh::identity(PICTURE, size, size)), |(_, host)| host);
-    let canvas = super::super::story::document(ui, args.view, "Document");
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
     let view = &canvas.view;
     paint_picture(ui, view, &host.mesh);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
@@ -217,7 +217,7 @@ fn show_warp(ui: &mut Ui, args: &mut WarpArgs) {
 }
 
 /// The picture through the mesh: a checker of the mesh parameters, sampled finely.
-fn paint_picture(ui: &Ui, view: &crate::canvas::CanvasView, mesh: &WarpMesh) {
+fn paint_picture(ui: &Ui, view: &craft_ui::canvas::CanvasView, mesh: &WarpMesh) {
     const N: u32 = 24;
     let at: Vec<egui::Pos2> = (0..=N)
         .flat_map(|j| (0..=N).map(move |i| (f64::from(i) / f64::from(N), f64::from(j) / f64::from(N))))

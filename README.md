@@ -49,6 +49,8 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   document's own network share; other network paths, device paths and non-file URLs are refused.
 - [`craft-draw`](crates/draw/README.md): vector and shape tools; the gradient editor and
   on-canvas gradient overlay (`ui` feature).
+- [`craft-imaging`](crates/imaging/README.md): raster image editing; the warp grid and the levels
+  editor (`ui` feature).
 - [`craft-font-catalog`](crates/font-catalog/README.md): the installed fonts on every platform
   (font folders, fontconfig and Flatpak host folders, CoreText, DirectWrite, the font store),
   lookup by family, style, localized, legacy, full and PostScript names, family loads shared

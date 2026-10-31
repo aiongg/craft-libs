@@ -3,6 +3,7 @@
 //! - [`dump`]: ordered `key = value` text dumps compared with a file (`UPDATE_DUMPS=1` rewrites).
 //! - [`TypingField`]: a text field's typing run beside a canvas overlay under test.
 //! - [`canvas_story`]: the story canvas every canvas overlay story draws on.
+//! - [`edit_story`]: the args that set an event-log story's edit policy.
 //! - [`screens`] (`screen-testing` feature, desktop): screenshot and IME smoke tests in the
 //!   suite's test languages; its items are re-exported here.
 //! - [`a11y`] (`screen-testing` feature, desktop): role, label, Tab order and focus ring checks
@@ -32,6 +33,11 @@ pub mod symbols;
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tests;
+
+/// The args of an event-log story and the [`EditPolicy`](crate::edit::EditPolicy) they set.
+pub mod edit_story {
+    pub use crate::edit::story::{PolicyArgs, RateArg, policy};
+}
 
 /// The story canvas every canvas overlay story draws on: a checkerboard document under a
 /// [`CanvasView`](crate::canvas::CanvasView) set by the story's [`ViewArgs`].

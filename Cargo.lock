@@ -969,6 +969,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-imaging"
+version = "0.1.0"
+dependencies = [
+ "craft-i18n",
+ "craft-theme",
+ "craft-ui",
+ "egui",
+ "egui_kittest",
+ "kurbo 0.13.1",
+]
+
+[[package]]
 name = "craft-jpeg"
 version = "0.1.0"
 dependencies = [
@@ -1080,7 +1092,9 @@ dependencies = [
 name = "craft-print"
 version = "0.1.0"
 dependencies = [
+ "craft-ui",
  "craft-winprint-gdi",
+ "egui",
  "log",
  "miniz_oxide 0.9.1",
  "roxmltree 0.21.2",
@@ -1194,6 +1208,7 @@ dependencies = [
  "craft-color",
  "craft-draw",
  "craft-i18n",
+ "craft-imaging",
  "craft-platform",
  "craft-theme",
  "craft-ui",

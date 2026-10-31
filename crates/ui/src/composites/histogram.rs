@@ -77,7 +77,7 @@ impl ChannelColor {
 
     /// The light end of the channel's gradient bars: white for a neutral channel, otherwise the
     /// theme's data token for the channel. The dark end is black in every theme (image data).
-    pub(super) fn bar(self, tokens: &UiTokens) -> Color32 {
+    pub fn bar(self, tokens: &UiTokens) -> Color32 {
         match self {
             ChannelColor::Neutral => Rgba::WHITE.to_egui(),
             other => other.color(tokens),
@@ -376,7 +376,7 @@ impl Histogram {
     }
 
     /// Bins in either look, as a host keeps them.
-    pub(super) fn data(mut self, data: HistogramData) -> Self {
+    pub fn data(mut self, data: HistogramData) -> Self {
         self.data = Some(data);
         self
     }

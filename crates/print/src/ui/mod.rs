@@ -118,7 +118,7 @@ pub struct PrintLabels<'a> {
 #[deprecated(note = "renamed to PrintLabels")]
 pub type Labels<'a> = PrintLabels<'a>;
 
-crate::words! {
+craft_ui::words! {
     /// The labels of [`PrintLabels`] as owned text. `Default` is English; `PrintTexts::of(ui)` reads
     /// the words installed in the context, and [`PrintTexts::labels`] lends them to
     /// [`State::show`].
@@ -254,7 +254,7 @@ impl State {
                 let printer_label = ui.label(labels.printer);
                 let shown = shown_names(&self.printers);
                 let selected = self.printers.iter().zip(&shown).find(|(p, _)| p.name == self.settings.printer).map(|(_, text)| text.as_str());
-                crate::ComboBox::from_id_salt("printer")
+                craft_ui::ComboBox::from_id_salt("printer")
                     .width(width)
                     .wrap_mode(egui::TextWrapMode::Truncate)
                     .selected_text(if self.settings.printer.is_empty() { labels.select_printer } else { selected.unwrap_or(&self.settings.printer) })
@@ -279,7 +279,7 @@ impl State {
                     (Some(Duplex::ShortEdge), labels.short_edge),
                 ];
                 let duplex_label = ui.label(labels.duplex);
-                crate::ComboBox::from_id_salt("duplex")
+                craft_ui::ComboBox::from_id_salt("duplex")
                     .width(width)
                     .wrap_mode(egui::TextWrapMode::Truncate)
                     .selected_text(
@@ -297,6 +297,9 @@ impl State {
         });
     }
 }
+
+/// The labels tables of the print controls, for the words registry.
+pub const WORDS: &[&[craft_ui::localized::Word]] = &[<PrintTexts as craft_ui::localized::Labels>::WORDS];
 
 #[cfg(test)]
 mod tests;

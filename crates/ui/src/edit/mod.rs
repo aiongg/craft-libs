@@ -43,7 +43,7 @@ mod live;
 pub mod ops;
 pub mod order;
 pub mod parts;
-mod story;
+pub(crate) mod story;
 #[cfg(test)]
 mod tests;
 

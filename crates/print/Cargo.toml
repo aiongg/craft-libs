@@ -7,7 +7,14 @@ repository.workspace = true
 rust-version.workspace = true
 description = "System PDF print spooler for the Craft apps: CUPS and Windows"
 
+[features]
+default = []
+# The printer and job settings widgets (`craft_print::ui`).
+ui = ["dep:craft-ui", "dep:egui"]
+
 [dependencies]
+craft-ui = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
 # Safe API; Win32 calls are isolated in this maintained MIT OR Apache-2.0 dependency.
 craft-winprint-gdi = { git = "https://github.com/storytold/winprint.rs", rev = "417ac3c4d14d3da5485a99c7d5ce8f05664ec312" }
 

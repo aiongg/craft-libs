@@ -18,8 +18,6 @@
 //! - [`PanelFooter`]: the bar of buttons under a panel body, under a rule across the panel.
 //! - [`SliderRow`]: a caption and number field over a full-width slider, as an adjustment panel's row.
 //! - [`Histogram`]: a plot of bins, one tone channel or overlapping ribbons; interactive only with a selection or a clickable stale mark.
-//! - [`LevelsEditor`]: a histogram with the input black, gamma and white thumbs and fields under
-//!   it, and the output bar, thumbs and fields; the value is a channel's [`Levels`].
 //! - [`PanelHeader`]: the title row of a flyout or floating panel, with actions, a panel menu
 //!   button and optional float and close buttons.
 //! - [`ToastStack`] and [`Toast`]: cards in the bottom corner of a host rect, with timers that
@@ -31,7 +29,7 @@
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
 //! (`curve.*` for [`CurveEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
-//! `panel_header.*` for [`PanelHeader`], `panel_footer.*` for [`PanelFooter`], `slider_row.*` for [`SliderRow`], `histogram.*` for [`Histogram`], `levels.*` for [`LevelsEditor`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
+//! `panel_header.*` for [`PanelHeader`], `panel_footer.*` for [`PanelFooter`], `slider_row.*` for [`SliderRow`], `histogram.*` for [`Histogram`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 //!
 //! ```
@@ -68,9 +66,6 @@ mod group_box_tests;
 pub(crate) mod histogram;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod histogram_tests;
-pub(crate) mod levels_editor;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
-mod levels_editor_tests;
 pub mod live;
 pub(crate) mod measure;
 pub(crate) mod notice;
@@ -106,7 +101,6 @@ pub use field::{Field, FieldControl, FieldGroup, FieldStyle, OwnName};
 pub use form_grid::{Form, FormGrid, FormStyle, LabelAlign};
 pub use group_box::{GroupBox, GroupBoxStyle};
 pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramResponse, HistogramScale, HistogramStyle};
-pub use levels_editor::{Levels, LevelsClip, LevelsEditor, LevelsLabels, LevelsStyle};
 pub use notice::{Notice, NoticeStyle};
 pub use panel_footer::{PanelFooter, PanelFooterStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};

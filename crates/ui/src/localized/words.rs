@@ -163,7 +163,7 @@ impl Words {
 
     /// A copy of these words for a closure to keep, `None` when no translator is installed: the
     /// closure then keeps nothing, and boxing it allocates nothing.
-    pub(crate) fn translator(&self) -> Option<Words> {
+    pub fn translator(&self) -> Option<Words> {
         self.lookup.is_some().then(|| self.clone())
     }
 
@@ -202,7 +202,7 @@ impl Words {
 }
 
 /// [`Words::format`] of `words`, or of the English words when it is `None` ([`Words::translator`]).
-pub(crate) fn format_in(words: Option<&Words>, word: Word, args: &[(&str, &str)]) -> String {
+pub fn format_in(words: Option<&Words>, word: Word, args: &[(&str, &str)]) -> String {
     match words {
         Some(words) => words.format(word, args),
         None => craft_i18n::fmt(word.english, args),

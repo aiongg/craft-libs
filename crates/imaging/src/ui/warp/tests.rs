@@ -6,13 +6,13 @@ use kurbo::{Point, Rect, Vec2};
 
 use super::story::{WarpHost, english_names, eval, surface_at};
 use super::{WarpEdit, WarpGrid, WarpMesh, WarpRelease, WarpSplit};
-use crate::canvas::guides::GuideHost;
-use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
-use crate::edit::{CancelReason, EditEvent};
-use crate::localized::LocaleNumbers;
-use crate::primitives::FocusRing;
-use crate::testing::TypingField;
-use crate::theme::{Base, current, install};
+use craft_ui::canvas::guides::GuideHost;
+use craft_ui::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
+use craft_ui::edit::{CancelReason, EditEvent};
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::primitives::FocusRing;
+use craft_ui::testing::TypingField;
+use craft_ui::theme::{Base, current, install};
 
 /// The mesh before any drag: one patch, points every third of the way.
 const RECT: Rect = Rect::new(100.0, 80.0, 280.0, 200.0);
@@ -122,6 +122,7 @@ fn kinds(h: &Harness<'_, Host>) -> Vec<&'static str> {
             EditEvent::Commit { .. } => "commit",
             EditEvent::Cancel { .. } => "cancel",
             EditEvent::Set { .. } => "set",
+            _ => "other",
         })
         .collect()
 }

@@ -20,7 +20,7 @@ use crate::typed_story;
 
 /// The `update rate` arg.
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
-pub(crate) enum RateArg {
+pub enum RateArg {
     Realtime,
     #[choice(name = "debounced 300 ms")]
     Debounced,
@@ -28,12 +28,12 @@ pub(crate) enum RateArg {
 
 /// The args that set an event-log story's [`EditPolicy`].
 #[derive(StoryArgs, Clone, Copy, Debug, PartialEq)]
-pub(crate) struct PolicyArgs {
+pub struct PolicyArgs {
     #[arg(name = "update rate")]
-    pub(crate) update_rate: RateArg,
-    pub(crate) cancellable: bool,
+    pub update_rate: RateArg,
+    pub cancellable: bool,
     #[arg(name = "on release only")]
-    pub(crate) on_release_only: bool,
+    pub on_release_only: bool,
 }
 
 impl Default for PolicyArgs {
@@ -70,7 +70,7 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// The story's policy for its controls, from the `update rate`, `cancellable` and `on release
 /// only` args.
-pub(crate) fn policy(args: &PolicyArgs) -> EditPolicy {
+pub fn policy(args: &PolicyArgs) -> EditPolicy {
     let update = match args.update_rate {
         RateArg::Debounced => UpdateRate::Debounced(Duration::from_millis(300)),
         RateArg::Realtime => UpdateRate::Realtime,

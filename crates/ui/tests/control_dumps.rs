@@ -6,8 +6,8 @@
 use craft_theme::{ButtonVariant, ControlSize, State, States, TypeRole};
 use craft_ui::canvas::{BezierOverlay, Guides, PenDraft, Readout, RefSize, ReferencePoint, Rulers};
 use craft_ui::composites::{
-    ChannelColor, CurveEditor, EmptyState, Field, FormGrid, GroupBox, Histogram, LevelsEditor, Notice, PanelFooter, PanelHeader, PropertyRow,
-    SectionHeader, SectionLabel, SliderRow, ToastStack, Tone,
+    ChannelColor, CurveEditor, EmptyState, Field, FormGrid, GroupBox, Histogram, Notice, PanelFooter, PanelHeader, PropertyRow, SectionHeader,
+    SectionLabel, SliderRow, ToastStack, Tone,
 };
 use craft_ui::controls::{
     AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
@@ -697,20 +697,6 @@ fn histogram() {
     });
 }
 
-/// Levels editors: the width range, the rows, thumbs and bar, the thumb edges and ring, the
-/// captions and the gap between fields.
-#[test]
-fn levels_editor() {
-    check("levels_editor.txt", |d, t| {
-        let s = LevelsEditor::style(t);
-        d.line("min_width", s.min_width).line("max_width", s.max_width).line("row", s.row).line("bar", s.bar);
-        d.line("thumb_width", s.thumb_width).line("thumb_height", s.thumb_height).line("hit", s.hit);
-        d.line("thumb_edge", s.thumb_edge).line("disabled_edge", s.disabled_edge);
-        states(d, "ring", &s.ring);
-        d.line("ring_width", s.ring_width).line("caption_role", role(s.caption_role)).line("field_gap", s.field_gap);
-    });
-}
-
 /// Readouts: placement, spacing, frame, and the rows' role and colours.
 #[test]
 fn readout() {
@@ -823,21 +809,6 @@ fn transform() {
         d.line("band_inner", s.band_inner).line("band_outer", s.band_outer).line("click_slop", s.click_slop);
         d.line("pivot_radius", s.pivot_radius).line("pivot_arm", s.pivot_arm).line("pivot", s.pivot).line("pivot_halo", s.pivot_halo);
         d.line("focus", s.focus).line("focus_halo", s.focus_halo).line("focus_offset", s.focus_offset);
-    });
-}
-
-/// Warp grids: the patch boundaries and thirds, the anchor and handle end looks, the arm, the
-/// reach and the reveal distance.
-#[test]
-fn warp() {
-    check("warp.txt", |d, t| {
-        let s = craft_ui::canvas::WarpGrid::style(t);
-        d.line("line", s.line).line("minor", s.minor);
-        for (key, h) in [("anchor", &s.anchor), ("control", &s.control)] {
-            d.line(&format!("{key}.size"), h.size).line(&format!("{key}.fill"), h.fill);
-            d.line(&format!("{key}.stroke"), h.stroke).line(&format!("{key}.halo"), h.halo);
-        }
-        d.line("arm", s.arm).line("hit", s.hit).line("reveal", s.reveal).line("flatten", s.flatten);
     });
 }
 

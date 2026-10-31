@@ -88,9 +88,7 @@ mod tests;
 pub mod text_field;
 #[cfg(test)]
 mod text_field_tests;
-pub(crate) mod thumb_row;
-#[cfg(test)]
-mod thumb_row_tests;
+pub mod thumb_row;
 pub(crate) mod toggle_button;
 pub(crate) mod tooltip;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]

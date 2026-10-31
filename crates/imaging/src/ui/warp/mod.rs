@@ -1,22 +1,22 @@
 //! [`WarpGrid`]: the mesh of a warp (PhotoCraft's Edit › Transform › Warp) on a canvas: patch
 //! boundaries, anchors and their handles, dragged by the pointer and moved from the keyboard.
 
-pub(crate) mod story;
+pub mod story;
 
 use std::borrow::Cow;
 
 use egui::{AsIdSalt, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, vec2};
 use kurbo::{BezPath, PathEl, Point, Rect, Vec2};
 
-use super::claim::PrimaryPress;
-use super::{CanvasView, Claim, Part, PartFocus, RulerUnits, hit, resize_cursor};
-use crate::behavior::nudge;
-use crate::edit::order::Turn;
-use crate::edit::{EditEvent, EditPolicy, Gesture};
-use crate::localized::words::format_in;
-use crate::localized::{Labels, Word, Words};
-use crate::primitives::{Handle, HandleShape, HandleStyle};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use craft_ui::behavior::nudge;
+use craft_ui::canvas::claim::PrimaryPress;
+use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, RulerUnits, hit, resize_cursor};
+use craft_ui::edit::order::Turn;
+use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
+use craft_ui::localized::words::format_in;
+use craft_ui::localized::{Labels, Word, Words};
+use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
+use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// A warp's control mesh: bicubic Bézier patches sharing their edges, as
 /// `(3 columns + 1) × (3 rows + 1)` control points row by row, in document units.
@@ -596,7 +596,8 @@ struct Drag {
 /// surface) and passes it back each frame.
 ///
 /// ```
-/// use craft_ui::canvas::{CanvasView, WarpGrid, WarpMesh, WarpNames, kurbo::{Point, Rect}};
+/// use craft_ui::canvas::{CanvasView, kurbo::{Point, Rect}};
+/// use craft_imaging::ui::{WarpGrid, WarpMesh, WarpNames};
 /// # egui::__run_test_ui(|ui| {
 /// let (rect, canvas) = ui.allocate_exact_size(egui::vec2(400.0, 300.0), egui::Sense::click_and_drag());
 /// let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
@@ -732,13 +733,17 @@ impl<'a> WarpGrid<'a> {
     }
 
     pub fn style(tokens: &UiTokens) -> WarpStyle {
+        let sized = |mut style: HandleStyle, size: f32| {
+            style.size = size;
+            style
+        };
         let (t, o) = (&tokens.component.transform, &tokens.color.overlay);
         let stroke = o.line.to_egui();
         WarpStyle {
             line: Stroke::new(t.line, stroke),
             minor: Stroke::new(t.warp_minor, stroke.gamma_multiply(0.7)),
-            anchor: HandleStyle { size: t.warp_anchor, ..Handle::style(tokens, HandleShape::Square) },
-            control: HandleStyle { size: t.warp_control, ..Handle::style(tokens, HandleShape::Round) },
+            anchor: sized(Handle::style(tokens, HandleShape::Square), t.warp_anchor),
+            control: sized(Handle::style(tokens, HandleShape::Round), t.warp_control),
             arm: Stroke::new(t.warp_minor, o.handle_stroke.to_egui()),
             split: Stroke::new(t.line, o.stroke.to_egui()),
             split_halo: Stroke::new(t.line + 2.0 * tokens.component.handle.halo, o.halo.to_egui()),

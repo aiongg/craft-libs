@@ -116,7 +116,7 @@ impl Claim {
     /// [`turn`](Claim::turn), so that no new press is taken: `waited` is whether the overlay
     /// kept a waiting press into the pass. A press that superseded it ended the claim, and the
     /// overlay handles the new one in the same pass.
-    pub(crate) fn keeps_waiting(ctx: &Context, canvas: Id, overlay: Id, waited: bool) -> bool {
+    pub fn keeps_waiting(ctx: &Context, canvas: Id, overlay: Id, waited: bool) -> bool {
         waited && Claim::is_owner(ctx, canvas, overlay)
     }
 

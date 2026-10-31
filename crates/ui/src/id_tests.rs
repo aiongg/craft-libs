@@ -4,7 +4,7 @@
 
 use egui::{Context, Id, Pos2, RawInput, Rect, Ui, vec2};
 
-use crate::composites::{Curve, CurveEditor, Levels, LevelsEditor, SectionHeader};
+use crate::composites::{Curve, CurveEditor, SectionHeader};
 use crate::controls::angle_dial::DialOp;
 use crate::controls::{AngleDial, NumberField};
 use crate::edit::parts;
@@ -26,7 +26,6 @@ fn run(show: impl FnMut(&mut Ui)) {
 fn id_in_is_the_shown_id() {
     let numbers = LocaleNumbers::from_tag("en");
     let curve = Curve::identity(255.0);
-    let levels = Levels::identity(0.0..=255.0);
     run(|ui| {
         let at = |salt: &str| -> Id { Interactive::id_in(ui, salt) };
         let (dial, number, header) = (at("dial"), at("number"), at("header"));
@@ -37,7 +36,5 @@ fn id_in_is_the_shown_id() {
         assert_eq!(SectionHeader::new("header", "Header").show(ui, |_| ()).response.id, header, "SectionHeader");
         let curve_id = CurveEditor::id_in(ui, "curve");
         assert_eq!(CurveEditor::new("curve", "Curve", &curve, &numbers).show(ui).response.id, curve_id, "CurveEditor");
-        let levels_id = LevelsEditor::id_in(ui, "levels");
-        assert_eq!(LevelsEditor::new("levels", "Levels", &levels, &numbers).show(ui).response.id, levels_id, "LevelsEditor");
     });
 }

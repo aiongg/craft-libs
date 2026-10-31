@@ -210,7 +210,6 @@ fn canvas_and_print_labels_localized_with_identity_equal_their_english() {
     use crate::canvas::{
         CropLabels, CropNames, GuideNames, PerspectiveCropNames, RulerNames, ScrollbarNames, TransformFieldLabels, TransformLabels, TransformNames,
     };
-    use crate::printing::PrintTexts;
     use crate::shell::CanvasLabels;
 
     identity_holds::<CropNames>();
@@ -222,13 +221,12 @@ fn canvas_and_print_labels_localized_with_identity_equal_their_english() {
     identity_holds::<RulerNames>();
     identity_holds::<GuideNames>();
     identity_holds::<ScrollbarNames>();
-    identity_holds::<PrintTexts>();
     identity_holds::<CanvasLabels>();
 }
 
 #[test]
 fn canvas_names_reach_their_fields_and_closures_fill_placeholders() {
-    use crate::canvas::{BezierNames, CropNames, PenNames, TransformFieldLabels, WarpNames, WarpSide};
+    use crate::canvas::{BezierNames, CropNames, PenNames, TransformFieldLabels};
 
     let by_word = Words::new(|word| Some(format!("<{}>{}", word.key(), word.english.find('{').map_or("", |at| &word.english[at..]))));
     let crop = format!("{:?}", CropNames::english().localized_in(&by_word));
@@ -240,17 +238,12 @@ fn canvas_names_reach_their_fields_and_closures_fill_placeholders() {
 
     assert_eq!(PenNames::english().anchor.as_ref()(3, 5), "Anchor 3 of 5");
     assert_eq!(BezierNames::english().anchor.as_ref()(1, 2), "Anchor 1 of 2");
-    let warp = WarpNames::english();
-    assert_eq!((warp.anchor)(2, 3), "Row 2, column 3");
-    assert_eq!((warp.handle)(2, 3, WarpSide::Right), "Row 2, column 3, right handle");
-    let german = Words::new(|word| (word.key() == "warp.handleUp").then(|| "Zeile {row}, Spalte {column}, oben".to_owned()));
-    assert_eq!((WarpNames::english().localized_in(&german).handle)(1, 2, WarpSide::Up), "Zeile 1, Spalte 2, oben");
 }
 
 #[test]
 fn editor_labels_localized_with_identity_equal_their_english() {
+    use crate::composites::CurveLabels;
     use crate::composites::histogram::HistogramLabels;
-    use crate::composites::{CurveLabels, LevelsLabels};
 
     let identity = Words::new(|_| None);
     macro_rules! check {
@@ -259,7 +252,7 @@ fn editor_labels_localized_with_identity_equal_their_english() {
             assert_eq!(<$labels>::english().localized(|_| None), <$labels>::default());
         )*};
     }
-    check!(CurveLabels, LevelsLabels, HistogramLabels);
+    check!(CurveLabels, HistogramLabels);
 }
 
 #[test]

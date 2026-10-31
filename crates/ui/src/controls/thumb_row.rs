@@ -102,7 +102,7 @@ impl ThumbRowStyle {
     }
 
     /// The default names of a split thumb's halves.
-    pub(crate) fn half_labels() -> (String, String) {
+    pub fn half_labels() -> (String, String) {
         let halves = ThumbRowLabels::english();
         (halves.low, halves.high)
     }
@@ -253,19 +253,18 @@ pub struct ThumbRowOutput<const N: usize> {
     pub edit: EditResponse<[f64; N]>,
     /// The values drawn: the gesture's, each in its range. A composite's other parts draw from
     /// the composite's value instead, which a row edit waiting for its turn isn't in.
-    #[cfg(test)]
     pub shown: [f64; N],
     /// The thumb a pointer drag is moving.
     pub dragged: Option<usize>,
     /// What the frame's Set did, in order: each applies to the row the ones before it left
     /// ([`RowRules::apply`]).
-    pub(crate) ops: Vec<RowOp>,
+    pub ops: Vec<RowOp>,
 }
 
 /// An operation on one thumb of a row: what a key, the wheel, a screen-reader request, a reset or
 /// a tap off the thumbs did to it.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct RowOp {
+pub struct RowOp {
     pub thumb: usize,
     pub op: ScalarOp,
 }
@@ -320,7 +319,7 @@ impl Press {
 
 /// What a row's values may be: each thumb's range, and its order among the others.
 #[derive(Clone, Debug)]
-pub(crate) struct RowRules<const N: usize> {
+pub struct RowRules<const N: usize> {
     thumbs: [Thumb; N],
     scale: Scale,
     /// The period values wrap at ([`ThumbRow::wrap`]).
@@ -349,7 +348,7 @@ impl<const N: usize> RowRules<N> {
     }
 
     /// The values as drawn: each in its range, and one that isn't finite where its thumb says.
-    pub(crate) fn placed(&self, value: &[f64; N]) -> [f64; N] {
+    pub fn placed(&self, value: &[f64; N]) -> [f64; N] {
         std::array::from_fn(|i| {
             let scale = self.scale_of(i);
             let place = |v: f64| if self.wrap.is_some() { self.wrapped(&scale, v) } else { scale.place(v) };
@@ -461,7 +460,7 @@ impl<const N: usize> RowRules<N> {
     /// `row` with `op` applied to its thumb ([`slider::apply`]): from where the thumb is drawn
     /// (an unset gamma steps from where it sits), on its stops and within its bounds among the
     /// others, so the order and the gap hold. The other thumbs keep `row`'s values.
-    pub(crate) fn apply(&self, op: &RowOp, row: &[f64; N]) -> [f64; N] {
+    pub fn apply(&self, op: &RowOp, row: &[f64; N]) -> [f64; N] {
         let values = self.placed(row);
         let i = op.thumb;
         let mut out = *row;
@@ -654,9 +653,8 @@ impl<const N: usize> ThumbRow<N> {
         self
     }
 
-    /// What the values of this row may be, for the tests.
-    #[cfg(test)]
-    pub(crate) fn row_rules(&self) -> RowRules<N> {
+    /// What the values of this row may be.
+    pub fn row_rules(&self) -> RowRules<N> {
         RowRules { thumbs: self.thumbs.clone(), scale: self.scale, wrap: self.wrap, anchored: self.anchored }
     }
 
@@ -696,13 +694,13 @@ impl<const N: usize> ThumbRow<N> {
 
     /// What the values of a row of `thumbs` on `range` with `step` may be, as [`new`](Self::new)
     /// takes them: a composite applies the row's operations with them before drawing it.
-    pub(crate) fn rules(range: &RangeInclusive<f64>, step: Option<f64>, thumbs: &[Thumb; N]) -> RowRules<N> {
+    pub fn rules(range: &RangeInclusive<f64>, step: Option<f64>, thumbs: &[Thumb; N]) -> RowRules<N> {
         RowRules { thumbs: thumbs.clone(), scale: Scale::new(range, step), wrap: None, anchored: None }
     }
 
     /// Whether the row is a part of a composite reporting through one edit, whose press takes
     /// its turn from the edit order ([`press_turn`]).
-    pub(crate) fn part(mut self, part: bool) -> Self {
+    pub fn part(mut self, part: bool) -> Self {
         self.part = part;
         self
     }
@@ -848,13 +846,7 @@ impl<const N: usize> ThumbRow<N> {
                 }
             }
         }
-        ThumbRowOutput {
-            edit: EditResponse::new(response, gesture.finish_as(|row| row.0)),
-            #[cfg(test)]
-            shown,
-            dragged,
-            ops,
-        }
+        ThumbRowOutput { edit: EditResponse::new(response, gesture.finish_as(|row| row.0)), shown, dragged, ops }
     }
 }
 

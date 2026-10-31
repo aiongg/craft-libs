@@ -7,12 +7,12 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
 use super::*;
-use crate::controls::NumberField;
-use crate::direction::{self, Direction};
-use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, UndoMarks};
-use crate::localized::LocaleNumbers;
-use crate::testing::a11y;
-use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
+use craft_ui::controls::NumberField;
+use craft_ui::direction::{self, Direction};
+use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, UndoMarks};
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::testing::a11y;
+use craft_ui::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
 
 /// A host of one channel's levels that applies every value and restores the start value on a
 /// cancel, or hands the events to a [`GestureHost`] with undo steps.
@@ -116,7 +116,7 @@ impl Host {
         let editor =
             LevelsEditor::new("levels", "Levels", &levels, &numbers).value("Red channel").width(300.0).enabled(self.enabled).policy(self.policy);
         let edit = match self.scoped {
-            true => crate::edit::scope(ui, |ui| editor.show(ui)).inner,
+            true => craft_ui::edit::scope(ui, |ui| editor.show(ui)).inner,
             false => editor.show(ui),
         };
         self.id = edit.response.id;
@@ -180,6 +180,7 @@ impl Host {
                 EditEvent::Commit { changed: false, .. } => "Commit unchanged",
                 EditEvent::Cancel { .. } => "Cancel",
                 EditEvent::Set { .. } => "Set",
+                _ => "Other",
             })
             .collect()
     }
@@ -858,7 +859,7 @@ fn inside_a_dialog_scope_the_editor_reports_updates_only_and_disabling_mid_drag_
 
 #[test]
 fn the_stories_name_every_control() {
-    for story in crate::story::registry().into_iter().filter(|s| s.id.starts_with("composites/levels-editor/")) {
+    for story in craft_ui::story::registry().into_iter().filter(|s| s.id.starts_with("composites/levels-editor/")) {
         let mut args = (story.args)();
         let mut harness = Harness::builder()
             .with_size([480.0, 640.0])

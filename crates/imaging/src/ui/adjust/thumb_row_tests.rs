@@ -9,14 +9,14 @@ use egui::{
     Color32, Context, Event, Id, Key, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, TouchPhase, Ui, pos2, vec2,
 };
 
-use super::thumb_row::{Follow, Order, RowOp, Thumb, ThumbRow, ThumbRowStyle};
-use crate::composites::levels_editor::{LevelsEditor, gamma_at, gamma_from};
-use crate::controls::NumberField;
-use crate::edit::ops::{Bound, ScalarOp};
-use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, GestureId, UndoMarks};
-use crate::localized::LocaleNumbers;
-use crate::primitives::Interactive;
-use crate::theme::{Base, Tokens, TokensOf, install};
+use super::levels_editor::{LevelsEditor, gamma_at, gamma_from};
+use craft_ui::controls::NumberField;
+use craft_ui::controls::thumb_row::{Follow, Order, RowOp, Thumb, ThumbRow, ThumbRowStyle};
+use craft_ui::edit::ops::{Bound, ScalarOp};
+use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, GestureId, UndoMarks};
+use craft_ui::localized::LocaleNumbers;
+use craft_ui::primitives::Interactive;
+use craft_ui::theme::{Base, Tokens, TokensOf, install};
 
 const GAP: f64 = 2.0;
 
@@ -286,21 +286,21 @@ fn button(pos: Pos2, pressed: bool) -> Event {
 
 fn begin<T: std::fmt::Debug>(event: Option<EditEvent<T>>) -> GestureId {
     match event {
-        Some(EditEvent::Begin { id }) => id,
+        Some(EditEvent::Begin { id, .. }) => id,
         other => panic!("expected Begin, got {other:?}"),
     }
 }
 
 fn update<T>(id: GestureId, value: T) -> Option<EditEvent<T>> {
-    Some(EditEvent::Update { id, value, modifiers: Modifiers::NONE })
+    Some(EditEvent::update(id, value, Modifiers::NONE))
 }
 
 fn commit<T>(id: GestureId, value: T, changed: bool) -> Option<EditEvent<T>> {
-    Some(EditEvent::Commit { id, value, changed, modifiers: Modifiers::NONE })
+    Some(EditEvent::commit(id, value, changed, Modifiers::NONE))
 }
 
 fn set<T>(value: T, modifiers: Modifiers) -> Option<EditEvent<T>> {
-    Some(EditEvent::Set { value, modifiers })
+    Some(EditEvent::set(value, modifiers))
 }
 
 /// The input values with the gamma rounded to hundredths, as its step gives it.
@@ -444,7 +444,7 @@ fn keys_move_each_thumb_within_its_bounds_and_the_gamma_thumb_the_way_they_point
         rig.modifiers = modifiers;
         rig.frame(vec![event]);
         let got = match &rig.input_event {
-            Some(EditEvent::Set { value, modifiers }) => Some((rounded(value), *modifiers)),
+            Some(EditEvent::Set { value, modifiers, .. }) => Some((rounded(value), *modifiers)),
             _ => None,
         };
         assert_eq!(got, Some((value, modifiers)), "{:?}", rig.input_event);
@@ -799,7 +799,7 @@ fn alt_drag_splits_and_a_half_moves_alone() {
     let id = begin(mini.event.clone());
     mini.frame(vec![]);
     mini.drag(mini.at(130.0, 0.0));
-    let alt = |value| Some(EditEvent::Update { id, value, modifiers: Modifiers::ALT });
+    let alt = |value| Some(EditEvent::update(id, value, Modifiers::ALT));
     assert_eq!(mini.event, alt([100.0, 130.0]));
     // Releasing Alt mid-drag changes nothing: the press decided.
     mini.modifiers = Modifiers::NONE;
@@ -813,7 +813,7 @@ fn alt_drag_splits_and_a_half_moves_alone() {
     mini.press(mini.at(100.0, 0.0));
     let id = begin(mini.event.clone());
     mini.drag(mini.at(200.0, 0.0));
-    assert_eq!(mini.event, Some(EditEvent::Update { id, value: [140.0, 140.0], modifiers: Modifiers::ALT }));
+    assert_eq!(mini.event, Some(EditEvent::update(id, [140.0, 140.0], Modifiers::ALT)));
     mini.release(mini.at(200.0, 0.0));
 }
 
@@ -861,7 +861,7 @@ fn range_bar() -> [Thumb; 4] {
 }
 
 /// A hue range bar's rules: four thumbs, wrap 360, the first thumb the anchor, a span of 359.
-fn range_rules() -> super::thumb_row::RowRules<4> {
+fn range_rules() -> craft_ui::controls::thumb_row::RowRules<4> {
     ThumbRow::new("rules", [0.0; 4], &(0.0..=360.0), Some(1.0), range_bar()).wrap_from(360.0, 0, 359.0).row_rules()
 }
 

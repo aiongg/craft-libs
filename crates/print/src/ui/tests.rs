@@ -262,3 +262,11 @@ fn localized_controls_fit_narrow_ui_and_disable_while_submitting() {
     frame(&mut state, vec![pointer(false)]);
     assert!(state.settings.grayscale, "pending work disables editing its settings");
 }
+
+#[test]
+fn print_texts_localized_with_identity_equal_their_english() {
+    use craft_ui::localized::{Labels as _, Words};
+    let shown = |texts: PrintTexts| format!("{texts:?}");
+    assert_eq!(shown(PrintTexts::english().localized_in(&Words::new(|_| None))), shown(PrintTexts::default()));
+    assert_eq!(shown(PrintTexts::english().localized_in(&Words::english())), shown(PrintTexts::default()));
+}

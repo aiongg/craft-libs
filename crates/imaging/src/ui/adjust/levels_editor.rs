@@ -8,18 +8,18 @@ use craft_theme::{ControlSize, Rgba, States, TypeRole};
 use egui::accesskit::Role;
 use egui::{Align, AsIdSalt, Color32, Context, Id, IdSalt, Key, Layout, Modifiers, Rect, Sense, Ui, UiBuilder, pos2, vec2};
 
-use super::curve_editor::{gradient, story_bins};
-use super::histogram::{ChannelColor, Histogram, HistogramData};
-use crate::controls::NumberField;
-use crate::controls::number_field::{self, FieldRule};
-use crate::controls::thumb_row::{Follow, Order, RowOp, RowRules, Thumb, ThumbRow, ThumbRowStyle};
-use crate::edit::ops::{self, ScalarOp};
-use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, parts};
-use crate::localized::{Labels as _, LocaleNumbers, Unit, Words};
-use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, Text};
-use crate::story::{Level, Story, StoryArgs, StoryChoice};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
-use crate::typed_story;
+use craft_ui::composites::curve_editor::{gradient, story_bins};
+use craft_ui::composites::{ChannelColor, Histogram, HistogramData};
+use craft_ui::controls::NumberField;
+use craft_ui::controls::number_field::{self, FieldRule};
+use craft_ui::controls::thumb_row::{Follow, Order, RowOp, RowRules, Thumb, ThumbRow, ThumbRowStyle};
+use craft_ui::edit::ops::{self, ScalarOp};
+use craft_ui::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, UndoMarks, parts};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, Words};
+use craft_ui::primitives::{Content, Gap, Stack, Surface, SurfaceKind, Text};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice};
+use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use craft_ui::typed_story;
 
 /// One channel's levels: the input black and white points with the gamma between them, and the
 /// output black and white points.
@@ -82,7 +82,7 @@ pub enum LevelsClip {
     Highlights,
 }
 
-crate::words! {
+craft_ui::words! {
     /// The editor's texts, whole phrases in the installed language unless set. Each thumb and the
     /// field under it share a name: one value, two ways to set it.
     pub struct LevelsLabels {
@@ -505,7 +505,10 @@ impl<'a> LevelsEditor<'a> {
             }
         });
         let (event, submitted, escaped) = group.inner;
-        EditResponse { response: group.response, event, submitted, escaped }
+        let mut edit = EditResponse::new(group.response, event);
+        edit.submitted = submitted;
+        edit.escaped = escaped;
+        edit
     }
 
     /// The parts top to bottom. Returns the pass's event and whether a field was submitted or
@@ -714,7 +717,7 @@ fn show_field(ui: &mut Ui, rect: Rect, salt: &str, field: NumberField<'_>) -> Ed
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["LevelsEditor"];
 
-pub(crate) fn stories() -> Vec<Story> {
+pub fn stories() -> Vec<Story> {
     vec![
         typed_story!(
             "composites/levels-editor/levels",
@@ -737,7 +740,7 @@ pub(crate) fn stories() -> Vec<Story> {
             Level::Composites,
             "LevelsEditor",
             "Event log",
-            edit::PolicyArgs::default(),
+            craft_ui::testing::edit_story::PolicyArgs::default(),
             show_event_log
         ),
     ]
@@ -901,8 +904,8 @@ impl LogState {
 
 /// A levels editor under a [`GestureHost`], its events newest first and the undo steps counted.
 /// Cmd/Ctrl+Z undoes a step, or cancels the gesture under way.
-fn show_event_log(ui: &mut Ui, args: &mut edit::PolicyArgs) {
-    let policy = edit::policy(args);
+fn show_event_log(ui: &mut Ui, args: &mut craft_ui::testing::edit_story::PolicyArgs) {
+    let policy = craft_ui::testing::edit_story::policy(args);
     let numbers = LocaleNumbers::from_tag("en");
     let state_id = ui.scope_id().with("levels-editor-event-log");
     let mut state = ui.data(|d| d.get_temp::<LogState>(state_id)).unwrap_or_default();

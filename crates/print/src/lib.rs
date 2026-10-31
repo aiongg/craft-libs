@@ -26,6 +26,10 @@ pub mod rgb {
     pub use craft_winprint_gdi::*;
 }
 
+/// Printer selection and job settings for egui (`ui` feature).
+#[cfg(feature = "ui")]
+pub mod ui;
+
 /// A system spooler failure. Document permissions belong to the caller.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {

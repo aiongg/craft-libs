@@ -32,7 +32,6 @@
 //!   handles and gestures.
 //! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
 //!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
-//! - [`WarpGrid`]: a warp's mesh ([`WarpMesh`]), its anchors and handles dragged and nudged.
 //! - [`PenDraft`]: the path being drawn with the Pen, its gestures and keys.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
@@ -79,7 +78,6 @@ pub(crate) mod transform_fields;
 mod turn;
 mod units;
 mod view;
-pub(crate) mod warp;
 
 pub use crate::edit::order::Turn;
 pub use ::kurbo;
@@ -116,7 +114,3 @@ pub use turn::{
 };
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};
-pub use warp::{
-    WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpPress, WarpRelease, WarpResponse, WarpSide, WarpSplit, WarpSplitAt, WarpSplitPress, WarpStyle,
-    WarpTarget, WarpTrack,
-};
