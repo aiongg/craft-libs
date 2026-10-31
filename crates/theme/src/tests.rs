@@ -43,6 +43,17 @@ fn hex_parse_and_format() {
 }
 
 #[test]
+fn srgba_hex_accepts_three_six_and_eight_digits() {
+    let orange = Srgba::from_hex("F80").unwrap();
+    assert_eq!(orange.to_hex(), "#ff8800");
+    assert_eq!(Srgba::from_hex(" #ff8800 "), Some(orange));
+    assert_eq!(Srgba::from_hex("ff880080").unwrap().to_hex(), "#ff880080");
+    for bad in ["", "#ff", "#ff88", "#+f8800", "#gg0000", "#ff88000"] {
+        assert_eq!(Srgba::from_hex(bad), None, "{bad}");
+    }
+}
+
+#[test]
 fn known_oklch_values() {
     let red = hex("#ff0000").to_oklch();
     assert!(near(red.l, 0.628, 1e-3) && near(red.c, 0.2577, 1e-3) && near(red.h, 29.23, 0.05));

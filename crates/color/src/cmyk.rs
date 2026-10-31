@@ -1,7 +1,5 @@
 //! [`CmykModel`]: a colour as the inks of one CMYK profile.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use craft_cms::convert::CmykConverter;
 use craft_theme::{Channel, ColorModel, DefaultOn, MAX_CHANNELS, ModelValues, Srgba};
 
@@ -60,12 +58,14 @@ impl ColorModel for CmykModel {
     // `photocraft_color::convert::rgb_to_cmyk`); `self.converter.from_srgb([r, g, b])` scaled to
     // percent.
     fn from_srgb(&self, color: Srgba) -> ModelValues {
-        todo!()
+        let inks = self.converter.from_srgb([color.r, color.g, color.b]);
+        ModelValues::new("cmyk", &inks.map(|v| v * 100.0))
     }
     // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:722 (typed inks to sRGB through
     // `cmyk_to_rgb`); `self.converter.to_srgb(values / 100)`, opaque.
     fn to_srgb(&self, values: &[f32; MAX_CHANNELS]) -> Srgba {
-        todo!()
+        let rgb = self.converter.to_srgb([values[0] / 100.0, values[1] / 100.0, values[2] / 100.0, values[3] / 100.0]);
+        Srgba { r: rgb[0].clamp(0.0, 1.0), g: rgb[1].clamp(0.0, 1.0), b: rgb[2].clamp(0.0, 1.0), a: 1.0 }
     }
     fn default_on(&self) -> DefaultOn {
         DefaultOn { full: false, compact: false }
@@ -74,10 +74,20 @@ impl ColorModel for CmykModel {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     /// Typed inks convert to a colour whose inks read back within one percent (coated CMYK).
     #[test]
-    #[ignore = "skeleton"]
     fn typed_inks_read_back_from_their_colour() {
-        todo!()
+        let model = CmykModel::new(CmykConverter::coated().clone());
+        let typed = [20.0, 40.0, 60.0, 10.0];
+        let mut values = [0.0; MAX_CHANNELS];
+        values[..4].copy_from_slice(&typed);
+        let color = model.to_srgb(&values);
+        let back = model.from_srgb(color);
+        assert_eq!(back.model, "cmyk");
+        for (got, want) in back.values.iter().zip(typed) {
+            assert!((got - want).abs() <= 1.0, "read back {:?}", back.values);
+        }
     }
 }

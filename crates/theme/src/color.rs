@@ -426,16 +426,33 @@ impl Srgba {
     /// Parses `#RGB`, `#RRGGBB` or `#RRGGBBAA` (the `#` optional, case-insensitive); alpha 1 when
     /// not given. `None` for anything else.
     // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:64 `parse_hex`, plus `Rgba::from_hex`.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-    pub fn from_hex(_text: &str) -> Option<Srgba> {
-        todo!()
+    pub fn from_hex(text: &str) -> Option<Srgba> {
+        let h = text.trim().trim_start_matches('#');
+        // `from_str_radix` accepts a leading '+', so require plain hex digits first.
+        if !h.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return None;
+        }
+        let digit = |i: usize| u8::from_str_radix(h.get(i..=i)?, 16).ok();
+        let pair = |i: usize| u8::from_str_radix(h.get(i..i + 2)?, 16).ok();
+        let (r, g, b, a) = match h.len() {
+            3 => (digit(0)? * 17, digit(1)? * 17, digit(2)? * 17, 255),
+            6 => (pair(0)?, pair(2)?, pair(4)?, 255),
+            8 => (pair(0)?, pair(2)?, pair(4)?, pair(6)?),
+            _ => return None,
+        };
+        let f = |v: u8| f32::from(v) / 255.0;
+        Some(Srgba { r: f(r), g: f(g), b: f(b), a: f(a) })
     }
 
     /// `#rrggbb`, or `#rrggbbaa` when the alpha is below 1.
     // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:59 `hex`.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     pub fn to_hex(self) -> String {
-        todo!()
+        let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+        if self.a < 1.0 {
+            format!("#{:02x}{:02x}{:02x}{:02x}", q(self.r), q(self.g), q(self.b), q(self.a))
+        } else {
+            format!("#{:02x}{:02x}{:02x}", q(self.r), q(self.g), q(self.b))
+        }
     }
 
     /// The encoded channels without alpha, for engines that take `[f32; 3]`.
