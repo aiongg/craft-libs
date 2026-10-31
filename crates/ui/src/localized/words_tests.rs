@@ -4,7 +4,7 @@ use craft_host::{AppInfo, Host};
 use craft_i18n::{Embedded, I18n, Lang};
 use egui::Context;
 
-use super::words::problems;
+use super::words::{Counted, problems};
 use super::{Labels, LocaleNumbers, Word, Words};
 
 crate::words! {
@@ -90,13 +90,14 @@ fn a_translation_missing_a_placeholder_is_ignored() {
 
 #[test]
 fn counts_use_plural_forms() {
+    const FILES: Counted = Counted::new("probe.files", "{n} file", "{n} files");
+    let ctx = Context::default();
     let (i18n, _, ru) = catalog();
     let english = Words::english();
-    assert_eq!(english.count("probe.files", 1, "{n} file", "{n} files"), "1 file");
-    assert_eq!(english.count("probe.files", 2, "{n} file", "{n} files"), "2 files");
+    let count = |words: &Words, n| words.counted(&ctx, FILES, &words.get(FILES.word), n);
+    assert_eq!((count(&english, 1), count(&english, 2)), ("1 file".to_owned(), "2 files".to_owned()));
     let russian = Words::from_i18n(i18n, ru);
-    let count = |n| russian.count("probe.files", n, "{n} file", "{n} files");
-    assert_eq!((count(1), count(2), count(5)), ("1 файл".to_owned(), "2 файла".to_owned(), "5 файлов".to_owned()));
+    assert_eq!((count(&russian, 1), count(&russian, 2), count(&russian, 5)), ("1 файл".to_owned(), "2 файла".to_owned(), "5 файлов".to_owned()));
 }
 
 #[test]
@@ -268,7 +269,7 @@ fn counted_words_are_registered_and_read_one_and_other_in_english() {
     let ctx = Context::default();
     use super::words::counts;
     let all: Vec<Word> = super::words::all().collect();
-    for count in counts::ALL {
+    for count in super::words::COUNTS {
         assert!(all.contains(&count.word), "{:?} is not a registered word", count.word);
     }
     let english = Words::english();

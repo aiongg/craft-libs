@@ -2,11 +2,12 @@
 //! chosen information item and the ▸ menu that chooses it.
 
 use craft_theme::ControlSize;
-use egui::{AsIdSalt, Id, Ui};
+use egui::{AsIdSalt, Context, Id, Ui};
 
 use super::StatusBar;
 use crate::controls::NumberField;
 use crate::edit::EditEvent;
+use crate::localized::words::counts;
 use crate::localized::{Labels as _, LocaleNumbers, Unit, Words};
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 
@@ -105,7 +106,6 @@ impl StatusReadout {
     pub fn show(self, ui: &mut Ui, zoom: f32, item: StatusItem, values: &StatusValues) -> StatusReadoutOutput {
         let labels = self.labels.unwrap_or_else(|| StatusReadoutLabels::of(ui));
         let numbers = LocaleNumbers::of(ui);
-        let words = Words::of(ui);
         let mut out = StatusReadoutOutput::default();
         StatusBar::field(ui, |ui| {
             let edit = NumberField::new(self.id.with("zoom"), labels.zoom.as_str(), zoom, &numbers)
@@ -119,7 +119,7 @@ impl StatusReadout {
                 out.zoom = Some(value as f32);
             }
         });
-        StatusBar::info(ui, &item.text(values, &labels, &numbers, &words));
+        StatusBar::info(ui, &item.text(values, &labels, &numbers, ui.ctx()));
         let button = StatusBar::menu_button(ui, &labels.menu);
         let entries: Vec<MenuEntry<StatusItem>> =
             StatusItem::ALL.iter().map(|&i| MenuItem::new(i.label(&labels), i).radio(i == item).into()).collect();
@@ -143,11 +143,11 @@ impl StatusItem {
     ];
 
     /// The item's text for `values` ("Doc: 24.9M/24.9M", "—" when the value is missing), numbers
-    /// in `numbers`' digits and the layer count in `words`' plural forms.
+    /// in `numbers`' digits and the layer count in the plural forms of `ctx`'s words.
     // pc: crates/ui-egui/src/panels/chrome_ui.rs:89 `status_info_text_with_units`;
     // crates/ui-egui/src/panels/status_bar.rs:69 `document_sizes` (flat = w × h × channels ×
     // bytes per channel; layered = raster tile bounds ∩ canvas × (channels + 1) × bytes per channel).
-    pub fn text(self, values: &StatusValues, labels: &StatusReadoutLabels, numbers: &LocaleNumbers, words: &Words) -> String {
+    pub fn text(self, values: &StatusValues, labels: &StatusReadoutLabels, numbers: &LocaleNumbers, ctx: &Context) -> String {
         let text = |value: &Option<String>| value.clone().unwrap_or_else(|| MISSING.to_owned());
         let size = |bytes: u64| compact_size(bytes, labels, numbers);
         match self {
@@ -171,7 +171,7 @@ impl StatusItem {
                 .map_or_else(|| MISSING.to_owned(), |t| craft_i18n::fmt(&labels.timing_text, &[("n", &numbers.format(t.as_secs_f64(), 1..=1))])),
             StatusItem::CurrentTool => text(&values.current_tool),
             StatusItem::LayerCount => {
-                values.layer_count.map_or_else(|| MISSING.to_owned(), |n| words.count("statusReadout.layers", n as u64, "{n} Layer", "{n} Layers"))
+                values.layer_count.map_or_else(|| MISSING.to_owned(), |n| Words::of_ctx(ctx).counted(ctx, counts::LAYERS, &labels.layers, n as u64))
             }
         }
     }
@@ -221,6 +221,8 @@ crate::words! {
         timing: "statusReadout.timing" = "Timing";
         current_tool: "statusReadout.currentTool" = "Current Tool";
         layer_count: "statusReadout.layerCount" = "Layer Count";
+        /// The layer count item's text, the plural form of a count word; `{n}` is the count.
+        layers: "statusReadout.layers" = "{n} Layers";
         doc_prefix: "statusReadout.docPrefix" = "Doc: {flat}/{layered}";
         scratch_prefix: "statusReadout.scratchPrefix" = "Scratch: {used}/{available}";
         efficiency_text: "statusReadout.efficiencyText" = "Efficiency: {n}%";

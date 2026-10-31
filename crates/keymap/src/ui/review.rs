@@ -12,6 +12,7 @@ use super::{Draw, FIELD_W, fill};
 use crate::chord::foreign::{ForeignError, ReadNote};
 use crate::command::CommandRef;
 use crate::import::{FailedChange, ImportPlan, ImportReport, NoChangeReason, SkipReason, UnmatchedReason};
+use crate::ui::text::counts;
 
 /// One list row: the item, its line, its keys and a note.
 struct Entry {
@@ -134,16 +135,13 @@ impl Draw<'_, '_> {
         ui.label(RichText::new(fill(self.ui("Import “{set}”"), &[("set", &set)])).strong());
 
         let t = self.env.text;
-        let mut counts = vec![t.plural(plan.commands.len() as u64, "{n} command will change", "{n} commands will change")];
+        let mut counts = vec![t.count(counts::WILL_CHANGE, plan.commands.len() as u64)];
         let more = [
-            (report.unmatched.len(), t.plural(report.unmatched.len() as u64, "{n} item not matched", "{n} items not matched")),
-            (
-                report.unmatched_without_shortcut,
-                t.plural(report.unmatched_without_shortcut as u64, "{n} item without a shortcut", "{n} items without a shortcut"),
-            ),
-            (report.unreadable.len(), t.plural(report.unreadable.len() as u64, "{n} item could not be read", "{n} items could not be read")),
-            (report.approximated.len(), t.plural(report.approximated.len() as u64, "{n} key read approximately", "{n} keys read approximately")),
-            (report.truncated, t.plural(report.truncated as u64, "{n} entry cut at a limit", "{n} entries cut at a limit")),
+            (report.unmatched.len(), t.count(counts::NOT_MATCHED, report.unmatched.len() as u64)),
+            (report.unmatched_without_shortcut, t.count(counts::WITHOUT_SHORTCUT, report.unmatched_without_shortcut as u64)),
+            (report.unreadable.len(), t.count(counts::UNREADABLE, report.unreadable.len() as u64)),
+            (report.approximated.len(), t.count(counts::APPROXIMATE, report.approximated.len() as u64)),
+            (report.truncated, t.count(counts::CUT, report.truncated as u64)),
         ];
         counts.extend(more.into_iter().filter(|(n, _)| *n > 0).map(|(_, s)| s));
         ui.label(RichText::new(counts.join(" · ")).color(self.style.dim));
@@ -346,7 +344,7 @@ impl Draw<'_, '_> {
         let mut act = None;
         let heading = fill(self.ui("Imported as “{set}”"), &[("set", set)]);
         ui.label(RichText::new(&heading).strong());
-        let changed = self.env.text.plural(report.imported as u64, "{n} command changed", "{n} commands changed");
+        let changed = self.env.text.count(counts::CHANGED, report.imported as u64);
         ui.label(RichText::new(&changed).color(self.style.dim));
         let lists = self.report_lists(report);
         ui.horizontal_wrapped(|ui| {

@@ -1,12 +1,13 @@
 //! [`FindingsList`]: the problems a check found (preflight, export warnings), each one a row that
 //! takes the user to what it is about.
 
-use egui::{Sense, Ui, vec2};
+use egui::{Context, Sense, Ui, vec2};
 
 use super::{List, ListEvent, ListRow};
 use crate::behavior::{RowInfo, SelectionMode};
 use crate::icons::Icon;
-use crate::localized::SharedLabels as _;
+use crate::localized::words::counts;
+use crate::localized::{SharedLabels as _, Words};
 use crate::primitives::Text;
 use craft_theme::TypeRole;
 
@@ -19,10 +20,9 @@ crate::words! {
         no_errors: "findings.noErrors" = "No errors";
         /// `{errors}` and `{warnings}`: the counts, already pluralised by the catalog.
         counts: "findings.counts" = "{errors}, {warnings}";
-        error_one: "findings.errorOne" = "{n} error";
-        error_other: "findings.errorOther" = "{n} errors";
-        warning_one: "findings.warningOne" = "{n} warning";
-        warning_other: "findings.warningOther" = "{n} warnings";
+        /// The plural forms of a count word; `{n}` is the count.
+        errors: "findings.errors" = "{n} errors";
+        warnings: "findings.warnings" = "{n} warnings";
         /// `{page}`: the page label after a finding's message.
         page: "findings.page" = "page {page}";
         error: "findings.error" = "Error";
@@ -100,7 +100,7 @@ impl<'a> FindingsList<'a> {
                 let radius = tokens.component.findings.status_dot;
                 let (dot, _) = ui.allocate_exact_size(vec2(radius * 2.0 + 1.0, radius * 2.0 + 1.0), Sense::hover());
                 ui.painter().circle_filled(dot.center(), radius, color.to_egui());
-                ui.add(Text::new(findings_summary(findings, &labels)).role(TypeRole::Body));
+                ui.add(Text::new(findings_summary(ui.ctx(), findings, &labels)).role(TypeRole::Body));
             });
         }
 
@@ -116,7 +116,7 @@ impl<'a> FindingsList<'a> {
                 FindingLevel::Error => (Icon::Error, &labels.error),
                 FindingLevel::Warning => (Icon::Warning, &labels.warning),
             };
-            let page = finding.page.as_ref().map(|page| labels.page.replace("{page}", page));
+            let page = finding.page.as_ref().map(|page| craft_i18n::fmt(&labels.page, &[("page", page.as_str())]));
             let name = match &page {
                 Some(page) => format!("{level}: {}, {page}", finding.message),
                 None => format!("{level}: {}", finding.message),
@@ -136,18 +136,17 @@ impl<'a> FindingsList<'a> {
     }
 }
 
-/// The summary text: "No errors" for an empty list, else both counts with the catalog's plural
-/// forms, zeros included ("0 errors, 3 warnings", "1 error, 2 warnings").
+/// The summary text: "No errors" for an empty list, else both counts in the plural forms and
+/// digits of `ctx`'s words, zeros included ("0 errors, 3 warnings", "1 error, 2 warnings").
 // designcraft: crates/ui-egui/src/panels/properties/links.rs:275 (summary label)
-pub fn findings_summary(findings: &[Finding], labels: &FindingsLabels) -> String {
+pub fn findings_summary(ctx: &Context, findings: &[Finding], labels: &FindingsLabels) -> String {
     if findings.is_empty() {
         return labels.no_errors.clone();
     }
     let errors = findings.iter().filter(|f| f.level == FindingLevel::Error).count();
     let warnings = findings.len() - errors;
-    let count = |n: usize, one: &str, other: &str| (if n == 1 { one } else { other }).replace("{n}", &n.to_string());
-    labels
-        .counts
-        .replace("{errors}", &count(errors, &labels.error_one, &labels.error_other))
-        .replace("{warnings}", &count(warnings, &labels.warning_one, &labels.warning_other))
+    let words = Words::of_ctx(ctx);
+    let errors = words.counted(ctx, counts::ERRORS, &labels.errors, errors as u64);
+    let warnings = words.counted(ctx, counts::WARNINGS, &labels.warnings, warnings as u64);
+    craft_i18n::fmt(&labels.counts, &[("errors", errors.as_str()), ("warnings", warnings.as_str())])
 }

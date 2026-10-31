@@ -137,13 +137,21 @@ pub mod words {
     }
 
     /// The counted words (singular and plural forms) of every enabled crate that has them.
-    #[allow(clippy::vec_init_then_push, reason = "each push is behind its crate's feature")]
+    #[allow(unused_mut, reason = "each push is behind its crate's feature")]
     pub fn counts() -> Vec<&'static [Counted]> {
-        let mut all: Vec<&'static [Counted]> = Vec::new();
+        let mut all: Vec<&'static [Counted]> = vec![craft_ui::localized::words::COUNTS];
+        #[cfg(feature = "color")]
+        all.push(craft_color::ui::COUNTS);
+        #[cfg(feature = "dialogs")]
+        all.push(craft_dialogs::ui::COUNTS);
         #[cfg(feature = "draw")]
         all.push(craft_draw::ui::COUNTS);
+        #[cfg(feature = "font-manager")]
+        all.push(craft_font_manager::ui::COUNTS);
         #[cfg(feature = "keymap")]
         all.push(craft_keymap::ui::COUNTS);
+        #[cfg(feature = "text")]
+        all.push(craft_text::ui::COUNTS);
         all
     }
 }

@@ -28,6 +28,10 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <crate::axes::AxesLabels as craft_ui::localized::Labels>::WORDS,
 ];
 
+/// The count words of the Missing Fonts dialog: its plural forms are in [`WORDS`], this gives the
+/// singular form a catalog extraction needs.
+pub const COUNTS: &[craft_ui::localized::words::Counted] = &[crate::missing::MESSAGE];
+
 /// The stories of the font manager's panel.
 pub fn stories() -> Vec<Story> {
     let mut stories = vec![typed_story!("patterns/fonts-panel/panel", Level::Patterns, "Fonts panel", "Panel", NoArgs {}, show)];

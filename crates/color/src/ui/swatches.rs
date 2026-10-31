@@ -86,6 +86,10 @@ const NOTE_TRUNCATED: Counted = Counted::new(
 const NOTE_NAMES_CUT: Counted =
     Counted::new("swatches.namesCut", "{n} name was cut to the length the format holds.", "{n} names were cut to the length the format holds.");
 
+/// The notes' count words, for [`COUNTS`](super::COUNTS).
+pub(super) const COUNTS: &[Counted] =
+    &[NOTE_BOOK_READ, NOTE_BOOK_LEFT_OUT, NOTE_SKIPPED, NOTE_CONVERTED, NOTE_KINDS_DROPPED, NOTE_TRUNCATED, NOTE_NAMES_CUT];
+
 /// What the browser names its rows by. Swatch names are unique across the library and group names
 /// among groups, so both survive reordering.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

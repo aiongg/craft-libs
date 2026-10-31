@@ -32,7 +32,7 @@ use crate::ui::capture;
 use crate::ui::rows::{AreaId, Filter, FixedLine, Line, Row};
 use crate::ui::state::{Answer, DialogState, Env, Prompt, Recording, Target, binding_error};
 use crate::ui::style::{self, DialogStyle};
-use crate::ui::text::around_chord;
+use crate::ui::text::{around_chord, counts};
 
 #[path = "keyboard.rs"]
 pub(crate) mod keyboard;
@@ -1484,12 +1484,12 @@ impl Draw<'_, '_> {
         ui.horizontal_wrapped(|ui| {
             if clashes > 0 {
                 let n = clashes as u64;
-                let text = self.env.text.plural(n, "{n} shortcut is assigned more than once", "{n} shortcuts are assigned more than once");
+                let text = self.env.text.count(counts::CLASHES, n);
                 conflicts = ui.link(self.warned(text)).clicked();
             }
             if shadows > 0 {
                 let n = shadows as u64;
-                let text = self.env.text.plural(n, "{n} shortcut also works in another scope", "{n} shortcuts also work in another scope");
+                let text = self.env.text.count(counts::OTHER_SCOPE, n);
                 ui.label(RichText::new(&text).color(self.style.dim));
             }
         });
@@ -1498,7 +1498,7 @@ impl Draw<'_, '_> {
         }
         if !problems.is_empty() {
             let n = problems.len() as u64;
-            let title = self.env.text.plural(n, "{n} saved shortcut could not be used", "{n} saved shortcuts could not be used");
+            let title = self.env.text.count(counts::UNUSABLE, n);
             egui::CollapsingHeader::new(&title).id_salt(self.base.with("problems")).show(ui, |ui| {
                 ScrollArea::vertical().max_height(self.row_h * 4.0).show(ui, |ui| {
                     for p in &problems {
@@ -1520,9 +1520,7 @@ impl Draw<'_, '_> {
             Problem::UnknownScope { key, text } => fill(self.ui("{key}: the scope in “{text}” is unknown"), &[("key", key), ("text", text)]),
             Problem::DuplicateKey { key } => fill(self.ui("{key}: listed more than once"), &[("key", key)]),
             Problem::Dropped { key, .. } => fill(self.ui("{key}: part of the entry was dropped"), &[("key", key)]),
-            Problem::TooManyCommands { ignored } => {
-                self.env.text.plural(*ignored as u64, "{n} entry was ignored: too many commands", "{n} entries were ignored: too many commands")
-            }
+            Problem::TooManyCommands { ignored } => self.env.text.count(counts::IGNORED, *ignored as u64),
         }
     }
 

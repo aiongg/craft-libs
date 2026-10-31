@@ -91,7 +91,7 @@ impl Words {
         Words { lookup: Some(Arc::new(lookup)), plural: None, labels: LabelCache::default() }
     }
 
-    /// Counts ([`Words::count`]) written by `plural(id, n, one, other)`, which returns `None` to
+    /// Counts ([`Words::counted`]) written by `plural(id, n, one, other)`, which returns `None` to
     /// fall back to the English forms.
     #[must_use]
     pub fn with_plural(mut self, plural: impl Fn(&'static str, u64, &'static str, &'static str) -> Option<String> + Send + Sync + 'static) -> Words {
@@ -180,16 +180,6 @@ impl Words {
         }
         craft_i18n::fmt(text, &[("n", &LocaleNumbers::of_ctx(ctx).count(n))])
     }
-
-    /// `n` things: `one` when `n` is 1 and `other` otherwise in English, the locale's plural forms
-    /// when the installed translator has them. `{n}` stands for the number; `id` names the count
-    /// for a custom [`Words::with_plural`].
-    pub fn count(&self, id: &'static str, n: u64, one: &'static str, other: &'static str) -> String {
-        if let Some(text) = self.plural.as_ref().and_then(|plural| plural(id, n, one, other)) {
-            return text;
-        }
-        craft_i18n::fmt(if n == 1 { one } else { other }, &[("n", &n.to_string())])
-    }
 }
 
 /// [`Words::format`] of `words`, or of the English words when it is `None` ([`Words::translator`]).
@@ -228,10 +218,35 @@ pub(crate) mod counts {
     pub(crate) const GRAPH_POINTS: Counted = Counted::new("curve.graphPoints", "{n} point", "{n} points");
     pub(crate) const GRAPH_VALUE: Counted = Counted::new("curve.graphValue", "{channel}, {n} point", "{channel}, {n} points");
     pub(crate) const REPORT_NOTES: Counted = Counted::new("report.notes", "{n} note", "{n} notes");
-
-    #[cfg(test)]
-    pub(crate) const ALL: [Counted; 7] = [PRESETS, GROUP_PRESETS, RESULTS, TOAST_MORE, GRAPH_POINTS, GRAPH_VALUE, REPORT_NOTES];
+    pub(crate) const LAYERS: Counted = Counted::new("statusReadout.layers", "{n} Layer", "{n} Layers");
+    pub(crate) const ERRORS: Counted = Counted::new("findings.errors", "{n} error", "{n} errors");
+    pub(crate) const WARNINGS: Counted = Counted::new("findings.warnings", "{n} warning", "{n} warnings");
+    pub(crate) const MINUTES_AGO: Counted = Counted::new("age.minutes", "{n} minute ago", "{n} minutes ago");
+    pub(crate) const HOURS_AGO: Counted = Counted::new("age.hours", "{n} hour ago", "{n} hours ago");
+    pub(crate) const DAYS_AGO: Counted = Counted::new("age.days", "{n} day ago", "{n} days ago");
+    pub(crate) const MONTHS_AGO: Counted = Counted::new("age.months", "{n} month ago", "{n} months ago");
+    pub(crate) const YEARS_AGO: Counted = Counted::new("age.years", "{n} year ago", "{n} years ago");
 }
+
+/// The kernel's count words: every one `craft-ui` writes with [`Words::counted`]. A facade lists
+/// these with the family crates' `ui::COUNTS`.
+pub const COUNTS: &[Counted] = &[
+    counts::PRESETS,
+    counts::GROUP_PRESETS,
+    counts::RESULTS,
+    counts::TOAST_MORE,
+    counts::GRAPH_POINTS,
+    counts::GRAPH_VALUE,
+    counts::REPORT_NOTES,
+    counts::LAYERS,
+    counts::ERRORS,
+    counts::WARNINGS,
+    counts::MINUTES_AGO,
+    counts::HOURS_AGO,
+    counts::DAYS_AGO,
+    counts::MONTHS_AGO,
+    counts::YEARS_AGO,
+];
 
 /// A labels struct: plain data whose every field is one [`Word`] of its table.
 ///

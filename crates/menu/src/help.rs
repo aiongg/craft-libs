@@ -153,7 +153,7 @@ impl HelpMenu {
     // System Info and About).
     pub fn nodes(&self, labels: &HelpLabels) -> Vec<Node> {
         let app = self.app_name.as_str();
-        let row = |command: HelpCommand, label: &str| Node::Item(Item::new(command.id(), label.replace("{app}", app)));
+        let row = |command: HelpCommand, label: &str| Node::Item(Item::new(command.id(), craft_i18n::fmt(label, &[("app", app)])));
         let mut nodes = Vec::new();
         if self.help_center.is_some() {
             nodes.push(row(HelpCommand::HelpCenter, &labels.help_center));
@@ -174,7 +174,7 @@ impl HelpMenu {
         if self.system_info {
             nodes.push(row(HelpCommand::SystemInfo, &labels.system_info));
         }
-        nodes.push(Node::Item(Item::new(HelpCommand::About.id(), labels.about.replace("{app}", app)).role(ItemRole::About)));
+        nodes.push(Node::Item(Item::new(HelpCommand::About.id(), craft_i18n::fmt(&labels.about, &[("app", app)])).role(ItemRole::About)));
         nodes
     }
 

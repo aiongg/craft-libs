@@ -1,4 +1,4 @@
-//! `RecoveryDialog` and its age text.
+//! `RecoveryDialog`.
 
 use std::time::{Duration, SystemTime};
 
@@ -68,17 +68,4 @@ fn recover_discard_and_close_answer() {
     harness.get_by_label("Discard").click();
     harness.run();
     assert!(matches!(harness.state().answers[0], DialogResult::Ok(RecoveryAction::Discard)));
-}
-
-// 30 s is "less than a minute ago", 61 s "1 minute ago", 7200 s "2 hours ago".
-#[test]
-fn relative_age_steps() {
-    let ctx = egui::Context::default();
-    let labels = RecoveryLabels::default();
-    let age = |seconds| relative_age(&ctx, seconds, &labels);
-    assert_eq!(age(30), "less than a minute ago");
-    assert_eq!(age(61), "1 minute ago");
-    assert_eq!(age(7200), "2 hours ago");
-    assert_eq!(age(3_600), "1 hour ago");
-    assert_eq!(age(86_400 * 2), "2 days ago");
 }

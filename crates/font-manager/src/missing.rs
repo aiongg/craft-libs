@@ -14,7 +14,7 @@ use craft_ui::localized::{Labels as _, Words};
 use egui::{Context, Ui};
 
 /// The message's count word: `{n}` fonts, in the plural forms of the language.
-const MESSAGE: Counted =
+pub(crate) const MESSAGE: Counted =
     Counted::new("missingFonts.message", "{n} font used in this document is not installed.", "{n} fonts used in this document are not installed.");
 
 /// The family text falls back to when a missing font gets no replacement (PhotoCraft's default
