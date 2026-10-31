@@ -86,6 +86,7 @@ enum Outline {
     Rect(Rect),
     Ellipse(Rect),
     Polygon(Vec<Point>),
+    Polyline(Vec<Point>),
     Segments(Vec<(Point, Point)>),
 }
 
@@ -133,6 +134,12 @@ impl Marquee {
     /// `label`.
     pub fn polygon(points: impl IntoIterator<Item = Point>, label: impl Into<String>) -> Self {
         Marquee::new(Outline::Polygon(points.into_iter().collect()), label)
+    }
+
+    /// An open path through `points`, named `label`: no segment joins its last point to its
+    /// first in any look, and the ants' dashes run on across each vertex.
+    pub fn polyline(points: impl IntoIterator<Item = Point>, label: impl Into<String>) -> Self {
+        Marquee::new(Outline::Polyline(points.into_iter().collect()), label)
     }
 
     /// Separate segments, such as a traced outline's edges, named `label`. Slanted ends snap to
@@ -188,7 +195,7 @@ impl Marquee {
     fn bounds(&self) -> Rect {
         match &self.outline {
             Outline::Rect(r) | Outline::Ellipse(r) => r.abs(),
-            Outline::Polygon(points) => bounds_of(points.iter().copied()),
+            Outline::Polygon(points) | Outline::Polyline(points) => bounds_of(points.iter().copied()),
             Outline::Segments(segments) => bounds_of(segments.iter().flat_map(|&(a, b)| [a, b])),
         }
     }
@@ -200,6 +207,7 @@ impl Marquee {
             Outline::Rect(r) => vec![Path { points: view.quad(*r).to_vec(), closed: true }],
             Outline::Ellipse(r) => vec![Path { points: ellipse_points(view, r.abs()), closed: true }],
             Outline::Polygon(points) => vec![Path { points: map(points), closed: look != MarqueeLook::Drawing }],
+            Outline::Polyline(points) => vec![Path { points: map(points), closed: false }],
             Outline::Segments(segments) => segments.iter().map(|&(a, b)| Path { points: map(&[a, b]), closed: false }).collect(),
         }
     }
@@ -258,6 +266,15 @@ impl Marquee {
                 }
             }
         }
+    }
+
+    /// Draws an outline given in screen points, as [`paint`](Marquee::paint) draws one given in
+    /// document space: no view maps the shape, and drawing is clipped to `clip`. Shapes that are
+    /// already on the screen (a warped or perspective outline) go here. Rectangle and ellipse
+    /// corners, polygon, polyline and segment points are all screen points.
+    pub fn paint_screen(&self, painter: &Painter, clip: ScreenRect, look: MarqueeLook, time: f64) {
+        let c = clip.center();
+        self.paint(painter, &CanvasView::new(clip, Point::new(f64::from(c.x), f64::from(c.y)), 1.0), look, time);
     }
 
     /// The AccessKit node: a hover-only widget over the outline's screen bounds, a child of the
