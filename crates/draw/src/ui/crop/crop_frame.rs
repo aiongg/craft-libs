@@ -74,6 +74,15 @@ impl Default for CropNames {
     }
 }
 
+/// What writes the readout beside the pointer: the labels and the ruler units of the document's
+/// x and y axes (percent is per axis), which write W and H.
+#[derive(Clone, Copy, Debug)]
+pub struct CropReadout<'a> {
+    pub labels: &'a CropLabels,
+    pub x: &'a RulerUnits,
+    pub y: &'a RulerUnits,
+}
+
 /// The labels of the readout beside the pointer during a gesture (PhotoCraft's "W:", "H:",
 /// "Angle:"). `Default` is English.
 #[derive(Clone, Debug)]
@@ -1147,15 +1156,16 @@ impl<'a> CropFrame<'a> {
         turn_cursor(ctx, pointer, turn_toward(view, frame, pointer));
     }
 
-    /// The labels and x-axis units [`show`](Self::show) writes its readouts with.
-    fn readout_values(&self) -> Option<(&CropLabels, &RulerUnits)> {
-        self.readout.as_ref().zip(self.units.map(|(x, _)| x))
+    /// The labels and axis units [`show`](Self::show) writes its readouts with.
+    fn readout_values(&self) -> Option<CropReadout<'_>> {
+        let (x, y) = self.units?;
+        self.readout.as_ref().map(|labels| CropReadout { labels, x, y })
     }
 
     /// The readout of a drag of `kind`: the frame's size as Enter would crop it, or its angle.
-    fn show_readout(&self, ctx: &Context, id: Id, kind: Kind, now: &CropBox, pointer: Pos2, values: Option<(&CropLabels, &RulerUnits)>) {
-        let Some((labels, ux)) = values else { return };
-        let numbers = &ux.numbers;
+    fn show_readout(&self, ctx: &Context, id: Id, kind: Kind, now: &CropBox, pointer: Pos2, values: Option<CropReadout<'_>>) {
+        let Some(CropReadout { labels, x, y }) = values else { return };
+        let numbers = &x.numbers;
         let rows: Vec<(String, String)> = match kind {
             Kind::Turn { .. } => {
                 let turn = if self.image { image_mode::image_turn(now.angle) } else { normalized_angle(now.angle) };
@@ -1164,8 +1174,8 @@ impl<'a> CropFrame<'a> {
             }
             Kind::Draw { .. } | Kind::Resize { .. } => match now.crop_size() {
                 Some((w, h)) => {
-                    let whole = |v: f64| format!("{}{}{}", ux.unit.prefix(), numbers.format(v, 0..=0), ux.unit.suffix());
-                    vec![(labels.w.clone(), whole(w)), (labels.h.clone(), whole(h))]
+                    let size = |units: &RulerUnits, v: f64| units.format(v, 0.0, 0..=units.decimals);
+                    vec![(labels.w.clone(), size(x, w)), (labels.h.clone(), size(y, h))]
                 }
                 None => Vec::new(),
             },
@@ -1179,10 +1189,10 @@ impl<'a> CropFrame<'a> {
 
     /// Draws what a host-driven drag shows beside the pointer at canvas point `pointer`: the
     /// readout of a frame drag, or the Straighten line with its angle. `readout` is the labels
-    /// and the ruler units of the document's x axis that write the numbers; the host passes
+    /// and the ruler units of both axes that write the numbers; the host passes
     /// `None` when it shows no readouts (the Straighten line is still drawn). The pointer cursors
     /// are the host's.
-    pub fn paint_gesture(&self, painter: &Painter, style: &CropStyle, press: &CropPress, pointer: Pos2, readout: Option<(&CropLabels, &RulerUnits)>) {
+    pub fn paint_gesture(&self, painter: &Painter, style: &CropStyle, press: &CropPress, pointer: Pos2, readout: Option<CropReadout<'_>>) {
         let id = Id::NULL.with(("craft_draw::CropFrame::host", self.id_salt));
         match press.kind {
             Kind::Line { to } => self.paint_line(painter, style, id, press.origin, to, readout),

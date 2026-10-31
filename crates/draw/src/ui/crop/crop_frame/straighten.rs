@@ -5,11 +5,11 @@ use egui::{Context, CursorIcon, Id, Key, Modifiers, Painter, Pos2, Response, Sha
 use kurbo::{Point, Rect, Size};
 
 use super::geometry::normalized_angle;
-use super::{CropBox, CropFrame, CropLabels, CropStyle};
+use super::{CropBox, CropFrame, CropReadout, CropStyle};
 use crate::ui::transform::transform_box::fixed;
 use craft_ui::canvas::claim::PrimaryPress;
 use craft_ui::canvas::quad::BoxPart;
-use craft_ui::canvas::{CanvasView, Claim, Readout, RulerUnits};
+use craft_ui::canvas::{CanvasView, Claim, Readout};
 
 /// The line being drawn, in screen points, kept between passes.
 #[derive(Clone, Copy, Debug)]
@@ -142,10 +142,10 @@ impl CropFrame<'_> {
     }
 
     /// The line over its halo, and its angle beside the pointer.
-    pub(super) fn paint_line(&self, painter: &Painter, style: &CropStyle, id: Id, from: Pos2, to: Pos2, readout: Option<(&CropLabels, &RulerUnits)>) {
+    pub(super) fn paint_line(&self, painter: &Painter, style: &CropStyle, id: Id, from: Pos2, to: Pos2, readout: Option<CropReadout<'_>>) {
         painter.add(Shape::line_segment([from, to], style.straighten_halo));
         painter.add(Shape::line_segment([from, to], style.straighten));
-        let Some((labels, ux)) = readout else { return };
+        let Some(CropReadout { labels, x, .. }) = readout else { return };
         let d = to - from;
         if d == egui::Vec2::ZERO {
             return;
@@ -153,7 +153,7 @@ impl CropFrame<'_> {
         // Counter-clockwise on screen, as a protractor reads, from -180 (shown as 180) to 180.
         let deg = fixed(normalized_angle(f64::from(-d.y).atan2(f64::from(d.x)).to_degrees()), 1);
         let deg = if deg == -180.0 { 180.0 } else { deg };
-        let angle = format!("{}{}{}", labels.degrees.prefix(), ux.numbers.format(deg, 1..=1), labels.degrees.suffix());
+        let angle = format!("{}{}{}", labels.degrees.prefix(), x.numbers.format(deg, 1..=1), labels.degrees.suffix());
         Readout::new(("craft_ui::canvas::CropFrame::straighten", id)).row(labels.angle.clone(), angle).show(painter.ctx(), to);
     }
 }

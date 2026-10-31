@@ -19,9 +19,9 @@ pub mod transform;
 mod words_tests;
 
 pub use crop::{
-    CropBox, CropFrame, CropGuide, CropLabels, CropNames, CropPress, CropPressKind, CropRelease, CropResponse, CropShield, CropStyle, CropTrack,
-    GuideShow, PerspectiveCropNames, PerspectiveCropQuad, PerspectiveCropResponse, PerspectiveCropStyle, PerspectiveHit, PerspectiveQuad, Polyline,
-    ShieldColor,
+    CropBox, CropFrame, CropGuide, CropLabels, CropNames, CropPress, CropPressKind, CropReadout, CropRelease, CropResponse, CropShield, CropStyle,
+    CropTrack, GuideShow, PerspectiveCropNames, PerspectiveCropQuad, PerspectiveCropResponse, PerspectiveCropStyle, PerspectiveHit, PerspectiveQuad,
+    Polyline, ShieldColor,
 };
 pub use gradient::{
     ColorRequest, ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientExtent, GradientGroup, GradientItem,

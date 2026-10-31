@@ -7,12 +7,12 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect, Vec2};
 
 use super::geometry::{Hit, drawn, handle_part, hit, resized, resized_turned, turn, turned_angle, within};
-use super::{CropBox, CropFrame, CropLabels, CropNames, turn_toward};
+use super::{CropBox, CropFrame, CropLabels, CropNames, CropReadout, turn_toward};
 use crate::ui::CropGuide;
 use craft_ui::canvas::quad::BoxPart;
 use craft_ui::canvas::{CanvasView, RulerUnits};
 use craft_ui::edit::{CancelReason, EditEvent};
-use craft_ui::localized::LocaleNumbers;
+use craft_ui::localized::{LocaleNumbers, Unit};
 use craft_ui::theme::{Base, FontFamilies, ToEgui, UiTokens, current, install};
 
 /// The frame before any gesture.
@@ -169,6 +169,8 @@ struct Host {
     guide: Option<(CropGuide, u8)>,
     bounds: Option<Rect>,
     readout: bool,
+    /// The ruler units of the x and y axes; pixels when `None`.
+    units: Option<[RulerUnits; 2]>,
     /// The host snaps dragged points to a grid of this pitch.
     snap: Option<f64>,
     /// A text field beside the canvas takes the keyboard focus.
@@ -199,6 +201,7 @@ fn harness_with(state: CropBox, rotation: f64, flip: bool, setup: impl FnOnce(&m
         guide: None,
         bounds: None,
         readout: false,
+        units: None,
         snap: None,
         text: false,
         text_value: String::new(),
@@ -221,6 +224,7 @@ fn harness_with(state: CropBox, rotation: f64, flip: bool, setup: impl FnOnce(&m
             let view = CanvasView { rotation: host.rotation, flip_x: host.flip, ..CanvasView::new(rect, Point::new(200.0, 150.0), 1.0) };
             host.view = Some(view);
             let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
+            let [ux, uy] = host.units.clone().unwrap_or_else(|| [px.clone(), px]);
             let state = host.state;
             let pitch = host.snap;
             let mut frame = CropFrame::new("crop", &state, names())
@@ -228,7 +232,7 @@ fn harness_with(state: CropBox, rotation: f64, flip: bool, setup: impl FnOnce(&m
                 .guide(host.guide)
                 .ratio(host.ratio)
                 .default_frame(host.default_frame)
-                .units(&px, &px);
+                .units(&ux, &uy);
             if let Some(pitch) = pitch {
                 frame = frame.snap(move |part, b, _| {
                     let p = b.part_point(part).unwrap_or_default();
@@ -717,6 +721,29 @@ fn the_readout_shows_the_crop_size_or_the_angle() {
     assert_eq!(readout(&h), None);
 }
 
+/// The size readout is written per axis in the ruler's units with its decimals, as PhotoCraft's
+/// `readout_in` does: 220 × 150 px at 72 dpi is 7.76 × 5.29 cm, and 55 × 50 % of a 400 × 300 px
+/// document.
+#[test]
+fn the_size_readout_follows_each_axis_ruler_unit() {
+    let en = LocaleNumbers::from_tag("en");
+    let ruler = |per_doc: f64, unit: &str, decimals| RulerUnits { per_doc, unit: Unit::new(unit), decimals, ..RulerUnits::pixels(en.clone()) };
+    let cm = |_: ()| ruler(2.54 / 72.0, "{n} cm", 2);
+    let percent = ruler(100.0 / 400.0, "{n} %", 1);
+    let percent_y = ruler(100.0 / 300.0, "{n} %", 1);
+    let cases = [([cm(()), cm(())], "W: 7.76 cm\nH: 5.29 cm"), ([percent, percent_y], "W: 55 %\nH: 50 %")];
+    for (units, want) in cases {
+        let mut h = harness(|host| {
+            host.readout = true;
+            host.units = Some(units);
+        });
+        h.run();
+        let from = screen(&h, Point::new(300.0, 220.0));
+        hold(&mut h, from, from + vec2(20.0, 10.0));
+        assert_eq!(readout(&h).as_deref(), Some(want));
+    }
+}
+
 #[test]
 fn the_turn_angle_never_reads_minus_zero() {
     let mut h = harness(|host| host.readout = true);
@@ -1075,7 +1102,7 @@ fn paint_gesture_takes_the_labels_and_units_as_values() {
     let b = CropBox::upright(RECT);
     let labels = CropLabels::new("W:", "H:", "Angle:");
     let units = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
-    let tooltips = |readout: Option<(&CropLabels, &RulerUnits)>| {
+    let tooltips = |readout: Option<CropReadout<'_>>| {
         let ctx = egui::Context::default();
         let mut found = 0;
         ctx.run_ui(Default::default(), |ui| {
@@ -1091,7 +1118,7 @@ fn paint_gesture_takes_the_labels_and_units_as_values() {
         found
     };
     assert_eq!(tooltips(None), 0);
-    assert_eq!(tooltips(Some((&labels, &units))), 1);
+    assert_eq!(tooltips(Some(CropReadout { labels: &labels, x: &units, y: &units })), 1);
 }
 
 #[test]
