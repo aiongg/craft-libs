@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Where each frame's time goes, gathered every frame, and the slow ones kept.
 //!
 //! [`FrameStages`] is one frame's record; each stage has one writer (the raw input hook starts the
@@ -10,13 +9,16 @@
 
 use std::collections::VecDeque;
 
+/// At most one slow-frame log line per this many ms.
+const LOG_EVERY_MS: f64 = 1000.0;
+
 /// A frame slower than this is kept.
 pub const SLOW_FRAME_MS: f64 = 50.0;
 /// Slow frames kept.
 pub const SLOW_FRAMES: usize = 64;
 
 /// One frame's stage times in milliseconds. Field names are the `perf` output's JSON keys.
-#[derive(Clone, Debug, Default, serde::Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FrameStages {
     /// Frame start on the app clock, ms.
@@ -36,50 +38,84 @@ pub struct FrameStages {
     pub refresh_px: u64,
     /// The render path name (`"gpu"`, `"cpu"`).
     pub path: &'static str,
+    #[serde(skip)]
     pub ui_ms: f64,
     /// The live gesture's own render time (a brush stroke).
+    #[serde(skip)]
     pub gesture_ms: f64,
     /// Pointer moves delivered this frame.
+    #[serde(skip)]
     pub moves: usize,
     /// eframe's CPU time for the previous frame.
+    #[serde(skip)]
     pub cpu_prev_ms: Option<f64>,
+    /// The raw input hook ran for this frame.
+    #[serde(skip)]
+    started: bool,
 }
 
 impl FrameStages {
     /// Begin the frame at `now` with `moves` pointer moves.
     pub fn start(&mut self, now: f64, moves: usize) {
-        // pc: crates/ui-egui/src/frame_stages.rs:73
-        todo!()
+        self.t = now;
+        self.moves = moves;
+        self.started = true;
     }
 
     /// The UI pass begins: input time is `now - t`.
     pub fn ui_start(&mut self, now: f64, cpu_prev: Option<f32>) {
-        // pc: crates/ui-egui/src/frame_stages.rs:80
-        todo!()
+        if !self.started {
+            self.start(now, 0);
+        }
+        self.input_ms = (now - self.t - self.command_ms).max(0.0);
+        self.cpu_prev_ms = cpu_prev.map(|s| f64::from(s) * 1000.0);
     }
 
     /// A command `id` took `ms`.
     pub fn command(&mut self, id: &str, ms: f64) {
-        // pc: crates/ui-egui/src/frame_stages.rs:89
-        todo!()
+        self.command_ms += ms;
+        id.clone_into(&mut self.command);
     }
 
     /// The canvas refreshed `px` pixels of `kind`.
     pub fn refresh(&mut self, kind: &'static str, px: u64, composite_ms: f64, upload_ms: f64) {
-        // pc: crates/ui-egui/src/frame_stages.rs:95
-        todo!()
+        self.composite_ms += composite_ms;
+        self.upload_ms += upload_ms;
+        self.refresh = kind;
+        self.refresh_px += px;
     }
 
-    /// The sum of the measured stages.
+    /// The stages that make up `frame_ms` (`present_ms` belongs to the previous frame).
     pub fn stage_ms(&self) -> f64 {
-        // pc: crates/ui-egui/src/frame_stages.rs:103
-        todo!()
+        self.input_ms + self.command_ms + self.damage_ms + self.composite_ms + self.upload_ms
     }
 
-    /// One log line: `frame 83ms: input 2 command 60 (filter.blur) ui 12 …`.
+    /// The frame ends at `now`; never shorter than its stages.
+    fn end(&mut self, now: f64) {
+        if !self.started {
+            self.t = now;
+        }
+        self.frame_ms = (now - self.t).max(self.stage_ms());
+    }
+
+    /// One log line: `slow frame: 83.0 ms on the gpu path: input 2.0, command 60.0 (filter.blur), …`.
     pub fn line(&self) -> String {
-        // pc: crates/ui-egui/src/frame_stages.rs:116
-        todo!()
+        let opt = |v: Option<f64>| v.map_or("-".to_string(), |v| format!("{v:.1}"));
+        let command = if self.command.is_empty() { String::new() } else { format!(" ({})", self.command) };
+        format!(
+            "slow frame: {:.1} ms on the {} path: input {:.1}, command {:.1}{command}, damage {:.1}, composite {:.1}, upload {:.1}, gpu {}, present {}; refresh {} {} px",
+            self.frame_ms,
+            self.path,
+            self.input_ms,
+            self.command_ms,
+            self.damage_ms,
+            self.composite_ms,
+            self.upload_ms,
+            opt(self.gpu_ms),
+            opt(self.present_ms),
+            if self.refresh.is_empty() { "none" } else { self.refresh },
+            self.refresh_px,
+        )
     }
 }
 
@@ -110,25 +146,54 @@ impl SlowFrames {
         self.threshold_ms = ms;
     }
 
-    /// Close frame `s` at `now`; a slow frame is kept and logged at most once a second.
-    pub fn finish(&mut self, s: FrameStages, now: f64, gpu: bool, gpu_ms: Option<f64>) -> FrameStages {
-        // pc: crates/ui-egui/src/frame_stages.rs:168
-        todo!()
+    /// Close frame `s` at `now`: `gpu` says the canvas is on the GPU, `gpu_ms` is the GPU's
+    /// latest composite time. A slow frame is kept and logged at most once a second.
+    pub fn finish(&mut self, mut s: FrameStages, now: f64, gpu: bool, gpu_ms: Option<f64>) -> FrameStages {
+        s.end(now);
+        let on_gpu = if s.refresh.is_empty() { gpu } else { s.refresh.starts_with("gpu") };
+        s.path = if on_gpu { "gpu" } else { "cpu" };
+        s.gpu_ms = gpu_ms.filter(|_| on_gpu);
+        s.present_ms = s.cpu_prev_ms.zip(self.prev_ui_ms).map(|(cpu, ui)| (cpu - ui).max(0.0));
+        self.prev_ui_ms = Some(s.ui_ms);
+        if let Some(line) = self.push(&s) {
+            log::info!("{line}");
+        }
+        s
+    }
+
+    /// Keep `s` if it is slow; the log line to write, if one is due.
+    fn push(&mut self, s: &FrameStages) -> Option<String> {
+        if s.frame_ms.is_nan() || s.frame_ms <= self.threshold_ms {
+            return None;
+        }
+        if self.frames.len() == SLOW_FRAMES {
+            self.frames.pop_front();
+        }
+        self.frames.push_back(s.clone());
+        if self.logged_at.is_some_and(|at| s.t - at < LOG_EVERY_MS) {
+            self.unlogged += 1;
+            return None;
+        }
+        let mut line = s.line();
+        if self.unlogged > 0 {
+            line.push_str(&format!(" ({} more slow frames)", self.unlogged));
+        }
+        self.logged_at = Some(s.t);
+        self.unlogged = 0;
+        Some(line)
     }
 }
 
 impl serde::Serialize for SlowFrames {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        // pc: crates/ui-egui/src/frame_stages.rs:204
-        todo!()
+        serializer.collect_seq(self.frames.iter())
     }
 }
 
 /// Monotonic milliseconds since the first call in this process: `craft_platform::clock::monotonic_ms`,
 /// so profiler rows, traces, screenshot deadlines and the app's own timers share one origin.
 pub fn now_ms() -> f64 {
-    // pc: crates/ui-egui/src/canvas/gpu_canvas/perf.rs:12
-    todo!()
+    craft_platform::clock::monotonic_ms()
 }
 
 #[cfg(test)]
