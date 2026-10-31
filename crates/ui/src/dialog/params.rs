@@ -49,13 +49,52 @@ impl ParamKind {
     /// The value a field of this kind starts with.
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:386 `default_value`.
     pub fn default_value(&self) -> Option<FieldValue> {
-        todo!()
+        Some(match self {
+            ParamKind::Range { default, .. } | ParamKind::Angle { default } => FieldValue::Number(*default),
+            ParamKind::Int { default, .. } => FieldValue::Int(*default),
+            ParamKind::Bool { default } => FieldValue::Bool(*default),
+            ParamKind::Choice { options, default } => {
+                let initial = default.as_deref().or_else(|| options.first().map(|(id, _)| id.as_str()));
+                FieldValue::Text(initial.unwrap_or_default().to_owned())
+            }
+            ParamKind::Color { default } => FieldValue::Color((*default)?),
+            ParamKind::Grid { side, default } => {
+                let mut cells = vec![*default; side * side];
+                // A grid that starts at 0 is a kernel: the identity, 1 in the centre.
+                if *default == 0
+                    && let Some(centre) = cells.get_mut(side * side / 2)
+                {
+                    *centre = 1;
+                }
+                FieldValue::Grid(cells)
+            }
+            ParamKind::Point { default } => FieldValue::Point(*default),
+            ParamKind::Channel { default, .. } => FieldValue::Int(i64::try_from(*default).unwrap_or(0)),
+            ParamKind::Text { default } => FieldValue::Text(default.clone()),
+        })
     }
 
     /// Whether `value` is one this kind can hold (a remembered value must, or it is dropped).
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:335 `rememberable`.
     pub fn fits(&self, value: &FieldValue) -> bool {
-        todo!()
+        let number = |value: &FieldValue| match value {
+            FieldValue::Number(n) => Some(*n),
+            FieldValue::Int(i) => Some(*i as f64),
+            _ => None,
+        };
+        match (self, value) {
+            (ParamKind::Range { min, max, .. }, v) => number(v).is_some_and(|n| n.is_finite() && n >= *min && n <= *max),
+            (ParamKind::Angle { .. }, v) => number(v).is_some_and(f64::is_finite),
+            (ParamKind::Int { min, max, .. }, FieldValue::Int(i)) => min.is_none_or(|m| *i >= m) && max.is_none_or(|m| *i <= m),
+            (ParamKind::Bool { .. }, FieldValue::Bool(_)) => true,
+            (ParamKind::Choice { options, .. }, FieldValue::Text(id)) => options.iter().any(|(option, _)| option == id),
+            (ParamKind::Color { .. }, FieldValue::Color(c)) => c.iter().all(|v| v.is_finite()),
+            (ParamKind::Grid { side, .. }, FieldValue::Grid(cells)) => cells.len() == side * side,
+            (ParamKind::Point { .. }, FieldValue::Point(p)) => p.iter().all(|v| v.is_finite()),
+            (ParamKind::Channel { names, .. }, FieldValue::Int(i)) => usize::try_from(*i).is_ok_and(|i| i < names.len()),
+            (ParamKind::Text { .. }, FieldValue::Text(_)) => true,
+            _ => false,
+        }
     }
 }
 
@@ -87,7 +126,18 @@ impl Param {
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:55 `parse_spec` and
     // crates/ui-egui/src/menus/view_cmds/dialogs.rs:97 `label_of` (camelCase to words).
     pub fn parse_list(spec: &str) -> Vec<Param> {
-        todo!()
+        split_fields(object_body(spec))
+            .iter()
+            .filter_map(|part| {
+                let (key, value) = part.split_once(':')?;
+                let key = key.trim().trim_matches('"');
+                if key.is_empty() || key == "layer" {
+                    return None;
+                }
+                let kind = parse_kind(value.trim())?;
+                Some(Param::new(key, format!("{}:", label_of(key)), kind))
+            })
+            .collect()
     }
 
     /// Draws this parameter's row in a form: the label in the label column, the control in the
@@ -97,6 +147,141 @@ impl Param {
     pub(super) fn row(&self, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
         todo!()
     }
+}
+
+/// The kind one `"key":value` entry of the notation names. Values the dialog does not edit
+/// (documents, structured JSON, references) are `None`.
+fn parse_kind(v: &str) -> Option<ParamKind> {
+    if let Some(choices) = v.strip_prefix('"') {
+        let (body, rest) = choices.split_once('"').unwrap_or((choices, ""));
+        let ids: Vec<&str> = body.split('|').collect();
+        let default = rest.split_once('=').and_then(|(_, def)| {
+            let def = def.trim();
+            let def = if let Some(quoted) = def.strip_prefix('"') {
+                quoted.split('"').next().unwrap_or_default()
+            } else if let Some(quoted) = def.strip_prefix('\'') {
+                quoted.split('\'').next().unwrap_or_default()
+            } else {
+                def.split(|c: char| c.is_whitespace() || matches!(c, '(' | ')' | ',' | '}')).next().unwrap_or_default()
+            };
+            ids.contains(&def).then(|| def.to_owned())
+        });
+        let options = ids.iter().map(|id| ((*id).to_owned(), label_of(id))).collect();
+        Some(ParamKind::Choice { options, default })
+    } else if let Some(rest) = v.strip_prefix("bool") {
+        Some(ParamKind::Bool { default: rest.trim_start_matches('=').trim() == "true" })
+    } else if v == "text" {
+        Some(ParamKind::Text { default: String::new() })
+    } else if v == "color" {
+        Some(ParamKind::Color { default: None })
+    } else if let Some(hex) = v.strip_prefix("color=") {
+        Some(ParamKind::Color { default: parse_hex(hex) })
+    } else if v == "doc" || v == "json" || v.starts_with("layer id") || v.starts_with(['[', '{']) || v.trim_end_matches('?') == "index|name" {
+        None
+    } else if let Some(count) = v.strip_prefix("int[").and_then(|r| r.strip_suffix(']')).and_then(|n| n.parse::<usize>().ok()) {
+        let side = (count as f64).sqrt().round() as usize;
+        Some(ParamKind::Grid { side, default: 0 })
+    } else {
+        let (range, default) = v.split_once('=').map_or((v, ""), |(a, b)| (a, b.trim()));
+        if let Some((lo, hi)) = range.split_once("..") {
+            let min = leading_number(lo).unwrap_or(0.0);
+            let max = leading_number(hi).unwrap_or(100.0);
+            let default = default.parse().unwrap_or(min);
+            // Over three decades a linear track leaves the small values no room.
+            let scale = if min > 0.0 && max / min > 1000.0 { SliderScale::Log } else { SliderScale::Linear };
+            Some(ParamKind::Range { min, max, default, scale })
+        } else {
+            Some(ParamKind::Int { min: None, max: None, default: default.parse().unwrap_or(0) })
+        }
+    }
+}
+
+/// Splits on the commas that separate entries: not inside a string or brackets.
+fn split_fields(inner: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut cur = String::new();
+    let (mut in_str, mut depth) = (false, 0i32);
+    for ch in inner.chars() {
+        if ch == '"' {
+            in_str = !in_str;
+        }
+        if !in_str {
+            match ch {
+                '[' | '{' => depth += 1,
+                ']' | '}' => depth -= 1,
+                _ => {}
+            }
+        }
+        if ch == ',' && !in_str && depth == 0 {
+            parts.push(std::mem::take(&mut cur));
+        } else {
+            cur.push(ch);
+        }
+    }
+    if !cur.trim().is_empty() {
+        parts.push(cur);
+    }
+    parts
+}
+
+/// The number a range bound starts with, ignoring a unit or marker after it: `5000 px?` is 5000,
+/// `1000 %` is 1000.
+fn leading_number(bound: &str) -> Option<f64> {
+    let b = bound.trim();
+    if let Ok(v) = b.parse() {
+        return Some(v);
+    }
+    let end = b.find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | '-' | '+'))).unwrap_or(b.len());
+    b.get(..end)?.parse().ok()
+}
+
+/// The inside of the spec's leading `{...}` object. Notes after it (`-> {...}` results,
+/// parenthesised remarks) are documentation, not parameters.
+fn object_body(spec: &str) -> &str {
+    let s = spec.trim();
+    let Some(body) = s.strip_prefix('{') else { return s };
+    let (mut depth, mut in_str) = (0i32, false);
+    for (i, ch) in body.char_indices() {
+        match ch {
+            '"' => in_str = !in_str,
+            '[' | '{' if !in_str => depth += 1,
+            ']' | '}' if !in_str => {
+                if depth == 0 {
+                    return body.get(..i).unwrap_or(body);
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    body.trim_end_matches('}')
+}
+
+/// `#rrggbb` as colour components.
+fn parse_hex(text: &str) -> Option<[f32; 3]> {
+    let digits = text.trim().trim_start_matches('#');
+    if digits.len() != 6 || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    let channel = |i: usize| u8::from_str_radix(digits.get(i..i + 2)?, 16).ok().map(|v| f32::from(v) / 255.0);
+    Some([channel(0)?, channel(2)?, channel(4)?])
+}
+
+/// A label from a key: camelCase read as words (`cellSize` is `Cell size`); a key with a space is
+/// already text.
+fn label_of(key: &str) -> String {
+    let mut out = String::new();
+    for (i, c) in key.chars().enumerate() {
+        if i == 0 {
+            out.extend(c.to_uppercase());
+        } else if c.is_uppercase() && !key.contains(' ') {
+            out.push(' ');
+            out.extend(c.to_lowercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// Where the footer sits (spec question 1).

@@ -1,8 +1,6 @@
 //! [`DialogFields`]: a dialog's values by key, so scripts and tests set and read them like a user,
 //! the dialog reopens with its last-used values, and Reset restores the opening ones.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -14,10 +12,11 @@ use serde::{Deserialize, Serialize};
 #[non_exhaustive]
 pub enum FieldValue {
     Bool(bool),
+    /// Integer fields, grid cells, counts. Before `Number` so an untagged read keeps an integer
+    /// an integer.
+    Int(i64),
     /// Sliders, angles, resolutions: any real number.
     Number(f64),
-    /// Integer fields, grid cells, counts.
-    Int(i64),
     /// Free text and the id of a [`ParamKind::Choice`](super::ParamKind::Choice) option.
     Text(String),
     /// Linear sRGB components, as the colour picker hands them over.
@@ -125,7 +124,11 @@ impl DialogFields {
     /// `Int`, or a whole `Number`.
     // new: the lenient read a script needs (`"radius": 3` and `3.0` are the same value).
     pub fn int(&self, key: &str) -> Option<i64> {
-        todo!()
+        match self.values.get(key)? {
+            FieldValue::Int(i) => Some(*i),
+            FieldValue::Number(n) if n.fract() == 0.0 && n.abs() < 9.0e15 => Some(*n as i64),
+            _ => None,
+        }
     }
 
     pub fn text(&self, key: &str) -> Option<&str> {
@@ -174,7 +177,7 @@ impl DialogFields {
     // pc: crates/ui-egui/src/menus/view_cmds/dialogs.rs:71 (`__formOrig`) and
     // crates/ui-egui/src/dialogs/sizing.rs:50 `reset` (`__orig*` keys).
     pub fn snapshot(&mut self) {
-        todo!()
+        self.opening = self.values.clone();
     }
 
     /// Restores the snapshot. Keys added since the snapshot are kept; keys removed since come
@@ -182,13 +185,20 @@ impl DialogFields {
     // pc: crates/ui-egui/src/dialogs/dialog_alt_reset.rs:20 `apply` (per-marker reset) and
     // crates/ui-egui/src/menus/view_cmds/dialogs.rs:81 `reset_form`.
     pub fn reset(&mut self) -> bool {
-        todo!()
+        let mut changed = false;
+        for (key, value) in &self.opening {
+            if self.values.get(key) != Some(value) {
+                self.values.insert(key.clone(), value.clone());
+                changed = true;
+            }
+        }
+        changed
     }
 
     /// Whether any value differs from the snapshot (Reset is enabled only then).
     // new.
     pub fn changed(&self) -> bool {
-        todo!()
+        self.opening.iter().any(|(key, value)| self.values.get(key) != Some(value))
     }
 
     /// Keeps only the keys `allowed` names whose value passes `fits`: what a remembered map goes
@@ -196,7 +206,7 @@ impl DialogFields {
     /// its default.
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:335 `rememberable` and :345 `restore_remembered`.
     pub fn retain_fitting(&mut self, allowed: &[&str], fits: impl Fn(&str, &FieldValue) -> bool) {
-        todo!()
+        self.values.retain(|key, value| allowed.contains(&key.as_str()) && fits(key, value));
     }
 }
 
