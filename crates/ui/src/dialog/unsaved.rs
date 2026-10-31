@@ -1,13 +1,15 @@
 //! [`UnsavedChangesDialog`]: the Save / Don't Save / Cancel question for one document, asked by
 //! an app running a [`CloseGuard`](craft_quit::CloseGuard).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use craft_quit::{CloseAnswer, CloseScope};
-use egui::Context;
+use egui::{Context, Key};
 
+use super::buttons::{ButtonRole, Platform};
 use super::dialog_host::{DialogResult, StackDialog};
+use super::prompt::Prompt;
 use super::stack::{DialogId, DialogStack, dialog_id};
+use crate::controls::Checkbox;
+use crate::localized::Labels as _;
 
 crate::words! {
     /// The unsaved-changes question's words, English by default. Windows and Linux ask Yes / No /
@@ -42,7 +44,8 @@ pub struct UnsavedAnswer {
 /// (Alternate) and Cancel in the platform's order and words, and, when the guard has more
 /// documents, an "Apply to All" check box under the message (spec question 3). Keys: Enter
 /// saves, Esc cancels, S / D / C (Y / N / C on Windows and Linux) answer directly; the letters
-/// show in the labels off macOS. Revert asks Revert / Cancel instead.
+/// show in the labels off macOS. Revert asks Revert / Cancel instead; Revert answers
+/// [`CloseAnswer::DontSave`].
 ///
 /// ```ignore
 /// // on GuardStep::Ask(doc):
@@ -87,6 +90,43 @@ impl StackDialog for UnsavedChangesDialog {
     // buttons with keys, Windows Yes/No words), on `Prompt::new(..).answer(..)` with the check
     // box in the message; "Apply to All" is new (Photoshop).
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<UnsavedAnswer>> {
-        todo!()
+        let labels = UnsavedLabels::of_ctx(ctx);
+        let cancel = super::DialogLabels::of_ctx(ctx).cancel;
+        let name = self.name.as_str();
+        let message = match self.scope {
+            CloseScope::Close => &labels.closing,
+            CloseScope::Quit => &labels.quitting,
+            CloseScope::Revert => &labels.reverting,
+        };
+        let message = craft_i18n::fmt(message, &[("name", name)]);
+        let mac = Platform::of(ctx) == Platform::Mac;
+        let mut prompt = Prompt::new("unsaved-changes", labels.title.clone(), message).stack(stack);
+        prompt = if self.scope == CloseScope::Revert {
+            prompt.answer(ButtonRole::Default, labels.revert.clone(), Some(Key::R))
+        } else if mac {
+            prompt.answer(ButtonRole::Default, labels.save.clone(), Some(Key::S)).answer(
+                ButtonRole::Alternate,
+                labels.dont_save.clone(),
+                Some(Key::D),
+            )
+        } else {
+            prompt.answer(ButtonRole::Default, labels.yes.clone(), Some(Key::Y)).answer(ButtonRole::Alternate, labels.no.clone(), Some(Key::N))
+        };
+        prompt = prompt.answer(ButtonRole::Cancel, cancel, Some(Key::C));
+        if self.remaining > 1 && self.scope != CloseScope::Revert {
+            let apply_to_all = &mut self.apply_to_all;
+            let label = labels.apply_to_all.clone();
+            prompt = prompt.below(move |ui| {
+                ui.add_space(ui.spacing().item_spacing.y);
+                let _ = Checkbox::bool(label, apply_to_all).show(ui);
+            });
+        }
+        let answer = match prompt.show(ctx)? {
+            ButtonRole::Default if self.scope == CloseScope::Revert => CloseAnswer::DontSave,
+            ButtonRole::Default => CloseAnswer::Save,
+            ButtonRole::Alternate => CloseAnswer::DontSave,
+            _ => CloseAnswer::Cancel,
+        };
+        Some(DialogResult::Ok(UnsavedAnswer { answer, apply_to_all: self.apply_to_all && self.remaining > 1 }))
     }
 }

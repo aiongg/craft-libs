@@ -28,6 +28,7 @@ resvg = { version = "0.45.1", default-features = false }
 roxmltree = "0.20"
 serde = { version = "1", features = ["derive"] }
 craft-quit = { workspace = true }
+craft-settings = { workspace = true }
 # Same version as epaint's, for reading a face's character map.
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
 
