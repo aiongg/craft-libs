@@ -951,11 +951,13 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
         width_wide,
         width_alert,
         viewport_size,
+        preview_pane,
         viewport_min,
         window_margin,
         resize_margin,
         keep_visible,
         scroll_min,
+        anchor_cell,
     } = t;
     out.line("dialog.pad", len(*pad));
     out.line("dialog.pad_roomy", len(*pad_roomy));
@@ -975,11 +977,13 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
     out.line("dialog.width_wide", len(*width_wide));
     out.line("dialog.width_alert", len(*width_alert));
     out.line("dialog.viewport_size", format!("{} {}", len(viewport_size[0]), len(viewport_size[1])));
+    out.line("dialog.preview_pane", format!("{} {}", len(preview_pane[0]), len(preview_pane[1])));
     out.line("dialog.viewport_min", format!("{} {}", len(viewport_min[0]), len(viewport_min[1])));
     out.line("dialog.window_margin", len(*window_margin));
     out.line("dialog.resize_margin", len(*resize_margin));
     out.line("dialog.keep_visible", len(*keep_visible));
     out.line("dialog.scroll_min", len(*scroll_min));
+    out.line("dialog.anchor_cell", len(*anchor_cell));
 }
 
 fn form_lines(out: &mut Lines, t: &FormTokens) {
