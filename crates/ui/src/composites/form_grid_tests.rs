@@ -62,6 +62,24 @@ fn labels_end_against_one_control_column_a_column_gap_away() {
 }
 
 #[test]
+fn a_spanning_row_starts_at_the_left_edge_and_leaves_the_label_column_alone() {
+    let harness = harness(Direction::Ltr).build_ui_state(
+        |ui, _| {
+            FormGrid::new("form").show(ui, |form| {
+                let mut on = false;
+                let _ = form.spanning(|ui| Checkbox::bool("A much longer check box name than any label", &mut on).show(ui));
+                let _ = form.row("Name:", |ui, _| TextField::new("name", "Name", "short").show(ui));
+            });
+        },
+        None,
+    );
+    let (check, name, field) =
+        (harness.get_by_label("A much longer check box name than any label").rect(), label(&harness, "Name:"), text_input(&harness, "short").rect());
+    assert!((check.left() - name.left()).abs() < 0.5, "{check:?} {name:?}");
+    assert!(field.left() > name.right(), "{field:?} {name:?}");
+}
+
+#[test]
 fn a_label_starts_at_the_reading_start_when_asked() {
     let harness = shown(Direction::Ltr, FormGrid::new("form").label_align(LabelAlign::Start));
     let (name, res) = (label(&harness, "Name:"), label(&harness, "Resolution:"));

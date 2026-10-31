@@ -170,7 +170,8 @@ impl<T> FieldControl for EditResponse<T> {
 ///   string as given: a language that writes a colon after a label has it in its translation.
 ///   [`label_align`](Field::label_align) puts it at the reading start of the column instead.
 /// - **A row without a label** ([`unlabelled`](Field::unlabelled): a check box that names
-///   itself) starts at the group's control column.
+///   itself) starts at the group's control column; a [`spanning`](Field::spanning) one starts at
+///   the group's left edge.
 /// - **Help text** goes under the control in `caption`, `text.muted`. **Error text** takes its
 ///   place while there is one, in `caption` and `field.invalid` (`status.bad.fg`); the help text
 ///   comes back when the error clears. The control draws its invalid state: `show` passes it
@@ -202,6 +203,13 @@ impl Field {
     /// at the control column of its [`FieldGroup`].
     pub fn unlabelled() -> Self {
         Self { label: None, help: None, error: None, above: false, label_align: LabelAlign::End }
+    }
+
+    /// A row without a label whose control starts at the group's left edge, under the label
+    /// column rather than in the control column: a check box that heads a form, as PhotoCraft's
+    /// Preferences options do. The row doesn't count towards its group's label column.
+    pub fn spanning() -> Self {
+        Self { above: true, ..Self::unlabelled() }
     }
 
     /// The label over the control rather than beside it, for narrow dialogs. The row spans the

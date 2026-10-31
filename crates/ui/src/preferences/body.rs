@@ -6,7 +6,7 @@ use egui::{
     Align, AsIdSalt, Context, Event, Id, IdSalt, Key, KeyboardShortcut, Layout, Modifiers, Rect, ScrollArea, Sense, Ui, UiBuilder, pos2, vec2,
 };
 
-use super::model::{Closed, PreferencesOutput, PreferencesTexts};
+use super::model::{Closed, Columns, PreferencesOutput, PreferencesTexts};
 use super::model_trait::PreferencesModel;
 use super::rows::{RowsOut, ShownRow, show_row, typed_value};
 use super::search::{self, Listed};
@@ -48,6 +48,7 @@ pub struct PreferencesStyle {
 /// What a group of the shown page draws.
 struct ShownGroup {
     title: Option<String>,
+    columns: Columns,
     rows: Vec<ShownRow>,
 }
 
@@ -402,7 +403,7 @@ fn shown_page(query: &str, listed: &Listed, page: &super::PageSpec<'_>) -> Shown
         .iter()
         .filter_map(|g| {
             let rows: Vec<ShownRow> = g.rows.iter().filter(|r| search::row_shown(query, listed, r)).map(ShownRow::of).collect();
-            (!rows.is_empty()).then(|| ShownGroup { title: g.title.map(str::to_owned), rows })
+            (!rows.is_empty()).then(|| ShownGroup { title: g.title.map(str::to_owned), columns: g.columns, rows })
         })
         .collect();
     ShownPage { id: page.id.to_owned(), title: page.title.to_owned(), custom: page.custom, footnote: page.footnote.map(str::to_owned), groups }
@@ -431,7 +432,7 @@ fn show_page<H: PreferencesModel + ?Sized>(
             crate::composites::FieldGroup::new((&page.id, at)).show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = gap;
                 for row in &group.rows {
-                    show_row(ui, host, row, numbers, &texts.hex_label, out);
+                    show_row(ui, host, row, numbers, &texts.hex_label, out, group.columns == Columns::Checks);
                 }
             });
         };

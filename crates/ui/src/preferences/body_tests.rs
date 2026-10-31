@@ -214,6 +214,19 @@ fn the_swatch_reports_the_row_to_pick() {
 }
 
 #[test]
+fn check_boxes_of_a_checks_group_start_at_the_label_column_and_others_at_the_control_column() {
+    let mut h = open();
+    let label = h.get_by_role_and_label(Role::Label, "Workspace name:").rect();
+    let autosave = h.get_by_role_and_label(Role::CheckBox, "Save automatically").rect();
+    assert!(autosave.left() > label.right(), "{autosave:?} {label:?}");
+    h.get_by_role_and_label(Role::ListBoxOption, "Interface").click();
+    h.run();
+    let label = h.get_by_role_and_label(Role::Label, "Accent colour:").rect();
+    let tips = h.get_by_role_and_label(Role::CheckBox, "Show tips").rect();
+    assert!((tips.left() - label.left()).abs() < 0.5, "{tips:?} {label:?}");
+}
+
+#[test]
 fn a_hex_field_edit_sets_the_colour_only_when_it_parses() {
     let mut h = open();
     h.get_by_role_and_label(Role::ListBoxOption, "Interface").click();

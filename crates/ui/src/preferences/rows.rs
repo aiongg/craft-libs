@@ -107,6 +107,7 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(
     numbers: &LocaleNumbers,
     hex_label: &str,
     out: &mut RowsOut,
+    checks_at_start: bool,
 ) {
     let ctx = ui.ctx().clone();
     let widths = PreferencesBody::style(&Tokens::of(ui));
@@ -114,7 +115,11 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(
     let edit_id = ui.make_persistent_id(("preferences-before", key));
     let enabled = row.enabled;
     let mut new_value: Option<PrefValue> = None;
-    let field = if matches!(row.kind, Kind::Bool(_)) { Field::unlabelled() } else { Field::new(row.label.as_str()).label_align(LabelAlign::Start) };
+    let field = if matches!(row.kind, Kind::Bool(_)) {
+        if checks_at_start { Field::spanning() } else { Field::unlabelled() }
+    } else {
+        Field::new(row.label.as_str()).label_align(LabelAlign::Start)
+    };
     // PhotoCraft's number fields show no grouping separators.
     let numbers = &numbers.clone().ungrouped();
     let field = match &row.help {
