@@ -204,7 +204,6 @@ pub fn save_dialog_folder(path: Option<&Path>) -> Option<PathBuf> {
 pub const SAVE_FAILED: PlatformText = PlatformText { id: "save.failed", english: "Couldn't save “{name}”: {error}" };
 /// [`SaveStep::Busy`]. PhotoCraft's wording is for its format options dialogs ("Answer the TIFF,
 /// Targa, DDS or JPEG Options before starting another save"); this is the general one.
-pub const SAVE_IN_PROGRESS: PlatformText =
-    PlatformText { id: "save.inProgress", english: "Finish the save in progress before starting another." };
+pub const SAVE_IN_PROGRESS: PlatformText = PlatformText { id: "save.inProgress", english: "Finish the save in progress before starting another." };
 /// The status line after a save; `{name}`.
 pub const SAVED: PlatformText = PlatformText { id: "save.saved", english: "Saved “{name}”" };

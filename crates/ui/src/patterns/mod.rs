@@ -17,6 +17,9 @@
 //! (`options_bar.*` for [`OptionsBar`]); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 
+pub(crate) mod align;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod align_tests;
 pub(crate) mod command_palette;
 #[cfg(test)]
 mod command_palette_tests;
@@ -51,6 +54,7 @@ pub(crate) mod tour;
 mod tour_tests;
 
 pub use crate::behavior::PaletteEntry;
+pub use align::{AlignAction, AlignBar, AlignBarResponse, AlignLabels, DistributeButtons};
 pub use command_palette::{CommandPalette, CommandPaletteStyle, PaletteLabels};
 pub use inspector::{Inspector, InspectorHeader, InspectorStyle};
 pub use options_bar::{CommitCancel, OptionsBar, OptionsBarSlots, OptionsBarStyle};

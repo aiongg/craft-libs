@@ -37,5 +37,10 @@ pub(super) const TABLES: &[&[Word]] = &[
     <crate::shell::CanvasLabels as Labels>::WORDS,
     <crate::composites::CurveLabels as Labels>::WORDS,
     <crate::composites::histogram::HistogramLabels as Labels>::WORDS,
+    <crate::dialog::GuidesLabels as Labels>::WORDS,
+    <crate::dialog::AboutLabels as Labels>::WORDS,
+    <crate::dialog::PasswordLabels as Labels>::WORDS,
+    <crate::dialog::ListManagerLabels as Labels>::WORDS,
+    <crate::patterns::AlignLabels as Labels>::WORDS,
     super::super::ERROR_WORDS,
 ];

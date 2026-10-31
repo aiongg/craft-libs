@@ -41,7 +41,7 @@ pub fn is_plain_file_name(name: &str) -> bool {
 /// Whether `stem` (a name without its extension, compared without case) is a Windows device
 /// name: `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, and the superscript digits
 /// `COM¹`–`COM³`, `LPT¹`–`LPT³` Windows also reserves.
-// pdfcraft: crates/ui-egui/src/workflows/files.rs:236 reserved
+// pdfcraft: crates/ui-egui/src/workflows/files.rs:223 attachment_file_name (the device check at :234)
 pub fn is_reserved_device_name(stem: &str) -> bool {
     todo!()
 }

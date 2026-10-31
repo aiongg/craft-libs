@@ -35,6 +35,9 @@
 //! the popup family's. Each part has a pure `style` function, dumped under
 //! `crates/ui/tests/dumps/components/`.
 
+mod about;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod about_tests;
 mod alert;
 mod blocking;
 mod buttons;
@@ -64,8 +67,14 @@ mod full_window;
 pub(crate) mod full_window_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod full_window_tests;
+mod guides;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod guides_tests;
 mod history;
 mod keys;
+mod list_manager;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod list_manager_tests;
 mod new_document;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod new_document_tests;
@@ -73,6 +82,9 @@ mod params;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod params_tests;
 pub mod pass;
+mod password;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod password_tests;
 mod placement;
 #[cfg(test)]
 mod placement_tests;
@@ -111,6 +123,10 @@ mod unsaved;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod unsaved_tests;
 
+pub use about::{
+    AboutDialog, AboutInfo, AboutLabels, AboutLink, AboutTab, CommitShare, Contributor, ContributorSort, Credits, ModelCredit, NameMode,
+    commit_share, sorted_contributors,
+};
 pub use alert::Alert;
 pub use blocking::BlockingOverlay;
 pub use buttons::{ButtonRole, Clicked, FooterButton, FooterButtons, FooterButtonsResponse, Platform, order};
@@ -122,14 +138,20 @@ pub use fields::{DialogFields, FieldValue};
 pub use footer::{DialogLabels, Footer, FooterFx, Reset};
 pub use frame::{DialogFrame, DialogFrameResponse, DialogFrameStyle};
 pub use full_window::{FullWindowDialog, FullWindowFx};
+pub use guides::{
+    GuideAxis, GuideColor, GuideLayout, GuideLayoutDialog, GuideLayoutError, GuideLayoutLines, GuideLayoutPreset, GuideLayoutResult, GuideLines,
+    GuidePreview, GuideRect, GuideTarget, GuideUnits, GuidesLabels, NewGuide, NewGuideDialog,
+};
 pub use history::{LocalHistory, Step, take_step};
 pub use keys::{EnterRule, KeyInput, resolve_keys};
+pub use list_manager::{ActionEnabled, ListAction, ListChoice, ListEntry, ListManagerDialog, ListManagerLabels};
 pub use new_document::{
     BackgroundContents, BitDepth, ColorMode, DocumentPreset, DocumentSettings, NewDocumentDialog, NewDocumentLabels, Orientation, PresetCategory,
     push_recent, size_line,
 };
 pub use params::{Param, ParamDialog, ParamKind, ParamLayout, ParamResult};
 pub use pass::any_modal;
+pub use password::{PasswordAnswer, PasswordDialog, PasswordLabels, PasswordPurpose, PasswordStrength, Secret, password_strength};
 pub use placement::{PlaceKey, keep_on_screen, next_pin};
 pub use preview::Preview;
 pub use prompt::{Prompt, accelerator_labels};

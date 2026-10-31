@@ -133,10 +133,8 @@ impl std::fmt::Display for ClipboardError {
 impl std::error::Error for ClipboardError {}
 
 /// "The clipboard can't be read here", for [`ClipboardError::Unavailable`] on paste.
-pub const CLIPBOARD_UNAVAILABLE: PlatformText = PlatformText {
-    id: "clipboard.unavailable",
-    english: "The system clipboard can't be reached. Paste works with what was copied in this app.",
-};
+pub const CLIPBOARD_UNAVAILABLE: PlatformText =
+    PlatformText { id: "clipboard.unavailable", english: "The system clipboard can't be reached. Paste works with what was copied in this app." };
 /// A paste over [`ClipboardLimits`]; `{limit}` is the limit as a file size ("1 GB").
 pub const CLIPBOARD_TOO_LARGE: PlatformText =
     PlatformText { id: "clipboard.tooLarge", english: "What's on the clipboard is too large to paste (more than {limit})." };
@@ -235,7 +233,7 @@ impl ClipboardBackend for SystemClipboard {
         todo!()
     }
 
-    // pc: apps/photocraft/src/services.rs:503 image_from_files (trailing '\r' of text/uri-list lines trimmed)
+    // pc: apps/photocraft/src/services.rs:506 image_from_files (trailing '\r' of text/uri-list lines trimmed)
     fn read_files(&mut self, limit: usize) -> Result<Option<Vec<PathBuf>>, ClipboardError> {
         todo!()
     }
