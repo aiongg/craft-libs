@@ -5,6 +5,7 @@ use egui::accesskit::{Node, NodeId, Role};
 use egui::{Context, Event, Modifiers, OutputCommand, PointerButton, Pos2, RawInput, Rect, pos2, vec2};
 
 use super::{ColorPanel, ColorPanelMode, ColorPanelRamp, ColorPanelState, PanelTarget};
+use craft_ui::dialog::ColorRequest;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
 use craft_ui::theme::{Base, install};
@@ -18,7 +19,7 @@ struct Rig {
     state: ColorPanelState,
     colors: [Srgba; 2],
     edits: Vec<(PanelTarget, EditEvent<super::PickedColor>)>,
-    opened: Vec<PanelTarget>,
+    opened: Vec<ColorRequest>,
     added: Vec<PanelTarget>,
     nodes: Vec<(NodeId, Node)>,
 }
@@ -58,7 +59,7 @@ impl Rig {
         });
         let shown = shown.expect("shown");
         self.edits.extend(shown.edits);
-        self.opened.extend(shown.open_picker);
+        self.opened.extend(shown.pick_color);
         self.added.extend(shown.add_to_swatches);
         self.nodes = output.platform_output.accesskit_update.clone().map(|u| u.nodes).unwrap_or_default();
         let commands = output.platform_output.commands.clone();
@@ -102,7 +103,7 @@ fn button(pos: Pos2, pressed: bool, modifiers: Modifiers) -> Event {
 
 /// A point of the background well outside the foreground one.
 fn background_only(rig: &Rig) -> Pos2 {
-    let (front, back) = (rig.bounds(Role::Button, "Foreground colour"), rig.bounds(Role::Button, "Background colour"));
+    let (front, back) = (rig.bounds(Role::Button, "Foreground color"), rig.bounds(Role::Button, "Background color"));
     let corner = back.right_bottom() - vec2(3.0, 3.0);
     assert!(!front.contains(corner));
     corner
@@ -119,7 +120,9 @@ fn wells_switch_and_open_the_picker() {
     assert!(rig.opened.is_empty(), "and opens nothing");
 
     rig.click(back, Modifiers::NONE);
-    assert_eq!(rig.opened, [PanelTarget::Background], "a click on the edited well asks for its picker");
+    let request = ColorRequest::new(PanelTarget::Background.key(), rig.colors[1]).title("Color Picker (Background Color)");
+    assert_eq!(rig.opened, [request], "a click on the edited well asks for its picker, keyed for the well");
+    assert_eq!(PanelTarget::from_key(PanelTarget::Background.key()), Some(PanelTarget::Background));
     assert!(rig.state.background);
 }
 
@@ -167,21 +170,21 @@ fn copy_entries_use_photoshops_formats() {
         output.drop_without_applying_deltas();
         copied
     };
-    frame(&ctx, &mut |ui| entries = ColorPanel::panel_menu(ui, &ColorPanelState::default()));
+    frame(&ctx, &mut |ui| entries = ColorPanel::panel_menu(ui.ctx(), "panel", &ColorPanelState::default()));
     let labels: Vec<&str> = entries.iter().filter_map(|e| e.item()).map(|i| i.label()).collect();
     assert_eq!(labels.len(), 9 + 2 + 4 + 1);
     assert_eq!(labels[9..11], ["Copy Color as HTML", "Copy Color's Hex Code"]);
     assert_eq!(labels.last(), Some(&"Make Ramp Web Safe"));
     let command = |label: &str| entries.iter().filter_map(|e| e.item()).find(|i| i.label() == label).and_then(|i| i.command()).cloned().expect("row");
     let (html, hex) = (command("Copy Color as HTML"), command("Copy Color's Hex Code"));
-    assert_eq!(frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), &mut state, &html, orange))), ["color=\"#ff8000\""]);
-    assert_eq!(frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), &mut state, &hex, orange))), ["ff8000"]);
+    assert_eq!(frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), "panel", &mut state, &html, orange))), ["color=\"#ff8000\""]);
+    assert_eq!(frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), "panel", &mut state, &hex, orange))), ["ff8000"]);
 
     let wheel = command("Color Wheel");
-    frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), &mut state, &wheel, orange)));
+    frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), "panel", &mut state, &wheel, orange)));
     assert_eq!(state.mode, ColorPanelMode::ColorWheel);
     let safe = command("Make Ramp Web Safe");
-    frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), &mut state, &safe, orange)));
+    frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), "panel", &mut state, &safe, orange)));
     assert!(state.web_safe_ramp);
 }
 

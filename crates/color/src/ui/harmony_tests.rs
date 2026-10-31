@@ -8,6 +8,7 @@ use egui_kittest::kittest::Queryable as _;
 
 use super::{HarmonyPanel, HarmonyPanelState, HarmonyWheel};
 use crate::harmony::Harmony;
+use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, install};
 
 fn builder<State>() -> egui_kittest::HarnessBuilder<State> {
@@ -19,7 +20,7 @@ const COLORS: [Srgba; 2] = [Srgba::rgb(0.9, 0.2, 0.2), Srgba::rgb(0.2, 0.7, 0.4)
 #[derive(Default)]
 struct WheelHost {
     pressed: Vec<usize>,
-    moved: Vec<(usize, [Option<f32>; 3])>,
+    moved: Vec<(usize, EditEvent<[Option<f32>; 3]>)>,
 }
 
 /// Dragging a marker reports the move of that colour; pressing selects it.
@@ -29,7 +30,7 @@ fn dragging_a_marker_moves_its_colour() {
         |ui, host: &mut WheelHost| {
             let shown = HarmonyWheel::new("wheel", "Harmony", &COLORS).selected(Some(0)).size(200.0).show(ui);
             host.pressed.extend(shown.pressed);
-            host.moved.extend(shown.moved);
+            host.moved.extend(shown.edits);
         },
         WheelHost::default(),
     );
@@ -45,7 +46,20 @@ fn dragging_a_marker_moves_its_colour() {
     harness.event(Event::PointerButton { pos: target, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
     harness.run();
     let moved = &harness.state().moved;
-    assert!(!moved.is_empty() && moved.iter().all(|(i, [h, s, b])| *i == 1 && h.is_some() && s.is_some() && b.is_none()), "{moved:?}");
+    assert!(!moved.is_empty() && moved.iter().all(|(i, _)| *i == 1), "{moved:?}");
+    assert!(moved.iter().filter_map(|(_, e)| e.value()).all(|[h, s, b]| h.is_some() && s.is_some() && b.is_none()), "{moved:?}");
+    assert!(matches!(moved.first(), Some((_, EditEvent::Begin { .. }))), "the drag is a gesture: {moved:?}");
+    assert!(matches!(moved.last(), Some((_, EditEvent::Commit { changed: true, .. }))), "{moved:?}");
+}
+
+/// Every rule has its name among the words, under the key its id gives, in English as the rule's
+/// position in the list.
+#[test]
+fn every_rule_has_its_name_among_the_words() {
+    assert_eq!(super::HARMONY_WORDS.len(), Harmony::ALL.len());
+    for (rule, word) in Harmony::ALL.into_iter().zip(super::HARMONY_WORDS) {
+        assert_eq!(word.id, format!("harmony.rule.{}", rule.id()));
+    }
 }
 
 struct PanelHost {

@@ -6,6 +6,7 @@ use craft_theme::Srgba;
 use egui::{AsIdSalt, IdSalt, Ui, Vec2};
 
 use craft_ui::controls::{ControlSize, Select, Swatch};
+use craft_ui::dialog::ColorRequest;
 use craft_ui::edit::{EditEvent, EditResponse};
 use craft_ui::localized::Labels as _;
 use craft_ui::theme::{Tokens, TokensOf as _};
@@ -51,10 +52,11 @@ pub enum ChosenColor {
 pub struct ColorChoiceResponse {
     /// A row was chosen: a [`Set`](craft_ui::edit::EditEvent::Set) of the new choice.
     pub edit: EditResponse<ChosenColor>,
-    /// "Select Custom Color…" was chosen: the app opens a
-    /// [`ColorPickerDialog`](super::ColorPickerDialog) on the custom colour and, on OK, stores it
-    /// and sets the choice to [`ChosenColor::Custom`].
-    pub pick_custom: bool,
+    /// "Select Custom Color…" was chosen, for this pass only: the app opens a
+    /// [`ColorPickerDialog`](super::ColorPickerDialog) from the request (key
+    /// [`ColorChoice::CUSTOM_KEY`], the custom colour) and, on OK, stores the colour and sets the
+    /// choice to [`ChosenColor::Custom`].
+    pub pick_color: Option<ColorRequest>,
 }
 
 /// A [`Select`](craft_ui::controls::Select) of named colours, each row with a swatch before its
@@ -73,6 +75,9 @@ pub struct ColorChoice<'a> {
 }
 
 impl<'a> ColorChoice<'a> {
+    /// The key of the [`ColorRequest`] that "Select Custom Color…" reports.
+    pub const CUSTOM_KEY: &'static str = "colorChoice.custom";
+
     /// A choice of `value`, named `label` for screen readers.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: &'a ChosenColor) -> ColorChoice<'a> {
         ColorChoice {
@@ -116,6 +121,12 @@ impl<'a> ColorChoice<'a> {
         let labels = ColorChoiceLabels::of(ui);
         let style = Swatch::style(&Tokens::of(ui), size);
         let ppp = ui.pixels_per_point();
+        // The picker opens on the custom colour, else on the colour of the chosen row.
+        let chosen = match value {
+            ChosenColor::Named(id) => named.iter().find(|n| n.id == *id).and_then(|n| n.color),
+            ChosenColor::Custom => None,
+        };
+        let start = custom.or(chosen).unwrap_or(Srgba::rgb(0.0, 0.0, 0.0));
         let mut row = match value {
             ChosenColor::Named(id) => Row::Named(id.clone()),
             ChosenColor::Custom => Row::Custom,
@@ -145,16 +156,17 @@ impl<'a> ColorChoice<'a> {
             Some(EditEvent::Commit { value, modifiers, changed: true, .. }) => Some((value, modifiers)),
             _ => None,
         };
-        let mut pick_custom = false;
+        let mut pick_color = None;
         let event = chosen.and_then(|(row, modifiers)| match row {
             Row::Named(id) => Some(EditEvent::set(ChosenColor::Named(id), modifiers)),
             Row::Custom => Some(EditEvent::set(ChosenColor::Custom, modifiers)),
             Row::SelectCustom => {
-                pick_custom = true;
+                let title = labels.select_custom.trim_end_matches('…').to_owned();
+                pick_color = Some(ColorRequest::new(Self::CUSTOM_KEY, start).title(title));
                 None
             }
         });
-        ColorChoiceResponse { edit: EditResponse::new(response, event), pick_custom }
+        ColorChoiceResponse { edit: EditResponse::new(response, event), pick_color }
     }
 }
 
