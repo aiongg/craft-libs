@@ -11,6 +11,9 @@ repository.workspace = true
 # nothing new to their Cargo.lock. rfd without its `wayland` feature, which links libwayland-client
 # through pkg-config unless winit's `dlopen` is in the build too; the apps' own rfd keeps it on.
 [dependencies]
+craft-host = { workspace = true }
+craft-ui = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
 raw-window-handle = "0.6.2"
 rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }
 
@@ -21,6 +24,11 @@ block2 = "0.6.2"
 objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "NSApplication", "NSOpenPanel", "NSPanel", "NSResponder", "NSSavePanel", "NSView", "NSWindow"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }
+
+[features]
+default = []
+# `craft_dialogs::ui`: `PathField` and the other egui parts of the file service.
+ui = ["dep:craft-ui", "dep:egui"]
 
 [lints]
 workspace = true

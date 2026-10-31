@@ -26,6 +26,11 @@
 //!   confirmations every app asks the same way, the unsaved-changes question of
 //!   [`CloseGuard`](craft_quit::CloseGuard), tabs of properties, a result report.
 //!
+//! - [`NewDocumentDialog`]: File › New with preset cards and the details column.
+//! - [`RecoveryDialog`]: the offer to recover a document an earlier run autosaved.
+//! - [`export`]: Export As, Save for Web, the format option dialogs, the watermark group and the
+//!   output path row.
+//!
 //! Sizes are the `dialog.*` tokens ([`DialogTokens`](craft_theme::DialogTokens)); the colours are
 //! the popup family's. Each part has a pure `style` function, dumped under
 //! `crates/ui/tests/dumps/components/`.
@@ -43,6 +48,7 @@ mod dialog_host;
 mod dialog_host_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod dialog_tests;
+pub mod export;
 mod fields;
 #[cfg(test)]
 mod fields_tests;
@@ -60,6 +66,9 @@ pub(crate) mod full_window_stories;
 mod full_window_tests;
 mod history;
 mod keys;
+mod new_document;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod new_document_tests;
 mod params;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod params_tests;
@@ -80,6 +89,9 @@ mod prompts_tests;
 mod properties;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod properties_tests;
+mod recovery;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod recovery_tests;
 mod report;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod report_tests;
@@ -112,6 +124,10 @@ pub use frame::{DialogFrame, DialogFrameResponse, DialogFrameStyle};
 pub use full_window::{FullWindowDialog, FullWindowFx};
 pub use history::{LocalHistory, Step, take_step};
 pub use keys::{EnterRule, KeyInput, resolve_keys};
+pub use new_document::{
+    BackgroundContents, BitDepth, ColorMode, DocumentPreset, DocumentSettings, NewDocumentDialog, NewDocumentLabels, Orientation, PresetCategory,
+    push_recent, size_line,
+};
 pub use params::{Param, ParamDialog, ParamKind, ParamLayout, ParamResult};
 pub use pass::any_modal;
 pub use placement::{PlaceKey, keep_on_screen, next_pin};
@@ -119,6 +135,7 @@ pub use preview::Preview;
 pub use prompt::{Prompt, accelerator_labels};
 pub use prompts::{PromptAnswer, PromptChoice, PromptKind, PromptLabels, StandardPrompt};
 pub use properties::{PropertiesDialog, PropertiesTab, PropertyRow};
+pub use recovery::{RecoveredDocument, RecoveryAction, RecoveryDialog, RecoveryLabels, relative_age};
 pub use report::{NoteTone, ReportDialog, ReportLabels, ReportNote};
 pub use size::{Body, Resize, ResizeMax, Width, remembered_size, scroll_height};
 pub use sizing::{

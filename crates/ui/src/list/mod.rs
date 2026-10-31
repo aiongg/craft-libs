@@ -18,12 +18,18 @@
 //!   `TreeItem` with `level` and `expanded`, and reports [`ListEvent::Open`]. [`TreeState`] keeps
 //!   the open groups for a host without a model.
 //!
+//! - [`FindingsList`]: problems a check found, with a summary line; activating one reports it so
+//!   the app shows its item.
+//!
 //! Rows draw with the `list.*` component tokens; [`ListRow::style`] is a pure function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod context_menu_tests;
 pub(crate) mod drag;
+mod findings;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod findings_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod list_tests;
 mod rename;
@@ -47,6 +53,7 @@ pub(crate) fn stories() -> Vec<crate::story::Story> {
 }
 
 pub use drag::{GhostThumb, paint_ghost};
+pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsResponse, findings_summary};
 pub use row::{
     DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget, TrailingItem, drop_line,
     paint_drop_mark,

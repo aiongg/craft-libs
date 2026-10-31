@@ -37,20 +37,28 @@
 
 pub mod document;
 pub mod error;
+pub mod files;
 pub mod migrate;
 pub mod remember;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod paths;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod profiles;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod recovery;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store;
 
 pub use error::{LoadReport, MigrateError, ReadOnlyReason, SaveStatus, SectionError, SettingsError, Source, TickResult};
+#[cfg(not(target_arch = "wasm32"))]
+pub use files::DiskFiles;
+pub use files::SettingsFiles;
 pub use migrate::LegacyFile;
 #[cfg(not(target_arch = "wasm32"))]
 pub use paths::{Location, Portable, Probe, Resolved, Rule};
+#[cfg(not(target_arch = "wasm32"))]
+pub use profiles::{ProfileError, Profiles};
 pub use remember::{Remembered, RememberedSection};
 #[cfg(not(target_arch = "wasm32"))]
 pub use store::{OpenOptions, SettingsStore, SharedSettings};

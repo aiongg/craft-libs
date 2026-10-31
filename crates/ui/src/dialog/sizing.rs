@@ -5,6 +5,7 @@
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{Align, Color32, Context, Label, Layout, Pos2, Rect, Response, Shape, Stroke, Ui, UiBuilder, Vec2, vec2};
+use serde::{Deserialize, Serialize};
 
 use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
@@ -139,7 +140,7 @@ use crate::localized::units::{CM_PER_INCH, POINTS_PER_INCH};
 pub use crate::localized::units::LengthUnit as SizeUnit;
 
 /// Resolution units of Image Size.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResolutionUnit {
     PixelsPerInch,
     PixelsPerCentimetre,
@@ -156,7 +157,7 @@ impl ResolutionUnit {
 }
 
 /// Photoshop's Resample list.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Resample {
     /// Resample off: the pixel count is fixed, a physical size changes the resolution.
@@ -173,7 +174,7 @@ pub enum Resample {
 }
 
 /// A cell of the 3×3 anchor: which edge or corner of the current canvas stays put.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Anchor {
     TopLeft,
     Top,
@@ -223,7 +224,7 @@ pub enum CanvasExtension {
 }
 
 /// The sizes the host hands a size dialog and gets back.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PixelSize {
     pub width: u32,
     pub height: u32,

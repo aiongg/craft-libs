@@ -26,6 +26,8 @@
 //! - [`NoticeCenter`]: the app's notices as a [`ToastStack`], with a cap and "Don't Show Again".
 //! - [`Notice`]: an inline status message in the tone's icon and colour.
 //! - [`EmptyState`]: the message of an empty panel or list, or a centred no-document column.
+//! - [`SettingsNotices`]: the status line and notices for settings that can't be saved or were
+//!   reset at load.
 //! - [`live`]: live regions, which announce a message once when it appears. [`Tone`] is the
 //!   neutral, info, good, warn and bad tone of toasts and notices.
 //!
@@ -91,6 +93,9 @@ mod section_header_tests;
 pub(crate) mod section_label;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod section_label_tests;
+mod settings_notice;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod settings_notice_tests;
 pub(crate) mod slider_row;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod slider_row_tests;
@@ -113,5 +118,6 @@ pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};
 pub use section_header::{SectionHeader, SectionStyle};
 pub use section_label::{SectionLabel, SectionLabelStyle};
+pub use settings_notice::{SAVE_NOTICE_AFTER, SettingsNoticeLabels, SettingsNotices, StatusLine};
 pub use slider_row::{SliderRow, SliderRowResponse, SliderRowStyle};
 pub use toast::{Toast, ToastEnd, ToastStack, ToastStyle};

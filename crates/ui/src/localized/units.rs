@@ -16,7 +16,7 @@ pub(crate) const POINTS_PER_INCH: f64 = 72.0;
 
 /// A length unit of a size field. Pixels and percent are the pixel units; the rest are physical
 /// and convert through the resolution.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum LengthUnit {
     Pixels,
     Percent,

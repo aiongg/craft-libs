@@ -29,14 +29,19 @@ clock = ["dep:web-time"]
 pacing = ["clock", "dep:egui"]
 # `logs`: the app log file, the panic hook and its crash log.
 logs = ["dep:log"]
+# `open`: file intake, natural order, reveal in the file manager.
+open = []
+# `autosave`: the autosave timer and the recovery folder.
+autosave = ["dep:serde", "dep:serde_json", "dep:craft-atomic"]
 
 [dependencies]
 egui = { workspace = true, optional = true }
 craft-theme = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
 log = { version = "0.4", optional = true }
 web-time = { version = "1.1", optional = true }
+craft-atomic = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))'.dependencies]
 zbus = { version = "5", default-features = false, features = ["async-io"], optional = true }

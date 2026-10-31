@@ -20,6 +20,9 @@
 
 mod filter;
 mod native;
+pub mod service;
+#[cfg(feature = "ui")]
+pub mod ui;
 
 #[cfg(target_os = "macos")]
 mod macos;

@@ -28,6 +28,8 @@
 //!   [`SearchField`](crate::controls::SearchField) and [`ComboBox`](crate::controls::ComboBox).
 //! - [`scrub`]: a scrub's pointer travel and the screen-edge wrap's pointer warp ([`Scrub`]).
 //! - [`DigitKeys`]: Photoshop's number keys for opacity (1 = 10 %, 0 = 100 %, two digits exact).
+//! - [`ControlClick`], [`drop_touch_twins`], [`SingleLineDrag`]: input fixes run before a pass
+//!   (macOS Control-click, the browser's doubled taps, a single-line field's drag selection).
 //! - [`nudge`]: an arrow key press as a move along the document axes (1 unit, Shift 10), for
 //!   canvas overlays.
 
@@ -47,6 +49,9 @@ mod list_selection;
 mod list_selection_tests;
 mod listbox;
 pub mod nudge;
+mod quirks;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod quirks_tests;
 mod radio_selection;
 mod reorder;
 #[cfg(test)]
@@ -71,6 +76,7 @@ pub use list_selection::{
 };
 pub(crate) use listbox::take_key;
 pub use listbox::{ListOptions, Listbox, TYPE_AHEAD_PAUSE};
+pub use quirks::{ControlClick, SingleLineDrag, TWIN_WINDOW, drop_touch_twins};
 pub use radio_selection::RadioSelection;
 pub use reorder::{
     Axis, DragEnd, DropPosition, ListDrag, Move, Reorder, ReorderGesture, Resolved, RowSpans, StackKey, UniformSpans, edge_scroll_speed,

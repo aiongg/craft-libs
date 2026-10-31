@@ -10,6 +10,8 @@
 //!   and nested dialogs.
 //! - [`PreferencesTexts`]: every caption, a [`Labels`](crate::localized::Labels) table the window reads from
 //!   [`Words`](crate::localized::Words).
+//! - [`SettingsDocument`]: a [`PreferencesModel`] built from the app's settings struct, one row per
+//!   setting by type, labels from the key, with [`SettingRule`]s and Photoshop's [`StandardPage`]s.
 //! - [`matches`]: the search rule, public so hosts and tests share it.
 //!
 //! Sizes are the `preferences.*` and `group_box.*` tokens.
@@ -17,6 +19,9 @@
 mod body;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod body_tests;
+mod document;
+#[cfg(test)]
+mod document_tests;
 mod model;
 mod model_trait;
 mod rows;
@@ -30,6 +35,9 @@ mod window;
 mod window_tests;
 
 pub use body::{PreferencesBody, PreferencesStyle};
+pub use document::{
+    CustomSettings, PageInfo, RuleKind, SettingRule, SettingsDocument, SettingsDocumentLabels, SettingsDraft, StandardPage, setting_label,
+};
 pub use model::{Closed, Columns, GroupSpec, PageSpec, PrefValue, PreferencesOutput, PreferencesTexts, RowKind, RowSpec};
 pub use model_trait::PreferencesModel;
 pub use search::{Listed, list_pages, matches, row_matches, row_shown, shown_position};
