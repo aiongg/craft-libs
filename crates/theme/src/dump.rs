@@ -15,8 +15,8 @@ use crate::{
     Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens,
     PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens,
     Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
-    SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
-    ToggleButtonTokens, Tokens, Tone, ToolbarTokens, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes,
+    TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolbarTokens, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -287,6 +287,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         spinner,
         status_bar,
         swatch,
+        swatch_palette,
         tab,
         title_bar,
         toast,
@@ -353,6 +354,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     spinner_lines(out, spinner);
     status_bar_lines(out, status_bar);
     swatch_lines(out, swatch);
+    swatch_palette_lines(out, swatch_palette);
     tab_lines(out, tab);
     title_bar_lines(out, title_bar);
     toast_lines(out, toast);
@@ -1735,6 +1737,11 @@ fn progress_lines(out: &mut Lines, p: &ProgressTokens) {
     out.line("progress.track", hex(*track));
     out.line("progress.edge", hex(*edge));
     out.line("progress.fill", hex(*fill));
+}
+
+fn swatch_palette_lines(out: &mut Lines, s: &SwatchPaletteTokens) {
+    let SwatchPaletteTokens { table_cell } = s;
+    out.line("swatch_palette.table_cell", len(*table_cell));
 }
 
 fn swatch_lines(out: &mut Lines, s: &SwatchTokens) {

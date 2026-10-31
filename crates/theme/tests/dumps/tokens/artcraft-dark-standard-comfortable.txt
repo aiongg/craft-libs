@@ -1037,6 +1037,7 @@ swatch.checker.b = #d6d6d6ff
 swatch.selected = #378ef0ff
 swatch.mixed.fill = #454545ff
 swatch.mixed.mark = #d4d4d4ff
+swatch_palette.table_cell = 18
 tab.height = 30
 tab.panel_height = 40
 tab.height_large = 38

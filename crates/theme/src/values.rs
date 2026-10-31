@@ -729,6 +729,9 @@ pub const COLOR_RAMP_CELLS_X: u32 = 48;
 /// Cells down a ramp's bar; a count, so no size scales it.
 pub const COLOR_RAMP_CELLS_Y: u32 = 8;
 
+/// Compact side of a swatch palette's table cell (PhotoCraft's Save for Web colour table).
+pub const SWATCH_PALETTE_TABLE_CELL: f32 = 14.0;
+
 /// Compact width of a gradient palette's grid cell (PhotoCraft's gradient popover).
 pub const GRADIENT_PALETTE_CELL_WIDTH: f32 = 32.0;
 /// Compact height of a gradient palette's grid cell.

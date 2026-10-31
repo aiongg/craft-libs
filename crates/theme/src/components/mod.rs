@@ -89,6 +89,7 @@ mod slider_row;
 mod spinner;
 mod status_bar;
 mod swatch;
+mod swatch_palette;
 mod tab;
 mod title_bar;
 mod toast;
@@ -164,6 +165,7 @@ pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
 pub use status_bar::{StatusBarField, StatusBarTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
+pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
 pub use tab::{TabField, TabTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
@@ -833,6 +835,8 @@ families! {
     status_bar: StatusBarTokens => StatusBar(StatusBarField);
     /// Colour wells.
     swatch: SwatchTokens => Swatch(SwatchField);
+    /// Swatch palettes: the cell of the table mode.
+    swatch_palette: SwatchPaletteTokens => SwatchPalette(SwatchPaletteField);
     /// Tabs: one tab of a document or panel strip.
     tab: TabTokens => Tab(TabField);
     /// Title bars: the caption row with the window's buttons and the document title.

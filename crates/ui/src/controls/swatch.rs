@@ -72,6 +72,8 @@ pub struct Swatch {
     position: Option<usize>,
     /// Whether keyboard focus can reach it; a palette keeps one swatch a stop.
     tab_stop: bool,
+    /// The side of a cell of a table of swatches, which touch.
+    table_cell: Option<f32>,
     enabled: bool,
     id_salt: IdSalt,
 }
@@ -87,6 +89,7 @@ impl Swatch {
             radio: None,
             position: None,
             tab_stop: true,
+            table_cell: None,
             enabled: true,
             id_salt: IdSalt::new(id_salt),
         }
@@ -128,6 +131,14 @@ impl Swatch {
     /// screen reader the Focus action, which its group handles (a palette moves its stop there).
     pub(crate) fn tab_stop(mut self, tab_stop: bool) -> Self {
         self.tab_stop = tab_stop;
+        self
+    }
+
+    /// A cell of a table of swatches ([`SwatchPalette`](crate::composites::SwatchPalette)'s table
+    /// mode): `side` wide with square corners, so neighbours meet, and an AccessKit
+    /// `ListBoxOption`, selected when [`selected`](Swatch::selected).
+    pub(crate) fn table_cell(mut self, side: f32) -> Self {
+        self.table_cell = Some(side);
         self
     }
 
@@ -230,8 +241,16 @@ pub fn checkerboard(rect: Rect, radius: CornerRadius, checker: [Color32; 2], cel
 
 impl Widget for Swatch {
     fn ui(self, ui: &mut Ui) -> Response {
-        let style = Swatch::style(&Tokens::of(ui), self.size);
-        let role = if self.radio.is_some() { Role::RadioButton } else { Role::Button };
+        let mut style = Swatch::style(&Tokens::of(ui), self.size);
+        if let Some(side) = self.table_cell {
+            style.side = side;
+            style.radius = CornerRadius::ZERO;
+        }
+        let role = match (self.radio, self.table_cell) {
+            (Some(_), _) => Role::RadioButton,
+            (None, Some(_)) => Role::ListBoxOption,
+            (None, None) => Role::Button,
+        };
         let mut element = Interactive::salted(self.id_salt, role, self.label.as_str())
             .state_layer(false)
             .focus_ring(false)
