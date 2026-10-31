@@ -124,7 +124,7 @@ pub use samplers::{
     ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SAMPLER_HIT, SamplerError, SamplerLabels, SamplerReadout, sampler_options, sampler_readouts,
 };
 pub use screen_picker::{LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPickerLabels};
-pub use swatches::{SwatchAt, SwatchLibrary, SwatchesAction, SwatchesLabels, SwatchesPanel, SwatchesPanelResponse};
+pub use swatches::{SwatchAt, SwatchLibrary, SwatchesAction, SwatchesLabels, SwatchesMenuResponse, SwatchesPanel, SwatchesPanelResponse};
 
 use craft_ui::controls::slider::{self, Scale};
 use craft_ui::edit::{self, EditEvent};

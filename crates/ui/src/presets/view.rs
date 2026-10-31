@@ -641,6 +641,9 @@ where
         if let Some(caption) = &row.caption {
             list_row = list_row.detail(caption.clone());
         }
+        if let Some(name) = &row.accessible_name {
+            list_row = list_row.accessible_name(name.clone());
+        }
         if let Some(preview) = &row.preview {
             let (aspect, paint) = (preview.aspect, preview.paint.clone());
             let width = (side * aspect).max(1.0);
@@ -695,9 +698,10 @@ where
             let thumb = Rect::from_min_size(cell.min, self.metrics.shape.size(self.metrics.thumb));
             let selected = self.selected == Some(&row.key);
             let (index, size) = siblings(&self.order, pos);
-            let name = match &row.caption {
-                Some(caption) => format!("{}, {caption}", row.label),
-                None => row.label.clone(),
+            let name = match (&row.accessible_name, &row.caption) {
+                (Some(name), _) => name.clone(),
+                (None, Some(caption)) => format!("{}, {caption}", row.label),
+                (None, None) => row.label.clone(),
             };
             let role = if self.tree { Role::TreeItem } else { Role::ListBoxOption };
             let id = self.id.with(("preset-cell", &row.key));
