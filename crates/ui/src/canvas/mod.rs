@@ -56,6 +56,7 @@
 //! # });
 //! ```
 
+mod canvas_id;
 pub mod claim;
 pub(crate) mod core_stories;
 mod crisp;
@@ -121,6 +122,7 @@ mod zoom_tests;
 
 pub use crate::edit::order::Turn;
 pub use ::kurbo;
+pub use canvas_id::CanvasId;
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
 pub use cursor::{CursorBadge, CursorHost, CursorPrefs, CursorStyle, PaintingCursor, ToolCursor};

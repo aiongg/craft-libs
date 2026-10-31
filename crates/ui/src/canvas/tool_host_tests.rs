@@ -3,14 +3,17 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use egui::{Event, Id, Key, Modifiers, Painter, PointerButton, Pos2, Rect, Sense, pos2, vec2};
+use egui::{Event, Key, KeyboardShortcut, Modifiers, Painter, PointerButton, Pos2, Rect, Sense, pos2, vec2};
 use egui_kittest::Harness;
 use kurbo::{Point, Size};
 
 use super::navigate::{HandTool, NavigationPrefs, ZoomTool};
-use super::zoom::{self, ZoomLadder};
-use super::{CanvasTool, CanvasView, Claim, SnapGesture, SnapKind, SnapTarget, SnapTargets, ToolAction, ToolContext, ToolGesture, ToolHost};
+use super::zoom::{self, ZoomAnimation, ZoomLadder};
+use super::{
+    CanvasId, CanvasTool, CanvasView, Claim, SnapGesture, SnapKind, SnapTarget, SnapTargets, ToolAction, ToolContext, ToolGesture, ToolHost,
+};
 use super::{ToolHostResponse, ToolInput, ToolKey, ToolPointer};
+use crate::behavior::KeyClaim;
 use crate::theme::{Base, install};
 
 type Log = Rc<RefCell<Vec<String>>>;
@@ -80,7 +83,8 @@ struct Rig {
     text: Option<String>,
     focus_text: bool,
     focus_canvas: bool,
-    id: Id,
+    id: Option<CanvasId>,
+    navigation: Option<NavigationPrefs>,
     responses: Vec<ToolHostResponse>,
 }
 
@@ -95,7 +99,8 @@ impl Rig {
             text: None,
             focus_text: false,
             focus_canvas: false,
-            id: Id::NULL,
+            id: None,
+            navigation: None,
             responses: Vec::new(),
         }
     }
@@ -117,7 +122,8 @@ fn harness(rig: Rig, step_dt: f32) -> Harness<'static, Rig> {
         .build_ui_state(
             |ui, rig: &mut Rig| {
                 let rect = rig.view.rect;
-                let canvas = ui.interact(rect, ui.scope_id().with("canvas"), Sense::click_and_drag() | Sense::FOCUSABLE);
+                let canvas_id = CanvasId::new(ui, "canvas");
+                let canvas = canvas_id.interact(ui, rect, Sense::click_and_drag() | Sense::FOCUSABLE);
                 if std::mem::take(&mut rig.focus_canvas) {
                     canvas.request_focus();
                 }
@@ -131,12 +137,15 @@ fn harness(rig: Rig, step_dt: f32) -> Harness<'static, Rig> {
                 if rig.overlay && ui.input(|i| i.pointer.primary_pressed()) {
                     Claim::take(ui.ctx(), canvas.id, canvas.id.with("overlay"));
                 }
-                let mut host = ToolHost::new("doc").document(rig.document);
+                let mut host = ToolHost::new(canvas_id).document(rig.document);
+                if let Some(prefs) = rig.navigation {
+                    host = host.navigation(prefs);
+                }
                 if let Some(targets) = rig.targets.as_ref() {
                     host = host.snap(targets);
                 }
                 let r = host.show(ui, &rig.view, &canvas, &mut *rig.tool);
-                rig.id = r.id;
+                rig.id = Some(r.id);
                 if let Some(view) = r.view {
                     rig.view = view;
                 }
@@ -204,10 +213,10 @@ fn the_tool_gets_press_drag_release_in_document_units() {
     assert!(calls.contains(&format!("drag doc {}", at(b))), "{calls:?}");
     assert_eq!(calls.last().map(String::as_str), Some(format!("release doc {}", at(b)).as_str()));
     let gestures = h.state().gestures();
-    assert_eq!(gestures.first(), Some(&ToolGesture::Began));
-    assert!(gestures.contains(&ToolGesture::Moved));
-    assert_eq!(gestures.last(), Some(&ToolGesture::Ended));
-    assert!(!ToolHost::in_gesture(&h.ctx, h.state().id));
+    assert_eq!(gestures.first(), Some(&ToolGesture::Begin));
+    assert!(gestures.contains(&ToolGesture::Update));
+    assert_eq!(gestures.last(), Some(&ToolGesture::Commit));
+    assert!(!ToolHost::in_gesture(&h.ctx, h.state().id.expect("a pass ran")));
 }
 
 // A press a guide claimed never reaches press.
@@ -233,7 +242,7 @@ fn esc_during_a_drag_cancels_the_gesture() {
     press(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
     move_to(&mut h, pos2(140.0, 120.0));
     key(&mut h, Key::Escape);
-    assert_eq!(h.state().last().gesture, Some(ToolGesture::Cancelled));
+    assert_eq!(h.state().last().gesture, Some(ToolGesture::Cancel));
     assert_eq!(h.state().last().took_key.map(|k| k.key), Some(Key::Escape));
     release(&mut h, pos2(140.0, 120.0), Modifiers::NONE);
     let calls = log(&calls);
@@ -307,7 +316,7 @@ fn injected_input_drives_the_tool_like_the_pointer() {
 
     let injected = Log::default();
     let mut h = harness(Rig::new(Probe::new(&injected)), 0.05);
-    let id = h.state().id;
+    let id = h.state().id.expect("a pass ran");
     let view = h.state().view;
     let (da, db) = (view.to_doc(a), view.to_doc(b));
     let m = Modifiers::NONE;
@@ -322,22 +331,152 @@ fn injected_input_drives_the_tool_like_the_pointer() {
     assert!(!ToolHost::in_gesture(&h.ctx, id));
 }
 
-// ToolHost::cancel then show calls cancel once.
+// ToolHost::cancel runs the tool's cancel at once; nothing is left for the next pass.
 #[test]
 fn cancel_from_the_app_runs_the_tools_cancel() {
     let calls = Log::default();
     let mut h = harness(Rig::new(Probe::new(&calls)), 0.05);
     press(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
-    let id = h.state().id;
-    assert!(ToolHost::in_gesture(&h.ctx, id));
-    ToolHost::cancel(&h.ctx, id);
+    let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
+    assert!(ToolHost::in_gesture(&ctx, id));
+    ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool);
+    assert_eq!(log(&calls).iter().filter(|c| *c == "cancel").count(), 1, "{:?}", log(&calls));
+    assert!(!ToolHost::in_gesture(&ctx, id));
     h.step();
-    assert_eq!(h.state().last().gesture, Some(ToolGesture::Cancelled));
-    assert!(!ToolHost::in_gesture(&h.ctx, id));
+    assert_eq!(h.state().last().gesture, None, "the cancel was the app's, the pass reports nothing");
     release(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
     let calls = log(&calls);
     assert_eq!(calls.iter().filter(|c| *c == "cancel").count(), 1, "{calls:?}");
     assert!(!calls.iter().any(|c| c.starts_with("release")), "{calls:?}");
+}
+
+// The app switches tools in the middle of a drag: the tool that has the gesture is cancelled and
+// the new tool never sees the old gesture.
+#[test]
+fn a_tool_switch_mid_drag_cancels_the_old_tool_not_the_new_one() {
+    let (old, new) = (Log::default(), Log::default());
+    let mut h = harness(Rig::new(Probe::new(&old)), 0.05);
+    press(&mut h, pos2(100.0, 100.0), Modifiers::NONE);
+    move_to(&mut h, pos2(120.0, 110.0));
+    let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
+    ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool);
+    h.state_mut().tool = Box::new(Probe::new(&new));
+    move_to(&mut h, pos2(140.0, 120.0));
+    release(&mut h, pos2(140.0, 120.0), Modifiers::NONE);
+    let (old, new) = (log(&old), log(&new));
+    assert_eq!(old.last().map(String::as_str), Some("cancel"), "{old:?}");
+    assert!(!old.iter().any(|c| c.starts_with("release")), "{old:?}");
+    assert!(new.is_empty(), "the new tool gets no call of the old gesture: {new:?}");
+}
+
+// The Hand puts the view back when the app cancels its drag, and the host hands that view over.
+#[test]
+fn cancelling_a_hand_drag_returns_the_view_it_started_from() {
+    let mut h = harness(Rig::new(HandTool::new(DOC, NavigationPrefs::default())), 0.05);
+    let start = h.state().view;
+    press(&mut h, pos2(200.0, 150.0), Modifiers::NONE);
+    move_to(&mut h, pos2(260.0, 190.0));
+    assert!((h.state().view.center - start.center).hypot() > 1.0, "the drag pans");
+    let (ctx, id) = (h.ctx.clone(), h.state().id.expect("a pass ran"));
+    let back = ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool).expect("the Hand asks for its press view");
+    assert_eq!(back.center, start.center);
+    assert_eq!(ToolHost::cancel(&ctx, id, &mut *h.state_mut().tool), None, "no gesture is left");
+}
+
+// A flick released with the Hand glides on after the app passes another tool (Space came up).
+#[test]
+fn a_flick_keeps_gliding_whatever_the_tool() {
+    let prefs = NavigationPrefs { overscroll: true, ..NavigationPrefs::default() };
+    let mut rig = Rig::new(HandTool::new(DOC, prefs));
+    rig.navigation = Some(prefs);
+    rig.document = DOC;
+    let mut h = harness(rig, 0.05);
+    press(&mut h, pos2(100.0, 150.0), Modifiers::NONE);
+    for x in [120.0, 140.0, 160.0, 180.0] {
+        move_to(&mut h, pos2(x, 150.0));
+    }
+    release(&mut h, pos2(180.0, 150.0), Modifiers::NONE);
+    h.state_mut().tool = Box::new(Probe::new(&Log::default()));
+    let mut centres = vec![h.state().view.center];
+    for _ in 0..3 {
+        h.step();
+        centres.push(h.state().view.center);
+    }
+    for pair in centres.windows(2) {
+        assert!((pair[1] - pair[0]).hypot() > 0.1, "the view keeps moving: {centres:?}");
+    }
+}
+
+/// Records the click count of each press; presses are whole clicks.
+struct Counter(Rc<RefCell<Vec<u32>>>);
+
+impl CanvasTool for Counter {
+    fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+        self.0.borrow_mut().push(pointer.clicks);
+        ToolAction::Done
+    }
+
+    fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+}
+
+// Presses within egui's double-click delay and distance count up; a slow or distant one starts again.
+#[test]
+fn quick_presses_in_one_spot_count_their_clicks() {
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let mut h = harness(Rig::new(Counter(seen.clone())), 0.05);
+    let at = pos2(100.0, 100.0);
+    for _ in 0..3 {
+        press(&mut h, at, Modifiers::NONE);
+        release(&mut h, at, Modifiers::NONE);
+    }
+    for _ in 0..10 {
+        h.step();
+    }
+    press(&mut h, at, Modifiers::NONE);
+    release(&mut h, at, Modifiers::NONE);
+    press(&mut h, pos2(200.0, 200.0), Modifiers::NONE);
+    release(&mut h, pos2(200.0, 200.0), Modifiers::NONE);
+    assert_eq!(*seen.borrow(), vec![1, 2, 3, 1, 1]);
+}
+
+/// Keeps the canvas's keys for itself, as a text editor on the canvas does.
+struct Typist;
+
+impl CanvasTool for Typist {
+    fn press(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
+        ToolAction::Ignored
+    }
+
+    fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {}
+
+    fn key(&mut self, _key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+        cx.keep_keys();
+        true
+    }
+
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+}
+
+// The key router and the app's shortcuts ask KeyClaim: typed keys are the tool's, chords stay the app's.
+#[test]
+fn a_tool_that_keeps_the_keys_claims_them_from_the_shortcuts() {
+    let mut h = harness(Rig::new(Typist), 0.05);
+    focused(&mut h);
+    key(&mut h, Key::A);
+    let claimed = |h: &Harness<'_, Rig>, modifiers, key| KeyClaim::claimed(&h.ctx, &KeyboardShortcut::new(modifiers, key));
+    assert!(claimed(&h, Modifiers::NONE, Key::Space), "Space types");
+    assert!(claimed(&h, Modifiers::SHIFT, Key::A), "so do shifted letters");
+    assert!(!claimed(&h, Modifiers::COMMAND, Key::Z), "Cmd+Z stays the app's");
 }
 
 // A key with a TextEdit focused never reaches key; took_key reports a taken key.
@@ -369,7 +508,7 @@ fn an_ignored_press_goes_back_to_the_app() {
     let ignored = h.state().responses.iter().find_map(|r| r.ignored_press).expect("the press comes back");
     assert_eq!(ignored.screen, pos2(100.0, 100.0));
     assert!(h.state().gestures().is_empty());
-    assert!(!ToolHost::in_gesture(&h.ctx, h.state().id));
+    assert!(!ToolHost::in_gesture(&h.ctx, h.state().id.expect("a pass ran")));
 }
 
 fn nav(animated: bool, scrubby: bool) -> NavigationPrefs {
@@ -424,7 +563,17 @@ fn esc_puts_a_hand_drag_back_to_its_press_view() {
     assert!((h.state().view.center - start.center).hypot() > 1.0, "the drag pans");
     key(&mut h, Key::Escape);
     assert_eq!(h.state().view, start);
-    assert_eq!(h.state().last().gesture, Some(ToolGesture::Cancelled));
+    assert_eq!(h.state().last().gesture, Some(ToolGesture::Cancel));
+}
+
+// The Zoom tool's eased click runs under the id the app made before the canvas existed.
+#[test]
+fn a_zoom_click_eases_under_the_canvas_id_the_app_holds() {
+    let mut h = harness(Rig::new(ZoomTool::new(DOC, nav(true, false))), 0.05);
+    let at = pos2(120.0, 90.0);
+    press(&mut h, at, Modifiers::NONE);
+    release(&mut h, at, Modifiers::NONE);
+    assert!(ZoomAnimation::running(&h.ctx, h.state().id.expect("a pass ran")));
 }
 
 // A press held still past the delay zooms continuously about the press point; the release is no click.

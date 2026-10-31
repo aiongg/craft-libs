@@ -2,7 +2,7 @@
 
 use egui::{Context, Event, Id, Key, Modifiers, PointerButton, RawInput, pos2};
 
-use super::{MomentaryKeys, MomentaryTool, SpringTool};
+use super::{CanvasId, MomentaryKeys, MomentaryTool, SpringTool};
 
 fn key_event(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
     Event::Key { key, physical_key: Some(key), pressed, repeat: false, modifiers }
@@ -26,7 +26,7 @@ fn pass<R>(ctx: &Context, time: f64, modifiers: Modifiers, mut events: Vec<Event
     result.expect("the pass ran")
 }
 
-const CANVAS: fn() -> Id = || Id::unique("canvas");
+const CANVAS: fn() -> CanvasId = || CanvasId::from_id(Id::unique("canvas"));
 
 fn held(ctx: &Context, time: f64, modifiers: Modifiers, events: Vec<Event>) -> Option<MomentaryTool> {
     pass(ctx, time, modifiers, events, |ctx| MomentaryKeys::default().update(ctx, CANVAS(), false))
@@ -65,6 +65,17 @@ fn a_drag_keeps_its_temporary_tool_until_the_release() {
     assert_eq!(held(&ctx, 0.2, n, vec![key_event(Key::Space, false, n)]), Some(MomentaryTool::Hand), "still dragging");
     assert_eq!(held(&ctx, 0.3, n, vec![button(false)]), Some(MomentaryTool::Hand), "the release pass");
     assert_eq!(held(&ctx, 0.4, n, vec![]), None);
+}
+
+// Space pressed in the middle of a stroke starts no Hand: the stroke finishes with its own tool.
+#[test]
+fn a_temporary_tool_cannot_start_in_the_middle_of_a_drag() {
+    let ctx = Context::default();
+    let n = Modifiers::NONE;
+    assert_eq!(held(&ctx, 0.0, n, vec![Event::PointerMoved(pos2(10.0, 10.0)), button(true)]), None, "the stroke begins with the selected tool");
+    assert_eq!(held(&ctx, 0.1, n, vec![key_event(Key::Space, true, n)]), None, "Space mid-stroke");
+    assert_eq!(held(&ctx, 0.2, n, vec![button(false)]), None, "the release pass still belongs to the stroke");
+    assert_eq!(held(&ctx, 0.3, n, vec![]), Some(MomentaryTool::Hand), "Space is still down: the Hand for the next gesture");
 }
 
 // With drawing true, Space gives None.

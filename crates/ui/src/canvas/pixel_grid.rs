@@ -11,9 +11,10 @@
 
 use std::sync::Arc;
 
-use egui::{Color32, Context, Id, Painter, Stroke};
+use egui::{Color32, Context, Painter, Stroke};
 use kurbo::Point;
 
+use super::canvas_id::CanvasId;
 use super::crisp_shape;
 use super::raster::{PixelRect, RasterSource};
 use super::view::CanvasView;
@@ -168,7 +169,7 @@ impl PixelGrid {
     /// device zoom, reading the composite of the cached region when the revision changed or the
     /// view left it. Lines are one device pixel on whole device pixels (`crisp`).
     // pc: crates/ui-egui/src/canvas/pixel_grid.rs:167 `paint`.
-    pub fn show(ctx: &Context, id: Id, painter: &Painter, view: &CanvasView, source: &dyn RasterSource) {
+    pub fn show(ctx: &Context, canvas: CanvasId, painter: &Painter, view: &CanvasView, source: &dyn RasterSource) {
         let ppp = ctx.pixels_per_point();
         if !Self::shows_at(view.zoom.min(view.zoom_x()) * f64::from(ppp)) {
             return;
@@ -180,7 +181,7 @@ impl PixelGrid {
         if need.is_empty() {
             return;
         }
-        let key = id.with("pixel-grid");
+        let key = canvas.with("pixel-grid");
         let revision = source.revision();
         let cached = ctx.data(|d| d.get_temp::<GridCache>(key)).filter(|c| c.revision == revision && c.region.intersect(&need) == need);
         let cache = cached.unwrap_or_else(|| {

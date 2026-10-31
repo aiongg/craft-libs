@@ -43,7 +43,7 @@ mod window;
 #[cfg(all(test, feature = "window-frame"))]
 mod window_tests;
 
-use egui::{Context, Frame, Id, Panel, Rect, Ui, UiBuilder, accesskit::Role};
+use egui::{Context, Frame, Panel, Rect, Ui, UiBuilder, accesskit::Role};
 
 pub use canvas::{CanvasLabels, CanvasOutput, CanvasShell, PanelOptions, PanelRail};
 pub use ids::WindowKey;
@@ -54,6 +54,7 @@ pub use visibility::{BodyMode, tab_toggles_chrome, take_tab_toggle};
 
 use ids::State;
 
+use crate::canvas::CanvasId;
 use crate::direction;
 use crate::patterns::ToolRail;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -120,8 +121,8 @@ impl ShellCx {
     /// Registers the id of the body's canvas widget, so [`tab_toggles_chrome`] counts focus on
     /// it as "no control has focus". Call it on every pass the body has a canvas; a pass
     /// without the call (a start screen, a document switch) registers none.
-    pub fn canvas(&self, id: Id) {
-        ids::set_canvas(&self.ctx, id);
+    pub fn canvas(&self, canvas: CanvasId) {
+        ids::set_canvas(&self.ctx, canvas.id());
     }
 }
 

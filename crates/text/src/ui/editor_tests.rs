@@ -428,7 +428,7 @@ fn tool_host_claims_inside_and_ignores_outside() {
     let mut host = Host::new("hello\nworld");
     let view = CanvasView::new(Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
     let mut time = 0.0;
-    let mut tool_id = egui::Id::NULL;
+    let mut tool_id = craft_ui::canvas::CanvasId::from_id(egui::Id::NULL);
     let mut step = |editor: &mut TextEditor, host: &mut Host, inputs: &[ToolInput]| -> ToolHostResponse {
         time += 1.0;
         for input in inputs {
@@ -436,9 +436,10 @@ fn tool_host_claims_inside_and_ignores_outside() {
         }
         let mut response = None;
         let mut out = ctx.run_ui(RawInput { time: Some(time), screen_rect: Some(view.rect), ..Default::default() }, |ui| {
-            let canvas = ui.interact(view.rect, ui.scope_id().with("canvas"), egui::Sense::click_and_drag());
+            let canvas_id = craft_ui::canvas::CanvasId::new(ui, "canvas");
+            let canvas = canvas_id.interact(ui, view.rect, egui::Sense::click_and_drag());
             let mut tool = TextEditorTool::new(editor, host);
-            response = Some(ToolHost::new("doc").show(ui, &view, &canvas, &mut tool));
+            response = Some(ToolHost::new(canvas_id).show(ui, &view, &canvas, &mut tool));
         });
         out.textures_delta.clear();
         let response = response.expect("one pass");
@@ -456,7 +457,7 @@ fn tool_host_claims_inside_and_ignores_outside() {
     // The host maps document points to screen points one to one here, so `Host::contains` sees
     // the line numbers as y.
     let r = step(&mut editor, &mut host, &[down(at(3.0, 0.5))]);
-    assert_eq!(r.gesture, Some(ToolGesture::Began));
+    assert_eq!(r.gesture, Some(ToolGesture::Begin));
     assert!(r.ignored_press.is_none());
     assert_eq!(editor.selection(), TextSelection::caret_at(3));
     let r = step(&mut editor, &mut host, &[mv(at(5.0, 0.5))]);

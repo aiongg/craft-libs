@@ -176,7 +176,7 @@ fn a_released_hand_drag_glides_and_slows_to_a_stop() {
     const DT: f64 = 1.0 / 60.0;
     let run = |enabled: bool| {
         let ctx = Context::default();
-        let id = egui::Id::unique("flick");
+        let id = super::CanvasId::from_id(egui::Id::unique("flick"));
         let mut t = 0.0;
         for _ in 0..10 {
             t += DT;
