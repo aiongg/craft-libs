@@ -1,8 +1,6 @@
 //! [`Remembered`]: last-used options of a dialog, panel or tool, kept in the app's settings
 //! through the `Host` (craft-host).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::marker::PhantomData;
 
 use craft_host::{Host, Section};
@@ -62,48 +60,85 @@ impl<T: Serialize + DeserializeOwned> Remembered<T> {
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:345 `restore_remembered`
     // (`prefs.dialogs[command]`); here through `Host::setting::<RememberedSection>`.
     pub fn recall(&self, host: &Host) -> Option<T> {
-        todo!()
+        host.setting::<RememberedSection>().scopes.get(&self.scope)?.clone().try_into().ok()
     }
 
     /// Stores `value` under the scope, replacing the previous one.
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:363 `remember` (`prefs.edit(|p| p.dialogs.insert(..))`).
     pub fn store(&self, host: &Host, value: &T) {
-        todo!()
+        let Ok(value) = toml::Value::try_from(value) else { return };
+        let mut section = host.setting::<RememberedSection>();
+        section.scopes.insert(self.scope.clone(), value);
+        host.set_setting(&section);
     }
 
     /// Removes the stored value.
     pub fn forget(&self, host: &Host) {
-        todo!()
+        let mut section = host.setting::<RememberedSection>();
+        if section.scopes.remove(&self.scope).is_some() {
+            host.set_setting(&section);
+        }
     }
 
     /// Removes every scope that starts with `prefix` (`"prompt."` resets all warning dialogs).
     // new: Photoshop's Preferences › General › Reset All Warning Dialogs.
     pub fn forget_prefix(host: &Host, prefix: &str) {
-        todo!()
+        let mut section = host.setting::<RememberedSection>();
+        let before = section.scopes.len();
+        section.scopes.retain(|scope, _| !scope.starts_with(prefix));
+        if section.scopes.len() != before {
+            host.set_setting(&section);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    // `store` then `recall` through a `MemorySections` host returns the value; another scope is
-    // untouched; `forget` makes it `None`.
+    use craft_host::AppInfo;
+    use serde::Deserialize;
+
+    use super::*;
+
+    #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+    struct Blur {
+        radius: f64,
+        preview: bool,
+    }
+
+    fn host() -> Host {
+        Host::builder(AppInfo { id: "test", name: "Test", version: "0" }).build()
+    }
+
     #[test]
-    #[ignore = "skeleton"]
     fn a_stored_value_is_recalled_under_its_scope_only() {
-        todo!()
+        let host = host();
+        let blur = Remembered::<Blur>::new("filter.gaussianBlur");
+        let other = Remembered::<Blur>::new("filter.unsharp");
+        assert_eq!(blur.recall(&host), None);
+        let value = Blur { radius: 2.5, preview: true };
+        blur.store(&host, &value);
+        assert_eq!(blur.recall(&host), Some(value));
+        assert_eq!(other.recall(&host), None);
+        blur.forget(&host);
+        assert_eq!(blur.recall(&host), None);
     }
 
-    // A table that does not fit `T` recalls as `None` instead of failing.
     #[test]
-    #[ignore = "skeleton"]
     fn a_value_of_another_shape_reads_as_none() {
-        todo!()
+        let host = host();
+        Remembered::<bool>::new("filter.gaussianBlur").store(&host, &true);
+        assert_eq!(Remembered::<Blur>::new("filter.gaussianBlur").recall(&host), None);
     }
 
-    // `forget_prefix("prompt.")` removes the prompt skips and keeps the filter values.
     #[test]
-    #[ignore = "skeleton"]
     fn forget_prefix_removes_only_the_matching_scopes() {
-        todo!()
+        let host = host();
+        let skip = Remembered::<bool>::new("prompt.layer.delete");
+        let blur = Remembered::<Blur>::new("filter.gaussianBlur");
+        skip.store(&host, &true);
+        blur.store(&host, &Blur::default());
+        Remembered::<bool>::forget_prefix(&host, "prompt.");
+        assert_eq!(skip.recall(&host), None);
+        assert_eq!(blur.recall(&host), Some(Blur::default()));
     }
 }

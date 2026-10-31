@@ -65,10 +65,13 @@ fn take_over_close(ctx: &Context, quit: impl FnOnce() -> bool) -> bool {
 /// documents it returns `false` and [`on_close_request`] takes the close as usual.
 // pc: crates/ui-egui/src/dialogs/discard_ui.rs:124 `guard_window_close`.
 #[cfg(feature = "ui")]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 pub fn intercept_close(ctx: &Context, unsaved: bool) -> bool {
-    let _ = (ctx, unsaved);
-    todo!()
+    if !unsaved || ctx.viewport_id() != ViewportId::ROOT || !ctx.input(|i| i.viewport().close_requested()) {
+        return false;
+    }
+    ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+    ctx.send_viewport_cmd(ViewportCommand::Focus);
+    true
 }
 
 /// What the user set out to do; it decides the question's wording and what Cancel stops.
@@ -150,33 +153,57 @@ impl<D: Clone + PartialEq> CloseGuard<D> {
 
     /// The user answered for the current document.
     // pc: crates/ui-egui/src/dialogs/discard_ui.rs:343 `apply` and :149 `advance`.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     pub fn answer(&mut self, answer: CloseAnswer) -> GuardStep<D> {
-        let _ = answer;
-        todo!()
+        if self.cancelled {
+            return GuardStep::Cancelled;
+        }
+        // A save is still running: the question is not open.
+        if let Some(doc) = &self.saving {
+            return GuardStep::Save(doc.clone());
+        }
+        let Some(doc) = self.pending.front().cloned() else { return GuardStep::Finished };
+        match answer {
+            CloseAnswer::Save => {
+                self.saving = Some(doc.clone());
+                GuardStep::Save(doc)
+            }
+            CloseAnswer::DontSave => GuardStep::Discard(doc),
+            CloseAnswer::Cancel => self.cancel(),
+        }
     }
 
     /// The user answered with "Apply to All": the same answer for every remaining document.
     // new: Photoshop's Apply to All; PhotoCraft asks one by one.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     pub fn answer_all(&mut self, answer: CloseAnswer) -> GuardStep<D> {
-        let _ = answer;
-        todo!()
+        self.apply_to_all = Some(answer);
+        self.answer(answer)
+    }
+
+    /// The document from [`GuardStep::Discard`] is closed without saving: the guard moves on.
+    // new: the step after a discard; `saved` is the same for a save.
+    pub fn discarded(&mut self) -> GuardStep<D> {
+        if self.saving.is_none() {
+            self.pending.pop_front();
+        }
+        self.next_step()
     }
 
     /// The save of the document from [`GuardStep::Save`] finished: it is closed and the guard
     /// moves on.
     // pc: crates/ui-egui/src/dialogs/discard_ui.rs:244 `saved_document`.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     pub fn saved(&mut self) -> GuardStep<D> {
-        todo!()
+        if let Some(saved) = self.saving.take()
+            && self.pending.front() == Some(&saved)
+        {
+            self.pending.pop_front();
+        }
+        self.next_step()
     }
 
     /// The save failed or Save As was cancelled: the document stays open and the operation stops.
     // pc: crates/ui-egui/src/dialogs/discard_ui.rs:210 `save` (the `false` branch).
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     pub fn save_failed(&mut self) -> GuardStep<D> {
-        todo!()
+        self.cancel()
     }
 
     /// A document closed elsewhere while the guard ran (a script): it is no longer asked about.
@@ -191,33 +218,72 @@ impl<D: Clone + PartialEq> CloseGuard<D> {
     pub fn is_cancelled(&self) -> bool {
         self.cancelled
     }
+
+    /// Ends the operation; the documents not yet answered stay open.
+    fn cancel(&mut self) -> GuardStep<D> {
+        self.cancelled = true;
+        self.pending.clear();
+        self.saving = None;
+        GuardStep::Cancelled
+    }
+
+    /// The step for the front document once the previous one is settled.
+    fn next_step(&mut self) -> GuardStep<D> {
+        if self.cancelled {
+            return GuardStep::Cancelled;
+        }
+        let Some(doc) = self.pending.front().cloned() else { return GuardStep::Finished };
+        match self.apply_to_all {
+            None => GuardStep::Ask(doc),
+            Some(CloseAnswer::Save) => {
+                self.saving = Some(doc.clone());
+                GuardStep::Save(doc)
+            }
+            Some(CloseAnswer::DontSave) => GuardStep::Discard(doc),
+            Some(CloseAnswer::Cancel) => self.cancel(),
+        }
+    }
 }
 
 #[cfg(test)]
 mod guard_tests {
-    // Save, Don't Save and Cancel each move the guard as the step says; Cancel on the second
-    // document leaves the first closed and the rest open.
+    use super::*;
+
     #[test]
-    #[ignore = "skeleton"]
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     fn each_answer_moves_to_the_next_document_and_cancel_stops_the_rest() {
-        todo!()
+        let mut guard = CloseGuard::new(CloseScope::Close, [1, 2, 3, 4]);
+        assert_eq!(guard.answer(CloseAnswer::Save), GuardStep::Save(1));
+        assert_eq!(guard.saved(), GuardStep::Ask(2));
+        assert_eq!(guard.answer(CloseAnswer::DontSave), GuardStep::Discard(2));
+        assert_eq!(guard.discarded(), GuardStep::Ask(3));
+        assert_eq!(guard.answer(CloseAnswer::Cancel), GuardStep::Cancelled);
+        assert!(guard.is_cancelled() && guard.is_finished());
+        assert_eq!(guard.current(), None);
+
+        let mut guard = CloseGuard::new(CloseScope::Quit, [7]);
+        assert_eq!(guard.answer(CloseAnswer::DontSave), GuardStep::Discard(7));
+        assert_eq!(guard.discarded(), GuardStep::Finished);
+        assert!(guard.is_finished() && !guard.is_cancelled());
+        assert_eq!(CloseGuard::<u32>::new(CloseScope::Close, []).saved(), GuardStep::Finished);
     }
 
-    // Apply to All with Save saves each document in turn; a failed save stops the operation.
     #[test]
-    #[ignore = "skeleton"]
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     fn apply_to_all_saves_every_document_and_a_failed_save_stops() {
-        todo!()
-    }
+        let mut guard = CloseGuard::new(CloseScope::Quit, [1, 2, 3]);
+        assert_eq!(guard.answer_all(CloseAnswer::Save), GuardStep::Save(1));
+        assert_eq!(guard.saved(), GuardStep::Save(2));
+        assert_eq!(guard.save_failed(), GuardStep::Cancelled);
+        assert!(guard.is_cancelled());
 
-    // A close request with unsaved documents is held (CancelClose) and the app is told to ask.
-    #[test]
-    #[ignore = "skeleton"]
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-    fn intercept_close_holds_the_window_while_documents_are_unsaved() {
-        todo!()
+        let mut guard = CloseGuard::new(CloseScope::Quit, [1, 2]);
+        assert_eq!(guard.answer_all(CloseAnswer::Save), GuardStep::Save(1));
+        assert_eq!(guard.saved(), GuardStep::Save(2));
+        assert_eq!(guard.saved(), GuardStep::Finished);
+
+        let mut guard = CloseGuard::new(CloseScope::Quit, [1, 2]);
+        assert_eq!(guard.answer_all(CloseAnswer::DontSave), GuardStep::Discard(1));
+        assert_eq!(guard.discarded(), GuardStep::Discard(2));
+        assert_eq!(guard.discarded(), GuardStep::Finished);
     }
 }
 
@@ -253,6 +319,21 @@ mod tests {
 
     fn cancels(commands: &[ViewportCommand]) -> bool {
         commands.contains(&ViewportCommand::CancelClose)
+    }
+
+    #[test]
+    fn intercept_close_holds_the_window_while_documents_are_unsaved() {
+        for (unsaved, held) in [(true, true), (false, false)] {
+            let result = Cell::new(false);
+            let (taken, quit_calls, commands) = frame(true, true, |ctx| result.set(intercept_close(ctx, unsaved)));
+            assert_eq!(result.get(), held);
+            assert!(cancels(&commands), "either the hold or the quit takes the close");
+            assert_eq!(taken, !held);
+            assert_eq!(quit_calls, u32::from(!held));
+        }
+        let held = Cell::new(true);
+        frame(false, true, |ctx| held.set(intercept_close(ctx, true)));
+        assert!(!held.get(), "no close request, nothing to hold");
     }
 
     #[test]
