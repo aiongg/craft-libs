@@ -19,6 +19,7 @@ mod capture;
 mod kbd;
 mod rows;
 mod state;
+mod story;
 mod style;
 pub mod summary;
 mod text;
@@ -28,6 +29,15 @@ pub use kbd::kbd;
 pub use state::DialogState;
 pub use style::DialogStyle;
 pub use text::{COUNTS, WORDS, trigger_text};
+
+craft_ui::story::register! {
+    story,
+}
+
+/// The stories of the Keyboard Shortcuts dialog.
+pub fn stories() -> Vec<craft_ui::story::Story> {
+    registry()
+}
 
 use state::Env;
 use text::Say;

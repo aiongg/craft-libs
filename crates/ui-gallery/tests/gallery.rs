@@ -1056,6 +1056,7 @@ fn a_double_click_on_a_tile_header_opens_the_component() {
 /// Host text a story writes itself that equals the English of a registered word:
 /// `(text, stories, reason)`. The same text bypassing `Words` in another story still fails.
 const STORY_TEXT: &[(&str, &[&str], &str)] = &[
+    ("Search", &["patterns/fonts-panel/panel"], "the Fonts panel's own search field; it keeps its words in a catalog of its own"),
     (
         "V",
         &[

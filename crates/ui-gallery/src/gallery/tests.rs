@@ -279,6 +279,8 @@ const FIXED_WIDTH: &[&str] = &[
     "primitives/bezier-paths/edit",
     "primitives/warp-grid/warp",
     "primitives/pen-draft/draw",
+    "patterns/keyboard-shortcuts/dialog",
+    "patterns/fonts-panel/panel",
     "primitives/gradient-line/edit",
     "primitives/gradient-line/with-editor",
     "foundations/edit/log",

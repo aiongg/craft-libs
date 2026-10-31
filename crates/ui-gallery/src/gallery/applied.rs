@@ -2,9 +2,9 @@
 //! faces, and the OS's answer they were resolved with.
 use std::sync::Arc;
 
+use craft::platform::appearance::SystemReader;
 use craft_host::{AppInfo, Host};
 use craft_i18n::{Embedded, I18n, Lang};
-use craft_platform::appearance::SystemReader;
 use craft_theme::{AppSizes, Mode, SystemAppearance};
 use craft_ui::icons;
 use craft_ui::interface_scale::InterfaceScale;

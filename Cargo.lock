@@ -1262,12 +1262,9 @@ dependencies = [
 name = "craft-ui-gallery"
 version = "0.1.0"
 dependencies = [
- "craft-color",
- "craft-draw",
+ "craft",
  "craft-host",
  "craft-i18n",
- "craft-imaging",
- "craft-platform",
  "craft-theme",
  "craft-ui",
  "eframe",
