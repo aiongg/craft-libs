@@ -13,18 +13,20 @@ pub mod clock;
 pub mod dialog_outcome;
 #[cfg(all(feature = "dialogs", not(target_arch = "wasm32")))]
 pub mod dialogs;
-#[cfg(feature = "pointer")]
-pub mod pointer;
 #[cfg(feature = "logs")]
 pub mod logs;
-#[cfg(feature = "pacing")]
-pub mod pacing;
 #[cfg(feature = "open")]
 pub mod open;
 #[cfg(all(test, feature = "open"))]
 mod open_tests;
+#[cfg(feature = "pacing")]
+pub mod pacing;
+#[cfg(feature = "pointer")]
+pub mod pointer;
 #[cfg(all(feature = "appearance", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 mod process;
+#[cfg(feature = "screen")]
+pub mod screen;
 #[cfg(feature = "session")]
 pub mod session;
 #[cfg(all(test, feature = "session"))]
@@ -33,5 +35,3 @@ mod session_tests;
 pub mod usage;
 #[cfg(all(test, feature = "usage"))]
 mod usage_tests;
-#[cfg(feature = "screen")]
-pub mod screen;
