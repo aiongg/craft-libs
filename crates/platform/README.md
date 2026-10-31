@@ -12,6 +12,9 @@ third-party dependencies. Enable only the services a host uses.
 | `ui` | Combine with `dialogs` for the deferred-close guard or with `appearance` for native theme mapping. |
 | `appearance` | Linux/BSD XDG desktop preference observation (colour scheme, contrast, reduced motion, button layout); browser contrast and motion media queries; owned cancellable subscriptions, bounded reads/helper capture, legacy compatibility and reconnect. |
 | `browser` | Wasm download link/object URL ownership, cleanup on setup failure or abandonment, and cleanup timer registration before clicking. |
+| `clock` | `clock::Clock`: monotonic seconds (`web-time`, so also in the browser) for animation, autosave and deadlines, with a manual mode tests set and advance; `monotonic_ms`, `unix_ms`. |
+| `pacing` | `FrameCap` (desktop frame-rate cap without vsync), `WindowState` (shown or hidden from the viewport info), `WorkBudget`/`WorkSlice` (background work per call, paused or sliced while hidden), `repaint_in`, `paint_while_hidden`. Adds `clock` and egui. |
+| `logs` | The app log: `log` records to standard error and `<dir>/<app>.log` with `RUST_LOG`-style filters, rotation to `.1`/`.2`, per-instance logs while another instance runs, a size cap; `logs::crash`: the panic hook, crash log, last panic for the error window, and `catch`. |
 
 
 ## Native dialogs

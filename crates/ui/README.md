@@ -499,6 +499,19 @@ documentation has the recipe for a shortcut smoke test on a non-Latin layout thr
 letters such as ổ, so an app relying on it fails the `vi` screens until its own face covers them. The per-release manual checks are in
 [language-testing.md](../../docs/language-testing.md).
 
+## Headless renders, test input and the text audit
+
+With `screen-testing` (desktop), `testing::render::Render` draws a UI at a size and scale on the
+shared wgpu device and returns an `egui::ColorImage`, for tests, reports and CLI snapshots;
+`render::image_of` renders any harness. `testing::HarnessExt` adds `click_at`, `click_at_with`,
+`drag`, `wheel_at`, `press`, `type_text` (one event per frame, as a platform sends them) and
+`pump_until`/`pump_idle` (wait for the app's background work, with a timeout) to egui_kittest's
+`Harness`.
+
+`testing::i18n_audit` finds interface text drawn without translation: run the app in the pseudo
+locale, `Audit::record` each state's `drawn_texts`, and `Audit::assert_clean`. `Exempt` allows the
+document's text, names and shortcuts. It reads no catalogs, so a missing translation never fails it.
+
 ## Localized numbers
 
 `localized::LocaleNumbers` writes numbers in the region's digits, decimal mark and grouping and

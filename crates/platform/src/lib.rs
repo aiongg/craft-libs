@@ -4,8 +4,14 @@
 pub mod appearance;
 #[cfg(all(feature = "browser", target_arch = "wasm32"))]
 pub mod browser;
+#[cfg(feature = "clock")]
+pub mod clock;
 pub mod dialog_outcome;
 #[cfg(all(feature = "dialogs", not(target_arch = "wasm32")))]
 pub mod dialogs;
+#[cfg(feature = "logs")]
+pub mod logs;
+#[cfg(feature = "pacing")]
+pub mod pacing;
 #[cfg(all(feature = "appearance", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 mod process;

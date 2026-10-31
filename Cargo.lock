@@ -1136,10 +1136,12 @@ dependencies = [
  "egui",
  "futures-lite",
  "js-sys",
+ "log",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
+ "web-time",
  "zbus",
 ]
 

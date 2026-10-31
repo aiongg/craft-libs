@@ -12,8 +12,15 @@
 //!   harness, from `CRAFT_FONTS_DIR`.
 //! - [`wgpu_renderer`] (`screen-testing` feature, desktop): a kittest wgpu renderer on the
 //!   process's one device; use it for every rendering harness.
+//! - [`render`] (`screen-testing` feature, desktop): the exact UI drawn to an image without a
+//!   window, at a size and scale.
+//! - [`HarnessExt`] (`screen-testing` feature, desktop): clicks, drags, keys and typing one event
+//!   per frame on a kittest harness, and pumps that wait for the app's background work.
+//! - [`i18n_audit`]: interface text drawn without going through translation, found in the pseudo
+//!   locale.
 
 pub mod dump;
+pub mod i18n_audit;
 pub mod style_dump;
 mod typing_field;
 pub use typing_field::TypingField;
@@ -21,9 +28,15 @@ pub use typing_field::TypingField;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub mod a11y;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
+mod frame;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
+pub use frame::{DRAG_STEPS, HarnessExt, PUMP_SLEEP, QUIET_FRAMES};
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 mod gpu;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub use gpu::wgpu_renderer;
+#[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
+pub mod render;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub mod screens;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
