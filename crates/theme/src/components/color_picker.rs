@@ -53,6 +53,10 @@ pub struct ColorPickerTokens {
     pub pair_icon: f32,
     /// Between those icon boxes and the chips: `color_picker.pair_icon_gap`.
     pub pair_icon_gap: f32,
+    /// Width of the colour readout's hex field: `color_picker.readout_hex_width`.
+    pub readout_hex_width: f32,
+    /// Width of the colour readout's R, G and B fields: `color_picker.readout_channel_width`.
+    pub readout_channel_width: f32,
     /// The area marker's inner circle: `color_picker.marker`, white.
     pub marker: Rgba,
     /// The marker's outer ring: `color_picker.marker_halo`, black at alpha 160.
@@ -93,6 +97,8 @@ impl Family for ColorPickerTokens {
         "pair_ring" 0.0..=16.0 => pair_ring;
         "pair_icon" 0.0..=64.0 => pair_icon;
         "pair_icon_gap" 0.0..=64.0 => pair_icon_gap;
+        "readout_hex_width" 0.0..=1024.0 => readout_hex_width;
+        "readout_channel_width" 0.0..=1024.0 => readout_channel_width;
     };
 
     /// The Compact sizes (PhotoCraft's), scaled by the control height of the size. Sizes of
@@ -122,6 +128,8 @@ impl Family for ColorPickerTokens {
             pair_ring: scale(values::COLOR_PICKER_PAIR_RING),
             pair_icon: values::COLOR_PICKER_PAIR_ICON,
             pair_icon_gap: values::COLOR_PICKER_PAIR_ICON_GAP,
+            readout_hex_width: scale(values::COLOR_PICKER_READOUT_HEX_WIDTH),
+            readout_channel_width: scale(values::COLOR_PICKER_READOUT_CHANNEL_WIDTH),
             marker: values::COLOR_PICKER_MARKER,
             marker_halo: values::COLOR_PICKER_MARKER_HALO,
         }

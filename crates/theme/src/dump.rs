@@ -607,6 +607,8 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
         pair_ring,
         pair_icon,
         pair_icon_gap,
+        readout_hex_width,
+        readout_channel_width,
         marker,
         marker_halo,
     } = p;
@@ -630,6 +632,8 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
     out.line("color_picker.pair_ring", len(*pair_ring));
     out.line("color_picker.pair_icon", len(*pair_icon));
     out.line("color_picker.pair_icon_gap", len(*pair_icon_gap));
+    out.line("color_picker.readout_hex_width", len(*readout_hex_width));
+    out.line("color_picker.readout_channel_width", len(*readout_channel_width));
     out.line("color_picker.marker", hex(*marker));
     out.line("color_picker.marker_halo", hex(*marker_halo));
 }

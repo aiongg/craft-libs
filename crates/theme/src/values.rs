@@ -716,6 +716,10 @@ pub const COLOR_PICKER_PAIR_RING: f32 = 7.0;
 pub const COLOR_PICKER_PAIR_ICON: f32 = 13.0;
 /// Between those icon boxes and the chips, in points, at every Size.
 pub const COLOR_PICKER_PAIR_ICON_GAP: f32 = 3.0;
+/// Compact width of the colour readout's hex field (PhotoCraft's Color panel: six digits).
+pub const COLOR_PICKER_READOUT_HEX_WIDTH: f32 = 64.0;
+/// Compact width of the colour readout's R, G and B fields.
+pub const COLOR_PICKER_READOUT_CHANNEL_WIDTH: f32 = 38.0;
 
 /// The control height the Compact colour wheel, ramp and gradient palette sizes are set for;
 /// other sizes scale them by their control height over this.

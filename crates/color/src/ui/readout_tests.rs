@@ -26,6 +26,8 @@ struct Rig {
     pair_events: Vec<EditEvent<u8>>,
     color_events: Vec<EditEvent<Rgba>>,
     nodes: Vec<(NodeId, Node)>,
+    /// The width the readout is shown in.
+    width: f32,
 }
 
 impl Rig {
@@ -44,6 +46,7 @@ impl Rig {
             pair_events: Vec::new(),
             color_events: Vec::new(),
             nodes: Vec::new(),
+            width: 600.0,
         };
         rig.settle();
         rig
@@ -60,7 +63,10 @@ impl Rig {
                 self.pair_id = ui.make_persistent_id("pair");
                 pair_event = HexPairField::new("pair", "Red", self.pair).show(ui).event;
             }
-            Subject::Readout => color_event = ColorReadout::new("readout", "Hex colour", self.color, &self.numbers).show(ui).event,
+            Subject::Readout => {
+                ui.set_max_width(self.width);
+                color_event = ColorReadout::new("readout", "Hex colour", self.color, &self.numbers).show(ui).event;
+            }
         });
         if let Some(event) = pair_event {
             if let Some(v) = event.value() {
@@ -141,4 +147,32 @@ fn a_typed_channel_reports_the_whole_colour() {
     rig.key(Key::A, Modifiers::COMMAND);
     rig.text("102030");
     assert_eq!(rig.color, Rgba::rgb(0x10, 0x20, 0x30));
+}
+
+/// PhotoCraft's Color panel is 300 points wide by default (290 in the pro themes) inside an
+/// 8 point body margin: 274 points for the readout.
+const PANEL_ROW_WIDTH: f32 = 274.0;
+
+fn decoration(rig: &Rig, text: &str) -> Rect {
+    let node = rig.nodes.iter().map(|(_, n)| n).find(|n| n.value() == Some(text) || n.label() == Some(text)).unwrap_or_else(|| panic!("no {text}"));
+    let b = node.bounds().expect("bounds");
+    Rect::from_min_max(pos2(b.x0 as f32, b.y0 as f32), pos2(b.x1 as f32, b.y1 as f32))
+}
+
+#[test]
+fn the_readout_is_one_row_with_photocrafts_field_widths_in_the_default_panel() {
+    let mut rig = Rig::new(Subject::Readout);
+    rig.width = PANEL_ROW_WIDTH;
+    rig.settle();
+    let hex = rig.rect("Hex colour");
+    assert_eq!(hex.width(), 64.0);
+    let channels = ["Red", "Green", "Blue"].map(|name| rig.rect(name));
+    for channel in channels {
+        assert_eq!(channel.width(), 38.0);
+        assert!((channel.center().y - hex.center().y).abs() < 1.0, "{channel:?} is on another row than {hex:?}");
+    }
+    assert!(channels.windows(2).all(|w| w[0].right() < w[1].left()));
+    let hash = decoration(&rig, "#");
+    assert!(hash.right() <= hex.left(), "the # is outside the field: {hash:?} against {hex:?}");
+    assert!(channels[2].right() - hash.left() <= PANEL_ROW_WIDTH, "the row fits the panel");
 }

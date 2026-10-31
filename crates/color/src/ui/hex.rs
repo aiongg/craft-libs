@@ -104,13 +104,15 @@ pub(super) struct Options {
     pub prefix: bool,
     /// The most characters typed or pasted.
     pub char_limit: usize,
+    /// A fixed width of the box; the `Ui`'s justified width (a text field's otherwise) without.
+    pub width: Option<f32>,
 }
 
 impl Options {
     /// The picker's hex field: no `#`, and no limit, which would cut pasted text (spaces round
     /// it, a "#", eight digits with the alpha off) into something else before `parse_hex` sees it.
     pub(super) fn picker(policy: EditPolicy, enabled: bool) -> Options {
-        Options { policy, enabled, prefix: false, char_limit: usize::MAX }
+        Options { policy, enabled, prefix: false, char_limit: usize::MAX, width: None }
     }
 }
 
@@ -166,11 +168,11 @@ pub(super) fn show<C: HexDigits>(ui: &mut Ui, id: Id, label: &str, value: C::Val
 where
     C::Value: Clone + PartialEq + Send + Sync + 'static,
 {
-    let Options { policy, enabled, prefix, char_limit } = options;
+    let Options { policy, enabled, prefix, char_limit, width } = options;
     let tokens = Tokens::of(ui);
     let style = TextField::style(&tokens, ControlSize::Md);
     let enabled = enabled && ui.is_enabled();
-    let width = if ui.layout().horizontal_justify() { ui.available_width() } else { style.width };
+    let width = width.unwrap_or(if ui.layout().horizontal_justify() { ui.available_width() } else { style.width });
     let font = tokens.font(TypeRole::Mono);
     let text_color = if enabled { style.text } else { style.text_disabled };
     // The `#` sits at the reading start, so the digits start after it.
@@ -259,6 +261,8 @@ pub struct HexField {
     value: Rgba,
     digits: usize,
     alpha: bool,
+    prefix: bool,
+    width: Option<f32>,
     reason: Option<String>,
     policy: EditPolicy,
     enabled: bool,
@@ -277,6 +281,8 @@ impl HexField {
             value,
             digits: 2,
             alpha: false,
+            prefix: true,
+            width: None,
             reason: None,
             policy: EditPolicy::default(),
             enabled: true,
@@ -293,6 +299,19 @@ impl HexField {
     /// Whether the field also takes the alpha digits. Off by default.
     pub fn alpha(mut self, on: bool) -> Self {
         self.alpha = on;
+        self
+    }
+
+    /// Whether the `#` stands inside the box before the digits. On by default; off for a host
+    /// that draws its own `#` beside the field.
+    pub fn prefix(mut self, on: bool) -> Self {
+        self.prefix = on;
+        self
+    }
+
+    /// A fixed width of the box, in points.
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
         self
     }
 
@@ -314,7 +333,8 @@ impl HexField {
         self
     }
 
-    /// Shows the field, as wide as the `Ui`'s justified width (a text field's otherwise).
+    /// Shows the field, as wide as [`width`](HexField::width), else the `Ui`'s justified width
+    /// (a text field's otherwise).
     pub fn show(self, ui: &mut Ui) -> EditResponse<Rgba> {
         let id = ui.make_persistent_id(self.id_salt);
         // The limit leaves room for a pasted `#`.
@@ -324,7 +344,14 @@ impl HexField {
             reason
         });
         let codec = HexCodec { alpha: self.alpha, write_alpha: self.alpha, digits: self.digits, reason };
-        show(ui, id, &self.label, self.value, codec, Options { policy: self.policy, enabled: self.enabled, prefix: true, char_limit })
+        show(
+            ui,
+            id,
+            &self.label,
+            self.value,
+            codec,
+            Options { policy: self.policy, enabled: self.enabled, prefix: self.prefix, char_limit, width: self.width },
+        )
     }
 }
 
@@ -397,7 +424,7 @@ impl HexPairField {
             &self.label,
             self.value,
             PairCodec { reason },
-            Options { policy: self.policy, enabled: self.enabled, prefix: false, char_limit: 3 },
+            Options { policy: self.policy, enabled: self.enabled, prefix: false, char_limit: 3, width: None },
         )
     }
 }
