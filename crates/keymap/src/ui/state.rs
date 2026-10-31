@@ -10,6 +10,7 @@ use crate::import::{self, ForeignSet, ImportOptions, ImportPlan, ImportReport};
 use crate::keymap::{AssignError, Assigned, Binding, BindingError, Holder, Keymap, MAX_BINDINGS, Overrides, Policy};
 use crate::profiles::{Builtins, ProfileError, Profiles, set_name};
 use crate::scope::Scope;
+use crate::ui::pages::TabSet;
 use crate::ui::rows::{AreaEntry, AreaId, Built, Filter, RowCache, View};
 use crate::ui::text::Say;
 use crate::ui::view::keyboard::KeyboardState;
@@ -20,6 +21,7 @@ pub(crate) struct Env<'e> {
     pub keymap: &'e mut Keymap,
     pub sets: Option<(&'e mut Profiles, &'e Builtins<'e>)>,
     pub options: &'e Options,
+    pub tabs: Option<&'e mut dyn TabSet>,
     pub text: &'e Say,
 }
 
@@ -219,6 +221,10 @@ pub struct DialogState {
     pub(crate) visible: std::ops::Range<usize>,
     pub(crate) set_form: Option<SetForm>,
     pub(crate) keyboard: KeyboardState,
+    /// The app tab shown (its [`DialogTab::id`]); `None` is Keyboard Shortcuts.
+    pub(crate) tab: Option<&'static str>,
+    /// The active set's name as of the last frame.
+    pub(crate) set: Option<String>,
 }
 
 impl Default for DialogState {
@@ -261,7 +267,32 @@ impl DialogState {
             visible: 0..0,
             set_form: None,
             keyboard: KeyboardState::default(),
+            tab: None,
+            set: None,
         }
+    }
+
+    /// Whether the first frame has run.
+    pub(crate) fn begun(&self) -> bool {
+        self.phase != Phase::New
+    }
+
+    /// Records the active set's name for [`DialogState::snapshot`].
+    pub(crate) fn sync_set(&mut self, env: &Env) {
+        self.set = env.sets.as_ref().map(|(p, b)| p.active_name(b).to_string());
+    }
+
+    /// Shows an app tab (`None`: Keyboard Shortcuts); a chord being recorded is dropped.
+    pub(crate) fn set_tab(&mut self, tab: Option<&'static str>) {
+        if self.tab != tab {
+            self.stop_recording();
+            self.tab = tab;
+        }
+    }
+
+    /// An app tab's body changed something.
+    pub(crate) fn app_tab_changed(&mut self) {
+        self.changed = true;
     }
 
     /// False once the dialog has closed with OK or Cancel and reported its last outcome: drop the
@@ -307,6 +338,7 @@ impl DialogState {
         self.opened = Some(Opened { profiles: env.sets.as_ref().map(|(p, _)| (**p).clone()), overrides: env.keymap.overrides().clone() });
         self.session = Some(EditSession::begin(env.keymap));
         self.areas = crate::ui::rows::areas(env.keymap, env.options, env.text);
+        self.sync_set(env);
     }
 
     /// Takes this frame's key input while recording and commits a double-press wait that ended.
@@ -1166,7 +1198,7 @@ mod tests {
 
         fn env(&mut self) -> Env<'_> {
             let sets = if self.sets { Some((&mut self.p, &self.b[..])) } else { None };
-            Env { keymap: &mut self.km, sets, options: &self.o, text: Say::english() }
+            Env { keymap: &mut self.km, sets, options: &self.o, tabs: None, text: Say::english() }
         }
 
         fn keys(&self, id: &str) -> Vec<String> {

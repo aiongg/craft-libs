@@ -69,6 +69,18 @@ pub(crate) fn body(ui: &mut Ui, env: &mut Env, state: &mut DialogState) {
     d.layout(ui);
 }
 
+pub(crate) fn area_key(id: &AreaId) -> String {
+    match id {
+        AreaId::All => "all".into(),
+        AreaId::Menu(m) => format!("menu.{m}"),
+        AreaId::Tools => "tools".into(),
+        AreaId::Panel(p) => format!("panel.{p}"),
+        AreaId::Other => "other".into(),
+        AreaId::App(a) => (*a).to_string(),
+        AreaId::Fixed => "fixed".into(),
+    }
+}
+
 struct Draw<'s, 'e> {
     env: &'s mut Env<'e>,
     state: &'s mut DialogState,
@@ -286,6 +298,7 @@ impl Draw<'_, '_> {
         if self.state.is_recording() {
             return;
         }
+        self.tab_keys(ui);
         let text_focus = self.state.text_focus;
         let popup = egui::Popup::is_any_open(ui.ctx());
         if !text_focus && !popup && ui.input_mut(|i| i.consume_key(Modifiers::NONE, EguiKey::Escape)) {
@@ -296,7 +309,7 @@ impl Draw<'_, '_> {
             }
             return;
         }
-        if text_focus || !self.env.options.editable || self.state.modal() {
+        if text_focus || !self.env.options.editable || self.state.modal() || self.state.tab.is_some() {
             return;
         }
         let mac = self.env.keymap.platform().is_mac();
@@ -329,14 +342,19 @@ impl Draw<'_, '_> {
         let gap = ui.spacing().item_spacing.y;
         let column = self.column();
         ui.scope_builder(UiBuilder::new().max_rect(full).layout(column), |ui| {
-            self.sets_row(ui);
-            // Show, Filter and Search act on the table, which the import review replaces.
-            ui.add_enabled_ui(self.state.review.is_none(), |ui| self.header(ui));
+            let app = self.dialog_tabs(ui);
+            if app.is_none() {
+                self.sets_row(ui);
+                // Show, Filter and Search act on the table, which the import review replaces.
+                ui.add_enabled_ui(self.state.review.is_none(), |ui| self.header(ui));
+            }
             let rest = ui.available_rect_before_wrap();
             let bottom_h = self.state.bottom_h.clamp(0.0, rest.height());
             let mid_bottom = (rest.max.y - bottom_h - gap).max(rest.min.y);
             let mid = Rect::from_min_max(rest.min, pos2(rest.max.x, mid_bottom));
-            if !self.review(ui, mid) {
+            if let Some(index) = app {
+                self.app_tab(ui, mid, index);
+            } else if !self.review(ui, mid) {
                 let prompt = self.state.prompt.is_some();
                 ui.scope(|ui| {
                     if prompt {
@@ -371,18 +389,6 @@ impl Draw<'_, '_> {
     }
 
     // ---- Header: Show, Filter, Search ----
-
-    fn area_key(id: &AreaId) -> String {
-        match id {
-            AreaId::All => "all".into(),
-            AreaId::Menu(m) => format!("menu.{m}"),
-            AreaId::Tools => "tools".into(),
-            AreaId::Panel(p) => format!("panel.{p}"),
-            AreaId::Other => "other".into(),
-            AreaId::App(a) => (*a).to_string(),
-            AreaId::Fixed => "fixed".into(),
-        }
-    }
 
     fn header(&mut self, ui: &mut Ui) {
         if self.env.options.area_tabs {
@@ -493,7 +499,7 @@ impl Draw<'_, '_> {
         self.combo(ui, "area", &l, &show, &current, |ui| {
             for a in &areas {
                 let r = ui.selectable_label(a.id == self.state.area, &a.label);
-                self.tag(|| format!("shortcuts.area.{}", Self::area_key(&a.id)), r.rect, &a.label);
+                self.tag(|| format!("shortcuts.area.{}", area_key(&a.id)), r.rect, &a.label);
                 if r.clicked() {
                     pick = Some(a.id.clone());
                 }
@@ -506,32 +512,43 @@ impl Draw<'_, '_> {
 
     /// Show as tabs, with the ones that do not fit in a menu.
     fn area_tabs(&mut self, ui: &mut Ui) {
-        let areas = self.state.areas.clone();
+        let items: Vec<(String, String)> =
+            self.state.areas.iter().map(|a| (format!("shortcuts.area.{}", area_key(&a.id)), a.label.clone())).collect();
+        let selected = self.state.areas.iter().position(|a| a.id == self.state.area).unwrap_or(0);
+        if let Some(i) = self.tab_row(ui, "area", &items, selected)
+            && let Some(a) = self.state.areas.get(i)
+        {
+            let id = a.id.clone();
+            self.state.set_area(id);
+        }
+    }
+
+    /// A row of tabs, the ones that do not fit in a "More" menu: `items` are (automation id,
+    /// label); returns the tab picked this frame.
+    fn tab_row(&mut self, ui: &mut Ui, salt: &'static str, items: &[(String, String)], selected: usize) -> Option<usize> {
         let pad = ui.spacing().button_padding.x * 2.0;
         let font = TextStyle::Button.resolve(ui.style());
         let natural: Vec<f32> =
-            areas.iter().map(|a| ui.painter().layout_no_wrap(a.label.clone(), font.clone(), Color32::WHITE).size().x + pad).collect();
+            items.iter().map(|(_, label)| ui.painter().layout_no_wrap(label.clone(), font.clone(), Color32::WHITE).size().x + pad).collect();
         let tab_text = TabStripText::default();
-        let selected = areas.iter().position(|a| a.id == self.state.area).unwrap_or(0);
         let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), ui.spacing().interact_size.y + 4.0), Sense::hover());
         let fit = tabs::fit(&natural, selected, rect.width(), 48.0, ICON + 8.0);
         let m = self.mirror(rect);
         let mut x = rect.min.x;
         let mut pick = None;
         for &(i, w) in &fit.shown {
-            let Some(a) = areas.get(i) else { continue };
+            let Some((tag, label)) = items.get(i) else { continue };
             let r = m.rect(Rect::from_min_size(pos2(x, rect.min.y), vec2(w, rect.height())));
             x += w;
             let on = i == selected;
-            let id = self.base.with(("area", i));
-            let text = &a.label;
+            let id = self.base.with((salt, i));
             let color = if on { ui.visuals().strong_text_color() } else { ui.visuals().text_color() };
-            let (shaped, _) = self.one_line(ui.painter(), &[(text.clone(), TextFormat::simple(font.clone(), color))], f32::INFINITY);
-            let view = TabView::new(self.base.with("areas"), &tab_text, i).active(on).sense(Sense::click());
-            let resp = Tab::new(i, &a.label).with_id(id).shaped(shaped).show_at(ui, r, &view).tab;
-            self.tag(|| format!("shortcuts.area.{}", Self::area_key(&a.id)), resp.rect, &a.label);
+            let (shaped, _) = self.one_line(ui.painter(), &[(label.clone(), TextFormat::simple(font.clone(), color))], f32::INFINITY);
+            let view = TabView::new(self.base.with((salt, "strip")), &tab_text, i).active(on).sense(Sense::click());
+            let resp = Tab::new(i, label).with_id(id).shaped(shaped).show_at(ui, r, &view).tab;
+            self.tag(|| tag.clone(), resp.rect, label);
             if resp.clicked() {
-                pick = Some(a.id.clone());
+                pick = Some(i);
             }
         }
         if !fit.overflow.is_empty() {
@@ -540,17 +557,82 @@ impl Draw<'_, '_> {
             ui.scope_builder(UiBuilder::new().max_rect(r), |ui| {
                 ui.menu_button(&more, |ui| {
                     for &i in &fit.overflow {
-                        if let Some(a) = areas.get(i)
-                            && ui.button(&a.label).clicked()
+                        if let Some((_, label)) = items.get(i)
+                            && ui.button(label).clicked()
                         {
-                            pick = Some(a.id.clone());
+                            pick = Some(i);
                         }
                     }
                 });
             });
         }
-        if let Some(a) = pick {
-            self.state.set_area(a);
+        pick
+    }
+
+    // ---- The app's own tabs ----
+
+    /// The tab strip over the dialog when the app has tabs of its own, and the app tab shown
+    /// (an index into them); `None` shows Keyboard Shortcuts.
+    fn dialog_tabs(&mut self, ui: &mut Ui) -> Option<usize> {
+        let tabs = self.env.tabs.as_deref().filter(|t| t.len() > 0)?;
+        let mut items = vec![("shortcuts.tab.shortcuts".to_string(), self.env.text.ui("Keyboard Shortcuts").into_owned())];
+        let described: Vec<(&'static str, &str)> = (0..tabs.len()).filter_map(|i| tabs.describe(i)).collect();
+        items.extend(described.iter().map(|(id, label)| (format!("shortcuts.tab.{id}"), (*label).to_string())));
+        let ids: Vec<&'static str> = described.iter().map(|(id, _)| *id).collect();
+        let current = self.state.tab.and_then(|id| ids.iter().position(|t| *t == id));
+        if self.state.tab.is_some() && current.is_none() {
+            self.state.set_tab(None);
+        }
+        let selected = current.map_or(0, |i| i + 1);
+        let pick = ui.add_enabled_ui(!self.state.modal(), |ui| self.tab_row(ui, "tab", &items, selected)).inner;
+        let selected = match pick {
+            Some(i) => {
+                self.state.set_tab(i.checked_sub(1).and_then(|k| ids.get(k).copied()));
+                i
+            }
+            None => selected,
+        };
+        selected.checked_sub(1)
+    }
+
+    /// Ctrl+Tab and Ctrl+Shift+Tab (Ctrl+Page Down and Up on Windows and Linux) move to the next
+    /// and previous tab, wrapping.
+    fn tab_keys(&mut self, ui: &Ui) {
+        let Some(tabs) = self.env.tabs.as_deref().filter(|t| t.len() > 0) else { return };
+        if self.state.modal() {
+            return;
+        }
+        let mac = self.env.keymap.platform().is_mac();
+        let step = ui.input_mut(|i| {
+            let back = i.consume_key(Modifiers::CTRL | Modifiers::SHIFT, EguiKey::Tab) || (!mac && i.consume_key(Modifiers::CTRL, EguiKey::PageUp));
+            let next = !back && (i.consume_key(Modifiers::CTRL, EguiKey::Tab) || (!mac && i.consume_key(Modifiers::CTRL, EguiKey::PageDown)));
+            if back {
+                -1
+            } else if next {
+                1
+            } else {
+                0
+            }
+        });
+        if step == 0 {
+            return;
+        }
+        let ids: Vec<&'static str> = (0..tabs.len()).filter_map(|i| tabs.describe(i).map(|(id, _)| id)).collect();
+        let current = self.state.tab.and_then(|id| ids.iter().position(|t| *t == id)).map_or(0, |i| i as i32 + 1);
+        let to = (current + step).rem_euclid(ids.len() as i32 + 1);
+        self.state.set_tab(usize::try_from(to - 1).ok().and_then(|k| ids.get(k).copied()));
+    }
+
+    /// The app tab's body in the dialog's body rect.
+    fn app_tab(&mut self, ui: &mut Ui, rect: Rect, index: usize) {
+        let mut changed = false;
+        self.child(ui, rect, |d, ui| {
+            if let Some(tabs) = d.env.tabs.as_deref_mut() {
+                changed = tabs.draw(index, ui);
+            }
+        });
+        if changed {
+            self.state.app_tab_changed();
         }
     }
 

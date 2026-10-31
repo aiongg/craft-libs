@@ -214,11 +214,12 @@ pub struct ShortcutsDialog<'a> {
     keymap: &'a mut Keymap,
     sets: Option<(&'a mut Profiles, &'a Builtins<'a>)>,
     options: Option<&'a Options>,
+    tabs: Option<Box<dyn pages::TabSet + 'a>>,
 }
 
 impl<'a> ShortcutsDialog<'a> {
     pub fn new(keymap: &'a mut Keymap) -> Self {
-        ShortcutsDialog { keymap, sets: None, options: None }
+        ShortcutsDialog { keymap, sets: None, options: None, tabs: None }
     }
 
     /// Shows and edits named sets.
@@ -232,7 +233,7 @@ impl<'a> ShortcutsDialog<'a> {
         self
     }
 
-    fn with_env<R>(self, ctx: &egui::Context, f: impl FnOnce(&mut Env) -> R) -> R {
+    fn with_env<R>(mut self, ctx: &egui::Context, f: impl FnOnce(&mut Env) -> R) -> R {
         let fallback;
         let options = match self.options {
             Some(o) => o,
@@ -242,7 +243,7 @@ impl<'a> ShortcutsDialog<'a> {
             }
         };
         let say = Say::of_ctx(ctx);
-        let mut env = Env { keymap: self.keymap, sets: self.sets, options, text: &say };
+        let mut env = Env { keymap: self.keymap, sets: self.sets, options, tabs: self.tabs.as_deref_mut().map(pages::shorten), text: &say };
         f(&mut env)
     }
 
@@ -329,6 +330,7 @@ fn frame(ui: &mut egui::Ui, env: &mut Env, state: &mut DialogState) -> Option<Ou
     if state.is_showing() {
         view::body(ui, env, state);
     }
+    state.sync_set(env);
     let out = state.finish();
     if state.change_pending() {
         ui.ctx().request_repaint();

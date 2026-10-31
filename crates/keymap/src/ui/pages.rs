@@ -6,12 +6,25 @@
 //! row's `.kys` export is an [`super::Options::export_formats`] entry the app writes with
 //! [`crate::import::kys::write`].
 
-#![expect(unused_variables, unused_mut, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use serde::Serialize;
 
+use super::state::Target;
+use super::view::area_key;
 use super::{Area, DialogState, ShortcutsDialog};
 use crate::command::CommandRef;
+use crate::keymap::{Bindable, Kind};
+
+fn is_tool(b: &Bindable) -> bool {
+    matches!(b.kind, Kind::Tool { .. })
+}
+
+fn application_menus(b: &Bindable) -> bool {
+    !is_tool(b) && b.paths.first().and_then(|p| p.first()).is_some()
+}
+
+fn panel_menus(b: &Bindable) -> bool {
+    !is_tool(b) && !b.scope.is_app()
+}
 
 impl Area {
     /// Photoshop's Shortcuts For entries over the catalog: Application Menus (commands with a
@@ -21,7 +34,11 @@ impl Area {
     // pc: crates/ui-egui/src/prefs/prefs_ui/shortcuts.rs:182 (its tabs); Photoshop's "Shortcuts
     // For: Application Menus / Panel Menus / Tools".
     pub fn photoshop() -> Vec<Area> {
-        todo!()
+        vec![
+            Area { id: "photoshop.menus", label: "Application Menus", rows: application_menus },
+            Area { id: "photoshop.panels", label: "Panel Menus", rows: panel_menus },
+            Area { id: "photoshop.tools", label: "Tools", rows: is_tool },
+        ]
     }
 }
 
@@ -39,13 +56,44 @@ pub struct DialogTab<'a> {
     pub body: Box<dyn FnMut(&mut egui::Ui) -> bool + 'a>,
 }
 
+/// The dialog's view of [`DialogTab`]s, whose lifetime parameter is invariant behind `&mut`.
+pub(crate) trait TabSet {
+    fn len(&self) -> usize;
+    /// The tab's automation id and label.
+    fn describe(&self, index: usize) -> Option<(&'static str, &str)>;
+    /// Draws the tab's body; true when it changed something.
+    fn draw(&mut self, index: usize, ui: &mut egui::Ui) -> bool;
+}
+
+/// `tabs` with the trait object's lifetime cut to the borrow: `Env` is invariant in its lifetime.
+pub(crate) fn shorten<'s, 'a: 's>(tabs: &'s mut (dyn TabSet + 'a)) -> &'s mut (dyn TabSet + 's) {
+    tabs
+}
+
+struct Tabs<'r, 't>(&'r mut [DialogTab<'t>]);
+
+impl TabSet for Tabs<'_, '_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn describe(&self, index: usize) -> Option<(&'static str, &str)> {
+        self.0.get(index).map(|t| (t.id, t.label.as_str()))
+    }
+
+    fn draw(&mut self, index: usize, ui: &mut egui::Ui) -> bool {
+        self.0.get_mut(index).is_some_and(|t| (t.body)(ui))
+    }
+}
+
 impl<'a> ShortcutsDialog<'a> {
     /// The app's tabs after Keyboard Shortcuts, in this order. The selected tab is kept in the
     /// [`DialogState`]; Ctrl+Tab and Ctrl+Shift+Tab move between tabs (Ctrl+Page Down/Up on
     /// Windows and Linux too).
     // pc: crates/ui-egui/src/prefs/prefs_ui/shortcuts.rs:182 (Keyboard Shortcuts, Menus, Toolbar).
-    pub fn tabs(mut self, tabs: &'a mut [DialogTab<'a>]) -> Self {
-        todo!()
+    pub fn tabs(mut self, tabs: &'a mut [DialogTab<'_>]) -> Self {
+        self.tabs = if tabs.is_empty() { None } else { Some(Box::new(Tabs(tabs))) };
+        self
     }
 }
 
@@ -77,6 +125,24 @@ impl DialogState {
     // pc: crates/ui-egui/src/prefs/prefs_ui/shortcuts.rs:53 `conflict_state` (overrides,
     // alternates, selection and set, hashed for its tests).
     pub fn snapshot(&self, keymap: &crate::Keymap) -> Option<DialogSnapshot> {
-        todo!()
+        if !self.begun() {
+            return None;
+        }
+        let command =
+            |key: &str| keymap.catalog().iter().find(|b| b.command.key() == key).map(|b| b.command.clone()).or_else(|| CommandRef::parse_key(key));
+        Some(DialogSnapshot {
+            tab: self.tab.unwrap_or("shortcuts").to_string(),
+            area: area_key(&self.area),
+            query: self.query.clone(),
+            selected: self.selected.clone(),
+            overrides: keymap.overrides().iter().filter_map(|(key, texts)| Some((command(key)?, texts.to_vec()))).collect(),
+            conflict: self.conflict.as_ref().map(|c| (c.binding.to_string(), c.holders.iter().map(|h| h.command.clone()).collect())),
+            recording: self.recording.as_ref().and_then(|r| match &r.target {
+                Target::Cell { command, .. } | Target::Field { command } => Some(command.clone()),
+                Target::Search => None,
+            }),
+            set: self.set.clone(),
+            can_undo: self.can_undo(),
+        })
     }
 }
