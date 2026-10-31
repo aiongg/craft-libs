@@ -3,15 +3,17 @@
 use egui::text::LayoutJob;
 use std::ops::RangeInclusive;
 
-use egui::{AsIdSalt, Label, Response, Ui, vec2};
+use egui::{AsIdSalt, CursorIcon, Id, IdSalt, Label, PointerButton, Response, Sense, Ui, vec2};
 
 use super::options_bar::OptionsBar;
+use crate::canvas::rulers;
+use crate::controls::expr::{self, ExprUnits};
 use crate::controls::{CheckState, Checkbox, NumberField, Select};
 use crate::direction;
-use crate::edit::EditResponse;
+use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::localized::units::{LengthUnit, UnitContext};
 use crate::localized::{LocaleNumbers, Unit, Word, Words};
-use crate::primitives::{Content, Text};
+use crate::primitives::{Content, FocusRing, Text};
 use crate::story::StoryArgs;
 use crate::theme::{Tokens, TokensOf};
 use craft_theme::{ControlSize, TypeRole};
@@ -82,10 +84,14 @@ impl OptionsBar {
 
     /// A number cell: [`cell`](Self::cell) with `field` at [`ControlSize::Sm`](craft_theme::ControlSize::Sm), scrubbed by
     /// dragging the caption ([`NumberField::scrub_by`]), as Photoshop's "Size:" or "Tolerance:".
+    /// The drag area is the caption, the gap after it (up to 24 points) and nothing of the box,
+    /// whose own text scrubs.
     // pc: crates/ui-egui/src/panels/options_bar.rs:735 `opt_label` (a label before a value field scrubs it).
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     pub fn number_cell(ui: &mut Ui, caption: &str, width: CellWidth, field: NumberField<'_>) -> EditResponse<f64> {
-        todo!()
+        Self::cell(ui, caption, width, |ui, label| {
+            let area = scrub_area(ui, label, label.id);
+            field.size(ControlSize::Sm).scrub_by(&area).show(ui)
+        })
     }
 
     /// Photoshop's Opacity and Flow cell: the caption scrubs the percentage, 0.5 percentage
@@ -94,9 +100,42 @@ impl OptionsBar {
     /// opens a pop-up slider ([`NumberField::popup_slider`], named after the caption). `value` is
     /// the percentage. Width [`CellWidth::Sm`].
     // pc: crates/ui-egui/src/panels/options_bar.rs:698 `scrub_pct_label`, :776 `percent_field`.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     pub fn percent_cell(ui: &mut Ui, id_salt: impl AsIdSalt, caption: &str, value: f64, numbers: &LocaleNumbers) -> EditResponse<f64> {
-        todo!()
+        let salt = IdSalt::new(id_salt);
+        let field_id = ui.make_persistent_id(salt);
+        Self::cell(ui, caption, CellWidth::Sm, |ui, label| {
+            let drag = scrub_area(ui, label, field_id);
+            let mut gesture = Gesture::load(ui, drag.id, &value, EditPolicy::default()).enabled(drag.enabled());
+            if drag.hovered() || drag.dragged() {
+                ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
+            }
+            if drag.drag_started_by(PointerButton::Primary) && value.is_finite() {
+                gesture.begin();
+            }
+            if drag.dragged_by(PointerButton::Primary)
+                && let Some(start) = gesture.anchor().copied()
+                && let Some((pos, origin)) = drag.interact_pointer_pos().zip(ui.input(|i| i.pointer.press_origin()))
+            {
+                let next = (start + f64::from(pos.x - origin.x) * PERCENT_PER_POINT).clamp(0.0, 100.0);
+                gesture.update(next, ui.input(|i| i.modifiers));
+            }
+            if drag.drag_stopped() {
+                gesture.commit();
+            }
+            let shown = *gesture.shown();
+            let mut edit = NumberField::new(salt, caption, shown, numbers)
+                .range(0.0..=100.0)
+                .decimals(0..=0)
+                .unit(Unit::new("{n}%"))
+                .size(ControlSize::Sm)
+                .popup_slider(caption)
+                .show(ui);
+            if drag.clicked() {
+                edit.response.request_focus();
+            }
+            edit.event = gesture.finish().or(edit.event.take());
+            edit
+        })
     }
 
     /// A length cell (the marquee's Fixed Size Width and Height): `pixels` shown in `unit` with
@@ -109,7 +148,6 @@ impl OptionsBar {
     /// ([`LengthUnitLabels`](crate::localized::units::LengthUnitLabels) names); the pick comes
     /// back in [`UnitCellResponse::unit_picked`]. Width [`CellWidth::Md`].
     // pc: crates/ui-egui/src/panels/options_bar.rs:758 `fixed_size_field`, :747 `fixed_size_units`.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     #[expect(clippy::too_many_arguments, reason = "a cell names every input of its field")]
     pub fn unit_cell(
         ui: &mut Ui,
@@ -121,7 +159,40 @@ impl OptionsBar {
         units: &[LengthUnit],
         context: UnitContext,
     ) -> UnitCellResponse {
-        todo!()
+        let salt = IdSalt::new(id_salt);
+        let numbers = LocaleNumbers::of(ui);
+        let places = unit.decimals();
+        let scale = 10f64.powi(places as i32);
+        let round = |v: f64| (v * scale).round() / scale;
+        let (low, high) = (range.start().min(*range.end()), range.start().max(*range.end()));
+        let bounds = {
+            let (a, b) = (context.from_pixels(low, unit).unwrap_or(f64::NEG_INFINITY), context.from_pixels(high, unit).unwrap_or(f64::INFINITY));
+            a.min(b)..=a.max(b)
+        };
+        // The field shows (and re-reads) the rounded value, so leaving it is no change.
+        let shown = context.from_pixels(pixels, unit).map_or(f64::NAN, round);
+        let entries = rulers::unit_entries(ui, units, unit);
+        let mut picked = None;
+        let template = if unit == LengthUnit::Percent { "{n}%".to_owned() } else { format!("{{n}} {}", unit.suffix()) };
+        let reader = |text: &str| expr::parse_with_units(text, &ExprUnits { unit: Some(unit), suffix: unit.suffix(), context });
+        let edit = Self::cell(ui, caption, CellWidth::Md, |ui, label| {
+            let area = scrub_area(ui, label, label.id);
+            NumberField::new(salt, caption, shown, &numbers)
+                .range(bounds)
+                .decimals(0..=places)
+                .unit(Unit::new(&template))
+                .expressions(true)
+                .or_parse(reader)
+                .unit_menu(&entries, &mut picked)
+                .size(ControlSize::Sm)
+                .scrub_by(&area)
+                .show(ui)
+        });
+        let to_pixels = |value: f64| {
+            let exact = if (round(value) - shown).abs() < 0.5 / scale { pixels } else { context.to_pixels(value, unit).unwrap_or(pixels) };
+            exact.clamp(low, high)
+        };
+        UnitCellResponse { edit: edit.map(to_pixels), unit_picked: picked.and_then(|i| units.get(i)).copied() }
     }
 
     /// Scroll the bar so a control that just took the keyboard focus (Tab into a cell scrolled
@@ -130,10 +201,29 @@ impl OptionsBar {
     /// focused field during its opening click can undo the focus it just requested), and only for
     /// a focused widget on this layer whose rect lies inside the bar's content.
     // pc: crates/ui-egui/src/panels/options_bar.rs:7 `reveal_focused_control`.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     pub fn reveal_focused_control(ui: &Ui) {
-        todo!()
+        super::options_bar::reveal_focused_control(ui, FocusRing::style(&Tokens::of(ui)).outset());
     }
+}
+
+/// Percentage points a caption drag adds per screen point.
+const PERCENT_PER_POINT: f64 = 0.5;
+
+/// The longest gap after a caption that still scrubs.
+const MAX_SCRUB_GAP: f32 = 24.0;
+
+/// A scrub area over `caption` and the gap after it (up to [`MAX_SCRUB_GAP`], toward the field in
+/// the reading direction), as a response of its own so the caption keeps its widget.
+// pc: crates/ui-egui/src/widgets/scrub.rs:49 `scrub_option_area`.
+fn scrub_area(ui: &Ui, caption: &Response, base: Id) -> Response {
+    let gap = ui.spacing().item_spacing.x.min(MAX_SCRUB_GAP);
+    let mut rect = caption.rect;
+    if direction::is_rtl(ui) {
+        rect.min.x -= gap;
+    } else {
+        rect.max.x += gap;
+    }
+    ui.interact(rect, base.with("craft_ui::options_cell::scrub_area"), Sense::click_and_drag())
 }
 
 /// What a [`OptionsBar::unit_cell`] did.

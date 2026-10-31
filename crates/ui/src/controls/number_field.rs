@@ -13,7 +13,7 @@ use egui::text::CCursorRange;
 use egui::text_edit::TextEditState;
 use egui::{
     Align2, AsIdSalt, Color32, Context, CursorIcon, Event, EventFilter, FontId, Id, IdSalt, Key, Modifiers, PointerButton, Popup, PopupCloseBehavior,
-    Pos2, Rect, RectAlign, Response, Sense, Shape, Ui, ViewportCommand, pos2, vec2,
+    Pos2, Rect, RectAlign, Response, Sense, Shape, Ui, pos2, vec2,
 };
 
 use super::expr;
@@ -789,7 +789,7 @@ impl<'n> Input<'n> {
                 });
                 let travel = travel(scrub.last_x, pos.x, scrub.warp, edges);
                 if let Some(x) = travel.send {
-                    ui.ctx().send_viewport_cmd(ViewportCommand::CursorPosition(pos2(x, pos.y)));
+                    crate::behavior::scrub::Scrub::warp(ui.ctx(), pos2(x, pos.y));
                 }
                 scrub.steps += f64::from(travel.delta) * STEPS_PER_POINT * rate;
                 scrub.last_x = travel.last_x;

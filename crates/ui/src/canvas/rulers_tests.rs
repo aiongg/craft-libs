@@ -9,6 +9,7 @@ use crate::canvas::guides::GuideHost;
 use crate::canvas::{CanvasView, GuideNames, GuidePlace, Guides, Orientation, RulerUnits};
 use crate::edit::{CancelReason, EditEvent};
 use crate::localized::LocaleNumbers;
+use crate::localized::units::LengthUnit;
 use crate::theme::{Base, install};
 
 const SIZE: f32 = 16.0;
@@ -570,8 +571,48 @@ fn a_quick_press_on_the_ruler_released_where_it_began_makes_no_guide() {
 
 // With units_menu set, a secondary click opens the menu, context stays None and a pick fills unit_picked.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn a_ruler_menu_pick_reports_the_unit() {
-    todo!()
+    #[derive(Default)]
+    struct Seen {
+        picked: Vec<LengthUnit>,
+        contexts: usize,
+        corner: Pos2,
+    }
+    let mut h = Harness::<Seen>::builder()
+        .with_size([300.0, 300.0])
+        .with_step_dt(1.0 / 60.0)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, seen: &mut Seen| {
+                let full = ScreenRect::from_min_size(pos2(20.0, 20.0), vec2(200.0, 200.0));
+                let content = ScreenRect::from_min_max(full.min + vec2(SIZE, SIZE), full.max);
+                let view = CanvasView::new(content, Point::new(100.0, 100.0), 1.0);
+                let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
+                let names = RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin");
+                let out = Rulers::new("rulers", &px, &px, names).units_menu(&LengthUnit::ALL, LengthUnit::Pixels).show(ui, full, &view, None);
+                seen.picked.extend(out.unit_picked);
+                seen.contexts += usize::from(out.context.is_some());
+                seen.corner = content.min - vec2(SIZE / 2.0, SIZE / 2.0);
+            },
+            Seen::default(),
+        );
+    h.run_steps(2);
+    let at = pos2(h.state().corner.x + 60.0, h.state().corner.y);
+    h.event(Event::PointerMoved(at));
+    h.run();
+    for pressed in [true, false] {
+        h.event(Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE });
+        h.run();
+    }
+    h.run_steps(3);
+    let to = h.get_by_label("Points").rect().center();
+    h.event(Event::PointerMoved(to));
+    h.run();
+    for pressed in [true, false] {
+        h.event(Event::PointerButton { pos: to, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        h.run();
+    }
+    h.run_steps(2);
+    assert_eq!(h.state().picked, [LengthUnit::Points]);
+    assert_eq!(h.state().contexts, 0, "the rulers' own menu replaces the context report");
 }

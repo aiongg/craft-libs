@@ -299,7 +299,7 @@ impl OptionsBar {
 
 /// Scrolls the focused control into the middle of the enclosing scroll area when the focus has
 /// just moved there. egui does not scroll a Tab-focused widget into view.
-fn reveal_focused_control(ui: &Ui, outset: f32) {
+pub(super) fn reveal_focused_control(ui: &Ui, outset: f32) {
     // Reading a response reprocesses pointer events, which would undo the focus a popup requested
     // during its opening click.
     if ui.input(|input| input.pointer.any_pressed() || input.pointer.any_released()) {

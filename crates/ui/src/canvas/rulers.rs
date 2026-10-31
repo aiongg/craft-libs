@@ -15,7 +15,7 @@ use super::guides::segment;
 use super::units::tick_snap;
 use super::{CanvasView, Guides, Orientation, RulerUnits, crisp, resize_cursor};
 use crate::edit::{EditEvent, EditPolicy, Gesture};
-use crate::localized::units::LengthUnit;
+use crate::localized::units::{LengthUnit, LengthUnitLabels};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::Divider;
 use crate::story::{Level, Story, StoryChoice, Surface};
@@ -729,10 +729,24 @@ fn set_zero_dialog(ui: &mut Ui, key: Id, units: &RulerUnits, rulers: Id) {
 #[path = "rulers_tests.rs"]
 mod tests;
 
+/// The rows of a units menu: every unit of `units` named by the installed
+/// [`LengthUnitLabels`](crate::localized::units::LengthUnitLabels), `current` marked. The command
+/// of a row is the unit's index in `units`.
+// pc: crates/ui-egui/src/canvas/rulers.rs:73 `unit_menu_items`.
+pub(crate) fn unit_entries(ui: &Ui, units: &[LengthUnit], current: LengthUnit) -> Vec<MenuEntry<usize>> {
+    let labels = LengthUnitLabels::of(ui);
+    units.iter().enumerate().map(|(i, &unit)| MenuItem::new(unit.label(&labels), i).radio(unit == current).into()).collect()
+}
+
 /// The rulers' units menu: opened at the pointer by `pressed` (a secondary click on a part this
 /// pass), kept open across passes under `id`, `current` checked. Returns the unit picked.
 // pc: crates/ui-egui/src/canvas/rulers.rs:79 `unit_menu`, :73 `unit_menu_items`.
-#[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
 fn units_menu(ui: &mut Ui, id: Id, pressed: Option<&Response>, units: &[LengthUnit], current: LengthUnit) -> Option<LengthUnit> {
-    todo!()
+    // The menu belongs to one widget whichever ruler part opened it, so a second click on
+    // another part moves the open menu instead of opening another.
+    let anchor = ui.interact(ScreenRect::from_min_size(ui.max_rect().min, vec2(0.0, 0.0)), id.with("craft_ui::rulers::units_menu"), Sense::hover());
+    let at = pressed.map(|r| OpenAt::Pointer(r.interact_pointer_pos().or_else(|| ui.input(|i| i.pointer.interact_pos())).unwrap_or(r.rect.center())));
+    let entries = unit_entries(ui, units, current);
+    let chosen = ContextMenu::new(&entries).open_at(at).own_gestures(false).show(ui, &anchor).chosen;
+    chosen.and_then(|i| units.get(i)).copied()
 }
