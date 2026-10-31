@@ -11,8 +11,6 @@ pub struct CheckSpellingTokens {
     pub field_width: f32,
     /// Height of the suggestion list, in points: `check_spelling.suggestions_height`.
     pub suggestions_height: f32,
-    /// Height of a suggestion row, in points: `check_spelling.suggestion_row`.
-    pub suggestion_row: f32,
 }
 
 /// CheckSpelling has no overridable field: its sizes come from the code, as every size does.
@@ -25,15 +23,10 @@ impl Family for CheckSpellingTokens {
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { CheckSpellingTokens;
         "field_width" 0.0..=1024.0 => field_width;
         "suggestions_height" 0.0..=1024.0 => suggestions_height;
-        "suggestion_row" 0.0..=256.0 => suggestion_row;
     };
 
     fn defaults(_: &Semantic<'_>) -> CheckSpellingTokens {
-        CheckSpellingTokens {
-            field_width: values::CHECK_SPELLING_FIELD_WIDTH,
-            suggestions_height: values::CHECK_SPELLING_SUGGESTIONS_HEIGHT,
-            suggestion_row: values::CHECK_SPELLING_SUGGESTION_ROW,
-        }
+        CheckSpellingTokens { field_width: values::CHECK_SPELLING_FIELD_WIDTH, suggestions_height: values::CHECK_SPELLING_SUGGESTIONS_HEIGHT }
     }
 
     fn path(f: CheckSpellingField) -> String {

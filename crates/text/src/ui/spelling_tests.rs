@@ -106,3 +106,23 @@ fn empty_list_shows_complete_and_done_closes() {
     harness.run();
     assert!(matches!(harness.state().results[..], [DialogResult::Ok(())]));
 }
+
+// A double-click on a suggestion fills Change To and changes, as Enter on it does.
+#[test]
+fn double_click_on_a_suggestion_changes() {
+    let mut harness = harness(items());
+    harness.run();
+    harness.get_by_label("tea").click();
+    harness.run();
+    harness.get_by_label("tea").click();
+    harness.run();
+    assert_eq!(harness.state().actions, [SpellingAction::Change { item: items()[0].clone(), to: "tea".into() }]);
+}
+
+// Check All Layers is set with `all_layers` and read back with `all_layers_checked`.
+#[test]
+fn all_layers_builder_and_getter() {
+    let dialog = CheckSpellingDialog::new(Vec::new()).all_layers(true);
+    assert!(dialog.all_layers_checked());
+    assert!(!CheckSpellingDialog::new(Vec::new()).all_layers_checked());
+}

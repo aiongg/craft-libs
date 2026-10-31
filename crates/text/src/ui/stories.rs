@@ -22,7 +22,7 @@ use super::character::{
 };
 use super::editor::{CaretLine, EditKind, TextEditor, TextEditorHost, TextEditorTool, TextSelection};
 use super::spelling::{CheckSpellingDialog, SUGGESTION_COUNT, SpellingAction, SpellingItem};
-use super::style_panel::{TextStyleAction, TextStyleKind, TextStyleRow, TextStylesPanel};
+use super::style_panel::{TextStyleAction, TextStyleKind, TextStyleRow, TextStylesPanel, TextStylesState};
 use crate::quotes::QuoteStyle;
 use crate::spell::{Dictionary, UserWords};
 
@@ -186,16 +186,18 @@ const SAMPLE: &str = "The quick brown fox\njumps over the lazy dog";
 fn text_editor(ui: &mut Ui, args: &mut EditorArgs) {
     let marked = args.marked;
     let selection = if marked { TextSelection::caret_at(19) } else { TextSelection { anchor: 4, caret: 9 } };
+    let canvas = craft_ui::canvas::CanvasId::new(ui, ("text-story-canvas", marked));
     let shared = state(ui, if marked { "editor-marked" } else { "editor" }, || Session {
         host: Lines { text: SAMPLE.to_owned() },
-        editor: TextEditor::new(Id::unique(("text-story-editor", marked)), selection).smart_quotes(Some(QuoteStyle::ENGLISH)),
+        editor: TextEditor::new(Id::unique(("text-story-editor", marked)), selection).canvas(canvas.id()).smart_quotes(Some(QuoteStyle::ENGLISH)),
         composed: false,
     });
     let mut guard = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let Session { host, editor, composed } = &mut *guard;
 
     let size = vec2(ui.available_width().min(520.0), 120.0);
-    let response = ui.allocate_response(size, Sense::click_and_drag());
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let response = canvas.interact(ui, rect, Sense::click_and_drag());
     let tokens = Tokens::of(ui);
     ui.painter().rect_filled(response.rect, 0.0, tokens.color.surface.canvas.to_egui());
     let view = CanvasView::new(response.rect, Point::new(f64::from(size.x) / 2.0, f64::from(size.y) / 2.0), 1.0);
@@ -204,12 +206,9 @@ fn text_editor(ui: &mut Ui, args: &mut EditorArgs) {
         *composed = true;
         ctx.input_mut(|i| i.events.push(Event::Ime(ImeEvent::Preedit { text: "かな".to_owned(), active_range_chars: None })));
     }
-    if response.has_focus() || (marked && ctx.input(|i| i.events.iter().any(|e| matches!(e, Event::Ime(_))))) {
-        let _ = editor.update(&ctx, host);
-    }
     paint_text(ui, &view, host);
     let mut tool = TextEditorTool::new(editor, host);
-    let _ = ToolHost::new(craft_ui::canvas::CanvasId::of(&response)).show(ui, &view, &response, &mut tool);
+    let _ = ToolHost::new(canvas).show(ui, &view, &response, &mut tool);
     let _ = editor.finish_pass(&ctx, &view, host);
 }
 
@@ -284,8 +283,8 @@ fn character_controls(ui: &mut Ui, _: &mut NoArgs) {
     let families = ["Ubuntu".to_owned(), "Hack".to_owned()];
     let styles = ["Light".to_owned(), "Regular".to_owned()];
     let languages = [("en-US".to_owned(), "English: USA".to_owned()), ("de-DE".to_owned(), "German".to_owned())];
-    let response = CharacterControls::new(&values, &families, &styles).superscript(true).languages(&languages).show(ui);
-    for change in response.changes {
+    let response = CharacterControls::new("character", &values, &families, &styles).superscript(true).languages(&languages).show(ui);
+    for change in response.edits.into_iter().filter_map(|edit| edit.value().cloned()) {
         apply_character(&mut values, change);
     }
 }
@@ -316,8 +315,8 @@ fn paragraph_controls(ui: &mut Ui, _: &mut NoArgs) {
         hyphenate: Some(true),
     });
     let mut values = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    let response = ParagraphControls::new(&values).point_text(true).show(ui);
-    for change in response.changes {
+    let response = ParagraphControls::new("paragraph", &values).point_text(true).show(ui);
+    for change in response.edits.into_iter().filter_map(|edit| edit.value().copied()) {
         apply_paragraph(&mut values, change);
     }
 }
@@ -328,15 +327,15 @@ fn paragraph_controls(ui: &mut Ui, _: &mut NoArgs) {
 /// target and overridden.
 fn text_styles(ui: &mut Ui, _: &mut NoArgs) {
     struct Panel {
-        selected: Option<u64>,
+        state: TextStylesState,
         current: u64,
         overridden: bool,
     }
-    let shared = state(ui, "styles", || Panel { selected: Some(1), current: 2, overridden: true });
+    let shared = state(ui, "styles", || Panel { state: TextStylesState { selected: Some(1) }, current: 2, overridden: true });
     let mut guard = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    let Panel { selected, current, overridden } = &mut *guard;
+    let Panel { state: styles, current, overridden } = &mut *guard;
     let rows = [(0, "Basic Paragraph"), (1, "Body Copy"), (2, "Heading")].map(|(id, name)| TextStyleRow { id, name: name.to_owned() });
-    let response = TextStylesPanel::new(TextStyleKind::Paragraph, &rows, selected).current(Some(*current), *overridden).target(true).show(ui);
+    let response = TextStylesPanel::new("styles", TextStyleKind::Paragraph, &rows, styles).current(Some(*current), *overridden).target(true).show(ui);
     match response.action {
         Some(TextStyleAction::Apply { id, clear_overrides }) => {
             *current = id;

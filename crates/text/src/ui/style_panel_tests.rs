@@ -6,17 +6,19 @@ use egui::{Key, Modifiers};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
+use craft_ui::composites::StatusLine;
+
 use super::style_panel::*;
 
 struct App {
     kind: TextStyleKind,
     rows: Vec<TextStyleRow>,
-    selected: Option<u64>,
+    state: TextStylesState,
     current: Option<u64>,
     overridden: bool,
     text_selected: bool,
     actions: Vec<TextStyleAction>,
-    statuses: Vec<String>,
+    statuses: Vec<StatusLine>,
 }
 
 fn rows(names: &[&str]) -> Vec<TextStyleRow> {
@@ -24,15 +26,23 @@ fn rows(names: &[&str]) -> Vec<TextStyleRow> {
 }
 
 fn harness(kind: TextStyleKind, names: &[&str], current: u64, overridden: bool, text_selected: bool) -> Harness<'static, App> {
-    let app =
-        App { kind, rows: rows(names), selected: None, current: Some(current), overridden, text_selected, actions: Vec::new(), statuses: Vec::new() };
+    let app = App {
+        kind,
+        rows: rows(names),
+        state: TextStylesState::default(),
+        current: Some(current),
+        overridden,
+        text_selected,
+        actions: Vec::new(),
+        statuses: Vec::new(),
+    };
     HarnessBuilder::default()
         .with_step_dt(0.05)
         .with_size(egui::vec2(320.0, 400.0))
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui_state(
             |ui, app: &mut App| {
-                let r = TextStylesPanel::new(app.kind, &app.rows, &mut app.selected)
+                let r = TextStylesPanel::new("styles", app.kind, &app.rows, &mut app.state)
                     .current(app.current, app.overridden)
                     .target(true)
                     .text_selected(app.text_selected)
@@ -55,7 +65,7 @@ fn rows_apply_clear_overrides_and_open_options() {
     harness.get_by_label("Body").click();
     harness.run();
     assert_eq!(harness.state().actions, [TextStyleAction::Apply { id: 2, clear_overrides: false }]);
-    assert_eq!(harness.state().selected, Some(2));
+    assert_eq!(harness.state().state.selected, Some(2));
 
     harness.state_mut().actions.clear();
     harness.get_by_label("Heading, overridden").click_modifiers(Modifiers::ALT);
@@ -80,9 +90,9 @@ fn character_style_rules_at_a_caret_and_for_none() {
     harness.get_by_label("Emphasis").click();
     harness.run();
     assert!(harness.state().actions.is_empty());
-    assert_eq!(harness.state().statuses, std::slice::from_ref(&labels.select_text));
+    assert_eq!(harness.state().statuses.iter().map(|s| s.text.as_str()).collect::<Vec<_>>(), [labels.select_text.as_str()]);
 
-    harness.state_mut().selected = Some(0);
+    harness.state_mut().state.selected = Some(0);
     harness.state_mut().text_selected = true;
     harness.get_by_label("None").click();
     harness.run();
@@ -95,4 +105,37 @@ fn character_style_rules_at_a_caret_and_for_none() {
     harness.run();
     assert!(harness.state().actions.is_empty(), "{:?}", harness.state().actions);
     assert!(!harness.get_by_label(&labels.redefine).accesskit_node().is_disabled());
+}
+
+// The panel menu has the footer's commands under the footer's conditions, and a command comes back
+// as the footer button's action.
+#[test]
+fn panel_menu_follows_the_footers_conditions() {
+    let mut harness = harness(TextStyleKind::Character, &["None", "Emphasis"], 0, false, true);
+    harness.run();
+    let ctx = harness.ctx.clone();
+    let enabled = |state: &TextStylesState| {
+        TextStylesPanel::panel_menu(&ctx, "styles", state)
+            .iter()
+            .filter_map(|e| e.item())
+            .map(|i| (i.label().to_owned(), i.is_enabled()))
+            .collect::<Vec<_>>()
+    };
+    let labels = TextStylesLabels::english();
+    let rows = enabled(&TextStylesState::default());
+    let state_of = |label: &str| rows.iter().find(|(l, _)| l == label).map(|(_, on)| *on);
+    // Character style None is current: not overridden, not redefinable, not deletable or editable.
+    assert_eq!(state_of(&labels.clear_override), Some(false));
+    assert_eq!(state_of(&labels.redefine), Some(false));
+    assert_eq!(state_of(&labels.delete), Some(false));
+    assert_eq!(state_of(&labels.options), Some(false));
+    assert_eq!(state_of(&labels.new_style), Some(true));
+
+    let mut selected = TextStylesState { selected: Some(1) };
+    let rows = enabled(&selected);
+    assert!(rows.iter().find(|(l, _)| *l == labels.delete).is_some_and(|(_, on)| *on));
+    assert_eq!(TextStylesPanel::run_command(&ctx, "styles", &mut selected, "textStyles.options"), Some(TextStyleAction::Options(1)));
+    assert_eq!(TextStylesPanel::run_command(&ctx, "styles", &mut selected, "textStyles.delete"), Some(TextStyleAction::Delete(1)));
+    assert_eq!(selected.selected, None);
+    assert_eq!(TextStylesPanel::run_command(&ctx, "styles", &mut selected, "textStyles.clearOverride"), None);
 }

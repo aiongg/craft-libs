@@ -7,8 +7,6 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TextStylesTokens {
-    /// Height of a style row, in points: `text_styles.row_height`.
-    pub row_height: f32,
     /// Height of the list, in points: `text_styles.list_height`.
     pub list_height: f32,
 }
@@ -21,12 +19,11 @@ impl Family for TextStylesTokens {
     type Field = TextStylesField;
     const FIELDS: &'static [TextStylesField] = &[];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { TextStylesTokens;
-        "row_height" 0.0..=256.0 => row_height;
         "list_height" 0.0..=2048.0 => list_height;
     };
 
     fn defaults(_: &Semantic<'_>) -> TextStylesTokens {
-        TextStylesTokens { row_height: values::TEXT_STYLES_ROW_HEIGHT, list_height: values::TEXT_STYLES_LIST_HEIGHT }
+        TextStylesTokens { list_height: values::TEXT_STYLES_LIST_HEIGHT }
     }
 
     fn path(f: TextStylesField) -> String {

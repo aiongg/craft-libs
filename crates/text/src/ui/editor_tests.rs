@@ -138,9 +138,9 @@ fn run(ctx: &Context, raw: RawInput, f: impl FnOnce(&Context)) -> egui::FullOutp
 }
 
 /// One pass of `events` at `time`.
-fn pass(ctx: &Context, editor: &mut TextEditor, host: &mut Host, time: f64, events: Vec<Event>) -> EditorResponse {
+fn pass(ctx: &Context, editor: &mut TextEditor, host: &mut Host, time: f64, events: Vec<Event>) -> TextEditorResponse {
     let raw = RawInput { time: Some(time), events, screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), ..Default::default() };
-    let mut response = EditorResponse::default();
+    let mut response = TextEditorResponse::default();
     run(ctx, raw, |ctx| response = editor.update(ctx, host));
     response
 }
@@ -153,9 +153,9 @@ fn keys(events: &[(Key, Modifiers)]) -> Vec<Event> {
     events.iter().map(|&(k, m)| key(k, m)).collect()
 }
 
-/// A press at the char (`x`, `y`) of the host's layout, on screen at the same point.
-fn click(editor: &mut TextEditor, host: &mut Host, x: f64, y: f64, shift: bool, time: f64) -> bool {
-    editor.press(host, Point::new(x, y), pos2(x as f32 * 10.0, y as f32 * 10.0), Modifiers { shift, ..Modifiers::NONE }, time)
+/// A press at the char (`x`, `y`) of the host's layout, the `clicks`-th of its run.
+fn click(editor: &mut TextEditor, host: &mut Host, x: f64, y: f64, shift: bool, clicks: u32) -> bool {
+    editor.press(host, Point::new(x, y), Modifiers { shift, ..Modifiers::NONE }, clicks, 0.0)
 }
 
 // Typed letters go in at the caret through `replace(.., Typed)`; with a selection they replace it.
@@ -237,32 +237,33 @@ fn backspace_and_delete_by_char_word_and_line() {
     assert!(!r.changed && r.took_keys);
 }
 
-// Two to five quick clicks select the word, line, paragraph and all; the sixth places a caret.
+// The host's click counts 1 to 5 select the caret, word, line, paragraph and all; the sixth press
+// of a run (a count of 6) places a caret, and the count 1 of a new run does too.
 #[test]
 fn click_runs_select_word_line_paragraph_all() {
     let (_, mut editor, mut host) = setup("one two\nthree four", 0);
-    let clicks = |editor: &mut TextEditor, host: &mut Host, time: f64| {
-        assert!(click(editor, host, 3.0, 1.0, false, time));
+    let clicks = |editor: &mut TextEditor, host: &mut Host, count: u32| {
+        assert!(click(editor, host, 3.0, 1.0, false, count));
         editor.release();
         let s = editor.selection();
         (s.anchor, s.caret)
     };
-    assert_eq!(clicks(&mut editor, &mut host, 0.0), (11, 11));
-    assert_eq!(clicks(&mut editor, &mut host, 0.1), (8, 13));
-    assert_eq!(clicks(&mut editor, &mut host, 0.2), (8, 18));
-    assert_eq!(clicks(&mut editor, &mut host, 0.3), (8, 18));
-    assert_eq!(clicks(&mut editor, &mut host, 0.4), (0, 18));
-    assert_eq!(clicks(&mut editor, &mut host, 0.5), (11, 11));
-    // A slow click starts a new run; so does a distant one.
-    assert_eq!(clicks(&mut editor, &mut host, 5.0), (11, 11));
-    assert!(click(&mut editor, &mut host, 1.0, 0.0, false, 5.1));
+    assert_eq!(clicks(&mut editor, &mut host, 1), (11, 11));
+    assert_eq!(clicks(&mut editor, &mut host, 2), (8, 13));
+    assert_eq!(clicks(&mut editor, &mut host, 3), (8, 18));
+    assert_eq!(clicks(&mut editor, &mut host, 4), (8, 18));
+    assert_eq!(clicks(&mut editor, &mut host, 5), (0, 18));
+    assert_eq!(clicks(&mut editor, &mut host, 6), (11, 11));
+    assert_eq!(clicks(&mut editor, &mut host, 7), (8, 13));
+    assert_eq!(clicks(&mut editor, &mut host, 1), (11, 11));
+    assert!(click(&mut editor, &mut host, 1.0, 0.0, false, 1));
     assert_eq!(editor.selection(), TextSelection::caret_at(1));
     // Shift extends from the anchor; a drag by word keeps the pressed word.
-    assert!(click(&mut editor, &mut host, 5.0, 0.0, true, 9.0));
+    assert!(click(&mut editor, &mut host, 5.0, 0.0, true, 1));
     assert_eq!(editor.selection(), TextSelection { anchor: 1, caret: 5 });
     editor.release();
-    assert!(click(&mut editor, &mut host, 5.0, 0.0, false, 20.0));
-    assert!(click(&mut editor, &mut host, 5.0, 0.0, false, 20.1));
+    assert!(click(&mut editor, &mut host, 5.0, 0.0, false, 1));
+    assert!(click(&mut editor, &mut host, 5.0, 0.0, false, 2));
     assert_eq!(editor.selection(), TextSelection { anchor: 4, caret: 7 });
     editor.drag(&mut host, Point::new(9.0, 1.0));
     assert_eq!(editor.selection(), TextSelection { anchor: 4, caret: 18 });
@@ -272,7 +273,7 @@ fn click_runs_select_word_line_paragraph_all() {
     editor.drag(&mut host, Point::new(9.0, 1.0));
     assert_eq!(editor.selection(), TextSelection { anchor: 7, caret: 0 });
     // A press outside the text is not the editor's.
-    assert!(!click(&mut editor, &mut host, 5.0, 9.0, false, 30.0));
+    assert!(!click(&mut editor, &mut host, 5.0, 9.0, false, 1));
 }
 
 // ⇧⌘B is `Toggle(FauxBold)`; ⌥→ at a caret is `Kern(20.0)`, with a selection `Tracking(20.0)`, ⌘ makes it 100.
@@ -392,7 +393,7 @@ fn marked_text_is_written_into_the_text_and_replaced() {
 fn click_away_keeps_the_marked_text() {
     let (ctx, mut editor, mut host) = setup("ab", 1);
     let _ = pass(&ctx, &mut editor, &mut host, 0.0, vec![preedit("か")]);
-    assert!(!click(&mut editor, &mut host, 0.0, 50.0, false, 1.0));
+    assert!(!click(&mut editor, &mut host, 0.0, 50.0, false, 1));
     assert!(editor.preedit().is_none() && host.text == "aかb");
     // The pass ends with the composer told; the next marked text starts after the kept one.
     let view = CanvasView::new(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0)), Point::new(0.0, 0.0), 10.0);
@@ -474,6 +475,46 @@ fn tool_host_claims_inside_and_ignores_outside() {
     assert_eq!(editor.selection(), TextSelection { anchor: 3, caret: 5 });
 }
 
+// The tool host runs the editor's update in its `each_pass`, before the pointer: a typed letter
+// applies at the caret and is in `update_response`; a second press of a click run (the host's
+// `ToolPointer::clicks`) selects the word.
+#[test]
+fn tool_host_updates_each_pass_and_counts_clicks() {
+    use craft_ui::canvas::{CanvasId, ToolHost, ToolInput};
+
+    let ctx = Context::default();
+    let mut editor = TextEditor::new(egui::Id::unique("editor"), TextSelection::caret_at(5));
+    let mut host = Host::new("hello world");
+    let view = CanvasView::new(Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
+    let mut tool_id = CanvasId::from_id(egui::Id::NULL);
+    let mut step = |editor: &mut TextEditor, host: &mut Host, inputs: &[ToolInput], events: Vec<Event>| -> TextEditorResponse {
+        for input in inputs {
+            ToolHost::inject(&ctx, tool_id, *input);
+        }
+        let mut update = TextEditorResponse::default();
+        let raw = RawInput { time: Some(1.0), events, screen_rect: Some(view.rect), ..Default::default() };
+        let mut out = ctx.run_ui(raw, |ui| {
+            let canvas_id = CanvasId::new(ui, "canvas");
+            let canvas = canvas_id.interact(ui, view.rect, egui::Sense::click_and_drag());
+            let mut tool = TextEditorTool::new(editor, host);
+            tool_id = ToolHost::new(canvas_id).show(ui, &view, &canvas, &mut tool).id;
+            update = tool.update_response();
+        });
+        out.textures_delta.clear();
+        update
+    };
+    let _ = step(&mut editor, &mut host, &[], Vec::new());
+    let r = step(&mut editor, &mut host, &[], vec![Event::Text("X".into())]);
+    assert!(r.changed && r.took_keys, "{r:?}");
+    assert_eq!(host.text, "helloX world");
+
+    let m = Modifiers::NONE;
+    let down = ToolInput::Down { doc: Point::new(3.0, 0.5), pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers: m };
+    let up = ToolInput::Up { doc: Point::new(3.0, 0.5), modifiers: m };
+    let _ = step(&mut editor, &mut host, &[down, up, down], Vec::new());
+    assert_eq!(editor.selection(), TextSelection { anchor: 0, caret: 6 }, "the second press of the run selects the word");
+}
+
 fn screen() -> Rect {
     Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))
 }
@@ -497,13 +538,13 @@ fn events_after_a_press_apply_at_the_new_caret() {
         events: vec![Event::Text("x".into()), primary(true), Event::Text("y".into())],
         ..Default::default()
     };
-    let mut late = EditorResponse::default();
+    let mut late = TextEditorResponse::default();
     run(&ctx, raw, |ctx| {
         let r = editor.update(ctx, &mut host);
         assert!(r.changed);
         assert_eq!(host.text, "abx", "the text before the press applies at the old caret");
         assert_eq!(ctx.input(|i| i.events.len()), 2, "the press and the text after it wait in the input");
-        assert!(click(&mut editor, &mut host, 0.0, 0.0, false, 0.0));
+        assert!(click(&mut editor, &mut host, 0.0, 0.0, false, 1));
         assert_eq!((host.text.as_str(), editor.selection()), ("yabx", TextSelection::caret_at(1)));
         assert_eq!(ctx.input(|i| i.events.len()), 1, "the text is taken; the press stays for the app");
         late = editor.finish_pass(ctx, &view(), &mut host);
@@ -622,7 +663,7 @@ fn delete_surrounding_counts_chars_and_bytes() {
 fn a_press_while_composing_drops_the_late_duplicate_commit() {
     let (ctx, mut editor, mut host) = setup("ab", 1);
     let _ = pass(&ctx, &mut editor, &mut host, 0.0, vec![preedit("か")]);
-    assert!(click(&mut editor, &mut host, 0.0, 0.0, false, 1.0));
+    assert!(click(&mut editor, &mut host, 0.0, 0.0, false, 1));
     assert_eq!((host.text.as_str(), editor.selection(), editor.preedit()), ("aかb", TextSelection::caret_at(0), None));
     let _ = pass(&ctx, &mut editor, &mut host, 1.1, vec![commit("か")]);
     assert_eq!(host.text, "aかb", "the duplicate commit is not typed again");

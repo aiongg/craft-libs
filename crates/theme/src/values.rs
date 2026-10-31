@@ -851,6 +851,9 @@ pub const GRADIENT_EDITOR_DROP_LINE: f32 = 2.0;
 pub const LIST_HOVER_OPACITY: f32 = 0.5;
 /// Opacity of the accent tint over the hover fill of a layer-form row (`layer_row.rs:286`).
 pub const LIST_LAYER_TINT_OPACITY: f32 = 0.12;
+/// Height of a dense list row, in a panel's short list (PhotoCraft's `styles_panel` and
+/// `spelling_window` rows).
+pub const LIST_ROW_HEIGHT_DENSE: f32 = 22.0;
 /// Added to a list row's thumbnail side for the row's height.
 pub const LIST_THUMB_PAD: f32 = 8.0;
 /// Width of a list's drop marker line and outline (PhotoCraft, DesignCraft and docking).
@@ -1122,8 +1125,6 @@ pub const CANVAS_COMPASS_MARGIN: f32 = 10.0;
 pub const CHECK_SPELLING_FIELD_WIDTH: f32 = 240.0;
 /// Height of the suggestion list (PhotoCraft's `spelling_window`).
 pub const CHECK_SPELLING_SUGGESTIONS_HEIGHT: f32 = 110.0;
-/// Height of a suggestion row (PhotoCraft's `spelling_window`).
-pub const CHECK_SPELLING_SUGGESTION_ROW: f32 = 22.0;
 
 /// Default height of the open list (PhotoCraft's `FONT_LIST_HEIGHT`, `FONT_LIST_WIDTH` and `CLASS_COLUMN_WIDTH`).
 pub const FONT_PICKER_LIST_HEIGHT: f32 = 440.0;
@@ -1136,8 +1137,6 @@ pub const FONT_PICKER_CLASS_GLYPH: f32 = 28.0;
 /// Height of the Missing Fonts dialog's Document Fonts list (new; Photoshop's list shows about seven rows).
 pub const FONT_PICKER_MISSING_LIST_HEIGHT: f32 = 160.0;
 
-/// Height of a style row (PhotoCraft's `styles_panel`).
-pub const TEXT_STYLES_ROW_HEIGHT: f32 = 22.0;
 /// Height of the list (PhotoCraft's `styles_panel`).
 pub const TEXT_STYLES_LIST_HEIGHT: f32 = 220.0;
 
