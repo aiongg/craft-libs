@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Interface text drawn without going through translation.
 //!
 //! The app runs in craft-i18n's pseudo locale: its Host installed with `.lang(Lang::PSEUDO)`, so
@@ -28,21 +27,39 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 /// `text` without the parts inside `⟦…⟧` marks (marks may nest; an unmatched `⟧` is ignored).
 pub fn unmarked(text: &str) -> String {
-    // wordcraft: crates/ui-egui/src/i18n/pseudo.rs:28
-    todo!()
+    let mut out = String::new();
+    let mut depth = 0usize;
+    for c in text.chars() {
+        match c {
+            '⟦' => depth += 1,
+            '⟧' => depth = depth.saturating_sub(1),
+            _ if depth == 0 => out.push(c),
+            _ => {}
+        }
+    }
+    out
 }
 
 /// Whether `text` has a word outside the marks: two ASCII letters in a row in [`unmarked`].
 pub fn english_words(text: &str) -> bool {
-    // wordcraft: crates/ui-egui/src/i18n/audit.rs:111
-    todo!()
+    unmarked(text).as_bytes().windows(2).any(|w| w[0].is_ascii_alphabetic() && w[1].is_ascii_alphabetic())
 }
 
 /// Every text a frame painted, in paint order: each `Shape::Text`'s galley text, with
 /// `Shape::Vec` flattened. Pass `Harness::output()` or a `Context::run_ui` result.
 pub fn drawn_texts(output: &egui::FullOutput) -> Vec<String> {
-    // wordcraft: crates/ui-egui/src/i18n/audit.rs:29
-    todo!()
+    fn collect(shape: &egui::Shape, out: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(t) => out.push(t.galley.text().to_string()),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| collect(s, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    for clipped in &output.shapes {
+        collect(&clipped.shape, &mut out);
+    }
+    out
 }
 
 /// Text that is right to show untranslated.
@@ -67,29 +84,39 @@ impl Exempt {
     }
 
     /// Texts allowed exactly: font families, style names, product names, the user's dictionary.
-    pub fn names<S: Into<String>>(self, names: impl IntoIterator<Item = S>) -> Self {
-        // wordcraft: crates/ui-egui/src/i18n/audit.rs:150
-        todo!()
+    pub fn names<S: Into<String>>(mut self, names: impl IntoIterator<Item = S>) -> Self {
+        self.names.extend(names.into_iter().map(Into::into));
+        self
     }
 
     /// The document's text: any drawn text it contains is allowed (headings in a navigation
     /// pane, the title in the title bar). Appended to earlier calls with a newline.
-    pub fn body(self, text: &str) -> Self {
-        // wordcraft: crates/ui-egui/src/i18n/audit.rs:175
-        todo!()
+    pub fn body(mut self, text: &str) -> Self {
+        if !self.body.is_empty() {
+            self.body.push('\n');
+        }
+        self.body.push_str(text);
+        self
     }
 
     /// Starts of text the user or the machine supplied (`@` for contributor handles, `Style` for a
     /// new style's default name).
-    pub fn prefixes<S: Into<String>>(self, prefixes: impl IntoIterator<Item = S>) -> Self {
-        // wordcraft: crates/ui-egui/src/i18n/audit.rs:206
-        todo!()
+    pub fn prefixes<S: Into<String>>(mut self, prefixes: impl IntoIterator<Item = S>) -> Self {
+        self.prefixes.extend(prefixes.into_iter().map(Into::into));
+        self
     }
 
     /// Whether `text` may be drawn as is.
     pub fn allows(&self, text: &str) -> bool {
-        // wordcraft: crates/ui-egui/src/i18n/audit.rs:182
-        todo!()
+        let plain = unmarked(text);
+        let plain = plain.trim().trim_end_matches(" —").trim();
+        let is_shortcut = plain.split('+').all(|k| matches!(k, "Ctrl" | "Shift" | "Alt" | "Cmd" | "Esc" | "Tab" | "Enter") || k.chars().count() <= 3);
+        let initials = plain.chars().count() == 2 && plain.chars().all(|c| c.is_ascii_uppercase());
+        is_shortcut
+            || initials
+            || self.body.contains(plain)
+            || self.names.contains(plain)
+            || self.prefixes.iter().any(|p| plain.starts_with(p.as_str()))
     }
 }
 
@@ -107,34 +134,38 @@ impl Audit {
     /// Record the texts of one UI state (`"tab Home"`, `"dialog font"`): those with
     /// [`english_words`] that `exempt` doesn't allow.
     pub fn record(&mut self, state: &str, drawn: impl IntoIterator<Item = String>, exempt: &Exempt) {
-        // wordcraft: crates/ui-egui/src/i18n/audit.rs:239
-        todo!()
+        for text in drawn {
+            if english_words(&text) && !exempt.allows(&text) {
+                self.found.entry(text).or_default().insert(state.to_string());
+            }
+        }
     }
 
     /// Whether nothing was found.
     pub fn is_empty(&self) -> bool {
-        // new: the check behind assert_clean
-        todo!()
+        self.found.is_empty()
     }
 
     /// The findings, sorted by text: the drawn text and its states, sorted.
     pub fn findings(&self) -> Vec<(&str, Vec<&str>)> {
-        // new: for an app that reports instead of failing
-        todo!()
+        self.found.iter().map(|(text, states)| (text.as_str(), states.iter().map(String::as_str).collect())).collect()
     }
 
     /// One line per finding: `{unmarked text:?}  [{state}, {state}]\n`.
     pub fn report(&self) -> String {
-        // wordcraft: crates/ui-egui/src/i18n/audit.rs:382
-        todo!()
+        let mut report = String::new();
+        for (text, states) in &self.found {
+            let states: Vec<&str> = states.iter().map(String::as_str).collect();
+            report.push_str(&format!("{:?}  [{}]\n", unmarked(text), states.join(", ")));
+        }
+        report
     }
 
     /// Fail the test when anything was found, with
     /// `{n} interface texts skip translation (look them up in the catalog):\n{report}`.
     #[track_caller]
     pub fn assert_clean(&self) {
-        // wordcraft: crates/ui-egui/src/i18n/audit.rs:385
-        todo!()
+        assert!(self.is_empty(), "{} interface texts skip translation (look them up in the catalog):\n{}", self.found.len(), self.report());
     }
 }
 
