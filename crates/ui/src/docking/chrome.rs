@@ -183,6 +183,10 @@ pub struct FloatingFrame<'a> {
     resizable: bool,
     resize_label: &'a str,
     opacity: f32,
+    title: Option<TitleBar<'a>>,
+    auto_height: bool,
+    request: Option<Rect>,
+    dock_into: Option<Id>,
 }
 
 /// What a [`FloatingFrame`] did this frame.
@@ -202,7 +206,19 @@ pub struct FrameResponse<R> {
 
 impl<'a> FloatingFrame<'a> {
     pub fn new(id: Id, rect: Rect) -> Self {
-        Self { id, rect, bounds: None, limits: PanelLimits::default(), resizable: true, resize_label: "Resize window", opacity: 1.0 }
+        Self {
+            id,
+            rect,
+            bounds: None,
+            limits: PanelLimits::default(),
+            resizable: true,
+            resize_label: "Resize window",
+            opacity: 1.0,
+            title: None,
+            auto_height: false,
+            request: None,
+            dock_into: None,
+        }
     }
 
     /// The frame stays inside `bounds`; the default is the viewport's content rect.
@@ -612,55 +628,123 @@ impl<'a> FloatingFrame<'a> {
     /// A title bar on the frame's top edge: its drag moves the frame ([`live_move`]), double
     /// click is reported on [`TitledFrameResponse::title`]. The frame's `limits` keep room for
     /// [`ChromeStyle::title_height`]. Gap 7.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-    // pc: crates/ui-egui/src/panels/panel_docking.rs:826 `body` floating presets and
-    // crates/ui-egui/src/type_panels_ui.rs:132 (the hand-made card frames PhotoCraft deletes).
-    pub fn title_bar(self, title: TitleBar<'a>) -> Self {
-        todo!()
+    pub fn title_bar(mut self, title: TitleBar<'a>) -> Self {
+        self.title = Some(title);
+        self
     }
 
     /// Size the frame to its contents each pass (at least the title bar and
     /// [`PanelLimits::min`]), instead of the given rect's height. Resize handles then move
     /// only the width. Gap 13.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-    // pc: crates/ui-egui/src/preset_panels (float windows sized to their card list).
-    pub fn auto_height(self, on: bool) -> Self {
-        todo!()
+    pub fn auto_height(mut self, on: bool) -> Self {
+        self.auto_height = on;
+        self
     }
 
     /// A geometry request from the host's controller (automation `setRect`, a Window › Arrange
     /// cell, restore from settings): drawn at `rect` this pass, clamped to the bounds, and
     /// reported back as [`TitledFrameResponse::moved`] so the host's stored rect follows.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-    // pc: crates/ui-egui/src/panels/panel_docking.rs:389 `dock_command` (`setRect`).
-    pub fn request(self, rect: Option<Rect>) -> Self {
-        todo!()
+    pub fn request(mut self, rect: Option<Rect>) -> Self {
+        self.request = rect;
+        self
     }
 
     /// While the title bar is dragged, offer the dock's drop zones of `area_id` (the id given
     /// to [`super::DockArea::new`]); the release reports [`FrameDrop::Dock`]. Off by default.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-    // new: the panel-tab drag of render/body_drag.rs applied to a whole frame.
-    pub fn dock_into(self, area_id: Option<Id>) -> Self {
-        todo!()
+    pub fn dock_into(mut self, area_id: Option<Id>) -> Self {
+        self.dock_into = area_id;
+        self
     }
 
     /// [`Self::show`] with the title bar, move, auto height, request and dock drop above. The
-    /// contents get the rect under the title bar.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-    // new: composes FloatingFrame::show, TitleBar::show and live_move; the body of
-    // render/floating.rs:97 is the model.
-    pub fn show_titled<R, P>(self, ctx: &Context, style: &ChromeStyle, add_contents: impl FnOnce(&mut Ui, Rect) -> R) -> TitledFrameResponse<R, P> {
-        todo!()
+    /// contents get the rect under the title bar, inside [`ChromeStyle::body_inset`] of the
+    /// frame's side and bottom edges. A frame without [`Self::title_bar`] gets an unlabeled,
+    /// plain one.
+    ///
+    /// The dock drop resolves against the targets the dock area drew last, as a drop of a
+    /// panel that is not in its layout: the proposal names an anchor panel and a placement,
+    /// and the host turns it into its own action. The model's own checks (room left, permissions)
+    /// run when the host applies that action. While a drag is over a target the frame fades
+    /// and the target's preview is drawn.
+    pub fn show_titled<R, P: Clone + Eq + Send + Sync + 'static>(
+        mut self,
+        ctx: &Context,
+        style: &ChromeStyle,
+        add_contents: impl FnOnce(&mut Ui, Rect) -> R,
+    ) -> TitledFrameResponse<R, P> {
+        let bounds = self.bounds.unwrap_or_else(|| ctx.content_rect());
+        let title = self.title.take().unwrap_or_else(|| TitleBar::new(self.id.with("title-bar"), ""));
+        let bar_id = title.id;
+        let (auto, dock_into, request) = (self.auto_height, self.dock_into, self.request);
+        let height_key = self.id.with("content-height");
+        let mut rect = request.unwrap_or(self.rect);
+        if auto {
+            let content: f32 = ctx.data(|d| d.get_temp(height_key)).unwrap_or(0.0);
+            let height = (style.title_height + content).min(self.limits.max.y).max(self.limits.min.y).max(style.title_height);
+            rect = Rect::from_min_size(rect.min, vec2(rect.width(), height));
+        }
+        let moving = ctx.data(|d| d.get_temp::<(Rect, Pos2)>(bar_id.with("live-move"))).is_some();
+        let over_dock = dock_into
+            .filter(|_| moving)
+            .and_then(|area| Some((area, ctx.pointer_latest_pos()?)))
+            .and_then(|(area, pointer)| super::targets::frame_proposal::<P>(ctx, area, pointer))
+            .filter(|proposal| !proposal.noop);
+        if let Some(proposal) = &over_dock {
+            let painter = ctx.layer_painter(LayerId::new(Order::Foreground, self.id.with("dock-preview")));
+            drop_preview_with(&painter, proposal.preview, &DockLook::from_tokens(&crate::theme::current(ctx)), true);
+        }
+        let inset = style.body_inset();
+        let title_height = style.title_height;
+        self.opacity = if over_dock.is_some() { super::render::DRAG_OPACITY } else { self.opacity };
+        self.rect = rect;
+        let limits = self.limits;
+        let shown = self.show(ctx, style, |ui, rect| {
+            let title_rect = Rect::from_min_max(rect.min, pos2(rect.right(), (rect.top() + title_height).min(rect.bottom())));
+            let response = title.show(ui, title_rect, style);
+            let top = if auto { bounds.bottom().min(rect.top() + limits.max.y) } else { rect.bottom() - inset };
+            let body = Rect::from_min_max(pos2(rect.left() + inset, title_rect.bottom()), pos2(rect.right() - inset, top.max(title_rect.bottom())));
+            let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body));
+            child.set_clip_rect(body.intersect(ui.clip_rect()));
+            let inner = add_contents(&mut child, body);
+            (inner, response, child.min_rect().height().max(0.0))
+        });
+        let FrameResponse { inner: (inner, title, used), rect: drawn, layer, resized, resize_started, handles } = shown;
+        let content_height = auto.then_some(used);
+        if let Some(used) = content_height {
+            let before: Option<f32> = ctx.data(|d| d.get_temp(height_key));
+            ctx.data_mut(|d| d.insert_temp(height_key, used));
+            if before.is_none_or(|before| (before - used).abs() > 0.5) {
+                ctx.request_discard("titled frame height follows its contents");
+            }
+        }
+        let resized =
+            resized.map(|next| if auto { Rect::from_min_size(pos2(next.left(), drawn.top()), vec2(next.width(), drawn.height())) } else { next });
+        let resized = resized.filter(|next| *next != drawn);
+        let (mut moved, mut dropped) = (request.map(|_| drawn), None);
+        match live_move(ctx, &title.bar, drawn, bounds) {
+            Some(MoveStep::Moving(rect)) => moved = Some(rect),
+            Some(MoveStep::Canceled(start)) => moved = Some(start),
+            Some(MoveStep::Dropped { rect, pointer }) => {
+                moved = Some(rect);
+                let docked = dock_into.and_then(|area| super::targets::frame_proposal::<P>(ctx, area, pointer)).filter(|proposal| !proposal.noop);
+                dropped = Some(docked.map_or(FrameDrop::Float(rect), FrameDrop::Dock));
+            }
+            None => {}
+        }
+        TitledFrameResponse {
+            frame: FrameResponse { inner, rect: drawn, layer, resized, resize_started, handles },
+            title,
+            moved,
+            dropped,
+            content_height,
+        }
     }
 }
 
 impl ChromeStyle {
     /// The chrome of the context's theme, for hosts that draw a frame outside any `Ui` (a
     /// floating preset window drawn from the app's top level). Gap 13.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-    // new: ChromeStyle::themed without a Ui (DockLook::of needs only the installed tokens).
     pub fn of_ctx(ctx: &Context) -> Self {
-        todo!()
+        Self::with_look(&DockLook::from_tokens(&crate::theme::current(ctx)), crate::direction::is_rtl(ctx))
     }
 }
