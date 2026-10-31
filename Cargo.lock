@@ -922,6 +922,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-host"
+version = "0.1.0"
+dependencies = [
+ "craft-i18n",
+ "egui",
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "craft-i18n"
 version = "0.1.0"
 dependencies = [
