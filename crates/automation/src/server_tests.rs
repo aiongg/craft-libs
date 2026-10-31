@@ -46,3 +46,34 @@ fn server_authenticates_then_forwards() {
     assert_eq!((reply["id"].clone(), reply["result"].clone()), (json!(7), json!("hi")));
     handler.join().unwrap();
 }
+
+// A connection that keeps sending without authenticating is closed at the deadline, whatever it
+// sends, and nothing it sent is dispatched.
+#[test]
+fn an_unauthenticated_connection_is_closed_at_the_deadline_whatever_it_sends() {
+    use std::sync::mpsc::channel;
+    use std::time::Instant;
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (tx, rx) = channel::<ControlRequest>();
+    let server = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().unwrap();
+        let started = Instant::now();
+        serve(stream, "unused", &tx, &egui::Context::default(), Duration::from_millis(300));
+        started.elapsed()
+    });
+    // Blank lines and partial frames, one byte every 20 ms: each read succeeds long before the
+    // idle timeout.
+    let mut stream = TcpStream::connect(addr).unwrap();
+    for i in 0..150 {
+        let byte: &[u8] = if i % 5 == 0 { b"\n" } else { b" " };
+        if stream.write_all(byte).is_err() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let served = server.join().unwrap();
+    assert!(served < Duration::from_secs(3), "the trickle did not extend the deadline: {served:?}");
+    assert!(rx.try_recv().is_err(), "nothing was dispatched");
+}
