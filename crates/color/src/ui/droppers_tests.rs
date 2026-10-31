@@ -4,8 +4,12 @@ use craft_ui::theme::{Base, install};
 use egui::accesskit::{Node, Role, Toggled};
 use egui::{Context, Event, Id, Modifiers, PointerButton, Pos2, RawInput, Rect, vec2};
 
-use super::{DropperButton, DropperKind, DropperState};
+use super::{DropperButton, DropperKind, DropperState, DropperTool};
 use craft_theme::Srgba;
+use craft_ui::canvas::kurbo::Point;
+use craft_ui::canvas::{CanvasView, ToolHost, ToolInput};
+use egui::Sense;
+use egui_kittest::Harness;
 
 fn frame(ctx: &Context, events: Vec<Event>, add: impl FnOnce(&mut egui::Ui)) -> Vec<Node> {
     let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), events, ..Default::default() };
@@ -91,4 +95,40 @@ fn the_button_is_a_pressed_toggle_while_armed() {
     });
     assert_eq!(got, Some(red));
     assert!(armed);
+}
+
+/// A press and a drag on the canvas deliver the sampled colour to the armed dropper; off the image
+/// nothing is delivered; Cancel (Esc during the gesture) disarms.
+#[test]
+fn the_canvas_tool_samples_for_the_armed_dropper() {
+    let owner = Id::unique("owner");
+    let mut tool = DropperTool::new(|doc| (doc[0] < 300.0).then(|| Srgba::rgb(doc[0] as f32 / 300.0, 0.0, 0.0)));
+    let id = std::rc::Rc::new(std::cell::Cell::new(Id::NULL));
+    let shown = id.clone();
+    let mut h = Harness::builder()
+        .with_size(vec2(400.0, 300.0))
+        .with_context_setup(|ctx| craft_ui::theme::install(ctx, &craft_ui::theme::Base::suite_default()))
+        .build_ui(|ui| {
+            let view = CanvasView::new(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
+            let canvas = ui.interact(view.rect, ui.scope_id().with("canvas"), Sense::click_and_drag());
+            shown.set(ToolHost::new("doc").show(ui, &view, &canvas, &mut tool).id);
+        });
+    h.step();
+    let send = |h: &mut Harness<'_, ()>, input| {
+        ToolHost::inject(&h.ctx, id.get(), input);
+        h.step();
+    };
+    let (m, tilt) = (Modifiers::NONE, [0.0; 2]);
+    DropperState::arm(&h.ctx, owner);
+    send(&mut h, ToolInput::Down { doc: Point::new(150.0, 10.0), pressure: 1.0, tilt, rotation: 0.0, modifiers: m });
+    assert_eq!(DropperState::take(&h.ctx, owner), Some(Srgba::rgb(0.5, 0.0, 0.0)));
+    DropperState::arm(&h.ctx, owner);
+    send(&mut h, ToolInput::Move { doc: Point::new(350.0, 10.0), pressure: 1.0, tilt, rotation: 0.0, modifiers: m });
+    assert_eq!(DropperState::take(&h.ctx, owner), None, "off the image nothing is delivered");
+    send(&mut h, ToolInput::Move { doc: Point::new(30.0, 10.0), pressure: 1.0, tilt, rotation: 0.0, modifiers: m });
+    assert_eq!(DropperState::take(&h.ctx, owner), Some(Srgba::rgb(0.1, 0.0, 0.0)), "a drag resamples");
+    DropperState::arm(&h.ctx, owner);
+    ToolHost::cancel(&h.ctx, id.get());
+    h.step();
+    assert_eq!(DropperState::armed(&h.ctx), None);
 }

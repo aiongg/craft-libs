@@ -1,11 +1,14 @@
 //! Behaviour tests of `samplers`.
 
-#![expect(clippy::todo, reason = "S4C-F13: the tool tests below are stubs until the canvas tools land")]
-
 use craft_cms::convert::{CmykConverter, srgb_to_cmyk_naive};
 use craft_theme::Srgba;
 
-use super::{ColorSamplers, MAX_SAMPLERS, SamplerError, SamplerReadout};
+use super::{ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SamplerError, SamplerReadout};
+use craft_ui::canvas::kurbo::Point;
+use craft_ui::canvas::{CanvasTool, CanvasView, ToolHost, ToolInput};
+use craft_ui::theme::{Base, install};
+use egui::{Id, Modifiers, Pos2, Rect, Sense, vec2};
+use egui_kittest::Harness;
 
 /// A click places points up to ten and the eleventh reports Full.
 #[test]
@@ -58,16 +61,107 @@ fn readouts_use_the_documents_converter() {
     assert_eq!(odd.rgb, [0, 255, 0]);
 }
 
+/// A canvas with a tool host over a 400 x 300 view at zoom 1 whose centre is document (200, 150),
+/// so document points equal screen points.
+struct Rig<T> {
+    tool: T,
+    id: Id,
+}
+
+fn harness<T: CanvasTool + 'static>(tool: T) -> Harness<'static, Rig<T>> {
+    let mut h = Harness::builder().with_size(vec2(400.0, 300.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, rig: &mut Rig<T>| {
+            let view = CanvasView::new(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
+            let canvas = ui.interact(view.rect, ui.scope_id().with("canvas"), Sense::click_and_drag());
+            rig.id = ToolHost::new("doc").show(ui, &view, &canvas, &mut rig.tool).id;
+        },
+        Rig { tool, id: Id::NULL },
+    );
+    h.step();
+    h
+}
+
+fn input<T>(h: &mut Harness<'_, Rig<T>>, input: ToolInput) {
+    ToolHost::inject(&h.ctx, h.state().id, input);
+    h.step();
+}
+
+fn point(x: f64, y: f64) -> Point {
+    Point::new(x, y)
+}
+
+fn down<T>(h: &mut Harness<'_, Rig<T>>, at: Point, modifiers: Modifiers) {
+    input(h, ToolInput::Down { doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
+}
+
+fn move_to<T>(h: &mut Harness<'_, Rig<T>>, at: Point, modifiers: Modifiers) {
+    input(h, ToolInput::Move { doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
+}
+
+fn up<T>(h: &mut Harness<'_, Rig<T>>, at: Point, modifiers: Modifiers) {
+    input(h, ToolInput::Up { doc: at, modifiers });
+}
+
+const SIZE: [u32; 2] = [300, 200];
+
+/// A rig whose tool edits `samplers`, which the test keeps by pointer round-trip through the state.
+fn sampler_rig(points: &[[f64; 2]]) -> Harness<'static, Rig<ColorSamplerTool<'static>>> {
+    let samplers: &'static mut ColorSamplers = Box::leak(Box::new(ColorSamplers::new()));
+    for p in points {
+        samplers.add(*p, SIZE).unwrap();
+    }
+    harness(ColorSamplerTool::new(samplers, SIZE))
+}
+
+fn points(h: &Harness<'_, Rig<ColorSamplerTool<'static>>>) -> Vec<[f64; 2]> {
+    h.state().tool.samplers().points().to_vec()
+}
+
 /// A point dragged off the canvas is removed; a release within half a pixel is a click.
 #[test]
-#[ignore = "S4C-F13: needs ColorSamplerTool"]
 fn a_point_dragged_off_the_canvas_is_removed() {
-    todo!()
+    let mut h = sampler_rig(&[[50.0, 50.0], [100.0, 50.0]]);
+    // A release within half a pixel of the press does nothing.
+    down(&mut h, point(100.0, 50.0), Modifiers::NONE);
+    up(&mut h, point(100.3, 50.0), Modifiers::NONE);
+    assert_eq!(points(&h), [[50.0, 50.0], [100.0, 50.0]]);
+    // Dropped inside the canvas it moves, onto the pixel.
+    down(&mut h, point(100.0, 50.0), Modifiers::NONE);
+    up(&mut h, point(150.6, 80.2), Modifiers::NONE);
+    assert_eq!(points(&h), [[50.0, 50.0], [150.0, 80.0]]);
+    // Dropped off the canvas it is removed and the other stays.
+    down(&mut h, point(150.0, 80.0), Modifiers::NONE);
+    move_to(&mut h, point(350.0, 80.0), Modifiers::NONE);
+    up(&mut h, point(350.0, 80.0), Modifiers::NONE);
+    assert_eq!(points(&h), [[50.0, 50.0]]);
+    // A click on empty canvas places a point; outside the canvas none.
+    down(&mut h, point(20.0, 20.0), Modifiers::NONE);
+    up(&mut h, point(20.0, 20.0), Modifiers::NONE);
+    down(&mut h, point(320.0, 20.0), Modifiers::NONE);
+    up(&mut h, point(320.0, 20.0), Modifiers::NONE);
+    assert_eq!(points(&h), [[50.0, 50.0], [20.0, 20.0]]);
+    assert_eq!(h.state_mut().tool.take_error(), None);
 }
 
 /// Alt-click on a point removes it; the later points move up one number.
 #[test]
-#[ignore = "S4C-F13: needs ColorSamplerTool"]
 fn alt_click_removes_and_renumbers() {
-    todo!()
+    let mut h = sampler_rig(&[[10.0, 10.0], [60.0, 10.0], [110.0, 10.0]]);
+    down(&mut h, point(62.0, 12.0), Modifiers::ALT);
+    up(&mut h, point(62.0, 12.0), Modifiers::ALT);
+    assert_eq!(points(&h), [[10.0, 10.0], [110.0, 10.0]], "the third point is now number 2");
+    // Alt-click on empty space does nothing.
+    down(&mut h, point(200.0, 100.0), Modifiers::ALT);
+    up(&mut h, point(200.0, 100.0), Modifiers::ALT);
+    assert_eq!(points(&h).len(), 2);
+
+    // The eleventh click reports Full.
+    for i in 0..MAX_SAMPLERS {
+        let at = point(10.0 + 20.0 * i as f64, 150.0);
+        down(&mut h, at, Modifiers::NONE);
+        up(&mut h, at, Modifiers::NONE);
+    }
+    assert_eq!(points(&h).len(), MAX_SAMPLERS);
+    assert_eq!(h.state_mut().tool.take_error(), Some(SamplerError::Full));
+    assert_eq!(h.state_mut().tool.take_error(), None);
 }

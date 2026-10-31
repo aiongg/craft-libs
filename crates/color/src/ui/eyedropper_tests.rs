@@ -1,13 +1,17 @@
 //! Behaviour tests of `eyedropper`.
 
-#![expect(clippy::todo, reason = "S4C-F13: the tool test below is a stub until the canvas tool lands")]
-
 use egui::accesskit::{Action, ActionRequest, Role};
 use egui::{Context, Event, Key, Modifiers, Pos2, RawInput, Rect, vec2};
 
-use super::{EyedropperLabels, EyedropperOptions, EyedropperOptionsBar, SampleSize, SampleSource};
+use super::{EyedropperLabels, EyedropperOptions, EyedropperOptionsBar, EyedropperPick, EyedropperTool, SampleSize, SampleSource};
+use craft_theme::Srgba;
+use craft_ui::canvas::kurbo::Point;
+use craft_ui::canvas::{CanvasTool, CanvasView, ToolHost, ToolInput};
 use craft_ui::patterns::OptionsBar;
 use craft_ui::theme::{Base, install};
+use egui::Id;
+use egui::Sense;
+use egui_kittest::Harness;
 
 /// The sample size menu lists Photoshop's seven sizes in order with their labels.
 #[test]
@@ -109,9 +113,75 @@ fn the_options_bar_edits_the_options() {
     assert_eq!(rig.options.source, SampleSource::CurrentAndBelow);
 }
 
+/// A canvas with a tool host over a 400 x 300 view at zoom 1 whose centre is document (200, 150),
+/// so document points equal screen points.
+struct Canvas<T> {
+    tool: T,
+    id: Id,
+}
+
+fn harness<T: CanvasTool + 'static>(tool: T) -> Harness<'static, Canvas<T>> {
+    let mut h = Harness::builder().with_size(vec2(400.0, 300.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, rig: &mut Canvas<T>| {
+            let view = CanvasView::new(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
+            let canvas = ui.interact(view.rect, ui.scope_id().with("canvas"), Sense::click_and_drag());
+            rig.id = ToolHost::new("doc").show(ui, &view, &canvas, &mut rig.tool).id;
+        },
+        Canvas { tool, id: Id::NULL },
+    );
+    h.step();
+    h
+}
+
+fn input<T>(h: &mut Harness<'_, Canvas<T>>, input: ToolInput) {
+    ToolHost::inject(&h.ctx, h.state().id, input);
+    h.step();
+}
+
+fn point(x: f64, y: f64) -> Point {
+    Point::new(x, y)
+}
+
+fn down<T>(h: &mut Harness<'_, Canvas<T>>, at: Point, modifiers: Modifiers) {
+    input(h, ToolInput::Down { doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
+}
+
+fn move_to<T>(h: &mut Harness<'_, Canvas<T>>, at: Point, modifiers: Modifiers) {
+    input(h, ToolInput::Move { doc: at, pressure: 1.0, tilt: [0.0; 2], rotation: 0.0, modifiers });
+}
+
+fn up<T>(h: &mut Harness<'_, Canvas<T>>, at: Point, modifiers: Modifiers) {
+    input(h, ToolInput::Up { doc: at, modifiers });
+}
+
+/// The sample is a grey that follows the document x.
+fn grey(x: f64) -> Srgba {
+    Srgba::rgb(x as f32 / 400.0, 0.0, 0.0)
+}
+
 /// Alt-press picks for the background; a drag keeps sampling and the release keeps the last sample.
 #[test]
-#[ignore = "S4C-F13: needs EyedropperTool"]
 fn alt_picks_the_background_and_a_drag_resamples() {
-    todo!()
+    let tool = EyedropperTool::new(EyedropperOptions::default(), |doc, _, _| (doc[0] < 300.0).then(|| grey(doc[0])));
+    let mut h = harness(tool);
+    let alt = Modifiers::ALT;
+
+    down(&mut h, point(100.0, 50.0), alt);
+    assert!(h.state().tool.ring_shown(), "the ring shows while the button is held");
+    move_to(&mut h, point(200.0, 50.0), alt);
+    assert_eq!(h.state_mut().tool.take(), Some(EyedropperPick { color: grey(200.0), background: true }), "the drag resampled");
+    // Over transparency or off the image: no ring, the last pick stands.
+    move_to(&mut h, point(350.0, 50.0), alt);
+    assert!(!h.state().tool.ring_shown());
+    assert_eq!(h.state_mut().tool.take(), None, "nothing new was picked");
+    move_to(&mut h, point(250.0, 50.0), alt);
+    up(&mut h, point(250.0, 50.0), alt);
+    assert!(!h.state().tool.ring_shown(), "the ring goes with the button");
+    assert_eq!(h.state_mut().tool.take(), Some(EyedropperPick { color: grey(250.0), background: true }));
+    assert_eq!(h.state_mut().tool.take(), None, "a pick is taken once");
+
+    // A plain click is the foreground.
+    down(&mut h, point(40.0, 50.0), Modifiers::NONE);
+    up(&mut h, point(40.0, 50.0), Modifiers::NONE);
+    assert_eq!(h.state_mut().tool.take(), Some(EyedropperPick { color: grey(40.0), background: false }));
 }

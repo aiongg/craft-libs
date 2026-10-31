@@ -6,14 +6,14 @@
 //! the Info panel, as in Photoshop: the app keeps one [`EyedropperOptions`] and passes its `size`
 //! to each.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::f32::consts::{PI, TAU};
 
 use craft_theme::Srgba;
 use egui::{Color32, Context, Painter, Pos2, Shape, Stroke, vec2};
 
+use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolPointer};
 use craft_ui::controls::{Checkbox, Select};
+use craft_ui::icons::Icon;
 use craft_ui::localized::SharedLabels;
 use craft_ui::patterns::{CellWidth, OptionsBar, OptionsBarSlots};
 use craft_ui::theme::{ToEgui, UiTokens};
@@ -274,20 +274,26 @@ pub struct EyedropperPick {
 /// [`show_ring`](EyedropperOptions::show_ring) is on), the release keeps the last sample; Alt
 /// sets the background. Off the image or over transparency nothing changes. The app reads
 /// [`take`](Self::take) after the tool host's pass.
-// needs: S3-canvas tool_host — `impl CanvasTool for EyedropperTool` (`press` returns
-// `ToolAction::Claimed`; `drag`/`release` sample at `ToolPointer::doc` with
-// `ToolPointer::modifiers.alt`; `paint` draws `eyedropper_ring` while held; `cursor` is the
-// pipette `ToolCursor` with its tip on the pixel).
+///
+/// The ring's lower half shows the current foreground colour: set it with
+/// [`foreground`](Self::foreground) (black until then).
 pub struct EyedropperTool<'a> {
     options: EyedropperOptions,
     sample: Box<dyn FnMut([f64; 2], SampleSize, SampleSource) -> Option<Srgba> + 'a>,
     held: Option<(Pos2, Srgba)>,
     picked: Option<EyedropperPick>,
+    foreground: Srgba,
 }
 
 impl<'a> EyedropperTool<'a> {
     pub fn new(options: EyedropperOptions, sample: impl FnMut([f64; 2], SampleSize, SampleSource) -> Option<Srgba> + 'a) -> EyedropperTool<'a> {
-        EyedropperTool { options, sample: Box::new(sample), held: None, picked: None }
+        EyedropperTool { options, sample: Box::new(sample), held: None, picked: None, foreground: Srgba::rgb(0.0, 0.0, 0.0) }
+    }
+
+    /// The foreground colour the ring shows beside the sampled one.
+    pub fn foreground(mut self, color: Srgba) -> EyedropperTool<'a> {
+        self.foreground = color;
+        self
     }
 
     /// Samples at document point `doc` (screen point `screen` for the ring): what the tool's press
@@ -295,11 +301,60 @@ impl<'a> EyedropperTool<'a> {
     // pc: crates/ui-egui/src/canvas/cursors.rs:199 `eyedropper_color` (size and source from the
     // options), :60 `eyedropper_ring_colors`.
     pub fn sample_at(&mut self, ctx: &Context, doc: [f64; 2], screen: Pos2, background: bool) {
-        todo!()
+        match (self.sample)(doc, self.options.size, self.options.source) {
+            Some(color) => {
+                self.held = Some((screen, color));
+                self.picked = Some(EyedropperPick { color, background });
+            }
+            // Off the image or over transparency: no ring, and the last pick stands.
+            None => self.held = None,
+        }
+        ctx.request_repaint();
+    }
+
+    #[cfg(test)]
+    pub(super) fn ring_shown(&self) -> bool {
+        self.held.is_some()
     }
 
     /// The pick of the gesture, once.
     pub fn take(&mut self) -> Option<EyedropperPick> {
         self.picked.take()
+    }
+}
+
+impl CanvasTool for EyedropperTool<'_> {
+    fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
+        // The pipette's tip is at the bottom left of its 24-unit icon.
+        ToolCursor::Tool { icon: Icon::Eyedropper, hotspot: vec2(2.0, 22.0), badge: None }
+    }
+
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+        self.picked = None;
+        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y], pointer.screen, pointer.modifiers.alt);
+        ToolAction::Claimed
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y], pointer.screen, pointer.modifiers.alt);
+    }
+
+    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+        self.held = None;
+    }
+
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+        self.held = None;
+        self.picked = None;
+    }
+
+    fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
+        if let (true, Some((screen, new))) = (self.options.show_ring, self.held) {
+            eyedropper_ring(painter, screen, Color32::from(new), Color32::from(self.foreground), &SamplingRingStyle::of(cx.tokens));
+        }
+    }
+
+    fn autoscrolls(&self) -> bool {
+        false
     }
 }
