@@ -11,7 +11,7 @@ use egui::{
 use craft_theme::{Rgba, TypeRole};
 
 use super::Histogram;
-use super::curve::{Curve, CurveOp, PointKey, Rules, follow_corners};
+use super::curve::{Curve, CurveOp, CurveRules, PointKey, follow_corners};
 use super::histogram::{ChannelColor, HistogramData, HistogramLook};
 use super::{PropertyLabel, PropertyRow};
 use crate::behavior::{ClaimedKey, KeyClaim};
@@ -666,7 +666,7 @@ impl<'a> CurveEditor<'a> {
             state.stroke = None;
         }
 
-        let rules = Rules { levels: self.levels, max_points: self.max_points };
+        let rules = CurveRules { levels: self.levels, max_points: self.max_points };
         let mut points = gesture.shown().points().map(<[_]>::to_vec).filter(|_| !self.pencil);
         let mut corner_flags = gesture.shown().corner_flags();
         let mut ops = Vec::new();
@@ -938,10 +938,10 @@ impl<'a> CurveEditor<'a> {
         FieldRule::new(&(f64::from(self.field_value(lo))..=f64::from(self.field_value(hi))), 1.0, 0)
     }
 
-    /// What `op` makes of `curve` ([`Rules::apply`], which keeps `selected` on its point). A
+    /// What `op` makes of `curve` ([`CurveRules::apply`], which keeps `selected` on its point). A
     /// field's operation applies to its point with that field's rule on `curve`.
     fn apply(&self, op: &EditOp, curve: &Curve, selected: &mut Option<usize>) -> Option<Curve> {
-        let rules = Rules { levels: self.levels, max_points: self.max_points };
+        let rules = CurveRules { levels: self.levels, max_points: self.max_points };
         match op {
             EditOp::Graph(op) => rules.apply(op, curve, selected, |points, corners| self.samples(points, corners)),
             EditOp::Field(axis, at, op) => {
@@ -1083,7 +1083,7 @@ struct PointEdit<'g, 'p> {
     /// Whether each point is a corner point.
     corner_flags: &'p mut Vec<bool>,
     state: &'g mut State,
-    rules: Rules,
+    rules: CurveRules,
     map: Map,
     style: &'g CurveStyle,
     /// The output of every input level through the points and corner flags.
@@ -1106,7 +1106,7 @@ impl PointEdit<'_, '_> {
     }
 
     /// A one-shot change of the points: `op` applied to them and to the selection as its replay
-    /// would apply it ([`Rules::apply`]). One that changes nothing sends nothing.
+    /// would apply it ([`CurveRules::apply`]). One that changes nothing sends nothing.
     fn apply(&mut self, op: CurveOp) {
         let before = self.state.selected;
         let Some(curve) = self.rules.apply(&op, &self.curve(), &mut self.state.selected, self.samples) else { return };
@@ -1205,9 +1205,9 @@ impl PointEdit<'_, '_> {
         let target = [at[0] + drag.offset[0], at[1] + drag.offset[1]];
         let before = self.points.clone();
         let changed = match drag.index {
-            Some(i) if outside && Rules::can_delete(self.points, i) => {
+            Some(i) if outside && CurveRules::can_delete(self.points, i) => {
                 let corner = self.corner_flags.get(i).copied().unwrap_or(false);
-                Rules::delete(self.points, i);
+                CurveRules::delete(self.points, i);
                 self.state.drag = Some(Drag { index: None, corner, ..drag });
                 self.state.selected = None;
                 true

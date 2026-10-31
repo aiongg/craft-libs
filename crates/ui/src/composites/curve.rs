@@ -304,7 +304,7 @@ pub(crate) enum CurveOp {
         at: PointKey,
         by: [f32; 2],
     },
-    /// Adds a point halfway from point `after` to the next ([`Rules::between`]; across the widest
+    /// Adds a point halfway from point `after` to the next ([`CurveRules::between`]; across the widest
     /// gap for `None`).
     Insert {
         after: Option<PointKey>,
@@ -314,14 +314,16 @@ pub(crate) enum CurveOp {
     Corner(PointKey, bool),
 }
 
-/// The point rules of a curve with `levels` levels and at most `max_points` points.
+/// The point rules of a curve with `levels` levels and at most `max_points` points: what
+/// [`CurveEditor`](super::CurveEditor) applies to its points, for hosts that add points
+/// themselves (a Curves eyedropper).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Rules {
+pub struct CurveRules {
     pub levels: f32,
     pub max_points: usize,
 }
 
-impl Rules {
+impl CurveRules {
     /// Adds a point at `v`, kept sorted, and returns its index. A point within
     /// [`SAME_POINT`] input levels of `v` is returned instead; a full curve takes none.
     pub fn insert(&self, points: &mut Vec<[f32; 2]>, v: [f32; 2]) -> Option<usize> {
@@ -347,7 +349,7 @@ impl Rules {
 
     /// Removes point `i`; false when it may not go.
     pub fn delete(points: &mut Vec<[f32; 2]>, i: usize) -> bool {
-        if !Rules::can_delete(points, i) {
+        if !CurveRules::can_delete(points, i) {
             return false;
         }
         points.remove(i);
@@ -373,7 +375,7 @@ impl Rules {
     /// nothing. `selected` stays on the point it names, found by its key after the change; an
     /// Insert selects the new point and a Delete clears the selection. A curve left unchanged
     /// leaves `selected` too.
-    pub fn apply(
+    pub(crate) fn apply(
         &self,
         op: &CurveOp,
         curve: &Curve,
@@ -398,7 +400,7 @@ impl Rules {
                     Some(key) => Some(key.find(&points)?),
                     None => None,
                 };
-                let v = Rules::between(&points, anchor, &samples(&points, &corners))?;
+                let v = CurveRules::between(&points, anchor, &samples(&points, &corners))?;
                 let count = points.len();
                 let i = self.insert(&mut points, v)?;
                 // Within two levels of a neighbour: that point, nothing added.
@@ -409,7 +411,7 @@ impl Rules {
             }
             CurveOp::Delete(at) => {
                 let i = at.find(&points)?;
-                if !Rules::delete(&mut points, i) {
+                if !CurveRules::delete(&mut points, i) {
                     return None;
                 }
                 None
@@ -452,7 +454,7 @@ impl Rules {
 mod tests {
     use super::*;
 
-    const RULES: Rules = Rules { levels: 255.0, max_points: 16 };
+    const RULES: CurveRules = CurveRules { levels: 255.0, max_points: 16 };
 
     #[test]
     fn the_monotone_cubic_passes_through_its_points_and_never_overshoots() {
@@ -477,21 +479,21 @@ mod tests {
         assert!(!RULES.move_to(&mut points, 1, [f32::INFINITY, 1.0]));
         assert!(RULES.move_to(&mut points, 1, [300.0, -5.0]));
         assert_eq!(points[1], [254.0, 0.0], "strictly before the next input");
-        assert!(!Rules::delete(&mut points, 0) && !Rules::delete(&mut points, 2), "end points stay");
-        assert!(Rules::delete(&mut points, 1));
-        assert!(!Rules::delete(&mut points, 1), "two points stay");
+        assert!(!CurveRules::delete(&mut points, 0) && !CurveRules::delete(&mut points, 2), "end points stay");
+        assert!(CurveRules::delete(&mut points, 1));
+        assert!(!CurveRules::delete(&mut points, 1), "two points stay");
     }
 
     #[test]
     fn a_keyboard_point_goes_halfway_to_the_next_or_into_the_widest_gap() {
         let points = [[0.0, 0.0], [50.0, 60.0], [255.0, 255.0]];
         let samples: Vec<f32> = (0..256).map(|k| k as f32).collect();
-        assert_eq!(Rules::between(&points, Some(0), &samples), Some([25.0, 25.0]));
-        assert_eq!(Rules::between(&points, Some(2), &samples), Some([153.0, 153.0]), "the last point looks back");
-        assert_eq!(Rules::between(&points, None, &samples), Some([153.0, 153.0]));
+        assert_eq!(CurveRules::between(&points, Some(0), &samples), Some([25.0, 25.0]));
+        assert_eq!(CurveRules::between(&points, Some(2), &samples), Some([153.0, 153.0]), "the last point looks back");
+        assert_eq!(CurveRules::between(&points, None, &samples), Some([153.0, 153.0]));
     }
 
-    /// The output of every input level on the identity curve, for [`Rules::apply`].
+    /// The output of every input level on the identity curve, for [`CurveRules::apply`].
     fn identity(_: &[[f32; 2]], _: &[bool]) -> Vec<f32> {
         (0..256).map(|k| k as f32).collect()
     }
