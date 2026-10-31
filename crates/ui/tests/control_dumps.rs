@@ -860,6 +860,7 @@ fn preferences() {
             .line("text_width", s.text_width)
             .line("page_inset", s.page_inset)
             .line("page_row_height", s.page_row_height)
-            .line("hex_width", s.hex_width);
+            .line("hex_width", s.hex_width)
+            .line("checks_inset", s.checks_inset);
     });
 }

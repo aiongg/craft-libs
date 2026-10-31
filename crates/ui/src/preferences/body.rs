@@ -43,6 +43,8 @@ pub struct PreferencesStyle {
     pub page_row_height: f32,
     /// Width of a colour row's hex field: `preferences.hex_width`.
     pub hex_width: f32,
+    /// Inset of a checks group's check boxes from the label column: `preferences.checks_inset`.
+    pub checks_inset: f32,
 }
 
 /// What a group of the shown page draws.
@@ -136,6 +138,7 @@ impl PreferencesBody {
             page_inset: p.page_inset,
             page_row_height: p.page_row_height,
             hex_width: p.hex_width,
+            checks_inset: p.checks_inset,
         }
     }
 

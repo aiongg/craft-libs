@@ -25,6 +25,9 @@ pub struct PreferencesTokens {
     /// Width of a colour row's hex field: `preferences.hex_width`, 72 at Compact, scaled by the
     /// control height.
     pub hex_width: f32,
+    /// Inset of the check boxes of a `.checks()` group from the label column:
+    /// `preferences.checks_inset`.
+    pub checks_inset: f32,
     /// Height of a page body laid out in an unbounded rect: `preferences.body_fallback_height`.
     pub body_fallback_height: f32,
 }
@@ -44,6 +47,7 @@ impl Family for PreferencesTokens {
         "page_inset" 0.0..=64.0 => page_inset;
         "page_row_height" 0.0..=1024.0 => page_row_height;
         "hex_width" 0.0..=1024.0 => hex_width;
+        "checks_inset" 0.0..=64.0 => checks_inset;
         "body_fallback_height" 0.0..=4096.0 => body_fallback_height;
     };
 
@@ -58,6 +62,7 @@ impl Family for PreferencesTokens {
             page_inset: values::PREFERENCES_PAGE_INSET,
             page_row_height: values::PREFERENCES_PAGE_ROW_HEIGHT,
             hex_width: scale(values::PREFERENCES_HEX_WIDTH),
+            checks_inset: values::PREFERENCES_CHECKS_INSET,
             body_fallback_height: values::PREFERENCES_BODY_FALLBACK_HEIGHT,
         }
     }
