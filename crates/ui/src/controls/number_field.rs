@@ -176,6 +176,7 @@ pub struct NumberField<'a> {
     edit_menu: bool,
     unit_menu: Option<UnitMenu<'a>>,
     presets: Option<&'a [(String, f64)]>,
+    preset_rows: Option<PresetRows<'a>>,
     /// The box's width when [`show`](NumberField::show) lays it out beside the preset chevron.
     box_width: Option<f32>,
 }
@@ -189,15 +190,32 @@ pub struct NumberField<'a> {
 /// Called inside the horizontal unit [`NumberField::show`] makes of the box and the chevron, so
 /// the chevron sits flush after the box (PhotoCraft's `metric_field` has no gap) and is centred
 /// on it. `id` is the field's, `label` its accessible name.
-fn preset_menu(ui: &mut Ui, id: Id, label: &str, size: ControlSize, presets: &[(String, f64)]) -> Option<f64> {
+fn preset_menu(ui: &mut Ui, id: Id, label: &str, size: ControlSize, extras: &[String], presets: &[(String, f64)]) -> Option<PresetChoice> {
     let side = IconButton::style(&Tokens::of(ui), size).side;
     let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
     let button = IconButton::new(Icon::ChevronDown, label).size(size).with_id(id.with("craft_ui::number_field::preset_button")).show_at(ui, rect);
-    let entries: Vec<MenuEntry<usize>> = presets.iter().enumerate().map(|(i, (name, _))| MenuItem::new(name, i).into()).collect();
+    let names = extras.iter().map(String::as_str).chain(presets.iter().map(|(name, _)| name.as_str()));
+    let entries: Vec<MenuEntry<usize>> = names.enumerate().map(|(i, name)| MenuItem::new(name, i).into()).collect();
     let down = button.has_focus() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown));
     let at = (button.clicked() || down).then_some(OpenAt::Rect(button.rect));
     let menu = ContextMenu::new(&entries).size(size).own_gestures(false).open_at(at).show(ui, &button);
-    menu.chosen.and_then(|i| presets.get(i)).map(|(_, value)| *value)
+    let chosen = menu.chosen?;
+    match chosen.checked_sub(extras.len()) {
+        None => Some(PresetChoice::Extra(chosen)),
+        Some(i) => presets.get(i).map(|(_, value)| PresetChoice::Value(*value)),
+    }
+}
+
+/// What a preset menu pick is: a number for the field to commit, or one of the extra rows.
+enum PresetChoice {
+    Value(f64),
+    Extra(usize),
+}
+
+/// The rows of [`NumberField::preset_rows`] and where its pick goes.
+struct PresetRows<'a> {
+    labels: &'a [String],
+    picked: &'a mut Option<usize>,
 }
 
 /// The rows of [`NumberField::unit_menu`] and where its pick goes.
@@ -241,6 +259,7 @@ impl<'a> NumberField<'a> {
             edit_menu: true,
             unit_menu: None,
             presets: None,
+            preset_rows: None,
             box_width: None,
         }
     }
@@ -440,6 +459,15 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// Rows before the [`presets`](Self::presets) in the same menu that are not numbers ("Auto"
+    /// for a leading field): a pick is written to `picked` as the index into `labels`, and the
+    /// field's value does not change; the host applies it. Opens the chevron on its own when
+    /// there are no numeric presets.
+    pub fn preset_rows(mut self, labels: &'a [String], picked: &'a mut Option<usize>) -> Self {
+        self.preset_rows = Some(PresetRows { labels, picked });
+        self
+    }
+
     /// Whether the field is a part of a composite reporting through one edit: a press on the
     /// scrub sources, the ▾ or the pop-up slider takes its turn from the edit order
     /// (`slider::press_turn`). While another control's typing run has the focus (a sibling
@@ -487,7 +515,7 @@ impl<'a> NumberField<'a> {
 
     /// Shows the field and returns this frame's edit. The response covers the box.
     pub fn show(mut self, ui: &mut Ui) -> EditResponse<f64> {
-        if self.presets.is_some() && self.box_width.is_none() {
+        if (self.presets.is_some() || self.preset_rows.is_some()) && self.box_width.is_none() {
             // The box and the chevron are one unit whatever the parent layout; the chevron's room
             // comes off a justified layout's width.
             let side = IconButton::style(&Tokens::of(ui), self.size).side;
@@ -621,10 +649,18 @@ impl<'a> NumberField<'a> {
         }
         let popup_open = self.popup.is_some() && input.popup(ui, &mut typed, &self, rect, parts.popup_rect(rect), enabled);
         let response = typed.response().clone();
-        if let Some(presets) = self.presets.take().filter(|_| enabled)
-            && let Some(value) = preset_menu(ui, id, &self.label, self.size, presets)
-        {
-            typed.commit_with(ui, Some(input.codec.settle(value)));
+        if enabled && (self.presets.is_some() || self.preset_rows.is_some()) {
+            let presets = self.presets.take().unwrap_or(&[]);
+            let rows = self.preset_rows.take();
+            match preset_menu(ui, id, &self.label, self.size, rows.as_ref().map_or(&[], |r| r.labels), presets) {
+                Some(PresetChoice::Value(value)) => typed.commit_with(ui, Some(input.codec.settle(value))),
+                Some(PresetChoice::Extra(i)) => {
+                    if let Some(rows) = rows {
+                        *rows.picked = Some(i);
+                    }
+                }
+                None => {}
+            }
         }
         if let Some(UnitMenu { entries, picked }) = self.unit_menu.take().filter(|_| enabled) {
             let at = secondary.or_else(|| response.secondary_clicked().then(|| response.interact_pointer_pos()).flatten());

@@ -30,6 +30,8 @@ craft-font-manager = { workspace = true, optional = true }
 [dev-dependencies]
 egui_kittest = "0.37"
 unicode-segmentation = "1.13"
+# `ui::character` tests: the controls in a harness.
+egui_kittest = "0.37"
 
 [[example]]
 name = "hyphgen"
