@@ -4,9 +4,17 @@
 //! Options, Duplicate, New and Delete at the right. The styles, their attributes and the
 //! commands are the app's; the panel reports what the user asked for.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_ui::behavior::{RowInfo, Selection};
+use craft_ui::composites::PanelFooter;
+use craft_ui::controls::Kbd;
+use craft_ui::icons::Icon;
+use craft_ui::list::{List, ListEvent, ListRow};
+use craft_ui::localized::{Labels as _, Words};
+use egui::{Key, KeyboardShortcut, Modifiers, PointerButton, Response, Ui, UiBuilder};
 
-use egui::{Response, Ui};
+/// Row height and list height limit (PhotoCraft's 22 pt and 220 pt).
+const ROW_HEIGHT: f32 = 22.0;
+const LIST_HEIGHT: f32 = 220.0;
 
 craft_ui::words! {
     /// The panels' words, English by default (PhotoCraft's strings).
@@ -24,6 +32,7 @@ craft_ui::words! {
         new_style: "textStyles.new" = "Create new style (from the selected type)";
         delete: "textStyles.delete" = "Delete style";
         no_document: "textStyles.noDocument" = "No document";
+        overridden: "textStyles.overridden" = "overridden";
     }
 }
 
@@ -102,13 +111,14 @@ pub struct TextStylesPanel<'a> {
     current: Option<u64>,
     overridden: bool,
     target: bool,
+    text_selected: bool,
     labels: Option<TextStylesLabels>,
 }
 
 impl<'a> TextStylesPanel<'a> {
     /// The panel over `rows`; `selected` is the row the footer acts on, kept by the app.
     pub fn new(kind: TextStyleKind, rows: &'a [TextStyleRow], selected: &'a mut Option<u64>) -> Self {
-        TextStylesPanel { kind, rows, selected, current: None, overridden: false, target: false, labels: None }
+        TextStylesPanel { kind, rows, selected, current: None, overridden: false, target: false, text_selected: true, labels: None }
     }
 
     /// The style at the type target (the selection's start, or the edited layer) and whether the
@@ -125,6 +135,13 @@ impl<'a> TextStylesPanel<'a> {
         self
     }
 
+    /// Whether the type target has text selected (default true). At a bare caret a click on a
+    /// character style sets [`TextStylesResponse::status`] instead of applying.
+    pub fn text_selected(mut self, on: bool) -> Self {
+        self.text_selected = on;
+        self
+    }
+
     pub fn labels(mut self, labels: TextStylesLabels) -> Self {
         self.labels = Some(labels);
         self
@@ -133,6 +150,116 @@ impl<'a> TextStylesPanel<'a> {
     // pc: crates/ui-egui/src/panels/type_panels_ui.rs:215 `styles_panel` (rows, "+" marker,
     // click / Alt-click / double-click, footer buttons and their conditions).
     pub fn show(self, ui: &mut Ui) -> TextStylesResponse {
-        todo!()
+        let TextStylesPanel { kind, rows, selected, current, overridden, target, text_selected, labels } = self;
+        let labels = labels.unwrap_or_else(|| TextStylesLabels::of_ctx(ui.ctx()));
+        let paragraph = kind == TextStyleKind::Paragraph;
+        let alt = alt_name(ui.ctx());
+        let tip = labels.row_tip.replace("{key}", &alt);
+        let mut action: Option<TextStyleAction> = None;
+        let mut status: Option<String> = None;
+
+        // The footer acts on the row selected in the panel, which is the current style until the
+        // user picks another.
+        let shown = selected.or(current);
+        let mut selection = shown.map_or_else(Selection::new, Selection::only);
+        let infos: Vec<RowInfo<u64>> = rows.iter().map(|row| RowInfo::leaf(row.id)).collect();
+        let list_label = if paragraph { &labels.paragraph_styles } else { &labels.character_styles };
+        let out = List::new(("text-styles", kind), list_label.as_str(), infos.as_slice())
+            .selection(&mut selection)
+            .row_height(ROW_HEIGHT)
+            .max_height(LIST_HEIGHT)
+            .show(ui, |at, &id| {
+                let row = &rows[at];
+                let is_current = target && current == Some(id);
+                let marked = is_current && overridden;
+                let none = id == 0 && !paragraph;
+                let name = if marked { format!("{}+", row.name) } else { row.name.clone() };
+                let spoken = if marked { format!("{}, {}", row.name, labels.overridden) } else { row.name.clone() };
+                ListRow::new(id, name)
+                    .accessible_name(spoken)
+                    .description(if none { labels.no_character_style.clone() } else { tip.clone() })
+                    .dimmed(none)
+                    .highlight(is_current && shown != Some(id))
+            });
+        let (alt_held, double) = ui.input(|i| (i.modifiers.alt, i.pointer.button_double_clicked(PointerButton::Primary)));
+        let mut picked = *selected;
+        for event in out.events {
+            match event {
+                ListEvent::Selection(change) => {
+                    if let Some(id) = change.row {
+                        picked = Some(id);
+                    }
+                }
+                ListEvent::Clicked(id) => {
+                    picked = Some(id);
+                    if target && !paragraph && !text_selected {
+                        status = Some(labels.select_text.clone());
+                    } else if target {
+                        action = Some(TextStyleAction::Apply { id, clear_overrides: alt_held });
+                    }
+                }
+                ListEvent::Activate(id) if double => {
+                    if id != 0 || paragraph {
+                        action = Some(TextStyleAction::Options(id));
+                    }
+                }
+                ListEvent::Activate(id) => {
+                    if target && !paragraph && !text_selected {
+                        status = Some(labels.select_text.clone());
+                    } else if target {
+                        action = Some(TextStyleAction::Apply { id, clear_overrides: false });
+                    }
+                }
+                _ => {}
+            }
+        }
+        if out.response.has_focus()
+            && let Some(id) = picked.or(shown).filter(|id| *id != 0)
+            && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete))
+        {
+            action = Some(TextStyleAction::Delete(id));
+        }
+        if picked != *selected {
+            *selected = picked;
+        }
+
+        let pick = picked.or(shown);
+        let editable = pick.filter(|id| *id != 0 || paragraph);
+        PanelFooter::show(ui, |ui| {
+            let left = ui.max_rect();
+            ui.scope_builder(UiBuilder::new().max_rect(left).layout(craft_ui::direction::row(ui)), |ui| {
+                if PanelFooter::button(ui, Icon::Ban, &labels.clear_override).clicked() && target && overridden {
+                    action = Some(TextStyleAction::ClearOverride);
+                }
+                if PanelFooter::button(ui, Icon::Check, &labels.redefine).clicked() && target && current.is_some_and(|id| id != 0 || paragraph) {
+                    action = Some(TextStyleAction::Redefine);
+                }
+            });
+            if PanelFooter::button(ui, Icon::Trash, &labels.delete).clicked()
+                && let Some(id) = editable.filter(|id| *id != 0)
+            {
+                action = Some(TextStyleAction::Delete(id));
+            }
+            if PanelFooter::button(ui, Icon::Plus, &labels.new_style).clicked() {
+                action = Some(TextStyleAction::New { from_selection: target });
+            }
+            if PanelFooter::button(ui, Icon::Copy, &labels.duplicate).clicked()
+                && let Some(id) = editable
+            {
+                action = Some(TextStyleAction::Duplicate(id));
+            }
+            if PanelFooter::button(ui, Icon::Settings, &labels.options).clicked()
+                && let Some(id) = editable
+            {
+                action = Some(TextStyleAction::Options(id));
+            }
+        });
+        TextStylesResponse { action, status, response: out.response }
     }
+}
+
+/// The platform's name for Alt ("Alt", or "⌥" on a Mac).
+fn alt_name(ctx: &egui::Context) -> String {
+    let chord = KeyboardShortcut::new(Modifiers::ALT, Key::A);
+    Kbd::parts_in(&chord, ctx.os(), &Words::of_ctx(ctx)).into_iter().next().unwrap_or_else(|| "Alt".to_owned())
 }
