@@ -253,7 +253,7 @@ fn alt_turns_a_guide_out_of_a_ruler() {
     let mut h = harness(Vec::new(), 0.0);
     h.run();
     press_ruler(&mut h, Orientation::Horizontal);
-    assert_eq!(events(&h).first().copied(), Some((None, "begin", None)), "the drag begins at the handoff");
+    assert_eq!(events(&h).first().map(|e| e.1), Some("begin"), "the drag begins at the handoff");
     let to = screen(&h, Point::new(120.0, 80.0));
     h.event(Event::PointerMoved(to));
     h.run();
@@ -276,6 +276,26 @@ fn alt_turns_a_guide_out_of_a_ruler() {
     h.run();
     assert_eq!(last(&h).map(|e| e.1), Some("cancel"));
     assert_eq!(positions(&h), [(1, Orientation::Vertical, 120.0)]);
+}
+
+/// The first pass of a ruler drag already carries the guide's position, and the readout shows it.
+#[test]
+fn a_ruler_drag_begins_with_its_position_and_shows_the_readout() {
+    let mut h = harness(Vec::new(), 0.0);
+    h.run();
+    let ruler = Pos2::new(view(&h).rect.center().x, view(&h).rect.top() - 8.0);
+    h.event(Event::PointerMoved(ruler));
+    h.event(button(ruler, true, Modifiers::NONE));
+    h.run();
+    h.state_mut().ruler = Some(Orientation::Horizontal);
+    h.event(Event::PointerMoved(screen(&h, Point::new(120.0, 80.0))));
+    h.step();
+    h.step();
+    let (key, kind, value) = events(&h).first().copied().expect("the first pass reports");
+    assert_eq!((key, kind), (None, "begin"));
+    assert_eq!(value, place(Orientation::Horizontal, 80.0), "Begin carries the position");
+    h.run();
+    let _ = h.get_by_label("Y 80 px");
 }
 
 #[test]

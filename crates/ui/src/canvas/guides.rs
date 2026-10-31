@@ -618,7 +618,7 @@ impl<'a> Guides<'a> {
     ) -> (Option<Drag>, Option<GuidePlace>) {
         let view = pass.view;
         if d.key.is_none() && !d.began {
-            gesture.begin();
+            gesture.begin_with_value();
             d.began = true;
         }
         let (pointer, down, input_mods) = match d.released {
@@ -639,7 +639,7 @@ impl<'a> Guides<'a> {
             let across = (orientation.position(raw) - orientation.position(view.to_doc(d.press.origin))).abs() * orientation.zoom(view);
             moved = outside || across >= CLICK;
             if !d.began && moved {
-                gesture.begin();
+                gesture.begin_with_value();
                 d.began = true;
             }
             if d.began {
@@ -1142,7 +1142,12 @@ impl GuideHost {
         }
         let Some((key, event)) = &response.event else { return };
         match (event, key) {
-            (EditEvent::Begin { .. }, _) => self.before = Some(self.guides.clone()),
+            (EditEvent::Begin { value, .. }, key) => {
+                self.before = Some(self.guides.clone());
+                if let (Some(value), Some(key)) = (value, key) {
+                    self.place(*key, *value);
+                }
+            }
             (EditEvent::Cancel { .. }, _) => {
                 if let Some(before) = self.before.take() {
                     self.guides = before;
