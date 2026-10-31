@@ -14,6 +14,9 @@
 
 use egui::{Context, Id, InputState, Key, KeyboardShortcut, Modifiers};
 
+use crate::behavior::KeyClaim;
+use crate::focus::key_owner::canvas_keys_free;
+
 /// Is `sc` held: its key down with at least its modifiers (more may be held, so Shift still
 /// squares a marquee while Space is down).
 fn shortcut_held(input: &InputState, sc: &KeyboardShortcut) -> bool {
@@ -80,6 +83,14 @@ impl Default for MomentaryKeys {
 }
 
 impl MomentaryKeys {
+    fn shortcut_of(&self, tool: MomentaryTool) -> KeyboardShortcut {
+        match tool {
+            MomentaryTool::Hand => self.hand,
+            MomentaryTool::ZoomIn => self.zoom_in,
+            MomentaryTool::ZoomOut => self.zoom_out,
+        }
+    }
+
     /// The temporary tool the keys held in `input` ask for, in any order of pressing (Space then
     /// Cmd, or Cmd then Space). Of the bindings whose key is down and whose modifiers are all held,
     /// the one with the most modifiers wins (Cmd+Space beats Space); Alt held with Zoom In turns it
@@ -117,10 +128,10 @@ impl MomentaryKeys {
         let latched = ctx.data(|d| d.get_temp::<Option<MomentaryTool>>(latch)).flatten();
         let tool = if (down || released) && latched.is_some() {
             latched
-        } else if drawing || ctx.text_edit_focused() {
+        } else if drawing || !canvas_keys_free(ctx) {
             None
         } else {
-            ctx.input(|i| self.held(i))
+            ctx.input(|i| self.held(i)).filter(|tool| !KeyClaim::claimed(ctx, &self.shortcut_of(*tool)))
         };
         ctx.data_mut(|d| d.insert_temp(latch, if down { tool } else { None }));
         tool

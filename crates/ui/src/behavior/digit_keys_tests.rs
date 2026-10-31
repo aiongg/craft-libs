@@ -85,3 +85,21 @@ fn digits_are_left_to_a_focused_field() {
     })
     .drop_without_applying_deltas();
 }
+
+#[test]
+fn digits_run_for_a_focused_canvas_or_button_but_not_a_claiming_widget() {
+    use crate::behavior::ClaimedKey;
+    for (canvas, claims, expected) in
+        [(true, vec![], entry(60.0, false)), (false, vec![], entry(60.0, false)), (false, vec![ClaimedKey::exact(Modifiers::NONE, Key::Num6)], None)]
+    {
+        let ctx = egui::Context::default();
+        crate::focus::key_owner_tests::focus_widget_claiming(&ctx, egui::Id::unique("w"), canvas, &claims);
+        let mut keys = DigitKeys::default();
+        let mut got = None;
+        ctx.run_ui(RawInput { events: vec![press_event(Key::Num6, Modifiers::NONE, false)], ..Default::default() }, |ui| {
+            got = keys.handle(ui.ctx(), true);
+        })
+        .drop_without_applying_deltas();
+        assert_eq!(got, expected);
+    }
+}

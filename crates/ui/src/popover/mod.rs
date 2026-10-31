@@ -439,7 +439,7 @@ impl Popover {
             }
             None => {
                 ctx.data_mut(|d| d.insert_temp(state_id, state));
-                popup_list::record_open(&ctx, id, true);
+                popup_list::record_open_as(&ctx, id, true, !close.outside);
             }
         }
         Some(PopoverResponse { inner, rect, closed_by: reason, size: size_now })

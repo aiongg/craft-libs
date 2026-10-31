@@ -252,6 +252,10 @@ const MAC_EDITING: &[Chord] = &[
     Chord::new(CMD, Key::Z),
     Chord::new(CMD_SHIFT, Key::Z),
     Chord::new(CMD, Key::A),
+    // The clipboard.
+    Chord::new(CMD, Key::C),
+    Chord::new(CMD, Key::X),
+    Chord::new(CMD, Key::V),
     // Words.
     Chord::new(ALT, Key::Left),
     Chord::new(ALT, Key::Right),
@@ -291,6 +295,11 @@ const PC_EDITING: &[Chord] = &[
     Chord::new(CMD, Key::Y),
     Chord::new(CMD_SHIFT, Key::Z),
     Chord::new(CMD, Key::A),
+    // The clipboard.
+    Chord::new(CMD, Key::C),
+    Chord::new(CMD, Key::X),
+    Chord::new(CMD, Key::V),
+    Chord::new(CMD, Key::Insert),
     // Words.
     Chord::new(CMD, Key::Left),
     Chord::new(CMD, Key::Right),
@@ -310,10 +319,10 @@ const PC_EDITING: &[Chord] = &[
 ];
 
 /// The chords with modifiers that edit text on `platform`, as effective chords: undo, redo,
-/// select all, and moving and deleting by word, line and text. While typing they go to the text
+/// select all, the clipboard, and moving and deleting by word, line and text. While typing they go to the text
 /// field under every [`TypingRule`]; only a binding in an active context takes one. Plain keys
 /// (arrows, Home, End, Backspace, Delete, with or without Shift) are not listed, since every rule
-/// holds them already. The `egui` dispatcher keeps the clipboard chords for the field itself.
+/// holds them already.
 pub fn text_editing_chords(platform: Platform) -> &'static [Chord] {
     if platform.is_mac() { MAC_EDITING } else { PC_EDITING }
 }

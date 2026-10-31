@@ -53,6 +53,7 @@ pub use start::{RecentFile, RecentSort, RecentView, StartAction, StartLabels, St
 pub use visibility::{BodyMode, tab_toggles_chrome, take_tab_toggle};
 
 use ids::State;
+pub(crate) use ids::{canvas as registered_canvas, set_canvas as register_canvas};
 
 use crate::direction;
 use crate::patterns::ToolRail;

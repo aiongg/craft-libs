@@ -1,5 +1,5 @@
-//! Who gets a frame's keys: an open menu, a blocking workspace, a dialog, the shortcut recorder, a
-//! text field, a focused widget, or the app's shortcuts.
+//! Who gets a frame's keys ([`KeyOwner`]): an open menu, a blocking workspace, a dialog, the
+//! shortcut recorder, a text field, a popover, a focused widget, or the app's shortcuts.
 //!
 //! [`crate::egui::Dispatcher`] runs the keymap against the frame's key events; it knows whether
 //! text has the keys ([`crate::Active::typing`]) and nothing else. [`KeyRouter`] decides the
@@ -9,39 +9,15 @@
 //! reads its keys, instead of calling the dispatcher directly.
 
 use craft_ui::behavior::KeyClaim;
+pub use craft_ui::focus::key_owner::KeyOwner;
+use craft_ui::focus::key_owner::{OwnerGate, owner};
 use egui::Context;
 
 use crate::chord::{Chord, Key};
 use crate::command::CommandRef;
 use crate::egui::{Dispatcher, Hit, platform};
-use crate::keymap::Keymap;
+use crate::keymap::{Keymap, text_editing_chords};
 use crate::scope::Active;
-
-/// What has the keyboard this frame, first match wins in this order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum KeyOwner {
-    /// A full-window workspace (Camera Raw, Liquify) or a blocking job (a foreground save): no app
-    /// shortcut runs; the owner reads the keys itself.
-    Blocked,
-    /// An open menu, the menu bar holding the keyboard (after Alt or F10), or an open dropdown
-    /// list. Arrows, letters, Enter and Esc are the menu's. A command chord (⌘D, F7) closes the
-    /// menu and runs, as with a native menu bar.
-    Menu,
-    /// The Keyboard Shortcuts dialog is recording a chord: every key is the recorder's.
-    Recorder,
-    /// A modal dialog: only [`KeyGate::in_dialogs`] run (Zoom In, Zoom Out, Fit on Screen, 100 %);
-    /// the dialog keeps every other key.
-    Dialog,
-    /// A text field: shortcuts with ⌘ (Ctrl) run but the field's own editing chords
-    /// ([`crate::text_editing_chords`]), and so do the function keys; plain keys type.
-    Text,
-    /// A focused control that isn't text (a slider, a list row, a button reached with Tab): its
-    /// navigation keys (arrows, Enter, Space, Esc, Tab) and the keys it claimed are its; every
-    /// other shortcut runs, as in Photoshop.
-    Widget,
-    /// Nothing focused (the canvas): every shortcut runs.
-    App,
-}
 
 /// What the app knows about its own modal state this frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -58,17 +34,23 @@ pub struct KeyGate<'a> {
     pub in_dialogs: &'a [&'a str],
 }
 
+impl KeyGate<'_> {
+    fn owner_gate(&self) -> OwnerGate {
+        OwnerGate { blocked: self.blocked, dialog: self.dialog, recording: self.recording }
+    }
+}
+
 /// The app's key routing, kept between frames (it holds the dispatcher's double-press and
 /// keyboard-layout state).
 ///
 /// ```no_run
 /// use craft_keymap::ui::{KeyGate, KeyRouter};
 /// use craft_keymap::{Active, egui::Dispatcher};
-/// # fn demo(ctx: &egui::Context, router: &mut KeyRouter, keymap: &craft_keymap::Keymap, dialog_open: bool) {
-/// let gate = KeyGate { dialog: dialog_open, in_dialogs: &["view.zoomIn", "view.zoomOut"], ..KeyGate::default() };
-/// for hit in router.route(ctx, keymap, &Active::NONE, &gate) {
+/// # fn demo(ctx: &egui::Context, router: &mut KeyRouter, keymap: &craft_keymap::Keymap, dialog_open: impl Fn() -> bool) {
+/// let gate = || KeyGate { dialog: dialog_open(), in_dialogs: &["view.zoomIn", "view.zoomOut"], ..KeyGate::default() };
+/// router.route(ctx, keymap, &Active::NONE, gate, |hit| {
 ///     // run hit.command
-/// }
+/// });
 /// # }
 /// ```
 #[derive(Clone, Debug, Default)]
@@ -90,51 +72,36 @@ impl KeyRouter {
         &mut self.dispatcher
     }
 
-    /// Who has the keyboard: [`KeyOwner`]'s order, reading `gate`, craft-ui's open menus and
-    /// dropdowns ([`craft_ui::menu::any_open`]) and egui's focus (a focused `TextEdit` is
-    /// [`KeyOwner::Text`], any other focused widget [`KeyOwner::Widget`]).
-    // pc: crates/ui-egui/src/input/shortcuts.rs:482 `preflight_keys` (Camera Raw, foreground save,
-    // open menu or menu bar, dropdown, stroke editor); crates/ui-egui/src/input/shortcut_dispatch.rs:142
-    // `Focus::of`.
+    /// Who has the keyboard: [`craft_ui::focus::key_owner::owner`] with `gate`.
     pub fn owner(ctx: &Context, gate: &KeyGate) -> KeyOwner {
-        if gate.blocked {
-            KeyOwner::Blocked
-        } else if craft_ui::menu::any_open(ctx) {
-            KeyOwner::Menu
-        } else if gate.recording {
-            KeyOwner::Recorder
-        } else if gate.dialog {
-            KeyOwner::Dialog
-        } else if ctx.text_edit_focused() {
-            KeyOwner::Text
-        } else if ctx.egui_wants_keyboard_input() {
-            KeyOwner::Widget
-        } else {
-            KeyOwner::App
-        }
+        owner(ctx, &gate.owner_gate())
     }
 
     /// Whether `owner` leaves a hit on `chord` running `command` to the shortcuts. Ctrl+Tab and
     /// Ctrl+Shift+Tab (next and previous document) run whatever has focus, as in Photoshop. A
     /// chord the focused control claimed ([`craft_ui::behavior::KeyClaim::claimed`]) is never
-    /// left to the shortcuts.
-    // pc: crates/ui-egui/src/input/shortcut_dispatch.rs:158 `Focus::allows`.
+    /// left to the shortcuts. The command key is Cmd on macOS and Ctrl elsewhere; Control on a Mac
+    /// is a text-editing key and never a command chord.
+    // pc: crates/ui-egui/src/input/shortcut_dispatch.rs:158 `Focus::allows`, :212-220.
     pub fn allows(ctx: &Context, owner: KeyOwner, gate: &KeyGate, chord: &Chord, command: &CommandRef) -> bool {
-        let command_chord = chord.mods.cmd || chord.mods.ctrl;
+        let command_chord = chord.mods.cmd;
         match owner {
-            KeyOwner::Blocked | KeyOwner::Recorder => false,
-            KeyOwner::Menu => command_chord || chord.is_function_key(),
-            KeyOwner::Dialog => gate.in_dialogs.contains(&command.id.as_str()),
-            KeyOwner::Text | KeyOwner::Widget | KeyOwner::App => {
+            KeyOwner::Blocked | KeyOwner::Recorder | KeyOwner::Menu => false,
+            KeyOwner::Dialog => !ctx.text_edit_focused() && gate.in_dialogs.contains(&command.id.as_str()),
+            KeyOwner::Text | KeyOwner::Popover | KeyOwner::Widget | KeyOwner::App => {
                 if KeyClaim::claimed(ctx, &chord.to_egui_shortcut()) {
                     return false;
                 }
-                let ctrl_tab = chord.key == Key::Tab && (chord.mods.ctrl || (chord.mods.cmd && !platform(ctx).is_mac()));
+                let platform = platform(ctx);
+                let ctrl_tab = chord.key == Key::Tab && (chord.mods.ctrl || (chord.mods.cmd && !platform.is_mac()));
                 if ctrl_tab {
                     return true;
                 }
                 match owner {
-                    KeyOwner::Text => chord.is_function_key() || (command_chord && !text_owned(chord)),
+                    KeyOwner::Text => {
+                        chord.is_function_key() || (command_chord && !text_editing_chords(platform).contains(&chord.effective(platform)))
+                    }
+                    KeyOwner::Popover => command_chord,
                     KeyOwner::Widget => command_chord || !navigation(chord.key),
                     _ => true,
                 }
@@ -142,27 +109,46 @@ impl KeyRouter {
         }
     }
 
-    /// This frame's hits: [`KeyRouter::owner`], then the dispatcher with `active` (typing set when
-    /// the owner is [`KeyOwner::Text`]), keeping only the hits [`KeyRouter::allows`]; a declined
-    /// press stays in egui's input for the focused control. Nothing runs, and no event is taken,
-    /// while the owner is [`KeyOwner::Blocked`], [`KeyOwner::Menu`] (but a command chord) or
-    /// [`KeyOwner::Recorder`].
-    // pc: crates/ui-egui/src/input/shortcuts.rs:469 `handle`, :662 `handle_keys`.
-    pub fn route(&mut self, ctx: &Context, keymap: &Keymap, active: &Active, gate: &KeyGate) -> Vec<Hit> {
-        let owner = KeyRouter::owner(ctx, gate);
-        if matches!(owner, KeyOwner::Blocked | KeyOwner::Recorder) {
-            return Vec::new();
+    /// Runs this frame's hits through `run`, in press order. First [`leave_for_shortcut`]
+    /// (a command chord takes the keyboard off a menu bar with no menu open), then
+    /// [`KeyRouter::owner`] and the dispatcher with `active` (typing set when the owner is
+    /// [`KeyOwner::Text`]), keeping only the hits [`KeyRouter::allows`]; a declined press stays in
+    /// egui's input for the focused control. Nothing runs, and no event is taken, while the owner
+    /// is [`KeyOwner::Blocked`], [`KeyOwner::Menu`] or [`KeyOwner::Recorder`].
+    ///
+    /// `gate` is asked again after each command: when the gate or the owner changed (a command
+    /// opened a dialog), the remaining presses are left in egui's input for the new owner instead
+    /// of running as shortcuts. `run` executes while the frame's key events are still in egui's
+    /// input, so a command reads no key events itself.
+    // pc: crates/ui-egui/src/input/shortcuts.rs:469 `handle`, :662 `handle_keys`;
+    // shortcut_dispatch.rs:268-272 (`key_owner` compared after each hit).
+    pub fn route<'g>(&mut self, ctx: &Context, keymap: &Keymap, active: &Active, mut gate: impl FnMut() -> KeyGate<'g>, mut run: impl FnMut(Hit)) {
+        craft_ui::menu::bar::leave_for_shortcut(ctx);
+        let mut state = gate();
+        let mut owner = KeyRouter::owner(ctx, &state);
+        if matches!(owner, KeyOwner::Blocked | KeyOwner::Recorder | KeyOwner::Menu) {
+            return;
         }
         let active = Active { typing: active.typing || owner == KeyOwner::Text || ctx.text_edit_focused(), ..*active };
+        let mut stopped = false;
         // `allows` reads egui's data, which `input_mut` holds locked: dispatch on a copy and put
         // back the events it left.
         let mut input = ctx.input(|i| i.clone());
-        let hits = self
-            .dispatcher
-            .dispatch_filtered(&mut input, keymap, &active, |hit| KeyRouter::allows(ctx, owner, gate, &hit.trigger.chord, &hit.command));
+        self.dispatcher.dispatch_filtered(&mut input, keymap, &active, |hit| {
+            if stopped || !KeyRouter::allows(ctx, owner, &state, &hit.trigger.chord, &hit.command) {
+                return false;
+            }
+            run(hit.clone());
+            let (next_state, next_owner) = {
+                let next = gate();
+                (next, KeyRouter::owner(ctx, &next))
+            };
+            stopped = next_state != state || next_owner != owner;
+            (state, owner) = (next_state, next_owner);
+            true
+        });
         let events = input.events;
         ctx.input_mut(|i| i.events = events);
-        hits
     }
 }
 
@@ -183,11 +169,4 @@ fn navigation(key: Key) -> bool {
             | Key::PageUp
             | Key::PageDown
     )
-}
-
-/// The chords a text field edits with: select all, the clipboard, undo and redo (without Alt),
-/// its cursor keys and deletions.
-fn text_owned(chord: &Chord) -> bool {
-    let editing = !chord.mods.alt && matches!(chord.key, Key::A | Key::C | Key::X | Key::V | Key::Z | Key::Y);
-    editing || navigation(chord.key) || matches!(chord.key, Key::Backspace | Key::Delete)
 }

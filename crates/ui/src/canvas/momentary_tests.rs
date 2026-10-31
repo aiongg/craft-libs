@@ -152,3 +152,16 @@ fn a_drag_running_at_release_finishes_with_the_sprung_tool() {
     assert_eq!(tick(&mut spring, &ctx, 1.2, vec![], 'z', true), None);
     assert_eq!(tick(&mut spring, &ctx, 1.3, vec![], 'z', false), Some('b'));
 }
+
+#[test]
+fn the_space_hand_works_for_a_focused_canvas_or_button_but_not_a_claiming_widget() {
+    use crate::behavior::ClaimedKey;
+    let n = Modifiers::NONE;
+    for (canvas, claims, expected) in
+        [(true, vec![], Some(MomentaryTool::Hand)), (false, vec![], Some(MomentaryTool::Hand)), (false, vec![ClaimedKey::exact(n, Key::Space)], None)]
+    {
+        let ctx = Context::default();
+        crate::focus::key_owner_tests::focus_widget_claiming(&ctx, Id::unique("w"), canvas, &claims);
+        assert_eq!(held(&ctx, 0.2, n, vec![key_event(Key::Space, true, n)]), expected);
+    }
+}
