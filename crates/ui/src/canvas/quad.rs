@@ -658,6 +658,13 @@ impl BoxState {
         let now = s.parts(rect, skew_v);
         if to.w != now.w || to.h != now.h {
             s = s.scaled_about_pivot(to.w / nonzero(now.w), to.h / nonzero(now.h));
+            // A distorted box scaled through its homography keeps its perspective, so its affine
+            // reading moves with the corners. When only W and H were asked to change, that drift
+            // is not an angle or skew edit and must not be undone.
+            let same_sides = (to.w < 0.0) == (now.w < 0.0) && (to.h < 0.0) == (now.h < 0.0);
+            if !self.is_parallelogram() && same_sides && to.angle == now.angle && to.skew_h == now.skew_h && to.skew_v == skew_v {
+                return s;
+            }
         }
         let now = s.parts(rect, skew_v);
         if to.angle != now.angle {

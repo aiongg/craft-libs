@@ -525,3 +525,21 @@ fn a_negative_linked_length_mirrors_the_typed_side() {
     assert!(w == 0.0 && h == 0.0);
     assert!(s.with_signed_scale(rect(), 0.0, w, h).quad.iter().all(|q| q.is_finite()));
 }
+
+/// PC `w_and_h_edits_on_a_distorted_box_match_upstream`: W and H typed (linked) on a perspective
+/// box scale it through its homography and keep the perspective.
+#[test]
+fn w_and_h_edits_on_a_distorted_box_keep_its_perspective() {
+    let r = Rect::new(0.0, 0.0, 100.0, 50.0);
+    let s = BoxState { quad: [p(0.0, 0.0), p(100.0, 10.0), p(90.0, 60.0), p(-5.0, 50.0)], pivot: p(50.0, 25.0) };
+    let now = s.signed_scale(r, 0.0);
+    let edit = |axis: usize, typed: f64| {
+        let (w, h) = BoxState::linked_scale(now, axis, typed);
+        s.with_signed_scale(r, 0.0, w, h).quad
+    };
+    let want_w = [p(25.300, 12.650), p(74.570, 17.629), p(70.164, 42.643), p(22.139, 37.664)];
+    let got = edit(0, 0.5);
+    assert!(got.iter().zip(&want_w).all(|(g, w)| (g.x - w.x).abs() < 1e-3 && (g.y - w.y).abs() < 1e-3), "{got:?}");
+    let got = edit(1, 1.5);
+    assert!((got[0].x + 25.153).abs() < 1e-3 && (got[0].y + 12.577).abs() < 1e-3, "{got:?}");
+}
