@@ -621,6 +621,8 @@ fn a_host_change_during_a_run_cancels_it_and_the_caret_stays_inside_the_new_text
     rig.focus();
     let id = type_run(&mut rig, "abcdef");
     assert_eq!(rig.cursor(), (6, 6));
+    // The pass after the run's last update takes the host's value as its write-back.
+    rig.frame(vec![]);
     rig.value = "xy".to_owned();
     rig.frame(vec![]);
     assert_eq!(rig.event, cancel(id, CancelReason::External));

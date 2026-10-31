@@ -1,3 +1,4 @@
+use craft_theme::ControlSize;
 use egui::accesskit::Role;
 use egui::{Context, Event, Modifiers, PointerButton, Pos2, Rect, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -5,6 +6,7 @@ use egui_kittest::{Harness, HarnessBuilder};
 
 use super::slider_row::{AdjustmentsArgs, show_adjustments};
 use super::*;
+use crate::controls::{NumberField, Slider};
 use crate::direction::{self, Direction};
 use crate::edit::EditEvent;
 use crate::localized::LocaleNumbers;
@@ -364,4 +366,99 @@ fn a_host_storing_a_scaled_f32_keeps_the_gesture_through_a_drag() {
     let (_, events) = harness.state();
     assert!(events.iter().all(|e| !matches!(e, EditEvent::Cancel { .. })), "the gesture is kept: {events:?}");
     assert_eq!(events.iter().filter(|e| matches!(e, EditEvent::Commit { .. })).count(), 1, "{events:?}");
+}
+
+/// Drags a row over `range` whose host stores `store(value)` for every value the row reports,
+/// and returns the events and the host's final value.
+fn drag_through_host(range: std::ops::RangeInclusive<f64>, store: fn(f64) -> f64, from: f64) -> (Vec<EditEvent<f64>>, f64) {
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        move |ui, (value, events): &mut State| {
+            let numbers = LocaleNumbers::from_tag("en");
+            ui.allocate_ui(vec2(260.0, 0.0), |ui| {
+                for event in SliderRow::new("v", "Value", *value, range.clone(), &numbers).show(ui).edits() {
+                    if let Some(v) = event.value() {
+                        *value = store(*v);
+                    }
+                    events.push(event);
+                }
+            });
+        },
+        (from, Vec::new()),
+    );
+    harness.run();
+    let slider = harness.get_by(|n| n.role() == Role::Slider).rect();
+    let (start, y) = (slider.left() + 7.0, slider.center().y);
+    harness.input_mut().events.extend([
+        Event::PointerMoved(Pos2::new(start, y)),
+        Event::PointerButton { pos: Pos2::new(start, y), button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+    ]);
+    harness.run();
+    for dx in [9.3, 17.1, 26.7, 40.4, 55.9, 80.2] {
+        harness.input_mut().events.push(Event::PointerMoved(Pos2::new(start + dx, y)));
+        harness.run();
+    }
+    harness.input_mut().events.push(Event::PointerButton {
+        pos: Pos2::new(start + 80.2, y),
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    });
+    harness.run();
+    let (value, events) = harness.state();
+    (events.clone(), *value)
+}
+
+/// A host that rounds, clamps or maps the reported value and passes its own value back the next
+/// frame keeps the drag one gesture: one `Begin`, no cancel, one `Commit`.
+#[test]
+fn a_host_that_rounds_clamps_or_maps_the_value_keeps_one_gesture_through_a_drag() {
+    type Case = (&'static str, std::ops::RangeInclusive<f64>, fn(f64) -> f64, f64);
+    let cases: [Case; 3] = [
+        ("rounds to integers", 0.0..=100.0, f64::round, 0.0),
+        ("clamps", 0.0..=100.0, |v| v.clamp(20.0, 30.0), 20.0),
+        ("log mapping", 1.0..=1000.0, |v| 10f64.powf((v.log10() * 100.0).round() / 100.0), 1.0),
+    ];
+    for (name, range, store, from) in cases {
+        let (events, value) = drag_through_host(range, store, from);
+        let count = |f: fn(&EditEvent<f64>) -> bool| events.iter().filter(|e| f(e)).count();
+        assert_eq!(count(|e| matches!(e, EditEvent::Begin { .. })), 1, "{name}: {events:?}");
+        assert_eq!(count(|e| matches!(e, EditEvent::Cancel { .. })), 0, "{name}: {events:?}");
+        assert_eq!(count(|e| matches!(e, EditEvent::Commit { .. })), 1, "{name}: {events:?}");
+        let Some(EditEvent::Commit { value: last, .. }) = events.last() else { panic!("{name}: {events:?}") };
+        assert_eq!(value, store(*last), "{name}");
+        assert_ne!(value, from, "{name}: the drag moved the value");
+    }
+}
+
+/// The row's size sets the height of the caption line and of the slider.
+#[test]
+fn the_row_size_sets_the_line_and_slider_heights() {
+    let heights = |size: ControlSize| {
+        let mut harness = harness(Direction::Ltr).build_ui_state(
+            move |ui, line: &mut f32| {
+                let numbers = LocaleNumbers::from_tag("en");
+                let top = ui.cursor().top();
+                ui.allocate_ui(vec2(260.0, 0.0), |ui| _ = SliderRow::new("v", "Value", 5.0, 0.0..=10.0, &numbers).size(size).show(ui));
+                *line = ui.cursor().top() - top;
+            },
+            0.0,
+        );
+        harness.run();
+        (*harness.state(), harness.get_by(|n| n.role() == Role::Slider).rect().height())
+    };
+    for size in [ControlSize::Sm, ControlSize::Md] {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let mut expected = None;
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            let tokens = Tokens::of(ui);
+            expected = Some((NumberField::style(&tokens, size).field.height, Slider::style(&tokens, size).height));
+        })
+        .drop_without_applying_deltas();
+        let (_, slider) = heights(size);
+        let (_, slider_expected) = expected.expect("styles");
+        assert_eq!(slider, slider_expected, "{size:?}");
+    }
+    let (sm, md) = (heights(ControlSize::Sm), heights(ControlSize::Md));
+    assert!(sm.0 < md.0 && sm.1 < md.1, "{sm:?} {md:?}");
 }

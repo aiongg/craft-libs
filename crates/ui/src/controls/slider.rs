@@ -342,9 +342,7 @@ impl Slider {
         let sensing = Sensing::of(&response);
         let dragged_to = |start: f64, origin: f32, x: f32| track.snap_to_marks(&self.marks, style.snap, x, track.dragged(start, origin, x));
 
-        let mut gesture = Gesture::load(ui, response.id, &Gesture::host_value(ui, response.id, self.value), self.policy)
-            .event_filter(KEY_FILTER)
-            .enabled(sensing.enabled);
+        let mut gesture = Gesture::load(ui, response.id, &self.value, self.policy).event_filter(KEY_FILTER).enabled(sensing.enabled);
         let tapped = tap(ui, &response);
         let pressed = response.drag_started_by(PointerButton::Primary).then(|| pointer(ui, &response).map(|(_, origin)| origin)).flatten();
         let turn = press_turn(ui, response.id, self.part, gesture.id(), pressed.or(tapped));
