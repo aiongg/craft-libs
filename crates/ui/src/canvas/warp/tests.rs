@@ -5,7 +5,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect, Vec2};
 
 use super::story::{WarpHost, english_names, eval, surface_at};
-use super::{WarpEdit, WarpGrid, WarpMesh, WarpSplit};
+use super::{WarpEdit, WarpGrid, WarpMesh, WarpRelease, WarpSplit};
 use crate::canvas::guides::GuideHost;
 use crate::canvas::tests::TypingField;
 use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
@@ -903,4 +903,47 @@ fn an_uneven_split_keeps_the_surface_where_it_was() {
     for (s, t) in [(0.05, 0.2), (0.15, 0.8), (0.4, 0.75), (0.9, 0.95), (0.5, 0.9)] {
         assert!(eval(&warped, s, t).distance(eval(&cut, s, t)) < 1e-9, "({s}, {t})");
     }
+}
+
+#[test]
+fn the_host_driven_calls_give_what_show_gives() {
+    let mut h = harness(|_| {});
+    h.run();
+    let view = h.state().view.expect("drawn");
+    let style = WarpGrid::style(&current(&h.ctx));
+    let m = mesh(&h).clone();
+    let grid = || WarpGrid::new("warp", &m, RECT, english_names()).surface(|p| surface_at(&m, p));
+
+    // An anchor and the surface: a drag.
+    for from in [screen(&h, Point::new(RECT.x0, RECT.y0)), at_fraction(&h, 0.5, 0.5)] {
+        let to = from + vec2(10.0, 6.0);
+        let grid = grid();
+        let mut press = grid.press(&view, &style, from).expect("a target");
+        assert_eq!(Some(press.target()), grid.hit(&view, &style, from));
+        let mut edits = Vec::new();
+        for at in [from.lerp(to, 0.5), to] {
+            edits.extend(grid.track(&view, &mut press, at).edit);
+        }
+        let WarpRelease::Commit(committed) = grid.release(&press) else { panic!("no commit") };
+        h.state_mut().events.clear();
+        drag(&mut h, from, to);
+        assert_eq!(kinds(&h).last(), Some(&"commit"));
+        assert_eq!(last_edit(&h), Some(committed));
+        assert_eq!(edits.last(), Some(&committed));
+        h.state_mut().host.mesh = m.clone();
+    }
+
+    // A quick split with Alt: the same edit and preview as show.
+    let at = at_fraction(&h, 0.25, 0.25);
+    let grid = grid();
+    assert!(grid.split_press(&view, at, Modifiers::NONE).is_none(), "no key, no quick split");
+    let press = grid.split_press(&view, at, Modifiers::ALT).expect("a split");
+    let edit = grid.split_release(&view, &press, at).expect("an edit");
+    let preview = grid.split_hit(&view, Some(&press), at, Modifiers::NONE).expect("a preview");
+    assert_eq!(preview.edit(), edit);
+    assert_eq!(preview.cursor(), egui::CursorIcon::Crosshair);
+    h.state_mut().events.clear();
+    click(&mut h, at, Modifiers::ALT);
+    assert_eq!(last_edit(&h), Some(edit));
+    assert!(matches!(edit, WarpEdit::Split { split: WarpSplit::Cross, .. }));
 }

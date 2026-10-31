@@ -5,7 +5,7 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect};
 
-use super::{BoxHost, RotateZone, TransformBox, TransformLabels, english_names};
+use super::{BoxHost, BoxRelease, RotateZone, TransformBox, TransformLabels, english_names};
 use crate::canvas::guides::GuideHost;
 use crate::canvas::quad::{self, BoxPart, BoxRules, BoxState, TransformMode};
 use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
@@ -772,4 +772,62 @@ fn an_external_change_during_a_pixel_grid_drag_still_cancels() {
     h.event(Event::PointerMoved(screen(&h, Point::new(330.0, 240.0))));
     h.run();
     assert_eq!(kinds(&h).last(), Some(&"cancel"), "{:?}", kinds(&h));
+}
+
+/// The press-drag-release of `drag`, through the host-driven calls on a box like the harness's:
+/// the box after each track and the release.
+fn driven(
+    h: &Harness<'_, Host>,
+    from: Pos2,
+    to: Pos2,
+    held: Modifiers,
+    setup: impl FnOnce(TransformBox<'_>) -> TransformBox<'_>,
+) -> (BoxPart, Vec<BoxState>, BoxRelease) {
+    let (view, style) = (view(h), TransformBox::style(&current(&h.ctx)));
+    let start = BoxState::from_rect(RECT);
+    let b = setup(TransformBox::new("box", &start, english_names()).rules(h.state().rules));
+    assert_eq!(b.hit(&view, &style, from, held), b.press(&view, &style, from, held).map(|p| p.part()));
+    let mut press = b.press(&view, &style, from, held).expect("a part");
+    let mut boxes = Vec::new();
+    for at in [from.lerp(to, 0.5), to] {
+        let track = b.track(&view, &style, &mut press, at, held);
+        boxes.extend(track.state);
+    }
+    (press.part(), boxes, b.release(&style, &press, Some(to), false))
+}
+
+#[test]
+fn the_host_driven_calls_give_what_show_gives() {
+    // A corner with Shift on the pixel grid, the pivot, and a corner with the box's own modifiers.
+    let cases = [
+        (Point::new(300.0, 220.0), vec2(40.4, 30.4), Modifiers::SHIFT, Modifiers::NONE, true, BoxPart::Corner(2)),
+        (Point::new(200.0, 150.0), vec2(30.0, 20.0), Modifiers::NONE, Modifiers::NONE, false, BoxPart::Pivot),
+        (Point::new(300.0, 220.0), vec2(40.4, 30.4), Modifiers::NONE, Modifiers::SHIFT, false, BoxPart::Corner(2)),
+    ];
+    for (at, by, held, own, pixel_grid, part) in cases {
+        let mut h = harness(|host| {
+            host.pixel_grid = pixel_grid;
+            host.modifiers = (own != Modifiers::NONE).then_some(own);
+        });
+        h.run();
+        let (from, to) = (screen(&h, at), screen(&h, at) + by);
+        let (got_part, boxes, release) = driven(&h, from, to, held, |b| {
+            let b = b.pixel_grid(pixel_grid);
+            if own != Modifiers::NONE { b.modifiers(own) } else { b }
+        });
+        drag(&mut h, from, to, held);
+        let shown = h.state().events.iter().rev().find_map(|e| match e {
+            EditEvent::Commit { value, .. } => Some(*value),
+            _ => None,
+        });
+        let last = *boxes.last().expect("tracked");
+        assert_eq!(got_part, part);
+        assert_eq!(kinds(&h).first(), Some(&"begin"));
+        assert_eq!(kinds(&h).last(), Some(&"commit"));
+        assert_eq!(release, BoxRelease::Commit(last));
+        let shown = shown.expect("committed");
+        assert!(near(&shown, &last), "{shown:?} != {last:?}");
+        assert!(near(&state(&h), &shown));
+        assert!(!near(&shown, &BoxState::from_rect(RECT)), "the drag moved something");
+    }
 }
