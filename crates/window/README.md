@@ -211,7 +211,7 @@ adds the part of the window the user can see:
   `craft_ui`'s menus size and place themselves by it.
 - `fits(outer, monitor)` and `fit_window(ctx)`: a window larger than its monitor is maximized once,
   which puts it in the work area. Call `fit_window` once the monitor is known.
-- `WindowState` (`Normal`, `Maximized`, `FullScreen`): full screen covers the taskbar on purpose.
+- `WindowMode` (`Normal`, `Maximized`, `FullScreen`): full screen covers the taskbar on purpose.
 
 ## Window restore
 

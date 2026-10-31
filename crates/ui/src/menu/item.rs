@@ -99,6 +99,7 @@ pub struct MenuItem<T> {
     keyed: bool,
     tint: Option<Srgba>,
     tooltip: Option<String>,
+    accessible_name: Option<String>,
     action: Action<T>,
 }
 
@@ -126,6 +127,7 @@ impl<T> MenuItem<T> {
             keyed: true,
             tint: None,
             tooltip: None,
+            accessible_name: None,
             action,
         }
     }
@@ -201,6 +203,14 @@ impl<T> MenuItem<T> {
         self
     }
 
+    /// The name AccessKit reports for the row, when the visible label is not it: a label shaped
+    /// for display (a script's contextual forms, a mnemonic suffix) while the plain text is what
+    /// assistive technology should read. Default: the label.
+    pub fn accessible_name(mut self, name: impl Into<String>) -> Self {
+        self.accessible_name = Some(name.into()).filter(|n| !n.is_empty());
+        self
+    }
+
     pub fn label(&self) -> &str {
         &self.label
     }
@@ -222,6 +232,7 @@ impl<T> MenuItem<T> {
             keyed: self.keyed,
             tint: self.tint,
             tooltip: self.tooltip.clone(),
+            accessible_name: self.accessible_name.clone(),
             action: match &self.action {
                 Action::Run(command) => Action::Run(f(command)),
                 Action::Submenu(children) => Action::Submenu(children.iter().map(|entry| entry.map(f)).collect()),
@@ -251,6 +262,10 @@ impl<T> MenuItem<T> {
 
     pub(crate) fn tint_of(&self) -> Option<Srgba> {
         self.tint
+    }
+
+    pub(crate) fn accessible_name_of(&self) -> Option<&str> {
+        self.accessible_name.as_deref()
     }
 
     pub(crate) fn tooltip_of(&self) -> Option<&str> {

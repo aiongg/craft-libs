@@ -71,7 +71,7 @@ impl App {
             self.open = !self.open;
         }
         if self.open {
-            let result: ToolbarDrawerOutput<Tool> = ToolbarDrawer::new("edit").show(ui, out.rect, &self.groups, &self.slots);
+            let result: ToolbarDrawerOutput<Tool> = ToolbarDrawer::new("edit").rail("tools").show(ui, out.rect, &self.groups, &self.slots);
             for edit in result.edits {
                 self.slots = apply_toolbar_edit(&self.slots, &edit, &defaults());
                 self.edits.push(edit);

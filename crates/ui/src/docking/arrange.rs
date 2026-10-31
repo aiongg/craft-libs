@@ -117,6 +117,42 @@ impl Arrangement {
             _ => documents > 1,
         }
     }
+
+    /// The Window › Arrange submenu rows in Photoshop's order, with separators between the groups,
+    /// each enabled per [`Arrangement::enabled`].
+    pub fn menu_entries(labels: &ArrangeLabels, documents: usize, groups: usize, floating: usize) -> Vec<MenuEntry<Arrangement>> {
+        use Arrangement as A;
+        let groups_of: [&[(A, &str)]; 5] = [
+            &[
+                (A::TileAllVertically, &labels.tile_all_vertically),
+                (A::TileAllHorizontally, &labels.tile_all_horizontally),
+                (A::TwoUpVertical, &labels.two_up_vertical),
+                (A::TwoUpHorizontal, &labels.two_up_horizontal),
+                (A::ThreeUpVertical, &labels.three_up_vertical),
+                (A::ThreeUpHorizontal, &labels.three_up_horizontal),
+                (A::ThreeUpStacked, &labels.three_up_stacked),
+                (A::FourUp, &labels.four_up),
+                (A::SixUp, &labels.six_up),
+            ],
+            &[(A::ConsolidateAllToTabs, &labels.consolidate), (A::Cascade, &labels.cascade), (A::Tile, &labels.tile)],
+            &[(A::FloatInWindow, &labels.float_in_window), (A::FloatAllInWindows, &labels.float_all)],
+            &[(A::NewWindowForDocument, &labels.new_window)],
+            &[
+                (A::MatchZoom, &labels.match_zoom),
+                (A::MatchLocation, &labels.match_location),
+                (A::MatchRotation, &labels.match_rotation),
+                (A::MatchAll, &labels.match_all),
+            ],
+        ];
+        let mut entries = Vec::new();
+        for group in groups_of {
+            if !entries.is_empty() {
+                entries.push(MenuEntry::Separator);
+            }
+            entries.extend(group.iter().map(|&(a, label)| MenuEntry::from(MenuItem::new(label, a).enabled(a.enabled(documents, groups, floating)))));
+        }
+        entries
+    }
 }
 
 /// The cells of an n-up or Tile All arrangement inside `area`, in reading order. `Tile All
@@ -177,42 +213,6 @@ pub fn cascade_rects(area: Rect, size: egui::Vec2, n: usize, step: f32) -> Vec<R
         rects.push(Rect::from_min_size(at, size));
     }
     rects
-}
-
-/// The Window › Arrange submenu rows in Photoshop's order, with separators between the groups,
-/// each enabled per [`Arrangement::enabled`].
-pub fn arrange_entries(labels: &ArrangeLabels, documents: usize, groups: usize, floating: usize) -> Vec<MenuEntry<Arrangement>> {
-    use Arrangement as A;
-    let groups_of: [&[(A, &str)]; 5] = [
-        &[
-            (A::TileAllVertically, &labels.tile_all_vertically),
-            (A::TileAllHorizontally, &labels.tile_all_horizontally),
-            (A::TwoUpVertical, &labels.two_up_vertical),
-            (A::TwoUpHorizontal, &labels.two_up_horizontal),
-            (A::ThreeUpVertical, &labels.three_up_vertical),
-            (A::ThreeUpHorizontal, &labels.three_up_horizontal),
-            (A::ThreeUpStacked, &labels.three_up_stacked),
-            (A::FourUp, &labels.four_up),
-            (A::SixUp, &labels.six_up),
-        ],
-        &[(A::ConsolidateAllToTabs, &labels.consolidate), (A::Cascade, &labels.cascade), (A::Tile, &labels.tile)],
-        &[(A::FloatInWindow, &labels.float_in_window), (A::FloatAllInWindows, &labels.float_all)],
-        &[(A::NewWindowForDocument, &labels.new_window)],
-        &[
-            (A::MatchZoom, &labels.match_zoom),
-            (A::MatchLocation, &labels.match_location),
-            (A::MatchRotation, &labels.match_rotation),
-            (A::MatchAll, &labels.match_all),
-        ],
-    ];
-    let mut entries = Vec::new();
-    for group in groups_of {
-        if !entries.is_empty() {
-            entries.push(MenuEntry::Separator);
-        }
-        entries.extend(group.iter().map(|&(a, label)| MenuEntry::from(MenuItem::new(label, a).enabled(a.enabled(documents, groups, floating)))));
-    }
-    entries
 }
 
 crate::words! {

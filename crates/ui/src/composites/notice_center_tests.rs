@@ -33,16 +33,17 @@ fn harness(center: NoticeCenter) -> Harness<'static, App> {
 // A fourth notice drops the oldest one without a dismiss key and reports NoticeEnd::Dropped.
 fn posting_past_the_cap_drops_the_oldest_unsilenceable() {
     let mut center = NoticeCenter::new();
-    let keyed = center.post("Keyed", vec![], Tone::Neutral, Some("shortcuts".into()), &[]).unwrap();
-    let plain = center.post("Plain", vec![], Tone::Neutral, None, &[]).unwrap();
-    center.post("Third", vec![], Tone::Neutral, None, &[]).unwrap();
-    center.post("Fourth", vec![], Tone::Neutral, None, &[]).unwrap();
+    let keyed = center.post("Keyed", vec![], Tone::Neutral, Some("shortcuts".into()), &[]).id.unwrap();
+    let plain = center.post("Plain", vec![], Tone::Neutral, None, &[]).id.unwrap();
+    center.post("Third", vec![], Tone::Neutral, None, &[]).id.unwrap();
+    let fourth = center.post("Fourth", vec![], Tone::Neutral, None, &[]);
+    assert_eq!(fourth.dropped, [NoticeEnd::Dropped(plain)], "post reports the drop in its own pass");
     let ids: Vec<u64> = center.notices().iter().map(|n| n.id).collect();
     assert_eq!(ids.len(), 3);
     assert!(ids.contains(&keyed) && !ids.contains(&plain), "the keyed notice stays, the oldest plain one goes");
     let mut harness = harness(center);
     harness.step();
-    assert_eq!(harness.state().ends, [NoticeEnd::Dropped(plain)]);
+    assert!(harness.state().ends.is_empty(), "show does not report it again: {:?}", harness.state().ends);
 }
 
 #[test]
@@ -50,8 +51,8 @@ fn posting_past_the_cap_drops_the_oldest_unsilenceable() {
 fn silenced_notices_are_not_posted() {
     let mut center = NoticeCenter::new().auto_hide(None);
     let silenced = ["shortcuts".to_owned()];
-    assert_eq!(center.post("Hidden", vec![], Tone::Neutral, Some("shortcuts".into()), &silenced), None);
-    let id = center.post("Shown", vec!["A line".into()], Tone::Neutral, Some("other".into()), &silenced).unwrap();
+    assert_eq!(center.post("Hidden", vec![], Tone::Neutral, Some("shortcuts".into()), &silenced).id, None);
+    let id = center.post("Shown", vec!["A line".into()], Tone::Neutral, Some("other".into()), &silenced).id.unwrap();
     let mut harness = harness(center);
     harness.run();
     harness.get_by_role_and_label(Role::Link, "Don't Show Again").click();

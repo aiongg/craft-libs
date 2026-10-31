@@ -14,7 +14,7 @@ fn full() -> HelpMenu {
 #[test]
 // Links come after Keyboard Shortcuts, Check for Updates before the separator, System Info then About; About is tagged ItemRole::About.
 fn help_rows_follow_the_kit_order() {
-    let nodes = full().nodes(&HelpLabels::default());
+    let nodes = full().items(&HelpLabels::default());
     let shape: Vec<String> = nodes
         .iter()
         .map(|n| match n {
@@ -37,7 +37,7 @@ fn help_rows_follow_the_kit_order() {
         ]
     );
     assert!(matches!(nodes.last(), Some(Node::Item(i)) if i.role == Some(ItemRole::About)));
-    let bare = HelpMenu::new("PhotoCraft").nodes(&HelpLabels::default());
+    let bare = HelpMenu::new("PhotoCraft").items(&HelpLabels::default());
     assert_eq!(bare.len(), 2, "System Info and About, no separator before them");
 }
 
@@ -51,6 +51,6 @@ fn help_link_commands_give_their_urls() {
     assert_eq!(url("help.reportIssue"), Some("https://example.com/issues"));
     assert_eq!(url("help.about"), None);
     assert_eq!(url("file.open"), None);
-    assert_eq!(HelpCommand::of(&CommandRef::new("help.systemInfo")), Some(HelpCommand::SystemInfo));
-    assert_eq!(HelpCommand::of(&CommandRef::new("help.discord")), None);
+    assert_eq!(HelpCommand::from_command(&CommandRef::new("help.systemInfo")), Some(HelpCommand::SystemInfo));
+    assert_eq!(HelpCommand::from_command(&CommandRef::new("help.discord")), None);
 }

@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use craft_cms::convert::CmykConverter;
 use craft_theme::Srgba;
 use craft_ui::behavior::{DropPosition, Move};
-use craft_ui::composites::{NoticeCenter, Tone};
+use craft_ui::composites::{NoticeCenter, NoticePost, Tone};
 use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::Labels as _;
@@ -581,15 +581,16 @@ impl<'a> SwatchesPanel<'a> {
     }
 
     /// Posts the notes of an import (or, with `writing`, an export) to the app's notice center as
-    /// a warning, one line per note; `None` when there is nothing to say.
-    pub fn post_notes(ctx: &Context, center: &mut NoticeCenter, report: &SwatchReport, writing: bool) -> Option<u64> {
+    /// a warning, one line per note; `None` when there is nothing to say. The caller handles the post's
+    /// `dropped` ends.
+    pub fn post_notes(ctx: &Context, center: &mut NoticeCenter, report: &SwatchReport, writing: bool) -> Option<NoticePost> {
         let lines = Self::note_lines(ctx, report, writing);
         if lines.is_empty() {
             return None;
         }
         let labels = SwatchesLabels::of_ctx(ctx);
         let title = if writing { labels.notice_export } else { labels.notice_import };
-        center.post(title, lines, Tone::Warn, None, &[])
+        Some(center.post(title, lines, Tone::Warn, None, &[]))
     }
 }
 

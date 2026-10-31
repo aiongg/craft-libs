@@ -2,7 +2,7 @@
 
 use egui::{Rect, pos2, vec2};
 
-use super::arrange::{ArrangeLabels, Arrangement, arrange_entries, arrange_rects, cascade_rects};
+use super::arrange::{ArrangeLabels, Arrangement, arrange_rects, cascade_rects};
 
 const AREA: Rect = Rect::from_min_max(pos2(10.0, 20.0), pos2(210.0, 220.0));
 
@@ -42,7 +42,7 @@ fn cascade_steps_and_wraps() {
 #[test]
 // With one document the n-up and Match rows are disabled and Float in Window is enabled.
 fn menu_rows_are_enabled_per_document_count() {
-    let entries = arrange_entries(&ArrangeLabels::default(), 1, 1, 0);
+    let entries = Arrangement::menu_entries(&ArrangeLabels::default(), 1, 1, 0);
     let enabled = |a: Arrangement| entries.iter().filter_map(|e| e.item()).find(|i| i.command() == Some(&a)).unwrap().is_enabled();
     assert!(!enabled(Arrangement::TwoUpVertical));
     assert!(!enabled(Arrangement::MatchAll));

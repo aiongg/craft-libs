@@ -80,6 +80,9 @@ pub trait StackDialog: Any + Send {
 pub enum StartupStage {
     /// Recover unsaved documents (craft-settings recovery): before anything the user could lose.
     Recovery,
+    /// A first-launch offer (craft-keymap's import of another editor's shortcuts): after the
+    /// recovery of unsaved work, before any warning.
+    Offer,
     /// A warning about this run (PhotoCraft's GPU fallback notice).
     Warning,
     /// The update prompt (craft-update): last, it can wait.

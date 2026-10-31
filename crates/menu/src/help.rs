@@ -39,7 +39,7 @@ impl HelpCommand {
     /// `help.reportIssue`, `help.systemInfo`, `help.about`.
     // pc: crates/engine/src/shell_commands.rs:96-98 (`help.reportIssue`, `help.systemInfo`,
     // `help.about`); crates/engine/src/cmd/updates_cmds.rs:120 (`help.checkForUpdates`).
-    pub fn id(self) -> &'static str {
+    pub fn command_id(self) -> &'static str {
         match self {
             HelpCommand::HelpCenter => "help.helpCenter",
             HelpCommand::KeyboardShortcuts => "help.keyboardShortcuts",
@@ -51,7 +51,7 @@ impl HelpCommand {
     }
 
     /// The row for a command, `None` for any other command (an app link included).
-    pub fn of(command: &CommandRef) -> Option<HelpCommand> {
+    pub fn from_command(command: &CommandRef) -> Option<HelpCommand> {
         const ALL: [HelpCommand; 6] = [
             HelpCommand::HelpCenter,
             HelpCommand::KeyboardShortcuts,
@@ -60,7 +60,7 @@ impl HelpCommand {
             HelpCommand::SystemInfo,
             HelpCommand::About,
         ];
-        ALL.into_iter().find(|c| c.id() == command.id)
+        ALL.into_iter().find(|c| c.command_id() == command.id)
     }
 }
 
@@ -151,9 +151,9 @@ impl HelpMenu {
     /// The rows in the kit's order, with About tagged [`crate::ItemRole::About`].
     // pc: crates/ui-egui/src/menus/items.rs:185-197 (update check before the separator, then
     // System Info and About).
-    pub fn nodes(&self, labels: &HelpLabels) -> Vec<Node> {
+    pub fn items(&self, labels: &HelpLabels) -> Vec<Node> {
         let app = self.app_name.as_str();
-        let row = |command: HelpCommand, label: &str| Node::Item(Item::new(command.id(), craft_i18n::fmt(label, &[("app", app)])));
+        let row = |command: HelpCommand, label: &str| Node::Item(Item::new(command.command_id(), craft_i18n::fmt(label, &[("app", app)])));
         let mut nodes = Vec::new();
         if self.help_center.is_some() {
             nodes.push(row(HelpCommand::HelpCenter, &labels.help_center));
@@ -174,13 +174,13 @@ impl HelpMenu {
         if self.system_info {
             nodes.push(row(HelpCommand::SystemInfo, &labels.system_info));
         }
-        nodes.push(Node::Item(Item::new(HelpCommand::About.id(), craft_i18n::fmt(&labels.about, &[("app", app)])).role(ItemRole::About)));
+        nodes.push(Node::Item(Item::new(HelpCommand::About.command_id(), craft_i18n::fmt(&labels.about, &[("app", app)])).role(ItemRole::About)));
         nodes
     }
 
-    /// The Help menu ([`crate::MenuRole::Help`]) titled `labels.help`, with [`HelpMenu::nodes`].
+    /// The Help menu ([`crate::MenuRole::Help`]) titled `labels.help`, with [`HelpMenu::items`].
     pub fn menu(&self, labels: &HelpLabels) -> Menu {
-        Menu::new(labels.help.as_str(), self.nodes(labels)).role(MenuRole::Help)
+        Menu::new(labels.help.as_str(), self.items(labels)).role(MenuRole::Help)
     }
 
     /// The URL a Help row opens: Help Center, Report an Issue… or an app link. `None` for the
@@ -191,7 +191,7 @@ impl HelpMenu {
         if let Some(link) = self.links.iter().find(|l| l.id == command.id) {
             return Some(link.url.as_str());
         }
-        match HelpCommand::of(command)? {
+        match HelpCommand::from_command(command)? {
             HelpCommand::HelpCenter => self.help_center.as_deref(),
             HelpCommand::ReportIssue => self.report_issue.as_deref(),
             _ => None,

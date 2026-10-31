@@ -5,7 +5,7 @@ use std::hash::Hash;
 
 use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::Role;
-use egui::{Area, AsIdSalt, DragAndDrop, Id, Key, Modifiers, Order, Rect, Sense, Ui, Vec2, pos2, vec2};
+use egui::{Area, AsIdSalt, DragAndDrop, Id, IdSalt, Key, Modifiers, Order, Rect, Sense, Ui, Vec2, pos2, vec2};
 
 use super::rail::tool::{ToolDrag, dragged_target, drop_places, edit_state, edit_update};
 use super::rail::{RailTool, SlotId, ToolSlot};
@@ -94,6 +94,8 @@ pub struct ToolbarDrawerOutput<T> {
 #[must_use = "show the drawer with `show`"]
 pub struct ToolbarDrawer {
     id: Id,
+    /// The rail this drawer edits, by the rail's id salt.
+    rail: IdSalt,
     labels: Option<ToolbarDrawerLabels>,
 }
 
@@ -108,7 +110,16 @@ struct State {
 
 impl ToolbarDrawer {
     pub fn new(id_salt: impl AsIdSalt) -> Self {
-        Self { id: Id::unique("craft-ui-toolbar-drawer").with(id_salt), labels: None }
+        let id_salt = IdSalt::new(id_salt);
+        Self { id: Id::unique("craft-ui-toolbar-drawer").with(id_salt), rail: id_salt, labels: None }
+    }
+
+    /// The id salt of the [`ToolRail`](super::ToolRail) this drawer edits, when it is not the
+    /// drawer's own: the rail and the drawer tell each other the rail's places and the drop
+    /// target through state keyed by it, so drawers beside several rails stay apart.
+    pub fn rail(mut self, rail_id_salt: impl AsIdSalt) -> Self {
+        self.rail = IdSalt::new(rail_id_salt);
+        self
     }
 
     pub fn labels(mut self, labels: ToolbarDrawerLabels) -> Self {
@@ -127,7 +138,7 @@ impl ToolbarDrawer {
         groups: &[DrawerGroup<T>],
         toolbar: &[ToolSlot<T>],
     ) -> ToolbarDrawerOutput<T> {
-        let Self { id, labels } = self;
+        let Self { id, rail: rail_salt, labels } = self;
         // Scoped by the Ui, so the same drawer drawn twice in a pass (once per theme in a variants
         // view) does not put one widget id on two layers.
         let id = ui.scope_id().with(id);
@@ -135,7 +146,7 @@ impl ToolbarDrawer {
         let labels = labels.unwrap_or_else(|| ToolbarDrawerLabels::of(ui));
         let tokens = Tokens::of(ui);
         let mut out = ToolbarDrawerOutput { edits: Vec::new(), select: None, closed: false };
-        let edit = edit_state(&ctx);
+        let edit = edit_state(&ctx, rail_salt);
         let state_id = id.with("state");
         let mut state = ctx.data(|d| d.get_temp::<State>(state_id)).unwrap_or_default();
 
@@ -193,9 +204,9 @@ impl ToolbarDrawer {
                         }
                         if cancel || drop {
                             picked = None;
-                            edit_update(&ctx, |edit| edit.target = None);
+                            edit_update(&ctx, rail_salt, |edit| edit.target = None);
                         } else {
-                            edit_update(&ctx, |edit| edit.target = Some(places[to]));
+                            edit_update(&ctx, rail_salt, |edit| edit.target = Some(places[to]));
                         }
                     }
                     None => leave = ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape)),
@@ -224,7 +235,7 @@ impl ToolbarDrawer {
                                 && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Space))
                             {
                                 picked = Some((g, t));
-                                edit_update(&ctx, |edit| edit.target = Some(DropAt::NewSlot { before: edit.total }));
+                                edit_update(&ctx, rail_salt, |edit| edit.target = Some(DropAt::NewSlot { before: edit.total }));
                             }
                             let sense = if dimmed { Sense::CLICK } else { Sense::click_and_drag() };
                             let row = content(tool, &kbds[g][t]);
@@ -276,7 +287,7 @@ impl ToolbarDrawer {
         if ctx.input(|i| i.pointer.any_released())
             && let Some(drag) = DragAndDrop::payload::<ToolDrag>(&ctx)
         {
-            let target = dragged_target(&ctx);
+            let target = dragged_target(&ctx, rail_salt);
             DragAndDrop::clear_payload(&ctx);
             if let Some(tool) = dragged_tool(*drag, groups, toolbar) {
                 let over_drawer = rect.zip(ctx.pointer_interact_pos()).is_some_and(|(rect, at)| rect.contains(at));
@@ -310,7 +321,7 @@ impl ToolbarDrawer {
         if leave || shown.is_none() {
             out.closed = true;
             state = State::default();
-            edit_update(&ctx, |edit| edit.target = None);
+            edit_update(&ctx, rail_salt, |edit| edit.target = None);
             if let Some(button) = edit.button {
                 ctx.memory_mut(|m| m.request_focus(button));
             }

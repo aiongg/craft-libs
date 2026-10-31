@@ -115,7 +115,7 @@ pub use form_grid::{Form, FormGrid, FormStyle, LabelAlign};
 pub use group_box::{GroupBox, GroupBoxStyle};
 pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramResponse, HistogramScale, HistogramStyle};
 pub use notice::{Notice, NoticeStyle};
-pub use notice_center::{NoticeCenter, NoticeCenterLabels, NoticeEnd, PostedNotice};
+pub use notice_center::{NoticeCenter, NoticeCenterLabels, NoticeEnd, NoticePost, PostedNotice};
 pub use panel_footer::{PanelFooter, PanelFooterStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};

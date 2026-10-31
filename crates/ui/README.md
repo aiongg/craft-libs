@@ -30,7 +30,7 @@ their licences in `icons/ATTRIBUTION.md`); fonts and application engines are not
 
 The step 3 shell items, by module:
 `shell::StartScreen` (the start screen: New and Open, recent files as a Grid or List sorted by Opened, Name or Created with "2 days ago" lines, pinned folders and templates; card widths from the `start` tokens), `shell::ScreenMode` (Standard, With Menu Bar and Full Screen as `view.screenMode.*` commands) and `shell::CanvasShell`.
-`docking::arrange` (Window › Arrange: `Arrangement`, `arrange_entries` and the n-up cells `arrange_rects`), `docking::workspaces` (`WorkspaceSet`, `WorkspaceSwitcher` and the Window › Workspace commands), `docking::panel_menu` (`PanelMenu`, the ≡ and tab menu with the host's rows and the dock's group rows, labelled by `PanelMenuLabels`), `docking::chrome::FloatingFrame::show_titled` (a floating frame with a title bar, move, auto height and a dock drop) and the document tabs and windows.
+`docking::arrange` (Window › Arrange: `Arrangement`, `Arrangement::menu_entries` and the n-up cells `arrange_rects`), `docking::workspaces` (`WorkspaceSet`, `WorkspaceSwitcher` and the Window › Workspace commands), `docking::panel_menu` (`PanelMenu`, the ≡ and tab menu with the host's rows and the dock's group rows, labelled by `PanelMenuLabels`), `docking::chrome::FloatingFrame::show_titled` (a floating frame with a title bar, move, auto height and a dock drop) and the document tabs and windows.
 `patterns::Tour` (coach marks and a card, sizes from the `tour` tokens), `patterns::StatusReadout` (the zoom field and one chosen item in a status bar), `patterns::ToolbarDrawer` (the Edit Toolbar drawer).
 `composites::NoticeCenter` (capped notices with Don't Show Again), `canvas::SelectionBar` (the bar beside a selection with a draggable grip; `selection_bar` tokens) and `canvas::ToolPill` (the tool row over a canvas; `tool_pill` tokens).
 Their labels tables are in the words registry; their stories are `patterns/dock/*`, `patterns/shell/*` and `patterns/canvas/*`.
@@ -237,6 +237,12 @@ dispatch remain local. An empty input produces an empty fit. Invalid dimensions,
 groups, or an available width too small for the overflow control return `None`; the caller must
 then provide a scrollable row, wrapping or an existing application menu. Never turn that result
 into silently missing commands. See the API documentation for the accepted numeric bounds.
+
+## Return shapes
+
+- `*Response`: what one widget returns, an `egui::Response` plus the widget's own result (`WorkspaceSwitcherResponse { response, command }`). A widget that reports only events, with no `Response` of its own to give, still uses `*Response` when it is one widget (`ToolPillResponse`, `SelectionBarResponse`).
+- `*Output`: what a composite or pattern of several parts returns, the events of its parts (`StatusReadoutOutput`, `StatusProgressOutput`).
+- An event a call produces is returned by that call, in the pass that made it. `NoticeCenter::post` returns the ids the cap dropped (`NoticePost::dropped`) instead of holding them for the next `show`.
 
 ## Theme mechanisms
 

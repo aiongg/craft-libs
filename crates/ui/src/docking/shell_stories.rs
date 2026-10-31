@@ -3,10 +3,10 @@
 
 use egui::{Rect, Ui, vec2};
 
-use super::arrange::{ArrangeLabels, Arrangement, arrange_entries, arrange_rects};
+use super::arrange::{ArrangeLabels, Arrangement, arrange_rects};
 use super::chrome::{ChromeStyle, FloatingFrame, TitleBar};
 use super::panel_menu::{PanelMenu, PanelMenuLabels};
-use super::workspaces::{NamedWorkspace, WorkspaceChrome, WorkspaceLabels, WorkspaceSet, WorkspaceSwitcher};
+use super::workspaces::{NamedWorkspace, WorkspaceChrome, WorkspaceSet, WorkspaceSwitcher};
 use super::{Permissions, Workspace};
 use crate::controls::Button;
 use crate::localized::Labels as _;
@@ -47,10 +47,10 @@ fn show_panel_menu(ui: &mut Ui, _args: &mut NoArgs) {
         vec![MenuItem::new("Show Thumbnails", "thumbnails".to_owned()).check(true).into(), MenuItem::new("Merge Down", "merge".to_owned()).into()];
     let words = PanelMenuLabels::of(ui);
     let targets = vec!["Properties".to_owned(), "Channels".to_owned()];
-    let group_items = PanelMenu::group_items(Permissions::default(), &targets, true, &words);
+    let group_entries = PanelMenu::group_entries(Permissions::default(), &targets, true, &words);
     let last = ui.make_persistent_id("panel-menu-story-last");
     let button = ui.add(Button::new("≡"));
-    let menu = PanelMenu { entries: &entries, group_items };
+    let menu = PanelMenu { entries: &entries, group_entries };
     if let Some(choice) = menu.show(ui, &button) {
         ui.data_mut(|d| d.insert_temp(last, format!("{choice:?}")));
     }
@@ -100,7 +100,7 @@ struct ArrangeArgs {
 
 fn show_arrange(ui: &mut Ui, args: &mut ArrangeArgs) {
     let labels = ArrangeLabels::of(ui);
-    let entries = arrange_entries(&labels, args.documents, args.groups, args.floating);
+    let entries = Arrangement::menu_entries(&labels, args.documents, args.groups, args.floating);
     let last = ui.make_persistent_id("arrange-story-last");
     let button = ui.add(Button::new(&labels.arrange));
     if let Some(chosen) = PressMenu::new(&entries).show(ui, &button).chosen {
@@ -131,8 +131,7 @@ fn show_workspaces(ui: &mut Ui, _args: &mut NoArgs) {
     set.saved = vec![named("mine", "Mine"), named("review", "Review")];
     let key = ui.make_persistent_id("workspaces-story");
     set.current = ui.data(|d| d.get_temp::<String>(key)).unwrap_or(set.current);
-    let labels = WorkspaceLabels::of(ui);
-    let (_, command) = WorkspaceSwitcher::new(&set, &labels).show(ui);
+    let command = WorkspaceSwitcher::new("workspaces-story", &set).show(ui).command;
     if let Some(super::workspaces::WorkspaceCommand::Select(id)) = command {
         ui.data_mut(|d| d.insert_temp(key, id));
     }
