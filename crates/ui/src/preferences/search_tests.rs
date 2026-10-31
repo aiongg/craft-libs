@@ -2,7 +2,7 @@
 
 use super::search::{list_pages, row_shown, shown_position};
 use super::stories::FakeHost;
-use super::{PageSpec, PreferencesHost, matches};
+use super::{PageSpec, PreferencesModel, matches};
 
 fn listed_ids(host: &FakeHost, query: &str) -> Vec<String> {
     let pages = host.pages();

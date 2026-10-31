@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use craft_host::{AppInfo, Host};
 use craft_i18n::{Embedded, I18n, Lang};
 use egui::Context;
 
@@ -28,10 +29,16 @@ fn catalog() -> (Arc<I18n>, Lang, Lang) {
     (Arc::new(i18n), de, ru)
 }
 
-fn with_ui<R>(words: Option<Words>, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
+const APP: AppInfo = AppInfo { id: "test", name: "Test", version: "1.0" };
+
+fn install(ctx: &Context, i18n: Arc<I18n>, lang: Lang) {
+    Host::builder(APP).i18n(i18n).lang(lang).install(ctx);
+}
+
+fn with_ui<R>(catalog: Option<(Arc<I18n>, Lang)>, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let ctx = Context::default();
-    if let Some(words) = words {
-        words.install(&ctx);
+    if let Some((i18n, lang)) = catalog {
+        install(&ctx, i18n, lang);
     }
     let mut out = None;
     let mut f = Some(f);
@@ -56,7 +63,7 @@ fn without_an_install_words_are_english() {
 #[test]
 fn an_id_row_beats_the_english_row_and_the_english_row_beats_the_default() {
     let (i18n, de, _) = catalog();
-    let probe = with_ui(Some(Words::from_i18n(i18n, de)), |ui| Probe::of(ui));
+    let probe = with_ui(Some((i18n, de)), |ui| Probe::of(ui));
     assert_eq!(probe.grid, "Rasteransicht");
     assert_eq!(probe.opacity, "Deckkraft");
     assert_eq!(probe.name, "Name {name}");
@@ -67,7 +74,7 @@ fn an_id_row_beats_the_english_row_and_the_english_row_beats_the_default() {
 #[test]
 fn a_field_the_host_set_is_not_replaced_by_the_catalog() {
     let (i18n, de, _) = catalog();
-    let probe = with_ui(Some(Words::from_i18n(i18n, de)), |ui| Probe { grid: "Mine".into(), ..Probe::of(ui) });
+    let probe = with_ui(Some((i18n, de)), |ui| Probe { grid: "Mine".into(), ..Probe::of(ui) });
     assert_eq!(probe.grid, "Mine");
     assert_eq!(probe.opacity, "Deckkraft");
 }
@@ -249,7 +256,7 @@ fn labels_are_built_once_per_installed_words() {
     assert!(Arc::ptr_eq(&first, &Probe::shared_ctx(&ctx)), "English labels are built once");
     assert_eq!(*first, Probe::default());
     let (i18n, de, _) = catalog();
-    Words::from_i18n(i18n, de).install(&ctx);
+    install(&ctx, i18n, de);
     let german = Probe::shared_ctx(&ctx);
     assert!(Arc::ptr_eq(&german, &Probe::shared_ctx(&ctx)));
     assert_eq!(german.grid, "Rasteransicht");
@@ -288,7 +295,34 @@ fn counts_are_written_in_the_locales_grouping_and_keep_their_plural_form() {
     let labels = crate::presets::PresetLabels::default();
     let text = |n| words.counted(&ctx, counts::PRESETS, &labels.count, n);
     assert_eq!((text(1), text(1234)), ("1 preset".to_owned(), "1,234 presets".to_owned()));
-    LocaleNumbers::from_tag("de").install(&ctx);
+    let (i18n, de, _) = catalog();
+    i18n.set_format(craft_i18n::Format::from_tag("de"));
+    install(&ctx, i18n, de);
     assert_eq!((text(1), text(1234)), ("1 preset".to_owned(), "1.234 presets".to_owned()));
     assert_eq!(words.counted(&ctx, counts::PRESETS, "{n} items", 1234), "1.234 items", "a host's text gets the number formatted too");
+}
+
+#[test]
+fn switching_the_hosts_language_changes_words_and_numbers_on_the_next_pass_and_an_unchanged_host_keeps_them() {
+    let (i18n, de, _) = catalog();
+    i18n.set_format(craft_i18n::Format::from_tag("de"));
+    let host = Host::builder(APP).i18n(i18n).lang(Lang::EN).build();
+    let ctx = Context::default();
+    let pass = |ctx: &Context| {
+        let mut seen = None;
+        ctx.run_ui(Default::default(), |ui| seen = Some((Words::of(ui), LocaleNumbers::of(ui), Probe::of(ui).opacity)))
+            .drop_without_applying_deltas();
+        seen.unwrap()
+    };
+    host.clone().install(&ctx);
+    let (english, _, opacity) = pass(&ctx);
+    assert_eq!(opacity, "Opacity");
+    assert!(Arc::ptr_eq(&english, &pass(&ctx).0), "the label cache survives between passes");
+    host.with_lang(de).install(&ctx);
+    let (german, numbers, opacity) = pass(&ctx);
+    assert!(!Arc::ptr_eq(&english, &german));
+    assert_eq!(opacity, "Deckkraft");
+    assert_eq!(numbers.format(1234.5, 0..=2), "1.234,5");
+    let (again, again_numbers, _) = pass(&ctx);
+    assert!(Arc::ptr_eq(&german, &again) && Arc::ptr_eq(&numbers, &again_numbers));
 }

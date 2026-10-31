@@ -1182,6 +1182,7 @@ name = "craft-ui"
 version = "0.1.0"
 dependencies = [
  "craft-fonts-build",
+ "craft-host",
  "craft-i18n",
  "craft-quit",
  "craft-theme",
@@ -1221,6 +1222,7 @@ version = "0.1.0"
 dependencies = [
  "craft-color",
  "craft-draw",
+ "craft-host",
  "craft-i18n",
  "craft-imaging",
  "craft-platform",

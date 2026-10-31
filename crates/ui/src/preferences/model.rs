@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 
 use craft_theme::Rgba;
 
-use crate::localized::{Labels, LocaleNumbers, Word, Words};
+use crate::localized::{Labels, Word, Words};
 
 /// A setting's value as it crosses the boundary between the window and the host.
 #[derive(Clone, Debug, PartialEq)]
@@ -31,7 +31,7 @@ pub struct PageSpec<'a> {
     pub footnote: Option<&'a str>,
     /// Extra search text of the page, for a custom page whose controls the search can't see.
     pub keywords: &'a str,
-    /// The host draws the whole page ([`PreferencesHost::custom_page`](super::PreferencesHost::custom_page)).
+    /// The host draws the whole page ([`PreferencesModel::custom_page`](super::PreferencesModel::custom_page)).
     pub custom: bool,
 }
 
@@ -169,12 +169,11 @@ pub enum RowKind<'a> {
         unit: Option<&'a str>,
     },
     Text(&'a str),
-    /// The host draws the control ([`PreferencesHost::custom_row`](super::PreferencesHost::custom_row)).
+    /// The host draws the control ([`PreferencesModel::custom_row`](super::PreferencesModel::custom_row)).
     Custom,
 }
 
-/// Every caption of the window, already translated. The host returns them in the draft's
-/// language, so a language preview needs no ambient locale.
+/// Every caption of the window, in the language of the installed Host.
 #[derive(Clone, Debug)]
 pub struct PreferencesTexts {
     pub title: String,
@@ -194,8 +193,6 @@ pub struct PreferencesTexts {
     pub hex_label: String,
     /// Read to a screen reader on the default button.
     pub default_hint: String,
-    /// The digits and separators of number rows.
-    pub numbers: LocaleNumbers,
 }
 
 const TITLE: Word = Word::keyed("pref.title", "Preferences");
@@ -213,7 +210,7 @@ const HEX_LABEL: Word = Word::keyed("pref.hexLabel", "Hex colour");
 const DEFAULT_HINT: Word = Word::keyed("pref.defaultHint", "Default");
 
 impl PreferencesTexts {
-    /// English captions and English numbers.
+    /// English captions.
     pub fn english() -> Self {
         let english = |word: Word| word.english.to_owned();
         Self {
@@ -230,12 +227,10 @@ impl PreferencesTexts {
             reset_section: english(RESET_SECTION),
             hex_label: english(HEX_LABEL),
             default_hint: english(DEFAULT_HINT),
-            numbers: LocaleNumbers::from_tag("en"),
         }
     }
 }
 
-/// The numbers stay as they are: they follow [`LocaleNumbers`], not a catalog row.
 impl Labels for PreferencesTexts {
     const WORDS: &'static [Word] = &[
         TITLE,
@@ -273,7 +268,6 @@ impl Labels for PreferencesTexts {
             reset_section: get(RESET_SECTION),
             hex_label: get(HEX_LABEL),
             default_hint: get(DEFAULT_HINT),
-            numbers: self.numbers,
         }
     }
 }

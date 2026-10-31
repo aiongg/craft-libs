@@ -7,8 +7,8 @@ use craft_theme::Rgba;
 use egui::{Align, Context, Id, Layout, Ui, vec2};
 
 use super::body::PreferencesBody;
-use super::host::PreferencesHost;
 use super::model::{PrefValue, RowKind, RowSpec};
+use super::model_trait::PreferencesModel;
 use crate::composites::{Field, LabelAlign};
 use crate::controls::{Checkbox, NumberField, Select, Swatch, TextField};
 use crate::edit::EditEvent;
@@ -100,7 +100,7 @@ fn step_for(range: &RangeInclusive<f64>, decimals: u8) -> f64 {
     if decimals == 0 || range.end() - range.start() >= 10.0 { 1.0 } else { 10f64.powi(-i32::from(decimals)) }
 }
 
-pub(super) fn show_row<H: PreferencesHost + ?Sized>(
+pub(super) fn show_row<H: PreferencesModel + ?Sized>(
     ui: &mut Ui,
     host: &mut H,
     row: &ShownRow,

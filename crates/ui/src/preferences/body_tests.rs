@@ -1,14 +1,20 @@
 //! The body: edits, Apply, OK, Cancel, search, reset, keys, layout and AccessKit.
 
+use std::sync::Arc;
+
+use craft_host::{AppInfo, Host};
+use craft_i18n::I18n;
 use egui::accesskit::Role;
 use egui::{Context, Key, Modifiers, Ui};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::stories::FakeHost;
-use super::{Closed, PrefValue, PreferencesBody, PreferencesHost as _};
+use super::{Closed, PrefValue, PreferencesBody, PreferencesModel as _};
 use crate::direction::{self, Direction};
 use crate::theme::{Base, install};
+
+const APP: AppInfo = AppInfo { id: "test", name: "Test", version: "1.0" };
 
 struct State {
     host: FakeHost,
@@ -138,9 +144,12 @@ fn the_language_row_changes_the_next_frames_texts() {
     let mut h = open();
     h.get_by_label("Cancel");
     h.state_mut().host.set("general.language", PrefValue::Choice("de".into()));
+    let (i18n, problems) = I18n::new(&[("de", "@id\tpref.cancel\tAbbrechen\n", "")], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let de = i18n.from_code("de").unwrap();
+    Host::builder(APP).i18n(Arc::new(i18n)).lang(de).install(&h.ctx);
     h.run();
     h.get_by_label("Abbrechen");
-    assert_eq!(h.state().host.texts().title, "Einstellungen");
 }
 
 #[test]

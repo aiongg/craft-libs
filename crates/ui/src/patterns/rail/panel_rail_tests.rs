@@ -256,7 +256,13 @@ fn an_unnamed_rail_takes_its_name_from_the_installed_words() {
     let mut app = App::new();
     app.unnamed = true;
     let mut h = builder(Direction::Ltr, 600.0).build_ui_state(|ui, app: &mut App| app.frame(ui), app);
-    crate::localized::Words::new(|word| (word.id == "dock.panels").then(|| "Panneaux".to_owned())).install(&h.ctx);
+    let (i18n, problems) = craft_i18n::I18n::new(&[("fr", "@id\tdock.panels\tPanneaux\n", "")], &["fr"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let fr = i18n.from_code("fr").unwrap();
+    craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" })
+        .i18n(std::sync::Arc::new(i18n))
+        .lang(fr)
+        .install(&h.ctx);
     h.input_mut().focused = true;
     h.run_steps(2);
     assert_eq!(h.get_by_role(Role::Toolbar).accesskit_node().label().as_deref(), Some("Panneaux"));

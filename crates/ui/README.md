@@ -32,7 +32,7 @@ their licences in `icons/ATTRIBUTION.md`); fonts and application engines are not
 
 `dialog` holds the dialogs: `DialogFrame` (the look: the popup family's surface with its shadow, a one-line title cut with an ellipsis, a draggable band behind the title, a close box, a hairline, the body and a footer area; `width`, `resize`, `roomy` and `field_tab` options; no state, no keys; AccessKit `Dialog` named by the title, the title a level 1 heading), `Dialog` (modal or `modeless`: the host keeps its fields and passes them by `&mut`, `DialogState` holds the chrome only; placement is centred, at `first_place`, or where the user dragged it, remembered under a `PlaceKey` and kept on screen; the title band is the only way to move it, there is no keyboard move; `Width` classes, `resizable` with a grip and a remembered size, `Body::Fit` (the default: a body taller than the window's room scrolls between the title and the footer, so the dialog never outgrows the window) and `Body::Scroll`, `Backdrop::{None, Scrim}`, `InitialFocus`, `outer_gesture` so Ok commits and Cancel cancels one gesture, `history` for Ctrl/Cmd+Z inside the dialog; the answer is an `Outcome`; AccessKit `Dialog`, `modal` when modal), `Footer` (`standard`: role buttons at the trailing edge in the platform's order, OK first on Windows and Linux and last in the corner on macOS, with `ok`, `cancel`, `apply` (the dialog stays open), up to two `alternate` buttons, `Reset::AltCancel` (Alt turns Cancel into Reset, which keeps the dialog open), `preview`, `leading` and `trailing_extra`; `side`: a column with OK above Cancel and `extra` buttons under them; `custom` through `FooterFx::buttons`; `none`; Enter answers the Default button unless the body owns it (`EnterRule`), Esc cancels, and a popup that is open takes both; Tab visits fields only, Ctrl+Tab reaches the buttons, arrow keys move between them), `Prompt` (a modal question with `answer(role, label, key)`; the keys are plain keys read while the prompt is the top modal, drawn in the labels on Windows and Linux and set as the buttons' AccessKit keyboard shortcuts; Esc and the close box answer the `escape` role), `Alert` (a notice with one OK button, AccessKit `AlertDialog` described by the message), `FullWindowDialog` (a modal workspace over the window or a given rect, in `surface.panel`, with an optional title strip, no close box, no drag and no remembered place; the body places its footer with `FullWindowFx::buttons`) and `BlockingOverlay` (an input block with no chrome). `DialogStack` orders the open modal dialogs: only the top one takes input, older ones are disabled whole, and a child pushed under a parent is removed with it. The `pass` helpers (`any_modal`, `free_pointer_over`, `pan_delta`, `free_buttons`, `free_press`) let the canvas pan and zoom under a modal dialog. See [the dialog guide](../../docs/ui-dialogs.md).
 
-`preferences` holds the Preferences window's model, search and body: `PreferencesBody` (a search field over a page list and the current page, with OK, Cancel and Apply; pages and rows are built each frame by the app's `PreferencesHost` as `PageSpec`, `GroupSpec` and `RowSpec` of `RowKind` (check box, choice, colour, integer, decimal, text or a custom row), values cross as `PrefValue`; `matches` is the search rule; edits go to `PreferencesHost::set`, nothing is saved before OK or Apply; Enter is OK, Esc cancels after a popup, the search text and a field's own gesture; Cmd/Ctrl+F focuses the search; AccessKit `SearchInput`, a `ListBox` of the listed pages and a `Group` for the page; tokens `preferences.*`). The window host and its modality are not part of this yet.
+`preferences` holds the Preferences window's model, search and body: `PreferencesBody` (a search field over a page list and the current page, with OK, Cancel and Apply; pages and rows are built each frame by the app's `PreferencesModel` as `PageSpec`, `GroupSpec` and `RowSpec` of `RowKind` (check box, choice, colour, integer, decimal, text or a custom row), values cross as `PrefValue`; `matches` is the search rule; edits go to `PreferencesModel::set`, nothing is saved before OK or Apply; Enter is OK, Esc cancels after a popup, the search text and a field's own gesture; Cmd/Ctrl+F focuses the search; AccessKit `SearchInput`, a `ListBox` of the listed pages and a `Group` for the page; tokens `preferences.*`). The window host and its modality are not part of this yet.
 
 `viewport` holds `ViewportWindow`, a window in its own OS viewport that is drawn as a resizable `Dialog` inside the main window where viewports are embedded (`Context::embed_viewports`, or `embedded(true)` for the web and tests). The body is the same in both (`Hosting::{Native, Embedded}` tells it which); an OS window supplies its own title bar and close box, an embedded one the dialog's. `app_modal(scrim)` makes the main window ignore input while the window is open: a native window puts a layer over the parent that shows the not-allowed cursor and focuses the child on a press; an embedded one is a modal dialog. `blocks_main` tells the host to hold its shortcuts. `ViewportResponse::close_requested` is the OS close button, Alt+F4, the embedded close box, or Esc in an app-modal window with no popup open; the window stays until the host stops showing it. A window closed from an OK or Cancel button in its body calls `ViewportWindow::closed(ctx, id)` there, which ends the app-modal record in that pass in every viewport.
 
@@ -502,8 +502,8 @@ letters such as ổ, so an app relying on it fails the `vi` screens until its ow
 ## Localized numbers
 
 `localized::LocaleNumbers` writes numbers in the region's digits, decimal mark and grouping and
-reads back any digits. Build it from the app's `I18n` with `.with_catalog(&i18n, lang)`, so the
-error tooltips come from the catalog rows keyed by `localized::MESSAGES` (English where a row is
+reads back any digits. `LocaleNumbers::of(ui)` is the installed Host's: the catalog's number format, and error
+tooltips from the catalog rows keyed by `localized::MESSAGES` (English where a row is
 missing). `localized::Unit` spells a unit around a number (`{n} px`, Turkish `%{n}`).
 
 `controls::NumberField` is the panel and dialog field. It reports through the edit lifecycle
@@ -541,13 +541,15 @@ let edit = NumberField::new("width", i18n.t(lang, "Width"), width, &numbers)
 Every string craft-ui draws itself (button names, tooltips, screen-reader labels, key-cap words)
 is a `localized::Word`: an id such as `dock.closePanel`, its English text, and an optional
 catalog context. The app owns the catalog (a craft-i18n `I18n`, translators' rows in craft-i18n's
-shared `common.tsv`) and installs a lookup on the context once, and again when the language changes:
+shared `common.tsv`) and installs its `craft_host::Host` on the context once, and again
+(`host.with_lang(lang).install(ctx)`) when the language changes. `Words::of(ui)` and
+`LocaleNumbers::of(ui)` derive from it and are rebuilt only when a different Host is installed:
 
 ```rust
-Words::from_i18n(i18n.clone(), lang).install(ctx);
+Host::builder(APP).i18n(i18n.clone()).lang(lang).install(ctx);
 ```
 
-- Without an install, or where the catalog has no row, the English shows. A row is found by the
+- Without a Host or a catalog, or where the catalog has no row, the English shows. A row is found by the
   id first, then by the English text, so a translator who knows only the English works.
   An empty translation, or one that drops a `{placeholder}` of the English, is ignored.
 - Labels structs (`PresetLabels`, `DockConfig`, `DialogLabels`, ...) are plain data declared with

@@ -46,6 +46,11 @@ impl Host {
         self.i18n.as_deref()
     }
 
+    /// [`Host::i18n`] as the shared handle, for code that keeps the catalogs (craft-ui's `Words`).
+    pub fn i18n_shared(&self) -> Option<&Arc<I18n>> {
+        self.i18n.as_ref()
+    }
+
     pub fn lang(&self) -> Lang {
         self.lang
     }

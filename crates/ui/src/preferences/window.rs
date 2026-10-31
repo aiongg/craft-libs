@@ -2,8 +2,9 @@
 
 use egui::{Context, Id, Vec2, ViewportBuilder, ViewportId, vec2};
 
-use super::{PreferencesBody, PreferencesHost, PreferencesOutput};
+use super::{PreferencesBody, PreferencesModel, PreferencesOutput, PreferencesTexts};
 use crate::dialog::Platform;
+use crate::localized::Labels as _;
 #[cfg(feature = "window-restore")]
 use crate::viewport::Hosting;
 use crate::viewport::ViewportWindow;
@@ -33,7 +34,7 @@ type Decorate = Box<dyn Fn(ViewportBuilder) -> ViewportBuilder>;
 ///   (see [`ViewportWindow::refuse_close`]).
 /// - **Close.** The close button, Alt+F4 and Esc cancel like the Cancel button, except while a
 ///   nested dialog is open: that dialog takes input alone.
-/// - **Nested dialogs.** [`PreferencesHost::nested`] draws them inside this window's viewport.
+/// - **Nested dialogs.** [`PreferencesModel::nested`] draws them inside this window's viewport.
 /// - **Chrome.** [`builder`](PreferencesWindow::builder) takes `craft_window::decorate`.
 /// - **Size and position.** With the `window-restore` feature,
 ///   [`remember`](PreferencesWindow::remember) keeps them per app.
@@ -130,8 +131,8 @@ impl PreferencesWindow {
     }
 
     /// Shows the window for this pass. `closed` in the output tells the app to stop showing it.
-    pub fn show<H: PreferencesHost + ?Sized>(&mut self, ctx: &Context, host: &mut H) -> PreferencesOutput {
-        let title = host.texts().title;
+    pub fn show<H: PreferencesModel + ?Sized>(&mut self, ctx: &Context, host: &mut H) -> PreferencesOutput {
+        let title = PreferencesTexts::of_ctx(ctx).title;
         let builder = self.base(&title);
         #[cfg(feature = "window-restore")]
         let builder = match &mut self.remember {

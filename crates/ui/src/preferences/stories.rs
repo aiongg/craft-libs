@@ -1,14 +1,12 @@
 //! The Preferences body story, and the fake host the tests share.
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use craft_theme::Rgba;
 use egui::{Ui, vec2};
 
-use super::{GroupSpec, PageSpec, PrefValue, PreferencesBody, PreferencesHost, PreferencesTexts, RowKind, RowSpec};
+use super::{GroupSpec, PageSpec, PrefValue, PreferencesBody, PreferencesModel, RowKind, RowSpec};
 use crate::direction::{self, Direction};
-use crate::localized::{Labels as _, Words};
 use crate::story::{Level, Story, StoryArgs};
 use crate::typed_story;
 
@@ -46,8 +44,6 @@ pub(crate) struct FakeHost {
     pub can_ok: bool,
     /// A nested dialog is open (the window refuses OK and takes no keys).
     pub nested: bool,
-    /// The installed words, taken from the context each pass: the host has no `Ui` in `texts`.
-    pub words: Arc<Words>,
 }
 
 impl FakeHost {
@@ -65,7 +61,7 @@ impl FakeHost {
         ] {
             saved.insert(k.to_owned(), v);
         }
-        Self { draft: saved.clone(), saved, log: Vec::new(), fail: None, can_ok: true, nested: false, words: Arc::new(Words::english()) }
+        Self { draft: saved.clone(), saved, log: Vec::new(), fail: None, can_ok: true, nested: false }
     }
 
     fn text(&self, key: &str) -> &str {
@@ -85,17 +81,7 @@ impl FakeHost {
     }
 }
 
-impl PreferencesHost for FakeHost {
-    fn texts(&self) -> PreferencesTexts {
-        let mut t = PreferencesTexts::english().localized_in(&self.words);
-        if self.text("general.language") == "de" {
-            t.title = "Einstellungen".into();
-            t.cancel = "Abbrechen".into();
-            t.no_matches = "Keine passenden Einstellungen".into();
-        }
-        t
-    }
-
+impl PreferencesModel for FakeHost {
     fn pages(&self) -> Vec<PageSpec<'_>> {
         let color = match self.draft.get("interface.accent") {
             Some(PrefValue::Color(c)) => *c,
@@ -238,7 +224,6 @@ fn show_window(ui: &mut Ui, args: &mut WindowArgs) {
             state.search = args.search.clone();
             PreferencesBody::set_state(&ctx, body, state);
         }
-        host.words = Words::of(ui);
         let _ = PreferencesBody::new("story").show(ui, &mut host);
     });
     ctx.data_mut(|d| d.insert_temp(host_id, FakeHostBox(host)));
@@ -256,7 +241,6 @@ impl Clone for FakeHostBox {
             fail: self.0.fail.clone(),
             can_ok: self.0.can_ok,
             nested: self.0.nested,
-            words: self.0.words.clone(),
         })
     }
 }

@@ -2,16 +2,18 @@
 //! faces, and the OS's answer they were resolved with.
 use std::sync::Arc;
 
+use craft_host::{AppInfo, Host};
 use craft_i18n::{Embedded, I18n, Lang};
 use craft_platform::appearance::SystemReader;
 use craft_theme::{AppSizes, Mode, SystemAppearance};
 use craft_ui::icons;
 use craft_ui::interface_scale::InterfaceScale;
-use craft_ui::localized::Words;
 use craft_ui::theme::{Base, install};
 
 use crate::appearance::Appearance;
 use crate::faces;
+
+const APP: AppInfo = AppInfo { id: "craft-ui-gallery", name: "Craft UI gallery", version: env!("CARGO_PKG_VERSION") };
 
 /// The gallery ships no translations: English and the pseudo locale need none.
 static CATALOGS: &Embedded = &[];
@@ -33,7 +35,7 @@ pub(super) struct Applied {
     /// The OS's answer `base` was resolved with.
     pub(super) os_applied: SystemAppearance,
     pub(super) base: Base,
-    /// The catalogs the installed [`Words`] read; the pseudo locale records what it looked up here.
+    /// The catalogs the installed [`Host`] reads; the pseudo locale records what it looked up here.
     pub(super) i18n: Arc<I18n>,
 }
 
@@ -68,7 +70,7 @@ impl Applied {
             }
             if previous.as_ref().is_none_or(|p| p.language != appearance.language) {
                 let lang = self.i18n.from_code(&appearance.language).unwrap_or(Lang::EN);
-                Words::from_i18n(Arc::clone(&self.i18n), lang).install(ctx);
+                Host::builder(APP).i18n(Arc::clone(&self.i18n)).lang(lang).install(ctx);
             }
             // A story's scale stays until it stops asking.
             if self.story_ppp.is_none() {

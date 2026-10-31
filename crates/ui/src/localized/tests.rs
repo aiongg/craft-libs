@@ -594,18 +594,26 @@ fn the_wheel_scrolls_past_a_field_it_cannot_step() {
 }
 
 #[test]
-fn of_is_english_until_numbers_are_installed_then_the_installed_ones() {
+fn of_is_english_until_a_host_is_installed_then_the_hosts_numbers() {
     let ctx = egui::Context::default();
     let output = ctx.run_ui(egui::RawInput::default(), |ui| {
         assert_eq!(LocaleNumbers::of(ui).format(1234.5, 0..=2), "1,234.5");
-        LocaleNumbers::from_tag("de").install(ui.ctx());
+        german_host().install(ui.ctx());
         assert_eq!(LocaleNumbers::of(ui).format(1234.5, 0..=2), "1.234,5");
     });
     output.drop_without_applying_deltas();
 }
 
+fn german_host() -> craft_host::Host {
+    let (i18n, problems) = craft_i18n::I18n::new(&[("de", "", "")], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    i18n.set_format(craft_i18n::Format::from_tag("de"));
+    let de = i18n.from_code("de").unwrap();
+    craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" }).i18n(Arc::new(i18n)).lang(de).build()
+}
+
 #[test]
-fn installed_numbers_survive_a_memory_reset_and_are_english_before_an_install() {
+fn the_hosts_numbers_survive_a_memory_reset_and_are_english_before_an_install() {
     let ctx = Context::default();
     let separator = |ctx: &Context| {
         let mut text = String::new();
@@ -613,8 +621,8 @@ fn installed_numbers_survive_a_memory_reset_and_are_english_before_an_install() 
         text
     };
     assert_eq!(separator(&ctx), "1.5");
-    LocaleNumbers::from_tag("de").install(&ctx);
+    german_host().install(&ctx);
     assert_eq!(separator(&ctx), "1,5");
     ctx.memory_mut(|m| *m = egui::Memory::default());
-    assert_eq!(separator(&ctx), "1,5", "a memory reset leaves the installed numbers");
+    assert_eq!(separator(&ctx), "1,5", "a memory reset leaves the Host installed");
 }

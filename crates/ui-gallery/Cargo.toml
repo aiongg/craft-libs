@@ -23,6 +23,7 @@ required-features = ["capture"]
 [dependencies]
 craft-color = { workspace = true, features = ["ui"] }
 craft-draw = { workspace = true, features = ["ui"] }
+craft-host = { workspace = true, features = ["ui"] }
 craft-i18n = { workspace = true }
 craft-imaging = { workspace = true, features = ["ui"] }
 craft-theme = { workspace = true, features = ["serde"] }

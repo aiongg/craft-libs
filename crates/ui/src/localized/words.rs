@@ -1,9 +1,9 @@
 //! The built-in strings of craft-ui's components, in the language of the app.
 //!
-//! A [`Word`] names one string: its id, its English text and its context. The app installs a
-//! [`Words`] on the context once per language change ([`Words::from_i18n`] reads a craft-i18n
+//! A [`Word`] names one string: its id, its English text and its context. [`Words::of`] derives the
+//! lookup from the installed [`craft_host::Host`] ([`Words::from_i18n`] reads its craft-i18n
 //! catalog); components and labels structs ([`Labels`]) resolve their strings through it, and show
-//! English where no translator is installed or a row is missing. A labels struct is plain data: a
+//! English where no Host or catalog is installed or a row is missing. A labels struct is plain data: a
 //! host that sets a field gets exactly that text.
 
 use std::any::{Any, TypeId};
@@ -12,7 +12,6 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex, PoisonError};
 
 use craft_i18n::{I18n, Lang};
-use egui::plugin::Plugin;
 use egui::{Context, Ui};
 
 use super::LocaleNumbers;
@@ -56,7 +55,7 @@ impl Word {
 type Lookup = Arc<dyn Fn(Word) -> Option<String> + Send + Sync>;
 type Plural = Arc<dyn Fn(&'static str, u64, &'static str, &'static str) -> Option<String> + Send + Sync>;
 
-/// The app's lookup, installed on the context with [`Words::install`].
+/// The app's lookup, derived from the installed Host by [`Words::of`].
 #[derive(Clone, Default)]
 pub struct Words {
     lookup: Option<Lookup>,
@@ -118,23 +117,15 @@ impl Words {
         Words::new(lookup).with_plural(move |_, n, one, other| Some(i18n.trn(lang, n, one, other)))
     }
 
-    /// Makes these the words [`Words::of`] returns for every widget in `ctx`; call it when the
-    /// language changes. The context keeps them outside its [`egui::Memory`], so a memory reset
-    /// leaves them installed.
-    pub fn install(self, ctx: &Context) {
-        ctx.plugin_or_default::<Installed>().lock().0 = Some(Arc::new(self));
-    }
-
-    /// The words installed in `ui`'s context ([`Words::install`]), English when none are.
+    /// The words of the installed [`Host`]: its catalogs in its language, English without a Host
+    /// or a catalog. The same `Arc` comes back until the Host is installed again.
     pub fn of(ui: &Ui) -> Arc<Words> {
         Words::of_ctx(ui.ctx())
     }
 
     /// [`Words::of`] for code that has a context and no `Ui` (a modal's area, a painter's overlay).
     pub fn of_ctx(ctx: &Context) -> Arc<Words> {
-        static ENGLISH: LazyLock<Arc<Words>> = LazyLock::new(|| Arc::new(Words::english()));
-        let installed = ctx.plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
-        installed.unwrap_or_else(|| Arc::clone(&ENGLISH))
+        super::derived(ctx).0
     }
 
     /// The text of `word`: never empty. English when no translator is installed (without
@@ -239,17 +230,6 @@ pub(crate) mod counts {
 
     #[cfg(test)]
     pub(crate) const ALL: [Counted; 6] = [PRESETS, GROUP_PRESETS, RESULTS, TOAST_MORE, GRAPH_POINTS, GRAPH_VALUE];
-}
-
-/// The words [`Words::install`] set, kept as a plugin so that a reset of the context's memory does
-/// not drop them.
-#[derive(Default)]
-struct Installed(Option<Arc<Words>>);
-
-impl Plugin for Installed {
-    fn debug_name(&self) -> &'static str {
-        "craft_ui::localized::words"
-    }
 }
 
 /// A labels struct: plain data whose every field is one [`Word`] of its table.

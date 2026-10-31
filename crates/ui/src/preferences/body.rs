@@ -6,8 +6,8 @@ use egui::{
     Align, AsIdSalt, Context, Event, Id, IdSalt, Key, KeyboardShortcut, Layout, Modifiers, Rect, ScrollArea, Sense, Ui, UiBuilder, pos2, vec2,
 };
 
-use super::host::PreferencesHost;
 use super::model::{Closed, PreferencesOutput, PreferencesTexts};
+use super::model_trait::PreferencesModel;
 use super::rows::{RowsOut, ShownRow, show_row, typed_value};
 use super::search::{self, Listed};
 use super::state::PreferencesState;
@@ -17,6 +17,7 @@ use crate::controls::{Button, SearchField};
 use crate::dialog::{ButtonRole, EnterRule, FooterButton, FooterButtons, KeyInput, Platform, resolve_keys};
 use crate::direction;
 use crate::list::{List, ListEvent, ListRow};
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Divider, Text};
 use crate::theme::{Tokens, TokensOf as _};
 
@@ -63,18 +64,18 @@ struct ShownPage {
 /// OK, Cancel and Apply under them. The window and the stories draw this; it fills the rect `ui` has left.
 ///
 /// ```
-/// # use craft_ui::preferences::{PreferencesBody, PreferencesHost};
-/// # fn draw(ui: &mut egui::Ui, host: &mut impl PreferencesHost) {
+/// # use craft_ui::preferences::{PreferencesBody, PreferencesModel};
+/// # fn draw(ui: &mut egui::Ui, host: &mut impl PreferencesModel) {
 /// let out = PreferencesBody::new("preferences").show(ui, host);
 /// if out.closed.is_some() { /* close the window */ }
 /// # }
 /// ```
 ///
-/// - **Pages and search.** The host builds the pages each pass ([`PreferencesHost::pages`]); the
+/// - **Pages and search.** The host builds the pages each pass ([`PreferencesModel::pages`]); the
 ///   body filters them with [`matches`](super::matches), lists the pages that match (the empty
 ///   ones dimmed) and shows the selected one, or the first listed when a search hides it.
 /// - **Rows.** Each row is the library's control for its [`RowKind`](super::RowKind) in a
-///   [`Field`](crate::composites::Field); an edit goes to [`PreferencesHost::set`]. Nothing is
+///   [`Field`](crate::composites::Field); an edit goes to [`PreferencesModel::set`]. Nothing is
 ///   saved before OK or Apply.
 /// - **Buttons.** OK applies and closes, Apply applies and stays (enabled while the draft
 ///   differs), Cancel drops the draft. A failed apply shows its message over the buttons. Enter is OK,
@@ -148,12 +149,13 @@ impl PreferencesBody {
     }
 
     /// Shows the body in the rect `ui` has left, which it fills.
-    pub fn show<H: PreferencesHost + ?Sized>(self, ui: &mut Ui, host: &mut H) -> PreferencesOutput {
+    pub fn show<H: PreferencesModel + ?Sized>(self, ui: &mut Ui, host: &mut H) -> PreferencesOutput {
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         let id = ui.make_persistent_id(self.id_salt);
         let mut state = PreferencesState::load(&ctx, id);
-        let texts = host.texts();
+        let texts = PreferencesTexts::of(ui);
+        let numbers = LocaleNumbers::of(ui);
         let style = PreferencesBody::style(&tokens);
         let gap = style.gap;
         let keys = self.active && !host.nested_open();
@@ -277,7 +279,7 @@ impl PreferencesBody {
             if reset {
                 area = area.vertical_scroll_offset(0.0);
             }
-            let reset_clicked = area.show(&mut page_ui, |ui| show_page(ui, host, page, &texts, searching, &mut rows_out)).inner;
+            let reset_clicked = area.show(&mut page_ui, |ui| show_page(ui, host, page, &texts, &numbers, searching, &mut rows_out)).inner;
             if reset_clicked {
                 host.reset_page(&page.id);
                 rows_out.edited = true;
@@ -407,11 +409,12 @@ fn shown_page(query: &str, listed: &Listed, page: &super::PageSpec<'_>) -> Shown
 }
 
 /// The page's groups, footnote and Reset Section. Returns whether Reset Section was pressed.
-fn show_page<H: PreferencesHost + ?Sized>(
+fn show_page<H: PreferencesModel + ?Sized>(
     ui: &mut Ui,
     host: &mut H,
     page: &ShownPage,
     texts: &PreferencesTexts,
+    numbers: &LocaleNumbers,
     searching: bool,
     out: &mut RowsOut,
 ) -> bool {
@@ -428,7 +431,7 @@ fn show_page<H: PreferencesHost + ?Sized>(
             crate::composites::FieldGroup::new((&page.id, at)).show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = gap;
                 for row in &group.rows {
-                    show_row(ui, host, row, &texts.numbers, &texts.hex_label, out);
+                    show_row(ui, host, row, numbers, &texts.hex_label, out);
                 }
             });
         };

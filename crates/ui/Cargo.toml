@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 craft-fonts-build = { workspace = true }
+craft-host = { workspace = true, features = ["ui"] }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true, features = ["ecolor"] }
 craft-ui-macros = { workspace = true }

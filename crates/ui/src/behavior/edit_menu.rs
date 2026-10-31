@@ -206,13 +206,18 @@ pub(crate) fn withdraw(ui: &Ui, field: Id) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::localized::Words;
 
     #[test]
     fn the_labels_fall_back_to_the_installed_words() {
         let ctx = Context::default();
         assert_eq!(EditMenu::labels(&ctx).copy, "Copy");
-        Words::new(|word| (word.key() == "edit.copy").then(|| "Copier".to_owned())).install(&ctx);
+        let (i18n, problems) = craft_i18n::I18n::new(&[("fr", "@id\tedit.copy\tCopier\n", "")], &["fr"]);
+        assert!(problems.is_empty(), "{problems:?}");
+        let fr = i18n.from_code("fr").unwrap();
+        craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" })
+            .i18n(std::sync::Arc::new(i18n))
+            .lang(fr)
+            .install(&ctx);
         assert_eq!(EditMenu::labels(&ctx).copy, "Copier");
         let mine = EditMenuLabels { copy: "Mine".into(), ..EditMenuLabels::default() };
         EditMenu::install(&ctx, mine);

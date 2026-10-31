@@ -19,6 +19,7 @@ use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::sync::{Arc, LazyLock};
 
+use craft_host::Host;
 use craft_i18n::{Format, I18n, Lang, NumberError};
 use egui::emath::{Numeric, round_to_decimals};
 use egui::plugin::Plugin;
@@ -79,23 +80,16 @@ impl LocaleNumbers {
         LocaleNumbers::new(Arc::new(Format::from_tag(tag)))
     }
 
-    /// Makes these the numbers [`LocaleNumbers::of`] returns for every widget in `ctx`; call it
-    /// when the language changes. The context keeps them outside its [`egui::Memory`], so a
-    /// memory reset leaves them installed.
-    pub fn install(self, ctx: &Context) {
-        ctx.plugin_or_default::<Installed>().lock().0 = Some(Arc::new(self));
-    }
-
-    /// The numbers installed in `ui`'s context ([`LocaleNumbers::install`]), English when none is.
+    /// The numbers of the installed [`craft_host::Host`]: its catalog's format and error texts in
+    /// its language, English without a Host or a catalog. The same `Arc` comes back until the
+    /// Host is installed again.
     pub fn of(ui: &Ui) -> Arc<LocaleNumbers> {
         LocaleNumbers::of_ctx(ui.ctx())
     }
 
     /// [`LocaleNumbers::of`] for code that has a context and no `Ui`.
     pub(crate) fn of_ctx(ctx: &Context) -> Arc<LocaleNumbers> {
-        static ENGLISH: LazyLock<Arc<LocaleNumbers>> = LazyLock::new(|| Arc::new(LocaleNumbers::from_tag("en")));
-        let installed = ctx.plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
-        installed.unwrap_or_else(|| Arc::clone(&ENGLISH))
+        derived(ctx).1
     }
 
     /// A count in the locale's digits and grouping: `1,234`, `1.234`.
@@ -425,15 +419,41 @@ impl Recessed {
     }
 }
 
-/// The numbers [`LocaleNumbers::install`] set, kept as a plugin so that a reset of the context's
-/// memory does not drop them.
+/// The words and numbers derived from one installed Host. The Host is kept (not only its address)
+/// so that a freed Host's address can't match a new one. A plugin, so a reset of the context's
+/// memory does not drop it.
 #[derive(Default)]
-struct Installed(Option<Arc<LocaleNumbers>>);
+struct Derived(Option<(Arc<Host>, Arc<Words>, Arc<LocaleNumbers>)>);
 
-impl Plugin for Installed {
+impl Plugin for Derived {
     fn debug_name(&self) -> &'static str {
-        "craft_ui::localized::numbers"
+        "craft_ui::localized::derived"
     }
+}
+
+/// The words and numbers of `ctx`'s Host, rebuilt only when a different Host (or the same one in
+/// another language, which is a different `Arc`) is installed, so that `Words`' label cache
+/// survives between frames. English without a Host.
+fn derived(ctx: &Context) -> (Arc<Words>, Arc<LocaleNumbers>) {
+    static ENGLISH: LazyLock<(Arc<Words>, Arc<LocaleNumbers>)> =
+        LazyLock::new(|| (Arc::new(Words::english()), Arc::new(LocaleNumbers::from_tag("en"))));
+    let Some(host) = Host::try_of_ctx(ctx) else {
+        return ENGLISH.clone();
+    };
+    let plugin = ctx.plugin_or_default::<Derived>();
+    let mut plugin = plugin.lock();
+    if let Some((cached, words, numbers)) = &plugin.0
+        && Arc::ptr_eq(cached, &host)
+    {
+        return (Arc::clone(words), Arc::clone(numbers));
+    }
+    let (words, numbers) = match host.i18n_shared() {
+        Some(i18n) => (Words::from_i18n(Arc::clone(i18n), host.lang()), LocaleNumbers::new(i18n.format()).with_catalog(i18n, host.lang())),
+        None => (Words::english(), LocaleNumbers::from_tag("en")),
+    };
+    let (words, numbers) = (Arc::new(words), Arc::new(numbers));
+    plugin.0 = Some((host, Arc::clone(&words), Arc::clone(&numbers)));
+    (words, numbers)
 }
 
 pub(crate) fn first_field_id() -> Id {

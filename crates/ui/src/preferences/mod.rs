@@ -6,9 +6,10 @@
 //!   builds each frame from its settings and its draft. The library keeps no copy of the values.
 //! - [`PreferencesWindow`]: the body in an app-modal window of its own (or an embedded dialog),
 //!   with quit refusal and remembered size and position.
-//! - [`PreferencesHost`]: what the app implements: pages, draft, apply, cancel, reset, custom rows
+//! - [`PreferencesModel`]: what the app implements: pages, draft, apply, cancel, reset, custom rows
 //!   and nested dialogs.
-//! - [`PreferencesTexts`]: every caption, already translated.
+//! - [`PreferencesTexts`]: every caption, a [`Labels`](crate::localized::Labels) table the window reads from
+//!   [`Words`](crate::localized::Words).
 //! - [`matches`]: the search rule, public so hosts and tests share it.
 //!
 //! Sizes are the `preferences.*` and `group_box.*` tokens.
@@ -16,8 +17,8 @@
 mod body;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod body_tests;
-mod host;
 mod model;
+mod model_trait;
 mod rows;
 mod search;
 #[cfg(test)]
@@ -29,8 +30,8 @@ mod window;
 mod window_tests;
 
 pub use body::{PreferencesBody, PreferencesStyle};
-pub use host::PreferencesHost;
 pub use model::{Closed, Columns, GroupSpec, PageSpec, PrefValue, PreferencesOutput, PreferencesTexts, RowKind, RowSpec};
+pub use model_trait::PreferencesModel;
 pub use search::{Listed, list_pages, matches, row_matches, row_shown, shown_position};
 pub use state::PreferencesState;
 pub use stories::COMPONENTS;
