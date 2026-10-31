@@ -120,6 +120,24 @@ fn leftovers_skip_live_instances() {
     assert!(!found[0].path.exists());
 }
 
+// Another live run's half-written entry (copy without its sidecar) is never listed; once that
+// run is gone, the copy is a leftover.
+#[test]
+fn half_written_entries_of_live_runs_are_not_listed() {
+    let scratch = Scratch::new();
+    let dir = scratch.0.join("Recovery");
+    let first = RecoveryStore::open(&dir).unwrap();
+    let second = RecoveryStore::open(&dir).unwrap();
+    let key = first.key(1);
+    std::fs::write(dir.join(format!("{key}.pcraft")), b"half").unwrap();
+    assert!(second.leftovers().is_empty());
+    assert!(first.leftovers().is_empty(), "nor its own");
+    drop(first);
+    let found = second.leftovers();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].key, key);
+}
+
 // An interrupted legacy move (.moving entries) is finished by the next launch.
 #[test]
 fn legacy_recovery_move_resumes() {

@@ -322,6 +322,9 @@ impl RecoveryStore {
                         .or_else(|| copies.first().map(|(_, p)| p));
                     path.map(|path| RecoveryEntry { key, meta: side.meta, saved, path: path.clone() })
                 }
+                // No sidecar: the copy may be a first write in progress. It is a leftover only
+                // when it is not this run's and no other instance is alive to be writing it.
+                None if self.owns_key(&key) || self.other_instance_alive() => None,
                 None => copies.first().map(|(ext, path)| {
                     let saved = std::fs::metadata(path).and_then(|m| m.modified()).unwrap_or(SystemTime::UNIX_EPOCH);
                     let meta = RecoveryMeta { name: key.clone(), original: None, extension: ext.clone(), revision: 0 };
@@ -332,6 +335,19 @@ impl RecoveryStore {
         }
         out.sort_by(|a, b| b.saved.cmp(&a.saved).then_with(|| a.key.cmp(&b.key)));
         out
+    }
+
+    /// Whether `key` is one this run writes: a new document's or an adopted one.
+    fn owns_key(&self, key: &str) -> bool {
+        let adopted = self.adopted.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        key.starts_with(&format!("doc-{}-", self.session)) || adopted.values().any(|k| k == key)
+    }
+
+    /// Whether another run holds its instance lock in this folder.
+    fn other_instance_alive(&self) -> bool {
+        let Ok(read) = std::fs::read_dir(&self.dir) else { return false };
+        let names: Vec<String> = read.flatten().filter_map(|e| e.file_name().into_string().ok()).collect();
+        names.iter().any(|n| n.starts_with("instance-") && n.ends_with(".lock") && *n != self.instance && self.held_by_another(n))
     }
 
     /// Whether `instance` (a name read from an untrusted sidecar) is the lock of another run that
