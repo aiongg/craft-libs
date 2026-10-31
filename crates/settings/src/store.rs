@@ -104,6 +104,9 @@ pub struct SettingsStore<T: Settings> {
     /// The file's contents as last read or written. Compared by content, not mtime, so an edit
     /// within the same second (coarse timestamps on FAT, HFS+, network shares) is still seen.
     seen_text: Option<String>,
+    /// Set when a save merged another instance's changes into this store's value; see
+    /// [`SettingsStore::take_merged_change`].
+    merged_change: bool,
     /// Files that were damaged on disk at save time and moved aside; see [`SettingsStore::take_moved_aside`].
     moved_aside: Vec<PathBuf>,
 }
@@ -132,11 +135,12 @@ impl<T: Settings> SettingsStore<T> {
     /// Opens the store with full options.
     pub fn open_with(options: OpenOptions<T>) -> (Self, LoadReport) {
         let portable = Portable { markers: T::PORTABLE_MARKERS, dir: T::PORTABLE_DIR };
-        let resolved = paths::resolve(T::APP_ID, &portable, &options.location, &options.probe);
+        let resolved = paths::resolve_named(T::APP_ID, T::FOLDER_NAME, &portable, &options.location, &options.probe);
         let path = resolved.dir.as_ref().map(|d| d.join(CONFIG_FILE));
         let mut report = LoadReport {
             dir: resolved.dir.clone(),
             rule: resolved.rule.to_string(),
+            warning: resolved.warning.clone(),
             source: Source::Defaults,
             broken_moved_to: None,
             section_errors: Vec::new(),
@@ -159,6 +163,7 @@ impl<T: Settings> SettingsStore<T> {
             retry_at: None,
             seen_text: None,
             moved_aside: Vec::new(),
+            merged_change: false,
         };
 
         let (Some(dir), Some(path)) = (store.dir.clone(), store.path.clone()) else {
@@ -219,6 +224,12 @@ impl<T: Settings> SettingsStore<T> {
     /// [`LoadReport::broken_moved_to`].
     pub fn take_moved_aside(&mut self) -> Vec<PathBuf> {
         std::mem::take(&mut self.moved_aside)
+    }
+
+    /// True once a save merged another instance's changes into [`SettingsStore::get`]; drains
+    /// the flag. Apply the new value where it shows (for a preferences window, `reload` it).
+    pub fn take_merged_change(&mut self) -> bool {
+        std::mem::take(&mut self.merged_change)
     }
 
     /// True when changes are waiting to be saved.
@@ -379,8 +390,16 @@ impl<T: Settings> SettingsStore<T> {
         merge_into(&mut self.doc, &self.value).map_err(|e| SettingsError::Serialize(e.to_string()))?;
         set_schema_version(&mut self.doc, T::SCHEMA_VERSION);
         if let Some(mut theirs) = theirs {
+            let (ours, _) = document::deserialize_sections::<T>(&self.doc);
             merge_changes::<T>(&self.base, &self.doc, &mut theirs);
             self.doc = theirs;
+            // The merged document is what is on disk now. Taking the value from it keeps the next
+            // save from writing this store's old values over the other instance's keys.
+            let (merged, _) = document::deserialize_sections::<T>(&self.doc);
+            if merged != ours {
+                self.merged_change = true;
+            }
+            self.value = merged;
         }
         let text = document::render(&self.doc);
         self.files.write(&path, &text)?;

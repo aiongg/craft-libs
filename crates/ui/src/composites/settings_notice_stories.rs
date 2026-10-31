@@ -41,6 +41,7 @@ fn report() -> LoadReport {
     LoadReport {
         dir: None,
         rule: "story".to_owned(),
+        warning: None,
         source: Source::File,
         broken_moved_to: None,
         section_errors: Vec::new(),

@@ -104,6 +104,25 @@ fn two_stores_keep_each_others_changes() {
     let (c, _) = open_in(tmp.path());
     assert_eq!(c.get().general.autosave_minutes, 9);
     assert_eq!(c.get().appearance.ui_scale, 3.0);
+    assert_eq!(c.get().general.language, "fr", "b's second save must not write its old language back");
+}
+
+// After a save merged the other instance's change, the store holds the merged value and says so
+// once.
+#[test]
+fn a_merge_updates_the_stores_value_and_reports_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (mut a, _) = open_in(tmp.path());
+    let (mut b, _) = open_in(tmp.path());
+    a.update(|p| p.general.language = "fr".into());
+    a.flush().unwrap();
+    assert!(!a.take_merged_change(), "nothing from outside");
+    b.update(|p| p.appearance.ui_scale = 2.0);
+    b.flush().unwrap();
+    assert_eq!(b.get().general.language, "fr");
+    assert_eq!(b.get().appearance.ui_scale, 2.0);
+    assert!(b.take_merged_change());
+    assert!(!b.take_merged_change(), "reported once");
 }
 
 #[derive(Default)]

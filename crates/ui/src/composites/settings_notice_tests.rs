@@ -24,6 +24,7 @@ fn report(sections: &[&str]) -> LoadReport {
     LoadReport {
         dir: None,
         rule: String::new(),
+        warning: None,
         source: Source::File,
         broken_moved_to: None,
         section_errors: sections.iter().map(|s| SectionError { section: (*s).to_owned(), message: "bad".into() }).collect(),
