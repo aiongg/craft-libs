@@ -2,19 +2,21 @@
 
 use craft_theme::ControlSize;
 use craft_ui::testing::canvas_story::ViewArgs;
-use egui::{Align, Layout, Ui, UiBuilder, vec2};
+use egui::{Align, Layout, Response, Ui, UiBuilder, vec2};
 use kurbo::{Rect, Vec2};
 
 use craft_ui::canvas::quad::{BoxState, SKEW_LIMIT};
 use craft_ui::canvas::{ReferencePoint, RulerUnits};
 use craft_ui::composites::{PropertyLabel, PropertyRow};
 use craft_ui::controls::number_field::{self, FieldRule};
-use craft_ui::controls::{IconButton, NumberField};
+use craft_ui::controls::{IconButton, NumberField, Select};
 use craft_ui::direction;
 use craft_ui::edit::ops::{self, ScalarOp};
 use craft_ui::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, GestureId, parts};
 use craft_ui::icons::Icon;
 use craft_ui::localized::{Labels, LocaleNumbers, Unit, Word, Words};
+use craft_ui::menu::MenuEntry;
+use craft_ui::patterns::{CellWidth, OptionsBar};
 use craft_ui::primitives::Handle;
 use craft_ui::primitives::HandleShape;
 use craft_ui::story::{Level, Story, StoryChoice, Surface};
@@ -232,9 +234,8 @@ impl Conversion {
                     let (side, other) = if axis == 0 { (now.w, now.h) } else { (now.h, now.w) };
                     let k = factor / nonzero(side);
                     let cap = (self.limit(axis) / nonzero(side.abs())).min(self.limit(1 - axis) / nonzero(other.abs()));
-                    let k = k.signum() * k.abs().min(cap);
-                    to.w = now.w * k;
-                    to.h = now.h * k;
+                    let capped = side * k.signum() * k.abs().min(cap);
+                    (to.w, to.h) = BoxState::linked_scale((now.w, now.h), axis, capped);
                 } else if axis == 0 {
                     to.w = factor;
                 } else {
@@ -349,6 +350,29 @@ pub struct TransformFields<'a> {
     size: ControlSize,
     enabled: bool,
     policy: EditPolicy,
+    size_menu: Option<(&'a [MenuEntry<usize>], &'a mut Option<usize>)>,
+    interpolation: Option<InterpolationSelect<'a>>,
+}
+
+/// The interpolation select of the options-bar form.
+struct InterpolationSelect<'a> {
+    caption: String,
+    value: &'a mut String,
+    options: &'a [(String, String)],
+}
+
+/// How the fields are laid out.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Form {
+    Rows,
+    Bar,
+}
+
+/// How a field's value is scrubbed: by nothing, by the caption beside it, or by an icon in it.
+enum Scrub<'r> {
+    No,
+    Caption(&'r Response),
+    Icon(Icon),
 }
 
 impl<'a> TransformFields<'a> {
@@ -368,6 +392,8 @@ impl<'a> TransformFields<'a> {
             size: ControlSize::Md,
             enabled: true,
             policy: EditPolicy::default(),
+            size_menu: None,
+            interpolation: None,
         }
     }
 
@@ -417,9 +443,38 @@ impl<'a> TransformFields<'a> {
         self
     }
 
-    /// Shows the row and returns this frame's edit, with the box it gives.
+    /// The options-bar form: a secondary click on W or H opens a menu of `entries` (the units to
+    /// pick from; mark the current one with a radio row) and a pick is written to `picked`. The
+    /// host applies the unit with [`size_unit`](Self::size_unit).
+    pub fn size_menu(mut self, entries: &'a [MenuEntry<usize>], picked: &'a mut Option<usize>) -> Self {
+        self.size_menu = Some((entries, picked));
+        self
+    }
+
+    /// The options-bar form's interpolation select, last in the strip: `options` are the
+    /// `(value, text)` rows, and a pick is written to `value`.
+    pub fn interpolation(mut self, caption: impl Into<String>, value: &'a mut String, options: &'a [(String, String)]) -> Self {
+        self.interpolation = Some(InterpolationSelect { caption: caption.into(), value, options });
+        self
+    }
+
+    /// Shows the fields as a [`PropertyRow`]s and returns this frame's edit, with the box it gives.
     pub fn show(self, ui: &mut Ui) -> EditResponse<TransformRow> {
-        let Self { id_salt, state, rect, labels, x, y, size_unit, linked, skew_v, size, enabled, policy } = self;
+        self.show_in(ui, Form::Rows)
+    }
+
+    /// Shows the fields as the cells of an options bar and returns this frame's edit. The cells
+    /// are the reference point, X and Y, a divider, W, the aspect link and H, a divider, the angle
+    /// (scrubbed by an icon), H and V skew, and with [`interpolation`](Self::interpolation) a
+    /// divider and the select. A pick on the reference point reports a Set of the box with
+    /// its reference point moved. The cells are [`Sm`](ControlSize::Sm) fields whatever
+    /// [`size`](Self::size) says. Put it in the bar's body.
+    pub fn show_bar(self, ui: &mut Ui) -> EditResponse<TransformRow> {
+        self.show_in(ui, Form::Bar)
+    }
+
+    fn show_in(self, ui: &mut Ui, form: Form) -> EditResponse<TransformRow> {
+        let Self { id_salt, state, rect, labels, x, y, size_unit, linked, skew_v, size, enabled, policy, size_menu, interpolation } = self;
         let id = ui.make_persistent_id(id_salt);
         let (skew_key, link_key, kept_key) = (id.with("skew_v"), id.with("linked"), id.with("kept"));
         let own_skew: f64 = ui.data(|d| d.get_temp(skew_key)).unwrap_or(0.0);
@@ -476,19 +531,33 @@ impl<'a> TransformFields<'a> {
         edits.replay(ui.ctx(), apply);
         let shown = *edits.value();
 
-        let field = |ui: &mut Ui, which: Field, label: &FieldLabel| {
+        let field = |ui: &mut Ui,
+                     which: Field,
+                     label: &FieldLabel,
+                     size: ControlSize,
+                     scrub: Scrub,
+                     menu: Option<(&[MenuEntry<usize>], &mut Option<usize>)>| {
             let (unit, decimals) = format(which);
             let bound = convert.bound(which);
-            NumberField::new((id, which as u8), label.name.clone(), reads(which, &shown), &numbers)
+            let mut field = NumberField::new((id, which as u8), label.name.clone(), reads(which, &shown), &numbers)
                 .range(-bound..=bound)
                 .decimals(0..=decimals)
                 .unit(unit)
                 .policy(inner)
                 .part(true)
                 .size(size)
-                .enabled(enabled)
-                .show(ui)
+                .enabled(enabled);
+            field = match scrub {
+                Scrub::No => field,
+                Scrub::Caption(caption) => field.scrub_by(caption),
+                Scrub::Icon(icon) => field.scrub_icon(icon),
+            };
+            if let Some((entries, picked)) = menu {
+                field = field.unit_menu(entries, picked);
+            }
+            field.show(ui)
         };
+        let plain = |ui: &mut Ui, which: Field, label: &FieldLabel| field(ui, which, label, size, Scrub::No, None);
         let glyph = |label: &FieldLabel| PropertyLabel::glyph(label.glyph.clone());
         let group = |ui: &mut Ui, width: f32, add: &mut dyn FnMut(&mut Ui)| {
             ui.allocate_ui(vec2(width, 0.0), |ui| {
@@ -497,13 +566,12 @@ impl<'a> TransformFields<'a> {
             });
         };
 
-        let mut fields: Vec<(Field, EditResponse<f64>)> = Vec::with_capacity(FIELDS);
         let layout = if direction::is_rtl(ui) { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) }.with_main_wrap(true);
-        let row = ui.scope_builder(UiBuilder::new().layout(layout), |ui| {
+        let rows = |ui: &mut Ui, fields: &mut Vec<(Field, EditResponse<f64>)>, linked: &mut bool| {
             group(ui, pair, &mut |ui| {
                 let (a, b) = PropertyRow::pair(glyph(&labels.x), glyph(&labels.y))
                     .size(size)
-                    .show(ui, |ui, _| field(ui, Field::X, &labels.x), |ui, _| field(ui, Field::Y, &labels.y))
+                    .show(ui, |ui, _| plain(ui, Field::X, &labels.x), |ui, _| plain(ui, Field::Y, &labels.y))
                     .inner;
                 fields.extend([(Field::X, a), (Field::Y, b)]);
             });
@@ -512,29 +580,86 @@ impl<'a> TransformFields<'a> {
                     .size(size)
                     .show_linked(
                         ui,
-                        |ui, _| field(ui, Field::W, &labels.w),
+                        |ui, _| plain(ui, Field::W, &labels.w),
                         |ui| {
                             let icon = if *linked { Icon::Link } else { Icon::Unlink };
                             ui.add(IconButton::new(icon, labels.link.clone()).size(ControlSize::Sm).enabled(enabled).toggle(linked))
                         },
-                        |ui, _| field(ui, Field::H, &labels.h),
+                        |ui, _| plain(ui, Field::H, &labels.h),
                     )
                     .inner;
                 fields.extend([(Field::W, a), (Field::H, b)]);
             });
             group(ui, cell, &mut |ui| {
-                let edit = PropertyRow::new(glyph(&labels.angle)).size(size).show(ui, |ui, _| field(ui, Field::Angle, &labels.angle)).inner;
+                let edit = PropertyRow::new(glyph(&labels.angle)).size(size).show(ui, |ui, _| plain(ui, Field::Angle, &labels.angle)).inner;
                 fields.push((Field::Angle, edit));
             });
             group(ui, pair, &mut |ui| {
                 let (a, b) = PropertyRow::pair(glyph(&labels.skew_h), glyph(&labels.skew_v))
                     .size(size)
-                    .show(ui, |ui, _| field(ui, Field::SkewH, &labels.skew_h), |ui, _| field(ui, Field::SkewV, &labels.skew_v))
+                    .show(ui, |ui, _| plain(ui, Field::SkewH, &labels.skew_h), |ui, _| plain(ui, Field::SkewV, &labels.skew_v))
                     .inner;
                 fields.extend([(Field::SkewH, a), (Field::SkewV, b)]);
             });
-        });
+        };
+        let mut anchor = None;
+        let mut size_pick = None;
+        let bar_style = OptionsBar::style(&tokens, false);
+        let bar = |ui: &mut Ui, fields: &mut Vec<(Field, EditResponse<f64>)>, linked: &mut bool| {
+            let reference = ReferencePoint::new((id, "reference"), state.anchor_of_pivot()).enabled(enabled).show(ui);
+            if let Some(EditEvent::Set { value: Some(picked), modifiers, .. }) = reference.event {
+                anchor = Some((picked, modifiers));
+            }
+            let sm = ControlSize::Sm;
+            let wide = if matches!(convert.size, SizeUnit::Length { .. }) { CellWidth::Lg } else { CellWidth::Md };
+            let menu = size_menu.as_ref().map(|(entries, _)| *entries);
+            let cell =
+                |ui: &mut Ui, which: Field, label: &FieldLabel, width: CellWidth, menu: Option<&[MenuEntry<usize>]>, pick: &mut Option<usize>| {
+                    OptionsBar::cell(ui, &label.glyph, width, |ui, caption| {
+                        field(ui, which, label, sm, Scrub::Caption(caption), menu.map(|entries| (entries, pick)))
+                    })
+                };
+            let mut none = None;
+            for (which, label) in [(Field::X, &labels.x), (Field::Y, &labels.y)] {
+                fields.push((which, cell(ui, which, label, CellWidth::Md, None, &mut none)));
+            }
+            OptionsBar::divider(ui);
+            fields.push((Field::W, cell(ui, Field::W, &labels.w, wide, menu, &mut size_pick)));
+            let icon = if *linked { Icon::Link } else { Icon::Unlink };
+            ui.add(IconButton::new(icon, labels.link.clone()).size(sm).enabled(enabled).toggle(linked));
+            fields.push((Field::H, cell(ui, Field::H, &labels.h, wide, menu, &mut size_pick)));
+            OptionsBar::divider(ui);
+            // The angle has no caption: its icon scrubs it, in a box as wide as a captioned cell.
+            let side = bar_style.fields[0];
+            let turn = ui
+                .allocate_ui_with_layout(vec2(side, ui.available_height()), direction::row(ui).with_main_justify(true), |ui| {
+                    ui.set_width(side);
+                    field(ui, Field::Angle, &labels.angle, sm, Scrub::Icon(Icon::RotateCw), None)
+                })
+                .inner;
+            fields.push((Field::Angle, turn));
+            for (which, label) in [(Field::SkewH, &labels.skew_h), (Field::SkewV, &labels.skew_v)] {
+                fields.push((which, cell(ui, which, label, CellWidth::Sm, None, &mut none)));
+            }
+            if let Some(InterpolationSelect { caption, value, options }) = interpolation {
+                OptionsBar::divider(ui);
+                OptionsBar::cell(ui, &caption, CellWidth::Content, |ui, _| {
+                    let select = options
+                        .iter()
+                        .fold(Select::new((id, "interpolation"), caption.clone(), value), |select, (v, text)| select.option(v.clone(), text.clone()));
+                    let _ = select.size(sm).enabled(enabled).show(ui);
+                });
+            }
+        };
 
+        let mut fields: Vec<(Field, EditResponse<f64>)> = Vec::with_capacity(FIELDS);
+        let row = match form {
+            Form::Rows => ui.scope_builder(UiBuilder::new().layout(layout), |ui| rows(ui, &mut fields, linked)).response,
+            Form::Bar => ui.scope_builder(UiBuilder::new().layout(direction::row(ui)), |ui| bar(ui, &mut fields, linked)).response,
+        };
+        if let (Some((_, picked)), Some(pick)) = (size_menu, size_pick) {
+            *picked = Some(pick);
+        }
         // Each field's value applies to the row the fields before it in this pass left, with the
         // values that go out in this pass: one that waits for another field's gesture isn't in it.
         let mut values: Vec<(Field, f64, TransformRow)> = Vec::new();
@@ -582,7 +707,11 @@ impl<'a> TransformFields<'a> {
                 d.insert_temp(link_key, *linked);
             }
         });
-        EditResponse::new(row.response, event).submitted(submitted).escaped(escaped)
+        let event = event.or_else(|| {
+            let (picked, modifiers) = anchor?;
+            Some(EditEvent::set(TransformRow { state: BoxState { pivot: state.point_at(picked), ..*state }, skew_v }, modifiers))
+        });
+        EditResponse::new(row, event).submitted(submitted).escaped(escaped)
     }
 }
 

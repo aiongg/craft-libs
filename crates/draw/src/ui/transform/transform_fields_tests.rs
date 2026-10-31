@@ -458,3 +458,66 @@ fn a_skew_scrub_ended_by_the_host_for_another_control_reads_the_reverted_row() {
     release(&mut h, at);
     assert_eq!(h.state().0.now.row, start);
 }
+
+/// PC `w_and_h_reject_or_clamp_hostile_typed_lengths`, on the fields' conversion: a negative
+/// length mirrors the typed side, a huge one stops at the position limit, zero collapses.
+#[test]
+fn hostile_typed_lengths_flip_clamp_or_collapse() {
+    let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
+    let length = Conversion { size: SizeUnit::Length { x: px.clone(), y: px }, ..conversion(true) };
+    let state = BoxState::from_rect(RECT);
+    let side = |s: &BoxState| (s.quad[1].x - s.quad[0].x, s.quad[3].y - s.quad[0].y);
+    let (flipped, _) = length.edit(&state, 0.0, Field::W, -40.0);
+    let (w, h) = side(&flipped);
+    assert!((w + 40.0).abs() < 1e-6 && (h - 20.0).abs() < 1e-6, "{w} × {h}");
+    let (huge, _) = length.edit(&state, 0.0, Field::W, 1e12);
+    let (w, h) = side(&huge);
+    assert!(w.is_finite() && w <= POSITION_LIMIT + 0.01 && h.abs() <= POSITION_LIMIT + 0.01, "{w} × {h}");
+    let (zero, _) = length.edit(&state, 0.0, Field::W, 0.0);
+    assert!(zero.quad.iter().all(|q| q.is_finite()));
+}
+
+#[test]
+fn the_bar_form_lays_out_the_reference_point_then_captioned_cells_in_photocraft_s_order() {
+    struct Bar {
+        state: BoxState,
+        interpolation: String,
+        picked: Option<usize>,
+    }
+    let options = [("bicubic".to_owned(), "Bicubic".to_owned()), ("nearest".to_owned(), "Nearest Neighbor".to_owned())];
+    let entries = [];
+    let mut h =
+        Harness::<Bar>::builder().with_size([1400.0, 80.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, bar: &mut Bar| {
+                let state = bar.state;
+                let _ = TransformFields::new("bar", &state, RECT, TransformFieldLabels::default())
+                    .size_menu(&entries, &mut bar.picked)
+                    .interpolation("Interpolation", &mut bar.interpolation, &options)
+                    .show_bar(ui);
+            },
+            Bar { state: BoxState::from_rect(RECT), interpolation: "bicubic".into(), picked: None },
+        );
+    h.run();
+    let x = |h: &Harness<'_, Bar>, label: &str, n: usize| h.get_all_by_label(label).nth(n).unwrap_or_else(|| panic!("{label} {n}")).rect().left();
+    let order = [
+        x(&h, "X:", 0),
+        x(&h, "X position", 0),
+        x(&h, "Y:", 0),
+        x(&h, "Y position", 0),
+        x(&h, "W:", 0),
+        x(&h, "Width", 0),
+        x(&h, "Maintain aspect ratio", 0),
+        x(&h, "H:", 0),
+        x(&h, "Height", 0),
+        x(&h, "Angle", 0),
+        x(&h, "H:", 1),
+        x(&h, "Horizontal skew", 0),
+        x(&h, "V:", 0),
+        x(&h, "Vertical skew", 0),
+        x(&h, "Interpolation:", 0),
+    ];
+    assert!(order.windows(2).all(|w| w[0] < w[1]), "{order:?}");
+    // The reference point comes before the first cell.
+    let reference = h.get_all_by_role(Role::RadioButton).chain(h.get_all_by_role(Role::Button)).map(|n| n.rect().left()).fold(f32::MAX, f32::min);
+    assert!(reference < order[0], "{reference} {order:?}");
+}
