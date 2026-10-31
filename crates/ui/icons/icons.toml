@@ -1312,3 +1312,10 @@ phosphor = "gradient-diamond"  # drawn in Phosphor's style: no match in any set
 name = "fx"
 directional = false
 phosphor = "fx"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "rectangle"
+directional = false
+lucide = "rectangle-horizontal"
+phosphor = "rectangle"
+tabler = "rectangle"
