@@ -214,6 +214,25 @@ pub enum SizeEstimate {
     Exact(u64),
 }
 
+/// The quality and WebP mode a format takes when the user switches to it, from the app's Export
+/// preferences (Quick Export shows the same values). Qualities are 1–100, as in the dialog.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExportFormatDefaults {
+    /// Quality when JPG is chosen.
+    pub jpeg_quality: u8,
+    /// Quality when WebP is chosen.
+    pub webp_quality: u8,
+    /// Lossless when WebP is chosen.
+    pub webp_lossless: bool,
+}
+
+impl Default for ExportFormatDefaults {
+    /// PhotoCraft's Export preferences: 85, 85, lossless WebP.
+    fn default() -> Self {
+        Self { jpeg_quality: 85, webp_quality: 85, webp_lossless: true }
+    }
+}
+
 /// The preview and estimate the app computes for one revision of the settings.
 pub struct ExportPreview {
     /// The revision of [`ExportAsDialog::wanted_preview`] this answers; older answers are ignored.
@@ -266,6 +285,7 @@ pub struct ExportAsDialog {
     recalled: bool,
     /// The size edit the last pass refused, shown under the size fields.
     size_error: Option<SizeError>,
+    defaults: ExportFormatDefaults,
     state: DialogState<()>,
 }
 
@@ -284,6 +304,7 @@ impl ExportAsDialog {
             picking: None,
             recalled: false,
             size_error: None,
+            defaults: ExportFormatDefaults::default(),
             state: DialogState::new(),
         }
     }
@@ -292,6 +313,17 @@ impl ExportAsDialog {
     pub fn formats(mut self, formats: Vec<ExportFormat>) -> Self {
         self.formats = formats;
         self.fit();
+        self
+    }
+
+    /// The quality and WebP mode applied when the user switches to JPG or WebP (the app's Export
+    /// preferences), and the ones the dialog opens with unless it recalls or is given settings.
+    pub fn format_defaults(mut self, defaults: ExportFormatDefaults) -> Self {
+        self.defaults = defaults;
+        if !self.recalled {
+            self.settings.quality = defaults.jpeg_quality.clamp(1, 100);
+            self.settings.lossless = defaults.webp_lossless;
+        }
         self
     }
 
@@ -420,7 +452,7 @@ impl ExportAsDialog {
         match self.preview.as_ref().map(|preview| preview.estimate) {
             Some(SizeEstimate::Proxy(bytes)) => format!("{name}  {}", craft_i18n::fmt(&labels.estimate, &[("size", &human_bytes(bytes as f64))])),
             Some(SizeEstimate::Exact(bytes)) => format!("{name}  {}", craft_i18n::fmt(&labels.exact, &[("size", &human_bytes(bytes as f64))])),
-            None => name,
+            None => format!("{name}  {}", craft_i18n::fmt(&labels.estimate, &[("size", NO_ESTIMATE)])),
         }
     }
 }
@@ -450,7 +482,7 @@ impl StackDialog for ExportAsDialog {
         let side = crate::theme::current(ctx).component.dialog.preview_pane[1] * 2.0;
         let line = self.size_line(&labels);
         let size = self.output_size();
-        let Self { formats, source, settings, preview, size_error, state, .. } = self;
+        let Self { formats, source, settings, preview, size_error, defaults, state, .. } = self;
         let shown = Dialog::with_id(self.id, labels.title.as_str())
             .stack(stack)
             .width(Width::Fixed(SETTINGS_WIDTH + side + PANE_GAP))
@@ -459,7 +491,7 @@ impl StackDialog for ExportAsDialog {
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(SETTINGS_WIDTH);
-                        settings_column(ui, formats, *source, size, settings, size_error, &labels, &numbers);
+                        settings_column(ui, formats, *source, size, settings, size_error, *defaults, &labels, &numbers);
                     });
                     ui.add_space(PANE_GAP);
                     ui.vertical(|ui| preview_column(ui, preview.as_ref(), side, &line));
@@ -480,6 +512,9 @@ impl StackDialog for ExportAsDialog {
 }
 
 const REMEMBER_KEY: &str = "export.exportAs";
+
+/// The size shown before any estimate is in.
+const NO_ESTIMATE: &str = "—";
 
 /// The name suggested for a document with none.
 const UNTITLED: &str = "Untitled";
@@ -523,6 +558,7 @@ fn settings_column(
     size: (u32, u32),
     settings: &mut ExportSettings,
     size_error: &mut Option<SizeError>,
+    defaults: ExportFormatDefaults,
     labels: &ExportLabels,
     numbers: &LocaleNumbers,
 ) {
@@ -540,6 +576,14 @@ fn settings_column(
         });
         if chosen != before {
             settings.format = formats[chosen].id.to_owned();
+            match settings.format.as_str() {
+                "jpg" => settings.quality = defaults.jpeg_quality.clamp(1, 100),
+                "webp" => {
+                    settings.quality = defaults.webp_quality.clamp(1, 100);
+                    settings.lossless = defaults.webp_lossless;
+                }
+                _ => {}
+            }
         }
         let Some(format) = formats.get(chosen) else { return };
         if format.lossless {

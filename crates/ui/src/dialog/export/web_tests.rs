@@ -253,10 +253,11 @@ fn export_as_shows_the_options_of_the_chosen_format() {
     assert!(harness.query_by_label("Transparency").is_none(), "JPG has no alpha");
 
     choose(&mut harness, "Format", "WebP");
-    assert!(quality(&harness));
+    assert!(harness.query_by_label("WEBP  ≈ —").is_some(), "no estimate yet");
+    assert!(!quality(&harness), "WebP opens lossless (the Export preference), which hides Quality");
     harness.get_by_label("Lossless").click();
     harness.run_steps(6);
-    assert!(!quality(&harness), "lossless WebP hides Quality");
+    assert!(quality(&harness));
 
     choose(&mut harness, "Format", "TGA");
     assert!(harness.query_by_role_and_label(Role::ComboBox, "Bits/Pixel").is_some());
