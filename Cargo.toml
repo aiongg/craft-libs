@@ -24,6 +24,7 @@ bytemuck = "1"
 kurbo = "0.13"
 thiserror = "2"
 craft-atomic = { path = "crates/atomic" }
+craft = { path = "crates/craft" }
 craft-cms = { path = "crates/cms" }
 craft-color = { path = "crates/color" }
 craft-crw = { path = "crates/crw" }

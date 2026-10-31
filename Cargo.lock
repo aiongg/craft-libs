@@ -798,6 +798,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft"
+version = "0.1.0"
+dependencies = [
+ "craft-ai-core",
+ "craft-atomic",
+ "craft-cms",
+ "craft-color",
+ "craft-crw",
+ "craft-dialogs",
+ "craft-docpath",
+ "craft-draw",
+ "craft-font-catalog",
+ "craft-font-manager",
+ "craft-font-store",
+ "craft-host",
+ "craft-i18n",
+ "craft-imaging",
+ "craft-jpeg",
+ "craft-keymap",
+ "craft-media",
+ "craft-menu",
+ "craft-pdf",
+ "craft-platform",
+ "craft-prepress",
+ "craft-print",
+ "craft-quit",
+ "craft-settings",
+ "craft-text",
+ "craft-theme",
+ "craft-theme-store",
+ "craft-ui",
+ "craft-update",
+ "craft-window",
+ "egui",
+ "toml",
+]
+
+[[package]]
 name = "craft-ai-core"
 version = "0.1.0"
 dependencies = [
