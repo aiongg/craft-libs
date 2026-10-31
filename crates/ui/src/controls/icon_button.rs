@@ -10,8 +10,9 @@ use super::button::content_color;
 use super::{SizeDisabledArgs, salt};
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, StateColors, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, ToneArg};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, ToneArg};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
@@ -391,11 +392,12 @@ fn show_app_icon(ui: &mut Ui, args: &mut SizeDisabledArgs) {
     let source = || ImageSource::Bytes { uri: "bytes://craft-ui-story/app-icon.svg".into(), bytes: egui::load::Bytes::Static(APP_ICON) };
     let state_id = ui.scope_id().with("icon-button-app-icon-selected");
     let mut selected = ui.data(|d| d.get_temp::<bool>(state_id).unwrap_or(true));
+    let image = StoryLabels::of(ui).image;
     Row::new(Gap::Inline).show(ui, |ui| {
-        let small = IconButton::new(source(), "Image").side(24.0).icon_size(14.0).enabled(enabled).id_salt("icon-button-app-small");
+        let small = IconButton::new(source(), image.as_str()).side(24.0).icon_size(14.0).enabled(enabled).id_salt("icon-button-app-small");
         ui.add(small);
         let large =
-            IconButton::new(source(), "Image").side(34.0).icon_size(20.0).selected(selected).enabled(enabled).id_salt("icon-button-app-large");
+            IconButton::new(source(), image.as_str()).side(34.0).icon_size(20.0).selected(selected).enabled(enabled).id_salt("icon-button-app-large");
         if ui.add(large).clicked() {
             selected = !selected;
         }

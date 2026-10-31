@@ -1,5 +1,6 @@
 use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui::interface_scale::InterfaceScale;
+use craft_ui::testing::i18n_audit;
 use craft_ui_gallery::Gallery;
 use craft_ui_gallery::layout::{GalleryWorkspace, PanelId, PreviewView, VariantAxis};
 use egui::{Context, RawInput};
@@ -1621,7 +1622,7 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
             components.push(story.component);
         }
     }
-    let mut unmarked = std::collections::BTreeMap::<String, Vec<&str>>::new();
+    let mut audit = i18n_audit::Audit::new();
     let mut marked = 0;
     for component in components {
         let ids: Vec<(&str, &str)> = gallery.stories().iter().filter(|s| s.component == component).map(|s| (s.id, s.name)).collect();
@@ -1635,33 +1636,25 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
                 let name = tree.name(node);
                 let role = tree.node(node).map(|n| format!("{:?}", n.role())).unwrap_or_default();
                 stack.push(format!("{role}:{}", name.as_deref().unwrap_or_default()));
-                let node_data = tree.node(node);
-                let texts = [
-                    name.clone(),
-                    node_data.and_then(|n| n.description().map(str::to_owned)),
-                    node_data.and_then(|n| n.tooltip().map(str::to_owned)),
-                ];
-                if texts.iter().all(Option::is_none)
-                    || gallery_chrome(&tree, node, &stack, name.as_deref().unwrap_or_default(), [component, story_name])
-                {
+                let texts = i18n_audit::accesskit_texts(&tree, node);
+                if texts.is_empty() || gallery_chrome(&tree, node, &stack, name.as_deref().unwrap_or_default(), [component, story_name]) {
                     continue;
                 }
-                for text in texts.into_iter().flatten() {
+                // Only text equal to a registered word is checked: stories show sample English
+                // of their own, which the audit would otherwise list as well.
+                let words = texts.into_iter().filter(|text| {
                     if text.contains('⟦') {
                         marked += 1;
-                    } else if registered.contains(text.as_str()) && !STORY_TEXT.iter().any(|(t, stories, _)| *t == text && stories.contains(&id)) {
-                        let ids = unmarked.entry(text).or_default();
-                        if !ids.contains(&id) {
-                            ids.push(id);
-                        }
                     }
-                }
+                    registered.contains(text.as_str()) && !STORY_TEXT.iter().any(|(t, stories, _)| t == text && stories.contains(&id))
+                });
+                audit.record(id, words, &i18n_audit::Exempt::new());
             }
         }
     }
     assert!(marked > 0, "the pseudo locale marked nothing");
     assert!(!gallery.i18n().looked_up().is_empty(), "no word was looked up");
-    assert!(unmarked.is_empty(), "English that bypasses Words (name: stories): {unmarked:#?}");
+    audit.assert_clean();
 }
 
 #[test]

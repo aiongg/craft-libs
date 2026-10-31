@@ -10,10 +10,11 @@ use egui::{
 use super::{ColorPicker, Inner, Parts, PickerOp, RowPart, channel_name, texts, unit_of};
 use crate::ui::{AreaMode, ColorArea, ColorStrip};
 use craft_ui::controls::{Button, Checkbox, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
-use craft_ui::dialog::{Clicked, FooterButtons, focus_inside};
+use craft_ui::dialog::{Clicked, DialogLabels, FooterButtons, focus_inside};
 use craft_ui::direction;
 use craft_ui::edit::ops;
 use craft_ui::icons::{self, Icon, IconSize};
+use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Gap, Interactive, Stack, Text};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf, UiTokens, role_format};
 
@@ -175,7 +176,8 @@ impl ColorPicker<'_> {
                             }
                         });
                         if !self.side_actions.is_empty() {
-                            let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone());
+                            let buttons =
+                                FooterButtons::new((id, "side-actions"), self.side_actions.clone()).default_hint(DialogLabels::of(ui).default_hint);
                             let width = buttons.column_width(ui);
                             ui.add_space((trailing - ui.min_rect().width() - width - gap).max(0.0));
                             ui.allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down(Align::Min), |ui| {
@@ -200,7 +202,7 @@ impl ColorPicker<'_> {
         let inside_now = focus_inside(ui.ctx(), ui.layer_id());
         ui.data_mut(|d| d.insert_temp(inside_id, inside_now));
         if let Some(shown) = keys.filter(|_| inner.enabled) {
-            let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone());
+            let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone()).default_hint(DialogLabels::of(ui).default_hint);
             // As a dialog's: the top modal answers whatever has the focus, a layer under a modal
             // answers nothing, and any other layer answers with the focus inside.
             let layer = ui.layer_id();

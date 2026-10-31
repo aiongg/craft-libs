@@ -37,7 +37,11 @@ thread_local! {
 /// when the Host has no catalog for the language.
 pub fn follow(ctx: &egui::Context) -> Option<Arc<Host>> {
     let host = Host::try_of_ctx(ctx);
-    let lang = host.as_deref().and_then(|h| h.i18n().map(|i| i.code(h.lang()))).and_then(|code| I18N.match_tag(code)).unwrap_or(Lang::EN);
+    let lang = match host.as_deref() {
+        Some(h) if h.lang() == Lang::PSEUDO => Lang::PSEUDO,
+        Some(h) => h.i18n().map(|i| i.code(h.lang())).and_then(|code| I18N.match_tag(code)).unwrap_or(Lang::EN),
+        None => Lang::EN,
+    };
     FRAME.with_borrow_mut(|f| *f = Frame { lang, host: host.clone() });
     host
 }
@@ -140,5 +144,15 @@ mod tests {
                 println!("{} is missing {} strings: {missing:#?}", I18N.code(lang), missing.len());
             }
         }
+    }
+
+    /// The panel follows a Host in the pseudo locale, so its strings show marked.
+    #[test]
+    fn the_pseudo_locale_marks_the_panels_strings() {
+        let ctx = egui::Context::default();
+        Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1" }).lang(Lang::PSEUDO).install(&ctx);
+        follow(&ctx);
+        assert_eq!(current(), Lang::PSEUDO);
+        assert!(tl!("Size").contains('⟦'));
     }
 }

@@ -6,9 +6,10 @@ use super::options_bar::OptionsBar;
 use super::options_cell::CellWidth;
 use crate::behavior::DigitKeys;
 use crate::controls::NumberField;
+use crate::localized::Labels as _;
 use crate::localized::units::{LengthUnit, UnitContext};
 use crate::localized::{LocaleNumbers, Unit};
-use crate::story::{Level, Story, StoryArgs, Surface};
+use crate::story::{Level, Story, StoryArgs, StoryLabels, Surface};
 use crate::typed_story;
 use craft_theme::ControlSize;
 
@@ -59,6 +60,7 @@ fn show_cells(ui: &mut Ui, args: &mut CellsArgs) {
     let key = ui.scope_id().with("cells-story");
     let mut values: Values = ui.data(|d| d.get_temp(key)).unwrap_or_default();
     let numbers = LocaleNumbers::of(ui);
+    let words = StoryLabels::of(ui);
     let width = if args.narrow { 320.0 } else { ui.available_width() };
     let expressions = args.expressions;
     let bar = ui
@@ -80,7 +82,7 @@ fn show_cells(ui: &mut Ui, args: &mut CellsArgs) {
                         values.feather = *v;
                     }
                     if let Some(v) =
-                        OptionsBar::percent_cell(ui, "cells-opacity", "Opacity", values.opacity, &numbers).event.as_ref().and_then(|e| e.value())
+                        OptionsBar::percent_cell(ui, "cells-opacity", &words.opacity, values.opacity, &numbers).event.as_ref().and_then(|e| e.value())
                     {
                         values.opacity = *v;
                     }
@@ -90,7 +92,9 @@ fn show_cells(ui: &mut Ui, args: &mut CellsArgs) {
                     }
                     OptionsBar::divider(ui);
                     let context = UnitContext::default();
-                    for (salt, caption, pixels) in [("cells-width", "Width", &mut values.width), ("cells-height", "Height", &mut values.height)] {
+                    for (salt, caption, pixels) in
+                        [("cells-width", words.width.as_str(), &mut values.width), ("cells-height", words.height.as_str(), &mut values.height)]
+                    {
                         let cell = OptionsBar::unit_cell(ui, salt, caption, *pixels, 1.0..=30000.0, values.unit, &LengthUnit::ALL, context);
                         if let Some(v) = cell.edit.event.as_ref().and_then(|e| e.value()) {
                             *pixels = *v;

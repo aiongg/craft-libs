@@ -68,8 +68,9 @@ fn show_text(ui: &mut Ui, args: &mut TextArgs) {
     let width = (args.width as f32).min(ui.available_width());
     let shared = shared(ui, "tab-strip-text", || 0_u32);
     let mut selected = shared.lock();
-    let names = ["Recent", "Saved", "Photo", "Print", "Art & Illustration", "Web", "Mobile", "Film & Video"];
-    let tabs: Vec<Tab<u32>> = names.iter().zip(0..).map(|(name, key)| Tab::new(key, *name)).collect();
+    let words = crate::dialog::NewDocumentLabels::of(ui);
+    let names = [&words.recent, &words.saved, &words.photo, &words.print, &words.art, &words.web, &words.mobile, &words.film];
+    let tabs: Vec<Tab<u32>> = names.iter().zip(0..).map(|(name, key)| Tab::new(key, name.as_str())).collect();
     let out = ui.allocate_ui(vec2(width, 0.0), |ui| TabStrip::new("text", "Categories", TabKind::Text).selected(&*selected).show(ui, &tabs)).inner;
     for event in out.events {
         if let TabEvent::Activate(key) = event {

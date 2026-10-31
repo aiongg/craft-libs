@@ -14,7 +14,9 @@ use super::row::{ListRow, ListRowStyle, RowEvent, RowResponse};
 use crate::behavior::DisplayOrder;
 use crate::controls::TooltipExt as _;
 use crate::direction;
+use crate::localized::Labels as _;
 use crate::primitives::Interactive;
+use crate::story::StoryLabels;
 
 /// A group row opened or closed: by its triangle, the arrow keys, or a screen reader's Expand and
 /// Collapse. `all` (Alt held) asks for every group, not only this one.
@@ -272,6 +274,11 @@ pub(super) fn is_below<K>(order: &(impl DisplayOrder<K> + ?Sized), outer: usize,
     inner > outer && (outer + 1..=inner).all(|at| order.depth(at) > order.depth(outer))
 }
 
+/// A node's name as shown: the sample names that are registered words come from the story labels.
+fn sample_name<'a>(name: &'a str, words: &'a StoryLabels) -> &'a str {
+    if name == "Text" { &words.text } else { name }
+}
+
 /// The story's tree: a name and a depth, a group being a row followed by a deeper one.
 pub(super) const NODES: &[(&str, usize)] = &[
     ("Poster", 0),
@@ -353,12 +360,11 @@ pub(super) fn show_tree(ui: &mut Ui, args: &mut TreeArgs) {
         ui.data_mut(|d| d.insert_temp(state_id.with("seeded"), true));
     }
     let rows = display(NODES, &open);
+    let words = StoryLabels::of(ui);
     ui.allocate_ui(egui::vec2(width, height), |ui| {
-        let out = List::new("tree", "Layers", rows.as_slice())
-            .tree(true)
-            .selection(&mut selection)
-            .max_height(height)
-            .show(ui, |_, &key| ListRow::new(key, NODES[key].0).icon(if is_group(NODES, key) { Icon::Layers } else { Icon::Check }));
+        let out = List::new("tree", "Layers", rows.as_slice()).tree(true).selection(&mut selection).max_height(height).show(ui, |_, &key| {
+            ListRow::new(key, sample_name(NODES[key].0, &words)).icon(if is_group(NODES, key) { Icon::Layers } else { Icon::Check })
+        });
         for event in out.events {
             if let ListEvent::Open(change) = event {
                 let groups: Vec<usize> = (0..NODES.len()).filter(|&at| is_group(NODES, at)).collect();

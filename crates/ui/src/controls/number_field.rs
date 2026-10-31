@@ -27,10 +27,11 @@ use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook, edit_menu};
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
+use crate::localized::Labels as _;
 use crate::localized::{LocaleNumbers, Unit, Words, first_field_id, incomplete, on_grid, round_half_away, stepped};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, variant_list};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, StoryLabels, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, margin_x};
 use crate::typed_story;
 
@@ -1577,6 +1578,7 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// Plain, with a unit, mixed, invalid, with a pop-up slider, and disabled.
 fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
+    let words = StoryLabels::of(ui);
     let size = args.size.control();
     let numbers = args.locale.numbers();
     let sum = |text: &str| text.split_once('+').and_then(|(a, b)| Some(a.trim().parse::<f64>().ok()? + b.trim().parse::<f64>().ok()?));
@@ -1614,7 +1616,7 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
                 super::slider::store(&edit, invalid)
             });
             labelled(form, "Pop-up slider", &format!("{}", *opacity), |ui| {
-                let edit = NumberField::new("number-field-popup", "Opacity", *opacity, &numbers)
+                let edit = NumberField::new("number-field-popup", &words.opacity, *opacity, &numbers)
                     .range(0.0..=100.0)
                     .unit(Unit::new("{n}%"))
                     .popup_slider("Opacity slider")
@@ -1687,6 +1689,7 @@ fn show_presets(ui: &mut Ui, args: &mut LocaleSizeArgs) {
 /// converted to the field's unit at 96 pixels an inch and keeps two decimals, though the field
 /// shows one.
 fn show_unit_menu(ui: &mut Ui, args: &mut LocaleSizeArgs) {
+    let words = StoryLabels::of(ui);
     const UNITS: [&str; 3] = ["{n} px", "{n} mm", "{n} in"];
     let size = args.size.control();
     let numbers = args.locale.numbers();
@@ -1703,8 +1706,8 @@ fn show_unit_menu(ui: &mut Ui, args: &mut LocaleSizeArgs) {
         Some(number.trim().parse::<f64>().ok()? / PER_INCH[from] * PER_INCH[unit])
     };
     variant_list(ui, "number-field-unit-menu", |form| {
-        labelled(form, "Width", &format!("{value} {unit}"), |ui| {
-            let edit = NumberField::new("number-field-unit", "Width", value, &numbers)
+        labelled(form, &words.width, &format!("{value} {unit}"), |ui| {
+            let edit = NumberField::new("number-field-unit", &words.width, value, &numbers)
                 .range(0.0..=10_000.0)
                 .decimals(0..=1)
                 .commit_decimals(2)
@@ -1782,6 +1785,7 @@ fn show_scrub(ui: &mut Ui, args: &mut LocaleSizeArgs) {
 
 /// A labelled row right to left: the label mirrors, the field keeps its geometry.
 fn show_right_to_left(ui: &mut Ui, args: &mut LocaleSizeArgs) {
+    let words = StoryLabels::of(ui);
     let size = args.size.control();
     let numbers = args.locale.numbers();
     with_values(ui, "number-field-rtl", [12.5], |ui, values| {
@@ -1789,8 +1793,8 @@ fn show_right_to_left(ui: &mut Ui, args: &mut LocaleSizeArgs) {
             let note = "With the direction set to right to left the label moves to the right. The field keeps its geometry: digits stay centred, the unit stays at the box's end and the scrub label stays at the left.";
             ui.add(Text::new(note).content(Content::Muted));
             let value = &mut values[0];
-            variant_list(ui, "number-field-rtl", |form| labelled(form, "Width", &format!("{}", *value), |ui| {
-                let edit = NumberField::new("number-field-rtl", "Width", *value, &numbers).decimals(0..=2).unit(Unit::new("{n} cm")).scrub_label("W").size(size).show(ui);
+            variant_list(ui, "number-field-rtl", |form| labelled(form, &words.width, &format!("{}", *value), |ui| {
+                let edit = NumberField::new("number-field-rtl", &words.width, *value, &numbers).decimals(0..=2).unit(Unit::new("{n} cm")).scrub_label("W").size(size).show(ui);
                 super::slider::store(&edit, value)
             }));
         });
@@ -1879,6 +1883,7 @@ impl LogState {
 /// [`GestureHost`], their events newest first and the undo-step count. Cmd/Ctrl+Z outside the
 /// field undoes a step, or cancels the gesture under way.
 fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
+    let words = StoryLabels::of(ui);
     let policy = edit::policy(args);
     let numbers = LocaleNumbers::from_tag("en");
     let state_id = ui.scope_id().with("number-field-event-log");
@@ -1890,10 +1895,10 @@ fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
     Stack::new(Gap::Stack).show(ui, |ui| {
         let opacity = state.doc.opacity;
         Row::new(Gap::Inline).show(ui, |ui| {
-            let label = ui.add(Text::new("Opacity"));
-            let edit = Slider::new("number-field-log-slider", "Opacity", opacity, 0.0..=100.0).step(1.0).policy(policy).show(ui);
+            let label = ui.add(Text::new(words.opacity.as_str()));
+            let edit = Slider::new("number-field-log-slider", &words.opacity, opacity, 0.0..=100.0).step(1.0).policy(policy).show(ui);
             state.handle(ui, "slider", edit.event);
-            let edit = NumberField::new("number-field-log", "Opacity", opacity, &numbers)
+            let edit = NumberField::new("number-field-log", &words.opacity, opacity, &numbers)
                 .range(0.0..=100.0)
                 .unit(Unit::new("{n}%"))
                 .scrub_by(&label)

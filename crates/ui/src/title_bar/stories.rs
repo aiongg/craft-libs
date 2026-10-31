@@ -8,9 +8,10 @@ use super::{CaptionFamily, Captions, Frame, LeadingEnd, MacInset, Title, TitleBa
 use crate::controls::IconButton;
 use crate::direction::{self, Direction, HasDirection as _};
 use crate::icons::Icon;
+use crate::localized::Labels as _;
 use crate::menu::MenuBar;
 use crate::menu::bar::story_bar;
-use crate::story::{Level, Story, StoryArgs, Surface};
+use crate::story::{Level, Story, StoryArgs, StoryLabels, Surface};
 use crate::typed_story;
 
 /// The components this module has stories for.
@@ -64,7 +65,7 @@ fn show(ui: &mut Ui, args: &mut BarArgs, frame: Frame) {
     direction::apply(&ctx, if args.rtl { Direction::Rtl } else { Direction::Ltr });
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
-        let menus = story_bar();
+        let menus = story_bar(&StoryLabels::of(ui));
         let title = Title::new(args.title.as_str()).unsaved(args.unsaved);
         TitleBar::new(&frame).id_salt("craft-ui-title-bar-story").preview(state).separator(true).title(title).show_titled(
             ui,
