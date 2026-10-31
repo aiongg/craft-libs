@@ -209,6 +209,18 @@ impl NativeMenu {
         self
     }
 
+    /// The per-command rules under the gate ([`Gate::allows_under`]), set beside
+    /// [`NativeMenu::set_gate`] when they change: the items they forbid are greyed, and their
+    /// clicks and key equivalents dropped, as for the gate.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/menus.rs:46 `modal_allows` (shared by native clicks and
+    // `ui.menu.invoke`). The fill stores the rules in `Shared` beside the gate, uses them in
+    // `chosen`, `take_clicks` and `Gate::grey`, and re-syncs on a change as for the gate.
+    pub fn set_modal_rules(&mut self, rules: crate::ModalRules) {
+        let _ = rules;
+        todo!()
+    }
+
     /// What may run from the menus. Call it every frame, before [`NativeMenu::take_clicks`]; it
     /// also holds for the menu events that arrive until the next call.
     ///

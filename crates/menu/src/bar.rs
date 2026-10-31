@@ -151,6 +151,15 @@ impl<'a> MenuBarUi<'a> {
         self
     }
 
+    /// The per-command rules under the gate ([`Gate::allows_under`]): the rows they forbid are
+    /// drawn and behave as disabled. Without it the gate alone decides.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    // new: gap 28; the fill adds a `rules: Option<&'a ModalRules>` field and uses it in `Convert::item`.
+    pub fn modal_rules(self, rules: &'a crate::ModalRules) -> MenuBarUi<'a> {
+        let _ = rules;
+        todo!()
+    }
+
     /// The platform the bar is on, for the shortcut column ([`craft_keymap::Chord::display`]): ⌘
     /// glyphs on [`Target::Mac`] and in a browser on a Mac ([`egui::Context::os`]), Ctrl names
     /// everywhere else. Where the names are a Mac's, the bar has no mnemonics and Alt is left

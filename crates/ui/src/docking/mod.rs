@@ -5,6 +5,7 @@
 //! Validate deserialized layouts before rendering them. Every transaction checks its complete
 //! input and commits only a valid result; a rejected move cannot lose the source panel.
 
+pub mod arrange;
 pub mod chrome;
 #[cfg(feature = "serde")]
 mod command;
@@ -12,10 +13,12 @@ mod config;
 #[cfg(feature = "native-windows")]
 mod desktop;
 mod dock_model;
+pub mod document_tabs;
 mod hits;
 mod labels;
 mod look;
 mod model;
+pub mod panel_menu;
 #[cfg(feature = "native-windows")]
 mod placement;
 mod render;
@@ -25,7 +28,9 @@ mod surface;
 mod targets;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
+pub mod windows;
 mod workspace;
+pub mod workspaces;
 
 #[cfg(feature = "serde")]
 pub use command::{DockCommand, DockOperation, UiDock, ZoneName};
@@ -49,11 +54,15 @@ pub use workspace::Workspace;
 use surface::{Drag, GroupDrag, GroupGesture};
 
 #[cfg(test)]
+mod arrange_tests;
+#[cfg(test)]
 mod chrome_token_tests;
 #[cfg(test)]
 mod command_tests;
 #[cfg(test)]
 mod dock_tests;
+#[cfg(test)]
+mod document_tabs_tests;
 #[cfg(test)]
 mod drop_tests;
 #[cfg(test)]
@@ -73,6 +82,12 @@ mod model_tests;
 #[cfg(all(test, feature = "native-windows"))]
 mod native_tests;
 #[cfg(test)]
+mod panel_menu_tests;
+#[cfg(test)]
 mod split_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod windows_tests;
+#[cfg(test)]
+mod workspaces_tests;

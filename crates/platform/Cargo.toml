@@ -19,10 +19,16 @@ ui = ["dep:egui"]
 theme = ["dep:craft-theme"]
 # Moving the system pointer (a scrub's screen-edge wrap).
 pointer = []
+# `session`: the documents open at the last quit, stored with serde in the app's settings.
+session = ["dep:serde", "dep:serde_json"]
+# `usage`: the process's memory use.
+usage = []
 
 [dependencies]
 egui = { workspace = true, optional = true }
 craft-theme = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))'.dependencies]
 zbus = { version = "5", default-features = false, features = ["async-io"], optional = true }

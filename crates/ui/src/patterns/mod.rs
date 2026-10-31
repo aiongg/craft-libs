@@ -9,6 +9,9 @@
 //! - [`PanelRail`]: the rail of icons that open panels.
 //! - [`FlyoutButton`]: a rail button that stands for a group of tools and opens them as a flyout.
 //! - [`StatusBar`]: the bar at the bottom of the window, with a leading group and a trailing group.
+//! - [`StatusReadout`]: the status bar's zoom field and document information with its ▸ menu.
+//! - [`ToolbarDrawer`]: Edit Toolbar's All Tools drawer beside the tool rail.
+//! - [`Tour`]: coach marks pointing at parts of the window, one step at a time.
 //!
 //! Patterns take semantic properties only and draw with the component tokens of what they hold
 //! (`options_bar.*` for [`OptionsBar`]); each has a pure `style` function of
@@ -34,9 +37,18 @@ pub(crate) mod rail;
 pub(crate) mod status_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod status_bar_tests;
+pub(crate) mod status_readout;
+#[cfg(test)]
+mod status_readout_tests;
 pub(crate) mod toolbar;
+pub(crate) mod toolbar_drawer;
+#[cfg(test)]
+mod toolbar_drawer_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod toolbar_tests;
+pub(crate) mod tour;
+#[cfg(test)]
+mod tour_tests;
 
 pub use crate::behavior::PaletteEntry;
 pub use command_palette::{CommandPalette, CommandPaletteStyle, PaletteLabels};
@@ -47,4 +59,7 @@ pub use panel::{Panel, PanelOutput, PanelStyle};
 pub use rail::{FlyoutButton, FlyoutItem, FlyoutResponse, FlyoutStyle, PanelRail, PanelRailItem, PanelRailOutput, PanelRailRequest, PanelRailStyle};
 pub use rail::{LastUsed, RailFooter, RailMetrics, RailTool, SlotId, ToolRail, ToolRailOutput, ToolSlot, shown_tool, visible_slots};
 pub use status_bar::{StatusBar, StatusBarSlots, StatusBarStyle, StatusProgress, StatusProgressOutput};
+pub use status_readout::{StatusItem, StatusReadout, StatusReadoutLabels, StatusReadoutOutput, StatusValues};
 pub use toolbar::{Toolbar, ToolbarItem, ToolbarResponse, ToolbarStyle};
+pub use toolbar_drawer::{DrawerGroup, DropAt, ToolbarDrawer, ToolbarDrawerLabels, ToolbarDrawerOutput, ToolbarEdit, apply_toolbar_edit};
+pub use tour::{Tour, TourEvent, TourLabels, TourStep};

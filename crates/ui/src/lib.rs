@@ -20,7 +20,7 @@ pub mod dialog;
 pub mod direction;
 pub mod docking;
 pub mod edit;
-mod focus;
+pub mod focus;
 pub mod fonts;
 pub mod icons;
 #[cfg(test)]

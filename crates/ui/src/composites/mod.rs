@@ -23,6 +23,7 @@
 //!   button and optional float and close buttons.
 //! - [`ToastStack`] and [`Toast`]: cards in the bottom corner of a host rect, with timers that
 //!   pause on hover and keyboard focus.
+//! - [`NoticeCenter`]: the app's notices as a [`ToastStack`], with a cap and "Don't Show Again".
 //! - [`Notice`]: an inline status message in the tone's icon and colour.
 //! - [`EmptyState`]: the message of an empty panel or list, or a centred no-document column.
 //! - [`live`]: live regions, which announce a message once when it appears. [`Tone`] is the
@@ -70,6 +71,9 @@ mod histogram_tests;
 pub mod live;
 pub(crate) mod measure;
 pub(crate) mod notice;
+pub(crate) mod notice_center;
+#[cfg(test)]
+mod notice_center_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod notice_tests;
 pub(crate) mod panel_footer;
@@ -103,6 +107,7 @@ pub use form_grid::{Form, FormGrid, FormStyle, LabelAlign};
 pub use group_box::{GroupBox, GroupBoxStyle};
 pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramResponse, HistogramScale, HistogramStyle};
 pub use notice::{Notice, NoticeStyle};
+pub use notice_center::{NoticeCenter, NoticeCenterLabels, NoticeEnd, PostedNotice};
 pub use panel_footer::{PanelFooter, PanelFooterStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};

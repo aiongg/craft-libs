@@ -90,6 +90,9 @@ mod readout;
 pub(crate) mod ref_point;
 pub(crate) mod rulers;
 mod scrollbars;
+mod selection_bar;
+#[cfg(test)]
+mod selection_bar_tests;
 mod snap;
 #[cfg(test)]
 mod snap_tests;
@@ -102,6 +105,9 @@ mod tests;
 mod tool_host;
 #[cfg(test)]
 mod tool_host_tests;
+mod tool_pill;
+#[cfg(test)]
+mod tool_pill_tests;
 mod turn;
 mod units;
 mod view;
@@ -137,6 +143,8 @@ pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, Scrollbar
 pub use snap::{SNAP_PX, SnapGesture, SnapKind, SnapLine, SnapOptions, SnapTarget, SnapTargets, union as snap_union};
 pub use split::{SplitLabels, SplitLayout, SplitPane, SplitResponse, SplitViews};
 pub use tool_host::{CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolPointer};
+pub use selection_bar::{SelectionBar, SelectionBarLabels, SelectionBarResponse};
+pub use tool_pill::{PillPlace, ToolPill, ToolPillLabels, ToolPillResponse};
 pub use turn::{
     PointerInk, SelectionBadge, distort_cursor, selection_badge_at, selection_badge_beside_pointer, selection_cursor, skew_cursor, turn_cursor,
     turn_cursor_with,

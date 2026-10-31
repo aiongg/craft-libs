@@ -24,6 +24,9 @@ mod raster;
 mod svg_set;
 #[cfg(test)]
 mod tests;
+mod tools;
+#[cfg(test)]
+mod tools_tests;
 
 use std::collections::HashMap;
 
@@ -36,6 +39,7 @@ use crate::theme::{Tokens, TokensOf};
 pub use compare::stories;
 #[allow(deprecated, reason = "re-export of the deprecated catalog")]
 pub use svg_set::{SvgIconSet, SvgStyle};
+pub use tools::ToolIcon;
 
 include!(concat!(env!("OUT_DIR"), "/icons.rs"));
 

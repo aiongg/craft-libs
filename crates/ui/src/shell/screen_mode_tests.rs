@@ -83,3 +83,19 @@ fn the_was_maximized_memory_is_per_window() {
     });
     assert_eq!(cmds, [Fullscreen(false)]);
 }
+
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+// command_id and from_command_id round-trip for the three modes; view.screenMode.cycle reads as None.
+fn screen_mode_command_ids_round_trip() {
+    todo!()
+}
+
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+// menu_entries gives three radio rows with the current mode chosen.
+fn screen_mode_menu_marks_the_current_mode() {
+    todo!()
+}

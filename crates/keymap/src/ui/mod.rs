@@ -16,7 +16,16 @@ use crate::keymap::{Bindable, Binding, Keymap};
 use crate::profiles::{Builtins, ProfileError, Profiles};
 
 mod capture;
+mod import_offer;
+#[cfg(test)]
+mod import_offer_tests;
 mod kbd;
+mod pages;
+#[cfg(test)]
+mod pages_tests;
+mod router;
+#[cfg(test)]
+mod router_tests;
 mod rows;
 mod state;
 mod story;
@@ -25,7 +34,10 @@ pub mod summary;
 mod text;
 mod view;
 
+pub use import_offer::{ImportOffer, ImportOfferLabels, NoOffer, OfferAnswer, OfferRecord};
 pub use kbd::kbd;
+pub use pages::{DialogSnapshot, DialogTab};
+pub use router::{KeyGate, KeyOwner, KeyRouter};
 pub use state::DialogState;
 pub use style::DialogStyle;
 pub use text::{COUNTS, WORDS, trigger_text};

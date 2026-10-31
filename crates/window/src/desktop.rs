@@ -1,5 +1,14 @@
 //! Which desktop and backend the window opens on, read from the environment and, on Wayland, the
-//! compositor's registry.
+//! compositor's registry; and, with the `ui` feature, the part of the window the user can see
+//! ([`visible_part`], [`fit_window`]).
+
+#[cfg(feature = "ui")]
+mod work_area;
+#[cfg(all(test, feature = "ui"))]
+mod work_area_tests;
+
+#[cfg(feature = "ui")]
+pub use work_area::{TASKBAR, WindowState, fit_window, fits, visible_part, visible_rect};
 
 /// The windowing backend the app opens its window on. An app that forces XWayland on a Wayland
 /// session passes [`Backend::X11`].

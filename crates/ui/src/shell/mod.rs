@@ -32,6 +32,9 @@ mod screen_mode;
 #[cfg(test)]
 mod screen_mode_tests;
 mod slot;
+mod start;
+#[cfg(test)]
+mod start_tests;
 #[cfg(test)]
 mod tests;
 mod visibility;
@@ -43,8 +46,9 @@ use egui::{Context, Frame, Id, Panel, Rect, Ui, UiBuilder, accesskit::Role};
 
 pub use canvas::{CanvasLabels, CanvasOutput, CanvasShell, PanelOptions, PanelRail};
 pub use ids::WindowKey;
-pub use screen_mode::{ScreenMode, full_screen_commands};
+pub use screen_mode::{CYCLE_COMMAND, ScreenMode, ScreenModeLabels, full_screen_commands};
 pub use slot::{Edge, Slot, SlotKey};
+pub use start::{RecentFile, RecentSort, RecentView, StartAction, StartLabels, StartScreen, Template, sort_recent};
 pub use visibility::{BodyMode, tab_toggles_chrome, take_tab_toggle};
 
 use ids::State;
