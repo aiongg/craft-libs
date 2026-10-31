@@ -784,7 +784,7 @@ pub const COMPONENTS: &[&str] = &["ToolRail"];
 
 type StoryTool = &'static str;
 
-fn story_slots() -> Vec<ToolSlot<StoryTool>> {
+pub(crate) fn story_slots() -> Vec<ToolSlot<StoryTool>> {
     let tool = |id, icon, label: &str, key: &str| RailTool::new(id, icon, label).shortcut(key);
     vec![
         ToolSlot::new(0, vec![tool("move", Icon::Move, "Move", "V")]),

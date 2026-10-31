@@ -231,11 +231,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         policy: Permissions,
     ) -> PanelMenu<'e> {
         let config = self.config;
+        let words = <PanelMenuLabels as crate::localized::SharedLabels>::shared(ui);
         let labels = PanelMenuLabels {
-            float: self.shaped(ui, &config.float_label),
-            move_to: self.shaped(ui, &config.move_panel_to_label),
-            close: self.shaped(ui, &config.close_label),
-            auto_collapse: self.shaped(ui, &config.auto_collapse_label),
+            float: self.shaped(ui, &words.float),
+            move_to: self.shaped(ui, &words.move_to),
+            close: self.shaped(ui, &words.close),
+            auto_collapse: self.shaped(ui, &words.auto_collapse),
         };
         let targets: Vec<String> = self.panel_targets(panel, policy).iter().map(|target| self.shaped_panel(ui, target)).collect();
         let mut group_items = PanelMenu::group_items(policy, &targets, config.close_menu_items, &labels);

@@ -90,10 +90,12 @@ mod screen_picker;
 mod scroll;
 mod section;
 mod segmented;
+mod selection_bar;
 mod slider;
 mod slider_row;
 mod spinner;
 mod split;
+mod start;
 mod status_bar;
 mod swatch;
 mod swatch_palette;
@@ -101,8 +103,10 @@ mod tab;
 mod title_bar;
 mod toast;
 mod toggle_button;
+mod tool_pill;
 mod toolbar;
 mod tooltip;
+mod tour;
 mod transform;
 
 use std::fmt;
@@ -173,10 +177,12 @@ pub use screen_picker::{ScreenPickerField, ScreenPickerTokens};
 pub use scroll::{ScrollField, ScrollTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
+pub use selection_bar::{SelectionBarField, SelectionBarTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
 pub use split::{SplitField, SplitTokens};
+pub use start::{StartField, StartTokens};
 pub use status_bar::{StatusBarField, StatusBarTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
@@ -184,8 +190,10 @@ pub use tab::{TabField, TabTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
+pub use tool_pill::{ToolPillField, ToolPillTokens};
 pub use toolbar::{ToolbarField, ToolbarTokens};
 pub use tooltip::{TooltipField, TooltipTokens};
+pub use tour::{TourField, TourTokens};
 pub use transform::{TransformField, TransformTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
@@ -851,6 +859,8 @@ families! {
     section: SectionTokens => Section(SectionField);
     /// Segmented controls: one of a few options as separate pills.
     segmented: SegmentedTokens => Segmented(SegmentedField);
+    /// Selection bars: the floating bar of actions beside a selection.
+    selection_bar: SelectionBarTokens => SelectionBar(SelectionBarField);
     /// Sliders: a track filled to the value, with a thumb on it.
     slider: SliderTokens => Slider(SliderField);
     /// Slider rows: a caption and number field over a full-width slider.
@@ -859,6 +869,8 @@ families! {
     spinner: SpinnerTokens => Spinner(SpinnerField);
     /// Split views: the gap between panes.
     split: SplitTokens => Split(SplitField);
+    /// Start screens: the recent-file card grid.
+    start: StartTokens => Start(StartField);
     /// Status bars: the bar at the bottom of the window.
     status_bar: StatusBarTokens => StatusBar(StatusBarField);
     /// Colour wells.
@@ -873,10 +885,14 @@ families! {
     toast: ToastTokens => Toast(ToastField);
     /// Toggle buttons that are on.
     toggle_button: ToggleButtonTokens => ToggleButton(ToggleButtonField);
+    /// Tool pills: the floating row of tools over a canvas.
+    tool_pill: ToolPillTokens => ToolPill(ToolPillField);
     /// Toolbars: a row or column of icon-button groups.
     toolbar: ToolbarTokens => Toolbar(ToolbarField);
     /// Tooltips.
     tooltip: TooltipTokens => Tooltip(TooltipField);
+    /// Tours: the coach marks and the card of a guided tour.
+    tour: TourTokens => Tour(TourField);
     /// Transform boxes and warp meshes.
     transform: TransformTokens => Transform(TransformField);
 }

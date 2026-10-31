@@ -22,6 +22,7 @@ pub mod panel_menu;
 mod placement;
 mod render;
 mod resize;
+pub(crate) mod shell_stories;
 mod story;
 mod surface;
 mod targets;

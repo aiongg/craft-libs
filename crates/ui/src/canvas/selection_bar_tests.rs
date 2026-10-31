@@ -32,6 +32,10 @@ fn host(selection: Option<Rect>, above: bool) -> Harness<'static, Host> {
     h
 }
 
+fn bar() -> craft_theme::SelectionBarTokens {
+    Base::suite_default().shown(craft_theme::Mode::Light).resolved.tokens.component.selection_bar
+}
+
 fn selection(min: (f32, f32), max: (f32, f32)) -> Rect {
     Rect::from_min_max(pos2(min.0, min.1), pos2(max.0, max.1))
 }
@@ -40,26 +44,26 @@ fn selection(min: (f32, f32), max: (f32, f32)) -> Rect {
 fn bar_sits_above_the_selection_and_flips_below() {
     let middle = selection((300.0, 200.0), (500.0, 300.0));
     let width = 200.0;
-    assert_eq!(place(CANVAS, middle, width, false), pos2(300.0, 314.0), "14 pt below, centred");
-    assert_eq!(place(CANVAS, middle, width, true), pos2(300.0, 200.0 - 36.0 - 8.0), "8 pt above, centred");
+    assert_eq!(place(CANVAS, middle, width, false, &bar()), pos2(300.0, 314.0), "14 pt below, centred");
+    assert_eq!(place(CANVAS, middle, width, true, &bar()), pos2(300.0, 200.0 - 36.0 - 8.0), "8 pt above, centred");
 
     let high = selection((300.0, 20.0), (500.0, 100.0));
-    assert_eq!(place(CANVAS, high, width, true).y, 108.0, "no room above: below");
+    assert_eq!(place(CANVAS, high, width, true, &bar()).y, 108.0, "no room above: below");
 
     let low = selection((300.0, 400.0), (500.0, 590.0));
-    assert_eq!(place(CANVAS, low, width, false).y, 400.0 - 36.0 - 14.0, "no room below: above");
+    assert_eq!(place(CANVAS, low, width, false, &bar()).y, 400.0 - 36.0 - 14.0, "no room below: above");
 
     let tall = selection((300.0, 20.0), (500.0, 590.0));
-    assert_eq!(place(CANVAS, tall, width, false).y, 600.0 - 8.0 - 36.0, "neither fits: the canvas's bottom less 8 pt");
+    assert_eq!(place(CANVAS, tall, width, false, &bar()).y, 600.0 - 8.0 - 36.0, "neither fits: the canvas's bottom less 8 pt");
 
     let corner = selection((0.0, 200.0), (20.0, 300.0));
-    assert_eq!(place(CANVAS, corner, width, false).x, 8.0, "x stays 8 pt inside the canvas");
+    assert_eq!(place(CANVAS, corner, width, false, &bar()).x, 8.0, "x stays 8 pt inside the canvas");
 
     // The drawn bar uses the width it measured on the previous frame.
     let mut h = host(Some(middle), false);
     h.run();
     let rect = h.state().rect.expect("shown");
-    let expected = place(CANVAS, middle, rect.width(), false);
+    let expected = place(CANVAS, middle, rect.width(), false, &bar());
     assert!((rect.min - expected).abs().max_elem() <= 0.5, "{:?} vs {expected:?}", rect.min);
 }
 
