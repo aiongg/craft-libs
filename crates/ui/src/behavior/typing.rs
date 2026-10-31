@@ -324,9 +324,10 @@ impl<'a, C: Codec> Typing<'a, C> {
         self
     }
 
-    /// The most characters the text can have, where an input that would make more is dropped
-    /// whole: nothing of it is typed, unlike [`char_limit`](Typing::char_limit), which cuts the
-    /// input short.
+    /// The most characters one input can bring: a text, paste or input-method event (marked or
+    /// committed) longer than `limit` is dropped whole before layout, unlike
+    /// [`char_limit`](Typing::char_limit), which cuts the input short. Short inputs that add up to
+    /// more are typed; the codec decides whether such text reads as a value.
     pub fn reject_over(mut self, limit: usize) -> Self {
         self.reject_over = limit;
         self
@@ -452,15 +453,14 @@ impl<'a, C: Codec> Typing<'a, C> {
             insert_chars(&mut buffer, range.start, text);
         }
         if focused && self.reject_over != usize::MAX {
-            let selected = state.cursor.char_range().map_or(0, |r| {
-                let range = r.as_sorted_char_range();
-                range.end.0 - range.start.0
-            });
-            let room = self.reject_over.saturating_add(selected).saturating_sub(buffer.chars().count());
+            let limit = self.reject_over;
             ui.input_mut(|i| {
-                i.events.retain(
-                    |event| !matches!(event, Event::Text(t) | Event::Paste(t) | Event::Ime(egui::ImeEvent::Commit(t)) if t.chars().count() > room),
-                )
+                i.events.retain(|event| match event {
+                    Event::Text(t) | Event::Paste(t) | Event::Ime(egui::ImeEvent::Commit(t) | egui::ImeEvent::Preedit { text: t, .. }) => {
+                        t.chars().nth(limit).is_none()
+                    }
+                    _ => true,
+                })
             });
         }
         state.store(ui.ctx(), id);

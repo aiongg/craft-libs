@@ -384,8 +384,10 @@ impl<'a> NumberField<'a> {
         self
     }
 
-    /// The most characters the text can have (128 by default, PhotoCraft's numeric input limit).
-    /// Typed or pasted text that would make more is rejected whole, not cut short.
+    /// The most characters of the text that can read as a value (128 by default, PhotoCraft's
+    /// numeric input limit). A typed, pasted or input-method text longer than this is dropped
+    /// whole, not cut short; text that grows past it from shorter inputs stays in the box but
+    /// applies neither as typed nor on commit.
     pub fn max_chars(mut self, max: usize) -> Self {
         self.max_chars = max;
         self
@@ -509,6 +511,7 @@ impl<'a> NumberField<'a> {
             fallback: self.fallback.as_deref(),
             bounds,
             grid: (self.snap_typed && self.step > 0.0 && self.step.is_finite() && bounds.0.is_finite() && bounds.1.is_finite()).then_some(self.step),
+            max_chars: self.max_chars,
         };
         let font = tokens.font(style.field.role);
         let parts = Parts::new(ui, &tokens, &style, &self, font.clone(), enabled);
@@ -1128,6 +1131,8 @@ struct Numbers<'n> {
     bounds: (f64, f64),
     /// The step a typed value snaps to.
     grid: Option<f64>,
+    /// Longer text never reads as a value ([`NumberField::max_chars`]).
+    max_chars: usize,
 }
 
 impl Numbers<'_> {
@@ -1152,7 +1157,7 @@ impl Codec for Numbers<'_> {
     /// A plain number in the region's digits, with or without the unit; not what only the app's
     /// reader reads (arithmetic).
     fn applies_as_typed(&self, text: &str) -> bool {
-        self.numbers.parse(self.unit.strip(text)).is_ok()
+        text.chars().nth(self.max_chars).is_none() && self.numbers.parse(self.unit.strip(text)).is_ok()
     }
 
     fn format(&self, value: &Option<f64>) -> String {
@@ -1160,6 +1165,11 @@ impl Codec for Numbers<'_> {
     }
 
     fn parse(&self, text: &str, start: &Option<f64>) -> Result<Option<f64>, NotAValue> {
+        // Checked before any reader normalizes the text: 128 spaces and a 2 are not a 2.
+        if let Some(over) = text.chars().nth(self.max_chars) {
+            let reason = self.numbers.describe_in(craft_i18n::NumberError::Unexpected(over), &self.words);
+            return Err(NotAValue { reason, partial: false });
+        }
         let bare = self.unit.strip(text);
         // The text as shown stands for the value itself, with the decimals it doesn't show.
         if start.is_some() && bare == self.format(start) {

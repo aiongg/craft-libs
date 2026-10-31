@@ -1621,3 +1621,18 @@ fn a_paste_over_the_character_limit_is_rejected_not_cut() {
     rig.frame(vec![Event::Paste("1".repeat(128))]);
     assert!(matches!(since(&rig, n)[..], [EditEvent::Begin { value: Some(_), .. }]), "{:?}", since(&rig, n));
 }
+
+/// Short inputs that add up to more than the character limit are typed, but the text never reads
+/// as a value, live or on commit (PhotoCraft's numeric parser checks the length before it
+/// normalizes the text).
+#[test]
+fn text_grown_past_the_character_limit_stays_but_never_applies() {
+    let mut rig = Rig::new(4.0);
+    rig.focus();
+    rig.type_text(&" ".repeat(64));
+    rig.type_text(&format!("{}2", " ".repeat(64)));
+    assert!(rig.shown().is_some_and(|t| t.chars().count() >= 129), "{:?}", rig.shown());
+    assert_eq!(rig.value, 4.0);
+    rig.key(Key::Enter);
+    assert_eq!(rig.value, 4.0);
+}
