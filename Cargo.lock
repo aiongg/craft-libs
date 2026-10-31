@@ -1290,6 +1290,7 @@ name = "craft-update"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "craft-host",
  "craft-ui",
  "dunce",
  "egui",
