@@ -534,7 +534,8 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
                 Self::arrows(ui, grid.columns, &cells);
             }
             if self.editing {
-                let target = pointer_target(ui.ctx(), full, placed, grid.columns, rtl, slots.len()).or_else(|| edit_state(ui.ctx(), self.id_salt).target);
+                let target =
+                    pointer_target(ui.ctx(), full, placed, grid.columns, rtl, slots.len()).or_else(|| edit_state(ui.ctx(), self.id_salt).target);
                 if let Some(target) = target {
                     paint_target(ui, grid.columns, rtl, placed, target);
                 }

@@ -113,14 +113,7 @@ impl NoticeCenter {
 
     /// Posts a notice. No notice is posted when its `dismiss_key` is in `silenced`.
     // pc: crates/ui-egui/src/notices.rs:49 `post`, :56 `cap_notices`, :13 `MAX_NOTICES` (3).
-    pub fn post(
-        &mut self,
-        title: impl Into<String>,
-        lines: Vec<String>,
-        tone: Tone,
-        dismiss_key: Option<String>,
-        silenced: &[String],
-    ) -> NoticePost {
+    pub fn post(&mut self, title: impl Into<String>, lines: Vec<String>, tone: Tone, dismiss_key: Option<String>, silenced: &[String]) -> NoticePost {
         if dismiss_key.as_ref().is_some_and(|key| silenced.contains(key)) {
             return NoticePost { id: None, dropped: Vec::new() };
         }

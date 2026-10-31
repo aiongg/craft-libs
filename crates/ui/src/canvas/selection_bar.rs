@@ -2,7 +2,7 @@
 //! Contextual Task Bar; WordCraft's mini toolbar over selected text).
 
 use egui::accesskit::Role;
-use egui::{Area, AsIdSalt, CursorIcon, Id, Order, Pos2, Rect, Sense, Ui, WidgetInfo, pos2, vec2};
+use egui::{Area, AsIdSalt, CursorIcon, Id, Key, Order, Pos2, Rect, Sense, Ui, Vec2, WidgetInfo, pos2, vec2};
 
 use crate::controls::{ControlSize, IconButton};
 use crate::direction;
@@ -49,6 +49,14 @@ pub(super) fn place(canvas: Rect, selection: Rect, width: f32, above: bool, bar:
         (_, false, false) => (canvas.max.y - inset - height).max(canvas.min.y + inset),
     };
     pos2(x, y)
+}
+
+/// The arrow keys pressed this pass as a direction (right and down positive), consumed.
+fn grip_arrows(ctx: &egui::Context) -> Vec2 {
+    ctx.input_mut(|i| {
+        let mut step = |key| f32::from(i.consume_key(egui::Modifiers::NONE, key));
+        vec2(step(Key::ArrowRight) - step(Key::ArrowLeft), step(Key::ArrowDown) - step(Key::ArrowUp))
+    })
 }
 
 /// What [`SelectionBar::show`] returns.
@@ -179,9 +187,19 @@ impl SelectionBar {
                                 ui.painter().circle_filled(centre, bar.grip_dot, ink.to_egui());
                             }
                         }
-                        if grip.dragged() {
-                            ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
-                            let to = (inside(at + grip.drag_delta(), width, canvas, &bar) - canvas.min).to_pos2();
+                        // With the focus on the grip the arrow keys move the bar by half its height.
+                        let keys = if grip.has_focus() {
+                            let arrows = egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() };
+                            ui.ctx().memory_mut(|m| m.set_focus_lock_filter(grip_id, arrows));
+                            grip_arrows(ui.ctx()) * (bar.height / 2.0)
+                        } else {
+                            Vec2::ZERO
+                        };
+                        if grip.dragged() || keys != Vec2::ZERO {
+                            if grip.dragged() {
+                                ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+                            }
+                            let to = (inside(at + grip.drag_delta() + keys, width, canvas, &bar) - canvas.min).to_pos2();
                             ui.ctx().data_mut(|d| d.insert_temp(pin_id, Pin(to)));
                             pinned_at = Some(to);
                         } else if grip.hovered() {

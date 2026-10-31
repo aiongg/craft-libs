@@ -74,7 +74,7 @@ fn readout_menu_chooses_the_item() {
 }
 
 #[test]
-// Typing 200 and Enter in the zoom field returns zoom Some(200.0); Esc reverts.
+// Typing 200 and Enter in the zoom field commits 200; Esc after typing cancels.
 fn zoom_field_commits_a_typed_percentage() {
     let mut harness = harness();
     let field = harness.get_by_label("Zoom");
@@ -86,7 +86,11 @@ fn zoom_field_commits_a_typed_percentage() {
     harness.run();
     harness.key_press(Key::Escape);
     harness.run();
-    assert!(harness.state().zoom_events.iter().all(|e| e.value().is_none()), "Esc reverts: {:?}", harness.state().zoom_events);
+    assert!(
+        matches!(harness.state().zoom_events.last(), Some(EditEvent::Cancel { .. })),
+        "Esc cancels the preview: {:?}",
+        harness.state().zoom_events
+    );
 
     harness.get_by_label("Zoom").focus();
     harness.run();

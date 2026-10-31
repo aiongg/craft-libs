@@ -25,7 +25,13 @@ fn show_center(ui: &mut Ui, _args: &mut NoArgs) {
     let center = center.get_or_insert_with(|| {
         let mut center = NoticeCenter::new().auto_hide(None);
         let _ = center.post("Pasted from the clipboard", Vec::new(), Tone::Neutral, None, &[]);
-        let _ = center.post("Profile mismatch", vec!["The document uses its own profile.".to_owned()], Tone::Warn, Some("profile-mismatch".to_owned()), &[]);
+        let _ = center.post(
+            "Profile mismatch",
+            vec!["The document uses its own profile.".to_owned()],
+            Tone::Warn,
+            Some("profile-mismatch".to_owned()),
+            &[],
+        );
         if let Some(id) = center.post("Couldn't save the document", vec!["The disk is full.".to_owned()], Tone::Bad, None, &[]).id {
             center.keep(id);
         }

@@ -14,6 +14,7 @@ struct Host {
     above: bool,
     inner: Option<()>,
     rect: Option<Rect>,
+    pinned_at: Option<egui::Pos2>,
 }
 
 fn host(selection: Option<Rect>, above: bool) -> Harness<'static, Host> {
@@ -23,11 +24,12 @@ fn host(selection: Option<Rect>, above: bool) -> Harness<'static, Host> {
         });
         host.inner = response.inner;
         host.rect = response.rect;
+        host.pinned_at = response.pinned_at.or(host.pinned_at);
     };
     let mut h = Harness::<Host>::builder()
         .with_size([800.0, 600.0])
         .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
-        .build_ui_state(app, Host { selection, above, inner: None, rect: None });
+        .build_ui_state(app, Host { selection, above, inner: None, rect: None, pinned_at: None });
     h.run();
     h
 }
@@ -83,4 +85,21 @@ fn bar_hides_while_dragging_and_without_selection() {
     h.event(Event::PointerButton { pos: away, button: PointerButton::Primary, pressed: false, modifiers: Default::default() });
     h.run();
     assert!(h.state().inner.is_some(), "and it returns on release");
+}
+
+#[test]
+// With the focus on the grip the arrow keys move the bar and pin it there.
+fn arrow_keys_on_the_grip_move_the_bar() {
+    use egui_kittest::kittest::Queryable as _;
+    let mut h = host(Some(selection((300.0, 200.0), (500.0, 300.0))), false);
+    h.get_by_label("Move Bar").focus();
+    h.run();
+    let before = h.state().rect.unwrap();
+    h.key_press(egui::Key::ArrowRight);
+    h.run();
+    h.key_press(egui::Key::ArrowDown);
+    h.run();
+    let after = h.state().rect.unwrap();
+    assert!(after.min.x > before.min.x && after.min.y > before.min.y, "{before:?} -> {after:?}");
+    assert!(h.state().pinned_at.is_some());
 }
