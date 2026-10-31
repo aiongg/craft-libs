@@ -9,3 +9,5 @@ pub mod dialog_outcome;
 pub mod dialogs;
 #[cfg(all(feature = "appearance", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 mod process;
+#[cfg(feature = "screen")]
+pub mod screen;

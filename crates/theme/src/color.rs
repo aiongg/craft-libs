@@ -417,3 +417,56 @@ impl From<Srgba> for ecolor::Color32 {
         ecolor::Color32::from_rgba_unmultiplied(r, g, b, a)
     }
 }
+
+/// Hex text and float arrays for the two colour types (F04.09): the one set of conversions that
+/// replaces the apps' near-identical `hex`, `parse_hex`, `rgb3` and `c32` helpers. `#` is
+/// optional on input and written on output; three-digit `#RGB` doubles each digit (web colours);
+/// six or eight digits are `#RRGGBB[AA]`. Output is lower-case.
+impl Srgba {
+    /// Parses `#RGB`, `#RRGGBB` or `#RRGGBBAA` (the `#` optional, case-insensitive); alpha 1 when
+    /// not given. `None` for anything else.
+    // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:64 `parse_hex`, plus `Rgba::from_hex`.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    pub fn from_hex(_text: &str) -> Option<Srgba> {
+        todo!()
+    }
+
+    /// `#rrggbb`, or `#rrggbbaa` when the alpha is below 1.
+    // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:59 `hex`.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    pub fn to_hex(self) -> String {
+        todo!()
+    }
+
+    /// The encoded channels without alpha, for engines that take `[f32; 3]`.
+    pub fn to_rgb_array(self) -> [f32; 3] {
+        [self.r, self.g, self.b]
+    }
+
+    /// An opaque colour from encoded channels.
+    pub fn from_rgb_array([r, g, b]: [f32; 3]) -> Srgba {
+        Srgba::rgb(r, g, b)
+    }
+
+    /// The encoded channels with alpha.
+    pub fn to_array(self) -> [f32; 4] {
+        [self.r, self.g, self.b, self.a]
+    }
+
+    /// A colour from encoded channels with alpha.
+    pub fn from_array([r, g, b, a]: [f32; 4]) -> Srgba {
+        Srgba::new(r, g, b, a)
+    }
+}
+
+impl Rgba {
+    /// The channels as `[f32; 3]` in 0–1, without alpha.
+    pub fn to_rgb_array(self) -> [f32; 3] {
+        Srgba::from(self).to_rgb_array()
+    }
+
+    /// An opaque colour from 0–1 channels, rounded to 8 bits.
+    pub fn from_rgb_array(rgb: [f32; 3]) -> Rgba {
+        Srgba::from_rgb_array(rgb).to_rgba()
+    }
+}

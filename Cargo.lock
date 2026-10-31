@@ -863,7 +863,11 @@ dependencies = [
 name = "craft-color"
 version = "0.1.0"
 dependencies = [
+ "craft-cms",
+ "craft-host",
  "craft-i18n",
+ "craft-platform",
+ "craft-settings",
  "craft-theme",
  "craft-ui",
  "egui",
