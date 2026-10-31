@@ -376,7 +376,9 @@ impl GradientOverlay<'_> {
         }
         let (t, _) = self.located(view, &press.base.line, press.origin);
         match stops::add(&press.base.stops, StopRow::Color, round_location(t), sampler, &self.rules) {
-            Some((stops, i)) => LineRelease::Add { value: LineGradient { line: press.base.line, stops }, selected: TaggedStop { stop: StopRef::Color(i), tag: 0 } },
+            Some((stops, i)) => {
+                LineRelease::Add { value: LineGradient { line: press.base.line, stops }, selected: TaggedStop { stop: StopRef::Color(i), tag: 0 } }
+            }
             None => LineRelease::Nothing,
         }
     }

@@ -13,7 +13,7 @@ use crate::direction::{self, Direction};
 use crate::edit::{CancelReason, EditEvent, EditPolicy, GestureHost, UndoMarks};
 use crate::localized::LocaleNumbers;
 use crate::testing::a11y;
-use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
+use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, current, install};
 
 /// A host of one curve that applies every value and restores the start value on a cancel.
 struct Host {
@@ -48,6 +48,7 @@ struct Host {
     outside_events: Vec<(&'static str, u64)>,
     /// Draws a host row between the graph and the fields; its rect is kept in `between_rect`.
     between: bool,
+    bars: bool,
     between_rect: Option<Rect>,
 }
 
@@ -106,6 +107,7 @@ impl Host {
             outside: None,
             outside_events: Vec::new(),
             between: false,
+            bars: true,
             between_rect: None,
         }
     }
@@ -129,7 +131,8 @@ impl Host {
             .max_points(self.max_points)
             .policy(self.policy)
             .pencil(self.pencil)
-            .corners(self.corners);
+            .corners(self.corners)
+            .bars(self.bars);
         if self.percent {
             editor = editor.percent();
         }
@@ -979,6 +982,64 @@ fn a_press_and_release_in_one_frame_adds_a_point_in_one_gesture() {
     assert_eq!(harness.state().points()[1], [64.0, 200.0]);
 }
 
+/// Runs `host` for one frame of a bare context: the pointer arrives, the primary button goes down
+/// and comes up inside the frame (a fast native click, an automation click). The test harness
+/// spreads such events over two frames, so it can't show this.
+fn same_frame_click(ctx: &Context, host: &mut Host, pos: Pos2, time: f64) {
+    let button = |pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let raw = egui::RawInput {
+        time: Some(time),
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(480.0, 480.0))),
+        events: vec![Event::PointerMoved(pos), button(true), button(false)],
+        ..Default::default()
+    };
+    ctx.run_ui(raw, |ui| host.show(ui)).textures_delta.clear();
+}
+
+fn bare_context() -> Context {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    ctx
+}
+
+fn idle_frame(ctx: &Context, host: &mut Host, time: f64) {
+    let raw = egui::RawInput { time: Some(time), screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(480.0, 480.0))), ..Default::default() };
+    ctx.run_ui(raw, |ui| host.show(ui)).textures_delta.clear();
+}
+
+#[test]
+fn a_press_and_release_in_one_frame_selects_a_point_and_adds_one_on_the_empty_plot() {
+    let ctx = bare_context();
+    let mut host = Host::new(&THREE);
+    for t in 0..3 {
+        idle_frame(&ctx, &mut host, f64::from(t) * 0.1);
+    }
+    let at = host.at(THREE[1]);
+    same_frame_click(&ctx, &mut host, at, 0.4);
+    idle_frame(&ctx, &mut host, 0.5);
+    assert_eq!((CurveEditor::selected(&ctx, host.id), host.curve.points().map(<[_]>::len)), (Some(1), Some(3)));
+    host.events.clear();
+    let at = host.at([64.0, 200.0]);
+    same_frame_click(&ctx, &mut host, at, 1.0);
+    idle_frame(&ctx, &mut host, 1.1);
+    assert_eq!(host.kinds(), ["Set"]);
+    assert_eq!(host.points()[1], [64.0, 200.0]);
+}
+
+#[test]
+fn a_press_and_release_in_one_frame_draws_a_point_in_pencil_mode() {
+    let ctx = bare_context();
+    let mut host = Host { pencil: true, ..Host::new(&THREE) };
+    for t in 0..3 {
+        idle_frame(&ctx, &mut host, f64::from(t) * 0.1);
+    }
+    let at = host.at([64.0, 200.0]);
+    same_frame_click(&ctx, &mut host, at, 0.4);
+    idle_frame(&ctx, &mut host, 0.5);
+    assert_eq!(host.kinds(), ["Set"]);
+    assert_eq!(host.drawn()[64], 200.0);
+}
+
 #[test]
 fn a_graph_in_pencil_mode_keeps_no_claim_from_points_mode() {
     let mut harness = rig(&THREE);
@@ -1391,4 +1452,17 @@ fn a_host_row_between_shows_between_the_graph_and_the_fields_and_the_fields_stil
     type_into_input(&mut harness, "100");
     key(&mut harness, Modifiers::NONE, Key::Enter);
     assert_eq!(harness.state().points(), vec![[0.0, 0.0], [100.0, 128.0], [255.0, 255.0]]);
+}
+
+#[test]
+fn a_plain_curve_drops_the_bars_and_their_gap_and_the_state_follows() {
+    let bars = rig(&THREE);
+    let plain = harness(Host { bars: false, ..Host::new(&THREE) }, Direction::Ltr);
+    let (with, without) = (bars.state(), plain.state());
+    let style = CurveEditor::style(&current(&plain.ctx));
+    assert_eq!(without.rect.width() - with.rect.width(), style.bar + style.bar_gap);
+    let state = CurveEditor::state(&plain.ctx, without.id).expect("state after a frame");
+    assert_eq!(state.plot, without.rect.shrink(without.pad), "the plot is the whole widget less the inset");
+    assert_eq!(without.rect.width(), without.rect.height(), "a square");
+    assert_eq!(state.screen([0.0, 0.0]), state.plot.left_bottom());
 }

@@ -1258,7 +1258,10 @@ fn the_host_driven_press_track_release_match_show() {
     let overlay = GradientOverlay::new("gradient", &base.line, &base.stops, english_names());
     let mut press = overlay.press(&view, &style, at, Modifiers::NONE).expect("a press");
     assert!(!overlay.track(&view, &style, &mut press, at, Modifiers::NONE).begun);
-    assert_eq!(overlay.release(&view, &press), LineRelease::Add { value: value(&h), selected: TaggedStop { stop: selected(&h).expect("selected"), tag: 0 } });
+    assert_eq!(
+        overlay.release(&view, &press),
+        LineRelease::Add { value: value(&h), selected: TaggedStop { stop: selected(&h).expect("selected"), tag: 0 } }
+    );
 
     let mut h = harness(|_| {});
     h.run();
