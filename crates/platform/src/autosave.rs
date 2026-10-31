@@ -6,7 +6,7 @@
 //! earlier run left behind. The recover-on-launch question is
 //! `craft_ui::dialog::RecoveryDialog` (or none: PhotoCraft reopens them without asking).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
@@ -34,25 +34,36 @@ pub struct AutosaveDoc {
     pub dirty: bool,
 }
 
+/// What [`Autosave::due`] decided for one call.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AutosaveDue {
+    /// The documents to autosave now; they count as in flight until [`Autosave::finished`].
+    pub save: Vec<u64>,
+    /// The documents the timer stopped tracking because they are clean (saved, or undone back to
+    /// the saved state) or gone. The app discards their recovery copies.
+    pub discard: Vec<u64>,
+}
+
 /// When to autosave, after PhotoCraft's timer.
 ///
 /// The first [`due`](Self::due) starts the clock; each interval after it, every document that is
 /// dirty, whose revision differs from the one last autosaved, and that has no autosave in flight
 /// is due. The app writes them (on a job) and reports each with [`finished`](Self::finished).
-/// Saving or closing a document is [`forget`](Self::forget) (and the app discards its copy).
+/// A document that turns clean without a save comes back in [`AutosaveDue::discard`]; saving or
+/// closing a document is [`forget`](Self::forget) (and the app discards its copy).
 /// With autosave off (`set_interval(None)`) nothing is ever due.
 #[derive(Debug)]
 pub struct Autosave {
     interval: Option<Duration>,
     next: Option<Instant>,
     saved: HashMap<u64, u64>,
-    in_flight: HashSet<u64>,
+    in_flight: HashMap<u64, u64>,
 }
 
 impl Autosave {
     /// `None` turns autosave off (PhotoCraft's `fileHandling.autosave = false`).
     pub fn new(interval: Option<Duration>) -> Self {
-        Self { interval, next: None, saved: HashMap::new(), in_flight: HashSet::new() }
+        Self { interval, next: None, saved: HashMap::new(), in_flight: HashMap::new() }
     }
 
     /// A changed preference; the next deadline moves to now plus the new interval.
@@ -66,42 +77,50 @@ impl Autosave {
         }
     }
 
-    /// The ids to autosave now; they count as in flight until [`finished`](Self::finished).
+    /// The documents to autosave now, and those whose recovery copy to discard.
     // pc: crates/ui-egui/src/prefs/prefs_ui/save.rs:228 autosave
-    pub fn due(&mut self, now: Instant, docs: impl IntoIterator<Item = AutosaveDoc>) -> Vec<u64> {
+    pub fn due(&mut self, now: Instant, docs: impl IntoIterator<Item = AutosaveDoc>) -> AutosaveDue {
         let docs: Vec<AutosaveDoc> = docs.into_iter().collect();
         // A document that is clean (or gone) has no pending copy to track.
         let dirty = |id: &u64| docs.iter().any(|d| d.id == *id && d.dirty);
-        self.saved.retain(|id, _| dirty(id));
-        self.in_flight.retain(dirty);
+        let mut discard: Vec<u64> = self.saved.keys().chain(self.in_flight.keys()).copied().filter(|id| !dirty(id)).collect();
+        discard.sort_unstable();
+        discard.dedup();
+        for id in &discard {
+            self.saved.remove(id);
+            self.in_flight.remove(id);
+        }
+        let mut due = AutosaveDue { save: Vec::new(), discard };
         let Some(interval) = self.interval else {
             self.next = None;
-            return Vec::new();
+            return due;
         };
         let Some(next) = self.next else {
             self.next = Some(now + interval);
-            return Vec::new();
+            return due;
         };
         if now < next {
-            return Vec::new();
+            return due;
         }
         self.next = Some(now + interval);
-        let mut ids = Vec::new();
         for d in docs {
-            if d.dirty && self.saved.get(&d.id) != Some(&d.revision) && self.in_flight.insert(d.id) {
-                ids.push(d.id);
+            if d.dirty && self.saved.get(&d.id) != Some(&d.revision) && !self.in_flight.contains_key(&d.id) {
+                self.in_flight.insert(d.id, d.revision);
+                due.save.push(d.id);
             }
         }
-        ids
+        due
     }
 
     /// An autosave ended. On success `revision` is remembered; on failure the status text
     /// ([`AUTOSAVE_FAILED`] filled in) comes back for the status bar.
     pub fn finished(&mut self, id: u64, revision: u64, result: Result<(), String>) -> Option<String> {
-        // A result for a document that was forgotten meanwhile is ignored.
-        if !self.in_flight.remove(&id) {
+        // A result for a document that was forgotten meanwhile, or for a revision other than the
+        // one in flight (an older job after `forget` and a new `due`), is ignored.
+        if self.in_flight.get(&id) != Some(&revision) {
             return None;
         }
+        self.in_flight.remove(&id);
         match result {
             Ok(()) => {
                 self.saved.insert(id, revision);
@@ -211,14 +230,14 @@ pub struct RecoveryEntry {
 ///
 /// Every method takes `&self`, so the app keeps one store in an `Arc` and shares it with its
 /// autosave jobs. The folder is created owner-only (0o700 on Unix). [`open`](Self::open) takes an exclusive
-/// `instance-<pid>-<n>.lock`, so [`leftovers`](Self::leftovers) offers only copies whose run is
+/// `instance-<session>-<pid>-<n>.lock`, so [`leftovers`](Self::leftovers) offers only copies whose run is
 /// gone, never those of another instance still running (PdfCraft).
 #[cfg(not(target_arch = "wasm32"))]
 pub struct RecoveryStore {
     dir: PathBuf,
     session: String,
     adopted: std::sync::Mutex<HashMap<u64, String>>,
-    /// The name of this run's `instance-<pid>-<n>.lock`, recorded in every sidecar it writes.
+    /// The name of this run's `instance-<session>-<pid>-<n>.lock`, recorded in every sidecar it writes.
     instance: String,
     lock: std::fs::File,
 }
@@ -242,7 +261,9 @@ impl RecoveryStore {
         let pid = std::process::id();
         let nanos = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
         let session = format!("{nanos:x}_{pid:x}_{n:x}");
-        let instance = format!("instance-{pid}-{n}.lock");
+        // The session string is in the name: a PID namespace can hand a new run its crashed
+        // predecessor's PID and counter.
+        let instance = format!("instance-{nanos:x}-{pid:x}-{n:x}.lock");
         let path = dir.join(&instance);
         let lock = std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(false).open(&path)?;
         if let Err(e) = lock.try_lock() {

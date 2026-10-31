@@ -42,21 +42,40 @@ fn due_picks_dirty_changed_documents_each_interval() {
     let t0 = Instant::now();
     let mut timer = Autosave::new(Some(minute));
     let docs = |rev| [doc(1, rev, true), doc(2, 1, false)];
-    assert!(timer.due(t0, docs(1)).is_empty(), "the first call starts the clock");
+    assert!(timer.due(t0, docs(1)).save.is_empty(), "the first call starts the clock");
     assert_eq!(timer.deadline(), Some(t0 + minute));
-    assert!(timer.due(t0 + minute / 2, docs(1)).is_empty());
-    assert_eq!(timer.due(t0 + minute, docs(1)), vec![1]);
-    assert!(timer.due(t0 + minute * 2, docs(1)).is_empty(), "still in flight");
+    assert!(timer.due(t0 + minute / 2, docs(1)).save.is_empty());
+    assert_eq!(timer.due(t0 + minute, docs(1)).save, vec![1]);
+    assert!(timer.due(t0 + minute * 2, docs(1)).save.is_empty(), "still in flight");
     assert_eq!(timer.finished(1, 1, Ok(())), None);
-    assert!(timer.due(t0 + minute * 3, docs(1)).is_empty(), "revision already autosaved");
-    assert_eq!(timer.due(t0 + minute * 4, docs(2)), vec![1]);
+    assert!(timer.due(t0 + minute * 3, docs(1)).save.is_empty(), "revision already autosaved");
+    assert_eq!(timer.due(t0 + minute * 4, docs(2)).save, vec![1]);
     assert_eq!(timer.finished(1, 2, Err("disk full".into())).as_deref(), Some("Autosave failed: disk full"));
-    assert_eq!(timer.due(t0 + minute * 5, docs(2)), vec![1], "a failed revision is tried again");
+    assert_eq!(timer.due(t0 + minute * 5, docs(2)).save, vec![1], "a failed revision is tried again");
     timer.forget(1);
     assert_eq!(timer.finished(1, 2, Ok(())), None, "a result after forget is ignored");
 
+    // A document that turns clean without a save is handed back for discarding, once.
+    let mut timer = Autosave::new(Some(minute));
+    timer.due(t0, docs(1));
+    assert_eq!(timer.due(t0 + minute, docs(1)).save, vec![1]);
+    assert_eq!(timer.finished(1, 1, Ok(())), None);
+    let clean = timer.due(t0 + minute * 2, [doc(1, 1, false)]);
+    assert_eq!(clean.discard, vec![1]);
+    assert!(timer.due(t0 + minute * 3, [doc(1, 1, false)]).discard.is_empty());
+
+    // An old job's result does not complete the new job of the same document.
+    let mut timer = Autosave::new(Some(minute));
+    timer.due(t0, docs(1));
+    assert_eq!(timer.due(t0 + minute, docs(1)).save, vec![1]);
+    timer.forget(1);
+    assert_eq!(timer.due(t0 + minute * 2, docs(2)).save, vec![1]);
+    assert_eq!(timer.finished(1, 1, Err("late".into())), None, "revision 1 is not the one in flight");
+    assert!(timer.due(t0 + minute * 3, docs(2)).save.is_empty(), "revision 2 is still in flight");
+    assert_eq!(timer.finished(1, 2, Ok(())), None);
+
     timer.set_interval(None);
-    assert!(timer.due(t0 + minute * 9, docs(3)).is_empty());
+    assert!(timer.due(t0 + minute * 9, docs(3)).save.is_empty());
     assert_eq!(timer.deadline(), None);
 }
 
@@ -118,6 +137,28 @@ fn leftovers_skip_live_instances() {
     assert!(second.leftovers().is_empty(), "adopted copies now belong to the live run");
     second.remove(&found[0]).unwrap();
     assert!(!found[0].path.exists());
+}
+
+// The instance name carries the session, so a run that gets a crashed run's PID and counter
+// still sees that run's copies as leftovers.
+#[test]
+fn instance_names_carry_the_session() {
+    let scratch = Scratch::new();
+    let dir = scratch.0.join("Recovery");
+    let store = RecoveryStore::open(&dir).unwrap();
+    store.write(1, &meta("a.psd", 1), b"x").unwrap();
+    let sidecar = std::fs::read_to_string(dir.join(format!("{}.json", store.key(1)))).unwrap();
+    let session = store.key(1).strip_prefix("doc-").unwrap().strip_suffix("-1").unwrap().to_owned();
+    let name = format!("instance-{}.lock", session.replace('_', "-"));
+    assert!(sidecar.contains(&name), "{sidecar} lacks {name}");
+
+    // The crashed run of the same PID and counter, with a lock nobody holds.
+    let pid = std::process::id();
+    let crashed = format!("instance-0-{pid:x}-0.lock");
+    std::fs::write(dir.join(&crashed), b"").unwrap();
+    std::fs::write(dir.join("doc-old-1.pcraft"), b"old").unwrap();
+    std::fs::write(dir.join("doc-old-1.json"), format!(r#"{{"name":"o.psd","extension":"pcraft","revision":1,"instance":"{crashed}"}}"#)).unwrap();
+    assert_eq!(store.leftovers().len(), 1);
 }
 
 // Another live run's half-written entry (copy without its sidecar) is never listed; once that
