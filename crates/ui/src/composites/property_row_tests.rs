@@ -292,8 +292,8 @@ fn a_scrubbing_label_changes_the_value() {
                         .show(ui)
                     })
                     .inner;
-                if let Some(EditEvent::Update { value: v, .. } | EditEvent::Commit { value: v, .. } | EditEvent::Set { value: v, .. }) = edit.event {
-                    *value = v;
+                if let Some(v) = edit.event.as_ref().and_then(EditEvent::value) {
+                    *value = *v;
                 }
             });
         },

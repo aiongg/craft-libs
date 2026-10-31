@@ -175,7 +175,12 @@ impl Host {
         }
         if let Some(event) = edit.event {
             match &event {
-                EditEvent::Begin { .. } => self.before = Some(self.curve.clone()),
+                EditEvent::Begin { value, .. } => {
+                    self.before = Some(self.curve.clone());
+                    if let Some(value) = value {
+                        self.curve = value.clone();
+                    }
+                }
                 EditEvent::Cancel { reason, .. } if *reason != CancelReason::External => {
                     if let Some(before) = self.before.take() {
                         self.curve = before;

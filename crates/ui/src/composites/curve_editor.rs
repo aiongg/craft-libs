@@ -1422,7 +1422,12 @@ struct StoryCurves {
 fn apply(edit: &EditResponse<Curve>, curve: &mut Curve, before: &mut Option<Curve>) {
     use crate::edit::EditEvent;
     match &edit.event {
-        Some(EditEvent::Begin { .. }) => *before = Some(curve.clone()),
+        Some(EditEvent::Begin { value, .. }) => {
+            *before = Some(curve.clone());
+            if let Some(value) = value {
+                *curve = value.clone();
+            }
+        }
         Some(EditEvent::Cancel { .. }) => {
             if let Some(b) = before.take() {
                 *curve = b;
