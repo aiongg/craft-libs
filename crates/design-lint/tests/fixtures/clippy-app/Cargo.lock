@@ -90,7 +90,7 @@ dependencies = [
 [[package]]
 name = "ecolor"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=94a2ac9917531fdf7285e4a30e7ae8372b8104b5#94a2ac9917531fdf7285e4a30e7ae8372b8104b5"
+source = "git+https://github.com/aiongg/egui.git?rev=35a72e6b786d65ba92532566251947d4b80c4611#35a72e6b786d65ba92532566251947d4b80c4611"
 dependencies = [
  "emath",
 ]
@@ -98,7 +98,7 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=94a2ac9917531fdf7285e4a30e7ae8372b8104b5#94a2ac9917531fdf7285e4a30e7ae8372b8104b5"
+source = "git+https://github.com/aiongg/egui.git?rev=35a72e6b786d65ba92532566251947d4b80c4611#35a72e6b786d65ba92532566251947d4b80c4611"
 dependencies = [
  "accesskit",
  "ahash",
@@ -122,12 +122,12 @@ checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 [[package]]
 name = "emath"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=94a2ac9917531fdf7285e4a30e7ae8372b8104b5#94a2ac9917531fdf7285e4a30e7ae8372b8104b5"
+source = "git+https://github.com/aiongg/egui.git?rev=35a72e6b786d65ba92532566251947d4b80c4611#35a72e6b786d65ba92532566251947d4b80c4611"
 
 [[package]]
 name = "epaint"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=94a2ac9917531fdf7285e4a30e7ae8372b8104b5#94a2ac9917531fdf7285e4a30e7ae8372b8104b5"
+source = "git+https://github.com/aiongg/egui.git?rev=35a72e6b786d65ba92532566251947d4b80c4611#35a72e6b786d65ba92532566251947d4b80c4611"
 dependencies = [
  "ahash",
  "ecolor",
@@ -550,4 +550,4 @@ dependencies = [
 [[patch.unused]]
 name = "epaint_default_fonts"
 version = "0.37.0"
-source = "git+https://github.com/aiongg/egui.git?rev=94a2ac9917531fdf7285e4a30e7ae8372b8104b5#94a2ac9917531fdf7285e4a30e7ae8372b8104b5"
+source = "git+https://github.com/aiongg/egui.git?rev=35a72e6b786d65ba92532566251947d4b80c4611#35a72e6b786d65ba92532566251947d4b80c4611"

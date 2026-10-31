@@ -480,6 +480,10 @@ impl<'a, T: Clone> MenuBar<'a, T> {
             Rect::from_min_max(pos2(edge, bar.response.rect.top()), pos2(edge, bar.response.rect.bottom()))
         });
         record_titles(&ctx, self.id, titles_rect);
+        if open {
+            // A press on a title switches menus or closes the open one: it is not outside the menu.
+            ctx.memory_mut(|m| m.allow_presses_in(titles_rect));
+        }
         MenuBarResponse { chosen, open, focused, response: bar.response, titles: titles_rect }
     }
 }
