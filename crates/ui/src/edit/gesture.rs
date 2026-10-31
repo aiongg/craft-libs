@@ -54,9 +54,10 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 ///   the press to the host instead, [`EditResponse::escaped`](super::EditResponse::escaped)) when
 ///   the policy is [`cancellable`](EditPolicy::cancellable) and no modal layer is above the
 ///   control; on [`cancel_all`](super::cancel_all); and when the host's value changed other than by the
-///   gesture's updates ([`CancelReason::External`]); a host's rounding, clamping or mapping of an
-///   update's value is not such a change for the `f64` controls (`load_normalised`).
-///   [`enabled`](Gesture::enabled) cancels when the control is disabled.
+///   gesture's updates ([`CancelReason::External`]); the host's value in the pass after an update is its write-back of it
+///   (rounded, clamped or mapped) and not such a change; an outside change in the same pass as the
+///   control's own report is read as that write-back. [`enabled`](Gesture::enabled) cancels when
+///   the control is disabled.
 /// - [`set`](Gesture::set) for a one-shot change; during a gesture it is an update.
 /// - A control that is not drawn in a pass loses its gesture (see [`is_live`](super::is_live))
 ///   and starts idle when it is drawn again; the host ends the gesture as [`Ending`] says, a
@@ -184,6 +185,11 @@ struct Active<T> {
     /// The `Begin` carries the value when the frame that begins the gesture already changed it
     /// ([`Gesture::begin_with_value`]).
     first_value: bool,
+    /// Whether the last pass reported an update (or a `Begin` with a value): this pass's host
+    /// value is the host's write-back of it.
+    after_report: bool,
+    /// The host's value as it wrote back the last report, when that differs from it.
+    echo: Option<T>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -205,42 +211,22 @@ pub(crate) fn equals_to_f32(host: f64, reported: f64) -> bool {
         || host.is_finite() && reported.is_finite() && (host - reported).abs() <= 2.0 * f64::from(f32::EPSILON) * host.abs().max(reported.abs())
 }
 
-/// Whether `host` is the host's own normalisation of `reported`, the value of an update: a host
-/// that rounds to a step, clamps to a range or maps the value (a log scale) stores the nearest
-/// value it accepts, and `start`, the value the gesture began from, is one it accepted. So a
-/// normalised value is no farther from `reported` than `start` is, where an outside change that
-/// lands farther off is not one. Covers [`equals_to_f32`]'s hosts too.
-fn normalised_by_host(host: &f64, reported: &f64, start: &f64) -> bool {
-    let (host, reported, start) = (*host, *reported, *start);
-    equals_to_f32(host, reported)
-        || host.is_finite() && reported.is_finite() && start.is_finite() && (host - reported).abs() <= (start - reported).abs()
-}
-
-impl Gesture<f64> {
-    /// [`load`](Gesture::load) for a control whose host may store a normalised form of the
-    /// values it receives: the host's value is not an outside change when it is
-    /// `normalised_by_host` from the last update's value.
-    pub(crate) fn load_normalised(ui: &Ui, id: Id, value: f64, policy: EditPolicy) -> Self {
-        Self::load_with(ui, id, &value, policy, true, Some(normalised_by_host))
-    }
-}
-
 impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// The gesture state of the control with widget id `id` (its [`egui::Response::id`]), whose
     /// host value is `value`. Applies a pending [`cancel_all`](super::cancel_all), an external
     /// change of the value, and Esc.
     pub fn load(ui: &Ui, id: Id, value: &T, policy: EditPolicy) -> Self {
-        Self::load_with(ui, id, value, policy, true, None)
+        Self::load_with(ui, id, value, policy, true)
     }
 
     /// [`load`](Gesture::load) for a control that leaves Esc to the host: the press cancels as it
     /// does there but stays in the input, so the controls after it and the host see it too (a
     /// focused text field's typing run, whose Esc also closes a dialog).
     pub(crate) fn load_passing_escape(ui: &Ui, id: Id, value: &T, policy: EditPolicy) -> Self {
-        Self::load_with(ui, id, value, policy, false, None)
+        Self::load_with(ui, id, value, policy, false)
     }
 
-    fn load_with(ui: &Ui, id: Id, value: &T, policy: EditPolicy, take_escape: bool, echo: Option<fn(&T, &T, &T) -> bool>) -> Self {
+    fn load_with(ui: &Ui, id: Id, value: &T, policy: EditPolicy, take_escape: bool) -> Self {
         let ctx = ui.ctx().clone();
         let key = id.with(STATE);
         let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());
@@ -273,7 +259,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         gesture.end_restoring();
         gesture.apply_cancel_all();
         gesture.carry_on_ended();
-        gesture.apply_external(echo);
+        gesture.apply_external();
         gesture.apply_escape(take_escape);
         gesture
     }
@@ -441,6 +427,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             held: false,
             waits: false,
             first_value: false,
+            after_report: false,
+            echo: None,
         });
     }
 
@@ -521,7 +509,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             Phase::Active(a) => {
                 self.cancelled = Some(Cancelled { id: a.id, reason, announced: a.announced });
                 self.ended = Some(a.id);
-                if a.announced && !self.scoped && self.host == a.reported && self.host != a.start {
+                if a.announced && !self.scoped && (self.host == a.reported || a.echo.as_ref() == Some(&self.host)) && self.host != a.start {
                     self.stored.phase = Phase::Restoring { start: a.start, host: self.host.clone() };
                 }
             }
@@ -624,11 +612,17 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     }
 
     /// Cancels when the host's value is no longer the one the gesture reported.
-    fn apply_external(&mut self, echo: Option<fn(&T, &T, &T) -> bool>) {
-        if let Phase::Active(a) = &self.stored.phase
-            && self.host != a.reported
-            && !echo.is_some_and(|echo| echo(&self.host, &a.reported, &a.start))
-        {
+    ///
+    /// The pass after one that reported an update takes the host's value as the host's write-back
+    /// of that report (it may have rounded, clamped or mapped it) and the gesture goes on; later
+    /// passes cancel when the host's value is neither the reported value nor that write-back.
+    fn apply_external(&mut self) {
+        let host = self.host.clone();
+        let Phase::Active(a) = &mut self.stored.phase else { return };
+        if std::mem::take(&mut a.after_report) && host != a.reported {
+            a.echo = Some(host.clone());
+        }
+        if host != a.reported && a.echo.as_ref() != Some(&host) {
             self.cancel(CancelReason::External);
         }
     }
@@ -702,6 +696,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
                 let value = (a.first_value && a.current != a.start).then(|| a.current.clone());
                 if value.is_some() {
                     a.reported = a.current.clone();
+                    a.after_report = true;
+                    a.echo = None;
                 }
                 return Some(EditEvent::Begin { id: a.id, value });
             }
@@ -714,6 +710,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             return None;
         }
         a.reported = a.current.clone();
+        a.after_report = true;
+        a.echo = None;
         Some(EditEvent::Update { id: a.id, value: a.current.clone(), modifiers: a.modifiers })
     }
 

@@ -1111,8 +1111,9 @@ fn a_scrub_the_host_ended_for_another_controls_change_goes_on_from_where_it_was(
     assert_eq!((rig.value, rig.doc.undo.len()), (40.0, 2));
 }
 
+/// A host that snaps the reported value writes its own value back; the scrub is still one gesture.
 #[test]
-fn a_host_that_snaps_a_scrub_cancels_it_once() {
+fn a_host_that_snaps_a_scrub_keeps_one_gesture() {
     let mut rig = Rig::with(10.0, |r| {
         r.scrub = true;
         r.adjust = |v| (v / 4.0).floor() * 4.0;
@@ -1120,10 +1121,11 @@ fn a_host_that_snaps_a_scrub_cancels_it_once() {
     let n = rig.events.len();
     rig.drag(rig.handle(), &[10.0, 20.0, 30.0, 40.0, 50.0], Modifiers::NONE, true);
     let events = since(&rig, n);
-    let begins = events.iter().filter(|e| matches!(e, EditEvent::Begin { .. })).count();
-    assert_eq!(begins, 1, "{events:?}");
-    assert!(matches!(events.last(), Some(EditEvent::Cancel { reason: CancelReason::External, .. })), "{events:?}");
-    assert_eq!(rig.value, 28.0);
+    let count = |f: fn(&EditEvent<f64>) -> bool| events.iter().filter(|e| f(e)).count();
+    assert_eq!(count(|e| matches!(e, EditEvent::Begin { .. })), 1, "{events:?}");
+    assert_eq!(count(|e| matches!(e, EditEvent::Cancel { .. })), 0, "{events:?}");
+    assert_eq!(count(|e| matches!(e, EditEvent::Commit { .. })), 1, "{events:?}");
+    assert_eq!(rig.value % 4.0, 0.0);
 }
 
 #[test]

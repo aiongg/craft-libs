@@ -1152,6 +1152,7 @@ fn after_a_cancel_the_control_shows_the_start_value_only_while_the_host_shows_th
 fn a_host_value_changed_during_a_gesture_cancels_it() {
     let mut probe = Probe::new(EditPolicy::default());
     let id = probe.preview(40.0, 50.0);
+    assert_eq!(probe.frame(50.0, |_| {}), (None, 50.0));
     assert_eq!(probe.frame(70.0, |_| {}), (cancel(id, CancelReason::External), 70.0));
 
     // With updates off, the host's value is the start value until the commit.
@@ -1160,6 +1161,18 @@ fn a_host_value_changed_during_a_gesture_cancels_it() {
     let Some(EditEvent::Begin { id, .. }) = event else { panic!("expected Begin, got {event:?}") };
     assert_eq!(probe.frame(70.0, |g| g.update(80.0, Modifiers::NONE)), (None, 80.0));
     assert_eq!(probe.frame(45.0, |_| {}), (cancel(id, CancelReason::External), 45.0));
+}
+
+/// The host's value in the pass after an update is its write-back of it, whatever it is, and
+/// stays the accepted value while nothing is reported; any other value after that is an outside
+/// change.
+#[test]
+fn the_host_value_after_an_update_is_its_write_back_and_a_later_change_cancels() {
+    let mut probe = Probe::new(EditPolicy::default());
+    let id = probe.preview(40.0, 50.4);
+    assert_eq!(probe.frame(50.0, |_| {}), (None, 50.4));
+    assert_eq!(probe.frame(50.0, |_| {}), (None, 50.4));
+    assert_eq!(probe.frame(60.0, |_| {}), (cancel(id, CancelReason::External), 60.0));
 }
 
 #[test]
