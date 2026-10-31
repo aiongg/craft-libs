@@ -455,6 +455,15 @@ impl<'a> ColorPicker<'a> {
         hex::focus(ctx, id);
     }
 
+    /// Gives the picker with id `id` the model `values` a colour was made with, before its first
+    /// pass: its fields show them as they are, not what the sRGB `color` converts to.
+    pub(super) fn keep(ctx: &Context, id: Id, color: Srgba, values: ModelValues) {
+        let mut state = ctx.data(|d| d.get_temp::<State>(State::key(id))).unwrap_or_default();
+        state.kept =
+            Some(Picked { color, values: Some(values), exact: values.values.map(f64::from), alpha: percent(color.a), made: true, faithful: true });
+        ctx.data_mut(|d| d.insert_temp(State::key(id), state));
+    }
+
     /// Shows the picker and returns this frame's edit.
     pub fn show(self, ui: &mut Ui) -> ColorPickerResponse {
         let id = ui.make_persistent_id(self.id_salt);
