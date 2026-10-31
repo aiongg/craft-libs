@@ -71,7 +71,7 @@ pub struct TextFieldStyle {
 /// # egui::__run_test_ui(|ui| { let mut name = String::from("Layer 1");
 /// let edit = TextField::new("layer-name", "Layer name", &name).placeholder("Untitled").show(ui);
 /// match edit.event {
-///     Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => name = value,
+///     Some(EditEvent::Begin { value: Some(value), .. } | EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => name = value,
 ///     // Begin and Cancel go to the document's undo history (`edit::GestureHost`).
 ///     _ => {}
 /// }

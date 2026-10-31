@@ -389,7 +389,13 @@ struct Values {
 }
 
 fn apply(event: Option<EditEvent<f64>>, value: &mut f64) {
-    if let Some(EditEvent::Update { value: v, .. } | EditEvent::Set { value: v, .. } | EditEvent::Commit { value: v, .. }) = event {
+    if let Some(
+        EditEvent::Begin { value: Some(v), .. }
+        | EditEvent::Update { value: v, .. }
+        | EditEvent::Set { value: v, .. }
+        | EditEvent::Commit { value: v, .. },
+    ) = event
+    {
         *value = v;
     }
 }

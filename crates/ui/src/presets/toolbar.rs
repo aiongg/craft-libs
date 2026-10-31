@@ -28,7 +28,13 @@ pub(super) fn show<K>(ui: &mut Ui, state: &mut PresetState<K>, labels: &PresetLa
     let mut child = ui.new_child(UiBuilder::new().id_salt("preset-toolbar-search").max_rect(field).layout(Layout::top_down_justified(Align::Min)));
     let edit =
         SearchField::new("search", labels.search.as_str(), &state.filter, labels.clear.as_str()).placeholder(labels.search.as_str()).show(&mut child);
-    if let Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) = edit.event {
+    if let Some(
+        EditEvent::Begin { value: Some(value), .. }
+        | EditEvent::Update { value, .. }
+        | EditEvent::Set { value, .. }
+        | EditEvent::Commit { value, .. },
+    ) = edit.event
+    {
         state.filter = value;
     }
     if view_buttons {

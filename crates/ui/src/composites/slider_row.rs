@@ -354,7 +354,11 @@ fn show_wheel_step(ui: &mut Ui, args: &mut WheelStepArgs) {
         ui.set_max_width(260.0);
         let row = SliderRow::new("wheel-step", "Opacity", value, 0.0..=1000.0, &numbers).wheel(true).wheel_step(f64::from(args.step));
         for event in row.show(ui).edits() {
-            if let EditEvent::Update { value: v, .. } | EditEvent::Set { value: v, .. } | EditEvent::Commit { value: v, .. } = event {
+            if let EditEvent::Begin { value: Some(v), .. }
+            | EditEvent::Update { value: v, .. }
+            | EditEvent::Set { value: v, .. }
+            | EditEvent::Commit { value: v, .. } = event
+            {
                 value = v;
             }
         }
@@ -403,7 +407,11 @@ pub(super) fn show_adjustments(ui: &mut Ui, args: &mut AdjustmentsArgs) {
             let row = row.fill(fill);
             let row = if let Some(width) = field_width { row.field_width(width) } else { row };
             for event in row.show(ui).edits() {
-                if let EditEvent::Update { value: v, .. } | EditEvent::Set { value: v, .. } | EditEvent::Commit { value: v, .. } = event {
+                if let EditEvent::Begin { value: Some(v), .. }
+                | EditEvent::Update { value: v, .. }
+                | EditEvent::Set { value: v, .. }
+                | EditEvent::Commit { value: v, .. } = event
+                {
                     *value = v;
                 }
             }

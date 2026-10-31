@@ -302,7 +302,13 @@ fn values(ui: &Ui, id: &'static str) -> (egui::Id, Values) {
 }
 
 fn apply(edit: &EditResponse<f64>, value: &mut f64) {
-    if let Some(EditEvent::Update { value: v, .. } | EditEvent::Set { value: v, .. } | EditEvent::Commit { value: v, .. }) = edit.event {
+    if let Some(
+        EditEvent::Begin { value: Some(v), .. }
+        | EditEvent::Update { value: v, .. }
+        | EditEvent::Set { value: v, .. }
+        | EditEvent::Commit { value: v, .. },
+    ) = edit.event
+    {
         *value = v;
     }
 }
