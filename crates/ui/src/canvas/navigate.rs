@@ -919,11 +919,16 @@ impl RotateView {
     /// [`NavigationLabels::reset_rotation`] from the labels installed in the context.
     // pc: crates/ui-egui/src/canvas/rotate_view.rs:230 `overlay`, :224 `compass_visible`.
     pub fn compass(ui: &mut Ui, view: &CanvasView, tokens: &UiTokens) -> CompassResponse {
+        let labels = NavigationLabels::of(ui);
+        Self::compass_with(ui, view, tokens, &labels)
+    }
+
+    /// [`Self::compass`] with `labels` instead of the ones installed in the context.
+    pub fn compass_with(ui: &mut Ui, view: &CanvasView, tokens: &UiTokens, labels: &NavigationLabels) -> CompassResponse {
         if !(view.rotation.is_finite() && view.rotation.abs() > Self::COMPASS_VISIBLE_DEG) {
             return CompassResponse::default();
         }
         let rect = Self::compass_rect(view.rect, tokens);
-        let labels = NavigationLabels::of(ui);
         let response = ui.interact(rect, ui.scope_id().with("rotate-view-compass"), Sense::click());
         response.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), &labels.reset_rotation));
         let response = response.on_hover_text(&labels.reset_rotation);

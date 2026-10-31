@@ -19,6 +19,11 @@ use crate::egui::{Dispatcher, Hit, platform};
 use crate::keymap::{Keymap, text_editing_chords};
 use crate::scope::Active;
 
+/// The view commands Photoshop runs while a dialog is open: Zoom In, Zoom Out, Fit on Screen and
+/// 100 %, by PhotoCraft's ids. An app whose ids differ passes its own list. The menus
+/// (`craft_menu::NAVIGATION_COMMANDS`) and [`KeyGate::in_dialogs`] use this one list.
+pub const NAVIGATION_COMMANDS: [&str; 4] = ["view.zoomIn", "view.zoomOut", "view.fitOnScreen", "view.actualPixels"];
+
 /// What the app knows about its own modal state this frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct KeyGate<'a> {
@@ -29,8 +34,8 @@ pub struct KeyGate<'a> {
     /// The shortcut recorder is recording ([`KeyOwner::Recorder`];
     /// [`crate::ui::DialogState::is_recording`]).
     pub recording: bool,
-    /// Commands that still run while a dialog is open, by id: craft-menu's
-    /// `NAVIGATION_COMMANDS`, so the menus and the keys agree.
+    /// Commands that still run while a dialog is open, by id: [`NAVIGATION_COMMANDS`], so the
+    /// menus and the keys agree.
     pub in_dialogs: &'a [&'a str],
 }
 
@@ -44,10 +49,10 @@ impl KeyGate<'_> {
 /// keyboard-layout state).
 ///
 /// ```no_run
-/// use craft_keymap::ui::{KeyGate, KeyRouter};
+/// use craft_keymap::ui::{KeyGate, KeyRouter, NAVIGATION_COMMANDS};
 /// use craft_keymap::{Active, egui::Dispatcher};
 /// # fn demo(ctx: &egui::Context, router: &mut KeyRouter, keymap: &craft_keymap::Keymap, dialog_open: impl Fn() -> bool) {
-/// let gate = || KeyGate { dialog: dialog_open(), in_dialogs: &["view.zoomIn", "view.zoomOut"], ..KeyGate::default() };
+/// let gate = || KeyGate { dialog: dialog_open(), in_dialogs: &NAVIGATION_COMMANDS, ..KeyGate::default() };
 /// router.route(ctx, keymap, &Active::NONE, gate, |hit| {
 ///     // run hit.command
 /// });

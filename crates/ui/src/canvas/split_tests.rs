@@ -101,3 +101,16 @@ fn enter_on_a_focused_inactive_pane_activates_it() {
     run(vec![], Some(0));
     assert_eq!(run(vec![enter(true)], None).activated, None, "the active pane is no Tab stop");
 }
+
+// `.labels(..)` names the panes instead of the installed words.
+#[test]
+fn labels_name_the_panes() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let labels = SplitLabels { view: "Ansicht {n}".into() };
+    let harness = Harness::builder().with_size(vec2(400.0, 300.0)).build_ui(move |ui| {
+        install(ui.ctx(), &Base::suite_default());
+        SplitViews::new("split", SplitLayout::Two).labels(labels.clone()).show(ui, full(), |_, _, _| {});
+    });
+    assert_eq!(harness.query_all_by_label("Ansicht 1").count(), 1);
+    assert_eq!(harness.query_all_by_label("View 1").count(), 0);
+}

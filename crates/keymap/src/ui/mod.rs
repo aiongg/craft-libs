@@ -37,7 +37,7 @@ mod view;
 pub use import_offer::{ImportOffer, ImportOfferLabels, NoOffer, OfferAnswer, OfferRecord};
 pub use kbd::kbd;
 pub use pages::{DialogSnapshot, DialogTab};
-pub use router::{KeyGate, KeyOwner, KeyRouter};
+pub use router::{KeyGate, KeyOwner, KeyRouter, NAVIGATION_COMMANDS};
 pub use state::DialogState;
 pub use style::DialogStyle;
 pub use text::{COUNTS, WORDS, trigger_text};

@@ -70,7 +70,7 @@ fn show_page(ui: &mut Ui, args: &mut PageArgs) {
         }
         let page = &mut *page;
         ui.allocate_ui(egui::vec2(args.width.min(ui.available_width()), 0.0), |ui| {
-            let out = AppearancePage::new(&page.client, &mut page.draft).favorites(&page.favorites).text_size(args.text_size).show(ui);
+            let out = AppearancePage::new("appearance", &page.client, &mut page.draft).favorites(&page.favorites).text_size(args.text_size).show(ui);
             if let Some(id) = out.favorite_toggled {
                 if let Some(at) = page.favorites.iter().position(|f| *f == id) {
                     page.favorites.remove(at);

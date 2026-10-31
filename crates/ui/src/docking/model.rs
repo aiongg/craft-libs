@@ -759,7 +759,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     }
 
     /// The panels `panel` can join as a tab: every panel in another group whose permissions
-    /// accept tabs. A "Move Panel to Group" menu with an empty answer has nothing to offer and
+    /// accept tabs. A "Move Panel To" menu with an empty answer has nothing to offer and
     /// stays hidden.
     pub fn move_targets(&self, panel: &P, permissions: impl Fn(&P) -> Permissions) -> Vec<&P> {
         let own = self.place(panel);

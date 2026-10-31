@@ -13,7 +13,7 @@ use craft_font_manager::Catalog;
 #[cfg(feature = "font-picker")]
 use craft_font_manager::picker::{FontFilters, FontPicker, FontPickerSettings};
 use craft_ui::controls::expr::{self, ExprUnits};
-use craft_ui::controls::{CheckState, Checkbox, ControlSize, IconButton, Select, Swatch, TextField};
+use craft_ui::controls::{CheckState, Checkbox, ControlSize, IconButton, Preset, Select, Swatch, TextField};
 use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy};
@@ -827,24 +827,26 @@ fn field(ui: &mut Ui, m: Metric) -> Option<EditEvent<f32>> {
 fn field_rows(ui: &mut Ui, m: Metric, rows: &[String]) -> (Option<EditEvent<f32>>, Option<usize>) {
     let numbers = LocaleNumbers::of(ui);
     let scale = m.scale;
-    let presets: Vec<(String, f64)> = m.presets.iter().map(|(text, value)| (text.clone(), f64::from(*value) * scale)).collect();
+    // The menu: the non-numeric rows first (Auto, Metrics), then the numbers, which show a check mark on the current one.
+    let list: Vec<Preset> = rows
+        .iter()
+        .map(|label| Preset::choice(label, false))
+        .chain(m.presets.iter().map(|(text, value)| Preset::value(text, f64::from(*value) * scale)))
+        .collect();
     let units = ExprUnits { unit: m.unit, suffix: &m.suffix, context: m.context };
     let (low, high) = (f64::from(m.range.0) * scale, f64::from(m.range.1) * scale);
     let shown = m.value.map_or(low, |v| f64::from(v) * scale).clamp(low, high);
     let mut number =
         unit_number_field(m.salt, &m.name, shown, &numbers, &units).range(low..=high).decimals(0..=2).scrub_label(m.glyph).mixed(m.value.is_none());
-    if !presets.is_empty() {
-        number = number.presets(&presets);
-    }
-    let mut row = None;
-    if !rows.is_empty() {
-        number = number.preset_rows(rows, &mut row);
+    let mut picked = None;
+    if !list.is_empty() {
+        number = number.preset_list(&list, &mut picked);
     }
     // A picked preset is the model's own number: the field's rounded text would give 11.99 for 12 pt in mm.
     let model =
         |shown: f64| m.presets.iter().find(|(_, p)| (f64::from(*p) * scale - shown).abs() <= 0.0051).map_or((shown / scale) as f32, |(_, p)| *p);
     let event = number.show(ui).event.map(|event| event.map(model));
-    (event, row)
+    (event, picked.filter(|&index| index < rows.len()))
 }
 
 /// A select over `count` choices, `current` selected (empty while the selection mixes values).

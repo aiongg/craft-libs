@@ -219,12 +219,14 @@ impl RegionFocus {
 }
 
 /// The first focusable widget the last pass drew inside `rect`, in painting order (egui's Tab
-/// order).
+/// order), layers back to front.
 // figcraft: crates/ui-egui/src/a11y.rs:647 `focusables`.
 fn first_focusable(ctx: &Context, rect: Rect) -> Option<Id> {
+    let stacking: Vec<_> = ctx.memory(|m| m.layer_ids().collect());
     ctx.viewport(|v| {
         let mut layers: Vec<_> = v.prev_pass.widgets.layers().filter(|(layer, _)| !matches!(layer.order, Order::Tooltip | Order::Debug)).collect();
-        layers.sort_by_key(|(layer, _)| layer.order);
+        // The widget map iterates in hash order; egui's back-to-front layer stack makes the result stable.
+        layers.sort_by_key(|(layer, _)| (layer.order, stacking.iter().position(|l| l == *layer).unwrap_or(usize::MAX), layer.id.value()));
         layers
             .into_iter()
             .flat_map(|(_, widgets)| widgets)

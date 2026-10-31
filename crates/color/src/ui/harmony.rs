@@ -2,17 +2,17 @@
 //! saturation wheel, and [`HarmonyPanel`], VectorCraft's Color Guide (rule, harmony strip,
 //! variation grid). The math is [`crate::harmony`].
 
-use craft_theme::{Hsb, Srgba};
+use craft_theme::{ControlSize, Hsb, Srgba};
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, Context, Id, IdSalt, Rect, Stroke, StrokeKind, Ui, vec2};
 
 use super::ColorDisc;
+use super::picker::{Inner, RowRule, row_line, texts as picker_texts};
 use crate::harmony::{Guide, GuideOptions, Harmony, Variation};
-use craft_ui::composites::PropertyRow;
-use craft_ui::controls::{Select, Slider, Swatch};
+use craft_ui::controls::{NumberField, Select, Swatch};
 use craft_ui::docking::panel_menu::PanelCommand;
-use craft_ui::edit::EditEvent;
-use craft_ui::localized::{Labels as _, Word, Words};
+use craft_ui::edit::{EditEvent, EditPolicy};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, Word, Words};
 use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::primitives::Interactive;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -139,19 +139,18 @@ impl<'a> HarmonyWheel<'a> {
         }
         let b = hsb.map_or(1.0, |c| c.b);
         let track = hsb.map(|c| [Srgba::from_hsb(Hsb { b: 0.0, ..c }), Srgba::from_hsb(Hsb { b: 1.0, ..c })]);
-        let edit = PropertyRow::word(labels.brightness.as_str())
-            .show(ui, |ui, _| {
-                let mut slider = Slider::new((id_salt, "brightness"), labels.brightness.as_str(), (f64::from(b) * 100.0).round(), 0.0..=100.0)
-                    .step(1.0)
-                    .enabled(selected.is_some());
-                if let Some(track) = track {
-                    slider = slider.track_colors(track);
-                }
-                slider.show(ui)
-            })
-            .inner;
-        if let (Some(i), Some(event)) = (selected, edit.event) {
-            response.edits.push((i, event.map(|v| [None, None, Some((v / 100.0) as f32)])));
+        let numbers = LocaleNumbers::of(ui);
+        let unit = Unit::new(&Words::of(ui).get(Word::plain(picker_texts::PERCENT)));
+        let rule = RowRule { range: 0.0..=100.0, step: 1.0, decimals: 0 };
+        let width = NumberField::fit_width(ui, ControlSize::Md, &numbers, rule.range.clone(), 0, &unit);
+        let inner = Inner { policy: EditPolicy::default(), enabled: selected.is_some(), width, part: false };
+        let value = (f64::from(b) * 100.0).round();
+        let (field, slider) =
+            row_line(ui, (id_salt, "brightness"), &labels.brightness, value, &rule, unit, &numbers, track.map(|t| t.to_vec()), false, inner);
+        if let Some(i) = selected {
+            for event in [field.event, slider.event].into_iter().flatten() {
+                response.edits.push((i, event.map(|v| [None, None, Some((v / 100.0) as f32)])));
+            }
         }
         response
     }

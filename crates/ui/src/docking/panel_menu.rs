@@ -110,13 +110,34 @@ impl PanelMenu<'_> {
 }
 
 crate::words! {
-    /// The dock's own panel-menu rows, English by default.
+    /// The dock's own panel, tab-group, column and frame menu rows, English by default. The only
+/// source of these labels.
     #[non_exhaustive]
     pub struct PanelMenuLabels {
         float: "dock.panelMenu.float" = "Float";
         move_to: "dock.panelMenu.moveTo" = "Move Panel To";
         close: "dock.panelMenu.close" = "Close";
         auto_collapse: "dock.panelMenu.autoCollapse" = "Auto-Collapse Iconic Panels";
+        close_group: "dock.panelMenu.closeGroup" = "Close Tab Group";
+        minimize: "dock.panelMenu.minimize" = "Minimize";
+        expand: "dock.panelMenu.expand" = "Expand";
+        float_group: "dock.panelMenu.floatGroup" = "Float Tab Group";
+        move_group_up: "dock.panelMenu.moveGroupUp" = "Move Group Up";
+        move_group_down: "dock.panelMenu.moveGroupDown" = "Move Group Down";
+        move_group_to: "dock.panelMenu.moveGroupTo" = "Move Group To";
+        collapse_to_icons: "dock.panelMenu.collapseToIcons" = "Collapse to Icons";
+        expand_panels: "dock.panelMenu.expandPanels" = "Expand Panels";
+        close_others: "dock.panelMenu.closeOthers" = "Close Other Panels in Group";
+        maximize: "dock.panelMenu.maximize" = "Maximize Frame";
+        restore_frame: "dock.panelMenu.restoreFrame" = "Restore Frame Size";
+    }
+}
+
+impl PanelMenuLabels {
+    /// The labels of the installed words, shared between frames: the one source of every dock
+    /// menu row.
+    pub(crate) fn in_dock(ui: &Ui) -> std::sync::Arc<Self> {
+        <Self as crate::localized::SharedLabels>::shared(ui)
     }
 }
 
