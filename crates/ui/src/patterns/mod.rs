@@ -24,6 +24,9 @@ pub(crate) mod options_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod options_bar_tests;
 pub(crate) mod options_cell;
+pub(crate) mod options_cell_stories;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod options_cell_tests;
 pub(crate) mod panel;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod panel_tests;
@@ -39,7 +42,7 @@ pub use crate::behavior::PaletteEntry;
 pub use command_palette::{CommandPalette, CommandPaletteStyle, PaletteLabels};
 pub use inspector::{Inspector, InspectorHeader, InspectorStyle};
 pub use options_bar::{CommitCancel, OptionsBar, OptionsBarSlots, OptionsBarStyle};
-pub use options_cell::CellWidth;
+pub use options_cell::{CellWidth, UnitCellResponse};
 pub use panel::{Panel, PanelOutput, PanelStyle};
 pub use rail::{FlyoutButton, FlyoutItem, FlyoutResponse, FlyoutStyle, PanelRail, PanelRailItem, PanelRailOutput, PanelRailRequest, PanelRailStyle};
 pub use rail::{LastUsed, RailFooter, RailMetrics, RailTool, SlotId, ToolRail, ToolRailOutput, ToolSlot, shown_tool, visible_slots};

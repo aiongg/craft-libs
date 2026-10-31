@@ -59,6 +59,11 @@ pub(crate) mod checkbox;
 pub(crate) mod combo_box;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod combo_box_tests;
+pub mod expr;
+#[cfg(test)]
+mod expr_tests;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod expressions_tests;
 #[cfg(test)]
 mod field_options_tests;
 pub(crate) mod field_wheel;
