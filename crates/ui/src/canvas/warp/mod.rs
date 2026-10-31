@@ -963,8 +963,8 @@ impl<'a> WarpGrid<'a> {
 
     /// The split press a button pressed at canvas point `origin` with `modifiers` held starts:
     /// with a tool set ([`split`](Self::split)) any press on the surface, else (a quick split) one
-    /// with ⌥ or ⌘ held. `None` off the surface and where every line of the split lies on an
-    /// existing one. The host keeps the press until [`split_release`](Self::split_release).
+    /// with ⌥ or ⌘ held. A press off the surface splits at the nearest point of it. `None` where
+    /// every line of the split lies on an existing one. The host keeps the press until [`split_release`](Self::split_release).
     pub fn split_press(&self, view: &CanvasView, origin: Pos2, modifiers: Modifiers) -> Option<WarpSplitPress> {
         let mods = self.modifiers.unwrap_or(modifiers);
         let quick = self.split.is_none();
@@ -975,8 +975,8 @@ impl<'a> WarpGrid<'a> {
     }
 
     /// The edit a split press inserts when the button is released at canvas point `end`: always a
-    /// [`Set`](EditEvent::Set). `None` off the surface and where every line lies on an existing
-    /// one.
+    /// [`Set`](EditEvent::Set). A point off the surface splits at the nearest point of it. `None`
+    /// where every line lies on an existing one.
     pub fn split_release(&self, view: &CanvasView, press: &WarpSplitPress, end: Pos2) -> Option<WarpEdit> {
         self.split_at(view, press.quick, end).map(|at| at.edit())
     }
@@ -994,16 +994,13 @@ impl<'a> WarpGrid<'a> {
     }
 
     /// What the split would insert for a pointer at screen point `p`: the armed tool's lines, or
-    /// with `quick` the quick split's. `None` off the surface and where every line of it lies on
-    /// an existing one; a cross with one line on an existing one inserts the other alone.
+    /// with `quick` the quick split's. A point off the surface splits at the nearest point of it.
+    /// `None` where every line of the split lies on an existing one; a cross with one line on an existing one inserts the other alone.
     fn split_at(&self, view: &CanvasView, quick: bool, p: Pos2) -> Option<WarpSplitAt> {
         const EDGE: f64 = 0.01;
         let doc = view.to_doc(p);
         let (mesh, thirds) = self.split_base();
-        let (column, row, u, v, distance) = mesh.nearest(doc);
-        if distance * view.zoom > 1.0 {
-            return None;
-        }
+        let (column, row, u, v, _) = mesh.nearest(doc);
         let kind = self.split.filter(|_| !quick).unwrap_or_else(|| mesh.quick_split(self.bounds, column, row, u, v));
         let free = |c: f64| (EDGE..=1.0 - EDGE).contains(&c);
         let split = match (kind != WarpSplit::Horizontal && free(u), kind != WarpSplit::Vertical && free(v)) {

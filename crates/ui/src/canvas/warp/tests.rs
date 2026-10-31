@@ -922,6 +922,28 @@ fn an_uneven_split_keeps_the_surface_where_it_was() {
     }
 }
 
+/// A split press or release off the surface splits at the nearest point of it, as PhotoCraft's
+/// `param_at` does, on `show` and on the host-driven calls.
+#[test]
+fn a_split_off_the_surface_splits_at_the_nearest_point_of_it() {
+    let mut h = harness(|host| {
+        host.split = Some(WarpSplit::Horizontal);
+        host.preset = true;
+    });
+    h.run();
+    let view = h.state().view.expect("drawn");
+    let off = screen(&h, Point::new(RECT.x0 - 12.0, RECT.y0 + 0.4 * RECT.height()));
+    click(&mut h, off, Modifiers::NONE);
+    let Some(shown) = last_edit(&h) else { panic!("{:?}", h.state().events) };
+    let WarpEdit::Split { split: WarpSplit::Horizontal, column: 0, row: 0, v, .. } = shown else { panic!("{shown:?}") };
+    assert!((v - 0.4).abs() < 0.01, "{v}");
+
+    let m = WarpMesh::identity(RECT, 1, 1);
+    let grid = WarpGrid::new("warp", &m, RECT, english_names()).split(Some(WarpSplit::Horizontal)).preset(true).surface(|p| surface_at(&m, p));
+    let press = grid.split_press(&view, off, Modifiers::NONE).expect("a press off the surface splits");
+    assert_eq!(grid.split_release(&view, &press, off), Some(shown));
+}
+
 #[test]
 fn the_host_driven_calls_give_what_show_gives() {
     let mut h = harness(|_| {});
