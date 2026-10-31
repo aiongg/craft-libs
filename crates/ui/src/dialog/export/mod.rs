@@ -20,6 +20,8 @@ mod options;
 mod options_tests;
 mod path_row;
 mod watermark;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod watermark_tests;
 mod web;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod web_tests;
