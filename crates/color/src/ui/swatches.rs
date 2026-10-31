@@ -4,9 +4,10 @@
 use std::collections::HashSet;
 
 use craft_cms::convert::CmykConverter;
+use craft_host::{Host, PickId, PickRequest, Picked};
 use craft_theme::Srgba;
 use craft_ui::behavior::{DropPosition, Move};
-use craft_ui::composites::{NoticeCenter, Tone};
+use craft_ui::composites::{StatusLine, Tone};
 use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::Labels as _;
@@ -45,43 +46,47 @@ craft_ui::words! {
         added: "swatches.added" = "Added swatch {name}";
         /// The panel's name for a screen reader.
         title: "swatches.title" = "Swatches";
-        /// The notice title after an import that changed something; the lines are the notes.
+        /// The start of the status line after an import that changed something; the notes follow.
         notice_import: "swatches.noticeImport" = "Swatches imported with changes";
-        /// The notice title after an export that changed something.
+        /// The start of the status line after an export that changed something.
         notice_export: "swatches.noticeExport" = "Swatches exported with changes";
+        /// The status line when a swatch file could not be imported; `{reason}` says why.
+        import_failed: "swatches.importFailed" = "Swatches could not be imported: {reason}";
+        /// The status line when swatches could not be exported; `{reason}` says why.
+        export_failed: "swatches.exportFailed" = "Swatches could not be exported: {reason}";
         groups_flattened: "swatches.groupsFlattened" = "The format has no groups; the swatches were written as one list.";
         /// The notes below are the plural forms of counted words; `{n}` is the count.
-        book_read: "swatches.bookRead" = "{n} colour-book colours were read as black.";
-        book_left_out: "swatches.bookLeftOut" = "{n} colour-book colours were left out.";
-        skipped: "swatches.skipped" = "{n} colours in a model that cannot be read were skipped.";
-        converted: "swatches.converted" = "{n} colours were converted to RGB.";
-        kinds_dropped: "swatches.kindsDropped" = "{n} spot or global colours were written as process colours.";
-        truncated: "swatches.truncated" = "{n} colours past the 256 the format holds were left out.";
+        book_read: "swatches.bookRead" = "{n} color-book colors were read as black.";
+        book_left_out: "swatches.bookLeftOut" = "{n} color-book colors were left out.";
+        skipped: "swatches.skipped" = "{n} colors in a model that cannot be read were skipped.";
+        converted: "swatches.converted" = "{n} colors were converted to RGB.";
+        kinds_dropped: "swatches.kindsDropped" = "{n} spot or global colors were written as process colors.";
+        truncated: "swatches.truncated" = "{n} colors past the 256 the format holds were left out.";
         names_cut: "swatches.namesCut" = "{n} names were cut to the length the format holds.";
         /// The value read for a colour-book colour, which the panel cannot show.
-        book_color: "swatches.bookColor" = "Colour book colour";
+        book_color: "swatches.bookColor" = "Color book color";
     }
 }
 
 const NOTE_BOOK_READ: Counted =
-    Counted::new("swatches.bookRead", "{n} colour-book colour was read as black.", "{n} colour-book colours were read as black.");
+    Counted::new("swatches.bookRead", "{n} color-book color was read as black.", "{n} color-book colors were read as black.");
 const NOTE_BOOK_LEFT_OUT: Counted =
-    Counted::new("swatches.bookLeftOut", "{n} colour-book colour was left out.", "{n} colour-book colours were left out.");
+    Counted::new("swatches.bookLeftOut", "{n} color-book color was left out.", "{n} color-book colors were left out.");
 const NOTE_SKIPPED: Counted = Counted::new(
     "swatches.skipped",
-    "{n} colour in a model that cannot be read was skipped.",
-    "{n} colours in a model that cannot be read were skipped.",
+    "{n} color in a model that cannot be read was skipped.",
+    "{n} colors in a model that cannot be read were skipped.",
 );
-const NOTE_CONVERTED: Counted = Counted::new("swatches.converted", "{n} colour was converted to RGB.", "{n} colours were converted to RGB.");
+const NOTE_CONVERTED: Counted = Counted::new("swatches.converted", "{n} color was converted to RGB.", "{n} colors were converted to RGB.");
 const NOTE_KINDS_DROPPED: Counted = Counted::new(
     "swatches.kindsDropped",
-    "{n} spot or global colour was written as a process colour.",
-    "{n} spot or global colours were written as process colours.",
+    "{n} spot or global color was written as a process color.",
+    "{n} spot or global colors were written as process colors.",
 );
 const NOTE_TRUNCATED: Counted = Counted::new(
     "swatches.truncated",
-    "{n} colour past the 256 the format holds was left out.",
-    "{n} colours past the 256 the format holds were left out.",
+    "{n} color past the 256 the format holds was left out.",
+    "{n} colors past the 256 the format holds were left out.",
 );
 const NOTE_NAMES_CUT: Counted =
     Counted::new("swatches.namesCut", "{n} name was cut to the length the format holds.", "{n} names were cut to the length the format holds.");
@@ -129,15 +134,37 @@ const CMD_EXPORT: &str = "swatches.export";
 const CMD_EXPORT_EXCHANGE: &str = "swatches.exportExchange";
 const CMD_RESET: &str = "swatches.reset";
 
-/// The panel's selection, for the menu commands (one Swatches panel per context).
-fn selection_id() -> Id {
-    Id::unique("craft-color-swatches-selection")
+/// The panel's selection, for the menu commands.
+fn selection_id(salt: IdSalt) -> Id {
+    Id::unique(("craft-color-swatches-selection", salt))
 }
 
 /// Where [`SwatchesPanel::run_command`] leaves the row it made, for the panel to select and rename.
-fn pending_id() -> Id {
-    Id::unique("craft-color-swatches-pending")
+fn pending_id(salt: IdSalt) -> Id {
+    Id::unique(("craft-color-swatches-pending", salt))
 }
+
+/// The file pick a menu command started, until the panel has the answer.
+fn file_id(salt: IdSalt) -> Id {
+    Id::unique(("craft-color-swatches-file", salt))
+}
+
+/// What a swatch file pick is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FileJob {
+    Import { replace: bool },
+    Export(SwatchFormat),
+}
+
+/// A file pick in flight.
+#[derive(Clone, Copy)]
+struct FilePick {
+    ticket: PickId,
+    job: FileJob,
+}
+
+/// The purpose of the swatch file pickers: their folder is remembered under it.
+const PICK_PURPOSE: &str = "swatches";
 
 /// The app's swatches: groups of named swatches, names unique across the library. Kept by the
 /// app (a settings section or its presets store).
@@ -362,19 +389,6 @@ impl SwatchLibrary {
     }
 }
 
-/// A Swatches panel menu entry the app carries out: the file entries need the app's file dialogs
-/// (`craft-dialogs`), which this crate does not depend on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SwatchesAction {
-    /// Import Swatches… (append) or Replace Swatches…: the app opens a file, then calls
-    /// [`read_swatches`](crate::palette::read_swatches) and [`SwatchLibrary::import`].
-    Import { replace: bool },
-    /// Export Swatches… (`.aco`) or Export Swatches for Exchange… (`.ase`): the app asks for a
-    /// path, then calls [`write_swatches`](crate::palette::write_swatches) and shows the
-    /// [`SwatchReport`](crate::palette::SwatchReport).
-    Export(SwatchFormat),
-}
-
 /// What [`SwatchesPanel::show`] returns.
 #[derive(Debug, Default)]
 #[non_exhaustive]
@@ -383,8 +397,16 @@ pub struct SwatchesPanelResponse {
     /// A swatch was clicked: its colour (through the document's converter) for the foreground, or
     /// for the background when Alt (Ctrl or Cmd too, as PhotoCraft) was held.
     pub used: Option<(SwatchAt, Srgba, bool)>,
-    /// The library changed (new, rename, delete, move, group edits): the app saves it.
+    /// The library changed (new, rename, delete, move, group edits, an import): the app saves it.
     pub changed: bool,
+    /// The notes of the swatch file Import or Replace Swatches… read, once the panel has imported
+    /// it (empty notes when nothing was lost). The swatches are in the library.
+    pub imported: Option<SwatchReport>,
+    /// The notes of the swatch file Export Swatches… wrote, once it is written.
+    pub exported: Option<SwatchReport>,
+    /// The message for the status bar: the notes of an import or export that lost something, or
+    /// why a file could not be read or written.
+    pub status: Option<StatusLine>,
 }
 
 /// The Swatches panel on a [`SwatchLibrary`], built on craft-ui's
@@ -401,15 +423,21 @@ pub struct SwatchesPanelResponse {
 pub struct SwatchesPanel<'a> {
     id_salt: IdSalt,
     library: &'a mut SwatchLibrary,
-    cmyk: &'a CmykConverter,
+    cmyk: Option<&'a CmykConverter>,
     foreground: Srgba,
 }
 
 impl<'a> SwatchesPanel<'a> {
-    /// The panel over `library`; `cmyk` draws CMYK swatches (the document's converter);
-    /// `foreground` is what New Swatch adds.
-    pub fn new(id_salt: impl AsIdSalt, library: &'a mut SwatchLibrary, cmyk: &'a CmykConverter, foreground: Srgba) -> SwatchesPanel<'a> {
-        SwatchesPanel { id_salt: IdSalt::new(id_salt), library, cmyk, foreground }
+    /// The panel over `library`; `foreground` is what New Swatch adds.
+    pub fn new(id_salt: impl AsIdSalt, library: &'a mut SwatchLibrary, foreground: Srgba) -> SwatchesPanel<'a> {
+        SwatchesPanel { id_salt: IdSalt::new(id_salt), library, cmyk: None, foreground }
+    }
+
+    /// The document's CMYK converter, which draws CMYK swatches and gives their colours when used;
+    /// without it they use the built-in coated CMYK.
+    pub fn cmyk(mut self, converter: &'a CmykConverter) -> SwatchesPanel<'a> {
+        self.cmyk = Some(converter);
+        self
     }
 
     // pc: crates/ui-egui/src/panels/swatches_ui.rs:63 `panel` (the colour table cached per library
@@ -417,12 +445,17 @@ impl<'a> SwatchesPanel<'a> {
     // Move, group events), :121 `new_swatch`, :53 `use_swatch`.
     pub fn show(self, ui: &mut Ui) -> SwatchesPanelResponse {
         let SwatchesPanel { id_salt, library, cmyk, foreground } = self;
+        let cmyk = cmyk.unwrap_or_else(|| CmykConverter::coated());
         let id = ui.make_persistent_id(id_salt);
         let labels = SwatchesLabels::of(ui);
+        let mut response = SwatchesPanelResponse::default();
+        if let Some(host) = Host::try_of(ui) {
+            finish_file_pick(ui.ctx(), &host, file_id(id_salt), library, &mut response);
+        }
         let mut browser_labels = PresetLabels::of(ui);
         browser_labels.new = labels.create_new.clone();
         let mut st: PanelState = ui.data_mut(|d| d.get_temp(id)).unwrap_or_default();
-        if let Some(key) = ui.data_mut(|d| d.remove_temp::<Option<Key>>(pending_id())).flatten() {
+        if let Some(key) = ui.data_mut(|d| d.remove_temp::<Option<Key>>(pending_id(id_salt))).flatten() {
             st.selected = Some(key.clone()).filter(|k| matches!(k, Key::Swatch(_)));
             st.rename = Some(key);
         }
@@ -463,7 +496,6 @@ impl<'a> SwatchesPanel<'a> {
         };
         let footer = PresetFooter::new(&mut st.browser, &browser_labels).thumb_range(THUMB_RANGE).can_delete(st.selected.is_some()).show(ui);
 
-        let mut response = SwatchesPanelResponse::default();
         let mut actions =
             Actions { library, st: &mut st, response: &mut response, foreground, template: &labels.swatch_n, group_name: &labels.group, cmyk };
         for event in out.events {
@@ -477,7 +509,7 @@ impl<'a> SwatchesPanel<'a> {
         }
         let selected = st.selected.clone();
         ui.data_mut(|d| {
-            d.insert_temp(selection_id(), selected);
+            d.insert_temp(selection_id(id_salt), selected);
             d.insert_temp(id, st);
         });
         response
@@ -487,9 +519,10 @@ impl<'a> SwatchesPanel<'a> {
     /// Swatch Group…, a separator, Import Swatches…, Replace Swatches…, Export Swatches… and
     /// Export Swatches for Exchange… (both disabled when the library has no swatch), a separator,
     /// Reset Swatches. The commands come back as `DockEvent::PanelCommand`; the host passes them
-    /// to [`run_command`](SwatchesPanel::run_command).
+    /// to [`run_command`](SwatchesPanel::run_command). `id_salt` is the panel's, as the other
+    /// panels' menus take it; these rows depend on `library` alone.
     // pc: crates/ui-egui/src/panels/swatches_ui.rs:208 `panel_menu`.
-    pub fn panel_menu(ctx: &Context, library: &SwatchLibrary) -> Vec<MenuEntry<PanelCommand>> {
+    pub fn panel_menu(ctx: &Context, _id_salt: impl AsIdSalt, library: &SwatchLibrary) -> Vec<MenuEntry<PanelCommand>> {
         let labels = SwatchesLabels::of_ctx(ctx);
         let empty = library.total() == 0;
         let item = |label: &str, command: &str, enabled: bool| MenuEntry::from(MenuItem::new(label, command.to_owned()).enabled(enabled));
@@ -506,16 +539,26 @@ impl<'a> SwatchesPanel<'a> {
         ]
     }
 
-    /// Carries out a command of [`panel_menu`](SwatchesPanel::panel_menu). New Swatch adds the
-    /// foreground to the selected swatch's (or group's) group, as the footer's New does, and the
-    /// panel selects it and opens its name for editing in its next pass; New Swatch Group, and
-    /// Reset Swatches act on `library`. The file entries come back as an action.
-    pub fn run_command(ctx: &Context, command: &str, library: &mut SwatchLibrary, foreground: Srgba) -> SwatchesMenuResponse {
+    /// Carries out a command of [`panel_menu`](SwatchesPanel::panel_menu) for the panel `id_salt`.
+    /// New Swatch adds the foreground to the selected swatch's (or group's) group, as the footer's
+    /// New does, and the panel selects it and opens its name for editing in its next pass; New
+    /// Swatch Group, and Reset Swatches act on `library`. Import, Replace and the two exports ask
+    /// the installed [`Host`]'s file service for a file (purpose `"swatches"`; without a host they
+    /// do nothing); the panel reads or writes the file in the pass the answer arrives, and the
+    /// result is in [`SwatchesPanelResponse`].
+    pub fn run_command(
+        ctx: &Context,
+        id_salt: impl AsIdSalt,
+        library: &mut SwatchLibrary,
+        command: &PanelCommand,
+        foreground: Srgba,
+    ) -> SwatchesMenuResponse {
+        let salt = IdSalt::new(id_salt);
         let labels = SwatchesLabels::of_ctx(ctx);
         let mut response = SwatchesMenuResponse::default();
-        let pending = match command {
+        let pending = match command.as_str() {
             CMD_NEW_SWATCH => {
-                let selected = ctx.data(|d| d.get_temp::<Option<Key>>(selection_id())).flatten();
+                let selected = ctx.data(|d| d.get_temp::<Option<Key>>(selection_id(salt))).flatten();
                 let group = selected.as_ref().and_then(|key| library.group_of(key));
                 let color = SwatchColor::Rgb(foreground.to_rgb_array().map(|v| v.clamp(0.0, 1.0)));
                 let at = library.add_numbered(color, None, group, &labels.swatch_n);
@@ -533,25 +576,25 @@ impl<'a> SwatchesPanel<'a> {
                 None
             }
             CMD_IMPORT => {
-                response.action = Some(SwatchesAction::Import { replace: false });
+                start_file_pick(ctx, salt, FileJob::Import { replace: false }, &labels.import);
                 None
             }
             CMD_REPLACE => {
-                response.action = Some(SwatchesAction::Import { replace: true });
+                start_file_pick(ctx, salt, FileJob::Import { replace: true }, &labels.replace);
                 None
             }
             CMD_EXPORT => {
-                response.action = Some(SwatchesAction::Export(SwatchFormat::Aco));
+                start_file_pick(ctx, salt, FileJob::Export(SwatchFormat::Aco), &labels.export);
                 None
             }
             CMD_EXPORT_EXCHANGE => {
-                response.action = Some(SwatchesAction::Export(SwatchFormat::Ase));
+                start_file_pick(ctx, salt, FileJob::Export(SwatchFormat::Ase), &labels.export_exchange);
                 None
             }
             _ => None,
         };
         if let Some(key) = pending {
-            ctx.data_mut(|d| d.insert_temp(pending_id(), Some(key)));
+            ctx.data_mut(|d| d.insert_temp(pending_id(salt), Some(key)));
             ctx.request_repaint();
         }
         response
@@ -580,28 +623,100 @@ impl<'a> SwatchesPanel<'a> {
             .collect()
     }
 
-    /// Posts the notes of an import (or, with `writing`, an export) to the app's notice center as
-    /// a warning, one line per note; `None` when there is nothing to say.
-    pub fn post_notes(ctx: &Context, center: &mut NoticeCenter, report: &SwatchReport, writing: bool) -> Option<u64> {
+    /// The status-bar message for the notes of an import (or, with `writing`, an export): the
+    /// title and the notes in one line, as a warning; `None` when there is nothing to say.
+    pub fn status_line(ctx: &Context, report: &SwatchReport, writing: bool) -> Option<StatusLine> {
         let lines = Self::note_lines(ctx, report, writing);
         if lines.is_empty() {
             return None;
         }
         let labels = SwatchesLabels::of_ctx(ctx);
         let title = if writing { labels.notice_export } else { labels.notice_import };
-        center.post(title, lines, Tone::Warn, None, &[])
+        Some(StatusLine { text: format!("{title}: {}", lines.join(" ")), tone: Tone::Warn })
+    }
+}
+
+/// Asks the host's file service for the file of `job`; a pick still open is dropped. Without a
+/// host nothing is asked.
+fn start_file_pick(ctx: &Context, salt: IdSalt, job: FileJob, label: &str) {
+    let Some(host) = Host::try_of_ctx(ctx) else { return };
+    let key = file_id(salt);
+    if let Some(old) = ctx.data(|d| d.get_temp::<FilePick>(key)) {
+        host.files().forget(old.ticket);
+    }
+    let title = label.trim_end_matches('…');
+    let request = match job {
+        FileJob::Import { .. } => {
+            let readable: Vec<&str> = SwatchFormat::ALL.iter().filter(|f| f.can_read()).map(|f| f.extension()).collect();
+            PickRequest::open(PICK_PURPOSE).title(title).filter("Swatches", &readable)
+        }
+        FileJob::Export(format) => {
+            PickRequest::save(PICK_PURPOSE).title(title).suggested_extension(format.extension()).filter("Swatches", &[format.extension()])
+        }
+    };
+    let ticket = host.files().pick(request);
+    ctx.data_mut(|d| d.insert_temp(key, FilePick { ticket, job }));
+}
+
+/// Carries out the file pick of a menu command once it is answered: imports the swatch file into
+/// `library`, or writes the library to the chosen path, and reports the result in `response`.
+fn finish_file_pick(ctx: &Context, host: &Host, key: Id, library: &mut SwatchLibrary, response: &mut SwatchesPanelResponse) {
+    let Some(pick) = ctx.data(|d| d.get_temp::<FilePick>(key)) else { return };
+    let Some(picked) = host.files().take_answer(pick.ticket) else { return };
+    ctx.data_mut(|d| d.remove::<FilePick>(key));
+    let labels = SwatchesLabels::of_ctx(ctx);
+    let failed = |template: &str, reason: &dyn std::fmt::Display| StatusLine {
+        text: craft_i18n::fmt(template, &[("reason", &reason.to_string())]),
+        tone: Tone::Bad,
+    };
+    match pick.job {
+        FileJob::Import { replace } => {
+            let file = match picked {
+                Picked::Cancelled => return,
+                Picked::Paths(paths) => paths.into_iter().next().map(|path| {
+                    let name = path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+                    host.files().read(&path).map(|bytes| (name, bytes))
+                }),
+                Picked::Contents(files) => files.into_iter().next().map(|(name, bytes)| Ok((name, bytes))),
+            };
+            let result = match file {
+                None => return,
+                Some(Err(error)) => Err(failed(&labels.import_failed, &error)),
+                Some(Ok((name, bytes))) => crate::palette::read_swatches(&bytes, &name).map_err(|error| failed(&labels.import_failed, &error)),
+            };
+            match result {
+                Ok((groups, report)) => {
+                    library.import(groups, replace);
+                    response.changed = true;
+                    response.status = SwatchesPanel::status_line(ctx, &report, false);
+                    response.imported = Some(report);
+                }
+                Err(status) => response.status = Some(status),
+            }
+        }
+        FileJob::Export(format) => {
+            let Some(path) = picked.first_path() else { return };
+            let written = crate::palette::write_swatches(&library.groups, format).map_err(|error| failed(&labels.export_failed, &error)).and_then(
+                |(bytes, report)| host.files().write(&path, &bytes).map(|()| report).map_err(|error| failed(&labels.export_failed, &error)),
+            );
+            match written {
+                Ok(report) => {
+                    response.status = SwatchesPanel::status_line(ctx, &report, true);
+                    response.exported = Some(report);
+                }
+                Err(status) => response.status = Some(status),
+            }
+        }
     }
 }
 
 /// What [`SwatchesPanel::run_command`] did.
 #[derive(Debug, Default, PartialEq)]
 #[non_exhaustive]
-#[must_use = "the app saves a changed library and carries out the action"]
+#[must_use = "the app saves a changed library"]
 pub struct SwatchesMenuResponse {
     /// The library changed: the app saves it.
     pub changed: bool,
-    /// A file entry the app carries out.
-    pub action: Option<SwatchesAction>,
 }
 
 /// The events of one pass applied to the library and the panel's state.

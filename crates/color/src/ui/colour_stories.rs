@@ -401,7 +401,7 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
             ui.set_width(panel_width(ui));
             let mut panel = ColorPanel::new("panel", &mut panel_state, colors, &numbers);
             if args.cmyk_gamut {
-                panel = panel.gamut(CmykConverter::coated());
+                panel = panel.cmyk(CmykConverter::coated());
             }
             let shown = panel.show(ui);
             for (target, event) in &shown.edits {
@@ -409,17 +409,17 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
                     colors[usize::from(*target == PanelTarget::Background)] = picked.color;
                 }
             }
-            if shown.open_picker.is_some() {
+            if shown.pick_color.is_some() {
                 note = "The well opens the Color Picker dialog.".to_owned();
             }
             if shown.add_to_swatches.is_some() {
                 note = "Add to Swatches adds the colour of the edited well.".to_owned();
             }
         });
-        let entries = ColorPanel::panel_menu(ui, &panel_state);
+        let entries = ColorPanel::panel_menu(&ctx, "panel", &panel_state);
         if let Some(command) = panel_menu(ui, &entries) {
             let edited = colors[usize::from(panel_state.background)];
-            ColorPanel::run_command(&ctx, &mut panel_state, &command, edited);
+            ColorPanel::run_command(&ctx, "panel", &mut panel_state, &command, edited);
         }
     });
     muted(ui, format!("Foreground {}, background {}", hex(colors[0]), hex(colors[1])));
@@ -442,17 +442,17 @@ fn show_swatches(ui: &mut Ui, _: &mut NoArgs) {
         let size = vec2(panel_width(ui), 320.0);
         ui.allocate_ui(size, |ui| {
             ui.set_min_height(size.y);
-            let shown = SwatchesPanel::new("swatches", library, CmykConverter::coated(), *foreground).show(ui);
+            let shown = SwatchesPanel::new("swatches", library, *foreground).cmyk(CmykConverter::coated()).show(ui);
+            if let Some(status) = shown.status {
+                *note = status.text;
+            }
             if let Some((_, color, _)) = shown.used {
                 *foreground = color;
             }
         });
-        let entries = SwatchesPanel::panel_menu(&ctx, library);
+        let entries = SwatchesPanel::panel_menu(&ctx, "swatches", library);
         if let Some(command) = panel_menu(ui, &entries) {
-            let response = SwatchesPanel::run_command(&ctx, &command, library, *foreground);
-            if let Some(action) = response.action {
-                *note = format!("{action:?}: the app opens a file dialog.");
-            }
+            let _ = SwatchesPanel::run_command(&ctx, "swatches", library, &command, *foreground);
         }
     });
     muted(ui, format!("Foreground {}", hex(*foreground)));
@@ -572,7 +572,7 @@ fn show_choice(ui: &mut Ui, args: &mut ChoiceArgs) {
     if let Some(EditEvent::Set { value: chosen, .. }) = shown.edit.event {
         *value = chosen;
     }
-    if shown.pick_custom {
+    if shown.pick_color.is_some() {
         *value = ChosenColor::Custom;
     }
     muted(
@@ -609,7 +609,8 @@ fn show_harmony(ui: &mut Ui, args: &mut HarmonyArgs) {
         if wheel.pressed.is_some() {
             *selected = wheel.pressed;
         }
-        for (index, target) in wheel.moved {
+        for (index, event) in wheel.edits {
+            let Some(target) = event.value() else { continue };
             let current = colors[index].to_hsb();
             let to = [target[0].unwrap_or(current.h), target[1].unwrap_or(current.s), target[2].unwrap_or(current.b)];
             move_on_wheel(colors, index, to, true);
@@ -643,7 +644,10 @@ fn show_lut_picker(ui: &mut Ui, args: &mut LutArgs) {
     {
         *value = chosen.clone();
     }
-    muted(ui, if shown.load_requested { "Load 3D LUT… asks the app for a file.".to_owned() } else { format!("{:?}", *value) });
+    if let Some(Ok(lut)) = shown.loaded {
+        *value = LutChoice::Loaded { name: lut.title, size: lut.size };
+    }
+    muted(ui, format!("{:?}", *value));
 }
 
 fn show_profile_dialog(ui: &mut Ui, args: &mut ProfileArgs) {
@@ -679,8 +683,8 @@ mod tests {
     #[test]
     fn rule_and_panel_choices_name_their_items() {
         assert_eq!(Harmony::OPTIONS.len(), Harmony::ALL.len());
-        for (rule, name) in Harmony::ALL.iter().zip(Harmony::OPTIONS) {
-            assert_eq!(rule.label(), *name);
+        for (word, name) in crate::ui::HARMONY_WORDS.iter().zip(Harmony::OPTIONS) {
+            assert_eq!(word.english, *name);
         }
         assert_eq!(<ColorPanelMode as StoryChoice>::OPTIONS.len(), ColorPanelMode::ALL.len());
         assert_eq!(<ColorPanelRamp as StoryChoice>::OPTIONS.len(), ColorPanelRamp::ALL.len());
