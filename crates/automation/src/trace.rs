@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Frame timing trace: every frame of a gesture (a brush stroke, a drag) as a row, so a tester on
 //! any platform reports a per-stage breakdown instead of one input-to-pixel number.
 //!
@@ -8,6 +7,8 @@
 //! channel's `perf` output under `frameTrace` (PhotoCraft's `strokeTrace`, renamed with
 //! `gesture_ms`; spec Q-S3T-5). The trace keeps no clock: each row is the
 //! frame's [`FrameStages`], so the slow-frame ring and the trace read one record.
+
+use std::fmt::Write as _;
 
 use crate::profiler::FrameStages;
 
@@ -38,11 +39,28 @@ pub struct Summary {
     pub wait: [f64; 2],
 }
 
+impl Row {
+    /// The trace's row for a frame's stages.
+    fn from_stages(s: &FrameStages, interval: f64) -> Self {
+        Self { t: s.t, interval, moves: s.moves, gesture: s.gesture_ms, canvas: s.composite_ms + s.upload_ms, ui: s.ui_ms, cpu_prev: s.cpu_prev_ms }
+    }
+}
+
 impl Summary {
     /// One stderr line.
     pub fn line(&self) -> String {
-        // pc: crates/ui-egui/src/tools/stroke_trace.rs:69
-        todo!()
+        let f = |name: &str, [p50, p95]: [f64; 2]| format!("{name} {p50:.2}/{p95:.2}");
+        [
+            format!("frame trace: {} frames on {} (p50/p95 ms):", self.frames, self.backend),
+            f("interval", self.interval),
+            f("moves/frame", self.moves),
+            f("gesture", self.gesture),
+            f("canvas", self.canvas),
+            f("ui", self.ui),
+            f("cpu", self.cpu),
+            f("wait", self.wait),
+        ]
+        .join(" ")
     }
 }
 
@@ -67,17 +85,27 @@ pub struct FrameTrace {
 }
 
 impl FrameTrace {
-    /// Reads the environment variable `var`.
+    /// Reads the environment variable `var` (off on wasm, which has no environment).
     pub fn from_env(var: &str) -> Self {
-        // pc: crates/ui-egui/src/tools/stroke_trace.rs:124
-        todo!()
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(v) = std::env::var_os(var) {
+            return Self::from_value(&v.to_string_lossy());
+        }
+        let _ = var;
+        Self::default()
     }
 
     /// `v` trimmed: `""`, `"0"`, `"off"` or `"false"` is off; `"1"`, `"stderr"` or `"true"` prints
     /// summaries; anything else is a CSV path. Always off on wasm (no clock there).
     pub fn from_value(v: &str) -> Self {
-        // pc: crates/ui-egui/src/tools/stroke_trace.rs:135
-        todo!()
+        let v = v.trim();
+        let output = match v {
+            _ if cfg!(target_arch = "wasm32") => Output::Off,
+            "" | "0" | "off" | "false" => Output::Off,
+            "1" | "stderr" | "true" => Output::Stderr,
+            path => Output::Csv(path.into()),
+        };
+        Self { output, ..Default::default() }
     }
 
     pub fn is_on(&self) -> bool {
@@ -86,22 +114,85 @@ impl FrameTrace {
 
     /// Turn summaries on or off (the control channel's `ui.set`); never sets a path.
     pub fn set_on(&mut self, on: bool) {
-        // pc: crates/ui-egui/src/tools/stroke_trace.rs:147 (ui.set strokeTrace)
-        todo!()
+        let last = self.last.take();
+        *self = Self { last, ..Self::from_value(if on { "1" } else { "off" }) };
     }
 
     /// Record `stages` when `in_gesture`; the first frame after a gesture ends summarises it,
     /// with `backend` named in the summary.
     pub fn frame(&mut self, stages: &FrameStages, in_gesture: bool, backend: impl FnOnce() -> String) {
-        // pc: crates/ui-egui/src/tools/stroke_trace.rs:160 (frame)
-        todo!()
+        if !self.is_on() {
+            return;
+        }
+        let interval = self.last_start.map_or(0.0, |t| stages.t - t);
+        self.last_start = Some(stages.t);
+        if in_gesture || stages.gesture_ms > 0.0 {
+            // The first frame of a gesture does not follow a gesture frame: its interval is idle time.
+            let interval = if self.rows.is_empty() { 0.0 } else { interval };
+            self.rows.push(Row::from_stages(stages, interval));
+        } else if !self.rows.is_empty() {
+            self.finish(backend());
+        }
+    }
+
+    fn finish(&mut self, backend: String) {
+        let rows = std::mem::take(&mut self.rows);
+        self.gestures += 1;
+        let col = |g: fn(&Row) -> Option<f64>| percentiles(rows.iter().filter_map(g).collect());
+        let summary = Summary {
+            frames: rows.len(),
+            backend,
+            interval: col(|r| (r.interval > 0.0).then_some(r.interval)),
+            moves: col(|r| Some(r.moves as f64)),
+            gesture: col(|r| Some(r.gesture)),
+            canvas: col(|r| Some(r.canvas)),
+            ui: col(|r| Some(r.ui)),
+            // A frame's cpu_prev belongs to the frame before it, so pair it with that interval.
+            cpu: percentiles(rows.iter().skip(1).filter_map(|r| r.cpu_prev).collect()),
+            wait: percentiles(rows.windows(2).filter_map(|w| Some((w[1].interval - w[1].cpu_prev?).max(0.0))).collect()),
+        };
+        eprintln!("{}", summary.line());
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Output::Csv(path) = &self.output
+            && let Err(e) = append_csv(path, self.gestures, &rows)
+        {
+            eprintln!("frame trace: can't write {}: {e}", path.display());
+        }
+        self.last = Some(summary);
     }
 }
 
 /// `[p50, p95]` of `v`, nearest rank, rounded to 0.01; zeros when empty.
-pub fn percentiles(v: Vec<f64>) -> [f64; 2] {
-    // pc: crates/ui-egui/src/tools/stroke_trace.rs:111
-    todo!()
+pub fn percentiles(mut v: Vec<f64>) -> [f64; 2] {
+    v.retain(|x| x.is_finite());
+    if v.is_empty() {
+        return [0.0, 0.0];
+    }
+    v.sort_by(f64::total_cmp);
+    let at = |p: f64| v.get(((p * (v.len() - 1) as f64).round() as usize).min(v.len() - 1)).copied().unwrap_or(0.0);
+    let r = |x: f64| (x * 100.0).round() / 100.0;
+    [r(at(0.5)), r(at(0.95))]
+}
+
+/// The CSV text for `rows` of gesture number `gesture` (with the header when `header`).
+fn csv(gesture: usize, rows: &[Row], header: bool) -> String {
+    let mut s = String::new();
+    if header {
+        s.push_str("gesture,t_ms,interval_ms,moves,gesture_ms,canvas_ms,ui_ms,cpu_prev_ms\n");
+    }
+    for r in rows {
+        let cpu = r.cpu_prev.map_or(String::new(), |c| format!("{c:.3}"));
+        let _ = writeln!(s, "{gesture},{:.3},{:.3},{},{:.3},{:.3},{:.3},{cpu}", r.t, r.interval, r.moves, r.gesture, r.canvas, r.ui);
+    }
+    s
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn append_csv(path: &std::path::Path, gesture: usize, rows: &[Row]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let header = std::fs::metadata(path).map_or(true, |m| m.len() == 0);
+    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
+    f.write_all(csv(gesture, rows, header).as_bytes())
 }
 
 #[cfg(test)]
