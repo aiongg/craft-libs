@@ -70,7 +70,13 @@ screen-testing = [
     "craft-ui?/screen-testing",
     "craft-update?/screen-testing",
 ]
-serde = ["craft-draw?/serde", "craft-theme/serde", "craft-theme-store?/serde", "craft-ui?/serde"]
+serde = [
+    "craft-color?/serde",
+    "craft-draw?/serde",
+    "craft-theme/serde",
+    "craft-theme-store?/serde",
+    "craft-ui?/serde",
+]
 ai-core = ["dep:craft-ai-core"]
 
 atomic = ["dep:craft-atomic"]
