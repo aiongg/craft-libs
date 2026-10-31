@@ -1,4 +1,3 @@
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Real input on an egui_kittest harness (`screen-testing` feature, desktop): clicks, drags,
 //! wheel turns, key presses and typing that arrive one event per frame as a platform sends them,
 //! and pumps that wait for the app's background work.
@@ -18,9 +17,9 @@
 //! assert!(harness.pump_idle(Duration::from_secs(10), |h| h.state().busy()), "still busy");
 //! ```
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use egui::{KeyboardShortcut, Modifiers, PointerButton, Pos2, Vec2};
+use egui::{Event, KeyboardShortcut, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, TouchPhase, Vec2};
 use egui_kittest::Harness;
 
 /// Pointer moves a [`HarnessExt::drag`] makes between press and release.
@@ -71,43 +70,91 @@ pub trait HarnessExt {
 
 impl<State> HarnessExt for Harness<'_, State> {
     fn click_at(&mut self, pos: Pos2) {
-        // designcraft: crates/ui-egui/src/lib.rs:399, as click_at_with(pos, Primary, NONE)
-        todo!()
+        self.click_at_with(pos, PointerButton::Primary, Modifiers::NONE);
     }
 
     fn click_at_with(&mut self, pos: Pos2, button: PointerButton, modifiers: Modifiers) {
-        // pc: crates/ui-egui/src/panels/layer_tree_ui/tests.rs:61
-        todo!()
+        self.event(Event::ModifiersChanged(modifiers));
+        self.hover_at(pos);
+        self.run_steps(1);
+        self.event(Event::PointerButton { pos, button, pressed: true, modifiers });
+        self.run_steps(1);
+        self.event(Event::PointerButton { pos, button, pressed: false, modifiers });
+        self.run_steps(1);
+        self.event(Event::ModifiersChanged(Modifiers::NONE));
+        self.run_steps(3);
     }
 
     fn drag(&mut self, from: Pos2, to: Pos2, modifiers: Modifiers) {
-        // designcraft: crates/ui-egui/src/panel_docking/tests.rs:74
-        todo!()
+        self.event(Event::ModifiersChanged(modifiers));
+        self.event(Event::PointerMoved(from));
+        self.run_steps(1);
+        self.event(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers });
+        self.run_steps(1);
+        for step in 1..=DRAG_STEPS {
+            self.event(Event::PointerMoved(from + (to - from) * (step as f32 / DRAG_STEPS as f32)));
+            self.run_steps(1);
+        }
+        self.event(Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers });
+        self.event(Event::ModifiersChanged(Modifiers::NONE));
+        self.run_steps(3);
     }
 
     fn wheel_at(&mut self, pos: Pos2, delta: Vec2) {
-        // designcraft: crates/ui-egui/src/lib.rs:363
-        todo!()
+        self.hover_at(pos);
+        self.event(Event::MouseWheel {
+            unit: MouseWheelUnit::Point,
+            delta,
+            phase: TouchPhase::Move,
+            modifiers: Modifiers::NONE,
+            source: MouseWheelSource::Unknown,
+        });
+        self.run_steps(10);
     }
 
     fn press(&mut self, shortcut: KeyboardShortcut) {
-        // new: egui-winit's down and up on separate frames, as the keymap tests send them
-        todo!()
+        let KeyboardShortcut { modifiers, logical_key: key } = shortcut;
+        self.event(Event::ModifiersChanged(modifiers));
+        self.event(Event::Key { key, physical_key: Some(key), pressed: true, repeat: false, modifiers });
+        self.run_steps(1);
+        self.event(Event::Key { key, physical_key: Some(key), pressed: false, repeat: false, modifiers });
+        self.event(Event::ModifiersChanged(Modifiers::NONE));
+        self.run_steps(3);
     }
 
     fn type_text(&mut self, text: &str) {
-        // cadcraft: crates/ui-egui/tests/it/selection_cycling.rs:90 (without the Enter)
-        todo!()
+        self.event(Event::Text(text.into()));
+        self.run_steps(2);
     }
 
-    fn pump_until(&mut self, timeout: Duration, done: impl FnMut(&Self) -> bool) -> bool {
-        // lightcraft: crates/ui-egui/src/headless.rs:434
-        todo!()
+    fn pump_until(&mut self, timeout: Duration, mut done: impl FnMut(&Self) -> bool) -> bool {
+        let start = Instant::now();
+        while !done(self) {
+            if start.elapsed() > timeout {
+                return false;
+            }
+            self.step();
+            std::thread::sleep(PUMP_SLEEP);
+        }
+        true
     }
 
-    fn pump_idle(&mut self, timeout: Duration, busy: impl FnMut(&Self) -> bool) -> bool {
-        // lightcraft: crates/ui-egui/src/headless.rs:411
-        todo!()
+    fn pump_idle(&mut self, timeout: Duration, mut busy: impl FnMut(&Self) -> bool) -> bool {
+        let start = Instant::now();
+        let mut quiet = 0;
+        while quiet < QUIET_FRAMES {
+            if start.elapsed() > timeout {
+                return false;
+            }
+            self.step();
+            if busy(self) {
+                quiet = 0;
+                std::thread::sleep(PUMP_SLEEP);
+            } else {
+                quiet += 1;
+            }
+        }
+        true
     }
 }
 
