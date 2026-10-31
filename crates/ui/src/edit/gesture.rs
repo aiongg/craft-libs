@@ -438,7 +438,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// value differs from the start when the `Begin` goes out, the `Begin` carries it, so the
     /// host shows the first move in that frame. Still one event per frame. The `Begin` of a
     /// gesture inside a part of a composite carries the value for the part, and the composite
-    /// reports it with the part's next update or its commit.
+    /// begins its own gesture with it in the same frame.
     pub fn begin_with_value(&mut self) {
         self.begin();
         if let Phase::Active(a) = &mut self.stored.phase {

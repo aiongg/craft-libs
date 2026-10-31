@@ -77,7 +77,13 @@ impl Rig {
             });
         });
         match self.event.clone() {
-            Some(EditEvent::Begin { .. }) => self.before = (self.color, self.kept),
+            Some(EditEvent::Begin { value, .. }) => {
+                self.before = (self.color, self.kept);
+                if let Some(v) = value {
+                    self.color = HsbModel.to_srgb(&v.values);
+                    self.kept = Some(v);
+                }
+            }
             Some(EditEvent::Cancel { .. }) => (self.color, self.kept) = self.before,
             Some(other) => {
                 if let Some(v) = other.value() {
@@ -153,6 +159,13 @@ fn hsb(h: f32, s: f32, b: f32) -> ModelValues {
     ModelValues::new("hsb", &[h, s, b])
 }
 
+fn begun_value(event: Option<EditEvent<ModelValues>>) -> Option<ModelValues> {
+    match event {
+        Some(EditEvent::Begin { value, .. }) => value,
+        other => panic!("expected Begin, got {other:?}"),
+    }
+}
+
 fn begin(event: Option<EditEvent<ModelValues>>) -> GestureId {
     match event {
         Some(EditEvent::Begin { id, .. }) => id,
@@ -202,8 +215,9 @@ fn a_press_on_the_ring_turns_the_hue_and_the_part_stays_for_the_whole_drag() {
     let id = begin(rig.event.clone());
     assert_eq!(rig.focused(), Some(rig.ids.0), "a press focuses the ring");
     assert_eq!(rig.node(rig.ids.0).numeric_value(), Some(90.0), "the press frame draws the value");
+    assert_eq!(begun_value(rig.event.clone()), Some(hsb(90.0, 50.0, 60.0)), "the Begin carries the pick: only the hue changes");
     rig.frame(vec![]);
-    assert_eq!(rig.event, update(id, hsb(90.0, 50.0, 60.0)), "only the hue changes");
+    assert_eq!(rig.event, None, "the next frame needs no Update");
     // The pointer leaves the ring for the triangle and the hue still follows its angle.
     rig.drag(rig.geometry.center + hue_direction(180.0) * (rig.geometry.inner * 0.5));
     assert_eq!(rig.event, update(id, hsb(180.0, 50.0, 60.0)));
@@ -215,10 +229,10 @@ fn a_press_on_the_ring_turns_the_hue_and_the_part_stays_for_the_whole_drag() {
 fn a_press_in_the_triangle_picks_saturation_and_brightness_and_keeps_the_hue() {
     let mut rig = Rig::new(hsb(240.0, 50.0, 60.0));
     rig.press(rig.in_triangle(240.0, 25.0, 75.0));
-    let id = begin(rig.event.clone());
     assert_eq!(rig.focused(), Some(rig.ids.1), "a press focuses the triangle");
+    assert_eq!(begun_value(rig.event.clone()), Some(hsb(240.0, 25.0, 75.0)));
     rig.frame(vec![]);
-    assert_eq!(rig.event, update(id, hsb(240.0, 25.0, 75.0)));
+    assert_eq!(rig.event, None, "the next frame needs no Update");
     // Dragging out over the ring keeps editing the triangle, at its edge.
     rig.drag(rig.on_ring(240.0));
     assert_eq!(rig.event.as_ref().and_then(|e| e.value()).map(|v| v.values[0]), Some(240.0));
@@ -293,9 +307,9 @@ fn ring_keys_wrap_and_triangle_keys_are_sets() {
     assert_eq!(rig.event, set(hsb(0.0, 100.0, 59.0)));
 
     rig.press(rig.in_triangle(0.0, 50.0, 50.0));
-    let id = begin(rig.event.clone());
+    assert_eq!(begun_value(rig.event.clone()), Some(hsb(0.0, 50.0, 50.0)));
     rig.key(Key::End, Modifiers::NONE);
-    assert_eq!(rig.event, update(id, hsb(0.0, 50.0, 50.0)), "keys change nothing during a drag");
+    assert_eq!(rig.event, None, "keys change nothing during a drag");
 }
 
 #[test]

@@ -161,7 +161,7 @@ impl ColorArea {
         let pressed = response.drag_started_by(PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
         let turn = press_turn(ui, response.id, self.part, gesture.id(), pressed.or(tapped));
         if let PressTurn::Held(held) = turn {
-            gesture.begin();
+            gesture.begin_with_value();
             if let Some(start) = gesture.start().copied() {
                 gesture.update(axes.at(rect, &start, held), ui.input(|i| i.modifiers));
             }
@@ -173,7 +173,7 @@ impl ColorArea {
         if response.drag_started_by(PointerButton::Primary) {
             response.request_focus();
             if !waits {
-                gesture.begin();
+                gesture.begin_with_value();
             }
         }
         if response.dragged_by(PointerButton::Primary)

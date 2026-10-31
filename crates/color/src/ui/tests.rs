@@ -87,7 +87,13 @@ impl Rig {
 
     fn apply(&mut self, event: EditEvent<ModelValues>) {
         match event {
-            EditEvent::Begin { .. } => self.before = (self.color, self.kept),
+            EditEvent::Begin { value, .. } => {
+                self.before = (self.color, self.kept);
+                if let Some(v) = value {
+                    self.color = HsbModel.to_srgb(&v.values);
+                    self.kept = Some(v);
+                }
+            }
             EditEvent::Cancel { .. } if self.revert => (self.color, self.kept) = self.before,
             EditEvent::Cancel { .. } => {}
             other => {
@@ -171,6 +177,13 @@ fn begin(event: Option<EditEvent<ModelValues>>) -> GestureId {
     }
 }
 
+fn begun_value(event: Option<EditEvent<ModelValues>>) -> Option<ModelValues> {
+    match event {
+        Some(EditEvent::Begin { value, .. }) => value,
+        other => panic!("expected Begin, got {other:?}"),
+    }
+}
+
 fn update(id: GestureId, value: ModelValues) -> Option<EditEvent<ModelValues>> {
     Some(EditEvent::update(id, value, Modifiers::NONE))
 }
@@ -186,8 +199,9 @@ fn a_press_sets_the_colour_in_the_press_frame_and_a_drag_is_one_gesture() {
     let id = begin(rig.area.2.clone());
     assert_eq!(rig.area_text(), "Saturation 25 %, Brightness 75 %", "the press frame draws the value under the pointer");
     assert_eq!(rig.focused(), Some(rig.area.0), "a press focuses the area");
+    assert_eq!(begun_value(rig.area.2.clone()), Some(hsb(240.0, 25.0, 75.0)), "the press frame's Begin carries the pick");
     rig.frame(vec![]);
-    assert_eq!(rig.area.2, update(id, hsb(240.0, 25.0, 75.0)));
+    assert_eq!(rig.area.2, None, "the next frame needs no Update");
     rig.drag(rig.area_at(60.0, 30.0));
     assert_eq!(rig.area.2, update(id, hsb(240.0, 60.0, 30.0)));
     // Outside the area the value stays at the edge.
@@ -204,9 +218,7 @@ fn a_press_sets_the_colour_in_the_press_frame_and_a_drag_is_one_gesture() {
     // The strip: the same on its own component.
     let strip = rig.strip.1;
     rig.press(pos2(strip.center().x, strip.bottom() - strip.height() / 4.0));
-    let id = begin(rig.strip.2.clone());
-    rig.frame(vec![]);
-    assert_eq!(rig.strip.2, update(id, hsb(90.0, 10.0, 90.0)));
+    assert_eq!(begun_value(rig.strip.2.clone()), Some(hsb(90.0, 10.0, 90.0)));
 }
 
 #[test]
@@ -248,9 +260,9 @@ fn keys_are_sets_and_change_nothing_during_a_drag() {
     assert_eq!(rig.strip.2, set(hsb(0.0, 100.0, 50.0), Modifiers::NONE));
 
     rig.press(rig.area_at(50.0, 50.0));
-    let id = begin(rig.area.2.clone());
+    assert_eq!(begun_value(rig.area.2.clone()), Some(hsb(0.0, 50.0, 50.0)), "the press's value goes out with the Begin");
     rig.key(Key::End, Modifiers::NONE);
-    assert_eq!(rig.area.2, update(id, hsb(0.0, 50.0, 50.0)), "the press's value goes out, End changes nothing");
+    assert_eq!(rig.area.2, None, "End changes nothing");
     rig.key(Key::PageUp, Modifiers::NONE);
     assert_eq!(rig.area.2, None);
 }
@@ -319,9 +331,7 @@ fn right_to_left_keeps_the_area_axes() {
     craft_ui::direction::apply(&rig.ctx, craft_ui::direction::Direction::Rtl);
     rig.frame(vec![]);
     rig.press(rig.area_at(80.0, 30.0));
-    let id = begin(rig.area.2.clone());
-    rig.frame(vec![]);
-    assert_eq!(rig.area.2, update(id, hsb(240.0, 80.0, 30.0)), "saturation still grows to the right");
+    assert_eq!(begun_value(rig.area.2.clone()), Some(hsb(240.0, 80.0, 30.0)), "saturation still grows to the right");
 }
 
 /// The area's names follow its axes: across, then down.

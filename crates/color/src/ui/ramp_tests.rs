@@ -179,8 +179,7 @@ fn a_press_picks_in_the_press_frame_and_a_drag_is_one_gesture() {
     rig.frame(vec![Event::PointerMoved(at), button(at, true, Modifiers::NONE)]);
     let started = rig.take();
     assert!(matches!(started.first(), Some(EditEvent::Begin { .. })), "{started:?}");
-    rig.frame(vec![]);
-    let press = rig.take().iter().filter_map(EditEvent::value).next().map(|p| p.color);
+    let press = started.iter().filter_map(EditEvent::value).next().map(|p| p.color);
     assert!(press.is_some_and(|c| near(c, rig.pick(0.25, 0.5))), "the press picks the colour under the pointer: {press:?}");
 
     // The pointer leaves the bar: the pick stays at its edge.

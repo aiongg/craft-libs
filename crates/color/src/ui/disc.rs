@@ -263,7 +263,7 @@ impl ColorDisc {
             out
         };
         if origin.is_some() && grabbed.is_some() {
-            gesture.begin();
+            gesture.begin_with_value();
         }
         if response.dragged_by(egui::PointerButton::Primary)
             && let Some(start) = gesture.start().copied()

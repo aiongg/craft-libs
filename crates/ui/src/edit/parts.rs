@@ -9,7 +9,8 @@
 //! values it makes from them ([`Edits::set`]). [`Edits::feed`] then gives them to its gesture:
 //!
 //! - The part whose Begin (or first Update) starts the gesture owns it; its Commit commits and
-//!   its Cancel cancels. The gesture holds only its owner's values: another part's event waits
+//!   its Cancel cancels. A Begin that carries the part's first value ([`Gesture::begin_with_value`])
+//!   begins the composite's gesture with that value, as the composite's, in the same frame. The gesture holds only its owner's values: another part's event waits
 //!   for the gesture to end (below). Sets are [`set`](Gesture::set).
 //! - The owner's Commit ends the gesture with the owner's value as the composite's, which changed
 //!   the gesture when it differs from the composite's start. While the gesture runs from the
@@ -163,7 +164,8 @@ impl Kind {
     fn of<T>(event: &EditEvent<T>) -> Option<Self> {
         Some(match *event {
             EditEvent::Set { modifiers, .. } => Kind::Set { modifiers },
-            // The first value is not replayed: the part's next update or its commit carries it.
+            // A held Begin waits without its first value: the part's next update or its commit
+            // carries it.
             EditEvent::Begin { id, .. } => Kind::Begin { id },
             EditEvent::Update { id, modifiers, .. } => Kind::Update { id, modifiers },
             EditEvent::Commit { id, changed, modifiers, .. } => Kind::Commit { id, changed, modifiers },
@@ -459,7 +461,11 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
         }
         let value = match kind {
             Kind::Begin { id } => {
-                self.events.push((part, EditEvent::begin(id), Hold::Ops(queued)));
+                let first = event.value().cloned().map(map);
+                if let Some(value) = &first {
+                    self.value = value.clone();
+                }
+                self.events.push((part, EditEvent::Begin { id, value: first }, Hold::Ops(queued)));
                 return Pushed::Out;
             }
             Kind::Set { .. } if !queued.ops.is_empty() => queued.apply(&self.value, &mut apply),
@@ -643,7 +649,7 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
             // A gesture the queue's entry begins doesn't run from the composite's start.
             let replayed = matches!(hold, Hold::Replayed(_));
             let run = event.id();
-            moved |= !matches!(event, EditEvent::Begin { .. });
+            moved |= !matches!(event, EditEvent::Begin { value: None, .. });
             match event {
                 // Inside a scope the parts report only updates, each a change of its own.
                 event if scoped => {
@@ -651,11 +657,17 @@ impl<V: Clone + PartialEq + Send + Sync + 'static, O: Clone + Send + Sync + 'sta
                         outer.set(value.clone());
                     }
                 }
-                EditEvent::Begin { .. } => {
+                EditEvent::Begin { value, .. } => {
                     if !outer.is_active() {
-                        outer.begin();
+                        match value {
+                            Some(_) => outer.begin_with_value(),
+                            None => outer.begin(),
+                        }
                         state.owner = Some(who);
                         state.pure = outer.id().filter(|_| !replayed);
+                        if let Some(value) = value {
+                            outer.update(value, Modifiers::NONE);
+                        }
                     }
                 }
                 EditEvent::Update { value, modifiers, .. } => {

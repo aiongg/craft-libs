@@ -300,7 +300,7 @@ impl<'a> ColorRamp<'a> {
             if press.shift {
                 cycle = !dragging;
             } else {
-                gesture.begin();
+                gesture.begin_with_value();
                 gesture.update(pick_at(held, press.alt), press_mods);
                 if !dragging {
                     gesture.commit();
@@ -312,7 +312,7 @@ impl<'a> ColorRamp<'a> {
             if !waits {
                 cursor = started.map_or(cursor, cell_at);
                 if !press.shift {
-                    gesture.begin();
+                    gesture.begin_with_value();
                 }
             }
         }
@@ -478,10 +478,10 @@ struct Press {
 /// forgets it when the gesture ends.
 fn remember_host(ui: &Ui, key: egui::Id, event: &Option<EditEvent<RampPick>>) {
     match event {
-        Some(EditEvent::Update { value, .. }) => ui.data_mut(|d| {
+        Some(EditEvent::Update { value, .. } | EditEvent::Begin { value: Some(value), .. }) => ui.data_mut(|d| {
             d.insert_temp(key, *value);
         }),
-        Some(EditEvent::Begin { .. }) | None => {}
+        Some(EditEvent::Begin { value: None, .. }) | None => {}
         Some(_) => ui.data_mut(|d| {
             d.insert_temp(key, NO_PICK);
         }),

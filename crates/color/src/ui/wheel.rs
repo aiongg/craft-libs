@@ -359,7 +359,7 @@ impl ColorWheel {
         {
             focus = Some(part);
             pressed_part = Some(part);
-            gesture.begin();
+            gesture.begin_with_value();
             if let Some(start) = gesture.start().copied() {
                 gesture.update(value_at(&geometry, &start, part, held), modifiers());
             }
@@ -372,7 +372,7 @@ impl ColorWheel {
             focus = Some(part);
             if !waits {
                 pressed_part = Some(part);
-                gesture.begin();
+                gesture.begin_with_value();
             }
         }
         if response.dragged_by(egui::PointerButton::Primary)

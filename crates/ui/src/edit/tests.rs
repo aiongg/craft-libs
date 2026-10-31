@@ -833,6 +833,46 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
     assert_eq!(pass(EditEvent::commit(run, 6, false, Modifiers::NONE), |v, _| v + 1), commit(id, 6, false));
 }
 
+/// A part whose gesture opts in with `begin_with_value` (a number field's scrub) shows its first
+/// move in the press frame: the composite's Begin carries it, the next frame has no extra Update,
+/// and the run is one gesture.
+#[test]
+fn a_composites_begin_carries_its_parts_first_value() {
+    let ctx = Context::default();
+    let mut state = parts::State::<()>::default();
+    let host = std::cell::Cell::new(0);
+    let (a_id, composite) = (Id::unique("a"), Id::unique("composite"));
+    let mut pass = |a: &dyn Fn(&mut Gesture<i32>)| {
+        let mut event = None;
+        let output = ctx.run_ui(RawInput::default(), |ui| {
+            let outer = Gesture::load(ui, composite, &host.get(), EditPolicy::default());
+            let shown = *outer.shown();
+            let mut edits = parts::Edits::new(composite, &state, &outer, false);
+            let response = ui.interact(Rect::from_min_size(Pos2::ZERO, vec2(20.0, 20.0)), a_id, Sense::click());
+            let mut gesture = Gesture::load(ui, a_id, &shown, EditPolicy::default());
+            a(&mut gesture);
+            edits.push(&EditResponse::new(response, gesture.finish()), [], |_, _| None, |v, _| v);
+            event = edits.feed(outer, &mut state).finish();
+        });
+        output.drop_without_applying_deltas();
+        if let Some(value) = event.as_ref().and_then(EditEvent::value) {
+            host.set(*value);
+        }
+        event
+    };
+    let begun = pass(&|g| {
+        g.begin_with_value();
+        g.update(3, Modifiers::NONE);
+    });
+    let Some(EditEvent::Begin { id, value: Some(3) }) = begun else { panic!("{begun:?}") };
+    assert_eq!(pass(&|_| {}), None, "the next frame needs no Update");
+    assert_eq!(pass(&|g| g.update(4, Modifiers::NONE)), update(id, 4));
+    assert_eq!(pass(&|g| g.commit()), commit(id, 4, true));
+    // A part that begins without a value sends none.
+    let begun = pass(&|g| g.begin());
+    assert!(matches!(begun, Some(EditEvent::Begin { value: None, .. })), "{begun:?}");
+}
+
 /// In a pass where the composite's gesture ends, the other parts' events wait for the next pass
 /// and go onto the value the ending left: the host gets the ending, then the next edit, and a
 /// part drawn before the owner's commit doesn't lose its value to it either.
