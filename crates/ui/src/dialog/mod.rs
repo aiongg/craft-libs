@@ -52,6 +52,7 @@ pub mod export;
 mod fields;
 #[cfg(test)]
 mod fields_tests;
+mod files_stories;
 mod focus_scroll;
 mod footer;
 #[cfg(test)]

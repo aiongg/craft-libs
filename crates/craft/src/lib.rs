@@ -84,6 +84,8 @@ pub mod story {
         let mut all = craft_ui::story::registry();
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::stories());
+        #[cfg(feature = "dialogs")]
+        all.extend(craft_dialogs::ui::stories());
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::stories());
         #[cfg(feature = "font-manager")]
@@ -92,6 +94,8 @@ pub mod story {
         all.extend(craft_imaging::ui::stories());
         #[cfg(feature = "keymap")]
         all.extend(craft_keymap::ui::stories());
+        #[cfg(feature = "theme-store")]
+        all.extend(craft_theme_store::ui::stories());
         all
     }
 }

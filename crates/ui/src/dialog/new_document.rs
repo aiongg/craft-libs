@@ -57,8 +57,8 @@ const RECENT_TAB: &str = "recent";
 const SAVED_TAB: &str = "saved";
 const CLIPBOARD_ID: &str = "clipboard";
 const LAST_KEY: &str = "newDocument.last";
-const RECENT_KEY: &str = "newDocument.recent";
-const PRESETS_KEY: &str = "newDocument.presets";
+pub(super) const RECENT_KEY: &str = "newDocument.recent";
+pub(super) const PRESETS_KEY: &str = "newDocument.presets";
 /// The units of the Width and Height lists (Photoshop's New Document has no percent).
 const UNITS: [SizeUnit; 6] = [SizeUnit::Pixels, SizeUnit::Inches, SizeUnit::Centimetres, SizeUnit::Millimetres, SizeUnit::Points, SizeUnit::Picas];
 

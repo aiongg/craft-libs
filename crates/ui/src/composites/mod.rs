@@ -95,6 +95,7 @@ pub(crate) mod section_label;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod section_label_tests;
 mod settings_notice;
+mod settings_notice_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod settings_notice_tests;
 pub(crate) mod slider_row;

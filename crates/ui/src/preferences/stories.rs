@@ -11,7 +11,7 @@ use crate::story::{Level, Story, StoryArgs};
 use crate::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["PreferencesWindow"];
+pub const COMPONENTS: &[&str] = &["PreferencesWindow", "SettingsDocument"];
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct WindowArgs {
@@ -24,14 +24,15 @@ struct WindowArgs {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!(
+    let window = typed_story!(
         "patterns/preferences/window",
         Level::Patterns,
         "PreferencesWindow",
         "Window",
         WindowArgs { search: String::new(), width: 760.0, height: 480.0, rtl: false },
         show_window
-    )]
+    );
+    std::iter::once(window).chain(super::document_stories::stories()).collect()
 }
 
 /// A host of five pages with every row kind: General, Interface (grouped), Tools, an empty page

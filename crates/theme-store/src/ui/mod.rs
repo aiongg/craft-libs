@@ -16,8 +16,18 @@ use egui::{Color32, CornerRadius, Id, Pos2, Rect, Response, Sense, Stroke, Strok
 
 use crate::{SelectionChange, SuiteClient};
 
+mod story;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tests;
+
+craft_ui::story::register! {
+    story,
+}
+
+/// The stories of the appearance page and the theme chip.
+pub fn stories() -> Vec<craft_ui::story::Story> {
+    registry()
+}
 
 /// A chip's size.
 // S4-F18: theme_chip.size
