@@ -22,10 +22,8 @@ use egui::{AsIdSalt, IdSalt, PointerButton, Rect as ScreenRect, Sense, StrokeKin
 
 use super::view::CanvasView;
 use crate::localized::{Labels, LocaleNumbers};
+use crate::primitives::{Corner, FocusRing};
 use crate::theme::{ToEgui, Tokens, TokensOf};
-
-/// The focus edge's width on the active pane.
-const ACTIVE_EDGE: f32 = 1.0;
 
 /// How the canvas area divides (View › Switch View Layout).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -104,8 +102,8 @@ impl SplitViews {
     }
 
     /// Lay out the panes in `rect` and call `pane(ui, index, rect)` for each, clipped to it; a
-    /// press on an inactive pane reports it in [`SplitResponse::activated`] and does not reach
-    /// the pane's tool. Each pane is an AccessKit group named with [`SplitLabels::view`] (`View
+    /// press on an inactive pane, or Enter or Space on it after Tab, reports it in
+    /// [`SplitResponse::activated`]; a press does not reach the pane's tool. Each pane is an AccessKit group named with [`SplitLabels::view`] (`View
     /// {n}`, counted from 1 in reading order).
     // effectcraft: crates/ui-egui/src/panels/viewer/view.rs:5 `aux_views`, panels/viewers.rs:208 `activate`.
     pub fn show(self, ui: &mut Ui, rect: ScreenRect, mut pane: impl FnMut(&mut Ui, usize, ScreenRect)) -> SplitResponse {
@@ -124,7 +122,11 @@ impl SplitViews {
         for (slot, &i) in order.iter().enumerate() {
             let r = rects[i];
             let taken = rects.len() > 1 && i != self.active && pressed && ui.rect_contains_pointer(r);
-            if taken && response.activated.is_none() {
+            let inactive = rects.len() > 1 && i != self.active;
+            // An inactive pane is a Tab stop; Enter or Space on it (or a screen reader's click)
+            // activates it as a press does.
+            let group = ui.interact(r, base.with(("group", i)), if inactive { Sense::click() } else { Sense::hover() });
+            if (taken || (inactive && group.clicked())) && response.activated.is_none() {
                 response.activated = Some(i);
             }
             let mut child = ui.new_child(UiBuilder::new().max_rect(r).id_salt(base.with(("pane", i))));
@@ -134,14 +136,19 @@ impl SplitViews {
                 child.visuals_mut().disabled_alpha = 1.0;
                 child.disable();
             }
-            let group = ui.interact(r, base.with(("group", i)), Sense::hover());
+            FocusRing::paint(ui, r, Corner::Control, &group);
             let name = craft_i18n::fmt(&labels.view, &[("n", &numbers.count(slot as u64 + 1))]);
             group.widget_info(|| WidgetInfo::labeled(Role::Group, ui.is_enabled(), &name));
             pane(&mut child, i, r);
         }
         if rects.len() > 1 {
             let edge = Tokens::of(ui).color.line.focus.to_egui();
-            ui.painter().rect_stroke(rects[self.active.min(rects.len() - 1)], 0.0, egui::Stroke::new(ACTIVE_EDGE, edge), StrokeKind::Inside);
+            ui.painter().rect_stroke(
+                rects[self.active.min(rects.len() - 1)],
+                0.0,
+                egui::Stroke::new(Tokens::of(ui).component.split.active_edge, edge),
+                StrokeKind::Inside,
+            );
         }
         response
     }

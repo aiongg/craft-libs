@@ -7,7 +7,7 @@ use egui::{Event, Key, KeyboardShortcut, Modifiers, Painter, PointerButton, Pos2
 use egui_kittest::Harness;
 use kurbo::{Point, Size};
 
-use super::navigate::{HandTool, NavigationPrefs, ZoomTool};
+use super::navigate::{HandTool, NavigationOptions, ZoomTool};
 use super::zoom::{self, ZoomAnimation, ZoomLadder};
 use super::{
     CanvasId, CanvasTool, CanvasView, Claim, SnapGesture, SnapKind, SnapTarget, SnapTargets, ToolAction, ToolContext, ToolGesture, ToolHost,
@@ -84,7 +84,7 @@ struct Rig {
     focus_text: bool,
     focus_canvas: bool,
     id: Option<CanvasId>,
-    navigation: Option<NavigationPrefs>,
+    navigation: Option<NavigationOptions>,
     responses: Vec<ToolHostResponse>,
 }
 
@@ -372,7 +372,7 @@ fn a_tool_switch_mid_drag_cancels_the_old_tool_not_the_new_one() {
 // The Hand puts the view back when the app cancels its drag, and the host hands that view over.
 #[test]
 fn cancelling_a_hand_drag_returns_the_view_it_started_from() {
-    let mut h = harness(Rig::new(HandTool::new(DOC, NavigationPrefs::default())), 0.05);
+    let mut h = harness(Rig::new(HandTool::new(DOC, NavigationOptions::default())), 0.05);
     let start = h.state().view;
     press(&mut h, pos2(200.0, 150.0), Modifiers::NONE);
     move_to(&mut h, pos2(260.0, 190.0));
@@ -386,7 +386,7 @@ fn cancelling_a_hand_drag_returns_the_view_it_started_from() {
 // A flick released with the Hand glides on after the app passes another tool (Space came up).
 #[test]
 fn a_flick_keeps_gliding_whatever_the_tool() {
-    let prefs = NavigationPrefs { overscroll: true, ..NavigationPrefs::default() };
+    let prefs = NavigationOptions { overscroll: true, ..NavigationOptions::default() };
     let mut rig = Rig::new(HandTool::new(DOC, prefs));
     rig.navigation = Some(prefs);
     rig.document = DOC;
@@ -511,8 +511,8 @@ fn an_ignored_press_goes_back_to_the_app() {
     assert!(!ToolHost::in_gesture(&h.ctx, h.state().id.expect("a pass ran")));
 }
 
-fn nav(animated: bool, scrubby: bool) -> NavigationPrefs {
-    NavigationPrefs { animated_zoom: animated, scrubby_zoom: scrubby, ..NavigationPrefs::default() }
+fn nav(animated: bool, scrubby: bool) -> NavigationOptions {
+    NavigationOptions { animated_zoom: animated, scrubby_zoom: scrubby, ..NavigationOptions::default() }
 }
 
 const DOC: Size = Size::new(1000.0, 800.0);
@@ -555,7 +555,7 @@ fn the_zoom_tool_zooms_to_a_dragged_rectangle() {
 // Esc cancels a Hand drag back to the view at the press.
 #[test]
 fn esc_puts_a_hand_drag_back_to_its_press_view() {
-    let mut h = harness(Rig::new(HandTool::new(DOC, NavigationPrefs::default())), 0.05);
+    let mut h = harness(Rig::new(HandTool::new(DOC, NavigationOptions::default())), 0.05);
     focused(&mut h);
     let start = h.state().view;
     press(&mut h, pos2(200.0, 150.0), Modifiers::NONE);

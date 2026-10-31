@@ -22,7 +22,7 @@ pub struct DigitEntry {
 /// ```no_run
 /// use craft_ui::behavior::DigitKeys;
 /// # fn demo(ctx: &egui::Context, keys: &mut DigitKeys, painting_tool: bool) {
-/// if let Some(entry) = keys.handle(ctx, painting_tool) {
+/// if let Some(entry) = keys.read(ctx, painting_tool) {
 ///     // set the brush opacity (entry.shift: flow) to entry.percent
 /// }
 /// # }
@@ -58,7 +58,7 @@ impl DigitKeys {
     /// when `enabled` (a tool with an opacity is current) and no widget has keyboard focus,
     /// consuming them. Returns the last entry of the pass.
     // pc: crates/ui-egui/src/input/opacity_keys.rs:61 `handle`, :44 `digit`.
-    pub fn handle(&mut self, ctx: &Context, enabled: bool) -> Option<DigitEntry> {
+    pub fn read(&mut self, ctx: &Context, enabled: bool) -> Option<DigitEntry> {
         if !enabled || !canvas_keys_free(ctx) {
             return None;
         }

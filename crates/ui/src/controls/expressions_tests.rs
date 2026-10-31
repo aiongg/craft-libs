@@ -87,3 +87,32 @@ fn the_regions_decimal_mark_is_read_in_arithmetic() {
     probe.enter("1,5*2");
     assert_eq!(probe.value, 3.0);
 }
+
+// Arithmetic is on by default; expressions(false) leaves a field to plain numbers.
+#[test]
+fn arithmetic_is_read_unless_a_field_turns_it_off() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut value = 5.0;
+    for (events, expected) in [(vec![Event::Text("2*3".into())], 6.0)] {
+        focus_first_field(&ctx, true);
+        for step in 0..4 {
+            let key = |pressed| Event::Key { key: Key::Enter, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE };
+            let events = match step {
+                1 => events.clone(),
+                2 => vec![key(true), key(false)],
+                _ => vec![],
+            };
+            let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), events, ..Default::default() };
+            ctx.run_ui(input, |ui| {
+                let edit = NumberField::new("default", "Width", value, &numbers).show(ui);
+                if let Some(EditEvent::Commit { value: v, .. } | EditEvent::Update { value: v, .. }) = edit.event {
+                    value = v;
+                }
+            })
+            .drop_without_applying_deltas();
+        }
+        assert_eq!(value, expected);
+    }
+}

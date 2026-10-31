@@ -43,7 +43,7 @@ use kurbo::{Point, Size, Vec2};
 use super::canvas_id::CanvasId;
 use super::claim::Claim;
 use super::cursor::{CursorHost, ToolCursor};
-use super::navigate::{Autoscroll, FlickPan, NavigationPrefs};
+use super::navigate::{Autoscroll, FlickPan, NavigationOptions};
 use super::pointer::{PenInput, PenSample};
 use super::snap::{SNAP_PX, SnapGesture, SnapTargets};
 use super::view::CanvasView;
@@ -320,7 +320,7 @@ struct HostState {
 /// The on-canvas tool host. Built each pass, shown once with the canvas's response and the tool.
 pub struct ToolHost<'a> {
     canvas: CanvasId,
-    navigation: Option<NavigationPrefs>,
+    navigation: Option<NavigationOptions>,
     snap: Option<&'a SnapTargets>,
     autoscroll: bool,
     pen: Option<&'a PenInput>,
@@ -369,7 +369,7 @@ impl<'a> ToolHost<'a> {
     /// (Flick Panning) every pass, whichever tool is in use, stopping at the
     /// [`document`](Self::document)'s scroll limits without Overscroll. Without them a flick
     /// stops at the release.
-    pub fn navigation(mut self, prefs: NavigationPrefs) -> Self {
+    pub fn navigation(mut self, prefs: NavigationOptions) -> Self {
         self.navigation = Some(prefs);
         self
     }
@@ -642,7 +642,7 @@ struct Run<'r, 'p> {
     pen: Option<PenSample>,
     document: Size,
     autoscroll: bool,
-    navigation: Option<NavigationPrefs>,
+    navigation: Option<NavigationOptions>,
     ctx: Context,
 }
 

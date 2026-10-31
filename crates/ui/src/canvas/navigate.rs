@@ -1,14 +1,14 @@
 //! Navigation over a canvas, as in Photoshop: the wheel, trackpad pinch and twist, the page keys,
 //! a Hand drag's flick, autoscroll during a tool drag, and Rotate View with its compass. The
-//! user's choices are [`NavigationPrefs`] (Photoshop's Preferences › General, Tools and Enhanced
+//! user's choices are [`NavigationOptions`] (Photoshop's Preferences › General, Tools and Enhanced
 //! Controls rows).
 //!
 //! Each piece reads one pass's input and changes a [`CanvasView`] the app copies back into its
 //! own view; zooms go through [`zoom`](super::zoom) and clamp to [`ZoomLadder`](super::ZoomLadder).
 //!
 //! ```no_run
-//! use craft_ui::canvas::{CanvasView, navigate::{NavigationPrefs, WheelNavigation}, kurbo::Size};
-//! # fn demo(ui: &egui::Ui, canvas: &egui::Response, view: &mut CanvasView, prefs: &NavigationPrefs) {
+//! use craft_ui::canvas::{CanvasView, navigate::{NavigationOptions, WheelNavigation}, kurbo::Size};
+//! # fn demo(ui: &egui::Ui, canvas: &egui::Response, view: &mut CanvasView, prefs: &NavigationOptions) {
 //! if let Some(action) = WheelNavigation::read(ui.ctx(), canvas, prefs) {
 //!     let pointer = canvas.hover_pos().unwrap_or(view.rect.center());
 //!     WheelNavigation::apply(view, action, pointer, Size::new(2000.0, 1500.0), prefs, ui.ctx().pixels_per_point());
@@ -37,7 +37,7 @@ use craft_theme::{CanvasTokens, TypeRole};
 /// The navigation preferences, with Photoshop's defaults. The app stores them (craft-settings)
 /// and shows them in its Preferences; every navigation piece reads them from here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NavigationPrefs {
+pub struct NavigationOptions {
     /// General › Zoom with Scroll Wheel: the wheel zooms and Alt + wheel scrolls. Off.
     pub zoom_with_wheel: bool,
     /// General › Animated Zoom: wheel and command zooms ease, and a held Zoom tool press zooms
@@ -62,7 +62,7 @@ pub struct NavigationPrefs {
     pub touch_gestures: bool,
 }
 
-impl Default for NavigationPrefs {
+impl Default for NavigationOptions {
     // pc: crates/engine/src/prefs.rs:383 `enable_flick_panning`, :392 `overscroll`, :922 Enhanced Controls defaults.
     fn default() -> Self {
         Self {
@@ -129,7 +129,7 @@ impl WheelNavigation {
 
     /// The view change for one pass of `input` under `prefs`, if any.
     // pc: crates/ui-egui/src/canvas/wheel_nav.rs:85 `classify`.
-    pub fn classify(input: WheelInput, prefs: &NavigationPrefs) -> Option<WheelAction> {
+    pub fn classify(input: WheelInput, prefs: &NavigationOptions) -> Option<WheelAction> {
         let notch = if input.notch.is_finite() && input.notch > 0.0 { input.notch } else { 40.0 };
         if prefs.pinch_zooms && input.zoom_delta.is_finite() && input.zoom_delta > 0.0 && input.zoom_delta != 1.0 {
             return Some(WheelAction::Zoom(f64::from(input.zoom_delta)));
@@ -169,7 +169,7 @@ impl WheelNavigation {
     /// `prefs`, or `None`. Consumes the scroll so a parent scroll area does not also move.
     // pc: crates/ui-egui/src/canvas/wheel_nav.rs:338 `read`, :350 `read_with`, :502 `wheel_events`,
     // :528 `pinch_factor`, :245 `ease_zoom_delta`.
-    pub fn read(ctx: &Context, canvas: &Response, prefs: &NavigationPrefs) -> Option<WheelAction> {
+    pub fn read(ctx: &Context, canvas: &Response, prefs: &NavigationOptions) -> Option<WheelAction> {
         let owner = canvas.id;
         let notch = ctx.options(|o| o.input_options.line_scroll_speed);
         let (scroll, zoom_delta, latest_alt, latest_shift, wheel, page) = ctx.input(|i| {
@@ -248,7 +248,7 @@ impl WheelNavigation {
     /// the view stays put, as in Photoshop: a notch past 12800 % neither zooms nor slides the
     /// image toward the pointer. Returns whether the view changed.
     // pc: crates/ui-egui/src/canvas.rs:588 (`Zoom`: clamp, about `wheel_anchor`), :597 (`SnapZoom`: n ladder steps).
-    pub fn apply(view: &mut CanvasView, action: WheelAction, pointer: Pos2, size: Size, prefs: &NavigationPrefs, pixels_per_point: f32) -> bool {
+    pub fn apply(view: &mut CanvasView, action: WheelAction, pointer: Pos2, size: Size, prefs: &NavigationOptions, pixels_per_point: f32) -> bool {
         let before = *view;
         match action {
             WheelAction::Zoom(factor) => {
@@ -576,7 +576,7 @@ impl FlickPan {
     /// calls it once per pass whatever the tool is, so a flick released with the Space Hand
     /// keeps going after Space comes up. Without Overscroll a glide that reaches a scroll limit
     /// of the document of `size` stops. Returns whether the view moved.
-    pub fn advance_view(ctx: &Context, canvas: CanvasId, view: &mut CanvasView, prefs: &NavigationPrefs, size: Size) -> bool {
+    pub fn advance_view(ctx: &Context, canvas: CanvasId, view: &mut CanvasView, prefs: &NavigationOptions, size: Size) -> bool {
         let Some(step) = Self::frame(ctx, canvas, false, ScreenVec::ZERO, prefs.flick_panning) else { return false };
         pan(view, step);
         if !prefs.overscroll && clamp_to_document(view, size) {
@@ -880,7 +880,7 @@ impl RotateView {
     /// trackpad's own rotate events always, a touch screen's two-finger twist only with Enable
     /// Gestures.
     // pc: crates/ui-egui/src/canvas/rotate_view.rs:142 `trackpad_delta`, :124 `apply_trackpad`.
-    pub fn trackpad_delta(ctx: &Context, prefs: &NavigationPrefs) -> Option<f64> {
+    pub fn trackpad_delta(ctx: &Context, prefs: &NavigationOptions) -> Option<f64> {
         if !prefs.trackpad_rotate {
             return None;
         }
@@ -987,7 +987,7 @@ pub struct HandTool {
     /// The pointer at the previous drag pass: a drag step is the flick's input.
     last: Pos2,
     /// The user's navigation preferences (Flick Panning, Overscroll), set by the app each pass.
-    pub prefs: NavigationPrefs,
+    pub prefs: NavigationOptions,
     /// The document's size in document units: with Overscroll off a glide stops at the scroll
     /// limits of this document. Empty: no limit.
     pub size: Size,
@@ -995,7 +995,7 @@ pub struct HandTool {
 
 impl HandTool {
     /// A Hand tool for a document of `size`.
-    pub fn new(size: Size, prefs: NavigationPrefs) -> Self {
+    pub fn new(size: Size, prefs: NavigationOptions) -> Self {
         Self { size, prefs, ..Self::default() }
     }
 }
@@ -1050,7 +1050,7 @@ impl CanvasTool for HandTool {
 }
 
 /// The Zoom tool: a click steps the ladder about the clicked point (Alt: out;
-/// [`zoom_clicked_point_to_center`](NavigationPrefs::zoom_clicked_point_to_center) centres it),
+/// [`zoom_clicked_point_to_center`](NavigationOptions::zoom_clicked_point_to_center) centres it),
 /// a press held still zooms continuously ([`HoldZoom`](super::HoldZoom), Animated Zoom only), a
 /// drag scrubs or draws a zoom rectangle ([`ZoomDrag`](super::ZoomDrag), Scrubby Zoom). The cursor
 /// is the magnifier, with a minus while Alt is held or `out` is set (Zoom Out held by
@@ -1061,7 +1061,7 @@ pub struct ZoomTool {
     pub out: bool,
     /// The document's size in document units (the ladder's lower limit).
     pub size: Size,
-    pub prefs: NavigationPrefs,
+    pub prefs: NavigationOptions,
     hold: Option<super::HoldZoom>,
     drag: Option<super::ZoomDrag>,
     /// The view, time and screen point of the press in progress.
@@ -1069,7 +1069,7 @@ pub struct ZoomTool {
 }
 
 impl ZoomTool {
-    pub fn new(size: Size, prefs: NavigationPrefs) -> Self {
+    pub fn new(size: Size, prefs: NavigationOptions) -> Self {
         Self { out: false, size, prefs, hold: None, drag: None, press: None }
     }
 
@@ -1104,7 +1104,7 @@ impl ZoomTool {
 
 /// The view after a Zoom tool click at `screen`: one ladder rung in (or `out`) about the point,
 /// or centred on it with Zoom Clicked Point to Center. `None` at a zoom limit.
-fn click_step(view: &CanvasView, screen: Pos2, out: bool, size: Size, prefs: &NavigationPrefs, pixels_per_point: f32) -> Option<CanvasView> {
+fn click_step(view: &CanvasView, screen: Pos2, out: bool, size: Size, prefs: &NavigationOptions, pixels_per_point: f32) -> Option<CanvasView> {
     let current = zoom::device_zoom(view, pixels_per_point);
     let next = ZoomLadder::step(current, if out { -1 } else { 1 }, size);
     if !next.is_finite() || (next / current - 1.0).abs() <= 1e-9 {

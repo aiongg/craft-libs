@@ -977,6 +977,8 @@ pub const HANDLE_HIT: f32 = 14.0;
 pub const CURSOR_CROSSHAIR_REACH: f32 = 8.0;
 /// Empty space round the hotspot where a painted crosshair's arms begin.
 pub const CURSOR_CROSSHAIR_GAP: f32 = 2.0;
+/// Length of each arm of the painting tools' precise crosshair, which has no gap (PhotoCraft's).
+pub const CURSOR_PRECISE_REACH: f32 = 6.0;
 /// Half the side of a selection badge's glyph (PhotoCraft's `badge_glyph` size).
 pub const CURSOR_BADGE_HALF: f32 = 3.5;
 /// Distance of a selection badge from the hotspot, right and down, beside a painted crosshair.
@@ -1168,6 +1170,13 @@ pub const TEXT_EDITOR_ACTIVE_UNDERLINE: f32 = 3.0;
 
 /// Points between split view panes (EffectCraft's `view.rs`).
 pub const SPLIT_GAP: f32 = 2.0;
+/// Width of the line round the active split pane.
+pub const SPLIT_ACTIVE_EDGE: f32 = 1.0;
+
+/// Points between a page's top edge and its name on the pasteboard.
+pub const PASTEBOARD_NAME_GAP: f32 = 4.0;
+/// Width of a page's outline on the pasteboard (Border: Line).
+pub const PASTEBOARD_OUTLINE_WIDTH: f32 = 1.0;
 
 /// Side of the compact reference point picker, in points, at every Size (PhotoCraft's options bar).
 pub const REF_POINT_COMPACT: f32 = 16.0;
