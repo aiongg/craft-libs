@@ -25,3 +25,5 @@ mod stories;
 pub mod style_panel;
 #[cfg(test)]
 mod style_panel_tests;
+
+pub use stories::stories;

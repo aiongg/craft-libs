@@ -287,6 +287,8 @@ const FIXED_WIDTH: &[&str] = &[
     "primitives/pen-draft/draw",
     "patterns/keyboard-shortcuts/dialog",
     "patterns/fonts-panel/panel",
+    "patterns/glyphs-panel/panel",
+    "patterns/text-styles/panel",
     "primitives/gradient-line/edit",
     "primitives/gradient-line/with-editor",
     "foundations/edit/log",
@@ -347,6 +349,8 @@ const FLOATING: &[&str] = &[
     "patterns/viewport/embedded",
     "patterns/shell/tour",
     "patterns/shell/toolbar-drawer",
+    "patterns/font-picker/field",
+    "patterns/font-picker/filters",
 ];
 
 /// How far a focus ring, edge or shadow may reach past its widget; the tile's margin takes it.

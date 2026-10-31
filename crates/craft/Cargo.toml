@@ -56,6 +56,7 @@ ui = [
     "craft-keymap?/ui",
     "craft-platform?/ui",
     "craft-print?/ui",
+    "craft-text?/ui",
     "craft-quit?/ui",
     "craft-update?/ui",
     "craft-window?/ui",
@@ -97,6 +98,7 @@ font-catalog = ["dep:craft-font-catalog"]
 font-catalog-system = ["font-catalog", "craft-font-catalog/system"]
 
 font-manager = ["dep:craft-font-manager"] # native only: needs craft-font-store's store and network client
+font-manager-picker = ["font-manager", "craft-font-manager/font-picker"] # native only, as font-manager: the font picker
 
 font-store = ["dep:craft-font-store"]
 font-store-bundled-index = ["font-store", "craft-font-store/bundled-index"]

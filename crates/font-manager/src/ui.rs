@@ -14,13 +14,15 @@ use crate::store::FakeStore;
 use crate::{Catalog, FontEnv, FontsPanel, Options, Source};
 
 /// The components the stories cover.
-pub const COMPONENTS: &[&str] = &["Fonts panel"];
+pub const COMPONENTS: &[&str] = &["Fonts panel", "Font picker", "Glyphs panel", "Missing fonts", "Font axes"];
 
 const APP: AppInfo = AppInfo { id: "fonts-story", name: "Fonts story", version: "1.0" };
 
 /// The stories of the font manager's panel.
 pub fn stories() -> Vec<Story> {
-    vec![typed_story!("patterns/fonts-panel/panel", Level::Patterns, "Fonts panel", "Panel", NoArgs {}, show)]
+    let mut stories = vec![typed_story!("patterns/fonts-panel/panel", Level::Patterns, "Fonts panel", "Panel", NoArgs {}, show)];
+    stories.extend(crate::text_stories::stories());
+    stories
 }
 
 /// Four families of the Google Fonts index; the panel's store is a fake that refuses downloads.

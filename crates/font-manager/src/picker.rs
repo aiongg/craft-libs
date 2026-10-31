@@ -272,6 +272,7 @@ pub struct FontPicker<'a> {
     list_height: f32,
     labels: Option<FontPickerLabels>,
     language: Option<String>,
+    start_open: bool,
 }
 
 /// The default height of the open list, in points (PhotoCraft's `FONT_LIST_HEIGHT`).
@@ -281,7 +282,18 @@ impl<'a> FontPicker<'a> {
     /// A picker over `catalog` editing `current` (the family name). `salt` keeps its ids apart from
     /// other pickers in the same `Ui`.
     pub fn new(salt: &'a str, catalog: &'a Arc<Catalog>, current: &'a mut String) -> Self {
-        FontPicker { salt, catalog, current, settings: None, filters: None, width: None, list_height: LIST_HEIGHT, labels: None, language: None }
+        FontPicker {
+            salt,
+            catalog,
+            current,
+            settings: None,
+            filters: None,
+            width: None,
+            list_height: LIST_HEIGHT,
+            labels: None,
+            language: None,
+            start_open: false,
+        }
     }
 
     /// Stars, recents and the preview size; without it no stars or recents are shown.
@@ -300,6 +312,12 @@ impl<'a> FontPicker<'a> {
     /// The field's width; the list is at least as wide.
     pub fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
+        self
+    }
+
+    /// Start with the list open when the field has no state yet (the stories' open list).
+    pub(crate) fn start_open(mut self, open: bool) -> Self {
+        self.start_open = open;
         self
     }
 
@@ -436,10 +454,14 @@ impl<'a> FontPicker<'a> {
         let edit_id = field_id.with("edit");
         let enabled = ui.is_enabled();
         let focused = ui.memory(|m| m.has_focus(field_id));
-        let mut edit: Edit = ctx
-            .data(|d| d.get_temp::<Edit>(edit_id))
-            .filter(|e| e.current == *self.current && (e.open || focused))
-            .unwrap_or_else(|| Edit { text: shown_of(self.current), current: self.current.clone(), ..Edit::default() });
+        let mut edit: Edit =
+            ctx.data(|d| d.get_temp::<Edit>(edit_id)).filter(|e| e.current == *self.current && (e.open || focused)).unwrap_or_else(|| Edit {
+                text: shown_of(self.current),
+                current: self.current.clone(),
+                open: self.start_open,
+                reveal: if self.start_open { 2 } else { 0 },
+                ..Edit::default()
+            });
         let was_open = edit.open;
         let live = enabled && (focused || was_open);
         if live {

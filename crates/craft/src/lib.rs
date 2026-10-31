@@ -92,6 +92,8 @@ pub mod story {
         all.extend(craft_imaging::ui::stories());
         #[cfg(feature = "keymap")]
         all.extend(craft_keymap::ui::stories());
+        #[cfg(feature = "text")]
+        all.extend(craft_text::ui::stories());
         all
     }
 }

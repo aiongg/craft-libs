@@ -291,8 +291,7 @@ impl<'a> GlyphsPanel<'a> {
         });
 
         let sizes = tokens.component.glyphs;
-        let size =
-            if settings.zoom.is_finite() && settings.zoom > 0.0 { settings.zoom.clamp(sizes.cell_min, sizes.cell_max) } else { sizes.cell };
+        let size = if settings.zoom.is_finite() && settings.zoom > 0.0 { settings.zoom.clamp(sizes.cell_min, sizes.cell_max) } else { sizes.cell };
         let ppp = ctx.pixels_per_point();
         let ink = Content::Normal.color(&tokens).to_egui();
         let mut activated: Option<String> = None;
