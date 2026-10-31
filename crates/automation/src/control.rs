@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 
 use crate::screenshot::{Captures, DocumentId, Finished, screenshot_reply};
+use crate::synthetic::SyntheticInput;
 
 /// A reply: the JSON object the transport writes as one line.
 pub type ControlResponse = Value;
@@ -194,6 +195,15 @@ impl ControlChannel {
         for waiter in self.input_waiters.drain(..) {
             let _ = waiter.send(json!({"ok": false, "error": format!("input cancelled: {reason}")}));
         }
+    }
+
+    /// PhotoCraft's `cancel_synthetic`: drop `input`'s queue and in-flight step, and fail every
+    /// [`Outcome::AfterInput`] waiter with `input cancelled: {reason}`, also when only waiters
+    /// remain (their input was already consumed). True when anything was pending or waiting.
+    pub fn cancel_input(&mut self, input: &mut SyntheticInput, reason: &str) -> bool {
+        let pending = input.cancel() || !self.input_waiters.is_empty();
+        self.input_cancelled(reason);
+        pending
     }
 
     /// Job `job` ended: reply to its waiters with `{"ok": true, "result": value}` for `Ok(value)`

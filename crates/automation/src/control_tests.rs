@@ -73,3 +73,17 @@ fn waiters_reply_when_input_or_job_settles() {
     channel.input_cancelled("gone");
     assert_eq!(waiting.try_recv().unwrap(), json!({"ok": false, "error": "input cancelled: gone"}));
 }
+
+// Cancelling with only waiters left (the input was already consumed) still fails them.
+#[test]
+fn cancel_input_fails_waiters_without_queued_input() {
+    let (_tx, rx) = channel();
+    let mut channel = ControlChannel::new(rx);
+    let mut input = SyntheticInput::default();
+    assert!(!channel.cancel_input(&mut input, "idle"));
+    let waiting = park(&mut channel, Outcome::AfterInput);
+    assert!(channel.cancel_input(&mut input, "lost"));
+    assert_eq!(waiting.try_recv().unwrap(), json!({"ok": false, "error": "input cancelled: lost"}));
+    input.type_text("x");
+    assert!(channel.cancel_input(&mut input, "again") && input.is_empty());
+}

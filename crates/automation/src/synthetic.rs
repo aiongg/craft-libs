@@ -204,8 +204,8 @@ impl SyntheticInput {
         self.again = self.in_flight.is_some();
     }
 
-    /// Drop the queue and the step in flight; true when anything was pending (the app then fails
-    /// the waiting replies with `ControlChannel::input_cancelled`).
+    /// Drop the queue and the step in flight; true when anything was pending (the app calls
+    /// `ControlChannel::cancel_input`, which also fails waiters when nothing was queued).
     pub fn cancel(&mut self) -> bool {
         let pending = self.in_flight.take().is_some() || !self.queue.is_empty();
         self.queue.clear();
