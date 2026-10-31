@@ -155,6 +155,9 @@ impl ColorPicker<'_> {
                 }
             });
             let grid_width = self.grid_width(ui, models, inner, translate);
+            // The side actions end at the content's trailing edge, whatever width the host gives;
+            // an unbounded host gets the grid's width.
+            let trailing = if ui.available_width().is_finite() { ui.available_width().max(grid_width) } else { grid_width };
             Stack::new(Gap::Section).show(ui, |ui| {
                 if self.compare.is_some() || !self.warnings.is_empty() || !self.side_actions.is_empty() {
                     top_row(ui, gap, |ui| {
@@ -173,8 +176,7 @@ impl ColorPicker<'_> {
                         if !self.side_actions.is_empty() {
                             let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone());
                             let width = buttons.column_width(ui);
-                            // At the trailing edge of the grid beneath.
-                            ui.add_space((grid_width - ui.min_rect().width() - width - gap).max(0.0));
+                            ui.add_space((trailing - ui.min_rect().width() - width - gap).max(0.0));
                             ui.allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down(Align::Min), |ui| {
                                 ui.set_width(width);
                                 ui.add_enabled_ui(inner.enabled, |ui| {

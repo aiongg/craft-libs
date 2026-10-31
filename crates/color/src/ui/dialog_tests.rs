@@ -30,6 +30,8 @@ struct Shown {
     numbers: LocaleNumbers,
     time: f64,
     host: Host,
+    roomy: bool,
+    content: Option<f32>,
     state: DialogState,
     picker: Id,
     window: Rect,
@@ -39,6 +41,11 @@ struct Shown {
 
 impl Shown {
     fn new(host: Host) -> Self {
+        Self::with(host, false, None)
+    }
+
+    /// A dialog with the roomy frame margin when `roomy`, its body `content` points wide when given.
+    fn with(host: Host, roomy: bool, content: Option<f32>) -> Self {
         let ctx = Context::default();
         install(&ctx, &Base::suite_default());
         ctx.enable_accesskit();
@@ -47,6 +54,8 @@ impl Shown {
             numbers: LocaleNumbers::from_tag("en"),
             time: 0.0,
             host,
+            roomy,
+            content,
             state: DialogState::new(),
             picker: Id::NULL,
             window: Rect::NOTHING,
@@ -63,9 +72,12 @@ impl Shown {
         let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 900.0))), time: Some(self.time), ..Default::default() };
         self.time += 1.0 / 60.0;
         let ctx = self.ctx.clone();
-        let (host, numbers) = (self.host, &self.numbers);
+        let (host, numbers, roomy, content) = (self.host, &self.numbers, self.roomy, self.content);
         let picked = std::cell::Cell::new((Id::NULL, Rect::NOTHING));
         let body = |ui: &mut egui::Ui| {
+            if let Some(width) = content {
+                ui.set_width(width);
+            }
             let color = Srgba::rgb(0.2, 0.4, 0.6);
             let shown = ColorPicker::new("picker", "Fill colour", color, numbers)
                 .layout(ColorPickerLayout::Full)
@@ -85,10 +97,12 @@ impl Shown {
         let output = ctx.run_ui(input, |ui| match host {
             Host::Dialog(focus) => {
                 let ctx = ui.ctx().clone();
-                Dialog::new("picker", "Color Picker")
-                    .initial_focus(focus)
-                    .footer(Footer::none())
-                    .show(&ctx, &mut self.state, &mut (), |ui, ()| body(ui));
+                Dialog::new("picker", "Color Picker").initial_focus(focus).roomy(roomy).footer(Footer::none()).show(
+                    &ctx,
+                    &mut self.state,
+                    &mut (),
+                    |ui, ()| body(ui),
+                );
             }
             Host::Window => {
                 egui::Window::new("Color Picker").id(window_id()).show(ui.ctx(), |ui| body(ui));
@@ -183,4 +197,30 @@ fn the_strips_pointer_room_is_its_own_not_the_areas() {
     assert!((strip.width() - style.strip).abs() < 0.5);
     assert!((strip.right() + room - 300.0 - area.left()).abs() < 0.5, "the strip's pointer room ends the row: {area:?} {strip:?}");
     assert!(ColorStrip::outer_width(&style, style.strip) == style.strip + room);
+}
+
+/// PhotoCraft's content width (window 520 with its frame): the side actions end at the content's
+/// trailing edge and the extra width goes between the grid and the column.
+#[test]
+fn side_actions_end_at_the_content_edge_at_any_width() {
+    let ends = |content: f32| {
+        let shown = Shown::with(Host::Dialog(InitialFocus::None), true, Some(content));
+        let (ok, hex) = (shown.rect(Role::Button, "OK"), shown.rect(Role::TextInput, "Hex colour"));
+        let add = shown.rect(Role::Button, "Add to Swatches");
+        assert!((ok.min.x - add.min.x).abs() < 0.5 && ok.width() == add.width(), "no button stretches");
+        let edge = shown.window.right() - (shown.window.width() - content) / 2.0;
+        (edge, add.right(), ok.left(), hex.right())
+    };
+    let (edge, right, ok_left, hex_right) = ends(488.0);
+    assert!((edge - right).abs() < 0.5, "the column ends at the content edge {edge}: {right}");
+    assert!(ok_left > hex_right, "beyond the grid");
+    let (edge, right, ..) = ends(560.0);
+    assert!((edge - right).abs() < 0.5, "and at a wider one {edge}: {right}");
+}
+
+/// PhotoCraft's content width with the roomy margin: the window is under PhotoCraft's cap of 384.
+#[test]
+fn the_roomy_picker_window_at_photocrafts_width_fits_its_cap() {
+    let shown = Shown::with(Host::Dialog(InitialFocus::None), true, Some(488.0));
+    assert!(shown.window.height() <= 384.0, "window {} x {}", shown.window.width(), shown.window.height());
 }

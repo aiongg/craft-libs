@@ -25,6 +25,8 @@ pub struct DialogTokens {
     pub button_gap: f32,
     /// Least width of a footer button: `dialog.button_min`.
     pub button_min: f32,
+    /// Between the buttons of a picker's side column: `dialog.side_gap`.
+    pub side_gap: f32,
     /// Least width of a side-column button: `dialog.side_min`.
     pub side_min: f32,
     /// Side of the close box (the small control height): `dialog.close_box`.
@@ -70,6 +72,7 @@ impl Family for DialogTokens {
         "footer_gap" 0.0..=64.0 => footer_gap;
         "button_gap" 0.0..=64.0 => button_gap;
         "button_min" 0.0..=1024.0 => button_min;
+        "side_gap" 0.0..=64.0 => side_gap;
         "side_min" 0.0..=1024.0 => side_min;
         "close_box" 0.0..=1024.0 => close_box;
         "drag_pad.0" 0.0..=64.0 => drag_pad[0];
@@ -105,6 +108,7 @@ impl Family for DialogTokens {
             footer_gap: scale(values::DIALOG_FOOTER_GAP),
             button_gap: values::DIALOG_BUTTON_GAP,
             button_min: values::DIALOG_BUTTON_MIN,
+            side_gap: values::DIALOG_SIDE_GAP,
             side_min: values::DIALOG_SIDE_MIN,
             close_box: s.size.control.sm,
             drag_pad: values::DIALOG_DRAG_PAD,

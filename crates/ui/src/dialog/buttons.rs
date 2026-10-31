@@ -190,7 +190,7 @@ impl FooterButtons {
     /// [`column_width`](FooterButtons::column_width) wide: the side column of a dialog.
     pub fn place_column(&self, column: &mut Ui, id: Id) -> FooterButtonsResponse {
         let width = self.column_width(column);
-        column.spacing_mut().item_spacing.y = Tokens::of(column).component.dialog.button_gap;
+        column.spacing_mut().item_spacing.y = Tokens::of(column).component.dialog.side_gap;
         self.place_in(column, id, (0..self.buttons.len()).collect(), width)
     }
 

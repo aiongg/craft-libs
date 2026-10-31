@@ -1342,6 +1342,8 @@ pub const DIALOG_FOOTER_GAP: f32 = 8.0;
 pub const DIALOG_BUTTON_GAP: f32 = 10.0;
 /// Least width of a footer button (PhotoCraft).
 pub const DIALOG_BUTTON_MIN: f32 = 84.0;
+/// Gap between the buttons of a side column (PhotoCraft's Color Picker `add_space(4)`).
+pub const DIALOG_SIDE_GAP: f32 = 4.0;
 /// Least width of a side-column button (PhotoCraft).
 pub const DIALOG_SIDE_MIN: f32 = 96.0;
 /// How far the title band reaches past the title on the left, right and top, then below
