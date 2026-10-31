@@ -169,6 +169,9 @@ pub trait ClipboardBackend: Send {
     fn read_files(&mut self, limit: usize) -> Result<Option<Vec<PathBuf>>, ClipboardError>;
     /// Does the clipboard hold one of `mimes`? Cheap enough to ask a few times a second.
     fn has(&mut self, mimes: &[&str]) -> bool;
+    /// The flavours of a paste the host delivered as an event (the browser's Paste). Only
+    /// [`EventClipboard`] keeps them; the system clipboard ignores them.
+    fn offer(&mut self, _flavours: Vec<Flavour>) {}
 }
 
 /// The desktop's clipboard through arboard: X11 and Wayland, macOS, Windows. Not on wasm.
@@ -262,11 +265,6 @@ impl EventClipboard {
     pub fn new(out: impl FnMut(&[Flavour]) -> Result<(), ClipboardError> + Send + 'static) -> Self {
         Self { pasted: Vec::new(), out: Box::new(out) }
     }
-
-    /// The flavours of the paste the app just received, best first. Replaces the last offer.
-    pub fn offer(&mut self, flavours: Vec<Flavour>) {
-        self.pasted = flavours;
-    }
 }
 
 impl ClipboardBackend for EventClipboard {
@@ -293,6 +291,11 @@ impl ClipboardBackend for EventClipboard {
     fn has(&mut self, mimes: &[&str]) -> bool {
         todo!()
     }
+
+    /// Holds one paste's flavours, best first, until the next offer.
+    fn offer(&mut self, flavours: Vec<Flavour>) {
+        self.pasted = flavours;
+    }
 }
 
 /// The app's clipboard: one per window, on the UI thread.
@@ -304,7 +307,7 @@ impl ClipboardBackend for EventClipboard {
 /// // Copy
 /// let _ = clipboard.write_image(&ClipboardImage { width, height, rgba })?;
 /// // Paste: a new image from another app replaces the in-app copy.
-/// if !clipboard.holds_ours() && let Some(image) = clipboard.read_image()? { session.clipboard = image.into(); }
+/// if let Some(image) = clipboard.read_image()? && !clipboard.is_ours(&image) { session.clipboard = image.into(); }
 /// ```
 pub struct Clipboard {
     backend: Box<dyn ClipboardBackend>,
@@ -377,12 +380,26 @@ impl Clipboard {
     }
 
     /// Does the clipboard still hold what this app wrote last (nothing copied since, here or in
-    /// another app)? PhotoCraft compares the image it reads with the signature it wrote: an
-    /// unchanged image is its own copy and pastes the in-app clipboard (with its layers); a
-    /// changed one came from another app.
-    // pc: crates/ui-egui/src/app/clipboard.rs:38 import_os_clipboard (os_clip_sig)
+    /// another app)? Reads the clipboard's first flavour of the last write's type and compares
+    /// it with what was written (an image by [`image_signature`]); for a pasted image the app
+    /// already read, [`is_ours`](Self::is_ours) answers without another read.
+    // vectorcraft: crates/ui-egui/src/sysclip.rs:25 SystemClipboard::holds_ours
     pub fn holds_ours(&mut self) -> bool {
         todo!()
+    }
+
+    /// Whether `image`, already read, is the one this app wrote last: PhotoCraft's check that a
+    /// pasted bitmap is its own copy (paste the in-app clipboard with its layers) or another
+    /// app's, without a second read.
+    // pc: crates/ui-egui/src/app/clipboard.rs:69 import_os_clipboard (os_clip_sig == sig)
+    pub fn is_ours(&self, image: &ClipboardImage) -> bool {
+        todo!()
+    }
+
+    /// A paste event's flavours for the backend ([`ClipboardBackend::offer`]); the web shell
+    /// calls it with [`flavours_from_event`] before the paste command runs.
+    pub fn offer_paste(&mut self, flavours: Vec<Flavour>) {
+        self.backend.offer(flavours);
     }
 
     /// Forgets the last write's signature (the in-app copy was cleared).

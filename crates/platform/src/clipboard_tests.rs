@@ -17,8 +17,8 @@ fn reads_over_the_limits_fail_and_broken_images_are_dropped() {
     todo!()
 }
 
-// After write_image, holds_ours is true while the backend returns the same pixels and false once
-// another image (or text) replaced them; forget_ours clears it.
+// After write_image, holds_ours and is_ours(read image) are true while the backend returns the
+// same pixels and false once another image (or text) replaced them; forget_ours clears it.
 #[test]
 #[ignore = "skeleton"]
 fn holds_ours_tells_our_copy_from_another_apps() {
@@ -26,7 +26,7 @@ fn holds_ours_tells_our_copy_from_another_apps() {
 }
 
 // An EventClipboard reads text, an RGBA8 image and a text/uri-list (CRLF line ends trimmed) from
-// the last offer, and hands writes to its out closure.
+// the last offer_paste, and hands writes to its out closure.
 #[test]
 #[ignore = "skeleton"]
 fn event_clipboard_reads_the_offered_paste() {

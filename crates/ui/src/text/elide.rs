@@ -19,7 +19,8 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use craft_theme::TypeRole;
-use egui::{Color32, FontId, Galley, Response, Ui};
+use egui::text::TextFormat;
+use egui::{FontId, Galley, Response, Ui};
 
 use crate::primitives::Content;
 
@@ -80,11 +81,12 @@ pub struct Elided {
     pub elided: bool,
 }
 
-/// `text` on one row no wider than `max_width` in `font` and `color`, shortened at `at`.
+/// `text` on one row no wider than `max_width` in `format` (font, colour, italics), shortened at
+/// `at`.
 /// [`ElideAt::End`] of left-to-right text uses egui's own overflow character (cheapest); the
 /// other cases lay out the result of [`elide`]. A `max_width` under 1 is taken as 1.
 // pc: crates/ui-egui/src/widgets/tab_strip.rs:19 elided, crates/ui-egui/src/panels/layer_row_ui.rs:117 truncated
-pub fn elided_galley(ui: &Ui, text: &str, font: FontId, color: Color32, max_width: f32, at: ElideAt) -> Elided {
+pub fn elided_galley(ui: &Ui, text: &str, format: TextFormat, max_width: f32, at: ElideAt) -> Elided {
     todo!()
 }
 
