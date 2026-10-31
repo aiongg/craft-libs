@@ -24,6 +24,10 @@
 //!   [`skew_cursor`] and [`selection_cursor`] are the other painted pointers; [`PointerInk`] says
 //!   whether the system pointer stays or the pointer is painted whole.
 //!
+//! - [`ToolHost`] and [`CanvasTool`]: the on-canvas tool host one tool at a time runs on; [`ToolCursor`]
+//!   and [`CursorHost`]: the pointer over the canvas; [`PenInput`]: pen pressure, tilt and the eraser end;
+//!   [`SnapTargets`]: snapping geometry.
+//!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
 //! Overlays sense through the host's canvas `Response` (one `interact` over the canvas rect)
@@ -45,19 +49,23 @@
 
 pub mod claim;
 mod crisp;
+mod cursor;
 mod grid;
 pub mod guides;
 pub mod hit;
 pub(crate) mod marquee;
 mod part_focus;
+mod pointer;
 pub mod quad;
 mod readout;
 pub(crate) mod ref_point;
 pub(crate) mod rulers;
 mod scrollbars;
+mod snap;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
+mod tool_host;
 mod turn;
 mod units;
 mod view;
@@ -66,6 +74,7 @@ pub use crate::edit::order::Turn;
 pub use ::kurbo;
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
+pub use cursor::{CursorBadge, CursorHost, CursorPrefs, CursorStyle, PaintingCursor, ToolCursor};
 pub use grid::{CanvasGrid, GridLine, GridStyle};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{
@@ -73,10 +82,13 @@ pub use marquee::{
     square_pixels,
 };
 pub use part_focus::{Part, PartFocus, PartFocusResponse};
+pub use pointer::{CanvasButtons, PenFeed, PenInput, PenSample};
 pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
+pub use snap::{SNAP_PX, SnapGesture, SnapKind, SnapLine, SnapOptions, SnapTarget, SnapTargets, union as snap_union};
+pub use tool_host::{CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolPointer};
 pub use turn::{
     PointerInk, SelectionBadge, distort_cursor, selection_badge_at, selection_badge_beside_pointer, selection_cursor, skew_cursor, turn_cursor,
     turn_cursor_with,
