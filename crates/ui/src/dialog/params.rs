@@ -253,6 +253,12 @@ impl Param {
 
     /// [`Param::row`] for a row of the dialog `dialog`: a colour swatch press is kept under it.
     pub(super) fn row_in(&self, dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
+        form.set_disabled(!self.enabled(fields));
+        self.row_body(dialog, form, fields, preview);
+        form.set_disabled(false);
+    }
+
+    fn row_body(&self, dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
         let ctx = form.ctx().clone();
         let numbers = LocaleNumbers::of_ctx(&ctx);
         let numbers = &*numbers;
@@ -260,13 +266,11 @@ impl Param {
         let key = self.key.as_str();
         let default = self.kind.default_value();
         let unit = &self.unit;
-        let enabled = self.enabled(fields);
         match &self.kind {
             ParamKind::Range { min, max, scale, .. } => {
                 let value = fields.number(key).or_else(|| number_of(default.as_ref())).unwrap_or(*min);
                 let (places, step) = if (max - min).abs() <= 10.0 { (0..=2, 0.01) } else { (0..=1, 1.0) };
                 form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let slider = Slider::new((key, "slider"), label.as_str(), value, *min..=*max).scale(*scale).show(ui);
                         let field = NumberField::new((key, "field"), label.as_str(), value, numbers).range(*min..=*max).step(step).decimals(places);
@@ -283,7 +287,6 @@ impl Param {
                 let value = fields.int(key).or_else(|| number_of(default.as_ref()).map(|n| n as i64)).unwrap_or(0);
                 let range = min.map_or(f64::NEG_INFINITY, |m| m as f64)..=max.map_or(f64::INFINITY, |m| m as f64);
                 form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let field = NumberField::new((key, "field"), label.as_str(), value as f64, numbers).range(range).decimals(0..=0);
                         let field = with_unit(field, unit).show(ui);
@@ -299,7 +302,6 @@ impl Param {
                 let mut value = fields.bool(key).unwrap_or(*default);
                 let text = label.trim_end_matches([':', '：']);
                 form.unlabelled(|ui| {
-                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let check = Checkbox::bool(text, &mut value).id_salt(key).show(ui);
                         if let Some(v) = edited(&check) {
@@ -313,7 +315,6 @@ impl Param {
             ParamKind::Choice { options, .. } => {
                 let mut value = fields.text(key).map(str::to_owned).or_else(|| text_of(default.as_ref())).unwrap_or_default();
                 form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let mut select = Select::new((key, "select"), label.as_str(), &mut value);
                         for (id, text) in options {
@@ -331,7 +332,6 @@ impl Param {
             ParamKind::Angle { default } => {
                 let value = fields.number(key).unwrap_or(*default);
                 form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let dial = AngleDial::new((key, "angle"), label.as_str(), value, numbers).show(ui);
                         if let Some(v) = edited(&dial) {
@@ -346,7 +346,6 @@ impl Param {
                 let color = fields.color(key);
                 let shown = color.map_or(Rgba::BLACK, |c| Rgba::rgb(encode(c[0]), encode(c[1]), encode(c[2])));
                 form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
                     let swatch = ui.add(Swatch::new((key, "swatch"), label.as_str(), shown).mixed(color.is_none()));
                     if swatch.clicked() {
                         ui.ctx().data_mut(|d| d.insert_temp(color_press_id(dialog), key.to_owned()));
@@ -364,7 +363,6 @@ impl Param {
                     },
                 };
                 form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let mut next = cells.clone();
                         let mut first = None;
@@ -394,7 +392,6 @@ impl Param {
             ParamKind::Point { default } => {
                 let value = fields.point(key).unwrap_or(*default);
                 form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let picker = PointPicker::new((key, "point"), label.as_str(), value, preview.copied()).show(ui);
                         if let Some(v) = edited(&picker) {
@@ -409,7 +406,6 @@ impl Param {
                 let value = fields.int(key).and_then(|i| usize::try_from(i).ok()).unwrap_or(*default);
                 let mut index = value;
                 form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let mut select = Select::new((key, "channel"), label.as_str(), &mut index);
                         for (i, name) in names.iter().enumerate() {
@@ -427,7 +423,6 @@ impl Param {
             ParamKind::Text { default } => {
                 let value = fields.text(key).unwrap_or(default).to_owned();
                 form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let text = TextField::new((key, "text"), label.as_str(), &value).show(ui);
                         if let Some(v) = edited(&text) {
@@ -454,7 +449,6 @@ impl Param {
                 let mut on = stored.is_some();
                 let words = DialogLabels::of_ctx(&ctx);
                 form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
                     edit::scope(ui, |ui| {
                         let check = Checkbox::bool(words.custom.as_str(), &mut on).id_salt((key, "custom")).show(ui);
                         match edited(&check) {
@@ -480,19 +474,9 @@ impl Param {
                 });
             }
             ParamKind::Custom(row) => {
-                form.row(label.as_str(), |ui, _| {
-                    gate(ui, enabled);
-                    (row.0)(ui, fields)
-                });
+                form.row(label.as_str(), |ui, _| (row.0)(ui, fields));
             }
         }
-    }
-}
-
-/// Draws the rest of `ui` disabled when the row's `enabled_when` is not met.
-fn gate(ui: &mut Ui, enabled: bool) {
-    if !enabled {
-        ui.disable();
     }
 }
 

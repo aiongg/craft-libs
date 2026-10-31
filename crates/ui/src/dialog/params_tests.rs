@@ -343,6 +343,8 @@ fn a_row_is_enabled_only_while_its_condition_holds() {
     let mut harness = harness(ParamDialog::new("c", "C", rows));
     harness.run();
     assert!(harness.get_by_role_and_label(Role::SpinButton, "Range:").accesskit_node().is_disabled());
+    let label = harness.get_by_role_and_label(Role::Label, "Range:");
+    assert!(label.accesskit_node().is_disabled(), "the row label is disabled too");
     harness.get_by_label("Localized").click();
     harness.run();
     harness.run();
