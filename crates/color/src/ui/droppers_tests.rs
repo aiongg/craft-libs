@@ -132,3 +132,44 @@ fn the_canvas_tool_samples_for_the_armed_dropper() {
     h.step();
     assert_eq!(DropperState::armed(&h.ctx), None);
 }
+
+/// With a modal dialog open the canvas is inert, so the free-press path samples for the armed
+/// dropper: a press on the free canvas delivers, a press on the dialog does not.
+#[test]
+fn an_armed_dropper_samples_the_free_canvas_under_a_modal_dialog() {
+    use craft_ui::dialog::{Dialog, DialogState};
+    let owner = Id::unique("owner");
+    let mut tool = DropperTool::new(|doc| Some(Srgba::rgb((doc[0] / 400.0) as f32, 0.0, 0.0)));
+    let rect = std::rc::Rc::new(std::cell::Cell::new(Rect::NOTHING));
+    let dialog_rect = rect.clone();
+    let mut state = DialogState::new();
+    let mut h = Harness::builder()
+        .with_size(vec2(400.0, 300.0))
+        .with_context_setup(|ctx| craft_ui::theme::install(ctx, &craft_ui::theme::Base::suite_default()))
+        .build_ui(move |ui| {
+            let ctx = ui.ctx().clone();
+            let canvas = ctx.content_rect();
+            let view = CanvasView::new(canvas, Point::new(200.0, 150.0), 1.0);
+            dialog_rect.set(Dialog::new("modal", "Modal").show(&ctx, &mut state, &mut (), |_, ()| {}).rect);
+            tool.show_free(&ctx, &view, canvas);
+        });
+    h.step();
+    h.step();
+    assert!(craft_ui::dialog::any_modal(&h.ctx), "the dialog is modal");
+    let dialog = rect.get();
+    let free = Pos2::new(5.0, 5.0);
+    assert!(!dialog.contains(free));
+    DropperState::arm(&h.ctx, owner);
+    h.event(Event::PointerMoved(dialog.center()));
+    h.event(Event::PointerButton { pos: dialog.center(), button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.step();
+    assert_eq!(DropperState::take(&h.ctx, owner), None, "a press on the dialog is the dialog's");
+    h.event(Event::PointerButton { pos: dialog.center(), button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    h.step();
+    DropperState::arm(&h.ctx, owner);
+    h.event(Event::PointerMoved(free));
+    h.event(Event::PointerButton { pos: free, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.step();
+    let red = DropperState::take(&h.ctx, owner).expect("the free press sampled");
+    assert!((red.r - 5.0 / 400.0).abs() < 1e-3);
+}

@@ -249,3 +249,25 @@ fn ok_answers_the_opening_key() {
         assert_eq!((answer.key.as_str(), hex(answer.color.color)), (key, hex(BLUE)));
     }
 }
+
+/// Without `.gamut(..)` the dialog still has the C, M, Y, K fields, through the built-in coated
+/// converter.
+#[test]
+fn the_dialog_has_cmyk_fields_without_a_converter() {
+    let rig = Rig::open(ColorPickerDialog::foreground(BLUE));
+    for name in ["Cyan", "Magenta", "Yellow", "Black"] {
+        rig.node(Role::SpinButton, name);
+    }
+}
+
+/// The dialog's screen eyedropper button asks for a pick; where capture is unsupported the button
+/// is gone.
+#[test]
+fn the_screen_eyedropper_button_asks_for_a_pick() {
+    let mut rig = Rig::new();
+    rig.host.open(ColorPickerDialog::foreground(BLUE).canvas_samples(false));
+    rig.frames(6);
+    assert!(!super::ScreenColorPicker::busy(&rig.ctx));
+    rig.click(Role::Button, "Pick screen color");
+    assert!(super::ScreenColorPicker::busy(&rig.ctx), "the press asked for a screen pick for the dialog");
+}

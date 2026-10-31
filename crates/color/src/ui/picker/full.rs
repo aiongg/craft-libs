@@ -100,8 +100,8 @@ const WARNINGS_INSET: f32 = 2.0;
 impl ColorPicker<'_> {
     /// The Full layout: the square area and the strip, with the alpha row and the eyedropper
     /// button under them; beside them the compare swatch and the warnings over the channel grid.
-    /// The radios write `mode` before the area draws. Whether the eyedropper button was pressed,
-    /// and the side action clicked.
+    /// The radios write `mode` before the area draws. The eyedropper button's response, and the
+    /// side action clicked.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn full(
         &self,
@@ -113,7 +113,7 @@ impl ColorPicker<'_> {
         translate: &dyn Fn(&'static str) -> String,
         parts: &mut Parts<'_>,
         opened: bool,
-    ) -> (bool, Option<Clicked>) {
+    ) -> (Option<Response>, Option<Clicked>) {
         let tokens = Tokens::of(ui);
         let style = ColorArea::style(&tokens);
         let gap = Gap::Inline.points(&tokens);
@@ -131,7 +131,7 @@ impl ColorPicker<'_> {
         let mut radios = set.begin(ui);
         let mode = *mode;
 
-        let mut requested = false;
+        let mut eyedropper = None;
         let mut side_clicked = None;
         let mut keys = None;
         top_row(ui, gap, |ui| {
@@ -150,7 +150,7 @@ impl ColorPicker<'_> {
                     ui.with_layout(direction::column(ui), |ui| {
                         let button =
                             Button::new(label.as_str()).icon(Icon::Eyedropper).size(ControlSize::Sm).enabled(inner.enabled && !self.eyedropper_busy);
-                        requested = ui.add(button).tooltip(translate(texts::SAMPLE_SCREEN)).clicked();
+                        eyedropper = Some(ui.add(button).tooltip(translate(texts::SAMPLE_SCREEN)));
                     });
                 }
             });
@@ -207,7 +207,7 @@ impl ColorPicker<'_> {
             let active = ui.memory(|m| m.allows_interaction(layer) && (m.top_modal_layer() == Some(layer) || inside_before));
             side_clicked = side_clicked.or(buttons.key_click(ui.ctx(), &shown, active, opened));
         }
-        (requested, side_clicked)
+        (eyedropper, side_clicked)
     }
 
     /// The channel grid: every model's channels, in columns ([`column_of`]), each row a radio

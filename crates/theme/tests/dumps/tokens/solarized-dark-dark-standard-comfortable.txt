@@ -431,7 +431,6 @@ color_picker.readout_channel_width = 48
 color_picker.grid_gap = 10
 color_picker.grid_row_gap = 3
 color_picker.grid_group_gap = 9
-color_picker.side_button_min = 120
 color_picker.marker = #ffffffff
 color_picker.marker_halo = #000000a0
 color_ramp.height = 45

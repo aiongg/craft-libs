@@ -24,7 +24,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use craft_cms::{Builtin, Intent, Profile, Transform};
-use craft_platform::screen::{self, CaptureHandle, ScreenError, ScreenImage};
+use craft_platform::screen::{self, Capture, CaptureHandle, ScreenError, ScreenImage};
 use craft_theme::{Srgba, TypeRole};
 use craft_ui::controls::IconButton;
 use craft_ui::icons::Icon;
@@ -49,6 +49,12 @@ craft_ui::words! {
         scroll_to_zoom: "screenPicker.scrollToZoom" = "Scroll to zoom";
         denied: "screenPicker.denied" = "Screen capture was not allowed. Allow screen recording for this app in the system settings.";
         unsupported: "screenPicker.unsupported" = "Screen capture is not available here.";
+        invalid_capture: "screenPicker.invalidCapture" = "The screen capture is not valid.";
+        texture_limit: "screenPicker.textureLimit" = "This display is larger than the graphics card can show.";
+        not_rgb_profile: "screenPicker.notRgbProfile" = "The screen profile must describe RGB pixels.";
+        nothing_captured: "screenPicker.nothingCaptured" = "No screen was captured.";
+        /// The capture failed for a reason the platform gives; `{reason}` is its text.
+        failed: "screenPicker.failed" = "Screen capture failed: {reason}";
     }
 }
 
@@ -84,7 +90,7 @@ pub struct ScreenColorPicker;
 const POINTER_OFFSET: f32 = 24.0;
 
 /// A capture's result as the picker receives it.
-pub(super) type CaptureResult = Result<Vec<ScreenImage>, ScreenError>;
+pub(super) type CaptureResult = Result<Capture, ScreenError>;
 
 /// What a pick resolves to: the colour, `Ok(None)` for a cancel, or a notice for the status bar.
 type Answer = Result<Option<Srgba>, String>;
@@ -100,6 +106,30 @@ impl Source for CaptureHandle {
     }
 }
 
+/// Why a capture cannot be shown.
+enum SnapshotError {
+    Invalid,
+    TextureLimit,
+    NotRgb,
+    /// The colour engine's text for a profile it cannot read or link.
+    Profile(String),
+}
+
+impl SnapshotError {
+    fn notice(self, labels: &ScreenPickerLabels) -> String {
+        match self {
+            SnapshotError::Invalid => labels.invalid_capture.clone(),
+            SnapshotError::TextureLimit => labels.texture_limit.clone(),
+            SnapshotError::NotRgb => labels.not_rgb_profile.clone(),
+            SnapshotError::Profile(reason) => failed(labels, &reason),
+        }
+    }
+}
+
+fn failed(labels: &ScreenPickerLabels, reason: &str) -> String {
+    craft_i18n::fmt_plain(&labels.failed, &[("reason", reason)])
+}
+
 /// One monitor's capture as shown: its pixels, their texture and the conversion to sRGB.
 #[derive(Clone)]
 pub(super) struct Snapshot {
@@ -110,23 +140,26 @@ pub(super) struct Snapshot {
 
 impl Snapshot {
     /// Checks the geometry the platform promised and uploads the texture.
-    fn new(ctx: &Context, image: ScreenImage) -> Result<Snapshot, String> {
+    fn new(ctx: &Context, image: ScreenImage) -> Result<Snapshot, SnapshotError> {
         let [w, h] = image.size.map(|n| n as usize);
         let pixels = w.checked_mul(h).filter(|&n| n > 0 && n <= screen::MAX_PIXELS);
         if pixels.and_then(|n| n.checked_mul(4)) != Some(image.rgba.len()) || !image.scale.is_finite() || image.scale <= 0.0 {
-            return Err("Invalid screen capture".into());
+            return Err(SnapshotError::Invalid);
         }
         if w.max(h) > ctx.input(|i| i.max_texture_side) {
-            return Err("This display exceeds the GPU's texture limit".into());
+            return Err(SnapshotError::TextureLimit);
         }
         let conversion = match &image.icc_profile {
             None => None,
             Some(bytes) => {
-                let source = Profile::parse(bytes).map_err(|e| e.to_string())?;
+                let source = Profile::parse(bytes).map_err(|e| SnapshotError::Profile(e.to_string()))?;
                 if source.color_space != craft_cms::ColorSpace::Rgb {
-                    return Err("The screen profile must describe RGB pixels".into());
+                    return Err(SnapshotError::NotRgb);
                 }
-                Some(Arc::new(Transform::new(&source, Builtin::Srgb.profile(), Intent::RelativeColorimetric, true).map_err(|e| e.to_string())?))
+                Some(Arc::new(
+                    Transform::new(&source, Builtin::Srgb.profile(), Intent::RelativeColorimetric, true)
+                        .map_err(|e| SnapshotError::Profile(e.to_string()))?,
+                ))
             }
         };
         let texture =
@@ -227,7 +260,7 @@ impl ScreenColorPicker {
     // pc: crates/ui-egui/src/dialogs/screen_picker.rs:144 `tick` (on `craft_platform::screen::capture`
     // in place of the `Services::screen_pick` closure).
     pub fn tick(ctx: &Context, target: u64) {
-        Self::tick_with(ctx, target, &|| Box::new(screen::capture()));
+        Self::tick_with(ctx, target, &|| Box::new(screen::capture(ctx.native_pixels_per_point().unwrap_or(1.0))));
     }
 
     pub(super) fn tick_with(ctx: &Context, target: u64, start: &dyn Fn() -> Box<dyn Source>) {
@@ -259,10 +292,11 @@ impl ScreenColorPicker {
         {
             s.source = None;
             match result {
-                Ok(images) => match images.into_iter().map(|image| Snapshot::new(ctx, image)).collect::<Result<Vec<_>, _>>() {
+                Ok(Capture::Color([r, g, b])) => s.answer = Some(Ok(Some(Srgba::rgb(r, g, b)))),
+                Ok(Capture::Images(images)) => match images.into_iter().map(|image| Snapshot::new(ctx, image)).collect::<Result<Vec<_>, _>>() {
                     Ok(images) if !images.is_empty() => s.images = images,
-                    Ok(_) => s.answer = Some(Err("No screen was captured".into())),
-                    Err(e) => s.answer = Some(Err(e)),
+                    Ok(_) => s.answer = Some(Err(ScreenPickerLabels::shared_ctx(ctx).nothing_captured.clone())),
+                    Err(e) => s.answer = Some(Err(e.notice(&ScreenPickerLabels::shared_ctx(ctx)))),
                 },
                 Err(ScreenError::Cancelled) => s.answer = Some(Ok(None)),
                 Err(ScreenError::Denied) => s.answer = Some(Err(ScreenPickerLabels::shared_ctx(ctx).denied.clone())),
@@ -270,7 +304,7 @@ impl ScreenColorPicker {
                     s.unsupported = true;
                     s.answer = Some(Err(ScreenPickerLabels::shared_ctx(ctx).unsupported.clone()));
                 }
-                Err(ScreenError::Failed(message)) => s.answer = Some(Err(message)),
+                Err(ScreenError::Failed(reason)) => s.answer = Some(Err(failed(&ScreenPickerLabels::shared_ctx(ctx), &reason))),
             }
         }
         if let Some(answer) = s.answer.take() {
@@ -373,6 +407,13 @@ impl ScreenColorPicker {
         lock(&runtime(ctx)).notice.take()
     }
 
+    /// Whether the platform can capture the screen: not on wasm, and not after a capture came
+    /// back unsupported. The dialog and the paint chip show their eyedropper button only when it
+    /// is.
+    pub fn available(ctx: &Context) -> bool {
+        !cfg!(target_arch = "wasm32") && !lock(&runtime(ctx)).unsupported
+    }
+
     /// The eyedropper button for `owner` ("Pick screen color", tooltip "Sample a pixel anywhere
     /// on the screen"): a press asks for a pick; returns `owner`'s result when one arrives. An
     /// `IconButton` (`Icon::Eyedropper`) in the Full picker and the compact popover alike.
@@ -381,7 +422,7 @@ impl ScreenColorPicker {
         let ctx = ui.ctx().clone();
         let labels = ScreenPickerLabels::shared(ui);
         let result = Self::take(&ctx, owner);
-        let available = !cfg!(target_arch = "wasm32") && !lock(&runtime(&ctx)).unsupported;
+        let available = Self::available(&ctx);
         let enabled = available && !Self::busy(&ctx);
         let response = ui.add(IconButton::new(Icon::Eyedropper, labels.button.as_str()).show_tooltip(false).enabled(enabled));
         let response =
@@ -520,7 +561,7 @@ pub(super) fn frame(ui: &mut Ui, shared: &Shared, snapshot: &Snapshot) {
         let picked = snapshot.sample(x, y);
         loupe(ui, snapshot, rect, pos, (x, y), zoom, picked.as_ref().ok().copied());
         if released {
-            answer(picked.map(Some));
+            answer(picked.map(Some).map_err(|reason| failed(&ScreenPickerLabels::shared(ui), &reason)));
         }
     });
 }

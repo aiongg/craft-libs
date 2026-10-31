@@ -201,13 +201,17 @@ impl<'a> PaintChip<'a> {
                     Paint::Solid(color) => {
                         let picker_id = Interactive::id_in(ui, "picker");
                         let screen_label = ScreenPickerLabels::of(ui).button;
-                        let shown = ColorPicker::new("picker", label.as_str(), *color, numbers)
-                            .layout(ColorPickerLayout::Compact)
-                            .alpha(true)
-                            .eyedropper(screen_label)
-                            .enabled(enabled)
-                            .show(ui);
+                        let mut picker = ColorPicker::new("picker", label.as_str(), *color, numbers).layout(ColorPickerLayout::Compact).alpha(true);
+                        if ScreenColorPicker::available(&ctx) {
+                            picker = picker.eyedropper(screen_label);
+                        }
+                        let shown = picker.enabled(enabled).show(ui);
                         let sampler = shown.edit.response.id;
+                        if let Some(button) = &shown.eyedropper
+                            && let Some(sampled) = ScreenColorPicker::hold_drag(ui, button, sampler)
+                        {
+                            ColorPicker::sampled(&ctx, sampler, sampled);
+                        }
                         let waiting = picker_id.with("screen-sample");
                         if shown.eyedropper_requested {
                             ScreenColorPicker::open(&ctx, sampler);

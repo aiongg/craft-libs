@@ -659,7 +659,6 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
         grid_gap,
         grid_row_gap,
         grid_group_gap,
-        side_button_min,
         marker,
         marker_halo,
     } = p;
@@ -688,7 +687,6 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
     out.line("color_picker.grid_gap", len(*grid_gap));
     out.line("color_picker.grid_row_gap", len(*grid_row_gap));
     out.line("color_picker.grid_group_gap", len(*grid_group_gap));
-    out.line("color_picker.side_button_min", len(*side_button_min));
     out.line("color_picker.marker", hex(*marker));
     out.line("color_picker.marker_halo", hex(*marker_halo));
 }

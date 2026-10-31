@@ -2,7 +2,7 @@
 //! taken once when the picker opens. The UI side is `craft_color::ui::screen_picker`.
 //!
 //! Backends: X11 (`GetImage` per RandR monitor, `_ICC_PROFILE` properties), Wayland (the
-//! Screenshot portal, which asks the user), macOS (CoreGraphics window-list image per display, the
+//! Screenshot portal's `PickColor`, where the compositor's own picker returns one colour), macOS (CoreGraphics window-list image per display, the
 //! image's colour space), Windows (`xcap` per monitor, no profile). Web and sessions without a
 //! display have no capture: [`capture`] returns [`ScreenError::Unsupported`].
 
@@ -28,6 +28,15 @@ pub struct ScreenImage {
     pub name: String,
 }
 
+/// What a finished capture holds.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Capture {
+    /// Every monitor's pixels, primary first; the picker shows them and the user picks one.
+    Images(Vec<ScreenImage>),
+    /// The colour the user picked in the compositor's own picker (Wayland), as sRGB, 0 to 1 each.
+    Color([f32; 3]),
+}
+
 /// Why a capture failed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ScreenError {
@@ -45,12 +54,12 @@ pub enum ScreenError {
 /// A capture in flight on a worker thread; dropping it cancels.
 pub struct CaptureHandle {
     stop: Arc<AtomicBool>,
-    result: Receiver<Result<Vec<ScreenImage>, ScreenError>>,
+    result: Receiver<Result<Capture, ScreenError>>,
 }
 
 impl CaptureHandle {
     /// The capture, once it has finished; `None` while it is still running.
-    pub fn try_take(&self) -> Option<Result<Vec<ScreenImage>, ScreenError>> {
+    pub fn try_take(&self) -> Option<Result<Capture, ScreenError>> {
         match self.result.try_recv() {
             Ok(result) => Some(result),
             Err(TryRecvError::Empty) if self.stop.load(Ordering::Relaxed) => Some(Err(ScreenError::Cancelled)),
@@ -72,20 +81,47 @@ impl Drop for CaptureHandle {
     }
 }
 
-/// Starts capturing every monitor on a worker thread. The images come back in monitor order with
-/// the primary first. Validates sizes against [`MAX_PIXELS`] per image.
-pub fn capture() -> CaptureHandle {
+/// Starts capturing on a worker thread: every monitor's image, in monitor order with the primary
+/// first (sizes validated against [`MAX_PIXELS`] per image), or on Wayland the one colour the
+/// compositor's picker returns. `scale` is the app's native pixels per point, the monitors'
+/// scale on X11, which reports none.
+pub fn capture(scale: f32) -> CaptureHandle {
     let stop = Arc::new(AtomicBool::new(false));
     let (tx, rx) = std::sync::mpsc::channel();
     let worker_stop = stop.clone();
     let fallback = tx.clone();
     let spawned = std::thread::Builder::new().name("screen-capture".into()).spawn(move || {
-        let _ = tx.send(backend::capture(&worker_stop));
+        let _ = tx.send(run(&worker_stop, scale));
     });
     if let Err(e) = spawned {
         let _ = fallback.send(Err(ScreenError::Failed(format!("could not start the capture thread: {e}"))));
     }
     CaptureHandle { stop, result: rx }
+}
+
+#[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+fn run(stop: &AtomicBool, scale: f32) -> Result<Capture, ScreenError> {
+    backend::capture(stop, scale)
+}
+
+#[cfg(not(all(unix, not(target_os = "macos"), not(target_arch = "wasm32"))))]
+fn run(stop: &AtomicBool, _scale: f32) -> Result<Capture, ScreenError> {
+    backend::capture(stop).map(Capture::Images)
+}
+
+/// The scale a monitor image gets: the app's native pixels per point, or 1 when it has none.
+#[cfg(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), test))]
+fn usable_scale(scale: f32) -> f32 {
+    if scale.is_finite() && scale > 0.0 { scale } else { 1.0 }
+}
+
+/// The portal's `PickColor` answer as sRGB, `Failed` when a channel is outside 0 to 1.
+#[cfg(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), test))]
+fn picked_color(rgb: [f64; 3]) -> Result<Capture, ScreenError> {
+    if rgb.iter().any(|v| !v.is_finite() || !(0.0..=1.0).contains(v)) {
+        return Err(ScreenError::Failed("the desktop color picker returned an invalid color".into()));
+    }
+    Ok(Capture::Color(rgb.map(|v| v as f32)))
 }
 
 /// The most pixels one monitor image may hold (64 M); larger captures fail with `Failed`.
@@ -164,7 +200,7 @@ fn unpack_rgba(
 
 #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 mod backend {
-    use super::{Arc, AtomicBool, MAX_MONITORS, Ordering, ScreenError, ScreenImage, add_to_budget, pixel_count};
+    use super::{Arc, AtomicBool, Capture, MAX_MONITORS, Ordering, ScreenError, ScreenImage, add_to_budget, picked_color, pixel_count, usable_scale};
 
     const MAX_ICC_PROFILE_BYTES: usize = 1024 * 1024;
     /// Length limit of the property reads, in 32-bit units.
@@ -172,14 +208,14 @@ mod backend {
     const PORTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 
     /// X11 sessions use `GetImage`; Wayland sessions (also when XWayland is present, which
-    /// shows only black for other clients) go through the portal.
-    pub fn capture(stop: &AtomicBool) -> Result<Vec<ScreenImage>, ScreenError> {
+    /// shows only black for other clients) go through the portal's `PickColor`.
+    pub fn capture(stop: &AtomicBool, scale: f32) -> Result<Capture, ScreenError> {
         let wayland =
             std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty()) || std::env::var("XDG_SESSION_TYPE").is_ok_and(|v| v == "wayland");
         if wayland {
-            portal(stop)
+            pick_color(stop)
         } else if std::env::var_os("DISPLAY").is_some_and(|v| !v.is_empty()) {
-            x11(stop)
+            x11(stop, scale).map(Capture::Images)
         } else {
             Err(ScreenError::Unsupported)
         }
@@ -234,7 +270,7 @@ mod backend {
         outputs: Vec<u32>,
     }
 
-    fn x11(stop: &AtomicBool) -> Result<Vec<ScreenImage>, ScreenError> {
+    fn x11(stop: &AtomicBool, scale: f32) -> Result<Vec<ScreenImage>, ScreenError> {
         use x11rb::{
             connection::Connection,
             image::{Image, PixelLayout},
@@ -311,7 +347,7 @@ mod backend {
             images.push(ScreenImage {
                 origin: [i32::from(r.x), i32::from(r.y)],
                 size: [u32::from(r.width), u32::from(r.height)],
-                scale: 1.0,
+                scale: usable_scale(scale),
                 rgba: Arc::new(rgba),
                 icc_profile: profile.map(Arc::new),
                 name: r.name,
@@ -320,10 +356,11 @@ mod backend {
         Ok(images)
     }
 
-    /// The Screenshot portal: the desktop environment asks the user and returns one image file of
-    /// the whole desktop, which is read and deleted at once. The portal reports neither monitor
-    /// layout nor scale, so the image is one `ScreenImage` at the origin with scale 1.
-    fn portal(stop: &AtomicBool) -> Result<Vec<ScreenImage>, ScreenError> {
+    /// The Screenshot portal's `PickColor`: the compositor's own picker asks the user and returns
+    /// one colour. A client cannot place windows over the monitors on Wayland, so the picker
+    /// shows no capture view of its own.
+    // pc: apps/photocraft/src/screen_color.rs:196 `wayland_color`.
+    fn pick_color(stop: &AtomicBool) -> Result<Capture, ScreenError> {
         use futures_lite::StreamExt;
         use std::collections::HashMap;
         use zbus::{
@@ -344,9 +381,9 @@ mod backend {
         // Subscribe before the call: the response can arrive before the call returns.
         let mut replies = futures_lite::future::block_on(request.inner().receive_signal("Response")).map_err(failed)?;
         let screenshot = Proxy::new(&conn, PORTAL, "/org/freedesktop/portal/desktop", "org.freedesktop.portal.Screenshot").map_err(failed)?;
-        let options: HashMap<&str, Value<'_>> = HashMap::from([("handle_token", Value::from(token.as_str())), ("interactive", Value::from(false))]);
+        let options: HashMap<&str, Value<'_>> = HashMap::from([("handle_token", Value::from(token.as_str()))]);
         let _handle: OwnedObjectPath =
-            screenshot.call("Screenshot", &("", options)).map_err(|e| failed(format!("the desktop portal does not support screenshots: {e}")))?;
+            screenshot.call("PickColor", &("", options)).map_err(|e| failed(format!("the desktop portal does not support color picking: {e}")))?;
 
         let deadline = std::time::Instant::now() + PORTAL_TIMEOUT;
         let reply = loop {
@@ -365,61 +402,12 @@ mod backend {
         let (code, values): (u32, HashMap<String, OwnedValue>) = reply.body().deserialize().map_err(failed)?;
         match code {
             0 => {}
-            1 => return Err(ScreenError::Denied),
-            _ => return Err(failed("the desktop portal could not take the screenshot")),
+            1 => return Err(ScreenError::Cancelled),
+            _ => return Err(failed("the desktop color picker could not sample this screen")),
         }
-        let uri: String =
-            values.get("uri").ok_or_else(|| failed("the portal returned no screenshot"))?.try_clone().map_err(failed)?.try_into().map_err(failed)?;
-        let file = std::path::PathBuf::from(<std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(percent_decode(
-            uri.strip_prefix("file://").ok_or_else(|| failed("the portal returned a non-file screenshot"))?,
-        )));
-        let decoded = decode_png(&file);
-        let _ = std::fs::remove_file(&file);
-        let (width, height, rgba) = decoded?;
-        Ok(vec![ScreenImage { origin: [0, 0], size: [width, height], scale: 1.0, rgba: Arc::new(rgba), icc_profile: None, name: "Screen".into() }])
-    }
-
-    fn percent_decode(s: &str) -> Vec<u8> {
-        let bytes = s.as_bytes();
-        let mut out = Vec::with_capacity(bytes.len());
-        let mut i = 0;
-        while i < bytes.len() {
-            let hex = (bytes[i] == b'%' && i + 2 < bytes.len())
-                .then(|| std::str::from_utf8(&bytes[i + 1..i + 3]).ok().and_then(|h| u8::from_str_radix(h, 16).ok()))
-                .flatten();
-            match hex {
-                Some(b) => {
-                    out.push(b);
-                    i += 3;
-                }
-                None => {
-                    out.push(bytes[i]);
-                    i += 1;
-                }
-            }
-        }
-        out
-    }
-
-    /// Decodes an 8-bit PNG to straight RGBA, within the pixel budget.
-    fn decode_png(path: &std::path::Path) -> Result<(u32, u32, Vec<u8>), ScreenError> {
-        let mut decoder = png::Decoder::new(std::io::BufReader::new(std::fs::File::open(path).map_err(failed)?));
-        decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
-        let mut reader = decoder.read_info().map_err(failed)?;
-        let info = reader.info();
-        pixel_count(info.width as usize, info.height as usize)?;
-        let mut buf = vec![0u8; reader.output_buffer_size()];
-        let frame = reader.next_frame(&mut buf).map_err(failed)?;
-        let (width, height) = (frame.width, frame.height);
-        let data = &buf[..frame.buffer_size()];
-        let rgba = match frame.color_type {
-            png::ColorType::Rgba => data.to_vec(),
-            png::ColorType::Rgb => data.as_chunks::<3>().0.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect(),
-            png::ColorType::GrayscaleAlpha => data.as_chunks::<2>().0.iter().flat_map(|p| [p[0], p[0], p[0], p[1]]).collect(),
-            png::ColorType::Grayscale => data.iter().flat_map(|&g| [g, g, g, 255]).collect(),
-            png::ColorType::Indexed => return Err(failed("unsupported screenshot colour type")),
-        };
-        Ok((width, height, rgba))
+        let value = values.get("color").ok_or_else(|| failed("the desktop color picker returned no color"))?;
+        let (r, g, b): (f64, f64, f64) = value.try_clone().map_err(failed)?.try_into().map_err(|e: zbus::zvariant::Error| failed(e))?;
+        picked_color([r, g, b])
     }
 }
 
@@ -558,6 +546,22 @@ mod backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The portal's colour passes through as sRGB; a channel outside 0 to 1 fails.
+    #[test]
+    fn a_picked_color_is_checked_and_returned() {
+        assert_eq!(picked_color([0.0, 0.5, 1.0]), Ok(Capture::Color([0.0, 0.5, 1.0])));
+        assert!(picked_color([0.0, 1.5, 0.0]).is_err());
+        assert!(picked_color([f64::NAN, 0.0, 0.0]).is_err());
+    }
+
+    /// X11 reports no scale, so the images take the app's pixels per point, or 1 without one.
+    #[test]
+    fn the_x11_scale_is_the_apps_native_scale() {
+        assert_eq!(usable_scale(2.0), 2.0);
+        assert_eq!(usable_scale(0.0), 1.0);
+        assert_eq!(usable_scale(f32::NAN), 1.0);
+    }
 
     /// A premultiplied BGRA capture with a stride unpacks to straight RGBA in row order.
     #[test]

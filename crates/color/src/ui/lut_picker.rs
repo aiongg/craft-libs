@@ -250,9 +250,6 @@ fn folder_files(ctx: &Context, key: Id, folder: Option<&Path>) -> FolderFiles {
         scan.started = Some(now);
         scan.pending = Some(start_scan(folder.to_path_buf(), ctx.clone()));
     }
-    if scan.pending.is_some() {
-        ctx.request_repaint_after(std::time::Duration::from_millis(100));
-    }
     let files = scan.files.clone();
     ctx.data_mut(|d| d.insert_temp(key, scan));
     files

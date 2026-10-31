@@ -19,10 +19,10 @@
 //! ```
 
 use craft_theme::{ControlSize, Srgba};
-use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
+use craft_ui::canvas::{CanvasTool, CanvasView, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
 use craft_ui::controls::IconButton;
 use craft_ui::icons::Icon;
-use egui::{AsIdSalt, Context, Id, IdSalt, Key, Painter, Response, Ui};
+use egui::{AsIdSalt, Context, Id, IdSalt, Key, Painter, Rect, Response, Ui};
 
 /// The armed dropper, kept in egui memory: who armed it and a sample waiting for it.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -196,6 +196,25 @@ impl<'a> DropperTool<'a> {
     /// A dropper tool sampling through `sample` (document point to colour).
     pub fn new(sample: impl FnMut([f64; 2]) -> Option<Srgba> + 'a) -> DropperTool<'a> {
         DropperTool { sample: Box::new(sample) }
+    }
+
+    /// The canvas pass under an open modal dialog. egui makes the canvas inert while a modal
+    /// dialog is up, so a press never reaches [`ToolHost`](craft_ui::canvas::ToolHost); the app
+    /// calls this instead of `ToolHost::show` while [`DropperState::armed`] and a modal dialog is
+    /// open. A press that began on the free canvas (not on a dialog or a popup) samples at the
+    /// pointer, and so does every pass of the drag that follows. Returns whether it sampled.
+    /// Esc is the dialog's: it closes the dialog, which disarms its dropper.
+    // pc: crates/ui-egui/src/dialogs.rs:80 `free_pointer_over`, canvas.rs:729 `sample_at`.
+    pub fn show_free(&mut self, ctx: &Context, view: &CanvasView, canvas_rect: Rect) -> bool {
+        if DropperState::armed(ctx).is_none() {
+            return false;
+        }
+        let Some(pos) = craft_ui::dialog::pass::free_press(ctx, canvas_rect) else {
+            return false;
+        };
+        let doc = view.to_doc(pos);
+        self.sample_at(ctx, [doc.x, doc.y]);
+        true
     }
 
     /// Samples at document point `doc` and delivers the colour to the armed dropper; what the
