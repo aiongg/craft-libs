@@ -46,7 +46,7 @@ own direction.
 The panel follows the `craft_host::Host` installed in the egui context (`Host::builder(..).install(ctx)`):
 its strings and numbers are in `host.lang()` each frame (English without a Host, or when the panel
 has no catalog for the language), its settings section is `fonts_panel`, and installs, removals and
-previews run through `host.jobs()` (inline without a Host).
+previews run through `host.jobs()`, one at a time in request order (without a Host, on craft-host's default job service: a thread per runner, inline on wasm32).
 
 ```rust
 let catalog = Arc::clone(Catalog::global());
