@@ -52,7 +52,9 @@ pub trait ListOptions {
 /// - Type-ahead: characters typed within [`TYPE_AHEAD_PAUSE`] of each other make a prefix, and
 ///   the first enabled option from the active one whose text starts with it (ignoring case)
 ///   becomes active. The same character typed again moves on to the next option starting with
-///   it. A key that moves the active option starts the prefix again.
+///   it. A character that matches nothing after the ones before it starts a new prefix with
+///   itself ("m" then "d" goes to the first option starting with "d"). A key that moves the
+///   active option starts the prefix again.
 /// - The pointer makes the option under it active where the control lets it
 ///   ([`set_active`](Listbox::set_active)): a select does; a combo box's pointer only highlights
 ///   a row, so Enter keeps the typed text.
@@ -205,32 +207,59 @@ impl Listbox {
             self.state.typed.clear();
         }
         let mut typed = std::mem::take(&mut self.state.typed);
-        let mut took = false;
+        let mut chars = Vec::new();
         ui.input_mut(|i| {
             i.events.retain(|event| match event {
                 Event::Text(text) if !(typed.is_empty() && text.trim().is_empty()) && !text.chars().any(char::is_control) => {
-                    typed.push_str(&text.to_lowercase());
-                    took = true;
+                    chars.extend(text.chars().flat_map(char::to_lowercase));
                     false
                 }
                 _ => true,
             });
         });
-        self.state.typed = typed;
         let len = options.len();
-        if !took || len == 0 {
+        if chars.is_empty() || len == 0 {
+            self.state.typed = typed;
             return false;
         }
         self.state.typed_at = now;
-        // "aaa" cycles through the options starting with "a".
-        let mut chars = self.state.typed.chars();
-        let first = chars.next().unwrap_or_default();
-        let (prefix, skip_active) = if chars.all(|c| c == first) { (first.to_string(), true) } else { (self.state.typed.clone(), false) };
-        let start = self.state.active.and_then(|a| options.position(a)).map_or(0, |p| p + usize::from(skip_active));
-        let target = (0..len)
-            .map(|step| options.option_at((start + step) % len))
-            .find(|&o| options.enabled(o) && options.text(o).to_lowercase().starts_with(&prefix));
+        let mut active = self.state.active;
+        let mut target = None;
+        for c in chars {
+            // A space only counts inside a prefix.
+            if c.is_whitespace() && typed.is_empty() {
+                continue;
+            }
+            typed.push(c);
+            let mut found = Self::find(options, active, &typed);
+            // A letter that leads nowhere after the others starts a new prefix ("m" then "d" is D).
+            if found.is_none() && typed.chars().count() > 1 {
+                typed.clear();
+                if !c.is_whitespace() {
+                    typed.push(c);
+                    found = Self::find(options, active, &typed);
+                }
+            }
+            if found.is_some() {
+                target = found;
+                active = found;
+            }
+        }
+        self.state.typed = typed;
         self.move_to(target)
+    }
+
+    /// The enabled option whose text starts with `typed` (lowercase), searching on from `active`
+    /// and wrapping. "aaa" cycles through the options starting with "a".
+    fn find(options: &impl ListOptions, active: Option<usize>, typed: &str) -> Option<usize> {
+        let len = options.len();
+        let mut chars = typed.chars();
+        let first = chars.next().unwrap_or_default();
+        let (prefix, skip_active) = if chars.all(|c| c == first) { (first.to_string(), true) } else { (typed.to_string(), false) };
+        let start = active.and_then(|a| options.position(a)).map_or(0, |p| p + usize::from(skip_active));
+        (0..len)
+            .map(|step| options.option_at((start + step) % len))
+            .find(|&o| options.enabled(o) && options.text(o).to_lowercase().starts_with(&prefix))
     }
 
     /// Whether a type-ahead prefix is under way, so a space belongs to it.
