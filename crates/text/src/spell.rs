@@ -53,25 +53,32 @@ pub struct UserWords {
 }
 
 impl UserWords {
-    /// From a stored list; duplicates (ignoring case) are dropped and the rest sorted.
+    /// From a stored list; words are trimmed with typographic apostrophes made straight, as
+    /// [`Dictionary::check`] reads them, empty ones and duplicates (ignoring case) are dropped and
+    /// the rest sorted.
     // pc: crates/engine/src/cmd/type_spell_cmds.rs:75 (the lowercase set built from
     // `prefs.user_dictionary`).
     pub fn from_words(words: impl IntoIterator<Item = String>) -> Self {
-        let mut words: Vec<String> = words.into_iter().collect();
+        let mut words: Vec<String> = words.into_iter().map(|w| stored(&w)).filter(|w| !w.is_empty()).collect();
         words.sort_by_cached_key(|w| w.to_lowercase());
         words.dedup_by_key(|w| w.to_lowercase());
         UserWords { words }
     }
 
-    /// Add `word`; `false` when it is already there in any case.
+    /// Add `word` (trimmed, apostrophes straight); `false` when it is empty or already there in
+    /// any case.
     // pc: crates/engine/src/cmd/type_spell_cmds.rs:185 (case-insensitive check, then sorted by
     // lowercase).
     pub fn add(&mut self, word: &str) -> bool {
+        let word = stored(word);
+        if word.is_empty() {
+            return false;
+        }
         let lower = word.to_lowercase();
         match self.words.binary_search_by_key(&lower, |w| w.to_lowercase()) {
             Ok(_) => false,
             Err(at) => {
-                self.words.insert(at, word.to_string());
+                self.words.insert(at, word);
                 true
             }
         }
@@ -80,7 +87,7 @@ impl UserWords {
     /// Remove `word` in any case; `false` when it wasn't there.
     // new: PhotoCraft has no removal; Photoshop's dictionary editing is outside the app.
     pub fn remove(&mut self, word: &str) -> bool {
-        let lower = word.to_lowercase();
+        let lower = stored(word).to_lowercase();
         match self.words.binary_search_by_key(&lower, |w| w.to_lowercase()) {
             Ok(at) => {
                 self.words.remove(at);
@@ -279,6 +286,11 @@ pub fn words(text: &str) -> Vec<Range<usize>> {
         out.push(s..text.len());
     }
     out
+}
+
+/// A word as the user dictionary keeps it.
+fn stored(w: &str) -> String {
+    normalize(w).trim().to_owned()
 }
 
 /// Typographic apostrophes → `'`.

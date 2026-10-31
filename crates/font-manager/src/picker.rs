@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use skrifa::MetadataProvider as _;
 use skrifa::raw::{FontRef, TableProvider};
 
-use crate::panel::faces::{FaceFonts, Owner, Shown};
+use crate::panel::faces::{FaceFonts, Owner, SharedFaces, Shown};
 
 craft_ui::words! {
     /// The picker's words, English by default.
@@ -515,7 +515,6 @@ impl<'a> FontPicker<'a> {
         }
         if open && !was_open {
             edit.reveal = 2;
-            edit.moved = false;
         }
 
         let (rows, comparable) = self.list(&edit.query, true);
@@ -554,7 +553,7 @@ impl<'a> FontPicker<'a> {
         let favorites_empty = self.settings.as_deref().is_none_or(|s| s.favorites.is_empty());
         let hide_id = field_id.with("hide-classes");
         let hide_classes = ctx.data(|d| d.get_temp::<bool>(hide_id)).unwrap_or(false);
-        let faces = face_fonts(&ctx);
+        let faces = FaceFonts::shared(&ctx);
         let reveal = (edit.reveal > 0).then(|| edit.row.or(current_row)).flatten();
         let sizes = craft_ui::theme::current(&ctx).component.font_picker;
         let list_width = rect.width().max(sizes.list_width);
@@ -562,10 +561,10 @@ impl<'a> FontPicker<'a> {
         let catalog = self.catalog;
         let popup = Popover::new(format!("{}.popup", self.salt), PopoverAnchor::Control(field.response.clone()))
             .close(PopoverClose::default().focus_left(false))
+            .keep_anchor_focus(true)
             .toggle(arrow.id)
             .label(labels.list.clone())
             .show(ui, &mut open, |ui, pop| {
-                pop.initial_focus(field_id);
                 let mut out = PopupOut::default();
                 let mut hide = hide_classes;
                 if let Some(f) = filters.as_deref_mut() {
@@ -633,13 +632,6 @@ impl<'a> FontPicker<'a> {
         picked = picked.or(out.picked);
         let escaped = field.escaped || closed_by == Some(CloseReason::Escape);
         let hovered = out.hovered;
-        if open && !edit.moved {
-            if tab || ui.input(|i| i.pointer.any_pressed()) {
-                edit.moved = true;
-            } else {
-                ctx.memory_mut(|m| m.request_focus(field_id));
-            }
-        }
         if edit.reveal > 0 && open {
             edit.reveal -= 1;
             ctx.request_repaint();
@@ -710,9 +702,6 @@ struct Edit {
     /// Passes left in which the list scrolls the marked row into view (the popover's first pass
     /// only measures).
     reveal: u8,
-    /// The user moved the focus into the popover (a press or Tab); until then the field keeps it,
-    /// taking it back from the popover, which moves it to its first control as it opens.
-    moved: bool,
 }
 
 #[derive(Default)]
@@ -728,7 +717,7 @@ struct ListContext<'a> {
     rows: &'a [FamilyRow],
     infos: &'a Arc<Infos>,
     catalog: &'a Arc<Catalog>,
-    faces: &'a Arc<Mutex<Faces>>,
+    faces: &'a SharedFaces,
     labels: &'a FontPickerLabels,
     preview: Option<f32>,
     selected: Option<usize>,
@@ -739,7 +728,7 @@ struct ListContext<'a> {
 
 impl ListContext<'_> {
     fn show(&self, ui: &mut Ui, out: &mut PopupOut) {
-        lock(self.faces).begin(ui.ctx());
+        self.faces.begin_frame(ui.ctx());
         let tokens = Tokens::of(ui);
         let base = ListRow::<usize>::style(&tokens).row_height;
         let row_height = self.preview.map_or(base, |size| base.max((size * 4.0 / 3.0).ceil() + 4.0));
@@ -1101,29 +1090,6 @@ fn classify(family: &str, family_class: i16, panose: [u8; 10], fixed_pitch: bool
 
 // Samples.
 
-/// The faces the samples are drawn in, as egui font families: the same loading budget and
-/// eviction as the fonts panel's.
-struct Faces {
-    frame: u64,
-    fonts: FaceFonts,
-}
-
-impl Faces {
-    /// Starts the pass once, however many pickers draw in it.
-    fn begin(&mut self, ctx: &Context) {
-        let frame = ctx.cumulative_frame_nr();
-        if self.frame != frame {
-            self.frame = frame;
-            self.fonts.begin_frame(ctx);
-        }
-    }
-}
-
-fn face_fonts(ctx: &Context) -> Arc<Mutex<Faces>> {
-    let id = Id::unique("craft-font-picker-faces");
-    ctx.data_mut(|d| d.get_temp_mut_or_insert_with(id, || Arc::new(Mutex::new(Faces { frame: u64::MAX, fonts: FaceFonts::default() }))).clone())
-}
-
 /// Sample texts resolved per family, dropped when the catalog changes.
 #[derive(Clone, Default)]
 struct Samples {
@@ -1169,7 +1135,7 @@ fn sample_text(ctx: &Context, catalog: &Catalog, info: &Info, sample: &str, show
 /// Draws `text` at `size` points in `face`, from the start of the cell; nothing until egui has
 /// loaded the face.
 fn paint_sample(ui: &Ui, cx: &ListContext<'_>, face: &FaceInfo, text: &str, size: f32) {
-    let shown = lock(cx.faces).fonts.family(ui.ctx(), cx.catalog, Owner::Installed, face);
+    let shown = cx.faces.family(ui.ctx(), cx.catalog, Owner::Installed, face);
     let Shown::Ready(family) = shown else { return };
     let cell = ui.max_rect();
     let (align, at) =

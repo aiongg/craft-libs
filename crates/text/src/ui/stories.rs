@@ -210,7 +210,7 @@ fn text_editor(ui: &mut Ui, args: &mut EditorArgs) {
     paint_text(ui, &view, host);
     let mut tool = TextEditorTool::new(editor, host);
     let _ = ToolHost::new(craft_ui::canvas::CanvasId::of(&response)).show(ui, &view, &response, &mut tool);
-    editor.finish_pass(&ctx, &view, host);
+    let _ = editor.finish_pass(&ctx, &view, host);
 }
 
 fn paint_text(ui: &Ui, view: &CanvasView, host: &Lines) {

@@ -4,7 +4,7 @@ use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Event, Modifiers, PointerButton, pos2};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use crate::axes::*;
 
@@ -168,4 +168,33 @@ fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
         assert_eq!(s.values.iter().find(|(t, _)| *t == tag).map(|x| x.1), Some(v), "{}", String::from_utf8_lossy(&tag));
         assert!(s.settled.contains(&(tag, v)));
     }
+}
+
+// With no stored coordinate the sliders show what the style draws: a Bold face reads Weight 700
+// and the Bold instance, not the axis default.
+#[test]
+fn unset_axes_show_the_drawn_style() {
+    let data = variable_font();
+    let state = State {
+        axes: read_axes(&data, 0),
+        instances: read_named_instances(&data, 0),
+        values: Vec::new(),
+        changed: Vec::new(),
+        settled: Vec::new(),
+        picked: None,
+    };
+    let mut harness =
+        Harness::<State>::builder().with_size([320.0, 300.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, s: &mut State| {
+                let _ = AxisSliders::new(&s.axes, &mut s.values).instances(&s.instances).drawn(700.0, false).id_salt("bold-layer").show(ui);
+            },
+            state,
+        );
+    harness.run();
+    let weight = harness.get_all_by_role(Role::Slider).next().and_then(|n| n.accesskit_node().numeric_value());
+    assert_eq!(weight, Some(700.0));
+    assert!(harness.state().values.is_empty(), "showing a drawn value stores nothing");
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    assert!(harness.query_by_label("Custom").is_none(), "the instance list matches Bold");
 }

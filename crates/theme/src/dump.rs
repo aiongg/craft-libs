@@ -1499,11 +1499,12 @@ fn check_spelling_lines(out: &mut Lines, t: &CheckSpellingTokens) {
 }
 
 fn font_picker_lines(out: &mut Lines, t: &FontPickerTokens) {
-    let FontPickerTokens { list_height, list_width, class_column, class_glyph } = t;
+    let FontPickerTokens { list_height, list_width, class_column, class_glyph, missing_list_height } = t;
     out.line("font_picker.list_height", len(*list_height));
     out.line("font_picker.list_width", len(*list_width));
     out.line("font_picker.class_column", len(*class_column));
     out.line("font_picker.class_glyph", len(*class_glyph));
+    out.line("font_picker.missing_list_height", len(*missing_list_height));
 }
 
 fn text_styles_lines(out: &mut Lines, t: &TextStylesTokens) {

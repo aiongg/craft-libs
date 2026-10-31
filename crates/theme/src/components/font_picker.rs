@@ -15,6 +15,8 @@ pub struct FontPickerTokens {
     pub class_column: f32,
     /// Width of a row's class glyph, in points: `font_picker.class_glyph`.
     pub class_glyph: f32,
+    /// Height of the Missing Fonts dialog's Document Fonts list, in points: `font_picker.missing_list_height`.
+    pub missing_list_height: f32,
 }
 
 /// FontPicker has no overridable field: its sizes come from the code, as every size does.
@@ -29,6 +31,7 @@ impl Family for FontPickerTokens {
         "list_width" 0.0..=2048.0 => list_width;
         "class_column" 0.0..=1024.0 => class_column;
         "class_glyph" 0.0..=256.0 => class_glyph;
+        "missing_list_height" 0.0..=2048.0 => missing_list_height;
     };
 
     fn defaults(_: &Semantic<'_>) -> FontPickerTokens {
@@ -37,6 +40,7 @@ impl Family for FontPickerTokens {
             list_width: values::FONT_PICKER_LIST_WIDTH,
             class_column: values::FONT_PICKER_CLASS_COLUMN,
             class_glyph: values::FONT_PICKER_CLASS_GLYPH,
+            missing_list_height: values::FONT_PICKER_MISSING_LIST_HEIGHT,
         }
     }
 

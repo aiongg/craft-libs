@@ -17,6 +17,8 @@ struct Host {
     vertical: bool,
     replaced: Vec<(Range<usize>, String, EditKind)>,
     styled: Vec<(StyleKey, TextSelection)>,
+    /// `style_key` declines every key, as the trait default does.
+    declines: bool,
 }
 
 impl Host {
@@ -111,7 +113,7 @@ impl TextEditorHost for Host {
 
     fn style_key(&mut self, key: StyleKey, selection: TextSelection) -> bool {
         self.styled.push((key, selection));
-        true
+        !self.declines
     }
 }
 
@@ -292,12 +294,13 @@ fn style_keys_reach_the_host() {
     assert_eq!(send(&mut editor, &mut host, Key::ArrowUp, Modifiers::ALT), Some(StyleKey::Leading(-2.0)));
     assert_eq!(send(&mut editor, &mut host, Key::ArrowDown, alt_command), Some(StyleKey::Leading(10.0)));
     assert_eq!(send(&mut editor, &mut host, Key::ArrowUp, with(Modifiers::ALT, |m| m.shift = true)), Some(StyleKey::BaselineShift(2.0)));
-    // No pair at a paragraph edge: the key is taken, the host not asked.
+    // No pair at a paragraph edge: the host is still asked and decides (here it takes the key).
     editor.set_selection(TextSelection::caret_at(2));
     let before = host.styled.len();
     let r = pass(&ctx, &mut editor, &mut host, 1.0, keys(&[(Key::ArrowRight, Modifiers::ALT)]));
     assert!(r.took_keys);
-    assert_eq!(host.styled.len(), before);
+    assert_eq!(host.styled.len(), before + 1);
+    assert_eq!(host.styled.last(), Some(&(StyleKey::Kern(20.0), TextSelection::caret_at(2))));
     editor.set_selection(TextSelection { anchor: 0, caret: 2 });
     assert_eq!(send(&mut editor, &mut host, Key::ArrowRight, Modifiers::ALT), Some(StyleKey::Tracking(20.0)));
     assert_eq!(host.styled.last().map(|s| s.1), Some(TextSelection { anchor: 0, caret: 2 }));
@@ -396,7 +399,7 @@ fn click_away_keeps_the_marked_text() {
     let raw = RawInput { time: Some(1.0), screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), ..Default::default() };
     run(&ctx, raw, |ctx| {
         let _ = editor.update(ctx, &mut host);
-        editor.finish_pass(ctx, &view, &mut host);
+        let _ = editor.finish_pass(ctx, &view, &mut host);
     });
     let _ = pass(&ctx, &mut editor, &mut host, 2.0, vec![preedit("き")]);
     assert_eq!((host.text.as_str(), editor.preedit()), ("aかきb", Some(2..3)));
@@ -469,4 +472,158 @@ fn tool_host_claims_inside_and_ignores_outside() {
     assert_eq!(r.gesture, None);
     assert!(r.ignored_press.is_some());
     assert_eq!(editor.selection(), TextSelection { anchor: 3, caret: 5 });
+}
+
+fn screen() -> Rect {
+    Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))
+}
+
+fn primary(pressed: bool) -> Event {
+    Event::PointerButton { pos: pos2(0.0, 5.0), button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
+}
+
+fn view() -> CanvasView {
+    CanvasView::new(screen(), Point::new(0.0, 0.0), 10.0)
+}
+
+// Typed "x", a press, typed "y" in one pass: "x" goes in at the old caret, the press moves the
+// caret, "y" goes in at the new one, all in this pass.
+#[test]
+fn events_after_a_press_apply_at_the_new_caret() {
+    let (ctx, mut editor, mut host) = setup("ab", 2);
+    let raw = RawInput {
+        time: Some(0.0),
+        screen_rect: Some(screen()),
+        events: vec![Event::Text("x".into()), primary(true), Event::Text("y".into())],
+        ..Default::default()
+    };
+    let mut late = EditorResponse::default();
+    run(&ctx, raw, |ctx| {
+        let r = editor.update(ctx, &mut host);
+        assert!(r.changed);
+        assert_eq!(host.text, "abx", "the text before the press applies at the old caret");
+        assert_eq!(ctx.input(|i| i.events.len()), 2, "the press and the text after it wait in the input");
+        assert!(click(&mut editor, &mut host, 0.0, 0.0, false, 0.0));
+        assert_eq!((host.text.as_str(), editor.selection()), ("yabx", TextSelection::caret_at(1)));
+        assert_eq!(ctx.input(|i| i.events.len()), 1, "the text is taken; the press stays for the app");
+        late = editor.finish_pass(ctx, &view(), &mut host);
+    });
+    assert!(late.changed && late.took_keys);
+    assert_eq!(host.replaced.last(), Some(&(0..0, "y".to_string(), EditKind::Typed)));
+}
+
+// A press the editor never sees (an overlay took it, or it fell outside): what came after it
+// applies at the caret as it is, at the end of the pass.
+#[test]
+fn events_after_a_press_the_editor_did_not_get_apply_in_finish_pass() {
+    let (ctx, mut editor, mut host) = setup("ab", 1);
+    let raw = RawInput { time: Some(0.0), screen_rect: Some(screen()), events: vec![primary(true), Event::Text("z".into())], ..Default::default() };
+    run(&ctx, raw, |ctx| {
+        let r = editor.update(ctx, &mut host);
+        assert!(!r.changed && host.text == "ab");
+        let late = editor.finish_pass(ctx, &view(), &mut host);
+        assert!(late.changed);
+    });
+    assert_eq!(host.text, "azb");
+}
+
+// Another widget with the keyboard (a list, a field in a panel) keeps its keys and text; marked
+// text is kept as typed; the canvas's own focus does not count.
+#[test]
+fn the_editor_stands_down_while_another_widget_has_the_keyboard() {
+    let canvas = egui::Id::unique("canvas");
+    let other = egui::Id::unique("list");
+    let (ctx, editor, mut host) = setup("ab", 1);
+    let mut editor = editor.canvas(canvas);
+    let _ = pass(&ctx, &mut editor, &mut host, 0.0, vec![preedit("か")]);
+    assert_eq!((host.text.as_str(), editor.preedit()), ("aかb", Some(1..2)));
+
+    run(&ctx, RawInput { time: Some(1.0), screen_rect: Some(screen()), ..Default::default() }, |ctx| ctx.memory_mut(|m| m.request_focus(other)));
+    let enter = key(Key::Enter, Modifiers::NONE);
+    let raw = RawInput { time: Some(2.0), screen_rect: Some(screen()), events: vec![enter, Event::Text("q".into())], ..Default::default() };
+    run(&ctx, raw, |ctx| {
+        assert_eq!(ctx.memory(|m| m.focused()), Some(other));
+        let r = editor.update(ctx, &mut host);
+        assert!(!r.took_keys && !r.commit);
+        assert_eq!(ctx.input(|i| i.events.len()), 2, "the list keeps Enter and the text");
+    });
+    assert_eq!(host.text, "aかb", "no line break, no q; the marked text stays as typed");
+    assert!(editor.preedit().is_none());
+
+    run(&ctx, RawInput { time: Some(3.0), screen_rect: Some(screen()), ..Default::default() }, |ctx| ctx.memory_mut(|m| m.request_focus(canvas)));
+    let r = pass(&ctx, &mut editor, &mut host, 4.0, vec![Event::Text("q".into())]);
+    assert!(r.changed && host.text == "aかqb", "the canvas with the focus types: {}", host.text);
+}
+
+// A window without focus leaves the keys alone.
+#[test]
+fn an_unfocused_window_leaves_the_keys() {
+    let (ctx, mut editor, mut host) = setup("ab", 1);
+    let raw = RawInput { time: Some(0.0), screen_rect: Some(screen()), focused: false, events: vec![Event::Text("x".into())], ..Default::default() };
+    run(&ctx, raw, |ctx| {
+        let r = editor.update(ctx, &mut host);
+        assert!(!r.took_keys && ctx.input(|i| i.events.len()) == 1);
+    });
+    assert_eq!(host.text, "ab");
+}
+
+// A key release without ⌘ is consumed with the press; a ⌘ release stays for the app.
+#[test]
+fn plain_key_releases_are_consumed() {
+    let (ctx, mut editor, mut host) = setup("ab", 1);
+    let release = |m: Modifiers| Event::Key { key: Key::ArrowRight, physical_key: None, pressed: false, repeat: false, modifiers: m };
+    let raw =
+        RawInput { time: Some(0.0), screen_rect: Some(screen()), events: vec![release(Modifiers::NONE), release(COMMAND)], ..Default::default() };
+    run(&ctx, raw, |ctx| {
+        let _ = editor.update(ctx, &mut host);
+        assert_eq!(ctx.input(|i| i.events.len()), 1);
+    });
+}
+
+// ⌥→ at the end of the text goes to the host as a kern; a host without formatting gets the word move.
+#[test]
+fn alt_arrows_at_the_text_edge_follow_the_host() {
+    let alt = Modifiers { alt: true, ..Modifiers::NONE };
+    let (ctx, mut editor, mut host) = setup("ab", 2);
+    let r = pass(&ctx, &mut editor, &mut host, 0.0, keys(&[(Key::ArrowRight, alt)]));
+    assert!(r.took_keys);
+    assert_eq!(host.styled, [(StyleKey::Kern(20.0), TextSelection::caret_at(2))]);
+
+    let (ctx, mut editor, mut host) = setup("ab cd", 5);
+    host.declines = true;
+    let _ = pass(&ctx, &mut editor, &mut host, 0.0, keys(&[(Key::ArrowLeft, alt)]));
+    assert_eq!(editor.selection(), TextSelection::caret_at(3), "the word move");
+}
+
+// An input method's delete-surrounding around a selection, counted in chars and in bytes (a count
+// that ends inside a char leaves it).
+#[test]
+fn delete_surrounding_counts_chars_and_bytes() {
+    let around = |before_chars, after_chars| Event::Ime(egui::ImeEvent::DeleteSurrounding { before_chars, after_chars });
+    let bytes = |before_bytes, after_bytes| Event::Ime(egui::ImeEvent::DeleteSurroundingBytes { before_bytes, after_bytes });
+    let (ctx, mut editor, mut host) = setup("abcdef", 4);
+    editor.set_selection(TextSelection { anchor: 2, caret: 4 });
+    let r = pass(&ctx, &mut editor, &mut host, 0.0, vec![around(1, 1)]);
+    assert!(r.changed);
+    assert_eq!((host.text.as_str(), editor.selection()), ("acdf", TextSelection { anchor: 1, caret: 3 }));
+    assert!(host.replaced.iter().all(|r| r.2 == EditKind::Deleted));
+
+    // "é" is 2 bytes and "日" 3: two bytes before the caret end inside 日 and leave it.
+    let (ctx, mut editor, mut host) = setup("aé日bc", 3);
+    let _ = pass(&ctx, &mut editor, &mut host, 0.0, vec![bytes(2, 0)]);
+    assert_eq!(host.text, "aé日bc");
+    let _ = pass(&ctx, &mut editor, &mut host, 1.0, vec![bytes(5, 1)]);
+    assert_eq!((host.text.as_str(), editor.selection()), ("ac", TextSelection::caret_at(1)));
+}
+
+// A press inside while composing keeps the marked text as typed; the input method's late commit
+// of the same text, a moment later, is dropped.
+#[test]
+fn a_press_while_composing_drops_the_late_duplicate_commit() {
+    let (ctx, mut editor, mut host) = setup("ab", 1);
+    let _ = pass(&ctx, &mut editor, &mut host, 0.0, vec![preedit("か")]);
+    assert!(click(&mut editor, &mut host, 0.0, 0.0, false, 1.0));
+    assert_eq!((host.text.as_str(), editor.selection(), editor.preedit()), ("aかb", TextSelection::caret_at(0), None));
+    let _ = pass(&ctx, &mut editor, &mut host, 1.1, vec![commit("か")]);
+    assert_eq!(host.text, "aかb", "the duplicate commit is not typed again");
 }
