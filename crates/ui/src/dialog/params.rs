@@ -35,6 +35,11 @@ pub enum ParamKind {
     Range { min: f64, max: f64, default: f64, scale: SliderScale },
     /// A whole-number field with steppers; `None` bounds are unbounded.
     Int { min: Option<i64>, max: Option<i64>, default: i64 },
+    /// A bare [`NumberField`] without a slider (Photoshop's Merge to HDR Pro has sliders; a
+    /// canvas size or a count does not). A `None` bound is open on that side. Scrub and arrow
+    /// keys move by `step`; `decimals` is the most digits shown after the decimal mark, so an
+    /// integer is `decimals: 0`. The field holds a [`FieldValue::Number`].
+    Number { min: Option<f64>, max: Option<f64>, default: f64, step: f64, decimals: u32 },
     /// A check box.
     Bool { default: bool },
     /// A [`Select`](crate::controls::Select) of `(id, label)` options; the field holds the id.
@@ -118,6 +123,7 @@ impl ParamKind {
         Some(match self {
             ParamKind::Range { default, .. } | ParamKind::Angle { default } => FieldValue::Number(*default),
             ParamKind::Int { default, .. } => FieldValue::Int(*default),
+            ParamKind::Number { default, .. } => FieldValue::Number(*default),
             ParamKind::Bool { default } => FieldValue::Bool(*default),
             ParamKind::Choice { options, default } => {
                 let initial = default.as_deref().or_else(|| options.first().map(|(id, _)| id.as_str()));
@@ -154,6 +160,9 @@ impl ParamKind {
             (ParamKind::Range { min, max, .. }, v) => number(v).is_some_and(|n| n.is_finite() && n >= *min && n <= *max),
             (ParamKind::Angle { .. }, v) => number(v).is_some_and(f64::is_finite),
             (ParamKind::Int { min, max, .. }, FieldValue::Int(i)) => min.is_none_or(|m| *i >= m) && max.is_none_or(|m| *i <= m),
+            (ParamKind::Number { min, max, .. }, v) => {
+                number(v).is_some_and(|n| n.is_finite() && min.is_none_or(|m| n >= m) && max.is_none_or(|m| n <= m))
+            }
             (ParamKind::Bool { .. }, FieldValue::Bool(_)) => true,
             (ParamKind::Choice { options, .. }, FieldValue::Text(id)) => options.iter().any(|(option, _)| option == id),
             (ParamKind::Color { .. }, FieldValue::Color(c)) => c.iter().all(|v| v.is_finite()),
@@ -188,6 +197,20 @@ pub struct Param {
 impl Param {
     pub fn new(key: impl Into<String>, label: impl Into<String>, kind: ParamKind) -> Self {
         Self { key: key.into(), label: label.into(), kind, unit: None, enabled_when: None, browse: None }
+    }
+
+    /// A bare number row: a [`ParamKind::Number`] open on both sides. Bound it with
+    /// [`Param::bounds`].
+    pub fn number(key: impl Into<String>, label: impl Into<String>, default: f64, step: f64, decimals: u32) -> Self {
+        Self::new(key, label, ParamKind::Number { min: None, max: None, default, step, decimals })
+    }
+
+    /// Bounds a [`ParamKind::Number`] row (`None`: open on that side); other kinds are unchanged.
+    pub fn bounds(mut self, lo: Option<f64>, hi: Option<f64>) -> Self {
+        if let ParamKind::Number { min, max, .. } = &mut self.kind {
+            (*min, *max) = (lo, hi);
+        }
+        self
     }
 
     /// A row the host draws (PhotoCraft's Zoom center picker, Indexed Color's color count). `draw`
@@ -280,6 +303,22 @@ impl Param {
                             fields.set(key, FieldValue::Number(v));
                         }
                         (slider, field)
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Number { min, max, step, decimals, .. } => {
+                let value = fields.number(key).or_else(|| number_of(default.as_ref())).unwrap_or(0.0);
+                let range = min.unwrap_or(f64::NEG_INFINITY)..=max.unwrap_or(f64::INFINITY);
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let places = 0..=*decimals as usize;
+                        let field = NumberField::new((key, "field"), label.as_str(), value, numbers).range(range).step(*step).decimals(places);
+                        let field = with_unit(field, unit).show(ui);
+                        if let Some(v) = edited(&field) {
+                            fields.set(key, FieldValue::Number(v));
+                        }
+                        field
                     })
                     .inner
                 });
@@ -974,7 +1013,12 @@ impl ParamDialog {
         let kept = |kind: &ParamKind| {
             matches!(
                 kind,
-                ParamKind::Range { .. } | ParamKind::Angle { .. } | ParamKind::Int { .. } | ParamKind::Bool { .. } | ParamKind::Choice { .. }
+                ParamKind::Range { .. }
+                    | ParamKind::Angle { .. }
+                    | ParamKind::Int { .. }
+                    | ParamKind::Number { .. }
+                    | ParamKind::Bool { .. }
+                    | ParamKind::Choice { .. }
             )
         };
         self.params.iter().filter(|p| kept(&p.kind)).map(|p| p.key.as_str()).collect()

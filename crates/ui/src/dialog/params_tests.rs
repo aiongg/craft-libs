@@ -446,3 +446,24 @@ fn confirm_stores_the_remembered_values() {
     harness.run();
     assert_eq!(radius(&harness), Some(9.0));
 }
+
+// A bare number row has no slider, accepts any value on an open side and clamps to a bound.
+#[test]
+fn a_number_row_is_unbounded_on_open_sides_and_clamped_on_bounded_ones() {
+    let rows = vec![Param::number("offset", "Offset:", 0.0, 0.5, 2), Param::number("count", "Count:", 3.0, 1.0, 0).bounds(Some(1.0), Some(10.0))];
+    let mut harness = harness(ParamDialog::new("shift", "Shift", rows));
+    harness.run();
+    assert!(harness.query_by_role(Role::Slider).is_none());
+    harness.get_by_role_and_label(Role::SpinButton, "Offset:").focus();
+    harness.run();
+    harness.event(Event::Text("-5000.25".to_owned()));
+    harness.key_press(Key::Tab);
+    harness.run();
+    harness.get_by_role_and_label(Role::SpinButton, "Count:").focus();
+    harness.run();
+    harness.event(Event::Text("99".to_owned()));
+    harness.key_press(Key::Tab);
+    harness.run();
+    let fields = open_dialog(&mut harness).expect("open").fields().clone();
+    assert_eq!((fields.number("offset"), fields.number("count")), (Some(-5000.25), Some(10.0)));
+}
