@@ -1,19 +1,25 @@
 //! [`ParamDialog`]: a filter or command dialog built from a parameter list, with Preview and
 //! Reset. [`Param`] and [`ParamKind`] are the list; [`CommandForm`](super::CommandForm) shares them.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
+use craft_host::Host;
+use craft_settings::Remembered;
+use craft_theme::{ControlSize, Rgba};
 use egui::load::SizedTexture;
-use egui::{Context, Ui};
+use egui::{Color32, Context, CornerRadius, Id, Rect, Sense, Ui, Vec2, pos2, vec2};
 
+use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::{DialogFields, FieldValue};
-use super::size::Width;
+use super::footer::{DialogLabels, Footer, Reset};
+use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
-use crate::composites::Form;
-use crate::controls::SliderScale;
-use crate::localized::Unit;
+use crate::composites::{Form, FormGrid};
+use crate::controls::text_field::{BoxState, TextField, field_box};
+use crate::controls::{AngleDial, Checkbox, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, checkerboard};
+use crate::edit::{self, EditResponse};
+use crate::localized::{Labels as _, LocaleNumbers, Unit, focus_first_field};
+use crate::theme::{Tokens, TokensOf};
 
 /// What a parameter is and which control edits it. Defaults are the values a dialog opens with
 /// when nothing is remembered and the host gave no [`values`](ParamDialog::values).
@@ -145,7 +151,270 @@ impl Param {
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:810 `body` (the match on `Kind`), with
     // the library controls in place of PhotoCraft's widgets.
     pub(super) fn row(&self, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
-        todo!()
+        let ctx = form.ctx().clone();
+        let numbers = LocaleNumbers::of_ctx(&ctx);
+        let numbers = &*numbers;
+        let label = translated(&ctx, &self.label);
+        let key = self.key.as_str();
+        let default = self.kind.default_value();
+        let unit = &self.unit;
+        match &self.kind {
+            ParamKind::Range { min, max, scale, .. } => {
+                let value = fields.number(key).or_else(|| number_of(default.as_ref())).unwrap_or(*min);
+                let (places, step) = if (max - min).abs() <= 10.0 { (0..=2, 0.01) } else { (0..=1, 1.0) };
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let slider = Slider::new((key, "slider"), label.as_str(), value, *min..=*max).scale(*scale).show(ui);
+                        let field = NumberField::new((key, "field"), label.as_str(), value, numbers).range(*min..=*max).step(step).decimals(places);
+                        let field = with_unit(field, unit).show(ui);
+                        if let Some(v) = edited(&field).or_else(|| edited(&slider)) {
+                            fields.set(key, FieldValue::Number(v));
+                        }
+                        (slider, field)
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Int { min, max, .. } => {
+                let value = fields.int(key).or_else(|| number_of(default.as_ref()).map(|n| n as i64)).unwrap_or(0);
+                let range = min.map_or(f64::NEG_INFINITY, |m| m as f64)..=max.map_or(f64::INFINITY, |m| m as f64);
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let field = NumberField::new((key, "field"), label.as_str(), value as f64, numbers).range(range).decimals(0..=0);
+                        let field = with_unit(field, unit).show(ui);
+                        if let Some(v) = edited(&field) {
+                            fields.set(key, FieldValue::Int(v.round() as i64));
+                        }
+                        field
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Bool { default } => {
+                let mut value = fields.bool(key).unwrap_or(*default);
+                let text = label.trim_end_matches([':', '：']);
+                form.unlabelled(|ui| {
+                    edit::scope(ui, |ui| {
+                        let check = Checkbox::bool(text, &mut value).id_salt(key).show(ui);
+                        if let Some(v) = edited(&check) {
+                            fields.set(key, FieldValue::Bool(v));
+                        }
+                        check
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Choice { options, .. } => {
+                let mut value = fields.text(key).map(str::to_owned).or_else(|| text_of(default.as_ref())).unwrap_or_default();
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let mut select = Select::new((key, "select"), label.as_str(), &mut value);
+                        for (id, text) in options {
+                            select = select.option(id.clone(), translated(&ctx, text));
+                        }
+                        let select = select.show(ui);
+                        if let Some(v) = edited(&select) {
+                            fields.set(key, FieldValue::Text(v));
+                        }
+                        select
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Angle { default } => {
+                let value = fields.number(key).unwrap_or(*default);
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let dial = AngleDial::new((key, "angle"), label.as_str(), value, numbers).show(ui);
+                        if let Some(v) = edited(&dial) {
+                            fields.set(key, FieldValue::Number(v));
+                        }
+                        dial
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Color { .. } => {
+                let color = fields.color(key);
+                let shown = color.map_or(Rgba::BLACK, |c| Rgba::rgb(encode(c[0]), encode(c[1]), encode(c[2])));
+                form.row(label.as_str(), |ui, _| {
+                    let swatch = ui.add(Swatch::new((key, "swatch"), label.as_str(), shown).mixed(color.is_none()));
+                    if swatch.clicked() {
+                        ui.ctx().data_mut(|d| d.insert_temp(color_press_id(), key.to_owned()));
+                    }
+                    swatch
+                });
+            }
+            ParamKind::Grid { side, .. } => {
+                let cells = match fields.grid(key) {
+                    Some(cells) if cells.len() == side * side => cells.to_vec(),
+                    _ => match default {
+                        Some(FieldValue::Grid(cells)) => cells,
+                        _ => vec![0; side * side],
+                    },
+                };
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let mut next = cells.clone();
+                        let mut first = None;
+                        ui.vertical(|ui| {
+                            for row in 0..*side {
+                                ui.horizontal(|ui| {
+                                    for column in 0..*side {
+                                        let i = row * side + column;
+                                        let name = format!("{label} {}, {}", row + 1, column + 1);
+                                        let cell = NumberField::new((key, i), name, cells[i] as f64, numbers).decimals(0..=0).show(ui);
+                                        if let Some(v) = edited(&cell) {
+                                            next[i] = v.round() as i64;
+                                        }
+                                        first.get_or_insert_with(|| cell.response.clone());
+                                    }
+                                });
+                            }
+                        });
+                        if next != cells {
+                            fields.set(key, FieldValue::Grid(next));
+                        }
+                        first.unwrap_or_else(|| ui.label(""))
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Point { default } => {
+                let value = fields.point(key).unwrap_or(*default);
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let picker = PointPicker::new((key, "point"), label.as_str(), value, preview.copied()).show(ui);
+                        if let Some(v) = edited(&picker) {
+                            fields.set(key, FieldValue::Point(v));
+                        }
+                        picker
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Channel { names, default } => {
+                let value = fields.int(key).and_then(|i| usize::try_from(i).ok()).unwrap_or(*default);
+                let mut index = value;
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let mut select = Select::new((key, "channel"), label.as_str(), &mut index);
+                        for (i, name) in names.iter().enumerate() {
+                            select = select.option(i, name.as_str());
+                        }
+                        let select = select.show(ui);
+                        if let Some(v) = edited(&select) {
+                            fields.set(key, FieldValue::Int(i64::try_from(v).unwrap_or(0)));
+                        }
+                        select
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Text { default } => {
+                let value = fields.text(key).unwrap_or(default).to_owned();
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let text = TextField::new((key, "text"), label.as_str(), &value).show(ui);
+                        if let Some(v) = edited(&text) {
+                            fields.set(key, FieldValue::Text(v));
+                        }
+                        text
+                    })
+                    .inner
+                });
+            }
+        }
+    }
+}
+
+fn with_unit<'a>(field: NumberField<'a>, unit: &Option<Unit>) -> NumberField<'a> {
+    match unit {
+        Some(unit) => field.unit(unit.clone()),
+        None => field,
+    }
+}
+
+/// The value a control's event carries (inside [`edit::scope`] every event is an update).
+fn edited<T: Clone>(response: &EditResponse<T>) -> Option<T> {
+    response.event.as_ref().and_then(|event| event.value().cloned())
+}
+
+fn number_of(value: Option<&FieldValue>) -> Option<f64> {
+    match value? {
+        FieldValue::Number(n) => Some(*n),
+        FieldValue::Int(i) => Some(*i as f64),
+        _ => None,
+    }
+}
+
+fn text_of(value: Option<&FieldValue>) -> Option<String> {
+    match value? {
+        FieldValue::Text(t) => Some(t.clone()),
+        _ => None,
+    }
+}
+
+/// An sRGB component in 0..=1 as a byte.
+fn encode(component: f32) -> u8 {
+    (component.clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+/// `text` in the installed Host's language: the catalog row of exactly this text, else the text.
+/// A parameter's label and a choice's option label are runtime strings (the English fallback of
+/// [`Param::parse_list`], or the app's own words), which `Words` cannot look up (its words are
+/// `&'static`), so this reads the Host's `I18n` with the call `Words::from_i18n` makes for a word
+/// looked up by its English text.
+fn translated(ctx: &Context, text: &str) -> String {
+    match Host::try_of_ctx(ctx) {
+        Some(host) => host.i18n().map_or(text, |i18n| i18n.t(host.lang(), text)).to_owned(),
+        None => text.to_owned(),
+    }
+}
+
+fn color_press_id() -> Id {
+    Id::unique("craft_ui::dialog::params::color_press")
+}
+
+/// The key of the colour parameter whose swatch was pressed this pass.
+pub(super) fn take_color_press(ctx: &Context) -> Option<String> {
+    ctx.data_mut(|d| d.remove_temp::<String>(color_press_id()))
+}
+
+/// Fills the keys `params` have defaults for and the fields lack, and takes the opening snapshot.
+pub(super) fn open_fields(ctx: &Context, id: DialogId, params: &[Param], fields: &mut DialogFields) {
+    for param in params {
+        if !fields.contains(&param.key)
+            && let Some(value) = param.kind.default_value()
+        {
+            fields.set(param.key.as_str(), value);
+        }
+    }
+    fields.snapshot();
+    ctx.data_mut(|d| d.insert_temp(first_field_due_id(id), true));
+}
+
+fn first_field_due_id(id: DialogId) -> Id {
+    Id::unique(("craft_ui::dialog::params::first_field_due", id))
+}
+
+/// Draws a body so that the first number field it draws, on the first laid-out pass after the
+/// dialog opened, takes the focus with its text selected: typing replaces it, Enter applies it.
+// pc: crates/ui-egui/src/dialogs.rs:156 `first_field_focused` (used by `filter_body` :404 and the
+// command forms), whichever parameter comes first.
+pub(super) fn first_field_focused<R>(ui: &mut Ui, id: DialogId, body: impl FnOnce(&mut Ui) -> R) -> R {
+    let ctx = ui.ctx().clone();
+    let due = !ui.is_sizing_pass() && ctx.data_mut(|d| d.remove_temp::<bool>(first_field_due_id(id))).unwrap_or(false);
+    focus_first_field(&ctx, due);
+    let result = body(ui);
+    focus_first_field(&ctx, false);
+    result
+}
+
+/// Draws one row per parameter.
+pub(super) fn draw_rows(params: &[Param], form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
+    for param in params {
+        param.row(form, fields, preview);
     }
 }
 
@@ -325,11 +594,12 @@ pub struct ParamDialog {
     title: String,
     params: Vec<Param>,
     fields: DialogFields,
-    layout: ParamLayout,
+    layout: Option<ParamLayout>,
     width: Width,
     preview: bool,
     preview_image: Option<SizedTexture>,
     remember_key: Option<String>,
+    picked_color: Option<String>,
     state: DialogState<DialogFields>,
 }
 
@@ -342,11 +612,12 @@ impl ParamDialog {
             title: title.into(),
             params,
             fields: DialogFields::new(),
-            layout: ParamLayout::SideColumn,
+            layout: None,
             width: Width::Standard,
             preview: false,
             preview_image: None,
             remember_key: None,
+            picked_color: None,
             state: DialogState::new(),
         }
     }
@@ -372,8 +643,10 @@ impl ParamDialog {
         self
     }
 
+    /// Where the footer sits. Without it a dialog with [`preview`](ParamDialog::preview) uses
+    /// [`ParamLayout::SideColumn`] and one without uses [`ParamLayout::BottomFooter`].
     pub fn layout(mut self, layout: ParamLayout) -> Self {
-        self.layout = layout;
+        self.layout = Some(layout);
         self
     }
 
@@ -407,27 +680,79 @@ impl ParamDialog {
     /// The rows, for a body a host draws itself in the same form.
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:810 `body`.
     pub fn rows(&mut self, form: &mut Form<'_>) {
-        todo!()
+        draw_rows(&self.params, form, &mut self.fields, self.preview_image.as_ref());
+    }
+
+    /// The key of the colour parameter whose swatch the user pressed, once: the host opens its
+    /// colour picker for it and writes the pick with `fields_mut().set(key, FieldValue::Color(..))`.
+    pub fn pick_color(&mut self) -> Option<String> {
+        self.picked_color.take()
     }
 
     /// Loads the remembered values (if `remember` was set and the Host has them) and takes the
     /// opening snapshot; the host calls it on the first pass.
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:345 `restore_remembered`.
     fn open(&mut self, ctx: &Context) {
-        todo!()
+        if let (Some(key), Some(host)) = (&self.remember_key, Host::try_of_ctx(ctx))
+            && let Some(mut saved) = Remembered::<DialogFields>::new(key.as_str()).recall(&host)
+        {
+            let keys = self.remembered_keys();
+            saved.retain_fitting(&keys, |key, value| self.params.iter().any(|p| p.key == key && p.kind.fits(value)));
+            for (key, value) in saved.iter() {
+                self.fields.set(key, value.clone());
+            }
+        }
+        open_fields(ctx, self.id, &self.params, &mut self.fields);
+    }
+
+    /// The keys whose values are remembered: PhotoCraft keeps the portable kinds (numbers, choices,
+    /// check boxes) and drops colours, grids, points, channels and free text.
+    // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:335 `rememberable` (`Range`, `Choice`, `Bool`
+    // and `Int` are kept; its angles are ranges).
+    fn remembered_keys(&self) -> Vec<&str> {
+        let kept = |kind: &ParamKind| {
+            matches!(
+                kind,
+                ParamKind::Range { .. } | ParamKind::Angle { .. } | ParamKind::Int { .. } | ParamKind::Bool { .. } | ParamKind::Choice { .. }
+            )
+        };
+        self.params.iter().filter(|p| kept(&p.kind)).map(|p| p.key.as_str()).collect()
     }
 
     /// Stores the values under the remember key.
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:363 `remember`.
     fn store(&self, ctx: &Context) {
-        todo!()
+        let (Some(key), Some(host)) = (&self.remember_key, Host::try_of_ctx(ctx)) else { return };
+        let mut saved = self.fields.clone();
+        let keys = self.remembered_keys();
+        saved.retain_fitting(&keys, |key, value| self.params.iter().any(|p| p.key == key && p.kind.fits(value)));
+        if !saved.is_empty() {
+            Remembered::<DialogFields>::new(key.as_str()).store(&host, &saved);
+        }
     }
 
-    /// The preview pane: the image fitted in the viewport size (`dialog.viewport_size`), a
-    /// checkerboard under transparency, the pointer dragging the view when the image overflows.
+    /// The preview pane: the image at its size in a well as wide as the dialog and `dialog.preview_pane` high, a checkerboard under transparency, the pointer dragging the view
+    /// along an axis the image overflows.
     // pc: crates/ui-egui/src/dialogs/filter_preview_ui.rs (the pane only; the worker stays in the app).
-    fn preview_pane(&self, ui: &mut Ui) {
-        todo!()
+    fn preview_pane(ui: &mut Ui, image: &SizedTexture) {
+        let tokens = Tokens::of(ui);
+        let [least, height] = tokens.component.dialog.preview_pane;
+        let (well, response) = ui.allocate_exact_size(vec2(ui.available_width().max(least), height), Sense::drag());
+        let field = TextField::style(&tokens, ControlSize::Md);
+        let swatch = Swatch::style(&tokens, ControlSize::Md);
+        ui.painter().extend(field_box(ui, &field, well, BoxState { enabled: true, focused: false, hovered: false, invalid: false }));
+        let slack = ((image.size - well.size()) / 2.0).max(Vec2::ZERO);
+        let pan_id = response.id.with("pan");
+        let pan = ui.data(|d| d.get_temp::<Vec2>(pan_id)).unwrap_or_default() + response.drag_delta();
+        let pan = pan.clamp(-slack, slack);
+        ui.data_mut(|d| d.insert_temp(pan_id, pan));
+        let shown = Rect::from_center_size(well.center() + pan, image.size);
+        let painter = ui.painter_at(well);
+        painter.extend(checkerboard(shown.intersect(well), CornerRadius::ZERO, swatch.checker, swatch.checker_cell));
+        painter.image(image.id, shown, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        if slack != Vec2::ZERO {
+            ui.ctx().set_cursor_icon(if response.dragged() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::Grab });
+        }
     }
 }
 
@@ -442,6 +767,69 @@ impl StackDialog for ParamDialog {
     // `Dialog::new(..).stack(stack).footer(Footer::side().preview(..).reset(Reset::AltCancel(labels.reset)))`
     // with `show_with_below` for the preview pane in `ParamLayout::BottomFooter`.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<DialogFields>> {
-        todo!()
+        if !self.state.is_open() {
+            self.open(ctx);
+        }
+        let labels = DialogLabels::of_ctx(ctx);
+        let layout = self.layout.unwrap_or(if self.preview { ParamLayout::SideColumn } else { ParamLayout::BottomFooter });
+        let mut preview = *self.state.preview();
+        let (has_preview, preview_label) = (self.preview, labels.preview.as_str());
+        let reset = Reset::AltCancel(labels.reset.clone());
+        let footer = match layout {
+            ParamLayout::SideColumn => {
+                let footer = Footer::side().reset(reset);
+                if has_preview {
+                    footer.below(|ui| {
+                        preview.checkbox(ui, preview_label);
+                    })
+                } else {
+                    footer
+                }
+            }
+            ParamLayout::BottomFooter => {
+                let footer = Footer::standard().reset(reset);
+                if has_preview {
+                    footer.leading(|ui| {
+                        preview.checkbox(ui, preview_label);
+                    })
+                } else {
+                    footer
+                }
+            }
+        };
+        let image = self.preview_image.as_ref();
+        let (params, id) = (&self.params, self.id);
+        let shown = Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).show_with_below(
+            ctx,
+            &mut self.state,
+            &mut self.fields,
+            |ui, fields| {
+                first_field_focused(ui, id, |ui| {
+                    FormGrid::new("params").show(ui, |form| draw_rows(params, form, fields, image));
+                });
+            },
+            |ui, _| {
+                if let Some(image) = image {
+                    ui.add_space(ui.spacing().item_spacing.y);
+                    Self::preview_pane(ui, image);
+                }
+            },
+        );
+        if self.state.is_open() {
+            *self.state.preview_mut() = preview;
+        }
+        self.picked_color = take_color_press(ctx).or(self.picked_color.take());
+        match shown.outcome? {
+            Outcome::Ok => {
+                self.store(ctx);
+                Some(DialogResult::Ok(self.fields.clone()))
+            }
+            Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
+            Outcome::Reset => {
+                self.fields.reset();
+                None
+            }
+            _ => None,
+        }
     }
 }
