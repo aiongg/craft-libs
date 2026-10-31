@@ -112,8 +112,9 @@ pub struct MenuResponse<T> {
     /// The popup's response while it is shown.
     pub popup: Option<Response>,
     /// A press outside the menu closed it this pass, as in PhotoCraft and Photoshop (on the
-    /// press, not its release). The press does nothing else: a host skips its own handling of
-    /// it, such as a canvas tool's.
+    /// press, not its release). The press already reached nothing else (the menu's popup
+    /// swallows primary presses outside it), so a host needs no handling of it, such as
+    /// skipping a canvas tool's.
     pub dismissed: bool,
 }
 
@@ -232,9 +233,12 @@ impl<'a, T: Clone> Menu<'a, T> {
             .layout(Layout::top_down(Align::Min))
             .style(modifier)
             .close_behavior(PopupCloseBehavior::IgnoreClicks)
+            .swallow_outside_press(true)
             .info(UiStackInfo::new(UiKind::Menu).with_tag_value(MenuConfig::MENU_CONFIG_TAG, config))
             .show(|ui| draw.level(ui, 1, id, &[], self.entries, &mut nav));
         if shown.is_some() {
+            // The submenus are layers of their own: a press in one is not outside the menu.
+            ctx.memory_mut(|m| draw.layers.iter().for_each(|&layer| m.swallow_presses_outside(layer)));
             popup_list::in_front_of(&ctx, ui.layer_id(), id);
         }
         let mut chosen = draw.chosen;

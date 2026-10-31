@@ -35,6 +35,14 @@ struct Driver {
     keyboard: bool,
     /// What the last frame painted.
     shapes: Vec<egui::epaint::ClippedShape>,
+    /// The button under the pointer's outside spot (700, 500) went down or was clicked.
+    under: Under,
+}
+
+#[derive(Default)]
+struct Under {
+    down: bool,
+    clicked: bool,
 }
 
 impl Driver {
@@ -58,6 +66,7 @@ impl Driver {
             open: false,
             keyboard: false,
             shapes: Vec::new(),
+            under: Under::default(),
         };
         d.run(3);
         d
@@ -75,8 +84,12 @@ impl Driver {
         let (entries, keyboard) = (&self.entries, self.keyboard);
         let mut shown = None;
         let mut popup = Id::NULL;
+        let under = &mut self.under;
         let mut full = self.ctx.run_ui(raw, |ui| {
             let button = ui.add(crate::controls::Button::new("Open"));
+            let beneath = ui.put(Rect::from_min_size(pos2(650.0, 450.0), vec2(100.0, 100.0)), egui::Button::new("Under"));
+            under.down |= beneath.is_pointer_button_down_on();
+            under.clicked |= beneath.clicked();
             // Only a pointer click toggles it: Enter and Space on the focused button are the menu's.
             let toggle = button.clicked_by(egui::PointerButton::Primary).then_some(egui::SetOpenCommand::Toggle);
             let p = Popup::menu(&button).open_memory(toggle);
@@ -415,6 +428,22 @@ fn a_press_outside_closes_the_menu_before_the_release_and_a_press_inside_a_subme
     d.button(true);
     assert!(d.open && d.shown("Mode 0"), "a press inside a submenu keeps every level open");
     d.button(false);
+}
+
+#[test]
+fn the_press_that_closes_a_menu_reaches_nothing_under_it() {
+    let mut d = two_submenus();
+    d.click("Open");
+    assert!(d.open);
+    d.move_to(pos2(700.0, 500.0));
+    d.button(true);
+    assert!(!d.open, "closed on the press");
+    d.button(false);
+    d.run(2);
+    assert!(!d.under.down && !d.under.clicked, "neither the press nor the click reached the button under the menu");
+    d.button(true);
+    d.button(false);
+    assert!(d.under.down && d.under.clicked, "with the menu closed the button takes presses");
 }
 
 #[test]
@@ -795,6 +824,10 @@ fn two_press_menus_in_one_frame_keep_their_own_gestures() {
     // Over the other button's row positions: Two's rows aren't shown, and One's gesture is One's.
     o.release();
     assert!(o.open[0] && !o.open[1]);
+    // The press that closes One reaches nothing, Two's button included.
+    o.press("Two");
+    o.release();
+    assert!(!o.open[0] && !o.open[1]);
     o.press("Two");
     o.run(2);
     assert!(o.open[1] && o.shown("Delta"));

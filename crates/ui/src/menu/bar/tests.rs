@@ -287,6 +287,21 @@ fn a_press_opens_a_title_a_second_press_closes_it_and_a_row_runs() {
 }
 
 #[test]
+fn a_press_on_another_title_switches_menus_while_one_is_open() {
+    let mut b = Bar::wide();
+    b.click("File");
+    assert!(b.shown("New") && !b.shown("Undo"));
+    // The press alone moves the pointer, so hover switching plays no part.
+    b.pointer = b.point("Edit");
+    b.button(true);
+    b.button(false);
+    b.run(3);
+    assert!(b.shown("Undo") && !b.shown("New"), "a press on another title opens its menu in place of the open one");
+    b.click("Edit");
+    assert!(!b.open(), "a press on the open title closes it");
+}
+
+#[test]
 fn press_drag_release_runs_the_row_and_a_release_on_the_title_keeps_the_menu_open() {
     let mut b = Bar::wide();
     let file = b.rect("File").center();
