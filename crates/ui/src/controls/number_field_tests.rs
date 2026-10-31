@@ -1566,3 +1566,27 @@ fn a_secondary_click_opens_the_unit_menu_and_reports_the_pick() {
     assert_eq!((host.picked, host.events, host.value), (Some(1), 0, 12.0));
     assert!(harness.query_by_label("mm").is_none(), "the pick closes the menu");
 }
+
+/// A host that writes back a different value after each update (a perspective box doesn't read
+/// back exactly what was sent): the field keeps the text the user typed, the run goes on, and
+/// the commit carries what was typed.
+#[test]
+fn a_host_write_back_neither_replaces_the_typed_text_nor_ends_the_run() {
+    let update = |id, value| EditEvent::Update { id, value, modifiers: Modifiers::NONE };
+    let mut rig = Rig::with(20.0, |r| r.adjust = |v| v * 0.982);
+    rig.focus();
+    let n = rig.events.len();
+    rig.type_text("5");
+    assert_eq!(rig.shown().as_deref(), Some("5"));
+    rig.frame(vec![]);
+    assert_eq!(rig.shown().as_deref(), Some("5"), "the host's 4.91 is its copy of the update");
+    rig.frame(vec![]);
+    rig.type_text("0");
+    assert_eq!(rig.shown().as_deref(), Some("50"));
+    rig.frame(vec![]);
+    rig.frame(vec![]);
+    assert_eq!(rig.shown().as_deref(), Some("50"));
+    rig.key(Key::Enter);
+    let id = begin_id(&since(&rig, n));
+    assert_eq!(since(&rig, n)[1..], [update(id, 5.0), update(id, 50.0), commit(id, 50.0, true)]);
+}

@@ -617,3 +617,63 @@ fn a_position_and_size_subset_lays_out_only_those_cells_in_photocraft_s_order() 
     let order = [x("X position"), x("Y position"), x("Width"), x("Maintain aspect ratio"), x("Height")];
     assert!(order.windows(2).all(|w| w[0] < w[1]), "{order:?}");
 }
+
+/// A perspective box does not read back what a W edit sent (PhotoCraft: typing 5 reads back
+/// 4.9 %). The field keeps the typed text through the host's write-back, whatever the number of
+/// passes the host takes to apply an update, and the commit carries what was typed.
+#[test]
+fn typing_into_w_of_a_perspective_box_keeps_the_typed_text_through_the_hosts_write_back() {
+    const BOX: Rect = Rect::new(0.0, 0.0, 100.0, 50.0);
+    let distorted = BoxState {
+        quad: [Point::new(0.0, 0.0), Point::new(100.0, 10.0), Point::new(90.0, 60.0), Point::new(-5.0, 50.0)],
+        pivot: Point::new(50.0, 25.0),
+    };
+    let pixels = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
+    let convert = Conversion { rect: BOX, x: pixels.clone(), y: pixels, size: SizeUnit::Percent, linked: true };
+    for delay in 0..5usize {
+        let applied = std::rc::Rc::new(std::cell::RefCell::new(Vec::<(u64, BoxState)>::new()));
+        let queue = applied.clone();
+        let mut h = Harness::<Typed>::builder()
+            .with_size([1400.0, 80.0])
+            .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
+            .build_ui_state(
+                move |ui, host: &mut Typed| {
+                    let mut queue = queue.borrow_mut();
+                    let pass = ui.ctx().cumulative_pass_nr();
+                    while queue.first().is_some_and(|(sent, _)| pass >= sent + delay as u64) {
+                        host.state = queue.remove(0).1;
+                    }
+                    let state = host.state;
+                    let edit = TransformFields::new("bar", &state, BOX, TransformFieldLabels::default()).groups(host.groups).show_bar(ui);
+                    if let Some(EditEvent::Begin { value: Some(value), .. } | EditEvent::Update { value, .. } | EditEvent::Commit { value, .. }) =
+                        edit.event
+                    {
+                        queue.push((pass, value.state));
+                    }
+                },
+                Typed { state: distorted, size: SizeUnit::Percent, groups: BarGroups::ALL },
+            );
+        h.run();
+        let w = centre(&h, "Width");
+        h.event(Event::PointerMoved(w));
+        h.event(button(w, true));
+        h.event(button(w, false));
+        h.run();
+        h.event(Event::Key { key: Key::A, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND });
+        let text = |h: &Harness<'_, Typed>| h.get_by_label("Width").accesskit_node().value();
+        for (typed, shown) in [("5", "5%"), ("0", "50%")] {
+            h.event(Event::Text(typed.into()));
+            for _ in 0..4 {
+                h.step();
+                assert_eq!(text(&h).as_deref(), Some(shown), "delay {delay}");
+            }
+        }
+        assert_eq!(text(&h).as_deref(), Some("50%"), "delay {delay}");
+        h.key_press(Key::Enter);
+        for _ in 0..6 {
+            h.step();
+        }
+        let w = convert.shown(&h.state().state, 0.0, TransformField::W);
+        assert!((w - 50.0).abs() < 0.05, "delay {delay}: {w}");
+    }
+}
