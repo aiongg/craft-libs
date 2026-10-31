@@ -2,6 +2,7 @@
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use toml_edit::DocumentMut;
@@ -9,6 +10,7 @@ use toml_edit::DocumentMut;
 use crate::Settings;
 use crate::document::{self, merge_into, set_schema_version};
 use crate::error::{LoadReport, ReadOnlyReason, SaveStatus, SettingsError, Source, TickResult};
+use crate::files::{DiskFiles, SettingsFiles};
 use crate::migrate::{self, LegacyFile, Upgrade};
 use crate::paths::{self, Location, Portable, Probe};
 use crate::recovery;
@@ -39,11 +41,14 @@ pub struct OpenOptions<T> {
     pub debounce: Duration,
     /// What the folder rules look at.
     pub probe: Probe,
+    /// How the files are read and written ([`DiskFiles`] by default). The store keeps it for
+    /// every read and write once the store's own `std::fs` calls go through it (fill task S4-F12).
+    pub files: Arc<dyn SettingsFiles>,
 }
 
 impl<T> Default for OpenOptions<T> {
     fn default() -> Self {
-        Self { location: Location::Auto, legacy: Vec::new(), debounce: DEFAULT_DEBOUNCE, probe: Probe::default() }
+        Self { location: Location::Auto, legacy: Vec::new(), debounce: DEFAULT_DEBOUNCE, probe: Probe::default(), files: Arc::new(DiskFiles) }
     }
 }
 
@@ -68,6 +73,12 @@ impl<T> OpenOptions<T> {
     /// What the folder rules look at.
     pub fn probe(mut self, probe: Probe) -> Self {
         self.probe = probe;
+        self
+    }
+
+    /// Routes the store's file access through `files` (an app's own I/O, browser storage).
+    pub fn files(mut self, files: Arc<dyn SettingsFiles>) -> Self {
+        self.files = files;
         self
     }
 }

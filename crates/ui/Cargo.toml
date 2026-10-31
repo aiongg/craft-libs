@@ -30,6 +30,7 @@ serde = { version = "1", features = ["derive"] }
 craft-quit = { workspace = true }
 craft-settings = { workspace = true }
 # Same version as epaint's, for reading a face's character map.
+toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

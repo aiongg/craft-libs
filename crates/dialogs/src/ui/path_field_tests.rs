@@ -1,4 +1,5 @@
 //! `PathField` in a harness with a `Files` stub installed in the Host.
+#![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 // Typing a path and pressing Enter commits it; the Browse button follows the field in Tab order.
 #[test]

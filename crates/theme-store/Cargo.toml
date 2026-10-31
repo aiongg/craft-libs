@@ -1,6 +1,6 @@
 [package]
 name = "craft-theme-store"
-description = "The Craft suite's theme files, machine-local theme library and shared suite selection, with a lock/revision protocol for concurrent apps. No egui."
+description = "The Craft suite's theme files, machine-local theme library and shared suite selection, with a lock/revision protocol for concurrent apps. egui only behind the `ui` feature (the appearance page)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -14,9 +14,13 @@ default = []
 testing = []
 # serde for `Accepted`, which apps keep in their preferences, and craft-theme's selection types in it.
 serde = ["dep:serde", "craft-theme/serde"]
+# `craft_theme_store::ui`: the Preferences appearance page and its theme chips.
+ui = ["dep:craft-ui", "dep:egui"]
 
 [dependencies]
 craft-theme = { workspace = true }
+craft-ui = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true }
 

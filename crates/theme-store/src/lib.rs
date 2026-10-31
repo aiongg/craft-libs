@@ -45,6 +45,8 @@ mod selection;
 mod store;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
+#[cfg(feature = "ui")]
+pub mod ui;
 mod watch;
 
 pub use backend::{FileStamp, LibraryFile};

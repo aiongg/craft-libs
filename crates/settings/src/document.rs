@@ -107,6 +107,25 @@ fn merge_tables(into: &mut dyn TableLike, from: &dyn TableLike) {
     }
 }
 
+/// Merges this instance's changes into the file another instance wrote (gap 31, PhotoCraft's
+/// multi-instance merge): `base` is the document as this store last read or wrote it, `ours` what
+/// it would write now, `theirs` the file on disk, which becomes the result.
+///
+/// - `ours == base`: nothing changes; `theirs` is kept.
+/// - Tables merge key by key: a key in both `base` and `theirs` recurses; a key removed on disk
+///   and unchanged here stays removed; any other key of `ours` is written (`ours` wins at the
+///   leaf, scalars and arrays replaced whole); a key `base` had and `ours` dropped is removed.
+/// - Comments and formatting of `theirs` stay, as in [`merge_into`].
+///
+/// When the disk's `schema_version` is newer than `base`'s, `base` is migrated to it with
+/// [`Settings::migrate`] first, so a migration this instance ran is not written over another
+/// instance's choice (PhotoCraft's `without_stale_migration`).
+// pc: crates/ui-egui/src/prefs/prefs_ui/save.rs:151 merge_changes, :134 without_stale_migration, :115 write_prefs
+#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+pub fn merge_changes<T: Settings>(base: &DocumentMut, ours: &DocumentMut, theirs: &mut DocumentMut) {
+    todo!()
+}
+
 /// Renders `doc` as text.
 pub fn render(doc: &DocumentMut) -> String {
     doc.to_string()
