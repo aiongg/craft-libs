@@ -98,12 +98,12 @@ use egui::{IdSalt, Ui};
 
 pub use angle_dial::{AngleDial, AngleDialStyle, AngleOrientation};
 pub use badge::{Badge, BadgeLook, BadgeStyle, BadgeTone};
-pub use button::{Button, ButtonStyle};
+pub use button::{Button, ButtonStyle, ButtonTone};
 pub use check::IndicatorColors;
 pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle};
 pub use combo_box::ComboBox;
 pub use craft_theme::{ButtonVariant, ControlSize};
-pub use icon_button::{IconButton, IconButtonStyle};
+pub use icon_button::{IconButton, IconButtonStyle, IconSource};
 pub use kbd::{Kbd, KbdStyle};
 pub use link::{Link, LinkStyle};
 pub use number_field::{NumberField, NumberFieldStyle};

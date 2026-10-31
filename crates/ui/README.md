@@ -102,6 +102,8 @@ remain the responsibility of the existing loader.
 
 `buttons::IconButton` and `IconButtonStyle` are deprecated and stay until the last app moves to
 `controls::IconButton`, which takes its colours from the theme. `buttons::IconButton` accepts a label, size and `IconButtonStyle`, and returns `egui::Response`.
+Migrating: `controls::IconButton::new(ImageSource, label).side(box).icon_size(glyph).selected(on)`;
+colours come from the theme, not from `ButtonVisuals`.
 `ButtonVisuals` describes fill, border and icon tint for normal, hovered, pressed and selected
 states. Selection wins over press and hover. `pressed: None` keeps ordinary hover/normal styling;
 `Some` supplies a separate press treatment. egui owns pointer capture and click cancellation.

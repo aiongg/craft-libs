@@ -16,6 +16,16 @@ use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, variant_cluste
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
+/// The colour of a [`Button`]'s label and icons.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ButtonTone {
+    /// The variant's own text colour.
+    #[default]
+    Default,
+    /// `accent.text` in every state but disabled, as for a secondary button that marks a changed value.
+    Accent,
+}
+
 /// A push button's sizes and colours, from [`Button::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -66,6 +76,7 @@ impl ButtonStyle {
 pub struct Button {
     label: String,
     variant: ButtonVariant,
+    tone: ButtonTone,
     size: ControlSize,
     icon: Option<Icon>,
     trailing: Option<Icon>,
@@ -81,6 +92,7 @@ impl Button {
         Self {
             label: label.into(),
             variant: ButtonVariant::Secondary,
+            tone: ButtonTone::Default,
             size: ControlSize::Md,
             icon: None,
             trailing: None,
@@ -93,6 +105,12 @@ impl Button {
 
     pub fn variant(mut self, variant: ButtonVariant) -> Self {
         self.variant = variant;
+        self
+    }
+
+    /// The label and icon colour; [`ButtonTone::Accent`] draws them in `accent.text`.
+    pub fn tone(mut self, tone: ButtonTone) -> Self {
+        self.tone = tone;
         self
     }
 
@@ -148,6 +166,15 @@ impl Button {
         self
     }
 
+    fn styled(&self, tokens: &UiTokens) -> ButtonStyle {
+        let mut style = Button::style(tokens, self.variant, self.size);
+        if self.tone == ButtonTone::Accent {
+            let accent = tokens.color.accent.text.to_egui();
+            style.text = States::new(accent, accent, accent, style.text.disabled);
+        }
+        style
+    }
+
     pub fn style(tokens: &UiTokens, variant: ButtonVariant, size: ControlSize) -> ButtonStyle {
         let b = &tokens.component.button;
         let colors = b.colors(variant);
@@ -170,7 +197,7 @@ impl Button {
 impl Widget for Button {
     fn ui(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
-        let style = Button::style(&tokens, self.variant, self.size);
+        let style = self.styled(&tokens);
         let face = Face { label: &self.label, icon: self.icon, trailing: self.trailing, size: self.size, loading: self.loading };
         let mut laid = face.layout(ui, &tokens, &style);
         laid.size.x = laid.size.x.max(self.min_width.min(ui.available_width()));
@@ -436,4 +463,47 @@ fn show_playground(ui: &mut Ui, args: &mut PlaygroundArgs) {
     });
     ui.data_mut(|d| d.insert_temp(state_id, count));
     ui.add(Text::new(format!("Clicked {count} times")).content(crate::primitives::Content::Muted));
+}
+
+#[cfg(test)]
+mod tests {
+    use egui::{Context, Pos2, RawInput, Rect, Shape, vec2};
+
+    use super::*;
+    use crate::theme::{Base, install};
+
+    /// The label's colour, the theme's `accent.text` and the secondary button's own text colour.
+    fn label_color(tone: ButtonTone) -> (Color32, Color32, Color32) {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))), ..Default::default() };
+        let mut tokens = None;
+        let mut output = ctx.run_ui(input, |ui| {
+            tokens = Some(Tokens::of(ui));
+            ui.add(Button::new("Ctrl+K").tone(tone));
+        });
+        output.textures_delta.clear();
+        let tokens = tokens.unwrap();
+        let mut found = None;
+        for clipped in output.shapes {
+            let mut stack = vec![clipped.shape];
+            while let Some(shape) = stack.pop() {
+                match shape {
+                    Shape::Vec(shapes) => stack.extend(shapes),
+                    Shape::Text(text) => found = Some(text.fallback_color),
+                    _ => {}
+                }
+            }
+        }
+        let own = Button::style(&tokens, ButtonVariant::Secondary, ControlSize::Md).text.rest;
+        (found.expect("the label is painted"), tokens.color.accent.text.to_egui(), own)
+    }
+
+    #[test]
+    fn accent_tone_draws_the_label_in_accent_text() {
+        let (color, accent, own) = label_color(ButtonTone::Accent);
+        assert_eq!(color, accent);
+        let (color, _, _) = label_color(ButtonTone::Default);
+        assert_eq!(color, own);
+    }
 }

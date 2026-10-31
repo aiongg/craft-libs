@@ -29,6 +29,7 @@ foundations/edit/log = Edit lifecycle | Event log | Panel | update rate=Choice {
 controls/button/variants = Button | Variants | Panel | label=Text("Button"); icon=Choice { options: ["none", "save", "chevron_right"], index: 0 }
 controls/button/playground = Button | Playground | Panel | variant=Choice { options: ["primary", "secondary", "ghost", "danger"], index: 0 }; size=Choice { options: ["sm", "md"], index: 1 }; icon=Choice { options: ["none", "save", "chevron_right"], index: 1 }; disabled=Bool(false); loading=Bool(false); narrow=Bool(false); label=Text("Save the document as a copy")
 controls/icon-button/plain = Icon button | Plain | Panel | size=Choice { options: ["sm", "md"], index: 1 }; tone=Choice { options: ["neutral", "info", "good", "warn", "bad"], index: 0 }; disabled=Bool(false); show tooltip=Bool(true); badge=Bool(false)
+controls/icon-button/app-icon = Icon button | App icon | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/icon-button/toggle = Icon button | Toggle | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/toggle-button/toggle = Toggle button | Toggle | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); label=Text("Snap to grid")
 controls/segmented/text = Segmented | Text | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
@@ -94,6 +95,7 @@ composites/empty-state/canvas = EmptyState | Canvas | Panel | width=Number { val
 composites/empty-state/start-screen = EmptyState | Start screen | Panel | width=Number { value: 640.0, min: 200.0, max: 800.0 }; height=Number { value: 420.0, min: 200.0, max: 600.0 }
 composites/curve-editor/curves = CurveEditor | Curves | Panel | channel=Choice { options: ["RGB", "Red", "Green", "Blue"], index: 0 }; pencil=Bool(false); histogram=Bool(true); fields=Bool(true); width=Number { value: 300.0, min: 120.0, max: 400.0 }; values=Choice { options: ["levels", "percent"], index: 0 }; update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
 composites/curve-editor/small = CurveEditor | Small | Panel | 
+composites/curve-editor/preview = CurvePreview | Preview | Panel | 
 composites/curve-editor/corners = CurveEditor | Corners | Panel | 
 composites/histogram/tone = Histogram | Tone | Panel | channel=Choice { options: ["neutral", "red", "green", "blue", "cyan", "magenta", "yellow"], index: 1 }; stale=Bool(false); marker=Bool(true); width=Number { value: 256.0, min: 80.0, max: 400.0 }
 composites/histogram/rgb = Histogram | RGB | Panel | scale=Choice { options: ["peak", "typical"], index: 0 }; marker=Bool(false); width=Number { value: 256.0, min: 80.0, max: 400.0 }

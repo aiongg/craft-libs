@@ -3,7 +3,7 @@
 use craft_theme::{ButtonPart, ButtonVariant, ControlSize, Srgba, States, Tone};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Rect, Response, Sense, Stroke, Ui, Widget, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Image, ImageSource, Rect, Response, Sense, Stroke, Ui, Widget, pos2, vec2};
 
 use super::TooltipExt as _;
 use super::button::content_color;
@@ -43,6 +43,28 @@ pub struct IconButtonStyle {
     pub badge_edge: Stroke,
 }
 
+/// The picture on an [`IconButton`]: a library [`Icon`] or an image the app supplies.
+#[derive(Clone, Debug)]
+pub enum IconSource<'a> {
+    /// An icon of the active icon set, drawn with the set's stroke.
+    Library(Icon),
+    /// An app image, normally an SVG. It is tinted with the button's state colour, so it should
+    /// be drawn in a single colour.
+    Image(ImageSource<'a>),
+}
+
+impl From<Icon> for IconSource<'_> {
+    fn from(icon: Icon) -> Self {
+        Self::Library(icon)
+    }
+}
+
+impl<'a> From<ImageSource<'a>> for IconSource<'a> {
+    fn from(source: ImageSource<'a>) -> Self {
+        Self::Image(source)
+    }
+}
+
 /// A square button showing only an icon: `ui.add(IconButton::new(Icon::Eye, "Show layer"))`.
 ///
 /// It looks like a ghost button: transparent until hovered, no edge. The required `label` is its
@@ -52,9 +74,11 @@ pub struct IconButtonStyle {
 /// AccessKit reports it toggled. [`selected`](IconButton::selected) shows the same look for a state the host owns.
 #[derive(Debug)]
 pub struct IconButton<'a> {
-    icon: Icon,
+    icon: IconSource<'a>,
     label: String,
     size: ControlSize,
+    icon_size: Option<f32>,
+    side: Option<f32>,
     on: Option<&'a mut bool>,
     selected: Option<bool>,
     show_tooltip: bool,
@@ -69,11 +93,14 @@ pub struct IconButton<'a> {
 }
 
 impl<'a> IconButton<'a> {
-    pub fn new(icon: Icon, label: impl Into<String>) -> Self {
+    /// `icon` is a library [`Icon`] or an app image ([`IconSource`]).
+    pub fn new(icon: impl Into<IconSource<'a>>, label: impl Into<String>) -> Self {
         Self {
-            icon,
+            icon: icon.into(),
             label: label.into(),
             size: ControlSize::Md,
+            icon_size: None,
+            side: None,
             on: None,
             selected: None,
             show_tooltip: true,
@@ -90,6 +117,19 @@ impl<'a> IconButton<'a> {
 
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The icon's side in points, in place of the size class's. The button keeps its own side, so
+    /// the icon can differ from the hit area.
+    pub fn icon_size(mut self, points: f32) -> Self {
+        self.icon_size = Some(points);
+        self
+    }
+
+    /// The button's side in points, in place of the size class's. The icon keeps its side.
+    pub fn side(mut self, points: f32) -> Self {
+        self.side = Some(points);
         self
     }
 
@@ -207,6 +247,8 @@ impl IconButton<'_> {
     fn show_in(self, ui: &mut Ui, rect: Option<Rect>) -> Response {
         let tokens = Tokens::of(ui);
         let mut style = self.style.unwrap_or_else(|| IconButton::style(&tokens, self.size));
+        style.side = self.side.unwrap_or(style.side);
+        style.icon = self.icon_size.unwrap_or(style.icon);
         if self.tone != Tone::Neutral {
             let fg = tokens.component.notice.fg(self.tone).to_egui();
             style.text = States::new(fg, fg, fg, style.text.disabled);
@@ -242,7 +284,10 @@ impl IconButton<'_> {
         let color = content_color(ui, if on { &style.selected_text } else { &style.text }, &response, true);
         if ui.is_rect_visible(response.rect) {
             let rect = Rect::from_center_size(response.rect.center(), vec2(style.icon, style.icon)).round_to_pixels(ui.pixels_per_point());
-            icons::paint_in(ui, rect, self.icon, icons::active(ui.ctx()), style.icon, IconSize::Sm.stroke(), color);
+            match self.icon {
+                IconSource::Library(icon) => icons::paint_in(ui, rect, icon, icons::active(ui.ctx()), style.icon, IconSize::Sm.stroke(), color),
+                IconSource::Image(source) => Image::new(source).tint(color).paint_at(ui, rect),
+            }
             if let Some(badge) = self.badge {
                 let r = style.badge / 2.0;
                 let center = pos2(direction::end_x(ui, rect) - direction::forward(ui) * r, rect.bottom() - r);
@@ -299,6 +344,7 @@ pub(crate) fn stories() -> Vec<Story> {
             PlainArgs { size: SizeArg::Md, tone: ToneArg::Neutral, disabled: false, show_tooltip: true, badge: false },
             show_plain
         ),
+        typed_story!("controls/icon-button/app-icon", Level::Controls, "Icon button", "App icon", SizeDisabledArgs::default(), show_app_icon),
         typed_story!("controls/icon-button/toggle", Level::Controls, "Icon button", "Toggle", SizeDisabledArgs::default(), show_toggle),
     ]
 }
@@ -336,6 +382,27 @@ fn show_plain(ui: &mut Ui, args: &mut PlainArgs) {
     ui.data_mut(|d| d.insert_temp(state_id, (count, tool)));
 }
 
+const APP_ICON: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 14l5-5 4 4 3-3 4 4"/></svg>"##;
+
+/// An app's own SVG on a 24 pt button and on a 34 pt button with a 20 pt icon; the second is a
+/// tool strip button the host owns.
+fn show_app_icon(ui: &mut Ui, args: &mut SizeDisabledArgs) {
+    let enabled = !args.disabled;
+    let source = || ImageSource::Bytes { uri: "bytes://craft-ui-story/app-icon.svg".into(), bytes: egui::load::Bytes::Static(APP_ICON) };
+    let state_id = ui.scope_id().with("icon-button-app-icon-selected");
+    let mut selected = ui.data(|d| d.get_temp::<bool>(state_id).unwrap_or(true));
+    Row::new(Gap::Inline).show(ui, |ui| {
+        let small = IconButton::new(source(), "Image").side(24.0).icon_size(14.0).enabled(enabled).id_salt("icon-button-app-small");
+        ui.add(small);
+        let large =
+            IconButton::new(source(), "Image").side(34.0).icon_size(20.0).selected(selected).enabled(enabled).id_salt("icon-button-app-large");
+        if ui.add(large).clicked() {
+            selected = !selected;
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(state_id, selected));
+}
+
 /// Visibility and lock toggles, one of each on.
 fn show_toggle(ui: &mut Ui, args: &mut SizeDisabledArgs) {
     let size = args.size.control();
@@ -349,4 +416,38 @@ fn show_toggle(ui: &mut Ui, args: &mut SizeDisabledArgs) {
         ui.add(IconButton::new(lock, "Locked").size(size).toggle(&mut locked).enabled(enabled).id_salt("icon-button-locked"));
     });
     ui.data_mut(|d| d.insert_temp(state_id, (visible, locked)));
+}
+
+#[cfg(test)]
+mod tests {
+    use egui::{Context, Pos2, RawInput, Rect};
+
+    use super::*;
+    use crate::theme::{Base, install};
+
+    const SVG: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg>"#;
+
+    fn app_icon<'a>() -> ImageSource<'a> {
+        ImageSource::Bytes { uri: "bytes://icon-button-test/box.svg".into(), bytes: egui::load::Bytes::Static(SVG) }
+    }
+
+    fn side_of(button: impl FnOnce() -> IconButton<'static>) -> Vec2 {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let mut size = Vec2::ZERO;
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))), ..Default::default() };
+        let mut button = Some(button);
+        ctx.run_ui(input, |ui| size = ui.add(button.take().unwrap()()).rect.size()).textures_delta.clear();
+        size
+    }
+
+    use egui::Vec2;
+
+    #[test]
+    fn an_app_icon_button_keeps_the_size_class_side_and_takes_a_free_side() {
+        let md = side_of(|| IconButton::new(Icon::Eye, "Eye"));
+        assert_eq!(side_of(|| IconButton::new(app_icon(), "Box")), md, "the source does not change the default side");
+        assert_eq!(side_of(|| IconButton::new(app_icon(), "Box").icon_size(18.0)), md, "the icon size does not move the hit area");
+        assert_eq!(side_of(|| IconButton::new(app_icon(), "Box").side(34.0).icon_size(18.0)), vec2(34.0, 34.0));
+    }
 }
