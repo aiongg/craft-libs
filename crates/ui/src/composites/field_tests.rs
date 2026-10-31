@@ -213,3 +213,17 @@ fn a_help_text_keeps_its_paragraphs_each_under_the_one_before() {
     let described = node.accesskit_node().data().described_by().len();
     assert_eq!(described, 2, "both paragraphs describe the control");
 }
+
+#[test]
+fn a_multi_paragraph_error_is_one_error_message_node_reading_every_paragraph() {
+    let harness = harness(Direction::Ltr).build_ui(|ui| {
+        let _ = Field::new("Name:")
+            .error(Some("First problem.\nSecond problem."))
+            .show(ui, |ui, invalid| TextField::new("name", "Name", "x").invalid(invalid).show(ui));
+    });
+    let node = text_input(&harness, "x");
+    let node = node.accesskit_node();
+    let message = node.data().error_message().expect("an error message");
+    let group = harness.get_by_role_and_label(Role::Group, "First problem.\nSecond problem.");
+    assert_eq!(group.accesskit_node().locate().0, message);
+}

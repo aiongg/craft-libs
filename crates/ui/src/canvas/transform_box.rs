@@ -514,7 +514,7 @@ impl<'a> TransformBox<'a> {
         {
             self.track_pass(&ctx, canvas, view, &style, d, &mut gesture, &mut out);
         }
-        if self.double_clicked_inside(&ctx, canvas, view, id, style.hit) {
+        if self.double_clicked_inside(&ctx, canvas, view, id, &style) {
             out.apply = true;
         }
 
@@ -645,13 +645,15 @@ impl<'a> TransformBox<'a> {
     }
 
     /// The button released at canvas point `pointer` (`None` if the pointer left the window):
-    /// the end of the drag, or what a click does. `double_clicked`: the release completes a
-    /// double-click, which applies the box rather than a click outside it.
+    /// the end of the drag, or what a click does; `Nothing` when the pointer left the window
+    /// without a drag. `double_clicked`: the release completes a double-click, which is not a
+    /// click outside; a double-click inside applies the box through
+    /// [`double_click`](Self::double_click), not through the release.
     pub fn release(&self, style: &TransformStyle, press: &BoxPress, pointer: Option<Pos2>, double_clicked: bool) -> BoxRelease {
-        let far = pointer.is_some_and(|p| p.distance(press.origin) > style.click_slop);
+        let near = pointer.is_some_and(|p| p.distance(press.origin) <= style.click_slop);
         if press.began {
             BoxRelease::Commit(press.last)
-        } else if press.part == BoxPart::Outside && !far && !double_clicked {
+        } else if press.part == BoxPart::Outside && near && !double_clicked {
             BoxRelease::Apply
         } else if press.alt_pivot {
             BoxRelease::Pivot(press.start)
@@ -744,14 +746,18 @@ impl<'a> TransformBox<'a> {
     }
 
     /// Whether the canvas was double-clicked inside the box with no other overlay owning the press.
-    fn double_clicked_inside(&self, ctx: &Context, canvas: &Response, view: &CanvasView, id: Id, hit: f32) -> bool {
+    fn double_clicked_inside(&self, ctx: &Context, canvas: &Response, view: &CanvasView, id: Id, style: &TransformStyle) -> bool {
         if !canvas.double_clicked() || Claim::owner(ctx, canvas.id).is_some_and(|owner| owner != id) {
             return false;
         }
-        canvas.interact_pointer_pos().is_some_and(|p| {
-            let screen = on_screen(view, self.state);
-            raw_part(&screen, p, hit) == BoxPart::Inside
-        })
+        canvas.interact_pointer_pos().is_some_and(|p| self.double_click(view, style, p))
+    }
+
+    /// Whether a double-click at canvas point `point` is inside the box, away from its handles
+    /// and the reference point, whatever [`inside_moves`](Self::inside_moves) and the modifiers
+    /// make of a press there. The host applies the box on it, as [`show`](Self::show) does.
+    pub fn double_click(&self, view: &CanvasView, style: &TransformStyle, point: Pos2) -> bool {
+        raw_part(&on_screen(view, self.state), point, style.hit) == BoxPart::Inside
     }
 
     /// Enter, Esc and the arrows; `idle`: no press is held.

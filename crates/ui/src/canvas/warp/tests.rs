@@ -918,8 +918,8 @@ fn the_host_driven_calls_give_what_show_gives() {
     for from in [screen(&h, Point::new(RECT.x0, RECT.y0)), at_fraction(&h, 0.5, 0.5)] {
         let to = from + vec2(10.0, 6.0);
         let grid = grid();
-        let mut press = grid.press(&view, &style, from).expect("a target");
-        assert_eq!(Some(press.target()), grid.hit(&view, &style, from));
+        let mut press = grid.press(&view, &style, from, Modifiers::NONE).expect("a target");
+        assert_eq!(Some(press.target()), grid.hit(&view, &style, from, Modifiers::NONE));
         let mut edits = Vec::new();
         for at in [from.lerp(to, 0.5), to] {
             edits.extend(grid.track(&view, &mut press, at).edit);
@@ -937,6 +937,9 @@ fn the_host_driven_calls_give_what_show_gives() {
     let at = at_fraction(&h, 0.25, 0.25);
     let grid = grid();
     assert!(grid.split_press(&view, at, Modifiers::NONE).is_none(), "no key, no quick split");
+    assert!(grid.press(&view, &style, at, Modifiers::ALT).is_none(), "Alt makes the press a split");
+    assert!(grid.hit(&view, &style, at, Modifiers::COMMAND).is_none());
+    assert!(grid.press(&view, &style, at, Modifiers::NONE).is_some());
     let press = grid.split_press(&view, at, Modifiers::ALT).expect("a split");
     let edit = grid.split_release(&view, &press, at).expect("an edit");
     let preview = grid.split_hit(&view, Some(&press), at, Modifiers::NONE).expect("a preview");

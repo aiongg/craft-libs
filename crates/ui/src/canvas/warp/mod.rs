@@ -784,10 +784,9 @@ impl<'a> WarpGrid<'a> {
             };
         }
         let mods = self.modifiers.unwrap_or_else(|| ctx.input(|i| i.modifiers));
-        let quick = self.split.is_none() && (mods.alt || mods.command);
-        let splitting = editable && (self.split.is_some() || quick);
+        let splitting = self.splitting(mods);
         if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) && editable && !splitting {
-            drag = self.press_pass(&ctx, canvas, view, &style, id);
+            drag = self.press_pass(&ctx, canvas, view, &style, id, mods);
             starts = drag.is_some_and(|d| !d.waits);
         }
         if starts && let Some(Drag { core: WarpPress { target: WarpTarget::Point(index), .. }, cancelled: false, .. }) = drag {
@@ -1022,21 +1021,29 @@ impl<'a> WarpGrid<'a> {
         Some(WarpSplitAt { split, column, row, u, v, thirds, cursor })
     }
 
-    /// What a press at canvas point `point` would drag: the nearest anchor or handle within
-    /// `style.hit`, else the surface under it ([`surface`](Self::surface)); `None` where the grid
-    /// is not editable or the point is off the surface.
-    pub fn hit(&self, view: &CanvasView, style: &WarpStyle, point: Pos2) -> Option<WarpTarget> {
-        if !self.editable || !self.mesh.is_valid() {
+    /// Whether a press with `modifiers` held (or the grid's own, [`modifiers`](Self::modifiers))
+    /// is a split press: a tool is set, or ⌥ or ⌘ is held with none.
+    fn splitting(&self, modifiers: Modifiers) -> bool {
+        let mods = self.modifiers.unwrap_or(modifiers);
+        self.editable && (self.split.is_some() || mods.alt || mods.command)
+    }
+
+    /// What a press at canvas point `point` with `modifiers` held would drag: the nearest anchor
+    /// or handle within `style.hit`, else the surface under it ([`surface`](Self::surface));
+    /// `None` where the grid is not editable, the point is off the surface, or the press is a
+    /// split press ([`split_press`](Self::split_press)).
+    pub fn hit(&self, view: &CanvasView, style: &WarpStyle, point: Pos2, modifiers: Modifiers) -> Option<WarpTarget> {
+        if !self.editable || !self.mesh.is_valid() || self.splitting(modifiers) {
             return None;
         }
         let screen: Vec<Pos2> = self.mesh.points.iter().map(|&p| view.to_screen(p)).collect();
         self.target_at(view, &screen, style, point)
     }
 
-    /// A press at canvas point `origin`: the press to track, or `None` where [`hit`](Self::hit)
-    /// finds no target.
-    pub fn press(&self, view: &CanvasView, style: &WarpStyle, origin: Pos2) -> Option<WarpPress> {
-        let target = self.hit(view, style, origin)?;
+    /// A press at canvas point `origin` with `modifiers` held: the press to track, or `None`
+    /// where [`hit`](Self::hit) finds no target.
+    pub fn press(&self, view: &CanvasView, style: &WarpStyle, origin: Pos2, modifiers: Modifiers) -> Option<WarpPress> {
+        let target = self.hit(view, style, origin, modifiers)?;
         Some(WarpPress { target, origin, began: false, last: None })
     }
 
@@ -1077,7 +1084,7 @@ impl<'a> WarpGrid<'a> {
 
     /// A press on the canvas read from the input: the nearest point within reach, else the
     /// surface under it, claimed for the grid.
-    fn press_pass(&self, ctx: &Context, canvas: &Response, view: &CanvasView, style: &WarpStyle, id: Id) -> Option<Drag> {
+    fn press_pass(&self, ctx: &Context, canvas: &Response, view: &CanvasView, style: &WarpStyle, id: Id, mods: Modifiers) -> Option<Drag> {
         if !ctx.input(|i| i.pointer.primary_pressed()) {
             return None;
         }
@@ -1085,7 +1092,7 @@ impl<'a> WarpGrid<'a> {
         if !(view.rect.contains(press.origin) && canvas.contains_pointer()) {
             return None;
         }
-        let core = self.press(view, style, press.origin)?;
+        let core = self.press(view, style, press.origin, mods)?;
         if !Claim::take(ctx, canvas.id, id) {
             return None;
         }

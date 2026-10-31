@@ -797,6 +797,35 @@ fn driven(
 }
 
 #[test]
+fn a_release_with_the_pointer_gone_is_not_a_click_outside() {
+    let mut h = harness(|_| {});
+    h.run();
+    let (view, style) = (view(&h), TransformBox::style(&current(&h.ctx)));
+    let start = BoxState::from_rect(RECT);
+    let b = TransformBox::new("box", &start, english_names());
+    let outside = screen(&h, Point::new(RECT.x0 - 60.0, RECT.y0 - 60.0));
+    let press = b.press(&view, &style, outside, Modifiers::NONE).expect("the rotate zone");
+    assert_eq!(press.part(), BoxPart::Outside);
+    assert_eq!(b.release(&style, &press, Some(outside), false), BoxRelease::Apply);
+    assert_eq!(b.release(&style, &press, None, false), BoxRelease::Nothing);
+}
+
+#[test]
+fn a_double_click_inside_applies_on_the_host_path_too() {
+    let mut h = harness(|host| host.inside_moves = false);
+    h.run();
+    let (view, style) = (view(&h), TransformBox::style(&current(&h.ctx)));
+    let start = BoxState::from_rect(RECT);
+    let inside = screen(&h, Point::new(250.0, 185.0));
+    for moves in [true, false] {
+        let b = TransformBox::new("box", &start, english_names()).inside_moves(moves);
+        assert!(b.double_click(&view, &style, inside), "inside_moves({moves})");
+        assert!(!b.double_click(&view, &style, screen(&h, Point::new(RECT.x0 - 60.0, RECT.y0 - 60.0))));
+        assert!(!b.double_click(&view, &style, screen(&h, Point::new(RECT.x0, RECT.y0))), "a handle");
+    }
+}
+
+#[test]
 fn the_host_driven_calls_give_what_show_gives() {
     // A corner with Shift on the pixel grid, the pivot, and a corner with the box's own modifiers.
     let cases = [

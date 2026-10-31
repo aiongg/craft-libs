@@ -281,17 +281,31 @@ impl Field {
             .inner;
         // Each line of the message is a paragraph of its own, so that a multi-paragraph help keeps
         // its breaks and AccessKit reads each paragraph.
-        let message: Vec<Response> = message
-            .map(|(text, color)| {
-                text.split('\n')
-                    .filter(|paragraph| !paragraph.is_empty())
-                    .map(|paragraph| {
-                        let format = role_format(&tokens, style.message_role, color);
-                        stack.add(Label::new(LayoutJob::single_section(paragraph.to_owned(), format)).selectable(false))
-                    })
-                    .collect()
-            })
+        let paragraphs: Vec<(String, Color32)> = message
+            .map(|(text, color)| text.split('\n').filter(|paragraph| !paragraph.is_empty()).map(|paragraph| (paragraph.to_owned(), color)).collect())
             .unwrap_or_default();
+        let add_paragraphs = |ui: &mut Ui| -> Vec<Response> {
+            paragraphs
+                .iter()
+                .map(|(paragraph, color)| {
+                    let format = role_format(&tokens, style.message_role, *color);
+                    ui.add(Label::new(LayoutJob::single_section(paragraph.clone(), format)).selectable(false))
+                })
+                .collect()
+        };
+        // AccessKit's error message is one node: a multi-paragraph error is grouped under a node
+        // that reads all its paragraphs.
+        let mut error_node = None;
+        let message: Vec<Response> = if invalid && paragraphs.len() > 1 {
+            let group = stack.scope_builder(UiBuilder::new().id_salt("error").sense(Sense::hover()), |ui| {
+                ui.spacing_mut().item_spacing.y = style.help_gap;
+                add_paragraphs(ui)
+            });
+            error_node = Some((group.response.id, paragraphs.iter().map(|(p, _)| p.as_str()).collect::<Vec<_>>().join("\n")));
+            group.inner
+        } else {
+            add_paragraphs(&mut stack)
+        };
 
         let control_rect = control.control().rect;
         let mut row = stack.min_rect();
@@ -326,11 +340,18 @@ impl Field {
                     node.push_described_by(message.id.accesskit_id());
                 }
                 if invalid && let Some(first) = message.first() {
-                    node.set_error_message(first.id.accesskit_id());
+                    let error = error_node.as_ref().map_or(first.id, |(id, _)| *id);
+                    node.set_error_message(error.accesskit_id());
                 }
                 if invalid {
                     node.set_invalid(Invalid::True);
                 }
+            });
+        }
+        if let Some((id, text)) = error_node {
+            ctx.accesskit_node_builder(id, |node| {
+                node.set_role(Role::Group);
+                node.set_label(text);
             });
         }
         drop((beside, stack));
