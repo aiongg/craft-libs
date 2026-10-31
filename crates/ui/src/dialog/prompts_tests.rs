@@ -12,7 +12,7 @@ use crate::theme::{Base, install};
 struct App {
     host: DialogHost,
     answers: Vec<PromptChoice>,
-    tags: Vec<Option<String>>,
+    tags: Vec<Option<(u32, Vec<u8>)>>,
 }
 
 fn harness(prompt: StandardPrompt, os: OperatingSystem) -> Harness<'static, App> {
@@ -28,9 +28,9 @@ fn harness(prompt: StandardPrompt, os: OperatingSystem) -> Harness<'static, App>
         .build_ui_state(
             |ui, app: &mut App| {
                 app.host.show(ui.ctx());
-                if let Some(DialogResult::Ok(answer)) = app.host.take::<StandardPrompt>() {
+                if let Some(DialogResult::Ok(mut answer)) = app.host.take::<StandardPrompt>() {
                     app.answers.push(answer.choice);
-                    app.tags.push(answer.tag);
+                    app.tags.push(answer.take_tag());
                 }
             },
             App { host, answers: Vec::new(), tags: Vec::new() },
@@ -105,12 +105,12 @@ fn cancel_does_not_store_the_skip() {
 // The tag the app gave the prompt comes back with the choice.
 #[test]
 fn the_tag_returns_with_the_choice() {
-    let mut harness = harness(StandardPrompt::damaged_file("a.psd").tag("doc-7"), OperatingSystem::Mac);
+    let mut harness = harness(StandardPrompt::damaged_file("a.psd").tag((7_u32, vec![1_u8, 2])), OperatingSystem::Mac);
     harness.run();
     harness.key_press(Key::Enter);
     harness.run();
     assert_eq!(harness.state().answers, [PromptChoice::Proceed]);
-    assert_eq!(harness.state().tags, [Some("doc-7".to_owned())]);
+    assert_eq!(harness.state().tags, [Some((7, vec![1, 2]))]);
 }
 
 // The app supplies the noun of the delete question; the plural rules pick its form.

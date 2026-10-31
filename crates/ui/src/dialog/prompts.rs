@@ -2,6 +2,9 @@
 //! [`DialogHost`](super::DialogHost), with "Don't show again" where the question allows it.
 //! `prompt.rs` holds the general [`Prompt`](super::Prompt) these are built on.
 
+use std::any::Any;
+use std::fmt;
+
 use craft_settings::Remembered;
 use egui::{Context, Key};
 
@@ -70,10 +73,33 @@ pub enum PromptChoice {
 /// What a [`StandardPrompt`] answers with: the choice and the [`tag`](StandardPrompt::tag) the
 /// app gave the prompt, so a result says which question it answers (the document, the path, the
 /// layers).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PromptAnswer {
     pub choice: PromptChoice,
-    pub tag: Option<String>,
+    tag: Option<Box<dyn Any + Send>>,
+}
+
+impl PromptAnswer {
+    /// The tag, when the prompt had one of type `T`.
+    pub fn tag<T: Any>(&self) -> Option<&T> {
+        self.tag.as_deref()?.downcast_ref()
+    }
+
+    /// Takes the tag out when it is a `T`; a tag of another type stays.
+    pub fn take_tag<T: Any>(&mut self) -> Option<T> {
+        match self.tag.take()?.downcast::<T>() {
+            Ok(tag) => Some(*tag),
+            Err(other) => {
+                self.tag = Some(other);
+                None
+            }
+        }
+    }
+}
+
+impl fmt::Debug for PromptAnswer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PromptAnswer").field("choice", &self.choice).field("tag", &self.tag.is_some()).finish()
+    }
 }
 
 /// A standard confirmation on the dialog host. The user sees a 420 pt wide question with the
@@ -85,7 +111,7 @@ pub struct PromptAnswer {
 /// let prompt = StandardPrompt::confirm_delete(["Background"], 1).noun("{n} layer", "{n} layers").tag(doc_id);
 /// if dialogs.open_unless_open(prompt).is_err() { /* a prompt is already up */ }
 /// match dialogs.take::<StandardPrompt>() {
-///     Some(DialogResult::Ok(PromptAnswer { choice: PromptChoice::Proceed, tag })) => delete(tag),
+///     Some(DialogResult::Ok(mut answer)) if answer.choice == PromptChoice::Proceed => delete(answer.take_tag::<DocId>()),
 ///     _ => {}
 /// }
 /// ```
@@ -99,7 +125,7 @@ pub struct StandardPrompt {
     kind: PromptKind,
     skip_key: Option<String>,
     skip: bool,
-    tag: Option<String>,
+    tag: Option<Box<dyn Any + Send>>,
     noun: Option<(String, String)>,
 }
 
@@ -133,9 +159,10 @@ impl StandardPrompt {
         Self::new(PromptKind::TrashMask)
     }
 
-    /// Carries `tag` back in the [`PromptAnswer`] (a document id, a path, layer ids joined).
-    pub fn tag(mut self, tag: impl Into<String>) -> Self {
-        self.tag = Some(tag.into());
+    /// Carries `tag` back in the [`PromptAnswer`], typed (a document id with the layer ids:
+    /// `(DocId, Vec<LayerId>)`); read it with [`PromptAnswer::tag`] or [`PromptAnswer::take_tag`].
+    pub fn tag<T: Any + Send>(mut self, tag: T) -> Self {
+        self.tag = Some(Box::new(tag));
         self
     }
 
@@ -248,7 +275,7 @@ impl StackDialog for StandardPrompt {
         if let (PromptChoice::Proceed, true, Some(key), Some(host)) = (choice, self.skip, &self.skip_key, craft_host::Host::try_of_ctx(ctx)) {
             Self::remembered(key).store(&host, &true);
         }
-        Some(DialogResult::Ok(PromptAnswer { choice, tag: self.tag.clone() }))
+        Some(DialogResult::Ok(PromptAnswer { choice, tag: self.tag.take() }))
     }
 }
 
