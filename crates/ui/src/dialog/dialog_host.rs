@@ -46,11 +46,11 @@ impl<T> DialogResult<T> {
 /// `show` draws one pass with a [`Dialog`](super::Dialog) (or `Prompt`/`Alert`) that takes
 /// `stack` through [`Dialog::stack`](super::Dialog::stack), so the host's ordering applies: only
 /// the top dialog is interactive. It returns `Some` on the pass the dialog finished; the host
-/// removes it then and stores the result. `Send + Sync` so a host can live in egui memory behind
-/// an `Arc<Mutex<_>>` (stories, tests).
-pub trait StackDialog: Any + Send + Sync {
+/// removes it then and stores the result. `Send` so a host can live in egui memory behind an
+/// `Arc<Mutex<_>>` (stories, tests).
+pub trait StackDialog: Any + Send {
     /// What the app reads back. `()` for a notice.
-    type Result: Send + Sync + 'static;
+    type Result: Send + 'static;
 
     /// The id the stack knows the dialog by; stable for the dialog's life
     /// ([`dialog_id`](super::dialog_id) of the dialog's key).
@@ -73,12 +73,12 @@ pub enum StartupStage {
 }
 
 /// Type-erased [`StackDialog`] the host stores.
-trait AnyStackDialog: Send + Sync {
+trait AnyStackDialog: Send {
     fn id(&self) -> DialogId;
     fn result_type(&self) -> TypeId;
-    fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send + Sync>>;
+    fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send>>;
     /// `DialogResult::<D::Result>::Cancel`, boxed, for a dialog closed from outside.
-    fn cancelled(&self) -> Box<dyn Any + Send + Sync>;
+    fn cancelled(&self) -> Box<dyn Any + Send>;
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
@@ -92,11 +92,11 @@ impl<D: StackDialog> AnyStackDialog for D {
         TypeId::of::<D>()
     }
 
-    fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send + Sync>> {
-        self.show(ctx, stack).map(|result| Box::new(result) as Box<dyn Any + Send + Sync>)
+    fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send>> {
+        self.show(ctx, stack).map(|result| Box::new(result) as Box<dyn Any + Send>)
     }
 
-    fn cancelled(&self) -> Box<dyn Any + Send + Sync> {
+    fn cancelled(&self) -> Box<dyn Any + Send> {
         Box::new(DialogResult::<D::Result>::Cancel)
     }
 
@@ -129,8 +129,10 @@ impl<D: StackDialog> AnyStackDialog for D {
 ///   time, each when the stack is empty, so the GPU warning and the update prompt never overlap
 ///   (gap 75).
 /// - A result stays until [`take`](DialogHost::take)n or until a dialog of the same type is
-///   opened again. One open dialog per type: opening a second `ParamDialog` while one is open
-///   cancels the first (its result is `Cancel`).
+///   opened again. One open dialog per type: [`open`](DialogHost::open) of a second
+///   `ParamDialog` while one is open cancels the first and drops any untaken result of the type
+///   (the new dialog's result replaces it); [`open_unless_open`](DialogHost::open_unless_open)
+///   refuses instead and leaves the open one alone (PhotoCraft's `confirmationPending`).
 /// - Automation: [`get`](DialogHost::get) and [`get_mut`](DialogHost::get_mut) reach the open
 ///   dialog's value, so a script sets fields and a test reads them like a user would.
 #[derive(Default)]
@@ -138,7 +140,7 @@ pub struct DialogHost {
     stack: DialogStack,
     open: Vec<Box<dyn AnyStackDialog>>,
     queued: Vec<(StartupStage, Box<dyn AnyStackDialog>)>,
-    results: Vec<(TypeId, Box<dyn Any + Send + Sync>)>,
+    results: Vec<(TypeId, Box<dyn Any + Send>)>,
 }
 
 impl fmt::Debug for DialogHost {
@@ -167,6 +169,13 @@ impl DialogHost {
     /// [`show`](DialogHost::show). Returns the id.
     pub fn open<D: StackDialog>(&mut self, dialog: D) -> DialogId {
         self.open_with_parent(Box::new(dialog), None)
+    }
+
+    /// Opens `dialog` unless a dialog of its type is already open; the first keeps the input and
+    /// `dialog` is returned in `Err`. Use it for prompts that must not replace each other (a
+    /// delete confirmation open when the changed-on-disk question arrives).
+    pub fn open_unless_open<D: StackDialog>(&mut self, dialog: D) -> Result<DialogId, D> {
+        if self.is_open::<D>() { Err(dialog) } else { Ok(self.open(dialog)) }
     }
 
     /// Opens `dialog` as a child of `parent`: shown over it, disabled with it, closed when the
@@ -205,7 +214,11 @@ impl DialogHost {
         }
     }
 
-    /// The result of the last `D` that finished, once. `None` while it is open or already taken.
+    /// The result of the last `D` that finished or was cancelled, once. `None` when no result
+    /// waits: it was taken already, or no `D` has finished. Opening a `D` drops an untaken result
+    /// of the type; if that `open` replaced a `D` that was still open, the replaced one's
+    /// `Cancel` waits instead. Results are per type, so the app tells two `D` apart by what the
+    /// result carries (a key, a tag).
     pub fn take<D: StackDialog>(&mut self) -> Option<DialogResult<D::Result>> {
         let at = self.results.iter().position(|(type_id, _)| *type_id == TypeId::of::<D>())?;
         let (_, result) = self.results.remove(at);
@@ -237,7 +250,7 @@ impl DialogHost {
         self.open.iter().position(|dialog| dialog.result_type() == TypeId::of::<D>())
     }
 
-    fn store_result(&mut self, type_id: TypeId, result: Box<dyn Any + Send + Sync>) {
+    fn store_result(&mut self, type_id: TypeId, result: Box<dyn Any + Send>) {
         self.results.retain(|(stored, _)| *stored != type_id);
         self.results.push((type_id, result));
     }
