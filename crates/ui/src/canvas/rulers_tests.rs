@@ -30,6 +30,8 @@ struct Host {
     /// The host's Set Zero Point… and Reset Zero Point commands, run after the rulers.
     set_zero: Option<Point>,
     reset_zero: bool,
+    /// The rulers are shown before the guides in a pass.
+    rulers_first: bool,
 }
 
 impl Host {
@@ -49,6 +51,7 @@ impl Host {
             guide_events: Vec::new(),
             set_zero: None,
             reset_zero: false,
+            rulers_first: false,
         }
     }
 }
@@ -65,6 +68,16 @@ fn harness(host: Host) -> Harness<'static, Host> {
             host.view = Some(view);
             let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
             let names = GuideNames::new("Guides", "Vertical guide", "Horizontal guide");
+            let guides_id = ui.make_persistent_id(egui::IdSalt::new("guides"));
+            let mut rulers = None;
+            if host.rulers_first {
+                rulers = Some(
+                    Rulers::new("rulers", &px, &px, RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin"))
+                        .zero(host.zero)
+                        .origin_locked(host.locked)
+                        .show(ui, full, &view, Some(guides_id)),
+                );
+            }
             let guides = Guides::new("guides", &host.guides.guides, &px, &px, names)
                 .selected(host.guides.selected)
                 .interactive(true)
@@ -73,8 +86,10 @@ fn harness(host: Host) -> Harness<'static, Host> {
                 .show(ui, &canvas, &view);
             host.guide_events.extend(guides.event.clone());
             host.guides.apply(&guides);
-            let names = RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin");
-            let rulers = Rulers::new("rulers", &px, &px, names).zero(host.zero).origin_locked(host.locked).show(ui, full, &view, Some(guides.id));
+            let rulers = rulers.unwrap_or_else(|| {
+                let names = RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin");
+                Rulers::new("rulers", &px, &px, names).zero(host.zero).origin_locked(host.locked).show(ui, full, &view, Some(guides.id))
+            });
             host.origin.extend(rulers.origin.clone());
             host.resets += usize::from(rulers.reset_origin);
             host.contexts.extend(rulers.context);
@@ -506,5 +521,49 @@ fn left_ruler_labels_sit_at_their_level_positions_in_flipped_and_rotated_views()
         let first_char = |text: &str, y: f32| left.iter().any(|(t, p)| t == text && (p.y - (y + pad)).abs() < 1.0);
         assert!(first_char("0", at.y), "rotation {rotation}, flip {flip}: 0 at the zero point's level: {left:?}");
         assert!(first_char("1", at.y + 100.0), "rotation {rotation}, flip {flip}: 100 below it: {left:?}");
+    }
+}
+
+/// Presses on the top ruler and releases over the canvas in `frames` frames, the moves and the
+/// release in the last one, with the rulers shown before or after the guides.
+fn quick_drag_out_of_the_top_ruler(frames: usize, rulers_first: bool) -> Vec<(Orientation, f64)> {
+    let mut h = harness(Host { rulers_first, ..Host::new() });
+    h.run();
+    let v = view(&h);
+    let (from, to) = (top_ruler(&h, v.rect.min.x + 150.0), v.to_screen(Point::new(150.0, 80.0)));
+    let down = [Event::PointerMoved(from), button(from, true, Modifiers::NONE)];
+    let up = [Event::PointerMoved(from.lerp(to, 0.5)), Event::PointerMoved(to), button(to, false, Modifiers::NONE)];
+    if frames == 1 {
+        frame(&mut h, down.into_iter().chain(up));
+    } else {
+        frame(&mut h, down);
+        frame(&mut h, up);
+    }
+    h.run();
+    h.state().guides.guides.iter().map(|g| (g.orientation, g.position)).collect()
+}
+
+#[test]
+fn a_press_moved_and_released_within_two_frames_still_makes_the_guide() {
+    for rulers_first in [false, true] {
+        for frames in [1, 2] {
+            assert_eq!(
+                quick_drag_out_of_the_top_ruler(frames, rulers_first),
+                [(Orientation::Horizontal, 80.0)],
+                "{frames} frames, rulers first: {rulers_first}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_quick_press_on_the_ruler_released_where_it_began_makes_no_guide() {
+    for rulers_first in [false, true] {
+        let mut h = harness(Host { rulers_first, ..Host::new() });
+        h.run();
+        let at = top_ruler(&h, view(&h).rect.min.x + 150.0);
+        frame(&mut h, [Event::PointerMoved(at), button(at, true, Modifiers::NONE), button(at, false, Modifiers::NONE)]);
+        h.run();
+        assert!(h.state().guides.guides.is_empty() && h.state().guide_events.is_empty(), "{:?}", h.state().guide_events);
     }
 }

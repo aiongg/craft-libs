@@ -26,6 +26,8 @@ struct Host {
     /// The host skips the guides (another tool, guides hidden).
     hidden: bool,
     field: TypingField,
+    /// A text field that holds the keyboard while it is `Some`.
+    text: Option<String>,
     modifiers: Option<Modifiers>,
 }
 
@@ -41,11 +43,17 @@ fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
         interactive: true,
         hidden: false,
         field: TypingField::default(),
+        text: None,
         modifiers: None,
     };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
             host.field.show(ui);
+            if let Some(text) = &mut host.text {
+                let field = ui.add(egui::TextEdit::singleline(text));
+                field.widget_info(|| egui::WidgetInfo::labeled(egui::accesskit::Role::TextInput, true, "Name"));
+                field.request_focus();
+            }
             ui.add_space(40.0);
             // Not a Tab stop, so Tab goes to the guides.
             let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
@@ -65,6 +73,7 @@ fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
                 .interactive(host.interactive)
                 .bounds(Rect::new(0.0, 0.0, 400.0, 300.0))
                 .zero(host.zero)
+                .readout("X", "Y")
                 .show(ui, &canvas, &view);
             if let Some(orientation) = host.ruler.take() {
                 Guides::drag_from_ruler(ui.ctx(), response.id, orientation);
@@ -333,6 +342,50 @@ fn delete_removes_the_selected_guide() {
     h.key_press(Key::Backspace);
     h.run();
     assert!(positions(&h).is_empty());
+}
+
+#[test]
+fn delete_acts_while_the_canvas_has_the_pointer_unless_a_text_field_has_the_keys() {
+    let mut h = harness(vec![Guide::new(1, Orientation::Vertical, 100.0), Guide::new(2, Orientation::Vertical, 200.0)], 0.0);
+    h.state_mut().guides.selected = Some(2);
+    h.run();
+    // No focus on the guides, the pointer outside the canvas: the key is not for them.
+    h.event(Event::PointerMoved(Pos2::new(1.0, 1.0)));
+    h.run();
+    h.key_press(Key::Delete);
+    h.run();
+    assert_eq!(positions(&h).len(), 2);
+    // Over the canvas, off the guides.
+    let over = screen(&h, Point::new(150.0, 150.0));
+    h.event(Event::PointerMoved(over));
+    h.run();
+    h.state_mut().text = Some(String::new());
+    h.run();
+    h.key_press(Key::Delete);
+    h.run();
+    assert_eq!(positions(&h).len(), 2, "a text field has the keys");
+    h.state_mut().text = None;
+    h.run();
+    h.key_press(Key::Delete);
+    h.run();
+    assert_eq!(last(&h), Some((Some(2), "set", Some(GuidePlace { orientation: Orientation::Vertical, position: None }))));
+    assert_eq!(positions(&h), [(1, Orientation::Vertical, 100.0)]);
+    assert_eq!(h.state().guides.selected, Some(1));
+}
+
+#[test]
+fn the_drag_readout_drops_trailing_zeros() {
+    let mut h = harness(vec![Guide::new(1, Orientation::Vertical, 100.0)], 0.0);
+    h.run();
+    let from = screen(&h, Point::new(100.0, 200.0));
+    h.event(Event::PointerMoved(from));
+    h.event(button(from, true, Modifiers::NONE));
+    h.run();
+    for (x, text) in [(103.0, "X 103 px"), (103.5, "X 103.5 px")] {
+        h.event(Event::PointerMoved(screen(&h, Point::new(x, 200.0))));
+        h.run();
+        let _ = h.get_by_label(text);
+    }
 }
 
 /// The shapes of the last frame in `color`.

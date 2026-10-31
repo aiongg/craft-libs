@@ -8,8 +8,8 @@ use std::ops::Range;
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{
-    Align2, AsIdSalt, Color32, Context, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Painter, Pos2, Response, Sense, Shape, Stroke, Ui,
-    UiBuilder, Vec2 as ScreenVec, WidgetInfo, vec2,
+    Align2, AsIdSalt, Color32, Context, CornerRadius, Event, EventFilter, Id, IdSalt, Key, Modifiers, Painter, PointerButton, Pos2, Response, Sense,
+    Shape, Stroke, Ui, UiBuilder, Vec2 as ScreenVec, WidgetInfo, vec2,
 };
 use kurbo::{Point, Rect, Vec2};
 
@@ -148,7 +148,8 @@ pub struct GuidesResponse {
     /// An edit of a guide: its key (`None` for a guide being dragged out of a ruler, which the
     /// host adds on the commit) and the event. A drag reports Begin, Update and Commit
     /// (`position: None` when it was dropped on a ruler or outside the bounds), or Cancel; a nudge
-    /// or Delete a Set.
+    /// or Delete a Set, and so is a drag that begins and is released in one pass (a drag handed
+    /// over by a ruler after its release), which the host handles as the Commit.
     pub event: Option<(Option<u64>, EditEvent<GuidePlace>)>,
     /// A guide released where it was pressed: its key, the modifiers held (PhotoCraft turns a
     /// guide on Alt-click) and the document point.
@@ -265,6 +266,16 @@ struct Drag {
     /// The press waits for another control's typing run to end ([`Claim::turn`]); the guide's
     /// place is read again when its turn comes.
     waits: bool,
+    /// The release, for a drag handed over after its press ended: the guides run it as the
+    /// release seen live.
+    released: Option<Release>,
+}
+
+/// Where and with which modifiers a primary press was released.
+#[derive(Clone, Copy, Debug)]
+struct Release {
+    pos: Pos2,
+    modifiers: Modifiers,
 }
 
 /// The ruler guides of a canvas: drawn, taken by the pointer, moved with the keyboard, and in the
@@ -295,8 +306,9 @@ struct Drag {
 /// - Shift snaps to the ruler's ticks, otherwise the host's [`snap`](Self::snap) places the guide.
 /// - The guides are one Tab stop. Page Up and Page Down select the previous or next guide
 ///   (vertical guides left to right, then horizontal top to bottom), the arrow keys nudge the
-///   selected one across its axis ([`nudge::read`]), Delete and Backspace remove it and select
-///   the next. With keyboard focus two `line.focus` lines on `overlay.halo` run beside the
+///   selected one across its axis ([`nudge::read`]). Delete and Backspace remove it and select
+///   the next, also while only the canvas has the pointer or focus (no text field or popup has
+///   the keys). With keyboard focus two `line.focus` lines on `overlay.halo` run beside the
 ///   selected guide; with no selected guide in view the focus ring goes round the canvas.
 /// - Selection is the host's: it passes [`selected`](Self::selected) and applies
 ///   [`select`](GuidesResponse::select).
@@ -425,16 +437,33 @@ impl<'a> Guides<'a> {
     /// Starts dragging a new guide of `orientation` out of a ruler: the top ruler makes a
     /// horizontal guide, the left one a vertical guide. The ruler calls it when a drag starts on
     /// it, with the [`id`](GuidesResponse::id) of the guides it feeds; the guides run the drag
-    /// from their next pass until the release, wherever the pointer goes. Alt held turns the guide
-    /// the other way (PhotoCraft #5698). Released over the canvas and inside the bounds the drag
-    /// commits with no key and the host adds the guide; elsewhere it is cancelled.
+    /// until the release, wherever the pointer goes. Alt held turns the guide the other way
+    /// (PhotoCraft #5698). Released over the canvas and inside the bounds the drag commits with
+    /// no key and the host adds the guide; elsewhere it is cancelled.
     ///
-    /// The drag belongs to the primary press in progress: if the guides are not shown again before
-    /// that press ends, it is dropped. Without a primary press it does nothing.
+    /// The guides take the drag when they are shown, in this pass if that comes after the call,
+    /// otherwise in the next. A press that has ended by then is run as its release: the drag
+    /// commits or is cancelled where it was released. Without a primary press it does nothing.
     pub fn drag_from_ruler(ctx: &Context, guides: Id, orientation: Orientation) {
-        let Some(press) = PrimaryPress::current(ctx) else { return };
+        if let Some(press) = PrimaryPress::current(ctx) {
+            Guides::hand_off(ctx, guides, orientation, press);
+        }
+    }
+
+    /// [`drag_from_ruler`](Self::drag_from_ruler) for the primary `press`, which may have ended
+    /// in this pass.
+    pub(super) fn hand_off(ctx: &Context, guides: Id, orientation: Orientation, press: PrimaryPress) {
         let start = GuidePlace { orientation, position: None };
-        ctx.data_mut(|d| d.insert_temp(drag_key(guides), Drag { key: None, base: orientation, start, press, began: false, waits: false }));
+        let released = ctx.input(|i| {
+            if i.pointer.primary_down() {
+                return None;
+            }
+            i.events.iter().rev().find_map(|e| match *e {
+                Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers } => Some(Release { pos, modifiers }),
+                _ => None,
+            })
+        });
+        ctx.data_mut(|d| d.insert_temp(drag_key(guides), Drag { key: None, base: orientation, start, press, began: false, waits: false, released }));
     }
 
     /// Draws the guides over `view` and senses through the host's `canvas` response.
@@ -462,10 +491,12 @@ impl<'a> Guides<'a> {
         let focused = pass.tab_stop && group.has_focus();
         let mut out = GuidesResponse { id, event: None, clicked: None, double_clicked: None, select: None, context: None, claimed: false };
 
-        // A drag whose press ended while the guides were not shown is dropped. A gesture it began
-        // ended then too: a gesture is over once its control misses a pass.
-        let mut drag: Option<Drag> =
-            ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx) || (d.waits && Claim::is_owner(&ctx, canvas.id, id)));
+        // A drag whose press ended while the guides were not shown is dropped, unless it was
+        // handed over with its release. A gesture it began ended then too: a gesture is over once
+        // its control misses a pass.
+        let mut drag: Option<Drag> = ctx
+            .data(|d| d.get_temp(drag_key(id)))
+            .filter(|d: &Drag| d.released.is_some() || d.press.holds(&ctx) || (d.waits && Claim::is_owner(&ctx, canvas.id, id)));
         let waited = drag.is_some_and(|d| d.waits);
         if let Some(d) = drag
             && d.waits
@@ -503,6 +534,11 @@ impl<'a> Guides<'a> {
         }
         if focused && drag.is_none() {
             self.keys(ui, &order, &mut gesture, &mut out, view);
+        }
+        // Delete acts on the selected guide wherever the canvas has the pointer or the focus, as
+        // in PhotoCraft, unless a text field or a popup has the keys.
+        if self.interactive && drag.is_none() && (focused || canvas.contains_pointer() || canvas.has_focus()) && nudge::reads(ui) {
+            self.delete(ui, &order, &mut gesture, &mut out);
         }
         if pass.tab_stop && group.gained_focus() && !self.selected.is_some_and(|k| order.contains(&k)) && out.select.is_none() {
             out.select = Some(order.first().copied());
@@ -559,7 +595,7 @@ impl<'a> Guides<'a> {
         {
             let g = &self.guides[i];
             let waits = Claim::turn(&pass.ctx, pass.canvas.id, pass.id) == Turn::Waits;
-            return Some(Drag { key: Some(g.key), base: g.orientation, start: g.place(), press, began: false, waits });
+            return Some(Drag { key: Some(g.key), base: g.orientation, start: g.place(), press, began: false, waits, released: None });
         }
         if on.is_none() && self.selected.is_some() {
             out.select = Some(None);
@@ -585,7 +621,10 @@ impl<'a> Guides<'a> {
             gesture.begin();
             d.began = true;
         }
-        let (pointer, down, input_mods) = pass.ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
+        let (pointer, down, input_mods) = match d.released {
+            Some(Release { pos, modifiers }) => (Some(pos), false, modifiers),
+            None => pass.ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers)),
+        };
         let mods = self.modifiers.unwrap_or(input_mods);
         let orientation = match d.key {
             None if mods.alt => d.base.flipped(),
@@ -609,12 +648,14 @@ impl<'a> Guides<'a> {
             at = Some((pointer, raw, position));
         }
         let live = d.began.then(|| *gesture.shown());
-        if d.began {
+        if d.began && d.released.is_none() {
             if let Some((pointer, _, position)) = at
                 && let Some((x, y)) = &self.readout
             {
                 let label = if orientation == Orientation::Vertical { x } else { y };
-                let value = pass.units(orientation).format_value(position, orientation.position(self.zero));
+                let units = pass.units(orientation);
+                // Trailing zeros dropped, as PhotoCraft's readout: `103`, `103.5`.
+                let value = units.format(position, orientation.position(self.zero), 0..=units.decimals.max(1));
                 Readout::new(("craft_ui::canvas::Guides::readout", pass.id)).row(label.clone(), value).show(&pass.ctx, pointer);
             }
             pass.ctx.set_cursor_icon(resize_cursor(view, orientation.across()));
@@ -744,7 +785,7 @@ impl<'a> Guides<'a> {
         });
     }
 
-    /// Page Up, Page Down, Delete and the arrow keys, while the guides have focus.
+    /// Page Up, Page Down and the arrow keys, while the guides have focus.
     fn keys(&self, ui: &Ui, order: &[u64], gesture: &mut Gesture<GuidePlace>, out: &mut GuidesResponse, view: &CanvasView) {
         let current = self.selected.and_then(|k| order.iter().position(|&o| o == k));
         let (up, down) = ui.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::PageUp), i.consume_key(Modifiers::NONE, Key::PageDown)));
@@ -763,13 +804,6 @@ impl<'a> Guides<'a> {
         }
         let Some(c) = current else { return };
         let Some(guide) = self.find(order[c]) else { return };
-        let delete = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete) || i.consume_key(Modifiers::NONE, Key::Backspace));
-        if delete {
-            gesture.set(GuidePlace { orientation: guide.orientation, position: None });
-            // The keys keep a guide to act on: the next one, or the previous after the last.
-            out.select = Some(order.get(c + 1).or_else(|| c.checked_sub(1).and_then(|p| order.get(p))).copied());
-            return;
-        }
         if let Some(moved) = nudge::read(ui, self.steps.0, self.steps.1) {
             let by = guide.orientation.position(moved.to_point());
             if by != 0.0 {
@@ -777,6 +811,17 @@ impl<'a> Guides<'a> {
                 let position = (guide.position + by).clamp(lo.min(hi), hi.max(lo));
                 gesture.set(GuidePlace { orientation: guide.orientation, position: Some(position) });
             }
+        }
+    }
+
+    /// Delete and Backspace remove the selected guide and select the next.
+    fn delete(&self, ui: &Ui, order: &[u64], gesture: &mut Gesture<GuidePlace>, out: &mut GuidesResponse) {
+        let Some(c) = self.selected.and_then(|k| order.iter().position(|&o| o == k)) else { return };
+        let Some(guide) = self.find(order[c]) else { return };
+        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete) || i.consume_key(Modifiers::NONE, Key::Backspace)) {
+            gesture.set(GuidePlace { orientation: guide.orientation, position: None });
+            // The keys keep a guide to act on: the next one, or the previous after the last.
+            out.select = Some(order.get(c + 1).or_else(|| c.checked_sub(1).and_then(|p| order.get(p))).copied());
         }
     }
 
@@ -1076,7 +1121,7 @@ impl GuideHost {
                 self.before = None;
                 self.place(*key, *value);
             }
-            (EditEvent::Commit { value, .. }, None) => {
+            (EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }, None) => {
                 self.before = None;
                 if let Some(position) = value.position {
                     self.guides.push(Guide::new(self.next_key, value.orientation, position));

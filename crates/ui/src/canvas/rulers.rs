@@ -5,11 +5,12 @@ use crate::canvas::story::ViewArgs;
 use crate::localized::Labels as _;
 use egui::accesskit::{self, Role};
 use egui::{
-    Align2, AsIdSalt, Color32, Context, CursorIcon, FontId, Id, IdSalt, Modifiers, Painter, Pos2, Rect as ScreenRect, Sense, Stroke, Ui, WidgetInfo,
-    pos2, vec2,
+    Align2, AsIdSalt, Color32, Context, CursorIcon, FontId, Id, IdSalt, LayerId, Modifiers, Painter, Pos2, Rect as ScreenRect, Sense, Stroke, Ui,
+    WidgetInfo, pos2, vec2,
 };
 use kurbo::Point;
 
+use super::claim::PrimaryPress;
 use super::guides::segment;
 use super::units::tick_snap;
 use super::{CanvasView, Guides, Orientation, RulerUnits, crisp, resize_cursor};
@@ -19,6 +20,37 @@ use crate::primitives::Divider;
 use crate::story::{Level, Story, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
+
+/// A press that began on a ruler strip, kept until it ends.
+#[derive(Clone, Copy)]
+struct RulerPress {
+    press: PrimaryPress,
+    orientation: Orientation,
+    /// The guides have the drag.
+    handed: bool,
+}
+
+/// Hands the press that began on a ruler `strip` to the `guides` once it is decidedly a drag: moved
+/// beyond a click, or held long. Decided from the pointer's own state, not egui's drag on the
+/// strip, which never starts for a press released in the pass that moves it. A press that has
+/// ended by then is handed over with its release.
+fn hand_off(ctx: &Context, key: Id, guides: Id, layer: LayerId, strips: [(ScreenRect, Orientation); 2]) {
+    let current = ctx.data(|d| d.get_temp::<RulerPress>(key)).filter(|s| s.press.holds(ctx));
+    let fresh = || {
+        let press = PrimaryPress::current(ctx)?;
+        let (_, orientation) = strips.iter().find(|(strip, _)| strip.contains(press.origin))?;
+        (ctx.layer_id_at(press.origin) == Some(layer)).then_some(RulerPress { press, orientation: *orientation, handed: false })
+    };
+    let Some(mut state) = current.or_else(fresh) else {
+        ctx.data_mut(|d| d.remove::<RulerPress>(key));
+        return;
+    };
+    if !state.handed && ctx.input(|i| !i.pointer.could_any_button_be_click()) {
+        Guides::hand_off(ctx, guides, state.orientation, state.press);
+        state.handed = true;
+    }
+    ctx.data_mut(|d| d.insert_temp(key, state));
+}
 
 /// A top-ruler label sits this far below the strip's top edge (PhotoCraft).
 const LABEL_TOP: f32 = 1.0;
@@ -311,9 +343,9 @@ impl<'a> Rulers<'a> {
                 if response.hovered() || response.dragged() {
                     ctx.set_cursor_icon(resize_cursor(view, orientation.across()));
                 }
-                if response.drag_started() {
-                    Guides::drag_from_ruler(&ctx, guides, orientation);
-                }
+            }
+            if ui.is_enabled() {
+                hand_off(&ctx, id.with("press"), guides, ui.layer_id(), [(top, Orientation::Horizontal), (left, Orientation::Vertical)]);
             }
         }
         self.corner(ui, &style, view, &corner_response, id, &mut out);
