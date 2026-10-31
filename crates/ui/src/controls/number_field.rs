@@ -16,6 +16,7 @@ use egui::{
     Pos2, Rect, RectAlign, Response, Sense, Shape, Ui, ViewportCommand, pos2, vec2,
 };
 
+use super::expr;
 use super::field_wheel;
 use super::slider::{PressTurn, Scale, Track, labelled, pointer, press_turn, with_values};
 use super::text_field::{BoxState, field_box};
@@ -157,6 +158,7 @@ pub struct NumberField<'a> {
     commit_decimals: Option<usize>,
     unit: Unit,
     fallback: Option<Box<Reader<'a>>>,
+    expressions: bool,
     handle: Option<Handle>,
     scrub_by: Option<Response>,
     scrub_text: bool,
@@ -220,6 +222,7 @@ impl<'a> NumberField<'a> {
             commit_decimals: None,
             unit: Unit::default(),
             fallback: None,
+            expressions: false,
             handle: None,
             scrub_by: None,
             scrub_text: true,
@@ -298,9 +301,9 @@ impl<'a> NumberField<'a> {
     /// commit, after the locale's plain number and before an [`or_parse`](NumberField::or_parse)
     /// reader. The text is handed over with the region's decimal mark as `.` and ASCII digits.
     // pc: crates/ui-egui/src/widgets/fields.rs:373 `number_edit` → numeric_expression::parse.
-    #[expect(clippy::todo, unused_variables, unused_mut, reason = "skeleton: removed when the body lands")]
     pub fn expressions(mut self, on: bool) -> Self {
-        todo!()
+        self.expressions = on;
+        self
     }
 
     /// Up and Down, the wheel and screen-reader increments step to `next(value, direction)`
@@ -520,6 +523,7 @@ impl<'a> NumberField<'a> {
             commit_decimals: self.commit_decimals.unwrap_or(*self.decimals.end()).max(*self.decimals.end()),
             unit: &self.unit,
             fallback: self.fallback.as_deref(),
+            expressions: self.expressions,
             bounds,
             grid: (self.snap_typed && self.step > 0.0 && self.step.is_finite() && bounds.0.is_finite() && bounds.1.is_finite()).then_some(self.step),
             max_chars: self.max_chars,
@@ -1092,6 +1096,7 @@ struct Numbers<'n> {
     commit_decimals: usize,
     unit: &'n Unit,
     fallback: Option<&'n Reader<'n>>,
+    expressions: bool,
     bounds: (f64, f64),
     /// The step a typed value snaps to.
     grid: Option<f64>,
@@ -1112,6 +1117,29 @@ impl Numbers<'_> {
             Some(step) => round_half_away(Scale::new(&(self.bounds.0..=self.bounds.1), Some(step)).snap(value), self.commit_decimals),
             None => value,
         }
+    }
+}
+
+impl Numbers<'_> {
+    /// `text` with each number in the region's digits and marks as ASCII with `.`, the form
+    /// [`expr`] reads; `None` when a number in it is not one the region writes.
+    fn ascii(&self, text: &str) -> Option<String> {
+        let part = |c: char| c.is_numeric() || matches!(c, '.' | ',' | '\u{66b}');
+        let mut out = String::with_capacity(text.len());
+        let mut rest = text;
+        while !rest.is_empty() {
+            let end = rest.find(|c: char| !part(c)).unwrap_or(rest.len());
+            let (run, tail) = rest.split_at(end);
+            if run.is_empty() {
+                let c = tail.chars().next()?;
+                out.push(c);
+                rest = tail.get(c.len_utf8()..)?;
+            } else {
+                out.push_str(&self.numbers.parse(run).ok()?.to_string());
+                rest = tail;
+            }
+        }
+        Some(out)
     }
 }
 
@@ -1144,7 +1172,16 @@ impl Codec for Numbers<'_> {
             return Ok(None);
         }
         let read = self.numbers.parse(bare);
-        match read.as_ref().ok().copied().or_else(|| self.fallback.and_then(|f| f(text))).filter(|v| v.is_finite()) {
+        let read_expression = || {
+            let ascii = self.ascii(bare)?;
+            start.and_then(|current| expr::relative(&ascii, current)).or_else(|| expr::parse(&ascii))
+        };
+        let typed = read.as_ref().ok().copied();
+        match typed
+            .or_else(|| self.expressions.then(read_expression).flatten())
+            .or_else(|| self.fallback.and_then(|f| f(text)))
+            .filter(|v| v.is_finite())
+        {
             Some(v) => Ok(Some(self.settle_typed(v))),
             None => {
                 let error = read.err().unwrap_or(craft_i18n::NumberError::TooLarge);

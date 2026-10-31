@@ -119,16 +119,29 @@ impl LengthUnit {
 impl LengthUnit {
     /// The suffix a field shows after a number in this unit (`px`, `%`, `in`, `cm`, `mm`, `pt`,
     /// `pica`), as Photoshop's fields.
-    // pc: crates/ui-egui/src/widgets/units.rs:5 `unit_of_key` (the reverse), numeric_expression.rs:29 `UNIT_NAMES`.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     pub fn suffix(self) -> &'static str {
-        todo!()
+        match self {
+            LengthUnit::Pixels => "px",
+            LengthUnit::Percent => "%",
+            LengthUnit::Inches => "in",
+            LengthUnit::Centimetres => "cm",
+            LengthUnit::Millimetres => "mm",
+            LengthUnit::Points => "pt",
+            LengthUnit::Picas => "pica",
+        }
     }
 
     /// The unit's name in the user's language, for unit menus.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     pub fn label(self, labels: &LengthUnitLabels) -> &str {
-        todo!()
+        match self {
+            LengthUnit::Pixels => &labels.pixels,
+            LengthUnit::Percent => &labels.percent,
+            LengthUnit::Inches => &labels.inches,
+            LengthUnit::Centimetres => &labels.centimetres,
+            LengthUnit::Millimetres => &labels.millimetres,
+            LengthUnit::Points => &labels.points,
+            LengthUnit::Picas => &labels.picas,
+        }
     }
 }
 
@@ -155,16 +168,30 @@ impl Default for UnitContext {
 impl UnitContext {
     /// `value` in `unit` as pixels, or `None` for a percentage without an
     /// [`extent`](Self::extent) or a value that is not a finite number.
+    ///
+    /// A resolution or point size that is not a positive number reads as 72, and 100 % is the
+    /// magnitude of the extent.
     // pc: crates/ui-egui/src/widgets/numeric_expression.rs:154 `Parser::unit`.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     pub fn to_pixels(&self, value: f64, unit: LengthUnit) -> Option<f64> {
-        todo!()
+        let (extent, pixels_per_inch, points_per_inch) = self.basis(unit)?;
+        Some(unit.to_pixels(value, extent, pixels_per_inch, points_per_inch)).filter(|v| v.is_finite())
     }
 
     /// `pixels` in `unit`, or `None` as for [`to_pixels`](Self::to_pixels).
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     pub fn from_pixels(&self, pixels: f64, unit: LengthUnit) -> Option<f64> {
-        todo!()
+        let (extent, pixels_per_inch, points_per_inch) = self.basis(unit)?;
+        Some(unit.from_pixels(pixels, extent, pixels_per_inch, points_per_inch)).filter(|v| v.is_finite())
+    }
+
+    /// The extent, resolution and point size a conversion in `unit` uses, or `None` for a
+    /// percentage without a usable extent.
+    fn basis(&self, unit: LengthUnit) -> Option<(f64, f64, f64)> {
+        let positive = |v: f64| if v.is_finite() && v > 0.0 { v } else { 72.0 };
+        let extent = match (unit, self.extent) {
+            (LengthUnit::Percent, extent) => extent.map(f64::abs).filter(|e| e.is_finite() && *e > 1e-9)?,
+            (_, extent) => extent.unwrap_or(1.0),
+        };
+        Some((extent, positive(self.pixels_per_inch), positive(self.points_per_inch)))
     }
 
     /// `length` in `unit`.
@@ -185,9 +212,17 @@ impl Length {
     /// decimal mark already normalised to `.`. `None` when the text is not one number with an
     /// optional unit (arithmetic is [`controls::expr`](crate::controls::expr)'s).
     // pc: crates/ui-egui/src/widgets/units.rs:77 `unit_of_suffix`, :110 `parse_num`.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     pub fn parse(text: &str, default_unit: LengthUnit) -> Option<Length> {
-        todo!()
+        let text = text.trim();
+        let digits = text.strip_prefix(['-', '+', '\u{2212}']).unwrap_or(text);
+        let end = digits.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap_or(digits.len());
+        let (magnitude, suffix) = digits.split_at(end);
+        let sign = text.len() - digits.len();
+        let number = text.get(..sign + magnitude.len())?;
+        let value: f64 = number.replace('\u{2212}', "-").parse().ok().filter(|v: &f64| v.is_finite())?;
+        let suffix = suffix.trim();
+        let unit = if suffix.is_empty() { default_unit } else { LengthUnit::from_suffix(suffix)? };
+        Some(Length { value, unit })
     }
 }
 
