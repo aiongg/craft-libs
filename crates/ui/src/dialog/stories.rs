@@ -100,6 +100,7 @@ pub(crate) fn stories() -> Vec<Story> {
         ),
     ];
     all.extend(super::stack_stories::stories());
+    all.extend(super::framework_stories::stories());
     all
 }
 

@@ -2,6 +2,7 @@
 
 use craft_theme::ControlSize;
 use craft_ui::controls::{IconButton, NumberField};
+use craft_ui::dialog::DialogHost;
 use craft_ui::icons::Icon;
 use craft_ui::localized::{LocaleNumbers, Unit};
 use craft_ui::menu::{MenuBar, MenuEntry, MenuItem};
@@ -11,6 +12,7 @@ use egui::Ui;
 
 use super::dialog;
 use super::dock::DockState;
+use super::host_dialogs;
 use super::model::Mock;
 use super::panels::Panel;
 
@@ -20,6 +22,8 @@ pub enum Command {
     ImageSize,
     NewLayer,
     DeleteLayer,
+    DeleteLayerAsk,
+    GaussianBlur,
     Rulers,
     FitOnScreen,
     Panel(Panel),
@@ -44,8 +48,13 @@ fn menus(mock: &Mock, dock: &DockState) -> Vec<MenuItem<Command>> {
         MenuItem::submenu("Image", vec![item("Image Size…", Command::ImageSize).into()]),
         MenuItem::submenu(
             "Layer",
-            vec![item("New Layer", Command::NewLayer).into(), item("Delete Layer", Command::DeleteLayer).enabled(unlocked).into()],
+            vec![
+                item("New Layer", Command::NewLayer).into(),
+                item("Delete Layer", Command::DeleteLayer).enabled(unlocked).into(),
+                item("Delete Layer\u{2026}", Command::DeleteLayerAsk).enabled(unlocked).into(),
+            ],
         ),
+        MenuItem::submenu("Filter", vec![item("Gaussian Blur\u{2026}", Command::GaussianBlur).into()]),
         MenuItem::submenu(
             "View",
             vec![item("Rulers", Command::Rulers).check(mock.view.rulers).into(), item("Fit on Screen", Command::FitOnScreen).into()],
@@ -55,11 +64,13 @@ fn menus(mock: &Mock, dock: &DockState) -> Vec<MenuItem<Command>> {
     ]
 }
 
-fn run(command: Command, mock: &mut Mock, dock: &mut DockState) {
+fn run(command: Command, mock: &mut Mock, dock: &mut DockState, dialogs: &mut DialogHost) {
     match command {
         Command::ImageSize => dialog::open_image_size(mock),
         Command::NewLayer => mock.add_layer(),
         Command::DeleteLayer => mock.delete_selected(),
+        Command::DeleteLayerAsk => host_dialogs::open_delete_layer(dialogs, mock),
+        Command::GaussianBlur => host_dialogs::open_blur(dialogs),
         Command::Rulers => mock.view.rulers = !mock.view.rulers,
         Command::FitOnScreen => mock.view.fit_pending = true,
         Command::Panel(panel) => dock.toggle(panel),
@@ -69,7 +80,7 @@ fn run(command: Command, mock: &mut Mock, dock: &mut DockState) {
 
 /// The title bar as a picture of a window: the menus at the start, the document's name in the
 /// middle, search at the end.
-pub fn title_bar(ui: &mut Ui, mock: &mut Mock, dock: &mut DockState) {
+pub fn title_bar(ui: &mut Ui, mock: &mut Mock, dock: &mut DockState, dialogs: &mut DialogHost) {
     let frame = WindowFrame::Integrated(Captions { family: CaptionFamily::Generic, layout: Default::default() });
     let title = Title::new(mock.doc.name.clone()).unsaved(mock.doc.modified);
     let menu_list = menus(mock, dock);
@@ -87,7 +98,7 @@ pub fn title_bar(ui: &mut Ui, mock: &mut Mock, dock: &mut DockState) {
         },
     );
     if let Some(command) = chosen {
-        run(command, mock, dock);
+        run(command, mock, dock, dialogs);
     }
 }
 

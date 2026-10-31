@@ -121,7 +121,7 @@ A separate Text size setting (0.9x, 1x, 1.15x, 1.3x) scales the roles only.
 
 **Translation never blocks.** Library words live in the shared `craft-i18n` catalog. A missing string shows in English. Labels the host app sets win over library words. No test requires a translation to exist.
 
-**The egui builder idiom.** `Type::new(required).option(..).show(ui)`. Panels take `&mut Model` in `new`. Dialogs return an `Outcome<T>`.
+**The egui builder idiom.** `Type::new(required).option(..).show(ui)`. Panels take `&mut Model` in `new`. A dialog's per-pass answer is an `Outcome`; a dialog on the host returns a `DialogResult<T>`.
 
 **Behaviour follows the industry original.** Where an app's tool has an industry original, the library follows it. Otherwise it follows the app's existing behaviour. Where an app draws one kind of component several ways, the library has one: the app's most common or best version, with the variants it replaces listed.
 
@@ -215,20 +215,20 @@ fn setup(ctx: &egui::Context, app: &App) {
 | Services in | Identity, language, settings sections, commands and jobs today; files and a clock are planned. A service is a trait; the app or a library crate implements it |
 | Document data in | Each feature defines one small trait (`TimelineModel`, `ColorTarget`, `LayerTree`) that the app implements on its document view. Features never own document state |
 | Edits out | Features return edit events (`Begin`, `Update`, `Commit`, `Cancel`, `Set`). The app applies them to its own undo stack |
-| Dialogs | A feature dialog is a `Dialog` value pushed on the kernel's `DialogStack`. Its result is an `Outcome<T>` the app reads on the next frame. No feature opens its own window |
+| Dialogs | A feature dialog is a value the app opens on the kernel's `DialogHost`. Its result is a `DialogResult<T>` (`Ok(T)` or `Cancel`) the app reads with `take` on a later pass. No feature opens its own window |
 | Settings keys | Each feature exports a `serde` struct with a `const KEY`. The app embeds it in its settings file through `craft-settings` |
 | Words | Library words are rows in `craft-i18n`'s shared catalog. Features look them up through the host |
 | Commands | A feature exports its command catalog. The app registers it with `craft-keymap`. Automation dispatches through the host's commands |
 | Files | Features ask the host for pick, read and write. Native crates implement the service; apps on the web implement it over the browser |
 
-What an app writes: one dependency, one `Host`, one trait implementation per document feature, and the code that applies edits. The sketch below shows the shape of that code, not a settled API: the dialog stack's typed results are designed in step 2, and the colour picker dialog in step 4.
+What an app writes: one dependency, one `Host`, one trait implementation per document feature, and the code that applies edits. The sketch below shows the shape of that code, not a settled API: the host's typed results are described under step 2, and the colour picker dialog under step 4.
 
 ```rust
-fn frame(ui: &mut egui::Ui, doc: &mut Document, dialogs: &mut DialogStack) {
+fn frame(ui: &mut egui::Ui, doc: &mut Document, dialogs: &mut DialogHost) {
     if ui.button("Fill colour").clicked() {
-        dialogs.push(ColorPickerDialog::new(doc.fill));
+        dialogs.open(ColorPickerDialog::new(doc.fill));
     }
-    if let Some(Outcome::Ok(color)) = dialogs.take::<ColorPickerDialog>() {
+    if let Some(DialogResult::Ok(color)) = dialogs.take::<ColorPickerDialog>() {
         doc.apply(Edit::set(FILL, color));
     }
     LayersPanel::new(&mut doc.layers).show(ui);
@@ -1170,7 +1170,7 @@ Size: about 185 library tasks in all, plus about 28 PhotoCraft tasks and about 2
 
 **Step 2: dialog framework.** A feature dialog is one value an app pushes and one result it reads.
 
-- Delivers: `DialogStack` with typed `Outcome`, `ParamDialog` from a parameter list, command forms, image and canvas size dialogs, confirmation prompts, `UnsavedChangesGuard`, properties and report dialogs, `PointPicker`, `Remembered<T>`, and `craft-update`'s dialogs on the stack.
+- Delivers: `DialogHost` with typed `DialogResult`, `ParamDialog` from a parameter list, command forms, image and canvas size dialogs, confirmation prompts, `UnsavedChangesGuard`, properties and report dialogs, `PointPicker`, `Remembered<T>`, and `craft-update`'s dialogs on the stack.
 - PhotoCraft adopts: the stack for every dialog, parameter dialogs for filters, size dialogs, prompts, the unsaved guard, remembered options.
 - PhotoCraft deletes: its dialog host and routing, its parameter-dialog builder, its field map, its size-dialog code and prompt helpers.
 

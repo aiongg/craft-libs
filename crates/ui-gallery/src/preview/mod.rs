@@ -10,6 +10,7 @@ mod canvas;
 mod chrome;
 mod dialog;
 mod dock;
+mod host_dialogs;
 mod model;
 mod options;
 mod panels;
@@ -43,6 +44,7 @@ pub struct AppPreview {
     last_used: LastUsed<Tool>,
     home: bool,
     image_size: DialogState<ImageSizeDraft>,
+    dialogs: host_dialogs::Hosted,
 }
 
 impl AppPreview {
@@ -127,7 +129,7 @@ impl AppPreview {
             .title(view.title, |ui| {
                 let mut guard = this.borrow_mut();
                 let this = &mut **guard;
-                chrome::title_bar(ui, &mut this.mock, &mut this.dock);
+                chrome::title_bar(ui, &mut this.mock, &mut this.dock, &mut this.dialogs.0);
             })
             .options(view.options, |ui| {
                 let mut guard = this.borrow_mut();
@@ -156,6 +158,7 @@ impl AppPreview {
         });
         let this = this.into_inner();
         dialog::show(ui, &mut this.mock, &mut this.image_size);
+        host_dialogs::show(&ctx, &mut this.dialogs.0, &mut this.mock);
         tools::handle_keys(ui, &mut this.mock);
     }
 }

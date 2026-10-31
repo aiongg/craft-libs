@@ -50,7 +50,7 @@ impl<T> DialogResult<T> {
 /// an `Arc<Mutex<_>>` (stories, tests).
 pub trait StackDialog: Any + Send + Sync {
     /// What the app reads back. `()` for a notice.
-    type Result: 'static;
+    type Result: Send + Sync + 'static;
 
     /// The id the stack knows the dialog by; stable for the dialog's life
     /// ([`dialog_id`](super::dialog_id) of the dialog's key).
@@ -76,9 +76,9 @@ pub enum StartupStage {
 trait AnyStackDialog: Send + Sync {
     fn id(&self) -> DialogId;
     fn result_type(&self) -> TypeId;
-    fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any>>;
+    fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send + Sync>>;
     /// `DialogResult::<D::Result>::Cancel`, boxed, for a dialog closed from outside.
-    fn cancelled(&self) -> Box<dyn Any>;
+    fn cancelled(&self) -> Box<dyn Any + Send + Sync>;
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
@@ -92,11 +92,11 @@ impl<D: StackDialog> AnyStackDialog for D {
         TypeId::of::<D>()
     }
 
-    fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any>> {
-        self.show(ctx, stack).map(|result| Box::new(result) as Box<dyn Any>)
+    fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send + Sync>> {
+        self.show(ctx, stack).map(|result| Box::new(result) as Box<dyn Any + Send + Sync>)
     }
 
-    fn cancelled(&self) -> Box<dyn Any> {
+    fn cancelled(&self) -> Box<dyn Any + Send + Sync> {
         Box::new(DialogResult::<D::Result>::Cancel)
     }
 
@@ -138,7 +138,7 @@ pub struct DialogHost {
     stack: DialogStack,
     open: Vec<Box<dyn AnyStackDialog>>,
     queued: Vec<(StartupStage, Box<dyn AnyStackDialog>)>,
-    results: Vec<(TypeId, Box<dyn Any>)>,
+    results: Vec<(TypeId, Box<dyn Any + Send + Sync>)>,
 }
 
 impl fmt::Debug for DialogHost {
@@ -237,7 +237,7 @@ impl DialogHost {
         self.open.iter().position(|dialog| dialog.result_type() == TypeId::of::<D>())
     }
 
-    fn store_result(&mut self, type_id: TypeId, result: Box<dyn Any>) {
+    fn store_result(&mut self, type_id: TypeId, result: Box<dyn Any + Send + Sync>) {
         self.results.retain(|(stored, _)| *stored != type_id);
         self.results.push((type_id, result));
     }

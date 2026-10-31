@@ -260,6 +260,7 @@ fn state_saved_with_the_removed_compare_fields_loads() {
 /// of a document or a window, rows of controls that do not wrap, event logs and floating
 /// layers. The tile's clip cuts them at the tile's edges.
 const FIXED_WIDTH: &[&str] = &[
+    "controls/point-picker/picker",
     "specimens/icons/compare",
     "specimens/type/faces",
     "primitives/state-layer/states",

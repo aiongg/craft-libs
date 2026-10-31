@@ -74,9 +74,11 @@ controls/number-field/states = Number field | States | Panel | size=Choice { opt
 controls/number-field/scrub = Number field | Scrub | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
 controls/number-field/right-to-left = Number field | Right to left | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
 controls/number-field/unit-menu = Number field | Unit menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
+controls/number-field/presets = Number field | Presets | Panel | size=Choice { options: ["sm", "md"], index: 1 }; locale=Choice { options: ["en", "de", "ar-EG"], index: 0 }
 controls/number-field/event-log = Number field | Event log | Panel | update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
 controls/angle-dial/dial = Angle dial | Angle dial | Panel | range=Choice { options: ["-180 to 180", "-360 to 360", "0 to 90"], index: 0 }; orientation=Choice { options: ["counter-clockwise", "clockwise"], index: 0 }; field=Bool(true); size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/angle-dial/dialog = Angle dial | Dialog (field scope) | Panel | 
+controls/point-picker/picker = Point picker | Point picker | Panel | pixels=Bool(false); disabled=Bool(false)
 composites/field/dialog = Field | Dialog | Panel | above=Bool(false); help=Bool(true); error=Bool(false)
 composites/form-grid/image-size = FormGrid | Image size | Panel | roomy=Bool(false); labels at start=Bool(false)
 composites/property-row/inspector = PropertyRow | Inspector | Panel | mixed=Bool(false); width=Number { value: 260.0, min: 60.0, max: 400.0 }
@@ -144,6 +146,13 @@ patterns/dialog/footer = Dialog | Footer | Panel | open=Bool(true); shape=Choice
 patterns/dialog/stack = Dialog | Stack | Panel | open=Bool(true); child open=Bool(false)
 patterns/dialog/prompt = Dialog | Prompt and alert | Panel | kind=Choice { options: ["prompt", "alert"], index: 0 }; open=Bool(true); translated labels=Bool(false)
 patterns/dialog/blocking = Dialog | Blocking overlay | Panel | busy for 2 s=Bool(false); scrim=Bool(false); wait card=Bool(false)
+patterns/dialog/params = Dialog | Parameters | Panel | open=Bool(true); layout=Choice { options: ["sidecolumn", "bottomfooter"], index: 0 }; preview=Bool(true)
+patterns/dialog/command-form = Dialog | Command form | Panel | open=Bool(true); ok enabled=Bool(true)
+patterns/dialog/size = Dialog | Image and canvas size | Panel | open=Bool(true); kind=Choice { options: ["image", "canvas"], index: 0 }; resample=Bool(true)
+patterns/dialog/standard-prompt = Dialog | Standard prompts | Panel | open=Bool(true); kind=Choice { options: ["confirmdelete", "damagedfile", "changedondisk", "replacefile", "trashmask", "unsaved"], index: 0 }; several documents=Bool(false)
+patterns/dialog/properties = Dialog | Properties | Panel | open=Bool(true); read only=Bool(false)
+patterns/dialog/report = Dialog | Report | Panel | open=Bool(true); notes=Number { value: 6.0, min: 0.0, max: 40.0 }
+patterns/dialog/startup-queue = Dialog | Startup queue | Panel | recovery=Bool(true); warning=Bool(true); update=Bool(true)
 patterns/full-window/workspace = FullWindowDialog | Workspace | Panel | open=Bool(true); title strip=Bool(true); apply=Bool(false)
 patterns/dialog/preview = Dialog | Preview | Panel | open=Bool(true); preview=Bool(true); local history=Bool(true); compare button=Bool(true)
 patterns/viewport/embedded = ViewportWindow | Embedded | Panel | open=Bool(true); app modal=Bool(false); scrim=Bool(false)
@@ -164,3 +173,4 @@ patterns/rail/flyout = FlyoutButton | Flyout button | Chrome | items=Number { va
 patterns/rail/tool = ToolRail | Tool rail | Chrome | columns=Number { value: 1.0, min: 1.0, max: 2.0 }; hidden=Choice { options: ["none", "pencil", "stamp", "eraser tools"], index: 0 }; height=Number { value: 480.0, min: 160.0, max: 700.0 }
 patterns/popover/anchored = Popover | Anchored | Panel | anchor=Choice { options: ["control", "point"], index: 0 }; size=Choice { options: ["resizable", "fit", "fixed"], index: 0 }; enter=Bool(false); rtl=Bool(false)
 patterns/popover/stroke-editor = Popover | Stroke editor | Panel | rtl=Bool(false)
+patterns/popover/own-close-rule = Popover | Own close rule | Panel | rtl=Bool(false)
