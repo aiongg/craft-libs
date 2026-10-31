@@ -10,7 +10,7 @@ use egui::{Align, AreaState, Context, Galley, Id, Label, LayerId, Layout, Order,
 
 use super::live;
 use super::notice::tone_icon;
-use crate::controls::IconButton;
+use crate::controls::{IconButton, Link};
 use crate::direction;
 use crate::icons::{Icon, IconSize};
 use crate::localized::words::counts;
@@ -69,12 +69,14 @@ pub struct Toast {
     tone: Tone,
     lines: Vec<String>,
     sticky: bool,
+    persistent: bool,
+    action: Option<String>,
 }
 
 impl Toast {
     /// A neutral toast. `id` is the host's own, reported back when the toast ends.
     pub fn new(id: u64, title: impl Into<String>) -> Self {
-        Self { id, title: title.into(), tone: Tone::Neutral, lines: Vec::new(), sticky: false }
+        Self { id, title: title.into(), tone: Tone::Neutral, lines: Vec::new(), sticky: false, persistent: false, action: None }
     }
 
     pub fn tone(mut self, tone: Tone) -> Self {
@@ -94,6 +96,19 @@ impl Toast {
         self.sticky = sticky;
         self
     }
+
+    /// Keeps the toast until it is closed, whatever the stack's [`auto_hide`](ToastStack::auto_hide).
+    pub fn persistent(mut self, persistent: bool) -> Self {
+        self.persistent = persistent;
+        self
+    }
+
+    /// A link under the lines that ends the toast with [`ToastEnd::Acted`] ("Don't Show Again").
+    /// The host passes the translation.
+    pub fn action(mut self, label: impl Into<String>) -> Self {
+        self.action = Some(label.into());
+        self
+    }
 }
 
 /// Why a toast ended.
@@ -105,6 +120,8 @@ pub enum ToastEnd {
     Expired,
     /// Too many toasts were passed; this was the oldest.
     Dropped,
+    /// The user pressed the toast's [`action`](Toast::action) link.
+    Acted,
 }
 
 /// What the stack remembers between frames.
@@ -116,6 +133,8 @@ struct State {
     rect: Option<Rect>,
     /// The "Dismiss" buttons of the last frame, by toast id, oldest first.
     dismiss: Vec<(u64, Id)>,
+    /// The action links of the last frame, by toast id.
+    actions: Vec<(u64, Id)>,
     /// The last widget outside the stack that had keyboard focus.
     focus_before: Option<Id>,
     /// Whether the timers were paused on the last frame.
@@ -128,6 +147,8 @@ struct Laid {
     bullet: Arc<Galley>,
     lines: Vec<Arc<Galley>>,
     more: Option<(String, Arc<Galley>)>,
+    /// Height of the action link's row; 0 without one.
+    action: f32,
     /// Height of the row of icon, title and "Dismiss".
     row: f32,
     height: f32,
@@ -254,7 +275,11 @@ impl ToastStack {
         let now = ctx.input(|i| i.time);
 
         let focus = ctx.memory(|m| m.focused());
-        let focused = focus.and_then(|f| state.dismiss.iter().position(|(_, id)| *id == f));
+        let card_of = |f: Id| {
+            let toast = state.dismiss.iter().chain(&state.actions).find(|(_, id)| *id == f).map(|(toast, _)| *toast)?;
+            state.dismiss.iter().position(|(t, _)| *t == toast)
+        };
+        let focused = focus.and_then(card_of);
         // Tab clears the focus for the rest of the frame in which it leaves a widget, so only
         // a focused widget is remembered.
         if focused.is_none() && focus.is_some() {
@@ -275,12 +300,14 @@ impl ToastStack {
         if let Some(limit) = self.auto_hide {
             let expired = |at: f64| now - at >= limit.as_secs_f64();
             for toast in &toasts {
-                if state.shown_at.iter().any(|(id, at)| *id == toast.id && expired(*at)) {
+                if !toast.persistent && state.shown_at.iter().any(|(id, at)| *id == toast.id && expired(*at)) {
                     ended.push((toast.id, ToastEnd::Expired));
                 }
             }
             toasts.retain(|t| !ended.iter().any(|(id, _)| *id == t.id));
-            let next = state.shown_at.iter().map(|(_, at)| limit.as_secs_f64() - (now - at)).fold(f64::INFINITY, f64::min);
+            let timed = |id: &u64| toasts.iter().any(|t| t.id == *id && !t.persistent);
+            let next =
+                state.shown_at.iter().filter(|(id, _)| timed(id)).map(|(_, at)| limit.as_secs_f64() - (now - at)).fold(f64::INFINITY, f64::min);
             if next.is_finite() {
                 ctx.request_repaint_after(Duration::from_secs_f64(next.max(0.0)));
             }
@@ -309,12 +336,16 @@ impl ToastStack {
             bottom = card.top() - base.gap;
         }
         let mut dismiss = Vec::new();
+        let mut actions = Vec::new();
         for ((toast, laid), card) in toasts.iter().zip(&laid).zip(&cards) {
-            let (response, closed) = self.card(&mut ui, &tokens, toast, laid, *card);
-            if closed {
+            let (response, action) = self.card(&mut ui, &tokens, toast, laid, *card);
+            if action.as_ref().is_some_and(Response::clicked) {
+                ended.push((toast.id, ToastEnd::Acted));
+            } else if response.clicked() {
                 ended.push((toast.id, ToastEnd::Closed));
             }
             dismiss.push((toast.id, response.id));
+            actions.extend(action.map(|a| (toast.id, a.id)));
         }
         let shown = cards.iter().fold(Rect::NOTHING, |all, card| all.union(*card));
         state.rect = (!toasts.is_empty()).then_some(shown);
@@ -346,6 +377,7 @@ impl ToastStack {
             }
         }
         state.dismiss = dismiss;
+        state.actions = actions;
         ctx.data_mut(|d| d.insert_temp(self.id, state));
         if !ended.is_empty() {
             ctx.request_repaint();
@@ -384,12 +416,13 @@ impl ToastStack {
         let row = geometry.first_line.max(geometry.title_offset + title.size().y).max(geometry.icon_height);
         let below: f32 =
             lines.iter().map(|l| l.size().y.max(bullet.size().y)).chain(more.iter().map(|(_, m)| m.size().y)).map(|h| style.gap + h).sum();
-        Laid { title, bullet, lines, more, row, height: 2.0 * style.pad + row + below }
+        let action = if toast.action.is_some() { tokens.typography.get(style.line_role).line_height } else { 0.0 };
+        let below = below + if toast.action.is_some() { style.gap + action } else { 0.0 };
+        Laid { title, bullet, lines, more, action, row, height: 2.0 * style.pad + row + below }
     }
 
-    /// Draws one card in `rect`. Returns the "Dismiss" button's response and whether it was
-    /// pressed.
-    fn card(&self, ui: &mut Ui, tokens: &UiTokens, toast: &Toast, laid: &Laid, rect: Rect) -> (Response, bool) {
+    /// Draws one card in `rect`. Returns the "Dismiss" button's response and the action link's.
+    fn card(&self, ui: &mut Ui, tokens: &UiTokens, toast: &Toast, laid: &Laid, rect: Rect) -> (Response, Option<Response>) {
         let style = ToastStack::style(tokens, toast.tone);
         let geometry = Geometry::new(tokens, &style, toast.tone, rect.width());
         let slot = ui.painter().add(Shape::Noop);
@@ -430,7 +463,11 @@ impl ToastStack {
                         ui.add(Label::new(galley.clone()));
                         labels.add(text.as_str());
                     }
-                    button.inner
+                    let action = toast.action.as_ref().map(|label| {
+                        ui.allocate_ui_with_layout(vec2(geometry.inner, laid.action), row, |ui| ui.add(Link::new(label.as_str()).id_salt("action")))
+                            .inner
+                    });
+                    (button.inner, action)
                 })
                 .inner
             })
@@ -443,8 +480,7 @@ impl ToastStack {
             stroke.color = style.edge;
         }
         ui.painter().set(slot, Shape::Vec(surface.shapes(rect, ui.pixels_per_point())));
-        let closed = button.clicked();
-        (button, closed)
+        button
     }
 }
 

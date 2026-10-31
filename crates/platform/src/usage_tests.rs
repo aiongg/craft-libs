@@ -1,9 +1,11 @@
 //! Memory use.
 
+use crate::usage::{MemorySample, sample};
+
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+#[cfg(target_os = "linux")]
 // On a desktop platform sample() is Some with 0 < used <= available.
 fn sample_reports_used_below_available() {
-    todo!()
+    let MemorySample { used, available } = sample().expect("Linux reports memory use");
+    assert!(0 < used && used <= available, "used {used}, available {available}");
 }

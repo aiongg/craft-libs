@@ -5,13 +5,17 @@
 //! is the model every app rebuilt beside it: ids, the cap that drops the oldest notice that can't
 //! be silenced, the arguments a translated line is filled from, and the dismiss preference keys.
 
-#![expect(dead_code, unused_variables, unused_mut, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::time::Duration;
 
 use egui::{Context, Rect};
 
-use super::Tone;
+use super::{Toast, ToastEnd, ToastStack, Tone};
+use crate::localized::SharedLabels as _;
+
+/// Most notices kept at once.
+const MAX_NOTICES: usize = 3;
+/// Seconds before a notice auto-hides, when the app sets nothing else.
+const DEFAULT_AUTO_HIDE: Duration = Duration::from_secs(6);
 
 /// One notice.
 #[derive(Clone, Debug, PartialEq)]
@@ -61,24 +65,33 @@ pub enum NoticeEnd {
 ///   seconds by default; `None` keeps notices until closed). The timer pauses while the pointer
 ///   or keyboard is on the stack ([`ToastStack`](super::ToastStack)'s rule).
 /// - **Don't Show Again:** a notice with a dismiss key shows the link under its lines.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct NoticeCenter {
     notices: Vec<PostedNotice>,
     next_id: u64,
     auto_hide: Option<Duration>,
+    /// Notices the cap dropped since the last [`NoticeCenter::show`].
+    dropped: Vec<u64>,
+}
+
+impl Default for NoticeCenter {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NoticeCenter {
     /// An empty center, auto-hiding after six seconds.
     pub fn new() -> Self {
-        todo!()
+        Self { notices: Vec::new(), next_id: 1, auto_hide: Some(DEFAULT_AUTO_HIDE), dropped: Vec::new() }
     }
 
     /// The auto-hide time; `None` keeps notices until closed.
     // pc: crates/engine/src/prefs.rs:337 (`notification_duration_seconds`, 6 s) and the
     // `interface.notification_auto_hide` toggle (notices.rs:263).
     pub fn auto_hide(mut self, duration: Option<Duration>) -> Self {
-        todo!()
+        self.auto_hide = duration;
+        self
     }
 
     /// Posts a notice and returns its id; `None` when its `dismiss_key` is in `silenced`.
@@ -91,16 +104,34 @@ impl NoticeCenter {
         dismiss_key: Option<String>,
         silenced: &[String],
     ) -> Option<u64> {
-        todo!()
+        if dismiss_key.as_ref().is_some_and(|key| silenced.contains(key)) {
+            return None;
+        }
+        let id = self.next_id;
+        self.next_id += 1;
+        self.notices.push(PostedNotice { id, title: title.into(), lines, tone, dismiss_key, sticky: false });
+        while self.notices.len() > MAX_NOTICES {
+            let oldest = self.notices.iter().position(|n| n.dismiss_key.is_none()).unwrap_or(0);
+            self.dropped.push(self.notices.remove(oldest).id);
+        }
+        Some(id)
+    }
+
+    /// Keeps notice `id` until it is closed, whatever the auto-hide time (an error the user must
+    /// read).
+    pub fn keep(&mut self, id: u64) {
+        if let Some(notice) = self.notices.iter_mut().find(|n| n.id == id) {
+            notice.sticky = true;
+        }
     }
 
     /// Removes a notice the app no longer needs (the job it reported on was cancelled).
     pub fn remove(&mut self, id: u64) {
-        todo!()
+        self.notices.retain(|n| n.id != id);
     }
 
     pub fn notices(&self) -> &[PostedNotice] {
-        todo!()
+        &self.notices
     }
 
     /// Shows the notices as a [`ToastStack`](super::ToastStack) above the bottom edge of `body` and removes those that
@@ -108,7 +139,24 @@ impl NoticeCenter {
     // pc: crates/ui-egui/src/notices.rs:216 `show` (bottom right, inset (-16, -36), 340 pt wide),
     // :183 `expire` (hover restarts the timer), :149 `dismiss` (writes `prefs.dialogs[key]`).
     pub fn show(&mut self, ctx: &Context, body: Rect) -> Vec<NoticeEnd> {
-        todo!()
+        let mut ends: Vec<NoticeEnd> = self.dropped.drain(..).map(NoticeEnd::Dropped).collect();
+        let label = NoticeCenterLabels::shared_ctx(ctx).dont_show_again.clone();
+        let toasts = self.notices.iter().map(|n| {
+            let toast = Toast::new(n.id, n.title.as_str()).tone(n.tone).lines(n.lines.iter().map(String::as_str)).persistent(n.sticky);
+            if n.dismiss_key.is_some() { toast.action(label.as_str()) } else { toast }
+        });
+        let ended = ToastStack::new("craft_ui::composites::NoticeCenter").auto_hide(self.auto_hide).show(ctx, body, toasts);
+        for (id, end) in ended {
+            let key = self.notices.iter().find(|n| n.id == id).and_then(|n| n.dismiss_key.clone());
+            ends.push(match (end, key) {
+                (ToastEnd::Acted, Some(key)) => NoticeEnd::Silenced { id, key },
+                (ToastEnd::Acted | ToastEnd::Closed, _) => NoticeEnd::Closed(id),
+                (ToastEnd::Expired, _) => NoticeEnd::Expired(id),
+                (ToastEnd::Dropped, _) => NoticeEnd::Dropped(id),
+            });
+        }
+        self.notices.retain(|n| !ends.iter().any(|end| ends_id(end) == n.id));
+        ends
     }
 }
 
@@ -117,5 +165,12 @@ crate::words! {
     #[non_exhaustive]
     pub struct NoticeCenterLabels {
         dont_show_again: "noticeCenter.dontShowAgain" = "Don't Show Again";
+    }
+}
+
+fn ends_id(end: &NoticeEnd) -> u64 {
+    match end {
+        NoticeEnd::Closed(id) | NoticeEnd::Expired(id) | NoticeEnd::Dropped(id) => *id,
+        NoticeEnd::Silenced { id, .. } => *id,
     }
 }
