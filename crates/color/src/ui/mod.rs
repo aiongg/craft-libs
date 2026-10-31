@@ -259,8 +259,27 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
 ];
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] =
-    &["ColorArea", "ColorDisc", "ColorPicker", "ColorPopover", "ColorRamp", "ColorWheel", "HexField", "SwatchPair", "SwatchPalette"];
+pub const COMPONENTS: &[&str] = &[
+    "ColorArea",
+    "ColorChoice",
+    "ColorDisc",
+    "ColorPanel",
+    "ColorPicker",
+    "ColorPickerDialog",
+    "ColorPopover",
+    "ColorRamp",
+    "ColorSamplers",
+    "ColorWheel",
+    "EyedropperOptionsBar",
+    "HarmonyPanel",
+    "HexField",
+    "LutPicker",
+    "PaintChip",
+    "ProfileMismatchDialog",
+    "SwatchPair",
+    "SwatchPalette",
+    "SwatchesPanel",
+];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum ModeArg {
@@ -415,6 +434,7 @@ pub fn stories() -> Vec<Story> {
     stories.extend(wheel_stories::stories());
     stories.extend(ramp_stories::stories());
     stories.extend(disc_stories::stories());
+    stories.extend(colour_stories::stories());
     stories
 }
 
