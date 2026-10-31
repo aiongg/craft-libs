@@ -3,9 +3,19 @@
 //! engine, a zoom slider, and the recently used glyphs in a row at the top. Double-click or Enter
 //! inserts the glyph into the text being edited.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, PoisonError};
 
-use egui::{ColorImage, Ui};
+use craft_ui::behavior::GridKey;
+use craft_ui::behavior::GridNav;
+use craft_ui::controls::{Select, Slider};
+use craft_ui::direction;
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::Labels as _;
+use craft_ui::primitives::{Content, Corner, Interactive, Surface, SurfaceKind};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
+use egui::accesskit::Role;
+use egui::{ColorImage, EventFilter, Id, Key, Modifiers, Rect, ScrollArea, TextureHandle, TextureId, TextureOptions, Ui, pos2, vec2};
 use serde::{Deserialize, Serialize};
 
 craft_ui::words! {
@@ -18,6 +28,14 @@ craft_ui::words! {
         style: "glyphs.style" = "Style";
         zoom: "glyphs.zoom" = "Zoom";
         no_text: "glyphs.noText" = "Edit text to insert glyphs";
+        font: "glyphs.font" = "Font";
+        category: "glyphs.category" = "Category";
+        grid: "glyphs.grid" = "Glyphs";
+        count: "glyphs.count" = "{n} glyphs";
+        selected: "glyphs.selected" = "U+{code}  ·  {n} glyphs";
+        cell: "glyphs.cell" = "{char}, U+{code}";
+        search: "glyphs.search" = "Search fonts";
+        clear: "glyphs.clear" = "Clear";
     }
 }
 
@@ -46,7 +64,8 @@ pub trait GlyphSource: Send + Sync {
     /// Every character the face (family, style) has a glyph for, in code point order.
     fn charmap(&self, family: &str, style: &str) -> Vec<char>;
     /// The glyph of `c` in the face, `px` pixels tall, as an image for a texture; `None` when the
-    /// face lacks it.
+    /// face lacks it. The panel tints the image with the text colour, so a glyph is white with its
+    /// coverage in the alpha channel.
     fn glyph(&self, family: &str, style: &str, c: char, px: u32) -> Option<ColorImage>;
     /// Whether `c` is in `category` (one of [`CATEGORIES`]).
     fn in_category(&self, c: char, category: &str) -> bool;
@@ -80,28 +99,111 @@ pub struct GlyphsPanelResponse {
 /// follows the caret), else from the panel's own picker.
 ///
 /// - Keys: the grid is one Tab stop; arrows move the focused cell, Page Up/Down a screen, Home/End
-///   to the ends, Enter inserts. Hovering a cell shows its name and code point as a tooltip.
-/// - A cell is drawn from [`GlyphSource::glyph`] at the zoom size, cached per (face, char, px);
-///   a face without the character is skipped. The grid shows only the current category.
+///   to the ends, Enter inserts. Hovering a cell shows its character and code point as a tooltip.
+/// - A cell is drawn from [`GlyphSource::glyph`] at the zoom size, cached per (face, char, px).
+///   The grid shows only the current category, and only the cells in view are drawn; a cell the
+///   source returns no image for stays empty.
 /// - Without text being edited the cells still show, Enter and double-click do nothing and the
 ///   footer says so (`no_text`).
+/// - The font and style lists come from the app ([`families`](GlyphsPanel::families),
+///   [`styles`](GlyphsPanel::styles)); without a list the name is shown as text.
 pub struct GlyphsPanel<'a> {
     source: &'a dyn GlyphSource,
     family: &'a mut String,
     style: &'a mut String,
     settings: &'a mut GlyphsPanelSettings,
+    families: &'a [String],
+    styles: &'a [String],
     editing: bool,
     labels: Option<GlyphsLabels>,
 }
 
+/// The grid's height in points (PhotoCraft's scroll area).
+const GRID_HEIGHT: f32 = 260.0;
+/// The cell size when the settings have none, and its range.
+const DEFAULT_ZOOM: f32 = 32.0;
+const ZOOM: std::ops::RangeInclusive<f32> = 24.0..=96.0;
+/// The space between a cell's edge and its glyph.
+const GLYPH_INSET: f32 = 3.0;
+/// The Recently Used cell and its pitch, and how many glyphs are kept.
+const RECENT_CELL: f32 = 24.0;
+const RECENT_PITCH: f32 = 26.0;
+const RECENT_LIMIT: usize = 25;
+
+type Textures = HashMap<char, Option<TextureHandle>>;
+
+/// Textures of one face at one pixel size.
+#[derive(Default)]
+struct GlyphCache {
+    key: (String, String, u32),
+    textures: Textures,
+}
+
+/// The characters of a face in one category.
+#[derive(Default)]
+struct CharsCache {
+    key: (String, String, String),
+    chars: Arc<Vec<char>>,
+}
+
+/// Where the keyboard lead is in the grid and what was in view last frame.
+#[derive(Clone, Copy, Default)]
+struct GridState {
+    lead: usize,
+    first_visible: usize,
+    last_visible: usize,
+    offset: f32,
+}
+
+fn shared<T: Default + Send + Sync + 'static>(ctx: &egui::Context, id: Id) -> Arc<Mutex<T>> {
+    ctx.data_mut(|d| d.get_temp_mut_or_insert_with(id, || Arc::new(Mutex::new(T::default()))).clone())
+}
+
+fn texture(
+    ctx: &egui::Context,
+    cache: &Mutex<GlyphCache>,
+    source: &dyn GlyphSource,
+    family: &str,
+    style: &str,
+    c: char,
+    px: u32,
+) -> Option<TextureId> {
+    let mut cache = cache.lock().unwrap_or_else(PoisonError::into_inner);
+    let key = (family.to_owned(), style.to_owned(), px);
+    if cache.key != key || cache.textures.len() > 4096 {
+        cache.key = key;
+        cache.textures.clear();
+    }
+    let handle = cache.textures.entry(c).or_insert_with(|| {
+        source.glyph(family, style, c, px).map(|image| ctx.load_texture(format!("glyph-{}-{px}", c as u32), image, TextureOptions::LINEAR))
+    });
+    handle.as_ref().map(TextureHandle::id)
+}
+
+fn code(c: char) -> String {
+    format!("{:04X}", c as u32)
+}
+
 impl<'a> GlyphsPanel<'a> {
     pub fn new(source: &'a dyn GlyphSource, family: &'a mut String, style: &'a mut String, settings: &'a mut GlyphsPanelSettings) -> Self {
-        GlyphsPanel { source, family, style, settings, editing: false, labels: None }
+        GlyphsPanel { source, family, style, settings, families: &[], styles: &[], editing: false, labels: None }
     }
 
     /// Whether text is being edited (inserting is possible).
     pub fn editing(mut self, editing: bool) -> Self {
         self.editing = editing;
+        self
+    }
+
+    /// The families the font list offers.
+    pub fn families(mut self, families: &'a [String]) -> Self {
+        self.families = families;
+        self
+    }
+
+    /// The styles of the family, for the style list.
+    pub fn styles(mut self, styles: &'a [String]) -> Self {
+        self.styles = styles;
         self
     }
 
@@ -114,6 +216,248 @@ impl<'a> GlyphsPanel<'a> {
     // pc: crates/ui-egui/src/panels/type_panels_ui.rs:627 `glyphs_panel` (pickers, category
     // list, grid, zoom) and `:578 glyph_texture`, `:595 charmap`; recents through `:608 insert_glyph`.
     pub fn show(self, ui: &mut Ui) -> GlyphsPanelResponse {
-        todo!()
+        let GlyphsPanel { source, family, style, settings, families, styles, editing, labels } = self;
+        let labels = labels.unwrap_or_else(|| GlyphsLabels::of(ui));
+        let ctx = ui.ctx().clone();
+        let tokens = Tokens::of(ui);
+        let mut response = GlyphsPanelResponse::default();
+        let panel = ui.scope_id().with("glyphs");
+
+        // Font and style.
+        let (family_before, style_before) = (family.clone(), style.clone());
+        ui.horizontal(|ui| {
+            if families.is_empty() {
+                ui.label(family.as_str());
+            } else {
+                let mut select =
+                    Select::new(panel.with("family"), labels.font.clone(), &mut *family).searchable(labels.search.clone(), labels.clear.clone());
+                for name in families {
+                    select = select.option(name.clone(), name.clone());
+                }
+                let _ = select.show(ui);
+            }
+            if styles.is_empty() {
+                ui.label(style.as_str());
+            } else {
+                let mut select = Select::new(panel.with("style"), labels.style.clone(), &mut *style);
+                for name in styles {
+                    select = select.option(name.clone(), name.clone());
+                }
+                let _ = select.show(ui);
+            }
+        });
+        response.font_changed = *family != family_before || *style != style_before;
+
+        // Show: the category.
+        if settings.category.is_empty() {
+            settings.category = CATEGORIES[0].to_owned();
+        }
+        ui.horizontal(|ui| {
+            ui.label(labels.show.clone());
+            let mut select = Select::new(panel.with("category"), labels.category.clone(), &mut settings.category);
+            for name in CATEGORIES {
+                select = select.option((*name).to_owned(), *name);
+            }
+            let _ = select.show(ui);
+        });
+
+        let size = if settings.zoom.is_finite() && settings.zoom > 0.0 { settings.zoom.clamp(*ZOOM.start(), *ZOOM.end()) } else { DEFAULT_ZOOM };
+        let ppp = ctx.pixels_per_point();
+        let ink = Content::Normal.color(&tokens).to_egui();
+        let mut activated: Option<String> = None;
+
+        // Recently used.
+        ui.label(labels.recent.clone());
+        let recent_cache = shared::<GlyphCache>(&ctx, panel.with("recent-textures"));
+        let (strip, _) = ui.allocate_exact_size(vec2(ui.available_width(), RECENT_PITCH), egui::Sense::hover());
+        Surface::paint(ui.painter(), strip, SurfaceKind::Sunken, &tokens);
+        let rtl = direction::is_rtl(ui);
+        let recent_px = (RECENT_CELL * ppp).round().max(8.0) as u32;
+        for (i, glyph) in settings.recent.iter().enumerate() {
+            let Some(c) = glyph.chars().next() else { continue };
+            let offset = 1.0 + i as f32 * RECENT_PITCH;
+            if offset + RECENT_CELL > strip.width() {
+                break;
+            }
+            let x = if rtl { strip.right() - offset - RECENT_CELL } else { strip.left() + offset };
+            let cell = Rect::from_min_size(pos2(x, strip.top() + 1.0), vec2(RECENT_CELL, RECENT_CELL));
+            let name = labels.cell.replace("{char}", &c.to_string()).replace("{code}", &code(c));
+            let sensed = Interactive::with_id(panel.with(("recent", i)), Role::Button, name.clone())
+                .surface(SurfaceKind::Raised)
+                .corner(Corner::Control)
+                .interact_at(ui, cell);
+            let cell_response = sensed.finish(ui).on_hover_text(name);
+            if let Some(id) = texture(&ctx, &recent_cache, source, family, style, c, recent_px) {
+                paint_glyph(ui, id, cell.shrink(2.0), ink);
+            }
+            if cell_response.clicked() {
+                activated = Some(glyph.clone());
+            }
+        }
+        ui.add_space(ui.spacing().item_spacing.y);
+
+        // The grid.
+        let chars = category_chars(&ctx, panel, source, family, style, &settings.category, &settings.recent);
+        let width = (ui.available_width() - ui.spacing().scroll.bar_width - ui.spacing().scroll.bar_inner_margin).max(size);
+        let columns = GridNav::columns(width, 0.0, 0.0, size);
+        let rows = chars.len().div_ceil(columns);
+        let state_id = panel.with("grid-state");
+        let mut state: GridState = ctx.data(|d| d.get_temp(state_id)).unwrap_or_default();
+        state.lead = state.lead.min(chars.len().saturating_sub(1));
+        let cell_id = |i: usize| panel.with(("cell", i));
+        // The Tab stop is the lead, or the first cell in view when the lead was scrolled away.
+        let in_view = |i: usize| (state.first_visible..state.last_visible).contains(&i);
+        let mut stop = if in_view(state.lead) || chars.is_empty() { state.lead } else { state.first_visible.min(chars.len().saturating_sub(1)) };
+        let mut scroll_to: Option<usize> = None;
+        if !chars.is_empty() && ui.memory(|m| m.has_focus(cell_id(stop))) {
+            ui.memory_mut(|m| {
+                m.set_focus_lock_filter(cell_id(stop), EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() })
+            });
+            let page = ((GRID_HEIGHT / size).floor() as usize).saturating_sub(1);
+            let nav = GridNav::wrapped(chars.len(), columns).rtl(rtl).page(page);
+            let mut lead = stop;
+            ui.input_mut(|i| {
+                for key in [Key::ArrowRight, Key::ArrowLeft, Key::ArrowDown, Key::ArrowUp, Key::Home, Key::End, Key::PageUp, Key::PageDown] {
+                    if i.consume_key(Modifiers::NONE, key)
+                        && let Some(grid_key) = GridKey::from_key(key)
+                    {
+                        lead = nav.step(lead, grid_key, None).index;
+                    }
+                }
+                if i.consume_key(Modifiers::NONE, Key::Enter) {
+                    activated = Some(chars[stop].to_string());
+                }
+            });
+            if lead != stop {
+                ui.memory_mut(|m| m.request_focus(cell_id(lead)));
+                scroll_to = Some(lead);
+            }
+            state.lead = lead;
+        } else {
+            state.lead = stop;
+        }
+        // The cell the focus moved to is the Tab stop this frame, so it can take the focus.
+        stop = state.lead;
+
+        let grid_cache = shared::<GlyphCache>(&ctx, panel.with("grid-textures"));
+        let px = ((size - 2.0 * GLYPH_INSET) * ppp).round().max(8.0) as u32;
+        let mut area = ScrollArea::vertical().id_salt(panel.with("scroll")).max_height(GRID_HEIGHT).auto_shrink([false, false]);
+        if let Some(lead) = scroll_to {
+            let top = (lead / columns) as f32 * size;
+            if top < state.offset {
+                area = area.vertical_scroll_offset(top);
+            } else if top + size > state.offset + GRID_HEIGHT {
+                area = area.vertical_scroll_offset(top + size - GRID_HEIGHT);
+            }
+        }
+        let mut clicked: Option<usize> = None;
+        let output = area.show_rows(ui, size, rows, |ui, range| {
+            state.first_visible = (range.start * columns).min(chars.len());
+            state.last_visible = (range.end * columns).min(chars.len());
+            for row in range {
+                let (strip, _) = ui.allocate_exact_size(vec2(width, size), egui::Sense::hover());
+                for column in 0..columns {
+                    let index = row * columns + column;
+                    let Some(&c) = chars.get(index) else { break };
+                    let x = if rtl { strip.right() - (column + 1) as f32 * size } else { strip.left() + column as f32 * size };
+                    let cell = Rect::from_min_size(pos2(x, strip.top()), vec2(size, size));
+                    let name = labels.cell.replace("{char}", &c.to_string()).replace("{code}", &code(c));
+                    let mut element = Interactive::with_id(cell_id(index), Role::Button, name.clone())
+                        .surface(SurfaceKind::Raised)
+                        .selected(index == stop)
+                        .position_in_set(index);
+                    if index != stop {
+                        element = element.sense(egui::Sense::CLICK);
+                    }
+                    let cell_response = element.interact_at(ui, cell).finish(ui).on_hover_text(name);
+                    ui.ctx().accesskit_node_builder(cell_response.id, |node| {
+                        node.set_size_of_set(chars.len());
+                        if index != stop {
+                            node.add_action(egui::accesskit::Action::Focus);
+                        }
+                    });
+                    if ui.is_rect_visible(cell)
+                        && let Some(id) = texture(ui.ctx(), &grid_cache, source, family, style, c, px)
+                    {
+                        paint_glyph(ui, id, cell.shrink(GLYPH_INSET), ink);
+                    }
+                    if cell_response.double_clicked() {
+                        activated = Some(c.to_string());
+                        clicked = Some(index);
+                    } else if cell_response.clicked() {
+                        clicked = Some(index);
+                    }
+                }
+            }
+        });
+        state.offset = output.state.clamped_offset().y;
+        if let Some(index) = clicked {
+            state.lead = index;
+            ui.memory_mut(|m| m.request_focus(cell_id(index)));
+        }
+        ctx.data_mut(|d| d.insert_temp(state_id, state));
+
+        // Footer: the selection, the count and the zoom.
+        ui.horizontal(|ui| {
+            let info = match chars.get(state.lead) {
+                Some(&c) => labels.selected.replace("{code}", &code(c)).replace("{n}", &chars.len().to_string()),
+                None => labels.count.replace("{n}", &chars.len().to_string()),
+            };
+            ui.label(info);
+            let zoom = Slider::new(panel.with("zoom"), labels.zoom.clone(), size, *ZOOM.start()..=*ZOOM.end()).step(1.0).show(ui);
+            if let Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = zoom.event {
+                settings.zoom = value as f32;
+            }
+        });
+        if !editing {
+            ui.label(labels.no_text.clone());
+        }
+
+        if let Some(glyph) = activated
+            && editing
+        {
+            settings.recent.retain(|g| *g != glyph);
+            settings.recent.insert(0, glyph.clone());
+            settings.recent.truncate(RECENT_LIMIT);
+            response.insert = Some(glyph);
+        }
+        response
     }
+}
+
+fn paint_glyph(ui: &Ui, id: TextureId, rect: Rect, tint: egui::Color32) {
+    ui.painter().add(egui::Shape::image(id, rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), tint));
+}
+
+/// The characters of the face in `category`, cached until the face or the category changes.
+fn category_chars(
+    ctx: &egui::Context,
+    panel: Id,
+    source: &dyn GlyphSource,
+    family: &str,
+    style: &str,
+    category: &str,
+    recent: &[String],
+) -> Arc<Vec<char>> {
+    let all = |ctx: &egui::Context| -> Arc<Vec<char>> {
+        let cache = shared::<CharsCache>(ctx, panel.with("chars"));
+        let mut cache = cache.lock().unwrap_or_else(PoisonError::into_inner);
+        let key = (family.to_owned(), style.to_owned(), category.to_owned());
+        if cache.key != key {
+            let charmap = source.charmap(family, style);
+            let chars = if category == CATEGORIES[0] { charmap } else { charmap.into_iter().filter(|c| source.in_category(*c, category)).collect() };
+            *cache = CharsCache { key, chars: Arc::new(chars) };
+        }
+        cache.chars.clone()
+    };
+    if category == "Recently Used" {
+        let mut seen = Vec::new();
+        for c in recent.iter().filter_map(|g| g.chars().next()) {
+            if !seen.contains(&c) {
+                seen.push(c);
+            }
+        }
+        return Arc::new(seen);
+    }
+    all(ctx)
 }
