@@ -412,7 +412,7 @@ impl<'a> Guides<'a> {
         let halo = tokens.component.handle.halo;
         let ring = FocusRing::style(tokens);
         let smart: Rgba = o.smart_guide;
-        let text = if contrast_ratio(Rgba::BLACK, smart) >= contrast_ratio(Rgba::WHITE, smart) { Color32::BLACK } else { Color32::WHITE };
+        let text = readable_on(smart.to_egui());
         GuideStyle {
             width: g.width,
             hit: g.hit,
@@ -964,6 +964,12 @@ pub(super) fn dashes(a: Pos2, b: Pos2, dash: f32, gap: f32) -> impl Iterator<Ite
     })
 }
 
+/// Black or white text, whichever contrasts more with `fill`.
+fn readable_on(fill: Color32) -> Color32 {
+    let fill = Rgba::from(fill);
+    if contrast_ratio(Rgba::BLACK, fill) >= contrast_ratio(Rgba::WHITE, fill) { Color32::BLACK } else { Color32::WHITE }
+}
+
 /// An alignment line of [`SmartGuides`], in document coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SmartLine {
@@ -987,24 +993,50 @@ pub struct Measure {
 ///
 /// Drawing only: the host computes what aligns and how far apart things are. Lines are 1 point
 /// of `overlay.smart_guide`, crisp; extensions dashed; distances get `guide.measure_cap` end
-/// caps and a label pill. Not in the AccessKit tree: they are hints during a gesture, whose
+/// caps and a label pill; [`color`](SmartGuides::color) replaces that colour (an app's "Smart
+/// Guide Color" preference) and [`bounds`](SmartGuides::bounds) outlines the moving object (the
+/// Move tool's bounds) in `accent.solid`. Not in the AccessKit tree: they are hints during a gesture, whose
 /// result the moved object's own value reports.
 pub struct SmartGuides<'a> {
     lines: &'a [SmartLine],
     measures: &'a [Measure],
+    color: Option<Color32>,
+    bounds: Option<Rect>,
 }
 
 impl<'a> SmartGuides<'a> {
     pub fn new(lines: &'a [SmartLine], measures: &'a [Measure]) -> Self {
-        Self { lines, measures }
+        Self { lines, measures, color: None, bounds: None }
+    }
+
+    /// The colour of the lines and distances, instead of `overlay.smart_guide`. The label text
+    /// stays black or white, whichever contrasts more with it.
+    pub fn color(mut self, color: Color32) -> Self {
+        self.color = Some(color);
+        self
+    }
+
+    /// The document bounds of the object being moved, drawn as a 1 point outline in
+    /// `accent.solid` under the lines.
+    pub fn bounds(mut self, bounds: Rect) -> Self {
+        self.bounds = Some(bounds);
+        self
     }
 
     pub fn show(self, ui: &Ui, view: &CanvasView) {
         let tokens = Tokens::of(ui);
-        let style = Guides::style(&tokens);
+        let mut style = Guides::style(&tokens);
+        if let Some(color) = self.color {
+            style.smart = color;
+            style.measure_text = readable_on(color);
+        }
         let painter = ui.painter_at(view.rect);
         let ppp = painter.pixels_per_point();
         let stroke = Stroke::new(style.width, style.smart);
+        if let Some(bounds) = self.bounds {
+            let outline = Stroke::new(style.width, tokens.color.accent.solid.to_egui());
+            painter.add(Shape::closed_line(view.quad(bounds).to_vec(), outline));
+        }
         for line in self.lines {
             let (a, b) = (view.to_screen(line.a), view.to_screen(line.b));
             if line.extension {

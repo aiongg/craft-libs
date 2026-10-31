@@ -182,6 +182,9 @@ pub enum SelectionBadge {
     Subtract,
     /// A cross.
     Intersect,
+    /// Four arrows: the Move tool's, or a point that a press drags (the Curvature Pen over an
+    /// anchor).
+    Move,
     /// Replaces the selection: no badge.
     New,
 }
@@ -195,6 +198,17 @@ impl SelectionBadge {
             SelectionBadge::Intersect => {
                 let d = h * 0.8;
                 vec![[c + vec2(-d, -d), c + vec2(d, d)], [c + vec2(-d, d), c + vec2(d, -d)]]
+            }
+            SelectionBadge::Move => {
+                let a = h * 0.45;
+                let mut v = vec![[c - vec2(h, 0.0), c + vec2(h, 0.0)], [c - vec2(0.0, h), c + vec2(0.0, h)]];
+                for d in [vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0)] {
+                    let tip = c + d * h;
+                    let side = vec2(-d.y, d.x) * a;
+                    v.push([tip, tip - d * a + side]);
+                    v.push([tip, tip - d * a - side]);
+                }
+                v
             }
             SelectionBadge::New => Vec::new(),
         }

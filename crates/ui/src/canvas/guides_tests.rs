@@ -635,3 +635,46 @@ fn modifiers_override_replaces_the_input_modifiers_in_the_guides() {
         assert_eq!(last(&h), Some((Some(1), "commit", place(Orientation::Vertical, end))), "input {input:?}, override {held:?}");
     }
 }
+
+/// The colours of the 1 point line shapes one frame of `guides` paints.
+fn smart_colors(guides: impl Fn() -> super::SmartGuides<'static> + 'static) -> Vec<Color32> {
+    let h = Harness::builder().with_size([400.0, 300.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(move |ui| {
+        let view = CanvasView::new(ui.max_rect(), Point::new(200.0, 150.0), 1.0);
+        guides().show(ui, &view);
+    });
+    let mut out = Vec::new();
+    fn walk(shape: &Shape, out: &mut Vec<Color32>) {
+        match shape {
+            Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            Shape::LineSegment { stroke, .. } => out.push(stroke.color),
+            Shape::Path(p) => {
+                if let egui::epaint::ColorMode::Solid(c) = p.stroke.color {
+                    out.push(c);
+                }
+            }
+            Shape::Mesh(m) => out.extend(m.vertices.iter().map(|v| v.color).take(1)),
+            _ => {}
+        }
+    }
+    h.output().shapes.iter().for_each(|s| walk(&s.shape, &mut out));
+    out
+}
+
+static SMART_LINES: [super::SmartLine; 1] = [super::SmartLine { a: Point::new(50.0, 50.0), b: Point::new(150.0, 50.0), extension: false }];
+
+#[test]
+fn smart_guides_take_the_apps_colour_and_a_moving_bounds_outline() {
+    let token = current_smart();
+    assert!(smart_colors(|| super::SmartGuides::new(&SMART_LINES, &[])).contains(&token));
+    let pink = Color32::from_rgb(10, 200, 90);
+    let with = smart_colors(move || super::SmartGuides::new(&SMART_LINES, &[]).color(pink));
+    assert!(with.contains(&pink) && !with.contains(&token), "{with:?}");
+    let outlined = smart_colors(|| super::SmartGuides::new(&SMART_LINES, &[]).bounds(Rect::new(10.0, 10.0, 90.0, 90.0)));
+    assert_eq!(outlined.len(), 2, "the outline and the line: {outlined:?}");
+    assert_ne!(outlined[0], token);
+}
+
+fn current_smart() -> Color32 {
+    let h = Harness::builder().with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(|_| {});
+    super::Guides::style(&current(&h.ctx)).smart
+}

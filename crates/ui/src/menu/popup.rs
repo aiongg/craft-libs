@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use craft_theme::ControlSize;
 use egui::containers::menu::{MenuConfig, MenuState, SubMenu};
 use egui::style::StyleModifier;
-use egui::{Align, Id, Key, Layout, Modifiers, Popup, PopupCloseBehavior, PopupKind, Response, Sense, Ui, UiKind, UiStackInfo, Vec2, vec2};
+use egui::{Align, Id, Key, LayerId, Layout, Modifiers, Popup, PopupCloseBehavior, PopupKind, Response, Sense, Ui, UiKind, UiStackInfo, Vec2, vec2};
 
 use super::bar::MenuBarLabels;
 use super::item::{MenuEntry, MenuItem, at_path};
@@ -111,6 +111,10 @@ pub struct MenuResponse<T> {
     pub active: Option<Id>,
     /// The popup's response while it is shown.
     pub popup: Option<Response>,
+    /// A press outside the menu closed it this pass, as in PhotoCraft and Photoshop (on the
+    /// press, not its release). The press does nothing else: a host skips its own handling of
+    /// it, such as a canvas tool's.
+    pub dismissed: bool,
 }
 
 impl<'a, T: Clone> Menu<'a, T> {
@@ -179,6 +183,13 @@ impl<'a, T: Clone> Menu<'a, T> {
         // A click that moved the menu is not one that closes it.
         let close = if self.restart { PopupCloseBehavior::IgnoreClicks } else { PopupCloseBehavior::CloseOnClickOutside };
         let config = MenuConfig::new().close_behavior(close).style(modifier.clone());
+        // egui closes on the release of a click outside; the menu closes on the press itself.
+        let frame = ctx.cumulative_frame_nr();
+        let opened = id.with("opened-frame");
+        if !shown_before {
+            ctx.data_mut(|d| d.insert_temp(opened, frame));
+        }
+        let opening = ctx.data(|d| d.get_temp::<u64>(opened)) == Some(frame);
         let mnemonics = mnemonic::mnemonics(&ctx);
         let mut nav = Nav::load(&ctx, id, !shown_before);
         if self.restart {
@@ -214,12 +225,13 @@ impl<'a, T: Clone> Menu<'a, T> {
             chosen: None,
             header: self.header.map(|h| h as &mut dyn FnMut(&mut Ui) -> bool),
             typing: false,
+            layers: Vec::new(),
         };
         let shown = popup
             .kind(PopupKind::Menu)
             .layout(Layout::top_down(Align::Min))
             .style(modifier)
-            .close_behavior(close)
+            .close_behavior(PopupCloseBehavior::IgnoreClicks)
             .info(UiStackInfo::new(UiKind::Menu).with_tag_value(MenuConfig::MENU_CONFIG_TAG, config))
             .show(|ui| draw.level(ui, 1, id, &[], self.entries, &mut nav));
         if shown.is_some() {
@@ -228,6 +240,11 @@ impl<'a, T: Clone> Menu<'a, T> {
         let mut chosen = draw.chosen;
         let mut open = shown.as_ref().is_some_and(|r| !r.response.should_close());
         let mut step = None;
+        let dismissed = open && !opening && !self.restart && pressed_outside(&ctx, &draw.layers);
+        if dismissed {
+            Popup::close_id(&ctx, id);
+            open = false;
+        }
         if escape && shown.is_some() {
             ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
         }
@@ -268,8 +285,16 @@ impl<'a, T: Clone> Menu<'a, T> {
             step,
             active,
             popup: shown.map(|r| r.response),
+            dismissed,
         }
     }
+}
+
+/// Whether a pointer button went down this pass over something other than the menu's `layers`
+/// (its levels and submenus).
+fn pressed_outside(ctx: &egui::Context, layers: &[LayerId]) -> bool {
+    let pressed = ctx.input(|i| i.pointer.any_pressed().then(|| i.pointer.interact_pos()).flatten());
+    pressed.is_some_and(|pos| ctx.layer_id_at(pos).is_none_or(|layer| !layers.contains(&layer)))
 }
 
 fn open_menus_id() -> Id {
@@ -339,6 +364,8 @@ struct Draw<'s> {
     header: Option<&'s mut dyn FnMut(&mut Ui) -> bool>,
     /// The header has the keyboard focus.
     typing: bool,
+    /// The layers of the levels drawn, the top level and its open submenus.
+    layers: Vec<LayerId>,
 }
 
 impl Draw<'_> {
@@ -346,6 +373,7 @@ impl Draw<'_> {
     /// the submenu row's, `path` the submenu row's entry path.
     fn level<T>(&mut self, ui: &mut Ui, depth: usize, scope: Id, path: &[usize], entries: &[MenuEntry<T>], nav: &mut Nav) {
         let strips = Strips { up: self.strips.up, down: self.strips.down, ..self.strips };
+        self.layers.push(ui.layer_id());
         super::nav::level(ui, depth, nav, &strips, |ui, nav| {
             if depth == 1
                 && let Some(header) = self.header.as_mut()

@@ -400,6 +400,24 @@ fn a_click_on_a_disabled_row_or_a_separator_keeps_the_menu_open() {
 }
 
 #[test]
+fn a_press_outside_closes_the_menu_before_the_release_and_a_press_inside_a_submenu_does_not() {
+    let mut d = two_submenus();
+    d.click("Open");
+    assert!(d.open);
+    d.move_to(pos2(700.0, 500.0));
+    d.button(true);
+    assert!(!d.open, "closed on the press");
+    d.button(false);
+    assert!(!d.open && d.chosen.is_empty());
+
+    let (_, _, deep) = rest_on_mode(&mut d);
+    d.move_to(deep.center());
+    d.button(true);
+    assert!(d.open && d.shown("Mode 0"), "a press inside a submenu keeps every level open");
+    d.button(false);
+}
+
+#[test]
 fn escape_closes_every_level() {
     let mut d = Driver::new(vec![MenuItem::submenu("Zoom", vec![MenuItem::submenu("Preset", vec![item("100%", "actual")]).into()]).into()]);
     d.click("Open");

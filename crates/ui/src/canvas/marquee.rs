@@ -9,7 +9,9 @@ use crate::canvas::story::ViewArgs;
 use std::time::Duration;
 
 use egui::accesskit::Role;
-use egui::{AsIdSalt, Color32, IdSalt, Key, Modifiers, Pos2, Rect as ScreenRect, Response, Sense, Shape, Stroke, Ui, UiBuilder, WidgetInfo, pos2};
+use egui::{
+    AsIdSalt, Color32, IdSalt, Key, Modifiers, Painter, Pos2, Rect as ScreenRect, Response, Sense, Shape, Stroke, Ui, UiBuilder, WidgetInfo, pos2,
+};
 use kurbo::{Point, Rect};
 
 use super::{CanvasView, Claim, Readout};
@@ -17,13 +19,16 @@ use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
 use crate::localized::{LocaleNumbers, Unit};
 use crate::story::{Level, Story, StoryChoice, Surface};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, current};
 use crate::typed_story;
 
 use ants::Ants;
 
 /// Opacity of the light line under an outline being drawn (PhotoCraft's alpha 140 of 255).
 const DRAWING_HALO_ALPHA: f32 = 0.55;
+
+/// Opacity of the dark line under a contrast outline (PhotoCraft's alpha 150 of 255).
+const CONTRAST_HALO_ALPHA: f32 = 0.59;
 
 /// How a marquee is drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -38,6 +43,9 @@ pub enum MarqueeLook {
     /// An outline still being drawn (a lasso): a dark 1 point line over a wider translucent light
     /// line. A polygon is an open path in this look.
     Drawing,
+    /// An outline previewed in the given colour (a shape tool's drag): a 1 point line over a
+    /// wider translucent dark line, so it shows on pixels of its own colour. A polygon is closed.
+    Contrast(Color32),
 }
 
 /// A marquee's look, from [`Marquee::style`].
@@ -199,18 +207,29 @@ impl Marquee {
     /// Draws the outline over `view` and describes it to assistive technology inside the host's
     /// `canvas` node.
     pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) {
-        let tokens = Tokens::of(ui);
-        let style = Marquee::style(&tokens);
+        let time = if Marquee::style(&Tokens::of(ui)).march { ui.input(|i| i.time) } else { 0.0 };
+        self.paint(&ui.painter_at(view.rect), view, self.look, time);
         let paths = self.paths(view, self.look);
-        let painter = ui.painter_at(view.rect);
-        match self.look {
+        self.describe(ui, canvas, view, &paths);
+    }
+
+    /// Draws the outline in `look` with a painter alone, as [`show`](Marquee::show) does but
+    /// without the AccessKit node, so code that has only a painter and a view can draw
+    /// selections; the label and value are not used. Drawing is clipped to `view.rect`. `time`
+    /// is the frame time in seconds, which moves the ants; it is ignored with reduced motion,
+    /// which also asks for no repaints.
+    pub fn paint(&self, painter: &Painter, view: &CanvasView, look: MarqueeLook, time: f64) {
+        let style = Marquee::style(&current(painter.ctx()));
+        let painter = painter.with_clip_rect(painter.clip_rect().intersect(view.rect));
+        let paths = self.paths(view, look);
+        match look {
             MarqueeLook::Ants => {
-                let time = if style.march { ui.input(|i| i.time) } else { 0.0 };
-                let ants = Ants::new(ui.pixels_per_point(), time, style.dash, style.speed, style.light, style.dark);
+                let time = if style.march { time } else { 0.0 };
+                let ants = Ants::new(painter.pixels_per_point(), time, style.dash, style.speed, style.light, style.dark);
                 let lines = paths.iter().flat_map(|p| ants::polyline(&p.points, p.closed));
                 ants::draw(&painter, lines, ants, matches!(self.outline, Outline::Segments(_)));
                 if style.march {
-                    ui.ctx().request_repaint_after(Duration::from_millis(u64::from(style.tick_ms)));
+                    painter.ctx().request_repaint_after(Duration::from_millis(u64::from(style.tick_ms)));
                 }
             }
             MarqueeLook::Band => {
@@ -231,8 +250,14 @@ impl Marquee {
                     painter.add(line(&path.points, path.closed, style.drawing_line));
                 }
             }
+            MarqueeLook::Contrast(color) => {
+                let halo = Stroke::new(style.drawing_halo.width, style.dark.gamma_multiply(CONTRAST_HALO_ALPHA));
+                for path in &paths {
+                    painter.add(line(&path.points, path.closed, halo));
+                    painter.add(line(&path.points, path.closed, Stroke::new(1.0, color)));
+                }
+            }
         }
-        self.describe(ui, canvas, view, &paths);
     }
 
     /// The AccessKit node: a hover-only widget over the outline's screen bounds, a child of the
