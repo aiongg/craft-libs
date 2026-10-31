@@ -409,3 +409,26 @@ fn a_waiting_press_keeps_the_modifiers_it_arrived_with() {
     frame(vec![Event::ModifiersChanged(Modifiers::NONE)], &mut picks, &mut bar, &mut field);
     assert!(!picks.is_empty() && picks.iter().all(|p| p.other), "the pick is Alt's: {picks:?}");
 }
+
+#[cfg(feature = "serde")]
+#[test]
+fn a_ramp_kind_reads_and_writes_its_name() {
+    for (kind, name) in [
+        (RampKind::Spectrum, "spectrum"),
+        (RampKind::CmykSpectrum, "cmykSpectrum"),
+        (RampKind::Grayscale, "grayscale"),
+        (RampKind::Between, "between"),
+    ] {
+        assert_eq!(serde_json::to_string(&kind).unwrap(), format!("\"{name}\""));
+        assert_eq!(serde_json::from_str::<RampKind>(&format!("\"{name}\"")).unwrap(), kind);
+    }
+}
+
+#[test]
+fn the_cmyk_spectrum_goes_through_the_gamut_and_is_otherwise_the_spectrum() {
+    let muted = |c: Srgba| Srgba::rgb(c.r * 0.5, c.g * 0.5, c.b * 0.5);
+    let plain = ColorRamp::color_at(RampKind::CmykSpectrum, false, None, [RED, BLUE], 0.0, 0.5);
+    assert!(near(plain, ColorRamp::color_at(RampKind::Spectrum, false, None, [RED, BLUE], 0.0, 0.5)));
+    let mapped = ColorRamp::color_at(RampKind::CmykSpectrum, false, Some(&muted), [RED, BLUE], 0.0, 0.5);
+    assert!(near(mapped, Srgba::rgb(0.5, 0.0, 0.0)), "{mapped:?}");
+}

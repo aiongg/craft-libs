@@ -79,10 +79,23 @@ fn sized<R>(ui: &mut Ui, size: Vec2, layout: Layout, add: impl FnOnce(&mut Ui) -
     .inner
 }
 
+/// The size of `text` in `role`.
+fn text_size(ui: &Ui, tokens: &UiTokens, role: TypeRole, text: &str) -> Vec2 {
+    ui.painter().layout_job(LayoutJob::single_section(text.to_owned(), role_format(tokens, role, Color32::PLACEHOLDER))).size()
+}
+
 /// The width of `text` in `role`.
 fn text_width(ui: &Ui, tokens: &UiTokens, role: TypeRole, text: &str) -> f32 {
-    ui.painter().layout_job(LayoutJob::single_section(text.to_owned(), role_format(tokens, role, Color32::PLACEHOLDER))).size().x
+    text_size(ui, tokens, role, text).x
 }
+
+/// The height of the compare swatch's caption above the "new" half.
+fn compare_caption_height(ui: &Ui, tokens: &UiTokens) -> f32 {
+    text_size(ui, tokens, TypeRole::Caption, "new").y
+}
+
+/// Between the swatch's top and the first warning's icon.
+const WARNINGS_INSET: f32 = 2.0;
 
 impl ColorPicker<'_> {
     /// The Full layout: the square area and the strip, with the alpha row and the eyedropper
@@ -141,33 +154,40 @@ impl ColorPicker<'_> {
                     });
                 }
             });
+            let grid_width = self.grid_width(ui, models, inner, translate);
             Stack::new(Gap::Section).show(ui, |ui| {
-                if self.compare.is_some() || !self.warnings.is_empty() {
+                if self.compare.is_some() || !self.warnings.is_empty() || !self.side_actions.is_empty() {
                     top_row(ui, gap, |ui| {
                         if let Some(current) = self.compare {
                             compare(ui, &tokens, current, inner.enabled, translate, parts);
                         }
+                        // Beside the swatch, level with its top, not its caption's.
                         Stack::new(Gap::Stack).show(ui, |ui| {
+                            if self.compare.is_some() {
+                                ui.add_space(compare_caption_height(ui, &tokens) + WARNINGS_INSET);
+                            }
                             for (i, warning) in self.warnings.iter().enumerate() {
                                 show_warning(ui, i, warning, inner.enabled, parts);
                             }
                         });
+                        if !self.side_actions.is_empty() {
+                            let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone());
+                            let width = buttons.column_width(ui);
+                            // At the trailing edge of the grid beneath.
+                            ui.add_space((grid_width - ui.min_rect().width() - width - gap).max(0.0));
+                            ui.allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down(Align::Min), |ui| {
+                                ui.set_width(width);
+                                ui.add_enabled_ui(inner.enabled, |ui| {
+                                    let shown = buttons.place_column(ui, id.with("side-actions"));
+                                    side_clicked = shown.clicked;
+                                    keys = Some(shown);
+                                });
+                            });
+                        }
                     });
                 }
                 self.grid(ui, id, &mut radios, &offered, models, inner, translate, parts);
             });
-            if !self.side_actions.is_empty() {
-                let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone());
-                let width = buttons.column_width(ui);
-                ui.allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down(Align::Min), |ui| {
-                    ui.set_width(width);
-                    ui.add_enabled_ui(inner.enabled, |ui| {
-                        let shown = buttons.place_column(ui, id.with("side-actions"));
-                        side_clicked = shown.clicked;
-                        keys = Some(shown);
-                    });
-                });
-            }
         });
         let _ = radios.end(ui);
         // Esc and a field's Enter take the focus away within the pass, so the keys go by where the
@@ -207,26 +227,14 @@ impl ColorPicker<'_> {
         let field = TextField::style(&tokens, ControlSize::Md);
         let gap = Gap::Inline.points(&tokens);
         let height = field.height.max(radio.height);
-        let mut columns: [Vec<&dyn ColorModel>; 3] = Default::default();
-        for model in models {
-            columns[column_of(*model)].push(*model);
-        }
-        // "#" and six digits, or eight: as much as the field takes.
-        let hex_width = (2.0 * field.pad_x + text_width(ui, &tokens, TypeRole::Mono, if self.alpha { "#00000000" } else { "#000000" })).ceil();
+        let columns = self.grid_columns(ui, models, translate);
+        let hex_width = self.hex_width(ui, &tokens);
         top_row(ui, Gap::Section.points(&tokens), |ui| {
-            for (c, column) in columns.iter().enumerate().filter(|(c, column)| *c == 0 || !column.is_empty()) {
-                let labels: Vec<Vec<String>> = column
-                    .iter()
-                    .map(|m| m.channels().iter().map(|ch| translate(texts::GRID_LABEL).replace("{label}", &translate(ch.label))).collect())
-                    .collect();
-                let mut cell = labels.iter().flatten().map(|l| text_width(ui, &tokens, radio.label, l)).fold(0.0, f32::max);
-                if c == 0 {
-                    cell = cell.max(text_width(ui, &tokens, TypeRole::Mono, "#"));
-                }
-                let cell = radio.diameter + radio.gap + cell;
+            for GridColumn { index: c, column, labels, cell } in &columns {
+                let cell = *cell;
                 ui.with_layout(direction::column(ui), |ui| {
                     ui.spacing_mut().item_spacing.y = gap;
-                    for (g, (model, labels)) in column.iter().zip(&labels).enumerate() {
+                    for (g, (model, labels)) in column.iter().zip(labels).enumerate() {
                         if g > 0 {
                             ui.add_space(gap);
                         }
@@ -267,7 +275,7 @@ impl ColorPicker<'_> {
                             parts.typing(&edit, ops, |x, now| now.with_channel(*model, i, x, constrain));
                         }
                     }
-                    if c == 0 {
+                    if *c == 0 {
                         ui.add_space(gap);
                         channel_row(
                             ui,
@@ -286,6 +294,59 @@ impl ColorPicker<'_> {
             }
         });
     }
+}
+
+impl ColorPicker<'_> {
+    /// The grid's columns with their labels and label cells ([`GridColumn`]); column 0 (HSB and
+    /// RGB, then "#" and the hex field) is always there.
+    fn grid_columns<'m>(&self, ui: &Ui, models: &[&'m dyn ColorModel], translate: &dyn Fn(&'static str) -> String) -> Vec<GridColumn<'m>> {
+        let tokens = Tokens::of(ui);
+        let radio = RadioGroup::style(&tokens, ControlSize::Md);
+        let mut columns: [Vec<&'m dyn ColorModel>; 3] = Default::default();
+        for model in models {
+            columns[column_of(*model)].push(*model);
+        }
+        columns
+            .into_iter()
+            .enumerate()
+            .filter(|(c, column)| *c == 0 || !column.is_empty())
+            .map(|(index, column)| {
+                let labels: Vec<Vec<String>> = column
+                    .iter()
+                    .map(|m| m.channels().iter().map(|ch| translate(texts::GRID_LABEL).replace("{label}", &translate(ch.label))).collect())
+                    .collect();
+                let mut cell = labels.iter().flatten().map(|l| text_width(ui, &tokens, radio.label, l)).fold(0.0, f32::max);
+                if index == 0 {
+                    cell = cell.max(text_width(ui, &tokens, TypeRole::Mono, "#"));
+                }
+                GridColumn { index, column, labels, cell: radio.diameter + radio.gap + cell }
+            })
+            .collect()
+    }
+
+    /// The hex field's width in the grid: "#" and six digits, or eight, as much as the field takes.
+    fn hex_width(&self, ui: &Ui, tokens: &UiTokens) -> f32 {
+        let field = TextField::style(tokens, ControlSize::Md);
+        (2.0 * field.pad_x + text_width(ui, tokens, TypeRole::Mono, if self.alpha { "#00000000" } else { "#000000" })).ceil()
+    }
+
+    /// The width the grid takes, which the compare swatch's row above lines its trailing edge up with.
+    fn grid_width(&self, ui: &Ui, models: &[&dyn ColorModel], inner: Inner, translate: &dyn Fn(&'static str) -> String) -> f32 {
+        let tokens = Tokens::of(ui);
+        let gap = Gap::Inline.points(&tokens);
+        let hex = self.hex_width(ui, &tokens);
+        let columns = self.grid_columns(ui, models, translate);
+        let widths = columns.iter().map(|c| c.cell + gap + if c.index == 0 { inner.width.max(hex) } else { inner.width });
+        widths.sum::<f32>() + Gap::Section.points(&tokens) * columns.len().saturating_sub(1) as f32
+    }
+}
+
+/// One column of the channel grid: its models, their labels, and the width of its label cell.
+struct GridColumn<'m> {
+    index: usize,
+    column: Vec<&'m dyn ColorModel>,
+    labels: Vec<Vec<String>>,
+    cell: f32,
 }
 
 /// The "Only Web Colors" check box; switching it on sets the snapped colour.

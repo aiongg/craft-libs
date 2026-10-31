@@ -769,7 +769,8 @@ fn side_actions_stack_in_a_column_at_the_trailing_side_and_report_their_click() 
     assert!(ok.width() == add.width(), "as wide as the longest label");
     let hex = rig.rect(Role::TextInput, "Hex colour");
     let area = rig.rect(Role::Slider, "Saturation and brightness");
-    assert!(ok.min.x >= hex.max.x.max(area.max.x), "at the trailing side of the picker's parts");
+    assert!(ok.min.x >= area.max.x, "beside the area, at the trailing side");
+    assert!(ok.max.x >= hex.max.x && add.max.y < hex.min.y, "over the channel grid, in the picker's width");
 
     rig.click(add.center());
     rig.click(ok.center());

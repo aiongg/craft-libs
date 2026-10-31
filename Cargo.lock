@@ -830,6 +830,8 @@ dependencies = [
  "craft-ui",
  "egui",
  "egui_kittest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
