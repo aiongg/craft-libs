@@ -1010,6 +1010,13 @@ pub const CURSOR_SKEW_BACK: f32 = 2.5;
 /// Width of the halo outline drawn over a skew arrowhead's edge (PhotoCraft's).
 pub const CURSOR_SKEW_HEAD_OUTLINE: f32 = 1.0;
 
+/// Line width of the bitmap pointers (PhotoCraft's `tool_cursor`).
+pub const CURSOR_STROKE: f32 = 1.0;
+/// Side of the badge beside a tool icon or the arrow (PhotoCraft's `icons::cursor_badge`).
+pub const CURSOR_BADGE: f32 = 10.0;
+/// Side of the tool icon drawn as a pointer (PhotoCraft's `icons::cursor`).
+pub const CURSOR_ICON: f32 = 16.0;
+
 /// Guide line width in points, the same at every Size: guides sit on the document.
 pub const GUIDE_WIDTH: f32 = 1.0;
 /// Distance from a guide, in points, within which the pointer takes it (PhotoCraft's).

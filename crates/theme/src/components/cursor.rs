@@ -39,6 +39,12 @@ pub struct CursorTokens {
     pub skew_back: f32,
     /// Width of the halo outline drawn over a skew arrowhead's edge: `cursor.skew_head_outline`.
     pub skew_head_outline: f32,
+    /// Width of the line of the bitmap pointers (brush outline, crosshair, circle): `cursor.stroke`.
+    pub stroke: f32,
+    /// Side of the badge beside a tool icon or the arrow: `cursor.badge`.
+    pub badge: f32,
+    /// Side of the tool icon drawn as a pointer: `cursor.icon`.
+    pub icon: f32,
 }
 
 /// Painted pointers have no overridable field: their sizes come from the code, as every size does.
@@ -63,6 +69,9 @@ impl Family for CursorTokens {
         "skew_head" 0.0..=1024.0 => skew_head;
         "skew_back" 0.0..=1024.0 => skew_back;
         "skew_head_outline" 0.0..=16.0 => skew_head_outline;
+        "stroke" 0.0..=16.0 => stroke;
+        "badge" 0.0..=64.0 => badge;
+        "icon" 0.0..=128.0 => icon;
     };
 
     fn defaults(_: &Semantic<'_>) -> CursorTokens {
@@ -81,6 +90,9 @@ impl Family for CursorTokens {
             skew_head: values::CURSOR_SKEW_HEAD,
             skew_back: values::CURSOR_SKEW_BACK,
             skew_head_outline: values::CURSOR_SKEW_HEAD_OUTLINE,
+            stroke: values::CURSOR_STROKE,
+            badge: values::CURSOR_BADGE,
+            icon: values::CURSOR_ICON,
         }
     }
 
