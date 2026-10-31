@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use super::components::{ComponentTokens, SizeField};
 use super::format::{self, FormatErrors};
 use super::sizes::{ComponentSizes, Leaf, Preset, Slot, leaves};
-use super::theme::Size;
+use super::theme::{Size, TextSizeSteps};
 
 /// The value of one override: a length, or a switch.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -33,6 +33,9 @@ pub struct AppSizes {
     pub compact: SizeMap,
     /// For Comfortable.
     pub comfortable: SizeMap,
+    /// The factors of the text-size steps on the type roles. A runtime value of the app: it is
+    /// not part of `sizes.json`, so [`AppSizes::parse`] gives the default.
+    pub text_steps: TextSizeSteps,
 }
 
 /// Where a path leads.

@@ -5,6 +5,7 @@ use egui::{Context, Event, Key, Popup, RawInput, Rect, pos2};
 use super::ids::{State, WindowKey, set_state, state};
 use super::slot::{Edge, Slot};
 use crate::direction;
+use crate::focus::key_owner::{KeyOwner, OwnerGate, owner};
 
 /// What the window shows besides its body.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -67,15 +68,7 @@ pub(super) fn active(ctx: &Context, window: &WindowKey) -> bool {
 /// has it. Inside a control Tab moves focus as usual. False while something else owns the
 /// keyboard: an egui modal, an app-modal window, a menu or a popup list.
 pub fn tab_toggles_chrome(ctx: &Context) -> bool {
-    if ctx.memory(|m| m.top_modal_layer().is_some())
-        || crate::viewport::ViewportWindow::any_app_modal(ctx)
-        || crate::menu::any_open(ctx)
-        || crate::popup_list::any_open(ctx)
-    {
-        return false;
-    }
-    let focused = ctx.memory(|m| m.focused());
-    focused.is_none() || focused == super::ids::canvas(ctx)
+    owner(ctx, &OwnerGate::default()) == KeyOwner::App
 }
 
 /// For the host's `raw_input_hook`, before the pass runs: when the input holds a Tab press

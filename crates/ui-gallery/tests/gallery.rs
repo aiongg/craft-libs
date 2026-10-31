@@ -1,5 +1,6 @@
 use craft_theme::{ContrastChoice, ModeChoice};
 use craft_ui::interface_scale::InterfaceScale;
+use craft_ui::testing::i18n_audit;
 use craft_ui_gallery::Gallery;
 use craft_ui_gallery::layout::{GalleryWorkspace, PanelId, PreviewView, VariantAxis};
 use egui::{Context, RawInput};
@@ -660,8 +661,14 @@ fn click_nth(ctx: &Context, gallery: &mut Gallery, name: &str, role: egui::acces
 /// A component with several stories: its name and the ids of its stories. It is the first by name
 /// in the first level that has one, so its row is near the top of the list.
 fn component_with_stories(gallery: &Gallery) -> (&'static str, Vec<&'static str>) {
+    component_with_at_most(gallery, usize::MAX)
+}
+
+/// [`component_with_stories`] among the components with at most `most` stories. The Stories
+/// panel's list draws only the rows in view, so a test that looks for every row needs few stories.
+fn component_with_at_most(gallery: &Gallery, most: usize) -> (&'static str, Vec<&'static str>) {
     let stories = gallery.stories();
-    let several = |c: &str| stories.iter().filter(|s| s.component == c).count() > 1;
+    let several = |c: &str| (2..=most).contains(&stories.iter().filter(|s| s.component == c).count());
     let level = craft_ui::story::Level::ALL.into_iter().find(|l| stories.iter().any(|s| s.level == *l && several(s.component))).expect("a level");
     let component =
         stories.iter().filter(|s| s.level == level && several(s.component)).map(|s| s.component).min_by_key(|c| c.to_lowercase()).unwrap();
@@ -751,7 +758,7 @@ fn closing_a_tab_fronts_the_overview_and_drops_the_story() {
     gallery.select(ids[1]);
     assert_eq!(gallery.selected(), Some(ids[1]));
     open_tab_menu(&ctx, &mut gallery, component);
-    click(&ctx, &mut gallery, "Close Panel", Role::Button);
+    click(&ctx, &mut gallery, "Close", Role::Button);
     assert_eq!(gallery.open_tabs(), [other]);
     assert_eq!(gallery.front_tab(), PanelId::View);
     gallery.open_component(component);
@@ -779,7 +786,7 @@ fn a_tile_click_moves_the_side_panels_and_a_story_pick_changes_the_tile() {
     let ctx = Context::default();
     ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
-    let (component, ids) = component_with_stories(&gallery);
+    let (component, ids) = component_with_at_most(&gallery, 4);
     let neighbour = neighbour_of(&gallery, component);
     let tree = settled_tree(&ctx, &mut gallery);
     assert_eq!(gallery.selected(), None);
@@ -1056,6 +1063,93 @@ fn a_double_click_on_a_tile_header_opens_the_component() {
 /// Host text a story writes itself that equals the English of a registered word:
 /// `(text, stories, reason)`. The same text bypassing `Words` in another story still fails.
 const STORY_TEXT: &[(&str, &[&str], &str)] = &[
+    ("Width", &["composites/font-axes/sliders"], "the sample axis name, as a font's name table gives it"),
+    (
+        "Workspace",
+        &["patterns/app-preview/photo-editor", "shells/canvas/standard", "shells/canvas/body_only", "shells/canvas/revealed", "shells/canvas/rtl"],
+        "the body label of the story's sample app",
+    ),
+    ("Arrange", &["specimens/type/faces"], "sample text of the type specimen"),
+    ("Copy", &["patterns/canvas/selection-bar"], "an icon button name the story gives"),
+    ("Delete", &["patterns/canvas/selection-bar"], "an icon button name the story gives"),
+    (
+        "Home",
+        &[
+            "patterns/options-bar/brush-and-transform",
+            "patterns/options-bar/cells",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/standard",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+        ],
+        "the Home button the story gives its options bar",
+    ),
+    ("More", &["patterns/toolbar/vertical-liquify", "patterns/toolbar/horizontal-overflow"], "the overflow button name the story gives its toolbar"),
+    (
+        "Open…",
+        &["composites/empty-state/panel", "composites/empty-state/canvas", "composites/empty-state/start-screen"],
+        "the sample action of the story's empty state",
+    ),
+    (
+        "Recent",
+        &[
+            "composites/tab-strip/documents",
+            "composites/tab-strip/panels",
+            "composites/tab-strip/drops",
+            "composites/tab-strip/text",
+            "composites/gradient/palette-grid",
+            "composites/gradient/palette-list",
+        ],
+        "a sample category or palette group name",
+    ),
+    (
+        "Show",
+        &[
+            "patterns/status-bar/photocraft",
+            "patterns/status-bar/job",
+            "patterns/status-bar/error",
+            "patterns/status-bar/narrow",
+            "patterns/fonts-panel/panel",
+        ],
+        "the status bar menu button the story names itself, and the Fonts panel's own label",
+    ),
+    ("Standard Screen Mode", &["patterns/rail/tool"], "the screen-mode flyout item the story names itself"),
+    (
+        "View",
+        &[
+            "composites/menu/menu-bar",
+            "patterns/title-bar/windows",
+            "patterns/title-bar/adwaita",
+            "patterns/title-bar/breeze",
+            "patterns/title-bar/generic",
+            "patterns/title-bar/mac-inset",
+            "patterns/title-bar/native",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/standard",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+        ],
+        "a menu title in the story's sample menu bar",
+    ),
+    (
+        "Zoom",
+        &[
+            "controls/radio/states",
+            "controls/radio/groups",
+            "patterns/status-bar/photocraft",
+            "patterns/status-bar/job",
+            "patterns/status-bar/error",
+            "patterns/status-bar/narrow",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/standard",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+        ],
+        "a sample field, radio group or button name the story gives",
+    ),
     (
         "Background",
         &[
@@ -1261,7 +1355,7 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
         ],
         "a field label the story names itself",
     ),
-    ("Hex colour", &["composites/color/hex-field"], "the HexField label the story passes"),
+    ("Hex color", &["composites/color/hex-field"], "the HexField label the story passes"),
     (
         "Histogram",
         &[
@@ -1502,6 +1596,10 @@ fn gallery_chrome(tree: &craft_ui::inspect::AccessTree, node: egui::accesskit::N
     (data.role() == Role::Tab && own_tab_bar)
         || (data.role() == Role::Label && data.supports_action(Action::Click) && titles.contains(&name))
         || ancestors.iter().any(|a| matches!(a.as_str(), "ListBox:Components" | "ListBox:Stories"))
+        // The name on a tile, which is the name of a component or story.
+        || (data.role() == Role::Label && ancestors.iter().any(|a| *a == format!("Button:Select {name}")))
+        // The gallery's own workspace switch in its options bar.
+        || (data.role() == Role::RadioGroup && name == "Workspace" && ancestors.iter().any(|a| a == "Toolbar:Appearance"))
 }
 
 /// In the pseudo locale every string a component takes from `Words` shows marked. A node whose
@@ -1524,7 +1622,7 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
             components.push(story.component);
         }
     }
-    let mut unmarked = std::collections::BTreeMap::<String, Vec<&str>>::new();
+    let mut audit = i18n_audit::Audit::new();
     let mut marked = 0;
     for component in components {
         let ids: Vec<(&str, &str)> = gallery.stories().iter().filter(|s| s.component == component).map(|s| (s.id, s.name)).collect();
@@ -1538,33 +1636,25 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
                 let name = tree.name(node);
                 let role = tree.node(node).map(|n| format!("{:?}", n.role())).unwrap_or_default();
                 stack.push(format!("{role}:{}", name.as_deref().unwrap_or_default()));
-                let node_data = tree.node(node);
-                let texts = [
-                    name.clone(),
-                    node_data.and_then(|n| n.description().map(str::to_owned)),
-                    node_data.and_then(|n| n.tooltip().map(str::to_owned)),
-                ];
-                if texts.iter().all(Option::is_none)
-                    || gallery_chrome(&tree, node, &stack, name.as_deref().unwrap_or_default(), [component, story_name])
-                {
+                let texts = i18n_audit::accesskit_texts(&tree, node);
+                if texts.is_empty() || gallery_chrome(&tree, node, &stack, name.as_deref().unwrap_or_default(), [component, story_name]) {
                     continue;
                 }
-                for text in texts.into_iter().flatten() {
+                // Only text equal to a registered word is checked: stories show sample English
+                // of their own, which the audit would otherwise list as well.
+                let words = texts.into_iter().filter(|text| {
                     if text.contains('⟦') {
                         marked += 1;
-                    } else if registered.contains(text.as_str()) && !STORY_TEXT.iter().any(|(t, stories, _)| *t == text && stories.contains(&id)) {
-                        let ids = unmarked.entry(text).or_default();
-                        if !ids.contains(&id) {
-                            ids.push(id);
-                        }
                     }
-                }
+                    registered.contains(text.as_str()) && !STORY_TEXT.iter().any(|(t, stories, _)| t == text && stories.contains(&id))
+                });
+                audit.record(id, words, &i18n_audit::Exempt::new());
             }
         }
     }
     assert!(marked > 0, "the pseudo locale marked nothing");
     assert!(!gallery.i18n().looked_up().is_empty(), "no word was looked up");
-    assert!(unmarked.is_empty(), "English that bypasses Words (name: stories): {unmarked:#?}");
+    audit.assert_clean();
 }
 
 #[test]

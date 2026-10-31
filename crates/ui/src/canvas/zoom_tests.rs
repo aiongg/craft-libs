@@ -132,7 +132,7 @@ fn pass<R>(ctx: &Context, time: f64, f: impl FnOnce(&Context) -> R) -> R {
 #[test]
 fn an_animated_zoom_eases_to_the_target_and_ends_on_it() {
     let ctx = Context::default();
-    let id = Id::unique("canvas");
+    let id = super::CanvasId::from_id(Id::unique("canvas"));
     let from = view_at(1.0, 1.0);
     let mut target = from;
     let pointer = pos2(300.0, 200.0);

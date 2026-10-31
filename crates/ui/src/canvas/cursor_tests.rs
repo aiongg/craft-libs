@@ -5,7 +5,7 @@ use std::cell::Cell;
 use egui::{Context, CursorIcon, LayerId, Pos2, Shape, Vec2};
 use egui_kittest::Harness;
 
-use super::{CursorBadge, CursorHost, CursorPrefs, CursorStyle, PaintingCursor, ToolCursor};
+use super::{CursorBadge, CursorHost, CursorOptions, CursorStyle, PaintingCursor, ToolCursor};
 use crate::icons::Icon;
 use crate::theme::{Base, current, install};
 
@@ -46,22 +46,25 @@ fn segments(shapes: &[Shape]) -> usize {
 // With Caps Lock a brush tip cursor becomes the precise crosshair.
 #[test]
 fn caps_lock_makes_painting_cursors_precise() {
-    let prefs = CursorPrefs::default();
-    let tip = ToolCursor::brush(&prefs, 10.0, 12.0, Icon::Brush, false);
+    let prefs = CursorOptions::default();
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let style = &style(&ctx);
+    let tip = ToolCursor::brush(style, &prefs, 10.0, 12.0, Icon::Brush, false);
     assert!(matches!(tip, ToolCursor::Circle { radius, centre: false } if radius == 10.0));
-    let precise = ToolCursor::brush(&prefs, 10.0, 12.0, Icon::Brush, true);
+    let precise = ToolCursor::brush(style, &prefs, 10.0, 12.0, Icon::Brush, true);
     assert!(matches!(precise, ToolCursor::Crosshair { .. }));
     // The preference off leaves the tip alone.
-    let off = CursorPrefs { caps_lock_precise: false, ..prefs };
-    assert!(matches!(ToolCursor::brush(&off, 10.0, 12.0, Icon::Brush, true), ToolCursor::Circle { .. }));
+    let off = CursorOptions { caps_lock_precise: false, ..prefs };
+    assert!(matches!(ToolCursor::brush(style, &off, 10.0, 12.0, Icon::Brush, true), ToolCursor::Circle { .. }));
     // The full-size choice uses the full reach.
-    let full = CursorPrefs { painting: PaintingCursor::FullSizeBrushTip, ..prefs };
-    assert!(matches!(ToolCursor::brush(&full, 10.0, 12.0, Icon::Brush, false), ToolCursor::Circle { radius, .. } if radius == 12.0));
+    let full = CursorOptions { painting: PaintingCursor::FullSizeBrushTip, ..prefs };
+    assert!(matches!(ToolCursor::brush(style, &full, 10.0, 12.0, Icon::Brush, false), ToolCursor::Circle { radius, .. } if radius == 12.0));
     // Other tools: Caps Lock swaps the icon for the crosshair, and Precise swaps it back.
-    let icon = |prefs: &CursorPrefs, caps| ToolCursor::tool(prefs, Icon::Move, Vec2::ZERO, None, caps);
+    let icon = |prefs: &CursorOptions, caps| ToolCursor::tool(style, prefs, Icon::Move, Vec2::ZERO, None, caps);
     assert!(matches!(icon(&prefs, false), ToolCursor::Tool { .. }));
     assert!(matches!(icon(&prefs, true), ToolCursor::Crosshair { .. }));
-    let other = CursorPrefs { other_precise: true, ..prefs };
+    let other = CursorOptions { other_precise: true, ..prefs };
     assert!(matches!(icon(&other, false), ToolCursor::Crosshair { .. }));
     assert!(matches!(icon(&other, true), ToolCursor::Tool { .. }));
 }

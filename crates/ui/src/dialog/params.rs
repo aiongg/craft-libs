@@ -1,12 +1,16 @@
 //! [`ParamDialog`]: a filter or command dialog built from a parameter list, with Preview and
 //! Reset. [`Param`] and [`ParamKind`] are the list; [`CommandForm`](super::CommandForm) shares them.
 
+use std::fmt;
+use std::sync::Arc;
+
 use craft_host::Host;
 use craft_settings::Remembered;
-use craft_theme::{ControlSize, Rgba};
+use craft_theme::{ControlSize, Rgba, Srgba};
 use egui::load::SizedTexture;
-use egui::{Color32, Context, CornerRadius, Id, Rect, Sense, Ui, Vec2, pos2, vec2};
+use egui::{Color32, Context, CornerRadius, Id, Rect, Response, Sense, Ui, Vec2, pos2, vec2};
 
+use super::color_request::ColorRequest;
 use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::{DialogFields, FieldValue};
@@ -14,9 +18,9 @@ use super::footer::{DialogLabels, Footer, Reset};
 use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
-use crate::composites::{Form, FormGrid};
+use crate::composites::{FieldControl as _, Form, FormGrid};
 use crate::controls::text_field::{BoxState, TextField, field_box};
-use crate::controls::{AngleDial, Checkbox, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, checkerboard};
+use crate::controls::{AngleDial, Button, Checkbox, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, TooltipExt as _, checkerboard};
 use crate::edit::{self, EditResponse};
 use crate::localized::{Labels as _, LocaleNumbers, Unit, focus_first_field};
 use crate::theme::{Tokens, TokensOf};
@@ -31,6 +35,11 @@ pub enum ParamKind {
     Range { min: f64, max: f64, default: f64, scale: SliderScale },
     /// A whole-number field with steppers; `None` bounds are unbounded.
     Int { min: Option<i64>, max: Option<i64>, default: i64 },
+    /// A bare [`NumberField`] without a slider (Photoshop's Merge to HDR Pro has sliders; a
+    /// canvas size or a count does not). A `None` bound is open on that side. Scrub and arrow
+    /// keys move by `step`; `decimals` is the most digits shown after the decimal mark, so an
+    /// integer is `decimals: 0`. The field holds a [`FieldValue::Number`].
+    Number { min: Option<f64>, max: Option<f64>, default: f64, step: f64, decimals: u32 },
     /// A check box.
     Bool { default: bool },
     /// A [`Select`](crate::controls::Select) of `(id, label)` options; the field holds the id.
@@ -51,6 +60,56 @@ pub enum ParamKind {
     Channel { names: Vec<String>, default: usize },
     /// A [`TextField`](crate::controls::TextField).
     Text { default: String },
+    /// A number that may be unset: a "Custom" check box switches the field on. Unset the key is
+    /// absent from the [`DialogFields`] (PhotoCraft's Batch quality: `null` keeps the command's
+    /// own default). `initial` is what the field shows the first time the box is checked;
+    /// `decimals` is the most digits shown after the decimal mark (`0` for an integer, as in
+    /// [`ParamKind::Number`]).
+    OptionalNumber { min: f64, max: f64, default: Option<f64>, initial: f64, decimals: u32 },
+    /// A row the host draws: see [`Param::custom`]. It has no value of its own.
+    Custom(CustomRow),
+}
+
+/// What draws a [`ParamKind::Custom`] row: it gets the row's control cell and the dialog's values
+/// and returns the response the row label names and centres on. Equal only to itself.
+#[derive(Clone)]
+pub struct CustomRow(Arc<CustomDraw>);
+
+type CustomDraw = dyn Fn(&mut Ui, &mut DialogFields) -> Response + Send + Sync;
+
+impl CustomRow {
+    pub fn new(draw: impl Fn(&mut Ui, &mut DialogFields) -> Response + Send + Sync + 'static) -> Self {
+        Self(Arc::new(draw))
+    }
+}
+
+impl fmt::Debug for CustomRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("CustomRow")
+    }
+}
+
+impl PartialEq for CustomRow {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+/// What a text row's Browse button picks.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PathKind {
+    #[default]
+    Folder,
+    OpenFile,
+    SaveFile,
+}
+
+/// A pressed Browse button: the host opens its file dialog for `kind` and writes the answer with
+/// `fields_mut().set(key, FieldValue::Text(path))`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PathRequest {
+    pub key: String,
+    pub kind: PathKind,
 }
 
 impl ParamKind {
@@ -66,6 +125,7 @@ impl ParamKind {
         Some(match self {
             ParamKind::Range { default, .. } | ParamKind::Angle { default } => FieldValue::Number(*default),
             ParamKind::Int { default, .. } => FieldValue::Int(*default),
+            ParamKind::Number { default, .. } => FieldValue::Number(*default),
             ParamKind::Bool { default } => FieldValue::Bool(*default),
             ParamKind::Choice { options, default } => {
                 let initial = default.as_deref().or_else(|| options.first().map(|(id, _)| id.as_str()));
@@ -85,6 +145,8 @@ impl ParamKind {
             ParamKind::Point { default } => FieldValue::Point(*default),
             ParamKind::Channel { default, .. } => FieldValue::Int(i64::try_from(*default).unwrap_or(0)),
             ParamKind::Text { default } => FieldValue::Text(default.clone()),
+            ParamKind::OptionalNumber { default, .. } => FieldValue::Number((*default)?),
+            ParamKind::Custom(_) => return None,
         })
     }
 
@@ -100,6 +162,9 @@ impl ParamKind {
             (ParamKind::Range { min, max, .. }, v) => number(v).is_some_and(|n| n.is_finite() && n >= *min && n <= *max),
             (ParamKind::Angle { .. }, v) => number(v).is_some_and(f64::is_finite),
             (ParamKind::Int { min, max, .. }, FieldValue::Int(i)) => min.is_none_or(|m| *i >= m) && max.is_none_or(|m| *i <= m),
+            (ParamKind::Number { min, max, .. }, v) => {
+                number(v).is_some_and(|n| n.is_finite() && min.is_none_or(|m| n >= m) && max.is_none_or(|m| n <= m))
+            }
             (ParamKind::Bool { .. }, FieldValue::Bool(_)) => true,
             (ParamKind::Choice { options, .. }, FieldValue::Text(id)) => options.iter().any(|(option, _)| option == id),
             (ParamKind::Color { .. }, FieldValue::Color(c)) => c.iter().all(|v| v.is_finite()),
@@ -107,6 +172,7 @@ impl ParamKind {
             (ParamKind::Point { .. }, FieldValue::Point(p)) => p.iter().all(|v| v.is_finite()),
             (ParamKind::Channel { names, .. }, FieldValue::Int(i)) => usize::try_from(*i).is_ok_and(|i| i < names.len()),
             (ParamKind::Text { .. }, FieldValue::Text(_)) => true,
+            (ParamKind::OptionalNumber { min, max, .. }, v) => number(v).is_some_and(|n| n.is_finite() && n >= *min && n <= *max),
             _ => false,
         }
     }
@@ -123,11 +189,90 @@ pub struct Param {
     pub kind: ParamKind,
     /// Shown after the number (`px`, `%`, `°`); formats through the locale.
     pub unit: Option<Unit>,
+    /// The row takes input only while `fields[key]` equals the value (Replace Color's Range is
+    /// enabled only when Localized Color Clusters is checked).
+    pub enabled_when: Option<(String, FieldValue)>,
+    /// A Browse button after a [`ParamKind::Text`] field.
+    pub browse: Option<PathKind>,
+    /// The hint and tooltip ([`Param::hint`], [`Param::tooltip`]), boxed so rows without them stay small.
+    texts: Option<Box<RowTexts>>,
+}
+
+/// Texts a row may carry beyond its label.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct RowTexts {
+    hint: Option<String>,
+    tooltip: Option<String>,
 }
 
 impl Param {
     pub fn new(key: impl Into<String>, label: impl Into<String>, kind: ParamKind) -> Self {
-        Self { key: key.into(), label: label.into(), kind, unit: None }
+        Self { key: key.into(), label: label.into(), kind, unit: None, enabled_when: None, browse: None, texts: None }
+    }
+
+    /// A bare number row: a [`ParamKind::Number`] open on both sides. Bound it with
+    /// [`Param::bounds`].
+    pub fn number(key: impl Into<String>, label: impl Into<String>, default: f64, step: f64, decimals: u32) -> Self {
+        Self::new(key, label, ParamKind::Number { min: None, max: None, default, step, decimals })
+    }
+
+    /// Bounds a [`ParamKind::Number`] row (`None`: open on that side); other kinds are unchanged.
+    pub fn bounds(mut self, lo: Option<f64>, hi: Option<f64>) -> Self {
+        if let ParamKind::Number { min, max, .. } = &mut self.kind {
+            (*min, *max) = (lo, hi);
+        }
+        self
+    }
+
+    /// A row the host draws (PhotoCraft's Zoom center picker, Indexed Color's color count). `draw`
+    /// gets the control cell and the dialog's values; the row label names the response it returns.
+    /// The row has no default and nothing remembered; `draw` reads and writes
+    /// [`DialogFields`] under whatever keys it likes.
+    pub fn custom(
+        key: impl Into<String>,
+        label: impl Into<String>,
+        draw: impl Fn(&mut Ui, &mut DialogFields) -> Response + Send + Sync + 'static,
+    ) -> Self {
+        Self::new(key, label, ParamKind::Custom(CustomRow::new(draw)))
+    }
+
+    /// The row takes input only while `fields[key]` equals `value`; otherwise it is drawn disabled.
+    pub fn enabled_when(mut self, key: impl Into<String>, value: impl Into<FieldValue>) -> Self {
+        self.enabled_when = Some((key.into(), value.into()));
+        self
+    }
+
+    /// A Browse button after the field of a [`ParamKind::Text`] row. The press is reported by
+    /// [`ParamDialog::pick_path`] / [`CommandForm::pick_path`](super::CommandForm::pick_path).
+    pub fn browse(mut self, kind: PathKind) -> Self {
+        self.browse = Some(kind);
+        self
+    }
+
+    /// The text shown while a [`ParamKind::Text`] field is empty (`{name}`); other kinds are
+    /// unchanged.
+    pub fn hint(mut self, text: impl Into<String>) -> Self {
+        self.texts.get_or_insert_default().hint = Some(text.into());
+        self
+    }
+
+    /// Hover text for the whole row, label and control, of any kind.
+    pub fn tooltip(mut self, text: impl Into<String>) -> Self {
+        self.texts.get_or_insert_default().tooltip = Some(text.into());
+        self
+    }
+
+    /// The most digits shown after the decimal mark on a [`ParamKind::OptionalNumber`] row
+    /// (`0` for an integer such as Batch quality); other kinds are unchanged.
+    pub fn decimals(mut self, places: u32) -> Self {
+        if let ParamKind::OptionalNumber { decimals, .. } = &mut self.kind {
+            *decimals = places;
+        }
+        self
+    }
+
+    fn enabled(&self, fields: &DialogFields) -> bool {
+        self.enabled_when.as_ref().is_none_or(|(key, value)| fields.get(key) == Some(value))
     }
 
     pub fn unit(mut self, unit: Unit) -> Self {
@@ -165,6 +310,15 @@ impl Param {
 
     /// [`Param::row`] for a row of the dialog `dialog`: a colour swatch press is kept under it.
     pub(super) fn row_in(&self, dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
+        form.set_disabled(!self.enabled(fields));
+        self.row_body(dialog, form, fields, preview);
+        if let (Some(tip), Some(row)) = (self.texts.as_ref().and_then(|t| t.tooltip.as_ref()), form.last_row()) {
+            let _ = row.clone().tooltip(translated(form.ctx(), tip));
+        }
+        form.set_disabled(false);
+    }
+
+    fn row_body(&self, dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
         let ctx = form.ctx().clone();
         let numbers = LocaleNumbers::of_ctx(&ctx);
         let numbers = &*numbers;
@@ -185,6 +339,22 @@ impl Param {
                             fields.set(key, FieldValue::Number(v));
                         }
                         (slider, field)
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Number { min, max, step, decimals, .. } => {
+                let value = fields.number(key).or_else(|| number_of(default.as_ref())).unwrap_or(0.0);
+                let range = min.unwrap_or(f64::NEG_INFINITY)..=max.unwrap_or(f64::INFINITY);
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let places = 0..=*decimals as usize;
+                        let field = NumberField::new((key, "field"), label.as_str(), value, numbers).range(range).step(*step).decimals(places);
+                        let field = with_unit(field, unit).show(ui);
+                        if let Some(v) = edited(&field) {
+                            fields.set(key, FieldValue::Number(v));
+                        }
+                        field
                     })
                     .inner
                 });
@@ -254,7 +424,9 @@ impl Param {
                 form.row(label.as_str(), |ui, _| {
                     let swatch = ui.add(Swatch::new((key, "swatch"), label.as_str(), shown).mixed(color.is_none()));
                     if swatch.clicked() {
-                        ui.ctx().data_mut(|d| d.insert_temp(color_press_id(dialog), key.to_owned()));
+                        let request =
+                            ColorRequest::new(key, Srgba::from_rgb_array(color.unwrap_or([0.0; 3]))).title(label.trim_end_matches([':', '：']));
+                        ui.ctx().data_mut(|d| d.insert_temp(color_press_id(dialog), request));
                     }
                     swatch
                 });
@@ -330,14 +502,63 @@ impl Param {
                 let value = fields.text(key).unwrap_or(default).to_owned();
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
-                        let text = TextField::new((key, "text"), label.as_str(), &value).show(ui);
+                        let mut text = TextField::new((key, "text"), label.as_str(), &value);
+                        if let Some(hint) = self.texts.as_ref().and_then(|t| t.hint.as_ref()) {
+                            text = text.placeholder(translated(&ctx, hint));
+                        }
+                        let text = text.show(ui);
                         if let Some(v) = edited(&text) {
                             fields.set(key, FieldValue::Text(v));
                         }
-                        text
+                        let browse = self.browse.map(|kind| {
+                            let words = DialogLabels::of_ctx(&ctx);
+                            let button = ui.add(Button::new(words.browse.as_str()).id_salt((key, "browse")));
+                            if button.clicked() {
+                                let request = PathRequest { key: key.to_owned(), kind };
+                                ui.ctx().data_mut(|d| d.insert_temp(path_press_id(dialog), request));
+                            }
+                            button
+                        });
+                        (text, browse)
                     })
                     .inner
                 });
+            }
+            ParamKind::OptionalNumber { min, max, initial, decimals, .. } => {
+                let stored = fields.number(key);
+                let last_id = Id::unique(("craft_ui::dialog::params::optional_last", dialog, key));
+                let last = stored.or_else(|| ctx.data(|d| d.get_temp::<f64>(last_id))).unwrap_or(*initial);
+                let mut on = stored.is_some();
+                let words = DialogLabels::of_ctx(&ctx);
+                form.row(label.as_str(), |ui, _| {
+                    edit::scope(ui, |ui| {
+                        let check = Checkbox::bool(words.custom.as_str(), &mut on).id_salt((key, "custom")).show(ui);
+                        match edited(&check) {
+                            Some(true) => fields.set(key, FieldValue::Number(last)),
+                            Some(false) => {
+                                ui.ctx().data_mut(|d| d.insert_temp(last_id, last));
+                                fields.remove(key);
+                            }
+                            None => {}
+                        }
+                        let field = ui
+                            .add_enabled_ui(fields.number(key).is_some(), |ui| {
+                                let field = NumberField::new((key, "field"), label.as_str(), last, numbers)
+                                    .range(*min..=*max)
+                                    .decimals(0..=*decimals as usize);
+                                with_unit(field, unit).show(ui)
+                            })
+                            .inner;
+                        if let Some(v) = edited(&field) {
+                            fields.set(key, FieldValue::Number(v));
+                        }
+                        (check.own_name(), field)
+                    })
+                    .inner
+                });
+            }
+            ParamKind::Custom(row) => {
+                form.row(label.as_str(), |ui, _| (row.0)(ui, fields));
             }
         }
     }
@@ -391,10 +612,31 @@ fn color_press_id(dialog: DialogId) -> Id {
     Id::unique(("craft_ui::dialog::params::color_press", dialog))
 }
 
-/// The key of the colour parameter whose swatch of `dialog` was pressed this pass. Keyed by
+/// The colour request of the parameter whose swatch of `dialog` was pressed this pass. Keyed by
 /// dialog, so a parent and its child form never take each other's press.
-pub(super) fn take_color_press(ctx: &Context, dialog: DialogId) -> Option<String> {
-    ctx.data_mut(|d| d.remove_temp::<String>(color_press_id(dialog)))
+pub(super) fn take_color_press(ctx: &Context, dialog: DialogId) -> Option<ColorRequest> {
+    ctx.data_mut(|d| {
+        let id = color_press_id(dialog);
+        let request = d.get_temp::<ColorRequest>(id);
+        d.remove::<ColorRequest>(id);
+        request
+    })
+}
+
+/// Writes `color` into the colour parameter `key` of `params`; other keys are ignored.
+pub(super) fn set_color_field(params: &[Param], fields: &mut DialogFields, key: &str, color: Srgba) {
+    if params.iter().any(|param| param.key == key && matches!(param.kind, ParamKind::Color { .. })) {
+        fields.set(key, FieldValue::Color(color.to_rgb_array()));
+    }
+}
+
+fn path_press_id(dialog: DialogId) -> Id {
+    Id::unique(("craft_ui::dialog::params::path_press", dialog))
+}
+
+/// The Browse button of `dialog` pressed this pass.
+pub(super) fn take_path_press(ctx: &Context, dialog: DialogId) -> Option<PathRequest> {
+    ctx.data_mut(|d| d.remove_temp::<PathRequest>(path_press_id(dialog)))
 }
 
 /// Fills the keys `params` have defaults for and the fields lack, and takes the opening snapshot.
@@ -464,7 +706,7 @@ fn parse_kind(v: &str) -> Option<ParamKind> {
     } else if v == "color" {
         Some(ParamKind::Color { default: None })
     } else if let Some(hex) = v.strip_prefix("color=") {
-        Some(ParamKind::Color { default: parse_hex(hex) })
+        Some(ParamKind::Color { default: Srgba::from_hex(hex).map(Srgba::to_rgb_array) })
     } else if v == "doc" || v == "json" || v.starts_with("layer id") || v.starts_with(['[', '{']) || v.trim_end_matches('?') == "index|name" {
         None
     } else if let Some(cells) = v.strip_prefix("int[").and_then(|r| r.strip_suffix(']')).and_then(|n| n.parse::<usize>().ok()) {
@@ -545,16 +787,6 @@ fn object_body(spec: &str) -> &str {
     body.trim_end_matches('}')
 }
 
-/// `#rrggbb` as colour components.
-fn parse_hex(text: &str) -> Option<[f32; 3]> {
-    let digits = text.trim().trim_start_matches('#');
-    if digits.len() != 6 || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return None;
-    }
-    let channel = |i: usize| u8::from_str_radix(digits.get(i..i + 2)?, 16).ok().map(|v| f32::from(v) / 255.0);
-    Some([channel(0)?, channel(2)?, channel(4)?])
-}
-
 /// The English label of a key, as PhotoCraft's filter dialogs write it: camelCase read as Title
 /// Case words (`cellSize` is `Cell Size`), two fixed names, and a key with a space is already text.
 // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:616 `source_label`.
@@ -629,9 +861,18 @@ pub struct ParamDialog {
     preview: bool,
     preview_image: Option<SizedTexture>,
     remember_key: Option<String>,
-    picked_color: Option<String>,
+    picked_color: Option<ColorRequest>,
+    picked_path: Option<PathRequest>,
+    reset_target: Option<DialogFields>,
+    ok_enabled: bool,
+    history: bool,
+    close_label: Option<Option<String>>,
+    footer_extra: Option<FooterExtra>,
     state: DialogState<DialogFields>,
 }
+
+/// What a dialog draws before its buttons ([`ParamDialog::footer_extra`]).
+pub(super) type FooterExtra = Box<dyn FnMut(&mut Ui) + Send>;
 
 impl ParamDialog {
     /// A dialog for `params`, opening with their defaults. `key` names the dialog for the stack
@@ -650,6 +891,12 @@ impl ParamDialog {
             preview_image: None,
             remember_key: None,
             picked_color: None,
+            picked_path: None,
+            reset_target: None,
+            ok_enabled: true,
+            history: false,
+            close_label: None,
+            footer_extra: None,
             state: DialogState::new(),
         }
     }
@@ -671,6 +918,52 @@ impl ParamDialog {
     /// (spec question 2).
     pub fn remember(mut self, key: impl Into<String>) -> Self {
         self.remember_key = Some(key.into());
+        self
+    }
+
+    /// Whether OK can be pressed; for a dialog already open use
+    /// [`set_ok_enabled`](ParamDialog::set_ok_enabled). Enter does nothing while it is off.
+    pub fn ok_enabled(mut self, enabled: bool) -> Self {
+        self.ok_enabled = enabled;
+        self
+    }
+
+    /// [`ok_enabled`](ParamDialog::ok_enabled) for a dialog already open: the host updates it
+    /// through [`DialogHost::get_mut`](super::DialogHost::get_mut) when it depends on the values
+    /// (a filter that needs an input).
+    pub fn set_ok_enabled(&mut self, enabled: bool) {
+        self.ok_enabled = enabled;
+    }
+
+    /// The values Alt+Reset sets (PhotoCraft's `reset_fields`: schema defaults, the foreground
+    /// color), instead of the values from when the dialog opened. Keys the target lacks keep their
+    /// value. The host may call [`set_reset_to`](ParamDialog::set_reset_to) while the dialog is open.
+    pub fn reset_to(mut self, target: DialogFields) -> Self {
+        self.reset_target = Some(target);
+        self
+    }
+
+    /// [`reset_to`](ParamDialog::reset_to) for a dialog already open.
+    pub fn set_reset_to(&mut self, target: DialogFields) {
+        self.reset_target = Some(target);
+    }
+
+    /// Cmd/Ctrl+Z steps the dialog's own settings ([`Dialog::history`]).
+    pub fn history(mut self, history: bool) -> Self {
+        self.history = history;
+        self
+    }
+
+    /// The close box's accessible name; `None` removes the box ([`Dialog::close_label`]).
+    pub fn close_label(mut self, label: Option<String>) -> Self {
+        self.close_label = Some(label);
+        self
+    }
+
+    /// Controls before the buttons in the [`ParamLayout::BottomFooter`] row (Color Table's Load
+    /// and Save). The side column has no such row and ignores it.
+    pub fn footer_extra(mut self, add: impl FnMut(&mut Ui) + Send + 'static) -> Self {
+        self.footer_extra = Some(Box::new(add));
         self
     }
 
@@ -720,10 +1013,22 @@ impl ParamDialog {
         draw_rows(&self.params, self.id, form, &mut self.fields, self.preview_image.as_ref());
     }
 
-    /// The key of the colour parameter whose swatch the user pressed, once: the host opens its
-    /// colour picker for it and writes the pick with `fields_mut().set(key, FieldValue::Color(..))`.
-    pub fn pick_color(&mut self) -> Option<String> {
+    /// The colour parameter whose swatch the user pressed, once: the host opens its colour picker
+    /// for the request (key = the parameter's key, title = its label, colour = the value shown) and
+    /// answers with [`set_color`](Self::set_color).
+    pub fn pick_color(&mut self) -> Option<ColorRequest> {
         self.picked_color.take()
+    }
+
+    /// The colour picker's answer for the parameter `key`; other keys are ignored.
+    pub fn set_color(&mut self, key: &str, color: Srgba) {
+        set_color_field(&self.params, &mut self.fields, key, color);
+    }
+
+    /// The Browse button of a [`Param::browse`] row the user pressed, once: the host opens its
+    /// file dialog and writes the path with `fields_mut().set(key, FieldValue::Text(..))`.
+    pub fn pick_path(&mut self) -> Option<PathRequest> {
+        self.picked_path.take()
     }
 
     /// Loads the remembered values (if `remember` was set and the Host has them) and takes the
@@ -750,7 +1055,12 @@ impl ParamDialog {
         let kept = |kind: &ParamKind| {
             matches!(
                 kind,
-                ParamKind::Range { .. } | ParamKind::Angle { .. } | ParamKind::Int { .. } | ParamKind::Bool { .. } | ParamKind::Choice { .. }
+                ParamKind::Range { .. }
+                    | ParamKind::Angle { .. }
+                    | ParamKind::Int { .. }
+                    | ParamKind::Number { .. }
+                    | ParamKind::Bool { .. }
+                    | ParamKind::Choice { .. }
             )
         };
         self.params.iter().filter(|p| kept(&p.kind)).map(|p| p.key.as_str()).collect()
@@ -807,6 +1117,14 @@ impl ParamResult {
     }
 }
 
+impl ParamDialog {
+    /// OK: stores the remembered values and builds the answer.
+    fn answer(&self, ctx: &Context) -> ParamResult {
+        self.store(ctx);
+        ParamResult { key: self.key.clone(), fields: self.fields.clone() }
+    }
+}
+
 impl StackDialog for ParamDialog {
     type Result = ParamResult;
 
@@ -828,7 +1146,7 @@ impl StackDialog for ParamDialog {
         let reset = Reset::AltCancel(labels.reset.clone());
         let footer = match layout {
             ParamLayout::SideColumn => {
-                let footer = Footer::side().reset(reset);
+                let footer = Footer::side().reset(reset).ok_enabled(self.ok_enabled);
                 if has_preview {
                     footer.below(|ui| {
                         preview.checkbox(ui, preview_label);
@@ -838,7 +1156,10 @@ impl StackDialog for ParamDialog {
                 }
             }
             ParamLayout::BottomFooter => {
-                let footer = Footer::standard().reset(reset);
+                let mut footer = Footer::standard().reset(reset).ok_enabled(self.ok_enabled);
+                if let Some(extra) = &mut self.footer_extra {
+                    footer = footer.trailing_extra(|ui| extra(ui));
+                }
                 if has_preview {
                     footer.leading(|ui| {
                         preview.checkbox(ui, preview_label);
@@ -850,7 +1171,12 @@ impl StackDialog for ParamDialog {
         };
         let image = self.preview_image.as_ref();
         let (params, id) = (&self.params, self.id);
-        let shown = Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).show_with_below(
+        let mut dialog =
+            Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).history(self.history);
+        if let Some(label) = &self.close_label {
+            dialog = dialog.close_label(label.clone());
+        }
+        let shown = dialog.show_with_below(
             ctx,
             &mut self.state,
             &mut self.fields,
@@ -870,17 +1196,38 @@ impl StackDialog for ParamDialog {
             *self.state.preview_mut() = preview;
         }
         self.picked_color = take_color_press(ctx, self.id).or(self.picked_color.take());
+        self.picked_path = take_path_press(ctx, self.id).or(self.picked_path.take());
         match shown.outcome? {
-            Outcome::Ok => {
-                self.store(ctx);
-                Some(DialogResult::Ok(ParamResult { key: self.key.clone(), fields: self.fields.clone() }))
-            }
+            Outcome::Ok => Some(DialogResult::Ok(self.answer(ctx))),
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
             Outcome::Reset => {
-                self.fields.reset();
+                match &self.reset_target {
+                    Some(target) => {
+                        for (key, value) in target.iter() {
+                            self.fields.set(key, value.clone());
+                        }
+                    }
+                    None => {
+                        self.fields.reset();
+                    }
+                }
                 None
             }
             _ => None,
         }
+    }
+
+    fn key(&self) -> Option<&str> {
+        Some(&self.key)
+    }
+
+    fn confirm(&mut self, ctx: &Context) -> Option<ParamResult> {
+        if !self.ok_enabled {
+            return None;
+        }
+        if !self.state.is_open() {
+            self.open(ctx);
+        }
+        Some(self.answer(ctx))
     }
 }

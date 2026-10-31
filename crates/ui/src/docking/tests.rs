@@ -61,7 +61,7 @@ fn move_targets_skip_the_panel_itself_and_protected_anchors() {
     let guarded = |p: &u32| if *p == 3 { Permissions::PROTECTED } else { Permissions::default() };
     assert!(!layout.move_targets(&1, guarded).contains(&&3));
 
-    // A lone panel has nowhere to go — its "Move Panel to Group" menu hides
+    // A lone panel has nowhere to go — its "Move Panel To" menu hides
     // (storytold/lightcraft#1768).
     let single = Layout { root: Some(tabs(&[1], 0)), floating: Vec::new() };
     assert!(single.move_targets(&1, all).is_empty());
@@ -457,7 +457,6 @@ fn long_action_sequence_never_loses_or_duplicates_a_panel() {
     }
 }
 
-#[cfg(feature = "serde")]
 #[test]
 fn saved_layout_and_hidden_location_round_trip() {
     let layout = sample();
@@ -470,7 +469,6 @@ fn saved_layout_and_hidden_location_round_trip() {
     assert_eq!(serde_json::from_str::<Location<u32>>(&encoded).unwrap(), location);
 }
 
-#[cfg(feature = "serde")]
 #[test]
 /// Deserialize an older hidden `Location` without a `sibling` field; the
 /// missing list stays empty and the anchor panel is preserved.
@@ -1511,7 +1509,7 @@ fn popup_action_labels_use_custom_visual_text_and_logical_accessibility() {
     h.input_mut().events.push(Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed: false, modifiers: Modifiers::NONE });
     h.run_steps(2);
     assert!(egui::Popup::is_any_open(&h.ctx));
-    for logical in ["Float Panel", "Move Panel to Group", "Close Panel"] {
+    for logical in ["Float", "Move Panel To", "Close"] {
         assert!(
             h.output().shapes.iter().any(|shape| paints(&shape.shape, &format!("Action visual: {logical}"))),
             "custom action must paint: {logical}"

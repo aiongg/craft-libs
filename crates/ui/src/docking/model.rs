@@ -12,8 +12,7 @@ pub const MAX_PANELS: usize = 4096;
 pub(super) const MAX_NODES: usize = MAX_PANELS * 2;
 const MAX_EXTENT: f32 = 1_000_000.0;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Zone {
     Center,
     Left,
@@ -22,8 +21,7 @@ pub enum Zone {
     Bottom,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Node<P> {
     Split {
@@ -49,8 +47,7 @@ pub enum Node<P> {
     },
 }
 
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct StackEntry<P> {
     pub panel: P,
     pub open: bool,
@@ -100,8 +97,7 @@ impl<P: PartialEq> PartialEq for Floating<P> {
 
 /// A display, in desktop logical points. Applications on an egui with monitor reports fill
 /// [`super::DockArea::monitors`] with these; native floating windows store the one they are on.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Monitor {
     pub name: Option<String>,
     /// `[x, y, width, height]` on the desktop.
@@ -174,7 +170,6 @@ impl<P> Floating<P> {
     }
 }
 
-#[cfg(feature = "serde")]
 mod floating_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -331,11 +326,10 @@ mod floating_serde {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Layout<P> {
     pub root: Option<Node<P>>,
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "floating_serde::unique_ids"))]
+    #[serde(deserialize_with = "floating_serde::unique_ids")]
     pub floating: Vec<Floating<P>>,
 }
 
@@ -345,8 +339,7 @@ impl<P> Default for Layout<P> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Placement<P> {
     /// Insert before this existing destination member, or append. Also reorders a group.
@@ -368,7 +361,7 @@ pub enum Placement<P> {
     /// keeps a moved group's own height, or shares the free height for a new group.
     Group {
         below: bool,
-        #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         height: Option<f32>,
     },
     /// A new column before (towards the window edge) or after the anchor's column.
@@ -385,9 +378,8 @@ pub enum Placement<P> {
 
 /// A closed panel's former placement. Applications may retain this beside visibility flags.
 /// Anchors are stable panel identities rather than mutable tree indices.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(bound(deserialize = "P: serde::Deserialize<'de>")))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
 pub struct Location<P> {
     pub floating: Option<[f32; 4]>,
     pub anchor: Option<P>,
@@ -397,17 +389,16 @@ pub struct Location<P> {
     pub stack: Option<(bool, Option<f32>)>,
     /// A split's complete sibling subtree. This retains placement around a nested workspace,
     /// rather than accidentally inserting beside only its first leaf when restoring.
-    #[cfg_attr(feature = "serde", serde(default))]
+    #[serde(default)]
     pub sibling: Vec<P>,
     /// Group and column state when the panel was in a dock. Applies when
     /// restoring creates a new group, column or dock for the panel.
-    #[cfg_attr(feature = "serde", serde(default))]
+    #[serde(default)]
     pub group: Option<GroupLocation>,
 }
 
 /// Groups, columns and floating windows are named by a panel they contain.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Action<P> {
     Move {
@@ -768,7 +759,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     }
 
     /// The panels `panel` can join as a tab: every panel in another group whose permissions
-    /// accept tabs. A "Move Panel to Group" menu with an empty answer has nothing to offer and
+    /// accept tabs. A "Move Panel To" menu with an empty answer has nothing to offer and
     /// stays hidden.
     pub fn move_targets(&self, panel: &P, permissions: impl Fn(&P) -> Permissions) -> Vec<&P> {
         let own = self.place(panel);

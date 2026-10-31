@@ -5,15 +5,15 @@
 
 use std::{collections::BTreeMap, hash::Hash};
 
-use egui::{Response, Ui};
+use egui::{AsIdSalt, Id, Response, Ui};
 
 use super::Workspace;
 use crate::controls::{ControlSize, Select};
+use crate::localized::Labels as _;
 use crate::menu::{MenuEntry, MenuItem};
 
 /// Chrome a workspace remembers beside the dock layout: which bars show and the panel set.
-#[derive(Clone, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct WorkspaceChrome {
     pub menu_bar: bool,
@@ -23,9 +23,8 @@ pub struct WorkspaceChrome {
 }
 
 /// One named workspace.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(bound(deserialize = "P: serde::Deserialize<'de>")))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
 pub struct NamedWorkspace<P> {
     /// Stable id (`"essentials"`, or a slug of a saved name).
     pub id: String,
@@ -41,9 +40,8 @@ pub struct NamedWorkspace<P> {
 /// The app's workspaces: built-ins first, saved ones after, one current. It is a settings
 /// section (serde with the `serde` feature, as [`Workspace`]); the layouts of built-ins are
 /// code, and only their user edits ([`edited`](Self::edited)) are stored.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(default, bound(deserialize = "P: serde::Deserialize<'de> + Eq + Hash + Clone")))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, bound(deserialize = "P: serde::Deserialize<'de> + Eq + Hash + Clone"))]
 pub struct WorkspaceSet<P> {
     pub builtin: Vec<NamedWorkspace<P>>,
     pub saved: Vec<NamedWorkspace<P>>,
@@ -214,20 +212,43 @@ pub enum WorkspaceError {
 /// The switcher at the right end of the options bar: a Sm select showing the current
 /// workspace's name; its list has the same rows as the menu. Arrow keys move through the
 /// rows, Enter picks, Escape closes.
+///
+/// The labels default to [`WorkspaceLabels::of`]; [`labels`](Self::labels) overrides them.
 pub struct WorkspaceSwitcher<'a, P> {
+    id: Id,
     set: &'a WorkspaceSet<P>,
-    labels: &'a WorkspaceLabels,
+    labels: Option<&'a WorkspaceLabels>,
+}
+
+/// What [`WorkspaceSwitcher::show`] returns.
+pub struct WorkspaceSwitcherResponse {
+    /// The select's response.
+    pub response: Response,
+    /// The command picked this pass, if any.
+    pub command: Option<WorkspaceCommand>,
 }
 
 impl<'a, P: Clone + Eq + Hash> WorkspaceSwitcher<'a, P> {
-    pub fn new(set: &'a WorkspaceSet<P>, labels: &'a WorkspaceLabels) -> Self {
-        Self { set, labels }
+    pub fn new(id_salt: impl AsIdSalt, set: &'a WorkspaceSet<P>) -> Self {
+        Self { id: Id::unique("craft_ui::docking::WorkspaceSwitcher").with(id_salt), set, labels: None }
     }
 
-    /// Returns the command picked this pass, if any.
+    pub fn labels(mut self, labels: &'a WorkspaceLabels) -> Self {
+        self.labels = Some(labels);
+        self
+    }
+
     // pc: crates/ui-egui/src/menus/workspace_ui.rs:68 `switcher_options`; Photoshop's options bar switcher.
-    pub fn show(self, ui: &mut Ui) -> (Response, Option<WorkspaceCommand>) {
-        let Self { set, labels } = self;
+    pub fn show(self, ui: &mut Ui) -> WorkspaceSwitcherResponse {
+        let Self { id, set, labels } = self;
+        let installed;
+        let labels = match labels {
+            Some(labels) => labels,
+            None => {
+                installed = WorkspaceLabels::of(ui);
+                &installed
+            }
+        };
         let mut value = set.current.clone();
         let commands: Vec<WorkspaceCommand> = set
             .command_rows(labels, |command| command)
@@ -243,13 +264,13 @@ impl<'a, P: Clone + Eq + Hash> WorkspaceSwitcher<'a, P> {
             .into_iter()
             .collect();
         let mut picked = None;
-        let mut select = Select::new("workspace-switcher", labels.switcher.clone(), &mut value).size(ControlSize::Sm).fit(true);
+        let mut select = Select::new(id, labels.switcher.clone(), &mut value).size(ControlSize::Sm).fit(true);
         for w in set.builtin.iter().chain(&set.saved) {
             select = select.option(w.id.clone(), w.name.clone());
         }
         let edit = select.header_menu(labels.workspace.clone(), &rows, &mut picked).show(ui);
         let command = edit.committed().cloned().map(WorkspaceCommand::Select).or_else(|| picked.and_then(|i| commands.get(i).cloned()));
-        (edit.response, command)
+        WorkspaceSwitcherResponse { response: edit.response, command }
     }
 }
 

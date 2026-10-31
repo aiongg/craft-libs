@@ -20,6 +20,7 @@ mod body;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod body_tests;
 mod document;
+mod document_stories;
 #[cfg(test)]
 mod document_tests;
 mod model;

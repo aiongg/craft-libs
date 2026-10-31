@@ -7,7 +7,7 @@ use egui::{Event, Key, Modifiers, TextureId, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::{CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamDialog, ParamKind, ParamResult};
+use super::{CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamDialog, ParamKind, ParamResult, PathKind, PathRequest};
 use crate::controls::SliderScale;
 use crate::localized::Unit;
 use crate::theme::{Base, install};
@@ -290,6 +290,223 @@ fn a_swatch_press_goes_to_its_own_dialog() {
     harness.run();
     harness.get_by_label("Over:").click();
     harness.run();
-    assert_eq!(harness.state_mut().get_mut::<CommandForm>().unwrap().pick_color().as_deref(), Some("b"));
+    assert_eq!(
+        harness.state_mut().get_mut::<CommandForm>().unwrap().pick_color().map(|request| (request.key, request.title, request.color)),
+        Some(("b".to_owned(), Some("Over".to_owned()), craft_theme::Srgba::BLACK))
+    );
     assert_eq!(harness.state_mut().get_mut::<ParamDialog>().unwrap().pick_color(), None);
+}
+
+// The picker's answer is written to the colour parameter it names, and only that one.
+#[test]
+fn a_colour_answer_sets_the_named_colour_parameter() {
+    let params = || {
+        vec![
+            Param::new("tint", "Tint", ParamKind::Color { default: None }),
+            Param::new("n", "N", ParamKind::Int { min: None, max: None, default: 1 }),
+        ]
+    };
+    let mut dialog = ParamDialog::new("k", "K", params());
+    dialog.set_color("tint", craft_theme::Srgba::rgb(0.5, 0.0, 1.0));
+    dialog.set_color("n", craft_theme::Srgba::rgb(1.0, 1.0, 1.0));
+    dialog.set_color("missing", craft_theme::Srgba::rgb(1.0, 1.0, 1.0));
+    assert_eq!(dialog.fields().get("tint"), Some(&FieldValue::Color([0.5, 0.0, 1.0])));
+    assert_eq!(dialog.fields().get("n"), None);
+    let mut form = CommandForm::new("k", "K", params());
+    form.set_color("tint", craft_theme::Srgba::rgb(0.0, 1.0, 0.0));
+    assert_eq!(form.fields().get("tint"), Some(&FieldValue::Color([0.0, 1.0, 0.0])));
+}
+
+fn open_dialog<'a>(harness: &'a mut Harness<'static, App>) -> Option<&'a mut ParamDialog> {
+    harness.state_mut().host.get_mut::<ParamDialog>()
+}
+
+// Alt+Reset sets the host's target (schema defaults), not the values from when the dialog opened.
+#[test]
+fn alt_reset_sets_the_hosts_target() {
+    let given = DialogFields::from_pairs([("radius", FieldValue::Number(12.0))]);
+    let target = DialogFields::from_pairs([("radius", FieldValue::Number(3.0))]);
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).values(given).reset_to(target));
+    harness.run();
+    harness.event(Event::ModifiersChanged(Modifiers::ALT));
+    harness.run();
+    harness.get_by_label("Reset").focus();
+    harness.run();
+    harness.key_press_modifiers(Modifiers::ALT, Key::Space);
+    harness.run();
+    assert_eq!(radius(&harness), Some(3.0));
+    assert!(harness.state().answers.is_empty());
+}
+
+// A host that cannot yet say OK is valid disables it; Enter does nothing until it enables it.
+#[test]
+fn ok_can_be_disabled_by_the_host() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).ok_enabled(false));
+    harness.run();
+    assert!(harness.get_by_label("OK").accesskit_node().is_disabled());
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert!(harness.state().answers.is_empty());
+    open_dialog(&mut harness).expect("open").set_ok_enabled(true);
+    harness.run();
+    harness.run();
+    harness.key_press(Key::Enter);
+    harness.run();
+    harness.run();
+    assert!(matches!(harness.state().answers[..], [DialogResult::Ok(_)]));
+}
+
+// A row with `enabled_when` is disabled until the named value matches.
+#[test]
+fn a_row_is_enabled_only_while_its_condition_holds() {
+    let rows = vec![
+        Param::new("localized", "Localized:", ParamKind::Bool { default: false }),
+        Param::new("range", "Range:", ParamKind::Int { min: Some(0), max: Some(100), default: 40 }).enabled_when("localized", true),
+    ];
+    let mut harness = harness(ParamDialog::new("c", "C", rows));
+    harness.run();
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Range:").accesskit_node().is_disabled());
+    let label = harness.get_by_role_and_label(Role::Label, "Range:");
+    assert!(label.accesskit_node().is_disabled(), "the row label is disabled too");
+    harness.get_by_label("Localized").click();
+    harness.run();
+    harness.run();
+    assert!(!harness.get_by_role_and_label(Role::SpinButton, "Range:").accesskit_node().is_disabled());
+}
+
+// A custom row draws the host's control and writes the dialog's values.
+#[test]
+fn a_custom_row_writes_the_fields() {
+    let rows = vec![Param::custom("center", "Center:", |ui, fields| {
+        let response = ui.button("Set center");
+        if response.clicked() {
+            fields.set("center", FieldValue::Point([25.0, 75.0]));
+        }
+        response
+    })];
+    let mut harness = harness(ParamDialog::new("zoom", "Zoom", rows));
+    harness.run();
+    harness.get_by_label("Center:").click();
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").fields().point("center"), Some([25.0, 75.0]));
+}
+
+// A Browse button after a text row reports its key and kind once; the host writes the path.
+#[test]
+fn a_browse_button_reports_the_row() {
+    let rows = vec![Param::new("folder", "Folder:", ParamKind::Text { default: String::new() }).browse(PathKind::Folder)];
+    let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
+    harness.run();
+    harness.get_by_label("Browse…").click();
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").pick_path(), Some(PathRequest { key: "folder".into(), kind: PathKind::Folder }));
+    assert_eq!(open_dialog(&mut harness).expect("open").pick_path(), None);
+}
+
+// The Custom check box of an optional number sets or removes the key; the number keeps its value
+// across an off/on.
+#[test]
+fn an_optional_number_is_absent_until_custom_is_checked() {
+    let rows = vec![Param::new("quality", "Quality:", ParamKind::OptionalNumber { min: 0.0, max: 12.0, default: None, initial: 8.0, decimals: 2 })];
+    let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").fields().number("quality"), None);
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Quality:").accesskit_node().is_disabled());
+    harness.get_by_label("Custom").click();
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").fields().number("quality"), Some(8.0));
+    harness.get_by_label("Custom").click();
+    harness.run();
+    assert_eq!(open_dialog(&mut harness).expect("open").fields().number("quality"), None);
+}
+
+// A hint shows in an empty text field only; a tooltip rides on the row and is described to
+// AccessKit on any row kind.
+#[test]
+fn a_text_row_shows_its_hint_while_empty_and_the_row_has_a_tooltip() {
+    let rows = vec![
+        Param::new("naming", "File Naming:", ParamKind::Text { default: String::new() }).hint("{name}").tooltip("{name} · {serial} · {date} (UTC)"),
+        Param::new("size", "Size:", ParamKind::Int { min: Some(1), max: None, default: 4 }).tooltip("Pixels"),
+    ];
+    let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
+    harness.run();
+    let field = |harness: &Harness<'_, App>| {
+        harness.get_by_role_and_label(Role::TextInput, "File Naming:").accesskit_node().data().placeholder().map(str::to_owned)
+    };
+    assert_eq!(field(&harness).as_deref(), Some("{name}"));
+    harness.get_by_role_and_label(Role::TextInput, "File Naming:").focus();
+    harness.run();
+    harness.event(Event::Text("x".to_owned()));
+    harness.run();
+    harness.get_by_role_and_label(Role::TextInput, "File Naming:").hover();
+    for _ in 0..30 {
+        harness.step();
+    }
+    harness.get_by_label("{name} · {serial} · {date} (UTC)");
+}
+
+// An optional number with 0 decimals shows and keeps whole numbers.
+#[test]
+fn an_optional_number_with_no_decimals_shows_an_integer() {
+    let rows = vec![
+        Param::new("quality", "Quality:", ParamKind::OptionalNumber { min: 0.0, max: 12.0, default: Some(8.0), initial: 8.0, decimals: 2 })
+            .decimals(0),
+    ];
+    let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
+    harness.run();
+    harness.get_by_role_and_label(Role::SpinButton, "Quality:").focus();
+    harness.run();
+    harness.event(Event::Text("5.7".to_owned()));
+    harness.key_press(Key::Tab);
+    harness.run();
+    let shown = harness.get_by_role_and_label(Role::SpinButton, "Quality:").value();
+    assert_eq!(shown.as_deref(), Some("6"), "{shown:?}");
+}
+
+// The footer hook draws before the buttons; `close_label(None)` removes the close box.
+#[test]
+fn the_footer_hook_and_the_close_box_follow_the_options() {
+    let mut harness = harness(ParamDialog::new("table", "Table", params()).footer_extra(|ui| {
+        let _ = ui.button("Load…");
+    }));
+    harness.run();
+    harness.get_by_label("Load…");
+    harness.get_by_label("Close");
+    let mut harness = self::harness(ParamDialog::new("table", "Table", params()).close_label(None));
+    harness.run();
+    assert!(harness.query_by_label("Close").is_none());
+}
+
+// `confirm` stores the remembered values as OK does.
+#[test]
+fn confirm_stores_the_remembered_values() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).remember("filter.blur"));
+    harness.run();
+    open_dialog(&mut harness).expect("open").fields_mut().set("radius", FieldValue::Number(9.0));
+    let ctx = harness.ctx.clone();
+    assert!(harness.state_mut().host.confirm::<ParamDialog>(&ctx));
+    harness.state_mut().host.open(ParamDialog::new("blur", "Blur", params()).remember("filter.blur"));
+    harness.run();
+    assert_eq!(radius(&harness), Some(9.0));
+}
+
+// A bare number row has no slider, accepts any value on an open side and clamps to a bound.
+#[test]
+fn a_number_row_is_unbounded_on_open_sides_and_clamped_on_bounded_ones() {
+    let rows = vec![Param::number("offset", "Offset:", 0.0, 0.5, 2), Param::number("count", "Count:", 3.0, 1.0, 0).bounds(Some(1.0), Some(10.0))];
+    let mut harness = harness(ParamDialog::new("shift", "Shift", rows));
+    harness.run();
+    assert!(harness.query_by_role(Role::Slider).is_none());
+    harness.get_by_role_and_label(Role::SpinButton, "Offset:").focus();
+    harness.run();
+    harness.event(Event::Text("-5000.25".to_owned()));
+    harness.key_press(Key::Tab);
+    harness.run();
+    harness.get_by_role_and_label(Role::SpinButton, "Count:").focus();
+    harness.run();
+    harness.event(Event::Text("99".to_owned()));
+    harness.key_press(Key::Tab);
+    harness.run();
+    let fields = open_dialog(&mut harness).expect("open").fields().clone();
+    assert_eq!((fields.number("offset"), fields.number("count")), (Some(-5000.25), Some(10.0)));
 }

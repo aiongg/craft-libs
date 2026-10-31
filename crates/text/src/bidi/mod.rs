@@ -308,10 +308,14 @@ pub fn mirror(c: char) -> Option<char> {
 /// Whether `text` reads right to left as a paragraph: its first strong character is Hebrew,
 /// Arabic or another right-to-left script (rule P2 without embeddings). Text with no strong
 /// character reads left to right.
-#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-// pc: crates/ui-egui/src/text/bidi_text.rs:11 `is_rtl_paragraph`.
 pub fn is_rtl_paragraph(text: &str) -> bool {
-    todo!()
+    text.chars()
+        .find_map(|c| match bidi_class(c) {
+            BidiClass::L => Some(false),
+            BidiClass::R | BidiClass::AL => Some(true),
+            _ => None,
+        })
+        .unwrap_or(false)
 }
 
 /// A right-to-left `text` (by [`is_rtl_paragraph`]) cut at its logical end with "…" where it
@@ -321,11 +325,26 @@ pub fn is_rtl_paragraph(text: &str) -> bool {
 /// it in logical order, so egui draws it at the left, the end of a right-to-left line. `fits`
 /// measures a candidate. `None` when `text` fits as it is, or reads left to right: the caller
 /// elides that at its right end as usual. When nothing fits, the result is "…" alone.
-#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-// pc: crates/ui-egui/src/text/bidi_text.rs:25 `elide` (binary search over whole chars, trailing
-// whitespace trimmed before the "…").
 pub fn elide(text: &str, fits: impl Fn(&str) -> bool) -> Option<String> {
-    todo!()
+    if !is_rtl_paragraph(text) || fits(text) {
+        return None;
+    }
+    // The longest logical prefix (whole characters) that fits with "…" after it.
+    let ends: Vec<usize> = text.char_indices().map(|(i, _)| i).skip(1).chain(std::iter::once(text.len())).collect();
+    let cut = |n: usize| -> String {
+        let end = if n == 0 { 0 } else { ends.get(n - 1).copied().unwrap_or(text.len()) };
+        format!("{}…", text.get(..end).unwrap_or_default().trim_end())
+    };
+    let (mut lo, mut hi) = (0usize, ends.len());
+    while lo < hi {
+        let mid = (lo + hi).div_ceil(2);
+        if fits(&cut(mid)) {
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    Some(cut(lo))
 }
 
 /// Does anything in the text need the full algorithm (strong right-to-left characters, Arabic

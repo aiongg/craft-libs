@@ -28,6 +28,7 @@ struct Host {
     nested: bool,
     child_open: bool,
     foreign: bool,
+    keep_focus: bool,
     mode: usize,
     amount: f64,
     chip: Id,
@@ -52,6 +53,7 @@ impl Default for Host {
             nested: false,
             child_open: false,
             foreign: false,
+            keep_focus: false,
             mode: 0,
             amount: 40.0,
             chip: Id::NULL,
@@ -83,7 +85,8 @@ fn app(ui: &mut Ui, host: &mut Host) {
         });
     }
     let anchor = host.point.map_or_else(|| PopoverAnchor::Control(chip.clone()), PopoverAnchor::Point);
-    let mut popover = Popover::new("p", anchor).size(host.size).close(PopoverClose::default().enter(host.enter)).label("Picker");
+    let mut popover =
+        Popover::new("p", anchor).size(host.size).close(PopoverClose::default().enter(host.enter)).label("Picker").keep_anchor_focus(host.keep_focus);
     if host.point.is_none() {
         popover = popover.toggle(chip.id);
     }
@@ -271,6 +274,20 @@ fn the_focus_moves_into_the_popover_on_open() {
     let h = opened(host(Host::default()));
     let focused = h.ctx.memory(|m| m.focused()).and_then(|f| h.ctx.read_response(f)).map(|r| r.layer_id.id);
     assert_eq!(focused, Some(h.state().popover));
+}
+
+#[test]
+fn keep_anchor_focus_leaves_the_focus_on_the_anchor_through_every_pass() {
+    let mut h = host(Host { keep_focus: true, ..Host::default() });
+    h.get_by_label("Chip").focus();
+    h.run();
+    let chip = h.state().chip;
+    h.state_mut().open = true;
+    for _ in 0..8 {
+        h.run();
+        assert!(h.ctx.memory(|m| m.has_focus(chip)), "the anchor keeps the focus");
+    }
+    assert!(h.state().open, "{:?}", h.state().closed);
 }
 
 #[test]

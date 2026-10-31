@@ -4,28 +4,47 @@
 //! (`Host::builder(..).files(Arc::new(service))`) and keeps the [`FilePanels`] on the main thread,
 //! calling [`FilePanels::pump`] once per frame after its UI (the panel shows at the end of the
 //! frame). The service is `Send + Sync`; the panels are not, because the native dialogs are not. Features never see the panels: they ask `host.files().pick(..)` and
-//! read the answer from `host.files().take_pick()` on a later pass.
+//! read the answer from `host.files().take_answer(id)` on a later pass.
 //!
 //! What the user sees: Open and Folder as free-standing panels on macOS, Save as a sheet; the panel
 //! starts in the last folder chosen for the same purpose; a Save that names an existing file the
 //! OS panel did not ask about gets the Replace question (PhotoCraft `file_dialog.rs:193
 //! replaces_unasked`); a typed name without an extension gets the suggested one and an uppercase
-//! extension is lowercased (`file_dialog.rs:210 lowercased_extension`, `:365 saved_path`).
+//! extension is lowercased (`file_dialog.rs:210 lowercased_extension`, `:365 saved_path`); the two
+//! steps are separate settings of the [`ExtensionPolicy`].
 
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use craft_host::{FileError, Files, PickAnswer, PickId, PickRequest};
+use craft_host::{FileError, Files, PickAnswer, PickId, PickRequest, Wake};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use craft_host::{PickKind, Picked};
 
-use crate::{Answer, Dialogs, FileDialog, Filter, Kind, Message, MessageButtons, MessageLevel, MessageResult, Wake};
+use crate::{Answer, Dialogs, FileDialog, Filter, Kind, Message, MessageButtons, MessageLevel, MessageResult};
 
-const REPLACE: &str = "Replace";
-const CANCEL: &str = "Cancel";
+/// The words of the Replace question: a native message box, so they come from the app's catalog
+/// (see `ReplaceLabels` in the `ui` feature) instead of `words!` at draw time.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReplaceWords {
+    /// The box's title.
+    pub title: String,
+    /// The question, with `{name}` for the file name.
+    pub question: String,
+    /// The confirming button, the default.
+    pub replace: String,
+    pub cancel: String,
+}
+
+impl Default for ReplaceWords {
+    fn default() -> Self {
+        Self {
+            title: "Replace".into(), question: "“{name}” already exists. Replace it?".into(), replace: "Replace".into(), cancel: "Cancel".into()
+        }
+    }
+}
 
 fn lock(inner: &Mutex<Inner>) -> std::sync::MutexGuard<'_, Inner> {
     inner.lock().unwrap_or_else(|e| e.into_inner())
@@ -88,14 +107,26 @@ fn same_entry(a: &Path, b: &Path) -> bool {
     !(listed.iter().any(|n| n == x) && listed.iter().any(|n| n == y))
 }
 
-/// How a Save answer's extension is settled before the app sees it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum ExtensionPolicy {
-    /// Lowercase the extension; add the request's suggested one when the name has none.
-    #[default]
-    Suggest,
+/// How a Save answer's extension is settled before the app sees it. The two steps are separate:
+/// PhotoCraft with Lowercase Extension off still adds the suggested extension.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExtensionPolicy {
+    /// Lowercase an extension typed with capitals (`Photo.PNG` becomes `Photo.png`).
+    pub lowercase: bool,
+    /// Add the request's suggested extension to a name that has none.
+    pub add_suggested: bool,
+}
+
+impl ExtensionPolicy {
     /// Keep the typed name as the panel answered it.
-    AsTyped,
+    pub const AS_TYPED: Self = Self { lowercase: false, add_suggested: false };
+}
+
+impl Default for ExtensionPolicy {
+    /// Lowercase, and add the suggested extension.
+    fn default() -> Self {
+        Self { lowercase: true, add_suggested: true }
+    }
 }
 
 /// Where a Save answer that would overwrite goes next: the panel already asked (macOS, Windows,
@@ -134,6 +165,7 @@ pub struct FilePanels {
     dialogs: Dialogs<PickId>,
     extension_policy: ExtensionPolicy,
     replace_guard: ReplaceGuard,
+    replace_words: ReplaceWords,
 }
 
 struct Inner {
@@ -163,6 +195,7 @@ impl FileService {
             dialogs: Dialogs::new(wake.clone()),
             extension_policy: ExtensionPolicy::default(),
             replace_guard: ReplaceGuard::default(),
+            replace_words: ReplaceWords::default(),
         };
         (Self { inner, wake, to_panels }, panels)
     }
@@ -189,6 +222,17 @@ impl FilePanels {
     pub fn replace_guard(mut self, guard: ReplaceGuard) -> Self {
         self.replace_guard = guard;
         self
+    }
+
+    /// The Replace question's words; the app sets them again when the language changes.
+    pub fn replace_words(mut self, words: ReplaceWords) -> Self {
+        self.replace_words = words;
+        self
+    }
+
+    /// [`replace_words`](FilePanels::replace_words) on panels the app already keeps.
+    pub fn set_replace_words(&mut self, words: ReplaceWords) {
+        self.replace_words = words;
     }
 
     /// Shows the next queued panel and collects answers. Called once per frame on the main thread
@@ -239,19 +283,16 @@ impl FilePanels {
     }
 
     /// The saved path after the extension policy: `"Photo"` becomes `"Photo.png"` with a
-    /// suggested `png`; `"Photo.PNG"` becomes `"Photo.png"`; a path with another known extension
-    /// is kept.
+    /// suggested `png` (when `add_suggested`); `"Photo.PNG"` becomes `"Photo.png"` (when
+    /// `lowercase`); a path with another known extension is kept.
     // pc: crates/ui-egui/src/file_dialog.rs:210 lowercased_extension, :365 saved_path
     pub fn settled_save_path(policy: ExtensionPolicy, answered: &Path, suggested: Option<&str>) -> PathBuf {
-        if policy == ExtensionPolicy::AsTyped {
-            return answered.to_path_buf();
-        }
         match answered.extension().and_then(|e| e.to_str()) {
-            Some(ext) if ext.bytes().any(|b| b.is_ascii_uppercase()) => answered.with_extension(ext.to_ascii_lowercase()),
+            Some(ext) if policy.lowercase && ext.bytes().any(|b| b.is_ascii_uppercase()) => answered.with_extension(ext.to_ascii_lowercase()),
             Some(_) => answered.to_path_buf(),
             None => match suggested {
-                Some(ext) => answered.with_extension(ext),
-                None => answered.to_path_buf(),
+                Some(ext) if policy.add_suggested => answered.with_extension(ext),
+                _ => answered.to_path_buf(),
             },
         }
     }
@@ -264,16 +305,16 @@ impl FilePanels {
         answered != settled && settled.exists() && !same_entry(answered, settled)
     }
 
-    /// The replace question as a native message box: "“{name}” already exists. Replace it?" with
-    /// Replace (default) and Cancel.
+    /// The replace question as a native message box with Replace (default) and Cancel.
     // pc: crates/ui-egui/src/dialogs/replace_prompt.rs (wording); shown natively here so it sits above the sheet
-    fn replace_message(settled: &Path) -> Message {
+    fn replace_message(&self, settled: &Path) -> Message {
         let name = settled.file_name().map_or_else(|| settled.to_string_lossy(), |n| n.to_string_lossy());
+        let words = &self.replace_words;
         Message {
             level: MessageLevel::Warning,
-            title: REPLACE.into(),
-            description: format!("“{name}” already exists. Replace it?"),
-            buttons: MessageButtons::OkCancelCustom(REPLACE.into(), CANCEL.into()),
+            title: words.title.clone(),
+            description: craft_i18n::fmt(&words.question, &[("name", &name)]),
+            buttons: MessageButtons::OkCancelCustom(words.replace.clone(), words.cancel.clone()),
         }
     }
 
@@ -284,7 +325,8 @@ impl FilePanels {
         let Some(pending) = lock(&self.inner).pending.remove(&id) else { return };
         let picked = match (answer, pending.awaiting_replace) {
             (Answer::Message(result), Some(settled)) => {
-                let replace = matches!(&result, MessageResult::Ok) || matches!(&result, MessageResult::Custom(label) if label == REPLACE);
+                let replace =
+                    matches!(&result, MessageResult::Ok) || matches!(&result, MessageResult::Custom(label) if *label == self.replace_words.replace);
                 if replace { Picked::Paths(vec![settled]) } else { Picked::Cancelled }
             }
             (Answer::Paths(paths), _) if paths.is_empty() => Picked::Cancelled,
@@ -293,7 +335,7 @@ impl FilePanels {
                     let answered = paths.swap_remove(0);
                     let settled = Self::settled_save_path(self.extension_policy, &answered, pending.request.suggested_extension.as_deref());
                     if self.replace_guard == ReplaceGuard::AskWhenUnasked && Self::replaces_unasked(&answered, &settled) {
-                        self.dialogs.ask_message(Self::replace_message(&settled), id);
+                        self.dialogs.ask_message(self.replace_message(&settled), id);
                         lock(&self.inner).pending.insert(id, Pending { request: pending.request, awaiting_replace: Some(settled) });
                         return;
                     }
@@ -332,16 +374,21 @@ impl Files for FileService {
         };
         // The panels gone (the app is shutting down) leaves the ticket unanswered.
         let _ = self.to_panels.send((id, request));
-        (self.wake)();
+        self.wake.wake();
         id
     }
 
-    fn take_pick(&self) -> Option<PickAnswer> {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).answered.pop_front()
+    fn take_answer(&self, id: PickId) -> Option<Picked> {
+        let mut inner = lock(&self.inner);
+        let at = inner.answered.iter().position(|a| a.id == id)?;
+        inner.answered.remove(at).map(|a| a.picked)
     }
 
-    fn return_pick(&self, answer: PickAnswer) {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).answered.push_front(answer);
+    // A ticket still pending leaves `pending`, so the answer the panel gives later is dropped by `finish`.
+    fn forget(&self, id: PickId) {
+        let mut inner = lock(&self.inner);
+        inner.pending.remove(&id);
+        inner.answered.retain(|a| a.id != id);
     }
 
     fn pick_pending(&self) -> bool {
@@ -397,7 +444,7 @@ mod service_tests {
 
     /// A service whose panels answer each request with the next of `answers`, recording the requests.
     fn service_with(answers: Vec<Answer>) -> (FileService, FilePanels, Log) {
-        let (service, mut panels) = FileService::new(Arc::new(|| {}));
+        let (service, mut panels) = FileService::new(Wake::none());
         let log: Log = Rc::default();
         let seen = log.clone();
         let mut answers = answers.into_iter();
@@ -406,6 +453,10 @@ mod service_tests {
             answers.next().unwrap_or(Answer::Cancelled)
         })));
         (service, panels, log)
+    }
+
+    fn answered(service: &FileService, id: PickId) -> Picked {
+        service.take_answer(id).expect("answered")
     }
 
     fn scratch(name: &str) -> PathBuf {
@@ -417,9 +468,9 @@ mod service_tests {
 
     fn save_with(answer: &str, suggested: &str) -> Picked {
         let (service, mut panels, _) = service_with(vec![Answer::Paths(vec![PathBuf::from(answer)])]);
-        service.pick(PickRequest::save("export").suggested_extension(suggested));
+        let id = service.pick(PickRequest::save("export").suggested_extension(suggested));
         panels.pump(NONE);
-        service.take_pick().expect("answered").picked
+        answered(&service, id)
     }
 
     // A Save answer "Photo" with suggested "png" reaches the app as "Photo.png".
@@ -447,27 +498,27 @@ mod service_tests {
         let typed = Answer::Paths(vec![dir.join("Photo")]);
         let ask = |reply: MessageResult| {
             let (service, mut panels, log) = service_with(vec![typed.clone(), Answer::Message(reply)]);
-            service.pick(PickRequest::save("export").suggested_extension("png"));
+            let id = service.pick(PickRequest::save("export").suggested_extension("png"));
             panels.pump(NONE);
             let questions = log.borrow().iter().filter(|r| matches!(r, Request::Message(_))).count();
-            (service.take_pick().expect("answered").picked, questions)
+            (answered(&service, id), questions)
         };
         assert_eq!(ask(MessageResult::Cancel), (Picked::Cancelled, 1));
         assert_eq!(ask(MessageResult::Custom("Replace".into())), (Picked::Paths(vec![dir.join("Photo.png")]), 1));
 
         // The panel asked about "Photo.png" itself: no second question.
         let (service, mut panels, log) = service_with(vec![Answer::Paths(vec![dir.join("Photo.png")])]);
-        service.pick(PickRequest::save("export").suggested_extension("png"));
+        let id = service.pick(PickRequest::save("export").suggested_extension("png"));
         panels.pump(NONE);
-        assert_eq!(service.take_pick().expect("answered").picked, Picked::Paths(vec![dir.join("Photo.png")]));
+        assert_eq!(answered(&service, id), Picked::Paths(vec![dir.join("Photo.png")]));
         assert_eq!(log.borrow().len(), 1);
 
         // The guard off: the app asks itself.
         let (service, panels, log) = service_with(vec![typed.clone()]);
         let mut panels = panels.replace_guard(ReplaceGuard::Never);
-        service.pick(PickRequest::save("export").suggested_extension("png"));
+        let id = service.pick(PickRequest::save("export").suggested_extension("png"));
         panels.pump(NONE);
-        assert_eq!(service.take_pick().expect("answered").picked, Picked::Paths(vec![dir.join("Photo.png")]));
+        assert_eq!(answered(&service, id), Picked::Paths(vec![dir.join("Photo.png")]));
         assert_eq!(log.borrow().len(), 1);
     }
 
@@ -495,19 +546,44 @@ mod service_tests {
         assert_eq!(service.last_folder("swatches"), None);
     }
 
-    // Two picks queue in order; `take_pick` returns them oldest first with their tickets.
+    // Two picks queue in order and are taken by their tickets, in any order.
     #[test]
-    fn picks_answer_in_order_with_their_tickets() {
+    fn picks_answer_by_ticket() {
         let (service, mut panels, _) = service_with(vec![Answer::Paths(vec![PathBuf::from("/x/first.png")]), Answer::Cancelled]);
         let first = service.pick(PickRequest::open("document"));
         let second = service.pick(PickRequest::open_many("document"));
         assert!(service.pick_pending());
         panels.pump(NONE);
         assert!(!service.pick_pending());
-        let a = service.take_pick().expect("first");
-        let b = service.take_pick().expect("second");
-        assert_eq!((a.id, a.picked), (first, Picked::Paths(vec![PathBuf::from("/x/first.png")])));
-        assert_eq!((b.id, b.picked), (second, Picked::Cancelled));
-        assert!(service.take_pick().is_none());
+        assert_eq!(answered(&service, second), Picked::Cancelled);
+        assert_eq!(answered(&service, first), Picked::Paths(vec![PathBuf::from("/x/first.png")]));
+        assert!(service.take_answer(first).is_none());
+    }
+
+    // An answer nobody takes does not block another ticket; a forgotten ticket's answer, early or
+    // late, never shows up.
+    #[test]
+    fn an_orphaned_answer_blocks_no_other_pick() {
+        let (service, mut panels, _) = service_with(vec![Answer::Cancelled, Answer::Paths(vec![PathBuf::from("/x/b.png")]), Answer::Cancelled]);
+        let orphan = service.pick(PickRequest::open("a"));
+        let wanted = service.pick(PickRequest::open("b"));
+        let late = service.pick(PickRequest::open("c"));
+        service.forget(late);
+        panels.pump(NONE);
+        assert_eq!(answered(&service, wanted), Picked::Paths(vec![PathBuf::from("/x/b.png")]));
+        assert!(service.take_answer(late).is_none());
+        service.forget(orphan);
+        assert!(service.take_answer(orphan).is_none());
+    }
+
+    // Lowercase Extension off still adds the suggested extension (PhotoCraft `saved_path`).
+    #[test]
+    fn lowercasing_and_adding_the_extension_are_separate() {
+        let typed = |name: &str, policy| FilePanels::settled_save_path(policy, Path::new(name), Some("png"));
+        let keep_case = ExtensionPolicy { lowercase: false, ..ExtensionPolicy::default() };
+        assert_eq!(typed("Photo", keep_case), PathBuf::from("Photo.png"));
+        assert_eq!(typed("Photo.PNG", keep_case), PathBuf::from("Photo.PNG"));
+        assert_eq!(typed("Photo.PNG", ExtensionPolicy::default()), PathBuf::from("Photo.png"));
+        assert_eq!(typed("Photo", ExtensionPolicy::AS_TYPED), PathBuf::from("Photo"));
     }
 }

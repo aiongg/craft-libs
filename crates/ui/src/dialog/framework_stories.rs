@@ -134,14 +134,14 @@ pub(super) fn stories() -> Vec<Story> {
     ]
 }
 
-type SharedHost = Arc<Mutex<DialogHost>>;
+pub(super) type SharedHost = Arc<Mutex<DialogHost>>;
 
-fn lock(host: &SharedHost) -> std::sync::MutexGuard<'_, DialogHost> {
+pub(super) fn lock(host: &SharedHost) -> std::sync::MutexGuard<'_, DialogHost> {
     host.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// The story's host and its last result text, kept in egui memory under `name`.
-fn state(ui: &Ui, name: &str) -> (SharedHost, egui::Id) {
+pub(super) fn state(ui: &Ui, name: &str) -> (SharedHost, egui::Id) {
     let key = ui.make_persistent_id(("craft_ui::dialog::framework_stories", name));
     let host: SharedHost = ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, SharedHost::default).clone());
     (host, key.with("result"))
@@ -150,7 +150,7 @@ fn state(ui: &Ui, name: &str) -> (SharedHost, egui::Id) {
 /// Whether this story instance may draw the dialog `name` in this pass. The size, prompt and
 /// unsaved dialogs have one fixed id each, so two instances of a story drawn in the same pass
 /// (a component tab and a variants view) must not both show it.
-fn claim(ctx: &Context, name: &str, instance: egui::Id) -> bool {
+pub(super) fn claim(ctx: &Context, name: &str, instance: egui::Id) -> bool {
     let key = egui::Id::unique(("craft_ui::dialog::framework_stories::claim", name));
     let pass = ctx.cumulative_pass_nr();
     ctx.data_mut(|d| {
@@ -165,7 +165,7 @@ fn claim(ctx: &Context, name: &str, instance: egui::Id) -> bool {
 
 /// Opens `D` while the story is shown and `open` is on, reopens it when `signature` changes (the
 /// arguments that build the dialog), and shows the answer as text under the tile once it closes.
-fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
+pub(super) fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
     ui: &mut Ui,
     name: &str,
     open: &mut bool,
@@ -181,7 +181,7 @@ fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
     if crate::story::dialog_shown(ui, *open) {
         let previous: Option<S> = ui.data(|d| d.get_temp::<Option<S>>(signature_key)).flatten();
         if previous.is_some_and(|previous| previous != signature) {
-            host.cancel::<D>();
+            host.cancel::<D>(&ctx);
             host.take::<D>();
         }
         ui.data_mut(|d| d.insert_temp(signature_key, Some(signature)));
@@ -202,7 +202,7 @@ fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
             crate::story::dialog_closed(ui, open);
         }
     } else {
-        host.cancel::<D>();
+        host.cancel::<D>(&ctx);
         host.take::<D>();
         ui.data_mut(|d| d.insert_temp(signature_key, None::<S>));
     }

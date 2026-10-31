@@ -12,18 +12,21 @@
 //! if let Some(dialog) = dialogs.get_mut::<CheckSpellingDialog>() {
 //!     if let Some(action) = dialog.take_action() {
 //!         run_spelling_action(doc, &action, &mut settings);
-//!         dialog.set_items(find_misspellings(doc, dialog.all_layers(), dialog.ignored()));
+//!         dialog.set_items(find_misspellings(doc, dialog.all_layers_checked(), dialog.ignored()));
 //!     }
 //! }
 //! let _ = dialogs.take::<CheckSpellingDialog>(); // Done or the close box
 //! ```
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::ops::Range;
 
 use craft_host::Section;
-use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog};
+use craft_ui::behavior::{FieldTab, RowInfo, Selection};
+use craft_ui::controls::{Button, Checkbox, TextField};
+use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, Outcome, StackDialog, Width};
+use craft_ui::list::{List, ListEvent, ListRow};
+use craft_ui::localized::Labels as _;
+use craft_ui::primitives::{Surface, SurfaceKind};
 use egui::Context;
 use serde::{Deserialize, Serialize};
 
@@ -49,6 +52,18 @@ craft_ui::words! {
 /// How many suggestions the app asks [`Dictionary::suggest`](crate::spell::Dictionary::suggest)
 /// for (PhotoCraft's `"suggestions": 8`).
 pub const SUGGESTION_COUNT: usize = 8;
+
+/// A button of the right-hand column that the dialog or the app acts on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Press {
+    Ignore,
+    IgnoreAll,
+    Change,
+    ChangeAll,
+    Add,
+    /// Check All Layers changed.
+    Relist,
+}
 
 /// The user's dictionary, saved under `[spelling]`. Words are kept as added; read them through
 /// [`UserWords::from_words`](crate::spell::UserWords::from_words).
@@ -108,24 +123,19 @@ pub struct CheckSpellingDialog {
     change_to: String,
     all_layers: bool,
     action: Option<SpellingAction>,
-    labels: Option<CheckSpellingLabels>,
+    state: DialogState,
 }
 
 impl CheckSpellingDialog {
     /// Over `items` from a first search (the current layer: Check All Layers off).
     pub fn new(items: Vec<SpellingItem>) -> Self {
         let change_to = items.first().and_then(|i| i.suggestions.first()).cloned().unwrap_or_default();
-        CheckSpellingDialog { items, index: 0, ignored: Vec::new(), change_to, all_layers: false, action: None, labels: None }
+        CheckSpellingDialog { items, index: 0, ignored: Vec::new(), change_to, all_layers: false, action: None, state: DialogState::new() }
     }
 
     /// Open with Check All Layers on.
-    pub fn all_layers_on(mut self, on: bool) -> Self {
+    pub fn all_layers(mut self, on: bool) -> Self {
         self.all_layers = on;
-        self
-    }
-
-    pub fn labels(mut self, labels: CheckSpellingLabels) -> Self {
-        self.labels = Some(labels);
         self
     }
 
@@ -141,11 +151,12 @@ impl CheckSpellingDialog {
     // pc: crates/ui-egui/src/panels/type_panels_ui.rs:759 `refresh_spelling` (index kept) and the
     // "relist" arm of `spelling_window` (:778, index 0).
     pub fn set_items(&mut self, items: Vec<SpellingItem>) {
-        todo!()
+        self.items = items;
+        self.change_to = self.items.get(self.index).and_then(|i| i.suggestions.first()).cloned().unwrap_or_default();
     }
 
     /// Whether Check All Layers is on.
-    pub fn all_layers(&self) -> bool {
+    pub fn all_layers_checked(&self) -> bool {
         self.all_layers
     }
 
@@ -166,6 +177,134 @@ impl StackDialog for CheckSpellingDialog {
     // double-click on a suggestion, the action match). On `Dialog` + `Footer` (Done as OK, no
     // Cancel) with the right-hand button column.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<()>> {
-        todo!()
+        let labels = CheckSpellingLabels::of_ctx(ctx);
+        let tokens = craft_ui::theme::current(ctx);
+        let gap = tokens.component.dialog.button_gap;
+        let sizes = tokens.component.check_spelling;
+        let item = self.items.get(self.index).cloned();
+        let has_item = item.is_some();
+
+        let mut change_to = std::mem::take(&mut self.change_to);
+        let mut all_layers = self.all_layers;
+        let mut body_press: Option<Press> = None;
+        let mut button_press: Option<Press> = None;
+
+        let footer = {
+            let buttons = [
+                (labels.ignore.clone(), Press::Ignore),
+                (labels.ignore_all.clone(), Press::IgnoreAll),
+                (labels.change.clone(), Press::Change),
+                (labels.change_all.clone(), Press::ChangeAll),
+                (labels.add.clone(), Press::Add),
+            ];
+            let press = &mut button_press;
+            Footer::side().ok(labels.done.clone()).without_cancel().below(move |ui| {
+                let width = ui.available_width();
+                for (index, (label, which)) in buttons.into_iter().enumerate() {
+                    let response = ui.add(Button::new(label).enabled(has_item).min_width(width).id_salt(("check-spelling", "button", index)));
+                    if has_item {
+                        FieldTab::register_stop(ui, response.id);
+                    }
+                    if response.clicked() {
+                        *press = Some(which);
+                    }
+                }
+            })
+        };
+
+        let shown = Dialog::new("check-spelling", labels.title.as_str())
+            .stack(stack)
+            .width(Width::Fixed(sizes.field_width + tokens.component.dialog.side_min + 3.0 * gap))
+            .footer(footer)
+            .show(ctx, &mut self.state, &mut (), |ui, ()| {
+                ui.vertical(|ui| {
+                    ui.label(labels.not_in_dictionary.as_str());
+                    let word = item.as_ref().map_or("", |i| i.word.as_str());
+                    let _ = TextField::new(("check-spelling", "word"), labels.not_in_dictionary.as_str(), word)
+                        .enabled(false)
+                        .width(sizes.field_width)
+                        .show(ui);
+                    ui.label(labels.change_to.as_str());
+                    let edit = TextField::new(("check-spelling", "change-to"), labels.change_to.as_str(), &change_to)
+                        .enabled(has_item)
+                        .width(sizes.field_width)
+                        .show(ui);
+                    if let Some(value) = edit.event.as_ref().and_then(|e| e.value()) {
+                        change_to.clone_from(value);
+                    }
+                    ui.label(labels.suggestions.as_str());
+                    let suggestions: &[String] = item.as_ref().map_or(&[], |i| i.suggestions.as_slice());
+                    let rows: Vec<RowInfo<usize>> = (0..suggestions.len()).map(RowInfo::leaf).collect();
+                    let mut selection = suggestions.iter().position(|s| *s == change_to).map_or_else(Selection::new, Selection::only);
+                    Surface::new(SurfaceKind::Sunken).show(ui, |ui| {
+                        ui.set_min_size(egui::vec2(sizes.field_width, sizes.suggestions_height));
+                        ui.set_max_width(sizes.field_width);
+                        let out = List::new(("check-spelling", "suggestions"), labels.suggestions.as_str(), rows.as_slice())
+                            .selection(&mut selection)
+                            .row_height(tokens.component.list.row_height_dense)
+                            .max_height(sizes.suggestions_height)
+                            .show(ui, |_, &key| ListRow::new(key, suggestions[key].as_str()).accessible_name(suggestions[key].as_str()));
+                        for event in out.events {
+                            match event {
+                                ListEvent::Selection(change) => {
+                                    if let Some(row) = change.row {
+                                        change_to.clone_from(&suggestions[row]);
+                                    }
+                                }
+                                ListEvent::Activate(row) => {
+                                    change_to.clone_from(&suggestions[row]);
+                                    body_press = Some(Press::Change);
+                                }
+                                _ => {}
+                            }
+                        }
+                    });
+                    if Checkbox::bool(labels.all_layers.as_str(), &mut all_layers).show(ui).event.is_some() {
+                        body_press = Some(Press::Relist);
+                    }
+                    if !has_item {
+                        ui.label(labels.complete.as_str());
+                    }
+                });
+            });
+
+        self.change_to = change_to;
+        self.all_layers = all_layers;
+        match body_press.or(button_press) {
+            Some(Press::Ignore) => {
+                self.index = (self.index + 1).min(self.items.len());
+                self.change_to = self.items.get(self.index).and_then(|i| i.suggestions.first()).cloned().unwrap_or_default();
+            }
+            Some(Press::IgnoreAll) => {
+                if let Some(item) = &item {
+                    self.ignored.push(item.word.clone());
+                    self.action = Some(SpellingAction::Relist);
+                }
+            }
+            Some(Press::Change) => {
+                if let Some(item) = item {
+                    self.action = Some(SpellingAction::Change { item, to: self.change_to.clone() });
+                }
+            }
+            Some(Press::ChangeAll) => {
+                if let Some(item) = item {
+                    self.action = Some(SpellingAction::ChangeAll { word: item.word, to: self.change_to.clone(), all_layers: self.all_layers });
+                }
+            }
+            Some(Press::Add) => {
+                if let Some(item) = item {
+                    self.action = Some(SpellingAction::Add(item.word));
+                }
+            }
+            Some(Press::Relist) => {
+                self.index = 0;
+                self.action = Some(SpellingAction::Relist);
+            }
+            None => {}
+        }
+        match shown.outcome? {
+            Outcome::Ok | Outcome::Cancel | Outcome::Close => Some(DialogResult::Ok(())),
+            _ => None,
+        }
     }
 }

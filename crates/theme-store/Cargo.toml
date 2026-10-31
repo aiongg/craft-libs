@@ -16,6 +16,8 @@ testing = []
 serde = ["dep:serde", "craft-theme/serde"]
 # `craft_theme_store::ui`: the Preferences appearance page and its theme chips.
 ui = ["dep:craft-ui", "dep:egui"]
+# Input and screenshot tests of the appearance page with egui_kittest (desktop only).
+screen-testing = ["ui", "dep:egui_kittest", "craft-ui/screen-testing"]
 
 [dependencies]
 craft-theme = { workspace = true }
@@ -23,6 +25,7 @@ craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true }
+egui_kittest = { version = "0.37", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 craft-atomic = { workspace = true }
@@ -30,6 +33,8 @@ dirs = "7"
 
 [dev-dependencies]
 tempfile = "3"
+# Glyphs for the appearance page tests.
+egui = { workspace = true, features = ["default_fonts"] }
 
 [lints]
 workspace = true

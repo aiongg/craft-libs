@@ -8,8 +8,7 @@ use super::{DockArea, Floating, Layout, Node, render::RESIZE_HANDLES};
 
 /// A rendered docking control that starts a gesture. Groups, columns and windows are named by
 /// their first panel.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Hit<P> {
     /// A tab: click activates, drag moves the panel (S1).
@@ -41,8 +40,7 @@ pub enum Hit<P> {
 }
 
 /// The edge or corner a floating window's resize handle moves.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum ResizeEdge {
     Left,
@@ -56,8 +54,7 @@ pub enum ResizeEdge {
 }
 
 /// A divider that resizes what is on either side of it.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Divider<P> {
     /// A split, by its path from the root (see [`super::Action::ResizeSplit`]).

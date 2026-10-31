@@ -49,6 +49,18 @@ fn params_errors_name_the_field() {
     assert_eq!(Params(&json!({"c": true})).merged_into("panels", &current).unwrap_err(), "unknown panels field `c`");
     assert!(Params(&json!({"a": 3})).merged_into("panels", &current).unwrap_err().starts_with("panels: "));
     assert_eq!(Params(&json!([])).merged_into("panels", &current).unwrap_err(), "panels must be an object");
+
+    // `whole` replaces the value but still names a typo (the type does not deny unknown fields).
+    #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Default)]
+    #[serde(default)]
+    struct Layout {
+        a: bool,
+        b: bool,
+    }
+    let layout = Layout { a: true, b: false };
+    assert_eq!(Params(&json!({"b": true})).whole("dock", &layout), Ok(Layout { a: false, b: true }));
+    assert_eq!(Params(&json!({"typo": 1})).whole("dock", &layout).unwrap_err(), "unknown dock field `typo`");
+    assert_eq!(Params(&json!(3)).whole("dock", &layout).unwrap_err(), "dock must be an object");
 }
 
 // A reply over MAX_RESPONSE_BYTES is replaced by an error reply.

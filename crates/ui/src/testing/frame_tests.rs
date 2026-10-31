@@ -16,9 +16,9 @@ struct Clicks {
     shift: usize,
 }
 
-// click_at clicks a button once, and click_at_with delivers Shift with the press (a button reading modifiers sees them).
+// click_at clicks a button once, and click_at_with delivers Shift with the click (a button reading modifiers sees them). Frame order is tested by click_presses_and_releases_on_separate_frames.
 #[test]
-fn clicks_arrive_press_and_release_on_separate_frames() {
+fn click_at_counts_once_and_modifiers_reach_the_press() {
     let mut h = Harness::builder().with_size(vec2(200.0, 100.0)).build_ui_state(
         |ui, state: &mut Clicks| {
             if ui.button("Go").clicked() {
@@ -99,4 +99,23 @@ fn pumps_wait_for_background_work_and_time_out() {
     assert!(!h.pump_idle(Duration::from_millis(100), |_| never.load(Ordering::SeqCst)));
     assert!(!h.pump_until(Duration::from_millis(100), |_| false));
     assert!(h.pump_until(Duration::from_millis(100), |_| true));
+}
+
+// The harness plays the shared event frames: a click's move, press and release arrive in three frames, each with the pointer state the frame before left.
+#[test]
+fn click_presses_and_releases_on_separate_frames() {
+    use std::cell::RefCell;
+    let seen = std::rc::Rc::new(RefCell::new(Vec::new()));
+    let log = seen.clone();
+    let mut h = Harness::builder().with_size(vec2(200.0, 100.0)).build_ui(move |ui| {
+        let (pressed, released, down) = ui.input(|i| (i.pointer.primary_pressed(), i.pointer.primary_released(), i.pointer.primary_down()));
+        if pressed || released {
+            log.borrow_mut().push((pressed, released, down));
+        }
+        let _ = ui.button("Go");
+    });
+    h.run_steps(2);
+    let at = h.get_by_label("Go").rect().center();
+    h.click_at(at);
+    assert_eq!(*seen.borrow(), vec![(true, false, true), (false, true, false)], "press and release land in different frames");
 }

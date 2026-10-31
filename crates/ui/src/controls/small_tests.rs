@@ -127,13 +127,13 @@ fn badge_and_keycap_labels_fit_at_the_largest_text_size() {
     let defaults =
         AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Comfortable, sizes: Default::default() };
     let mut choice = SuiteChoice::default().with_defaults(&defaults);
-    choice.text_size = TextSize::Large;
+    choice.text_size = TextSize::Medium;
     let base = crate::theme::Base::resolve(&choice, SystemAppearance::default(), &defaults, None, &mut |id| {
         craft_theme::builtins().iter().find(|t| t.id == *id).cloned()
     });
     let ctx = Context::default();
     crate::theme::install(&ctx, &base);
-    assert_eq!(tokens_in(&ctx).appearance.text_size, TextSize::Large);
+    assert_eq!(tokens_in(&ctx).appearance.text_size, TextSize::Medium);
     let boxes_and_texts = |add: &dyn Fn(&mut Ui)| {
         let (shapes, _) = frame(&ctx, 0.0, add);
         let boxes: Vec<Rect> = shapes.iter().filter_map(|s| if let Shape::Rect(r) = s { (r.fill.a() > 0).then_some(r.rect) } else { None }).collect();

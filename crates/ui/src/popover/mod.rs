@@ -200,6 +200,7 @@ pub struct Popover {
     toggle: Option<Id>,
     group: Option<Id>,
     label: String,
+    keep_anchor_focus: bool,
 }
 
 const STATE: &str = "craft-popover-state";
@@ -230,6 +231,7 @@ impl Popover {
             toggle: None,
             group: None,
             label: String::new(),
+            keep_anchor_focus: false,
         }
     }
 
@@ -255,6 +257,14 @@ impl Popover {
         self
     }
 
+    /// The anchor keeps the keyboard focus when the popover opens, instead of the focus moving to
+    /// the first control (or [`PopoverCtx::initial_focus`]). For a combo whose text field stays
+    /// the typing target while its list is open; a press or Tab inside moves the focus as usual.
+    pub fn keep_anchor_focus(mut self, on: bool) -> Self {
+        self.keep_anchor_focus = on;
+        self
+    }
+
     /// The accessible name of the popover, translated.
     pub fn label(mut self, label: impl Into<String>) -> Self {
         self.label = label.into();
@@ -265,7 +275,7 @@ impl Popover {
     /// it every pass the popover should exist: it keeps nothing in the host. The popover clears
     /// `*open` when it closes itself.
     pub fn show<R>(self, ui: &mut Ui, open: &mut bool, add: impl FnOnce(&mut Ui, &PopoverCtx) -> R) -> Option<PopoverResponse<R>> {
-        let Self { id_salt, anchor, size, close, toggle, group, label } = self;
+        let Self { id_salt, anchor, size, close, toggle, group, label, keep_anchor_focus } = self;
         let ctx = ui.ctx().clone();
         let id = ui.make_persistent_id(id_salt);
         let state_id = id.with(STATE);
@@ -354,7 +364,7 @@ impl Popover {
             .accessible_name(label);
         let drawn = area.show(&ctx, |ui| {
             apply_popup_style(ui);
-            let entry = (shown && state.focus_tries < 3 && !focus_in(&ctx, id)).then(|| {
+            let entry = (shown && !keep_anchor_focus && state.focus_tries < 3 && !focus_in(&ctx, id)).then(|| {
                 state.focus_tries += 1;
                 begin_focus_entry(&ctx, id)
             });
@@ -410,6 +420,7 @@ impl Popover {
             }
         }
         if let Some(focus) = pop.initial.get()
+            && !keep_anchor_focus
             && state.focus_tries < 3
             && shown
             && (entered || !focus_in(&ctx, id))
@@ -439,7 +450,7 @@ impl Popover {
             }
             None => {
                 ctx.data_mut(|d| d.insert_temp(state_id, state));
-                popup_list::record_open(&ctx, id, true);
+                popup_list::record_open_as(&ctx, id, true, !close.outside);
             }
         }
         Some(PopoverResponse { inner, rect, closed_by: reason, size: size_now })

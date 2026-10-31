@@ -39,7 +39,7 @@ fn sel(theme: &str, mode: ModeChoice) -> Selection {
         contrast: ContrastChoice::System,
         motion: MotionChoice::System,
         size: Size::Compact,
-        text_size: TextSize::Default,
+        text_size: TextSize::Small,
     }
 }
 
@@ -109,7 +109,7 @@ fn memory_store_runs_the_same_protocol() {
     assert!(matches!(store.delete(&sample), Err(StoreError::InUse(_))));
     let theme = store.theme(&sample).unwrap();
     for mode in [Mode::Light, Mode::Dark] {
-        let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+        let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
         let tokens = resolve(&theme, appearance, None).tokens;
         for (token, colour) in sample_colors(mode) {
             assert_eq!(tokens.color.get(token), colour, "{mode:?} {}", token.path());
@@ -379,7 +379,7 @@ fn the_new_fields_merge_one_by_one_across_stores() {
     b.load_selection().unwrap();
     // Each app changes other fields on the same base: all of them land.
     b.update(&base, SelectionChange::theme_light(id("craft.soft")).then(SelectionChange::contrast(ContrastChoice::High))).unwrap();
-    let merged = a.update(&base, SelectionChange::size(Size::Comfortable).then(SelectionChange::text_size(TextSize::Large))).unwrap();
+    let merged = a.update(&base, SelectionChange::size(Size::Comfortable).then(SelectionChange::text_size(TextSize::Medium))).unwrap();
     assert_eq!(
         merged.suite,
         SuiteChoice {
@@ -389,7 +389,7 @@ fn the_new_fields_merge_one_by_one_across_stores() {
             contrast: Some(ContrastChoice::High),
             motion: Some(MotionChoice::System),
             size: Some(Size::Comfortable),
-            text_size: Some(TextSize::Large),
+            text_size: Some(TextSize::Medium),
         }
     );
     // The same field on the stale base: a conflict, field by field.
@@ -397,7 +397,7 @@ fn the_new_fields_merge_one_by_one_across_stores() {
         assert!(matches!(a.update(&base, change.clone()), Err(StoreError::Conflict { .. })), "{change:?}");
     }
     let disk = selection_json(tmp.path());
-    assert_eq!((disk["suite"]["size"].as_str(), disk["suite"]["text_size"].as_str()), (Some("comfortable"), Some("large")));
+    assert_eq!((disk["suite"]["size"].as_str(), disk["suite"]["text_size"].as_str()), (Some("comfortable"), Some("medium")));
 }
 
 #[test]

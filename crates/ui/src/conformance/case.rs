@@ -40,7 +40,7 @@ impl Case {
                 contrast: ContrastChoice::Standard,
                 motion: MotionChoice::System,
                 size: Size::Compact,
-                text_size: TextSize::Default,
+                text_size: TextSize::Small,
             },
             system: SystemAppearance::default(),
             defaults: AppDefaults {
@@ -172,7 +172,7 @@ impl Case {
             Size::Compact => "-compact",
             Size::Comfortable => "-comfortable",
         });
-        if self.selection.text_size != TextSize::Default {
+        if self.selection.text_size != TextSize::Small {
             name.push('-');
             name.push_str(&format!("{:?}", self.selection.text_size).to_lowercase());
         }
@@ -221,7 +221,7 @@ impl Case {
     /// asks for high contrast in the System contrast cases), one axis at a time.
     pub fn axes() -> Vec<Case> {
         let base = || Case::new(ThemeId::suite_default().as_str());
-        let mut cases: Vec<Case> = TextSize::ALL.into_iter().filter(|t| *t != TextSize::Default).map(|t| base().text_size(t)).collect();
+        let mut cases: Vec<Case> = TextSize::ALL.into_iter().filter(|t| *t != TextSize::Small).map(|t| base().text_size(t)).collect();
         cases.push(base().interface_font(InterfaceFont::System));
         cases.push(base().direction(Direction::Rtl));
         for mode in [Mode::Light, Mode::Dark] {

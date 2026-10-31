@@ -332,25 +332,25 @@ fn choosing_in_the_model_menu_keeps_the_popover_open() {
     rig.click_node(Role::ColorWell, "Fill colour");
     assert!(rig.open);
 
-    rig.click_node(Role::Button, "Colour model: HSB");
+    rig.click_node(Role::Button, "Color model: HSB");
     assert!(rig.open, "opening the menu keeps the popup open");
-    assert_eq!(rig.node(Role::Button, "Colour model: HSB").is_expanded(), Some(true));
+    assert_eq!(rig.node(Role::Button, "Color model: HSB").is_expanded(), Some(true));
     rig.click_node(Role::MenuItemRadio, "RGB");
     assert!(rig.open, "a click on a row is not outside the popup");
-    rig.node(Role::Button, "Colour model: RGB");
+    rig.node(Role::Button, "Color model: RGB");
     rig.node(Role::Slider, "Red");
 
     // From the keyboard: Enter on the switch opens the menu, Down and Enter choose.
-    rig.action(Role::Button, "Colour model: RGB", egui::accesskit::Action::Focus);
-    assert_eq!(rig.focused_name().as_deref(), Some("Colour model: RGB"));
+    rig.action(Role::Button, "Color model: RGB", egui::accesskit::Action::Focus);
+    assert_eq!(rig.focused_name().as_deref(), Some("Color model: RGB"));
     rig.key(Key::Enter, Modifiers::NONE);
     assert!(rig.open, "the menu opened from the keyboard keeps the popup open");
-    assert_eq!(rig.node(Role::Button, "Colour model: RGB").is_expanded(), Some(true));
+    assert_eq!(rig.node(Role::Button, "Color model: RGB").is_expanded(), Some(true));
     rig.key(Key::ArrowDown, Modifiers::NONE);
     rig.key(Key::ArrowDown, Modifiers::NONE);
     rig.key(Key::Enter, Modifiers::NONE);
     assert!(rig.open, "a row chosen by keys leaves the popup open");
-    rig.node(Role::Button, "Colour model: OKLCH");
+    rig.node(Role::Button, "Color model: OKLCH");
     assert_eq!(rig.color.to_rgba(), Srgba::rgb(0.2, 0.4, 0.6).to_rgba(), "switching models changes no colour");
 
     // A click outside both closes the popup.
@@ -363,10 +363,10 @@ fn choosing_in_the_model_menu_keeps_the_popover_open() {
 fn esc_in_the_model_menu_closes_only_the_menu() {
     let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
     rig.click_node(Role::ColorWell, "Fill colour");
-    rig.click_node(Role::Button, "Colour model: HSB");
-    assert_eq!(rig.node(Role::Button, "Colour model: HSB").is_expanded(), Some(true));
+    rig.click_node(Role::Button, "Color model: HSB");
+    assert_eq!(rig.node(Role::Button, "Color model: HSB").is_expanded(), Some(true));
     rig.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(rig.node(Role::Button, "Colour model: HSB").is_expanded(), Some(false), "Esc closes the menu");
+    assert_eq!(rig.node(Role::Button, "Color model: HSB").is_expanded(), Some(false), "Esc closes the menu");
     assert!(rig.open, "and leaves the popup open");
     rig.key(Key::Escape, Modifiers::NONE);
     assert!(!rig.open, "a second Esc closes the popup");

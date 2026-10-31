@@ -2,8 +2,6 @@
 //! order it showed them, like a browser's Back and Forward (InDesign's Layout › Go Back / Go
 //! Forward). Session state, not document history.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use kurbo::Point;
 
 /// Where a view stood: what it showed (`key`: a page, an artboard, a document) and the view's
@@ -51,27 +49,51 @@ impl<K: Clone + PartialEq> ViewHistory<K> {
     /// jump left it at, so Go Back returns there.
     // designcraft: crates/ui-egui/src/page_history.rs:22 `leave`.
     pub fn leave(&mut self, place: ViewPlace<K>) {
-        todo!()
+        match self.entries.get_mut(self.at) {
+            Some(entry) => *entry = place,
+            None => self.visit(place),
+        }
     }
 
     /// The view jumped to `place`. Visiting after Go Back drops the Go Forward entries; visiting
     /// the place already current only updates it.
     // designcraft: crates/ui-egui/src/page_history.rs:32 `visit`.
     pub fn visit(&mut self, place: ViewPlace<K>) {
-        todo!()
+        if let Some(entry) = self.entries.get_mut(self.at)
+            && entry.key == place.key
+        {
+            *entry = place;
+            return;
+        }
+        self.entries.truncate(self.at.saturating_add(1));
+        self.entries.push(place);
+        if self.entries.len() > Self::LIMIT {
+            self.entries.remove(0);
+        }
+        self.at = self.entries.len() - 1;
+    }
+
+    /// The nearest entry in the direction of `step` whose key still exists and differs from the
+    /// current one.
+    fn target(&self, step: isize, exists: impl Fn(&K) -> bool) -> Option<usize> {
+        let current = self.entries.get(self.at).map(|e| &e.key);
+        let usable = |i: &usize| self.entries.get(*i).is_some_and(|e| Some(&e.key) != current && exists(&e.key));
+        if step < 0 { (0..self.at).rev().find(usable) } else { (self.at.saturating_add(1)..self.entries.len()).find(usable) }
     }
 
     /// Whether Go Back (`step` < 0) or Go Forward (`step` > 0) has a place to go to, skipping
     /// places whose key no longer `exists` (a deleted page): for the menu items' enabled state.
     // designcraft: crates/ui-egui/src/page_history.rs:56 `can_go`.
     pub fn can_go(&self, step: isize, exists: impl Fn(&K) -> bool) -> bool {
-        todo!()
+        self.target(step, exists).is_some()
     }
 
     /// Go Back or Go Forward: the place to show, skipping places that no longer exist. Going
     /// does not record the place it leaves.
     // designcraft: crates/ui-egui/src/page_history.rs:62 `go`.
     pub fn go(&mut self, step: isize, exists: impl Fn(&K) -> bool) -> Option<ViewPlace<K>> {
-        todo!()
+        let i = self.target(step, exists)?;
+        self.at = i;
+        self.entries.get(i).cloned()
     }
 }

@@ -358,7 +358,7 @@ fn a_mode_map_overrides_seeds_field_by_field() {
 }
 
 fn appearance(mode: Mode) -> Appearance {
-    Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false }
+    Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false }
 }
 
 /// `float.shadow` is written as `{"level": n}` and read back as the same elevation.
@@ -441,7 +441,7 @@ fn references_resolve_to_the_final_value_in_every_appearance() {
 fn a_reference_to_a_derived_token_reads_the_final_value() {
     let v = with_light(json!({ "surface.panel": "{surface.raised}", "surface.raised": "#d4d0c8", "text.muted": "{state.disabled_fill}" }));
     let file = parse_value(&v).unwrap();
-    let a = Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let a = Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     let t = resolve(&file.theme, a, None).tokens;
     assert_eq!(t.color(T::SurfacePanel), hex("#d4d0c8"));
     assert_eq!(t.color(T::StateDisabledFill), hex("#d4d0c8"));

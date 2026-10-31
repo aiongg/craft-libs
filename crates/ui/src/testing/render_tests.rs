@@ -52,3 +52,17 @@ fn a_ui_that_never_settles_is_an_error() {
     assert_eq!(error, RenderError::NotSettled { steps: 4 });
     assert_eq!(error.to_string(), "the UI did not settle within 4 frames");
 }
+
+// harness skips the app on the builder's first frame and shows it the raised texture limit from the second; builder refuses an impossible size.
+#[test]
+fn harness_applies_the_texture_limit_after_the_skipped_first_frame() {
+    let mut seen = Vec::new();
+    let mut harness = Render::new([100.0, 50.0])
+        .max_texture_side(2048)
+        .harness(|ui, seen: &mut Vec<usize>| seen.push(ui.ctx().input(|i| i.max_texture_side)), Vec::new())
+        .unwrap();
+    harness.step();
+    std::mem::swap(&mut seen, harness.state_mut());
+    assert!(!seen.is_empty() && seen.iter().all(|side| *side == 2048), "{seen:?}");
+    assert!(Render::new([0.0, 10.0]).builder::<()>().is_err());
+}

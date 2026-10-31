@@ -26,16 +26,16 @@ fn language_rows_are_radio_items_with_automatic_first() {
     let automatic = LanguageMenu::new(vec![row("en", "English")], LanguageChoice::Automatic);
     assert_eq!(item(&automatic.items(&LanguageLabels::default())[0]).1, ItemKind::Radio(true));
     assert_eq!(automatic.clone().automatic(false).items(&LanguageLabels::default()).len(), 1);
-    assert!(matches!(automatic.node(&LanguageLabels::default()), Node::Submenu { role: Some(ItemRole::Language), .. }));
+    assert!(matches!(automatic.submenu(&LanguageLabels::default()), Node::Submenu { role: Some(ItemRole::Language), .. }));
 }
 
 #[test]
 // app.language {"lang":"fr"} reads as Code("fr"), {"lang":"auto"} as Automatic, other commands as None.
-fn chosen_reads_the_language_parameter() {
+fn from_command_reads_the_language_parameter() {
     let lang = |v| CommandRef::with_params(LANGUAGE_COMMAND, v);
-    assert_eq!(LanguageMenu::chosen(&lang(json!({"lang": "fr"}))), Some(LanguageChoice::Code("fr".into())));
-    assert_eq!(LanguageMenu::chosen(&lang(json!({"lang": "auto"}))), Some(LanguageChoice::Automatic));
-    assert_eq!(LanguageMenu::chosen(&lang(json!({"lang": 3}))), None);
-    assert_eq!(LanguageMenu::chosen(&CommandRef::new(LANGUAGE_COMMAND)), None);
-    assert_eq!(LanguageMenu::chosen(&CommandRef::new("file.open")), None);
+    assert_eq!(LanguageChoice::from_command(&lang(json!({"lang": "fr"}))), Some(LanguageChoice::Code("fr".into())));
+    assert_eq!(LanguageChoice::from_command(&lang(json!({"lang": "auto"}))), Some(LanguageChoice::Automatic));
+    assert_eq!(LanguageChoice::from_command(&lang(json!({"lang": 3}))), None);
+    assert_eq!(LanguageChoice::from_command(&CommandRef::new(LANGUAGE_COMMAND)), None);
+    assert_eq!(LanguageChoice::from_command(&CommandRef::new("file.open")), None);
 }

@@ -1180,7 +1180,7 @@ fn the_menu_titles_and_the_help_search_field_stay_clear_of_the_gap() {
     install(&ctx, &Base::suite_default());
     ctx.enable_accesskit();
     let frame = windows();
-    let menus = crate::menu::bar::story_bar();
+    let menus = crate::menu::bar::story_bar(&crate::story::StoryLabels::default());
     let mut time = 0.0;
     // The titles' rect, the gap the pass was given and the search field's bounds, if shown.
     let mut run = |events: Vec<Event>| {

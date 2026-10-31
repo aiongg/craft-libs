@@ -88,7 +88,7 @@ impl Shown {
                 .layout(ColorPickerLayout::Full)
                 .compare(color)
                 .warning(ColorWarning::new("Out of gamut", Srgba::rgb(0.2, 0.4, 0.5)))
-                .warning(ColorWarning::web_colors("Not a web colour", Srgba::rgb(0.2, 0.4, 0.6)))
+                .warning(ColorWarning::web_colors("Not a web color", Srgba::rgb(0.2, 0.4, 0.6)))
                 .web_colors(&mut false)
                 .eyedropper("Pick screen color")
                 .side_actions([
@@ -144,18 +144,18 @@ fn the_picker_with_its_actions_fits_photoshops_window() {
     // The actions are in the picker's width, above the fields and beside the swatch.
     let (ok, add) = (shown.rect(Role::Button, "OK"), shown.rect(Role::Button, "Add to Swatches"));
     let hue = shown.rect(Role::SpinButton, "Hue");
-    let new = shown.rect(Role::Image, "New colour");
+    let new = shown.rect(Role::Image, "New color");
     assert!(shown.picker_rect.contains_rect(add), "{add:?} in {:?}", shown.picker_rect);
     assert!(ok.left() > new.right() && add.bottom() < hue.top(), "{ok:?}, {add:?}, {hue:?}");
     assert!((ok.min.x - add.min.x).abs() < 0.5 && ok.width() == add.width(), "one column, one width");
-    assert!(ok.right() >= shown.rect(Role::TextInput, "Hex colour").right(), "at the trailing edge of the grid");
+    assert!(ok.right() >= shown.rect(Role::TextInput, "Hex color").right(), "at the trailing edge of the grid");
 }
 
 #[test]
 fn warnings_sit_beside_the_swatch_level_with_its_top() {
     let shown = Shown::new(Host::Dialog(InitialFocus::None));
-    let new = shown.rect(Role::Image, "New colour");
-    let (gamut, web) = (shown.rect(Role::Button, "Out of gamut"), shown.rect(Role::Button, "Not a web colour"));
+    let new = shown.rect(Role::Image, "New color");
+    let (gamut, web) = (shown.rect(Role::Button, "Out of gamut"), shown.rect(Role::Button, "Not a web color"));
     assert!(gamut.left() >= new.right() && web.left() >= new.right(), "beside the swatch: {gamut:?} {web:?} {new:?}");
     assert!((gamut.top() - (new.top() + 2.0)).abs() < 1.5, "level with the swatch's top: {gamut:?} {new:?}");
     assert!(web.top() > gamut.bottom(), "the second below the first");
@@ -210,7 +210,7 @@ fn the_strips_pointer_room_is_its_own_not_the_areas() {
 fn side_actions_end_at_the_content_edge_at_any_width() {
     let ends = |content: f32| {
         let shown = Shown::with(Host::Dialog(InitialFocus::None), true, Some(content));
-        let (ok, hex) = (shown.rect(Role::Button, "OK"), shown.rect(Role::TextInput, "Hex colour"));
+        let (ok, hex) = (shown.rect(Role::Button, "OK"), shown.rect(Role::TextInput, "Hex color"));
         let add = shown.rect(Role::Button, "Add to Swatches");
         assert!((ok.min.x - add.min.x).abs() < 0.5 && ok.width() == add.width(), "no button stretches");
         let edge = shown.window.right() - (shown.window.width() - content) / 2.0;

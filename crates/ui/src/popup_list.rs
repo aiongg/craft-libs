@@ -389,6 +389,9 @@ struct OpenList {
     /// The popup whose contents opened it: a menu opened from a button in a popover.
     parent: Option<Id>,
     pass: u64,
+    /// A non-modal popover ([`PopoverClose::outside`](crate::popover::PopoverClose::outside) off):
+    /// it doesn't own the keyboard, so command chords still run.
+    passive: bool,
 }
 
 /// The [`PopupList`]s whose contents are being drawn, innermost last, per viewport. A popup
@@ -445,13 +448,18 @@ fn open_lists_id(ctx: &Context) -> Id {
 /// A popup recorded open while a [`PopupList`]'s contents draw is that popup's child: the
 /// parent stays open while the focus is in the child, and a click in the child is not outside it.
 pub(crate) fn record_open(ctx: &Context, popup: Id, open: bool) {
+    record_open_as(ctx, popup, open, false);
+}
+
+/// [`record_open`], with `passive` for a non-modal popover (see [`owns_keys`]).
+pub(crate) fn record_open_as(ctx: &Context, popup: Id, open: bool, passive: bool) {
     let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
     let parent = Drawing::innermost(ctx).filter(|&p| p != popup);
     ctx.data_mut(|d| {
         let lists = &mut d.get_temp_mut_or_default::<OpenLists>(key).0;
         lists.retain(|l| l.popup != popup && l.pass + 1 >= pass);
         if open {
-            lists.push(OpenList { popup, parent, pass });
+            lists.push(OpenList { popup, parent, pass, passive });
         }
     });
 }
@@ -483,6 +491,20 @@ pub(crate) fn family(ctx: &Context, popup: Id) -> Vec<Id> {
 pub fn any_open(ctx: &Context) -> bool {
     let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
     Popup::is_any_open(ctx) || ctx.data(|d| d.get_temp::<OpenLists>(key)).is_some_and(|l| l.0.iter().any(|l| l.pass + 1 >= pass))
+}
+
+/// Whether an open popup owns the keyboard: any popup [`any_open`] counts except the non-modal
+/// popovers, which let command chords through (PhotoCraft's stroke editor). A popup opened from a
+/// non-modal popover (its Select list) owns the keys.
+pub(crate) fn owns_keys(ctx: &Context) -> bool {
+    let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
+    Popup::is_any_open(ctx) || ctx.data(|d| d.get_temp::<OpenLists>(key)).is_some_and(|l| l.0.iter().any(|l| l.pass + 1 >= pass && !l.passive))
+}
+
+/// Whether a non-modal popover is open (see [`owns_keys`]).
+pub(crate) fn passive_open(ctx: &Context) -> bool {
+    let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
+    ctx.data(|d| d.get_temp::<OpenLists>(key)).is_some_and(|l| l.0.iter().any(|l| l.pass + 1 >= pass && l.passive))
 }
 
 fn rows_list<H, R>(

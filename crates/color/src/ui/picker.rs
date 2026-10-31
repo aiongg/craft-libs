@@ -6,7 +6,7 @@ use std::ops::RangeInclusive;
 
 use craft_theme::{Channel, ColorModel, ControlSize, MAX_CHANNELS, ModelValues, Rgba, Srgba, TypeRole, builtin_models};
 use egui::accesskit::Role;
-use egui::{Align, AsIdSalt, Context, Id, IdSalt, Layout, Rect, Ui, UiBuilder, Vec2, pos2, vec2};
+use egui::{Align, AsIdSalt, Context, Id, IdSalt, Layout, Rect, Response, Ui, UiBuilder, Vec2, pos2, vec2};
 
 use super::area::{self, AreaOp};
 use super::hex::{self, HexCodec};
@@ -66,6 +66,10 @@ pub struct ColorPickerResponse {
     /// The eyedropper button was pressed: the host starts sampling and gives the result with
     /// [`ColorPicker::sampled`].
     pub eyedropper_requested: bool,
+    /// The eyedropper button's response, when the [hook](ColorPicker::eyedropper) shows it: the
+    /// host passes it to [`ScreenColorPicker::hold_drag`](super::ScreenColorPicker::hold_drag)
+    /// for Photoshop's press-and-drag.
+    pub eyedropper: Option<Response>,
     /// The [side action](ColorPicker::side_actions) clicked this pass, by click, Enter or Space
     /// on the focused button.
     pub side_clicked: Option<Clicked>,
@@ -136,11 +140,11 @@ pub struct ColorPickerResponse {
 /// - AccessKit: a `Group` named `label`; the channel fields and sliders are named by the
 ///   channel's full name ("Hue"), or "<model> <channel>" ("OKLCH hue") while another model on
 ///   show has a channel of that name (the rows' and the area's models in Compact, every model in
-///   Full; the strip and the row label follow it); the hex field "Hex colour", the eyedropper by
+///   Full; the strip and the row label follow it); the hex field "Hex color", the eyedropper by
 ///   the host's label.
 ///   Full: the radios are a `RadioGroup` "Field shows" with a `RadioButton` per channel, named
-///   by the channel's full name; the compare swatch's halves are an `Image` "New colour" and a
-///   `Button` "Restore current colour", each with its colour's hex as value; each warning a
+///   by the channel's full name; the compare swatch's halves are an `Image` "New color" and a
+///   `Button` "Restore current color", each with its colour's hex as value; each warning a
 ///   `Button` named by its tip; with [`web_colors`](ColorPicker::web_colors) a `CheckBox`
 ///   "Only Web Colors" under the strip (Ctrl+Tab reaches it in a [`FieldTab`](craft_ui::behavior::FieldTab)
 ///   scope, as it does every control but the fields).
@@ -177,17 +181,17 @@ type Translate<'a> = dyn Fn(&'static str) -> String + 'a;
 /// The picker's own words and templates, English: the keys [`ColorPicker::text`] translates.
 pub(super) mod texts {
     pub(crate) const OPACITY: &str = "Opacity";
-    pub(crate) const HEX_COLOUR: &str = "Hex colour";
+    pub(crate) const HEX_COLOUR: &str = "Hex color";
     /// The model switch's accessible name; `{model}` is the model's translated name.
-    pub(crate) const COLOUR_MODEL: &str = "Colour model: {model}";
+    pub(crate) const COLOUR_MODEL: &str = "Color model: {model}";
     pub(crate) const NOT_HEX: &str = super::hex::NOT_HEX;
     /// A percentage in a field; `{n}` is the number.
     pub(crate) const PERCENT: &str = "{n}%";
     pub(crate) const FIELD_SHOWS: &str = "Field shows";
     pub(crate) const NEW: &str = "new";
     pub(crate) const CURRENT: &str = "current";
-    pub(crate) const NEW_COLOUR: &str = "New colour";
-    pub(crate) const RESTORE: &str = "Restore current colour";
+    pub(crate) const NEW_COLOUR: &str = "New color";
+    pub(crate) const RESTORE: &str = "Restore current color";
     /// A channel's label in the Full grid; `{label}` is the channel's translated short label.
     pub(crate) const GRID_LABEL: &str = "{label}:";
     pub(crate) const ONLY_WEB_COLORS: &str = "Only Web Colors";
@@ -455,6 +459,15 @@ impl<'a> ColorPicker<'a> {
         hex::focus(ctx, id);
     }
 
+    /// Gives the picker with id `id` the model `values` a colour was made with, before its first
+    /// pass: its fields show them as they are, not what the sRGB `color` converts to.
+    pub(super) fn keep(ctx: &Context, id: Id, color: Srgba, values: ModelValues) {
+        let mut state = ctx.data(|d| d.get_temp::<State>(State::key(id))).unwrap_or_default();
+        state.kept =
+            Some(Picked { color, values: Some(values), exact: values.values.map(f64::from), alpha: percent(color.a), made: true, faithful: true });
+        ctx.data_mut(|d| d.insert_temp(State::key(id), state));
+    }
+
     /// Shows the picker and returns this frame's edit.
     pub fn show(self, ui: &mut Ui) -> ColorPickerResponse {
         let id = ui.make_persistent_id(self.id_salt);
@@ -464,11 +477,12 @@ impl<'a> ColorPicker<'a> {
             .accessibility_role(Role::Group)
             .accessibility_label(self.label.clone());
         let inner = ui.scope_builder(builder, |ui| self.show_inside(ui, id));
-        let (event, eyedropper_requested, side_clicked) = inner.inner;
-        ColorPickerResponse { edit: EditResponse::new(inner.response, event), eyedropper_requested, side_clicked }
+        let (event, eyedropper, side_clicked) = inner.inner;
+        let eyedropper_requested = eyedropper.as_ref().is_some_and(Response::clicked);
+        ColorPickerResponse { edit: EditResponse::new(inner.response, event), eyedropper_requested, eyedropper, side_clicked }
     }
 
-    fn show_inside(mut self, ui: &mut Ui, id: Id) -> (Option<EditEvent<PickedColor>>, bool, Option<Clicked>) {
+    fn show_inside(mut self, ui: &mut Ui, id: Id) -> (Option<EditEvent<PickedColor>>, Option<Response>, Option<Clicked>) {
         let tokens = Tokens::of(ui);
         ui.spacing_mut().item_spacing.y = Gap::Stack.points(&tokens);
         let enabled = self.enabled && ui.is_enabled();
@@ -488,7 +502,7 @@ impl<'a> ColorPicker<'a> {
             .clone()
             .unwrap_or_else(|| builtin_models().into_iter().filter(|m| if full { m.default_on().full } else { m.default_on().compact }).collect());
         let mut mode = self.mode.as_deref().copied().unwrap_or(state.mode);
-        let (eyedropper_requested, side_clicked);
+        let (eyedropper, side_clicked);
         let web = Cell::new(self.web_colors.as_deref().copied().unwrap_or(false));
         let event = {
             let words = Words::of(ui);
@@ -503,12 +517,13 @@ impl<'a> ColorPicker<'a> {
             // Esc is the inner controls': each cancels its own gesture, which cancels this one.
             let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
             let start = outer.start().cloned();
-            let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width };
+            let inner =
+                Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width, part: true };
             let mut parts =
                 Parts { edits: Edits::new(id, &state.parts, &outer, edit::in_scope(ui)), models: &models, constrain: &constrain, web: &web };
             parts.replay(ui.ctx());
 
-            (eyedropper_requested, side_clicked) = match self.layout {
+            (eyedropper, side_clicked) = match self.layout {
                 ColorPickerLayout::Compact => (self.compact(ui, id, mode, &models, &mut state, inner, &translate, &mut parts), None),
                 ColorPickerLayout::Full => self.full(ui, id, &mut mode, &models, inner, &translate, &mut parts, opened),
             };
@@ -548,11 +563,11 @@ impl<'a> ColorPicker<'a> {
             None => state.mode = mode,
         }
         state.store(ui, id);
-        (event, eyedropper_requested, side_clicked)
+        (event, eyedropper, side_clicked)
     }
 
     /// The Compact layout: the area and strip, the slider rows of one model, the model switch,
-    /// the hex row and the alpha row; whether the eyedropper button was pressed.
+    /// the hex row and the alpha row; the eyedropper button's response.
     #[allow(clippy::too_many_arguments)]
     fn compact(
         &self,
@@ -564,7 +579,7 @@ impl<'a> ColorPicker<'a> {
         inner: Inner,
         translate: &dyn Fn(&'static str) -> String,
         parts: &mut Parts<'_>,
-    ) -> bool {
+    ) -> Option<Response> {
         let style = ColorArea::style(&Tokens::of(ui));
         let height = self.area_height.unwrap_or(style.area_height);
         let gap = Gap::Inline.points(&Tokens::of(ui));
@@ -584,18 +599,18 @@ impl<'a> ColorPicker<'a> {
                 parts.typing(&field, ops::take(ui.ctx(), field.response.id).into_iter().map(channel_op(RowPart::Field)), map);
                 let (values, exact) = parts.value().values_in(model);
                 let track = self.dynamic_tracks.then(|| model.track(i, &values));
-                let slider = row_slider(ui, ("channel", i), &name, exact[i], &row, track, inner);
+                let slider = row_slider(ui, ("channel", i), &name, exact[i], &row, track, None, inner);
                 parts.push(&slider, ops::take(ui.ctx(), slider.response.id).into_iter().map(channel_op(RowPart::Slider)), map);
             }
             if models.len() > 1 {
                 state.model = Some(model_switch(ui, models, model.id(), translate, inner.enabled));
             }
         }
-        let requested = self.hex_row(ui, id, translate, inner.enabled, parts);
+        let eyedropper = self.hex_row(ui, id, translate, inner.enabled, parts);
         if self.alpha {
             self.alpha_row(ui, inner, translate, parts);
         }
-        requested
+        eyedropper
     }
 
     /// The "Opacity" slider row, 0–100 % over the checkerboard.
@@ -607,7 +622,7 @@ impl<'a> ColorPicker<'a> {
         parts.typing(&field, ops::take(ui.ctx(), field.response.id).into_iter().map(|op| PickerOp::Alpha(RowPart::Field, op)), map);
         let now = parts.value();
         let opaque = now.color.with_alpha(1.0);
-        let slider = row_slider(ui, "alpha", &name, now.alpha, &ALPHA, Some(vec![opaque.with_alpha(0.0), opaque]), inner);
+        let slider = row_slider(ui, "alpha", &name, now.alpha, &ALPHA, Some(vec![opaque.with_alpha(0.0), opaque]), None, inner);
         parts.push(&slider, ops::take(ui.ctx(), slider.response.id).into_iter().map(|op| PickerOp::Alpha(RowPart::Slider, op)), map);
     }
 
@@ -657,22 +672,21 @@ impl<'a> ColorPicker<'a> {
         });
     }
 
-    /// "#", the hex field and the eyedropper button; whether the button was pressed.
-    fn hex_row(&self, ui: &mut Ui, id: Id, translate: &dyn Fn(&'static str) -> String, enabled: bool, parts: &mut Parts<'_>) -> bool {
+    /// "#", the hex field and the eyedropper button; the button's response.
+    fn hex_row(&self, ui: &mut Ui, id: Id, translate: &dyn Fn(&'static str) -> String, enabled: bool, parts: &mut Parts<'_>) -> Option<Response> {
         let tokens = Tokens::of(ui);
         let gap = Gap::Inline.points(&tokens);
         let button = self.eyedropper.as_ref().map(|_| IconButton::style(&tokens, ControlSize::Md).side + gap);
-        let mut requested = false;
+        let mut eyedropper = None;
         Row::new(Gap::Inline).show(ui, |ui| {
             ui.add(Text::new("#").role(TypeRole::Mono).content(Content::Muted));
             let width = (ui.available_width() - button.unwrap_or(0.0)).max(0.0);
             self.hex_field(ui, id, width, translate, enabled, parts);
             if let Some(label) = &self.eyedropper {
-                let pressed = ui.add(IconButton::new(Icon::Eyedropper, label.as_str()).enabled(enabled && !self.eyedropper_busy)).clicked();
-                requested = pressed;
+                eyedropper = Some(ui.add(IconButton::new(Icon::Eyedropper, label.as_str()).enabled(enabled && !self.eyedropper_busy)));
             }
         });
-        requested
+        eyedropper
     }
 
     /// The hex field, `width` wide.
@@ -712,11 +726,13 @@ impl<'a> ColorPicker<'a> {
 /// What the inner controls share: their policy, whether they take input, and the channel
 /// fields' width.
 #[derive(Clone, Copy, Debug)]
-struct Inner {
-    policy: EditPolicy,
-    enabled: bool,
+pub(super) struct Inner {
+    pub(super) policy: EditPolicy,
+    pub(super) enabled: bool,
     /// The width of every channel field ([`channel_width`]).
-    width: f32,
+    pub(super) width: f32,
+    /// The controls are parts of a picker, whose edit order their presses wait on.
+    pub(super) part: bool,
 }
 
 /// The width of every channel field, in either layout: the widest value of every built-in
@@ -743,17 +759,17 @@ fn channel_name(model: &dyn ColorModel, channel: usize, visible: &[&dyn ColorMod
 }
 
 /// How a slider row's or a channel field's value steps and settles: a channel's or the alpha's.
-struct RowRule {
-    range: RangeInclusive<f64>,
-    step: f64,
-    decimals: u8,
+pub(super) struct RowRule {
+    pub(super) range: RangeInclusive<f64>,
+    pub(super) step: f64,
+    pub(super) decimals: u8,
 }
 
 /// The alpha row's rule: 0–100 %, whole percents.
 const ALPHA: RowRule = RowRule { range: 0.0..=100.0, step: 1.0, decimals: 0 };
 
 impl RowRule {
-    fn of(channel: &Channel) -> RowRule {
+    pub(super) fn of(channel: &Channel) -> RowRule {
         RowRule { range: f64::from(channel.min)..=f64::from(channel.max), step: f64::from(channel.step), decimals: channel.decimals }
     }
 
@@ -769,6 +785,27 @@ impl RowRule {
     }
 }
 
+/// The number field of a channel row.
+#[allow(clippy::too_many_arguments)]
+fn row_number<'a>(
+    salt: impl AsIdSalt + Copy,
+    name: &str,
+    value: f64,
+    rule: &RowRule,
+    unit: Unit,
+    numbers: &'a LocaleNumbers,
+    inner: Inner,
+) -> NumberField<'a> {
+    NumberField::new(("field", salt), name, value, numbers)
+        .range(rule.range.clone())
+        .step(rule.step)
+        .decimals(0..=usize::from(rule.decimals))
+        .unit(unit)
+        .policy(inner.policy)
+        .part(inner.part)
+        .enabled(inner.enabled)
+}
+
 /// The word label `name` of a Compact slider row, which scrubs and names the number field at the
 /// row's end; the field's edit.
 #[allow(clippy::too_many_arguments)]
@@ -782,19 +819,11 @@ fn row_field(
     numbers: &LocaleNumbers,
     inner: Inner,
 ) -> EditResponse<f64> {
-    let Inner { policy, enabled, width } = inner;
     PropertyRow::word(name)
         .scrubs()
         .show(ui, |ui, row| {
-            at_end(ui, width, |ui| {
-                let field = NumberField::new(("field", salt), name, value, numbers)
-                    .range(rule.range.clone())
-                    .step(rule.step)
-                    .decimals(0..=usize::from(rule.decimals))
-                    .unit(unit)
-                    .policy(policy)
-                    .part(true)
-                    .enabled(enabled);
+            at_end(ui, inner.width, |ui| {
+                let field = row_number(salt, name, value, rule, unit, numbers, inner);
                 match row.scrub() {
                     Some(label) => field.scrub_by(label),
                     None => field,
@@ -805,7 +834,56 @@ fn row_field(
         .inner
 }
 
-/// The slider under a Compact row's label, over `track`'s colours; its edit.
+/// The one-line channel row of a docked panel (Photoshop's Color panel): the word label, the
+/// slider over `track` filling the line, and the number field (`hex`: a two-digit hex field of
+/// the 0 to 255 value) `inner.width` wide at its end. The field's edit, then the slider's.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn row_line(
+    ui: &mut Ui,
+    salt: impl AsIdSalt + Copy,
+    name: &str,
+    value: f64,
+    rule: &RowRule,
+    unit: Unit,
+    numbers: &LocaleNumbers,
+    track: Option<Vec<Srgba>>,
+    hex: bool,
+    inner: Inner,
+) -> (EditResponse<f64>, EditResponse<f64>) {
+    let gap = Gap::Inline.points(&Tokens::of(ui));
+    PropertyRow::word(name)
+        .scrubs()
+        .show(ui, |ui, row| {
+            let line = Vec2::new(ui.available_width(), 0.0);
+            ui.allocate_ui_with_layout(line, direction::row(ui), |ui| {
+                ui.spacing_mut().item_spacing.x = gap;
+                let slider_width = (ui.available_width() - inner.width - gap).max(0.0);
+                let slider = row_slider(ui, salt, name, value, rule, track, Some(slider_width), inner);
+                let field = ui
+                    .allocate_ui_with_layout(vec2(inner.width, 0.0), Layout::top_down_justified(Align::Min), |ui| {
+                        if hex {
+                            let byte = value.clamp(0.0, 255.0) as u8;
+                            hex::HexPairField::new((salt, "hex"), name, byte).policy(inner.policy).enabled(inner.enabled).show(ui).map(f64::from)
+                        } else {
+                            let field = row_number(salt, name, value, rule, unit, numbers, inner);
+                            match row.scrub() {
+                                Some(label) => field.scrub_by(label),
+                                None => field,
+                            }
+                            .show(ui)
+                        }
+                    })
+                    .inner;
+                (field, slider)
+            })
+            .inner
+        })
+        .inner
+}
+
+/// The slider under a Compact row's label, over `track`'s colours, `width` long when given; its
+/// edit.
+#[allow(clippy::too_many_arguments)]
 fn row_slider(
     ui: &mut Ui,
     salt: impl AsIdSalt + Copy,
@@ -813,10 +891,14 @@ fn row_slider(
     value: f64,
     rule: &RowRule,
     track: Option<Vec<Srgba>>,
+    width: Option<f32>,
     inner: Inner,
 ) -> EditResponse<f64> {
     let mut slider =
-        Slider::new(("slider", salt), name, value, rule.range.clone()).step(rule.step).policy(inner.policy).enabled(inner.enabled).part(true);
+        Slider::new(("slider", salt), name, value, rule.range.clone()).step(rule.step).policy(inner.policy).enabled(inner.enabled).part(inner.part);
+    if let Some(width) = width {
+        slider = slider.width(width);
+    }
     if let Some(stops) = track {
         slider = slider.track_colors(stops);
     }
@@ -834,7 +916,7 @@ fn at_end<R>(ui: &mut Ui, width: f32, add: impl FnOnce(&mut Ui) -> R) -> R {
 
 /// The model switch under the rows (PhotoCraft's "HSB/HSL" / "RGB Color" press-menu button): a
 /// button with the current model's name opens a menu of the models, one radio item each. The
-/// button's accessible name is "Colour model: <model>", which holds its visible label. Returns
+/// button's accessible name is "Color model: <model>", which holds its visible label. Returns
 /// the model chosen.
 fn model_switch(
     ui: &mut Ui,

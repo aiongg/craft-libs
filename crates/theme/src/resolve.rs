@@ -219,7 +219,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
     let (hover, open, move_) = values::MOTION_DURATIONS;
 
     let shape = ShapeTokens { radius, edge };
-    let typography = preset.typography.scaled(values::text_size_factor(appearance.text_size), values::TYPE_ROUNDING);
+    let typography = preset.typography.scaled(sizes.text_steps.factor(appearance.text_size), values::TYPE_ROUNDING);
     let mut component = ComponentTokens::defaults(&Semantic {
         color: &color,
         shape: &shape,

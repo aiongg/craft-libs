@@ -6,7 +6,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::tool::stories;
-use super::tool::{GridMove, chevron, grid_step};
+use super::tool::{GridMove, chevron, edit_state, edit_update, grid_step};
 use super::*;
 use crate::direction::{self, Direction};
 use crate::icons::Icon;
@@ -634,4 +634,14 @@ fn a_footer_that_changes_height_settles_under_the_last_button() {
 fn an_empty_shortcut_is_none() {
     assert_eq!(RailTool::new("a", Icon::Move, "A").shortcut("").shortcut, None);
     assert_eq!(RailTool::new("a", Icon::Move, "A").shortcut("V").shortcut.as_deref(), Some("V"));
+}
+
+#[test]
+// The state a rail and its drawer share is kept per rail: a second rail in the same viewport has
+// its own places and drop target.
+fn rail_edit_state_is_kept_per_rail() {
+    let ctx = egui::Context::default();
+    let (a, b) = (egui::IdSalt::new("a"), egui::IdSalt::new("b"));
+    edit_update(&ctx, a, |edit| edit.total = 5);
+    assert_eq!((edit_state(&ctx, a).total, edit_state(&ctx, b).total), (5, 0));
 }

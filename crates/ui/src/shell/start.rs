@@ -4,8 +4,10 @@
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use craft_i18n::Folder;
+use craft_host::Host;
+use craft_i18n::Collator;
 use craft_theme::{ButtonVariant, ControlSize, TypeRole};
 use egui::accesskit::{Action, Role};
 use egui::text::{LayoutJob, TextWrapping};
@@ -17,15 +19,10 @@ use crate::controls::{Button, IconButton, Segmented, Select};
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::list::{List, ListEvent, ListRow, ThumbSize};
-use crate::localized::{Labels as _, LocaleNumbers};
+use crate::localized::{Labels as _, relative_age};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Pad, Row, Stack, Surface, SurfaceKind, Text};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
-
-/// The narrowest and widest a card gets; columns come and go to keep cards within them
-/// (FigCraft's home screen).
-const CARD_MIN: f32 = 260.0;
-const CARD_MAX: f32 = 360.0;
 
 /// A recent file as the start screen lists it. The host keeps the list (craft-platform's recent
 /// files in step 4) and passes it every frame.
@@ -210,13 +207,13 @@ impl<'a> StartScreen<'a> {
         let labels = self.labels.clone().unwrap_or_else(|| StartLabels::of(ui));
         let id = ui.make_persistent_id(self.id_salt);
         let now = self.now.or_else(unix_now);
-        let numbers = LocaleNumbers::of(ui);
+        let ctx = ui.ctx().clone();
         let age = |then: Option<i64>| match (now, then) {
-            (Some(now), Some(then)) => age_text(&labels, now.saturating_sub(then), |n| numbers.count(n)),
+            (Some(now), Some(then)) => relative_age(&ctx, now.saturating_sub(then).max(0).unsigned_abs()),
             _ => String::new(),
         };
         let mut recent: Vec<RecentFile> = self.recent.iter().take(self.max_recent).cloned().collect();
-        sort_recent(&mut recent, self.sort);
+        sort_recent(&mut recent, self.sort, &collator(ui.ctx()));
         let actions = RefCell::new(Vec::new());
         let view = Cell::new(self.view);
         let sort = Cell::new(self.sort);
@@ -400,8 +397,9 @@ fn card_grid(ui: &mut Ui, id: Id, labels: &StartLabels, cards: &[Card], recent: 
     let detail_format = Text::format(&tokens, TypeRole::Caption, Content::Muted);
     let line = |format: &egui::TextFormat| format.line_height.unwrap_or(format.font_id.size);
     let width = ui.available_width();
-    let columns = GridNav::columns(width, 0.0, gap, CARD_MIN);
-    let card_w = ((width - gap * (columns - 1) as f32) / columns as f32).min(CARD_MAX);
+    // Columns come and go to keep cards between the start tokens' card_min and card_max (FigCraft's home screen).
+    let columns = GridNav::columns(width, 0.0, gap, tokens.component.start.card_min);
+    let card_w = ((width - gap * (columns - 1) as f32) / columns as f32).min(tokens.component.start.card_max);
     let thumb_w = card_w - 2.0 * inset;
     let thumb_h = (thumb_w * 9.0 / 16.0).round();
     let card_h = inset + thumb_h + inset + line(&name_format) + line(&detail_format) + inset;
@@ -616,31 +614,23 @@ fn unix_now() -> Option<i64> {
     }
 }
 
-/// How long ago `seconds` was: "less than a minute ago", then whole minutes, hours, days, months
-/// (30 days) and years.
-fn age_text(labels: &StartLabels, seconds: i64, number: impl Fn(u64) -> String) -> String {
-    const MINUTE: u64 = 60;
-    const HOUR: u64 = 60 * MINUTE;
-    const DAY: u64 = 24 * HOUR;
-    const MONTH: u64 = 30 * DAY;
-    const YEAR: u64 = 365 * DAY;
-    let seconds = seconds.max(0).unsigned_abs();
-    let (unit, one, other) = match seconds {
-        0..MINUTE => return labels.just_now.clone(),
-        MINUTE..HOUR => (MINUTE, &labels.minute_one, &labels.minute_other),
-        HOUR..DAY => (HOUR, &labels.hour_one, &labels.hour_other),
-        DAY..MONTH => (DAY, &labels.day_one, &labels.day_other),
-        MONTH..YEAR => (MONTH, &labels.month_one, &labels.month_other),
-        _ => (YEAR, &labels.year_one, &labels.year_other),
-    };
-    let n = seconds / unit;
-    craft_i18n::fmt(if n == 1 { one } else { other }, &[("n", &number(n))])
+/// The collation of the Host's language, built once per language: `Name` sorts by it, with
+/// runs of digits by value ("a2" before "a10").
+fn collator(ctx: &egui::Context) -> Arc<Collator> {
+    let code = Host::try_of_ctx(ctx).and_then(|host| Some(host.i18n()?.code(host.lang()).to_owned())).unwrap_or_else(|| "en".to_owned());
+    let key = Id::NULL.with(("start-collator", &code));
+    if let Some(found) = ctx.data(|d| d.get_temp::<Arc<Collator>>(key)) {
+        return found;
+    }
+    let made = Arc::new(Collator::new(&code));
+    ctx.data_mut(|d| d.insert_temp(key, Arc::clone(&made)));
+    made
 }
 
-/// The recent files in `sort` order (Opened: newest first; Name: by the case- and accent-folded
-/// name; Created: newest first, files without a date last).
+/// The recent files in `sort` order (Opened: newest first; Name: in `collator`'s order; Created:
+/// newest first, files without a date last).
 // figcraft: crates/ui-egui/src/home/home_recents.rs:79 `SortKey`.
-pub fn sort_recent(files: &mut [RecentFile], sort: RecentSort) {
+pub fn sort_recent(files: &mut [RecentFile], sort: RecentSort, collator: &Collator) {
     fn newest_first(a: Option<i64>, b: Option<i64>) -> Ordering {
         match (a, b) {
             (Some(a), Some(b)) => b.cmp(&a),
@@ -653,8 +643,7 @@ pub fn sort_recent(files: &mut [RecentFile], sort: RecentSort) {
         RecentSort::Opened => files.sort_by(|a, b| newest_first(a.opened, b.opened)),
         RecentSort::Created => files.sort_by(|a, b| newest_first(a.created, b.created)),
         RecentSort::Name => {
-            let folder = Folder::new("");
-            files.sort_by_cached_key(|f| (folder.key(&f.name), f.name.clone(), f.path.clone()));
+            files.sort_by(|a, b| collator.compare(&a.name, &b.name).then_with(|| a.path.cmp(&b.path)));
         }
     }
 }
@@ -682,16 +671,5 @@ crate::words! {
         pin_folder: "start.pinFolder" = "Pin Folder…";
         unpin: "start.unpin" = "Unpin";
         templates: "start.templates" = "Templates";
-        just_now: "start.justNow" = "less than a minute ago";
-        minute_one: "start.minuteOne" = "{n} minute ago";
-        minute_other: "start.minuteOther" = "{n} minutes ago";
-        hour_one: "start.hourOne" = "{n} hour ago";
-        hour_other: "start.hourOther" = "{n} hours ago";
-        day_one: "start.dayOne" = "{n} day ago";
-        day_other: "start.dayOther" = "{n} days ago";
-        month_one: "start.monthOne" = "{n} month ago";
-        month_other: "start.monthOther" = "{n} months ago";
-        year_one: "start.yearOne" = "{n} year ago";
-        year_other: "start.yearOther" = "{n} years ago";
     }
 }

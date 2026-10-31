@@ -123,7 +123,7 @@ impl FormGrid {
         measure::group(ui, TAG, id_salt, |ui| {
             let spacing = ui.spacing().item_spacing;
             ui.spacing_mut().item_spacing.y = style.row_gap;
-            add_rows(&mut Form { ui, style, align, tokens, spacing, rows: 0, link: None })
+            add_rows(&mut Form { ui, style, align, tokens, spacing, rows: 0, link: None, disabled: false, last_row: None })
         })
     }
 }
@@ -140,6 +140,10 @@ pub struct Form<'a> {
     rows: usize,
     /// The rows being added inside [`Form::linked`].
     link: Option<Linked>,
+    /// Rows added while set are drawn disabled, label included.
+    disabled: bool,
+    /// The whole-row response of the row added last.
+    last_row: Option<Response>,
 }
 
 /// What the rows of a [`Form::linked`] scope measured, for the bracket drawn after them.
@@ -156,6 +160,16 @@ impl Form<'_> {
     /// The context the grid is drawn in, for a row builder that translates its labels.
     pub fn ctx(&self) -> &egui::Context {
         self.ui.ctx()
+    }
+
+    /// The response over the whole of the row added last (label and control), for a hover tip.
+    pub fn last_row(&self) -> Option<&Response> {
+        self.last_row.as_ref()
+    }
+
+    /// Draws the rows added from now on disabled, label and control, until called with `false`.
+    pub fn set_disabled(&mut self, disabled: bool) {
+        self.disabled = disabled;
     }
 
     /// A row of `label` and the control `add_control` draws in a row of the control column; the
@@ -317,13 +331,18 @@ impl Form<'_> {
                 LabelAlign::End => direction::trailing(ui),
                 LabelAlign::Start => direction::row(ui),
             };
-            ui.scope_builder(UiBuilder::new().max_rect(band).layout(layout), |ui| ui.add(Label::new(galley).selectable(false))).inner
+            let builder = UiBuilder::new().max_rect(band).layout(layout);
+            let builder = if self.disabled { builder.disabled() } else { builder };
+            ui.scope_builder(builder, |ui| ui.add(Label::new(galley).selectable(false))).inner
         });
         if let Some(label) = &label_response {
             row = label.rect;
         }
         let mut cell = ui.new_child(UiBuilder::new().max_rect(control_rect).layout(direction::column(ui)));
         cell.spacing_mut().item_spacing = self.spacing;
+        if self.disabled {
+            cell.disable();
+        }
         let control = direction::horizontal(&mut cell, |ui| add_control(ui, &RowLabel::new(label_response.as_ref(), true))).inner;
         row = row.union(cell.min_rect());
         if let Some(link) = &mut self.link {
@@ -348,6 +367,7 @@ impl Form<'_> {
         }
         drop(cell);
         let response = ui.allocate_rect(row, Sense::hover());
+        self.last_row = Some(response.clone());
         InnerResponse::new(control, response)
     }
 }

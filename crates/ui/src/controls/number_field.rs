@@ -2,6 +2,7 @@
 //! ([`LocaleNumbers`]), typed through [`behavior::Typing`](crate::behavior::Typing), scrubbed,
 //! stepped and set on a pop-up slider.
 
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -26,10 +27,11 @@ use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook, edit_menu};
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
+use crate::localized::Labels as _;
 use crate::localized::{LocaleNumbers, Unit, Words, first_field_id, incomplete, on_grid, round_half_away, stepped};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, variant_list};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, StoryLabels, variant_list};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, margin_x};
 use crate::typed_story;
 
@@ -49,9 +51,6 @@ pub struct NumberFieldStyle {
 
 /// The text a blank field shows: a mixed value, or one that isn't a finite number.
 const BLANK: &str = "\u{2014}";
-
-/// Steps a scrub moves per point of horizontal drag.
-const STEPS_PER_POINT: f64 = 1.0;
 
 /// An app's reader for text that isn't a plain number.
 type Reader<'a> = dyn Fn(&str) -> Option<f64> + 'a;
@@ -175,29 +174,143 @@ pub struct NumberField<'a> {
     part: bool,
     edit_menu: bool,
     unit_menu: Option<UnitMenu<'a>>,
-    presets: Option<&'a [(String, f64)]>,
+    presets: PresetSource<'a>,
+    scrub_rate: Option<f64>,
     /// The box's width when [`show`](NumberField::show) lays it out beside the preset chevron.
     box_width: Option<f32>,
 }
 
 /// The preset chevron of [`NumberField::presets`]: an [`IconButton`](super::IconButton) with the
 /// chevron glyph flush after the field, opening a [`ContextMenu`](crate::menu::ContextMenu) of
-/// the presets below it; a pick returns the value for the field to commit.
+/// the rows below it; a pick returns the index of the row.
 // pc: crates/ui-egui/src/widgets/metric_field.rs (the chevron and its ComboBox) and
 // kerning_field's PressCombo; one menu here.
 ///
 /// Called inside the horizontal unit [`NumberField::show`] makes of the box and the chevron, so
 /// the chevron sits flush after the box (PhotoCraft's `metric_field` has no gap) and is centred
 /// on it. `id` is the field's, `label` its accessible name.
-fn preset_menu(ui: &mut Ui, id: Id, label: &str, size: ControlSize, presets: &[(String, f64)]) -> Option<f64> {
+fn preset_menu(ui: &mut Ui, id: Id, label: &str, size: ControlSize, rows: &[Preset], current: Option<f64>, checks: bool) -> Option<usize> {
     let side = IconButton::style(&Tokens::of(ui), size).side;
     let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
     let button = IconButton::new(Icon::ChevronDown, label).size(size).with_id(id.with("craft_ui::number_field::preset_button")).show_at(ui, rect);
-    let entries: Vec<MenuEntry<usize>> = presets.iter().enumerate().map(|(i, (name, _))| MenuItem::new(name, i).into()).collect();
+    let entries: Vec<MenuEntry<usize>> = rows
+        .iter()
+        .enumerate()
+        .map(|(i, row)| match row {
+            Preset::Separator => MenuEntry::Separator,
+            Preset::Choice { label, checked } if checks => MenuItem::new(label, i).check(*checked).into(),
+            Preset::Value { label, value } if checks => MenuItem::new(label, i).check(current.is_some_and(|c| same_preset(c, *value))).into(),
+            Preset::Choice { label, .. } | Preset::Value { label, .. } => MenuItem::new(label, i).into(),
+        })
+        .collect();
     let down = button.has_focus() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown));
     let at = (button.clicked() || down).then_some(OpenAt::Rect(button.rect));
-    let menu = ContextMenu::new(&entries).size(size).own_gestures(false).open_at(at).show(ui, &button);
-    menu.chosen.and_then(|i| presets.get(i)).map(|(_, value)| *value)
+    ContextMenu::new(&entries).size(size).own_gestures(false).open_at(at).show(ui, &button).chosen
+}
+
+/// Whether the field's value `current` is the preset `value`: equal up to the noise of a unit
+/// conversion.
+fn same_preset(current: f64, value: f64) -> bool {
+    (current - value).abs() <= 1e-4 * current.abs().max(1.0)
+}
+
+/// A row of the menu behind the chevron of [`NumberField::preset_list`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum Preset {
+    /// A number: a pick commits `value` as one edit. The row shows a check mark while the field
+    /// holds `value` (not while it is [mixed](NumberField::mixed)).
+    Value { label: String, value: f64 },
+    /// A choice that is not a number (Auto, Metrics): a pick leaves the field's value alone and
+    /// the host applies it. `checked` is the host's: the choice is current. Typing its label
+    /// (any case) and committing picks it too, and while the field is mixed and the choice
+    /// checked, the field shows the label where it would show the blank.
+    Choice { label: String, checked: bool },
+    /// A line between groups of rows.
+    Separator,
+}
+
+impl Preset {
+    /// A numeric row.
+    pub fn value(label: impl Into<String>, value: f64) -> Self {
+        Self::Value { label: label.into(), value }
+    }
+
+    /// A non-numeric row.
+    pub fn choice(label: impl Into<String>, checked: bool) -> Self {
+        Self::Choice { label: label.into(), checked }
+    }
+}
+
+/// The rows of [`NumberField::preset_list`] and where its pick goes.
+struct PresetList<'a> {
+    rows: &'a [Preset],
+    picked: &'a mut Option<usize>,
+}
+
+/// The rows of [`NumberField::preset_rows`] and where its pick goes.
+struct PresetRows<'a> {
+    labels: &'a [String],
+    picked: &'a mut Option<usize>,
+}
+
+/// The sources of the chevron's menu: the three builders that fill it.
+#[derive(Default)]
+struct PresetSource<'a> {
+    numbers: Option<&'a [(String, f64)]>,
+    rows: Option<PresetRows<'a>>,
+    list: Option<PresetList<'a>>,
+}
+
+impl<'a> PresetSource<'a> {
+    fn any(&self) -> bool {
+        self.numbers.is_some() || self.rows.is_some() || self.list.is_some()
+    }
+
+    /// The chevron and its menu; a pick is applied to `typed` and reported to the host's slot.
+    /// Returns the slot of [`preset_list`](NumberField::preset_list), for a choice typed in the
+    /// field.
+    fn show(
+        &mut self,
+        ui: &mut Ui,
+        id: Id,
+        (label, size): (&str, ControlSize),
+        real: Option<f64>,
+        typed: &mut Typed<Numbers<'_>>,
+        codec: &Numbers<'_>,
+    ) -> Option<&'a mut Option<usize>> {
+        if !self.any() {
+            return None;
+        }
+        let mut list_picked = None;
+        let legacy: Vec<Preset>;
+        let checks = self.list.is_some();
+        let all = match self.list.take() {
+            Some(list) => {
+                list_picked = Some(list.picked);
+                list.rows
+            }
+            None => {
+                let extras = self.rows.iter().flat_map(|r| r.labels.iter()).map(|label| Preset::choice(label, false));
+                let numbers = self.numbers.take().unwrap_or(&[]).iter().map(|(label, value)| Preset::value(label, *value));
+                legacy = extras.chain(numbers).collect();
+                &legacy
+            }
+        };
+        if let Some(i) = preset_menu(ui, id, label, size, all, real, checks) {
+            match (all.get(i), &mut list_picked, self.rows.take()) {
+                (Some(Preset::Value { value, .. }), picked, _) => {
+                    typed.commit_with(ui, Some(codec.settle(*value)));
+                    if let Some(picked) = picked {
+                        **picked = Some(i);
+                    }
+                }
+                (Some(Preset::Choice { .. }), Some(picked), _) => **picked = Some(i),
+                (Some(Preset::Choice { .. }), None, Some(rows)) => *rows.picked = Some(i),
+                _ => {}
+            }
+        }
+        list_picked
+    }
 }
 
 /// The rows of [`NumberField::unit_menu`] and where its pick goes.
@@ -222,7 +335,7 @@ impl<'a> NumberField<'a> {
             commit_decimals: None,
             unit: Unit::default(),
             fallback: None,
-            expressions: false,
+            expressions: true,
             handle: None,
             scrub_by: None,
             scrub_text: true,
@@ -240,7 +353,8 @@ impl<'a> NumberField<'a> {
             part: false,
             edit_menu: true,
             unit_menu: None,
-            presets: None,
+            presets: PresetSource::default(),
+            scrub_rate: None,
             box_width: None,
         }
     }
@@ -296,10 +410,11 @@ impl<'a> NumberField<'a> {
         self
     }
 
-    /// Read typed arithmetic ([`expr::parse`](super::expr::parse)) and relative entries
-    /// ([`expr::relative`](super::expr::relative): `*2`, `/4` on the field's value) on the
+    /// Whether typed arithmetic ([`expr::parse`](super::expr::parse)) and relative entries
+    /// ([`expr::relative`](super::expr::relative): `*2`, `/4` on the field's value) are read on the
     /// commit, after the locale's plain number and before an [`or_parse`](NumberField::or_parse)
-    /// reader. The text is handed over with the region's decimal mark as `.` and ASCII digits.
+    /// reader. On by default; `false` leaves a field to plain numbers. The text is handed over
+    /// with the region's decimal mark as `.` and ASCII digits.
     // pc: crates/ui-egui/src/widgets/fields.rs:373 `number_edit` → numeric_expression::parse.
     pub fn expressions(mut self, on: bool) -> Self {
         self.expressions = on;
@@ -436,7 +551,39 @@ impl<'a> NumberField<'a> {
     /// steps, PhotoCraft's `metric_field`); a pick commits that value as one edit. The chevron is
     /// a Tab stop that opens on Space, Enter or ↓; the field itself keeps the edit menu. Gap 56.
     pub fn presets(mut self, presets: &'a [(String, f64)]) -> Self {
-        self.presets = Some(presets);
+        self.presets.numbers = Some(presets);
+        self
+    }
+
+    /// Rows before the [`presets`](Self::presets) in the same menu that are not numbers ("Auto"
+    /// for a leading field): a pick is written to `picked` as the index into `labels`, and the
+    /// field's value does not change; the host applies it. Opens the chevron on its own when
+    /// there are no numeric presets.
+    pub fn preset_rows(mut self, labels: &'a [String], picked: &'a mut Option<usize>) -> Self {
+        self.presets.rows = Some(PresetRows { labels, picked });
+        self
+    }
+
+    /// The chevron's menu as a list of rows: numbers with a check mark on the current one,
+    /// non-numeric [`Choice`](Preset::Choice)s and separators (a font size list with Auto first,
+    /// kerning's Metrics and Optical, tracking steps in groups). Any pick writes the row's index
+    /// in `rows` to `picked`; a [`Value`](Preset::Value) row also commits its number as one edit.
+    /// A host whose field shows a converted unit applies the picked row's own stored number and
+    /// ignores the edit's, so a pick of 12 pt in millimetres is not 11.999999 pt. Replaces
+    /// [`presets`](Self::presets) and [`preset_rows`](Self::preset_rows).
+    // pc: crates/ui-egui/src/tools/type_tool/panel.rs:151 `metric_field`, options_bar.rs:259 `kerning_field`.
+    pub fn preset_list(mut self, rows: &'a [Preset], picked: &'a mut Option<usize>) -> Self {
+        self.presets.list = Some(PresetList { rows, picked });
+        self
+    }
+
+    /// How far a scrub moves the value per point of drag, in the value's own units (Shift ten
+    /// times as far, Alt a tenth): 0.5 for PhotoCraft's dialog fields and the percent cell, 0.01
+    /// for a fine field. The default is one [`step`](Self::step) per point. The value moves in
+    /// whole steps: a rate under the step takes several points to move one.
+    // pc: crates/ui-egui/src/widgets/fields.rs:414 `speed`.
+    pub fn scrub_rate(mut self, per_point: f64) -> Self {
+        self.scrub_rate = Some(per_point);
         self
     }
 
@@ -487,7 +634,7 @@ impl<'a> NumberField<'a> {
 
     /// Shows the field and returns this frame's edit. The response covers the box.
     pub fn show(mut self, ui: &mut Ui) -> EditResponse<f64> {
-        if self.presets.is_some() && self.box_width.is_none() {
+        if self.presets.any() && self.box_width.is_none() {
             // The box and the chevron are one unit whatever the parent layout; the chevron's room
             // comes off a justified layout's width.
             let side = IconButton::style(&Tokens::of(ui), self.size).side;
@@ -516,6 +663,8 @@ impl<'a> NumberField<'a> {
         let id = ui.make_persistent_id(self.id_salt);
         let real = (!self.mixed && self.value.is_finite()).then_some(self.value);
         let host = Follow::host(ui, id, real);
+        let named = Cell::new(None);
+        let named_key = id.with("craft_ui::number_field::named");
         let codec = Numbers {
             numbers: self.numbers,
             words: Words::of(ui),
@@ -524,6 +673,8 @@ impl<'a> NumberField<'a> {
             unit: &self.unit,
             fallback: self.fallback.as_deref(),
             expressions: self.expressions,
+            choices: self.presets.list.as_ref().map_or(&[], |list| list.rows),
+            named: &named,
             bounds,
             grid: (self.snap_typed && self.step > 0.0 && self.step.is_finite() && bounds.0.is_finite() && bounds.1.is_finite()).then_some(self.step),
             max_chars: self.max_chars,
@@ -568,8 +719,14 @@ impl<'a> NumberField<'a> {
             selected_text: style.field.selected_text,
             caret: style.field.caret,
         };
+        let shown_name = self.presets.list.as_ref().filter(|_| real.is_none()).and_then(|list| {
+            list.rows.iter().find_map(|row| match row {
+                Preset::Choice { label, checked: true } => Some(label.as_str()),
+                _ => None,
+            })
+        });
         let mut typing = Typing::with_codec(id, &self.label, host, codec.clone())
-            .placeholder(BLANK)
+            .placeholder(shown_name.unwrap_or(BLANK))
             .policy(self.policy)
             .enabled(self.enabled)
             .invalid(self.invalid)
@@ -593,6 +750,7 @@ impl<'a> NumberField<'a> {
             id,
             base: if self.value.is_finite() { self.value } else { rule.blank() },
             step: self.step,
+            steps_per_point: self.scrub_rate.map_or(1.0, |rate| rate / self.step),
             next: self.next.as_deref(),
             wrap: self.wrap,
             rule,
@@ -621,11 +779,7 @@ impl<'a> NumberField<'a> {
         }
         let popup_open = self.popup.is_some() && input.popup(ui, &mut typed, &self, rect, parts.popup_rect(rect), enabled);
         let response = typed.response().clone();
-        if let Some(presets) = self.presets.take().filter(|_| enabled)
-            && let Some(value) = preset_menu(ui, id, &self.label, self.size, presets)
-        {
-            typed.commit_with(ui, Some(input.codec.settle(value)));
-        }
+        let list_picked = if enabled { self.presets.show(ui, id, (&self.label, self.size), real, &mut typed, &input.codec) } else { None };
         if let Some(UnitMenu { entries, picked }) = self.unit_menu.take().filter(|_| enabled) {
             let at = secondary.or_else(|| response.secondary_clicked().then(|| response.interact_pointer_pos()).flatten());
             let menu = ContextMenu::new(entries).size(self.size).own_gestures(false).open_at(at.map(OpenAt::Pointer)).show(ui, &response);
@@ -648,6 +802,15 @@ impl<'a> NumberField<'a> {
         }
         let (gesture, typing) = (typed.gesture().id(), typed.is_typing());
         let edit = typed.end_as(ui, |value| value.unwrap_or(self.value));
+        if let Some(typed_name) = named.take() {
+            ui.data_mut(|d| d.insert_temp(named_key, typed_name));
+        }
+        if matches!(edit.event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. })) {
+            let name = ui.data_mut(|d| d.remove_temp::<Option<usize>>(named_key)).flatten();
+            if let (Some(i), Some(picked), Some(EditEvent::Commit { .. })) = (name, list_picked, &edit.event) {
+                *picked = Some(i);
+            }
+        }
         Follow::store(ui, id, gesture, typing, real, edit.event.as_ref());
         if self.part {
             // Any other value the field sends (typed, scrubbed, set on the pop-up slider) is
@@ -728,6 +891,8 @@ struct Input<'n> {
     /// Where scrubs and steps start in a blank field.
     base: f64,
     step: f64,
+    /// Steps a scrub moves per point of drag: [`NumberField::scrub_rate`] over the step.
+    steps_per_point: f64,
     next: Option<&'n NextStep<'n>>,
     wrap: bool,
     rule: FieldRule,
@@ -791,7 +956,7 @@ impl<'n> Input<'n> {
                 if let Some(x) = travel.send {
                     crate::behavior::scrub::Scrub::warp(ui.ctx(), pos2(x, pos.y));
                 }
-                scrub.steps += f64::from(travel.delta) * STEPS_PER_POINT * rate;
+                scrub.steps += f64::from(travel.delta) * self.steps_per_point * rate;
                 scrub.last_x = travel.last_x;
                 scrub.warp = travel.warp;
                 let n = scrub.steps.trunc();
@@ -1097,6 +1262,11 @@ struct Numbers<'n> {
     unit: &'n Unit,
     fallback: Option<&'n Reader<'n>>,
     expressions: bool,
+    /// The rows of [`NumberField::preset_list`]: a typed label of a [`Preset::Choice`] reads as
+    /// the value from before.
+    choices: &'n [Preset],
+    /// The row the text last parsed to, `Some(None)` when it parsed to none: set on each parse.
+    named: &'n Cell<Option<Option<usize>>>,
     bounds: (f64, f64),
     /// The step a typed value snaps to.
     grid: Option<f64>,
@@ -1161,6 +1331,12 @@ impl Codec for Numbers<'_> {
         if let Some(over) = text.chars().nth(self.max_chars) {
             let reason = self.numbers.describe_in(craft_i18n::NumberError::Unexpected(over), &self.words);
             return Err(NotAValue { reason, partial: false });
+        }
+        let name =
+            self.choices.iter().position(|row| matches!(row, Preset::Choice { label, .. } if label.to_lowercase() == text.trim().to_lowercase()));
+        self.named.set(Some(name));
+        if name.is_some() {
+            return Ok(*start);
         }
         let bare = self.unit.strip(text);
         // The text as shown stands for the value itself, with the decimals it doesn't show.
@@ -1402,6 +1578,7 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// Plain, with a unit, mixed, invalid, with a pop-up slider, and disabled.
 fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
+    let words = StoryLabels::of(ui);
     let size = args.size.control();
     let numbers = args.locale.numbers();
     let sum = |text: &str| text.split_once('+').and_then(|(a, b)| Some(a.trim().parse::<f64>().ok()? + b.trim().parse::<f64>().ok()?));
@@ -1439,7 +1616,7 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
                 super::slider::store(&edit, invalid)
             });
             labelled(form, "Pop-up slider", &format!("{}", *opacity), |ui| {
-                let edit = NumberField::new("number-field-popup", "Opacity", *opacity, &numbers)
+                let edit = NumberField::new("number-field-popup", &words.opacity, *opacity, &numbers)
                     .range(0.0..=100.0)
                     .unit(Unit::new("{n}%"))
                     .popup_slider("Opacity slider")
@@ -1512,6 +1689,7 @@ fn show_presets(ui: &mut Ui, args: &mut LocaleSizeArgs) {
 /// converted to the field's unit at 96 pixels an inch and keeps two decimals, though the field
 /// shows one.
 fn show_unit_menu(ui: &mut Ui, args: &mut LocaleSizeArgs) {
+    let words = StoryLabels::of(ui);
     const UNITS: [&str; 3] = ["{n} px", "{n} mm", "{n} in"];
     let size = args.size.control();
     let numbers = args.locale.numbers();
@@ -1528,8 +1706,8 @@ fn show_unit_menu(ui: &mut Ui, args: &mut LocaleSizeArgs) {
         Some(number.trim().parse::<f64>().ok()? / PER_INCH[from] * PER_INCH[unit])
     };
     variant_list(ui, "number-field-unit-menu", |form| {
-        labelled(form, "Width", &format!("{value} {unit}"), |ui| {
-            let edit = NumberField::new("number-field-unit", "Width", value, &numbers)
+        labelled(form, &words.width, &format!("{value} {unit}"), |ui| {
+            let edit = NumberField::new("number-field-unit", &words.width, value, &numbers)
                 .range(0.0..=10_000.0)
                 .decimals(0..=1)
                 .commit_decimals(2)
@@ -1607,6 +1785,7 @@ fn show_scrub(ui: &mut Ui, args: &mut LocaleSizeArgs) {
 
 /// A labelled row right to left: the label mirrors, the field keeps its geometry.
 fn show_right_to_left(ui: &mut Ui, args: &mut LocaleSizeArgs) {
+    let words = StoryLabels::of(ui);
     let size = args.size.control();
     let numbers = args.locale.numbers();
     with_values(ui, "number-field-rtl", [12.5], |ui, values| {
@@ -1614,8 +1793,8 @@ fn show_right_to_left(ui: &mut Ui, args: &mut LocaleSizeArgs) {
             let note = "With the direction set to right to left the label moves to the right. The field keeps its geometry: digits stay centred, the unit stays at the box's end and the scrub label stays at the left.";
             ui.add(Text::new(note).content(Content::Muted));
             let value = &mut values[0];
-            variant_list(ui, "number-field-rtl", |form| labelled(form, "Width", &format!("{}", *value), |ui| {
-                let edit = NumberField::new("number-field-rtl", "Width", *value, &numbers).decimals(0..=2).unit(Unit::new("{n} cm")).scrub_label("W").size(size).show(ui);
+            variant_list(ui, "number-field-rtl", |form| labelled(form, &words.width, &format!("{}", *value), |ui| {
+                let edit = NumberField::new("number-field-rtl", &words.width, *value, &numbers).decimals(0..=2).unit(Unit::new("{n} cm")).scrub_label("W").size(size).show(ui);
                 super::slider::store(&edit, value)
             }));
         });
@@ -1704,6 +1883,7 @@ impl LogState {
 /// [`GestureHost`], their events newest first and the undo-step count. Cmd/Ctrl+Z outside the
 /// field undoes a step, or cancels the gesture under way.
 fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
+    let words = StoryLabels::of(ui);
     let policy = edit::policy(args);
     let numbers = LocaleNumbers::from_tag("en");
     let state_id = ui.scope_id().with("number-field-event-log");
@@ -1715,10 +1895,10 @@ fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
     Stack::new(Gap::Stack).show(ui, |ui| {
         let opacity = state.doc.opacity;
         Row::new(Gap::Inline).show(ui, |ui| {
-            let label = ui.add(Text::new("Opacity"));
-            let edit = Slider::new("number-field-log-slider", "Opacity", opacity, 0.0..=100.0).step(1.0).policy(policy).show(ui);
+            let label = ui.add(Text::new(words.opacity.as_str()));
+            let edit = Slider::new("number-field-log-slider", &words.opacity, opacity, 0.0..=100.0).step(1.0).policy(policy).show(ui);
             state.handle(ui, "slider", edit.event);
-            let edit = NumberField::new("number-field-log", "Opacity", opacity, &numbers)
+            let edit = NumberField::new("number-field-log", &words.opacity, opacity, &numbers)
                 .range(0.0..=100.0)
                 .unit(Unit::new("{n}%"))
                 .scrub_by(&label)

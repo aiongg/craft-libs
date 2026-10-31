@@ -97,14 +97,14 @@ struct Registered {
 }
 
 /// Registers the canvas of this pass. The body registers it every pass it has a canvas.
-pub(super) fn set_canvas(ctx: &Context, id: Id) {
+pub(crate) fn set_canvas(ctx: &Context, id: Id) {
     let (key, pass) = (canvas_key(ctx), ctx.cumulative_pass_nr());
     ctx.data_mut(|d| d.insert_temp(key, Registered { id, pass }));
 }
 
 /// The canvas registered on the last pass or this one; none when the body did not register one
 /// (a document switch, a start screen), so a stale id never counts as "the canvas has focus".
-pub(super) fn canvas(ctx: &Context) -> Option<Id> {
+pub(crate) fn canvas(ctx: &Context) -> Option<Id> {
     let (key, pass) = (canvas_key(ctx), ctx.cumulative_pass_nr());
     ctx.data(|d| d.get_temp::<Registered>(key)).filter(|r| r.pass + 1 >= pass).map(|r| r.id)
 }

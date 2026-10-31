@@ -75,7 +75,7 @@ pub(super) fn parse_hex(text: &str, start: Rgba, alpha: bool, digits: usize) -> 
     }
 }
 
-pub(super) const NOT_HEX: &str = "Not a hex colour";
+pub(super) const NOT_HEX: &str = "Not a hex color";
 
 /// The hex field's widget id under the picker `picker`.
 pub(super) fn hex_id(picker: Id) -> Id {
@@ -239,7 +239,7 @@ where
 /// use craft_theme::Rgba;
 /// use craft_color::ui::HexField;
 /// # egui::__run_test_ui(|ui| { let mut color = Rgba::rgb(0x33, 0x66, 0x99);
-/// let edit = HexField::new("fill-hex", "Hex colour", color).digits(1).show(ui);
+/// let edit = HexField::new("fill-hex", "Hex color", color).digits(1).show(ui);
 /// if let Some(c) = edit.event.as_ref().and_then(|e| e.value()) {
 ///     color = *c;
 /// }
@@ -272,7 +272,7 @@ impl HexField {
     /// The words the field shows besides its label, English: the keys of [`reason`](HexField::reason).
     pub const TEXTS: [&'static str; 1] = [NOT_HEX];
 
-    /// A field named `label` (its accessible name, translated by the host: "Hex colour") showing
+    /// A field named `label` (its accessible name, translated by the host: "Hex color") showing
     /// `value`; `id_salt` keeps its draft and focus when the layout around it changes.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: Rgba) -> Self {
         Self {

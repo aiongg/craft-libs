@@ -181,7 +181,7 @@ pub use kbd::{Kbd, KbdStyle};
 pub use link::{Link, LinkStyle};
 pub use linked::{LinkButton, LinkMode, LinkedFields, LinkedLabels, LinkedLayout, follow_equal, follow_ratio};
 pub use mixed::{Apply, ApplyRow, MixedLabels, MixedValue};
-pub use number_field::{NumberField, NumberFieldStyle};
+pub use number_field::{NumberField, NumberFieldStyle, Preset};
 pub(crate) use option_list::{pressed_on, released};
 pub use point_picker::{PointPicker, PointPickerStyle};
 pub use preview_select::{LineStyle, SelectText, paint_line_style};

@@ -14,8 +14,9 @@ use super::checkbox::LONG_LABEL;
 use crate::behavior::RadioSelection;
 use crate::direction;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Gap, Interactive, Row, Sensed, Stack, Text};
-use crate::story::{Level, Story};
+use crate::story::{Level, Story, StoryLabels};
 use crate::theme::{Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
@@ -406,7 +407,7 @@ fn show_states(ui: &mut Ui, args: &mut SizeDisabledArgs) {
         let _ = set.radio(ui, 0, "Fit to window");
         Row::new(Gap::Inline).show(ui, |ui| {
             let _ = set.radio(ui, 1, "Actual size");
-            ui.add(Text::new("100%").content(Content::Muted));
+            ui.add(Text::new(StoryLabels::of(ui).percent_text(100.0)).content(Content::Muted));
         });
         let _ = set.radio(ui, 2, LONG_LABEL);
         let _ = set.radio(ui, 3, "Print size (no printer)");

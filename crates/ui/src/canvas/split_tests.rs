@@ -73,3 +73,44 @@ fn linked_panes_follow_the_main_view() {
     assert_eq!((panes[0].view.rect, panes[0].view.rotation), (own.rect, 15.0));
     assert_eq!(panes[1].view, own, "an unlinked pane stays");
 }
+
+// An inactive pane is a Tab stop: Enter on it activates it; the active pane is not a stop.
+#[test]
+fn enter_on_a_focused_inactive_pane_activates_it() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let group = |ui: &egui::Ui, pane: usize| ui.make_persistent_id(egui::IdSalt::new("split")).with(("group", pane));
+    let run = |events: Vec<Event>, focus: Option<usize>| {
+        let input = RawInput { screen_rect: Some(full()), events, ..RawInput::default() };
+        let mut out = SplitResponse::default();
+        ctx.run_ui(input, |ui| {
+            if let Some(pane) = focus {
+                let id = group(ui, pane);
+                ui.memory_mut(|m| m.request_focus(id));
+            }
+            out = SplitViews::new("split", SplitLayout::Two).show(ui, full(), |_, _, _| {});
+        })
+        .drop_without_applying_deltas();
+        out
+    };
+    let enter = |pressed| Event::Key { key: egui::Key::Enter, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE };
+    // Pane 0 (right) is active; pane 1 (left) is inactive.
+    run(vec![], Some(1));
+    assert_eq!(run(vec![enter(true)], None).activated, Some(1));
+    run(vec![enter(false)], None);
+    run(vec![], Some(0));
+    assert_eq!(run(vec![enter(true)], None).activated, None, "the active pane is no Tab stop");
+}
+
+// `.labels(..)` names the panes instead of the installed words.
+#[test]
+fn labels_name_the_panes() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let labels = SplitLabels { view: "Ansicht {n}".into() };
+    let harness = Harness::builder().with_size(vec2(400.0, 300.0)).build_ui(move |ui| {
+        install(ui.ctx(), &Base::suite_default());
+        SplitViews::new("split", SplitLayout::Two).labels(labels.clone()).show(ui, full(), |_, _, _| {});
+    });
+    assert_eq!(harness.query_all_by_label("Ansicht 1").count(), 1);
+    assert_eq!(harness.query_all_by_label("View 1").count(), 0);
+}

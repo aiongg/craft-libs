@@ -17,12 +17,12 @@ fn frame_cap_spaces_frames_by_the_minimum_interval() {
 
 // Minimized or occluded viewports read Hidden; unknown visibility reads Shown.
 #[test]
-fn window_state_is_hidden_only_when_the_host_says_so() {
+fn window_visibility_is_hidden_only_when_the_host_says_so() {
     let info = |minimized, occluded| egui::ViewportInfo { minimized, occluded, ..Default::default() };
-    assert_eq!(WindowState::of(&info(None, None)), WindowState::Shown);
-    assert_eq!(WindowState::of(&info(Some(false), Some(false))), WindowState::Shown);
-    assert_eq!(WindowState::of(&info(Some(true), None)), WindowState::Hidden);
-    assert_eq!(WindowState::of(&info(Some(false), Some(true))), WindowState::Hidden);
+    assert_eq!(WindowVisibility::of(&info(None, None)), WindowVisibility::Shown);
+    assert_eq!(WindowVisibility::of(&info(Some(false), Some(false))), WindowVisibility::Shown);
+    assert_eq!(WindowVisibility::of(&info(Some(true), None)), WindowVisibility::Hidden);
+    assert_eq!(WindowVisibility::of(&info(Some(false), Some(true))), WindowVisibility::Hidden);
 }
 
 // On a manual clock a slice ends when the clock passes its budget; a budget without a hidden share gives no slice while hidden.
@@ -30,15 +30,15 @@ fn window_state_is_hidden_only_when_the_host_says_so() {
 fn work_slices_follow_the_window_state() {
     let mut clock = Clock::manual(10.0);
     let budget = WorkBudget { shown: Duration::from_millis(30), hidden: None };
-    assert_eq!(budget.slice(WindowState::Hidden, &clock), None);
+    assert_eq!(budget.slice(WindowVisibility::Hidden, &clock), None);
 
-    let slice = budget.slice(WindowState::Shown, &clock).expect("shown slice");
+    let slice = budget.slice(WindowVisibility::Shown, &clock).expect("shown slice");
     assert!(slice.more(&clock));
     clock.advance(0.029);
     assert!(slice.more(&clock));
     clock.advance(0.001);
     assert!(!slice.more(&clock));
 
-    let hidden = WorkBudget::DEFAULT.slice(WindowState::Hidden, &clock).expect("hidden slice");
+    let hidden = WorkBudget::DEFAULT.slice(WindowVisibility::Hidden, &clock).expect("hidden slice");
     assert!(hidden.more(&clock));
 }

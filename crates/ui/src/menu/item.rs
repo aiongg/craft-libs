@@ -46,6 +46,16 @@ impl<T> MenuEntry<T> {
     }
 }
 
+impl<T> MenuEntry<T> {
+    /// The same entry with every command turned into `f(command)`.
+    pub(crate) fn map<U>(&self, f: &impl Fn(&T) -> U) -> MenuEntry<U> {
+        match self {
+            MenuEntry::Item(item) => MenuEntry::Item(item.map(f)),
+            MenuEntry::Separator => MenuEntry::Separator,
+        }
+    }
+}
+
 impl<T> From<MenuItem<T>> for MenuEntry<T> {
     fn from(item: MenuItem<T>) -> Self {
         MenuEntry::Item(item)
@@ -90,6 +100,7 @@ pub struct MenuItem<T> {
     tint: Option<Srgba>,
     tooltip: Option<String>,
     keep_open: bool,
+    accessible_name: Option<String>,
     action: Action<T>,
 }
 
@@ -118,6 +129,7 @@ impl<T> MenuItem<T> {
             tint: None,
             tooltip: None,
             keep_open: false,
+            accessible_name: None,
             action,
         }
     }
@@ -211,12 +223,42 @@ impl<T> MenuItem<T> {
         self.keep_open && self.kind != ItemKind::Plain && matches!(self.action, Action::Run(_))
     }
 
+    /// The name AccessKit reports for the row, when the visible label is not it: a label shaped
+    /// for display (a script's contextual forms, a mnemonic suffix) while the plain text is what
+    /// assistive technology should read. Default: the label.
+    pub fn accessible_name(mut self, name: impl Into<String>) -> Self {
+        self.accessible_name = Some(name.into()).filter(|n| !n.is_empty());
+        self
+    }
+
     pub fn label(&self) -> &str {
         &self.label
     }
 
     pub fn item_kind(&self) -> ItemKind {
         self.kind
+    }
+
+    /// The same row with every command under it turned into `f(command)`.
+    pub(crate) fn map<U>(&self, f: &impl Fn(&T) -> U) -> MenuItem<U> {
+        MenuItem {
+            label: self.label.clone(),
+            english: self.english.clone(),
+            icon: self.icon,
+            shortcut: self.shortcut.clone(),
+            kind: self.kind,
+            enabled: self.enabled,
+            mnemonic: self.mnemonic,
+            keyed: self.keyed,
+            tint: self.tint,
+            tooltip: self.tooltip.clone(),
+            keep_open: self.keep_open,
+            accessible_name: self.accessible_name.clone(),
+            action: match &self.action {
+                Action::Run(command) => Action::Run(f(command)),
+                Action::Submenu(children) => Action::Submenu(children.iter().map(|entry| entry.map(f)).collect()),
+            },
+        }
     }
 
     /// The command, or `None` for a submenu.
@@ -241,6 +283,10 @@ impl<T> MenuItem<T> {
 
     pub(crate) fn tint_of(&self) -> Option<Srgba> {
         self.tint
+    }
+
+    pub(crate) fn accessible_name_of(&self) -> Option<&str> {
+        self.accessible_name.as_deref()
     }
 
     pub(crate) fn tooltip_of(&self) -> Option<&str> {

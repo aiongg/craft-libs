@@ -33,7 +33,6 @@ mod tests;
 use std::collections::VecDeque;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
@@ -42,7 +41,7 @@ pub use filter::Filter;
 
 /// Wakes the app's event loop so it runs a frame (`ctx.request_repaint()` in an egui app). Called
 /// from any thread when a dialog has answered or stopped.
-pub type Wake = Arc<dyn Fn() + Send + Sync>;
+pub use craft_host::Wake;
 
 /// Answers every request instead of a native dialog (tests and automation).
 pub type Override = Box<dyn FnMut(&Request) -> Answer>;
@@ -207,7 +206,7 @@ impl Drop for Reply {
     fn drop(&mut self) {
         // The sender goes first, so the woken app sees either the answer or the disconnect.
         self.tx = None;
-        (self.wake)();
+        self.wake.wake();
     }
 }
 
@@ -260,7 +259,7 @@ impl<T> Dialogs<T> {
             self.raise();
         }
         self.queue.push_back((request, then));
-        (self.wake)();
+        self.wake.wake();
     }
 
     /// Shows the next queued request unless a dialog is open. Call it on the main thread at the end

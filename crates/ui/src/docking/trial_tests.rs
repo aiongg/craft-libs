@@ -243,7 +243,7 @@ fn localized_covers_every_label_and_contains_takes_a_borrowed_panel() {
     });
     full.textures_delta.clear();
     let values: Vec<&str> = debug.split("_label: \"").skip(1).filter_map(|rest| rest.split('"').next()).collect();
-    assert_eq!(values.len(), 27, "{debug}");
+    assert_eq!(values.len(), 11, "{debug}");
     assert!(values.iter().all(|v| v.starts_with("dock.")), "a label without a key: {values:?}");
     let unique: std::collections::HashSet<_> = values.iter().collect();
     assert_eq!(unique.len(), values.len());
@@ -373,8 +373,8 @@ fn hidden_close_controls_leave_closing_to_the_host() {
     d.step(vec![secondary(false)]);
     d.step(vec![]);
     let painted = |d: &Driver, label: &str| texts(d).iter().any(|(_, t)| t.galley.text() == label);
-    assert!(painted(&d, "Float Panel"), "the tab menu is open");
-    assert!(!painted(&d, "Close Panel") && !painted(&d, "Close Tab Group"));
+    assert!(painted(&d, "Float"), "the tab menu is open");
+    assert!(!painted(&d, "Close") && !painted(&d, "Close Tab Group"));
     // The panels stay closable: the host's own Close applies and reports what it closed.
     assert_eq!(d.layout.apply_with_permissions(Action::CloseWindow { panel: 5 }, |p| d.content.permissions(p)), Ok(vec![5, 6]));
 }

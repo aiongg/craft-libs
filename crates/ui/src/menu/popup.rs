@@ -471,7 +471,7 @@ impl Draw<'_> {
         let row = Row { widget, enabled, path: row_path.clone(), submenu: children.is_some(), mnemonic };
         let height = self.painter.style.rows.height;
         nav.row(ui, depth - 1, row, |ui, nav, lit| {
-            let r = Interactive::with_id(widget, row::role(it.item_kind()), label)
+            let r = Interactive::with_id(widget, row::role(it.item_kind()), it.accessible_name_of().unwrap_or(label))
                 .sense(Sense::CLICK)
                 .enabled(enabled)
                 .state_layer(false)

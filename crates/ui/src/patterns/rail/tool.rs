@@ -366,6 +366,13 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         self
     }
 
+    /// The host has the Edit Toolbar drawer open: the rail takes drags and shows drop targets. The
+    /// host sets it from the Edit Toolbar button and the drawer's close.
+    pub fn editing(mut self, editing: bool) -> Self {
+        self.editing = editing;
+        self
+    }
+
     /// The tools hidden by the user's toolbar settings.
     pub fn hidden(mut self, hidden: &'a [T]) -> Self {
         self.hidden = hidden;
@@ -401,14 +408,13 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
     /// window is short. It must size to its content: its height is measured on one pass and used
     /// on the next, so a footer that fills the available height never settles.
     pub fn show(
-        mut self,
+        self,
         ui: &mut Ui,
         slots: &[ToolSlot<T>],
         current: &T,
         last_used: &mut LastUsed<T>,
         footer: impl FnOnce(&mut Ui, RailFooter),
     ) -> ToolRailOutput<T> {
-        self.editing = editing(ui.ctx());
         let left = self.left(ui);
         let tokens = Tokens::of(ui);
         let metrics = Self::metrics(&tokens, self.columns);
@@ -444,7 +450,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         out.rect = shown.response.rect;
         let (columns, rtl, total) = (self.columns, direction::is_rtl(ui), slots.len());
         let button = self.edit_toolbar.is_some().then(|| id.with("edit-toolbar"));
-        edit_update(ui.ctx(), |edit| {
+        edit_update(ui.ctx(), self.id_salt, |edit| {
             *edit = RailEdit { rect: Some(out.rect), placed, total, columns, rtl, button, ..std::mem::take(edit) };
         });
         out
@@ -528,7 +534,8 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
                 Self::arrows(ui, grid.columns, &cells);
             }
             if self.editing {
-                let target = pointer_target(ui.ctx(), full, placed, grid.columns, rtl, slots.len()).or_else(|| edit_state(ui.ctx()).target);
+                let target =
+                    pointer_target(ui.ctx(), full, placed, grid.columns, rtl, slots.len()).or_else(|| edit_state(ui.ctx(), self.id_salt).target);
                 if let Some(target) = target {
                     paint_target(ui, grid.columns, rtl, placed, target);
                 }
@@ -630,8 +637,6 @@ pub(crate) struct Placed {
 /// What the rail and the Edit Toolbar drawer tell each other, kept in egui temp data by window.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RailEdit {
-    /// The pass the drawer last drew in.
-    pub drawer_pass: Option<u64>,
     /// Where the rail was drawn.
     pub rect: Option<Rect>,
     pub placed: Vec<Placed>,
@@ -645,23 +650,19 @@ pub(crate) struct RailEdit {
     pub target: Option<DropAt>,
 }
 
-fn edit_id(ctx: &Context) -> Id {
-    Id::unique("craft-ui-rail-edit").with(ctx.viewport_id())
+/// The state of the rail `rail` in this viewport: two rails (or two drawers) do not share it.
+fn edit_id(ctx: &Context, rail: IdSalt) -> Id {
+    Id::unique("craft-ui-rail-edit").with(ctx.viewport_id()).with(rail)
 }
 
-pub(crate) fn edit_state(ctx: &Context) -> RailEdit {
-    let id = edit_id(ctx);
+pub(crate) fn edit_state(ctx: &Context, rail: IdSalt) -> RailEdit {
+    let id = edit_id(ctx, rail);
     ctx.data(|d| d.get_temp::<RailEdit>(id)).unwrap_or_default()
 }
 
-pub(crate) fn edit_update(ctx: &Context, update: impl FnOnce(&mut RailEdit)) {
-    let id = edit_id(ctx);
+pub(crate) fn edit_update(ctx: &Context, rail: IdSalt, update: impl FnOnce(&mut RailEdit)) {
+    let id = edit_id(ctx, rail);
     ctx.data_mut(|d| update(d.get_temp_mut_or_default::<RailEdit>(id)));
-}
-
-/// The drawer drew in this pass or the one before: the rail takes drags and shows drop targets.
-fn editing(ctx: &Context) -> bool {
-    edit_state(ctx).drawer_pass.is_some_and(|pass| pass + 1 >= ctx.cumulative_pass_nr())
 }
 
 /// Where the payload being dragged would drop on the rail, when the pointer is over `bounds`.
@@ -672,8 +673,8 @@ fn pointer_target(ctx: &Context, bounds: Rect, placed: &[Placed], columns: usize
 }
 
 /// [`pointer_target`] over the rail as the last pass drew it.
-pub(crate) fn dragged_target(ctx: &Context) -> Option<DropAt> {
-    let edit = edit_state(ctx);
+pub(crate) fn dragged_target(ctx: &Context, rail: IdSalt) -> Option<DropAt> {
+    let edit = edit_state(ctx, rail);
     pointer_target(ctx, edit.rect?, &edit.placed, edit.columns, edit.rtl, edit.total)
 }
 
@@ -784,7 +785,7 @@ pub const COMPONENTS: &[&str] = &["ToolRail"];
 
 type StoryTool = &'static str;
 
-fn story_slots() -> Vec<ToolSlot<StoryTool>> {
+pub(crate) fn story_slots() -> Vec<ToolSlot<StoryTool>> {
     let tool = |id, icon, label: &str, key: &str| RailTool::new(id, icon, label).shortcut(key);
     vec![
         ToolSlot::new(0, vec![tool("move", Icon::Move, "Move", "V")]),

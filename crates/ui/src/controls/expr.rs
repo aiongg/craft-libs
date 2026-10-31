@@ -1,6 +1,6 @@
-//! Arithmetic typed into number fields, as in PhotoCraft (and Photoshop's fields): `+ - * / **`,
-//! parentheses, `pi` and `tau`, and a unit after a number (`2in` in a pixel field is the pixels of
-//! an inch at the document's resolution). Bounded: at most 1024 characters and 32 levels of
+//! Arithmetic typed into number fields, as in PhotoCraft (and Photoshop's fields): `+ - * / %`
+//! (remainder), `^` and `**` (power), parentheses, `pi` and `tau`, and a unit after a number
+//! (`2in` in a pixel field is the pixels of an inch at the document's resolution). Bounded: at most 1024 characters and 32 levels of
 //! nesting, and only finite results; no names, no scripting.
 //!
 //! [`NumberField::expressions`](super::NumberField::expressions) reads typed text with

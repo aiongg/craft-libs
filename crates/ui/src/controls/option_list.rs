@@ -372,7 +372,7 @@ mod tests {
                 contrast: ContrastChoice::Standard,
                 motion: MotionChoice::System,
                 size: Size::Compact,
-                text_size: TextSize::Default,
+                text_size: TextSize::Small,
             };
             let defaults = AppDefaults {
                 theme: ThemePair::same(ThemeId::suite_default()),

@@ -65,6 +65,21 @@ fn filename_to_name(f: &str) -> &str {
     rest.split_once('=').map_or(rest, |(_, n)| n).trim()
 }
 
+/// The index after the `>` that closes the tag opening at `at`, skipping a `>` inside a quoted
+/// attribute value; the end of `bytes` when the tag never closes.
+fn tag_end(bytes: &[u8], at: usize) -> usize {
+    let mut quote = None;
+    for (i, &c) in bytes.iter().enumerate().skip(at + 1) {
+        match (quote, c) {
+            (None, b'"' | b'\'') => quote = Some(c),
+            (Some(q), c) if c == q => quote = None,
+            (None, b'>') => return i + 1,
+            _ => {}
+        }
+    }
+    bytes.len()
+}
+
 /// Whether `text` nests elements deeper than [`MAX_DEPTH`], counted without building a tree.
 fn too_deep(text: &str) -> bool {
     let bytes = text.as_bytes();
@@ -82,9 +97,7 @@ fn too_deep(text: &str) -> bool {
                 skip_to(b">")
             }
             _ => {
-                let end = skip_to(b">");
-                // A tag's `>` inside a quoted attribute value would end it early; the count only
-                // needs to be right for the nesting of real files, and errs by staying low.
+                let end = tag_end(bytes, at);
                 let tag = bytes.get(at..end).unwrap_or_default();
                 if !tag.ends_with(b"/>") {
                     depth += 1;

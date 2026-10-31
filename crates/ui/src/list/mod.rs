@@ -36,6 +36,7 @@ mod events;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod events_tests;
 mod findings;
+mod findings_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod findings_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -63,15 +64,15 @@ mod tree_tests;
 mod view;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ListRow", "List", "TreeRow"];
+pub const COMPONENTS: &[&str] = &["ListRow", "List", "TreeRow", "FindingsList"];
 
 pub(crate) fn stories() -> Vec<crate::story::Story> {
-    row::stories().into_iter().chain(view::stories()).chain(tree::stories()).chain(drag::stories()).collect()
+    row::stories().into_iter().chain(view::stories()).chain(tree::stories()).chain(drag::stories()).chain(findings_stories::stories()).collect()
 }
 
 pub use drag::{GhostThumb, paint_ghost};
 pub use events::{EventLevel, EventLog, EventLogLabels, EventLogResponse, EventLogState, LogEvent, event_age, paint_event_glyph};
-pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsResponse, findings_summary};
+pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsListResponse, findings_summary};
 pub use metadata::{MetadataGroup, MetadataLabels, MetadataResponse, MetadataRow, MetadataTable, filter_metadata};
 pub use row::{
     DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget, TrailingItem, drop_line,

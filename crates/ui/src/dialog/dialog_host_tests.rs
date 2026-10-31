@@ -81,7 +81,7 @@ fn cancelling_a_parent_cancels_its_children() {
     assert_eq!(host.take::<Probe<2>>(), Some(DialogResult::Cancel));
 
     host.open_child(Probe::<2>::new("child"), parent);
-    assert!(host.cancel::<Probe<1>>());
+    assert!(host.cancel::<Probe<1>>(&ctx));
     assert!(host.is_empty() && host.stack().is_empty());
     assert_eq!(host.take::<Probe<1>>(), Some(DialogResult::Cancel));
     assert_eq!(host.take::<Probe<2>>(), Some(DialogResult::Cancel));
@@ -144,4 +144,101 @@ fn open_unless_open_refuses_and_open_replaces() {
     // An untaken result is dropped when a new `D` opens.
     assert!(host.open_unless_open(Probe::<1>::new("fourth")).is_ok());
     assert_eq!(host.take::<Probe<1>>(), None);
+}
+
+fn blur() -> ParamDialog {
+    ParamDialog::new("blur", "Blur", vec![Param::new("radius", "Radius", ParamKind::Int { min: None, max: None, default: 3 })])
+}
+
+// A Cancel says which dialog it was, also when a second dialog of the type replaced the first.
+#[test]
+fn a_cancel_carries_the_dialogs_key() {
+    let ctx = Context::default();
+    let mut host = DialogHost::new();
+    host.open(blur());
+    host.open(ParamDialog::new("sharpen", "Sharpen", Vec::new()));
+    assert_eq!(host.take_keyed::<ParamDialog>().map(|(result, key)| (result.is_cancel(), key)), Some((true, Some("blur".to_owned()))));
+    assert!(host.cancel::<ParamDialog>(&ctx));
+    assert_eq!(host.take_keyed::<ParamDialog>().map(|(result, key)| (result.is_cancel(), key)), Some((true, Some("sharpen".to_owned()))));
+}
+
+// The top dialog is found by id and downcast to its type, without a registry of the app's own.
+#[test]
+fn the_top_dialog_is_found_by_id() {
+    let mut host = DialogHost::new();
+    host.open(Probe::<1>::new("under"));
+    host.open(blur());
+    let top = host.top_id().expect("a dialog is open");
+    assert_eq!(top, dialog_id("blur"));
+    assert!(host.get_dyn(top).is_some_and(|dialog| dialog.is::<ParamDialog>()));
+    assert!(host.get_by_id::<ParamDialog>(top).is_some());
+    assert!(host.get_by_id::<ParamDialog>(dialog_id("under")).is_none());
+    host.get_dyn_mut(top).and_then(|dialog| dialog.downcast_mut::<ParamDialog>()).expect("typed").fields_mut().set("radius", 9_i64);
+    assert_eq!(host.get::<ParamDialog>().unwrap().fields().int("radius"), Some(9));
+}
+
+// `confirm` answers OK with the current values, closes the dialog and keeps the answer for `take`;
+// a disabled OK refuses.
+#[test]
+fn confirm_answers_ok_for_automation() {
+    let ctx = Context::default();
+    let mut host = DialogHost::new();
+    host.open(blur().ok_enabled(false));
+    assert!(!host.confirm::<ParamDialog>(&ctx));
+    assert!(host.is_open::<ParamDialog>());
+    host.get_mut::<ParamDialog>().unwrap().set_ok_enabled(true);
+    host.get_mut::<ParamDialog>().unwrap().fields_mut().set("radius", 8_i64);
+    assert!(host.confirm::<ParamDialog>(&ctx));
+    assert!(!host.is_open::<ParamDialog>());
+    let Some(DialogResult::Ok(answer)) = host.take::<ParamDialog>() else { panic!("an OK answer") };
+    assert_eq!((answer.key(), answer.fields.int("radius")), ("blur", Some(8)));
+    assert!(!host.confirm::<ParamDialog>(&ctx), "nothing open");
+}
+
+/// Counts the times the host told it that it was closed from outside.
+struct Releasing {
+    key: &'static str,
+    released: std::sync::Arc<std::sync::atomic::AtomicU32>,
+}
+
+impl StackDialog for Releasing {
+    type Result = ();
+
+    fn id(&self) -> DialogId {
+        dialog_id(self.key)
+    }
+
+    fn show(&mut self, _ctx: &Context, _stack: &DialogStack) -> Option<DialogResult<()>> {
+        None
+    }
+
+    fn cancelled(&mut self, _ctx: &Context) {
+        self.released.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+// A dialog closed from outside (cancel, replaced by a dialog of its type, parent closing) learns of
+// it in the same pass; one that finishes itself does not.
+#[test]
+fn a_dialog_closed_from_outside_is_told_so() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    };
+    let ctx = Context::default();
+    let count = Arc::new(AtomicU32::new(0));
+    let mut host = DialogHost::new();
+    host.open(Releasing { key: "a", released: count.clone() });
+    assert!(host.cancel::<Releasing>(&ctx));
+    assert_eq!(count.load(Ordering::SeqCst), 1);
+
+    host.open(Releasing { key: "b", released: count.clone() });
+    host.open(Releasing { key: "c", released: count.clone() });
+    host.show(&ctx);
+    assert_eq!(count.load(Ordering::SeqCst), 2, "the replaced dialog is told in the pass's show");
+
+    let parent = host.open(Probe::<1>::new("parent"));
+    host.open_child(Releasing { key: "d", released: count.clone() }, parent);
+    assert!(host.cancel::<Probe<1>>(&ctx));
+    assert_eq!(count.load(Ordering::SeqCst), 3, "a child is told when its parent closes");
 }

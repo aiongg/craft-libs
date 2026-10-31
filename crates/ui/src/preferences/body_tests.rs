@@ -19,7 +19,7 @@ const APP: AppInfo = AppInfo { id: "test", name: "Test", version: "1.0" };
 struct State {
     host: FakeHost,
     closed: Option<Closed>,
-    picked: Option<String>,
+    picked: Option<crate::dialog::ColorRequest>,
     id: egui::Id,
 }
 
@@ -210,7 +210,16 @@ fn the_swatch_reports_the_row_to_pick() {
     h.run();
     h.get_by_role_and_label(Role::ColorWell, "Accent colour:").click();
     h.run();
-    assert_eq!(h.state().picked.as_deref(), Some("interface.accent"));
+    let request = h.state_mut().picked.take().expect("a request");
+    assert_eq!(request.key, "interface.accent");
+    assert_eq!(request.title.as_deref(), Some("Accent colour:"));
+    assert_eq!(request.color, craft_theme::Srgba::from(craft_theme::Rgba([0x33, 0x66, 0x99, 255])));
+    h.run();
+    assert!(h.state().picked.is_none(), "the request is reported for one pass");
+
+    // The picker's answer goes into the draft.
+    h.state_mut().host.set_color("interface.accent", craft_theme::Srgba::rgb(1.0, 0.0, 0.0));
+    assert_eq!(h.state().host.draft.get("interface.accent"), Some(&PrefValue::Color(craft_theme::Rgba([255, 0, 0, 255]))));
 }
 
 #[test]

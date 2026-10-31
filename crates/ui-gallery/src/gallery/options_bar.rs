@@ -199,10 +199,10 @@ impl Bar {
 
 fn text_size_name(size: TextSize) -> &'static str {
     match size {
+        TextSize::Tiny => "Tiny",
         TextSize::Small => "Small",
-        TextSize::Default => "Default",
+        TextSize::Medium => "Medium",
         TextSize::Large => "Large",
-        TextSize::Larger => "Larger",
     }
 }
 

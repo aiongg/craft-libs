@@ -610,7 +610,7 @@ mod tests {
             mode: Mode::Light,
             contrast: craft_theme::Contrast::Standard,
             size: craft_theme::Size::Compact,
-            text_size: craft_theme::TextSize::Default,
+            text_size: craft_theme::TextSize::Small,
             reduced_motion: false,
         };
         let e = explain(theme, appearance, None);

@@ -304,20 +304,20 @@ fn choosing_in_a_wells_model_menu_keeps_its_popup_open() {
     rig.key(Key::Enter);
     assert_eq!(rig.open, Some(Well::Primary));
 
-    rig.click(rig.bounds("Colour model: HSB").center());
+    rig.click(rig.bounds("Color model: HSB").center());
     assert_eq!(rig.open, Some(Well::Primary), "opening the menu keeps the popup open");
     let row = rig.node(Role::MenuItemRadio, "RGB").bounds().expect("bounds");
     rig.click(pos2(((row.x0 + row.x1) / 2.0) as f32, ((row.y0 + row.y1) / 2.0) as f32));
     assert_eq!(rig.open, Some(Well::Primary), "a click on a row is not outside the popup");
-    rig.node(Role::Button, "Colour model: RGB");
+    rig.node(Role::Button, "Color model: RGB");
 
-    rig.action(Role::Button, "Colour model: RGB", egui::accesskit::Action::Focus);
+    rig.action(Role::Button, "Color model: RGB", egui::accesskit::Action::Focus);
     rig.key(Key::Enter);
-    assert_eq!(rig.node(Role::Button, "Colour model: RGB").is_expanded(), Some(true), "Enter opens the menu");
+    assert_eq!(rig.node(Role::Button, "Color model: RGB").is_expanded(), Some(true), "Enter opens the menu");
     assert_eq!(rig.open, Some(Well::Primary));
     rig.key(Key::Enter);
     assert_eq!(rig.open, Some(Well::Primary), "a row chosen by Enter leaves the popup open");
-    rig.node(Role::Button, "Colour model: HSB");
+    rig.node(Role::Button, "Color model: HSB");
 }
 
 /// The inactive well isn't a Tab stop, but a screen reader can focus it, and that makes it

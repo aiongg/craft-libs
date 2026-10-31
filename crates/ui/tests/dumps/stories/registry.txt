@@ -97,6 +97,7 @@ composites/slider-row/adjustments = SliderRow | Adjustments | Panel | disabled=B
 composites/slider-row/wheel-step = SliderRow | Wheel step | Panel | step=Number { value: 5.0, min: 0.5, max: 20.0 }
 composites/toast/stack = Toast | Stack | Panel | tone=Choice { options: ["neutral", "info", "good", "warn", "bad"], index: 0 }; auto_hide=Bool(false); seconds=Number { value: 6.0, min: 1.0, max: 30.0 }
 composites/notice/tones = Notice | Tones | Panel | announce=Bool(true); title=Bool(true); width=Number { value: 320.0, min: 120.0, max: 480.0 }
+composites/settings-notices/notices = SettingsNotices | Notices | Panel | scenario=Choice { options: ["valuesreset", "filemovedaside", "newerversionsfile", "firstsavefails", "saveskeepfailing", "saverecovers"], index: 4 }; width=Number { value: 420.0, min: 240.0, max: 640.0 }
 composites/empty-state/panel = EmptyState | Panel | Panel | search=Text("zzz"); status=Bool(true); width=Number { value: 260.0, min: 100.0, max: 400.0 }
 composites/empty-state/canvas = EmptyState | Canvas | Panel | width=Number { value: 640.0, min: 200.0, max: 800.0 }; height=Number { value: 360.0, min: 200.0, max: 600.0 }
 composites/empty-state/start-screen = EmptyState | Start screen | Panel | width=Number { value: 640.0, min: 200.0, max: 800.0 }; height=Number { value: 420.0, min: 200.0, max: 600.0 }
@@ -124,6 +125,7 @@ composites/list/reorder = List | Reorder | Panel |
 composites/list/reorder-tree = List | Reorder a tree | Panel | 
 composites/list/reorder-refused = List | Refused targets | Panel | 
 composites/list/reorder-copy = List | Copy with Alt | Panel | 
+composites/findings-list/list = FindingsList | List | Panel | errors=Number { value: 2.0, min: 0.0, max: 4.0 }; warnings=Number { value: 3.0, min: 0.0, max: 5.0 }; summary=Bool(true); width=Number { value: 420.0, min: 240.0, max: 640.0 }
 composites/menu/menus = Menu | Menus | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true); rows=Number { value: 40.0, min: 5.0, max: 200.0 }
 composites/menu/context-menu = ContextMenu | Context menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true)
 composites/menu/press-menu = PressMenu | Press menu | Panel | size=Choice { options: ["sm", "md"], index: 1 }; icons=Bool(true)
@@ -145,6 +147,10 @@ patterns/dock-area/docked = DockArea | Docked | Own | width=Number { value: 640.
 patterns/dock-area/floating = DockArea | Floating | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/drag = DockArea | Drag | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/iconic = DockArea | Iconic | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
+patterns/dock/panel-menu = PanelMenu | Panel menu | Panel | 
+patterns/dock/titled-frame = FloatingFrame | Titled frame | Canvas | auto height=Bool(true); contents=Number { value: 80.0, min: 20.0, max: 240.0 }
+patterns/dock/arrange = Arrange | Arrange | Panel | documents=Number { value: 4.0, min: 0.0, max: 8.0 }; groups=Number { value: 1.0, min: 1.0, max: 6.0 }; floating=Number { value: 0.0, min: 0.0, max: 6.0 }; cells=Number { value: 4.0, min: 2.0, max: 6.0 }
+patterns/dock/workspaces = WorkspaceSwitcher | Workspaces | Panel | 
 patterns/dialog/frame = Dialog | Frame | Panel | width=Choice { options: ["compact", "standard", "wide"], index: 1 }; close box=Bool(true); roomy=Bool(false)
 patterns/dialog/modeless = Dialog | Modeless | Panel | open=Bool(true); width=Choice { options: ["compact", "standard", "wide"], index: 1 }; resizable=Bool(false); scroll body=Bool(false)
 patterns/dialog/footer = Dialog | Footer | Panel | open=Bool(true); shape=Choice { options: ["standard", "side"], index: 0 }; apply=Bool(true); alternate=Bool(false); ok enabled=Bool(true); alt resets=Bool(true); body owns enter=Bool(false)
@@ -158,10 +164,21 @@ patterns/dialog/standard-prompt = Dialog | Standard prompts | Panel | open=Bool(
 patterns/dialog/properties = Dialog | Properties | Panel | open=Bool(true); read only=Bool(false)
 patterns/dialog/report = Dialog | Report | Panel | open=Bool(true); notes=Number { value: 6.0, min: 0.0, max: 40.0 }
 patterns/dialog/startup-queue = Dialog | Startup queue | Panel | recovery=Bool(true); warning=Bool(true); update=Bool(true)
+patterns/new-document-dialog/dialog = NewDocumentDialog | Dialog | Panel | open=Bool(true); clipboard image=Bool(false)
+patterns/export-as-dialog/dialog = ExportAsDialog | Dialog | Panel | open=Bool(true); format=Choice { options: ["png", "jpg", "webp", "tiff", "tga", "ico"], index: 1 }; preview ready=Bool(true); exact size=Bool(false)
+patterns/save-for-web-dialog/dialog = SaveForWebDialog | Dialog | Panel | open=Bool(true); animation=Bool(false); presets=Bool(true)
+patterns/jpeg-options-dialog/dialog = JpegOptionsDialog | Dialog | Panel | open=Bool(true); quality=Number { value: 8.0, min: 0.0, max: 12.0 }; file's own quality=Bool(false)
+patterns/tiff-options-dialog/dialog = TiffOptionsDialog | Dialog | Panel | open=Bool(true)
+patterns/targa-options-dialog/dialog = TargaOptionsDialog | Dialog | Panel | open=Bool(true); alpha=Bool(true)
+patterns/dds-options-dialog/dialog = DdsOptionsDialog | Dialog | Panel | open=Bool(true)
+composites/watermark-editor/group = WatermarkEditor | Group | Panel | style=Choice { options: ["text", "graphic"], index: 0 }; vertical=Bool(false); width=Number { value: 360.0, min: 240.0, max: 480.0 }
+composites/output-path-row/row = OutputPathRow | Row | Panel | templates=Bool(true); file chosen=Bool(false)
+patterns/recovery-dialog/dialog = RecoveryDialog | Dialog | Panel | open=Bool(true); age=Choice { options: ["seconds", "minutes", "hours", "days"], index: 1 }; recover blocked=Bool(false)
 patterns/full-window/workspace = FullWindowDialog | Workspace | Panel | open=Bool(true); title strip=Bool(true); apply=Bool(false)
 patterns/dialog/preview = Dialog | Preview box | Panel | open=Bool(true); preview=Bool(true); local history=Bool(true); compare button=Bool(true)
 patterns/viewport/embedded = ViewportWindow | Embedded | Panel | open=Bool(true); app modal=Bool(false); scrim=Bool(false)
 patterns/preferences/window = PreferencesWindow | Window | Panel | search=Text(""); width=Number { value: 760.0, min: 560.0, max: 1040.0 }; height=Number { value: 480.0, min: 400.0, max: 800.0 }; rtl=Bool(false)
+patterns/settings-document/window = SettingsDocument | Window | Panel | search=Text(""); width=Number { value: 760.0, min: 560.0, max: 1040.0 }; height=Number { value: 480.0, min: 400.0, max: 800.0 }
 patterns/options-bar/brush-and-transform = OptionsBar | Brush and transform | Chrome | narrow=Bool(false); session=Bool(true); disabled=Bool(false); two_rows=Bool(false); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
 patterns/options-bar/cells = OptionsBar | Value cells | Chrome | narrow=Bool(false); expressions=Bool(true); digit keys=Bool(true)
 patterns/status-bar/photocraft = StatusBar | PhotoCraft | Chrome | message=Text("Saved to Documents"); error=Bool(false); render_path=Bool(true); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
@@ -170,6 +187,13 @@ patterns/status-bar/error = StatusBar | Error | Chrome | message=Text("Couldn't 
 patterns/status-bar/narrow = StatusBar | Narrow | Chrome | message=Text("Exported 14 layers to the folder Documents/Exports/2026"); error=Bool(false); render_path=Bool(true); width=Number { value: 480.0, min: 160.0, max: 1200.0 }
 patterns/command-palette/photocraft = CommandPalette | PhotoCraft | Panel | open=Bool(true); recents=Bool(false)
 patterns/command-palette/recents = CommandPalette | Recent commands | Panel | open=Bool(true); recents=Bool(true)
+patterns/shell/tour = Tour | Tour | Chrome | 
+patterns/shell/status-readout = StatusReadout | Readout | Chrome | 
+patterns/shell/toolbar-drawer = ToolbarDrawer | Drawer | Chrome | 
+patterns/shell/notice-center = NoticeCenter | Notices | Canvas | 
+patterns/shell/start = StartScreen | Start | Own | view=Choice { options: ["grid", "list"], index: 0 }; sort=Choice { options: ["opened", "name", "created"], index: 0 }; empty=Bool(false)
+patterns/canvas/selection-bar = SelectionBar | Bar | Canvas | above=Bool(true)
+patterns/canvas/tool-pill = ToolPill | Pill | Canvas | top=Bool(false)
 patterns/inspector/properties = Inspector | Properties | Panel | target=Choice { options: ["layer", "document"], index: 0 }; empty=Bool(false)
 patterns/toolbar/vertical-liquify = Toolbar | Vertical | Own | 
 patterns/toolbar/horizontal-overflow = Toolbar | Overflow | Chrome | width=Number { value: 260.0, min: 60.0, max: 640.0 }

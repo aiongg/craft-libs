@@ -22,7 +22,7 @@ impl Document {
     }
 
     /// The tab position a numbered document command names, `None` for any other command.
-    pub fn index_of(command: &CommandRef) -> Option<usize> {
+    pub fn index_from_command(command: &CommandRef) -> Option<usize> {
         command.id.strip_prefix(DOCUMENT_COMMAND_PREFIX)?.parse().ok()
     }
 }

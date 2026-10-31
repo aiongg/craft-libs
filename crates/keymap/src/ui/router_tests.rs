@@ -1,7 +1,10 @@
 //! Key routing.
 
 use craft_ui::behavior::{ClaimedKey, KeyClaim};
+use std::cell::Cell;
+
 use craft_ui::menu::{Menu, MenuEntry, MenuItem};
+use craft_ui::popover::{Popover, PopoverAnchor, PopoverClose};
 use egui::{Context, Event, Id, Key as EguiKey, Modifiers, Popup, RawInput};
 
 use super::{KeyGate, KeyRouter};
@@ -16,6 +19,9 @@ fn keymap() -> Keymap {
         app("nudge.right", "Right"),
         app("edit.clear", "Delete"),
         app("file.save", "Cmd+S"),
+        app("file.new", "Cmd+N"),
+        app("edit.copy", "Cmd+C"),
+        app("tool.bold", "Ctrl+B"),
         app("view.zoomIn", "Cmd+="),
         app("tool.brush", "B"),
         app("tool.marquee", "M"),
@@ -44,16 +50,31 @@ fn route(
     ctx: &Context,
     events: Vec<Event>,
     gate: &KeyGate,
+    before: impl FnMut(&Context),
+    ui: impl FnMut(&mut egui::Ui),
+) -> (Vec<String>, Vec<EguiKey>) {
+    route_with(ctx, &keymap(), events, || *gate, |_| {}, before, ui)
+}
+
+/// [`route`] with the keymap, a gate asked after every command, and `after` run on each command.
+fn route_with<'g>(
+    ctx: &Context,
+    km: &Keymap,
+    events: Vec<Event>,
+    gate: impl FnMut() -> KeyGate<'g>,
+    mut after: impl FnMut(&str),
     mut before: impl FnMut(&Context),
     mut ui: impl FnMut(&mut egui::Ui),
 ) -> (Vec<String>, Vec<EguiKey>) {
     let mut router = KeyRouter::new(Dispatcher::new());
-    let km = keymap();
     let mut out = (Vec::new(), Vec::new());
+    let mut gate = Some(gate);
     frame(ctx, raw(events), |root| {
         before(root.ctx());
-        let hits = router.route(root.ctx(), &km, &Active::NONE, gate);
-        out.0 = hits.into_iter().map(|h| h.command.id).collect();
+        router.route(root.ctx(), km, &Active::NONE, gate.take().expect("one pass"), |hit| {
+            after(&hit.command.id);
+            out.0.push(hit.command.id);
+        });
         out.1 = root
             .ctx()
             .input(|i| i.events.iter().filter_map(|e| if let Event::Key { key, pressed: true, .. } = e { Some(*key) } else { None }).collect());
@@ -93,7 +114,7 @@ fn dialogs_run_only_the_in_dialog_commands() {
 }
 
 #[test]
-fn an_open_menu_keeps_letters_and_a_command_chord_runs() {
+fn an_open_menu_owns_every_key() {
     let ctx = Context::default();
     let entries = [MenuEntry::from(MenuItem::new("Item", 1))];
     let mut first = true;
@@ -105,10 +126,96 @@ fn an_open_menu_keeps_letters_and_a_command_chord_runs() {
         assert!(shown.open);
     };
     frame(&ctx, raw(vec![]), &mut open_menu);
-    let events = vec![press(EguiKey::M, Modifiers::NONE), press(EguiKey::F7, Modifiers::NONE)];
+    let events = vec![press(EguiKey::M, Modifiers::NONE), press(EguiKey::F7, Modifiers::NONE), press(EguiKey::S, CTRL)];
     let (ran, left) = route(&ctx, events, &KeyGate::default(), |_| {}, &mut open_menu);
-    assert_eq!(ran, ["view.refresh"]);
-    assert_eq!(left, [EguiKey::M]);
+    assert!(ran.is_empty());
+    assert_eq!(left, [EguiKey::M, EguiKey::F7, EguiKey::S]);
+}
+
+/// Draws a popover that stays open, closing by `close`'s rules.
+fn popover(ui: &mut egui::Ui, open: &mut bool, close: PopoverClose) {
+    let chip = ui.button("Open");
+    Popover::new("p", PopoverAnchor::Point(chip.rect.left_bottom())).close(close).label("P").show(ui, open, |ui, _| ui.label("In the popover"));
+}
+
+#[test]
+fn a_popover_owns_the_keys_but_a_non_modal_one_lets_command_chords_through() {
+    let events = || vec![press(EguiKey::B, Modifiers::NONE), press(EguiKey::S, CTRL)];
+    for (close, ran, left) in [
+        (PopoverClose::default(), vec![], vec![EguiKey::B, EguiKey::S]),
+        (PopoverClose::default().outside(false), vec!["file.save"], vec![EguiKey::B]),
+    ] {
+        let ctx = Context::default();
+        let mut open = true;
+        frame(&ctx, raw(vec![]), |ui| popover(ui, &mut open, close));
+        let (got_ran, got_left) = route(&ctx, events(), &KeyGate::default(), |_| {}, |ui| popover(ui, &mut open, close));
+        assert_eq!((got_ran, got_left), (ran.iter().map(|s| s.to_string()).collect::<Vec<_>>(), left));
+    }
+}
+
+#[test]
+fn a_dialog_runs_nothing_while_a_text_field_has_focus() {
+    let ctx = Context::default();
+    let gate = KeyGate { dialog: true, in_dialogs: &["view.zoomIn"], ..KeyGate::default() };
+    let mut text = String::new();
+    frame(&ctx, raw(vec![]), |ui| ui.text_edit_singleline(&mut text).request_focus());
+    let (ran, left) = route(
+        &ctx,
+        vec![press(EguiKey::Equals, CTRL)],
+        &gate,
+        |_| {},
+        |ui| {
+            ui.text_edit_singleline(&mut text);
+        },
+    );
+    assert!(ran.is_empty());
+    assert_eq!(left, [EguiKey::Equals]);
+}
+
+#[test]
+fn routing_stops_at_the_command_that_opens_a_dialog() {
+    let ctx = Context::default();
+    let dialog = Cell::new(false);
+    let gate = || KeyGate { dialog: dialog.get(), in_dialogs: &["view.zoomIn"], ..KeyGate::default() };
+    let events = vec![press(EguiKey::N, CTRL), press(EguiKey::B, Modifiers::NONE), press(EguiKey::Equals, CTRL)];
+    let (ran, left) = route_with(&ctx, &keymap(), events, gate, |id| dialog.set(id == "file.new"), |_| {}, |_| {});
+    assert_eq!(ran, ["file.new"]);
+    assert_eq!(left, [EguiKey::B, EguiKey::Equals]);
+}
+
+#[test]
+fn a_text_field_keeps_the_clipboard_chords_and_a_mac_control_key() {
+    let ctx = Context::default();
+    let mut text = String::new();
+    frame(&ctx, raw(vec![]), |ui| ui.text_edit_singleline(&mut text).request_focus());
+    let events = vec![press(EguiKey::C, CTRL), press(EguiKey::S, CTRL)];
+    let draw = |ui: &mut egui::Ui| {
+        ui.text_edit_singleline(&mut text);
+    };
+    let (ran, left) = route(&ctx, events.clone(), &KeyGate::default(), |_| {}, draw);
+    assert_eq!(ran, ["file.save"]);
+    assert_eq!(left, [EguiKey::C]);
+
+    // On a Mac Control+B is Cocoa's "back one character": a text field keeps it.
+    let mac = Keymap::new(
+        vec![Bindable::new("tool.bold", "tool.bold", Scope::app()).with_default(Binding::parse("Ctrl+B").unwrap())],
+        Scopes::new(),
+        Platform::Mac,
+    );
+    let control = Modifiers { ctrl: true, ..Modifiers::NONE };
+    let (ran, left) = route_with(
+        &ctx,
+        &mac,
+        vec![press(EguiKey::B, control)],
+        KeyGate::default,
+        |_| {},
+        |_| {},
+        |ui| {
+            ui.text_edit_singleline(&mut text);
+        },
+    );
+    assert!(ran.is_empty());
+    assert_eq!(left, [EguiKey::B]);
 }
 
 #[test]
@@ -127,4 +234,32 @@ fn ctrl_tab_runs_whatever_has_focus() {
     );
     assert_eq!(ran, ["window.nextDocument"]);
     assert_eq!(left, [EguiKey::B]);
+}
+
+#[test]
+fn the_menu_bar_holding_the_keyboard_keeps_letters_and_a_command_chord_leaves_it() {
+    use craft_ui::menu::{MenuBar, MenuItem as Title};
+    let titles = [Title::submenu("File", vec![MenuEntry::from(MenuItem::new("New", 1))])];
+    let bar = |ui: &mut egui::Ui| {
+        let _ = MenuBar::new(&titles).show(ui);
+    };
+    let alt = |pressed: bool| Event::Key {
+        key: EguiKey::AltLeft,
+        physical_key: None,
+        pressed,
+        repeat: false,
+        modifiers: if pressed { Modifiers::ALT } else { Modifiers::NONE },
+    };
+    for (events, ran, left) in [
+        (vec![press(EguiKey::B, Modifiers::NONE)], vec![], vec![EguiKey::B]),
+        (vec![press(EguiKey::B, Modifiers::NONE), press(EguiKey::S, CTRL)], vec!["tool.brush", "file.save"], vec![]),
+    ] {
+        let ctx = Context::default();
+        for events in [vec![alt(true)], vec![alt(false)], vec![]] {
+            frame(&ctx, raw(events), bar);
+        }
+        assert!(craft_ui::menu::bar::is_focused(&ctx));
+        let (got_ran, got_left) = route(&ctx, events, &KeyGate::default(), |_| {}, bar);
+        assert_eq!((got_ran, got_left), (ran.iter().map(|s| s.to_string()).collect::<Vec<_>>(), left));
+    }
 }

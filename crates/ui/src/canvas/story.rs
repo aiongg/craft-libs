@@ -6,7 +6,7 @@ use egui::accesskit::Role;
 use egui::{Color32, EventFilter, Id, Response, Sense, Shape, Stroke, Ui, WidgetInfo, vec2};
 use kurbo::{Point, Rect};
 
-use super::{CanvasGrid, CanvasScrollbars, CanvasView, Claim, GridLine, Readout, ScrollbarNames, crisp, hit};
+use super::{CanvasGrid, CanvasId, CanvasScrollbars, CanvasView, Claim, GridLine, Readout, ScrollbarNames, crisp, hit};
 use crate::behavior::nudge;
 use crate::primitives::{Corner, FocusRing, Handle, HandleShape};
 use crate::story::{self, Level, NoArgs, Story, StoryArgs, StoryChoice, Surface};
@@ -77,10 +77,17 @@ pub struct PlainArgs {
 
 /// The story canvas drawn by [`document`]: its response (overlays sense through it) and view.
 pub struct StoryCanvas {
+    /// The canvas widget's id, the key of a story's per-canvas state.
+    pub id: CanvasId,
     pub response: Response,
     pub view: CanvasView,
     /// The area allocated: the canvas and the margin around its top and left for rulers.
     pub full: egui::Rect,
+}
+
+/// The id of the story canvas labelled `label`, known before the canvas is drawn.
+pub fn story_canvas_id(ui: &Ui, label: &str) -> CanvasId {
+    CanvasId::new(ui, ("craft_ui::canvas::story", label))
 }
 
 /// Draws the story document filling the story's width, centred, under the view `view` sets,
@@ -115,13 +122,14 @@ pub fn document_with(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32, make
     }
     let size = vec2((ui.available_width() - margin).clamp(240.0, 720.0), 360.0);
     let sense = Sense::click_and_drag() | Sense::FOCUSABLE;
+    let id = story_canvas_id(ui, label);
     let (full, rect, response) = if margin > 0.0 {
         let (full, _) = ui.allocate_exact_size(size + vec2(margin, margin), Sense::hover());
         let rect = egui::Rect::from_min_max(full.min + vec2(margin, margin), full.max);
-        (full, rect, ui.interact(rect, ui.scope_id().with(("craft_ui::canvas::story", label)), sense))
+        (full, rect, id.interact(ui, rect, sense))
     } else {
-        let (rect, response) = ui.allocate_exact_size(size, sense);
-        (rect, rect, response)
+        let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+        (rect, rect, id.interact(ui, rect, sense))
     };
     response.widget_info(|| WidgetInfo::labeled(Role::Canvas, ui.is_enabled(), label));
     // The arrow keys nudge on the canvas instead of moving focus.
@@ -142,7 +150,7 @@ pub fn document_with(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32, make
         }
     }
     FocusRing::paint(ui, rect, Corner::Control, &response);
-    StoryCanvas { response, view, full }
+    StoryCanvas { id, response, view, full }
 }
 
 /// The components this module has stories for.
