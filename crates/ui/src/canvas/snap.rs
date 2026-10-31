@@ -12,9 +12,7 @@
 //! Move tool to other layers' edges and centres. The Rulers' `snap` closure and the crop host's
 //! snap closures stay as they are; an app builds them from a target set here.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use kurbo::{Point, Rect};
+use kurbo::{Point, Rect, Vec2};
 
 use super::guides::SmartLine;
 
@@ -69,10 +67,21 @@ pub struct SnapLine {
     pub span: Option<(f64, f64)>,
 }
 
+/// Half the length, in document units, of a line without a span. The smart-guide painter clips
+/// to the view, so the line reads as running across all of it.
+const FULL_EXTENT: f64 = 1.0e6;
+
 impl From<SnapLine> for SmartLine {
-    // new: SmartLine is the drawn form; the conversion fills its ends from `span` or the view.
+    /// The line along `span`, or across the whole view when there is none.
+    // new: SmartLine is the drawn form.
     fn from(line: SnapLine) -> Self {
-        todo!()
+        let (from, to) = line.span.unwrap_or((-FULL_EXTENT, FULL_EXTENT));
+        let (a, b) = if line.vertical {
+            (Point::new(line.position, from), Point::new(line.position, to))
+        } else {
+            (Point::new(from, line.position), Point::new(to, line.position))
+        };
+        SmartLine { a, b, extension: false }
     }
 }
 
@@ -115,6 +124,16 @@ pub struct SnapTargets {
     targets: Vec<SnapTarget>,
 }
 
+/// Distances closer than this are equal.
+const TIE: f64 = 1e-9;
+
+/// The line through `target` reaching the snapped object at `a..b` along the line; a target
+/// without a span stays full height.
+fn line(target: &SnapTarget, a: f64, b: f64) -> SnapLine {
+    let span = target.span.map(|(lo, hi)| (lo.min(a).min(b), hi.max(a).max(b)));
+    SnapLine { vertical: target.vertical, position: target.position, kind: target.kind, span }
+}
+
 impl SnapTargets {
     pub fn new() -> Self {
         Self::default()
@@ -129,7 +148,18 @@ impl SnapTargets {
     /// targets, each spanning the rectangle.
     // pc: crates/engine/src/snap.rs:163 `add_rect`.
     pub fn add_rect(&mut self, rect: Rect, edge: SnapKind, center: SnapKind) {
-        todo!()
+        let r = rect.abs();
+        let (xs, ys) = ((r.y0, r.y1), (r.x0, r.x1));
+        for (vertical, position, kind, span) in [
+            (true, r.x0, edge, xs),
+            (true, r.x1, edge, xs),
+            (true, (r.x0 + r.x1) / 2.0, center, xs),
+            (false, r.y0, edge, ys),
+            (false, r.y1, edge, ys),
+            (false, (r.y0 + r.y1) / 2.0, center, ys),
+        ] {
+            self.add(SnapTarget { vertical, position, kind, span: Some(span) });
+        }
     }
 
     /// Guides as full-height targets, grid lines of `spacing` from `origin` over `bounds`, the
@@ -141,15 +171,47 @@ impl SnapTargets {
         options: &SnapOptions,
         bounds: Rect,
         guides: impl IntoIterator<Item = (bool, f64)>,
-        grid: Option<(Point, kurbo::Vec2)>,
+        grid: Option<(Point, Vec2)>,
     ) -> Self {
-        todo!()
+        if !options.on {
+            return self;
+        }
+        let mut this = self;
+        if options.guides {
+            for (vertical, position) in guides {
+                this.add(SnapTarget { vertical, position, kind: SnapKind::Guide, span: None });
+            }
+        }
+        if options.grid
+            && let Some((origin, step)) = grid
+        {
+            let lines = |origin: f64, step: f64, lo: f64, hi: f64| {
+                let first = ((lo - origin) / step).ceil() as i64;
+                let last = ((hi - origin) / step).floor() as i64;
+                (first..=last).map(move |k| origin + k as f64 * step)
+            };
+            let r = bounds.abs();
+            if step.x.is_finite() && step.x > 0.0 {
+                for position in lines(origin.x, step.x, r.x0, r.x1) {
+                    this.add(SnapTarget { vertical: true, position, kind: SnapKind::Grid, span: None });
+                }
+            }
+            if step.y.is_finite() && step.y > 0.0 {
+                for position in lines(origin.y, step.y, r.y0, r.y1) {
+                    this.add(SnapTarget { vertical: false, position, kind: SnapKind::Grid, span: None });
+                }
+            }
+        }
+        if options.document_bounds {
+            this.add_rect(bounds, SnapKind::Bounds, SnapKind::Center);
+        }
+        this
     }
 
     /// Only the targets `keep` accepts (Snap To with one kind off).
     // pc: crates/engine/src/snap.rs:174 `filtered`.
     pub fn filtered(&self, keep: impl Fn(SnapKind) -> bool) -> SnapTargets {
-        todo!()
+        SnapTargets { targets: self.targets.iter().copied().filter(|t| keep(t.kind)).collect() }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -159,32 +221,93 @@ impl SnapTargets {
     /// The nearest target on one axis within `tolerance` of `value`.
     // pc: crates/engine/src/snap.rs:189 `nearest`.
     pub fn nearest(&self, vertical: bool, value: f64, tolerance: f64) -> Option<SnapTarget> {
-        todo!()
+        let mut best: Option<(f64, SnapTarget)> = None;
+        for target in self.targets.iter().filter(|t| t.vertical == vertical) {
+            let distance = (target.position - value).abs();
+            if distance > tolerance {
+                continue;
+            }
+            // A guide wins a tie, as in Photoshop.
+            let better = best.is_none_or(|(d, t)| {
+                distance < d - TIE || ((distance - d).abs() <= TIE && target.kind == SnapKind::Guide && t.kind != SnapKind::Guide)
+            });
+            if better {
+                best = Some((distance, *target));
+            }
+        }
+        best.map(|(_, target)| target)
     }
 
     /// `point` snapped on each axis independently, with the lines to draw.
     // pc: crates/engine/src/snap.rs:216 `snap_point`.
     pub fn snap_point(&self, point: Point, tolerance: f64) -> (Point, Vec<SnapLine>) {
-        todo!()
+        let mut out = point;
+        let mut lines = Vec::new();
+        if let Some(t) = self.nearest(true, point.x, tolerance) {
+            out.x = t.position;
+            lines.push(line(&t, point.y, point.y));
+        }
+        if let Some(t) = self.nearest(false, point.y, tolerance) {
+            out.y = t.position;
+            lines.push(line(&t, out.x, out.x));
+        }
+        (out, lines)
     }
 
     /// The offset that moves `rect` so its nearest edge or centre meets a target on each axis,
     /// with the lines to draw. Edges win over centres at equal distance.
     // pc: crates/engine/src/snap.rs:233 `snap_rect`.
-    pub fn snap_rect(&self, rect: Rect, tolerance: f64) -> (kurbo::Vec2, Vec<SnapLine>) {
-        todo!()
+    pub fn snap_rect(&self, rect: Rect, tolerance: f64) -> (Vec2, Vec<SnapLine>) {
+        let mut delta = Vec2::ZERO;
+        let mut lines = Vec::new();
+        let rect = rect.abs();
+        for vertical in [true, false] {
+            let (lo, hi, other) = if vertical { (rect.x0, rect.x1, (rect.y0, rect.y1)) } else { (rect.y0, rect.y1, (rect.x0, rect.x1)) };
+            // Edges before the centre, so an edge wins a tie.
+            let anchors = [lo, hi, (lo + hi) / 2.0];
+            let mut best: Option<f64> = None;
+            for anchor in anchors {
+                if let Some(t) = self.nearest(vertical, anchor, tolerance) {
+                    let d = t.position - anchor;
+                    if best.is_none_or(|b| d.abs() < b.abs() - TIE) {
+                        best = Some(d);
+                    }
+                }
+            }
+            let Some(d) = best else { continue };
+            if vertical {
+                delta.x = d;
+            } else {
+                delta.y = d;
+            }
+            for anchor in anchors {
+                let moved = anchor + d;
+                let hit = self
+                    .targets
+                    .iter()
+                    .filter(|t| t.vertical == vertical && (t.position - moved).abs() < 1e-6)
+                    .min_by_key(|t| u8::from(t.kind != SnapKind::Guide));
+                if let Some(t) = hit {
+                    lines.push(line(t, other.0, other.1));
+                }
+            }
+        }
+        (delta, lines)
     }
 
     /// `value` on one axis snapped to the nearest target within `tolerance`, for a guide drag
     /// or a ruler's snap closure.
     // pc: crates/ui-egui/src/canvas/snap_ui.rs:547 `snap_guide`.
     pub fn snap_axis(&self, vertical: bool, value: f64, tolerance: f64) -> (f64, Option<SnapLine>) {
-        todo!()
+        match self.nearest(vertical, value, tolerance) {
+            Some(t) => (t.position, Some(SnapLine { vertical, position: t.position, kind: t.kind, span: t.span })),
+            None => (value, None),
+        }
     }
 }
 
 /// The bounding rectangle of `rects`, or `None` for none.
 // pc: crates/engine/src/snap.rs:278 `union`.
 pub fn union(rects: impl IntoIterator<Item = Rect>) -> Option<Rect> {
-    todo!()
+    rects.into_iter().reduce(|a, b| a.union(b))
 }

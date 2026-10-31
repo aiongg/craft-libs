@@ -1619,6 +1619,9 @@ fn cursor_lines(out: &mut Lines, c: &CursorTokens) {
         skew_head,
         skew_back,
         skew_head_outline,
+        stroke,
+        badge,
+        icon,
     } = c;
     out.line("cursor.crosshair_reach", len(*crosshair_reach));
     out.line("cursor.crosshair_gap", len(*crosshair_gap));
@@ -1634,6 +1637,9 @@ fn cursor_lines(out: &mut Lines, c: &CursorTokens) {
     out.line("cursor.skew_head", len(*skew_head));
     out.line("cursor.skew_back", len(*skew_back));
     out.line("cursor.skew_head_outline", len(*skew_head_outline));
+    out.line("cursor.stroke", len(*stroke));
+    out.line("cursor.badge", len(*badge));
+    out.line("cursor.icon", len(*icon));
 }
 
 fn handle_lines(out: &mut Lines, h: &HandleTokens) {
