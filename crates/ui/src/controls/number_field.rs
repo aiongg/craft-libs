@@ -24,7 +24,7 @@ use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook, edit_menu};
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
-use crate::localized::{LocaleNumbers, Unit, Words, first_field_id, incomplete, round_half_away, stepped};
+use crate::localized::{LocaleNumbers, Unit, Words, first_field_id, incomplete, on_grid, round_half_away, stepped};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, variant_list};
@@ -774,7 +774,7 @@ impl<'n> Input<'n> {
                         Some((id, value)) if gesture.id() != Some(id) => value,
                         _ => *gesture.shown(),
                     };
-                    let to = Some(self.codec.settle(from.unwrap_or(self.base) + n * self.step));
+                    let to = Some(self.codec.settle(on_grid(from.unwrap_or(self.base), self.step, n)));
                     gesture.update(to, m);
                     scrub.last = gesture.id().map(|id| (id, to));
                 }

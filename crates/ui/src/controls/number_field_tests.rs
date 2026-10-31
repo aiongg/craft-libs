@@ -1599,3 +1599,11 @@ fn the_first_typed_digit_reaches_the_host_in_the_same_pass() {
     assert!(matches!(events[..], [EditEvent::Begin { value: Some(v), .. }] if v == 1.0), "{events:?}");
     assert_eq!(rig.value, 1.0);
 }
+
+/// A scrub rounds the value to the step grid first, then adds its steps.
+#[test]
+fn a_scrub_rounds_to_the_step_grid_before_adding_its_steps() {
+    let mut rig = Rig::new(55.4);
+    rig.drag(rig.handle(), &[7.0], Modifiers::NONE, false);
+    assert_eq!(rig.value, 62.0);
+}
