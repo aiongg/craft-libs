@@ -378,6 +378,7 @@ pub struct ListRow<'a, K> {
     label: String,
     detail: Option<String>,
     description: Option<String>,
+    accessible_name: Option<String>,
     columns: Vec<ToggleColumn>,
     icon: Option<Icon>,
     thumb: ThumbSize,
@@ -419,6 +420,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             label: label.into(),
             detail: None,
             description: None,
+            accessible_name: None,
             columns: Vec::new(),
             icon: None,
             thumb: ThumbSize::None,
@@ -527,6 +529,13 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     pub(super) fn show_at(mut self, ui: &mut Ui, rect: Rect) -> RowResponse<K> {
         self.slot = Some(rect);
         self.show(ui)
+    }
+
+    /// The row's AccessKit name when it differs from the drawn text (a row whose icon carries
+    /// part of the meaning). Without it the name is the label, then the detail.
+    pub fn accessible_name(mut self, name: impl Into<String>) -> Self {
+        self.accessible_name = Some(name.into()).filter(|n| !n.is_empty());
+        self
     }
 
     /// What a screen reader adds after the row's name; not drawn. Empty is none.
@@ -752,6 +761,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             label,
             detail,
             description,
+            accessible_name,
             columns,
             icon,
             thumb,
@@ -789,9 +799,10 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let column = disclosure + marker;
         let rect = slot.unwrap_or_else(|| ui.allocate_space(vec2(ui.available_width(), height)).1);
         let row_id = row_id(ui.scope_id(), &key);
-        let name = match &detail {
-            Some(detail) => format!("{label}, {detail}"),
-            None => label.clone(),
+        let name = match (accessible_name, &detail) {
+            (Some(name), _) => name,
+            (None, Some(detail)) => format!("{label}, {detail}"),
+            (None, None) => label.clone(),
         };
         let mut element = Interactive::with_id(row_id, role, name.clone())
             .sense(Sense::CLICK | Sense::DRAG)

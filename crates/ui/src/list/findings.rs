@@ -118,9 +118,14 @@ impl<'a> FindingsList<'a> {
                 FindingLevel::Error => (Icon::Error, &labels.error),
                 FindingLevel::Warning => (Icon::Warning, &labels.warning),
             };
-            let row = ListRow::new(key, format!("{level}: {}", finding.message)).icon(icon);
-            match &finding.page {
-                Some(page) => row.detail(labels.page.replace("{page}", page)),
+            let page = finding.page.as_ref().map(|page| labels.page.replace("{page}", page));
+            let name = match &page {
+                Some(page) => format!("{level}: {}, {page}", finding.message),
+                None => format!("{level}: {}", finding.message),
+            };
+            let row = ListRow::new(key, finding.message.clone()).icon(icon).accessible_name(name);
+            match page {
+                Some(page) => row.detail(page),
                 None => row,
             }
         });
