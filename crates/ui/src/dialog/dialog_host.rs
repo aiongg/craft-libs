@@ -6,8 +6,6 @@
 //! them each pass in the order the stack says, queues the startup modals and keeps the results
 //! until the app reads them.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::any::{Any, TypeId};
 use std::fmt;
 
@@ -79,6 +77,8 @@ trait AnyStackDialog: Send + Sync {
     fn id(&self) -> DialogId;
     fn result_type(&self) -> TypeId;
     fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any>>;
+    /// `DialogResult::<D::Result>::Cancel`, boxed, for a dialog closed from outside.
+    fn cancelled(&self) -> Box<dyn Any>;
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
@@ -92,9 +92,12 @@ impl<D: StackDialog> AnyStackDialog for D {
         TypeId::of::<D>()
     }
 
-    // new: boxes the typed result as `DialogResult<D::Result>` for `DialogHost::take`.
     fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any>> {
-        todo!()
+        self.show(ctx, stack).map(|result| Box::new(result) as Box<dyn Any>)
+    }
+
+    fn cancelled(&self) -> Box<dyn Any> {
+        Box::new(DialogResult::<D::Result>::Cancel)
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -162,56 +165,116 @@ impl DialogHost {
 
     /// Opens `dialog` on top. Its id goes on the stack now; the dialog shows from the next
     /// [`show`](DialogHost::show). Returns the id.
-    // pc: crates/ui-egui/src/state.rs `UiState::open_dialog` (id, kind, fields) and
-    // crates/ui-egui/src/dialogs.rs:398 `show` (push order, one body per marker).
     pub fn open<D: StackDialog>(&mut self, dialog: D) -> DialogId {
-        todo!()
+        self.open_with_parent(Box::new(dialog), None)
     }
 
     /// Opens `dialog` as a child of `parent`: shown over it, disabled with it, closed when the
     /// parent closes (a contour editor from Layer Style).
-    // new: the id-only stack has parents (`DialogStack::push(id, Some(parent))`); this adds the value.
     pub fn open_child<D: StackDialog>(&mut self, dialog: D, parent: DialogId) -> DialogId {
-        todo!()
+        self.open_with_parent(Box::new(dialog), Some(parent))
     }
 
     /// Queues a startup modal. It opens when the stack is empty and no earlier stage waits;
     /// two of one stage open in `enqueue` order.
-    // pc: gap 75 (crates/ui-egui/src/gpu_status.rs:261 `show_fallback` over craft-update's
-    // StartupPrompt, both at Order::Middle). new: the queue itself.
     pub fn enqueue<D: StackDialog>(&mut self, stage: StartupStage, dialog: D) {
-        todo!()
+        let at = self.queued.partition_point(|(queued, _)| *queued <= stage);
+        self.queued.insert(at, (stage, Box::new(dialog)));
     }
 
     /// Shows every open dialog for this pass, oldest first, the top one interactive; removes the
     /// ones that finished and stores their results; opens the next queued startup modal when the
     /// stack is empty. Call once per pass, after the app's own UI so dialogs draw above it.
-    // pc: crates/ui-egui/src/dialogs.rs:398 `show` (the loop over `app.ui.dialogs`, confirm and
-    // cancel routing, `remove_tree` of a cancelled parent).
     pub fn show(&mut self, ctx: &Context) {
-        todo!()
+        self.open_next_queued();
+        let mut finished = Vec::new();
+        for dialog in &mut self.open {
+            if let Some(result) = dialog.show_erased(ctx, &self.stack) {
+                finished.push((dialog.id(), result));
+            }
+        }
+        for (id, result) in finished {
+            let Some(at) = self.open.iter().position(|dialog| dialog.id() == id) else { continue };
+            let dialog = self.open.remove(at);
+            self.store_result(dialog.result_type(), result);
+            self.stack.remove_tree(id);
+            self.cancel_orphans();
+        }
+        if self.open_next_queued() {
+            ctx.request_repaint();
+        }
     }
 
     /// The result of the last `D` that finished, once. `None` while it is open or already taken.
-    // new: typed results; PhotoCraft reads `ui.dialog.confirm`'s JSON instead.
     pub fn take<D: StackDialog>(&mut self) -> Option<DialogResult<D::Result>> {
-        todo!()
+        let at = self.results.iter().position(|(type_id, _)| *type_id == TypeId::of::<D>())?;
+        let (_, result) = self.results.remove(at);
+        result.downcast::<DialogResult<D::Result>>().ok().map(|result| *result)
     }
 
     /// Closes the open `D` with [`DialogResult::Cancel`] (and its children), as Esc would.
-    // pc: crates/ui-egui/src/dialogs.rs:1020 `cancel`.
     pub fn cancel<D: StackDialog>(&mut self) -> bool {
-        todo!()
+        let Some(at) = self.position::<D>() else { return false };
+        let id = self.open[at].id();
+        let dialog = self.open.remove(at);
+        self.store_result(dialog.result_type(), dialog.cancelled());
+        self.stack.remove_tree(id);
+        self.cancel_orphans();
+        true
     }
 
     /// The open `D`, for the app to feed (a preview image) or a script to read.
     // new.
     pub fn get<D: StackDialog>(&self) -> Option<&D> {
-        todo!()
+        self.open.iter().find(|dialog| dialog.result_type() == TypeId::of::<D>())?.as_any().downcast_ref()
     }
 
     pub fn get_mut<D: StackDialog>(&mut self) -> Option<&mut D> {
-        todo!()
+        self.open.iter_mut().find(|dialog| dialog.result_type() == TypeId::of::<D>())?.as_any_mut().downcast_mut()
+    }
+
+    fn position<D: StackDialog>(&self) -> Option<usize> {
+        self.open.iter().position(|dialog| dialog.result_type() == TypeId::of::<D>())
+    }
+
+    fn store_result(&mut self, type_id: TypeId, result: Box<dyn Any>) {
+        self.results.retain(|(stored, _)| *stored != type_id);
+        self.results.push((type_id, result));
+    }
+
+    fn open_with_parent(&mut self, dialog: Box<dyn AnyStackDialog>, parent: Option<DialogId>) -> DialogId {
+        let type_id = dialog.result_type();
+        self.results.retain(|(stored, _)| *stored != type_id);
+        if let Some(at) = self.open.iter().position(|open| open.result_type() == type_id) {
+            let old = self.open.remove(at);
+            self.stack.remove_tree(old.id());
+            self.store_result(type_id, old.cancelled());
+            self.cancel_orphans();
+        }
+        let id = dialog.id();
+        self.stack.push(id, parent);
+        self.open.push(dialog);
+        id
+    }
+
+    /// Closes the open dialogs the stack no longer holds (children of a dialog that closed), with
+    /// `Cancel`.
+    fn cancel_orphans(&mut self) {
+        let (kept, orphans): (Vec<_>, Vec<_>) = std::mem::take(&mut self.open).into_iter().partition(|dialog| self.stack.contains(dialog.id()));
+        self.open = kept;
+        for dialog in orphans {
+            self.store_result(dialog.result_type(), dialog.cancelled());
+        }
+    }
+
+    /// Opens the first queued startup modal if nothing else is open.
+    fn open_next_queued(&mut self) -> bool {
+        if !self.stack.is_empty() || !self.open.is_empty() || self.queued.is_empty() {
+            return false;
+        }
+        let (_, dialog) = self.queued.remove(0);
+        self.open_with_parent(dialog, None);
+        true
     }
 
     /// Whether `D` is open.
