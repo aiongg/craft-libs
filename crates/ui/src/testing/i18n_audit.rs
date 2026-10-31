@@ -65,8 +65,10 @@ pub fn drawn_texts(output: &egui::FullOutput) -> Vec<String> {
 /// Text that is right to show untranslated.
 ///
 /// Always allowed, on the unmarked text trimmed (and a trailing ` —` dropped):
-/// - a shortcut: every `+`-separated part is `Ctrl`, `Shift`, `Alt`, `Cmd`, `Esc`, `Tab` or
-///   `Enter`, or at most 3 characters;
+/// - a shortcut: text with a `+` whose every part is a key name (`Ctrl`, `Shift`, `Alt`, `Cmd`,
+///   `Esc`, `Tab`, `Enter`, or what `egui::Key::from_name` knows: `S`, `F5`, `Plus`), or a single
+///   key cap on its own: one of those modifier names, an F-key, or one character. A word of three
+///   letters such as "Add" or "All" is text and must be translated;
 /// - account initials: exactly 2 ASCII capitals.
 ///
 /// The app adds its own: exact [`Self::names`], document [`Self::body`] text and [`Self::prefixes`].
@@ -110,7 +112,11 @@ impl Exempt {
     pub fn allows(&self, text: &str) -> bool {
         let plain = unmarked(text);
         let plain = plain.trim().trim_end_matches(" —").trim();
-        let is_shortcut = plain.split('+').all(|k| matches!(k, "Ctrl" | "Shift" | "Alt" | "Cmd" | "Esc" | "Tab" | "Enter") || k.chars().count() <= 3);
+        let is_shortcut = if plain.contains('+') && !plain.starts_with('+') && !plain.ends_with('+') {
+            plain.split('+').all(|k| is_modifier_or_key(k) || egui::Key::from_name(k).is_some())
+        } else {
+            is_modifier_or_key(plain) || plain.chars().count() == 1 || is_function_key(plain)
+        };
         let initials = plain.chars().count() == 2 && plain.chars().all(|c| c.is_ascii_uppercase());
         is_shortcut
             || initials
@@ -118,6 +124,15 @@ impl Exempt {
             || self.names.contains(plain)
             || self.prefixes.iter().any(|p| plain.starts_with(p.as_str()))
     }
+}
+
+fn is_modifier_or_key(k: &str) -> bool {
+    matches!(k, "Ctrl" | "Shift" | "Alt" | "Cmd" | "Esc" | "Tab" | "Enter")
+}
+
+/// `F1` to `F35`.
+fn is_function_key(k: &str) -> bool {
+    k.strip_prefix('F').is_some_and(|n| !n.is_empty() && n.len() <= 2 && n.bytes().all(|b| b.is_ascii_digit()) && n != "0")
 }
 
 /// The untranslated texts found, each with the UI states it showed in.

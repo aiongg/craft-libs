@@ -77,3 +77,21 @@ fn an_unauthenticated_connection_is_closed_at_the_deadline_whatever_it_sends() {
     assert!(served < Duration::from_secs(3), "the trickle did not extend the deadline: {served:?}");
     assert!(rx.try_recv().is_err(), "nothing was dispatched");
 }
+
+// A request line over MAX_REQUEST_BYTES without a newline gets an error reply and the connection is closed.
+#[test]
+fn an_over_long_request_is_refused_and_closes_the_connection() {
+    let (rx, addr) = start(0, TOKEN.into(), egui::Context::default()).unwrap();
+    let mut stream = TcpStream::connect(addr).unwrap();
+    stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    writeln!(stream, "{}", json!({"id": 1, "method": "auth", "params": {"token": TOKEN}})).unwrap();
+    assert_eq!(read_json(&mut reader).unwrap()["ok"], true);
+    // The server may close while this is still being written.
+    let _ = stream.write_all(&vec![b'x'; crate::security::MAX_REQUEST_BYTES + 16]);
+    let reply = read_json(&mut reader).unwrap();
+    assert_eq!(reply["ok"], false);
+    assert!(reply["error"].as_str().unwrap().starts_with("request exceeds"), "{reply}");
+    assert!(read_json(&mut reader).is_none(), "the connection is closed");
+    assert!(rx.try_recv().is_err());
+}

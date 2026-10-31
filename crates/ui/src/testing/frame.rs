@@ -22,9 +22,8 @@ use std::time::{Duration, Instant};
 use egui::{Event, KeyboardShortcut, Modifiers, MouseWheelSource, MouseWheelUnit, PointerButton, Pos2, TouchPhase, Vec2};
 use egui_kittest::Harness;
 
-/// Pointer moves a [`HarnessExt::drag`] makes between press and release.
-// designcraft: crates/ui-egui/src/panel_docking/tests.rs:79
-pub const DRAG_STEPS: usize = 8;
+use super::events;
+
 /// Frames in a row without work before [`HarnessExt::pump_idle`] calls the app idle, so layout and
 /// short UI animations finish.
 // lightcraft: crates/ui-egui/src/headless.rs:423
@@ -36,7 +35,8 @@ pub const PUMP_SLEEP: Duration = Duration::from_millis(1);
 /// Input and waiting helpers on [`Harness`]. Implemented for every harness; import it with
 /// `use craft_ui::testing::HarnessExt as _`.
 pub trait HarnessExt {
-    /// A primary click at `pos`: move there, press, release, one frame each, then 3 frames.
+    /// A primary click at `pos`: move there, press, release, one frame each, then 3 frames
+    /// ([`events::click`]).
     fn click_at(&mut self, pos: Pos2);
 
     /// A click of `button` at `pos` with `modifiers` held throughout: modifiers changed, move
@@ -44,7 +44,7 @@ pub trait HarnessExt {
     fn click_at_with(&mut self, pos: Pos2, button: PointerButton, modifiers: Modifiers);
 
     /// A primary drag from `from` to `to` with `modifiers` held: move to `from` (1 frame), press
-    /// (1 frame), [`DRAG_STEPS`] evenly spaced moves (1 frame each), release at `to`, 3 frames.
+    /// (1 frame), [`DRAG_STEPS`](super::DRAG_STEPS) evenly spaced moves (1 frame each), release at `to`, 3 frames.
     fn drag(&mut self, from: Pos2, to: Pos2, modifiers: Modifiers);
 
     /// The mouse wheel turned over `pos` by `delta` points (`MouseWheelUnit::Point`, phase
@@ -52,10 +52,10 @@ pub trait HarnessExt {
     fn wheel_at(&mut self, pos: Pos2, delta: Vec2);
 
     /// `shortcut` pressed and released: the key down with its modifiers on one frame, up on the
-    /// next (`physical_key` is the logical key), then 2 frames.
+    /// next (`physical_key` is the logical key; [`events::key_press`]), then 2 frames.
     fn press(&mut self, shortcut: KeyboardShortcut);
 
-    /// `text` typed into the focused widget as one `Event::Text`, then 2 frames. For an input
+    /// `text` typed into the focused widget as one `Event::Text` frame, then 1 more frame. For an input
     /// method's composition use [`compose`](super::compose).
     fn type_text(&mut self, text: &str);
 
@@ -68,35 +68,28 @@ pub trait HarnessExt {
     fn pump_idle(&mut self, timeout: Duration, busy: impl FnMut(&Self) -> bool) -> bool;
 }
 
+/// Play each frame of `frames`: its events, then one step.
+fn play<State>(harness: &mut Harness<'_, State>, frames: Vec<events::Frame>) {
+    for frame in frames {
+        for event in frame {
+            harness.event(event);
+        }
+        harness.run_steps(1);
+    }
+}
+
 impl<State> HarnessExt for Harness<'_, State> {
     fn click_at(&mut self, pos: Pos2) {
         self.click_at_with(pos, PointerButton::Primary, Modifiers::NONE);
     }
 
     fn click_at_with(&mut self, pos: Pos2, button: PointerButton, modifiers: Modifiers) {
-        self.event(Event::ModifiersChanged(modifiers));
-        self.hover_at(pos);
-        self.run_steps(1);
-        self.event(Event::PointerButton { pos, button, pressed: true, modifiers });
-        self.run_steps(1);
-        self.event(Event::PointerButton { pos, button, pressed: false, modifiers });
-        self.run_steps(1);
-        self.event(Event::ModifiersChanged(Modifiers::NONE));
+        play(self, events::click(pos, button, 1, modifiers));
         self.run_steps(3);
     }
 
     fn drag(&mut self, from: Pos2, to: Pos2, modifiers: Modifiers) {
-        self.event(Event::ModifiersChanged(modifiers));
-        self.event(Event::PointerMoved(from));
-        self.run_steps(1);
-        self.event(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers });
-        self.run_steps(1);
-        for step in 1..=DRAG_STEPS {
-            self.event(Event::PointerMoved(from + (to - from) * (step as f32 / DRAG_STEPS as f32)));
-            self.run_steps(1);
-        }
-        self.event(Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers });
-        self.event(Event::ModifiersChanged(Modifiers::NONE));
+        play(self, events::drag(from, to, modifiers));
         self.run_steps(3);
     }
 
@@ -113,18 +106,13 @@ impl<State> HarnessExt for Harness<'_, State> {
     }
 
     fn press(&mut self, shortcut: KeyboardShortcut) {
-        let KeyboardShortcut { modifiers, logical_key: key } = shortcut;
-        self.event(Event::ModifiersChanged(modifiers));
-        self.event(Event::Key { key, physical_key: Some(key), pressed: true, repeat: false, modifiers });
-        self.run_steps(1);
-        self.event(Event::Key { key, physical_key: Some(key), pressed: false, repeat: false, modifiers });
-        self.event(Event::ModifiersChanged(Modifiers::NONE));
-        self.run_steps(3);
+        play(self, events::key_press(shortcut.logical_key, shortcut.modifiers));
+        self.run_steps(2);
     }
 
     fn type_text(&mut self, text: &str) {
-        self.event(Event::Text(text.into()));
-        self.run_steps(2);
+        play(self, events::text(text));
+        self.run_steps(1);
     }
 
     fn pump_until(&mut self, timeout: Duration, mut done: impl FnMut(&Self) -> bool) -> bool {

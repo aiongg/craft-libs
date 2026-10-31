@@ -38,7 +38,7 @@ fn deadlines_distinguish_expired_from_timed_out() {
     assert_eq!(abandoned_reply.try_recv().unwrap()["error"], json!(expired_error()));
 }
 
-fn park(channel: &mut ControlChannel, outcome: Outcome) -> Receiver<ControlResponse> {
+fn park(channel: &mut ControlChannel, outcome: Reply) -> Receiver<ControlResponse> {
     let (req, reply) = ControlRequest::new("m", json!({}));
     channel.settle(req, outcome, None, 0.0);
     reply
@@ -49,11 +49,11 @@ fn park(channel: &mut ControlChannel, outcome: Outcome) -> Receiver<ControlRespo
 fn waiters_reply_when_input_or_job_settles() {
     let (_tx, rx) = channel();
     let mut channel = ControlChannel::new(rx);
-    let input = park(&mut channel, Outcome::AfterInput);
-    let cancelled = park(&mut channel, Outcome::AfterInput);
-    let job = park(&mut channel, Outcome::AfterJob(7));
-    let other = park(&mut channel, Outcome::AfterJob(8));
-    let done = park(&mut channel, Outcome::Done(json!({"ok": true, "result": 1})));
+    let input = park(&mut channel, Reply::AfterInput);
+    let cancelled = park(&mut channel, Reply::AfterInput);
+    let job = park(&mut channel, Reply::AfterJob(7));
+    let other = park(&mut channel, Reply::AfterJob(8));
+    let done = park(&mut channel, Reply::Done(json!({"ok": true, "result": 1})));
     assert_eq!(done.try_recv().unwrap()["result"], json!(1));
     assert_eq!(channel.waiting(), 4);
     assert!(input.try_recv().is_err() && job.try_recv().is_err());
@@ -69,7 +69,7 @@ fn waiters_reply_when_input_or_job_settles() {
     assert_eq!(other.try_recv().unwrap(), json!({"ok": true, "result": "x"}));
     assert_eq!(channel.waiting(), 0);
 
-    let waiting = park(&mut channel, Outcome::AfterInput);
+    let waiting = park(&mut channel, Reply::AfterInput);
     channel.input_cancelled("gone");
     assert_eq!(waiting.try_recv().unwrap(), json!({"ok": false, "error": "input cancelled: gone"}));
 }
@@ -81,9 +81,35 @@ fn cancel_input_fails_waiters_without_queued_input() {
     let mut channel = ControlChannel::new(rx);
     let mut input = SyntheticInput::default();
     assert!(!channel.cancel_input(&mut input, "idle"));
-    let waiting = park(&mut channel, Outcome::AfterInput);
+    let waiting = park(&mut channel, Reply::AfterInput);
     assert!(channel.cancel_input(&mut input, "lost"));
     assert_eq!(waiting.try_recv().unwrap(), json!({"ok": false, "error": "input cancelled: lost"}));
     input.type_text("x");
     assert!(channel.cancel_input(&mut input, "again") && input.is_empty());
+}
+
+// A screenshot the capture budget refuses is replied to at once, and a finished capture is answered through the writer.
+#[test]
+fn settle_refuses_a_screenshot_over_budget_and_finishes_the_others() {
+    let (_tx, rx) = channel();
+    let mut control = ControlChannel::new(rx);
+    control.captures.note_geometry(crate::screenshot::CaptureGeometry {
+        size_points: [12_000.0, 12_000.0],
+        pixels_per_point: 1.0,
+        zoom: 1.0,
+        max_texture_side: 16384,
+        minimized: false,
+        document: None,
+    });
+    let (req, reply) = ControlRequest::new("ui.screenshot", json!({}));
+    control.settle(req, Reply::Screenshot { token: 1, path: None }, None, 0.0);
+    let refused = reply.try_recv().expect("refused at once");
+    assert_eq!(refused["ok"], false);
+    assert!(refused["error"].as_str().unwrap().contains("per-image limit"), "{refused}");
+    assert_eq!(control.waiting(), 0);
+
+    let (tx, done) = channel::<ControlResponse>();
+    let finished = vec![crate::screenshot::Finished { token: 2, path: None, reply: Some(tx), result: Err("capture failed".into()) }];
+    control.finish_captures(finished, &mut |_, _| Ok(()));
+    assert_eq!(done.try_recv().unwrap(), json!({"ok": false, "error": "capture failed"}));
 }
