@@ -552,17 +552,69 @@ fn a_caret_past_a_tiny_or_unbounded_screen_stays_inside_it() {
 // With `set_committed`, the published IME output carries the committed text without the marked
 // text, and byte offsets that leave it out.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn surrounding_text_leaves_out_the_marked_text() {
-    todo!()
+    let ctx = Context::default();
+    let mut c = Composer::new();
+    let caret = Rect::from_min_size(pos2(10.0, 10.0), vec2(1.0, 16.0));
+    // "ab" + marked "かな" + "cd", caret at the end of the marked text.
+    let out = run(&ctx, 0.0, vec![], |ctx| {
+        c.update(ctx, true);
+        c.set_committed("abかなcd", 8, 8, Some(2..8));
+        c.set_caret(ctx, caret);
+    });
+    let ime = out.platform_output.ime.expect("IME on");
+    let payload = ime.surrounding_text.available().expect("available");
+    assert_eq!((payload.text.as_str(), payload.cursor, payload.anchor), ("abcd", 2, 2));
+
+    // Offsets that don't fit the text leave it unavailable.
+    let out = run(&ctx, 0.1, vec![], |ctx| {
+        c.update(ctx, true);
+        c.set_committed("ab", 9, 9, None);
+        c.set_caret(ctx, caret);
+    });
+    assert!(out.platform_output.ime.expect("IME on").surrounding_text.available().is_none());
 }
 
 // After `reset`, preedit and commit events are dropped until `ImeResetCompleted` for that request
 // arrives; a completion for an older request changes nothing.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn reset_blocks_the_composition_until_it_completes() {
-    todo!()
+    let ctx = Context::default();
+    let mut c = Composer::new();
+    let caret = Rect::from_min_size(pos2(10.0, 10.0), vec2(1.0, 16.0));
+    let pass = |c: &mut Composer, t: f64, events: Vec<Event>, reset: bool| {
+        let mut edits = Vec::new();
+        let out = run(&ctx, t, events, |ctx| {
+            edits = c.update(ctx, true);
+            if reset {
+                c.reset(ctx);
+            }
+            c.set_caret(ctx, caret);
+        });
+        (edits, out.platform_output.ime.and_then(|i| i.reset_request))
+    };
+    let (edits, _) = pass(&mut c, 0.0, vec![preedit("に", None)], false);
+    assert_eq!(edits, vec![Edit::Preedit { text: "に".into(), active: None }]);
+    assert!(c.is_composing());
+
+    // The text changed underneath: the marked text goes and the output carries the request.
+    let (_, first) = pass(&mut c, 0.1, vec![], true);
+    assert!(!c.is_composing());
+    let first = first.expect("the pass that published the output asks for the reset");
+
+    // Stale input from the old composition is dropped.
+    let (edits, _) = pass(&mut c, 0.2, vec![preedit("に", None), commit("日")], false);
+    assert!(edits.is_empty());
+    assert!(!c.is_composing());
+
+    // A second reset retires the first id; its completion changes nothing.
+    let (_, second) = pass(&mut c, 0.3, vec![preedit("x", None)], true);
+    let second = second.expect("a new request");
+    assert_ne!(first, second);
+    let (edits, _) = pass(&mut c, 0.4, vec![Event::ImeResetCompleted { request_id: first }, commit("日")], false);
+    assert!(edits.is_empty(), "an older request's completion doesn't open the input");
+
+    // The completion of the latest request does, and later events apply.
+    let (edits, _) = pass(&mut c, 0.5, vec![Event::ImeResetCompleted { request_id: second }, commit("日")], false);
+    assert_eq!(edits, vec![Edit::Insert("日".into())]);
 }
