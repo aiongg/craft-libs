@@ -453,11 +453,13 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
         let style = self.style;
         let height = if kind == TabKind::Panel { style.panel_height } else { style.strip_height(large) };
         let (_, rect) = ui.allocate_space(vec2(ui.available_width(), height));
-        if !kind.text_only() {
+        if kind.text_only() {
+            style.paint_hairline(ui.painter(), rect);
+        } else {
             ui.painter().rect_filled(rect, 0.0, style.strip);
         }
         let shows_close = kind.shows_close();
-        let natural: Vec<f32> = tabs.iter().map(|tab| tab.natural_width(ui, large, shows_close)).collect();
+        let natural: Vec<f32> = tabs.iter().map(|tab| tab.natural_width(ui, large, shows_close, kind.text_only())).collect();
         let selected_at = selected.as_ref().and_then(|key| tabs.iter().position(|tab| tab.key() == key));
         let plan = StripPlan::new(&StripPlanInput {
             kind,

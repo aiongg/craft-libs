@@ -12,7 +12,7 @@
 
 use super::{ComponentField, ContrastPair, Family, FieldKind, FloatField, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
-use crate::tokens::{TokenRef, TypeRole};
+use crate::tokens::{FontSlot, TokenRef, TypeRole, TypeStyle};
 use crate::values;
 
 /// Tab tokens.
@@ -52,12 +52,20 @@ pub struct TabTokens {
     pub indicator_width: f32,
     /// How far outside the strip a tab drag still resolves targets.
     pub tear_off: f32,
+    /// Between a text tab's edge and its label (PhotoCraft's category tabs sit 18 apart).
+    pub text_pad_x: f32,
+    /// Thickness of a text strip's selected-tab underline.
+    pub underline_width: f32,
+    /// From the bottom of a text tab's label to the centre of its underline.
+    pub underline_gap: f32,
     /// Type role of the label.
     pub label: TypeRole,
     /// Type role of the label with Large Tabs.
     pub label_large: TypeRole,
     /// Type role of the detail text.
     pub detail_role: TypeRole,
+    /// Type style of a text tab's label: PhotoCraft's category tabs at 13 pt.
+    pub text_label: TypeStyle,
     /// Behind the strip: `surface.panel`, the active tab's colour (PhotoCraft's Pro themes pin a
     /// darker `tab_strip`).
     pub strip: Rgba,
@@ -85,6 +93,8 @@ pub struct TabTokens {
     /// its fill and label as in PhotoCraft; high contrast sets it to a colour that reaches the
     /// control edge minimum on the strip and on the selected tab.
     pub indicator: Rgba,
+    /// The underline of a text strip's selected tab: `text.normal`.
+    pub underline: Rgba,
 }
 
 impl TabTokens {
@@ -113,12 +123,14 @@ impl TabTokens {
             TabField::Drop => &mut self.drop,
             TabField::DropHalo => &mut self.drop_halo,
             TabField::Indicator => &mut self.indicator,
+            TabField::Underline => &mut self.underline,
         })
     }
 }
 
 /// An overridable tab token. Paths: `radius`, `strip`, `active`, `text`, `text.inactive`,
-/// `detail`, `divider`, `close`, `close.fill`, `close.hover`, `drop`, `drop.halo`, e.g.
+/// `detail`, `divider`, `close`, `close.fill`, `close.hover`, `drop`, `drop.halo`, `indicator`,
+/// `underline`, e.g.
 /// `tab.text.inactive`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum TabField {
@@ -148,6 +160,8 @@ pub enum TabField {
     DropHalo,
     /// `tab.indicator`
     Indicator,
+    /// `tab.underline`
+    Underline,
 }
 
 impl TabField {
@@ -166,6 +180,7 @@ impl TabField {
             TabField::Drop => "drop",
             TabField::DropHalo => "drop.halo",
             TabField::Indicator => "indicator",
+            TabField::Underline => "underline",
         }
     }
 }
@@ -186,6 +201,7 @@ impl Family for TabTokens {
         TabField::Drop,
         TabField::DropHalo,
         TabField::Indicator,
+        TabField::Underline,
     ];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { TabTokens;
         "height" 16.0..=64.0 => height;
@@ -202,6 +218,9 @@ impl Family for TabTokens {
         "progress_height" 0.0..=1024.0 => progress_height;
         "indicator_width" 0.0..=16.0 => indicator_width;
         "tear_off" 0.0..=64.0 => tear_off;
+        "text_pad_x" 0.0..=64.0 => text_pad_x;
+        "underline_width" 0.0..=16.0 => underline_width;
+        "underline_gap" 0.0..=16.0 => underline_gap;
     };
 
     fn defaults(s: &Semantic<'_>) -> TabTokens {
@@ -223,9 +242,13 @@ impl Family for TabTokens {
             progress_height: values::TAB_PROGRESS_HEIGHT,
             indicator_width: values::TAB_INDICATOR_WIDTH,
             tear_off: values::TAB_TEAR_OFF,
+            text_pad_x: values::TAB_TEXT_PAD_X,
+            underline_width: values::TAB_UNDERLINE_WIDTH,
+            underline_gap: values::TAB_UNDERLINE_GAP,
             label: TypeRole::Label,
             label_large: TypeRole::Body,
             detail_role: TypeRole::Caption,
+            text_label: TypeStyle { size: values::TAB_TEXT_LABEL_SIZE, line_height: values::TAB_TEXT_LABEL_LINE_HEIGHT, font: FontSlot::Ui },
             strip: c.surface.panel,
             active: c.surface.panel,
             text: c.text.normal,
@@ -238,6 +261,7 @@ impl Family for TabTokens {
             drop: c.accent.solid,
             drop_halo: c.surface.panel,
             indicator: Rgba::TRANSPARENT,
+            underline: c.text.normal,
         }
     }
 
@@ -298,6 +322,7 @@ impl Family for TabTokens {
             pair(TabField::Text, TabField::Active, text),
             pair(TabField::InactiveText, TabField::Strip, text),
             pair(TabField::InactiveText, TabField::Active, text),
+            pair(TabField::Underline, TabField::Strip, mark),
             pair(TabField::Detail, TabField::Strip, text),
             pair(TabField::Detail, TabField::Active, text),
             pair(TabField::Close, TabField::Strip, mark),

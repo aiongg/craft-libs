@@ -381,3 +381,39 @@ fn the_story_shows_in_both_directions_and_both_sizes() {
         }
     }
 }
+
+/// A text strip paints the strip's hairline across its bottom edge and an underline under the
+/// selected tab's label only: `tab.underline_width` thick, as wide as the label, centred
+/// `tab.underline_gap` below the label's text row.
+#[test]
+fn a_text_strip_underlines_the_selected_label_and_draws_the_hairline() {
+    let s = style();
+    let tabs: Vec<Tab<u8>> = ["Recent", "Photo", "Print"].into_iter().zip(0u8..).map(|(l, k)| Tab::new(k, l)).collect();
+    let mut geometry = None;
+    let drawn = shapes(|ui| {
+        let out = TabStrip::new("text", "Categories", TabKind::Text).selected(&1).show(ui, &tabs);
+        geometry = Some((out.response.rect, out.tabs));
+    });
+    let (strip, placed) = geometry.expect("strip");
+    let lines: Vec<(f32, std::ops::RangeInclusive<f32>, egui::Stroke)> = drawn
+        .iter()
+        .filter_map(|shape| match shape {
+            Shape::LineSegment { points, stroke } => Some((points[0].y, points[0].x.min(points[1].x)..=points[0].x.max(points[1].x), *stroke)),
+            _ => None,
+        })
+        .collect();
+    let hairlines: Vec<_> = lines.iter().filter(|(_, _, stroke)| stroke.color == s.divider.color).collect();
+    assert_eq!(hairlines.len(), 1, "one hairline");
+    assert_eq!((*hairlines[0].1.start(), *hairlines[0].1.end()), (strip.left(), strip.right()), "across the strip");
+    assert!(hairlines[0].0 > strip.bottom() - 1.0 && hairlines[0].0 < strip.bottom(), "on the bottom edge");
+
+    let underlines: Vec<_> = lines.iter().filter(|(_, _, stroke)| stroke.color == s.underline).collect();
+    assert_eq!(underlines.len(), 1, "only the selected tab is underlined");
+    let (y, x, stroke) = underlines[0];
+    assert_eq!(stroke.width, s.underline_width);
+    let selected = placed[1].1;
+    let expected = selected.center().y + s.text_label.line_height / 2.0 + s.underline_gap;
+    assert!((y - expected).abs() <= 0.5, "underline at {y}, expected {expected}");
+    assert!(selected.contains(pos2(*x.start(), selected.center().y)) && selected.contains(pos2(*x.end(), selected.center().y)));
+    assert!((x.start() - selected.left() - s.text_pad_x).abs() <= 0.5, "starts at the label, after the text padding");
+}

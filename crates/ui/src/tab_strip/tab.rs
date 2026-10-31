@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use craft_theme::{Stroke as Hairline, TypeRole};
+use craft_theme::{Stroke as Hairline, TypeRole, TypeStyle};
 use egui::accesskit::{Node, Role};
 use egui::emath::GuiRounding as _;
 use egui::os::OperatingSystem;
@@ -16,7 +16,7 @@ use crate::direction;
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{FocusRing, Interactive};
 use crate::story::{Level, Story, StoryArgs};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
+use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, style_format};
 use crate::typed_story;
 
 crate::words! {
@@ -225,6 +225,12 @@ pub struct TabStyle {
     pub progress_height: f32,
     /// `tab.indicator_width`.
     pub indicator_width: f32,
+    /// `tab.text_pad_x`.
+    pub text_pad_x: f32,
+    /// `tab.underline_width`.
+    pub underline_width: f32,
+    /// `tab.underline_gap`.
+    pub underline_gap: f32,
     /// `tab.tear_off`.
     pub tear_off: f32,
     /// Side of the tab's icon: `size.icon.sm`.
@@ -234,6 +240,8 @@ pub struct TabStyle {
     pub label_role_large: TypeRole,
     /// `tab.detail_role`.
     pub detail_role: TypeRole,
+    /// `tab.text_label`: the label of a text tab.
+    pub text_label: TypeStyle,
     /// Corners of the × under the pointer: `radius.control`.
     pub close_radius: f32,
     /// `tab.strip`, and `tab.active` behind the active tab and a tab under the pointer.
@@ -256,6 +264,8 @@ pub struct TabStyle {
     /// `tab.indicator`: the bar along the selected tab's top edge, transparent unless high
     /// contrast sets it.
     pub indicator: Color32,
+    /// `tab.underline`: under the selected text tab's label.
+    pub underline: Color32,
     /// The progress bar: `progress.track` and `progress.fill`.
     pub track: Color32,
     pub fill: Color32,
@@ -288,6 +298,34 @@ impl TabStyle {
             let bar = Rect::from_min_size(rect.min, vec2(rect.width(), self.indicator_width.min(rect.height())));
             painter.rect_filled(bar, 0.0, self.indicator);
         }
+    }
+
+    /// The style of a label: `tab.text_label` for a text tab, else the label role of `large`.
+    pub fn label_style(&self, tokens: &UiTokens, large: bool, text_only: bool) -> TypeStyle {
+        if text_only { self.text_label } else { tokens.typography.get(self.label_role(large)) }
+    }
+
+    /// This style for a text tab: `tab.text_pad_x` between its edge and its label.
+    pub fn for_text(&self) -> TabStyle {
+        TabStyle { pad_x: self.text_pad_x, ..*self }
+    }
+
+    /// The underline of the selected text tab whose label is `label`: `tab.underline_width` thick,
+    /// the label's width, centred `tab.underline_gap` below the label's text row of height
+    /// `row`, which sits in the middle of the tab.
+    pub fn paint_underline(&self, painter: &egui::Painter, label: Rect, row: f32) {
+        let y = label.center().y + row / 2.0 + self.underline_gap;
+        let ppp = painter.pixels_per_point();
+        painter.hline(label.x_range(), y.round_to_pixel_center(ppp), Stroke::new(self.underline_width, self.underline));
+    }
+
+    /// The hairline along the bottom edge of a text strip in `rect`, in `tab.divider`, one
+    /// physical pixel thick.
+    pub fn paint_hairline(&self, painter: &egui::Painter, rect: Rect) {
+        let ppp = painter.pixels_per_point();
+        let width = Hairline::Hairline.width(ppp);
+        let y = (rect.bottom() - width / 2.0).round_to_pixel_center(ppp);
+        painter.hline(rect.x_range(), y, Stroke::new(width, self.divider.color));
     }
 
     /// The colour of a tab's label: `tab.text` on the active tab, `tab.text.inactive` on the others,
@@ -532,11 +570,15 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             drop_halo: Stroke::new(t.drop_halo_width, t.drop_halo.to_egui()),
             progress_height: t.progress_height,
             indicator_width: t.indicator_width,
+            text_pad_x: t.text_pad_x,
+            underline_width: t.underline_width,
+            underline_gap: t.underline_gap,
             tear_off: t.tear_off,
             icon_size: tokens.size.icon.sm,
             label_role: t.label,
             label_role_large: t.label_large,
             detail_role: t.detail_role,
+            text_label: t.text_label,
             close_radius: tokens.shape.radius.control,
             strip: t.strip.to_egui(),
             active: t.active.to_egui(),
@@ -549,23 +591,25 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             close_fill: t.close_fill.to_egui(),
             drop: t.drop.to_egui(),
             indicator: t.indicator.to_egui(),
+            underline: t.underline.to_egui(),
             track: p.track.to_egui(),
             fill: p.fill.to_egui(),
         }
     }
 
     /// The widths of this tab's text runs at `large`.
-    pub fn metrics(&self, ui: &Ui, large: bool) -> TabMetrics {
+    pub fn metrics(&self, ui: &Ui, large: bool, text_only: bool) -> TabMetrics {
         let tokens = Tokens::of(ui);
         let style = Self::style(&tokens);
-        let width = |text: &str, role: TypeRole| {
-            let job = LayoutJob::single_section(text.to_owned(), role_format(&tokens, role, Color32::WHITE));
+        let width = |text: &str, style: TypeStyle| {
+            let job = LayoutJob::single_section(text.to_owned(), style_format(tokens.families(), style, Color32::WHITE));
             ui.painter().layout_job(job).size().x
         };
+        let label = style.label_style(&tokens, large, text_only);
         TabMetrics {
-            label: self.shaped.as_ref().map_or_else(|| width(&self.label, style.label_role(large)), |s| s.0.size().x),
-            detail: self.detail.as_deref().map_or(0.0, |d| width(d, style.detail_role)),
-            mark: if self.modified { width("*", style.label_role(large)) } else { 0.0 },
+            label: self.shaped.as_ref().map_or_else(|| width(&self.label, label), |s| s.0.size().x),
+            detail: self.detail.as_deref().map_or(0.0, |d| width(d, tokens.typography.get(style.detail_role))),
+            mark: if self.modified { width("*", label) } else { 0.0 },
         }
     }
 
@@ -574,9 +618,12 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         TabParts { icon: self.icon.is_some(), close: close && self.closable }
     }
 
-    /// The tab's natural width at `large`, with its × if `close` and the tab is closable.
-    pub fn natural_width(&self, ui: &Ui, large: bool, close: bool) -> f32 {
-        Self::style(&Tokens::of(ui)).natural_width(&self.metrics(ui, large), self.parts(close))
+    /// The tab's natural width at `large`, with its × if `close` and the tab is closable, as a
+    /// text tab if `text_only`.
+    pub fn natural_width(&self, ui: &Ui, large: bool, close: bool, text_only: bool) -> f32 {
+        let style = Self::style(&Tokens::of(ui));
+        let style = if text_only { style.for_text() } else { style };
+        style.natural_width(&self.metrics(ui, large, text_only), self.parts(close))
     }
 
     /// Draws the tab in `rect` and senses it, then its × (registered after the tab, so a press
@@ -594,7 +641,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
     /// accessibility tree lists the tab) and paints nothing.
     pub fn show_with(&self, ui: &mut Ui, rect: Rect, view: &TabView<'_>, style: &TabStyle) -> TabResponse {
         let tokens = Tokens::of(ui);
-        let mut style = *style;
+        let mut style = if view.text_only { style.for_text() } else { *style };
         style.divider.width = Hairline::Hairline.width(ui.pixels_per_point());
         let id = self.widget_id(view.strip);
         let size = rect.size();
@@ -605,7 +652,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             return TabResponse { tab, close: None, layout };
         }
         let rtl = direction::is_rtl(ui);
-        let metrics = self.metrics(ui, view.large);
+        let metrics = self.metrics(ui, view.large, view.text_only);
         let parts = self.parts(true);
         let close_first = ui.ctx().os() == OperatingSystem::Mac;
         let layout = style.layout(rect, &metrics, parts, rtl, close_first);
@@ -687,11 +734,16 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         }
         let text = style.label_color(view.active);
         let large = view.large;
-        let run = |ui: &Ui, at: Rect, text_role: TypeRole, string: &str, color: Color32| {
+        let label_style = style.label_style(tokens, large, view.text_only);
+        if view.text_only && view.active {
+            let label = Rect::from_x_y_ranges(layout.label.x_range(), rect.y_range());
+            style.paint_underline(ui.painter(), label, label_style.line_height);
+        }
+        let run = |ui: &Ui, at: Rect, text_style: TypeStyle, string: &str, color: Color32| {
             if at.width() < 1.0 {
                 return;
             }
-            let mut job = LayoutJob::single_section(string.to_owned(), role_format(tokens, text_role, color));
+            let mut job = LayoutJob::single_section(string.to_owned(), style_format(tokens.families(), text_style, color));
             job.wrap = egui::text::TextWrapping::truncate_at_width(at.width());
             let galley = ui.painter().layout_job(job);
             let x = if rtl { at.right() - galley.size().x } else { at.left() };
@@ -713,13 +765,13 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
                 ui.painter().with_clip_rect(at.expand2(vec2(0.0, 1.0))).galley(pos2(x, y).round_to_pixels(ppp), galley, text);
             }
             Some(_) => {}
-            None => run(ui, layout.label, style.label_role(large), &self.label, text),
+            None => run(ui, layout.label, label_style, &self.label, text),
         }
         if let (Some(at), Some(detail)) = (layout.detail, &self.detail) {
-            run(ui, at, style.detail_role, detail, style.detail);
+            run(ui, at, tokens.typography.get(style.detail_role), detail, style.detail);
         }
         if let Some(at) = layout.mark {
-            run(ui, at, style.label_role(large), "*", text);
+            run(ui, at, label_style, "*", text);
         }
         if let (Some(at), Some(icon)) = (layout.icon, self.icon) {
             icons::paint_in(ui, at, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Sm.stroke(), text);

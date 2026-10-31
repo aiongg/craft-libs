@@ -1257,6 +1257,7 @@ fn tab_pairs() -> Vec<(TabField, TabField, (f64, f64))> {
         (TabField::InactiveText, TabField::Active, text),
         (TabField::Detail, TabField::Strip, text),
         (TabField::Detail, TabField::Active, text),
+        (TabField::Underline, TabField::Strip, mark),
         (TabField::Close, TabField::Strip, mark),
         (TabField::Close, TabField::Active, mark),
         (TabField::Drop, TabField::DropHalo, mark),

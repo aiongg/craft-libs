@@ -897,6 +897,17 @@ pub const TAB_DROP_HALO: f32 = 1.0;
 pub const TAB_PROGRESS_HEIGHT: f32 = 2.0;
 /// Thickness of the bar along the top edge of the selected tab, in points, at every Size.
 pub const TAB_INDICATOR_WIDTH: f32 = 2.0;
+/// Between a text tab's edge and its label, in points: half of PhotoCraft's 18 pt between
+/// category tabs (`new_doc_ui.rs`, `item_spacing.x`).
+pub const TAB_TEXT_PAD_X: f32 = 9.0;
+/// Thickness of a text strip's selected-tab underline, in points.
+pub const TAB_UNDERLINE_WIDTH: f32 = 2.0;
+/// From the bottom of a text tab's label to the centre of its underline, in points.
+pub const TAB_UNDERLINE_GAP: f32 = 3.0;
+/// Size of a text tab's label in points (PhotoCraft's category tabs).
+pub const TAB_TEXT_LABEL_SIZE: f32 = 13.0;
+/// Line height of a text tab's label in points.
+pub const TAB_TEXT_LABEL_LINE_HEIGHT: f32 = 16.0;
 /// How far outside its strip a tab drag still resolves targets (PhotoCraft's `TEAR_OFF`).
 pub const TAB_TEAR_OFF: f32 = 24.0;
 

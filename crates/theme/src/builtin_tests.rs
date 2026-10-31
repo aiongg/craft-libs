@@ -390,7 +390,7 @@ fn builtin_tab_text_close_and_drop_marker_meet_their_minimums() {
         for a in appearances() {
             let (_, steps) = resolve_with_steps(theme, a, None);
             let pairs: Vec<_> = steps.component_pairs.iter().filter(|p| matches!(p.fg, TokenRef::Component(ComponentField::Tab(_)))).collect();
-            assert_eq!(pairs.len(), 10, "{} {a:?}", theme.id);
+            assert_eq!(pairs.len(), 11, "{} {a:?}", theme.id);
             for p in pairs {
                 assert_passes_in_high_contrast(theme, a, p);
             }

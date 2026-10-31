@@ -789,9 +789,13 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         progress_height,
         indicator_width,
         tear_off,
+        text_pad_x,
+        underline_width,
+        underline_gap,
         label,
         label_large,
         detail_role,
+        text_label,
         strip,
         active,
         text,
@@ -804,6 +808,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         drop,
         drop_halo,
         indicator,
+        underline,
     } = t;
     out.line("tab.height", len(*height));
     out.line("tab.panel_height", len(*panel_height));
@@ -821,9 +826,16 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
     out.line("tab.progress_height", len(*progress_height));
     out.line("tab.indicator_width", len(*indicator_width));
     out.line("tab.tear_off", len(*tear_off));
+    out.line("tab.text_pad_x", len(*text_pad_x));
+    out.line("tab.underline_width", len(*underline_width));
+    out.line("tab.underline_gap", len(*underline_gap));
     out.line("tab.label", role(*label));
     out.line("tab.label_large", role(*label_large));
     out.line("tab.detail_role", role(*detail_role));
+    let TypeStyle { size, line_height, font } = text_label;
+    out.line("tab.text_label.size", len(*size));
+    out.line("tab.text_label.line_height", len(*line_height));
+    out.line("tab.text_label.font", slot(*font));
     for (k, c) in [
         ("strip", strip),
         ("active", active),
@@ -837,6 +849,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         ("drop", drop),
         ("drop.halo", drop_halo),
         ("indicator", indicator),
+        ("underline", underline),
     ] {
         out.line(&format!("tab.{k}"), hex(*c));
     }
