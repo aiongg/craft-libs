@@ -3,17 +3,17 @@
 //! show; the set holds the app's built-in workspaces, the user's saved ones, the current one and
 //! Lock Workspace.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use std::hash::Hash;
+use std::{collections::BTreeMap, hash::Hash};
 
 use egui::{Response, Ui};
 
 use super::Workspace;
-use crate::menu::MenuEntry;
+use crate::controls::{ControlSize, Select};
+use crate::menu::{MenuEntry, MenuItem};
 
 /// Chrome a workspace remembers beside the dock layout: which bars show and the panel set.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub struct WorkspaceChrome {
     pub menu_bar: bool,
@@ -24,6 +24,8 @@ pub struct WorkspaceChrome {
 
 /// One named workspace.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(bound(deserialize = "P: serde::Deserialize<'de>")))]
 pub struct NamedWorkspace<P> {
     /// Stable id (`"essentials"`, or a slug of a saved name).
     pub id: String,
@@ -36,10 +38,12 @@ pub struct NamedWorkspace<P> {
     pub keeps_menus: bool,
 }
 
-/// The app's workspaces: built-ins first, saved ones after, one current. The fill task gives it
-/// serde (a settings section) once `Workspace` derives it unconditionally; the layouts of
-/// built-ins are code, only their user edits are stored.
-#[derive(Clone, Debug, Default, PartialEq)]
+/// The app's workspaces: built-ins first, saved ones after, one current. It is a settings
+/// section (serde with the `serde` feature, as [`Workspace`]); the layouts of built-ins are
+/// code, and only their user edits ([`edited`](Self::edited)) are stored.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default, bound(deserialize = "P: serde::Deserialize<'de> + Eq + Hash + Clone")))]
 pub struct WorkspaceSet<P> {
     pub builtin: Vec<NamedWorkspace<P>>,
     pub saved: Vec<NamedWorkspace<P>>,
@@ -47,6 +51,15 @@ pub struct WorkspaceSet<P> {
     pub current: String,
     /// Lock Workspace: panels can't be moved, closed or resized; the dock is shown locked.
     pub locked: bool,
+    /// The live layout each workspace was left with, by id, until Reset or Delete. Photoshop
+    /// remembers the state of each workspace this way.
+    pub edited: BTreeMap<String, Workspace<P>>,
+}
+
+impl<P> Default for WorkspaceSet<P> {
+    fn default() -> Self {
+        Self { builtin: Vec::new(), saved: Vec::new(), current: String::new(), locked: false, edited: BTreeMap::new() }
+    }
 }
 
 /// What a workspace menu or switcher row does.
@@ -66,43 +79,127 @@ pub enum WorkspaceCommand {
 
 impl<P: Clone + Eq + Hash> WorkspaceSet<P> {
     pub fn new(builtin: Vec<NamedWorkspace<P>>) -> Self {
-        todo!()
+        let current = builtin.first().map(|w| w.id.clone()).unwrap_or_default();
+        Self { builtin, current, ..Self::default() }
     }
 
     pub fn current(&self) -> Option<&NamedWorkspace<P>> {
-        todo!()
+        self.find(&self.current)
+    }
+
+    /// The workspace with this id.
+    fn find(&self, id: &str) -> Option<&NamedWorkspace<P>> {
+        self.builtin.iter().chain(&self.saved).find(|w| w.id == id)
+    }
+
+    /// `base`, or `base-2`, `base-3`… when another workspace has the id.
+    fn free_id(&self, base: &str) -> String {
+        let taken = |id: &str| self.find(id).is_some();
+        if !taken(base) {
+            return base.to_string();
+        }
+        (2..).map(|n| format!("{base}-{n}")).find(|id| !taken(id)).unwrap_or_default()
+    }
+
+    /// The layout the current workspace shows: what it was left with, else its stored one.
+    pub fn layout(&self) -> Option<&Workspace<P>> {
+        self.edited.get(&self.current).or_else(|| self.current().map(|w| &w.layout))
+    }
+
+    /// Reset, New…, Delete…, a separator and Lock Workspace, with `wrap` turning each command into
+    /// the menu's command type. Delete is greyed while there is no saved workspace.
+    fn command_rows<T>(&self, labels: &WorkspaceLabels, mut wrap: impl FnMut(WorkspaceCommand) -> T) -> Vec<MenuEntry<T>> {
+        vec![
+            MenuItem::new(labels.reset.clone(), wrap(WorkspaceCommand::Reset)).into(),
+            MenuItem::new(labels.new.clone(), wrap(WorkspaceCommand::New)).into(),
+            MenuItem::new(labels.delete.clone(), wrap(WorkspaceCommand::Delete)).enabled(!self.saved.is_empty()).into(),
+            MenuEntry::Separator,
+            MenuItem::new(labels.lock.clone(), wrap(WorkspaceCommand::LockToggle)).check(self.locked).into(),
+        ]
     }
 
     /// Switch to `id`; the current workspace's live layout is kept under its id first (Photoshop
     /// remembers the state of each workspace until Reset).
     // pc: crates/ui-egui/src/menus/workspace_ui.rs:252 `select_workspace`.
     pub fn select(&mut self, id: &str, live: Workspace<P>) -> Result<(), WorkspaceError> {
-        todo!()
+        if self.find(id).is_none() {
+            return Err(WorkspaceError::UnknownId);
+        }
+        if self.find(&self.current).is_some() {
+            self.edited.insert(self.current.clone(), live);
+        }
+        self.current = id.to_string();
+        Ok(())
     }
 
     /// Save `live` under `name` and make it current; a name a built-in has is refused.
     // pc: crates/ui-egui/src/menus/workspace_ui.rs:207 `new_workspace`.
     pub fn save(&mut self, name: &str, live: Workspace<P>, chrome: WorkspaceChrome) -> Result<String, WorkspaceError> {
-        todo!()
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(WorkspaceError::EmptyName);
+        }
+        if self.builtin.iter().any(|w| w.name.to_lowercase() == name.to_lowercase() || w.id.to_lowercase() == name.to_lowercase()) {
+            return Err(WorkspaceError::NameTaken);
+        }
+        let existing = self.saved.iter().position(|w| w.name == name);
+        let id = match existing {
+            Some(i) => self.saved[i].id.clone(),
+            None => self.free_id(&slug(name)),
+        };
+        let mut layout = live;
+        layout.saved = None;
+        let (keeps_shortcuts, keeps_menus) = existing.map_or((false, false), |i| (self.saved[i].keeps_shortcuts, self.saved[i].keeps_menus));
+        let workspace = NamedWorkspace { id: id.clone(), name: name.to_string(), layout, chrome, keeps_shortcuts, keeps_menus };
+        match existing {
+            Some(i) => self.saved[i] = workspace,
+            None => self.saved.push(workspace),
+        }
+        self.edited.remove(&id);
+        self.current = id.clone();
+        Ok(id)
     }
 
     /// Delete a saved workspace; the current one can't be deleted (Photoshop greys it).
     // pc: crates/ui-egui/src/menus/workspace_ui.rs:239 `delete_workspace`.
     pub fn delete(&mut self, id: &str) -> Result<(), WorkspaceError> {
-        todo!()
+        let Some(i) = self.saved.iter().position(|w| w.id == id) else {
+            return Err(WorkspaceError::UnknownId);
+        };
+        if self.current == id {
+            return Err(WorkspaceError::CurrentCannotBeDeleted);
+        }
+        self.saved.remove(i);
+        self.edited.remove(id);
+        Ok(())
     }
 
     /// Reset the current workspace to its stored layout (the built-in's code layout).
     pub fn reset(&mut self) -> Option<&Workspace<P>> {
-        todo!()
+        self.edited.remove(&self.current);
+        self.current().map(|w| &w.layout)
     }
 
     /// The Window › Workspace rows: built-ins, saved, separator, Reset, New…, Delete…,
     /// separator, Lock Workspace (check). The current one carries a check mark.
     // pc: crates/ui-egui/src/menu_catalog.rs:730-742 and workspace_ui.rs:84 `checked`.
     pub fn menu_entries(&self, labels: &WorkspaceLabels) -> Vec<MenuEntry<WorkspaceCommand>> {
-        todo!()
+        let mut entries: Vec<MenuEntry<WorkspaceCommand>> = self
+            .builtin
+            .iter()
+            .chain(&self.saved)
+            .map(|w| MenuItem::new(w.name.clone(), WorkspaceCommand::Select(w.id.clone())).check(w.id == self.current).into())
+            .collect();
+        entries.push(MenuEntry::Separator);
+        entries.extend(self.command_rows(labels, |command| command));
+        entries
     }
+}
+
+/// Lower-case alphanumerics joined by single dashes; the name itself when it has none.
+fn slug(name: &str) -> String {
+    let words: Vec<String> = name.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_lowercase).collect();
+    if words.is_empty() { name.to_string() } else { words.join("-") }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -130,7 +227,29 @@ impl<'a, P: Clone + Eq + Hash> WorkspaceSwitcher<'a, P> {
     /// Returns the command picked this pass, if any.
     // pc: crates/ui-egui/src/menus/workspace_ui.rs:68 `switcher_options`; Photoshop's options bar switcher.
     pub fn show(self, ui: &mut Ui) -> (Response, Option<WorkspaceCommand>) {
-        todo!()
+        let Self { set, labels } = self;
+        let mut value = set.current.clone();
+        let commands: Vec<WorkspaceCommand> = set
+            .command_rows(labels, |command| command)
+            .into_iter()
+            .filter_map(|entry| entry.item().and_then(|item| item.command().cloned()))
+            .collect();
+        let mut index = 0;
+        let rows: Vec<MenuEntry<usize>> = set
+            .command_rows(labels, |_| {
+                index += 1;
+                index - 1
+            })
+            .into_iter()
+            .collect();
+        let mut picked = None;
+        let mut select = Select::new("workspace-switcher", labels.switcher.clone(), &mut value).size(ControlSize::Sm).fit(true);
+        for w in set.builtin.iter().chain(&set.saved) {
+            select = select.option(w.id.clone(), w.name.clone());
+        }
+        let edit = select.header_menu(labels.workspace.clone(), &rows, &mut picked).show(ui);
+        let command = edit.committed().cloned().map(WorkspaceCommand::Select).or_else(|| picked.and_then(|i| commands.get(i).cloned()));
+        (edit.response, command)
     }
 }
 
