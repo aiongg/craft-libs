@@ -46,6 +46,16 @@ impl<T> MenuEntry<T> {
     }
 }
 
+impl<T> MenuEntry<T> {
+    /// The same entry with every command turned into `f(command)`.
+    pub(crate) fn map<U>(&self, f: &impl Fn(&T) -> U) -> MenuEntry<U> {
+        match self {
+            MenuEntry::Item(item) => MenuEntry::Item(item.map(f)),
+            MenuEntry::Separator => MenuEntry::Separator,
+        }
+    }
+}
+
 impl<T> From<MenuItem<T>> for MenuEntry<T> {
     fn from(item: MenuItem<T>) -> Self {
         MenuEntry::Item(item)
@@ -197,6 +207,26 @@ impl<T> MenuItem<T> {
 
     pub fn item_kind(&self) -> ItemKind {
         self.kind
+    }
+
+    /// The same row with every command under it turned into `f(command)`.
+    pub(crate) fn map<U>(&self, f: &impl Fn(&T) -> U) -> MenuItem<U> {
+        MenuItem {
+            label: self.label.clone(),
+            english: self.english.clone(),
+            icon: self.icon,
+            shortcut: self.shortcut.clone(),
+            kind: self.kind,
+            enabled: self.enabled,
+            mnemonic: self.mnemonic,
+            keyed: self.keyed,
+            tint: self.tint,
+            tooltip: self.tooltip.clone(),
+            action: match &self.action {
+                Action::Run(command) => Action::Run(f(command)),
+                Action::Submenu(children) => Action::Submenu(children.iter().map(|entry| entry.map(f)).collect()),
+            },
+        }
     }
 
     /// The command, or `None` for a submenu.
