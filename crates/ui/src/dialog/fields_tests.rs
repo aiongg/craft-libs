@@ -75,3 +75,14 @@ fn the_map_round_trips_through_toml() {
     let back: DialogFields = toml::from_str(&text).expect("parses");
     assert_eq!(back, fields, "{text}");
 }
+
+// Equality compares the values; the opening snapshot is not part of it.
+#[test]
+fn equality_ignores_the_opening_snapshot() {
+    let mut opened = DialogFields::from_pairs([("a", 1.0)]);
+    opened.snapshot();
+    opened.set("a", 2.0);
+    let fresh = DialogFields::from_pairs([("a", 2.0)]);
+    assert_eq!(opened, fresh);
+    assert_ne!(opened, DialogFields::from_pairs([("a", 3.0)]));
+}

@@ -67,11 +67,18 @@ impl From<String> for FieldValue {
 /// - A [`ParamDialog`](super::ParamDialog) that remembers its values stores the whole map through
 ///   craft-settings' `Remembered` on OK and loads it on open, then drops
 ///   the keys the current parameter list does not have or whose value no longer fits.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct DialogFields {
     values: BTreeMap<String, FieldValue>,
     #[serde(skip)]
     opening: BTreeMap<String, FieldValue>,
+}
+
+/// Equal when the values are; the opening snapshot is bookkeeping, not content.
+impl PartialEq for DialogFields {
+    fn eq(&self, other: &Self) -> bool {
+        self.values == other.values
+    }
 }
 
 impl DialogFields {

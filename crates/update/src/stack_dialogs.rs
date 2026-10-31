@@ -33,6 +33,7 @@ craft_ui::words! {
         later: "update.later" = "Later";
         whats_new: "update.whatsNew" = "What's New";
         releases_listed: "update.releasesListed" = "All releases are listed at";
+        version_line: "update.versionLine" = "v{running} - {version}";
         installing: "update.installing" = "Installing…";
         check_title: "update.check.title" = "Check for Updates";
         checking: "update.checking" = "Checking for updates…";
@@ -57,8 +58,8 @@ pub enum UpdateChoice {
 /// so it never overlaps the GPU warning or recovery (gap 75), or opened by a manual check that
 /// found a release. The user sees the app's icon and name, the new and running versions, the
 /// release notes link, and Update and Restart / Download / Later in the platform order; while an
-/// install runs the buttons are disabled and a status line shows. Enter takes the default, Esc is
-/// Later. Result: [`UpdateChoice`].
+/// install runs the install buttons are disabled and a status line shows. Enter takes the default, Esc is
+/// Later. Later and Esc stay available while the install runs. Result: [`UpdateChoice`].
 pub struct UpdatePromptDialog {
     id: DialogId,
     release: Release,
@@ -154,7 +155,7 @@ impl StackDialog for UpdatePromptDialog {
         if let Some((_, label)) = other {
             buttons.push(FooterButton::new(ButtonRole::Alternate, label.as_str()).enabled(enabled));
         }
-        buttons.push(FooterButton::new(ButtonRole::Cancel, labels.later.as_str()).enabled(enabled));
+        buttons.push(FooterButton::new(ButtonRole::Cancel, labels.later.as_str()));
         let footer = Footer::custom(move |ui, fx| {
             fx.buttons(ui, buttons);
         });
@@ -164,7 +165,7 @@ impl StackDialog for UpdatePromptDialog {
             &mut self.state,
             &mut (),
             |ui, ()| {
-                subject.head(ui, &format!("v{} - {}", self.running_version, version));
+                subject.head(ui, &labels.version_line.replace("{running}", &self.running_version).replace("{version}", &version));
                 ui.add_space(current(ui.ctx()).component.dialog.pad);
                 if let Some(status) = status {
                     Notice::new(status.as_str()).tone(Tone::Warn).id_salt("status").show(ui);
@@ -183,7 +184,7 @@ impl StackDialog for UpdatePromptDialog {
             },
         );
         match shown.outcome? {
-            _ if self.installing => None,
+            Outcome::Ok | Outcome::Alternate if self.installing => None,
             Outcome::Ok => Some(DialogResult::Ok(default.0)),
             Outcome::Alternate => Some(DialogResult::Ok(other.map_or(UpdateChoice::Later, |(choice, _)| choice))),
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Ok(UpdateChoice::Later)),
@@ -234,8 +235,10 @@ impl StackDialog for UpdateCheckDialog {
     // `Spinner` while checking and `Footer::standard().without_cancel()`; Check Again as the
     // Alternate in the failed state.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<CheckChoice>> {
+        // Idle means the check ended with nothing to show (a release opened the prompt, or the
+        // check was dismissed): the dialog closes instead of staying on the stack unseen.
         if self.status == Status::Idle {
-            return None;
+            return Some(DialogResult::Ok(CheckChoice::Close));
         }
         let labels = UpdateLabels::of_ctx(ctx);
         let subject = Subject::of(ctx);
@@ -352,6 +355,13 @@ mod tests {
         harness.key_press(Key::Enter);
         harness.run_steps(3);
         assert!(harness.state().is_open::<UpdatePromptDialog>(), "the buttons do nothing while the install runs");
+        harness.key_press(Key::Escape);
+        harness.run_steps(3);
+        assert_eq!(
+            harness.state_mut().take::<UpdatePromptDialog>(),
+            Some(DialogResult::Ok(UpdateChoice::Later)),
+            "Esc is still Later while installing"
+        );
     }
 
     // Enqueued at the Update stage behind a Warning alert, the prompt opens only after the alert
@@ -392,5 +402,14 @@ mod tests {
         harness.get_by_label("Check Again").click();
         harness.run_steps(3);
         assert_eq!(harness.state_mut().take::<UpdateCheckDialog>(), Some(DialogResult::Ok(CheckChoice::CheckAgain)));
+    }
+
+    // Idle means the check ended: the dialog closes instead of staying open and unseen.
+    #[test]
+    fn an_idle_check_dialog_closes() {
+        let mut harness = opened(UpdateCheckDialog::new("1.0.0"));
+        harness.state_mut().get_mut::<UpdateCheckDialog>().unwrap().set_status(Status::Idle);
+        harness.run_steps(3);
+        assert!(!harness.state().is_open::<UpdateCheckDialog>());
     }
 }

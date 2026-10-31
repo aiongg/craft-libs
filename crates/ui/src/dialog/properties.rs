@@ -1,13 +1,14 @@
 //! [`PropertiesDialog`]: tabs of label and value rows (Document Properties, file info), editable
 //! or read-only.
 
+use craft_host::Host;
 use egui::{Context, Label, Ui};
 
 use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::{DialogFields, FieldValue};
 use super::footer::Footer;
-use super::params::{Param, ParamKind};
+use super::params::{Param, ParamKind, open_fields};
 use super::size::Width;
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
@@ -121,6 +122,12 @@ impl StackDialog for PropertiesDialog {
         let (id, read_only) = (*id, *read_only);
         let memory = id.with("open-tab");
         if !state.is_open() {
+            let params: Vec<Param> = tabs
+                .iter()
+                .flat_map(|tab| &tab.rows)
+                .filter_map(|row| if let PropertyRow::Field(param) = row { Some(param.clone()) } else { None })
+                .collect();
+            open_fields(ctx, id, &params, fields);
             *current_tab = ctx.data_mut(|d| d.get_persisted::<usize>(memory)).unwrap_or(*current_tab);
         }
         *current_tab = (*current_tab).min(tabs.len().saturating_sub(1));
@@ -184,21 +191,23 @@ fn selectable_text(ui: &mut Ui, text: &str) -> egui::Response {
 }
 
 fn read_only_field(form: &mut Form<'_>, param: &Param, fields: &DialogFields, numbers: &LocaleNumbers) {
+    let ctx = form.ctx().clone();
+    let label = format!("{}:", translated(&ctx, param.label.trim_end_matches([':', '：'])));
     let Some(value) = fields.get(&param.key) else {
-        form.row(param.label.as_str(), |ui, _| selectable_text(ui, ""));
+        form.row(label.as_str(), |ui, _| selectable_text(ui, ""));
         return;
     };
     if let FieldValue::Bool(on) = value {
         let mut on = *on;
-        form.row(param.label.as_str(), |ui, _| Checkbox::bool("", &mut on).enabled(false).show(ui));
+        form.row(label.as_str(), |ui, _| Checkbox::bool("", &mut on).enabled(false).show(ui));
         return;
     }
-    let text = value_text(param, value, numbers);
-    form.row(param.label.as_str(), |ui, _| selectable_text(ui, &text));
+    let text = value_text(&ctx, param, value, numbers);
+    form.row(label.as_str(), |ui, _| selectable_text(ui, &text));
 }
 
 /// A field's value as the read-only view writes it.
-fn value_text(param: &Param, value: &FieldValue, numbers: &LocaleNumbers) -> String {
+fn value_text(ctx: &egui::Context, param: &Param, value: &FieldValue, numbers: &LocaleNumbers) -> String {
     let number = |n: f64| match &param.unit {
         Some(unit) => format!("{}{}{}", unit.prefix(), numbers.format(n, 0..=6), unit.suffix()),
         None => numbers.format(n, 0..=6),
@@ -208,15 +217,28 @@ fn value_text(param: &Param, value: &FieldValue, numbers: &LocaleNumbers) -> Str
         (FieldValue::Int(i), ParamKind::Channel { names, .. }) => usize::try_from(*i).ok().and_then(|i| names.get(i)).cloned().unwrap_or_default(),
         (FieldValue::Int(i), _) => number(*i as f64),
         (FieldValue::Text(id), ParamKind::Choice { options, .. }) => {
-            options.iter().find(|(option, _)| option == id).map_or_else(|| id.clone(), |(_, label)| label.clone())
+            options.iter().find(|(option, _)| option == id).map_or_else(|| id.clone(), |(_, label)| translated(ctx, label))
         }
         (FieldValue::Text(text), _) => text.clone(),
         (FieldValue::Point([x, y]), _) => format!("{}, {}", numbers.format(*x, 0..=2), numbers.format(*y, 0..=2)),
         (FieldValue::Grid(cells), _) => cells.iter().map(ToString::to_string).collect::<Vec<_>>().join(" "),
         (FieldValue::Color([r, g, b]), _) => {
-            let byte = |c: f32| (egui::ecolor::gamma_u8_from_linear_f32(c.clamp(0.0, 1.0))) as u32;
-            format!("#{:02X}{:02X}{:02X}", byte(*r), byte(*g), byte(*b))
+            format!("#{:02X}{:02X}{:02X}", encode(*r), encode(*g), encode(*b))
         }
         _ => String::new(),
+    }
+}
+
+/// An sRGB component in 0..=1 as a byte.
+fn encode(component: f32) -> u8 {
+    (component.clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+/// `text` in the installed Host's language: the catalog row of exactly this text, else the text
+/// (the same lookup `Param::row` makes for its labels).
+fn translated(ctx: &egui::Context, text: &str) -> String {
+    match Host::try_of_ctx(ctx) {
+        Some(host) => host.i18n().map_or(text, |i18n| i18n.t(host.lang(), text)).to_owned(),
+        None => text.to_owned(),
     }
 }
