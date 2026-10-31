@@ -9,6 +9,7 @@ use egui::{AsIdSalt, IdSalt, Response, Ui};
 use super::ControlSize;
 use crate::edit::EditResponse;
 use crate::localized::{LocaleNumbers, Unit};
+use crate::menu::MenuEntry;
 
 crate::words! {
     /// The link button's words, English by default.
@@ -80,11 +81,12 @@ pub enum LinkedLayout {
 /// ```
 ///
 /// - **Fields.** One [`NumberField`](crate::controls::NumberField) per label (the label before
-///   it, as the field's scrub label), sharing the range, unit, decimals and size; a
+///   it, as the field's scrub label), sharing the unit, its menu, the decimals and the size, each
+///   with its range; a
 ///   [`LinkButton`] between the first two (row) or after them, centred on their height (column).
 /// - **Linked.** An edit of one field moves the others with it, live through the gesture: in
 ///   [`LinkMode::Ratio`] by its factor ([`follow_ratio`]), kept inside each field's range by
-///   taking the smaller factor (PhotoCraft's transform bar); in [`LinkMode::Equal`] to the same
+///   taking the smallest factor (PhotoCraft's transform bar); in [`LinkMode::Equal`] to the same
 ///   value ([`follow_equal`]). Unlinked, a field moves alone.
 /// - **Linking.** Turning the link on in [`LinkMode::Equal`] sets every field to the first one's
 ///   value at once, one `Set` (DesignCraft's `setup_link`); in [`LinkMode::Ratio`] it changes no
@@ -101,8 +103,9 @@ pub struct LinkedFields<'a, const N: usize> {
     linked: &'a mut bool,
     mode: LinkMode,
     numbers: &'a LocaleNumbers,
-    range: Option<RangeInclusive<f64>>,
+    ranges: Option<[RangeInclusive<f64>; N]>,
     unit: Option<Unit>,
+    unit_menu: Option<(&'a [MenuEntry<usize>], &'a mut Option<usize>)>,
     decimals: Option<RangeInclusive<usize>>,
     layout: LinkedLayout,
     size: ControlSize,
@@ -126,8 +129,9 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
             linked,
             mode,
             numbers,
-            range: None,
+            ranges: None,
             unit: None,
+            unit_menu: None,
             decimals: None,
             layout: LinkedLayout::Row,
             size: ControlSize::Md,
@@ -137,13 +141,27 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
 
     /// Every field's range ([`NumberField::range`](crate::controls::NumberField::range)).
     pub fn range(mut self, range: RangeInclusive<f64>) -> Self {
-        self.range = Some(range);
+        self.ranges = Some(std::array::from_fn(|_| range.clone()));
+        self
+    }
+
+    /// Each field's own range (PhotoCraft's transform W and H: each side's scale limit).
+    pub fn ranges(mut self, ranges: [RangeInclusive<f64>; N]) -> Self {
+        self.ranges = Some(ranges);
         self
     }
 
     /// Every field's unit ([`NumberField::unit`](crate::controls::NumberField::unit)).
     pub fn unit(mut self, unit: Unit) -> Self {
         self.unit = Some(unit);
+        self
+    }
+
+    /// The unit menu every field opens on a secondary click
+    /// ([`NumberField::unit_menu`](crate::controls::NumberField::unit_menu)); the row picked goes
+    /// to `picked`, whichever field it came from (PhotoCraft's W and H share one unit).
+    pub fn unit_menu(mut self, entries: &'a [MenuEntry<usize>], picked: &'a mut Option<usize>) -> Self {
+        self.unit_menu = Some((entries, picked));
         self
     }
 
@@ -175,11 +193,12 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
     }
 }
 
-/// The values after field `changed` became `new` under a ratio link: every other value scaled by
-/// `new / values[changed]`, the factor lowered so no value leaves `range` (PhotoCraft's
-/// `k.min(wlim / sx).min(hlim / sy)`). An old value of zero scales nothing: only `changed` moves.
+/// The values after field `changed` became `new` under a ratio link: every value scaled by
+/// `new / values[changed]`, the factor lowered so no value leaves its field's range in `ranges`
+/// (PhotoCraft's `k.min(wlim / sx).min(hlim / sy)`). An old value of zero scales nothing: only
+/// `changed` moves.
 // pc: crates/ui-egui/src/tools/transform_tool/options_bar.rs:346 (linked k)
-pub fn follow_ratio<const N: usize>(values: [f64; N], changed: usize, new: f64, range: &RangeInclusive<f64>) -> [f64; N] {
+pub fn follow_ratio<const N: usize>(values: [f64; N], changed: usize, new: f64, ranges: &[RangeInclusive<f64>; N]) -> [f64; N] {
     todo!()
 }
 
