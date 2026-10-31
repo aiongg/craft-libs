@@ -294,7 +294,7 @@ fn the_wheel_over_the_closed_box_steps_the_value_only_when_asked_and_then_the_pa
     }
     assert_eq!(harness.get_by_role(Role::ComboBox).rect(), field, "the panel doesn't scroll");
     let events = &harness.state().events;
-    assert!(events.iter().all(|e| matches!(e, EditEvent::Set { .. })) && events.len() == 5, "{events:?}");
+    assert!(events.iter().all(|e| matches!(e, EditEvent::Set { .. })) && events.len() == 6, "a Set a notch: {events:?}");
 
     let mut harness = wheel_panel(false);
     harness.run();
@@ -305,6 +305,44 @@ fn the_wheel_over_the_closed_box_steps_the_value_only_when_asked_and_then_the_pa
     harness.run();
     assert_eq!(harness.state().value, 0, "off by default");
     assert!(harness.get_by_role(Role::ComboBox).rect().top() < field.top(), "the panel scrolls");
+}
+
+#[derive(Default)]
+struct Previewed {
+    value: usize,
+    events: Vec<EditEvent<usize>>,
+    highlighted: Option<usize>,
+}
+
+#[test]
+fn the_wheel_over_the_open_list_steps_the_value_a_notch_at_a_time_and_the_resting_pointer_previews_nothing() {
+    let mut harness = harness().build_ui_state(
+        |ui, host: &mut Previewed| {
+            let mut select = Select::new("blend", "Blend mode", &mut host.value).wheel_steps(true).highlighted(&mut host.highlighted);
+            for (i, mode) in MODES.into_iter().enumerate() {
+                select = select.option(i, mode);
+            }
+            host.events.extend(select.show(ui).event);
+        },
+        Previewed::default(),
+    );
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    let row = option(&harness, "Multiply").rect();
+    harness.hover_at(row.center());
+    harness.run();
+    assert_eq!(harness.state().highlighted, Some(1), "the pointer previews its row");
+    harness.event(wheel(-3.0));
+    harness.run();
+    assert_eq!((harness.state().value, active(&harness).as_deref()), (4, Some("Darken")), "three notches in one event");
+    let updates = harness.state().events.iter().filter(|e| matches!(e, EditEvent::Update { .. })).count();
+    assert_eq!(updates, 3, "an edit per notch: {:?}", harness.state().events.len());
+    assert_eq!(expanded(&harness), Some(true), "the list stays open");
+    assert_eq!(harness.state().highlighted, None, "the pointer rests where the wheel stepped");
+    harness.hover_at(row.center() + vec2(2.0, 0.0));
+    harness.run();
+    assert_eq!(harness.state().highlighted, Some(1), "a pointer move previews again");
 }
 
 #[test]

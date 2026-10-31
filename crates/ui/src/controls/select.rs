@@ -9,7 +9,7 @@ use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::{self, HasPopup, Role};
 use egui::emath::GuiRounding as _;
 use egui::{
-    AsIdSalt, Color32, CornerRadius, EventFilter, FocusDirection, Id, IdSalt, Key, Modifiers, Painter, Popup, PopupCloseBehavior, Rect, Shape,
+    AsIdSalt, Color32, CornerRadius, EventFilter, FocusDirection, Id, IdSalt, Key, Modifiers, Painter, Popup, PopupCloseBehavior, Pos2, Rect, Shape,
     Stroke, Ui, UiBuilder, Vec2, pos2, vec2,
 };
 
@@ -145,8 +145,12 @@ pub struct SelectStyle {
 ///   focus ring inside its row while the keyboard moves it.
 /// - **Wheel** ([`wheel_steps`](Select::wheel_steps), off by default): a wheel gesture that
 ///   starts over the closed box steps the value one option per notch (Shift too), stopping at
-///   the ends, one `Set` a frame, and the panel under it doesn't scroll. PhotoCraft's Layers
-///   blend mode does this. The box takes the wheel as a number field without the focus does: a
+///   the ends, and the panel under it doesn't scroll. Each notch is its own edit, one a frame
+///   even when several arrive in one wheel event: a `Set` over the closed box. Over the open
+///   list the wheel steps the active option and so the value, as the arrows do, and reveals the
+///   row; no row is previewed ([`highlighted`](Select::highlighted)) while the pointer rests where
+///   the wheel last stepped, until it moves (as in Photoshop). PhotoCraft's Layers blend mode
+///   does this. The box takes the wheel as a number field without the focus does: a
 ///   gesture that started elsewhere (a panel being scrolled) goes on scrolling over it, one that
 ///   leaves the box is the panel's from then on, and Alt+wheel, Ctrl/Cmd+wheel and a plain
 ///   sideways scroll stay the view's.
@@ -326,8 +330,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
     }
 
     /// Whether a wheel gesture that starts over the closed box steps the value, one option per
-    /// notch (Wheel on [`Select`]); off by default, so the wheel scrolls the panel. For a select
-    /// changed often in place (a layer's blend mode).
+    /// notch (Wheel on [`Select`]), and the wheel over the open list steps its active option and
+    /// value instead of scrolling the list; off by default, so the wheel scrolls the panel and
+    /// the list. For a select changed often in place (a layer's blend mode).
     pub fn wheel_steps(mut self, wheel_steps: bool) -> Self {
         self.wheel_steps = wheel_steps;
         self
@@ -459,7 +464,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             .interact_at(ui, rect)
             .finish(ui);
         if wheel_steps && enabled && !state.open {
-            let step = wheel_step(ui, id, &shown, chosen, response.rect);
+            let step = wheel_step(ui, id, &shown, chosen, response.rect, &mut state.wheel);
             action = action.or(step);
         }
         // A press, or a click whose press and release came in one frame.
@@ -504,10 +509,12 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 .height(style.list.max_height + header)
                 .surface(style.popup);
             let menu = header_menu.as_ref().map(|m| m.gear(id));
-            let list = List { style: &style, size, id, chosen, enabled, search: search.as_ref(), menu, content: content.as_ref() };
+            let list = List { style: &style, size, id, chosen, enabled, wheel_steps, search: search.as_ref(), menu, content: content.as_ref() };
             keyed_active = pass.listbox.active();
             let mut menu_picked = None;
+            pass.state.wheel.stepped = false;
             let picked = list.show(ui, popup, &mut pass, &mut drawn_active, &mut pointed, &mut menu_picked);
+            keyed_active = pass.state.wheel.keyed(pass.listbox, keyed_active);
 
             let released = released(ui);
             if let (Some(command), Some(menu)) = (menu_picked, &mut header_menu) {
@@ -530,7 +537,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             }
         }
         if let Some(out) = highlighted {
-            *out = pointed.map(|option| options.value(option));
+            *out = pass.state.wheel.previewed(ui, pointed).map(|option| options.value(option));
         }
         // The list's value follows the keys, not the pointer; a search's first match waits for Enter.
         if !pass.searched
@@ -827,17 +834,42 @@ fn read_gear_keys<T: Clone + PartialEq>(
 /// notch, Shift too, stopping at the ends, for a wheel gesture that starts over the box, by the
 /// rules of a number field without the focus ([`field_wheel`]). The wheel it takes scrolls nothing
 /// else.
-fn wheel_step<T: Clone + PartialEq>(ui: &Ui, id: Id, shown: &Shown<'_, '_, '_, T>, chosen: Option<usize>, rect: Rect) -> Option<Action> {
+fn wheel_step<T: Clone + PartialEq>(
+    ui: &Ui,
+    id: Id,
+    shown: &Shown<'_, '_, '_, T>,
+    chosen: Option<usize>,
+    rect: Rect,
+    wheel: &mut Wheel,
+) -> Option<Action> {
     // Up is positive: the option before.
     let notches = field_wheel::notches(ui, id, false, rect, true, 1.0);
-    let mut to = chosen;
-    for _ in 0..(notches.abs() as usize).min(shown.len()) {
-        match Listbox::neighbour(shown, to, notches < 0.0) {
-            Some(next) => to = Some(next),
-            None => break,
+    let next = wheel.take(ui, notches, shown.len())?;
+    match Listbox::neighbour(shown, chosen, next) {
+        Some(option) => Some(Action::Step { option }),
+        None => {
+            wheel.pending = 0;
+            None
         }
     }
-    to.filter(|&to| Some(to) != chosen).map(|option| Action::Step { option })
+}
+
+/// Steps the active option of the open list by the wheel over it, one option a frame, and
+/// reveals it. The wheel it takes scrolls nothing else.
+fn wheel_list<T: Clone + PartialEq>(ui: &Ui, id: Id, shown: &Shown<'_, '_, '_, T>, listbox: &mut Listbox, chosen: Option<usize>, wheel: &mut Wheel) {
+    if ui.is_sizing_pass() {
+        return;
+    }
+    let notches = field_wheel::notches(ui, id.with("list-wheel"), false, ui.clip_rect(), true, 1.0);
+    let Some(next) = wheel.take(ui, notches, shown.len()) else { return };
+    match Listbox::neighbour(shown, listbox.active().or(chosen), next) {
+        Some(option) => {
+            listbox.reveal(Some(option), true);
+            wheel.stepped = true;
+            wheel.rest = ui.input(|i| i.pointer.hover_pos());
+        }
+        None => wheel.pending = 0,
+    }
 }
 
 /// What the list keeps between frames.
@@ -860,6 +892,49 @@ struct PopupState<T> {
     found: Option<Found<T>>,
     /// The options the last search left.
     filter: Option<Filter>,
+    wheel: Wheel,
+}
+
+/// What the wheel of a [`Select::wheel_steps`] select keeps between frames.
+#[derive(Clone, Default)]
+struct Wheel {
+    /// Notches not stepped yet: one option steps a frame, so each notch is its own edit.
+    pending: i32,
+    /// Where the pointer was when the wheel last stepped the open list. The row under it is not
+    /// previewed until the pointer moves.
+    rest: Option<Pos2>,
+    /// The wheel stepped the open list in this pass.
+    stepped: bool,
+}
+
+impl Wheel {
+    /// Adds `notches` (up positive) to those pending and takes one: `true` for the next option.
+    fn take(&mut self, ui: &Ui, notches: f64, len: usize) -> Option<bool> {
+        let cap = len.min(i32::MAX as usize) as i32;
+        self.pending = (self.pending + notches as i32).clamp(-cap, cap);
+        let direction = self.pending.signum();
+        self.pending -= direction;
+        if self.pending != 0 {
+            ui.ctx().request_repaint();
+        }
+        // Down (negative) is the next option.
+        (direction != 0).then_some(direction < 0)
+    }
+
+    /// The active option after this pass: the one the wheel stepped to counts as moved by a key.
+    fn keyed(&self, listbox: &Listbox, keyed: Option<usize>) -> Option<usize> {
+        if self.stepped { listbox.active() } else { keyed }
+    }
+
+    /// The row to preview: none while the pointer still rests where the wheel last stepped the
+    /// list, as the value moved on without the row under it.
+    fn previewed(&mut self, ui: &Ui, pointed: Option<usize>) -> Option<usize> {
+        let pointer = ui.input(|i| i.pointer.hover_pos());
+        if pointer.is_none() || pointer != self.rest {
+            self.rest = None;
+        }
+        pointed.filter(|_| self.rest.is_none())
+    }
 }
 
 #[derive(Clone)]
@@ -900,6 +975,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> PopupState<T> {
             start: None,
             found: None,
             filter: None,
+            wheel: Wheel::default(),
         }
     }
 
@@ -1022,6 +1098,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Pass<'_, '_, '_, T> {
         self.state.query.clear();
         self.state.search = None;
         self.state.gesture = None;
+        self.state.wheel = Wheel::default();
         self.listbox.reset();
         if focus_box {
             ui.memory_mut(|m| m.request_focus_with_filter(self.id, self.keys()));
@@ -1213,6 +1290,8 @@ struct List<'l, T> {
     id: Id,
     chosen: Option<usize>,
     enabled: bool,
+    /// The wheel over the list steps the value ([`Select::wheel_steps`]).
+    wheel_steps: bool,
     search: Option<&'l (String, String)>,
     menu: Option<GearMenu<'l>>,
     content: Option<&'l RowContent<'l, T>>,
@@ -1244,6 +1323,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
         let mut page = pass.state.page;
         let mut searched = false;
         let listbox = &mut *pass.listbox;
+        let wheel = &mut pass.state.wheel;
         let header = |ui: &mut Ui| {
             let before = query.clone();
             let row = self.menu.as_ref().map(|menu| {
@@ -1354,6 +1434,9 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
                 let _ = popup.show_ui_with_header(header, |ui, filtered| {
                     let shown = Shown { options, filtered: filtered.shown.as_deref() };
                     searched |= keep_active_shown(listbox, &shown, filtered.changed);
+                    if self.wheel_steps {
+                        wheel_list(ui, self.id, &shown, listbox, self.chosen, wheel);
+                    }
                     // The popup's first pass measures it unseen; scroll once it shows.
                     let reveal = if ui.is_sizing_pass() { None } else { listbox.take_reveal() };
                     page = rows_in_view(ui, row_height);
@@ -1385,6 +1468,9 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
                 let _ = popup.show_rows_with_header(header, row_height, total, |ui, range, filtered| {
                     let shown = Shown { options, filtered: filtered.shown.as_deref() };
                     searched |= keep_active_shown(listbox, &shown, filtered.changed);
+                    if self.wheel_steps {
+                        wheel_list(ui, self.id, &shown, listbox, self.chosen, wheel);
+                    }
                     page = rows_in_view(ui, row_height);
                     let reveal = if ui.is_sizing_pass() { None } else { listbox.take_reveal() };
                     if let Some(at) = reveal.and_then(|option| shown.position(option)) {
