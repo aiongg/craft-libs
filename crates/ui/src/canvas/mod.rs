@@ -112,7 +112,9 @@ pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
-pub use transform_box::{RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle};
+pub use transform_box::{
+    BoxPress, BoxRelease, BoxTrack, RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle, paint_pivot,
+};
 pub use transform_fields::{FieldLabel, SizeUnit, TransformFieldLabels, TransformFields, TransformRow};
 pub use turn::{
     PointerInk, SelectionBadge, distort_cursor, selection_badge_at, selection_badge_beside_pointer, selection_cursor, skew_cursor, turn_cursor,
@@ -120,4 +122,7 @@ pub use turn::{
 };
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};
-pub use warp::{WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpResponse, WarpSide, WarpSplit, WarpStyle};
+pub use warp::{
+    WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpPress, WarpRelease, WarpResponse, WarpSide, WarpSplit, WarpSplitAt, WarpSplitPress, WarpStyle,
+    WarpTarget, WarpTrack,
+};

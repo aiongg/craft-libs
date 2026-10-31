@@ -518,17 +518,68 @@ type Surface<'a> = Box<dyn Fn(Point) -> Option<(f64, f64)> + 'a>;
 
 /// What a press drags.
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Target {
+pub enum WarpTarget {
+    /// The anchor or handle with this index.
     Point(usize),
+    /// The surface at these parameters ([`WarpGrid::surface`]).
     Surface(f64, f64),
+}
+
+/// A press the host-driven calls track, kept by the host from [`WarpGrid::press`] to
+/// [`WarpGrid::release`]. [`show`](WarpGrid::show) keeps the same value in the context's memory
+/// under the grid's id.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WarpPress {
+    target: WarpTarget,
+    /// The press in canvas space.
+    origin: Pos2,
+    began: bool,
+    /// The edit the drag last produced.
+    last: Option<WarpEdit>,
+}
+
+impl WarpPress {
+    /// What the press drags.
+    pub fn target(&self) -> WarpTarget {
+        self.target
+    }
+
+    /// Whether the drag has begun (the pointer moved off the press).
+    pub fn began(&self) -> bool {
+        self.began
+    }
+}
+
+/// What [`WarpGrid::track`] reports for one pointer position.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WarpTrack {
+    /// The drag began with this position: the host takes its "before" state.
+    pub begun: bool,
+    /// The edit of the whole move from the press, once the drag has begun.
+    pub edit: Option<WarpEdit>,
+}
+
+/// What [`WarpGrid::release`] reports.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WarpRelease {
+    /// The drag ended with this edit (the last one [`WarpGrid::track`] gave).
+    Commit(WarpEdit),
+    /// The press never became a drag.
+    Nothing,
+}
+
+/// A split press ([`WarpGrid::split_press`]), kept by the host until [`WarpGrid::split_release`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WarpSplitPress {
+    /// A quick split: no tool was set at the press.
+    quick: bool,
 }
 
 /// A press the grid owns, kept between passes.
 #[derive(Clone, Copy, Debug)]
 struct Drag {
     press: PrimaryPress,
-    target: Target,
-    began: bool,
+    core: WarpPress,
     /// Esc ended it: the rest of the press does nothing.
     cancelled: bool,
     /// The press waits for another control's typing run to end ([`Claim::turn`]); its target is
@@ -722,7 +773,12 @@ impl<'a> WarpGrid<'a> {
                 Turn::Runs => {
                     starts = true;
                     let target = self.target_at(view, &screen, &style, d.press.origin);
-                    Some(Drag { target: target.unwrap_or(d.target), cancelled: target.is_none(), waits: false, ..d })
+                    Some(Drag {
+                        core: WarpPress { target: target.unwrap_or(d.core.target), ..d.core },
+                        cancelled: target.is_none(),
+                        waits: false,
+                        ..d
+                    })
                 }
                 Turn::Now => None,
             };
@@ -731,25 +787,25 @@ impl<'a> WarpGrid<'a> {
         let quick = self.split.is_none() && (mods.alt || mods.command);
         let splitting = editable && (self.split.is_some() || quick);
         if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) && editable && !splitting {
-            drag = self.press(&ctx, canvas, view, &screen, &style, id);
+            drag = self.press_pass(&ctx, canvas, view, &style, id);
             starts = drag.is_some_and(|d| !d.waits);
         }
-        if starts && let Some(Drag { target: Target::Point(index), cancelled: false, .. }) = drag {
+        if starts && let Some(Drag { core: WarpPress { target: WarpTarget::Point(index), .. }, cancelled: false, .. }) = drag {
             picked = Some(index);
         }
         let reported = Gesture::<WarpEdit>::reported(ui, id).map(|(_, value)| value);
         let mut gesture = Gesture::load(ui, id, &reported.unwrap_or(IDLE), self.policy).focus_owners(&[]).enabled(editable);
         if let Some(d) = &mut drag {
-            if d.began && !gesture.is_active() {
+            if d.core.began && !gesture.is_active() {
                 // Esc, `cancel_all` or a missed pass ended it; the press stays claimed.
                 d.cancelled = true;
             }
-            if !d.began && !d.cancelled && !d.waits && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            if !d.core.began && !d.cancelled && !d.waits && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
                 d.cancelled = true;
             }
         }
         if let Some(d) = drag.take() {
-            drag = if d.waits { Some(d) } else { self.track(&ctx, view, d, &mut gesture) };
+            drag = if d.waits { Some(d) } else { self.track_pass(&ctx, view, d, &mut gesture) };
         }
 
         let parts = if editable { self.parts(&screen, &style, picked) } else { Vec::new() };
@@ -803,8 +859,8 @@ impl<'a> WarpGrid<'a> {
                 None => d.remove::<usize>(picked_key),
             }
         });
-        let dragged = held.and_then(|d| match d.target {
-            Target::Point(index) if !d.cancelled => self.mesh.anchor_of(index),
+        let dragged = held.and_then(|d| match d.core.target {
+            WarpTarget::Point(index) if !d.cancelled => self.mesh.anchor_of(index),
             _ => None,
         });
         let kept = picked.filter(|_| focus.focused).and_then(|i| self.mesh.anchor_of(i));
@@ -834,7 +890,7 @@ impl<'a> WarpGrid<'a> {
         id: Id,
         mods: Modifiers,
         gesture: &mut Gesture<WarpEdit>,
-    ) -> Option<SplitAt> {
+    ) -> Option<WarpSplitAt> {
         let key = id.with("craft_ui::canvas::WarpGrid::split_press");
         let (pointer, pressed, released) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_pressed(), i.pointer.primary_released()));
         let mut press: Option<SplitPress> =
@@ -853,15 +909,14 @@ impl<'a> WarpGrid<'a> {
         if press.is_none()
             && !Claim::keeps_waiting(ctx, canvas.id, id, waited)
             && pressed
-            && (!quick || mods.alt || mods.command)
             && let Some(current) = PrimaryPress::current(ctx)
             && view.rect.contains(current.origin)
             && canvas.contains_pointer()
-            && self.split_at(view, quick, current.origin).is_some()
+            && let Some(core) = self.split_press(view, current.origin, mods)
             && Claim::take(ctx, canvas.id, id)
         {
             let waits = Claim::turn(ctx, canvas.id, id) == Turn::Waits;
-            press = Some(SplitPress { press: current, quick, waits, released: None });
+            press = Some(SplitPress { press: current, core, waits, released: None });
         }
         if let Some(p) = &mut press {
             if !p.waits && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
@@ -874,8 +929,8 @@ impl<'a> WarpGrid<'a> {
             && !p.waits
             && let Some(end) = p.released
         {
-            if let Some(split) = self.split_at(view, p.quick, end) {
-                gesture.set(split.edit());
+            if let Some(edit) = self.split_release(view, &p.core, end) {
+                gesture.set(edit);
             }
             press = None;
         }
@@ -887,7 +942,7 @@ impl<'a> WarpGrid<'a> {
         });
         let live = press.is_some() || !quick || mods.alt || mods.command;
         let over = canvas.hover_pos().or(pointer).filter(|p| live && view.rect.contains(*p) && canvas.contains_pointer());
-        let quick = press.map_or(quick, |p| p.quick);
+        let quick = press.map_or(quick, |p| p.core.quick);
         let hover = over.and_then(|p| self.split_at(view, quick, p)).filter(|_| press.is_some() || Claim::owner(ctx, canvas.id).is_none());
         if let Some(split) = &hover {
             ctx.set_cursor_icon(split.cursor);
@@ -901,10 +956,42 @@ impl<'a> WarpGrid<'a> {
         (if thirds { Cow::Owned(self.mesh.commit_thirds()) } else { Cow::Borrowed(self.mesh) }, thirds)
     }
 
+    /// The split press a button pressed at canvas point `origin` with `modifiers` held starts:
+    /// with a tool set ([`split`](Self::split)) any press on the surface, else (a quick split) one
+    /// with ⌥ or ⌘ held. `None` off the surface and where every line of the split lies on an
+    /// existing one. The host keeps the press until [`split_release`](Self::split_release).
+    pub fn split_press(&self, view: &CanvasView, origin: Pos2, modifiers: Modifiers) -> Option<WarpSplitPress> {
+        let mods = self.modifiers.unwrap_or(modifiers);
+        let quick = self.split.is_none();
+        if !self.editable || !self.mesh.is_valid() || (quick && !(mods.alt || mods.command)) {
+            return None;
+        }
+        self.split_at(view, quick, origin).map(|_| WarpSplitPress { quick })
+    }
+
+    /// The edit a split press inserts when the button is released at canvas point `end`: always a
+    /// [`Set`](EditEvent::Set). `None` off the surface and where every line lies on an existing
+    /// one.
+    pub fn split_release(&self, view: &CanvasView, press: &WarpSplitPress, end: Pos2) -> Option<WarpEdit> {
+        self.split_at(view, press.quick, end).map(|at| at.edit())
+    }
+
+    /// What the split would insert for a pointer at canvas point `p`, for the preview line and
+    /// the cursor; `press` is the split press under way, if any, else a quick split is the one
+    /// `modifiers` start.
+    pub fn split_hit(&self, view: &CanvasView, press: Option<&WarpSplitPress>, p: Pos2, modifiers: Modifiers) -> Option<WarpSplitAt> {
+        let mods = self.modifiers.unwrap_or(modifiers);
+        let quick = self.split.is_none();
+        if !self.editable || !self.mesh.is_valid() || (press.is_none() && quick && !(mods.alt || mods.command)) {
+            return None;
+        }
+        self.split_at(view, press.map_or(quick, |p| p.quick), p)
+    }
+
     /// What the split would insert for a pointer at screen point `p`: the armed tool's lines, or
     /// with `quick` the quick split's. `None` off the surface and where every line of it lies on
     /// an existing one; a cross with one line on an existing one inserts the other alone.
-    fn split_at(&self, view: &CanvasView, quick: bool, p: Pos2) -> Option<SplitAt> {
+    fn split_at(&self, view: &CanvasView, quick: bool, p: Pos2) -> Option<WarpSplitAt> {
         const EDGE: f64 = 0.01;
         let doc = view.to_doc(p);
         let (mesh, thirds) = self.split_base();
@@ -932,12 +1019,65 @@ impl<'a> WarpGrid<'a> {
             WarpSplit::Vertical => resize_cursor(view, across(true)),
             WarpSplit::Horizontal => resize_cursor(view, across(false)),
         };
-        Some(SplitAt { split, column, row, u, v, thirds, cursor })
+        Some(WarpSplitAt { split, column, row, u, v, thirds, cursor })
     }
 
-    /// A press on the canvas: the nearest point within reach, else the surface under it, claimed
-    /// for the grid.
-    fn press(&self, ctx: &Context, canvas: &Response, view: &CanvasView, screen: &[Pos2], style: &WarpStyle, id: Id) -> Option<Drag> {
+    /// What a press at canvas point `point` would drag: the nearest anchor or handle within
+    /// `style.hit`, else the surface under it ([`surface`](Self::surface)); `None` where the grid
+    /// is not editable or the point is off the surface.
+    pub fn hit(&self, view: &CanvasView, style: &WarpStyle, point: Pos2) -> Option<WarpTarget> {
+        if !self.editable || !self.mesh.is_valid() {
+            return None;
+        }
+        let screen: Vec<Pos2> = self.mesh.points.iter().map(|&p| view.to_screen(p)).collect();
+        self.target_at(view, &screen, style, point)
+    }
+
+    /// A press at canvas point `origin`: the press to track, or `None` where [`hit`](Self::hit)
+    /// finds no target.
+    pub fn press(&self, view: &CanvasView, style: &WarpStyle, origin: Pos2) -> Option<WarpPress> {
+        let target = self.hit(view, style, origin)?;
+        Some(WarpPress { target, origin, began: false, last: None })
+    }
+
+    /// The pointer at canvas point `pointer`: begins the drag on the first move off the press and
+    /// gives the edit of the whole move from it. The host applies it to the mesh it had at the
+    /// press.
+    pub fn track(&self, view: &CanvasView, press: &mut WarpPress, pointer: Pos2) -> WarpTrack {
+        self.track_with(view, press, pointer, &mut || true)
+    }
+
+    /// [`track`](Self::track) where beginning the drag may be refused: `begin` answers whether it
+    /// began.
+    fn track_with(&self, view: &CanvasView, press: &mut WarpPress, pointer: Pos2, begin: &mut dyn FnMut() -> bool) -> WarpTrack {
+        let mut track = WarpTrack { begun: false, edit: None };
+        if !press.began && pointer != press.origin {
+            press.began = begin();
+            track.begun = press.began;
+        }
+        if press.began {
+            let by = view.to_doc(pointer) - view.to_doc(press.origin);
+            let edit = match press.target {
+                WarpTarget::Point(index) => WarpEdit::Point { index, by },
+                WarpTarget::Surface(s, t) => WarpEdit::Surface { s, t, by },
+            };
+            press.last = Some(edit);
+            track.edit = Some(edit);
+        }
+        track
+    }
+
+    /// The button released: the end of the drag, if it began.
+    pub fn release(&self, press: &WarpPress) -> WarpRelease {
+        match press.last.filter(|_| press.began) {
+            Some(edit) => WarpRelease::Commit(edit),
+            None => WarpRelease::Nothing,
+        }
+    }
+
+    /// A press on the canvas read from the input: the nearest point within reach, else the
+    /// surface under it, claimed for the grid.
+    fn press_pass(&self, ctx: &Context, canvas: &Response, view: &CanvasView, style: &WarpStyle, id: Id) -> Option<Drag> {
         if !ctx.input(|i| i.pointer.primary_pressed()) {
             return None;
         }
@@ -945,53 +1085,48 @@ impl<'a> WarpGrid<'a> {
         if !(view.rect.contains(press.origin) && canvas.contains_pointer()) {
             return None;
         }
-        let target = self.target_at(view, screen, style, press.origin)?;
+        let core = self.press(view, style, press.origin)?;
         if !Claim::take(ctx, canvas.id, id) {
             return None;
         }
         let waits = Claim::turn(ctx, canvas.id, id) == Turn::Waits;
-        Some(Drag { press, target, began: false, cancelled: false, waits })
+        Some(Drag { press, core, cancelled: false, waits })
     }
 
     /// What a press at screen point `p` would drag.
-    fn target_at(&self, view: &CanvasView, screen: &[Pos2], style: &WarpStyle, p: Pos2) -> Option<Target> {
+    fn target_at(&self, view: &CanvasView, screen: &[Pos2], style: &WarpStyle, p: Pos2) -> Option<WarpTarget> {
         let nearest = (0..screen.len())
             .filter(|&i| self.mesh.anchor_of(i).is_some())
             .map(|i| (i, hit::point(p, screen[i])))
             .filter(|&(_, d)| d < style.hit)
             .min_by(|a, b| a.1.total_cmp(&b.1));
         if let Some((index, _)) = nearest {
-            return Some(Target::Point(index));
+            return Some(WarpTarget::Point(index));
         }
         let (s, t) = self.surface.as_ref()?(view.to_doc(p))?;
-        Some(Target::Surface(s, t))
+        Some(WarpTarget::Surface(s, t))
     }
 
     /// One pass of a press the grid owns: the press that goes on, if it does.
-    fn track(&self, ctx: &Context, view: &CanvasView, mut d: Drag, gesture: &mut Gesture<WarpEdit>) -> Option<Drag> {
+    fn track_pass(&self, ctx: &Context, view: &CanvasView, mut d: Drag, gesture: &mut Gesture<WarpEdit>) -> Option<Drag> {
         let (pointer, down, input_mods) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
         let mods = self.modifiers.unwrap_or(input_mods);
         if d.cancelled {
             return down.then_some(d);
         }
         if let Some(pointer) = pointer {
-            if !d.began && pointer != d.press.origin {
+            let track = self.track_with(view, &mut d.core, pointer, &mut || {
                 gesture.begin();
-                d.began = gesture.is_active();
-            }
-            if d.began {
-                let by = view.to_doc(pointer) - view.to_doc(d.press.origin);
-                let edit = match d.target {
-                    Target::Point(index) => WarpEdit::Point { index, by },
-                    Target::Surface(s, t) => WarpEdit::Surface { s, t, by },
-                };
+                gesture.is_active()
+            });
+            if let Some(edit) = track.edit {
                 gesture.update(edit, mods);
             }
         }
         if down {
             return Some(d);
         }
-        if d.began {
+        if let WarpRelease::Commit(_) = self.release(&d.core) {
             gesture.commit();
         }
         None
@@ -1000,13 +1135,13 @@ impl<'a> WarpGrid<'a> {
     /// The pointer (PhotoCraft's): a cross hair over a point, a hand over the surface.
     fn cursor(&self, ctx: &Context, canvas: &Response, view: &CanvasView, screen: &[Pos2], style: &WarpStyle, drag: Option<Drag>) {
         let target = match drag {
-            Some(d) => (!d.cancelled).then_some(d.target),
+            Some(d) => (!d.cancelled).then_some(d.core.target),
             None if Claim::owner(ctx, canvas.id).is_none() => canvas.hover_pos().and_then(|p| self.target_at(view, screen, style, p)),
             None => None,
         };
         match target {
-            Some(Target::Point(_)) => ctx.set_cursor_icon(CursorIcon::Crosshair),
-            Some(Target::Surface(..)) => ctx.set_cursor_icon(if drag.is_some() { CursorIcon::Grabbing } else { CursorIcon::Grab }),
+            Some(WarpTarget::Point(_)) => ctx.set_cursor_icon(CursorIcon::Crosshair),
+            Some(WarpTarget::Surface(..)) => ctx.set_cursor_icon(if drag.is_some() { CursorIcon::Grabbing } else { CursorIcon::Grab }),
             None => {}
         }
     }
@@ -1082,8 +1217,7 @@ impl<'a> WarpGrid<'a> {
 #[derive(Clone, Copy, Debug)]
 struct SplitPress {
     press: PrimaryPress,
-    /// A quick split (no tool was set at the press).
-    quick: bool,
+    core: WarpSplitPress,
     /// The press waits for another control's typing run to end ([`Claim::turn`]); the insert is
     /// made against the host's mesh when its turn comes.
     waits: bool,
@@ -1091,9 +1225,9 @@ struct SplitPress {
     released: Option<Pos2>,
 }
 
-/// The lines the pointer would insert.
+/// The lines the pointer would insert ([`WarpGrid::split_hit`]).
 #[derive(Clone, Copy, Debug)]
-struct SplitAt {
+pub struct WarpSplitAt {
     split: WarpSplit,
     column: usize,
     row: usize,
@@ -1103,13 +1237,19 @@ struct SplitAt {
     cursor: CursorIcon,
 }
 
-impl SplitAt {
-    fn edit(&self) -> WarpEdit {
+impl WarpSplitAt {
+    /// The pointer for the split: a cross hair for a cross, else the arrow across its line.
+    pub fn cursor(&self) -> CursorIcon {
+        self.cursor
+    }
+
+    /// The edit the split inserts.
+    pub fn edit(&self) -> WarpEdit {
         WarpEdit::Split { split: self.split, column: self.column, row: self.row, u: self.u, v: self.v, thirds: self.thirds }
     }
 
-    /// The new lines of `mesh`, in document units.
-    fn lines(&self, mesh: &WarpMesh) -> Vec<BezPath> {
+    /// The new lines of `mesh` (the host's mesh), in document units.
+    pub fn lines(&self, mesh: &WarpMesh) -> Vec<BezPath> {
         let base = if self.thirds { mesh.commit_thirds() } else { mesh.clone() };
         let cut = base.split(self.split, self.column, self.row, self.u, self.v);
         let column = || cut.column_path(3 * self.column + 3);

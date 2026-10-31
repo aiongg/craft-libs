@@ -196,9 +196,11 @@ pub struct TransformBoxResponse {
 /// The host's snapping of a dragged point ([`TransformBox::snap`]).
 type Snap<'a> = Box<dyn Fn(BoxPart, Point, Modifiers) -> Point + 'a>;
 
-/// A drag in progress, kept between passes.
-#[derive(Clone, Copy, Debug)]
-struct Drag {
+/// A press the host-driven calls track, kept by the host from [`TransformBox::press`] to
+/// [`TransformBox::release`]. [`show`](TransformBox::show) keeps the same value in the context's
+/// memory under the box's id.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BoxPress {
     part: BoxPart,
     /// The host's box at the press.
     at_press: BoxState,
@@ -206,13 +208,62 @@ struct Drag {
     start: BoxState,
     /// The press in document space.
     from: Point,
-    press: PrimaryPress,
+    /// The press in canvas space.
+    origin: Pos2,
     began: bool,
+    /// A ⌥-press away from the handles: a click there moves the reference point.
+    alt_pivot: bool,
+    /// The box the drag last produced.
+    last: BoxState,
+}
+
+impl BoxPress {
+    /// The part the press took.
+    pub fn part(&self) -> BoxPart {
+        self.part
+    }
+
+    /// Whether the drag has begun (a move past the click slop outside, any move elsewhere).
+    pub fn began(&self) -> bool {
+        self.began
+    }
+
+    /// The box the drag last produced; the host's box at the press until it begins.
+    pub fn last(&self) -> &BoxState {
+        &self.last
+    }
+}
+
+/// What [`TransformBox::track`] reports for one pointer position.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BoxTrack {
+    /// The drag began with this position: the host takes its "before" state.
+    pub begun: bool,
+    /// The box the drag produces at the pointer, once it has begun.
+    pub state: Option<BoxState>,
+}
+
+/// What [`TransformBox::release`] reports.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BoxRelease {
+    /// The drag ended with this box (the last one [`BoxPress::last`] gave).
+    Commit(BoxState),
+    /// A click outside the box: apply it.
+    Apply,
+    /// A ⌥-click that moved the reference point: the box with it moved.
+    Pivot(BoxState),
+    /// Nothing happened.
+    Nothing,
+}
+
+/// A drag [`TransformBox::show`] keeps between passes.
+#[derive(Clone, Copy, Debug)]
+struct Drag {
+    core: BoxPress,
+    press: PrimaryPress,
     /// Esc, an outside change or a missed pass ended the gesture; the rest of the press does
     /// nothing.
     cancelled: bool,
-    /// A ⌥-press away from the handles: a click there moves the reference point.
-    alt_pivot: bool,
     /// The press waits for another control's typing run to end ([`Claim::turn`]); nothing of it
     /// has run.
     waits: bool,
@@ -419,26 +470,31 @@ impl<'a> TransformBox<'a> {
         {
             match Claim::turn(&ctx, canvas.id, id) {
                 Turn::Waits => {}
-                Turn::Runs => self.rebase(d),
+                Turn::Runs => {
+                    d.waits = false;
+                    self.rebase(&mut d.core);
+                }
                 Turn::Now => drag = None,
             }
         }
         if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) {
-            drag = self.press(ui, canvas, view, &style, id);
+            drag = self.press_pass(ui, canvas, view, &style, id);
             if let Some(d) = drag
-                && d.part != BoxPart::Outside
+                && d.core.part != BoxPart::Outside
             {
-                picked = Some(d.part);
+                picked = Some(d.core.part);
             }
         }
         let reported = Gesture::<BoxState>::reported(ui, id).map(|(_, value)| value);
         let host = match drag {
-            Some(d) if d.began && !d.cancelled && (*self.state == d.at_press || Some(*self.state) == reported) => reported.unwrap_or(d.at_press),
+            Some(d) if d.core.began && !d.cancelled && (*self.state == d.core.at_press || Some(*self.state) == reported) => {
+                reported.unwrap_or(d.core.at_press)
+            }
             _ => *self.state,
         };
         let mut gesture = Gesture::load(ui, id, &host, self.policy).focus_owners(&[]).enabled(ui.is_enabled());
         if let Some(d) = &mut drag
-            && d.began
+            && d.core.began
             && !d.cancelled
             && !gesture.is_active()
         {
@@ -446,7 +502,7 @@ impl<'a> TransformBox<'a> {
         }
         // Esc before the first move ends the press as it would end its drag.
         if let Some(d) = &mut drag
-            && !d.began
+            && !d.core.began
             && !d.cancelled
             && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
         {
@@ -456,7 +512,7 @@ impl<'a> TransformBox<'a> {
         if let Some(d) = &mut drag
             && !d.waits
         {
-            self.track(&ctx, canvas, view, &style, d, &mut gesture, &mut out);
+            self.track_pass(&ctx, canvas, view, &style, d, &mut gesture, &mut out);
         }
         if self.double_clicked_inside(&ctx, canvas, view, id, style.hit) {
             out.apply = true;
@@ -478,13 +534,13 @@ impl<'a> TransformBox<'a> {
             self.keys(ui, drag.is_none(), picked.filter(|_| focus.focused), &mut gesture, &mut out);
         }
 
-        let dragging = drag.filter(|d| d.began && !d.cancelled);
+        let dragging = drag.filter(|d| d.core.began && !d.cancelled);
         let other = Claim::owner(&ctx, canvas.id).is_some_and(|owner| owner != id);
         if let Some(d) = dragging
             && let Some(pointer) = pointer
         {
-            self.cursor(&ctx, view, &screen, d.part, pointer, true);
-            self.show_readout(&ctx, id, d.part, &shown, &d.at_press, pointer);
+            self.cursor(&ctx, view, &screen, d.core.part, pointer, true);
+            self.show_readout(&ctx, id, d.core.part, &shown, &d.core.at_press, pointer);
         } else if drag.is_none()
             && !other
             && let Some(pointer) = canvas.hover_pos()
@@ -522,8 +578,90 @@ impl<'a> TransformBox<'a> {
         out
     }
 
-    /// A press on the canvas: the part it takes, claimed for the box.
-    fn press(&self, ui: &Ui, canvas: &Response, view: &CanvasView, style: &TransformStyle, id: Id) -> Option<Drag> {
+    /// The modifiers the box reads: its [`modifiers`](Self::modifiers) if set, else `held`.
+    fn mods(&self, held: Modifiers) -> Modifiers {
+        self.modifiers.unwrap_or(held)
+    }
+
+    /// The part a press at canvas point `point` takes, with `modifiers` held (or the box's own,
+    /// [`modifiers`](Self::modifiers)): the nearest handle or the reference point within
+    /// `style.hit`, else inside or outside; `None` where a press is the tool's (a part the
+    /// [rules](Self::rules) refuse, the inside when it does not move, the outside beyond the
+    /// rotate zone). ⌥ over the inside or outside is the reference point. Canvas points are the
+    /// screen points `view` maps the document to.
+    pub fn hit(&self, view: &CanvasView, style: &TransformStyle, point: Pos2, modifiers: Modifiers) -> Option<BoxPart> {
+        self.takes(&on_screen(view, self.state), point, style, self.mods(modifiers))
+    }
+
+    /// A press at canvas point `origin`: the press to track, or `None` where [`hit`](Self::hit)
+    /// finds no part. The host's box at this call is the press's start.
+    pub fn press(&self, view: &CanvasView, style: &TransformStyle, origin: Pos2, modifiers: Modifiers) -> Option<BoxPress> {
+        let mods = self.mods(modifiers);
+        let screen = on_screen(view, self.state);
+        let part = self.takes(&screen, origin, style, mods)?;
+        let from = view.to_doc(origin);
+        let alt_pivot = part == BoxPart::Pivot && mods.alt && raw_part(&screen, origin, style.hit) != BoxPart::Pivot;
+        let start = if alt_pivot { BoxState { pivot: from, ..*self.state } } else { *self.state };
+        Some(BoxPress { part, at_press: *self.state, start, from, origin, began: false, alt_pivot, last: *self.state })
+    }
+
+    /// The pointer at canvas point `pointer` with `modifiers` held: begins the drag on the first
+    /// move (outside, past `style.click_slop`) and gives the box it produces, snapped by the
+    /// [`snap`](Self::snap) and rounded by [`pixel_grid`](Self::pixel_grid). The host applies the
+    /// box as the update of its gesture.
+    pub fn track(&self, view: &CanvasView, style: &TransformStyle, press: &mut BoxPress, pointer: Pos2, modifiers: Modifiers) -> BoxTrack {
+        self.track_with(view, style, press, pointer, self.mods(modifiers), &mut || true)
+    }
+
+    /// [`track`](Self::track) where beginning the drag may be refused: `begin` answers whether it
+    /// began.
+    fn track_with(
+        &self,
+        view: &CanvasView,
+        style: &TransformStyle,
+        press: &mut BoxPress,
+        pointer: Pos2,
+        mods: Modifiers,
+        begin: &mut dyn FnMut() -> bool,
+    ) -> BoxTrack {
+        let mut track = BoxTrack { begun: false, state: None };
+        let moved = pointer.distance(press.origin);
+        let threshold = if press.part == BoxPart::Outside { style.click_slop } else { 0.0 };
+        if !press.began && moved > threshold && self.rules.allows(press.part) {
+            press.began = begin();
+            track.begun = press.began;
+        }
+        if press.began {
+            let to = view.to_doc(pointer);
+            let to = self.snap.as_ref().map_or(to, |snap| snap(press.part, to, mods));
+            let mut dragged = quad::drag(&press.start, &press.last, press.part, press.from, to, mods, &self.rules);
+            if self.pixel_grid {
+                dragged = on_pixel_grid(dragged);
+            }
+            press.last = dragged;
+            track.state = Some(dragged);
+        }
+        track
+    }
+
+    /// The button released at canvas point `pointer` (`None` if the pointer left the window):
+    /// the end of the drag, or what a click does. `double_clicked`: the release completes a
+    /// double-click, which applies the box rather than a click outside it.
+    pub fn release(&self, style: &TransformStyle, press: &BoxPress, pointer: Option<Pos2>, double_clicked: bool) -> BoxRelease {
+        let far = pointer.is_some_and(|p| p.distance(press.origin) > style.click_slop);
+        if press.began {
+            BoxRelease::Commit(press.last)
+        } else if press.part == BoxPart::Outside && !far && !double_clicked {
+            BoxRelease::Apply
+        } else if press.alt_pivot {
+            BoxRelease::Pivot(press.start)
+        } else {
+            BoxRelease::Nothing
+        }
+    }
+
+    /// A press on the canvas read from the input: the part it takes, claimed for the box.
+    fn press_pass(&self, ui: &Ui, canvas: &Response, view: &CanvasView, style: &TransformStyle, id: Id) -> Option<Drag> {
         let ctx = ui.ctx();
         if !ui.is_enabled() || !ctx.input(|i| i.pointer.primary_pressed()) {
             return None;
@@ -532,25 +670,21 @@ impl<'a> TransformBox<'a> {
         if !(view.rect.contains(press.origin) && canvas.contains_pointer()) {
             return None;
         }
-        let mods = self.modifiers.unwrap_or_else(|| ctx.input(|i| i.modifiers));
-        let screen = on_screen(view, self.state);
-        let part = self.takes(&screen, press.origin, style, mods)?;
+        let mods = ctx.input(|i| i.modifiers);
+        let core = self.press(view, style, press.origin, mods)?;
         if !Claim::take(ctx, canvas.id, id) {
             return None;
         }
-        let from = view.to_doc(press.origin);
-        let alt_pivot = part == BoxPart::Pivot && mods.alt && raw_part(&screen, press.origin, style.hit) != BoxPart::Pivot;
-        let start = if alt_pivot { BoxState { pivot: from, ..*self.state } } else { *self.state };
         let waits = Claim::turn(ctx, canvas.id, id) == Turn::Waits;
-        Some(Drag { part, at_press: *self.state, start, from, press, began: false, cancelled: false, alt_pivot, waits })
+        Some(Drag { core, press, cancelled: false, waits })
     }
 
     /// Takes the host's box as the press's start when its turn comes: a typing run that ended
     /// first may have changed it.
-    fn rebase(&self, d: &mut Drag) {
-        d.waits = false;
-        d.at_press = *self.state;
-        d.start = if d.alt_pivot { BoxState { pivot: d.from, ..*self.state } } else { *self.state };
+    fn rebase(&self, p: &mut BoxPress) {
+        p.at_press = *self.state;
+        p.last = *self.state;
+        p.start = if p.alt_pivot { BoxState { pivot: p.from, ..*self.state } } else { *self.state };
     }
 
     /// The part a press at screen point `p` with `mods` takes from the box mapped to the screen;
@@ -570,9 +704,10 @@ impl<'a> TransformBox<'a> {
         }
     }
 
-    /// One pass of a drag: begins it on the first move, updates it, ends it on the release.
+    /// One pass of a drag read from the input: begins it on the first move, updates it, ends it
+    /// on the release.
     #[expect(clippy::too_many_arguments, reason = "one pass's state, passed once")]
-    fn track(
+    fn track_pass(
         &self,
         ctx: &Context,
         canvas: &Response,
@@ -586,36 +721,25 @@ impl<'a> TransformBox<'a> {
             return;
         }
         let (pointer, down, input_mods) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
-        let mods = self.modifiers.unwrap_or(input_mods);
-        let mut far = false;
+        let mods = self.mods(input_mods);
         if let Some(pointer) = pointer {
-            let moved = pointer.distance(d.press.origin);
-            far = moved > style.click_slop;
-            let threshold = if d.part == BoxPart::Outside { style.click_slop } else { 0.0 };
-            if !d.began && moved > threshold && self.rules.allows(d.part) {
+            d.core.last = *gesture.shown();
+            let track = self.track_with(view, style, &mut d.core, pointer, mods, &mut || {
                 gesture.begin();
-                d.began = gesture.is_active();
-            }
-            if d.began {
-                let to = view.to_doc(pointer);
-                let to = self.snap.as_ref().map_or(to, |snap| snap(d.part, to, mods));
-                let last = *gesture.shown();
-                let mut dragged = quad::drag(&d.start, &last, d.part, d.from, to, mods, &self.rules);
-                if self.pixel_grid {
-                    dragged = on_pixel_grid(dragged);
-                }
-                gesture.update(dragged, mods);
+                gesture.is_active()
+            });
+            if let Some(state) = track.state {
+                gesture.update(state, mods);
             }
         }
         if down {
             return;
         }
-        if d.began {
-            gesture.commit();
-        } else if d.part == BoxPart::Outside && !far && !canvas.double_clicked() {
-            out.apply = true;
-        } else if d.alt_pivot {
-            gesture.set(d.start);
+        match self.release(style, &d.core, pointer, canvas.double_clicked()) {
+            BoxRelease::Commit(_) => gesture.commit(),
+            BoxRelease::Apply => out.apply = true,
+            BoxRelease::Pivot(state) => gesture.set(state),
+            BoxRelease::Nothing => {}
         }
     }
 
@@ -797,8 +921,10 @@ impl<'a> TransformBox<'a> {
     }
 }
 
-/// The reference point: a circle and a cross, white over the halo.
-fn paint_pivot(painter: &Painter, c: Pos2, style: &TransformStyle) {
+/// Draws the reference point at screen point `c`: a circle and a cross over their halo, as a
+/// [`TransformBox`] draws its own. For a host showing a reference point outside a box; `style` is
+/// [`TransformBox::style`].
+pub fn paint_pivot(painter: &Painter, c: Pos2, style: &TransformStyle) {
     let (r, arm) = (style.pivot_radius, style.pivot_arm);
     for stroke in [style.pivot_halo, style.pivot] {
         painter.circle_stroke(c, r, stroke);
