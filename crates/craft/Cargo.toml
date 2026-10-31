@@ -1,0 +1,216 @@
+[package]
+name = "craft"
+description = "The craft libraries in one dependency: one feature per crate, `ui` for their egui side"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+craft-host = { workspace = true }
+craft-i18n = { workspace = true }
+craft-theme = { workspace = true }
+egui = { workspace = true, optional = true }
+toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
+craft-ai-core = { workspace = true, optional = true }
+craft-atomic = { workspace = true, optional = true }
+craft-cms = { workspace = true, optional = true }
+craft-color = { workspace = true, optional = true }
+craft-crw = { workspace = true, optional = true }
+craft-dialogs = { workspace = true, optional = true }
+craft-docpath = { workspace = true, optional = true }
+craft-draw = { workspace = true, optional = true }
+craft-font-catalog = { workspace = true, optional = true }
+craft-font-manager = { workspace = true, optional = true }
+craft-font-store = { workspace = true, optional = true }
+craft-imaging = { workspace = true, optional = true }
+craft-jpeg = { workspace = true, optional = true }
+craft-keymap = { workspace = true, optional = true }
+craft-media = { workspace = true, optional = true }
+craft-menu = { workspace = true, optional = true }
+craft-pdf = { workspace = true, optional = true }
+craft-platform = { workspace = true, optional = true }
+craft-prepress = { workspace = true, optional = true }
+craft-print = { workspace = true, optional = true }
+craft-quit = { workspace = true, optional = true }
+craft-settings = { workspace = true, optional = true }
+craft-text = { workspace = true, optional = true }
+craft-theme-store = { workspace = true, optional = true }
+craft-update = { workspace = true, optional = true }
+craft-window = { workspace = true, optional = true }
+craft-ui = { workspace = true, optional = true }
+
+[features]
+ui = [
+    "dep:craft-ui",
+    "dep:egui",
+    "craft-color?/ui",
+    "craft-draw?/ui",
+    "craft-font-manager?/ui",
+    "craft-host/ui",
+    "craft-imaging?/ui",
+    "craft-keymap?/ui",
+    "craft-platform?/ui",
+    "craft-print?/ui",
+    "craft-quit?/ui",
+    "craft-update?/ui",
+    "craft-window?/ui",
+]
+screen-testing = [
+    "ui",
+    "craft-ui/screen-testing",
+    "craft-color?/screen-testing",
+    "craft-draw?/screen-testing",
+    "craft-imaging?/screen-testing",
+    "craft-keymap?/screen-testing",
+    "craft-ui?/screen-testing",
+    "craft-update?/screen-testing",
+]
+serde = ["craft-draw?/serde", "craft-theme/serde", "craft-theme-store?/serde", "craft-ui?/serde"]
+ai-core = ["dep:craft-ai-core"]
+
+atomic = ["dep:craft-atomic"]
+
+cms = ["dep:craft-cms"]
+
+color = ["dep:craft-color"]
+
+crw = ["dep:craft-crw"]
+
+dialogs = ["dep:craft-dialogs"] # native only: rfd's folder picker and file paths
+
+docpath = ["dep:craft-docpath"]
+
+draw = ["dep:craft-draw", "color"]
+
+font-catalog = ["dep:craft-font-catalog"]
+font-catalog-system = ["font-catalog", "craft-font-catalog/system"]
+
+font-manager = ["dep:craft-font-manager"] # native only: needs craft-font-store's store and network client
+
+font-store = ["dep:craft-font-store"]
+font-store-bundled-index = ["font-store", "craft-font-store/bundled-index"]
+
+i18n-collate = ["craft-i18n/collate"]
+
+imaging = ["dep:craft-imaging"]
+
+jpeg = ["dep:craft-jpeg"]
+
+keymap = ["dep:craft-keymap"]
+
+media = ["dep:craft-media"]
+media-bitstream = ["media", "craft-media/bitstream"]
+media-isobmff = ["media", "craft-media/isobmff"]
+media-matroska = ["media", "craft-media/matroska"]
+
+menu = ["dep:craft-menu"]
+
+pdf = ["dep:craft-pdf"]
+pdf-interpret = ["pdf", "craft-pdf/interpret"]
+pdf-raster = ["pdf", "craft-pdf/raster"]
+pdf-read = ["pdf", "craft-pdf/read"]
+pdf-write = ["pdf", "craft-pdf/write"]
+pdf-write-pdf = ["pdf", "craft-pdf/write-pdf"]
+pdf-write-simple-text = ["pdf", "craft-pdf/write-simple-text"]
+
+platform = ["dep:craft-platform"]
+platform-appearance = ["platform", "craft-platform/appearance"]
+platform-browser = ["platform", "craft-platform/browser"]
+platform-dialogs = ["platform", "craft-platform/dialogs"]
+platform-theme = ["platform", "craft-platform/theme"]
+
+prepress = ["dep:craft-prepress"]
+prepress-flatten = ["prepress", "craft-prepress/flatten"]
+
+print = ["dep:craft-print"]
+
+quit = ["dep:craft-quit"]
+quit-menu = ["quit", "craft-quit/menu"]
+
+settings = ["dep:craft-settings"]
+
+text = ["dep:craft-text"]
+text-afrikaans = ["text", "craft-text/afrikaans"]
+text-albanian = ["text", "craft-text/albanian"]
+text-all-languages = ["text", "craft-text/all-languages"]
+text-assamese = ["text", "craft-text/assamese"]
+text-belarusian = ["text", "craft-text/belarusian"]
+text-bengali = ["text", "craft-text/bengali"]
+text-bidi = ["text", "craft-text/bidi"]
+text-bulgarian = ["text", "craft-text/bulgarian"]
+text-burmese = ["text", "craft-text/burmese"]
+text-catalan = ["text", "craft-text/catalan"]
+text-croatian = ["text", "craft-text/croatian"]
+text-czech = ["text", "craft-text/czech"]
+text-danish = ["text", "craft-text/danish"]
+text-dutch = ["text", "craft-text/dutch"]
+text-estonian = ["text", "craft-text/estonian"]
+text-finnish = ["text", "craft-text/finnish"]
+text-french = ["text", "craft-text/french"]
+text-galician = ["text", "craft-text/galician"]
+text-generator = ["text", "craft-text/generator"]
+text-georgian = ["text", "craft-text/georgian"]
+text-german = ["text", "craft-text/german"]
+text-greek = ["text", "craft-text/greek"]
+text-gujarati = ["text", "craft-text/gujarati"]
+text-hindi = ["text", "craft-text/hindi"]
+text-hungarian = ["text", "craft-text/hungarian"]
+text-hyphen = ["text", "craft-text/hyphen"]
+text-icelandic = ["text", "craft-text/icelandic"]
+text-italian = ["text", "craft-text/italian"]
+text-kannada = ["text", "craft-text/kannada"]
+text-khmer = ["text", "craft-text/khmer"]
+text-kurmanji = ["text", "craft-text/kurmanji"]
+text-lao = ["text", "craft-text/lao"]
+text-latin = ["text", "craft-text/latin"]
+text-linebreak = ["text", "craft-text/linebreak"]
+text-lithuanian = ["text", "craft-text/lithuanian"]
+text-lstm = ["text", "craft-text/lstm"]
+text-malayalam = ["text", "craft-text/malayalam"]
+text-marathi = ["text", "craft-text/marathi"]
+text-mongolian = ["text", "craft-text/mongolian"]
+text-norwegian = ["text", "craft-text/norwegian"]
+text-oriya = ["text", "craft-text/oriya"]
+text-panjabi = ["text", "craft-text/panjabi"]
+text-polish = ["text", "craft-text/polish"]
+text-portuguese = ["text", "craft-text/portuguese"]
+text-russian = ["text", "craft-text/russian"]
+text-sanskrit = ["text", "craft-text/sanskrit"]
+text-segment = ["text", "craft-text/segment"]
+text-serbian = ["text", "craft-text/serbian"]
+text-slovak-gpl = ["text", "craft-text/slovak-gpl"]
+text-slovenian = ["text", "craft-text/slovenian"]
+text-spanish = ["text", "craft-text/spanish"]
+text-swedish = ["text", "craft-text/swedish"]
+text-tamil = ["text", "craft-text/tamil"]
+text-telugu = ["text", "craft-text/telugu"]
+text-thai = ["text", "craft-text/thai"]
+text-turkish = ["text", "craft-text/turkish"]
+text-turkmen = ["text", "craft-text/turkmen"]
+text-ukrainian = ["text", "craft-text/ukrainian"]
+
+theme-ecolor = ["craft-theme/ecolor"]
+
+theme-store = ["dep:craft-theme-store"]
+theme-store-testing = ["theme-store", "craft-theme-store/testing"]
+
+ui-color_fonts = ["ui", "craft-ui/color_fonts"]
+ui-native-windows = ["ui", "craft-ui/native-windows"]
+ui-system_fonts = ["ui", "craft-ui/system_fonts"]
+ui-testing = ["ui", "craft-ui/testing"]
+ui-window-frame = ["ui", "craft-ui/window-frame"]
+ui-window-restore = ["ui", "craft-ui/window-restore"] # native only: the window-restore store
+
+update = ["dep:craft-update"] # native only: downloads and installs through getrandom without wasm support
+update-local-mirror = ["update", "craft-update/local-mirror"]
+
+window = ["dep:craft-window"]
+window-restore = ["window", "craft-window/restore"] # native only: the window-restore store
+window-restore-eframe = ["window", "craft-window/restore-eframe"] # native only: the window-restore store
+window-restore-ui = ["window", "craft-window/restore-ui"] # native only: the window-restore store
+window-restore-ui-glow = ["window", "craft-window/restore-ui-glow"] # native only: the window-restore store
