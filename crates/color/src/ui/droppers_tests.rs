@@ -102,16 +102,17 @@ fn the_button_is_a_pressed_toggle_while_armed() {
 #[test]
 fn the_canvas_tool_samples_for_the_armed_dropper() {
     let owner = Id::unique("owner");
-    let mut tool = DropperTool::new(|doc| (doc[0] < 300.0).then(|| Srgba::rgb(doc[0] as f32 / 300.0, 0.0, 0.0)));
-    let id = std::rc::Rc::new(std::cell::Cell::new(Id::NULL));
+    let tool = std::cell::RefCell::new(DropperTool::new(|doc| (doc[0] < 300.0).then(|| Srgba::rgb(doc[0] as f32 / 300.0, 0.0, 0.0))));
+    let id = std::rc::Rc::new(std::cell::Cell::new(craft_ui::canvas::CanvasId::from_id(Id::NULL)));
     let shown = id.clone();
     let mut h = Harness::builder()
         .with_size(vec2(400.0, 300.0))
         .with_context_setup(|ctx| craft_ui::theme::install(ctx, &craft_ui::theme::Base::suite_default()))
         .build_ui(|ui| {
             let view = CanvasView::new(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
-            let canvas = ui.interact(view.rect, ui.scope_id().with("canvas"), Sense::click_and_drag());
-            shown.set(ToolHost::new("doc").show(ui, &view, &canvas, &mut tool).id);
+            let canvas_id = craft_ui::canvas::CanvasId::new(ui, "canvas");
+            let canvas = canvas_id.interact(ui, view.rect, Sense::click_and_drag());
+            shown.set(ToolHost::new(canvas_id).show(ui, &view, &canvas, &mut *tool.borrow_mut()).id);
         });
     h.step();
     let send = |h: &mut Harness<'_, ()>, input| {
@@ -128,7 +129,7 @@ fn the_canvas_tool_samples_for_the_armed_dropper() {
     send(&mut h, ToolInput::Move { doc: Point::new(30.0, 10.0), pressure: 1.0, tilt, rotation: 0.0, modifiers: m });
     assert_eq!(DropperState::take(&h.ctx, owner), Some(Srgba::rgb(0.1, 0.0, 0.0)), "a drag resamples");
     DropperState::arm(&h.ctx, owner);
-    ToolHost::cancel(&h.ctx, id.get());
+    ToolHost::cancel(&h.ctx.clone(), id.get(), &mut *tool.borrow_mut());
     h.step();
     assert_eq!(DropperState::armed(&h.ctx), None);
 }

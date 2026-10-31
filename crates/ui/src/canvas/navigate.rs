@@ -23,6 +23,7 @@ use egui::{
 };
 use kurbo::{Point, Rect, Size};
 
+use super::canvas_id::CanvasId;
 use super::cursor::ToolCursor;
 use super::scrollbars::CanvasScrollbars;
 use super::tool_host::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
@@ -534,9 +535,10 @@ impl FlickPan {
 
     /// Feed one pass of a Hand drag (`dragging`, its `delta` in points) at `time` with the
     /// preference `enabled`; returns the glide to apply to the view this pass after the
-    /// release, and requests a repaint while it glides. State under `id`.
+    /// release, and requests a repaint while it glides. State under `canvas`.
     // pc: crates/ui-egui/src/prefs/flick_pan.rs `frame`, `Flick::{track, release, step}`.
-    pub fn frame(ctx: &Context, id: Id, dragging: bool, delta: ScreenVec, enabled: bool) -> Option<ScreenVec> {
+    pub fn frame(ctx: &Context, canvas: CanvasId, dragging: bool, delta: ScreenVec, enabled: bool) -> Option<ScreenVec> {
+        let id = Self::key(canvas);
         let (now, interrupt) = ctx.input(|i| {
             let key = i.events.iter().any(|e| matches!(e, Event::Key { pressed: true, .. }));
             (i.time, i.pointer.any_pressed() || key)
@@ -565,8 +567,26 @@ impl FlickPan {
 
     /// Stop a glide (the view hit a limit, a click).
     // pc: crates/ui-egui/src/prefs/flick_pan.rs:99 `stop`.
-    pub fn stop(ctx: &Context, id: Id) {
-        ctx.data_mut(|d| d.get_temp_mut_or_default::<FlickPan>(id).clear());
+    pub fn stop(ctx: &Context, canvas: CanvasId) {
+        ctx.data_mut(|d| d.get_temp_mut_or_default::<FlickPan>(Self::key(canvas)).clear());
+    }
+
+    /// Move `view` by this pass's glide step, when a released drag glides: the app (or the
+    /// [`ToolHost`](super::ToolHost), see [`ToolHost::navigation`](super::ToolHost::navigation))
+    /// calls it once per pass whatever the tool is, so a flick released with the Space Hand
+    /// keeps going after Space comes up. Without Overscroll a glide that reaches a scroll limit
+    /// of the document of `size` stops. Returns whether the view moved.
+    pub fn advance_view(ctx: &Context, canvas: CanvasId, view: &mut CanvasView, prefs: &NavigationPrefs, size: Size) -> bool {
+        let Some(step) = Self::frame(ctx, canvas, false, ScreenVec::ZERO, prefs.flick_panning) else { return false };
+        pan(view, step);
+        if !prefs.overscroll && clamp_to_document(view, size) {
+            Self::stop(ctx, canvas);
+        }
+        true
+    }
+
+    fn key(canvas: CanvasId) -> Id {
+        canvas.with("flick-pan")
     }
 }
 
@@ -949,6 +969,10 @@ crate::words! {
     pub struct NavigationLabels {
         /// The Rotate View compass's AccessKit name and tooltip.
         reset_rotation: "navigate.resetRotation" = "Reset Rotation";
+        /// Go Back through the places the view jumped between.
+        go_back: "navigate.goBack" = "Go Back";
+        /// Go Forward through the places the view jumped between.
+        go_forward: "navigate.goForward" = "Go Forward";
     }
 }
 
@@ -974,19 +998,6 @@ impl HandTool {
     pub fn new(size: Size, prefs: NavigationPrefs) -> Self {
         Self { size, prefs, ..Self::default() }
     }
-
-    /// Move `view` by the glide step `glide`; a glide that reaches a scroll limit stops.
-    fn glide(&self, cx: &ToolContext<'_>, view: &mut CanvasView, glide: ScreenVec) {
-        pan(view, glide);
-        if !self.prefs.overscroll && clamp_to_document(view, self.size) {
-            FlickPan::stop(&cx.canvas.ctx, flick_id(cx));
-        }
-    }
-}
-
-/// The glide state of the canvas the tool works on.
-fn flick_id(cx: &ToolContext<'_>) -> Id {
-    cx.canvas.id.with("flick-pan")
 }
 
 impl CanvasTool for HandTool {
@@ -998,8 +1009,8 @@ impl CanvasTool for HandTool {
     // pc: crates/ui-egui/src/canvas.rs:1930 (hand_pan, flick_pan::frame).
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         let ctx = &cx.canvas.ctx;
-        FlickPan::stop(ctx, flick_id(cx));
-        ZoomAnimation::stop(ctx, cx.canvas.id);
+        FlickPan::stop(ctx, cx.canvas_id);
+        ZoomAnimation::stop(ctx, cx.canvas_id);
         self.start = Some((*cx.view, pointer.screen));
         self.last = pointer.screen;
         ToolAction::Claimed
@@ -1012,7 +1023,7 @@ impl CanvasTool for HandTool {
         let mut next = view;
         pan(&mut next, pointer.screen - from);
         cx.set_view(next);
-        FlickPan::frame(&cx.canvas.ctx, flick_id(cx), true, delta, self.prefs.flick_panning);
+        FlickPan::frame(&cx.canvas.ctx, cx.canvas_id, true, delta, self.prefs.flick_panning);
     }
 
     fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
@@ -1020,9 +1031,7 @@ impl CanvasTool for HandTool {
         let mut next = view;
         pan(&mut next, pointer.screen - from);
         // Letting go while the pointer still moves starts the glide, whose first step is this pass's.
-        if let Some(glide) = FlickPan::frame(&cx.canvas.ctx, flick_id(cx), false, ScreenVec::ZERO, self.prefs.flick_panning) {
-            self.glide(cx, &mut next, glide);
-        }
+        FlickPan::advance_view(&cx.canvas.ctx, cx.canvas_id, &mut next, &self.prefs, self.size);
         cx.set_view(next);
     }
 
@@ -1030,19 +1039,7 @@ impl CanvasTool for HandTool {
         if let Some((view, _)) = self.start.take() {
             cx.set_view(view);
         }
-        FlickPan::stop(&cx.canvas.ctx, flick_id(cx));
-    }
-
-    /// A released drag keeps gliding while the pointer is over the canvas.
-    fn hover(&mut self, _pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
-        if self.start.is_some() {
-            return;
-        }
-        if let Some(glide) = FlickPan::frame(&cx.canvas.ctx, flick_id(cx), false, ScreenVec::ZERO, self.prefs.flick_panning) {
-            let mut view = *cx.view;
-            self.glide(cx, &mut view, glide);
-            cx.set_view(view);
-        }
+        FlickPan::stop(&cx.canvas.ctx, cx.canvas_id);
     }
 
     fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
@@ -1127,7 +1124,7 @@ impl CanvasTool for ZoomTool {
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         let ctx = &cx.canvas.ctx;
         let ppp = ctx.pixels_per_point();
-        ZoomAnimation::stop(ctx, cx.canvas.id);
+        ZoomAnimation::stop(ctx, cx.canvas_id);
         self.press = Some((*cx.view, pointer.time, pointer.screen));
         self.hold = self.prefs.animated_zoom.then(|| super::HoldZoom::press(pointer.screen, cx.view.to_doc(pointer.screen), pointer.time));
         self.drag = Some(super::ZoomDrag::begin(cx.view, pointer.screen, self.prefs.scrubby_zoom, ppp));
@@ -1161,7 +1158,7 @@ impl CanvasTool for ZoomTool {
             if let Some(next) = click_step(&start, anchor, out, self.size, &self.prefs, ppp) {
                 if self.prefs.animated_zoom {
                     let doc = (!self.prefs.zoom_clicked_point_to_center).then(|| (start.to_doc(anchor), anchor));
-                    ZoomAnimation::begin(&cx.canvas.ctx, cx.canvas.id, &start, doc);
+                    ZoomAnimation::begin(&cx.canvas.ctx, cx.canvas_id, &start, doc);
                 }
                 cx.set_view(next);
             } else {
@@ -1216,7 +1213,7 @@ impl CanvasTool for RotateViewTool {
 
     // pc: crates/ui-egui/src/canvas/rotate_view.rs:186 `drag`.
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
-        ZoomAnimation::stop(&cx.canvas.ctx, cx.canvas.id);
+        ZoomAnimation::stop(&cx.canvas.ctx, cx.canvas_id);
         self.drag = Some((RotateView::begin(cx.view, pointer.screen), *cx.view));
         ToolAction::Claimed
     }

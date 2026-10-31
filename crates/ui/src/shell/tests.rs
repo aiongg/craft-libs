@@ -315,7 +315,7 @@ fn tab_toggles_the_chrome_only_while_the_canvas_has_focus() {
         let mut out = None;
         win.frame(events, |ui| {
             out = Some(shell(&cfg, &calls).show(ui, |ui, cx| {
-                cx.canvas(Id::unique("canvas"));
+                cx.canvas(crate::canvas::CanvasId::from_id(egui::Id::unique("canvas")));
                 field.set(ui.put(Rect::from_min_size(pos2(300.0, 300.0), vec2(120.0, 24.0)), egui::TextEdit::singleline(&mut text)).rect);
             }));
         });
@@ -450,7 +450,7 @@ fn no_edge_reveal_while_a_button_is_held_a_popup_is_open_or_the_tab_reveal_is_on
     let calls = Calls::default();
     let mut out = None;
     win.frame(vec![Event::PointerMoved(at)], |ui| {
-        egui::Popup::open_id(ui.ctx(), Id::unique("popup"));
+        egui::Popup::open_id(ui.ctx(), egui::Id::unique("popup"));
         out = Some(shell(&cfg, &calls).show(ui, |_, _| ()));
     });
     assert!(out.expect("ran").slots.is_empty(), "a popup is open");
@@ -570,7 +570,7 @@ fn show_with(win: &mut Win, cfg: &Cfg, events: Vec<Event>, mut extra: impl FnMut
     let calls = Calls::default();
     let mut out = None;
     win.frame(events, |ui| {
-        out = Some(shell(cfg, &calls).show(ui, |_, cx| cx.canvas(Id::unique("canvas"))));
+        out = Some(shell(cfg, &calls).show(ui, |_, cx| cx.canvas(crate::canvas::CanvasId::from_id(egui::Id::unique("canvas")))));
         extra(ui.ctx());
     });
     out.expect("ran")
@@ -584,7 +584,7 @@ fn tab() -> Vec<Event> {
 fn tab_belongs_to_an_open_dialog_menu_or_popup() {
     let cfg = Cfg::new().only();
     let modal = |ctx: &Context| {
-        egui::Modal::new(Id::unique("dialog")).show(ctx, |ui| {
+        egui::Modal::new(egui::Id::unique("dialog")).show(ctx, |ui| {
             let _ = ui.button("First");
             let _ = ui.button("Second");
         });
@@ -603,7 +603,7 @@ fn tab_belongs_to_an_open_dialog_menu_or_popup() {
     let mut win = Win::new();
     win.host_tab = true;
     show_with(&mut win, &cfg, vec![], |_| ());
-    egui::Popup::open_id(&win.ctx, Id::unique("popup"));
+    egui::Popup::open_id(&win.ctx, egui::Id::unique("popup"));
     assert!(!tab_toggles_chrome(&win.ctx));
     show_with(&mut win, &cfg, tab(), |_| ());
     assert_eq!(win.toggles, 0, "Tab is the popup's");
@@ -618,7 +618,7 @@ fn a_stale_canvas_id_does_not_count_after_a_document_switch() {
     let mut win = Win::new();
     let cfg = Cfg::new().only();
     show_with(&mut win, &cfg, vec![], |_| ());
-    let canvas = Id::unique("canvas");
+    let canvas = egui::Id::unique("canvas");
     win.ctx.memory_mut(|m| m.request_focus(canvas));
     assert!(tab_toggles_chrome(&win.ctx), "the registered canvas has focus");
     // The next documents' body registers no canvas for two passes (a start screen).

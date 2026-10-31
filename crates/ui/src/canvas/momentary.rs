@@ -12,7 +12,9 @@
 //! [`CanvasTool::key`](super::CanvasTool::key)), not a momentary tool. PhotoCraft's Cmd-held Move
 //! tool and the Brush's erase key are tool behaviour (step 7), not here.
 
-use egui::{Context, Id, InputState, Key, KeyboardShortcut, Modifiers};
+use egui::{Context, InputState, Key, KeyboardShortcut, Modifiers};
+
+use super::canvas_id::CanvasId;
 
 use crate::behavior::KeyClaim;
 use crate::focus::key_owner::canvas_keys_free;
@@ -54,7 +56,7 @@ impl MomentaryTool {
 ///
 /// ```no_run
 /// use craft_ui::canvas::{MomentaryKeys, MomentaryTool};
-/// # fn demo(ctx: &egui::Context, canvas: egui::Id, drawing: bool) {
+/// # fn demo(ctx: &egui::Context, canvas: craft_ui::canvas::CanvasId, drawing: bool) {
 /// let keys = MomentaryKeys::default();
 /// match keys.update(ctx, canvas, drawing) {
 ///     Some(MomentaryTool::Hand) => { /* show the Hand tool this pass */ }
@@ -119,14 +121,15 @@ impl MomentaryKeys {
     /// text field has the keyboard, except while `drawing` (a marquee, lasso or shape is being
     /// dragged: Space repositions it instead). A temporary tool in effect when the primary button
     /// went down stays while it is down and on the pass it is released (the Move tool's release
-    /// commits the move), even after its keys come up. The latch lives in egui memory under
-    /// `canvas`.
+    /// commits the move), even after its keys come up. A drag that began without one finishes
+    /// without one: keys pressed mid-drag start no temporary tool until the button is up. The
+    /// latch lives in egui memory under `canvas`.
     // pc: crates/ui-egui/src/input/hold_keys.rs:240 `for_frame`, :232 `latch_id`.
-    pub fn update(&self, ctx: &Context, canvas: Id, drawing: bool) -> Option<MomentaryTool> {
-        let (down, released) = ctx.input(|i| (i.pointer.primary_down(), i.pointer.primary_released()));
+    pub fn update(&self, ctx: &Context, canvas: CanvasId, drawing: bool) -> Option<MomentaryTool> {
+        let (down, released, pressed) = ctx.input(|i| (i.pointer.primary_down(), i.pointer.primary_released(), i.pointer.primary_pressed()));
         let latch = canvas.with("momentary-latch");
         let latched = ctx.data(|d| d.get_temp::<Option<MomentaryTool>>(latch)).flatten();
-        let tool = if (down || released) && latched.is_some() {
+        let tool = if (down || released) && !pressed {
             latched
         } else if drawing || !canvas_keys_free(ctx) {
             None

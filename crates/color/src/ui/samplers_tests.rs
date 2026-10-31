@@ -65,17 +65,18 @@ fn readouts_use_the_documents_converter() {
 /// so document points equal screen points.
 struct Rig<T> {
     tool: T,
-    id: Id,
+    id: craft_ui::canvas::CanvasId,
 }
 
 fn harness<T: CanvasTool + 'static>(tool: T) -> Harness<'static, Rig<T>> {
     let mut h = Harness::builder().with_size(vec2(400.0, 300.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, rig: &mut Rig<T>| {
             let view = CanvasView::new(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
-            let canvas = ui.interact(view.rect, ui.scope_id().with("canvas"), Sense::click_and_drag());
-            rig.id = ToolHost::new("doc").show(ui, &view, &canvas, &mut rig.tool).id;
+            let canvas_id = craft_ui::canvas::CanvasId::new(ui, "canvas");
+            let canvas = canvas_id.interact(ui, view.rect, Sense::click_and_drag());
+            rig.id = ToolHost::new(canvas_id).show(ui, &view, &canvas, &mut rig.tool).id;
         },
-        Rig { tool, id: Id::NULL },
+        Rig { tool, id: craft_ui::canvas::CanvasId::from_id(Id::NULL) },
     );
     h.step();
     h

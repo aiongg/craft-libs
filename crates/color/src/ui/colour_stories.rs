@@ -511,7 +511,7 @@ fn show_samplers(ui: &mut Ui, _: &mut NoArgs) {
     let painter = ui.painter_at(rect);
     painter.image(image_texture(ui.ctx()).id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
     let mut tool = ColorSamplerTool::new(&mut samplers, image_size());
-    let _ = ToolHost::new("sampler-story").show(ui, &view, &canvas, &mut tool);
+    let _ = ToolHost::new(craft_ui::canvas::CanvasId::of(&canvas)).show(ui, &view, &canvas, &mut tool);
     let full = tool.take_error().is_some();
     samplers.paint(&painter, &view);
 

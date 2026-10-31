@@ -135,7 +135,7 @@ pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) {
     let response = ui.interact(rect, id.with("canvas"), Sense::click_and_drag() | Sense::FOCUSABLE);
     response.widget_info(|| WidgetInfo::labeled(Role::Canvas, ui.is_enabled(), "Document"));
     if let Some(chrome) = chrome {
-        chrome.shell.canvas(response.id);
+        chrome.shell.canvas(craft_ui::canvas::CanvasId::of(&response));
     }
     let tool = mock.tools.current;
     let cv = canvas_view(&mock.view, rect, ppp);

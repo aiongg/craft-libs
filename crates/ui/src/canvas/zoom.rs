@@ -26,6 +26,7 @@ use std::ops::RangeInclusive;
 use egui::{Context, Id, Painter, Pos2, Rect as ScreenRect, Vec2 as ScreenVec};
 use kurbo::{Point, Rect, Size};
 
+use super::canvas_id::CanvasId;
 use super::marquee::{Marquee, MarqueeLook};
 use super::view::CanvasView;
 use crate::theme::UiTokens;
@@ -236,7 +237,8 @@ pub fn step_view(view: &mut CanvasView, dir: i32, size: Size, pixels_per_point: 
 /// throughout. The app keeps its own view at the target; the animation only changes what is
 /// drawn. With Animated Zoom off, [`shown`](Self::shown) returns the target at once.
 ///
-/// The state lives in egui memory under the canvas's id.
+/// The state lives in egui memory under the [`CanvasId`], which the app has before the canvas
+/// exists; the Zoom tool starts an ease with the id in its [`ToolContext`](super::ToolContext).
 pub struct ZoomAnimation;
 
 /// A running ease.
@@ -251,8 +253,8 @@ struct Easing {
     shown: CanvasView,
 }
 
-fn animation_id(id: Id) -> Id {
-    id.with("zoom-animation")
+fn animation_id(canvas: CanvasId) -> Id {
+    canvas.with("zoom-animation")
 }
 
 impl ZoomAnimation {
@@ -263,16 +265,16 @@ impl ZoomAnimation {
     /// the next pass, with `anchor` (a document point and the screen point it stays at) for a
     /// zoom about the pointer. A new zoom while one runs starts from the view in between.
     // pc: crates/ui-egui/src/canvas/view_xform.rs:175 `animated_view` (zoom_animating, zoom_anchor).
-    pub fn begin(ctx: &Context, id: Id, from: &CanvasView, anchor: Option<(Point, Pos2)>) {
-        ctx.data_mut(|d| d.insert_temp(animation_id(id), Easing { from: *from, anchor, target: None, started: 0.0, shown: *from }));
+    pub fn begin(ctx: &Context, canvas: CanvasId, from: &CanvasView, anchor: Option<(Point, Pos2)>) {
+        ctx.data_mut(|d| d.insert_temp(animation_id(canvas), Easing { from: *from, anchor, target: None, started: 0.0, shown: *from }));
     }
 
     /// The view to draw this pass for the app's `target`, requesting a repaint while easing.
     /// `animated` is the Animated Zoom preference. A target that the anchor no longer fits (a
     /// clamp, a canvas resize, another camera command) drops the anchor: the target always wins.
     // pc: crates/ui-egui/src/canvas/view_xform.rs:175 `animated_view`.
-    pub fn shown(ctx: &Context, id: Id, target: &CanvasView, animated: bool) -> CanvasView {
-        let key = animation_id(id);
+    pub fn shown(ctx: &Context, canvas: CanvasId, target: &CanvasView, animated: bool) -> CanvasView {
+        let key = animation_id(canvas);
         let Some(mut easing) = ctx.data(|d| d.get_temp::<Easing>(key)) else { return *target };
         if !animated {
             ctx.data_mut(|d| d.remove::<Easing>(key));
@@ -318,14 +320,14 @@ impl ZoomAnimation {
         view
     }
 
-    /// Whether a zoom is easing on the canvas `id`.
-    pub fn running(ctx: &Context, id: Id) -> bool {
-        ctx.data(|d| d.get_temp::<Easing>(animation_id(id))).is_some()
+    /// Whether a zoom is easing on `canvas`.
+    pub fn running(ctx: &Context, canvas: CanvasId) -> bool {
+        ctx.data(|d| d.get_temp::<Easing>(animation_id(canvas))).is_some()
     }
 
     /// Stop easing: the next [`shown`](Self::shown) is the target (a pan or a scroll took over).
-    pub fn stop(ctx: &Context, id: Id) {
-        ctx.data_mut(|d| d.remove::<Easing>(animation_id(id)));
+    pub fn stop(ctx: &Context, canvas: CanvasId) {
+        ctx.data_mut(|d| d.remove::<Easing>(animation_id(canvas)));
     }
 }
 

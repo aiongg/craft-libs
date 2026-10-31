@@ -6,18 +6,20 @@
 //! Stories of the step 3 canvas core: navigation, the raster display, the pasteboard, split views
 //! and the tool host, each on the story canvas with generated demo documents.
 
-use egui::{Color32, Id, Sense, Ui, vec2};
+use egui::{Color32, Sense, Ui, vec2};
 use kurbo::{Point, Rect, Vec2};
 
 use super::navigate::{PageKey, WheelNavigation, pan};
-use super::story::{DOC, StoryCanvas, ViewArgs, document, document_at, document_with};
+use super::story::{DOC, StoryCanvas, ViewArgs, document, document_at, document_with, story_canvas_id};
 use super::view::CanvasView;
 use super::zoom::{self, ZoomAnimation};
 use super::{
-    CanvasGrid, CanvasTool, CheckerSize, Checkerboard, HandTool, Marquee, MarqueeLook, NavigationPrefs, PageBorder, PageFrame, Pasteboard,
-    PasteboardColor, PixelGrid, PixelRect, RasterDisplay, RasterSource, Readout, RotateView, RotateViewTool, SnapGesture, SnapOptions, SnapTargets,
-    SplitLayout, SplitPane, SplitViews, ToolAction, ToolContext, ToolCursor, ToolHost, ToolPointer, ZoomTool,
+    CanvasGrid, CanvasTool, CheckerSize, Checkerboard, HandTool, Marquee, MarqueeLook, MomentaryKeys, MomentaryTool, NavigationLabels,
+    NavigationPrefs, PageBorder, PageFrame, Pasteboard, PasteboardColor, PixelGrid, PixelRect, RasterDisplay, RasterSource, Readout, RotateView,
+    RotateViewTool, SnapGesture, SnapOptions, SnapTargets, SplitLayout, SplitPane, SplitViews, ToolAction, ToolContext, ToolCursor, ToolGesture,
+    ToolHost, ToolPointer, ViewHistory, ViewPlace, ZoomTool,
 };
+use crate::controls::Button;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
 use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
@@ -151,13 +153,12 @@ pub(super) fn stories() -> Vec<Story> {
     ]
 }
 
-/// A story view kept between passes: the app's view (its target when a zoom eases), the args it
-/// was seeded from and the canvas the animation runs on.
+/// A story view kept between passes: the app's view (its target when a zoom eases) and the args
+/// it was seeded from.
 #[derive(Clone, Copy)]
 struct Kept {
     view: CanvasView,
     seeded: ViewArgs,
-    canvas: Option<Id>,
 }
 
 /// The story canvas under a view that tools and wheel change. The args seed it; it is seeded again
@@ -167,6 +168,7 @@ fn kept_canvas(ui: &mut Ui, args: ViewArgs, label: &str, animated: bool) -> (Sto
     let key = ui.scope_id().with(("core-story-view", label));
     let kept: Option<Kept> = ui.data(|d| d.get_temp(key));
     let ctx = ui.ctx().clone();
+    let canvas_id = story_canvas_id(ui, label);
     let mut target = None;
     let canvas = document_with(ui, args, label, 0.0, |rect, ppp| {
         let seeded =
@@ -176,18 +178,15 @@ fn kept_canvas(ui: &mut Ui, args: ViewArgs, label: &str, animated: bool) -> (Sto
             _ => seeded,
         };
         target = Some(view);
-        match kept.and_then(|k| k.canvas) {
-            Some(id) => ZoomAnimation::shown(&ctx, id, &view, animated),
-            None => view,
-        }
+        ZoomAnimation::shown(&ctx, canvas_id, &view, animated)
     });
     let target = target.unwrap_or(canvas.view);
     (canvas, target)
 }
 
-fn remember(ui: &Ui, label: &str, view: CanvasView, seeded: ViewArgs, canvas: Id) {
+fn remember(ui: &Ui, label: &str, view: CanvasView, seeded: ViewArgs) {
     let key = ui.scope_id().with(("core-story-view", label));
-    ui.data_mut(|d| d.insert_temp(key, Kept { view, seeded, canvas: Some(canvas) }));
+    ui.data_mut(|d| d.insert_temp(key, Kept { view, seeded }));
 }
 
 crate::words! {
@@ -207,8 +206,23 @@ fn zoom_readout(ui: &mut Ui, view: &CanvasView) {
     ui.add(Text::new(text).content(Content::Muted));
 }
 
+/// The tools of the navigation story and the places its Zoom tool jumped between.
+#[derive(Clone)]
+struct NavigationTools {
+    hand: HandTool,
+    zoom: ZoomTool,
+    history: ViewHistory<()>,
+}
+
+/// The view's place in the story's history: the story has one document, so one key.
+fn place(view: &CanvasView) -> ViewPlace<()> {
+    ViewPlace { key: (), center: view.center, zoom: view.zoom }
+}
+
 /// A document on the story canvas with wheel, pinch, page keys, the Hand tool's drag and glide,
-/// the Rotate View compass (turn the view with the rotation arg) and a zoom readout.
+/// the momentary keys (Space the Hand, Cmd+Space Zoom In, Alt+Space Zoom Out), Go Back and Go
+/// Forward through the Zoom tool's jumps, the Rotate View compass (turn the view with the
+/// rotation arg) and a zoom readout.
 fn show_navigation(ui: &mut Ui, args: &mut NavigationArgs) {
     let prefs = NavigationPrefs {
         zoom_with_wheel: args.zoom_with_wheel,
@@ -230,21 +244,51 @@ fn show_navigation(ui: &mut Ui, args: &mut NavigationArgs) {
     if response.has_focus() {
         PageKey::handle(&ctx, &mut view, size, prefs.overscroll);
     }
-    let tool_key = ui.scope_id().with("navigation-hand");
-    let mut hand: HandTool = ctx.data(|d| d.get_temp(tool_key)).unwrap_or_default();
-    hand.size = size;
-    hand.prefs = prefs;
-    let hosted = ToolHost::new("navigation-tool").document(size).show(ui, &shown, response, &mut hand);
-    ctx.data_mut(|d| d.insert_temp(tool_key, hand));
+    let tool_key = ui.scope_id().with("navigation-tools");
+    let mut tools: NavigationTools = ctx.data(|d| d.get_temp(tool_key)).unwrap_or_else(|| {
+        let mut history = ViewHistory::default();
+        history.visit(place(&view));
+        NavigationTools { hand: HandTool::new(size, prefs), zoom: ZoomTool::new(size, prefs), history }
+    });
+    tools.hand.size = size;
+    tools.hand.prefs = prefs;
+    tools.zoom.size = size;
+    tools.zoom.prefs = prefs;
+    let temporary = MomentaryKeys::default().update(&ctx, canvas.id, false);
+    let zooming = matches!(temporary, Some(MomentaryTool::ZoomIn | MomentaryTool::ZoomOut));
+    tools.zoom.out = temporary == Some(MomentaryTool::ZoomOut);
+    let before = view;
+    let tool: &mut dyn CanvasTool = if zooming { &mut tools.zoom } else { &mut tools.hand };
+    let hosted = ToolHost::new(canvas.id).document(size).navigation(prefs).show(ui, &shown, response, tool);
     if let Some(v) = hosted.view {
         view = CanvasView { rect: view.rect, ..v };
+    }
+    // A Zoom tool click is a jump: Go Back returns to where it left.
+    if zooming && hosted.gesture == Some(ToolGesture::Commit) && place(&view) != place(&before) {
+        tools.history.leave(place(&before));
+        tools.history.visit(place(&view));
     }
     let tokens = Tokens::of(ui);
     if RotateView::compass(ui, &shown, &tokens).reset {
         view.rotation = 0.0;
     }
-    zoom_readout(ui, &view);
-    remember(ui, "Navigation", view, args.view, response.id);
+    let labels = NavigationLabels::of(ui);
+    ui.horizontal(|ui| {
+        for (step, label) in [(-1, &labels.go_back), (1, &labels.go_forward)] {
+            if ui.add_enabled(tools.history.can_go(step, |_| true), Button::new(label.as_str())).clicked()
+                && let Some(to) = tools.history.go(step, |_| true)
+            {
+                if prefs.animated_zoom {
+                    ZoomAnimation::begin(&ctx, canvas.id, &view, None);
+                }
+                view.center = to.center;
+                view.zoom = to.zoom;
+            }
+        }
+        zoom_readout(ui, &view);
+    });
+    ctx.data_mut(|d| d.insert_temp(tool_key, tools));
+    remember(ui, "Navigation", view, args.view);
 }
 
 /// The generated document of the raster story: a colour gradient that fades to transparent at
@@ -298,7 +342,7 @@ fn show_raster(ui: &mut Ui, args: &mut RasterArgs) {
     let id = ui.scope_id().with("raster-story");
     let _ = RasterDisplay::new(id).checkerboard(checker).show(ui, &canvas.view, &source);
     if args.pixel_grid {
-        PixelGrid::show(ui.ctx(), id.with("pixel-grid"), &ui.painter_at(canvas.view.rect), &canvas.view, &source);
+        PixelGrid::show(ui.ctx(), canvas.id, &ui.painter_at(canvas.view.rect), &canvas.view, &source);
     }
 }
 
@@ -460,6 +504,19 @@ struct DemoTools {
     hand: HandTool,
     zoom: ZoomTool,
     rotate: RotateViewTool,
+    /// The tool the host has been showing.
+    shown: DemoToolArg,
+}
+
+impl DemoTools {
+    fn pick(&mut self, arg: DemoToolArg) -> &mut dyn CanvasTool {
+        match arg {
+            DemoToolArg::Marquee => &mut self.marquee,
+            DemoToolArg::Hand => &mut self.hand,
+            DemoToolArg::Zoom => &mut self.zoom,
+            DemoToolArg::RotateView => &mut self.rotate,
+        }
+    }
 }
 
 /// Small demo tools on `ToolHost`: a marquee (autoscroll, snapping, readout), the Hand, the Zoom
@@ -476,21 +533,24 @@ fn show_tool_host(ui: &mut Ui, args: &mut ToolHostArgs) {
         hand: HandTool::new(DOC.size(), prefs),
         zoom: ZoomTool::new(DOC.size(), prefs),
         rotate: RotateViewTool::default(),
+        shown: args.tool,
     });
     tools.marquee.snap = args.snap;
+    // Switching tools ends the gesture of the tool that has it.
+    if tools.shown != args.tool {
+        let old = tools.shown;
+        tools.shown = args.tool;
+        if let Some(v) = ToolHost::cancel(&ctx, canvas.id, tools.pick(old)) {
+            view = CanvasView { rect: view.rect, ..v };
+        }
+    }
     CanvasGrid::new("tool-host-story-grid").spacing(Vec2::new(GRID, GRID)).bounds(DOC).show(ui, &shown);
     let targets = SnapTargets::new().with_document(&SnapOptions::default(), DOC, [], Some((Point::ORIGIN, Vec2::new(GRID, GRID))));
-    let mut host = ToolHost::new("tool-host-story").document(DOC.size());
+    let mut host = ToolHost::new(canvas.id).document(DOC.size()).navigation(prefs);
     if args.snap {
         host = host.snap(&targets);
     }
-    let tool: &mut dyn CanvasTool = match args.tool {
-        DemoToolArg::Marquee => &mut tools.marquee,
-        DemoToolArg::Hand => &mut tools.hand,
-        DemoToolArg::Zoom => &mut tools.zoom,
-        DemoToolArg::RotateView => &mut tools.rotate,
-    };
-    let hosted = host.show(ui, &shown, response, tool);
+    let hosted = host.show(ui, &shown, response, tools.pick(args.tool));
     ctx.data_mut(|d| d.insert_temp(key, tools));
     if let Some(v) = hosted.view {
         view = CanvasView { rect: view.rect, ..v };
@@ -500,5 +560,5 @@ fn show_tool_host(ui: &mut Ui, args: &mut ToolHostArgs) {
         view.rotation = 0.0;
     }
     zoom_readout(ui, &view);
-    remember(ui, "Tool host", view, args.view, response.id);
+    remember(ui, "Tool host", view, args.view);
 }
