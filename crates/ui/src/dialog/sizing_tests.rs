@@ -22,17 +22,17 @@ fn harness<State>() -> HarnessBuilder<State> {
 fn units_convert_both_ways() {
     for ppi in [72.0, 300.0] {
         for unit in SizeUnit::ALL {
-            let value = unit.from_pixels(1200.0, 1200.0, ppi);
-            assert!((unit.to_pixels(value, 1200.0, ppi) - 1200.0).abs() < 1e-9, "{unit:?} at {ppi} ppi");
+            let value = unit.from_pixels(1200.0, 1200.0, ppi, 72.0);
+            assert!((unit.to_pixels(value, 1200.0, ppi, 72.0) - 1200.0).abs() < 1e-9, "{unit:?} at {ppi} ppi");
         }
     }
-    assert_eq!(SizeUnit::Inches.to_pixels(1.0, 0.0, 300.0), 300.0);
-    assert_eq!(SizeUnit::Percent.to_pixels(50.0, 1200.0, 72.0), 600.0);
-    assert_eq!(SizeUnit::Points.to_pixels(72.0, 0.0, 300.0), 300.0);
-    assert_eq!(SizeUnit::Picas.to_pixels(6.0, 0.0, 300.0), 300.0);
-    assert!((SizeUnit::Centimetres.from_pixels(72.0, 0.0, 72.0) - 2.54).abs() < 1e-12);
-    assert!((SizeUnit::Millimetres.from_pixels(72.0, 0.0, 72.0) - 25.4).abs() < 1e-12);
-    assert_eq!(SizeUnit::Pixels.from_pixels(1200.0, 1200.0, 72.0), 1200.0);
+    assert_eq!(SizeUnit::Inches.to_pixels(1.0, 0.0, 300.0, 72.0), 300.0);
+    assert_eq!(SizeUnit::Percent.to_pixels(50.0, 1200.0, 72.0, 72.0), 600.0);
+    assert_eq!(SizeUnit::Points.to_pixels(72.0, 0.0, 300.0, 72.0), 300.0);
+    assert_eq!(SizeUnit::Picas.to_pixels(6.0, 0.0, 300.0, 72.0), 300.0);
+    assert!((SizeUnit::Centimetres.from_pixels(72.0, 0.0, 72.0, 72.0) - 2.54).abs() < 1e-12);
+    assert!((SizeUnit::Millimetres.from_pixels(72.0, 0.0, 72.0, 72.0) - 25.4).abs() < 1e-12);
+    assert_eq!(SizeUnit::Pixels.from_pixels(1200.0, 1200.0, 72.0, 72.0), 1200.0);
 }
 
 // Typing a width with the chain on scales the height; with it off the height stays.
@@ -214,4 +214,84 @@ fn only_image_size_draws_the_chain() {
         dialogs.open(CanvasSizeDialog::new(size(1200, 800, 72.0)));
     });
     assert!(canvas.query_by_label("Constrain proportions").is_none());
+}
+
+// The Points and Picas units follow the Point/Pica Size preference: 72.27 points to the inch
+// converts, types and edits through the same rule as 72.
+#[test]
+fn points_per_inch_sets_the_point_and_pica_conversion() {
+    assert_eq!(SizeUnit::Points.to_pixels(72.27, 0.0, 300.0, 72.27), 300.0);
+    assert!((SizeUnit::Picas.from_pixels(300.0, 0.0, 300.0, 72.27) - 6.0225).abs() < 1e-9);
+    assert_eq!(SizeUnit::Points.from_pixels(300.0, 0.0, 300.0, 72.0), 72.0);
+    assert_eq!(SizeUnit::Points.parse_typed("1in", 0.0, 300.0, 72.27), Some(72.27));
+
+    let mut fields = LinkedSizeFields::new(size(1200, 800, 300.0)).points_per_inch(72.27);
+    fields.unit = SizeUnit::Points;
+    fields.constrain = false;
+    fields.edit(Field::Width, 144.54);
+    assert_eq!(fields.current.width, 600);
+    assert!((fields.shown(Field::Width) - 144.54).abs() < 1e-9);
+    // A value that is not a positive number keeps 72.
+    assert_eq!(LinkedSizeFields::new(size(1, 1, 72.0)).points_per_inch(0.0), LinkedSizeFields::new(size(1, 1, 72.0)));
+}
+
+// The resolution row edits in the chosen unit: 100 pixels/cm is 254 pixels/inch.
+#[test]
+fn resolution_unit_converts_the_typed_resolution() {
+    let mut fields = LinkedSizeFields::new(size(1200, 800, 72.0));
+    fields.resolution_unit = ResolutionUnit::PixelsPerCentimetre;
+    fields.edit(Field::Resolution, 100.0);
+    assert!((fields.current.pixels_per_inch - 254.0).abs() < 1e-9);
+    assert_eq!((fields.current.width, fields.current.height), (1200, 800), "pixel unit: the pixel count stays");
+}
+
+// Canvas Size's Relative box makes the fields the change in size, and OK returns the new size.
+#[test]
+fn canvas_size_relative_fields_hold_the_change() {
+    let mut fields = LinkedSizeFields { relative: true, constrain: false, chain: false, ..LinkedSizeFields::new(size(1200, 800, 72.0)) };
+    assert_eq!((fields.shown(Field::Width), fields.shown(Field::Height)), (0.0, 0.0));
+    fields.unit = SizeUnit::Inches;
+    fields.edit(Field::Height, 2.0);
+    assert_eq!((fields.current.width, fields.current.height), (1200, 944));
+    assert_eq!(fields.shown(Field::Height), 2.0);
+
+    let mut harness = host_with(|dialogs| {
+        dialogs.open(CanvasSizeDialog::new(size(1200, 800, 72.0)));
+    });
+    harness.get_by_label("Relative").click();
+    harness.run();
+    harness.get_by_label("OK").click();
+    harness.run();
+    harness.run();
+    let result = harness.state_mut().dialogs.take::<CanvasSizeDialog>().and_then(DialogResult::ok).expect("OK answered");
+    assert_eq!(result.size, size(1200, 800, 72.0), "a relative change of zero keeps the size");
+}
+
+// Lanczos is the last method of the list and comes back in the result.
+#[test]
+fn lanczos_round_trips_through_the_result() {
+    let mut harness = host_with(|dialogs| {
+        dialogs.open(ImageSizeDialog::new(size(1200, 800, 72.0)));
+    });
+    harness.get_by_label("Resample method").click();
+    harness.run();
+    harness.get_by_label("Lanczos (sharp)").click();
+    harness.run();
+    harness.get_by_label("OK").click();
+    harness.run();
+    harness.run();
+    let result = harness.state_mut().dialogs.take::<ImageSizeDialog>().and_then(DialogResult::ok).expect("OK answered");
+    assert_eq!(result.resample, Resample::Lanczos);
+}
+
+// The current-size readouts of Canvas Size are named apart from the new-size fields.
+#[test]
+fn canvas_size_readouts_and_fields_have_distinct_names() {
+    let harness = host_with(|dialogs| {
+        dialogs.open(CanvasSizeDialog::new(size(1200, 800, 72.0)));
+    });
+    harness.get_by_label("Current width:");
+    harness.get_by_label("Current height:");
+    harness.get_by_label("New Size:");
+    assert_eq!(harness.get_all_by_label("Width:").count(), 1);
 }
