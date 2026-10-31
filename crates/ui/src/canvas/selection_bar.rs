@@ -2,7 +2,7 @@
 //! Contextual Task Bar; WordCraft's mini toolbar over selected text).
 
 use egui::accesskit::Role;
-use egui::{Area, AsIdSalt, CursorIcon, Id, Order, Pos2, Rect, Sense, Ui, WidgetInfo, pos2, vec2};
+use egui::{Area, AsIdSalt, CursorIcon, Id, Key, Order, Pos2, Rect, Sense, Ui, Vec2, WidgetInfo, pos2, vec2};
 
 use crate::controls::{ControlSize, IconButton};
 use crate::direction;
@@ -12,20 +12,7 @@ use crate::localized::Labels as _;
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Gap, Surface, SurfaceKind};
 use crate::theme::{ToEgui, Tokens, TokensOf};
-
-/// The bar's height (DesignCraft's `HEIGHT`).
-const HEIGHT: f32 = 36.0;
-/// Between the selection and the bar when it sits below (Photoshop's Contextual Task Bar) or above.
-const GAP_BELOW: f32 = 14.0;
-const GAP_ABOVE: f32 = 8.0;
-/// Kept between the bar and the canvas's edge.
-const INSET: f32 = 8.0;
-/// The width assumed before the bar has been measured.
-const FIRST_WIDTH: f32 = 420.0;
-/// The grip: its box, the dot radius and the distance between dots.
-const GRIP_SIZE: egui::Vec2 = vec2(12.0, 20.0);
-const GRIP_DOT: f32 = 1.0;
-const GRIP_PITCH: f32 = 4.0;
+use craft_theme::SelectionBarTokens;
 
 /// The position the user dragged the bar to, relative to the canvas's top left.
 #[derive(Clone, Copy, Default)]
@@ -39,27 +26,37 @@ enum More {
 }
 
 /// `at` moved as little as needed for a bar `width` wide to sit inside `canvas`.
-fn inside(at: Pos2, width: f32, canvas: Rect) -> Pos2 {
-    let x = at.x.min(canvas.max.x - width - INSET).max(canvas.min.x + INSET);
-    let y = at.y.min(canvas.max.y - HEIGHT - INSET).max(canvas.min.y + INSET);
+fn inside(at: Pos2, width: f32, canvas: Rect, bar: &SelectionBarTokens) -> Pos2 {
+    let SelectionBarTokens { height, inset, .. } = *bar;
+    let x = at.x.min(canvas.max.x - width - inset).max(canvas.min.x + inset);
+    let y = at.y.min(canvas.max.y - height - inset).max(canvas.min.y + inset);
     pos2(x, y)
 }
 
 /// The bar's top left corner next to `selection`: below it, or above it when `above`; on the
 /// other side when that does not fit, and at the canvas's bottom when neither does.
-pub(super) fn place(canvas: Rect, selection: Rect, width: f32, above: bool) -> Pos2 {
-    let x = (selection.center().x - width / 2.0).clamp(canvas.min.x + INSET, (canvas.max.x - width - INSET).max(canvas.min.x + INSET));
-    let gap = if above { GAP_ABOVE } else { GAP_BELOW };
-    let over = selection.min.y - HEIGHT - gap;
+pub(super) fn place(canvas: Rect, selection: Rect, width: f32, above: bool, bar: &SelectionBarTokens) -> Pos2 {
+    let SelectionBarTokens { height, gap_above, gap_below, inset, .. } = *bar;
+    let x = (selection.center().x - width / 2.0).clamp(canvas.min.x + inset, (canvas.max.x - width - inset).max(canvas.min.x + inset));
+    let gap = if above { gap_above } else { gap_below };
+    let over = selection.min.y - height - gap;
     let under = selection.max.y + gap;
-    let fits_over = over >= canvas.min.y + INSET;
-    let fits_under = under + HEIGHT <= canvas.max.y - INSET;
+    let fits_over = over >= canvas.min.y + inset;
+    let fits_under = under + height <= canvas.max.y - inset;
     let y = match (above, fits_over, fits_under) {
         (false, _, true) | (true, false, true) => under,
         (false, true, false) | (true, true, _) => over,
-        (_, false, false) => (canvas.max.y - INSET - HEIGHT).max(canvas.min.y + INSET),
+        (_, false, false) => (canvas.max.y - inset - height).max(canvas.min.y + inset),
     };
     pos2(x, y)
+}
+
+/// The arrow keys pressed this pass as a direction (right and down positive), consumed.
+fn grip_arrows(ctx: &egui::Context) -> Vec2 {
+    ctx.input_mut(|i| {
+        let mut step = |key| f32::from(i.consume_key(egui::Modifiers::NONE, key));
+        vec2(step(Key::ArrowRight) - step(Key::ArrowLeft), step(Key::ArrowDown) - step(Key::ArrowUp))
+    })
 }
 
 /// What [`SelectionBar::show`] returns.
@@ -161,11 +158,12 @@ impl SelectionBar {
 
         let labels = self.labels.clone().unwrap_or_else(|| SelectionBarLabels::of_ctx(&ctx));
         let tokens = Tokens::of(ui);
-        let width = ctx.memory(|m| m.area_rect(self.id)).map_or(FIRST_WIDTH, |r| r.width());
+        let bar = tokens.component.selection_bar;
+        let width = ctx.memory(|m| m.area_rect(self.id)).map_or(bar.first_width, |r| r.width());
         let pinned = ctx.data(|d| d.get_temp::<Pin>(pin_id)).map(|p| p.0).or(self.pinned);
         let at = match pinned {
-            Some(p) => inside(canvas.min + p.to_vec2(), width, canvas),
-            None => place(canvas, selection, width, self.above),
+            Some(p) => inside(canvas.min + p.to_vec2(), width, canvas, &bar),
+            None => place(canvas, selection, width, self.above, &bar),
         };
 
         let mut pinned_at = None;
@@ -175,23 +173,33 @@ impl SelectionBar {
             crate::theme::apply_popup_style(ui);
             Surface::new(SurfaceKind::Popup)
                 .show(ui, |ui| {
-                    ui.set_height(HEIGHT);
+                    ui.set_height(bar.height);
                     ui.spacing_mut().item_spacing.x = Gap::Inline.points(&tokens);
                     ui.with_layout(direction::row(ui), |ui| {
                         ui.add_space(tokens.space.pad.control);
-                        let (cell, _) = ui.allocate_exact_size(GRIP_SIZE, Sense::hover());
+                        let (cell, _) = ui.allocate_exact_size(vec2(bar.grip_width, bar.grip_height), Sense::hover());
                         let grip = ui.interact(cell, grip_id, Sense::drag());
                         grip.widget_info(|| WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &labels.grip));
                         let ink = if grip.hovered() || grip.dragged() { tokens.color.text.normal } else { tokens.color.text.muted };
                         for column in [-0.5, 0.5] {
                             for row in [-1.0, 0.0, 1.0] {
-                                let centre = cell.center() + vec2(column, row) * GRIP_PITCH;
-                                ui.painter().circle_filled(centre, GRIP_DOT, ink.to_egui());
+                                let centre = cell.center() + vec2(column, row) * bar.grip_pitch;
+                                ui.painter().circle_filled(centre, bar.grip_dot, ink.to_egui());
                             }
                         }
-                        if grip.dragged() {
-                            ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
-                            let to = (inside(at + grip.drag_delta(), width, canvas) - canvas.min).to_pos2();
+                        // With the focus on the grip the arrow keys move the bar by half its height.
+                        let keys = if grip.has_focus() {
+                            let arrows = egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() };
+                            ui.ctx().memory_mut(|m| m.set_focus_lock_filter(grip_id, arrows));
+                            grip_arrows(ui.ctx()) * (bar.height / 2.0)
+                        } else {
+                            Vec2::ZERO
+                        };
+                        if grip.dragged() || keys != Vec2::ZERO {
+                            if grip.dragged() {
+                                ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+                            }
+                            let to = (inside(at + grip.drag_delta() + keys, width, canvas, &bar) - canvas.min).to_pos2();
                             ui.ctx().data_mut(|d| d.insert_temp(pin_id, Pin(to)));
                             pinned_at = Some(to);
                         } else if grip.hovered() {

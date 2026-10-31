@@ -18,6 +18,7 @@ egui = { workspace = true, optional = true }
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 craft-ai-core = { workspace = true, optional = true }
 craft-atomic = { workspace = true, optional = true }
+craft-automation = { workspace = true, optional = true }
 craft-cms = { workspace = true, optional = true }
 craft-color = { workspace = true, optional = true }
 craft-crw = { workspace = true, optional = true }
@@ -49,6 +50,7 @@ ui = [
     "dep:craft-ui",
     "dep:egui",
     "craft-color?/ui",
+    "craft-dialogs?/ui",
     "craft-draw?/ui",
     "craft-font-manager?/ui",
     "craft-host/ui",
@@ -57,6 +59,8 @@ ui = [
     "craft-platform?/ui",
     "craft-print?/ui",
     "craft-quit?/ui",
+    "craft-text?/ui",
+    "craft-theme-store?/ui",
     "craft-update?/ui",
     "craft-window?/ui",
 ]
@@ -67,6 +71,7 @@ screen-testing = [
     "craft-draw?/screen-testing",
     "craft-imaging?/screen-testing",
     "craft-keymap?/screen-testing",
+    "craft-theme-store?/screen-testing",
     "craft-ui?/screen-testing",
     "craft-update?/screen-testing",
 ]
@@ -81,9 +86,12 @@ ai-core = ["dep:craft-ai-core"]
 
 atomic = ["dep:craft-atomic"]
 
+automation = ["dep:craft-automation"]
+automation-tcp = ["automation", "craft-automation/tcp"]
+
 cms = ["dep:craft-cms"]
 
-color = ["dep:craft-color"]
+color = ["dep:craft-color", "settings", "platform"]
 
 crw = ["dep:craft-crw"]
 
@@ -97,6 +105,7 @@ font-catalog = ["dep:craft-font-catalog"]
 font-catalog-system = ["font-catalog", "craft-font-catalog/system"]
 
 font-manager = ["dep:craft-font-manager"] # native only: needs craft-font-store's store and network client
+font-manager-font-picker = ["font-manager", "craft-font-manager/font-picker"]
 
 font-store = ["dep:craft-font-store"]
 font-store-bundled-index = ["font-store", "craft-font-store/bundled-index"]
@@ -126,9 +135,18 @@ pdf-write-simple-text = ["pdf", "craft-pdf/write-simple-text"]
 
 platform = ["dep:craft-platform"]
 platform-appearance = ["platform", "craft-platform/appearance"]
+platform-autosave = ["platform", "craft-platform/autosave"]
 platform-browser = ["platform", "craft-platform/browser"]
+platform-clock = ["platform", "craft-platform/clock"]
 platform-dialogs = ["platform", "craft-platform/dialogs"]
+platform-logs = ["platform", "craft-platform/logs"]
+platform-open = ["platform", "craft-platform/open"]
+platform-pacing = ["platform", "craft-platform/pacing"]
+platform-pointer = ["platform", "craft-platform/pointer"]
+platform-screen = ["platform", "craft-platform/screen"]
+platform-session = ["platform", "craft-platform/session"]
 platform-theme = ["platform", "craft-platform/theme"]
+platform-usage = ["platform", "craft-platform/usage"]
 
 prepress = ["dep:craft-prepress"]
 prepress-flatten = ["prepress", "craft-prepress/flatten"]
@@ -157,6 +175,7 @@ text-danish = ["text", "craft-text/danish"]
 text-dutch = ["text", "craft-text/dutch"]
 text-estonian = ["text", "craft-text/estonian"]
 text-finnish = ["text", "craft-text/finnish"]
+text-font-picker = ["text", "craft-text/font-picker"]
 text-french = ["text", "craft-text/french"]
 text-galician = ["text", "craft-text/galician"]
 text-generator = ["text", "craft-text/generator"]
@@ -185,6 +204,7 @@ text-oriya = ["text", "craft-text/oriya"]
 text-panjabi = ["text", "craft-text/panjabi"]
 text-polish = ["text", "craft-text/polish"]
 text-portuguese = ["text", "craft-text/portuguese"]
+text-quotes = ["text", "craft-text/quotes"]
 text-russian = ["text", "craft-text/russian"]
 text-sanskrit = ["text", "craft-text/sanskrit"]
 text-segment = ["text", "craft-text/segment"]
@@ -192,6 +212,7 @@ text-serbian = ["text", "craft-text/serbian"]
 text-slovak-gpl = ["text", "craft-text/slovak-gpl"]
 text-slovenian = ["text", "craft-text/slovenian"]
 text-spanish = ["text", "craft-text/spanish"]
+text-spell = ["text", "craft-text/spell"]
 text-swedish = ["text", "craft-text/swedish"]
 text-tamil = ["text", "craft-text/tamil"]
 text-telugu = ["text", "craft-text/telugu"]

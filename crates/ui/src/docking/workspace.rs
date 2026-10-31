@@ -8,13 +8,12 @@ use std::{collections::HashSet, hash::Hash};
 
 use super::model::{Action, DockError, Layout, Location, MAX_PANELS, Permissions, Placement, Zone};
 
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(default, bound(deserialize = "P: serde::Deserialize<'de>")))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, bound(deserialize = "P: serde::Deserialize<'de>"))]
 pub struct Workspace<P> {
     /// Format version; files without one are v1 (`{layout, hidden}`). Always written as
     /// [`Workspace::VERSION`].
-    #[cfg_attr(feature = "serde", serde(default = "first_version", serialize_with = "write_version"))]
+    #[serde(default = "first_version", serialize_with = "write_version")]
     pub version: u32,
     /// The current arrangement, changes included.
     pub layout: Layout<P>,
@@ -32,12 +31,10 @@ pub struct Workspace<P> {
     pub locked: bool,
 }
 
-#[cfg(feature = "serde")]
 fn first_version() -> u32 {
     1
 }
 
-#[cfg(feature = "serde")]
 fn write_version<S: serde::Serializer>(_: &u32, serializer: S) -> Result<S::Ok, S::Error> {
     serializer.serialize_u32(Workspace::<()>::VERSION)
 }

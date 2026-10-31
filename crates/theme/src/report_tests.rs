@@ -47,7 +47,7 @@ fn appearance_warnings_equal_resolve_warnings() {
     let report = contrast_report(&theme);
     for (mode, contrast, size) in [(Mode::Light, Contrast::Standard, Size::Compact), (Mode::Dark, Contrast::High, Size::Comfortable)] {
         let entry = report.for_appearance(None, mode, contrast, size).unwrap();
-        let appearance = Appearance { mode, contrast, size, text_size: TextSize::Default, reduced_motion: false };
+        let appearance = Appearance { mode, contrast, size, text_size: TextSize::Small, reduced_motion: false };
         assert_eq!(format!("{:?}", entry.warnings), format!("{:?}", resolve(&theme, appearance, None).warnings));
     }
     assert!(report.for_appearance(Some(&AppId::parse("nope").unwrap()), Mode::Light, Contrast::Standard, Size::Compact).is_none());

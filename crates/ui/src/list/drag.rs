@@ -17,9 +17,10 @@ use crate::controls::button::Button;
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::icons::Icon;
+use crate::localized::Labels as _;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::story::NoArgs;
-use crate::story::{Level, Story};
+use crate::story::{Level, Story, StoryLabels};
 use crate::theme::{Tokens, TokensOf as _, corner_radius, role_format};
 use crate::typed_story;
 
@@ -144,7 +145,7 @@ struct Layers {
 }
 
 impl Layers {
-    fn new(preset: Preset) -> Self {
+    fn new(preset: Preset, words: &StoryLabels) -> Self {
         let flat: Vec<(String, usize, bool)> = (1..=24).map(|n| (format!("Layer {n}"), 0, false)).collect();
         let tree = [
             ("Title", 0, false),
@@ -162,7 +163,10 @@ impl Layers {
             Preset::Flat => flat,
             Preset::Copy => flat.into_iter().take(8).collect(),
             Preset::Tree => tree.iter().map(|&(name, depth, group)| (name.to_owned(), depth, group)).collect(),
-            Preset::Refused => ["Text", "Frame", "Photo", "Badge", "Shape", "Background"].iter().map(|n| ((*n).to_owned(), 0, false)).collect(),
+            Preset::Refused => [words.text.as_str(), "Frame", words.photo.as_str(), "Badge", "Shape", "Background"]
+                .iter()
+                .map(|n| ((*n).to_owned(), 0, false))
+                .collect(),
         };
         let layers: Vec<Layer> = rows
             .into_iter()
@@ -341,7 +345,8 @@ enum LayerCommand {
 
 fn show_story(ui: &mut Ui, preset: Preset) {
     let state_id = ui.scope_id().with(("reorder-story", preset));
-    let shared = ui.data_mut(|d| d.get_temp_mut_or_insert_with(state_id, || Arc::new(Mutex::new(Layers::new(preset)))).clone());
+    let words = StoryLabels::of(ui);
+    let shared = ui.data_mut(|d| d.get_temp_mut_or_insert_with(state_id, || Arc::new(Mutex::new(Layers::new(preset, &words)))).clone());
     let mut doc = shared.lock();
     let order = doc.display();
     let mut reorder = Reorder::new(Axis::Vertical).copy_with_alt(preset == Preset::Copy);

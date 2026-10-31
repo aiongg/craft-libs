@@ -152,3 +152,82 @@ fn text_field_width_trailing_arrow_and_id_apply() {
     let state = TextEditState::load(&rig.ctx, own).expect("the TextEdit's state lives under the caller's id");
     assert!(state.cursor.char_range().is_some());
 }
+
+// A preset list shows a check mark on the row holding the field's value, a separator between
+// groups and a non-numeric row; any pick reports its index, a number also commits as one edit
+// and a choice leaves the value alone.
+#[test]
+fn a_preset_list_checks_the_current_row_and_reports_the_pick() {
+    use super::Preset;
+    let mut rig = Rig::new();
+    let numbers = LocaleNumbers::from_tag("en");
+    let rows = [Preset::choice("Auto", false), Preset::value("8", 8.0), Preset::value("12", 12.0), Preset::Separator, Preset::value("24", 24.0)];
+    let value = 12.0;
+    let mut events: Vec<EditEvent<f64>> = Vec::new();
+    let mut picked = None;
+    let run = |rig: &mut Rig, input: Vec<Event>, events: &mut Vec<EditEvent<f64>>, picked: &mut Option<usize>| {
+        let mut pick = None;
+        rig.frame(input, |ui| {
+            let edit = NumberField::new("size", "Size", value, &numbers).range(1.0..=1000.0).preset_list(&rows, &mut pick).show(ui);
+            events.extend(edit.event);
+        });
+        *picked = picked.or(pick);
+    };
+    run(&mut rig, vec![], &mut events, &mut picked);
+    run(&mut rig, vec![], &mut events, &mut picked);
+    let chevron = rig.bounds(Role::Button, "Size");
+    run(&mut rig, click(chevron.center()), &mut events, &mut picked);
+    run(&mut rig, vec![], &mut events, &mut picked);
+    let toggled = |rig: &Rig, label: &str| rig.node(Role::MenuItemCheckBox, label).map(|(_, n)| n.toggled());
+    assert_eq!(toggled(&rig, "12"), Some(Some(egui::accesskit::Toggled::True)));
+    assert_eq!(toggled(&rig, "8"), Some(Some(egui::accesskit::Toggled::False)));
+    assert_eq!(toggled(&rig, "Auto"), Some(Some(egui::accesskit::Toggled::False)));
+
+    let auto = rig.bounds(Role::MenuItemCheckBox, "Auto");
+    run(&mut rig, click(auto.center()), &mut events, &mut picked);
+    run(&mut rig, vec![], &mut events, &mut picked);
+    assert_eq!((picked, events.len()), (Some(0), 0), "a choice is only reported");
+
+    picked = None;
+    run(&mut rig, click(chevron.center()), &mut events, &mut picked);
+    run(&mut rig, vec![], &mut events, &mut picked);
+    let item = rig.bounds(Role::MenuItemCheckBox, "24");
+    run(&mut rig, click(item.center()), &mut events, &mut picked);
+    run(&mut rig, vec![], &mut events, &mut picked);
+    run(&mut rig, vec![], &mut events, &mut picked);
+    assert_eq!(picked, Some(4), "the index counts the separator");
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert_eq!(events[0].value(), Some(&24.0));
+}
+
+// Typing a choice's label (any case) and pressing Enter picks it, with the value unchanged; a
+// checked choice shows its label where a mixed field shows the blank.
+#[test]
+fn a_typed_choice_label_picks_the_choice() {
+    use super::Preset;
+    let mut rig = Rig::new();
+    let numbers = LocaleNumbers::from_tag("en");
+    let rows = [Preset::choice("Metrics", true), Preset::choice("Optical", false), Preset::Separator, Preset::value("10", 10.0)];
+    let mut picked = None;
+    let mut events: Vec<EditEvent<f64>> = Vec::new();
+    let run = |rig: &mut Rig, input: Vec<Event>, events: &mut Vec<EditEvent<f64>>, picked: &mut Option<usize>| {
+        let mut pick = None;
+        rig.frame(input, |ui| {
+            let edit = NumberField::new("kern", "Kerning", 0.0, &numbers).mixed(true).preset_list(&rows, &mut pick).show(ui);
+            events.extend(edit.event);
+        });
+        *picked = picked.or(pick);
+    };
+    run(&mut rig, vec![], &mut events, &mut picked);
+    run(&mut rig, vec![], &mut events, &mut picked);
+    let node = rig.node(Role::SpinButton, "Kerning").expect("the field");
+    let _ = node;
+    let field = rig.bounds(Role::SpinButton, "Kerning");
+    run(&mut rig, click(field.center()), &mut events, &mut picked);
+    run(&mut rig, vec![Event::Text("optical".into())], &mut events, &mut picked);
+    let enter = |pressed| Event::Key { key: egui::Key::Enter, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE };
+    run(&mut rig, vec![enter(true), enter(false)], &mut events, &mut picked);
+    run(&mut rig, vec![], &mut events, &mut picked);
+    assert_eq!(picked, Some(1), "Optical, whatever the case: {events:?}");
+    assert!(events.iter().all(|e| e.value().is_none_or(|v| *v == 0.0)), "the value stays: {events:?}");
+}

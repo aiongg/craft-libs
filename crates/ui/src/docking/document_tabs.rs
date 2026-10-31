@@ -51,6 +51,9 @@ struct Registry {
     previous: Vec<(u64, Rect)>,
 }
 
+// The three ids below are global (rooted at `Id::NULL`) on purpose: a tab dragged from one strip
+// is dropped on another, and each strip finds the other strips' rects and the dragged tab by the
+// group number alone. Group numbers are unique within one dock (`DocumentWindows::fresh_id`).
 fn registry_id() -> Id {
     Id::NULL.with("craft-ui-document-tab-strips")
 }

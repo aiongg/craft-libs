@@ -37,5 +37,19 @@ fn catch_turns_a_panic_into_an_error() {
     assert_eq!(err.to_string(), "boom");
     let err = catch(|| -> () { std::panic::panic_any(7_u8) }).expect_err("panicked");
     assert_eq!(err.message, "panic");
-    let _ = take_last();
+    assert_eq!(take_last(), None, "a caught panic is reported by its caller, not kept for the error window");
+}
+
+// install can be called again to change the crash log directory, and the hook is still set once.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn a_second_install_changes_the_directory() {
+    let _serial = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let (first, second) = (std::env::temp_dir().join("craft-crash-first"), std::env::temp_dir().join("craft-crash-second"));
+    install("CrashTest", "1", Some(first.clone()));
+    assert_eq!(log_path().and_then(|p| p.parent().map(std::path::Path::to_path_buf)), Some(first));
+    install("CrashTest", "2", Some(second.clone()));
+    assert_eq!(log_path().and_then(|p| p.parent().map(std::path::Path::to_path_buf)), Some(second));
+    install("CrashTest", "3", None);
+    assert_eq!(log_path(), None);
 }

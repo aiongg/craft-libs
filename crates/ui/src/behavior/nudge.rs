@@ -7,7 +7,7 @@
 use egui::{Event, Key, Modifiers, Ui};
 use kurbo::Vec2;
 
-use crate::popup_list;
+use crate::focus::key_owner::{KeyOwner, OwnerGate, owner};
 
 /// The move of one press, in document units (PhotoCraft's).
 pub const STEP: f64 = 1.0;
@@ -49,7 +49,9 @@ pub fn read_with_alt(ui: &Ui, step: f64, big_step: f64) -> Option<(Vec2, bool)> 
 /// is above `ui`.
 pub fn reads(ui: &Ui) -> bool {
     let ctx = ui.ctx();
-    !(ctx.text_edit_focused() || popup_list::any_open(ctx) || !ctx.memory(|m| m.allows_interaction(ui.layer_id())))
+    // A modal layer makes the owner `Dialog`; the layer check then tells the dialog's own ui from the canvas under it.
+    let free = matches!(owner(ctx, &OwnerGate::default()), KeyOwner::App | KeyOwner::Widget | KeyOwner::Dialog);
+    free && ctx.memory(|m| m.allows_interaction(ui.layer_id()))
 }
 
 /// An arrow key press plain or with Shift: its unit direction and whether Shift is held.

@@ -8,7 +8,7 @@ mod work_area;
 mod work_area_tests;
 
 #[cfg(feature = "ui")]
-pub use work_area::{TASKBAR, WindowState, fit_window, fits, visible_part, visible_rect};
+pub use work_area::{TASKBAR, WindowMode, fit_window, fits, visible_part, visible_rect};
 
 /// The windowing backend the app opens its window on. An app that forces XWayland on a Wayland
 /// session passes [`Backend::X11`].

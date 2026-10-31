@@ -1259,3 +1259,18 @@ fn paint_drop_mark_draws_what_a_row_draws() {
         assert!(at.contains_rect(outer.rect), "{mark:?}: inside the rect given");
     }
 }
+
+/// A row's tooltip shows on hover even when the label is not cut.
+#[test]
+fn tooltip_shows_on_hover_for_a_label_that_fits() {
+    let mut harness = harness::<()>(Direction::Ltr).build_ui(|ui| {
+        panel(ui, 300.0, |ui| {
+            let _ = ListRow::new(1u8, "a.png").tooltip("/photos/a.png").show(ui);
+        });
+    });
+    harness.run();
+    assert!(harness.query_by_label("/photos/a.png").is_none(), "no tooltip before hover");
+    harness.event(Event::PointerMoved(pos2(40.0, 10.0)));
+    harness.run_steps(30);
+    assert!(harness.query_by_label("/photos/a.png").is_some(), "the tooltip shows");
+}

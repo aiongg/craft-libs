@@ -18,17 +18,16 @@
 //! # }
 //! ```
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_theme::{ControlSize, Srgba};
+use craft_ui::canvas::{CanvasTool, CanvasView, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
+use craft_ui::controls::IconButton;
+use craft_ui::icons::Icon;
+use egui::{AsIdSalt, Context, Id, IdSalt, Key, Painter, Rect, Response, Ui};
 
-use craft_theme::Srgba;
-use egui::{AsIdSalt, Context, Id, IdSalt, Response, Ui};
-
-/// The armed dropper, kept in egui memory: who armed it, the pass it was last drawn in, and a
-/// sample waiting for it.
+/// The armed dropper, kept in egui memory: who armed it and a sample waiting for it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Armed {
     owner: Id,
-    pass: u64,
     sample: Option<Srgba>,
 }
 
@@ -36,45 +35,61 @@ struct Armed {
 /// asks whether one is [`armed`](Self::armed) and [`deliver`](Self::deliver)s the colour under a
 /// click; the dropper [`take`](Self::take)s it, which disarms it.
 ///
-/// A dropper that is not drawn for a pass (its dialog closed, its popup hidden) is disarmed:
-/// [`armed`](Self::armed) returns `None` once the owner has missed a pass, so a closed dialog
-/// never leaves the canvas sampling for nobody. Esc on the canvas while armed disarms
-/// ([`disarm`](Self::disarm)).
+/// The owner ends its dropper: [`disarm`](Self::disarm) when its dialog closes or its button
+/// toggles off, or [`take`](Self::take) of a sample. A new [`arm`](Self::arm) from another owner
+/// replaces the record. Esc on the canvas while armed disarms.
 pub struct DropperState;
 
+fn state_key() -> Id {
+    Id::unique("craft_color::ui::droppers::armed")
+}
+
+/// The armed record.
+fn record(ctx: &Context) -> Option<Armed> {
+    ctx.data(|d| d.get_temp(state_key()))
+}
+
 impl DropperState {
-    /// Arms `owner`'s dropper (the one armed before is disarmed). Called each pass the owner is
-    /// drawn and wants samples.
+    /// Arms `owner`'s dropper (the one armed before is disarmed). Arming again keeps a sample
+    /// the owner has not taken.
     // inv-effectcraft: crates/ui-egui/src/color_picker.rs:163 `arm`, :175 `refresh_armed`.
     pub fn arm(ctx: &Context, owner: Id) {
-        todo!()
+        let sample = record(ctx).filter(|a| a.owner == owner).and_then(|a| a.sample);
+        ctx.data_mut(|d| d.insert_temp(state_key(), Armed { owner, sample }));
     }
 
     /// Disarms `owner`'s dropper, if it is the armed one.
     // inv-effectcraft: crates/ui-egui/src/color_picker.rs:169 `disarm`.
     pub fn disarm(ctx: &Context, owner: Id) {
-        todo!()
+        if record(ctx).is_some_and(|a| a.owner == owner) {
+            ctx.data_mut(|d| d.remove::<Armed>(state_key()));
+        }
     }
 
-    /// The armed dropper's owner, if one is armed and was drawn in the last pass.
-    // inv-effectcraft: crates/ui-egui/src/color_picker.rs:159 `eyedropper_armed` (and the pass check
-    // in `armed_record`).
+    /// The armed dropper's owner, if one is armed.
+    // inv-effectcraft: crates/ui-egui/src/color_picker.rs:159 `eyedropper_armed`.
     pub fn armed(ctx: &Context) -> Option<Id> {
-        todo!()
+        record(ctx).map(|a| a.owner)
     }
 
     /// The canvas sampled `color` for the armed dropper; it takes it on its next draw. Nothing
     /// happens when none is armed.
     // inv-effectcraft: crates/ui-egui/src/color_picker.rs:193 `deliver_sample`.
     pub fn deliver(ctx: &Context, color: Srgba) {
-        todo!()
+        if let Some(armed) = record(ctx) {
+            ctx.data_mut(|d| d.insert_temp(state_key(), Armed { sample: Some(color), ..armed }));
+            ctx.request_repaint();
+        }
     }
 
     /// The colour delivered for `owner`, once; taking it disarms the dropper unless the owner
     /// [`arm`](Self::arm)s it again (the Color Picker dialog stays armed while it is on top).
     // inv-effectcraft: crates/ui-egui/src/color_picker.rs:185 `take_sample`.
     pub fn take(ctx: &Context, owner: Id) -> Option<Srgba> {
-        todo!()
+        let armed = record(ctx).filter(|a| a.owner == owner)?;
+        let sample = armed.sample?;
+        ctx.data_mut(|d| d.remove::<Armed>(state_key()));
+        Some(sample)
     }
 }
 
@@ -89,11 +104,23 @@ pub enum DropperKind {
     White,
 }
 
+impl DropperKind {
+    /// The colour of the point dropper's bulb; `None` for the plain pipette.
+    fn fill(self) -> Option<Srgba> {
+        match self {
+            DropperKind::Sample => None,
+            DropperKind::Black => Some(Srgba::rgb(0.0, 0.0, 0.0)),
+            DropperKind::Gray => Some(Srgba::rgb(0.5, 0.5, 0.5)),
+            DropperKind::White => Some(Srgba::rgb(1.0, 1.0, 1.0)),
+        }
+    }
+}
+
 /// What [`DropperButton::show`] returns.
 #[derive(Debug)]
 #[non_exhaustive]
 #[must_use = "the host applies the sample"]
-pub struct DropperResponse {
+pub struct DropperButtonResponse {
     pub response: Response,
     /// The colour the canvas sampled for this dropper this pass.
     pub sampled: Option<Srgba>,
@@ -135,8 +162,24 @@ impl DropperButton {
     // inv-effectcraft: crates/ui-egui/src/color_picker.rs:163 `arm` and :185 `take_sample` around
     // an `IconButton` (`Icon::Eyedropper`, the Black/Gray/White variants' bulb filled);
     // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:289 `sample_at` (the dialog side).
-    pub fn show(self, ui: &mut Ui) -> DropperResponse {
-        todo!()
+    pub fn show(self, ui: &mut Ui) -> DropperButtonResponse {
+        let ctx = ui.ctx().clone();
+        let owner = ui.make_persistent_id(self.id_salt);
+        let was_armed = DropperState::armed(&ctx) == Some(owner);
+        let sampled = DropperState::take(&ctx, owner);
+        let mut on = self.enabled && (was_armed || sampled.is_some());
+        let mut button =
+            IconButton::new(Icon::Eyedropper, self.label.as_str()).size(ControlSize::Sm).toggle(&mut on).enabled(self.enabled).with_id(owner);
+        if let Some(fill) = self.kind.fill() {
+            button = button.badge(fill);
+        }
+        let response = ui.add(button);
+        if on {
+            DropperState::arm(&ctx, owner);
+        } else {
+            DropperState::disarm(&ctx, owner);
+        }
+        DropperButtonResponse { response, sampled, armed: on }
     }
 }
 
@@ -145,9 +188,6 @@ impl DropperButton {
 /// the image or over transparency) and [`deliver`](DropperState::deliver)s it; a drag samples
 /// at every move (Photoshop updates the dialog while the button is held); Esc disarms. The
 /// cursor is the eyedropper with its tip on the sampled pixel.
-// needs: S3-canvas tool_host — `impl CanvasTool for DropperTool` (`press` returns
-// `ToolAction::Claimed`, `drag` and `release` sample at `ToolPointer::doc`, `cancel` disarms,
-// `cursor` is the eyedropper `ToolCursor`).
 pub struct DropperTool<'a> {
     sample: Box<dyn FnMut([f64; 2]) -> Option<Srgba> + 'a>,
 }
@@ -158,11 +198,78 @@ impl<'a> DropperTool<'a> {
         DropperTool { sample: Box::new(sample) }
     }
 
+    /// The canvas pass under an open modal dialog. egui makes the canvas inert while a modal
+    /// dialog is up, so a press never reaches [`ToolHost`](craft_ui::canvas::ToolHost); the app
+    /// calls this instead of `ToolHost::show` while [`DropperState::armed`] and a modal dialog is
+    /// open. A press that began on the free canvas (not on a dialog or a popup) samples at the
+    /// pointer, and so does every pass of the drag that follows. Returns whether it sampled.
+    /// Esc is the dialog's: it closes the dialog, which disarms its dropper.
+    // pc: crates/ui-egui/src/dialogs.rs:80 `free_pointer_over`, canvas.rs:729 `sample_at`.
+    pub fn show_free(&mut self, ctx: &Context, view: &CanvasView, canvas_rect: Rect) -> bool {
+        if DropperState::armed(ctx).is_none() {
+            return false;
+        }
+        let Some(pos) = craft_ui::dialog::pass::free_press(ctx, canvas_rect) else {
+            return false;
+        };
+        let doc = view.to_doc(pos);
+        self.sample_at(ctx, [doc.x, doc.y]);
+        true
+    }
+
     /// Samples at document point `doc` and delivers the colour to the armed dropper; what the
     /// tool's press and drag do.
     // pc: crates/ui-egui/src/canvas/cursors.rs:207 `composite_color` (the app's `sample`), then
     // `DropperState::deliver`.
     pub fn sample_at(&mut self, ctx: &Context, doc: [f64; 2]) {
-        todo!()
+        if let Some(color) = (self.sample)(doc) {
+            DropperState::deliver(ctx, color);
+        }
+    }
+}
+
+/// Ends the armed dropper, whoever owns it.
+fn disarm_armed(ctx: &Context) {
+    if let Some(owner) = DropperState::armed(ctx) {
+        DropperState::disarm(ctx, owner);
+    }
+}
+
+impl CanvasTool for DropperTool<'_> {
+    fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
+        // The pipette's tip is at the bottom left of its 24-unit icon.
+        ToolCursor::Tool { icon: Icon::Eyedropper, hotspot: egui::vec2(2.0, 22.0), badge: None }
+    }
+
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y]);
+        ToolAction::Claimed
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y]);
+    }
+
+    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y]);
+    }
+
+    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+        disarm_armed(&cx.canvas.ctx);
+    }
+
+    /// Esc on the canvas while a dropper is armed disarms it.
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+        if key.key == Key::Escape && key.pressed && DropperState::armed(&cx.canvas.ctx).is_some() {
+            disarm_armed(&cx.canvas.ctx);
+            return true;
+        }
+        false
+    }
+
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+
+    fn autoscrolls(&self) -> bool {
+        false
     }
 }

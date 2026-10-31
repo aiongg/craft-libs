@@ -24,10 +24,11 @@ use crate::behavior::{ListOptions, Listbox, take_composing_keys, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, UndoMarks};
 use crate::icons::{self, Icon};
+use crate::localized::Labels as _;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::popup_list::{self, PopupList};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, variant_list, variant_row};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, variant_list, variant_row};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 use crate::typed_story;
 
@@ -1862,11 +1863,12 @@ fn show_row_content(ui: &mut Ui, args: &mut SearchableArgs) {
         ("Mono", Color32::WHITE, Color32::BLACK),
     ];
     let size = args.size.control();
+    let words = StoryLabels::of(ui);
     with_choices(ui, "select-row-content", [0], |ui, choices| {
         variant_list(ui, "select-row-content", |form| {
-            variant_row(form, "Preset", |ui| {
+            variant_row(form, &words.preset, |ui| {
                 let mut select =
-                    Select::new("select-preset", "Preset", &mut choices[0]).size(size).row_content(vec2(48.0, 16.0), |painter, rect, i| {
+                    Select::new("select-preset", &words.preset, &mut choices[0]).size(size).row_content(vec2(48.0, 16.0), |painter, rect, i| {
                         let (_, from, to) = PRESETS[*i];
                         let steps = 12;
                         for step in 0..steps {

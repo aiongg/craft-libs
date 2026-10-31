@@ -42,6 +42,7 @@ struct Rig {
     label: Rect,
     popup: bool,
     arithmetic: bool,
+    rate: Option<f64>,
     /// Typed inches convert to pixels at 300 ppi; the committed value keeps this many decimals.
     inches: Option<usize>,
     drawn: bool,
@@ -110,6 +111,7 @@ impl Rig {
             label: Rect::NOTHING,
             popup: false,
             arithmetic: false,
+            rate: None,
             inches: None,
             drawn: true,
             enabled: true,
@@ -239,6 +241,9 @@ impl Rig {
         if let Some(label) = &label {
             self.label = label.rect;
             field = field.scrub_by(label);
+        }
+        if let Some(rate) = self.rate {
+            field = field.scrub_rate(rate);
         }
         if self.arithmetic {
             field = field.or_parse(sum);
@@ -643,6 +648,21 @@ fn a_scrub_begins_updates_and_commits_a_step_a_point_with_shift_and_alt() {
     assert_eq!(rig.value, 25.0 + 10.0 * 12.0);
     rig.drag(rig.handle(), &[10.0, 25.0], Modifiers::ALT, true);
     assert_eq!(rig.value, 145.0 + 2.0, "a tenth as fast, the rest carried");
+}
+
+// A scrub rate of 0.5 moves a step every two points; the rest carries, and Shift still multiplies.
+#[test]
+fn a_scrub_rate_sets_the_value_moved_per_point() {
+    let mut rig = Rig::with(10.0, |r| {
+        r.scrub = true;
+        r.rate = Some(0.5);
+    });
+    rig.drag(rig.handle(), &[10.0, 20.0], Modifiers::NONE, true);
+    assert_eq!(rig.value, 20.0, "20 points at 0.5 a point");
+    rig.drag(rig.handle(), &[10.0, 11.0], Modifiers::NONE, true);
+    assert_eq!(rig.value, 25.0, "11 points make 5 steps, the half carried");
+    rig.drag(rig.handle(), &[10.0, 12.0], Modifiers::SHIFT, true);
+    assert_eq!(rig.value, 85.0, "Shift ten times as far");
 }
 
 #[test]

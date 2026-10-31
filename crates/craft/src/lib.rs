@@ -7,6 +7,8 @@ pub mod egui_fork;
 pub use craft_ai_core as ai_core;
 #[cfg(feature = "atomic")]
 pub use craft_atomic as atomic;
+#[cfg(feature = "automation")]
+pub use craft_automation as automation;
 #[cfg(feature = "cms")]
 pub use craft_cms as cms;
 #[cfg(feature = "color")]
@@ -84,6 +86,8 @@ pub mod story {
         let mut all = craft_ui::story::registry();
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::stories());
+        #[cfg(feature = "dialogs")]
+        all.extend(craft_dialogs::ui::stories());
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::stories());
         #[cfg(feature = "font-manager")]
@@ -92,6 +96,10 @@ pub mod story {
         all.extend(craft_imaging::ui::stories());
         #[cfg(feature = "keymap")]
         all.extend(craft_keymap::ui::stories());
+        #[cfg(feature = "text")]
+        all.extend(craft_text::ui::stories());
+        #[cfg(feature = "theme-store")]
+        all.extend(craft_theme_store::ui::stories());
         all
     }
 }
@@ -103,31 +111,47 @@ pub mod words {
     use craft_ui::localized::words::Counted;
 
     /// Every labels table: the kernel's, then the family crates' alphabetically, each only when
-    /// its feature is on. craft-font-manager keeps its words in a catalog of its own and has no
-    /// table here.
+    /// its feature is on. craft-font-manager's fonts panel keeps its words in a catalog of its own;
+    /// the picker, Glyphs panel, Missing Fonts dialog and axis sliders are listed.
     pub fn all() -> Vec<&'static [Word]> {
         let mut all: Vec<&'static [Word]> = craft_ui::localized::words::tables().to_vec();
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::WORDS);
+        #[cfg(feature = "dialogs")]
+        all.extend(craft_dialogs::ui::WORDS);
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::WORDS);
+        #[cfg(feature = "font-manager")]
+        all.extend(craft_font_manager::ui::WORDS);
         #[cfg(feature = "imaging")]
         all.extend(craft_imaging::ui::WORDS);
         #[cfg(feature = "keymap")]
         all.extend(craft_keymap::ui::WORDS);
         #[cfg(feature = "print")]
         all.extend(craft_print::ui::WORDS);
+        #[cfg(feature = "text")]
+        all.extend(craft_text::ui::WORDS);
+        #[cfg(feature = "theme-store")]
+        all.extend(craft_theme_store::ui::WORDS);
         all
     }
 
     /// The counted words (singular and plural forms) of every enabled crate that has them.
-    #[allow(clippy::vec_init_then_push, reason = "each push is behind its crate's feature")]
+    #[allow(unused_mut, reason = "each push is behind its crate's feature")]
     pub fn counts() -> Vec<&'static [Counted]> {
-        let mut all: Vec<&'static [Counted]> = Vec::new();
+        let mut all: Vec<&'static [Counted]> = vec![craft_ui::localized::words::COUNTS];
+        #[cfg(feature = "color")]
+        all.push(craft_color::ui::COUNTS);
+        #[cfg(feature = "dialogs")]
+        all.push(craft_dialogs::ui::COUNTS);
         #[cfg(feature = "draw")]
         all.push(craft_draw::ui::COUNTS);
+        #[cfg(feature = "font-manager")]
+        all.push(craft_font_manager::ui::COUNTS);
         #[cfg(feature = "keymap")]
         all.push(craft_keymap::ui::COUNTS);
+        #[cfg(feature = "text")]
+        all.push(craft_text::ui::COUNTS);
         all
     }
 }

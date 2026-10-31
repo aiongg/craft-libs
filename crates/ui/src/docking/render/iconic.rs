@@ -3,6 +3,7 @@
 //! Behavior follows VectorCraft `dock.rs` (icon column, flyouts beside it on the canvas side,
 //! names when the column is widened) and PhotoCraft `dock.rs` (Auto-Collapse Iconic Panels).
 
+use crate::docking::panel_menu::PanelMenuLabels;
 use std::{fmt::Debug, hash::Hash};
 
 use egui::{Context, Id, Key, Order, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
@@ -287,7 +288,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// The Auto-Collapse Iconic Panels item of a column menu (U1): true when chosen.
     pub(super) fn auto_collapse_item(&mut self, ui: &mut Ui) -> bool {
-        let logical = self.config.auto_collapse_label.clone();
+        let logical = PanelMenuLabels::in_dock(ui).auto_collapse.clone();
         let text = self.content.action_label(ui, &logical, &self.look.font, self.look.text);
         let mut on = self.iconic.auto_collapse;
         let response = ui.add(egui::Checkbox::new(&mut on, text));

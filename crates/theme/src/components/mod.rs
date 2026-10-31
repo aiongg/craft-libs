@@ -37,6 +37,7 @@ mod bezier;
 mod button;
 mod canvas;
 mod check;
+mod check_spelling;
 mod color_picker;
 mod color_ramp;
 mod color_wheel;
@@ -47,10 +48,15 @@ mod curve;
 mod dialog;
 mod dock;
 mod empty_state;
+mod export;
 mod eyedropper;
 mod field;
+mod file_list;
+mod findings;
 mod float;
+mod font_picker;
 mod form;
+mod glyphs;
 mod gradient_editor;
 mod gradient_line;
 mod gradient_palette;
@@ -69,12 +75,14 @@ mod list;
 mod listbox;
 mod marquee;
 mod menu;
+mod new_document;
 mod notice;
 mod options_bar;
 mod paint_chip;
 mod panel;
 mod panel_footer;
 mod panel_header;
+mod pasteboard;
 mod popover;
 mod popup;
 mod preferences;
@@ -90,19 +98,26 @@ mod screen_picker;
 mod scroll;
 mod section;
 mod segmented;
+mod selection_bar;
 mod slider;
 mod slider_row;
 mod spinner;
 mod split;
+mod start;
 mod status_bar;
 mod swatch;
 mod swatch_palette;
 mod tab;
+mod text_editor;
+mod text_styles;
+mod theme_chip;
 mod title_bar;
 mod toast;
 mod toggle_button;
+mod tool_pill;
 mod toolbar;
 mod tooltip;
+mod tour;
 mod transform;
 
 use std::fmt;
@@ -121,6 +136,7 @@ pub use bezier::{BezierField, BezierTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use canvas::{CanvasField, CanvasTokens};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckSwitchColors, CheckSwitchPart, CheckTokens};
+pub use check_spelling::{CheckSpellingField, CheckSpellingTokens};
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use color_ramp::{ColorRampField, ColorRampTokens};
 pub use color_wheel::{ColorWheelField, ColorWheelTokens};
@@ -131,10 +147,15 @@ pub use curve::{CurveField, CurveTokens};
 pub use dialog::{DialogField, DialogTokens};
 pub use dock::{DockField, DockTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
+pub use export::{ExportField, ExportTokens};
 pub use eyedropper::{EyedropperField, EyedropperTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
+pub use file_list::{FileListField, FileListTokens};
+pub use findings::{FindingsField, FindingsTokens};
 pub use float::{FloatField, FloatTokens};
+pub use font_picker::{FontPickerField, FontPickerTokens};
 pub use form::{FormField, FormSpacing, FormTokens};
+pub use glyphs::{GlyphsField, GlyphsTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
 pub use gradient_line::{GradientLineField, GradientLineTokens};
 pub use gradient_palette::{GradientPaletteField, GradientPaletteTokens};
@@ -152,12 +173,14 @@ pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
+pub use new_document::{NewDocumentField, NewDocumentTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
 pub use paint_chip::{PaintChipField, PaintChipTokens};
 pub use panel::{PanelField, PanelTokens};
 pub use panel_footer::{PanelFooterField, PanelFooterTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
+pub use pasteboard::{PasteboardField, PasteboardTokens};
 pub use popover::{PopoverField, PopoverTokens};
 pub use popup::{PopupField, PopupTokens};
 pub use preferences::{PreferencesField, PreferencesTokens};
@@ -173,19 +196,26 @@ pub use screen_picker::{ScreenPickerField, ScreenPickerTokens};
 pub use scroll::{ScrollField, ScrollTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
+pub use selection_bar::{SelectionBarField, SelectionBarTokens};
 pub use slider::{SliderField, SliderTokens};
 pub use slider_row::{SliderRowField, SliderRowTokens};
 pub use spinner::{SpinnerField, SpinnerTokens};
 pub use split::{SplitField, SplitTokens};
+pub use start::{StartField, StartTokens};
 pub use status_bar::{StatusBarField, StatusBarTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
 pub use tab::{TabField, TabTokens};
+pub use text_editor::{TextEditorField, TextEditorTokens};
+pub use text_styles::{TextStylesField, TextStylesTokens};
+pub use theme_chip::{ThemeChipField, ThemeChipTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
+pub use tool_pill::{ToolPillField, ToolPillTokens};
 pub use toolbar::{ToolbarField, ToolbarTokens};
 pub use tooltip::{TooltipField, TooltipTokens};
+pub use tour::{TourField, TourTokens};
 pub use transform::{TransformField, TransformTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
@@ -733,6 +763,16 @@ impl ComponentTokens {
 }
 
 families! {
+    /// Export As and Save for Web: the widths of the dialogs and their settings columns.
+    export: ExportTokens => Export(ExportField);
+    /// File list pickers: the list box and the width of its buttons.
+    file_list: FileListTokens => FileList(FileListField);
+    /// Findings lists: the status dot of the summary line.
+    findings: FindingsTokens => Findings(FindingsField);
+    /// The New Document dialog: the card grid, the page icon and the Saved list.
+    new_document: NewDocumentTokens => NewDocument(NewDocumentField);
+    /// Theme chips: the small preview of a theme in the Appearance page.
+    theme_chip: ThemeChipTokens => ThemeChip(ThemeChipField);
     /// Angle dials: the round face and needle that point in a direction.
     angle_dial: AngleDialTokens => AngleDial(AngleDialField);
     /// The app shell: the backdrop behind the document and the edge reveal zone.
@@ -775,6 +815,14 @@ families! {
     form: FormTokens => Form(FormField);
     /// Text fields: one line of editable text in a sunken box.
     field: FieldTokens => Field(FieldField);
+    /// Check Spelling dialog: the sizes of its fields and suggestion list.
+    check_spelling: CheckSpellingTokens => CheckSpelling(CheckSpellingField);
+    /// The font picker: the open list and its class column.
+    font_picker: FontPickerTokens => FontPicker(FontPickerField);
+    /// The Character Styles and Paragraph Styles panels: their list.
+    text_styles: TextStylesTokens => TextStyles(TextStylesField);
+    /// The Glyphs panel: the character grid and the Recently Used strip.
+    glyphs: GlyphsTokens => Glyphs(GlyphsField);
     /// Gradient editors: the stop bar, its markers and midpoint diamonds.
     gradient_editor: GradientEditorTokens => GradientEditor(GradientEditorField);
     /// Gradient lines: the line, end handles, stops and midpoints of a gradient on the canvas.
@@ -821,6 +869,8 @@ families! {
     panel_footer: PanelFooterTokens => PanelFooter(PanelFooterField);
     /// Panel headers: the title row of a flyout or floating panel.
     panel_header: PanelHeaderTokens => PanelHeader(PanelHeaderField);
+    /// The pasteboard: the page name's gap and the page outline.
+    pasteboard: PasteboardTokens => Pasteboard(PasteboardField);
     /// Popovers: the padding, resize grip and screen margin of an anchored popup.
     popover: PopoverTokens => Popover(PopoverField);
     /// Popups: the card that holds a menu or a list under a field.
@@ -851,6 +901,8 @@ families! {
     section: SectionTokens => Section(SectionField);
     /// Segmented controls: one of a few options as separate pills.
     segmented: SegmentedTokens => Segmented(SegmentedField);
+    /// Selection bars: the floating bar of actions beside a selection.
+    selection_bar: SelectionBarTokens => SelectionBar(SelectionBarField);
     /// Sliders: a track filled to the value, with a thumb on it.
     slider: SliderTokens => Slider(SliderField);
     /// Slider rows: a caption and number field over a full-width slider.
@@ -859,6 +911,8 @@ families! {
     spinner: SpinnerTokens => Spinner(SpinnerField);
     /// Split views: the gap between panes.
     split: SplitTokens => Split(SplitField);
+    /// Start screens: the recent-file card grid.
+    start: StartTokens => Start(StartField);
     /// Status bars: the bar at the bottom of the window.
     status_bar: StatusBarTokens => StatusBar(StatusBarField);
     /// Colour wells.
@@ -867,16 +921,22 @@ families! {
     swatch_palette: SwatchPaletteTokens => SwatchPalette(SwatchPaletteField);
     /// Tabs: one tab of a document or panel strip.
     tab: TabTokens => Tab(TabField);
+    /// The text editor on a canvas: the caret and the marked-text underlines.
+    text_editor: TextEditorTokens => TextEditor(TextEditorField);
     /// Title bars: the caption row with the window's buttons and the document title.
     title_bar: TitleBarTokens => TitleBar(TitleBarField);
     /// Toasts: cards stacked in a corner of the window.
     toast: ToastTokens => Toast(ToastField);
     /// Toggle buttons that are on.
     toggle_button: ToggleButtonTokens => ToggleButton(ToggleButtonField);
+    /// Tool pills: the floating row of tools over a canvas.
+    tool_pill: ToolPillTokens => ToolPill(ToolPillField);
     /// Toolbars: a row or column of icon-button groups.
     toolbar: ToolbarTokens => Toolbar(ToolbarField);
     /// Tooltips.
     tooltip: TooltipTokens => Tooltip(TooltipField);
+    /// Tours: the coach marks and the card of a guided tour.
+    tour: TourTokens => Tour(TourField);
     /// Transform boxes and warp meshes.
     transform: TransformTokens => Transform(TransformField);
 }

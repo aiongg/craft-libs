@@ -17,7 +17,7 @@ use crate::icons::{self, Icon, IconSize};
 use crate::localized::SharedLabels as _;
 use crate::localized::{Labels, Word, Words};
 use crate::primitives::{FocusRing, Interactive};
-use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 use crate::typed_story;
 
@@ -356,7 +356,8 @@ impl ListRowStyle {
 ///   while the keyboard is the last input), [`dimmed`](ListRow::dimmed) (a hidden layer's faint
 ///   label), [`highlight`](ListRow::highlight) (the hover fill without the pointer),
 ///   [`drop_mark`](ListRow::drop_mark) and [`renaming`](ListRow::renaming).
-/// - **Label.** One line, cut with an ellipsis, showing the whole text as a tooltip. Trailing
+/// - **Label.** One line, cut with an ellipsis. The row shows a tooltip only when
+///   [`tooltip`](ListRow::tooltip) sets one. Trailing
 ///   items are placed first, from the trailing edge inward; those marked
 ///   [optional](ListRow::optional_item) drop out, in the order given, before the label would
 ///   get narrower than `list.min_label`, and the indent shrinks before the label gets narrower
@@ -378,6 +379,8 @@ pub struct ListRow<'a, K> {
     label: String,
     detail: Option<String>,
     description: Option<String>,
+    tooltip: Option<egui::WidgetText>,
+    accessible_name: Option<String>,
     columns: Vec<ToggleColumn>,
     icon: Option<Icon>,
     thumb: ThumbSize,
@@ -404,6 +407,13 @@ pub struct ListRow<'a, K> {
     tree_text: Option<Arc<TreeText>>,
 }
 
+fn with_tooltip(response: Response, tooltip: Option<egui::WidgetText>) -> Response {
+    match tooltip {
+        Some(tooltip) => response.on_hover_text(tooltip),
+        None => response,
+    }
+}
+
 /// The id of the row for `key` among rows shown in a `Ui` whose scope is `scope`: the base of the
 /// row's state (the open rename, the toggle cells).
 pub(super) fn row_id<K: std::hash::Hash + std::fmt::Debug>(scope: Id, key: &K) -> Id {
@@ -419,6 +429,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             label: label.into(),
             detail: None,
             description: None,
+            tooltip: None,
+            accessible_name: None,
             columns: Vec::new(),
             icon: None,
             thumb: ThumbSize::None,
@@ -529,9 +541,23 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self.show(ui)
     }
 
+    /// The row's AccessKit name when it differs from the drawn text (a row whose icon carries
+    /// part of the meaning). Without it the name is the label, then the detail.
+    pub fn accessible_name(mut self, name: impl Into<String>) -> Self {
+        self.accessible_name = Some(name.into()).filter(|n| !n.is_empty());
+        self
+    }
+
     /// What a screen reader adds after the row's name; not drawn. Empty is none.
     pub fn description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into()).filter(|d| !d.is_empty());
+        self
+    }
+
+    /// A tooltip shown while the pointer rests on the row, whether or not the label is cut
+    /// (PhotoCraft's file list shows the full path).
+    pub fn tooltip(mut self, tooltip: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(tooltip.into());
         self
     }
 
@@ -752,6 +778,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             label,
             detail,
             description,
+            tooltip,
+            accessible_name,
             columns,
             icon,
             thumb,
@@ -789,9 +817,10 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let column = disclosure + marker;
         let rect = slot.unwrap_or_else(|| ui.allocate_space(vec2(ui.available_width(), height)).1);
         let row_id = row_id(ui.scope_id(), &key);
-        let name = match &detail {
-            Some(detail) => format!("{label}, {detail}"),
-            None => label.clone(),
+        let name = match (accessible_name, &detail) {
+            (Some(name), _) => name,
+            (None, Some(detail)) => format!("{label}, {detail}"),
+            (None, None) => label.clone(),
         };
         let mut element = Interactive::with_id(row_id, role, name.clone())
             .sense(Sense::CLICK | Sense::DRAG)
@@ -805,6 +834,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             element = element.position_in_set(position);
         }
         let response = element.interact_at(ui, rect).finish(ui);
+        let response = with_tooltip(response, tooltip);
         let description = if clipped { Some(clipped_description(ui, description)) } else { description };
         if let Some(description) = description {
             ui.ctx().accesskit_node_builder(response.id, |node| node.set_description(description));
@@ -1371,12 +1401,12 @@ fn layer(name: &str, locked: bool) -> Layer {
     Layer { name: name.to_owned(), visible: true, locked }
 }
 
-impl Default for Layers {
-    fn default() -> Self {
+impl Layers {
+    fn new(words: &StoryLabels) -> Self {
         let rows = vec![
             layer("Headline", false),
             layer("Photo with a name too long for the panel to show whole", false),
-            layer("Shadow", false),
+            layer(&words.shadow, false),
             layer("Background", true),
         ];
         Self { rows, selected: Some(0), renaming: None }
@@ -1391,7 +1421,7 @@ pub(super) fn show_layers(ui: &mut Ui, args: &mut LayersArgs) {
     let thumb = args.thumbnails.size();
     let (detail, highlight, layer) = (args.detail, args.highlight_second_row, args.layer_form);
     let state_id = ui.scope_id().with("list-row-story");
-    let mut layers = ui.data(|d| d.get_temp::<Layers>(state_id)).unwrap_or_default();
+    let mut layers = ui.data(|d| d.get_temp::<Layers>(state_id)).unwrap_or_else(|| Layers::new(&StoryLabels::of(ui)));
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         ui.spacing_mut().item_spacing.y = 0.0;

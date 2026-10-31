@@ -1,8 +1,6 @@
 //! The documents open when the app last quit, to reopen at the next launch (a "Reopen Last
 //! Session" preference). Egui-free: the app supplies what is open and opens the files itself.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use serde::{Deserialize, Serialize};
 
 /// More documents than anyone keeps open. Settings are untrusted, so a longer list is cut here.
@@ -39,7 +37,22 @@ impl Session {
     /// `Null`, and the list is cut at [`MAX_DOCUMENTS`].
     // pdfcraft: crates/ui-egui/src/persist/last_session.rs:32 `from_json`.
     pub fn from_json(value: &serde_json::Value) -> Session {
-        todo!()
+        let documents = value["documents"]
+            .as_array()
+            .map(|entries| {
+                entries
+                    .iter()
+                    .filter_map(|entry| {
+                        let path = entry["path"].as_str().filter(|p| !p.is_empty())?.to_string();
+                        let window = entry["window"].as_str().map(str::to_string);
+                        let view = entry.get("view").cloned().unwrap_or_default();
+                        Some(SessionDocument { path, window, view })
+                    })
+                    .take(MAX_DOCUMENTS)
+                    .collect()
+            })
+            .unwrap_or_default();
+        Session { documents, active: value["active"].as_str().map(str::to_string) }
     }
 
     /// The documents to reopen at launch, in order: those whose file still exists, that aren't in
@@ -47,7 +60,14 @@ impl Session {
     /// and that aren't open already (`is_open`). Paths are compared after [`absolute`].
     // pdfcraft: crates/ui-egui/src/persist/last_session.rs:102 `reopen_last_files`.
     pub fn to_reopen<'s>(&'s self, skip: &[String], is_open: impl Fn(&str) -> bool) -> Vec<&'s SessionDocument> {
-        todo!()
+        let skip: Vec<String> = skip.iter().map(|p| absolute(p)).collect();
+        self.documents
+            .iter()
+            .filter(|doc| {
+                let path = absolute(&doc.path);
+                !skip.contains(&path) && std::path::Path::new(&path).is_file() && !is_open(&path)
+            })
+            .collect()
     }
 }
 
@@ -63,20 +83,25 @@ impl SessionKeeper {
     /// A quit is about to close its first document: remember `open` (once per quit).
     // pdfcraft: crates/ui-egui/src/persist/last_session.rs:84 `note_quit_session`.
     pub fn quit_started(&mut self, open: impl FnOnce() -> Session) {
-        todo!()
+        if self.quit.is_none() {
+            self.quit = Some(open());
+        }
     }
 
     /// The quit was cancelled: what is open from now on is the session again.
     // pdfcraft: crates/ui-egui/src/persist/last_session.rs:91 `forget_quit_session`.
     pub fn quit_cancelled(&mut self) {
-        todo!()
+        self.quit = None;
     }
 
     /// What to store: the session remembered at the quit's start once the app is really quitting
     /// (`quitting`), else `open`.
     // pdfcraft: crates/ui-egui/src/persist/last_session.rs:76 `session_to_save`.
     pub fn to_save(&self, quitting: bool, open: Session) -> Session {
-        todo!()
+        match &self.quit {
+            Some(session) if quitting => session.clone(),
+            _ => open,
+        }
     }
 }
 
@@ -84,5 +109,12 @@ impl SessionKeeper {
 /// Windows' `\\?\` prefix, which `canonicalize` adds). Unchanged on the web.
 // pdfcraft: crates/ui-egui/src/persist/last_session.rs:55 `absolute`.
 pub fn absolute(path: &str) -> String {
-    todo!()
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::path::absolute(path).map_or_else(|_| path.to_string(), |p| p.to_string_lossy().into_owned())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        path.to_string()
+    }
 }

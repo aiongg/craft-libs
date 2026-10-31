@@ -1,11 +1,8 @@
 //! [`ToolIcon`]: the tool icons every app shares, by tool, drawn from the suite's icon set so a
 //! theme's icon pack restyles them with the rest.
 //!
-//! Each tool maps to an [`Icon`]. Tools whose icon isn't in `icons.toml` yet get a row there with
-//! its base-set (Phosphor) file, named by meaning (`marquee_row`, `pen_add_anchor`), in the fill
-//! task; until then the mapping is `todo!()`.
-
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+//! Each tool maps to an [`Icon`] named by meaning (`marquee_row`, `pen_add_anchor`); the base set
+//! (Phosphor) has a file for every one.
 
 use super::Icon;
 
@@ -226,21 +223,157 @@ impl ToolIcon {
     ];
 
     /// The icon that draws the tool.
-    // pc: crates/ui-egui/src/icons.rs:85 `tool_icon` (Lucide-style names; the suite's rows are
-    // snake_case by meaning, mapped onto existing icons where one fits: Brush → `brush`, Hand →
-    // `hand`, Crop → `crop`).
+    // pc: crates/ui-egui/src/icons.rs:85 `tool_icon`
     pub fn icon(self) -> Icon {
-        todo!()
+        match self {
+            ToolIcon::Move => Icon::Move,
+            ToolIcon::Artboard => Icon::Artboard,
+            ToolIcon::RectangularMarquee => Icon::MarqueeRect,
+            ToolIcon::EllipticalMarquee => Icon::EllipseDashed,
+            ToolIcon::SingleRowMarquee => Icon::MarqueeRow,
+            ToolIcon::SingleColumnMarquee => Icon::MarqueeColumn,
+            ToolIcon::Brush => Icon::Brush,
+            ToolIcon::Pencil => Icon::Pencil,
+            ToolIcon::MixerBrush => Icon::Palette,
+            ToolIcon::ColorReplacement => Icon::BrushReplace,
+            ToolIcon::Eraser => Icon::Eraser,
+            ToolIcon::BackgroundEraser => Icon::EraserBackground,
+            ToolIcon::MagicEraser => Icon::EraserMagic,
+            ToolIcon::Eyedropper => Icon::Eyedropper,
+            ToolIcon::ColorSampler => Icon::Sampler,
+            ToolIcon::Ruler => Icon::Ruler,
+            ToolIcon::Note => Icon::Note,
+            ToolIcon::Count => Icon::Target,
+            ToolIcon::Lasso => Icon::Lasso,
+            ToolIcon::PolygonalLasso => Icon::Pentagon,
+            ToolIcon::MagneticLasso => Icon::LassoMagnetic,
+            ToolIcon::MagicWand => Icon::WandSparkles,
+            ToolIcon::Crop => Icon::Crop,
+            ToolIcon::PerspectiveCrop => Icon::PerspectiveCrop,
+            ToolIcon::Slice => Icon::SliceKnife,
+            ToolIcon::SliceSelect => Icon::SliceSelect,
+            ToolIcon::Frame => Icon::FramePlaceholder,
+            ToolIcon::Gradient => Icon::Gradient,
+            ToolIcon::PaintBucket => Icon::PaintBucket,
+            ToolIcon::HorizontalType => Icon::Text,
+            ToolIcon::VerticalType => Icon::Text,
+            ToolIcon::HorizontalTypeMask => Icon::TypeMask,
+            ToolIcon::VerticalTypeMask => Icon::TypeMaskVertical,
+            ToolIcon::Hand => Icon::Hand,
+            ToolIcon::RotateView => Icon::Compass,
+            ToolIcon::Zoom => Icon::ZoomIn,
+            ToolIcon::SpotHealing => Icon::Bandage,
+            ToolIcon::Healing => Icon::Bandage,
+            ToolIcon::Remove => Icon::BandageSparkle,
+            ToolIcon::Patch => Icon::LassoSelect,
+            ToolIcon::ContentAwareMove => Icon::SwapHorizontal,
+            ToolIcon::RedEye => Icon::Eye,
+            ToolIcon::CloneStamp => Icon::Stamp,
+            ToolIcon::PatternStamp => Icon::Grid,
+            ToolIcon::HistoryBrush => Icon::Clock,
+            ToolIcon::ArtHistoryBrush => Icon::Sparkles,
+            ToolIcon::Blur => Icon::Droplet,
+            ToolIcon::Sharpen => Icon::Triangle,
+            ToolIcon::Smudge => Icon::Pointer,
+            ToolIcon::Dodge => Icon::Lollipop,
+            ToolIcon::Burn => Icon::Flame,
+            ToolIcon::Sponge => Icon::Cloud,
+            ToolIcon::QuickSelection => Icon::QuickSelection,
+            ToolIcon::ObjectSelection => Icon::ObjectSelect,
+            ToolIcon::Pen => Icon::PenTool,
+            ToolIcon::FreeformPen => Icon::PenFreeform,
+            ToolIcon::CurvaturePen => Icon::PenCurvature,
+            ToolIcon::AddAnchorPoint => Icon::PenAddAnchor,
+            ToolIcon::DeleteAnchorPoint => Icon::PenDeleteAnchor,
+            ToolIcon::ConvertPoint => Icon::ConvertPoint,
+            ToolIcon::PathSelection => Icon::MousePointer2,
+            ToolIcon::DirectSelection => Icon::DirectSelect,
+            ToolIcon::Rectangle => Icon::Rectangle,
+            ToolIcon::Ellipse => Icon::Circle,
+            ToolIcon::Triangle => Icon::Triangle,
+            ToolIcon::Polygon => Icon::Pentagon,
+            ToolIcon::Line => Icon::Slash,
+            ToolIcon::CustomShape => Icon::Cloud,
+        }
     }
 
     /// The tool's id as the apps' tool commands spell it (`tool.rectangularMarquee` without the
     /// `tool.` prefix), for automation and the keymap catalog.
     pub fn id(self) -> &'static str {
-        todo!()
+        match self {
+            ToolIcon::Move => "move",
+            ToolIcon::Artboard => "artboard",
+            ToolIcon::RectangularMarquee => "rectangularMarquee",
+            ToolIcon::EllipticalMarquee => "ellipticalMarquee",
+            ToolIcon::SingleRowMarquee => "singleRowMarquee",
+            ToolIcon::SingleColumnMarquee => "singleColumnMarquee",
+            ToolIcon::Brush => "brush",
+            ToolIcon::Pencil => "pencil",
+            ToolIcon::MixerBrush => "mixerBrush",
+            ToolIcon::ColorReplacement => "colorReplacement",
+            ToolIcon::Eraser => "eraser",
+            ToolIcon::BackgroundEraser => "backgroundEraser",
+            ToolIcon::MagicEraser => "magicEraser",
+            ToolIcon::Eyedropper => "eyedropper",
+            ToolIcon::ColorSampler => "colorSampler",
+            ToolIcon::Ruler => "ruler",
+            ToolIcon::Note => "note",
+            ToolIcon::Count => "count",
+            ToolIcon::Lasso => "lasso",
+            ToolIcon::PolygonalLasso => "polygonalLasso",
+            ToolIcon::MagneticLasso => "magneticLasso",
+            ToolIcon::MagicWand => "magicWand",
+            ToolIcon::Crop => "crop",
+            ToolIcon::PerspectiveCrop => "perspectiveCrop",
+            ToolIcon::Slice => "slice",
+            ToolIcon::SliceSelect => "sliceSelect",
+            ToolIcon::Frame => "frame",
+            ToolIcon::Gradient => "gradient",
+            ToolIcon::PaintBucket => "paintBucket",
+            ToolIcon::HorizontalType => "horizontalType",
+            ToolIcon::VerticalType => "verticalType",
+            ToolIcon::HorizontalTypeMask => "horizontalTypeMask",
+            ToolIcon::VerticalTypeMask => "verticalTypeMask",
+            ToolIcon::Hand => "hand",
+            ToolIcon::RotateView => "rotateView",
+            ToolIcon::Zoom => "zoom",
+            ToolIcon::SpotHealing => "spotHealing",
+            ToolIcon::Healing => "healing",
+            ToolIcon::Remove => "remove",
+            ToolIcon::Patch => "patch",
+            ToolIcon::ContentAwareMove => "contentAwareMove",
+            ToolIcon::RedEye => "redEye",
+            ToolIcon::CloneStamp => "cloneStamp",
+            ToolIcon::PatternStamp => "patternStamp",
+            ToolIcon::HistoryBrush => "historyBrush",
+            ToolIcon::ArtHistoryBrush => "artHistoryBrush",
+            ToolIcon::Blur => "blur",
+            ToolIcon::Sharpen => "sharpen",
+            ToolIcon::Smudge => "smudge",
+            ToolIcon::Dodge => "dodge",
+            ToolIcon::Burn => "burn",
+            ToolIcon::Sponge => "sponge",
+            ToolIcon::QuickSelection => "quickSelection",
+            ToolIcon::ObjectSelection => "objectSelection",
+            ToolIcon::Pen => "pen",
+            ToolIcon::FreeformPen => "freeformPen",
+            ToolIcon::CurvaturePen => "curvaturePen",
+            ToolIcon::AddAnchorPoint => "addAnchorPoint",
+            ToolIcon::DeleteAnchorPoint => "deleteAnchorPoint",
+            ToolIcon::ConvertPoint => "convertPoint",
+            ToolIcon::PathSelection => "pathSelection",
+            ToolIcon::DirectSelection => "directSelection",
+            ToolIcon::Rectangle => "rectangle",
+            ToolIcon::Ellipse => "ellipse",
+            ToolIcon::Triangle => "triangle",
+            ToolIcon::Polygon => "polygon",
+            ToolIcon::Line => "line",
+            ToolIcon::CustomShape => "customShape",
+        }
     }
 
     /// The tool for an id, `None` for an unknown one.
     pub fn from_id(id: &str) -> Option<ToolIcon> {
-        todo!()
+        ToolIcon::ALL.into_iter().find(|tool| tool.id() == id)
     }
 }

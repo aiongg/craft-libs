@@ -96,7 +96,8 @@ pub trait RasterSource {
     fn revision(&self) -> u64;
 
     /// Write the composite of `region` into `out` (sRGBA, unmultiplied), one texel per `factor`
-    /// pixels each way (`factor` is a power of two; 1 is full resolution). `out` is already
+    /// pixels each way (`factor` is a power of two for a detail texture and [`texture_factor`] for the base one; 1
+    /// is full resolution). `out` is already
     /// `region / factor` texels, rounded up.
     fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage);
 }
@@ -299,6 +300,15 @@ fn snap(region: PixelRect, factor: u32) -> PixelRect {
     PixelRect::new(region.x0.div_euclid(f).saturating_mul(f), region.y0.div_euclid(f).saturating_mul(f), up(region.x1), up(region.y1))
 }
 
+/// `region` grown outward to whole texels of `factor` pixels counted from `origin`, where the
+/// texture starts (a detail region that fell back to the visible rect does not start at a
+/// multiple of `factor`).
+pub(super) fn snap_from(region: PixelRect, origin: PixelRect, factor: u32) -> PixelRect {
+    let (dx, dy) = (origin.x0, origin.y0);
+    let s = snap(PixelRect::new(region.x0 - dx, region.y0 - dy, region.x1 - dx, region.y1 - dy), factor);
+    PixelRect::new(s.x0 + dx, s.y0 + dy, s.x1 + dx, s.y1 + dy)
+}
+
 /// The texel size of `region` at `factor`, rounded up.
 fn texels(region: PixelRect, factor: u32) -> [usize; 2] {
     [region.width() as usize, region.height() as usize].map(|n| n.div_ceil(factor as usize))
@@ -435,7 +445,7 @@ impl RasterDisplay {
             match reuse {
                 Some(d) if !changed && pending.is_empty() => d,
                 Some(mut d) if !pending.is_empty() => {
-                    let region = snap(pending.intersect(&plan.region), plan.factor).intersect(&plan.region);
+                    let region = snap_from(pending.intersect(&plan.region), plan.region, plan.factor).intersect(&plan.region);
                     if !region.is_empty() {
                         d.texture.set_partial(texel_at(region, plan.region, plan.factor), read_region(source, region, plan.factor), options);
                         read = read.union(&region);

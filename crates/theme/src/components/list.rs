@@ -26,6 +26,9 @@ use crate::values;
 pub struct ListTokens {
     /// Height of a row without a thumbnail: the standard control height.
     pub row_height: f32,
+    /// Height of a row in a short panel list (the text styles and spelling suggestions): the
+    /// same in every Size.
+    pub row_height_dense: f32,
     /// Thumbnail sides for the three user settings.
     pub thumb: ThumbSizes,
     /// Added to a thumbnail's side for the row's height (PhotoCraft: thumbnail plus 8), at least
@@ -511,6 +514,7 @@ impl Family for ListTokens {
     const FIELDS: &'static [ListField] = &FIELDS;
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { ListTokens;
         "row_height" 0.0..=1024.0 => row_height;
+        "row_height_dense" 0.0..=1024.0 => row_height_dense;
         "thumb.sm" 0.0..=96.0 => thumb.sm;
         "thumb.md" 0.0..=96.0 => thumb.md;
         "thumb.lg" 0.0..=96.0 => thumb.lg;
@@ -538,6 +542,7 @@ impl Family for ListTokens {
         let hover = visible_hover(half(c.state.hover, values::LIST_HOVER_OPACITY), c.surface.panel, &[selected], c.text.normal, s.high);
         ListTokens {
             row_height: s.size.control.md,
+            row_height_dense: values::LIST_ROW_HEIGHT_DENSE,
             thumb: list.thumb,
             thumb_pad: values::LIST_THUMB_PAD,
             thumb_row_min: list.thumb_row_min,

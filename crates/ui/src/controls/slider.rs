@@ -20,8 +20,9 @@ use crate::composites::Form;
 use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::order::{self, Turn};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Gap, Interactive, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, variant_list};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, variant_list};
 use crate::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format, scale};
 use crate::typed_story;
 
@@ -1193,10 +1194,11 @@ fn slider_row_with(
 /// Sliders at the minimum, the middle and the maximum.
 fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
     let look = Look::of(args.size, args.disabled);
+    let words = StoryLabels::of(ui);
     with_values(ui, "slider-values", [0.0, 50.0, 100.0, 25.0, 100.0, 50.0, 30.0], |ui, values| {
         variant_list(ui, "slider-values", |form| {
             let (minimum_to_maximum, shaped) = values.split_at_mut(3);
-            for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate() {
+            for (i, (label, value)) in ["Minimum", "Middle", words.maximum.as_str()].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate() {
                 let (default, wheel, fill) = (args.default_value, args.wheel_unfocused, !args.unfilled);
                 slider_row_with(form, look, &format!("slider-values-{i}"), label, value, None, |slider| {
                     let slider = slider.wheel_unfocused(wheel).fill(fill);

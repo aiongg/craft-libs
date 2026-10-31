@@ -14,17 +14,13 @@
 
 use egui::accesskit::Role;
 use egui::epaint::{Mesh, Shadow, Vertex, WHITE_UV};
-use egui::{Align2, AsIdSalt, Color32, FontId, IdSalt, PointerButton, Pos2, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo};
+use egui::{Align2, AsIdSalt, Color32, FontId, IdSalt, Key, Modifiers, PointerButton, Pos2, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo};
 use kurbo::{Point, Rect};
 
+use super::CanvasId;
 use super::view::CanvasView;
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use craft_theme::TypeRole;
-
-/// Points between a page's top edge and its name.
-const NAME_GAP: f32 = 4.0;
-/// The page outline's width (Border: Line).
-const OUTLINE_WIDTH: f32 = 1.0;
 
 /// The pasteboard's colour (Preferences › Interface › Standard Screen Mode › Color).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -105,6 +101,8 @@ pub struct PasteboardStyle {
     /// Page names: the UI face at the caption role, in the muted text colour.
     pub name_font: FontId,
     pub name_color: Color32,
+    /// Space between a page's top edge and its name: `pasteboard.name_gap`.
+    pub name_gap: f32,
 }
 
 /// What the pasteboard sensed this pass, from the host's canvas response.
@@ -113,7 +111,9 @@ pub struct PasteboardResponse {
     /// A page name was clicked (the app selects the artboard or page).
     pub name_clicked: Option<usize>,
     /// The secondary button was pressed on the pasteboard outside every page, at this document
-    /// point: the app opens Photoshop's pasteboard colour menu there.
+    /// point, or the Menu key or Shift+F10 was pressed on the focused [`canvas`](Pasteboard::canvas)
+    /// (then the point is the view's centre): the app opens Photoshop's pasteboard colour menu
+    /// there.
     pub context_at: Option<Point>,
 }
 
@@ -124,16 +124,24 @@ pub struct Pasteboard<'a> {
     pages: &'a [PageFrame],
     color: PasteboardColor,
     border: PageBorder,
+    canvas: Option<CanvasId>,
 }
 
 impl<'a> Pasteboard<'a> {
     /// A pasteboard around `pages`. A single-image document passes one page: its bounds.
     pub fn new(id_salt: impl AsIdSalt, pages: &'a [PageFrame]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), pages, color: PasteboardColor::Default, border: PageBorder::DropShadow }
+        Self { id_salt: IdSalt::new(id_salt), pages, color: PasteboardColor::Default, border: PageBorder::DropShadow, canvas: None }
     }
 
     pub fn color(mut self, color: PasteboardColor) -> Self {
         self.color = color;
+        self
+    }
+
+    /// The canvas whose focus lets the Menu key and Shift+F10 open the colour menu, as a secondary
+    /// press does.
+    pub fn canvas(mut self, canvas: CanvasId) -> Self {
+        self.canvas = Some(canvas);
         self
     }
 
@@ -148,7 +156,8 @@ impl<'a> Pasteboard<'a> {
         PasteboardStyle {
             fill: color.fill().unwrap_or_else(|| colors.surface.canvas.to_egui()),
             shadow: tokens.shadow.floating,
-            outline: Stroke::new(OUTLINE_WIDTH, colors.line.border.to_egui()),
+            outline: Stroke::new(tokens.component.pasteboard.outline_width, colors.line.border.to_egui()),
+            name_gap: tokens.component.pasteboard.name_gap,
             name_font: tokens.font(TypeRole::Caption),
             name_color: colors.text.muted.to_egui(),
         }
@@ -194,7 +203,7 @@ impl<'a> Pasteboard<'a> {
             }
             let Some(name) = &page.name else { continue };
             let corner = view.to_screen(Point::new(page.rect.x0.min(page.rect.x1), page.rect.y0.min(page.rect.y1)));
-            let at = Pos2::new(corner.x, corner.y - NAME_GAP);
+            let at = Pos2::new(corner.x, corner.y - style.name_gap);
             let galley = painter.layout_no_wrap(name.clone(), style.name_font.clone(), style.name_color);
             let rect = Align2::LEFT_BOTTOM.anchor_size(at, galley.size());
             painter.galley(rect.min, galley, style.name_color);
@@ -213,6 +222,11 @@ impl<'a> Pasteboard<'a> {
             if Self::page_at(self.pages, at).is_none() {
                 response.context_at = Some(at);
             }
+        }
+        let keyboard = self.canvas.is_some_and(|canvas| ui.memory(|m| m.has_focus(canvas.id())))
+            && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Menu) || i.consume_key(Modifiers::SHIFT, Key::F10));
+        if keyboard {
+            response.context_at = Some(view.to_doc(view.rect.center()));
         }
         response
     }

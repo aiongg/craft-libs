@@ -106,7 +106,7 @@ pub(super) fn resolve(theme: &ThemeDef, appearance: Appearance, app: Option<&App
 }
 
 pub(super) fn app(mode: Mode, contrast: Contrast) -> Appearance {
-    Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false }
+    Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false }
 }
 
 pub(super) fn over(fg: Rgba, bg: Rgba) -> Rgba {
@@ -526,7 +526,7 @@ fn a_later_pull_never_breaks_an_earlier_pair() {
 #[test]
 fn pulled_greys_lie_between_their_targets_and_anchors() {
     for theme in crate::builtins() {
-        for a in appearances().into_iter().filter(|a| a.size == Size::Compact && a.text_size == TextSize::Default) {
+        for a in appearances().into_iter().filter(|a| a.size == Size::Compact && a.text_size == TextSize::Small) {
             let e = explain(theme, a, None);
             for o in &e.colors {
                 let (Some(PassMove::Pulled(_)), Some(anchoring)) = (o.pass_move, o.anchoring) else { continue };
@@ -757,8 +757,8 @@ fn toolbar_sizes_are_photocraft_with_larger_buttons_when_comfortable() {
 fn size_presets_text_size_shape_and_motion() {
     let def = grey_blue();
     let at = |size, text_size| resolve(&def, Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
-    let compact = at(Size::Compact, TextSize::Default);
-    let comfy = at(Size::Comfortable, TextSize::Default);
+    let compact = at(Size::Compact, TextSize::Small);
+    let comfy = at(Size::Comfortable, TextSize::Small);
 
     assert_eq!((compact.size.control.md, compact.size.control.sm), (24.0, 20.0));
     assert_eq!((comfy.size.control.md, comfy.size.control.sm), (30.0, 24.0));
@@ -779,13 +779,13 @@ fn size_presets_text_size_shape_and_motion() {
     assert_eq!((body.size, body.line_height, body.font), (12.0, 16.0, FontSlot::Ui));
     let title = comfy.typography.title;
     assert_eq!((title.size, title.line_height, title.font), (14.0, 20.0, FontSlot::UiSemibold));
-    let caption = at(Size::Compact, TextSize::Small).typography.caption;
-    assert_eq!((caption.size, caption.line_height), (9.5, 12.5));
-    let body = at(Size::Compact, TextSize::Large).typography.body;
+    let caption = at(Size::Compact, TextSize::Tiny).typography.caption;
+    assert_eq!((caption.size, caption.line_height), (9.0, 11.5));
+    let body = at(Size::Compact, TextSize::Medium).typography.body;
     assert_eq!((body.size, body.line_height), (14.0, 18.5));
-    let heading = at(Size::Comfortable, TextSize::Larger).typography.heading;
-    assert_eq!((heading.size, heading.line_height), (22.0, 31.0));
-    assert_eq!(at(Size::Comfortable, TextSize::Larger).size, comfy.size, "text size scales type only");
+    let heading = at(Size::Comfortable, TextSize::Large).typography.heading;
+    assert_eq!((heading.size, heading.line_height), (22.5, 32.0));
+    assert_eq!(at(Size::Comfortable, TextSize::Large).size, comfy.size, "text size scales type only");
 
     // A theme with its own shape: square corners and a bevel from pinned edge colours.
     let mut classic = grey_blue();

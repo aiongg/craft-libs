@@ -9,9 +9,10 @@ use egui::{AsIdSalt, Color32, IdSalt, Label, Layout, Rect, Response, Ui, UiBuild
 use crate::controls::{NumberField, Slider, SliderScale};
 use crate::direction;
 use crate::edit::{EditEvent, EditPolicy, EditResponse};
+use crate::localized::Labels as _;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::Content;
-use crate::story::{Level, Story, StoryArgs};
+use crate::story::{Level, Story, StoryArgs, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
@@ -386,6 +387,7 @@ pub(super) fn show_adjustments(ui: &mut Ui, args: &mut AdjustmentsArgs) {
     let state_id = ui.scope_id().with("slider-row-adjustments");
     let mut values = ui.data(|d| d.get_temp::<[f64; 4]>(state_id)).unwrap_or([80.0, 0.5, 210.0, 35.0]);
     let numbers = LocaleNumbers::from_tag("en");
+    let words = StoryLabels::of(ui);
     let hue = [
         Srgba::rgb(0.9, 0.2, 0.2),
         Srgba::rgb(0.9, 0.9, 0.2),
@@ -401,7 +403,7 @@ pub(super) fn show_adjustments(ui: &mut Ui, args: &mut AdjustmentsArgs) {
             SliderRow::new("opacity", "Opacity", values[0], 0.0..=100.0, &numbers).unit(Unit::new("{n} %")),
             SliderRow::new("exposure", "Exposure", values[1], -20.0..=20.0, &numbers).decimals(2),
             SliderRow::new("hue", "Hue", values[2], 0.0..=360.0, &numbers).unit(Unit::new("{n}°")).track_colors(hue),
-            SliderRow::new("amount", "Amount", values[3], 0.0..=100.0, &numbers).enabled(!disabled),
+            SliderRow::new("amount", &words.amount, values[3], 0.0..=100.0, &numbers).enabled(!disabled),
         ];
         for (value, row) in values.iter_mut().zip(rows) {
             let row = row.fill(fill);

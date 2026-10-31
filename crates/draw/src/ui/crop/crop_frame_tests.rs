@@ -981,7 +981,7 @@ fn bounds_keep_the_frame_inside_and_the_host_snap_moves_the_dragged_handle() {
 
 fn crop_style() -> super::CropStyle {
     let appearance =
-        Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+        Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     let theme = builtins().iter().find(|t| t.id.as_str() == "craft.pro").unwrap().clone();
     CropFrame::style(&UiTokens::new(resolve(&theme, appearance, None).tokens, appearance, Mode::Dark, FontFamilies::default()))
 }
@@ -1124,7 +1124,7 @@ fn paint_gesture_takes_the_labels_and_units_as_values() {
 #[test]
 fn the_style_is_the_crop_tokens_and_a_halo_shows_in_high_contrast_only() {
     let tokens = |contrast| {
-        let appearance = Appearance { mode: Mode::Dark, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+        let appearance = Appearance { mode: Mode::Dark, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
         let theme = builtins().iter().find(|t| t.id.as_str() == "craft.pro").unwrap().clone();
         UiTokens::new(resolve(&theme, appearance, None).tokens, appearance, Mode::Dark, FontFamilies::default())
     };

@@ -1,6 +1,6 @@
 //! The pasteboard and page frames.
 
-use egui::{Color32, Event, Modifiers, PointerButton, Pos2, RawInput, pos2, vec2};
+use egui::{Color32, Event, Key, Modifiers, PointerButton, Pos2, RawInput, pos2, vec2};
 use kurbo::{Point, Rect};
 
 use super::*;
@@ -94,4 +94,34 @@ fn the_pasteboard_fill_is_the_canvas_colour_unless_set() {
     assert_eq!(default, tokens.color.surface.canvas.to_egui());
     assert_eq!(Pasteboard::style(&tokens, PasteboardColor::DarkGray).fill, Color32::from_gray(40));
     assert_eq!(Pasteboard::page_at(&pages(), Point::new(210.0, 110.0)), Some(1));
+}
+
+// The Menu key and Shift+F10 open the colour menu from the focused canvas, at the view's centre;
+// an unfocused canvas leaves the keys alone.
+#[test]
+fn the_menu_keys_open_the_colour_menu_from_the_focused_canvas() {
+    let ctx = context();
+    let canvas = egui::Id::NULL.with("pasteboard-canvas");
+    let key = |key, modifiers| Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers };
+    let run = |focused: bool, event: Event| {
+        let input =
+            RawInput { screen_rect: Some(egui::Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0))), events: vec![event], ..RawInput::default() };
+        let mut out = PasteboardResponse::default();
+        let pages = pages();
+        ctx.run_ui(input, |ui| {
+            let _ = ui.interact(view().rect, canvas, egui::Sense::click_and_drag());
+            if focused {
+                ui.memory_mut(|m| m.request_focus(canvas));
+            } else {
+                ui.memory_mut(|m| m.surrender_focus(canvas));
+            }
+            out = Pasteboard::new("pb", &pages).canvas(super::CanvasId::from_id(canvas)).show(ui, &view());
+        })
+        .drop_without_applying_deltas();
+        out
+    };
+    let centre = view().to_doc(view().rect.center());
+    assert_eq!(run(false, key(Key::Menu, Modifiers::NONE)).context_at, None, "no focus");
+    assert_eq!(run(true, key(Key::Menu, Modifiers::NONE)).context_at, Some(centre));
+    assert_eq!(run(true, key(Key::F10, Modifiers::SHIFT)).context_at, Some(centre));
 }

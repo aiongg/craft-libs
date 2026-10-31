@@ -17,9 +17,10 @@ use super::{Select, SizeArgs};
 use crate::behavior::{ListOptions, Listbox, Typed, Typing, TypingLook, take_enter, take_key};
 use crate::direction;
 use crate::edit::{self, CancelReason, EditPolicy, EditResponse, GestureId};
+use crate::localized::Labels as _;
 use crate::popup_list::{self, PopupList};
 use crate::primitives::{Content, Gap, Stack, Surface, SurfaceKind, Text};
-use crate::story::{Level, Story, variant_list, variant_row};
+use crate::story::{Level, Story, StoryLabels, variant_list, variant_row};
 use crate::theme::{Tokens, TokensOf, margin_x};
 use crate::typed_story;
 
@@ -615,12 +616,13 @@ const FONTS: [&str; 8] = ["Baskerville", "Bodoni", "Caslon", "Futura", "Garamond
 /// Empty with a placeholder, an option's text, free text, and disabled.
 fn show_states(ui: &mut Ui, args: &mut SizeArgs) {
     let size = args.size.control();
+    let words = StoryLabels::of(ui);
     let initial = [Held::new(""), Held::new("12 pt"), Held::new("13.5 pt"), Held::new("Garamond")];
     super::slider::with_values(ui, "combo-box-states", initial, |ui, values| {
         variant_list(ui, "combo-box-states", |form| {
             let [empty, option, free, font] = values;
             variant_row(form, "Empty", |ui| {
-                empty.apply(ComboBox::new("combo-empty", "Font size", &empty.text).options(FONT_SIZES).placeholder("Size").size(size).show(ui))
+                empty.apply(ComboBox::new("combo-empty", "Font size", &empty.text).options(FONT_SIZES).placeholder(&words.size).size(size).show(ui))
             });
             variant_row(form, "Option", |ui| {
                 option.apply(ComboBox::new("combo-option", "Font size", &option.text).options(FONT_SIZES).size(size).show(ui))
@@ -650,14 +652,18 @@ const LOG_LEN: usize = 12;
 /// newest first.
 fn show_font_size(ui: &mut Ui, args: &mut SizeArgs) {
     let size = args.size.control();
+    let words = StoryLabels::of(ui);
     let initial = [FontSize { held: Held::new("12 pt"), log: VecDeque::new() }];
     super::slider::with_values(ui, "combo-box-font-size", initial, |ui, values| {
         let state = &mut values[0];
         Stack::new(Gap::Stack).show(ui, |ui| {
             variant_list(ui, "combo-box-font-size", |form| {
-                variant_row(form, "Size", |ui| {
-                    let edit =
-                        ComboBox::new("combo-font-size", "Font size", &state.held.text).options(FONT_SIZES).placeholder("Size").size(size).show(ui);
+                variant_row(form, &words.size, |ui| {
+                    let edit = ComboBox::new("combo-font-size", "Font size", &state.held.text)
+                        .options(FONT_SIZES)
+                        .placeholder(&words.size)
+                        .size(size)
+                        .show(ui);
                     if let Some(event) = &edit.event {
                         state.log.push_front(edit::describe(event));
                         state.log.truncate(LOG_LEN);

@@ -1312,3 +1312,93 @@ phosphor = "gradient-diamond"  # drawn in Phosphor's style: no match in any set
 name = "fx"
 directional = false
 phosphor = "fx"  # drawn in Phosphor's style: no match in any set
+
+[[icon]]
+name = "rectangle"
+directional = false
+lucide = "rectangle-horizontal"
+phosphor = "rectangle"
+tabler = "rectangle"
+
+[[icon]]
+name = "text_bold"
+directional = false
+lucide = "bold"
+phosphor = "text-b"
+tabler = "bold"
+
+[[icon]]
+name = "text_italic"
+directional = false
+lucide = "italic"
+phosphor = "text-italic"
+tabler = "italic"
+
+[[icon]]
+name = "text_underline"
+directional = false
+lucide = "underline"
+phosphor = "text-underline"
+tabler = "underline"
+
+[[icon]]
+name = "text_strikethrough"
+directional = false
+lucide = "strikethrough"
+phosphor = "text-strikethrough"
+tabler = "strikethrough"
+
+[[icon]]
+name = "text_superscript"
+directional = false
+lucide = "superscript"
+phosphor = "text-t"  # near: no superscript in Phosphor
+tabler = "superscript"
+
+[[icon]]
+name = "text_subscript"
+directional = false
+lucide = "subscript"
+phosphor = "text-t"  # near: no subscript in Phosphor
+tabler = "subscript"
+
+[[icon]]
+name = "text_all_caps"
+directional = false
+lucide = "case-upper"
+phosphor = "text-t"  # near: no capitals mark in Phosphor
+tabler = "letter-case-upper"
+
+[[icon]]
+name = "text_small_caps"
+directional = false
+lucide = "case-sensitive"
+phosphor = "text-t"  # near: no capitals mark in Phosphor
+tabler = "letter-case"
+
+[[icon]]
+name = "ligature"
+directional = false
+lucide = "ligature"
+phosphor = "text-t"  # near: no ligature in Phosphor
+
+[[icon]]
+name = "pilcrow"
+directional = false
+lucide = "pilcrow"
+phosphor = "paragraph"
+tabler = "pilcrow"
+
+[[icon]]
+name = "pilcrow_left"
+directional = false
+lucide = "pilcrow-left"
+phosphor = "paragraph"  # near: no direction in Phosphor
+tabler = "pilcrow-left"
+
+[[icon]]
+name = "pilcrow_right"
+directional = false
+lucide = "pilcrow-right"
+phosphor = "paragraph"  # near: no direction in Phosphor
+tabler = "pilcrow-right"

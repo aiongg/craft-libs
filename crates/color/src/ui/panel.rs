@@ -3,15 +3,30 @@
 //! web-colour warnings, and the colour ramp under the sliders; the panel menu chooses the view and
 //! the ramp and copies the colour.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::Arc;
 
 use craft_cms::convert::CmykConverter;
-use craft_theme::Srgba;
-use egui::{AsIdSalt, IdSalt, Ui};
+use craft_theme::{ColorModel, ControlSize, HsbModel, LabModel, ModelValues, RgbModel, Srgba};
+use egui::accesskit::Role;
+use egui::{Align, AsIdSalt, Id, IdSalt, Layout, Modifiers, Rect, Ui, UiBuilder, vec2};
 
-use super::{PickedColor, RampKind};
-use craft_ui::edit::EditEvent;
-use craft_ui::localized::LocaleNumbers;
+use super::picker::{Inner, RowRule, row_line, texts as picker_texts};
+use super::{
+    AreaMode, ColorArea, ColorPickerLabels, ColorRamp, ColorStrip, ColorWarning, ColorWarningChip, ColorWheel, HexField, PairWell, PickedColor,
+    RampKind, SwatchPair, Well,
+};
+use crate::{CmykModel, GrayModel, not_web_safe};
+use craft_ui::controls::{IconButton, NumberField};
+use craft_ui::dialog::ColorRequest;
+use craft_ui::direction;
+use craft_ui::docking::panel_menu::PanelCommand;
+use craft_ui::edit::{EditEvent, EditPolicy};
+use craft_ui::icons::Icon;
+use craft_ui::localized::{LocaleNumbers, SharedLabels, Unit, Word, Words};
+use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
+use craft_ui::primitives::{Gap, Row};
+use craft_ui::theme::{Tokens, TokensOf};
 
 craft_ui::words! {
     /// The Color panel's words, English by default.
@@ -34,8 +49,15 @@ craft_ui::words! {
         current_colors: "colorPanel.currentColors" = "Current Colors";
         web_safe_ramp: "colorPanel.webSafeRamp" = "Make Ramp Web Safe";
         color_ramp: "colorPanel.colorRamp" = "Color Ramp";
-        foreground: "colorPanel.foreground" = "Foreground colour";
-        background: "colorPanel.background" = "Background colour";
+        foreground: "colorPanel.foreground" = "Foreground color";
+        background: "colorPanel.background" = "Background color";
+        wells: "colorPanel.wells" = "Colors";
+        add_to_swatches: "colorPanel.addToSwatches" = "Add to Swatches";
+        create_swatch: "colorPanel.createSwatch" = "Create new swatch";
+        /// The title of the Color Picker opened for the foreground well.
+        picker_foreground: "colorPanel.pickerForeground" = "Color Picker (Foreground Color)";
+        /// The title of the Color Picker opened for the background well.
+        picker_background: "colorPanel.pickerBackground" = "Color Picker (Background Color)";
     }
 }
 
@@ -78,7 +100,18 @@ impl ColorPanelMode {
     /// The menu item.
     // pc: crates/ui-egui/src/state/color_panel.rs:70 `label`.
     pub fn label(self, labels: &ColorPanelLabels) -> String {
-        todo!()
+        match self {
+            ColorPanelMode::HueCube => &labels.hue_cube,
+            ColorPanelMode::BrightnessCube => &labels.brightness_cube,
+            ColorPanelMode::ColorWheel => &labels.color_wheel,
+            ColorPanelMode::GrayscaleSlider => &labels.grayscale_slider,
+            ColorPanelMode::RgbSliders => &labels.rgb_sliders,
+            ColorPanelMode::HsbSliders => &labels.hsb_sliders,
+            ColorPanelMode::CmykSliders => &labels.cmyk_sliders,
+            ColorPanelMode::LabSliders => &labels.lab_sliders,
+            ColorPanelMode::WebColorSliders => &labels.web_color_sliders,
+        }
+        .clone()
     }
 }
 
@@ -117,7 +150,13 @@ impl ColorPanelRamp {
     /// The menu item.
     // pc: crates/ui-egui/src/state/color_panel.rs:106 `label`.
     pub fn label(self, labels: &ColorPanelLabels) -> String {
-        todo!()
+        match self {
+            ColorPanelRamp::RgbSpectrum => &labels.rgb_spectrum,
+            ColorPanelRamp::CmykSpectrum => &labels.cmyk_spectrum,
+            ColorPanelRamp::GrayscaleRamp => &labels.grayscale_ramp,
+            ColorPanelRamp::CurrentColors => &labels.current_colors,
+        }
+        .clone()
     }
 }
 
@@ -149,12 +188,17 @@ pub enum PanelTarget {
 #[non_exhaustive]
 #[must_use = "the host applies the edit"]
 pub struct ColorPanelResponse {
-    /// An edit of the foreground or background colour (from the view, the sliders, the ramp or a
-    /// warning chip), with the colour it is for.
-    pub edit: Option<(PanelTarget, EditEvent<PickedColor>)>,
-    /// A well was clicked while it was already the edited one: the app opens the
-    /// [`ColorPickerDialog`](super::ColorPickerDialog) for it (Photoshop).
-    pub open_picker: Option<PanelTarget>,
+    /// The edits of the foreground or background colour this pass (from the view, the sliders,
+    /// the ramp or a warning chip), in order, each with the colour it is for. Usually one; a
+    /// field that commits as a slider begins makes two.
+    pub edits: Vec<(PanelTarget, EditEvent<PickedColor>)>,
+    /// A well was clicked while it was already the edited one, for this pass only: the app opens
+    /// the [`ColorPickerDialog`](super::ColorPickerDialog) from the request (Photoshop). Its key
+    /// is the well's [`PanelTarget::key`]; the colour is the well's.
+    pub pick_color: Option<ColorRequest>,
+    /// The Add to Swatches button under the Color Wheel was pressed: the app adds the colour of
+    /// this well to the swatches.
+    pub add_to_swatches: Option<PanelTarget>,
 }
 
 /// The Color panel.
@@ -180,20 +224,21 @@ pub struct ColorPanel<'a> {
     state: &'a mut ColorPanelState,
     colors: [Srgba; 2],
     numbers: &'a LocaleNumbers,
-    gamut: Option<&'a CmykConverter>,
+    cmyk: Option<&'a CmykConverter>,
     enabled: bool,
+    dynamic: bool,
 }
 
 impl<'a> ColorPanel<'a> {
     /// The panel on the app's `[foreground, background]`.
     pub fn new(id_salt: impl AsIdSalt, state: &'a mut ColorPanelState, colors: [Srgba; 2], numbers: &'a LocaleNumbers) -> ColorPanel<'a> {
-        ColorPanel { id_salt: IdSalt::new(id_salt), state, colors, numbers, gamut: None, enabled: true }
+        ColorPanel { id_salt: IdSalt::new(id_salt), state, colors, numbers, cmyk: None, enabled: true, dynamic: true }
     }
 
     /// The document's CMYK converter, for the CMYK sliders, the CMYK Spectrum ramp and the gamut
     /// warning; without it they use the built-in coated CMYK.
-    pub fn gamut(mut self, converter: &'a CmykConverter) -> ColorPanel<'a> {
-        self.gamut = Some(converter);
+    pub fn cmyk(mut self, converter: &'a CmykConverter) -> ColorPanel<'a> {
+        self.cmyk = Some(converter);
         self
     }
 
@@ -202,22 +247,480 @@ impl<'a> ColorPanel<'a> {
         self
     }
 
-    // pc: crates/ui-egui/src/panels/color_panel_ui.rs:36 `panel` (dispatch by mode), :320
-    // `sliders`, :350 `alerts`, :471 `ramp` (white/black boxes, Alt target, drag-held ends), :538
-    // `wheel`; crates/ui-egui/src/panels.rs `color_field` for the cubes. Built on `SwatchPair`,
-    // `ColorPicker` Compact, `ColorWheel`, `ColorRamp`.
-    pub fn show(self, ui: &mut Ui) -> ColorPanelResponse {
-        todo!()
+    /// Dynamic Color Sliders (PhotoCraft's interface preference, on by default): the slider tracks
+    /// show the channel's colours with the other channels as they are. Off, the tracks keep the
+    /// colours they had when a drag began.
+    pub fn dynamic_tracks(mut self, dynamic: bool) -> ColorPanel<'a> {
+        self.dynamic = dynamic;
+        self
     }
 
-    /// The panel menu's entries, for the docking host's `panel_menu` hook
-    /// ([`DockContent::panel_menu`](craft_ui::docking::DockContent::panel_menu)): the nine modes
-    /// with a check mark on the current one, a separator, Copy Color as HTML (`color="#rrggbb"`)
-    /// and Copy Color's Hex Code (`rrggbb`) of the edited colour to the clipboard, a separator,
-    /// the four ramps with a check mark, a separator, Make Ramp Web Safe (checked when on).
-    // pc: crates/ui-egui/src/panels/color_panel_ui.rs:750 `panel_menu`, :735 `ramp_menu`, :719
-    // `html_color`, :724 `hex_code`.
-    pub fn panel_menu(ui: &mut Ui, state: &mut ColorPanelState, edited: Srgba) {
-        todo!()
+    /// Shows the panel and returns this frame's edits and requests.
+    pub fn show(self, ui: &mut Ui) -> ColorPanelResponse {
+        let Self { id_salt, state, colors, numbers, cmyk, enabled, dynamic } = self;
+        let id = ui.make_persistent_id(id_salt);
+        let words = Words::of(ui);
+        let builder = UiBuilder::new()
+            .scope_id(id)
+            .layout(Layout::top_down_justified(Align::Min))
+            .accessibility_role(Role::Group)
+            .accessibility_label(words.get(Word::plain("Color")).into_owned());
+        let inner = ui.scope_builder(builder, |ui| {
+            let target = if state.background { PanelTarget::Background } else { PanelTarget::Foreground };
+            let kept_key = id.with(("kept", target.index()));
+            let mut body = Body {
+                id,
+                enabled: enabled && ui.is_enabled(),
+                target,
+                colors,
+                numbers,
+                converter: cmyk.unwrap_or_else(|| CmykConverter::coated()),
+                dynamic,
+                labels: ColorPanelLabels::shared(ui),
+                picker: ColorPickerLabels::shared(ui),
+                words,
+                kept: ui.data(|d| d.get_temp::<Vec<ModelValues>>(kept_key)).unwrap_or_default(),
+                events: Vec::new(),
+                pick_color: None,
+                add_to_swatches: None,
+            };
+            body.show(ui, state);
+            ui.data_mut(|d| d.insert_temp(kept_key, std::mem::take(&mut body.kept)));
+            (body.events, body.pick_color, body.add_to_swatches)
+        });
+        let (edits, pick_color, add_to_swatches) = inner.inner;
+        ColorPanelResponse { edits, pick_color, add_to_swatches }
+    }
+
+    /// The panel menu's entries, for the docking host's
+    /// [`panel_menu_entries`](craft_ui::docking::DockContent::panel_menu_entries) hook: the nine
+    /// modes with a radio mark on the current one, a separator, Copy Color as HTML and Copy
+    /// Color's Hex Code, a separator, the four ramps with a radio mark, a separator, Make Ramp
+    /// Web Safe (checked when on). The host runs the chosen row's command with
+    /// [`run_command`](ColorPanel::run_command). `id_salt` is the panel's, as the other panels'
+    /// menus take it; the Color panel's rows depend on `state` alone.
+    pub fn panel_menu(ctx: &egui::Context, _id_salt: impl AsIdSalt, state: &ColorPanelState) -> Vec<MenuEntry<PanelCommand>> {
+        let labels = ColorPanelLabels::shared_ctx(ctx);
+        let mut entries: Vec<MenuEntry<PanelCommand>> =
+            ColorPanelMode::ALL.iter().map(|m| MenuItem::new(m.label(&labels), mode_command(*m)).radio(state.mode == *m).into()).collect();
+        entries.push(MenuEntry::Separator);
+        entries.push(MenuItem::new(labels.copy_html.clone(), COPY_HTML.to_owned()).into());
+        entries.push(MenuItem::new(labels.copy_hex.clone(), COPY_HEX.to_owned()).into());
+        entries.push(MenuEntry::Separator);
+        entries.extend(ramp_entries(&labels, state));
+        entries
+    }
+
+    /// Runs the command of a chosen [`panel_menu`](ColorPanel::panel_menu) row (also the ramp's
+    /// context menu's): sets the mode or ramp, toggles Make Ramp Web Safe, or copies `edited` to
+    /// the clipboard as HTML (`color="#rrggbb"`) or as a hex code (`rrggbb`). Whether the command
+    /// was one of the panel's.
+    pub fn run_command(ctx: &egui::Context, _id_salt: impl AsIdSalt, state: &mut ColorPanelState, command: &PanelCommand, edited: Srgba) -> bool {
+        let rgb = [edited.r, edited.g, edited.b];
+        if let Some(mode) = ColorPanelMode::ALL.into_iter().find(|m| mode_command(*m) == *command) {
+            state.mode = mode;
+        } else if let Some(ramp) = ColorPanelRamp::ALL.into_iter().find(|r| ramp_command(*r) == *command) {
+            state.ramp = ramp;
+        } else if command == WEB_SAFE {
+            state.web_safe_ramp = !state.web_safe_ramp;
+        } else if command == COPY_HTML {
+            ctx.copy_text(html_color(rgb));
+        } else if command == COPY_HEX {
+            ctx.copy_text(Srgba::from_rgb_array(rgb).to_hex().trim_start_matches('#').to_owned());
+        } else {
+            return false;
+        }
+        true
+    }
+}
+
+const COPY_HTML: &str = "colorPanel.copyHtml";
+const COPY_HEX: &str = "colorPanel.copyHex";
+const WEB_SAFE: &str = "colorPanel.webSafeRamp";
+
+fn mode_command(mode: ColorPanelMode) -> PanelCommand {
+    format!("colorPanel.mode.{mode:?}")
+}
+
+fn ramp_command(ramp: ColorPanelRamp) -> PanelCommand {
+    format!("colorPanel.ramp.{ramp:?}")
+}
+
+/// `color="#rrggbb"`, what Copy Color as HTML puts on the clipboard.
+fn html_color(rgb: [f32; 3]) -> String {
+    format!("color=\"{}\"", Srgba::from_rgb_array(rgb).to_hex())
+}
+
+impl PanelTarget {
+    /// The key of the [`ColorRequest`] for this colour's picker.
+    pub fn key(self) -> &'static str {
+        match self {
+            PanelTarget::Foreground => "colorPanel.foreground",
+            PanelTarget::Background => "colorPanel.background",
+        }
+    }
+
+    /// The target whose [`key`](PanelTarget::key) is `key`.
+    pub fn from_key(key: &str) -> Option<PanelTarget> {
+        [PanelTarget::Foreground, PanelTarget::Background].into_iter().find(|t| t.key() == key)
+    }
+
+    fn index(self) -> usize {
+        match self {
+            PanelTarget::Foreground => 0,
+            PanelTarget::Background => 1,
+        }
+    }
+
+    fn other(self) -> PanelTarget {
+        match self {
+            PanelTarget::Foreground => PanelTarget::Background,
+            PanelTarget::Background => PanelTarget::Foreground,
+        }
+    }
+}
+
+/// The ramps and Make Ramp Web Safe: the panel menu's last sections and the ramp's context menu.
+fn ramp_entries(labels: &ColorPanelLabels, state: &ColorPanelState) -> Vec<MenuEntry<PanelCommand>> {
+    let mut entries: Vec<MenuEntry<PanelCommand>> =
+        ColorPanelRamp::ALL.iter().map(|r| MenuItem::new(r.label(labels), ramp_command(*r)).radio(state.ramp == *r).into()).collect();
+    entries.push(MenuEntry::Separator);
+    entries.push(MenuItem::new(labels.web_safe_ramp.clone(), WEB_SAFE.to_owned()).check(state.web_safe_ramp).into());
+    entries
+}
+
+/// What the panel draws and collects in one pass.
+struct Body<'a> {
+    id: Id,
+    enabled: bool,
+    /// The colour the panel edits.
+    target: PanelTarget,
+    colors: [Srgba; 2],
+    numbers: &'a LocaleNumbers,
+    converter: &'a CmykConverter,
+    dynamic: bool,
+    labels: Arc<ColorPanelLabels>,
+    picker: Arc<ColorPickerLabels>,
+    words: Arc<Words>,
+    /// The values last edited, one per model, of the edited colour: shown while they still give
+    /// its 8-bit sRGB, so a grey keeps its hue and CMYK or Lab values keep what was typed.
+    kept: Vec<ModelValues>,
+    events: Vec<(PanelTarget, EditEvent<PickedColor>)>,
+    pick_color: Option<ColorRequest>,
+    add_to_swatches: Option<PanelTarget>,
+}
+
+impl Body<'_> {
+    fn color(&self) -> Srgba {
+        self.colors[self.target.index()]
+    }
+
+    fn word(&self, text: &'static str) -> String {
+        self.words.get(Word::plain(text)).into_owned()
+    }
+
+    fn push(&mut self, target: PanelTarget, event: EditEvent<PickedColor>) {
+        self.events.push((target, event));
+    }
+
+    fn show(&mut self, ui: &mut Ui, state: &mut ColorPanelState) {
+        let tokens = Tokens::of(ui);
+        ui.spacing_mut().item_spacing.y = Gap::Stack.points(&tokens);
+        let gap = Gap::Inline.points(&tokens);
+        let mode = state.mode;
+        let left = SwatchPair::style(&tokens);
+        let left = left.well + left.step;
+        let top = if direction::is_rtl(ui) { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) };
+        ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), top, |ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            ui.allocate_ui_with_layout(vec2(left, 0.0), direction::column(ui), |ui| {
+                ui.spacing_mut().item_spacing.y = Gap::Stack.points(&tokens);
+                self.wells(ui, state);
+                if mode.is_sliders() {
+                    self.warnings(ui, mode == ColorPanelMode::WebColorSliders);
+                }
+            });
+            ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), Layout::top_down_justified(Align::Min), |ui| match mode {
+                ColorPanelMode::HueCube => self.cube(ui, AreaMode::Hue),
+                ColorPanelMode::BrightnessCube => self.cube(ui, AreaMode::Brightness),
+                ColorPanelMode::ColorWheel => self.rows(ui, &HsbModel, false),
+                ColorPanelMode::GrayscaleSlider => self.rows(ui, &GrayModel, false),
+                ColorPanelMode::RgbSliders => self.rows(ui, &RgbModel, false),
+                ColorPanelMode::HsbSliders => self.rows(ui, &HsbModel, false),
+                ColorPanelMode::CmykSliders => self.rows(ui, &CmykModel::new(self.converter.clone()), false),
+                ColorPanelMode::LabSliders => self.rows(ui, &LabModel, false),
+                ColorPanelMode::WebColorSliders => self.rows(ui, &RgbModel, true),
+            });
+        });
+        match mode {
+            ColorPanelMode::HueCube | ColorPanelMode::BrightnessCube => self.hex(ui),
+            ColorPanelMode::ColorWheel => self.wheel(ui),
+            _ => self.ramp(ui, state),
+        }
+    }
+
+    /// The foreground over the background: a click on the other well edits it, a click on the
+    /// edited one asks for the picker.
+    fn wells(&mut self, ui: &mut Ui, state: &mut ColorPanelState) {
+        let active = if state.background { Well::Secondary } else { Well::Primary };
+        let wells = [PairWell::new(self.labels.foreground.clone(), self.colors[0]), PairWell::new(self.labels.background.clone(), self.colors[1])];
+        let pair =
+            SwatchPair::new("wells", self.labels.wells.clone(), wells, self.numbers).active(active).popover(false).enabled(self.enabled).show(ui);
+        state.background = pair.active == Well::Secondary;
+        if pair.clicked == Some(active) {
+            let title = match self.target {
+                PanelTarget::Foreground => self.labels.picker_foreground.clone(),
+                PanelTarget::Background => self.labels.picker_background.clone(),
+            };
+            self.pick_color = Some(ColorRequest::new(self.target.key(), self.color()).title(title));
+        }
+    }
+
+    /// The out-of-gamut chip and, for Web Color, the web-colour chip under the wells.
+    fn warnings(&mut self, ui: &mut Ui, web: bool) {
+        let color = self.color();
+        let rgb = [color.r, color.g, color.b];
+        let nearest = |near: [f32; 3]| Srgba::rgb(near[0], near[1], near[2]);
+        let mut warnings = Vec::new();
+        if let Some(near) = self.converter.nearest_in_gamut(rgb, CmykConverter::PICKER_GAMUT_DE) {
+            warnings.push(ColorWarning::new(self.picker.out_of_gamut.clone(), nearest(near)));
+        }
+        if web && let Some(near) = not_web_safe(rgb) {
+            warnings.push(ColorWarning::web_colors(self.picker.not_web_color.clone(), nearest(near)));
+        }
+        direction::horizontal(ui, |ui| {
+            for (i, warning) in warnings.into_iter().enumerate() {
+                if ColorWarningChip::new(("warning", i), warning.clone()).enabled(self.enabled).show(ui).clicked() {
+                    let picked = PickedColor { color: warning.nearest().with_alpha(color.a), model: None };
+                    self.push(self.target, EditEvent::set(picked, Modifiers::NONE));
+                }
+            }
+        });
+    }
+
+    /// The model's values for the edited colour, whole numbers as Photoshop's fields.
+    fn values(&self, model: &dyn ColorModel) -> ModelValues {
+        let color = self.color();
+        let kept = self.kept.iter().find(|v| v.model == model.id() && model.to_srgb(&v.values).same_rgb8(color));
+        let mut values = kept.copied().unwrap_or_else(|| self.read(model, color));
+        for (slot, ch) in values.values.iter_mut().zip(model.channels()) {
+            let scale = 10f32.powi(i32::from(ch.decimals));
+            *slot = if slot.is_finite() { (*slot * scale).round() / scale } else { 0.0 };
+        }
+        values
+    }
+
+    /// `color` in `model`. HSB takes the hue of a grey, and the hue and saturation of black, from
+    /// the last HSB values (PhotoCraft's remembered hue), which no longer give the colour.
+    fn read(&self, model: &dyn ColorModel, color: Srgba) -> ModelValues {
+        let mut values = model.from_srgb(color);
+        if model.id() == HsbModel.id()
+            && let Some(old) = self.kept.iter().find(|v| v.model == model.id())
+        {
+            if values.values[2] < 1.0 {
+                values.values[0] = old.values[0];
+                values.values[1] = old.values[1];
+            } else if values.values[1] < 1.0 {
+                values.values[0] = old.values[0];
+            }
+        }
+        values
+    }
+
+    /// Keeps `values`, edited in `model`, and the hue and saturation of the colour they give.
+    fn remember(&mut self, model: &dyn ColorModel, values: ModelValues) {
+        self.kept.retain(|v| v.model != values.model);
+        self.kept.push(values);
+        if model.id() != HsbModel.id() {
+            let hsb = HsbModel.from_srgb(model.to_srgb(&values.values));
+            if hsb.values[1] >= 1.0 && hsb.values[2] >= 1.0 {
+                self.kept.retain(|v| v.model != hsb.model);
+                self.kept.push(hsb);
+            }
+        }
+    }
+
+    /// An edit of `model`'s values for the edited colour.
+    fn model_event(&mut self, model: &dyn ColorModel, event: EditEvent<ModelValues>) {
+        if let Some(values) = event.value() {
+            self.remember(model, *values);
+        }
+        let alpha = self.color().a;
+        let event = event.map(|values| PickedColor { color: model.to_srgb(&values.values).with_alpha(alpha), model: Some(values) });
+        self.push(self.target, event);
+    }
+
+    /// An edit of channel `channel` of `current`.
+    fn channel_event(&mut self, model: &dyn ColorModel, current: ModelValues, channel: usize, event: EditEvent<f64>) {
+        self.model_event(
+            model,
+            event.map(|x| {
+                let mut values = current;
+                values.values[channel] = x as f32;
+                values
+            }),
+        );
+    }
+
+    /// A channel's unit as a number field shows it.
+    fn unit(&self, unit: &'static str) -> Unit {
+        match unit {
+            "" => Unit::default(),
+            "%" => Unit::new(&self.word(picker_texts::PERCENT)),
+            other => Unit::new(&format!("{{n}}{other}")),
+        }
+    }
+
+    /// The width of every channel field: the widest value of any model's channels.
+    fn field_width(&self, ui: &Ui) -> f32 {
+        let models: [Box<dyn ColorModel>; 5] =
+            [Box::new(HsbModel), Box::new(RgbModel), Box::new(LabModel), Box::new(GrayModel), Box::new(CmykModel::new(self.converter.clone()))];
+        models
+            .iter()
+            .flat_map(|m| m.channels().iter())
+            .map(|ch| {
+                let range = f64::from(ch.min)..=f64::from(ch.max);
+                NumberField::fit_width(ui, ControlSize::Md, self.numbers, range, usize::from(ch.decimals), &self.unit(ch.unit))
+            })
+            .fold(0.0, f32::max)
+    }
+
+    /// The channel rows of `model`: a word label that scrubs the number field at the row's end,
+    /// and the slider under it over the channel's colours. Web Color has hex-pair fields and
+    /// sliders that step by the web levels.
+    fn rows(&mut self, ui: &mut Ui, model: &dyn ColorModel, web: bool) {
+        let current = self.values(model);
+        let width = self.field_width(ui);
+        let (enabled, numbers) = (self.enabled, self.numbers);
+        // Dynamic Color Sliders off: the tracks keep the colours they had when a drag began.
+        let held_key = self.id.with(("tracks", model.id(), self.target.index()));
+        let dragging = ui.input(|i| i.pointer.any_down());
+        let basis = if self.dynamic || !dragging { current } else { ui.data(|d| d.get_temp::<ModelValues>(held_key)).unwrap_or(current) };
+        if !dragging {
+            ui.data_mut(|d| d.insert_temp(held_key, current));
+        }
+        for (i, ch) in model.channels().iter().enumerate() {
+            let name = self.word(ch.name);
+            let value = f64::from(current.values[i]);
+            let mut rule = RowRule::of(ch);
+            if web {
+                rule.step = 51.0;
+            }
+            let mut track_values = basis;
+            // The hue track is the whole spectrum, whatever the saturation and brightness.
+            if model.id() == HsbModel.id() && i == 0 {
+                track_values.values[1] = 100.0;
+                track_values.values[2] = 100.0;
+            }
+            let track = model.track(i, &track_values);
+            let unit = self.unit(ch.unit);
+            let inner = Inner { policy: EditPolicy::default(), enabled, width, part: false };
+            let (field, slider) = row_line(ui, (model.id(), i), &name, value, &rule, unit, numbers, Some(track), web, inner);
+            for event in [field.event, slider.event].into_iter().flatten() {
+                self.channel_event(model, current, i, event);
+            }
+        }
+    }
+    /// Hue Cube or Brightness Cube: the area and the strip of `mode`.
+    fn cube(&mut self, ui: &mut Ui, mode: AreaMode) {
+        let model = mode.model();
+        let values = self.values(model);
+        let tokens = Tokens::of(ui);
+        let style = ColorArea::style(&tokens);
+        let gap = Gap::Inline.points(&tokens);
+        let width = (ui.available_width() - gap - ColorStrip::outer_width(&style, style.strip)).max(0.0);
+        let [across, down] = mode.area();
+        let channel = |i: usize| self.word(model.channels()[i].name);
+        let (area_name, across_name, down_name, strip_name) = (self.word(mode.name()), channel(across), channel(down), channel(mode.strip()));
+        let enabled = self.enabled;
+        let (area, strip) = Row::new(Gap::Inline)
+            .show(ui, |ui| {
+                let area = ColorArea::new("area", area_name, mode, values)
+                    .channel_names(across_name, down_name)
+                    .size(vec2(width, style.area_height))
+                    .enabled(enabled)
+                    .show(ui);
+                let strip =
+                    ColorStrip::new("strip", strip_name, mode, values).size(vec2(style.strip, area.response.rect.height())).enabled(enabled).show(ui);
+                (area, strip)
+            })
+            .inner;
+        for event in [area.event, strip.event].into_iter().flatten() {
+            self.model_event(model, event);
+        }
+    }
+
+    /// The hex field under the cubes.
+    fn hex(&mut self, ui: &mut Ui) {
+        let color = self.color();
+        let edit = HexField::new("hex", self.word(picker_texts::HEX_COLOUR), color.to_rgba()).enabled(self.enabled).show(ui);
+        if let Some(event) = edit.event {
+            self.push(self.target, event.map(|rgba| PickedColor { color: Srgba::from(rgba).with_alpha(color.a), model: None }));
+        }
+    }
+
+    /// The Color Wheel under the HSB rows.
+    fn wheel(&mut self, ui: &mut Ui) {
+        let values = self.values(&HsbModel);
+        let words = self.words.clone();
+        let translate =
+            move |text: &str| ColorWheel::TEXTS.iter().find(|t| **t == text).map_or(text.to_owned(), |t| words.get(Word::plain(t)).into_owned());
+        let wheel = ColorWheel::new("wheel", self.labels.color_wheel.clone(), values).text(translate).enabled(self.enabled).show(ui);
+        if let Some(event) = wheel.edit.event {
+            self.model_event(&HsbModel, event);
+        }
+        let tokens = Tokens::of(ui);
+        let side = IconButton::style(&tokens, ControlSize::Md).side;
+        let area = wheel.area;
+        let corner = if direction::is_rtl(ui) { area.left_bottom() + vec2(0.0, -side) } else { area.right_bottom() - vec2(side, side) };
+        let add = ui
+            .scope_builder(UiBuilder::new().max_rect(Rect::from_min_size(corner, vec2(side, side))), |ui| {
+                ui.add(IconButton::new(Icon::Plus, self.labels.add_to_swatches.as_str()).enabled(self.enabled))
+            })
+            .inner;
+        if add.on_hover_text(self.labels.create_swatch.as_str()).clicked() {
+            self.add_to_swatches = Some(self.target);
+        }
+    }
+
+    /// The ramp with the white and black boxes; Alt picks for the colour not edited, Shift-click
+    /// cycles the kind, a right-click opens the ramp menu.
+    fn ramp(&mut self, ui: &mut Ui, state: &mut ColorPanelState) {
+        let converter = self.converter;
+        let gamut = |c: Srgba| {
+            let back = converter.to_srgb(converter.from_srgb([c.r, c.g, c.b]));
+            Srgba::new(back[0], back[1], back[2], c.a)
+        };
+        let mut hasher = DefaultHasher::new();
+        Arc::as_ptr(converter.profile()).hash(&mut hasher);
+        let [white, black] = ColorRamp::TEXTS.map(|t| self.word(t));
+        let ramp = ColorRamp::new("ramp", self.labels.color_ramp.clone(), state.ramp.kind())
+            .kind_name(state.ramp.label(&self.labels))
+            .ends(self.colors[0], self.colors[1])
+            .gamut(&gamut)
+            .gamut_revision(hasher.finish())
+            .web_safe(state.web_safe_ramp)
+            .texts(white, black)
+            .enabled(self.enabled)
+            .show(ui);
+        // Alt is on every event of a gesture that has a value; the others go where it went.
+        let other_key = self.id.with("ramp-other");
+        if let Some(event) = ramp.edit.event {
+            if let Some(pick) = event.value() {
+                ui.data_mut(|d| d.insert_temp(other_key, pick.other));
+            }
+            let other = ui.data(|d| d.get_temp::<bool>(other_key)).unwrap_or(false);
+            let target = if other { self.target.other() } else { self.target };
+            let alpha = self.colors[target.index()].a;
+            self.push(target, event.map(|pick| PickedColor { color: pick.color.with_alpha(alpha), model: None }));
+        }
+        if ramp.cycle {
+            state.ramp = state.ramp.next();
+        }
+        let entries = ramp_entries(&self.labels, state);
+        let menu = ContextMenu::new(&entries).own_gestures(false).open_at(ramp.menu_at.map(OpenAt::Pointer)).show(ui, &ramp.bar);
+        if let Some(command) = menu.chosen {
+            ColorPanel::run_command(ui.ctx(), self.id, state, &command, self.color());
+        }
     }
 }

@@ -37,6 +37,7 @@ pub(crate) mod panel;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod panel_tests;
 pub(crate) mod rail;
+pub(crate) mod shell_stories;
 pub(crate) mod status_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod status_bar_tests;
@@ -58,7 +59,7 @@ pub use align::{AlignAction, AlignBar, AlignBarResponse, AlignLabels, Distribute
 pub use command_palette::{CommandPalette, CommandPaletteStyle, PaletteLabels};
 pub use inspector::{Inspector, InspectorHeader, InspectorStyle};
 pub use options_bar::{CommitCancel, OptionsBar, OptionsBarSlots, OptionsBarStyle};
-pub use options_cell::{CellWidth, UnitCellResponse};
+pub use options_cell::{CellWidth, UnitCellResponse, unit_number_field};
 pub use panel::{Panel, PanelOutput, PanelStyle};
 pub use rail::{FlyoutButton, FlyoutItem, FlyoutResponse, FlyoutStyle, PanelRail, PanelRailItem, PanelRailOutput, PanelRailRequest, PanelRailStyle};
 pub use rail::{LastUsed, RailFooter, RailMetrics, RailTool, SlotId, ToolRail, ToolRailOutput, ToolSlot, shown_tool, visible_slots};

@@ -6,7 +6,7 @@ use egui::vec2;
 use super::*;
 
 fn tokens(size: Size) -> DialogTokens {
-    let appearance = Appearance { mode: Mode::Light, contrast: Contrast::Standard, size, text_size: TextSize::Default, reduced_motion: false };
+    let appearance = Appearance { mode: Mode::Light, contrast: Contrast::Standard, size, text_size: TextSize::Small, reduced_motion: false };
     resolve(&builtins()[0], appearance, None).tokens.component.dialog
 }
 

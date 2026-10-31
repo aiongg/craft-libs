@@ -1,6 +1,7 @@
 //! What the split tree adds around the groups: Maximize Frame, the outer edge band, hidden
 //! panels, the float hint and the group menu tail.
 
+use crate::docking::panel_menu::PanelMenuLabels;
 use std::{borrow::Cow, collections::HashMap, fmt::Debug, hash::Hash};
 
 use egui::{Context, Pos2, Rect, pos2, vec2};
@@ -328,13 +329,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             && owner.panels.len() > 1
             && others
             && self.config.close_menu_items
-            && self.menu_action(ui, &self.config.close_others_label.clone())
+            && self.menu_action(ui, &PanelMenuLabels::in_dock(ui).close_others.clone())
         {
             self.output.actions.push(Action::CloseOthers { panel: panel.clone() });
         }
         if self.config.maximize_item && owner.kind == GroupKind::Frame {
             let restore = self.frame.maximized.as_ref().is_some_and(|m| owner.panels.contains(m));
-            let label = if restore { self.config.restore_frame_label.clone() } else { self.config.maximize_label.clone() };
+            let label = if restore { PanelMenuLabels::in_dock(ui).restore_frame.clone() } else { PanelMenuLabels::in_dock(ui).maximize.clone() };
             if self.menu_action(ui, &label) {
                 let panel = if restore { self.frame.maximized.clone().unwrap_or_else(|| panel.clone()) } else { panel.clone() };
                 self.output.events.push(DockEvent::ToggleMaximize { panel });

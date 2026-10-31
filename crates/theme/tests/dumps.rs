@@ -25,7 +25,7 @@ fn resolved_variants() -> Vec<(String, Tokens, Vec<ContrastCheck>)> {
         for mode in modes(theme) {
             for contrast in [Contrast::Standard, Contrast::High] {
                 for size in [Size::Compact, Size::Comfortable] {
-                    let appearance = Appearance { mode, contrast, size, text_size: TextSize::Default, reduced_motion: false };
+                    let appearance = Appearance { mode, contrast, size, text_size: TextSize::Small, reduced_motion: false };
                     let resolved = resolve(theme, appearance, None);
                     let name = format!("{}-{}-{}-{}.txt", short_name(theme), mode_name(mode), contrast_name(contrast), size_name(size));
                     out.push((name, resolved.tokens, resolved.warnings));
@@ -53,7 +53,7 @@ fn app_sizes_dump() -> (String, String) {
     let sizes = AppSizes::parse(SAMPLE_SIZES.as_bytes()).unwrap();
     let theme = builtins().iter().find(|t| t.id.as_str() == "craft.pro").unwrap();
     let appearance =
-        Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Comfortable, text_size: TextSize::Default, reduced_motion: false };
+        Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Comfortable, text_size: TextSize::Small, reduced_motion: false };
     let resolved = resolve_sized(theme, appearance, None, &sizes);
     ("pro-dark-standard-comfortable-app-sizes.txt".to_owned(), dump(&resolved.tokens, &resolved.warnings))
 }

@@ -22,7 +22,7 @@ fn base(id: &str, mode: ModeChoice) -> Base {
         contrast: ContrastChoice::Standard,
         motion: MotionChoice::System,
         size: Size::Compact,
-        text_size: TextSize::Default,
+        text_size: TextSize::Small,
     };
     let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode, size: Size::Compact, sizes: Default::default() };
     Base::resolve(&sel, SystemAppearance::default(), &defaults, None, &mut |id| builtins().iter().find(|t| t.id == *id).cloned())
@@ -39,7 +39,7 @@ fn mode_of(ctx: &Context) -> Mode {
 #[test]
 fn bevelled_themes_get_solid_panel_scroll_bars() {
     let appearance =
-        Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+        Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     let classic = resolve(&theme("craft.classic"), appearance, None).tokens;
     let style = style_for(&classic, &FontFamilies::default());
     assert!(!style.spacing.scroll.floating, "Classic draws solid bars beside the content");
@@ -49,7 +49,7 @@ fn bevelled_themes_get_solid_panel_scroll_bars() {
 fn reduced_motion_stops_scroll_glide() {
     let [normal, reduced] = [false, true].map(|reduced_motion| {
         let appearance =
-            Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion };
+            Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion };
         style_for(&resolve(&theme("craft.studio"), appearance, None).tokens, &FontFamilies::default())
     });
     assert_eq!(normal.scroll_animation, egui::style::ScrollAnimation::default());
@@ -61,7 +61,7 @@ fn reduced_motion_stops_scroll_glide() {
 fn style_follows_the_tokens() {
     let fonts = FontFamilies::default();
     let [studio, solarized] = [("craft.studio", Mode::Dark), ("craft.solarized-dark", Mode::Dark)].map(|(id, mode)| {
-        let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+        let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
         resolve(&theme(id), appearance, None).tokens
     });
     // `Style`'s number formatter compares by address, so compare the printed form.
@@ -204,7 +204,7 @@ fn every_role_maps_to_its_slot_family_size_and_line_height() {
     let semibold = FontFamily::Name(crate::fonts::SEMIBOLD.into());
     let families = FontFamilies { ui: FontFamily::Proportional, ui_semibold: semibold.clone(), mono: FontFamily::Monospace, optical_size: false };
     let appearance =
-        Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+        Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     let tokens = resolve(&theme("craft.studio"), appearance, None).tokens;
     let ui_tokens = UiTokens::new(tokens.clone(), appearance, Mode::Light, families.clone());
     for role in [

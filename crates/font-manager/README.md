@@ -12,6 +12,12 @@ Fonts tab; the standalone app
 | `installed` | always | The installed fonts [`craft-font-catalog`](../font-catalog/README.md) sees, grouped by family and source |
 | `store` | always | `Installer`, what the interface needs from the font store: the download consent, install, remove, downloads for a preview, the indexes (`indexes`, `fetch_indexes`) and the sources the user added (`user_sources`, `add_user_source`, `remove_user_source`). `SuiteStore` is craft-font-store's store, `FakeStore` a stand-in for tests, `NoStore` one for when the store folder is unknown |
 | `FontsPanel` | `ui` | The whole interface as one egui panel |
+| `glyphs` | `ui` | `GlyphsPanel`: the character grid of a face with categories, zoom and Recently Used; the app supplies the glyphs through `GlyphSource`. Sizes are the `glyphs.*` tokens |
+| `missing` | `ui` | `document_fonts`, `missing_font_warnings` and `MissingFontsDialog`: which fonts a document names are not installed, and a replacement for each |
+| `axes` | `ui` | `read_axes`, `read_named_instances` and `AxisSliders`: a variable face's axes as sliders with a Style list of its named instances |
+| `picker` | `font-picker` | `FontPicker`: the family field with its list (stars, recents, class and feature filters, similar fonts, previews) |
+
+The stories (`patterns/font-picker/*`, `patterns/glyphs-panel/panel`, `patterns/missing-fonts/dialog`, `composites/font-axes/sliders`) use the two faces egui ships.
 
 ## The panel
 

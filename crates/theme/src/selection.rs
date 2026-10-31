@@ -120,7 +120,7 @@ impl SuiteChoice {
     }
 
     /// What an app that follows the suite shows: the chosen fields, else the app's defaults,
-    /// contrast [`ContrastChoice::System`], motion [`MotionChoice::System`] and text size [`TextSize::Default`].
+    /// contrast [`ContrastChoice::System`], motion [`MotionChoice::System`] and text size [`TextSize::Small`].
     pub fn with_defaults(&self, defaults: &AppDefaults) -> Selection {
         let slot = |chosen: &Option<ThemeId>, default: &ThemeId| chosen.clone().unwrap_or_else(|| default.clone());
         Selection {

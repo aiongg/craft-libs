@@ -1,12 +1,13 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`PathField`]: a text field holding a path with a Browse button that opens a picker through
 //! `host.files()`.
 
-use std::path::PathBuf;
-
-use craft_host::{PickId, PickRequest};
-use craft_ui::edit::EditResponse;
-use egui::{AsIdSalt, IdSalt, Ui};
+use craft_host::{Host, PickId, PickRequest};
+use craft_ui::controls::{Button, ControlSize, TextField};
+use craft_ui::edit::{EditEvent, EditResponse};
+use craft_ui::localized::Labels;
+use craft_ui::theme::{Tokens, TokensOf, role_format};
+use egui::text::LayoutJob;
+use egui::{AsIdSalt, IdSalt, Label, Modifiers, Ui};
 
 craft_ui::words! {
     /// The field's words, English by default.
@@ -20,8 +21,8 @@ craft_ui::words! {
 /// What the field reported this pass.
 #[derive(Debug)]
 pub struct PathFieldResponse {
-    /// The field's edit: `Commit` when the user typed a path and left the field or pressed Enter,
-    /// or when the picker answered.
+    /// The field's edit: `Commit` when the user typed a path and left the field or pressed Enter;
+    /// `Set` when the picker answered (read either with [`EditResponse::committed`]).
     pub edit: EditResponse<String>,
     /// Browse was pressed and a picker was queued; the field stores the ticket in egui memory and
     /// fills itself when the answer arrives.
@@ -70,16 +71,70 @@ impl<'a> PathField<'a> {
         self
     }
 
-    /// Draws the row. Reads `Host::of(ui).files()`: takes a pick answer whose ticket this field
-    /// stored, returns any other answer with `return_pick`.
+    /// Draws the row. Reads `Host::of(ui).files()`: takes the pick answer of the ticket this field
+    /// stored; other tickets' answers stay in the service.
     // pc: crates/ui-egui/src/dialogs/file_ui/print.rs:246 browse_pdf (Browse beside the PDF path field); new: the field itself
     pub fn show(self, ui: &mut Ui) -> PathFieldResponse {
-        todo!()
-    }
+        let host = Host::of(ui);
+        let labels = PathFieldLabels::of(ui);
+        let tokens = Tokens::of(ui);
+        let ticket_key = ui.scope_id().with((self.id_salt, "ticket"));
+        let enabled = self.enabled && ui.is_enabled();
+        let missing = self.must_exist && path_is_missing(self.value);
+        let mut browsing = None;
 
-    /// The path a picker answer gives the field: the first path, or on wasm the file name.
-    // new: wasm answers carry contents, not paths
-    fn path_of(answer: &craft_host::Picked) -> Option<PathBuf> {
-        todo!()
+        let mut edit = ui
+            .vertical(|ui| {
+                let edit = ui
+                    .horizontal(|ui| {
+                        ui.label(self.label.as_str());
+                        let browse = Button::new(labels.browse.as_str()).id_salt((self.id_salt, "browse")).enabled(enabled);
+                        let room = ui.available_width() - browse.natural_width(ui) - ui.spacing().item_spacing.x;
+                        let width = self.width.unwrap_or_else(|| room.max(0.0));
+                        let edit = TextField::new((self.id_salt, "field"), self.label.as_str(), self.value)
+                            .width(width)
+                            .enabled(enabled)
+                            .invalid(missing)
+                            .show(ui);
+                        if ui.add(browse).clicked() {
+                            let id = host.files().pick(self.request.clone());
+                            ui.data_mut(|d| d.insert_temp(ticket_key, id));
+                            browsing = Some(id);
+                        }
+                        edit
+                    })
+                    .inner;
+                if missing {
+                    let style = TextField::style(&tokens, ControlSize::Md);
+                    let format = role_format(&tokens, style.role, style.invalid);
+                    ui.add(Label::new(LayoutJob::single_section(labels.not_found.clone(), format)));
+                }
+                edit
+            })
+            .inner;
+
+        // A typing event of this pass keeps the slot; the answer waits in the queue for the next one.
+        if edit.event.is_none()
+            && let Some(ticket) = ui.data(|d| d.get_temp::<PickId>(ticket_key))
+            && let Some(picked) = host.files().take_answer(ticket)
+        {
+            ui.data_mut(|d| d.remove::<PickId>(ticket_key));
+            if let Some(path) = picked.first_path() {
+                edit.event = Some(EditEvent::set(path.to_string_lossy().into_owned(), Modifiers::NONE));
+            }
+        }
+        PathFieldResponse { edit, browsing }
     }
+}
+
+/// Whether a non-empty `value` names nothing on disk. An empty field is not flagged, and on wasm
+/// there is no file system to ask.
+#[cfg(not(target_arch = "wasm32"))]
+fn path_is_missing(value: &str) -> bool {
+    !value.trim().is_empty() && !std::path::Path::new(value.trim()).exists()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn path_is_missing(_value: &str) -> bool {
+    false
 }

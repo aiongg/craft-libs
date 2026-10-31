@@ -4,9 +4,10 @@ use craft_theme::ControlSize;
 use craft_ui::controls::{IconButton, NumberField};
 use craft_ui::dialog::DialogHost;
 use craft_ui::icons::Icon;
-use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
 use craft_ui::menu::{MenuBar, MenuEntry, MenuItem};
 use craft_ui::patterns::StatusBar;
+use craft_ui::story::StoryLabels;
 use craft_ui::title_bar::{CaptionFamily, Captions, Frame as WindowFrame, LeadingEnd, Title, TitleBar, WindowState};
 use egui::Ui;
 
@@ -39,12 +40,12 @@ fn inert(label: &str) -> MenuEntry<Command> {
 }
 
 /// The menu bar's menus for the current state of the app.
-fn menus(mock: &Mock, dock: &DockState) -> Vec<MenuItem<Command>> {
+fn menus(mock: &Mock, dock: &DockState, words: &StoryLabels) -> Vec<MenuItem<Command>> {
     let unlocked = mock.doc.selected.iter().any(|id| mock.doc.layer(*id).is_some_and(|l| !l.locked));
     vec![
         MenuItem::submenu("File", vec![inert("New…"), inert("Open…"), MenuEntry::Separator, inert("Close")]),
         MenuItem::submenu("Edit", vec![inert("Undo"), inert("Redo")]),
-        MenuItem::submenu("Image", vec![item("Image Size…", Command::ImageSize).into()]),
+        MenuItem::submenu(words.image.as_str(), vec![item("Image Size…", Command::ImageSize).into()]),
         MenuItem::submenu(
             "Layer",
             vec![
@@ -82,7 +83,7 @@ fn run(command: Command, mock: &mut Mock, dock: &mut DockState, dialogs: &mut Di
 pub fn title_bar(ui: &mut Ui, mock: &mut Mock, dock: &mut DockState, dialogs: &mut DialogHost) {
     let frame = WindowFrame::Integrated(Captions { family: CaptionFamily::Generic, layout: Default::default() });
     let title = Title::new(mock.doc.name.clone()).unsaved(mock.doc.modified);
-    let menu_list = menus(mock, dock);
+    let menu_list = menus(mock, dock, &StoryLabels::of(ui));
     let menu_id = ui.scope_id().with("menus");
     let title_id = ui.scope_id().with("title");
     let mut chosen = None;

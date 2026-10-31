@@ -257,8 +257,12 @@ fn runs_never_split_a_grapheme_cluster() {
 // or fitting name gives `None`; nothing fitting gives "…" alone. `is_rtl_paragraph` follows the
 // first strong character ("12 نص" yes, "Layer نص" no, "123" no).
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn right_to_left_names_are_cut_at_their_logical_end() {
-    todo!()
+    let fits = |n: usize| move |s: &str| s.chars().count() <= n;
+    assert_eq!(elide("لاشي مكتوب هنا", fits(8)).as_deref(), Some("لاشي مك…"));
+    assert_eq!(elide("לשלום עולם גדול", fits(11)).as_deref(), Some("לשלום עולם…"));
+    assert_eq!(elide("لاشي مكتوب هنا", fits(40)), None, "fits");
+    assert_eq!(elide("Layer copy 12", fits(4)), None, "left to right: the caller elides at the end");
+    assert_eq!(elide("نص", fits(0)).as_deref(), Some("…"), "nothing fits: just the ellipsis");
+    assert!(is_rtl_paragraph("12 نص") && !is_rtl_paragraph("Layer نص") && !is_rtl_paragraph("123"));
 }

@@ -22,7 +22,7 @@ fn float_and_consolidate_round_trip() {
     assert_ne!(id, w.docked[0].id);
     assert!(w.float(&"zzz", RECT).is_none());
     w.new_window_for(&"a", RECT);
-    w.float_all(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0)), vec2(300.0, 200.0));
+    w.float_all(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0)), vec2(300.0, 200.0), 28.0);
     assert!(w.docked.is_empty());
     assert_eq!(w.floating.len(), 3, "a document open twice floats once");
     assert_eq!(w.floating[1].1.min, pos2(28.0, 28.0));

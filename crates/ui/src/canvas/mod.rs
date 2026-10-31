@@ -30,7 +30,7 @@
 //! - [`zoom`]: the zoom range and ladder ([`ZoomLadder`]), fit and fill, zoom about a point,
 //!   [`ZoomAnimation`], the Zoom tool's [`HoldZoom`] and [`ZoomDrag`], [`ZoomWindowFit`].
 //! - [`navigate`]: wheel, pinch and twist, page keys, flick pan, [`Autoscroll`], [`RotateView`],
-//!   all under the user's [`NavigationPrefs`]; [`ViewHistory`]: Go Back and Go Forward.
+//!   all under the user's [`NavigationOptions`]; [`ViewHistory`]: Go Back and Go Forward.
 //! - [`MomentaryKeys`] and [`SpringTool`]: temporary tools while a key is held.
 //! - [`RasterDisplay`]: the CPU raster path over a [`RasterSource`], with its [`Checkerboard`];
 //!   [`PixelGrid`]: the pixel grid above 500 %.
@@ -56,6 +56,7 @@
 //! # });
 //! ```
 
+mod canvas_id;
 pub mod claim;
 pub(crate) mod core_stories;
 mod crisp;
@@ -93,6 +94,7 @@ mod scrollbars;
 mod selection_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod selection_bar_tests;
+pub(crate) mod shell_stories;
 mod snap;
 #[cfg(test)]
 mod snap_tests;
@@ -120,9 +122,10 @@ mod zoom_tests;
 
 pub use crate::edit::order::Turn;
 pub use ::kurbo;
+pub use canvas_id::CanvasId;
 pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
-pub use cursor::{CursorBadge, CursorHost, CursorPrefs, CursorStyle, PaintingCursor, ToolCursor};
+pub use cursor::{CursorBadge, CursorHost, CursorOptions, CursorStyle, PaintingCursor, ToolCursor};
 pub use grid::{CanvasGrid, GridLine, GridStyle};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{
@@ -130,7 +133,7 @@ pub use marquee::{
     square_pixels,
 };
 pub use momentary::{MomentaryKeys, MomentaryTool, SpringTool};
-pub use navigate::{Autoscroll, HandTool, NavigationLabels, NavigationPrefs, RotateView, RotateViewTool, ZoomTool};
+pub use navigate::{Autoscroll, HandTool, NavigationLabels, NavigationOptions, RotateView, RotateViewTool, ZoomTool};
 pub use part_focus::{Part, PartFocus, PartFocusResponse};
 pub use pasteboard::{PageBorder, PageFrame, Pasteboard, PasteboardColor, PasteboardResponse, PasteboardStyle};
 pub use pixel_grid::{GridSegment, PixelGrid};

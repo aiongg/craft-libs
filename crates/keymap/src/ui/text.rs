@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use craft_host::Host;
-use craft_ui::localized::words::{Word, Words};
+use craft_ui::localized::words::{Counted, Word, Words};
 
 use crate::chord::{Key, Platform, Trigger};
 use crate::keymap::Bindable;
@@ -15,13 +15,14 @@ use crate::parity::ReturnGlyph;
 /// labels and the interface direction. English where nothing is installed.
 pub(crate) struct Say {
     words: Arc<Words>,
+    ctx: egui::Context,
     host: Option<Arc<Host>>,
     rtl: bool,
 }
 
 impl Say {
     pub(crate) fn of_ctx(ctx: &egui::Context) -> Say {
-        Say { words: Words::of_ctx(ctx), host: Host::try_of_ctx(ctx), rtl: craft_ui::direction::is_rtl(ctx) }
+        Say { words: Words::of_ctx(ctx), ctx: ctx.clone(), host: Host::try_of_ctx(ctx), rtl: craft_ui::direction::is_rtl(ctx) }
     }
 
     /// One of the dialog's own strings, by English source text (listed in [`WORDS`]). Placeholders
@@ -30,9 +31,9 @@ impl Say {
         self.words.get(Word::plain(source))
     }
 
-    /// A count's wording with `{n}` filled in. `one` and `other` are the English forms.
-    pub(crate) fn plural(&self, n: u64, one: &'static str, other: &'static str) -> String {
-        self.words.count(other, n, one, other)
+    /// A count's wording with `{n}` filled in, in the locale's plural forms and digits.
+    pub(crate) fn count(&self, counted: Counted, n: u64) -> String {
+        self.words.counted(&self.ctx, counted, &self.words.get(counted.word), n)
     }
 
     /// A command's label.
@@ -78,12 +79,13 @@ impl Say {
 
     #[cfg(test)]
     pub(crate) fn with_host(host: Host) -> Say {
-        Say { words: Arc::new(Words::english()), host: Some(Arc::new(host)), rtl: false }
+        Say { words: Arc::new(Words::english()), ctx: egui::Context::default(), host: Some(Arc::new(host)), rtl: false }
     }
 
     #[cfg(test)]
     pub(crate) fn english() -> &'static Say {
-        static ENGLISH: std::sync::LazyLock<Say> = std::sync::LazyLock::new(|| Say { words: Arc::new(Words::english()), host: None, rtl: false });
+        static ENGLISH: std::sync::LazyLock<Say> =
+            std::sync::LazyLock::new(|| Say { words: Arc::new(Words::english()), ctx: egui::Context::default(), host: None, rtl: false });
         &ENGLISH
     }
 }
@@ -123,42 +125,55 @@ pub(crate) fn around_chord(rtl: bool, s: &str, chord: &str) -> String {
 
 /// The dialog's counts: `one` and `word` (the plural) are the English forms, the key of
 /// craft-i18n's `@plural` rows.
-pub const COUNTS: &[craft_ui::localized::words::Counted] = &[
-    craft_ui::localized::words::Counted {
-        word: Word::plain("{n} shortcuts are assigned more than once"),
-        one: "{n} shortcut is assigned more than once",
-    },
-    craft_ui::localized::words::Counted { word: Word::plain("{n} saved shortcuts could not be used"), one: "{n} saved shortcut could not be used" },
-    craft_ui::localized::words::Counted { word: Word::plain("{n} commands will change"), one: "{n} command will change" },
-    craft_ui::localized::words::Counted { word: Word::plain("{n} items without a shortcut"), one: "{n} item without a shortcut" },
-    craft_ui::localized::words::Counted { word: Word::plain("{n} items not matched"), one: "{n} item not matched" },
-    craft_ui::localized::words::Counted { word: Word::plain("{n} items could not be read"), one: "{n} item could not be read" },
-    craft_ui::localized::words::Counted { word: Word::plain("{n} keys read approximately"), one: "{n} key read approximately" },
-    craft_ui::localized::words::Counted { word: Word::plain("{n} entries cut at a limit"), one: "{n} entry cut at a limit" },
-    craft_ui::localized::words::Counted { word: Word::plain("{n} commands changed"), one: "{n} command changed" },
-    craft_ui::localized::words::Counted {
-        word: Word::plain("{n} shortcuts also work in another scope"),
-        one: "{n} shortcut also works in another scope",
-    },
-    craft_ui::localized::words::Counted {
-        word: Word::plain("{n} entries were ignored: too many commands"),
-        one: "{n} entry was ignored: too many commands",
-    },
+pub const COUNTS: &[Counted] = &[
+    counts::CLASHES,
+    counts::OTHER_SCOPE,
+    counts::UNUSABLE,
+    counts::IGNORED,
+    counts::WILL_CHANGE,
+    counts::NOT_MATCHED,
+    counts::WITHOUT_SHORTCUT,
+    counts::UNREADABLE,
+    counts::APPROXIMATE,
+    counts::CUT,
+    counts::CHANGED,
 ];
 
 const COUNT_WORDS: &[Word] = &[
-    Word::plain("{n} shortcuts are assigned more than once"),
-    Word::plain("{n} saved shortcuts could not be used"),
-    Word::plain("{n} commands will change"),
-    Word::plain("{n} items without a shortcut"),
-    Word::plain("{n} items not matched"),
-    Word::plain("{n} items could not be read"),
-    Word::plain("{n} keys read approximately"),
-    Word::plain("{n} entries cut at a limit"),
-    Word::plain("{n} commands changed"),
-    Word::plain("{n} shortcuts also work in another scope"),
-    Word::plain("{n} entries were ignored: too many commands"),
+    counts::CLASHES.word,
+    counts::OTHER_SCOPE.word,
+    counts::UNUSABLE.word,
+    counts::IGNORED.word,
+    counts::WILL_CHANGE.word,
+    counts::NOT_MATCHED.word,
+    counts::WITHOUT_SHORTCUT.word,
+    counts::UNREADABLE.word,
+    counts::APPROXIMATE.word,
+    counts::CUT.word,
+    counts::CHANGED.word,
 ];
+
+/// The count words, written with [`Say::count`].
+pub(crate) mod counts {
+    use super::Counted;
+
+    pub(crate) const CLASHES: Counted =
+        Counted::new("shortcuts.clashes", "{n} shortcut is assigned more than once", "{n} shortcuts are assigned more than once");
+    pub(crate) const OTHER_SCOPE: Counted =
+        Counted::new("shortcuts.otherScope", "{n} shortcut also works in another scope", "{n} shortcuts also work in another scope");
+    pub(crate) const UNUSABLE: Counted =
+        Counted::new("shortcuts.unusable", "{n} saved shortcut could not be used", "{n} saved shortcuts could not be used");
+    pub(crate) const IGNORED: Counted =
+        Counted::new("shortcuts.ignored", "{n} entry was ignored: too many commands", "{n} entries were ignored: too many commands");
+    pub(crate) const WILL_CHANGE: Counted = Counted::new("shortcuts.willChange", "{n} command will change", "{n} commands will change");
+    pub(crate) const NOT_MATCHED: Counted = Counted::new("shortcuts.notMatched", "{n} item not matched", "{n} items not matched");
+    pub(crate) const WITHOUT_SHORTCUT: Counted =
+        Counted::new("shortcuts.withoutShortcut", "{n} item without a shortcut", "{n} items without a shortcut");
+    pub(crate) const UNREADABLE: Counted = Counted::new("shortcuts.unreadable", "{n} item could not be read", "{n} items could not be read");
+    pub(crate) const APPROXIMATE: Counted = Counted::new("shortcuts.approximate", "{n} key read approximately", "{n} keys read approximately");
+    pub(crate) const CUT: Counted = Counted::new("shortcuts.cut", "{n} entry cut at a limit", "{n} entries cut at a limit");
+    pub(crate) const CHANGED: Counted = Counted::new("shortcuts.changed", "{n} command changed", "{n} commands changed");
+}
 
 /// Every source string the dialog looks up with [`Say::ui`].
 const STRING_WORDS: &[Word] = &[
@@ -366,7 +381,7 @@ impl crate::import::kys::KysError {
 }
 
 /// Every word the dialog looks up, for the shared catalog.
-pub const WORDS: &[&[Word]] = &[STRING_WORDS, COUNT_WORDS];
+pub const WORDS: &[&[Word]] = &[STRING_WORDS, COUNT_WORDS, <super::import_offer::ImportOfferLabels as craft_ui::localized::Labels>::WORDS];
 
 #[cfg(test)]
 mod tests {
@@ -386,7 +401,7 @@ mod tests {
         Ok(())
     }
 
-    /// Every `ui("…")` and `plural(n, "…", "…")` literal in the dialog's sources is listed.
+    /// Every `ui("…")` literal in the dialog's sources is listed.
     #[test]
     fn every_looked_up_string_is_listed() {
         let sources = [
@@ -413,16 +428,8 @@ mod tests {
                     }
                 }
             }
-            for (i, _) in src.match_indices(".plural(") {
-                let quoted: Vec<&str> = src[i..].split('"').skip(1).step_by(2).take(2).collect();
-                if let [one, other] = quoted[..]
-                    && !COUNTS.iter().any(|c| c.one == one && c.word.english == other)
-                {
-                    missing.push(format!("{one}|{other}"));
-                }
-            }
         }
-        assert!(missing.is_empty(), "not in STRING_WORDS or COUNTS: {missing:?}");
+        assert!(missing.is_empty(), "not in STRING_WORDS: {missing:?}");
         let mut sorted: Vec<&str> = STRING_WORDS.iter().map(|w| w.english).collect();
         let len = sorted.len();
         sorted.sort_unstable();

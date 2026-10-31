@@ -77,6 +77,14 @@ fn reads_a_mac_and_a_windows_set() {
 }
 
 #[test]
+// A `>` inside a quoted attribute of a self-closing tag does not end the tag early, so 100 such
+// rows are not counted as 100 levels of nesting.
+fn a_greater_than_in_an_attribute_is_not_nesting() {
+    let rows = "<command name=\"A > B\" x='>'/>".repeat(100);
+    assert!(kys::read(&set(&rows, "")).is_ok());
+}
+
+#[test]
 // write then read gives every bound command with its id and keys, tools as tool entries.
 fn written_sets_read_back_exactly() {
     let km = keymap(vec![
