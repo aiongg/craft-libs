@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Files reaching the app from outside, and the app handing files to the system.
 //!
 //! - [`FileIntake`]: one queue for files the OS asks the app to open (Finder double-click, Open
@@ -15,8 +14,14 @@
 
 use std::cmp::Ordering;
 use std::collections::VecDeque;
+#[cfg(not(target_arch = "wasm32"))]
+use std::ffi::OsString;
+use std::iter::Peekable;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+#[cfg(not(target_arch = "wasm32"))]
+use std::process::{Command, Stdio};
+use std::str::Chars;
+use std::sync::{Arc, Mutex, PoisonError};
 
 /// A user-visible message with its catalog id and English text; `{name}`-style placeholders.
 /// craft-platform has no catalog; the app looks the id up in its own.
@@ -91,7 +96,13 @@ const _: () = {
 impl IntakeSender {
     /// Queues an OS open request and wakes the UI (`wake` is the app's `request_repaint`).
     pub fn open(&self, paths: Vec<PathBuf>) {
-        todo!()
+        if paths.is_empty() {
+            return;
+        }
+        let mut paths: Vec<PathBuf> = paths.iter().map(|p| absolute(p)).collect();
+        paths.sort_by(|a, b| natural_cmp(&a.to_string_lossy(), &b.to_string_lossy()));
+        push(&self.queue, Intake::Open(paths));
+        (self.wake)();
     }
 }
 
@@ -100,7 +111,7 @@ impl IntakeSender {
 /// The app makes one at startup, gives [`sender`](Self::sender) to whatever hears the OS, pushes
 /// drops from its frame with [`dropped`](Self::dropped), and takes the batches with
 /// [`take`](Self::take). An [`Intake::Open`] batch comes made absolute and sorted by
-/// [`natural_cmp`] of the file names; the app focuses documents already open ([`same_file`]) and
+/// [`natural_cmp`] of the path text; the app focuses documents already open ([`same_file`]) and
 /// opens the rest, then brings its window to the front (on Wayland, a user-attention request).
 ///
 /// ```ignore
@@ -117,7 +128,9 @@ pub struct FileIntake {
 
 impl FileIntake {
     pub fn new(wake: impl Fn() + Send + Sync + 'static) -> (FileIntake, IntakeSender) {
-        todo!()
+        let queue = Arc::new(Mutex::new(VecDeque::new()));
+        let sender = IntakeSender { queue: queue.clone(), wake: Arc::new(wake) };
+        (FileIntake { queue, sender: sender.clone() }, sender)
     }
 
     pub fn sender(&self) -> IntakeSender {
@@ -126,13 +139,16 @@ impl FileIntake {
 
     /// Queues files dropped this frame; an empty list is ignored.
     pub fn dropped(&self, files: Vec<DroppedFile>, target: DropTarget) {
-        todo!()
+        if !files.is_empty() {
+            push(&self.queue, Intake::Dropped { files, target });
+        }
     }
 
     /// The batches in arrival order, emptied.
     // pc: crates/ui-egui/src/file_open.rs:157 open_paths (absolute, sorted)
     pub fn take(&self) -> Vec<Intake> {
-        todo!()
+        let mut queue = self.queue.lock().unwrap_or_else(PoisonError::into_inner);
+        queue.drain(..).collect()
     }
 }
 
@@ -141,7 +157,40 @@ impl FileIntake {
 /// ignoring case, and an exact string comparison breaks ties.
 // pc: crates/ui-egui/src/file_open.rs:374 natural_cmp, :403 digit_run
 pub fn natural_cmp(a: &str, b: &str) -> Ordering {
-    todo!()
+    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
+    loop {
+        match (x.peek().copied(), y.peek().copied()) {
+            (None, None) => return a.cmp(b),
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
+                let (m, n) = (digit_run(&mut x), digit_run(&mut y));
+                let (m, n) = (m.trim_start_matches('0'), n.trim_start_matches('0'));
+                match m.len().cmp(&n.len()).then_with(|| m.cmp(n)) {
+                    Ordering::Equal => {}
+                    o => return o,
+                }
+            }
+            (Some(c), Some(d)) => {
+                x.next();
+                y.next();
+                match c.to_lowercase().cmp(d.to_lowercase()) {
+                    Ordering::Equal => {}
+                    o => return o,
+                }
+            }
+        }
+    }
+}
+
+/// Takes the run of ASCII digits at the front of `it`.
+fn digit_run(it: &mut Peekable<Chars>) -> String {
+    let mut run = String::new();
+    while let Some(c) = it.peek().copied().filter(char::is_ascii_digit) {
+        run.push(c);
+        it.next();
+    }
+    run
 }
 
 /// Whether an open document's path `open` names the file at `path`. Equal paths match at once;
@@ -150,14 +199,41 @@ pub fn natural_cmp(a: &str, b: &str) -> Ordering {
 /// opened matches only its old path as written. On wasm only equal paths match.
 // pc: crates/ui-egui/src/file_open.rs:438 same_file, :425 canonical
 pub fn same_file(open: &Path, path: &Path, canonical: Option<&Path>) -> bool {
-    todo!()
+    open == path || canonical.is_some_and(|c| open == c || resolve(open).is_some_and(|q| q == c))
+}
+
+/// `path` with symlinks, `.` and `..` resolved; `None` when it can't be (a missing file, or wasm).
+#[cfg(not(target_arch = "wasm32"))]
+fn resolve(path: &Path) -> Option<PathBuf> {
+    std::fs::canonicalize(path).ok()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn resolve(_path: &Path) -> Option<PathBuf> {
+    None
+}
+
+/// `path` made absolute against the working directory; unchanged when that fails (and on wasm).
+fn absolute(path: &Path) -> PathBuf {
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Ok(a) = std::path::absolute(path) {
+        return a;
+    }
+    path.to_path_buf()
+}
+
+fn push(queue: &Mutex<VecDeque<Intake>>, batch: Intake) {
+    queue.lock().unwrap_or_else(PoisonError::into_inner).push_back(batch);
 }
 
 /// A path as text, or the message for one that isn't valid Unicode ([`PATH_NOT_UNICODE_SAVE`]
 /// when `saving`, else [`PATH_NOT_UNICODE_OPEN`]) with `{path}` filled in lossily.
 // pc: crates/ui-egui/src/file_open.rs:75 path_text
 pub fn path_text(path: &Path, saving: bool) -> Result<String, String> {
-    todo!()
+    path.to_str().map(str::to_owned).ok_or_else(|| {
+        let line = if saving { PATH_NOT_UNICODE_SAVE } else { PATH_NOT_UNICODE_OPEN };
+        line.english.replace("{path}", &path.to_string_lossy())
+    })
 }
 
 /// Shows `path` selected in the system file manager: `open -R` on macOS, Explorer's
@@ -168,7 +244,100 @@ pub fn path_text(path: &Path, saving: bool) -> Result<String, String> {
 // pdfcraft: crates/ui-egui/src/menus/tab_context.rs:51 reveal, :77 reveal_process, :92 reveal_via
 #[cfg(not(target_arch = "wasm32"))]
 pub fn reveal(path: &Path) -> Result<(), String> {
-    todo!()
+    // Absolute paths also keep a file name starting with '-' from becoming an option.
+    let path = std::path::absolute(path).map_err(|e| e.to_string())?;
+    if !path.try_exists().map_err(|e| e.to_string())? {
+        return Err(FILE_GONE.english.into());
+    }
+    let platform = std::env::consts::OS;
+    let run = |program: &str, args: &[OsString]| reveal_process(program, args).output().map(|o| o.status.success()).map_err(|e| e.to_string());
+    if matches!(platform, "linux" | "freebsd") {
+        // `dbus-send --print-reply` waits up to 2 s for the file manager (then xdg-open may run),
+        // so it runs off the UI thread; a failure there has nobody to tell.
+        return std::thread::Builder::new()
+            .name("craft-reveal".into())
+            .spawn(move || {
+                let _ = reveal_via(platform, &path, run);
+            })
+            .map(|_| ())
+            .map_err(|e| e.to_string());
+    }
+    reveal_via(platform, &path, run)
+}
+
+/// The process that runs `program` with `args`. Windows: the arguments go on the command line as
+/// written, because Rust's own quoting of an argument with a space breaks Explorer's `/select,`.
+#[cfg(not(target_arch = "wasm32"))]
+fn reveal_process(program: &str, args: &[OsString]) -> Command {
+    let mut command = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        for arg in args {
+            command.raw_arg(arg);
+        }
+    }
+    #[cfg(not(windows))]
+    command.args(args);
+    command
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn reveal_via(platform: &str, path: &Path, mut run: impl FnMut(&str, &[OsString]) -> Result<bool, String>) -> Result<(), String> {
+    let (program, args) = reveal_command(platform, path)?;
+    if run(program, &args).unwrap_or(false) {
+        return Ok(());
+    }
+    if matches!(platform, "linux" | "freebsd") {
+        // FileManager1 is optional; without it the containing folder opens.
+        let parent = path.parent().ok_or("The file has no parent directory")?;
+        if run("xdg-open", &[parent.as_os_str().into()])? {
+            return Ok(());
+        }
+    }
+    Err(REVEAL_FAILED.english.into())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn reveal_command(platform: &str, path: &Path) -> Result<(&'static str, Vec<OsString>), String> {
+    match platform {
+        "windows" => {
+            // Explorer reads `/select,"<object>"`: the path quoted after the comma. A Windows
+            // path can't contain `"`, so the quotes can't be closed early; one that does is refused.
+            if path.as_os_str().as_encoded_bytes().contains(&b'"') {
+                return Err("The file name can't be shown in File Explorer".into());
+            }
+            let mut selection = OsString::from("/select,\"");
+            selection.push(path);
+            selection.push("\"");
+            Ok(("explorer.exe", vec![selection]))
+        }
+        "macos" => Ok(("open", vec!["-R".into(), path.as_os_str().into()])),
+        _ => {
+            let mut uri = String::from("array:string:file://");
+            for b in path.as_os_str().as_encoded_bytes() {
+                if b.is_ascii_alphanumeric() || matches!(b, b'/' | b'-' | b'_' | b'.' | b'~') {
+                    uri.push(char::from(*b));
+                } else {
+                    use std::fmt::Write as _;
+                    let _ = write!(uri, "%{b:02X}");
+                }
+            }
+            Ok((
+                "dbus-send",
+                vec![
+                    "--session".into(),
+                    "--print-reply".into(),
+                    "--reply-timeout=2000".into(),
+                    "--dest=org.freedesktop.FileManager1".into(),
+                    "/org/freedesktop/FileManager1".into(),
+                    "org.freedesktop.FileManager1.ShowItems".into(),
+                    uri.into(),
+                    "string:".into(),
+                ],
+            ))
+        }
+    }
 }
 
 /// Opens a file or an `http(s)` URL with the system's handler (`open`, `cmd /c start ""`,
@@ -176,5 +345,20 @@ pub fn reveal(path: &Path) -> Result<(), String> {
 // new: PdfCraft, LightCraft, VectorCraft and FilmCraft each shell out for this (N10.05)
 #[cfg(not(target_arch = "wasm32"))]
 pub fn open_external(target: &str) -> Result<(), String> {
-    todo!()
+    let mut command = if cfg!(target_os = "macos") {
+        let mut c = Command::new("open");
+        c.arg(target);
+        c
+    } else if cfg!(windows) {
+        // `start` takes the first quoted argument as a window title, hence the empty one.
+        let mut c = Command::new("cmd");
+        c.args(["/c", "start", ""]).arg(target);
+        c
+    } else {
+        let mut c = Command::new("xdg-open");
+        c.arg(target);
+        c
+    };
+    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command.spawn().map(|_| ()).map_err(|e| e.to_string())
 }
