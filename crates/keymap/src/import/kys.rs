@@ -9,10 +9,10 @@
 //! Sets the suite writes carry each command's id (`craft-id`, which Photoshop ignores), so they
 //! read back exactly.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use crate::import::ForeignSet;
-use crate::keymap::Keymap;
+use crate::chord::foreign::Flavor;
+use crate::chord::{Mods, Trigger};
+use crate::import::{ForeignEntry, ForeignKey, ForeignSet};
+use crate::keymap::{Keymap, Kind};
 
 /// A set is a few tens of kilobytes; a larger file is not one and is not parsed.
 // pc: crates/engine/src/kys.rs:26 `MAX_BYTES`.
@@ -22,6 +22,15 @@ pub const MAX_BYTES: usize = 4 << 20;
 // pc: crates/engine/src/kys.rs:260 `PC_ID` ("pc-id"; read too, so PhotoCraft's own sets keep
 // matching exactly).
 pub const ID_ATTRIBUTE: &str = "craft-id";
+
+/// The attribute PhotoCraft wrote its command ids under; read like [`ID_ATTRIBUTE`].
+const PHOTOCRAFT_ID_ATTRIBUTE: &str = "pc-id";
+
+/// Deepest element nesting read. roxmltree recurses once per level, so a few thousand nested tags
+/// overflow a thread's stack, an abort nothing can catch.
+const MAX_DEPTH: usize = 64;
+
+const ROOT: &str = "photoshop-keyboard-shortcuts";
 
 /// Why a file isn't a readable set.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,23 +43,138 @@ pub enum KysError {
 }
 
 impl std::fmt::Display for KysError {
-    // new: "The file is larger than a keyboard shortcut set can be." / "The file is not a
-    // Photoshop keyboard shortcut set: {message}".
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            KysError::TooLarge => f.write_str("The file is larger than a keyboard shortcut set can be."),
+            KysError::NotASet(message) => write!(f, "The file is not a Photoshop keyboard shortcut set: {message}"),
+        }
     }
 }
 
 impl std::error::Error for KysError {}
 
+/// The set name in the root `filename` attribute (`$$$/.../{name}={name}`). The name may itself
+/// contain `/` or `=`, so split on the key prefix and the doubled name, not on the last separator.
+fn filename_to_name(f: &str) -> &str {
+    let Some(rest) = f.strip_prefix("$$$/") else { return f.rsplit(['=', '/']).next().unwrap_or(f).trim() };
+    let rest = rest.strip_prefix("FileName/Presets/KeyboardCustomization/").unwrap_or(rest);
+    let mid = rest.len() / 2;
+    if rest.len() % 2 == 1 && rest.is_char_boundary(mid) && rest.as_bytes()[mid] == b'=' && rest[..mid] == rest[mid + 1..] {
+        return rest[..mid].trim();
+    }
+    rest.split_once('=').map_or(rest, |(_, n)| n).trim()
+}
+
+/// Whether `text` nests elements deeper than [`MAX_DEPTH`], counted without building a tree.
+fn too_deep(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let (mut depth, mut at) = (0usize, 0usize);
+    while let Some(open) = bytes.get(at..).and_then(|b| b.iter().position(|&c| c == b'<')) {
+        at += open;
+        let rest = bytes.get(at + 1..).unwrap_or_default();
+        let skip_to = |end: &[u8]| rest.windows(end.len()).position(|w| w == end).map_or(bytes.len(), |p| at + 1 + p + end.len());
+        at = match rest.first() {
+            Some(b'!') if rest.starts_with(b"!--") => skip_to(b"-->"),
+            Some(b'!') if rest.starts_with(b"![CDATA[") => skip_to(b"]]>"),
+            Some(b'!' | b'?') => skip_to(b">"),
+            Some(b'/') => {
+                depth = depth.saturating_sub(1);
+                skip_to(b">")
+            }
+            _ => {
+                let end = skip_to(b">");
+                // A tag's `>` inside a quoted attribute value would end it early; the count only
+                // needs to be right for the nesting of real files, and errs by staying low.
+                let tag = bytes.get(at..end).unwrap_or_default();
+                if !tag.ends_with(b"/>") {
+                    depth += 1;
+                    if depth > MAX_DEPTH {
+                        return true;
+                    }
+                }
+                end
+            }
+        };
+    }
+    false
+}
+
 /// Reads a `.kys` or `Keyboard Shortcuts.psp`: the set's name (from the root's `filename`,
 /// `$$$/FileName/Presets/KeyboardCustomization/{name}={name}`), one [`crate::ForeignEntry`] per
 /// command row with a name (its keys in the file's flavour, an id from [`ID_ATTRIBUTE`] or
-/// `pc-id` as the entry's path when present), and the `<tool>` rows as tool entries. Rows without
-/// a name are skipped; rows without a shortcut stay, with no keys.
+/// `pc-id` as the entry's [`ForeignEntry::id`] when present), and the `<tool>` rows as tool
+/// entries. Rows without a name are skipped; rows without a shortcut stay, with no keys.
 // pc: crates/engine/src/kys.rs:66 `parse`, :54 `filename_to_name`, :128 `to_ours`.
 pub fn read(text: &str) -> Result<ForeignSet, KysError> {
-    todo!()
+    if text.len() > MAX_BYTES {
+        return Err(KysError::TooLarge);
+    }
+    let text = text.trim_start_matches('\u{feff}');
+    if too_deep(text) {
+        return Err(KysError::NotASet(format!("elements are nested more than {MAX_DEPTH} levels deep")));
+    }
+    let doc = roxmltree::Document::parse(text).map_err(|e| KysError::NotASet(e.to_string()))?;
+    let root = doc.root_element();
+    if root.tag_name().name() != ROOT {
+        return Err(KysError::NotASet(format!("no <{ROOT}> root")));
+    }
+    let rows: Vec<roxmltree::Node> = root.children().filter(roxmltree::Node::is_element).collect();
+    let shortcuts = |node: roxmltree::Node| -> Vec<String> {
+        match node.tag_name().name() {
+            "command" => node
+                .children()
+                .filter(|n| n.is_element() && n.tag_name().name() == "shortcut")
+                .filter_map(|n| n.text().map(str::trim).filter(|t| !t.is_empty()).map(str::to_string))
+                .collect(),
+            _ => node.text().map(str::trim).filter(|t| !t.is_empty()).map(str::to_string).into_iter().collect(),
+        }
+    };
+    let flavor = Flavor::detect(rows.iter().filter(|n| n.tag_name().name() == "command").flat_map(|n| shortcuts(*n)));
+    let mut commands = Vec::new();
+    let mut tools = Vec::new();
+    for node in rows {
+        let tool = match node.tag_name().name() {
+            "command" => false,
+            "tool" => true,
+            _ => continue,
+        };
+        let Some(name) = node.attribute("name").map(str::trim).filter(|n| !n.is_empty()) else { continue };
+        let mut entry = ForeignEntry::new(None, [name]).at_line(doc.text_pos_at(node.range().start).row as usize);
+        if let Some(id) = [ID_ATTRIBUTE, PHOTOCRAFT_ID_ATTRIBUTE].iter().find_map(|a| node.attribute(*a).map(str::trim).filter(|i| !i.is_empty())) {
+            entry = entry.with_id(id);
+        }
+        for key in shortcuts(node) {
+            entry = entry.with_key(ForeignKey::read(None, &key, flavor));
+        }
+        if tool {
+            tools.push(entry.tool());
+        } else {
+            commands.push(entry);
+        }
+    }
+    commands.extend(tools);
+    let set = ForeignSet::new(commands);
+    Ok(match root.attribute("filename").map(filename_to_name).filter(|n| !n.is_empty()) {
+        Some(name) => set.with_name(name),
+        None => set,
+    })
+}
+
+/// A key in the spelling Photoshop's macOS sets use: `Control+Opt+Shift+Cmd+G`.
+fn photoshop_key(trigger: &Trigger) -> String {
+    let Mods { cmd, ctrl, alt, shift } = trigger.chord.mods;
+    let mut parts: Vec<&str> = Vec::new();
+    for (on, word) in [(ctrl, "Control"), (alt, "Opt"), (shift, "Shift"), (cmd, "Cmd")] {
+        if on {
+            parts.push(word);
+        }
+    }
+    parts.push(trigger.chord.key.name());
+    parts.join("+")
+}
+
+fn escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&apos;")
 }
 
 /// A `.kys` file named `name` with every command and tool of `keymap` that has a binding:
@@ -59,5 +183,25 @@ pub fn read(text: &str) -> Result<ForeignSet, KysError> {
 /// and scoped bindings (which Photoshop can't express) are left out.
 // pc: crates/engine/src/kys.rs:296 `write`, :273 `photoshop_key`.
 pub fn write(name: &str, keymap: &Keymap) -> String {
-    todo!()
+    let name = escape(name.trim());
+    let mut out = format!(
+        "\u{feff}<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<{ROOT} version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/{name}={name}\">\n"
+    );
+    for tools in [false, true] {
+        for b in keymap.catalog().iter().filter(|b| matches!(b.kind, Kind::Tool { .. }) == tools) {
+            let keys: Vec<String> =
+                keymap.bindings(&b.command).iter().filter(|k| k.scope.is_none() && !k.trigger.double).map(|k| photoshop_key(&k.trigger)).collect();
+            let Some(first) = keys.first() else { continue };
+            let label = escape(&b.label.replace('…', "..."));
+            let id = escape(&b.command.key());
+            if tools {
+                out.push_str(&format!("\t<tool name=\"{label}\" {ID_ATTRIBUTE}=\"{id}\">{}</tool>\n", escape(first)));
+            } else {
+                let shortcuts: String = keys.iter().map(|k| format!("<shortcut>{}</shortcut>", escape(k))).collect();
+                out.push_str(&format!("\t<command kind=\"static\" name=\"{label}\" {ID_ATTRIBUTE}=\"{id}\">{shortcuts}</command>\n"));
+            }
+        }
+    }
+    out.push_str(&format!("</{ROOT}>\n"));
+    out
 }
