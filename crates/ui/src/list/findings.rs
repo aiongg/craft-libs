@@ -1,8 +1,19 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`FindingsList`]: the problems a check found (preflight, export warnings), each one a row that
 //! takes the user to what it is about.
 
-use egui::Ui;
+use egui::{Sense, Ui, vec2};
+
+use super::{List, ListEvent, ListRow};
+use crate::behavior::{RowInfo, SelectionMode};
+use crate::icons::Icon;
+use crate::localized::SharedLabels as _;
+use crate::primitives::Text;
+use craft_theme::TypeRole;
+
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
+
+/// Radius of the summary's status dot. S4-F18 moves it to the `findings.status_dot` token.
+const STATUS_DOT_RADIUS: f32 = 4.5;
 
 crate::words! {
     /// The list's words, English by default.
@@ -79,9 +90,46 @@ impl<'a> FindingsList<'a> {
         self
     }
 
-    // designcraft: crates/ui-egui/src/panels/properties/links.rs:264 preflight_panel
     pub fn show(self, ui: &mut Ui) -> FindingsResponse {
-        todo!()
+        let Self { id_salt, findings, summary } = self;
+        let labels = FindingsLabels::shared(ui);
+        let tokens = Tokens::of(ui);
+        if summary {
+            let errors = findings.iter().filter(|f| f.level == FindingLevel::Error).count();
+            let color = if errors == 0 { tokens.color.status.good.fg } else { tokens.color.status.bad.fg };
+            let mut row = crate::direction::row(ui);
+            row.cross_align = egui::Align::Center;
+            ui.allocate_ui_with_layout(vec2(ui.available_width(), tokens.typography.get(TypeRole::Body).line_height), row, |ui| {
+                let (dot, _) = ui.allocate_exact_size(vec2(STATUS_DOT_RADIUS * 2.0 + 1.0, STATUS_DOT_RADIUS * 2.0 + 1.0), Sense::hover());
+                ui.painter().circle_filled(dot.center(), STATUS_DOT_RADIUS, color.to_egui());
+                ui.add(Text::new(findings_summary(findings, &labels)).role(TypeRole::Body));
+            });
+        }
+
+        let rows: Vec<RowInfo<usize>> = (0..findings.len()).map(RowInfo::leaf).collect();
+        let style = ListRow::<usize>::style(&tokens);
+        let plain = style.height(super::ThumbSize::None, false);
+        let tall = style.height(super::ThumbSize::None, true);
+        let heights: Vec<f32> = findings.iter().map(|f| if f.page.is_some() { tall } else { plain }).collect();
+        let list = List::new(id_salt, "Findings", rows.as_slice()).mode(SelectionMode::Single).heights(move |at| heights[at]);
+        let output = list.show(ui, |at, &key| {
+            let finding = &findings[at];
+            let (icon, level) = match finding.level {
+                FindingLevel::Error => (Icon::Error, &labels.error),
+                FindingLevel::Warning => (Icon::Warning, &labels.warning),
+            };
+            let row = ListRow::new(key, format!("{level}: {}", finding.message)).icon(icon);
+            match &finding.page {
+                Some(page) => row.detail(labels.page.replace("{page}", page)),
+                None => row,
+            }
+        });
+
+        let activated = output.events.iter().find_map(|event| match event {
+            ListEvent::Clicked(at) | ListEvent::Activate(at) => Some(*at),
+            _ => None,
+        });
+        FindingsResponse { activated: activated.filter(|&at| findings[at].target.is_some() || findings[at].page.is_some()) }
     }
 }
 
@@ -89,5 +137,14 @@ impl<'a> FindingsList<'a> {
 /// forms, zeros included ("0 errors, 3 warnings", "1 error, 2 warnings").
 // designcraft: crates/ui-egui/src/panels/properties/links.rs:275 (summary label)
 pub fn findings_summary(findings: &[Finding], labels: &FindingsLabels) -> String {
-    todo!()
+    if findings.is_empty() {
+        return labels.no_errors.clone();
+    }
+    let errors = findings.iter().filter(|f| f.level == FindingLevel::Error).count();
+    let warnings = findings.len() - errors;
+    let count = |n: usize, one: &str, other: &str| (if n == 1 { one } else { other }).replace("{n}", &n.to_string());
+    labels
+        .counts
+        .replace("{errors}", &count(errors, &labels.error_one, &labels.error_other))
+        .replace("{warnings}", &count(warnings, &labels.warning_one, &labels.warning_other))
 }
