@@ -34,7 +34,7 @@ open = []
 # `autosave`: the autosave timer and the recovery folder.
 autosave = ["dep:serde", "dep:serde_json", "dep:craft-atomic"]
 # Screen capture for the screen colour picker (`craft_platform::screen`).
-screen = ["dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", "dep:png", "dep:x11rb", "dep:core-graphics2", "dep:xcap"]
+screen = ["dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", "dep:x11rb", "dep:core-graphics2", "dep:xcap"]
 
 [dependencies]
 egui = { workspace = true, optional = true }
@@ -51,7 +51,6 @@ futures-lite = { version = "2", optional = true }
 async-channel = { version = "2", optional = true }
 async-io = { version = "2", optional = true }
 async-process = { version = "2", optional = true }
-png = { version = "0.17", optional = true }
 x11rb = { version = "0.13", default-features = false, features = ["image", "randr"], optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
