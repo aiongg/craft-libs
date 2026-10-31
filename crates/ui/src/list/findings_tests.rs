@@ -1,7 +1,7 @@
 //! `FindingsList` in a harness.
 
-use egui::Key;
 use egui::accesskit::Role;
+use egui::{Context, Key};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
@@ -24,6 +24,8 @@ fn sample() -> Vec<Finding> {
 #[test]
 fn summary_counts_errors_and_warnings() {
     let labels = FindingsLabels::default();
+    let ctx = Context::default();
+    let findings_summary = |findings: &[Finding], labels: &FindingsLabels| findings_summary(&ctx, findings, labels);
     assert_eq!(findings_summary(&[], &labels), "No errors");
     assert_eq!(findings_summary(&sample(), &labels), "1 error, 2 warnings");
     let warnings = &sample()[1..];
@@ -63,4 +65,32 @@ fn activating_a_row_reports_it() {
     harness.key_press(Key::Enter);
     harness.run();
     assert_eq!(harness.state().1, [1, 1]);
+}
+
+fn drawn_text(shape: &egui::Shape, out: &mut Vec<String>) {
+    match shape {
+        egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+        egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| drawn_text(shape, out)),
+        _ => {}
+    }
+}
+
+// The level is the icon's accessible name and the row's spoken name; the drawn row is the message
+// and the page label.
+#[test]
+fn the_drawn_row_lacks_the_level_prefix() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let findings = sample();
+    let mut drawn = Vec::new();
+    for _ in 0..2 {
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            FindingsList::new("findings", &findings).show(ui);
+        });
+        drawn.clear();
+        output.shapes.iter().for_each(|clipped| drawn_text(&clipped.shape, &mut drawn));
+        output.drop_without_applying_deltas();
+    }
+    assert!(drawn.iter().any(|text| text == "Missing font: Minion Pro Bold"), "{drawn:?}");
+    assert!(drawn.iter().all(|text| !text.starts_with("Error:") && !text.starts_with("Warning:")), "{drawn:?}");
 }

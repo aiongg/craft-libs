@@ -8,7 +8,7 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
 use super::*;
-use crate::localized::{Labels as _, LocaleNumbers, Words};
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::theme::{Base, install};
 
 #[derive(Default)]
@@ -39,7 +39,7 @@ fn harness() -> Harness<'static, App> {
 
 fn text(item: StatusItem, values: &StatusValues) -> String {
     let ctx = Context::default();
-    item.text(values, &StatusReadoutLabels::english(), &LocaleNumbers::from_tag("en-US"), &Words::of_ctx(&ctx))
+    item.text(values, &StatusReadoutLabels::english(), &LocaleNumbers::from_tag("en-US"), &ctx)
 }
 
 #[test]

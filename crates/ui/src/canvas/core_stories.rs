@@ -18,7 +18,7 @@ use super::{
     PasteboardColor, PixelGrid, PixelRect, RasterDisplay, RasterSource, Readout, RotateView, RotateViewTool, SnapGesture, SnapOptions, SnapTargets,
     SplitLayout, SplitPane, SplitViews, ToolAction, ToolContext, ToolCursor, ToolHost, ToolPointer, ZoomTool,
 };
-use crate::localized::{LocaleNumbers, Unit};
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Text};
 use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui as _, Tokens, TokensOf};
@@ -190,12 +190,21 @@ fn remember(ui: &Ui, label: &str, view: CanvasView, seeded: ViewArgs, canvas: Id
     ui.data_mut(|d| d.insert_temp(key, Kept { view, seeded, canvas: Some(canvas) }));
 }
 
+crate::words! {
+    /// The core stories' words, English by default.
+    #[non_exhaustive]
+    pub struct CoreStoryLabels {
+        /// The zoom readout under a story canvas; `{n}` is the percentage.
+        zoom_percent: "canvasStory.zoomPercent" = "{n}%";
+    }
+}
+
 /// The zoom as a percentage under the canvas.
 fn zoom_readout(ui: &mut Ui, view: &CanvasView) {
     let numbers = LocaleNumbers::of(ui);
     let percent = zoom::device_zoom(view, ui.pixels_per_point()) * 100.0;
-    let unit = Unit::new("{n}%");
-    ui.add(Text::new(format!("{}{}{}", unit.prefix(), numbers.format(percent, 0..=1), unit.suffix())).content(Content::Muted));
+    let text = craft_i18n::fmt(&CoreStoryLabels::of(ui).zoom_percent, &[("n", &numbers.format(percent, 0..=1))]);
+    ui.add(Text::new(text).content(Content::Muted));
 }
 
 /// A document on the story canvas with wheel, pinch, page keys, the Hand tool's drag and glide,

@@ -136,7 +136,7 @@ pub use preview::Preview;
 pub use prompt::{Prompt, accelerator_labels};
 pub use prompts::{PromptAnswer, PromptChoice, PromptKind, PromptLabels, StandardPrompt};
 pub use properties::{PropertiesDialog, PropertiesTab, PropertyRow};
-pub use recovery::{RecoveredDocument, RecoveryAction, RecoveryDialog, RecoveryLabels, relative_age};
+pub use recovery::{RecoveredDocument, RecoveryAction, RecoveryDialog, RecoveryLabels};
 pub use report::{NoteTone, ReportDialog, ReportLabels, ReportNote};
 pub use size::{Body, Resize, ResizeMax, Width, remembered_size, scroll_height};
 pub use sizing::{

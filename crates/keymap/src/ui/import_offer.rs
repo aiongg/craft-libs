@@ -8,6 +8,7 @@
 //! never asks again.
 
 use craft_ui::dialog::{ButtonRole, Prompt};
+use craft_ui::localized::LocaleNumbers;
 use serde::{Deserialize, Serialize};
 
 use crate::import::{ForeignSet, ImportOptions, ImportPlan, plan};
@@ -109,7 +110,10 @@ impl ImportOffer {
     // pc: crates/ui-egui/src/prefs/kys_import.rs:214 `show_offer`, :187 `answer_offer`.
     pub fn show(&self, ctx: &egui::Context, labels: &ImportOfferLabels) -> Option<OfferAnswer> {
         let app = craft_host::Host::try_of_ctx(ctx).map_or("Craft", |host| host.app().name);
-        let found = craft_i18n::fmt(&labels.found, &[("app", app), ("set", &self.set_name), ("n", &self.changes.to_string())]);
+        let found = craft_i18n::fmt(
+            &labels.found,
+            &[("app", app), ("set", &self.set_name), ("n", &LocaleNumbers::of_ctx(ctx).format(self.changes as f64, 0..=0))],
+        );
         let role = Prompt::new(("keymap-import-offer", &self.source), &labels.title, format!("{found}\n\n{}", labels.undo))
             .answer(ButtonRole::Default, &labels.import, None)
             .answer(ButtonRole::Cancel, &labels.dont_import, None)
@@ -120,7 +124,9 @@ impl ImportOffer {
 
 craft_ui::words! {
     /// The offer's texts, English by default. `{set}` is the set's name, `{n}` the number of
-    /// shortcuts that change, `{app}` the app's name.
+    /// shortcuts that change, `{app}` the app's name, `{error}` why the import failed. The last
+    /// three are the notice after an import and the status line after a failed one; the app
+    /// writes them with `craft_i18n::fmt` and `LocaleNumbers`.
     #[non_exhaustive]
     pub struct ImportOfferLabels {
         title: "shortcuts.importOffer.title" = "Import keyboard shortcuts?";
@@ -128,5 +134,8 @@ craft_ui::words! {
         undo: "shortcuts.importOffer.undo" = "Edit › Keyboard Shortcuts › Reset All to Defaults undoes an import.";
         import: "shortcuts.importOffer.import" = "Import";
         dont_import: "shortcuts.importOffer.dontImport" = "Don't Import";
+        imported_title: "shortcuts.importOffer.importedTitle" = "Keyboard shortcuts imported";
+        imported: "shortcuts.importOffer.imported" = "Your keyboard shortcut set {set} is in use here: {n} shortcuts differ from the defaults. Edit › Keyboard Shortcuts shows them; Reset All to Defaults undoes this.";
+        not_imported: "shortcuts.importOffer.notImported" = "The keyboard shortcut set was not imported: {error}";
     }
 }

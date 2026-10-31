@@ -21,7 +21,7 @@ use egui::accesskit::Role;
 use egui::{AsIdSalt, IdSalt, PointerButton, Rect as ScreenRect, Sense, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2};
 
 use super::view::CanvasView;
-use crate::localized::Labels;
+use crate::localized::{Labels, LocaleNumbers};
 use crate::theme::{ToEgui, Tokens, TokensOf};
 
 /// The focus edge's width on the active pane.
@@ -120,6 +120,7 @@ impl SplitViews {
             let (ra, rb) = (rects[a], rects[b]);
             ra.min.y.total_cmp(&rb.min.y).then(ra.min.x.total_cmp(&rb.min.x))
         });
+        let numbers = LocaleNumbers::of(ui);
         for (slot, &i) in order.iter().enumerate() {
             let r = rects[i];
             let taken = rects.len() > 1 && i != self.active && pressed && ui.rect_contains_pointer(r);
@@ -134,7 +135,7 @@ impl SplitViews {
                 child.disable();
             }
             let group = ui.interact(r, base.with(("group", i)), Sense::hover());
-            let name = labels.view.replace("{n}", &(slot + 1).to_string());
+            let name = craft_i18n::fmt(&labels.view, &[("n", &numbers.count(slot as u64 + 1))]);
             group.widget_info(|| WidgetInfo::labeled(Role::Group, ui.is_enabled(), &name));
             pane(&mut child, i, r);
         }

@@ -9,7 +9,7 @@ use egui::{Area, AsIdSalt, Context, Id, LayerId, Order, Pos2, Rect, StrokeKind, 
 use crate::controls::{Button, ButtonVariant, ControlSize, IconButton};
 use crate::direction;
 use crate::icons::Icon;
-use crate::localized::Labels as _;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::popover::{CloseReason, Popover, PopoverAnchor, PopoverClose};
 use crate::primitives::{Content, Corner, Gap, Stack, Text};
 use crate::theme::{ToEgui, current};
@@ -122,6 +122,7 @@ impl Tour {
         let step = steps.get(index)?;
         let last = index + 1 == steps.len();
         let labels = self.labels.clone().unwrap_or_else(|| TourLabels::of_ctx(ctx));
+        let numbers = LocaleNumbers::of_ctx(ctx);
         let tokens = current(ctx);
         let tour = tokens.component.tour;
         let frame = ctx.cumulative_frame_nr();
@@ -163,7 +164,10 @@ impl Tour {
                     let mut clicked = None;
                     Stack::new(Gap::Row).show(ui, |ui| {
                         direction::horizontal(ui, |ui| {
-                            let progress = labels.progress.replace("{n}", &(index + 1).to_string()).replace("{total}", &steps.len().to_string());
+                            let progress = craft_i18n::fmt(
+                                &labels.progress,
+                                &[("n", &numbers.count(index as u64 + 1)), ("total", &numbers.count(steps.len() as u64))],
+                            );
                             ui.add(Text::new(progress).role(TypeRole::Caption).content(Content::Muted));
                             ui.with_layout(direction::trailing(ui), |ui| {
                                 let close = IconButton::new(Icon::Close, labels.skip.clone()).size(ControlSize::Sm).id_salt("close");

@@ -258,6 +258,10 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <SwatchesLabels as Labels>::WORDS,
 ];
 
+/// The count words of the colour widgets: their plural forms are in [`WORDS`], these give the
+/// singular forms a catalog extraction needs.
+pub const COUNTS: &[craft_ui::localized::words::Counted] = swatches::COUNTS;
+
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &[
     "ColorArea",

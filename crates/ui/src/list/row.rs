@@ -356,7 +356,8 @@ impl ListRowStyle {
 ///   while the keyboard is the last input), [`dimmed`](ListRow::dimmed) (a hidden layer's faint
 ///   label), [`highlight`](ListRow::highlight) (the hover fill without the pointer),
 ///   [`drop_mark`](ListRow::drop_mark) and [`renaming`](ListRow::renaming).
-/// - **Label.** One line, cut with an ellipsis, showing the whole text as a tooltip. Trailing
+/// - **Label.** One line, cut with an ellipsis. The row shows a tooltip only when
+///   [`tooltip`](ListRow::tooltip) sets one. Trailing
 ///   items are placed first, from the trailing edge inward; those marked
 ///   [optional](ListRow::optional_item) drop out, in the order given, before the label would
 ///   get narrower than `list.min_label`, and the indent shrinks before the label gets narrower

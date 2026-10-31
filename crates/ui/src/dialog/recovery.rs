@@ -11,8 +11,7 @@ use super::footer::Footer;
 use super::size::Width;
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
-use crate::localized::words::Counted;
-use crate::localized::{Labels as _, Words};
+use crate::localized::{Labels as _, relative_age};
 
 crate::words! {
     /// The recovery dialog's words, English by default.
@@ -23,13 +22,6 @@ crate::words! {
         message: "recovery.message" = "“{name}” has unsaved changes from an earlier run, autosaved {age}.";
         recover: "recovery.recover" = "Recover";
         discard: "recovery.discard" = "Discard";
-        just_now: "recovery.justNow" = "less than a minute ago";
-        minute_one: "recovery.minuteOne" = "{n} minute ago";
-        minute_other: "recovery.minuteOther" = "{n} minutes ago";
-        hour_one: "recovery.hourOne" = "{n} hour ago";
-        hour_other: "recovery.hourOther" = "{n} hours ago";
-        day_one: "recovery.dayOne" = "{n} day ago";
-        day_other: "recovery.dayOther" = "{n} days ago";
         recently: "recovery.recently" = "recently";
     }
 }
@@ -95,9 +87,7 @@ impl StackDialog for RecoveryDialog {
     // soundcraft: crates/ui-egui/src/dialogs/recovery.rs:8 show
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<RecoveryAction>> {
         let labels = RecoveryLabels::of_ctx(ctx);
-        let age = SystemTime::now()
-            .duration_since(self.document.saved)
-            .map_or_else(|_| labels.recently.clone(), |d| relative_age(ctx, d.as_secs(), &labels));
+        let age = SystemTime::now().duration_since(self.document.saved).map_or_else(|_| labels.recently.clone(), |d| relative_age(ctx, d.as_secs()));
         let message = craft_i18n::fmt(&labels.message, &[("name", self.document.name.as_str()), ("age", age.as_str())]);
         let blocked = self.document.blocked.clone();
         let (discard, recover) = (labels.discard.clone(), labels.recover.clone());
@@ -125,22 +115,4 @@ impl StackDialog for RecoveryDialog {
             _ => None,
         }
     }
-}
-
-/// How long ago `seconds` was, in the language of `ctx`'s words: "less than a minute ago" under 60 s, then whole minutes, hours and
-/// days ("1 minute ago", "3 hours ago", "2 days ago") with the catalog's plural forms.
-// soundcraft: crates/ui-egui/src/dialogs/recovery.rs:42 ago
-pub fn relative_age(ctx: &Context, seconds: u64, labels: &RecoveryLabels) -> String {
-    const MINUTES: Counted = Counted::new("recovery.minuteOther", "{n} minute ago", "{n} minutes ago");
-    const HOURS: Counted = Counted::new("recovery.hourOther", "{n} hour ago", "{n} hours ago");
-    const DAYS: Counted = Counted::new("recovery.dayOther", "{n} day ago", "{n} days ago");
-    let (n, count, one, other) = match seconds {
-        0..60 => return labels.just_now.clone(),
-        60..3_600 => (seconds / 60, MINUTES, &labels.minute_one, &labels.minute_other),
-        3_600..86_400 => (seconds / 3_600, HOURS, &labels.hour_one, &labels.hour_other),
-        _ => (seconds / 86_400, DAYS, &labels.day_one, &labels.day_other),
-    };
-    // One form for a single unit; the locale's plural forms for the rest while the host left the
-    // words alone.
-    Words::of_ctx(ctx).counted(ctx, count, if n == 1 { one } else { other }, n)
 }
