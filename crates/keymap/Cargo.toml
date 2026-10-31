@@ -15,7 +15,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 egui = { workspace = true, optional = true }
 craft-ui = { workspace = true, optional = true }
-craft-i18n = { workspace = true, optional = true }
+craft-i18n = { workspace = true }
+craft-host = { workspace = true }
 # The dialog screenshots (`screen-testing`).
 egui_kittest = { version = "0.37", optional = true }
 
@@ -31,6 +32,6 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 
 [features]
 # The egui key conversions and dispatcher, and the Keyboard Shortcuts dialog.
-ui = ["dep:egui", "dep:craft-ui", "dep:craft-i18n"]
+ui = ["dep:egui", "dep:craft-ui", "craft-host/ui"]
 # Screenshots of the dialog for review (tests/ui_snapshot.rs; needs a GPU or software adapter).
 screen-testing = ["ui", "dep:egui_kittest", "egui_kittest/wgpu", "craft-ui/screen-testing"]

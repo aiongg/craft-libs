@@ -27,9 +27,10 @@ mod view;
 pub use kbd::kbd;
 pub use state::DialogState;
 pub use style::DialogStyle;
-pub use text::{English, I18nText, PLURALS, STRINGS, Text, trigger_text};
+pub use text::{COUNTS, WORDS, trigger_text};
 
 use state::Env;
+use text::Say;
 
 /// What the dialog reports for a frame.
 #[derive(Clone, Debug)]
@@ -189,14 +190,13 @@ pub const JSON_FORMAT: &str = "craft-keymap";
 /// The dialog for one frame: what it edits, borrowed, and how it looks.
 pub struct ShortcutsDialog<'a> {
     keymap: &'a mut Keymap,
-    text: &'a dyn Text,
     sets: Option<(&'a mut Profiles, &'a Builtins<'a>)>,
     options: Option<&'a Options>,
 }
 
 impl<'a> ShortcutsDialog<'a> {
-    pub fn new(keymap: &'a mut Keymap, text: &'a dyn Text) -> Self {
-        ShortcutsDialog { keymap, text, sets: None, options: None }
+    pub fn new(keymap: &'a mut Keymap) -> Self {
+        ShortcutsDialog { keymap, sets: None, options: None }
     }
 
     /// Shows and edits named sets.
@@ -210,7 +210,7 @@ impl<'a> ShortcutsDialog<'a> {
         self
     }
 
-    fn with_env<R>(self, f: impl FnOnce(&mut Env) -> R) -> R {
+    fn with_env<R>(self, ctx: &egui::Context, f: impl FnOnce(&mut Env) -> R) -> R {
         let fallback;
         let options = match self.options {
             Some(o) => o,
@@ -219,18 +219,19 @@ impl<'a> ShortcutsDialog<'a> {
                 &fallback
             }
         };
-        let mut env = Env { keymap: self.keymap, sets: self.sets, options, text: self.text };
+        let say = Say::of_ctx(ctx);
+        let mut env = Env { keymap: self.keymap, sets: self.sets, options, text: &say };
         f(&mut env)
     }
 
     /// A window with title, body and Cancel/OK, sized to the screen (at least 640×480 where the
     /// screen allows, at most 1320×900). Closing it with × is Cancel.
     pub fn show(self, ctx: &egui::Context, state: &mut DialogState) -> Option<Outcome> {
-        self.with_env(|env| {
+        self.with_env(ctx, |env| {
             if !state.is_showing() {
                 return state.finish();
             }
-            let title = env.text.visual(&env.text.ui(env.options.title));
+            let title = env.text.ui(env.options.title).into_owned();
             let screen = ctx.content_rect().size();
             let max = egui::vec2(1320.0, 900.0).min(screen - egui::vec2(16.0, 16.0)).max(egui::vec2(240.0, 180.0));
             let min = egui::vec2(640.0, 480.0).min(max);
@@ -259,20 +260,21 @@ impl<'a> ShortcutsDialog<'a> {
     /// The body only, for a host's own modal, preferences page or backstage, which draws the
     /// title. It fills the available rectangle.
     pub fn ui(self, ui: &mut egui::Ui, state: &mut DialogState) -> Option<Outcome> {
-        self.with_env(|env| frame(ui, env, state))
+        let ctx = ui.ctx().clone();
+        self.with_env(&ctx, |env| frame(ui, env, state))
     }
 
     /// OK, for hosts that draw their own button.
-    pub fn ok(self, state: &mut DialogState) {
-        self.with_env(|env| {
+    pub fn ok(self, ctx: &egui::Context, state: &mut DialogState) {
+        self.with_env(ctx, |env| {
             state.begin(env);
             state.ok(env);
         });
     }
 
     /// Cancel, for hosts that draw their own button.
-    pub fn cancel(self, state: &mut DialogState) {
-        self.with_env(|env| {
+    pub fn cancel(self, ctx: &egui::Context, state: &mut DialogState) {
+        self.with_env(ctx, |env| {
             state.begin(env);
             state.cancel(env);
         });
@@ -281,8 +283,8 @@ impl<'a> ShortcutsDialog<'a> {
     /// Reads a craft-keymap JSON set the app loaded after [`Outcome::Import`]. With sets it becomes
     /// a new set, which is loaded; without, its overrides replace the keymap's as one undo step.
     /// Returns the set's name.
-    pub fn import_json(self, state: &mut DialogState, text: &str) -> Result<String, ProfileError> {
-        self.with_env(|env| {
+    pub fn import_json(self, ctx: &egui::Context, state: &mut DialogState, text: &str) -> Result<String, ProfileError> {
+        self.with_env(ctx, |env| {
             state.begin(env);
             state.import_json(env, text)
         })
@@ -290,8 +292,8 @@ impl<'a> ShortcutsDialog<'a> {
 
     /// Opens the review of a foreign set the app read: what will change, what did not match and
     /// why, with suggestions to pick from.
-    pub fn review_import(self, state: &mut DialogState, set: ForeignSet, options: ImportOptions) {
-        self.with_env(|env| {
+    pub fn review_import(self, ctx: &egui::Context, state: &mut DialogState, set: ForeignSet, options: ImportOptions) {
+        self.with_env(ctx, |env| {
             state.begin(env);
             state.review_import(env, set, options);
         });

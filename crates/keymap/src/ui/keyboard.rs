@@ -323,7 +323,7 @@ impl Draw<'_, '_> {
             return;
         }
         let label = self.ui("Keyboard");
-        let r = ui.add(Button::selectable(!self.state.keyboard.hidden, self.vis(&label)));
+        let r = ui.add(Button::selectable(!self.state.keyboard.hidden, &label));
         self.tag(|| "shortcuts.keyboard".into(), r.rect, &label);
         if r.clicked() {
             self.state.keyboard.hidden = !self.state.keyboard.hidden;
@@ -358,9 +358,9 @@ impl Draw<'_, '_> {
         }
     }
 
-    /// The key's spoken name: the app's localized name, else the name Windows and Linux show.
+    /// The key's spoken name: the localized name, else the name Windows and Linux show.
     fn key_name(&self, key: Key) -> String {
-        self.env.text.key(key, self.env.keymap.platform()).unwrap_or_else(|| key.text_name().to_string())
+        self.env.text.key_word(key)
     }
 
     /// The holder's label, with its scope when that is not Application.
@@ -378,12 +378,12 @@ impl Draw<'_, '_> {
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
             let layout = if platform.is_mac() { self.ui("Keyboard: US (macOS)") } else { self.ui("Keyboard: US") };
-            ui.label(RichText::new(self.vis(&layout)).color(self.style.dim));
+            ui.label(RichText::new(&layout).color(self.style.dim));
             ui.add_space(8.0);
             for &m in self.mods_shown() {
                 let name = self.mod_name(m);
                 let on = m.get(union(self.state.keyboard.mods, held));
-                let r = ui.add(Button::selectable(on, self.vis(&name)));
+                let r = ui.add(Button::selectable(on, &name));
                 self.tag(|| format!("shortcuts.mod.{}", m.id()), r.rect, &name);
                 if r.clicked() {
                     clicks.toggle = Some(m);
@@ -454,7 +454,7 @@ impl Draw<'_, '_> {
         ] {
             let (r, _) = ui.allocate_exact_size(vec2(12.0, 12.0), Sense::hover());
             ui.painter().rect_filled(r, 2.0, color);
-            ui.label(RichText::new(self.vis(&text)).color(self.style.dim));
+            ui.label(RichText::new(&text).color(self.style.dim));
         }
     }
 
@@ -533,12 +533,12 @@ impl Draw<'_, '_> {
         };
         if let Some(t) = &title {
             let rows = if r.height() > 4.0 * font.size { 2 } else { 1 };
-            let g = lines(&self.vis(t), rows, ink);
+            let g = lines(t, rows, ink);
             ui.painter().galley(r.min + vec2(pad, pad * 0.5), g, ink);
         }
         // A cap without a command name has room for a two-line legend ("page up").
         let legend_rows = if title.is_none() && r.height() > 3.0 * font.size { 2 } else { 1 };
-        let g = lines(&self.vis(&legend), legend_rows, ink.gamma_multiply(0.85));
+        let g = lines(&legend, legend_rows, ink.gamma_multiply(0.85));
         ui.painter().galley(pos2(r.min.x + pad, r.max.y - pad * 0.5 - g.size().y), g, ink);
 
         let Cap::Key(key) = cap else {
@@ -588,30 +588,30 @@ impl Draw<'_, '_> {
             clicks.key = Some(key);
         }
         if !names.is_empty() {
-            resp.tooltip(self.vis(&names.join("\n")));
+            resp.tooltip(names.join("\n"));
         }
     }
 
     /// The clicked key's shortcuts with any modifiers, and Assign to Selected.
     fn key_list(&mut self, ui: &mut Ui, mods: Mods, clicks: &mut Clicks) {
         let Some(key) = self.state.keyboard.key else {
-            ui.label(RichText::new(self.vis(&self.ui("Click a key to see its shortcuts"))).color(self.style.dim));
+            ui.label(RichText::new(self.ui("Click a key to see its shortcuts")).color(self.style.dim));
             return;
         };
         let platform = self.env.keymap.platform();
         let title = fill(self.ui("Key: {key}"), &[("key", &self.key_name(key))]);
-        ui.label(RichText::new(self.vis(&title)).strong());
+        ui.label(RichText::new(&title).strong());
         if self.env.options.editable {
             let chord = self.chord(&Trigger::single(Chord { mods, key }));
             let selected = self.state.selected.clone().filter(|c| self.env.keymap.bindable(c).is_some());
             let label = self.ui("Assign to Selected");
-            let r = ui.add_enabled(selected.is_some(), Button::new(self.vis(&label)));
+            let r = ui.add_enabled(selected.is_some(), Button::new(&label));
             self.tag(|| "shortcuts.assignKey".into(), r.rect, &label);
             let r = match &selected {
                 Some(c) => {
                     r.tooltip(self.vis_chord(&fill(self.ui("Assign {chord} to {label}"), &[("chord", &chord), ("label", &self.label_of(c))]), &chord))
                 }
-                None => r.tooltip(self.vis(&self.ui("Select a command first"))),
+                None => r.tooltip(self.ui("Select a command first")),
             };
             if r.clicked() {
                 clicks.assign = true;
@@ -622,7 +622,7 @@ impl Draw<'_, '_> {
             index.1.iter().filter(|(c, _)| c.key == key).flat_map(|(c, hs)| hs.iter().map(|h| (*c, h.clone()))).collect();
         entries.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.holder.command.id.cmp(&b.1.holder.command.id)));
         if entries.is_empty() {
-            ui.label(RichText::new(self.vis(&self.ui("Nothing uses this key"))).color(self.style.dim));
+            ui.label(RichText::new(self.ui("Nothing uses this key")).color(self.style.dim));
             return;
         }
         let current = Chord { mods, key }.effective(platform);
@@ -636,7 +636,7 @@ impl Draw<'_, '_> {
                         text = text.strong();
                     }
                     ui.allocate_ui_with_layout(vec2(chord_w, ui.spacing().interact_size.y), chord_layout, |ui| ui.label(text));
-                    if ui.link(self.vis(&self.holder_text(h))).clicked() {
+                    if ui.link(self.holder_text(h)).clicked() {
                         clicks.go = Some(h.holder.command.clone());
                     }
                 });
