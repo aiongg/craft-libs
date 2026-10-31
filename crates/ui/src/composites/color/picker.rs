@@ -15,6 +15,7 @@ use crate::composites::PropertyRow;
 use crate::controls::number_field::{self, FieldRule};
 use crate::controls::slider::{self, Scale};
 use crate::controls::{Button, IconButton, NumberField, Slider};
+use crate::dialog::{Clicked, FooterButton};
 use crate::direction;
 use crate::edit::ops::{self, ScalarOp};
 use crate::edit::{self, EditEvent, EditPolicy, EditResponse, Gesture, parts};
@@ -65,6 +66,9 @@ pub struct ColorPickerResponse {
     /// The eyedropper button was pressed: the host starts sampling and gives the result with
     /// [`ColorPicker::sampled`].
     pub eyedropper_requested: bool,
+    /// The [side action](ColorPicker::side_actions) clicked this pass, by click, Enter or Space
+    /// on the focused button.
+    pub side_clicked: Option<Clicked>,
 }
 
 /// A colour picker's body: a [`ColorArea`] and a [`ColorStrip`], the channel fields of its
@@ -156,6 +160,7 @@ pub struct ColorPicker<'a> {
     eyedropper_busy: bool,
     compare: Option<Srgba>,
     warnings: Vec<ColorWarning>,
+    side_actions: Vec<FooterButton>,
     constrain: Option<Box<Constrain<'a>>>,
     web_colors: Option<&'a mut bool>,
     text: Option<Box<Translate<'a>>>,
@@ -186,6 +191,8 @@ pub(super) mod texts {
     /// A channel's label in the Full grid; `{label}` is the channel's translated short label.
     pub(crate) const GRID_LABEL: &str = "{label}:";
     pub(crate) const ONLY_WEB_COLORS: &str = "Only Web Colors";
+    /// The Full layout's eyedropper button's tooltip.
+    pub(crate) const SAMPLE_SCREEN: &str = "Sample color from the screen";
 }
 
 /// `texts` in the language installed on `ui`'s context, for the parts that are shown without a
@@ -210,6 +217,7 @@ pub(crate) const WORDS: &[Word] = &[
     Word::plain(texts::RESTORE),
     Word::plain(texts::GRID_LABEL),
     Word::plain(texts::ONLY_WEB_COLORS),
+    Word::plain(texts::SAMPLE_SCREEN),
     Word::plain("Saturation and brightness"),
     Word::plain("Hue and brightness"),
     Word::plain("Hue and saturation"),
@@ -236,7 +244,7 @@ impl ColorPicker<'_> {
     /// translates. A template's `{placeholder}` stays in its translation, and the picker puts the
     /// part, translated on its own, in its place. [`keys`](ColorPicker::keys) lists these with
     /// the words of the models and the area.
-    pub const TEXTS: [&'static str; 12] = [
+    pub const TEXTS: [&'static str; 13] = [
         texts::OPACITY,
         texts::HEX_COLOUR,
         texts::COLOUR_MODEL,
@@ -249,6 +257,7 @@ impl ColorPicker<'_> {
         texts::RESTORE,
         texts::GRID_LABEL,
         texts::ONLY_WEB_COLORS,
+        texts::SAMPLE_SCREEN,
     ];
 
     /// Every key a picker offering `models` may ask [`text`](ColorPicker::text) for, each once:
@@ -290,6 +299,7 @@ impl<'a> ColorPicker<'a> {
             eyedropper_busy: false,
             compare: None,
             warnings: Vec::new(),
+            side_actions: Vec::new(),
             constrain: None,
             web_colors: None,
             text: None,
@@ -417,6 +427,18 @@ impl<'a> ColorPicker<'a> {
         self
     }
 
+    /// Buttons in a column at the trailing side of the Full layout, in the order given: a dialog's
+    /// OK and Cancel, then actions such as Add to Swatches. They are the dialog footer's buttons
+    /// ([`FooterButton`]; the [`Default`](crate::dialog::ButtonRole::Default) one is primary),
+    /// as wide as the longest label. The picker reports the click as
+    /// [`side_clicked`](ColorPickerResponse::side_clicked) and the host acts on it, so a host
+    /// that shows the picker in a [`Dialog`](crate::dialog::Dialog) with `Footer::none()` gives
+    /// the dialog's answers itself. Full only.
+    pub fn side_actions(mut self, actions: impl IntoIterator<Item = FooterButton>) -> Self {
+        self.side_actions = actions.into_iter().collect();
+        self
+    }
+
     /// Gives the picker with id `id` (its [`response`](ColorPickerResponse::edit)'s) the
     /// eyedropper's sample; the picker reports it as a [`Set`](EditEvent::Set) in its next
     /// frame, with its own alpha. A cancelled sample gives nothing.
@@ -441,11 +463,11 @@ impl<'a> ColorPicker<'a> {
             .accessibility_role(Role::Group)
             .accessibility_label(self.label.clone());
         let inner = ui.scope_builder(builder, |ui| self.show_inside(ui, id));
-        let (event, eyedropper_requested) = inner.inner;
-        ColorPickerResponse { edit: EditResponse::new(inner.response, event), eyedropper_requested }
+        let (event, eyedropper_requested, side_clicked) = inner.inner;
+        ColorPickerResponse { edit: EditResponse::new(inner.response, event), eyedropper_requested, side_clicked }
     }
 
-    fn show_inside(mut self, ui: &mut Ui, id: Id) -> (Option<EditEvent<PickedColor>>, bool) {
+    fn show_inside(mut self, ui: &mut Ui, id: Id) -> (Option<EditEvent<PickedColor>>, bool, Option<Clicked>) {
         let tokens = Tokens::of(ui);
         ui.spacing_mut().item_spacing.y = Gap::Stack.points(&tokens);
         let enabled = self.enabled && ui.is_enabled();
@@ -461,7 +483,7 @@ impl<'a> ColorPicker<'a> {
             .clone()
             .unwrap_or_else(|| builtin_models().into_iter().filter(|m| if full { m.default_on().full } else { m.default_on().compact }).collect());
         let mut mode = self.mode.as_deref().copied().unwrap_or(state.mode);
-        let eyedropper_requested;
+        let (eyedropper_requested, side_clicked);
         let web = Cell::new(self.web_colors.as_deref().copied().unwrap_or(false));
         let event = {
             let words = Words::of(ui);
@@ -481,8 +503,8 @@ impl<'a> ColorPicker<'a> {
                 Parts { edits: Edits::new(id, &state.parts, &outer, edit::in_scope(ui)), models: &models, constrain: &constrain, web: &web };
             parts.replay(ui.ctx());
 
-            eyedropper_requested = match self.layout {
-                ColorPickerLayout::Compact => self.compact(ui, id, mode, &models, &mut state, inner, &translate, &mut parts),
+            (eyedropper_requested, side_clicked) = match self.layout {
+                ColorPickerLayout::Compact => (self.compact(ui, id, mode, &models, &mut state, inner, &translate, &mut parts), None),
                 ColorPickerLayout::Full => self.full(ui, id, &mut mode, &models, inner, &translate, &mut parts),
             };
             let mut edits = parts.edits;
@@ -521,7 +543,7 @@ impl<'a> ColorPicker<'a> {
             None => state.mode = mode,
         }
         state.store(ui, id);
-        (event, eyedropper_requested)
+        (event, eyedropper_requested, side_clicked)
     }
 
     /// The Compact layout: the area and strip, the slider rows of one model, the model switch,

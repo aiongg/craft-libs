@@ -199,7 +199,7 @@ fn the_swatch_reports_the_row_to_pick() {
     let mut h = open();
     h.get_by_role_and_label(Role::ListBoxOption, "Interface").click();
     h.run();
-    h.get_by_role_and_label(Role::Button, "Accent colour:").click();
+    h.get_by_role_and_label(Role::ColorWell, "Accent colour:").click();
     h.run();
     assert_eq!(h.state().picked.as_deref(), Some("interface.accent"));
 }

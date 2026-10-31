@@ -170,14 +170,32 @@ impl FooterButtons {
 
     /// Adds the buttons to `row`, a row in reading order (the footer's trailing row).
     pub(super) fn place(&self, row: &mut Ui, id: Id) -> FooterButtonsResponse {
-        let tokens = Tokens::of(row);
-        let min = tokens.component.dialog.button_min;
+        let min = Tokens::of(row).component.dialog.button_min;
         let platform = self.platform.unwrap_or_else(|| Platform::of(row.ctx()));
+        let roles: Vec<(ButtonRole, ())> = self.buttons.iter().map(|b| (b.role, ())).collect();
+        self.place_in(row, id, order(&roles, platform), min)
+    }
+
+    /// The width of a button column: the longest label, at least `dialog.side_min`.
+    pub(crate) fn column_width(&self, ui: &Ui) -> f32 {
+        let side_min = Tokens::of(ui).component.dialog.side_min;
+        self.buttons.iter().fold(side_min, |w, b| w.max(Button::new(b.label.as_str()).natural_width(ui)))
+    }
+
+    /// Adds the buttons to `column`, a vertical layout, in their listed order and each at least
+    /// [`column_width`](FooterButtons::column_width) wide: the side column of a dialog.
+    pub(crate) fn place_column(&self, column: &mut Ui, id: Id) -> FooterButtonsResponse {
+        let width = self.column_width(column);
+        column.spacing_mut().item_spacing.y = Tokens::of(column).component.dialog.button_gap;
+        self.place_in(column, id, (0..self.buttons.len()).collect(), width)
+    }
+
+    fn place_in(&self, row: &mut Ui, id: Id, visit: Vec<usize>, min: f32) -> FooterButtonsResponse {
         let roles: Vec<(ButtonRole, ())> = self.buttons.iter().map(|b| (b.role, ())).collect();
         let nth = |i: usize| roles[..i].iter().filter(|(role, ())| *role == roles[i].0).count();
 
         let mut slots: Vec<Option<Response>> = vec![None; self.buttons.len()];
-        for i in order(&roles, platform) {
+        for i in visit {
             let b = &self.buttons[i];
             let variant = if b.role == ButtonRole::Default { ButtonVariant::Primary } else { ButtonVariant::Secondary };
             let response = row.add(Button::new(b.label.as_str()).variant(variant).enabled(b.enabled).min_width(b.min_width.max(min)).id_salt((

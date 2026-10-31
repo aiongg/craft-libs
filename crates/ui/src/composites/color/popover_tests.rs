@@ -181,15 +181,15 @@ fn button(pos: Pos2, pressed: bool) -> Event {
 fn the_popover_opens_with_the_hex_field_focused_closes_on_esc_and_keeps_the_colour_on_a_click_outside() {
     let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
     assert!(!rig.open && rig.nodes(Role::Group, "Fill colour").is_empty(), "closed: no picker");
-    rig.click_node(Role::Button, "Fill colour");
+    rig.click_node(Role::ColorWell, "Fill colour");
     assert!(rig.open);
     rig.nodes(Role::Group, "Fill colour").first().expect("the picker is in the popup");
     assert_eq!(rig.ctx.memory(|m| m.focused()), Some(hex_id(rig.picker)), "the hex field has the focus");
-    assert!(rig.node(Role::Button, "Fill colour").is_expanded() == Some(true));
+    assert!(rig.node(Role::ColorWell, "Fill colour").is_expanded() == Some(true));
 
     rig.key(Key::Escape, Modifiers::NONE);
     assert!(!rig.open, "Esc closes the popup");
-    let swatch = rig.node(Role::Button, "Fill colour").clone();
+    let swatch = rig.node(Role::ColorWell, "Fill colour").clone();
     assert_eq!(
         rig.ctx.memory(|m| m.focused()).map(|id| id.accesskit_id()),
         rig.nodes.iter().find(|(_, n)| *n == swatch).map(|(id, _)| *id),
@@ -281,7 +281,7 @@ fn a_popover_in_an_edit_scope_sends_only_updates() {
     let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
     rig.scoped = true;
     rig.settle();
-    rig.click_node(Role::Button, "Fill colour");
+    rig.click_node(Role::ColorWell, "Fill colour");
     assert!(rig.open);
     let area = rig.bounds(Role::Slider, "Saturation and brightness");
     rig.drag(area.center(), area.center() + vec2(30.0, 20.0));
@@ -298,8 +298,8 @@ fn the_popover_and_the_palette_mirror_right_to_left() {
     assert!(ltr.bounds(Role::RadioButton, "Red").center().x < ltr.bounds(Role::RadioButton, "Orange").center().x);
 
     // The popup's start edge is under the swatch's start edge: the right edges line up.
-    rig.click_node(Role::Button, "Fill colour");
-    let (swatch, area) = (rig.bounds(Role::Button, "Fill colour"), rig.bounds(Role::Slider, "Saturation and brightness"));
+    rig.click_node(Role::ColorWell, "Fill colour");
+    let (swatch, area) = (rig.bounds(Role::ColorWell, "Fill colour"), rig.bounds(Role::Slider, "Saturation and brightness"));
     assert!(swatch.min.x > 300.0, "the swatch is at the right: {swatch:?}");
     assert!(area.max.x <= swatch.max.x + 16.0 && area.min.x < swatch.min.x - 100.0, "{swatch:?} {area:?}");
     rig.key(Key::Escape, Modifiers::NONE);
@@ -329,7 +329,7 @@ impl Rig {
 #[test]
 fn choosing_in_the_model_menu_keeps_the_popover_open() {
     let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
-    rig.click_node(Role::Button, "Fill colour");
+    rig.click_node(Role::ColorWell, "Fill colour");
     assert!(rig.open);
 
     rig.click_node(Role::Button, "Colour model: HSB");
@@ -362,7 +362,7 @@ fn choosing_in_the_model_menu_keeps_the_popover_open() {
 #[test]
 fn esc_in_the_model_menu_closes_only_the_menu() {
     let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
-    rig.click_node(Role::Button, "Fill colour");
+    rig.click_node(Role::ColorWell, "Fill colour");
     rig.click_node(Role::Button, "Colour model: HSB");
     assert_eq!(rig.node(Role::Button, "Colour model: HSB").is_expanded(), Some(true));
     rig.key(Key::Escape, Modifiers::NONE);

@@ -10,6 +10,7 @@ use egui::{
 use super::{ColorPicker, Inner, Parts, PickerOp, RowPart, channel_name, texts, unit_of};
 use crate::composites::color::{AreaMode, ColorArea, ColorStrip};
 use crate::controls::{Button, Checkbox, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
+use crate::dialog::{Clicked, FooterButtons};
 use crate::direction;
 use crate::edit::ops;
 use crate::icons::{self, Icon, IconSize};
@@ -86,7 +87,8 @@ fn text_width(ui: &Ui, tokens: &UiTokens, role: TypeRole, text: &str) -> f32 {
 impl ColorPicker<'_> {
     /// The Full layout: the square area and the strip, with the alpha row and the eyedropper
     /// button under them; beside them the compare swatch and the warnings over the channel grid.
-    /// The radios write `mode` before the area draws. Whether the eyedropper button was pressed.
+    /// The radios write `mode` before the area draws. Whether the eyedropper button was pressed,
+    /// and the side action clicked.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn full(
         &self,
@@ -97,7 +99,7 @@ impl ColorPicker<'_> {
         inner: Inner,
         translate: &dyn Fn(&'static str) -> String,
         parts: &mut Parts<'_>,
-    ) -> bool {
+    ) -> (bool, Option<Clicked>) {
         let tokens = Tokens::of(ui);
         let style = ColorArea::style(&tokens);
         let gap = Gap::Inline.points(&tokens);
@@ -116,6 +118,7 @@ impl ColorPicker<'_> {
         let mode = *mode;
 
         let mut requested = false;
+        let mut side_clicked = None;
         top_row(ui, gap, |ui| {
             let side = style.area + gap + ColorStrip::outer_width(&style, style.strip_full);
             ui.allocate_ui_with_layout(vec2(side, 0.0), Layout::top_down_justified(Align::Min), |ui| {
@@ -132,7 +135,7 @@ impl ColorPicker<'_> {
                     ui.with_layout(direction::column(ui), |ui| {
                         let button =
                             Button::new(label.as_str()).icon(Icon::Eyedropper).size(ControlSize::Sm).enabled(inner.enabled && !self.eyedropper_busy);
-                        requested = ui.add(button).clicked();
+                        requested = ui.add(button).tooltip(translate(texts::SAMPLE_SCREEN)).clicked();
                     });
                 }
             });
@@ -151,9 +154,19 @@ impl ColorPicker<'_> {
                 }
                 self.grid(ui, id, &mut radios, &offered, models, inner, translate, parts);
             });
+            if !self.side_actions.is_empty() {
+                let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone());
+                let width = buttons.column_width(ui);
+                ui.allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down(Align::Min), |ui| {
+                    ui.set_width(width);
+                    ui.add_enabled_ui(inner.enabled, |ui| {
+                        side_clicked = buttons.place_column(ui, id.with("side-actions")).clicked;
+                    });
+                });
+            }
         });
         let _ = radios.end(ui);
-        requested
+        (requested, side_clicked)
     }
 
     /// The channel grid: every model's channels, in columns ([`column_of`]), each row a radio
