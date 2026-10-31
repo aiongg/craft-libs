@@ -13,7 +13,7 @@ use craft_theme::Srgba;
 
 struct App {
     host: DialogHost,
-    results: Vec<Option<DocumentSettings>>,
+    results: Vec<Option<DocumentOptions>>,
 }
 
 /// The dialog in a harness whose Host keeps its settings in `store`, so a second harness on the
@@ -48,8 +48,8 @@ fn dialog<'a>(harness: &'a Harness<'_, App>) -> Option<&'a NewDocumentDialog> {
     harness.state().host.get::<NewDocumentDialog>()
 }
 
-fn settings(harness: &Harness<'_, App>) -> DocumentSettings {
-    dialog(harness).map(|d| d.settings().clone()).unwrap_or_default()
+fn settings(harness: &Harness<'_, App>) -> DocumentOptions {
+    dialog(harness).map(|d| d.options().clone()).unwrap_or_default()
 }
 
 fn px(harness: &Harness<'_, App>) -> (u32, u32) {
@@ -133,11 +133,11 @@ fn create_returns_settings_and_updates_recent() {
     let mut list = Vec::new();
     for width in 1..=25 {
         let size = PixelSize { width, height: 10, pixels_per_inch: 72.0 };
-        push_recent(&mut list, DocumentSettings { size, ..DocumentSettings::default() }, 20);
+        push_recent(&mut list, DocumentOptions { size, ..DocumentOptions::default() }, 20);
     }
     assert_eq!((list.len(), list[0].size.width), (20, 25));
     let again =
-        DocumentSettings { size: PixelSize { width: 10, height: 10, pixels_per_inch: 72.0 }, name: "Other".into(), ..DocumentSettings::default() };
+        DocumentOptions { size: PixelSize { width: 10, height: 10, pixels_per_inch: 72.0 }, name: "Other".into(), ..DocumentOptions::default() };
     push_recent(&mut list, again, 20);
     assert_eq!((list.len(), list[0].size.width), (20, 10), "an equal document moves to the front");
 }

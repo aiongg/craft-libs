@@ -6,10 +6,11 @@ use std::sync::Arc;
 
 use craft_host::Host;
 use craft_settings::Remembered;
-use craft_theme::{ControlSize, Rgba};
+use craft_theme::{ControlSize, Rgba, Srgba};
 use egui::load::SizedTexture;
 use egui::{Color32, Context, CornerRadius, Id, Rect, Response, Sense, Ui, Vec2, pos2, vec2};
 
+use super::color_request::ColorRequest;
 use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::{DialogFields, FieldValue};
@@ -348,7 +349,9 @@ impl Param {
                 form.row(label.as_str(), |ui, _| {
                     let swatch = ui.add(Swatch::new((key, "swatch"), label.as_str(), shown).mixed(color.is_none()));
                     if swatch.clicked() {
-                        ui.ctx().data_mut(|d| d.insert_temp(color_press_id(dialog), key.to_owned()));
+                        let request =
+                            ColorRequest::new(key, Srgba::from_rgb_array(color.unwrap_or([0.0; 3]))).title(label.trim_end_matches([':', '：']));
+                        ui.ctx().data_mut(|d| d.insert_temp(color_press_id(dialog), request));
                     }
                     swatch
                 });
@@ -528,10 +531,22 @@ fn color_press_id(dialog: DialogId) -> Id {
     Id::unique(("craft_ui::dialog::params::color_press", dialog))
 }
 
-/// The key of the colour parameter whose swatch of `dialog` was pressed this pass. Keyed by
+/// The colour request of the parameter whose swatch of `dialog` was pressed this pass. Keyed by
 /// dialog, so a parent and its child form never take each other's press.
-pub(super) fn take_color_press(ctx: &Context, dialog: DialogId) -> Option<String> {
-    ctx.data_mut(|d| d.remove_temp::<String>(color_press_id(dialog)))
+pub(super) fn take_color_press(ctx: &Context, dialog: DialogId) -> Option<ColorRequest> {
+    ctx.data_mut(|d| {
+        let id = color_press_id(dialog);
+        let request = d.get_temp::<ColorRequest>(id);
+        d.remove::<ColorRequest>(id);
+        request
+    })
+}
+
+/// Writes `color` into the colour parameter `key` of `params`; other keys are ignored.
+pub(super) fn set_color_field(params: &[Param], fields: &mut DialogFields, key: &str, color: Srgba) {
+    if params.iter().any(|param| param.key == key && matches!(param.kind, ParamKind::Color { .. })) {
+        fields.set(key, FieldValue::Color(color.to_rgb_array()));
+    }
 }
 
 fn path_press_id(dialog: DialogId) -> Id {
@@ -610,7 +625,7 @@ fn parse_kind(v: &str) -> Option<ParamKind> {
     } else if v == "color" {
         Some(ParamKind::Color { default: None })
     } else if let Some(hex) = v.strip_prefix("color=") {
-        Some(ParamKind::Color { default: parse_hex(hex) })
+        Some(ParamKind::Color { default: Srgba::from_hex(hex).map(Srgba::to_rgb_array) })
     } else if v == "doc" || v == "json" || v.starts_with("layer id") || v.starts_with(['[', '{']) || v.trim_end_matches('?') == "index|name" {
         None
     } else if let Some(cells) = v.strip_prefix("int[").and_then(|r| r.strip_suffix(']')).and_then(|n| n.parse::<usize>().ok()) {
@@ -691,16 +706,6 @@ fn object_body(spec: &str) -> &str {
     body.trim_end_matches('}')
 }
 
-/// `#rrggbb` as colour components.
-fn parse_hex(text: &str) -> Option<[f32; 3]> {
-    let digits = text.trim().trim_start_matches('#');
-    if digits.len() != 6 || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return None;
-    }
-    let channel = |i: usize| u8::from_str_radix(digits.get(i..i + 2)?, 16).ok().map(|v| f32::from(v) / 255.0);
-    Some([channel(0)?, channel(2)?, channel(4)?])
-}
-
 /// The English label of a key, as PhotoCraft's filter dialogs write it: camelCase read as Title
 /// Case words (`cellSize` is `Cell Size`), two fixed names, and a key with a space is already text.
 // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:616 `source_label`.
@@ -775,7 +780,7 @@ pub struct ParamDialog {
     preview: bool,
     preview_image: Option<SizedTexture>,
     remember_key: Option<String>,
-    picked_color: Option<String>,
+    picked_color: Option<ColorRequest>,
     picked_path: Option<PathRequest>,
     reset_target: Option<DialogFields>,
     ok_enabled: bool,
@@ -927,10 +932,16 @@ impl ParamDialog {
         draw_rows(&self.params, self.id, form, &mut self.fields, self.preview_image.as_ref());
     }
 
-    /// The key of the colour parameter whose swatch the user pressed, once: the host opens its
-    /// colour picker for it and writes the pick with `fields_mut().set(key, FieldValue::Color(..))`.
-    pub fn pick_color(&mut self) -> Option<String> {
+    /// The colour parameter whose swatch the user pressed, once: the host opens its colour picker
+    /// for the request (key = the parameter's key, title = its label, colour = the value shown) and
+    /// answers with [`set_color`](Self::set_color).
+    pub fn pick_color(&mut self) -> Option<ColorRequest> {
         self.picked_color.take()
+    }
+
+    /// The colour picker's answer for the parameter `key`; other keys are ignored.
+    pub fn set_color(&mut self, key: &str, color: Srgba) {
+        set_color_field(&self.params, &mut self.fields, key, color);
     }
 
     /// The Browse button of a [`Param::browse`] row the user pressed, once: the host opens its

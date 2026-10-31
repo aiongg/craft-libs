@@ -7,7 +7,7 @@ use craft_host::{FileError, Files, Host, PickAnswer, PickId, PickKind, PickReque
 use craft_ui::localized::Labels;
 use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, vec2};
 
-use super::{FileList, FileListLabels, FileListMode, FileListPicker, FileListResponse};
+use super::{FileList, FileListLabels, FileListMode, FileListPicker, FileListPickerResponse};
 
 /// Records every request; answers are put in by the test.
 #[derive(Default)]
@@ -73,7 +73,7 @@ struct Rig {
     list: FileList,
     /// The words drawn in the last frame, with where.
     texts: Vec<(String, Pos2)>,
-    response: FileListResponse,
+    response: FileListPickerResponse,
     time: f64,
 }
 
@@ -82,7 +82,7 @@ impl Rig {
         let ctx = Context::default();
         let files = Arc::new(StubFiles::default());
         Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" }).files(files.clone()).install(&ctx);
-        let mut rig = Self { ctx, files, list, texts: Vec::new(), response: FileListResponse::default(), time: 0.0 };
+        let mut rig = Self { ctx, files, list, texts: Vec::new(), response: FileListPickerResponse::default(), time: 0.0 };
         rig.frame(vec![]);
         rig
     }

@@ -12,7 +12,7 @@ use crate::theme::{Base, install};
 
 struct App {
     host: DialogHost,
-    answers: Vec<DialogResult<RecoveryAction>>,
+    answers: Vec<DialogResult<RecoveryAnswer>>,
 }
 
 fn document(blocked: Option<&str>) -> RecoveredDocument {
@@ -48,13 +48,13 @@ fn recover_discard_and_close_answer() {
     harness.get_by_label("Recover").click();
     harness.run();
     assert_eq!(harness.state().answers.len(), 1);
-    assert!(matches!(harness.state().answers[0], DialogResult::Ok(RecoveryAction::Recover)));
+    assert!(matches!(harness.state().answers[0], DialogResult::Ok(RecoveryAnswer::Recover)));
 
     let mut harness = self::harness(document(None));
     harness.run();
     harness.get_by_label("Discard").click();
     harness.run();
-    assert!(matches!(harness.state().answers[0], DialogResult::Ok(RecoveryAction::Discard)));
+    assert!(matches!(harness.state().answers[0], DialogResult::Ok(RecoveryAnswer::Discard)));
 
     let mut harness = self::harness(document(None));
     harness.run();
@@ -67,5 +67,5 @@ fn recover_discard_and_close_answer() {
     assert!(harness.get_by_label("Recover").accesskit_node().is_disabled());
     harness.get_by_label("Discard").click();
     harness.run();
-    assert!(matches!(harness.state().answers[0], DialogResult::Ok(RecoveryAction::Discard)));
+    assert!(matches!(harness.state().answers[0], DialogResult::Ok(RecoveryAnswer::Discard)));
 }

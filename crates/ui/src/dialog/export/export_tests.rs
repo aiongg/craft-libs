@@ -53,22 +53,22 @@ fn resize_rules_round_keep_aspect_and_refuse_out_of_range() {
 // 4-Up halves and quarters the quality of a JPEG and the colours of a GIF.
 #[test]
 fn four_up_variants_step_quality_or_colours() {
-    let jpeg = WebSettings { format: WebFormat::Jpeg, quality: 60, ..WebSettings::default() };
+    let jpeg = SaveForWebOptions { format: WebFormat::Jpeg, quality: 60, ..SaveForWebOptions::default() };
     let [half, quarter] = four_up_variants(&jpeg);
     assert_eq!((half.quality, quarter.quality), (30, 15));
     assert_eq!((half.format, quarter.format), (WebFormat::Jpeg, WebFormat::Jpeg));
 
-    let gif = WebSettings { format: WebFormat::Gif, colors: 128, ..WebSettings::default() };
+    let gif = SaveForWebOptions { format: WebFormat::Gif, colors: 128, ..SaveForWebOptions::default() };
     let [half, quarter] = four_up_variants(&gif);
     assert_eq!((half.colors, quarter.colors), (64, 32));
 
-    let png = WebSettings { format: WebFormat::Png24, ..WebSettings::default() };
+    let png = SaveForWebOptions { format: WebFormat::Png24, ..SaveForWebOptions::default() };
     let [half, quarter] = four_up_variants(&png);
     assert_eq!((half.format, half.colors, quarter.format, quarter.colors), (WebFormat::Png8, 128, WebFormat::Gif, 64));
 
-    let lossless = WebSettings { format: WebFormat::WebP, lossless: true, ..WebSettings::default() };
+    let lossless = SaveForWebOptions { format: WebFormat::WebP, lossless: true, ..SaveForWebOptions::default() };
     assert_eq!(four_up_variants(&lossless)[0].format, WebFormat::Png8);
-    let lossy = WebSettings { format: WebFormat::WebP, quality: 1, ..WebSettings::default() };
+    let lossy = SaveForWebOptions { format: WebFormat::WebP, quality: 1, ..SaveForWebOptions::default() };
     assert_eq!(four_up_variants(&lossy)[1].quality, 1, "quality never drops below 1");
 }
 

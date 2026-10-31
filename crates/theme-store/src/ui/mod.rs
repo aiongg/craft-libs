@@ -69,7 +69,7 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[<AppearanceLabels as craft_
 /// What the page reported this pass.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
-pub struct AppearanceResponse {
+pub struct AppearancePageResponse {
     /// The draft changed this pass (the window's Apply becomes enabled).
     pub changed: bool,
     /// The favourite star of this theme was toggled; the app updates its favourites list.
@@ -133,7 +133,7 @@ impl<'a> AppearancePage<'a> {
 
     // pc: crates/ui-egui/src/prefs/prefs_ui/fields.rs:315 interface_groups (appearance group);
     // pc: crates/ui-egui/src/prefs/prefs_ui/appearance.rs:311 (mode list), :268 theme_row
-    pub fn show(self, ui: &mut Ui) -> AppearanceResponse {
+    pub fn show(self, ui: &mut Ui) -> AppearancePageResponse {
         let Self { client, draft, favorites, text_size } = self;
         let labels = AppearanceLabels::of(ui);
         let shown = draft.applied_to(&client.shown());
@@ -144,7 +144,7 @@ impl<'a> AppearancePage<'a> {
             ModeChoice::System => ui.ctx().system_theme() == Some(egui::Theme::Light),
         };
         let themes = themes(client);
-        let mut out = AppearanceResponse::default();
+        let mut out = AppearancePageResponse::default();
         FormGrid::new("craft_theme_store::appearance").label_align(LabelAlign::Start).show(ui, |form| {
             let modes = [
                 (ModeChoice::System, labels.mode_system.as_str()),

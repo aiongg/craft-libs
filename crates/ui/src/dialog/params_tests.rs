@@ -290,8 +290,31 @@ fn a_swatch_press_goes_to_its_own_dialog() {
     harness.run();
     harness.get_by_label("Over:").click();
     harness.run();
-    assert_eq!(harness.state_mut().get_mut::<CommandForm>().unwrap().pick_color().as_deref(), Some("b"));
+    assert_eq!(
+        harness.state_mut().get_mut::<CommandForm>().unwrap().pick_color().map(|request| (request.key, request.title, request.color)),
+        Some(("b".to_owned(), Some("Over".to_owned()), craft_theme::Srgba::BLACK))
+    );
     assert_eq!(harness.state_mut().get_mut::<ParamDialog>().unwrap().pick_color(), None);
+}
+
+// The picker's answer is written to the colour parameter it names, and only that one.
+#[test]
+fn a_colour_answer_sets_the_named_colour_parameter() {
+    let params = || {
+        vec![
+            Param::new("tint", "Tint", ParamKind::Color { default: None }),
+            Param::new("n", "N", ParamKind::Int { min: None, max: None, default: 1 }),
+        ]
+    };
+    let mut dialog = ParamDialog::new("k", "K", params());
+    dialog.set_color("tint", craft_theme::Srgba::rgb(0.5, 0.0, 1.0));
+    dialog.set_color("n", craft_theme::Srgba::rgb(1.0, 1.0, 1.0));
+    dialog.set_color("missing", craft_theme::Srgba::rgb(1.0, 1.0, 1.0));
+    assert_eq!(dialog.fields().get("tint"), Some(&FieldValue::Color([0.5, 0.0, 1.0])));
+    assert_eq!(dialog.fields().get("n"), None);
+    let mut form = CommandForm::new("k", "K", params());
+    form.set_color("tint", craft_theme::Srgba::rgb(0.0, 1.0, 0.0));
+    assert_eq!(form.fields().get("tint"), Some(&FieldValue::Color([0.0, 1.0, 0.0])));
 }
 
 fn open_dialog<'a>(harness: &'a mut Harness<'static, App>) -> Option<&'a mut ParamDialog> {

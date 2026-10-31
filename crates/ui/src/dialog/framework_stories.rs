@@ -181,7 +181,7 @@ pub(super) fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static
     if crate::story::dialog_shown(ui, *open) {
         let previous: Option<S> = ui.data(|d| d.get_temp::<Option<S>>(signature_key)).flatten();
         if previous.is_some_and(|previous| previous != signature) {
-            host.cancel::<D>();
+            host.cancel::<D>(&ctx);
             host.take::<D>();
         }
         ui.data_mut(|d| d.insert_temp(signature_key, Some(signature)));
@@ -202,7 +202,7 @@ pub(super) fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static
             crate::story::dialog_closed(ui, open);
         }
     } else {
-        host.cancel::<D>();
+        host.cancel::<D>(&ctx);
         host.take::<D>();
         ui.data_mut(|d| d.insert_temp(signature_key, None::<S>));
     }
