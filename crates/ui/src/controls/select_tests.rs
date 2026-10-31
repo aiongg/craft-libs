@@ -346,6 +346,37 @@ fn the_wheel_over_the_open_list_steps_the_value_a_notch_at_a_time_and_the_restin
 }
 
 #[test]
+fn a_typed_letter_in_the_open_list_previews_nothing_under_a_resting_pointer() {
+    let mut harness = harness().build_ui_state(
+        |ui, host: &mut Previewed| {
+            let mut select = Select::new("blend", "Blend mode", &mut host.value).highlighted(&mut host.highlighted);
+            for (i, mode) in MODES.into_iter().enumerate() {
+                select = select.option(i, mode);
+            }
+            host.events.extend(select.show(ui).event);
+        },
+        Previewed::default(),
+    );
+    harness.run();
+    harness.get_by_role(Role::ComboBox).click();
+    harness.run();
+    let row = option(&harness, "Multiply").rect();
+    harness.hover_at(row.center());
+    harness.run();
+    assert_eq!(harness.state().highlighted, Some(1));
+    harness.event(Event::Text("d".into()));
+    harness.run();
+    assert_eq!(
+        (harness.state().value, harness.state().highlighted),
+        (4, None),
+        "the typed row moved the value, the resting pointer previews nothing"
+    );
+    harness.hover_at(row.center() + vec2(2.0, 0.0));
+    harness.run();
+    assert_eq!(harness.state().highlighted, Some(1), "a pointer move previews again");
+}
+
+#[test]
 fn a_panel_scroll_that_passes_over_a_select_with_wheel_steps_goes_on_scrolling() {
     let mut harness = harness().build_ui_state(
         |ui, host: &mut Host| {

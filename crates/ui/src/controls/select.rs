@@ -149,7 +149,8 @@ pub struct SelectStyle {
 ///   even when several arrive in one wheel event: a `Set` over the closed box. Over the open
 ///   list the wheel steps the active option and so the value, as the arrows do, and reveals the
 ///   row; no row is previewed ([`highlighted`](Select::highlighted)) while the pointer rests where
-///   the wheel last stepped, until it moves (as in Photoshop). PhotoCraft's Layers blend mode
+///   the wheel last stepped or a typed letter last moved the active option, until it moves (as in
+///   Photoshop). PhotoCraft's Layers blend mode
 ///   does this. The box takes the wheel as a number field without the focus does: a
 ///   gesture that started elsewhere (a panel being scrolled) goes on scrolling over it, one that
 ///   leaves the box is the panel's from then on, and Alt+wheel, Ctrl/Cmd+wheel and a plain
@@ -442,7 +443,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
         // before the field runs, would read its Esc.
         let composing = state.search.is_some_and(|s| take_composing_keys(ui, s));
         if enabled && (box_focused || search_focused) && !composing && !menu_open {
-            action = read_keys(ui, id, &mut listbox, &shown, &state, KeyFocus { on_box: box_focused, chosen, gear });
+            action = read_keys(ui, id, &mut listbox, &shown, &mut state, KeyFocus { on_box: box_focused, chosen, gear });
         } else if enabled && !menu_open {
             action = read_gear_keys(ui, id, &listbox, &shown, &state, gear_focused);
         }
@@ -709,7 +710,7 @@ fn read_keys<T: Clone + PartialEq>(
     id: Id,
     listbox: &mut Listbox,
     shown: &Shown<'_, '_, '_, T>,
-    state: &PopupState<T>,
+    state: &mut PopupState<T>,
     focus: KeyFocus,
 ) -> Option<Action> {
     let KeyFocus { on_box, chosen, gear } = focus;
@@ -740,8 +741,8 @@ fn read_keys<T: Clone + PartialEq>(
             return choose(listbox, false);
         }
         listbox.keys(ui, shown, state.page, on_box);
-        if on_box {
-            listbox.type_ahead(ui, shown);
+        if on_box && listbox.type_ahead(ui, shown) {
+            state.wheel.rest = ui.input(|i| i.pointer.hover_pos());
         }
         return None;
     }
@@ -900,8 +901,8 @@ struct PopupState<T> {
 struct Wheel {
     /// Notches not stepped yet: one option steps a frame, so each notch is its own edit.
     pending: i32,
-    /// Where the pointer was when the wheel last stepped the open list. The row under it is not
-    /// previewed until the pointer moves.
+    /// Where the pointer was when the wheel or type-ahead last moved the open list's active
+    /// option. The row under it is not previewed until the pointer moves.
     rest: Option<Pos2>,
     /// The wheel stepped the open list in this pass.
     stepped: bool,
@@ -926,8 +927,8 @@ impl Wheel {
         if self.stepped { listbox.active() } else { keyed }
     }
 
-    /// The row to preview: none while the pointer still rests where the wheel last stepped the
-    /// list, as the value moved on without the row under it.
+    /// The row to preview: none while the pointer still rests where the wheel or type-ahead last
+    /// moved the list, as the value moved on without the row under it.
     fn previewed(&mut self, ui: &Ui, pointed: Option<usize>) -> Option<usize> {
         let pointer = ui.input(|i| i.pointer.hover_pos());
         if pointer.is_none() || pointer != self.rest {
