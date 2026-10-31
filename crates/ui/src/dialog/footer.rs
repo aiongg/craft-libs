@@ -21,6 +21,8 @@ crate::words! {
         cancel: "dialog.cancel" = "Cancel";
         apply: "dialog.apply" = "Apply";
         reset: "dialog.reset" = "Reset";
+        /// The Preview check box of a filter or adjustment dialog.
+        preview: "dialog.preview" = "Preview";
         /// A screen reader's description of the default button.
         default_hint: "dialog.defaultHint" = "Default";
         /// The accessible name of a dialog frame's close box.
