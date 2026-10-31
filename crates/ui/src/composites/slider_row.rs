@@ -90,6 +90,8 @@ pub struct SliderRow<'a> {
     decimals: Option<usize>,
     step: Option<f64>,
     track_colors: Option<Vec<Srgba>>,
+    fill: bool,
+    field_width: Option<f32>,
     default: Option<f64>,
     wheel: Option<bool>,
     wheel_step: Option<f64>,
@@ -119,6 +121,8 @@ impl<'a> SliderRow<'a> {
             decimals: None,
             step: None,
             track_colors: None,
+            fill: true,
+            field_width: None,
             default: None,
             wheel: None,
             wheel_step: None,
@@ -155,6 +159,21 @@ impl<'a> SliderRow<'a> {
     /// Draws the slider's track as a gradient through `stops` ([`Slider::track_colors`]).
     pub fn track_colors(mut self, stops: impl IntoIterator<Item = impl Into<Srgba>>) -> Self {
         self.track_colors = Some(stops.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Whether the slider's track is filled from the start to the value ([`Slider::fill`]; default
+    /// on).
+    pub fn fill(mut self, fill: bool) -> Self {
+        self.fill = fill;
+        self
+    }
+
+    /// The width of the number field in points, in place of `slider_row.field_width`, so that a
+    /// group of rows with different ranges lines its fields up in one column (PhotoCraft's
+    /// `slider_row_prec` uses 74 for every row).
+    pub fn field_width(mut self, width: f32) -> Self {
+        self.field_width = Some(width);
         self
     }
 
@@ -228,7 +247,7 @@ impl<'a> SliderRow<'a> {
         let rtl = direction::is_rtl(ui);
 
         let (_, line) = ui.allocate_space(vec2(width, field_height));
-        let field_width = style.field_width.min(width);
+        let field_width = self.field_width.unwrap_or(style.field_width).min(width);
         let (field_rect, caption_rect) = if rtl {
             let field = Rect::from_min_size(line.min, vec2(field_width, line.height()));
             (field, Rect::from_min_max(pos2(field.right() + ui.spacing().item_spacing.x, line.top()), line.max))
@@ -269,6 +288,7 @@ impl<'a> SliderRow<'a> {
             .wheel(self.wheel != Some(false))
             .wheel_unfocused(self.wheel == Some(true))
             .scale(self.scale)
+            .fill(self.fill)
             .policy(self.policy)
             .size(self.size)
             .enabled(self.enabled);
@@ -311,7 +331,7 @@ pub(crate) fn stories() -> Vec<Story> {
             Level::Composites,
             "SliderRow",
             "Adjustments",
-            AdjustmentsArgs { disabled: false, width: 260.0 },
+            AdjustmentsArgs { disabled: false, unfilled: false, equal_fields: false, width: 260.0 },
             show_adjustments
         ),
         typed_story!("composites/slider-row/wheel-step", Level::Composites, "SliderRow", "Wheel step", WheelStepArgs { step: 5.0 }, show_wheel_step),
@@ -345,14 +365,20 @@ fn show_wheel_step(ui: &mut Ui, args: &mut WheelStepArgs) {
 #[derive(StoryArgs, Debug, PartialEq)]
 pub(super) struct AdjustmentsArgs {
     pub(super) disabled: bool,
+    #[arg(name = "unfilled track")]
+    pub(super) unfilled: bool,
+    #[arg(name = "equal fields (74)")]
+    pub(super) equal_fields: bool,
     #[arg(range = 120.0..=400.0)]
     pub(super) width: f32,
 }
 
 /// Opacity in percent, Exposure with two places, a gradient Hue row and an Amount row, in a
-/// panel `width` wide; `disabled` disables the Amount row.
+/// panel `width` wide; `disabled` disables the Amount row, `unfilled` draws plain tracks and
+/// `equal_fields` gives every field the same width.
 pub(super) fn show_adjustments(ui: &mut Ui, args: &mut AdjustmentsArgs) {
     let (disabled, width) = (args.disabled, args.width.min(ui.available_width()));
+    let (fill, field_width) = (!args.unfilled, args.equal_fields.then_some(74.0));
     let state_id = ui.scope_id().with("slider-row-adjustments");
     let mut values = ui.data(|d| d.get_temp::<[f64; 4]>(state_id)).unwrap_or([80.0, 0.5, 210.0, 35.0]);
     let numbers = LocaleNumbers::from_tag("en");
@@ -374,6 +400,8 @@ pub(super) fn show_adjustments(ui: &mut Ui, args: &mut AdjustmentsArgs) {
             SliderRow::new("amount", "Amount", values[3], 0.0..=100.0, &numbers).enabled(!disabled),
         ];
         for (value, row) in values.iter_mut().zip(rows) {
+            let row = row.fill(fill);
+            let row = if let Some(width) = field_width { row.field_width(width) } else { row };
             for event in row.show(ui).edits() {
                 if let EditEvent::Update { value: v, .. } | EditEvent::Set { value: v, .. } | EditEvent::Commit { value: v, .. } = event {
                     *value = v;

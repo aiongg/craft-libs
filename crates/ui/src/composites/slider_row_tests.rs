@@ -122,7 +122,7 @@ fn a_slider_drag_and_a_caption_scrub_each_end_in_one_commit() {
 fn the_story_names_every_control_at_every_width() {
     for dir in [Direction::Ltr, Direction::Rtl] {
         for (width, disabled) in [(120.0, false), (260.0, true), (400.0, false)] {
-            let mut args = AdjustmentsArgs { disabled, width };
+            let mut args = AdjustmentsArgs { disabled, unfilled: false, equal_fields: false, width };
             let harness = harness::<()>(dir).build_ui(move |ui| show_adjustments(ui, &mut args));
             a11y::assert_labelled(&harness);
         }
@@ -461,4 +461,19 @@ fn the_row_size_sets_the_line_and_slider_heights() {
     }
     let (sm, md) = (heights(ControlSize::Sm), heights(ControlSize::Md));
     assert!(sm.0 < md.0 && sm.1 < md.1, "{sm:?} {md:?}");
+}
+
+#[test]
+fn rows_with_a_field_width_share_one_field_width_whatever_their_range() {
+    let rows = |ui: &mut Ui, _: &mut ()| {
+        let numbers = LocaleNumbers::from_tag("en");
+        ui.set_max_width(260.0);
+        let _ = SliderRow::new("a", "Small", 5.0, 0.0..=10.0, &numbers).field_width(74.0).show(ui);
+        let _ = SliderRow::new("b", "Large", 5000.0, 0.0..=100_000.0, &numbers).field_width(74.0).show(ui);
+    };
+    let harness = harness(Direction::Ltr).build_ui_state(rows, ());
+    let fields: Vec<Rect> = harness.get_all_by_role(Role::SpinButton).map(|n| n.rect()).collect();
+    assert_eq!(fields.len(), 2);
+    assert!((fields[0].width() - 74.0).abs() < 0.5 && (fields[1].width() - 74.0).abs() < 0.5, "{fields:?}");
+    assert!((fields[0].right() - fields[1].right()).abs() < 0.5, "one column: {fields:?}");
 }

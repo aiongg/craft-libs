@@ -1145,3 +1145,31 @@ fn labelled_marks_sit_under_their_ticks_inside_the_slider_and_add_one_line_of_he
     assert!(labels[0].left() >= rect.left() && labels[3].right() <= rect.right() + 0.01, "ends stay inside: {labels:?}");
     assert!(labels.iter().all(|l| l.top() > rect.top() + style.height / 2.0), "under the track");
 }
+
+#[test]
+fn an_unfilled_track_paints_no_fill_shape() {
+    let fills = |fill: bool| {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))), ..Default::default() };
+        let mut colour = None;
+        let mut output = ctx.run_ui(input, |ui| {
+            colour = Some(Slider::style(&Tokens::of(ui), ControlSize::Md).fill.rest);
+            _ = Slider::new("fill", "Fill", 50.0, 0.0..=100.0).fill(fill).show(ui);
+        });
+        output.textures_delta.clear();
+        let colour = colour.unwrap();
+        let mut count = 0;
+        fn walk(shape: &egui::Shape, colour: egui::Color32, count: &mut usize) {
+            match shape {
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, colour, count)),
+                egui::Shape::Rect(r) if r.fill == colour => *count += 1,
+                _ => {}
+            }
+        }
+        output.shapes.iter().for_each(|c| walk(&c.shape, colour, &mut count));
+        count
+    };
+    assert_eq!(fills(true), 1, "the filled part is one shape");
+    assert_eq!(fills(false), 0);
+}

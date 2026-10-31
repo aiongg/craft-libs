@@ -47,7 +47,7 @@ controls/radio/states = Radio | States | Panel | size=Choice { options: ["sm", "
 controls/radio/groups = Radio | Groups | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/switch/states = Switch | States | Panel | size=Choice { options: ["sm", "md"], index: 1 }
 controls/switch/settings = Switch | Settings | Panel | size=Choice { options: ["sm", "md"], index: 1 }
-controls/slider/values = Slider | Values | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); default value (50)=Bool(false); wheel unfocused=Bool(false)
+controls/slider/values = Slider | Values | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false); unfilled track=Bool(false); default value (50)=Bool(false); wheel unfocused=Bool(false)
 controls/slider/step = Slider | Step | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/slider/disabled = Slider | Disabled | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
 controls/slider/right-to-left = Slider | Right to left | Panel | size=Choice { options: ["sm", "md"], index: 1 }; disabled=Bool(false)
@@ -86,7 +86,7 @@ composites/section-header/always-open = SectionHeader | Always open | Panel | wi
 composites/section-label/default = SectionLabel | Default | Panel | text=Text("Blend mode")
 composites/panel-header/flyout = PanelHeader | Flyout | Panel | float=Bool(true); close=Bool(true); menu=Bool(true); actions=Bool(false); width=Number { value: 280.0, min: 60.0, max: 400.0 }
 composites/panel-footer/layers = PanelFooter | Layers | Own | width=Number { value: 240.0, min: 60.0, max: 400.0 }
-composites/slider-row/adjustments = SliderRow | Adjustments | Panel | disabled=Bool(false); width=Number { value: 260.0, min: 120.0, max: 400.0 }
+composites/slider-row/adjustments = SliderRow | Adjustments | Panel | disabled=Bool(false); unfilled track=Bool(false); equal fields (74)=Bool(false); width=Number { value: 260.0, min: 120.0, max: 400.0 }
 composites/slider-row/wheel-step = SliderRow | Wheel step | Panel | step=Number { value: 5.0, min: 0.5, max: 20.0 }
 composites/toast/stack = Toast | Stack | Panel | tone=Choice { options: ["neutral", "info", "good", "warn", "bad"], index: 0 }; auto_hide=Bool(false); seconds=Number { value: 6.0, min: 1.0, max: 30.0 }
 composites/notice/tones = Notice | Tones | Panel | announce=Bool(true); title=Bool(true); width=Number { value: 320.0, min: 120.0, max: 480.0 }

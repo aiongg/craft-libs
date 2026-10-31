@@ -156,6 +156,7 @@ pub struct Slider {
     wheel: bool,
     wheel_step: Option<f64>,
     track_colors: Option<Vec<Srgba>>,
+    fill: bool,
     part: bool,
     width: Option<f32>,
     scale: SliderScale,
@@ -186,6 +187,7 @@ impl Slider {
             wheel: true,
             wheel_step: None,
             track_colors: None,
+            fill: true,
             part: false,
             width: None,
             scale: SliderScale::Linear,
@@ -277,6 +279,14 @@ impl Slider {
     /// its shape and edge.
     pub fn track_colors(mut self, stops: impl IntoIterator<Item = impl Into<Srgba>>) -> Self {
         self.track_colors = Some(stops.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Whether the part of the track from the start to the value is filled with `slider.fill`
+    /// (default on). Off draws the whole track in its unfilled colour, as PhotoCraft's and
+    /// Photoshop's sliders do; the thumb, ring and states stay as they are.
+    pub fn fill(mut self, fill: bool) -> Self {
+        self.fill = fill;
         self
     }
 
@@ -425,7 +435,9 @@ impl Slider {
                 Some(stops) => gradient_track::paint(ui, &track, stops, Swatch::style(&tokens, self.size).checker),
                 None => {
                     paint_track(ui, &style, &track);
-                    paint_fill(ui, &style, &track, track.ends().0, x, color(&style.fill));
+                    if self.fill {
+                        paint_fill(ui, &style, &track, track.ends().0, x, color(&style.fill));
+                    }
                 }
             }
             let paint =
@@ -1082,6 +1094,8 @@ struct SliderArgs {
 struct ValuesArgs {
     size: SizeArg,
     disabled: bool,
+    #[arg(name = "unfilled track")]
+    unfilled: bool,
     #[arg(name = "default value (50)")]
     default_value: bool,
     #[arg(name = "wheel unfocused")]
@@ -1108,7 +1122,7 @@ pub(crate) fn stories() -> Vec<Story> {
             Level::Controls,
             "Slider",
             "Values",
-            ValuesArgs { size: SizeArg::Md, disabled: false, default_value: false, wheel_unfocused: false },
+            ValuesArgs { size: SizeArg::Md, disabled: false, unfilled: false, default_value: false, wheel_unfocused: false },
             show_values
         ),
         typed_story!("controls/slider/step", Level::Controls, "Slider", "Step", SliderArgs::default(), show_step),
@@ -1183,9 +1197,9 @@ fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
         variant_list(ui, "slider-values", |form| {
             let (minimum_to_maximum, shaped) = values.split_at_mut(3);
             for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate() {
-                let (default, wheel) = (args.default_value, args.wheel_unfocused);
+                let (default, wheel, fill) = (args.default_value, args.wheel_unfocused, !args.unfilled);
                 slider_row_with(form, look, &format!("slider-values-{i}"), label, value, None, |slider| {
-                    let slider = slider.wheel_unfocused(wheel);
+                    let slider = slider.wheel_unfocused(wheel).fill(fill);
                     if default { slider.default_value(50.0) } else { slider }
                 });
             }
