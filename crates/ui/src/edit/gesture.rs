@@ -54,8 +54,9 @@ use super::{CancelAll, CancelReason, EditEvent, EditPolicy, Ending, GestureId, U
 ///   the press to the host instead, [`EditResponse::escaped`](super::EditResponse::escaped)) when
 ///   the policy is [`cancellable`](EditPolicy::cancellable) and no modal layer is above the
 ///   control; on [`cancel_all`](super::cancel_all); and when the host's value changed other than by the
-///   gesture's updates ([`CancelReason::External`]). [`enabled`](Gesture::enabled) cancels when
-///   the control is disabled.
+///   gesture's updates ([`CancelReason::External`]); a host's rounding, clamping or mapping of an
+///   update's value is not such a change for the `f64` controls (`load_normalised`).
+///   [`enabled`](Gesture::enabled) cancels when the control is disabled.
 /// - [`set`](Gesture::set) for a one-shot change; during a gesture it is an update.
 /// - A control that is not drawn in a pass loses its gesture (see [`is_live`](super::is_live))
 ///   and starts idle when it is drawn again; the host ends the gesture as [`Ending`] says, a
@@ -204,14 +205,23 @@ pub(crate) fn equals_to_f32(host: f64, reported: f64) -> bool {
         || host.is_finite() && reported.is_finite() && (host - reported).abs() <= 2.0 * f64::from(f32::EPSILON) * host.abs().max(reported.abs())
 }
 
+/// Whether `host` is the host's own normalisation of `reported`, the value of an update: a host
+/// that rounds to a step, clamps to a range or maps the value (a log scale) stores the nearest
+/// value it accepts, and `start`, the value the gesture began from, is one it accepted. So a
+/// normalised value is no farther from `reported` than `start` is, where an outside change that
+/// lands farther off is not one. Covers [`equals_to_f32`]'s hosts too.
+fn normalised_by_host(host: &f64, reported: &f64, start: &f64) -> bool {
+    let (host, reported, start) = (*host, *reported, *start);
+    equals_to_f32(host, reported)
+        || host.is_finite() && reported.is_finite() && start.is_finite() && (host - reported).abs() <= (start - reported).abs()
+}
+
 impl Gesture<f64> {
-    /// The host value to give [`load`](Gesture::load) for the host's `value`: the gesture's last
-    /// reported value when `value` equals it to `f32` precision ([`equals_to_f32`]), else `value`.
-    pub(crate) fn host_value(ui: &Ui, id: Id, value: f64) -> f64 {
-        match Self::reported(ui, id) {
-            Some((_, reported)) if equals_to_f32(value, reported) => reported,
-            _ => value,
-        }
+    /// [`load`](Gesture::load) for a control whose host may store a normalised form of the
+    /// values it receives: the host's value is not an outside change when it is
+    /// `normalised_by_host` from the last update's value.
+    pub(crate) fn load_normalised(ui: &Ui, id: Id, value: f64, policy: EditPolicy) -> Self {
+        Self::load_with(ui, id, &value, policy, true, Some(normalised_by_host))
     }
 }
 
@@ -220,17 +230,17 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// host value is `value`. Applies a pending [`cancel_all`](super::cancel_all), an external
     /// change of the value, and Esc.
     pub fn load(ui: &Ui, id: Id, value: &T, policy: EditPolicy) -> Self {
-        Self::load_with(ui, id, value, policy, true)
+        Self::load_with(ui, id, value, policy, true, None)
     }
 
     /// [`load`](Gesture::load) for a control that leaves Esc to the host: the press cancels as it
     /// does there but stays in the input, so the controls after it and the host see it too (a
     /// focused text field's typing run, whose Esc also closes a dialog).
     pub(crate) fn load_passing_escape(ui: &Ui, id: Id, value: &T, policy: EditPolicy) -> Self {
-        Self::load_with(ui, id, value, policy, false)
+        Self::load_with(ui, id, value, policy, false, None)
     }
 
-    fn load_with(ui: &Ui, id: Id, value: &T, policy: EditPolicy, take_escape: bool) -> Self {
+    fn load_with(ui: &Ui, id: Id, value: &T, policy: EditPolicy, take_escape: bool, echo: Option<fn(&T, &T, &T) -> bool>) -> Self {
         let ctx = ui.ctx().clone();
         let key = id.with(STATE);
         let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());
@@ -263,7 +273,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
         gesture.end_restoring();
         gesture.apply_cancel_all();
         gesture.carry_on_ended();
-        gesture.apply_external();
+        gesture.apply_external(echo);
         gesture.apply_escape(take_escape);
         gesture
     }
@@ -614,9 +624,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     }
 
     /// Cancels when the host's value is no longer the one the gesture reported.
-    fn apply_external(&mut self) {
+    fn apply_external(&mut self, echo: Option<fn(&T, &T, &T) -> bool>) {
         if let Phase::Active(a) = &self.stored.phase
             && self.host != a.reported
+            && !echo.is_some_and(|echo| echo(&self.host, &a.reported, &a.start))
         {
             self.cancel(CancelReason::External);
         }

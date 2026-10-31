@@ -95,6 +95,7 @@ pub struct SliderRow<'a> {
     wheel_step: Option<f64>,
     scale: SliderScale,
     policy: EditPolicy,
+    size: ControlSize,
     enabled: bool,
 }
 
@@ -123,6 +124,7 @@ impl<'a> SliderRow<'a> {
             wheel_step: None,
             scale: SliderScale::Linear,
             policy: EditPolicy::default(),
+            size: ControlSize::Md,
             enabled: true,
         }
     }
@@ -197,6 +199,13 @@ impl<'a> SliderRow<'a> {
         self
     }
 
+    /// The size of the row (default [`ControlSize::Md`]): the height of the caption line and the
+    /// field, and the slider's height and thumb ([`Slider::size`]).
+    pub fn size(mut self, size: ControlSize) -> Self {
+        self.size = size;
+        self
+    }
+
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -212,7 +221,7 @@ impl<'a> SliderRow<'a> {
     pub fn show(self, ui: &mut Ui) -> SliderRowResponse {
         let tokens = Tokens::of(ui);
         let style = SliderRow::style(&tokens);
-        let field_height = NumberField::style(&tokens, ControlSize::Md).field.height;
+        let field_height = NumberField::style(&tokens, self.size).field.height;
         let id = ui.make_persistent_id(self.id_salt);
         let rect = ui.available_rect_before_wrap();
         let width = rect.width();
@@ -250,6 +259,7 @@ impl<'a> SliderRow<'a> {
             .unit(self.unit)
             .scrub_by(&caption)
             .policy(self.policy)
+            .size(self.size)
             .enabled(self.enabled);
         let layout = Layout::left_to_right(egui::Align::Center).with_main_justify(true);
         let field = field.show(&mut ui.new_child(UiBuilder::new().max_rect(field_rect).layout(layout)));
@@ -260,6 +270,7 @@ impl<'a> SliderRow<'a> {
             .wheel_unfocused(self.wheel == Some(true))
             .scale(self.scale)
             .policy(self.policy)
+            .size(self.size)
             .enabled(self.enabled);
         if let Some(step) = self.step {
             slider = slider.step(step);
