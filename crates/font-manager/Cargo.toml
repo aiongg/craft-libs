@@ -10,7 +10,7 @@ repository.workspace = true
 [features]
 default = []
 # `FontsPanel`: the whole interface as one egui panel.
-ui = ["dep:egui", "dep:craft-ui", "dep:serde", "dep:log"]
+ui = ["dep:egui", "dep:craft-ui", "dep:craft-host", "dep:serde", "dep:log"]
 
 [dependencies]
 craft-font-catalog = { workspace = true }
@@ -22,6 +22,8 @@ egui = { workspace = true, features = ["default_fonts"], optional = true }
 # A host that wants installed fonts for characters its interface faces lack (language names in
 # their own scripts in the language filter) enables craft-ui's `system_fonts` itself.
 craft-ui = { workspace = true, optional = true }
+# The Host: settings section, jobs and interface language.
+craft-host = { workspace = true, features = ["ui"], optional = true }
 serde = { workspace = true, optional = true }
 log = { version = "0.4", optional = true }
 

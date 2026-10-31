@@ -1,8 +1,9 @@
 //! Interface strings through craft-i18n: the English text is the lookup key.
 
-use std::cell::Cell;
-use std::sync::LazyLock;
+use std::cell::RefCell;
+use std::sync::{Arc, LazyLock};
 
+use craft_host::Host;
 use craft_i18n::{Embedded, FileSize, I18n, Lang};
 
 /// The embedded translation catalogs: the panel's own Japanese and Arabic rows, until its rows
@@ -20,17 +21,36 @@ pub static I18N: LazyLock<I18n> = LazyLock::new(|| {
     i18n
 });
 
+/// What the frame being drawn follows: the Host's language, as one of the panel's, and the Host's
+/// number format.
+struct Frame {
+    lang: Lang,
+    host: Option<Arc<Host>>,
+}
+
 thread_local! {
-    static CURRENT: Cell<Lang> = const { Cell::new(Lang::EN) };
+    static FRAME: RefCell<Frame> = const { RefCell::new(Frame { lang: Lang::EN, host: None }) };
 }
 
-/// The interface language.
+/// Makes the strings and numbers of the frame about to be drawn follow the Host installed in `ctx`
+/// (`host.lang()` in its catalogs); English and the panel's own number format without a Host or
+/// when the Host has no catalog for the language.
+pub fn follow(ctx: &egui::Context) -> Option<Arc<Host>> {
+    let host = Host::try_of_ctx(ctx);
+    let lang = host.as_deref().and_then(|h| h.i18n().map(|i| i.code(h.lang()))).and_then(|code| I18N.match_tag(code)).unwrap_or(Lang::EN);
+    FRAME.with_borrow_mut(|f| *f = Frame { lang, host: host.clone() });
+    host
+}
+
+/// The interface language of the frame.
 pub fn current() -> Lang {
-    CURRENT.get()
+    FRAME.with_borrow(|f| f.lang)
 }
 
-pub fn set_current(lang: Lang) {
-    CURRENT.set(lang);
+/// The Host's language code (`ja`, `pt-br`) as the panel's catalogs know it; `en` without one.
+pub fn code_in(ctx: &egui::Context) -> String {
+    follow(ctx);
+    I18N.code(current()).to_owned()
 }
 
 /// Translates a literal.
@@ -53,12 +73,22 @@ pub fn tn(n: u64, one: &str, other: &str) -> String {
 
 /// A download size, `1.5 MB`.
 pub fn size(bytes: u64) -> String {
-    I18N.file_size(current(), bytes, FileSize::DECIMAL)
+    match with_host_catalogs(|i18n, lang| i18n.file_size(lang, bytes, FileSize::DECIMAL)) {
+        Some(text) => text,
+        None => I18N.file_size(current(), bytes, FileSize::DECIMAL),
+    }
 }
 
 /// A count on its own, in the region's digits and grouping.
 pub fn number(n: u64) -> String {
-    I18N.format().integer(n)
+    with_host_catalogs(|i18n, _| i18n.format().integer(n)).unwrap_or_else(|| I18N.format().integer(n))
+}
+
+/// Runs `f` with the Host's catalogs and language, when the frame has a Host with catalogs. Sizes
+/// and numbers are written in the Host's region.
+fn with_host_catalogs<T>(f: impl FnOnce(&I18n, Lang) -> T) -> Option<T> {
+    let host = FRAME.with_borrow(|frame| frame.host.clone())?;
+    host.i18n().map(|i18n| f(i18n, host.lang()))
 }
 
 #[cfg(test)]

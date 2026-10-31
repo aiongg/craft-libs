@@ -12,7 +12,9 @@ use craft_font_manager::craft_font_catalog::Os;
 use craft_font_manager::index::Index;
 use craft_font_manager::store::{Call, FakeStore, Installer};
 use craft_font_manager::{Catalog, FontEnv, Source};
-use craft_font_manager::{FontsPanel, Look, Options, Palette, Runner, Settings, Tab, install_interface_fonts};
+use craft_font_manager::{FontsPanel, FontsPanelSettings, Look, Options, Palette, Tab, install_interface_fonts};
+use craft_host::{AppInfo, Host, InlineJobs, Jobs, MemorySections, ThreadJobs};
+use craft_i18n::{Embedded, I18n};
 use egui::accesskit::Role;
 use egui_kittest::Harness;
 use egui_kittest::kittest::{By, NodeT, Queryable};
@@ -47,18 +49,32 @@ fn index() -> Index {
 
 /// A system with Ubuntu Light installed, an empty font store, and a fake store that can "download"
 /// Hack and Ubuntu Light.
-fn setup(name: &str, settings: Settings) -> (Harness<'static, FontsPanel>, Arc<FakeStore>) {
-    setup_with(name, settings, Runner::Inline, |_| {})
+fn setup(name: &str) -> (Harness<'static, FontsPanel>, Arc<FakeStore>) {
+    setup_with(name, Arc::new(MemorySections::default()), Arc::new(InlineJobs), "en", |_| {})
 }
 
-/// [`setup`] with a job runner and the context set up by `fonts` (the interface fonts and
-/// direction), at the launcher's window size less its header and footer.
+const APP: AppInfo = AppInfo { id: "fonts-test", name: "Fonts test", version: "1.0" };
+
+/// Interface languages for the Host's catalogs, rows empty: the panel brings its own.
+static HOST_CATALOGS: &Embedded = &[("ja", "", ""), ("ar", "", "")];
+
+/// A Host in `language` with `sections` as its settings and `jobs` for background work.
+fn host(sections: Arc<MemorySections>, jobs: Arc<dyn Jobs>, language: &str) -> Host {
+    let (i18n, _) = I18n::new(HOST_CATALOGS, &["en", "ja", "ar"]);
+    let lang = i18n.match_tag(language).unwrap();
+    Host::builder(APP).i18n(Arc::new(i18n)).lang(lang).settings(sections).jobs(jobs).build()
+}
+
+/// [`setup`] with the Host's settings, jobs and language, and the context set up by `fonts` (the
+/// interface fonts and direction), at the launcher's window size less its header and footer.
 fn setup_with(
     name: &str,
-    settings: Settings,
-    runner: Runner,
+    sections: Arc<MemorySections>,
+    jobs: Arc<dyn Jobs>,
+    language: &str,
     fonts: impl Fn(&egui::Context) + 'static,
 ) -> (Harness<'static, FontsPanel>, Arc<FakeStore>) {
+    let language = language.to_owned();
     let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("flows").join(name);
     let _ = std::fs::remove_dir_all(&root);
     let system = root.join("usr/share/fonts");
@@ -78,13 +94,14 @@ fn setup_with(
         Some(checkout) => store.serving(checkout),
         None => store,
     });
-    let options = Options { catalog, installer: store.clone(), index: Ok(index()), runner };
-    let app = FontsPanel::new(options, settings);
+    let options = Options { catalog, installer: store.clone(), index: Ok(index()) };
+    let app = FontsPanel::new(options);
     let mut harness = Harness::builder()
         .with_size([1120.0, 678.0])
         // Autonyms such as العربية need fonts beyond egui's; the tests don't depend on the host's.
         .allow_missing_glyphs()
         .with_context_setup(move |ctx| {
+            host(Arc::clone(&sections), Arc::clone(&jobs), &language).install(ctx);
             install_interface_fonts(ctx, &[]);
             fonts(ctx);
         })
@@ -139,7 +156,7 @@ fn has_installed(h: &Harness<'_, FontsPanel>, family: &str) -> bool {
 
 #[test]
 fn search_and_filters_narrow_the_catalogue() {
-    let (mut h, _) = setup("search", Settings::default());
+    let (mut h, _) = setup("search");
     assert_eq!(h.state().tab(), Tab::Catalogue);
     assert_eq!(h.state().results(), ["Amiri", "Hack", "Noto Sans JP", "Ubuntu"]);
 
@@ -166,8 +183,22 @@ fn search_and_filters_narrow_the_catalogue() {
 }
 
 #[test]
+fn settings_changes_land_in_the_hosts_section_and_a_new_panel_reads_them() {
+    let sections = Arc::new(MemorySections::default());
+    let (mut h, _) = setup_with("settings", Arc::clone(&sections), Arc::new(InlineJobs), "en", |_| {});
+    assert_eq!(h.state().settings(), &FontsPanelSettings::default());
+    type_into(&mut h, "Sample text", "Hamburgefonstiv");
+    assert_eq!(h.state().settings().sample, "Hamburgefonstiv");
+    let saved: FontsPanelSettings = host(Arc::clone(&sections), Arc::new(InlineJobs), "en").setting();
+    assert_eq!(saved.sample, "Hamburgefonstiv");
+
+    let (h, _) = setup_with("settings-again", sections, Arc::new(InlineJobs), "en", |_| {});
+    assert_eq!(h.state().settings().sample, "Hamburgefonstiv");
+}
+
+#[test]
 fn language_filter_finds_languages_by_their_own_name() {
-    let (mut h, _) = setup("language", Settings::default());
+    let (mut h, _) = setup("language");
     click_role(&mut h, Role::ComboBox, "Language");
     type_into(&mut h, "Find a language", "日本");
     assert!(h.query_by_label("Arabic · العربية").is_none());
@@ -177,7 +208,7 @@ fn language_filter_finds_languages_by_their_own_name() {
 
 #[test]
 fn install_a_family_then_remove_it_from_its_card() {
-    let (mut h, store) = setup("install", Settings::default());
+    let (mut h, store) = setup("install");
     assert!(!has_installed(&h, "Hack"));
 
     click(&mut h, "Hack");
@@ -201,7 +232,7 @@ fn install_a_family_then_remove_it_from_its_card() {
 
 #[test]
 fn install_and_remove_one_style() {
-    let (mut h, store) = setup("style", Settings::default());
+    let (mut h, store) = setup("style");
     allow(&mut h);
     click(&mut h, "Hack");
     click(&mut h, "Install Regular");
@@ -215,7 +246,7 @@ fn install_and_remove_one_style() {
 
 #[test]
 fn system_fonts_cannot_be_removed() {
-    let (mut h, store) = setup("system", Settings::default());
+    let (mut h, store) = setup("system");
     installed_tab(&mut h);
     let system = h.state().installed().first().cloned().expect("the system font is listed");
     assert_eq!(system.source, Source::System);
@@ -230,7 +261,7 @@ fn system_fonts_cannot_be_removed() {
 
 #[test]
 fn nothing_downloads_without_consent() {
-    let (mut h, store) = setup("consent", Settings::default());
+    let (mut h, store) = setup("consent");
     assert!(h.query_by_label("Downloads are off").is_some());
     click(&mut h, "Hack");
 
@@ -256,7 +287,7 @@ fn nothing_downloads_without_consent() {
 
 #[test]
 fn a_failed_install_offers_retry() {
-    let (mut h, store) = setup("retry", Settings::default());
+    let (mut h, store) = setup("retry");
     allow(&mut h);
     store.fail_next("network unreachable");
     click(&mut h, "Install Hack");
@@ -269,7 +300,7 @@ fn a_failed_install_offers_retry() {
 
 #[test]
 fn arrow_keys_move_between_cards_and_enter_opens_one() {
-    let (mut h, _) = setup("keys", Settings::default());
+    let (mut h, _) = setup("keys");
     h.get_by_role_and_label(Role::Button, "Amiri").focus();
     settle(&mut h);
     h.key_press(egui::Key::ArrowDown);
@@ -308,17 +339,20 @@ fn sources_setup(name: &str) -> (Harness<'static, FontsPanel>, Arc<FakeStore>) {
     catalog.rescan();
     let store = Arc::new(FakeStore::new(store_dir, HashMap::new()).with_index(index()).serving_index(USER_INDEX, user_index()));
     store.allow_downloads(true).unwrap();
-    let options = Options { catalog, installer: store.clone(), index: store.indexes().map_err(|e| e.0), runner: Runner::Inline };
+    let options = Options { catalog, installer: store.clone(), index: store.indexes().map_err(|e| e.0) };
     let mut harness = Harness::builder()
         .with_size([1400.0, 760.0])
         .allow_missing_glyphs()
-        .with_context_setup(|ctx| install_interface_fonts(ctx, &[]))
+        .with_context_setup(|ctx| {
+            host(Arc::new(MemorySections::default()), Arc::new(InlineJobs), "en").install(ctx);
+            install_interface_fonts(ctx, &[]);
+        })
         .build_ui_state(
             |ui, app: &mut FontsPanel| {
                 egui::Panel::left("sources").exact_size(420.0).show(ui, |ui| app.sources_ui(ui));
                 egui::CentralPanel::default().show(ui, |ui| app.ui(ui));
             },
-            FontsPanel::new(options, Settings::default()),
+            FontsPanel::new(options),
         );
     harness.run_steps(4);
     (harness, store)
@@ -405,9 +439,9 @@ fn system_fonts(language: &'static str) -> impl Fn(&egui::Context) + 'static {
 fn screenshots() {
     let Some(dir) = std::env::var_os("CRAFT_FONT_MANAGER_SNAPSHOTS") else { return };
     let shot = |name: &str, language: &'static str, f: &dyn Fn(&mut Harness<'_, FontsPanel>, &FakeStore)| {
-        let (mut h, store) = setup_with(&format!("shot-{name}"), Settings::default(), Runner::Thread, system_fonts(language));
+        let (mut h, store) =
+            setup_with(&format!("shot-{name}"), Arc::new(MemorySections::default()), Arc::new(ThreadJobs), language, system_fonts(language));
         h.state_mut().set_look(launcher_look());
-        h.state_mut().set_language(language);
         settle(&mut h);
         f(&mut h, &store);
         save(&mut h, &dir, name);

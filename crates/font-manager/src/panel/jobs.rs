@@ -1,8 +1,10 @@
-//! Installs, removals and preview downloads, one at a time on a worker thread.
+//! Installs, removals and preview downloads, run through the Host's jobs (inline without a Host).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
+
+use craft_host::Host;
 
 use crate::Catalog;
 use crate::index::Index;
@@ -10,13 +12,12 @@ use crate::store::{Downloaded, Installer, Progress, RemoveRequest, StoreError};
 
 type Task = Box<dyn FnOnce() + Send>;
 
-/// Where jobs run.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Runner {
-    /// On a worker thread.
-    Thread,
-    /// Right away, on the calling thread (tests).
-    Inline,
+/// Runs `task` as a job of `host`, or right away on this thread without one.
+pub fn spawn(host: Option<&Host>, name: &str, task: Task) {
+    match host {
+        Some(host) => host.jobs().spawn(name, task),
+        None => task(),
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,7 +66,6 @@ pub enum Request {
 }
 
 pub struct Jobs {
-    worker: Option<Sender<Task>>,
     tx: Sender<Msg>,
     rx: Receiver<Msg>,
     next: u64,
@@ -73,24 +73,9 @@ pub struct Jobs {
 }
 
 impl Jobs {
-    pub fn new(runner: Runner) -> Jobs {
+    pub fn new() -> Jobs {
         let (tx, rx) = channel();
-        let worker = match runner {
-            Runner::Inline => None,
-            Runner::Thread => {
-                let (worker, tasks) = channel::<Task>();
-                let spawned = std::thread::Builder::new().name("font-jobs".into()).spawn(move || {
-                    for task in tasks {
-                        task();
-                    }
-                });
-                if let Err(e) = &spawned {
-                    log::warn!("no worker thread ({e}); font jobs run on the interface thread");
-                }
-                spawned.ok().map(|_| worker)
-            }
-        };
-        Jobs { worker, tx, rx, next: 0, running: BTreeMap::new() }
+        Jobs { tx, rx, next: 0, running: BTreeMap::new() }
     }
 
     /// The job running for `family` of `source` (any source when empty), if any.
@@ -99,7 +84,7 @@ impl Jobs {
     }
 
     /// Runs `request` through `installer`, then rescans `catalog` after an install or removal.
-    pub fn start(&mut self, ctx: &egui::Context, installer: Arc<dyn Installer>, catalog: Arc<Catalog>, request: Request) {
+    pub fn start(&mut self, ctx: &egui::Context, host: Option<&Host>, installer: Arc<dyn Installer>, catalog: Arc<Catalog>, request: Request) {
         let id = self.next;
         self.next += 1;
         let (source, family, kind, file, total) = match &request {
@@ -143,14 +128,7 @@ impl Jobs {
             let _ = tx.send(Msg::Done(id, result));
             ctx.request_repaint();
         });
-        match &self.worker {
-            Some(worker) => {
-                if let Err(e) = worker.send(task) {
-                    (e.0)();
-                }
-            }
-            None => task(),
-        }
+        spawn(host, "font-jobs", task);
     }
 
     /// Takes the progress reports, and returns the jobs that ended.
