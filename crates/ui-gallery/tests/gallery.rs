@@ -660,8 +660,14 @@ fn click_nth(ctx: &Context, gallery: &mut Gallery, name: &str, role: egui::acces
 /// A component with several stories: its name and the ids of its stories. It is the first by name
 /// in the first level that has one, so its row is near the top of the list.
 fn component_with_stories(gallery: &Gallery) -> (&'static str, Vec<&'static str>) {
+    component_with_at_most(gallery, usize::MAX)
+}
+
+/// [`component_with_stories`] among the components with at most `most` stories. The Stories
+/// panel's list draws only the rows in view, so a test that looks for every row needs few stories.
+fn component_with_at_most(gallery: &Gallery, most: usize) -> (&'static str, Vec<&'static str>) {
     let stories = gallery.stories();
-    let several = |c: &str| stories.iter().filter(|s| s.component == c).count() > 1;
+    let several = |c: &str| (2..=most).contains(&stories.iter().filter(|s| s.component == c).count());
     let level = craft_ui::story::Level::ALL.into_iter().find(|l| stories.iter().any(|s| s.level == *l && several(s.component))).expect("a level");
     let component =
         stories.iter().filter(|s| s.level == level && several(s.component)).map(|s| s.component).min_by_key(|c| c.to_lowercase()).unwrap();
@@ -779,7 +785,7 @@ fn a_tile_click_moves_the_side_panels_and_a_story_pick_changes_the_tile() {
     let ctx = Context::default();
     ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
-    let (component, ids) = component_with_stories(&gallery);
+    let (component, ids) = component_with_at_most(&gallery, 4);
     let neighbour = neighbour_of(&gallery, component);
     let tree = settled_tree(&ctx, &mut gallery);
     assert_eq!(gallery.selected(), None);
@@ -1056,6 +1062,92 @@ fn a_double_click_on_a_tile_header_opens_the_component() {
 /// Host text a story writes itself that equals the English of a registered word:
 /// `(text, stories, reason)`. The same text bypassing `Words` in another story still fails.
 const STORY_TEXT: &[(&str, &[&str], &str)] = &[
+    (
+        "Workspace",
+        &["patterns/app-preview/photo-editor", "shells/canvas/standard", "shells/canvas/body_only", "shells/canvas/revealed", "shells/canvas/rtl"],
+        "the body label of the story's sample app",
+    ),
+    ("Arrange", &["specimens/type/faces"], "sample text of the type specimen"),
+    ("Copy", &["patterns/canvas/selection-bar"], "an icon button name the story gives"),
+    ("Delete", &["patterns/canvas/selection-bar"], "an icon button name the story gives"),
+    (
+        "Home",
+        &[
+            "patterns/options-bar/brush-and-transform",
+            "patterns/options-bar/cells",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/standard",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+        ],
+        "the Home button the story gives its options bar",
+    ),
+    ("More", &["patterns/toolbar/vertical-liquify", "patterns/toolbar/horizontal-overflow"], "the overflow button name the story gives its toolbar"),
+    (
+        "Open…",
+        &["composites/empty-state/panel", "composites/empty-state/canvas", "composites/empty-state/start-screen"],
+        "the sample action of the story's empty state",
+    ),
+    (
+        "Recent",
+        &[
+            "composites/tab-strip/documents",
+            "composites/tab-strip/panels",
+            "composites/tab-strip/drops",
+            "composites/tab-strip/text",
+            "composites/gradient/palette-grid",
+            "composites/gradient/palette-list",
+        ],
+        "a sample category or palette group name",
+    ),
+    (
+        "Show",
+        &[
+            "patterns/status-bar/photocraft",
+            "patterns/status-bar/job",
+            "patterns/status-bar/error",
+            "patterns/status-bar/narrow",
+            "patterns/fonts-panel/panel",
+        ],
+        "the status bar menu button the story names itself, and the Fonts panel's own label",
+    ),
+    ("Standard Screen Mode", &["patterns/rail/tool"], "the screen-mode flyout item the story names itself"),
+    (
+        "View",
+        &[
+            "composites/menu/menu-bar",
+            "patterns/title-bar/windows",
+            "patterns/title-bar/adwaita",
+            "patterns/title-bar/breeze",
+            "patterns/title-bar/generic",
+            "patterns/title-bar/mac-inset",
+            "patterns/title-bar/native",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/standard",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+        ],
+        "a menu title in the story's sample menu bar",
+    ),
+    (
+        "Zoom",
+        &[
+            "controls/radio/states",
+            "controls/radio/groups",
+            "patterns/status-bar/photocraft",
+            "patterns/status-bar/job",
+            "patterns/status-bar/error",
+            "patterns/status-bar/narrow",
+            "patterns/app-preview/photo-editor",
+            "shells/canvas/standard",
+            "shells/canvas/body_only",
+            "shells/canvas/revealed",
+            "shells/canvas/rtl",
+        ],
+        "a sample field, radio group or button name the story gives",
+    ),
     (
         "Background",
         &[
@@ -1502,6 +1594,10 @@ fn gallery_chrome(tree: &craft_ui::inspect::AccessTree, node: egui::accesskit::N
     (data.role() == Role::Tab && own_tab_bar)
         || (data.role() == Role::Label && data.supports_action(Action::Click) && titles.contains(&name))
         || ancestors.iter().any(|a| matches!(a.as_str(), "ListBox:Components" | "ListBox:Stories"))
+        // The name on a tile, which is the name of a component or story.
+        || (data.role() == Role::Label && ancestors.iter().any(|a| *a == format!("Button:Select {name}")))
+        // The gallery's own workspace switch in its options bar.
+        || (data.role() == Role::RadioGroup && name == "Workspace" && ancestors.iter().any(|a| a == "Toolbar:Appearance"))
 }
 
 /// In the pseudo locale every string a component takes from `Words` shows marked. A node whose

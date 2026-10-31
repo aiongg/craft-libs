@@ -366,6 +366,13 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         self
     }
 
+    /// The host has the Edit Toolbar drawer open: the rail takes drags and shows drop targets. The
+    /// host sets it from the Edit Toolbar button and the drawer's close.
+    pub fn editing(mut self, editing: bool) -> Self {
+        self.editing = editing;
+        self
+    }
+
     /// The tools hidden by the user's toolbar settings.
     pub fn hidden(mut self, hidden: &'a [T]) -> Self {
         self.hidden = hidden;
@@ -401,14 +408,13 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
     /// window is short. It must size to its content: its height is measured on one pass and used
     /// on the next, so a footer that fills the available height never settles.
     pub fn show(
-        mut self,
+        self,
         ui: &mut Ui,
         slots: &[ToolSlot<T>],
         current: &T,
         last_used: &mut LastUsed<T>,
         footer: impl FnOnce(&mut Ui, RailFooter),
     ) -> ToolRailOutput<T> {
-        self.editing = editing(ui.ctx());
         let left = self.left(ui);
         let tokens = Tokens::of(ui);
         let metrics = Self::metrics(&tokens, self.columns);
@@ -630,8 +636,6 @@ pub(crate) struct Placed {
 /// What the rail and the Edit Toolbar drawer tell each other, kept in egui temp data by window.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RailEdit {
-    /// The pass the drawer last drew in.
-    pub drawer_pass: Option<u64>,
     /// Where the rail was drawn.
     pub rect: Option<Rect>,
     pub placed: Vec<Placed>,
@@ -657,11 +661,6 @@ pub(crate) fn edit_state(ctx: &Context) -> RailEdit {
 pub(crate) fn edit_update(ctx: &Context, update: impl FnOnce(&mut RailEdit)) {
     let id = edit_id(ctx);
     ctx.data_mut(|d| update(d.get_temp_mut_or_default::<RailEdit>(id)));
-}
-
-/// The drawer drew in this pass or the one before: the rail takes drags and shows drop targets.
-fn editing(ctx: &Context) -> bool {
-    edit_state(ctx).drawer_pass.is_some_and(|pass| pass + 1 >= ctx.cumulative_pass_nr())
 }
 
 /// Where the payload being dragged would drop on the rail, when the pointer is over `bounds`.
