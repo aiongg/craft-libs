@@ -9,14 +9,15 @@ use crate::{
     AngleDialTokens, AppShellTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens,
     BySize, CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens,
     CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge,
-    Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens,
-    GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes,
-    InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens,
-    Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens,
-    PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens,
-    Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
-    SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes,
-    TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolbarTokens, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    Elevation, ElevationTokens, EmptyStateTokens, EyedropperTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps,
+    GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens,
+    HistogramTokens, IconButtonTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes, ListTokens,
+    ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
+    PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens,
+    PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens,
+    ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, States,
+    StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens,
+    ToggleButtonTokens, Tokens, Tone, ToolbarTokens, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -247,6 +248,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         dialog,
         dock,
         empty_state,
+        eyedropper,
         field,
         float,
         form,
@@ -257,6 +259,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         gradient_palette,
         guide,
         handle,
+        harmony,
         histogram,
         icon_button,
         inspector,
@@ -268,6 +271,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         menu,
         notice,
         options_bar,
+        paint_chip,
         panel,
         panel_footer,
         panel_header,
@@ -281,6 +285,8 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         readout,
         ref_point,
         ruler,
+        sampler,
+        screen_picker,
         scroll,
         section,
         segmented,
@@ -314,6 +320,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     dialog_lines(out, dialog);
     dock_lines(out, dock);
     empty_state_lines(out, empty_state);
+    eyedropper_lines(out, eyedropper);
     field_lines(out, field);
     float_lines(out, float);
     form_lines(out, form);
@@ -324,6 +331,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     gradient_palette_lines(out, gradient_palette);
     guide_lines(out, guide);
     handle_lines(out, handle);
+    harmony_lines(out, harmony);
     histogram_lines(out, histogram);
     icon_button_lines(out, icon_button);
     inspector_lines(out, inspector);
@@ -335,6 +343,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     menu_lines(out, menu);
     notice_lines(out, notice);
     options_bar_lines(out, options_bar);
+    paint_chip_lines(out, paint_chip);
     panel_lines(out, panel);
     panel_footer_lines(out, panel_footer);
     panel_header_lines(out, panel_header);
@@ -348,6 +357,8 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     readout_lines(out, readout);
     ref_point_lines(out, ref_point);
     ruler_lines(out, ruler);
+    sampler_lines(out, sampler);
+    screen_picker_lines(out, screen_picker);
     scroll_lines(out, scroll);
     section_lines(out, section);
     segmented_lines(out, segmented);
@@ -614,6 +625,7 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
         grid_gap,
         grid_row_gap,
         grid_group_gap,
+        side_button_min,
         marker,
         marker_halo,
     } = p;
@@ -642,6 +654,7 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
     out.line("color_picker.grid_gap", len(*grid_gap));
     out.line("color_picker.grid_row_gap", len(*grid_row_gap));
     out.line("color_picker.grid_group_gap", len(*grid_group_gap));
+    out.line("color_picker.side_button_min", len(*side_button_min));
     out.line("color_picker.marker", hex(*marker));
     out.line("color_picker.marker_halo", hex(*marker_halo));
 }
@@ -1907,4 +1920,41 @@ fn app_shell_lines(out: &mut Lines, t: &AppShellTokens) {
     out.line("app_shell.edge_reveal", len(*edge_reveal));
     out.line("app_shell.backdrop", hex(*backdrop));
     out.line("app_shell.body_only_backdrop", hex(*body_only_backdrop));
+}
+
+fn eyedropper_lines(out: &mut Lines, t: &EyedropperTokens) {
+    let EyedropperTokens { ring_radius, ring_band, ring_grey } = t;
+    out.line("eyedropper.ring_radius", len(*ring_radius));
+    out.line("eyedropper.ring_band", len(*ring_band));
+    out.line("eyedropper.ring_grey", hex(*ring_grey));
+}
+
+fn sampler_lines(out: &mut Lines, t: &SamplerTokens) {
+    let SamplerTokens { marker_radius, tick_start, tick_end } = t;
+    out.line("sampler.marker_radius", len(*marker_radius));
+    out.line("sampler.tick_start", len(*tick_start));
+    out.line("sampler.tick_end", len(*tick_end));
+}
+
+fn screen_picker_lines(out: &mut Lines, t: &ScreenPickerTokens) {
+    let ScreenPickerTokens { loupe_cells, zoom, zoom_min, zoom_max, zoom_step } = t;
+    out.line("screen_picker.loupe_cells", *loupe_cells);
+    out.line("screen_picker.zoom", *zoom);
+    out.line("screen_picker.zoom_min", *zoom_min);
+    out.line("screen_picker.zoom_max", *zoom_max);
+    out.line("screen_picker.zoom_step", *zoom_step);
+}
+
+fn paint_chip_lines(out: &mut Lines, t: &PaintChipTokens) {
+    let PaintChipTokens { width, height } = t;
+    out.line("paint_chip.width", len(*width));
+    out.line("paint_chip.height", len(*height));
+}
+
+fn harmony_lines(out: &mut Lines, t: &HarmonyTokens) {
+    let HarmonyTokens { base, strip, row, cell } = t;
+    out.line("harmony.base", len(*base));
+    out.line("harmony.strip", len(*strip));
+    out.line("harmony.row", len(*row));
+    out.line("harmony.cell", len(*cell));
 }

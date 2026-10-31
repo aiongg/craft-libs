@@ -63,6 +63,8 @@ pub struct ColorPickerTokens {
     pub grid_row_gap: f32,
     /// From the last row of one model's channels to the first of the next: `color_picker.grid_group_gap`.
     pub grid_group_gap: f32,
+    /// Least width of the Full picker's OK, Cancel and Add to Swatches buttons: `color_picker.side_button_min`.
+    pub side_button_min: f32,
     /// The area marker's inner circle: `color_picker.marker`, white.
     pub marker: Rgba,
     /// The marker's outer ring: `color_picker.marker_halo`, black at alpha 160.
@@ -108,6 +110,7 @@ impl Family for ColorPickerTokens {
         "grid_gap" 0.0..=64.0 => grid_gap;
         "grid_row_gap" 0.0..=64.0 => grid_row_gap;
         "grid_group_gap" 0.0..=64.0 => grid_group_gap;
+        "side_button_min" 0.0..=1024.0 => side_button_min;
     };
 
     /// The Compact sizes (PhotoCraft's), scaled by the control height of the size. Sizes of
@@ -142,6 +145,7 @@ impl Family for ColorPickerTokens {
             grid_gap: scale(values::COLOR_PICKER_GRID_GAP),
             grid_row_gap: scale(values::COLOR_PICKER_GRID_ROW_GAP),
             grid_group_gap: scale(values::COLOR_PICKER_GRID_GROUP_GAP),
+            side_button_min: scale(values::COLOR_PICKER_SIDE_BUTTON_MIN),
             marker: values::COLOR_PICKER_MARKER,
             marker_halo: values::COLOR_PICKER_MARKER_HALO,
         }
