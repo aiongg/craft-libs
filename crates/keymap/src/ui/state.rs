@@ -11,7 +11,7 @@ use crate::keymap::{AssignError, Assigned, Binding, BindingError, Holder, Keymap
 use crate::profiles::{Builtins, ProfileError, Profiles, set_name};
 use crate::scope::Scope;
 use crate::ui::rows::{AreaEntry, AreaId, Built, Filter, RowCache, View};
-use crate::ui::text::{Text, trigger_text};
+use crate::ui::text::Say;
 use crate::ui::view::keyboard::KeyboardState;
 use crate::ui::{ConflictMode, JSON_FORMAT, Options, Outcome, capture, summary};
 
@@ -20,16 +20,16 @@ pub(crate) struct Env<'e> {
     pub keymap: &'e mut Keymap,
     pub sets: Option<(&'e mut Profiles, &'e Builtins<'e>)>,
     pub options: &'e Options,
-    pub text: &'e dyn Text,
+    pub text: &'e Say,
 }
 
 impl Env<'_> {
     fn chord_text(&self, t: &Trigger) -> String {
-        trigger_text(self.text, t, self.keymap.platform())
+        self.text.trigger(t, self.keymap.platform())
     }
 
     fn label(&self, command: &CommandRef) -> String {
-        self.keymap.bindable(command).map_or_else(|| command.id.clone(), |b| self.text.command(b).into_owned())
+        self.keymap.bindable(command).map_or_else(|| command.id.clone(), |b| self.text.command(b))
     }
 
     /// `label (Scope)` for each holder, joined.
@@ -48,7 +48,7 @@ impl Env<'_> {
         out.join(", ")
     }
 
-    fn ui(&self, source: &str, args: &[(&str, &str)]) -> String {
+    fn ui(&self, source: &'static str, args: &[(&str, &str)]) -> String {
         craft_i18n::fmt(&self.text.ui(source), args)
     }
 }
@@ -103,7 +103,7 @@ pub(crate) struct Message {
     pub goto: Option<CommandRef>,
     /// Offers Undo.
     pub undo: bool,
-    /// The chord text inside `text`, which is never put through `Text::visual`.
+    /// The chord text inside `text`, which stays where it is when the text around it changes sides.
     pub chord: Option<String>,
 }
 
@@ -1020,8 +1020,8 @@ impl DialogState {
             }
             None => (title.clone(), title),
         };
-        let html = summary::html(env.keymap, env.text, &heading);
-        let text = summary::text(env.keymap, env.text, &heading);
+        let html = summary::html_in(env.keymap, env.text, &heading);
+        let text = summary::text_in(env.keymap, env.text, &heading);
         self.outcome = Some(Outcome::Summary { name, html, text });
     }
 
@@ -1150,7 +1150,6 @@ mod tests {
     use crate::keymap::ConflictKind;
     use crate::ui::rows::Line;
     use crate::ui::rows::tests::fixture;
-    use crate::ui::text::English;
 
     struct Fx {
         km: Keymap,
@@ -1167,7 +1166,7 @@ mod tests {
 
         fn env(&mut self) -> Env<'_> {
             let sets = if self.sets { Some((&mut self.p, &self.b[..])) } else { None };
-            Env { keymap: &mut self.km, sets, options: &self.o, text: &English }
+            Env { keymap: &mut self.km, sets, options: &self.o, text: Say::english() }
         }
 
         fn keys(&self, id: &str) -> Vec<String> {

@@ -2,9 +2,7 @@
 //! The Keyboard Shortcuts dialog driven through egui_kittest: recording, conflicts, search, areas,
 //! platform display, accessibility labels, small windows, sets, import review and the summary.
 
-use std::borrow::Cow;
-
-use craft_keymap::ui::{ConflictMode, DialogState, English, FixedRow, Options, Outcome, ShortcutsDialog, Text};
+use craft_keymap::ui::{ConflictMode, DialogState, FixedRow, Options, Outcome, ShortcutsDialog};
 use craft_keymap::{
     Active, Bindable, Binding, Chord, CommandRef, ConflictKind, ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Keymap,
     Kind, Lookup, Overrides, Platform, Profiles, Scope, Scopes, Trigger,
@@ -13,7 +11,7 @@ use egui::accesskit::Role;
 use egui::{Event, Key as EguiKey, Modifiers, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
-use ui_fixture::{Pseudo, fixture, with_long_label};
+use ui_fixture::{Locale, Pseudo, fixture, with_long_label};
 
 #[path = "support/fonts.rs"]
 mod test_fonts;
@@ -23,7 +21,7 @@ struct Fx {
     km: Keymap,
     options: Options,
     state: DialogState,
-    text: Box<dyn Text>,
+    locale: Locale,
     window: bool,
     /// Profiles and built-in sets, when the dialog shows sets.
     sets: Option<(Profiles, Vec<(&'static str, Overrides)>)>,
@@ -34,8 +32,8 @@ struct Fx {
 
 /// The dialog of `fx` for a call outside the frame (import_json, review_import).
 fn dialog(fx: &mut Fx) -> (ShortcutsDialog<'_>, &mut DialogState) {
-    let Fx { km, options, state, text, sets, .. } = fx;
-    let d = ShortcutsDialog::new(km, &**text).options(options);
+    let Fx { km, options, state, sets, .. } = fx;
+    let d = ShortcutsDialog::new(km).options(options);
     let d = match sets {
         Some((p, b)) => d.sets(p, b),
         None => d,
@@ -49,7 +47,7 @@ impl Fx {
             km,
             options: Options::default(),
             state: DialogState::new(),
-            text: Box::new(English),
+            locale: Locale::english(),
             window: false,
             sets: None,
             outcomes: Vec::new(),
@@ -75,8 +73,9 @@ fn harness(fx: Fx, size: Vec2) -> Harness<'static, Fx> {
     let mut h = Harness::builder().with_size(size).with_context_setup(test_fonts::configure).build_ui_state(
         |ui, fx: &mut Fx| {
             test_fonts::assert_coverage(ui.ctx());
-            let Fx { km, options, state, text, window, sets, outcomes, keys_left } = fx;
-            let dialog = ShortcutsDialog::new(km, text.as_ref()).options(options);
+            fx.locale.install(ui.ctx());
+            let Fx { km, options, state, window, sets, outcomes, keys_left, .. } = fx;
+            let dialog = ShortcutsDialog::new(km).options(options);
             let dialog = match sets {
                 Some((p, b)) => dialog.sets(p, b),
                 None => dialog,
@@ -401,19 +400,6 @@ fn choose_area(h: &mut Harness<'_, Fx>, area: &str) {
     h.run();
 }
 
-struct German;
-impl Text for German {
-    fn ui<'a>(&'a self, source: &'a str) -> Cow<'a, str> {
-        source.into()
-    }
-    fn plural(&self, n: u64, one: &str, other: &str) -> String {
-        if n == 1 { one } else { other }.replace("{n}", &n.to_string())
-    }
-    fn command<'a>(&'a self, b: &'a Bindable) -> Cow<'a, str> {
-        if b.command.id == "file.save" { "Sichern".into() } else { b.label.as_str().into() }
-    }
-}
-
 #[test]
 fn search_by_name_translation_or_chord() {
     let mut h = mac();
@@ -433,7 +419,7 @@ fn search_by_name_translation_or_chord() {
     assert!(has(&h, "Save As…: ⇧⌘S") && !has(&h, "Save: ⌘S"));
 
     let mut fx = Fx::new(fixture(Platform::Mac));
-    fx.text = Box::new(German);
+    fx.locale = Locale::labelled(&[("file.save", "Sichern")]);
     let mut h = open(fx);
     search(&mut h, "sichern");
     assert!(has(&h, "Sichern: ⌘S") && !has(&h, "Save As…: ⇧⌘S"));
@@ -627,23 +613,10 @@ fn typed_entry_parses_and_shows_errors() {
     assert_eq!(h.state().bindings("file.save"), ["Cmd+S", "Cmd+Shift+K"]);
 }
 
-struct Rtl;
-impl Text for Rtl {
-    fn ui<'a>(&'a self, source: &'a str) -> Cow<'a, str> {
-        source.into()
-    }
-    fn plural(&self, _n: u64, _one: &str, other: &str) -> String {
-        other.to_string()
-    }
-    fn rtl(&self) -> bool {
-        true
-    }
-}
-
 #[test]
 fn rtl_puts_the_detail_pane_left_and_keeps_chords() {
     let mut fx = Fx::new(fixture(Platform::Mac));
-    fx.text = Box::new(Rtl);
+    fx.locale = Locale::english_rtl();
     let h = open(fx);
     let table = h.get_by_label("Commands").rect();
     assert!(table.min.x > 300.0, "table on the right: {table:?}");
@@ -750,8 +723,9 @@ fn set_export_import_round_trip() {
     let edited = h.state().km.overrides().clone();
 
     let mut fresh = with_sets(profiles(&h).clone());
+    let ctx = fresh.ctx.clone();
     let (d, state) = dialog(fresh.state_mut());
-    assert_eq!(d.import_json(state, &json), Ok("Name 2".into()));
+    assert_eq!(d.import_json(&ctx, state, &json), Ok("Name 2".into()));
     fresh.run();
     assert_eq!(profiles(&fresh).active(), "Name 2");
     assert_eq!(fresh.state().km.overrides(), &edited);
@@ -772,8 +746,9 @@ fn foreign_set() -> ForeignSet {
 
 fn review(h: &mut Harness<'_, Fx>) {
     let options = ImportOptions { contexts: vec![("Default".into(), ContextRule::Home)], suggest: true, ..ImportOptions::default() };
+    let ctx = h.ctx.clone();
     let (d, state) = dialog(h.state_mut());
-    d.review_import(state, foreign_set(), options);
+    d.review_import(&ctx, state, foreign_set(), options);
     h.run();
 }
 
@@ -987,7 +962,7 @@ fn check_pseudo(h: &Harness<'_, Fx>, width: f32, step: &str) {
             rest = rest.replace(raw, "");
         }
         let words = rest.split(|c: char| !c.is_ascii_lowercase()).any(|w| w.len() > 1);
-        assert!(!words, "{step}: {label:?} has text that did not go through Text");
+        assert!(!words, "{step}: {label:?} has text that did not go through the lookup");
     }
     assert!(seen > 15, "{step}: {seen} labeled nodes");
 }
@@ -997,9 +972,8 @@ fn pseudo_locale_marks_every_string_and_fits() {
     let p = Pseudo::mark;
     // Each direction at one width: the narrow layout left to right, the wide one right to left.
     for (rtl, width) in [(false, 560.0), (true, 1100.0)] {
-        let unlisted = std::rc::Rc::default();
         let mut fx = Fx::new(with_long_label(fixture(Platform::Mac)));
-        fx.text = Box::new(Pseudo { unlisted: std::rc::Rc::clone(&unlisted), rtl });
+        fx.locale = Locale::pseudo(rtl);
         fx.options.keyboard = true;
         fx.sets = Some((Profiles::default(), vec![("Fixture Defaults", Overrides::new())]));
         let mut h = harness(fx, vec2(width, 720.0));
@@ -1019,7 +993,6 @@ fn pseudo_locale_marks_every_string_and_fits() {
         check_pseudo(&h, width, &step("keyboard hidden"));
         review(&mut h);
         check_pseudo(&h, width, &step("review"));
-        assert!(unlisted.borrow().is_empty(), "looked up but not in STRINGS or PLURALS: {:?}", unlisted.borrow());
     }
 }
 

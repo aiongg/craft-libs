@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 use crate::keymap::{Binding, Keymap};
 use crate::scope::Scope;
 use crate::ui::rows::{AreaId, group};
-use crate::ui::text::{Text, trigger_text};
+use crate::ui::text::Say;
 
 struct Group {
     rank: u8,
@@ -16,8 +16,8 @@ struct Group {
     rows: Vec<(String, Vec<String>)>,
 }
 
-fn binding_text(km: &Keymap, text: &dyn Text, b: &Binding, home: &Scope) -> String {
-    let chord = trigger_text(text, &b.trigger, km.platform());
+fn binding_text(km: &Keymap, text: &Say, b: &Binding, home: &Scope) -> String {
+    let chord = text.trigger(&b.trigger, km.platform());
     match &b.scope {
         Some(s) if s != home => {
             let scope = if s.is_app() { text.ui("Application").into_owned() } else { text.segment(s.as_str()).into_owned() };
@@ -28,7 +28,7 @@ fn binding_text(km: &Keymap, text: &dyn Text, b: &Binding, home: &Scope) -> Stri
 }
 
 /// Groups in the table's order; commands in catalog order within a group.
-fn groups(km: &Keymap, text: &dyn Text) -> Vec<Group> {
+fn groups(km: &Keymap, text: &Say) -> Vec<Group> {
     let mut out: Vec<Group> = Vec::new();
     for b in km.catalog() {
         let bindings = km.bindings(&b.command);
@@ -38,7 +38,7 @@ fn groups(km: &Keymap, text: &dyn Text) -> Vec<Group> {
         let keys = bindings.iter().map(|x| binding_text(km, text, x, &b.scope)).collect();
         let (rank, name, _) = group(&AreaId::All, b, false, text);
         let name = name.unwrap_or_default();
-        let row = (text.command(b).into_owned(), keys);
+        let row = (text.command(b), keys);
         match out.iter_mut().find(|g| g.rank == rank && g.name == name) {
             Some(g) => g.rows.push(row),
             None => out.push(Group { rank, name, rows: vec![row] }),
@@ -77,9 +77,13 @@ th{font-weight:normal;text-align:start;width:60%}tr:nth-child(even){background:#
 kbd{font-family:inherit;border:1px solid #bbb;border-radius:3px;padding:0 .3em;margin-inline-end:.3em;white-space:nowrap}\
 @media print{body{margin:0}tr{break-inside:avoid}}";
 
-/// A standalone HTML page titled `title`. Chords are marked left to right so a right-to-left page
+/// A standalone HTML page titled `title`, in the language and direction of `ctx`. Chords are marked left to right so a right-to-left page
 /// keeps them as written.
-pub fn html(km: &Keymap, text: &dyn Text, title: &str) -> String {
+pub fn html(km: &Keymap, ctx: &egui::Context, title: &str) -> String {
+    html_in(km, &Say::of_ctx(ctx), title)
+}
+
+pub(crate) fn html_in(km: &Keymap, text: &Say, title: &str) -> String {
     let dir = if text.rtl() { "rtl" } else { "ltr" };
     let title = escape_html(title);
     let mut s = String::new();
@@ -99,8 +103,12 @@ pub fn html(km: &Keymap, text: &dyn Text, title: &str) -> String {
     s
 }
 
-/// Plain text titled `title`: a line per group, then `  label<TAB>shortcuts` per command.
-pub fn text(km: &Keymap, text: &dyn Text, title: &str) -> String {
+/// Plain text titled `title`, in the language of `ctx`: a line per group, then `  label<TAB>shortcuts` per command.
+pub fn text(km: &Keymap, ctx: &egui::Context, title: &str) -> String {
+    text_in(km, &Say::of_ctx(ctx), title)
+}
+
+pub(crate) fn text_in(km: &Keymap, text: &Say, title: &str) -> String {
     let mut s = one_line(title);
     s.push('\n');
     for g in groups(km, text) {

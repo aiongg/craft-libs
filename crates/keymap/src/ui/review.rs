@@ -64,9 +64,9 @@ impl Draw<'_, '_> {
         let strong = ui.visuals().strong_text_color();
         let dim = self.style.dim;
         let text = ui.visuals().text_color();
-        let mut parts = vec![(self.vis(&e.item), strong)];
+        let mut parts = vec![(e.item.clone(), strong)];
         if let Some(line) = self.line_text(e.line) {
-            parts.extend([(" · ".to_string(), dim), (self.vis(&line), dim)]);
+            parts.extend([(" · ".to_string(), dim), (line.clone(), dim)]);
         }
         if !e.keys.is_empty() {
             parts.extend([(" · ".to_string(), dim), (e.keys.clone(), text)]);
@@ -87,7 +87,7 @@ impl Draw<'_, '_> {
             return;
         }
         ui.add_space(4.0);
-        ui.label(RichText::new(self.vis(&fill(self.ui("{title} ({n})"), &[("title", title), ("n", &entries.len().to_string())]))).strong());
+        ui.label(RichText::new(fill(self.ui("{title} ({n})"), &[("title", title), ("n", &entries.len().to_string())])).strong());
         for e in entries {
             self.entry(ui, e);
         }
@@ -131,7 +131,7 @@ impl Draw<'_, '_> {
         let mut act = None;
         let report = &plan.report;
         let set = report.set.clone().unwrap_or_else(|| self.ui("Imported"));
-        ui.label(RichText::new(self.vis(&fill(self.ui("Import “{set}”"), &[("set", &set)]))).strong());
+        ui.label(RichText::new(fill(self.ui("Import “{set}”"), &[("set", &set)])).strong());
 
         let t = self.env.text;
         let mut counts = vec![t.plural(plan.commands.len() as u64, "{n} command will change", "{n} commands will change")];
@@ -146,11 +146,11 @@ impl Draw<'_, '_> {
             (report.truncated, t.plural(report.truncated as u64, "{n} entry cut at a limit", "{n} entries cut at a limit")),
         ];
         counts.extend(more.into_iter().filter(|(n, _)| *n > 0).map(|(_, s)| s));
-        ui.label(RichText::new(self.vis(&counts.join(" · "))).color(self.style.dim));
+        ui.label(RichText::new(counts.join(" · ")).color(self.style.dim));
 
         ui.horizontal_wrapped(|ui| {
             let name_label = self.ui("Set name:");
-            let l = ui.label(self.vis(&name_label));
+            let l = ui.label(&name_label);
             let edit = ui.add(TextEdit::singleline(&mut name).id(self.base.with("import_name")).desired_width(FIELD_W)).labelled_by(l.id);
             self.text_field(&edit);
             self.tag(|| "shortcuts.import.name".into(), edit.rect, &name_label);
@@ -195,7 +195,7 @@ impl Draw<'_, '_> {
             if !report.suggestions.is_empty() {
                 ui.add_space(4.0);
                 let title = fill(self.ui("Suggestions ({n})"), &[("n", &report.suggestions.len().to_string())]);
-                ui.label(RichText::new(self.vis(&title)).strong());
+                ui.label(RichText::new(&title).strong());
                 for (si, s) in report.suggestions.iter().enumerate() {
                     ui.horizontal_wrapped(|ui| {
                         self.entry(
@@ -211,14 +211,14 @@ impl Draw<'_, '_> {
                         );
                         let label = fill(self.ui("Command for {item}"), &[("item", &s.item)]);
                         let choose = self.ui("Choose a command…");
-                        let combo = ComboBox::from_id_salt(self.base.with(("suggestion", si))).selected_text(self.vis(&choose)).show_ui(ui, |ui| {
+                        let combo = ComboBox::from_id_salt(self.base.with(("suggestion", si))).selected_text(&choose).show_ui(ui, |ui| {
                             for (ci, c) in s.candidates.iter().enumerate() {
-                                if ui.selectable_label(false, self.vis(&self.label_of(c))).clicked() {
+                                if ui.selectable_label(false, self.label_of(c)).clicked() {
                                     act = Some(Act::Pick(si, ci));
                                 }
                             }
                         });
-                        let resp = combo.response.tooltip(self.vis(&label));
+                        let resp = combo.response.tooltip(&label);
                         resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, true, &label));
                         self.tag(|| format!("shortcuts.import.suggestion.{si}"), resp.rect, &label);
                     });
@@ -345,9 +345,9 @@ impl Draw<'_, '_> {
     fn after_report(&mut self, ui: &mut Ui, set: &str, report: &ImportReport) -> Option<Act> {
         let mut act = None;
         let heading = fill(self.ui("Imported as “{set}”"), &[("set", set)]);
-        ui.label(RichText::new(self.vis(&heading)).strong());
+        ui.label(RichText::new(&heading).strong());
         let changed = self.env.text.plural(report.imported as u64, "{n} command changed", "{n} commands changed");
-        ui.label(RichText::new(self.vis(&changed)).color(self.style.dim));
+        ui.label(RichText::new(&changed).color(self.style.dim));
         let lists = self.report_lists(report);
         ui.horizontal_wrapped(|ui| {
             if self.button(ui, true, &self.ui("Copy Report"), "shortcuts.import.copy") {

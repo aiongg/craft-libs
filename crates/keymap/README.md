@@ -364,15 +364,14 @@ Apps that import other applications' sets read each file into a `ForeignSet` bui
 `ForeignSet::new` ([Importing a shortcut set](#importing-a-shortcut-set)).
 
 ```rust,ignore
-use craft_keymap::ui::{DialogState, I18nText, Options, Outcome, ShortcutsDialog};
+use craft_keymap::ui::{DialogState, Options, Outcome, ShortcutsDialog};
 
 // "Keyboard Shortcuts…" opens it; "Edit Shortcut…" also calls `state.select(&command)`.
 self.shortcuts = Some(DialogState::new());
 
 // Every frame, before the app's own dispatch:
 if let Some(state) = &mut self.shortcuts {
-    let text = I18nText { i18n: &self.i18n, lang: self.lang };
-    let dialog = ShortcutsDialog::new(&mut self.keymap, &text).options(&self.shortcut_options);
+    let dialog = ShortcutsDialog::new(&mut self.keymap).options(&self.shortcut_options);
     let dialog = dialog.sets(&mut self.settings.shortcut_sets, &BUILTINS);
     match dialog.show(ctx, state) {
         Some(Outcome::Ok) => self.save_settings(),
@@ -415,10 +414,15 @@ Key dispatch while the dialog is open:
   the other menu chords never reach the recorder. While `is_recording()` is true, pause them:
   feed them to egui as key presses, or rebuild the menu without accelerators.
 
-Words come from `ui::Text`. Apps on craft-i18n pass `I18nText`; others implement `ui` and
-`plural` over their own lookup, and `rtl` and `visual` (the app's bidi reordering) for
-right-to-left languages, which mirror the layout. Chord text is never reordered. `ui::STRINGS`
-and `ui::PLURALS` list every string the dialog looks up, for the translation catalog.
+The dialog reads its words from the egui context. Its own strings and counts come from the
+`Words` the app installs (`ui::WORDS` and `ui::COUNTS` list them for the translation catalog),
+key names from the `key` rows of those words, and the direction from the context's
+(`craft_ui::direction::apply`); a right-to-left interface mirrors the layout and moves the text
+around a chord to the other side. Command labels and tooltips come from the Host's `Commands`:
+install a `Host` whose commands are `KeymapCommands::new(i18n, lang)`, or the `Bindable` labels
+show as written. Menu path parts and scope names are looked up in the Host's catalog. Without a
+Host or installed words the dialog is in English. `import_json`, `review_import`, `ok` and
+`cancel` take the context for the same reason.
 `Options` sets the conflict mode, double-press recording, area tabs, the on-screen keyboard,
 read-only rows for keys outside the catalog, the app's import and export formats, an `accept`
 rule for which keys a command may get, and a `visible` rule for which catalog entries the table

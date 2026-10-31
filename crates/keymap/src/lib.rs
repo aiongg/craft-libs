@@ -137,6 +137,7 @@
 
 pub mod chord;
 pub mod command;
+mod commands;
 pub mod editor;
 #[cfg(feature = "ui")]
 pub mod egui;
@@ -152,6 +153,7 @@ pub mod ui;
 pub use chord::foreign::Flavor;
 pub use chord::{Chord, Key, MAX_CHORD_TEXT, Mods, ParseError, Platform, Trigger};
 pub use command::{CommandRef, MAX_KEY};
+pub use commands::KeymapCommands;
 pub use editor::{DOUBLE_PRESS, EditSession, MAX_UNDO, MAX_UNDO_BYTES, Recorded, Recorder};
 pub use import::{ContextRule, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, ImportPlan, ImportReport, NoneDefined, Start, plan};
 pub use keymap::{

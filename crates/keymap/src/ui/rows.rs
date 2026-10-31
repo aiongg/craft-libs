@@ -7,7 +7,7 @@ use crate::chord::{Platform, Trigger};
 use crate::command::CommandRef;
 use crate::keymap::{Bindable, Binding, ConflictKind, Keymap, Kind, Overrides};
 use crate::ui::Options;
-use crate::ui::text::{Text, trigger_text, visual_around};
+use crate::ui::text::{Say, around_chord};
 
 /// One entry of the Show menu.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -46,7 +46,7 @@ pub(crate) enum Filter {
 impl Filter {
     pub(crate) const ALL: [Filter; 4] = [Filter::All, Filter::WithShortcut, Filter::Changed, Filter::Conflicts];
 
-    pub(crate) fn label(self, text: &dyn Text) -> String {
+    pub(crate) fn label(self, text: &Say) -> String {
         match self {
             Filter::All => text.ui("All"),
             Filter::WithShortcut => text.ui("With Shortcut"),
@@ -149,7 +149,7 @@ pub(crate) struct RowCache {
 }
 
 impl RowCache {
-    pub(crate) fn get(&mut self, keymap: &Keymap, options: &Options, text: &dyn Text, view: &View) -> &Built {
+    pub(crate) fn get(&mut self, keymap: &Keymap, options: &Options, text: &Say, view: &View) -> &Built {
         let fresh = self.key.as_ref().is_some_and(|k| {
             k.query == view.query
                 && k.area == *view.area
@@ -193,7 +193,7 @@ fn listed<'k>(keymap: &'k Keymap, options: &Options) -> impl Iterator<Item = &'k
 }
 
 /// The Show entries, in catalog order, leaving out areas with no rows.
-pub(crate) fn areas(keymap: &Keymap, options: &Options, text: &dyn Text) -> Vec<AreaEntry> {
+pub(crate) fn areas(keymap: &Keymap, options: &Options, text: &Say) -> Vec<AreaEntry> {
     let catalog = listed(keymap, options);
     let mut out = vec![AreaEntry { id: AreaId::All, label: text.ui("All Commands").into_owned() }];
     let mut menus: Vec<&str> = Vec::new();
@@ -230,7 +230,7 @@ pub(crate) fn areas(keymap: &Keymap, options: &Options, text: &dyn Text) -> Vec<
     out
 }
 
-fn panel_label(text: &dyn Text, panel: &str) -> String {
+fn panel_label(text: &Say, panel: &str) -> String {
     craft_i18n::fmt(&text.ui("{panel} Panel"), &[("panel", &text.segment(panel))])
 }
 
@@ -255,7 +255,7 @@ fn id_group(id: &str) -> String {
 
 /// A row's group header (`None`: no header) with its rank among groups, and how many path parts
 /// the header stands for.
-pub(crate) fn group(area: &AreaId, b: &Bindable, submenus: bool, text: &dyn Text) -> (u8, Option<String>, usize) {
+pub(crate) fn group(area: &AreaId, b: &Bindable, submenus: bool, text: &Say) -> (u8, Option<String>, usize) {
     let path = b.paths.first().map(Vec::as_slice).unwrap_or_default();
     let menu = |depth| path.first().map(|m| (0, Some(text.segment(m).into_owned()), depth));
     match area {
@@ -299,7 +299,7 @@ impl Query {
     /// Label, aliases, path parts and id, as written and translated; then the bindings: the same
     /// effective trigger when the query spells one, else their canonical or display text. A query
     /// that spells a chord (`cmd+s`, `⌘S`) does not also match longer chords containing its text.
-    fn matches(&self, b: &Bindable, bindings: &[Binding], text: &dyn Text, platform: Platform) -> bool {
+    fn matches(&self, b: &Bindable, bindings: &[Binding], text: &Say, platform: Platform) -> bool {
         if self.text.is_empty() {
             return true;
         }
@@ -312,13 +312,13 @@ impl Query {
             || match self.trigger {
                 Some(t) => bindings.iter().any(|x| x.trigger.effective(platform) == t),
                 None => bindings.iter().any(|x| {
-                    self.hit(&x.trigger.to_string()) || self.hit(&x.trigger.display(platform)) || self.hit(&trigger_text(text, &x.trigger, platform))
+                    self.hit(&x.trigger.to_string()) || self.hit(&x.trigger.display(platform)) || self.hit(&text.trigger(&x.trigger, platform))
                 }),
             }
     }
 }
 
-fn build(keymap: &Keymap, options: &Options, text: &dyn Text, view: &View) -> Built {
+fn build(keymap: &Keymap, options: &Options, text: &Say, view: &View) -> Built {
     let platform = keymap.platform();
     let catalog = keymap.catalog();
     let mut built = Built::default();
@@ -380,11 +380,11 @@ fn build(keymap: &Keymap, options: &Options, text: &dyn Text, view: &View) -> Bu
         let chips = list
             .iter()
             .map(|x| {
-                let mut t = trigger_text(text, &x.trigger, platform);
+                let mut t = text.trigger(&x.trigger, platform);
                 if x.scope_or(&b.scope) != &b.scope {
                     let scope = text.segment(x.scope_or(&b.scope).as_str());
                     let s = craft_i18n::fmt(&text.ui("{chord} ({scope})"), &[("chord", &t), ("scope", &scope)]);
-                    t = visual_around(text, &s, &t);
+                    t = around_chord(text.rtl(), &s, &t);
                 }
                 Chip { binding: x.clone(), text: t, changed: !defaults.contains(x) }
             })
@@ -393,7 +393,7 @@ fn build(keymap: &Keymap, options: &Options, text: &dyn Text, view: &View) -> Bu
             Kind::Tool { group } => list.iter().any(|x| tool_keys.get(&(group.as_deref(), x.trigger.effective(platform))).is_some_and(|n| *n > 1)),
             Kind::Command => false,
         };
-        let row = Row { index, command: b.command.clone(), key, label: text.command(b).into_owned(), prefix, chips, changed, cycles, conflict };
+        let row = Row { index, command: b.command.clone(), key, label: text.command(b), prefix, chips, changed, cycles, conflict };
         match groups.iter_mut().find(|(r, h, _)| *r == rank && *h == header) {
             Some((_, _, rows)) => rows.push(row),
             None => groups.push((rank, header, vec![row])),
@@ -416,7 +416,7 @@ fn build(keymap: &Keymap, options: &Options, text: &dyn Text, view: &View) -> Bu
     built
 }
 
-fn build_fixed(keymap: &Keymap, options: &Options, text: &dyn Text, view: &View, query: &Query, built: &mut Built) {
+fn build_fixed(keymap: &Keymap, options: &Options, text: &Say, view: &View, query: &Query, built: &mut Built) {
     if matches!(view.filter, Filter::Changed | Filter::Conflicts) {
         return;
     }
@@ -433,11 +433,7 @@ fn build_fixed(keymap: &Keymap, options: &Options, text: &dyn Text, view: &View,
         }
         let now_used_by = f.chord.and_then(|c| {
             let c = c.effective(platform);
-            keymap
-                .catalog()
-                .iter()
-                .find(|b| keymap.bindings(&b.command).iter().any(|x| x.trigger.effective(platform) == c))
-                .map(|b| text.command(b).into_owned())
+            keymap.catalog().iter().find(|b| keymap.bindings(&b.command).iter().any(|x| x.trigger.effective(platform) == c)).map(|b| text.command(b))
         });
         let line = FixedLine { label: f.label.clone(), keys: f.keys.clone(), now_used_by };
         match groups.iter_mut().find(|(g, _)| *g == f.group) {
@@ -457,12 +453,10 @@ fn build_fixed(keymap: &Keymap, options: &Options, text: &dyn Text, view: &View,
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::borrow::Cow;
 
     use super::*;
     use crate::keymap::Bindable;
     use crate::scope::{Scope, Scopes};
-    use crate::ui::text::English;
     use crate::ui::{Area, FixedRow};
 
     fn key(text: &str) -> Binding {
@@ -508,7 +502,7 @@ pub(crate) mod tests {
             .collect()
     }
 
-    fn lines(km: &Keymap, options: &Options, text: &dyn Text, query: &str, area: AreaId, filter: Filter) -> Vec<String> {
+    fn lines(km: &Keymap, options: &Options, text: &Say, query: &str, area: AreaId, filter: Filter) -> Vec<String> {
         let none = BTreeSet::new();
         labels(&build(km, options, text, &view(query, &area, filter, &none)))
     }
@@ -517,10 +511,10 @@ pub(crate) mod tests {
     fn areas_follow_paths_kind_and_scope() {
         let km = fixture(Platform::Mac);
         let options = Options { areas: vec![Area { id: "type", label: "Type", rows: |b| b.command.id.starts_with("type.") }], ..Options::default() };
-        let names: Vec<String> = areas(&km, &options, &English).into_iter().map(|a| a.label).collect();
+        let names: Vec<String> = areas(&km, &options, Say::english()).into_iter().map(|a| a.label).collect();
         assert_eq!(names, ["All Commands", "File Menu", "Object Menu", "Tools", "Timeline Panel", "Other", "Type"]);
 
-        let all = lines(&km, &options, &English, "", AreaId::All, Filter::All);
+        let all = lines(&km, &options, Say::english(), "", AreaId::All, Filter::All);
         assert_eq!(
             all,
             [
@@ -539,9 +533,9 @@ pub(crate) mod tests {
                 "Bold: ⌘B (Text)",
             ]
         );
-        assert_eq!(lines(&km, &options, &English, "", AreaId::Menu("Object".into()), Filter::All), ["# Arrange", "Bring to Front: "]);
-        assert_eq!(lines(&km, &options, &English, "", AreaId::Panel("Timeline".into()), Filter::All), ["Loop: L"]);
-        assert_eq!(lines(&km, &options, &English, "", AreaId::Other, Filter::All), ["# Timeline", "Loop: L", "# Type", "Bold: ⌘B (Text)"]);
+        assert_eq!(lines(&km, &options, Say::english(), "", AreaId::Menu("Object".into()), Filter::All), ["# Arrange", "Bring to Front: "]);
+        assert_eq!(lines(&km, &options, Say::english(), "", AreaId::Panel("Timeline".into()), Filter::All), ["Loop: L"]);
+        assert_eq!(lines(&km, &options, Say::english(), "", AreaId::Other, Filter::All), ["# Timeline", "Loop: L", "# Type", "Bold: ⌘B (Text)"]);
     }
 
     #[test]
@@ -550,24 +544,23 @@ pub(crate) mod tests {
         let options = Options { sort_by_label: true, ..Options::default() };
         let area = AreaId::Menu("File".into());
         let none = BTreeSet::new();
-        assert_eq!(labels(&build(&km, &options, &English, &view("", &area, Filter::All, &none))), ["Export…: ⌘E", "Save: ⌘S", "Save As…: ⇧⌘S"]);
+        assert_eq!(labels(&build(&km, &options, Say::english(), &view("", &area, Filter::All, &none))), ["Export…: ⌘E", "Save: ⌘S", "Save As…: ⇧⌘S"]);
         let collapsed: BTreeSet<String> = ["File".to_string()].into();
-        let built = build(&km, &options, &English, &view("", &AreaId::All, Filter::All, &collapsed));
+        let built = build(&km, &options, Say::english(), &view("", &AreaId::All, Filter::All, &collapsed));
         assert_eq!(built.lines.first(), Some(&Line::Header { name: "File".into(), collapsed: true }));
         assert!(matches!(built.lines.get(1), Some(Line::Header { .. })));
     }
 
     struct Spanish;
-    impl Text for Spanish {
-        fn ui<'a>(&'a self, source: &'a str) -> Cow<'a, str> {
-            source.into()
+    impl craft_host::Commands for Spanish {
+        fn label(&self, id: &str, english: &str) -> String {
+            if id == "file.export" { "Exportar…".into() } else { english.to_string() }
         }
-        fn plural(&self, n: u64, one: &str, other: &str) -> String {
-            English.plural(n, one, other)
-        }
-        fn command<'a>(&'a self, b: &'a Bindable) -> Cow<'a, str> {
-            if b.command.id == "file.export" { "Exportar…".into() } else { b.label.as_str().into() }
-        }
+    }
+
+    fn spanish() -> Say {
+        let app = craft_host::AppInfo { id: "test", name: "Test", version: "0" };
+        Say::with_host(craft_host::Host::builder(app).commands(std::sync::Arc::new(Spanish)).build())
     }
 
     #[test]
@@ -576,7 +569,7 @@ pub(crate) mod tests {
         let o = Options::default();
         let find = |q: &str| -> Vec<String> {
             let none = BTreeSet::new();
-            build(&km, &o, &Spanish, &view(q, &AreaId::All, Filter::All, &none))
+            build(&km, &o, &spanish(), &view(q, &AreaId::All, Filter::All, &none))
                 .lines
                 .into_iter()
                 .filter_map(|l| if let Line::Row(r) = l { Some(r.key) } else { None })
@@ -598,11 +591,11 @@ pub(crate) mod tests {
         let mut km = fixture(Platform::Windows);
         let o = Options::default();
         km.assign(&"file.export".into(), key("Cmd+S"), crate::Policy::Keep)?;
-        assert_eq!(lines(&km, &o, &English, "", AreaId::All, Filter::Changed), ["# File", "Export…: Ctrl+E, Ctrl+S"]);
-        assert_eq!(lines(&km, &o, &English, "", AreaId::All, Filter::Conflicts), ["# File", "Save: Ctrl+S", "Export…: Ctrl+E, Ctrl+S"]);
-        assert_eq!(lines(&km, &o, &English, "", AreaId::Menu("Object".into()), Filter::WithShortcut), Vec::<String>::new());
+        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::All, Filter::Changed), ["# File", "Export…: Ctrl+E, Ctrl+S"]);
+        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::All, Filter::Conflicts), ["# File", "Save: Ctrl+S", "Export…: Ctrl+E, Ctrl+S"]);
+        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::Menu("Object".into()), Filter::WithShortcut), Vec::<String>::new());
         let none = BTreeSet::new();
-        let built = build(&km, &o, &English, &view("", &AreaId::All, Filter::All, &none));
+        let built = build(&km, &o, Say::english(), &view("", &AreaId::All, Filter::All, &none));
         assert_eq!((built.clashes, built.matches), (1, 8));
         Ok(())
     }
@@ -617,24 +610,24 @@ pub(crate) mod tests {
         };
         let km = Keymap::new(vec![tool("tool.pen", "Pen Tool")], Scopes::new(), Platform::Mac);
         let o = Options::default();
-        let names: Vec<String> = areas(&km, &o, &English).into_iter().map(|a| a.label).collect();
+        let names: Vec<String> = areas(&km, &o, Say::english()).into_iter().map(|a| a.label).collect();
         assert_eq!(names, ["All Commands", "Tools"]);
-        assert_eq!(lines(&km, &o, &English, "", AreaId::All, Filter::All), ["# Tools", "Pen Tool: P"]);
+        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::All, Filter::All), ["# Tools", "Pen Tool: P"]);
     }
 
     #[test]
     fn hidden_entries_are_not_listed_but_still_conflict() -> Result<(), crate::AssignError> {
         let mut km = fixture(Platform::Mac);
         let o = Options { visible: Some(|b| b.command.id != "file.export" && !b.command.id.starts_with("timeline.")), ..Options::default() };
-        let names: Vec<String> = areas(&km, &o, &English).into_iter().map(|a| a.label).collect();
+        let names: Vec<String> = areas(&km, &o, Say::english()).into_iter().map(|a| a.label).collect();
         assert_eq!(names, ["All Commands", "File Menu", "Object Menu", "Tools", "Other"]);
-        assert_eq!(lines(&km, &o, &English, "", AreaId::Menu("File".into()), Filter::All), ["Save: ⌘S", "Save As…: ⇧⌘S"]);
-        assert!(lines(&km, &o, &English, "export", AreaId::All, Filter::All).is_empty());
+        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::Menu("File".into()), Filter::All), ["Save: ⌘S", "Save As…: ⇧⌘S"]);
+        assert!(lines(&km, &o, Say::english(), "export", AreaId::All, Filter::All).is_empty());
 
         km.assign(&"file.save".into(), key("Cmd+E"), crate::Policy::Keep)?;
         let none = BTreeSet::new();
-        assert_eq!(build(&km, &o, &English, &view("", &AreaId::All, Filter::All, &none)).clashes, 1);
-        assert_eq!(lines(&km, &o, &English, "", AreaId::All, Filter::Conflicts), ["# File", "Save: ⌘S, ⌘E"]);
+        assert_eq!(build(&km, &o, Say::english(), &view("", &AreaId::All, Filter::All, &none)).clashes, 1);
+        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::All, Filter::Conflicts), ["# File", "Save: ⌘S, ⌘E"]);
         Ok(())
     }
 
@@ -649,12 +642,12 @@ pub(crate) mod tests {
         let mut km = Keymap::new(catalog, Scopes::new(), Platform::Mac);
         let o = Options::default();
         let none = BTreeSet::new();
-        let built = build(&km, &o, &English, &view("", &AreaId::All, Filter::All, &none));
+        let built = build(&km, &o, Say::english(), &view("", &AreaId::All, Filter::All, &none));
         assert_eq!((built.clashes, built.shadows), (0, 0));
-        assert!(lines(&km, &o, &English, "", AreaId::All, Filter::Conflicts).is_empty());
+        assert!(lines(&km, &o, Say::english(), "", AreaId::All, Filter::Conflicts).is_empty());
 
         km.assign(&"file.save".into(), key("Cmd+T"), crate::Policy::Keep)?;
-        let built = build(&km, &o, &English, &view("", &AreaId::All, Filter::All, &none));
+        let built = build(&km, &o, Say::english(), &view("", &AreaId::All, Filter::All, &none));
         assert_eq!(built.clashes, 2, "Save clashes with both twins");
         let flagged: Vec<String> =
             built.lines.iter().filter_map(|l| if let Line::Row(r) = l { r.conflict.then(|| r.key.clone()) } else { None }).collect();
@@ -672,7 +665,7 @@ pub(crate) mod tests {
             chord: chord.and_then(|c| Trigger::parse(c).ok()),
         };
         let o = Options { fixed: vec![fixed("Rate 1", "1", Some("1")), fixed("Loop", "L", Some("L"))], ..Options::default() };
-        assert_eq!(lines(&km, &o, &English, "", AreaId::Fixed, Filter::All), ["# Rating", "Rate 1 = 1", "Loop = L (now Loop)"]);
+        assert_eq!(lines(&km, &o, Say::english(), "", AreaId::Fixed, Filter::All), ["# Rating", "Rate 1 = 1", "Loop = L (now Loop)"]);
     }
 
     #[test]
@@ -682,11 +675,11 @@ pub(crate) mod tests {
         let mut cache = RowCache::default();
         let none = BTreeSet::new();
         let area = AreaId::Menu("File".into());
-        let before = cache.get(&km, &o, &English, &view("", &area, Filter::All, &none)).clone();
+        let before = cache.get(&km, &o, Say::english(), &view("", &area, Filter::All, &none)).clone();
         km.assign(&"file.save".into(), key("F2"), crate::Policy::Steal)?;
-        let after = cache.get(&km, &o, &English, &view("", &area, Filter::All, &none)).clone();
+        let after = cache.get(&km, &o, Say::english(), &view("", &area, Filter::All, &none)).clone();
         assert_ne!(before, after);
-        assert_eq!(cache.get(&km, &o, &English, &view("save as", &area, Filter::All, &none)).matches, 1);
+        assert_eq!(cache.get(&km, &o, Say::english(), &view("save as", &area, Filter::All, &none)).matches, 1);
         Ok(())
     }
 }

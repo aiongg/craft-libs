@@ -32,7 +32,7 @@ use crate::ui::capture;
 use crate::ui::rows::{AreaId, Filter, FixedLine, Line, Row};
 use crate::ui::state::{Answer, DialogState, Env, Prompt, Recording, Target, binding_error};
 use crate::ui::style::{self, DialogStyle};
-use crate::ui::text::{trigger_text, visual_around};
+use crate::ui::text::around_chord;
 
 #[path = "keyboard.rs"]
 pub(crate) mod keyboard;
@@ -94,13 +94,8 @@ impl Draw<'_, '_> {
     // ---- Text ----
 
     /// The dialog's string, translated (logical order: for accessibility labels and `fill`).
-    fn ui(&self, source: &str) -> String {
+    fn ui(&self, source: &'static str) -> String {
         self.env.text.ui(source).into_owned()
-    }
-
-    /// Display order for drawn text.
-    fn vis(&self, s: &str) -> String {
-        self.env.text.visual(s)
     }
 
     fn rtl(&self) -> bool {
@@ -168,10 +163,10 @@ impl Draw<'_, '_> {
         (painter.layout_job(job(lo)), true)
     }
 
-    /// `s` in display order with `chord`, text inside it, left as it is: chord text never goes
-    /// through [`Text::visual`](crate::ui::Text::visual).
+    /// `s` with `chord`, text inside it, left as it is; right to left, the parts before and after
+    /// the chord change sides.
     fn vis_chord(&self, s: &str, chord: &str) -> String {
-        visual_around(self.env.text, s, chord)
+        around_chord(self.rtl(), s, chord)
     }
 
     /// `text` after a ⚠, in display order.
@@ -185,7 +180,7 @@ impl Draw<'_, '_> {
     }
 
     fn chord(&self, t: &Trigger) -> String {
-        trigger_text(self.env.text, t, self.env.keymap.platform())
+        self.env.text.trigger(t, self.env.keymap.platform())
     }
 
     fn scope_name(&self, s: &Scope) -> String {
@@ -208,13 +203,13 @@ impl Draw<'_, '_> {
             if i > 0 {
                 parts.push(PATH_SEP.to_string());
             }
-            parts.push(self.vis(&self.env.text.segment(s)));
+            parts.push(self.env.text.segment(s).into_owned());
         }
         self.joined(parts)
     }
 
     fn label_of(&self, command: &CommandRef) -> String {
-        self.env.keymap.bindable(command).map_or_else(|| command.id.clone(), |b| self.env.text.command(b).into_owned())
+        self.env.keymap.bindable(command).map_or_else(|| command.id.clone(), |b| self.env.text.command(b))
     }
 
     /// "press keys", or the chord waiting for a second press.
@@ -236,7 +231,7 @@ impl Draw<'_, '_> {
     }
 
     fn button(&self, ui: &mut Ui, enabled: bool, text: &str, id: &str) -> bool {
-        let r = ui.add_enabled(enabled, Button::new(self.vis(text)));
+        let r = ui.add_enabled(enabled, Button::new(text));
         self.tag(|| id.to_string(), r.rect, text);
         r.clicked()
     }
@@ -244,7 +239,7 @@ impl Draw<'_, '_> {
     /// The width a [`Button`] with `text` takes.
     fn button_width(&self, ui: &Ui, text: &str) -> f32 {
         let pad = ui.spacing().button_padding.x * 2.0;
-        let g = WidgetText::from(self.vis(text)).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, TextStyle::Button);
+        let g = WidgetText::from(text).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, TextStyle::Button);
         (g.size().x + pad).max(ui.spacing().interact_size.x)
     }
 
@@ -420,12 +415,12 @@ impl Draw<'_, '_> {
 
     /// A combo box at most [`COMBO_MAX`] wide, its text cut with "…" and shown in full on hover.
     fn combo(&self, ui: &mut Ui, salt: &str, label: &Response, title: &str, current: &str, items: impl FnOnce(&mut Ui)) -> Response {
-        let full = self.vis(current);
-        let natural = self.button_width(ui, &full) + ui.spacing().icon_width + ui.spacing().icon_spacing;
+        let full = current;
+        let natural = self.button_width(ui, full) + ui.spacing().icon_width + ui.spacing().icon_spacing;
         let width = natural.clamp(ui.spacing().combo_width, COMBO_MAX);
         let r = ui
             .allocate_ui(vec2(width, ui.spacing().interact_size.y), |ui| {
-                ComboBox::from_id_salt(self.base.with(salt)).width(width).truncate().selected_text(full.clone()).show_ui(ui, items).response
+                ComboBox::from_id_salt(self.base.with(salt)).width(width).truncate().selected_text(full).show_ui(ui, items).response
             })
             .inner
             .labelled_by(label.id);
@@ -435,13 +430,13 @@ impl Draw<'_, '_> {
 
     fn filter_combo(&mut self, ui: &mut Ui) {
         let filter_label = self.ui("Filter:");
-        let l = ui.label(self.vis(&filter_label));
+        let l = ui.label(&filter_label);
         let current = self.state.filter.label(self.env.text);
         let mut pick = None;
         self.combo(ui, "filter", &l, &filter_label, &current, |ui| {
             for f in Filter::ALL {
                 let label = f.label(self.env.text);
-                if ui.selectable_label(self.state.filter == f, self.vis(&label)).clicked() {
+                if ui.selectable_label(self.state.filter == f, &label).clicked() {
                     pick = Some(f);
                 }
             }
@@ -454,7 +449,7 @@ impl Draw<'_, '_> {
     /// Search, search by key and the keyboard pane's toggle (`toggle` wide, 0 without it).
     fn search(&mut self, ui: &mut Ui, toggle: f32) {
         let search_label = self.ui("Search:");
-        let l = ui.label(self.vis(&search_label));
+        let l = ui.label(&search_label);
         let mut q = self.state.query.clone();
         let gap = ui.spacing().item_spacing.x;
         let width = (ui.available_width() - ICON - toggle - 2.0 * gap).clamp(SEARCH_MIN.min(ui.available_width()), SEARCH_MAX);
@@ -467,7 +462,7 @@ impl Draw<'_, '_> {
 
         let key_label = self.ui("Search by key");
         let searching = self.recording_target() == Some(&Target::Search);
-        let r = self.icon_button(ui, &key_label, searching, paint_keyboard).tooltip(self.vis(&key_label));
+        let r = self.icon_button(ui, &key_label, searching, paint_keyboard).tooltip(&key_label);
         self.tag(|| "shortcuts.searchKey".into(), r.rect, &key_label);
         if r.clicked() {
             if searching {
@@ -491,13 +486,13 @@ impl Draw<'_, '_> {
 
     fn area_combo(&mut self, ui: &mut Ui) {
         let show = self.ui("Show:");
-        let l = ui.label(self.vis(&show));
+        let l = ui.label(&show);
         let current = self.state.areas.iter().find(|a| a.id == self.state.area).map_or_else(String::new, |a| a.label.clone());
         let mut pick = None;
         let areas = self.state.areas.clone();
         self.combo(ui, "area", &l, &show, &current, |ui| {
             for a in &areas {
-                let r = ui.selectable_label(a.id == self.state.area, self.vis(&a.label));
+                let r = ui.selectable_label(a.id == self.state.area, &a.label);
                 self.tag(|| format!("shortcuts.area.{}", Self::area_key(&a.id)), r.rect, &a.label);
                 if r.clicked() {
                     pick = Some(a.id.clone());
@@ -515,7 +510,7 @@ impl Draw<'_, '_> {
         let pad = ui.spacing().button_padding.x * 2.0;
         let font = TextStyle::Button.resolve(ui.style());
         let natural: Vec<f32> =
-            areas.iter().map(|a| ui.painter().layout_no_wrap(self.vis(&a.label), font.clone(), Color32::WHITE).size().x + pad).collect();
+            areas.iter().map(|a| ui.painter().layout_no_wrap(a.label.clone(), font.clone(), Color32::WHITE).size().x + pad).collect();
         let tab_text = TabStripText::default();
         let selected = areas.iter().position(|a| a.id == self.state.area).unwrap_or(0);
         let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), ui.spacing().interact_size.y + 4.0), Sense::hover());
@@ -529,9 +524,9 @@ impl Draw<'_, '_> {
             x += w;
             let on = i == selected;
             let id = self.base.with(("area", i));
-            let text = self.vis(&a.label);
+            let text = &a.label;
             let color = if on { ui.visuals().strong_text_color() } else { ui.visuals().text_color() };
-            let (shaped, _) = self.one_line(ui.painter(), &[(text, TextFormat::simple(font.clone(), color))], f32::INFINITY);
+            let (shaped, _) = self.one_line(ui.painter(), &[(text.clone(), TextFormat::simple(font.clone(), color))], f32::INFINITY);
             let view = TabView::new(self.base.with("areas"), &tab_text, i).active(on).sense(Sense::click());
             let resp = Tab::new(i, &a.label).with_id(id).shaped(shaped).show_at(ui, r, &view).tab;
             self.tag(|| format!("shortcuts.area.{}", Self::area_key(&a.id)), resp.rect, &a.label);
@@ -543,10 +538,10 @@ impl Draw<'_, '_> {
             let r = m.rect(Rect::from_min_size(pos2(rect.max.x - fit.overflow_width, rect.min.y), vec2(fit.overflow_width, rect.height())));
             let more = self.ui("More");
             ui.scope_builder(UiBuilder::new().max_rect(r), |ui| {
-                ui.menu_button(self.vis(&more), |ui| {
+                ui.menu_button(&more, |ui| {
                     for &i in &fit.overflow {
                         if let Some(a) = areas.get(i)
-                            && ui.button(self.vis(&a.label)).clicked()
+                            && ui.button(&a.label).clicked()
                         {
                             pick = Some(a.id.clone());
                         }
@@ -664,14 +659,14 @@ impl Draw<'_, '_> {
         let key_x = head.max.x - shortcut_w - ICON - 4.0;
         let titles = [(self.ui("Command"), head.min.x + 6.0, key_x - head.min.x - 12.0), (self.ui("Shortcut"), key_x, shortcut_w)];
         for (title, x, w) in titles {
-            let (g, _) = self.one_line(ui.painter(), &[(self.vis(&title), TextFormat::simple(font.clone(), dim))], w);
+            let (g, _) = self.one_line(ui.painter(), &[(title.clone(), TextFormat::simple(font.clone(), dim))], w);
             ui.painter().galley(pos2(m.x(x, g.size().x), head.center().y - g.size().y / 2.0), g, dim);
         }
         ui.painter().line_segment([head.left_bottom(), head.right_bottom()], ui.visuals().widgets.noninteractive.bg_stroke);
 
         if matches == 0 {
             ui.add_space(8.0);
-            ui.label(RichText::new(self.vis(&self.ui("No matching commands"))).color(dim));
+            ui.label(RichText::new(self.ui("No matching commands")).color(dim));
         }
 
         let mut scroll = ScrollArea::vertical().id_salt(self.base.with("rows")).auto_shrink([false, false]);
@@ -825,11 +820,11 @@ impl Draw<'_, '_> {
         };
         ui.painter().add(egui::Shape::convex_polygon(points, color, Stroke::NONE));
         let font = TextStyle::Body.resolve(ui.style());
-        let (g, cut) = self.one_line(ui.painter(), &[(self.vis(name), TextFormat::simple(font, color))], rect.width() - 24.0);
+        let (g, cut) = self.one_line(ui.painter(), &[(name.to_string(), TextFormat::simple(font, color))], rect.width() - 24.0);
         ui.painter().galley(pos2(m.x(rect.min.x + 20.0, g.size().x), rect.center().y - g.size().y / 2.0), g, color);
         let clicked = resp.clicked();
         if cut {
-            resp.tooltip(self.vis(name));
+            resp.tooltip(name);
         }
         clicked.then(|| RowAction::Toggle(name.to_string()))
     }
@@ -881,11 +876,11 @@ impl Draw<'_, '_> {
             parts.extend([("⚠".to_string(), fmt(self.style.warning)), (" ".into(), fmt(dim))]);
         }
         for p in &r.prefix {
-            parts.extend([(self.vis(p), fmt(dim)), (PATH_SEP.into(), fmt(dim))]);
+            parts.extend([(p.clone(), fmt(dim)), (PATH_SEP.into(), fmt(dim))]);
         }
-        parts.push((self.vis(&r.label), fmt(if r.changed { strong } else { text_color })));
+        parts.push((r.label.clone(), fmt(if r.changed { strong } else { text_color })));
         if r.cycles {
-            parts.extend([(" ".into(), fmt(dim)), (self.vis(&self.ui("(cycles)")), fmt(dim))]);
+            parts.extend([(" ".into(), fmt(dim)), (self.ui("(cycles)"), fmt(dim))]);
         }
         let (g, _) = self.one_line(ui.painter(), &self.ordered(parts), label_w);
         ui.painter().galley(pos2(m.x(rect.min.x + 8.0, g.size().x), rect.center().y - g.size().y / 2.0), g, text_color);
@@ -894,13 +889,13 @@ impl Draw<'_, '_> {
             self.shortcut_column(ui, RowShortcutLayout { row: r, rect, shortcut_w, mirror: m, editable, selected, focused, font, text_color });
 
         let clicked = resp.clicked();
-        let mut tip = vec![self.vis(&r.label)];
+        let mut tip = vec![r.label.clone()];
         if let Some(b) = self.env.keymap.bindable(&r.command) {
             if let Some(path) = b.paths.first().filter(|p| !p.is_empty()) {
-                tip.push(self.path_text(path));
+                tip.push(self.path_text(path).to_string());
             }
             if let Some(h) = self.env.text.hint(b) {
-                tip.push(self.vis(&h));
+                tip.push(h);
             }
         }
         resp.tooltip(tip.join("\n"));
@@ -1019,20 +1014,20 @@ impl Draw<'_, '_> {
         }
         let m = self.mirror(rect);
         let label_w = rect.width() - shortcut_w - ICON - 12.0;
-        let (g, cut) = self.one_line(ui.painter(), &[(self.vis(&f.label), fmt.clone())], label_w);
+        let (g, cut) = self.one_line(ui.painter(), &[(f.label.clone(), fmt.clone())], label_w);
         ui.painter().galley(pos2(m.x(rect.min.x + 8.0, g.size().x), rect.center().y - g.size().y / 2.0), g, color);
         let (keys, _) = self.one_line(ui.painter(), &[(f.keys.clone(), fmt)], shortcut_w);
         ui.painter().galley(pos2(m.x(rect.max.x - shortcut_w - ICON - 4.0, keys.size().x), rect.center().y - keys.size().y / 2.0), keys, color);
         let resp = ui.interact(rect, self.base.with(("fixed", &f.label, &f.keys)), Sense::hover());
         let mut tip = Vec::new();
         if cut {
-            tip.push(self.vis(&f.label));
+            tip.push(f.label.clone());
         }
         match &f.now_used_by {
             Some(by) => {
                 let label = fill(self.ui("{label}: {chord} (Now used by {holder})"), &[("label", &f.label), ("chord", &f.keys), ("holder", by)]);
                 resp.widget_info(|| WidgetInfo::labeled(Role::Label, true, &label));
-                tip.push(self.vis(&fill(self.ui("Now used by {label}"), &[("label", by)])));
+                tip.push(fill(self.ui("Now used by {label}"), &[("label", by)]));
             }
             None => {
                 let label = fill(self.ui("{label}: {chord}"), &[("label", &f.label), ("chord", &f.keys)]);
@@ -1048,7 +1043,7 @@ impl Draw<'_, '_> {
         ScrollArea::vertical().id_salt(self.base.with("detail")).auto_shrink([false, false]).show(ui, |ui| {
             ui.add_space(4.0);
             let Some(command) = self.state.selected.clone().filter(|c| self.env.keymap.bindable(c).is_some()) else {
-                ui.label(RichText::new(self.vis(&self.ui("Select a command to see and change its shortcuts"))).color(self.style.dim));
+                ui.label(RichText::new(self.ui("Select a command to see and change its shortcuts")).color(self.style.dim));
                 return;
             };
             self.detail_of(ui, &command);
@@ -1058,25 +1053,25 @@ impl Draw<'_, '_> {
     fn detail_of(&mut self, ui: &mut Ui, command: &CommandRef) {
         let Some(b) = self.env.keymap.bindable(command).cloned() else { return };
         let editable = self.env.options.editable;
-        let label = self.env.text.command(&b).into_owned();
+        let label = self.env.text.command(&b);
         let home = Some(&b.scope);
         let dim = self.style.dim;
-        ui.add(Label::new(RichText::new(self.vis(&label)).strong().size(ui.text_style_height(&TextStyle::Body) * 1.15)).wrap());
+        ui.add(Label::new(RichText::new(&label).strong().size(ui.text_style_height(&TextStyle::Body) * 1.15)).wrap());
         let path: Vec<String> = b.paths.first().map(|p| p.iter().filter(|s| !s.is_empty()).cloned().collect()).unwrap_or_default();
         let place =
             if path.is_empty() { b.command.id.clone() } else { self.joined(vec![self.path_text(&path), " · ".into(), b.command.id.clone()]) };
         ui.add(Label::new(RichText::new(place).color(dim)).wrap());
         if let Some(h) = self.env.text.hint(&b) {
-            ui.add(Label::new(RichText::new(self.vis(&h)).color(dim)).wrap());
+            ui.add(Label::new(RichText::new(&h).color(dim)).wrap());
         }
         ui.add_space(6.0);
 
         // Current shortcuts, each with Remove.
-        ui.label(self.vis(&self.ui("Current shortcuts:")));
+        ui.label(self.ui("Current shortcuts:"));
         let bindings = self.env.keymap.bindings(command);
         let defaults = self.env.keymap.default_bindings(command);
         if bindings.is_empty() {
-            ui.label(RichText::new(self.vis(&self.ui("None"))).color(dim));
+            ui.label(RichText::new(self.ui("None")).color(dim));
         }
         let mut remove = None;
         for (n, binding) in bindings.iter().enumerate() {
@@ -1087,7 +1082,7 @@ impl Draw<'_, '_> {
                 ui.label(self.vis_chord(&shown, &self.chord(&binding.trigger)));
                 if editable {
                     let a11y = fill(self.ui("Remove {chord} from {label}"), &[("chord", &text), ("label", &label)]);
-                    let r = self.icon_button(ui, &a11y, false, paint_cross).tooltip(self.vis(&a11y));
+                    let r = self.icon_button(ui, &a11y, false, paint_cross).tooltip(&a11y);
                     self.tag(|| format!("shortcuts.remove.{n}"), r.rect, &a11y);
                     if r.clicked() {
                         remove = Some(binding.clone());
@@ -1131,7 +1126,7 @@ impl Draw<'_, '_> {
     /// New Shortcut: a field that records when focused or clicked, or typed entry.
     fn new_shortcut(&mut self, ui: &mut Ui, command: &CommandRef, home: Option<&Scope>) {
         let title = self.ui("New shortcut:");
-        let title_id = ui.label(self.vis(&title)).id;
+        let title_id = ui.label(&title).id;
         let field_id = self.base.with("new");
         let recording = matches!(self.recording_target(), Some(Target::Field { command: c }) if c == command);
         if let Some(mut typed) = self.state.typing.clone() {
@@ -1156,7 +1151,7 @@ impl Draw<'_, '_> {
                 }
             }
             if let Some(e) = &self.state.type_error {
-                ui.add(Label::new(RichText::new(self.warned(self.vis(e))).color(self.style.warning)).wrap());
+                ui.add(Label::new(RichText::new(self.warned(e.clone())).color(self.style.warning)).wrap());
             }
             return;
         }
@@ -1191,7 +1186,7 @@ impl Draw<'_, '_> {
             } else if resp.has_focus() {
                 capture::unlock_focus(ui, field_id);
             }
-            if ui.link(self.vis(&self.ui("Type…"))).clicked() {
+            if ui.link(self.ui("Type…")).clicked() {
                 self.state.stop_recording();
                 self.state.typing = Some(String::new());
                 self.state.type_error = None;
@@ -1212,10 +1207,10 @@ impl Draw<'_, '_> {
         let title = self.ui("Context:");
         let mut pick = None;
         ui.horizontal(|ui| {
-            let l = ui.label(self.vis(&title));
-            let combo = ComboBox::from_id_salt(self.base.with("context")).selected_text(self.vis(&current)).show_ui(ui, |ui| {
+            let l = ui.label(&title);
+            let combo = ComboBox::from_id_salt(self.base.with("context")).selected_text(&current).show_ui(ui, |ui| {
                 for (s, n) in contexts.iter().zip(&names) {
-                    if ui.selectable_label(*s == self.state.context, self.vis(n)).clicked() {
+                    if ui.selectable_label(*s == self.state.context, n).clicked() {
                         pick = Some(s.clone());
                     }
                 }
@@ -1232,10 +1227,10 @@ impl Draw<'_, '_> {
     fn holders(&mut self, ui: &mut Ui) {
         let Some(f) = self.state.field.clone() else { return };
         if f.holders.is_empty() && f.shadows.is_empty() {
-            ui.label(RichText::new(self.vis(&self.ui("Not assigned"))).color(self.style.dim));
+            ui.label(RichText::new(self.ui("Not assigned")).color(self.style.dim));
             return;
         }
-        ui.label(self.vis(&self.ui("Currently assigned to:")));
+        ui.label(self.ui("Currently assigned to:"));
         let mut go = None;
         for h in &f.holders {
             let label = self.label_of(&h.command);
@@ -1246,7 +1241,7 @@ impl Draw<'_, '_> {
             };
             ui.horizontal(|ui| {
                 ui.add_space(8.0);
-                if ui.link(self.warned(self.vis(&text))).clicked() {
+                if ui.link(self.warned(text)).clicked() {
                     go = Some(h.command.clone());
                 }
             });
@@ -1258,7 +1253,7 @@ impl Draw<'_, '_> {
             let text = fill(self.ui("{label} ({scope}, both work)"), &[("label", &label), ("scope", &scope)]);
             ui.horizontal(|ui| {
                 ui.add_space(8.0);
-                if ui.link(self.vis(&text)).clicked() {
+                if ui.link(&text).clicked() {
                     go = Some(h.command.clone());
                 }
             });
@@ -1287,7 +1282,7 @@ impl Draw<'_, '_> {
                 (fill(self.ui("Save changes to “{set}”?"), &[("set", set)]), self.ui("Save"), Some(self.ui("Don't Save")))
             }
         };
-        ui.add(Label::new(RichText::new(self.vis(&text)).strong()).wrap());
+        ui.add(Label::new(RichText::new(&text).strong()).wrap());
         let mut answer = None;
         ui.horizontal_wrapped(|ui| {
             if self.button(ui, true, &yes, "shortcuts.prompt.yes") {
@@ -1324,7 +1319,7 @@ impl Draw<'_, '_> {
                 act = 3;
             }
             let label = self.ui("Cancel the new shortcut");
-            let r = self.icon_button(ui, &label, false, paint_cross).tooltip(self.vis(&label));
+            let r = self.icon_button(ui, &label, false, paint_cross).tooltip(&label);
             self.tag(|| "shortcuts.conflict.cancel".into(), r.rect, &label);
             if r.clicked() {
                 act = 4;
@@ -1355,7 +1350,7 @@ impl Draw<'_, '_> {
                 act = 2;
             }
             let label = self.ui("Dismiss");
-            let r = self.icon_button(ui, &label, false, paint_cross).tooltip(self.vis(&label));
+            let r = self.icon_button(ui, &label, false, paint_cross).tooltip(&label);
             self.tag(|| "shortcuts.message.dismiss".into(), r.rect, &label);
             if r.clicked() {
                 act = 3;
@@ -1382,12 +1377,12 @@ impl Draw<'_, '_> {
             if clashes > 0 {
                 let n = clashes as u64;
                 let text = self.env.text.plural(n, "{n} shortcut is assigned more than once", "{n} shortcuts are assigned more than once");
-                conflicts = ui.link(self.warned(self.vis(&text))).clicked();
+                conflicts = ui.link(self.warned(text)).clicked();
             }
             if shadows > 0 {
                 let n = shadows as u64;
                 let text = self.env.text.plural(n, "{n} shortcut also works in another scope", "{n} shortcuts also work in another scope");
-                ui.label(RichText::new(self.vis(&text)).color(self.style.dim));
+                ui.label(RichText::new(&text).color(self.style.dim));
             }
         });
         if conflicts {
@@ -1396,10 +1391,10 @@ impl Draw<'_, '_> {
         if !problems.is_empty() {
             let n = problems.len() as u64;
             let title = self.env.text.plural(n, "{n} saved shortcut could not be used", "{n} saved shortcuts could not be used");
-            egui::CollapsingHeader::new(self.vis(&title)).id_salt(self.base.with("problems")).show(ui, |ui| {
+            egui::CollapsingHeader::new(&title).id_salt(self.base.with("problems")).show(ui, |ui| {
                 ScrollArea::vertical().max_height(self.row_h * 4.0).show(ui, |ui| {
                     for p in &problems {
-                        ui.add(Label::new(self.vis(&self.problem(p))).wrap());
+                        ui.add(Label::new(self.problem(p)).wrap());
                     }
                 });
             });

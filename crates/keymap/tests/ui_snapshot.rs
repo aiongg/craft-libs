@@ -10,13 +10,13 @@
 
 use std::path::PathBuf;
 
-use craft_keymap::ui::{DialogState, English, Options, ShortcutsDialog, Text};
+use craft_keymap::ui::{DialogState, Options, ShortcutsDialog};
 use craft_keymap::{ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Keymap, Overrides, Platform, Profiles};
 use craft_ui::testing::wgpu_renderer;
 use egui::{Key as EguiKey, Modifiers, Theme, Vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use ui_fixture::{EnglishRtl, Pseudo, fixture, with_long_label};
+use ui_fixture::{Locale, fixture, with_long_label};
 
 #[path = "support/fonts.rs"]
 mod test_fonts;
@@ -24,7 +24,7 @@ mod ui_fixture;
 
 struct Fx {
     km: Keymap,
-    text: Box<dyn Text>,
+    locale: Locale,
     options: Options,
     state: DialogState,
     sets: Option<(Profiles, Vec<(&'static str, Overrides)>)>,
@@ -32,8 +32,8 @@ struct Fx {
 
 impl Fx {
     fn dialog(&mut self) -> (ShortcutsDialog<'_>, &mut DialogState) {
-        let Fx { km, text, options, state, sets } = self;
-        let d = ShortcutsDialog::new(km, &**text).options(options);
+        let Fx { km, options, state, sets, .. } = self;
+        let d = ShortcutsDialog::new(km).options(options);
         let d = match sets {
             Some((p, b)) => d.sets(p, b),
             None => d,
@@ -108,8 +108,9 @@ fn foreign_review(h: &mut Harness<'_, Fx>) {
     ])
     .with_name("Theirs");
     let options = ImportOptions { contexts: vec![("Default".into(), ContextRule::Home)], suggest: true, ..ImportOptions::default() };
+    let ctx = h.ctx.clone();
     let (d, state) = h.state_mut().dialog();
-    d.review_import(state, set, options);
+    d.review_import(&ctx, state, set, options);
     h.run();
 }
 
@@ -218,12 +219,12 @@ fn dialog_screenshots() {
                 });
                 let options = Options::default().with(|o| o.keyboard = case.keyboard);
                 let km = if case.long { with_long_label(fixture(case.platform)) } else { fixture(case.platform) };
-                let text: Box<dyn Text> = match case.words {
-                    Words::English => Box::new(English),
-                    Words::Rtl => Box::new(EnglishRtl),
-                    Words::Pseudo => Box::new(Pseudo::default()),
+                let locale = match case.words {
+                    Words::English => Locale::english(),
+                    Words::Rtl => Locale::english_rtl(),
+                    Words::Pseudo => Locale::pseudo(false),
                 };
-                let fx = Fx { km, text, options, state: DialogState::new(), sets };
+                let fx = Fx { km, locale, options, state: DialogState::new(), sets };
                 let mut h = Harness::builder()
                     .with_size(case.size)
                     .with_pixels_per_point(scale)
@@ -233,6 +234,7 @@ fn dialog_screenshots() {
                     .build_ui_state(
                         |ui, fx: &mut Fx| {
                             test_fonts::assert_coverage(ui.ctx());
+                            fx.locale.install(ui.ctx());
                             egui::Frame::central_panel(ui.style()).show(ui, |ui| {
                                 let (d, state) = fx.dialog();
                                 d.ui(ui, state);

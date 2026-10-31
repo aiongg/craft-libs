@@ -1006,6 +1006,7 @@ dependencies = [
 name = "craft-keymap"
 version = "0.1.0"
 dependencies = [
+ "craft-host",
  "craft-i18n",
  "craft-settings",
  "craft-ui",

@@ -48,17 +48,17 @@ impl Draw<'_, '_> {
         ui.add_enabled_ui(!self.state.modal(), |ui| {
             ui.horizontal(|ui| {
                 let set_label = self.ui("Set:");
-                let l = ui.label(self.vis(&set_label));
+                let l = ui.label(&set_label);
                 let mut pick = None;
                 self.combo(ui, "set", &l, &set_label, &active, |ui| {
                     for n in &names {
-                        if ui.selectable_label(*n == active, self.vis(n)).clicked() {
+                        if ui.selectable_label(*n == active, n).clicked() {
                             pick = Some(n.clone());
                         }
                     }
                 });
                 if modified {
-                    ui.label(RichText::new(self.vis(&self.ui("(modified)"))).color(self.style.dim));
+                    ui.label(RichText::new(self.ui("(modified)")).color(self.style.dim));
                 }
                 if let Some(n) = pick.filter(|n| *n != active) {
                     self.state.set_form = None;
@@ -74,7 +74,7 @@ impl Draw<'_, '_> {
     }
 
     fn set_items(&self, builtin: bool, modified: bool) -> Vec<Item> {
-        let item = |act, text: &str, id, enabled| Item { act, text: self.ui(text), id, enabled };
+        let item = |act, text: &'static str, id, enabled| Item { act, text: self.ui(text), id, enabled };
         let export = if self.env.options.export_formats.is_empty() { "Export…" } else { "Export" };
         let mut items = vec![
             item(Act::New, "New Set…", "shortcuts.set.new", true),
@@ -105,7 +105,7 @@ impl Draw<'_, '_> {
             act = act.or(self.set_item(ui, &items[i]));
         }
         if !overflow.is_empty() {
-            let r = ui.menu_button(self.vis(&more), |ui| {
+            let r = ui.menu_button(&more, |ui| {
                 for &i in &overflow {
                     act = act.or(self.set_item(ui, &items[i]));
                 }
@@ -118,7 +118,7 @@ impl Draw<'_, '_> {
     fn set_item(&self, ui: &mut Ui, item: &Item) -> Option<Act> {
         if item.act == Act::Export && !self.env.options.export_formats.is_empty() {
             let mut act = None;
-            let r = ui.menu_button(self.vis(&item.text), |ui| {
+            let r = ui.menu_button(&item.text, |ui| {
                 if self.button(ui, true, &self.ui("Keyboard Shortcuts (JSON)"), "shortcuts.set.export.json") {
                     act = Some(Act::Export);
                 }
@@ -157,7 +157,7 @@ impl Draw<'_, '_> {
         let (mut submit, mut cancel) = (false, false);
         ui.horizontal_wrapped(|ui| {
             let name_label = self.ui("Name:");
-            let l = ui.label(self.vis(&name_label));
+            let l = ui.label(&name_label);
             let edit = ui.add(TextEdit::singleline(&mut form.name).id(self.base.with("set_name")).desired_width(FIELD_W)).labelled_by(l.id);
             self.text_field(&edit);
             self.tag(|| "shortcuts.setForm.name".into(), edit.rect, &name_label);
@@ -171,15 +171,15 @@ impl Draw<'_, '_> {
             }
             if let SetFormKind::New { based_on } = &mut form.kind {
                 let based_label = self.ui("Based on:");
-                let l = ui.label(self.vis(&based_label));
+                let l = ui.label(&based_label);
                 let current = self.ui("Current shortcuts");
                 let shown = based_on.clone().unwrap_or_else(|| current.clone());
-                let combo = ComboBox::from_id_salt(self.base.with("based_on")).selected_text(self.vis(&shown)).show_ui(ui, |ui| {
-                    if ui.selectable_label(based_on.is_none(), self.vis(&current)).clicked() {
+                let combo = ComboBox::from_id_salt(self.base.with("based_on")).selected_text(&shown).show_ui(ui, |ui| {
+                    if ui.selectable_label(based_on.is_none(), &current).clicked() {
                         *based_on = None;
                     }
                     for n in &names {
-                        if ui.selectable_label(based_on.as_ref() == Some(n), self.vis(n)).clicked() {
+                        if ui.selectable_label(based_on.as_ref() == Some(n), n).clicked() {
                             *based_on = Some(n.clone());
                         }
                     }
