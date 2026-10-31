@@ -12,8 +12,7 @@ use crate::controls::{ControlSize, Select};
 use crate::menu::{MenuEntry, MenuItem};
 
 /// Chrome a workspace remembers beside the dock layout: which bars show and the panel set.
-#[derive(Clone, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct WorkspaceChrome {
     pub menu_bar: bool,
@@ -23,9 +22,8 @@ pub struct WorkspaceChrome {
 }
 
 /// One named workspace.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(bound(deserialize = "P: serde::Deserialize<'de>")))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
 pub struct NamedWorkspace<P> {
     /// Stable id (`"essentials"`, or a slug of a saved name).
     pub id: String,
@@ -41,9 +39,8 @@ pub struct NamedWorkspace<P> {
 /// The app's workspaces: built-ins first, saved ones after, one current. It is a settings
 /// section (serde with the `serde` feature, as [`Workspace`]); the layouts of built-ins are
 /// code, and only their user edits ([`edited`](Self::edited)) are stored.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(default, bound(deserialize = "P: serde::Deserialize<'de> + Eq + Hash + Clone")))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, bound(deserialize = "P: serde::Deserialize<'de> + Eq + Hash + Clone"))]
 pub struct WorkspaceSet<P> {
     pub builtin: Vec<NamedWorkspace<P>>,
     pub saved: Vec<NamedWorkspace<P>>,

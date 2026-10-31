@@ -457,7 +457,6 @@ fn long_action_sequence_never_loses_or_duplicates_a_panel() {
     }
 }
 
-#[cfg(feature = "serde")]
 #[test]
 fn saved_layout_and_hidden_location_round_trip() {
     let layout = sample();
@@ -470,7 +469,6 @@ fn saved_layout_and_hidden_location_round_trip() {
     assert_eq!(serde_json::from_str::<Location<u32>>(&encoded).unwrap(), location);
 }
 
-#[cfg(feature = "serde")]
 #[test]
 /// Deserialize an older hidden `Location` without a `sibling` field; the
 /// missing list stays empty and the anchor panel is preserved.
