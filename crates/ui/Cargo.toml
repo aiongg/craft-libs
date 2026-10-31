@@ -32,8 +32,12 @@ craft-settings = { workspace = true }
 # Same version as epaint's, for reading a face's character map.
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
+# Inflating egui's default fonts, stored deflated (fonts::deflated_default_definitions).
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The installed font folders, for the on-demand font candidates (fonts::SystemCandidates).
+craft-font-catalog = { workspace = true, default-features = false }
 # Screenshot and input tests of an app's screens (the screen-testing feature).
 egui_kittest = { version = "0.37", features = ["snapshot", "wgpu"], optional = true }
 # The version egui_kittest's wgpu renderer uses, for sharing one device (testing::wgpu_renderer).
@@ -78,6 +82,9 @@ screen-testing = ["dep:egui_kittest", "dep:egui-wgpu"]
 # build.rs reads icons/icons.toml.
 [build-dependencies]
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
+# build.rs deflates egui's default fonts for fonts::deflated_default_definitions.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+epaint_default_fonts = "0.37"
 
 [dev-dependencies]
 # serde: the IME tests read events that only the suite's egui fork has from JSON.
