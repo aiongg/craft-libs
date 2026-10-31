@@ -7,7 +7,7 @@ use egui::{Response, Ui, vec2};
 use kurbo::{Point, Rect, Vec2};
 
 use super::geometry::{normalized_angle, resized, turn};
-use super::{CanvasView, CropBox, CropFrame, CropResponse, Drag, Kind};
+use super::{CanvasView, CropBox, CropFrame, CropPress, CropResponse, Kind};
 
 impl CropFrame<'_> {
     /// [`show`](Self::show) in Image mode. The frame stays upright on screen: a drag inside moves
@@ -52,19 +52,19 @@ impl CropFrame<'_> {
 
     /// The view after a drag step that gave frame `next`: from the view of the press, so the view
     /// moving with the image never feeds back into the drag.
-    pub(super) fn follow(&self, d: &Drag, view: &mut CanvasView, next: &CropBox) {
+    pub(super) fn follow(&self, d: &CropPress, view: &mut CanvasView, next: &CropBox) {
         let Some(press) = d.press_view else { return };
         let slid = || CanvasView { center: press.center + (next.center() - d.at_press.center()), ..press };
         *view = match d.kind {
             Kind::Move => slid(),
             Kind::Resize { .. } if self.auto_center => slid(),
             Kind::Turn { .. } => Self::view_for_about(next, &press, d.at_press.center()),
-            Kind::Draw { .. } | Kind::Resize { .. } => press,
+            Kind::Draw { .. } | Kind::Resize { .. } | Kind::Line { .. } => press,
         };
     }
 
     /// A drawn frame turns the view upright on release, and with Auto Center Preview moves to the middle of the canvas.
-    pub(super) fn centre_drawn(&self, d: &Drag, view: &mut CanvasView, shown: &CropBox) {
+    pub(super) fn centre_drawn(&self, d: &CropPress, view: &mut CanvasView, shown: &CropBox) {
         if matches!(d.kind, Kind::Draw { .. }) && d.press_view.is_some() {
             *view = Self::view_for(shown, view);
             if self.auto_center {
@@ -74,7 +74,7 @@ impl CropFrame<'_> {
     }
 
     /// The view as it was at the press, after a cancel.
-    pub(super) fn restore_view(&self, d: &Drag, view: &mut CanvasView) {
+    pub(super) fn restore_view(&self, d: &CropPress, view: &mut CanvasView) {
         if let Some(press) = d.press_view {
             *view = press;
         }

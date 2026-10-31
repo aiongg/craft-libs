@@ -1,7 +1,7 @@
 //! Straighten: a line drawn along something that should be level or plumb gives the angle that
 //! levels it (PhotoCraft's `tools/crop_straighten.rs`).
 
-use egui::{Context, CursorIcon, Id, Key, Modifiers, Pos2, Response, Shape, Ui};
+use egui::{Context, CursorIcon, Id, Key, Modifiers, Painter, Pos2, Response, Shape, Ui};
 use kurbo::{Point, Rect, Size};
 
 use super::geometry::normalized_angle;
@@ -25,30 +25,30 @@ pub(super) struct Pass {
     pub straightened: Option<f64>,
 }
 
-/// The frame angle (degrees, clockwise on the page, in -45..=45) that makes the line from `a` to
-/// `b` level, or plumb when it is nearer vertical; `None` for a point or a line that is not
-/// finite.
-pub(super) fn level_angle(a: Point, b: Point) -> Option<f64> {
-    let d = b - a;
-    if !(d.x.is_finite() && d.y.is_finite()) || d.hypot() == 0.0 {
-        return None;
-    }
-    // The line has no direction: fold it into -90..=90, then into the nearer axis.
-    let mut deg = d.y.atan2(d.x).to_degrees();
-    if deg > 90.0 {
-        deg -= 180.0;
-    } else if deg <= -90.0 {
-        deg += 180.0;
-    }
-    if deg > 45.0 {
-        deg -= 90.0;
-    } else if deg <= -45.0 {
-        deg += 90.0;
-    }
-    Some(deg + 0.0)
-}
-
 impl CropBox {
+    /// The frame angle (degrees, clockwise on the page, in -45..=45) that makes the line from `a` to
+    /// `b` level, or plumb when it is nearer vertical; `None` for a point or a line that is not
+    /// finite.
+    pub fn level_angle(a: Point, b: Point) -> Option<f64> {
+        let d = b - a;
+        if !(d.x.is_finite() && d.y.is_finite()) || d.hypot() == 0.0 {
+            return None;
+        }
+        // The line has no direction: fold it into -90..=90, then into the nearer axis.
+        let mut deg = d.y.atan2(d.x).to_degrees();
+        if deg > 90.0 {
+            deg -= 180.0;
+        } else if deg <= -90.0 {
+            deg += 180.0;
+        }
+        if deg > 45.0 {
+            deg -= 90.0;
+        } else if deg <= -45.0 {
+            deg += 90.0;
+        }
+        Some(deg + 0.0)
+    }
+
     /// The largest frame with this one's proportions that fits a canvas of `canvas_size` at
     /// `angle` degrees, centred on the canvas (the host applies it as one box step after
     /// Straighten). `None` when a size or the angle is not a positive finite number.
@@ -95,14 +95,14 @@ impl CropFrame<'_> {
         let from = l.press.origin;
         if dropped || !down {
             ctx.data_mut(|d| d.remove::<Line>(key));
-            if !dropped && (l.to - from).length() >= style.straighten_min {
-                pass.straightened = level_angle(view.to_doc(from), view.to_doc(l.to));
+            if !dropped {
+                pass.straightened = Self::line_angle(view, style, from, l.to);
             }
             return pass;
         }
         ctx.data_mut(|d| d.insert_temp(key, l));
         ctx.set_cursor_icon(CursorIcon::Crosshair);
-        self.paint_line(ui, view, style, id, from, l.to);
+        self.paint_line(&ui.painter_at(view.rect), style, id, from, l.to);
         pass.claimed = true;
         pass
     }
@@ -119,9 +119,17 @@ impl CropFrame<'_> {
         Some(Line { press, to: press.origin })
     }
 
+    /// The angle a Straighten line from canvas point `from` to `to` gives, when it is at least
+    /// `crop.straighten_min` screen points long.
+    pub(super) fn line_angle(view: &CanvasView, style: &CropStyle, from: Pos2, to: Pos2) -> Option<f64> {
+        if (to - from).length() < style.straighten_min {
+            return None;
+        }
+        CropBox::level_angle(view.to_doc(from), view.to_doc(to))
+    }
+
     /// The line over its halo, and its angle beside the pointer.
-    fn paint_line(&self, ui: &Ui, view: &CanvasView, style: &CropStyle, id: Id, from: Pos2, to: Pos2) {
-        let painter = ui.painter_at(view.rect);
+    pub(super) fn paint_line(&self, painter: &Painter, style: &CropStyle, id: Id, from: Pos2, to: Pos2) {
         painter.add(Shape::line_segment([from, to], style.straighten_halo));
         painter.add(Shape::line_segment([from, to], style.straighten));
         let (Some(labels), Some((ux, _))) = (&self.readout, self.units) else { return };
@@ -133,7 +141,7 @@ impl CropFrame<'_> {
         let deg = fixed(normalized_angle(f64::from(-d.y).atan2(f64::from(d.x)).to_degrees()), 1);
         let deg = if deg == -180.0 { 180.0 } else { deg };
         let angle = format!("{}{}{}", labels.degrees.prefix(), ux.numbers.format(deg, 1..=1), labels.degrees.suffix());
-        Readout::new(("craft_ui::canvas::CropFrame::straighten", id)).row(labels.angle.clone(), angle).show(ui.ctx(), to);
+        Readout::new(("craft_ui::canvas::CropFrame::straighten", id)).row(labels.angle.clone(), angle).show(painter.ctx(), to);
     }
 }
 

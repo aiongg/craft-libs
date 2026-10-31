@@ -81,14 +81,14 @@ struct UprightArgs {
     #[arg(flatten)]
     view: ViewArgs,
     guide: GuideArg,
-    #[arg(range = 0.0..=1.0)]
+    #[arg(range = 0.0..=100.0)]
     shield: f32,
     readout: bool,
 }
 
 impl Default for UprightArgs {
     fn default() -> Self {
-        Self { view: ViewArgs::default(), guide: GuideArg::Thirds, shield: 0.75, readout: true }
+        Self { view: ViewArgs::default(), guide: GuideArg::Thirds, shield: 75.0, readout: true }
     }
 }
 

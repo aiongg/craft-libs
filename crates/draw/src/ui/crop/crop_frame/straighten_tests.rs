@@ -4,7 +4,7 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect, Size, Vec2};
 
-use super::{CropBox, level_angle};
+use super::CropBox;
 use crate::ui::{CropFrame, CropLabels, CropNames};
 use craft_ui::canvas::{CanvasView, RulerUnits};
 use craft_ui::edit::EditEvent;
@@ -169,10 +169,10 @@ fn the_angle_shows_beside_the_pointer_while_the_line_is_drawn() {
 
 #[test]
 fn level_angle_ignores_points_and_non_finite_lines() {
-    assert_eq!(level_angle(Point::new(1.0, 1.0), Point::new(1.0, 1.0)), None);
-    assert_eq!(level_angle(Point::new(f64::NAN, 0.0), Point::new(1.0, 1.0)), None);
-    assert_eq!(level_angle(Point::ZERO, Point::new(-10.0, 0.0)), Some(0.0));
-    assert!(level_angle(Point::ZERO, Point::new(-10.0, 0.0)).unwrap().is_sign_positive());
+    assert_eq!(CropBox::level_angle(Point::new(1.0, 1.0), Point::new(1.0, 1.0)), None);
+    assert_eq!(CropBox::level_angle(Point::new(f64::NAN, 0.0), Point::new(1.0, 1.0)), None);
+    assert_eq!(CropBox::level_angle(Point::ZERO, Point::new(-10.0, 0.0)), Some(0.0));
+    assert!(CropBox::level_angle(Point::ZERO, Point::new(-10.0, 0.0)).unwrap().is_sign_positive());
 }
 
 #[test]
@@ -204,4 +204,35 @@ fn fitted_is_the_largest_frame_of_the_same_proportions_inside_the_canvas() {
     }
     assert_eq!(frame.fitted(canvas, f64::NAN), None);
     assert_eq!(CropBox::upright(Rect::new(1.0, 1.0, 1.0, 5.0)).fitted(canvas, 0.0), None);
+}
+
+/// A Straighten line through the host-driven calls gives the angle `show` reports for it.
+#[test]
+fn the_host_driven_line_gives_the_angle_show_gives() {
+    let mut h = harness(true, 0.0);
+    h.run();
+    let (from, to) = (at(&h, Point::new(120.0, 100.0)), at(&h, Point::new(220.0, 112.0)));
+    h.event(Event::PointerMoved(from));
+    h.event(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.run();
+    h.event(Event::PointerMoved(to));
+    h.event(Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    h.run();
+    let shown = h.state().straightened[0];
+
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let style = CropFrame::style(&craft_ui::theme::current(&ctx));
+    let view = h.state().view.expect("drawn");
+    let b = CropBox::upright(RECT);
+    let f = CropFrame::new("crop", &b, CropNames::default()).straighten(true);
+    assert_eq!(f.hit(&view, &style, from), None);
+    let mut press = f.press(&view, &style, from).expect("a line");
+    let mut v = view;
+    let t = f.track(&mut v, &mut press, to, Modifiers::NONE, false);
+    assert!(t.begun && t.state.is_none());
+    assert_eq!(press.line(), Some([from, to]));
+    assert_eq!(f.release(&mut v, &style, &press, Some(to)), super::super::CropRelease::Straighten(shown));
+    let short = f.press(&view, &style, from).expect("a line");
+    assert_eq!(f.release(&mut v, &style, &short, Some(from + vec2(1.0, 0.0))), super::super::CropRelease::Nothing);
 }

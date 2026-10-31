@@ -243,7 +243,10 @@ pub struct CropShield {
     pub color: ShieldColor,
     /// sRGB, used when `color` is `Custom`.
     pub custom_color: [u8; 3],
-    /// 0..=1; [`opacity`](Self::opacity) clamps a stray value.
+    /// Auto Center Preview: in the default mode, drawing or resizing the frame re-pans the view so
+    /// the frame sits in the middle of the canvas ([`CropFrame::auto_center`](super::CropFrame::auto_center)).
+    pub auto_center_preview: bool,
+    /// Percent, 0..=100; [`opacity`](Self::opacity) gives the fraction and clamps a stray value.
     pub opacity: f32,
     /// Auto Adjust Opacity: lighter while the frame is dragged.
     pub auto_adjust: bool,
@@ -258,7 +261,8 @@ impl Default for CropShield {
             enabled: true,
             color: ShieldColor::MatchCanvas,
             custom_color: [0, 0, 0],
-            opacity: SHIELD_OPACITY,
+            auto_center_preview: true,
+            opacity: SHIELD_OPACITY * 100.0,
             auto_adjust: true,
             classic_mode: false,
         }
@@ -272,10 +276,11 @@ impl CropShield {
         self.classic_mode || self.show_cropped_area
     }
 
-    /// The opacity in 0..=1: a non-finite value is the default, an out-of-range one is clamped.
+    /// The opacity as a fraction in 0..=1: a non-finite value is the default, an out-of-range one
+    /// is clamped.
     pub fn opacity(&self) -> f32 {
-        let o = if self.opacity.is_finite() { self.opacity } else { SHIELD_OPACITY };
-        o.clamp(0.0, 1.0)
+        let o = if self.opacity.is_finite() { self.opacity } else { SHIELD_OPACITY * 100.0 };
+        o.clamp(0.0, 100.0) / 100.0
     }
 
     /// What to paint over the area outside the frame, `canvas` being the canvas colour and

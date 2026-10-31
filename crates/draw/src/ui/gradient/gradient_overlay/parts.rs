@@ -99,7 +99,7 @@ impl GradientOverlay<'_> {
 
     /// The focus mark of the picked `part` of `shown`: two lines beside the line, or a ring round
     /// the handle, stop or diamond.
-    pub(super) fn paint_focus(&self, painter: &Painter, style: &GradientLineStyle, view: &CanvasView, shown: &LineGradient, part: LinePart) {
+    pub fn paint_focus(&self, painter: &Painter, style: &GradientLineStyle, view: &CanvasView, shown: &LineGradient, part: LinePart) {
         let (start, end) = (view.to_screen(shown.line.start), view.to_screen(shown.line.end));
         let ring = |at: Pos2, radius: f32| PartFocus::ring(painter, Rect::from_center_size(at, vec2(2.0 * radius, 2.0 * radius)));
         match part {

@@ -19,14 +19,14 @@ pub mod transform;
 mod words_tests;
 
 pub use crop::{
-    CropBox, CropFrame, CropGuide, CropLabels, CropNames, CropResponse, CropShield, CropStyle, GuideShow, PerspectiveCropNames, PerspectiveCropQuad,
-    PerspectiveCropResponse, PerspectiveCropStyle, PerspectiveHit, PerspectiveQuad, Polyline, ShieldColor,
+    CropBox, CropFrame, CropGuide, CropLabels, CropNames, CropPress, CropRelease, CropResponse, CropShield, CropStyle, CropTrack, GuideShow,
+    PerspectiveCropNames, PerspectiveCropQuad, PerspectiveCropResponse, PerspectiveCropStyle, PerspectiveHit, PerspectiveQuad, Polyline, ShieldColor,
 };
 pub use gradient::{
     ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientExtent, GradientGroup, GradientItem, GradientLabels,
     GradientLine, GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, GradientPalette, GradientRamp, GradientRampStyle,
-    GradientRef, GradientStops, GradientSwatch, LineCursor, LineGradient, LinePart, OpacityStop, PaletteLayout, Sampler as StopSampler, StopDrop,
-    StopRef, StopRow, StopRows, StopRules, default_sampler,
+    GradientRef, GradientStops, GradientSwatch, LineCursor, LineGradient, LinePart, LinePress, LineRelease, LineTrack, OpacityStop, PaletteLayout,
+    Sampler as StopSampler, StopDrop, StopRef, StopRow, StopRows, StopRules, default_sampler,
 };
 pub use pen::{
     BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,

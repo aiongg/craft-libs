@@ -6,6 +6,7 @@ mod keys;
 mod order_tests;
 mod parts;
 mod pointer;
+pub use pointer::{LinePress, LineRelease, LineTrack};
 #[cfg(test)]
 mod share_tests;
 pub(crate) mod story;
@@ -185,6 +186,12 @@ type Cursor<'a> = Box<dyn Fn(LineCursor) -> CursorIcon + 'a>;
 /// - The group's AccessKit children are the parts, named and valued as the bar's markers are
 ///   ([`labels`](Self::labels), [`numbers`](Self::numbers)), the end handles valued through
 ///   [`units`](Self::units).
+///
+/// A host that reads the pointer itself (PhotoCraft's tool events) drives the overlay with
+/// [`hit`](Self::hit), [`press`](Self::press), [`track`](Self::track), [`release`](Self::release)
+/// and [`double_click`](Self::double_click), and draws it with [`paint`](Self::paint) and
+/// [`paint_focus`](Self::paint_focus). `show` runs the same functions; the selection, the keys and
+/// the focus stay the host's.
 ///
 /// With [`selection_of`](Self::selection_of) the overlay and a gradient editor share one selected
 /// stop. A selection another control makes becomes the picked part, and a stop moved past its
@@ -450,15 +457,15 @@ impl<'a> GradientOverlay<'a> {
         // The drag's own last report stands for the host's value while the host shows it or still
         // shows the value at the press, so applying updates live is no outside change.
         let host = match (&drag, &reported) {
-            (Some(d), Some(r)) if d.began && !d.cancelled && (value == d.base || value == *r) => r.clone(),
+            (Some(d), Some(r)) if d.core.began && !d.cancelled && (value == d.core.base || value == *r) => r.clone(),
             _ => value,
         };
         let mut gesture = Gesture::load(ui, id, &host, self.policy).focus_owners(&[]).enabled(editable);
-        let drag = drag.and_then(|d| self.track(&pass, d, &mut gesture, reported.as_ref(), &mut sel));
+        let drag = drag.and_then(|d| self.track_drag(&pass, d, &mut gesture, reported.as_ref(), &mut sel));
         if editable && drag.is_none() {
             self.clicks(&pass, gesture.shown(), &mut sel, &mut out);
         }
-        let dragging = drag.as_ref().filter(|d| d.began && !d.cancelled).map(|d| d.part);
+        let dragging = drag.as_ref().filter(|d| d.core.began && !d.cancelled).map(|d| d.core.part);
         if editable && drag.is_none() {
             out.hovered = self.hover(&pass, gesture.shown());
         }
@@ -531,8 +538,10 @@ impl<'a> GradientOverlay<'a> {
         out
     }
 
-    /// Draws `value`; `marked` is the end a drag holds or the keys picked, drawn selected.
-    fn paint(
+    /// Draws `value` through `painter` (clipped to the canvas): `selected` is the selected stop or
+    /// midpoint, `marked` the end a drag holds or the keys picked, drawn selected. [`show`](Self::show)
+    /// draws through this.
+    pub fn paint(
         &self,
         painter: &Painter,
         style: &GradientLineStyle,
