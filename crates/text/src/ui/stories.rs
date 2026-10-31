@@ -409,25 +409,8 @@ fn check_spelling(ui: &mut Ui, _: &mut NoArgs) {
     );
 }
 
-/// Whether this story instance may draw the dialog `name` in this pass. The dialogs have one
-/// fixed id each, so two instances of a story drawn in the same pass (a component tab and a
-/// variants view) must not both show it.
-fn claim(ctx: &egui::Context, name: &str, instance: egui::Id) -> bool {
-    let key = egui::Id::unique(("text-story-claim", name));
-    let pass = ctx.cumulative_pass_nr();
-    ctx.data_mut(|d| {
-        let (claimed_pass, owner) = d.get_temp::<(u64, egui::Id)>(key).unwrap_or((u64::MAX, instance));
-        if claimed_pass == pass && owner != instance {
-            return false;
-        }
-        d.insert_temp(key, (pass, instance));
-        true
-    })
-}
-
-/// A "Show dialog" button that opens `make` on a [`DialogHost`] kept in egui memory, runs `tune`
-/// on the open dialog every pass, and shows its answer afterwards. Open from the start outside
-/// the Overview, where a dialog over every tile would hide the others.
+/// Opens `make` on a [`DialogHost`] kept in egui memory while the story's dialog is shown
+/// (`craft_ui::story::dialog_shown`), runs `tune` on it every pass and shows its answer afterwards.
 fn dialog_story<D: StackDialog>(
     ui: &mut Ui,
     name: &str,
@@ -438,32 +421,33 @@ fn dialog_story<D: StackDialog>(
     struct Dialogs {
         host: DialogHost,
         answer: Option<String>,
-        opened: bool,
+        open: bool,
     }
-    if !claim(ui.ctx(), name, ui.scope_id()) {
+    if !craft_ui::story::dialog_claim(ui.ctx(), name, ui.scope_id()) {
         return;
     }
-    let in_overview = craft_ui::story::in_overview(ui.ctx());
-    let shared = state(ui, name, || Dialogs { host: DialogHost::new(), answer: None, opened: false });
+    let shared = state(ui, name, || Dialogs { host: DialogHost::new(), answer: None, open: true });
     let mut guard = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    let Dialogs { host, answer, opened } = &mut *guard;
+    let Dialogs { host, answer, open } = &mut *guard;
     let ctx: Context = ui.ctx().clone();
-    if !*opened && !in_overview {
-        *opened = true;
-        host.open(make());
-    } else if !host.is_open::<D>() && ui.add(Button::new("Show dialog")).clicked() {
-        host.open(make());
-        *answer = None;
-    }
-    if let Some(dialog) = host.get_mut::<D>() {
-        tune(dialog);
-    }
-    host.show(&ctx);
-    if let Some(result) = host.take::<D>() {
-        *answer = Some(match result {
-            DialogResult::Ok(value) => describe(value),
-            DialogResult::Cancel => "Cancelled".to_owned(),
-        });
+    if craft_ui::story::dialog_shown(ui, *open) {
+        if !host.is_open::<D>() {
+            host.open(make());
+            *answer = None;
+        }
+        if let Some(dialog) = host.get_mut::<D>() {
+            tune(dialog);
+        }
+        host.show(&ctx);
+        if let Some(result) = host.take::<D>() {
+            *answer = Some(match result {
+                DialogResult::Ok(value) => describe(value),
+                DialogResult::Cancel => "Cancelled".to_owned(),
+            });
+            craft_ui::story::dialog_closed(ui, open);
+        }
+    } else if !craft_ui::story::in_overview(&ctx) && ui.add(Button::new("Show dialog")).clicked() {
+        *open = true;
     }
     if let Some(text) = answer {
         ui.label(format!("Result: {text}"));

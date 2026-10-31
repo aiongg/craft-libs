@@ -53,13 +53,6 @@ craft_ui::words! {
 /// for (PhotoCraft's `"suggestions": 8`).
 pub const SUGGESTION_COUNT: usize = 8;
 
-/// Width of the word and Change To fields and of the suggestions list (PhotoCraft's 240 pt).
-const FIELD_WIDTH: f32 = 240.0;
-/// Height of the suggestions list (PhotoCraft's 110 pt).
-const SUGGESTIONS_HEIGHT: f32 = 110.0;
-/// Row height of the suggestions list.
-const SUGGESTION_ROW: f32 = 22.0;
-
 /// A button of the right-hand column that the dialog or the app acts on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Press {
@@ -202,6 +195,7 @@ impl StackDialog for CheckSpellingDialog {
         let labels = self.labels.clone().unwrap_or_else(|| CheckSpellingLabels::of_ctx(ctx));
         let tokens = craft_ui::theme::current(ctx);
         let gap = tokens.component.dialog.button_gap;
+        let sizes = tokens.component.check_spelling;
         let item = self.items.get(self.index).cloned();
         let has_item = item.is_some();
 
@@ -235,7 +229,7 @@ impl StackDialog for CheckSpellingDialog {
 
         let shown = Dialog::new("check-spelling", labels.title.as_str())
             .stack(stack)
-            .width(Width::Fixed(FIELD_WIDTH + tokens.component.dialog.side_min + 3.0 * gap))
+            .width(Width::Fixed(sizes.field_width + tokens.component.dialog.side_min + 3.0 * gap))
             .footer(footer)
             .show(ctx, &mut self.state, &mut (), |ui, ()| {
                 ui.vertical(|ui| {
@@ -243,12 +237,12 @@ impl StackDialog for CheckSpellingDialog {
                     let word = item.as_ref().map_or("", |i| i.word.as_str());
                     let _ = TextField::new(("check-spelling", "word"), labels.not_in_dictionary.as_str(), word)
                         .enabled(false)
-                        .width(FIELD_WIDTH)
+                        .width(sizes.field_width)
                         .show(ui);
                     ui.label(labels.change_to.as_str());
                     let edit = TextField::new(("check-spelling", "change-to"), labels.change_to.as_str(), &change_to)
                         .enabled(has_item)
-                        .width(FIELD_WIDTH)
+                        .width(sizes.field_width)
                         .show(ui);
                     if let Some(value) = edit.event.as_ref().and_then(|e| e.value()) {
                         change_to.clone_from(value);
@@ -258,12 +252,12 @@ impl StackDialog for CheckSpellingDialog {
                     let rows: Vec<RowInfo<usize>> = (0..suggestions.len()).map(RowInfo::leaf).collect();
                     let mut selection = suggestions.iter().position(|s| *s == change_to).map_or_else(Selection::new, Selection::only);
                     Surface::new(SurfaceKind::Sunken).show(ui, |ui| {
-                        ui.set_min_size(egui::vec2(FIELD_WIDTH, SUGGESTIONS_HEIGHT));
-                        ui.set_max_width(FIELD_WIDTH);
+                        ui.set_min_size(egui::vec2(sizes.field_width, sizes.suggestions_height));
+                        ui.set_max_width(sizes.field_width);
                         let out = List::new(("check-spelling", "suggestions"), labels.suggestions.as_str(), rows.as_slice())
                             .selection(&mut selection)
-                            .row_height(SUGGESTION_ROW)
-                            .max_height(SUGGESTIONS_HEIGHT)
+                            .row_height(sizes.suggestion_row)
+                            .max_height(sizes.suggestions_height)
                             .show(ui, |_, &key| ListRow::new(key, suggestions[key].as_str()).accessible_name(suggestions[key].as_str()));
                         for event in out.events {
                             match event {

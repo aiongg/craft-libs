@@ -18,6 +18,16 @@ pub const COMPONENTS: &[&str] = &["Fonts panel", "Font picker", "Glyphs panel", 
 
 const APP: AppInfo = AppInfo { id: "fonts-story", name: "Fonts story", version: "1.0" };
 
+/// The labels tables of the picker, Glyphs panel, Missing Fonts dialog and axis sliders, for the
+/// facade's catalog extraction. The fonts panel keeps its words in a catalog of its own.
+pub const WORDS: &[&[craft_ui::localized::Word]] = &[
+    #[cfg(feature = "font-picker")]
+    <crate::picker::FontPickerLabels as craft_ui::localized::Labels>::WORDS,
+    <crate::glyphs::GlyphsLabels as craft_ui::localized::Labels>::WORDS,
+    <crate::missing::MissingFontsLabels as craft_ui::localized::Labels>::WORDS,
+    <crate::axes::AxesLabels as craft_ui::localized::Labels>::WORDS,
+];
+
 /// The stories of the font manager's panel.
 pub fn stories() -> Vec<Story> {
     let mut stories = vec![typed_story!("patterns/fonts-panel/panel", Level::Patterns, "Fonts panel", "Panel", NoArgs {}, show)];

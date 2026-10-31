@@ -269,14 +269,11 @@ pub struct FontPicker<'a> {
     settings: Option<&'a mut FontPickerSettings>,
     filters: Option<&'a mut FontFilters>,
     width: Option<f32>,
-    list_height: f32,
+    list_height: Option<f32>,
     labels: Option<FontPickerLabels>,
     language: Option<String>,
     start_open: bool,
 }
-
-/// The default height of the open list, in points (PhotoCraft's `FONT_LIST_HEIGHT`).
-pub const LIST_HEIGHT: f32 = 440.0;
 
 impl<'a> FontPicker<'a> {
     /// A picker over `catalog` editing `current` (the family name). `salt` keeps its ids apart from
@@ -289,7 +286,7 @@ impl<'a> FontPicker<'a> {
             settings: None,
             filters: None,
             width: None,
-            list_height: LIST_HEIGHT,
+            list_height: None,
             labels: None,
             language: None,
             start_open: false,
@@ -323,7 +320,7 @@ impl<'a> FontPicker<'a> {
 
     /// The open list's height.
     pub fn list_height(mut self, height: f32) -> Self {
-        self.list_height = height;
+        self.list_height = Some(height);
         self
     }
 
@@ -559,8 +556,9 @@ impl<'a> FontPicker<'a> {
         let hide_classes = ctx.data(|d| d.get_temp::<bool>(hide_id)).unwrap_or(false);
         let faces = face_fonts(&ctx);
         let reveal = (edit.reveal > 0).then(|| edit.row.or(current_row)).flatten();
-        let list_width = rect.width().max(LIST_WIDTH);
-        let list_height = self.list_height;
+        let sizes = craft_ui::theme::current(&ctx).component.font_picker;
+        let list_width = rect.width().max(sizes.list_width);
+        let list_height = self.list_height.unwrap_or(sizes.list_height);
         let catalog = self.catalog;
         let popup = Popover::new(format!("{}.popup", self.salt), PopoverAnchor::Control(field.response.clone()))
             .close(PopoverClose::default().focus_left(false))
@@ -578,7 +576,7 @@ impl<'a> FontPicker<'a> {
                 let favorites = filters.as_deref().is_some_and(|f| f.favorites);
                 ui.horizontal_top(|ui| {
                     if let (Some(f), false) = (filters.as_deref_mut(), hide) {
-                        class_column(ui, field_id, f, &labels);
+                        class_column(ui, field_id, f, &labels, sizes.class_column);
                     }
                     ui.vertical(|ui| {
                         ui.set_width(list_width);
@@ -607,6 +605,7 @@ impl<'a> FontPicker<'a> {
                             selected: edit.row.or(current_row),
                             reveal,
                             height: list_height,
+                            class_glyph: sizes.class_glyph,
                         };
                         lists.show(ui, &mut out);
                     });
@@ -693,13 +692,6 @@ pub fn accept_row(rows: &[FamilyRow], text: &str, selected: Option<usize>) -> Op
         .or_else(|| (!rows.is_empty()).then_some(0))
 }
 
-/// The list's width at least (PhotoCraft's `FONT_LIST_WIDTH`), in points.
-const LIST_WIDTH: f32 = 420.0;
-/// The class list's width (PhotoCraft's `CLASS_COLUMN_WIDTH`), in points.
-const CLASS_COLUMN_WIDTH: f32 = 118.0;
-/// The room a row keeps for its class glyph.
-const CLASS_GLYPH_WIDTH: f32 = 28.0;
-
 /// What the field keeps between passes while it has the focus or the list is open.
 #[derive(Clone, Default)]
 struct Edit {
@@ -742,6 +734,7 @@ struct ListContext<'a> {
     selected: Option<usize>,
     reveal: Option<usize>,
     height: f32,
+    class_glyph: f32,
 }
 
 impl ListContext<'_> {
@@ -785,7 +778,7 @@ fn list_row<'a>(cx: &'a ListContext<'a>, key: usize, hovered: &'a Cell<Option<us
     let row = &cx.rows[key];
     let labels = cx.labels;
     let star = ToggleColumn::new(labels.favorite.clone(), Icon::StarFilled, Icon::Star, row.starred);
-    let glyph = ListRow::new(key, row.shown.clone()).toggle(star).trailing_item(CLASS_GLYPH_WIDTH, move |ui| {
+    let glyph = ListRow::new(key, row.shown.clone()).toggle(star).trailing_item(cx.class_glyph, move |ui| {
         if ui.rect_contains_pointer(ui.clip_rect()) {
             hovered.set(Some(key));
         }
@@ -821,13 +814,13 @@ fn filter_bar(ui: &mut Ui, f: &mut FontFilters, hide_classes: &mut bool, labels:
 }
 
 /// The class list at the left: All Classes and the eight classes, one selected.
-fn class_column(ui: &mut Ui, field_id: Id, filters: &mut FontFilters, labels: &FontPickerLabels) {
+fn class_column(ui: &mut Ui, field_id: Id, filters: &mut FontFilters, labels: &FontPickerLabels, width: f32) {
     let names: Vec<&str> = std::iter::once(labels.all_classes.as_str()).chain(FontClass::ALL.map(|c| class_label(c, labels))).collect();
     let order: Vec<RowInfo<usize>> = (0..names.len()).map(RowInfo::leaf).collect();
     let selected = filters.class.and_then(|c| FontClass::ALL.iter().position(|a| *a == c)).map_or(0, |i| i + 1);
     let mut selection = Selection::only(selected);
-    ui.allocate_ui(vec2(CLASS_COLUMN_WIDTH, 0.0), |ui| {
-        ui.set_width(CLASS_COLUMN_WIDTH);
+    ui.allocate_ui(vec2(width, 0.0), |ui| {
+        ui.set_width(width);
         let _ = List::new(field_id.with("classes"), labels.classes.clone(), order.as_slice())
             .mode(SelectionMode::Single)
             .allow_empty(false)

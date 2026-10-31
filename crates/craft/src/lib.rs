@@ -105,20 +105,24 @@ pub mod words {
     use craft_ui::localized::words::Counted;
 
     /// Every labels table: the kernel's, then the family crates' alphabetically, each only when
-    /// its feature is on. craft-font-manager keeps its words in a catalog of its own and has no
-    /// table here.
+    /// its feature is on. craft-font-manager's fonts panel keeps its words in a catalog of its own;
+    /// the picker, Glyphs panel, Missing Fonts dialog and axis sliders are listed.
     pub fn all() -> Vec<&'static [Word]> {
         let mut all: Vec<&'static [Word]> = craft_ui::localized::words::tables().to_vec();
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::WORDS);
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::WORDS);
+        #[cfg(feature = "font-manager")]
+        all.extend(craft_font_manager::ui::WORDS);
         #[cfg(feature = "imaging")]
         all.extend(craft_imaging::ui::WORDS);
         #[cfg(feature = "keymap")]
         all.extend(craft_keymap::ui::WORDS);
         #[cfg(feature = "print")]
         all.extend(craft_print::ui::WORDS);
+        #[cfg(feature = "text")]
+        all.extend(craft_text::ui::WORDS);
         all
     }
 

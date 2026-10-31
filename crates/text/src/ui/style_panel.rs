@@ -12,10 +12,6 @@ use craft_ui::list::{List, ListEvent, ListRow};
 use craft_ui::localized::{Labels as _, Words};
 use egui::{Key, KeyboardShortcut, Modifiers, PointerButton, Response, Ui, UiBuilder};
 
-/// Row height and list height limit (PhotoCraft's 22 pt and 220 pt).
-const ROW_HEIGHT: f32 = 22.0;
-const LIST_HEIGHT: f32 = 220.0;
-
 craft_ui::words! {
     /// The panels' words, English by default (PhotoCraft's strings).
     #[non_exhaustive]
@@ -163,11 +159,12 @@ impl<'a> TextStylesPanel<'a> {
         let shown = selected.or(current);
         let mut selection = shown.map_or_else(Selection::new, Selection::only);
         let infos: Vec<RowInfo<u64>> = rows.iter().map(|row| RowInfo::leaf(row.id)).collect();
+        let sizes = craft_ui::theme::current(ui.ctx()).component.text_styles;
         let list_label = if paragraph { &labels.paragraph_styles } else { &labels.character_styles };
         let out = List::new(("text-styles", kind), list_label.as_str(), infos.as_slice())
             .selection(&mut selection)
-            .row_height(ROW_HEIGHT)
-            .max_height(LIST_HEIGHT)
+            .row_height(sizes.row_height)
+            .max_height(sizes.list_height)
             .show(ui, |at, &id| {
                 let row = &rows[at];
                 let is_current = target && current == Some(id);

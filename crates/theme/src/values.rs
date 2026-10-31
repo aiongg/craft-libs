@@ -1132,6 +1132,27 @@ pub const CANVAS_COMPASS: f32 = 36.0;
 /// Distance of the compass from the canvas's top and right edges (PhotoCraft's `M`).
 pub const CANVAS_COMPASS_MARGIN: f32 = 10.0;
 
+/// Width of the Change To field and the suggestion list (PhotoCraft's `spelling_window`).
+pub const CHECK_SPELLING_FIELD_WIDTH: f32 = 240.0;
+/// Height of the suggestion list (PhotoCraft's `spelling_window`).
+pub const CHECK_SPELLING_SUGGESTIONS_HEIGHT: f32 = 110.0;
+/// Height of a suggestion row (PhotoCraft's `spelling_window`).
+pub const CHECK_SPELLING_SUGGESTION_ROW: f32 = 22.0;
+
+/// Default height of the open list (PhotoCraft's `FONT_LIST_HEIGHT`, `FONT_LIST_WIDTH` and `CLASS_COLUMN_WIDTH`).
+pub const FONT_PICKER_LIST_HEIGHT: f32 = 440.0;
+/// Least width of the open list (PhotoCraft's `FONT_LIST_HEIGHT`, `FONT_LIST_WIDTH` and `CLASS_COLUMN_WIDTH`).
+pub const FONT_PICKER_LIST_WIDTH: f32 = 420.0;
+/// Width of the class list (PhotoCraft's `FONT_LIST_HEIGHT`, `FONT_LIST_WIDTH` and `CLASS_COLUMN_WIDTH`).
+pub const FONT_PICKER_CLASS_COLUMN: f32 = 118.0;
+/// Width of a row's class glyph (PhotoCraft's `FONT_LIST_HEIGHT`, `FONT_LIST_WIDTH` and `CLASS_COLUMN_WIDTH`).
+pub const FONT_PICKER_CLASS_GLYPH: f32 = 28.0;
+
+/// Height of a style row (PhotoCraft's `styles_panel`).
+pub const TEXT_STYLES_ROW_HEIGHT: f32 = 22.0;
+/// Height of the list (PhotoCraft's `styles_panel`).
+pub const TEXT_STYLES_LIST_HEIGHT: f32 = 220.0;
+
 /// Height of the Glyphs panel's grid, in points (PhotoCraft's `glyphs_panel` scroll area).
 pub const GLYPHS_GRID_HEIGHT: f32 = 260.0;
 /// Glyph cell size when the settings have none.

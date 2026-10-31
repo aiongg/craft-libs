@@ -27,3 +27,11 @@ pub mod style_panel;
 mod style_panel_tests;
 
 pub use stories::stories;
+
+/// Every labels table of the text interface, for the facade's catalog extraction.
+pub const WORDS: &[&[craft_ui::localized::Word]] = &[
+    <character::CharacterLabels as craft_ui::localized::Labels>::WORDS,
+    <character::ParagraphLabels as craft_ui::localized::Labels>::WORDS,
+    <style_panel::TextStylesLabels as craft_ui::localized::Labels>::WORDS,
+    <spelling::CheckSpellingLabels as craft_ui::localized::Labels>::WORDS,
+];

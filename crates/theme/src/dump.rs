@@ -7,18 +7,18 @@ use std::fmt::Write as _;
 
 use crate::{
     AngleDialTokens, AppShellTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens,
-    BySize, CanvasTokens, CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken,
-    ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens,
-    Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, EyedropperTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps,
-    GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens,
-    HarmonyTokens, HistogramTokens, IconButtonTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes,
-    ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
-    PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens,
-    PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens,
-    ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
-    SpinnerTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens,
-    TextEditorTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens,
-    TooltipTokens, TourTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    BySize, CanvasTokens, CheckOffColors, CheckOnColors, CheckSpellingTokens, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens,
+    ColorToken, ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed,
+    DockTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, EyedropperTokens, FieldTokens, FloatTokens, FontPickerTokens, FontSlot,
+    FormSpacing, FormTokens, Gaps, GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens,
+    GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, IconButtonTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor,
+    LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens,
+    Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes,
+    PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SamplerTokens,
+    ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens,
+    SpaceTokens, SpinnerTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes,
+    TabTokens, TextEditorTokens, TextStylesTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
+    ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -254,6 +254,9 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         field,
         float,
         form,
+        check_spelling,
+        font_picker,
+        text_styles,
         glyphs,
         gradient_editor,
         gradient_line,
@@ -334,6 +337,9 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     field_lines(out, field);
     float_lines(out, float);
     form_lines(out, form);
+    check_spelling_lines(out, check_spelling);
+    font_picker_lines(out, font_picker);
+    text_styles_lines(out, text_styles);
     glyphs_lines(out, glyphs);
     gradient_editor_lines(out, gradient_editor);
     gradient_line_lines(out, gradient_line);
@@ -1474,6 +1480,27 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
     out.line("crop.perspective_click_dot", len(*perspective_click_dot));
     out.line("crop.perspective_click_move", len(*perspective_click_move));
     out.line("crop.perspective_reach", len(*perspective_reach));
+}
+
+fn check_spelling_lines(out: &mut Lines, t: &CheckSpellingTokens) {
+    let CheckSpellingTokens { field_width, suggestions_height, suggestion_row } = t;
+    out.line("check_spelling.field_width", len(*field_width));
+    out.line("check_spelling.suggestions_height", len(*suggestions_height));
+    out.line("check_spelling.suggestion_row", len(*suggestion_row));
+}
+
+fn font_picker_lines(out: &mut Lines, t: &FontPickerTokens) {
+    let FontPickerTokens { list_height, list_width, class_column, class_glyph } = t;
+    out.line("font_picker.list_height", len(*list_height));
+    out.line("font_picker.list_width", len(*list_width));
+    out.line("font_picker.class_column", len(*class_column));
+    out.line("font_picker.class_glyph", len(*class_glyph));
+}
+
+fn text_styles_lines(out: &mut Lines, t: &TextStylesTokens) {
+    let TextStylesTokens { row_height, list_height } = t;
+    out.line("text_styles.row_height", len(*row_height));
+    out.line("text_styles.list_height", len(*list_height));
 }
 
 fn glyphs_lines(out: &mut Lines, t: &GlyphsTokens) {

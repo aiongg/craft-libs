@@ -37,6 +37,7 @@ mod bezier;
 mod button;
 mod canvas;
 mod check;
+mod check_spelling;
 mod color_picker;
 mod color_ramp;
 mod color_wheel;
@@ -50,6 +51,7 @@ mod empty_state;
 mod eyedropper;
 mod field;
 mod float;
+mod font_picker;
 mod form;
 mod glyphs;
 mod gradient_editor;
@@ -102,6 +104,7 @@ mod swatch;
 mod swatch_palette;
 mod tab;
 mod text_editor;
+mod text_styles;
 mod title_bar;
 mod toast;
 mod toggle_button;
@@ -127,6 +130,7 @@ pub use bezier::{BezierField, BezierTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use canvas::{CanvasField, CanvasTokens};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckSwitchColors, CheckSwitchPart, CheckTokens};
+pub use check_spelling::{CheckSpellingField, CheckSpellingTokens};
 pub use color_picker::{ColorPickerField, ColorPickerTokens};
 pub use color_ramp::{ColorRampField, ColorRampTokens};
 pub use color_wheel::{ColorWheelField, ColorWheelTokens};
@@ -140,6 +144,7 @@ pub use empty_state::{EmptyStateField, EmptyStateTokens};
 pub use eyedropper::{EyedropperField, EyedropperTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
 pub use float::{FloatField, FloatTokens};
+pub use font_picker::{FontPickerField, FontPickerTokens};
 pub use form::{FormField, FormSpacing, FormTokens};
 pub use glyphs::{GlyphsField, GlyphsTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
@@ -191,6 +196,7 @@ pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
 pub use tab::{TabField, TabTokens};
 pub use text_editor::{TextEditorField, TextEditorTokens};
+pub use text_styles::{TextStylesField, TextStylesTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
@@ -787,6 +793,12 @@ families! {
     form: FormTokens => Form(FormField);
     /// Text fields: one line of editable text in a sunken box.
     field: FieldTokens => Field(FieldField);
+    /// Check Spelling dialog: the sizes of its fields and suggestion list.
+    check_spelling: CheckSpellingTokens => CheckSpelling(CheckSpellingField);
+    /// The font picker: the open list and its class column.
+    font_picker: FontPickerTokens => FontPicker(FontPickerField);
+    /// The Character Styles and Paragraph Styles panels: their list.
+    text_styles: TextStylesTokens => TextStyles(TextStylesField);
     /// The Glyphs panel: the character grid and the Recently Used strip.
     glyphs: GlyphsTokens => Glyphs(GlyphsField);
     /// Gradient editors: the stop bar, its markers and midpoint diamonds.

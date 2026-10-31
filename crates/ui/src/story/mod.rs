@@ -391,6 +391,22 @@ pub fn dialog_shown(ui: &mut egui::Ui, open: bool) -> bool {
     shown
 }
 
+/// Whether this story instance may draw the dialog `name` in this pass. A dialog has one fixed
+/// id, so two instances of a story drawn in the same pass (a component tab and a variants view)
+/// must not both show it: only the first to ask in a pass does.
+pub fn dialog_claim(ctx: &egui::Context, name: &str, instance: egui::Id) -> bool {
+    let key = egui::Id::unique(("craft_ui::story::dialog_claim", name));
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| {
+        let (claimed_pass, owner) = d.get_temp::<(u64, egui::Id)>(key).unwrap_or((u64::MAX, instance));
+        if claimed_pass == pass && owner != instance {
+            return false;
+        }
+        d.insert_temp(key, (pass, instance));
+        true
+    })
+}
+
 /// The dialog was closed: clears `open` in a component's tab, the tile's own state in an Overview tile.
 pub fn dialog_closed(ui: &egui::Ui, open: &mut bool) {
     if in_overview(ui.ctx()) {
