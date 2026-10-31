@@ -1607,3 +1607,93 @@ pub const SELECTION_BAR_GRIP_DOT: f32 = 1.0;
 
 /// Distance between selection bar grip dots (PhotoCraft's).
 pub const SELECTION_BAR_GRIP_PITCH: f32 = 4.0;
+
+/// Content width of the dialog (PhotoCraft).
+pub const NEW_DOCUMENT_WIDTH: f32 = 800.0;
+
+/// Size of a preset card (PhotoCraft).
+pub const NEW_DOCUMENT_CARD: [f32; 2] = [164.0, 112.0];
+
+/// Columns of cards the grid shows before it scrolls (PhotoCraft).
+pub const NEW_DOCUMENT_CARD_COLUMNS: usize = 3;
+
+/// Rows of cards the grid shows before it scrolls (PhotoCraft).
+pub const NEW_DOCUMENT_CARD_ROWS: usize = 3;
+
+/// Longer side of the page icon on a card (PhotoCraft).
+pub const NEW_DOCUMENT_PAGE_ICON: f32 = 30.0;
+
+/// Side of the square the page icon sits in (PhotoCraft).
+pub const NEW_DOCUMENT_PAGE_BOX: f32 = 40.0;
+
+/// From a card's top to the centre of its page icon (PhotoCraft).
+pub const NEW_DOCUMENT_CARD_ICON_CENTER: f32 = 34.0;
+
+/// From a card's top to the centre of its name (PhotoCraft).
+pub const NEW_DOCUMENT_CARD_TITLE_CENTER: f32 = 70.0;
+
+/// From a card's top to the centre of its size line (PhotoCraft).
+pub const NEW_DOCUMENT_CARD_LINE_CENTER: f32 = 97.0;
+
+/// Room beside the card grid for its scroll bar (PhotoCraft).
+pub const NEW_DOCUMENT_SCROLL_ROOM: f32 = 16.0;
+
+/// Height of the Saved list (PhotoCraft).
+pub const NEW_DOCUMENT_SAVED_HEIGHT: f32 = 320.0;
+
+/// Height of a row of the Saved list (PhotoCraft).
+pub const NEW_DOCUMENT_SAVED_ROW: f32 = 32.0;
+
+/// Content width of Save for Web (PhotoCraft).
+pub const EXPORT_WEB_WIDTH: f32 = 900.0;
+
+/// Width of Save for Web's settings column (PhotoCraft).
+pub const EXPORT_WEB_SETTINGS_WIDTH: f32 = 250.0;
+
+/// Width of Save for Web's Matte field (PhotoCraft).
+pub const EXPORT_WEB_FIELD_WIDTH: f32 = 80.0;
+
+/// Width of Export As's settings column (PhotoCraft).
+pub const EXPORT_SETTINGS_WIDTH: f32 = 248.0;
+
+/// Between Export As's settings and its preview (PhotoCraft).
+pub const EXPORT_PANE_GAP: f32 = 12.0;
+
+/// Size of a chip (PhotoCraft).
+pub const THEME_CHIP_SIZE: [f32; 2] = [30.0, 26.0];
+
+/// From the outline to the fill (PhotoCraft).
+pub const THEME_CHIP_INSET: f32 = 3.0;
+
+/// Height of the chrome strip along the top of the fill (PhotoCraft).
+pub const THEME_CHIP_STRIP: f32 = 5.0;
+
+/// Radius of the accent dot (PhotoCraft).
+pub const THEME_CHIP_DOT_RADIUS: f32 = 2.5;
+
+/// From the fill's bottom end corner to the dot's centre, on both axes (PhotoCraft).
+pub const THEME_CHIP_DOT_OFFSET: f32 = 6.0;
+
+/// Corner radius of the outline (PhotoCraft).
+pub const THEME_CHIP_OUTLINE_RADIUS: f32 = 3.0;
+
+/// Corner radius of the fill (PhotoCraft).
+pub const THEME_CHIP_FILL_RADIUS: f32 = 2.0;
+
+/// Radius of the favourite star's badge (PhotoCraft).
+pub const THEME_CHIP_BADGE_RADIUS: f32 = 7.0;
+
+/// How far the badge's centre sits inside the chip's top end corner, as `[x, y]` (PhotoCraft).
+pub const THEME_CHIP_BADGE_INSET: [f32; 2] = [3.0, 3.0];
+
+/// Between two chips, with room for the badge that overhangs a corner (PhotoCraft).
+pub const THEME_CHIP_GAP: f32 = 6.0;
+
+/// Radius of the summary's status dot (PhotoCraft).
+pub const FINDINGS_STATUS_DOT: f32 = 4.5;
+
+/// Size of the list box (PhotoCraft).
+pub const FILE_LIST_SIZE: [f32; 2] = [300.0, 160.0];
+
+/// Least width of a button beside the list (PhotoCraft).
+pub const FILE_LIST_BUTTON_MIN: f32 = 120.0;

@@ -9,3 +9,7 @@ mod path_field_tests;
 
 pub use file_list::{FileList, FileListLabels, FileListMode, FileListPicker, FileListResponse};
 pub use path_field::{PathField, PathFieldLabels, PathFieldResponse};
+
+/// The labels tables of the file service's egui parts, for the words registry.
+pub const WORDS: &[&[craft_ui::localized::Word]] =
+    &[<FileListLabels as craft_ui::localized::Labels>::WORDS, <PathFieldLabels as craft_ui::localized::Labels>::WORDS];

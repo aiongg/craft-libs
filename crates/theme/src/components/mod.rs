@@ -48,8 +48,11 @@ mod curve;
 mod dialog;
 mod dock;
 mod empty_state;
+mod export;
 mod eyedropper;
 mod field;
+mod file_list;
+mod findings;
 mod float;
 mod font_picker;
 mod form;
@@ -72,6 +75,7 @@ mod list;
 mod listbox;
 mod marquee;
 mod menu;
+mod new_document;
 mod notice;
 mod options_bar;
 mod paint_chip;
@@ -105,6 +109,7 @@ mod swatch_palette;
 mod tab;
 mod text_editor;
 mod text_styles;
+mod theme_chip;
 mod title_bar;
 mod toast;
 mod toggle_button;
@@ -141,8 +146,11 @@ pub use curve::{CurveField, CurveTokens};
 pub use dialog::{DialogField, DialogTokens};
 pub use dock::{DockField, DockTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
+pub use export::{ExportField, ExportTokens};
 pub use eyedropper::{EyedropperField, EyedropperTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
+pub use file_list::{FileListField, FileListTokens};
+pub use findings::{FindingsField, FindingsTokens};
 pub use float::{FloatField, FloatTokens};
 pub use font_picker::{FontPickerField, FontPickerTokens};
 pub use form::{FormField, FormSpacing, FormTokens};
@@ -164,6 +172,7 @@ pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
 pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
+pub use new_document::{NewDocumentField, NewDocumentTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
 pub use paint_chip::{PaintChipField, PaintChipTokens};
@@ -197,6 +206,7 @@ pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
 pub use tab::{TabField, TabTokens};
 pub use text_editor::{TextEditorField, TextEditorTokens};
 pub use text_styles::{TextStylesField, TextStylesTokens};
+pub use theme_chip::{ThemeChipField, ThemeChipTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
@@ -751,6 +761,16 @@ impl ComponentTokens {
 }
 
 families! {
+    /// Export As and Save for Web: the widths of the dialogs and their settings columns.
+    export: ExportTokens => Export(ExportField);
+    /// File list pickers: the list box and the width of its buttons.
+    file_list: FileListTokens => FileList(FileListField);
+    /// Findings lists: the status dot of the summary line.
+    findings: FindingsTokens => Findings(FindingsField);
+    /// The New Document dialog: the card grid, the page icon and the Saved list.
+    new_document: NewDocumentTokens => NewDocument(NewDocumentField);
+    /// Theme chips: the small preview of a theme in the Appearance page.
+    theme_chip: ThemeChipTokens => ThemeChip(ThemeChipField);
     /// Angle dials: the round face and needle that point in a direction.
     angle_dial: AngleDialTokens => AngleDial(AngleDialField);
     /// The app shell: the backdrop behind the document and the edge reveal zone.

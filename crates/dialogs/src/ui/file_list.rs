@@ -11,13 +11,7 @@ use craft_ui::localized::Labels;
 use craft_ui::primitives::{Content, Gap, Surface, SurfaceKind, Text};
 use craft_ui::theme::{Tokens, TokensOf};
 use egui::accesskit::Role;
-use egui::{AsIdSalt, IdSalt, Key, Modifiers, ScrollArea, Ui, UiBuilder, vec2};
-
-/// The list box's size and the buttons' width, as in Photoshop's dialog.
-// S4-F18: file_list.size
-const LIST_SIZE: egui::Vec2 = vec2(300.0, 160.0);
-// S4-F18: file_list.button_min
-const BUTTON_WIDTH: f32 = 120.0;
+use egui::{AsIdSalt, IdSalt, Key, Modifiers, ScrollArea, Ui, UiBuilder};
 
 craft_ui::words! {
     /// The picker's words, English by default.
@@ -238,16 +232,18 @@ impl<'a> FileListPicker<'a> {
         let mut add_open = false;
         let mut sort = false;
         let gap = Gap::Stack.points(&tokens);
+        let list_size = egui::Vec2::from(tokens.component.file_list.size);
+        let button_min = tokens.component.file_list.button_min;
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = gap;
             Surface::new(SurfaceKind::Sunken).show(ui, |ui| {
-                ui.allocate_ui(LIST_SIZE, |ui| {
-                    ui.set_min_size(LIST_SIZE);
-                    ui.set_max_width(LIST_SIZE.x);
+                ui.allocate_ui(list_size, |ui| {
+                    ui.set_min_size(list_size);
+                    ui.set_max_width(list_size.x);
                     if folder {
-                        folder_rows(ui, &labels, list.folder.as_deref(), folder_files, info);
+                        folder_rows(ui, &labels, list.folder.as_deref(), folder_files, info, list_size.y);
                     } else {
-                        let moved = file_rows(ui, id_salt, &labels, list, info);
+                        let moved = file_rows(ui, id_salt, &labels, list, info, list_size.y);
                         remove = moved.remove;
                         response.changed |= moved.changed;
                     }
@@ -260,7 +256,7 @@ impl<'a> FileListPicker<'a> {
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = Gap::Row.points(&tokens);
                 let button = |ui: &mut Ui, label: &str, on: bool| {
-                    ui.add(Button::new(label).id_salt((id_salt, label)).min_width(BUTTON_WIDTH).enabled(on && enabled)).clicked()
+                    ui.add(Button::new(label).id_salt((id_salt, label)).min_width(button_min).enabled(on && enabled)).clicked()
                 };
                 browse = button(ui, &labels.browse, true);
                 remove |= button(ui, &labels.remove, can_remove);
@@ -302,7 +298,7 @@ struct RowEdits {
 
 /// The Files list: one Tab stop, arrows select, Delete and Backspace remove the selected file,
 /// Alt+↑ and Alt+↓ move it.
-fn file_rows(ui: &mut Ui, id_salt: IdSalt, labels: &FileListLabels, list: &mut FileList, info: Option<InfoLine<'_>>) -> RowEdits {
+fn file_rows(ui: &mut Ui, id_salt: IdSalt, labels: &FileListLabels, list: &mut FileList, info: Option<InfoLine<'_>>, height: f32) -> RowEdits {
     let mut edits = RowEdits { remove: false, changed: false };
     let rows: Vec<RowInfo<usize>> = (0..list.files.len()).map(RowInfo::leaf).collect();
     let mut selection = list.selected.map_or_else(Selection::new, Selection::only);
@@ -311,7 +307,7 @@ fn file_rows(ui: &mut Ui, id_salt: IdSalt, labels: &FileListLabels, list: &mut F
         .selection(&mut selection)
         .mode(SelectionMode::Single)
         .detail_lines(info.is_some())
-        .max_height(LIST_SIZE.y)
+        .max_height(height)
         .show(ui, |_, &at| file_row(at, &files[at], info));
     for event in &output.events {
         if let ListEvent::Selection(change) = event {
@@ -360,10 +356,10 @@ fn file_row<'a>(at: usize, path: &Path, info: Option<InfoLine<'_>>) -> ListRow<'
 }
 
 /// The Folder list: the folder's path, then the files the app found there. No selection.
-fn folder_rows(ui: &mut Ui, labels: &FileListLabels, folder: Option<&Path>, files: &[PathBuf], info: Option<InfoLine<'_>>) {
+fn folder_rows(ui: &mut Ui, labels: &FileListLabels, folder: Option<&Path>, files: &[PathBuf], info: Option<InfoLine<'_>>, height: f32) {
     let builder = UiBuilder::new().accessibility_role(Role::List).accessibility_label(labels.files.clone());
     ui.scope_builder(builder, |ui| {
-        ScrollArea::vertical().id_salt("folder-files").max_height(LIST_SIZE.y).auto_shrink([false, false]).show(ui, |ui| {
+        ScrollArea::vertical().id_salt("folder-files").max_height(height).auto_shrink([false, false]).show(ui, |ui| {
             if let Some(folder) = folder {
                 ui.add(Text::new(folder.to_string_lossy()).content(Content::Muted).truncate());
             }

@@ -27,25 +27,6 @@ use crate::primitives::{Content, Corner, Divider, Gap, Interactive, Pad, Surface
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_theme::Rgba;
 
-// S4-F18: new_document.width
-const WIDTH: f32 = 800.0;
-// S4-F18: new_document.card
-const CARD: Vec2 = vec2(164.0, 112.0);
-// S4-F18: new_document.card_columns, new_document.card_rows
-const COLUMNS: usize = 3;
-const ROWS: usize = 3;
-// S4-F18: new_document.page_icon (the longer side in a square box)
-const PAGE_ICON: f32 = 30.0;
-const PAGE_BOX: f32 = 40.0;
-/// Where a card's page outline, name and size line are centred, from its top (PhotoCraft).
-const ICON_CENTER_Y: f32 = 34.0;
-const TITLE_CENTER_Y: f32 = 70.0;
-const LINE_CENTER_Y: f32 = 97.0;
-/// Room beside the grid for its scroll bar.
-const SCROLL_ROOM: f32 = 16.0;
-const SAVED_HEIGHT: f32 = 320.0;
-const SAVED_ROW_HEIGHT: f32 = 32.0;
-
 /// The engine's greatest document side, in pixels.
 const MAX_PIXELS: f64 = 300_000.0;
 /// The least and greatest resolution, in pixels per inch.
@@ -583,12 +564,11 @@ impl StackDialog for NewDocumentDialog {
         let env = Env { ctx, labels: &labels, sizing: &sizing, units: &units, numbers: &numbers };
         let mut state = std::mem::take(&mut self.state);
         let footer = Footer::standard().ok(labels.create.as_str()).cancel(labels.close.as_str());
-        let shown = Dialog::new("new-document", labels.title.as_str()).stack(stack).width(Width::Fixed(WIDTH)).footer(footer).show(
-            ctx,
-            &mut state,
-            &mut (),
-            |ui, ()| self.body(ui, &env),
-        );
+        let shown = Dialog::new("new-document", labels.title.as_str())
+            .stack(stack)
+            .width(Width::Fixed(crate::theme::current(ctx).component.new_document.width))
+            .footer(footer)
+            .show(ctx, &mut state, &mut (), |ui, ()| self.body(ui, &env));
         self.state = state;
         let outcome = match shown.outcome {
             Some(outcome) => Some(outcome),
@@ -656,8 +636,10 @@ impl NewDocumentDialog {
     fn body(&mut self, ui: &mut Ui, env: &Env<'_>) {
         let tokens = Tokens::of(ui);
         let gap = Gap::Section.points(&tokens);
+        let nd = tokens.component.new_document;
+        let card = Vec2::from(nd.card);
         ui.horizontal_top(|ui| {
-            let grid_width = COLUMNS as f32 * CARD.x + (COLUMNS - 1) as f32 * Gap::Row.points(&tokens) + SCROLL_ROOM;
+            let grid_width = nd.card_columns as f32 * card.x + (nd.card_columns - 1) as f32 * Gap::Row.points(&tokens) + nd.scroll_room;
             ui.vertical(|ui| {
                 ui.set_width(grid_width);
                 self.tab_strip(ui, env);
@@ -824,22 +806,24 @@ impl NewDocumentDialog {
         let line_format = Text::format(&tokens, TypeRole::Caption, Content::Faint);
         let outline = Content::Muted.color(&tokens).to_egui();
         let accent = Content::Accent.color(&tokens).to_egui();
-        let rows = cards.len().div_ceil(COLUMNS);
+        let nd = tokens.component.new_document;
+        let (card_size, columns, max_rows) = (Vec2::from(nd.card), nd.card_columns, nd.card_rows);
+        let rows = cards.len().div_ceil(columns);
         let ids: Vec<Id> = (0..cards.len()).map(|i| Interactive::id_in(ui, ("new-document-card", self.tab.clone(), i))).collect();
         let mut clicked = None;
         let mut double = false;
         ScrollArea::vertical()
             .id_salt(("new-document-cards", self.tab.clone()))
-            .max_height(ROWS as f32 * CARD.y + (ROWS - 1) as f32 * gap)
+            .max_height(max_rows as f32 * card_size.y + (max_rows - 1) as f32 * gap)
             .auto_shrink([false, true])
             .show(ui, |ui| {
-                let width = COLUMNS as f32 * CARD.x + (COLUMNS - 1) as f32 * gap;
-                let (_, area) = ui.allocate_space(vec2(width, rows as f32 * CARD.y + rows.saturating_sub(1) as f32 * gap));
+                let width = columns as f32 * card_size.x + (columns - 1) as f32 * gap;
+                let (_, area) = ui.allocate_space(vec2(width, rows as f32 * card_size.y + rows.saturating_sub(1) as f32 * gap));
                 let selected = self.selected_card.filter(|i| *i < cards.len());
                 let stop = GridNav::roving_stop(ui, &ids, selected, true);
                 for (i, card) in cards.iter().enumerate() {
-                    let (row, column) = (i / COLUMNS, i % COLUMNS);
-                    let rect = Rect::from_min_size(area.min + vec2(column as f32 * (CARD.x + gap), row as f32 * (CARD.y + gap)), CARD);
+                    let (row, column) = (i / columns, i % columns);
+                    let rect = Rect::from_min_size(area.min + vec2(column as f32 * (card_size.x + gap), row as f32 * (card_size.y + gap)), card_size);
                     let on = selected == Some(i)
                         || (selected.is_none() && self.selected_card.is_none() && card.restores_all && same_document(&card.settings, &self.settings));
                     let mut element = Interactive::with_id(ids[i], Role::Button, card.title.as_str())
@@ -865,22 +849,22 @@ impl NewDocumentDialog {
                         if on {
                             ui.painter().rect_stroke(rect, Corner::Control.radius(&tokens), Stroke::new(1.5, accent), StrokeKind::Inside);
                         }
-                        let center = pos2(rect.center().x, rect.top() + ICON_CENTER_Y);
-                        paint_page(ui, Rect::from_center_size(center, Vec2::splat(PAGE_BOX)), card.aspect, outline);
+                        let center = pos2(rect.center().x, rect.top() + nd.card_icon_center);
+                        paint_page(ui, Rect::from_center_size(center, Vec2::splat(nd.page_box)), card.aspect, nd.page_icon, outline);
                         let mut job = LayoutJob::single_section(card.title.clone(), title_format.clone());
-                        job.wrap.max_width = CARD.x - 2.0 * inset;
+                        job.wrap.max_width = card_size.x - 2.0 * inset;
                         job.wrap.max_rows = 2;
                         job.halign = Align::Center;
                         let title = ui.painter().layout_job(job);
                         elided = title.elided;
-                        let top = rect.top() + TITLE_CENTER_Y - title.size().y / 2.0;
+                        let top = rect.top() + nd.card_title_center - title.size().y / 2.0;
                         ui.painter().galley(pos2(rect.center().x, top), title, title_format.color);
                         let mut job = LayoutJob::single_section(line, line_format.clone());
-                        job.wrap.max_width = CARD.x - 2.0 * inset;
+                        job.wrap.max_width = card_size.x - 2.0 * inset;
                         job.wrap.max_rows = 1;
                         job.halign = Align::Center;
                         let galley = ui.painter().layout_job(job);
-                        let top = rect.top() + LINE_CENTER_Y - galley.size().y / 2.0;
+                        let top = rect.top() + nd.card_line_center - galley.size().y / 2.0;
                         ui.painter().galley(pos2(rect.center().x, top), galley, line_format.color);
                     }
                     let response = match (&card.detail, elided) {
@@ -912,16 +896,17 @@ impl NewDocumentDialog {
             return;
         }
         let tokens = Tokens::of(ui);
+        let (saved_height, saved_row) = (tokens.component.new_document.saved_height, tokens.component.new_document.saved_row);
         let mut apply = None;
         let mut delete = None;
         let mut double = false;
-        ScrollArea::vertical().id_salt("new-document-saved").max_height(SAVED_HEIGHT).auto_shrink([false, true]).show(ui, |ui| {
+        ScrollArea::vertical().id_salt("new-document-saved").max_height(saved_height).auto_shrink([false, true]).show(ui, |ui| {
             for (i, preset) in self.saved.iter().enumerate() {
                 ui.push_id(i, |ui| {
                     ui.horizontal(|ui| {
                         let delete_width = Button::new(env.labels.delete.as_str()).natural_width(ui);
                         let width = ui.available_width() - delete_width - ui.spacing().item_spacing.x;
-                        let (_, rect) = ui.allocate_space(vec2(width, SAVED_ROW_HEIGHT));
+                        let (_, rect) = ui.allocate_space(vec2(width, saved_row));
                         let on = self.selected_card == Some(i);
                         let response = Interactive::new(("new-document-saved", i), Role::Button, preset.name.as_str())
                             .surface(SurfaceKind::Raised)
@@ -1283,10 +1268,10 @@ fn apply_edit(ui: &Ui, fields: &mut LinkedSizeFields, field: Field, event: Optio
     }
 }
 
-/// The page outline of a card: the preset's aspect with its longer side [`PAGE_ICON`] long,
+/// The page outline of a card: the preset's aspect with its longer side `longer` long,
 /// centred in `rect`.
-fn paint_page(ui: &Ui, rect: Rect, (width, height): (u32, u32), color: Color32) {
-    let scale = PAGE_ICON / width.max(height).max(1) as f32;
+fn paint_page(ui: &Ui, rect: Rect, (width, height): (u32, u32), longer: f32, color: Color32) {
+    let scale = longer / width.max(height).max(1) as f32;
     let page = Rect::from_center_size(rect.center(), vec2(width as f32 * scale, height as f32 * scale));
     ui.painter().rect_stroke(page, 1.0, Stroke::new(1.2, color), StrokeKind::Inside);
 }

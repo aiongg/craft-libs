@@ -49,6 +49,7 @@ ui = [
     "dep:craft-ui",
     "dep:egui",
     "craft-color?/ui",
+    "craft-dialogs?/ui",
     "craft-draw?/ui",
     "craft-font-manager?/ui",
     "craft-host/ui",
@@ -58,6 +59,7 @@ ui = [
     "craft-print?/ui",
     "craft-text?/ui",
     "craft-quit?/ui",
+    "craft-theme-store?/ui",
     "craft-update?/ui",
     "craft-window?/ui",
 ]
