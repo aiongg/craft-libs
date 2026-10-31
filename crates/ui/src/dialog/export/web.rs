@@ -621,7 +621,7 @@ fn advance_frame(frame: u32, frames: u32, fps: f32, last: f64, now: f64) -> (u32
 }
 
 /// A caption line in the caption role.
-fn caption(ui: &mut Ui, text: String, content: Content) {
+pub(super) fn caption(ui: &mut Ui, text: String, content: Content) {
     let tokens = Tokens::of(ui);
     let format = role_format(&tokens, TypeRole::Caption, content.color(&tokens).to_egui());
     ui.add(Label::new(LayoutJob::single_section(text, format)).truncate().selectable(false));
@@ -799,7 +799,14 @@ fn paint_pane(ui: &mut Ui, rect: Rect, response: &Response, texture: Option<&Tex
     }
     nav.clamp(rect.size(), source * scale);
     nav.effective = scale * ppp;
+    let image = Rect::from_min_size(rect.center() - nav.center * source * scale, source * scale);
+    paint_picture(ui, rect, texture, image);
+}
 
+/// A picture over the checkerboard in `rect`, with the pane's edge; `image` is where the
+/// texture's whole picture goes.
+pub(super) fn paint_picture(ui: &mut Ui, rect: Rect, texture: Option<&TextureHandle>, image: Rect) {
+    let ppp = ui.ctx().pixels_per_point();
     let tokens = Tokens::of(ui);
     let painter = ui.painter_at(rect);
     let board = Checkerboard::default();
@@ -810,7 +817,6 @@ fn paint_pane(ui: &mut Ui, rect: Rect, response: &Response, texture: Option<&Tex
         }
     }
     if let Some(texture) = texture {
-        let image = Rect::from_min_size(rect.center() - nav.center * source * scale, source * scale);
         painter.image(texture.id(), image, Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), Color32::WHITE);
     }
     let edge = Stroke::new(craft_theme::Stroke::Hairline.width(ppp), tokens.color.line.divider.to_egui());
@@ -818,12 +824,12 @@ fn paint_pane(ui: &mut Ui, rect: Rect, response: &Response, texture: Option<&Tex
 }
 
 /// The value a number field reported this pass.
-fn typed(edit: &EditResponse<f64>) -> Option<f64> {
+pub(super) fn typed(edit: &EditResponse<f64>) -> Option<f64> {
     edit.event.as_ref().and_then(EditEvent::value).copied()
 }
 
 /// A whole-number row with `range`; returns the typed value.
-fn number_row(form: &mut Form<'_>, id: &str, label: &str, numbers: &LocaleNumbers, value: f64, range: RangeInclusive<f64>) -> Option<f64> {
+pub(super) fn number_row(form: &mut Form<'_>, id: &str, label: &str, numbers: &LocaleNumbers, value: f64, range: RangeInclusive<f64>) -> Option<f64> {
     let mut out = None;
     form.row(label, |ui, _| {
         let edit = NumberField::new(id, label, value, numbers).range(range).decimals(0..=0).show(ui);
@@ -833,11 +839,11 @@ fn number_row(form: &mut Form<'_>, id: &str, label: &str, numbers: &LocaleNumber
     out
 }
 
-fn check_row(form: &mut Form<'_>, label: &str, value: &mut bool) {
+pub(super) fn check_row(form: &mut Form<'_>, label: &str, value: &mut bool) {
     form.unlabelled(|ui| Checkbox::bool(label, value).show(ui));
 }
 
-fn clamp_number(value: f64, range: RangeInclusive<f64>) -> f64 {
+pub(super) fn clamp_number(value: f64, range: RangeInclusive<f64>) -> f64 {
     value.round().clamp(*range.start(), *range.end())
 }
 
