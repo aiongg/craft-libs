@@ -155,16 +155,24 @@ pub struct RecoveryEntry {
 /// autosaves replace that copy. Nothing is deleted because it was recovered: a second crash
 /// before the next autosave loses nothing. Keys are sanitized ([`sanitize_key`]).
 ///
-/// The folder is created owner-only (0o700 on Unix). [`open`](Self::open) takes an exclusive
+/// Every method takes `&self`, so the app keeps one store in an `Arc` and shares it with its
+/// autosave jobs. The folder is created owner-only (0o700 on Unix). [`open`](Self::open) takes an exclusive
 /// `instance-<pid>-<n>.lock`, so [`leftovers`](Self::leftovers) offers only copies whose run is
 /// gone, never those of another instance still running (PdfCraft).
 #[cfg(not(target_arch = "wasm32"))]
 pub struct RecoveryStore {
     dir: PathBuf,
     session: String,
-    adopted: HashMap<u64, String>,
+    adopted: std::sync::Mutex<HashMap<u64, String>>,
     lock: std::fs::File,
 }
+
+// The app shares one store with its autosave jobs (`Arc<RecoveryStore>`).
+#[cfg(not(target_arch = "wasm32"))]
+const _: () = {
+    const fn shared<T: Send + Sync>() {}
+    shared::<RecoveryStore>();
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 impl RecoveryStore {
@@ -190,7 +198,7 @@ impl RecoveryStore {
 
     /// Removes document `id`'s copy (saved or closed).
     // pc: crates/format/src/autosave.rs:411 discard
-    pub fn discard(&mut self, id: u64) -> std::io::Result<()> {
+    pub fn discard(&self, id: u64) -> std::io::Result<()> {
         todo!()
     }
 
@@ -203,7 +211,7 @@ impl RecoveryStore {
 
     /// Document `id` was recovered from `entry`: its autosaves go to `entry.key` from now on.
     // pc: crates/format/src/autosave.rs:367 adopt
-    pub fn adopt(&mut self, id: u64, entry: &RecoveryEntry) {
+    pub fn adopt(&self, id: u64, entry: &RecoveryEntry) {
         todo!()
     }
 
