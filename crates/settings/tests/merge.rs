@@ -37,6 +37,19 @@ fn only_our_changes_are_written() {
     assert_eq!(out["general"]["language"].as_str(), Some("de"));
 }
 
+// A section both instances added since the base: PhotoCraft replaces the whole subtree with ours
+// and loses the other instance's keys; the merge keeps them and ours wins per key.
+#[test]
+fn a_section_added_on_both_sides_merges_per_key() {
+    let base = "schema_version = 2\n";
+    let ours = "schema_version = 2\n[plugins]\nb = 2\nshared = \"ours\"\n";
+    let theirs = "schema_version = 2\n[plugins]\na = 1\nshared = \"theirs\"\n";
+    let out = parse(&merged(base, ours, theirs)).unwrap();
+    assert_eq!(out["plugins"]["a"].as_integer(), Some(1), "their key survives");
+    assert_eq!(out["plugins"]["b"].as_integer(), Some(2));
+    assert_eq!(out["plugins"]["shared"].as_str(), Some("ours"));
+}
+
 // A key removed on disk and unchanged here stays removed; a key we removed is removed on disk.
 #[test]
 fn removals_follow_the_changer() {
