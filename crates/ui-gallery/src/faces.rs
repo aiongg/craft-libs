@@ -203,6 +203,8 @@ fn column(ui: &mut Ui, face: &str, mono: bool, tnum: bool) {
         (TypeRole::BodyStrong, "Body strong"),
         (TypeRole::Title, "Title"),
         (TypeRole::Heading, "Heading"),
+        (TypeRole::BodyLarge, "Body large"),
+        (TypeRole::Overline, "Overline"),
         (TypeRole::Mono, "Mono"),
     ];
     for (role, name) in roles {

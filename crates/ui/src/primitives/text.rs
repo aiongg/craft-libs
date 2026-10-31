@@ -75,6 +75,8 @@ enum RoleArg {
     BodyStrong,
     Title,
     Heading,
+    BodyLarge,
+    Overline,
     Mono,
 }
 
@@ -87,6 +89,8 @@ impl RoleArg {
             RoleArg::BodyStrong => TypeRole::BodyStrong,
             RoleArg::Title => TypeRole::Title,
             RoleArg::Heading => TypeRole::Heading,
+            RoleArg::BodyLarge => TypeRole::BodyLarge,
+            RoleArg::Overline => TypeRole::Overline,
             RoleArg::Mono => TypeRole::Mono,
         }
     }

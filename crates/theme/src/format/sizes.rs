@@ -265,6 +265,8 @@ impl SizeSet {
             ("body_strong", t.body_strong),
             ("title", t.title),
             ("heading", t.heading),
+            ("body_large", t.body_large),
+            ("overline", t.overline),
             ("mono", t.mono),
         ] {
             if style.line_height < style.size {

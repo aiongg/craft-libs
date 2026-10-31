@@ -42,6 +42,10 @@ pub struct SectionStyle {
     pub title_role: TypeRole,
     /// The title: `text.normal`.
     pub title: Color32,
+    /// The type role of a [`caption`](SectionHeader::caption) title: `overline`.
+    pub caption_role: TypeRole,
+    /// A caption title: `text.faint`.
+    pub caption: Color32,
 }
 
 /// The header of a section of a panel: a hairline above a row with a chevron and a title, as
@@ -79,6 +83,7 @@ pub struct SectionHeader<'a> {
     collapsible: bool,
     open: Option<&'a mut bool>,
     controls: Option<Controls<'a>>,
+    caption: bool,
 }
 
 impl<'a> SectionHeader<'a> {
@@ -86,13 +91,22 @@ impl<'a> SectionHeader<'a> {
     /// stays when the title changes (a language switch), and two sections of one title keep
     /// separate states.
     pub fn new(id_salt: impl egui::AsIdSalt, title: impl Into<String>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), title: title.into(), collapsible: true, open: None, controls: None }
+        Self { id_salt: IdSalt::new(id_salt), title: title.into(), collapsible: true, open: None, controls: None, caption: false }
     }
 
     /// Whether the section can be closed; on by default. Off, the header is its title only and the
     /// body is always shown.
     pub fn collapsible(mut self, collapsible: bool) -> Self {
         self.collapsible = collapsible;
+        self
+    }
+
+    /// Draws the title as a caption: the `overline` role in `text.faint`, with Latin letters in
+    /// capitals (PhotoCraft's "PRESET DETAILS"). Other scripts, which have no capitals or are
+    /// not case-mapped here, stay as written. AccessKit still names the header by the title as
+    /// given.
+    pub fn caption(mut self, caption: bool) -> Self {
+        self.caption = caption;
         self
     }
 
@@ -121,6 +135,8 @@ impl<'a> SectionHeader<'a> {
             chevron_color: Content::Muted.color(tokens).to_egui(),
             title_role: TypeRole::BodyStrong,
             title: Content::Normal.color(tokens).to_egui(),
+            caption_role: TypeRole::Overline,
+            caption: Content::Faint.color(tokens).to_egui(),
         }
     }
 
@@ -200,9 +216,13 @@ impl<'a> SectionHeader<'a> {
         }
         if direction::forward(ui) * (title_end - title_start) >= 1.0 {
             let band = Rect::from_x_y_ranges(title_start.min(title_end)..=title_start.max(title_end), row.y_range());
-            let format = role_format(&tokens, style.title_role, style.title);
+            let (text, format) = if self.caption {
+                (uppercase_latin(&self.title), role_format(&tokens, style.caption_role, style.caption))
+            } else {
+                (self.title.clone(), role_format(&tokens, style.title_role, style.title))
+            };
             title_ui.scope_builder(UiBuilder::new().max_rect(band).layout(direction::row(ui)), |ui| {
-                ui.add(Label::new(egui::text::LayoutJob::single_section(self.title.clone(), format)).truncate().selectable(false));
+                ui.add(Label::new(egui::text::LayoutJob::single_section(text, format)).truncate().selectable(false));
             });
         }
 
@@ -212,6 +232,20 @@ impl<'a> SectionHeader<'a> {
         });
         InnerResponse::new(inner, response)
     }
+}
+
+/// `text` with its Latin letters in capitals. Letters of other scripts and letters whose capital is
+/// more than one letter (the German sharp s) stay as they are.
+pub(crate) fn uppercase_latin(text: &str) -> String {
+    text.chars()
+        .flat_map(|c| {
+            let latin = c.is_ascii_alphabetic() || matches!(c, '\u{C0}'..='\u{24F}' | '\u{1E00}'..='\u{1EFF}');
+            let mut upper = c.to_uppercase();
+            let single = upper.len() == 1;
+            let mapped = if latin && single { upper.next() } else { None };
+            std::iter::once(mapped.unwrap_or(c))
+        })
+        .collect()
 }
 
 /// The components this module has stories for.

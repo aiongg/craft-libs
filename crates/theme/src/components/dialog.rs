@@ -2,6 +2,7 @@
 //! family and no theme overrides these.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
+use crate::tokens::TypeRole;
 use crate::values;
 
 /// Dialog tokens, in points.
@@ -12,6 +13,8 @@ pub struct DialogTokens {
     pub pad: f32,
     /// Frame inner margin of the colour picker dialog, from `space.pad.dialog`: `dialog.pad_roomy`.
     pub pad_roomy: f32,
+    /// Type role of the title: `dialog.title_role`.
+    pub title_role: TypeRole,
     /// Between the title and the rule: `dialog.title_gap`.
     pub title_gap: f32,
     /// Between the rule and the body: `dialog.body_gap`.
@@ -96,6 +99,7 @@ impl Family for DialogTokens {
         DialogTokens {
             pad: values::DIALOG_PAD,
             pad_roomy: s.space.pad.dialog,
+            title_role: TypeRole::Heading,
             title_gap: scale(values::DIALOG_TITLE_GAP),
             body_gap: scale(values::DIALOG_BODY_GAP),
             footer_gap: scale(values::DIALOG_FOOTER_GAP),

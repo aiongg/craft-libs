@@ -735,3 +735,32 @@ fn a_footer_keeps_its_gap_to_the_bottom_of_a_capped_resizable_dialog() {
     let pad = crate::theme::current(&harness.ctx).component.dialog.pad;
     assert!((gap - pad).abs() < 0.5, "footer to frame bottom {gap}, pad {pad}, frame {:?}", frame.get());
 }
+
+#[test]
+fn the_title_is_drawn_in_the_dialog_title_role() {
+    use crate::theme::{Tokens, TokensOf as _};
+    use egui::epaint::Shape;
+    fn titles(shape: &Shape, out: &mut Vec<egui::epaint::TextShape>) {
+        match shape {
+            Shape::Vec(shapes) => shapes.iter().for_each(|s| titles(s, out)),
+            Shape::Text(text) => out.push(text.clone()),
+            _ => {}
+        }
+    }
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut tokens = None;
+    let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        tokens = Some(Tokens::of(ui));
+        DialogFrame::new("frame", "New Document").show(ui, |_| {});
+    });
+    let tokens = tokens.expect("tokens");
+    let mut texts = Vec::new();
+    output.shapes.iter().for_each(|clipped| titles(&clipped.shape, &mut texts));
+    output.drop_without_applying_deltas();
+    let title = texts.iter().find(|t| t.galley.text() == "New Document").expect("the title is painted");
+    let font = &title.galley.job.sections[0].format.font_id;
+    assert_eq!(*font, tokens.font(craft_theme::TypeRole::Heading));
+    assert_eq!(font.size, 15.0);
+    assert_eq!(tokens.typography.heading.font, craft_theme::FontSlot::UiSemibold);
+}

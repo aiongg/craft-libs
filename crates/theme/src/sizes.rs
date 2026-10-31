@@ -222,6 +222,12 @@ pub(crate) fn leaves<'a>(b: &'a mut Preset, c: &'a mut ComponentSizes) -> Vec<Le
         "base.typography.heading.size" Num 8.0..=32.0 => t.heading.size;
         "base.typography.heading.line_height" Num 8.0..=48.0 => t.heading.line_height;
         "base.typography.heading.font" Font 0.0..=0.0 => t.heading.font;
+        "base.typography.body_large.size" Num 8.0..=32.0 => t.body_large.size;
+        "base.typography.body_large.line_height" Num 8.0..=48.0 => t.body_large.line_height;
+        "base.typography.body_large.font" Font 0.0..=0.0 => t.body_large.font;
+        "base.typography.overline.size" Num 8.0..=32.0 => t.overline.size;
+        "base.typography.overline.line_height" Num 8.0..=48.0 => t.overline.line_height;
+        "base.typography.overline.font" Font 0.0..=0.0 => t.overline.font;
         "base.typography.mono.size" Num 8.0..=32.0 => t.mono.size;
         "base.typography.mono.line_height" Num 8.0..=48.0 => t.mono.line_height;
         "base.typography.mono.font" Font 0.0..=0.0 => t.mono.font;

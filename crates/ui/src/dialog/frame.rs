@@ -34,7 +34,7 @@ pub struct DialogFrameStyle {
     pub close_box: f32,
     /// How far the title band reaches past the title, as `[side, up, down]`: `dialog.drag_pad`.
     pub drag_pad: [f32; 3],
-    /// The title's type role: `title`.
+    /// The title's type role: `dialog.title_role`.
     pub title_role: TypeRole,
     /// The title's line height, from the role.
     pub title_line: f32,
@@ -135,8 +135,8 @@ impl DialogFrame {
             footer_gap: d.footer_gap,
             close_box: d.close_box,
             drag_pad: d.drag_pad,
-            title_role: TypeRole::Title,
-            title_line: tokens.typography.get(TypeRole::Title).line_height,
+            title_role: d.title_role,
+            title_line: tokens.typography.get(d.title_role).line_height,
             title: Content::Normal.color(tokens).to_egui(),
             rule: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.color.line.divider.to_egui()),
         }
