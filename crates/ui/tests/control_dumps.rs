@@ -1072,6 +1072,9 @@ fn preferences() {
             .line("page_gap", s.page_gap)
             .line("gap", s.gap)
             .line("choice_width", s.choice_width)
-            .line("text_width", s.text_width);
+            .line("text_width", s.text_width)
+            .line("page_inset", s.page_inset)
+            .line("page_row_height", s.page_row_height)
+            .line("hex_width", s.hex_width);
     });
 }

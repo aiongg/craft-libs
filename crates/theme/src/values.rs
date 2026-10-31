@@ -515,6 +515,12 @@ pub const PREFERENCES_LIST_WIDTH: f32 = 170.0;
 pub const PREFERENCES_CHOICE_WIDTH: f32 = 220.0;
 /// Width of a text row's control at Compact; Comfortable scales it by the control height.
 pub const PREFERENCES_TEXT_WIDTH: f32 = 260.0;
+/// Room between the divider and a preferences page's contents, and between them and the window's trailing edge, at every Size (PhotoCraft: a 9 pt rule, then `item_spacing`).
+pub const PREFERENCES_PAGE_INSET: f32 = 13.0;
+/// Height of a page list row, at every Size (PhotoCraft: 22 pt rows 6 pt apart).
+pub const PREFERENCES_PAGE_ROW_HEIGHT: f32 = 28.0;
+/// Width of a colour row's hex field at Compact (PhotoCraft's `hex_field`); Comfortable scales it by the control height.
+pub const PREFERENCES_HEX_WIDTH: f32 = 72.0;
 /// Height given to a page body laid out in an unbounded rect, in points.
 pub const PREFERENCES_BODY_FALLBACK_HEIGHT: f32 = 600.0;
 

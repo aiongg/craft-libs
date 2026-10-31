@@ -259,6 +259,17 @@ fn the_label_column_is_as_wide_as_the_widest_label_from_the_first_frame() {
 }
 
 #[test]
+fn labels_start_at_the_page_edge_the_search_fills_the_width_and_the_page_keeps_its_inset() {
+    let h = open();
+    let (short, long) = (h.get_by_role_and_label(Role::Label, "Workspace name:").rect(), h.get_by_role_and_label(Role::Label, "Language:").rect());
+    assert!((short.left() - long.left()).abs() < 0.5, "{short:?} {long:?}");
+    let list = h.get_by_role(Role::ListBox).rect();
+    assert!(short.left() - list.right() >= 13.0, "{short:?} {list:?}");
+    let search = h.get_by_role(Role::SearchInput).rect();
+    assert!(search.width() > 700.0, "{search:?}");
+}
+
+#[test]
 fn the_body_never_draws_below_the_space_it_is_given() {
     let bottom = std::rc::Rc::new(std::cell::Cell::new(0.0_f32));
     let seen = bottom.clone();
