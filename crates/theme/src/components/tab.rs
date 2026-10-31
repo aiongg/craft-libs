@@ -188,15 +188,15 @@ impl Family for TabTokens {
         TabField::Indicator,
     ];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { TabTokens;
-        "height" 0.0..=1024.0 => height;
-        "panel_height" 0.0..=1024.0 => panel_height;
+        "height" 16.0..=64.0 => height;
+        "panel_height" 16.0..=64.0 => panel_height;
         "height_large" 0.0..=1024.0 => height_large;
         "pad_x" 0.0..=64.0 => pad_x;
-        "gap" 0.0..=64.0 => gap;
+        "gap" 0.0..=32.0 => gap;
         "min_width" 0.0..=1024.0 => min_width;
         "close_box" 0.0..=1024.0 => close_box;
-        "close_icon" 0.0..=1024.0 => close_icon;
-        "overflow" 0.0..=1024.0 => overflow;
+        "close_icon" 6.0..=24.0 => close_icon;
+        "overflow" 16.0..=48.0 => overflow;
         "drop_width" 0.0..=1024.0 => drop_width;
         "drop_halo_width" 0.0..=16.0 => drop_halo_width;
         "progress_height" 0.0..=1024.0 => progress_height;

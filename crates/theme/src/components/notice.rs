@@ -92,7 +92,7 @@ impl Family for NoticeTokens {
         NoticeField::Fg(Tone::Bad),
     ];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { NoticeTokens;
-        "icon_gap" 0.0..=64.0 => icon_gap;
+        "icon_gap" 0.0..=32.0 => icon_gap;
     };
 
     fn defaults(s: &Semantic<'_>) -> NoticeTokens {

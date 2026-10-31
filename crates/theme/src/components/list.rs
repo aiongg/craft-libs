@@ -516,8 +516,8 @@ impl Family for ListTokens {
         "thumb.lg" 0.0..=96.0 => thumb.lg;
         "thumb_pad" 0.0..=64.0 => thumb_pad;
         "thumb_row_min" 0.0..=1024.0 => thumb_row_min;
-        "pad_x" 0.0..=64.0 => pad_x;
-        "gap" 0.0..=64.0 => gap;
+        "pad_x" 0.0..=32.0 => pad_x;
+        "gap" 0.0..=32.0 => gap;
         "indent" 0.0..=1024.0 => indent;
         "disclosure" 0.0..=1024.0 => disclosure;
         "toggle_column" 0.0..=1024.0 => toggle_column;

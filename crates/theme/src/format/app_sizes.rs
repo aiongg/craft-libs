@@ -4,8 +4,11 @@ use serde_json::{Map, Value};
 
 use super::{ErrorKind, FormatError, FormatErrors, LENGTH, MAX_THEME_BYTES};
 use crate::app_sizes::{AppSizes, SizeMap, SizeValue, Target, target};
+use crate::components::SizeField;
+use crate::ramp::Mode;
+use crate::resolve_sized;
 use crate::sizes::{ComponentSizes, FULL, Leaf, Preset, SizeSet, Slot, leaves};
-use crate::theme::Size;
+use crate::theme::{Appearance, Contrast, Size, TextSize};
 
 const SECTIONS: [&str; 3] = ["all", "compact", "comfortable"];
 
@@ -43,6 +46,7 @@ pub(super) fn parse(bytes: &[u8]) -> Result<AppSizes, FormatErrors> {
     let sizes = AppSizes { all: section("all"), compact: section("compact"), comfortable: section("comfortable") };
     if errors.is_empty() {
         cross_rules(&sizes, &mut errors);
+        component_cross_rules(&sizes, &mut errors);
     }
     if errors.is_empty() { Ok(sizes) } else { Err(FormatErrors(errors)) }
 }
@@ -106,6 +110,39 @@ fn cross_rules(sizes: &AppSizes, errors: &mut Vec<FormatError>) {
         for e in found {
             if let Some(path) = e.path.first().filter(|_| e.path.len() > 1 && e.path[0] == "base").map(|_| e.path[1..].join(".")) {
                 errors.push(err(name, &path, e.kind));
+            }
+        }
+    }
+}
+
+/// Component sizes that must keep an order for the renderer to draw: the first at most the
+/// second. A pin that breaks it is reported at the pinned path (the first when both are).
+const COMPONENT_ORDER: &[(&str, &str)] = &[("dock.iconic_width", "dock.iconic_max_width")];
+
+/// The rule text for an end of [`COMPONENT_ORDER`].
+fn order_rule(path: &str) -> &'static str {
+    match path {
+        "dock.iconic_width" => "at most dock.iconic_max_width",
+        _ => "at least dock.iconic_width",
+    }
+}
+
+/// [`COMPONENT_ORDER`] on the component sizes of each set with the overrides applied.
+fn component_cross_rules(sizes: &AppSizes, errors: &mut Vec<FormatError>) {
+    for (name, size) in [("compact", Size::Compact), ("comfortable", Size::Comfortable)] {
+        let merged = sizes.merged(size);
+        let pinned = |path: &str| merged.contains_key(path);
+        let rules: Vec<_> = COMPONENT_ORDER.iter().filter(|(a, b)| pinned(a) || pinned(b)).collect();
+        if rules.is_empty() {
+            continue;
+        }
+        let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size, text_size: TextSize::Default, reduced_motion: false };
+        let tokens = resolve_sized(crate::builtins::suite_default(), appearance, None, sizes).tokens;
+        for (first, second) in rules {
+            let value = |path: &str| SizeField::from_path(path).map(|f| f.get(&tokens.component));
+            if value(first) > value(second) {
+                let path = if pinned(first) { first } else { second };
+                errors.push(err(name, path, ErrorKind::CrossRule { rule: order_rule(path) }));
             }
         }
     }

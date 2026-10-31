@@ -168,19 +168,19 @@ impl Family for RailTokens {
         RailField::Edge,
     ];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { RailTokens;
-        "width" 0.0..=1024.0 => width;
-        "button" 0.0..=1024.0 => button;
-        "panel_width" 0.0..=1024.0 => panel_width;
-        "panel_button" 0.0..=1024.0 => panel_button;
+        "width" 24.0..=96.0 => width;
+        "button" 16.0..=64.0 => button;
+        "panel_width" 24.0..=96.0 => panel_width;
+        "panel_button" 16.0..=64.0 => panel_button;
         "icon_size" 0.0..=1024.0 => icon;
-        "panel_icon" 0.0..=1024.0 => panel_icon;
+        "panel_icon_size" 0.0..=1024.0 => panel_icon;
         "gap" 0.0..=64.0 => gap;
         "row_gap" 0.0..=64.0 => row_gap;
         "panel_gap" 0.0..=64.0 => panel_gap;
-        "pad_y" 0.0..=64.0 => pad_y;
+        "pad_y" 0.0..=32.0 => pad_y;
         "toggle_height" 0.0..=1024.0 => toggle_height;
         "toggle_icon" 0.0..=1024.0 => toggle_icon;
-        "flyout_gap" 0.0..=64.0 => flyout_gap;
+        "flyout_gap" 0.0..=32.0 => flyout_gap;
         "indicator_size" 0.0..=1024.0 => indicator_size;
         "indicator_inset" 0.0..=64.0 => indicator_inset;
         "marker_radius" 0.0..=1024.0 => marker_radius;

@@ -268,7 +268,7 @@ impl Family for CheckTokens {
         "gap" 0.0..=64.0 => gap;
         "box_size.sm" 0.0..=1024.0 => box_size.sm;
         "box_size.md" 0.0..=1024.0 => box_size.md;
-        "box_gap" 0.0..=64.0 => box_gap;
+        "box_gap" 0.0..=32.0 => box_gap;
         "outline" 0.0..=16.0 => outline;
         "mark.sm" 0.0..=1024.0 => mark.sm;
         "mark.md" 0.0..=1024.0 => mark.md;

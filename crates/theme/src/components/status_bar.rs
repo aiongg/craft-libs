@@ -31,7 +31,7 @@ impl Family for StatusBarTokens {
     type Field = StatusBarField;
     const FIELDS: &'static [StatusBarField] = &[];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { StatusBarTokens;
-        "height" 0.0..=1024.0 => height;
+        "height" 16.0..=64.0 => height;
         "pad" 0.0..=64.0 => pad;
         "gap" 0.0..=64.0 => gap;
         "group_gap" 0.0..=64.0 => group_gap;

@@ -488,6 +488,11 @@ impl Parser {
                         p.fail(ErrorKind::WrongType { expected: "an object" });
                         return false;
                     };
+                    // Sizes belong to the app (`AppSizes`); a theme sets none.
+                    if app.contains_key("sizes") {
+                        p.at("sizes", |p| p.fail(ErrorKind::UnknownToken));
+                        return false;
+                    }
                     let pins = p.mode_pins(app, variants, false);
                     let high_contrast = match p.optional_object(app, "high_contrast") {
                         Some(hc) => p.at("high_contrast", |p| p.mode_pins(hc, variants, false)),

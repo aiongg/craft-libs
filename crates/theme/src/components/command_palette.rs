@@ -31,7 +31,7 @@ impl Family for CommandPaletteTokens {
     type Field = CommandPaletteField;
     const FIELDS: &'static [CommandPaletteField] = &[];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { CommandPaletteTokens;
-        "width" 0.0..=1024.0 => width;
+        "width" 0.0..=2048.0 => width;
         "top" 0.0..=1024.0 => top;
         "pad" 0.0..=64.0 => pad;
         "row_height" 0.0..=1024.0 => row_height;

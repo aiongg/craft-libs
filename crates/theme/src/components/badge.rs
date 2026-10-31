@@ -203,7 +203,7 @@ impl Family for BadgeTokens {
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { BadgeTokens;
         "height" 0.0..=1024.0 => height;
         "pad_y" 0.0..=64.0 => pad_y;
-        "pad_x" 0.0..=64.0 => pad_x;
+        "pad_x" 0.0..=32.0 => pad_x;
     };
 
     fn defaults(s: &Semantic<'_>) -> BadgeTokens {

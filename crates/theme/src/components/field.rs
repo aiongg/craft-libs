@@ -273,11 +273,11 @@ impl Family for FieldTokens {
         "width.md" 0.0..=1024.0 => width.md;
         "number_width.sm" 0.0..=1024.0 => number_width.sm;
         "number_width.md" 0.0..=1024.0 => number_width.md;
-        "pad_x" 0.0..=64.0 => pad_x;
+        "pad_x" 0.0..=32.0 => pad_x;
         "icon.sm" 0.0..=1024.0 => icon.sm;
         "icon.md" 0.0..=1024.0 => icon.md;
-        "gap" 0.0..=64.0 => gap;
-        "label_gap" 0.0..=64.0 => label_gap;
+        "gap" 0.0..=32.0 => gap;
+        "label_gap" 0.0..=32.0 => label_gap;
         "help_gap" 0.0..=64.0 => help_gap;
     };
 

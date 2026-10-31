@@ -122,9 +122,9 @@ impl Family for TitleBarTokens {
         TitleBarField::Separator,
     ];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { TitleBarTokens;
-        "height" 0.0..=1024.0 => height;
+        "height" 16.0..=80.0 => height;
         "height_adwaita" 0.0..=1024.0 => height_adwaita;
-        "pad" 0.0..=64.0 => pad;
+        "pad" 0.0..=32.0 => pad;
         "title_gap" 0.0..=64.0 => title_gap;
         "title_min_gap" 0.0..=1024.0 => title_min_gap;
         "edge" 0.0..=16.0 => edge;

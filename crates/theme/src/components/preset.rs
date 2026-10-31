@@ -77,17 +77,17 @@ impl Family for PresetTokens {
     type Field = PresetField;
     const FIELDS: &'static [PresetField] = &PresetField::ALL;
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { PresetTokens;
-        "header_height" 0.0..=1024.0 => header_height;
-        "grid_gap" 0.0..=64.0 => grid_gap;
-        "grid_inset" 0.0..=64.0 => grid_inset;
-        "caption_gap" 0.0..=64.0 => caption_gap;
-        "slider_width" 0.0..=1024.0 => slider_width;
+        "header_height" 16.0..=64.0 => header_height;
+        "grid_gap" 0.0..=32.0 => grid_gap;
+        "grid_inset" 0.0..=32.0 => grid_inset;
+        "caption_gap" 0.0..=16.0 => caption_gap;
+        "slider_width" 48.0..=240.0 => slider_width;
         "thumb_list_min" 0.0..=1024.0 => thumb_list_min;
         "thumb_list_max" 0.0..=1024.0 => thumb_list_max;
         "ghost_thumb" 0.0..=1024.0 => ghost_thumb;
         "toolbar_gap" 0.0..=64.0 => toolbar_gap;
-        "ring_hover_width" 0.0..=16.0 => ring_hover_width;
-        "ring_halo_width" 0.0..=16.0 => ring_halo_width;
+        "ring.hover_width" 0.0..=16.0 => ring_hover_width;
+        "ring.halo_width" 0.0..=16.0 => ring_halo_width;
     };
 
     fn defaults(s: &Semantic<'_>) -> PresetTokens {

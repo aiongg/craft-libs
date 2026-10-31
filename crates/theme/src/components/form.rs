@@ -36,12 +36,12 @@ impl Family for FormTokens {
     type Field = FormField;
     const FIELDS: &'static [FormField] = &[];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { FormTokens;
-        "normal.column_gap" 0.0..=256.0 => normal.column_gap;
-        "normal.row_gap" 0.0..=256.0 => normal.row_gap;
-        "normal.label_min" 0.0..=256.0 => normal.label_min;
+        "column_gap" 0.0..=256.0 => normal.column_gap;
+        "row_gap" 0.0..=256.0 => normal.row_gap;
+        "label_min" 0.0..=512.0 => normal.label_min;
         "roomy.column_gap" 0.0..=256.0 => roomy.column_gap;
         "roomy.row_gap" 0.0..=256.0 => roomy.row_gap;
-        "roomy.label_min" 0.0..=256.0 => roomy.label_min;
+        "roomy.label_min" 0.0..=512.0 => roomy.label_min;
     };
 
     /// The Compact values (PhotoCraft's), scaled by the control height of the size and rounded

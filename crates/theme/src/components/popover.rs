@@ -34,9 +34,9 @@ impl Family for PopoverTokens {
     type Field = PopoverField;
     const FIELDS: &'static [PopoverField] = &[PopoverField::GripTick];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { PopoverTokens;
-        "padding" 0.0..=64.0 => padding;
-        "grip_size" 0.0..=1024.0 => grip_size;
-        "grip_pitch" 0.0..=64.0 => grip_pitch;
+        "padding" 0.0..=32.0 => padding;
+        "grip.size" 0.0..=1024.0 => grip_size;
+        "grip.pitch" 0.0..=64.0 => grip_pitch;
         "screen_margin" 0.0..=64.0 => screen_margin;
     };
 

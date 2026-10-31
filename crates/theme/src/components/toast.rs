@@ -98,9 +98,9 @@ impl Family for ToastTokens {
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { ToastTokens;
         "width" 0.0..=1024.0 => width;
         "pad" 0.0..=64.0 => pad;
-        "inset.0" 0.0..=64.0 => inset[0];
-        "inset.1" 0.0..=64.0 => inset[1];
-        "gap" 0.0..=64.0 => gap;
+        "inset.x" 0.0..=64.0 => inset[0];
+        "inset.y" 0.0..=64.0 => inset[1];
+        "gap" 0.0..=32.0 => gap;
     };
 
     fn defaults(s: &Semantic<'_>) -> ToastTokens {

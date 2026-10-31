@@ -70,6 +70,17 @@ impl AppSizes {
         format::parse_app_sizes(bytes)
     }
 
+    /// [`AppSizes::parse`] for a file the app embeds: a file that fails is logged, one line per
+    /// error, and ignored, so the size set applies as it is.
+    pub fn parse_or_default(bytes: &[u8]) -> AppSizes {
+        Self::parse(bytes).unwrap_or_else(|errors| {
+            for error in &errors.0 {
+                log::error!("sizes.json ignored: {error}");
+            }
+            AppSizes::default()
+        })
+    }
+
     /// The block as `sizes.json` text, which [`AppSizes::parse`] reads back.
     pub fn to_json(&self) -> String {
         format::write_app_sizes(self)

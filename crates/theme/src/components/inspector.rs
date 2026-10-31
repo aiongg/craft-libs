@@ -39,7 +39,7 @@ impl Family for InspectorTokens {
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { InspectorTokens;
         "header_height" 0.0..=1024.0 => header_height;
         "icon" 0.0..=1024.0 => icon;
-        "pad" 0.0..=64.0 => pad;
+        "pad" 0.0..=32.0 => pad;
         "kind_min_name" 0.0..=1024.0 => kind_min_name;
     };
 

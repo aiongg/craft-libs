@@ -24,7 +24,7 @@ impl Family for PanelHeaderTokens {
     type Field = PanelHeaderField;
     const FIELDS: &'static [PanelHeaderField] = &[];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { PanelHeaderTokens;
-        "height" 0.0..=1024.0 => height;
+        "height" 16.0..=64.0 => height;
         "pad" 0.0..=64.0 => pad;
         "gap" 0.0..=64.0 => gap;
         "button" 0.0..=1024.0 => button;

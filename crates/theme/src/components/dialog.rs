@@ -61,7 +61,7 @@ impl Family for DialogTokens {
     const FIELDS: &'static [DialogField] = &[];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { DialogTokens;
         "pad" 0.0..=64.0 => pad;
-        "pad_roomy" 0.0..=64.0 => pad_roomy;
+        "pad_roomy" 0.0..=32.0 => pad_roomy;
         "title_gap" 0.0..=64.0 => title_gap;
         "body_gap" 0.0..=64.0 => body_gap;
         "footer_gap" 0.0..=64.0 => footer_gap;
@@ -75,7 +75,7 @@ impl Family for DialogTokens {
         "width_compact" 0.0..=1024.0 => width_compact;
         "width_min" 0.0..=1024.0 => width_min;
         "width_standard" 0.0..=1024.0 => width_standard;
-        "width_wide" 0.0..=1024.0 => width_wide;
+        "width_wide" 0.0..=2048.0 => width_wide;
         "window_margin" 0.0..=64.0 => window_margin;
         "resize_margin" 0.0..=64.0 => resize_margin;
         "keep_visible" 0.0..=1024.0 => keep_visible;

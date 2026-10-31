@@ -45,8 +45,8 @@ impl Family for OptionsBarTokens {
     type Field = OptionsBarField;
     const FIELDS: &'static [OptionsBarField] = &[];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { OptionsBarTokens;
-        "height" 0.0..=1024.0 => height;
-        "height_narrow" 0.0..=1024.0 => height_narrow;
+        "height" 16.0..=80.0 => height;
+        "height_narrow" 16.0..=80.0 => height_narrow;
         "pad" 0.0..=64.0 => pad;
         "row_gap" 0.0..=64.0 => row_gap;
         "gap" 0.0..=64.0 => gap;

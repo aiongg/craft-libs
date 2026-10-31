@@ -55,7 +55,7 @@ impl Family for PanelTokens {
     type Field = PanelField;
     const FIELDS: &'static [PanelField] = &[PanelField::Fill, PanelField::HeaderLine, PanelField::FooterLine];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { PanelTokens;
-        "pad" 0.0..=64.0 => pad;
+        "pad" 0.0..=32.0 => pad;
     };
 
     fn defaults(s: &Semantic<'_>) -> PanelTokens {

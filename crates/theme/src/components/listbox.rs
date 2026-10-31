@@ -155,10 +155,10 @@ impl Family for ListboxTokens {
         "height.md" 0.0..=1024.0 => height.md;
         "pad_x" 0.0..=64.0 => pad_x;
         "max_height" 0.0..=1024.0 => max_height;
-        "gap" 0.0..=64.0 => gap;
+        "gap" 0.0..=32.0 => gap;
         "icon.sm" 0.0..=1024.0 => icon.sm;
         "icon.md" 0.0..=1024.0 => icon.md;
-        "separator_pad" 0.0..=64.0 => separator_pad;
+        "separator_pad" 0.0..=32.0 => separator_pad;
     };
 
     fn defaults(s: &Semantic<'_>) -> ListboxTokens {

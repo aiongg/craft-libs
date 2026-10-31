@@ -17,6 +17,7 @@ ecolor = ["dep:ecolor"]
 [dependencies]
 ecolor = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
+log = "0.4"
 serde_json = { workspace = true }
 
 [dev-dependencies]

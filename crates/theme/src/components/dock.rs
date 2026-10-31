@@ -147,14 +147,14 @@ impl Family for DockTokens {
         DockField::HintRadius,
     ];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { DockTokens;
-        "gap" 0.0..=64.0 => gap;
+        "gap" 0.0..=32.0 => gap;
         "body_gap" 0.0..=64.0 => body_gap;
         "border_width" 0.0..=16.0 => border_width;
         "title_height" 0.0..=1024.0 => title_height;
         "column_bar_height" 0.0..=1024.0 => column_bar_height;
-        "icon_size" 0.0..=1024.0 => icon_size;
+        "icon_size" 10.0..=32.0 => icon_size;
         "icon_pad" 0.0..=64.0 => icon_pad;
-        "iconic_width" 0.0..=1024.0 => iconic_width;
+        "iconic_width" 24.0..=96.0 => iconic_width;
         "drop_width" 0.0..=1024.0 => drop_width;
         "focus_width" 0.0..=16.0 => focus_width;
         "min_pane" 0.0..=512.0 => min_pane;
