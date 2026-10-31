@@ -97,13 +97,13 @@ connection.
 (the desktop draws the frame, except on Wayland without server-side decorations). They still work;
 `policy` supersedes them.
 
-The `egui` feature adds [`decorate`], the [`title_bar`](#the-apps-own-title-bar) module and
+The `ui` feature adds [`decorate`], the [`title_bar`](#the-apps-own-title-bar) module and
 `Viewports`. Without it, the crate is pure decision and bookkeeping logic with no egui dependency.
 
 ## The app's own title bar
 
 An app that draws over the title bar — a hidden macOS title bar with a full-size content view, or
-`Frame::App` — makes its top strip act as one with `craft_window::title_bar` (`egui` feature):
+`Frame::App` — makes its top strip act as one with `craft_window::title_bar` (`ui` feature):
 
 | Where the drag or double-click starts | What happens |
 | --- | --- |
@@ -163,7 +163,7 @@ window bookkeeping. The core has no egui dependency.
 | `cascade` | Places a new window one step (about a title bar, `CASCADE_STEP`) right of and below the most recent window. Each axis that would run off the bounds (monitor or work area) starts over at the bounds' edge. |
 | `WindowMenu` | The Window menu (macOS) or View › Switch Windows list: (id, title, dirty, active) per window, in opening order. Windows on the same document are titled `Name:1`, `Name:2`, numbered by opening order; a document with one window keeps its plain name. The app supplies each window's document key, name and dirty flag. |
 
-With the `egui` feature, `Viewports` shows the windows as egui immediate viewports:
+With the `ui` feature, `Viewports` shows the windows as egui immediate viewports:
 
 - Call `show` once per frame from the root viewport's UI. It runs the app's callback for each
   window inside that window's viewport, so `ui.ctx()` input (close requests, IME) and commands
@@ -219,7 +219,7 @@ Feature `restore` (no egui): `craft_window::restore`.
 
 ### eframe apps
 
-Feature `restore-egui` (eframe on wgpu) or `restore-egui-glow` (eframe on glow). Each turns on that
+Feature `restore-ui` (eframe on wgpu) or `restore-ui-glow` (eframe on glow). Each turns on that
 renderer in eframe without backends; pick the one the app uses, since eframe starts on wgpu when
 both are on.
 

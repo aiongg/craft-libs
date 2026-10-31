@@ -107,19 +107,19 @@ impl Cache {
 }
 
 /// Whether the window is in full screen, where there are no lights to leave room for.
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub fn is_fullscreen(ctx: &egui::Context) -> bool {
     ctx.input(|i| i.viewport().fullscreen).unwrap_or(false)
 }
 
 /// The measured traffic-lights inset, kept as app state. Cheap once measured.
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 #[derive(Clone, Debug, Default)]
 pub struct TrafficLights {
     cache: Cache,
 }
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 impl TrafficLights {
     pub fn new() -> Self {
         Self::default()
@@ -137,19 +137,19 @@ impl TrafficLights {
     }
 }
 
-#[cfg(all(feature = "egui", target_os = "macos"))]
+#[cfg(all(feature = "ui", target_os = "macos"))]
 fn os_default() -> MacInset {
     use objc2_foundation::NSProcessInfo;
     let major = NSProcessInfo::processInfo().operatingSystemVersion().majorVersion;
     default_inset(u32::try_from(major).unwrap_or(0))
 }
 
-#[cfg(all(feature = "egui", not(target_os = "macos")))]
+#[cfg(all(feature = "ui", not(target_os = "macos")))]
 fn os_default() -> MacInset {
     MacInset::default()
 }
 
-#[cfg(all(feature = "egui", target_os = "macos"))]
+#[cfg(all(feature = "ui", target_os = "macos"))]
 fn measure() -> Option<MacInset> {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSApplication, NSWindowButton, NSWindowStyleMask};
@@ -178,7 +178,7 @@ fn measure() -> Option<MacInset> {
     })
 }
 
-#[cfg(all(feature = "egui", not(target_os = "macos")))]
+#[cfg(all(feature = "ui", not(target_os = "macos")))]
 fn measure() -> Option<MacInset> {
     None
 }

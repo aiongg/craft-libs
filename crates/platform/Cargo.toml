@@ -15,7 +15,7 @@ default = []
 dialogs = []
 appearance = ["dep:zbus", "dep:futures-lite", "dep:async-channel", "dep:async-io", "dep:async-process", "dep:web-sys"]
 browser = ["dep:wasm-bindgen", "dep:js-sys", "dep:web-sys"]
-egui = ["dep:egui"]
+ui = ["dep:egui"]
 theme = ["dep:craft-theme"]
 
 [dependencies]

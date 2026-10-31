@@ -9,9 +9,9 @@ repository.workspace = true
 
 [features]
 # `on_close_request`: route an egui/eframe window close through the platform quit.
-egui = ["dep:egui"]
+ui = ["dep:egui"]
 # `install_app_menu`: a macOS app menu whose Quit (⌘Q) asks the app first, like the close button.
-menu = ["egui", "dep:muda"]
+menu = ["ui", "dep:muda"]
 
 [dependencies]
 egui = { workspace = true, optional = true }

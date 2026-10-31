@@ -1038,14 +1038,14 @@ mod portal {
     }
 }
 /// Owned callback that supplies an observed theme and updates egui native-window hints.
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub type SystemThemeFn = Box<dyn Fn(&egui::Context) -> Option<egui::Theme>>;
 /// Create an egui theme callback over a [`SystemReader`] that wakes the first context it is
 /// called with. Return `None` when no desktop watcher can start; the host retains its fallback
 /// policy. It answers the colour scheme only: a host that also needs the button layout or icon
 /// theme uses [`egui_system_service`], and one that follows contrast or reduced motion uses
 /// [`SystemReader`] directly.
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub fn egui_service() -> Option<SystemThemeFn> {
     egui_system_service().map(EguiService::into_theme_fn)
 }
@@ -1055,13 +1055,13 @@ pub fn egui_service() -> Option<SystemThemeFn> {
 /// accessor is non-blocking and callable from any thread (`SystemReader` is `Send`, checked at
 /// compile time below). A change in any value repaints the
 /// context [`EguiService::theme`] saw first.
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 #[derive(Clone)]
 pub struct EguiService {
     reader: std::sync::Arc<Mutex<SystemReader>>,
 }
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 impl EguiService {
     fn with<T>(&self, f: impl FnOnce(&SystemReader) -> T) -> T {
         f(&self.reader.lock().unwrap_or_else(PoisonError::into_inner))
@@ -1089,7 +1089,7 @@ impl EguiService {
     }
 }
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 const _: () = {
     const fn send_sync<T: Send + Sync>() {}
     send_sync::<EguiService>();
@@ -1097,7 +1097,7 @@ const _: () = {
 
 /// Start the desktop watcher behind an [`EguiService`], or return `None` when no watcher can
 /// start; the host retains its fallback policy.
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub fn egui_system_service() -> Option<EguiService> {
     let reader = SystemReader::for_egui();
     reader.watching().then(|| EguiService { reader: std::sync::Arc::new(Mutex::new(reader)) })
@@ -1109,7 +1109,7 @@ pub fn egui_system_service() -> Option<EguiService> {
 /// resolve `SystemDefault` themselves.
 /// The output hook runs after egui's own window-theme synchronization, so it cannot be overwritten
 /// by a later automatic `SetTheme(SystemDefault)` in the same pass.
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub fn sync_native_window_theme(ctx: &egui::Context, observed: Option<Theme>) {
     #[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
     {
@@ -1120,13 +1120,13 @@ pub fn sync_native_window_theme(ctx: &egui::Context, observed: Option<Theme>) {
     let _ = (ctx, observed);
 }
 
-#[cfg(all(feature = "egui", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+#[cfg(all(feature = "ui", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 #[derive(Default)]
 struct NativeWindowTheme {
     observed: Option<Theme>,
     sent: std::collections::HashMap<egui::ViewportId, egui::SystemTheme>,
 }
-#[cfg(all(feature = "egui", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+#[cfg(all(feature = "ui", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 impl egui::Plugin for NativeWindowTheme {
     fn debug_name(&self) -> &'static str {
         "desktop window appearance"
@@ -1166,7 +1166,7 @@ impl egui::Plugin for NativeWindowTheme {
     }
 }
 
-#[cfg(all(test, feature = "egui", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+#[cfg(all(test, feature = "ui", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 mod native_window_tests {
     use super::{Theme, sync_native_window_theme};
     fn pass(ctx: &egui::Context, observed: Option<Theme>, preference: egui::ThemePreference) -> Vec<egui::SystemTheme> {

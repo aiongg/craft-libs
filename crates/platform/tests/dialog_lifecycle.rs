@@ -122,7 +122,7 @@ fn proven_absence_skips_native_factory() -> Result<(), Box<dyn std::error::Error
 fn missing_backend_answer_is_ambiguous() {
     assert_eq!(Outcome::<u8>::from_rfd(None), Outcome::Indeterminate);
 }
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 #[test]
 fn held_close_retries_policy_without_granting_discard() {
     let ctx = egui::Context::default();
@@ -205,7 +205,7 @@ fn completion_between_pumps_cannot_reject_a_chained_request() -> Result<(), Box<
     Ok(())
 }
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 #[test]
 fn pending_dialog_without_close_intent_does_not_schedule_viewport_work() {
     let ctx = egui::Context::default();
@@ -228,7 +228,7 @@ fn pending_dialog_without_close_intent_does_not_schedule_viewport_work() {
     output.textures_delta.clear();
 }
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 #[test]
 fn programmatic_close_is_held_until_the_pending_dialog_settles() {
     let ctx = egui::Context::default();

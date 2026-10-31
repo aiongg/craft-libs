@@ -16,6 +16,8 @@ serde_json = "1"
 egui = { workspace = true, optional = true }
 craft-ui = { workspace = true, optional = true }
 craft-i18n = { workspace = true, optional = true }
+# The dialog screenshots (`screen-testing`).
+egui_kittest = { version = "0.37", optional = true }
 
 [dev-dependencies]
 # `serde` for setting `RawInput` fields only the suite's egui fork has; `default_fonts` for the
@@ -28,8 +30,7 @@ egui_kittest = "0.37"
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [features]
-egui = ["dep:egui"]
-# The Keyboard Shortcuts dialog.
-ui = ["egui", "dep:craft-ui", "dep:craft-i18n"]
+# The egui key conversions and dispatcher, and the Keyboard Shortcuts dialog.
+ui = ["dep:egui", "dep:craft-ui", "dep:craft-i18n"]
 # Screenshots of the dialog for review (tests/ui_snapshot.rs; needs a GPU or software adapter).
-snapshot = ["ui", "egui_kittest/wgpu", "craft-ui/screen-testing"]
+screen-testing = ["ui", "dep:egui_kittest", "egui_kittest/wgpu", "craft-ui/screen-testing"]

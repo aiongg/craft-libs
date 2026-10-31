@@ -224,7 +224,7 @@ pub(crate) fn desktop_layout(os: Os, kind: DesktopKind) -> Layout {
 /// Apply a [`Frame`] to an [`egui::ViewportBuilder`] before the window is created: decorations off
 /// for [`Frame::Integrated`], a full-size content view with hidden title and transparent title bar
 /// for [`Frame::Inset`], decorations on for [`Frame::Native`].
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub fn apply(builder: egui::ViewportBuilder, frame: &Frame) -> egui::ViewportBuilder {
     match frame {
         Frame::Native => builder.with_decorations(true),

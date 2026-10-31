@@ -41,9 +41,9 @@ jobs:
           key: craft-keymap-linux
       - run: cargo fmt -p craft-keymap --check
       - run: cargo clippy -p craft-keymap --all-targets --no-default-features --locked -- -D warnings
-      # `snapshot` covers `ui` and `egui` and compiles the dialog screenshots, which need a GPU
+      # `screen-testing` covers `ui` and compiles the dialog screenshots, which need a GPU
       # to run, so the test steps leave them out.
-      - run: cargo clippy -p craft-keymap --all-targets --features snapshot --locked -- -D warnings
+      - run: cargo clippy -p craft-keymap --all-targets --features screen-testing --locked -- -D warnings
       # Doctests run once, in the `ui` step.
       - name: Test core
         run: cargo test -p craft-keymap --no-default-features --lib --tests --locked

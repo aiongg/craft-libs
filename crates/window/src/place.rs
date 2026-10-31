@@ -23,14 +23,14 @@ impl Rect {
     }
 }
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 impl From<egui::Rect> for Rect {
     fn from(r: egui::Rect) -> Self {
         Self::new(r.min.x, r.min.y, r.width(), r.height())
     }
 }
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 impl From<Rect> for egui::Rect {
     fn from(r: Rect) -> Self {
         egui::Rect::from_min_size(egui::pos2(r.x, r.y), egui::vec2(r.width, r.height))

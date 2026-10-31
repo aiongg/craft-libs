@@ -1,9 +1,9 @@
-#![cfg(feature = "snapshot")]
+#![cfg(feature = "screen-testing")]
 //! Screenshots of the Keyboard Shortcuts dialog for review, not a golden comparison. With
 //! `CRAFT_KEYMAP_SNAPSHOT_DIR` set, writes PNGs of a few states in light and dark at 1× and 2×;
 //! without it the test does nothing.
 //!
-//! `CRAFT_KEYMAP_SNAPSHOT_DIR=/tmp/shots cargo test -p craft-keymap --features snapshot --test ui_snapshot`
+//! `CRAFT_KEYMAP_SNAPSHOT_DIR=/tmp/shots cargo test -p craft-keymap --features screen-testing --test ui_snapshot`
 //!
 //! Uses the same hash-verified `CRAFT_FONTS_DIR` input as ui_dialog (see README.md).
 //! Fonts are installed before the first layout pass; missing glyphs remain errors.

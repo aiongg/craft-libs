@@ -11,7 +11,7 @@
 //! [`Keymap::with_reserved`], e.g. `with_reserved(reserved::system(platform))`. [`import`] brings
 //! in other applications' shortcut sets. [`layout`] decides which chord a key press means on the
 //! user's keyboard layout, for matching, recording and labels. [`editor`] is the model of a
-//! shortcut editor: undo, a chord recorder, conflict queries and search. With the `egui` feature,
+//! shortcut editor: undo, a chord recorder, conflict queries and search. With the `ui` feature,
 //! the `egui` module
 //! converts to and from egui keys, matches key presses against bindings and dispatches a frame's
 //! key events.
@@ -63,7 +63,7 @@
 //! assert_eq!(press("M", &editing), Lookup::None, "plain keys go to the text field");
 //! ```
 //!
-//! With the `egui` feature, `egui::Dispatcher` does this for a frame's key events.
+//! With the `ui` feature, `egui::Dispatcher` does this for a frame's key events.
 //!
 //! # Storing overrides
 //!
@@ -138,7 +138,7 @@
 pub mod chord;
 pub mod command;
 pub mod editor;
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub mod egui;
 pub mod import;
 pub mod keymap;

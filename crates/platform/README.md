@@ -9,7 +9,7 @@ third-party dependencies. Enable only the services a host uses.
 | default | Typed dialog outcomes; no backend or toolkit. |
 | `dialogs` | Reserve waiting workers before eager UI-thread native picker creation; serial requests, failure delivery and completion wakeups. The backend factory belongs to the app. |
 | `theme` | `From<appearance::Reading> for craft_theme::SystemAppearance`, so a host hands the OS answer to `Base::resolve`. |
-| `egui` | Combine with `dialogs` for the deferred-close guard or with `appearance` for native theme mapping. |
+| `ui` | Combine with `dialogs` for the deferred-close guard or with `appearance` for native theme mapping. |
 | `appearance` | Linux/BSD XDG desktop preference observation (colour scheme, contrast, reduced motion, button layout); browser contrast and motion media queries; owned cancellable subscriptions, bounded reads/helper capture, legacy compatibility and reconnect. |
 | `browser` | Wasm download link/object URL ownership, cleanup on setup failure or abandonment, and cleanup timer registration before clicking. |
 

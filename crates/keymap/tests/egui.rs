@@ -1,4 +1,4 @@
-#![cfg(feature = "egui")]
+#![cfg(feature = "ui")]
 
 use craft_keymap::egui::{Dispatcher, Hit, matches, platform};
 use craft_keymap::{Active, Bindable, Binding, Chord, CommandRef, Key, KeyInput, Keymap, Kind, Layout, Mods, Platform, Scope, Scopes, Trigger};

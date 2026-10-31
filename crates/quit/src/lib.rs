@@ -10,7 +10,7 @@
 //! `-[NSApplication terminate:]`, what ⌘Q does in winit's default menu, ends the process before
 //! another display cycle runs.
 //!
-//! [`quit`] is that quit. With the `egui` feature, [`on_close_request`] routes a window close
+//! [`quit`] is that quit. With the `ui` feature, [`on_close_request`] routes a window close
 //! through it. Put both the app's close decision and this hook in `eframe::App::logic`, with the
 //! hook last. eframe calls `logic` even while the window is minimized or hidden, when `ui` does
 //! not run. Move any unsaved-changes check out of `ui` too: `logic` runs before `ui`, so a check
@@ -43,7 +43,7 @@
 //! `applicationWillTerminate:` runs eframe's exit handling before the process ends. The process
 //! ends there, so code after `eframe::run_native` in `main` does not run; move it to `on_exit`.
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 mod close;
 #[cfg(target_os = "macos")]
 mod macos;
@@ -51,7 +51,7 @@ mod macos;
 #[cfg(all(feature = "menu", target_os = "macos"))]
 mod menu;
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub use close::{QUIT_MENU_ID, on_close_request, on_menu_event};
 
 /// Replace winit's default macOS app menu with one whose Quit (⌘Q) asks the app first.

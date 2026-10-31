@@ -10,7 +10,7 @@ repository.workspace = true
 [features]
 default = []
 # `FontsPanel`: the whole interface as one egui panel.
-egui = ["dep:egui", "dep:craft-ui", "dep:serde", "dep:log"]
+ui = ["dep:egui", "dep:craft-ui", "dep:serde", "dep:log"]
 
 [dependencies]
 craft-font-catalog = { workspace = true }
@@ -35,7 +35,7 @@ egui_system_font_provider = "0.37"
 
 [[test]]
 name = "flows"
-required-features = ["egui"]
+required-features = ["ui"]
 
 [lints]
 workspace = true

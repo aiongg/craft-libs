@@ -31,9 +31,9 @@ pub mod suite;
 pub mod time;
 pub mod version;
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub mod dialog;
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub mod updater;
 
 pub use app::App;
@@ -47,7 +47,7 @@ pub use suite::SUITE;
 pub use time::parse_rfc3339;
 pub use version::{Version, is_newer, parse as parse_version};
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub use dialog::{CheckResultDialog, CheckResultResponse, StartupPrompt, StartupPromptResponse};
 
 /// Checks for an update against GitHub releases for the given app.

@@ -10,16 +10,16 @@ repository.workspace = true
 [features]
 # `decorate`: set the decision on an `egui::ViewportBuilder`. `title_bar`: an app-drawn strip as
 # the title bar (on macOS with AppKit's `movable` flag). `Viewports`: one immediate viewport per window.
-egui = ["dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation"]
+ui = ["dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation"]
 # `restore`: the window-restore store (`window.json` beside `config.toml`) and the pure `place`. No egui.
 restore = ["dep:craft-atomic", "dep:craft-settings", "dep:serde", "dep:serde_json"]
 # `restore::install`, `restore::Tracker` and placement for further windows, for eframe apps. eframe
-# needs a renderer: `restore-egui` turns on its wgpu (without backends), `restore-egui-glow` its glow.
+# needs a renderer: `restore-ui` turns on its wgpu (without backends), `restore-ui-glow` its glow.
 # Pick the one the app already uses: with both, eframe starts on wgpu.
-restore-egui = ["restore-eframe", "eframe/wgpu_no_default_features"]
-restore-egui-glow = ["restore-eframe", "eframe/glow"]
+restore-ui = ["restore-eframe", "eframe/wgpu_no_default_features"]
+restore-ui-glow = ["restore-eframe", "eframe/glow"]
 # What the two above share; enable one of them instead.
-restore-eframe = ["restore", "egui", "dep:eframe", "dep:winit"]
+restore-eframe = ["restore", "ui", "dep:eframe", "dep:winit"]
 
 [dependencies]
 egui = { workspace = true, optional = true }

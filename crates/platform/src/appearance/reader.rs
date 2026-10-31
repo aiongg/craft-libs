@@ -11,7 +11,7 @@ pub struct Reading {
     pub reduced_motion: Option<bool>,
 }
 
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 impl Reading {
     /// The colour scheme as an egui theme.
     pub fn egui_theme(&self) -> Option<egui::Theme> {
@@ -54,7 +54,7 @@ impl From<Reading> for craft_theme::SystemAppearance {
 pub struct SystemReader {
     watcher: Option<Watcher>,
     /// Set by the first read with a context, for the watcher's wake-up.
-    #[cfg(feature = "egui")]
+    #[cfg(feature = "ui")]
     ctx: std::sync::Arc<std::sync::OnceLock<egui::Context>>,
 }
 
@@ -64,13 +64,13 @@ impl SystemReader {
     pub fn start(wake: impl Fn() + Send + Sync + 'static) -> Self {
         Self {
             watcher: Watcher::start(wake),
-            #[cfg(feature = "egui")]
+            #[cfg(feature = "ui")]
             ctx: std::sync::Arc::default(),
         }
     }
 
     /// Starts watching; a change repaints the context [`read_in`](Self::read_in) saw first.
-    #[cfg(feature = "egui")]
+    #[cfg(feature = "ui")]
     pub fn for_egui() -> Self {
         let ctx = std::sync::Arc::new(std::sync::OnceLock::<egui::Context>::new());
         let woken = std::sync::Arc::clone(&ctx);
@@ -120,13 +120,13 @@ impl SystemReader {
     /// window the observed scheme (see [`sync_native_window_theme`](super::sync_native_window_theme))
     /// and answers the scheme from egui's own system theme where the OS reader has none (the web,
     /// macOS, Windows).
-    #[cfg(feature = "egui")]
+    #[cfg(feature = "ui")]
     pub fn read_in(&self, ctx: &egui::Context) -> Reading {
         self.observe(ctx).with_theme_from(ctx.system_theme())
     }
 
     /// [`read_in`](Self::read_in) without the egui fallback for the scheme.
-    #[cfg(feature = "egui")]
+    #[cfg(feature = "ui")]
     fn observe(&self, ctx: &egui::Context) -> Reading {
         let _ = self.ctx.set(ctx.clone());
         let reading = self.read();
@@ -135,7 +135,7 @@ impl SystemReader {
     }
 
     /// The scheme the watcher observed, for [`egui_service`](super::egui_service).
-    #[cfg(feature = "egui")]
+    #[cfg(feature = "ui")]
     pub(super) fn observed_theme(&self, ctx: &egui::Context) -> Option<egui::Theme> {
         self.observe(ctx).egui_theme()
     }
@@ -159,7 +159,7 @@ mod tests {
         assert_eq!(SystemAppearance::from(Reading::default()), SystemAppearance::default());
     }
 
-    #[cfg(feature = "egui")]
+    #[cfg(feature = "ui")]
     #[test]
     fn the_scheme_falls_back_to_eguis_system_theme_only_without_an_answer() {
         let answered = Reading { theme: Some(Theme::Light), ..Reading::default() };

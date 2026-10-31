@@ -23,7 +23,7 @@ required-features = ["capture"]
 [dependencies]
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true, features = ["serde"] }
-craft-platform = { workspace = true, features = ["appearance", "egui", "theme"] }
+craft-platform = { workspace = true, features = ["appearance", "ui", "theme"] }
 craft-ui = { workspace = true, features = ["window-frame", "serde"] }
 egui = { workspace = true }
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "persistence", "wgpu"] }

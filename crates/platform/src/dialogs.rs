@@ -217,12 +217,12 @@ impl<R, T: Send + 'static> NativeDialogs<R, T> {
 }
 /// Holds close intent while a picker/continuation owns the parent. A retry never authorizes
 /// discarding documents: the caller must run its ordinary unsaved-work policy again.
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 #[derive(Default, Debug)]
 pub struct DeferredClose {
     held: bool,
 }
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 impl DeferredClose {
     /// Hold actual close requests while a picker or app continuation is pending.
     /// Return `true` once after settlement so the host retries its unsaved-work policy;

@@ -17,7 +17,7 @@ supplies its command catalog, its file-format readers and its UI.
 - Reserved chords are opt-in. A keymap reserves no chord unless the app passes a list to
   `Keymap::with_reserved`, e.g. `reserved::system(platform)` for the operating system's window
   switching and closing chords. A reserved chord cannot be assigned or bound.
-- Dependencies: `serde` and `serde_json`; `egui` with the `egui` feature; `craft-ui` and
+- Dependencies: `serde` and `serde_json`; `egui`, `craft-ui` and
   `craft-i18n` with the `ui` feature.
 
 ## A catalog and dispatch
@@ -66,7 +66,7 @@ elsewhere). Other command chords, such as Cmd+S, still fire. Bindings in an acti
 always fire, so `Text: Cmd+B` works while typing, and a `Text: Cmd+Z` binding takes undo from
 the field.
 
-With the `egui` feature, `egui::Dispatcher` does this for a frame's key events (see Features).
+With the `ui` feature, `egui::Dispatcher` does this for a frame's key events (see Features).
 
 ## Chords
 
@@ -426,7 +426,7 @@ lists (hidden entries keep their keys and still count in conflicts).
 
 ## Features
 
-- `egui`: conversions to and from egui keys and modifiers; `KeyInput::from_egui`;
+- `ui`: the egui side. Conversions to and from egui keys and modifiers; `KeyInput::from_egui`;
   `egui::matches`, which accepts the shifted key egui reports for a Shift binding (`Shift+;`
   matches `:`); and `egui::Dispatcher`, which runs a frame's key presses against the keymap,
   reading them by the layout it learns from typing or is given (`with_layout`, `layout()`):
@@ -461,8 +461,8 @@ lists (hidden entries keep their keys and still count in conflicts).
   clipboard is empty or holds an image, so a binding on a Cmd+V chord cannot run then on the
   desktop.
 
-- `ui`: the Shortcuts dialog (see above). Implies `egui`.
-- `snapshot` (development): `tests/ui_snapshot.rs` writes PNGs of the dialog to
+  It also brings the Shortcuts dialog (see above).
+- `screen-testing` (development; implies `ui`): `tests/ui_snapshot.rs` writes PNGs of the dialog to
   `CRAFT_KEYMAP_SNAPSHOT_DIR` for review, using the same font input as the dialog tests.
 
 ### Fonts for UI tests

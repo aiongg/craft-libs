@@ -37,7 +37,7 @@
 //!
 //! # With egui
 //!
-//! The `egui` feature adds [`decorate`], which applies the decision to an
+//! The `ui` feature adds [`decorate`], which applies the decision to an
 //! [`egui::ViewportBuilder`] before the window is created:
 //!
 //! ```ignore
@@ -82,7 +82,7 @@
 //! - [`WindowMenu`]: the Window menu (macOS) or View › Switch Windows list. Windows on the same
 //!   document are titled "Name:1", "Name:2".
 //!
-//! The `egui` feature adds `Viewports`, which shows each window as an immediate viewport, applies
+//! The `ui` feature adds `Viewports`, which shows each window as an immediate viewport, applies
 //! `decorate` and the cascade to new windows, and reports `WindowEvent`s. Close and quit policy
 //! stay with the app: the driver reports a close request, and a window closes when the app removes
 //! it from the list.
@@ -136,7 +136,7 @@
 //!
 //! The `restore` feature (no egui) adds [`restore`]: where a window opens, from the last session's
 //! geometry and the connected monitors, and the `window.json` store beside `config.toml`.
-//! `restore-egui` (eframe on wgpu) or `restore-egui-glow` (eframe on glow) add
+//! `restore-ui` (eframe on wgpu) or `restore-ui-glow` (eframe on glow) add
 //! `restore::install`, `restore::Tracker` and `restore::cascade_window` for eframe apps.
 
 mod desktop;
@@ -146,9 +146,9 @@ pub mod mac;
 mod menu;
 mod place;
 pub mod policy;
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub mod title_bar;
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 mod viewports;
 
 #[cfg(feature = "restore")]
@@ -157,7 +157,7 @@ pub mod restore;
 pub use list::{Closed, WindowId, WindowList};
 pub use menu::{Document, MenuEntry, WindowMenu};
 pub use place::{CASCADE_STEP, Rect, cascade};
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub use viewports::{Viewports, WindowEvent, child_viewport_id};
 
 /// The environment-variable prefix an app overrides the frame with: `<PREFIX>_TITLEBAR`.
@@ -370,7 +370,7 @@ fn app_draws_frame() -> bool {
 /// Apply a [`Frame`] to an [`egui::ViewportBuilder`] (superseded by [`policy::apply`]): decorations on for the desktop frame, off for
 /// the app frame. Call before the window is created. The app still draws its header bar and, for
 /// [`Frame::App`], lays its window buttons out by [`Frame::layout`].
-#[cfg(feature = "egui")]
+#[cfg(feature = "ui")]
 pub fn decorate(builder: egui::ViewportBuilder, frame: &Frame) -> egui::ViewportBuilder {
     builder.with_decorations(frame.decorations())
 }

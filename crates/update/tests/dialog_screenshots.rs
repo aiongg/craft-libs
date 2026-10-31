@@ -1,6 +1,6 @@
-#![cfg(feature = "snapshot")]
+#![cfg(feature = "screen-testing")]
 //! Renders the update dialogs to PNG, light and dark at 1.5x:
-//! `CRAFT_UPDATE_SNAPSHOT_DIR=~/.cache/cl-update-shots cargo test -p craft-update --features snapshot --test dialog_screenshots`
+//! `CRAFT_UPDATE_SNAPSHOT_DIR=~/.cache/cl-update-shots cargo test -p craft-update --features screen-testing --test dialog_screenshots`
 //! Without the directory variable the test does nothing; these are not golden comparisons.
 
 use std::path::PathBuf;

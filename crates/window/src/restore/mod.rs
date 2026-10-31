@@ -6,7 +6,7 @@
 //!   (`"main"` for the first window).
 //! - [`legacy`]: readers for what apps stored before, such as eframe's `"window"` entry in
 //!   `app.ron`.
-//! - With `restore-egui` or `restore-egui-glow`: [`install`] opens an eframe app's root window
+//! - With `restore-ui` or `restore-ui-glow`: [`install`] opens an eframe app's root window
 //!   from the store, [`Tracker`] keeps a window's entry up to date, and [`cascade_window`] places
 //!   further windows of a multi-window app from [`MAIN`].
 //!

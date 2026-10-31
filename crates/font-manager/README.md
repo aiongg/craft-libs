@@ -11,7 +11,7 @@ Fonts tab; the standalone app
 | `index` | always | The pinned built-in indexes (Google Fonts and Noto) compiled into [`craft-font-store`](../font-store/README.md) (`bundled`), each family's source (`source_label`: its name and whether it is curated), and the categories |
 | `installed` | always | The installed fonts [`craft-font-catalog`](../font-catalog/README.md) sees, grouped by family and source |
 | `store` | always | `Installer`, what the interface needs from the font store: the download consent, install, remove, downloads for a preview, the indexes (`indexes`, `fetch_indexes`) and the sources the user added (`user_sources`, `add_user_source`, `remove_user_source`). `SuiteStore` is craft-font-store's store, `FakeStore` a stand-in for tests, `NoStore` one for when the store folder is unknown |
-| `FontsPanel` | `egui` | The whole interface as one egui panel |
+| `FontsPanel` | `ui` | The whole interface as one egui panel |
 
 ## The panel
 
@@ -86,7 +86,7 @@ craft-i18n; style and weight names, licence names and product names stay in Engl
 
 ```sh
 cargo test -p craft-font-manager --all-features
-CRAFT_FONT_MANAGER_SNAPSHOTS=<dir> cargo test -p craft-font-manager --features egui --test flows screenshots -- --test-threads=1
+CRAFT_FONT_MANAGER_SNAPSHOTS=<dir> cargo test -p craft-font-manager --features ui --test flows screenshots -- --test-threads=1
 ```
 
 `tests/flows.rs` drives the panel with `egui_kittest` against a small index, a font folder made per

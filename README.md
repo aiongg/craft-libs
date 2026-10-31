@@ -51,7 +51,7 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   between threads, and rescans when fonts are installed or removed.
 - [`craft-font-manager`](crates/font-manager/README.md): Craft Font Manager as a library: search
   and filters over the Google Fonts index, installed fonts by family, the font store interface,
-  and (`egui` feature) `FontsPanel`, the whole interface as one panel for the launcher's Fonts tab
+  and (`ui` feature) `FontsPanel`, the whole interface as one panel for the launcher's Fonts tab
   and the standalone app.
 - [`craft-font-store`](crates/font-store/README.md): the suite's font store: the pinned Google
   Fonts and Noto indexes plus indexes the user adds (never curated), exact lookup by family and

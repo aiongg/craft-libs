@@ -25,7 +25,7 @@ pub enum Platform {
 }
 
 impl Platform {
-    /// The platform this build runs on. Web builds count as Linux; with the `egui` feature,
+    /// The platform this build runs on. Web builds count as Linux; with the `ui` feature,
     /// `egui::platform` gives the browser's operating system.
     pub const fn current() -> Platform {
         if cfg!(target_os = "macos") {
