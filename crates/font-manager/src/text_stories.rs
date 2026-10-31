@@ -69,11 +69,17 @@ mod picker {
         let mut guard = shared.lock().unwrap_or_else(PoisonError::into_inner);
         let Picker { catalog, family, settings, filters, shown } = &mut *guard;
         ui.set_min_height(200.0);
-        FontPicker::new(name, catalog, family).settings(settings).filters(filters).width(220.0).list_height(150.0).start_open(!*shown).show(ui);
+        FontPicker::new(name, catalog, family)
+            .settings(settings)
+            .filters(filters)
+            .width(220.0)
+            .list_height(150.0)
+            .start_open(!*shown && !craft_ui::story::in_overview(ui.ctx()))
+            .show(ui);
         *shown = true;
     }
 
-    /// The field with its list open over the two faces, the recent one on top.
+    /// The field with its list open (closed in an Overview tile, where the list would cover the others) over the two faces, the recent one on top.
     pub(super) fn field(ui: &mut Ui, _: &mut NoArgs) {
         show(ui, "field", || Picker {
             catalog: catalog(),

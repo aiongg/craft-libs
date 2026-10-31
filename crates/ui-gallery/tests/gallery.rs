@@ -1062,6 +1062,7 @@ fn a_double_click_on_a_tile_header_opens_the_component() {
 /// Host text a story writes itself that equals the English of a registered word:
 /// `(text, stories, reason)`. The same text bypassing `Words` in another story still fails.
 const STORY_TEXT: &[(&str, &[&str], &str)] = &[
+    ("Width", &["composites/font-axes/sliders"], "the sample axis name, as a font's name table gives it"),
     (
         "Workspace",
         &["patterns/app-preview/photo-editor", "shells/canvas/standard", "shells/canvas/body_only", "shells/canvas/revealed", "shells/canvas/rtl"],
