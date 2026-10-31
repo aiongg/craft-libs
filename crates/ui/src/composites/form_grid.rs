@@ -190,12 +190,18 @@ impl Form<'_> {
     /// marked with [`FieldControl::own_name`] (`swatch.show(ui).own_name()`). It keeps its name
     /// and is `described_by` the row label instead. The label still centres on it.
     pub fn row<C: FieldControl>(&mut self, label: impl Into<String>, add_control: impl FnOnce(&mut Ui, &RowLabel) -> C) -> InnerResponse<C> {
-        self.cell(Some(label.into()).filter(|l| !l.is_empty()), add_control, true)
+        self.place(Some(label.into()).filter(|l| !l.is_empty()), add_control, true, false)
     }
 
     /// A row with no label, whose control starts at the control column.
     pub fn unlabelled<C: FieldControl>(&mut self, add_control: impl FnOnce(&mut Ui) -> C) -> InnerResponse<C> {
-        self.cell(None, |ui, _| add_control(ui), true)
+        self.place(None, |ui, _| add_control(ui), true, false)
+    }
+
+    /// A row with no label whose control starts at the grid's left edge, across both columns,
+    /// and doesn't count towards the label column's width.
+    pub fn spanning<C: FieldControl>(&mut self, add_control: impl FnOnce(&mut Ui) -> C) -> InnerResponse<C> {
+        self.place(None, |ui, _| add_control(ui), true, true)
     }
 
     /// A row of `label` and a read-only `text` in the normal text colour. The text is not a
@@ -203,7 +209,7 @@ impl Form<'_> {
     pub fn value(&mut self, label: impl Into<String>, text: impl Into<String>) -> Response {
         let format = role_format(&self.tokens, TypeRole::Body, Content::Normal.color(&self.tokens).to_egui());
         let job = LayoutJob::single_section(text.into(), format);
-        self.cell(Some(label.into()).filter(|l| !l.is_empty()), |ui, _| ui.add(Label::new(job).selectable(false)), false).inner
+        self.place(Some(label.into()).filter(|l| !l.is_empty()), |ui, _| ui.add(Label::new(job).selectable(false)), false, false).inner
     }
 
     /// Two consecutive rows joined by a chain bracket, as Width and Height are in Photoshop's
@@ -268,11 +274,13 @@ impl Form<'_> {
         self.ui.add_space(height);
     }
 
-    fn cell<C: FieldControl>(
+    /// `span` starts the control at the grid's edge, with no label column.
+    fn place<C: FieldControl>(
         &mut self,
         label: Option<String>,
         add_control: impl FnOnce(&mut Ui, &RowLabel) -> C,
         names_control: bool,
+        span: bool,
     ) -> InnerResponse<C> {
         let style = self.style;
         let ui = &mut *self.ui;
@@ -281,7 +289,7 @@ impl Form<'_> {
         let rect = ui.available_rect_before_wrap();
         let rtl = direction::is_rtl(ui);
         let column = measure::column(ui, TAG, galley.as_ref().map_or(0.0, |g| g.size().x)).0.max(style.label_min);
-        let indent = column + style.column_gap;
+        let indent = if span { 0.0 } else { column + style.column_gap };
         let reserve = self.link.as_ref().map_or(0.0, |l| l.reserve);
         let control_rect = if rtl {
             Rect::from_min_max(pos2(rect.left() + reserve, rect.top()), pos2(rect.right() - indent, rect.bottom()))

@@ -68,7 +68,8 @@ pub enum Columns {
     /// Labels in a column, controls beside them.
     #[default]
     Labelled,
-    /// No label column: check boxes flush at the start.
+    /// Check boxes start at the group's left edge, under the label column; the other rows keep
+    /// their labels in it. Without this, a check box sits in the control column.
     Checks,
 }
 
