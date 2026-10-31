@@ -1,15 +1,14 @@
 //! Screen capture for the screen colour picker (F04.01): every monitor's pixels and ICC profile,
 //! taken once when the picker opens. The UI side is `craft_color::ui::screen_picker`.
 //!
-//! Backends: X11 (xcb `GetImage` per output, `_ICC_PROFILE` atoms), Wayland (the ScreenCast /
-//! Screenshot portal, which asks the user once), macOS (`CGDisplayCreateImage`, the display's
-//! colour space), Windows (`BitBlt` per monitor, `GetICMProfile`). Web has no capture:
-//! [`capture`] returns [`ScreenError::Unsupported`].
-
-#![expect(dead_code, clippy::todo, reason = "skeleton: removed when the bodies land")]
+//! Backends: X11 (`GetImage` per RandR monitor, `_ICC_PROFILE` properties), Wayland (the
+//! Screenshot portal, which asks the user), macOS (CoreGraphics window-list image per display, the
+//! image's colour space), Windows (`xcap` per monitor, no profile). Web and sessions without a
+//! display have no capture: [`capture`] returns [`ScreenError::Unsupported`].
 
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, TryRecvError};
 
 /// One monitor's capture.
 #[derive(Clone, Debug, PartialEq)]
@@ -46,40 +45,534 @@ pub enum ScreenError {
 /// A capture in flight on a worker thread; dropping it cancels.
 pub struct CaptureHandle {
     stop: Arc<AtomicBool>,
-    result: std::sync::mpsc::Receiver<Result<Vec<ScreenImage>, ScreenError>>,
+    result: Receiver<Result<Vec<ScreenImage>, ScreenError>>,
 }
 
 impl CaptureHandle {
     /// The capture, once it has finished; `None` while it is still running.
-    // pc: apps/photocraft/src/screen_color.rs:10 `service` (the receiver half).
     pub fn try_take(&self) -> Option<Result<Vec<ScreenImage>, ScreenError>> {
-        todo!()
+        match self.result.try_recv() {
+            Ok(result) => Some(result),
+            Err(TryRecvError::Empty) if self.stop.load(Ordering::Relaxed) => Some(Err(ScreenError::Cancelled)),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) if self.stop.load(Ordering::Relaxed) => Some(Err(ScreenError::Cancelled)),
+            Err(TryRecvError::Disconnected) => Some(Err(ScreenError::Failed("the capture thread ended without a result".into()))),
+        }
     }
 
     /// Stops a capture that has not finished; a later `try_take` gives `Cancelled`.
     pub fn cancel(&self) {
-        todo!()
+        self.stop.store(true, Ordering::Relaxed);
+    }
+}
+
+impl Drop for CaptureHandle {
+    fn drop(&mut self) {
+        self.cancel();
     }
 }
 
 /// Starts capturing every monitor on a worker thread. The images come back in monitor order with
 /// the primary first. Validates sizes against [`MAX_PIXELS`] per image.
-// pc: apps/photocraft/src/screen_color.rs:119 `capture` (X11), :197 `portal` (Wayland), :248 and
-// :288 (macOS, Windows), :491 (other: Unsupported); :63 `icc_profile` for the profile bytes.
 pub fn capture() -> CaptureHandle {
-    todo!()
+    let stop = Arc::new(AtomicBool::new(false));
+    let (tx, rx) = std::sync::mpsc::channel();
+    let worker_stop = stop.clone();
+    let fallback = tx.clone();
+    let spawned = std::thread::Builder::new().name("screen-capture".into()).spawn(move || {
+        let _ = tx.send(backend::capture(&worker_stop));
+    });
+    if let Err(e) = spawned {
+        let _ = fallback.send(Err(ScreenError::Failed(format!("could not start the capture thread: {e}"))));
+    }
+    CaptureHandle { stop, result: rx }
 }
 
 /// The most pixels one monitor image may hold (64 M); larger captures fail with `Failed`.
-// pc: crates/ui-egui/src/dialogs/screen_picker.rs:37 `MAX_PIXELS`.
 pub const MAX_PIXELS: usize = 64 * 1024 * 1024;
+
+/// The most monitors one capture covers.
+#[cfg(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), target_os = "macos", windows))]
+const MAX_MONITORS: usize = 16;
+
+/// Pixel count of a `width` x `height` image, within `1..=MAX_PIXELS`.
+#[cfg(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), target_os = "macos", windows, test))]
+fn pixel_count(width: usize, height: usize) -> Result<usize, ScreenError> {
+    width
+        .checked_mul(height)
+        .filter(|&n| n > 0 && n <= MAX_PIXELS)
+        .ok_or_else(|| ScreenError::Failed("the screen capture exceeds the 64 MP memory budget".into()))
+}
+
+/// Adds one image's pixels to the running total of a capture; the sum stays within `MAX_PIXELS`.
+#[cfg(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), target_os = "macos", windows))]
+fn add_to_budget(total: usize, width: usize, height: usize) -> Result<usize, ScreenError> {
+    total
+        .checked_add(pixel_count(width, height)?)
+        .filter(|&n| n <= MAX_PIXELS)
+        .ok_or_else(|| ScreenError::Failed("the monitors together exceed the 64 MP memory budget".into()))
+}
+
+/// Validates the row stride of a padded pixel buffer and returns the buffer length it implies.
+#[cfg(any(target_os = "macos", test))]
+fn checked_stride(width: usize, height: usize, stride: usize) -> Result<usize, ScreenError> {
+    pixel_count(width, height)?;
+    let row = width.checked_mul(4).ok_or_else(|| ScreenError::Failed("invalid screen row".into()))?;
+    if stride < row || stride > row.saturating_add(4096) {
+        return Err(ScreenError::Failed("invalid screen row stride".into()));
+    }
+    stride
+        .checked_mul(height)
+        .filter(|&n| n <= MAX_PIXELS.saturating_mul(4))
+        .ok_or_else(|| ScreenError::Failed("the screen buffer exceeds the memory budget".into()))
+}
+
+/// Unpacks a strided 8-bit-per-channel buffer to straight, opaque RGBA. `order` gives the byte
+/// index of R, G, B and A in a source pixel; `premultiplied` colours are divided by alpha;
+/// `opaque` ignores the alpha byte.
+#[cfg(any(target_os = "macos", test))]
+fn unpack_rgba(
+    bytes: &[u8],
+    width: usize,
+    height: usize,
+    stride: usize,
+    order: [usize; 4],
+    premultiplied: bool,
+    opaque: bool,
+) -> Result<Vec<u8>, ScreenError> {
+    let length = checked_stride(width, height, stride)?;
+    if bytes.len() < length || order.iter().any(|&i| i > 3) {
+        return Err(ScreenError::Failed("invalid screen pixel buffer".into()));
+    }
+    let mut out = Vec::with_capacity(pixel_count(width, height)?.saturating_mul(4));
+    for row in bytes.chunks_exact(stride).take(height) {
+        for p in row[..width * 4].as_chunks::<4>().0 {
+            let a = if opaque { 255 } else { p[order[3]] };
+            for &i in &order[..3] {
+                let v = u32::from(p[i]);
+                out.push(if premultiplied && a != 255 {
+                    if a == 0 { 0 } else { ((v * 255 + u32::from(a) / 2) / u32::from(a)).min(255) as u8 }
+                } else {
+                    v as u8
+                });
+            }
+            out.push(255);
+        }
+    }
+    Ok(out)
+}
+
+#[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
+mod backend {
+    use super::{Arc, AtomicBool, MAX_MONITORS, Ordering, ScreenError, ScreenImage, add_to_budget, pixel_count};
+
+    const MAX_ICC_PROFILE_BYTES: usize = 1024 * 1024;
+    /// Length limit of the property reads, in 32-bit units.
+    const ICC_PROPERTY_LONG_LENGTH: u32 = 256 * 1024;
+    const PORTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
+    /// X11 sessions use `GetImage`; Wayland sessions (also when XWayland is present, which
+    /// shows only black for other clients) go through the portal.
+    pub fn capture(stop: &AtomicBool) -> Result<Vec<ScreenImage>, ScreenError> {
+        let wayland =
+            std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty()) || std::env::var("XDG_SESSION_TYPE").is_ok_and(|v| v == "wayland");
+        if wayland {
+            portal(stop)
+        } else if std::env::var_os("DISPLAY").is_some_and(|v| !v.is_empty()) {
+            x11(stop)
+        } else {
+            Err(ScreenError::Unsupported)
+        }
+    }
+
+    fn failed(e: impl std::fmt::Display) -> ScreenError {
+        ScreenError::Failed(e.to_string())
+    }
+
+    /// The profile bytes when they are a plausible RGB ICC profile: size field matching, the
+    /// `acsp` signature and an `RGB ` data colour space.
+    fn icc_profile(bytes: Vec<u8>) -> Option<Vec<u8>> {
+        let header_ok = bytes.len() >= 128
+            && bytes.len() <= MAX_ICC_PROFILE_BYTES
+            && u32::from_be_bytes(bytes[0..4].try_into().ok()?) as usize == bytes.len()
+            && &bytes[36..40] == b"acsp"
+            && &bytes[16..20] == b"RGB ";
+        header_ok.then_some(bytes)
+    }
+
+    fn atom<C: x11rb::connection::RequestConnection>(conn: &C, name: &str) -> Option<u32> {
+        use x11rb::protocol::xproto::ConnectionExt as _;
+        let atom = conn.intern_atom(true, name.as_bytes()).ok()?.reply().ok()?.atom;
+        (atom != 0).then_some(atom)
+    }
+
+    fn output_profile<C: x11rb::connection::RequestConnection>(conn: &C, output: u32, atom: u32) -> Option<Vec<u8>> {
+        use x11rb::protocol::{randr::ConnectionExt as _, xproto::AtomEnum};
+        let reply = conn.randr_get_output_property(output, atom, AtomEnum::CARDINAL, 0, ICC_PROPERTY_LONG_LENGTH, false, false).ok()?.reply().ok()?;
+        if reply.type_ != u32::from(AtomEnum::CARDINAL) || reply.format != 8 || reply.bytes_after != 0 {
+            return None;
+        }
+        icc_profile(reply.data)
+    }
+
+    fn root_profile<C: x11rb::connection::RequestConnection>(conn: &C, root: u32, atom: u32) -> Option<Vec<u8>> {
+        use x11rb::protocol::xproto::{AtomEnum, ConnectionExt as _};
+        let reply = conn.get_property(false, root, atom, AtomEnum::ANY, 0, ICC_PROPERTY_LONG_LENGTH).ok()?.reply().ok()?;
+        if reply.format != 8 || reply.bytes_after != 0 {
+            return None;
+        }
+        icc_profile(reply.value)
+    }
+
+    struct Region {
+        x: i16,
+        y: i16,
+        width: u16,
+        height: u16,
+        primary: bool,
+        name: String,
+        outputs: Vec<u32>,
+    }
+
+    fn x11(stop: &AtomicBool) -> Result<Vec<ScreenImage>, ScreenError> {
+        use x11rb::{
+            connection::Connection,
+            image::{Image, PixelLayout},
+            protocol::{
+                randr::ConnectionExt as _,
+                xproto::{ConnectionExt as _, VisualClass},
+            },
+        };
+        let (conn, index) = x11rb::connect(None).map_err(failed)?;
+        let screen = conn.setup().roots.get(index).ok_or_else(|| failed("the X11 screen is missing"))?;
+        let (root_w, root_h) = (screen.width_in_pixels, screen.height_in_pixels);
+        pixel_count(usize::from(root_w), usize::from(root_h))?;
+
+        let monitors = conn.randr_get_monitors(screen.root, true).ok().and_then(|c| c.reply().ok()).map(|r| r.monitors).unwrap_or_default();
+        let mut regions = Vec::new();
+        for m in monitors {
+            let name = conn
+                .get_atom_name(m.name)
+                .ok()
+                .and_then(|c| c.reply().ok())
+                .map(|r| String::from_utf8_lossy(&r.name).into_owned())
+                .unwrap_or_default();
+            regions.push(Region { x: m.x, y: m.y, width: m.width, height: m.height, primary: m.primary, name, outputs: m.outputs });
+        }
+        if regions.is_empty() {
+            regions.push(Region { x: 0, y: 0, width: root_w, height: root_h, primary: true, name: "Screen".into(), outputs: Vec::new() });
+        }
+        if regions.len() > MAX_MONITORS {
+            return Err(failed("too many monitors for the screen picker"));
+        }
+        regions.sort_by_key(|r| !r.primary);
+        regions[0].primary = true;
+        let mut total = 0usize;
+        for r in &regions {
+            let inside = r.x >= 0
+                && r.y >= 0
+                && i32::from(r.x) + i32::from(r.width) <= i32::from(root_w)
+                && i32::from(r.y) + i32::from(r.height) <= i32::from(root_h);
+            if !inside {
+                return Err(failed("invalid X11 monitor geometry"));
+            }
+            total = add_to_budget(total, usize::from(r.width), usize::from(r.height))?;
+        }
+
+        let profile_atom = atom(&conn, "_ICC_PROFILE");
+        let byte = |v: u16| ((u32::from(v) + 128) / 257) as u8;
+        let mut images = Vec::new();
+        for r in regions {
+            if stop.load(Ordering::Relaxed) {
+                return Err(ScreenError::Cancelled);
+            }
+            let (image, visual_id) =
+                Image::get(&conn, screen.root, r.x, r.y, r.width, r.height).map_err(|e| failed(format!("screen capture failed: {e}")))?;
+            let visual = screen
+                .allowed_depths
+                .iter()
+                .flat_map(|d| &d.visuals)
+                .find(|v| v.visual_id == visual_id)
+                .ok_or_else(|| failed("unsupported X11 screen visual"))?;
+            if visual.class != VisualClass::TRUE_COLOR {
+                return Err(failed("the screen picker needs an X11 TrueColor visual"));
+            }
+            let layout = PixelLayout::from_visual_type(*visual).map_err(failed)?;
+            let mut rgba = Vec::with_capacity(pixel_count(usize::from(r.width), usize::from(r.height))? * 4);
+            for row in 0..r.height {
+                for col in 0..r.width {
+                    let (red, green, blue) = layout.decode(image.get_pixel(col, row));
+                    rgba.extend_from_slice(&[byte(red), byte(green), byte(blue), 255]);
+                }
+            }
+            let profile = profile_atom
+                .and_then(|a| r.outputs.iter().find_map(|&o| output_profile(&conn, o, a)))
+                .or_else(|| if r.primary { profile_atom.and_then(|a| root_profile(&conn, screen.root, a)) } else { None });
+            images.push(ScreenImage {
+                origin: [i32::from(r.x), i32::from(r.y)],
+                size: [u32::from(r.width), u32::from(r.height)],
+                scale: 1.0,
+                rgba: Arc::new(rgba),
+                icc_profile: profile.map(Arc::new),
+                name: r.name,
+            });
+        }
+        Ok(images)
+    }
+
+    /// The Screenshot portal: the desktop environment asks the user and returns one image file of
+    /// the whole desktop, which is read and deleted at once. The portal reports neither monitor
+    /// layout nor scale, so the image is one `ScreenImage` at the origin with scale 1.
+    fn portal(stop: &AtomicBool) -> Result<Vec<ScreenImage>, ScreenError> {
+        use futures_lite::StreamExt;
+        use std::collections::HashMap;
+        use zbus::{
+            blocking::Proxy,
+            zvariant::{OwnedObjectPath, OwnedValue, Value},
+        };
+        const PORTAL: &str = "org.freedesktop.portal.Desktop";
+        let conn = zbus::blocking::connection::Builder::session()
+            .map_err(failed)?
+            .method_timeout(std::time::Duration::from_secs(10))
+            .build()
+            .map_err(failed)?;
+        let unique =
+            conn.unique_name().ok_or_else(|| failed("the portal connection has no unique name"))?.as_str().trim_start_matches(':').replace('.', "_");
+        let token = format!("craft_screen_{}", std::process::id());
+        let path = format!("/org/freedesktop/portal/desktop/request/{unique}/{token}");
+        let request = Proxy::new(&conn, PORTAL, path.as_str(), "org.freedesktop.portal.Request").map_err(failed)?;
+        // Subscribe before the call: the response can arrive before the call returns.
+        let mut replies = futures_lite::future::block_on(request.inner().receive_signal("Response")).map_err(failed)?;
+        let screenshot = Proxy::new(&conn, PORTAL, "/org/freedesktop/portal/desktop", "org.freedesktop.portal.Screenshot").map_err(failed)?;
+        let options: HashMap<&str, Value<'_>> = HashMap::from([("handle_token", Value::from(token.as_str())), ("interactive", Value::from(false))]);
+        let _handle: OwnedObjectPath =
+            screenshot.call("Screenshot", &("", options)).map_err(|e| failed(format!("the desktop portal does not support screenshots: {e}")))?;
+
+        let deadline = std::time::Instant::now() + PORTAL_TIMEOUT;
+        let reply = loop {
+            if stop.load(Ordering::Relaxed) || std::time::Instant::now() >= deadline {
+                let _: Result<(), _> = request.call("Close", &());
+                return Err(ScreenError::Cancelled);
+            }
+            let next = futures_lite::future::block_on(futures_lite::future::race(async { Some(replies.next().await) }, async {
+                async_io::Timer::after(std::time::Duration::from_millis(50)).await;
+                None
+            }));
+            if let Some(message) = next {
+                break message.ok_or_else(|| failed("the desktop portal closed without a result"))?;
+            }
+        };
+        let (code, values): (u32, HashMap<String, OwnedValue>) = reply.body().deserialize().map_err(failed)?;
+        match code {
+            0 => {}
+            1 => return Err(ScreenError::Denied),
+            _ => return Err(failed("the desktop portal could not take the screenshot")),
+        }
+        let uri: String =
+            values.get("uri").ok_or_else(|| failed("the portal returned no screenshot"))?.try_clone().map_err(failed)?.try_into().map_err(failed)?;
+        let file = std::path::PathBuf::from(<std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(percent_decode(
+            uri.strip_prefix("file://").ok_or_else(|| failed("the portal returned a non-file screenshot"))?,
+        )));
+        let decoded = decode_png(&file);
+        let _ = std::fs::remove_file(&file);
+        let (width, height, rgba) = decoded?;
+        Ok(vec![ScreenImage { origin: [0, 0], size: [width, height], scale: 1.0, rgba: Arc::new(rgba), icc_profile: None, name: "Screen".into() }])
+    }
+
+    fn percent_decode(s: &str) -> Vec<u8> {
+        let bytes = s.as_bytes();
+        let mut out = Vec::with_capacity(bytes.len());
+        let mut i = 0;
+        while i < bytes.len() {
+            let hex = (bytes[i] == b'%' && i + 2 < bytes.len())
+                .then(|| std::str::from_utf8(&bytes[i + 1..i + 3]).ok().and_then(|h| u8::from_str_radix(h, 16).ok()))
+                .flatten();
+            match hex {
+                Some(b) => {
+                    out.push(b);
+                    i += 3;
+                }
+                None => {
+                    out.push(bytes[i]);
+                    i += 1;
+                }
+            }
+        }
+        out
+    }
+
+    /// Decodes an 8-bit PNG to straight RGBA, within the pixel budget.
+    fn decode_png(path: &std::path::Path) -> Result<(u32, u32, Vec<u8>), ScreenError> {
+        let mut decoder = png::Decoder::new(std::io::BufReader::new(std::fs::File::open(path).map_err(failed)?));
+        decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
+        let mut reader = decoder.read_info().map_err(failed)?;
+        let info = reader.info();
+        pixel_count(info.width as usize, info.height as usize)?;
+        let mut buf = vec![0u8; reader.output_buffer_size()];
+        let frame = reader.next_frame(&mut buf).map_err(failed)?;
+        let (width, height) = (frame.width, frame.height);
+        let data = &buf[..frame.buffer_size()];
+        let rgba = match frame.color_type {
+            png::ColorType::Rgba => data.to_vec(),
+            png::ColorType::Rgb => data.as_chunks::<3>().0.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect(),
+            png::ColorType::GrayscaleAlpha => data.as_chunks::<2>().0.iter().flat_map(|p| [p[0], p[0], p[0], p[1]]).collect(),
+            png::ColorType::Grayscale => data.iter().flat_map(|&g| [g, g, g, 255]).collect(),
+            png::ColorType::Indexed => return Err(failed("unsupported screenshot colour type")),
+        };
+        Ok((width, height, rgba))
+    }
+}
+
+#[cfg(windows)]
+mod backend {
+    use super::{Arc, AtomicBool, MAX_MONITORS, Ordering, ScreenError, ScreenImage, add_to_budget};
+
+    /// `xcap` captures each monitor through GDI. It gives no ICC profile, so samples are taken as
+    /// sRGB.
+    pub fn capture(stop: &AtomicBool) -> Result<Vec<ScreenImage>, ScreenError> {
+        let failed = |e: &dyn std::fmt::Display| ScreenError::Failed(e.to_string());
+        let mut monitors = xcap::Monitor::all().map_err(|e| failed(&e))?;
+        if monitors.is_empty() || monitors.len() > MAX_MONITORS {
+            return Err(ScreenError::Failed("no supported screen is available".into()));
+        }
+        monitors.sort_by_key(|m| !m.is_primary().unwrap_or(false));
+        let mut total = 0usize;
+        let mut images = Vec::new();
+        for m in monitors {
+            if stop.load(Ordering::Relaxed) {
+                return Err(ScreenError::Cancelled);
+            }
+            let scale = m.scale_factor().map_err(|e| failed(&e))?;
+            if !scale.is_finite() || scale <= 0.0 || scale > 16.0 {
+                return Err(ScreenError::Failed("invalid display scale".into()));
+            }
+            let (x, y) = (m.x().map_err(|e| failed(&e))?, m.y().map_err(|e| failed(&e))?);
+            let name = m.name().unwrap_or_default();
+            let captured = m.capture_image().map_err(|e| ScreenError::Failed(format!("screen capture failed: {e}")))?;
+            let (width, height) = (captured.width(), captured.height());
+            total = add_to_budget(total, width as usize, height as usize)?;
+            images.push(ScreenImage { origin: [x, y], size: [width, height], scale, rgba: Arc::new(captured.into_raw()), icc_profile: None, name });
+        }
+        Ok(images)
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod backend {
+    use super::{Arc, AtomicBool, MAX_MONITORS, Ordering, ScreenError, ScreenImage, add_to_budget, checked_stride, pixel_count, unpack_rgba};
+    use core_graphics2::{display::get_active_display_list, image::CGImageAlphaInfo as Alpha, window};
+
+    /// Captures each display's composed image at native resolution. Without the Screen Recording
+    /// permission the system prompt is shown once; a refusal is `Denied`.
+    pub fn capture(stop: &AtomicBool) -> Result<Vec<ScreenImage>, ScreenError> {
+        let failed = |m: &str| ScreenError::Failed(m.into());
+        if !window::preflight_screen_capture_access() && !window::request_screen_capture_access() {
+            return Err(ScreenError::Denied);
+        }
+        let mut displays = get_active_display_list(MAX_MONITORS + 1).ok_or_else(|| failed("could not enumerate the displays"))?;
+        if displays.is_empty() || displays.len() > MAX_MONITORS {
+            return Err(failed("no supported screen is available"));
+        }
+        displays.sort_by_key(|d| !d.is_main());
+        let mut total = 0usize;
+        for display in &displays {
+            let mode = display.copy_display_mode().ok_or_else(|| failed("the display mode is unavailable"))?;
+            total = add_to_budget(total, mode.pixel_width(), mode.pixel_height())?;
+        }
+        let mut images = Vec::new();
+        for (n, display) in displays.into_iter().enumerate() {
+            if stop.load(Ordering::Relaxed) {
+                return Err(ScreenError::Cancelled);
+            }
+            let bounds = display.bounds();
+            let (w, h) = (bounds.size.width, bounds.size.height);
+            let (x, y) = (bounds.origin.x, bounds.origin.y);
+            if ![w, h, x, y].iter().all(|v| v.is_finite()) || w <= 0.0 || h <= 0.0 {
+                return Err(failed("invalid display geometry"));
+            }
+            let image = window::new_image(
+                bounds,
+                window::CGWindowListOption::OnScreenOnly,
+                window::kCGNullWindowID,
+                window::CGWindowImageOption::BestResolution | window::CGWindowImageOption::ShouldBeOpaque,
+            )
+            .ok_or(ScreenError::Denied)?;
+            let (width, height) = (image.width(), image.height());
+            pixel_count(width, height)?;
+            let profile = image.color_space().and_then(|space| space.copy_icc_data());
+            if profile.as_ref().is_some_and(|p| p.len() > 1024 * 1024) {
+                return Err(failed("the display profile exceeds the memory budget"));
+            }
+            let info = image.bitmap_info().bits();
+            if image.bits_per_component() != 8 || image.bits_per_pixel() != 32 || info & (1 << 8) != 0 {
+                return Err(failed("unsupported screen capture pixel format"));
+            }
+            let (first, premultiplied, opaque) = match image.alpha_info() {
+                Alpha::AlphaPremultipliedFirst => (true, true, false),
+                Alpha::AlphaPremultipliedLast => (false, true, false),
+                Alpha::AlphaFirst => (true, false, false),
+                Alpha::AlphaLast => (false, false, false),
+                Alpha::AlphaNoneSkipFirst => (true, false, true),
+                Alpha::AlphaNoneSkipLast => (false, false, true),
+                _ => return Err(failed("unsupported screen capture alpha layout")),
+            };
+            let little = match info & 0x7000 {
+                0 => cfg!(target_endian = "little"),
+                0x2000 => true,
+                0x4000 => false,
+                _ => return Err(failed("unsupported screen capture byte order")),
+            };
+            let order = match (first, little) {
+                (true, true) => [2, 1, 0, 3],
+                (true, false) => [1, 2, 3, 0],
+                (false, true) => [3, 2, 1, 0],
+                (false, false) => [0, 1, 2, 3],
+            };
+            let stride = image.bytes_per_row();
+            checked_stride(width, height, stride)?;
+            let bytes = image.data_provider().and_then(|p| p.copy_data()).ok_or_else(|| failed("the screen image has no pixels"))?;
+            let rgba = unpack_rgba(bytes.bytes(), width, height, stride, order, premultiplied, opaque)?;
+            let scale = width as f32 / w as f32;
+            images.push(ScreenImage {
+                origin: [(x as f32 * scale).round() as i32, (y as f32 * scale).round() as i32],
+                size: [width as u32, height as u32],
+                scale,
+                rgba: Arc::new(rgba),
+                icc_profile: profile.map(|p| Arc::new(p.bytes().to_vec())),
+                name: if display.is_main() { "Main Display".into() } else { format!("Display {}", n + 1) },
+            });
+        }
+        Ok(images)
+    }
+}
+
+#[cfg(not(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), target_os = "macos", windows)))]
+mod backend {
+    use super::{AtomicBool, ScreenError, ScreenImage};
+
+    pub fn capture(_stop: &AtomicBool) -> Result<Vec<ScreenImage>, ScreenError> {
+        Err(ScreenError::Unsupported)
+    }
+}
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     /// A premultiplied BGRA capture with a stride unpacks to straight RGBA in row order.
     #[test]
-    #[ignore = "skeleton"]
     fn unpacks_strided_premultiplied_pixels() {
-        todo!()
+        // Two rows of one BGRA pixel with 4 bytes of row padding; alpha ignored (opaque).
+        assert_eq!(
+            unpack_rgba(&[10, 20, 30, 0, 99, 99, 99, 99, 40, 50, 60, 0, 99, 99, 99, 99], 1, 2, 8, [2, 1, 0, 3], false, true).unwrap(),
+            [30, 20, 10, 255, 60, 50, 40, 255]
+        );
+        // Premultiplied ARGB at half alpha is divided back out.
+        assert_eq!(unpack_rgba(&[128, 64, 32, 16], 1, 1, 4, [1, 2, 3, 0], true, false).unwrap(), [128, 64, 32, 255]);
+        assert_eq!(unpack_rgba(&[0, 0, 0, 0], 1, 1, 4, [0, 1, 2, 3], true, false).unwrap(), [0, 0, 0, 255]);
+        assert_eq!(unpack_rgba(&[50, 100, 150, 128], 1, 1, 4, [0, 1, 2, 3], true, false).unwrap(), [100, 199, 255, 255]);
+        // Truncated buffers and oversized strides fail.
+        assert!(unpack_rgba(&[0; 3], 1, 1, 4, [0, 1, 2, 3], false, true).is_err());
+        assert!(checked_stride(1, 1, usize::MAX).is_err());
     }
 }

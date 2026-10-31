@@ -1153,6 +1153,7 @@ dependencies = [
  "futures-lite",
  "js-sys",
  "log",
+ "png 0.17.16",
  "serde",
  "serde_json",
  "wasm-bindgen",
@@ -1160,6 +1161,7 @@ dependencies = [
  "wasm-bindgen-test",
  "web-sys",
  "web-time",
+ "x11rb",
  "zbus",
 ]
 
