@@ -162,6 +162,10 @@ pub struct GuidesResponse {
     pub context: Option<u64>,
     /// The guides own the current press: the host's tool leaves it alone.
     pub claimed: bool,
+    /// The pointer is over a guide the guides would take (interactive, unlocked, not held by
+    /// another control), or is dragging one: the guides set the resize cursor, so the host
+    /// leaves its tool cursor off.
+    pub hovered: bool,
 }
 
 /// The guides' look, from [`Guides::style`]; smart guides share it.
@@ -251,6 +255,17 @@ impl Pass<'_> {
     }
 }
 
+/// Where a Delete may come from in a pass.
+#[derive(Clone, Copy)]
+struct DeleteFrom {
+    /// The keys are for the guides: focus, or the pointer or focus on the canvas.
+    keys: bool,
+    /// The host asked ([`Guides::request_delete`]).
+    requested: bool,
+    /// The guides have keyboard focus.
+    focused: bool,
+}
+
 /// A guide drag in progress, kept between passes.
 #[derive(Clone, Copy, Debug)]
 struct Drag {
@@ -306,9 +321,10 @@ struct Release {
 /// - Shift snaps to the ruler's ticks, otherwise the host's [`snap`](Self::snap) places the guide.
 /// - The guides are one Tab stop. Page Up and Page Down select the previous or next guide
 ///   (vertical guides left to right, then horizontal top to bottom), the arrow keys nudge the
-///   selected one across its axis ([`nudge::read`]). Delete and Backspace remove it and select
-///   the next, also while only the canvas has the pointer or focus (no text field or popup has
-///   the keys). With keyboard focus two `line.focus` lines on `overlay.halo` run beside the
+///   selected one across its axis ([`nudge::read`]). Delete and Backspace remove it, also while
+///   only the canvas has the pointer or focus (no text field or popup has the keys), and the
+///   host's shortcut route can ask for it from anywhere ([`request_delete`](Self::request_delete)).
+///   With keyboard focus the next guide is selected, otherwise the selection is cleared. With keyboard focus two `line.focus` lines on `overlay.halo` run beside the
 ///   selected guide; with no selected guide in view the focus ring goes round the canvas.
 /// - Selection is the host's: it passes [`selected`](Self::selected) and applies
 ///   [`select`](GuidesResponse::select).
@@ -489,7 +505,8 @@ impl<'a> Guides<'a> {
         let group = ui.interact(view.rect, id, if pass.tab_stop { Sense::FOCUSABLE } else { Sense::hover() });
         group.widget_info(|| WidgetInfo::labeled(Role::Group, ui.is_enabled(), &self.names.group));
         let focused = pass.tab_stop && group.has_focus();
-        let mut out = GuidesResponse { id, event: None, clicked: None, double_clicked: None, select: None, context: None, claimed: false };
+        let mut out =
+            GuidesResponse { id, event: None, clicked: None, double_clicked: None, select: None, context: None, claimed: false, hovered: false };
 
         // A drag whose press ended while the guides were not shown is dropped, unless it was
         // handed over with its release. A gesture it began ended then too: a gesture is over once
@@ -532,13 +549,17 @@ impl<'a> Guides<'a> {
         if self.interactive && drag.is_none() {
             self.pointer(&pass, &mut out);
         }
+        out.hovered |= drag.is_some_and(|d| d.began && d.key.is_some());
         if focused && drag.is_none() {
             self.keys(ui, &order, &mut gesture, &mut out, view);
         }
         // Delete acts on the selected guide wherever the canvas has the pointer or the focus, as
-        // in PhotoCraft, unless a text field or a popup has the keys.
-        if self.interactive && drag.is_none() && (focused || canvas.contains_pointer() || canvas.has_focus()) && nudge::reads(ui) {
-            self.delete(ui, &order, &mut gesture, &mut out);
+        // in PhotoCraft, unless a text field or a popup has the keys. The host's request
+        // (`Guides::request_delete`) acts wherever the pointer is.
+        let requested = Guides::take_delete_request(&ctx, id);
+        let keys = (focused || canvas.contains_pointer() || canvas.has_focus()) && nudge::reads(ui);
+        if self.interactive && drag.is_none() && (keys || requested) {
+            self.delete(ui, &order, &mut gesture, &mut out, DeleteFrom { keys, requested, focused });
         }
         if pass.tab_stop && group.gained_focus() && !self.selected.is_some_and(|k| order.contains(&k)) && out.select.is_none() {
             out.select = Some(order.first().copied());
@@ -701,6 +722,7 @@ impl<'a> Guides<'a> {
             && let Some(i) = self.guide_at(&pass.segments, pointer, hit)
         {
             pass.ctx.set_cursor_icon(resize_cursor(pass.view, self.guides[i].orientation.across()));
+            out.hovered = true;
         }
         let at = |pos: Option<Pos2>| pos.and_then(|p| self.guide_at(&pass.segments, p, hit)).map(|i| self.guides[i].key);
         if canvas.secondary_clicked() {
@@ -814,15 +836,35 @@ impl<'a> Guides<'a> {
         }
     }
 
-    /// Delete and Backspace remove the selected guide and select the next.
-    fn delete(&self, ui: &Ui, order: &[u64], gesture: &mut Gesture<GuidePlace>, out: &mut GuidesResponse) {
+    /// Delete and Backspace, or the host's request, remove the selected guide. With the guides'
+    /// keyboard focus the next one is selected, so the keys keep a place; from the pointer's
+    /// context the selection is cleared (PhotoCraft).
+    fn delete(&self, ui: &Ui, order: &[u64], gesture: &mut Gesture<GuidePlace>, out: &mut GuidesResponse, from: DeleteFrom) {
         let Some(c) = self.selected.and_then(|k| order.iter().position(|&o| o == k)) else { return };
         let Some(guide) = self.find(order[c]) else { return };
-        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete) || i.consume_key(Modifiers::NONE, Key::Backspace)) {
+        let key = from.keys && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete) || i.consume_key(Modifiers::NONE, Key::Backspace));
+        if key || from.requested {
             gesture.set(GuidePlace { orientation: guide.orientation, position: None });
-            // The keys keep a guide to act on: the next one, or the previous after the last.
-            out.select = Some(order.get(c + 1).or_else(|| c.checked_sub(1).and_then(|p| order.get(p))).copied());
+            out.select = Some(if from.focused { order.get(c + 1).or_else(|| c.checked_sub(1).and_then(|p| order.get(p))).copied() } else { None });
         }
+    }
+
+    /// Asks the guides `guides` (the [`id`](GuidesResponse::id)) to delete the selected guide,
+    /// from anywhere on screen: the host's shortcut route calls it for Delete and Backspace
+    /// when no text field or popup has the keys. The guides answer with the event of the Delete
+    /// key and clear the selection, or, with keyboard focus, select the next guide. Taken in
+    /// this pass if the guides are shown after the call, otherwise in the next; a request the
+    /// guides did not see by then lapses.
+    pub fn request_delete(ctx: &Context, guides: Id) {
+        let now = ctx.cumulative_pass_nr();
+        ctx.data_mut(|d| d.insert_temp(delete_key(guides), now));
+        ctx.request_repaint();
+    }
+
+    fn take_delete_request(ctx: &Context, guides: Id) -> bool {
+        let at: Option<u64> = ctx.data_mut(|d| d.remove_temp(delete_key(guides)));
+        let now = ctx.cumulative_pass_nr();
+        at.is_some_and(|at| now.saturating_sub(at) <= 1)
     }
 
     fn find(&self, key: u64) -> Option<&Guide> {
@@ -887,6 +929,10 @@ impl<'a> Guides<'a> {
     fn color(&self, g: &Guide, selected: Option<u64>, style: &GuideStyle) -> Color32 {
         if selected == Some(g.key) { style.selected } else { g.color.unwrap_or(style.color) }
     }
+}
+
+fn delete_key(guides: Id) -> Id {
+    guides.with("craft_ui::canvas::Guides::delete")
 }
 
 fn drag_key(guides: Id) -> Id {
