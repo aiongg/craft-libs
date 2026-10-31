@@ -1,7 +1,55 @@
 //! The parameter dialog in a harness.
 
-use super::{FieldValue, Param, ParamKind};
+use egui::accesskit::Role;
+use egui::load::SizedTexture;
+use egui::os::OperatingSystem;
+use egui::{Event, Key, Modifiers, TextureId, vec2};
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
+use egui_kittest::{Harness, HarnessBuilder};
+
+use super::{DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamDialog, ParamKind};
 use crate::controls::SliderScale;
+use crate::localized::Unit;
+use crate::theme::{Base, install};
+
+struct App {
+    host: DialogHost,
+    answers: Vec<DialogResult<DialogFields>>,
+}
+
+fn params() -> Vec<Param> {
+    vec![
+        Param::new("radius", "Radius:", ParamKind::Range { min: 0.0, max: 100.0, default: 1.0, scale: SliderScale::Linear })
+            .unit(Unit::new("{n} px")),
+        Param::new("monochromatic", "Monochromatic:", ParamKind::Bool { default: false }),
+        Param::new("tint", "Tint:", ParamKind::Color { default: Some([1.0, 0.0, 0.0]) }),
+    ]
+}
+
+fn harness(dialog: ParamDialog) -> Harness<'static, App> {
+    let mut host = DialogHost::default();
+    host.open(dialog);
+    HarnessBuilder::default()
+        .with_size(vec2(700.0, 600.0))
+        .with_os(OperatingSystem::Nix)
+        .with_context_setup(|ctx| {
+            install(ctx, &Base::suite_default());
+            craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" }).install(ctx);
+        })
+        .build_ui_state(
+            |ui, app: &mut App| {
+                app.host.show(ui.ctx());
+                if let Some(answer) = app.host.take::<ParamDialog>() {
+                    app.answers.push(answer);
+                }
+            },
+            App { host, answers: Vec::new() },
+        )
+}
+
+fn radius(harness: &Harness<'_, App>) -> Option<f64> {
+    harness.state().host.get::<ParamDialog>()?.fields().number("radius")
+}
 
 // PhotoCraft's notation parses into the kinds, bounds, defaults and labels the dialog shows.
 #[test]
@@ -32,41 +80,154 @@ fn the_registry_notation_parses_into_params() {
 
 // The first field opens selected; typing replaces its value and Enter answers OK with it.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn typing_into_the_first_field_and_enter_answers_ok() {
-    todo!()
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()));
+    harness.run();
+    assert!(harness.get_by_role_and_label(Role::SpinButton, "Radius:").accesskit_node().is_focused());
+    harness.event(Event::Text("7".to_owned()));
+    harness.run();
+    harness.key_press(Key::Enter);
+    harness.run();
+    harness.run();
+    let [DialogResult::Ok(fields)] = &harness.state().answers[..] else { panic!("one OK, got {:?}", harness.state().answers) };
+    assert_eq!(fields.number("radius"), Some(7.0));
+    assert_eq!(fields.bool("monochromatic"), Some(false));
+    assert_eq!(fields.color("tint"), Some([1.0, 0.0, 0.0]), "defaults fill what the host gave no value for");
 }
 
 // Alt turns Cancel into Reset; a click restores the opening values and the dialog stays open.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn alt_cancel_resets_to_the_opening_values() {
-    todo!()
+    let given = DialogFields::from_pairs([("radius", FieldValue::Number(12.0))]);
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).values(given));
+    harness.run();
+    harness.event(Event::Text("40".to_owned()));
+    harness.run();
+    harness.get_by_label("Monochromatic").click();
+    harness.run();
+    assert_eq!(radius(&harness), Some(40.0));
+    harness.event(Event::ModifiersChanged(Modifiers::ALT));
+    harness.run();
+    harness.get_by_label("Reset").focus();
+    harness.run();
+    harness.key_press_modifiers(Modifiers::ALT, Key::Space);
+    harness.run();
+    let fields = harness.state().host.get::<ParamDialog>().expect("still open").fields();
+    assert_eq!((fields.number("radius"), fields.bool("monochromatic")), (Some(12.0), Some(false)));
+    assert!(harness.state().answers.is_empty());
 }
 
 // With `remember`, OK stores the values and the next open starts from them; Cancel does not store.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn ok_remembers_the_values_and_cancel_does_not() {
-    todo!()
+    let dialog = || {
+        let mut all = params();
+        all.push(Param::new("note", "Note:", ParamKind::Text { default: String::new() }));
+        ParamDialog::new("blur", "Blur", all).remember("filter.blur")
+    };
+    let mut harness = harness(dialog());
+    harness.run();
+    harness.event(Event::Text("7".to_owned()));
+    harness.run();
+    harness.key_press(Key::Escape);
+    harness.run();
+    harness.run();
+    assert!(matches!(harness.state().answers[..], [DialogResult::Cancel]));
+    harness.state_mut().host.open(dialog());
+    harness.run();
+    assert_eq!(radius(&harness), Some(1.0), "Cancel stored nothing");
+
+    harness.event(Event::Text("7".to_owned()));
+    harness.run();
+    harness.get_by_label("Monochromatic").click();
+    harness.run();
+    harness.key_press(Key::Enter);
+    harness.run();
+    harness.run();
+    assert!(matches!(harness.state().answers[1], DialogResult::Ok(_)));
+    harness.state_mut().host.open(dialog());
+    harness.run();
+    let fields = harness.state().host.get::<ParamDialog>().expect("reopened").fields();
+    assert_eq!((fields.number("radius"), fields.bool("monochromatic")), (Some(7.0), Some(true)));
+    assert_eq!(fields.color("tint"), Some([1.0, 0.0, 0.0]), "colours are not remembered");
 }
 
 // Preview off, or the label held, makes `preview_on` false; the host's image shows in the pane
 // otherwise.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn the_preview_check_box_and_hold_to_compare_drive_preview_on() {
-    todo!()
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()).preview(true));
+    harness.run();
+    let preview_on = |harness: &Harness<'_, App>| harness.state().host.get::<ParamDialog>().is_some_and(ParamDialog::preview_on);
+    assert!(preview_on(&harness));
+    harness
+        .state_mut()
+        .host
+        .get_mut::<ParamDialog>()
+        .expect("open")
+        .set_preview_image(Some(SizedTexture::new(TextureId::default(), vec2(64.0, 48.0))));
+    harness.run();
+
+    let at = harness.get_by_label("Preview").rect().center();
+    harness.hover_at(at);
+    harness.run();
+    let button = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    harness.event(button(true));
+    harness.run();
+    assert!(!preview_on(&harness), "label held");
+    harness.event(button(false));
+    harness.run();
+    assert!(!preview_on(&harness), "the click turned Preview off");
+    harness.get_by_label("Preview").click();
+    harness.run();
+    assert!(preview_on(&harness));
 }
 
-// Tab walks the fields only, never the footer buttons (dialog rule).
+// Tab walks the number and text fields, then the footer buttons, and never a slider, check box or
+// colour swatch (the dialog's field rule).
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-fn tab_visits_the_fields_only() {
-    todo!()
+fn tab_visits_the_fields_and_buttons_only() {
+    let mut harness = harness(ParamDialog::new("blur", "Blur", params()));
+    harness.run();
+    let mut seen = Vec::new();
+    for _ in 0..6 {
+        harness.key_press(Key::Tab);
+        harness.run();
+        seen.push(harness.query_by(|n| n.is_focused()).and_then(|n| n.accesskit_node().label()).unwrap_or_default());
+    }
+    assert!(seen.iter().all(|label| ["Radius:", "OK", "Cancel"].contains(&label.as_str())), "{seen:?}");
+    assert!(seen.iter().any(|label| label == "Cancel"), "{seen:?}");
+}
+
+// Parameter and option labels (English fallbacks from `parse_list`) show in the Host's language.
+#[test]
+fn labels_and_option_labels_show_through_the_hosts_catalog() {
+    let (i18n, problems) = craft_i18n::I18n::new(&[("de", "\tRadius:\tRadius-de:\n\tZoom\tVergrößern\n", "")], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let de = i18n.from_code("de").expect("de");
+    let i18n = std::sync::Arc::new(i18n);
+    let mut host = DialogHost::default();
+    host.open(ParamDialog::new("blur", "Blur", Param::parse_list(r#"{"radius":0..100=1,"method":"spin|zoom"="zoom"}"#)));
+    let mut harness = HarnessBuilder::default()
+        .with_size(vec2(700.0, 500.0))
+        .with_context_setup(move |ctx| {
+            install(ctx, &Base::suite_default());
+            craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" }).i18n(i18n.clone()).lang(de).install(ctx);
+        })
+        .build_ui_state(|ui, host: &mut DialogHost| host.show(ui.ctx()), host);
+    harness.run();
+    harness.get_by_role_and_label(Role::SpinButton, "Radius-de:");
+    let select = harness.get_by_label("Method:");
+    assert_eq!(select.accesskit_node().value().as_deref(), Some("Vergrößern"));
+}
+
+// A parsed `color=#808080` default shows as that hex: colour values are sRGB in 0..=1, as
+// PhotoCraft keeps them.
+#[test]
+fn a_parsed_hex_default_shows_as_that_hex() {
+    let params = Param::parse_list(r##"{"tint":color=#808080}"##);
+    let mut harness = harness(ParamDialog::new("tint", "Tint", params));
+    harness.run();
+    let swatch = harness.get_by_label("Tint:");
+    assert_eq!(swatch.accesskit_node().value().as_deref().map(str::to_lowercase).as_deref(), Some("#808080"));
 }

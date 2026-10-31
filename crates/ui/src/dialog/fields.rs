@@ -19,7 +19,7 @@ pub enum FieldValue {
     Number(f64),
     /// Free text and the id of a [`ParamKind::Choice`](super::ParamKind::Choice) option.
     Text(String),
-    /// Linear sRGB components, as the colour picker hands them over.
+    /// sRGB components in 0..=1, as PhotoCraft keeps a colour parameter (`#rrggbb` is these times 255).
     Color([f32; 3]),
     /// A 2D point in the parameter's own space (percent of the image for a blur centre).
     Point([f64; 2]),
