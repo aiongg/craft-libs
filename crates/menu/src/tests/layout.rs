@@ -22,12 +22,12 @@ fn windows_puts_exit_last_in_file_and_documents_in_window() {
     assert_eq!(ids(&menu(&l.bar, MenuRole::Help).children), ["help.docs", "---", "help.about"]);
     assert_eq!(l.bar.find(&cmd("help.about")).unwrap().label, "About Sample");
     assert_eq!(ids(&menu(&l.bar, MenuRole::Window).children), ["[Theme]", "theme.next", "panel.layers", "---", "doc.0"]);
-    assert_eq!(l.bar.find(&cmd("doc.0")).unwrap().kind, ItemKind::Radio(true), "the document in front is selected");
+    assert_eq!(l.bar.find(&cmd("doc.0")).unwrap().kind, ItemKind::Check(true), "the document in front is checked");
     assert!(!has(&l.bar, Builtin::Hide.id()) && !has(&l.bar, Builtin::Minimize.id()));
     assert_eq!(l.bar.menus.len(), 5);
 
     let mac = mac_layout(&sample(false, true), &LayoutOptions::new("Sample")).bar;
-    assert_eq!(mac.find(&cmd("doc.0")).unwrap().kind, ItemKind::Radio(true));
+    assert_eq!(mac.find(&cmd("doc.0")).unwrap().kind, ItemKind::Check(true));
 }
 
 /// Without the menus the moved items need, the layout adds them, with translated titles.

@@ -15,8 +15,8 @@
 //! **Layouts.** [`layout`] takes a [`Target`] ([`Target::current`] for this build) and calls
 //! [`mac_layout`], [`desktop_layout`] (Windows and Linux) or [`web_layout`]. Each first drops the
 //! items and submenus whose [`Platforms`] leave the target out, and every one lists
-//! [`MenuBar::documents`] (but the hidden ones) last in the Window menu, as radio items with the
-//! active document selected. On Windows and Linux About goes last in Help, Settings last in Edit
+//! [`MenuBar::documents`] (but the hidden ones) last in the Window menu, as check items with the
+//! active document checked. On Windows and Linux About goes last in Help, Settings last in Edit
 //! as Preferences, and Quit last in File, as Exit on Windows; the web layout has no Quit and takes
 //! the browser's own shortcuts (Ctrl+W, Ctrl+T, …) off the items, reporting each as a [`Clash`].
 //! A layout adds the menus it needs when the app has none. A submenu left empty goes; a dynamic

@@ -12,6 +12,7 @@ use craft_keymap::{CommandRef, Platform};
 use craft_ui::menu::{MenuBarLabels, MenuEntry, MenuItem};
 use egui::{Id, Rect, Ui};
 
+use crate::ModalRules;
 use crate::model::Builtin;
 use crate::{Gate, Item, ItemKind, MenuBar, MenuRole, Node, Target};
 
@@ -118,6 +119,7 @@ impl IntoIterator for MenuBarOutput {
 pub struct MenuBarUi<'a> {
     bar: &'a MenuBar,
     gate: Gate,
+    rules: Option<&'a ModalRules>,
     target: Target,
     label: &'a dyn Fn(&'static str) -> String,
     english: Option<&'a EnglishHook<'a>>,
@@ -133,6 +135,7 @@ impl<'a> MenuBarUi<'a> {
         MenuBarUi {
             bar,
             gate: Gate::default(),
+            rules: None,
             target: Target::current(),
             label: &english,
             english: None,
@@ -153,11 +156,9 @@ impl<'a> MenuBarUi<'a> {
 
     /// The per-command rules under the gate ([`Gate::allows_under`]): the rows they forbid are
     /// drawn and behave as disabled. Without it the gate alone decides.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-    // new: gap 28; the fill adds a `rules: Option<&'a ModalRules>` field and uses it in `Convert::item`.
-    pub fn modal_rules(self, rules: &'a crate::ModalRules) -> MenuBarUi<'a> {
-        let _ = rules;
-        todo!()
+    pub fn modal_rules(mut self, rules: &'a ModalRules) -> MenuBarUi<'a> {
+        self.rules = Some(rules);
+        self
     }
 
     /// The platform the bar is on, for the shortcut column ([`craft_keymap::Chord::display`]): ⌘
@@ -237,7 +238,7 @@ impl<'a> MenuBarUi<'a> {
         let platform = keymap_platform(self.target, ctx.os());
         let mnemonics = platform != Platform::Mac;
         craft_ui::menu::set_mnemonics(&ctx, Some(mnemonics));
-        let convert = Convert { gate: self.gate, platform, english: self.english, preferred: self.preferred };
+        let convert = Convert { gate: self.gate, rules: self.rules, platform, english: self.english, preferred: self.preferred };
         let menus: Vec<MenuItem<CommandRef>> = self.bar.menus.iter().map(|m| convert.sub(&m.title, &m.children)).collect();
         let hook = self.label;
         let labels = MenuBarLabels {
@@ -282,6 +283,8 @@ impl<'a> MenuBarUi<'a> {
 /// What converting the model to menu items needs.
 pub(crate) struct Convert<'s> {
     pub(crate) gate: Gate,
+    /// The per-command rules under the gate; `None`: the gate alone decides.
+    pub(crate) rules: Option<&'s ModalRules>,
     pub(crate) platform: Platform,
     pub(crate) english: Option<&'s EnglishHook<'s>>,
     pub(crate) preferred: &'s [(&'s str, char)],
@@ -315,7 +318,7 @@ impl Convert<'_> {
     }
 
     fn item(&self, item: &Item) -> MenuItem<CommandRef> {
-        let mut row = MenuItem::new(item.label.as_str(), item.command.clone()).enabled(item.enabled && self.gate.allows(item));
+        let mut row = MenuItem::new(item.label.as_str(), item.command.clone()).enabled(item.enabled && self.allowed(item));
         row = match item.kind {
             ItemKind::Plain => row,
             ItemKind::Check(on) => row.check(on),
@@ -337,6 +340,14 @@ impl Convert<'_> {
             row = row.tooltip(tooltip.as_str());
         }
         row
+    }
+
+    /// Whether the gate, under the rules when there are any, lets `item` run.
+    fn allowed(&self, item: &Item) -> bool {
+        match self.rules {
+            Some(rules) => self.gate.allows_item_under(rules, item),
+            None => self.gate.allows(item),
+        }
     }
 
     /// The app's preferred letter for a title as shown or a command id.

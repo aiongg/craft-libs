@@ -257,7 +257,7 @@ pub fn mac_layout(bar: &MenuBar, options: &LayoutOptions) -> Layout {
 /// - Settings goes last in Edit, as `Preferences…` (an item) or `Preferences` (a submenu);
 /// - Quit goes last in File, as `Exit` on Windows and `Quit` elsewhere: the app's item tagged
 ///   [`ItemRole::Quit`], or [`Builtin::Quit`];
-/// - the open documents go last in Window, as radio items.
+/// - the open documents go last in Window, as check items.
 ///
 /// The layout creates the File, Edit, Help and Window menus these need, and adds no Services,
 /// Hide or Minimize items. Language and Appearance stay where the app put them, and items keep
@@ -371,10 +371,10 @@ fn shown_on(bar: &MenuBar, target: Target) -> MenuBar {
     MenuBar { menus, documents: bar.documents.clone() }
 }
 
-/// The listed documents as radio items, the one in front selected, after a separator.
+/// The listed documents as check items, the one in front checked, after a separator.
 fn document_items(bar: &MenuBar) -> Vec<Node> {
     let items: Vec<Node> =
-        bar.documents.iter().filter(|d| !d.hidden).map(|d| Item::new(d.command.clone(), d.label.clone()).radio(d.active).into()).collect();
+        bar.documents.iter().filter(|d| !d.hidden).map(|d| Item::new(d.command.clone(), d.label.clone()).check(d.active).into()).collect();
     if items.is_empty() {
         return items;
     }

@@ -78,8 +78,8 @@ fn a_modal_gate_greys_the_apps_items() {
     assert!(enabled(&synced[2], &cmd("file.new")));
     assert_eq!(structure_key(greyed), structure_key(&synced[0]), "greying is an update in place");
 
-    assert!(Gate::default().grey(&synced[0]).as_ref() == &synced[0]);
-    assert!(typing(true).grey(&synced[0]).as_ref() == &synced[0], "text editing greys nothing");
+    assert!(Gate::default().grey(&ModalRules::default(), &synced[0]).as_ref() == &synced[0]);
+    assert!(typing(true).grey(&ModalRules::default(), &synced[0]).as_ref() == &synced[0], "text editing greys nothing");
 }
 
 /// The hook sees app commands clicked while the gate allows them, as they arrive; key presses and

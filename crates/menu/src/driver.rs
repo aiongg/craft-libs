@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use craft_keymap::{Chord, CommandRef, Key, Mods};
 
 use crate::layout::{Clash, Layout};
+use crate::modal::ModalRules;
 use crate::model::{Builtin, Item, ItemKind, MenuBar, Node};
 
 /// What the native menu reports.
@@ -69,25 +70,25 @@ impl Gate {
 
     /// `bar` with every item the gate forbids disabled, so the menus show them greyed, but the
     /// items whose shortcut a text field handles itself (Undo, Copy, Select All, …).
-    pub(crate) fn grey<'a>(&self, bar: &'a MenuBar) -> Cow<'a, MenuBar> {
-        fn walk(nodes: &mut [Node], gate: &Gate) {
+    pub(crate) fn grey<'a>(&self, rules: &ModalRules, bar: &'a MenuBar) -> Cow<'a, MenuBar> {
+        fn walk(nodes: &mut [Node], gate: &Gate, rules: &ModalRules) {
             for n in nodes {
                 match n {
                     // The field's own keys stay enabled: AppKit doesn't send a disabled item's key
                     // equivalent on, so greyed Copy or Undo would leave ⌘C and ⌘Z dead in a
                     // dialog's text fields. Their clicks are still dropped (`take_clicks`).
-                    Node::Item(it) if !gate.allows(it) && !it.shortcut.as_ref().is_some_and(text_editing_key) => it.enabled = false,
-                    Node::Submenu { children, .. } => walk(children, gate),
+                    Node::Item(it) if !gate.allows_item_under(rules, it) && !it.shortcut.as_ref().is_some_and(text_editing_key) => it.enabled = false,
+                    Node::Submenu { children, .. } => walk(children, gate, rules),
                     _ => {}
                 }
             }
         }
-        if !(self.modal || self.recording_shortcut) {
+        if !(self.modal || self.recording_shortcut || rules.workspace || rules.pending.is_some()) {
             return Cow::Borrowed(bar);
         }
         let mut bar = bar.clone();
         for m in &mut bar.menus {
-            walk(&mut m.children, self);
+            walk(&mut m.children, self, rules);
         }
         Cow::Owned(bar)
     }
@@ -108,6 +109,7 @@ type SharedHook = Arc<dyn Fn(&CommandRef) -> bool + Send + Sync>;
 #[derive(Default)]
 struct Shared {
     gate: Gate,
+    rules: ModalRules,
     hook: Option<SharedHook>,
 }
 
@@ -118,13 +120,13 @@ impl Dispatch {
     /// (not a [`Builtin`]) also goes to the app's [`NativeMenu::on_command`] hook, before this
     /// returns; when the hook ran it, the event is [`Event::Handled`].
     pub fn chosen(&self, command: &CommandRef, shortcut: Option<&Chord>, layout_shortcut: bool, held: Option<Mods>) -> Event {
-        let (gate, hook) = {
+        let (gate, rules, hook) = {
             let shared = self.lock();
-            (shared.gate, shared.hook.clone())
+            (shared.gate, shared.rules.clone(), shared.hook.clone())
         };
         let event = chosen_event(command, shortcut, layout_shortcut, held, gate);
         if let (Event::Click(c), Some(hook)) = (&event, hook)
-            && gate.allows_command(c)
+            && gate.allows_under(&rules, c)
             && Builtin::of(c).is_none()
             && hook(c)
         {
@@ -173,6 +175,7 @@ pub struct NativeMenu {
     /// [`NativeMenu::raw_input`]).
     armed: bool,
     gate: Gate,
+    rules: ModalRules,
     dispatch: Dispatch,
     /// The menus last laid out, before the gate greyed anything, and the gate they were last
     /// synced with: a gate change re-syncs them without laying them out again.
@@ -197,6 +200,7 @@ impl NativeMenu {
             paste: false,
             armed: true,
             gate: Gate::default(),
+            rules: ModalRules::default(),
             dispatch,
             bar: None,
             synced_gate: None,
@@ -212,13 +216,11 @@ impl NativeMenu {
     /// The per-command rules under the gate ([`Gate::allows_under`]), set beside
     /// [`NativeMenu::set_gate`] when they change: the items they forbid are greyed, and their
     /// clicks and key equivalents dropped, as for the gate.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-    // pc: crates/ui-egui/src/menus.rs:46 `modal_allows` (shared by native clicks and
-    // `ui.menu.invoke`). The fill stores the rules in `Shared` beside the gate, uses them in
-    // `chosen`, `take_clicks` and `Gate::grey`, and re-syncs on a change as for the gate.
-    pub fn set_modal_rules(&mut self, rules: crate::ModalRules) {
-        let _ = rules;
-        todo!()
+    pub fn set_modal_rules(&mut self, rules: ModalRules) {
+        self.dispatch.lock().rules = rules.clone();
+        self.rules = rules;
+        // Rules hold a closure and can't be compared: sync the greying again without laying out.
+        self.synced_gate = None;
     }
 
     /// What may run from the menus. Call it every frame, before [`NativeMenu::take_clicks`]; it
@@ -329,7 +331,7 @@ impl NativeMenu {
         }
         let mut out = Vec::new();
         for command in std::mem::take(&mut self.clicks) {
-            if !self.gate.allows_command(&command) {
+            if !self.gate.allows_under(&self.rules, &command) {
                 continue;
             }
             match Builtin::of(&command) {
@@ -416,7 +418,7 @@ impl NativeMenu {
     /// Sync the backend with the kept menus, greyed by the gate.
     fn push(&mut self) {
         if let Some(bar) = &self.bar {
-            self.backend.sync(&self.gate.grey(bar));
+            self.backend.sync(&self.gate.grey(&self.rules, bar));
         }
         self.synced_gate = Some(self.gate);
     }

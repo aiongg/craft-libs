@@ -9,15 +9,13 @@
 //! The app sets the rules every frame beside the gate ([`crate::NativeMenu::set_modal_rules`],
 //! [`crate::MenuBarUi::modal_rules`], [`crate::CommandContextMenu::modal_rules`]).
 
-#![expect(unused_variables, unused_mut, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::fmt;
 use std::sync::Arc;
 
 use craft_keymap::CommandRef;
 
 use crate::driver::Gate;
-use crate::model::Item;
+use crate::model::{Builtin, Item};
 
 /// The view commands Photoshop runs while a dialog is open: Zoom In, Zoom Out, Fit on Screen and
 /// 100 %, by PhotoCraft's ids. An app whose ids differ passes its own list.
@@ -64,27 +62,34 @@ impl ModalRules {
     /// The commands that run while a dialog is open: [`NAVIGATION_COMMANDS`] for PhotoCraft.
     // pc: crates/ui-egui/src/input/shortcuts.rs:170 `NAV_COMMANDS`.
     pub fn in_dialogs<S: Into<String>>(mut self, ids: impl IntoIterator<Item = S>) -> Self {
-        todo!()
+        self.in_dialogs = ids.into_iter().map(Into::into).collect();
+        self
     }
 
     /// Sets [`Self::workspace`].
     // pc: crates/ui-egui/src/dialogs/distort_ui.rs:105 `modal_workspace`; the Camera Raw check in
     // menus.rs:46 `modal_allows`.
     pub fn workspace(mut self, open: bool) -> Self {
-        todo!()
+        self.workspace = open;
+        self
     }
 
     /// Sets [`Self::pending`].
     // pc: crates/ui-egui/src/tools/crop_ui.rs:555 `blocks`, :559 `available_while_pending`.
     pub fn pending(mut self, rule: Option<PendingRule>) -> Self {
-        todo!()
+        self.pending = rule;
+        self
     }
 }
 
 impl fmt::Debug for ModalRules {
     // new: `PendingRule` is a closure; print whether one is set.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        f.debug_struct("ModalRules")
+            .field("in_dialogs", &self.in_dialogs)
+            .field("workspace", &self.workspace)
+            .field("pending", &self.pending.is_some())
+            .finish()
     }
 }
 
@@ -98,11 +103,17 @@ impl Gate {
     /// With `ModalRules::default()` this is [`Gate::allows_command`].
     // pc: crates/ui-egui/src/menus.rs:46 `modal_allows`.
     pub fn allows_under(&self, rules: &ModalRules, command: &CommandRef) -> bool {
-        todo!()
+        if Builtin::of(command).is_some() {
+            return true;
+        }
+        if rules.workspace || rules.pending.as_ref().is_some_and(|allowed| !allowed(command)) || self.recording_shortcut {
+            return false;
+        }
+        !self.modal || rules.in_dialogs.contains(&command.id)
     }
 
     /// [`Gate::allows_under`] for an item.
     pub fn allows_item_under(&self, rules: &ModalRules, item: &Item) -> bool {
-        todo!()
+        self.allows_under(rules, &item.command)
     }
 }

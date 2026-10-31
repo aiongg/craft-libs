@@ -6,8 +6,6 @@
 //! in front checked, as Photoshop and PhotoCraft mark it; an ordinary [`crate::MenuBar::items`]
 //! walk doesn't see them because they exist only in the laid-out bar.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use craft_keymap::CommandRef;
 
 use crate::model::{Document, Item, MenuBar};
@@ -20,12 +18,12 @@ impl Document {
     /// The document at tab position `index`, running `window.document.{index}`.
     // pc: crates/ui-egui/src/menus/items.rs:199-207 (`format!("{DOCUMENT_ITEM}{i}")`).
     pub fn numbered(index: usize, label: impl Into<String>) -> Document {
-        todo!()
+        Document::new(CommandRef::new(format!("{DOCUMENT_COMMAND_PREFIX}{index}")), label)
     }
 
     /// The tab position a numbered document command names, `None` for any other command.
     pub fn index_of(command: &CommandRef) -> Option<usize> {
-        todo!()
+        command.id.strip_prefix(DOCUMENT_COMMAND_PREFIX)?.parse().ok()
     }
 }
 
@@ -36,6 +34,8 @@ impl MenuBar {
     // pc: crates/ui-egui/src/menus/items.rs:197-211 (document rows spliced after the last Window
     // row, so `menu_items` lists them).
     pub fn listed_items(&self) -> Vec<Item> {
-        todo!()
+        let mut items: Vec<Item> = self.items().into_iter().cloned().collect();
+        items.extend(self.documents.iter().filter(|d| !d.hidden).map(|d| Item::new(d.command.clone(), d.label.clone()).check(d.active)));
+        items
     }
 }

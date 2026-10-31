@@ -441,7 +441,7 @@ fn a_mac_target_has_no_mnemonics_and_leaves_alt_and_f10_alone() {
     assert!(b.take().is_empty() && b.shown("New"), "letters run nothing");
 }
 
-/// The layouts add the open documents (radio items, the one in front selected) and the app's
+/// The layouts add the open documents (check items, the one in front checked) and the app's
 /// disabled placeholder for a dynamic list with nothing in it.
 #[test]
 fn documents_and_placeholders_from_the_layout_are_rows_of_the_bar() {
@@ -460,8 +460,8 @@ fn documents_and_placeholders_from_the_layout_are_rows_of_the_bar() {
     let laid_out = layout(&bar, Target::Linux, &LayoutOptions::new("Sample")).bar;
     let mut b = Bar::new(laid_out, vec2(800.0, 600.0));
     b.click("Window");
-    assert_eq!(b.node("One").map(|n| (n.role(), n.toggled())), Some((Role::MenuItemRadio, Some(Toggled::False))));
-    assert_eq!(b.node("Two").map(|n| (n.role(), n.toggled())), Some((Role::MenuItemRadio, Some(Toggled::True))));
+    assert_eq!(b.node("One").map(|n| (n.role(), n.toggled())), Some((Role::MenuItemCheckBox, Some(Toggled::False))));
+    assert_eq!(b.node("Two").map(|n| (n.role(), n.toggled())), Some((Role::MenuItemCheckBox, Some(Toggled::True))));
     assert!(!b.shown("Hidden"), "a hidden document isn't listed");
     b.click("One");
     assert_eq!(b.take(), vec![CommandRef::new("doc.0")], "choosing a document runs its command");
