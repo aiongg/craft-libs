@@ -123,7 +123,7 @@ impl FormGrid {
         measure::group(ui, TAG, id_salt, |ui| {
             let spacing = ui.spacing().item_spacing;
             ui.spacing_mut().item_spacing.y = style.row_gap;
-            add_rows(&mut Form { ui, style, align, tokens, spacing, rows: 0, link: None, disabled: false })
+            add_rows(&mut Form { ui, style, align, tokens, spacing, rows: 0, link: None, disabled: false, last_row: None })
         })
     }
 }
@@ -142,6 +142,8 @@ pub struct Form<'a> {
     link: Option<Linked>,
     /// Rows added while set are drawn disabled, label included.
     disabled: bool,
+    /// The whole-row response of the row added last.
+    last_row: Option<Response>,
 }
 
 /// What the rows of a [`Form::linked`] scope measured, for the bracket drawn after them.
@@ -158,6 +160,11 @@ impl Form<'_> {
     /// The context the grid is drawn in, for a row builder that translates its labels.
     pub fn ctx(&self) -> &egui::Context {
         self.ui.ctx()
+    }
+
+    /// The response over the whole of the row added last (label and control), for a hover tip.
+    pub fn last_row(&self) -> Option<&Response> {
+        self.last_row.as_ref()
     }
 
     /// Draws the rows added from now on disabled, label and control, until called with `false`.
@@ -360,6 +367,7 @@ impl Form<'_> {
         }
         drop(cell);
         let response = ui.allocate_rect(row, Sense::hover());
+        self.last_row = Some(response.clone());
         InnerResponse::new(control, response)
     }
 }
