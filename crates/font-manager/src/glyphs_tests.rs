@@ -40,7 +40,7 @@ fn harness(editing: bool) -> Harness<'static, State> {
     let state = State { family: "Fake".into(), style: "Regular".into(), settings: GlyphsPanelSettings::default(), editing, inserted: Vec::new() };
     Harness::<State>::builder().with_size([320.0, 520.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, s: &mut State| {
-            let r = GlyphsPanel::new(&Fake, &mut s.family, &mut s.style, &mut s.settings).editing(s.editing).show(ui);
+            let r = GlyphsPanel::new("glyphs", &Fake, &mut s.family, &mut s.style, &mut s.settings).editing(s.editing).show(ui);
             s.inserted.extend(r.insert);
         },
         state,

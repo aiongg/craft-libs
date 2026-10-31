@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 
+use craft_host::Wake;
 use craft_i18n::Han;
 use egui::epaint::text::{FontInsert, FontPriority, InsertFontFamily};
 use egui::{FontData, FontDefinitions, FontFamily, FontId, FontTweak, Shape};
@@ -32,6 +33,12 @@ pub trait FontCandidates: Send + Sync {
     /// preferred script instead of falling through to another one.
     fn pending(&self) -> bool {
         false
+    }
+    /// Call `wake` once when the lookup that [`pending`](FontCandidates::pending) reports ends;
+    /// at once when none is running. The loader asks once per lookup and requests a frame from
+    /// it, so a pending lookup costs no timer.
+    fn wake_when_ready(&self, wake: Wake) {
+        wake.wake();
     }
 }
 
@@ -65,6 +72,17 @@ impl FontCandidates for SystemCandidates {
         #[cfg(target_arch = "wasm32")]
         {
             false
+        }
+    }
+
+    fn wake_when_ready(&self, wake: Wake) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            system::wake_when_ready(wake);
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            wake.wake();
         }
     }
 }
@@ -110,12 +128,14 @@ pub struct OnDemandFonts {
     skip_pass: bool,
     /// A face was registered by the last pass; egui adds it at the start of the next one.
     adding: bool,
+    /// The candidates were asked to wake the UI when their running lookup ends.
+    waiting: bool,
 }
 
 impl OnDemandFonts {
     /// A loader over `candidates`, with the Han preference of the effective locale.
     pub fn new(candidates: Arc<dyn FontCandidates>, han: Option<Han>) -> Self {
-        OnDemandFonts { candidates, han, reads: Vec::new(), registered: Vec::new(), skip_pass: false, adding: false }
+        OnDemandFonts { candidates, han, reads: Vec::new(), registered: Vec::new(), skip_pass: false, adding: false, waiting: false }
     }
 
     /// Install the loader as an egui plugin on `ctx`. Replaces an earlier one.
@@ -206,9 +226,16 @@ impl OnDemandFonts {
     /// The next face to register for `c`: the first unread candidate of its script whose
     /// character map has it. `None` when nothing is left, or while a background lookup may still
     /// add candidates for the preferred script.
-    fn next_face(&mut self, c: char, script: &'static str) -> Option<(String, FontData)> {
+    fn next_face(&mut self, ctx: &egui::Context, c: char, script: &'static str) -> Option<(String, FontData)> {
         let cjk = is_cjk(script);
         let pending = cjk && self.candidates.pending();
+        if pending && !self.waiting {
+            self.waiting = true;
+            let ctx = ctx.clone();
+            self.candidates.wake_when_ready(Wake::new(move || ctx.request_repaint()));
+        } else if !pending {
+            self.waiting = false;
+        }
         let reads_before = self.reads_of(script);
         let region = match script {
             "Kana" => Some(Han::Japanese),
@@ -272,13 +299,14 @@ impl egui::Plugin for OnDemandFonts {
         let Some(c) = self.missing_char(ctx, &output.shapes) else { return };
         let Some(script) = script_of(c) else { return };
         let pending = is_cjk(script) && self.candidates.pending();
-        match self.next_face(c, script) {
+        match self.next_face(ctx, c, script) {
             Some((name, data)) => {
                 register(ctx, name, data);
                 self.adding = true;
                 ctx.request_repaint();
             }
-            None if pending => ctx.request_repaint_after(std::time::Duration::from_millis(50)),
+            // The lookup's wake requests the next frame.
+            None if pending => {}
             // The script ran out of candidates for this character; another script may still load.
             None => ctx.request_repaint(),
         }
@@ -475,6 +503,7 @@ mod system {
     use std::sync::OnceLock;
 
     use craft_font_catalog::{FontEnv, font_dirs, is_font_file};
+    use craft_host::Wake;
     use craft_i18n::Han;
 
     use super::{covering_face, is_cjk};
@@ -529,6 +558,17 @@ mod system {
             }
         }
         files
+    }
+
+    pub(super) fn wake_when_ready(wake: Wake) {
+        #[cfg(target_os = "linux")]
+        {
+            fontconfig::wake_when_ready(wake);
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            wake.wake();
+        }
     }
 
     pub(super) fn pending() -> bool {
@@ -884,16 +924,36 @@ mod system {
         use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::{Mutex, OnceLock, PoisonError};
 
+        use craft_host::Wake;
+
         use super::{Cjk, MAX_FONT_BYTES_FC, covering_face};
 
         struct Scan {
             started: AtomicBool,
-            result: Mutex<Option<[Option<PathBuf>; 4]>>,
+            state: Mutex<State>,
+        }
+
+        #[derive(Default)]
+        struct State {
+            result: Option<[Option<PathBuf>; 4]>,
+            /// Woken, then dropped, when the result arrives.
+            wakes: Vec<Wake>,
+        }
+
+        impl Scan {
+            fn finish(&self, result: [Option<PathBuf>; 4]) {
+                let wakes = {
+                    let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+                    state.result = Some(result);
+                    std::mem::take(&mut state.wakes)
+                };
+                wakes.iter().for_each(Wake::wake);
+            }
         }
 
         fn scan() -> &'static Scan {
             static SCAN: OnceLock<Scan> = OnceLock::new();
-            SCAN.get_or_init(|| Scan { started: AtomicBool::new(false), result: Mutex::new(None) })
+            SCAN.get_or_init(|| Scan { started: AtomicBool::new(false), state: Mutex::default() })
         }
 
         const REGIONS: [Cjk; 4] = [Cjk::Japanese, Cjk::Simplified, Cjk::Traditional, Cjk::Korean];
@@ -905,18 +965,28 @@ mod system {
                 return;
             }
             let spawned = std::thread::Builder::new().name("craft-ui-fontconfig-cjk".into()).spawn(move || {
-                let result = REGIONS.map(fc_match);
-                *scan.result.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
+                scan.finish(REGIONS.map(fc_match));
             });
             if spawned.is_err() {
-                *scan.result.lock().unwrap_or_else(PoisonError::into_inner) = Some([None, None, None, None]);
+                scan.finish([None, None, None, None]);
             }
         }
 
         /// Whether the lookup has started and is still running.
         pub(super) fn pending() -> bool {
             let scan = scan();
-            scan.started.load(Ordering::Relaxed) && scan.result.lock().unwrap_or_else(PoisonError::into_inner).is_none()
+            scan.started.load(Ordering::Relaxed) && scan.state.lock().unwrap_or_else(PoisonError::into_inner).result.is_none()
+        }
+
+        /// Call `wake` when the lookup ends, at once if it has.
+        pub(super) fn wake_when_ready(wake: Wake) {
+            let mut state = scan().state.lock().unwrap_or_else(PoisonError::into_inner);
+            if state.result.is_some() {
+                drop(state);
+                wake.wake();
+            } else {
+                state.wakes.push(wake);
+            }
         }
 
         pub(super) fn result(region: Cjk) -> Option<PathBuf> {
@@ -925,7 +995,7 @@ mod system {
                 return None;
             }
             let index = REGIONS.iter().position(|r| *r == region)?;
-            scan.result.lock().unwrap_or_else(PoisonError::into_inner).as_ref()?.get(index)?.clone()
+            scan.state.lock().unwrap_or_else(PoisonError::into_inner).result.as_ref()?.get(index)?.clone()
         }
 
         /// The font `fc-match :lang=<region>` names, if it is a font file with every character of
