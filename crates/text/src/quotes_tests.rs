@@ -29,11 +29,26 @@ fn quotes_open_after_brackets_dashes_and_at_the_start() {
 #[test]
 fn marks_follow_the_language() {
     assert_eq!(smart_quotes("\"Ja\"", None, QuoteStyle::for_language("de")), "\u{201E}Ja\u{201C}");
-    assert_eq!(smart_quotes("\"Ja\"", None, QuoteStyle::for_language("de-CH")), "\u{00AB}Ja\u{00BB}");
+    assert_eq!(smart_quotes("\"Ja\"", None, QuoteStyle::for_language("de-CH")), "\u{201E}Ja\u{201C}");
     assert_eq!(smart_quotes("\"a\"", None, QuoteStyle::for_language("fr_CA")), "\u{00AB}a\u{00BB}");
     assert_eq!(QuoteStyle::for_language("ja"), QuoteStyle::JAPANESE);
     assert_eq!(QuoteStyle::for_language("zh-Hant"), QuoteStyle::JAPANESE);
     assert_eq!(QuoteStyle::for_language("zh-Hans"), QuoteStyle::ENGLISH);
     assert_eq!(QuoteStyle::for_language("xx"), QuoteStyle::ENGLISH);
     assert_eq!(QuoteStyle::for_language(""), QuoteStyle::ENGLISH);
+}
+
+// Pinned to CLDR 49 delimiters (quotationStart/End, alternateQuotationStart/End).
+#[test]
+fn nordic_swiss_and_chinese_marks_match_cldr() {
+    let q = |t: &str| {
+        let s = QuoteStyle::for_language(t);
+        [s.double.0, s.double.1, s.single.0, s.single.1]
+    };
+    assert_eq!(q("da"), ['\u{201C}', '\u{201D}', '\u{2018}', '\u{2019}']);
+    assert_eq!(q("sv"), ['\u{201D}', '\u{201D}', '\u{2019}', '\u{2019}']);
+    assert_eq!(q("nb"), ['\u{00AB}', '\u{00BB}', '\u{2018}', '\u{2019}']);
+    assert_eq!(q("de-CH"), ['\u{201E}', '\u{201C}', '\u{201A}', '\u{2018}']);
+    assert_eq!(q("fr-CH"), ['\u{00AB}', '\u{00BB}', '\u{2039}', '\u{203A}']);
+    assert_eq!(q("zh-Hant"), ['\u{300C}', '\u{300D}', '\u{300E}', '\u{300F}']);
 }
