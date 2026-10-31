@@ -46,6 +46,9 @@ struct Host {
     outside: Option<bool>,
     /// The outside field's events by kind, with their passes.
     outside_events: Vec<(&'static str, u64)>,
+    /// Draws a host row between the graph and the fields; its rect is kept in `between_rect`.
+    between: bool,
+    between_rect: Option<Rect>,
 }
 
 /// A document of one curve with undo steps, under a [`GestureHost`].
@@ -102,6 +105,8 @@ impl Host {
             undo: None,
             outside: None,
             outside_events: Vec::new(),
+            between: false,
+            between_rect: None,
         }
     }
 
@@ -128,6 +133,10 @@ impl Host {
         if self.percent {
             editor = editor.percent();
         }
+        let mut row = None;
+        if self.between {
+            editor = editor.between(|ui| row = Some(ui.label("Name").rect));
+        }
         let width = self.width;
         let scoped = self.scoped;
         if self.outside == Some(true) {
@@ -145,6 +154,7 @@ impl Host {
         if self.outside == Some(false) {
             self.show_outside(ui, &numbers);
         }
+        self.between_rect = row;
         self.escape_seen |= ui.input(|i| i.key_pressed(Key::Escape));
         self.id = edit.response.id;
         self.rect = edit.response.rect;
@@ -944,6 +954,10 @@ fn the_stories_name_every_control() {
             .build_ui(move |ui| (story.show)(ui, &mut args));
         harness.run();
         a11y::assert_labelled(&harness);
+        if story.id.ends_with("/preview") {
+            assert_eq!(harness.query_all_by(|n| n.role() == Role::Image).count(), 3, "{}: the thumbnails are images", story.id);
+            continue;
+        }
         assert!(harness.query_all_by(|n| n.role() == Role::GraphicsObject).count() >= 3, "{}: the points are in the tree", story.id);
     }
 }
@@ -1327,4 +1341,49 @@ fn outer_width_is_the_width_the_editor_allocates_at_each_size() {
         assert_eq!(width, allocated, "{size:?}");
         assert!(width > 267.0, "{size:?}");
     }
+}
+
+#[test]
+fn the_state_maps_the_corners_of_the_value_area_and_follows_the_pointer() {
+    let mut harness = rig(&THREE);
+    let ctx = harness.ctx.clone();
+    let state = CurveEditor::state(&ctx, harness.state().id).expect("state after a frame");
+    let host = harness.state();
+    assert_eq!(state.plot, host.rect.shrink(host.pad), "inside the inset");
+    assert_eq!(state.screen([0.0, 0.0]), state.plot.left_bottom());
+    assert_eq!(state.screen([255.0, 255.0]), state.plot.right_top());
+    assert_eq!(state.value_at(state.plot.left_bottom()), [0.0, 0.0]);
+    assert_eq!((state.dragged, state.hovered, state.pending_delete), (None, None, false));
+
+    let on = state.screen([128.0, 128.0]);
+    move_to(&mut harness, on);
+    move_to(&mut harness, on);
+    let id = harness.state().id;
+    assert_eq!(CurveEditor::state(&ctx, id).and_then(|s| s.hovered), Some(1));
+    press(&mut harness, on);
+    assert_eq!(CurveEditor::state(&ctx, id).and_then(|s| s.dragged), Some(1));
+    let off = pos2(on.x, harness.state().rect.bottom() + 40.0);
+    move_to(&mut harness, off);
+    move_to(&mut harness, off);
+    let held = CurveEditor::state(&ctx, id).expect("state");
+    assert_eq!((held.dragged, held.pending_delete), (None, true), "off the graph");
+    release(&mut harness, off);
+    assert!(!CurveEditor::state(&ctx, id).is_some_and(|s| s.pending_delete));
+}
+
+#[test]
+fn a_host_row_between_shows_between_the_graph_and_the_fields_and_the_fields_still_edit() {
+    let mut host = Host::new(&THREE);
+    host.between = true;
+    let mut harness = harness(host, Direction::Ltr);
+    let at = harness.state().at([128.0, 128.0]);
+    press(&mut harness, at);
+    release(&mut harness, at);
+    let row = harness.state().between_rect.expect("the host row drew");
+    assert!(row.top() >= harness.state().rect.bottom(), "below the graph");
+    assert!(row.bottom() <= input_field(&harness).y, "above the fields");
+    harness.state_mut().clear();
+    type_into_input(&mut harness, "100");
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state().points(), vec![[0.0, 0.0], [100.0, 128.0], [255.0, 255.0]]);
 }

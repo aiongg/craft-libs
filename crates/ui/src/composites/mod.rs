@@ -11,6 +11,7 @@
 //!   one centre.
 //! - [`CurveEditor`]: a tone curve's graph and points, edited by pointer and keys, with the
 //!   Input/Output row of the selected point; the value is a [`Curve`].
+//! - [`CurvePreview`]: a read-only thumbnail of a [`Curve`] in the editor's look.
 //! - [`GroupBox`]: an outlined group with a title, for a dialog's or preferences page's rows.
 //! - [`SectionHeader`]: the header row of a panel section, collapsible (chevron, persisted open
 //!   state, Enter and Space) or always open, with an optional controls slot.
@@ -95,7 +96,7 @@ mod toast_tests;
 
 pub use craft_theme::Tone;
 pub use curve::Curve;
-pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampler};
+pub use curve_editor::{CurveChannel, CurveEditor, CurveEditorState, CurveLabels, CurvePreview, CurveStyle, Sampler};
 pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle, OwnName};
 pub use form_grid::{Form, FormGrid, FormStyle, LabelAlign};

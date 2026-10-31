@@ -5,7 +5,7 @@ use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{
     AsIdSalt, Color32, Context, CornerRadius, Id, IdSalt, Key, Mesh, Modifiers, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui,
-    UiBuilder, pos2, vec2,
+    UiBuilder, Vec2, pos2, vec2,
 };
 
 use craft_theme::{Rgba, TypeRole};
@@ -133,6 +133,41 @@ struct State {
     end: Option<StrokeEnd>,
     /// The graph's and the fields' edits as the editor's one gesture.
     parts: parts::State<EditOp>,
+    /// What [`CurveEditor::state`] reports, as of the last frame.
+    report: Option<CurveEditorState>,
+}
+
+/// What an editor shows and what its pointer is doing, as of its last frame
+/// ([`CurveEditor::state`]): for automation and tests, and for a host that places things by the
+/// graph.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct CurveEditorState {
+    /// The rect that levels `0..=levels` map to: inside the plot's border, its gradient bars and
+    /// its inset (`curve.pad`). Level `(0, 0)` is its bottom-left corner and `(levels, levels)`
+    /// its top-right corner, whatever the reading direction.
+    pub plot: Rect,
+    /// The greatest level, as [`CurveEditor::levels`] set it.
+    pub levels: f32,
+    /// The point a press holds, by its index in the curve; `None` without a drag and while the
+    /// dragged point is off the graph.
+    pub dragged: Option<usize>,
+    /// The point under the pointer, by its index in the curve.
+    pub hovered: Option<usize>,
+    /// Whether a drag holds a point off the graph, which is removed when it is released there.
+    pub pending_delete: bool,
+}
+
+impl CurveEditorState {
+    /// Where the point of levels `q` is on screen.
+    pub fn screen(&self, q: [f32; 2]) -> Pos2 {
+        Map { area: self.plot, levels: self.levels }.screen(q)
+    }
+
+    /// The levels under `pos`, clamped to `0..=levels`.
+    pub fn value_at(&self, pos: Pos2) -> [f32; 2] {
+        Map { area: self.plot, levels: self.levels }.value_at(pos)
+    }
 }
 
 /// An edit of the graph or of a field, as it waits for its turn (`edit::parts`).
@@ -298,7 +333,11 @@ pub struct CurveEditor<'a> {
     corners: bool,
     histogram: Option<&'a HistogramData>,
     overlays: &'a [Curve],
+    between: Option<Between<'a>>,
 }
+
+/// The host's rows between the graph and the fields.
+type Between<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 
 impl<'a> CurveEditor<'a> {
     /// An editor named `label` ("Curve") of the host's `curve`; `id_salt` keeps its selection and
@@ -326,6 +365,7 @@ impl<'a> CurveEditor<'a> {
             corners: false,
             histogram: None,
             overlays: &[],
+            between: None,
         }
     }
 
@@ -379,6 +419,14 @@ impl<'a> CurveEditor<'a> {
     /// Whether the Input/Output row shows; on by default.
     pub fn fields(mut self, fields: bool) -> Self {
         self.fields = fields;
+        self
+    }
+
+    /// The host's rows between the graph and the Input/Output row (the contour editor's Name
+    /// row). They draw in the editor's column, so the fields keep editing the selected point.
+    /// Without it the graph and the fields follow each other as usual.
+    pub fn between(mut self, rows: impl FnOnce(&mut Ui) + 'a) -> Self {
+        self.between = Some(Box::new(rows));
         self
     }
 
@@ -458,6 +506,11 @@ impl<'a> CurveEditor<'a> {
         ctx.data(|d| d.get_temp::<State>(id.with(STATE))).and_then(|s| s.selected)
     }
 
+    /// What editor `id` showed and did in its last frame, `None` before its first.
+    pub fn state(ctx: &Context, id: Id) -> Option<CurveEditorState> {
+        ctx.data(|d| d.get_temp::<State>(id.with(STATE))).and_then(|s| s.report)
+    }
+
     /// Selects point `index` of editor `id` (the host's click on the image), in the channel the
     /// editor shows next.
     pub fn select(ctx: &Context, id: Id, index: Option<usize>) {
@@ -516,6 +569,7 @@ impl<'a> CurveEditor<'a> {
         let policy = EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost);
         let mut edits = parts::Edits::<Curve, EditOp>::new(id, &state.parts, &outer, edit::in_scope(ui));
         edits.replay(ui.ctx(), |op, now| self.apply(op, now, &mut state.selected));
+        let mut between = self.between.take();
         // The parts keep the selection of their own events as they make them.
         let apply = |op: &EditOp, now: &Curve| self.apply(op, now, &mut None);
         let graph = Stack::new(Gap::Stack)
@@ -529,6 +583,9 @@ impl<'a> CurveEditor<'a> {
                     && let Some(selected) = before_ops
                 {
                     state.selected = selected;
+                }
+                if let Some(between) = between.take() {
+                    between(ui);
                 }
                 if self.fields && !self.pencil && edits.value().points().is_some() {
                     self.fields_row(ui, id, state.selected, policy, &mut edits, apply);
@@ -651,6 +708,17 @@ impl<'a> CurveEditor<'a> {
         let shown = gesture.shown().clone();
         let event = gesture.finish();
         let selected = state.selected;
+        let hovered = shown
+            .points()
+            .filter(|_| !self.pencil && enabled)
+            .and_then(|points| response.hover_pos().and_then(|pos| map.hit(points, pos, style.hit)));
+        state.report = Some(CurveEditorState {
+            plot: map.area,
+            levels: self.levels,
+            dragged: state.drag.and_then(|d| d.index),
+            hovered,
+            pending_delete: state.drag.is_some_and(|d| d.index.is_none()),
+        });
 
         let tokens = Tokens::of(ui);
         let channel = self.channels.get(self.channel);
@@ -716,14 +784,7 @@ impl<'a> CurveEditor<'a> {
             let color = self.channels[i].color.curve(tokens).gamma_multiply(style.other_alpha);
             self.paint_curve(ui, &self.overlays[i], map, color, style.other_width);
         }
-        for i in 1..4 {
-            let f = i as f32 / 4.0;
-            let x = area.left() + f * area.width();
-            let y = area.top() + f * area.height();
-            painter.line_segment([pos2(x, area.top()), pos2(x, area.bottom())], style.grid);
-            painter.line_segment([pos2(area.left(), y), pos2(area.right(), y)], style.grid);
-        }
-        painter.line_segment([area.left_bottom(), area.right_top()], style.baseline);
+        paint_grid(&painter, style, area);
         painter.rect_stroke(plot, 0.0, style.border, StrokeKind::Outside);
         let (dark, light) = (Rgba::BLACK.to_egui(), color.bar(tokens));
         let under =
@@ -739,11 +800,7 @@ impl<'a> CurveEditor<'a> {
             Curve::Points { points, corners } => self.samples(points, corners),
             Curve::Map(outputs) => outputs.clone(),
         };
-        let last = outputs.len().saturating_sub(1).max(1) as f32;
-        let line: Vec<Pos2> = outputs.iter().enumerate().map(|(k, &o)| map.screen([k as f32 / last * self.levels, o])).collect();
-        if line.len() >= 2 {
-            ui.painter().with_clip_rect(map.area.expand(width)).add(Shape::line(line, Stroke::new(width, color)));
-        }
+        paint_line(ui, &outputs, map, color, width);
     }
 
     /// The points as handles, children of the graph's node. Returns their ids.
@@ -883,6 +940,91 @@ impl<'a> CurveEditor<'a> {
                 Some(Curve::from_parts(points, curve.corner_flags()))
             }
         }
+    }
+}
+
+/// The curve through `outputs` (the output at each input level, evenly spaced over the range),
+/// clipped to the value area.
+fn paint_line(ui: &Ui, outputs: &[f32], map: Map, color: Color32, width: f32) {
+    let last = outputs.len().saturating_sub(1).max(1) as f32;
+    let line: Vec<Pos2> = outputs.iter().enumerate().map(|(k, &o)| map.screen([k as f32 / last * map.levels, o])).collect();
+    if line.len() >= 2 {
+        ui.painter().with_clip_rect(map.area.expand(width)).add(Shape::line(line, Stroke::new(width, color)));
+    }
+}
+
+/// The quarter grid and the diagonal over the value area `area`.
+fn paint_grid(painter: &egui::Painter, style: &CurveStyle, area: Rect) {
+    for i in 1..4 {
+        let f = i as f32 / 4.0;
+        let x = area.left() + f * area.width();
+        let y = area.top() + f * area.height();
+        painter.line_segment([pos2(x, area.top()), pos2(x, area.bottom())], style.grid);
+        painter.line_segment([pos2(area.left(), y), pos2(area.right(), y)], style.grid);
+    }
+    painter.line_segment([area.left_bottom(), area.right_top()], style.baseline);
+}
+
+/// A [`Curve`] drawn read-only at a given size in the editor's look: plot, grid, diagonal,
+/// border and the curve in its channel colour, without points, gradient bars or fields (a preset
+/// or contour thumbnail). AccessKit: an `Image` named by the label.
+#[must_use = "show the preview with `show`"]
+pub struct CurvePreview<'a> {
+    curve: &'a Curve,
+    size: Vec2,
+    label: String,
+    levels: f32,
+    color: ChannelColor,
+    sampler: Option<&'a Sampler>,
+}
+
+impl<'a> CurvePreview<'a> {
+    /// A preview of `curve`, `size` points big, named `label`.
+    pub fn new(curve: &'a Curve, size: Vec2, label: impl Into<String>) -> Self {
+        Self { curve, size, label: label.into(), levels: 255.0, color: ChannelColor::Neutral, sampler: None }
+    }
+
+    /// The greatest level of the curve (255 by default), as [`CurveEditor::levels`].
+    pub fn levels(mut self, levels: u32) -> Self {
+        self.levels = levels.max(1) as f32;
+        self
+    }
+
+    /// The curve's channel colour; neutral by default.
+    pub fn color(mut self, color: ChannelColor) -> Self {
+        self.color = color;
+        self
+    }
+
+    /// The host's sampler for the curve through points, as [`CurveEditor::sampler`].
+    pub fn sampler(mut self, sampler: &'a Sampler) -> Self {
+        self.sampler = Some(sampler);
+        self
+    }
+
+    pub fn show(self, ui: &mut Ui) -> Response {
+        let (plot, response) = ui.allocate_exact_size(self.size.max(vec2(1.0, 1.0)), Sense::hover());
+        response.widget_info(|| egui::WidgetInfo::labeled(Role::Image, ui.is_enabled(), &self.label));
+        if !ui.is_rect_visible(plot) {
+            return response;
+        }
+        let tokens = Tokens::of(ui);
+        let style = CurveEditor::style(&tokens);
+        let plot = plot.round_to_pixels(ui.pixels_per_point());
+        let map = Map { area: plot.shrink(style.pad), levels: self.levels };
+        let painter = ui.painter().with_clip_rect(ui.clip_rect());
+        painter.rect_filled(plot, 0.0, style.fill);
+        paint_grid(&painter, &style, map.area);
+        painter.rect_stroke(plot, 0.0, style.border, StrokeKind::Outside);
+        let outputs = match self.curve {
+            Curve::Points { points, corners } => Curve::through(points, corners, |points| match self.sampler {
+                Some(sampler) => sampler(points),
+                None => Curve::monotone(points, self.levels),
+            }),
+            Curve::Map(outputs) => outputs.clone(),
+        };
+        paint_line(ui, &outputs, map, self.color.curve(&tokens), style.width);
+        response
     }
 }
 
@@ -1212,7 +1354,7 @@ pub fn gradient(rect: Rect, dark: Color32, light: Color32, vertical: bool) -> Sh
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["CurveEditor"];
+pub const COMPONENTS: &[&str] = &["CurveEditor", "CurvePreview"];
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -1233,6 +1375,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_curves
         ),
         typed_story!("composites/curve-editor/small", Level::Composites, "CurveEditor", "Small", NoArgs {}, show_small),
+        typed_story!("composites/curve-editor/preview", Level::Composites, "CurvePreview", "Preview", NoArgs {}, show_preview),
         typed_story!("composites/curve-editor/corners", Level::Composites, "CurveEditor", "Corners", NoArgs {}, show_corners),
     ]
 }
@@ -1403,4 +1546,17 @@ fn show_corners(ui: &mut Ui, _: &mut NoArgs) {
     let StoryCurves { curves, before } = &mut host;
     apply(&edit, &mut curves[0], before);
     ui.data_mut(|d| d.insert_temp(id, host));
+}
+
+/// Read-only thumbnails of a tone curve, a contour with a corner point and a drawn curve.
+fn show_preview(ui: &mut Ui, _: &mut NoArgs) {
+    let tone = Curve::smooth(vec![[0.0, 0.0], [64.0, 48.0], [192.0, 214.0], [255.0, 255.0]]);
+    let contour =
+        Curve::from_parts(vec![[0.0, 0.0], [64.0, 160.0], [128.0, 96.0], [192.0, 224.0], [255.0, 255.0]], vec![false, false, true, false, false]);
+    let drawn = Curve::Map((0..=255).map(|k| (k as f32 * 0.9 + 12.0 * (k as f32 / 20.0).sin()).clamp(0.0, 255.0)).collect());
+    ui.horizontal(|ui| {
+        CurvePreview::new(&tone, vec2(64.0, 64.0), "Tone curve").show(ui);
+        CurvePreview::new(&contour, vec2(64.0, 64.0), "Contour").color(ChannelColor::Red).show(ui);
+        CurvePreview::new(&drawn, vec2(96.0, 96.0), "Drawn curve").show(ui);
+    });
 }
