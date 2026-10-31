@@ -114,7 +114,7 @@ pub trait GlyphSource: Send + Sync {
 #[serde(default)]
 pub struct GlyphsPanelSettings {
     pub category: String,
-    /// Cell size in points, 24..=96.
+    /// Cell size in points, 24..=64 (PhotoCraft).
     pub zoom: f32,
     /// Most recent first, at most 25 (Photoshop).
     pub recent: Vec<String>,
@@ -160,7 +160,7 @@ pub struct GlyphsPanel<'a> {
 const GRID_HEIGHT: f32 = 260.0;
 /// The cell size when the settings have none, and its range.
 const DEFAULT_ZOOM: f32 = 32.0;
-const ZOOM: std::ops::RangeInclusive<f32> = 24.0..=96.0;
+const ZOOM: std::ops::RangeInclusive<f32> = 24.0..=64.0;
 /// The space between a cell's edge and its glyph.
 const GLYPH_INSET: f32 = 3.0;
 /// The Recently Used cell and its pitch, and how many glyphs are kept.
