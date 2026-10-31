@@ -762,6 +762,10 @@ fn button<'a>(harness: &'a Harness<'_, Host>, name: &str) -> Node<'a> {
     harness.get_by(move |n| n.role() == Role::Button && n.label().as_deref() == Some(name.as_str()))
 }
 
+fn color_well<'a>(harness: &'a Harness<'_, Host>) -> Node<'a> {
+    harness.get_by(|n| n.role() == Role::ColorWell && n.label().as_deref() == Some("Color"))
+}
+
 /// Types `text` into the field named `name` and commits it with Enter.
 fn type_into(harness: &mut Harness<'_, Host>, name: &str, text: &str) {
     let at = spin(harness, name).rect().center();
@@ -774,12 +778,12 @@ fn type_into(harness: &mut Harness<'_, Host>, name: &str, text: &str) {
 fn the_fields_edit_the_selected_marker_one_gesture_per_run_and_the_selection_follows_the_stop() {
     let mut harness = rig(three());
     let names: Vec<_> = harness
-        .query_all_by(|n| matches!(n.role(), Role::SpinButton | Role::Button))
+        .query_all_by(|n| matches!(n.role(), Role::SpinButton | Role::Button | Role::ColorWell))
         .filter_map(|n| n.accesskit_node().label())
         .filter(|l| ["Color", "Opacity", "Location", "Midpoint", "Delete stop"].contains(&l.as_str()))
         .collect();
     assert_eq!(names, ["Color", "Location", "Delete stop"], "a colour stop of a split bar");
-    assert_eq!(button(&harness, "Color").value().as_deref(), Some("#0033ff"));
+    assert_eq!(color_well(&harness).value().as_deref(), Some("#0033ff"));
 
     // Location past a neighbour: one gesture, and the selection stays on the stop (tag 1).
     type_into(&mut harness, "Location", "70");
@@ -802,7 +806,7 @@ fn the_fields_edit_the_selected_marker_one_gesture_per_run_and_the_selection_fol
     // An opacity stop's Opacity: a scrub is one gesture, and writes out the implicit stops.
     harness.state_mut().events.clear();
     select(&mut harness, Some(StopRef::Opacity(0)));
-    assert!(harness.query_by(|n| n.role() == Role::Button && n.label().as_deref() == Some("Color")).is_none());
+    assert!(harness.query_by(|n| n.role() == Role::ColorWell && n.label().as_deref() == Some("Color")).is_none());
     let field = spin(&harness, "Opacity").rect().center();
     press(&mut harness, field);
     for dx in [5.0, 10.0, 20.0] {
@@ -926,16 +930,16 @@ fn delete_removes_the_selected_stop_after_a_typing_run_and_is_off_at_the_minimum
 #[test]
 fn the_color_well_asks_for_the_color_or_opens_the_popover() {
     let mut harness = rig(three());
-    let well = button(&harness, "Color").rect().center();
+    let well = color_well(&harness).rect().center();
     click(&mut harness, well, PointerButton::Primary);
     assert_eq!(harness.state().requested, [0]);
     assert!(harness.query_by(|n| n.role() == Role::Dialog).is_none());
 
     let mut harness = harness_with(Host { popover: true, ..Host::new(three()) });
-    let well = button(&harness, "Color").rect().center();
+    let well = color_well(&harness).rect().center();
     click(&mut harness, well, PointerButton::Primary);
     assert!(harness.query_by(|n| n.role() == Role::Dialog).is_some(), "the popover opens");
-    assert_eq!(button(&harness, "Color").accesskit_node().data().has_popup(), Some(egui::accesskit::HasPopup::Dialog));
+    assert_eq!(color_well(&harness).accesskit_node().data().has_popup(), Some(egui::accesskit::HasPopup::Dialog));
     // The hex field has the focus with its text selected.
     harness.event(Event::Text("FF0000".into()));
     harness.run();
@@ -966,7 +970,7 @@ fn a_color_only_editor_keeps_alpha_at_one_through_the_color_well() {
         ColorStop { tag: 2, ..ColorStop::new(1.0, Srgba::new(0.8, 0.8, 0.8, 0.5)) },
     ]);
     let mut harness = harness_with(Host { rows: StopRows::ColorOnly, popover: true, ..Host::new(translucent) });
-    let well = button(&harness, "Color").rect().center();
+    let well = color_well(&harness).rect().center();
     click(&mut harness, well, PointerButton::Primary);
     harness.event(Event::Text("FF0000".into()));
     harness.run();
@@ -999,7 +1003,7 @@ fn a_press_during_the_location_field_s_typing_run_waits_and_drags_from_the_commi
 
 /// Opens the popover on colour stop 0 and types `hex` into its hex field without Enter.
 fn hex_run(harness: &mut Harness<'_, Host>, hex: &str) {
-    let well = button(harness, "Color").rect().center();
+    let well = color_well(harness).rect().center();
     click(harness, well, PointerButton::Primary);
     assert!(harness.query_by(|n| n.role() == Role::Dialog).is_some(), "the popover opens");
     harness.event(Event::Text(hex.into()));
@@ -1080,7 +1084,7 @@ fn the_popover_s_picker_takes_the_host_s_setup_and_reports_its_eyedropper() {
     // Tall enough for the popover with alpha and the eyedropper.
     let host = Host { popover: true, eyedropper: true, rows: StopRows::Combined, ..Host::new(three()) };
     let mut harness = harness_sized(host, Direction::Ltr, [400.0, 640.0]);
-    let well = button(&harness, "Color").rect().center();
+    let well = color_well(&harness).rect().center();
     click(&mut harness, well, PointerButton::Primary);
     let opacity = harness.query_all_by(|n| n.role() == Role::SpinButton && n.label().as_deref() == Some("Opacity")).count();
     assert_eq!(opacity, 2, "the fields row's and the picker's alpha, set before the host's setup");
