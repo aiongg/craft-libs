@@ -3,7 +3,7 @@
 //! - [`FrameCap`] (desktop): at most N frames per second when presenting without vsync. Nothing
 //!   else paces frames then on X11, and a 1000 Hz mouse makes an app draw about 900 frames a
 //!   second.
-//! - [`WindowState`]: whether the window is drawn. A minimized or covered window runs only
+//! - [`WindowVisibility`]: whether the window is drawn. A minimized or covered window runs only
 //!   `App::logic`, with no vsync to pace it and with `ctx.input` frozen at the last drawn pass.
 //! - [`WorkBudget`] and [`WorkSlice`]: how long one call may spend on background work (an export,
 //!   a bounce, an index build) in each window state, or that it pauses while hidden.
@@ -12,7 +12,7 @@
 //!
 //! ```ignore
 //! // App::logic
-//! let state = WindowState::current(ctx);
+//! let state = WindowVisibility::current(ctx);
 //! if let Some(slice) = EXPORT_BUDGET.slice(state, &self.clock) {
 //!     while slice.more(&self.clock) && export.step() {}
 //!     ctx.request_repaint();
@@ -25,7 +25,7 @@ use crate::clock::Clock;
 
 /// Whether the window is drawn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WindowState {
+pub enum WindowVisibility {
     /// On screen, or not known to be hidden (a host that reports neither minimized nor occluded).
     Shown,
     /// Minimized or fully covered: only `App::logic` runs, and `ctx.input` repeats the last
@@ -33,7 +33,7 @@ pub enum WindowState {
     Hidden,
 }
 
-impl WindowState {
+impl WindowVisibility {
     /// The state `info` reports: hidden when minimized or occluded (`ViewportInfo::visible`).
     pub fn of(info: &egui::ViewportInfo) -> Self {
         if info.visible() == Some(false) { Self::Hidden } else { Self::Shown }
@@ -94,10 +94,10 @@ impl WorkBudget {
     pub const DEFAULT: Self = Self { shown: Duration::from_millis(30), hidden: Some(Duration::from_millis(30)) };
 
     /// The slice this call may spend in `state`, from `clock`'s now; `None` while the job pauses.
-    pub fn slice(&self, state: WindowState, clock: &Clock) -> Option<WorkSlice> {
+    pub fn slice(&self, state: WindowVisibility, clock: &Clock) -> Option<WorkSlice> {
         let budget = match state {
-            WindowState::Shown => self.shown,
-            WindowState::Hidden => self.hidden?,
+            WindowVisibility::Shown => self.shown,
+            WindowVisibility::Hidden => self.hidden?,
         };
         Some(WorkSlice { until: clock.now() + budget.as_secs_f64() })
     }

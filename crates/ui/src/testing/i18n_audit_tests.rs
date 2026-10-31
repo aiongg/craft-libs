@@ -31,7 +31,10 @@ fn exempt_text_is_allowed() {
     for ok in ["Ctrl+Shift+S", "⟦Copy⟧ Ctrl+C", "AB", "Aptos Display", "Chapter One", "Second line", "@someone", "Style 3"] {
         assert!(exempt.allows(ok), "{ok}");
     }
-    for bad in ["Save", "Ctrl+Save", "Aptos"] {
+    for ok in ["Ctrl+F5", "Cmd+Plus", "F12", "S", "Esc"] {
+        assert!(exempt.allows(ok), "{ok}");
+    }
+    for bad in ["Save", "Ctrl+Save", "Aptos", "Add", "All", "New", "Cut", "Fit", "Yes", "No", "Ctrl+", "F0"] {
         assert!(!exempt.allows(bad), "{bad}");
     }
     assert!(!unmarked("⟦a⟦b⟧c⟧ ok ⟧x").contains('⟧'));

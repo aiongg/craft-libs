@@ -28,7 +28,7 @@ clock = ["dep:web-time"]
 # `pacing`: frame-rate cap, window state and background work slices.
 pacing = ["clock", "dep:egui"]
 # `logs`: the app log file, the panic hook and its crash log.
-logs = ["dep:log", "dep:web-time"]
+logs = ["clock", "dep:log", "dep:web-time"]
 # `open`: file intake, natural order, reveal in the file manager.
 open = ["dep:craft-host"]
 # `autosave`: the autosave timer and the recovery folder.

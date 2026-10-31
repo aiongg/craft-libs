@@ -11,7 +11,7 @@ fn press_release(raw: &[Event]) -> (usize, usize) {
     (presses, releases)
 }
 
-// A two-click ui.click injects move+press+release on one pass and press+release on the next; nothing more is injected until pass_finished; MAX_CLICKS bounds count.
+// A two-click ui.click injects the move, then each press and each release on its own pass; nothing more is injected until pass_finished; MAX_CLICKS bounds count.
 #[test]
 fn click_steps_land_on_separate_passes() {
     let click = Click::from_params(&json!({"x": 3, "y": 4, "button": "secondary", "count": 2})).unwrap();
@@ -24,18 +24,21 @@ fn click_steps_land_on_separate_passes() {
     input.click(&click);
     let mut first = RawInput::default();
     assert_eq!(input.inject(&mut first, true), Injected::Step);
-    assert_eq!(first.events.len(), 3);
-    assert!(matches!(first.events[0], Event::PointerMoved(_)));
-    assert_eq!(press_release(&first.events), (1, 1));
+    assert!(matches!(first.events[..], [Event::PointerMoved(_)]));
 
     let mut stalled = RawInput::default();
     assert_eq!(input.inject(&mut stalled, true), Injected::Nothing);
     assert!(stalled.events.is_empty() && !input.is_empty());
 
-    input.pass_finished();
-    let mut second = RawInput::default();
-    assert_eq!(input.inject(&mut second, true), Injected::Step);
-    assert_eq!(second.events.len(), 2);
+    let mut seen = Vec::new();
+    for _ in 0..4 {
+        input.pass_finished();
+        let mut raw = RawInput::default();
+        assert_eq!(input.inject(&mut raw, true), Injected::Step);
+        assert_eq!(raw.events.len(), 1);
+        seen.push(press_release(&raw.events));
+    }
+    assert_eq!(seen, [(1, 0), (0, 1), (1, 0), (0, 1)]);
     assert!(!input.is_empty());
     input.pass_finished();
     assert!(input.is_empty());
@@ -55,7 +58,8 @@ fn in_flight_steps_are_reinjected_or_withdrawn() {
     input.type_text("x");
     let mut raw = RawInput::default();
     assert_eq!(input.inject(&mut raw, true), Injected::Step);
-    assert_eq!(raw.events.len(), 2);
+    // A key press is physical, so the shortcut dispatcher's position fallback can read it.
+    assert!(matches!(raw.events[..], [Event::Key { key: Key::A, physical_key: Some(Key::A), pressed: true, .. }]));
 
     input.pass_deferred();
     let mut again = RawInput::default();

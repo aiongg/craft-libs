@@ -74,3 +74,19 @@ fn a_bad_variable_is_ignored_when_its_flag_is_given() {
     assert_eq!((resolved.port, resolved.sources.port), (Some(0), Some(Source::Flag)));
     assert!(ControlOptions::resolve_with(ControlOptions::default(), &env_names, bad).is_err());
 }
+
+// A non-Unicode port or token variable is a usage error; a token file path may be any bytes.
+#[cfg(unix)]
+#[test]
+fn non_unicode_variables_are_reported() {
+    use std::os::unix::ffi::OsStringExt;
+    let env_names = names("APP");
+    let bytes = || std::ffi::OsString::from_vec(vec![0x66, 0xff]);
+    let only = |var: String| move |name: &str| (name == var).then(bytes);
+    let error = ControlOptions::from_lookup(&env_names, only(env_names.token.clone())).unwrap_err();
+    assert_eq!(error, OptionsError::NotUnicode { shown: "APP_CONTROL_TOKEN".into() });
+    let error = ControlOptions::from_lookup(&env_names, only(env_names.port.clone())).unwrap_err();
+    assert_eq!(error.to_string(), "invalid UTF-8 was detected in 'APP_CONTROL_PORT'");
+    let file = ControlOptions::from_lookup(&env_names, only(env_names.token_file.clone())).unwrap();
+    assert_eq!(file.token_file, Some(PathBuf::from(bytes())));
+}
