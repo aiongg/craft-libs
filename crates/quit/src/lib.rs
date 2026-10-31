@@ -50,9 +50,9 @@ mod macos;
 #[cfg(all(feature = "menu", target_os = "macos"))]
 mod menu;
 
-pub use close::{CloseAnswer, CloseGuard, CloseScope, GuardStep};
+pub use close::{CloseAnswer, CloseGuard, CloseScope, GuardStep, QUIT_MENU_ID};
 #[cfg(feature = "ui")]
-pub use close::{QUIT_MENU_ID, intercept_close, on_close_request, on_menu_event};
+pub use close::{intercept_close, on_close_request, on_menu_event};
 
 /// Replace winit's default macOS app menu with one whose Quit (⌘Q) asks the app first.
 ///
