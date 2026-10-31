@@ -89,6 +89,7 @@ pub struct MenuItem<T> {
     keyed: bool,
     tint: Option<Srgba>,
     tooltip: Option<String>,
+    keep_open: bool,
     action: Action<T>,
 }
 
@@ -116,6 +117,7 @@ impl<T> MenuItem<T> {
             keyed: true,
             tint: None,
             tooltip: None,
+            keep_open: false,
             action,
         }
     }
@@ -189,6 +191,24 @@ impl<T> MenuItem<T> {
     pub fn tooltip(mut self, text: impl Into<String>) -> Self {
         self.tooltip = Some(text.into());
         self
+    }
+
+    /// Running the row leaves the menu open, so the user flips several settings in one visit
+    /// (PhotoCraft's panel "…" menus: the crop options' Use Classic Mode and Show Cropped Area,
+    /// the Actions panel's Shift and Command checks, EffectCraft's Columns menu). For check and
+    /// radio rows; on a plain row or a submenu it does nothing. The menu reports the command
+    /// ([`MenuResponse::chosen`](super::MenuResponse::chosen)) and stays open with the row
+    /// highlighted; the host changes the setting, and the next pass's entries show the new
+    /// mark. Any other row, a click outside and Esc close the menu as usual.
+    pub fn keep_open(mut self, keep_open: bool) -> Self {
+        self.keep_open = keep_open;
+        self
+    }
+
+    /// Whether running the row leaves the menu open: a check or radio row marked
+    /// [`keep_open`](Self::keep_open).
+    pub fn keeps_open(&self) -> bool {
+        self.keep_open && self.kind != ItemKind::Plain && matches!(self.action, Action::Run(_))
     }
 
     pub fn label(&self) -> &str {

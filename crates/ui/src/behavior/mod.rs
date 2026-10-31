@@ -30,6 +30,8 @@
 //! - [`DigitKeys`]: Photoshop's number keys for opacity (1 = 10 %, 0 = 100 %, two digits exact).
 //! - [`ControlClick`], [`drop_touch_twins`], [`SingleLineDrag`]: input fixes run before a pass
 //!   (macOS Control-click, the browser's doubled taps, a single-line field's drag selection).
+//! - [`DragBadge`], [`set_drop_hint`] and [`DropVeil`]: what a drag shows: the badge at the
+//!   pointer, a drop target's hint in it, and the veil while files from outside hover.
 //! - [`nudge`]: an arrow key press as a move along the document axes (1 unit, Shift 10), for
 //!   canvas overlays.
 
@@ -37,6 +39,9 @@ mod command_search;
 mod digit_keys;
 #[cfg(test)]
 mod digit_keys_tests;
+mod drag_feedback;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod drag_feedback_tests;
 pub(crate) mod edit_menu;
 mod field_tab;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -65,6 +70,7 @@ mod typing;
 
 pub use command_search::{CommandSearch, Match, PaletteEntry};
 pub use digit_keys::{DigitEntry, DigitKeys};
+pub use drag_feedback::{DragBadge, DragFeedbackLabels, DropVeil, HoveredFiles, drop_hint, set_drop_hint};
 pub use edit_menu::{EditMenu, EditMenuLabels};
 pub use field_tab::FieldTab;
 pub use grid_drop::{GridDrop, GridGeometry, grid_drop};

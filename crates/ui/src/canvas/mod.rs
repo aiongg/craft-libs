@@ -18,6 +18,8 @@
 //! - [`CanvasGrid`]: major and minor grid lines over a document, solid, dashed, dotted or as crossings.
 //! - [`Guides`]: ruler guides; [`SmartGuides`]: alignment lines and distances during a move.
 //! - [`quad`]: transform box geometry, where a box goes when a part of it is dragged.
+//! - [`geom`]: point in polygon, segment clipping, a vector's angle, and a polygon through a
+//!   projective map cut at the camera's near plane.
 //! - [`PartFocus`]: one Tab stop for an overlay made of parts, with Page keys to pick one.
 //! - [`ReferencePoint`]: the 3 × 3 picker of a transform box's reference point.
 //! - [`turn_cursor`]: the rotate pointer outside a transform box's corners; [`distort_cursor`],
@@ -62,6 +64,9 @@ mod crisp;
 mod cursor;
 #[cfg(test)]
 mod cursor_tests;
+pub mod geom;
+#[cfg(test)]
+mod geom_tests;
 mod grid;
 pub mod guides;
 pub mod hit;

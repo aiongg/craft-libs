@@ -10,6 +10,8 @@
 //! - [`Text`] and [`Icon`]: text in a type role and an icon at a size class, in a [`Content`]
 //!   colour.
 //! - [`Handle`]: a canvas handle.
+//! - [`paint`]: painter helpers for what isn't a primitive: vertical gradients, hatching, filled
+//!   polygons of any shape, text that fits a box, ink that reads on a document colour.
 //!
 //! Primitives take semantic properties, never sizes or colours, and read their tokens with
 //! [`Tokens::of`](crate::theme::TokensOf::of). Each resolves its look with a pure `style`
@@ -37,6 +39,9 @@ pub(crate) mod focus_ring;
 pub(crate) mod handle;
 pub(crate) mod icon;
 pub(crate) mod interactive;
+pub mod paint;
+#[cfg(test)]
+mod paint_tests;
 pub(crate) mod stack;
 pub(crate) mod state_layer;
 pub(crate) mod surface;
