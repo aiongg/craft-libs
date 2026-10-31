@@ -206,7 +206,7 @@ fn ok_returns_the_typed_size_results() {
 // Image Size links width and height with a chain; Canvas Size has none.
 #[test]
 fn only_image_size_draws_the_chain() {
-    let mut image = host_with(|dialogs| {
+    let image = host_with(|dialogs| {
         dialogs.open(ImageSizeDialog::new(size(1200, 800, 72.0)));
     });
     image.get_by_label("Constrain proportions");
