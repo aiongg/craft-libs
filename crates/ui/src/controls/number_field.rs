@@ -172,6 +172,8 @@ pub struct NumberField<'a> {
     edit_menu: bool,
     unit_menu: Option<UnitMenu<'a>>,
     presets: Option<&'a [(String, f64)]>,
+    /// The box's width when [`show`](NumberField::show) lays it out beside the preset chevron.
+    box_width: Option<f32>,
 }
 
 /// The preset chevron of [`NumberField::presets`]: an [`IconButton`](super::IconButton) with the
@@ -180,15 +182,11 @@ pub struct NumberField<'a> {
 // pc: crates/ui-egui/src/widgets/metric_field.rs (the chevron and its ComboBox) and
 // kerning_field's PressCombo; one menu here.
 ///
-/// The chevron is allocated after the field in the layout, so it sits flush after the box in a
-/// horizontal layout. `id` is the field's, `label` its accessible name (the chevron is named
-/// after the field it belongs to).
+/// Called inside the horizontal unit [`NumberField::show`] makes of the box and the chevron, so
+/// the chevron sits flush after the box (PhotoCraft's `metric_field` has no gap) and is centred
+/// on it. `id` is the field's, `label` its accessible name.
 fn preset_menu(ui: &mut Ui, id: Id, label: &str, size: ControlSize, presets: &[(String, f64)]) -> Option<f64> {
     let side = IconButton::style(&Tokens::of(ui), size).side;
-    let flush = ui.spacing().item_spacing.x;
-    if ui.layout().main_dir().is_horizontal() {
-        ui.add_space(-flush);
-    }
     let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
     let button = IconButton::new(Icon::ChevronDown, label).size(size).with_id(id.with("craft_ui::number_field::preset_button")).show_at(ui, rect);
     let entries: Vec<MenuEntry<usize>> = presets.iter().enumerate().map(|(i, (name, _))| MenuItem::new(name, i).into()).collect();
@@ -237,6 +235,7 @@ impl<'a> NumberField<'a> {
             edit_menu: true,
             unit_menu: None,
             presets: None,
+            box_width: None,
         }
     }
 
@@ -463,6 +462,24 @@ impl<'a> NumberField<'a> {
 
     /// Shows the field and returns this frame's edit. The response covers the box.
     pub fn show(mut self, ui: &mut Ui) -> EditResponse<f64> {
+        if self.presets.is_some() && self.box_width.is_none() {
+            // The box and the chevron are one unit whatever the parent layout; the chevron's room
+            // comes off a justified layout's width.
+            let side = IconButton::style(&Tokens::of(ui), self.size).side;
+            let justified = ui.layout().horizontal_justify();
+            let available = ui.available_width();
+            return ui
+                .horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    self.box_width = justified.then_some((available - side).max(0.0));
+                    self.show_unit(ui)
+                })
+                .inner;
+        }
+        self.show_unit(ui)
+    }
+
+    fn show_unit(mut self, ui: &mut Ui) -> EditResponse<f64> {
         let bounds = ordered(&self.range);
         if !(bounds.0.is_finite() && bounds.1.is_finite()) {
             debug_assert!(self.popup.is_none(), "a pop-up slider needs a finite range; set .range first");
@@ -512,7 +529,7 @@ impl<'a> NumberField<'a> {
         // composes.
         let arrows = if stepping && ui.memory(|m| m.has_focus(id)) && !Typing::composing(ui, id) { take_arrows(ui) } else { Vec::new() };
 
-        let width = if ui.layout().horizontal_justify() { ui.available_width() } else { style.field.width };
+        let width = self.box_width.unwrap_or_else(|| if ui.layout().horizontal_justify() { ui.available_width() } else { style.field.width });
         let look = TypingLook {
             size: vec2(width, style.field.height),
             margin: margin_x(parts.start, parts.end),
