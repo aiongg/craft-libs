@@ -952,6 +952,65 @@ fn bounds_keep_the_frame_inside_and_the_host_snap_moves_the_dragged_handle() {
     assert_eq!(state(&h).rect, Rect::new(100.0, 80.0, 310.0, 230.0));
 }
 
+fn crop_style() -> super::CropStyle {
+    let appearance =
+        Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let theme = builtins().iter().find(|t| t.id.as_str() == "craft.pro").unwrap().clone();
+    CropFrame::style(&UiTokens::new(resolve(&theme, appearance, None).tokens, appearance, Mode::Dark, FontFamilies::default()))
+}
+
+/// The host-driven calls give the frame that `show` gives for the same gesture.
+#[test]
+fn the_host_driven_press_track_release_match_show() {
+    let style = crop_style();
+    let turned = CropBox { rect: RECT, angle: 20.0 };
+    // (frame, view rotation, view flip, default frame, press point, travel, modifiers): move,
+    // resize a corner in a turned view, turn, draw.
+    let cases = [
+        (CropBox::upright(RECT), 0.0, false, false, Point::new(150.0, 110.0), vec2(30.0, 20.0), Modifiers::NONE),
+        (turned, 40.0, true, false, turned.corners()[2], vec2(14.0, -9.0), Modifiers::SHIFT),
+        (CropBox::upright(RECT), 0.0, false, false, Point::new(350.0, 110.0), vec2(0.0, 40.0), Modifiers::NONE),
+        (CropBox::upright(RECT), 0.0, false, true, Point::new(150.0, 110.0), vec2(40.0, 20.0), Modifiers::ALT),
+    ];
+    for (b, rotation, flip, default_frame, at, by, mods) in cases {
+        let mut h = harness_with(b, rotation, flip, |host| host.default_frame = default_frame);
+        h.run();
+        let (from, to) = (screen(&h, at), screen(&h, at) + by);
+        drag(&mut h, from, to, mods);
+
+        let mut v = view(&h);
+        let f = CropFrame::new("crop", &b, names()).default_frame(default_frame);
+        let mut press = f.press(&v, &style, from).expect("press");
+        assert!(!press.began());
+        assert_eq!(f.track(&mut v, &mut press, from, mods, false), super::CropTrack { begun: false, state: None });
+        let first = f.track(&mut v, &mut press, from.lerp(to, 0.5), mods, false);
+        assert!(first.begun, "{first:?}");
+        let end = f.track(&mut v, &mut press, to, mods, false).state.expect("a frame");
+        assert_eq!(f.release(&mut v, &style, &press, Some(to)), super::CropRelease::Commit(end));
+        assert_eq!(press.last(), &end);
+        assert!(near(&state(&h), &end), "{:?} vs {end:?}", state(&h));
+        assert_eq!(state(&h).angle, end.angle);
+    }
+}
+
+#[test]
+fn the_host_driven_hit_and_double_click_follow_the_frame() {
+    let style = crop_style();
+    let view = CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
+    let b = CropBox::upright(RECT);
+    let f = CropFrame::new("crop", &b, names());
+    let at = |p: Point| view.to_screen(p);
+    assert_eq!(f.hit(&view, &style, at(Point::new(150.0, 110.0))), Some(BoxPart::Inside));
+    assert_eq!(f.hit(&view, &style, at(Point::new(300.0, 220.0))), Some(BoxPart::Corner(2)));
+    assert_eq!(f.hit(&view, &style, at(Point::new(20.0, 20.0))), Some(BoxPart::Outside));
+    assert!(f.double_click(&view, &style, at(Point::new(150.0, 110.0))));
+    assert!(!f.double_click(&view, &style, at(Point::new(300.0, 220.0))));
+    let d = CropFrame::new("crop", &b, names()).default_frame(true);
+    assert!(!d.double_click(&view, &style, at(Point::new(150.0, 110.0))));
+    let s = CropFrame::new("crop", &b, names()).straighten(true);
+    assert_eq!(s.hit(&view, &style, at(Point::new(150.0, 110.0))), None);
+}
+
 #[test]
 fn the_style_is_the_crop_tokens_and_a_halo_shows_in_high_contrast_only() {
     let tokens = |contrast| {

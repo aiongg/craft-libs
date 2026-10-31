@@ -39,7 +39,7 @@ impl GradientOverlay<'_> {
             }
         }
         // Enter and Space are taken only where they ask for a colour; elsewhere they are the host's.
-        if let Some(request) = self.color_request(pass, &shown, part)
+        if let Some(request) = self.color_request(pass.view, pass.style, &shown, part)
             && take(Modifiers::NONE, Key::Enter) + take(Modifiers::NONE, Key::Space) > 0
         {
             out.color_requested = Some(request);

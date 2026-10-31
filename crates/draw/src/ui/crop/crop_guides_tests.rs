@@ -153,7 +153,8 @@ const CANVAS: Color32 = Color32::from_rgb(40, 40, 40);
 fn shield_defaults_match_photoshop() {
     let s = CropShield::default();
     assert!(s.show_cropped_area && s.enabled && s.auto_adjust);
-    assert_eq!((s.color, s.opacity), (ShieldColor::MatchCanvas, 0.75));
+    assert_eq!((s.color, s.opacity), (ShieldColor::MatchCanvas, 75.0));
+    assert!(s.auto_center_preview);
     assert_eq!(s.fill(CANVAS, false), Some(Color32::from_rgba_unmultiplied(40, 40, 40, 191)));
 }
 
@@ -179,9 +180,9 @@ fn a_disabled_shield_leaves_the_outside_undimmed() {
 
 #[test]
 fn custom_colour_and_match_canvas() {
-    let s = CropShield { color: ShieldColor::Custom, custom_color: [200, 10, 30], opacity: 1.0, ..Default::default() };
+    let s = CropShield { color: ShieldColor::Custom, custom_color: [200, 10, 30], opacity: 100.0, ..Default::default() };
     assert_eq!(s.fill(CANVAS, false), Some(Color32::from_rgb(200, 10, 30)));
-    let s = CropShield { opacity: 1.0, ..Default::default() };
+    let s = CropShield { opacity: 100.0, ..Default::default() };
     assert_eq!(s.fill(Color32::from_rgb(184, 184, 184), false), Some(Color32::from_rgb(184, 184, 184)));
 }
 
@@ -193,21 +194,21 @@ fn hidden_cropped_area_is_opaque_canvas_whatever_the_shield() {
             enabled,
             color: ShieldColor::Custom,
             custom_color: [255, 0, 0],
-            opacity: 0.1,
+            opacity: 10.0,
             ..Default::default()
         };
         assert_eq!(s.fill(CANVAS, false), Some(CANVAS));
         assert_eq!(s.fill(CANVAS, true), Some(CANVAS));
     }
     // Classic mode keeps the cropped area shown whatever the stored choice.
-    let s = CropShield { show_cropped_area: false, classic_mode: true, opacity: 1.0, ..Default::default() };
+    let s = CropShield { show_cropped_area: false, classic_mode: true, opacity: 100.0, ..Default::default() };
     assert_eq!(s.fill(CANVAS, false), Some(CANVAS));
     let s = CropShield {
         show_cropped_area: false,
         classic_mode: true,
         color: ShieldColor::Custom,
         custom_color: [9, 9, 9],
-        opacity: 1.0,
+        opacity: 100.0,
         ..Default::default()
     };
     assert_eq!(s.fill(CANVAS, false), Some(Color32::from_rgb(9, 9, 9)));
@@ -215,11 +216,20 @@ fn hidden_cropped_area_is_opaque_canvas_whatever_the_shield() {
 
 #[test]
 fn stray_opacities_are_clamped() {
-    for (o, want) in [(f32::NAN, 0.75), (f32::INFINITY, 0.75), (f32::NEG_INFINITY, 0.75), (-0.2, 0.0), (2.5, 1.0), (0.4, 0.4)] {
+    for (o, want) in [(f32::NAN, 0.75), (f32::INFINITY, 0.75), (f32::NEG_INFINITY, 0.75), (-20.0, 0.0), (250.0, 1.0), (40.0, 0.4)] {
         let s = CropShield { opacity: o, ..Default::default() };
         assert!((s.opacity() - want).abs() < 1e-6, "{o}");
         assert_eq!(s.fill(CANVAS, false).map_or(0, |c| c.to_srgba_unmultiplied()[3]), (want * 255.0f32).round() as u8, "{o}");
     }
+}
+
+/// The opacity is stored and edited as a percent, as PhotoCraft's settings file has it.
+#[test]
+fn opacity_is_a_percent() {
+    let s = CropShield { opacity: 50.0, ..Default::default() };
+    assert!((s.opacity() - 0.5).abs() < 1e-6);
+    assert_eq!(s.fill(CANVAS, false), Some(Color32::from_rgba_unmultiplied(40, 40, 40, 128)));
+    assert_eq!(s.fill(CANVAS, true).map(|c| c.a()), Some(64));
 }
 
 #[cfg(feature = "serde")]

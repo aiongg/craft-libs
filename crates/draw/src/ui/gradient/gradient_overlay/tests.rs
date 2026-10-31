@@ -6,7 +6,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::Point;
 
 use super::story::{LineHost, english_names};
-use super::{GradientOverlay, LineCursor};
+use super::{GradientLineStyle, GradientOverlay, LineCursor, LineRelease};
 use crate::ui::gradient::stops::sample;
 use crate::ui::gradient::{ColorStop, GradientLabels, GradientStops, StopRef, StopRow, StopRows, StopRules};
 use crate::ui::gradient::{GradientExtent, GradientLine, LineGradient, LinePart};
@@ -16,7 +16,7 @@ use craft_ui::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, Ruler
 use craft_ui::edit::{self, CancelReason, EditEvent, GestureHost};
 use craft_ui::localized::LocaleNumbers;
 use craft_ui::testing::TypingField;
-use craft_ui::theme::{Base, install};
+use craft_ui::theme::{Base, current, install};
 
 const LINE: GradientLine = GradientLine { start: Point::new(100.0, 150.0), end: Point::new(300.0, 150.0) };
 
@@ -1201,4 +1201,85 @@ fn a_carried_on_drag_ends_when_its_stop_or_midpoint_cannot_be_identified() {
     // A change that leaves the stop identified goes on (the existing carry-on test covers it).
     let (now, set, _) = drag_then_set(0.3, |g| g.stops.color[3].color = Srgba::rgb(0.0, 1.0, 0.0));
     assert_ne!(now.stops.color[1].location, set.stops.color[1].location);
+}
+
+fn line_style() -> GradientLineStyle {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    GradientOverlay::style(&current(&ctx))
+}
+
+/// The host-driven calls give the gradient, the selection and the stop that `show` gives for the
+/// same gesture.
+#[test]
+fn the_host_driven_press_track_release_match_show() {
+    let style = line_style();
+    // (press at location or point, travel, modifiers, expected part)
+    let cases = [
+        (0.3, vec2(80.0, 5.0), Modifiers::NONE, LinePart::Stop(1)),
+        (0.3, vec2(5.0, 60.0), Modifiers::NONE, LinePart::Stop(1)),
+        (0.225, vec2(20.0, 30.0), Modifiers::NONE, LinePart::Line),
+        (0.45, vec2(30.0, 0.0), Modifiers::NONE, LinePart::Midpoint(1)),
+        (1.0, vec2(-60.0, 40.0), Modifiers::SHIFT, LinePart::End),
+    ];
+    for (t, by, mods, part) in cases {
+        let mut h = harness(|_| {});
+        h.run();
+        let view = h.state().view.expect("drawn");
+        let from = spots(&h).t(t);
+        drag(&mut h, from, from + by, mods);
+
+        let base = gradient();
+        let overlay = GradientOverlay::new("gradient", &base.line, &base.stops, english_names());
+        assert_eq!(overlay.hit(&view, &style, from, mods), Some(part));
+        let mut press = overlay.press(&view, &style, from, mods).expect("a press");
+        assert_eq!((press.part(), press.began()), (part, false));
+        assert_eq!(overlay.track(&view, &style, &mut press, from, mods).state, None);
+        assert!(overlay.track(&view, &style, &mut press, from.lerp(from + by, 0.5), mods).begun);
+        let end = overlay.track(&view, &style, &mut press, from + by, mods);
+        let state = end.state.expect("a gradient");
+        assert_eq!(overlay.release(&view, &press), LineRelease::Commit(state.clone()), "{part:?}");
+        assert_eq!(state, value(&h), "{part:?}");
+        if matches!(part, LinePart::Stop(_)) {
+            assert_eq!(end.selected.flatten(), selected(&h), "{part:?}");
+        }
+    }
+
+    // A click on the line adds a stop and selects it; a torn-off stop is removed.
+    let mut h = harness(|_| {});
+    h.run();
+    let view = h.state().view.expect("drawn");
+    let at = spots(&h).t(0.725);
+    drag(&mut h, at, at, Modifiers::NONE);
+    let base = gradient();
+    let overlay = GradientOverlay::new("gradient", &base.line, &base.stops, english_names());
+    let mut press = overlay.press(&view, &style, at, Modifiers::NONE).expect("a press");
+    assert!(!overlay.track(&view, &style, &mut press, at, Modifiers::NONE).begun);
+    assert_eq!(overlay.release(&view, &press), LineRelease::Add { value: value(&h), selected: selected(&h).expect("selected") });
+
+    let mut h = harness(|_| {});
+    h.run();
+    let from = spots(&h).t(0.3);
+    drag(&mut h, from, from + vec2(0.0, 90.0), Modifiers::NONE);
+    let mut press = overlay.press(&view, &style, from, Modifiers::NONE).expect("a press");
+    let torn = overlay.track(&view, &style, &mut press, from + vec2(0.0, 90.0), Modifiers::NONE);
+    assert!(press.torn() && torn.selected == Some(None));
+    assert_eq!(torn.state, Some(value(&h)));
+}
+
+#[test]
+fn the_host_driven_hit_and_double_click_follow_the_modifiers_and_the_parts() {
+    let style = line_style();
+    let view = CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
+    let base = gradient();
+    let overlay = GradientOverlay::new("gradient", &base.line, &base.stops, english_names());
+    let at = |x: f64, y: f64| view.to_screen(Point::new(x, y));
+    assert_eq!(overlay.hit(&view, &style, at(100.0, 150.0), Modifiers::COMMAND), None);
+    assert_eq!(overlay.hit(&view, &style, at(200.0, 40.0), Modifiers::NONE), None);
+    assert_eq!(overlay.hit(&view, &style, at(300.0, 150.0), Modifiers::NONE), Some(LinePart::End));
+    assert_eq!(overlay.double_click(&view, &style, at(300.0, 150.0)).map(|(i, _)| i), Some(3));
+    assert_eq!(overlay.double_click(&view, &style, at(190.0, 150.0)), None);
+    let frozen = GradientOverlay::new("gradient", &base.line, &base.stops, english_names()).editable(false);
+    assert_eq!(frozen.hit(&view, &style, at(300.0, 150.0), Modifiers::NONE), None);
+    assert!(frozen.press(&view, &style, at(300.0, 150.0), Modifiers::NONE).is_none());
 }

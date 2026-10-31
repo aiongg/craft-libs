@@ -39,7 +39,9 @@ pub use swatch::GradientSwatch;
 pub use value::{ColorStop, GradientStops, OpacityStop, StopRow, StopRows};
 
 pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
-pub use gradient_overlay::{GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor};
+pub use gradient_overlay::{
+    GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor, LinePress, LineRelease, LineTrack,
+};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["GradientSwatch", "GradientEditor", "GradientPalette"];
