@@ -140,11 +140,11 @@ pub struct ColorPickerResponse {
 /// - AccessKit: a `Group` named `label`; the channel fields and sliders are named by the
 ///   channel's full name ("Hue"), or "<model> <channel>" ("OKLCH hue") while another model on
 ///   show has a channel of that name (the rows' and the area's models in Compact, every model in
-///   Full; the strip and the row label follow it); the hex field "Hex colour", the eyedropper by
+///   Full; the strip and the row label follow it); the hex field "Hex color", the eyedropper by
 ///   the host's label.
 ///   Full: the radios are a `RadioGroup` "Field shows" with a `RadioButton` per channel, named
-///   by the channel's full name; the compare swatch's halves are an `Image` "New colour" and a
-///   `Button` "Restore current colour", each with its colour's hex as value; each warning a
+///   by the channel's full name; the compare swatch's halves are an `Image` "New color" and a
+///   `Button` "Restore current color", each with its colour's hex as value; each warning a
 ///   `Button` named by its tip; with [`web_colors`](ColorPicker::web_colors) a `CheckBox`
 ///   "Only Web Colors" under the strip (Ctrl+Tab reaches it in a [`FieldTab`](craft_ui::behavior::FieldTab)
 ///   scope, as it does every control but the fields).
@@ -181,17 +181,17 @@ type Translate<'a> = dyn Fn(&'static str) -> String + 'a;
 /// The picker's own words and templates, English: the keys [`ColorPicker::text`] translates.
 pub(super) mod texts {
     pub(crate) const OPACITY: &str = "Opacity";
-    pub(crate) const HEX_COLOUR: &str = "Hex colour";
+    pub(crate) const HEX_COLOUR: &str = "Hex color";
     /// The model switch's accessible name; `{model}` is the model's translated name.
-    pub(crate) const COLOUR_MODEL: &str = "Colour model: {model}";
+    pub(crate) const COLOUR_MODEL: &str = "Color model: {model}";
     pub(crate) const NOT_HEX: &str = super::hex::NOT_HEX;
     /// A percentage in a field; `{n}` is the number.
     pub(crate) const PERCENT: &str = "{n}%";
     pub(crate) const FIELD_SHOWS: &str = "Field shows";
     pub(crate) const NEW: &str = "new";
     pub(crate) const CURRENT: &str = "current";
-    pub(crate) const NEW_COLOUR: &str = "New colour";
-    pub(crate) const RESTORE: &str = "Restore current colour";
+    pub(crate) const NEW_COLOUR: &str = "New color";
+    pub(crate) const RESTORE: &str = "Restore current color";
     /// A channel's label in the Full grid; `{label}` is the channel's translated short label.
     pub(crate) const GRID_LABEL: &str = "{label}:";
     pub(crate) const ONLY_WEB_COLORS: &str = "Only Web Colors";
@@ -916,7 +916,7 @@ fn at_end<R>(ui: &mut Ui, width: f32, add: impl FnOnce(&mut Ui) -> R) -> R {
 
 /// The model switch under the rows (PhotoCraft's "HSB/HSL" / "RGB Color" press-menu button): a
 /// button with the current model's name opens a menu of the models, one radio item each. The
-/// button's accessible name is "Colour model: <model>", which holds its visible label. Returns
+/// button's accessible name is "Color model: <model>", which holds its visible label. Returns
 /// the model chosen.
 fn model_switch(
     ui: &mut Ui,

@@ -7,10 +7,13 @@
 
 use egui::Context;
 
+use craft_cms::ColorSpace;
 use craft_cms::profile::Profile;
 use craft_ui::controls::{Checkbox, RadioGroup};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, Outcome, StackDialog, dialog_id};
 use craft_ui::localized::Labels as _;
+
+use crate::display::MonitorProblem;
 
 craft_ui::words! {
     /// The profile prompts' words, English by default.
@@ -39,6 +42,12 @@ craft_ui::words! {
         untagged: "profile.untagged" = "Untagged {mode}";
         invalid: "profile.invalid" = "Invalid {mode} profile";
         unnamed: "profile.unnamed" = "Unnamed {mode} profile";
+        /// A monitor profile that is not RGB; `{profile}` is its name, `{space}` its colour space.
+        monitor_not_rgb: "profile.monitorNotRgb" = "“{profile}” is a {space} profile, not an RGB profile.";
+        /// A monitor profile that cannot be used; `{profile}` is its name, `{reason}` the engine's text.
+        monitor_cannot_link: "profile.monitorCannotLink" = "“{profile}” can't be used as a display profile: {reason}";
+        /// A monitor profile that does not parse; `{reason}` is the parser's text.
+        monitor_unreadable: "profile.monitorUnreadable" = "The display profile can't be read: {reason}";
     }
 }
 
@@ -56,6 +65,26 @@ impl ProfileMode {
             ProfileMode::Rgb => &labels.rgb,
             ProfileMode::Cmyk => &labels.cmyk,
             ProfileMode::Gray => &labels.gray,
+        }
+    }
+}
+
+impl MonitorProblem {
+    /// The reason a monitor profile was not used, in the labels' words.
+    pub fn label(&self, labels: &ProfileLabels) -> String {
+        match self {
+            MonitorProblem::NotRgb { description, space } => {
+                let space = match space {
+                    ColorSpace::Cmyk => labels.cmyk.clone(),
+                    ColorSpace::Gray => labels.gray.clone(),
+                    other => format!("{other:?}").to_uppercase(),
+                };
+                craft_i18n::fmt(&labels.monitor_not_rgb, &[("profile", description), ("space", &space)])
+            }
+            MonitorProblem::CannotLink { description, reason } => {
+                craft_i18n::fmt(&labels.monitor_cannot_link, &[("profile", description), ("reason", reason)])
+            }
+            MonitorProblem::Unreadable { reason } => craft_i18n::fmt(&labels.monitor_unreadable, &[("reason", reason)]),
         }
     }
 }

@@ -15,17 +15,19 @@
 //! use craft_color::ui::ScreenColorPicker;
 //! # fn app(ctx: &egui::Context) {
 //! ScreenColorPicker::tick(ctx, 0); // once per pass, before shortcuts: Esc belongs to the picker
+//! ScreenColorPicker::set_monitor(ctx, &craft_cms::Builtin::Srgb.profile()); // the main window's monitor profile
 //! // … the app's UI, where a picker's button may start a pick …
 //! ScreenColorPicker::show(ctx);     // once per pass, after the UI: the capture windows
 //! # }
 //! ```
 
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
 
 use craft_cms::{Builtin, Intent, Profile, Transform};
+use craft_host::Wake;
 use craft_platform::screen::{self, Capture, CaptureHandle, ScreenError, ScreenImage};
 use craft_theme::{Srgba, TypeRole};
+use craft_ui::composites::{StatusLine, Tone};
 use craft_ui::controls::IconButton;
 use craft_ui::icons::Icon;
 use craft_ui::localized::SharedLabels;
@@ -90,19 +92,43 @@ pub struct ScreenColorPicker;
 const POINTER_OFFSET: f32 = 24.0;
 
 /// A capture's result as the picker receives it.
-pub(super) type CaptureResult = Result<Capture, ScreenError>;
+pub type CaptureResult = Result<Capture, ScreenError>;
 
 /// What a pick resolves to: the colour, `Ok(None)` for a cancel, or a notice for the status bar.
 type Answer = Result<Option<Srgba>, String>;
 
-/// Where the captures come from: the platform capture, or a fake one in tests.
-pub(super) trait Source: Send {
+/// Where the captures come from: the platform capture ([`CaptureHandle`]), or a fake one in
+/// tests and stories ([`StillCapture`]).
+pub trait CaptureSource: Send {
+    /// The capture's result once it has finished; `None` while it runs.
     fn poll(&self) -> Option<CaptureResult>;
 }
 
-impl Source for CaptureHandle {
+impl CaptureSource for CaptureHandle {
     fn poll(&self) -> Option<CaptureResult> {
         self.try_take()
+    }
+}
+
+/// A capture that has already finished with a fixed result: what a story or an app's test gives
+/// [`ScreenColorPicker::tick_with`] in place of the screen.
+pub struct StillCapture(Mutex<Option<CaptureResult>>);
+
+impl StillCapture {
+    /// A capture that answers with `result` on the first poll.
+    pub fn new(result: CaptureResult) -> StillCapture {
+        StillCapture(Mutex::new(Some(result)))
+    }
+
+    /// A capture that answers with one picked colour, as the Wayland portal does.
+    pub fn color(color: Srgba) -> StillCapture {
+        StillCapture::new(Ok(Capture::Color([color.r, color.g, color.b])))
+    }
+}
+
+impl CaptureSource for StillCapture {
+    fn poll(&self) -> Option<CaptureResult> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).take()
     }
 }
 
@@ -210,7 +236,7 @@ pub(super) struct Runtime {
     request: Option<Id>,
     /// The owner of the running pick.
     owner: Option<Id>,
-    source: Option<Box<dyn Source>>,
+    source: Option<Box<dyn CaptureSource>>,
     pub(super) images: Vec<Snapshot>,
     /// How the running pick ends, set by the capture windows, `tick` and `cancel`.
     answer: Option<Answer>,
@@ -223,6 +249,9 @@ pub(super) struct Runtime {
     target: Option<u64>,
     /// The widget whose press is being tracked by `hold_drag`, with the app's last frame.
     hold: Option<Hold>,
+    /// The main window's monitor profile (monitor to sRGB), set by `set_monitor`; the app's
+    /// frame holds monitor values.
+    monitor: Option<(u64, Option<Arc<Transform>>)>,
 }
 
 struct Hold {
@@ -260,10 +289,15 @@ impl ScreenColorPicker {
     // pc: crates/ui-egui/src/dialogs/screen_picker.rs:144 `tick` (on `craft_platform::screen::capture`
     // in place of the `Services::screen_pick` closure).
     pub fn tick(ctx: &Context, target: u64) {
-        Self::tick_with(ctx, target, &|| Box::new(screen::capture(ctx.native_pixels_per_point().unwrap_or(1.0))));
+        Self::tick_with(ctx, target, &|| {
+            let repaint = ctx.clone();
+            Box::new(screen::capture(ctx.native_pixels_per_point().unwrap_or(1.0), Wake::new(move || repaint.request_repaint())))
+        });
     }
 
-    pub(super) fn tick_with(ctx: &Context, target: u64, start: &dyn Fn() -> Box<dyn Source>) {
+    /// [`tick`](Self::tick) with `start` making the capture, for a story or a test that has no
+    /// screen to capture.
+    pub fn tick_with(ctx: &Context, target: u64, start: &dyn Fn() -> Box<dyn CaptureSource>) {
         let shared = runtime(ctx);
         let mut s = lock(&shared);
         if s.completed.is_some() && s.target != Some(target) {
@@ -319,8 +353,6 @@ impl ScreenColorPicker {
                 Ok(None) => {}
                 Err(notice) => s.notice = Some(notice),
             }
-        } else {
-            ctx.request_repaint_after(Duration::from_millis(16));
         }
     }
 
@@ -403,8 +435,27 @@ impl ScreenColorPicker {
 
     /// The last pick's notice (denied, unsupported, failed), once, for the status bar.
     // new: PhotoCraft's service closure reported errors to the app itself.
-    pub fn take_notice(ctx: &Context) -> Option<String> {
-        lock(&runtime(ctx)).notice.take()
+    pub fn take_notice(ctx: &Context) -> Option<StatusLine> {
+        lock(&runtime(ctx)).notice.take().map(|text| StatusLine { text, tone: Tone::Bad })
+    }
+
+    /// The monitor profile the app's own frame is shown through: the main window's
+    /// ([`DisplayCaches::monitor_for`](crate::display::DisplayCaches::monitor_for)). Call it each pass;
+    /// [`hold_drag`](Self::hold_drag) converts the sampled frame back to sRGB through it. Without
+    /// a call the frame counts as sRGB.
+    pub fn set_monitor(ctx: &Context, monitor: &Profile) {
+        let shared = runtime(ctx);
+        let mut s = lock(&shared);
+        let hash = monitor.content_hash();
+        if s.monitor.as_ref().is_some_and(|(known, _)| *known == hash) {
+            return;
+        }
+        let back = if monitor.same_colors(Builtin::Srgb.profile()) {
+            None
+        } else {
+            Transform::new(monitor, Builtin::Srgb.profile(), Intent::RelativeColorimetric, true).ok().map(Arc::new)
+        };
+        s.monitor = Some((hash, back));
     }
 
     /// Whether the platform can capture the screen: not on wasm, and not after a capture came
@@ -435,7 +486,8 @@ impl ScreenColorPicker {
 
     /// Photoshop's gesture inside the app's own windows: while a press that began on `button`
     /// is held and dragged, the pixel under the pointer in the app's last frame is sampled live
-    /// (through `ViewportCommand::Screenshot`) and returned each pass; a release outside the
+    /// (through `ViewportCommand::Screenshot`) and returned each pass, converted from the
+    /// monitor's profile ([`set_monitor`](Self::set_monitor)) to sRGB; a release outside the
     /// app's windows starts the capture view at once instead.
     // new: Q-S4C-5 (both behaviours behind one picker).
     pub fn hold_drag(ui: &Ui, button: &Response, owner: Id) -> Option<Srgba> {
@@ -455,9 +507,10 @@ impl ScreenColorPicker {
         hold.dragged |= dragging;
         let frame = hold.frame.clone();
         let dragged = hold.dragged;
+        let back = s.monitor.as_ref().and_then(|(_, back)| back.clone());
         let sample = || {
             let image = frame.lock().unwrap_or_else(|e| e.into_inner()).clone()?;
-            sample_frame(&image, ctx.content_rect(), inside?)
+            sample_frame(&image, ctx.content_rect(), inside?, back.as_deref())
         };
         if down {
             if dragged {
@@ -485,15 +538,20 @@ impl ScreenColorPicker {
     }
 }
 
-/// The colour of the app's frame under `pos`, when the frame covers `rect`.
-fn sample_frame(image: &egui::ColorImage, rect: Rect, pos: Pos2) -> Option<Srgba> {
+/// The colour of the app's frame under `pos`, when the frame covers `rect`; the frame holds
+/// monitor values, `back` takes them to sRGB.
+fn sample_frame(image: &egui::ColorImage, rect: Rect, pos: Pos2, back: Option<&Transform>) -> Option<Srgba> {
     let [w, h] = image.size;
     let p = (pos - rect.min) / rect.size();
     if w == 0 || h == 0 || !(0.0..1.0).contains(&p.x) || !(0.0..1.0).contains(&p.y) {
         return None;
     }
     let c = image.pixels.get(((p.y * h as f32) as usize) * w + (p.x * w as f32) as usize)?;
-    Some(Srgba::from_rgb_array([c.r(), c.g(), c.b()].map(|v| f32::from(v) / 255.0)))
+    let mut rgb = [c.r(), c.g(), c.b()].map(|v| f32::from(v) / 255.0);
+    if let Some(back) = back {
+        back.apply(&mut rgb, 3).ok()?;
+    }
+    Some(Srgba::from_rgb_array(rgb.map(|v| v.clamp(0.0, 1.0))))
 }
 
 fn viewport(generation: u64, n: usize) -> ViewportId {

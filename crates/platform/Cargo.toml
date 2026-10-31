@@ -34,7 +34,7 @@ open = ["dep:craft-host"]
 # `autosave`: the autosave timer and the recovery folder.
 autosave = ["dep:serde", "dep:serde_json", "dep:craft-atomic"]
 # Screen capture for the screen colour picker (`craft_platform::screen`).
-screen = ["dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", "dep:x11rb", "dep:core-graphics2", "dep:xcap"]
+screen = ["dep:craft-host", "dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", "dep:x11rb", "dep:core-graphics2", "dep:xcap"]
 
 [dependencies]
 egui = { workspace = true, optional = true }

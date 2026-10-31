@@ -10,6 +10,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 
+use craft_host::Wake;
+
 /// One monitor's capture.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScreenImage {
@@ -84,17 +86,26 @@ impl Drop for CaptureHandle {
 /// Starts capturing on a worker thread: every monitor's image, in monitor order with the primary
 /// first (sizes validated against [`MAX_PIXELS`] per image), or on Wayland the one colour the
 /// compositor's picker returns. `scale` is the app's native pixels per point, the monitors'
-/// scale on X11, which reports none.
-pub fn capture(scale: f32) -> CaptureHandle {
+/// scale on X11, which reports none. `wake` runs once the result (or a failure) is ready to
+/// take, so the UI polls with [`CaptureHandle::try_take`] only in the frame that follows.
+pub fn capture(scale: f32, wake: Wake) -> CaptureHandle {
+    spawn(wake, move |stop| run(stop, scale))
+}
+
+/// Runs `job` on the capture thread and calls `wake` after its result is queued.
+fn spawn(wake: Wake, job: impl FnOnce(&AtomicBool) -> Result<Capture, ScreenError> + Send + 'static) -> CaptureHandle {
     let stop = Arc::new(AtomicBool::new(false));
     let (tx, rx) = std::sync::mpsc::channel();
     let worker_stop = stop.clone();
     let fallback = tx.clone();
+    let worker_wake = wake.clone();
     let spawned = std::thread::Builder::new().name("screen-capture".into()).spawn(move || {
-        let _ = tx.send(run(&worker_stop, scale));
+        let _ = tx.send(job(&worker_stop));
+        worker_wake.wake();
     });
     if let Err(e) = spawned {
         let _ = fallback.send(Err(ScreenError::Failed(format!("could not start the capture thread: {e}"))));
+        wake.wake();
     }
     CaptureHandle { stop, result: rx }
 }
@@ -546,6 +557,20 @@ mod backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The worker queues the result, then wakes the UI.
+    #[test]
+    fn the_wake_runs_once_the_result_can_be_taken() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let handle = spawn(
+            Wake::new(move || {
+                let _ = tx.send(());
+            }),
+            |_| Ok(Capture::Color([0.0, 1.0, 0.0])),
+        );
+        rx.recv_timeout(std::time::Duration::from_secs(10)).expect("the capture thread wakes the UI");
+        assert_eq!(handle.try_take(), Some(Ok(Capture::Color([0.0, 1.0, 0.0]))));
+    }
 
     /// The portal's colour passes through as sRGB; a channel outside 0 to 1 fails.
     #[test]

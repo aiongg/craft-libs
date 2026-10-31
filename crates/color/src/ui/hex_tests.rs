@@ -33,7 +33,7 @@ impl Rig {
         self.time += 1.0 / 60.0;
         let ctx = self.ctx.clone();
         let output = ctx.run_ui(input, |ui| {
-            let edit = HexField::new("hex", "Hex colour", self.color).digits(self.digits).alpha(self.alpha).show(ui);
+            let edit = HexField::new("hex", "Hex color", self.color).digits(self.digits).alpha(self.alpha).show(ui);
             self.id = edit.response.id;
             if let Some(c) = edit.event.as_ref().and_then(|e| e.value()) {
                 self.color = *c;
@@ -42,7 +42,7 @@ impl Rig {
         let nodes = output.platform_output.accesskit_update.clone().map(|u| u.nodes).unwrap_or_default();
         self.text = nodes
             .iter()
-            .find(|(_, n)| n.role() == Role::TextInput && n.label() == Some("Hex colour"))
+            .find(|(_, n)| n.role() == Role::TextInput && n.label() == Some("Hex color"))
             .and_then(|(_, n)| n.value().map(str::to_owned))
             .unwrap_or_default();
         output.drop_without_applying_deltas();

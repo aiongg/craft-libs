@@ -7,8 +7,8 @@
 //! # fn demo(ctx: &egui::Context, dialogs: &mut DialogHost, foreground: &mut craft_theme::Srgba) {
 //! dialogs.open(ColorPickerDialog::foreground(*foreground));
 //! dialogs.show(ctx);
-//! if let Some(DialogResult::Ok(ColorPickerResult { color, .. })) = dialogs.take::<ColorPickerDialog>() {
-//!     *foreground = color.color;
+//! if let Some(DialogResult::Ok(ColorPickerResult { picked, .. })) = dialogs.take::<ColorPickerDialog>() {
+//!     *foreground = picked.color;
 //! }
 //! # }
 //! ```
@@ -18,8 +18,8 @@ use craft_host::Host;
 use craft_settings::Remembered;
 use craft_theme::{ColorModel, Srgba, builtin_models};
 use craft_ui::dialog::{
-    ButtonRole, Dialog, DialogId, DialogLabels, DialogResult, DialogStack, DialogState, Footer, FooterButton, InitialFocus, Outcome, StackDialog,
-    dialog_id,
+    ButtonRole, ColorRequest, Dialog, DialogId, DialogLabels, DialogResult, DialogStack, DialogState, Footer, FooterButton, InitialFocus, Outcome,
+    StackDialog, dialog_id,
 };
 use craft_ui::localized::{Labels, LocaleNumbers};
 use egui::{Context, Id, IdSalt};
@@ -30,28 +30,26 @@ use crate::{AreaMode, CmykModel, not_web_safe, web_safe};
 /// The picker's id salt inside the dialog.
 const PICKER: &str = "picker";
 
-/// How far the CMYK round trip may move a colour before it counts as out of gamut (PhotoCraft's
-/// `GAMUT_DE`).
-const GAMUT_DE: f32 = 3.0;
-
 craft_ui::words! {
     /// The Color Picker dialog's own words, English by default. The picker body's words are
     /// [`ColorPicker`](super::ColorPicker)'s; OK and Cancel are [`DialogLabels`](craft_ui::dialog::DialogLabels).
     #[non_exhaustive]
     pub struct ColorPickerLabels {
+        /// The title when a component's request gives none.
+        title: "colorPicker.title" = "Color Picker";
         foreground_title: "colorPicker.foregroundTitle" = "Color Picker (Foreground Color)";
         background_title: "colorPicker.backgroundTitle" = "Color Picker (Background Color)";
         /// The title for another colour; `{name}` is its name ("Color Picker (Vine Color)").
         named_title: "colorPicker.namedTitle" = "Color Picker ({name})";
         add_to_swatches: "colorPicker.addToSwatches" = "Add to Swatches";
-        out_of_gamut: "colorPicker.outOfGamut" = "Out of gamut for printing: click for the nearest printable colour";
-        not_web_color: "colorPicker.notWebColor" = "Not a web colour: click for the nearest web colour";
+        out_of_gamut: "colorPicker.outOfGamut" = "Out of gamut for printing: click for the nearest printable color";
+        not_web_color: "colorPicker.notWebColor" = "Not a web color: click for the nearest web color";
         pick_screen_color: "colorPicker.pickScreenColor" = "Pick screen color";
     }
 }
 
 /// What the picker keeps across opens and runs ([`Remembered`](craft_settings::Remembered) under
-/// the scope [`ColorPickerMemory::SCOPE`]): the component the field shows and Only Web Colors,
+/// the scope `colorPicker.memory`): the component the field shows and Only Web Colors,
 /// as Photoshop. Stored when the dialog closes with OK.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -60,10 +58,8 @@ pub struct ColorPickerMemory {
     pub web_colors: bool,
 }
 
-impl ColorPickerMemory {
-    /// The remembered scope.
-    pub const SCOPE: &'static str = "colorPicker";
-}
+/// The remembered scope of [`ColorPickerMemory`].
+pub(super) const MEMORY_SCOPE: &str = "colorPicker.memory";
 
 /// What a [`ColorPickerDialog`] answers with OK: the key it was opened with (which colour it was
 /// for) and the colour.
@@ -73,12 +69,13 @@ pub struct ColorPickerResult {
     pub key: String,
     /// The colour, with the model values the user typed while they still give it (CMYK inks,
     /// Lab values outside sRGB).
-    pub color: PickedColor,
+    pub picked: PickedColor,
 }
 
 /// The dialog's title: given by the app, or one of the two the library words.
 #[derive(Clone, Debug, PartialEq)]
 enum Title {
+    Default,
     Foreground,
     Background,
     Given(String),
@@ -96,8 +93,8 @@ enum Title {
 ///   nearest web colour and the compare swatch's "current" half shows the snapped colour, so OK
 ///   without an edit changes nothing (PhotoCraft #4995).
 /// - **Compare swatch:** "new" over "current"; a click on "current" sets the colour back.
-/// - **Warnings:** with a [`gamut`](Self::gamut), the out-of-gamut chip shows when the colour
-///   leaves the CMYK gamut (ΔE over 3); with Only Web Colors off, the web-colour chip shows for a
+/// - **Warnings:** the out-of-gamut chip shows when the colour
+///   leaves the CMYK gamut of the [`cmyk`](Self::cmyk) converter (ΔE over 3); with Only Web Colors off, the web-colour chip shows for a
 ///   colour that is not one. A click on a chip takes its nearest colour.
 /// - **Eyedropper:** while the dialog is the top dialog, the canvas samples into the new colour
 ///   ([`DropperState`](super::DropperState), armed by the dialog; the app's canvas delivers), as
@@ -124,7 +121,7 @@ pub struct ColorPickerDialog {
     compare: bool,
     remember: bool,
     add_to_swatches: bool,
-    gamut: Option<CmykConverter>,
+    cmyk: Option<CmykConverter>,
     eyedropper: bool,
     canvas_samples: bool,
     memory: ColorPickerMemory,
@@ -137,6 +134,15 @@ pub struct ColorPickerDialog {
 }
 
 impl ColorPickerDialog {
+    /// A picker for what a component's [`ColorRequest`] asked: its key, its title (the default
+    /// title when it has none) and its colour. The app opens it on its `DialogHost` and answers
+    /// the component with the result's `key` and `picked.color`.
+    pub fn from_request(request: ColorRequest) -> ColorPickerDialog {
+        let ColorRequest { key, title, color } = request;
+        let title = title.map_or(Title::Default, Title::Given);
+        ColorPickerDialog::with_title(key, title, color)
+    }
+
     /// A picker for the colour `key` names, titled `title` (translated by the app), opening on
     /// `color`.
     pub fn new(key: impl Into<String>, title: impl Into<String>, color: Srgba) -> ColorPickerDialog {
@@ -164,7 +170,7 @@ impl ColorPickerDialog {
             compare: true,
             remember: true,
             add_to_swatches: true,
-            gamut: None,
+            cmyk: None,
             eyedropper: true,
             canvas_samples: true,
             memory: ColorPickerMemory::default(),
@@ -209,8 +215,8 @@ impl ColorPickerDialog {
     /// ([`CmykModel`](crate::CmykModel)) and the out-of-gamut chip tests against it. Without it
     /// the dialog uses the built-in coated converter ([`CmykConverter::coated`]), as PhotoCraft
     /// does for a document without a CMYK profile.
-    pub fn gamut(mut self, converter: &CmykConverter) -> ColorPickerDialog {
-        self.gamut = Some(converter.clone());
+    pub fn cmyk(mut self, converter: &CmykConverter) -> ColorPickerDialog {
+        self.cmyk = Some(converter.clone());
         self
     }
 
@@ -286,13 +292,14 @@ impl StackDialog for ColorPickerDialog {
         }
 
         let title = match &self.title {
+            Title::Default => labels.title.clone(),
             Title::Foreground => labels.foreground_title.clone(),
             Title::Background => labels.background_title.clone(),
             Title::Given(title) => title.clone(),
         };
         let numbers = LocaleNumbers::of_ctx(ctx);
         let alt = ctx.input(|i| i.modifiers.alt);
-        let cmyk = CmykModel::new(self.gamut.clone().unwrap_or_else(|| CmykConverter::coated().clone()));
+        let cmyk = CmykModel::new(self.cmyk.clone().unwrap_or_else(|| CmykConverter::coated().clone()));
         let screen = self.eyedropper && ScreenColorPicker::available(ctx);
         let mut actions = vec![
             FooterButton::new(ButtonRole::Default, words.ok.clone()),
@@ -330,7 +337,7 @@ impl StackDialog for ColorPickerDialog {
                     body = body.compare(opening.color);
                 }
                 let rgb = [color.r, color.g, color.b];
-                if let Some(nearest) = cmyk.converter().nearest_in_gamut(rgb, GAMUT_DE) {
+                if let Some(nearest) = cmyk.converter().nearest_in_gamut(rgb, CmykConverter::PICKER_GAMUT_DE) {
                     body = body
                         .warning(ColorWarning::new(labels.out_of_gamut.clone(), Srgba { r: nearest[0], g: nearest[1], b: nearest[2], a: color.a }));
                 }
@@ -399,9 +406,9 @@ impl StackDialog for ColorPickerDialog {
                 if self.remember
                     && let Some(host) = Host::try_of_ctx(ctx)
                 {
-                    Remembered::<ColorPickerMemory>::new(ColorPickerMemory::SCOPE).store(&host, &self.memory);
+                    Remembered::<ColorPickerMemory>::new(MEMORY_SCOPE).store(&host, &self.memory);
                 }
-                Some(DialogResult::Ok(ColorPickerResult { key: self.key.clone(), color: self.current }))
+                Some(DialogResult::Ok(ColorPickerResult { key: self.key.clone(), picked: self.current }))
             }
             Some(Outcome::Cancel | Outcome::Close) => {
                 DropperState::disarm(ctx, owner);
@@ -420,7 +427,7 @@ impl ColorPickerDialog {
         self.started = true;
         if self.remember
             && let Some(host) = Host::try_of_ctx(ctx)
-            && let Some(memory) = Remembered::<ColorPickerMemory>::new(ColorPickerMemory::SCOPE).recall(&host)
+            && let Some(memory) = Remembered::<ColorPickerMemory>::new(MEMORY_SCOPE).recall(&host)
         {
             self.memory = memory;
         }

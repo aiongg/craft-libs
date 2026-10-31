@@ -27,9 +27,6 @@ use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use craft_ui::primitives::{Gap, Row};
 use craft_ui::theme::{Tokens, TokensOf};
 
-/// The ΔE (CIE76) past which a colour is out of the CMYK gamut: PhotoCraft's `GAMUT_DE`.
-const GAMUT_DE: f32 = 3.0;
-
 craft_ui::words! {
     /// The Color panel's words, English by default.
     #[non_exhaustive]
@@ -322,7 +319,7 @@ impl<'a> ColorPanel<'a> {
         } else if command == COPY_HTML {
             ctx.copy_text(html_color(rgb));
         } else if command == COPY_HEX {
-            ctx.copy_text(hex_code(rgb));
+            ctx.copy_text(Srgba::from_rgb_array(rgb).to_hex().trim_start_matches('#').to_owned());
         } else {
             return false;
         }
@@ -344,12 +341,7 @@ fn ramp_command(ramp: ColorPanelRamp) -> PanelCommand {
 
 /// `color="#rrggbb"`, what Copy Color as HTML puts on the clipboard.
 fn html_color(rgb: [f32; 3]) -> String {
-    format!("color=\"{}\"", crate::format_hex(rgb))
-}
-
-/// `rrggbb`, what Copy Color's Hex Code puts on the clipboard.
-fn hex_code(rgb: [f32; 3]) -> String {
-    crate::format_hex(rgb).trim_start_matches('#').to_owned()
+    format!("color=\"{}\"", Srgba::from_rgb_array(rgb).to_hex())
 }
 
 impl PanelTarget {
@@ -466,7 +458,7 @@ impl Body<'_> {
         let rgb = [color.r, color.g, color.b];
         let nearest = |near: [f32; 3]| Srgba::rgb(near[0], near[1], near[2]);
         let mut warnings = Vec::new();
-        if let Some(near) = self.converter.nearest_in_gamut(rgb, GAMUT_DE) {
+        if let Some(near) = self.converter.nearest_in_gamut(rgb, CmykConverter::PICKER_GAMUT_DE) {
             warnings.push(ColorWarning::new(self.picker.out_of_gamut.clone(), nearest(near)));
         }
         if web && let Some(near) = not_web_safe(rgb) {

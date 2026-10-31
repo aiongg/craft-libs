@@ -1354,7 +1354,7 @@ const STORY_TEXT: &[(&str, &[&str], &str)] = &[
         ],
         "a field label the story names itself",
     ),
-    ("Hex colour", &["composites/color/hex-field"], "the HexField label the story passes"),
+    ("Hex color", &["composites/color/hex-field"], "the HexField label the story passes"),
     (
         "Histogram",
         &[

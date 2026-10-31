@@ -5,11 +5,15 @@
 //! The points are per-document view state: not saved with the document, no History step, no
 //! pixels changed. The app keeps one [`ColorSamplers`] per document.
 
+use std::hash::Hash;
+use std::sync::Arc;
+
 use craft_cms::convert::CmykConverter;
 use craft_theme::Srgba;
 use craft_theme::TypeRole;
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasTool, CanvasView, ToolAction, ToolContext, ToolCursor, ToolPointer};
+use craft_ui::composites::{StatusLine, Tone};
 use craft_ui::controls::Button;
 use craft_ui::localized::SharedLabels;
 use craft_ui::patterns::OptionsBar;
@@ -19,7 +23,7 @@ use egui::{Align2, Color32, Context, Id, Painter, Stroke, Ui, vec2};
 craft_ui::words! {
     /// The Color Sampler's words, English by default.
     #[non_exhaustive]
-    pub struct SamplerLabels {
+    pub struct ColorSamplerLabels {
         /// The options bar count; `{n}` placed, `{max}` the limit.
         count: "colorSampler.count" = "{n} of {max} sample points";
         clear_all: "colorSampler.clearAll" = "Clear All";
@@ -165,13 +169,14 @@ pub struct ColorSamplerTool<'a> {
     samplers: &'a mut ColorSamplers,
     size: [u32; 2],
     moving: Option<(usize, [f64; 2])>,
-    error: Option<SamplerError>,
+    /// The last press came past the limit.
+    full: bool,
 }
 
 impl<'a> ColorSamplerTool<'a> {
     /// The tool on a document `size` pixels large.
     pub fn new(samplers: &'a mut ColorSamplers, size: [u32; 2]) -> ColorSamplerTool<'a> {
-        ColorSamplerTool { samplers, size, moving: None, error: None }
+        ColorSamplerTool { samplers, size, moving: None, full: false }
     }
 
     #[cfg(test)]
@@ -179,9 +184,12 @@ impl<'a> ColorSamplerTool<'a> {
         self.samplers
     }
 
-    /// The error of the last press, once.
-    pub fn take_error(&mut self) -> Option<SamplerError> {
-        self.error.take()
+    /// The status-bar message for the last press that failed, once: the limit message when a
+    /// press came past [`MAX_SAMPLERS`].
+    pub fn take_error(&mut self, ctx: &Context) -> Option<StatusLine> {
+        let labels = ColorSamplerLabels::shared_ctx(ctx);
+        std::mem::take(&mut self.full)
+            .then(|| StatusLine { text: craft_i18n::fmt(&labels.limit, &[("max", &MAX_SAMPLERS.to_string())]), tone: Tone::Bad })
     }
 }
 
@@ -209,11 +217,7 @@ impl CanvasTool for ColorSamplerTool<'_> {
             None if pointer.modifiers.alt => ToolAction::Done,
             // A click outside the canvas places nothing; past the limit reports Full.
             None => {
-                if let Err(error) = self.samplers.add(at, self.size)
-                    && error != SamplerError::Outside
-                {
-                    self.error = Some(error);
-                }
+                self.full = self.samplers.add(at, self.size) == Err(SamplerError::Full);
                 ToolAction::Done
             }
         }
@@ -276,7 +280,7 @@ impl SamplerReadout {
 /// was pressed.
 // pc: crates/ui-egui/src/tools/analysis_ui.rs:593.
 pub fn sampler_options(ui: &mut Ui, count: usize) -> bool {
-    let labels = SamplerLabels::shared(ui);
+    let labels = ColorSamplerLabels::shared(ui);
     let counted = craft_i18n::fmt(&labels.count, &[("n", &count.to_string()), ("max", &MAX_SAMPLERS.to_string())]);
     ui.add(Text::new(counted));
     OptionsBar::divider(ui);
@@ -286,28 +290,62 @@ pub fn sampler_options(ui: &mut Ui, count: usize) -> bool {
     clear
 }
 
-/// The readouts of `samplers`, cached until the document changes: the app passes its document
-/// revision, and the readouts are computed again only when it differs (PhotoCraft #4528).
+/// The Info panel readouts of a document's [`ColorSamplers`], cached until something they depend
+/// on changes (PhotoCraft #4528). The cache is kept per [`document`](Self::document); a reading
+/// is computed again when the document's [`revision`](Self::revision), the points or the
+/// [`cmyk`](Self::cmyk) converter's profile differ from the cached ones.
 // pc: crates/ui-egui/src/panels/info.rs:124 `sampler_readouts`.
-pub fn sampler_readouts(
-    ctx: &Context,
+pub struct SamplerReadouts<'a, F> {
+    samplers: &'a ColorSamplers,
+    read: F,
     revision: u64,
-    samplers: &ColorSamplers,
-    read: impl Fn([f64; 2]) -> Srgba,
-    cmyk: &CmykConverter,
-) -> std::sync::Arc<Vec<SamplerReadout>> {
-    type Cached = (u64, Vec<[f64; 2]>, std::sync::Arc<Vec<SamplerReadout>>);
-    let id = Id::unique("craft_color::sampler_readouts");
-    // The points are part of the key so that another document at the same revision does not
-    // reuse these readouts.
-    if let Some((cached_revision, points, readouts)) = ctx.data(|d| d.get_temp::<Cached>(id))
-        && cached_revision == revision
-        && points == samplers.points
-    {
-        return readouts;
+    document: u64,
+    cmyk: Option<&'a CmykConverter>,
+}
+
+impl<'a, F: Fn([f64; 2]) -> Srgba> SamplerReadouts<'a, F> {
+    /// The readouts of `samplers`, `read` giving the colour at a document point.
+    pub fn new(samplers: &'a ColorSamplers, read: F) -> SamplerReadouts<'a, F> {
+        SamplerReadouts { samplers, read, revision: 0, document: 0, cmyk: None }
     }
-    let readouts: std::sync::Arc<Vec<SamplerReadout>> =
-        std::sync::Arc::new(samplers.points.iter().enumerate().map(|(i, p)| SamplerReadout::new(i, *p, read(*p), cmyk)).collect());
-    ctx.data_mut(|d| d.insert_temp::<Cached>(id, (revision, samplers.points.clone(), readouts.clone())));
-    readouts
+
+    /// The document's revision; the readouts are computed again when it differs.
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.revision = revision;
+        self
+    }
+
+    /// Which document the samplers belong to (any hashable key): documents at the same revision
+    /// with samplers at the same points do not share readouts.
+    pub fn document(mut self, document: impl Hash) -> Self {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        document.hash(&mut hasher);
+        self.document = std::hash::Hasher::finish(&hasher);
+        self
+    }
+
+    /// The document's CMYK converter, as the Color Picker's; the built-in coated one without it.
+    pub fn cmyk(mut self, converter: &'a CmykConverter) -> Self {
+        self.cmyk = Some(converter);
+        self
+    }
+
+    /// The readouts, from the cache when nothing changed.
+    pub fn get(self, ctx: &Context) -> Arc<Vec<SamplerReadout>> {
+        type Cached = (u64, usize, Vec<[f64; 2]>, Arc<Vec<SamplerReadout>>);
+        let cmyk = self.cmyk.unwrap_or_else(|| CmykConverter::coated());
+        let profile = Arc::as_ptr(cmyk.profile()) as usize;
+        let id = Id::unique(("craft_color::sampler_readouts", self.document));
+        if let Some((revision, cached_profile, points, readouts)) = ctx.data(|d| d.get_temp::<Cached>(id))
+            && revision == self.revision
+            && cached_profile == profile
+            && points == self.samplers.points
+        {
+            return readouts;
+        }
+        let readouts: Arc<Vec<SamplerReadout>> =
+            Arc::new(self.samplers.points.iter().enumerate().map(|(i, p)| SamplerReadout::new(i, *p, (self.read)(*p), cmyk)).collect());
+        ctx.data_mut(|d| d.insert_temp::<Cached>(id, (self.revision, profile, self.samplers.points.clone(), readouts.clone())));
+        readouts
+    }
 }

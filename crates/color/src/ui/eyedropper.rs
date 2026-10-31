@@ -36,7 +36,7 @@ craft_ui::words! {
         current_and_below_no_adjustments: "eyedropper.currentAndBelowNoAdjustments" = "Current & Below No Adjustments";
         show_ring: "eyedropper.showRing" = "Show Sampling Ring";
         /// The bar's hint; `{key}` is the platform's name of Alt ("Option" on macOS).
-        hint: "eyedropper.hint" = "Click to sample the foreground colour  ·  {key}-click for background";
+        hint: "eyedropper.hint" = "Click to sample the foreground color  ·  {key}-click for background";
     }
 }
 

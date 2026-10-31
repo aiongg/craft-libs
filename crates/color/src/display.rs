@@ -57,12 +57,13 @@ fn is_identity(t: &Transform, neutral_only: bool) -> bool {
 
 /// `profile` as a monitor profile: it must be RGB and usable as the destination of a transform
 /// from sRGB, otherwise the canvas would silently stay unmanaged.
-fn usable_monitor(profile: Profile) -> Result<Arc<Profile>, String> {
+fn usable_monitor(profile: Profile) -> Result<Arc<Profile>, MonitorProblem> {
     if profile.color_space != ColorSpace::Rgb {
-        return Err(format!("`{}` is a {:?} profile, not RGB", profile.description, profile.color_space));
+        return Err(MonitorProblem::NotRgb { description: profile.description, space: profile.color_space });
     }
     let opts = TransformOptions { intent: DISPLAY_INTENT, bpc: true, ..TransformOptions::default() };
-    cached(Builtin::Srgb.profile(), &profile, opts).map_err(|e| format!("`{}` can't be used as a display profile: {e}", profile.description))?;
+    cached(Builtin::Srgb.profile(), &profile, opts)
+        .map_err(|e| MonitorProblem::CannotLink { description: profile.description.clone(), reason: e.to_string() })?;
     Ok(Arc::new(profile))
 }
 
@@ -146,8 +147,21 @@ pub enum MonitorStatus {
     Chosen,
     /// sRGB: the platform reports no profile for the display.
     NoProfile,
-    /// sRGB: the profile could not be used, with the reason (not RGB, unreadable, cannot link).
-    Unusable(String),
+    /// sRGB: the profile could not be used, with the reason.
+    Unusable(MonitorProblem),
+}
+
+/// Why a monitor profile cannot be used. The UI words it (`MonitorProblem::label`, with the
+/// `ui` feature).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MonitorProblem {
+    /// The profile describes another colour space than RGB.
+    NotRgb { description: String, space: ColorSpace },
+    /// The profile cannot link to sRGB as a destination; `reason` is the colour engine's text.
+    CannotLink { description: String, reason: String },
+    /// The profile bytes do not parse; `reason` is the parser's text.
+    Unreadable { reason: String },
 }
 
 /// One monitor's profile and how it was resolved.
@@ -195,7 +209,7 @@ impl DisplayCaches {
                 },
                 Err(e) => {
                     if let std::collections::hash_map::Entry::Vacant(v) = lock(&self.monitors).entry(display) {
-                        v.insert(srgb_entry(MonitorStatus::Unusable(format!("the display profile can't be read: {e}"))));
+                        v.insert(srgb_entry(MonitorStatus::Unusable(MonitorProblem::Unreadable { reason: e.to_string() })));
                         lock(&self.transforms).clear();
                     }
                     return;
@@ -308,7 +322,7 @@ mod tests {
         let caches = DisplayCaches::new();
         assert_eq!(caches.monitor_status(Some(1)), MonitorStatus::NoProfile);
         caches.set_monitor(Some(1), Some(b"not an icc profile"));
-        assert!(matches!(caches.monitor_status(Some(1)), MonitorStatus::Unusable(_)));
+        assert!(matches!(caches.monitor_status(Some(1)), MonitorStatus::Unusable(MonitorProblem::Unreadable { .. })));
         assert!(caches.monitor_for(Some(1)).same_colors(Builtin::Srgb.profile()));
 
         // A good reading is kept when a later one fails to parse.
@@ -318,7 +332,10 @@ mod tests {
 
         // A CMYK profile is not a monitor profile.
         caches.set_monitor(Some(3), Some(&Builtin::CoatedFogra39.profile().to_bytes()));
-        assert!(matches!(caches.monitor_status(Some(3)), MonitorStatus::Unusable(_)));
+        let MonitorStatus::Unusable(MonitorProblem::NotRgb { space, .. }) = caches.monitor_status(Some(3)) else {
+            panic!("a CMYK profile is not RGB")
+        };
+        assert_eq!(space, ColorSpace::Cmyk);
 
         // An unknown display uses the main window's.
         caches.set_monitor(None, Some(&p3().to_bytes()));

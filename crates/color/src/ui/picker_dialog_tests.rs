@@ -9,8 +9,9 @@ use craft_ui::theme::{Base, install};
 use egui::accesskit::{Node, NodeId, Role, Toggled};
 use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, vec2};
 
+use super::picker_dialog::MEMORY_SCOPE;
 use super::{ColorPickerDialog, ColorPickerMemory, ColorPickerResult, DropperState};
-use crate::{AreaMode, format_hex};
+use crate::AreaMode;
 
 type Answer = DialogResult<ColorPickerResult>;
 
@@ -100,17 +101,17 @@ impl Rig {
 
     fn memory(&self) -> Option<ColorPickerMemory> {
         let host = craft_host::Host::try_of_ctx(&self.ctx).expect("host");
-        Remembered::<ColorPickerMemory>::new(ColorPickerMemory::SCOPE).recall(&host)
+        Remembered::<ColorPickerMemory>::new(MEMORY_SCOPE).recall(&host)
     }
 
     fn remember(&self, memory: ColorPickerMemory) {
         let host = craft_host::Host::try_of_ctx(&self.ctx).expect("host");
-        Remembered::<ColorPickerMemory>::new(ColorPickerMemory::SCOPE).store(&host, &memory);
+        Remembered::<ColorPickerMemory>::new(MEMORY_SCOPE).store(&host, &memory);
     }
 }
 
 fn hex(color: Srgba) -> String {
-    format_hex([color.r, color.g, color.b]).to_uppercase()
+    Srgba::rgb(color.r, color.g, color.b).to_hex().to_uppercase()
 }
 
 const BLUE: Srgba = Srgba { r: 0.2, g: 0.4, b: 0.6, a: 1.0 };
@@ -119,7 +120,7 @@ const BLUE: Srgba = Srgba { r: 0.2, g: 0.4, b: 0.6, a: 1.0 };
 #[test]
 fn opening_focuses_the_hex_field() {
     let rig = Rig::open(ColorPickerDialog::foreground(BLUE));
-    let (hex_field, _) = rig.node(Role::TextInput, "Hex colour");
+    let (hex_field, _) = rig.node(Role::TextInput, "Hex color");
     assert_eq!(rig.focus, Some(hex_field));
 }
 
@@ -160,11 +161,11 @@ fn web_only_snaps_the_opening_colour_and_current_follows() {
     rig.host.open(ColorPickerDialog::foreground(Srgba::rgb(0.18, 0.42, 0.63)).eyedropper(false));
     rig.frames(6);
     assert_eq!(hex(rig.dialog().current().color), "#336699");
-    let (_, current) = rig.node(Role::Button, "Restore current colour");
+    let (_, current) = rig.node(Role::Button, "Restore current color");
     assert_eq!(current.value(), Some("#336699"));
     rig.click(Role::Button, "OK");
     let Some(DialogResult::Ok(answer)) = rig.answer else { panic!("OK answers") };
-    assert_eq!(hex(answer.color.color), "#336699");
+    assert_eq!(hex(answer.picked.color), "#336699");
 }
 
 /// Alt turns Cancel into Reset, which restores the opening colour and keeps the dialog open.
@@ -216,7 +217,7 @@ fn typed_cmyk_inks_come_back_in_the_result() {
     let converter = CmykConverter::coated();
     let inks = ModelValues::new("cmyk", &[10.0, 20.0, 30.0, 40.0]);
     let color = converter.to_srgb([0.1, 0.2, 0.3, 0.4]);
-    let kept = ColorPickerDialog::foreground(Srgba::rgb(color[0], color[1], color[2])).gamut(converter).kept(inks);
+    let kept = ColorPickerDialog::foreground(Srgba::rgb(color[0], color[1], color[2])).cmyk(converter).kept(inks);
     let mut rig = Rig::open(kept);
     assert_eq!(rig.node(Role::SpinButton, "Cyan").1.numeric_value(), Some(10.0), "the fields show the inks the colour was picked as");
 
@@ -231,7 +232,7 @@ fn typed_cmyk_inks_come_back_in_the_result() {
     rig.frames(3);
     rig.click(Role::Button, "OK");
     let Some(DialogResult::Ok(answer)) = rig.answer else { panic!("OK answers") };
-    let values = answer.color.model.expect("the typed inks");
+    let values = answer.picked.model.expect("the typed inks");
     assert_eq!(values.model, "cmyk");
     assert_eq!(values.values[0], 50.0);
 }
@@ -246,11 +247,26 @@ fn ok_answers_the_opening_key() {
         assert_eq!(rig.dialog().key(), key);
         rig.click(Role::Button, "OK");
         let Some(DialogResult::Ok(answer)) = rig.answer else { panic!("OK answers") };
-        assert_eq!((answer.key.as_str(), hex(answer.color.color)), (key, hex(BLUE)));
+        assert_eq!((answer.key.as_str(), hex(answer.picked.color)), (key, hex(BLUE)));
     }
 }
 
-/// Without `.gamut(..)` the dialog still has the C, M, Y, K fields, through the built-in coated
+/// A dialog opened from a component's request carries its key, title and colour, and OK answers
+/// the key back; a request without a title gets the library's.
+#[test]
+fn a_dialog_opened_from_a_request_answers_its_key() {
+    use craft_ui::dialog::ColorRequest;
+    let mut rig = Rig::open(ColorPickerDialog::from_request(ColorRequest::new("vine", BLUE).title("Color Picker (Vine Color)")));
+    rig.node(Role::Dialog, "Color Picker (Vine Color)");
+    rig.click(Role::Button, "OK");
+    let Some(DialogResult::Ok(answer)) = rig.answer else { panic!("OK answers") };
+    assert_eq!((answer.key.as_str(), hex(answer.picked.color)), ("vine", hex(BLUE)));
+
+    let rig = Rig::open(ColorPickerDialog::from_request(ColorRequest::new("vine", BLUE)));
+    rig.node(Role::Dialog, "Color Picker");
+}
+
+/// Without `.cmyk(..)` the dialog still has the C, M, Y, K fields, through the built-in coated
 /// converter.
 #[test]
 fn the_dialog_has_cmyk_fields_without_a_converter() {

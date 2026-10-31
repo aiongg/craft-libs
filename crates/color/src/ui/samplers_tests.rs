@@ -3,7 +3,9 @@
 use craft_cms::convert::{CmykConverter, srgb_to_cmyk_naive};
 use craft_theme::Srgba;
 
-use super::{ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SamplerError, SamplerReadout};
+use craft_ui::composites::Tone;
+
+use super::{ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SamplerError, SamplerReadout, SamplerReadouts};
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::canvas::{CanvasTool, CanvasView, ToolHost, ToolInput};
 use craft_ui::theme::{Base, install};
@@ -59,6 +61,32 @@ fn readouts_use_the_documents_converter() {
     // Channels that are not finite read as 0 and the rest is clamped.
     let odd = SamplerReadout::new(0, [0.0, 0.0], Srgba { r: f32::NAN, g: 2.0, b: -1.0, a: 1.0 }, converter);
     assert_eq!(odd.rgb, [0, 255, 0]);
+}
+
+/// The cached readouts depend on the document, the revision, the points and the CMYK profile:
+/// another document at the same revision, or another CMYK working space, is read again.
+#[test]
+fn readouts_are_cached_per_document_and_converter() {
+    use std::cell::Cell;
+    use std::sync::Arc;
+    let ctx = egui::Context::default();
+    let mut samplers = ColorSamplers::new();
+    samplers.add([1.0, 1.0], [10, 10]).unwrap();
+    let reads = Cell::new(0);
+    let read = |_: [f64; 2]| {
+        reads.set(reads.get() + 1);
+        Srgba { r: 0.0, g: 0.0, b: 1.0, a: 1.0 }
+    };
+    let coated = CmykConverter::coated();
+    let first = SamplerReadouts::new(&samplers, read).revision(3).document("a").cmyk(coated).get(&ctx);
+    let again = SamplerReadouts::new(&samplers, read).revision(3).document("a").cmyk(coated).get(&ctx);
+    assert!(Arc::ptr_eq(&first, &again) && reads.get() == 1, "unchanged: from the cache");
+    SamplerReadouts::new(&samplers, read).revision(3).document("b").cmyk(coated).get(&ctx);
+    assert_eq!(reads.get(), 2, "another document at the same revision reads again");
+    let fogra = CmykConverter::new(Arc::new(craft_cms::Builtin::CoatedFogra39.profile().clone())).unwrap();
+    let other = SamplerReadouts::new(&samplers, read).revision(3).document("a").cmyk(&fogra).get(&ctx);
+    assert_eq!(reads.get(), 3, "another CMYK working space reads again");
+    assert_ne!(other[0].cmyk, first[0].cmyk);
 }
 
 /// A canvas with a tool host over a 400 x 300 view at zoom 1 whose centre is document (200, 150),
@@ -141,7 +169,8 @@ fn a_point_dragged_off_the_canvas_is_removed() {
     down(&mut h, point(320.0, 20.0), Modifiers::NONE);
     up(&mut h, point(320.0, 20.0), Modifiers::NONE);
     assert_eq!(points(&h), [[50.0, 50.0], [20.0, 20.0]]);
-    assert_eq!(h.state_mut().tool.take_error(), None);
+    let ctx = h.ctx.clone();
+    assert_eq!(h.state_mut().tool.take_error(&ctx), None);
 }
 
 /// Alt-click on a point removes it; the later points move up one number.
@@ -163,6 +192,8 @@ fn alt_click_removes_and_renumbers() {
         up(&mut h, at, Modifiers::NONE);
     }
     assert_eq!(points(&h).len(), MAX_SAMPLERS);
-    assert_eq!(h.state_mut().tool.take_error(), Some(SamplerError::Full));
-    assert_eq!(h.state_mut().tool.take_error(), None);
+    let ctx = h.ctx.clone();
+    let line = h.state_mut().tool.take_error(&ctx).expect("the press past the limit reports");
+    assert_eq!((line.text.as_str(), line.tone), ("Color Sampler limit reached: at most 10 points per document", Tone::Bad));
+    assert_eq!(h.state_mut().tool.take_error(&ctx), None);
 }

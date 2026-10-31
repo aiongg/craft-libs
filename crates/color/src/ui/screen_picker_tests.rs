@@ -8,11 +8,11 @@ use egui::{Context, Id, Key, PointerButton, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
 
-use super::screen_picker::{CaptureResult, ScreenColorPicker, Source, frame, lock, runtime};
+use super::screen_picker::{CaptureResult, CaptureSource, ScreenColorPicker, frame, lock, runtime};
 
 struct Fake(Mutex<Receiver<CaptureResult>>);
 
-impl Source for Fake {
+impl CaptureSource for Fake {
     fn poll(&self) -> Option<CaptureResult> {
         self.0.lock().unwrap().try_recv().ok()
     }
@@ -150,7 +150,7 @@ fn failures_are_worded_by_the_labels() {
     let ctx = h.ctx.clone();
     let owner = Id::unique("asker");
     let _tx = started_with(&ctx, owner, 1, Err(screen::ScreenError::Failed("no display".into())));
-    assert_eq!(ScreenColorPicker::take_notice(&ctx).as_deref(), Some("Screen capture failed: no display"));
+    assert_eq!(ScreenColorPicker::take_notice(&ctx).map(|line| line.text).as_deref(), Some("Screen capture failed: no display"));
     let bad = ScreenImage {
         size: [3, 3],
         ..match capture() {
@@ -159,9 +159,20 @@ fn failures_are_worded_by_the_labels() {
         }
     };
     let _tx = started_with(&ctx, owner, 1, Ok(Capture::Images(vec![bad])));
-    assert_eq!(ScreenColorPicker::take_notice(&ctx).as_deref(), Some("The screen capture is not valid."));
+    assert_eq!(ScreenColorPicker::take_notice(&ctx).map(|line| line.text).as_deref(), Some("The screen capture is not valid."));
     let _tx = started_with(&ctx, owner, 1, Ok(Capture::Images(Vec::new())));
-    assert_eq!(ScreenColorPicker::take_notice(&ctx).as_deref(), Some("No screen was captured."));
+    assert_eq!(ScreenColorPicker::take_notice(&ctx).map(|line| line.text).as_deref(), Some("No screen was captured."));
+}
+
+/// A notice is a status line in the Bad tone.
+#[test]
+fn a_notice_is_a_bad_status_line() {
+    let h = window();
+    let ctx = h.ctx.clone();
+    let _tx = started_with(&ctx, Id::unique("asker"), 1, Err(screen::ScreenError::Denied));
+    let line = ScreenColorPicker::take_notice(&ctx).expect("denied gives a notice");
+    assert_eq!(line.tone, craft_ui::composites::Tone::Bad);
+    assert_eq!(ScreenColorPicker::take_notice(&ctx), None, "once");
 }
 
 /// A pass of a lone button that tracks a press-and-drag from it; the pixel sampled and the
@@ -221,4 +232,36 @@ fn a_press_and_drag_from_the_button_samples_the_apps_frame() {
     hold_pass(&ctx, owner, vec![Event::PointerMoved(outside)]);
     hold_pass(&ctx, owner, vec![button(outside, false)]);
     assert!(ScreenColorPicker::busy(&ctx), "the release outside asked for a pick");
+}
+
+/// The app's frame holds monitor values: a sample is taken back to sRGB through the monitor's
+/// profile ([`ScreenColorPicker::set_monitor`]), as the capture path does.
+#[test]
+fn a_held_drag_converts_the_frame_from_the_monitor_profile() {
+    use egui::{Event, Modifiers, Pos2};
+    let ctx = Context::default();
+    let p3 = craft_cms::Builtin::DisplayP3.profile();
+    ScreenColorPicker::set_monitor(&ctx, p3);
+    let owner = Id::unique("asker");
+    let (rect, ..) = hold_pass(&ctx, owner, Vec::new());
+    let button = |pos: Pos2, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let from = rect.center();
+    hold_pass(&ctx, owner, vec![Event::PointerMoved(from)]);
+    hold_pass(&ctx, owner, vec![button(from, true)]);
+    let inside = Pos2::new(120.0, 60.0);
+    let (_, _, shots) = hold_pass(&ctx, owner, vec![Event::PointerMoved(inside)]);
+    let shown = egui::Color32::from_rgb(200, 60, 60);
+    for shot in shots {
+        shot.complete(std::sync::Arc::new(egui::ColorImage::filled([200, 100], shown)));
+    }
+    let (_, sampled, _) = hold_pass(&ctx, owner, vec![Event::PointerMoved(inside + vec2(1.0, 0.0))]);
+    let sampled = sampled.expect("the held drag samples");
+    let mut expected = [200.0 / 255.0, 60.0 / 255.0, 60.0 / 255.0];
+    craft_cms::Transform::new(p3, craft_cms::Builtin::Srgb.profile(), craft_cms::Intent::RelativeColorimetric, true)
+        .unwrap()
+        .apply(&mut expected, 3)
+        .unwrap();
+    let expected = craft_theme::Srgba::from_rgb_array(expected.map(|v| v.clamp(0.0, 1.0)));
+    assert_eq!(sampled.to_hex(), expected.to_hex());
+    assert_ne!(sampled.to_hex(), craft_theme::Srgba::from_rgb_array([200.0 / 255.0, 60.0 / 255.0, 60.0 / 255.0]).to_hex(), "not the raw frame value");
 }

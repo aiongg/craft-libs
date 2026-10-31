@@ -523,7 +523,7 @@ mod warning_tests {
     #[test]
     fn the_web_colour_warning_shows_the_cube_and_the_gamut_warning_the_triangle() {
         let nearest = Srgba::rgb(0.2, 0.4, 0.6);
-        assert_eq!(ColorWarning::web_colors("Not a web colour", nearest).icon, Icon::WebColors);
+        assert_eq!(ColorWarning::web_colors("Not a web color", nearest).icon, Icon::WebColors);
         assert_eq!(ColorWarning::new("Out of gamut for printing", nearest).icon, Icon::Warning);
     }
 }

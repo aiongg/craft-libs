@@ -88,3 +88,20 @@ fn the_profile_status_reads_photoshops_words() {
     assert_eq!(ProfileStatus::Unnamed.label(ProfileMode::Gray, &labels), "Unnamed Gray profile");
     assert_eq!(ProfileStatus::Named("Display P3".into()).label(ProfileMode::Rgb, &labels), "Display P3");
 }
+
+/// A monitor profile's problem is worded by the labels, with the profile's name and reason.
+#[test]
+fn a_monitor_problem_is_worded_by_the_labels() {
+    use crate::display::{DisplayCaches, MonitorProblem, MonitorStatus};
+    let labels = ProfileLabels::default();
+    let caches = DisplayCaches::new();
+    let cmyk = craft_cms::Builtin::CoatedFogra39.profile();
+    caches.set_monitor(Some(1), Some(&cmyk.to_bytes()));
+    let MonitorStatus::Unusable(problem) = caches.monitor_status(Some(1)) else { panic!("a CMYK profile is not a monitor profile") };
+    assert_eq!(problem.label(&labels), format!("“{}” is a CMYK profile, not an RGB profile.", cmyk.description));
+    caches.set_monitor(Some(2), Some(b"garbage"));
+    let MonitorStatus::Unusable(problem @ MonitorProblem::Unreadable { .. }) = caches.monitor_status(Some(2)) else {
+        panic!("garbage does not parse")
+    };
+    assert!(problem.label(&labels).starts_with("The display profile can't be read: "));
+}

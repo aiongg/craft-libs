@@ -107,7 +107,7 @@ pub use strip::ColorStrip;
 pub use wheel::{ColorWheel, ColorWheelResponse, ColorWheelStyle, WheelGeometry, WheelPart};
 
 pub use choice::{ChosenColor, ColorChoice, ColorChoiceLabels, ColorChoiceResponse, NamedColor};
-pub use droppers::{DropperButton, DropperKind, DropperResponse, DropperState, DropperTool};
+pub use droppers::{DropperButton, DropperButtonResponse, DropperKind, DropperState, DropperTool};
 pub use eyedropper::{
     EyedropperLabels, EyedropperOptions, EyedropperOptionsBar, EyedropperPick, EyedropperTool, SampleSize, SampleSource, SamplingRingStyle,
     eyedropper_ring,
@@ -121,9 +121,9 @@ pub use panel::{ColorPanel, ColorPanelLabels, ColorPanelMode, ColorPanelRamp, Co
 pub use picker_dialog::{ColorPickerDialog, ColorPickerLabels, ColorPickerMemory, ColorPickerResult};
 pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileLabels, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus};
 pub use samplers::{
-    ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SAMPLER_HIT, SamplerError, SamplerLabels, SamplerReadout, sampler_options, sampler_readouts,
+    ColorSamplerLabels, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SAMPLER_HIT, SamplerError, SamplerReadout, SamplerReadouts, sampler_options,
 };
-pub use screen_picker::{LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPickerLabels};
+pub use screen_picker::{CaptureResult, CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPickerLabels, StillCapture};
 pub use swatches::{
     MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchLibrary, SwatchesAction, SwatchesLabels, SwatchesMenuResponse, SwatchesPanel, SwatchesPanelResponse,
 };
@@ -255,7 +255,7 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     LUT_WORDS,
     <PaintLabels as Labels>::WORDS,
     <ProfileLabels as Labels>::WORDS,
-    <SamplerLabels as Labels>::WORDS,
+    <ColorSamplerLabels as Labels>::WORDS,
     <ScreenPickerLabels as Labels>::WORDS,
     <SwatchesLabels as Labels>::WORDS,
 ];
@@ -561,7 +561,7 @@ fn show_hex_field(ui: &mut Ui, args: &mut HexFieldArgs) {
         let (color, last) = &mut state[0];
         let digits = if args.digits == DigitsArg::One { 1 } else { 2 };
         ui.set_width(160.0);
-        let edit = HexField::new("color-hex-field", "Hex colour", *color).digits(digits).alpha(args.alpha).enabled(!args.disabled).show(ui);
+        let edit = HexField::new("color-hex-field", "Hex color", *color).digits(digits).alpha(args.alpha).enabled(!args.disabled).show(ui);
         if let Some(event) = &edit.event {
             if let Some(c) = event.value() {
                 *color = *c;

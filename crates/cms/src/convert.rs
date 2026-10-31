@@ -21,6 +21,10 @@ pub struct CmykConverter {
 }
 
 impl CmykConverter {
+    /// The ΔE (CIE76) past which a colour is out of the CMYK gamut in a colour picker: 3.0, as
+    /// PhotoCraft's picker (`GAMUT_DE`).
+    pub const PICKER_GAMUT_DE: f32 = 3.0;
+
     /// A converter for `cmyk` (a CMYK output profile). Errors when the profile can't link to sRGB
     /// in either direction.
     // pc: crates/color/src/convert.rs:94 `cmyk_to_srgb_transform` / `srgb_to_cmyk_transform`, on
@@ -72,7 +76,7 @@ impl CmykConverter {
     }
 
     /// Whether sRGB `rgb` is outside this CMYK profile's gamut: the round trip through the inks
-    /// moves it by more than `threshold` ΔE (CIE76, Lab D50); PhotoCraft's picker uses 3.0,
+    /// moves it by more than `threshold` ΔE (CIE76, Lab D50); a picker uses [`Self::PICKER_GAMUT_DE`],
     /// [`gamut::DEFAULT_THRESHOLD`](crate::gamut::DEFAULT_THRESHOLD) is 4.0.
     // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:45 `out_of_gamut` (GAMUT_DE = 3.0).
     pub fn out_of_gamut(&self, rgb: [f32; 3], threshold: f32) -> bool {

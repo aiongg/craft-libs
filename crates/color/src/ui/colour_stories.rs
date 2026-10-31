@@ -24,18 +24,19 @@ use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, Surface, dia
 use craft_ui::typed_story;
 use egui::{Color32, Context, Id, Rect, Sense, TextureHandle, TextureOptions, Ui, pos2, vec2};
 
+use super::picker_dialog::MEMORY_SCOPE;
 use super::{
-    ChosenColor, ColorChoice, ColorPanel, ColorPanelMode, ColorPanelRamp, ColorPanelState, ColorPickerDialog, ColorPickerMemory, ColorSamplerTool,
-    ColorSamplers, EyedropperOptions, EyedropperOptionsBar, GradientPreview, HarmonyPanel, HarmonyPanelState, HarmonyWheel, LutChoice, LutPicker,
-    MAX_SAMPLERS, NamedColor, Paint, PaintChip, PanelTarget, ProfileMismatchDialog, ProfileMode, ProfileQuestion, SamplerLabels, SamplerReadout,
-    SwatchLibrary, SwatchesPanel, sampler_options, sampler_readouts,
+    ChosenColor, ColorChoice, ColorPanel, ColorPanelMode, ColorPanelRamp, ColorPanelState, ColorPickerDialog, ColorPickerMemory, ColorSamplerLabels,
+    ColorSamplerTool, ColorSamplers, EyedropperOptions, EyedropperOptionsBar, GradientPreview, HarmonyPanel, HarmonyPanelState, HarmonyWheel,
+    LutChoice, LutPicker, NamedColor, Paint, PaintChip, PanelTarget, ProfileMismatchDialog, ProfileMode, ProfileQuestion, SamplerReadout,
+    SamplerReadouts, ScreenColorPicker, StillCapture, SwatchLibrary, SwatchesPanel, sampler_options,
 };
 use crate::harmony::{Harmony, move_on_wheel};
 use crate::{AreaMode, CmykModel};
 
 /// The story ids, one per component:
 /// - `patterns/color/picker-dialog`: a "Show dialog" tile opening `ColorPickerDialog` on a
-///   `DialogHost`, args for gamut, Only Web Colors, preview; prints the result.
+///   `DialogHost`, args for Only Web Colors, preview; the eyedropper answers from a fake capture; prints the result.
 /// - `patterns/color/panel`: `ColorPanel` with a mode and a ramp arg, the panel menu beside it.
 /// - `patterns/color/swatches`: `SwatchesPanel` on the default library, the panel menu beside it.
 /// - `patterns/color/eyedropper-options`: `EyedropperOptionsBar` in an `OptionsBar`.
@@ -67,7 +68,7 @@ pub(super) fn stories() -> Vec<Story> {
             Level::Patterns,
             "ColorPickerDialog",
             "Dialog",
-            PickerDialogArgs { open: true, gamut: true, web_colors: false, preview: true },
+            PickerDialogArgs { open: true, web_colors: false, preview: true },
             show_picker_dialog
         ),
         typed_story!(
@@ -121,8 +122,6 @@ pub(super) fn stories() -> Vec<Story> {
 #[derive(StoryArgs, Debug, PartialEq)]
 struct PickerDialogArgs {
     open: bool,
-    #[arg(name = "CMYK gamut warning")]
-    gamut: bool,
     #[arg(name = "Only Web Colors")]
     web_colors: bool,
     #[arg(name = "live preview")]
@@ -149,7 +148,7 @@ struct PaintChipArgs {
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct ChoiceArgs {
-    #[arg(name = "custom colour")]
+    #[arg(name = "custom color")]
     custom: bool,
     disabled: bool,
 }
@@ -355,25 +354,22 @@ fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
 }
 
 fn show_picker_dialog(ui: &mut Ui, args: &mut PickerDialogArgs) {
-    let (gamut, web_colors, preview) = (args.gamut, args.web_colors, args.preview);
+    let (web_colors, preview) = (args.web_colors, args.preview);
+    // A fake capture in place of the screen: the eyedropper answers at once with a fixed colour.
+    ScreenColorPicker::tick_with(ui.ctx(), 0, &|| Box::new(StillCapture::color(Srgba::rgb(0.9, 0.55, 0.1))));
     drive(
         ui,
         "picker-dialog",
         &mut args.open,
-        (gamut, web_colors, preview),
+        (web_colors, preview),
         |ctx| {
             if let Some(host) = Host::try_of_ctx(ctx) {
-                Remembered::<ColorPickerMemory>::new(ColorPickerMemory::SCOPE)
-                    .store(&host, &ColorPickerMemory { mode: AreaMode::default(), web_colors });
+                Remembered::<ColorPickerMemory>::new(MEMORY_SCOPE).store(&host, &ColorPickerMemory { mode: AreaMode::default(), web_colors });
             }
-            let mut dialog = ColorPickerDialog::foreground(Srgba::rgb(0.24, 0.39, 0.87)).eyedropper(false).canvas_samples(false);
-            if gamut {
-                dialog = dialog.gamut(CmykConverter::coated());
-            }
-            dialog
+            ColorPickerDialog::foreground(Srgba::rgb(0.24, 0.39, 0.87)).canvas_samples(false)
         },
         |dialog| preview.then(|| format!("Preview: {}", hex(dialog.current().color))),
-        |result| format!("{} {}", result.key, hex(result.color.color)),
+        |result| format!("{} {}", result.key, hex(result.picked.color)),
     );
 }
 
@@ -413,7 +409,7 @@ fn show_panel(ui: &mut Ui, args: &mut PanelArgs) {
                 note = "The well opens the Color Picker dialog.".to_owned();
             }
             if shown.add_to_swatches.is_some() {
-                note = "Add to Swatches adds the colour of the edited well.".to_owned();
+                note = "Add to Swatches adds the color of the edited well.".to_owned();
             }
         });
         let entries = ColorPanel::panel_menu(ui, &panel_state);
@@ -498,7 +494,7 @@ fn show_samplers(ui: &mut Ui, _: &mut NoArgs) {
         samplers
     });
     let mut samplers = lock(&samplers);
-    let labels = SamplerLabels::of(ui);
+    let labels = ColorSamplerLabels::of(ui);
     let mut clear = false;
     let count = samplers.points().len();
     OptionsBar::new("sampler-bar").show(ui, |slots| slots.body(|ui| clear = sampler_options(ui, count)));
@@ -512,13 +508,13 @@ fn show_samplers(ui: &mut Ui, _: &mut NoArgs) {
     painter.image(image_texture(ui.ctx()).id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
     let mut tool = ColorSamplerTool::new(&mut samplers, image_size());
     let _ = ToolHost::new(craft_ui::canvas::CanvasId::of(&canvas)).show(ui, &view, &canvas, &mut tool);
-    let full = tool.take_error().is_some();
+    let full = tool.take_error(ui.ctx());
     samplers.paint(&painter, &view);
 
-    if full {
-        muted(ui, craft_i18n::fmt(&labels.limit, &[("max", &MAX_SAMPLERS.to_string())]));
+    if let Some(line) = full {
+        muted(ui, line.text);
     }
-    let readouts = sampler_readouts(ui.ctx(), 0, &samplers, |p| image_pixel(p[0] as usize, p[1] as usize), CmykConverter::coated());
+    let readouts = SamplerReadouts::new(&samplers, |p| image_pixel(p[0] as usize, p[1] as usize)).document("sampler-story").get(ui.ctx());
     let cmyk = CmykModel::new(CmykConverter::coated().clone());
     let channels = |model: &dyn ColorModel, values: &[u8]| {
         model.channels().iter().zip(values).map(|(c, v)| format!("{} {v}", c.label)).collect::<Vec<_>>().join("  ")
@@ -624,7 +620,7 @@ fn show_harmony(ui: &mut Ui, args: &mut HarmonyArgs) {
                 *note = format!("Chosen {}", hex(color));
             }
             if shown.set_base {
-                *note = "The base swatch sets the base to the current colour.".to_owned();
+                *note = "The base swatch sets the base to the current color.".to_owned();
             }
         });
     });

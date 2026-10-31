@@ -120,7 +120,7 @@ impl DropperKind {
 #[derive(Debug)]
 #[non_exhaustive]
 #[must_use = "the host applies the sample"]
-pub struct DropperResponse {
+pub struct DropperButtonResponse {
     pub response: Response,
     /// The colour the canvas sampled for this dropper this pass.
     pub sampled: Option<Srgba>,
@@ -162,7 +162,7 @@ impl DropperButton {
     // inv-effectcraft: crates/ui-egui/src/color_picker.rs:163 `arm` and :185 `take_sample` around
     // an `IconButton` (`Icon::Eyedropper`, the Black/Gray/White variants' bulb filled);
     // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:289 `sample_at` (the dialog side).
-    pub fn show(self, ui: &mut Ui) -> DropperResponse {
+    pub fn show(self, ui: &mut Ui) -> DropperButtonResponse {
         let ctx = ui.ctx().clone();
         let owner = ui.make_persistent_id(self.id_salt);
         let was_armed = DropperState::armed(&ctx) == Some(owner);
@@ -179,7 +179,7 @@ impl DropperButton {
         } else {
             DropperState::disarm(&ctx, owner);
         }
-        DropperResponse { response, sampled, armed: on }
+        DropperButtonResponse { response, sampled, armed: on }
     }
 }
 

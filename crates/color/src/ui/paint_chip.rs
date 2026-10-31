@@ -127,7 +127,7 @@ impl<'a> PaintChip<'a> {
             Paint::Solid(color) => Swatch::new(id_salt, label.as_str(), color.to_rgba()),
             _ => Swatch::new(id_salt, label.as_str(), solid.to_rgba()).mixed(true),
         };
-        let response = ui.add(well.dimensions(chip.width, chip.height).enabled(enabled));
+        let response = ui.add(well.dimensions(chip.size[0], chip.size[1]).enabled(enabled));
         if !matches!(paint, Paint::Solid(_)) {
             let mut painter = ui.painter().clone();
             painter.set_clip_rect(painter.clip_rect().intersect(response.rect.expand(1.0)));
@@ -375,7 +375,7 @@ impl<'a> PaintList<'a> {
         let output = List::new(id_salt, label, rows.as_slice()).selection(&mut selection).renamable(true).show(ui, |_, &index| {
             let (name, paint) = &paints[index];
             let (style, tokens) = (&style, &tokens);
-            ListRow::new(index, name.as_str()).thumb_sized(egui::vec2(chip.width, chip.height), move |painter, rect| {
+            ListRow::new(index, name.as_str()).thumb_sized(egui::vec2(chip.size[0], chip.size[1]), move |painter, rect| {
                 paint_paint(painter, rect, paint, style, tokens, enabled, ppp);
             })
         });
