@@ -109,6 +109,8 @@ pub mod words {
         let mut all: Vec<&'static [Word]> = craft_ui::localized::words::tables().to_vec();
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::WORDS);
+        #[cfg(feature = "dialogs")]
+        all.extend(craft_dialogs::ui::WORDS);
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::WORDS);
         #[cfg(feature = "imaging")]
@@ -117,6 +119,8 @@ pub mod words {
         all.extend(craft_keymap::ui::WORDS);
         #[cfg(feature = "print")]
         all.extend(craft_print::ui::WORDS);
+        #[cfg(feature = "theme-store")]
+        all.extend(craft_theme_store::ui::WORDS);
         all
     }
 

@@ -9,16 +9,16 @@ use crate::{
     AngleDialTokens, AppShellTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens,
     BySize, CanvasTokens, CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken,
     ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens,
-    Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, EyedropperTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps,
-    GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens,
-    HistogramTokens, IconButtonTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes, ListTokens,
-    ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
-    PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens,
-    PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens,
-    ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
-    SpinnerTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens,
-    ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens,
-    TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens, FindingsTokens,
+    FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens,
+    GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, IconButtonTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens,
+    LabelColor, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NewDocumentTokens,
+    NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens,
+    PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens,
+    Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens,
+    SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens,
+    SwatchTokens, TabSizes, TabTokens, ThemeChipTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
+    ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -234,6 +234,11 @@ fn states(out: &mut Lines, key: &str, v: &States<Rgba>) {
 fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     let ComponentTokens {
         angle_dial,
+        export,
+        file_list,
+        findings,
+        new_document,
+        theme_chip,
         app_shell,
         badge,
         bezier,
@@ -312,6 +317,11 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         transform,
     } = c;
     angle_dial_lines(out, angle_dial);
+    export_lines(out, export);
+    file_list_lines(out, file_list);
+    findings_lines(out, findings);
+    new_document_lines(out, new_document);
+    theme_chip_lines(out, theme_chip);
     app_shell_lines(out, app_shell);
     badge_lines(out, badge);
     bezier_lines(out, bezier);
@@ -2013,4 +2023,67 @@ fn selection_bar_lines(out: &mut Lines, t: &SelectionBarTokens) {
     out.line("selection_bar.grip_height", len(*grip_height));
     out.line("selection_bar.grip_dot", len(*grip_dot));
     out.line("selection_bar.grip_pitch", len(*grip_pitch));
+}
+
+fn new_document_lines(out: &mut Lines, t: &NewDocumentTokens) {
+    let NewDocumentTokens {
+        width,
+        card,
+        card_columns,
+        card_rows,
+        page_icon,
+        page_box,
+        card_icon_center,
+        card_title_center,
+        card_line_center,
+        scroll_room,
+        saved_height,
+        saved_row,
+    } = t;
+    out.line("new_document.width", len(*width));
+    out.line("new_document.card", format!("{} {}", len(card[0]), len(card[1])));
+    out.line("new_document.card_columns", card_columns.to_string());
+    out.line("new_document.card_rows", card_rows.to_string());
+    out.line("new_document.page_icon", len(*page_icon));
+    out.line("new_document.page_box", len(*page_box));
+    out.line("new_document.card_icon_center", len(*card_icon_center));
+    out.line("new_document.card_title_center", len(*card_title_center));
+    out.line("new_document.card_line_center", len(*card_line_center));
+    out.line("new_document.scroll_room", len(*scroll_room));
+    out.line("new_document.saved_height", len(*saved_height));
+    out.line("new_document.saved_row", len(*saved_row));
+}
+
+fn export_lines(out: &mut Lines, t: &ExportTokens) {
+    let ExportTokens { web_width, web_settings_width, web_field_width, settings_width, pane_gap } = t;
+    out.line("export.web_width", len(*web_width));
+    out.line("export.web_settings_width", len(*web_settings_width));
+    out.line("export.web_field_width", len(*web_field_width));
+    out.line("export.settings_width", len(*settings_width));
+    out.line("export.pane_gap", len(*pane_gap));
+}
+
+fn theme_chip_lines(out: &mut Lines, t: &ThemeChipTokens) {
+    let ThemeChipTokens { size, inset, strip, dot_radius, dot_offset, outline_radius, fill_radius, badge_radius, badge_inset, gap } = t;
+    out.line("theme_chip.size", format!("{} {}", len(size[0]), len(size[1])));
+    out.line("theme_chip.inset", len(*inset));
+    out.line("theme_chip.strip", len(*strip));
+    out.line("theme_chip.dot_radius", len(*dot_radius));
+    out.line("theme_chip.dot_offset", len(*dot_offset));
+    out.line("theme_chip.outline_radius", len(*outline_radius));
+    out.line("theme_chip.fill_radius", len(*fill_radius));
+    out.line("theme_chip.badge_radius", len(*badge_radius));
+    out.line("theme_chip.badge_inset", format!("{} {}", len(badge_inset[0]), len(badge_inset[1])));
+    out.line("theme_chip.gap", len(*gap));
+}
+
+fn findings_lines(out: &mut Lines, t: &FindingsTokens) {
+    let FindingsTokens { status_dot } = t;
+    out.line("findings.status_dot", len(*status_dot));
+}
+
+fn file_list_lines(out: &mut Lines, t: &FileListTokens) {
+    let FileListTokens { size, button_min } = t;
+    out.line("file_list.size", format!("{} {}", len(size[0]), len(size[1])));
+    out.line("file_list.button_min", len(*button_min));
 }

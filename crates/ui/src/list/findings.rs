@@ -12,9 +12,6 @@ use craft_theme::TypeRole;
 
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
-/// Radius of the summary's status dot. S4-F18 moves it to the `findings.status_dot` token.
-const STATUS_DOT_RADIUS: f32 = 4.5;
-
 crate::words! {
     /// The list's words, English by default.
     #[non_exhaustive]
@@ -100,8 +97,9 @@ impl<'a> FindingsList<'a> {
             let mut row = crate::direction::row(ui);
             row.cross_align = egui::Align::Center;
             ui.allocate_ui_with_layout(vec2(ui.available_width(), tokens.typography.get(TypeRole::Body).line_height), row, |ui| {
-                let (dot, _) = ui.allocate_exact_size(vec2(STATUS_DOT_RADIUS * 2.0 + 1.0, STATUS_DOT_RADIUS * 2.0 + 1.0), Sense::hover());
-                ui.painter().circle_filled(dot.center(), STATUS_DOT_RADIUS, color.to_egui());
+                let radius = tokens.component.findings.status_dot;
+                let (dot, _) = ui.allocate_exact_size(vec2(radius * 2.0 + 1.0, radius * 2.0 + 1.0), Sense::hover());
+                ui.painter().circle_filled(dot.center(), radius, color.to_egui());
                 ui.add(Text::new(findings_summary(findings, &labels)).role(TypeRole::Body));
             });
         }
