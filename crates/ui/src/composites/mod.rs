@@ -95,7 +95,7 @@ pub(crate) mod toast;
 mod toast_tests;
 
 pub use craft_theme::Tone;
-pub use curve::Curve;
+pub use curve::{Curve, CurveRules};
 pub use curve_editor::{CurveChannel, CurveEditor, CurveEditorState, CurveLabels, CurvePreview, CurveStyle, Sampler};
 pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle, OwnName};

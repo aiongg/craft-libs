@@ -29,6 +29,9 @@ struct Host {
     /// A text field that holds the keyboard while it is `Some`.
     text: Option<String>,
     modifiers: Option<Modifiers>,
+    /// The host's shortcut route asks for a Delete in the next pass.
+    request_delete: bool,
+    hovered: bool,
 }
 
 fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
@@ -45,6 +48,8 @@ fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
         field: TypingField::default(),
         text: None,
         modifiers: None,
+        request_delete: false,
+        hovered: false,
     };
     Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
@@ -78,6 +83,10 @@ fn harness(guides: Vec<Guide>, rotation: f64) -> Harness<'static, Host> {
             if let Some(orientation) = host.ruler.take() {
                 Guides::drag_from_ruler(ui.ctx(), response.id, orientation);
             }
+            if std::mem::take(&mut host.request_delete) {
+                Guides::request_delete(ui.ctx(), response.id);
+            }
+            host.hovered = response.hovered;
             host.field.note(response.event.is_some());
             host.events.extend(response.event.clone());
             host.clicked.extend(response.clicked);
@@ -390,7 +399,53 @@ fn delete_acts_while_the_canvas_has_the_pointer_unless_a_text_field_has_the_keys
     h.run();
     assert_eq!(last(&h), Some((Some(2), "set", Some(GuidePlace { orientation: Orientation::Vertical, position: None }))));
     assert_eq!(positions(&h), [(1, Orientation::Vertical, 100.0)]);
-    assert_eq!(h.state().guides.selected, Some(1));
+    assert_eq!(h.state().guides.selected, None, "a Delete from the pointer's context clears the selection");
+}
+
+#[test]
+fn the_hosts_delete_request_acts_from_anywhere_and_keyboard_focus_keeps_a_place() {
+    let mut h = harness(vec![Guide::new(1, Orientation::Vertical, 100.0), Guide::new(2, Orientation::Vertical, 200.0)], 0.0);
+    h.state_mut().guides.selected = Some(1);
+    h.event(Event::PointerMoved(Pos2::new(1.0, 1.0)));
+    h.run();
+    h.state_mut().request_delete = true;
+    h.run();
+    h.run();
+    assert_eq!(last(&h), Some((Some(1), "set", Some(GuidePlace { orientation: Orientation::Vertical, position: None }))));
+    assert_eq!(positions(&h), [(2, Orientation::Vertical, 200.0)]);
+    assert_eq!(h.state().guides.selected, None);
+    // With the guides' keyboard focus the request selects the next guide.
+    h.state_mut().guides.selected = Some(2);
+    h.key_press(Key::Tab);
+    h.run();
+    assert_eq!(h.state().guides.selected, Some(2));
+    h.state_mut().guides.guides.push(Guide::new(3, Orientation::Vertical, 300.0));
+    h.state_mut().guides.guides.push(Guide::new(4, Orientation::Vertical, 50.0));
+    h.run();
+    h.state_mut().request_delete = true;
+    h.run();
+    h.run();
+    assert_eq!(h.state().guides.selected, Some(3));
+}
+
+#[test]
+fn the_response_says_when_the_pointer_is_over_a_guide_the_guides_would_take() {
+    let mut h =
+        harness(vec![Guide::new(1, Orientation::Vertical, 100.0), Guide { locked: true, ..Guide::new(2, Orientation::Vertical, 200.0) }], 0.0);
+    h.run();
+    h.event(Event::PointerMoved(screen(&h, Point::new(100.0, 150.0))));
+    h.run();
+    assert!(h.state().hovered, "over an unlocked guide");
+    h.event(Event::PointerMoved(screen(&h, Point::new(200.0, 150.0))));
+    h.run();
+    assert!(!h.state().hovered, "a locked guide takes nothing");
+    h.event(Event::PointerMoved(screen(&h, Point::new(150.0, 150.0))));
+    h.run();
+    assert!(!h.state().hovered);
+    h.state_mut().interactive = false;
+    h.event(Event::PointerMoved(screen(&h, Point::new(100.0, 150.0))));
+    h.run();
+    assert!(!h.state().hovered, "guides that only draw take nothing");
 }
 
 #[test]

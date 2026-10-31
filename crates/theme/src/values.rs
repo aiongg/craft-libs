@@ -722,6 +722,14 @@ pub const COLOR_PICKER_PAIR_ICON_GAP: f32 = 3.0;
 pub const COLOR_PICKER_READOUT_HEX_WIDTH: f32 = 64.0;
 /// Compact width of the colour readout's R, G and B fields.
 pub const COLOR_PICKER_READOUT_CHANNEL_WIDTH: f32 = 38.0;
+/// Compact gap between the Full picker's side-actions block and its channel grid (PhotoCraft: the
+/// 4 point item spacing plus a 4 point space).
+pub const COLOR_PICKER_GRID_GAP: f32 = 8.0;
+/// Compact gap between the channel grid's rows (PhotoCraft's grid spacing).
+pub const COLOR_PICKER_GRID_ROW_GAP: f32 = 2.0;
+/// Compact gap between one model's last channel row and the next model's first (PhotoCraft: a 3
+/// point row between two row gaps).
+pub const COLOR_PICKER_GRID_GROUP_GAP: f32 = 7.0;
 
 /// The control height the Compact colour wheel, ramp and gradient palette sizes are set for;
 /// other sizes scale them by their control height over this.
