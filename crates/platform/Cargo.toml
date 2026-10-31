@@ -18,7 +18,7 @@ browser = ["dep:wasm-bindgen", "dep:js-sys", "dep:web-sys"]
 ui = ["dep:egui"]
 theme = ["dep:craft-theme"]
 # Moving the system pointer (a scrub's screen-edge wrap).
-pointer = []
+pointer = ["dep:core-graphics"]
 # `session`: the documents open at the last quit, stored with serde in the app's settings.
 session = ["dep:serde", "dep:serde_json"]
 # `usage`: the process's memory use.
@@ -51,6 +51,9 @@ futures-lite = { version = "2", optional = true }
 async-channel = { version = "2", optional = true }
 async-io = { version = "2", optional = true }
 async-process = { version = "2", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = { version = "0.23", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = { version = "0.2", optional = true }

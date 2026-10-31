@@ -1143,6 +1143,7 @@ dependencies = [
  "async-channel",
  "async-io",
  "async-process",
+ "core-graphics",
  "craft-atomic",
  "craft-theme",
  "egui",

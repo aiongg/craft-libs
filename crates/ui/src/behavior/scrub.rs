@@ -61,7 +61,6 @@ pub fn travel(last_x: f32, x: f32, warp: Option<f32>, edges: Option<(f32, f32)>)
 
 /// A function that moves the system pointer to a point in the viewport (egui points) and
 /// returns whether it did.
-#[expect(dead_code, reason = "skeleton: used when the bodies land")]
 type Warp = Arc<dyn Fn(&Context, Pos2) -> bool + Send + Sync>;
 
 /// The pointer warp service of a context.
@@ -70,9 +69,9 @@ pub struct Scrub;
 impl Scrub {
     /// Install the app's pointer warp for `ctx` (once at startup). craft-platform's
     /// `pointer::warp` is the macOS one; an app without one leaves egui's.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     pub fn install_warp(ctx: &Context, warp: impl Fn(&Context, Pos2) -> bool + Send + Sync + 'static) {
-        todo!()
+        let warp: Warp = Arc::new(warp);
+        ctx.data_mut(|d| d.insert_temp(Self::id(), warp));
     }
 
     /// Move the system pointer to `pos` (egui points in the current viewport) for a scrub's
@@ -80,12 +79,14 @@ impl Scrub {
     /// `false` when the installed service could not move it (the scrub then waits at the edge,
     /// see [`travel`]).
     // pc: crates/ui-egui/src/input/scrub_wrap.rs:15 `wrap_target`, number_field.rs `ViewportCommand::CursorPosition`.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
     pub fn warp(ctx: &Context, pos: Pos2) -> bool {
-        todo!()
+        if let Some(warp) = ctx.data(|d| d.get_temp::<Warp>(Self::id())) {
+            return warp(ctx, pos);
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::CursorPosition(pos));
+        true
     }
 
-    #[expect(dead_code, reason = "skeleton: used when the bodies land")]
     fn id() -> Id {
         Id::unique("craft-ui-scrub-warp")
     }
