@@ -691,8 +691,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 4
             // Levels: thumb edge, disabled edge and a ring per state.
             + (2 + 4)
-            // Tab: the radius and twelve colours.
-            + 13
+            // Tab: the radius and thirteen colours.
+            + 14
             // Dock: five colours, the current icon's text and two radii; float: radius, shadow and eight colours.
             + 8
             + 10

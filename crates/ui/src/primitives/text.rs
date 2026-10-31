@@ -75,6 +75,7 @@ enum RoleArg {
     BodyStrong,
     Title,
     Heading,
+    #[choice(name = "body_large")]
     BodyLarge,
     Overline,
     Mono,
