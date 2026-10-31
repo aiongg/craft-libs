@@ -30,7 +30,7 @@ pub struct DockConfig {
     pub move_group_to_label: String,
     /// Narrowest a tab gets before the tabs that do not fit go to the overflow menu. `None`:
     /// about three characters and the "…" at the look's font size, plus the tab's padding (52.75 pt
-    /// at the Label role's 11.5 pt font with the Comfortable tab padding of 32 pt), so it
+    /// in Compact: the Label role's 11.5 pt font and 24 pt padding), so it
     /// follows the font. Tabs whose names are shorter keep their natural width.
     pub min_tab_width: Option<f32>,
     /// Width of the band along the layout's outer edge that splits at the root (28 pt). It is

@@ -46,7 +46,7 @@ pub struct DockStyle {
     pub drag_bar_width: f32,
     /// Narrowest a tab gets before the tabs that do not fit go to the overflow menu: about
     /// three characters and the "…" at [`Self::font`]'s size, plus the tab's padding
-    /// (52.75 pt at the Label role's 11.5 pt font with the Comfortable tab padding of 32 pt). Tabs
+    /// (52.75 pt in Compact: the Label role's 11.5 pt font and 24 pt padding). Tabs
     /// whose names are shorter keep their natural width. Set it again after changing the font.
     pub min_tab_width: f32,
     /// Painted under every floating window, so it stays opaque when the panel colors are not.
