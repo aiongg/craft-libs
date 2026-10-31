@@ -24,6 +24,8 @@ mod pair_stories;
 #[cfg(test)]
 mod pair_tests;
 mod palette;
+#[cfg(test)]
+mod palette_tests;
 mod picker;
 #[cfg(test)]
 mod picker_tests;
@@ -51,7 +53,7 @@ pub use area::ColorArea;
 pub use disc::{ColorDisc, ColorDiscResponse, ColorDiscStyle, DiscMove};
 pub use hex::HexField;
 pub use pair::{PairWell, SwatchPair, SwatchPairResponse, SwatchPairStyle, Well};
-pub use palette::SwatchPalette;
+pub use palette::{SwatchPalette, SwatchTable, SwatchTableResponse};
 pub(crate) use picker::WORDS as PICKER_WORDS;
 pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, ColorWarningChip, PickedColor};
 pub use popover::{ColorPopover, ColorPopoverResponse};
@@ -398,6 +400,14 @@ struct PaletteArgs {
     disabled: bool,
 }
 
+#[derive(StoryArgs, Debug, PartialEq)]
+struct PaletteTableArgs {
+    sixteen_columns: bool,
+    #[arg(range = 60.0..=480.0)]
+    width: f32,
+    disabled: bool,
+}
+
 pub(crate) fn stories() -> Vec<Story> {
     let mut stories = vec![
         typed_story!(
@@ -439,6 +449,14 @@ pub(crate) fn stories() -> Vec<Story> {
             "Palette",
             PaletteArgs { size: SizeArg::Md, width: 200.0, disabled: false },
             show_palette
+        ),
+        typed_story!(
+            "composites/color/palette-table",
+            Level::Composites,
+            "SwatchPalette",
+            "Table",
+            PaletteTableArgs { sixteen_columns: true, width: 240.0, disabled: false },
+            show_palette_table
         ),
     ];
     stories.extend(full_stories::stories());
@@ -591,6 +609,39 @@ const PALETTE: [(&str, [u8; 3]); 12] = [
     ("Pink", [0xd6, 0x40, 0x9f]),
     ("Grey", [0x88, 0x8d, 0x91]),
 ];
+
+/// A 64-entry colour table with repeated colours and a clear entry: a click selects, a
+/// double-click or Enter asks to edit.
+fn show_palette_table(ui: &mut Ui, args: &mut PaletteTableArgs) {
+    let start = (None::<usize>, String::new());
+    slider::with_values(ui, "color-palette-table", [start], |ui, state| {
+        let (selected, last) = &mut state[0];
+        let entries = (0..64).map(|i| {
+            let shade = (i % 16) as f32 / 15.0;
+            let color = match i {
+                7 => craft_theme::Srgba::new(0.0, 0.0, 0.0, 0.0),
+                i if i % 2 == 1 => craft_theme::Srgba::rgb(shade, 0.35, 1.0 - shade),
+                _ => craft_theme::Srgba::rgb(0.9, 0.9, 0.9),
+            };
+            (format!("Index {i}: {}", color.to_rgba().to_hex()), color)
+        });
+        let mut table = SwatchPalette::table("color-palette-table", "Color Table", entries).selected(*selected).enabled(!args.disabled);
+        if args.sixteen_columns {
+            table = table.columns(16);
+        } else {
+            ui.set_width(args.width.min(ui.available_width()));
+        }
+        let shown = table.show(ui);
+        if let Some(index) = shown.selected {
+            *selected = Some(index);
+            *last = format!("select {index}");
+        }
+        if let Some(index) = shown.open {
+            *last = format!("open {index}");
+        }
+        ui.add(Text::new(format!("Last event: {last}")).content(Content::Muted));
+    });
+}
 
 /// Twelve swatches wrapping to the width, choosing one colour.
 fn show_palette(ui: &mut Ui, args: &mut PaletteArgs) {

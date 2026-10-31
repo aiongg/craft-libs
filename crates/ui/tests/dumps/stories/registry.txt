@@ -150,6 +150,7 @@ composites/color/compact = ColorPicker | Compact | Panel | alpha=Bool(false); ey
 composites/color/popover = ColorPopover | Popover | Panel | size=Choice { options: ["sm", "md"], index: 1 }; alpha=Bool(true); eyedropper=Bool(true); disabled=Bool(false)
 composites/color/hex-field = HexField | Hex field | Panel | digits=Choice { options: ["2", "1"], index: 0 }; alpha=Bool(false); disabled=Bool(false)
 composites/color/palette = SwatchPalette | Palette | Panel | size=Choice { options: ["sm", "md"], index: 1 }; width=Number { value: 200.0, min: 60.0, max: 400.0 }; disabled=Bool(false)
+composites/color/palette-table = SwatchPalette | Table | Panel | sixteen_columns=Bool(true); width=Number { value: 240.0, min: 60.0, max: 480.0 }; disabled=Bool(false)
 composites/color/full = ColorPicker | Full | Panel | CMYK (host model)=Bool(true); OKLCH=Bool(false); compare=Bool(true); warnings=Bool(true); eyedropper=Bool(true); alpha=Bool(false); disabled=Bool(false)
 composites/color/dialog = ColorPicker | Dialog (edit scope) | Panel | CMYK (host model)=Bool(true)
 composites/color/pair-foreground = SwatchPair | Foreground and background | Panel | buttons=Bool(true); disabled=Bool(false)
