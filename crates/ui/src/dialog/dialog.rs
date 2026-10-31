@@ -4,6 +4,7 @@ use egui::accesskit::Role;
 use egui::{Color32, Context, CursorIcon, Id, Key, Modal, Modifiers, Order, Rect, ScrollArea, Ui, UiKind, Vec2};
 
 use super::buttons::{ButtonRole, Platform};
+use super::focus_scroll::scroll_focus_into_view;
 use super::footer::DialogLabels;
 use super::footer::{Footer, FooterCx, FooterRun};
 use super::frame::{DialogFrame, DialogFrameResponse};
@@ -454,13 +455,14 @@ impl<'a> Dialog<'a> {
             };
             let draw_body = |ui: &mut Ui| {
                 let scoped = |ui: &mut Ui| {
-                    match body_mode {
-                        Body::Fit => body(ui, fields),
-                        Body::Scroll => {
-                            let height = scroll_height(&t, window.height(), chrome, below_used);
-                            ScrollArea::vertical().max_height(height).auto_shrink([false, true]).show(ui, |ui| body(ui, fields));
-                        }
+                    let mut height = scroll_height(&t, window.height(), chrome, below_used);
+                    if let Some((_, max)) = resize_sizes {
+                        height = height.min((max.y - (chrome - 2.0 * pad) - below_used).max(t.scroll_min));
                     }
+                    ScrollArea::vertical().max_height(height).auto_shrink([body_mode == Body::Fit, true]).show(ui, |ui| {
+                        body(ui, fields);
+                        scroll_focus_into_view(ui);
+                    });
                     let top = ui.min_rect().bottom();
                     below(ui, fields);
                     below_now.set(ui.min_rect().bottom() - top);

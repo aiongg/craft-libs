@@ -28,6 +28,7 @@ mod buttons;
 mod dialog;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod dialog_tests;
+mod focus_scroll;
 mod footer;
 #[cfg(test)]
 mod footer_pure_tests;

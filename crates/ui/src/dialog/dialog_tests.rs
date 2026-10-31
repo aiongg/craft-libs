@@ -356,3 +356,110 @@ fn a_region_below_a_scrolling_body_stays_put_and_fits_the_window() {
     assert!(harness.get_by_label("Parameter 0").rect().top() < first - 50.0, "the body scrolls");
     assert_eq!(harness.get_by_label("Preview").rect().top(), preview.top());
 }
+
+type Answered = std::rc::Rc<std::cell::Cell<Option<Outcome>>>;
+
+fn tall_dialog(window: Vec2, rows: usize) -> (Harness<'static, DialogState>, Answered) {
+    let answered = Answered::default();
+    let seen = answered.clone();
+    let numbers = crate::localized::LocaleNumbers::from_tag("en");
+    let mut harness = harness(window).build_ui_state(
+        move |ui, state: &mut DialogState| {
+            let shown = Dialog::new("tall", "Print")
+                .initial_focus(InitialFocus::None)
+                .width(Width::Fixed(300.0))
+                .footer(Footer::standard().labels(DialogLabels::default()))
+                .show(&ui.ctx().clone(), state, &mut (), |ui, ()| {
+                    let _ = crate::controls::NumberField::new("first", "First", 1.0, &numbers).show(ui);
+                    for n in 0..rows {
+                        ui.label(format!("Row {n}"));
+                    }
+                    let _ = crate::controls::NumberField::new("last", "Last", 2.0, &numbers).show(ui);
+                });
+            seen.set(shown.outcome.or(seen.get()));
+        },
+        DialogState::new(),
+    );
+    harness.run();
+    (harness, answered)
+}
+
+fn wheel(harness: &mut Harness<'_, impl Sized>, at: Pos2, by: f32) {
+    harness.event(Event::PointerMoved(at));
+    harness.run();
+    harness.event(Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: vec2(0.0, by),
+        modifiers: Modifiers::NONE,
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+    });
+    harness.run();
+}
+
+#[test]
+fn a_dialog_taller_than_the_window_keeps_its_title_and_footer_and_scrolls_the_body() {
+    // No field has the focus: a focused number field takes the wheel.
+    let window = vec2(640.0, 300.0);
+    let (mut harness, answered) = tall_dialog(window, 60);
+    let (ok, cancel) = (harness.get_by_label("OK").rect(), harness.get_by_label("Close").rect());
+    let screen = Rect::from_min_size(Pos2::ZERO, window);
+    assert!(screen.contains_rect(ok) && screen.contains_rect(cancel), "{ok:?} {cancel:?}");
+    assert!(ok.bottom() <= window.y - 24.0 + 1.0, "the dialog keeps the window margin: {ok:?}");
+    assert!(harness.get_by_label("Row 59").rect().top() > window.y, "the body is cut, not the dialog");
+
+    let first = harness.get_by_label("Row 0").rect().top();
+    let over = harness.get_by_label("Row 0").rect().center();
+    wheel(&mut harness, over, -200.0);
+    assert!(harness.get_by_label("Row 0").rect().top() < first - 50.0, "the body scrolls");
+    assert_eq!(harness.get_by_label("OK").rect(), ok, "the footer stays put");
+    harness.get_by_label("OK").click();
+    harness.run();
+    assert_eq!(answered.get(), Some(Outcome::Ok), "the footer button answers");
+}
+
+#[test]
+fn tab_to_a_field_below_the_fold_scrolls_it_into_view() {
+    let window = vec2(640.0, 300.0);
+    let (mut harness, _) = tall_dialog(window, 60);
+    let labels = tab_cycle(&mut harness, Modifiers::NONE, 2);
+    assert_eq!(labels[1].as_deref(), Some("Last"), "{labels:?}");
+    let last = harness.get_by_label("Last").rect();
+    let ok = harness.get_by_label("OK").rect();
+    assert!(last.top() >= 0.0 && last.bottom() <= ok.top(), "{last:?} above {ok:?}");
+}
+
+#[test]
+fn a_dialog_that_fits_keeps_its_size_and_place() {
+    // The positions are those a body without a scroll area gave.
+    let (harness, _) = tall_dialog(vec2(640.0, 480.0), 3);
+    let (row, ok) = (harness.get_by_label("Row 0").rect(), harness.get_by_label("OK").rect());
+    let near = |a: Rect, b: Rect| (a.min - b.min).length() < 0.5 && (a.size() - b.size()).length() < 0.5;
+    assert!(near(row, Rect::from_min_max(pos2(170.0, 215.0), pos2(203.2, 229.0))), "{row:?}");
+    assert!(near(ok, Rect::from_min_max(pos2(292.0, 313.0), pos2(376.0, 341.0))), "{ok:?}");
+}
+
+#[test]
+fn a_resizable_dialog_with_a_tall_body_stays_in_the_window_and_scrolls() {
+    let window = vec2(640.0, 300.0);
+    let mut harness = harness(window).build_ui_state(
+        |ui, state: &mut DialogState| {
+            let resize = Resize { default: vec2(400.0, 800.0), min: vec2(260.0, 160.0), max: ResizeMax::Window };
+            let _ = Dialog::new("tall-resizable", "Print").resizable(resize).footer(Footer::standard()).show(
+                &ui.ctx().clone(),
+                state,
+                &mut (),
+                |ui, ()| {
+                    for n in 0..60 {
+                        ui.label(format!("Row {n}"));
+                    }
+                },
+            );
+        },
+        DialogState::new(),
+    );
+    harness.run();
+    let ok = harness.get_by_label("OK").rect();
+    assert!(ok.bottom() <= window.y, "{ok:?}");
+    assert!(harness.get_by_label("Row 59").rect().top() > window.y, "the body is cut by its scroll area");
+}
