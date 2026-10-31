@@ -479,21 +479,23 @@ impl StackDialog for ExportAsDialog {
         let numbers = LocaleNumbers::of_ctx(ctx);
         let before = self.settings.clone();
         let saving = self.picking.is_some();
-        let side = crate::theme::current(ctx).component.dialog.preview_pane[1] * 2.0;
+        let tokens = crate::theme::current(ctx);
+        let side = tokens.component.dialog.preview_pane[1] * 2.0;
+        let (settings_width, pane_gap) = (tokens.component.export.settings_width, tokens.component.export.pane_gap);
         let line = self.size_line(&labels);
         let size = self.output_size();
         let Self { formats, source, settings, preview, size_error, defaults, state, .. } = self;
         let shown = Dialog::with_id(self.id, labels.title.as_str())
             .stack(stack)
-            .width(Width::Fixed(SETTINGS_WIDTH + side + PANE_GAP))
+            .width(Width::Fixed(settings_width + side + pane_gap))
             .footer(Footer::standard().ok(labels.export.as_str()).ok_enabled(!saving))
             .show(ctx, state, &mut (), |ui, ()| {
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
-                        ui.set_width(SETTINGS_WIDTH);
+                        ui.set_width(settings_width);
                         settings_column(ui, formats, *source, size, settings, size_error, *defaults, &labels, &numbers);
                     });
-                    ui.add_space(PANE_GAP);
+                    ui.add_space(pane_gap);
                     ui.vertical(|ui| preview_column(ui, preview.as_ref(), side, &line));
                 });
             });
@@ -518,14 +520,6 @@ const NO_ESTIMATE: &str = "—";
 
 /// The name suggested for a document with none.
 const UNTITLED: &str = "Untitled";
-
-/// The settings column's width.
-// S4-F18: PhotoCraft's literal (export_dialog.rs:869); no token yet.
-const SETTINGS_WIDTH: f32 = 248.0;
-
-/// The space between the settings and the preview.
-// S4-F18: PhotoCraft's literal (export_dialog.rs:869); no token yet.
-const PANE_GAP: f32 = 12.0;
 
 /// The preview with the size line under it.
 fn preview_column(ui: &mut Ui, preview: Option<&ExportPreview>, side: f32, line: &str) {

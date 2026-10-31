@@ -19,34 +19,6 @@ use crate::{SelectionChange, SuiteClient};
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tests;
 
-/// A chip's size.
-// S4-F18: theme_chip.size
-const CHIP_SIZE: Vec2 = vec2(30.0, 26.0);
-/// From the outline to the fill.
-// S4-F18: theme_chip.inset
-const CHIP_INSET: f32 = 3.0;
-/// The chrome strip along the top of the fill.
-// S4-F18: theme_chip.strip
-const CHIP_STRIP: f32 = 5.0;
-/// The accent dot's radius and its distance from the fill's bottom-end corner, on both axes.
-// S4-F18: theme_chip.dot_radius
-const CHIP_DOT_RADIUS: f32 = 2.5;
-// S4-F18: theme_chip.dot_offset
-const CHIP_DOT_OFFSET: f32 = 6.0;
-/// The outline's and the fill's corner radii.
-// S4-F18: theme_chip.outline_radius
-const CHIP_OUTLINE_RADIUS: u8 = 3;
-// S4-F18: theme_chip.fill_radius
-const CHIP_FILL_RADIUS: f32 = 2.0;
-/// The star badge's radius, and how far its centre sits inside the chip's top end corner.
-// S4-F18: theme_chip.badge_radius
-const BADGE_RADIUS: f32 = 7.0;
-// S4-F18: theme_chip.badge_inset
-const BADGE_INSET: Vec2 = vec2(3.0, 3.0);
-/// Between two chips: room for the badge that overhangs the chip's corner.
-// S4-F18: theme_chip.gap
-const CHIP_GAP: f32 = 6.0;
-
 craft_ui::words! {
     /// The appearance page's words, English by default.
     #[non_exhaustive]
@@ -80,6 +52,9 @@ craft_ui::words! {
         motion_reduced: "appearance.motionReduced" = "Reduced";
     }
 }
+
+/// The labels tables of the appearance page, for the words registry.
+pub const WORDS: &[&[craft_ui::localized::Word]] = &[<AppearanceLabels as craft_ui::localized::Labels>::WORDS];
 
 /// What the page reported this pass.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -274,7 +249,7 @@ impl ChipRow<'_> {
                 .accessibility_role(Role::RadioGroup)
                 .accessibility_label(self.title);
             let group = ui.scope_builder(builder, |group| {
-                group.spacing_mut().item_spacing.x = CHIP_GAP;
+                group.spacing_mut().item_spacing.x = Tokens::of(group).component.theme_chip.gap;
                 let ids: Vec<Id> = themes.iter().map(|t| group.scope_id().with(t.id.as_str())).collect();
                 let mut selected = themes.iter().position(|t| Some(&t.id) == self.chosen);
                 // Arrows pick the chip the focus moves to.
@@ -371,6 +346,8 @@ impl<'a> ThemeChip<'a> {
 
     fn show_in(self, ui: &mut Ui, labels: &AppearanceLabels) -> ThemeChipResponse {
         let tokens = Tokens::of(ui);
+        let chip_tokens = tokens.component.theme_chip;
+        let outline_radius = CornerRadius::same(chip_tokens.outline_radius.round() as u8);
         let slot = self.slot.unwrap_or_else(|| Slot {
             id: ui.make_persistent_id(("theme_chip", self.theme.id.as_str(), self.dark)),
             position: None,
@@ -378,14 +355,14 @@ impl<'a> ThemeChip<'a> {
         });
         let name = self.theme.name.as_str();
         let colors = sample(ui.ctx(), self.theme, self.dark);
-        let (_, rect) = ui.allocate_space(CHIP_SIZE);
+        let (_, rect) = ui.allocate_space(Vec2::from(chip_tokens.size));
         // Only the group's Tab stop takes keyboard focus; the arrow keys move it.
         let sense = if slot.tab_stop { Sense::click() } else { Sense::CLICK };
         let mut chip = Interactive::with_id(slot.id, Role::RadioButton, name)
             .sense(sense)
             .checked(self.selected)
             .state_layer(false)
-            .corner_radius(CornerRadius::same(CHIP_OUTLINE_RADIUS));
+            .corner_radius(outline_radius);
         if let Some(position) = slot.position {
             chip = chip.position_in_set(position);
         }
@@ -395,11 +372,11 @@ impl<'a> ThemeChip<'a> {
         let response = chip.interact_at(ui, rect).finish(ui).on_hover_text(name);
         if ui.is_rect_visible(rect) {
             let painter = ui.painter();
-            let inner = rect.shrink(CHIP_INSET);
-            painter.rect_filled(inner, CHIP_FILL_RADIUS, colors.panel);
-            painter.rect_filled(Rect::from_min_size(inner.min, vec2(inner.width(), CHIP_STRIP)), 0.0, colors.chrome);
-            let dot = pos2(direction::end_x(ui, inner) - direction::forward(ui) * CHIP_DOT_OFFSET, inner.bottom() - CHIP_DOT_OFFSET);
-            painter.circle_filled(dot, CHIP_DOT_RADIUS, colors.accent);
+            let inner = rect.shrink(chip_tokens.inset);
+            painter.rect_filled(inner, chip_tokens.fill_radius, colors.panel);
+            painter.rect_filled(Rect::from_min_size(inner.min, vec2(inner.width(), chip_tokens.strip)), 0.0, colors.chrome);
+            let dot = pos2(direction::end_x(ui, inner) - direction::forward(ui) * chip_tokens.dot_offset, inner.bottom() - chip_tokens.dot_offset);
+            painter.circle_filled(dot, chip_tokens.dot_radius, colors.accent);
             let stroke = if self.selected {
                 Stroke::new(2.0, tokens.color.accent.solid.to_egui())
             } else if response.hovered() {
@@ -407,14 +384,20 @@ impl<'a> ThemeChip<'a> {
             } else {
                 Stroke::new(1.0, tokens.color.line.border.to_egui())
             };
-            painter.rect_stroke(rect.shrink(1.0), CornerRadius::same(CHIP_OUTLINE_RADIUS), stroke, StrokeKind::Inside);
+            painter.rect_stroke(rect.shrink(1.0), outline_radius, stroke, StrokeKind::Inside);
         }
         let action = if self.favorite { &labels.remove_favorite } else { &labels.add_favorite };
         let mut favorite_clicked = false;
-        let center: Pos2 = pos2(direction::end_x(ui, rect) - direction::forward(ui) * BADGE_INSET.x, rect.top() + BADGE_INSET.y);
-        let badge = Rect::from_center_size(center, Vec2::splat(BADGE_RADIUS * 2.0));
+        let center: Pos2 =
+            pos2(direction::end_x(ui, rect) - direction::forward(ui) * chip_tokens.badge_inset[0], rect.top() + chip_tokens.badge_inset[1]);
+        let badge = Rect::from_center_size(center, Vec2::splat(chip_tokens.badge_radius * 2.0));
         if self.favorite || ui.rect_contains_pointer(rect.union(badge)) {
-            ui.painter().circle(center, BADGE_RADIUS, tokens.color.surface.raised.to_egui(), Stroke::new(1.0, tokens.color.line.border.to_egui()));
+            ui.painter().circle(
+                center,
+                chip_tokens.badge_radius,
+                tokens.color.surface.raised.to_egui(),
+                Stroke::new(1.0, tokens.color.line.border.to_egui()),
+            );
             let (icon, tint) = if self.favorite { (Icon::StarFilled, tokens.color.accent.solid) } else { (Icon::Star, tokens.color.text.muted) };
             icons::paint(ui, badge, icon, IconSize::Sm, tint.to_egui());
             // Sensed without allocating: a widget placed at the badge would grow the row by the

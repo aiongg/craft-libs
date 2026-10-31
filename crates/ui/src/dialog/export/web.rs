@@ -467,22 +467,24 @@ impl StackDialog for SaveForWebDialog {
         let numbers = LocaleNumbers::of_ctx(ctx);
         let before = (self.settings.clone(), self.fields.current, self.view, self.frame);
         let saving = self.picking.is_some();
-        let height = crate::theme::current(ctx).component.dialog.preview_pane[1] * 2.0;
+        let tokens = crate::theme::current(ctx);
+        let height = tokens.component.dialog.preview_pane[1] * 2.0;
+        let (width, settings_width) = (tokens.component.export.web_width, tokens.component.export.web_settings_width);
         let Self { name, fields, settings, presets, view, frames, frame, playing, variants, original, nav, state, .. } = self;
         let shown = Dialog::with_id(self.id, labels.title.as_str())
             .stack(stack)
-            .width(Width::Fixed(WEB_WIDTH))
+            .width(Width::Fixed(width))
             .footer(Footer::standard().ok(labels.save.as_str()).ok_enabled(!saving))
             .show(ctx, state, &mut (), |ui, ()| {
                 let mut preview = Preview { name, fields, view, frames: *frames, frame, playing, variants, original: original.as_ref(), nav, height };
                 preview.controls(ui, &labels);
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
-                        ui.set_width(ui.available_width() - SETTINGS_WIDTH - ui.spacing().item_spacing.x);
+                        ui.set_width(ui.available_width() - settings_width - ui.spacing().item_spacing.x);
                         preview.panes(ui, settings, &labels);
                     });
                     ui.vertical(|ui| {
-                        ui.set_width(SETTINGS_WIDTH);
+                        ui.set_width(settings_width);
                         let palette = preview.variants[0].as_ref().map_or(&[][..], |variant| variant.palette.as_slice());
                         egui::ScrollArea::vertical().id_salt("web-settings").max_height(preview.height).show(ui, |ui| {
                             settings_column(ui, preview.fields, settings, presets, palette, &labels, &sizing, &numbers);
@@ -520,14 +522,6 @@ struct Last {
 }
 
 const REMEMBER_KEY: &str = "export.saveForWeb";
-
-/// The dialog's content width.
-// S4-F18: `export.web_width`
-const WEB_WIDTH: f32 = 900.0;
-
-/// The settings column's width.
-// S4-F18: PhotoCraft's literal (web.rs:246); no token yet.
-const SETTINGS_WIDTH: f32 = 250.0;
 
 /// The zoom limits of the panes.
 const ZOOM_RANGE: (f32, f32) = (0.0001, 32.0);
@@ -954,7 +948,9 @@ fn settings_column(
             form.row(&labels.matte, |ui, _| {
                 let [r, g, b] = settings.matte;
                 let hex = format!("#{r:02x}{g:02x}{b:02x}");
-                let edit = TextField::new("web-matte", labels.matte.as_str(), &hex).width(SETTINGS_FIELD_WIDTH).show(ui);
+                let edit = TextField::new("web-matte", labels.matte.as_str(), &hex)
+                    .width(crate::theme::current(ui.ctx()).component.export.web_field_width)
+                    .show(ui);
                 if let Some(matte) = edit.committed().and_then(|text| parse_matte(text)) {
                     settings.matte = matte;
                 }
@@ -1021,10 +1017,6 @@ fn settings_column(
         });
     });
 }
-
-/// The width of the Matte field.
-// S4-F18: PhotoCraft's literal (web.rs:332); no token yet.
-const SETTINGS_FIELD_WIDTH: f32 = 80.0;
 
 fn quality_row(form: &mut Form<'_>, settings: &mut WebSettings, labels: &WebLabels, numbers: &LocaleNumbers) {
     if let Some(value) = number_row(form, "web-quality", &labels.quality, numbers, f64::from(settings.quality), 0.0..=100.0) {
