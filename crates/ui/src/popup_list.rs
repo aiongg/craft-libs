@@ -21,10 +21,21 @@ use crate::primitives::{SurfaceEdge, SurfaceStyle};
 /// is raised with it, and egui's stable sort would leave it under the host. As a sublayer it
 /// always sits directly above its host. Only a host in the popups' own order needs it: a window
 /// in a lower order is under every popup already.
+///
+/// A host that is itself a sublayer (a popover in a modal, with a list opened from it) passes
+/// the popup on to its own parent, so the layers stay one level deep: egui leaves deeper nesting
+/// unspecified.
 pub(crate) fn in_front_of(ctx: &Context, host: LayerId, popup: Id) {
     let layer = LayerId::new(Order::Foreground, popup);
-    if host.order == Order::Foreground && host != layer {
-        ctx.set_sublayer(host, layer);
+    let root = ctx.memory(|mem| {
+        let mut root = host;
+        while let Some(parent) = mem.areas().parent_layer(root) {
+            root = parent;
+        }
+        root
+    });
+    if root.order == Order::Foreground && root != layer {
+        ctx.set_sublayer(root, layer);
     }
 }
 

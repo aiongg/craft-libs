@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use super::floating_tests::frame_style;
-use super::render::{Drawn, Sizer};
+use super::render::{Drawn, Sizer, node_limits};
 use super::testing::DockDriver;
 use super::*;
 use crate::layout::{SplitAxis, SplitSize};
@@ -507,7 +507,38 @@ fn assert_dividers_travel(d: &mut Driver) {
             (drawn.fold(rect, |a, b| a.union(b)), w)
         })
         .collect();
+    // A window resized to its least size leaves its dividers no room.
+    let cramped: Vec<Hit<u32>> = {
+        let mut style = crate::docking::testing::default_style();
+        frame_style(&mut style);
+        let (config, look) = style.split();
+        let sizer = Sizer { config: &config, look: &look, content: &d.content };
+        dividers
+            .iter()
+            .filter(|hit| {
+                let (root, area, path) = match hit {
+                    Hit::Divider(Divider::Split(path)) => (d.layout.root.as_ref(), Some(d.area), path),
+                    Hit::Divider(Divider::WindowSplit(key, path)) => {
+                        let window = start.floating.iter().find(|w| w.contains(key));
+                        let drawn = window.into_iter().flat_map(|w| w.panels()).filter(|p| d.content.bodies.contains_key(p)).map(|p| group(d, *p));
+                        (window.map(|w| &w.root), drawn.reduce(|a, b| a.union(b)), path)
+                    }
+                    _ => return false,
+                };
+                let (Some(mut node), Some(mut rect)) = (root, area) else { return false };
+                for &second in path {
+                    let Some([a, b]) = sizer.children(node, rect) else { break };
+                    (node, rect) = if second { b } else { a };
+                }
+                spare(&sizer, node, rect) <= 0.5
+            })
+            .cloned()
+            .collect()
+    };
     for hit in dividers {
+        if cramped.contains(&hit) {
+            continue;
+        }
         let own = |w: &Floating<u32>| matches!(&hit, Hit::Divider(Divider::WindowSplit(key, _)) if w.contains(key));
         if d.hit(&hit).is_some_and(|r| covers.iter().any(|(c, w)| c.intersects(r) && !own(w))) {
             continue;
@@ -524,8 +555,17 @@ fn assert_dividers_travel(d: &mut Driver) {
     }
 }
 
-/// Every group at or above its minimum, and every divider with room both ways, in the docked
-/// layout and in each floating window. Reads the bodies drawn last.
+/// The room along its axis that the split `node`, drawn in `rect`, has beyond the least its
+/// groups need.
+fn spare(sizer: &Sizer<'_, u32>, node: &Node<u32>, rect: Rect) -> f32 {
+    let Node::Split { axis, .. } = node else { return 0.0 };
+    let along = |v: Vec2| if *axis == SplitAxis::Horizontal { v.x } else { v.y };
+    along(rect.size()) - along(node_limits(node, sizer.look, sizer.content).min)
+}
+
+/// Every group at or above its minimum, and every divider within its range and with room to move
+/// unless its split has no room to spare, in the docked layout and in each floating window.
+/// Reads the bodies drawn last.
 fn assert_sizes(d: &Driver, context: &str) {
     let mut style = crate::docking::testing::default_style();
     frame_style(&mut style);
@@ -550,7 +590,12 @@ fn assert_sizes(d: &Driver, context: &str) {
         while let Some((node, rect, path)) = nodes.pop() {
             let Some([a, b]) = sizer.children(node, rect) else { continue };
             let (lo, hi) = sizer.range((root, area), &path);
-            assert!(lo < -0.5 && hi > 0.5, "{context}: a divider is stuck ({lo}, {hi}) at {rect:?} in {:?}", d.layout);
+            // A divider has no room only where its split is as small as its groups allow (a
+            // window resized to its least size); a drag that ended at a limit leaves room the
+            // other way.
+            let spare = spare(&sizer, node, rect);
+            assert!(lo <= 0.5 && hi >= -0.5, "{context}: a divider is outside its range ({lo}, {hi}) at {rect:?} in {:?}", d.layout);
+            assert!(hi - lo > 1.0 || spare <= 0.5, "{context}: a divider is stuck ({lo}, {hi}) with {spare} to spare at {rect:?} in {:?}", d.layout);
             for (second, (child, rect)) in [(false, a), (true, b)] {
                 let mut path = path.clone();
                 path.push(second);
@@ -597,15 +642,6 @@ fn random_drops_leave_every_group_its_minimum_and_every_divider_travel() {
             let panel = panels[rng.below(panels.len())];
             let bar = d.hit(&Hit::DragBar(panel)).filter(|_| rng.below(3) == 0);
             let Some(from) = bar.or_else(|| d.hit(&Hit::Tab(panel))).map(|r| r.center()) else { continue };
-            // A window drawn over the start takes the press for its own dividers and bars.
-            let covered = d
-                .layout
-                .floating
-                .iter()
-                .any(|w| !w.contains(&panel) && Rect::from_min_size(pos2(w.rect[0], w.rect[1]), vec2(w.rect[2], w.rect[3])).contains(from));
-            if covered {
-                continue;
-            }
             let target = panels[rng.below(panels.len())];
             let Some(rect) = d.content.bodies.get(&target).copied() else { continue };
             let to = match rng.below(8) {

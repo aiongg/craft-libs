@@ -403,7 +403,7 @@ impl Popover {
 
         let layer = LayerId::new(Order::Foreground, id);
         for child in family.iter().skip(1) {
-            ctx.set_sublayer(layer, LayerId::new(Order::Foreground, *child));
+            popup_list::in_front_of(&ctx, layer, *child);
         }
 
         let size_now = resized.unwrap_or(match size {

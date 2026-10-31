@@ -172,7 +172,6 @@ impl<'a, T: Clone> Menu<'a, T> {
     pub fn show(self, ui: &Ui, popup: Popup<'_>) -> MenuResponse<T> {
         let ctx = ui.ctx().clone();
         let id = popup.get_id();
-        popup_list::in_front_of(&ctx, ui.layer_id(), id);
         let shown_before = ctx.read_response(id).is_some();
         let tokens = Tokens::of(ui);
         let style = MenuStyle::new(&tokens, self.size);
@@ -223,6 +222,9 @@ impl<'a, T: Clone> Menu<'a, T> {
             .close_behavior(close)
             .info(UiStackInfo::new(UiKind::Menu).with_tag_value(MenuConfig::MENU_CONFIG_TAG, config))
             .show(|ui| draw.level(ui, 1, id, &[], self.entries, &mut nav));
+        if shown.is_some() {
+            popup_list::in_front_of(&ctx, ui.layer_id(), id);
+        }
         let mut chosen = draw.chosen;
         let mut open = shown.as_ref().is_some_and(|r| !r.response.should_close());
         let mut step = None;

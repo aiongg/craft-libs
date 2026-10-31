@@ -97,6 +97,12 @@ pub(in crate::docking) fn column_width<P>(column: &Column<P>, look: &DockLook, c
     if column.iconic {
         return column.iconic_width.unwrap_or(look.iconic_width).clamp(look.iconic_width, look.iconic_max_width);
     }
+    expanded_width(column, look, content)
+}
+
+/// The width an expanded column's panels draw at, whether the column is expanded or iconic (a
+/// flyout and a floated iconic column use it): the stored width kept within the panels' limits.
+pub(in crate::docking) fn expanded_width<P>(column: &Column<P>, look: &DockLook, content: &dyn crate::docking::DockContent<P>) -> f32 {
     let (lo, hi) = column_limits(column, look, content);
     column.width.clamp(lo, hi)
 }
