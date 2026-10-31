@@ -1116,7 +1116,7 @@ Everything is built in `craft-libs` first. The rule is "build them all in one sp
 - **PhotoCraft migrates first.** It has the most UI and the most features. Its port branch runs on the library while the library grows.
 - **VectorCraft migrates second.** It shares the Canvas shell and most of PhotoCraft's skeleton. If the two ports look alike, the library is general enough.
 - **The other apps follow**, each adopting the steps it needs.
-- Each app switches in one pass, not gradually. An app's port is a single branch that replaces its own widgets.
+- Each app's port is one branch. It adopts each step as the step lands and deletes the code the step replaces. The app's main branch switches once, when the port merges.
 
 ### Acceptance for an app port
 
