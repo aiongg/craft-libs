@@ -12,15 +12,15 @@ use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
 use crate::composites::{Notice, Tone};
 use crate::controls::Button;
-use crate::localized::Labels as _;
+use crate::localized::words::counts;
+use crate::localized::{Labels as _, Words};
 use crate::primitives::{Content, Text};
 
 crate::words! {
     /// The report dialog's words, English by default.
     #[non_exhaustive]
     pub struct ReportLabels {
-        notes_one: "report.notesOne" = "1 note";
-        notes_many: "report.notesMany" = "{count} notes";
+        count: "report.notes" = "{n} notes";
         copy: "report.copy" = "Copy";
     }
 }
@@ -107,11 +107,7 @@ impl StackDialog for ReportDialog {
     // lightcraft 50); on `Dialog` with `Body::Scroll`, `Footer::standard().without_cancel()`.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<()>> {
         let labels = ReportLabels::of_ctx(ctx);
-        let count = match self.notes.len() {
-            0 => None,
-            1 => Some(labels.notes_one.clone()),
-            n => Some(labels.notes_many.replace("{count}", &n.to_string())),
-        };
+        let count = (!self.notes.is_empty()).then(|| Words::of_ctx(ctx).counted(ctx, counts::REPORT_NOTES, &labels.count, self.notes.len() as u64));
         let copy = labels.copy;
         let text = self.as_text();
         let (summary, notes, id) = (&self.summary, &self.notes, self.id);

@@ -74,3 +74,40 @@ fn read_only_shows_text_and_editable_returns_fields() {
     editable.run();
     assert_eq!(editable.state().result, Some(DialogResult::Ok(values)));
 }
+
+fn field_tabs() -> Vec<PropertiesTab> {
+    vec![PropertiesTab::new(
+        "General",
+        vec![
+            PropertyRow::Field(Param::new("title", "Title:", ParamKind::Text { default: "Untitled".into() })),
+            PropertyRow::Field(Param::new("tint", "Tint:", ParamKind::Color { default: Some([0.5, 0.0, 1.0]) })),
+            PropertyRow::Field(Param::new(
+                "mode",
+                "Mode:",
+                ParamKind::Choice { options: vec![("rgb".into(), "RGB Color".into())], default: Some("rgb".into()) },
+            )),
+        ],
+    )]
+}
+
+// A Field row draws as an editor and as read-only text; read-only colours show the sRGB bytes
+// (0.5 is #80), and an editable dialog returns the defaults of rows the user never touched.
+#[test]
+fn field_rows_draw_editable_and_read_only() {
+    let mut editable = harness(PropertiesDialog::new("props-field-edit", "Properties", field_tabs()));
+    editable.run();
+    assert!(editable.query_by_label("Title:").is_some());
+    editable.get_by_label("OK").click();
+    editable.run();
+    let Some(DialogResult::Ok(fields)) = &editable.state().result else { panic!("no result") };
+    assert_eq!(fields.get("title"), Some(&FieldValue::Text("Untitled".into())));
+    assert_eq!(fields.get("tint"), Some(&FieldValue::Color([0.5, 0.0, 1.0])));
+    assert_eq!(fields.get("mode"), Some(&FieldValue::Text("rgb".into())));
+
+    let mut read_only = harness(PropertiesDialog::new("props-field-ro", "Properties", field_tabs()).read_only(true));
+    read_only.run();
+    assert!(read_only.query_by_label("Title:").is_some());
+    assert!(read_only.query_by_label("Untitled").is_some());
+    assert!(read_only.query_by_label("#8000FF").is_some(), "0.5 encodes to 0x80, 1.0 to 0xFF");
+    assert!(read_only.query_by_label("RGB Color").is_some());
+}

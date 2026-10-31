@@ -227,9 +227,10 @@ pub(crate) mod counts {
     pub(crate) const TOAST_MORE: Counted = Counted::new("toast.more", "…and {n} more", "…and {n} more");
     pub(crate) const GRAPH_POINTS: Counted = Counted::new("curve.graphPoints", "{n} point", "{n} points");
     pub(crate) const GRAPH_VALUE: Counted = Counted::new("curve.graphValue", "{channel}, {n} point", "{channel}, {n} points");
+    pub(crate) const REPORT_NOTES: Counted = Counted::new("report.notes", "{n} note", "{n} notes");
 
     #[cfg(test)]
-    pub(crate) const ALL: [Counted; 6] = [PRESETS, GROUP_PRESETS, RESULTS, TOAST_MORE, GRAPH_POINTS, GRAPH_VALUE];
+    pub(crate) const ALL: [Counted; 7] = [PRESETS, GROUP_PRESETS, RESULTS, TOAST_MORE, GRAPH_POINTS, GRAPH_VALUE, REPORT_NOTES];
 }
 
 /// A labels struct: plain data whose every field is one [`Word`] of its table.
