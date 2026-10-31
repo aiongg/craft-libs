@@ -3,9 +3,9 @@
 //! the `#`.
 
 use craft_theme::{ControlSize, Rgba, TypeRole};
-use egui::text::CCursorRange;
+use egui::text::{CCursor, CCursorRange};
 use egui::text_edit::TextEditState;
-use egui::{Align2, AsIdSalt, Color32, Context, Id, IdSalt, Pos2, Shape, Ui, vec2};
+use egui::{Align2, AsIdSalt, Color32, Context, Event, Id, IdSalt, Pos2, Shape, Ui, vec2};
 
 use super::picker::installed;
 use crate::behavior::{Codec, NotAValue, Typing, TypingLook};
@@ -82,16 +82,17 @@ pub(super) fn hex_id(picker: Id) -> Id {
     picker.with("craft_ui::color_picker::hex")
 }
 
-/// Focuses the hex field under the picker `picker`; it selects its text when it next shows.
+/// Asks for the focus on the hex field under the picker `picker`, with its text selected. The
+/// field takes it in the first pass in which it is shown and enabled and not a sizing pass: a
+/// sizing pass is laid out unseen and its widgets take no focus, so a request made before or
+/// during one waits for the pass that is shown.
 pub(super) fn focus(ctx: &Context, picker: Id) {
-    let id = hex_id(picker);
-    ctx.memory_mut(|m| m.request_focus(id));
-    ctx.data_mut(|d| d.insert_temp(select_key(id), true));
+    ctx.data_mut(|d| d.insert_temp(focus_key(hex_id(picker)), true));
     ctx.request_repaint();
 }
 
-fn select_key(id: Id) -> Id {
-    id.with("craft_ui::color_picker::select_hex")
+fn focus_key(id: Id) -> Id {
+    id.with("craft_ui::color_picker::focus_hex")
 }
 
 /// How a hex field behaves besides its colour and codec.
@@ -139,10 +140,23 @@ pub(super) fn show(ui: &mut Ui, id: Id, label: &str, value: Rgba, codec: HexCode
         selected_text: style.selected_text,
         caret: style.caret,
     };
-    if ui.data_mut(|d| d.remove_temp::<bool>(select_key(id))).is_some() {
+    if !ui.is_sizing_pass() && ui.data_mut(|d| d.remove_temp::<bool>(focus_key(id))).is_some() && enabled {
+        ui.memory_mut(|m| m.request_focus(id));
         let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
         state.cursor.set_char_range(Some(CCursorRange::select_all_str(&codec.format(&value))));
         state.store(ui.ctx(), id);
+    }
+    // A paste of a whole colour replaces the field's text; anything shorter is edited in at the
+    // cursor as in any text field.
+    if enabled && ui.memory(|m| m.has_focus(id)) {
+        let whole =
+            ui.input(|i| i.events.iter().any(|e| matches!(e, Event::Paste(text) if parse_hex(text, value, codec.alpha, codec.digits).is_ok())));
+        if whole {
+            let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
+            // Past the end, which the editor clamps: the draft's length isn't known here.
+            state.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(1 << 30))));
+            state.store(ui.ctx(), id);
+        }
     }
     let typing = Typing::with_codec(id, label, value, codec).policy(policy).enabled(enabled).keep_rejected(false).char_limit(char_limit);
     // The box goes under the text, which `TextEdit` paints as it runs.

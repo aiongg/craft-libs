@@ -692,7 +692,7 @@ fn numeric<State>(harness: &Harness<'_, State>, label: &str) -> (Role, Option<f6
 }
 
 #[test]
-fn swatches_are_buttons_with_the_colour_as_value_report_clicks_and_ignore_them_when_disabled() {
+fn swatches_are_colour_wells_with_the_colour_as_value_report_clicks_and_ignore_them_when_disabled() {
     let mut harness = harness().build_ui_state(
         |ui, clicks: &mut u32| {
             let blue = craft_theme::Rgba::rgb(0x3e, 0x63, 0xdd);
@@ -716,7 +716,11 @@ fn swatches_are_buttons_with_the_colour_as_value_report_clicks_and_ignore_them_w
     harness.run();
     a11y::assert_labelled(&harness);
     let value = |harness: &Harness<'_, u32>, label: &str| harness.get_by_label(label).accesskit_node().value();
-    assert_eq!(harness.get_by_label("Fill").accesskit_node().role(), Role::Button);
+    assert_eq!(harness.get_by_label("Fill").accesskit_node().role(), Role::ColorWell);
+    let well = |harness: &Harness<'_, u32>, label: &str| harness.get_by_label(label).accesskit_node().data().color_value();
+    assert_eq!(well(&harness, "Fill"), Some(egui::accesskit::Color { red: 0x3e, green: 0x63, blue: 0xdd, alpha: 0xff }));
+    assert_eq!(well(&harness, "Glass").map(|c| c.alpha), Some(0x80));
+    assert_eq!(well(&harness, "Mixed"), None);
     assert_eq!(value(&harness, "Fill").as_deref(), Some("#3e63dd"));
     assert_eq!(value(&harness, "Glass").as_deref(), Some("#ff000080"));
     assert_eq!(value(&harness, "Clear").as_deref(), Some("#ff000000"), "alpha 0 keeps its channels");
@@ -733,6 +737,18 @@ fn swatches_are_buttons_with_the_colour_as_value_report_clicks_and_ignore_them_w
 }
 
 #[test]
+fn a_swatch_with_dimensions_is_a_rectangle_and_keeps_its_role() {
+    let mut harness = harness().build_ui(|ui| {
+        ui.add(Swatch::new("wide", "Wide", craft_theme::Rgba::rgb(1, 2, 3)).dimensions(48.0, 20.0));
+    });
+    harness.run();
+    let node = harness.get_by_label("Wide");
+    let size = node.rect().size();
+    assert_eq!((size.x, size.y), (48.0, 20.0));
+    assert_eq!(node.accesskit_node().role(), Role::ColorWell);
+}
+
+#[test]
 fn a_palette_row_is_a_tab_stop_per_swatch_with_one_selected() {
     let story = crate::story::registry().into_iter().find(|s| s.id == "controls/swatch/palette").unwrap();
     let mut args = story.defaults();
@@ -740,8 +756,8 @@ fn a_palette_row_is_a_tab_stop_per_swatch_with_one_selected() {
     harness.run();
     let stops = a11y::tab_order(&mut harness);
     assert_eq!(stops.len(), 12);
-    assert!(stops.iter().all(|s| s.role == Role::Button));
-    let selected = harness.query_all_by(|n| n.role() == Role::Button && n.is_selected() == Some(true)).count();
+    assert!(stops.iter().all(|s| s.role == Role::ColorWell));
+    let selected = harness.query_all_by(|n| n.role() == Role::ColorWell && n.is_selected() == Some(true)).count();
     assert_eq!(selected, 1);
     harness.get_by_label("Colour 3").click();
     harness.run();

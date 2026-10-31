@@ -247,6 +247,13 @@ fn hex_field_shows_uppercase_keeps_partial_typing_and_reverts_invalid_text_on_bl
     rig.paste("00ff00");
     assert_eq!(hex(rig.color), "#00ff00", "a paste without \"#\" applies");
     rig.focus_hex();
+    rig.type_text("ab");
+    rig.paste("cd");
+    assert_eq!(rig.hex_text(), "abcd", "a paste that isn't a colour is edited in at the cursor");
+    rig.paste("336699");
+    assert_eq!(hex(rig.color), "#336699", "a whole colour replaces what the field holds");
+    rig.blur();
+    rig.focus_hex();
     rig.paste("336699CC");
     assert_eq!(hex(rig.color), "#336699cc", "eight digits set the alpha too");
     let mut values = rig.events.iter().filter_map(|e| e.value()).peekable();

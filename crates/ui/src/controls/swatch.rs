@@ -1,7 +1,7 @@
 //! [`Swatch`]: a colour well.
 
 use craft_theme::{ControlSize, Rgba, SwatchTokens};
-use egui::accesskit::{Action, Role};
+use egui::accesskit::{Action, Color, Role};
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
 use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, Vec2, Widget, pos2, vec2};
@@ -50,8 +50,9 @@ impl SwatchStyle {
 /// It shows `color` over a checkerboard where it has alpha, filling its box inside a one-point
 /// `line.control_edge` ring that separates the well from the panel. A click is the host's cue to
 /// open its picker; the swatch edits nothing.
-/// AccessKit sees a button named by `label` whose value is the colour as `#rrggbb` (`#rrggbbaa`
-/// when translucent).
+/// AccessKit sees a colour well named by `label` whose value is the colour as `#rrggbb` (`#rrggbbaa`
+/// when translucent) and whose colour value is the colour; a mixed well has none. Inside a group
+/// ([`radio`](Swatch::radio)) it is a radio button, in a table a list box option.
 ///
 /// [`mixed`](Swatch::mixed) shows the look of several objects with different colours: a neutral
 /// well with a dash and no colour value. [`selected`](Swatch::selected) draws the selection ring
@@ -65,6 +66,8 @@ pub struct Swatch {
     label: String,
     color: Rgba,
     size: ControlSize,
+    /// A width and height in place of the square side.
+    dimensions: Option<Vec2>,
     mixed: bool,
     selected: bool,
     /// A radio button of a group: whether it is the checked one, and its place in the set.
@@ -84,6 +87,7 @@ impl Swatch {
             label: label.into(),
             color: color.into(),
             size: ControlSize::Md,
+            dimensions: None,
             mixed: false,
             selected: false,
             radio: None,
@@ -97,6 +101,13 @@ impl Swatch {
 
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// A well `width` wide and `height` high, in points, in place of the square of [`size`](Swatch::size):
+    /// a rectangular colour well. The corners and rings are the swatch tokens'.
+    pub fn dimensions(mut self, width: f32, height: f32) -> Self {
+        self.dimensions = Some(vec2(width, height));
         self
     }
 
@@ -249,7 +260,7 @@ impl Widget for Swatch {
         let role = match (self.radio, self.table_cell) {
             (Some(_), _) => Role::RadioButton,
             (None, Some(_)) => Role::ListBoxOption,
-            (None, None) => Role::Button,
+            (None, None) => Role::ColorWell,
         };
         let mut element = Interactive::salted(self.id_salt, role, self.label.as_str())
             .state_layer(false)
@@ -268,7 +279,11 @@ impl Widget for Swatch {
         if !self.mixed {
             element = element.value(Swatch::hex(self.color));
         }
-        let response = element.show(ui, vec2(style.side, style.side));
+        let response = element.show(ui, self.dimensions.filter(|_| self.table_cell.is_none()).unwrap_or(vec2(style.side, style.side)));
+        if role == Role::ColorWell && !self.mixed {
+            let [r, g, b, a] = self.color.0;
+            ui.ctx().accesskit_node_builder(response.id, |node| node.set_color_value(Color { red: r, green: g, blue: b, alpha: a }));
+        }
         if !self.tab_stop && self.enabled {
             ui.ctx().accesskit_node_builder(response.id, |node| node.add_action(Action::Focus));
         }

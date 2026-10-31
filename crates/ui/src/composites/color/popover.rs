@@ -36,7 +36,7 @@ use crate::theme::{Tokens, TokensOf};
 ///   focus goes back to the swatch unless it moved to another control.
 /// - Edits are the picker's: one step per gesture, so the popup edits live as PhotoCraft's does. A
 ///   host that wants the popup as one step wraps it in [`edit::scope`](crate::edit::scope).
-/// - AccessKit: the swatch is a `Button` named `label` with the hex colour as value, expanded
+/// - AccessKit: the swatch is a `ColorWell` named `label` with the colour as value, expanded
 ///   while the popup shows, and the popup is a `Dialog` holding the picker.
 /// - While open the popup is registered with the other popups, so Tab and Esc readers outside it
 ///   leave their keys alone.
@@ -47,6 +47,7 @@ pub struct ColorPopover<'a> {
     color: Srgba,
     numbers: &'a LocaleNumbers,
     size: ControlSize,
+    dimensions: Option<(f32, f32)>,
     enabled: bool,
     picker: Option<Box<dyn FnOnce(ColorPicker<'a>) -> ColorPicker<'a> + 'a>>,
 }
@@ -72,11 +73,27 @@ impl<'a> ColorPopover<'a> {
     /// A swatch named `label` (the swatch's accessible name, translated: "Fill colour") of the
     /// host's `color`, opening a picker that writes and reads its fields with `numbers`.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, color: Srgba, numbers: &'a LocaleNumbers) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), label: label.into(), color, numbers, size: ControlSize::Md, enabled: true, picker: None }
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
+            color,
+            numbers,
+            size: ControlSize::Md,
+            dimensions: None,
+            enabled: true,
+            picker: None,
+        }
     }
 
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// A well `width` wide and `height` high in place of the square of [`size`](ColorPopover::size)
+    /// ([`Swatch::dimensions`]).
+    pub fn dimensions(mut self, width: f32, height: f32) -> Self {
+        self.dimensions = Some((width, height));
         self
     }
 
@@ -94,9 +111,13 @@ impl<'a> ColorPopover<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> ColorPopoverResponse {
-        let Self { id_salt, label, color, numbers, size, enabled, picker: setup } = self;
+        let Self { id_salt, label, color, numbers, size, dimensions, enabled, picker: setup } = self;
         let enabled = enabled && ui.is_enabled();
-        let swatch = ui.add(Swatch::new(id_salt, label.as_str(), color.to_rgba()).size(size).enabled(enabled));
+        let mut well = Swatch::new(id_salt, label.as_str(), color.to_rgba()).size(size).enabled(enabled);
+        if let Some((width, height)) = dimensions {
+            well = well.dimensions(width, height);
+        }
+        let swatch = ui.add(well);
         let toggled = swatch.clicked();
         popup(ui, swatch, toggled, &label, color, numbers, enabled, setup)
     }
@@ -144,8 +165,6 @@ pub(crate) fn popup<'a, 'b>(
 
     let popup = egui::Popup::menu(&swatch);
     let popup_id = popup.get_id();
-    // A popup's first pass is laid out unseen and takes no focus; the swatch keeps it until then.
-    let laid_out = ctx.read_response(popup_id).is_some();
     let tokens = Tokens::of(ui);
     let parts = ColorArea::style(&tokens);
     let width = parts.area + Gap::Inline.points(&tokens) + parts.strip;
@@ -161,7 +180,7 @@ pub(crate) fn popup<'a, 'b>(
             ui.set_width(width);
             let picker_id = Interactive::id_in(ui, "picker");
             let hex = hex_id(picker_id);
-            if fresh && laid_out {
+            if fresh {
                 ColorPicker::focus_hex(ui.ctx(), picker_id);
             }
             let mut picker = ColorPicker::new("picker", label, color, numbers).layout(ColorPickerLayout::Compact).enabled(enabled);
@@ -173,8 +192,7 @@ pub(crate) fn popup<'a, 'b>(
             if matches!(response.edit.event, Some(EditEvent::Cancel { .. })) {
                 ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
             }
-            // The popup's first pass may be discarded and measured again: keep asking until
-            // the field has the focus.
+            // The request waits for the pass that is shown; ask until the field has the focus.
             fresh &= !ui.memory(|m| m.has_focus(hex));
             shown = Some(response);
         });
@@ -190,7 +208,7 @@ pub(crate) fn popup<'a, 'b>(
         ctx.accesskit_node_builder(popup_id, |node| node.set_role(Role::Dialog));
     }
     match shown {
-        Some(ColorPickerResponse { edit, eyedropper_requested }) => {
+        Some(ColorPickerResponse { edit, eyedropper_requested, .. }) => {
             let picker_id = Some(edit.response.id);
             ColorPopoverResponse { edit: EditResponse::new(swatch, edit.event), eyedropper_requested, picker_id, open }
         }

@@ -8,6 +8,7 @@ use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Re
 use super::{AreaMode, ColorPicker, ColorPickerLayout, ColorWarning, PickedColor};
 use crate::behavior::FieldTab;
 use crate::controls::TextField;
+use crate::dialog::{ButtonRole, Clicked, FooterButton};
 use crate::edit::{self, EditEvent, Ending};
 use crate::localized::LocaleNumbers;
 use crate::theme::{Base, install};
@@ -66,6 +67,8 @@ struct Rig {
     scoped: bool,
     shown: bool,
     focus_on_open: bool,
+    side: Vec<FooterButton>,
+    side_clicked: Vec<Clicked>,
     picker: Id,
     field: Id,
     events: Vec<EditEvent<PickedColor>>,
@@ -92,6 +95,8 @@ impl Rig {
             scoped: false,
             shown: true,
             focus_on_open: true,
+            side: Vec::new(),
+            side_clicked: Vec::new(),
             picker: Id::NULL,
             field: Id::NULL,
             events: Vec::new(),
@@ -130,11 +135,15 @@ impl Rig {
                 for (tip, nearest) in &self.warnings {
                     picker = picker.warning(ColorWarning::new(*tip, *nearest));
                 }
+                if !self.side.is_empty() {
+                    picker = picker.side_actions(self.side.clone());
+                }
                 let picked = match self.scoped {
                     true => edit::scope(ui, |ui| picker.show(ui)).inner,
                     false => picker.show(ui),
                 };
                 self.picker = picked.edit.response.id;
+                self.side_clicked.extend(picked.side_clicked);
                 event = picked.edit.event;
                 self.web = web;
             });
@@ -741,4 +750,107 @@ fn the_only_web_colors_box_toggles_by_pointer_and_keyboard_and_snaps_when_it_tur
     assert_eq!(rig.focused_name().as_deref(), Some("Only Web Colors"));
     rig.key(Key::Space);
     assert_eq!(rig.web, Some(true));
+}
+
+#[test]
+fn side_actions_stack_in_a_column_at_the_trailing_side_and_report_their_click() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.side = vec![
+        FooterButton::new(ButtonRole::Default, "OK"),
+        FooterButton::new(ButtonRole::Cancel, "Cancel"),
+        FooterButton::new(ButtonRole::Alternate, "Add to Swatches"),
+    ];
+    rig.settle();
+    let (ok, cancel, add) = (rig.rect(Role::Button, "OK"), rig.rect(Role::Button, "Cancel"), rig.rect(Role::Button, "Add to Swatches"));
+    assert!(ok.min.x == cancel.min.x && cancel.min.x == add.min.x, "one column");
+    assert!(ok.max.y <= cancel.min.y && cancel.max.y <= add.min.y, "in the listed order, top to bottom");
+    assert!(ok.width() == add.width(), "as wide as the longest label");
+    let hex = rig.rect(Role::TextInput, "Hex colour");
+    let area = rig.rect(Role::Slider, "Saturation and brightness");
+    assert!(ok.min.x >= hex.max.x.max(area.max.x), "at the trailing side of the picker's parts");
+
+    rig.click(add.center());
+    rig.click(ok.center());
+    let kinds: Vec<_> = rig.side_clicked.iter().map(|c| (c.index, c.role)).collect();
+    assert_eq!(kinds, [(2, ButtonRole::Alternate), (0, ButtonRole::Default)]);
+    assert!(rig.events.is_empty(), "a side action edits nothing");
+
+    rig.side.clear();
+    rig.settle();
+    assert!(rig.nodes(Role::Button, "OK").is_empty(), "no actions, no column");
+}
+
+#[test]
+fn the_full_pickers_eyedropper_button_has_a_tooltip_from_a_registered_word() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.settle();
+    let button = rig.node(Role::Button, "Pick screen color");
+    assert_eq!(button.description(), Some("Sample color from the screen"));
+    assert!(ColorPicker::TEXTS.contains(&"Sample color from the screen"));
+}
+
+#[test]
+fn a_hex_focus_request_made_in_a_sizing_pass_reaches_the_field_in_the_pass_that_is_shown() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut time = 0.0;
+    let mut run = |sizing: bool, request: Option<Id>| -> Id {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(900.0, 900.0))), time: Some(time), ..Default::default() };
+        time += 1.0 / 60.0;
+        let mut id = Id::NULL;
+        let output = ctx.run_ui(input, |ui| {
+            let builder = egui::UiBuilder::new().id_salt("host");
+            let builder = if sizing { builder.sizing_pass().invisible() } else { builder };
+            ui.scope_builder(builder, |ui| {
+                if let Some(picker) = request {
+                    ColorPicker::focus_hex(ui.ctx(), picker);
+                }
+                let picked =
+                    ColorPicker::new("picker", "Fill colour", Srgba::rgb(0.2, 0.4, 0.6), &numbers).layout(ColorPickerLayout::Compact).show(ui);
+                id = picked.edit.response.id;
+            });
+        });
+        output.drop_without_applying_deltas();
+        id
+    };
+    let picker = run(false, None);
+    let hex = super::hex::hex_id(picker);
+    assert_eq!(run(true, Some(picker)), picker, "the sizing pass has the picker's id");
+    run(false, None);
+    run(false, None);
+    assert_eq!(ctx.memory(|m| m.focused()), Some(hex), "the shown pass took the request");
+}
+
+#[test]
+fn enter_presses_the_default_side_action_and_esc_the_cancel_one_as_a_dialog_footer_does() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.side = vec![
+        FooterButton::new(ButtonRole::Default, "OK"),
+        FooterButton::new(ButtonRole::Cancel, "Cancel"),
+        FooterButton::new(ButtonRole::Alternate, "Add to Swatches"),
+    ];
+    rig.settle();
+    assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"));
+    rig.type_text("ff0000");
+    rig.key(Key::Enter);
+    assert_eq!(hex(rig.color), "#ff0000", "Enter in the hex field applies it ...");
+    let roles: Vec<_> = rig.side_clicked.drain(..).map(|c| c.role).collect();
+    assert_eq!(roles, [ButtonRole::Default], "... and then answers the default action, as a footer does");
+
+    rig.key(Key::Escape);
+    let roles: Vec<_> = rig.side_clicked.drain(..).map(|c| c.role).collect();
+    assert_eq!(roles, [ButtonRole::Cancel]);
+
+    let tab = rig.rect(Role::Button, "Add to Swatches").center();
+    rig.click(tab);
+    rig.side_clicked.clear();
+    rig.key(Key::Enter);
+    assert!(rig.side_clicked.iter().all(|c| c.role != ButtonRole::Default), "a focused button presses itself, not the default");
+
+    rig.side_clicked.clear();
+    rig.ctx.memory_mut(|m| m.request_focus(rig.field));
+    rig.frame(vec![]);
+    rig.key(Key::Enter);
+    assert!(rig.side_clicked.is_empty(), "the focus is outside the picker");
 }
