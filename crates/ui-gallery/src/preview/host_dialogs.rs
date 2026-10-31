@@ -1,7 +1,7 @@
 //! The dialogs the mock app opens through the library's `DialogHost`: Gaussian Blur as a
 //! `ParamDialog` and the layer delete question as a `StandardPrompt`.
 
-use craft_ui::dialog::{DialogHost, DialogResult, Param, ParamDialog, PromptChoice, StandardPrompt};
+use craft_ui::dialog::{DialogHost, DialogResult, Param, ParamDialog, PromptAnswer, PromptChoice, StandardPrompt};
 use egui::Context;
 
 use super::model::Mock;
@@ -11,7 +11,15 @@ const BLUR_SPEC: &str = r#"{"radius":0.1..250=4,"quality":"draft|good|best","mon
 /// The host, cloned as an empty one: a copy of the app drawn in another context starts without
 /// an open dialog.
 #[derive(Debug, Default)]
-pub struct Hosted(pub DialogHost);
+pub struct Hosted(std::sync::Mutex<DialogHost>);
+
+impl Hosted {
+    /// The host. The mutex makes the value `Sync` for egui's memory, which a `DialogHost` no
+    /// longer is on its own.
+    pub fn host(&mut self) -> &mut DialogHost {
+        self.0.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
 
 impl Clone for Hosted {
     fn clone(&self) -> Self {
@@ -29,18 +37,18 @@ pub fn open_delete_layer(host: &mut DialogHost, mock: &Mock) {
     let names: Vec<String> = mock.doc.selected.iter().filter_map(|id| mock.doc.layer(*id)).map(|layer| layer.name.clone()).collect();
     if !names.is_empty() {
         let count = names.len();
-        host.open(StandardPrompt::confirm_delete(names, count));
+        host.open(StandardPrompt::confirm_delete(names, count).noun("{n} layer", "{n} layers"));
     }
 }
 
 /// Draws the open dialogs and applies their answers to the app.
 pub fn show(ctx: &Context, host: &mut DialogHost, mock: &mut Mock) {
     host.show(ctx);
-    if let Some(DialogResult::Ok(fields)) = host.take::<ParamDialog>() {
-        let radius = fields.number("radius").unwrap_or_default();
+    if let Some(DialogResult::Ok(done)) = host.take::<ParamDialog>() {
+        let radius = done.fields.number("radius").unwrap_or_default();
         mock.status = format!("Gaussian Blur, radius {radius:.1} px");
     }
-    if let Some(DialogResult::Ok(PromptChoice::Proceed)) = host.take::<StandardPrompt>() {
+    if let Some(DialogResult::Ok(PromptAnswer { choice: PromptChoice::Proceed, .. })) = host.take::<StandardPrompt>() {
         mock.delete_selected();
     }
 }

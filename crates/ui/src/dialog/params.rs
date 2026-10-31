@@ -40,8 +40,10 @@ pub enum ParamKind {
     /// A [`Swatch`](crate::controls::Swatch) that opens the host's colour picker; `None`: unset
     /// until picked.
     Color { default: Option<[f32; 3]> },
-    /// A `side`×`side` grid of integer fields (Custom filter).
-    Grid { side: usize, default: i64 },
+    /// A grid of `cells` integer fields, [`side`](ParamKind::grid_side) per row (Custom filter:
+    /// `int[25]` is 5×5). A `cells` that is not square wraps every `round(sqrt(cells))` fields
+    /// and the last row is short, as PhotoCraft lays it out.
+    Grid { cells: usize, default: i64 },
     /// A [`PointPicker`](crate::controls::PointPicker) over the preview image plus X and Y fields,
     /// in percent of the image.
     Point { default: [f64; 2] },
@@ -52,6 +54,12 @@ pub enum ParamKind {
 }
 
 impl ParamKind {
+    /// Fields per row of a [`ParamKind::Grid`] of `cells`: `round(sqrt(cells))`, at least 1.
+    // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:973 (`Kind::Grid` draw).
+    pub fn grid_side(cells: usize) -> usize {
+        ((cells as f32).sqrt().round() as usize).max(1)
+    }
+
     /// The value a field of this kind starts with.
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:386 `default_value`.
     pub fn default_value(&self) -> Option<FieldValue> {
@@ -64,11 +72,11 @@ impl ParamKind {
                 FieldValue::Text(initial.unwrap_or_default().to_owned())
             }
             ParamKind::Color { default } => FieldValue::Color((*default)?),
-            ParamKind::Grid { side, default } => {
-                let mut cells = vec![*default; side * side];
+            ParamKind::Grid { cells: count, default } => {
+                let mut cells = vec![*default; *count];
                 // A grid that starts at 0 is a kernel: the identity, 1 in the centre.
                 if *default == 0
-                    && let Some(centre) = cells.get_mut(side * side / 2)
+                    && let Some(centre) = cells.get_mut(count / 2)
                 {
                     *centre = 1;
                 }
@@ -95,7 +103,7 @@ impl ParamKind {
             (ParamKind::Bool { .. }, FieldValue::Bool(_)) => true,
             (ParamKind::Choice { options, .. }, FieldValue::Text(id)) => options.iter().any(|(option, _)| option == id),
             (ParamKind::Color { .. }, FieldValue::Color(c)) => c.iter().all(|v| v.is_finite()),
-            (ParamKind::Grid { side, .. }, FieldValue::Grid(cells)) => cells.len() == side * side,
+            (ParamKind::Grid { cells: count, .. }, FieldValue::Grid(cells)) => cells.len() == *count,
             (ParamKind::Point { .. }, FieldValue::Point(p)) => p.iter().all(|v| v.is_finite()),
             (ParamKind::Channel { names, .. }, FieldValue::Int(i)) => usize::try_from(*i).is_ok_and(|i| i < names.len()),
             (ParamKind::Text { .. }, FieldValue::Text(_)) => true,
@@ -109,7 +117,8 @@ impl ParamKind {
 pub struct Param {
     /// The key in [`DialogFields`] and in the command the app runs (`"radius"`).
     pub key: String,
-    /// The translated label (`"Radius:"`).
+    /// The label without its colon, in English (`"Radius"`); the dialog translates it and adds the
+    /// colon (a trailing colon given here is dropped first).
     pub label: String,
     pub kind: ParamKind,
     /// Shown after the number (`px`, `%`, `°`); formats through the locale.
@@ -126,11 +135,11 @@ impl Param {
         self
     }
 
-    /// Parses PhotoCraft's registry notation into a list, labels from the keys
-    /// (`{"radius":0.1..1000=1,"method":"spin|zoom","monochromatic":bool,"seed":u32=0}`). Apps
+    /// Parses PhotoCraft's registry notation into a list, labels from the keys in Title Case with
+    /// PhotoCraft's fixed names (`cellSize` is `Cell Size`, `bpc` is `Black Point Compensation`;
+    /// `{"radius":0.1..1000=1,"method":"spin|zoom","monochromatic":bool,"seed":u32=0}`). Apps
     /// with their own command registry build [`Param`]s directly.
-    // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:55 `parse_spec` and
-    // crates/ui-egui/src/menus/view_cmds/dialogs.rs:97 `label_of` (camelCase to words).
+    // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:55 `parse_spec` and :616 `source_label`.
     pub fn parse_list(spec: &str) -> Vec<Param> {
         split_fields(object_body(spec))
             .iter()
@@ -141,7 +150,7 @@ impl Param {
                     return None;
                 }
                 let kind = parse_kind(value.trim())?;
-                Some(Param::new(key, format!("{}:", label_of(key)), kind))
+                Some(Param::new(key, source_label(key), kind))
             })
             .collect()
     }
@@ -151,10 +160,15 @@ impl Param {
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:810 `body` (the match on `Kind`), with
     // the library controls in place of PhotoCraft's widgets.
     pub(super) fn row(&self, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
+        self.row_in(dialog_id("param-row"), form, fields, preview);
+    }
+
+    /// [`Param::row`] for a row of the dialog `dialog`: a colour swatch press is kept under it.
+    pub(super) fn row_in(&self, dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
         let ctx = form.ctx().clone();
         let numbers = LocaleNumbers::of_ctx(&ctx);
         let numbers = &*numbers;
-        let label = translated(&ctx, &self.label);
+        let label = format!("{}:", translated(&ctx, self.label.trim_end_matches([':', '：'])));
         let key = self.key.as_str();
         let default = self.kind.default_value();
         let unit = &self.unit;
@@ -240,17 +254,18 @@ impl Param {
                 form.row(label.as_str(), |ui, _| {
                     let swatch = ui.add(Swatch::new((key, "swatch"), label.as_str(), shown).mixed(color.is_none()));
                     if swatch.clicked() {
-                        ui.ctx().data_mut(|d| d.insert_temp(color_press_id(), key.to_owned()));
+                        ui.ctx().data_mut(|d| d.insert_temp(color_press_id(dialog), key.to_owned()));
                     }
                     swatch
                 });
             }
-            ParamKind::Grid { side, .. } => {
+            ParamKind::Grid { cells: count, .. } => {
+                let side = ParamKind::grid_side(*count);
                 let cells = match fields.grid(key) {
-                    Some(cells) if cells.len() == side * side => cells.to_vec(),
+                    Some(cells) if cells.len() == *count => cells.to_vec(),
                     _ => match default {
                         Some(FieldValue::Grid(cells)) => cells,
-                        _ => vec![0; side * side],
+                        _ => vec![0; *count],
                     },
                 };
                 form.row(label.as_str(), |ui, _| {
@@ -258,9 +273,9 @@ impl Param {
                         let mut next = cells.clone();
                         let mut first = None;
                         ui.vertical(|ui| {
-                            for row in 0..*side {
+                            for row in 0..count.div_ceil(side) {
                                 ui.horizontal(|ui| {
-                                    for column in 0..*side {
+                                    for column in 0..side.min(count - row * side) {
                                         let i = row * side + column;
                                         let name = format!("{label} {}, {}", row + 1, column + 1);
                                         let cell = NumberField::new((key, i), name, cells[i] as f64, numbers).decimals(0..=0).show(ui);
@@ -372,13 +387,14 @@ fn translated(ctx: &Context, text: &str) -> String {
     }
 }
 
-fn color_press_id() -> Id {
-    Id::unique("craft_ui::dialog::params::color_press")
+fn color_press_id(dialog: DialogId) -> Id {
+    Id::unique(("craft_ui::dialog::params::color_press", dialog))
 }
 
-/// The key of the colour parameter whose swatch was pressed this pass.
-pub(super) fn take_color_press(ctx: &Context) -> Option<String> {
-    ctx.data_mut(|d| d.remove_temp::<String>(color_press_id()))
+/// The key of the colour parameter whose swatch of `dialog` was pressed this pass. Keyed by
+/// dialog, so a parent and its child form never take each other's press.
+pub(super) fn take_color_press(ctx: &Context, dialog: DialogId) -> Option<String> {
+    ctx.data_mut(|d| d.remove_temp::<String>(color_press_id(dialog)))
 }
 
 /// Fills the keys `params` have defaults for and the fields lack, and takes the opening snapshot.
@@ -412,11 +428,15 @@ pub(super) fn first_field_focused<R>(ui: &mut Ui, id: DialogId, body: impl FnOnc
 }
 
 /// Draws one row per parameter.
-pub(super) fn draw_rows(params: &[Param], form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
+pub(super) fn draw_rows(params: &[Param], dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
     for param in params {
-        param.row(form, fields, preview);
+        param.row_in(dialog, form, fields, preview);
     }
 }
+
+/// PhotoCraft's `uses_logarithmic_slider`: a range whose max is over 500 times its min.
+// pc: crates/ui-egui/src/dialogs/filter_dialog.rs:652.
+const LOG_SLIDER_RATIO: f64 = 500.0;
 
 /// The kind one `"key":value` entry of the notation names. Values the dialog does not edit
 /// (documents, structured JSON, references) are `None`.
@@ -435,7 +455,7 @@ fn parse_kind(v: &str) -> Option<ParamKind> {
             };
             ids.contains(&def).then(|| def.to_owned())
         });
-        let options = ids.iter().map(|id| ((*id).to_owned(), label_of(id))).collect();
+        let options = ids.iter().map(|id| ((*id).to_owned(), source_label(id))).collect();
         Some(ParamKind::Choice { options, default })
     } else if let Some(rest) = v.strip_prefix("bool") {
         Some(ParamKind::Bool { default: rest.trim_start_matches('=').trim() == "true" })
@@ -447,17 +467,16 @@ fn parse_kind(v: &str) -> Option<ParamKind> {
         Some(ParamKind::Color { default: parse_hex(hex) })
     } else if v == "doc" || v == "json" || v.starts_with("layer id") || v.starts_with(['[', '{']) || v.trim_end_matches('?') == "index|name" {
         None
-    } else if let Some(count) = v.strip_prefix("int[").and_then(|r| r.strip_suffix(']')).and_then(|n| n.parse::<usize>().ok()) {
-        let side = (count as f64).sqrt().round() as usize;
-        Some(ParamKind::Grid { side, default: 0 })
+    } else if let Some(cells) = v.strip_prefix("int[").and_then(|r| r.strip_suffix(']')).and_then(|n| n.parse::<usize>().ok()) {
+        Some(ParamKind::Grid { cells, default: 0 })
     } else {
         let (range, default) = v.split_once('=').map_or((v, ""), |(a, b)| (a, b.trim()));
         if let Some((lo, hi)) = range.split_once("..") {
             let min = leading_number(lo).unwrap_or(0.0);
             let max = leading_number(hi).unwrap_or(100.0);
             let default = default.parse().unwrap_or(min);
-            // Over three decades a linear track leaves the small values no room.
-            let scale = if min > 0.0 && max / min > 1000.0 { SliderScale::Log } else { SliderScale::Linear };
+            // Over `LOG_SLIDER_RATIO` a linear track leaves the small values no room.
+            let scale = if min > 0.0 && max / min > LOG_SLIDER_RATIO { SliderScale::Log } else { SliderScale::Linear };
             Some(ParamKind::Range { min, max, default, scale })
         } else {
             Some(ParamKind::Int { min: None, max: None, default: default.parse().unwrap_or(0) })
@@ -536,17 +555,27 @@ fn parse_hex(text: &str) -> Option<[f32; 3]> {
     Some([channel(0)?, channel(2)?, channel(4)?])
 }
 
-/// A label from a key: camelCase read as words (`cellSize` is `Cell size`); a key with a space is
-/// already text.
-fn label_of(key: &str) -> String {
+/// The English label of a key, as PhotoCraft's filter dialogs write it: camelCase read as Title
+/// Case words (`cellSize` is `Cell Size`), two fixed names, and a key with a space is already text.
+// pc: crates/ui-egui/src/dialogs/filter_dialog.rs:616 `source_label`.
+fn source_label(key: &str) -> String {
+    match key {
+        // Photoshop's name for the localized colour matching (Replace Color, Color Range).
+        "localized" => return "Localized Color Clusters".into(),
+        "bpc" => return "Black Point Compensation".into(),
+        _ => {}
+    }
+    if key.contains(' ') {
+        return key.to_owned();
+    }
     let mut out = String::new();
     for (i, c) in key.chars().enumerate() {
         if i == 0 {
             out.extend(c.to_uppercase());
-        } else if c.is_uppercase() && !key.contains(' ') {
-            out.push(' ');
-            out.extend(c.to_lowercase());
         } else {
+            if c.is_uppercase() {
+                out.push(' ');
+            }
             out.push(c);
         }
     }
@@ -568,15 +597,15 @@ pub enum ParamLayout {
 ///
 /// ```ignore
 /// let params = vec![
-///     Param::new("radius", "Radius:", ParamKind::Range { min: 0.1, max: 1000.0, default: 1.0, scale: SliderScale::Log }).unit(Unit::Pixels),
-///     Param::new("method", "Blur Method:", ParamKind::Choice { options: vec![("spin".into(), "Spin".into()), ("zoom".into(), "Zoom".into())], default: None }),
+///     Param::new("radius", "Radius", ParamKind::Range { min: 0.1, max: 1000.0, default: 1.0, scale: SliderScale::Log }).unit(Unit::Pixels),
+///     Param::new("method", "Blur Method", ParamKind::Choice { options: vec![("spin".into(), "Spin".into()), ("zoom".into(), "Zoom".into())], default: None }),
 /// ];
 /// dialogs.open(ParamDialog::new("radial-blur", "Radial Blur", params).remember("filter.radialBlur").preview(true));
 /// // each pass, while open:
 /// if let Some(dialog) = dialogs.get_mut::<ParamDialog>() {
 ///     if dialog.preview_on() { dialog.set_preview_image(render(dialog.fields())); }
 /// }
-/// if let Some(DialogResult::Ok(fields)) = dialogs.take::<ParamDialog>() { run(fields); }
+/// if let Some(DialogResult::Ok(done)) = dialogs.take::<ParamDialog>() { run(done.key(), done.fields); }
 /// ```
 ///
 /// - The user sees the title, the rows, the preview pane (when the host supplies an image), the
@@ -587,10 +616,11 @@ pub enum ParamLayout {
 ///   [`preview_on`](ParamDialog::preview_on) and hands the result to
 ///   [`set_preview_image`](ParamDialog::set_preview_image); holding the check box's label shows
 ///   the unfiltered image ([`Preview`](super::Preview)).
-/// - Result: the [`DialogFields`] at OK. The remembered copy is stored on OK only; Cancel keeps
+/// - Result: a [`ParamResult`], the dialog's [`key`](ParamDialog::key) with the [`DialogFields`] at OK. The remembered copy is stored on OK only; Cancel keeps
 ///   the previous one (PhotoCraft).
 pub struct ParamDialog {
     id: DialogId,
+    key: String,
     title: String,
     params: Vec<Param>,
     fields: DialogFields,
@@ -606,9 +636,11 @@ pub struct ParamDialog {
 impl ParamDialog {
     /// A dialog for `params`, opening with their defaults. `key` names the dialog for the stack
     /// and for placement memory (one per command, as PhotoCraft places them).
-    pub fn new(key: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>, params: Vec<Param>) -> Self {
+    pub fn new(key: impl Into<String>, title: impl Into<String>, params: Vec<Param>) -> Self {
+        let key = key.into();
         Self {
-            id: dialog_id(key),
+            id: dialog_id(key.as_str()),
+            key,
             title: title.into(),
             params,
             fields: DialogFields::new(),
@@ -620,6 +652,11 @@ impl ParamDialog {
             picked_color: None,
             state: DialogState::new(),
         }
+    }
+
+    /// The key the dialog was made with: which command it answers for. The result carries it.
+    pub fn key(&self) -> &str {
+        &self.key
     }
 
     /// Opening values that override the defaults (a document's current setting). Remembered
@@ -680,7 +717,7 @@ impl ParamDialog {
     /// The rows, for a body a host draws itself in the same form.
     // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:810 `body`.
     pub fn rows(&mut self, form: &mut Form<'_>) {
-        draw_rows(&self.params, form, &mut self.fields, self.preview_image.as_ref());
+        draw_rows(&self.params, self.id, form, &mut self.fields, self.preview_image.as_ref());
     }
 
     /// The key of the colour parameter whose swatch the user pressed, once: the host opens its
@@ -756,8 +793,22 @@ impl ParamDialog {
     }
 }
 
+/// What a [`ParamDialog`] answers with at OK.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParamResult {
+    /// The dialog's [`key`](ParamDialog::key): the command the values are for.
+    pub key: String,
+    pub fields: DialogFields,
+}
+
+impl ParamResult {
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+}
+
 impl StackDialog for ParamDialog {
-    type Result = DialogFields;
+    type Result = ParamResult;
 
     fn id(&self) -> DialogId {
         self.id
@@ -766,7 +817,7 @@ impl StackDialog for ParamDialog {
     // pc: crates/ui-egui/src/dialogs.rs:249 `filter_body` and :282 `button_row`; built on
     // `Dialog::new(..).stack(stack).footer(Footer::side().preview(..).reset(Reset::AltCancel(labels.reset)))`
     // with `show_with_below` for the preview pane in `ParamLayout::BottomFooter`.
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<DialogFields>> {
+    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<ParamResult>> {
         if !self.state.is_open() {
             self.open(ctx);
         }
@@ -805,7 +856,7 @@ impl StackDialog for ParamDialog {
             &mut self.fields,
             |ui, fields| {
                 first_field_focused(ui, id, |ui| {
-                    FormGrid::new("params").show(ui, |form| draw_rows(params, form, fields, image));
+                    FormGrid::new("params").show(ui, |form| draw_rows(params, id, form, fields, image));
                 });
             },
             |ui, _| {
@@ -818,11 +869,11 @@ impl StackDialog for ParamDialog {
         if self.state.is_open() {
             *self.state.preview_mut() = preview;
         }
-        self.picked_color = take_color_press(ctx).or(self.picked_color.take());
+        self.picked_color = take_color_press(ctx, self.id).or(self.picked_color.take());
         match shown.outcome? {
             Outcome::Ok => {
                 self.store(ctx);
-                Some(DialogResult::Ok(self.fields.clone()))
+                Some(DialogResult::Ok(ParamResult { key: self.key.clone(), fields: self.fields.clone() }))
             }
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
             Outcome::Reset => {

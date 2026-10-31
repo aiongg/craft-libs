@@ -126,11 +126,11 @@ impl StackDialog for CommandForm {
             &mut self.fields,
             |ui, fields| {
                 first_field_focused(ui, id, |ui| {
-                    FormGrid::new("form").show(ui, |form| draw_rows(params, form, fields, None));
+                    FormGrid::new("form").show(ui, |form| draw_rows(params, id, form, fields, None));
                 });
             },
         );
-        self.picked_color = take_color_press(ctx).or(self.picked_color.take());
+        self.picked_color = take_color_press(ctx, self.id).or(self.picked_color.take());
         match shown.outcome? {
             Outcome::Ok => Some(DialogResult::Ok(self.fields.clone())),
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),

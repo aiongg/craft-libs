@@ -7,14 +7,14 @@ use egui::{Event, Key, Modifiers, TextureId, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::{DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamDialog, ParamKind};
+use super::{CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamDialog, ParamKind, ParamResult};
 use crate::controls::SliderScale;
 use crate::localized::Unit;
 use crate::theme::{Base, install};
 
 struct App {
     host: DialogHost,
-    answers: Vec<DialogResult<DialogFields>>,
+    answers: Vec<DialogResult<ParamResult>>,
 }
 
 fn params() -> Vec<Param> {
@@ -59,8 +59,8 @@ fn the_registry_notation_parses_into_params() {
     );
     let keys: Vec<_> = params.iter().map(|p| p.key.as_str()).collect();
     assert_eq!(keys, ["radius", "method", "monochromatic", "seed", "cellSize", "tint", "kernel", "note"]);
-    assert_eq!(params[0].label, "Radius:");
-    assert_eq!(params[4].label, "Cell size:");
+    assert_eq!(params[0].label, "Radius");
+    assert_eq!(params[4].label, "Cell Size");
 
     assert_eq!(params[0].kind, ParamKind::Range { min: 0.1, max: 1000.0, default: 1.0, scale: SliderScale::Log });
     let options = vec![("spin".to_owned(), "Spin".to_owned()), ("zoom".to_owned(), "Zoom".to_owned())];
@@ -68,7 +68,7 @@ fn the_registry_notation_parses_into_params() {
     assert_eq!(params[2].kind, ParamKind::Bool { default: false });
     assert_eq!(params[3].kind, ParamKind::Int { min: None, max: None, default: 0 });
     assert_eq!(params[5].kind, ParamKind::Color { default: Some([1.0, 128.0 / 255.0, 0.0]) });
-    assert_eq!(params[6].kind, ParamKind::Grid { side: 5, default: 0 });
+    assert_eq!(params[6].kind, ParamKind::Grid { cells: 25, default: 0 });
 
     let kernel = params[6].kind.default_value().expect("a grid has a default");
     assert_eq!(kernel, FieldValue::Grid((0..25).map(|i| i64::from(i == 12)).collect()));
@@ -89,7 +89,8 @@ fn typing_into_the_first_field_and_enter_answers_ok() {
     harness.key_press(Key::Enter);
     harness.run();
     harness.run();
-    let [DialogResult::Ok(fields)] = &harness.state().answers[..] else { panic!("one OK, got {:?}", harness.state().answers) };
+    let [DialogResult::Ok(ParamResult { key, fields })] = &harness.state().answers[..] else { panic!("one OK, got {:?}", harness.state().answers) };
+    assert_eq!(key, "blur");
     assert_eq!(fields.number("radius"), Some(7.0));
     assert_eq!(fields.bool("monochromatic"), Some(false));
     assert_eq!(fields.color("tint"), Some([1.0, 0.0, 0.0]), "defaults fill what the host gave no value for");
@@ -202,7 +203,7 @@ fn tab_visits_the_fields_and_buttons_only() {
 // Parameter and option labels (English fallbacks from `parse_list`) show in the Host's language.
 #[test]
 fn labels_and_option_labels_show_through_the_hosts_catalog() {
-    let (i18n, problems) = craft_i18n::I18n::new(&[("de", "\tRadius:\tRadius-de:\n\tZoom\tVergrößern\n", "")], &["de"]);
+    let (i18n, problems) = craft_i18n::I18n::new(&[("de", "\tRadius\tRadius-de\n\tZoom\tVergrößern\n", "")], &["de"]);
     assert!(problems.is_empty(), "{problems:?}");
     let de = i18n.from_code("de").expect("de");
     let i18n = std::sync::Arc::new(i18n);
@@ -230,4 +231,65 @@ fn a_parsed_hex_default_shows_as_that_hex() {
     harness.run();
     let swatch = harness.get_by_label("Tint:");
     assert_eq!(swatch.accesskit_node().value().as_deref().map(str::to_lowercase).as_deref(), Some("#808080"));
+}
+
+// Labels of a PhotoCraft filter spec equal PhotoCraft's `source_label` (Title Case, no colon,
+// fixed names); options too; the dialog adds the colon after translating.
+#[test]
+fn labels_follow_photocrafts_source_label() {
+    let params = Param::parse_list(r#"{"cellSize":px=4,"localized":bool,"bpc":bool,"iPhone 14":bool,"intent":"perceptual|relativeColorimetric"}"#);
+    let labels: Vec<_> = params.iter().map(|p| p.label.as_str()).collect();
+    assert_eq!(labels, ["Cell Size", "Localized Color Clusters", "Black Point Compensation", "iPhone 14", "Intent"]);
+    let ParamKind::Choice { options, .. } = &params[4].kind else { panic!("choice") };
+    assert_eq!(options[1].1, "Relative Colorimetric");
+
+    let mut harness = harness(ParamDialog::new("c", "C", params));
+    harness.run();
+    harness.get_by_label("Cell Size:");
+    harness.get_by_label("Intent:");
+}
+
+// The log slider starts above a max/min ratio of 500 (PhotoCraft `uses_logarithmic_slider`).
+#[test]
+fn log_slider_threshold_is_500() {
+    let scale = |spec: &str| match Param::parse_list(spec)[0].kind {
+        ParamKind::Range { scale, .. } => scale,
+        _ => panic!("range"),
+    };
+    assert_eq!(scale(r#"{"r":1..500=1}"#), SliderScale::Linear);
+    assert_eq!(scale(r#"{"r":1..501=1}"#), SliderScale::Log);
+    assert_eq!(scale(r#"{"r":0..1000=1}"#), SliderScale::Linear);
+}
+
+// A kernel that is not square keeps every cell: PhotoCraft wraps `round(sqrt(n))` per row.
+#[test]
+fn a_non_square_kernel_keeps_its_cells() {
+    let params = Param::parse_list(r#"{"k":int[10]}"#);
+    assert_eq!(params[0].kind, ParamKind::Grid { cells: 10, default: 0 });
+    assert_eq!(ParamKind::grid_side(10), 3);
+    assert_eq!(ParamKind::grid_side(25), 5);
+    let FieldValue::Grid(cells) = params[0].kind.default_value().unwrap() else { panic!("grid") };
+    assert_eq!(cells, [0, 0, 0, 0, 0, 1, 0, 0, 0, 0]);
+    assert!(params[0].kind.fits(&FieldValue::Grid(vec![0; 10])));
+    let mut harness = harness(ParamDialog::new("k", "K", params));
+    harness.run();
+    assert_eq!(harness.query_all_by_role(Role::SpinButton).count(), 10);
+}
+
+// A swatch press belongs to the dialog that drew it: a form over a parent never takes the
+// parent's press, nor the parent the form's.
+#[test]
+fn a_swatch_press_goes_to_its_own_dialog() {
+    let mut host = DialogHost::default();
+    let parent = host.open(ParamDialog::new("parent", "Parent", vec![Param::new("a", "Under", ParamKind::Color { default: None })]));
+    host.open_child(CommandForm::new("child", "Child", vec![Param::new("b", "Over", ParamKind::Color { default: None })]), parent);
+    let mut harness = HarnessBuilder::default()
+        .with_size(vec2(900.0, 700.0))
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(|ui, host: &mut DialogHost| host.show(ui.ctx()), host);
+    harness.run();
+    harness.get_by_label("Over:").click();
+    harness.run();
+    assert_eq!(harness.state_mut().get_mut::<CommandForm>().unwrap().pick_color().as_deref(), Some("b"));
+    assert_eq!(harness.state_mut().get_mut::<ParamDialog>().unwrap().pick_color(), None);
 }
