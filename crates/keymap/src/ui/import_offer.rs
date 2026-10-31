@@ -7,11 +7,10 @@
 //! own and the set changes at least one shortcut; every outcome is remembered so a later launch
 //! never asks again.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
+use craft_ui::dialog::{ButtonRole, Prompt};
 use serde::{Deserialize, Serialize};
 
-use crate::import::{ForeignSet, ImportOptions, ImportPlan};
+use crate::import::{ForeignSet, ImportOptions, ImportPlan, plan};
 use crate::keymap::Keymap;
 
 /// What the app's preferences remember about the offer, under its own key (PhotoCraft's
@@ -35,6 +34,16 @@ pub enum NoOffer {
     OwnShortcuts,
     /// The set changes nothing; remember the source as not imported.
     NothingChanges,
+}
+
+impl NoOffer {
+    /// What to store so a later launch never asks again; `None` when the record already exists.
+    pub fn record(&self, source: &str) -> Option<OfferRecord> {
+        match self {
+            NoOffer::Answered => None,
+            NoOffer::OwnShortcuts | NoOffer::NothingChanges => Some(OfferRecord { source: source.to_owned(), imported: false }),
+        }
+    }
 }
 
 /// A set waiting for the user's answer.
@@ -68,12 +77,28 @@ impl ImportOffer {
         options: &ImportOptions,
         record: Option<&OfferRecord>,
     ) -> Result<ImportOffer, NoOffer> {
-        todo!()
+        if record.is_some() {
+            return Err(NoOffer::Answered);
+        }
+        if !keymap.overrides().is_empty() {
+            return Err(NoOffer::OwnShortcuts);
+        }
+        let plan = plan(set, keymap, options);
+        let changes = plan.apply(&mut keymap.clone()).imported;
+        if changes == 0 {
+            return Err(NoOffer::NothingChanges);
+        }
+        let set_name = set
+            .name
+            .clone()
+            .or_else(|| std::path::Path::new(source).file_name().map(|f| f.to_string_lossy().into_owned()))
+            .unwrap_or_else(|| source.to_owned());
+        Ok(ImportOffer { source: source.to_owned(), set_name, plan, changes })
     }
 
     /// The record to store for `answer`.
     pub fn record(&self, answer: OfferAnswer) -> OfferRecord {
-        todo!()
+        OfferRecord { source: self.source.clone(), imported: answer == OfferAnswer::Import }
     }
 
     /// The prompt, a craft-ui alert dialog centred on the window: "Import keyboard shortcuts?",
@@ -83,7 +108,13 @@ impl ImportOffer {
     /// [`ImportOffer::record`] either way and posts a notice that the set is in use.
     // pc: crates/ui-egui/src/prefs/kys_import.rs:214 `show_offer`, :187 `answer_offer`.
     pub fn show(&self, ctx: &egui::Context, labels: &ImportOfferLabels) -> Option<OfferAnswer> {
-        todo!()
+        let app = craft_host::Host::try_of_ctx(ctx).map_or("Craft", |host| host.app().name);
+        let found = craft_i18n::fmt(&labels.found, &[("app", app), ("set", &self.set_name), ("n", &self.changes.to_string())]);
+        let role = Prompt::new(("keymap-import-offer", &self.source), &labels.title, format!("{found}\n\n{}", labels.undo))
+            .answer(ButtonRole::Default, &labels.import, None)
+            .answer(ButtonRole::Cancel, &labels.dont_import, None)
+            .show(ctx)?;
+        Some(if role == ButtonRole::Default { OfferAnswer::Import } else { OfferAnswer::DontImport })
     }
 }
 

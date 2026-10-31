@@ -346,7 +346,24 @@ const STRING_WORDS: &[Word] = &[
     Word::plain("the shortcuts could not be removed"),
     Word::plain("Copy Report"),
     Word::plain("Done"),
+    // Why a `.kys` file is refused (`KysError`), and the tooltip of a saved text that is not a shortcut.
+    Word::plain("The file is larger than a keyboard shortcut set can be."),
+    Word::plain("The file is not a Photoshop keyboard shortcut set: {message}"),
+    Word::plain("This saved text is not a shortcut and is not used."),
 ];
+
+impl crate::import::kys::KysError {
+    /// The error's sentence in the installed language: [`Display`](std::fmt::Display) in English.
+    pub fn text(&self, words: &Words) -> String {
+        use crate::import::kys::KysError;
+        match self {
+            KysError::TooLarge => words.get(Word::plain("The file is larger than a keyboard shortcut set can be.")).into_owned(),
+            KysError::NotASet(message) => {
+                craft_i18n::fmt(&words.get(Word::plain("The file is not a Photoshop keyboard shortcut set: {message}")), &[("message", message)])
+            }
+        }
+    }
+}
 
 /// Every word the dialog looks up, for the shared catalog.
 pub const WORDS: &[&[Word]] = &[STRING_WORDS, COUNT_WORDS];

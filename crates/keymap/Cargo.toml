@@ -13,6 +13,8 @@ workspace = true
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# The `.kys` reader.
+roxmltree = "0.21"
 egui = { workspace = true, optional = true }
 craft-ui = { workspace = true, optional = true }
 craft-i18n = { workspace = true }

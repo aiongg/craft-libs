@@ -64,6 +64,10 @@ pub struct ForeignEntry {
     /// is a segment of some catalog path. Without keys, an entry matched only these ways
     /// changes nothing ([`ImportReport::matched_without_change`]).
     pub panel_menu: bool,
+    /// The command id a set written by the suite names (`.kys` rows carry it). It is matched
+    /// before the path, so such a set reads back exactly whatever the labels say; an id the
+    /// keymap lacks falls back to the path.
+    pub id: Option<String>,
 }
 
 impl ForeignSet {
@@ -100,6 +104,12 @@ impl ForeignEntry {
     /// Marks the entry as an item of a panel menu ([`ForeignEntry::panel_menu`]).
     pub fn in_panel_menu(mut self) -> ForeignEntry {
         self.panel_menu = true;
+        self
+    }
+
+    /// Names the command by its id ([`ForeignEntry::id`]).
+    pub fn with_id(mut self, id: impl Into<String>) -> ForeignEntry {
+        self.id = Some(id.into());
         self
     }
 
@@ -854,7 +864,15 @@ fn capped(e: &ForeignEntry, cut: &mut usize) -> ForeignEntry {
             }),
         })
         .collect();
-    ForeignEntry { menu: e.menu.as_deref().map(|m| cap_text(m, cut)), path, keys, line: e.line, is_tool: e.is_tool, panel_menu: e.panel_menu }
+    ForeignEntry {
+        menu: e.menu.as_deref().map(|m| cap_text(m, cut)),
+        path,
+        keys,
+        line: e.line,
+        is_tool: e.is_tool,
+        panel_menu: e.panel_menu,
+        id: e.id.as_deref().map(|i| cap_text(i, cut)),
+    }
 }
 
 enum Found {
@@ -995,6 +1013,9 @@ impl Index {
             && let Some(&i) = self.keys.get(&c.key())
             && self.tool.get(i) == Some(&tool)
         {
+            return Found::One(i, false);
+        }
+        if let Some(&i) = entry.id.as_ref().and_then(|id| self.keys.get(id)).filter(|&&i| self.tool.get(i) == Some(&tool)) {
             return Found::One(i, false);
         }
         let segs: Vec<String> = entry.path.iter().map(|s| normalize_label(s)).collect();

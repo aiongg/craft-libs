@@ -950,8 +950,8 @@ impl Draw<'_, '_> {
         action
     }
 
-    /// The override texts that don't parse, struck out and dim after the chips, with the parse
-    /// error as the tooltip.
+    /// The override texts that don't parse, struck out and dim after the chips, with a sentence
+    /// saying they are not used as the tooltip.
     #[expect(clippy::too_many_arguments, reason = "the column's geometry")]
     fn draw_unparsed_texts(&self, ui: &mut Ui, painter: &Painter, mirror: Mirror, row: &Row, rect: Rect, col: Rect, x: &mut f32, font: egui::FontId) {
         let dim = self.style.dim;
@@ -966,10 +966,9 @@ impl Draw<'_, '_> {
             *x += w + CHIP_GAP;
             painter.galley(pos2(cell.min.x + CHIP_PAD, cell.center().y - g.size().y / 2.0), g, dim);
             let resp = ui.interact(cell.intersect(mirror.rect(col)), self.base.with(("unparsed", &row.key, n)), Sense::hover());
-            let reason = crate::keymap::Binding::parse(shown).err().map(|e| e.to_string()).unwrap_or_default();
             let label = fill(self.ui("{label}: {chord}"), &[("label", &row.label), ("chord", shown)]);
             resp.widget_info(|| WidgetInfo::labeled(Role::Label, true, &label));
-            resp.tooltip(reason);
+            resp.tooltip(self.ui("This saved text is not a shortcut and is not used."));
         }
     }
 

@@ -1,0 +1,330 @@
+{
+ "candidates": [
+  {
+   "id": "filter.blur.gaussianBlur",
+   "label": "Gaussian Blur…",
+   "default": null
+  },
+  {
+   "id": "edit.undo",
+   "label": "Undo",
+   "default": "Cmd+Z"
+  },
+  {
+   "id": "layer.new.layerViaCopy",
+   "label": "Layer Via Copy",
+   "default": null
+  },
+  {
+   "id": "image.levels",
+   "label": "Levels…",
+   "default": "Cmd+L"
+  },
+  {
+   "id": "layer.newLevels",
+   "label": "Levels…",
+   "default": null
+  },
+  {
+   "id": "edit.copy",
+   "label": "Copy",
+   "default": "Cmd+C"
+  },
+  {
+   "id": "view.zoomIn",
+   "label": "Zoom In",
+   "default": "Cmd+="
+  },
+  {
+   "id": "view.zoomOut",
+   "label": "Zoom Out",
+   "default": "Cmd+-"
+  },
+  {
+   "id": "file.save",
+   "label": "Save",
+   "default": "Cmd+S"
+  },
+  {
+   "id": "file.saveAs",
+   "label": "Save As…",
+   "default": "Cmd+Shift+S"
+  },
+  {
+   "id": "select.all",
+   "label": "All",
+   "default": "Cmd+A"
+  },
+  {
+   "id": "view.rulers",
+   "label": "Rulers",
+   "default": "Cmd+R"
+  },
+  {
+   "id": "window.layers",
+   "label": "Layers",
+   "default": "F7"
+  },
+  {
+   "id": "edit.paste",
+   "label": "Paste",
+   "default": "Cmd+V"
+  },
+  {
+   "id": "image.canvasSize",
+   "label": "Canvas Size…",
+   "default": "Cmd+Alt+C"
+  }
+ ],
+ "tools": [
+  {
+   "id": "tools.select.move",
+   "label": "Move Tool"
+  },
+  {
+   "id": "tools.select.pencil",
+   "label": "Pencil Tool"
+  },
+  {
+   "id": "tools.select.brush",
+   "label": "Brush Tool"
+  },
+  {
+   "id": "tools.select.lasso",
+   "label": "Lasso Tool"
+  }
+ ],
+ "sets": [
+  {
+   "name": "photoshop mac set (PC engine test SET, kys_import.rs)",
+   "xml": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/texcuts=texcuts\">\n\t<command kind=\"dynamic\" name=\"Gaussian Blur...\"><shortcut>Control+Opt+Cmd+G</shortcut></command>\n\t<command kind=\"static\" name=\"Undo\"><shortcut>Cmd+Z</shortcut></command>\n\t<command kind=\"static\" name=\"Layer Via Copy\"><shortcut>F7</shortcut></command>\n\t<command kind=\"static\" name=\"Hide Photoshop\"><shortcut>Cmd+H</shortcut></command>\n\t<tool name=\"Move Tool\" type=\"1\">V</tool>\n</photoshop-keyboard-shortcuts>\n",
+   "pc": {
+    "alternate_keys": {
+     "edit.undo": [],
+     "filter.blur.gaussianBlur": [],
+     "layer.new.layerViaCopy": []
+    },
+    "alternates": 0,
+    "set": {
+     "edit.undo": "Cmd+Z",
+     "filter.blur.gaussianBlur": "Cmd+Ctrl+Alt+G",
+     "layer.new.layerViaCopy": "F7"
+    },
+    "set_name": "texcuts",
+    "tool_keys": {
+     "tools.select.move": "V"
+    },
+    "tool_unknown": [],
+    "unknown": [
+     "Hide Photoshop"
+    ],
+    "unreadable": []
+   }
+  },
+  {
+   "name": "second shortcut becomes an alternate (#3665)",
+   "xml": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/texcuts=texcuts\">\n\t<command kind=\"static\" name=\"Undo\"><shortcut>Cmd+Z</shortcut><shortcut>F1</shortcut></command>\n\t<command kind=\"static\" name=\"Copy\"><shortcut>F3</shortcut><shortcut>Cmd+C</shortcut></command>\n\t<command kind=\"static\" name=\"Zoom In\"><shortcut>Cmd++</shortcut><shortcut>Cmd+=</shortcut></command>\n</photoshop-keyboard-shortcuts>\n",
+   "pc": {
+    "alternate_keys": {
+     "edit.copy": [
+      "F3"
+     ],
+     "edit.undo": [
+      "F1"
+     ],
+     "view.zoomIn": [
+      "Cmd++"
+     ]
+    },
+    "alternates": 3,
+    "set": {
+     "edit.copy": "Cmd+C",
+     "edit.undo": "Cmd+Z",
+     "view.zoomIn": "Cmd+="
+    },
+    "set_name": "texcuts",
+    "tool_keys": {},
+    "tool_unknown": [],
+    "unknown": [],
+    "unreadable": []
+   }
+  },
+  {
+   "name": "windows set: Ctrl is the command key",
+   "xml": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/texcuts=texcuts\">\n\t<command kind=\"static\" name=\"Save\"><shortcut>Ctrl+S</shortcut></command>\n\t<command kind=\"static\" name=\"Save As...\"><shortcut>Ctrl+Shift+S</shortcut></command>\n\t<command kind=\"static\" name=\"Gaussian Blur...\"><shortcut>Ctrl+Alt+Shift+G</shortcut></command>\n\t<command kind=\"static\" name=\"Zoom In\"><shortcut>Ctrl++</shortcut><shortcut>Ctrl+=</shortcut></command>\n\t<command kind=\"static\" name=\"Rulers\"><shortcut>Ctrl+R</shortcut></command>\n</photoshop-keyboard-shortcuts>\n",
+   "pc": {
+    "alternate_keys": {
+     "file.save": [],
+     "file.saveAs": [],
+     "filter.blur.gaussianBlur": [],
+     "view.rulers": [],
+     "view.zoomIn": [
+      "Cmd++"
+     ]
+    },
+    "alternates": 1,
+    "set": {
+     "file.save": "Cmd+S",
+     "file.saveAs": "Cmd+Shift+S",
+     "filter.blur.gaussianBlur": "Cmd+Alt+Shift+G",
+     "view.rulers": "Cmd+R",
+     "view.zoomIn": "Cmd+="
+    },
+    "set_name": "texcuts",
+    "tool_keys": {},
+    "tool_unknown": [],
+    "unknown": [],
+    "unreadable": []
+   }
+  },
+  {
+   "name": "mac set keeps Control as the Control key",
+   "xml": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/texcuts=texcuts\">\n\t<command kind=\"static\" name=\"Rulers\"><shortcut>Control+K</shortcut></command>\n\t<command kind=\"static\" name=\"Save\"><shortcut>Cmd+S</shortcut></command>\n\t<command kind=\"static\" name=\"All\"><shortcut>Control+Opt+Cmd+A</shortcut></command>\n</photoshop-keyboard-shortcuts>\n",
+   "pc": {
+    "alternate_keys": {
+     "file.save": [],
+     "select.all": [],
+     "view.rulers": []
+    },
+    "alternates": 0,
+    "set": {
+     "file.save": "Cmd+S",
+     "select.all": "Cmd+Ctrl+Alt+A",
+     "view.rulers": "Ctrl+K"
+    },
+    "set_name": "texcuts",
+    "tool_keys": {},
+    "tool_unknown": [],
+    "unknown": [],
+    "unreadable": []
+   }
+  },
+  {
+   "name": "unreadable and unknown rows",
+   "xml": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/texcuts=texcuts\">\n\t<command kind=\"static\" name=\"Odd\"><shortcut>Cmd+Shift+Ctrl</shortcut></command>\n\t<command kind=\"static\" name=\"Hide Photoshop\"><shortcut>Cmd+H</shortcut></command>\n\t<command kind=\"static\" name=\"Paste\"><shortcut>Cmd+V</shortcut></command>\n</photoshop-keyboard-shortcuts>\n",
+   "pc": {
+    "alternate_keys": {
+     "edit.paste": []
+    },
+    "alternates": 0,
+    "set": {
+     "edit.paste": "Cmd+V"
+    },
+    "set_name": "texcuts",
+    "tool_keys": {},
+    "tool_unknown": [],
+    "unknown": [
+     "Odd",
+     "Hide Photoshop"
+    ],
+    "unreadable": []
+   }
+  },
+  {
+   "name": "label case, ellipsis and spacing do not count",
+   "xml": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/texcuts=texcuts\">\n\t<command kind=\"static\" name=\"save as…\"><shortcut>Cmd+Alt+S</shortcut></command>\n\t<command kind=\"static\" name=\"  CANVAS SIZE... \"><shortcut>Cmd+Shift+Alt+C</shortcut></command>\n\t<command kind=\"static\" name=\"layers\"><shortcut>F8</shortcut></command>\n</photoshop-keyboard-shortcuts>\n",
+   "pc": {
+    "alternate_keys": {
+     "file.saveAs": [],
+     "image.canvasSize": [],
+     "window.layers": []
+    },
+    "alternates": 0,
+    "set": {
+     "file.saveAs": "Cmd+Alt+S",
+     "image.canvasSize": "Cmd+Alt+Shift+C",
+     "window.layers": "F8"
+    },
+    "set_name": "texcuts",
+    "tool_keys": {},
+    "tool_unknown": [],
+    "unknown": [],
+    "unreadable": []
+   }
+  },
+  {
+   "name": "same label in two menus: the command holding the key wins",
+   "xml": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/texcuts=texcuts\">\n\t<command kind=\"static\" name=\"Levels...\"><shortcut>Cmd+L</shortcut></command>\n\t<command kind=\"static\" name=\"Gaussian Blur...\"><shortcut>F9</shortcut></command>\n</photoshop-keyboard-shortcuts>\n",
+   "pc": {
+    "alternate_keys": {
+     "filter.blur.gaussianBlur": [],
+     "image.levels": []
+    },
+    "alternates": 0,
+    "set": {
+     "filter.blur.gaussianBlur": "F9",
+     "image.levels": "Cmd+L"
+    },
+    "set_name": "texcuts",
+    "tool_keys": {},
+    "tool_unknown": [],
+    "unknown": [],
+    "unreadable": []
+   },
+   "differs": "PhotoCraft picks among commands sharing a label by the key it finds (the one whose default is among the row's keys, else the first with a default); plan reports the row as unmatched (ambiguous) and the user picks the command."
+  },
+  {
+   "name": "same label in two menus, no default among the keys",
+   "xml": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/texcuts=texcuts\">\n\t<command kind=\"static\" name=\"Levels...\"><shortcut>Cmd+Alt+L</shortcut></command>\n</photoshop-keyboard-shortcuts>\n",
+   "pc": {
+    "alternate_keys": {
+     "image.levels": []
+    },
+    "alternates": 0,
+    "set": {
+     "image.levels": "Cmd+Alt+L"
+    },
+    "set_name": "texcuts",
+    "tool_keys": {},
+    "tool_unknown": [],
+    "unknown": [],
+    "unreadable": []
+   },
+   "differs": "PhotoCraft picks among commands sharing a label by the key it finds (the one whose default is among the row's keys, else the first with a default); plan reports the row as unmatched (ambiguous) and the user picks the command."
+  },
+  {
+   "name": "tool keys by name and by id",
+   "xml": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/texcuts=texcuts\">\n\t<tool name=\"Move Tool\" type=\"1\">V</tool>\n\t<tool name=\"pencil tool\" type=\"1\">n</tool>\n\t<tool name=\"Renamed\" pc-id=\"tools.select.brush\">B</tool>\n\t<tool name=\"Imaginary Tool\">Q</tool>\n\t<tool name=\"Lasso Tool\">Shift+L</tool>\n\t<command kind=\"static\" name=\"Paste\"><shortcut>Cmd+V</shortcut></command>\n</photoshop-keyboard-shortcuts>\n",
+   "pc": {
+    "alternate_keys": {
+     "edit.paste": []
+    },
+    "alternates": 0,
+    "set": {
+     "edit.paste": "Cmd+V"
+    },
+    "set_name": "texcuts",
+    "tool_keys": {
+     "tools.select.brush": "B",
+     "tools.select.move": "V",
+     "tools.select.pencil": "N"
+    },
+    "tool_unknown": [
+     "Imaginary Tool"
+    ],
+    "unknown": [],
+    "unreadable": []
+   }
+  },
+  {
+   "name": "ids written by PhotoCraft win over labels",
+   "xml": "﻿<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/texcuts=texcuts\">\n\t<command kind=\"static\" name=\"Something Else\" pc-id=\"image.canvasSize\"><shortcut>Cmd+Alt+L</shortcut></command>\n\t<command kind=\"static\" name=\"Levels...\" pc-id=\"layer.newLevels\"><shortcut>Cmd+L</shortcut></command>\n</photoshop-keyboard-shortcuts>\n",
+   "pc": {
+    "alternate_keys": {
+     "image.canvasSize": [],
+     "layer.newLevels": []
+    },
+    "alternates": 0,
+    "set": {
+     "image.canvasSize": "Cmd+Alt+L",
+     "layer.newLevels": "Cmd+L"
+    },
+    "set_name": "texcuts",
+    "tool_keys": {},
+    "tool_unknown": [],
+    "unknown": [],
+    "unreadable": []
+   }
+  }
+ ]
+}
