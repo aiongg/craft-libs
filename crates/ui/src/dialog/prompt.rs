@@ -1,6 +1,6 @@
 //! [`Prompt`]: a question with answers and accelerator letters, and [`accelerator_labels`].
 
-use egui::{Context, Id, Key, Modifiers};
+use egui::{Context, Id, Key, Modifiers, Ui};
 
 use super::buttons::{ButtonRole, FooterButton, Platform};
 use super::dialog::{Dialog, InitialFocus, Outcome};
@@ -58,6 +58,8 @@ pub(super) fn store_state(ctx: &Context, id: Id, state: DialogState, first: u64)
     });
 }
 
+type Below<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
+
 struct Answer {
     role: ButtonRole,
     label: String,
@@ -96,11 +98,12 @@ pub struct Prompt<'a> {
     answers: Vec<Answer>,
     escape: Option<ButtonRole>,
     stack: Option<&'a DialogStack>,
+    below: Option<Below<'a>>,
 }
 
 impl<'a> Prompt<'a> {
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>, message: impl Into<String>) -> Self {
-        Self { id: dialog_id(id), title: title.into(), message: message.into(), answers: Vec::new(), escape: None, stack: None }
+        Self { id: dialog_id(id), title: title.into(), message: message.into(), answers: Vec::new(), escape: None, stack: None, below: None }
     }
 
     /// Adds an answer: its role (which decides its place and look), translated label and key.
@@ -122,6 +125,13 @@ impl<'a> Prompt<'a> {
         self
     }
 
+    /// Draws `below` under the message in the body: a "Don't show again" or "Apply to All" check
+    /// box. The closure runs every pass the prompt shows.
+    pub fn below(mut self, below: impl FnOnce(&mut Ui) + 'a) -> Self {
+        self.below = Some(Box::new(below));
+        self
+    }
+
     /// The id a [`DialogStack`] knows the prompt by.
     pub fn id(&self) -> Id {
         self.id
@@ -129,7 +139,7 @@ impl<'a> Prompt<'a> {
 
     /// Shows the prompt; the role of the answer the pass it is given.
     pub fn show(self, ctx: &Context) -> Option<ButtonRole> {
-        let Self { id, title, message, answers, escape, stack } = self;
+        let Self { id, title, message, answers, escape, stack, below } = self;
         let roles: Vec<ButtonRole> = answers.iter().map(|a| a.role).collect();
         let escape = escape_role(&roles, escape);
         let labels = accelerator_labels(&answers.iter().map(|a| (a.label.clone(), a.key)).collect::<Vec<_>>(), Platform::of(ctx));
@@ -156,6 +166,9 @@ impl<'a> Prompt<'a> {
         }
         let shown = dialog.show(ctx, &mut state, &mut (), |ui, ()| {
             ui.label(message);
+            if let Some(below) = below {
+                below(ui);
+            }
         });
         let mut answer = match shown.outcome {
             Some(Outcome::Answer(role)) => Some(role),

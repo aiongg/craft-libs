@@ -532,8 +532,41 @@ fn a_select_in_a_popover_in_a_modal_is_in_front_of_both() {
 // An editor on a Popover with `outside(false)`: a row click in its Select's list leaves
 // `pressed_outside` false and the editor open; a press elsewhere makes it true (gap 115).
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn a_press_in_a_child_list_is_not_outside_for_a_host_with_its_own_close_rule() {
-    todo!()
+    #[derive(Default)]
+    struct Editor {
+        open: bool,
+        mode: usize,
+        outside_seen: usize,
+    }
+    fn editor(ui: &mut Ui, e: &mut Editor) {
+        let chip = ui.button("Stroke");
+        let Editor { open, mode, outside_seen } = e;
+        let anchor = PopoverAnchor::Point(chip.rect.left_bottom());
+        let mut close = false;
+        Popover::new("own-rule", anchor).close(PopoverClose::default().outside(false).focus_left(false)).show(ui, open, |ui, pop| {
+            let _ = Select::new("mode", "Mode", mode).option(0, "A").option(1, "B").show(ui);
+            if pop.pressed_outside() {
+                *outside_seen += 1;
+                close = true;
+            }
+        });
+        if close {
+            *open = false;
+        }
+    }
+    let mut h = Harness::<Editor>::builder()
+        .with_size(SCREEN)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(editor, Editor { open: true, ..Editor::default() });
+    h.run();
+    open_select(&mut h);
+    let row = h.get_by_role_and_label(Role::ListBoxOption, "B").rect().center();
+    click(&mut h, row);
+    assert_eq!(h.state().mode, 1, "the click picked the row");
+    assert!(h.state().open, "the editor stays open");
+    assert_eq!(h.state().outside_seen, 0, "a row in the child list is no press outside");
+    click(&mut h, pos(470.0, 630.0));
+    assert_eq!(h.state().outside_seen, 1);
+    assert!(!h.state().open, "the host closed it on the press elsewhere");
 }

@@ -2,12 +2,15 @@
 //! [`DialogHost`](super::DialogHost), with "Don't show again" where the question allows it.
 //! `prompt.rs` holds the general [`Prompt`](super::Prompt) these are built on.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_settings::Remembered;
+use egui::{Context, Key};
 
-use egui::Context;
-
+use super::buttons::ButtonRole;
 use super::dialog_host::{DialogResult, StackDialog};
+use super::prompt::Prompt;
 use super::stack::{DialogId, DialogStack, dialog_id};
+use crate::controls::Checkbox;
+use crate::localized::Labels as _;
 
 crate::words! {
     /// The standard prompts' titles, messages and buttons, English by default.
@@ -128,7 +131,52 @@ impl StandardPrompt {
     /// opening it.
     // pc: crates/ui-egui/src/dialogs/delete_layer_prompt.rs:13 (`prefs.dialogs[PREF].skip`).
     pub fn skipped(ctx: &Context, key: &str) -> bool {
-        todo!()
+        craft_host::Host::try_of_ctx(ctx).is_some_and(|host| Self::remembered(key).recall(&host) == Some(true))
+    }
+
+    fn remembered(key: &str) -> Remembered<bool> {
+        Remembered::new(format!("prompt.{key}.skip"))
+    }
+
+    /// The title, message and answers of the kind: `(role, label, key)`.
+    fn content(&self, labels: &PromptLabels) -> (String, String, Vec<(ButtonRole, String, Key)>) {
+        let cancel = (ButtonRole::Cancel, "Cancel".to_owned(), Key::C);
+        match &self.kind {
+            PromptKind::ConfirmDelete { names, count } => {
+                let message = if *count <= 1 && names.len() == 1 {
+                    craft_i18n::fmt(&labels.confirm_delete_one, &[("name", &names[0])])
+                } else {
+                    let mut listed = names.join(", ");
+                    if *count > names.len() {
+                        listed.push('…');
+                    }
+                    craft_i18n::fmt(&labels.confirm_delete_many, &[("count", &count.to_string()), ("names", &listed)])
+                };
+                (labels.confirm_delete_title.clone(), message, vec![(ButtonRole::Default, labels.delete.clone(), Key::D), cancel])
+            }
+            PromptKind::DamagedFile { name } => (
+                labels.damaged_title.clone(),
+                craft_i18n::fmt(&labels.damaged_message, &[("name", name)]),
+                vec![(ButtonRole::Default, labels.open_anyway.clone(), Key::O), cancel],
+            ),
+            PromptKind::ChangedOnDisk { name } => (
+                labels.changed_on_disk_title.clone(),
+                format!("{}\n\n{}", craft_i18n::fmt(&labels.changed_on_disk_message, &[("name", name)]), labels.changed_on_disk_detail),
+                vec![(ButtonRole::Default, labels.replace.clone(), Key::R), cancel],
+            ),
+            PromptKind::ReplaceFile { name, answered } => {
+                let mut message = craft_i18n::fmt(&labels.replace_file_message, &[("name", name)]);
+                if let Some(answered) = answered {
+                    message = format!("{message}\n\n{}", craft_i18n::fmt(&labels.replace_file_detail, &[("answered", answered)]));
+                }
+                (labels.replace_file_title.clone(), message, vec![(ButtonRole::Default, labels.replace.clone(), Key::R), cancel])
+            }
+            PromptKind::TrashMask => (
+                labels.trash_mask_title.clone(),
+                labels.trash_mask_message.clone(),
+                vec![(ButtonRole::Default, labels.apply.clone(), Key::A), (ButtonRole::Alternate, labels.discard.clone(), Key::D), cancel],
+            ),
+        }
     }
 
     pub fn kind(&self) -> &PromptKind {
@@ -147,6 +195,31 @@ impl StackDialog for StandardPrompt {
     // the labels from `PromptLabels::of_ctx`, the check box drawn in the message; on Proceed with
     // the box ticked, the skip is stored.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<PromptChoice>> {
-        todo!()
+        let labels = PromptLabels::of_ctx(ctx);
+        let cancel = super::DialogLabels::of_ctx(ctx).cancel;
+        let (title, message, answers) = self.content(&labels);
+        let mut prompt = Prompt::new(("standard-prompt", std::mem::discriminant(&self.kind)), title, message).stack(stack);
+        for (role, label, key) in answers {
+            let label = if role == ButtonRole::Cancel { cancel.clone() } else { label };
+            prompt = prompt.answer(role, label, Some(key));
+        }
+        if self.skip_key.is_some() {
+            let skip = &mut self.skip;
+            let label = labels.dont_show_again.clone();
+            prompt = prompt.below(move |ui| {
+                ui.add_space(ui.spacing().item_spacing.y);
+                let _ = Checkbox::bool(label, skip).show(ui);
+            });
+        }
+        let role = prompt.show(ctx)?;
+        let choice = match role {
+            ButtonRole::Default => PromptChoice::Proceed,
+            ButtonRole::Alternate => PromptChoice::Alternate,
+            _ => PromptChoice::Cancel,
+        };
+        if let (PromptChoice::Proceed, true, Some(key), Some(host)) = (choice, self.skip, &self.skip_key, craft_host::Host::try_of_ctx(ctx)) {
+            Self::remembered(key).store(&host, &true);
+        }
+        Some(DialogResult::Ok(choice))
     }
 }

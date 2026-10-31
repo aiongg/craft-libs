@@ -68,18 +68,19 @@ impl EditMenu {
     /// (a click on the menu is no click away).
     // pc: crates/ui-egui/src/widgets/text_field_menu.rs (`TextFieldMenu`); here on `show` and
     // `withdraw` with the raw response in place of a library field's.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     pub fn before_text_edit(ui: &Ui, field: Id, password: bool) -> bool {
-        let _ = (ui, field, password);
-        todo!()
+        let keeps = show(ui, field, password, None).pointer_on(ui.ctx(), field);
+        ui.data_mut(|d| d.insert_temp(keeps_id(field), keeps));
+        keeps
     }
 
     /// The second half of [`EditMenu::before_text_edit`]: takes back the injected input and keeps
     /// the focus on the edit when the menu asked for it.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     pub fn after_text_edit(ui: &Ui, field: Id, response: &egui::Response) {
-        let _ = (ui, field, response);
-        todo!()
+        withdraw(ui, field);
+        if ui.data_mut(|d| d.remove_temp::<bool>(keeps_id(field))).unwrap_or(false) && !response.has_focus() {
+            response.request_focus();
+        }
     }
 }
 
@@ -148,6 +149,11 @@ impl Outcome {
 /// event with the number of equal events the input held before.
 fn injected_id(field: Id) -> Id {
     field.with("craft_ui::behavior::edit_menu::injected")
+}
+
+/// Whether [`EditMenu::before_text_edit`] asked `field` to keep its focus this pass.
+fn keeps_id(field: Id) -> Id {
+    field.with("craft_ui::behavior::edit_menu::keeps")
 }
 
 /// Shows the menu of the text control `field` at the start of its pass, before any of the

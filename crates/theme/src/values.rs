@@ -1361,6 +1361,9 @@ pub const DIALOG_WIDTH_WIDE: f32 = 600.0;
 pub const DIALOG_WIDTH_ALERT: f32 = 420.0;
 /// Default size of a secondary viewport's window, in points.
 pub const DIALOG_VIEWPORT_SIZE: [f32; 2] = [480.0, 360.0];
+/// A dialog's preview pane: least width (it takes the dialog's width) and height, in points
+/// (PhotoCraft's `filter_preview_ui` `PREVIEW_H` and the 140 least width).
+pub const DIALOG_PREVIEW_PANE: [f32; 2] = [140.0, 150.0];
 /// Least size of a secondary viewport's window, in points.
 pub const DIALOG_VIEWPORT_MIN: [f32; 2] = [240.0, 160.0];
 /// Space kept between a dialog and the window edge on each side (PhotoCraft: width minus 48).

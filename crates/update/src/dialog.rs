@@ -442,7 +442,7 @@ const ICON_MAX_SIDE: u32 = 1024;
 
 /// `app`'s icon as a texture, decoded once per context and app; `None` when the app has none or
 /// it doesn't decode, and the prompt shows the app's initial instead.
-fn icon_texture(ctx: &egui::Context, app: &App) -> Option<egui::TextureHandle> {
+pub(crate) fn icon_texture(ctx: &egui::Context, app: &App) -> Option<egui::TextureHandle> {
     let png = app.icon_png?;
     let id = egui::Id::unique(("craft_update.icon", app.id));
     if let Some(cached) = ctx.data(|d| d.get_temp::<Option<egui::TextureHandle>>(id)) {

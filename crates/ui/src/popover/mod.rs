@@ -127,6 +127,7 @@ pub struct PopoverCtx {
     content_size: Vec2,
     close: Cell<bool>,
     initial: Cell<Option<Id>>,
+    pressed_outside: bool,
 }
 
 impl PopoverCtx {
@@ -157,11 +158,8 @@ impl PopoverCtx {
     /// an anchored editor open by its own rule ([`PopoverClose::outside`] off: PhotoCraft's stroke
     /// editor stays while its options bar shows and closes on a press elsewhere): the host closes
     /// on `true`, and a row picked in a child list is no press outside. Gap 115.
-    // new: `popup_list::family` and `pressed_into` behind the popover's own id, so app popups
-    // never need the popup_list internals.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     pub fn pressed_outside(&self) -> bool {
-        todo!()
+        self.pressed_outside
     }
 }
 
@@ -311,8 +309,13 @@ impl Popover {
         if popup_list::take_parent_close(&ctx, id) && !fresh {
             closing = closing.or(Some(CloseReason::Parent));
         }
-        let press = read_press(&ctx, id, &family, toggle, close.outside && frame_nr != state.opened);
-        closing = closing.or(press.closing);
+        let anchor_rect = control.as_ref().map(|c| c.rect);
+        let press = read_press(&ctx, id, &family, toggle, anchor_rect);
+        let opening = frame_nr == state.opened;
+        if close.outside && !opening && press.outside {
+            closing = closing.or(Some(CloseReason::Outside));
+        }
+        let pressed_outside = !opening && press.outside_of_anchor;
         let owners: Vec<Id> = control.iter().map(|c| c.id).chain(toggle).collect();
         let inside = popup_list::focus_inside(&ctx, &owners, &family);
         let pressed = popup_list::pressed_into(&ctx, &family);
@@ -339,7 +342,7 @@ impl Popover {
 
         let surface = Surface::style(&tokens, SurfaceKind::Popup);
         let inner_margin = Margin::same((parts.padding + popup_list::edge_width(&surface)).ceil() as i8);
-        let pop = PopoverCtx { id, content_size, close: Cell::new(false), initial: Cell::new(None) };
+        let pop = PopoverCtx { id, content_size, close: Cell::new(false), initial: Cell::new(None), pressed_outside };
         let drawing = Drawing::enter(&ctx, id);
         let area = Area::new(id)
             .order(Order::Foreground)
@@ -459,14 +462,17 @@ fn take_group_close(ctx: &Context, id: Id, frame_nr: u64) -> Option<CloseReason>
 
 /// What a press this pass means for the popover `id`.
 struct Press {
-    closing: Option<CloseReason>,
+    /// The press was outside the popover, its children and the toggle control.
+    outside: bool,
+    /// As `outside`, and also off the anchor control.
+    outside_of_anchor: bool,
 }
 
 /// Reads the press of this pass: a press on the popover's own surface closes its children; a
-/// press outside the popover, its children and the toggle control closes it when `outside`.
-fn read_press(ctx: &Context, id: Id, family: &[Id], toggle: Option<Id>, outside: bool) -> Press {
+/// press outside the popover, its children and the toggle control is reported as outside.
+fn read_press(ctx: &Context, id: Id, family: &[Id], toggle: Option<Id>, anchor: Option<Rect>) -> Press {
     let Some(pos) = ctx.input(|i| i.pointer.any_pressed().then(|| i.pointer.interact_pos()).flatten()) else {
-        return Press { closing: None };
+        return Press { outside: false, outside_of_anchor: false };
     };
     let hit = ctx.layer_id_at(pos);
     let in_own = hit.is_some_and(|l| l.id == id);
@@ -478,8 +484,8 @@ fn read_press(ctx: &Context, id: Id, family: &[Id], toggle: Option<Id>, outside:
     if in_own && !popup_list::child_anchors(ctx, id).iter().any(|r| r.contains(pos)) {
         popup_list::close_children(ctx, id);
     }
-    let closing = (outside && !in_own && !in_child && !on_toggle).then_some(CloseReason::Outside);
-    Press { closing }
+    let outside = !in_own && !in_child && !on_toggle;
+    Press { outside, outside_of_anchor: outside && !anchor.is_some_and(|a| a.contains(pos)) }
 }
 
 /// Where the popover goes: the position and the pivot that keeps its corner at the anchor

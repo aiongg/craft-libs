@@ -152,3 +152,19 @@ fn closing_drops_the_history_and_the_preview_flags() {
     assert!(harness.state().state.history().is_none());
     assert!(harness.state().state.preview().on);
 }
+
+#[test]
+fn holding_the_preview_label_sets_compare() {
+    let mut harness = harness(false);
+    harness.run();
+    let at = harness.get_by_label("Preview").rect().center();
+    harness.hover_at(at);
+    harness.run();
+    let button = |pressed| Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    harness.event(button(true));
+    harness.run();
+    assert!(harness.state().state.preview().compare, "label held");
+    harness.event(button(false));
+    harness.run();
+    assert!(!harness.state().state.preview().compare);
+}

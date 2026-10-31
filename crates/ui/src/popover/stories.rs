@@ -58,6 +58,14 @@ pub(crate) fn stories() -> Vec<Story> {
             StrokeEditorArgs { rtl: false },
             show_stroke_editor
         ),
+        typed_story!(
+            "patterns/popover/own-close-rule",
+            Level::Patterns,
+            "Popover",
+            "Own close rule",
+            StrokeEditorArgs { rtl: false },
+            show_own_close_rule
+        ),
     ]
 }
 
@@ -161,6 +169,38 @@ fn show_stroke_editor(ui: &mut Ui, args: &mut StrokeEditorArgs) {
                     *mode = v;
                 }
             });
+    });
+    ui.data_mut(|d| d.insert_temp(state_id, demo));
+}
+
+/// An always-open editor that closes by the host's own rule: `PopoverCtx::pressed_outside`, which
+/// counts the Select's list as inside.
+fn show_own_close_rule(ui: &mut Ui, args: &mut StrokeEditorArgs) {
+    let state_id = ui.make_persistent_id("craft-ui-popover-story-own-rule");
+    let mut demo = ui.data_mut(|d| d.get_temp::<Demo>(state_id)).unwrap_or(Demo { amount: 2.0, ..Demo::default() });
+    with_direction(ui, args.rtl, |ui| {
+        let chip = ui.add(Button::new("Stroke"));
+        if chip.clicked() {
+            demo.open = true;
+        }
+        let Demo { open, amount, mode, .. } = &mut demo;
+        let mut close = false;
+        Popover::new("story-own-rule", PopoverAnchor::Control(chip.clone()))
+            .close(PopoverClose::default().outside(false).focus_left(false))
+            .size(PopoverSize::Fixed(vec2(240.0, 120.0)))
+            .label("Stroke")
+            .show(ui, open, |ui, pop| {
+                if let Some(v) = Slider::new("width", "Width", *amount, 0.0..=40.0).show(ui).event.as_ref().and_then(|e| e.value()) {
+                    *amount = *v;
+                }
+                if let Some(v) = mode_select(ui, mode) {
+                    *mode = v;
+                }
+                close = pop.pressed_outside() && !chip.contains_pointer();
+            });
+        if close {
+            *open = false;
+        }
     });
     ui.data_mut(|d| d.insert_temp(state_id, demo));
 }

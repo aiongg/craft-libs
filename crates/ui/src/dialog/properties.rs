@@ -1,16 +1,22 @@
 //! [`PropertiesDialog`]: tabs of label and value rows (Document Properties, file info), editable
 //! or read-only.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use egui::{Context, Label, Ui};
 
-use egui::Context;
-
+use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
-use super::fields::DialogFields;
-use super::params::Param;
+use super::fields::{DialogFields, FieldValue};
+use super::footer::Footer;
+use super::params::{Param, ParamKind};
 use super::size::Width;
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
+use crate::composites::{Form, FormGrid, SectionLabel};
+use crate::controls::Checkbox;
+use crate::localized::LocaleNumbers;
+use crate::primitives::Content;
+use crate::tab_strip::{Tab, TabEvent, TabKind, TabStrip};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 
 /// One row of a properties tab.
 #[derive(Clone, Debug, PartialEq)]
@@ -111,6 +117,106 @@ impl StackDialog for PropertiesDialog {
     // (pdfcraft crates/ui-egui/src/dialogs.rs, `dialogs` from line 18: tabs, label column, the
     // read-only file info tab); built on `Dialog`, `TabStrip` and `FormGrid::value` / `Param::row`.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<DialogFields>> {
-        todo!()
+        let Self { id, title, tabs, fields, read_only, width, current_tab, state } = self;
+        let (id, read_only) = (*id, *read_only);
+        let memory = id.with("open-tab");
+        if !state.is_open() {
+            *current_tab = ctx.data_mut(|d| d.get_persisted::<usize>(memory)).unwrap_or(*current_tab);
+        }
+        *current_tab = (*current_tab).min(tabs.len().saturating_sub(1));
+        let numbers = LocaleNumbers::of_ctx(ctx);
+        let gap = FormGrid::style(&crate::theme::current(ctx), false).row_gap * 2.0;
+        let footer = if read_only { Footer::standard().without_cancel() } else { Footer::standard() };
+        let tab_title = title.clone();
+        let mut dialog = Dialog::with_id(id, title.as_str()).stack(stack).width(*width).footer(footer);
+        if read_only {
+            dialog = dialog.close_label(None);
+        }
+        let shown_tab = current_tab;
+        let shown = dialog.show(ctx, state, fields, |ui, fields| {
+            let strips: Vec<Tab<usize>> = tabs.iter().enumerate().map(|(i, tab)| Tab::new(i, tab.title.as_str())).collect();
+            if strips.len() > 1 {
+                let out = TabStrip::new(id.with("tabs"), tab_title.as_str(), TabKind::Text).selected(shown_tab).show(ui, &strips);
+                for event in out.events {
+                    if let TabEvent::Activate(tab) = event {
+                        *shown_tab = tab;
+                    }
+                }
+                ui.add_space(Tokens::of(ui).component.dialog.pad);
+            }
+            let Some(tab) = tabs.get(*shown_tab) else { return };
+            FormGrid::new(id.with(("rows", *shown_tab))).show(ui, |form| {
+                for row in &tab.rows {
+                    show_row(form, row, fields, read_only, &numbers, gap);
+                }
+            });
+        });
+        let tab = *shown_tab;
+        ctx.data_mut(|d| d.insert_persisted(memory, tab));
+        match shown.outcome {
+            Some(Outcome::Ok) if read_only => Some(DialogResult::Ok(DialogFields::new())),
+            Some(Outcome::Ok) => Some(DialogResult::Ok(fields.clone())),
+            Some(Outcome::Cancel | Outcome::Close) if read_only => Some(DialogResult::Ok(DialogFields::new())),
+            Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
+            _ => None,
+        }
+    }
+}
+
+fn show_row(form: &mut Form<'_>, row: &PropertyRow, fields: &mut DialogFields, read_only: bool, numbers: &LocaleNumbers, gap: f32) {
+    match row {
+        PropertyRow::Value { label, text } => {
+            form.row(label.as_str(), |ui, _| selectable_text(ui, text));
+        }
+        PropertyRow::Field(param) if read_only => read_only_field(form, param, fields, numbers),
+        PropertyRow::Field(param) => param.row(form, fields, None),
+        PropertyRow::Heading(text) => {
+            form.spanning(|ui| SectionLabel::new(text.as_str()).show(ui));
+        }
+        PropertyRow::Space => form.space(gap),
+    }
+}
+
+fn selectable_text(ui: &mut Ui, text: &str) -> egui::Response {
+    let tokens = Tokens::of(ui);
+    let format = role_format(&tokens, craft_theme::TypeRole::Body, Content::Normal.color(&tokens).to_egui());
+    ui.add(Label::new(egui::text::LayoutJob::single_section(text.to_owned(), format)).selectable(true))
+}
+
+fn read_only_field(form: &mut Form<'_>, param: &Param, fields: &DialogFields, numbers: &LocaleNumbers) {
+    let Some(value) = fields.get(&param.key) else {
+        form.row(param.label.as_str(), |ui, _| selectable_text(ui, ""));
+        return;
+    };
+    if let FieldValue::Bool(on) = value {
+        let mut on = *on;
+        form.row(param.label.as_str(), |ui, _| Checkbox::bool("", &mut on).enabled(false).show(ui));
+        return;
+    }
+    let text = value_text(param, value, numbers);
+    form.row(param.label.as_str(), |ui, _| selectable_text(ui, &text));
+}
+
+/// A field's value as the read-only view writes it.
+fn value_text(param: &Param, value: &FieldValue, numbers: &LocaleNumbers) -> String {
+    let number = |n: f64| match &param.unit {
+        Some(unit) => format!("{}{}{}", unit.prefix(), numbers.format(n, 0..=6), unit.suffix()),
+        None => numbers.format(n, 0..=6),
+    };
+    match (value, &param.kind) {
+        (FieldValue::Number(n), _) => number(*n),
+        (FieldValue::Int(i), ParamKind::Channel { names, .. }) => usize::try_from(*i).ok().and_then(|i| names.get(i)).cloned().unwrap_or_default(),
+        (FieldValue::Int(i), _) => number(*i as f64),
+        (FieldValue::Text(id), ParamKind::Choice { options, .. }) => {
+            options.iter().find(|(option, _)| option == id).map_or_else(|| id.clone(), |(_, label)| label.clone())
+        }
+        (FieldValue::Text(text), _) => text.clone(),
+        (FieldValue::Point([x, y]), _) => format!("{}, {}", numbers.format(*x, 0..=2), numbers.format(*y, 0..=2)),
+        (FieldValue::Grid(cells), _) => cells.iter().map(ToString::to_string).collect::<Vec<_>>().join(" "),
+        (FieldValue::Color([r, g, b]), _) => {
+            let byte = |c: f32| (egui::ecolor::gamma_u8_from_linear_f32(c.clamp(0.0, 1.0))) as u32;
+            format!("#{:02X}{:02X}{:02X}", byte(*r), byte(*g), byte(*b))
+        }
+        _ => String::new(),
     }
 }

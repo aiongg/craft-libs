@@ -2,16 +2,18 @@
 //! Reset on Alt+Cancel. The same [`Param`] list as [`ParamDialog`](super::ParamDialog), without
 //! preview, sliders or remembered values.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use egui::Context;
 
+use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::DialogFields;
-use super::params::Param;
-use super::size::Width;
+use super::footer::{DialogLabels, Footer, Reset};
+use super::params::{Param, draw_rows, first_field_focused, open_fields, take_color_press};
+use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
+use crate::composites::FormGrid;
+use crate::localized::Labels as _;
 
 /// A form dialog: one [`FormGrid`](crate::composites::FormGrid) row per [`Param`] (text fields,
 /// number fields, check boxes, selects), a bottom footer with OK and Cancel, Reset on Alt+Cancel
@@ -35,6 +37,7 @@ pub struct CommandForm {
     ok_label: Option<String>,
     ok_enabled: bool,
     width: Width,
+    picked_color: Option<String>,
     state: DialogState<DialogFields>,
 }
 
@@ -49,6 +52,7 @@ impl CommandForm {
             ok_label: None,
             ok_enabled: true,
             width: Width::Standard,
+            picked_color: None,
             state: DialogState::new(),
         }
     }
@@ -72,6 +76,11 @@ impl CommandForm {
         self
     }
 
+    /// [`ok_enabled`](CommandForm::ok_enabled) for a form already open.
+    pub fn set_ok_enabled(&mut self, enabled: bool) {
+        self.ok_enabled = enabled;
+    }
+
     pub fn width(mut self, width: Width) -> Self {
         self.width = width;
         self
@@ -83,6 +92,12 @@ impl CommandForm {
 
     pub fn fields_mut(&mut self) -> &mut DialogFields {
         &mut self.fields
+    }
+
+    /// The key of the colour parameter whose swatch the user pressed, once: the host opens its
+    /// colour picker for it and writes the pick with `fields_mut().set(key, FieldValue::Color(..))`.
+    pub fn pick_color(&mut self) -> Option<String> {
+        self.picked_color.take()
     }
 }
 
@@ -96,6 +111,34 @@ impl StackDialog for CommandForm {
     // pc: crates/ui-egui/src/menus/view_cmds/dialogs.rs:60 `form` and the `__form` body in
     // crates/ui-egui/src/dialogs.rs:177 `command_body_more`; the rows through `Param::row`.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<DialogFields>> {
-        todo!()
+        if !self.state.is_open() {
+            open_fields(ctx, self.id, &self.params, &mut self.fields);
+        }
+        let labels = DialogLabels::of_ctx(ctx);
+        let mut footer = Footer::standard().reset(Reset::AltCancel(labels.reset)).ok_enabled(self.ok_enabled);
+        if let Some(ok) = &self.ok_label {
+            footer = footer.ok(ok.as_str());
+        }
+        let (params, id) = (&self.params, self.id);
+        let shown = Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).show(
+            ctx,
+            &mut self.state,
+            &mut self.fields,
+            |ui, fields| {
+                first_field_focused(ui, id, |ui| {
+                    FormGrid::new("form").show(ui, |form| draw_rows(params, form, fields, None));
+                });
+            },
+        );
+        self.picked_color = take_color_press(ctx).or(self.picked_color.take());
+        match shown.outcome? {
+            Outcome::Ok => Some(DialogResult::Ok(self.fields.clone())),
+            Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
+            Outcome::Reset => {
+                self.fields.reset();
+                None
+            }
+            _ => None,
+        }
     }
 }
