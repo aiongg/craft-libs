@@ -22,7 +22,7 @@ pointer = ["dep:core-graphics"]
 # `session`: the documents open at the last quit, stored with serde in the app's settings.
 session = ["dep:serde", "dep:serde_json"]
 # `usage`: the process's memory use.
-usage = []
+usage = ["dep:sysinfo"]
 # `clock`: the monotonic app clock tests can set by hand.
 clock = ["dep:web-time"]
 # `pacing`: frame-rate cap, window state and background work slices.
@@ -57,6 +57,10 @@ x11rb = { version = "0.13", default-features = false, features = ["image", "rand
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = { version = "0.23", optional = true }
 core-graphics2 = { version = "=0.6.1", default-features = false, features = ["display", "window", "link"], optional = true }
+
+# Linux reads `/proc`; elsewhere `sysinfo` gives the system's available memory (MIT).
+[target.'cfg(any(target_os = "macos", windows))'.dependencies]
+sysinfo = { version = "=0.39.6", default-features = false, features = ["system"], optional = true }
 
 [target.'cfg(windows)'.dependencies]
 xcap = { version = "=0.9.8", optional = true }

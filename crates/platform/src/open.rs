@@ -340,25 +340,34 @@ fn reveal_command(platform: &str, path: &Path) -> Result<(&'static str, Vec<OsSt
     }
 }
 
-/// Opens a file or an `http(s)` URL with the system's handler (`open`, `cmd /c start ""`,
-/// `xdg-open`), without waiting for it. Not on wasm (the browser module opens URLs there).
+/// Opens a file or an `http(s)` URL with the system's handler (`open`, `rundll32
+/// url.dll,FileProtocolHandler`, `xdg-open`), without waiting for it. Not on wasm (the browser
+/// module opens URLs there).
+///
+/// No shell sees the target: on Windows `cmd` would run the part of a link after a `&`, and on
+/// macOS and Linux a target that starts with `-` would be read as an option, so `--` precedes it.
 // new: PdfCraft, LightCraft, VectorCraft and FilmCraft each shell out for this (N10.05)
 #[cfg(not(target_arch = "wasm32"))]
 pub fn open_external(target: &str) -> Result<(), String> {
-    let mut command = if cfg!(target_os = "macos") {
+    let mut command = open_command(target);
+    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command.spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// The command that opens `target`; see [`open_external`].
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn open_command(target: &str) -> Command {
+    if cfg!(target_os = "macos") {
         let mut c = Command::new("open");
-        c.arg(target);
+        c.args(["--", target]);
         c
     } else if cfg!(windows) {
-        // `start` takes the first quoted argument as a window title, hence the empty one.
-        let mut c = Command::new("cmd");
-        c.args(["/c", "start", ""]).arg(target);
+        let mut c = Command::new("rundll32");
+        c.args(["url.dll,FileProtocolHandler", target]);
         c
     } else {
         let mut c = Command::new("xdg-open");
-        c.arg(target);
+        c.args(["--", target]);
         c
-    };
-    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    command.spawn().map(|_| ()).map_err(|e| e.to_string())
+    }
 }
