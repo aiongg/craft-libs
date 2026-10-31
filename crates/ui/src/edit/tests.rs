@@ -2157,3 +2157,26 @@ fn a_set_of_a_value_that_is_not_equal_to_itself_panics_in_debug_builds() {
         let _ = gesture.finish();
     });
 }
+
+#[test]
+fn a_host_equals_the_reported_value_to_f32_precision_and_nothing_wider() {
+    let stored = |v: f64, scale: f64| f64::from((v / scale) as f32) * scale;
+    for i in 0..=10_000 {
+        let v = f64::from(i) * 0.01;
+        assert!(equals_to_f32(stored(v, 100.0), v), "0..100 at {v}");
+    }
+    for i in 0..=1000 {
+        let u = f64::from(i) / 1000.0;
+        let v = u.powf(2.2) * 1000.0;
+        assert!(equals_to_f32(f64::from((v / 1000.0) as f32) * 1000.0, v), "curve at {v}");
+    }
+    assert!(equals_to_f32(0.0, 0.0) && !equals_to_f32(1e-30, 0.0));
+    assert!(!equals_to_f32(37.01, 37.0), "a host off by one step is an outside change");
+    assert!(!equals_to_f32(37.0, 36.9999), "display decimals are an outside change");
+    assert!(
+        !equals_to_f32(f64::NAN, 1.0)
+            && !equals_to_f32(1.0, f64::NAN)
+            && !equals_to_f32(f64::INFINITY, 1.0)
+            && !equals_to_f32(1.0, f64::NEG_INFINITY)
+    );
+}

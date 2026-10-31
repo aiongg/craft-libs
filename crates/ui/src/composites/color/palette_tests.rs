@@ -173,10 +173,8 @@ fn enter_on_a_cell_in_a_dialog_opens_the_entry_without_answering_ok() {
         opened: Vec<usize>,
         outcomes: Vec<crate::dialog::Outcome>,
     }
-    let mut harness = Harness::<App>::builder()
-        .with_size(vec2(640.0, 480.0))
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
-        .build_ui_state(
+    let mut harness =
+        Harness::<App>::builder().with_size(vec2(640.0, 480.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
             |ui, app: &mut App| {
                 let entries = (0..4).map(|i| (format!("Index {i}"), Srgba::rgb(i as f32 / 4.0, 0.2, 0.5)));
                 let shown = Dialog::new("table", "Colors").footer(Footer::standard()).show(&ui.ctx().clone(), &mut app.state, &mut (), |ui, ()| {
