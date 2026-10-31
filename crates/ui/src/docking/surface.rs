@@ -1413,6 +1413,13 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         #[cfg(feature = "native-windows")]
         ui.ctx().data_mut(|d| d.remove::<Vec<Id>>(native_cancel_key(self.id)));
         ui.ctx().data_mut(|d| d.insert_temp(float_space_key(self.id), renderer.float_space));
+        super::targets::record_drop_targets(
+            ui.ctx(),
+            self.id,
+            std::mem::take(&mut renderer.targets),
+            renderer.config.zone_rule(),
+            renderer.config.canvas_sides(),
+        );
         ui.ctx().data_mut(|d| d.insert_temp(self.id.with("owned-interactions"), renderer.owned_interactions));
         // egui runs a discarded pass again with the same hovered files (dropped ones are
         // taken), so only the next pass reports them.
