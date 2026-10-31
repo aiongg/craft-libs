@@ -226,7 +226,7 @@ impl GridGeometry {
     }
 
     /// The visible scrolled rows and columns (after the frozen ones), inclusive.
-    // gridcraft: crates/ui-egui/src/grid/geo.rs:203 `scroll_rows`, `scroll_cols`.
+    // gridcraft: crates/ui-egui/src/grid/geo.rs:198 `scroll_rows`, `:204` `scroll_cols`.
     pub fn visible(&self) -> ((u32, u32), (u32, u32)) {
         todo!()
     }
