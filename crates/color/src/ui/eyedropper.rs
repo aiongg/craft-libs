@@ -8,10 +8,15 @@
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-use craft_theme::Srgba;
-use egui::{Color32, Context, Painter, Pos2};
+use std::f32::consts::{PI, TAU};
 
-use craft_ui::patterns::OptionsBarSlots;
+use craft_theme::Srgba;
+use egui::{Color32, Context, Painter, Pos2, Shape, Stroke, vec2};
+
+use craft_ui::controls::{Checkbox, Select};
+use craft_ui::localized::SharedLabels;
+use craft_ui::patterns::{CellWidth, OptionsBar, OptionsBarSlots};
+use craft_ui::theme::{ToEgui, UiTokens};
 
 craft_ui::words! {
     /// The Eyedropper's options words, English by default.
@@ -70,7 +75,10 @@ impl SampleSize {
     /// The menu item: "Point Sample", else [`EyedropperLabels::average`] with the side.
     // pc: crates/ui-egui/src/tools/eyedropper_ui.rs:13 `size_options`.
     pub fn label(self, labels: &EyedropperLabels) -> String {
-        todo!()
+        match self {
+            SampleSize::Point => labels.point_sample.clone(),
+            average => craft_i18n::fmt(&labels.average, &[("n", &average.pixels().to_string())]),
+        }
     }
 }
 
@@ -112,7 +120,14 @@ impl SampleSource {
     /// The menu item.
     // pc: crates/ui-egui/src/tools/eyedropper_ui.rs:26 `layer_options`.
     pub fn label(self, labels: &EyedropperLabels) -> String {
-        todo!()
+        match self {
+            SampleSource::Current => &labels.current_layer,
+            SampleSource::CurrentAndBelow => &labels.current_and_below,
+            SampleSource::All => &labels.all_layers,
+            SampleSource::AllNoAdjustments => &labels.all_layers_no_adjustments,
+            SampleSource::CurrentAndBelowNoAdjustments => &labels.current_and_below_no_adjustments,
+        }
+        .clone()
     }
 }
 
@@ -150,7 +165,28 @@ impl<'a> EyedropperOptionsBar<'a> {
     // pc: crates/ui-egui/src/tools/eyedropper_ui.rs:42 `options` (the widths are the field sizes
     // of `OptionsBarStyle::fields`, the nearest of Md and Lg).
     pub fn add_to(self, slots: &mut OptionsBarSlots<'a>) {
-        todo!()
+        let options = self.options;
+        slots.body(move |ui| {
+            let labels = EyedropperLabels::shared(ui);
+            OptionsBar::cell(ui, &labels.sample_size, CellWidth::Md, |ui, _| {
+                let mut select = Select::new("eyedropper-size", labels.size.clone(), &mut options.size);
+                for size in SampleSize::ALL {
+                    select = select.option(size, size.label(&labels));
+                }
+                let _ = select.show(ui);
+            });
+            OptionsBar::cell(ui, &labels.sample, CellWidth::Lg, |ui, _| {
+                let mut select = Select::new("eyedropper-source", labels.source.clone(), &mut options.source);
+                for source in SampleSource::ALL {
+                    select = select.option(source, source.label(&labels));
+                }
+                let _ = select.show(ui);
+            });
+            let _ = Checkbox::bool(labels.show_ring.clone(), &mut options.show_ring).show(ui);
+            OptionsBar::divider(ui);
+            let key = if ui.ctx().os() == egui::os::OperatingSystem::Mac { "Option" } else { "Alt" };
+            OptionsBar::hint(ui, &craft_i18n::fmt(&labels.hint, &[("key", key)]));
+        });
     }
 }
 
@@ -167,6 +203,14 @@ pub struct SamplingRingStyle {
     /// 160 inside it.
     pub dark: Color32,
     pub light: Color32,
+}
+
+impl SamplingRingStyle {
+    /// The ring from the theme's `eyedropper` tokens; the hairlines are fixed.
+    pub fn of(tokens: &UiTokens) -> SamplingRingStyle {
+        let ring = &tokens.component.eyedropper;
+        SamplingRingStyle { outer_radius: ring.ring_radius, band: ring.ring_band, grey: ring.ring_grey.to_egui(), ..SamplingRingStyle::default() }
+    }
 }
 
 impl Default for SamplingRingStyle {
@@ -189,7 +233,32 @@ impl Default for SamplingRingStyle {
 // pc: crates/ui-egui/src/canvas/cursors.rs:73 `eyedropper_ring` (r_out 105, band 17, r_in = r_out
 // - 2 band; the upper half as a 48-segment `Shape::line`, the lower a `circle_stroke`).
 pub fn eyedropper_ring(painter: &Painter, center: Pos2, new: Color32, current: Color32, style: &SamplingRingStyle) {
-    todo!()
+    const SEGMENTS: usize = 48;
+    let band = style.band;
+    let inner = style.outer_radius - 2.0 * band;
+    // A stroke of width `w` centred on radius `r` covers `r - w / 2 ..= r + w / 2`.
+    let arc = |radius: f32, from: f32, to: f32| -> Vec<Pos2> {
+        (0..=SEGMENTS)
+            .map(|i| {
+                let a = from + (to - from) * i as f32 / SEGMENTS as f32;
+                center + vec2(a.cos(), a.sin()) * radius
+            })
+            .collect()
+    };
+    // Screen y grows down, so PI..TAU is the upper half and 0..PI the lower; the halves meet at
+    // 3 and 9 o'clock, as in Photoshop.
+    painter.add(Shape::line(arc(inner + band / 2.0, PI, TAU), Stroke::new(band, new)));
+    painter.add(Shape::line(arc(inner + band / 2.0, 0.0, PI), Stroke::new(band, current)));
+    painter.add(Shape::closed_line(arc(inner + band * 1.5, 0.0, TAU)[..SEGMENTS].to_vec(), Stroke::new(band, style.grey)));
+    let px = 1.0 / painter.ctx().pixels_per_point().max(1.0);
+    for (radius, color) in [
+        (style.outer_radius + px / 2.0, style.dark),
+        (style.outer_radius + px * 1.5, style.light),
+        (inner - px / 2.0, style.dark),
+        (inner - px * 1.5, style.light),
+    ] {
+        painter.add(Shape::closed_line(arc(radius, 0.0, TAU)[..SEGMENTS].to_vec(), Stroke::new(px, color)));
+    }
 }
 
 /// What an [`EyedropperTool`] picked.

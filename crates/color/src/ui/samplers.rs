@@ -5,13 +5,18 @@
 //! The points are per-document view state: not saved with the document, no History step, no
 //! pixels changed. The app keeps one [`ColorSamplers`] per document.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+#![expect(dead_code, reason = "skeleton: removed with the canvas tool")]
 
 use craft_cms::convert::CmykConverter;
 use craft_theme::Srgba;
-use egui::{Context, Painter, Ui};
-
+use craft_theme::TypeRole;
 use craft_ui::canvas::CanvasView;
+use craft_ui::canvas::kurbo::Point;
+use craft_ui::controls::Button;
+use craft_ui::localized::SharedLabels;
+use craft_ui::patterns::OptionsBar;
+use craft_ui::primitives::{Content, Text};
+use egui::{Align2, Color32, Context, Id, Painter, Stroke, Ui, vec2};
 
 craft_ui::words! {
     /// The Color Sampler's words, English by default.
@@ -67,19 +72,37 @@ impl ColorSamplers {
     // pc: crates/engine/src/cmd/sampler_cmds.rs:91 `add` (with :63 `pixel`: floor, inside the
     // bounds; the limit message at :98).
     pub fn add(&mut self, pos: [f64; 2], size: [u32; 2]) -> Result<usize, SamplerError> {
-        todo!()
+        let pixel = pixel(pos, size).ok_or(SamplerError::Outside)?;
+        if self.points.len() >= MAX_SAMPLERS {
+            return Err(SamplerError::Full);
+        }
+        self.points.push(pixel);
+        Ok(self.points.len() - 1)
     }
 
     /// Moves point `index` to `pos`; dropped outside the canvas it is removed instead (Photoshop).
     // pc: crates/engine/src/cmd/sampler_cmds.rs:106 `move_point`; crates/ui-egui/src/tools/analysis_ui.rs:357
     // (outside: `delete`).
     pub fn move_point(&mut self, index: usize, pos: [f64; 2], size: [u32; 2]) -> Result<(), SamplerError> {
-        todo!()
+        if index >= self.points.len() {
+            return Err(SamplerError::NoSuchPoint);
+        }
+        match pixel(pos, size) {
+            Some(pixel) => self.points[index] = pixel,
+            None => {
+                self.points.remove(index);
+            }
+        }
+        Ok(())
     }
 
     /// Removes point `index`; the later points move up one number.
     pub fn remove(&mut self, index: usize) -> Result<(), SamplerError> {
-        todo!()
+        if index >= self.points.len() {
+            return Err(SamplerError::NoSuchPoint);
+        }
+        self.points.remove(index);
+        Ok(())
     }
 
     pub fn clear(&mut self) {
@@ -89,7 +112,13 @@ impl ColorSamplers {
     /// The nearest point within `tolerance` document pixels of `at`.
     // pc: crates/ui-egui/src/tools/analysis_ui.rs:379 `nearest_sampler`.
     pub fn hit(&self, at: [f64; 2], tolerance: f64) -> Option<usize> {
-        todo!()
+        let distance = |p: &[f64; 2]| (p[0] - at[0]).hypot(p[1] - at[1]);
+        self.points
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| distance(p) <= tolerance)
+            .min_by(|a, b| distance(a.1).total_cmp(&distance(b.1)))
+            .map(|(index, _)| index)
     }
 
     /// Draws every point over the canvas, whatever the tool: a reticle of radius 5 with four
@@ -99,8 +128,32 @@ impl ColorSamplers {
     /// nearest to PhotoCraft's 11.
     // pc: crates/ui-egui/src/tools/analysis_ui.rs:468 (the marker loop).
     pub fn paint(&self, painter: &Painter, view: &CanvasView) {
-        todo!()
+        let tokens = craft_ui::theme::current(painter.ctx());
+        let sampler = &tokens.component.sampler;
+        let font = tokens.font(TypeRole::Caption);
+        for (index, point) in self.points.iter().enumerate() {
+            let at = view.to_screen(Point::new(point[0], point[1]));
+            // Double-stroked so the reticle reads on any pixel.
+            for (width, color) in [(3.0, Color32::from_black_alpha(170)), (1.0, Color32::WHITE)] {
+                let stroke = Stroke::new(width, color);
+                painter.circle_stroke(at, sampler.marker_radius, stroke);
+                for direction in [vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0)] {
+                    painter.line_segment([at + direction * sampler.tick_start, at + direction * sampler.tick_end], stroke);
+                }
+            }
+            // Upper right, so several points stay readable when they overlap.
+            let anchor = at + vec2(7.0, -7.0);
+            let number = (index + 1).to_string();
+            painter.text(anchor + vec2(1.0, 1.0), Align2::LEFT_BOTTOM, &number, font.clone(), Color32::from_black_alpha(180));
+            painter.text(anchor, Align2::LEFT_BOTTOM, &number, font.clone(), Color32::WHITE);
+        }
     }
+}
+
+/// The pixel that document position `pos` lands on, if it is inside a canvas `size` pixels large.
+fn pixel(pos: [f64; 2], size: [u32; 2]) -> Option<[f64; 2]> {
+    let [x, y] = pos.map(f64::floor);
+    (x >= 0.0 && y >= 0.0 && x < f64::from(size[0]) && y < f64::from(size[1])).then_some([x, y])
 }
 
 /// The Color Sampler tool on the canvas: a click inside the canvas places a point; a press on a
@@ -149,7 +202,14 @@ impl SamplerReadout {
     /// finite read as 0; each is clamped before converting.
     // pc: crates/engine/src/cmd/sampler_cmds.rs:39 `readout`, :31 `device_cmyk`.
     pub fn new(index: usize, position: [f64; 2], color: Srgba, cmyk: &CmykConverter) -> SamplerReadout {
-        todo!()
+        let unit = |v: f32| if v.is_finite() { v.clamp(0.0, 1.0) } else { 0.0 };
+        let rgb = [color.r, color.g, color.b].map(unit);
+        SamplerReadout {
+            number: index + 1,
+            position: position.map(|v| v.floor() as i64),
+            rgb: rgb.map(|v| (v * 255.0).round() as u8),
+            cmyk: cmyk.from_srgb(rgb).map(|v| (unit(v) * 100.0).round() as u8),
+        }
     }
 }
 
@@ -158,7 +218,14 @@ impl SamplerReadout {
 /// was pressed.
 // pc: crates/ui-egui/src/tools/analysis_ui.rs:593.
 pub fn sampler_options(ui: &mut Ui, count: usize) -> bool {
-    todo!()
+    let labels = SamplerLabels::shared(ui);
+    let counted = craft_i18n::fmt(&labels.count, &[("n", &count.to_string()), ("max", &MAX_SAMPLERS.to_string())]);
+    ui.add(Text::new(counted));
+    OptionsBar::divider(ui);
+    let clear = ui.add(Button::new(labels.clear_all.clone()).enabled(count > 0)).clicked();
+    OptionsBar::divider(ui);
+    ui.add(Text::new(labels.hint.clone()).content(Content::Muted));
+    clear
 }
 
 /// The readouts of `samplers`, cached until the document changes: the app passes its document
@@ -171,5 +238,18 @@ pub fn sampler_readouts(
     read: impl Fn([f64; 2]) -> Srgba,
     cmyk: &CmykConverter,
 ) -> std::sync::Arc<Vec<SamplerReadout>> {
-    todo!()
+    type Cached = (u64, Vec<[f64; 2]>, std::sync::Arc<Vec<SamplerReadout>>);
+    let id = Id::unique("craft_color::sampler_readouts");
+    // The points are part of the key so that another document at the same revision does not
+    // reuse these readouts.
+    if let Some((cached_revision, points, readouts)) = ctx.data(|d| d.get_temp::<Cached>(id))
+        && cached_revision == revision
+        && points == samplers.points
+    {
+        return readouts;
+    }
+    let readouts: std::sync::Arc<Vec<SamplerReadout>> =
+        std::sync::Arc::new(samplers.points.iter().enumerate().map(|(i, p)| SamplerReadout::new(i, *p, read(*p), cmyk)).collect());
+    ctx.data_mut(|d| d.insert_temp::<Cached>(id, (revision, samplers.points.clone(), readouts.clone())));
+    readouts
 }
