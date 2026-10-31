@@ -9,20 +9,39 @@
 //! drag to grey keeps the hue, a drag to black keeps hue and saturation.
 
 mod area;
+mod choice;
+#[cfg(test)]
+mod choice_tests;
+mod colour_stories;
 #[cfg(test)]
 mod dialog_tests;
 mod disc;
 mod disc_stories;
 #[cfg(test)]
 mod disc_tests;
+mod droppers;
+#[cfg(test)]
+mod droppers_tests;
+mod eyedropper;
+#[cfg(test)]
+mod eyedropper_tests;
 mod full_stories;
 #[cfg(test)]
 mod full_tests;
+mod harmony;
+#[cfg(test)]
+mod harmony_tests;
 mod hex;
 #[cfg(test)]
 mod hex_tests;
 #[cfg(test)]
 mod id_tests;
+mod lut_picker;
+#[cfg(test)]
+mod lut_picker_tests;
+mod paint_chip;
+#[cfg(test)]
+mod paint_chip_tests;
 mod pair;
 mod pair_stories;
 #[cfg(test)]
@@ -30,12 +49,21 @@ mod pair_tests;
 mod palette;
 #[cfg(test)]
 mod palette_tests;
+mod panel;
+#[cfg(test)]
+mod panel_tests;
 mod picker;
+mod picker_dialog;
+#[cfg(test)]
+mod picker_dialog_tests;
 #[cfg(test)]
 mod picker_tests;
 pub mod popover;
 #[cfg(test)]
 mod popover_tests;
+mod profile_prompts;
+#[cfg(test)]
+mod profile_prompts_tests;
 #[cfg(test)]
 mod quantize_tests;
 mod ramp;
@@ -45,7 +73,16 @@ mod ramp_tests;
 mod readout;
 #[cfg(test)]
 mod readout_tests;
+mod samplers;
+#[cfg(test)]
+mod samplers_tests;
+mod screen_picker;
+#[cfg(test)]
+mod screen_picker_tests;
 mod strip;
+mod swatches;
+#[cfg(test)]
+mod swatches_tests;
 #[cfg(test)]
 mod tests;
 mod wheel;
@@ -69,9 +106,29 @@ pub use readout::ColorReadout;
 pub use strip::ColorStrip;
 pub use wheel::{ColorWheel, ColorWheelResponse, ColorWheelStyle, WheelGeometry, WheelPart};
 
+pub use choice::{ChosenColor, ColorChoice, ColorChoiceLabels, ColorChoiceResponse, NamedColor};
+pub use droppers::{DropperButton, DropperKind, DropperResponse, DropperState, DropperTool};
+pub use eyedropper::{
+    EyedropperLabels, EyedropperOptions, EyedropperOptionsBar, EyedropperPick, EyedropperTool, SampleSize, SampleSource, SamplingRingStyle,
+    eyedropper_ring,
+};
+pub use harmony::{
+    HARMONY_WORDS, HarmonyLabels, HarmonyMenuAction, HarmonyPanel, HarmonyPanelResponse, HarmonyPanelState, HarmonyWheel, HarmonyWheelResponse,
+};
+pub use lut_picker::{LUT_WORDS, LutChoice, LutLabels, LutPicker, LutPickerResponse};
+pub use paint_chip::{GradientPreview, Paint, PaintChip, PaintLabels, PaintList, PaintListResponse};
+pub use panel::{ColorPanel, ColorPanelLabels, ColorPanelMode, ColorPanelRamp, ColorPanelResponse, ColorPanelState, PanelTarget};
+pub use picker_dialog::{ColorPickerDialog, ColorPickerLabels, ColorPickerMemory, ColorPickerResult};
+pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileLabels, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus};
+pub use samplers::{
+    ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SAMPLER_HIT, SamplerError, SamplerLabels, SamplerReadout, sampler_options, sampler_readouts,
+};
+pub use screen_picker::{LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPickerLabels};
+pub use swatches::{SwatchAt, SwatchLibrary, SwatchesAction, SwatchesLabels, SwatchesPanel, SwatchesPanelResponse};
+
 use craft_ui::controls::slider::{self, Scale};
 use craft_ui::edit::{self, EditEvent};
-use craft_ui::localized::LocaleNumbers;
+use craft_ui::localized::{Labels, LocaleNumbers};
 use craft_ui::primitives::{Content, Gap, Row, Stack, Text};
 use craft_ui::story::{Level, SizeArg, Story, StoryArgs, StoryChoice};
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -184,7 +241,22 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
 }
 
 /// The labels tables of the colour widgets, for the words registry.
-pub const WORDS: &[&[craft_ui::localized::Word]] = &[picker::WORDS];
+pub const WORDS: &[&[craft_ui::localized::Word]] = &[
+    picker::WORDS,
+    <ColorChoiceLabels as Labels>::WORDS,
+    <ColorPanelLabels as Labels>::WORDS,
+    <ColorPickerLabels as Labels>::WORDS,
+    <EyedropperLabels as Labels>::WORDS,
+    <HarmonyLabels as Labels>::WORDS,
+    HARMONY_WORDS,
+    <LutLabels as Labels>::WORDS,
+    LUT_WORDS,
+    <PaintLabels as Labels>::WORDS,
+    <ProfileLabels as Labels>::WORDS,
+    <SamplerLabels as Labels>::WORDS,
+    <ScreenPickerLabels as Labels>::WORDS,
+    <SwatchesLabels as Labels>::WORDS,
+];
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] =
