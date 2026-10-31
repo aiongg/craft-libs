@@ -6,7 +6,7 @@ use egui::{Label, Response, Ui, vec2};
 use super::options_bar::OptionsBar;
 use crate::controls::{CheckState, Checkbox, NumberField, Select};
 use crate::direction;
-use crate::localized::{LocaleNumbers, Unit};
+use crate::localized::{LocaleNumbers, Unit, Word, Words};
 use crate::primitives::{Content, Text};
 use crate::story::StoryArgs;
 use crate::theme::{Tokens, TokensOf};
@@ -25,9 +25,24 @@ pub enum CellWidth {
     Content,
 }
 
+/// The caption followed by its colon; a language writes its own punctuation (French " :").
+const CAPTION_COLON: Word = Word::keyed("options.captionColon", "{caption}:");
+
+/// The words of the options bar's cells.
+pub(crate) const WORDS: &[Word] = &[CAPTION_COLON];
+
+/// `caption` with the colon of the installed language, unless it already ends in one.
+fn with_colon(words: &Words, caption: &str) -> String {
+    if caption.ends_with([':', '\u{ff1a}']) {
+        return caption.to_owned();
+    }
+    words.format(CAPTION_COLON, &[("caption", caption)])
+}
+
 impl OptionsBar {
-    /// A caption and the control it names. `caption` is the host's translated text including its
-    /// colon ("Size:"). The control is laid out in a box of the class's width, `options_bar.gap`
+    /// A caption and the control it names. `caption` is the host's translated text ("Size"); the
+    /// cell adds the colon of the installed language, and a caption that already ends in one is
+    /// shown as it is. The control is laid out in a box of the class's width, `options_bar.gap`
     /// after the caption, and `add` receives the caption's response so a number field can
     /// [`scrub_by`](NumberField::scrub_by) it. The caption is not selectable and is not shortened
     /// for a narrow bar: the bar scrolls instead.
@@ -37,7 +52,7 @@ impl OptionsBar {
         ui.spacing_mut().item_spacing.x = style.gap;
         let mut format = Text::format(&tokens, TypeRole::Body, Content::Muted);
         format.valign = ui.text_valign();
-        let label = ui.add(Label::new(LayoutJob::single_section(caption.to_owned(), format)).selectable(false));
+        let label = ui.add(Label::new(LayoutJob::single_section(with_colon(&Words::of(ui), caption), format)).selectable(false));
         match width {
             CellWidth::Content => add(ui, &label),
             fixed => {

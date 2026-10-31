@@ -100,11 +100,13 @@ pub enum Stroke {
     W1_5,
     /// 2 logical px.
     W2,
+    /// 3 logical px.
+    W3,
 }
 
 impl Stroke {
     /// Every step, thinnest first.
-    pub const ALL: [Stroke; 4] = [Stroke::Hairline, Stroke::W1, Stroke::W1_5, Stroke::W2];
+    pub const ALL: [Stroke; 5] = [Stroke::Hairline, Stroke::W1, Stroke::W1_5, Stroke::W2, Stroke::W3];
 
     /// Width in logical pixels at `pixels_per_point` physical pixels per logical pixel.
     pub fn width(self, pixels_per_point: f32) -> f32 {
@@ -113,6 +115,7 @@ impl Stroke {
             Stroke::W1 => 1.0,
             Stroke::W1_5 => 1.5,
             Stroke::W2 => 2.0,
+            Stroke::W3 => 3.0,
         }
     }
 }
