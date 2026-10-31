@@ -33,3 +33,5 @@ mod session_tests;
 pub mod usage;
 #[cfg(all(test, feature = "usage"))]
 mod usage_tests;
+#[cfg(feature = "screen")]
+pub mod screen;

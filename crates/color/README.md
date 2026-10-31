@@ -1,5 +1,7 @@
 # craft-color
 
-Colour for Craft apps. With the `ui` feature, `craft_color::ui` has the colour picker (`ColorPicker`, `ColorPopover`, `ColorArea`, `ColorStrip`, `ColorWheel`, `ColorDisc`, `ColorRamp`), the wells (`SwatchPair`, `Well`), `SwatchPalette` tables and the `HexField`, with their stories and words tables (`craft_color::ui::stories()`, `craft_color::ui::WORDS`).
+Colour for Craft apps. With the `ui` feature, `craft_color::ui` has the colour picker (`ColorPicker`, `ColorPopover`, `ColorArea`, `ColorStrip`, `ColorWheel`, `ColorDisc`, `ColorRamp`), the wells (`SwatchPair`, `Well`), `SwatchPalette` tables and the `HexField`, with their stories and words tables (`craft_color::ui::stories()`, `craft_color::ui::WORDS`). It also has the colour features built on them: the Color Picker dialog (`ColorPickerDialog`), dialog droppers (`DropperButton`, `DropperState`), the Eyedropper's options and ring, Color Sampler points, the screen colour picker (`ScreenColorPicker`), `ColorChoice`, `PaintChip` and `PaintList`, the Color and Swatches panels (`ColorPanel`, `SwatchesPanel`), the profile mismatch prompt, the harmony wheel and Color Guide panel, and the `LutPicker`.
 
-The colour model and conversions are in `craft-theme`.
+Without `ui`: `CmykModel` (CMYK through a craft-cms profile), swatch files (`palette`: `.aco`, `.act`, `.ase`, `.gpl`, `.css`), the display transform and its caches (`display`), and colour harmonies (`harmony`).
+
+The colour model and conversions are in `craft-theme`; profiles and transforms in `craft-cms`.

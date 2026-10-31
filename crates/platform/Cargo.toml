@@ -33,6 +33,8 @@ logs = ["dep:log"]
 open = []
 # `autosave`: the autosave timer and the recovery folder.
 autosave = ["dep:serde", "dep:serde_json", "dep:craft-atomic"]
+# Screen capture for the screen colour picker (`craft_platform::screen`).
+screen = []
 
 [dependencies]
 egui = { workspace = true, optional = true }
