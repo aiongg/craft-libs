@@ -14,7 +14,7 @@ const RECT: Rect = Rect::new(100.0, 50.0, 300.0, 150.0);
 
 fn conversion(linked: bool) -> Conversion {
     let pixels = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
-    Conversion { rect: RECT, x: pixels.clone(), y: pixels, size: SizeUnit::Percent, linked }
+    Conversion { rect: RECT, x: pixels.clone(), y: pixels, size: SizeUnit::default(), linked }
 }
 
 fn close(a: Point, b: Point) -> bool {
@@ -584,12 +584,12 @@ fn width_of(state: &BoxState) -> f64 {
 fn a_host_parser_turns_a_typed_length_into_the_width_and_hostile_text_is_rejected() {
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
     let length = || SizeUnit::Length { x: px.clone(), y: px.clone() };
-    assert!((width_of(&typed_into_width(SizeUnit::Percent, "50px")) - 50.0).abs() < 1e-6);
+    assert!((width_of(&typed_into_width(SizeUnit::default(), "50px")) - 50.0).abs() < 1e-6);
     assert!((width_of(&typed_into_width(length(), "50%")) - 100.0).abs() < 1e-6);
     for text in ["px", "NaN", "inf%", "1e999px"] {
-        assert!((width_of(&typed_into_width(SizeUnit::Percent, text)) - 200.0).abs() < 1e-6, "{text}");
+        assert!((width_of(&typed_into_width(SizeUnit::default(), text)) - 200.0).abs() < 1e-6, "{text}");
     }
-    let huge = width_of(&typed_into_width(SizeUnit::Percent, "1e12px"));
+    let huge = width_of(&typed_into_width(SizeUnit::default(), "1e12px"));
     assert!(huge.is_finite() && huge <= POSITION_LIMIT + 0.01, "{huge}");
 }
 
@@ -605,7 +605,7 @@ fn a_position_and_size_subset_lays_out_only_those_cells_in_photocraft_s_order() 
             },
             Typed {
                 state: BoxState::from_rect(RECT),
-                size: SizeUnit::Percent,
+                size: SizeUnit::default(),
                 groups: BarGroups { angle: false, skew: false, interpolation: false, ..BarGroups::ALL },
             },
         );
@@ -629,7 +629,7 @@ fn typing_into_w_of_a_perspective_box_keeps_the_typed_text_through_the_hosts_wri
         pivot: Point::new(50.0, 25.0),
     };
     let pixels = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
-    let convert = Conversion { rect: BOX, x: pixels.clone(), y: pixels, size: SizeUnit::Percent, linked: true };
+    let convert = Conversion { rect: BOX, x: pixels.clone(), y: pixels, size: SizeUnit::default(), linked: true };
     for delay in 0..5usize {
         let applied = std::rc::Rc::new(std::cell::RefCell::new(Vec::<(u64, BoxState)>::new()));
         let queue = applied.clone();
@@ -651,7 +651,7 @@ fn typing_into_w_of_a_perspective_box_keeps_the_typed_text_through_the_hosts_wri
                         queue.push((pass, value.state));
                     }
                 },
-                Typed { state: distorted, size: SizeUnit::Percent, groups: BarGroups::ALL },
+                Typed { state: distorted, size: SizeUnit::default(), groups: BarGroups::ALL },
             );
         h.run();
         let w = centre(&h, "Width");
@@ -673,7 +673,83 @@ fn typing_into_w_of_a_perspective_box_keeps_the_typed_text_through_the_hosts_wri
         for _ in 0..6 {
             h.step();
         }
-        let w = convert.shown(&h.state().state, 0.0, TransformField::W);
-        assert!((w - 50.0).abs() < 0.05, "delay {delay}: {w}");
+        let once = convert.edit(&distorted, 0.0, TransformField::W, 50.0).0;
+        let quad = h.state().state.quad;
+        assert!(quad.iter().zip(once.quad).all(|(a, b)| close(*a, b)), "delay {delay}: {quad:?} {:?}", once.quad);
+    }
+}
+
+/// Types `text` into W of a percent bar over `rect`, the host applying each report in the pass it
+/// arrives, and returns the box after the commit.
+fn typed_into_percent_width(rect: Rect, state: BoxState, text: &[&str], parser: Option<fn(&str, f64) -> Option<f64>>) -> BoxState {
+    let mut h = Harness::<BoxState>::builder()
+        .with_size([1400.0, 80.0])
+        .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            move |ui, host: &mut BoxState| {
+                let state = *host;
+                let mut fields = TransformFields::new("bar", &state, rect, TransformFieldLabels::default());
+                if let Some(parser) = parser {
+                    fields = fields.parser(move |field, text, context| {
+                        context.whole.filter(|_| field == TransformField::W).and_then(|whole| parser(text, whole))
+                    });
+                }
+                let edit = fields.show_bar(ui);
+                if let Some(EditEvent::Begin { value: Some(value), .. } | EditEvent::Update { value, .. } | EditEvent::Commit { value, .. }) =
+                    edit.event
+                {
+                    *host = value.state;
+                }
+            },
+            state,
+        );
+    h.run();
+    let w = centre(&h, "Width");
+    h.event(Event::PointerMoved(w));
+    h.event(button(w, true));
+    h.event(button(w, false));
+    h.run();
+    h.event(Event::Key { key: Key::A, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND });
+    for typed in text {
+        h.event(Event::Text((*typed).into()));
+        for _ in 0..4 {
+            h.step();
+        }
+    }
+    h.key_press(Key::Enter);
+    for _ in 0..6 {
+        h.step();
+    }
+    *h.state()
+}
+
+#[test]
+fn a_typed_length_in_percent_mode_is_rounded_to_the_percent_decimals_only() {
+    // 5 cm at 300 dpi is 590.5512 px of a 100 px side.
+    let rect = Rect::new(0.0, 0.0, 100.0, 50.0);
+    let state = typed_into_percent_width(
+        rect,
+        BoxState::from_rect(rect),
+        &["5cm"],
+        Some(|text, whole| {
+            let cm = text.strip_suffix("cm")?.parse::<f64>().ok()?;
+            Some(cm / 2.54 * 300.0 / 100.0 * whole)
+        }),
+    );
+    let width = width_of(&state);
+    assert!((width - 590.55).abs() < 1e-9, "{width}");
+}
+
+#[test]
+fn typing_50_into_w_of_a_distorted_box_equals_typing_50_once_from_the_start_box() {
+    let rect = Rect::new(0.0, 0.0, 100.0, 50.0);
+    let distorted = BoxState {
+        quad: [Point::new(0.0, 0.0), Point::new(100.0, 10.0), Point::new(90.0, 60.0), Point::new(-5.0, 50.0)],
+        pivot: Point::new(50.0, 25.0),
+    };
+    let state = typed_into_percent_width(rect, distorted, &["5", "0"], None);
+    let upstream = [(25.300, 12.650), (74.570, 17.629), (70.164, 42.643), (22.139, 37.664)];
+    for (corner, (x, y)) in state.quad.iter().zip(upstream) {
+        assert!((corner.x - x).abs() < 5e-4 && (corner.y - y).abs() < 5e-4, "{:?}", state.quad);
     }
 }

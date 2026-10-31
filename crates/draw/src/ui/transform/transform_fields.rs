@@ -72,14 +72,20 @@ impl Default for BarGroups {
 /// The unit of the W and H fields.
 // Built once per frame, so the size of the variants costs nothing.
 #[allow(clippy::large_enum_variant)]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub enum SizeUnit {
-    /// The scale in percent of the box's size before the transform.
-    #[default]
-    Percent,
+    /// The scale in percent of the box's size before the transform, shown and committed with up to
+    /// `decimals` decimals (a parser's result is rounded to them and no further).
+    Percent { decimals: usize },
     /// The box's length, in the host's units along each axis (the unit its W and H context menu
     /// picked; PhotoCraft keeps it apart from the rulers').
     Length { x: RulerUnits, y: RulerUnits },
+}
+
+impl Default for SizeUnit {
+    fn default() -> Self {
+        Self::Percent { decimals: 2 }
+    }
 }
 
 /// A field's visible label and its accessible name.
@@ -219,7 +225,7 @@ impl Conversion {
     /// Field units of the size fields per unit of scale factor.
     fn per_factor(&self, axis: usize) -> f64 {
         match &self.size {
-            SizeUnit::Percent => 100.0,
+            SizeUnit::Percent { .. } => 100.0,
             SizeUnit::Length { x, y } => self.side(axis).max(1e-9) * if axis == 0 { x.per_doc } else { y.per_doc },
         }
     }
@@ -429,7 +435,7 @@ impl<'a> TransformFields<'a> {
             labels,
             x: pixels.clone(),
             y: pixels,
-            size_unit: SizeUnit::Percent,
+            size_unit: SizeUnit::default(),
             linked: None,
             skew_v: None,
             size: ControlSize::Md,
@@ -574,7 +580,7 @@ impl<'a> TransformFields<'a> {
             (TransformField::Y, _) => (convert.y.unit.clone(), convert.y.decimals),
             (TransformField::W, SizeUnit::Length { x, .. }) => (x.unit.clone(), x.decimals),
             (TransformField::H, SizeUnit::Length { y, .. }) => (y.unit.clone(), y.decimals),
-            (TransformField::W | TransformField::H, SizeUnit::Percent) => (labels.percent.clone(), 1),
+            (TransformField::W | TransformField::H, SizeUnit::Percent { decimals }) => (labels.percent.clone(), *decimals),
             _ => (labels.degrees.clone(), 2),
         };
         let rule = |which: TransformField| {
@@ -755,13 +761,18 @@ impl<'a> TransformFields<'a> {
         }
         // Each field's value applies to the row the fields before it in this pass left, with the
         // values that go out in this pass: one that waits for another field's gesture isn't in it.
+        // A run's every Update and its Commit are made from the row the run began from: scaling
+        // and skewing a perspective box about a pivot don't compose, so the row an earlier Update
+        // left would drift the result.
+        let run_start = outer.start().copied();
         let mut values: Vec<(TransformField, f64, TransformRow)> = Vec::new();
         for (which, edit) in &fields {
             let (which, base) = (*which, *edits.value());
+            let origin = |now: &TransformRow| run_start.filter(|_| edit.event.as_ref().is_some_and(|e| e.id().is_some())).unwrap_or(*now);
             let field_ops = ops::take::<ScalarOp>(ui.ctx(), edit.response.id).into_iter().map(|op| (which, op));
-            edits.typing(edit, field_ops, apply, |value, now| convert.row(now, which, value));
+            edits.typing(edit, field_ops, apply, |value, now| convert.row(&origin(now), which, value));
             if let Some(&value) = edit.event.as_ref().and_then(EditEvent::value) {
-                values.push((which, value, convert.row(&base, which, value)));
+                values.push((which, value, convert.row(&origin(&base), which, value)));
             }
         }
         let outer = edits.feed(outer, &mut kept.parts);
@@ -842,7 +853,7 @@ fn show_story(ui: &mut Ui, args: &mut BoxArgs) {
     let numbers = LocaleNumbers::from_tag("en");
     let size_unit = match args.size_unit {
         SizeUnitArg::Pixels => SizeUnit::Length { x: RulerUnits::pixels(numbers.clone()), y: RulerUnits::pixels(numbers) },
-        SizeUnitArg::Percent => SizeUnit::Percent,
+        SizeUnitArg::Percent => SizeUnit::default(),
     };
     ui.horizontal(|ui| {
         let edit = ReferencePoint::new("transform-fields-pivot", state.anchor_of_pivot()).show(ui);
