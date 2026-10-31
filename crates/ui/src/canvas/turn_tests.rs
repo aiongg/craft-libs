@@ -137,3 +137,17 @@ fn the_painted_turn_cursor_doubles_in_device_pixels_from_one_pixel_per_point_to_
     assert!(one.x > 0.0 && one.y > 0.0);
     assert!((two.x / one.x - 2.0).abs() < 1e-3 && (two.y / one.y - 2.0).abs() < 1e-3, "{one:?} {two:?}");
 }
+
+#[test]
+fn the_move_badge_is_two_bars_with_an_arrowhead_at_each_of_the_four_ends() {
+    let (_, shapes) = paint(|ctx| selection_badge_beside_pointer(ctx, AT, SelectionBadge::Move));
+    let lines = shapes
+        .iter()
+        .flat_map(|s| match s {
+            Shape::Vec(v) => v.clone(),
+            other => vec![other.clone()],
+        })
+        .filter(|s| matches!(s, Shape::LineSegment { .. }))
+        .count();
+    assert_eq!(lines, 2 * (2 + 4 * 2), "a halo and an ink line for each of 2 bars and 8 arrowhead strokes");
+}

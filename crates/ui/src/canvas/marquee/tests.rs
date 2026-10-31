@@ -664,3 +664,52 @@ fn modifiers_override_replaces_the_input_modifiers_in_the_marquee() {
         assert_eq!(end.press_modifiers, forced, "input {input:?}");
     }
 }
+
+#[test]
+fn paint_draws_what_show_draws_from_a_painter_and_a_view_with_no_node() {
+    let r = Rect::new(150.0, 100.0, 260.0, 190.0);
+    let view = view(30.0);
+    let ctx = motion_context(false);
+    ctx.enable_accesskit();
+    for look in [MarqueeLook::Ants, MarqueeLook::Band, MarqueeLook::Drawing] {
+        let (shown, _) = draw(&ctx, 0.2, Marquee::rect(r, "Selection").value("selection").look(look), &view);
+        let input = RawInput { screen_rect: Some(SCREEN), time: Some(0.2), ..RawInput::default() };
+        let mut painted = Vec::new();
+        let output = ctx.run_ui(input, |ui| {
+            Marquee::rect(r, "").paint(&ui.painter().clone(), &view, look, 0.2);
+        });
+        for clipped in output.shapes {
+            match clipped.shape {
+                Shape::Vec(v) => painted.extend(v),
+                s => painted.push(s),
+            }
+        }
+        assert!(!painted.is_empty());
+        assert_eq!(format!("{shown:?}"), format!("{painted:?}"), "{look:?}");
+        let tree = output.platform_output.accesskit_update.expect("accesskit");
+        assert!(tree.nodes.iter().all(|(_, n)| n.role() != egui::accesskit::Role::GraphicsObject), "{look:?} adds no node");
+    }
+}
+
+#[test]
+fn the_contrast_look_is_a_one_point_line_in_the_given_colour_over_a_translucent_dark_one() {
+    let ctx = motion_context(false);
+    let style = Marquee::style(&crate::theme::current(&ctx));
+    let blue = Color32::from_rgb(40, 80, 255);
+    let (shapes, _) =
+        draw(&ctx, 0.0, Marquee::rect(Rect::new(150.0, 100.0, 260.0, 190.0), "Shape").value("shape").look(MarqueeLook::Contrast(blue)), &view(0.0));
+    let strokes: Vec<(f32, Color32)> = shapes
+        .iter()
+        .filter_map(|s| match s {
+            Shape::Path(p) => match p.stroke.color {
+                egui::epaint::ColorMode::Solid(c) => Some((p.stroke.width, c)),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    assert_eq!(strokes.len(), 2);
+    assert_eq!(strokes[0].0, style.drawing_halo.width);
+    assert!(strokes[0].1.a() < 255);
+    assert_eq!(strokes[1], (1.0, blue));
+}
