@@ -40,7 +40,8 @@ pub use value::{ColorStop, GradientStops, OpacityStop, StopRow, StopRows};
 
 pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
 pub use gradient_overlay::{
-    GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor, LinePress, LineRelease, LineTrack,
+    ColorRequest, GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor, LinePress, LineRelease, LineTrack,
+    TaggedStop,
 };
 
 /// The components this module has stories for.

@@ -4,8 +4,8 @@
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{
-    AsIdSalt, Color32, Context, CornerRadius, Id, IdSalt, Key, Mesh, Modifiers, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui,
-    UiBuilder, Vec2, pos2, vec2,
+    AsIdSalt, Color32, Context, CornerRadius, Id, IdSalt, Key, Mesh, Modifiers, PointerButton, Pos2, Rect, Response, Sense, Shape, Stroke,
+    StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2,
 };
 
 use craft_theme::{Rgba, TypeRole};
@@ -322,6 +322,7 @@ pub struct CurveEditor<'a> {
     sampler: Option<&'a Sampler>,
     side: Option<f32>,
     fields: bool,
+    bars: bool,
     percent: bool,
     hint: Option<String>,
     policy: EditPolicy,
@@ -355,6 +356,7 @@ impl<'a> CurveEditor<'a> {
             sampler: None,
             side: None,
             fields: true,
+            bars: true,
             percent: false,
             hint: None,
             policy: EditPolicy::default(),
@@ -414,6 +416,14 @@ impl<'a> CurveEditor<'a> {
     pub fn outer_width(ctx: &Context, value_side: f32) -> f32 {
         let style = CurveEditor::style(&current(ctx));
         value_side + style.bar + style.bar_gap + 2.0 * style.pad
+    }
+
+    /// Whether the gradient bars under the plot and at its left show, with the gap between them
+    /// and the plot; on by default. Without them the plot is the whole graph (a plain square, as
+    /// Camera Raw's point curve), and [`side`](Self::side) is its side.
+    pub fn bars(mut self, bars: bool) -> Self {
+        self.bars = bars;
+        self
     }
 
     /// Whether the Input/Output row shows; on by default.
@@ -615,7 +625,7 @@ impl<'a> CurveEditor<'a> {
     ) -> (EditResponse<Curve>, Vec<CurveOp>, Option<Option<usize>>) {
         let side = self.side.unwrap_or_else(|| ui.available_width().clamp(style.min_side, style.max_side));
         let (outer, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
-        let edge = style.bar + style.bar_gap;
+        let edge = if self.bars { style.bar + style.bar_gap } else { 0.0 };
         let plot = Rect::from_min_size(outer.min + vec2(edge, 0.0), vec2(side - edge, side - edge).max(vec2(1.0, 1.0)))
             .round_to_pixels(ui.pixels_per_point());
         let map = Map { area: plot.shrink(style.pad), levels: self.levels };
@@ -786,6 +796,9 @@ impl<'a> CurveEditor<'a> {
         }
         paint_grid(&painter, style, area);
         painter.rect_stroke(plot, 0.0, style.border, StrokeKind::Outside);
+        if !self.bars {
+            return;
+        }
         let (dark, light) = (Rgba::BLACK.to_egui(), color.bar(tokens));
         let under =
             Rect::from_min_max(pos2(area.left(), plot.bottom() + style.bar_gap), pos2(area.right(), plot.bottom() + style.bar_gap + style.bar));
@@ -1111,10 +1124,10 @@ impl PointEdit<'_, '_> {
     /// then edits the curve the run leaves. A press released while it waited still runs.
     fn pointer(&mut self, ui: &Ui, response: &Response) {
         // Hit-test where the button went down, not where egui first recognises a drag.
-        let press = response.is_pointer_button_down_on() && ui.input(|i| i.pointer.primary_pressed());
+        let press = primary_press(ui, response);
         let command = ui.input(|i| i.modifiers.command);
         let new = if press {
-            ui.input(|i| i.pointer.press_origin()).map(|pos| Press { pos, secondary: false, command })
+            press_pos(ui, response).map(|pos| Press { pos, secondary: false, command })
         } else if response.secondary_clicked() && self.state.drag.is_none() {
             response.interact_pointer_pos().map(|pos| Press { pos, secondary: true, command })
         } else {
@@ -1260,6 +1273,20 @@ impl PointEdit<'_, '_> {
     }
 }
 
+/// Whether the primary button went down on the graph this frame. A press released in the same
+/// frame (a fast native click, an automation click) counts too, though the button is no longer
+/// down on the response.
+fn primary_press(ui: &Ui, response: &Response) -> bool {
+    let (pressed, released) = ui.input(|i| (i.pointer.primary_pressed(), i.pointer.primary_released()));
+    pressed && (response.is_pointer_button_down_on() || released && response.clicked_by(PointerButton::Primary))
+}
+
+/// Where the button went down: the press origin, or for a press released in the same frame the
+/// click's position.
+fn press_pos(ui: &Ui, response: &Response) -> Option<Pos2> {
+    ui.input(|i| i.pointer.press_origin()).or_else(|| response.interact_pointer_pos())
+}
+
 /// Takes the presses of `key` with exactly `modifiers` held (Ctrl and Cmd as egui's
 /// [`Modifiers::matches_exact`] counts them); returns how many.
 pub fn take_exact(ui: &Ui, modifiers: Modifiers, key: Key) -> usize {
@@ -1288,9 +1315,8 @@ impl StrokeEdit<'_> {
     /// the run leaves. A press released while it waited still draws its point.
     fn pointer(&mut self, ui: &Ui, response: &Response) {
         let down = response.is_pointer_button_down_on();
-        let press = down && ui.input(|i| i.pointer.primary_pressed());
-        let new =
-            press.then(|| ui.input(|i| i.pointer.press_origin())).flatten().map(|pos| StrokePress { pos, shift: ui.input(|i| i.modifiers.shift) });
+        let press = primary_press(ui, response);
+        let new = press.then(|| press_pos(ui, response)).flatten().map(|pos| StrokePress { pos, shift: ui.input(|i| i.modifiers.shift) });
         if new.is_some() {
             response.request_focus();
         }

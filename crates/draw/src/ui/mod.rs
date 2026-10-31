@@ -24,10 +24,10 @@ pub use crop::{
     ShieldColor,
 };
 pub use gradient::{
-    ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientExtent, GradientGroup, GradientItem, GradientLabels,
-    GradientLine, GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, GradientPalette, GradientRamp, GradientRampStyle,
-    GradientRef, GradientStops, GradientSwatch, LineCursor, LineGradient, LinePart, LinePress, LineRelease, LineTrack, OpacityStop, PaletteLayout,
-    Sampler as StopSampler, StopDrop, StopRef, StopRow, StopRows, StopRules, default_sampler,
+    ColorRequest, ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientExtent, GradientGroup, GradientItem,
+    GradientLabels, GradientLine, GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, GradientPalette, GradientRamp,
+    GradientRampStyle, GradientRef, GradientStops, GradientSwatch, LineCursor, LineGradient, LinePart, LinePress, LineRelease, LineTrack,
+    OpacityStop, PaletteLayout, Sampler as StopSampler, StopDrop, StopRef, StopRow, StopRows, StopRules, TaggedStop, default_sampler,
 };
 pub use pen::{
     BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,

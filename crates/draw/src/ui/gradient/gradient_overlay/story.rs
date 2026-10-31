@@ -4,7 +4,7 @@ use craft_ui::testing::canvas_story::ViewArgs;
 use egui::{Color32, Mesh, Ui};
 use kurbo::Point;
 
-use super::{GradientLineNames, GradientOverlay, GradientOverlayResponse};
+use super::{ColorRequest, GradientLineNames, GradientOverlay, GradientOverlayResponse};
 use crate::ui::gradient::stops::{StopRules, sample};
 use crate::ui::gradient::{ColorStop, GradientEditor, GradientStops, StopRef, StopRow, StopRows};
 use crate::ui::gradient::{GradientExtent, GradientLine, LineGradient, gradient_line};
@@ -234,7 +234,7 @@ fn show_edit(ui: &mut Ui, args: &mut EditArgs) {
     if let Some(event) = &r.event {
         state.last = describe(&event.clone().map(|_| ()));
     }
-    if let Some((i, _)) = r.color_requested {
+    if let Some(ColorRequest { index: i, .. }) = r.color_requested {
         state.last = format!("colour of stop {} requested", i + 1);
     }
     ui.data_mut(|d| d.insert_temp(key, state));

@@ -46,6 +46,32 @@ impl Selection {
     }
 }
 
+/// A selected stop or midpoint with the host's tag of its colour stop ([`ColorStop::tag`](crate::ui::gradient::ColorStop::tag)),
+/// so the host finds the stop in its own list when a drag has moved it to another index. A
+/// midpoint carries the tag of the stop before it. The tag is 0 for a stop the overlay added; the
+/// host gives it one.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TaggedStop {
+    pub stop: StopRef,
+    pub tag: u64,
+}
+
+/// The colour a double-click, Enter or Space asks for: colour stop `index`, its tag, and the
+/// screen rect of its marker, for a picker opened beside it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ColorRequest {
+    pub index: usize,
+    pub tag: u64,
+    pub rect: Rect,
+}
+
+impl TaggedStop {
+    fn of(value: &LineGradient, stop: StopRef) -> Self {
+        let tag = value.tag_of(stop).unwrap_or(0);
+        Self { stop, tag }
+    }
+}
+
 /// A press the host-driven calls track, kept by the host from [`GradientOverlay::press`] to
 /// [`GradientOverlay::release`]. [`show`](GradientOverlay::show) keeps the same value in the
 /// context's memory under the overlay's id.
@@ -85,8 +111,8 @@ impl LinePress {
 
     /// The stop or midpoint the press selects, as it does in [`GradientOverlay::show`]: a press on
     /// one makes it the selection.
-    pub fn selects(&self) -> Option<StopRef> {
-        selection_of(self.part)
+    pub fn selects(&self) -> Option<TaggedStop> {
+        selection_of(self.part).map(|stop| TaggedStop::of(&self.base, stop))
     }
 
     /// Whether the drag has begun (a move past `gradient_line.click_slop`).
@@ -121,7 +147,7 @@ pub struct LineTrack {
     pub state: Option<LineGradient>,
     /// The selection the drag makes, when it changes it: a dragged stop is selected at its new
     /// index, a stop torn off clears the selection.
-    pub selected: Option<Option<StopRef>>,
+    pub selected: Option<Option<TaggedStop>>,
 }
 
 /// What [`GradientOverlay::release`] reports.
@@ -131,7 +157,7 @@ pub enum LineRelease {
     Commit(LineGradient),
     /// A click on the line added colour stop `selected` ([`StopRef::Color`]): the host sets the
     /// gradient and selects it.
-    Add { value: LineGradient, selected: StopRef },
+    Add { value: LineGradient, selected: TaggedStop },
     /// Nothing happened.
     Nothing,
 }
@@ -291,7 +317,7 @@ impl GradientOverlay<'_> {
                 gesture.update(value, mods);
             }
             if let Some(selected) = track.selected {
-                sel.select(selected);
+                sel.select(selected.map(|t| t.stop));
             }
         }
         d.gesture = gesture.id();
@@ -306,7 +332,7 @@ impl GradientOverlay<'_> {
         match self.release_core(pass.view, pass.sampler, &d.core) {
             LineRelease::Commit(_) => gesture.commit(),
             LineRelease::Add { value, selected } => {
-                sel.select(Some(selected));
+                sel.select(Some(selected.stop));
                 gesture.set(value);
             }
             LineRelease::Nothing => {}
@@ -350,7 +376,9 @@ impl GradientOverlay<'_> {
         }
         let (t, _) = self.located(view, &press.base.line, press.origin);
         match stops::add(&press.base.stops, StopRow::Color, round_location(t), sampler, &self.rules) {
-            Some((stops, i)) => LineRelease::Add { value: LineGradient { line: press.base.line, stops }, selected: StopRef::Color(i) },
+            Some((stops, i)) => {
+                LineRelease::Add { value: LineGradient { line: press.base.line, stops }, selected: TaggedStop { stop: StopRef::Color(i), tag: 0 } }
+            }
             None => LineRelease::Nothing,
         }
     }
@@ -400,7 +428,7 @@ impl GradientOverlay<'_> {
         d: &mut LinePress,
         pointer: Pos2,
         mods: Modifiers,
-    ) -> (LineGradient, Option<Option<StopRef>>) {
+    ) -> (LineGradient, Option<Option<TaggedStop>>) {
         let snapped = |part: LinePart, p: Point| self.snap.as_ref().map_or(p, |snap| snap(part, p, mods));
         let base = &d.base;
         let mut out = base.clone();
@@ -437,7 +465,8 @@ impl GradientOverlay<'_> {
                     };
                     let (stops, j) = edited.unwrap_or_else(|| (base.stops.clone(), i));
                     out.stops = stops;
-                    selected = Some(Some(StopRef::Color(j)));
+                    let tag = out.tag_of(StopRef::Color(j)).unwrap_or(0);
+                    selected = Some(Some(TaggedStop { stop: StopRef::Color(j), tag }));
                 }
             }
             LinePart::Midpoint(i) => {
@@ -475,7 +504,7 @@ impl GradientOverlay<'_> {
 
     /// The colour a part asks for: a colour stop's, or the one at the end handle (stop 0 or the
     /// last, swapped under `.reverse`, PC `click`), with the screen rect of the stop's marker.
-    pub(super) fn color_request(&self, view: &CanvasView, style: &GradientLineStyle, shown: &LineGradient, part: LinePart) -> Option<(usize, Rect)> {
+    pub(super) fn color_request(&self, view: &CanvasView, style: &GradientLineStyle, shown: &LineGradient, part: LinePart) -> Option<ColorRequest> {
         let len = shown.stops.color.len();
         let i = match part {
             LinePart::Stop(i) => i,
@@ -489,9 +518,10 @@ impl GradientOverlay<'_> {
             _ => return None,
         };
         let (start, end) = (view.to_screen(shown.line.start), view.to_screen(shown.line.end));
-        let at = at_screen(start, end, shown.stops.color.get(i)?.location, self.reverse);
+        let stop = shown.stops.color.get(i)?;
+        let at = at_screen(start, end, stop.location, self.reverse);
         let size = 2.0 * (style.stop + style.stop_ring.width);
-        Some((i, Rect::from_center_size(at, Vec2::splat(size))))
+        Some(ColorRequest { index: i, tag: stop.tag, rect: Rect::from_center_size(at, Vec2::splat(size)) })
     }
 
     /// The part a press at the pointer would take, with the host's cursor over it.
@@ -568,7 +598,7 @@ impl GradientOverlay<'_> {
     /// The colour a double-click at canvas point `point` asks for, as
     /// [`GradientOverlayResponse::color_requested`] reports it: a colour stop's, or the one at an
     /// end handle.
-    pub fn double_click(&self, view: &CanvasView, style: &GradientLineStyle, point: Pos2) -> Option<(usize, Rect)> {
+    pub fn double_click(&self, view: &CanvasView, style: &GradientLineStyle, point: Pos2) -> Option<ColorRequest> {
         let value = self.snapshot();
         let part = self.hit_at(view, style, &value, point)?;
         self.color_request(view, style, &value, part)
