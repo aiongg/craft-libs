@@ -46,7 +46,11 @@ pub(crate) fn stories() -> Vec<crate::story::Story> {
     row::stories().into_iter().chain(view::stories()).chain(tree::stories()).chain(drag::stories()).collect()
 }
 
-pub use row::{DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget, TrailingItem, drop_line};
+pub use drag::{GhostThumb, paint_ghost};
+pub use row::{
+    DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget, TrailingItem, drop_line,
+    paint_drop_mark,
+};
 pub use toggle::{ToggleColumn, ToggleEdit};
 pub use tree::{OpenChange, TreeRow, TreeState, TreeText};
 pub use view::{ContextMenuRequest, List, ListEvent, ListOutput};

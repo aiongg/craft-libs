@@ -921,7 +921,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         }
         ui.set_clip_rect(outer_clip);
         if let Some(mark) = drop {
-            paint_drop_mark(ui, &style, rect, mark);
+            paint_row_mark(ui, &style, rect, mark);
         }
         FocusRing::paint_if(ui, rect, corner_radius(style.radius), focused);
         RowResponse { response, events, label: band, toggles, min_width }
@@ -1211,9 +1211,19 @@ fn paint_drop_line(ui: &Ui, style: &ListRowStyle, from: Pos2, to: Pos2) {
     painter.rect_filled(reach(width), 0.0, style.drop);
 }
 
+/// The drop marker of a row of the host's own at `rect`, as a [`ListRow`] draws it for
+/// [`ListRow::drop_mark`]. A host that builds its panel from the list parts finds the target of
+/// its drag after the rows are laid out (with [`Reorder::resolve`](crate::behavior::Reorder::resolve)
+/// on their spans) and calls this in the same pass, after the rows, so the marker is the
+/// target of this pass and not of the one before.
+pub fn paint_drop_mark(ui: &Ui, rect: Rect, mark: DropMark) {
+    let style = ListRow::<u8>::style(&Tokens::of(ui));
+    paint_row_mark(ui, &style, rect, mark);
+}
+
 /// The marker on its halo, both inside the row, so a row drawn after this one can't cover the
 /// halo.
-fn paint_drop_mark(ui: &Ui, style: &ListRowStyle, rect: Rect, mark: DropMark) {
+fn paint_row_mark(ui: &Ui, style: &ListRowStyle, rect: Rect, mark: DropMark) {
     let (width, halo) = (style.drop_width, style.drop_halo);
     let painter = ui.painter();
     let band = width + 2.0 * halo.width;

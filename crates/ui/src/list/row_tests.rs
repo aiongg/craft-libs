@@ -1239,3 +1239,23 @@ fn indented_toggles_follow_the_indent_and_a_sweep_runs_down_the_leading_column_t
     harness.run();
     assert_eq!(harness.state().on, [false; 4], "the indented rows take the sweep too");
 }
+
+/// A host's own row gets the marker a `ListRow` draws, at the rect it gives.
+#[test]
+fn paint_drop_mark_draws_what_a_row_draws() {
+    let ctx = context();
+    let at = Rect::from_min_size(pos2(10.0, 40.0), vec2(200.0, 30.0));
+    for mark in [DropMark::Before, DropMark::After, DropMark::Into] {
+        let hosted = shapes(&ctx, |ui| paint_drop_mark(ui, at, mark));
+        let row = shapes(&ctx, |ui| {
+            let _ = ListRow::new(1u8, "").drop_mark(Some(mark)).show(ui);
+        });
+        let marks = |shapes: &[Shape]| -> Vec<(egui::Color32, egui::Color32)> {
+            shapes.iter().filter_map(|s| if let Shape::Rect(r) = s { Some((r.fill, r.stroke.color)) } else { None }).collect()
+        };
+        let drawn = marks(&row);
+        assert_eq!(marks(&hosted), drawn[drawn.len() - marks(&hosted).len()..], "{mark:?}");
+        let Some(Shape::Rect(outer)) = hosted.first() else { panic!("{mark:?}: a halo") };
+        assert!(at.contains_rect(outer.rect), "{mark:?}: inside the rect given");
+    }
+}

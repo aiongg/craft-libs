@@ -382,3 +382,16 @@ fn the_reorder_stories_name_every_control() {
         assert_eq!(a11y::unlabelled(&harness), Vec::<String>::new());
     }
 }
+
+/// The marker is this pass's target: one pointer move and one step put it at the new gap.
+#[test]
+fn the_drop_target_follows_the_pointer_in_the_same_pass() {
+    let mut harness = harness(Host::new(10));
+    grab(&mut harness, 1);
+    hover_row(&mut harness, 3, 0.75);
+    harness.state_mut().take_targets();
+    let pos = at(&harness, 6, 0.25);
+    harness.event(Event::PointerMoved(pos));
+    harness.step();
+    assert_eq!(harness.state_mut().take_targets(), [mv(&[1], 6, DropPosition::Before)]);
+}
