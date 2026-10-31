@@ -713,3 +713,83 @@ fn the_contrast_look_is_a_one_point_line_in_the_given_colour_over_a_translucent_
     assert!(strokes[0].1.a() < 255);
     assert_eq!(strokes[1], (1.0, blue));
 }
+
+/// What `paint` puts on the screen for `marquee`: the clip rectangle and shape of each piece.
+fn painted(ctx: &Context, time: f64, paint: impl Fn(&egui::Painter)) -> Vec<(ScreenRect, Shape)> {
+    let input = RawInput { screen_rect: Some(SCREEN), time: Some(time), ..RawInput::default() };
+    let mut output = ctx.run_ui(input, |ui| paint(&ui.painter().clone()));
+    output.textures_delta.clear();
+    let mut out = Vec::new();
+    for clipped in output.shapes {
+        match clipped.shape {
+            Shape::Vec(v) => out.extend(v.into_iter().map(|s| (clipped.clip_rect, s))),
+            s => out.push((clipped.clip_rect, s)),
+        }
+    }
+    out
+}
+
+#[test]
+fn an_open_polyline_has_no_closing_segment_and_its_dashes_run_on_across_a_vertex() {
+    let ctx = motion_context(false);
+    let style = Marquee::style(&crate::theme::current(&ctx));
+    let view = view(0.0);
+    let points = [Point::new(0.0, 0.0), Point::new(40.0, 0.0), Point::new(40.0, 40.0)];
+
+    // Open in every look.
+    for look in [MarqueeLook::Drawing, MarqueeLook::Contrast(Color32::RED)] {
+        let shapes = painted(&ctx, 0.0, |p| Marquee::polyline(points, "Lasso").paint(p, &view, look, 0.0));
+        let paths: Vec<_> = shapes.iter().filter_map(|(_, s)| if let Shape::Path(p) = s { Some(p) } else { None }).collect();
+        assert_eq!(paths.len(), 2, "{look:?}");
+        assert!(paths.iter().all(|p| !p.closed && p.points.len() == 3), "{look:?}");
+    }
+
+    // Ants: the two straight edges and nothing slanted, so no segment returns to the start. The
+    // black pixels follow one pattern, (x + y) mod 2·dash < dash, round the corner.
+    let shapes = painted(&ctx, 0.0, |p| Marquee::polyline(points, "Lasso").paint(p, &view, MarqueeLook::Ants, 0.0));
+    assert!(shapes.iter().all(|(_, s)| !matches!(s, Shape::LineSegment { .. })), "no slanted closing segment");
+    let mut black = std::collections::BTreeSet::new();
+    for (_, s) in &shapes {
+        let Shape::Mesh(mesh) = s else { continue };
+        for q in mesh.vertices.chunks(4).filter(|q| q[0].color == style.dark) {
+            let (x0, y0) = (
+                q.iter().map(|v| v.pos.x).fold(f32::MAX, f32::min).round() as i32,
+                q.iter().map(|v| v.pos.y).fold(f32::MAX, f32::min).round() as i32,
+            );
+            let (x1, y1) = (
+                q.iter().map(|v| v.pos.x).fold(f32::MIN, f32::max).round() as i32,
+                q.iter().map(|v| v.pos.y).fold(f32::MIN, f32::max).round() as i32,
+            );
+            black.extend((x0..x1).flat_map(|x| (y0..y1).map(move |y| (x, y))));
+        }
+    }
+    let (dash, period) = (style.dash.round() as i32, 2 * style.dash.round() as i32);
+    for x in 100..=140 {
+        assert_eq!(black.contains(&(x, 100)), (x + 100).rem_euclid(period) < dash, "top edge at {x}");
+    }
+    for y in 100..=140 {
+        assert_eq!(black.contains(&(140, y)), (140 + y).rem_euclid(period) < dash, "right edge at {y}");
+    }
+    assert!(!black.contains(&(120, 120)), "nothing runs back along the diagonal");
+}
+
+#[test]
+fn a_screen_space_shape_paints_at_its_screen_points_under_a_zoomed_panned_view() {
+    let ctx = motion_context(false);
+    let view = CanvasView::new(ScreenRect::from_min_size(pos2(100.0, 100.0), vec2(400.0, 300.0)), Point::new(1000.0, -300.0), 3.0);
+    let corners = [pos2(150.0, 120.0), pos2(250.0, 120.0), pos2(250.0, 200.0), pos2(150.0, 200.0)];
+    let screen = Marquee::polygon(corners.map(|p| Point::new(f64::from(p.x), f64::from(p.y))), "Outline");
+
+    let shapes = painted(&ctx, 0.0, |p| screen.paint_screen(p, view.rect, MarqueeLook::Contrast(Color32::RED), 0.0));
+    let paths: Vec<_> = shapes.iter().filter_map(|(c, s)| if let Shape::Path(p) = s { Some((*c, p)) } else { None }).collect();
+    assert_eq!(paths.len(), 2);
+    for (clip, path) in paths {
+        assert_eq!(path.points, corners, "painted where given, not through the view");
+        assert!(path.closed);
+        assert!(view.rect.contains_rect(clip), "clipped to the view rectangle: {clip:?}");
+    }
+
+    // The same points through `paint` land elsewhere: the view is what paint_screen leaves out.
+    let mapped = painted(&ctx, 0.0, |p| screen.paint(p, &view, MarqueeLook::Contrast(Color32::RED), 0.0));
+    assert!(mapped.iter().any(|(_, s)| matches!(s, Shape::Path(p) if p.points != corners)));
+}
