@@ -413,6 +413,9 @@ impl<'a> Dialog<'a> {
         let measured_stale = ctx.data(|d| d.get_temp::<f32>(measured_chrome_id)).is_some_and(|c| (c - chrome).abs() > 0.5);
         let below_used = ctx.data(|d| d.get_temp::<f32>(below_id)).unwrap_or(0.0);
         let below_now = std::cell::Cell::new(0.0_f32);
+        let overflow_id = id.with("body-overflows");
+        let overflow_used = ctx.data(|d| d.get_temp::<bool>(overflow_id)).unwrap_or(false);
+        let overflow_now = std::cell::Cell::new(overflow_used);
         let centred = || Some(center_offset(center_over?, measured?, window));
         let start = pinned.or_else(|| place.remembered_place(ctx)).or_else(|| first_place.and_then(|first| first(ctx))).or_else(centred);
 
@@ -463,10 +466,11 @@ impl<'a> Dialog<'a> {
                     if let Some((_, max)) = resize_sizes {
                         height = height.min((max.y - (chrome - 2.0 * pad) - below_used).max(t.scroll_min));
                     }
-                    ScrollArea::vertical().max_height(height).auto_shrink([body_mode == Body::Fit, true]).show(ui, |ui| {
+                    let scrolled = ScrollArea::vertical().max_height(height).auto_shrink([body_mode == Body::Fit, true]).show(ui, |ui| {
                         body(ui, fields);
                         scroll_focus_into_view(ui);
                     });
+                    overflow_now.set(scrolled.content_size.y > scrolled.inner_rect.height() + 0.5);
                     let top = ui.min_rect().bottom();
                     below(ui, fields);
                     below_now.set(ui.min_rect().bottom() - top);
@@ -554,6 +558,11 @@ impl<'a> Dialog<'a> {
         // out with another chrome has the wrong size, and one placed by such a size the wrong
         // place; neither is pinned.
         let wrong_chrome = (frame.chrome - chrome).abs() > 0.5;
+        // The scroll area gives the body its width from the pass before: with a scroll bar or
+        // without. A body that now needs the other has been laid out at the wrong width.
+        let wrong_width = overflow_now.get() != overflow_used;
+        ctx.data_mut(|d| d.insert_temp(overflow_id, overflow_now.get()));
+        let wrong_chrome = wrong_chrome || wrong_width;
         if wrong_chrome || measured_stale {
             ctx.request_discard("dialog chrome height changed");
             ctx.request_repaint();

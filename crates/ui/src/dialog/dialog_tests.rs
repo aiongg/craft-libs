@@ -457,6 +457,112 @@ fn focus_in_a_popup_over_the_body_does_not_scroll_the_body() {
     assert_eq!(harness.get_by_label("Row 0").rect().top(), first, "the body stays where it was");
 }
 
+fn lines_dialog(window: Vec2, lines: usize, resizable: bool, scroll: bool) -> Harness<'static, (DialogState, usize)> {
+    harness(window).build_ui_state(
+        move |ui, (state, lines): &mut (DialogState, usize)| {
+            let ctx = ui.ctx().clone();
+            let mut dialog = Dialog::new("lines", "Print").initial_focus(InitialFocus::None).footer(Footer::standard());
+            if resizable {
+                dialog = dialog.resizable(Resize { default: vec2(400.0, 300.0), min: vec2(260.0, 160.0), max: ResizeMax::Window });
+            }
+            if scroll {
+                dialog = dialog.body(Body::Scroll);
+            }
+            let _ = dialog.show(&ctx, state, &mut (), |ui, ()| {
+                for n in 0..*lines {
+                    ui.label(format!("Row {n}"));
+                }
+            });
+        },
+        (DialogState::new(), lines),
+    )
+}
+
+#[test]
+fn a_body_that_starts_to_scroll_is_laid_out_at_its_final_width_in_the_first_pass() {
+    let width = std::rc::Rc::new(std::cell::Cell::new(0.0_f32));
+    let seen = width.clone();
+    let mut harness = harness(vec2(640.0, 300.0)).build_ui_state(
+        move |ui, (state, lines): &mut (DialogState, usize)| {
+            let ctx = ui.ctx().clone();
+            let _ =
+                Dialog::new("lines", "Print").initial_focus(InitialFocus::None).footer(Footer::standard()).show(&ctx, state, &mut (), |ui, ()| {
+                    seen.set(ui.available_width());
+                    for n in 0..*lines {
+                        ui.label(format!("Row {n}"));
+                    }
+                });
+        },
+        (DialogState::new(), 3),
+    );
+    harness.run();
+    let without = width.get();
+    harness.state_mut().1 = 60;
+    harness.step();
+    let first = width.get();
+    harness.run();
+    assert!(width.get() < without - 5.0, "the scroll bar takes room: {without} {}", width.get());
+    assert_eq!(first, width.get(), "the first pass after the body grew has the width it settles at");
+}
+
+#[test]
+fn a_fit_body_of_two_columns_without_a_footer_shows_its_last_row() {
+    let window = vec2(1440.0, 900.0);
+    let bottom = std::rc::Rc::new(std::cell::Cell::new(0.0_f32));
+    let area = std::rc::Rc::new(std::cell::Cell::new(0.0_f32));
+    let (seen, area_seen) = (bottom.clone(), area.clone());
+    let mut harness = harness(window).build_ui_state(
+        move |ui, (state, checked): &mut (DialogState, bool)| {
+            let ctx = ui.ctx().clone();
+            let shown = Dialog::new("columns", "Options").initial_focus(InitialFocus::None).show(&ctx, state, &mut (), |ui, ()| {
+                ui.horizontal_top(|ui| {
+                    ui.vertical(|ui| {
+                        ui.label("Name");
+                        ui.label("Size");
+                        ui.label("Mode");
+                        ui.horizontal(|ui| {
+                            ui.checkbox(checked, "Last option");
+                        });
+                    });
+                    ui.add_space(20.0);
+                    ui.vertical(|ui| {
+                        let _ = ui.button("OK");
+                        let _ = ui.button("Cancel");
+                    });
+                });
+                seen.set(ui.min_rect().bottom());
+            });
+            area_seen.set(shown.rect.bottom());
+        },
+        (DialogState::new(), false),
+    );
+    harness.run();
+    assert!(area.get() >= bottom.get() - 0.5, "the dialog reaches the body's bottom: {} {}", area.get(), bottom.get());
+    harness.get_by_label("Last option").click();
+    harness.run();
+    assert!(harness.state().1, "the last checkbox toggles");
+}
+
+#[test]
+fn a_dialog_is_at_its_final_size_on_the_first_pass_after_it_opens_and_after_its_body_grows() {
+    for (window, resizable, scroll) in
+        [(vec2(640.0, 480.0), false, false), (vec2(640.0, 300.0), false, false), (vec2(640.0, 480.0), true, false), (vec2(640.0, 480.0), false, true)]
+    {
+        let window = (window, resizable, scroll);
+        let mut harness = lines_dialog(window.0, 5, resizable, scroll);
+        harness.step();
+        let first = harness.get_by_label("OK").rect();
+        harness.run();
+        assert_eq!(first, harness.get_by_label("OK").rect(), "{window:?}: after one step on open");
+
+        harness.state_mut().1 = 6;
+        harness.step();
+        let first = harness.get_by_label("OK").rect();
+        harness.run();
+        assert_eq!(first, harness.get_by_label("OK").rect(), "{window:?}: after one step on a taller body");
+    }
+}
+
 #[test]
 fn tab_to_a_field_below_the_fold_scrolls_it_into_view() {
     let window = vec2(640.0, 300.0);
