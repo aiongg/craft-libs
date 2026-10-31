@@ -6,7 +6,7 @@ use std::time::Duration;
 use craft_theme::{ControlSize, Tone, TypeRole};
 use egui::epaint::Shape;
 use egui::text::LayoutJob;
-use egui::{Align, AreaState, Context, Galley, Id, Label, LayerId, Layout, Order, Rect, Response, Ui, UiBuilder, vec2};
+use egui::{Align, AreaState, Context, Galley, Id, Label, LayerId, Layout, Order, Rect, Response, Sense, Ui, UiBuilder, vec2};
 
 use super::live;
 use super::notice::tone_icon;
@@ -178,8 +178,8 @@ crate::words! {
 ///   and assertive, named "title, line, line", so a new toast is announced once. Its node id
 ///   comes from the stack id and the toast id, so a card that moves when another ends is not
 ///   announced again. Everything inside it is silent. The tone icon and the bullets have no node.
-/// - The text can be selected and copied. The card is on a foreground layer, so a drag on it
-///   never reaches the canvas.
+/// - The text can be selected and copied. A card takes the pointer over its whole rect, padding
+///   and edge included: a press, click or drag on it never reaches what is under it.
 #[must_use = "show the stack with `show`"]
 pub struct ToastStack {
     id: Id,
@@ -393,6 +393,9 @@ impl ToastStack {
         let style = ToastStack::style(tokens, toast.tone);
         let geometry = Geometry::new(tokens, &style, toast.tone, rect.width());
         let slot = ui.painter().add(Shape::Noop);
+        // Under the content, so the card's own controls and text win where they lie. Not
+        // focusable: the card is no Tab stop and gets no node.
+        ui.interact(rect, self.id.with(("card", toast.id)), Sense::CLICK | Sense::DRAG);
         let (role, politeness) = live::for_tone(toast.tone);
         let dismiss = self.dismiss_label.clone().unwrap_or_else(|| ToastLabels::of(ui).dismiss);
         let content = UiBuilder::new().max_rect(rect.shrink(style.pad)).layout(direction::column(ui));

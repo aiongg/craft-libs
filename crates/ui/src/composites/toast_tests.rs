@@ -289,6 +289,30 @@ fn a_click_above_the_cards_reaches_what_is_under_the_column() {
 }
 
 #[test]
+fn a_press_on_a_cards_padding_reaches_nothing_under_it() {
+    let tokens = tokens();
+    let [inset_x, inset_y] = tokens.component.toast.inset;
+    let left = BODY.right() - inset_x - tokens.component.toast.width;
+    let mut app = App::new(&[1], None).with_button_before();
+    // Under the card's bottom left corner, which is padding.
+    app.before_at = Some(Rect::from_min_size(pos2(left - 20.0, BODY.bottom() - inset_y - 30.0), egui::vec2(100.0, 40.0)));
+    let mut harness = harness(Direction::Ltr, app);
+    steps(&mut harness, 3);
+    let tap = |harness: &mut Harness<'_, App>, at: Pos2| {
+        harness.hover_at(at);
+        harness.step();
+        harness.drag_at(at);
+        harness.step();
+        harness.drop_at(at);
+        steps(harness, 2);
+    };
+    tap(&mut harness, pos2(left + 3.0, BODY.bottom() - inset_y - 3.0));
+    assert!(!harness.state().clicked);
+    tap(&mut harness, pos2(left - 10.0, BODY.bottom() - inset_y - 10.0));
+    assert!(harness.state().clicked, "left of the card the button still takes clicks");
+}
+
+#[test]
 fn a_card_is_a_live_region_per_tone_named_by_its_title_and_lines() {
     let mut app = App::new(&[1, 2], None);
     app.toasts[0] = (1, Tone::Warn, false, vec!["first".into(), "second".into()]);
