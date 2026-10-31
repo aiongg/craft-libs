@@ -179,10 +179,23 @@ pub struct NumberField<'a> {
 /// the presets below it; a pick returns the value for the field to commit.
 // pc: crates/ui-egui/src/widgets/metric_field.rs (the chevron and its ComboBox) and
 // kerning_field's PressCombo; one menu here.
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-fn preset_menu(ui: &mut Ui, presets: &[(String, f64)]) -> Option<f64> {
-    let _ = (ui, presets);
-    todo!()
+///
+/// The chevron is allocated after the field in the layout, so it sits flush after the box in a
+/// horizontal layout. `id` is the field's, `label` its accessible name (the chevron is named
+/// after the field it belongs to).
+fn preset_menu(ui: &mut Ui, id: Id, label: &str, size: ControlSize, presets: &[(String, f64)]) -> Option<f64> {
+    let side = IconButton::style(&Tokens::of(ui), size).side;
+    let flush = ui.spacing().item_spacing.x;
+    if ui.layout().main_dir().is_horizontal() {
+        ui.add_space(-flush);
+    }
+    let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
+    let button = IconButton::new(Icon::ChevronDown, label).size(size).with_id(id.with("craft_ui::number_field::preset_button")).show_at(ui, rect);
+    let entries: Vec<MenuEntry<usize>> = presets.iter().enumerate().map(|(i, (name, _))| MenuItem::new(name, i).into()).collect();
+    let down = button.has_focus() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown));
+    let at = (button.clicked() || down).then_some(OpenAt::Rect(button.rect));
+    let menu = ContextMenu::new(&entries).size(size).own_gestures(false).open_at(at).show(ui, &button);
+    menu.chosen.and_then(|i| presets.get(i)).map(|(_, value)| *value)
 }
 
 /// The rows of [`NumberField::unit_menu`] and where its pick goes.
@@ -563,8 +576,10 @@ impl<'a> NumberField<'a> {
         }
         let popup_open = self.popup.is_some() && input.popup(ui, &mut typed, &self, rect, parts.popup_rect(rect), enabled);
         let response = typed.response().clone();
-        if let Some(presets) = self.presets.take().filter(|_| enabled) {
-            preset_menu(ui, presets);
+        if let Some(presets) = self.presets.take().filter(|_| enabled)
+            && let Some(value) = preset_menu(ui, id, &self.label, self.size, presets)
+        {
+            typed.commit_with(ui, Some(input.codec.settle(value)));
         }
         if let Some(UnitMenu { entries, picked }) = self.unit_menu.take().filter(|_| enabled) {
             let at = secondary.or_else(|| response.secondary_clicked().then(|| response.interact_pointer_pos()).flatten());
@@ -1339,6 +1354,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_right_to_left
         ),
         typed_story!("controls/number-field/unit-menu", Level::Controls, "Number field", "Unit menu", LocaleSizeArgs::default(), show_unit_menu),
+        typed_story!("controls/number-field/presets", Level::Controls, "Number field", "Presets", LocaleSizeArgs::default(), show_presets),
         typed_story!("controls/number-field/event-log", Level::Controls, "Number field", "Event log", PolicyArgs::default(), show_event_log),
     ]
 }
@@ -1427,6 +1443,27 @@ fn zoom_step(value: f64, notches: i32) -> f64 {
         true => stops.find(|s| *s > value).unwrap_or(value),
         false => stops.rfind(|s| *s < value).unwrap_or(value),
     }
+}
+
+/// A font size with a chevron menu of common sizes.
+fn show_presets(ui: &mut Ui, args: &mut LocaleSizeArgs) {
+    let size = args.size.control();
+    let numbers = args.locale.numbers();
+    let presets: Vec<(String, f64)> = [8.0, 9.0, 10.0, 12.0, 14.0, 18.0, 24.0, 36.0, 72.0].into_iter().map(|v| (format!("{v}"), v)).collect();
+    with_values(ui, "number-field-presets", [12.0], |ui, values| {
+        variant_list(ui, "number-field-presets", |form| {
+            labelled(form, "Font size", &format!("{}", values[0]), |ui| {
+                let edit = NumberField::new("number-field-preset", "Font size", values[0], &numbers)
+                    .range(1.0..=1000.0)
+                    .decimals(0..=1)
+                    .unit(Unit::new("{n} pt"))
+                    .presets(&presets)
+                    .size(size)
+                    .show(ui);
+                super::slider::store(&edit, &mut values[0])
+            });
+        });
+    });
 }
 
 /// Scrub labels and icons inside the field, and a label before it.

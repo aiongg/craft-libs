@@ -10,8 +10,8 @@ use craft_ui::composites::{
     SectionLabel, SliderRow, ToastStack, Tone,
 };
 use craft_ui::controls::{
-    AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, Progress, RadioGroup, Segmented,
-    Select, Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
+    AngleDial, Badge, BadgeStyle, BadgeTone, Button, Checkbox, IconButton, IndicatorColors, Kbd, Link, NumberField, PointPicker, Progress,
+    RadioGroup, Segmented, Select, Slider, Swatch, Switch, TextField, ToggleButton, Tooltip,
 };
 use craft_ui::docking::DockLook;
 use craft_ui::list::ListRow;
@@ -317,6 +317,15 @@ fn angle_dial() {
             .line("edge_active", s.edge_active);
         d.line("needle", s.needle.width).line("needle_color", s.needle.color).line("needle_inset", s.needle_inset);
         d.line("hub", s.hub).line("hub_fill", s.hub_fill).line("dead_zone", s.dead_zone).line("gap", s.gap);
+    });
+}
+
+/// Point pickers: the thumbnail's size and the cross.
+#[test]
+fn point_picker() {
+    check("point_picker.txt", |d, t| {
+        let s = PointPicker::style(t);
+        d.line("thumbnail.width", s.thumbnail.x).line("thumbnail.height", s.thumbnail.y).line("cross", s.cross);
     });
 }
 
