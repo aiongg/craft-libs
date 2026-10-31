@@ -202,3 +202,16 @@ fn ok_returns_the_typed_size_results() {
     let result = harness.state_mut().dialogs.take::<CanvasSizeDialog>().and_then(DialogResult::ok).expect("OK answered");
     assert_eq!(result, CanvasSizeResult { size: size(1200, 800, 72.0), anchor: Anchor::BottomLeft, extension: CanvasExtension::Background });
 }
+
+// Image Size links width and height with a chain; Canvas Size has none.
+#[test]
+fn only_image_size_draws_the_chain() {
+    let mut image = host_with(|dialogs| {
+        dialogs.open(ImageSizeDialog::new(size(1200, 800, 72.0)));
+    });
+    image.get_by_label("Constrain proportions");
+    let canvas = host_with(|dialogs| {
+        dialogs.open(CanvasSizeDialog::new(size(1200, 800, 72.0)));
+    });
+    assert!(canvas.query_by_label("Constrain proportions").is_none());
+}

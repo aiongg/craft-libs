@@ -163,14 +163,6 @@ impl SizeUnit {
         }
     }
 
-    /// One arrow-key step in this unit.
-    fn step(self) -> f64 {
-        match self {
-            SizeUnit::Inches | SizeUnit::Centimetres | SizeUnit::Picas => 0.1,
-            SizeUnit::Pixels | SizeUnit::Percent | SizeUnit::Millimetres | SizeUnit::Points => 1.0,
-        }
-    }
-
     /// The unit a typed suffix names (`px`, `in` or `"`, `cm`, `mm`, `pt`, `pc` or `pica`, `%` and
     /// their long forms), in any case.
     fn from_suffix(suffix: &str) -> Option<SizeUnit> {
@@ -362,6 +354,9 @@ pub struct LinkedSizeFields {
     pub resampling: bool,
     /// A relative size (Canvas Size's Relative box): the fields show the change, not the size.
     pub relative: bool,
+    /// Whether the rows draw the chain bracket that links width and height. Off, the sides never
+    /// scale together (Canvas Size).
+    pub chain: bool,
 }
 
 /// Which of the fields an edit came from.
@@ -382,6 +377,7 @@ impl LinkedSizeFields {
             constrain: true,
             resampling: true,
             relative: false,
+            chain: true,
         }
     }
 
@@ -456,24 +452,32 @@ impl LinkedSizeFields {
         // Without resampling the sides scale together: Photoshop keeps the link on.
         let mut linked = !self.resampling || self.constrain;
         let editable = self.resampling || !self.unit.is_pixel_unit();
-        let pair = form.linked(&labels.constrain, &mut linked, |form| {
+        let chain = self.chain;
+        let mut size_rows = |form: &mut Form<'_>| {
             for (field, label, unit_name) in [(Field::Width, &labels.width, &labels.width_unit), (Field::Height, &labels.height, &labels.height_unit)]
             {
                 let row = form.row(label, |ui, row_label| self.dimension(ui, row_label, labels, field, unit_name, editable));
                 responses.push(row.response);
                 event = row.inner.1.or(event.take());
             }
-        });
-        if self.resampling {
-            self.constrain = linked;
-        }
+        };
+        let pair = if chain {
+            let toggle = form.linked(&labels.constrain, &mut linked, &mut size_rows).response;
+            if self.resampling {
+                self.constrain = linked;
+            }
+            toggle
+        } else {
+            size_rows(form);
+            responses.remove(0)
+        };
         if with_resolution {
             let row = form.row(&labels.resolution, |ui, row_label| self.resolution(ui, row_label, labels));
             responses.push(row.response);
             event = row.inner.1.or(event.take());
         }
         let changed = event.is_some();
-        let mut response = responses.into_iter().fold(pair.response, |all, r| all.union(r));
+        let mut response = responses.into_iter().fold(pair, |all, r| all.union(r));
         if changed {
             response.mark_changed();
         }
@@ -497,7 +501,6 @@ impl LinkedSizeFields {
         let least = if self.relative { -limit } else { unit.from_pixels(1.0, original, ppi).min(self.shown(field)) };
         let number = NumberField::new(id, name, self.shown(field), &numbers)
             .range(least..=limit)
-            .step(unit.step())
             .decimals(unit.decimals()..=unit.decimals())
             .or_parse(move |text| unit.parse_typed(text, original, ppi))
             .enabled(editable);
@@ -872,8 +875,8 @@ pub struct CanvasSizeDialog {
 
 impl CanvasSizeDialog {
     pub fn new(original: PixelSize) -> Self {
-        // Photoshop's Canvas Size has no linked proportions: the chain starts open.
-        let fields = LinkedSizeFields { constrain: false, ..LinkedSizeFields::new(original) };
+        // Photoshop's Canvas Size has no linked proportions and no chain.
+        let fields = LinkedSizeFields { constrain: false, chain: false, ..LinkedSizeFields::new(original) };
         Self {
             id: dialog_id("canvas-size"),
             fields,
