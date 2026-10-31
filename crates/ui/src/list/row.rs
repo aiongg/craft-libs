@@ -378,6 +378,7 @@ pub struct ListRow<'a, K> {
     label: String,
     detail: Option<String>,
     description: Option<String>,
+    tooltip: Option<egui::WidgetText>,
     accessible_name: Option<String>,
     columns: Vec<ToggleColumn>,
     icon: Option<Icon>,
@@ -405,6 +406,13 @@ pub struct ListRow<'a, K> {
     tree_text: Option<Arc<TreeText>>,
 }
 
+fn with_tooltip(response: Response, tooltip: Option<egui::WidgetText>) -> Response {
+    match tooltip {
+        Some(tooltip) => response.on_hover_text(tooltip),
+        None => response,
+    }
+}
+
 /// The id of the row for `key` among rows shown in a `Ui` whose scope is `scope`: the base of the
 /// row's state (the open rename, the toggle cells).
 pub(super) fn row_id<K: std::hash::Hash + std::fmt::Debug>(scope: Id, key: &K) -> Id {
@@ -420,6 +428,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             label: label.into(),
             detail: None,
             description: None,
+            tooltip: None,
             accessible_name: None,
             columns: Vec::new(),
             icon: None,
@@ -541,6 +550,13 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// What a screen reader adds after the row's name; not drawn. Empty is none.
     pub fn description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into()).filter(|d| !d.is_empty());
+        self
+    }
+
+    /// A tooltip shown while the pointer rests on the row, whether or not the label is cut
+    /// (PhotoCraft's file list shows the full path).
+    pub fn tooltip(mut self, tooltip: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(tooltip.into());
         self
     }
 
@@ -761,6 +777,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             label,
             detail,
             description,
+            tooltip,
             accessible_name,
             columns,
             icon,
@@ -816,6 +833,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             element = element.position_in_set(position);
         }
         let response = element.interact_at(ui, rect).finish(ui);
+        let response = with_tooltip(response, tooltip);
         let description = if clipped { Some(clipped_description(ui, description)) } else { description };
         if let Some(description) = description {
             ui.ctx().accesskit_node_builder(response.id, |node| node.set_description(description));

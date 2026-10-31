@@ -31,6 +31,8 @@ craft-quit = { workspace = true }
 craft-settings = { workspace = true }
 # Same version as epaint's, for reading a face's character map.
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
+# The field order of a settings struct (a `toml::Table` sorts its keys), for SettingsDocument.
+toml_edit = { version = "0.25", features = ["serde"] }
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
 # Inflating egui's default fonts, stored deflated (fonts::deflated_default_definitions).
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
