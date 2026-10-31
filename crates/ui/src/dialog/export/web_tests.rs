@@ -110,6 +110,10 @@ fn open(harness: &mut Harness<'static, App>) {
     harness.run();
 }
 
+fn web_dialog<'a>(harness: &'a mut Harness<'static, App>) -> &'a mut SaveForWebDialog {
+    harness.state_mut().host.get_mut::<SaveForWebDialog>().unwrap()
+}
+
 fn wanted(harness: &mut Harness<'static, App>) -> Vec<(usize, u64, WebSettings)> {
     harness.state_mut().host.get_mut::<SaveForWebDialog>().unwrap().wanted_variants()
 }
@@ -147,6 +151,25 @@ fn save_for_web_remembers_the_view_and_four_up_asks_for_three_panes() {
     tab(&mut harness, "Original");
     assert!(wanted(&mut harness).is_empty(), "Original needs no encode");
     assert_eq!(harness.state_mut().host.get_mut::<SaveForWebDialog>().map(|dialog| dialog.frame()), Some(0));
+}
+
+// The Matte swatch asks the app for a colour once; the answer sets the matte and is a new revision.
+#[test]
+fn the_matte_swatch_asks_for_a_colour_and_the_answer_sets_it() {
+    let (mut harness, _) = harness();
+    let first = wanted(&mut harness);
+    harness.get_by_role_and_label(Role::ColorWell, "Matte").click();
+    harness.run();
+    let request = web_dialog(&mut harness).pick_color().expect("the swatch asks for a colour");
+    assert_eq!(request.key, MATTE_COLOR_KEY);
+    assert_eq!(request.color, craft_theme::Srgba::WHITE, "the default matte is white");
+    assert!(web_dialog(&mut harness).pick_color().is_none(), "taken once");
+
+    web_dialog(&mut harness).set_color(&request.key, craft_theme::Srgba::rgb(1.0, 0.0, 0.0));
+    harness.run();
+    let changed = wanted(&mut harness);
+    assert_eq!(changed[0].2.matte, [255, 0, 0]);
+    assert!(changed[0].1 > first[0].1);
 }
 
 // An encoded pane for an older revision is dropped; the caption shows size, download time and

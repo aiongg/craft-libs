@@ -59,7 +59,7 @@ fn rules() -> Vec<SettingRule> {
 }
 
 fn document() -> SettingsDocument<Prefs> {
-    SettingsDocument::new(Prefs::default()).pages(StandardPage::ALL.map(PageInfo::from).to_vec()).rules(rules())
+    SettingsDocument::new(Prefs::default()).expect("the prefs serialize").pages(StandardPage::ALL.map(PageInfo::from).to_vec()).rules(rules())
 }
 
 /// `(key, kind name)` of the visible rows of page `id`, in order.
@@ -145,7 +145,9 @@ fn labels_come_from_the_key_or_the_catalog() {
     assert_eq!(label_of(&doc, "performance.historyStates"), "History states");
     assert_eq!(label_of(&doc, "performance.zoomStep"), "Zoom step");
 
-    let mut doc = SettingsDocument::new(Prefs::default()).rules(vec![SettingRule::new("performance.zoomStep").label("Zoom increment")]);
+    let mut doc = SettingsDocument::new(Prefs::default())
+        .expect("the prefs serialize")
+        .rules(vec![SettingRule::new("performance.zoomStep").label("Zoom increment")]);
     assert_eq!(label_of(&doc, "performance.zoomStep"), "Zoom increment");
 
     let (i18n, problems) = craft_i18n::I18n::new(
@@ -212,7 +214,8 @@ fn apply_returns_the_typed_value_and_cancel_drops_the_draft() {
 // draft.
 #[test]
 fn reset_section_keeps_marked_keys() {
-    let mut doc = SettingsDocument::new(Prefs::default()).rules(vec![SettingRule::new("type.favoriteFont").keep_on_reset()]);
+    let mut doc =
+        SettingsDocument::new(Prefs::default()).expect("the prefs serialize").rules(vec![SettingRule::new("type.favoriteFont").keep_on_reset()]);
     doc.set("type.favoriteFont", PrefValue::Text("Inter".into()));
     doc.set("type.recentFonts", PrefValue::Int(9));
     doc.set("performance.historyStates", PrefValue::Int(7));
@@ -226,7 +229,7 @@ fn reset_section_keeps_marked_keys() {
 // Hidden rules, linux_only off Linux and shown_when with another value hide the row.
 #[test]
 fn hidden_rows_stay_hidden() {
-    let mut doc = SettingsDocument::new(Prefs::default()).rules(vec![
+    let mut doc = SettingsDocument::new(Prefs::default()).expect("the prefs serialize").rules(vec![
         SettingRule::new("performance.zoomStep").hidden(),
         SettingRule::new("performance.tileSize").linux_only(),
         SettingRule::new("performance.canvasCustomColor").color().shown_when("performance.renderMode", "soft"),
@@ -243,4 +246,40 @@ fn hidden_rows_stay_hidden() {
     let mut shown = expected.clone();
     shown.insert(3, "performance.canvasCustomColor");
     assert_eq!(keys(&doc), shown);
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+struct Sparse {
+    brush: SparseBrush,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct SparseBrush {
+    size: i64,
+    last_preset: Option<String>,
+}
+
+// Reset Section replaces the page: a key the defaults leave out (an Option that is None) goes too.
+#[test]
+fn reset_section_drops_keys_the_defaults_do_not_serialize() {
+    let saved = Sparse { brush: SparseBrush { size: 9, last_preset: Some("soft".into()) } };
+    let mut doc = SettingsDocument::new(saved).expect("serializes");
+    doc.reset_page("brush");
+    doc.apply().unwrap();
+    assert_eq!(doc.take_applied().unwrap(), Sparse::default());
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+struct NoTomlForm {
+    map: std::collections::BTreeMap<(i32, i32), i32>,
+}
+
+// A struct toml can't serialize is an error, not an empty draft that Apply would read as defaults.
+#[test]
+fn a_struct_without_a_toml_form_is_refused() {
+    let mut value = NoTomlForm::default();
+    value.map.insert((1, 2), 3);
+    assert!(SettingsDocument::new(value).is_err());
 }

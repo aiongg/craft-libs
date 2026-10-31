@@ -4,6 +4,7 @@ use std::ops::RangeInclusive;
 
 use craft_theme::Rgba;
 
+use crate::dialog::ColorRequest;
 use crate::localized::{Labels, Word, Words};
 
 /// A setting's value as it crosses the boundary between the window and the host.
@@ -156,7 +157,7 @@ pub enum RowKind<'a> {
         options: Vec<(&'a str, &'a str)>,
     },
     /// A swatch and a hex field. A press on the swatch reports
-    /// [`PreferencesOutput::pick_color`]; the host opens its colour dialog.
+    /// [`PreferencesOutput::pick_color`]; the host opens its colour picker.
     Color(Rgba),
     Int {
         value: i64,
@@ -288,9 +289,9 @@ pub enum Closed {
 pub struct PreferencesOutput {
     /// Set on the pass the window is answered; the host closes it.
     pub closed: Option<Closed>,
-    /// The key of a colour row whose swatch was pressed: the host opens its colour dialog and
-    /// writes the result with `set`.
-    pub pick_color: Option<String>,
+    /// The colour row whose swatch was pressed, for this pass only: the host opens its colour
+    /// dialog and answers with [`PreferencesModel::set_color`] on the request's key.
+    pub pick_color: Option<ColorRequest>,
     /// Apply ran this pass and succeeded (OK also applies, and closes).
     pub applied: bool,
     /// The id of the page shown, `None` when the search lists no page.

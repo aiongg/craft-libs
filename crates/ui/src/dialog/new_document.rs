@@ -3,12 +3,13 @@
 
 use craft_host::Host;
 use craft_settings::Remembered;
-use craft_theme::{ButtonVariant, TypeRole};
+use craft_theme::{ButtonVariant, Srgba, TypeRole};
 use egui::accesskit::{Action, Role};
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{Align, Color32, Context, Id, Key, Label, Modifiers, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, Vec2, pos2, vec2};
 use serde::{Deserialize, Serialize};
 
+use super::color_request::ColorRequest;
 use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::footer::Footer;
@@ -37,6 +38,10 @@ const MAX_NAME: usize = 255;
 const RECENT_TAB: &str = "recent";
 const SAVED_TAB: &str = "saved";
 const CLIPBOARD_ID: &str = "clipboard";
+/// The key of the colour request Custom… makes.
+pub const BACKGROUND_COLOR_KEY: &str = "newDocument.backgroundColor";
+/// The built-in "Default {app} Size" card.
+const DEFAULT_ID: &str = "default";
 const LAST_KEY: &str = "newDocument.last";
 pub(super) const RECENT_KEY: &str = "newDocument.recent";
 pub(super) const PRESETS_KEY: &str = "newDocument.presets";
@@ -103,6 +108,8 @@ crate::words! {
         preset_details: "newDocument.presetDetails" = "Preset Details";
         custom_swatch: "newDocument.customSwatch" = "Custom background color";
         /// `{width}`, `{height}`, `{unit}` and `{ppi}`: a card's size line.
+        /// `{app}`: the application's name ([`Host::app`]).
+        default_size: "newDocument.defaultSize" = "Default {app} Size";
         size_line: "newDocument.sizeLine" = "{width} × {height} {unit} @ {ppi} ppi";
     }
 }
@@ -205,7 +212,8 @@ pub struct DocumentPreset {
 }
 
 impl DocumentPreset {
-    const fn new(id: &'static str, name: &'static str, width: u32, height: u32, pixels_per_inch: f64) -> Self {
+    /// A card named `name` (English, see [`name`](Self::name)) for a page of `width` × `height` pixels at `pixels_per_inch`.
+    pub const fn new(id: &'static str, name: &'static str, width: u32, height: u32, pixels_per_inch: f64) -> Self {
         Self { name, id, width, height, pixels_per_inch }
     }
 
@@ -253,8 +261,8 @@ pub struct PresetCategory {
 impl PresetCategory {
     /// PhotoCraft's categories in tab order: Photo, Print, Art & Illustration, Web, Mobile, Film &
     /// Video, with their presets (Photoshop's tabs; Recent and Saved are not in this list, the
-    /// dialog adds them first and last). Recent's built-in defaults (Default PhotoCraft Size,
-    /// HDTV 1080p) are [`NewDocumentDialog::recent_defaults`].
+    /// dialog adds them first and last). Recent's built-in defaults (Default {app} Size,
+    /// HDTV 1080p) are [`NewDocumentDialog::default_recent`].
     // pc: crates/ui-egui/src/dialogs/new_doc_ui.rs:19 CATEGORIES
     pub fn standard() -> Vec<PresetCategory> {
         let category = |id, title, presets: &[DocumentPreset]| PresetCategory { id, title, presets: presets.to_vec() };
@@ -358,10 +366,11 @@ impl PresetCategory {
 /// double-click creates. Enter is Create when no list is open; Esc is Close. The buttons are
 /// "Create" and "Close" (Photoshop's words). Width 800 px.
 ///
-/// Custom… under Background Contents asks the app for a colour: the dialog sets
-/// [`wants_color`](NewDocumentDialog::wants_color); the app opens its colour picker as a child
-/// dialog and hands the answer back with [`set_custom_color`](NewDocumentDialog::set_custom_color)
-/// through `dialogs.get_mut::<NewDocumentDialog>()`.
+/// Custom… under Background Contents asks the app for a colour: for one pass
+/// [`pick_color`](NewDocumentDialog::pick_color) returns a [`ColorRequest`] keyed
+/// [`BACKGROUND_COLOR_KEY`]; the app opens its colour picker as a child dialog and hands the
+/// answer back with [`set_color`](NewDocumentDialog::set_color) (or
+/// [`cancel_color`](NewDocumentDialog::cancel_color)) through `dialogs.get_mut::<NewDocumentDialog>()`.
 ///
 /// The dialog opens with the last created settings (`"newDocument.last"`, PhotoCraft's
 /// `file.new` memory) and stores them, and a recent entry, on Create. Result:
@@ -374,6 +383,7 @@ impl PresetCategory {
 pub struct NewDocumentDialog {
     id: DialogId,
     categories: Vec<PresetCategory>,
+    recent_defaults: Vec<DocumentPreset>,
     clipboard: Option<PixelSize>,
     background_color: [f32; 3],
     print_ppi: f64,
@@ -387,7 +397,10 @@ pub struct NewDocumentDialog {
     selected_card: Option<usize>,
     /// The Save Preset name row, when open.
     preset_name: Option<String>,
-    wants_color: bool,
+    /// A pick was asked for and is unanswered.
+    awaiting_color: bool,
+    /// The request to hand out once.
+    color_request: Option<ColorRequest>,
     /// Set once the remembered values were read (first pass, which has the Host).
     recalled: bool,
     state: DialogState,
@@ -417,6 +430,7 @@ impl NewDocumentDialog {
         Self {
             id: dialog_id("new-document"),
             categories: PresetCategory::standard(),
+            recent_defaults: Self::default_recent(),
             clipboard: None,
             background_color: [1.0, 1.0, 1.0],
             print_ppi: 300.0,
@@ -427,7 +441,8 @@ impl NewDocumentDialog {
             tab: "recent".to_owned(),
             selected_card: None,
             preset_name: None,
-            wants_color: false,
+            awaiting_color: false,
+            color_request: None,
             recalled: false,
             state: DialogState::new(),
             recent: Vec::new(),
@@ -478,14 +493,20 @@ impl NewDocumentDialog {
         self
     }
 
-    /// Recent's built-in cards after the recent documents: Default PhotoCraft Size (2100 × 1500 px
-    /// at 300 ppi) and HDTV 1080p.
+    /// Recent's built-in cards after the recent documents, when [`recent_defaults`](Self::recent_defaults)
+    /// is not called: "Default {app} Size" (2100 × 1500 px at 300 ppi, the name from
+    /// [`Host::app`]) and HDTV 1080p.
     // pc: crates/ui-egui/src/dialogs/new_doc_ui.rs:20 CATEGORIES "Recent"
-    pub fn recent_defaults() -> Vec<DocumentPreset> {
-        vec![
-            DocumentPreset::new("default", "Default PhotoCraft Size", 2100, 1500, 300.0),
-            DocumentPreset::new("hdtv-1080p", "HDTV 1080p", 1920, 1080, 72.0),
-        ]
+    pub fn default_recent() -> Vec<DocumentPreset> {
+        vec![DocumentPreset::new(DEFAULT_ID, "Default Size", 2100, 1500, 300.0), DocumentPreset::new("hdtv-1080p", "HDTV 1080p", 1920, 1080, 72.0)]
+    }
+
+    /// Recent's built-in cards after the recent documents, in place of
+    /// [`default_recent`](Self::default_recent). A card with the id `"default"` is named
+    /// "Default {app} Size".
+    pub fn recent_defaults(mut self, presets: Vec<DocumentPreset>) -> Self {
+        self.recent_defaults = presets;
+        self
     }
 
     /// The settings shown in the details column.
@@ -493,19 +514,22 @@ impl NewDocumentDialog {
         &self.settings
     }
 
-    /// Custom… was chosen under Background Contents and the dialog waits for a colour. Reading
-    /// it does not clear it; [`set_custom_color`](Self::set_custom_color) or a cancelled pick
-    /// ([`cancel_color`](Self::cancel_color)) does.
-    pub fn wants_color(&self) -> bool {
-        self.wants_color
+    /// Custom… was chosen (or the swatch clicked) in the pass since the last call: the colour to
+    /// ask the app's picker for, keyed [`BACKGROUND_COLOR_KEY`]. Returned once.
+    pub fn pick_color(&mut self) -> Option<ColorRequest> {
+        self.color_request.take()
     }
 
-    /// The colour the app's picker returned for Custom…: Background Contents becomes
-    /// [`BackgroundContents::Custom`].
-    pub fn set_custom_color(&mut self, rgb: [f32; 3]) {
-        self.settings.background = BackgroundContents::Custom(rgb);
+    /// The colour the app's picker returned for `key`: Background Contents becomes
+    /// [`BackgroundContents::Custom`]. Other keys are ignored.
+    pub fn set_color(&mut self, key: &str, color: Srgba) {
+        if key != BACKGROUND_COLOR_KEY {
+            return;
+        }
+        self.settings.background = BackgroundContents::Custom(color.to_rgb_array());
         self.before_custom = None;
-        self.wants_color = false;
+        self.awaiting_color = false;
+        self.color_request = None;
         self.selected_card = None;
     }
 
@@ -514,7 +538,8 @@ impl NewDocumentDialog {
         if let Some(before) = self.before_custom.take() {
             self.settings.background = before;
         }
-        self.wants_color = false;
+        self.awaiting_color = false;
+        self.color_request = None;
     }
 }
 
@@ -761,7 +786,7 @@ impl NewDocumentDialog {
                 aspect: (recent.size.width, recent.size.height),
             });
         }
-        for preset in Self::recent_defaults() {
+        for preset in self.recent_defaults.clone() {
             let card = self.preset_card(env, &preset);
             if !self.recent.iter().any(|r| r.size == card.settings.size) {
                 cards.push(card);
@@ -774,7 +799,7 @@ impl NewDocumentDialog {
     fn recent_title(&self, env: &Env<'_>, recent: &DocumentSettings) -> String {
         let listed =
             |p: &&DocumentPreset| (p.width, p.height, p.pixels_per_inch) == (recent.size.width, recent.size.height, recent.size.pixels_per_inch);
-        let defaults = Self::recent_defaults();
+        let defaults = &self.recent_defaults;
         let found = self.categories.iter().flat_map(|c| c.presets.iter()).chain(defaults.iter()).find(listed);
         match found {
             Some(preset) => preset_title(env.ctx, env.labels, preset),
@@ -787,7 +812,8 @@ impl NewDocumentDialog {
             let name = std::mem::take(&mut self.settings.name);
             self.settings = DocumentSettings { name, ..card.settings.clone() };
             self.before_custom = None;
-            self.wants_color = false;
+            self.awaiting_color = false;
+            self.color_request = None;
         } else {
             self.settings.size = card.settings.size;
             self.settings.unit = card.settings.unit;
@@ -1078,10 +1104,18 @@ impl NewDocumentDialog {
                 BackgroundKind::BackgroundColor => self.settings.background = BackgroundContents::BackgroundColor,
                 BackgroundKind::Transparent => self.settings.background = BackgroundContents::Transparent,
                 BackgroundKind::Custom => {
-                    if !self.wants_color {
+                    if !self.awaiting_color {
                         self.before_custom = Some(shown);
                     }
-                    self.wants_color = true;
+                    self.awaiting_color = true;
+                    let current = Srgba::from_rgb_array(match shown {
+                        BackgroundContents::Custom(c) => c,
+                        BackgroundContents::White => [1.0; 3],
+                        BackgroundContents::Black => [0.0; 3],
+                        BackgroundContents::BackgroundColor => self.background_color,
+                        BackgroundContents::Transparent => [1.0; 3],
+                    });
+                    self.color_request = Some(ColorRequest::new(BACKGROUND_COLOR_KEY, current).title(labels.custom_swatch.as_str()));
                 }
             }
         }
@@ -1310,6 +1344,11 @@ fn category_title(labels: &NewDocumentLabels, category: &PresetCategory) -> Stri
 fn preset_title(ctx: &Context, labels: &NewDocumentLabels, preset: &DocumentPreset) -> String {
     if preset.id == CLIPBOARD_ID {
         return labels.clipboard.clone();
+    }
+    if preset.id == DEFAULT_ID
+        && let Some(host) = Host::try_of_ctx(ctx)
+    {
+        return craft_i18n::fmt(&labels.default_size, &[("app", host.app().name)]);
     }
     match Host::try_of_ctx(ctx) {
         Some(host) => {

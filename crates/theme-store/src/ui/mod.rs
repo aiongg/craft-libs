@@ -12,7 +12,7 @@ use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem};
 use craft_ui::primitives::{Content, Interactive, Text};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
-use egui::{Color32, CornerRadius, Id, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
+use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 
 use crate::{SelectionChange, SuiteClient};
 
@@ -263,9 +263,9 @@ impl ChipRow<'_> {
                 let ids: Vec<Id> = themes.iter().map(|t| group.scope_id().with(t.id.as_str())).collect();
                 let mut selected = themes.iter().position(|t| Some(&t.id) == self.chosen);
                 // Arrows pick the chip the focus moves to.
-                let focused = ids.iter().any(|id| group.memory(|m| m.has_focus(*id)));
-                let tab_stop = GridNav::roving_stop(group, &ids, selected, true);
-                if focused && selected != Some(tab_stop) {
+                let (tab_stop, moved) = GridNav::roving_move(group, &ids, selected, true);
+                // Tab arriving at the resting stop picks nothing.
+                if moved && selected != Some(tab_stop) {
                     picked = Some(themes[tab_stop].id.clone());
                     selected = Some(tab_stop);
                 }
@@ -278,6 +278,7 @@ impl ChipRow<'_> {
                         selected: selected == Some(i),
                         favorite,
                         slot: Some(Slot { id: ids[i], position: Some(i), tab_stop: i == tab_stop }),
+                        id_salt: None,
                     };
                     let shown = chip.show_in(group, self.labels);
                     if shown.favorite_clicked {
@@ -311,6 +312,8 @@ pub struct ThemeChip<'a> {
     favorite: bool,
     /// Set by the page: the chip's place in its row's radio group.
     slot: Option<Slot>,
+    /// Tells apart the chips of one theme drawn in several places.
+    id_salt: Option<IdSalt>,
 }
 
 /// A chip's place in a radio group.
@@ -335,7 +338,7 @@ pub struct ThemeChipResponse {
 impl<'a> ThemeChip<'a> {
     /// The chip of `theme` in its dark variant when `dark`, else its light one.
     pub fn new(theme: &'a ThemeDef, dark: bool) -> Self {
-        Self { theme, dark, selected: false, favorite: false, slot: None }
+        Self { theme, dark, selected: false, favorite: false, slot: None, id_salt: None }
     }
 
     pub fn selected(mut self, selected: bool) -> Self {
@@ -345,6 +348,13 @@ impl<'a> ThemeChip<'a> {
 
     pub fn favorite(mut self, favorite: bool) -> Self {
         self.favorite = favorite;
+        self
+    }
+
+    /// Distinguishes this chip from the chip of the same theme and variant elsewhere in the
+    /// window; chips drawn by [`AppearancePage`] are told apart by their row.
+    pub fn id_salt(mut self, salt: impl AsIdSalt) -> Self {
+        self.id_salt = Some(IdSalt::new(salt));
         self
     }
 
@@ -359,7 +369,7 @@ impl<'a> ThemeChip<'a> {
         let chip_tokens = tokens.component.theme_chip;
         let outline_radius = CornerRadius::same(chip_tokens.outline_radius.round() as u8);
         let slot = self.slot.unwrap_or_else(|| Slot {
-            id: ui.make_persistent_id(("theme_chip", self.theme.id.as_str(), self.dark)),
+            id: ui.make_persistent_id(("theme_chip", self.id_salt, self.theme.id.as_str(), self.dark)),
             position: None,
             tab_stop: true,
         });

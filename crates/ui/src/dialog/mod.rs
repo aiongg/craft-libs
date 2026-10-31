@@ -38,6 +38,7 @@
 mod alert;
 mod blocking;
 mod buttons;
+mod color_request;
 mod command_form;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod command_form_tests;
@@ -115,6 +116,7 @@ mod unsaved_tests;
 pub use alert::Alert;
 pub use blocking::BlockingOverlay;
 pub use buttons::{ButtonRole, Clicked, FooterButton, FooterButtons, FooterButtonsResponse, Platform, order};
+pub use color_request::ColorRequest;
 pub use command_form::CommandForm;
 pub use dialog::focus_inside;
 pub use dialog::{Backdrop, Dialog, DialogResponse, InitialFocus, Outcome};
@@ -126,8 +128,8 @@ pub use full_window::{FullWindowDialog, FullWindowFx};
 pub use history::{LocalHistory, Step, take_step};
 pub use keys::{EnterRule, KeyInput, resolve_keys};
 pub use new_document::{
-    BackgroundContents, BitDepth, ColorMode, DocumentPreset, DocumentSettings, NewDocumentDialog, NewDocumentLabels, Orientation, PresetCategory,
-    push_recent, size_line,
+    BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, DocumentPreset, DocumentSettings, NewDocumentDialog, NewDocumentLabels,
+    Orientation, PresetCategory, push_recent, size_line,
 };
 pub use params::{CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, PathKind, PathRequest};
 pub use pass::any_modal;

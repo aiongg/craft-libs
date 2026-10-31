@@ -142,9 +142,10 @@ fn rules() -> Vec<SettingRule> {
 
 type Document = SettingsDocument<Sample, BrushShortcut>;
 
+#[allow(clippy::expect_used, reason = "the sample struct always serializes")]
 fn document() -> Document {
     let pages = [StandardPage::General, StandardPage::Interface, StandardPage::Performance, StandardPage::Tools].map(PageInfo::from).to_vec();
-    SettingsDocument::new(Sample::default()).pages(pages).rules(rules()).custom(BrushShortcut)
+    SettingsDocument::new(Sample::default()).expect("the sample serializes").pages(pages).rules(rules()).custom(BrushShortcut)
 }
 
 type Shared = Arc<Mutex<Document>>;

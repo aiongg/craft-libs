@@ -9,6 +9,7 @@ use egui_kittest::{Harness, HarnessBuilder};
 
 use super::*;
 use crate::theme::{Base, install};
+use craft_theme::Srgba;
 
 struct App {
     host: DialogHost,
@@ -126,7 +127,7 @@ fn create_returns_settings_and_updates_recent() {
     assert_eq!(px(&second), (1920, 1080), "the dialog opens with the last values");
     let titles = second.get_all_by_role(Role::Button).filter_map(|n| n.accesskit_node().label()).collect::<Vec<_>>();
     let recent = titles.iter().position(|t| t == "Web Large");
-    let defaults = titles.iter().position(|t| t == "Default PhotoCraft Size");
+    let defaults = titles.iter().position(|t| t == "Default Test Size");
     assert!(recent.is_some() && recent < defaults, "the created document leads Recent: {titles:?}");
 
     let mut list = Vec::new();
@@ -161,7 +162,7 @@ fn enter_in_the_preset_name_saves_without_creating() {
     assert!(harness.query_by_label("No saved presets yet.").is_some());
 }
 
-// Custom… sets wants_color; set_custom_color makes the background Custom, cancel_color restores
+// Custom… asks for a colour once; set_color makes the background Custom, cancel_color restores
 // the previous choice.
 #[test]
 fn custom_background_round_trips_through_the_app() {
@@ -172,21 +173,37 @@ fn custom_background_round_trips_through_the_app() {
         harness.get_by_label(option).click();
         harness.run();
     };
+    let take = |harness: &mut Harness<'_, App>| harness.state_mut().host.get_mut::<NewDocumentDialog>().expect("open").pick_color();
     choose(&mut harness, "Black");
     assert_eq!(settings(&harness).background, BackgroundContents::Black);
 
     choose(&mut harness, "Custom…");
-    assert!(dialog(&harness).is_some_and(NewDocumentDialog::wants_color));
+    let request = take(&mut harness).expect("Custom… asks for a colour");
+    assert_eq!(request.key, BACKGROUND_COLOR_KEY);
+    assert_eq!(request.color, Srgba::BLACK, "the picker opens at the colour that was shown");
+    assert!(take(&mut harness).is_none(), "the request is taken once");
     harness.state_mut().host.get_mut::<NewDocumentDialog>().expect("open").cancel_color();
     harness.run();
     assert_eq!(settings(&harness).background, BackgroundContents::Black, "a cancelled pick restores the choice");
-    assert!(!dialog(&harness).is_some_and(NewDocumentDialog::wants_color));
 
     choose(&mut harness, "Custom…");
-    harness.state_mut().host.get_mut::<NewDocumentDialog>().expect("open").set_custom_color([1.0, 0.5, 0.0]);
+    assert!(take(&mut harness).is_some());
+    harness.state_mut().host.get_mut::<NewDocumentDialog>().expect("open").set_color("other", Srgba::WHITE);
+    assert_ne!(settings(&harness).background, BackgroundContents::Custom([1.0; 3]), "an answer for another key is ignored");
+    harness.state_mut().host.get_mut::<NewDocumentDialog>().expect("open").set_color(BACKGROUND_COLOR_KEY, Srgba::rgb(1.0, 0.5, 0.0));
     harness.run();
     assert_eq!(settings(&harness).background, BackgroundContents::Custom([1.0, 0.5, 0.0]));
-    assert!(!dialog(&harness).is_some_and(NewDocumentDialog::wants_color));
+}
+
+// The built-in default card carries the application's name, and an app can replace the cards.
+#[test]
+fn default_card_is_named_after_the_app_and_the_cards_can_be_replaced() {
+    let harness = open(NewDocumentDialog::new());
+    assert!(harness.query_by_label_contains("Default Test Size").is_some(), "the harness app is named Test");
+
+    let replaced = open(NewDocumentDialog::new().recent_defaults(vec![DocumentPreset::new("mine", "Mine", 640, 480, 72.0)]));
+    assert!(replaced.query_by_label_contains("Mine").is_some());
+    assert!(replaced.query_by_label_contains("HDTV 1080p").is_none());
 }
 
 // Enter on a focused card applies it and creates, as PhotoCraft's Enter (the dialog confirms
