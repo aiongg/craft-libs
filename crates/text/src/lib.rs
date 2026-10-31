@@ -11,6 +11,11 @@
 //! - [`bidi`] (default): bidirectional text (UAX #9): embedding levels, line reordering and
 //!   mirroring.
 //! - [`linebreak`] (default): line breaking on a font-independent box/glue/penalty model.
+//! - [`spell`]: spelling, with a bundled US English word list and suggestions.
+//! - [`quotes`]: smart quotes, the straight quotes typed into text turned into the language's own.
+//! - [`ui`] (egui, on craft-ui): the canvas text editor, the Character and Paragraph controls, the
+//!   text style panels and the Check Spelling dialog. With `font-picker`, the Character controls'
+//!   family field is craft-font-manager's font picker.
 //!
 //! Language features (`spanish`, `german`, …, `all-languages`) add data for that language and
 //! turn on the modules that use it.
@@ -21,5 +26,15 @@ pub mod bidi;
 pub mod hyphen;
 #[cfg(feature = "linebreak")]
 pub mod linebreak;
+#[cfg(feature = "quotes")]
+pub mod quotes;
+#[cfg(all(test, feature = "quotes"))]
+mod quotes_tests;
 #[cfg(feature = "segment")]
 pub mod segment;
+#[cfg(feature = "spell")]
+pub mod spell;
+#[cfg(all(test, feature = "spell"))]
+mod spell_tests;
+#[cfg(feature = "ui")]
+pub mod ui;

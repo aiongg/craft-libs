@@ -1193,6 +1193,7 @@ dependencies = [
  "hypher",
  "icu_segmenter",
  "miniz_oxide 0.8.9",
+ "serde",
  "unicode-bidi",
  "unicode-bidi-mirroring",
  "unicode-general-category",

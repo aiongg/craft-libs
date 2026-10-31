@@ -281,6 +281,60 @@ impl Composer {
         let _ = self.end(ctx);
     }
 
+    /// The editor's committed text around the caret, for the platform's surrounding text (what
+    /// Wayland input methods and macOS read to correct and predict). `text` is the editor's text
+    /// with the marked text in it, as an editor that writes marked text into its own text keeps
+    /// it; `cursor` and `anchor` are UTF-8 byte offsets in `text`; `preedit` is the marked text's
+    /// byte range, which the published text leaves out. Call after [`Self::update`] in every pass
+    /// that edits, before [`Self::set_caret`], which publishes it. An editor that never calls it
+    /// publishes no surrounding text, as now.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/tools/type_tool/ime_edit.rs:86 `committed_text` (passed to
+    // `ImeObservation::committed` in `sync_ime`, :128); the fork bounds the copy
+    // (`MAX_IME_SURROUNDING_TEXT_BYTES`).
+    pub fn set_committed(&mut self, text: &str, cursor: usize, anchor: usize, preedit: Option<Range<usize>>) {
+        todo!()
+    }
+
+    /// Record that the editor applied an input method's commit or delete-surrounding: `before`
+    /// and `after` stamp the committed text right around the change
+    /// (`ImeMutationStamp::from_committed`, the marked text left out). The platform then knows
+    /// the change came from its own input and keeps its state; any other change of the text is
+    /// [`Self::note_app_change`]. Only after the editor accepted the change; never for marked
+    /// text. Returns whether the fork's tracker accepted the receipt.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/tools/type_tool/ime_edit.rs:110 `note_ime_apply`
+    // (`ImeContextTracker::note_input_method_apply`).
+    pub fn note_commit(&mut self, ctx: &Context, before: egui::ime_context::ImeMutationStamp, after: egui::ime_context::ImeMutationStamp) -> bool {
+        todo!()
+    }
+
+    /// Record that the editor's text changed by something other than the input method (typing
+    /// without a composition, paste, cut, delete, undo, a toolbar action), so the platform
+    /// refreshes its surrounding text.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/tools/type_tool/ime_edit.rs:117 `note_ime_application_change`
+    // (`ImeContextTracker::note_application_change`).
+    pub fn note_app_change(&mut self, ctx: &Context) -> bool {
+        todo!()
+    }
+
+    /// The text under a composition was replaced from outside the editor (undo, another view of
+    /// the same text): ask the platform to reset its composition (`Context::request_ime_reset`)
+    /// and drop the marked text. Until egui reports `Event::ImeResetCompleted` for that request,
+    /// the composer turns the input method's preedit and commit events into nothing, so a stale
+    /// composition can't write into the new text. The request is made at the end of a pass in
+    /// which this composer published the IME output (never in a pass egui will discard), and made
+    /// again when that output's owner, generation or purpose changed; a completion for an older
+    /// request is ignored. When egui can't allocate a request the block stays: there is no
+    /// timeout (the fork's rule: keep stale-input protection).
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/tools/type_tool/ime.rs:335 `allocate_reset`, :346 `prepare_reset`,
+    // :357 `complete_reset`, :326 `suspend_reset`, :408 `finish_reset_pass` (`ResetPhase`, :53).
+    pub fn reset(&mut self, ctx: &Context) {
+        todo!()
+    }
+
     /// The state machine behind [`Self::update`], for apps that read events elsewhere and for
     /// tests. `time` is the pass's input time in seconds.
     pub fn process(&mut self, events: &[Event], time: f64) -> Processed {

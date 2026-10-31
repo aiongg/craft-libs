@@ -252,3 +252,13 @@ fn runs_never_split_a_grapheme_cluster() {
     let l = line_levels(&chars, &Paragraph::new(s, Direction::Rtl).char_levels(), 1);
     assert_eq!((l[6], l[7], l[8]), (2, 2, 1));
 }
+
+// A right-to-left name that doesn't fit keeps its first words and ends with "…"; a left-to-right
+// or fitting name gives `None`; nothing fitting gives "…" alone. `is_rtl_paragraph` follows the
+// first strong character ("12 نص" yes, "Layer نص" no, "123" no).
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn right_to_left_names_are_cut_at_their_logical_end() {
+    todo!()
+}

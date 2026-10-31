@@ -377,9 +377,9 @@ impl TextSize {
 /// The multipliers of the four text-size steps on the type roles, a runtime value an app may
 /// replace ([`TextSizeSteps::PHOTOSHOP`] for PhotoCraft's 10 / 12 / 14 / 16 pt ladder). Only the
 /// roles scale: faces, icon sizes and control heights don't, so Size and Text size stay
-/// independent. Scaled sizes round to [`TYPE_ROUNDING`](crate::values::TYPE_ROUNDING). Wiring
-/// into `resolve` (an `Appearance` field) is a fill task; until then `text_size_factor` reads
-/// [`TextSizeSteps::SUITE`].
+/// independent. Scaled sizes round as every type size does (`values::TYPE_ROUNDING`). Wiring
+/// into `resolve` (an [`AppSizes`](crate::AppSizes) field) is a fill task; until then
+/// `values::text_size_factor` gives [`TextSizeSteps::SUITE`]'s factors.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TextSizeSteps {
     /// Multipliers in [`TextSize::ALL`] order; the second is 1.0.
