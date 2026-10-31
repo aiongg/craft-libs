@@ -44,7 +44,10 @@ pub fn show(ui: &mut Ui, state: &mut State) {
             .show(ui, |_, &row| ListRow::new(row, CHANNELS[row]).toggle(ToggleColumn::eye("Visibility {row}", visible[row])).dimmed(!visible[row]));
         for event in out.events {
             if let ListEvent::Row(RowEvent::Toggle(
-                EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. },
+                EditEvent::Begin { value: Some(value), .. }
+                | EditEvent::Update { value, .. }
+                | EditEvent::Set { value, .. }
+                | EditEvent::Commit { value, .. },
             )) = event
             {
                 state.set(value.row, value.on);

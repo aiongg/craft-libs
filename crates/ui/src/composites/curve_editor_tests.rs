@@ -614,7 +614,7 @@ fn a_scrub_of_the_input_field_is_one_gesture_of_curves() {
 }
 
 /// Typing into the Input field and pressing the graph without Enter: the typed value goes out
-/// first and stays, and the graph's gesture begins in the pass after the commit, from the typed
+/// first (on the Begin of the run) and stays, and the graph's gesture begins in the pass after the commit, from the typed
 /// value, with a plain host and under a [`GestureHost`].
 #[test]
 fn a_press_on_the_graph_during_a_typing_run_keeps_the_typed_value_and_starts_from_it() {
@@ -633,11 +633,11 @@ fn a_press_on_the_graph_during_a_typing_run_keeps_the_typed_value_and_starts_fro
         move_to(&mut harness, to);
         release(&mut harness, to);
         let kinds = harness.state().kinds();
-        assert_eq!(kinds[..4], ["Begin", "Update", "Commit", "Begin"], "undo {undo}: {kinds:?}");
+        assert_eq!(kinds[..3], ["Begin", "Commit", "Begin"], "undo {undo}: {kinds:?}");
         assert_eq!(kinds.last(), Some(&"Commit"), "undo {undo}: {kinds:?}");
-        assert!(kinds[4..kinds.len() - 1].iter().all(|k| *k == "Update"), "undo {undo}: {kinds:?}");
+        assert!(kinds[3..kinds.len() - 1].iter().all(|k| *k == "Update"), "undo {undo}: {kinds:?}");
         assert_eq!(
-            harness.state().pass_of("Begin", 3),
+            harness.state().pass_of("Begin", 2),
             harness.state().pass_of("Commit", 0) + 1,
             "undo {undo}: the press runs the pass after the commit"
         );
@@ -663,7 +663,7 @@ fn a_delete_click_on_the_graph_during_a_typing_run_waits_for_its_commit() {
         type_into_input(&mut harness, "70");
         let at = harness.state().at([128.0, 128.0]);
         click_with(&mut harness, at, button, modifiers);
-        assert_eq!(harness.state().kinds(), ["Begin", "Update", "Commit", "Set"], "{button:?}");
+        assert_eq!(harness.state().kinds(), ["Begin", "Commit", "Set"], "{button:?}");
         assert_eq!(harness.state().pass_of("Set", 0), harness.state().pass_of("Commit", 0) + 1, "{button:?}");
         assert_eq!(harness.state().points(), vec![[0.0, 0.0], [70.0, 80.0], [255.0, 255.0]], "{button:?}");
     }

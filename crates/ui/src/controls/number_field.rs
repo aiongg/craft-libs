@@ -75,7 +75,7 @@ enum Handle {
 ///     .scrub_label("W")
 ///     .show(ui);
 /// match edit.event {
-///     Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => width = value,
+///     Some(EditEvent::Begin { value: Some(value), .. } | EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => width = value,
 ///     // Begin and Cancel go to the document's undo history (`edit::GestureHost`).
 ///     _ => {}
 /// }
@@ -683,7 +683,7 @@ impl Follow {
     fn store(ui: &Ui, id: Id, gesture: Option<GestureId>, typing: bool, real: Option<f64>, event: Option<&EditEvent<f64>>) {
         let ended = matches!(event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. }));
         let follow = gesture.filter(|_| !ended).map(|gesture| {
-            let sent = matches!(event, Some(EditEvent::Update { value, .. }) if Some(*value) != real);
+            let sent = matches!(event, Some(EditEvent::Begin { value: Some(value), .. } | EditEvent::Update { value, .. }) if Some(*value) != real);
             Self { gesture, seen: real, typing, sent }
         });
         ui.data_mut(|d| match follow {
