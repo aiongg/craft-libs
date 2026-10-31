@@ -42,6 +42,7 @@ pub struct CommandForm {
     ok_label: Option<String>,
     ok_enabled: bool,
     width: Width,
+    body: Body,
     picked_color: Option<ColorRequest>,
     picked_path: Option<PathRequest>,
     below: Option<Below>,
@@ -67,6 +68,7 @@ impl CommandForm {
             ok_label: None,
             ok_enabled: true,
             width: Width::Standard,
+            body: Body::Scroll,
             picked_color: None,
             picked_path: None,
             below: None,
@@ -130,6 +132,14 @@ impl CommandForm {
         self
     }
 
+    /// How the body fits the window: [`Body::Scroll`] (the default) or [`Body::Fit`], where the
+    /// dialog takes the height its rows need and shrinks to their width, scrolling only when the
+    /// window is too short ([`Dialog::body`]).
+    pub fn body(mut self, body: Body) -> Self {
+        self.body = body;
+        self
+    }
+
     pub fn width(mut self, width: Width) -> Self {
         self.width = width;
         self
@@ -189,7 +199,7 @@ impl StackDialog for CommandForm {
         }
         let (params, id, below) = (&self.params, self.id, &self.below);
         let mut dialog =
-            Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).history(self.history);
+            Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(self.body).footer(footer).history(self.history);
         if let Some(label) = &self.close_label {
             dialog = dialog.close_label(label.clone());
         }

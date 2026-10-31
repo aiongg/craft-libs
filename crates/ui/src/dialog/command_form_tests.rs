@@ -6,7 +6,7 @@ use egui::{Event, Key, Modifiers, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::{CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamKind, ParamResult, PathKind, PathRequest};
+use super::{Body, CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamKind, ParamResult, PathKind, PathRequest};
 use crate::theme::{Base, install};
 
 struct App {
@@ -143,4 +143,25 @@ fn a_number_row_is_unbounded_on_open_sides_and_clamped_on_bounded_ones() {
     harness.run();
     let fields = harness.state().host.get::<CommandForm>().expect("open").fields().clone();
     assert_eq!((fields.number("offset"), fields.number("count")), (Some(-5000.25), Some(10.0)));
+}
+
+// `Body::Fit` sizes the form to its rows: a short form is as tall as its rows and a form taller
+// than the window keeps its footer in the window and scrolls its body (the default `Scroll` does
+// the same for the window; Fit adds shrinking to the rows' width).
+#[test]
+fn a_fit_form_takes_its_rows_height_and_scrolls_only_past_the_window() {
+    let rows =
+        |n: usize| (0..n).map(|i| Param::new(format!("n{i}"), format!("Row {i}:"), ParamKind::Text { default: String::new() })).collect::<Vec<_>>();
+    let ok_bottom = |n: usize, body: Body| {
+        let mut harness = harness(CommandForm::new("fit", "Fit", rows(n)).body(body));
+        harness.run();
+        (harness.get_by_label("OK").rect().bottom(), harness.get_by_label(&format!("Row {}:", n - 1)).rect().top())
+    };
+    let (few_ok, _) = ok_bottom(2, Body::Fit);
+    let (more_ok, _) = ok_bottom(6, Body::Fit);
+    assert!(few_ok < more_ok - 40.0, "the form grows with its rows: {few_ok} {more_ok}");
+    let (tall_ok, last) = ok_bottom(80, Body::Fit);
+    assert!(tall_ok <= 500.0 && last > 500.0, "past the window the body scrolls: {tall_ok} {last}");
+    assert_eq!(ok_bottom(6, Body::Fit).0, more_ok);
+    assert_eq!(ok_bottom(6, Body::Scroll).0, more_ok, "a form that fits is the same height in both modes");
 }

@@ -20,7 +20,7 @@ use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
 use crate::composites::{FieldControl as _, Form, FormGrid};
 use crate::controls::text_field::{BoxState, TextField, field_box};
-use crate::controls::{AngleDial, Button, Checkbox, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, checkerboard};
+use crate::controls::{AngleDial, Button, Checkbox, NumberField, PointPicker, Select, Slider, SliderScale, Swatch, TooltipExt as _, checkerboard};
 use crate::edit::{self, EditResponse};
 use crate::localized::{Labels as _, LocaleNumbers, Unit, focus_first_field};
 use crate::theme::{Tokens, TokensOf};
@@ -62,8 +62,10 @@ pub enum ParamKind {
     Text { default: String },
     /// A number that may be unset: a "Custom" check box switches the field on. Unset the key is
     /// absent from the [`DialogFields`] (PhotoCraft's Batch quality: `null` keeps the command's
-    /// own default). `initial` is what the field shows the first time the box is checked.
-    OptionalNumber { min: f64, max: f64, default: Option<f64>, initial: f64 },
+    /// own default). `initial` is what the field shows the first time the box is checked;
+    /// `decimals` is the most digits shown after the decimal mark (`0` for an integer, as in
+    /// [`ParamKind::Number`]).
+    OptionalNumber { min: f64, max: f64, default: Option<f64>, initial: f64, decimals: u32 },
     /// A row the host draws: see [`Param::custom`]. It has no value of its own.
     Custom(CustomRow),
 }
@@ -192,11 +194,20 @@ pub struct Param {
     pub enabled_when: Option<(String, FieldValue)>,
     /// A Browse button after a [`ParamKind::Text`] field.
     pub browse: Option<PathKind>,
+    /// The hint and tooltip ([`Param::hint`], [`Param::tooltip`]), boxed so rows without them stay small.
+    texts: Option<Box<RowTexts>>,
+}
+
+/// Texts a row may carry beyond its label.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct RowTexts {
+    hint: Option<String>,
+    tooltip: Option<String>,
 }
 
 impl Param {
     pub fn new(key: impl Into<String>, label: impl Into<String>, kind: ParamKind) -> Self {
-        Self { key: key.into(), label: label.into(), kind, unit: None, enabled_when: None, browse: None }
+        Self { key: key.into(), label: label.into(), kind, unit: None, enabled_when: None, browse: None, texts: None }
     }
 
     /// A bare number row: a [`ParamKind::Number`] open on both sides. Bound it with
@@ -235,6 +246,28 @@ impl Param {
     /// [`ParamDialog::pick_path`] / [`CommandForm::pick_path`](super::CommandForm::pick_path).
     pub fn browse(mut self, kind: PathKind) -> Self {
         self.browse = Some(kind);
+        self
+    }
+
+    /// The text shown while a [`ParamKind::Text`] field is empty (`{name}`); other kinds are
+    /// unchanged.
+    pub fn hint(mut self, text: impl Into<String>) -> Self {
+        self.texts.get_or_insert_default().hint = Some(text.into());
+        self
+    }
+
+    /// Hover text for the whole row, label and control, of any kind.
+    pub fn tooltip(mut self, text: impl Into<String>) -> Self {
+        self.texts.get_or_insert_default().tooltip = Some(text.into());
+        self
+    }
+
+    /// The most digits shown after the decimal mark on a [`ParamKind::OptionalNumber`] row
+    /// (`0` for an integer such as Batch quality); other kinds are unchanged.
+    pub fn decimals(mut self, places: u32) -> Self {
+        if let ParamKind::OptionalNumber { decimals, .. } = &mut self.kind {
+            *decimals = places;
+        }
         self
     }
 
@@ -279,6 +312,9 @@ impl Param {
     pub(super) fn row_in(&self, dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
         form.set_disabled(!self.enabled(fields));
         self.row_body(dialog, form, fields, preview);
+        if let (Some(tip), Some(row)) = (self.texts.as_ref().and_then(|t| t.tooltip.as_ref()), form.last_row()) {
+            let _ = row.clone().tooltip(translated(form.ctx(), tip));
+        }
         form.set_disabled(false);
     }
 
@@ -466,7 +502,11 @@ impl Param {
                 let value = fields.text(key).unwrap_or(default).to_owned();
                 form.row(label.as_str(), |ui, _| {
                     edit::scope(ui, |ui| {
-                        let text = TextField::new((key, "text"), label.as_str(), &value).show(ui);
+                        let mut text = TextField::new((key, "text"), label.as_str(), &value);
+                        if let Some(hint) = self.texts.as_ref().and_then(|t| t.hint.as_ref()) {
+                            text = text.placeholder(translated(&ctx, hint));
+                        }
+                        let text = text.show(ui);
                         if let Some(v) = edited(&text) {
                             fields.set(key, FieldValue::Text(v));
                         }
@@ -484,7 +524,7 @@ impl Param {
                     .inner
                 });
             }
-            ParamKind::OptionalNumber { min, max, initial, .. } => {
+            ParamKind::OptionalNumber { min, max, initial, decimals, .. } => {
                 let stored = fields.number(key);
                 let last_id = Id::unique(("craft_ui::dialog::params::optional_last", dialog, key));
                 let last = stored.or_else(|| ctx.data(|d| d.get_temp::<f64>(last_id))).unwrap_or(*initial);
@@ -503,7 +543,9 @@ impl Param {
                         }
                         let field = ui
                             .add_enabled_ui(fields.number(key).is_some(), |ui| {
-                                let field = NumberField::new((key, "field"), label.as_str(), last, numbers).range(*min..=*max).decimals(0..=2);
+                                let field = NumberField::new((key, "field"), label.as_str(), last, numbers)
+                                    .range(*min..=*max)
+                                    .decimals(0..=*decimals as usize);
                                 with_unit(field, unit).show(ui)
                             })
                             .inner;

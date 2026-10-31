@@ -407,7 +407,7 @@ fn a_browse_button_reports_the_row() {
 // across an off/on.
 #[test]
 fn an_optional_number_is_absent_until_custom_is_checked() {
-    let rows = vec![Param::new("quality", "Quality:", ParamKind::OptionalNumber { min: 0.0, max: 12.0, default: None, initial: 8.0 })];
+    let rows = vec![Param::new("quality", "Quality:", ParamKind::OptionalNumber { min: 0.0, max: 12.0, default: None, initial: 8.0, decimals: 2 })];
     let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
     harness.run();
     assert_eq!(open_dialog(&mut harness).expect("open").fields().number("quality"), None);
@@ -418,6 +418,49 @@ fn an_optional_number_is_absent_until_custom_is_checked() {
     harness.get_by_label("Custom").click();
     harness.run();
     assert_eq!(open_dialog(&mut harness).expect("open").fields().number("quality"), None);
+}
+
+// A hint shows in an empty text field only; a tooltip rides on the row and is described to
+// AccessKit on any row kind.
+#[test]
+fn a_text_row_shows_its_hint_while_empty_and_the_row_has_a_tooltip() {
+    let rows = vec![
+        Param::new("naming", "File Naming:", ParamKind::Text { default: String::new() }).hint("{name}").tooltip("{name} · {serial} · {date} (UTC)"),
+        Param::new("size", "Size:", ParamKind::Int { min: Some(1), max: None, default: 4 }).tooltip("Pixels"),
+    ];
+    let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
+    harness.run();
+    let field = |harness: &Harness<'_, App>| {
+        harness.get_by_role_and_label(Role::TextInput, "File Naming:").accesskit_node().data().placeholder().map(str::to_owned)
+    };
+    assert_eq!(field(&harness).as_deref(), Some("{name}"));
+    harness.get_by_role_and_label(Role::TextInput, "File Naming:").focus();
+    harness.run();
+    harness.event(Event::Text("x".to_owned()));
+    harness.run();
+    harness.get_by_role_and_label(Role::TextInput, "File Naming:").hover();
+    for _ in 0..30 {
+        harness.step();
+    }
+    harness.get_by_label("{name} · {serial} · {date} (UTC)");
+}
+
+// An optional number with 0 decimals shows and keeps whole numbers.
+#[test]
+fn an_optional_number_with_no_decimals_shows_an_integer() {
+    let rows = vec![
+        Param::new("quality", "Quality:", ParamKind::OptionalNumber { min: 0.0, max: 12.0, default: Some(8.0), initial: 8.0, decimals: 2 })
+            .decimals(0),
+    ];
+    let mut harness = harness(ParamDialog::new("batch", "Batch", rows));
+    harness.run();
+    harness.get_by_role_and_label(Role::SpinButton, "Quality:").focus();
+    harness.run();
+    harness.event(Event::Text("5.7".to_owned()));
+    harness.key_press(Key::Tab);
+    harness.run();
+    let shown = harness.get_by_role_and_label(Role::SpinButton, "Quality:").value();
+    assert_eq!(shown.as_deref(), Some("6"), "{shown:?}");
 }
 
 // The footer hook draws before the buttons; `close_label(None)` removes the close box.
