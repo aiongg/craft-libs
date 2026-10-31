@@ -789,7 +789,8 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         progress_height,
         indicator_width,
         tear_off,
-        text_pad_x,
+        text_gap,
+        text_height,
         underline_width,
         underline_gap,
         label,
@@ -826,7 +827,8 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
     out.line("tab.progress_height", len(*progress_height));
     out.line("tab.indicator_width", len(*indicator_width));
     out.line("tab.tear_off", len(*tear_off));
-    out.line("tab.text_pad_x", len(*text_pad_x));
+    out.line("tab.text_gap", len(*text_gap));
+    out.line("tab.text_height", len(*text_height));
     out.line("tab.underline_width", len(*underline_width));
     out.line("tab.underline_gap", len(*underline_gap));
     out.line("tab.label", role(*label));

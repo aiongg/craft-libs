@@ -52,8 +52,10 @@ pub struct TabTokens {
     pub indicator_width: f32,
     /// How far outside the strip a tab drag still resolves targets.
     pub tear_off: f32,
-    /// Between a text tab's edge and its label (PhotoCraft's category tabs sit 18 apart).
-    pub text_pad_x: f32,
+    /// Between the labels of a text strip's tabs.
+    pub text_gap: f32,
+    /// Height of a text strip: the label at its top, the hairline at its bottom edge.
+    pub text_height: f32,
     /// Thickness of a text strip's selected-tab underline.
     pub underline_width: f32,
     /// From the bottom of a text tab's label to the centre of its underline.
@@ -218,7 +220,8 @@ impl Family for TabTokens {
         "progress_height" 0.0..=1024.0 => progress_height;
         "indicator_width" 0.0..=16.0 => indicator_width;
         "tear_off" 0.0..=64.0 => tear_off;
-        "text_pad_x" 0.0..=64.0 => text_pad_x;
+        "text_gap" 0.0..=64.0 => text_gap;
+        "text_height" 16.0..=64.0 => text_height;
         "underline_width" 0.0..=16.0 => underline_width;
         "underline_gap" 0.0..=16.0 => underline_gap;
     };
@@ -242,7 +245,8 @@ impl Family for TabTokens {
             progress_height: values::TAB_PROGRESS_HEIGHT,
             indicator_width: values::TAB_INDICATOR_WIDTH,
             tear_off: values::TAB_TEAR_OFF,
-            text_pad_x: values::TAB_TEXT_PAD_X,
+            text_gap: values::TAB_TEXT_GAP,
+            text_height: values::TAB_TEXT_HEIGHT,
             underline_width: values::TAB_UNDERLINE_WIDTH,
             underline_gap: values::TAB_UNDERLINE_GAP,
             label: TypeRole::Label,

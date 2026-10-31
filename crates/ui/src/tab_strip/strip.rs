@@ -451,7 +451,11 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, K> {
         } = strip;
         let tabs = self.tabs;
         let style = self.style;
-        let height = if kind == TabKind::Panel { style.panel_height } else { style.strip_height(large) };
+        let height = match kind {
+            TabKind::Panel => style.panel_height,
+            TabKind::Text => style.text_height,
+            TabKind::Document => style.strip_height(large),
+        };
         let (_, rect) = ui.allocate_space(vec2(ui.available_width(), height));
         if kind.text_only() {
             style.paint_hairline(ui.painter(), rect);

@@ -412,8 +412,15 @@ fn a_text_strip_underlines_the_selected_label_and_draws_the_hairline() {
     let (y, x, stroke) = underlines[0];
     assert_eq!(stroke.width, s.underline_width);
     let selected = placed[1].1;
-    let expected = selected.center().y + s.text_label.line_height / 2.0 + s.underline_gap;
+    let expected = selected.top() + s.text_label.line_height + s.underline_gap;
     assert!((y - expected).abs() <= 0.5, "underline at {y}, expected {expected}");
     assert!(selected.contains(pos2(*x.start(), selected.center().y)) && selected.contains(pos2(*x.end(), selected.center().y)));
-    assert!((x.start() - selected.left() - s.text_pad_x).abs() <= 0.5, "starts at the label, after the text padding");
+    assert!((x.start() - selected.left()).abs() <= 0.5, "the label starts at the tab's leading edge");
+    assert_eq!(placed[0].1.left(), strip.left(), "the first tab starts at the strip's left");
+    assert!((selected.right() - x.end() - s.text_gap).abs() <= 0.5, "text_gap after the label, so labels are text_gap apart");
+    assert_eq!(strip.height(), s.text_height, "the row is the text strip height");
+    assert!(
+        (strip.bottom() - s.divider.width - (y + s.underline_width / 2.0) - 2.0).abs() <= 1.0,
+        "about 2 pt between the underline and the hairline"
+    );
 }

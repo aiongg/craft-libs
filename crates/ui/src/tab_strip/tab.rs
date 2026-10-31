@@ -225,8 +225,12 @@ pub struct TabStyle {
     pub progress_height: f32,
     /// `tab.indicator_width`.
     pub indicator_width: f32,
-    /// `tab.text_pad_x`.
-    pub text_pad_x: f32,
+    /// `tab.text_gap`.
+    pub text_gap: f32,
+    /// `tab.text_height`.
+    pub text_height: f32,
+    /// Room after a tab's contents, inside its rect: the spacing of text tabs, 0 otherwise.
+    pub tail: f32,
     /// `tab.underline_width`.
     pub underline_width: f32,
     /// `tab.underline_gap`.
@@ -305,16 +309,15 @@ impl TabStyle {
         if text_only { self.text_label } else { tokens.typography.get(self.label_role(large)) }
     }
 
-    /// This style for a text tab: `tab.text_pad_x` between its edge and its label.
+    /// This style for a text tab: the label at the tab's leading edge and `tab.text_gap` after it.
     pub fn for_text(&self) -> TabStyle {
-        TabStyle { pad_x: self.text_pad_x, ..*self }
+        TabStyle { pad_x: 0.0, tail: self.text_gap, ..*self }
     }
 
     /// The underline of the selected text tab whose label is `label`: `tab.underline_width` thick,
-    /// the label's width, centred `tab.underline_gap` below the label's text row of height
-    /// `row`, which sits in the middle of the tab.
-    pub fn paint_underline(&self, painter: &egui::Painter, label: Rect, row: f32) {
-        let y = label.center().y + row / 2.0 + self.underline_gap;
+    /// the label's width, centred `tab.underline_gap` below the label.
+    pub fn paint_underline(&self, painter: &egui::Painter, label: Rect) {
+        let y = label.bottom() + self.underline_gap;
         let ppp = painter.pixels_per_point();
         painter.hline(label.x_range(), y.round_to_pixel_center(ppp), Stroke::new(self.underline_width, self.underline));
     }
@@ -337,7 +340,7 @@ impl TabStyle {
     /// The width of a tab with these text widths: the padding, the icon, the label, the detail,
     /// the mark and the ×, a `gap` between the parts (none before the mark).
     pub fn natural_width(&self, metrics: &TabMetrics, parts: TabParts) -> f32 {
-        let mut width = 2.0 * self.pad_x + metrics.label + metrics.mark;
+        let mut width = 2.0 * self.pad_x + self.tail + metrics.label + metrics.mark;
         if parts.icon {
             width += self.icon_size + self.gap;
         }
@@ -360,7 +363,7 @@ impl TabStyle {
             Rect::from_x_y_ranges(a..=b, rect.y_range())
         };
         let centred = |at: Rect, side: f32| Rect::from_center_size(at.center(), vec2(side, side));
-        let (mut start, mut end) = (self.pad_x, (rect.width() - self.pad_x).max(self.pad_x));
+        let (mut start, mut end) = (self.pad_x, (rect.width() - self.pad_x - self.tail).max(self.pad_x));
         let mut close = None;
         if parts.close {
             if close_first {
@@ -570,7 +573,9 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             drop_halo: Stroke::new(t.drop_halo_width, t.drop_halo.to_egui()),
             progress_height: t.progress_height,
             indicator_width: t.indicator_width,
-            text_pad_x: t.text_pad_x,
+            text_gap: t.text_gap,
+            text_height: t.text_height,
+            tail: 0.0,
             underline_width: t.underline_width,
             underline_gap: t.underline_gap,
             tear_off: t.tear_off,
@@ -735,9 +740,15 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
         let text = style.label_color(view.active);
         let large = view.large;
         let label_style = style.label_style(tokens, large, view.text_only);
+        // A text tab's label sits at the top of the strip, with the underline and hairline below.
+        let layout = &if view.text_only {
+            let row = |at: Rect| Rect::from_x_y_ranges(at.x_range(), rect.top()..=rect.top() + label_style.line_height);
+            TabLayout { label: row(layout.label), mark: layout.mark.map(row), ..*layout }
+        } else {
+            *layout
+        };
         if view.text_only && view.active {
-            let label = Rect::from_x_y_ranges(layout.label.x_range(), rect.y_range());
-            style.paint_underline(ui.painter(), label, label_style.line_height);
+            style.paint_underline(ui.painter(), layout.label);
         }
         let run = |ui: &Ui, at: Rect, text_style: TypeStyle, string: &str, color: Color32| {
             if at.width() < 1.0 {

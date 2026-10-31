@@ -815,7 +815,10 @@ fn tab() {
         d.line("strip", s.strip).line("active", s.active).line("text", s.text).line("inactive_text", s.inactive_text);
         d.line("detail", s.detail).line("divider", s.divider.color).line("close_color", s.close_color).line("close_hover", s.close_hover);
         d.line("close_fill", s.close_fill).line("drop", s.drop).line("drop_halo", s.drop_halo.color).line("drop_halo_width", s.drop_halo.width);
-        d.line("text_pad_x", s.text_pad_x).line("underline_width", s.underline_width).line("underline_gap", s.underline_gap);
+        d.line("text_gap", s.text_gap)
+            .line("text_height", s.text_height)
+            .line("underline_width", s.underline_width)
+            .line("underline_gap", s.underline_gap);
         d.line("text_label_size", s.text_label.size).line("text_label_line_height", s.text_label.line_height).line("underline", s.underline);
         d.line("track", s.track).line("fill", s.fill);
     });
