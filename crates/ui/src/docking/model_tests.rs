@@ -369,7 +369,6 @@ fn restore_into_a_column_group_seam_and_new_column_round_trips() {
     for panel in [4, 9, 5, 10, 3, 7] {
         let mut layout = original.clone();
         let location = layout.location(&panel).unwrap();
-        #[cfg(feature = "serde")]
         let location: Location<u32> = serde_json::from_str(&serde_json::to_string(&location).unwrap()).unwrap();
         layout.apply(Action::Close { panel }).unwrap();
         layout.restore(panel, &location).unwrap_or_else(|e| panic!("{panel}: {e} {location:?}"));
@@ -548,7 +547,6 @@ fn reset_returns_to_saved_or_default() {
     workspace.validate().unwrap();
 }
 
-#[cfg(feature = "serde")]
 mod serde_tests {
     use super::*;
     use serde_json::{Value, json};

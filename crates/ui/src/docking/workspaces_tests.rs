@@ -83,3 +83,24 @@ fn menu_rows_mark_current_and_lock() {
     assert_eq!(after[1].1, ItemKind::Check(true));
     assert_eq!(after.last().map(|r| r.1), Some(ItemKind::Check(true)));
 }
+
+#[test]
+fn a_workspace_set_with_a_floating_group_round_trips_through_json() {
+    use super::model::Floating;
+    let rect = [1.0, 2.0, 300.0, 200.0];
+    let layout =
+        Layout { root: Some(Node::Tabs { panels: vec![1u32, 2], active: 0 }), floating: vec![Floating::single(vec![3u32], 0, rect).with_id(5)] };
+    let mut set = WorkspaceSet::new(vec![NamedWorkspace {
+        id: "essentials".into(),
+        name: "Essentials".into(),
+        layout: Workspace::default(),
+        chrome: WorkspaceChrome::default(),
+        keeps_shortcuts: false,
+        keeps_menus: false,
+    }]);
+    set.save("Mine", Workspace::new(layout), WorkspaceChrome::default()).unwrap();
+
+    let saved = serde_json::to_string(&set).unwrap();
+    let loaded: WorkspaceSet<u32> = serde_json::from_str(&saved).unwrap();
+    assert_eq!(loaded, set);
+}

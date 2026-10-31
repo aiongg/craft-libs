@@ -511,7 +511,6 @@ impl<P: PartialEq> FloatSpace<P> {
 }
 
 /// Lookups for `DockCommand`, which needs feature `serde`.
-#[cfg_attr(not(feature = "serde"), allow(dead_code))]
 impl<P: PartialEq> FloatSpace<P> {
     pub(super) fn panel(&self, panel: &P) -> Option<Vec2> {
         Self::find(&self.panels, panel)

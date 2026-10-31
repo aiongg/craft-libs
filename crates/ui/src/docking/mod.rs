@@ -7,7 +7,6 @@
 
 pub mod arrange;
 pub mod chrome;
-#[cfg(feature = "serde")]
 mod command;
 mod config;
 #[cfg(feature = "native-windows")]
@@ -32,7 +31,6 @@ pub mod windows;
 mod workspace;
 pub mod workspaces;
 
-#[cfg(feature = "serde")]
 pub use command::{DockCommand, DockOperation, UiDock, ZoneName};
 pub use config::DockConfig;
 pub use dock_model::{Column, ColumnLocation, Group, GroupLocation, PanelState, Side, Target};

@@ -207,7 +207,7 @@ must be unique, stable values; labels and document state are supplied by the app
 
 `Layout::location` captures a panel's placement before hiding it; `restore` returns it there if
 the remembered destination still exists. Apps choose an explicit fallback when it does not.
-Enable the optional `serde` feature to persist the shared layout, or convert to/from an existing
+Layouts and workspaces always derive serde, so an app can persist them or convert to/from an existing
 workspace schema. Validate loaded input before rendering or recursively converting it.
 
 `DockArea` is an optional renderer. It takes a layout snapshot, a `DockSpec` (a `DockConfig` for behaviour and labels, drawn in the theme's `dock`, `float` and `tab` tokens through `DockLook`; or the flat `DockStyle`), labels, panel permissions
