@@ -574,12 +574,13 @@ fn color_ramp_lines(out: &mut Lines, t: &ColorRampTokens) {
 }
 
 fn gradient_palette_lines(out: &mut Lines, t: &GradientPaletteTokens) {
-    let GradientPaletteTokens { cell_width, cell_height, list_swatch_width, list_swatch_height, max_height } = t;
+    let GradientPaletteTokens { cell_width, cell_height, list_swatch_width, list_swatch_height, max_height, cell_room } = t;
     out.line("gradient_palette.cell_width", len(*cell_width));
     out.line("gradient_palette.cell_height", len(*cell_height));
     out.line("gradient_palette.list_swatch_width", len(*list_swatch_width));
     out.line("gradient_palette.list_swatch_height", len(*list_swatch_height));
     out.line("gradient_palette.max_height", len(*max_height));
+    out.line("gradient_palette.cell_room", len(*cell_room));
 }
 
 fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
@@ -602,6 +603,8 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
         pair_step,
         pair_gap,
         pair_ring,
+        pair_icon,
+        pair_icon_gap,
         marker,
         marker_halo,
     } = p;
@@ -623,6 +626,8 @@ fn color_picker_lines(out: &mut Lines, p: &ColorPickerTokens) {
     out.line("color_picker.pair_step", len(*pair_step));
     out.line("color_picker.pair_gap", len(*pair_gap));
     out.line("color_picker.pair_ring", len(*pair_ring));
+    out.line("color_picker.pair_icon", len(*pair_icon));
+    out.line("color_picker.pair_icon_gap", len(*pair_icon_gap));
     out.line("color_picker.marker", hex(*marker));
     out.line("color_picker.marker_halo", hex(*marker_halo));
 }
@@ -669,6 +674,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         drop_halo_width,
         bracket_outset,
         bracket_arm,
+        ghost_offset,
         label,
         detail_role,
         text,
@@ -721,6 +727,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
     out.line("list.drop_halo_width", len(*drop_halo_width));
     out.line("list.bracket_outset", len(*bracket_outset));
     out.line("list.bracket_arm", len(*bracket_arm));
+    out.line("list.ghost_offset", format!("{} {}", len(ghost_offset[0]), len(ghost_offset[1])));
     out.line("list.label", role(*label));
     out.line("list.detail_role", role(*detail_role));
     for (k, c) in [
@@ -920,6 +927,9 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
         width_min,
         width_standard,
         width_wide,
+        width_alert,
+        viewport_size,
+        viewport_min,
         window_margin,
         resize_margin,
         keep_visible,
@@ -939,6 +949,9 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
     out.line("dialog.width_min", len(*width_min));
     out.line("dialog.width_standard", len(*width_standard));
     out.line("dialog.width_wide", len(*width_wide));
+    out.line("dialog.width_alert", len(*width_alert));
+    out.line("dialog.viewport_size", format!("{} {}", len(viewport_size[0]), len(viewport_size[1])));
+    out.line("dialog.viewport_min", format!("{} {}", len(viewport_min[0]), len(viewport_min[1])));
     out.line("dialog.window_margin", len(*window_margin));
     out.line("dialog.resize_margin", len(*resize_margin));
     out.line("dialog.keep_visible", len(*keep_visible));
@@ -1059,7 +1072,8 @@ fn title_bar_lines(out: &mut Lines, t: &TitleBarTokens) {
 }
 
 fn options_bar_lines(out: &mut Lines, t: &OptionsBarTokens) {
-    let OptionsBarTokens { height, height_narrow, row_gap, pad, gap, divider, field_sm, field_md, field_lg, scroll_bar, button } = t;
+    let OptionsBarTokens { height, height_narrow, row_gap, pad, gap, divider, field_sm, field_md, field_lg, scroll_bar, button, chevron, ink_room } =
+        t;
     out.line("options_bar.height", len(*height));
     out.line("options_bar.height_narrow", len(*height_narrow));
     out.line("options_bar.row_gap", len(*row_gap));
@@ -1071,6 +1085,8 @@ fn options_bar_lines(out: &mut Lines, t: &OptionsBarTokens) {
     out.line("options_bar.field_lg", len(*field_lg));
     out.line("options_bar.scroll_bar", len(*scroll_bar));
     out.line("options_bar.button", len(*button));
+    out.line("options_bar.chevron", format!("{} {}", len(chevron[0]), len(chevron[1])));
+    out.line("options_bar.ink_room", len(*ink_room));
 }
 
 fn panel_lines(out: &mut Lines, t: &PanelTokens) {
@@ -1161,11 +1177,12 @@ fn group_box_lines(out: &mut Lines, t: &GroupBoxTokens) {
 }
 
 fn preferences_lines(out: &mut Lines, t: &PreferencesTokens) {
-    let PreferencesTokens { list_width, page_gap, choice_width, text_width } = t;
+    let PreferencesTokens { list_width, page_gap, choice_width, text_width, body_fallback_height } = t;
     out.line("preferences.list_width", len(*list_width));
     out.line("preferences.page_gap", len(*page_gap));
     out.line("preferences.choice_width", len(*choice_width));
     out.line("preferences.text_width", len(*text_width));
+    out.line("preferences.body_fallback_height", len(*body_fallback_height));
 }
 
 fn preset_lines(out: &mut Lines, t: &PresetTokens) {
@@ -1734,10 +1751,11 @@ fn menu_lines(out: &mut Lines, m: &MenuTokens) {
 }
 
 fn inspector_lines(out: &mut Lines, t: &InspectorTokens) {
-    let InspectorTokens { header_height, icon, pad, title, kind } = t;
+    let InspectorTokens { header_height, icon, pad, kind_min_name, title, kind } = t;
     out.line("inspector.header_height", len(*header_height));
     out.line("inspector.icon", len(*icon));
     out.line("inspector.pad", len(*pad));
+    out.line("inspector.kind_min_name", len(*kind_min_name));
     out.line("inspector.title", hex(*title));
     out.line("inspector.kind", hex(*kind));
 }
@@ -1774,7 +1792,7 @@ fn swatch_lines(out: &mut Lines, s: &SwatchTokens) {
 }
 
 fn toolbar_lines(out: &mut Lines, t: &ToolbarTokens) {
-    let ToolbarTokens { button, button_large, gap, group_gap, pad, width, overflow } = t;
+    let ToolbarTokens { button, button_large, gap, group_gap, pad, width, overflow, spacing } = t;
     out.line("toolbar.button", len(*button));
     out.line("toolbar.button_large", len(*button_large));
     out.line("toolbar.gap", len(*gap));
@@ -1782,11 +1800,13 @@ fn toolbar_lines(out: &mut Lines, t: &ToolbarTokens) {
     out.line("toolbar.pad", format!("{} {}", len(pad[0]), len(pad[1])));
     out.line("toolbar.width", len(*width));
     out.line("toolbar.overflow", len(*overflow));
+    out.line("toolbar.spacing", len(*spacing));
 }
 
 fn tooltip_lines(out: &mut Lines, t: &TooltipTokens) {
-    let TooltipTokens { max_width, radius, fill, text, border } = t;
+    let TooltipTokens { max_width, pointer_gap, radius, fill, text, border } = t;
     out.line("tooltip.max_width", len(*max_width));
+    out.line("tooltip.pointer_gap", len(*pointer_gap));
     out.line("tooltip.radius", len(*radius));
     out.line("tooltip.fill", hex(*fill));
     out.line("tooltip.text", hex(*text));

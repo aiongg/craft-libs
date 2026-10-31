@@ -91,7 +91,7 @@ pub struct SliderRow<'a> {
     step: Option<f64>,
     track_colors: Option<Vec<Srgba>>,
     default: Option<f64>,
-    wheel: bool,
+    wheel: Option<bool>,
     wheel_step: Option<f64>,
     scale: SliderScale,
     policy: EditPolicy,
@@ -119,7 +119,7 @@ impl<'a> SliderRow<'a> {
             step: None,
             track_colors: None,
             default: None,
-            wheel: false,
+            wheel: None,
             wheel_step: None,
             scale: SliderScale::Linear,
             policy: EditPolicy::default(),
@@ -163,11 +163,13 @@ impl<'a> SliderRow<'a> {
         self
     }
 
-    /// Whether the wheel over the slider steps it, ten steps with Shift ([`Slider::wheel_unfocused`];
-    /// PhotoCraft `RowGestures::wheel_step`, for dialogs). The step is the slider's key step, a
-    /// hundredth of the range.
+    /// Whether the wheel over the slider steps it without the slider having the focus, ten steps
+    /// with Shift ([`Slider::wheel_unfocused`]; PhotoCraft `RowGestures::wheel_step`, for
+    /// dialogs). The step is the slider's key step, a hundredth of the range. Off by default:
+    /// the wheel then steps the focused slider only. `wheel(false)` is off for the focused slider
+    /// too ([`Slider::wheel`]): the slider never takes the wheel.
     pub fn wheel(mut self, on: bool) -> Self {
-        self.wheel = on;
+        self.wheel = Some(on);
         self
     }
 
@@ -254,7 +256,8 @@ impl<'a> SliderRow<'a> {
 
         let mut slider = Slider::new(id.with("slider"), self.label.as_str(), self.value, self.range.clone())
             .width(width)
-            .wheel_unfocused(self.wheel)
+            .wheel(self.wheel != Some(false))
+            .wheel_unfocused(self.wheel == Some(true))
             .scale(self.scale)
             .policy(self.policy)
             .enabled(self.enabled);

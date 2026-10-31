@@ -2,7 +2,7 @@
 //! the bar draws in `surface.chrome`, its captions in `text.muted` and its hints in `text.faint`.
 //! The heights are the `size.bar` ones.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Options bar tokens, in points.
@@ -31,6 +31,10 @@ pub struct OptionsBarTokens {
     pub scroll_bar: f32,
     /// Side of the Home, tool icon, commit and cancel buttons: `options_bar.button`.
     pub button: f32,
+    /// Width and height of the chevron slot beside the tool icon: `options_bar.chevron`.
+    pub chevron: [f32; 2],
+    /// Room under the content for font ink: `options_bar.ink_room`.
+    pub ink_room: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -40,6 +44,22 @@ pub enum OptionsBarField {}
 impl Family for OptionsBarTokens {
     type Field = OptionsBarField;
     const FIELDS: &'static [OptionsBarField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { OptionsBarTokens;
+        "height" 0.0..=1024.0 => height;
+        "height_narrow" 0.0..=1024.0 => height_narrow;
+        "pad" 0.0..=64.0 => pad;
+        "row_gap" 0.0..=64.0 => row_gap;
+        "gap" 0.0..=64.0 => gap;
+        "divider" 0.0..=1024.0 => divider;
+        "field_sm" 0.0..=1024.0 => field_sm;
+        "field_md" 0.0..=1024.0 => field_md;
+        "field_lg" 0.0..=1024.0 => field_lg;
+        "scroll_bar" 0.0..=1024.0 => scroll_bar;
+        "button" 0.0..=1024.0 => button;
+        "chevron.0" 0.0..=64.0 => chevron[0];
+        "chevron.1" 0.0..=64.0 => chevron[1];
+        "ink_room" 0.0..=16.0 => ink_room;
+    };
 
     /// The Compact sizes (PhotoCraft's Pro options bar), scaled by the control height of the size
     /// and rounded to whole points (halves to even). The ends and the scroll bar keep their width.
@@ -58,6 +78,8 @@ impl Family for OptionsBarTokens {
             field_lg: scale(values::OPTIONS_BAR_FIELD_LG),
             scroll_bar: values::OPTIONS_BAR_SCROLL_BAR,
             button: s.set.options_bar_button,
+            chevron: values::OPTIONS_BAR_CHEVRON,
+            ink_room: values::OPTIONS_BAR_INK_ROOM,
         }
     }
 

@@ -1,17 +1,10 @@
 //! [`ViewportWindow`]: an immediate viewport with an embedded fallback.
 
-use egui::{
-    Area, Context, CursorIcon, Frame, Id, Key, Modifiers, Order, Sense, Ui, UiKind, Vec2, ViewportBuilder, ViewportCommand, ViewportId, vec2,
-};
+use egui::{Area, Context, CursorIcon, Frame, Id, Key, Modifiers, Order, Sense, Ui, UiKind, Vec2, ViewportBuilder, ViewportCommand, ViewportId};
 
 use crate::dialog::{Backdrop, Body, Dialog, DialogState, Footer, Outcome, PlaceKey, Resize, ResizeMax};
 use crate::popup_list;
 use crate::theme::{ToEgui, current};
-
-/// The size an embedded window opens at when the builder names none.
-const DEFAULT_SIZE: Vec2 = vec2(480.0, 360.0);
-/// The least size of an embedded window when the builder names none.
-const MIN_SIZE: Vec2 = vec2(240.0, 160.0);
 
 /// Where a window's body is drawn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -333,8 +326,9 @@ fn show_embedded(
     if opened {
         state.close();
     }
-    let min = builder.min_inner_size.unwrap_or(MIN_SIZE);
-    let default = builder.inner_size.unwrap_or(DEFAULT_SIZE).max(min);
+    let dialog = current(ctx).component.dialog;
+    let min = builder.min_inner_size.unwrap_or(Vec2::from(dialog.viewport_min));
+    let default = builder.inner_size.unwrap_or(Vec2::from(dialog.viewport_size)).max(min);
     let mut dialog = Dialog::new(("craft-ui-viewport", id), title)
         .resizable(Resize { default, min, max: ResizeMax::Window })
         .body(Body::Fit)

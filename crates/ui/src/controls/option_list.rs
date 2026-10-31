@@ -374,7 +374,12 @@ mod tests {
                 size: Size::Compact,
                 text_size: TextSize::Default,
             };
-            let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Dark, size: Size::Compact };
+            let defaults = AppDefaults {
+                theme: ThemePair::same(ThemeId::suite_default()),
+                mode: ModeChoice::Dark,
+                size: Size::Compact,
+                sizes: Default::default(),
+            };
             Base::resolve(&sel, SystemAppearance::default(), &defaults, None, &mut |i| builtins().iter().find(|t| t.id == *i).cloned())
         };
         for (id, soft, radius) in [("craft.pro", false, 3), ("craft.studio", true, 6)] {

@@ -1,7 +1,7 @@
 //! Preferences windows: the page list column and the gap between it and the page. Sizes only (no
 //! colours): the look is the list, field and surface families'.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Preferences window tokens, in points.
@@ -17,6 +17,8 @@ pub struct PreferencesTokens {
     pub choice_width: f32,
     /// Width of a text row's control: `preferences.text_width`, 260 at Compact, scaled likewise.
     pub text_width: f32,
+    /// Height of a page body laid out in an unbounded rect: `preferences.body_fallback_height`.
+    pub body_fallback_height: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -26,6 +28,13 @@ pub enum PreferencesField {}
 impl Family for PreferencesTokens {
     type Field = PreferencesField;
     const FIELDS: &'static [PreferencesField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { PreferencesTokens;
+        "list_width" 0.0..=1024.0 => list_width;
+        "page_gap" 0.0..=64.0 => page_gap;
+        "choice_width" 0.0..=1024.0 => choice_width;
+        "text_width" 0.0..=1024.0 => text_width;
+        "body_fallback_height" 0.0..=4096.0 => body_fallback_height;
+    };
 
     fn defaults(s: &Semantic<'_>) -> PreferencesTokens {
         let k = s.size.control.md / values::DIALOG_BASE_CONTROL;
@@ -35,6 +44,7 @@ impl Family for PreferencesTokens {
             page_gap: s.space.pad.panel,
             choice_width: scale(values::PREFERENCES_CHOICE_WIDTH),
             text_width: scale(values::PREFERENCES_TEXT_WIDTH),
+            body_fallback_height: values::PREFERENCES_BODY_FALLBACK_HEIGHT,
         }
     }
 

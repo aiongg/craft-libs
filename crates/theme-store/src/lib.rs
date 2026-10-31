@@ -30,7 +30,7 @@
 //! assert_eq!((accepted.suite.theme_dark.as_ref(), accepted.suite.mode, accepted.revision), (Some(&graphite.id), None, 1));
 //!
 //! let artcraft = ThemeId::parse("craft.artcraft").unwrap();
-//! let defaults = AppDefaults { theme: ThemePair::same(artcraft), mode: ModeChoice::Dark, size: Size::Compact };
+//! let defaults = AppDefaults { theme: ThemePair::same(artcraft), mode: ModeChoice::Dark, size: Size::Compact, sizes: Default::default() };
 //! let selection = accepted.suite.with_defaults(&defaults);
 //! assert_eq!((selection.theme.light, selection.mode), (graphite.id, ModeChoice::Dark));
 //! ```

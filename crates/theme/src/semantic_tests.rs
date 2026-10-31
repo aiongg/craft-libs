@@ -77,7 +77,7 @@ static BUILTIN_RESOLVED: std::sync::LazyLock<(Vec<Appearance>, Vec<Resolution>)>
                 loop {
                     let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let Some(&(theme, a)) = jobs.get(i) else { break };
-                    let r = resolve::resolve_with_steps(theme, a, None);
+                    let r = resolve::resolve_with_steps(theme, a, None, &AppSizes::default());
                     done.lock().unwrap().push((i, r));
                 }
             });
@@ -96,7 +96,7 @@ pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: 
     let (all, slots) = &*BUILTIN_RESOLVED;
     match (index, app, all.iter().position(|&a| a == appearance)) {
         (Some(t), None, Some(a)) => slots[t * all.len() + a].clone(),
-        _ => resolve::resolve_with_steps(theme, appearance, app),
+        _ => resolve::resolve_with_steps(theme, appearance, app, &AppSizes::default()),
     }
 }
 
@@ -959,7 +959,7 @@ fn pinned_failing_text_warns_on_its_pairs_and_the_component_pairs_that_read_it()
     let mut def = grey_blue();
     let pin = hex("#c8c8c8");
     def.pins.light = Pins::from_iter([(T::TextNormal, pin)]);
-    let (r, steps) = resolve::resolve_with_steps(&def, app(Mode::Light, Contrast::Standard), None);
+    let (r, steps) = resolve::resolve_with_steps(&def, app(Mode::Light, Contrast::Standard), None, &AppSizes::default());
     let t = &r.tokens;
     let expected: Vec<_> = TEXT_BGS
         .map(|bg| ContrastCheck { fg: T::TextNormal.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })

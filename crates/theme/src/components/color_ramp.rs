@@ -1,7 +1,7 @@
 //! Colour ramps: the bar under the slider rows, with white and black boxes at its end. The sizes
 //! scale with the control height, and no theme overrides them; the colours are semantic tokens.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// ColorRamp tokens. Sizes are in points.
@@ -29,6 +29,12 @@ pub enum ColorRampField {}
 impl Family for ColorRampTokens {
     type Field = ColorRampField;
     const FIELDS: &'static [ColorRampField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ColorRampTokens;
+        "height" 0.0..=1024.0 => height;
+        "height_min" 0.0..=1024.0 => height_min;
+        "boxes" 0.0..=1024.0 => boxes;
+        "boxes_gap" 0.0..=64.0 => boxes_gap;
+    };
 
     /// The Compact sizes, scaled by the control height of the size and rounded to whole points.
     fn defaults(s: &Semantic<'_>) -> ColorRampTokens {

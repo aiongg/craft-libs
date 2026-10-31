@@ -2,7 +2,7 @@
 //! saturation disc of a harmony. The sizes scale with the control height, and the spoke of the
 //! disc is overridable. Everything else draws in semantic tokens and the colour picker's marker.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::values;
 
@@ -52,6 +52,20 @@ pub enum ColorWheelField {
 impl Family for ColorWheelTokens {
     type Field = ColorWheelField;
     const FIELDS: &'static [ColorWheelField] = &[ColorWheelField::Spoke];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ColorWheelTokens;
+        "side" 0.0..=1024.0 => side;
+        "side_min" 0.0..=1024.0 => side_min;
+        "ring_min" 0.0..=1024.0 => ring_min;
+        "ring_max" 0.0..=1024.0 => ring_max;
+        "outer_inset" 0.0..=64.0 => outer_inset;
+        "triangle_inset" 0.0..=64.0 => triangle_inset;
+        "grab_outer" 0.0..=64.0 => grab_outer;
+        "grab_inner" 0.0..=64.0 => grab_inner;
+        "disc_inset" 0.0..=64.0 => disc_inset;
+        "disc_marker" 0.0..=1024.0 => disc_marker;
+        "disc_marker_selected" 0.0..=1024.0 => disc_marker_selected;
+        "disc_grab" 0.0..=64.0 => disc_grab;
+    };
 
     /// The Compact sizes (PhotoCraft's wheel, VectorCraft's harmony wheel), scaled by the control
     /// height of the size; a scaled value is rounded to whole points, the Compact values are not;

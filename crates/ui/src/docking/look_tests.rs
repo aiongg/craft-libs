@@ -58,7 +58,7 @@ fn stacked_controls_in_a_panel_body_are_the_body_gap_apart() {
         floating: vec![Floating::single(vec![1], 0, [300.0, 20.0, 160.0, 160.0]).with_id(1)],
     };
     for size in [Size::Compact, Size::Comfortable] {
-        let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size };
+        let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size, sizes: Default::default() };
         let base =
             crate::theme::Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |id| {
                 builtins().iter().find(|t| t.id == *id).cloned()
@@ -381,7 +381,8 @@ fn a_docked_slider_row_is_the_photocraft_pitch() {
             Permissions::default()
         }
     }
-    let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Compact };
+    let defaults =
+        AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Light, size: Size::Compact, sizes: Default::default() };
     let base =
         crate::theme::Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |id| {
             builtins().iter().find(|t| t.id == *id).cloned()

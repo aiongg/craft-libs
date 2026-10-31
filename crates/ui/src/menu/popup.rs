@@ -172,6 +172,7 @@ impl<'a, T: Clone> Menu<'a, T> {
     pub fn show(self, ui: &Ui, popup: Popup<'_>) -> MenuResponse<T> {
         let ctx = ui.ctx().clone();
         let id = popup.get_id();
+        popup_list::in_front_of(&ctx, ui.layer_id(), id);
         let shown_before = ctx.read_response(id).is_some();
         let tokens = Tokens::of(ui);
         let style = MenuStyle::new(&tokens, self.size);

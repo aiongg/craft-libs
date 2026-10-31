@@ -2,7 +2,8 @@
 //! draws in `surface.panel` with a `line.divider` hairline on its inner edge, and the selected
 //! button is the icon button's toggle look.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
+use crate::values;
 
 /// Toolbar tokens, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -22,6 +23,9 @@ pub struct ToolbarTokens {
     pub width: f32,
     /// Width of the overflow button: `toolbar.overflow`.
     pub overflow: f32,
+    /// Space between two buttons laid out by the toolbar, the button's side less 2:
+    /// `toolbar.spacing`.
+    pub spacing: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -31,6 +35,17 @@ pub enum ToolbarField {}
 impl Family for ToolbarTokens {
     type Field = ToolbarField;
     const FIELDS: &'static [ToolbarField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ToolbarTokens;
+        "button" 0.0..=1024.0 => button;
+        "button_large" 0.0..=1024.0 => button_large;
+        "gap" 0.0..=64.0 => gap;
+        "group_gap" 0.0..=64.0 => group_gap;
+        "pad.0" 0.0..=64.0 => pad[0];
+        "pad.1" 0.0..=64.0 => pad[1];
+        "width" 0.0..=1024.0 => width;
+        "overflow" 0.0..=1024.0 => overflow;
+        "spacing" 0.0..=1024.0 => spacing;
+    };
 
     /// PhotoCraft's Liquify strip and the horizontal 26 point toolbar at Compact.
     fn defaults(s: &Semantic<'_>) -> ToolbarTokens {
@@ -42,6 +57,7 @@ impl Family for ToolbarTokens {
             pad: s.set.toolbar_pad,
             width: s.set.toolbar_width,
             overflow: s.set.toolbar_overflow,
+            spacing: s.set.toolbar_button - values::TOOLBAR_SPACING_TRIM,
         }
     }
 

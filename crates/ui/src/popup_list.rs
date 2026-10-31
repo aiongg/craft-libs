@@ -9,11 +9,24 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use egui::{
-    Align, Context, Frame, Id, Margin, Popup, PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Shape, Style, TextWrapMode, Ui,
-    style::StyleModifier,
+    Align, Context, Frame, Id, LayerId, Margin, Order, Popup, PopupCloseBehavior, Rect, RectAlign, Response, Role, ScrollArea, Shape, Style,
+    TextWrapMode, Ui, style::StyleModifier,
 };
 
 use crate::primitives::{SurfaceEdge, SurfaceStyle};
+
+/// Keeps the popup `popup` in front of `host`, the layer of the widget it opens from.
+///
+/// A popup that opens in the pass its host's layer is raised in (a press in a modal raises it)
+/// is raised with it, and egui's stable sort would leave it under the host. As a sublayer it
+/// always sits directly above its host. Only a host in the popups' own order needs it: a window
+/// in a lower order is under every popup already.
+pub(crate) fn in_front_of(ctx: &Context, host: LayerId, popup: Id) {
+    let layer = LayerId::new(Order::Foreground, popup);
+    if host.order == Order::Foreground && host != layer {
+        ctx.set_sublayer(host, layer);
+    }
+}
 
 /// A list in a popup under a field, at least as wide as the field.
 ///
@@ -27,6 +40,7 @@ use crate::primitives::{SurfaceEdge, SurfaceStyle};
 pub(crate) struct PopupList<'a> {
     popup: Popup<'a>,
     ctx: Context,
+    host: LayerId,
     field: Rect,
     /// The widgets whose keyboard focus is the field's: the field, and anything that takes the
     /// focus in its place (a search field in the popup).
@@ -54,6 +68,7 @@ impl<'a> PopupList<'a> {
         Self {
             popup: popup.align_alternatives(flipped),
             ctx: field.ctx.clone(),
+            host: field.layer_id,
             field: field.rect,
             owners: vec![field.id],
             height: ui.spacing().combo_height,
@@ -164,7 +179,7 @@ impl<'a> PopupList<'a> {
         list: impl FnOnce(ScrollArea, &mut Ui, H) -> R,
         footer: Option<impl FnOnce(&mut Ui) -> F>,
     ) -> Option<(R, Option<F>)> {
-        let Self { popup, ctx, field, owners, height, style, scoped, mut close_behavior, open, surface } = self;
+        let Self { popup, ctx, host, field, owners, height, style, scoped, mut close_behavior, open, surface } = self;
         let style = match scoped {
             Some(scoped) => StyleModifier::new(move |s: &mut Style| {
                 *s = (*scoped).clone();
@@ -173,6 +188,7 @@ impl<'a> PopupList<'a> {
             None => style,
         };
         let id = popup.get_id();
+        in_front_of(&ctx, host, id);
         ctx.data_mut(|d| d.insert_temp(id.with(ANCHOR), field));
         let flagged = open.is_some();
         let popup = match open {

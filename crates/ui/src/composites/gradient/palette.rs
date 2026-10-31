@@ -24,10 +24,6 @@ use crate::primitives::{Content, FocusRing, Gap, Interactive, Text};
 use crate::theme::{Tokens, TokensOf};
 use craft_theme::TypeRole;
 
-/// Room round a grid cell for the selection ring and the focus ring, as [`Swatch`] palettes
-/// leave: cells stand twice this apart.
-const ROOM: f32 = 3.0;
-
 /// How a [`GradientPalette`] lays its presets out.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum PaletteLayout {
@@ -269,7 +265,7 @@ impl<'a> GradientPalette<'a> {
         let t = tokens.component.gradient_palette;
         let rtl = direction::is_rtl(ui);
         let width = ui.available_width();
-        let slot = vec2(t.cell_width + 2.0 * ROOM, t.cell_height + 2.0 * ROOM);
+        let slot = vec2(t.cell_width + 2.0 * t.cell_room, t.cell_height + 2.0 * t.cell_room);
         let columns = GridNav::columns(width, 0.0, 0.0, slot.x);
         let nav = GridNav::ragged(shown.iter().flat_map(|(_, r)| {
             let n = r.len();
@@ -294,7 +290,7 @@ impl<'a> GradientPalette<'a> {
                 let (row, col) = (k / columns, k % columns);
                 let x = if rtl { area.right() - (col + 1) as f32 * slot.x } else { area.left() + col as f32 * slot.x };
                 let rect = Rect::from_min_size(pos2(x, area.top() + row as f32 * slot.y), slot);
-                let cell = rect.shrink(ROOM);
+                let cell = rect.shrink(t.cell_room);
                 let element = Interactive::with_id(ids[i], Role::Button, entry.name.as_str())
                     .sense(if i == stop { Sense::click() } else { Sense::CLICK })
                     .state_layer(false)

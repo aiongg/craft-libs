@@ -265,9 +265,10 @@ impl<'a> SwatchPair<'a> {
         let id = ui.make_persistent_id(id_salt);
         let tokens = Tokens::of(ui);
         let style = SwatchPair::style(&tokens);
+        let pair = &tokens.component.color_picker;
         let chips = Vec2::splat(style.well + style.step);
         // The icon row over the chips, when there is an icon.
-        let header = if swap.is_some() || defaults.is_some() { ICON + ICON_GAP } else { 0.0 };
+        let header = if swap.is_some() || defaults.is_some() { pair.pair_icon + pair.pair_icon_gap } else { 0.0 };
         let block = vec2(chips.x, header + chips.y);
         let available = ui.available_rect_before_wrap();
         // In a column that centres its items (a tool rail's footer) the block is centred.
@@ -283,7 +284,7 @@ impl<'a> SwatchPair<'a> {
             let swatch = Swatch::style(&tokens, ControlSize::Md);
             let (area, _) = ui.allocate_exact_size(block, Sense::hover());
             let rects = well_rects(ui, &style, Rect::from_min_max(area.min + vec2(0.0, header), area.max));
-            let icon_rects = icon_rects(ui, area);
+            let icon_rects = icon_rects(ui, area, pair.pair_icon);
             let ids = [Interactive::id_in(ui, (id, "primary")), Interactive::id_in(ui, (id, "secondary"))];
             let index = |w: Well| w as usize;
 
@@ -461,10 +462,6 @@ fn roving_target(ui: &Ui, ids: &[Id; 2], focused: Option<usize>) -> Option<usize
     to
 }
 
-/// Side of the icon boxes over the chips, and the gap between them and the chips.
-const ICON: f32 = 13.0;
-const ICON_GAP: f32 = 3.0;
-
 #[derive(Clone, Copy)]
 enum Glyph {
     Defaults,
@@ -472,22 +469,22 @@ enum Glyph {
 }
 
 /// The default button's box at the start of the icon row and the swap button's at the end.
-fn icon_rects(ui: &Ui, area: Rect) -> [Rect; 2] {
-    let side = Vec2::splat(ICON);
-    let (left, right) = (Rect::from_min_size(area.min, side), Rect::from_min_size(pos2(area.max.x - ICON, area.min.y), side));
+fn icon_rects(ui: &Ui, area: Rect, icon: f32) -> [Rect; 2] {
+    let side = Vec2::splat(icon);
+    let (left, right) = (Rect::from_min_size(area.min, side), Rect::from_min_size(pos2(area.max.x - icon, area.min.y), side));
     if direction::is_rtl(ui) { [right, left] } else { [left, right] }
 }
 
-/// The corner radius of the chips and of the icons' hover boxes: the swatch's, at most 3.
-fn chip_radius(swatch: &SwatchStyle) -> f32 {
-    f32::from(swatch.radius.nw).min(3.0)
+/// The corner radius of the chips and of the icons' hover boxes: the swatch's, at most `radius.control`.
+fn chip_radius(tokens: &UiTokens, swatch: &SwatchStyle) -> f32 {
+    f32::from(swatch.radius.nw).min(tokens.shape.radius.control)
 }
 
 /// One glyph in its icon box, with a `hover` box behind it while hot. `state` is hot and enabled.
 fn paint_icon(ui: &Ui, tokens: &UiTokens, swatch: &SwatchStyle, rect: Rect, (hot, enabled): (bool, bool), glyph: Glyph, chrome: Color32) {
     let painter = ui.painter();
     if hot {
-        painter.rect_filled(rect.expand(2.0), chip_radius(swatch), tokens.color.state.hover.to_egui());
+        painter.rect_filled(rect.expand(2.0), chip_radius(tokens, swatch), tokens.color.state.hover.to_egui());
     }
     let ink = if hot { tokens.color.text.normal } else { tokens.color.text.muted }.to_egui();
     let ink = if enabled { ink } else { tokens.color.text.disabled.to_egui() };
@@ -548,12 +545,12 @@ fn paint_well(
     let painter = ui.painter();
     let radius = swatch.radius;
     if let Some(gap) = gap {
-        let round = CornerRadius::same(radius.nw.min(3) + style.gap.round() as u8);
+        let round = CornerRadius::same(radius.nw.min(tokens.shape.radius.control.round() as u8) + style.gap.round() as u8);
         painter.add(RectShape::filled(rect.expand(style.gap), round, gap));
     }
     let rgba = spec.color.to_rgba();
     if !spec.ring {
-        let radius = CornerRadius::same(radius.nw.min(3));
+        let radius = CornerRadius::same(radius.nw.min(tokens.shape.radius.control.round() as u8));
         let fade = |c: Color32| if enabled { c } else { c.gamma_multiply(0.5) };
         if rgba.a() < 255 {
             painter.extend(checkerboard(rect, radius, swatch.checker, swatch.checker_cell));

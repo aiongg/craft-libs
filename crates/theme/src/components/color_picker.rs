@@ -4,7 +4,7 @@
 //! the colour it sits on; its two rings contrast with each other, so one of them reads on any
 //! colour. The picker's other colours come from the line and text tokens.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::TokenRef;
 use crate::values;
@@ -49,6 +49,10 @@ pub struct ColorPickerTokens {
     pub pair_gap: f32,
     /// Width of a ring well's band: `color_picker.pair_ring`.
     pub pair_ring: f32,
+    /// Side of the Defaults and Swap icon boxes over the chips: `color_picker.pair_icon`.
+    pub pair_icon: f32,
+    /// Between those icon boxes and the chips: `color_picker.pair_icon_gap`.
+    pub pair_icon_gap: f32,
     /// The area marker's inner circle: `color_picker.marker`, white.
     pub marker: Rgba,
     /// The marker's outer ring: `color_picker.marker_halo`, black at alpha 160.
@@ -68,6 +72,28 @@ pub enum ColorPickerField {
 impl Family for ColorPickerTokens {
     type Field = ColorPickerField;
     const FIELDS: &'static [ColorPickerField] = &[ColorPickerField::Marker, ColorPickerField::MarkerHalo];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ColorPickerTokens;
+        "area" 0.0..=1024.0 => area;
+        "area_height" 0.0..=1024.0 => area_height;
+        "strip_full" 0.0..=1024.0 => strip_full;
+        "strip" 0.0..=1024.0 => strip;
+        "compare_width" 0.0..=1024.0 => compare_width;
+        "compare_height" 0.0..=1024.0 => compare_height;
+        "marker_inner_radius" 0.0..=1024.0 => marker_inner_radius;
+        "marker_inner_width" 0.0..=16.0 => marker_inner_width;
+        "marker_outer_radius" 0.0..=1024.0 => marker_outer_radius;
+        "marker_outer_width" 0.0..=16.0 => marker_outer_width;
+        "pointer_width" 0.0..=1024.0 => pointer_width;
+        "pointer_height" 0.0..=1024.0 => pointer_height;
+        "warning_icon" 0.0..=1024.0 => warning_icon;
+        "warning_chip" 0.0..=1024.0 => warning_chip;
+        "pair_well" 0.0..=1024.0 => pair_well;
+        "pair_step" 0.0..=1024.0 => pair_step;
+        "pair_gap" 0.0..=64.0 => pair_gap;
+        "pair_ring" 0.0..=16.0 => pair_ring;
+        "pair_icon" 0.0..=64.0 => pair_icon;
+        "pair_icon_gap" 0.0..=64.0 => pair_icon_gap;
+    };
 
     /// The Compact sizes (PhotoCraft's), scaled by the control height of the size. Sizes of
     /// strokes and shapes round to half points, the rest to whole points.
@@ -94,6 +120,8 @@ impl Family for ColorPickerTokens {
             pair_step: scale(values::COLOR_PICKER_PAIR_STEP),
             pair_gap: fine(values::COLOR_PICKER_PAIR_GAP),
             pair_ring: scale(values::COLOR_PICKER_PAIR_RING),
+            pair_icon: values::COLOR_PICKER_PAIR_ICON,
+            pair_icon_gap: values::COLOR_PICKER_PAIR_ICON_GAP,
             marker: values::COLOR_PICKER_MARKER,
             marker_halo: values::COLOR_PICKER_MARKER_HALO,
         }

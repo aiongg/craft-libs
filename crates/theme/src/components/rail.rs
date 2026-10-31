@@ -12,7 +12,7 @@
 //! to the non-text minimum on what it sits on. The flyout indicator is a hint beside the
 //! accessible `has_popup` name, so it has no pair. The edge line is a design target.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::TokenRef;
 use crate::values;
@@ -167,6 +167,25 @@ impl Family for RailTokens {
         RailField::Marker,
         RailField::Edge,
     ];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { RailTokens;
+        "width" 0.0..=1024.0 => width;
+        "button" 0.0..=1024.0 => button;
+        "panel_width" 0.0..=1024.0 => panel_width;
+        "panel_button" 0.0..=1024.0 => panel_button;
+        "icon_size" 0.0..=1024.0 => icon;
+        "panel_icon" 0.0..=1024.0 => panel_icon;
+        "gap" 0.0..=64.0 => gap;
+        "row_gap" 0.0..=64.0 => row_gap;
+        "panel_gap" 0.0..=64.0 => panel_gap;
+        "pad_y" 0.0..=64.0 => pad_y;
+        "toggle_height" 0.0..=1024.0 => toggle_height;
+        "toggle_icon" 0.0..=1024.0 => toggle_icon;
+        "flyout_gap" 0.0..=64.0 => flyout_gap;
+        "indicator_size" 0.0..=1024.0 => indicator_size;
+        "indicator_inset" 0.0..=64.0 => indicator_inset;
+        "marker_radius" 0.0..=1024.0 => marker_radius;
+        "selected_border_width" 0.0..=16.0 => selected_border_width;
+    };
 
     fn defaults(s: &Semantic<'_>) -> RailTokens {
         let (c, rail) = (s.color, s.size.rail);

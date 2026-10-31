@@ -2,7 +2,7 @@
 //! the semantic `overlay.*` tokens; the family holds only their geometry, which no theme
 //! overrides.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Handle tokens.
@@ -26,6 +26,12 @@ pub enum HandleField {}
 impl Family for HandleTokens {
     type Field = HandleField;
     const FIELDS: &'static [HandleField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { HandleTokens;
+        "size" 0.0..=1024.0 => size;
+        "stroke" 0.0..=16.0 => stroke;
+        "halo" 0.0..=16.0 => halo;
+        "hit" 0.0..=64.0 => hit;
+    };
 
     fn defaults(_: &Semantic<'_>) -> HandleTokens {
         HandleTokens { size: values::HANDLE_SIZE, stroke: values::HANDLE_STROKE, halo: values::HANDLE_HALO, hit: values::HANDLE_HIT }

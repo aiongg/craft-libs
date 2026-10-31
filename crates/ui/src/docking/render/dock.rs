@@ -77,7 +77,7 @@ pub(in crate::docking) fn dock_rects<P>(
 ) -> (Rect, Rect, f32) {
     let gap = look.gap;
     let room = (rect.width() - gap - super::node_limits(other, look, content).min.x).clamp(0.0, rect.width());
-    let width = columns.iter().map(|c| column_width(c, look)).sum::<f32>().clamp(0.0, room);
+    let width = columns.iter().map(|c| column_width(c, look, content)).sum::<f32>().clamp(0.0, room);
     let (dock, rest) = match edge_of(side, config.right_to_left) {
         Edge::Left => (
             Rect::from_min_max(rect.min, pos2(rect.left() + width, rect.bottom())),
@@ -91,8 +91,26 @@ pub(in crate::docking) fn dock_rects<P>(
     (dock, rest, room)
 }
 
-pub(in crate::docking) fn column_width<P>(column: &Column<P>, look: &DockLook) -> f32 {
-    if column.iconic { column.iconic_width.unwrap_or(look.iconic_width).clamp(look.iconic_width, look.iconic_max_width) } else { column.width }
+/// The width of a column before the dock's room shrinks it: an iconic column's, or an expanded
+/// column's stored width kept within its panels' limits ([`column_limits`]).
+pub(in crate::docking) fn column_width<P>(column: &Column<P>, look: &DockLook, content: &dyn crate::docking::DockContent<P>) -> f32 {
+    if column.iconic {
+        return column.iconic_width.unwrap_or(look.iconic_width).clamp(look.iconic_width, look.iconic_max_width);
+    }
+    let (lo, hi) = column_limits(column, look, content);
+    column.width.clamp(lo, hi)
+}
+
+/// Width bounds of an expanded column from its panels' limits.
+pub(in crate::docking) fn column_limits<P>(column: &Column<P>, look: &DockLook, content: &dyn crate::docking::DockContent<P>) -> (f32, f32) {
+    let mut lo = look.min_pane;
+    let mut hi = f32::INFINITY;
+    for panel in column.groups.iter().flat_map(|g| g.panels.iter()) {
+        let limits = content.limits(panel);
+        lo = lo.max(limits.min.x);
+        hi = hi.min(limits.max.x);
+    }
+    (lo, hi.max(lo))
 }
 
 /// [D] A dock's columns as drawn in its rect: each column's width bounds, natural width with
@@ -374,8 +392,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         };
         let bounds: Vec<(f32, f32)> =
             columns.iter().map(|c| if c.iconic { (self.look.iconic_width, self.look.iconic_max_width) } else { self.column_bounds(c) }).collect();
-        let natural: Vec<(f32, Option<f32>)> =
-            columns.iter().zip(&bounds).map(|(c, (lo, _))| (column_width(c, self.look), (!c.iconic).then_some(lo.max(1.0)))).collect();
+        let natural: Vec<(f32, Option<f32>)> = columns
+            .iter()
+            .zip(&bounds)
+            .map(|(c, (lo, _))| (column_width(c, self.look, &*self.content), (!c.iconic).then_some(lo.max(1.0))))
+            .collect();
         let widths = fit_widths(&natural, rect.width());
         let mut x = outer;
         let mut rects = Vec::new();
@@ -415,14 +436,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 
     /// Width bounds of an expanded column from its panels' limits.
     fn column_bounds(&self, column: &Column<P>) -> (f32, f32) {
-        let mut lo = self.look.min_pane;
-        let mut hi = f32::INFINITY;
-        for panel in column.groups.iter().flat_map(|g| g.panels.iter()) {
-            let limits = self.limits(panel);
-            lo = lo.max(limits.min.x);
-            hi = hi.min(limits.max.x);
-        }
-        (lo, hi.max(lo))
+        column_limits(column, self.look, &*self.content)
     }
 
     /// Least height of an open group: its strip and the tallest minimum of its panels.

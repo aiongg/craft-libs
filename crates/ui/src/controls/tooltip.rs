@@ -130,7 +130,8 @@ impl TooltipExt for Response {
 
     fn tooltip_ui_at_pointer(self, add_contents: impl FnOnce(&mut Ui)) -> Self {
         let tooltip = if self.enabled() { egui::Tooltip::for_enabled(&self) } else { egui::Tooltip::for_disabled(&self) };
-        show_on(&self, tooltip.at_pointer().gap(POINTER_GAP), add_contents);
+        let gap = current(&self.ctx).component.tooltip.pointer_gap;
+        show_on(&self, tooltip.at_pointer().gap(gap), add_contents);
         self
     }
 
@@ -146,9 +147,6 @@ impl TooltipExt for Response {
         });
     }
 }
-
-/// Points between the pointer and a tooltip placed at it, as egui's `on_hover_ui_at_pointer`.
-const POINTER_GAP: f32 = 12.0;
 
 /// Shows `tooltip` for `response` with the frame and contents style of the tokens in effect.
 fn show_on(response: &Response, mut tooltip: egui::Tooltip<'_>, add_contents: impl FnOnce(&mut Ui)) {

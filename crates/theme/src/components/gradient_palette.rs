@@ -1,7 +1,7 @@
 //! Gradient palettes: the grid and list of gradient presets in groups. The sizes scale with the
 //! control height, and no theme overrides them; the colours are semantic tokens.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// GradientPalette tokens. Sizes are in points.
@@ -18,6 +18,8 @@ pub struct GradientPaletteTokens {
     pub list_swatch_height: f32,
     /// Height at which the palette scrolls: `gradient_palette.max_height`.
     pub max_height: f32,
+    /// Room round each cell: `gradient_palette.cell_room`.
+    pub cell_room: f32,
 }
 
 /// GradientPalettes have no overridable field: their sizes come from the code, as every size does.
@@ -27,6 +29,14 @@ pub enum GradientPaletteField {}
 impl Family for GradientPaletteTokens {
     type Field = GradientPaletteField;
     const FIELDS: &'static [GradientPaletteField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { GradientPaletteTokens;
+        "cell_width" 0.0..=1024.0 => cell_width;
+        "cell_height" 0.0..=1024.0 => cell_height;
+        "list_swatch_width" 0.0..=1024.0 => list_swatch_width;
+        "list_swatch_height" 0.0..=1024.0 => list_swatch_height;
+        "max_height" 0.0..=1024.0 => max_height;
+        "cell_room" 0.0..=64.0 => cell_room;
+    };
 
     /// The Compact sizes, scaled by the control height of the size and rounded to whole points.
     fn defaults(s: &Semantic<'_>) -> GradientPaletteTokens {
@@ -38,6 +48,7 @@ impl Family for GradientPaletteTokens {
             list_swatch_width: scale(values::GRADIENT_PALETTE_LIST_SWATCH_WIDTH),
             list_swatch_height: scale(values::GRADIENT_PALETTE_LIST_SWATCH_HEIGHT),
             max_height: scale(values::GRADIENT_PALETTE_MAX_HEIGHT),
+            cell_room: values::GRADIENT_PALETTE_CELL_ROOM,
         }
     }
 

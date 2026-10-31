@@ -2,7 +2,7 @@
 //! is a popup surface, its scrim is `surface.scrim`, its active row `menu.active_fill` and
 //! `menu.active_text`, its detail text `menu.shortcut` and its disabled rows `text.disabled`.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Command palette tokens, in points (`max_rows` and `recent` are counts).
@@ -30,6 +30,12 @@ pub enum CommandPaletteField {}
 impl Family for CommandPaletteTokens {
     type Field = CommandPaletteField;
     const FIELDS: &'static [CommandPaletteField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { CommandPaletteTokens;
+        "width" 0.0..=1024.0 => width;
+        "top" 0.0..=1024.0 => top;
+        "pad" 0.0..=64.0 => pad;
+        "row_height" 0.0..=1024.0 => row_height;
+    };
 
     /// PhotoCraft's palette (560 wide, 110 from the top, 32 rows, 12 rows shown); the row height
     /// follows the Size.

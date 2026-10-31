@@ -12,7 +12,7 @@
 //! without the pointer, is a state indicator: 3:1 (4.5:1 with high contrast) on the panel. The
 //! ghost's fill is a design target with no minimum. Each pair is measured at rest.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, Identify, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, Identify, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Oklch;
 use crate::color::Rgba;
 use crate::contrast::{contrast_ratio, ensure_contrast};
@@ -60,6 +60,8 @@ pub struct ListTokens {
     pub bracket_outset: f32,
     /// Arm length of the second-thumb brackets: `list.bracket_arm`.
     pub bracket_arm: f32,
+    /// Where the drag ghost starts from the pointer toward the reading end: `list.ghost_offset`.
+    pub ghost_offset: [f32; 2],
     /// Type role of the label.
     pub label: TypeRole,
     /// Type role of the detail line under the label.
@@ -507,6 +509,27 @@ const FIELDS: [ListField; FIELD_COUNT] = {
 impl Family for ListTokens {
     type Field = ListField;
     const FIELDS: &'static [ListField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { ListTokens;
+        "row_height" 0.0..=1024.0 => row_height;
+        "thumb.sm" 0.0..=96.0 => thumb.sm;
+        "thumb.md" 0.0..=96.0 => thumb.md;
+        "thumb.lg" 0.0..=96.0 => thumb.lg;
+        "thumb_pad" 0.0..=64.0 => thumb_pad;
+        "thumb_row_min" 0.0..=1024.0 => thumb_row_min;
+        "pad_x" 0.0..=64.0 => pad_x;
+        "gap" 0.0..=64.0 => gap;
+        "indent" 0.0..=1024.0 => indent;
+        "disclosure" 0.0..=1024.0 => disclosure;
+        "toggle_column" 0.0..=1024.0 => toggle_column;
+        "min_label" 0.0..=1024.0 => min_label;
+        "trailing_pad" 0.0..=64.0 => trailing_pad;
+        "drop_width" 0.0..=1024.0 => drop_width;
+        "drop_halo_width" 0.0..=16.0 => drop_halo_width;
+        "bracket_outset" 0.0..=64.0 => bracket_outset;
+        "bracket_arm" 0.0..=1024.0 => bracket_arm;
+        "ghost_offset.0" -64.0..=64.0 => ghost_offset[0];
+        "ghost_offset.1" -64.0..=64.0 => ghost_offset[1];
+    };
 
     fn defaults(s: &Semantic<'_>) -> ListTokens {
         let (c, list) = (s.color, &s.size.list);
@@ -531,6 +554,7 @@ impl Family for ListTokens {
             drop_halo_width: values::LIST_DROP_HALO,
             bracket_outset: values::LIST_BRACKET_OUTSET,
             bracket_arm: values::LIST_BRACKET_ARM,
+            ghost_offset: values::LIST_GHOST_OFFSET,
             label: TypeRole::Body,
             detail_role: TypeRole::Caption,
             text: c.text.normal,

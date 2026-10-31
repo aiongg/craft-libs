@@ -2,7 +2,7 @@
 //! with on the canvas. Their colours are the semantic `overlay.*` tokens or the stop's own; the
 //! family holds their geometry, the same at every Size because the line sits on the document.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Gradient line tokens.
@@ -44,6 +44,21 @@ pub enum GradientLineField {}
 impl Family for GradientLineTokens {
     type Field = GradientLineField;
     const FIELDS: &'static [GradientLineField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { GradientLineTokens;
+        "line" 0.0..=16.0 => line;
+        "halo" 0.0..=16.0 => halo;
+        "end_ring" 0.0..=16.0 => end_ring;
+        "end_width" 0.0..=1024.0 => end_width;
+        "end_halo" 0.0..=16.0 => end_halo;
+        "stop" 0.0..=1024.0 => stop;
+        "stop_ring" 0.0..=16.0 => stop_ring;
+        "diamond" 0.0..=1024.0 => diamond;
+        "hit" 0.0..=64.0 => hit;
+        "click_slop" 0.0..=64.0 => click_slop;
+        "tear_off" 0.0..=64.0 => tear_off;
+        "dash" 0.0..=16.0 => dash;
+        "gap" 0.0..=64.0 => gap;
+    };
 
     fn defaults(_: &Semantic<'_>) -> GradientLineTokens {
         GradientLineTokens {

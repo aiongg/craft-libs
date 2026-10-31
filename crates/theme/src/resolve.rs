@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use super::app_sizes::AppSizes;
 use super::components::{ComponentField, ComponentTokens, Semantic};
 use super::derive::{self, ColorSteps, ContrastCheck};
 use super::ramp::Mode;
@@ -34,7 +35,13 @@ pub struct Resolved {
 /// then take the theme's component overrides and their own contrast pass. With `app`, that app's
 /// overrides in the theme apply over the theme's own pins and components.
 pub fn resolve(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Resolved {
-    resolve_core(theme, appearance, app).0.resolved
+    resolve_sized(theme, appearance, app, &AppSizes::default())
+}
+
+/// [`resolve`] with an app's size overrides: its base overrides apply after the size set and
+/// before derivation, its component pins after derivation.
+pub fn resolve_sized(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>, sizes: &AppSizes) -> Resolved {
+    resolve_core(theme, appearance, app, sizes).0.resolved
 }
 
 /// The intermediate values of [`resolve`], which [`explain`](crate::explain) reports.
@@ -53,10 +60,10 @@ pub(super) struct Steps {
 }
 
 /// [`resolve`], and the steps on the way.
-pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> (Resolved, Steps) {
-    let (core, concrete) = resolve_core(theme, appearance, app);
+pub(super) fn resolve_with_steps(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>, sizes: &AppSizes) -> (Resolved, Steps) {
+    let (core, concrete) = resolve_core(theme, appearance, app, sizes);
     let concrete = concrete.as_ref().unwrap_or(theme);
-    let (component_before, component_pairs_before) = components_before(concrete, appearance, app, &core);
+    let (component_before, component_pairs_before) = components_before(concrete, appearance, app, sizes, &core);
     let Core { resolved, color, component_pins, component_pairs } = core;
     (resolved, Steps { color, component_pins, component_before, component_pairs_before, component_pairs })
 }
@@ -71,11 +78,11 @@ struct Core {
 
 /// The resolution of `theme`, and the theme with its references replaced by their values when it
 /// had any (the theme the resolution was derived from).
-fn resolve_core(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> (Core, Option<ThemeDef>) {
-    match settle_references(theme, appearance, app) {
+fn resolve_core(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>, sizes: &AppSizes) -> (Core, Option<ThemeDef>) {
+    match settle_references(theme, appearance, app, sizes) {
         Some(Settled { theme: concrete, resolution: Some(done), .. }) => (done, Some(concrete)),
-        Some(Settled { theme: concrete, .. }) => (resolve_concrete(&concrete, appearance, app), Some(concrete)),
-        None => (resolve_concrete(theme, appearance, app), None),
+        Some(Settled { theme: concrete, .. }) => (resolve_concrete(&concrete, appearance, app, sizes), Some(concrete)),
+        None => (resolve_concrete(theme, appearance, app, sizes), None),
     }
 }
 
@@ -83,7 +90,7 @@ fn resolve_core(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -
 /// applies them: the ones that depend on themselves through derivation, such as
 /// `state.selected = "{state.selected_hover}"` with a hover state derived from the selected one.
 pub(super) fn unsettled_references(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Vec<(PinLayer, TokenRef)> {
-    settle_references(theme, appearance, app).map(|s| s.unsettled).unwrap_or_default()
+    settle_references(theme, appearance, app, &AppSizes::default()).map(|s| s.unsettled).unwrap_or_default()
 }
 
 /// What [`settle_references`] leaves.
@@ -103,7 +110,7 @@ struct Settled {
 /// have changed another, and a value depends on at most every other reference, so the rounds stop
 /// after one more than the number of references; a reference still changing then is returned
 /// with the pins of the last round. `None` when no reference applies.
-fn settle_references(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Option<Settled> {
+fn settle_references(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>, sizes: &AppSizes) -> Option<Settled> {
     let mode = theme.variants.mode_for(appearance.mode);
     let high = appearance.contrast == Contrast::High;
     let has_app = app.is_some_and(|a| theme.apps.contains_key(a));
@@ -135,7 +142,7 @@ fn settle_references(theme: &ThemeDef, appearance: Appearance, app: Option<&AppI
     let mut unsettled = Vec::new();
     let mut resolution = None;
     for _ in 0..=pending.len() + 1 {
-        let core = resolve_concrete(&work, appearance, app);
+        let core = resolve_concrete(&work, appearance, app, sizes);
         let tokens = &core.resolved.tokens;
         unsettled.clear();
         for &(layer, key, target) in &pending {
@@ -186,12 +193,13 @@ fn all_pins_mut(theme: &mut ThemeDef) -> impl Iterator<Item = &mut Pins> {
     [&mut theme.pins, &mut theme.high_contrast].into_iter().chain(apps).flat_map(|m| [&mut m.light, &mut m.dark])
 }
 
-fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>) -> Core {
+fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>, sizes: &AppSizes) -> Core {
     let mode = theme.variants.mode_for(appearance.mode);
     let (color, color_steps) = derive::colors(theme, app, mode, appearance.contrast);
     let mut warnings: Vec<ContrastCheck> = color_steps.warnings().collect();
     let set = sizes::builtin(appearance.size);
-    let preset = &set.base;
+    let mut preset = set.base;
+    sizes.apply_base(appearance.size, &mut preset);
 
     let seed = theme.shape;
     let radius = seed.and_then(|s| s.radius).unwrap_or(preset.radius);
@@ -225,6 +233,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
     let high = appearance.contrast == Contrast::High;
     let on_accent_pinned = color_steps.pins.contains_key(&ColorToken::TextOnAccent);
     let component_pins = derive::component_overrides(&mut component, theme, app, mode, high, &color, on_accent_pinned);
+    sizes.apply_pins(appearance.size, &mut component);
     let (component_pairs, component_warnings) = derive::component_colors(&mut component, &color, high);
     warnings.extend(component_warnings);
 
@@ -245,7 +254,13 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
 /// The component tokens before any contrast pass, and their pairs: the defaults and overrides on
 /// the semantic colours before the semantic pass. Only [`explain`](crate::explain) reads them.
 /// `theme` is the concrete theme `core` was derived from.
-fn components_before(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId>, core: &Core) -> (ComponentTokens, Vec<ContrastCheck>) {
+fn components_before(
+    theme: &ThemeDef,
+    appearance: Appearance,
+    app: Option<&AppId>,
+    sizes: &AppSizes,
+    core: &Core,
+) -> (ComponentTokens, Vec<ContrastCheck>) {
     let tokens = &core.resolved.tokens;
     let mode = core.resolved.variant_used;
     let high = appearance.contrast == Contrast::High;
@@ -263,6 +278,7 @@ fn components_before(theme: &ThemeDef, appearance: Appearance, app: Option<&AppI
         high,
     });
     derive::component_overrides(&mut component, theme, app, mode, high, before, on_accent_pinned);
+    sizes.apply_pins(appearance.size, &mut component);
     let pairs = derive::measure_components(&component, before, high);
     (component, pairs)
 }

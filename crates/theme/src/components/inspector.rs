@@ -1,7 +1,7 @@
 //! Inspectors: the body of a Properties panel. The family holds the target header's row height and
 //! icon, the body padding, and the colours of the header's name and kind text.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{ColorToken, TokenRef};
 use crate::values;
@@ -16,6 +16,8 @@ pub struct InspectorTokens {
     pub icon: f32,
     /// Padding round the body: `inspector.pad` (`space.pad.panel`).
     pub pad: f32,
+    /// Least width left to the name before the kind text is dropped: `inspector.kind_min_name`.
+    pub kind_min_name: f32,
     /// The header's name: `text.normal`.
     pub title: Rgba,
     /// The header's kind text: `text.faint`.
@@ -34,6 +36,12 @@ pub enum InspectorField {
 impl Family for InspectorTokens {
     type Field = InspectorField;
     const FIELDS: &'static [InspectorField] = &[InspectorField::Title, InspectorField::Kind];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { InspectorTokens;
+        "header_height" 0.0..=1024.0 => header_height;
+        "icon" 0.0..=1024.0 => icon;
+        "pad" 0.0..=64.0 => pad;
+        "kind_min_name" 0.0..=1024.0 => kind_min_name;
+    };
 
     /// PhotoCraft's properties header (24 high) at Compact; the row and icon follow the Size.
     fn defaults(s: &Semantic<'_>) -> InspectorTokens {
@@ -41,6 +49,7 @@ impl Family for InspectorTokens {
             header_height: s.set.inspector_header_height,
             icon: s.set.inspector_icon,
             pad: s.space.pad.panel,
+            kind_min_name: values::INSPECTOR_KIND_MIN_NAME,
             title: s.color.text.normal,
             kind: s.color.text.faint,
         }

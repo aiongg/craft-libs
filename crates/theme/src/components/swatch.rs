@@ -2,7 +2,7 @@
 //! where it has alpha, inside a one-point `line.control_edge` ring. This family holds the size,
 //! corner and the colours the well draws itself; the colour shown is the caller's.
 
-use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{BySize, ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::contrast::contrast_ratio;
 use crate::derive::over;
@@ -131,6 +131,12 @@ const FIELDS: [SwatchField; 1 + SwatchColor::ALL.len()] = {
 impl Family for SwatchTokens {
     type Field = SwatchField;
     const FIELDS: &'static [SwatchField] = &FIELDS;
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { SwatchTokens;
+        "size.sm" 0.0..=1024.0 => size.sm;
+        "size.md" 0.0..=1024.0 => size.md;
+        "selected_width" 0.0..=16.0 => selected_width;
+        "checker_cell" 0.0..=1024.0 => checker_cell;
+    };
 
     fn defaults(s: &Semantic<'_>) -> SwatchTokens {
         let (c, size) = (s.color, s.size);

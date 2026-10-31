@@ -2,7 +2,7 @@
 //! `line.divider` and the text colours; the family holds their geometry, the same at every Size
 //! and Text size (a 16 point strip has no room for larger labels).
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Ruler tokens.
@@ -32,6 +32,15 @@ pub enum RulerField {}
 impl Family for RulerTokens {
     type Field = RulerField;
     const FIELDS: &'static [RulerField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { RulerTokens;
+        "size" 0.0..=1024.0 => size;
+        "label" 0.0..=1024.0 => label;
+        "label_pitch" 0.0..=64.0 => label_pitch;
+        "label_pad" 0.0..=64.0 => label_pad;
+        "step_min" 0.0..=1024.0 => step_min;
+        "tick_mid" 0.0..=1024.0 => tick_mid;
+        "tick_minor" 0.0..=1024.0 => tick_minor;
+    };
 
     fn defaults(_: &Semantic<'_>) -> RulerTokens {
         RulerTokens {

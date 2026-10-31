@@ -1,7 +1,7 @@
 //! Empty states: the message of an empty panel, list or canvas. The family holds the width of a
 //! centred column and the text colour of the inline message.
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::tokens::{ColorToken, FontSlot, TokenRef, TypeStyle};
 use crate::values;
@@ -36,6 +36,12 @@ pub enum EmptyStateField {
 impl Family for EmptyStateTokens {
     type Field = EmptyStateField;
     const FIELDS: &'static [EmptyStateField] = &[EmptyStateField::Text];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { EmptyStateTokens;
+        "max_width" 0.0..=1024.0 => max_width;
+        "action_min_width" 0.0..=1024.0 => action_min_width;
+        "brand_gap" 0.0..=64.0 => brand_gap;
+        "brand_byline_lift" 0.0..=64.0 => brand_byline_lift;
+    };
 
     fn defaults(s: &Semantic<'_>) -> EmptyStateTokens {
         EmptyStateTokens {

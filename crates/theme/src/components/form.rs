@@ -2,7 +2,7 @@
 //! and controls in the second. Sizes only (no colours): they scale with the control height, and
 //! no theme overrides them. The label's look is the `field` family's.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// The gaps and label column of one density of form grid, in points.
@@ -35,6 +35,14 @@ pub enum FormField {}
 impl Family for FormTokens {
     type Field = FormField;
     const FIELDS: &'static [FormField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { FormTokens;
+        "normal.column_gap" 0.0..=256.0 => normal.column_gap;
+        "normal.row_gap" 0.0..=256.0 => normal.row_gap;
+        "normal.label_min" 0.0..=256.0 => normal.label_min;
+        "roomy.column_gap" 0.0..=256.0 => roomy.column_gap;
+        "roomy.row_gap" 0.0..=256.0 => roomy.row_gap;
+        "roomy.label_min" 0.0..=256.0 => roomy.label_min;
+    };
 
     /// The Compact values (PhotoCraft's), scaled by the control height of the size and rounded
     /// to whole points.

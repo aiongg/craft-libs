@@ -302,6 +302,8 @@ pub struct ListRowStyle {
     pub ghost_fill: Color32,
     pub ghost_border: Color32,
     pub ghost_radius: f32,
+    /// Where the ghost starts from the pointer toward the reading end: `list.ghost_offset`.
+    pub ghost_offset: Vec2,
 }
 
 impl ListRowStyle {
@@ -727,6 +729,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             ghost_fill: l.ghost_fill.to_egui(),
             ghost_border: l.ghost_border.to_egui(),
             ghost_radius: tokens.shape.radius.control,
+            ghost_offset: Vec2::from(l.ghost_offset),
         }
     }
 

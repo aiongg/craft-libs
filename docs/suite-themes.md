@@ -166,7 +166,11 @@ never reaches the others.
 ### In an app
 
 - `SuiteChoice::with_defaults(&AppDefaults)` fills the unset fields from the app's
-  `AppDefaults { theme: ThemePair, mode, size }`.
+  `AppDefaults { theme: ThemePair, mode, size, sizes: AppSizes }`. `sizes` is the app's own size
+  overrides, read from its `sizes.json` with `AppSizes::parse`: base values (`size.control.md`,
+  `space.gap.row`, `radius.button`, `typography.body.size`) that derived sizes follow, and component
+  pins by path (`toolbar.button`). `all`, `compact` and `comfortable` hold the paths; a size set's
+  own map wins over `all`. Themes don't set sizes.
 - Each app keeps an `AppChoice { theme, mode, size }` in its own preferences for "use a
   different theme / mode / size in this app"; `apply` lays it over the suite's selection. It has no `Default`:
   the app states what a fresh install shows.

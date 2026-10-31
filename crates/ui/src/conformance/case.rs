@@ -43,7 +43,12 @@ impl Case {
                 text_size: TextSize::Default,
             },
             system: SystemAppearance::default(),
-            defaults: AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::System, size: Size::Compact },
+            defaults: AppDefaults {
+                theme: ThemePair::same(ThemeId::suite_default()),
+                mode: ModeChoice::System,
+                size: Size::Compact,
+                sizes: Default::default(),
+            },
             app: None,
             font: InterfaceFont::Suite,
             dir: Direction::Ltr,

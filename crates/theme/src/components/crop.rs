@@ -1,7 +1,7 @@
 //! Crop frame: the frame line, corner brackets, edge bars, composition guides and shield. Colours are the semantic `overlay.*` tokens; the family holds sizes and
 //! shares, the same at every Size because the overlay sits on the document.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Crop tokens.
@@ -59,6 +59,25 @@ pub enum CropField {}
 impl Family for CropTokens {
     type Field = CropField;
     const FIELDS: &'static [CropField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { CropTokens;
+        "hit" 0.0..=64.0 => hit;
+        "line" 0.0..=16.0 => line;
+        "guide_line" 0.0..=16.0 => guide_line;
+        "bracket" 0.0..=1024.0 => bracket;
+        "bracket_arm" 0.0..=1024.0 => bracket_arm;
+        "grid_step" 0.0..=1024.0 => grid_step;
+        "straighten_min" 0.0..=1024.0 => straighten_min;
+        "straighten_line" 0.0..=16.0 => straighten_line;
+        "straighten_halo" 0.0..=16.0 => straighten_halo;
+        "perspective_corner" 0.0..=1024.0 => perspective_corner;
+        "perspective_corner_edge" 0.0..=16.0 => perspective_corner_edge;
+        "perspective_outline" 0.0..=16.0 => perspective_outline;
+        "perspective_grid_width" 0.0..=16.0 => perspective_grid_width;
+        "perspective_grid_step" 0.0..=1024.0 => perspective_grid_step;
+        "perspective_click_dot" 0.0..=1024.0 => perspective_click_dot;
+        "perspective_click_move" 0.0..=1024.0 => perspective_click_move;
+        "perspective_reach" 0.0..=64.0 => perspective_reach;
+    };
 
     fn defaults(_: &Semantic<'_>) -> CropTokens {
         CropTokens {

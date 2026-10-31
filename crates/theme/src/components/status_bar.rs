@@ -2,7 +2,7 @@
 //! `surface.chrome`, its info text in `text.muted`, its message in `text.faint` and an error in
 //! `status.warn.fg`. The height is `size.bar.status`.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Status bar tokens, in points.
@@ -30,6 +30,14 @@ pub enum StatusBarField {}
 impl Family for StatusBarTokens {
     type Field = StatusBarField;
     const FIELDS: &'static [StatusBarField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { StatusBarTokens;
+        "height" 0.0..=1024.0 => height;
+        "pad" 0.0..=64.0 => pad;
+        "gap" 0.0..=64.0 => gap;
+        "group_gap" 0.0..=64.0 => group_gap;
+        "divider" 0.0..=1024.0 => divider;
+        "field_width" 0.0..=1024.0 => field_width;
+    };
 
     /// The Compact sizes (PhotoCraft's Pro status bar), scaled by the control height of the size
     /// and rounded to whole points (halves to even). The ends keep their width.

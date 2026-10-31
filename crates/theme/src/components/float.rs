@@ -6,7 +6,7 @@
 //! 4.5:1): the glyphs and the focus stroke on the title bar.
 //! The fill, border and dim are design targets with no minimum.
 
-use super::{ComponentField, ContrastPair, DockField, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, DockField, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::scale::Elevation;
 use crate::tokens::TokenRef;
@@ -128,6 +128,16 @@ impl Family for FloatTokens {
         FloatField::Grip,
         FloatField::Focus,
     ];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { FloatTokens;
+        "border_width" 0.0..=16.0 => border_width;
+        "width" 0.0..=2048.0 => width;
+        "height" 0.0..=2048.0 => height;
+        "min_fitted_height" 0.0..=2048.0 => min_fitted_height;
+        "cascade_offset" 0.0..=256.0 => cascade_offset;
+        "hint_offset" 0.0..=256.0 => hint_offset;
+        "min_width" 0.0..=512.0 => min_width;
+        "min_body_height" 0.0..=512.0 => min_body_height;
+    };
 
     fn defaults(s: &Semantic<'_>) -> FloatTokens {
         let c = s.color;

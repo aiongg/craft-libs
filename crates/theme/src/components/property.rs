@@ -1,7 +1,7 @@
 //! Property rows: the columns of an inspector row. Sizes only (no colours): they scale with the
 //! control height, and no theme overrides them.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Property row tokens, in points.
@@ -28,6 +28,12 @@ pub enum PropertyField {}
 impl Family for PropertyTokens {
     type Field = PropertyField;
     const FIELDS: &'static [PropertyField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { PropertyTokens;
+        "glyph_width" 0.0..=1024.0 => glyph_width;
+        "min_control" 0.0..=1024.0 => min_control;
+        "column_gap" 0.0..=64.0 => column_gap;
+        "link_width" 0.0..=1024.0 => link_width;
+    };
 
     /// The Compact widths (PhotoCraft's), scaled by the control height of the size and rounded
     /// to whole points.

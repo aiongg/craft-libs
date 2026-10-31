@@ -2,7 +2,7 @@
 //! semantic `overlay.*` tokens or a host's layer colour; the family holds their geometry, the same
 //! at every Size because paths sit on the document.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Path tokens.
@@ -46,6 +46,21 @@ pub enum BezierField {}
 impl Family for BezierTokens {
     type Field = BezierField;
     const FIELDS: &'static [BezierField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { BezierTokens;
+        "line" 0.0..=16.0 => line;
+        "selected_segment" 0.0..=1024.0 => selected_segment;
+        "draft_line" 0.0..=16.0 => draft_line;
+        "anchor" 0.0..=1024.0 => anchor;
+        "control" 0.0..=1024.0 => control;
+        "control_line" 0.0..=16.0 => control_line;
+        "hit" 0.0..=64.0 => hit;
+        "click_slop" 0.0..=64.0 => click_slop;
+        "rubber_dash" 0.0..=16.0 => rubber_dash;
+        "rubber_gap" 0.0..=64.0 => rubber_gap;
+        "close_anchor" 0.0..=1024.0 => close_anchor;
+        "close_ring" 0.0..=16.0 => close_ring;
+        "close_offset" 0.0..=64.0 => close_offset;
+    };
 
     fn defaults(_: &Semantic<'_>) -> BezierTokens {
         BezierTokens {

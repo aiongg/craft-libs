@@ -55,6 +55,7 @@ fn column(layout: &Layout<u32>, index: usize) -> Column<u32> {
 #[derive(Default)]
 struct TestContent {
     min_height: f32,
+    min_width: f32,
 }
 
 impl DockContent<u32> for TestContent {
@@ -65,7 +66,7 @@ impl DockContent<u32> for TestContent {
         if *panel == 0 { Permissions::PROTECTED } else { Permissions::default() }
     }
     fn limits(&self, _: &u32) -> PanelLimits {
-        PanelLimits { min: vec2(0.0, self.min_height), ..PanelLimits::default() }
+        PanelLimits { min: vec2(self.min_width, self.min_height), ..PanelLimits::default() }
     }
 }
 
@@ -355,7 +356,7 @@ fn a_group_edge_scrolled_out_of_view_previews_its_line_at_the_views_edge() {
     // Groups 306 pt high from y = 14: group 3 spans 320..626 and its body's bottom third starts
     // at 533, above the window's bottom.
     let layout = with_floating(docked(Side::Start, &[&[&[2], &[3], &[4]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
-    let mut d = Driver::with(layout, TestContent { min_height: 280.0 }, false);
+    let mut d = Driver::with(layout, TestContent { min_height: 280.0, ..TestContent::default() }, false);
     let at = pos2(120.0, 580.0);
     d.hold(bar(&d, 5), at);
     assert!(d.painted(hline(598.0, 0.0..=240.0)), "the line at the view's bottom");
@@ -367,7 +368,7 @@ fn a_group_edge_scrolled_out_of_view_previews_its_line_at_the_views_edge() {
 fn in_a_scrolled_column_a_stack_previews_the_rect_at_the_scroll_offset() {
     // Groups 306 pt high from y = 14: group 3 spans 320..626 before scrolling.
     let layout = with_floating(docked(Side::Start, &[&[&[2], &[3], &[4]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
-    let mut d = Driver::with(layout, TestContent { min_height: 280.0 }, false);
+    let mut d = Driver::with(layout, TestContent { min_height: 280.0, ..TestContent::default() }, false);
     let over = d.tab(2).center();
     d.step(vec![
         Event::PointerMoved(over),
@@ -531,7 +532,7 @@ fn a_column_takes_groups_anywhere_in_it_and_as_tabs() {
 /// tab strip moves the last tab more than 100 pt into view.
 fn a_column_too_tall_for_the_window_scrolls() {
     let groups: [&[u32]; 5] = [&[2], &[3], &[4], &[5], &[6]];
-    let mut d = Driver::with(docked(Side::Start, &[&groups]), TestContent { min_height: 160.0 }, false);
+    let mut d = Driver::with(docked(Side::Start, &[&groups]), TestContent { min_height: 160.0, ..TestContent::default() }, false);
     let last = d.tab(6);
     assert!(last.top() > 600.0, "the last group starts below the window: {last:?}");
     let over = d.tab(2).center();
@@ -1061,4 +1062,22 @@ fn a_tab_dropped_beside_a_dock_group_previews_the_rect_it_takes() {
     d.settle();
     let rect = Rect::from_x_y_ranges(0.0..=200.0, d.hit(&Hit::Tab(6)).unwrap().top()..=600.0);
     assert_eq!(preview, Some(rect.shrink(1.0)), "group 6's rect below group 2");
+}
+
+/// A stored width below the panels' minimum is drawn at the minimum, as a resize drag clamps it.
+#[test]
+fn a_column_stored_narrower_than_its_panels_minimum_is_drawn_at_the_minimum() {
+    let divider = |stored: f32| {
+        let mut layout = docked(Side::Start, &[&[&[1]]]);
+        if let Some(Node::Split { first, .. }) = &mut layout.root
+            && let Node::Dock { columns, .. } = &mut **first
+        {
+            columns[0].width = stored;
+        }
+        let d = testing::DockDriver::new(layout, TestContent { min_width: 220.0, ..TestContent::default() });
+        d.hit(&Hit::Divider(Divider::Column(1))).unwrap().center().x
+    };
+    let at_minimum = divider(220.0);
+    assert!((divider(100.0) - at_minimum).abs() < 0.5, "{} vs {at_minimum}", divider(100.0));
+    assert!(divider(300.0) > at_minimum + 50.0, "a wider stored width is kept");
 }

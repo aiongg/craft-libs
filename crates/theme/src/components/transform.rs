@@ -2,7 +2,7 @@
 //! warp grid. Their colours are the semantic `overlay.*` tokens; the family holds their geometry,
 //! the same at every Size because they sit on the document.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Transform tokens.
@@ -48,6 +48,23 @@ pub enum TransformField {}
 impl Family for TransformTokens {
     type Field = TransformField;
     const FIELDS: &'static [TransformField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { TransformTokens;
+        "line" 0.0..=16.0 => line;
+        "hit" 0.0..=64.0 => hit;
+        "rotate_reach" 0.0..=64.0 => rotate_reach;
+        "band_inner" 0.0..=1024.0 => band_inner;
+        "band_outer" 0.0..=1024.0 => band_outer;
+        "click_slop" 0.0..=64.0 => click_slop;
+        "pivot_radius" 0.0..=1024.0 => pivot_radius;
+        "pivot_arm" 0.0..=1024.0 => pivot_arm;
+        "turn_radius" 0.0..=1024.0 => turn_radius;
+        "turn_line" 0.0..=16.0 => turn_line;
+        "turn_halo" 0.0..=16.0 => turn_halo;
+        "warp_minor" 0.0..=1024.0 => warp_minor;
+        "warp_anchor" 0.0..=1024.0 => warp_anchor;
+        "warp_control" 0.0..=1024.0 => warp_control;
+        "warp_reveal" 0.0..=1024.0 => warp_reveal;
+    };
 
     fn defaults(_: &Semantic<'_>) -> TransformTokens {
         TransformTokens {

@@ -1,7 +1,7 @@
 //! Dialogs: the frame every dialog shares. Sizes only (no colours): the look comes from the popup
 //! family and no theme overrides these.
 
-use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
 
 /// Dialog tokens, in points.
@@ -36,6 +36,12 @@ pub struct DialogTokens {
     pub width_standard: f32,
     /// Greatest content width of a Wide dialog: `dialog.width_wide`.
     pub width_wide: f32,
+    /// Content width of an alert or a prompt: `dialog.width_alert`.
+    pub width_alert: f32,
+    /// Default size of a secondary viewport's window: `dialog.viewport_size`.
+    pub viewport_size: [f32; 2],
+    /// Least size of a secondary viewport's window: `dialog.viewport_min`.
+    pub viewport_min: [f32; 2],
     /// Space kept between a dialog and the window edge on each side: `dialog.window_margin`.
     pub window_margin: f32,
     /// The same for a resizable dialog's greatest size: `dialog.resize_margin`.
@@ -53,6 +59,33 @@ pub enum DialogField {}
 impl Family for DialogTokens {
     type Field = DialogField;
     const FIELDS: &'static [DialogField] = &[];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { DialogTokens;
+        "pad" 0.0..=64.0 => pad;
+        "pad_roomy" 0.0..=64.0 => pad_roomy;
+        "title_gap" 0.0..=64.0 => title_gap;
+        "body_gap" 0.0..=64.0 => body_gap;
+        "footer_gap" 0.0..=64.0 => footer_gap;
+        "button_gap" 0.0..=64.0 => button_gap;
+        "button_min" 0.0..=1024.0 => button_min;
+        "side_min" 0.0..=1024.0 => side_min;
+        "close_box" 0.0..=1024.0 => close_box;
+        "drag_pad.0" 0.0..=64.0 => drag_pad[0];
+        "drag_pad.1" 0.0..=64.0 => drag_pad[1];
+        "drag_pad.2" 0.0..=64.0 => drag_pad[2];
+        "width_compact" 0.0..=1024.0 => width_compact;
+        "width_min" 0.0..=1024.0 => width_min;
+        "width_standard" 0.0..=1024.0 => width_standard;
+        "width_wide" 0.0..=1024.0 => width_wide;
+        "window_margin" 0.0..=64.0 => window_margin;
+        "resize_margin" 0.0..=64.0 => resize_margin;
+        "keep_visible" 0.0..=1024.0 => keep_visible;
+        "scroll_min" 0.0..=1024.0 => scroll_min;
+        "width_alert" 0.0..=1024.0 => width_alert;
+        "viewport_size.0" 0.0..=4096.0 => viewport_size[0];
+        "viewport_size.1" 0.0..=4096.0 => viewport_size[1];
+        "viewport_min.0" 0.0..=4096.0 => viewport_min[0];
+        "viewport_min.1" 0.0..=4096.0 => viewport_min[1];
+    };
 
     /// The Compact values (PhotoCraft's). Only the vertical gaps follow the control height of the
     /// size, rounded to whole points; widths, margins and the footer's horizontal values are the
@@ -75,6 +108,9 @@ impl Family for DialogTokens {
             width_min: values::DIALOG_WIDTH_MIN,
             width_standard: values::DIALOG_WIDTH_STANDARD,
             width_wide: values::DIALOG_WIDTH_WIDE,
+            width_alert: values::DIALOG_WIDTH_ALERT,
+            viewport_size: values::DIALOG_VIEWPORT_SIZE,
+            viewport_min: values::DIALOG_VIEWPORT_MIN,
             window_margin: values::DIALOG_WINDOW_MARGIN,
             resize_margin: values::DIALOG_RESIZE_MARGIN,
             keep_visible: values::DIALOG_KEEP_VISIBLE,

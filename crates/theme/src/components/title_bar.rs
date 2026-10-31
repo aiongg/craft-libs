@@ -8,7 +8,7 @@
 //! reds are the desktops' own colours: fixed fields that no theme overrides and no pair can name,
 //! checked by their own tests (glyph on red, 4.5:1).
 
-use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic};
+use super::{ComponentField, ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
 use crate::derive::over;
 use crate::tokens::{TokenRef, TypeRole};
@@ -121,6 +121,15 @@ impl Family for TitleBarTokens {
         TitleBarField::Pressed,
         TitleBarField::Separator,
     ];
+    const SIZES: &'static [SizeLeaf<Self>] = sizes! { TitleBarTokens;
+        "height" 0.0..=1024.0 => height;
+        "height_adwaita" 0.0..=1024.0 => height_adwaita;
+        "pad" 0.0..=64.0 => pad;
+        "title_gap" 0.0..=64.0 => title_gap;
+        "title_min_gap" 0.0..=1024.0 => title_min_gap;
+        "edge" 0.0..=16.0 => edge;
+        "corner" 0.0..=1024.0 => corner;
+    };
 
     fn defaults(s: &Semantic<'_>) -> TitleBarTokens {
         let c = s.color;

@@ -36,6 +36,10 @@ pub struct OptionsBarStyle {
     /// Side of the Home, tool icon, commit and cancel buttons: `options_bar.button`. It is also the
     /// height of a row.
     pub button: f32,
+    /// Width and height of the chevron slot beside the tool icon: `options_bar.chevron`.
+    pub chevron_slot: Vec2,
+    /// Room under the content for font ink: `options_bar.ink_room`.
+    pub ink_room: f32,
     /// Fill of the bar: `surface.chrome`.
     pub fill: Color32,
     /// The chevron beside the tool icon: `text.faint`.
@@ -158,6 +162,8 @@ impl OptionsBar {
             fields: [o.field_sm, o.field_md, o.field_lg],
             scroll_bar: o.scroll_bar,
             button: o.button,
+            chevron_slot: Vec2::from(o.chevron),
+            ink_room: o.ink_room,
             fill: tokens.color.surface.chrome.to_egui(),
             chevron: Content::Faint.color(tokens).to_egui(),
         }
@@ -214,7 +220,7 @@ impl OptionsBar {
                             row(ui);
                         }
                         // Font ink can extend past its advance at fractional positions; keep it in the content.
-                        ui.add_space(2.0);
+                        ui.add_space(style.ink_room);
                     };
                     if rows > 1 {
                         ui.scope_builder(UiBuilder::new().accessibility_role(Role::Group).layout(direction::row(ui)), content);
@@ -251,8 +257,8 @@ impl OptionsBar {
         let tokens = Tokens::of(ui);
         let style = OptionsBar::style(&tokens, false);
         let response = Self::square_button(ui, IconButton::new(icon, label));
-        let (rect, _) = ui.allocate_exact_size(vec2(10.0, 20.0), Sense::hover());
-        icons::paint_in(ui, rect, Icon::ChevronDown, icons::active(ui.ctx()), 10.0, IconSize::Sm.stroke(), style.chevron);
+        let (rect, _) = ui.allocate_exact_size(style.chevron_slot, Sense::hover());
+        icons::paint_in(ui, rect, Icon::ChevronDown, icons::active(ui.ctx()), style.chevron_slot.x, IconSize::Sm.stroke(), style.chevron);
         Self::divider(ui);
         response
     }
