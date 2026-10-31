@@ -51,7 +51,7 @@ pub use migrate::LegacyFile;
 #[cfg(not(target_arch = "wasm32"))]
 pub use paths::{Location, Portable, Probe, Resolved, Rule};
 #[cfg(not(target_arch = "wasm32"))]
-pub use store::{OpenOptions, SettingsStore};
+pub use store::{OpenOptions, SettingsStore, SharedSettings};
 pub use toml_edit::DocumentMut;
 
 use serde::Serialize;

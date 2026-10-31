@@ -1091,9 +1091,11 @@ name = "craft-settings"
 version = "0.1.0"
 dependencies = [
  "craft-atomic",
+ "craft-host",
  "dirs",
  "serde",
  "tempfile",
+ "toml",
  "toml_edit",
 ]
 

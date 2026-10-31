@@ -282,3 +282,47 @@ fn backup_follows_a_mode_the_user_chose_for_the_config() {
     store.flush().unwrap();
     assert_eq!(mode(&tmp.path().join("config.toml.bak")), 0o640);
 }
+
+#[test]
+fn host_sections_survive_a_save_and_leave_the_apps_keys_alone() {
+    use std::sync::Arc;
+
+    use craft_host::{AppInfo, Host, Section};
+    use craft_settings::SharedSettings;
+
+    #[derive(serde::Serialize, serde::Deserialize, Default, PartialEq, Debug)]
+    #[serde(default)]
+    struct Panel {
+        width: u32,
+        pinned: Vec<String>,
+    }
+    impl Section for Panel {
+        const KEY: &'static str = "panel";
+    }
+
+    let tmp = tempfile::tempdir().unwrap();
+    let (store, _) = open_in(tmp.path());
+    let store = SharedSettings::new(store);
+    let host = Host::builder(AppInfo { id: "test", name: "Test", version: "1" }).settings(Arc::new(store.clone())).build();
+
+    store.lock().update(|p| p.general.autosave_minutes = 9);
+    let panel = Panel { width: 240, pinned: vec!["a".into()] };
+    host.set_setting(&panel);
+    store.lock().flush().unwrap();
+    let text = read_config(tmp.path());
+    assert!(text.contains("[panel]"), "{text}");
+
+    let (reopened, _) = open_in(tmp.path());
+    assert_eq!(reopened.get().general.autosave_minutes, 9);
+    let reopened = SharedSettings::new(reopened);
+    let host = Host::builder(AppInfo { id: "test", name: "Test", version: "1" }).settings(Arc::new(reopened.clone())).build();
+    assert_eq!(host.setting::<Panel>(), panel);
+
+    // A later save of T keeps the section.
+    reopened.lock().update(|p| p.general.autosave_minutes = 3);
+    reopened.lock().flush().unwrap();
+    let (again, _) = open_in(tmp.path());
+    assert_eq!(again.get().general.autosave_minutes, 3);
+    let host = Host::builder(AppInfo { id: "test", name: "Test", version: "1" }).settings(Arc::new(SharedSettings::new(again))).build();
+    assert_eq!(host.setting::<Panel>(), panel);
+}

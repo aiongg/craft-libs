@@ -71,7 +71,7 @@ pub fn merge_into<T: Settings>(doc: &mut DocumentMut, value: &T) -> Result<(), t
 
 /// Serde writes nested structs as inline tables (`general = { … }`); files are nicer to read
 /// and edit as `[general]` sections, so new sections are converted before merging.
-fn expand_inline_tables(table: &mut Table) {
+pub(crate) fn expand_inline_tables(table: &mut Table) {
     let keys: Vec<String> = table.iter().map(|(k, _)| k.to_owned()).collect();
     for key in keys {
         let Some(item) = table.get_mut(&key) else { continue };

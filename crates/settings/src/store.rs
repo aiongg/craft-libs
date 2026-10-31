@@ -13,6 +13,10 @@ use crate::migrate::{self, LegacyFile, Upgrade};
 use crate::paths::{self, Location, Portable, Probe};
 use crate::recovery;
 
+mod sections;
+
+pub use sections::SharedSettings;
+
 /// The settings file name.
 pub const CONFIG_FILE: &str = "config.toml";
 
