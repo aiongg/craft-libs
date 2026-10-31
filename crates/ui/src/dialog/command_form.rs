@@ -8,7 +8,7 @@ use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::DialogFields;
 use super::footer::{DialogLabels, Footer, Reset};
-use super::params::{Param, draw_rows, open_fields, take_color_press};
+use super::params::{Param, draw_rows, first_field_focused, open_fields, take_color_press};
 use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
@@ -112,20 +112,22 @@ impl StackDialog for CommandForm {
     // crates/ui-egui/src/dialogs.rs:177 `command_body_more`; the rows through `Param::row`.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<DialogFields>> {
         if !self.state.is_open() {
-            open_fields(ctx, &self.params, &mut self.fields);
+            open_fields(ctx, self.id, &self.params, &mut self.fields);
         }
         let labels = DialogLabels::of_ctx(ctx);
         let mut footer = Footer::standard().reset(Reset::AltCancel(labels.reset)).ok_enabled(self.ok_enabled);
         if let Some(ok) = &self.ok_label {
             footer = footer.ok(ok.as_str());
         }
-        let params = &self.params;
+        let (params, id) = (&self.params, self.id);
         let shown = Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).show(
             ctx,
             &mut self.state,
             &mut self.fields,
             |ui, fields| {
-                FormGrid::new("form").show(ui, |form| draw_rows(params, form, fields, None));
+                first_field_focused(ui, id, |ui| {
+                    FormGrid::new("form").show(ui, |form| draw_rows(params, form, fields, None));
+                });
             },
         );
         self.picked_color = take_color_press(ctx).or(self.picked_color.take());

@@ -220,3 +220,14 @@ fn labels_and_option_labels_show_through_the_hosts_catalog() {
     let select = harness.get_by_label("Method:");
     assert_eq!(select.accesskit_node().value().as_deref(), Some("Vergrößern"));
 }
+
+// A parsed `color=#808080` default shows as that hex: colour values are sRGB in 0..=1, as
+// PhotoCraft keeps them.
+#[test]
+fn a_parsed_hex_default_shows_as_that_hex() {
+    let params = Param::parse_list(r##"{"tint":color=#808080}"##);
+    let mut harness = harness(ParamDialog::new("tint", "Tint", params));
+    harness.run();
+    let swatch = harness.get_by_label("Tint:");
+    assert_eq!(swatch.accesskit_node().value().as_deref().map(str::to_lowercase).as_deref(), Some("#808080"));
+}

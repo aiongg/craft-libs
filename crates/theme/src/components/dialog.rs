@@ -45,6 +45,9 @@ pub struct DialogTokens {
     pub width_alert: f32,
     /// Default size of a secondary viewport's window: `dialog.viewport_size`.
     pub viewport_size: [f32; 2],
+    /// A preview pane's least width and its height: `dialog.preview_pane`. The pane takes the
+    /// dialog's width, and this least width when the dialog is narrower.
+    pub preview_pane: [f32; 2],
     /// Least size of a secondary viewport's window: `dialog.viewport_min`.
     pub viewport_min: [f32; 2],
     /// Space kept between a dialog and the window edge on each side: `dialog.window_margin`.
@@ -89,6 +92,8 @@ impl Family for DialogTokens {
         "width_alert" 0.0..=1024.0 => width_alert;
         "viewport_size.0" 0.0..=4096.0 => viewport_size[0];
         "viewport_size.1" 0.0..=4096.0 => viewport_size[1];
+        "preview_pane.0" 0.0..=4096.0 => preview_pane[0];
+        "preview_pane.1" 0.0..=4096.0 => preview_pane[1];
         "viewport_min.0" 0.0..=4096.0 => viewport_min[0];
         "viewport_min.1" 0.0..=4096.0 => viewport_min[1];
     };
@@ -118,6 +123,7 @@ impl Family for DialogTokens {
             width_wide: values::DIALOG_WIDTH_WIDE,
             width_alert: values::DIALOG_WIDTH_ALERT,
             viewport_size: values::DIALOG_VIEWPORT_SIZE,
+            preview_pane: values::DIALOG_PREVIEW_PANE,
             viewport_min: values::DIALOG_VIEWPORT_MIN,
             window_margin: values::DIALOG_WINDOW_MARGIN,
             resize_margin: values::DIALOG_RESIZE_MARGIN,

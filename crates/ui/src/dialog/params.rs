@@ -11,7 +11,6 @@ use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::{DialogFields, FieldValue};
 use super::footer::{DialogLabels, Footer, Reset};
-use super::preview::Preview;
 use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
@@ -356,9 +355,9 @@ fn text_of(value: Option<&FieldValue>) -> Option<String> {
     }
 }
 
-/// A linear component as an sRGB byte.
-fn encode(linear: f32) -> u8 {
-    (craft_theme::color::linear_to_srgb(f64::from(linear)).clamp(0.0, 1.0) * 255.0).round() as u8
+/// An sRGB component in 0..=1 as a byte.
+fn encode(component: f32) -> u8 {
+    (component.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
 /// `text` in the installed Host's language: the catalog row of exactly this text, else the text.
@@ -383,7 +382,7 @@ pub(super) fn take_color_press(ctx: &Context) -> Option<String> {
 }
 
 /// Fills the keys `params` have defaults for and the fields lack, and takes the opening snapshot.
-pub(super) fn open_fields(ctx: &Context, params: &[Param], fields: &mut DialogFields) {
+pub(super) fn open_fields(ctx: &Context, id: DialogId, params: &[Param], fields: &mut DialogFields) {
     for param in params {
         if !fields.contains(&param.key)
             && let Some(value) = param.kind.default_value()
@@ -392,8 +391,24 @@ pub(super) fn open_fields(ctx: &Context, params: &[Param], fields: &mut DialogFi
         }
     }
     fields.snapshot();
-    // The first number field opens selected, so typing replaces its value.
-    focus_first_field(ctx, matches!(params.first().map(|p| &p.kind), Some(ParamKind::Range { .. } | ParamKind::Int { .. })));
+    ctx.data_mut(|d| d.insert_temp(first_field_due_id(id), true));
+}
+
+fn first_field_due_id(id: DialogId) -> Id {
+    Id::unique(("craft_ui::dialog::params::first_field_due", id))
+}
+
+/// Draws a body so that the first number field it draws, on the first laid-out pass after the
+/// dialog opened, takes the focus with its text selected: typing replaces it, Enter applies it.
+// pc: crates/ui-egui/src/dialogs.rs:156 `first_field_focused` (used by `filter_body` :404 and the
+// command forms), whichever parameter comes first.
+pub(super) fn first_field_focused<R>(ui: &mut Ui, id: DialogId, body: impl FnOnce(&mut Ui) -> R) -> R {
+    let ctx = ui.ctx().clone();
+    let due = !ui.is_sizing_pass() && ctx.data_mut(|d| d.remove_temp::<bool>(first_field_due_id(id))).unwrap_or(false);
+    focus_first_field(&ctx, due);
+    let result = body(ui);
+    focus_first_field(&ctx, false);
+    result
 }
 
 /// Draws one row per parameter.
@@ -687,7 +702,7 @@ impl ParamDialog {
                 self.fields.set(key, value.clone());
             }
         }
-        open_fields(ctx, &self.params, &mut self.fields);
+        open_fields(ctx, self.id, &self.params, &mut self.fields);
     }
 
     /// The keys whose values are remembered: PhotoCraft keeps the portable kinds (numbers, choices,
@@ -716,15 +731,13 @@ impl ParamDialog {
         }
     }
 
-    /// The preview pane: the image at its size in a well of `dialog.viewport_size` (less than the
-    /// room there is across), a checkerboard under transparency, the pointer dragging the view
+    /// The preview pane: the image at its size in a well as wide as the dialog and `dialog.preview_pane` high, a checkerboard under transparency, the pointer dragging the view
     /// along an axis the image overflows.
     // pc: crates/ui-egui/src/dialogs/filter_preview_ui.rs (the pane only; the worker stays in the app).
     fn preview_pane(ui: &mut Ui, image: &SizedTexture) {
         let tokens = Tokens::of(ui);
-        let wanted = Vec2::from(tokens.component.dialog.viewport_size);
-        let width = wanted.x.min(ui.available_width());
-        let (well, response) = ui.allocate_exact_size(vec2(width, wanted.y * width / wanted.x.max(1.0)), Sense::drag());
+        let [least, height] = tokens.component.dialog.preview_pane;
+        let (well, response) = ui.allocate_exact_size(vec2(ui.available_width().max(least), height), Sense::drag());
         let field = TextField::style(&tokens, ControlSize::Md);
         let swatch = Swatch::style(&tokens, ControlSize::Md);
         ui.painter().extend(field_box(ui, &field, well, BoxState { enabled: true, focused: false, hovered: false, invalid: false }));
@@ -741,12 +754,6 @@ impl ParamDialog {
             ui.ctx().set_cursor_icon(if response.dragged() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::Grab });
         }
     }
-}
-
-/// The Preview check box; holding it shows the unfiltered image.
-fn preview_box(ui: &mut Ui, preview: &mut Preview, label: &str) {
-    let check = Checkbox::bool(label, &mut preview.on).id_salt("craft_ui::dialog::preview").show(ui);
-    preview.hold_to_compare(&check.response);
 }
 
 impl StackDialog for ParamDialog {
@@ -771,21 +778,35 @@ impl StackDialog for ParamDialog {
         let footer = match layout {
             ParamLayout::SideColumn => {
                 let footer = Footer::side().reset(reset);
-                if has_preview { footer.below(|ui| preview_box(ui, &mut preview, preview_label)) } else { footer }
+                if has_preview {
+                    footer.below(|ui| {
+                        preview.checkbox(ui, preview_label);
+                    })
+                } else {
+                    footer
+                }
             }
             ParamLayout::BottomFooter => {
                 let footer = Footer::standard().reset(reset);
-                if has_preview { footer.leading(|ui| preview_box(ui, &mut preview, preview_label)) } else { footer }
+                if has_preview {
+                    footer.leading(|ui| {
+                        preview.checkbox(ui, preview_label);
+                    })
+                } else {
+                    footer
+                }
             }
         };
         let image = self.preview_image.as_ref();
-        let params = &self.params;
+        let (params, id) = (&self.params, self.id);
         let shown = Dialog::with_id(self.id, self.title.as_str()).stack(stack).width(self.width).body(Body::Scroll).footer(footer).show_with_below(
             ctx,
             &mut self.state,
             &mut self.fields,
             |ui, fields| {
-                FormGrid::new("params").show(ui, |form| draw_rows(params, form, fields, image));
+                first_field_focused(ui, id, |ui| {
+                    FormGrid::new("params").show(ui, |form| draw_rows(params, form, fields, image));
+                });
             },
             |ui, _| {
                 if let Some(image) = image {

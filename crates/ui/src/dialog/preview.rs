@@ -31,18 +31,26 @@ pub struct Preview {
     pub before: bool,
     /// What [`result_changed`](Preview::result_changed) last reported.
     reported: bool,
+    /// The compare target ([`hold_to_compare`](Preview::hold_to_compare)) is held.
+    target_held: bool,
+    /// The Preview check box's label is held.
+    label_held: bool,
 }
 
 impl Default for Preview {
     fn default() -> Self {
-        Self { on: true, compare: false, before: false, reported: true }
+        Self { on: true, compare: false, before: false, reported: true, target_held: false, label_held: false }
     }
 }
 
 impl Preview {
     /// Draws the Preview check box. True when it changed this pass.
+    /// Holding the box or its label shows the unfiltered image ([`compare`](Preview::compare)).
     pub fn checkbox(&mut self, ui: &mut Ui, label: impl Into<String>) -> bool {
-        Checkbox::bool(label, &mut self.on).id_salt("craft_ui::dialog::preview").show(ui).response.changed()
+        let response = Checkbox::bool(label, &mut self.on).id_salt("craft_ui::dialog::preview").show(ui).response;
+        self.label_held = response.is_pointer_button_down_on();
+        self.compare = self.target_held || self.label_held;
+        response.changed()
     }
 
     /// Sets [`compare`](Preview::compare) from the compare target `response`: true while the
@@ -50,7 +58,8 @@ impl Preview {
     /// target must sense clicks (a button).
     pub fn hold_to_compare(&mut self, response: &Response) {
         let key = response.has_focus() && response.ctx.input(|i| i.key_down(Key::Space) || i.key_down(Key::Enter));
-        self.compare = response.is_pointer_button_down_on() || key;
+        self.target_held = response.is_pointer_button_down_on() || key;
+        self.compare = self.target_held || self.label_held;
     }
 
     /// Draws the Before check box. True when it changed this pass.
