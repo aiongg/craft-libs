@@ -1,6 +1,7 @@
 //! Behaviour tests of `logs`.
 use super::*;
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::Duration;
+use web_time::UNIX_EPOCH;
 
 const NAMES: LogNames = LogNames::new("photocraft");
 

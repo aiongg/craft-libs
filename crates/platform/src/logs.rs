@@ -39,7 +39,7 @@ use std::io::Write;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock, PoisonError};
-use std::time::SystemTime;
+use web_time::SystemTime;
 
 use log::LevelFilter;
 
@@ -244,7 +244,7 @@ fn prune_instance_logs(dir: &Path, names: LogNames) {
             Err(_) => false,
         };
         if !running {
-            let modified = entry.metadata().and_then(|m| m.modified()).unwrap_or(SystemTime::UNIX_EPOCH);
+            let modified = entry.metadata().and_then(|m| m.modified()).unwrap_or(web_time::UNIX_EPOCH);
             finished.push((modified, pid));
         }
     }
@@ -284,7 +284,7 @@ impl Sink {
 /// count by the civil-from-days algorithm.
 pub fn timestamp(t: SystemTime) -> String {
     // pc: apps/photocraft/src/logging.rs:96
-    let since = t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
+    let since = t.duration_since(web_time::UNIX_EPOCH).unwrap_or_default();
     let secs = i64::try_from(since.as_secs()).unwrap_or(i64::MAX);
     let (days, sod) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
     let (y, m, d) = civil_from_days(days);
