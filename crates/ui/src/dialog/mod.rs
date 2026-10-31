@@ -129,7 +129,7 @@ pub use new_document::{
     BackgroundContents, BitDepth, ColorMode, DocumentPreset, DocumentSettings, NewDocumentDialog, NewDocumentLabels, Orientation, PresetCategory,
     push_recent, size_line,
 };
-pub use params::{Param, ParamDialog, ParamKind, ParamLayout, ParamResult};
+pub use params::{CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, PathKind, PathRequest};
 pub use pass::any_modal;
 pub use placement::{PlaceKey, keep_on_screen, next_pin};
 pub use preview::Preview;

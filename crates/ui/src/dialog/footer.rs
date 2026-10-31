@@ -27,6 +27,10 @@ crate::words! {
         default_hint: "dialog.defaultHint" = "Default";
         /// The accessible name of a dialog frame's close box.
         close: "dialog.close" = "Close";
+        /// The button after a text row that picks a file or folder.
+        browse: "dialog.browse" = "Browse…";
+        /// The check box that switches an optional number on.
+        custom: "dialog.custom" = "Custom";
     }
 }
 

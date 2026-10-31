@@ -145,3 +145,51 @@ fn open_unless_open_refuses_and_open_replaces() {
     assert!(host.open_unless_open(Probe::<1>::new("fourth")).is_ok());
     assert_eq!(host.take::<Probe<1>>(), None);
 }
+
+fn blur() -> ParamDialog {
+    ParamDialog::new("blur", "Blur", vec![Param::new("radius", "Radius", ParamKind::Int { min: None, max: None, default: 3 })])
+}
+
+// A Cancel says which dialog it was, also when a second dialog of the type replaced the first.
+#[test]
+fn a_cancel_carries_the_dialogs_key() {
+    let mut host = DialogHost::new();
+    host.open(blur());
+    host.open(ParamDialog::new("sharpen", "Sharpen", Vec::new()));
+    assert_eq!(host.take_keyed::<ParamDialog>().map(|(result, key)| (result.is_cancel(), key)), Some((true, Some("blur".to_owned()))));
+    assert!(host.cancel::<ParamDialog>());
+    assert_eq!(host.take_keyed::<ParamDialog>().map(|(result, key)| (result.is_cancel(), key)), Some((true, Some("sharpen".to_owned()))));
+}
+
+// The top dialog is found by id and downcast to its type, without a registry of the app's own.
+#[test]
+fn the_top_dialog_is_found_by_id() {
+    let mut host = DialogHost::new();
+    host.open(Probe::<1>::new("under"));
+    host.open(blur());
+    let top = host.top_id().expect("a dialog is open");
+    assert_eq!(top, dialog_id("blur"));
+    assert!(host.get_dyn(top).is_some_and(|dialog| dialog.is::<ParamDialog>()));
+    assert!(host.get_by_id::<ParamDialog>(top).is_some());
+    assert!(host.get_by_id::<ParamDialog>(dialog_id("under")).is_none());
+    host.get_dyn_mut(top).and_then(|dialog| dialog.downcast_mut::<ParamDialog>()).expect("typed").fields_mut().set("radius", 9_i64);
+    assert_eq!(host.get::<ParamDialog>().unwrap().fields().int("radius"), Some(9));
+}
+
+// `confirm` answers OK with the current values, closes the dialog and keeps the answer for `take`;
+// a disabled OK refuses.
+#[test]
+fn confirm_answers_ok_for_automation() {
+    let ctx = Context::default();
+    let mut host = DialogHost::new();
+    host.open(blur().ok_enabled(false));
+    assert!(!host.confirm::<ParamDialog>(&ctx));
+    assert!(host.is_open::<ParamDialog>());
+    host.get_mut::<ParamDialog>().unwrap().set_ok_enabled(true);
+    host.get_mut::<ParamDialog>().unwrap().fields_mut().set("radius", 8_i64);
+    assert!(host.confirm::<ParamDialog>(&ctx));
+    assert!(!host.is_open::<ParamDialog>());
+    let Some(DialogResult::Ok(answer)) = host.take::<ParamDialog>() else { panic!("an OK answer") };
+    assert_eq!((answer.key(), answer.fields.int("radius")), ("blur", Some(8)));
+    assert!(!host.confirm::<ParamDialog>(&ctx), "nothing open");
+}
