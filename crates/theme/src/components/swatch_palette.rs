@@ -20,7 +20,7 @@ impl Family for SwatchPaletteTokens {
     type Field = SwatchPaletteField;
     const FIELDS: &'static [SwatchPaletteField] = &[];
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { SwatchPaletteTokens;
-        "table_cell" 0.0..=1024.0 => table_cell;
+        "table_cell" 4.0..=1024.0 => table_cell;
     };
 
     /// The Compact side, scaled by the control height of the size and rounded to whole points.

@@ -238,7 +238,7 @@ fn a_pin_of_a_base_value_is_no_wider_than_the_base_range() {
             problems.push(format!("{field} accepts {pin_lo} to {pin_hi}, wider than {base} ({lo} to {hi})"));
         }
         for size in [Size::Compact, Size::Comfortable] {
-            let (mut preset, mut components) = (crate::sizes::builtin(size).base.clone(), ComponentSizes::default());
+            let (mut preset, mut components) = (crate::sizes::builtin(size).base, ComponentSizes::default());
             let value = leaves(&mut preset, &mut components).into_iter().find_map(|Leaf { path, slot, .. }| match slot {
                 Slot::Num(x) | Slot::Length(x) if path == leaf_path => Some(*x),
                 _ => None,
