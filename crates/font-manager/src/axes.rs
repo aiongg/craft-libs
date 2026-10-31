@@ -18,7 +18,6 @@ craft_ui::words! {
         width: "axes.width" = "Width";
         slant: "axes.slant" = "Slant";
         italic: "axes.italic" = "Italic";
-        optical_size: "axes.opticalSize" = "Optical size";
         style: "axes.style" = "Style";
         custom: "axes.custom" = "Custom";
     }
@@ -93,7 +92,7 @@ pub fn matching_instance<'a>(instances: &'a [NamedInstance], values: &[([u8; 4],
 }
 
 /// The label of an axis: its name when the font gives one, else the registered tag's
-/// (`Weight`, `Width`, `Slant`, `Italic`, `Optical size`), else the tag itself.
+/// (`Weight`, `Width`, `Slant`, `Italic`), else the tag itself.
 pub fn axis_label(axis: &FontAxis) -> String {
     label_in(axis, &AxesLabels::default())
 }
@@ -107,7 +106,6 @@ fn label_in(axis: &FontAxis, labels: &AxesLabels) -> String {
         b"wdth" => labels.width.clone(),
         b"slnt" => labels.slant.clone(),
         b"ital" => labels.italic.clone(),
-        b"opsz" => labels.optical_size.clone(),
         tag => Tag::new(tag).to_string(),
     }
 }
@@ -126,7 +124,8 @@ pub struct AxisSlidersResponse {
 }
 
 /// One `SliderRow` per visible axis (label, slider, number field with the axis's range), plus a
-/// `Select` of named instances above them when the face has any. Hidden axes and axes with an
+/// `Select` of named instances above them when the face has any. Hidden axes, `opsz` (the text
+/// layout sets the optical size from the font size, as in PhotoCraft) and axes with an
 /// empty or non-finite range are left out. Values are the current coordinates; an axis without
 /// one shows its default. Axes whose range is 10 wide or more step by whole units, the others by
 /// hundredths.
@@ -178,7 +177,7 @@ impl<'a> AxisSliders<'a> {
             }
         }
 
-        for axis in axes.iter().filter(|a| !a.hidden && a.min.is_finite() && a.max.is_finite() && a.min < a.max) {
+        for axis in axes.iter().filter(|a| !a.hidden && a.tag != *b"opsz" && a.min.is_finite() && a.max.is_finite() && a.min < a.max) {
             let wide = axis.max - axis.min >= 10.0;
             let value = value_of(values, axis);
             let row = SliderRow::new(("axis", axis.tag), label_in(axis, &labels), value, f64::from(axis.min)..=f64::from(axis.max), &numbers)

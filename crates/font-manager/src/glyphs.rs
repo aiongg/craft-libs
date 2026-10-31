@@ -30,16 +30,30 @@ craft_ui::words! {
         no_text: "glyphs.noText" = "Edit text to insert glyphs";
         font: "glyphs.font" = "Font";
         category: "glyphs.category" = "Category";
-        grid: "glyphs.grid" = "Glyphs";
         count: "glyphs.count" = "{n} glyphs";
         selected: "glyphs.selected" = "U+{code}  ·  {n} glyphs";
         cell: "glyphs.cell" = "{char}, U+{code}";
+        punctuation: "glyphs.category.punctuation" = "Punctuation";
+        alternates: "glyphs.category.alternates" = "Alternates for Selection";
+        numbers: "glyphs.category.numbers" = "Numbers";
+        currency: "glyphs.category.currency" = "Currency";
+        symbols: "glyphs.category.symbols" = "Symbols";
+        math_symbols: "glyphs.category.mathSymbols" = "Math Symbols";
+        arrows: "glyphs.category.arrows" = "Arrows";
+        latin: "glyphs.category.latin" = "Latin";
+        greek: "glyphs.category.greek" = "Greek";
+        cyrillic: "glyphs.category.cyrillic" = "Cyrillic";
+        letterlike: "glyphs.category.letterlike" = "Letterlike Symbols";
+        scripts: "glyphs.category.scripts" = "Superscripts and Subscripts";
+        ornaments: "glyphs.category.ornaments" = "Ornaments";
         search: "glyphs.search" = "Search fonts";
         clear: "glyphs.clear" = "Clear";
     }
 }
 
-/// The glyph categories, Photoshop's list in order.
+/// The glyph categories, Photoshop's list in order. These English names are the stable ids stored
+/// in the settings and passed to [`GlyphSource::in_category`]; the panel shows them through
+/// [`GlyphsLabels::category_name`].
 pub const CATEGORIES: &[&str] = &[
     "Entire Font",
     "Recently Used",
@@ -57,6 +71,30 @@ pub const CATEGORIES: &[&str] = &[
     "Superscripts and Subscripts",
     "Ornaments",
 ];
+
+impl GlyphsLabels {
+    /// The shown name of a [`CATEGORIES`] id (the id itself for any other).
+    pub fn category_name<'a>(&'a self, id: &'a str) -> &'a str {
+        match id {
+            "Entire Font" => &self.entire_font,
+            "Recently Used" => &self.recent,
+            "Punctuation" => &self.punctuation,
+            "Alternates for Selection" => &self.alternates,
+            "Numbers" => &self.numbers,
+            "Currency" => &self.currency,
+            "Symbols" => &self.symbols,
+            "Math Symbols" => &self.math_symbols,
+            "Arrows" => &self.arrows,
+            "Latin" => &self.latin,
+            "Greek" => &self.greek,
+            "Cyrillic" => &self.cyrillic,
+            "Letterlike Symbols" => &self.letterlike,
+            "Superscripts and Subscripts" => &self.scripts,
+            "Ornaments" => &self.ornaments,
+            other => other,
+        }
+    }
+}
 
 /// Where glyph cells come from: the app's text engine draws a glyph of a face at a pixel size and
 /// lists the characters a face has. Apps plug in their own (PhotoCraft's `photocraft_text`).
@@ -256,7 +294,7 @@ impl<'a> GlyphsPanel<'a> {
             ui.label(labels.show.clone());
             let mut select = Select::new(panel.with("category"), labels.category.clone(), &mut settings.category);
             for name in CATEGORIES {
-                select = select.option((*name).to_owned(), *name);
+                select = select.option((*name).to_owned(), labels.category_name(name));
             }
             let _ = select.show(ui);
         });
