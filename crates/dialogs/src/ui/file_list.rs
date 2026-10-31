@@ -14,7 +14,9 @@ use egui::accesskit::Role;
 use egui::{AsIdSalt, IdSalt, Key, Modifiers, ScrollArea, Ui, UiBuilder, vec2};
 
 /// The list box's size and the buttons' width, as in Photoshop's dialog.
+// S4-F18: file_list.size
 const LIST_SIZE: egui::Vec2 = vec2(300.0, 160.0);
+// S4-F18: file_list.button_min
 const BUTTON_WIDTH: f32 = 120.0;
 
 craft_ui::words! {
@@ -350,7 +352,7 @@ fn file_row<'a>(at: usize, path: &Path, info: Option<InfoLine<'_>>) -> ListRow<'
         Some(line) => format!("{name}, {line}"),
         None => name.clone(),
     };
-    let row = ListRow::new(at, name).accessible_name(accessible).description(path.to_string_lossy());
+    let row = ListRow::new(at, name).accessible_name(accessible).description(path.to_string_lossy()).tooltip(path.to_string_lossy());
     match line {
         Some(line) => row.detail(line),
         None => row,
