@@ -1,11 +1,21 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`FileListPicker`]: a list of chosen files (or one folder) with Browse, Remove and the other
 //! list buttons, inside a dialog that loads several files.
 
 use std::path::{Path, PathBuf};
 
-use craft_host::{PickId, PickRequest};
-use egui::{AsIdSalt, IdSalt, Ui};
+use craft_host::{Host, PickId, PickKind, PickRequest, Picked};
+use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
+use craft_ui::controls::{Button, Select};
+use craft_ui::list::{List, ListEvent, ListRow};
+use craft_ui::localized::Labels;
+use craft_ui::primitives::{Content, Gap, Surface, SurfaceKind, Text};
+use craft_ui::theme::{Tokens, TokensOf};
+use egui::accesskit::Role;
+use egui::{AsIdSalt, IdSalt, Key, Modifiers, ScrollArea, Ui, UiBuilder, vec2};
+
+/// The list box's size and the buttons' width, as in Photoshop's dialog.
+const LIST_SIZE: egui::Vec2 = vec2(300.0, 160.0);
+const BUTTON_WIDTH: f32 = 120.0;
 
 craft_ui::words! {
     /// The picker's words, English by default.
@@ -47,20 +57,33 @@ impl FileList {
     /// Adds paths not in the list yet, in order (Browse, Add Open Files, a drop).
     // pc: crates/ui-egui/src/dialogs/stack_dialog.rs:66 add
     pub fn add(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
-        todo!()
+        for path in paths {
+            if !self.files.contains(&path) {
+                self.files.push(path);
+            }
+        }
     }
 
     /// Whether OK may run: Files mode needs a file, Folder mode a folder.
     // pc: crates/ui-egui/src/dialogs/stack_dialog.rs:86 can_confirm
     pub fn is_valid(&self) -> bool {
-        todo!()
+        match self.mode {
+            FileListMode::Files => !self.files.is_empty(),
+            FileListMode::Folder => self.folder.as_ref().is_some_and(|folder| !folder.as_os_str().is_empty()),
+        }
     }
 
     /// Why OK can't run, for the dialog's message: "Add the files to load" or "Choose a folder
     /// to load"; `None` when [`is_valid`](Self::is_valid).
     // pc: crates/ui-egui/src/dialogs/stack_dialog.rs:213 confirm
     pub fn problem<'l>(&self, labels: &'l FileListLabels) -> Option<&'l str> {
-        todo!()
+        if self.is_valid() {
+            return None;
+        }
+        Some(match self.mode {
+            FileListMode::Files => labels.add_files.as_str(),
+            FileListMode::Folder => labels.choose_folder.as_str(),
+        })
     }
 }
 
@@ -154,6 +177,201 @@ impl<'a> FileListPicker<'a> {
     // pc: crates/ui-egui/src/dialogs/stack_dialog.rs:114 body, :92 browse, :81 open_files;
     // vectorcraft: crates/ui-egui/src/dialogs/place.rs (info lines); pdfcraft: crates/ui-egui/src/workflows/combine_ui/view.rs:470 keyboard
     pub fn show(self, ui: &mut Ui) -> FileListResponse {
-        todo!()
+        let Self { id_salt, list, request, folder_mode, open_files, folder_files, info } = self;
+        let host = Host::of(ui);
+        let labels = FileListLabels::of(ui);
+        let tokens = Tokens::of(ui);
+        let ticket_key = ui.scope_id().with((id_salt, "ticket"));
+        let enabled = ui.is_enabled();
+        let mut response = FileListResponse::default();
+
+        // The answer of this picker's Browse fills the list before it is drawn.
+        if let Some(ticket) = ui.data(|d| d.get_temp::<PickId>(ticket_key))
+            && let Some(answer) = host.files().take_pick()
+        {
+            if answer.id == ticket {
+                ui.data_mut(|d| d.remove::<PickId>(ticket_key));
+                let paths: Vec<PathBuf> = match answer.picked {
+                    Picked::Paths(paths) => paths,
+                    Picked::Contents(files) => files.into_iter().map(|(name, _)| PathBuf::from(name)).collect(),
+                    Picked::Cancelled => Vec::new(),
+                };
+                if answer.request.kind == PickKind::Folder {
+                    if let Some(folder) = paths.into_iter().next() {
+                        list.folder = Some(folder);
+                        response.changed = true;
+                    }
+                } else if !paths.is_empty() {
+                    let before = list.files.len();
+                    list.add(paths);
+                    response.changed |= list.files.len() != before;
+                }
+            } else {
+                host.files().return_pick(answer);
+            }
+        }
+        if list.selected.is_some_and(|at| at >= list.files.len()) {
+            list.selected = None;
+        }
+        let folder = list.mode == FileListMode::Folder;
+
+        if folder_mode {
+            ui.horizontal(|ui| {
+                ui.add(Text::new(labels.use_label.as_str()));
+                let mut mode = list.mode;
+                let _ = Select::new((id_salt, "use"), labels.use_label.as_str(), &mut mode)
+                    .option(FileListMode::Files, labels.files.as_str())
+                    .option(FileListMode::Folder, labels.folder.as_str())
+                    .show(ui);
+                if mode != list.mode {
+                    list.mode = mode;
+                    list.selected = None;
+                    response.changed = true;
+                }
+            });
+        }
+
+        let mut browse = false;
+        let mut remove = false;
+        let mut add_open = false;
+        let mut sort = false;
+        let gap = Gap::Stack.points(&tokens);
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            Surface::new(SurfaceKind::Sunken).show(ui, |ui| {
+                ui.allocate_ui(LIST_SIZE, |ui| {
+                    ui.set_min_size(LIST_SIZE);
+                    ui.set_max_width(LIST_SIZE.x);
+                    if folder {
+                        folder_rows(ui, &labels, list.folder.as_deref(), folder_files, info);
+                    } else {
+                        let moved = file_rows(ui, id_salt, &labels, list, info);
+                        remove = moved.remove;
+                        response.changed |= moved.changed;
+                    }
+                });
+            });
+
+            let can_remove = !folder && list.selected.is_some();
+            let can_sort = !folder && list.files.len() > 1;
+            let can_add_open = !folder && !open_files.is_empty();
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = Gap::Row.points(&tokens);
+                let button = |ui: &mut Ui, label: &str, on: bool| {
+                    ui.add(Button::new(label).id_salt((id_salt, label)).min_width(BUTTON_WIDTH).enabled(on && enabled)).clicked()
+                };
+                browse = button(ui, &labels.browse, true);
+                remove |= button(ui, &labels.remove, can_remove);
+                add_open = button(ui, &labels.add_open_files, can_add_open);
+                sort = button(ui, &labels.sort_by_name, can_sort);
+            });
+        });
+
+        if remove && let Some(at) = list.selected.filter(|&at| at < list.files.len()) {
+            list.files.remove(at);
+            list.selected = None;
+            response.changed = true;
+        }
+        if add_open {
+            let before = list.files.len();
+            list.add(open_files.iter().cloned());
+            response.changed |= list.files.len() != before;
+        }
+        if sort {
+            list.files.sort_by_key(|path| file_name(path).to_lowercase());
+            list.selected = None;
+            response.changed = true;
+        }
+        if browse {
+            let request = if folder { PickRequest::folder(request.purpose.clone()) } else { request };
+            let id = host.files().pick(request);
+            ui.data_mut(|d| d.insert_temp(ticket_key, id));
+            response.browsing = Some(id);
+        }
+        response
     }
+}
+
+/// What the Files list reported besides its selection.
+struct RowEdits {
+    remove: bool,
+    changed: bool,
+}
+
+/// The Files list: one Tab stop, arrows select, Delete and Backspace remove the selected file,
+/// Alt+↑ and Alt+↓ move it.
+fn file_rows(ui: &mut Ui, id_salt: IdSalt, labels: &FileListLabels, list: &mut FileList, info: Option<InfoLine<'_>>) -> RowEdits {
+    let mut edits = RowEdits { remove: false, changed: false };
+    let rows: Vec<RowInfo<usize>> = (0..list.files.len()).map(RowInfo::leaf).collect();
+    let mut selection = list.selected.map_or_else(Selection::new, Selection::only);
+    let files = &list.files;
+    let output = List::new((id_salt, "files"), labels.files.as_str(), rows.as_slice())
+        .selection(&mut selection)
+        .mode(SelectionMode::Single)
+        .detail_lines(info.is_some())
+        .max_height(LIST_SIZE.y)
+        .show(ui, |_, &at| file_row(at, &files[at], info));
+    for event in &output.events {
+        if let ListEvent::Selection(change) = event {
+            list.selected = change.selection.items.first().copied();
+        }
+    }
+    if output.response.has_focus()
+        && ui.is_enabled()
+        && let Some(at) = list.selected
+    {
+        let (delete, up, down) = ui.input_mut(|i| {
+            (
+                i.consume_key(Modifiers::NONE, Key::Delete) || i.consume_key(Modifiers::NONE, Key::Backspace),
+                i.consume_key(Modifiers::ALT, Key::ArrowUp),
+                i.consume_key(Modifiers::ALT, Key::ArrowDown),
+            )
+        });
+        if delete {
+            edits.remove = true;
+        } else if up && at > 0 {
+            list.files.swap(at, at - 1);
+            list.selected = Some(at - 1);
+            edits.changed = true;
+        } else if down && at + 1 < list.files.len() {
+            list.files.swap(at, at + 1);
+            list.selected = Some(at + 1);
+            edits.changed = true;
+        }
+    }
+    edits
+}
+
+/// One file's row: its name, the path for a screen reader, the app's info line under the name.
+fn file_row<'a>(at: usize, path: &Path, info: Option<InfoLine<'_>>) -> ListRow<'a, usize> {
+    let name = file_name(path);
+    let line = info.and_then(|info| info(path));
+    let accessible = match &line {
+        Some(line) => format!("{name}, {line}"),
+        None => name.clone(),
+    };
+    let row = ListRow::new(at, name).accessible_name(accessible).description(path.to_string_lossy());
+    match line {
+        Some(line) => row.detail(line),
+        None => row,
+    }
+}
+
+/// The Folder list: the folder's path, then the files the app found there. No selection.
+fn folder_rows(ui: &mut Ui, labels: &FileListLabels, folder: Option<&Path>, files: &[PathBuf], info: Option<InfoLine<'_>>) {
+    let builder = UiBuilder::new().accessibility_role(Role::List).accessibility_label(labels.files.clone());
+    ui.scope_builder(builder, |ui| {
+        ScrollArea::vertical().id_salt("folder-files").max_height(LIST_SIZE.y).auto_shrink([false, false]).show(ui, |ui| {
+            if let Some(folder) = folder {
+                ui.add(Text::new(folder.to_string_lossy()).content(Content::Muted).truncate());
+            }
+            for (at, path) in files.iter().enumerate() {
+                let _ = file_row(at, path, info).role(Role::ListItem).show(ui);
+            }
+        });
+    });
+}
+
+fn file_name(path: &Path) -> String {
+    path.file_name().map_or_else(|| path.to_string_lossy(), |name| name.to_string_lossy()).into_owned()
 }
