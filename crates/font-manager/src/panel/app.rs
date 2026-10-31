@@ -191,7 +191,6 @@ pub struct FontsPanel {
     /// Downloaded preview files, never installed.
     pub(crate) previews: Arc<Catalog>,
     pub(crate) previewed: HashMap<String, Vec<FaceInfo>>,
-    pub(crate) faces: FaceFonts,
     pub(crate) jobs: Jobs,
     pub(crate) asking: Option<Pending>,
     /// By lower-case family name.
@@ -305,7 +304,6 @@ impl FontsPanel {
             detail: None,
             previews,
             previewed: HashMap::new(),
-            faces: FaceFonts::default(),
             jobs: Jobs::new(),
             asking: None,
             failed: HashMap::new(),
@@ -462,7 +460,7 @@ impl FontsPanel {
         let host = i18n::follow(&ctx);
         self.load_settings(host.as_deref());
         self.skin = Skin { p: self.look.palette(&ctx), look: self.look.clone() };
-        self.faces.begin_frame(&ctx);
+        FaceFonts::shared(&ctx).begin_frame(&ctx);
         self.poll_jobs();
         let focused = ctx.input(|i| i.focused);
         if focused && !self.focused {

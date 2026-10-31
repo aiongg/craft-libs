@@ -270,8 +270,11 @@ impl Composer {
     }
 
     /// The caret in screen points (`ctx.layer_transform_to_global(layer) * rect` for a canvas
-    /// on a transformed layer), after this pass's edits moved it. Put it at the start of the
-    /// marked text, or of its active segment, so candidates don't cover what is being typed.
+    /// on a transformed layer), after this pass's edits moved it. An editor that writes the marked
+    /// text into its own text puts it at the end of the marked text, where the caret is (the
+    /// candidate window opens there, as in PhotoCraft); an editor that draws the marked text apart
+    /// puts it at the start of the marked text, or of its active segment, so candidates don't cover
+    /// what is being typed.
     ///
     /// Call it after [`Self::update`] in every pass that edits; until the first call the
     /// candidate window has no position.

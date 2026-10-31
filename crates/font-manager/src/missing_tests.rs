@@ -37,7 +37,10 @@ fn postscript_name_resolves_before_family_and_style() {
     assert_eq!(rows[0].status, FontStatus::Installed);
     assert!(matches!(rows[1].status, FontStatus::OtherStyle(_)));
     assert_eq!(rows[2].status, FontStatus::Missing);
-    assert_eq!(missing_font_warnings(&rows), ["font 'Nonesuch' is not installed; text may render using a fallback face"]);
+    assert_eq!(
+        missing_font_warnings(&rows, &MissingFontsLabels::default()),
+        ["font 'Nonesuch' is not installed; text may render using a fallback face"]
+    );
 }
 
 struct App {

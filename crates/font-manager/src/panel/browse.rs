@@ -8,7 +8,7 @@ use egui::{CornerRadius, FontFamily, FontId, Id, Rect, Role, Sense, StrokeKind, 
 
 use crate::index::{Category, Index, script_name, source_label};
 use crate::panel::app::{Detail, FontsPanel, Origin, Pending, Preset, Show, Tab, category_label, family_key, regular, source_name, style_count};
-use crate::panel::faces::{Owner, Shown};
+use crate::panel::faces::{FaceFonts, Owner, Shown};
 use crate::panel::i18n::{self, fmt, tl, tn};
 use crate::panel::jobs::Kind;
 use crate::panel::widgets::{self, Cell, Glyph, Skin};
@@ -657,7 +657,7 @@ impl FontsPanel {
                     Owner::Installed => Arc::clone(&self.catalog),
                     Owner::Preview => Arc::clone(&self.previews),
                 };
-                match self.faces.family(ui.ctx(), &catalog, *owner, face) {
+                match FaceFonts::shared(ui.ctx()).family(ui.ctx(), &catalog, *owner, face) {
                     Shown::Ready(family) => (family, s.p.ink),
                     Shown::Loading => return,
                     Shown::Unavailable => (FontFamily::Proportional, s.p.faint),

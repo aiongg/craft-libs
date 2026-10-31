@@ -27,7 +27,8 @@
 //! if r.commit { finish_editing(); }
 //! // After the layout of this pass, with the canvas painter:
 //! editor.paint(&painter, &view, &mut layer_host);
-//! editor.finish_pass(ctx, &view, &mut layer_host);
+//! let late = editor.finish_pass(ctx, &view, &mut layer_host); // events after a press
+//! if late.commit { finish_editing(); }
 //! ```
 
 #![expect(unused_variables, reason = "the default `style_key` takes no formatting")]
@@ -127,7 +128,8 @@ pub enum StyleKey {
     /// ⌥← / ⌥→ with a selection: tracking by −20 / +20 thousandths of an em (×5 with ⌘).
     Tracking(f32),
     /// ⌥← / ⌥→ at a caret: kerning of the pair around the caret, as [`StyleKey::Tracking`]. At a
-    /// line or text edge (no pair) nothing happens (Photoshop).
+    /// line or text edge there is no pair: the host does nothing and returns `true` (Photoshop),
+    /// or returns `false` and the key moves by word.
     Kern(f32),
 }
 
@@ -206,6 +208,16 @@ pub struct EditorResponse {
     pub took_keys: bool,
 }
 
+impl EditorResponse {
+    fn merge(&mut self, later: EditorResponse) {
+        self.changed |= later.changed;
+        self.selection_changed |= later.selection_changed;
+        self.commit |= later.commit;
+        self.cancel |= later.cancel;
+        self.took_keys |= later.took_keys;
+    }
+}
+
 /// A text editing session on a canvas: selection, click runs, the input method and the keys. The
 /// app keeps one per session and drops it when the session ends.
 ///
@@ -255,6 +267,15 @@ pub struct TextEditor {
     /// Length and hash of the host's text as the last pass left it; a different text at the next
     /// pass was changed from outside.
     seen: Option<(usize, u64)>,
+    /// The widget that is the canvas to egui: keys go to the editor while it has the keyboard focus
+    /// or nothing has.
+    canvas: Option<Id>,
+    /// The context of the last [`update`](Self::update), for the events a press releases.
+    ctx: Option<Context>,
+    /// `update` held back a press and the events after it, until the press has moved the caret.
+    after_press: bool,
+    /// What the events after a press did, for [`finish_pass`](Self::finish_pass) to report.
+    late: EditorResponse,
 }
 
 impl TextEditor {
@@ -276,7 +297,21 @@ impl TextEditor {
             composition_ended: false,
             preedit_text: String::new(),
             seen: None,
+            canvas: None,
+            ctx: None,
+            after_press: false,
+            late: EditorResponse::default(),
         }
+    }
+
+    /// The egui id of the canvas widget. The editor stands down while another widget has the
+    /// keyboard focus (a list, a button, a text field in a panel) and while the window is
+    /// unfocused; without an id it stands down whenever any widget has the focus.
+    // pc: crates/ui-egui/src/tools/type_tool/keys.rs:55 `handle_keys` (`controls_only` when
+    // `egui_wants_keyboard_input()` or the window is unfocused).
+    pub fn canvas(mut self, id: Id) -> Self {
+        self.canvas = Some(id);
+        self
     }
 
     /// Convert typed straight quotes with `style` (`None`: off). The app sets it from its Use
@@ -315,13 +350,57 @@ impl TextEditor {
 
     /// Run one pass of input: the composer's edits in order, applied through `host` (marked text
     /// written into the text, typed text smart-quoted, keys moving the caret, formatting through
-    /// [`TextEditorHost::style_key`], the clipboard through egui). Call before the app's shortcuts,
-    /// with the keyboard on the canvas.
+    /// [`TextEditorHost::style_key`], the clipboard through egui). Call before the app's shortcuts.
+    ///
+    /// The editor stands down, keeping marked text as typed and taking no keys, while another
+    /// widget has the keyboard focus or the window is unfocused ([`canvas`](Self::canvas)).
+    ///
+    /// A primary press in the pass's events is handled where it comes: the events before it apply
+    /// here at the old caret, and the press with the events after it wait in the input until
+    /// [`press`](Self::press) has placed the caret, which applies them there in the same pass (or
+    /// until [`finish_pass`](Self::finish_pass), when the press never reaches the editor). What the
+    /// later events did is in the response of `finish_pass`.
     // pc: crates/ui-egui/src/tools/type_tool/keys.rs:51 `handle_keys` (:287 style keys, :329
     // delete, :356 move), ime_edit.rs:263 `ime_update` (marked text in the layer), :345 and :361
     // the delete-surrounding pair, editing.rs:141 `insert`, :171 `insert_typed`, :359
     // `commit_shortcut`, :108 copy, :131 cut.
     pub fn update(&mut self, ctx: &Context, host: &mut impl TextEditorHost) -> EditorResponse {
+        self.ctx = Some(ctx.clone());
+        self.late = EditorResponse::default();
+        self.after_press = false;
+        let held = ctx.input_mut(|i| i.events.iter().position(is_primary_press).map(|at| i.events.split_off(at)));
+        let response = self.run(ctx, host);
+        if let Some(held) = held {
+            self.after_press = held.len() > 1;
+            ctx.input_mut(|i| i.events.extend(held));
+        }
+        response
+    }
+
+    /// The events after a press, at the caret the press placed. Nothing when `update` held none.
+    fn resume(&mut self, host: &mut impl TextEditorHost) {
+        if !std::mem::take(&mut self.after_press) {
+            return;
+        }
+        let Some(ctx) = self.ctx.clone() else { return };
+        let Some(tail) = ctx.input_mut(|i| i.events.iter().position(is_primary_press).map(|at| i.events.split_off(at + 1))) else { return };
+        let head = ctx.input_mut(|i| std::mem::replace(&mut i.events, tail));
+        let response = self.run(&ctx, host);
+        ctx.input_mut(|i| {
+            let mut events = head;
+            events.append(&mut i.events);
+            i.events = events;
+        });
+        self.late.merge(response);
+    }
+
+    /// Whether another widget has the keyboard, or the window doesn't.
+    fn stands_down(&self, ctx: &Context) -> bool {
+        !ctx.input(|i| i.focused) || ctx.memory(|m| m.focused()).is_some_and(|focused| Some(focused) != self.canvas)
+    }
+
+    /// The input events in the context's input, once through.
+    fn run(&mut self, ctx: &Context, host: &mut impl TextEditorHost) -> EditorResponse {
         if std::mem::take(&mut self.composition_ended) {
             self.composer.discard(ctx);
         }
@@ -333,7 +412,8 @@ impl TextEditor {
                 self.text_replaced(ctx, host);
             }
         }
-        let edits = self.composer.update(ctx, true);
+        let standing_down = self.stands_down(ctx);
+        let edits = self.composer.update(ctx, !standing_down);
         let time = ctx.input(|i| i.time);
         let before = self.selection;
         let chars = host.text().chars().count();
@@ -404,7 +484,13 @@ impl TextEditor {
             self.blink_start = time;
         }
         self.seen = Some(fingerprint(host.text()));
-        consume_events(ctx, &pass);
+        if standing_down {
+            // The marked text a stand-down kept is the only edit; the keys and text in the input
+            // belong to the widget that has the keyboard.
+            pass.took = false;
+        } else {
+            consume_events(ctx, &pass);
+        }
         EditorResponse {
             changed: pass.changed,
             selection_changed: self.selection != before,
@@ -456,6 +542,7 @@ impl TextEditor {
 
     /// A press on the canvas at `at` (document units, `screen` on screen) at egui time `time`. Inside the text: places
     /// the caret (Shift extends), counts the click run and selects by it, and starts a drag;
+    /// applies the events [`update`](Self::update) held back behind the press at the new caret;
     /// returns `true`. Outside: ends a composition with its marked text kept and returns `false`,
     /// so the app ends the session (and may start one on the text under the pointer).
     // pc: crates/ui-egui/src/tools/type_tool/pointer.rs:107 `pointer_down`, :375
@@ -487,6 +574,7 @@ impl TextEditor {
         }
         self.dragging = Some(count);
         self.blink_start = time;
+        self.resume(host);
         true
     }
 
@@ -529,7 +617,7 @@ impl TextEditor {
         let caret = [Stroke::new(sizes.caret_halo, Color32::WHITE), Stroke::new(sizes.caret_line, Color32::BLACK)];
         let screen = |p: Point| view.to_screen(p);
         let chars = host.text().chars().count();
-        if let Some(range) = self.preedit.clone().filter(|r| r.end <= chars && !r.is_empty()) {
+        if let Some(range) = self.preedit.clone().filter(|r| r.end <= chars && !r.is_empty() && self.preedit_is_current(&*host)) {
             let mut underline = |r: Range<usize>, width: f32| {
                 for [a, b] in host.underline_segments(r) {
                     painter.line_segment([screen(a), screen(b)], Stroke::new(width, accent));
@@ -564,7 +652,13 @@ impl TextEditor {
     /// platform's surrounding text. Run once per pass after the layout and before the pass ends.
     // pc: crates/ui-egui/src/tools/type_tool/ime_edit.rs:128 `sync_ime`, :222 `ime_geometry`, :86
     // `committed_text`.
-    pub fn finish_pass(&mut self, ctx: &Context, view: &CanvasView, host: &mut impl TextEditorHost) {
+    ///
+    /// Returns what the events after a press did (see [`update`](Self::update)): the app ends the
+    /// session on its `commit` or `cancel` as on `update`'s.
+    pub fn finish_pass(&mut self, ctx: &Context, view: &CanvasView, host: &mut impl TextEditorHost) -> EditorResponse {
+        // The press never reached the editor (an overlay took it, or it fell outside the text):
+        // what came after it applies at the caret as it is.
+        self.resume(host);
         // A press or `set_selection` ended the composition in this pass: the composer learns of it
         // before it publishes, so the platform drops its copy in the same pass.
         if std::mem::take(&mut self.composition_ended) {
@@ -582,6 +676,7 @@ impl TextEditor {
         if let Some(CaretLine { top, bottom }) = host.caret(caret, None) {
             self.composer.set_caret(ctx, Rect::from_two_pos(view.to_screen(top), view.to_screen(bottom)).expand(1.0));
         }
+        std::mem::take(&mut self.late)
     }
 
     /// The host's text changed outside the editor (undo, redo, a panel edit, another view of the
@@ -627,12 +722,13 @@ struct Pass {
 
 /// Removes what the editor took from the pass's input, so the app's shortcuts don't see it again.
 fn consume_events(ctx: &Context, pass: &Pass) {
-    if !pass.took {
-        return;
-    }
     let mut keys = pass.keys.clone();
     ctx.input_mut(|i| {
         i.events.retain(|event| match event {
+            // A release of a key the app's shortcuts have no use for after the editor: only ⌘
+            // chords are the app's.
+            Event::Key { pressed: false, modifiers, .. } => modifiers.command,
+            _ if !pass.took => true,
             Event::Key { key, pressed: true, modifiers, .. } => match keys.iter().position(|k| k.0 == *key && k.1 == *modifiers) {
                 Some(at) => {
                     keys.remove(at);
@@ -646,6 +742,11 @@ fn consume_events(ctx: &Context, pass: &Pass) {
             _ => true,
         });
     });
+}
+
+/// A press of the primary button.
+fn is_primary_press(event: &Event) -> bool {
+    matches!(event, Event::PointerButton { button: egui::PointerButton::Primary, pressed: true, .. })
 }
 
 /// Length and hash of `text`, to tell whether it changed between passes.
@@ -743,7 +844,11 @@ impl TextEditor {
             return false;
         }
         self.copy(ctx, &*host);
-        self.replace(host, range, "", EditKind::Deleted)
+        if !self.replace(host, range, "", EditKind::Deleted) {
+            return false;
+        }
+        self.composer.note_app_change(ctx);
+        true
     }
 
     /// New marked text (or its end, with empty `text`). Returns the range of marked text that
@@ -829,8 +934,8 @@ impl TextEditor {
         let chars = text.chars().count();
         self.selection = TextSelection { caret: self.selection.caret.min(chars), anchor: self.selection.anchor.min(chars) };
         let key = flow_key(raw, host.vertical());
-        let handled = self.style_key(host, key, modifiers, &text)
-            || self.delete_key(host, key, modifiers, &text, pass)
+        let handled = self.style_key(host, key, modifiers)
+            || self.delete_key(ctx, host, key, modifiers, &text, pass)
             || self.move_key(host, key, modifiers, &text);
         if handled {
             pass.took = true;
@@ -875,7 +980,7 @@ impl TextEditor {
     }
 
     /// Photoshop's formatting keys, through the host.
-    fn style_key(&mut self, host: &mut impl TextEditorHost, key: Key, modifiers: Modifiers, text: &str) -> bool {
+    fn style_key(&mut self, host: &mut impl TextEditorHost, key: Key, modifiers: Modifiers) -> bool {
         let scale = if modifiers.command { 5.0 } else { 1.0 };
         let selection = self.selection;
         let style = match key {
@@ -902,12 +1007,7 @@ impl TextEditor {
                 if !selection.is_empty() {
                     StyleKey::Tracking(by)
                 } else {
-                    // Kerning needs a pair on one line: a text or paragraph edge has none.
-                    let before = selection.caret.checked_sub(1).and_then(|i| text.chars().nth(i));
-                    let after = text.chars().nth(selection.caret);
-                    if before.is_none_or(|c| c == '\n') || after.is_none_or(|c| c == '\n') {
-                        return true;
-                    }
+                    // At a text or paragraph edge there is no pair: the host still decides.
                     StyleKey::Kern(by)
                 }
             }
@@ -916,7 +1016,7 @@ impl TextEditor {
         host.style_key(style, selection)
     }
 
-    fn delete_key(&mut self, host: &mut impl TextEditorHost, key: Key, modifiers: Modifiers, text: &str, pass: &mut Pass) -> bool {
+    fn delete_key(&mut self, ctx: &Context, host: &mut impl TextEditorHost, key: Key, modifiers: Modifiers, text: &str, pass: &mut Pass) -> bool {
         if !matches!(key, Key::Backspace | Key::Delete) {
             return false;
         }
@@ -936,8 +1036,9 @@ impl TextEditor {
         } else {
             range
         };
-        if !range.is_empty() {
-            pass.changed |= self.replace(host, range, "", EditKind::Deleted);
+        if !range.is_empty() && self.replace(host, range, "", EditKind::Deleted) {
+            self.composer.note_app_change(ctx);
+            pass.changed = true;
         }
         true
     }
@@ -1068,8 +1169,10 @@ pub fn flow_key(key: Key, vertical: bool) -> Key {
 /// - No snapping; autoscroll on, so a selection drag past the edge scrolls.
 ///
 /// The app runs [`TextEditor::update`] before the tool host in a pass (it reads the keys and the
-/// input method, and a press in the same pass counts on it) and [`TextEditor::finish_pass`] after
-/// it; the host has no per-pass hook for a tool.
+/// input method; the events after a press wait for the press, which applies them at the caret it
+/// places) and [`TextEditor::finish_pass`] after it. The editor's per-pass work moves to the
+/// host's `CanvasTool::each_pass` hook when the hook exists; the `RefCell` around the host stays,
+/// because `paint` takes `&self` and the host's layout needs `&mut`.
 ///
 /// The paragraph box's handles are not the editor's: the app draws them with the transform box
 /// before the tool host runs, so their presses never reach it.

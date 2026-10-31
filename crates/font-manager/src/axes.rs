@@ -5,7 +5,7 @@ use craft_ui::composites::SliderRow;
 use craft_ui::controls::Select;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
-use egui::Ui;
+use egui::{AsIdSalt, IdSalt, Ui};
 use skrifa::raw::types::Tag;
 use skrifa::string::StringId;
 use skrifa::{FontRef, MetadataProvider as _};
@@ -127,17 +127,41 @@ pub struct AxisSlidersResponse {
 /// `Select` of named instances above them when the face has any. Hidden axes, `opsz` (the text
 /// layout sets the optical size from the font size, as in PhotoCraft) and axes with an
 /// empty or non-finite range are left out. Values are the current coordinates; an axis without
-/// one shows its default. Axes whose range is 10 wide or more step by whole units, the others by
+/// one shows what the layout draws ([`AxisSliders::drawn`]; else its default). Axes whose range is 10 wide or more step by whole units, the others by
 /// hundredths.
 pub struct AxisSliders<'a> {
     axes: &'a [FontAxis],
     instances: &'a [NamedInstance],
     values: &'a mut Vec<([u8; 4], f32)>,
+    drawn: Drawn,
+    salt: IdSalt,
+}
+
+/// The style the sliders' unset axes show.
+#[derive(Clone, Copy, Default)]
+struct Drawn {
+    weight: Option<f32>,
+    italic: bool,
 }
 
 impl<'a> AxisSliders<'a> {
     pub fn new(axes: &'a [FontAxis], values: &'a mut Vec<([u8; 4], f32)>) -> Self {
-        AxisSliders { axes, instances: &[], values }
+        AxisSliders { axes, instances: &[], values, drawn: Drawn::default(), salt: IdSalt::new("axes") }
+    }
+
+    /// What the layout draws for an axis `values` has no coordinate for: the style's `weight` on
+    /// `wght` and the axis maximum on `ital` for an italic style, as PhotoCraft's `axis_value`.
+    /// Without it an unset axis shows its default.
+    pub fn drawn(mut self, weight: f32, italic: bool) -> Self {
+        self.drawn = Drawn { weight: Some(weight), italic };
+        self
+    }
+
+    /// Names the sliders to egui (default `"axes"`); give each instance on a screen its own, such
+    /// as the layer or style they edit.
+    pub fn id_salt(mut self, salt: impl AsIdSalt) -> Self {
+        self.salt = IdSalt::new(salt);
+        self
     }
 
     /// Show a named-instance list above the sliders.
@@ -151,14 +175,14 @@ impl<'a> AxisSliders<'a> {
         let labels = AxesLabels::of(ui);
         let numbers = LocaleNumbers::of(ui);
         let mut out = AxisSlidersResponse::default();
-        let AxisSliders { axes, instances, values } = self;
+        let AxisSliders { axes, instances, values, drawn, salt } = self;
 
         if !instances.is_empty() {
-            let current: Vec<([u8; 4], f32)> = axes.iter().map(|a| (a.tag, value_of(values, a))).collect();
+            let current: Vec<([u8; 4], f32)> = axes.iter().map(|a| (a.tag, value_of(values, a, drawn))).collect();
             let mut picked = matching_instance(instances, &current)
                 .map_or(usize::MAX, |m| instances.iter().position(|i| std::ptr::eq(i, m)).unwrap_or(usize::MAX));
             let before = picked;
-            let mut select = Select::new("axes.instances", labels.style.clone(), &mut picked).placeholder(labels.custom.clone());
+            let mut select = Select::new((salt, "instances"), labels.style.clone(), &mut picked).placeholder(labels.custom.clone());
             for (i, instance) in instances.iter().enumerate() {
                 select = select.option(i, instance.name.clone());
             }
@@ -179,8 +203,8 @@ impl<'a> AxisSliders<'a> {
 
         for axis in axes.iter().filter(|a| !a.hidden && a.tag != *b"opsz" && a.min.is_finite() && a.max.is_finite() && a.min < a.max) {
             let wide = axis.max - axis.min >= 10.0;
-            let value = value_of(values, axis);
-            let row = SliderRow::new(("axis", axis.tag), label_in(axis, &labels), value, f64::from(axis.min)..=f64::from(axis.max), &numbers)
+            let value = value_of(values, axis, drawn);
+            let row = SliderRow::new((salt, axis.tag), label_in(axis, &labels), value, f64::from(axis.min)..=f64::from(axis.max), &numbers)
                 .step(if wide { 1.0 } else { 0.01 })
                 .decimals(if wide { 0 } else { 2 })
                 .default_value(axis.default.clamp(axis.min, axis.max))
@@ -204,12 +228,18 @@ impl<'a> AxisSliders<'a> {
     }
 }
 
-/// The value an axis shows: the stored one, else the axis default, within the axis range.
-fn value_of(values: &[([u8; 4], f32)], axis: &FontAxis) -> f32 {
+/// The value an axis shows: the stored one, else what the style draws, else the axis default,
+/// within the axis range.
+fn value_of(values: &[([u8; 4], f32)], axis: &FontAxis, drawn: Drawn) -> f32 {
     let default = if axis.default.is_finite() { axis.default } else { axis.min };
     let stored = values.iter().find(|(t, _)| *t == axis.tag).map(|(_, v)| *v).filter(|v| v.is_finite());
+    let styled = match &axis.tag {
+        b"wght" => drawn.weight.filter(|w| w.is_finite()),
+        b"ital" if drawn.weight.is_some() && drawn.italic => Some(axis.max).filter(|m| m.is_finite()),
+        _ => None,
+    };
     let (lo, hi) = if axis.min <= axis.max { (axis.min, axis.max) } else { (axis.max, axis.min) };
-    stored.unwrap_or(default).clamp(lo, hi)
+    stored.or(styled).unwrap_or(default).clamp(lo, hi)
 }
 
 fn set_value(values: &mut Vec<([u8; 4], f32)>, tag: [u8; 4], value: f32) {

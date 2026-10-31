@@ -66,11 +66,10 @@ fn ignore_moves_on_and_ignore_all_relists() {
     assert_eq!(dialog.ignored(), ["recieve"]);
 }
 
-// Change returns `Change` with the item and the Change To text; a double-click on a suggestion
-// (Enter on the list, which the list reports as the double-click does) returns `Change` with that
-// suggestion.
+// Change returns `Change` with the item and the Change To text; Enter on a suggestion (which the
+// list reports as `Activate`, as it does a double-click) returns `Change` with that suggestion.
 #[test]
-fn change_uses_change_to_and_double_click_changes() {
+fn change_uses_change_to_and_enter_on_a_suggestion_changes() {
     let mut harness = harness(items());
     harness.run();
     harness.get_by_label("Change").click();
@@ -78,8 +77,6 @@ fn change_uses_change_to_and_double_click_changes() {
     assert_eq!(harness.state().actions, [SpellingAction::Change { item: items()[0].clone(), to: "the".into() }]);
 
     harness.state_mut().actions.clear();
-    // The list reports a double-click and Enter alike as `Activate`; Enter is the one a harness
-    // can send inside the dialog.
     harness.get_by_label("tea").click();
     harness.run();
     assert!(harness.state().actions.is_empty(), "a click only fills Change To");

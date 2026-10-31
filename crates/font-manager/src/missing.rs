@@ -35,6 +35,10 @@ craft_ui::words! {
         used_fonts: "missingFonts.usedFonts" = "Document Fonts";
         installed: "missingFonts.installed" = "Installed";
         missing: "missingFonts.missing" = "Missing";
+        warning: "missingFonts.warning" = "font '{family}' is not installed; text may render using a fallback face";
+        missing_font: "missingFonts.missingFont" = "{font} ({status})";
+        installed_style: "missingFonts.installedStyle" = "{status} ({style})";
+        font_status: "missingFonts.fontStatus" = "{font}: {status}";
     }
 }
 
@@ -91,17 +95,17 @@ pub fn document_fonts(catalog: &Catalog, fonts: &[DocumentFont]) -> Vec<Document
     rows
 }
 
-/// One warning per missing family for the open job's warning list, in document order (the text
-/// PhotoCraft's `missing_font_warnings` writes).
+/// One warning per missing family for the open job's warning list, in document order, worded by
+/// `labels` (PhotoCraft's `missing_font_warnings` text by default).
 // pc: crates/engine/src/cmd/type_extra_cmds.rs:647 `missing_font_warnings`.
-pub fn missing_font_warnings(rows: &[DocumentFontRow]) -> Vec<String> {
+pub fn missing_font_warnings(rows: &[DocumentFontRow], labels: &MissingFontsLabels) -> Vec<String> {
     let mut families: Vec<&str> = Vec::new();
     for row in rows.iter().filter(|r| r.status == FontStatus::Missing) {
         if !families.contains(&row.font.family.as_str()) {
             families.push(&row.font.family);
         }
     }
-    families.into_iter().map(|family| format!("font '{family}' is not installed; text may render using a fallback face")).collect()
+    families.into_iter().map(|family| craft_i18n::fmt(&labels.warning, &[("family", family)])).collect()
 }
 
 /// What the user chose for the missing fonts.
@@ -188,7 +192,7 @@ impl StackDialog for MissingFontsDialog {
                 FormGrid::new("missing-fonts-rows").show(ui, |form| {
                     for (i, row) in rows.iter().enumerate().filter(|(_, r)| r.status == FontStatus::Missing) {
                         let name = font_name(&row.font);
-                        form.row(format!("{name} ({})", labels.missing).as_str(), |ui, _| {
+                        form.row(craft_i18n::fmt(&labels.missing_font, &[("font", &name), ("status", &labels.missing)]).as_str(), |ui, _| {
                             replacement_field(ui, catalog, &families, i, &mut replacements[i], default_family, &labels)
                         });
                     }
@@ -257,6 +261,7 @@ fn replacement_field(
 
 /// The Document Fonts expander: every font with its status.
 fn document_fonts_list(ui: &mut Ui, rows: &[DocumentFontRow], labels: &MissingFontsLabels) {
+    let height = craft_ui::theme::current(ui.ctx()).component.font_picker.missing_list_height;
     let id = ui.scope_id().with("document-fonts-open");
     let mut open = ui.data_mut(|d| d.get_persisted::<bool>(id)).unwrap_or(false);
     SectionHeader::new("missing-fonts-all", labels.used_fonts.clone()).collapsible(true).open(&mut open).show(ui, |ui| {
@@ -267,16 +272,16 @@ fn document_fonts_list(ui: &mut Ui, rows: &[DocumentFontRow], labels: &MissingFo
             .map(|r| {
                 let status = match &r.status {
                     FontStatus::Installed => labels.installed.clone(),
-                    FontStatus::OtherStyle(style) => format!("{} ({style})", labels.installed),
+                    FontStatus::OtherStyle(style) => craft_i18n::fmt(&labels.installed_style, &[("status", &labels.installed), ("style", style)]),
                     FontStatus::Missing => labels.missing.clone(),
                 };
-                format!("{}: {status}", font_name(&r.font))
+                craft_i18n::fmt(&labels.font_status, &[("font", &font_name(&r.font)), ("status", &status)])
             })
             .collect();
         let _ = List::new(ui.scope_id().with("document-fonts"), labels.font.clone(), order.as_slice())
             .mode(SelectionMode::Single)
             .selection(&mut selection)
-            .max_height(160.0)
+            .max_height(height)
             .show(ui, |_, &key| ListRow::new(key, text[key].as_str()));
     });
     ui.data_mut(|d| d.insert_persisted(id, open));
