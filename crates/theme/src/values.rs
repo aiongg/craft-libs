@@ -1132,6 +1132,32 @@ pub const CANVAS_COMPASS: f32 = 36.0;
 /// Distance of the compass from the canvas's top and right edges (PhotoCraft's `M`).
 pub const CANVAS_COMPASS_MARGIN: f32 = 10.0;
 
+/// Height of the Glyphs panel's grid, in points (PhotoCraft's `glyphs_panel` scroll area).
+pub const GLYPHS_GRID_HEIGHT: f32 = 260.0;
+/// Glyph cell size when the settings have none.
+pub const GLYPHS_CELL: f32 = 32.0;
+/// Smallest and largest cell of the zoom slider.
+pub const GLYPHS_CELL_MIN: f32 = 24.0;
+pub const GLYPHS_CELL_MAX: f32 = 64.0;
+/// Space between a cell's edge and its glyph.
+pub const GLYPHS_GLYPH_INSET: f32 = 3.0;
+/// Side of a Recently Used cell, and the distance between cells.
+pub const GLYPHS_RECENT_CELL: f32 = 24.0;
+pub const GLYPHS_RECENT_PITCH: f32 = 26.0;
+/// Space between the Recently Used strip's edge and its first cell and top.
+pub const GLYPHS_RECENT_PAD: f32 = 1.0;
+/// Space between a Recently Used cell's edge and its glyph.
+pub const GLYPHS_RECENT_GLYPH_INSET: f32 = 2.0;
+
+/// Width of the text caret's halo and line, in points (PhotoCraft's `CARET_STROKES`).
+pub const TEXT_EDITOR_CARET_HALO: f32 = 3.0;
+pub const TEXT_EDITOR_CARET_LINE: f32 = 1.0;
+/// Share of the accent the selection fill keeps (alpha 110 of 255).
+pub const TEXT_EDITOR_SELECTION_ALPHA: f32 = 110.0 / 255.0;
+/// Underline widths of marked text and of the segment being converted.
+pub const TEXT_EDITOR_PREEDIT_UNDERLINE: f32 = 1.5;
+pub const TEXT_EDITOR_ACTIVE_UNDERLINE: f32 = 3.0;
+
 /// Points between split view panes (EffectCraft's `view.rs`).
 pub const SPLIT_GAP: f32 = 2.0;
 

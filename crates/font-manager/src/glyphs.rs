@@ -156,16 +156,7 @@ pub struct GlyphsPanel<'a> {
     labels: Option<GlyphsLabels>,
 }
 
-/// The grid's height in points (PhotoCraft's scroll area).
-const GRID_HEIGHT: f32 = 260.0;
-/// The cell size when the settings have none, and its range.
-const DEFAULT_ZOOM: f32 = 32.0;
-const ZOOM: std::ops::RangeInclusive<f32> = 24.0..=64.0;
-/// The space between a cell's edge and its glyph.
-const GLYPH_INSET: f32 = 3.0;
-/// The Recently Used cell and its pitch, and how many glyphs are kept.
-const RECENT_CELL: f32 = 24.0;
-const RECENT_PITCH: f32 = 26.0;
+/// How many recent glyphs are kept (Photoshop).
 const RECENT_LIMIT: usize = 25;
 
 type Textures = HashMap<char, Option<TextureHandle>>;
@@ -299,7 +290,9 @@ impl<'a> GlyphsPanel<'a> {
             let _ = select.show(ui);
         });
 
-        let size = if settings.zoom.is_finite() && settings.zoom > 0.0 { settings.zoom.clamp(*ZOOM.start(), *ZOOM.end()) } else { DEFAULT_ZOOM };
+        let sizes = tokens.component.glyphs;
+        let size =
+            if settings.zoom.is_finite() && settings.zoom > 0.0 { settings.zoom.clamp(sizes.cell_min, sizes.cell_max) } else { sizes.cell };
         let ppp = ctx.pixels_per_point();
         let ink = Content::Normal.color(&tokens).to_egui();
         let mut activated: Option<String> = None;
@@ -307,18 +300,18 @@ impl<'a> GlyphsPanel<'a> {
         // Recently used.
         ui.label(labels.recent.clone());
         let recent_cache = shared::<GlyphCache>(&ctx, panel.with("recent-textures"));
-        let (strip, _) = ui.allocate_exact_size(vec2(ui.available_width(), RECENT_PITCH), egui::Sense::hover());
+        let (strip, _) = ui.allocate_exact_size(vec2(ui.available_width(), sizes.recent_pitch), egui::Sense::hover());
         Surface::paint(ui.painter(), strip, SurfaceKind::Sunken, &tokens);
         let rtl = direction::is_rtl(ui);
-        let recent_px = (RECENT_CELL * ppp).round().max(8.0) as u32;
+        let recent_px = (sizes.recent_cell * ppp).round().max(8.0) as u32;
         for (i, glyph) in settings.recent.iter().enumerate() {
             let Some(c) = glyph.chars().next() else { continue };
-            let offset = 1.0 + i as f32 * RECENT_PITCH;
-            if offset + RECENT_CELL > strip.width() {
+            let offset = sizes.recent_pad + i as f32 * sizes.recent_pitch;
+            if offset + sizes.recent_cell > strip.width() {
                 break;
             }
-            let x = if rtl { strip.right() - offset - RECENT_CELL } else { strip.left() + offset };
-            let cell = Rect::from_min_size(pos2(x, strip.top() + 1.0), vec2(RECENT_CELL, RECENT_CELL));
+            let x = if rtl { strip.right() - offset - sizes.recent_cell } else { strip.left() + offset };
+            let cell = Rect::from_min_size(pos2(x, strip.top() + sizes.recent_pad), vec2(sizes.recent_cell, sizes.recent_cell));
             let name = labels.cell.replace("{char}", &c.to_string()).replace("{code}", &code(c));
             let sensed = Interactive::with_id(panel.with(("recent", i)), Role::Button, name.clone())
                 .surface(SurfaceKind::Raised)
@@ -326,7 +319,7 @@ impl<'a> GlyphsPanel<'a> {
                 .interact_at(ui, cell);
             let cell_response = sensed.finish(ui).on_hover_text(name);
             if let Some(id) = texture(&ctx, &recent_cache, source, family, style, c, recent_px) {
-                paint_glyph(ui, id, cell.shrink(2.0), ink);
+                paint_glyph(ui, id, cell.shrink(sizes.recent_glyph_inset), ink);
             }
             if cell_response.clicked() {
                 activated = Some(glyph.clone());
@@ -351,7 +344,7 @@ impl<'a> GlyphsPanel<'a> {
             ui.memory_mut(|m| {
                 m.set_focus_lock_filter(cell_id(stop), EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() })
             });
-            let page = ((GRID_HEIGHT / size).floor() as usize).saturating_sub(1);
+            let page = ((sizes.grid_height / size).floor() as usize).saturating_sub(1);
             let nav = GridNav::wrapped(chars.len(), columns).rtl(rtl).page(page);
             let mut lead = stop;
             ui.input_mut(|i| {
@@ -378,14 +371,14 @@ impl<'a> GlyphsPanel<'a> {
         stop = state.lead;
 
         let grid_cache = shared::<GlyphCache>(&ctx, panel.with("grid-textures"));
-        let px = ((size - 2.0 * GLYPH_INSET) * ppp).round().max(8.0) as u32;
-        let mut area = ScrollArea::vertical().id_salt(panel.with("scroll")).max_height(GRID_HEIGHT).auto_shrink([false, false]);
+        let px = ((size - 2.0 * sizes.glyph_inset) * ppp).round().max(8.0) as u32;
+        let mut area = ScrollArea::vertical().id_salt(panel.with("scroll")).max_height(sizes.grid_height).auto_shrink([false, false]);
         if let Some(lead) = scroll_to {
             let top = (lead / columns) as f32 * size;
             if top < state.offset {
                 area = area.vertical_scroll_offset(top);
-            } else if top + size > state.offset + GRID_HEIGHT {
-                area = area.vertical_scroll_offset(top + size - GRID_HEIGHT);
+            } else if top + size > state.offset + sizes.grid_height {
+                area = area.vertical_scroll_offset(top + size - sizes.grid_height);
             }
         }
         let mut clicked: Option<usize> = None;
@@ -417,7 +410,7 @@ impl<'a> GlyphsPanel<'a> {
                     if ui.is_rect_visible(cell)
                         && let Some(id) = texture(ui.ctx(), &grid_cache, source, family, style, c, px)
                     {
-                        paint_glyph(ui, id, cell.shrink(GLYPH_INSET), ink);
+                        paint_glyph(ui, id, cell.shrink(sizes.glyph_inset), ink);
                     }
                     if cell_response.double_clicked() {
                         activated = Some(c.to_string());
@@ -442,7 +435,7 @@ impl<'a> GlyphsPanel<'a> {
                 None => labels.count.replace("{n}", &chars.len().to_string()),
             };
             ui.label(info);
-            let zoom = Slider::new(panel.with("zoom"), labels.zoom.clone(), size, *ZOOM.start()..=*ZOOM.end()).step(1.0).show(ui);
+            let zoom = Slider::new(panel.with("zoom"), labels.zoom.clone(), size, sizes.cell_min..=sizes.cell_max).step(1.0).show(ui);
             if let Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = zoom.event {
                 settings.zoom = value as f32;
             }

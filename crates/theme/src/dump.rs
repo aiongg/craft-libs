@@ -10,15 +10,15 @@ use crate::{
     BySize, CanvasTokens, CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken,
     ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens,
     Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, EyedropperTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps,
-    GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens,
-    HistogramTokens, IconButtonTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes, ListTokens,
-    ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
+    GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens,
+    HarmonyTokens, HistogramTokens, IconButtonTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes,
+    ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
     PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens,
     PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens,
     ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
     SpinnerTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens,
-    ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens,
-    TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    TextEditorTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens,
+    TooltipTokens, TourTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -254,6 +254,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         field,
         float,
         form,
+        glyphs,
         gradient_editor,
         gradient_line,
         grid,
@@ -302,6 +303,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         swatch,
         swatch_palette,
         tab,
+        text_editor,
         title_bar,
         toast,
         toggle_button,
@@ -332,6 +334,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     field_lines(out, field);
     float_lines(out, float);
     form_lines(out, form);
+    glyphs_lines(out, glyphs);
     gradient_editor_lines(out, gradient_editor);
     gradient_line_lines(out, gradient_line);
     grid_lines(out, grid);
@@ -380,6 +383,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     swatch_lines(out, swatch);
     swatch_palette_lines(out, swatch_palette);
     tab_lines(out, tab);
+    text_editor_lines(out, text_editor);
     title_bar_lines(out, title_bar);
     toast_lines(out, toast);
     toggle_button_lines(out, toggle_button);
@@ -1470,6 +1474,28 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
     out.line("crop.perspective_click_dot", len(*perspective_click_dot));
     out.line("crop.perspective_click_move", len(*perspective_click_move));
     out.line("crop.perspective_reach", len(*perspective_reach));
+}
+
+fn glyphs_lines(out: &mut Lines, t: &GlyphsTokens) {
+    let GlyphsTokens { grid_height, cell, cell_min, cell_max, glyph_inset, recent_cell, recent_pitch, recent_pad, recent_glyph_inset } = t;
+    out.line("glyphs.grid_height", len(*grid_height));
+    out.line("glyphs.cell", len(*cell));
+    out.line("glyphs.cell_min", len(*cell_min));
+    out.line("glyphs.cell_max", len(*cell_max));
+    out.line("glyphs.glyph_inset", len(*glyph_inset));
+    out.line("glyphs.recent_cell", len(*recent_cell));
+    out.line("glyphs.recent_pitch", len(*recent_pitch));
+    out.line("glyphs.recent_pad", len(*recent_pad));
+    out.line("glyphs.recent_glyph_inset", len(*recent_glyph_inset));
+}
+
+fn text_editor_lines(out: &mut Lines, t: &TextEditorTokens) {
+    let TextEditorTokens { caret_halo, caret_line, selection_alpha, preedit_underline, active_underline } = t;
+    out.line("text_editor.caret_halo", len(*caret_halo));
+    out.line("text_editor.caret_line", len(*caret_line));
+    out.line("text_editor.selection_alpha", len(*selection_alpha));
+    out.line("text_editor.preedit_underline", len(*preedit_underline));
+    out.line("text_editor.active_underline", len(*active_underline));
 }
 
 fn grid_lines(out: &mut Lines, t: &GridTokens) {

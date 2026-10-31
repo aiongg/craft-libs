@@ -51,6 +51,7 @@ mod eyedropper;
 mod field;
 mod float;
 mod form;
+mod glyphs;
 mod gradient_editor;
 mod gradient_line;
 mod gradient_palette;
@@ -100,6 +101,7 @@ mod status_bar;
 mod swatch;
 mod swatch_palette;
 mod tab;
+mod text_editor;
 mod title_bar;
 mod toast;
 mod toggle_button;
@@ -139,6 +141,7 @@ pub use eyedropper::{EyedropperField, EyedropperTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
 pub use float::{FloatField, FloatTokens};
 pub use form::{FormField, FormSpacing, FormTokens};
+pub use glyphs::{GlyphsField, GlyphsTokens};
 pub use gradient_editor::{GradientEditorField, GradientEditorTokens};
 pub use gradient_line::{GradientLineField, GradientLineTokens};
 pub use gradient_palette::{GradientPaletteField, GradientPaletteTokens};
@@ -187,6 +190,7 @@ pub use status_bar::{StatusBarField, StatusBarTokens};
 pub use swatch::{SwatchColor, SwatchField, SwatchTokens};
 pub use swatch_palette::{SwatchPaletteField, SwatchPaletteTokens};
 pub use tab::{TabField, TabTokens};
+pub use text_editor::{TextEditorField, TextEditorTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
@@ -783,6 +787,8 @@ families! {
     form: FormTokens => Form(FormField);
     /// Text fields: one line of editable text in a sunken box.
     field: FieldTokens => Field(FieldField);
+    /// The Glyphs panel: the character grid and the Recently Used strip.
+    glyphs: GlyphsTokens => Glyphs(GlyphsField);
     /// Gradient editors: the stop bar, its markers and midpoint diamonds.
     gradient_editor: GradientEditorTokens => GradientEditor(GradientEditorField);
     /// Gradient lines: the line, end handles, stops and midpoints of a gradient on the canvas.
@@ -879,6 +885,8 @@ families! {
     swatch_palette: SwatchPaletteTokens => SwatchPalette(SwatchPaletteField);
     /// Tabs: one tab of a document or panel strip.
     tab: TabTokens => Tab(TabField);
+    /// The text editor on a canvas: the caret and the marked-text underlines.
+    text_editor: TextEditorTokens => TextEditor(TextEditorField);
     /// Title bars: the caption row with the window's buttons and the document title.
     title_bar: TitleBarTokens => TitleBar(TitleBarField);
     /// Toasts: cards stacked in a corner of the window.

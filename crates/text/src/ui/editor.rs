@@ -51,14 +51,6 @@ const MAX_CLICKS: u32 = 5;
 /// (egui's own double-click delay and distance).
 const MAX_CLICK_DELAY: f64 = 0.3;
 const MAX_CLICK_DISTANCE: f32 = 6.0;
-/// The caret as PhotoCraft draws it: a white halo, then a black line inside it, so it shows on
-/// any image.
-const CARET_STROKES: [Stroke; 2] = [Stroke { width: 3.0, color: Color32::WHITE }, Stroke { width: 1.0, color: Color32::BLACK }];
-/// Alpha of the selection's accent fill.
-const SELECTION_ALPHA: u8 = 110;
-/// Points of the marked text's underline, and of the converted segment's.
-const PREEDIT_UNDERLINE: f32 = 1.5;
-const ACTIVE_UNDERLINE: f32 = 3.0;
 /// The caret's half period (Photoshop's rhythm).
 const BLINK_SECONDS: f64 = 0.530;
 
@@ -529,7 +521,12 @@ impl TextEditor {
     // :101 selection fill, :128 blink, :144 `CARET_STROKES`).
     pub fn paint(&self, painter: &Painter, view: &CanvasView, host: &mut impl TextEditorHost) {
         let ctx = painter.ctx();
-        let accent = craft_ui::theme::current(ctx).color.accent.solid.to_egui();
+        let tokens = craft_ui::theme::current(ctx);
+        let accent = tokens.color.accent.solid.to_egui();
+        let sizes = tokens.component.text_editor;
+        // The caret as PhotoCraft draws it: a white halo, then a black line inside it, so it shows
+        // on any image.
+        let caret = [Stroke::new(sizes.caret_halo, Color32::WHITE), Stroke::new(sizes.caret_line, Color32::BLACK)];
         let screen = |p: Point| view.to_screen(p);
         let chars = host.text().chars().count();
         if let Some(range) = self.preedit.clone().filter(|r| r.end <= chars && !r.is_empty()) {
@@ -538,14 +535,14 @@ impl TextEditor {
                     painter.line_segment([screen(a), screen(b)], Stroke::new(width, accent));
                 }
             };
-            underline(range.clone(), PREEDIT_UNDERLINE);
+            underline(range.clone(), sizes.preedit_underline);
             if let Some(active) = self.preedit_active.clone().filter(|a| !a.is_empty() && a.end <= range.len()) {
-                underline(range.start + active.start..range.start + active.end, ACTIVE_UNDERLINE);
+                underline(range.start + active.start..range.start + active.end, sizes.active_underline);
             }
         }
         let selected = self.clamped(chars);
         if !selected.is_empty() {
-            let fill = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), SELECTION_ALPHA);
+            let fill = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), (sizes.selection_alpha * 255.0).round() as u8);
             for quad in host.selection_quads(selected) {
                 painter.add(Shape::convex_polygon(quad.iter().map(|&p| screen(p)).collect(), fill, Stroke::NONE));
             }
@@ -556,7 +553,7 @@ impl TextEditor {
         ctx.request_repaint_after(std::time::Duration::from_secs_f64((BLINK_SECONDS - elapsed % BLINK_SECONDS).clamp(0.010, BLINK_SECONDS)));
         let visible = self.dragging.is_some() || ((elapsed / BLINK_SECONDS) as i64) % 2 == 0;
         if visible && let Some(CaretLine { top, bottom }) = host.caret(self.selection.caret.min(chars), None) {
-            for stroke in CARET_STROKES {
+            for stroke in caret {
                 painter.line_segment([screen(top), screen(bottom)], stroke);
             }
         }
