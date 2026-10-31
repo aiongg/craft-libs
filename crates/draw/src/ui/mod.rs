@@ -34,8 +34,8 @@ pub use pen::{
     MAX_ANCHORS, PathEdit, PathSelection, PenDraft, PenNames, PenResponse, PenStyle,
 };
 pub use transform::{
-    BoxPress, BoxRelease, BoxTrack, FieldLabel, RotateZone, SizeUnit, TransformBox, TransformBoxResponse, TransformFieldLabels, TransformFields,
-    TransformLabels, TransformNames, TransformRow, TransformStyle, paint_pivot,
+    BarGroups, BoxPress, BoxRelease, BoxTrack, FieldLabel, ParseContext, RotateZone, SizeUnit, TransformBox, TransformBoxResponse, TransformField,
+    TransformFieldLabels, TransformFields, TransformLabels, TransformNames, TransformRow, TransformStyle, paint_pivot,
 };
 
 craft_ui::story::register! {

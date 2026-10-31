@@ -31,6 +31,44 @@ const SCALE_LIMIT: f64 = 10_000.0;
 /// The largest angle.
 const ANGLE_LIMIT: f64 = 180.0;
 
+/// What a host's field parser reads besides the text: the field's current value, and for W and H
+/// the field value that stands for the box's whole original side.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ParseContext {
+    /// What the field shows now.
+    pub shown: f64,
+    /// For W and H: the field value of the box's original side (100 in percent, the side's length
+    /// in the field's unit otherwise), so "50%" is half of it. `None` for the other fields.
+    pub whole: Option<f64>,
+}
+
+/// The groups of cells [`TransformFields::show_bar`] shows; `Default` is all of them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BarGroups {
+    /// The reference point picker.
+    pub reference: bool,
+    /// X and Y.
+    pub position: bool,
+    /// W, the aspect link and H.
+    pub size: bool,
+    /// The angle.
+    pub angle: bool,
+    /// H and V skew.
+    pub skew: bool,
+    /// The interpolation select, when [`TransformFields::interpolation`] gives one.
+    pub interpolation: bool,
+}
+
+impl BarGroups {
+    pub const ALL: Self = Self { reference: true, position: true, size: true, angle: true, skew: true, interpolation: true };
+}
+
+impl Default for BarGroups {
+    fn default() -> Self {
+        Self::ALL
+    }
+}
+
 /// The unit of the W and H fields.
 // Built once per frame, so the size of the variants costs nothing.
 #[allow(clippy::large_enum_variant)]
@@ -151,7 +189,7 @@ impl TransformFieldLabels {
 
 /// One of the fields.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Field {
+pub enum TransformField {
     X,
     Y,
     W,
@@ -193,42 +231,42 @@ impl Conversion {
     }
 
     /// The largest value a field shows or takes.
-    pub fn bound(&self, field: Field) -> f64 {
+    pub fn bound(&self, field: TransformField) -> f64 {
         match field {
-            Field::X => POSITION_LIMIT * self.x.per_doc,
-            Field::Y => POSITION_LIMIT * self.y.per_doc,
-            Field::W => self.limit(0) * self.per_factor(0),
-            Field::H => self.limit(1) * self.per_factor(1),
-            Field::Angle => ANGLE_LIMIT,
-            Field::SkewH | Field::SkewV => SKEW_LIMIT,
+            TransformField::X => POSITION_LIMIT * self.x.per_doc,
+            TransformField::Y => POSITION_LIMIT * self.y.per_doc,
+            TransformField::W => self.limit(0) * self.per_factor(0),
+            TransformField::H => self.limit(1) * self.per_factor(1),
+            TransformField::Angle => ANGLE_LIMIT,
+            TransformField::SkewH | TransformField::SkewV => SKEW_LIMIT,
         }
     }
 
     /// What `field` shows for `state`, whose V skew is `skew_v`.
-    pub fn shown(&self, state: &BoxState, skew_v: f64, field: Field) -> f64 {
+    pub fn shown(&self, state: &BoxState, skew_v: f64, field: TransformField) -> f64 {
         let parts = state.parts(self.rect, skew_v);
         match field {
-            Field::X => state.pivot.x * self.x.per_doc,
-            Field::Y => state.pivot.y * self.y.per_doc,
-            Field::W => parts.w * self.per_factor(0),
-            Field::H => parts.h * self.per_factor(1),
-            Field::Angle => parts.angle,
-            Field::SkewH => parts.skew_h,
-            Field::SkewV => skew_v,
+            TransformField::X => state.pivot.x * self.x.per_doc,
+            TransformField::Y => state.pivot.y * self.y.per_doc,
+            TransformField::W => parts.w * self.per_factor(0),
+            TransformField::H => parts.h * self.per_factor(1),
+            TransformField::Angle => parts.angle,
+            TransformField::SkewH => parts.skew_h,
+            TransformField::SkewV => skew_v,
         }
     }
 
     /// The box and V skew after `field` is set to `value`: X and Y move the box with its reference
     /// point; the others scale, turn and skew it about the reference point. Linked, the other
     /// side of W or H follows by the same factor, each kept within its limit.
-    pub fn edit(&self, state: &BoxState, skew_v: f64, field: Field, value: f64) -> (BoxState, f64) {
+    pub fn edit(&self, state: &BoxState, skew_v: f64, field: TransformField, value: f64) -> (BoxState, f64) {
         let now = state.parts(self.rect, skew_v);
         let mut to = now;
         match field {
-            Field::X => return (state.moved(Vec2::new(value / self.x.per_doc - state.pivot.x, 0.0)), skew_v),
-            Field::Y => return (state.moved(Vec2::new(0.0, value / self.y.per_doc - state.pivot.y)), skew_v),
-            Field::W | Field::H => {
-                let axis = usize::from(field == Field::H);
+            TransformField::X => return (state.moved(Vec2::new(value / self.x.per_doc - state.pivot.x, 0.0)), skew_v),
+            TransformField::Y => return (state.moved(Vec2::new(0.0, value / self.y.per_doc - state.pivot.y)), skew_v),
+            TransformField::W | TransformField::H => {
+                let axis = usize::from(field == TransformField::H);
                 let factor = value / self.per_factor(axis);
                 if self.linked {
                     let (side, other) = if axis == 0 { (now.w, now.h) } else { (now.h, now.w) };
@@ -242,9 +280,9 @@ impl Conversion {
                     to.h = factor;
                 }
             }
-            Field::Angle => to.angle = value,
-            Field::SkewH => to.skew_h = value,
-            Field::SkewV => to.skew_v = value,
+            TransformField::Angle => to.angle = value,
+            TransformField::SkewH => to.skew_h = value,
+            TransformField::SkewV => to.skew_v = value,
         }
         (state.with_parts(self.rect, skew_v, to), to.skew_v)
     }
@@ -263,7 +301,7 @@ pub struct TransformRow {
 
 impl Conversion {
     /// The row after `field` is set to `value` in `row`.
-    fn row(&self, row: &TransformRow, field: Field, value: f64) -> TransformRow {
+    fn row(&self, row: &TransformRow, field: TransformField, value: f64) -> TransformRow {
         let (state, skew_v) = self.edit(&row.state, row.skew_v, field, value);
         TransformRow { state, skew_v }
     }
@@ -272,7 +310,7 @@ impl Conversion {
 /// What the row keeps between passes.
 #[derive(Clone, Debug, Default)]
 struct Kept {
-    parts: parts::State<(Field, ScalarOp)>,
+    parts: parts::State<(TransformField, ScalarOp)>,
     /// Each field's last value in the row's gesture, with that gesture and the row the value gave.
     reported: [Option<(GestureId, f64, TransformRow)>; FIELDS],
     /// The row the gesture the host was told of began from, kept from its Begin: a cancel that
@@ -352,7 +390,12 @@ pub struct TransformFields<'a> {
     policy: EditPolicy,
     size_menu: Option<(&'a [MenuEntry<usize>], &'a mut Option<usize>)>,
     interpolation: Option<InterpolationSelect<'a>>,
+    parser: Option<FieldParser<'a>>,
+    groups: BarGroups,
 }
+
+/// A host's reader of typed text for a field.
+type FieldParser<'a> = Box<dyn Fn(TransformField, &str, ParseContext) -> Option<f64> + 'a>;
 
 /// The interpolation select of the options-bar form.
 struct InterpolationSelect<'a> {
@@ -394,6 +437,8 @@ impl<'a> TransformFields<'a> {
             policy: EditPolicy::default(),
             size_menu: None,
             interpolation: None,
+            parser: None,
+            groups: BarGroups::ALL,
         }
     }
 
@@ -458,6 +503,24 @@ impl<'a> TransformFields<'a> {
         self
     }
 
+    /// A reader for text the locale's number format doesn't read ("40px", "2in", "50%", "5+5"),
+    /// tried after it, as [`NumberField::or_parse`] does. It gets the field, the text as typed, and
+    /// the [`ParseContext`], and returns the field's value in its own unit (the one
+    /// [`units`](Self::units) and [`size_unit`](Self::size_unit) set). Its result keeps the field's
+    /// range, rounding and rejection of values that aren't finite.
+    pub fn parser(mut self, parser: impl Fn(TransformField, &str, ParseContext) -> Option<f64> + 'a) -> Self {
+        self.parser = Some(Box::new(parser));
+        self
+    }
+
+    /// The groups [`show_bar`](Self::show_bar) shows (all by default). A divider separates the
+    /// groups shown: the reference point and position, the size, the angle and skew, and the
+    /// interpolation select. The fields shown keep their ids and events.
+    pub fn groups(mut self, groups: BarGroups) -> Self {
+        self.groups = groups;
+        self
+    }
+
     /// Shows the fields as a [`PropertyRow`]s and returns this frame's edit, with the box it gives.
     pub fn show(self, ui: &mut Ui) -> EditResponse<TransformRow> {
         self.show_in(ui, Form::Rows)
@@ -474,7 +537,8 @@ impl<'a> TransformFields<'a> {
     }
 
     fn show_in(self, ui: &mut Ui, form: Form) -> EditResponse<TransformRow> {
-        let Self { id_salt, state, rect, labels, x, y, size_unit, linked, skew_v, size, enabled, policy, size_menu, interpolation } = self;
+        let Self { id_salt, state, rect, labels, x, y, size_unit, linked, skew_v, size, enabled, policy, size_menu, interpolation, parser, groups } =
+            self;
         let id = ui.make_persistent_id(id_salt);
         let (skew_key, link_key, kept_key) = (id.with("skew_v"), id.with("linked"), id.with("kept"));
         let own_skew: f64 = ui.data(|d| d.get_temp(skew_key)).unwrap_or(0.0);
@@ -496,7 +560,7 @@ impl<'a> TransformFields<'a> {
             }
         }
         let scoped = edit::in_scope(ui);
-        let mut edits = parts::Edits::<TransformRow, (Field, ScalarOp)>::new(id, &kept.parts, &outer, scoped);
+        let mut edits = parts::Edits::<TransformRow, (TransformField, ScalarOp)>::new(id, &kept.parts, &outer, scoped);
         let inner = EditPolicy::default().cancellable(policy.cancellable).cost(policy.cost);
         let tokens = Tokens::of(ui);
         let row_style = PropertyRow::style(&tokens, size);
@@ -505,41 +569,42 @@ impl<'a> TransformFields<'a> {
         let linked_pair = pair + row_style.link_width + 2.0 * row_style.column_gap;
 
         // Each field's unit and decimals.
-        let format = |which: Field| match (which, &convert.size) {
-            (Field::X, _) => (convert.x.unit.clone(), convert.x.decimals),
-            (Field::Y, _) => (convert.y.unit.clone(), convert.y.decimals),
-            (Field::W, SizeUnit::Length { x, .. }) => (x.unit.clone(), x.decimals),
-            (Field::H, SizeUnit::Length { y, .. }) => (y.unit.clone(), y.decimals),
-            (Field::W | Field::H, SizeUnit::Percent) => (labels.percent.clone(), 1),
+        let format = |which: TransformField| match (which, &convert.size) {
+            (TransformField::X, _) => (convert.x.unit.clone(), convert.x.decimals),
+            (TransformField::Y, _) => (convert.y.unit.clone(), convert.y.decimals),
+            (TransformField::W, SizeUnit::Length { x, .. }) => (x.unit.clone(), x.decimals),
+            (TransformField::H, SizeUnit::Length { y, .. }) => (y.unit.clone(), y.decimals),
+            (TransformField::W | TransformField::H, SizeUnit::Percent) => (labels.percent.clone(), 1),
             _ => (labels.degrees.clone(), 2),
         };
-        let rule = |which: Field| {
+        let rule = |which: TransformField| {
             let bound = convert.bound(which);
             FieldRule::new(&(-bound..=bound), 1.0, format(which).1)
         };
         // What a field shows on `row`: the part of the box it reads, or the value it gave while
         // the box is the one that value made.
         let reported = kept.reported;
-        let reads = |which: Field, row: &TransformRow| match reported[which as usize] {
+        let reads = |which: TransformField, row: &TransformRow| match reported[which as usize] {
             Some((_, value, of)) if of == *row => value,
             _ => convert.shown(&row.state, row.skew_v, which),
         };
         // A field's operation applies to what the field shows on the row of its turn.
-        let apply = |(which, op): &(Field, ScalarOp), now: &TransformRow| {
+        let apply = |(which, op): &(TransformField, ScalarOp), now: &TransformRow| {
             Some(convert.row(now, *which, number_field::apply(op, reads(*which, now), &rule(*which))))
         };
         edits.replay(ui.ctx(), apply);
         let shown = *edits.value();
 
         let field = |ui: &mut Ui,
-                     which: Field,
+                     which: TransformField,
                      label: &FieldLabel,
                      size: ControlSize,
                      scrub: Scrub,
                      menu: Option<(&[MenuEntry<usize>], &mut Option<usize>)>| {
             let (unit, decimals) = format(which);
             let bound = convert.bound(which);
-            let mut field = NumberField::new((id, which as u8), label.name.clone(), reads(which, &shown), &numbers)
+            let current = reads(which, &shown);
+            let mut field = NumberField::new((id, which as u8), label.name.clone(), current, &numbers)
                 .range(-bound..=bound)
                 .decimals(0..=decimals)
                 .unit(unit)
@@ -547,6 +612,11 @@ impl<'a> TransformFields<'a> {
                 .part(true)
                 .size(size)
                 .enabled(enabled);
+            if let Some(parser) = &parser {
+                let whole =
+                    matches!(which, TransformField::W | TransformField::H).then(|| convert.per_factor(usize::from(which == TransformField::H)));
+                field = field.or_parse(move |text| parser(which, text, ParseContext { shown: current, whole }));
+            }
             field = match scrub {
                 Scrub::No => field,
                 Scrub::Caption(caption) => field.scrub_by(caption),
@@ -557,7 +627,7 @@ impl<'a> TransformFields<'a> {
             }
             field.show(ui)
         };
-        let plain = |ui: &mut Ui, which: Field, label: &FieldLabel| field(ui, which, label, size, Scrub::No, None);
+        let plain = |ui: &mut Ui, which: TransformField, label: &FieldLabel| field(ui, which, label, size, Scrub::No, None);
         let glyph = |label: &FieldLabel| PropertyLabel::glyph(label.glyph.clone());
         let group = |ui: &mut Ui, width: f32, add: &mut dyn FnMut(&mut Ui)| {
             ui.allocate_ui(vec2(width, 0.0), |ui| {
@@ -567,82 +637,105 @@ impl<'a> TransformFields<'a> {
         };
 
         let layout = if direction::is_rtl(ui) { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) }.with_main_wrap(true);
-        let rows = |ui: &mut Ui, fields: &mut Vec<(Field, EditResponse<f64>)>, linked: &mut bool| {
+        let rows = |ui: &mut Ui, fields: &mut Vec<(TransformField, EditResponse<f64>)>, linked: &mut bool| {
             group(ui, pair, &mut |ui| {
                 let (a, b) = PropertyRow::pair(glyph(&labels.x), glyph(&labels.y))
                     .size(size)
-                    .show(ui, |ui, _| plain(ui, Field::X, &labels.x), |ui, _| plain(ui, Field::Y, &labels.y))
+                    .show(ui, |ui, _| plain(ui, TransformField::X, &labels.x), |ui, _| plain(ui, TransformField::Y, &labels.y))
                     .inner;
-                fields.extend([(Field::X, a), (Field::Y, b)]);
+                fields.extend([(TransformField::X, a), (TransformField::Y, b)]);
             });
             group(ui, linked_pair, &mut |ui| {
                 let (a, _, b) = PropertyRow::pair(glyph(&labels.w), glyph(&labels.h))
                     .size(size)
                     .show_linked(
                         ui,
-                        |ui, _| plain(ui, Field::W, &labels.w),
+                        |ui, _| plain(ui, TransformField::W, &labels.w),
                         |ui| {
                             let icon = if *linked { Icon::Link } else { Icon::Unlink };
                             ui.add(IconButton::new(icon, labels.link.clone()).size(ControlSize::Sm).enabled(enabled).toggle(linked))
                         },
-                        |ui, _| plain(ui, Field::H, &labels.h),
+                        |ui, _| plain(ui, TransformField::H, &labels.h),
                     )
                     .inner;
-                fields.extend([(Field::W, a), (Field::H, b)]);
+                fields.extend([(TransformField::W, a), (TransformField::H, b)]);
             });
             group(ui, cell, &mut |ui| {
-                let edit = PropertyRow::new(glyph(&labels.angle)).size(size).show(ui, |ui, _| plain(ui, Field::Angle, &labels.angle)).inner;
-                fields.push((Field::Angle, edit));
+                let edit = PropertyRow::new(glyph(&labels.angle)).size(size).show(ui, |ui, _| plain(ui, TransformField::Angle, &labels.angle)).inner;
+                fields.push((TransformField::Angle, edit));
             });
             group(ui, pair, &mut |ui| {
                 let (a, b) = PropertyRow::pair(glyph(&labels.skew_h), glyph(&labels.skew_v))
                     .size(size)
-                    .show(ui, |ui, _| plain(ui, Field::SkewH, &labels.skew_h), |ui, _| plain(ui, Field::SkewV, &labels.skew_v))
+                    .show(ui, |ui, _| plain(ui, TransformField::SkewH, &labels.skew_h), |ui, _| plain(ui, TransformField::SkewV, &labels.skew_v))
                     .inner;
-                fields.extend([(Field::SkewH, a), (Field::SkewV, b)]);
+                fields.extend([(TransformField::SkewH, a), (TransformField::SkewV, b)]);
             });
         };
         let mut anchor = None;
         let mut size_pick = None;
         let bar_style = OptionsBar::style(&tokens, false);
-        let bar = |ui: &mut Ui, fields: &mut Vec<(Field, EditResponse<f64>)>, linked: &mut bool| {
-            let reference = ReferencePoint::new((id, "reference"), state.anchor_of_pivot()).enabled(enabled).show(ui);
-            if let Some(EditEvent::Set { value: Some(picked), modifiers, .. }) = reference.event {
-                anchor = Some((picked, modifiers));
+        let bar = |ui: &mut Ui, fields: &mut Vec<(TransformField, EditResponse<f64>)>, linked: &mut bool| {
+            if groups.reference {
+                let reference = ReferencePoint::new((id, "reference"), state.anchor_of_pivot()).enabled(enabled).show(ui);
+                if let Some(EditEvent::Set { value: Some(picked), modifiers, .. }) = reference.event {
+                    anchor = Some((picked, modifiers));
+                }
             }
             let sm = ControlSize::Sm;
             let wide = if matches!(convert.size, SizeUnit::Length { .. }) { CellWidth::Lg } else { CellWidth::Md };
             let menu = size_menu.as_ref().map(|(entries, _)| *entries);
-            let cell =
-                |ui: &mut Ui, which: Field, label: &FieldLabel, width: CellWidth, menu: Option<&[MenuEntry<usize>]>, pick: &mut Option<usize>| {
-                    OptionsBar::cell(ui, &label.glyph, width, |ui, caption| {
-                        field(ui, which, label, sm, Scrub::Caption(caption), menu.map(|entries| (entries, pick)))
-                    })
-                };
-            let mut none = None;
-            for (which, label) in [(Field::X, &labels.x), (Field::Y, &labels.y)] {
-                fields.push((which, cell(ui, which, label, CellWidth::Md, None, &mut none)));
-            }
-            OptionsBar::divider(ui);
-            fields.push((Field::W, cell(ui, Field::W, &labels.w, wide, menu, &mut size_pick)));
-            let icon = if *linked { Icon::Link } else { Icon::Unlink };
-            ui.add(IconButton::new(icon, labels.link.clone()).size(sm).enabled(enabled).toggle(linked));
-            fields.push((Field::H, cell(ui, Field::H, &labels.h, wide, menu, &mut size_pick)));
-            OptionsBar::divider(ui);
-            // The angle has no caption: its icon scrubs it, in a box as wide as a captioned cell.
-            let side = bar_style.fields[0];
-            let turn = ui
-                .allocate_ui_with_layout(vec2(side, ui.available_height()), direction::row(ui).with_main_justify(true), |ui| {
-                    ui.set_width(side);
-                    field(ui, Field::Angle, &labels.angle, sm, Scrub::Icon(Icon::RotateCw), None)
+            let cell = |ui: &mut Ui,
+                        which: TransformField,
+                        label: &FieldLabel,
+                        width: CellWidth,
+                        menu: Option<&[MenuEntry<usize>]>,
+                        pick: &mut Option<usize>| {
+                OptionsBar::cell(ui, &label.glyph, width, |ui, caption| {
+                    field(ui, which, label, sm, Scrub::Caption(caption), menu.map(|entries| (entries, pick)))
                 })
-                .inner;
-            fields.push((Field::Angle, turn));
-            for (which, label) in [(Field::SkewH, &labels.skew_h), (Field::SkewV, &labels.skew_v)] {
-                fields.push((which, cell(ui, which, label, CellWidth::Sm, None, &mut none)));
+            };
+            let mut none = None;
+            // A divider separates the blocks shown; the reference point and position, and the angle
+            // and skew, are one block each.
+            let any = std::cell::Cell::new(groups.reference);
+            let block = |ui: &mut Ui, shown: bool| {
+                if shown && any.replace(true) {
+                    OptionsBar::divider(ui);
+                }
+                shown
+            };
+            if groups.position {
+                for (which, label) in [(TransformField::X, &labels.x), (TransformField::Y, &labels.y)] {
+                    fields.push((which, cell(ui, which, label, CellWidth::Md, None, &mut none)));
+                }
+                any.set(true);
             }
-            if let Some(InterpolationSelect { caption, value, options }) = interpolation {
-                OptionsBar::divider(ui);
+            if block(ui, groups.size) {
+                fields.push((TransformField::W, cell(ui, TransformField::W, &labels.w, wide, menu, &mut size_pick)));
+                let icon = if *linked { Icon::Link } else { Icon::Unlink };
+                ui.add(IconButton::new(icon, labels.link.clone()).size(sm).enabled(enabled).toggle(linked));
+                fields.push((TransformField::H, cell(ui, TransformField::H, &labels.h, wide, menu, &mut size_pick)));
+            }
+            if block(ui, groups.angle || groups.skew) {
+                if groups.angle {
+                    // The angle has no caption: its icon scrubs it, in a box as wide as a captioned cell.
+                    let side = bar_style.fields[0];
+                    let turn = ui
+                        .allocate_ui_with_layout(vec2(side, ui.available_height()), direction::row(ui).with_main_justify(true), |ui| {
+                            ui.set_width(side);
+                            field(ui, TransformField::Angle, &labels.angle, sm, Scrub::Icon(Icon::RotateCw), None)
+                        })
+                        .inner;
+                    fields.push((TransformField::Angle, turn));
+                }
+                if groups.skew {
+                    for (which, label) in [(TransformField::SkewH, &labels.skew_h), (TransformField::SkewV, &labels.skew_v)] {
+                        fields.push((which, cell(ui, which, label, CellWidth::Sm, None, &mut none)));
+                    }
+                }
+            }
+            if let Some(InterpolationSelect { caption, value, options }) = interpolation.filter(|_| block(ui, groups.interpolation)) {
                 OptionsBar::cell(ui, &caption, CellWidth::Content, |ui, _| {
                     let select = options
                         .iter()
@@ -652,7 +745,7 @@ impl<'a> TransformFields<'a> {
             }
         };
 
-        let mut fields: Vec<(Field, EditResponse<f64>)> = Vec::with_capacity(FIELDS);
+        let mut fields: Vec<(TransformField, EditResponse<f64>)> = Vec::with_capacity(FIELDS);
         let row = match form {
             Form::Rows => ui.scope_builder(UiBuilder::new().layout(layout), |ui| rows(ui, &mut fields, linked)).response,
             Form::Bar => ui.scope_builder(UiBuilder::new().layout(direction::row(ui)), |ui| bar(ui, &mut fields, linked)).response,
@@ -662,7 +755,7 @@ impl<'a> TransformFields<'a> {
         }
         // Each field's value applies to the row the fields before it in this pass left, with the
         // values that go out in this pass: one that waits for another field's gesture isn't in it.
-        let mut values: Vec<(Field, f64, TransformRow)> = Vec::new();
+        let mut values: Vec<(TransformField, f64, TransformRow)> = Vec::new();
         for (which, edit) in &fields {
             let (which, base) = (*which, *edits.value());
             let field_ops = ops::take::<ScalarOp>(ui.ctx(), edit.response.id).into_iter().map(|op| (which, op));

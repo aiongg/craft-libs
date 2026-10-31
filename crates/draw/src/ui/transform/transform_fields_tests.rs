@@ -24,14 +24,14 @@ fn close(a: Point, b: Point) -> bool {
 #[test]
 fn a_linked_width_scales_the_height_about_the_reference_point() {
     let state = BoxState::from_rect(RECT);
-    let (linked, _) = conversion(true).edit(&state, 0.0, Field::W, 50.0);
-    let (unlinked, _) = conversion(false).edit(&state, 0.0, Field::W, 50.0);
+    let (linked, _) = conversion(true).edit(&state, 0.0, TransformField::W, 50.0);
+    let (unlinked, _) = conversion(false).edit(&state, 0.0, TransformField::W, 50.0);
     assert!(close(linked.pivot, state.pivot), "the reference point stays put");
     assert!(close(linked.quad[0], Point::new(150.0, 75.0)) && close(linked.quad[2], Point::new(250.0, 125.0)), "{:?}", linked.quad);
     assert!(close(unlinked.quad[0], Point::new(150.0, 50.0)) && close(unlinked.quad[2], Point::new(250.0, 150.0)), "{:?}", unlinked.quad);
     // Through a corner reference point the opposite corner is fixed.
     let corner = BoxState { pivot: Point::new(RECT.x0, RECT.y0), ..state };
-    let (scaled, _) = conversion(true).edit(&corner, 0.0, Field::H, 200.0);
+    let (scaled, _) = conversion(true).edit(&corner, 0.0, TransformField::H, 200.0);
     assert!(close(scaled.quad[0], Point::new(RECT.x0, RECT.y0)) && close(scaled.quad[2], Point::new(500.0, 250.0)), "{:?}", scaled.quad);
 }
 
@@ -39,55 +39,58 @@ fn a_linked_width_scales_the_height_about_the_reference_point() {
 fn the_angle_and_skew_fields_turn_and_lean_the_box_about_the_reference_point() {
     let state = BoxState::from_rect(RECT);
     let c = conversion(true);
-    let (turned, _) = c.edit(&state, 0.0, Field::Angle, 30.0);
+    let (turned, _) = c.edit(&state, 0.0, TransformField::Angle, 30.0);
     assert!(close(turned.pivot, state.pivot));
-    assert!((c.shown(&turned, 0.0, Field::Angle) - 30.0).abs() < 1e-9);
-    assert!((c.shown(&turned, 0.0, Field::W) - 100.0).abs() < 1e-9, "turning keeps the size");
-    let (leaned, _) = c.edit(&state, 0.0, Field::SkewH, 20.0);
+    assert!((c.shown(&turned, 0.0, TransformField::Angle) - 30.0).abs() < 1e-9);
+    assert!((c.shown(&turned, 0.0, TransformField::W) - 100.0).abs() < 1e-9, "turning keeps the size");
+    let (leaned, _) = c.edit(&state, 0.0, TransformField::SkewH, 20.0);
     assert!(close(leaned.pivot, state.pivot) && close(leaned.point_at(Anchor9::Center), state.pivot), "{leaned:?}");
-    assert!((c.shown(&leaned, 0.0, Field::SkewH) - 20.0).abs() < 1e-6);
+    assert!((c.shown(&leaned, 0.0, TransformField::SkewH) - 20.0).abs() < 1e-6);
     // The V skew is the host's: editing it returns it, and the box leans about the reference point.
-    let (v, kept) = c.edit(&state, 0.0, Field::SkewV, 15.0);
+    let (v, kept) = c.edit(&state, 0.0, TransformField::SkewV, 15.0);
     assert_eq!(kept, 15.0);
     assert!(close(v.point_at(Anchor9::Center), state.pivot));
-    assert!((c.shown(&v, kept, Field::SkewV) - 15.0).abs() < 1e-9);
+    assert!((c.shown(&v, kept, TransformField::SkewV) - 15.0).abs() < 1e-9);
 }
 
 #[test]
 fn a_flipped_box_keeps_its_sign_through_the_fields() {
     let c = conversion(false);
     let state = BoxState::from_rect(RECT);
-    let (flipped, _) = c.edit(&state, 0.0, Field::W, -100.0);
-    assert!(c.shown(&flipped, 0.0, Field::W) < 0.0 && c.shown(&flipped, 0.0, Field::H) > 0.0);
-    for (field, value) in [(Field::Angle, 20.0), (Field::H, 50.0), (Field::SkewH, 10.0)] {
+    let (flipped, _) = c.edit(&state, 0.0, TransformField::W, -100.0);
+    assert!(c.shown(&flipped, 0.0, TransformField::W) < 0.0 && c.shown(&flipped, 0.0, TransformField::H) > 0.0);
+    for (field, value) in [(TransformField::Angle, 20.0), (TransformField::H, 50.0), (TransformField::SkewH, 10.0)] {
         let (edited, _) = c.edit(&flipped, 0.0, field, value);
-        assert!(c.shown(&edited, 0.0, Field::W) < 0.0, "{field:?} left the flip");
+        assert!(c.shown(&edited, 0.0, TransformField::W) < 0.0, "{field:?} left the flip");
     }
-    let (turned, _) = c.edit(&flipped, 0.0, Field::Angle, 20.0);
-    assert!((c.shown(&turned, 0.0, Field::W) + 100.0).abs() < 1e-6);
+    let (turned, _) = c.edit(&flipped, 0.0, TransformField::Angle, 20.0);
+    assert!((c.shown(&turned, 0.0, TransformField::W) + 100.0).abs() < 1e-6);
 }
 
 #[test]
 fn position_moves_the_box_with_its_reference_point_and_every_field_has_a_limit() {
     let c = conversion(true);
     let state = BoxState::from_rect(RECT);
-    let (moved, _) = c.edit(&state, 0.0, Field::X, 10.0);
+    let (moved, _) = c.edit(&state, 0.0, TransformField::X, 10.0);
     assert!(close(moved.pivot, Point::new(10.0, state.pivot.y)) && close(moved.quad[0], Point::new(-90.0, 50.0)), "{moved:?}");
-    let (moved, _) = c.edit(&moved, 0.0, Field::Y, -5.0);
+    let (moved, _) = c.edit(&moved, 0.0, TransformField::Y, -5.0);
     assert!(close(moved.pivot, Point::new(10.0, -5.0)));
-    assert_eq!([Field::X, Field::Y, Field::Angle, Field::SkewH, Field::SkewV].map(|f| c.bound(f)), [300_000.0, 300_000.0, 180.0, 89.0, 89.0]);
+    assert_eq!(
+        [TransformField::X, TransformField::Y, TransformField::Angle, TransformField::SkewH, TransformField::SkewV].map(|f| c.bound(f)),
+        [300_000.0, 300_000.0, 180.0, 89.0, 89.0]
+    );
     // A 200 px side stays within 300 000 px: 1500 times, 150 000 %.
-    assert_eq!(c.bound(Field::W), 150_000.0);
+    assert_eq!(c.bound(TransformField::W), 150_000.0);
     // Linked, the other side follows within its own limit: H (100 px) allows 3000 times, W 1500.
-    let (huge, _) = c.edit(&state, 0.0, Field::H, 1.0e9);
-    let (w, h) = (c.shown(&huge, 0.0, Field::W), c.shown(&huge, 0.0, Field::H));
+    let (huge, _) = c.edit(&state, 0.0, TransformField::H, 1.0e9);
+    let (w, h) = (c.shown(&huge, 0.0, TransformField::W), c.shown(&huge, 0.0, TransformField::H));
     assert!((w / 100.0 - 1500.0).abs() < 1e-3 && (h / 100.0 - 1500.0).abs() < 1e-3, "{w} {h}");
     // In lengths, the box's side in the unit.
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
     let length = Conversion { size: SizeUnit::Length { x: px.clone(), y: px }, ..conversion(false) };
-    assert_eq!(length.shown(&state, 0.0, Field::W), 200.0);
-    let (wide, _) = length.edit(&state, 0.0, Field::W, 400.0);
-    assert!((length.shown(&wide, 0.0, Field::W) - 400.0).abs() < 1e-9);
+    assert_eq!(length.shown(&state, 0.0, TransformField::W), 200.0);
+    let (wide, _) = length.edit(&state, 0.0, TransformField::W, 400.0);
+    assert!((length.shown(&wide, 0.0, TransformField::W) - 400.0).abs() < 1e-9);
 }
 
 struct Host {
@@ -204,7 +207,7 @@ fn release<S>(h: &mut Harness<'_, S>, at: Pos2) {
     h.run();
 }
 
-fn shown(h: &Harness<'_, Host>, field: Field) -> f64 {
+fn shown(h: &Harness<'_, Host>, field: TransformField) -> f64 {
     conversion(h.state().linked).shown(&h.state().state, h.state().skew_v, field)
 }
 
@@ -241,7 +244,7 @@ fn a_scrub_through_a_host_that_applies_its_updates_is_one_gesture() {
     assert_eq!((kinds.first(), kinds.last()), (Some(&"Begin"), Some(&"Commit")), "{kinds:?}");
     assert!(kinds.iter().filter(|k| **k == "Update").count() >= 10, "{kinds:?}");
     assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
-    assert!((shown(&h, Field::Angle) - 36.0).abs() < 1e-6, "{}", shown(&h, Field::Angle));
+    assert!((shown(&h, TransformField::Angle) - 36.0).abs() < 1e-6, "{}", shown(&h, TransformField::Angle));
 }
 
 /// The V skew is the host's and part of the row's gesture: a cancelled V scrub restores the one
@@ -303,15 +306,18 @@ fn a_scrub_during_another_field_s_typing_run_waits_for_its_commit() {
     let Some(EditEvent::Commit { value, .. }) = h.state().events.get(run) else { panic!("{kinds:?}") };
     let value = &value.state;
     let c = conversion(true);
-    assert!((c.shown(value, 0.0, Field::W) - 120.0).abs() < 1e-6 && c.shown(value, 0.0, Field::Angle).abs() < 1e-6, "the run's commit: {value:?}");
+    assert!(
+        (c.shown(value, 0.0, TransformField::W) - 120.0).abs() < 1e-6 && c.shown(value, 0.0, TransformField::Angle).abs() < 1e-6,
+        "the run's commit: {value:?}"
+    );
     assert_eq!(kinds[run + 1], "Begin", "{kinds:?}");
     let passes = &h.state().passes;
     assert_eq!(passes[run + 1], passes[run] + 1, "the scrub begins in the pass after the run's commit: {passes:?}");
     assert_eq!(kinds.last(), Some(&"Commit"), "{kinds:?}");
     assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
     assert_eq!(kinds.iter().filter(|k| **k == "Begin").count(), 2, "{kinds:?}");
-    assert!((shown(&h, Field::W) - 120.0).abs() < 1e-6, "{}", shown(&h, Field::W));
-    assert!(shown(&h, Field::Angle) > 1.0, "the scrub turned the box: {}", shown(&h, Field::Angle));
+    assert!((shown(&h, TransformField::W) - 120.0).abs() < 1e-6, "{}", shown(&h, TransformField::W));
+    assert!(shown(&h, TransformField::Angle) > 1.0, "the scrub turned the box: {}", shown(&h, TransformField::Angle));
 }
 
 /// Two fields reporting in one frame (an arrow in the focused field while a screen reader steps
@@ -329,8 +335,8 @@ fn two_fields_in_one_frame_both_reach_the_host() {
     ]);
     h.run();
     assert_eq!(h.state().kinds(), ["Set"]);
-    assert!((shown(&h, Field::W) - 101.0).abs() < 1e-6, "{}", shown(&h, Field::W));
-    assert!((shown(&h, Field::Angle) - 1.0).abs() < 1e-6, "{}", shown(&h, Field::Angle));
+    assert!((shown(&h, TransformField::W) - 101.0).abs() < 1e-6, "{}", shown(&h, TransformField::W));
+    assert!((shown(&h, TransformField::Angle) - 1.0).abs() < 1e-6, "{}", shown(&h, TransformField::Angle));
 }
 
 /// A screen reader's step on Width in the same frame as an update of an Angle scrub waits for the
@@ -339,7 +345,7 @@ fn two_fields_in_one_frame_both_reach_the_host() {
 fn a_step_on_an_earlier_field_in_a_scrub_update_frame_waits_for_the_release() {
     let mut h = harness(Direction::Ltr);
     h.run();
-    let x = shown(&h, Field::W);
+    let x = shown(&h, TransformField::W);
     let at = scrub(&mut h, "Angle", 3.0, 3);
     let (target_node, target_tree) = h.get_by_label("Width").accesskit_node().locate();
     let to = at + vec2(3.0, 0.0);
@@ -348,11 +354,11 @@ fn a_step_on_an_earlier_field_in_a_scrub_update_frame_waits_for_the_release() {
         Event::PointerMoved(to),
     ]);
     h.step();
-    assert!((shown(&h, Field::W) - x).abs() < 1e-6, "the step waits: {} from {x}", shown(&h, Field::W));
+    assert!((shown(&h, TransformField::W) - x).abs() < 1e-6, "the step waits: {} from {x}", shown(&h, TransformField::W));
     release(&mut h, to);
     let kinds = h.state().kinds();
     assert_eq!(kinds[kinds.len() - 2..], ["Commit", "Set"], "{kinds:?}");
-    assert!((shown(&h, Field::W) - (x + 1.0)).abs() < 1e-6, "the step applies after the release: {}", shown(&h, Field::W));
+    assert!((shown(&h, TransformField::W) - (x + 1.0)).abs() < 1e-6, "the step applies after the release: {}", shown(&h, TransformField::W));
 }
 
 /// Without a host link the row keeps its own, and the toggle turns it off.
@@ -454,7 +460,7 @@ fn a_skew_scrub_ended_by_the_host_for_another_control_reads_the_reverted_row() {
     assert_eq!(doc.other, 7);
     assert_eq!(doc.row, start);
     let c = conversion(true);
-    assert_eq!(c.shown(&doc.row.state, doc.row.skew_v, Field::SkewV), 5.0);
+    assert_eq!(c.shown(&doc.row.state, doc.row.skew_v, TransformField::SkewV), 5.0);
     release(&mut h, at);
     assert_eq!(h.state().0.now.row, start);
 }
@@ -467,13 +473,13 @@ fn hostile_typed_lengths_flip_clamp_or_collapse() {
     let length = Conversion { size: SizeUnit::Length { x: px.clone(), y: px }, ..conversion(true) };
     let state = BoxState::from_rect(RECT);
     let side = |s: &BoxState| (s.quad[1].x - s.quad[0].x, s.quad[3].y - s.quad[0].y);
-    let (flipped, _) = length.edit(&state, 0.0, Field::W, -40.0);
+    let (flipped, _) = length.edit(&state, 0.0, TransformField::W, -40.0);
     let (w, h) = side(&flipped);
     assert!((w + 40.0).abs() < 1e-6 && (h - 20.0).abs() < 1e-6, "{w} × {h}");
-    let (huge, _) = length.edit(&state, 0.0, Field::W, 1e12);
+    let (huge, _) = length.edit(&state, 0.0, TransformField::W, 1e12);
     let (w, h) = side(&huge);
     assert!(w.is_finite() && w <= POSITION_LIMIT + 0.01 && h.abs() <= POSITION_LIMIT + 0.01, "{w} × {h}");
-    let (zero, _) = length.edit(&state, 0.0, Field::W, 0.0);
+    let (zero, _) = length.edit(&state, 0.0, TransformField::W, 0.0);
     assert!(zero.quad.iter().all(|q| q.is_finite()));
 }
 
@@ -520,4 +526,94 @@ fn the_bar_form_lays_out_the_reference_point_then_captioned_cells_in_photocraft_
     // The reference point comes before the first cell.
     let reference = h.get_all_by_role(Role::RadioButton).chain(h.get_all_by_role(Role::Button)).map(|n| n.rect().left()).fold(f32::MAX, f32::min);
     assert!(reference < order[0], "{reference} {order:?}");
+}
+
+struct Typed {
+    state: BoxState,
+    size: SizeUnit,
+    groups: BarGroups,
+}
+
+/// A bar whose host parser reads "<n>px" as a length of the 200 px wide box and "<n>%" as that
+/// share of the whole side, and the state after `text` is typed into W and committed.
+fn typed_into_width(size: SizeUnit, text: &str) -> BoxState {
+    let mut h = Harness::<Typed>::builder()
+        .with_size([1400.0, 80.0])
+        .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, host: &mut Typed| {
+                let state = host.state;
+                let edit = TransformFields::new("bar", &state, RECT, TransformFieldLabels::default())
+                    .size_unit(host.size.clone())
+                    .groups(host.groups)
+                    .parser(|field, text, context| {
+                        assert!(field != TransformField::W || context.whole.is_some());
+                        let number = |suffix: &str| text.strip_suffix(suffix)?.trim().parse::<f64>().ok();
+                        match (number("px"), number("%")) {
+                            (Some(px), _) => Some(px / 200.0 * context.whole?),
+                            (_, Some(share)) => Some(share / 100.0 * context.whole?),
+                            _ => None,
+                        }
+                    })
+                    .show_bar(ui);
+                if let Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) = edit.event {
+                    host.state = value.state;
+                }
+            },
+            Typed { state: BoxState::from_rect(RECT), size, groups: BarGroups::ALL },
+        );
+    h.run();
+    let w = centre(&h, "Width");
+    h.event(Event::PointerMoved(w));
+    h.event(button(w, true));
+    h.event(button(w, false));
+    h.run();
+    h.event(Event::Key { key: Key::A, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND });
+    h.event(Event::Text(text.into()));
+    h.run();
+    h.key_press(Key::Enter);
+    h.run();
+    h.state().state
+}
+
+fn width_of(state: &BoxState) -> f64 {
+    state.quad[1].x - state.quad[0].x
+}
+
+#[test]
+fn a_host_parser_turns_a_typed_length_into_the_width_and_hostile_text_is_rejected() {
+    let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
+    let length = || SizeUnit::Length { x: px.clone(), y: px.clone() };
+    assert!((width_of(&typed_into_width(SizeUnit::Percent, "50px")) - 50.0).abs() < 1e-6);
+    assert!((width_of(&typed_into_width(length(), "50%")) - 100.0).abs() < 1e-6);
+    for text in ["px", "NaN", "inf%", "1e999px"] {
+        assert!((width_of(&typed_into_width(SizeUnit::Percent, text)) - 200.0).abs() < 1e-6, "{text}");
+    }
+    let huge = width_of(&typed_into_width(SizeUnit::Percent, "1e12px"));
+    assert!(huge.is_finite() && huge <= POSITION_LIMIT + 0.01, "{huge}");
+}
+
+#[test]
+fn a_position_and_size_subset_lays_out_only_those_cells_in_photocraft_s_order() {
+    let mut h = Harness::<Typed>::builder()
+        .with_size([1400.0, 80.0])
+        .with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, host: &mut Typed| {
+                let state = host.state;
+                let _ = TransformFields::new("bar", &state, RECT, TransformFieldLabels::default()).groups(host.groups).show_bar(ui);
+            },
+            Typed {
+                state: BoxState::from_rect(RECT),
+                size: SizeUnit::Percent,
+                groups: BarGroups { angle: false, skew: false, interpolation: false, ..BarGroups::ALL },
+            },
+        );
+    h.run();
+    for absent in ["Angle", "Horizontal skew", "Vertical skew"] {
+        assert!(h.query_by_label(absent).is_none(), "{absent}");
+    }
+    let x = |label: &str| h.get_all_by_label(label).next().unwrap_or_else(|| panic!("{label}")).rect().left();
+    let order = [x("X position"), x("Y position"), x("Width"), x("Maintain aspect ratio"), x("Height")];
+    assert!(order.windows(2).all(|w| w[0] < w[1]), "{order:?}");
 }

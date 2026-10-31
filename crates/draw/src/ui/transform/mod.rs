@@ -7,4 +7,4 @@ pub(crate) mod transform_fields;
 pub use transform_box::{
     BoxPress, BoxRelease, BoxTrack, RotateZone, TransformBox, TransformBoxResponse, TransformLabels, TransformNames, TransformStyle, paint_pivot,
 };
-pub use transform_fields::{FieldLabel, SizeUnit, TransformFieldLabels, TransformFields, TransformRow};
+pub use transform_fields::{BarGroups, FieldLabel, ParseContext, SizeUnit, TransformField, TransformFieldLabels, TransformFields, TransformRow};
