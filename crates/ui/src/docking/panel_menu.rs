@@ -15,7 +15,7 @@ pub type PanelCommand = String;
 
 /// The entries of one panel's menu in one pass: the host's rows first, then the dock's group
 /// items. The host supplies the rows through [`super::DockContent::panel_menu_entries`]; the
-/// renderer appends the group items and shows the whole as one [`Menu`].
+/// renderer appends the group items and shows the whole as one [`Menu`](crate::menu::Menu).
 pub struct PanelMenu<'a> {
     /// The host's rows (checks, radios, submenus, separators), already translated.
     pub entries: &'a [MenuEntry<PanelCommand>],
