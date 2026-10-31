@@ -366,7 +366,7 @@ fn show_picker_dialog(ui: &mut Ui, args: &mut PickerDialogArgs) {
                 Remembered::<ColorPickerMemory>::new(ColorPickerMemory::SCOPE)
                     .store(&host, &ColorPickerMemory { mode: AreaMode::default(), web_colors });
             }
-            let mut dialog = ColorPickerDialog::foreground(Srgba::rgb(0.24, 0.39, 0.87)).eyedropper(false).canvas_samples(false).preview(preview);
+            let mut dialog = ColorPickerDialog::foreground(Srgba::rgb(0.24, 0.39, 0.87)).eyedropper(false).canvas_samples(false);
             if gamut {
                 dialog = dialog.gamut(CmykConverter::coated());
             }

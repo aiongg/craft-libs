@@ -719,9 +719,6 @@ pub const COLOR_PICKER_GRID_ROW_GAP: f32 = 2.0;
 /// Compact gap between one model's last channel row and the next model's first (PhotoCraft: a 3
 /// point row between two row gaps).
 pub const COLOR_PICKER_GRID_GROUP_GAP: f32 = 7.0;
-/// Compact least width of the Full picker's OK, Cancel and Add to Swatches buttons (PhotoCraft's
-/// `.max(96.0)`).
-pub const COLOR_PICKER_SIDE_BUTTON_MIN: f32 = 96.0;
 
 /// The control height the Compact colour wheel, ramp and gradient palette sizes are set for;
 /// other sizes scale them by their control height over this.

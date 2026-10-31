@@ -107,7 +107,7 @@ enum Title {
 ///   Alt turns Cancel into Reset: the colour from when the dialog opened, the dialog stays open.
 ///   Add to Swatches keeps the dialog open; the app takes the colour with
 ///   [`take_add_to_swatches`](Self::take_add_to_swatches).
-/// - **Preview:** with [`preview`](Self::preview) the app reads [`current`](Self::current) each
+/// - **Preview:** [`current`](Self::current) follows every edit, so an app that previews reads it each
 ///   pass through `DialogHost::get::<ColorPickerDialog>()` and shows it live (Photoshop's text
 ///   colour); Cancel is the app's cue to put the old colour back.
 /// - **Keyboard and AccessKit:** as [`ColorPicker`](super::ColorPicker)'s Full layout; Tab visits
@@ -125,7 +125,6 @@ pub struct ColorPickerDialog {
     remember: bool,
     add_to_swatches: bool,
     gamut: Option<CmykConverter>,
-    preview: bool,
     eyedropper: bool,
     canvas_samples: bool,
     memory: ColorPickerMemory,
@@ -166,7 +165,6 @@ impl ColorPickerDialog {
             remember: true,
             add_to_swatches: true,
             gamut: None,
-            preview: false,
             eyedropper: true,
             canvas_samples: true,
             memory: ColorPickerMemory::default(),
@@ -208,21 +206,16 @@ impl ColorPickerDialog {
     }
 
     /// The document's CMYK converter: the C, M, Y, K fields convert through it
-    /// ([`CmykModel`](crate::CmykModel)) and the out-of-gamut chip tests against it. Without it the
-    /// dialog shows no CMYK fields and no gamut chip.
+    /// ([`CmykModel`](crate::CmykModel)) and the out-of-gamut chip tests against it. Without it
+    /// the dialog uses the built-in coated converter ([`CmykConverter::coated`]), as PhotoCraft
+    /// does for a document without a CMYK profile.
     pub fn gamut(mut self, converter: &CmykConverter) -> ColorPickerDialog {
         self.gamut = Some(converter.clone());
         self
     }
 
-    /// Live preview: [`current`](Self::current) follows every edit for the app to show; off by
-    /// default.
-    pub fn preview(mut self, on: bool) -> ColorPickerDialog {
-        self.preview = on;
-        self
-    }
-
-    /// The screen eyedropper button; on by default where the platform can capture the screen.
+    /// The screen eyedropper button; on by default, and shown only where the platform can capture
+    /// the screen ([`ScreenColorPicker::available`]).
     pub fn eyedropper(mut self, on: bool) -> ColorPickerDialog {
         self.eyedropper = on;
         self
@@ -299,8 +292,8 @@ impl StackDialog for ColorPickerDialog {
         };
         let numbers = LocaleNumbers::of_ctx(ctx);
         let alt = ctx.input(|i| i.modifiers.alt);
-        let converter = self.gamut.clone();
-        let cmyk = converter.map(CmykModel::new);
+        let cmyk = CmykModel::new(self.gamut.clone().unwrap_or_else(|| CmykConverter::coated().clone()));
+        let screen = self.eyedropper && ScreenColorPicker::available(ctx);
         let mut actions = vec![
             FooterButton::new(ButtonRole::Default, words.ok.clone()),
             FooterButton::new(ButtonRole::Cancel, if alt { words.reset.clone() } else { words.cancel.clone() }),
@@ -310,7 +303,7 @@ impl StackDialog for ColorPickerDialog {
         }
 
         let mut clicked = None;
-        let Self { current, opening, compare, eyedropper, memory, gesture_start, seeded, picker, state, key, .. } = self;
+        let Self { current, opening, compare, memory, gesture_start, seeded, picker, state, key, .. } = self;
         let web_only = memory.web_colors;
         let color = current.color;
         let shown = Dialog::new(("color-picker", key.as_str()), title.as_str())
@@ -326,9 +319,7 @@ impl StackDialog for ColorPickerDialog {
                     *seeded = true;
                 }
                 let mut models: Vec<&dyn ColorModel> = builtin_models().into_iter().filter(|m| m.default_on().full).collect();
-                if let Some(cmyk) = &cmyk {
-                    models.push(cmyk);
-                }
+                models.push(&cmyk);
                 let mut body = ColorPicker::new(PICKER, title.as_str(), color, &numbers)
                     .layout(ColorPickerLayout::Full)
                     .models(models)
@@ -339,7 +330,7 @@ impl StackDialog for ColorPickerDialog {
                     body = body.compare(opening.color);
                 }
                 let rgb = [color.r, color.g, color.b];
-                if let Some(nearest) = cmyk.as_ref().and_then(|m| m.converter().nearest_in_gamut(rgb, GAMUT_DE)) {
+                if let Some(nearest) = cmyk.converter().nearest_in_gamut(rgb, GAMUT_DE) {
                     body = body
                         .warning(ColorWarning::new(labels.out_of_gamut.clone(), Srgba { r: nearest[0], g: nearest[1], b: nearest[2], a: color.a }));
                 }
@@ -349,7 +340,7 @@ impl StackDialog for ColorPickerDialog {
                         Srgba { r: nearest[0], g: nearest[1], b: nearest[2], a: color.a },
                     ));
                 }
-                if *eyedropper {
+                if screen {
                     body = body.eyedropper(labels.pick_screen_color.clone()).eyedropper_busy(ScreenColorPicker::busy(ui.ctx()));
                 }
                 let shown = body.show(ui);
@@ -375,6 +366,11 @@ impl StackDialog for ColorPickerDialog {
                 }
                 if shown.eyedropper_requested {
                     ScreenColorPicker::open(ui.ctx(), owner);
+                }
+                if let Some(button) = &shown.eyedropper
+                    && let Some(color) = ScreenColorPicker::hold_drag(ui, button, owner)
+                {
+                    ColorPicker::sampled(ui.ctx(), *picker, color);
                 }
                 clicked = shown.side_clicked;
             });

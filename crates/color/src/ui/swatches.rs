@@ -19,6 +19,12 @@ use egui::{AsIdSalt, Color32, Context, CornerRadius, Id, IdSalt, Ui};
 use super::PickedColor;
 use crate::palette::{SwatchColor, SwatchEntry, SwatchFormat, SwatchGroup, SwatchNote, SwatchReport};
 
+/// The most swatches a library holds (PhotoCraft's `MAX_SWATCHES`).
+pub const MAX_SWATCHES: usize = 100_000;
+
+/// The most groups a library holds (PhotoCraft's `MAX_GROUPS`).
+pub const MAX_GROUPS: usize = 10_000;
+
 craft_ui::words! {
     /// The Swatches panel's words, English by default.
     #[non_exhaustive]
@@ -34,7 +40,7 @@ craft_ui::words! {
         /// The name of a new group.
         group: "swatches.group" = "Group";
         /// A new swatch's name; `{n}` numbers it.
-        swatch_n: "swatches.swatchN" = "Swatch {n}";
+        swatch_n: "swatches.swatchN" = "Color Swatch {n}";
         /// The status line after Add to Swatches; `{name}` is the swatch's name.
         added: "swatches.added" = "Added swatch {name}";
         /// The panel's name for a screen reader.
@@ -166,25 +172,27 @@ impl SwatchLibrary {
         self.groups.get(at.group)?.entries.get(at.index)
     }
 
-    /// Adds `color` to group `group` (the last group when `None`, a new "Swatches" group when the
-    /// library is empty) under a free name ("Swatch N" when `name` is `None` or taken); where it
-    /// went.
-    // pc: crates/engine/src/cmd/swatch_cmds.rs (`swatches.add`).
-    pub fn add(&mut self, color: SwatchColor, name: Option<&str>, group: Option<usize>) -> SwatchAt {
+    /// Adds `color` to group `group` (the first group when `None`, a new "Swatches" group when
+    /// the library is empty) under a free name ("Color Swatch N" when `name` is `None` or taken);
+    /// where it went, or `None` when the library holds [`MAX_SWATCHES`].
+    // pc: crates/engine/src/cmd/swatch_cmds.rs:150-171 (`swatches.add`: the cap, the name, group 0).
+    pub fn add(&mut self, color: SwatchColor, name: Option<&str>, group: Option<usize>) -> Option<SwatchAt> {
         self.add_numbered(color, name, group, &SwatchesLabels::english().swatch_n)
     }
 
     /// [`add`](SwatchLibrary::add) with the template (`{n}`) that names a swatch left without one.
-    fn add_numbered(&mut self, color: SwatchColor, name: Option<&str>, group: Option<usize>, template: &str) -> SwatchAt {
+    fn add_numbered(&mut self, color: SwatchColor, name: Option<&str>, group: Option<usize>, template: &str) -> Option<SwatchAt> {
+        if self.groups.iter().map(|g| g.entries.len()).sum::<usize>() >= MAX_SWATCHES {
+            return None;
+        }
         let name = name.map(str::trim).filter(|n| !n.is_empty() && self.find(n).is_none()).map_or_else(|| self.free_name(template), str::to_owned);
         if self.groups.is_empty() {
             self.groups.push(SwatchGroup { name: "Swatches".to_owned(), entries: Vec::new() });
         }
-        let last = self.groups.len() - 1;
-        let group = group.map_or(last, |g| g.min(last));
+        let group = group.unwrap_or(0).min(self.groups.len() - 1);
         let entries = &mut self.groups[group].entries;
         entries.push(SwatchEntry::new(name, color));
-        SwatchAt { group, index: entries.len() - 1 }
+        Some(SwatchAt { group, index: entries.len() - 1 })
     }
 
     /// The first free name of `template`, numbered from 1.
@@ -194,9 +202,9 @@ impl SwatchLibrary {
     }
 
     /// Add to Swatches from the picker: in the model the user typed (CMYK inks or Lab values the
-    /// picker kept), else RGB.
+    /// picker kept), else RGB; `None` when the library is full.
     // pc: crates/ui-egui/src/panels/swatches_ui.rs:260 `add_from_picker`.
-    pub fn add_picked(&mut self, picked: &PickedColor) -> SwatchAt {
+    pub fn add_picked(&mut self, picked: &PickedColor) -> Option<SwatchAt> {
         let color = match picked.model {
             Some(m) if m.model == "cmyk" => SwatchColor::Cmyk([0, 1, 2, 3].map(|i| (m.values[i] / 100.0).clamp(0.0, 1.0))),
             Some(m) if m.model == "lab" => SwatchColor::Lab([m.values[0], m.values[1], m.values[2]]),
@@ -233,11 +241,15 @@ impl SwatchLibrary {
         }
     }
 
-    /// Adds an empty group named `name` (made unique); its index.
-    pub fn new_group(&mut self, name: &str) -> usize {
+    /// Adds an empty group named `name` (made unique); its index, or `None` when the library
+    /// holds [`MAX_GROUPS`].
+    pub fn new_group(&mut self, name: &str) -> Option<usize> {
+        if self.groups.len() >= MAX_GROUPS {
+            return None;
+        }
         let name = self.unique_group_name(name.trim());
         self.groups.push(SwatchGroup { name, entries: Vec::new() });
-        self.groups.len() - 1
+        Some(self.groups.len() - 1)
     }
 
     /// `base`, or `base 1`, `base 2`… when a group has it.
@@ -503,13 +515,13 @@ impl<'a> SwatchesPanel<'a> {
                 let group = selected.as_ref().and_then(|key| library.group_of(key));
                 let color = SwatchColor::Rgb(foreground.to_rgb_array().map(|v| v.clamp(0.0, 1.0)));
                 let at = library.add_numbered(color, None, group, &labels.swatch_n);
-                response.changed = true;
-                library.get(at).map(|e| Key::Swatch(e.name.clone()))
+                response.changed = at.is_some();
+                at.and_then(|at| library.get(at)).map(|e| Key::Swatch(e.name.clone()))
             }
             CMD_NEW_GROUP => {
                 let at = library.new_group(&labels.group);
-                response.changed = true;
-                Some(Key::Group(library.groups[at].name.clone()))
+                response.changed = at.is_some();
+                at.map(|at| Key::Group(library.groups[at].name.clone()))
             }
             CMD_RESET => {
                 library.groups = crate::palette::default_swatches();
@@ -650,9 +662,10 @@ impl Actions<'_> {
         match event {
             FooterEvent::New => self.new_swatch(),
             FooterEvent::NewGroup => {
-                let at = self.library.new_group(self.group_name);
-                self.st.rename = Some(Key::Group(self.library.groups[at].name.clone()));
-                self.response.changed = true;
+                if let Some(at) = self.library.new_group(self.group_name) {
+                    self.st.rename = Some(Key::Group(self.library.groups[at].name.clone()));
+                    self.response.changed = true;
+                }
             }
             FooterEvent::Delete => {
                 if let Some(key) = self.st.selected.clone() {
@@ -668,7 +681,9 @@ impl Actions<'_> {
     fn new_swatch(&mut self) {
         let group = self.st.selected.as_ref().and_then(|key| self.library.group_of(key));
         let color = SwatchColor::Rgb(self.foreground.to_rgb_array().map(|v| v.clamp(0.0, 1.0)));
-        let at = self.library.add_numbered(color, None, group, self.template);
+        let Some(at) = self.library.add_numbered(color, None, group, self.template) else {
+            return;
+        };
         if let Some(entry) = self.library.get(at) {
             let key = Key::Swatch(entry.name.clone());
             self.st.selected = Some(key.clone());

@@ -25,11 +25,11 @@ fn rgb(name: &str, c: [f32; 3]) -> SwatchEntry {
     SwatchEntry::new(name, SwatchColor::Rgb(c))
 }
 
-/// "Basics" with Red and Swatch 1, "Pastels" with Pink.
+/// "Basics" with Red and Color Swatch 1, "Pastels" with Pink.
 fn library() -> SwatchLibrary {
     SwatchLibrary {
         groups: vec![
-            SwatchGroup { name: "Basics".into(), entries: vec![rgb("Red", [1.0, 0.0, 0.0]), rgb("Swatch 1", [0.0, 0.0, 1.0])] },
+            SwatchGroup { name: "Basics".into(), entries: vec![rgb("Red", [1.0, 0.0, 0.0]), rgb("Color Swatch 1", [0.0, 0.0, 1.0])] },
             SwatchGroup { name: "Pastels".into(), entries: vec![rgb("Pink", [1.0, 0.8, 0.8])] },
         ],
     }
@@ -93,7 +93,7 @@ fn new_swatch_adds_the_foreground_with_a_free_name() {
     let host = harness.state();
     assert_eq!(host.library.groups[0].entries.len(), 2, "the other group is untouched");
     let added = host.library.groups[1].entries.last().expect("the new swatch");
-    assert_eq!(added.name, "Swatch 2", "Swatch 1 is taken");
+    assert_eq!(added.name, "Color Swatch 2", "Color Swatch 1 is taken");
     assert_eq!(added.color, SwatchColor::Rgb(host.foreground.to_rgb_array()));
 }
 
@@ -103,10 +103,10 @@ fn add_picked_keeps_the_typed_model() {
     let mut library = library();
     let color = Srgba::rgb(0.5, 0.5, 0.5);
     let cmyk = PickedColor { color, model: Some(ModelValues::new("cmyk", &[10.0, 20.0, 30.0, 40.0])) };
-    let at = library.add_picked(&cmyk);
+    let at = library.add_picked(&cmyk).expect("room");
     let entry = library.get(at).expect("added");
     assert_eq!(entry.color, SwatchColor::Cmyk([0.1, 0.2, 0.3, 0.4]));
-    let plain = library.add_picked(&PickedColor { color, model: None });
+    let plain = library.add_picked(&PickedColor { color, model: None }).expect("room");
     assert_eq!(library.get(plain).map(|e| &e.color), Some(&SwatchColor::Rgb([0.5, 0.5, 0.5])));
 }
 
@@ -186,4 +186,18 @@ fn import_and_moves_keep_names_unique() {
     assert!(library.apply_move(&mv(vec![Key::Group("Pastels".into())], Key::Group("Basics".into()), DropPosition::Before)));
     assert_eq!(library.groups[0].name, "Pastels");
     assert_eq!(library.total(), 4);
+}
+
+/// A swatch added without a group goes to the first group, not the last; a full library or group
+/// list refuses the next one.
+#[test]
+fn add_defaults_to_the_first_group_and_the_library_has_caps() {
+    let mut library = library();
+    let at = library.add(SwatchColor::Rgb([0.0; 3]), None, None).expect("room");
+    assert_eq!(at.group, 0);
+    assert_eq!(library.get(at).map(|e| e.name.as_str()), Some("Color Swatch 2"));
+    library.groups[1].entries.resize(super::MAX_SWATCHES, SwatchEntry::new("x", SwatchColor::Rgb([0.0; 3])));
+    assert!(library.add(SwatchColor::Rgb([0.0; 3]), None, None).is_none(), "full");
+    library.groups.resize(super::MAX_GROUPS, SwatchGroup { name: "g".into(), entries: Vec::new() });
+    assert!(library.new_group("More").is_none());
 }

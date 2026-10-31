@@ -6,7 +6,7 @@ use std::ops::RangeInclusive;
 
 use craft_theme::{Channel, ColorModel, ControlSize, MAX_CHANNELS, ModelValues, Rgba, Srgba, TypeRole, builtin_models};
 use egui::accesskit::Role;
-use egui::{Align, AsIdSalt, Context, Id, IdSalt, Layout, Rect, Ui, UiBuilder, Vec2, pos2, vec2};
+use egui::{Align, AsIdSalt, Context, Id, IdSalt, Layout, Rect, Response, Ui, UiBuilder, Vec2, pos2, vec2};
 
 use super::area::{self, AreaOp};
 use super::hex::{self, HexCodec};
@@ -66,6 +66,10 @@ pub struct ColorPickerResponse {
     /// The eyedropper button was pressed: the host starts sampling and gives the result with
     /// [`ColorPicker::sampled`].
     pub eyedropper_requested: bool,
+    /// The eyedropper button's response, when the [hook](ColorPicker::eyedropper) shows it: the
+    /// host passes it to [`ScreenColorPicker::hold_drag`](super::ScreenColorPicker::hold_drag)
+    /// for Photoshop's press-and-drag.
+    pub eyedropper: Option<Response>,
     /// The [side action](ColorPicker::side_actions) clicked this pass, by click, Enter or Space
     /// on the focused button.
     pub side_clicked: Option<Clicked>,
@@ -473,11 +477,12 @@ impl<'a> ColorPicker<'a> {
             .accessibility_role(Role::Group)
             .accessibility_label(self.label.clone());
         let inner = ui.scope_builder(builder, |ui| self.show_inside(ui, id));
-        let (event, eyedropper_requested, side_clicked) = inner.inner;
-        ColorPickerResponse { edit: EditResponse::new(inner.response, event), eyedropper_requested, side_clicked }
+        let (event, eyedropper, side_clicked) = inner.inner;
+        let eyedropper_requested = eyedropper.as_ref().is_some_and(Response::clicked);
+        ColorPickerResponse { edit: EditResponse::new(inner.response, event), eyedropper_requested, eyedropper, side_clicked }
     }
 
-    fn show_inside(mut self, ui: &mut Ui, id: Id) -> (Option<EditEvent<PickedColor>>, bool, Option<Clicked>) {
+    fn show_inside(mut self, ui: &mut Ui, id: Id) -> (Option<EditEvent<PickedColor>>, Option<Response>, Option<Clicked>) {
         let tokens = Tokens::of(ui);
         ui.spacing_mut().item_spacing.y = Gap::Stack.points(&tokens);
         let enabled = self.enabled && ui.is_enabled();
@@ -497,7 +502,7 @@ impl<'a> ColorPicker<'a> {
             .clone()
             .unwrap_or_else(|| builtin_models().into_iter().filter(|m| if full { m.default_on().full } else { m.default_on().compact }).collect());
         let mut mode = self.mode.as_deref().copied().unwrap_or(state.mode);
-        let (eyedropper_requested, side_clicked);
+        let (eyedropper, side_clicked);
         let web = Cell::new(self.web_colors.as_deref().copied().unwrap_or(false));
         let event = {
             let words = Words::of(ui);
@@ -518,7 +523,7 @@ impl<'a> ColorPicker<'a> {
                 Parts { edits: Edits::new(id, &state.parts, &outer, edit::in_scope(ui)), models: &models, constrain: &constrain, web: &web };
             parts.replay(ui.ctx());
 
-            (eyedropper_requested, side_clicked) = match self.layout {
+            (eyedropper, side_clicked) = match self.layout {
                 ColorPickerLayout::Compact => (self.compact(ui, id, mode, &models, &mut state, inner, &translate, &mut parts), None),
                 ColorPickerLayout::Full => self.full(ui, id, &mut mode, &models, inner, &translate, &mut parts, opened),
             };
@@ -558,11 +563,11 @@ impl<'a> ColorPicker<'a> {
             None => state.mode = mode,
         }
         state.store(ui, id);
-        (event, eyedropper_requested, side_clicked)
+        (event, eyedropper, side_clicked)
     }
 
     /// The Compact layout: the area and strip, the slider rows of one model, the model switch,
-    /// the hex row and the alpha row; whether the eyedropper button was pressed.
+    /// the hex row and the alpha row; the eyedropper button's response.
     #[allow(clippy::too_many_arguments)]
     fn compact(
         &self,
@@ -574,7 +579,7 @@ impl<'a> ColorPicker<'a> {
         inner: Inner,
         translate: &dyn Fn(&'static str) -> String,
         parts: &mut Parts<'_>,
-    ) -> bool {
+    ) -> Option<Response> {
         let style = ColorArea::style(&Tokens::of(ui));
         let height = self.area_height.unwrap_or(style.area_height);
         let gap = Gap::Inline.points(&Tokens::of(ui));
@@ -601,11 +606,11 @@ impl<'a> ColorPicker<'a> {
                 state.model = Some(model_switch(ui, models, model.id(), translate, inner.enabled));
             }
         }
-        let requested = self.hex_row(ui, id, translate, inner.enabled, parts);
+        let eyedropper = self.hex_row(ui, id, translate, inner.enabled, parts);
         if self.alpha {
             self.alpha_row(ui, inner, translate, parts);
         }
-        requested
+        eyedropper
     }
 
     /// The "Opacity" slider row, 0–100 % over the checkerboard.
@@ -667,22 +672,21 @@ impl<'a> ColorPicker<'a> {
         });
     }
 
-    /// "#", the hex field and the eyedropper button; whether the button was pressed.
-    fn hex_row(&self, ui: &mut Ui, id: Id, translate: &dyn Fn(&'static str) -> String, enabled: bool, parts: &mut Parts<'_>) -> bool {
+    /// "#", the hex field and the eyedropper button; the button's response.
+    fn hex_row(&self, ui: &mut Ui, id: Id, translate: &dyn Fn(&'static str) -> String, enabled: bool, parts: &mut Parts<'_>) -> Option<Response> {
         let tokens = Tokens::of(ui);
         let gap = Gap::Inline.points(&tokens);
         let button = self.eyedropper.as_ref().map(|_| IconButton::style(&tokens, ControlSize::Md).side + gap);
-        let mut requested = false;
+        let mut eyedropper = None;
         Row::new(Gap::Inline).show(ui, |ui| {
             ui.add(Text::new("#").role(TypeRole::Mono).content(Content::Muted));
             let width = (ui.available_width() - button.unwrap_or(0.0)).max(0.0);
             self.hex_field(ui, id, width, translate, enabled, parts);
             if let Some(label) = &self.eyedropper {
-                let pressed = ui.add(IconButton::new(Icon::Eyedropper, label.as_str()).enabled(enabled && !self.eyedropper_busy)).clicked();
-                requested = pressed;
+                eyedropper = Some(ui.add(IconButton::new(Icon::Eyedropper, label.as_str()).enabled(enabled && !self.eyedropper_busy)));
             }
         });
-        requested
+        eyedropper
     }
 
     /// The hex field, `width` wide.
