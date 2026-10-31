@@ -6,6 +6,7 @@
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
+use craft_ui::behavior::Selection;
 use egui::{Response, Ui};
 
 mod picker;
@@ -116,7 +117,7 @@ pub struct TextStylesPanel<'a> {
     current: Option<u64>,
     overridden: bool,
     target: bool,
-    highlighted: Option<&'a mut Vec<u64>>,
+    highlighted: Option<&'a mut Selection<u64>>,
     labels: Option<TextStylesLabels>,
 }
 
@@ -140,15 +141,15 @@ impl<'a> TextStylesPanel<'a> {
         self
     }
 
-    /// VectorCraft's and InDesign's multi-row highlight, kept by the app in list order of picking:
-    /// ⇧-click highlights every row from the last plain click through this one, ⌘/Ctrl-click adds
-    /// or removes one, both leaving the text as it is. A row dragged onto New or Delete carries
-    /// every highlighted style when it is one of them ([`crate::styles::dragged_styles`]), else
-    /// itself; New and Delete outline while a row is held over them. A highlighted style no longer
-    /// listed is dropped from the highlight. Without this, the panel highlights one row
-    /// (PhotoCraft).
+    /// VectorCraft's and InDesign's multi-row highlight, kept by the app (craft-ui's list
+    /// [`Selection`], as the page thumbnails and the page list keep theirs): ⇧-click highlights
+    /// every row from the last plain click through this one, ⌘/Ctrl-click adds or removes one,
+    /// both leaving the text as it is. A row dragged onto New or Delete carries every highlighted
+    /// style when it is one of them ([`crate::styles::dragged_styles`]), else itself; New and
+    /// Delete outline while a row is held over them. A highlighted style no longer listed is
+    /// dropped from the highlight. Without this, the panel highlights one row (PhotoCraft).
     // vectorcraft: crates/ui-egui/src/panels/text_styles.rs:64 `highlighted`, :131 `row_dropped`.
-    pub fn highlighted(mut self, highlighted: &'a mut Vec<u64>) -> Self {
+    pub fn highlighted(mut self, highlighted: &'a mut Selection<u64>) -> Self {
         self.highlighted = Some(highlighted);
         self
     }

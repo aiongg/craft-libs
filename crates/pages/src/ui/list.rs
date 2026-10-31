@@ -99,6 +99,7 @@ impl<'a> PageList<'a> {
         self
     }
 
+    // needs: step5 elide (names wider than the row).
     // vectorcraft: crates/ui-egui/src/panels/artboards.rs:396 `show`, :297 `select_range`, :311
     // `toggle`, :243 `rename`, :371 `duplicate`.
     pub fn show(self, ui: &mut Ui) -> PageListResponse {

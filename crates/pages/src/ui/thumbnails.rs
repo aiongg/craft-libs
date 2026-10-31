@@ -233,6 +233,7 @@ impl<'a> PageThumbnails<'a> {
         self
     }
 
+    // needs: step5 elide (a page label wider than its cell is elided at its end).
     // pdfcraft: crates/ui-egui/src/panels/pages.rs:90 `pages`, :36 `thumbnail_size`, :295
     // `page_drag`, :277 `panel_gap`; deckcraft: crates/ui-egui/src/panels/thumbs.rs:116 `list`
     // (sections, number at the left, hidden and animation marks, + New Slide).
