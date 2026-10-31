@@ -3,13 +3,24 @@
 //! with the app's name and version from `Host::app` (craft-host) and the words from
 //! [`UpdateLabels`]. [`dialog`](crate::dialog) keeps the hand-drawn cards until the apps have moved.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_host::Host;
+use craft_ui::composites::{Notice, Tone};
+use craft_ui::controls::{Link, Spinner};
+use craft_ui::dialog::{
+    ButtonRole, Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, FooterButton, Outcome, StackDialog, Width, dialog_id,
+};
+use craft_ui::localized::Labels as _;
+use craft_ui::primitives::{Content, Text};
+use craft_ui::theme::current;
+use egui::{Context, Ui};
 
-use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
-use egui::Context;
-
+use crate::app::App;
+use crate::dialog::icon_texture;
 use crate::release::Release;
 use crate::updater::Status;
+
+const PROMPT_KEY: &str = "update-prompt";
+const CHECK_KEY: &str = "update-check";
 
 craft_ui::words! {
     /// The update dialogs' words, English by default.
@@ -20,6 +31,8 @@ craft_ui::words! {
         update_and_restart: "update.updateAndRestart" = "Update and Restart";
         download: "update.download" = "Download";
         later: "update.later" = "Later";
+        whats_new: "update.whatsNew" = "What's New";
+        releases_listed: "update.releasesListed" = "All releases are listed at";
         installing: "update.installing" = "Installing…";
         check_title: "update.check.title" = "Check for Updates";
         checking: "update.checking" = "Checking for updates…";
@@ -53,12 +66,51 @@ pub struct UpdatePromptDialog {
     self_updating: bool,
     status: Option<String>,
     installing: bool,
+    state: DialogState<()>,
+}
+
+/// The app the dialogs are for: the installed Host's name and the suite entry that carries its
+/// icon and developer.
+struct Subject {
+    name: &'static str,
+    app: Option<&'static App>,
+}
+
+impl Subject {
+    fn of(ctx: &Context) -> Self {
+        let info = Host::try_of_ctx(ctx).map(|host| host.app().clone());
+        Self { name: info.as_ref().map_or("", |info| info.name), app: info.and_then(|info| App::by_id(info.id)) }
+    }
+
+    /// The icon, the name and the developer, as the head of both dialogs.
+    fn head(&self, ui: &mut Ui, second_line: &str) {
+        let tokens = current(ui.ctx());
+        let side = tokens.size.control.md;
+        ui.horizontal(|ui| {
+            if let Some(icon) = self.app.and_then(|app| icon_texture(ui.ctx(), app)) {
+                ui.add(egui::Image::new((icon.id(), egui::vec2(side, side))));
+            }
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                ui.add(Text::new(self.name));
+                ui.add(Text::new(second_line).content(Content::Muted));
+            });
+        });
+    }
 }
 
 impl UpdatePromptDialog {
     /// A prompt for `release`; `self_updating` offers Update and Restart as the default.
     pub fn new(release: Release, running_version: impl Into<String>, self_updating: bool) -> Self {
-        Self { id: dialog_id("update-prompt"), release, running_version: running_version.into(), self_updating, status: None, installing: false }
+        Self {
+            id: dialog_id(PROMPT_KEY),
+            release,
+            running_version: running_version.into(),
+            self_updating,
+            status: None,
+            installing: false,
+            state: DialogState::new(),
+        }
     }
 
     /// The install's progress line while [`installing`](UpdatePromptDialog::set_installing); the
@@ -87,7 +139,56 @@ impl StackDialog for UpdatePromptDialog {
     // pc: crates/update/src/dialog.rs:42 `StartupPrompt::show` (the card's content and buttons),
     // on `Dialog::new(..).stack(stack).width(Width::Standard).footer(Footer::standard()..)`.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<UpdateChoice>> {
-        todo!()
+        let labels = UpdateLabels::of_ctx(ctx);
+        let subject = Subject::of(ctx);
+        let version = self.release.version_label();
+        let message =
+            labels.available_message.replace("{app}", subject.name).replace("{version}", &version).replace("{running}", &self.running_version);
+        let (default, other) = if self.self_updating {
+            ((UpdateChoice::UpdateAndRestart, &labels.update_and_restart), Some((UpdateChoice::Download, &labels.download)))
+        } else {
+            ((UpdateChoice::Download, &labels.download), None)
+        };
+        let enabled = !self.installing;
+        let mut buttons = vec![FooterButton::new(ButtonRole::Default, default.1.as_str()).enabled(enabled)];
+        if let Some((_, label)) = other {
+            buttons.push(FooterButton::new(ButtonRole::Alternate, label.as_str()).enabled(enabled));
+        }
+        buttons.push(FooterButton::new(ButtonRole::Cancel, labels.later.as_str()).enabled(enabled));
+        let footer = Footer::custom(move |ui, fx| {
+            fx.buttons(ui, buttons);
+        });
+        let (status, installing, release) = (&self.status, self.installing, &self.release);
+        let shown = Dialog::new(PROMPT_KEY, labels.available_title.as_str()).stack(stack).width(Width::Standard).footer(footer).show(
+            ctx,
+            &mut self.state,
+            &mut (),
+            |ui, ()| {
+                subject.head(ui, &format!("v{} - {}", self.running_version, version));
+                ui.add_space(current(ui.ctx()).component.dialog.pad);
+                if let Some(status) = status {
+                    Notice::new(status.as_str()).tone(Tone::Warn).id_salt("status").show(ui);
+                }
+                if installing {
+                    ui.horizontal(|ui| {
+                        ui.add(Spinner::new());
+                        ui.add(Text::new(labels.installing.as_str()));
+                    });
+                } else {
+                    ui.add(Text::new(message.as_str()));
+                }
+                if !release.html_url.is_empty() {
+                    ui.add(Link::new(labels.whats_new.as_str()).url(release.html_url.as_str()));
+                }
+            },
+        );
+        match shown.outcome? {
+            _ if self.installing => None,
+            Outcome::Ok => Some(DialogResult::Ok(default.0)),
+            Outcome::Alternate => Some(DialogResult::Ok(other.map_or(UpdateChoice::Later, |(choice, _)| choice))),
+            Outcome::Cancel | Outcome::Close => Some(DialogResult::Ok(UpdateChoice::Later)),
+            _ => None,
+        }
     }
 }
 
@@ -108,11 +209,12 @@ pub struct UpdateCheckDialog {
     id: DialogId,
     running_version: String,
     status: Status,
+    state: DialogState<()>,
 }
 
 impl UpdateCheckDialog {
     pub fn new(running_version: impl Into<String>) -> Self {
-        Self { id: dialog_id("update-check"), running_version: running_version.into(), status: Status::Checking }
+        Self { id: dialog_id(CHECK_KEY), running_version: running_version.into(), status: Status::Checking, state: DialogState::new() }
     }
 
     /// The updater's status this pass.
@@ -132,32 +234,163 @@ impl StackDialog for UpdateCheckDialog {
     // `Spinner` while checking and `Footer::standard().without_cancel()`; Check Again as the
     // Alternate in the failed state.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<CheckChoice>> {
-        todo!()
+        if self.status == Status::Idle {
+            return None;
+        }
+        let labels = UpdateLabels::of_ctx(ctx);
+        let subject = Subject::of(ctx);
+        let failed = matches!(self.status, Status::Failed(_));
+        let mut footer = Footer::standard().without_cancel();
+        if failed {
+            footer = footer.alternate(labels.check_again.as_str());
+        }
+        let (status, running) = (&self.status, &self.running_version);
+        let shown = Dialog::new(CHECK_KEY, labels.check_title.as_str()).stack(stack).width(Width::Standard).footer(footer).show(
+            ctx,
+            &mut self.state,
+            &mut (),
+            |ui, ()| {
+                subject.head(ui, &format!("v{running}"));
+                ui.add_space(current(ui.ctx()).component.dialog.pad);
+                match status {
+                    Status::Checking => {
+                        ui.horizontal(|ui| {
+                            ui.add(Spinner::new());
+                            ui.add(Text::new(labels.checking.as_str()));
+                        });
+                    }
+                    Status::UpToDate => {
+                        ui.add(Text::new(labels.up_to_date.replace("{app}", subject.name).replace("{running}", running)));
+                    }
+                    Status::Failed(error) => {
+                        Notice::new(error.as_str()).title(labels.failed.as_str()).tone(Tone::Bad).id_salt("failed").show(ui);
+                        if let Some(app) = subject.app {
+                            let url = app.releases_url();
+                            ui.horizontal_wrapped(|ui| {
+                                ui.add(Text::new(labels.releases_listed.as_str()).content(Content::Muted));
+                                ui.add(Link::new(url.as_str()).url(url.as_str()));
+                            });
+                        }
+                    }
+                    Status::Idle => {}
+                }
+            },
+        );
+        match shown.outcome? {
+            Outcome::Alternate => Some(DialogResult::Ok(CheckChoice::CheckAgain)),
+            Outcome::Ok | Outcome::Cancel | Outcome::Close => Some(DialogResult::Ok(CheckChoice::Close)),
+            _ => None,
+        }
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing"))]
 mod tests {
+    use craft_ui::dialog::{DialogHost, StartupStage};
+    use craft_ui::theme::{Base, install};
+    use egui::{Key, vec2};
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable as _;
+
+    use super::*;
+
+    fn harness(host: DialogHost) -> Harness<'static, DialogHost> {
+        Harness::<DialogHost>::builder()
+            .with_size(vec2(640.0, 480.0))
+            .with_context_setup(|ctx| {
+                install(ctx, &Base::suite_default());
+                craft_host::Host::builder(craft_host::AppInfo { id: "photocraft", name: "PhotoCraft", version: "1.0" }).build().install(ctx);
+            })
+            .build_ui_state(|ui, host: &mut DialogHost| host.show(ui.ctx()), host)
+    }
+
+    fn prompt(self_updating: bool) -> UpdatePromptDialog {
+        UpdatePromptDialog::new(Release { tag: "v2.0.0".into(), ..Release::default() }, "1.0.0", self_updating)
+    }
+
+    fn opened(dialog: impl StackDialog) -> Harness<'static, DialogHost> {
+        let mut host = DialogHost::new();
+        host.open(dialog);
+        let mut harness = harness(host);
+        harness.run_steps(3);
+        harness
+    }
+
+    /// A startup modal that draws nothing and finishes when told to.
+    struct Blocker(bool);
+
+    impl StackDialog for Blocker {
+        type Result = ();
+
+        fn id(&self) -> DialogId {
+            dialog_id("blocker")
+        }
+
+        fn show(&mut self, _ctx: &Context, _stack: &DialogStack) -> Option<DialogResult<()>> {
+            self.0.then_some(DialogResult::Ok(()))
+        }
+    }
+
     // Enter takes Update and Restart when self-updating and Download otherwise; Esc is Later.
     #[test]
-    #[ignore = "skeleton"]
     fn the_default_button_depends_on_self_updating_and_esc_is_later() {
-        todo!()
+        for (self_updating, expected) in [(true, UpdateChoice::UpdateAndRestart), (false, UpdateChoice::Download)] {
+            let mut harness = opened(prompt(self_updating));
+            assert_eq!(harness.query_by_label("Update and Restart").is_some(), self_updating);
+            harness.key_press(Key::Enter);
+            harness.run_steps(3);
+            assert_eq!(harness.state_mut().take::<UpdatePromptDialog>(), Some(DialogResult::Ok(expected)));
+        }
+        let mut harness = opened(prompt(true));
+        harness.key_press(Key::Escape);
+        harness.run_steps(3);
+        assert_eq!(harness.state_mut().take::<UpdatePromptDialog>(), Some(DialogResult::Ok(UpdateChoice::Later)));
+
+        let mut harness = opened(prompt(true));
+        harness.state_mut().get_mut::<UpdatePromptDialog>().unwrap().set_installing(true);
+        harness.run_steps(3);
+        harness.key_press(Key::Enter);
+        harness.run_steps(3);
+        assert!(harness.state().is_open::<UpdatePromptDialog>(), "the buttons do nothing while the install runs");
     }
 
     // Enqueued at the Update stage behind a Warning alert, the prompt opens only after the alert
     // closes (gap 75).
     #[test]
-    #[ignore = "skeleton"]
     fn the_prompt_waits_for_earlier_startup_modals() {
-        todo!()
+        let mut host = DialogHost::new();
+        host.enqueue(StartupStage::Update, prompt(false));
+        host.enqueue(StartupStage::Warning, Blocker(false));
+        let mut harness = harness(host);
+        harness.run_steps(3);
+        assert!(harness.state().is_open::<Blocker>() && !harness.state().is_open::<UpdatePromptDialog>());
+
+        harness.state_mut().get_mut::<Blocker>().unwrap().0 = true;
+        harness.run_steps(3);
+        harness.run_steps(3);
+        assert!(harness.state().is_open::<UpdatePromptDialog>());
     }
 
     // The check dialog shows the spinner, then the up-to-date or failed text as the status
     // changes, and Check Again only when failed.
     #[test]
-    #[ignore = "skeleton"]
     fn the_check_dialog_follows_the_status() {
-        todo!()
+        let mut harness = opened(UpdateCheckDialog::new("1.0.0"));
+        assert!(harness.query_by_label("Checking for updates…").is_some());
+        assert!(harness.query_by_label("Check Again").is_none());
+
+        harness.state_mut().get_mut::<UpdateCheckDialog>().unwrap().set_status(Status::UpToDate);
+        harness.run_steps(3);
+        assert!(harness.query_by_label_contains("is the newest version").is_some());
+        assert!(harness.query_by_label("Checking for updates…").is_none());
+
+        harness.state_mut().get_mut::<UpdateCheckDialog>().unwrap().set_status(Status::Failed("no network".into()));
+        harness.run_steps(3);
+        assert!(harness.query_all_by_label_contains("no network").next().is_some());
+        assert!(harness.query_by_label("All releases are listed at").is_some());
+        assert!(harness.query_by_label("https://github.com/storytold/photocraft/releases").is_some());
+        harness.get_by_label("Check Again").click();
+        harness.run_steps(3);
+        assert_eq!(harness.state_mut().take::<UpdateCheckDialog>(), Some(DialogResult::Ok(CheckChoice::CheckAgain)));
     }
 }
