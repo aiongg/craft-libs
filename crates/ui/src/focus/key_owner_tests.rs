@@ -11,6 +11,11 @@ pub(crate) fn pass(ctx: &Context, f: impl FnMut(&mut egui::Ui)) {
 /// Two passes with a focusable widget `id` that has the keyboard; registered as the canvas when
 /// `canvas`.
 pub(crate) fn focus_widget(ctx: &Context, id: Id, canvas: bool) {
+    focus_widget_claiming(ctx, id, canvas, &[]);
+}
+
+/// [`focus_widget`] whose widget claims `keys` on every pass.
+pub(crate) fn focus_widget_claiming(ctx: &Context, id: Id, canvas: bool, keys: &[crate::behavior::ClaimedKey]) {
     for _ in 0..2 {
         pass(ctx, |ui| {
             let r = ui.interact(
@@ -19,6 +24,7 @@ pub(crate) fn focus_widget(ctx: &Context, id: Id, canvas: bool) {
                 Sense::click_and_drag().union(Sense::focusable_noninteractive()),
             );
             r.request_focus();
+            crate::behavior::KeyClaim::claim(ui.ctx(), id, keys);
             if canvas {
                 register_canvas(ui.ctx(), id);
             }

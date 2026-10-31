@@ -28,7 +28,7 @@ use super::scrollbars::CanvasScrollbars;
 use super::tool_host::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
 use super::view::CanvasView;
 use super::zoom::{self, ZoomAnimation, ZoomLadder};
-use crate::focus::key_owner::{KeyOwner, OwnerGate, owner};
+use crate::focus::key_owner::{canvas_keys_free, claimed_presses};
 use crate::localized::Labels;
 use crate::theme::{ToEgui, UiTokens};
 use craft_theme::{CanvasTokens, TypeRole};
@@ -366,21 +366,27 @@ impl PageKey {
     /// Returns whether one ran.
     // pc: crates/ui-egui/src/input/page_keys.rs:44 `handle`.
     pub fn handle(ctx: &Context, view: &mut CanvasView, size: Size, overscroll: bool) -> bool {
-        if owner(ctx, &OwnerGate::default()) != KeyOwner::App {
+        if !canvas_keys_free(ctx) {
             return false;
         }
         let canvas = view.rect.size();
+        let claimed = claimed_presses(ctx);
         let presses: Vec<PageKey> = ctx.input_mut(|input| {
             let mut out = Vec::new();
-            input.events.retain(|e| match e {
-                Event::Key { key, pressed: true, modifiers, .. } => match PageKey::of(*key, *modifiers, canvas) {
-                    Some(p) => {
-                        out.push(p);
-                        false
-                    }
-                    None => true,
-                },
-                _ => true,
+            let mut at = 0;
+            input.events.retain(|e| {
+                at += 1;
+                let claimed = claimed.get(at - 1).copied().unwrap_or(false);
+                match e {
+                    Event::Key { key, pressed: true, modifiers, .. } if !claimed => match PageKey::of(*key, *modifiers, canvas) {
+                        Some(p) => {
+                            out.push(p);
+                            false
+                        }
+                        None => true,
+                    },
+                    _ => true,
+                }
             });
             out
         });

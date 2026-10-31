@@ -154,12 +154,14 @@ fn a_drag_running_at_release_finishes_with_the_sprung_tool() {
 }
 
 #[test]
-fn the_space_hand_works_while_the_registered_canvas_has_focus() {
-    let ctx = Context::default();
+fn the_space_hand_works_for_a_focused_canvas_or_button_but_not_a_claiming_widget() {
+    use crate::behavior::ClaimedKey;
     let n = Modifiers::NONE;
-    crate::focus::key_owner_tests::focus_widget(&ctx, Id::unique("canvas"), true);
-    assert_eq!(held(&ctx, 0.2, n, vec![key_event(Key::Space, true, n)]), Some(MomentaryTool::Hand));
-    let ctx = Context::default();
-    crate::focus::key_owner_tests::focus_widget(&ctx, Id::unique("slider"), false);
-    assert_eq!(held(&ctx, 0.2, n, vec![key_event(Key::Space, true, n)]), None, "another widget has the keys");
+    for (canvas, claims, expected) in
+        [(true, vec![], Some(MomentaryTool::Hand)), (false, vec![], Some(MomentaryTool::Hand)), (false, vec![ClaimedKey::exact(n, Key::Space)], None)]
+    {
+        let ctx = Context::default();
+        crate::focus::key_owner_tests::focus_widget_claiming(&ctx, Id::unique("w"), canvas, &claims);
+        assert_eq!(held(&ctx, 0.2, n, vec![key_event(Key::Space, true, n)]), expected);
+    }
 }

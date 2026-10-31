@@ -67,6 +67,30 @@ pub fn register_canvas(ctx: &Context, id: egui::Id) {
     crate::shell::register_canvas(ctx, id);
 }
 
+/// Whether the canvas's own single keys (page keys, digits, the Space hand) run: nothing but a
+/// focused widget that isn't text has the keyboard, and then the widget keeps what it claimed
+/// ([`KeyClaim`](crate::behavior::KeyClaim)). Other focused widgets leave these keys to the
+/// shortcuts, as in Photoshop.
+// pc: crates/ui-egui/src/input/shortcuts.rs:824 `handle_escape_and_view_keys`, :872 page keys.
+pub(crate) fn canvas_keys_free(ctx: &Context) -> bool {
+    matches!(owner(ctx, &OwnerGate::default()), KeyOwner::App | KeyOwner::Widget)
+}
+
+/// For each event of this pass, whether it is a key press the focused widget claimed. Computed
+/// before `input_mut`, which holds the context's lock.
+pub(crate) fn claimed_presses(ctx: &Context) -> Vec<bool> {
+    let events = ctx.input(|i| i.events.clone());
+    events
+        .iter()
+        .map(|e| match e {
+            egui::Event::Key { key, pressed: true, modifiers, .. } => {
+                crate::behavior::KeyClaim::claimed(ctx, &egui::KeyboardShortcut::new(*modifiers, *key))
+            }
+            _ => false,
+        })
+        .collect()
+}
+
 /// Who has the keyboard this pass, in [`KeyOwner`]'s order: `gate`, then the open popups (popup
 /// lists, popovers, egui popups), menus and the menu bar, modal layers, a focused text edit, a
 /// non-modal popover, and last egui's focus (the registered canvas counts as none).

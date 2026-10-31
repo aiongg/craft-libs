@@ -323,11 +323,14 @@ fn the_compass_shows_when_turned_and_a_click_resets() {
 }
 
 #[test]
-fn page_keys_run_for_a_focused_canvas_and_not_for_another_widget() {
+fn page_keys_run_for_a_focused_canvas_or_button_but_not_a_claiming_widget() {
+    use crate::behavior::ClaimedKey;
     let page_down = || Event::Key { key: Key::PageDown, physical_key: Some(Key::PageDown), pressed: true, repeat: false, modifiers: Modifiers::NONE };
-    for (canvas, moved) in [(true, true), (false, false)] {
+    for (canvas, claims, moved) in
+        [(true, vec![], true), (false, vec![], true), (false, vec![ClaimedKey::exact(Modifiers::NONE, Key::PageDown)], false)]
+    {
         let ctx = Context::default();
-        crate::focus::key_owner_tests::focus_widget(&ctx, egui::Id::unique("w"), canvas);
+        crate::focus::key_owner_tests::focus_widget_claiming(&ctx, egui::Id::unique("w"), canvas, &claims);
         let mut v = view(1.0, Point::new(400.0, 300.0));
         let before = v.center;
         let mut ran = false;
