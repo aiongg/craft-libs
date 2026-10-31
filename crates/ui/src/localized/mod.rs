@@ -88,7 +88,7 @@ impl LocaleNumbers {
     }
 
     /// [`LocaleNumbers::of`] for code that has a context and no `Ui`.
-    pub(crate) fn of_ctx(ctx: &Context) -> Arc<LocaleNumbers> {
+    pub fn of_ctx(ctx: &Context) -> Arc<LocaleNumbers> {
         derived(ctx).1
     }
 
