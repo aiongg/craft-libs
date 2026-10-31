@@ -18,12 +18,11 @@
 //! # }
 //! ```
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: DropperTool is S4C-F13's")]
-
 use craft_theme::{ControlSize, Srgba};
+use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
 use craft_ui::controls::IconButton;
 use craft_ui::icons::Icon;
-use egui::{AsIdSalt, Context, Id, IdSalt, Response, Ui};
+use egui::{AsIdSalt, Context, Id, IdSalt, Key, Painter, Response, Ui};
 
 /// The armed dropper, kept in egui memory: who armed it and a sample waiting for it.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -189,9 +188,6 @@ impl DropperButton {
 /// the image or over transparency) and [`deliver`](DropperState::deliver)s it; a drag samples
 /// at every move (Photoshop updates the dialog while the button is held); Esc disarms. The
 /// cursor is the eyedropper with its tip on the sampled pixel.
-// needs: S3-canvas tool_host — `impl CanvasTool for DropperTool` (`press` returns
-// `ToolAction::Claimed`, `drag` and `release` sample at `ToolPointer::doc`, `cancel` disarms,
-// `cursor` is the eyedropper `ToolCursor`).
 pub struct DropperTool<'a> {
     sample: Box<dyn FnMut([f64; 2]) -> Option<Srgba> + 'a>,
 }
@@ -207,6 +203,54 @@ impl<'a> DropperTool<'a> {
     // pc: crates/ui-egui/src/canvas/cursors.rs:207 `composite_color` (the app's `sample`), then
     // `DropperState::deliver`.
     pub fn sample_at(&mut self, ctx: &Context, doc: [f64; 2]) {
-        todo!()
+        if let Some(color) = (self.sample)(doc) {
+            DropperState::deliver(ctx, color);
+        }
+    }
+}
+
+/// Ends the armed dropper, whoever owns it.
+fn disarm_armed(ctx: &Context) {
+    if let Some(owner) = DropperState::armed(ctx) {
+        DropperState::disarm(ctx, owner);
+    }
+}
+
+impl CanvasTool for DropperTool<'_> {
+    fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
+        // The pipette's tip is at the bottom left of its 24-unit icon.
+        ToolCursor::Tool { icon: Icon::Eyedropper, hotspot: egui::vec2(2.0, 22.0), badge: None }
+    }
+
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y]);
+        ToolAction::Claimed
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y]);
+    }
+
+    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y]);
+    }
+
+    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+        disarm_armed(&cx.canvas.ctx);
+    }
+
+    /// Esc on the canvas while a dropper is armed disarms it.
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+        if key.key == Key::Escape && key.pressed && DropperState::armed(&cx.canvas.ctx).is_some() {
+            disarm_armed(&cx.canvas.ctx);
+            return true;
+        }
+        false
+    }
+
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+
+    fn autoscrolls(&self) -> bool {
+        false
     }
 }

@@ -5,13 +5,11 @@
 //! The points are per-document view state: not saved with the document, no History step, no
 //! pixels changed. The app keeps one [`ColorSamplers`] per document.
 
-#![expect(dead_code, reason = "skeleton: removed with the canvas tool")]
-
 use craft_cms::convert::CmykConverter;
 use craft_theme::Srgba;
 use craft_theme::TypeRole;
-use craft_ui::canvas::CanvasView;
 use craft_ui::canvas::kurbo::Point;
+use craft_ui::canvas::{CanvasTool, CanvasView, ToolAction, ToolContext, ToolCursor, ToolPointer};
 use craft_ui::controls::Button;
 use craft_ui::localized::SharedLabels;
 use craft_ui::patterns::OptionsBar;
@@ -162,9 +160,6 @@ fn pixel(pos: [f64; 2], size: [u32; 2]) -> Option<[f64; 2]> {
 /// removes it; Alt-click on empty space and a click outside the canvas do nothing. A press past
 /// the limit reports [`SamplerError::Full`] through [`take_error`](Self::take_error), shown in
 /// the status bar, not as a fault.
-// needs: S3-canvas tool_host — `impl CanvasTool for ColorSamplerTool` (`press` with the hit
-// tolerance `SAMPLER_HIT / view zoom`, `release` commits the move, `cursor` is the sampler
-// crosshair).
 // pc: crates/ui-egui/src/tools/analysis_ui.rs:338 (Down), :357 (Up), :210 `tolerance`.
 pub struct ColorSamplerTool<'a> {
     samplers: &'a mut ColorSamplers,
@@ -179,9 +174,72 @@ impl<'a> ColorSamplerTool<'a> {
         ColorSamplerTool { samplers, size, moving: None, error: None }
     }
 
+    #[cfg(test)]
+    pub(super) fn samplers(&self) -> &ColorSamplers {
+        self.samplers
+    }
+
     /// The error of the last press, once.
     pub fn take_error(&mut self) -> Option<SamplerError> {
         self.error.take()
+    }
+}
+
+impl CanvasTool for ColorSamplerTool<'_> {
+    fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
+        ToolCursor::Crosshair { length: 8.0, gap: 2.0 }
+    }
+
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+        let at = [pointer.doc.x, pointer.doc.y];
+        let tolerance = f64::from(SAMPLER_HIT) / cx.view.zoom.max(f64::EPSILON);
+        self.moving = None;
+        match self.samplers.hit(at, tolerance) {
+            // Alt-click on a point removes it.
+            Some(index) if pointer.modifiers.alt => {
+                let _ = self.samplers.remove(index);
+                ToolAction::Done
+            }
+            // A plain press on a point starts a move, committed on release.
+            Some(index) => {
+                self.moving = Some((index, at));
+                ToolAction::Claimed
+            }
+            // Alt-click on empty space does nothing.
+            None if pointer.modifiers.alt => ToolAction::Done,
+            // A click outside the canvas places nothing; past the limit reports Full.
+            None => {
+                if let Err(error) = self.samplers.add(at, self.size)
+                    && error != SamplerError::Outside
+                {
+                    self.error = Some(error);
+                }
+                ToolAction::Done
+            }
+        }
+    }
+
+    fn drag(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+        let Some((index, from)) = self.moving.take() else { return };
+        let to = [pointer.doc.x, pointer.doc.y];
+        // Within half a pixel of the press it was a click on the point, not a drag.
+        if (to[0] - from[0]).hypot(to[1] - from[1]) <= 0.5 {
+            return;
+        }
+        // Dropped off the canvas the point is removed, on it moved.
+        let _ = self.samplers.move_point(index, to, self.size);
+    }
+
+    fn cancel(&mut self, _cx: &mut ToolContext<'_>) {
+        self.moving = None;
+    }
+
+    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+
+    fn autoscrolls(&self) -> bool {
+        false
     }
 }
 
