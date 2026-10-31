@@ -90,6 +90,7 @@ fn migrated_stories_build_the_args_they_had_by_hand() {
         Args::new()
             .with_choice("size", sizes, 1)
             .with_bool("disabled", false)
+            .with_bool("unfilled track", false)
             .with_bool("default value (50)", false)
             .with_bool("wheel unfocused", false)
             .for_story("controls/slider/values")
