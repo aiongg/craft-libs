@@ -9,7 +9,7 @@
 //! Sets the suite writes carry each command's id (`craft-id`, which Photoshop ignores), so they
 //! read back exactly.
 
-use crate::chord::foreign::Flavor;
+use crate::chord::foreign::{Flavor, ForeignError};
 use crate::chord::{Mods, Trigger};
 use crate::import::{ForeignEntry, ForeignKey, ForeignSet};
 use crate::keymap::{Keymap, Kind};
@@ -103,7 +103,7 @@ fn too_deep(text: &str) -> bool {
 /// `$$$/FileName/Presets/KeyboardCustomization/{name}={name}`), one [`crate::ForeignEntry`] per
 /// command row with a name (its keys in the file's flavour, an id from [`ID_ATTRIBUTE`] or
 /// `pc-id` as the entry's [`ForeignEntry::id`] when present), and the `<tool>` rows as tool
-/// entries. Rows without a name are skipped; rows without a shortcut stay, with no keys.
+/// entries (a tool key with modifiers is read as an unsupported-modifier error, so [`crate::plan`] reports it unreadable and binds nothing). Rows without a name are skipped; rows without a shortcut stay, with no keys.
 // pc: crates/engine/src/kys.rs:66 `parse`, :54 `filename_to_name`, :128 `to_ours`.
 pub fn read(text: &str) -> Result<ForeignSet, KysError> {
     if text.len() > MAX_BYTES {
@@ -144,7 +144,13 @@ pub fn read(text: &str) -> Result<ForeignSet, KysError> {
             entry = entry.with_id(id);
         }
         for key in shortcuts(node) {
-            entry = entry.with_key(ForeignKey::read(None, &key, flavor));
+            let mut key = ForeignKey::read(None, &key, flavor);
+            // Photoshop's tool shortcuts are single keys: one with modifiers is reported as
+            // unreadable and binds nothing, and the tool keeps the key it has.
+            if tool && key.trigger.as_ref().is_ok_and(|t| !t.chord.mods.is_none() || t.double) {
+                key.trigger = Err(ForeignError::UnsupportedModifier(key.text.clone()));
+            }
+            entry = entry.with_key(key);
         }
         if tool {
             tools.push(entry.tool());

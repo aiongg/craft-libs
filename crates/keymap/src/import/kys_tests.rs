@@ -187,6 +187,8 @@ fn matches_photocrafts_plan_on_its_test_sets() {
         let mut unreadable: Vec<String> = report.unreadable.iter().map(|u| u.item.clone()).collect();
         unreadable.sort();
         let mut want_unreadable = texts(&pc["unreadable"]);
+        // A tool key with modifiers: PhotoCraft skips it silently, plan reports it unreadable.
+        want_unreadable.extend(read.entries.iter().filter(|e| e.is_tool && e.keys.iter().any(|k| k.trigger.is_err())).map(|e| e.path[0].clone()));
         want_unreadable.sort();
         assert_eq!(unreadable, want_unreadable, "{name}: unreadable rows");
 
