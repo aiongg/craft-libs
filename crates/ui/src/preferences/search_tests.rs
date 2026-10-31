@@ -2,7 +2,7 @@
 
 use super::search::{list_pages, row_shown, shown_position};
 use super::stories::FakeHost;
-use super::{PreferencesHost, matches};
+use super::{PageSpec, PreferencesHost, matches};
 
 fn listed_ids(host: &FakeHost, query: &str) -> Vec<String> {
     let pages = host.pages();
@@ -51,4 +51,13 @@ fn the_selected_page_falls_back_to_the_first_listed_and_returns() {
     let all = list_pages(&pages, "");
     assert_eq!(shown_position(&all, &pages, "tools"), Some(2));
     assert_eq!(shown_position(&list_pages(&pages, "nothing matches"), &pages, "tools"), None);
+}
+
+#[test]
+fn a_row_matches_by_its_help_and_a_custom_page_by_its_keywords() {
+    let host = FakeHost::new();
+    assert_eq!(listed_ids(&host, "memory runs low"), ["advanced"]);
+    let pages = vec![PageSpec::custom("graphics", "Graphics").keywords("GPU adapter"), PageSpec::custom("other", "Other")];
+    let listed = list_pages(&pages, "adapter");
+    assert_eq!(listed.iter().map(|l| pages[l.index].id).collect::<Vec<_>>(), ["graphics"]);
 }

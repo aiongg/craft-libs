@@ -29,6 +29,8 @@ pub struct PageSpec<'a> {
     pub groups: Vec<GroupSpec<'a>>,
     /// A note under the last group.
     pub footnote: Option<&'a str>,
+    /// Extra search text of the page, for a custom page whose controls the search can't see.
+    pub keywords: &'a str,
     /// The host draws the whole page ([`PreferencesHost::custom_page`](super::PreferencesHost::custom_page)).
     pub custom: bool,
 }
@@ -36,16 +38,21 @@ pub struct PageSpec<'a> {
 impl<'a> PageSpec<'a> {
     /// A plain page of one untitled group.
     pub fn new(id: &'a str, title: &'a str, rows: Vec<RowSpec<'a>>) -> Self {
-        Self { id, title, groups: vec![GroupSpec::new(None, rows)], footnote: None, custom: false }
+        Self { id, title, groups: vec![GroupSpec::new(None, rows)], footnote: None, keywords: "", custom: false }
     }
 
     /// A page the host draws.
     pub fn custom(id: &'a str, title: &'a str) -> Self {
-        Self { id, title, groups: Vec::new(), footnote: None, custom: true }
+        Self { id, title, groups: Vec::new(), footnote: None, keywords: "", custom: true }
     }
 
     pub fn footnote(mut self, footnote: &'a str) -> Self {
         self.footnote = Some(footnote);
+        self
+    }
+
+    pub fn keywords(mut self, keywords: &'a str) -> Self {
+        self.keywords = keywords;
         self
     }
 
@@ -91,20 +98,25 @@ pub struct RowSpec<'a> {
     pub key: &'a str,
     /// Translated; also the row's accessible name.
     pub label: &'a str,
-    /// Extra search text: the key, the English label, synonyms.
+    /// Extra search text: the key, the English label, synonyms. A [`RowKind::Custom`] row, which
+    /// the search can't look into, lists the terms of its control here.
     pub keywords: &'a str,
-    /// Help under the control: "Applies at next launch."
+    /// Help under the control: "Applies at next launch." A line break starts a new paragraph.
+    /// The search matches it.
     pub help: Option<&'a str>,
     /// False for hidden rows and rows hidden by another value.
     pub visible: bool,
     pub enabled: bool,
+    /// The step of a [`RowKind::Float`] row (arrow keys, wheel, drag); without one the step comes
+    /// from the range and decimals. Ignored by other kinds.
+    pub step: Option<f64>,
     pub kind: RowKind<'a>,
 }
 
 impl<'a> RowSpec<'a> {
     /// A visible, enabled row with no keywords or help.
     pub fn new(key: &'a str, label: &'a str, kind: RowKind<'a>) -> Self {
-        Self { key, label, keywords: "", help: None, visible: true, enabled: true, kind }
+        Self { key, label, keywords: "", help: None, visible: true, enabled: true, step: None, kind }
     }
 
     pub fn keywords(mut self, keywords: &'a str) -> Self {
@@ -124,6 +136,11 @@ impl<'a> RowSpec<'a> {
 
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    pub fn step(mut self, step: f64) -> Self {
+        self.step = Some(step);
         self
     }
 }

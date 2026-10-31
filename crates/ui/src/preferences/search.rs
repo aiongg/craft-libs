@@ -9,9 +9,9 @@ pub fn matches(query: &str, label: &str, keywords: &str, key: &str) -> bool {
     query.is_empty() || [label, keywords, key].iter().any(|text| text.to_lowercase().contains(&query))
 }
 
-/// Whether `row` matches `query`.
+/// Whether `row` matches `query`: its label, keywords, key or help.
 pub fn row_matches(query: &str, row: &RowSpec<'_>) -> bool {
-    matches(query, row.label, row.keywords, row.key)
+    matches(query, row.label, row.keywords, row.key) || row.help.is_some_and(|help| matches(query, help, "", ""))
 }
 
 /// A page that the page list shows.
@@ -37,7 +37,7 @@ pub fn list_pages(pages: &[PageSpec<'_>], query: &str) -> Vec<Listed> {
         .iter()
         .enumerate()
         .filter_map(|(index, page)| {
-            let title = matches(query, page.title, "", "");
+            let title = matches(query, page.title, page.keywords, "");
             let all_rows = title;
             let any_row = page.groups.iter().flat_map(|g| &g.rows).any(|r| r.visible && row_matches(query, r));
             let listed = !searching(query) || title || any_row;
