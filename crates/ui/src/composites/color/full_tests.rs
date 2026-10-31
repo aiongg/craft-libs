@@ -838,6 +838,7 @@ fn enter_presses_the_default_side_action_and_esc_the_cancel_one_as_a_dialog_foot
     let roles: Vec<_> = rig.side_clicked.drain(..).map(|c| c.role).collect();
     assert_eq!(roles, [ButtonRole::Default], "... and then answers the default action, as a footer does");
 
+    rig.tab_to("Hex colour");
     rig.key(Key::Escape);
     let roles: Vec<_> = rig.side_clicked.drain(..).map(|c| c.role).collect();
     assert_eq!(roles, [ButtonRole::Cancel]);
@@ -849,8 +850,176 @@ fn enter_presses_the_default_side_action_and_esc_the_cancel_one_as_a_dialog_foot
     assert!(rig.side_clicked.iter().all(|c| c.role != ButtonRole::Default), "a focused button presses itself, not the default");
 
     rig.side_clicked.clear();
-    rig.ctx.memory_mut(|m| m.request_focus(rig.field));
+    rig.ctx.memory_mut(|m| m.surrender_focus(m.focused().unwrap_or(Id::NULL)));
     rig.frame(vec![]);
     rig.key(Key::Enter);
-    assert!(rig.side_clicked.is_empty(), "the focus is outside the picker");
+    assert!(rig.side_clicked.is_empty(), "nothing has the focus");
+}
+
+/// A picker with side actions as the body of a dialog, and a second modal dialog a host opens
+/// over it.
+struct Stacked {
+    ctx: Context,
+    numbers: LocaleNumbers,
+    time: f64,
+    first: crate::dialog::DialogState,
+    second: crate::dialog::DialogState,
+    first_open: bool,
+    second_open: bool,
+    color: Srgba,
+    picker: Id,
+    side_clicked: Vec<Clicked>,
+    second_outcomes: Vec<crate::dialog::Outcome>,
+}
+
+impl Stacked {
+    fn new() -> Self {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let mut stacked = Self {
+            ctx,
+            numbers: LocaleNumbers::from_tag("en"),
+            time: 0.0,
+            first: crate::dialog::DialogState::new(),
+            second: crate::dialog::DialogState::new(),
+            first_open: true,
+            second_open: false,
+            color: Srgba::rgb(0.2, 0.4, 0.6),
+            picker: Id::NULL,
+            side_clicked: Vec::new(),
+            second_outcomes: Vec::new(),
+        };
+        for _ in 0..4 {
+            stacked.frame(vec![]);
+        }
+        stacked
+    }
+
+    fn frame(&mut self, events: Vec<Event>) {
+        let input =
+            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(900.0, 900.0))), time: Some(self.time), events, ..Default::default() };
+        self.time += 1.0 / 60.0;
+        let ctx = self.ctx.clone();
+        let output = ctx.run_ui(input, |ui| {
+            let ctx = ui.ctx().clone();
+            if self.first_open {
+                let (color, numbers) = (self.color, &self.numbers);
+                let (mut picker, mut clicked) = (Id::NULL, None);
+                crate::dialog::Dialog::new("first", "Colour Picker").initial_focus(crate::dialog::InitialFocus::None).show(
+                    &ctx,
+                    &mut self.first,
+                    &mut (),
+                    |ui, ()| {
+                        let shown = ColorPicker::new("picker", "Fill colour", color, numbers)
+                            .layout(ColorPickerLayout::Full)
+                            .side_actions([FooterButton::new(ButtonRole::Default, "OK"), FooterButton::new(ButtonRole::Cancel, "Cancel")])
+                            .show(ui);
+                        picker = shown.edit.response.id;
+                        clicked = shown.side_clicked;
+                    },
+                );
+                self.picker = picker;
+                self.side_clicked.extend(clicked);
+            }
+            if self.second_open {
+                let shown = crate::dialog::Dialog::new("second", "Second")
+                    .initial_focus(crate::dialog::InitialFocus::None)
+                    .footer(crate::dialog::Footer::standard())
+                    .show(&ctx, &mut self.second, &mut (), |ui, ()| {
+                        ui.label("Over the picker");
+                    });
+                self.second_outcomes.extend(shown.outcome);
+                self.second_open &= !shown.outcome.is_some_and(crate::dialog::Outcome::closes);
+            }
+        });
+        output.drop_without_applying_deltas();
+    }
+
+    fn key(&mut self, key: Key) {
+        self.frame(vec![Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
+        self.frame(vec![]);
+    }
+}
+
+#[test]
+fn side_action_keys_go_to_a_modal_dialog_opened_over_the_picker_dialog() {
+    let mut rig = Stacked::new();
+    let hex = super::hex::hex_id(rig.picker);
+    rig.ctx.memory_mut(|m| m.request_focus(hex));
+    rig.frame(vec![]);
+    rig.key(Key::Escape);
+    assert_eq!(rig.side_clicked.drain(..).map(|c| c.role).collect::<Vec<_>>(), [ButtonRole::Cancel], "alone, the picker answers Esc");
+
+    rig.second_open = true;
+    for _ in 0..4 {
+        rig.frame(vec![]);
+    }
+    // The focus stays in the picker's layer: only the modal above it tells the picker not to answer.
+    rig.ctx.memory_mut(|m| m.request_focus(hex));
+    rig.frame(vec![]);
+    rig.key(Key::Enter);
+    assert!(rig.side_clicked.is_empty(), "Enter is the top modal's: {:?}", rig.side_clicked.len());
+    assert_eq!(std::mem::take(&mut rig.second_outcomes), [crate::dialog::Outcome::Ok], "the top modal took Enter and closed");
+    rig.second = crate::dialog::DialogState::new();
+    rig.second_open = true;
+    for _ in 0..4 {
+        rig.frame(vec![]);
+    }
+    rig.ctx.memory_mut(|m| m.request_focus(hex));
+    rig.frame(vec![]);
+    rig.key(Key::Escape);
+    assert!(rig.side_clicked.is_empty(), "Esc is the top modal's");
+    assert_eq!(rig.second_outcomes, [crate::dialog::Outcome::Cancel], "the top modal took Esc");
+}
+
+#[test]
+fn the_enter_that_opens_a_picker_does_not_press_its_side_action() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.side = vec![FooterButton::new(ButtonRole::Default, "OK"), FooterButton::new(ButtonRole::Cancel, "Cancel")];
+    rig.settle();
+    assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"), "the focus is inside when the picker goes");
+    // It stays hidden for a few frames, then opens on this very Enter, with the old state of its keys.
+    rig.shown = false;
+    rig.settle();
+    rig.shown = true;
+    rig.frame(vec![Event::Key { key: Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
+    rig.frame(vec![]);
+    assert!(rig.side_clicked.is_empty(), "{:?}", rig.side_clicked.len());
+    rig.settle();
+    rig.ctx.memory_mut(|m| m.request_focus(super::hex::hex_id(rig.picker)));
+    rig.frame(vec![]);
+    rig.key(Key::Escape);
+    assert_eq!(rig.side_clicked.drain(..).map(|c| c.role).collect::<Vec<_>>(), [ButtonRole::Cancel], "a later Esc is answered");
+}
+
+#[test]
+fn a_pending_hex_focus_waits_for_the_picker_to_be_enabled() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let numbers = LocaleNumbers::from_tag("en");
+    let mut time = 0.0;
+    let mut run = |enabled: bool, request: Option<Id>| -> Id {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(900.0, 900.0))), time: Some(time), ..Default::default() };
+        time += 1.0 / 60.0;
+        let mut id = Id::NULL;
+        let output = ctx.run_ui(input, |ui| {
+            if let Some(picker) = request {
+                ColorPicker::focus_hex(ui.ctx(), picker);
+            }
+            let picked = ColorPicker::new("picker", "Fill colour", Srgba::rgb(0.2, 0.4, 0.6), &numbers)
+                .layout(ColorPickerLayout::Compact)
+                .enabled(enabled)
+                .show(ui);
+            id = picked.edit.response.id;
+        });
+        output.drop_without_applying_deltas();
+        id
+    };
+    let picker = run(true, None);
+    run(false, Some(picker));
+    run(false, None);
+    assert_ne!(ctx.memory(|m| m.focused()), Some(super::hex::hex_id(picker)), "disabled: no focus");
+    run(true, None);
+    run(true, None);
+    assert_eq!(ctx.memory(|m| m.focused()), Some(super::hex::hex_id(picker)), "the request waited");
 }

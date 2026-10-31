@@ -65,5 +65,13 @@ fn scroll_height_leaves_room_for_the_chrome_and_the_region_below_but_not_below_t
     let t = tokens(Size::Compact);
     assert_eq!(scroll_height(&t, 800.0, 150.0, 0.0), 800.0 - 48.0 - 150.0);
     assert_eq!(scroll_height(&t, 800.0, 150.0, 200.0), 800.0 - 48.0 - 150.0 - 200.0);
-    assert_eq!(scroll_height(&t, 300.0, 150.0, 200.0), 120.0);
+    assert_eq!(scroll_height(&t, 300.0, 150.0, 200.0), 120.0, "no room for the chrome anyway");
+}
+
+#[test]
+fn a_short_window_gives_up_the_margin_before_the_footer() {
+    let t = tokens(Size::Compact);
+    assert_eq!(scroll_height(&t, 240.0, 100.0, 0.0), 120.0, "the margin shrinks to keep the minimum");
+    assert_eq!(scroll_height(&t, 200.0, 100.0, 0.0), 100.0, "less room than the minimum: all of it, so the footer stays on screen");
+    assert_eq!(scroll_height(&t, 800.0, 150.0, 0.0), 800.0 - 48.0 - 150.0, "a tall window keeps its margin");
 }

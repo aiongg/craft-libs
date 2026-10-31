@@ -475,7 +475,8 @@ impl<'a> ColorPicker<'a> {
         let full = self.layout == ColorPickerLayout::Full;
         let mut state = State::load(ui, id);
         let pass = ui.ctx().cumulative_pass_nr();
-        if full && enabled && self.focus_on_open && state.shown_pass.is_none_or(|p| p + 1 < pass) {
+        let opened = state.shown_pass.is_none_or(|p| p + 1 < pass);
+        if full && enabled && self.focus_on_open && opened {
             ColorPicker::focus_hex(ui.ctx(), id);
         }
         state.shown_pass = Some(pass);
@@ -506,7 +507,7 @@ impl<'a> ColorPicker<'a> {
 
             (eyedropper_requested, side_clicked) = match self.layout {
                 ColorPickerLayout::Compact => (self.compact(ui, id, mode, &models, &mut state, inner, &translate, &mut parts), None),
-                ColorPickerLayout::Full => self.full(ui, id, &mut mode, &models, inner, &translate, &mut parts),
+                ColorPickerLayout::Full => self.full(ui, id, &mut mode, &models, inner, &translate, &mut parts, opened),
             };
             let mut edits = parts.edits;
             if let Some(color) = ui.data_mut(|d| {

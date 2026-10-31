@@ -406,6 +406,8 @@ fn a_dialog_taller_than_the_window_keeps_its_title_and_footer_and_scrolls_the_bo
     let screen = Rect::from_min_size(Pos2::ZERO, window);
     assert!(screen.contains_rect(ok) && screen.contains_rect(cancel), "{ok:?} {cancel:?}");
     assert!(ok.bottom() <= window.y - 24.0 + 1.0, "the dialog keeps the window margin: {ok:?}");
+    let top = harness.get_all_by_label("Print").filter_map(|n| n.accesskit_node().bounding_box()).map(|r| r.y0 as f32).fold(f32::MAX, f32::min);
+    assert!(top >= 24.0 - 1.0, "and at the top: {top}");
     assert!(harness.get_by_label("Row 59").rect().top() > window.y, "the body is cut, not the dialog");
 
     let first = harness.get_by_label("Row 0").rect().top();
@@ -416,6 +418,43 @@ fn a_dialog_taller_than_the_window_keeps_its_title_and_footer_and_scrolls_the_bo
     harness.get_by_label("OK").click();
     harness.run();
     assert_eq!(answered.get(), Some(Outcome::Ok), "the footer button answers");
+}
+
+#[test]
+fn focus_in_a_popup_over_the_body_does_not_scroll_the_body() {
+    let window = vec2(640.0, 300.0);
+    let popup_id = egui::Id::unique("popup");
+    let mut harness = harness(window).build_ui_state(
+        move |ui, (state, popup): &mut (DialogState, bool)| {
+            let ctx = ui.ctx().clone();
+            let _ = Dialog::new("tall", "Print").initial_focus(InitialFocus::None).width(Width::Fixed(300.0)).footer(Footer::standard()).show(
+                &ctx,
+                state,
+                &mut (),
+                |ui, ()| {
+                    for n in 0..60 {
+                        ui.label(format!("Row {n}"));
+                    }
+                },
+            );
+            if *popup {
+                // Inside the body's content rect, below the window's bottom edge.
+                egui::Area::new(popup_id).order(egui::Order::Foreground).fixed_pos(pos2(100.0, 700.0)).constrain(false).show(&ctx, |ui| {
+                    let response = ui.button("Popup item");
+                    if !ui.memory(|m| m.has_focus(response.id)) {
+                        response.request_focus();
+                    }
+                });
+            }
+        },
+        (DialogState::new(), false),
+    );
+    harness.run();
+    let first = harness.get_by_label("Row 0").rect().top();
+    harness.state_mut().1 = true;
+    harness.run();
+    harness.run();
+    assert_eq!(harness.get_by_label("Row 0").rect().top(), first, "the body stays where it was");
 }
 
 #[test]

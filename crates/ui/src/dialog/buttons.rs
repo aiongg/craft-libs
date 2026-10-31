@@ -197,17 +197,18 @@ impl FooterButtons {
     /// The button Enter or Esc presses, as a dialog's footer answers them ([`resolve_keys`]):
     /// Enter the enabled [`Default`](ButtonRole::Default) button unless a button of the row has the
     /// focus (`shown`), Esc the enabled [`Cancel`](ButtonRole::Cancel) button; neither while a
-    /// popup is open or when the row is not `active`. The keys it answers are taken from the
-    /// input, so a dialog around the row does not answer them again.
-    pub(crate) fn key_click(&self, ctx: &Context, shown: &FooterButtonsResponse, active: bool) -> Option<Clicked> {
-        let (enter, escape) = ctx.input(|i| (i.events.iter().any(is_enter_press), i.key_pressed(Key::Escape) && i.modifiers.is_none()));
+    /// popup is open or when the row is not `active`; an Enter that `opened` the row's surface is
+    /// not answered, as a dialog's is not. The keys it answers are taken from the input, so a
+    /// dialog around the row does not answer them again.
+    pub(crate) fn key_click(&self, ctx: &Context, shown: &FooterButtonsResponse, active: bool, opened: bool) -> Option<Clicked> {
+        let (enter, escape) = ctx.input(|i| (!opened && i.events.iter().any(is_enter_press), i.key_pressed(Key::Escape) && i.modifiers.is_none()));
         let outcome = resolve_keys(KeyInput {
             enter,
             escape,
             modal: true,
             active,
             footer: true,
-            popup_open: popup_list::any_open(ctx),
+            popup_open: egui::Popup::is_any_open(ctx) || popup_list::any_open(ctx),
             button_focused: shown.focused,
             default_enabled: shown.default.is_some(),
             enter_rule: EnterRule::Default,

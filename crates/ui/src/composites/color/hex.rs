@@ -140,7 +140,7 @@ pub(super) fn show(ui: &mut Ui, id: Id, label: &str, value: Rgba, codec: HexCode
         selected_text: style.selected_text,
         caret: style.caret,
     };
-    if !ui.is_sizing_pass() && ui.data_mut(|d| d.remove_temp::<bool>(focus_key(id))).is_some() && enabled {
+    if !ui.is_sizing_pass() && enabled && ui.data_mut(|d| d.remove_temp::<bool>(focus_key(id))).is_some() {
         ui.memory_mut(|m| m.request_focus(id));
         let mut state = TextEditState::load(ui.ctx(), id).unwrap_or_default();
         state.cursor.set_char_range(Some(CCursorRange::select_all_str(&codec.format(&value))));

@@ -54,7 +54,7 @@ pub(super) fn is_enter_press(event: &egui::Event) -> bool {
 }
 
 /// Whether the keyboard focus is on a widget of `layer`.
-fn focus_inside(ctx: &Context, layer: egui::LayerId) -> bool {
+pub(crate) fn focus_inside(ctx: &Context, layer: egui::LayerId) -> bool {
     ctx.memory(|m| m.focused()).and_then(|focused| ctx.read_response(focused)).is_some_and(|r| r.layer_id == layer)
 }
 
@@ -389,6 +389,7 @@ impl<'a> Dialog<'a> {
         let opened = !state.is_open();
         let (pin_id, size_id, chrome_id, title_id) = (id.with("pin"), id.with("laid-out-size"), id.with("chrome"), id.with("title-height"));
         let measured_id = id.with("measured-size");
+        let measured_chrome_id = id.with("measured-chrome");
         let below_id = id.with("below-height");
         let inside_id = id.with("focus-inside");
         if opened {
@@ -398,6 +399,7 @@ impl<'a> Dialog<'a> {
                 d.remove_temp::<Vec2>(pin_id);
                 d.remove_temp::<Vec2>(size_id);
                 d.remove_temp::<Vec2>(measured_id);
+                d.remove_temp::<f32>(measured_chrome_id);
             });
         }
         let outer = state.outer();
@@ -407,6 +409,8 @@ impl<'a> Dialog<'a> {
         let laid_out_size = ctx.data(|d| d.get_temp::<Vec2>(size_id)).or(measured).unwrap_or(Vec2::ZERO);
         let title_height = ctx.data(|d| d.get_temp::<f32>(title_id)).unwrap_or(t.close_box);
         let chrome = ctx.data(|d| d.get_temp::<f32>(chrome_id)).unwrap_or(0.0);
+        // The measured size places the dialog; one laid out with another chrome is the wrong size.
+        let measured_stale = ctx.data(|d| d.get_temp::<f32>(measured_chrome_id)).is_some_and(|c| (c - chrome).abs() > 0.5);
         let below_used = ctx.data(|d| d.get_temp::<f32>(below_id)).unwrap_or(0.0);
         let below_now = std::cell::Cell::new(0.0_f32);
         let centred = || Some(center_offset(center_over?, measured?, window));
@@ -517,7 +521,10 @@ impl<'a> Dialog<'a> {
         };
 
         // The sizing pass is discarded, but its size places the pass that replaces it.
-        ctx.data_mut(|d| d.insert_temp(measured_id, response.rect.size()));
+        ctx.data_mut(|d| {
+            d.insert_temp(measured_id, response.rect.size());
+            d.insert_temp(measured_chrome_id, chrome);
+        });
         pass::record(ctx, Entry { id, layer: response.layer_id, rect: response.rect, modal });
         ctx.accesskit_node_builder(response.layer_id.id, |node| {
             if modal {
@@ -543,11 +550,19 @@ impl<'a> Dialog<'a> {
         if (below_height - below_used).abs() > 0.5 {
             ctx.request_discard("dialog region below the body changed height");
         }
+        // The body's height cap used the chrome of the pass before (none on the first). A pass laid
+        // out with another chrome has the wrong size, and one placed by such a size the wrong
+        // place; neither is pinned.
+        let wrong_chrome = (frame.chrome - chrome).abs() > 0.5;
+        if wrong_chrome || measured_stale {
+            ctx.request_discard("dialog chrome height changed");
+            ctx.request_repaint();
+        }
         ctx.data_mut(|d| {
             d.insert_temp(chrome_id, frame.chrome);
             d.insert_temp(title_id, frame.title_height);
         });
-        if !sizing {
+        if !sizing && !wrong_chrome && !measured_stale {
             if let (Some((r, max)), Some(given)) = (resize_sizes, Some(frame.content_size).filter(|s| s.is_finite()))
                 && remember.unwrap_or(true)
                 && let Some(kept) = remembered_size(given, remembered.unwrap_or(r.default), max)

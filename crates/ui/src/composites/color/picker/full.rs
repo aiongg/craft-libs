@@ -10,7 +10,7 @@ use egui::{
 use super::{ColorPicker, Inner, Parts, PickerOp, RowPart, channel_name, texts, unit_of};
 use crate::composites::color::{AreaMode, ColorArea, ColorStrip};
 use crate::controls::{Button, Checkbox, NumberField, PreparedRadioSet, RadioGroup, RadioSet, Swatch, SwatchStyle, TextField, TooltipExt as _};
-use crate::dialog::{Clicked, FooterButtons};
+use crate::dialog::{Clicked, FooterButtons, focus_inside};
 use crate::direction;
 use crate::edit::ops;
 use crate::icons::{self, Icon, IconSize};
@@ -99,6 +99,7 @@ impl ColorPicker<'_> {
         inner: Inner,
         translate: &dyn Fn(&'static str) -> String,
         parts: &mut Parts<'_>,
+        opened: bool,
     ) -> (bool, Option<Clicked>) {
         let tokens = Tokens::of(ui);
         let style = ColorArea::style(&tokens);
@@ -170,14 +171,18 @@ impl ColorPicker<'_> {
         });
         let _ = radios.end(ui);
         // Esc and a field's Enter take the focus away within the pass, so the keys go by where the
-        // focus was when the pass began, as a dialog's do.
-        let (inside_id, rect) = (id.with("side-keys-inside"), ui.min_rect());
-        let inside_before = ui.data(|d| d.get_temp::<bool>(inside_id)).unwrap_or(true);
-        let inside_now = ui.memory(|m| m.focused()).is_none_or(|f| ui.ctx().read_response(f).is_some_and(|r| rect.contains_rect(r.rect)));
+        // focus was when the pass began, as a modeless dialog's do.
+        let inside_id = id.with("side-keys-inside");
+        let inside_before = ui.data(|d| d.get_temp::<bool>(inside_id)).unwrap_or(false);
+        let inside_now = focus_inside(ui.ctx(), ui.layer_id());
         ui.data_mut(|d| d.insert_temp(inside_id, inside_now));
         if let Some(shown) = keys.filter(|_| inner.enabled) {
             let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone());
-            side_clicked = side_clicked.or(buttons.key_click(ui.ctx(), &shown, inside_before));
+            // As a dialog's: the top modal answers whatever has the focus, a layer under a modal
+            // answers nothing, and any other layer answers with the focus inside.
+            let layer = ui.layer_id();
+            let active = ui.memory(|m| m.allows_interaction(layer) && (m.top_modal_layer() == Some(layer) || inside_before));
+            side_clicked = side_clicked.or(buttons.key_click(ui.ctx(), &shown, active, opened));
         }
         (requested, side_clicked)
     }
