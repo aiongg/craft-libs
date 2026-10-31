@@ -954,6 +954,7 @@ dependencies = [
  "image",
  "log",
  "serde",
+ "skrifa 0.44.0",
 ]
 
 [[package]]
@@ -1185,6 +1186,10 @@ dependencies = [
 name = "craft-text"
 version = "0.1.0"
 dependencies = [
+ "craft-font-manager",
+ "craft-host",
+ "craft-ui",
+ "egui",
  "hypher",
  "icu_segmenter",
  "miniz_oxide 0.8.9",

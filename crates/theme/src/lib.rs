@@ -105,7 +105,7 @@ pub use selection::{
 };
 pub use theme::{
     AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, InterfaceFont, ModePins, ModeSeeds, PinLayer, Pins, RadiusOffset, SeedOverrides,
-    Seeds, ShapeSeed, Size, TextSize, ThemeDef, Variants,
+    Seeds, ShapeSeed, Size, TextSize, TextSizeSteps, ThemeDef, Variants,
 };
 pub use tokens::{
     AccentColors, BarSizes, CaptionColors, ColorToken, ColorTokens, ControlSizes, DataColors, Edge, EdgeColors, ElevationTokens, FontSlot, Gaps,

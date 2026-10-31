@@ -10,7 +10,10 @@ repository.workspace = true
 [features]
 default = []
 # `FontsPanel`: the whole interface as one egui panel.
-ui = ["dep:egui", "dep:craft-ui", "dep:craft-host", "dep:serde", "dep:log", "dep:epaint_default_fonts"]
+ui = ["dep:egui", "dep:craft-ui", "dep:craft-host", "dep:serde", "dep:log", "dep:epaint_default_fonts", "dep:skrifa"]
+# `FontPicker`: the font family field with its list (stars, recents, previews, filters, similar
+# fonts) for text tools and panels. On `ui`; apps that only show the fonts panel leave it off.
+font-picker = ["ui"]
 
 [dependencies]
 craft-font-catalog = { workspace = true }
@@ -28,6 +31,8 @@ craft-ui = { workspace = true, optional = true }
 craft-host = { workspace = true, features = ["ui"], optional = true }
 serde = { workspace = true, optional = true }
 log = { version = "0.4", optional = true }
+# Variation axes and named instances of a face (`axes`).
+skrifa = { version = "0.44", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
