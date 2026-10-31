@@ -925,6 +925,10 @@ impl Draw<'_, '_> {
             action = self.draw_empty_shortcut_cell(ui, mirror, col, rect, row, editable).or(action);
             x = col.min.x;
         }
+        if cells.is_empty() {
+            x = col.min.x;
+        }
+        self.draw_unparsed_texts(ui, &painter, mirror, row, rect, col, &mut x, font.clone());
         if editable && row.chips.len() < MAX_BINDINGS && rec != Some(None) {
             let plus = mirror.rect(Rect::from_min_size(pos2(x.min(col.max.x - ICON), rect.center().y - ICON / 2.0), Vec2::splat(ICON)));
             let label = fill(self.ui("Add a shortcut to {label}"), &[("label", &row.label)]);
@@ -944,6 +948,29 @@ impl Draw<'_, '_> {
             }
         }
         action
+    }
+
+    /// The override texts that don't parse, struck out and dim after the chips, with the parse
+    /// error as the tooltip.
+    #[expect(clippy::too_many_arguments, reason = "the column's geometry")]
+    fn draw_unparsed_texts(&self, ui: &mut Ui, painter: &Painter, mirror: Mirror, row: &Row, rect: Rect, col: Rect, x: &mut f32, font: egui::FontId) {
+        let dim = self.style.dim;
+        for (n, shown) in row.unparsed.iter().enumerate() {
+            let mut fmt = TextFormat::simple(font.clone(), dim);
+            fmt.strikethrough = Stroke::new(1.0, dim);
+            let mut job = LayoutJob::default();
+            job.append(shown, 0.0, fmt);
+            let g = painter.layout_job(job);
+            let w = g.size().x + 2.0 * CHIP_PAD;
+            let cell = mirror.rect(Rect::from_min_size(pos2(*x, rect.min.y + 2.0), vec2(w, rect.height() - 4.0)));
+            *x += w + CHIP_GAP;
+            painter.galley(pos2(cell.min.x + CHIP_PAD, cell.center().y - g.size().y / 2.0), g, dim);
+            let resp = ui.interact(cell.intersect(mirror.rect(col)), self.base.with(("unparsed", &row.key, n)), Sense::hover());
+            let reason = crate::keymap::Binding::parse(shown).err().map(|e| e.to_string()).unwrap_or_default();
+            let label = fill(self.ui("{label}: {chord}"), &[("label", &row.label), ("chord", shown)]);
+            resp.widget_info(|| WidgetInfo::labeled(Role::Label, true, &label));
+            resp.tooltip(reason);
+        }
     }
 
     fn draw_shortcut_chips(&self, ui: &mut Ui, layout: ShortcutChipsLayout<'_>, x: &mut f32) -> Option<RowAction> {

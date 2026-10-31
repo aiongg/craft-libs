@@ -492,6 +492,8 @@ pub struct Keymap {
     typing: TypingRule,
     reserved: Vec<Chord>,
     overrides: Overrides,
+    /// Tools of different groups may share a chord ([`Keymap::with_shared_tool_keys`]).
+    pub(crate) shared_tool_keys: bool,
 }
 
 impl Keymap {
@@ -513,6 +515,7 @@ impl Keymap {
             typing: TypingRule::default(),
             reserved: Vec::new(),
             overrides: Overrides::new(),
+            shared_tool_keys: false,
         };
         for b in catalog {
             let key = b.command.key();
@@ -837,7 +840,7 @@ impl Keymap {
 
     fn same_group(&self, i: usize, j: usize) -> bool {
         match (&self.catalog[i].kind, &self.catalog[j].kind) {
-            (Kind::Tool { group: a }, Kind::Tool { group: b }) => a == b,
+            (Kind::Tool { group: a }, Kind::Tool { group: b }) => self.shared_tool_keys || a == b,
             _ => false,
         }
     }
@@ -902,7 +905,7 @@ impl Keymap {
         let mut found: Vec<Pair> = Vec::new();
         'groups: for (n, g) in groups.iter().enumerate() {
             for (m, h) in groups.iter().enumerate().skip(n) {
-                if g.tools.is_some() && g.tools == h.tools {
+                if g.tools.is_some() && (self.shared_tool_keys && h.tools.is_some() || g.tools == h.tools) {
                     continue;
                 }
                 let Some(clash) = self.conflict_relation(g.scope, h.scope) else { continue };
@@ -1036,6 +1039,12 @@ impl Keymap {
     /// Whether a stored binding of a command with home scope `home` works here.
     fn usable(&self, binding: &Binding, home: &Scope) -> bool {
         !self.is_reserved(&binding.trigger.chord) && self.usable_scope(binding.scope_or(home), home)
+    }
+
+    /// The command's overrides texts as stored, when it has an entry.
+    pub(crate) fn stored_texts(&self, command: &CommandRef) -> Option<&[String]> {
+        let i = self.find(command)?;
+        self.stored[i].as_deref().and_then(|key| self.overrides.get(key))
     }
 
     /// The texts of a command's overrides entry this build cannot use: a key name from a newer

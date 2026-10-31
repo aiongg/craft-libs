@@ -9,6 +9,7 @@ use craft_ui::localized::words::{Word, Words};
 
 use crate::chord::{Key, Platform, Trigger};
 use crate::keymap::Bindable;
+use crate::parity::ReturnGlyph;
 
 /// What the dialog says in one frame: the words installed on the context, the Host's command
 /// labels and the interface direction. English where nothing is installed.
@@ -89,7 +90,7 @@ impl Say {
 
 fn key_name(words: &Words, k: Key, p: Platform) -> Option<String> {
     // Glyphs (⌫, ↑) need no translation.
-    if p.is_mac() && k.mac_symbol() != k.text_name() {
+    if p.is_mac() && k.mac_symbol(ReturnGlyph::Enter) != k.text_name() {
         return None;
     }
     let english = k.text_name();
@@ -102,7 +103,7 @@ fn key_name(words: &Words, k: Key, p: Platform) -> Option<String> {
 pub fn trigger_text(words: &Words, trigger: &Trigger, platform: Platform) -> String {
     let key = trigger.chord.key;
     let Some(name) = key_name(words, key, platform) else { return trigger.display(platform) };
-    let base = if platform.is_mac() { key.mac_symbol() } else { key.text_name() };
+    let base = if platform.is_mac() { key.mac_symbol(ReturnGlyph::Enter) } else { key.text_name() };
     let one = trigger.chord.display(platform);
     let one = match one.strip_suffix(base) {
         Some(mods) => format!("{mods}{name}"),

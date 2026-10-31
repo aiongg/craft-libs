@@ -6,11 +6,9 @@
 //! "Main shortcut removed, alternates stay" (gap 84) needs nothing new: [`Keymap::remove`] on the
 //! first binding writes an override with the others.
 
-#![expect(unused_variables, unused_mut, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use crate::chord::{Chord, Mods, Platform};
 use crate::command::CommandRef;
-use crate::keymap::Keymap;
+use crate::keymap::{Binding, Keymap};
 use crate::layout::Layout;
 
 /// The glyph a Mac shows for the Return key. Apple's menus show ↩ (`Key::Enter` today shows ⏎);
@@ -26,7 +24,10 @@ pub enum ReturnGlyph {
 
 impl ReturnGlyph {
     pub fn symbol(self) -> &'static str {
-        todo!()
+        match self {
+            ReturnGlyph::Return => "↩",
+            ReturnGlyph::Enter => "⏎",
+        }
     }
 }
 
@@ -34,19 +35,23 @@ impl Chord {
     /// [`Chord::display`] with `glyph` for Return on macOS; the same as `display` elsewhere.
     // new: gap 43; crate::chord.rs:265 `mac_symbol` maps `Key::Enter` to ⏎.
     pub fn display_with_return(&self, platform: Platform, glyph: ReturnGlyph) -> String {
-        todo!()
+        self.display_key_with(platform, None, glyph)
     }
 }
 
 impl Mods {
     /// The held modifiers alone, for a hint while they are down ("Alt: subtract from selection"):
-    /// `⇧⌥` on macOS (in Apple's order ⌃⌥⇧⌘), `Shift+Alt` elsewhere (Ctrl, Shift, Alt order as
-    /// in [`Chord::display`]). Empty when none is held.
+    /// `⌥⇧` on macOS (Apple's order ⌃⌥⇧⌘), `Alt+Shift` elsewhere (Ctrl, Alt, Shift order as in
+    /// [`Chord::display`], without the trailing key). Empty when none is held.
     // pc: crates/ui-egui/src/input/shortcuts.rs:50 `pretty` (`pretty("Shift+Alt")` is "⇧⌥" on
     // macOS, "Shift+Alt" elsewhere; input/shortcuts/tests.rs:225), used by the options bar's
     // selection-mode tooltips (panels/options_bar.rs:272).
     pub fn display(self, platform: Platform) -> String {
-        todo!()
+        let mut s = self.prefix(platform);
+        if !platform.is_mac() {
+            s.pop();
+        }
+        s
     }
 }
 
@@ -56,11 +61,12 @@ impl Keymap {
     /// PhotoCraft turns it on, as Photoshop allows it.
     // new: gap 85; PhotoCraft's `bindings()` table lets tools share keys.
     pub fn with_shared_tool_keys(mut self, on: bool) -> Keymap {
-        todo!()
+        self.shared_tool_keys = on;
+        self
     }
 
     pub fn shares_tool_keys(&self) -> bool {
-        todo!()
+        self.shared_tool_keys
     }
 
     /// The override texts for `command` that don't parse, as the user wrote them, so the dialog
@@ -68,7 +74,8 @@ impl Keymap {
     /// back to. Empty when every text parses.
     // new: gap 85; PhotoCraft showed the raw text.
     pub fn unparsed_texts(&self, command: &CommandRef) -> Vec<&str> {
-        todo!()
+        let Some(texts) = self.stored_texts(command) else { return Vec::new() };
+        texts.iter().map(String::as_str).filter(|t| Binding::parse(t).is_err()).collect()
     }
 }
 
@@ -81,7 +88,8 @@ impl Layout {
     // something else). PhotoCraft applies it to the brush keys `[`, `]` and ⇧+ / ⇧−; the
     // library's wider key list is new.
     pub fn with_position_fallback(mut self, on: bool) -> Layout {
-        todo!()
+        self.position_fallback = on;
+        self
     }
 }
 
@@ -92,7 +100,8 @@ impl crate::egui::Dispatcher {
     /// fill on Windows). On by default.
     // pc: crates/ui-egui/src/input/shortcuts.rs:141-146 `key_matches`.
     pub fn with_delete_equivalence(mut self, on: bool) -> crate::egui::Dispatcher {
-        todo!()
+        self.delete_equivalence = on;
+        self
     }
 }
 
@@ -114,13 +123,40 @@ pub struct ClipboardPress {
 
 /// The frame's clipboard chords, paired with their events as [`crate::egui::Dispatcher`] pairs
 /// them, for an app that handles copy and paste outside the dispatcher (label selection, a
-/// swallowed ⌘V that pasted into nothing, Linux's Shift+Insert). Reads only; removes nothing.
+/// Linux's Shift+Insert). Reads only; removes nothing. A swallowed ⌘V (a V release whose press never
+/// arrived) needs the previous frames' modifiers, so the app keeps that state itself.
 // pc: crates/ui-egui/src/input/shortcuts.rs:286 `clipboard_keys` (doc :267-285: a clipboard
 // event right after its own ⌘ press is that press, #2638; a V release whose press never arrived,
-// after ⌘ was held and before any other key, is a swallowed ⌘V, #6329; Ctrl+Insert copies and
+// after ⌘ was held and before any other key, is a swallowed ⌘V, #6329, not read here; Ctrl+Insert copies and
 // Shift+Insert pastes, mapped by hand on Linux). The pairing is egui.rs `clipboard_event_follows`,
 // shared.
 #[cfg(feature = "ui")]
 pub fn clipboard_presses(input: &egui::InputState, layout: &Layout, platform: Platform) -> Vec<ClipboardPress> {
-    todo!()
+    use crate::egui::{clipboard_chord, clipboard_event_follows, clipboard_kind, event_clip, key_input};
+    use egui::Event;
+
+    let events = &input.events;
+    let causes = clipboard_event_follows(events, layout, platform, input);
+    let claimed: Vec<usize> = causes.iter().flatten().map(|(j, _)| *j).collect();
+    let held = Mods::from_egui(&input.modifiers, platform);
+    let mut out = Vec::new();
+    for (i, event) in events.iter().enumerate() {
+        match event {
+            Event::Key { pressed: true, repeat: false, .. } => {
+                let Some(chord) = layout.resolve(&key_input(event, platform, input)) else { continue };
+                if clipboard_kind(chord.key, chord.mods).is_none() {
+                    continue;
+                }
+                let cause = causes.get(i).cloned().flatten();
+                out.push(ClipboardPress { chord, press: Some(i), event: cause.as_ref().map(|(j, _)| *j), pasted: cause.and_then(|(_, text)| text) });
+            }
+            _ if event_clip(event).is_some() && !claimed.contains(&i) => {
+                let (key, mods, _) = clipboard_chord(event, held);
+                let pasted = if let Event::Paste(text) = event { Some(text.clone()) } else { None };
+                out.push(ClipboardPress { chord: Chord::new(mods, key), press: None, event: Some(i), pasted });
+            }
+            _ => {}
+        }
+    }
+    out
 }
