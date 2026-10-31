@@ -72,3 +72,62 @@ pub mod prelude {
         theme::Tokens,
     };
 }
+
+/// Every story of every enabled crate.
+#[cfg(feature = "ui")]
+pub mod story {
+    use craft_ui::story::Story;
+
+    /// Every story: the kernel's first, then the family crates alphabetically, each only when its
+    /// feature is on.
+    pub fn all() -> Vec<Story> {
+        let mut all = craft_ui::story::registry();
+        #[cfg(feature = "color")]
+        all.extend(craft_color::ui::stories());
+        #[cfg(feature = "draw")]
+        all.extend(craft_draw::ui::stories());
+        #[cfg(feature = "font-manager")]
+        all.extend(craft_font_manager::ui::stories());
+        #[cfg(feature = "imaging")]
+        all.extend(craft_imaging::ui::stories());
+        #[cfg(feature = "keymap")]
+        all.extend(craft_keymap::ui::stories());
+        all
+    }
+}
+
+/// Every labels table of every enabled crate, for the catalog extraction and the missing list.
+#[cfg(feature = "ui")]
+pub mod words {
+    use craft_ui::localized::Word;
+    use craft_ui::localized::words::Counted;
+
+    /// Every labels table: the kernel's, then the family crates' alphabetically, each only when
+    /// its feature is on. craft-font-manager keeps its words in a catalog of its own and has no
+    /// table here.
+    pub fn all() -> Vec<&'static [Word]> {
+        let mut all: Vec<&'static [Word]> = craft_ui::localized::words::tables().to_vec();
+        #[cfg(feature = "color")]
+        all.extend(craft_color::ui::WORDS);
+        #[cfg(feature = "draw")]
+        all.extend(craft_draw::ui::WORDS);
+        #[cfg(feature = "imaging")]
+        all.extend(craft_imaging::ui::WORDS);
+        #[cfg(feature = "keymap")]
+        all.extend(craft_keymap::ui::WORDS);
+        #[cfg(feature = "print")]
+        all.extend(craft_print::ui::WORDS);
+        all
+    }
+
+    /// The counted words (singular and plural forms) of every enabled crate that has them.
+    #[allow(clippy::vec_init_then_push, reason = "each push is behind its crate's feature")]
+    pub fn counts() -> Vec<&'static [Counted]> {
+        let mut all: Vec<&'static [Counted]> = Vec::new();
+        #[cfg(feature = "draw")]
+        all.push(craft_draw::ui::COUNTS);
+        #[cfg(feature = "keymap")]
+        all.push(craft_keymap::ui::COUNTS);
+        all
+    }
+}

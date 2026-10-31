@@ -53,6 +53,10 @@ pub fn stories() -> Vec<craft_ui::story::Story> {
     registry()
 }
 
+/// The count words of the draw tools: their plural forms are in [`WORDS`], these give the singular
+/// forms a catalog extraction needs.
+pub const COUNTS: &[craft_ui::localized::words::Counted] = gradient::counts::ALL;
+
 /// The labels tables of the draw tools, for the words registry.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <GradientLineNames as craft_ui::localized::Labels>::WORDS,

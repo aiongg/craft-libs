@@ -17,6 +17,8 @@ pub mod store;
 
 #[cfg(feature = "ui")]
 mod panel;
+#[cfg(feature = "ui")]
+pub mod ui;
 
 pub use craft_font_catalog;
 pub use craft_font_catalog::{Catalog, FaceInfo, FontEnv, Source};

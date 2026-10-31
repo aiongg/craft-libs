@@ -1,6 +1,6 @@
 //! The Swatches panel: named colours that set the foreground, or the background with Alt.
 
-use craft_color::ui::SwatchPalette;
+use craft::color::ui::SwatchPalette;
 use craft_theme::{Rgba, Srgba};
 use craft_ui::edit::EditEvent;
 use craft_ui::patterns::Panel;

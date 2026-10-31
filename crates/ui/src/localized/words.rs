@@ -276,6 +276,12 @@ pub trait SharedLabels: Labels + Send + Sync + 'static {
 
 impl<T: Labels + Send + Sync + 'static> SharedLabels for T {}
 
+/// Every labels table the library registers, in registration order. A facade lists these before
+/// the tables of the family crates.
+pub fn tables() -> &'static [&'static [Word]] {
+    registry::TABLES
+}
+
 /// Every registered word, once, in registration order.
 pub fn all() -> impl Iterator<Item = Word> {
     let mut seen = HashSet::new();
