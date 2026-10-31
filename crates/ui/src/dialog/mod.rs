@@ -123,7 +123,7 @@ pub use report::{NoteTone, ReportDialog, ReportLabels, ReportNote};
 pub use size::{Body, Resize, ResizeMax, Width, remembered_size, scroll_height};
 pub use sizing::{
     Anchor, AnchorGrid, CanvasExtension, CanvasSizeDialog, CanvasSizeResult, ImageSizeDialog, ImageSizeResult, LinkedSizeFields, PixelSize, Resample,
-    ResolutionUnit, SizeUnit, human_bytes,
+    ResolutionUnit, SizeUnit, SizingLabels, human_bytes,
 };
 pub use stack::{DialogId, DialogStack, dialog_id};
 pub use state::DialogState;

@@ -153,6 +153,11 @@ struct Linked {
 }
 
 impl Form<'_> {
+    /// The context the grid is drawn in, for a row builder that translates its labels.
+    pub fn ctx(&self) -> &egui::Context {
+        self.ui.ctx()
+    }
+
     /// A row of `label` and the control `add_control` draws in a row of the control column; the
     /// control it returns is the one the label names and centres on. Controls after the first in
     /// the cell (a unit menu, a caption) sit beside it.
