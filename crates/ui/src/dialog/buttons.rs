@@ -181,14 +181,14 @@ impl FooterButtons {
     }
 
     /// The width of a button column: the longest label, at least `dialog.side_min`.
-    pub(crate) fn column_width(&self, ui: &Ui) -> f32 {
+    pub fn column_width(&self, ui: &Ui) -> f32 {
         let side_min = Tokens::of(ui).component.dialog.side_min;
         self.buttons.iter().fold(side_min, |w, b| w.max(Button::new(b.label.as_str()).natural_width(ui)))
     }
 
     /// Adds the buttons to `column`, a vertical layout, in their listed order and each at least
     /// [`column_width`](FooterButtons::column_width) wide: the side column of a dialog.
-    pub(crate) fn place_column(&self, column: &mut Ui, id: Id) -> FooterButtonsResponse {
+    pub fn place_column(&self, column: &mut Ui, id: Id) -> FooterButtonsResponse {
         let width = self.column_width(column);
         column.spacing_mut().item_spacing.y = Tokens::of(column).component.dialog.button_gap;
         self.place_in(column, id, (0..self.buttons.len()).collect(), width)
@@ -200,7 +200,7 @@ impl FooterButtons {
     /// popup is open or when the row is not `active`; an Enter that `opened` the row's surface is
     /// not answered, as a dialog's is not. The keys it answers are taken from the input, so a
     /// dialog around the row does not answer them again.
-    pub(crate) fn key_click(&self, ctx: &Context, shown: &FooterButtonsResponse, active: bool, opened: bool) -> Option<Clicked> {
+    pub fn key_click(&self, ctx: &Context, shown: &FooterButtonsResponse, active: bool, opened: bool) -> Option<Clicked> {
         let (enter, escape) = ctx.input(|i| (!opened && i.events.iter().any(is_enter_press), i.key_pressed(Key::Escape) && i.modifiers.is_none()));
         let outcome = resolve_keys(KeyInput {
             enter,

@@ -1,6 +1,8 @@
 //! Test helpers for craft-ui and the apps.
 //!
 //! - [`dump`]: ordered `key = value` text dumps compared with a file (`UPDATE_DUMPS=1` rewrites).
+//! - [`TypingField`]: a text field's typing run beside a canvas overlay under test.
+//! - [`canvas_story`]: the story canvas every canvas overlay story draws on.
 //! - [`screens`] (`screen-testing` feature, desktop): screenshot and IME smoke tests in the
 //!   suite's test languages; its items are re-exported here.
 //! - [`a11y`] (`screen-testing` feature, desktop): role, label, Tab order and focus ring checks
@@ -12,6 +14,8 @@
 
 pub mod dump;
 pub mod style_dump;
+mod typing_field;
+pub use typing_field::TypingField;
 
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 pub mod a11y;
@@ -28,3 +32,9 @@ pub mod symbols;
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod tests;
+
+/// The story canvas every canvas overlay story draws on: a checkerboard document under a
+/// [`CanvasView`](crate::canvas::CanvasView) set by the story's [`ViewArgs`].
+pub mod canvas_story {
+    pub use crate::canvas::story::{DOC, PlainArgs, PppArg, StoryCanvas, ViewArgs, document, document_at, document_in, document_with};
+}

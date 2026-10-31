@@ -260,7 +260,7 @@ impl Slider {
 
     /// Whether the slider is a part of a composite reporting through one edit, whose press takes
     /// its turn from the edit order ([`press_turn`]).
-    pub(crate) fn part(mut self, part: bool) -> Self {
+    pub fn part(mut self, part: bool) -> Self {
         self.part = part;
         self
     }
@@ -488,11 +488,11 @@ impl Slider {
 }
 
 /// The keys a focused thumb keeps: the arrows step its value rather than move the focus.
-pub(crate) const KEY_FILTER: EventFilter = EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false };
+pub const KEY_FILTER: EventFilter = EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false };
 
 /// A range with an optional step: where values may go and how keys move them.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Scale {
+pub struct Scale {
     pub min: f64,
     pub max: f64,
     step: Option<f64>,
@@ -756,7 +756,7 @@ pub(super) fn pointer(ui: &Ui, response: &Response) -> Option<(Pos2, Pos2)> {
 
 /// Where a tap on `response` fell this frame, in its layer's coordinates: a press and release of
 /// the primary button in one frame over the enabled control. egui reports no drag for it.
-pub(crate) fn tap(ui: &Ui, response: &Response) -> Option<Pos2> {
+pub fn tap(ui: &Ui, response: &Response) -> Option<Pos2> {
     if !response.enabled() || !response.hovered() {
         return None;
     }
@@ -770,7 +770,7 @@ pub(crate) fn tap(ui: &Ui, response: &Response) -> Option<Pos2> {
 
 /// When a part of a composite runs a primary press ([`press_turn`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum PressTurn {
+pub enum PressTurn {
     /// The control handles this pass's input as usual.
     Now,
     /// A press waits for a later pass: the control takes no pointer input in this one.
@@ -786,7 +786,7 @@ pub(crate) enum PressTurn {
 /// end and waits, and runs in the first pass after the run's ending event has gone out, against
 /// the host's value then. `own` is the control's own gesture. A control that isn't a part runs
 /// its press at once.
-pub(crate) fn press_turn(ui: &Ui, id: Id, part: bool, own: Option<GestureId>, press: Option<Pos2>) -> PressTurn {
+pub fn press_turn(ui: &Ui, id: Id, part: bool, own: Option<GestureId>, press: Option<Pos2>) -> PressTurn {
     if !part {
         return PressTurn::Now;
     }
@@ -812,7 +812,7 @@ fn to_layer(ui: &Ui, response: &Response, pos: Pos2) -> Pos2 {
 
 /// What a control's response says about this frame's input, for [`stepped`].
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Sensing {
+pub struct Sensing {
     pub enabled: bool,
     /// The pointer is over the control.
     pub hovered: bool,
@@ -839,7 +839,7 @@ impl Sensing {
 /// rect, a thumb without focus takes the wheel gestures that start over that rect too
 /// ([`field_wheel::notches`]). A move to an end or a screen reader's value wins over the steps of
 /// the same frame.
-pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect>, wheel_step: Option<f64>, scale: &Scale) -> Option<ScalarOp> {
+pub fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect>, wheel_step: Option<f64>, scale: &Scale) -> Option<ScalarOp> {
     let (step, page) = (scale.key_step(), scale.page_step());
     let notch = wheel_step.unwrap_or(step);
     let focused = sensing.enabled && ui.memory(|m| m.has_focus(id));
@@ -892,7 +892,7 @@ pub(crate) fn stepped(ui: &Ui, id: Id, sensing: Sensing, wheel_over: Option<Rect
 /// The value `op` gives a thumb at `value` with `bounds` (the range, or what its neighbours leave
 /// it): on the scale's stops and within `bounds`. A step goes on from `value` kept within
 /// `bounds`; [`Presses`](ScalarOp::Presses) count as arrow keys (Shift: ten steps).
-pub(crate) fn apply(op: &ScalarOp, value: f64, bounds: (f64, f64), scale: &Scale) -> f64 {
+pub fn apply(op: &ScalarOp, value: f64, bounds: (f64, f64), scale: &Scale) -> f64 {
     let by = |delta| scale.moved(value.clamp(bounds.0, bounds.1), delta);
     let target = match op {
         ScalarOp::By(delta) => by(*delta),
@@ -1121,7 +1121,7 @@ pub(crate) fn stories() -> Vec<Story> {
 }
 
 /// Values kept between frames, as a host keeps them.
-pub(crate) fn with_values<const N: usize, T: Clone + Send + Sync + 'static>(
+pub fn with_values<const N: usize, T: Clone + Send + Sync + 'static>(
     ui: &mut Ui,
     key: &str,
     initial: [T; N],

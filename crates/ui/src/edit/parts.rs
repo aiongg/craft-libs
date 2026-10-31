@@ -192,7 +192,7 @@ impl Kind {
 /// What a composite keeps between passes for its parts' edits, with its parts' operations of type
 /// `O` and its own inputs of type `C`. The composite stores it with its own state.
 #[derive(Clone, Debug)]
-pub(crate) struct State<O, C = ()> {
+pub struct State<O, C = ()> {
     /// The part whose gesture the composite's gesture is.
     owner: Option<Id>,
     /// The owner's own gesture, as its events named it.
@@ -245,7 +245,7 @@ impl<O, C> Default for State<O, C> {
 
 /// What became of a part's event in [`Edits::push`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Pushed {
+pub enum Pushed {
     /// It goes out in this pass, and [`Edits::value`] holds its value.
     Out,
     /// It waits for its turn in the composite's queue.
@@ -268,7 +268,7 @@ enum Hold<O> {
 /// The parts' edits of a pass, in drawing order, as the composite's values `V`, the operations
 /// `O` they report, and the composite's inputs of type `C` (the composite turns them into values
 /// once their turn comes).
-pub(crate) struct Edits<V, O, C = ()> {
+pub struct Edits<V, O, C = ()> {
     /// The composite.
     id: Id,
     /// Each with the part's own event, and what it waits as if it isn't the gesture's to take.

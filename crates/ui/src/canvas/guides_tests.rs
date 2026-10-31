@@ -5,10 +5,10 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect};
 
 use super::{Guide, GuideHost, GuideNames, GuidePlace, Guides, Orientation};
-use crate::canvas::tests::TypingField;
 use crate::canvas::{CanvasView, RulerUnits};
 use crate::edit::{CancelReason, EditEvent};
 use crate::localized::LocaleNumbers;
+use crate::testing::TypingField;
 use crate::theme::{Base, current, install};
 
 /// A host with a 400 × 300 canvas showing document (0, 0)–(400, 300) at zoom 1, turned by

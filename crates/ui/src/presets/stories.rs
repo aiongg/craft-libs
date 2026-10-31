@@ -3,13 +3,14 @@
 
 use craft_theme::Srgba;
 use egui::ecolor::Hsva;
+use egui::emath::GuiRounding as _;
+use egui::epaint::{Mesh, Shape};
 use egui::{Color32, Frame, Painter, Rect, Sense, Ui, vec2};
 
 use super::{
     CellShape, DefaultOpen, FooterEvent, PresetBrowser, PresetEvent, PresetFooter, PresetLabels, PresetReorder, PresetRow, PresetState, PresetView,
 };
 use crate::behavior::{DropPosition, ListDrag, Move};
-use crate::composites::gradient::GradientRamp;
 use crate::controls::checkbox::Checkbox;
 use crate::controls::slider;
 use crate::edit::EditEvent;
@@ -241,11 +242,29 @@ fn color_of(key: u32, fade: bool) -> Srgba {
 }
 
 fn paint_solid(painter: &Painter, rect: Rect, color: Srgba, tokens: &crate::theme::UiTokens) {
-    GradientRamp::paint_colors(painter, rect, &[(0.0, color), (1.0, color)], tokens);
+    paint_two(painter, rect, color, color, tokens);
 }
 
+/// A thumbnail's two-colour ramp, left to right, over the checkerboard where a colour is translucent.
 fn paint_two(painter: &Painter, rect: Rect, a: Srgba, b: Srgba, tokens: &crate::theme::UiTokens) {
-    GradientRamp::paint_colors(painter, rect, &[(0.0, a), (1.0, b)], tokens);
+    let rect = rect.round_to_pixels(painter.ctx().pixels_per_point());
+    if a.a < 1.0 || b.a < 1.0 {
+        let swatch = &tokens.component.swatch;
+        painter.extend(crate::controls::swatch::checkerboard(
+            rect,
+            egui::CornerRadius::ZERO,
+            [swatch.checker_a.to_egui(), swatch.checker_b.to_egui()],
+            swatch.checker_cell,
+        ));
+    }
+    let (left, right): (Color32, Color32) = (a.into(), b.into());
+    let mut mesh = Mesh::default();
+    for (pos, color) in [(rect.left_top(), left), (rect.right_top(), right), (rect.right_bottom(), right), (rect.left_bottom(), left)] {
+        mesh.colored_vertex(pos, color);
+    }
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(0, 2, 3);
+    painter.add(Shape::mesh(mesh));
 }
 
 fn status(ui: &mut Ui, lib: &Library) {

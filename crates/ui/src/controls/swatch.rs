@@ -123,7 +123,7 @@ impl Swatch {
         self
     }
 
-    /// A radio button of a group of swatches ([`SwatchPalette`](crate::composites::SwatchPalette)):
+    /// A radio button of a group of swatches (`SwatchPalette` in craft-color):
     /// AccessKit `RadioButton`, checked when `checked`, which also puts the selection ring round
     /// the well. Keys and focus between the swatches are the group's.
     pub fn radio(mut self, checked: bool) -> Self {
@@ -133,28 +133,28 @@ impl Swatch {
     }
 
     /// The swatch's place in its group, from 0, for a screen reader.
-    pub(crate) fn position_in_set(mut self, index: usize) -> Self {
+    pub fn position_in_set(mut self, index: usize) -> Self {
         self.position = Some(index);
         self
     }
 
     /// Whether Tab reaches the swatch; one that isn't a Tab stop still takes clicks, and offers a
     /// screen reader the Focus action, which its group handles (a palette moves its stop there).
-    pub(crate) fn tab_stop(mut self, tab_stop: bool) -> Self {
+    pub fn tab_stop(mut self, tab_stop: bool) -> Self {
         self.tab_stop = tab_stop;
         self
     }
 
-    /// A cell of a table of swatches ([`SwatchPalette`](crate::composites::SwatchPalette)'s table
-    /// mode): `side` wide with square corners, so neighbours meet, and an AccessKit
+    /// A cell of a table of swatches (`SwatchPalette`'s table
+    /// mode, in craft-color): `side` wide with square corners, so neighbours meet, and an AccessKit
     /// `ListBoxOption`, selected when [`selected`](Swatch::selected).
-    pub(crate) fn table_cell(mut self, side: f32) -> Self {
+    pub fn table_cell(mut self, side: f32) -> Self {
         self.table_cell = Some(side);
         self
     }
 
     /// The id a swatch made with `id_salt` has in `ui`.
-    pub(crate) fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
+    pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
         Interactive::id_in(ui, id_salt)
     }
 
@@ -212,7 +212,7 @@ impl Swatch {
 
     /// The edge of a swatch whose outline is `rect` and, when `selected`, the selection ring; a
     /// disabled well fades them.
-    pub(crate) fn outline(style: &SwatchStyle, rect: Rect, selected: bool, enabled: bool, pixels_per_point: f32) -> Vec<Shape> {
+    pub fn outline(style: &SwatchStyle, rect: Rect, selected: bool, enabled: bool, pixels_per_point: f32) -> Vec<Shape> {
         let well = rect.round_to_pixels(pixels_per_point);
         let fade = |c: Color32| if enabled { c } else { c.gamma_multiply(0.5) };
         let mut out = vec![Shape::Rect(RectShape::stroke(well, style.radius, Stroke::new(1.0, fade(style.edge)), StrokeKind::Inside))];

@@ -14,13 +14,15 @@ workspace = true
 
 [features]
 # The `capture` binary: stories rendered to PNG without a window (desktop only).
-capture = ["craft-ui/screen-testing", "dep:egui_kittest", "dep:image", "dep:serde_json"]
+capture = ["craft-ui/screen-testing", "craft-color/screen-testing", "craft-draw/screen-testing", "dep:egui_kittest", "dep:image", "dep:serde_json"]
 
 [[bin]]
 name = "capture"
 required-features = ["capture"]
 
 [dependencies]
+craft-color = { workspace = true, features = ["ui"] }
+craft-draw = { workspace = true, features = ["ui"] }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true, features = ["serde"] }
 craft-platform = { workspace = true, features = ["appearance", "ui", "theme"] }

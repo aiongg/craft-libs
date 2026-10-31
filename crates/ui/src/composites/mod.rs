@@ -11,11 +11,6 @@
 //!   one centre.
 //! - [`CurveEditor`]: a tone curve's graph and points, edited by pointer and keys, with the
 //!   Input/Output row of the selected point; the value is a [`Curve`].
-//! - [`GradientStops`], [`GradientRamp`] and [`GradientSwatch`]: the value of a gradient stop bar
-//!   with its stop rules ([`gradient::stops`]), the paint of a gradient over the checkerboard, and
-//!   a well that shows one.
-//! - [`GradientEditor`]: the gradient stop bar, its markers and midpoints edited by pointer and
-//!   keys.
 //! - [`GroupBox`]: an outlined group with a title, for a dialog's or preferences page's rows.
 //! - [`SectionHeader`]: the header row of a panel section, collapsible (chevron, persisted open
 //!   state, Enter and Space) or always open, with an optional controls slot.
@@ -27,10 +22,6 @@
 //!   it, and the output bar, thumbs and fields; the value is a channel's [`Levels`].
 //! - [`PanelHeader`]: the title row of a flyout or floating panel, with actions, a panel menu
 //!   button and optional float and close buttons.
-//! - [`ColorArea`] and [`ColorStrip`]: a colour picker's 2D field and component strip, in one of
-//!   the [`AreaMode`]s.
-//! - [`ColorPicker`]: the colour picker's body, the area and strip with channel rows, the hex
-//!   field and the host's hooks, reporting [`PickedColor`]s.
 //! - [`ToastStack`] and [`Toast`]: cards in the bottom corner of a host rect, with timers that
 //!   pause on hover and keyboard focus.
 //! - [`Notice`]: an inline status message in the tone's icon and colour.
@@ -39,7 +30,7 @@
 //!   neutral, info, good, warn and bad tone of toasts and notices.
 //!
 //! Composites take semantic properties only and draw with the component tokens of what they hold
-//! (`color_picker.*` for [`ColorArea`] and [`ColorStrip`], `curve.*` for [`CurveEditor`], `gradient_editor.*` for [`GradientEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
+//! (`curve.*` for [`CurveEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
 //! `panel_header.*` for [`PanelHeader`], `panel_footer.*` for [`PanelFooter`], `slider_row.*` for [`SliderRow`], `histogram.*` for [`Histogram`], `levels.*` for [`LevelsEditor`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 //!
@@ -58,9 +49,8 @@
 //! # });
 //! ```
 
-pub(crate) mod color;
 pub(crate) mod curve;
-pub(crate) mod curve_editor;
+pub mod curve_editor;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod curve_editor_tests;
 pub(crate) mod empty_state;
@@ -72,7 +62,6 @@ mod field_tests;
 pub(crate) mod form_grid;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod form_grid_tests;
-pub mod gradient;
 pub(crate) mod group_box;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod group_box_tests;
@@ -109,24 +98,12 @@ pub(crate) mod toast;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod toast_tests;
 
-pub use color::{
-    AreaMode, ColorArea, ColorDisc, ColorDiscResponse, ColorDiscStyle, ColorPartsStyle, ColorPicker, ColorPickerLayout, ColorPickerResponse,
-    ColorPopover, ColorPopoverResponse, ColorStrip, ColorWarning, ColorWarningChip, ColorWheel, ColorWheelResponse, ColorWheelStyle, DiscMove,
-    HexField, PairWell, PickedColor, SwatchPair, SwatchPairResponse, SwatchPairStyle, SwatchPalette, SwatchTable, SwatchTableResponse, Well,
-    WheelGeometry, WheelPart,
-};
-pub use color::{ColorRamp, ColorRampResponse, RampKind, RampPick};
 pub use craft_theme::Tone;
 pub use curve::Curve;
 pub use curve_editor::{CurveChannel, CurveEditor, CurveLabels, CurveStyle, Sampler};
 pub use empty_state::{EmptyState, EmptyStateResponse, EmptyStateStyle};
 pub use field::{Field, FieldControl, FieldGroup, FieldStyle, OwnName};
 pub use form_grid::{Form, FormGrid, FormStyle, LabelAlign};
-pub use gradient::{
-    ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientGroup, GradientItem, GradientLabels, GradientPalette,
-    GradientRamp, GradientRampStyle, GradientRef, GradientStops, GradientSwatch, OpacityStop, PaletteLayout, Sampler as StopSampler, StopDrop,
-    StopRef, StopRow, StopRows, StopRules, default_sampler,
-};
 pub use group_box::{GroupBox, GroupBoxStyle};
 pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramResponse, HistogramScale, HistogramStyle};
 pub use levels_editor::{Levels, LevelsClip, LevelsEditor, LevelsLabels, LevelsStyle};

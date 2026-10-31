@@ -7,11 +7,11 @@ use kurbo::{Point, Rect, Vec2};
 use super::story::{WarpHost, english_names, eval, surface_at};
 use super::{WarpEdit, WarpGrid, WarpMesh, WarpRelease, WarpSplit};
 use crate::canvas::guides::GuideHost;
-use crate::canvas::tests::TypingField;
 use crate::canvas::{CanvasView, Guide, GuideNames, Guides, Orientation, RulerUnits};
 use crate::edit::{CancelReason, EditEvent};
 use crate::localized::LocaleNumbers;
 use crate::primitives::FocusRing;
+use crate::testing::TypingField;
 use crate::theme::{Base, current, install};
 
 /// The mesh before any drag: one patch, points every third of the way.

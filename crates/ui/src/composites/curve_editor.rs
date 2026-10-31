@@ -72,7 +72,7 @@ crate::words! {
 }
 
 /// `template` with each `{name}` replaced by its value.
-pub(crate) fn fill(template: &str, values: &[(&str, &str)]) -> String {
+pub fn fill(template: &str, values: &[(&str, &str)]) -> String {
     values.iter().fold(template.to_owned(), |text, (name, value)| text.replace(&format!("{{{name}}}"), value))
 }
 
@@ -1120,7 +1120,7 @@ impl PointEdit<'_, '_> {
 
 /// Takes the presses of `key` with exactly `modifiers` held (Ctrl and Cmd as egui's
 /// [`Modifiers::matches_exact`] counts them); returns how many.
-pub(crate) fn take_exact(ui: &Ui, modifiers: Modifiers, key: Key) -> usize {
+pub fn take_exact(ui: &Ui, modifiers: Modifiers, key: Key) -> usize {
     ui.input_mut(|i| {
         let before = i.events.len();
         i.events.retain(

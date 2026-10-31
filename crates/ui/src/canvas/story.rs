@@ -14,13 +14,13 @@ use crate::theme::{ToEgui, Tokens, TokensOf};
 use crate::typed_story;
 
 /// The story document, in document units (pixels).
-pub(crate) const DOC: Rect = Rect::new(0.0, 0.0, 640.0, 400.0);
+pub const DOC: Rect = Rect::new(0.0, 0.0, 640.0, 400.0);
 /// Side of a checkerboard square.
 const SQUARE: f64 = 40.0;
 /// The `ppp` arg: the gallery's own scale, or a fixed number of pixels per point for the whole
 /// gallery.
 #[derive(StoryChoice, Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) enum PppArg {
+pub enum PppArg {
     #[default]
     Gallery,
     #[choice(name = "1")]
@@ -51,7 +51,7 @@ impl PppArg {
 /// story's args struct flattens it as its first field (`#[arg(flatten)] view: ViewArgs`) and
 /// passes `args.view` to [`document`].
 #[derive(StoryArgs, Clone, Copy, Debug, PartialEq)]
-pub(crate) struct ViewArgs {
+pub struct ViewArgs {
     #[arg(range = 10.0..=800.0)]
     pub zoom: f64,
     #[arg(range = -180.0..=180.0)]
@@ -70,13 +70,13 @@ impl Default for ViewArgs {
 
 /// The args of a canvas story with no args of its own.
 #[derive(StoryArgs, Debug, Default, PartialEq)]
-pub(crate) struct PlainArgs {
+pub struct PlainArgs {
     #[arg(flatten)]
     pub view: ViewArgs,
 }
 
 /// The story canvas drawn by [`document`]: its response (overlays sense through it) and view.
-pub(crate) struct StoryCanvas {
+pub struct StoryCanvas {
     pub response: Response,
     pub view: CanvasView,
     /// The area allocated: the canvas and the margin around its top and left for rulers.
@@ -86,17 +86,17 @@ pub(crate) struct StoryCanvas {
 /// Draws the story document filling the story's width, centred, under the view `view` sets,
 /// and senses clicks, drags and keyboard focus on it. Overlays draw over it with `ui.painter_at
 /// (canvas.view.rect)`.
-pub(crate) fn document(ui: &mut Ui, view: ViewArgs, label: &str) -> StoryCanvas {
+pub fn document(ui: &mut Ui, view: ViewArgs, label: &str) -> StoryCanvas {
     document_in(ui, view, label, 0.0)
 }
 
 /// [`document`] with `margin` points left free above and left of the canvas, for rulers.
-pub(crate) fn document_in(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32) -> StoryCanvas {
+pub fn document_in(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32) -> StoryCanvas {
     document_at(ui, view, label, margin, DOC.center())
 }
 
 /// [`document_in`] with the view centred on `center`.
-pub(crate) fn document_at(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32, center: Point) -> StoryCanvas {
+pub fn document_at(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32, center: Point) -> StoryCanvas {
     document_with(ui, view, label, margin, |rect, ppp| CanvasView {
         rect,
         center,
@@ -109,7 +109,7 @@ pub(crate) fn document_at(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32,
 
 /// [`document_at`] under the view `make` gives for the canvas rectangle and the pixels per point,
 /// for a story that keeps its own view.
-pub(crate) fn document_with(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32, make: impl FnOnce(egui::Rect, f64) -> CanvasView) -> StoryCanvas {
+pub fn document_with(ui: &mut Ui, view: ViewArgs, label: &str, margin: f32, make: impl FnOnce(egui::Rect, f64) -> CanvasView) -> StoryCanvas {
     if let Some(ppp) = view.ppp.pixels_per_point() {
         story::request_pixels_per_point(ui.ctx(), ppp);
     }

@@ -95,7 +95,7 @@ impl Queue {
 /// reason to wait (a number field's scrub ends its own run). Call it in every pass the holder is
 /// drawn while it has an input, the pass the input arrives in first. On a [`Waits`](Turn::Waits)
 /// the holder keeps the input; a repaint is requested.
-pub(crate) fn turn(ctx: &Context, key: Id, own: Option<GestureId>) -> Turn {
+pub fn turn(ctx: &Context, key: Id, own: Option<GestureId>) -> Turn {
     turn_after(ctx, key, own, None)
 }
 

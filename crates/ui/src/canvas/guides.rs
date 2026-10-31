@@ -1043,7 +1043,7 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// A host's guides and selection, as the stories and tests keep them.
 #[derive(Clone, Debug)]
-pub(crate) struct GuideHost {
+pub struct GuideHost {
     pub guides: Vec<Guide>,
     pub selected: Option<u64>,
     /// The guides when a drag began, to restore on a cancel.
@@ -1052,13 +1052,14 @@ pub(crate) struct GuideHost {
 }
 
 impl GuideHost {
-    pub(crate) fn new(guides: Vec<Guide>) -> Self {
+    /// A host holding `guides`, with none selected.
+    pub fn new(guides: Vec<Guide>) -> Self {
         let next_key = guides.iter().map(|g| g.key + 1).max().unwrap_or(1);
         Self { guides, selected: None, before: None, next_key }
     }
 
     /// Applies a pass's events and selection, showing a drag's updates as they come.
-    pub(crate) fn apply(&mut self, response: &GuidesResponse) {
+    pub fn apply(&mut self, response: &GuidesResponse) {
         if let Some(select) = response.select {
             self.selected = select;
         }

@@ -822,6 +822,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-color"
+version = "0.1.0"
+dependencies = [
+ "craft-i18n",
+ "craft-theme",
+ "craft-ui",
+ "egui",
+ "egui_kittest",
+]
+
+[[package]]
 name = "craft-crw"
 version = "0.1.0"
 dependencies = [
@@ -860,6 +871,19 @@ dependencies = [
 [[package]]
 name = "craft-docpath"
 version = "0.1.0"
+
+[[package]]
+name = "craft-draw"
+version = "0.1.0"
+dependencies = [
+ "craft-color",
+ "craft-i18n",
+ "craft-theme",
+ "craft-ui",
+ "egui",
+ "egui_kittest",
+ "kurbo 0.13.1",
+]
 
 [[package]]
 name = "craft-font-catalog"
@@ -1167,6 +1191,8 @@ dependencies = [
 name = "craft-ui-gallery"
 version = "0.1.0"
 dependencies = [
+ "craft-color",
+ "craft-draw",
  "craft-i18n",
  "craft-platform",
  "craft-theme",

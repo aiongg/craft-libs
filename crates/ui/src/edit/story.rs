@@ -202,7 +202,7 @@ impl State {
 }
 
 /// One log line, e.g. `Update #3 42 (shift)`.
-pub(crate) fn describe<T: Debug>(event: &EditEvent<T>) -> String {
+pub fn describe<T: Debug>(event: &EditEvent<T>) -> String {
     match event {
         EditEvent::Begin { id } => format!("Begin {id}"),
         EditEvent::Update { id, value, modifiers } if modifiers.is_none() => format!("Update {id} {value:?}"),

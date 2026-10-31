@@ -137,7 +137,7 @@ const OTHER_BUTTONS: [PointerButton; 4] = [PointerButton::Secondary, PointerButt
 /// One press of the primary button: where and when it went down. Overlays keep it with a gesture
 /// to tell their press from a later one.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct PrimaryPress {
+pub struct PrimaryPress {
     pub origin: Pos2,
     time: f64,
 }

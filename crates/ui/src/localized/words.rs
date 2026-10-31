@@ -179,7 +179,7 @@ impl Words {
     /// locale while `text` is still the words' own text, and exactly `text` when the host set it.
     /// `{n}` is written by the [`LocaleNumbers`] installed in `ctx`; the plural form follows the
     /// integer.
-    pub(crate) fn counted(&self, ctx: &Context, count: Counted, text: &str, n: u64) -> String {
+    pub fn counted(&self, ctx: &Context, count: Counted, text: &str, n: u64) -> String {
         if text == self.get(count.word) {
             if let Some(text) = self.plural.as_ref().and_then(|plural| plural(count.word.key(), n, count.one, count.word.english)) {
                 return text;
@@ -212,13 +212,16 @@ pub(crate) fn format_in(words: Option<&Words>, word: Word, args: &[(&str, &str)]
 /// A count word: the registered word is the English plural, `one` the English singular. A
 /// catalog writes the forms of a locale in an `@plural` row keyed by the two English texts.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Counted {
+pub struct Counted {
+    /// The registered word: the English plural.
     pub word: Word,
+    /// The English singular.
     pub one: &'static str,
 }
 
 impl Counted {
-    pub(crate) const fn new(id: &'static str, one: &'static str, other: &'static str) -> Counted {
+    /// The count word `id` with its English singular and plural.
+    pub const fn new(id: &'static str, one: &'static str, other: &'static str) -> Counted {
         Counted { word: Word::keyed(id, other), one }
     }
 }
@@ -230,16 +233,12 @@ pub(crate) mod counts {
     pub(crate) const PRESETS: Counted = Counted::new("preset.count", "{n} preset", "{n} presets");
     pub(crate) const GROUP_PRESETS: Counted = Counted::new("preset.groupCount", "{n} preset", "{n} presets");
     pub(crate) const RESULTS: Counted = Counted::new("palette.results", "{n} result", "{n} results");
-    pub(crate) const BAR_STOPS: Counted = Counted::new("gradient.barStops", "{n} stop", "{n} stops");
-    pub(crate) const COLOR_STOPS: Counted = Counted::new("gradient.colorStops", "{n} color stop", "{n} color stops");
-    pub(crate) const OPACITY_STOPS: Counted = Counted::new("gradient.opacityStops", "{n} opacity stop", "{n} opacity stops");
     pub(crate) const TOAST_MORE: Counted = Counted::new("toast.more", "…and {n} more", "…and {n} more");
     pub(crate) const GRAPH_POINTS: Counted = Counted::new("curve.graphPoints", "{n} point", "{n} points");
     pub(crate) const GRAPH_VALUE: Counted = Counted::new("curve.graphValue", "{channel}, {n} point", "{channel}, {n} points");
 
     #[cfg(test)]
-    pub(crate) const ALL: [Counted; 9] =
-        [PRESETS, GROUP_PRESETS, RESULTS, BAR_STOPS, COLOR_STOPS, OPACITY_STOPS, TOAST_MORE, GRAPH_POINTS, GRAPH_VALUE];
+    pub(crate) const ALL: [Counted; 6] = [PRESETS, GROUP_PRESETS, RESULTS, TOAST_MORE, GRAPH_POINTS, GRAPH_VALUE];
 }
 
 /// The words [`Words::install`] set, kept as a plugin so that a reset of the context's memory does

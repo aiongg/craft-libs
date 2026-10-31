@@ -60,11 +60,11 @@ pub(crate) mod combo_box;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod combo_box_tests;
 pub(crate) mod field_wheel;
-pub(crate) mod gradient_track;
+pub mod gradient_track;
 pub(crate) mod icon_button;
 pub(crate) mod kbd;
 pub(crate) mod link;
-pub(crate) mod number_field;
+pub mod number_field;
 #[cfg(test)]
 mod number_field_tests;
 mod option_list;
@@ -75,17 +75,17 @@ pub(crate) mod segmented;
 pub(crate) mod select;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod select_tests;
-pub(crate) mod slider;
+pub mod slider;
 #[cfg(test)]
 mod slider_tests;
 #[cfg(test)]
 mod small_tests;
 pub(crate) mod spinner;
-pub(crate) mod swatch;
+pub mod swatch;
 pub(crate) mod switch;
 #[cfg(test)]
 mod tests;
-pub(crate) mod text_field;
+pub mod text_field;
 #[cfg(test)]
 mod text_field_tests;
 pub(crate) mod thumb_row;

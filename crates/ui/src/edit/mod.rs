@@ -40,9 +40,9 @@
 mod gesture;
 mod host;
 mod live;
-pub(crate) mod ops;
-pub(crate) mod order;
-pub(crate) mod parts;
+pub mod ops;
+pub mod order;
+pub mod parts;
 mod story;
 #[cfg(test)]
 mod tests;
@@ -55,7 +55,8 @@ use egui::{Context, Id, InnerResponse, Modifiers, Response, Ui, UiBuilder, UiSta
 pub use gesture::Gesture;
 pub(crate) use gesture::{equals_to_f32, escape_pressed};
 pub use host::{GestureHost, UndoMarks};
-pub(crate) use story::{PolicyArgs, describe, policy, stories};
+pub use story::describe;
+pub(crate) use story::{PolicyArgs, policy, stories};
 
 /// One gesture, unique within the process: a new gesture never reuses an earlier id, and a
 /// gesture whose [`Begin`](EditEvent::Begin) goes out later has a greater id, across contexts and

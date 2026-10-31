@@ -25,10 +25,12 @@ kurbo = "0.13"
 thiserror = "2"
 craft-atomic = { path = "crates/atomic" }
 craft-cms = { path = "crates/cms" }
+craft-color = { path = "crates/color" }
 craft-crw = { path = "crates/crw" }
 craft-design-lint = { path = "crates/design-lint" }
 craft-dialogs = { path = "crates/dialogs" }
 craft-docpath = { path = "crates/docpath" }
+craft-draw = { path = "crates/draw" }
 craft-font-catalog = { path = "crates/font-catalog" }
 craft-font-manager = { path = "crates/font-manager" }
 craft-font-store = { path = "crates/font-store" }

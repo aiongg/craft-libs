@@ -244,22 +244,30 @@ macro_rules! typed_story {
     };
 }
 
-/// Lists every module with stories once and defines [`registry`] and [`components`] from the list,
-/// in the order written. Each path names a module that has `stories()` and `COMPONENTS`. The
-/// list is written out, with no linker registration, so the order is fixed and it works on wasm.
+/// Lists every module with stories once and defines `registry`, `components` and `DECLARED` from
+/// the list, in the order written. Each path names a module that has `stories()` and
+/// `COMPONENTS`. The list is written out, with no linker registration, so the order is fixed and
+/// it works on wasm. A crate with `ui` stories calls it in its `ui` module.
+#[macro_export]
 macro_rules! register {
     ($($(#[$cfg:meta])* $($module:ident)::+),* $(,)?) => {
         /// Every story of the crate, in listing order.
-        pub fn registry() -> Vec<Story> {
-            let mut all = Vec::new();
+        pub fn registry() -> ::std::vec::Vec<$crate::story::Story> {
+            let mut all = ::std::vec::Vec::new();
             $($(#[$cfg])* all.extend($($module)::+::stories());)*
             all
         }
 
-        /// The `COMPONENTS` list of every module with stories, in [`registry`] order.
-        const DECLARED: &[&[&str]] = &[$($(#[$cfg])* $($module)::+::COMPONENTS),*];
+        /// The `COMPONENTS` list of every module with stories, in `registry` order.
+        pub const DECLARED: &[&[&str]] = &[$($(#[$cfg])* $($module)::+::COMPONENTS),*];
+
+        /// Every component the crate's modules declare, in `registry` order.
+        pub fn components() -> impl ::std::iter::Iterator<Item = &'static str> {
+            DECLARED.iter().flat_map(|list| list.iter().copied())
+        }
     };
 }
+pub use crate::register;
 
 register! {
     colours,
@@ -285,7 +293,6 @@ register! {
     crate::canvas::bezier::story,
     crate::canvas::warp::story,
     crate::canvas::pen::story,
-    crate::canvas::gradient_overlay::story,
     crate::edit,
     controls::button,
     controls::icon_button,
@@ -322,7 +329,6 @@ register! {
     composites::notice,
     composites::empty_state,
     composites::curve_editor,
-    composites::gradient,
     crate::canvas::transform_fields,
     composites::histogram,
     composites::levels_editor,
@@ -332,7 +338,6 @@ register! {
     crate::menu::bar,
     #[cfg(feature = "window-frame")]
     crate::title_bar::stories,
-    composites::color,
     crate::presets::stories,
     crate::docking,
     crate::dialog::stories,
@@ -350,11 +355,6 @@ register! {
     crate::patterns::rail::flyout,
     crate::patterns::rail::tool,
     crate::popover,
-}
-
-/// Every component the crate's modules declare, in [`registry`] order.
-pub fn components() -> impl Iterator<Item = &'static str> {
-    DECLARED.iter().flat_map(|list| list.iter().copied())
 }
 
 fn overview_key() -> egui::Id {

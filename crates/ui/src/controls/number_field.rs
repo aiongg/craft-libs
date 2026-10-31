@@ -387,7 +387,7 @@ impl<'a> NumberField<'a> {
     /// (`slider::press_turn`). While another control's typing run has the focus (a sibling
     /// field's), the press asks it to end and waits, and runs from the host's value after the
     /// run's ending event.
-    pub(crate) fn part(mut self, part: bool) -> Self {
+    pub fn part(mut self, part: bool) -> Self {
         self.part = part;
         self
     }
@@ -994,7 +994,7 @@ fn ordered(range: &RangeInclusive<f64>) -> (f64, f64) {
 /// How a number field's value takes an operation ([`apply`]): what a composite that draws the
 /// field as a part builds from the same range, step and decimals to replay the field's operations.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct FieldRule {
+pub struct FieldRule {
     /// One step ([`NumberField::step`]); 0 or not a number: none.
     pub step: f64,
     /// The most decimals shown, which a value is rounded to.
@@ -1023,7 +1023,7 @@ impl FieldRule {
 /// The value `op` gives a field at `from` under `rule`, settled ([`FieldRule::settle`]). Presses
 /// step as the arrow keys do ([`stepped`](crate::localized::stepped)): Shift ten steps, Ctrl/Cmd
 /// a tenth; a field without a step leaves `from`. A move to a bound that is open leaves `from`.
-pub(crate) fn apply(op: &ScalarOp, from: f64, rule: &FieldRule) -> f64 {
+pub fn apply(op: &ScalarOp, from: f64, rule: &FieldRule) -> f64 {
     let stepping = rule.step != 0.0 && rule.step.is_finite();
     let to = match op {
         ScalarOp::Presses(presses) if stepping => presses.iter().fold(from, |v, &(modifiers, n)| stepped(v, rule.step, rule.places, modifiers, n)),

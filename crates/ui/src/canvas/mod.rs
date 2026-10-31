@@ -33,8 +33,6 @@
 //! - [`BezierOverlay`]: paths with anchors and direction handles, edited as Direct Selection and
 //!   Convert Point edit them; [`EditPath`] and its parts are the paths overlays share.
 //! - [`WarpGrid`]: a warp's mesh ([`WarpMesh`]), its anchors and handles dragged and nudged.
-//! - [`GradientOverlay`]: a gradient's line with its end handles, colour stops and midpoints;
-//!   [`gradient_line`] is where each sits.
 //! - [`PenDraft`]: the path being drawn with the Pen, its gestures and keys.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
@@ -57,14 +55,12 @@
 //! ```
 
 pub(crate) mod bezier;
-mod claim;
+pub mod claim;
 mod crisp;
 pub(crate) mod crop_frame;
 pub mod crop_guides;
-pub mod gradient_line;
-pub(crate) mod gradient_overlay;
 mod grid;
-pub(crate) mod guides;
+pub mod guides;
 pub mod hit;
 pub(crate) mod marquee;
 mod part_focus;
@@ -95,8 +91,6 @@ pub use claim::Claim;
 pub use crisp::{crisp, crisp_shape};
 pub use crop_frame::{CropBox, CropFrame, CropLabels, CropNames, CropResponse, CropStyle};
 pub use crop_guides::{CropGuide, CropShield, GuideShow, Polyline, ShieldColor};
-pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
-pub use gradient_overlay::{GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor};
 pub use grid::{CanvasGrid, GridLine, GridStyle};
 pub use guides::{Guide, GuideLine, GuideNames, GuidePlace, GuideStyle, Guides, GuidesResponse, Measure, Orientation, SmartGuides, SmartLine};
 pub use marquee::{

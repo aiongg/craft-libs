@@ -6,6 +6,8 @@ use crate::faces;
 /// Every story the gallery shows: the library's and the gallery's own.
 pub(crate) fn stories() -> Vec<Story> {
     let mut stories = registry();
+    stories.extend(craft_color::ui::stories());
+    stories.extend(craft_draw::ui::stories());
     stories.extend(faces::stories());
     stories.extend(crate::preview::stories());
     stories

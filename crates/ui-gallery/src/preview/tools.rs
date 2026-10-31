@@ -1,7 +1,7 @@
 //! The tool rail at the start edge and the tool keys.
 
+use craft_color::ui::{PairWell, SwatchPair, Well};
 use craft_theme::{Rgba, Srgba};
-use craft_ui::composites::{PairWell, SwatchPair, Well};
 use craft_ui::icons::Icon;
 use craft_ui::localized::LocaleNumbers;
 use craft_ui::menu;

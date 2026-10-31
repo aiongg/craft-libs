@@ -48,7 +48,7 @@ pub(crate) fn in_front_of(ctx: &Context, host: LayerId, popup: Id) {
 /// scrolls. [`Self::show_rows_with_header`] is for rows of one height; rows of different heights,
 /// or a tree, use [`Self::show_ui_with_header`].
 #[must_use = "You should call .show*"]
-pub(crate) struct PopupList<'a> {
+pub struct PopupList<'a> {
     popup: Popup<'a>,
     ctx: Context,
     host: LayerId,
@@ -73,7 +73,7 @@ impl<'a> PopupList<'a> {
     }
 
     /// The popup list in `popup`, under `field`.
-    pub(crate) fn with_popup(popup: Popup<'a>, ui: &Ui, field: &Response) -> Self {
+    pub fn with_popup(popup: Popup<'a>, ui: &Ui, field: &Response) -> Self {
         // Below the field or above it, never beside it.
         let flipped: &'static [RectAlign] = if ui.ctx().global_style().right_to_left { &[RectAlign::TOP_END] } else { &[RectAlign::TOP_START] };
         Self {
@@ -93,13 +93,13 @@ impl<'a> PopupList<'a> {
 
     /// The maximum height of the contents, inside the frame, kept to the room on the popup's side
     /// of the field. Default: [`egui::Spacing::combo_height`].
-    pub(crate) fn height(mut self, height: f32) -> Self {
+    pub fn height(mut self, height: f32) -> Self {
         self.height = height;
         self
     }
 
     /// When the popup closes. Default: [`PopupCloseBehavior::CloseOnClick`].
-    pub(crate) fn close_behavior(mut self, close_behavior: PopupCloseBehavior) -> Self {
+    pub fn close_behavior(mut self, close_behavior: PopupCloseBehavior) -> Self {
         self.close_behavior = close_behavior;
         self
     }
@@ -108,14 +108,14 @@ impl<'a> PopupList<'a> {
     /// when it closes: on its close behavior, Escape, [`Ui::close`] inside it, or the keyboard
     /// focus leaving the [focus owners](Self::focus_owners) and the popup. Clicks on the field
     /// neither open nor close it. The popup doesn't take the focus.
-    pub(crate) fn open(mut self, open: &'a mut bool) -> Self {
+    pub fn open(mut self, open: &'a mut bool) -> Self {
         self.open = Some(open);
         self
     }
 
     /// The widgets whose keyboard focus keeps an [`open`](Self::open) popup open; the field by
     /// default.
-    pub(crate) fn focus_owners(mut self, owners: &[Id]) -> Self {
+    pub fn focus_owners(mut self, owners: &[Id]) -> Self {
         self.owners = owners.to_vec();
         self
     }
@@ -128,14 +128,14 @@ impl<'a> PopupList<'a> {
 
     /// Draws the popup on `surface` (a [`Surface`](crate::primitives::Surface) style, which may
     /// bevel) instead of egui's popup frame, with the style's menu margin inside it.
-    pub(crate) fn surface(mut self, surface: SurfaceStyle) -> Self {
+    pub fn surface(mut self, surface: SurfaceStyle) -> Self {
         self.surface = Some(surface);
         self
     }
 
     /// Shows `add` in the popup while it is open, scrolling when it is taller than the popup.
     /// Returns what `add` returned, or `None` while the popup is closed.
-    pub(crate) fn show_ui<R>(self, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
+    pub fn show_ui<R>(self, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
         self.show(|_| (), |scroll, ui, ()| scroll.show(ui, add).inner, None::<fn(&mut Ui)>).map(|(r, _)| r)
     }
 

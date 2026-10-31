@@ -21,7 +21,7 @@
 //!   without drawing, reported as an [`EditEvent`](crate::edit::EditEvent) sequence of [`Move`]s.
 //! - [`GridNav`]: the lead's moves over a wrapped grid or rows of unequal length (arrows, Home,
 //!   End, Page Up and Down, mirrored in right-to-left), and the Tab stop of a grid, used by
-//!   [`SwatchPalette`](crate::composites::SwatchPalette).
+//!   craft-color's `SwatchPalette`.
 //! - [`grid_drop`]: the cell and side a drag over a wrapped grid drops at.
 //! - [`Typing`]: a line of text typed into egui's `TextEdit` and reported as one edit gesture per
 //!   typing run, used by [`TextField`](crate::controls::TextField),

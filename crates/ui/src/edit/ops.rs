@@ -10,7 +10,7 @@ use egui::{Context, Id, Modifiers, ViewportId};
 
 /// An operation on a one-value control's value: a slider's, a number field's, a dial's angle.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum ScalarOp {
+pub enum ScalarOp {
     /// A change by this much, in value units: arrow and Page keys, the wheel, a screen reader's
     /// Increment and Decrement.
     By(f64),
@@ -26,7 +26,7 @@ pub(crate) enum ScalarOp {
 
 /// Which bound [`ScalarOp::ToBound`] goes to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Bound {
+pub enum Bound {
     Low,
     High,
 }
@@ -58,7 +58,7 @@ pub(crate) fn report<O: Clone + Send + Sync + 'static>(ctx: &Context, id: Id, mu
 
 /// The operations control `id` [reported](report) in this pass, taken: a second call returns
 /// none.
-pub(crate) fn take<O: Clone + Send + Sync + 'static>(ctx: &Context, id: Id) -> Vec<O> {
+pub fn take<O: Clone + Send + Sync + 'static>(ctx: &Context, id: Id) -> Vec<O> {
     let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());
     let reported = ctx.data_mut(|d| {
         let reported = d.get_temp::<Reported<O>>(key(id));

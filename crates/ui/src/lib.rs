@@ -35,7 +35,7 @@ pub mod menu;
 pub mod panes;
 pub mod patterns;
 pub mod popover;
-mod popup_list;
+pub mod popup_list;
 pub mod preferences;
 pub mod presets;
 pub mod primitives;

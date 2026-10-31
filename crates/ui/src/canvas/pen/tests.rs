@@ -6,10 +6,10 @@ use kurbo::{Point, Vec2};
 
 use super::story::PenHost;
 use super::{PenDraft, PenNames, PenResponse};
-use crate::canvas::tests::TypingField;
 use crate::canvas::{CanvasView, EditPath, EditSubpath, Guide, GuideNames, Guides, Knot, KnotRef, Orientation, RulerUnits};
 use crate::edit::{self, CancelReason, EditEvent, Ending, GestureHost, UndoMarks};
 use crate::localized::LocaleNumbers;
+use crate::testing::TypingField;
 use crate::theme::{Base, install};
 
 /// A host with a 400 × 300 canvas showing document (0, 0)–(400, 300) at zoom 1.

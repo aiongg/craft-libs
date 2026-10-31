@@ -259,6 +259,43 @@ impl DumpValue for FontId {
     }
 }
 
+/// Every built-in theme in each mode it has, at the Compact size and standard contrast, as
+/// (`<theme>.<mode>`, tokens): the appearances component dumps are written for.
+pub fn appearances() -> Vec<(String, crate::theme::UiTokens)> {
+    use craft_theme::{Appearance, Contrast, Mode, Size, TextSize, Variants, builtins, resolve};
+
+    let mut out = Vec::new();
+    for theme in builtins() {
+        let modes = match theme.variants {
+            Variants::Both => &[Mode::Light, Mode::Dark][..],
+            Variants::LightOnly => &[Mode::Light],
+            Variants::DarkOnly => &[Mode::Dark],
+        };
+        for &mode in modes {
+            let appearance =
+                Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::default(), reduced_motion: false };
+            let tokens = resolve(theme, appearance, None).tokens;
+            let id = theme.id.as_str();
+            let name = id.strip_prefix("craft.").unwrap_or(id);
+            let mode_name = if mode == Mode::Light { "light" } else { "dark" };
+            out.push((format!("{name}.{mode_name}"), crate::theme::UiTokens::new(tokens, appearance, mode, crate::theme::FontFamilies::default())));
+        }
+    }
+    out
+}
+
+/// A component dump at `path`: a `header` comment, then `each` once per [`appearances`] entry in a
+/// group of its name.
+#[track_caller]
+pub fn check_component(path: impl AsRef<Path>, header: &str, mut each: impl FnMut(&mut Dump, &crate::theme::UiTokens)) {
+    let mut dump = Dump::new();
+    dump.comment(header);
+    for (name, tokens) in appearances() {
+        dump.group(&name, |d| each(d, &tokens));
+    }
+    dump.check(path);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

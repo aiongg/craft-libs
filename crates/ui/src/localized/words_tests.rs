@@ -17,11 +17,7 @@ crate::words! {
 
 static CATALOGS: &Embedded = &[
     ("de", "\tOpacity\tDeckkraft\n@id\tprobe.gridView\tRasteransicht\n\tGrid View\tRaster\n", ""),
-    (
-        "ru",
-        "@plural\t{n} file|{n} files\t{n} файл|{n} файла|{n} файлов\n@plural\t{n} color stop|{n} color stops\t{n} цвет|{n} цвета|{n} цветов\n",
-        "",
-    ),
+    ("ru", "@plural\t{n} file|{n} files\t{n} файл|{n} файла|{n} файлов\n", ""),
 ];
 
 fn catalog() -> (Arc<I18n>, Lang, Lang) {
@@ -212,8 +208,7 @@ fn chrome_labels_localized_with_identity_equal_their_english() {
 #[test]
 fn canvas_and_print_labels_localized_with_identity_equal_their_english() {
     use crate::canvas::{
-        CropLabels, CropNames, GradientLineNames, GuideNames, PerspectiveCropNames, RulerNames, ScrollbarNames, TransformFieldLabels,
-        TransformLabels, TransformNames,
+        CropLabels, CropNames, GuideNames, PerspectiveCropNames, RulerNames, ScrollbarNames, TransformFieldLabels, TransformLabels, TransformNames,
     };
     use crate::printing::PrintTexts;
     use crate::shell::CanvasLabels;
@@ -227,7 +222,6 @@ fn canvas_and_print_labels_localized_with_identity_equal_their_english() {
     identity_holds::<RulerNames>();
     identity_holds::<GuideNames>();
     identity_holds::<ScrollbarNames>();
-    identity_holds::<GradientLineNames>();
     identity_holds::<PrintTexts>();
     identity_holds::<CanvasLabels>();
 }
@@ -256,7 +250,7 @@ fn canvas_names_reach_their_fields_and_closures_fill_placeholders() {
 #[test]
 fn editor_labels_localized_with_identity_equal_their_english() {
     use crate::composites::histogram::HistogramLabels;
-    use crate::composites::{CurveLabels, GradientLabels, LevelsLabels};
+    use crate::composites::{CurveLabels, LevelsLabels};
 
     let identity = Words::new(|_| None);
     macro_rules! check {
@@ -265,7 +259,7 @@ fn editor_labels_localized_with_identity_equal_their_english() {
             assert_eq!(<$labels>::english().localized(|_| None), <$labels>::default());
         )*};
     }
-    check!(GradientLabels, CurveLabels, LevelsLabels, HistogramLabels);
+    check!(CurveLabels, LevelsLabels, HistogramLabels);
 }
 
 #[test]
@@ -309,30 +303,12 @@ fn counted_words_are_registered_and_read_one_and_other_in_english() {
 }
 
 #[test]
-fn stop_and_toast_counts_read_one_and_other_in_english() {
+fn toast_counts_read_one_and_other_in_english() {
     let ctx = Context::default();
     use super::words::counts;
-    use crate::composites::GradientLabels;
     let english = Words::english();
-    let labels = GradientLabels::default();
-    let colors = |n| english.counted(&ctx, counts::COLOR_STOPS, &labels.color_stops, n);
-    let opacities = |n| english.counted(&ctx, counts::OPACITY_STOPS, &labels.opacity_stops, n);
-    assert_eq!(format!("{}{}{}", colors(1), labels.stops_separator, opacities(2)), "1 color stop, 2 opacity stops");
-    assert_eq!((colors(2), opacities(1)), ("2 color stops".to_owned(), "1 opacity stop".to_owned()));
     let more = |n| english.counted(&ctx, counts::TOAST_MORE, "…and {n} more", n);
     assert_eq!((more(1), more(3)), ("…and 1 more".to_owned(), "…and 3 more".to_owned()));
-}
-
-#[test]
-fn a_three_form_locale_picks_the_form_of_a_stop_count() {
-    let ctx = Context::default();
-    use super::words::counts;
-    use crate::composites::GradientLabels;
-    let (i18n, _, ru) = catalog();
-    let russian = Words::from_i18n(i18n, ru);
-    let text = GradientLabels::default().color_stops;
-    let count = |n| russian.counted(&ctx, counts::COLOR_STOPS, &text, n);
-    assert_eq!((count(1), count(2), count(5)), ("1 цвет".to_owned(), "2 цвета".to_owned(), "5 цветов".to_owned()));
 }
 
 #[test]

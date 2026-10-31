@@ -54,7 +54,7 @@ pub(super) fn is_enter_press(event: &egui::Event) -> bool {
 }
 
 /// Whether the keyboard focus is on a widget of `layer`.
-pub(crate) fn focus_inside(ctx: &Context, layer: egui::LayerId) -> bool {
+pub fn focus_inside(ctx: &Context, layer: egui::LayerId) -> bool {
     ctx.memory(|m| m.focused()).and_then(|focused| ctx.read_response(focused)).is_some_and(|r| r.layer_id == layer)
 }
 

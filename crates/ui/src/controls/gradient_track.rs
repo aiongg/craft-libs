@@ -53,14 +53,16 @@ pub(super) fn paint(ui: &Ui, track: &Track, stops: &[Srgba], checker: [Color32; 
 
 /// A horizontal bar whose ends are rounded with `radius`.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Rounded {
-    pub(crate) bar: Rect,
-    pub(crate) radius: f32,
+pub struct Rounded {
+    /// The bar.
+    pub bar: Rect,
+    /// The radius of its ends.
+    pub radius: f32,
 }
 
 impl Rounded {
     /// The x positions that trace the rounded ends: the bar's ends and points along each corner.
-    pub(crate) fn samples(&self) -> Vec<f32> {
+    pub fn samples(&self) -> Vec<f32> {
         let mut xs = vec![self.bar.left(), self.bar.right()];
         if self.radius > 0.0 {
             for i in 1..=CORNER_SAMPLES {
@@ -89,7 +91,7 @@ impl Rounded {
     /// A mesh over the bar in vertical slices between the positions `xs` (sorted here) and the
     /// horizontal `rows`, cut to the rounded outline. `color(x, mid, row)` colours the vertex at
     /// `x` of the slice whose centre is `mid`.
-    pub(crate) fn mesh(&self, mut xs: Vec<f32>, rows: &[(f32, f32)], color: impl Fn(f32, f32, usize) -> Color32) -> Mesh {
+    pub fn mesh(&self, mut xs: Vec<f32>, rows: &[(f32, f32)], color: impl Fn(f32, f32, usize) -> Color32) -> Mesh {
         xs.retain(|x| x.is_finite());
         xs.iter_mut().for_each(|x| *x = x.clamp(self.bar.left(), self.bar.right()));
         xs.sort_by(f32::total_cmp);

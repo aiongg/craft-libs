@@ -530,7 +530,7 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
 /// What a field-like box shows: [`TextField`]'s, `NumberField`'s, and a closed `Select`'s
 /// (focused while it has the focus or its list is open).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct BoxState {
+pub struct BoxState {
     pub enabled: bool,
     pub focused: bool,
     pub hovered: bool,
@@ -539,7 +539,7 @@ pub(crate) struct BoxState {
 
 impl BoxState {
     /// The state of a field whose box is `response`'s widget.
-    pub(crate) fn of(response: &Response, enabled: bool, invalid: bool) -> Self {
+    pub fn of(response: &Response, enabled: bool, invalid: bool) -> Self {
         Self { enabled, focused: response.has_focus(), hovered: response.contains_pointer(), invalid }
     }
 }
@@ -547,7 +547,7 @@ impl BoxState {
 /// A field's box over `rect`: the surface in the state's colours, and inside a bevel the focused
 /// or invalid edge. A focused invalid field draws the focused edge with the invalid colour as a
 /// line inside it.
-pub(crate) fn field_box(ui: &Ui, style: &TextFieldStyle, rect: Rect, state: BoxState) -> Vec<Shape> {
+pub fn field_box(ui: &Ui, style: &TextFieldStyle, rect: Rect, state: BoxState) -> Vec<Shape> {
     let BoxState { enabled, focused, hovered, invalid } = state;
     let mut surface = style.surface;
     surface.fill = if enabled { surface.fill } else { style.fill_disabled };
