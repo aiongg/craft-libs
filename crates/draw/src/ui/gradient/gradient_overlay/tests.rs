@@ -1329,3 +1329,22 @@ fn a_double_click_follows_the_context_option_for_the_double_click_delay() {
         assert_eq!(h.state().color_requested.len(), asked, "delay {delay}");
     }
 }
+
+#[test]
+fn two_clicks_in_the_delay_ask_a_colour_only_on_the_same_stop() {
+    let mut h = harness(|_| {});
+    h.run();
+    let s = spots(&h);
+    let (a, b) = (s.t(0.3), s.t(0.6));
+    let click = |h: &mut Harness<'_, Host>, at: Pos2| {
+        frame(h, [Event::PointerMoved(at), button(at, true, Modifiers::NONE), button(at, false, Modifiers::NONE)])
+    };
+    click(&mut h, a);
+    click(&mut h, b);
+    for _ in 0..3 {
+        h.step();
+    }
+    assert!(h.state().color_requested.is_empty(), "two different stops");
+    double_click(&mut h, b);
+    assert_eq!(h.state().color_requested, [2], "the same stop");
+}

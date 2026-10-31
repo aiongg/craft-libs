@@ -193,6 +193,10 @@ pub(super) fn pick_key(id: Id) -> Id {
     id.with("craft_ui::canvas::GradientOverlay::picked")
 }
 
+pub(super) fn click_key(id: Id) -> Id {
+    id.with("craft_ui::canvas::GradientOverlay::click")
+}
+
 pub(super) fn seen_key(id: Id) -> Id {
     id.with("craft_ui::canvas::GradientOverlay::seen")
 }
@@ -495,10 +499,20 @@ impl GradientOverlay<'_> {
             sel.picked = Some(part);
             out.context = Some(part);
         }
-        if !canvas.double_clicked() || !Claim::is_owner(pass.ctx, canvas.id, pass.id) {
+        let part =
+            (canvas.clicked() || canvas.double_clicked()).then(|| canvas.interact_pointer_pos().and_then(|p| self.part_at(pass, shown, p))).flatten();
+        // egui's double click checks time and position only: it also needs both clicks on the same
+        // part. Two clicks in one frame have no earlier frame to remember, and land on one point.
+        let key = click_key(pass.id);
+        let before = pass.ctx.data(|d| d.get_temp::<Option<LinePart>>(key));
+        if canvas.double_clicked() {
+            pass.ctx.data_mut(|d| d.remove_temp::<Option<LinePart>>(key));
+        } else if canvas.clicked() {
+            pass.ctx.data_mut(|d| d.insert_temp(key, part));
+        }
+        if !canvas.double_clicked() || !Claim::is_owner(pass.ctx, canvas.id, pass.id) || part.is_none() || before.is_some_and(|b| b != part) {
             return;
         }
-        let part = canvas.interact_pointer_pos().and_then(|p| self.part_at(pass, shown, p));
         out.color_requested = part.and_then(|part| self.color_request(pass.view, pass.style, shown, part));
     }
 
@@ -597,7 +611,9 @@ impl GradientOverlay<'_> {
 
     /// The colour a double-click at canvas point `point` asks for, as
     /// [`GradientOverlayResponse::color_requested`] reports it: a colour stop's, or the one at an
-    /// end handle.
+    /// end handle. This is a hit test only: a host that detects double clicks itself also checks
+    /// that both clicks landed on the same part, comparing [`hit`](Self::hit) of the first click's
+    /// press with the part this point hits.
     pub fn double_click(&self, view: &CanvasView, style: &GradientLineStyle, point: Pos2) -> Option<ColorRequest> {
         let value = self.snapshot();
         let part = self.hit_at(view, style, &value, point)?;

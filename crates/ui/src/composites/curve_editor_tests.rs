@@ -1396,7 +1396,7 @@ fn outer_width_is_the_width_the_editor_allocates_at_each_size() {
                     |ui| {
                         let numbers = LocaleNumbers::from_tag("en");
                         let curve = Curve::identity(255.0);
-                        let width = CurveEditor::outer_width(ui.ctx(), 267.0);
+                        let width = CurveEditor::outer_width(ui.ctx(), true, 267.0);
                         let shown = ui.scope(|ui| CurveEditor::new("width", "Width", &curve, &numbers).side(width).fields(false).show(ui));
                         out.set((width, shown.response.rect.width()));
                     },
@@ -1465,4 +1465,12 @@ fn a_plain_curve_drops_the_bars_and_their_gap_and_the_state_follows() {
     assert_eq!(state.plot, without.rect.shrink(without.pad), "the plot is the whole widget less the inset");
     assert_eq!(without.rect.width(), without.rect.height(), "a square");
     assert_eq!(state.screen([0.0, 0.0]), state.plot.left_bottom());
+}
+
+#[test]
+fn a_plain_curve_outer_width_is_the_side_and_two_insets() {
+    let harness = harness(Host::new(&THREE), Direction::Ltr);
+    let style = CurveEditor::style(&current(&harness.ctx));
+    assert_eq!(CurveEditor::outer_width(&harness.ctx, true, 260.0), 260.0 + style.bar + style.bar_gap + 2.0 * style.pad);
+    assert_eq!(CurveEditor::outer_width(&harness.ctx, false, 260.0), 260.0 + 2.0 * style.pad);
 }
