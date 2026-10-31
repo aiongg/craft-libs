@@ -23,6 +23,8 @@ use std::process::{Command, Stdio};
 use std::str::Chars;
 use std::sync::{Arc, Mutex, PoisonError};
 
+use craft_host::Wake;
+
 /// A user-visible message with its catalog id and English text; `{name}`-style placeholders.
 /// craft-platform has no catalog; the app looks the id up in its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,7 +86,7 @@ pub enum Intake {
 #[derive(Clone)]
 pub struct IntakeSender {
     queue: Arc<Mutex<VecDeque<Intake>>>,
-    wake: Arc<dyn Fn() + Send + Sync>,
+    wake: Wake,
 }
 
 // The threads that hear the OS keep a clone each.
@@ -102,7 +104,7 @@ impl IntakeSender {
         let mut paths: Vec<PathBuf> = paths.iter().map(|p| absolute(p)).collect();
         paths.sort_by(|a, b| natural_cmp(&a.to_string_lossy(), &b.to_string_lossy()));
         push(&self.queue, Intake::Open(paths));
-        (self.wake)();
+        self.wake.wake();
     }
 }
 
@@ -115,7 +117,7 @@ impl IntakeSender {
 /// opens the rest, then brings its window to the front (on Wayland, a user-attention request).
 ///
 /// ```ignore
-/// let (intake, sender) = FileIntake::new(move || ctx.request_repaint());
+/// let (intake, sender) = FileIntake::new(Wake::new(move || ctx.request_repaint()));
 /// // macOS: the app's Apple Event handler calls `sender.open(paths)`; elsewhere its single-instance socket does.
 /// // each frame:
 /// intake.dropped(ctx.input(|i| i.raw.dropped_files.iter().map(to_dropped).collect()), target);
@@ -127,9 +129,9 @@ pub struct FileIntake {
 }
 
 impl FileIntake {
-    pub fn new(wake: impl Fn() + Send + Sync + 'static) -> (FileIntake, IntakeSender) {
+    pub fn new(wake: Wake) -> (FileIntake, IntakeSender) {
         let queue = Arc::new(Mutex::new(VecDeque::new()));
-        let sender = IntakeSender { queue: queue.clone(), wake: Arc::new(wake) };
+        let sender = IntakeSender { queue: queue.clone(), wake };
         (FileIntake { queue, sender: sender.clone() }, sender)
     }
 

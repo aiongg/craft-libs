@@ -1,9 +1,7 @@
 //! [`PathField`]: a text field holding a path with a Browse button that opens a picker through
 //! `host.files()`.
 
-use std::path::PathBuf;
-
-use craft_host::{Host, PickId, PickRequest, Picked};
+use craft_host::{Host, PickId, PickRequest};
 use craft_ui::controls::{Button, ControlSize, TextField};
 use craft_ui::edit::{EditEvent, EditResponse};
 use craft_ui::localized::Labels;
@@ -73,8 +71,8 @@ impl<'a> PathField<'a> {
         self
     }
 
-    /// Draws the row. Reads `Host::of(ui).files()`: takes a pick answer whose ticket this field
-    /// stored, returns any other answer with `return_pick`.
+    /// Draws the row. Reads `Host::of(ui).files()`: takes the pick answer of the ticket this field
+    /// stored; other tickets' answers stay in the service.
     // pc: crates/ui-egui/src/dialogs/file_ui/print.rs:246 browse_pdf (Browse beside the PDF path field); new: the field itself
     pub fn show(self, ui: &mut Ui) -> PathFieldResponse {
         let host = Host::of(ui);
@@ -118,28 +116,14 @@ impl<'a> PathField<'a> {
         // A typing event of this pass keeps the slot; the answer waits in the queue for the next one.
         if edit.event.is_none()
             && let Some(ticket) = ui.data(|d| d.get_temp::<PickId>(ticket_key))
-            && let Some(answer) = host.files().take_pick()
+            && let Some(picked) = host.files().take_answer(ticket)
         {
-            if answer.id == ticket {
-                ui.data_mut(|d| d.remove::<PickId>(ticket_key));
-                if let Some(path) = Self::path_of(&answer.picked) {
-                    edit.event = Some(EditEvent::set(path.to_string_lossy().into_owned(), Modifiers::NONE));
-                }
-            } else {
-                host.files().return_pick(answer);
+            ui.data_mut(|d| d.remove::<PickId>(ticket_key));
+            if let Some(path) = picked.first_path() {
+                edit.event = Some(EditEvent::set(path.to_string_lossy().into_owned(), Modifiers::NONE));
             }
         }
         PathFieldResponse { edit, browsing }
-    }
-
-    /// The path a picker answer gives the field: the first path, or on wasm the file name.
-    // new: wasm answers carry contents, not paths
-    fn path_of(answer: &Picked) -> Option<PathBuf> {
-        match answer {
-            Picked::Paths(paths) => paths.first().cloned(),
-            Picked::Contents(files) => files.first().map(|(name, _)| PathBuf::from(name)),
-            Picked::Cancelled => None,
-        }
     }
 }
 

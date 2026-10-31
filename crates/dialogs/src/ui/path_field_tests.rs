@@ -42,13 +42,14 @@ impl Files for StubFiles {
         PickId(state.next)
     }
 
-    fn take_pick(&self) -> Option<PickAnswer> {
-        let mut state = self.state.lock().unwrap();
-        if state.answered.is_empty() { None } else { Some(state.answered.remove(0)) }
+    fn take_answer(&self, id: PickId) -> Option<Picked> {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let at = state.answered.iter().position(|a| a.id == id)?;
+        Some(state.answered.remove(at).picked)
     }
 
-    fn return_pick(&self, answer: PickAnswer) {
-        self.state.lock().unwrap().answered.insert(0, answer);
+    fn forget(&self, id: PickId) {
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).answered.retain(|a| a.id != id);
     }
 
     fn pick_pending(&self) -> bool {
@@ -170,9 +171,10 @@ fn typed_path_commits_on_enter_and_browse_is_next_in_tab_order() {
 }
 
 // Browse queues the field's request; the answer's path fills the field on the next pass and
-// commits once. An answer with another ticket is returned to the service.
+// commits once. An unclaimed answer of another ticket stays in the service and does not hold
+// the field's own answer back.
 #[test]
-fn browse_answer_fills_the_field_and_other_tickets_are_returned() {
+fn browse_answer_fills_the_field_and_an_orphaned_answer_blocks_nothing() {
     let mut rig = Rig::new("/old.png");
     let browse = Pos2::new(rig.field.right() + 20.0, rig.field.center().y);
     rig.click(browse);
@@ -186,14 +188,14 @@ fn browse_answer_fills_the_field_and_other_tickets_are_returned() {
     rig.files.answer(other, Picked::Paths(vec![PathBuf::from("/theirs.png")]));
     rig.frame(vec![]);
     assert_eq!(rig.committed, None, "another ticket's answer is not ours");
-    assert_eq!(rig.files.state.lock().unwrap().answered.len(), 1, "and goes back to the service");
+    assert_eq!(rig.files.state.lock().unwrap().answered.len(), 1, "and stays in the service");
 
-    rig.files.state.lock().unwrap().answered.clear();
     rig.files.answer(ours, Picked::Paths(vec![PathBuf::from("/new.png"), PathBuf::from("/second.png")]));
     rig.frame(vec![]);
-    assert_eq!(rig.value, "/new.png", "the first path fills the field");
+    assert_eq!(rig.value, "/new.png", "the first path fills the field, with the orphan queued ahead of it");
     rig.frame(vec![]);
     assert_eq!(rig.committed, None, "and commits once");
+    rig.files.state.lock().unwrap().answered.clear();
 
     // A cancelled pick changes nothing.
     rig.click(browse);

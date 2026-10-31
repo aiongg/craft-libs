@@ -56,7 +56,7 @@ In an eframe app:
 ```rust
 // Once, at startup.
 let ctx = cc.egui_ctx.clone();
-let dialogs = Dialogs::new(Arc::new(move || ctx.request_repaint()));
+let dialogs = Dialogs::new(Wake::new(move || ctx.request_repaint()));
 
 // A command that needs a file.
 self.dialogs.ask(FileDialog::open().filter("PDF", &["pdf"]), Then::Open);

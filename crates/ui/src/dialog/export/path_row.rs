@@ -1,6 +1,6 @@
 //! [`OutputPathRow`]: where a render or export goes, as a template list and the chosen file.
 
-use craft_host::{Host, PickId, PickRequest, Picked};
+use craft_host::{Host, PickId, PickRequest};
 use egui::{Modifiers, Ui};
 
 use crate::controls::{Link, Select, TextField};
@@ -119,19 +119,10 @@ impl<'a> OutputPathRow<'a> {
 
         if event.is_none()
             && let Some(ticket) = ui.data(|d| d.get_temp::<PickId>(ticket_key))
-            && let Some(answer) = host.files().take_pick()
+            && let Some(picked) = host.files().take_answer(ticket)
         {
-            if answer.id == ticket {
-                ui.data_mut(|d| d.remove::<PickId>(ticket_key));
-                let path = match answer.picked {
-                    Picked::Paths(paths) => paths.first().map(|p| p.to_string_lossy().into_owned()),
-                    Picked::Contents(files) => files.first().map(|(name, _)| name.clone()),
-                    Picked::Cancelled => None,
-                };
-                event = path.map(|path| EditEvent::set(path, Modifiers::NONE));
-            } else {
-                host.files().return_pick(answer);
-            }
+            ui.data_mut(|d| d.remove::<PickId>(ticket_key));
+            event = picked.first_path().map(|path| EditEvent::set(path.to_string_lossy().into_owned(), Modifiers::NONE));
         }
         OutputPathResponse { edit: EditResponse::new(response, event), browsing }
     }
