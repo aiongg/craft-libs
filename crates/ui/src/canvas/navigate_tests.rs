@@ -321,3 +321,20 @@ fn the_compass_shows_when_turned_and_a_click_resets() {
     click(&mut h, at);
     assert!(h.state().reset, "a click on the compass resets the angle");
 }
+
+#[test]
+fn page_keys_run_for_a_focused_canvas_and_not_for_another_widget() {
+    let page_down = || Event::Key { key: Key::PageDown, physical_key: Some(Key::PageDown), pressed: true, repeat: false, modifiers: Modifiers::NONE };
+    for (canvas, moved) in [(true, true), (false, false)] {
+        let ctx = Context::default();
+        crate::focus::key_owner_tests::focus_widget(&ctx, egui::Id::unique("w"), canvas);
+        let mut v = view(1.0, Point::new(400.0, 300.0));
+        let before = v.center;
+        let mut ran = false;
+        ctx.run_ui(RawInput { events: vec![page_down()], ..Default::default() }, |ui| {
+            ran = PageKey::handle(ui.ctx(), &mut v, Size::new(4000.0, 4000.0), true);
+        })
+        .drop_without_applying_deltas();
+        assert_eq!((ran, v.center != before), (moved, moved));
+    }
+}

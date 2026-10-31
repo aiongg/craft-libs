@@ -85,3 +85,16 @@ fn digits_are_left_to_a_focused_field() {
     })
     .drop_without_applying_deltas();
 }
+
+#[test]
+fn digits_run_while_the_registered_canvas_has_focus() {
+    let ctx = egui::Context::default();
+    crate::focus::key_owner_tests::focus_widget(&ctx, egui::Id::unique("canvas"), true);
+    let mut keys = DigitKeys::default();
+    let mut got = None;
+    ctx.run_ui(RawInput { events: vec![press_event(Key::Num6, Modifiers::NONE, false)], ..Default::default() }, |ui| {
+        got = keys.handle(ui.ctx(), true);
+    })
+    .drop_without_applying_deltas();
+    assert_eq!(got, entry(60.0, false));
+}

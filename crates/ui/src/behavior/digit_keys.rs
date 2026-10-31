@@ -6,6 +6,8 @@
 
 use egui::{Context, Event, Key};
 
+use crate::focus::key_owner::{KeyOwner, OwnerGate, owner};
+
 /// A number key entry: the percentage and whether Shift was held.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DigitEntry {
@@ -57,7 +59,7 @@ impl DigitKeys {
     /// consuming them. Returns the last entry of the pass.
     // pc: crates/ui-egui/src/input/opacity_keys.rs:61 `handle`, :44 `digit`.
     pub fn handle(&mut self, ctx: &Context, enabled: bool) -> Option<DigitEntry> {
-        if !enabled || ctx.memory(|m| m.focused().is_some()) {
+        if !enabled || owner(ctx, &OwnerGate::default()) != KeyOwner::App {
             return None;
         }
         let presses: Vec<(u8, bool)> = ctx.input_mut(|i| {

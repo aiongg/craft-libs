@@ -14,6 +14,8 @@
 
 use egui::{Context, Id, InputState, Key, KeyboardShortcut, Modifiers};
 
+use crate::focus::key_owner::{KeyOwner, OwnerGate, owner};
+
 /// Is `sc` held: its key down with at least its modifiers (more may be held, so Shift still
 /// squares a marquee while Space is down).
 fn shortcut_held(input: &InputState, sc: &KeyboardShortcut) -> bool {
@@ -117,7 +119,7 @@ impl MomentaryKeys {
         let latched = ctx.data(|d| d.get_temp::<Option<MomentaryTool>>(latch)).flatten();
         let tool = if (down || released) && latched.is_some() {
             latched
-        } else if drawing || ctx.text_edit_focused() {
+        } else if drawing || owner(ctx, &OwnerGate::default()) != KeyOwner::App {
             None
         } else {
             ctx.input(|i| self.held(i))

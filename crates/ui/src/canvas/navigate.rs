@@ -28,6 +28,7 @@ use super::scrollbars::CanvasScrollbars;
 use super::tool_host::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
 use super::view::CanvasView;
 use super::zoom::{self, ZoomAnimation, ZoomLadder};
+use crate::focus::key_owner::{KeyOwner, OwnerGate, owner};
 use crate::localized::Labels;
 use crate::theme::{ToEgui, UiTokens};
 use craft_theme::{CanvasTokens, TypeRole};
@@ -365,7 +366,7 @@ impl PageKey {
     /// Returns whether one ran.
     // pc: crates/ui-egui/src/input/page_keys.rs:44 `handle`.
     pub fn handle(ctx: &Context, view: &mut CanvasView, size: Size, overscroll: bool) -> bool {
-        if ctx.egui_wants_keyboard_input() {
+        if owner(ctx, &OwnerGate::default()) != KeyOwner::App {
             return false;
         }
         let canvas = view.rect.size();

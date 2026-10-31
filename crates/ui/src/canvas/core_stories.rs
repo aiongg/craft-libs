@@ -217,6 +217,7 @@ fn show_navigation(ui: &mut Ui, args: &mut NavigationArgs) {
         let pointer = response.hover_pos().unwrap_or(shown.rect.center());
         WheelNavigation::apply(&mut view, action, pointer, size, &prefs, ppp);
     }
+    crate::focus::key_owner::register_canvas(&ctx, response.id);
     if response.has_focus() {
         PageKey::handle(&ctx, &mut view, size, prefs.overscroll);
     }

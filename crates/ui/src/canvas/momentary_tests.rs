@@ -152,3 +152,14 @@ fn a_drag_running_at_release_finishes_with_the_sprung_tool() {
     assert_eq!(tick(&mut spring, &ctx, 1.2, vec![], 'z', true), None);
     assert_eq!(tick(&mut spring, &ctx, 1.3, vec![], 'z', false), Some('b'));
 }
+
+#[test]
+fn the_space_hand_works_while_the_registered_canvas_has_focus() {
+    let ctx = Context::default();
+    let n = Modifiers::NONE;
+    crate::focus::key_owner_tests::focus_widget(&ctx, Id::unique("canvas"), true);
+    assert_eq!(held(&ctx, 0.2, n, vec![key_event(Key::Space, true, n)]), Some(MomentaryTool::Hand));
+    let ctx = Context::default();
+    crate::focus::key_owner_tests::focus_widget(&ctx, Id::unique("slider"), false);
+    assert_eq!(held(&ctx, 0.2, n, vec![key_event(Key::Space, true, n)]), None, "another widget has the keys");
+}
