@@ -1,6 +1,5 @@
 //! The in-memory store: load once, read every frame, save while the application runs.
 
-use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -8,12 +7,11 @@ use std::time::{Duration, Instant};
 use toml_edit::DocumentMut;
 
 use crate::Settings;
-use crate::document::{self, merge_into, set_schema_version};
+use crate::document::{self, merge_changes, merge_into, set_schema_version};
 use crate::error::{LoadReport, ReadOnlyReason, SaveStatus, SettingsError, Source, TickResult};
 use crate::files::{DiskFiles, SettingsFiles};
 use crate::migrate::{self, LegacyFile, Upgrade};
 use crate::paths::{self, Location, Portable, Probe};
-use crate::recovery;
 
 mod sections;
 
@@ -41,8 +39,8 @@ pub struct OpenOptions<T> {
     pub debounce: Duration,
     /// What the folder rules look at.
     pub probe: Probe,
-    /// How the files are read and written ([`DiskFiles`] by default). The store keeps it for
-    /// every read and write once the store's own `std::fs` calls go through it (fill task S4-F12).
+    /// How the files are read and written ([`DiskFiles`] by default). The store reads and writes
+    /// `config.toml`, its backup and the damaged-file rename only through it.
     pub files: Arc<dyn SettingsFiles>,
 }
 
@@ -91,6 +89,10 @@ pub struct SettingsStore<T: Settings> {
     dir: Option<PathBuf>,
     path: Option<PathBuf>,
     doc: DocumentMut,
+    /// The document as this store last read it from disk or wrote it, before any migration run
+    /// here; the common ancestor of the three-way merge in `save`.
+    base: DocumentMut,
+    files: Arc<dyn SettingsFiles>,
     value: T,
     read_only: Option<String>,
     dirty: bool,
@@ -145,6 +147,8 @@ impl<T: Settings> SettingsStore<T> {
             dir: resolved.dir,
             path,
             doc: document::new_document(T::SCHEMA_VERSION),
+            base: default_document::<T>(),
+            files: options.files,
             value: T::default(),
             read_only: None,
             dirty: false,
@@ -160,20 +164,20 @@ impl<T: Settings> SettingsStore<T> {
         let (Some(dir), Some(path)) = (store.dir.clone(), store.path.clone()) else {
             return (store, report);
         };
-        if let Err(e) = std::fs::create_dir_all(&dir) {
+        if let Err(e) = store.files.create_dir(&dir) {
             store.load_best_effort(&mut report);
             store.set_read_only(&mut report, ReadOnlyReason::DirUnavailable(e));
             return (store, report);
         }
-        if let Err(e) = recovery::check_writable(&dir) {
+        if let Err(e) = store.files.check_writable(&dir) {
             store.load_best_effort(&mut report);
             store.set_read_only(&mut report, ReadOnlyReason::DirNotWritable(e));
             return (store, report);
         }
 
-        match std::fs::read_to_string(&path) {
-            Ok(text) => store.load_text(&path, &text, &mut report),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+        match store.files.read(&path) {
+            Ok(Some(text)) => store.load_text(&path, &text, &mut report),
+            Ok(None) => {
                 if let Some((value, from)) = migrate::import_legacy(&options.legacy) {
                     store.value = value;
                     store.dirty = true;
@@ -285,7 +289,7 @@ impl<T: Settings> SettingsStore<T> {
         let Some(path) = &self.path else {
             return Ok(());
         };
-        if !self.dirty && (self.written || path.exists()) {
+        if !self.dirty && (self.written || self.files.read(path).is_ok_and(|text| text.is_some())) {
             return Ok(());
         }
         self.save()
@@ -306,9 +310,10 @@ impl<T: Settings> SettingsStore<T> {
     /// user's values instead of defaults.
     fn load_best_effort(&mut self, report: &mut LoadReport) {
         if let Some(path) = &self.path
-            && let Ok(text) = std::fs::read_to_string(path)
+            && let Ok(Some(text)) = self.files.read(path)
             && let Ok(mut doc) = document::parse(&text)
         {
+            let base = doc.clone();
             // A failed migration leaves the document half-upgraded; show defaults instead.
             let Ok(upgraded) = migrate::upgrade::<T>(&mut doc) else {
                 return;
@@ -316,6 +321,7 @@ impl<T: Settings> SettingsStore<T> {
             let (value, errors) = document::deserialize_sections::<T>(&doc);
             self.value = value;
             self.doc = doc;
+            self.base = base;
             self.seen_text = Some(text);
             report.source = Source::File;
             report.section_errors = errors;
@@ -329,13 +335,14 @@ impl<T: Settings> SettingsStore<T> {
         let mut doc = match document::parse(text) {
             Ok(doc) => doc,
             Err(_) => {
-                match recovery::move_aside(path) {
+                match self.files.move_aside(path) {
                     Ok(moved) => report.broken_moved_to = Some(moved),
                     Err(e) => self.set_read_only(report, ReadOnlyReason::CannotMoveAside(e)),
                 }
                 return;
             }
         };
+        let base = doc.clone();
         match migrate::upgrade::<T>(&mut doc) {
             Ok(Upgrade::Current) => {}
             Ok(Upgrade::Migrated { from }) => {
@@ -351,6 +358,7 @@ impl<T: Settings> SettingsStore<T> {
         let (value, errors) = document::deserialize_sections::<T>(&doc);
         self.value = value;
         self.doc = doc;
+        self.base = base;
         self.seen_text = Some(text.to_owned());
         report.source = Source::File;
         report.section_errors = errors;
@@ -364,19 +372,19 @@ impl<T: Settings> SettingsStore<T> {
             self.dirty = false;
             return Ok(());
         };
-        if let Some(on_disk) = self.check_disk(&path)? {
-            recovery::write_backup(&path, &on_disk)?;
+        let (backup, theirs) = self.check_disk(&path)?;
+        if let Some(on_disk) = backup {
+            self.files.write_backup(&path, &on_disk)?;
         }
         merge_into(&mut self.doc, &self.value).map_err(|e| SettingsError::Serialize(e.to_string()))?;
         set_schema_version(&mut self.doc, T::SCHEMA_VERSION);
+        if let Some(mut theirs) = theirs {
+            merge_changes::<T>(&self.base, &self.doc, &mut theirs);
+            self.doc = theirs;
+        }
         let text = document::render(&self.doc);
-        craft_atomic::WriteOptions::default().with_new_file_permissions(craft_atomic::NewFilePermissions::Private).atomic_write_with(
-            &path,
-            |file| {
-                restrict_permissions(file)?;
-                file.write_all(text.as_bytes())
-            },
-        )?;
+        self.files.write(&path, &text)?;
+        self.base = self.doc.clone();
         self.seen_text = Some(text);
         self.dirty = false;
         self.written = true;
@@ -385,33 +393,32 @@ impl<T: Settings> SettingsStore<T> {
         Ok(())
     }
 
-    /// Looks at the file on disk just before a save, and returns its text when it is a good
-    /// backup (it parses and is not blank).
+    /// Looks at the file on disk just before a save. Returns its text when it is a good backup
+    /// (it parses and is not blank), and its document, upgraded to this build's schema, when
+    /// another instance or a hand edit changed it since this store last read or wrote it.
     ///
-    /// The contract is best effort, not multi-process locking: if another instance or a hand
-    /// edit changed the file since this store last read or wrote it, the new document is adopted
-    /// so its comments and unknown keys survive, and this store's values then win on known keys.
-    /// A file that no longer parses is moved aside (the edit is kept, the previous backup stays),
-    /// and a file from a newer build, or one whose migration fails, makes the store read-only
-    /// instead of overwriting it, the same as at startup.
-    fn check_disk(&mut self, path: &Path) -> Result<Option<String>, SettingsError> {
-        let text = match std::fs::read_to_string(path) {
-            Ok(text) => text,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(e) => return Err(e.into()),
+    /// The contract is best effort, not multi-process locking: `save` merges this store's changes
+    /// since its base into that document ([`merge_changes`]), so the other writer's comments,
+    /// unknown keys and settings survive. A file that no longer parses is moved aside (the edit
+    /// is kept, the previous backup stays), and a file from a newer build, or one whose migration
+    /// fails, makes the store read-only instead of overwriting it, the same as at startup.
+    fn check_disk(&mut self, path: &Path) -> Result<(Option<String>, Option<DocumentMut>), SettingsError> {
+        let Some(text) = self.files.read(path)? else {
+            return Ok((None, None));
         };
         let Ok(mut doc) = document::parse(&text) else {
-            self.moved_aside.push(recovery::move_aside(path)?);
-            return Ok(None);
+            self.moved_aside.push(self.files.move_aside(path)?);
+            return Ok((None, None));
         };
-        if self.seen_text.as_deref() != Some(text.as_str()) {
+        let changed = self.seen_text.as_deref() != Some(text.as_str());
+        if changed {
             match migrate::upgrade::<T>(&mut doc) {
                 Ok(Upgrade::Newer { file }) => {
                     let why = ReadOnlyReason::NewerSchema { file, app: T::SCHEMA_VERSION }.to_string();
                     self.read_only = Some(why.clone());
                     return Err(SettingsError::ReadOnly(why));
                 }
-                Ok(_) => self.doc = doc,
+                Ok(_) => {}
                 // Same as at startup: leave the outside file untouched and stop saving.
                 Err(e) => {
                     let why = ReadOnlyReason::Migration(e).to_string();
@@ -420,24 +427,21 @@ impl<T: Settings> SettingsStore<T> {
                 }
             }
         }
-        Ok((!text.trim().is_empty()).then_some(text))
+        Ok(((!text.trim().is_empty()).then_some(text), changed.then_some(doc)))
     }
+}
+
+/// What a store with no file holds as its base: the defaults, so only a change from them counts
+/// as this store's change when another instance creates the file first.
+fn default_document<T: Settings>() -> DocumentMut {
+    let mut doc = document::new_document(T::SCHEMA_VERSION);
+    // Defaults that don't serialize leave the base empty, which makes every key ours.
+    let _ = merge_into(&mut doc, &T::default());
+    doc
 }
 
 /// Exponential backoff: 1 s, 2 s, 4 s, … capped at [`MAX_RETRY_DELAY`].
 pub fn retry_delay(failures: u32) -> Duration {
     let exp = failures.saturating_sub(1).min(16);
     (FIRST_RETRY_DELAY * 2u32.saturating_pow(exp)).min(MAX_RETRY_DELAY)
-}
-
-/// New files are owner-only; on a replace `craft-atomic` keeps the existing file's mode.
-#[cfg(unix)]
-fn restrict_permissions(file: &std::fs::File) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    file.set_permissions(std::fs::Permissions::from_mode(0o600))
-}
-
-#[cfg(not(unix))]
-fn restrict_permissions(_file: &std::fs::File) -> io::Result<()> {
-    Ok(())
 }
