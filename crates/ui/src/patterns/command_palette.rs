@@ -312,7 +312,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> CommandPalette<'a, '_, T>
         let count = if state.query.trim().is_empty() { None } else { Some(shown.len()) };
         let announcement = match count {
             Some(0) => Some(self.labels.empty.clone()),
-            Some(n) => Some(Words::of(ui).counted(counts::RESULTS, &self.labels.results, n as u64)),
+            Some(n) => Some(Words::of(ui).counted(ui.ctx(), counts::RESULTS, &self.labels.results, n as u64)),
             None => None,
         };
         if let Some(text) = announcement {

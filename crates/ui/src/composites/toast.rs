@@ -376,7 +376,7 @@ impl ToastStack {
             let left = toast.lines.len() - MAX_LINES;
             let text = match &self.more_label {
                 Some(more) => more(left),
-                None => Words::of(ui).counted(counts::TOAST_MORE, &ToastLabels::of(ui).more, left as u64),
+                None => Words::of(ui).counted(ui.ctx(), counts::TOAST_MORE, &ToastLabels::of(ui).more, left as u64),
             };
             let laid = galley(style.line_role, style.more, &text, geometry.inner);
             (text, laid)

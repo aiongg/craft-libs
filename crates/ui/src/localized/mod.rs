@@ -88,9 +88,19 @@ impl LocaleNumbers {
 
     /// The numbers installed in `ui`'s context ([`LocaleNumbers::install`]), English when none is.
     pub fn of(ui: &Ui) -> Arc<LocaleNumbers> {
+        LocaleNumbers::of_ctx(ui.ctx())
+    }
+
+    /// [`LocaleNumbers::of`] for code that has a context and no `Ui`.
+    pub(crate) fn of_ctx(ctx: &Context) -> Arc<LocaleNumbers> {
         static ENGLISH: LazyLock<Arc<LocaleNumbers>> = LazyLock::new(|| Arc::new(LocaleNumbers::from_tag("en")));
-        let installed = ui.ctx().plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
+        let installed = ctx.plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
         installed.unwrap_or_else(|| Arc::clone(&ENGLISH))
+    }
+
+    /// A count in the locale's digits and grouping: `1,234`, `1.234`.
+    pub(crate) fn count(&self, n: u64) -> String {
+        self.format(n as f64, 0..=0)
     }
 
     /// The error tooltips from `i18n`'s catalog in `lang`: the plain rows keyed by the English

@@ -598,7 +598,7 @@ where
             self.lead_row = Some((out.response.id, rect));
             self.st.lead_rect = Some(rect);
         }
-        let value = row.count.map(|n| Words::of_ctx(&self.ctx).counted(counts::GROUP_PRESETS, &self.labels.group_count, n as u64));
+        let value = row.count.map(|n| Words::of_ctx(&self.ctx).counted(&self.ctx, counts::GROUP_PRESETS, &self.labels.group_count, n as u64));
         self.ctx.accesskit_node_builder(out.response.id, |node| {
             node.add_action(Action::Focus);
             node.add_action(Action::ScrollIntoView);

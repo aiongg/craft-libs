@@ -665,8 +665,8 @@ impl<'a> CurveEditor<'a> {
         let value = match channel {
             Some(c) if drawn => fill(&self.labels.graph_drawn, &[("channel", &c.label)]),
             None if drawn => self.labels.drawn.clone(),
-            Some(c) => fill(&words.counted(counts::GRAPH_VALUE, &self.labels.graph_value, n as u64), &[("channel", &c.label)]),
-            None => words.counted(counts::GRAPH_POINTS, &self.labels.graph_points, n as u64),
+            Some(c) => fill(&words.counted(ui.ctx(), counts::GRAPH_VALUE, &self.labels.graph_value, n as u64), &[("channel", &c.label)]),
+            None => words.counted(ui.ctx(), counts::GRAPH_POINTS, &self.labels.graph_points, n as u64),
         };
         let active = selected.and_then(|i| point_ids.get(i).copied());
         // A `Ui`'s node gets no bounds of its own from egui.

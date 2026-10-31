@@ -815,11 +815,13 @@ impl<'a, T: Any + Send + Sync> GradientEditor<'a, T> {
         let value = match rows {
             StopRows::Split => {
                 let words = Words::of(ui);
-                let colors = words.counted(counts::COLOR_STOPS, &self.labels.color_stops, shown.color.len() as u64);
-                let opacities = words.counted(counts::OPACITY_STOPS, &self.labels.opacity_stops, shown.opacity_stops().len() as u64);
+                let colors = words.counted(ui.ctx(), counts::COLOR_STOPS, &self.labels.color_stops, shown.color.len() as u64);
+                let opacities = words.counted(ui.ctx(), counts::OPACITY_STOPS, &self.labels.opacity_stops, shown.opacity_stops().len() as u64);
                 format!("{colors}{}{opacities}", self.labels.stops_separator)
             }
-            StopRows::Combined | StopRows::ColorOnly => Words::of(ui).counted(counts::BAR_STOPS, &self.labels.bar_stops, shown.color.len() as u64),
+            StopRows::Combined | StopRows::ColorOnly => {
+                Words::of(ui).counted(ui.ctx(), counts::BAR_STOPS, &self.labels.bar_stops, shown.color.len() as u64)
+            }
         };
         let active = selected.and_then(|s| nodes.iter().find(|(m, _)| *m == s)).map(|(_, id)| *id);
         // A `Ui`'s node gets no bounds of its own from egui.

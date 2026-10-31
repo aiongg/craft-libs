@@ -4,7 +4,7 @@ use craft_i18n::{Embedded, I18n, Lang};
 use egui::Context;
 
 use super::words::problems;
-use super::{Labels, Word, Words};
+use super::{Labels, LocaleNumbers, Word, Words};
 
 crate::words! {
     struct Probe {
@@ -295,6 +295,7 @@ fn labels_are_built_once_per_installed_words() {
 
 #[test]
 fn counted_words_are_registered_and_read_one_and_other_in_english() {
+    let ctx = Context::default();
     use super::words::counts;
     let all: Vec<Word> = super::words::all().collect();
     for count in counts::ALL {
@@ -302,32 +303,47 @@ fn counted_words_are_registered_and_read_one_and_other_in_english() {
     }
     let english = Words::english();
     let labels = crate::presets::PresetLabels::default();
-    let text = |n| english.counted(counts::PRESETS, &labels.count, n);
+    let text = |n| english.counted(&ctx, counts::PRESETS, &labels.count, n);
     assert_eq!((text(1), text(2)), ("1 preset".to_owned(), "2 presets".to_owned()));
-    assert_eq!(english.counted(counts::PRESETS, "{n} items", 1), "1 items", "a host's text is used as given");
+    assert_eq!(english.counted(&ctx, counts::PRESETS, "{n} items", 1), "1 items", "a host's text is used as given");
 }
 
 #[test]
 fn stop_and_toast_counts_read_one_and_other_in_english() {
+    let ctx = Context::default();
     use super::words::counts;
     use crate::composites::GradientLabels;
     let english = Words::english();
     let labels = GradientLabels::default();
-    let colors = |n| english.counted(counts::COLOR_STOPS, &labels.color_stops, n);
-    let opacities = |n| english.counted(counts::OPACITY_STOPS, &labels.opacity_stops, n);
+    let colors = |n| english.counted(&ctx, counts::COLOR_STOPS, &labels.color_stops, n);
+    let opacities = |n| english.counted(&ctx, counts::OPACITY_STOPS, &labels.opacity_stops, n);
     assert_eq!(format!("{}{}{}", colors(1), labels.stops_separator, opacities(2)), "1 color stop, 2 opacity stops");
     assert_eq!((colors(2), opacities(1)), ("2 color stops".to_owned(), "1 opacity stop".to_owned()));
-    let more = |n| english.counted(counts::TOAST_MORE, "…and {n} more", n);
+    let more = |n| english.counted(&ctx, counts::TOAST_MORE, "…and {n} more", n);
     assert_eq!((more(1), more(3)), ("…and 1 more".to_owned(), "…and 3 more".to_owned()));
 }
 
 #[test]
 fn a_three_form_locale_picks_the_form_of_a_stop_count() {
+    let ctx = Context::default();
     use super::words::counts;
     use crate::composites::GradientLabels;
     let (i18n, _, ru) = catalog();
     let russian = Words::from_i18n(i18n, ru);
     let text = GradientLabels::default().color_stops;
-    let count = |n| russian.counted(counts::COLOR_STOPS, &text, n);
+    let count = |n| russian.counted(&ctx, counts::COLOR_STOPS, &text, n);
     assert_eq!((count(1), count(2), count(5)), ("1 цвет".to_owned(), "2 цвета".to_owned(), "5 цветов".to_owned()));
+}
+
+#[test]
+fn counts_are_written_in_the_locales_grouping_and_keep_their_plural_form() {
+    use super::words::counts;
+    let ctx = Context::default();
+    let words = Words::english();
+    let labels = crate::presets::PresetLabels::default();
+    let text = |n| words.counted(&ctx, counts::PRESETS, &labels.count, n);
+    assert_eq!((text(1), text(1234)), ("1 preset".to_owned(), "1,234 presets".to_owned()));
+    LocaleNumbers::from_tag("de").install(&ctx);
+    assert_eq!((text(1), text(1234)), ("1 preset".to_owned(), "1.234 presets".to_owned()));
+    assert_eq!(words.counted(&ctx, counts::PRESETS, "{n} items", 1234), "1.234 items", "a host's text gets the number formatted too");
 }

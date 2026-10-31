@@ -54,7 +54,7 @@ impl GradientOverlay<'_> {
     pub(super) fn group_value(&self, value: &LineGradient, ctx: &egui::Context) -> String {
         match &self.value {
             Some(text) => text.clone(),
-            None => Words::of_ctx(ctx).counted(counts::BAR_STOPS, &self.labels.bar_stops, value.stops.color.len() as u64),
+            None => Words::of_ctx(ctx).counted(ctx, counts::BAR_STOPS, &self.labels.bar_stops, value.stops.color.len() as u64),
         }
     }
 

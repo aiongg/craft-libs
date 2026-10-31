@@ -166,7 +166,7 @@ impl<'a, K> PresetFooter<'a, K> {
                 }
             }
             if let Some(n) = count {
-                start.label(egui::RichText::new(Words::of(start).counted(counts::PRESETS, &labels.count, n as u64)).color(style.count));
+                start.label(egui::RichText::new(Words::of(start).counted(start.ctx(), counts::PRESETS, &labels.count, n as u64)).color(style.count));
             }
         });
         events

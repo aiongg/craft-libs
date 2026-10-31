@@ -15,6 +15,8 @@ use craft_i18n::{I18n, Lang};
 use egui::plugin::Plugin;
 use egui::{Context, Ui};
 
+use super::LocaleNumbers;
+
 mod registry;
 
 /// One built-in string.
@@ -174,14 +176,18 @@ impl Words {
     }
 
     /// `n` things written by the labels field `text` of `count`'s word: the plural forms of the
-    /// locale while `text` is still the words' own text, and exactly `text` with `{n}` filled when
-    /// the host set it.
-    pub(crate) fn counted(&self, count: Counted, text: &str, n: u64) -> String {
+    /// locale while `text` is still the words' own text, and exactly `text` when the host set it.
+    /// `{n}` is written by the [`LocaleNumbers`] installed in `ctx`; the plural form follows the
+    /// integer.
+    pub(crate) fn counted(&self, ctx: &Context, count: Counted, text: &str, n: u64) -> String {
         if text == self.get(count.word) {
-            self.count(count.word.key(), n, count.one, count.word.english)
-        } else {
-            craft_i18n::fmt(text, &[("n", &n.to_string())])
+            if let Some(text) = self.plural.as_ref().and_then(|plural| plural(count.word.key(), n, count.one, count.word.english)) {
+                return text;
+            }
+            let form = if n == 1 { count.one } else { count.word.english };
+            return craft_i18n::fmt(form, &[("n", &LocaleNumbers::of_ctx(ctx).count(n))]);
         }
+        craft_i18n::fmt(text, &[("n", &LocaleNumbers::of_ctx(ctx).count(n))])
     }
 
     /// `n` things: `one` when `n` is 1 and `other` otherwise in English, the locale's plural forms
