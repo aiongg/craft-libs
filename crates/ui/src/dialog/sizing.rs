@@ -3,7 +3,8 @@
 //! holds the frame's own size rules ([`Width`](super::Width), [`Body`](super::Body)).
 
 use egui::accesskit::Role;
-use egui::{Color32, Context, Pos2, Rect, Response, Shape, Stroke, Ui, UiBuilder, Vec2, vec2};
+use egui::text::LayoutJob;
+use egui::{Align, Color32, Context, Label, Layout, Pos2, Rect, Response, Shape, Stroke, Ui, UiBuilder, Vec2, vec2};
 
 use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
@@ -15,8 +16,8 @@ use crate::composites::{Form, FormGrid, RowLabel};
 use crate::controls::{Checkbox, NumberField, Select};
 use crate::edit::{EditEvent, EditResponse};
 use crate::localized::{Labels as _, LocaleNumbers, SharedLabels};
-use crate::primitives::{Divider, Interactive, StateColors, SurfaceKind};
-use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
+use crate::primitives::{Content, Divider, Interactive, StateColors, SurfaceKind};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 
 crate::words! {
     /// The words of the size dialogs, English by default.
@@ -36,6 +37,9 @@ crate::words! {
         new_size: "sizing.newSize" = "New Size:";
         width: "sizing.width" = "Width:";
         height: "sizing.height" = "Height:";
+        /// The readouts of the size the canvas has, apart from the Width and Height fields of the new size.
+        current_width: "sizing.currentWidth" = "Current width:";
+        current_height: "sizing.currentHeight" = "Current height:";
         constrain: "sizing.constrain" = "Constrain proportions";
         width_unit: "sizing.widthUnit" = "Width unit";
         height_unit: "sizing.heightUnit" = "Height unit";
@@ -64,6 +68,7 @@ crate::words! {
         bicubic: "sizing.bicubic" = "Bicubic (smooth gradients)";
         nearest_neighbor: "sizing.nearestNeighbor" = "Nearest Neighbor (hard edges)";
         bilinear: "sizing.bilinear" = "Bilinear";
+        lanczos: "sizing.lanczos" = "Lanczos (sharp)";
         foreground: "sizing.foreground" = "Foreground";
         background: "sizing.background" = "Background";
         white: "sizing.white" = "White";
@@ -105,6 +110,7 @@ impl SizingLabels {
             Resample::Bicubic => &self.bicubic,
             Resample::NearestNeighbor => &self.nearest_neighbor,
             Resample::Bilinear => &self.bilinear,
+            Resample::Lanczos => &self.lanczos,
         }
     }
 
@@ -127,7 +133,8 @@ impl SizingLabels {
 const MAX_PIXELS: f64 = 300_000.0;
 /// The least and greatest resolution, in pixels per inch.
 const PPI_RANGE: (f64, f64) = (1.0, 30_000.0);
-/// Points per inch: PostScript points, which a pica is 12 of.
+/// Points per inch of PostScript points, which a pica is 12 of; the Point/Pica Size preference
+/// can ask for 72.27.
 const POINTS_PER_INCH: f64 = 72.0;
 const CM_PER_INCH: f64 = 2.54;
 
@@ -180,7 +187,7 @@ impl SizeUnit {
 
     /// Text typed in a field of this unit, with an optional unit suffix of its own (`2in` in a
     /// pixel field), as the value in this unit.
-    fn parse_typed(self, text: &str, original_pixels: f64, pixels_per_inch: f64) -> Option<f64> {
+    pub(super) fn parse_typed(self, text: &str, original_pixels: f64, pixels_per_inch: f64, points_per_inch: f64) -> Option<f64> {
         let text = text.trim();
         let end = text.find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | ',' | '-' | '+'))).unwrap_or(text.len());
         let (number, suffix) = text.split_at(end);
@@ -190,12 +197,14 @@ impl SizeUnit {
             return Some(value);
         }
         let typed = SizeUnit::from_suffix(suffix)?;
-        Some(self.from_pixels(typed.to_pixels(value, original_pixels, pixels_per_inch), original_pixels, pixels_per_inch))
+        let pixels = typed.to_pixels(value, original_pixels, pixels_per_inch, points_per_inch);
+        Some(self.from_pixels(pixels, original_pixels, pixels_per_inch, points_per_inch))
     }
 
-    /// `pixels` in this unit, given the original pixel size (for percent) and the resolution.
+    /// `pixels` in this unit, given the original pixel size (for percent), the resolution and
+    /// the points in an inch (72 for PostScript points).
     // pc: crates/ui-egui/src/dialogs/sizing.rs:120 `to_unit`.
-    pub fn from_pixels(self, pixels: f64, original_pixels: f64, pixels_per_inch: f64) -> f64 {
+    pub fn from_pixels(self, pixels: f64, original_pixels: f64, pixels_per_inch: f64, points_per_inch: f64) -> f64 {
         let resolution = pixels_per_inch.max(1.0);
         match self {
             SizeUnit::Pixels => pixels,
@@ -203,14 +212,14 @@ impl SizeUnit {
             SizeUnit::Inches => pixels / resolution,
             SizeUnit::Centimetres => pixels / resolution * CM_PER_INCH,
             SizeUnit::Millimetres => pixels / resolution * CM_PER_INCH * 10.0,
-            SizeUnit::Points => pixels / resolution * POINTS_PER_INCH,
-            SizeUnit::Picas => pixels / resolution * POINTS_PER_INCH / 12.0,
+            SizeUnit::Points => pixels / resolution * points_per_inch,
+            SizeUnit::Picas => pixels / resolution * points_per_inch / 12.0,
         }
     }
 
     /// A value in this unit as pixels.
     // pc: crates/ui-egui/src/dialogs/sizing.rs:132 `from_unit`.
-    pub fn to_pixels(self, value: f64, original_pixels: f64, pixels_per_inch: f64) -> f64 {
+    pub fn to_pixels(self, value: f64, original_pixels: f64, pixels_per_inch: f64, points_per_inch: f64) -> f64 {
         let resolution = pixels_per_inch.max(1.0);
         match self {
             SizeUnit::Pixels => value,
@@ -218,8 +227,8 @@ impl SizeUnit {
             SizeUnit::Inches => value * resolution,
             SizeUnit::Centimetres => value / CM_PER_INCH * resolution,
             SizeUnit::Millimetres => value / (CM_PER_INCH * 10.0) * resolution,
-            SizeUnit::Points => value / POINTS_PER_INCH * resolution,
-            SizeUnit::Picas => value / POINTS_PER_INCH * 12.0 * resolution,
+            SizeUnit::Points => value / points_per_inch * resolution,
+            SizeUnit::Picas => value / points_per_inch * 12.0 * resolution,
         }
     }
 }
@@ -243,6 +252,7 @@ impl ResolutionUnit {
 
 /// Photoshop's Resample list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Resample {
     /// Resample off: the pixel count is fixed, a physical size changes the resolution.
     None,
@@ -253,6 +263,8 @@ pub enum Resample {
     BicubicSharper,
     Bilinear,
     NearestNeighbor,
+    /// Not in Photoshop's list; PhotoCraft offers it last.
+    Lanczos,
 }
 
 /// A cell of the 3×3 anchor: which edge or corner of the current canvas stays put.
@@ -357,6 +369,9 @@ pub struct LinkedSizeFields {
     /// Whether the rows draw the chain bracket that links width and height. Off, the sides never
     /// scale together (Canvas Size).
     pub chain: bool,
+    /// Points in an inch for the Points and Picas units: 72, or the Point/Pica Size preference
+    /// (72.27 for traditional points).
+    pub points_per_inch: f64,
 }
 
 /// Which of the fields an edit came from.
@@ -378,7 +393,17 @@ impl LinkedSizeFields {
             resampling: true,
             relative: false,
             chain: true,
+            points_per_inch: POINTS_PER_INCH,
         }
+    }
+
+    /// The points in an inch of the Points and Picas units (PhotoCraft's Point/Pica Size
+    /// preference). A value that is not positive keeps 72.
+    pub fn points_per_inch(mut self, points_per_inch: f64) -> Self {
+        if points_per_inch.is_finite() && points_per_inch > 0.0 {
+            self.points_per_inch = points_per_inch;
+        }
+        self
     }
 
     /// The pixels of the width or the height of a size.
@@ -390,7 +415,7 @@ impl LinkedSizeFields {
     pub(super) fn shown(&self, field: Field) -> f64 {
         let (current, original) = (Self::side(self.current, field), Self::side(self.original, field));
         let pixels = if self.relative { current - original } else { current };
-        self.unit.from_pixels(pixels, original, self.current.pixels_per_inch)
+        self.unit.from_pixels(pixels, original, self.current.pixels_per_inch, self.points_per_inch)
     }
 
     /// Applies a value typed or stepped in a field, in the current unit.
@@ -407,7 +432,7 @@ impl LinkedSizeFields {
         }
         let (current, original) = (Self::side(self.current, field), Self::side(self.original, field));
         let ppi = self.current.pixels_per_inch;
-        let pixels = self.unit.to_pixels(value, original, ppi);
+        let pixels = self.unit.to_pixels(value, original, ppi, self.points_per_inch);
         if !self.resampling {
             if !self.unit.is_pixel_unit() && pixels > 0.0 {
                 self.current.pixels_per_inch = (ppi * current / pixels).clamp(PPI_RANGE.0, PPI_RANGE.1);
@@ -497,12 +522,13 @@ impl LinkedSizeFields {
         let numbers = LocaleNumbers::of(ui);
         let (id, name) = if field == Field::Width { ("width", &labels.width) } else { ("height", &labels.height) };
         let (unit, original, ppi) = (self.unit, Self::side(self.original, field), self.current.pixels_per_inch);
-        let limit = unit.from_pixels(MAX_PIXELS, original, ppi);
-        let least = if self.relative { -limit } else { unit.from_pixels(1.0, original, ppi).min(self.shown(field)) };
+        let points = self.points_per_inch;
+        let limit = unit.from_pixels(MAX_PIXELS, original, ppi, points);
+        let least = if self.relative { -limit } else { unit.from_pixels(1.0, original, ppi, points).min(self.shown(field)) };
         let number = NumberField::new(id, name, self.shown(field), &numbers)
             .range(least..=limit)
             .decimals(unit.decimals()..=unit.decimals())
-            .or_parse(move |text| unit.parse_typed(text, original, ppi))
+            .or_parse(move |text| unit.parse_typed(text, original, ppi, points))
             .enabled(editable);
         let number = match row_label.scrub() {
             Some(label) => number.scrub_by(label),
@@ -625,7 +651,8 @@ impl<'a> AnchorGrid<'a> {
     pub fn show(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let labels = SizingLabels::shared(ui);
-        let side = tokens.component.dialog.anchor_cell;
+        let dialog_tokens = tokens.component.dialog;
+        let side = dialog_tokens.anchor_cell;
         let scale = side / PC_ANCHOR_CELL;
         let (_, grid) = ui.allocate_space(vec2(side * 3.0, side * 3.0));
         let group = ui.new_child(
@@ -644,7 +671,8 @@ impl<'a> AnchorGrid<'a> {
             .enumerate()
             .map(|(i, cell)| {
                 let (column, row) = cell.cell();
-                let rect = Rect::from_min_size(grid.min + vec2(column as f32 * side, row as f32 * side), vec2(side, side)).shrink(1.0);
+                let rect = Rect::from_min_size(grid.min + vec2(column as f32 * side, row as f32 * side), vec2(side, side))
+                    .shrink(dialog_tokens.anchor_inset);
                 Interactive::new(("anchor", i), Role::RadioButton, labels.anchor_cell(*cell))
                     .position_in_set(i)
                     .surface(SurfaceKind::Sunken)
@@ -666,7 +694,7 @@ impl<'a> AnchorGrid<'a> {
                 let center = response.rect.center();
                 if selected == Some(i) {
                     let half = 4.0 * scale;
-                    ui.painter().rect_filled(Rect::from_center_size(center, vec2(2.0 * half, 2.0 * half)), 1.0, mark);
+                    ui.painter().rect_filled(Rect::from_center_size(center, vec2(2.0 * half, 2.0 * half)), dialog_tokens.anchor_mark_radius, mark);
                 } else if let Some((dx, dy)) = arrow_direction(*self.anchor, Anchor::ALL[i], self.delta) {
                     ui.painter().extend(arrow_shapes(center, vec2(dx as f32, dy as f32).normalized(), scale, arrow));
                 }
@@ -710,6 +738,27 @@ pub fn human_bytes(bytes: f64) -> String {
 }
 
 /// The file size of a document of `size` at `bytes_per_pixel`, as the readouts show it.
+/// A readout row whose text is set after the rows below it have taken this frame's edits.
+struct Readout(Rect);
+
+impl Readout {
+    /// Takes the row's place in the grid, with the label and no text.
+    fn reserve(form: &mut Form<'_>, label: &str) -> Self {
+        Self(form.value(label, "").rect)
+    }
+
+    /// Draws `text` in the reserved row. `ui` is the parent of the grid.
+    fn put(&self, ui: &mut Ui, text: String) {
+        let tokens = Tokens::of(ui);
+        let format = role_format(&tokens, craft_theme::TypeRole::Body, Content::Normal.color(&tokens).to_egui());
+        let job = LayoutJob::single_section(text, format);
+        let rect = Rect::from_min_max(self.0.min, Pos2::new(ui.max_rect().right().max(self.0.min.x), self.0.max.y));
+        ui.scope_builder(UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(Align::Center)), |ui| {
+            ui.add(Label::new(job).selectable(false));
+        });
+    }
+}
+
 fn file_size(size: PixelSize, bytes_per_pixel: f64) -> String {
     human_bytes(f64::from(size.width) * f64::from(size.height) * bytes_per_pixel)
 }
@@ -762,6 +811,12 @@ impl ImageSizeDialog {
         self
     }
 
+    /// The points in an inch of the Points and Picas units; see [`LinkedSizeFields::points_per_inch`].
+    pub fn points_per_inch(mut self, points_per_inch: f64) -> Self {
+        self.fields = self.fields.points_per_inch(points_per_inch);
+        self
+    }
+
     pub fn fields(&self) -> &LinkedSizeFields {
         &self.fields
     }
@@ -778,6 +833,7 @@ impl StackDialog for ImageSizeDialog {
     // `Footer::standard().reset(..)`.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<ImageSizeResult>> {
         let labels = SizingLabels::shared_ctx(ctx);
+        let gaps = crate::theme::current(ctx).space.gap;
         let reset = DialogLabels::of_ctx(ctx).reset;
         let mut fields = (self.fields.clone(), self.resample, self.scale_styles);
         let (bytes_per_pixel, method) = (self.bytes_per_pixel, &mut self.method);
@@ -785,18 +841,12 @@ impl StackDialog for ImageSizeDialog {
             .stack(stack)
             .footer(Footer::standard().reset(Reset::AltCancel(reset)))
             .show(ctx, &mut self.state, &mut fields, |ui, (fields, resample, scale_styles)| {
-                FormGrid::new("image-size").show(ui, |form| {
-                    let (original, current) = (fields.original, fields.current);
-                    let was = file_size(original, bytes_per_pixel);
-                    form.value(
-                        &labels.image_size,
-                        craft_i18n::fmt(&labels.size_was, &[("size", &file_size(current, bytes_per_pixel)), ("old", &was)]),
-                    );
-                    let (width, height) = (current.width.to_string(), current.height.to_string());
-                    form.value(&labels.dimensions, craft_i18n::fmt(&labels.dimensions_value, &[("width", &width), ("height", &height)]));
-                    form.space(6.0);
+                let readouts = FormGrid::new("image-size").show(ui, |form| {
+                    let size_row = Readout::reserve(form, &labels.image_size);
+                    let dimensions_row = Readout::reserve(form, &labels.dimensions);
+                    form.space(gaps.stack);
                     let _ = fields.rows(form, &labels, true);
-                    form.space(4.0);
+                    form.space(gaps.row);
                     form.unlabelled(|ui| {
                         let mut on = fields.resampling;
                         let check = Checkbox::bool(&labels.resample, &mut on).show(ui);
@@ -823,7 +873,14 @@ impl StackDialog for ImageSizeDialog {
                         check
                     });
                     form.unlabelled(|ui| Checkbox::bool(&labels.scale_styles, scale_styles).enabled(fields.constrain || !fields.resampling).show(ui));
+                    (size_row, dimensions_row)
                 });
+                let (size_row, dimensions_row) = readouts.inner;
+                let (original, current) = (fields.original, fields.current);
+                let was = file_size(original, bytes_per_pixel);
+                size_row.put(ui, craft_i18n::fmt(&labels.size_was, &[("size", &file_size(current, bytes_per_pixel)), ("old", &was)]));
+                let (width, height) = (current.width.to_string(), current.height.to_string());
+                dimensions_row.put(ui, craft_i18n::fmt(&labels.dimensions_value, &[("width", &width), ("height", &height)]));
             });
         let ImageSizeDialog { fields: kept, resample, scale_styles, .. } = self;
         match shown.outcome {
@@ -843,8 +900,8 @@ impl StackDialog for ImageSizeDialog {
     }
 }
 
-/// Photoshop's Resample list, without Off.
-const RESAMPLE_METHODS: [Resample; 7] = [
+/// Photoshop's Resample list, without Off, then Lanczos (PhotoCraft's order).
+const RESAMPLE_METHODS: [Resample; 8] = [
     Resample::Automatic,
     Resample::PreserveDetails,
     Resample::BicubicSmoother,
@@ -852,6 +909,7 @@ const RESAMPLE_METHODS: [Resample; 7] = [
     Resample::Bicubic,
     Resample::NearestNeighbor,
     Resample::Bilinear,
+    Resample::Lanczos,
 ];
 
 /// Image › Canvas Size: Current Size readouts, New Size with the [`LinkedSizeFields`], the
@@ -905,6 +963,12 @@ impl CanvasSizeDialog {
         self
     }
 
+    /// The points in an inch of the Points and Picas units; see [`LinkedSizeFields::points_per_inch`].
+    pub fn points_per_inch(mut self, points_per_inch: f64) -> Self {
+        self.fields = self.fields.points_per_inch(points_per_inch);
+        self
+    }
+
     pub fn fields(&self) -> &LinkedSizeFields {
         &self.fields
     }
@@ -921,6 +985,7 @@ impl StackDialog for CanvasSizeDialog {
     // (Photoshop's Canvas extension color; PhotoCraft has none).
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<CanvasSizeResult>> {
         let labels = SizingLabels::shared_ctx(ctx);
+        let gaps = crate::theme::current(ctx).space.gap;
         let reset = DialogLabels::of_ctx(ctx).reset;
         let mut fields = (self.fields.clone(), self.anchor, self.extension.clone());
         let (bytes_per_pixel, has_background) = (self.bytes_per_pixel, self.has_background);
@@ -928,19 +993,19 @@ impl StackDialog for CanvasSizeDialog {
             .stack(stack)
             .footer(Footer::standard().reset(Reset::AltCancel(reset)))
             .show(ctx, &mut self.state, &mut fields, |ui, (fields, anchor, extension)| {
-                FormGrid::new("canvas-size").show(ui, |form| {
+                let new_size_row = FormGrid::new("canvas-size").show(ui, |form| {
                     let original = fields.original;
                     form.value(&labels.current_size, file_size(original, bytes_per_pixel));
-                    form.value(&labels.width, craft_i18n::fmt(&labels.pixels_value, &[("n", &original.width.to_string())]));
-                    form.value(&labels.height, craft_i18n::fmt(&labels.pixels_value, &[("n", &original.height.to_string())]));
+                    form.value(&labels.current_width, craft_i18n::fmt(&labels.pixels_value, &[("n", &original.width.to_string())]));
+                    form.value(&labels.current_height, craft_i18n::fmt(&labels.pixels_value, &[("n", &original.height.to_string())]));
                     form.spanning(|ui| Divider::horizontal().show(ui));
+                    let new_size_row = Readout::reserve(form, &labels.new_size);
                     let _ = fields.rows(form, &labels, false);
                     let current = fields.current;
-                    form.value(&labels.new_size, file_size(current, bytes_per_pixel));
                     form.unlabelled(|ui| Checkbox::bool(&labels.relative, &mut fields.relative).show(ui));
                     let delta = (f64::from(current.width) - f64::from(original.width), f64::from(current.height) - f64::from(original.height));
                     form.row(&labels.anchor, |ui, _| AnchorGrid::new(anchor, delta).show(ui));
-                    form.space(4.0);
+                    form.space(gaps.row);
                     form.row(&labels.extension, |ui, _| {
                         let mut picked = if has_background { extension.clone() } else { CanvasExtension::Transparent };
                         let other = matches!(picked, CanvasExtension::Other(_)).then(|| picked.clone());
@@ -967,7 +1032,9 @@ impl StackDialog for CanvasSizeDialog {
                         }
                         edit
                     });
+                    new_size_row
                 });
+                new_size_row.inner.put(ui, file_size(fields.current, bytes_per_pixel));
             });
         let CanvasSizeDialog { fields: kept, anchor, extension, has_background, .. } = self;
         match shown.outcome {
