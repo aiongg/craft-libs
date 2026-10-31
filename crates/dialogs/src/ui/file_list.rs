@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use craft_host::{Host, PickId, PickKind, PickRequest, Picked};
+use craft_host::{Host, PickId, PickKind, PickRequest};
 use craft_ui::behavior::{RowInfo, Selection, SelectionMode};
 use craft_ui::controls::{Button, Select};
 use craft_ui::list::{List, ListEvent, ListRow};
@@ -169,7 +169,7 @@ impl<'a> FileListPicker<'a> {
         self
     }
 
-    /// Takes its own pick answers from `Host::of(ui).files()`; returns any other answer.
+    /// Takes its own pick answers from `Host::of(ui).files()` by ticket.
     // pc: crates/ui-egui/src/dialogs/stack_dialog.rs:114 body, :92 browse, :81 open_files;
     // vectorcraft: crates/ui-egui/src/dialogs/place.rs (info lines); pdfcraft: crates/ui-egui/src/workflows/combine_ui/view.rs:470 keyboard
     pub fn show(self, ui: &mut Ui) -> FileListResponse {
@@ -183,27 +183,19 @@ impl<'a> FileListPicker<'a> {
 
         // The answer of this picker's Browse fills the list before it is drawn.
         if let Some(ticket) = ui.data(|d| d.get_temp::<PickId>(ticket_key))
-            && let Some(answer) = host.files().take_pick()
+            && let Some(picked) = host.files().take_answer(ticket)
         {
-            if answer.id == ticket {
-                ui.data_mut(|d| d.remove::<PickId>(ticket_key));
-                let paths: Vec<PathBuf> = match answer.picked {
-                    Picked::Paths(paths) => paths,
-                    Picked::Contents(files) => files.into_iter().map(|(name, _)| PathBuf::from(name)).collect(),
-                    Picked::Cancelled => Vec::new(),
-                };
-                if answer.request.kind == PickKind::Folder {
-                    if let Some(folder) = paths.into_iter().next() {
-                        list.folder = Some(folder);
-                        response.changed = true;
-                    }
-                } else if !paths.is_empty() {
-                    let before = list.files.len();
-                    list.add(paths);
-                    response.changed |= list.files.len() != before;
+            ui.data_mut(|d| d.remove::<PickId>(ticket_key));
+            let paths = picked.paths();
+            if request.kind == PickKind::Folder {
+                if let Some(folder) = paths.into_iter().next() {
+                    list.folder = Some(folder);
+                    response.changed = true;
                 }
-            } else {
-                host.files().return_pick(answer);
+            } else if !paths.is_empty() {
+                let before = list.files.len();
+                list.add(paths);
+                response.changed |= list.files.len() != before;
             }
         }
         if list.selected.is_some_and(|at| at >= list.files.len()) {

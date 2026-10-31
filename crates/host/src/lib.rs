@@ -10,7 +10,7 @@ use craft_i18n::{I18n, Lang};
 pub use files::{FileError, FileFilter, Files, NoPickFiles, PickAnswer, PickId, PickKind, PickRequest, Picked};
 #[cfg(not(target_arch = "wasm32"))]
 pub use services::ThreadJobs;
-pub use services::{AppInfo, Commands, InlineJobs, Jobs, MemorySections, NoCommands, Section, SectionStore};
+pub use services::{AppInfo, Commands, InlineJobs, Jobs, MemorySections, NoCommands, Section, SectionStore, Wake};
 
 /// The app's shared services, built once at startup and installed on the egui context.
 /// Every library feature reads them with `Host::of(ui)`; none takes them as parameters.

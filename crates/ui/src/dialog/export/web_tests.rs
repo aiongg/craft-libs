@@ -46,13 +46,14 @@ impl Files for StubFiles {
         PickId(state.requests.len() as u64)
     }
 
-    fn take_pick(&self) -> Option<PickAnswer> {
-        let mut state = self.state.lock().unwrap();
-        if state.answered.is_empty() { None } else { Some(state.answered.remove(0)) }
+    fn take_answer(&self, id: PickId) -> Option<Picked> {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let at = state.answered.iter().position(|a| a.id == id)?;
+        Some(state.answered.remove(at).picked)
     }
 
-    fn return_pick(&self, answer: PickAnswer) {
-        self.state.lock().unwrap().answered.insert(0, answer);
+    fn forget(&self, id: PickId) {
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).answered.retain(|a| a.id != id);
     }
 
     fn pick_pending(&self) -> bool {

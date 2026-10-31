@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use craft_host::Wake;
+
 use crate::open::{DropTarget, DroppedFile, FileIntake, Intake, natural_cmp, path_text, same_file};
 
 // "img2" sorts before "img10", "IMG3" between them ignoring case, "a01" beside "a1" by length.
@@ -43,9 +45,9 @@ fn same_file_resolves_only_when_needed() {
 fn intake_keeps_arrival_order_and_wakes() {
     let wakes = Arc::new(AtomicUsize::new(0));
     let counter = wakes.clone();
-    let (intake, sender) = FileIntake::new(move || {
+    let (intake, sender) = FileIntake::new(Wake::new(move || {
         counter.fetch_add(1, Ordering::SeqCst);
-    });
+    }));
     let drop = DroppedFile { path: None, name: "a.png".into(), bytes: None };
     intake.dropped(Vec::new(), DropTarget::Canvas);
     intake.dropped(vec![drop.clone()], DropTarget::Tabs(2));

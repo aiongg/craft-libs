@@ -3,7 +3,7 @@
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 
-use craft_host::{Host, PickId, PickRequest, Picked};
+use craft_host::{Host, PickId, PickRequest};
 use craft_settings::Remembered;
 use craft_theme::{Rgba, TypeRole};
 use egui::text::LayoutJob;
@@ -397,16 +397,17 @@ impl SaveForWebDialog {
     fn picked(&mut self, ctx: &Context) -> Option<PathBuf> {
         let ticket = self.picking?;
         let host = Host::try_of_ctx(ctx)?;
-        let answer = host.files().take_pick()?;
-        if answer.id != ticket {
-            host.files().return_pick(answer);
-            return None;
-        }
+        let picked = host.files().take_answer(ticket)?;
         self.picking = None;
-        match answer.picked {
-            Picked::Paths(paths) => paths.into_iter().next(),
-            Picked::Contents(files) => files.into_iter().next().map(|(name, _)| PathBuf::from(name)),
-            Picked::Cancelled => None,
+        picked.first_path()
+    }
+
+    /// Drops the outstanding pick when the dialog closes without waiting for its answer.
+    fn forget_pick(&mut self, ctx: &Context) {
+        if let Some(ticket) = self.picking.take()
+            && let Some(host) = Host::try_of_ctx(ctx)
+        {
+            host.files().forget(ticket);
         }
     }
 
@@ -508,7 +509,10 @@ impl StackDialog for SaveForWebDialog {
                 self.queue_save(ctx, &labels.title);
                 None
             }
-            Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
+            Some(Outcome::Cancel | Outcome::Close) => {
+                self.forget_pick(ctx);
+                Some(DialogResult::Cancel)
+            }
             _ => None,
         }
     }

@@ -30,7 +30,7 @@ pacing = ["clock", "dep:egui"]
 # `logs`: the app log file, the panic hook and its crash log.
 logs = ["dep:log", "dep:web-time"]
 # `open`: file intake, natural order, reveal in the file manager.
-open = []
+open = ["dep:craft-host"]
 # `autosave`: the autosave timer and the recovery folder.
 autosave = ["dep:serde", "dep:serde_json", "dep:craft-atomic"]
 # Screen capture for the screen colour picker (`craft_platform::screen`).
@@ -42,6 +42,7 @@ craft-theme = { workspace = true, optional = true }
 log = { version = "0.4", optional = true }
 web-time = { version = "1.1", optional = true }
 craft-atomic = { workspace = true, optional = true }
+craft-host = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 
