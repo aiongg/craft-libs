@@ -1,10 +1,17 @@
-//! Window focus as pointer gestures read it.
+//! Keyboard focus between the window's regions ([`RegionFocus`]), and window focus as pointer
+//! gestures read it.
 //!
 //! A drag or resize ends when its window loses focus, not while the window merely reports no
 //! focus. egui-winit starts `RawInput::focused` false and only a winit `Focused` event sets it
 //! (on macOS to `has_focus()` at the time the event is read), so a window can take pointer
 //! input for a long time while egui reports it unfocused, at first launch until the user
 //! switches to another application and back. Gestures in such a window still run.
+
+mod region;
+#[cfg(test)]
+mod region_tests;
+
+pub use region::{NEXT_REGION_COMMAND, PREVIOUS_REGION_COMMAND, Region, RegionFocus};
 
 use egui::{Context, Id};
 

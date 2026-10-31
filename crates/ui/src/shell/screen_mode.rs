@@ -57,6 +57,48 @@ impl ScreenMode {
     }
 }
 
+impl ScreenMode {
+    /// The command id Photoshop and PhotoCraft use: `view.screenMode.standard`,
+    /// `view.screenMode.fullScreenWithMenuBar`, `view.screenMode.fullScreen`. The F key's cycle is
+    /// [`CYCLE_COMMAND`].
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/menu_catalog.rs:659-661.
+    pub fn command_id(self) -> &'static str {
+        todo!()
+    }
+
+    /// The mode a command id selects, `None` for other ids (the cycle command included).
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/input/shortcuts.rs:845 (Esc returns to `view.screenMode.standard`).
+    pub fn from_command_id(id: &str) -> Option<ScreenMode> {
+        let _ = id;
+        todo!()
+    }
+
+    /// View › Screen Mode: the three modes as radio rows, `self` chosen, each running its mode.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    // pc: crates/ui-egui/src/menu_catalog.rs:659-661 (View › Screen Mode).
+    pub fn menu_entries(self, labels: &ScreenModeLabels) -> Vec<crate::menu::MenuEntry<ScreenMode>> {
+        let _ = labels;
+        todo!()
+    }
+}
+
+/// The F key's command: the next screen mode ([`ScreenMode::next`]); Shift+F the previous.
+// pc: crates/ui-egui/src/panels/toolbar.rs:350 (`view.screenMode.cycle`).
+pub const CYCLE_COMMAND: &str = "view.screenMode.cycle";
+
+crate::words! {
+    /// View › Screen Mode labels, English by default.
+    #[non_exhaustive]
+    pub struct ScreenModeLabels {
+        screen_mode: "view.screenMode" = "Screen Mode";
+        standard: "view.screenMode.standard" = "Standard Screen Mode";
+        full_screen_with_menu_bar: "view.screenMode.fullScreenWithMenuBar" = "Full Screen Mode With Menu Bar";
+        full_screen: "view.screenMode.fullScreen" = "Full Screen Mode";
+    }
+}
+
 /// The window commands for switching `window` to screen mode `mode`; the host sends them with
 /// `ctx.send_viewport_cmd`. Also ends the window's Tab and edge reveal, as every mode change does.
 ///

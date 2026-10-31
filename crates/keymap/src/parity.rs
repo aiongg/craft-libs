@@ -42,8 +42,9 @@ impl Mods {
     /// The held modifiers alone, for a hint while they are down ("Alt: subtract from selection"):
     /// `⇧⌥` on macOS (in Apple's order ⌃⌥⇧⌘), `Shift+Alt` elsewhere (Ctrl, Shift, Alt order as
     /// in [`Chord::display`]). Empty when none is held.
-    // pc: crates/ui-egui/src/input/shortcuts.rs (modifier-only hints in the status bar and the
-    // options bar's tool hints).
+    // pc: crates/ui-egui/src/input/shortcuts.rs:50 `pretty` (`pretty("Shift+Alt")` is "⇧⌥" on
+    // macOS, "Shift+Alt" elsewhere; input/shortcuts/tests.rs:225), used by the options bar's
+    // selection-mode tooltips (panels/options_bar.rs:272).
     pub fn display(self, platform: Platform) -> String {
         todo!()
     }
@@ -75,7 +76,10 @@ impl Layout {
     /// Whether a binding on a key the layout doesn't type unshifted (`[` and `]` on a German
     /// layout, where those positions type `ü` and `+`) also matches the key at its US position.
     /// On by default for `[`, `]`, `;`, `'`, `\`, `,`, `.`, `/`, `` ` ``, `-` and `=`.
-    // pc: crates/ui-egui/src/input/layout_keys.rs (German ö/# → [ ], US-position bracket fallback).
+    // pc: crates/ui-egui/src/input/layout_keys.rs:1-12 (module doc: a per-layout table, then the
+    // fallback that the keys at the US `[` / `]` positions act as `[` / `]` when they type
+    // something else). PhotoCraft applies it to the brush keys `[`, `]` and ⇧+ / ⇧−; the
+    // library's wider key list is new.
     pub fn with_position_fallback(mut self, on: bool) -> Layout {
         todo!()
     }
@@ -83,11 +87,10 @@ impl Layout {
 
 #[cfg(feature = "ui")]
 impl crate::egui::Dispatcher {
-    /// Whether Delete and Backspace match each other's bindings (a binding on ⌫ also runs from
-    /// ⌦ and the reverse), as on a Mac keyboard where the one key is labelled delete and on PC
-    /// keyboards Photoshop treats them alike for Clear and Delete Layer. On by default.
-    // pc: crates/ui-egui/src/input/shortcut_dispatch.rs (Delete/Backspace equivalence in
-    // `bindings()` matching).
+    /// Whether Delete and Backspace match each other's bindings: a binding on Delete also runs
+    /// from Backspace (the Mac's "delete" key), and Backspace from Delete (⌥⌫ and ⌥Delete both
+    /// fill on Windows). On by default.
+    // pc: crates/ui-egui/src/input/shortcuts.rs:141-146 `key_matches`.
     pub fn with_delete_equivalence(mut self, on: bool) -> crate::egui::Dispatcher {
         todo!()
     }
@@ -112,8 +115,11 @@ pub struct ClipboardPress {
 /// The frame's clipboard chords, paired with their events as [`crate::egui::Dispatcher`] pairs
 /// them, for an app that handles copy and paste outside the dispatcher (label selection, a
 /// swallowed ⌘V that pasted into nothing, Linux's Shift+Insert). Reads only; removes nothing.
-// pc: crates/ui-egui/src/input/shortcut_dispatch.rs (clipboard pairing); the pairing is
-// egui.rs `clipboard_event_follows`, shared.
+// pc: crates/ui-egui/src/input/shortcuts.rs:286 `clipboard_keys` (doc :267-285: a clipboard
+// event right after its own ⌘ press is that press, #2638; a V release whose press never arrived,
+// after ⌘ was held and before any other key, is a swallowed ⌘V, #6329; Ctrl+Insert copies and
+// Shift+Insert pastes, mapped by hand on Linux). The pairing is egui.rs `clipboard_event_follows`,
+// shared.
 #[cfg(feature = "ui")]
 pub fn clipboard_presses(input: &egui::InputState, layout: &Layout, platform: Platform) -> Vec<ClipboardPress> {
     todo!()

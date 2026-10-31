@@ -55,9 +55,15 @@ mod readout;
 pub(crate) mod ref_point;
 pub(crate) mod rulers;
 mod scrollbars;
+mod selection_bar;
+#[cfg(test)]
+mod selection_bar_tests;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
+mod tool_pill;
+#[cfg(test)]
+mod tool_pill_tests;
 mod turn;
 mod units;
 mod view;
@@ -77,6 +83,8 @@ pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
+pub use selection_bar::{SelectionBar, SelectionBarResponse};
+pub use tool_pill::{PillPlace, ToolPill, ToolPillResponse};
 pub use turn::{
     PointerInk, SelectionBadge, distort_cursor, selection_badge_at, selection_badge_beside_pointer, selection_cursor, skew_cursor, turn_cursor,
     turn_cursor_with,

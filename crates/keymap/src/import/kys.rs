@@ -48,7 +48,7 @@ impl std::error::Error for KysError {}
 /// command row with a name (its keys in the file's flavour, an id from [`ID_ATTRIBUTE`] or
 /// `pc-id` as the entry's path when present), and the `<tool>` rows as tool entries. Rows without
 /// a name are skipped; rows without a shortcut stay, with no keys.
-// pc: crates/engine/src/kys.rs:66 `parse`, :50 `filename_to_name`, :128 `to_ours`.
+// pc: crates/engine/src/kys.rs:66 `parse`, :54 `filename_to_name`, :128 `to_ours`.
 pub fn read(text: &str) -> Result<ForeignSet, KysError> {
     todo!()
 }

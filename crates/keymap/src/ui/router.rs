@@ -105,7 +105,7 @@ impl KeyRouter {
     /// Ctrl+Shift+Tab (next and previous document) run whatever has focus, as in Photoshop. A
     /// chord the focused control claimed ([`craft_ui::behavior::KeyClaim::claimed`]) is never
     /// left to the shortcuts.
-    // pc: crates/ui-egui/src/input/shortcut_dispatch.rs:163 `Focus::allows`.
+    // pc: crates/ui-egui/src/input/shortcut_dispatch.rs:158 `Focus::allows`.
     pub fn allows(ctx: &Context, owner: KeyOwner, gate: &KeyGate, chord: &Chord, command: &CommandRef) -> bool {
         todo!()
     }

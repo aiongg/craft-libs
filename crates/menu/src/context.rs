@@ -94,8 +94,9 @@ impl<'a> CommandContextMenu<'a> {
     /// The rows as library menu entries, with keymap, state, gate and rules applied, for a
     /// panel menu ([`craft_ui::docking::DockContent::panel_menu_entries`] maps the commands to
     /// ids) or a host's own [`craft_ui::menu::Menu`].
-    // pc: crates/ui-egui/src/menus/render.rs (rows from catalog items with `is_enabled` and
-    // `checked`); the conversion is `bar::Convert::entries`, reused here.
+    // vectorcraft: crates/ui-egui/src/menus/context.rs:8 `context_items` (rows from command ids
+    // with the menu bar's enabled and checked rules); the conversion is `bar::Convert::entries`,
+    // reused here.
     pub fn entries(&self) -> Vec<MenuEntry<CommandRef>> {
         todo!()
     }
@@ -103,8 +104,8 @@ impl<'a> CommandContextMenu<'a> {
     /// Shows the menu on `widget` ([`craft_ui::menu::ContextMenu::show`]) and returns the command
     /// chosen this frame. A built-in command is handled as the menu bar handles it (the built-in
     /// Quit asks the window to close).
-    // pc: crates/ui-egui/src/panels/layers_panel/context_menu.rs (the Layers panel's right-click
-    // rows run through `menus::invoke`); vectorcraft: context menus over command ids.
+    // vectorcraft: crates/ui-egui/src/menus/context.rs:152 `context_menu_body` (drawn through the
+    // menu bar's `render_items`, menus/bar.rs:101). PhotoCraft has no command-built context menu.
     pub fn show(self, ui: &Ui, widget: &Response) -> Option<CommandRef> {
         todo!()
     }
