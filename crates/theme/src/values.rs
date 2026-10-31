@@ -1635,14 +1635,11 @@ pub const NEW_DOCUMENT_SAVED_ROW: f32 = 32.0;
 /// Content width of Save for Web (PhotoCraft).
 pub const EXPORT_WEB_WIDTH: f32 = 900.0;
 
-/// Width of Save for Web's settings column (PhotoCraft).
-pub const EXPORT_WEB_SETTINGS_WIDTH: f32 = 250.0;
-
 /// Width of Save for Web's Matte field (PhotoCraft).
 pub const EXPORT_WEB_FIELD_WIDTH: f32 = 80.0;
 
-/// Width of Export As's settings column (PhotoCraft).
-pub const EXPORT_SETTINGS_WIDTH: f32 = 248.0;
+/// Width of the settings column of Export As and Save for Web (PhotoCraft: 248 and 250).
+pub const EXPORT_SETTINGS_WIDTH: f32 = 250.0;
 
 /// Between Export As's settings and its preview (PhotoCraft).
 pub const EXPORT_PANE_GAP: f32 = 12.0;

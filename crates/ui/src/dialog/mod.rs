@@ -128,7 +128,7 @@ pub use full_window::{FullWindowDialog, FullWindowFx};
 pub use history::{LocalHistory, Step, take_step};
 pub use keys::{EnterRule, KeyInput, resolve_keys};
 pub use new_document::{
-    BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, DocumentPreset, DocumentSettings, NewDocumentDialog, NewDocumentLabels,
+    BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, DocumentOptions, DocumentPreset, NewDocumentDialog, NewDocumentLabels,
     Orientation, PresetCategory, push_recent, size_line,
 };
 pub use params::{CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, PathKind, PathRequest};
@@ -138,7 +138,7 @@ pub use preview::Preview;
 pub use prompt::{Prompt, accelerator_labels};
 pub use prompts::{PromptAnswer, PromptChoice, PromptKind, PromptLabels, StandardPrompt};
 pub use properties::{PropertiesDialog, PropertiesTab, PropertyRow};
-pub use recovery::{RecoveredDocument, RecoveryAction, RecoveryDialog, RecoveryLabels};
+pub use recovery::{RecoveredDocument, RecoveryAnswer, RecoveryDialog, RecoveryLabels};
 pub use report::{NoteTone, ReportDialog, ReportLabels, ReportNote};
 pub use size::{Body, Resize, ResizeMax, Width, remembered_size, scroll_height};
 pub use sizing::{

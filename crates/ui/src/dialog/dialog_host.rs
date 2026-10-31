@@ -72,6 +72,12 @@ pub trait StackDialog: Any + Send {
     fn confirm(&mut self, _ctx: &Context) -> Option<Self::Result> {
         None
     }
+
+    /// Called when the host closes the dialog from outside with [`DialogResult::Cancel`]
+    /// ([`DialogHost::cancel`], a dialog of the same type opened over it, or its parent closing),
+    /// so it can release what it holds: a pick ticket (`Files::forget`), an armed dropper. The
+    /// dialog's own Cancel button does this itself before it returns. Does nothing by default.
+    fn cancelled(&mut self, _ctx: &Context) {}
 }
 
 /// Where a startup modal goes in the queue when several apply at launch (spec question 5).
@@ -95,6 +101,8 @@ trait AnyStackDialog: Send {
     fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send>>;
     /// `DialogResult::<D::Result>::Cancel`, boxed, for a dialog closed from outside.
     fn cancelled(&self) -> Box<dyn Any + Send>;
+    /// [`StackDialog::cancelled`].
+    fn release(&mut self, ctx: &Context);
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
@@ -118,6 +126,10 @@ impl<D: StackDialog> AnyStackDialog for D {
 
     fn show_erased(&mut self, ctx: &Context, stack: &DialogStack) -> Option<Box<dyn Any + Send>> {
         self.show(ctx, stack).map(|result| Box::new(result) as Box<dyn Any + Send>)
+    }
+
+    fn release(&mut self, ctx: &Context) {
+        StackDialog::cancelled(self, ctx);
     }
 
     fn cancelled(&self) -> Box<dyn Any + Send> {
@@ -165,6 +177,9 @@ pub struct DialogHost {
     open: Vec<Box<dyn AnyStackDialog>>,
     queued: Vec<(StartupStage, Box<dyn AnyStackDialog>)>,
     results: Vec<StoredResult>,
+    /// Dialogs another of their type replaced, waiting for the pass's `show` to run their
+    /// [`StackDialog::cancelled`] (`open` has no `Context`).
+    replaced: Vec<Box<dyn AnyStackDialog>>,
 }
 
 /// A finished dialog's answer, with the key the dialog had.
@@ -226,6 +241,7 @@ impl DialogHost {
     /// ones that finished and stores their results; opens the next queued startup modal when the
     /// stack is empty. Call once per pass, after the app's own UI so dialogs draw above it.
     pub fn show(&mut self, ctx: &Context) {
+        self.release_replaced(ctx);
         self.open_next_queued();
         let mut finished = Vec::new();
         for dialog in &mut self.open {
@@ -238,7 +254,7 @@ impl DialogHost {
             let dialog = self.open.remove(at);
             self.store_result(dialog.as_ref(), result);
             self.stack.remove_tree(id);
-            self.cancel_orphans();
+            self.cancel_orphans(Some(ctx));
         }
         if self.open_next_queued() {
             ctx.request_repaint();
@@ -275,18 +291,20 @@ impl DialogHost {
         let dialog = self.open.remove(at);
         self.store_result(dialog.as_ref(), result);
         self.stack.remove_tree(id);
-        self.cancel_orphans();
+        self.cancel_orphans(Some(ctx));
         true
     }
 
-    /// Closes the open `D` with [`DialogResult::Cancel`] (and its children), as Esc would.
-    pub fn cancel<D: StackDialog>(&mut self) -> bool {
+    /// Closes the open `D` with [`DialogResult::Cancel`] (and its children), as Esc would, and runs
+    /// [`StackDialog::cancelled`] on each.
+    pub fn cancel<D: StackDialog>(&mut self, ctx: &Context) -> bool {
         let Some(at) = self.position::<D>() else { return false };
         let id = self.open[at].id();
-        let dialog = self.open.remove(at);
+        let mut dialog = self.open.remove(at);
+        dialog.release(ctx);
         self.store_result(dialog.as_ref(), dialog.cancelled());
         self.stack.remove_tree(id);
-        self.cancel_orphans();
+        self.cancel_orphans(Some(ctx));
         true
     }
 
@@ -337,7 +355,8 @@ impl DialogHost {
             let old = self.open.remove(at);
             self.stack.remove_tree(old.id());
             self.store_result(old.as_ref(), old.cancelled());
-            self.cancel_orphans();
+            self.replaced.push(old);
+            self.cancel_orphans(None);
         }
         let id = dialog.id();
         self.stack.push(id, parent);
@@ -346,12 +365,23 @@ impl DialogHost {
     }
 
     /// Closes the open dialogs the stack no longer holds (children of a dialog that closed), with
-    /// `Cancel`.
-    fn cancel_orphans(&mut self) {
+    /// `Cancel`. Without a `Context` their [`StackDialog::cancelled`] waits for the next `show`.
+    fn cancel_orphans(&mut self, ctx: Option<&Context>) {
         let (kept, orphans): (Vec<_>, Vec<_>) = std::mem::take(&mut self.open).into_iter().partition(|dialog| self.stack.contains(dialog.id()));
         self.open = kept;
-        for dialog in orphans {
+        for mut dialog in orphans {
             self.store_result(dialog.as_ref(), dialog.cancelled());
+            match ctx {
+                Some(ctx) => dialog.release(ctx),
+                None => self.replaced.push(dialog),
+            }
+        }
+    }
+
+    /// Runs [`StackDialog::cancelled`] on the dialogs `open` closed without a `Context`.
+    fn release_replaced(&mut self, ctx: &Context) {
+        for mut dialog in std::mem::take(&mut self.replaced) {
+            dialog.release(ctx);
         }
     }
 

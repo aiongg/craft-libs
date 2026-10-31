@@ -324,7 +324,7 @@ fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
     if dialog_shown(ui, *open) && claim(&ctx, name, result_key) {
         let previous: Option<S> = ui.data(|d| d.get_temp::<Option<S>>(signature_key)).flatten();
         if previous.is_some_and(|previous| previous != signature) {
-            host.cancel::<D>();
+            host.cancel::<D>(&ctx);
             host.take::<D>();
         }
         ui.data_mut(|d| d.insert_temp(signature_key, Some(signature)));
@@ -345,7 +345,7 @@ fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
             dialog_closed(ui, open);
         }
     } else {
-        host.cancel::<D>();
+        host.cancel::<D>(&ctx);
         host.take::<D>();
         ui.data_mut(|d| d.insert_temp(signature_key, None::<S>));
     }

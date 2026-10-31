@@ -53,7 +53,7 @@ pub struct Finding {
 /// What the list reported this pass.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
-pub struct FindingsResponse {
+pub struct FindingsListResponse {
     /// The index of the finding the user activated (click, Enter): the app selects its item and
     /// shows its page (DesignCraft: `selection.set` and `go_to_page`).
     pub activated: Option<usize>,
@@ -68,7 +68,7 @@ pub struct FindingsResponse {
 /// message and the page label in the faint detail style ("page 3"). Rows keep the app's order.
 ///
 /// One Tab stop for the list ([`List`](super::List)); arrows move, Enter or a click activates
-/// and reports [`FindingsResponse::activated`]. AccessKit: a list box whose items read "Error:
+/// and reports [`FindingsListResponse::activated`]. AccessKit: a list box whose items read "Error:
 /// Missing font: Minion Pro Bold, page 3".
 pub struct FindingsList<'a> {
     id_salt: egui::IdSalt,
@@ -87,7 +87,7 @@ impl<'a> FindingsList<'a> {
         self
     }
 
-    pub fn show(self, ui: &mut Ui) -> FindingsResponse {
+    pub fn show(self, ui: &mut Ui) -> FindingsListResponse {
         let Self { id_salt, findings, summary } = self;
         let labels = FindingsLabels::shared(ui);
         let tokens = Tokens::of(ui);
@@ -132,7 +132,7 @@ impl<'a> FindingsList<'a> {
             ListEvent::Clicked(at) | ListEvent::Activate(at) => Some(*at),
             _ => None,
         });
-        FindingsResponse { activated: activated.filter(|&at| findings[at].target.is_some() || findings[at].page.is_some()) }
+        FindingsListResponse { activated: activated.filter(|&at| findings[at].target.is_some() || findings[at].page.is_some()) }
     }
 }
 

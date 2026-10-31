@@ -206,7 +206,7 @@ pub fn jpeg_quality_percent(quality: u8) -> u8 {
 
 /// What layered-TIFF Options returns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TiffAnswer {
+pub struct TiffOptions {
     /// Save a flattened copy instead of the layers.
     pub discard_layers: bool,
     /// Don't ask again; the app clears its "ask before saving layered TIFF" preference.
@@ -215,11 +215,11 @@ pub struct TiffAnswer {
 
 /// TIFF Options, asked only for a layered TIFF while the app's "ask before saving layered TIFF"
 /// preference is on: the note "Including layers will increase file size.", the "Discard Layers
-/// and Save a Copy" box and "Don't show again". Result: [`TiffAnswer`].
+/// and Save a Copy" box and "Don't show again". Result: [`TiffOptions`].
 pub struct TiffOptionsDialog {
     id: DialogId,
-    answer: TiffAnswer,
-    state: DialogState<TiffAnswer>,
+    answer: TiffOptions,
+    state: DialogState<TiffOptions>,
 }
 
 impl Default for TiffOptionsDialog {
@@ -230,19 +230,19 @@ impl Default for TiffOptionsDialog {
 
 impl TiffOptionsDialog {
     pub fn new() -> Self {
-        Self { id: dialog_id("tiff-options"), answer: TiffAnswer { discard_layers: false, dont_show_again: false }, state: DialogState::new() }
+        Self { id: dialog_id("tiff-options"), answer: TiffOptions { discard_layers: false, dont_show_again: false }, state: DialogState::new() }
     }
 }
 
 impl StackDialog for TiffOptionsDialog {
-    type Result = TiffAnswer;
+    type Result = TiffOptions;
 
     fn id(&self) -> DialogId {
         self.id
     }
 
     // pc: crates/ui-egui/src/dialogs/tiff_options_ui.rs:44
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<TiffAnswer>> {
+    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<TiffOptions>> {
         let labels = FormatOptionsLabels::shared_ctx(ctx);
         let mut answer = self.answer;
         let shown = Dialog::new("tiff-options", labels.tiff_title.as_str()).stack(stack).width(Width::Compact).footer(Footer::standard()).show(
@@ -260,12 +260,19 @@ impl StackDialog for TiffOptionsDialog {
     }
 }
 
+/// What Targa Options returns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TargaOptions {
+    /// Bits per pixel, 24 or 32.
+    pub bits: u8,
+}
+
 /// Targa Options: Resolution as 24 or 32 bits/pixel radio buttons; not asked for grayscale.
-/// Opens at `bits` (PhotoCraft: 32 when the image has alpha, else 24). Result: the bits, 24 or 32.
+/// Opens at `bits` (PhotoCraft: 32 when the image has alpha, else 24). Result: [`TargaOptions`].
 pub struct TargaOptionsDialog {
     id: DialogId,
     bits: u8,
-    state: DialogState<u8>,
+    state: DialogState<TargaOptions>,
 }
 
 impl TargaOptionsDialog {
@@ -275,27 +282,28 @@ impl TargaOptionsDialog {
 }
 
 impl StackDialog for TargaOptionsDialog {
-    type Result = u8;
+    type Result = TargaOptions;
 
     fn id(&self) -> DialogId {
         self.id
     }
 
     // pc: crates/ui-egui/src/dialogs/targa_options_ui.rs:58
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<u8>> {
+    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<TargaOptions>> {
         let labels = FormatOptionsLabels::shared_ctx(ctx);
-        let mut bits = self.bits;
+        let mut options = TargaOptions { bits: self.bits };
         let shown = Dialog::new("targa-options", labels.targa_title.as_str()).stack(stack).width(Width::Compact).footer(Footer::standard()).show(
             ctx,
             &mut self.state,
-            &mut bits,
-            |ui, bits| {
+            &mut options,
+            |ui, options| {
                 let _ = SectionLabel::new(&labels.resolution).show(ui);
-                let _ = RadioGroup::new("targa-bits", &labels.resolution, bits).item(24, &labels.bits_24).item(32, &labels.bits_32).show(ui);
+                let _ =
+                    RadioGroup::new("targa-bits", &labels.resolution, &mut options.bits).item(24, &labels.bits_24).item(32, &labels.bits_32).show(ui);
             },
         );
-        self.bits = bits;
-        finished(shown.outcome, bits)
+        self.bits = options.bits;
+        finished(shown.outcome, options)
     }
 }
 
