@@ -479,7 +479,10 @@ impl<'a> ColorPicker<'a> {
         if full && enabled && self.focus_on_open && opened {
             ColorPicker::focus_hex(ui.ctx(), id);
         }
-        state.shown_pass = Some(pass);
+        // A sizing pass is laid out unseen: it neither opens the picker nor ends the opening.
+        if !ui.is_sizing_pass() {
+            state.shown_pass = Some(pass);
+        }
         let models = self
             .models
             .clone()

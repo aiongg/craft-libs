@@ -9,6 +9,8 @@
 //! drag to grey keeps the hue, a drag to black keeps hue and saturation.
 
 mod area;
+#[cfg(test)]
+mod dialog_tests;
 mod disc;
 mod disc_stories;
 #[cfg(test)]

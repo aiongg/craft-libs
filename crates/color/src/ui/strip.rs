@@ -6,6 +6,7 @@ use egui::{AsIdSalt, CornerRadius, IdSalt, Mesh, PointerButton, Rect, Sense, Sha
 
 use super::{AreaMode, ColorArea, ColorPartsStyle, QUANTIZE_CELLS, faded, faded_stroke, fraction, quantized, scale_of, snapped, value_at};
 use craft_ui::controls::slider::{self, KEY_FILTER, PressTurn, Scale, Sensing, press_turn, stepped, tap};
+use craft_ui::direction;
 use craft_ui::edit::ops::ScalarOp;
 use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
 use craft_ui::primitives::{FocusRing, Interactive};
@@ -111,9 +112,11 @@ impl ColorStrip {
         ColorArea::style(tokens)
     }
 
-    /// The width a strip of `width` takes in the layout: its pointers' room and edges besides.
+    /// The width a strip of `width` takes in the layout: the strip, its edge and the room of its
+    /// pointer at the trailing side. The leading pointer is drawn over the gap before the strip,
+    /// which is as wide as the pointer ([`Gap::Inline`](craft_ui::primitives::Gap::Inline)).
     pub fn outer_width(style: &ColorPartsStyle, width: f32) -> f32 {
-        width + 2.0 * (style.edge.width + style.pointer.x)
+        width + style.edge.width + style.pointer.x
     }
 
     /// Shows the strip and returns this frame's edit event. The response covers the strip
@@ -127,7 +130,11 @@ impl ColorStrip {
         let style = ColorStrip::style(&Tokens::of(ui));
         let size = self.size.unwrap_or(vec2(style.strip_full, style.area));
         let (_, outer) = ui.allocate_space(vec2(ColorStrip::outer_width(&style, size.x), size.y));
-        let rect = Rect::from_center_size(outer.center(), size);
+        let rect = if direction::is_rtl(ui) {
+            Rect::from_min_size(pos2(outer.right() - size.x, outer.top()), size)
+        } else {
+            Rect::from_min_size(outer.min, size)
+        };
         let model = self.mode.model();
         let channel = self.mode.strip();
         let scale = scale_of(model, channel);
