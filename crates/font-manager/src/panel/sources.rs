@@ -7,13 +7,14 @@ use craft_ui::direction;
 use egui::{RichText, Ui, vec2};
 
 use crate::panel::app::FontsPanel;
-use crate::panel::i18n::{fmt, tl, tn};
+use crate::panel::i18n::{self, fmt, tl, tn};
 use crate::panel::widgets::{self, Skin};
 
 impl FontsPanel {
     /// Draws the font sources into `ui`, in the panel's look: a host shows it in its settings.
     pub fn sources_ui(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
+        i18n::follow(&ctx);
         let s = Skin { p: self.look.palette(&ctx), look: self.look.clone() };
         self.poll_sources();
         let index = self.index();

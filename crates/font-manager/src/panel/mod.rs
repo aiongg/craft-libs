@@ -13,6 +13,5 @@ mod samples;
 mod sources;
 mod widgets;
 
-pub use app::{FontsPanel, Options, Preset, Settings, Tab, install_interface_fonts};
-pub use jobs::Runner;
+pub use app::{FontsPanel, FontsPanelSettings, Options, Preset, Tab, install_interface_fonts};
 pub use look::{Look, Palette};

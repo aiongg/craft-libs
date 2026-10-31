@@ -904,6 +904,7 @@ version = "0.1.0"
 dependencies = [
  "craft-font-catalog",
  "craft-font-store",
+ "craft-host",
  "craft-i18n",
  "craft-ui",
  "egui",

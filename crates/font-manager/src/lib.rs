@@ -6,8 +6,9 @@
 //! With the `ui` feature, [`FontsPanel`] is the whole interface as one panel that fills the `Ui`
 //! it is given, with no window, menu or eframe of its own, so ArtCraft Launcher can show it as its
 //! Fonts tab and the standalone app as its window. The host passes in the catalog, the store and
-//! the index ([`Options`]), saves [`Settings`], and reads or sets the download consent through the
-//! panel.
+//! the index ([`Options`]) and installs a `craft_host::Host`: the panel keeps its
+//! [`FontsPanelSettings`] in the Host's settings, runs its jobs through the Host's job service and
+//! follows the Host's language. A host reads or sets the download consent through the panel.
 
 pub mod filter;
 pub mod index;
@@ -20,4 +21,4 @@ mod panel;
 pub use craft_font_catalog;
 pub use craft_font_catalog::{Catalog, FaceInfo, FontEnv, Source};
 #[cfg(feature = "ui")]
-pub use panel::{FontsPanel, Look, Options, Palette, Preset, Runner, Settings, Tab, install_interface_fonts};
+pub use panel::{FontsPanel, FontsPanelSettings, Look, Options, Palette, Preset, Tab, install_interface_fonts};

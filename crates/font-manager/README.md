@@ -43,6 +43,11 @@ font families of its own, added a few per frame and taken out again past 64, wit
 host's fonts. Right-to-left interfaces mirror through `craft_ui::direction`; sample text keeps its
 own direction.
 
+The panel follows the `craft_host::Host` installed in the egui context (`Host::builder(..).install(ctx)`):
+its strings and numbers are in `host.lang()` each frame (English without a Host, or when the panel
+has no catalog for the language), its settings section is `fonts_panel`, and installs, removals and
+previews run through `host.jobs()`, one at a time in request order (without a Host, on craft-host's default job service: a thread per runner, inline on wasm32).
+
 ```rust
 let catalog = Arc::clone(Catalog::global());
 catalog.scan_in_background();
@@ -51,8 +56,12 @@ let installer: Arc<dyn Installer> = match SuiteStore::for_user(Arc::clone(&catal
     None => Arc::new(NoStore),
 };
 let index = installer.indexes().map_err(|e| e.to_string());
-let options = Options { catalog, installer, index, runner: Runner::Thread };
-let mut panel = FontsPanel::new(options, Settings::default());
+// once, at startup: settings, jobs and language of the app
+Host::builder(AppInfo { id: "myapp", name: "My App", version: env!("CARGO_PKG_VERSION") })
+    .settings(sections)
+    .install(ctx);
+let options = Options { catalog, installer, index };
+let mut panel = FontsPanel::new(options);
 // each frame
 panel.ui(ui);
 ```
@@ -60,13 +69,12 @@ panel.ui(ui);
 | Call | Use |
 |---|---|
 | `set_look(look)` | The host's palettes (dark and light) and font families, and whether labels are set in capitals |
-| `settings()`, `settings_mut()` | What the host saves: the sample text, preset and size, and whether the downloads note was closed (`serde`) |
+| `settings()` | The panel's `FontsPanelSettings`: the sample text, preset and size, and whether the downloads note was closed. The panel reads them from the Host's `fonts_panel` section on its first frame and writes the section when they change; without a Host they stay in memory |
 | `downloads_allowed()`, `set_downloads_allowed(on)` | The download consent, for a host's settings page. It is the font store's own setting, shared by every Craft app |
 | `show_downloads_switch(false)` | For a host with the switch in its own settings |
 | `sources_ui(ui)` | The font sources, for a host's settings page |
 | `set_index(index)` | The indexes, after the host fetched them |
-| `set_language(tag)` | The interface language, the host's own; English when its catalog isn't embedded |
-| `install_interface_fonts(ctx, craft_faces)` | For a host without interface fonts of its own (the standalone app): craft-ui's font stack for the panel's language, craft-fonts' faces the app embeds with craft-fonts-build, and the interface direction |
+| `install_interface_fonts(ctx, craft_faces)` | For a host without interface fonts of its own (the standalone app): craft-ui's font stack for the language of the Host installed in `ctx`, craft-fonts' faces the app embeds with craft-fonts-build, and the interface direction |
 
 ## Network use
 

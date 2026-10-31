@@ -1,8 +1,10 @@
-//! Installs, removals and preview downloads, one at a time on a worker thread.
+//! Installs, removals and preview downloads, run through the Host's jobs, one at a time.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::{Arc, Mutex, PoisonError};
+
+use craft_host::Host;
 
 use crate::Catalog;
 use crate::index::Index;
@@ -10,13 +12,23 @@ use crate::store::{Downloaded, Installer, Progress, RemoveRequest, StoreError};
 
 type Task = Box<dyn FnOnce() + Send>;
 
-/// Where jobs run.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Runner {
-    /// On a worker thread.
-    Thread,
-    /// Right away, on the calling thread (tests).
-    Inline,
+/// Runs `task` as a job of `host`. Without a Host it runs on the Host builder's default: a thread
+/// per job natively, right away on wasm32.
+pub fn spawn(host: Option<&Host>, name: &str, task: Task) {
+    match host {
+        Some(host) => host.jobs().spawn(name, task),
+        #[cfg(not(target_arch = "wasm32"))]
+        None => craft_host::Jobs::spawn(&craft_host::ThreadJobs, name, task),
+        #[cfg(target_arch = "wasm32")]
+        None => craft_host::Jobs::spawn(&craft_host::InlineJobs, name, task),
+    }
+}
+
+/// The jobs waiting, and whether a runner is draining them.
+#[derive(Default)]
+struct Queue {
+    tasks: VecDeque<Task>,
+    draining: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,7 +77,9 @@ pub enum Request {
 }
 
 pub struct Jobs {
-    worker: Option<Sender<Task>>,
+    /// Jobs run one at a time in request order: an install and a removal of one family, and the
+    /// catalog rescans after them, never overlap.
+    queue: Arc<Mutex<Queue>>,
     tx: Sender<Msg>,
     rx: Receiver<Msg>,
     next: u64,
@@ -73,24 +87,9 @@ pub struct Jobs {
 }
 
 impl Jobs {
-    pub fn new(runner: Runner) -> Jobs {
+    pub fn new() -> Jobs {
         let (tx, rx) = channel();
-        let worker = match runner {
-            Runner::Inline => None,
-            Runner::Thread => {
-                let (worker, tasks) = channel::<Task>();
-                let spawned = std::thread::Builder::new().name("font-jobs".into()).spawn(move || {
-                    for task in tasks {
-                        task();
-                    }
-                });
-                if let Err(e) = &spawned {
-                    log::warn!("no worker thread ({e}); font jobs run on the interface thread");
-                }
-                spawned.ok().map(|_| worker)
-            }
-        };
-        Jobs { worker, tx, rx, next: 0, running: BTreeMap::new() }
+        Jobs { queue: Arc::default(), tx, rx, next: 0, running: BTreeMap::new() }
     }
 
     /// The job running for `family` of `source` (any source when empty), if any.
@@ -99,7 +98,7 @@ impl Jobs {
     }
 
     /// Runs `request` through `installer`, then rescans `catalog` after an install or removal.
-    pub fn start(&mut self, ctx: &egui::Context, installer: Arc<dyn Installer>, catalog: Arc<Catalog>, request: Request) {
+    pub fn start(&mut self, ctx: &egui::Context, host: Option<&Host>, installer: Arc<dyn Installer>, catalog: Arc<Catalog>, request: Request) {
         let id = self.next;
         self.next += 1;
         let (source, family, kind, file, total) = match &request {
@@ -143,13 +142,31 @@ impl Jobs {
             let _ = tx.send(Msg::Done(id, result));
             ctx.request_repaint();
         });
-        match &self.worker {
-            Some(worker) => {
-                if let Err(e) = worker.send(task) {
-                    (e.0)();
-                }
-            }
-            None => task(),
+        let start_runner = {
+            let mut queue = self.queue.lock().unwrap_or_else(PoisonError::into_inner);
+            queue.tasks.push_back(task);
+            !std::mem::replace(&mut queue.draining, true)
+        };
+        if start_runner {
+            let queue = Arc::clone(&self.queue);
+            spawn(
+                host,
+                "font-jobs",
+                Box::new(move || {
+                    loop {
+                        let next = {
+                            let mut queue = queue.lock().unwrap_or_else(PoisonError::into_inner);
+                            let next = queue.tasks.pop_front();
+                            queue.draining = next.is_some();
+                            next
+                        };
+                        match next {
+                            Some(task) => task(),
+                            None => break,
+                        }
+                    }
+                }),
+            );
         }
     }
 
@@ -171,5 +188,83 @@ impl Jobs {
             }
         }
         done
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use super::*;
+    use crate::FontEnv;
+    use crate::store::{Downloaded, RemoveRequest};
+
+    /// Logs when each call starts and ends.
+    struct Logging(Arc<Mutex<Vec<&'static str>>>);
+
+    impl Logging {
+        fn call(&self, start: &'static str, end: &'static str) -> Result<(), StoreError> {
+            self.0.lock().unwrap_or_else(PoisonError::into_inner).push(start);
+            self.0.lock().unwrap_or_else(PoisonError::into_inner).push(end);
+            Ok(())
+        }
+    }
+
+    impl Installer for Logging {
+        fn downloads_allowed(&self) -> bool {
+            true
+        }
+        fn allow_downloads(&self, _: bool) -> Result<(), StoreError> {
+            Ok(())
+        }
+        fn install(&self, _: &Index, _: &crate::index::Family, _: &mut dyn FnMut(Progress)) -> Result<(), StoreError> {
+            self.call("install start", "install end")
+        }
+        fn install_file(&self, _: &Index, _: &crate::index::Family, _: &str, _: &mut dyn FnMut(Progress)) -> Result<(), StoreError> {
+            Ok(())
+        }
+        fn remove(&self, _: &RemoveRequest) -> Result<(), StoreError> {
+            self.call("remove start", "remove end")
+        }
+        fn download(&self, _: &Index, _: &crate::index::Family, _: &mut dyn FnMut(Progress)) -> Result<Vec<Downloaded>, StoreError> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Keeps the spawned jobs until the test runs them.
+    #[derive(Default)]
+    struct Deferred(Mutex<Vec<Task>>);
+
+    impl craft_host::Jobs for Deferred {
+        fn spawn(&self, _: &str, job: Task) {
+            self.0.lock().unwrap_or_else(PoisonError::into_inner).push(job);
+        }
+    }
+
+    #[test]
+    fn jobs_run_one_at_a_time_in_request_order() {
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let installer: Arc<dyn Installer> = Arc::new(Logging(Arc::clone(&log)));
+        let catalog = Arc::new(Catalog::new(FontEnv { os: crate::craft_font_catalog::Os::None, ..FontEnv::default() }).with_font_service(false));
+        let deferred = Arc::new(Deferred::default());
+        let host = Host::builder(craft_host::AppInfo { id: "jobs-test", name: "Jobs test", version: "1.0" }).jobs(deferred.clone()).build();
+        let index = Arc::new(crate::index::bundled().unwrap());
+        let remove = RemoveRequest { family: "Hack".into(), files: Vec::new(), whole: true };
+        let ctx = egui::Context::default();
+        let mut jobs = Jobs::new();
+        for request in [Request::Install(Arc::clone(&index), 0), Request::Remove(remove)] {
+            jobs.start(&ctx, Some(&host), Arc::clone(&installer), Arc::clone(&catalog), request);
+        }
+
+        let mut spawned = std::mem::take(&mut *deferred.0.lock().unwrap_or_else(PoisonError::into_inner));
+        assert_eq!(spawned.len(), 1, "one runner drains the queue");
+        assert!(log.lock().unwrap_or_else(PoisonError::into_inner).is_empty());
+        spawned.remove(0)();
+        assert_eq!(*log.lock().unwrap_or_else(PoisonError::into_inner), ["install start", "install end", "remove start", "remove end"]);
+
+        // The queue is idle again: the next job gets a new runner.
+        jobs.start(&ctx, Some(&host), installer, catalog, Request::Install(index, 0));
+        assert_eq!(deferred.0.lock().unwrap_or_else(PoisonError::into_inner).len(), 1);
+        assert!(jobs.poll().len() >= 2);
     }
 }

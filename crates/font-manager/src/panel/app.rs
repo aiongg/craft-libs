@@ -10,24 +10,25 @@ use crate::index::{Category, Family, Index, categories, source_label};
 use crate::installed::{InstalledFamily, group};
 use crate::store::{Installer, RemoveRequest, StoreError};
 use crate::{Catalog, FaceInfo, Source};
+use craft_host::{Host, Section};
 use craft_i18n::Folder;
 use craft_ui::direction;
 use craft_ui::fonts::{CraftFace, I18nScripts, UiFonts};
 use egui::{CentralPanel, Context, Frame, Margin, Panel, Ui};
 
 use crate::panel::faces::FaceFonts;
-use crate::panel::i18n::{self, I18N, LANGUAGES, fmt, tl};
-use crate::panel::jobs::{Finished, Jobs, Kind, Request, Runner};
+use crate::panel::i18n::{self, LANGUAGES, fmt, tl};
+use crate::panel::jobs::{self, Finished, Jobs, Kind, Request};
 use crate::panel::look::{Look, Palette};
 use crate::panel::samples;
 use crate::panel::widgets::{self, Skin};
 
 /// Installs the standalone app's interface fonts in `ctx` and sets the interface direction: craft-ui's
-/// font stack for the panel's interface language, with `craft_faces` (craft-fonts' faces the app
+/// font stack for the language of the Host installed in `ctx` (English without one), with `craft_faces` (craft-fonts' faces the app
 /// embeds with craft-fonts-build, or none) and the system's fonts for every other character. A host
 /// with its own fonts doesn't call it.
 pub fn install_interface_fonts(ctx: &Context, craft_faces: &[CraftFace]) {
-    let language = I18N.code(i18n::current()).to_owned();
+    let language = i18n::code_in(ctx);
     UiFonts::new(&I18nScripts).languages(LANGUAGES).ui_language(&language).craft_faces(craft_faces).install(ctx);
     direction::apply(ctx, direction::resolve(&language, direction::Setting::Language));
 }
@@ -49,10 +50,11 @@ pub enum Preset {
     Numerals,
 }
 
-/// What the app keeps between runs.
+/// What the panel keeps between runs: the `fonts_panel` section of the app's settings, through the
+/// [`Host`](craft_host::Host).
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
-pub struct Settings {
+pub struct FontsPanelSettings {
     /// The sample text; empty for the preset.
     pub sample: String,
     pub preset: Preset,
@@ -61,9 +63,13 @@ pub struct Settings {
     pub hide_download_note: bool,
 }
 
-impl Default for Settings {
+impl Section for FontsPanelSettings {
+    const KEY: &'static str = "fonts_panel";
+}
+
+impl Default for FontsPanelSettings {
     fn default() -> Self {
-        Settings { sample: String::new(), preset: Preset::Sentence, size: 36.0, hide_download_note: false }
+        FontsPanelSettings { sample: String::new(), preset: Preset::Sentence, size: 36.0, hide_download_note: false }
     }
 }
 
@@ -101,7 +107,6 @@ pub struct Options {
     pub installer: Arc<dyn Installer>,
     /// The Google Fonts index, or why it couldn't be read.
     pub index: Result<Index, String>,
-    pub runner: Runner,
 }
 
 /// A download, waiting for the user's consent or to be tried again.
@@ -144,7 +149,11 @@ pub(crate) struct Catalogue {
 }
 
 pub struct FontsPanel {
-    pub(crate) settings: Settings,
+    pub(crate) settings: FontsPanelSettings,
+    /// What the Host's section last held, so a change is written once.
+    saved: FontsPanelSettings,
+    /// The settings were read from the Host, on the first frame.
+    settings_loaded: bool,
     pub(crate) tab: Tab,
     pub(crate) look: Look,
     pub(crate) skin: Skin,
@@ -258,12 +267,16 @@ pub(crate) fn category_label(family: &Family) -> String {
 }
 
 impl FontsPanel {
-    pub fn new(options: Options, settings: Settings) -> FontsPanel {
+    /// A panel whose settings are the Host's `fonts_panel` section, read on its first frame and
+    /// written when the panel changes them; defaults kept in memory without a Host.
+    pub fn new(options: Options) -> FontsPanel {
         let catalogue = options.index.map(|index| Catalogue { search: Search::new(&index), index: Arc::new(index) });
         let previews = Arc::new(Catalog::new(FontEnv { os: Os::None, ..FontEnv::default() }).with_font_service(false));
         let look = Look::default();
         FontsPanel {
-            settings,
+            settings: FontsPanelSettings::default(),
+            saved: FontsPanelSettings::default(),
+            settings_loaded: false,
             tab: Tab::Catalogue,
             skin: Skin { p: Palette::from_visuals(&egui::Visuals::dark()), look: look.clone() },
             look,
@@ -293,7 +306,7 @@ impl FontsPanel {
             previews,
             previewed: HashMap::new(),
             faces: FaceFonts::default(),
-            jobs: Jobs::new(options.runner),
+            jobs: Jobs::new(),
             asking: None,
             failed: HashMap::new(),
             notice: None,
@@ -335,15 +348,17 @@ impl FontsPanel {
         }
         let (tx, rx) = std::sync::mpsc::channel();
         let installer = Arc::clone(&self.installer);
-        let ctx = ctx.clone();
-        let spawned = std::thread::Builder::new().name("font-sources".into()).spawn(move || {
-            let _ = tx.send(installer.fetch_indexes());
-            ctx.request_repaint();
-        });
-        match spawned {
-            Ok(_) => self.sources_job = Some(rx),
-            Err(e) => self.source_message = Some((true, e.to_string())),
-        }
+        let repaint = ctx.clone();
+        self.sources_job = Some(rx);
+        let host = Host::try_of_ctx(ctx);
+        jobs::spawn(
+            host.as_deref(),
+            "font-sources",
+            Box::new(move || {
+                let _ = tx.send(installer.fetch_indexes());
+                repaint.request_repaint();
+            }),
+        );
     }
 
     /// Whether the sources' indexes are being downloaded again.
@@ -379,13 +394,10 @@ impl FontsPanel {
         self.downloads_switch = show;
     }
 
-    /// The panel's own settings, for the host to save.
-    pub fn settings(&self) -> &Settings {
+    /// The panel's own settings: the sample text, preset and size, and whether the downloads note
+    /// was closed.
+    pub fn settings(&self) -> &FontsPanelSettings {
         &self.settings
-    }
-
-    pub fn settings_mut(&mut self) -> &mut Settings {
-        &mut self.settings
     }
 
     pub fn tab(&self) -> Tab {
@@ -415,12 +427,6 @@ impl FontsPanel {
             Some(Detail::Installed(name, _)) => Some(name.clone()),
             None => None,
         }
-    }
-
-    /// Shows the interface in `language` (a tag such as `de` or `pt-BR`), the host's interface
-    /// language, when its catalog is embedded; English otherwise.
-    pub fn set_language(&mut self, language: &str) {
-        i18n::set_current(I18N.match_tag(language).unwrap_or(craft_i18n::Lang::EN));
     }
 
     /// Has the user allowed downloads from Google Fonts? A suite-wide setting of the font store,
@@ -453,6 +459,8 @@ impl FontsPanel {
     /// Draws the panel into `ui`, which it fills.
     pub fn ui(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
+        let host = i18n::follow(&ctx);
+        self.load_settings(host.as_deref());
         self.skin = Skin { p: self.look.palette(&ctx), look: self.look.clone() };
         self.faces.begin_frame(&ctx);
         self.poll_jobs();
@@ -482,6 +490,28 @@ impl FontsPanel {
         CentralPanel::default().frame(main).show(ui, |ui| self.main(ui));
         self.details(&ctx, area);
         self.consent(&ctx);
+        self.save_settings(host.as_deref());
+    }
+
+    /// Reads the settings from the Host's section, once.
+    fn load_settings(&mut self, host: Option<&Host>) {
+        if std::mem::replace(&mut self.settings_loaded, true) {
+            return;
+        }
+        if let Some(host) = host {
+            self.settings = host.setting();
+            self.saved = self.settings.clone();
+        }
+    }
+
+    /// Writes the settings to the Host's section when the frame changed them.
+    fn save_settings(&mut self, host: Option<&Host>) {
+        if let Some(host) = host
+            && self.settings != self.saved
+        {
+            host.set_setting(&self.settings);
+            self.saved = self.settings.clone();
+        }
     }
 
     fn keys(&mut self, ctx: &Context) {
@@ -656,7 +686,7 @@ impl FontsPanel {
             Pending::InstallFile(i, path) => Request::InstallFile(index, i, path),
             Pending::Preview(i) => Request::Preview(index, i),
         };
-        self.jobs.start(ctx, Arc::clone(&self.installer), Arc::clone(&self.catalog), request);
+        self.jobs.start(ctx, Host::try_of_ctx(ctx).as_deref(), Arc::clone(&self.installer), Arc::clone(&self.catalog), request);
     }
 
     /// Removes store files: a whole family, or the files of some of its styles.
@@ -669,7 +699,7 @@ impl FontsPanel {
         }
         self.failed.remove(&family_key("", family));
         let request = RemoveRequest { family: family.to_owned(), files, whole };
-        self.jobs.start(ctx, Arc::clone(&self.installer), Arc::clone(&self.catalog), Request::Remove(request));
+        self.jobs.start(ctx, Host::try_of_ctx(ctx).as_deref(), Arc::clone(&self.installer), Arc::clone(&self.catalog), Request::Remove(request));
     }
 
     fn consent(&mut self, ctx: &Context) {
