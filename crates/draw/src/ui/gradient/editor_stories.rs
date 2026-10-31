@@ -106,7 +106,12 @@ impl StoryHost {
     /// cancel.
     fn apply(&mut self, response: GradientEditorResponse) {
         match response.edit.event {
-            Some(EditEvent::Begin { .. }) => self.before = Some(self.stops.clone()),
+            Some(EditEvent::Begin { value, .. }) => {
+                self.before = Some(self.stops.clone());
+                if let Some(value) = value {
+                    self.stops = value;
+                }
+            }
             Some(EditEvent::Cancel { .. }) => {
                 if let Some(before) = self.before.take() {
                     self.stops = before;

@@ -1156,7 +1156,12 @@ impl BoxHost {
 
     pub(crate) fn apply(&mut self, response: &TransformBoxResponse) {
         match &response.event {
-            Some(EditEvent::Begin { .. }) => self.before = Some(self.state),
+            Some(EditEvent::Begin { value, .. }) => {
+                self.before = Some(self.state);
+                if let Some(value) = value {
+                    self.state = *value;
+                }
+            }
             Some(EditEvent::Update { value, .. }) => self.state = *value,
             Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => {
                 self.before = None;

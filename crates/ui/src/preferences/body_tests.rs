@@ -394,3 +394,26 @@ fn a_float_row_steps_by_the_hosts_step_even_when_the_range_is_wide() {
     let Some(PrefValue::Float(v)) = h.state().host.draft.get("advanced.gamma") else { panic!("no value set") };
     assert!((v - 20.1).abs() < 1e-9, "stepped by 0.1, got {v}");
 }
+
+#[test]
+fn the_first_character_typed_in_the_search_field_is_kept_in_the_same_pass() {
+    let mut h = open();
+    h.get_by_role(Role::SearchInput).focus();
+    h.run();
+    h.get_by_role(Role::SearchInput).type_text("l");
+    h.step();
+    assert_eq!(PreferencesBody::state(&h.ctx, h.state().id).search, "l");
+}
+
+#[test]
+fn the_first_digit_typed_in_a_number_row_reaches_the_draft_in_the_same_pass() {
+    let mut h = open();
+    h.get_by_role_and_label(Role::ListBoxOption, "Advanced").click();
+    h.run();
+    h.get_by_role_and_label(Role::SpinButton, "Gamma:").focus();
+    h.run();
+    h.get_by_role_and_label(Role::SpinButton, "Gamma:").type_text("5");
+    h.step();
+    let Some(PrefValue::Float(v)) = h.state().host.draft.get("advanced.gamma") else { panic!("no value set") };
+    assert!((v - 5.0).abs() < 1e-9, "got {v}");
+}

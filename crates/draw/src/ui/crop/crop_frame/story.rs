@@ -177,7 +177,12 @@ fn frame_on_canvas(
 /// Applies the frame's event to what the story keeps; a cancel puts back the frame at the Begin.
 fn keep_event(kept: &mut Kept, event: &Option<EditEvent<CropBox>>) {
     match event {
-        Some(EditEvent::Begin { .. }) => kept.before = Some(kept.frame),
+        Some(EditEvent::Begin { value, .. }) => {
+            kept.before = Some(kept.frame);
+            if let Some(value) = value {
+                kept.frame = *value;
+            }
+        }
         Some(EditEvent::Update { value, .. }) => kept.frame = *value,
         Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => {
             kept.before = None;

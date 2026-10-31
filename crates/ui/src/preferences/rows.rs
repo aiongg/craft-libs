@@ -87,7 +87,8 @@ fn forward<T>(ctx: &Context, id: Id, event: Option<EditEvent<T>>, before: PrefVa
 pub(super) fn typed_value(event: Option<EditEvent<String>>) -> Option<String> {
     match event? {
         EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. } => Some(value),
-        EditEvent::Begin { .. } | EditEvent::Cancel { .. } => None,
+        EditEvent::Begin { value, .. } => value,
+        EditEvent::Cancel { .. } => None,
     }
 }
 

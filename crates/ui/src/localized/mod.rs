@@ -761,26 +761,23 @@ impl Widget for NumberField<'_> {
 }
 
 /// `value` moved `n` steps of `step` (down when `n` is negative) with `modifiers` held: ten steps
-/// with Shift, a tenth of one with Ctrl/Cmd when `decimals` show it. A plain or Ctrl/Cmd step
-/// goes to the next multiple of its size in its direction, then on by whole steps; a Shift step
-/// rounds to a multiple of `step` first.
+/// with Shift, a tenth of one with Ctrl/Cmd when `decimals` show it. The value is rounded to the
+/// grid of the step first (the step, or a tenth of it with Ctrl/Cmd), then the steps are added:
+/// 55.6 up by 1 is 57 and 55.4 down by 1 is 54.
 pub(crate) fn stepped(value: f64, step: f64, decimals: usize, modifiers: Modifiers, n: f64) -> f64 {
     let fine = step / 10.0;
     if modifiers.command && (round_half_away(fine, decimals) - fine).abs() <= fine.abs() * 1e-9 {
-        to_multiple(value, fine, n)
+        on_grid(value, fine, n)
     } else if modifiers.shift {
-        (value / step).round() * step + 10.0 * step * n
+        on_grid(value, step, 10.0 * n)
     } else {
-        to_multiple(value, step, n)
+        on_grid(value, step, n)
     }
 }
 
-/// `value` moved to the `n`th multiple of `size` past it: by 1, 5.1 goes up to 6 and down to 5,
-/// and 5 to 6 and 4. A value within a millionth of a step of a multiple counts as on it.
-fn to_multiple(value: f64, size: f64, n: f64) -> f64 {
-    let q = value / size;
-    let from = if n > 0.0 { (q + 1e-6).floor() } else { (q - 1e-6).ceil() };
-    (from + n) * size
+/// `value` rounded to a multiple of `grid`, then moved `n` grid steps.
+pub(crate) fn on_grid(value: f64, grid: f64, n: f64) -> f64 {
+    (value / grid).round() * grid + grid * n
 }
 
 /// The steps asked for this frame by the arrow keys in a focused field and, with `wheel`, by the

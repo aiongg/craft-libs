@@ -802,7 +802,12 @@ fn show_story(ui: &mut Ui, args: &mut PerspectiveArgs) {
         view,
     );
     match &r.edit {
-        Some(EditEvent::Begin { .. }) => before = quad,
+        Some(EditEvent::Begin { value, .. }) => {
+            before = quad;
+            if let Some(value) = value {
+                quad = *value;
+            }
+        }
         Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => quad = *value,
         Some(EditEvent::Cancel { .. }) => quad = before,
         Some(_) | None => {}

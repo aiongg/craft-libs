@@ -502,7 +502,7 @@ fn a_typing_run_goes_on_while_the_host_stays_mixed_snaps_or_applies_only_the_com
     assert!(rig.mixed);
     rig.key(Key::Enter);
     let id = begin_id(&since(&rig, n));
-    assert_eq!(since(&rig, n)[1..], [update(id, 1.0), update(id, 12.0), commit(id, 12.0, true)]);
+    assert_eq!(since(&rig, n), [EditEvent::begin_with(id, 1.0), update(id, 12.0), commit(id, 12.0, true)]);
     assert_eq!((rig.value, rig.mixed), (12.0, false));
     // Esc puts the blank field back.
     rig.mixed = true;
@@ -522,7 +522,7 @@ fn a_typing_run_goes_on_while_the_host_stays_mixed_snaps_or_applies_only_the_com
     assert_eq!(rig.shown().as_deref(), Some("13"), "the text stays the user's");
     rig.key(Key::Enter);
     let id = begin_id(&since(&rig, n));
-    assert_eq!(since(&rig, n)[1..], [update(id, 1.0), update(id, 13.0), commit(id, 13.0, true)]);
+    assert_eq!(since(&rig, n), [EditEvent::begin_with(id, 1.0), update(id, 13.0), commit(id, 13.0, true)]);
     assert_eq!(rig.value, 12.0);
 
     // A host that applies only the commit.
@@ -532,7 +532,7 @@ fn a_typing_run_goes_on_while_the_host_stays_mixed_snaps_or_applies_only_the_com
     type_each(&mut rig, &["4", "2"]);
     rig.key(Key::Enter);
     let id = begin_id(&since(&rig, n));
-    assert_eq!(since(&rig, n)[1..], [update(id, 4.0), update(id, 42.0), commit(id, 42.0, true)]);
+    assert_eq!(since(&rig, n), [EditEvent::begin_with(id, 4.0), update(id, 42.0), commit(id, 42.0, true)]);
     assert_eq!(rig.value, 42.0);
 
     // A change of the host's value that answers no update is someone else's: the run ends. The
@@ -546,14 +546,11 @@ fn a_typing_run_goes_on_while_the_host_stays_mixed_snaps_or_applies_only_the_com
         let n = rig.events.len();
         type_each(&mut rig, &["7"]);
         rig.frame(vec![]);
-        assert_eq!((rig.value, since(&rig, n).len()), (answer, 2));
+        assert_eq!((rig.value, since(&rig, n).len()), (answer, 1));
         rig.value = 30.0;
         rig.frame(vec![]);
         let events = since(&rig, n);
-        assert!(
-            matches!(&events[..], [EditEvent::Begin { .. }, EditEvent::Update { .. }, EditEvent::Cancel { reason: CancelReason::External, .. }]),
-            "{events:?}"
-        );
+        assert!(matches!(&events[..], [EditEvent::Begin { .. }, EditEvent::Cancel { reason: CancelReason::External, .. }]), "{events:?}");
     }
 }
 
@@ -1588,5 +1585,39 @@ fn a_host_write_back_neither_replaces_the_typed_text_nor_ends_the_run() {
     assert_eq!(rig.shown().as_deref(), Some("50"));
     rig.key(Key::Enter);
     let id = begin_id(&since(&rig, n));
-    assert_eq!(since(&rig, n)[1..], [update(id, 5.0), update(id, 50.0), commit(id, 50.0, true)]);
+    assert_eq!(since(&rig, n), [EditEvent::begin_with(id, 5.0), update(id, 50.0), commit(id, 50.0, true)]);
+}
+
+/// The first typed digit reaches the host in the pass that typed it, on the `Begin` itself.
+#[test]
+fn the_first_typed_digit_reaches_the_host_in_the_same_pass() {
+    let mut rig = Rig::new(4.0);
+    rig.focus();
+    let n = rig.events.len();
+    rig.type_text("1");
+    let events = since(&rig, n);
+    assert!(matches!(events[..], [EditEvent::Begin { value: Some(v), .. }] if v == 1.0), "{events:?}");
+    assert_eq!(rig.value, 1.0);
+}
+
+/// A scrub rounds the value to the step grid first, then adds its steps.
+#[test]
+fn a_scrub_rounds_to_the_step_grid_before_adding_its_steps() {
+    let mut rig = Rig::new(55.4);
+    rig.drag(rig.handle(), &[7.0], Modifiers::NONE, false);
+    assert_eq!(rig.value, 62.0);
+}
+
+/// Text over the character limit is rejected whole: a paste of 129 characters types nothing,
+/// where one of 128 is typed.
+#[test]
+fn a_paste_over_the_character_limit_is_rejected_not_cut() {
+    let mut rig = Rig::new(4.0);
+    rig.focus();
+    let n = rig.events.len();
+    rig.frame(vec![Event::Paste("1".repeat(129))]);
+    assert!(since(&rig, n).is_empty(), "{:?}", since(&rig, n));
+    assert_eq!(rig.value, 4.0);
+    rig.frame(vec![Event::Paste("1".repeat(128))]);
+    assert!(matches!(since(&rig, n)[..], [EditEvent::Begin { value: Some(_), .. }]), "{:?}", since(&rig, n));
 }

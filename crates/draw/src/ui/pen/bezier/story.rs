@@ -69,7 +69,12 @@ impl PathHost {
             self.selection = select.clone();
         }
         match &r.event {
-            Some(EditEvent::Begin { .. }) => self.before = Some(self.paths.clone()),
+            Some(EditEvent::Begin { value, .. }) => {
+                self.before = Some(self.paths.clone());
+                if let Some(value) = value {
+                    apply(&mut self.paths, value);
+                }
+            }
             Some(EditEvent::Update { value, .. }) => {
                 if let Some(before) = &self.before {
                     self.paths = before.clone();
