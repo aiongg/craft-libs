@@ -57,6 +57,12 @@ pub struct ColorPickerTokens {
     pub readout_hex_width: f32,
     /// Width of the colour readout's R, G and B fields: `color_picker.readout_channel_width`.
     pub readout_channel_width: f32,
+    /// Between the Full picker's side-actions block and its channel grid: `color_picker.grid_gap`.
+    pub grid_gap: f32,
+    /// Between the channel grid's rows: `color_picker.grid_row_gap`.
+    pub grid_row_gap: f32,
+    /// From the last row of one model's channels to the first of the next: `color_picker.grid_group_gap`.
+    pub grid_group_gap: f32,
     /// The area marker's inner circle: `color_picker.marker`, white.
     pub marker: Rgba,
     /// The marker's outer ring: `color_picker.marker_halo`, black at alpha 160.
@@ -99,6 +105,9 @@ impl Family for ColorPickerTokens {
         "pair_icon_gap" 0.0..=64.0 => pair_icon_gap;
         "readout_hex_width" 0.0..=1024.0 => readout_hex_width;
         "readout_channel_width" 0.0..=1024.0 => readout_channel_width;
+        "grid_gap" 0.0..=64.0 => grid_gap;
+        "grid_row_gap" 0.0..=64.0 => grid_row_gap;
+        "grid_group_gap" 0.0..=64.0 => grid_group_gap;
     };
 
     /// The Compact sizes (PhotoCraft's), scaled by the control height of the size. Sizes of
@@ -130,6 +139,9 @@ impl Family for ColorPickerTokens {
             pair_icon_gap: values::COLOR_PICKER_PAIR_ICON_GAP,
             readout_hex_width: scale(values::COLOR_PICKER_READOUT_HEX_WIDTH),
             readout_channel_width: scale(values::COLOR_PICKER_READOUT_CHANNEL_WIDTH),
+            grid_gap: scale(values::COLOR_PICKER_GRID_GAP),
+            grid_row_gap: scale(values::COLOR_PICKER_GRID_ROW_GAP),
+            grid_group_gap: scale(values::COLOR_PICKER_GRID_GROUP_GAP),
             marker: values::COLOR_PICKER_MARKER,
             marker_halo: values::COLOR_PICKER_MARKER_HALO,
         }

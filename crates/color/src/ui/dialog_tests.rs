@@ -2,7 +2,7 @@
 //! Photoshop's window, the warnings beside the swatch, the strip's room, and the hex field's
 //! focus on open.
 
-use craft_theme::Srgba;
+use craft_theme::{AppDefaults, AppSizes, ModeChoice, Size, Srgba, SuiteChoice, SystemAppearance, ThemeId, ThemePair};
 use egui::accesskit::{Node, NodeId, Role};
 use egui::{Context, Id, Pos2, RawInput, Rect, pos2, vec2};
 
@@ -46,8 +46,13 @@ impl Shown {
 
     /// A dialog with the roomy frame margin when `roomy`, its body `content` points wide when given.
     fn with(host: Host, roomy: bool, content: Option<f32>) -> Self {
+        Self::with_base(host, roomy, content, &Base::suite_default())
+    }
+
+    /// [`Shown::with`] under `base`.
+    fn with_base(host: Host, roomy: bool, content: Option<f32>, base: &Base) -> Self {
         let ctx = Context::default();
-        install(&ctx, &Base::suite_default());
+        install(&ctx, base);
         ctx.enable_accesskit();
         let mut shown = Self {
             ctx,
@@ -222,5 +227,16 @@ fn side_actions_end_at_the_content_edge_at_any_width() {
 #[test]
 fn the_roomy_picker_window_at_photocrafts_width_fits_its_cap() {
     let shown = Shown::with(Host::Dialog(InitialFocus::None), true, Some(488.0));
+    assert!(shown.window.height() <= 384.0, "window {} x {}", shown.window.width(), shown.window.height());
+}
+
+/// Controls 24 points high (PhotoCraft's `size.control.sm`): the window stays under PhotoCraft's cap.
+#[test]
+fn the_roomy_picker_window_with_24_point_controls_fits_its_cap() {
+    let sizes = AppSizes::parse(br#"{ "all": { "size.control.sm": 24 } }"#).expect("sizes");
+    let defaults = AppDefaults { theme: ThemePair::same(ThemeId::suite_default()), mode: ModeChoice::Dark, size: Size::Compact, sizes };
+    let base = Base::resolve(&SuiteChoice::default().with_defaults(&defaults), SystemAppearance::default(), &defaults, None, &mut |_| None);
+    assert_eq!(base.dark.resolved.tokens.size.control.sm, 24.0);
+    let shown = Shown::with_base(Host::Dialog(InitialFocus::None), true, Some(488.0), &base);
     assert!(shown.window.height() <= 384.0, "window {} x {}", shown.window.width(), shown.window.height());
 }

@@ -158,7 +158,8 @@ impl ColorPicker<'_> {
             // The side actions end at the content's trailing edge, whatever width the host gives;
             // an unbounded host gets the grid's width.
             let trailing = if ui.available_width().is_finite() { ui.available_width().max(grid_width) } else { grid_width };
-            Stack::new(Gap::Section).show(ui, |ui| {
+            ui.with_layout(direction::column(ui), |ui| {
+                ui.spacing_mut().item_spacing.y = tokens.component.color_picker.grid_gap;
                 if self.compare.is_some() || !self.warnings.is_empty() || !self.side_actions.is_empty() {
                     top_row(ui, gap, |ui| {
                         if let Some(current) = self.compare {
@@ -228,6 +229,7 @@ impl ColorPicker<'_> {
         let radio = RadioGroup::style(&tokens, ControlSize::Md);
         let field = TextField::style(&tokens, ControlSize::Md);
         let gap = Gap::Inline.points(&tokens);
+        let (row_gap, group_gap) = (tokens.component.color_picker.grid_row_gap, tokens.component.color_picker.grid_group_gap);
         let height = field.height.max(radio.height);
         let columns = self.grid_columns(ui, models, translate);
         let hex_width = self.hex_width(ui, &tokens);
@@ -235,10 +237,10 @@ impl ColorPicker<'_> {
             for GridColumn { index: c, column, labels, cell } in &columns {
                 let cell = *cell;
                 ui.with_layout(direction::column(ui), |ui| {
-                    ui.spacing_mut().item_spacing.y = gap;
+                    ui.spacing_mut().item_spacing.y = row_gap;
                     for (g, (model, labels)) in column.iter().zip(labels).enumerate() {
                         if g > 0 {
-                            ui.add_space(gap);
+                            ui.add_space((group_gap - row_gap).max(0.0));
                         }
                         for (i, (ch, label)) in model.channels().iter().zip(labels).enumerate() {
                             let value = parts.value().values_in(*model).1[i];
@@ -278,7 +280,7 @@ impl ColorPicker<'_> {
                         }
                     }
                     if *c == 0 {
-                        ui.add_space(gap);
+                        ui.add_space((gap - row_gap).max(0.0));
                         channel_row(
                             ui,
                             cell,
