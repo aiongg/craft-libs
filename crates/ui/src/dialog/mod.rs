@@ -65,6 +65,7 @@ pub(crate) mod stories;
 pub use alert::Alert;
 pub use blocking::BlockingOverlay;
 pub use buttons::{ButtonRole, Clicked, FooterButton, FooterButtons, FooterButtonsResponse, Platform, order};
+pub(crate) use dialog::focus_inside;
 pub use dialog::{Backdrop, Dialog, DialogResponse, InitialFocus, Outcome};
 pub use footer::{DialogLabels, Footer, FooterFx, Reset};
 pub use frame::{DialogFrame, DialogFrameResponse, DialogFrameStyle};

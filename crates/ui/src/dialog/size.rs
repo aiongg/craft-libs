@@ -87,7 +87,14 @@ pub enum Body {
 }
 
 /// The greatest height of a scrolling body: the window height less the dialog's margins, the
-/// measured `chrome` (everything but the body) and the measured `below` region, and at least `dialog.scroll_min`.
+/// measured `chrome` (everything but the body) and the measured `below` region, and at least `dialog.scroll_min`
+/// where the window has room for that beside the chrome and the region below.
 pub fn scroll_height(tokens: &DialogTokens, window_height: f32, chrome: f32, below: f32) -> f32 {
-    (window_height - 2.0 * tokens.window_margin - chrome - below).max(tokens.scroll_min)
+    let room = window_height - chrome - below;
+    if room <= 0.0 {
+        return tokens.scroll_min;
+    }
+    // The margin is given up before the footer goes off screen: the body keeps `scroll_min` while
+    // the window has that much room, and all the room it has when it has less.
+    (room - 2.0 * tokens.window_margin).max(tokens.scroll_min.min(room))
 }
