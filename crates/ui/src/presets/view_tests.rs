@@ -361,3 +361,39 @@ fn ten_thousand_list_rows_run_the_thumbnail_closure_for_the_rows_in_view_only() 
     assert!((1..60).contains(&painted), "painted {painted} thumbnails");
     assert!(harness.query_all_by_role(Role::ListBoxOption).count() < 60);
 }
+
+/// The browser's height after laying out `count` presets in the list view with `build` applied.
+fn browser_height(count: u32, build: impl Fn(PresetBrowser<'_, Key32>) -> PresetBrowser<'_, Key32>) -> (f32, f32) {
+    let rows: Vec<PresetRow<Key32>> = (1..=count).map(|n| PresetRow::item(n, format!("Preset {n}"), 0)).collect();
+    let mut state = PresetState::new();
+    state.view = PresetView::List;
+    let measured = std::rc::Rc::new(std::cell::Cell::new(0.0_f32));
+    let seen = measured.clone();
+    let mut harness =
+        Harness::builder().with_size([300.0, 600.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(move |ui| {
+            let top = ui.cursor().min.y;
+            let _ = build(PresetBrowser::new("short", "Presets", &mut state, &rows)).show(ui, |_, _, _| {});
+            seen.set(ui.min_rect().max.y - top);
+        });
+    harness.run();
+    let row = if count > 0 { harness.get_by_label("Preset 1").rect().height() } else { 0.0 };
+    (measured.get(), row)
+}
+
+#[test]
+fn shrink_follows_the_rows_up_to_the_maximum() {
+    let (three, row) = browser_height(3, |b| b.shrink_to_content(true).max_height(200.0));
+    assert!((three - 3.0 * row).abs() < 1.0, "3 rows of {row} fill {three}");
+    let (many, _) = browser_height(100, |b| b.shrink_to_content(true).max_height(200.0));
+    assert!((many - 200.0).abs() < 1.0, "100 rows stop at the maximum: {many}");
+    let (filled, _) = browser_height(3, |b| b.max_height(200.0));
+    assert!((filled - 200.0).abs() < 1.0, "without shrink the browser fills the maximum: {filled}");
+}
+
+#[test]
+fn the_minimum_height_holds_for_an_empty_and_a_short_list() {
+    let (empty, _) = browser_height(0, |b| b.shrink_to_content(true).min_height(120.0));
+    assert!(empty >= 119.0, "empty list: {empty}");
+    let (short, _) = browser_height(1, |b| b.shrink_to_content(true).min_height(120.0));
+    assert!((short - 120.0).abs() < 1.0, "one row: {short}");
+}

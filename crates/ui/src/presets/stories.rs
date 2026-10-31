@@ -74,6 +74,14 @@ pub(crate) fn stories() -> Vec<Story> {
             PresetArgs::new(ViewArg::Grid, 40.0),
             show_popover
         ),
+        typed_story!(
+            "composites/preset-browser/short-list",
+            Level::Composites,
+            "Preset browser",
+            "Short list",
+            PresetArgs::new(ViewArg::List, 28.0),
+            show_short
+        ),
     ]
 }
 
@@ -514,6 +522,27 @@ fn show_popover(ui: &mut Ui, args: &mut PresetArgs) {
                     .show(ui, |painter, rect, info| pattern(painter, rect, *info.key))
             })
             .inner;
+        lib.apply(out.events);
+        status(ui, lib);
+    });
+}
+
+/// Three presets in a browser that is as tall as its rows, up to 200 pt and at least 48 pt.
+fn show_short(ui: &mut Ui, args: &mut PresetArgs) {
+    let rows = (1..=3).map(|n| PresetRow::item(n, format!("Preset {n}"), 0)).collect();
+    let start = Library::new(rows, args);
+    slider::with_values(ui, "preset-short", [start], |ui, state| {
+        let lib = &mut state[0];
+        lib.sync(args);
+        ui.set_width(ui.available_width().min(240.0));
+        let tokens = Tokens::of(ui);
+        let Library { rows, state, selected, .. } = lib;
+        let out = PresetBrowser::new("preset-short", "Short list", state, rows)
+            .selected(selected.as_ref())
+            .shrink_to_content(true)
+            .max_height(200.0)
+            .min_height(48.0)
+            .show(ui, |painter, rect, info| paint_solid(painter, rect, color_of(*info.key, true), &tokens));
         lib.apply(out.events);
         status(ui, lib);
     });
