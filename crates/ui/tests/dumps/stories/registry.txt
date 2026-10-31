@@ -145,6 +145,10 @@ patterns/dock-area/docked = DockArea | Docked | Own | width=Number { value: 640.
 patterns/dock-area/floating = DockArea | Floating | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/drag = DockArea | Drag | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/iconic = DockArea | Iconic | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
+patterns/dock/panel-menu = PanelMenu | Panel menu | Panel | 
+patterns/dock/titled-frame = FloatingFrame | Titled frame | Canvas | auto height=Bool(true); contents=Number { value: 80.0, min: 20.0, max: 240.0 }
+patterns/dock/arrange = Arrange | Arrange | Panel | documents=Number { value: 4.0, min: 0.0, max: 8.0 }; groups=Number { value: 1.0, min: 1.0, max: 6.0 }; floating=Number { value: 0.0, min: 0.0, max: 6.0 }; cells=Number { value: 4.0, min: 2.0, max: 6.0 }
+patterns/dock/workspaces = WorkspaceSwitcher | Workspaces | Panel | 
 patterns/dialog/frame = Dialog | Frame | Panel | width=Choice { options: ["compact", "standard", "wide"], index: 1 }; close box=Bool(true); roomy=Bool(false)
 patterns/dialog/modeless = Dialog | Modeless | Panel | open=Bool(true); width=Choice { options: ["compact", "standard", "wide"], index: 1 }; resizable=Bool(false); scroll body=Bool(false)
 patterns/dialog/footer = Dialog | Footer | Panel | open=Bool(true); shape=Choice { options: ["standard", "side"], index: 0 }; apply=Bool(true); alternate=Bool(false); ok enabled=Bool(true); alt resets=Bool(true); body owns enter=Bool(false)
@@ -170,6 +174,13 @@ patterns/status-bar/error = StatusBar | Error | Chrome | message=Text("Couldn't 
 patterns/status-bar/narrow = StatusBar | Narrow | Chrome | message=Text("Exported 14 layers to the folder Documents/Exports/2026"); error=Bool(false); render_path=Bool(true); width=Number { value: 480.0, min: 160.0, max: 1200.0 }
 patterns/command-palette/photocraft = CommandPalette | PhotoCraft | Panel | open=Bool(true); recents=Bool(false)
 patterns/command-palette/recents = CommandPalette | Recent commands | Panel | open=Bool(true); recents=Bool(true)
+patterns/shell/tour = Tour | Tour | Chrome | 
+patterns/shell/status-readout = StatusReadout | Readout | Chrome | 
+patterns/shell/toolbar-drawer = ToolbarDrawer | Drawer | Chrome | 
+patterns/shell/notice-center = NoticeCenter | Notices | Canvas | 
+patterns/shell/start = StartScreen | Start | Own | view=Choice { options: ["grid", "list"], index: 0 }; sort=Choice { options: ["opened", "name", "created"], index: 0 }; empty=Bool(false)
+patterns/canvas/selection-bar = SelectionBar | Bar | Canvas | above=Bool(true)
+patterns/canvas/tool-pill = ToolPill | Pill | Canvas | top=Bool(false)
 patterns/inspector/properties = Inspector | Properties | Panel | target=Choice { options: ["layer", "document"], index: 0 }; empty=Bool(false)
 patterns/toolbar/vertical-liquify = Toolbar | Vertical | Own | 
 patterns/toolbar/horizontal-overflow = Toolbar | Overflow | Chrome | width=Number { value: 260.0, min: 60.0, max: 640.0 }

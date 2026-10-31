@@ -70,7 +70,7 @@ fn panel_menu_lists_host_rows_then_group_items() {
     let mut h = harness(false);
     open_first_menu(&mut h);
     let y = |label: &str| h.get_by_label(label).rect().top();
-    let rows = [y("Host Row 3"), y("«Float Panel»"), y("«Move Panel to Group»"), y("«Close Panel»"), y("«Close Tab Group»")];
+    let rows = [y("Host Row 3"), y("«Float»"), y("«Move Panel To»"), y("«Close»"), y("«Close Tab Group»")];
     assert!(rows.windows(2).all(|pair| pair[0] < pair[1]), "{rows:?}");
 }
 
@@ -91,7 +91,7 @@ fn locked_group_hides_dock_rows() {
     let mut h = harness(true);
     open_first_menu(&mut h);
     assert_eq!(h.query_all_by_label("Host Row 3").count(), 1);
-    for label in ["«Float Panel»", "«Move Panel to Group»", "«Close Panel»", "«Close Tab Group»", "«Float Tab Group»"] {
+    for label in ["«Float»", "«Move Panel To»", "«Close»", "«Close Tab Group»", "«Float Tab Group»"] {
         assert_eq!(h.query_all_by_label(label).count(), 0, "{label}");
     }
 }
@@ -126,6 +126,6 @@ fn host_entries_are_asked_only_for_an_open_menu() {
 fn dock_rows_use_the_hosts_action_text() {
     let mut h = harness(false);
     open_first_menu(&mut h);
-    assert_eq!(h.query_all_by_label("«Float Panel»").count(), 1);
-    assert_eq!(h.query_all_by_label("Float Panel").count(), 0);
+    assert_eq!(h.query_all_by_label("«Float»").count(), 1);
+    assert_eq!(h.query_all_by_label("Float").count(), 0);
 }

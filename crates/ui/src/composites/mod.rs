@@ -74,6 +74,7 @@ pub mod live;
 pub(crate) mod measure;
 pub(crate) mod notice;
 pub(crate) mod notice_center;
+pub(crate) mod notice_center_stories;
 #[cfg(test)]
 mod notice_center_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]

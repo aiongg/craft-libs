@@ -366,7 +366,7 @@ impl crate::import::kys::KysError {
 }
 
 /// Every word the dialog looks up, for the shared catalog.
-pub const WORDS: &[&[Word]] = &[STRING_WORDS, COUNT_WORDS];
+pub const WORDS: &[&[Word]] = &[STRING_WORDS, COUNT_WORDS, <super::import_offer::ImportOfferLabels as craft_ui::localized::Labels>::WORDS];
 
 #[cfg(test)]
 mod tests {

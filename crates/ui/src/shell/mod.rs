@@ -33,6 +33,7 @@ mod screen_mode;
 mod screen_mode_tests;
 mod slot;
 mod start;
+pub(crate) mod start_stories;
 #[cfg(test)]
 mod start_tests;
 #[cfg(test)]
