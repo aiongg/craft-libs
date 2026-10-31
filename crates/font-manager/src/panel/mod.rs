@@ -6,7 +6,7 @@ mod i18n;
 mod app;
 mod browse;
 mod details;
-mod faces;
+pub(crate) mod faces;
 mod jobs;
 mod look;
 mod samples;
