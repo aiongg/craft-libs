@@ -105,8 +105,20 @@ impl ControlOptions {
         })
     }
 
+    /// `flags` over the environment: each variable is looked up only when its flag is absent, so
+    /// a bad exported value does not stop a launch whose flag overrides it (clap's behaviour).
+    pub fn resolve(flags: Self, names: &EnvNames) -> Result<Self, OptionsError> {
+        Self::resolve_with(flags, names, |name| std::env::var_os(name))
+    }
+
+    fn resolve_with(flags: Self, names: &EnvNames, get: impl Fn(&str) -> Option<std::ffi::OsString>) -> Result<Self, OptionsError> {
+        let skipped = [(flags.port.is_some(), &names.port), (flags.token.is_some(), &names.token), (flags.token_file.is_some(), &names.token_file)];
+        let env = Self::from_lookup(names, |name| if skipped.iter().any(|(given, var)| *given && var.as_str() == name) { None } else { get(name) })?;
+        Ok(Self::merged(flags, env))
+    }
+
     /// `flags` (what the command line gave, each with `Source::Flag`) over `env`: a flag wins
-    /// over its variable, field by field.
+    /// over its variable, field by field. Prefer [`Self::resolve`], which also skips the lookup.
     pub fn merged(flags: Self, env: Self) -> Self {
         fn pick<T>(flag: Option<T>, flag_source: Option<Source>, env: Option<T>, env_source: Option<Source>) -> (Option<T>, Option<Source>) {
             if flag.is_some() { (flag, flag_source) } else { (env, env_source) }

@@ -64,3 +64,13 @@ fn token_and_token_file_conflict_names_the_sources() {
     no_server.port = None;
     assert_eq!(no_server.check(&flags, &env_names), Ok(()), "the token pair is ignored without --control");
 }
+
+// A bad variable is not read when its flag is given, as with clap.
+#[test]
+fn a_bad_variable_is_ignored_when_its_flag_is_given() {
+    let env_names = names("APP");
+    let bad = |name: &str| (name == env_names.port).then(|| "nope".into());
+    let resolved = ControlOptions::resolve_with(flag_port(0), &env_names, bad).unwrap();
+    assert_eq!((resolved.port, resolved.sources.port), (Some(0), Some(Source::Flag)));
+    assert!(ControlOptions::resolve_with(ControlOptions::default(), &env_names, bad).is_err());
+}
