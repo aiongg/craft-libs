@@ -26,7 +26,7 @@ use crate::localized::{Labels as _, LocaleNumbers, Unit, Words};
 use crate::primitives::{Content, FocusRing, Gap, Handle, HandleShape, HandleStyle, Stack, Text};
 use crate::story::NoArgs;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, current};
 use crate::typed_story;
 
 /// One channel of a curve dialog: its name ("Red"; the host's text) and colour.
@@ -370,9 +370,9 @@ impl<'a> CurveEditor<'a> {
     }
 
     /// The width of the editor at the active size when its value area is `value_side` wide: the
-    /// `side` that gives it, bars and insets included.
-    pub fn outer_width(ui: &Ui, value_side: f32) -> f32 {
-        let style = CurveEditor::style(&Tokens::of(ui));
+    /// `side` that gives it, bars and insets included. A host without a `Ui` passes its context.
+    pub fn outer_width(ctx: &Context, value_side: f32) -> f32 {
+        let style = CurveEditor::style(&current(ctx));
         value_side + style.bar + style.bar_gap + 2.0 * style.pad
     }
 

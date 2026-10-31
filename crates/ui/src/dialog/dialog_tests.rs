@@ -81,7 +81,7 @@ fn build(app: App, size: Vec2) -> Harness<'static, App> {
     )
 }
 
-fn drag(harness: &mut Harness<'_, App>, from: Pos2, by: Vec2) {
+fn drag<State>(harness: &mut Harness<'_, State>, from: Pos2, by: Vec2) {
     let button = |pos: Pos2, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
     harness.event(Event::PointerMoved(from));
     harness.run();
@@ -687,4 +687,51 @@ fn a_body_of_a_square_and_a_column_is_capped_by_the_window_not_by_the_square() {
 fn checkbox_rows_beside_a_square_are_not_clipped_at_the_square() {
     let run = cap_run(vec2(1440.0, 900.0), false, 8, beside_a_square(5, true));
     assert!(!run[7].overflows, "{run:?}");
+}
+
+fn resizable_run(window: Vec2, body: impl Fn(&mut egui::Ui) + 'static) -> (Harness<'static, DialogState>, std::rc::Rc<std::cell::Cell<Rect>>) {
+    let frame = std::rc::Rc::new(std::cell::Cell::new(Rect::NOTHING));
+    let out = frame.clone();
+    let mut harness = harness(window).build_ui_state(
+        move |ui, state: &mut DialogState| {
+            let resize = Resize { default: vec2(400.0, 300.0), min: vec2(260.0, 160.0), max: ResizeMax::Window };
+            let shown = Dialog::new("resizable", "Resizable").initial_focus(InitialFocus::None).resizable(resize).footer(Footer::standard()).show(
+                &ui.ctx().clone(),
+                state,
+                &mut (),
+                |ui, ()| body(ui),
+            );
+            out.set(shown.rect);
+        },
+        DialogState::new(),
+    );
+    harness.run();
+    (harness, frame)
+}
+
+#[test]
+fn a_resizable_dialog_grows_in_both_directions_when_it_is_resized() {
+    let (mut harness, frame) = resizable_run(vec2(1000.0, 800.0), |ui| {
+        ui.label("Body");
+    });
+    let before = frame.get();
+    drag(&mut harness, before.max - vec2(14.0, 14.0), vec2(100.0, 150.0));
+    harness.run();
+    let after = frame.get();
+    assert!(after.width() > before.width() + 50.0, "{before:?} {after:?}");
+    assert!(after.height() > before.height() + 50.0, "{before:?} {after:?}");
+}
+
+#[test]
+fn a_footer_keeps_its_gap_to_the_bottom_of_a_capped_resizable_dialog() {
+    let window = vec2(1600.0, 1000.0);
+    let (mut harness, frame) = resizable_run(window, |ui| {
+        for n in 0..80 {
+            ui.label(format!("Row {n}"));
+        }
+    });
+    harness.run();
+    let gap = frame.get().bottom() - harness.get_by_label("OK").rect().bottom();
+    let pad = crate::theme::current(&harness.ctx).component.dialog.pad;
+    assert!((gap - pad).abs() < 0.5, "footer to frame bottom {gap}, pad {pad}, frame {:?}", frame.get());
 }

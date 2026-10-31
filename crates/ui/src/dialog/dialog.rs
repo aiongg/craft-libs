@@ -466,16 +466,17 @@ impl<'a> Dialog<'a> {
                     if let Some((_, max)) = resize_sizes {
                         height = height.min((max.y - (chrome - 2.0 * pad) - below_used).max(t.scroll_min));
                     }
-                    // The body's room is the dialog's size from the pass before, which the footer and a
-                    // body that grew do not count in; the height is the cap, not what is left of that.
-                    let scrolled = ScrollArea::vertical()
-                        .max_height(height)
-                        .min_scrolled_height(height)
-                        .auto_shrink([body_mode == Body::Fit, true])
-                        .show(ui, |ui| {
-                            body(ui, fields);
-                            scroll_focus_into_view(ui);
-                        });
+                    // Without a resize the body's room is the dialog's size from the pass before, which
+                    // the footer and a body that grew do not count in: the cap is its height. A resizable
+                    // dialog's room is the size the user gave it.
+                    let mut area = ScrollArea::vertical().max_height(height).auto_shrink([body_mode == Body::Fit, true]);
+                    if resize_sizes.is_none() {
+                        area = area.min_scrolled_height(height);
+                    }
+                    let scrolled = area.show(ui, |ui| {
+                        body(ui, fields);
+                        scroll_focus_into_view(ui);
+                    });
                     overflow_now.set(scrolled.content_size.y > scrolled.inner_rect.height() + 0.5);
                     let top = ui.min_rect().bottom();
                     below(ui, fields);

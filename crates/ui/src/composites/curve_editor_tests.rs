@@ -1316,7 +1316,7 @@ fn outer_width_is_the_width_the_editor_allocates_at_each_size() {
                     |ui| {
                         let numbers = LocaleNumbers::from_tag("en");
                         let curve = Curve::identity(255.0);
-                        let width = CurveEditor::outer_width(ui, 267.0);
+                        let width = CurveEditor::outer_width(ui.ctx(), 267.0);
                         let shown = ui.scope(|ui| CurveEditor::new("width", "Width", &curve, &numbers).side(width).fields(false).show(ui));
                         out.set((width, shown.response.rect.width()));
                     },
