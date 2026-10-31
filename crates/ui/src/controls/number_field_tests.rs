@@ -28,6 +28,8 @@ struct Rig {
     unit: Unit,
     mixed: bool,
     scrub: bool,
+    /// The field is a part of a composite.
+    part: bool,
     /// A drag on the text scrubs.
     scrub_text: bool,
     /// The controls are in a scroll area 100 points tall over a tall filler, scrolled `offset`.
@@ -99,6 +101,7 @@ impl Rig {
             unit: Unit::default(),
             mixed: false,
             scrub: false,
+            part: false,
             scrub_text: true,
             scroll: false,
             offset: 0.0,
@@ -218,6 +221,7 @@ impl Rig {
             .mixed(self.mixed)
             .enabled(self.enabled)
             .scrub_text(self.scrub_text)
+            .part(self.part)
             .policy(self.policy);
         if self.scrub {
             field = field.scrub_label("W");
@@ -654,6 +658,19 @@ fn the_first_move_of_a_scrub_changes_the_value_in_that_pass() {
     let events = since(&rig, n);
     let id = begin_id(&events);
     assert_eq!(events, [EditEvent::begin_with(id, 17.0), commit(id, 17.0, true)]);
+}
+
+/// A press on the body of a field that is a part of a composite scrubs from its first move, as a
+/// field on its own does.
+#[test]
+fn the_first_move_of_a_scrub_of_a_parts_body_changes_the_value_in_that_pass() {
+    let mut rig = Rig::with(10.0, |r| r.part = true);
+    let body = rig.rect.center();
+    let n = rig.events.len();
+    rig.drag(body, &[7.0], Modifiers::NONE, false);
+    assert_eq!(rig.value, 17.0);
+    let events = since(&rig, n);
+    assert!(matches!(events[..], [EditEvent::Begin { value: Some(v), .. }] if v == 17.0), "{events:?}");
 }
 
 #[test]

@@ -73,9 +73,9 @@ pub(super) struct RowsOut {
 /// restores the value from before it.
 fn forward<T>(ctx: &Context, id: Id, event: Option<EditEvent<T>>, before: PrefValue, to_value: impl Fn(T) -> PrefValue) -> Option<PrefValue> {
     match event? {
-        EditEvent::Begin { .. } => {
+        EditEvent::Begin { value, .. } => {
             ctx.data_mut(|d| d.insert_temp(id, before));
-            None
+            value.map(to_value)
         }
         EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. } => Some(to_value(value)),
         EditEvent::Cancel { .. } => ctx.data_mut(|d| d.get_temp::<PrefValue>(id)),
