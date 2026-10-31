@@ -125,7 +125,7 @@ impl MomentaryKeys {
     /// without one: keys pressed mid-drag start no temporary tool until the button is up. The
     /// latch lives in egui memory under `canvas`.
     // pc: crates/ui-egui/src/input/hold_keys.rs:240 `for_frame`, :232 `latch_id`.
-    pub fn update(&self, ctx: &Context, canvas: CanvasId, drawing: bool) -> Option<MomentaryTool> {
+    pub fn read(&self, ctx: &Context, canvas: CanvasId, drawing: bool) -> Option<MomentaryTool> {
         let (down, released, pressed) = ctx.input(|i| (i.pointer.primary_down(), i.pointer.primary_released(), i.pointer.primary_pressed()));
         let latch = canvas.with("momentary-latch");
         let latched = ctx.data(|d| d.get_temp::<Option<MomentaryTool>>(latch)).flatten();

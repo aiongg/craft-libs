@@ -82,6 +82,7 @@ mod paint_chip;
 mod panel;
 mod panel_footer;
 mod panel_header;
+mod pasteboard;
 mod popover;
 mod popup;
 mod preferences;
@@ -179,6 +180,7 @@ pub use paint_chip::{PaintChipField, PaintChipTokens};
 pub use panel::{PanelField, PanelTokens};
 pub use panel_footer::{PanelFooterField, PanelFooterTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
+pub use pasteboard::{PasteboardField, PasteboardTokens};
 pub use popover::{PopoverField, PopoverTokens};
 pub use popup::{PopupField, PopupTokens};
 pub use preferences::{PreferencesField, PreferencesTokens};
@@ -867,6 +869,8 @@ families! {
     panel_footer: PanelFooterTokens => PanelFooter(PanelFooterField);
     /// Panel headers: the title row of a flyout or floating panel.
     panel_header: PanelHeaderTokens => PanelHeader(PanelHeaderField);
+    /// The pasteboard: the page name's gap and the page outline.
+    pasteboard: PasteboardTokens => Pasteboard(PasteboardField);
     /// Popovers: the padding, resize grip and screen margin of an anchored popup.
     popover: PopoverTokens => Popover(PopoverField);
     /// Popups: the card that holds a menu or a list under a field.

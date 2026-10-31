@@ -3,14 +3,14 @@
 use egui::text::LayoutJob;
 use std::ops::RangeInclusive;
 
-use egui::{AsIdSalt, CursorIcon, Id, IdSalt, Label, PointerButton, Response, Sense, Ui, vec2};
+use egui::{AsIdSalt, Id, IdSalt, Label, Response, Sense, Ui, vec2};
 
 use super::options_bar::OptionsBar;
 use crate::canvas::rulers;
 use crate::controls::expr::{self, ExprUnits};
 use crate::controls::{CheckState, Checkbox, NumberField, Select};
 use crate::direction;
-use crate::edit::{EditPolicy, EditResponse, Gesture};
+use crate::edit::EditResponse;
 use crate::localized::units::{LengthUnit, UnitContext};
 use crate::localized::{LocaleNumbers, Unit, Word, Words};
 use crate::primitives::{Content, FocusRing, Text};
@@ -104,37 +104,16 @@ impl OptionsBar {
         let salt = IdSalt::new(id_salt);
         let field_id = ui.make_persistent_id(salt);
         Self::cell(ui, caption, CellWidth::Sm, |ui, label| {
-            let drag = scrub_area(ui, label, field_id);
-            let mut gesture = Gesture::load(ui, drag.id, &value, EditPolicy::default()).enabled(drag.enabled());
-            if drag.hovered() || drag.dragged() {
-                ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
-            }
-            if drag.drag_started_by(PointerButton::Primary) && value.is_finite() {
-                gesture.begin();
-            }
-            if drag.dragged_by(PointerButton::Primary)
-                && let Some(start) = gesture.anchor().copied()
-                && let Some((pos, origin)) = drag.interact_pointer_pos().zip(ui.input(|i| i.pointer.press_origin()))
-            {
-                let next = (start + f64::from(pos.x - origin.x) * PERCENT_PER_POINT).clamp(0.0, 100.0);
-                gesture.update(next, ui.input(|i| i.modifiers));
-            }
-            if drag.drag_stopped() {
-                gesture.commit();
-            }
-            let shown = *gesture.shown();
-            let mut edit = NumberField::new(salt, caption, shown, numbers)
+            let area = scrub_area(ui, label, field_id);
+            NumberField::new(salt, caption, value, numbers)
                 .range(0.0..=100.0)
                 .decimals(0..=0)
                 .unit(Unit::new("{n}%"))
                 .size(ControlSize::Sm)
+                .scrub_by(&area)
+                .scrub_rate(PERCENT_PER_POINT)
                 .popup_slider(caption)
-                .show(ui);
-            if drag.clicked() {
-                edit.response.request_focus();
-            }
-            edit.event = gesture.finish().or(edit.event.take());
-            edit
+                .show(ui)
         })
     }
 
@@ -206,7 +185,7 @@ impl OptionsBar {
     }
 }
 
-/// Percentage points a caption drag adds per screen point.
+/// Percentage points a caption drag adds per screen point ([`NumberField::scrub_rate`]).
 const PERCENT_PER_POINT: f64 = 0.5;
 
 /// The longest gap after a caption that still scrubs.

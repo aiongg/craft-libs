@@ -50,7 +50,7 @@ pub enum PaintingCursor {
 
 /// Preferences › Cursors, as the app stores them; the host reads them each pass.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct CursorPrefs {
+pub struct CursorOptions {
     pub painting: PaintingCursor,
     /// Show Crosshair in Brush Tip: the outline draws its centre mark.
     pub crosshair_in_brush_tip: bool,
@@ -60,7 +60,7 @@ pub struct CursorPrefs {
     pub caps_lock_precise: bool,
 }
 
-impl Default for CursorPrefs {
+impl Default for CursorOptions {
     /// Photoshop's defaults: Normal Brush Tip, no crosshair, standard other cursors, Caps Lock on.
     fn default() -> Self {
         Self { painting: PaintingCursor::NormalBrushTip, crosshair_in_brush_tip: false, other_precise: false, caps_lock_precise: true }
@@ -112,13 +112,13 @@ pub enum ToolCursor {
 }
 
 impl ToolCursor {
-    /// The cursor a brush tool shows for `prefs` at `radius` screen points: the outline, the
+    /// The cursor a brush tool shows (sizes from `style`) for `prefs` at `radius` screen points: the outline, the
     /// crosshair or the icon, swapped to the crosshair while Caps Lock is down when
     /// `caps_lock` and the preference allow. `full_size` gives the full-reach radius.
     // pc: crates/ui-egui/src/canvas/cursors.rs:36 (centre mark rule), canvas.rs:1315
     // `draw_canvas_tool_cursor` (Caps Lock and the preference).
-    pub fn brush(prefs: &CursorPrefs, radius: f32, full_size: f32, icon: Icon, caps_lock: bool) -> ToolCursor {
-        let precise = ToolCursor::Crosshair { length: PRECISE_LENGTH, gap: 0.0 };
+    pub fn brush(style: &CursorStyle, prefs: &CursorOptions, radius: f32, full_size: f32, icon: Icon, caps_lock: bool) -> ToolCursor {
+        let precise = ToolCursor::Crosshair { length: style.precise_reach, gap: 0.0 };
         if caps_lock && prefs.caps_lock_precise {
             return precise;
         }
@@ -134,22 +134,16 @@ impl ToolCursor {
     /// The cursor a non-painting tool shows: the icon, or the crosshair with Other Cursors
     /// Precise or Caps Lock.
     // pc: crates/ui-egui/src/canvas.rs:1315.
-    pub fn tool(prefs: &CursorPrefs, icon: Icon, hotspot: Vec2, badge: Option<CursorBadge>, caps_lock: bool) -> ToolCursor {
+    pub fn tool(style: &CursorStyle, prefs: &CursorOptions, icon: Icon, hotspot: Vec2, badge: Option<CursorBadge>, caps_lock: bool) -> ToolCursor {
         // Caps Lock swaps whichever cursor Other Cursors chose for the other one.
         let swapped = caps_lock && prefs.caps_lock_precise;
         if prefs.other_precise != swapped {
-            ToolCursor::Crosshair { length: OTHER_PRECISE_LENGTH, gap: OTHER_PRECISE_GAP }
+            ToolCursor::Crosshair { length: style.crosshair.0, gap: style.crosshair.1 }
         } else {
             ToolCursor::Tool { icon, hotspot, badge }
         }
     }
 }
-
-/// Arm of the crosshair of the painting tools' precise cursor (PhotoCraft's).
-const PRECISE_LENGTH: f32 = 6.0;
-/// Arm and gap of the crosshair of the other tools' precise cursor (PhotoCraft's).
-const OTHER_PRECISE_LENGTH: f32 = 8.0;
-const OTHER_PRECISE_GAP: f32 = 2.0;
 
 /// The look of the bitmap cursors, from [`CursorHost::style`].
 #[derive(Clone, Debug, PartialEq)]
@@ -169,6 +163,11 @@ pub struct CursorStyle {
     /// Where the badge beside the system arrow sits, right of and below its hotspot:
     /// `cursor.badge_beside_x`, `cursor.badge_beside_y`.
     pub badge_beside: Vec2,
+    /// Arm of the painting tools' precise crosshair, which has no gap: `cursor.precise_reach`.
+    pub precise_reach: f32,
+    /// Arm and gap of the other tools' precise crosshair: `cursor.crosshair_reach`,
+    /// `cursor.crosshair_gap`.
+    pub crosshair: (f32, f32),
 }
 
 /// Sets the canvas cursor once per pass and clears it at the next pass's start, so a cursor set
@@ -280,6 +279,8 @@ impl CursorHost {
             badge: c.badge,
             icon: c.icon,
             badge_beside: vec2(c.badge_beside_x, c.badge_beside_y),
+            precise_reach: c.precise_reach,
+            crosshair: (c.crosshair_reach, c.crosshair_gap),
         }
     }
 
@@ -409,7 +410,7 @@ fn show(ctx: &Context, painter: &Painter, at: Pos2, shape: bitmap::Shape, style:
         // An enormous tip cannot fit an OS cursor: paint its full-size outline, with an OS
         // crosshair at the hotspot so the pointer still reacts at once.
         paint(painter, at, &shape, &look);
-        if let Some(image) = cached_image(ctx, &bitmap::Shape::Crosshair { length: 6.0, gap: 2.0 }, scale, look) {
+        if let Some(image) = cached_image(ctx, &bitmap::Shape::Crosshair { length: style.precise_reach, gap: style.crosshair.1 }, scale, look) {
             ctx.set_cursor_image(Some(image));
         }
         return CursorIcon::None;

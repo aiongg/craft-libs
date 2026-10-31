@@ -29,7 +29,7 @@ fn pass<R>(ctx: &Context, time: f64, modifiers: Modifiers, mut events: Vec<Event
 const CANVAS: fn() -> CanvasId = || CanvasId::from_id(Id::unique("canvas"));
 
 fn held(ctx: &Context, time: f64, modifiers: Modifiers, events: Vec<Event>) -> Option<MomentaryTool> {
-    pass(ctx, time, modifiers, events, |ctx| MomentaryKeys::default().update(ctx, CANVAS(), false))
+    pass(ctx, time, modifiers, events, |ctx| MomentaryKeys::default().read(ctx, CANVAS(), false))
 }
 
 // Space then Cmd and Cmd then Space both give ZoomIn; Space alone gives Hand.
@@ -83,7 +83,7 @@ fn a_temporary_tool_cannot_start_in_the_middle_of_a_drag() {
 fn space_while_drawing_is_not_the_hand() {
     let ctx = Context::default();
     let n = Modifiers::NONE;
-    let tool = pass(&ctx, 0.0, n, vec![key_event(Key::Space, true, n)], |ctx| MomentaryKeys::default().update(ctx, CANVAS(), true));
+    let tool = pass(&ctx, 0.0, n, vec![key_event(Key::Space, true, n)], |ctx| MomentaryKeys::default().read(ctx, CANVAS(), true));
     assert_eq!(tool, None);
 }
 

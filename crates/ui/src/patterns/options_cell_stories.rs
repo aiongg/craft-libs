@@ -104,7 +104,7 @@ fn show_cells(ui: &mut Ui, args: &mut CellsArgs) {
             })
         })
         .inner;
-    if let Some(entry) = values.digits.handle(ui.ctx(), args.digit_keys && bar.contains_pointer()) {
+    if let Some(entry) = values.digits.read(ui.ctx(), args.digit_keys && bar.contains_pointer()) {
         *if entry.shift { &mut values.flow } else { &mut values.opacity } = entry.percent;
     }
     ui.data_mut(|d| d.insert_temp(key, values));

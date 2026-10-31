@@ -116,7 +116,7 @@ pub use craft_theme::{ButtonVariant, ControlSize};
 pub use icon_button::{IconButton, IconButtonStyle, IconSource};
 pub use kbd::{Kbd, KbdStyle};
 pub use link::{Link, LinkStyle};
-pub use number_field::{NumberField, NumberFieldStyle};
+pub use number_field::{NumberField, NumberFieldStyle, Preset};
 pub(crate) use option_list::{pressed_on, released};
 pub use point_picker::{PointPicker, PointPickerStyle};
 pub use progress::{Progress, ProgressStyle};

@@ -14,12 +14,12 @@ use crate::{
     GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, IconButtonTokens, IconSizes,
     InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens,
     Motion, MotionTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens,
-    PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes,
-    RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens,
-    SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitTokens, StartTokens, States,
-    StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens,
-    ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens,
-    TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    PanelTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens,
+    RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, SamplerTokens, ScreenPickerTokens, ScrollTokens,
+    SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens,
+    SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, TextEditorTokens,
+    TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens,
+    ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -287,6 +287,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         panel,
         panel_footer,
         panel_header,
+        pasteboard,
         popover,
         popup,
         preferences,
@@ -375,6 +376,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     panel_lines(out, panel);
     panel_footer_lines(out, panel_footer);
     panel_header_lines(out, panel_header);
+    pasteboard_lines(out, pasteboard);
     popover_lines(out, popover);
     popup_lines(out, popup);
     preferences_lines(out, preferences);
@@ -1649,8 +1651,15 @@ fn canvas_lines(out: &mut Lines, t: &CanvasTokens) {
 }
 
 fn split_lines(out: &mut Lines, t: &SplitTokens) {
-    let SplitTokens { gap } = t;
+    let SplitTokens { gap, active_edge } = t;
     out.line("split.gap", len(*gap));
+    out.line("split.active_edge", len(*active_edge));
+}
+
+fn pasteboard_lines(out: &mut Lines, t: &PasteboardTokens) {
+    let PasteboardTokens { name_gap, outline_width } = t;
+    out.line("pasteboard.name_gap", len(*name_gap));
+    out.line("pasteboard.outline_width", len(*outline_width));
 }
 
 fn ref_point_lines(out: &mut Lines, t: &RefPointTokens) {
@@ -1707,6 +1716,7 @@ fn cursor_lines(out: &mut Lines, c: &CursorTokens) {
     let CursorTokens {
         crosshair_reach,
         crosshair_gap,
+        precise_reach,
         badge_half,
         badge_offset,
         badge_beside_x,
@@ -1725,6 +1735,7 @@ fn cursor_lines(out: &mut Lines, c: &CursorTokens) {
     } = c;
     out.line("cursor.crosshair_reach", len(*crosshair_reach));
     out.line("cursor.crosshair_gap", len(*crosshair_gap));
+    out.line("cursor.precise_reach", len(*precise_reach));
     out.line("cursor.badge_half", len(*badge_half));
     out.line("cursor.badge_offset", len(*badge_offset));
     out.line("cursor.badge_beside_x", len(*badge_beside_x));

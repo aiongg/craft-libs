@@ -4,7 +4,7 @@ use egui::{Context, Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, Poi
 use egui_kittest::Harness;
 use kurbo::{Point, Size};
 
-use super::navigate::{Autoscroll, FlickPan, NavigationPrefs, PageKey, RotateView, TouchpadGlide, WheelAction, WheelInput, WheelNavigation, pan};
+use super::navigate::{Autoscroll, FlickPan, NavigationOptions, PageKey, RotateView, TouchpadGlide, WheelAction, WheelInput, WheelNavigation, pan};
 use super::{CanvasView, ZoomLadder};
 use crate::theme::{Base, Tokens, TokensOf as _, install};
 
@@ -27,7 +27,7 @@ fn zoom_factor(action: Option<WheelAction>) -> f64 {
 // Alt + one notch is Zoom(1.1); no modifier is Pan.
 #[test]
 fn alt_wheel_zooms_and_the_plain_wheel_scrolls() {
-    let prefs = NavigationPrefs::default();
+    let prefs = NavigationOptions::default();
     let f = zoom_factor(WheelNavigation::classify(wheel(40.0, true, false), &prefs));
     assert!((f - 1.1).abs() < 1e-6, "{f}");
     assert_eq!(WheelNavigation::classify(wheel(40.0, false, false), &prefs), Some(WheelAction::Pan(vec2(0.0, 40.0))));
@@ -37,7 +37,7 @@ fn alt_wheel_zooms_and_the_plain_wheel_scrolls() {
 // With the preference the wheel zooms and Alt + wheel pans.
 #[test]
 fn zoom_with_scroll_wheel_swaps_wheel_and_alt_wheel() {
-    let prefs = NavigationPrefs { zoom_with_wheel: true, ..NavigationPrefs::default() };
+    let prefs = NavigationOptions { zoom_with_wheel: true, ..NavigationOptions::default() };
     let f = zoom_factor(WheelNavigation::classify(wheel(40.0, false, false), &prefs));
     assert!((f - 1.1).abs() < 1e-6, "{f}");
     assert_eq!(WheelNavigation::classify(wheel(40.0, true, false), &prefs), Some(WheelAction::Pan(vec2(0.0, 40.0))));
@@ -47,7 +47,7 @@ fn zoom_with_scroll_wheel_swaps_wheel_and_alt_wheel() {
 // Shift + Alt + one notch is SnapZoom(1); ten notches cap at 10.
 #[test]
 fn shift_alt_wheel_steps_the_ladder() {
-    let prefs = NavigationPrefs::default();
+    let prefs = NavigationOptions::default();
     assert_eq!(WheelNavigation::classify(wheel(40.0, true, true), &prefs), Some(WheelAction::SnapZoom(1)));
     assert_eq!(WheelNavigation::classify(wheel(-40.0, true, true), &prefs), Some(WheelAction::SnapZoom(-1)));
     assert_eq!(WheelNavigation::classify(wheel(1000.0, true, true), &prefs), Some(WheelAction::SnapZoom(10)));
@@ -57,9 +57,9 @@ fn shift_alt_wheel_steps_the_ladder() {
 #[test]
 fn a_pinch_zooms_only_with_zoom_with_trackpad_pinch() {
     let pinch = WheelInput { zoom_delta: 1.25, ..wheel(0.0, false, false) };
-    let on = NavigationPrefs::default();
+    let on = NavigationOptions::default();
     assert_eq!(WheelNavigation::classify(pinch, &on), Some(WheelAction::Zoom(1.25)));
-    let off = NavigationPrefs { pinch_zooms: false, ..on };
+    let off = NavigationOptions { pinch_zooms: false, ..on };
     assert_eq!(WheelNavigation::classify(pinch, &off), None);
 }
 
@@ -67,7 +67,7 @@ fn a_pinch_zooms_only_with_zoom_with_trackpad_pinch() {
 #[test]
 fn a_notch_past_the_zoom_limit_leaves_the_view_alone() {
     let size = Size::new(1000.0, 800.0);
-    let prefs = NavigationPrefs::default();
+    let prefs = NavigationOptions::default();
     let mut v = view(ZoomLadder::MAX, Point::new(500.0, 400.0));
     let before = v;
     assert!(!WheelNavigation::apply(&mut v, WheelAction::Zoom(1.1), pos2(100.0, 100.0), size, &prefs, 1.0));

@@ -15,7 +15,7 @@ use super::view::CanvasView;
 use super::zoom::{self, ZoomAnimation};
 use super::{
     CanvasGrid, CanvasTool, CheckerSize, Checkerboard, HandTool, Marquee, MarqueeLook, MomentaryKeys, MomentaryTool, NavigationLabels,
-    NavigationPrefs, PageBorder, PageFrame, Pasteboard, PasteboardColor, PixelGrid, PixelRect, RasterDisplay, RasterSource, Readout, RotateView,
+    NavigationOptions, PageBorder, PageFrame, Pasteboard, PasteboardColor, PixelGrid, PixelRect, RasterDisplay, RasterSource, Readout, RotateView,
     RotateViewTool, SnapGesture, SnapOptions, SnapTargets, SplitLayout, SplitPane, SplitViews, ToolAction, ToolContext, ToolCursor, ToolGesture,
     ToolHost, ToolPointer, ViewHistory, ViewPlace, ZoomTool,
 };
@@ -224,11 +224,11 @@ fn place(view: &CanvasView) -> ViewPlace<()> {
 /// Forward through the Zoom tool's jumps, the Rotate View compass (turn the view with the
 /// rotation arg) and a zoom readout.
 fn show_navigation(ui: &mut Ui, args: &mut NavigationArgs) {
-    let prefs = NavigationPrefs {
+    let prefs = NavigationOptions {
         zoom_with_wheel: args.zoom_with_wheel,
         animated_zoom: args.animated_zoom,
         scrubby_zoom: args.scrubby_zoom,
-        ..NavigationPrefs::default()
+        ..NavigationOptions::default()
     };
     let ctx = ui.ctx().clone();
     let size = DOC.size();
@@ -241,9 +241,7 @@ fn show_navigation(ui: &mut Ui, args: &mut NavigationArgs) {
         WheelNavigation::apply(&mut view, action, pointer, size, &prefs, ppp);
     }
     crate::focus::key_owner::register_canvas(&ctx, response.id);
-    if response.has_focus() {
-        PageKey::handle(&ctx, &mut view, size, prefs.overscroll);
-    }
+    PageKey::handle(&ctx, &mut view, size, prefs.overscroll);
     let tool_key = ui.scope_id().with("navigation-tools");
     let mut tools: NavigationTools = ctx.data(|d| d.get_temp(tool_key)).unwrap_or_else(|| {
         let mut history = ViewHistory::default();
@@ -254,7 +252,7 @@ fn show_navigation(ui: &mut Ui, args: &mut NavigationArgs) {
     tools.hand.prefs = prefs;
     tools.zoom.size = size;
     tools.zoom.prefs = prefs;
-    let temporary = MomentaryKeys::default().update(&ctx, canvas.id, false);
+    let temporary = MomentaryKeys::default().read(&ctx, canvas.id, false);
     let zooming = matches!(temporary, Some(MomentaryTool::ZoomIn | MomentaryTool::ZoomOut));
     tools.zoom.out = temporary == Some(MomentaryTool::ZoomOut);
     let before = view;
@@ -416,7 +414,7 @@ fn show_split(ui: &mut Ui, args: &mut SplitArgs) {
             .collect();
         active = 0;
     }
-    let prefs = NavigationPrefs { zoom_with_wheel: true, ..NavigationPrefs::default() };
+    let prefs = NavigationOptions { zoom_with_wheel: true, ..NavigationOptions::default() };
     let mut views: Vec<CanvasView> = panes.iter().map(|p| p.view).collect();
     let sensed = SplitViews::new("split-story-views", layout).active(active).show(ui, full, |ui, i, r| {
         views[i].rect = r;
@@ -523,7 +521,7 @@ impl DemoTools {
 /// tool (click, hold, scrub) and Rotate View.
 fn show_tool_host(ui: &mut Ui, args: &mut ToolHostArgs) {
     const GRID: f64 = 40.0;
-    let prefs = NavigationPrefs::default();
+    let prefs = NavigationOptions::default();
     let ctx = ui.ctx().clone();
     let (canvas, mut view) = kept_canvas(ui, args.view, "Tool host", prefs.animated_zoom);
     let (response, shown) = (&canvas.response, canvas.view);

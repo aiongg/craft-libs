@@ -13,7 +13,7 @@ use egui::{AsIdSalt, Id, IdSalt, Rect, Response, Sense, Ui};
 /// use craft_ui::canvas::{CanvasId, ToolHost};
 /// # fn demo(ui: &mut egui::Ui, rect: egui::Rect) {
 /// let canvas_id = CanvasId::new(ui, "doc-1");
-/// // ... MomentaryKeys::update(ctx, canvas_id, ..), ZoomAnimation::shown(ctx, canvas_id, ..) ...
+/// // ... MomentaryKeys::read(ctx, canvas_id, ..), ZoomAnimation::shown(ctx, canvas_id, ..) ...
 /// let canvas = canvas_id.interact(ui, rect, egui::Sense::click_and_drag() | egui::Sense::FOCUSABLE);
 /// let host = ToolHost::new(canvas_id);
 /// # }
