@@ -101,7 +101,7 @@ pub enum StartAction {
 /// opens the card's context menu, Delete removes it from Recent. Cmd+N and Cmd+O are the app's
 /// shortcuts and need nothing here.
 ///
-/// AccessKit: the page is a `Group` named by the app; each card is a button named by the file
+/// AccessKit: the page is a `Group` named [`StartLabels::page`] ("Home"); each card is a button named by the file
 /// name, with the folder and date as its description.
 #[must_use = "show the start screen with `show`"]
 pub struct StartScreen<'a> {
@@ -174,6 +174,7 @@ crate::words! {
     /// The start screen's labels, English by default.
     #[non_exhaustive]
     pub struct StartLabels {
+        page: "start.page" = "Home";
         new: "start.new" = "New…";
         open: "start.open" = "Open…";
         recent: "start.recent" = "Recent";

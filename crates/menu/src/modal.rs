@@ -53,6 +53,13 @@ pub struct ModalRules {
     pub pending: Option<PendingRule>,
 }
 
+// `NativeMenu` keeps the rules in its shared dispatch state, which the platform's menu handler
+// reads from another thread.
+const _: () = {
+    const fn send_sync<T: Send + Sync>() {}
+    send_sync::<ModalRules>()
+};
+
 impl ModalRules {
     /// The commands that run while a dialog is open: [`NAVIGATION_COMMANDS`] for PhotoCraft.
     // pc: crates/ui-egui/src/input/shortcuts.rs:170 `NAV_COMMANDS`.

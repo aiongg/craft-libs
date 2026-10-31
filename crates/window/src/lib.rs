@@ -139,7 +139,7 @@
 //! `restore-ui` (eframe on wgpu) or `restore-ui-glow` (eframe on glow) add
 //! `restore::install`, `restore::Tracker` and `restore::cascade_window` for eframe apps.
 
-mod desktop;
+pub mod desktop;
 mod layout;
 mod list;
 pub mod mac;

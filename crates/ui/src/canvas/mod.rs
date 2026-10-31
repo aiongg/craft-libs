@@ -83,8 +83,8 @@ pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
-pub use selection_bar::{SelectionBar, SelectionBarResponse};
-pub use tool_pill::{PillPlace, ToolPill, ToolPillResponse};
+pub use selection_bar::{SelectionBar, SelectionBarLabels, SelectionBarResponse};
+pub use tool_pill::{PillPlace, ToolPill, ToolPillLabels, ToolPillResponse};
 pub use turn::{
     PointerInk, SelectionBadge, distort_cursor, selection_badge_at, selection_badge_beside_pointer, selection_cursor, skew_cursor, turn_cursor,
     turn_cursor_with,

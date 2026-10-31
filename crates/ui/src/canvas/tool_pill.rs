@@ -42,11 +42,13 @@ pub struct ToolPillResponse<T> {
 /// - **Keyboard:** a `Toolbar` region for F6 ([`crate::focus::RegionFocus`]); arrows move between
 ///   buttons, Enter or Space selects, Down or Alt+Down opens a group's flyout. Tool letters are
 ///   the app's keymap and need nothing here.
-/// - **AccessKit:** a `Toolbar` named "Tools"; the current tool's button is pressed.
+/// - **AccessKit:** a `Toolbar` named by [`ToolPillLabels::name`] ("Tools"); the current tool's
+///   button is pressed.
 #[must_use = "show the pill with `show`"]
 pub struct ToolPill {
     id: Id,
     place: PillPlace,
+    labels: Option<ToolPillLabels>,
 }
 
 impl ToolPill {
@@ -55,6 +57,11 @@ impl ToolPill {
     }
 
     pub fn place(mut self, place: PillPlace) -> Self {
+        todo!()
+    }
+
+    /// Translated labels; default the installed words.
+    pub fn labels(mut self, labels: ToolPillLabels) -> Self {
         todo!()
     }
 
@@ -69,5 +76,13 @@ impl ToolPill {
         current: &T,
     ) -> ToolPillResponse<T> {
         todo!()
+    }
+}
+
+crate::words! {
+    /// The tool pill's labels, English by default.
+    #[non_exhaustive]
+    pub struct ToolPillLabels {
+        name: "toolPill.name" = "Tools";
     }
 }

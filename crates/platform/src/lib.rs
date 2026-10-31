@@ -9,3 +9,11 @@ pub mod dialog_outcome;
 pub mod dialogs;
 #[cfg(all(feature = "appearance", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 mod process;
+#[cfg(feature = "session")]
+pub mod session;
+#[cfg(all(test, feature = "session"))]
+mod session_tests;
+#[cfg(feature = "usage")]
+pub mod usage;
+#[cfg(all(test, feature = "usage"))]
+mod usage_tests;

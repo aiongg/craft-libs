@@ -16,8 +16,11 @@ pub struct SelectionBarResponse<R> {
     /// The user dragged the grip: the bar stays at this screen position (relative to the
     /// canvas) until [`SelectionBar::unpin`]. The host may store it.
     pub pinned_at: Option<Pos2>,
-    /// The user hid the bar from its ⋯ menu ("Hide Bar"); the host turns its preference off.
+    /// The user hid the bar from its ⋯ menu (Hide Bar); the host turns its preference off.
     pub hide_requested: bool,
+    /// Reset Bar Position in the ⋯ menu: the bar follows the selection again; the host clears the
+    /// position it stored.
+    pub position_reset: bool,
 }
 
 /// A floating bar of the host's controls above a selection's screen rect.
@@ -40,19 +43,25 @@ pub struct SelectionBarResponse<R> {
 ///   on the canvas) unless the bar's grip is being dragged. A pinned bar stays where the user
 ///   dragged it, kept inside the canvas.
 /// - **Look:** a popup surface with the toolbar's controls at the small control size, a grip at the
-///   start and a ⋯ menu at the end. Themes change colours only.
+///   start and a ⋯ menu at the end (Hide Bar, Reset Bar Position). Themes change colours only.
 /// - **Keyboard:** not in the Tab order of the window until the user moves there (F6 lists it
 ///   as a region while it shows, [`crate::focus::RegionFocus`]); Esc returns focus to the canvas.
-/// - **AccessKit:** a `Toolbar` named "Selection".
+/// - **AccessKit:** a `Toolbar` named by [`SelectionBarLabels::name`] ("Selection").
 #[must_use = "show the bar with `show`"]
 pub struct SelectionBar {
     id: Id,
-    gap: f32,
+    above: bool,
     pinned: Option<Pos2>,
+    labels: Option<SelectionBarLabels>,
 }
 
 impl SelectionBar {
     pub fn new(id_salt: impl AsIdSalt) -> Self {
+        todo!()
+    }
+
+    /// Translated labels; default the installed words.
+    pub fn labels(mut self, labels: SelectionBarLabels) -> Self {
         todo!()
     }
 
@@ -78,5 +87,17 @@ impl SelectionBar {
     // `show`.
     pub fn show<R>(self, ui: &mut Ui, canvas: Rect, selection: Option<Rect>, add: impl FnOnce(&mut Ui) -> R) -> SelectionBarResponse<R> {
         todo!()
+    }
+}
+
+crate::words! {
+    /// The selection bar's labels, English by default.
+    #[non_exhaustive]
+    pub struct SelectionBarLabels {
+        name: "selectionBar.name" = "Selection";
+        grip: "selectionBar.grip" = "Move Bar";
+        more: "selectionBar.more" = "More";
+        hide: "selectionBar.hide" = "Hide Bar";
+        reset_position: "selectionBar.resetPosition" = "Reset Bar Position";
     }
 }
