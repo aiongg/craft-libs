@@ -46,6 +46,7 @@ mod curve;
 mod dialog;
 mod dock;
 mod empty_state;
+mod eyedropper;
 mod field;
 mod float;
 mod form;
@@ -56,6 +57,7 @@ mod grid;
 mod group_box;
 mod guide;
 mod handle;
+mod harmony;
 mod histogram;
 mod icon_button;
 mod identify;
@@ -68,6 +70,7 @@ mod marquee;
 mod menu;
 mod notice;
 mod options_bar;
+mod paint_chip;
 mod panel;
 mod panel_footer;
 mod panel_header;
@@ -81,6 +84,8 @@ mod rail;
 mod readout;
 mod ref_point;
 mod ruler;
+mod sampler;
+mod screen_picker;
 mod scroll;
 mod section;
 mod segmented;
@@ -123,6 +128,7 @@ pub use curve::{CurveField, CurveTokens};
 pub use dialog::{DialogField, DialogTokens};
 pub use dock::{DockField, DockTokens};
 pub use empty_state::{EmptyStateField, EmptyStateTokens};
+pub use eyedropper::{EyedropperField, EyedropperTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
 pub use float::{FloatField, FloatTokens};
 pub use form::{FormField, FormSpacing, FormTokens};
@@ -133,6 +139,7 @@ pub use grid::{GridField, GridTokens};
 pub use group_box::{GroupBoxField, GroupBoxTokens};
 pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
+pub use harmony::{HarmonyField, HarmonyTokens};
 pub use histogram::{HistogramField, HistogramTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use inspector::{InspectorField, InspectorTokens};
@@ -144,6 +151,7 @@ pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
+pub use paint_chip::{PaintChipField, PaintChipTokens};
 pub use panel::{PanelField, PanelTokens};
 pub use panel_footer::{PanelFooterField, PanelFooterTokens};
 pub use panel_header::{PanelHeaderField, PanelHeaderTokens};
@@ -157,6 +165,8 @@ pub use rail::{RailField, RailTokens};
 pub use readout::{ReadoutField, ReadoutTokens};
 pub use ref_point::{RefPointField, RefPointTokens};
 pub use ruler::{RulerField, RulerTokens};
+pub use sampler::{SamplerField, SamplerTokens};
+pub use screen_picker::{ScreenPickerField, ScreenPickerTokens};
 pub use scroll::{ScrollField, ScrollTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
@@ -751,6 +761,8 @@ families! {
     dock: DockTokens => Dock(DockField);
     /// Empty states: the message of an empty panel, list or canvas.
     empty_state: EmptyStateTokens => EmptyState(EmptyStateField);
+    /// The Eyedropper: the sampling ring round the pointer.
+    eyedropper: EyedropperTokens => Eyedropper(EyedropperField);
     /// Floating windows: the frame and title bar of a floating panel group.
     float: FloatTokens => Float(FloatField);
     /// Form grids: the gaps and label column of a two-column form.
@@ -771,6 +783,8 @@ families! {
     guide: GuideTokens => Guide(GuideField);
     /// Canvas handles.
     handle: HandleTokens => Handle(HandleField);
+    /// Harmony panels: the Color Guide's base button, strip and variation grid.
+    harmony: HarmonyTokens => Harmony(HarmonyField);
     /// Histograms: the plot height and the fill and backdrop alphas.
     histogram: HistogramTokens => Histogram(HistogramField);
     /// Square icon-only buttons.
@@ -793,6 +807,8 @@ families! {
     notice: NoticeTokens => Notice(NoticeField);
     /// Options bars: the bar of the active tool's options.
     options_bar: OptionsBarTokens => OptionsBar(OptionsBarField);
+    /// Paint chips: the shape fill and stroke chip.
+    paint_chip: PaintChipTokens => PaintChip(PaintChipField);
     /// Panels: the body of a docked or floating panel, with an optional footer bar.
     panel: PanelTokens => Panel(PanelField);
     /// Panel footers: the bar of buttons under a panel body.
@@ -819,6 +835,10 @@ families! {
     ref_point: RefPointTokens => RefPoint(RefPointField);
     /// Rulers along the top and left of a canvas.
     ruler: RulerTokens => Ruler(RulerField);
+    /// Color Sampler points: the reticle drawn at each numbered point.
+    sampler: SamplerTokens => Sampler(SamplerField);
+    /// The screen colour picker: the loupe over the captured screen.
+    screen_picker: ScreenPickerTokens => ScreenPicker(ScreenPickerField);
     /// Scroll bars: the thin bars of panel scroll areas and the bars of a canvas.
     scroll: ScrollTokens => Scroll(ScrollField);
     /// Section headers: the row, chevron and title of a collapsible section.

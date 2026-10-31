@@ -730,6 +730,9 @@ pub const COLOR_PICKER_GRID_ROW_GAP: f32 = 2.0;
 /// Compact gap between one model's last channel row and the next model's first (PhotoCraft: a 3
 /// point row between two row gaps).
 pub const COLOR_PICKER_GRID_GROUP_GAP: f32 = 7.0;
+/// Compact least width of the Full picker's OK, Cancel and Add to Swatches buttons (PhotoCraft's
+/// `.max(96.0)`).
+pub const COLOR_PICKER_SIDE_BUTTON_MIN: f32 = 96.0;
 
 /// The control height the Compact colour wheel, ramp and gradient palette sizes are set for;
 /// other sizes scale them by their control height over this.
@@ -1464,3 +1467,43 @@ pub const GRID_CROSSING_MIN: f32 = 8.0;
 pub const APP_SHELL_EDGE_REVEAL: f32 = 4.0;
 /// Behind the document in body-only mode, in every theme: black, as Photoshop's Full Screen Mode.
 pub const APP_SHELL_BODY_ONLY_BACKDROP: Rgba = Rgba::BLACK;
+
+/// Outer radius of the Eyedropper's sampling ring, in points (Photoshop's proportions in PhotoCraft:
+/// about 210 across).
+pub const EYEDROPPER_RING_RADIUS: f32 = 105.0;
+/// Width of each of the ring's two bands: the coloured inner one and the grey outer one.
+pub const EYEDROPPER_RING_BAND: f32 = 17.0;
+/// The ring's opaque outer band: neutral grey 127, as Photoshop measures it.
+pub const EYEDROPPER_RING_GREY: Rgba = Rgba([127, 127, 127, 255]);
+
+/// Radius of a Color Sampler point's reticle circle, in points (PhotoCraft's).
+pub const SAMPLER_MARKER_RADIUS: f32 = 5.0;
+/// Distance from the point at which each reticle tick starts.
+pub const SAMPLER_TICK_START: f32 = 6.0;
+/// Distance from the point at which each reticle tick ends.
+pub const SAMPLER_TICK_END: f32 = 8.0;
+
+/// Screen colour picker: screen pixels across and down the loupe (PhotoCraft's).
+pub const SCREEN_PICKER_LOUPE_CELLS: u32 = 11;
+/// The loupe's starting zoom, in physical pixels per screen pixel.
+pub const SCREEN_PICKER_ZOOM: u32 = 12;
+/// The loupe's least zoom.
+pub const SCREEN_PICKER_ZOOM_MIN: u32 = 4;
+/// The loupe's greatest zoom.
+pub const SCREEN_PICKER_ZOOM_MAX: u32 = 24;
+/// What one wheel step changes the zoom by.
+pub const SCREEN_PICKER_ZOOM_STEP: u32 = 2;
+
+/// Compact width of a paint chip (PhotoCraft's `shape_paint_ui.rs`).
+pub const PAINT_CHIP_WIDTH: f32 = 30.0;
+/// Compact height of a paint chip.
+pub const PAINT_CHIP_HEIGHT: f32 = 22.0;
+
+/// Compact side of the Color Guide's base colour button (VectorCraft's).
+pub const HARMONY_BASE: f32 = 26.0;
+/// Compact height of the harmony strip.
+pub const HARMONY_STRIP: f32 = 20.0;
+/// Compact height of a variation row, cell gap included.
+pub const HARMONY_ROW: f32 = 18.0;
+/// Compact height of a variation cell.
+pub const HARMONY_CELL: f32 = 17.0;
