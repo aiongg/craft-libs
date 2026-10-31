@@ -7,6 +7,8 @@ pub mod egui_fork;
 pub use craft_ai_core as ai_core;
 #[cfg(feature = "atomic")]
 pub use craft_atomic as atomic;
+#[cfg(feature = "automation")]
+pub use craft_automation as automation;
 #[cfg(feature = "cms")]
 pub use craft_cms as cms;
 #[cfg(feature = "color")]

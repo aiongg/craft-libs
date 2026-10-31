@@ -902,6 +902,7 @@ version = "0.1.0"
 dependencies = [
  "craft-ai-core",
  "craft-atomic",
+ "craft-automation",
  "craft-cms",
  "craft-color",
  "craft-crw",
