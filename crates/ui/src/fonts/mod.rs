@@ -37,6 +37,9 @@
 
 mod coverage;
 mod fit;
+mod on_demand;
+#[cfg(test)]
+mod on_demand_tests;
 mod providers;
 mod served;
 #[cfg(not(target_arch = "wasm32"))]
@@ -55,6 +58,7 @@ use egui::epaint::text::{Fonts, TextOptions};
 use egui::{FontData, FontDefinitions, FontFamily, FontId, FontProvider, Style};
 
 pub use coverage::{Missing, Sample, assert_covers, assert_covers_with_system, missing_glyphs};
+pub use on_demand::{FontCandidates, MAX_SCRIPT_READS, NoCandidates, OnDemandFonts, SystemCandidates, deflated_default_definitions, han_for_locale};
 use providers::Installed;
 pub use providers::{FaceList, RegularWeight, set_weight};
 pub use served::{ServedFace, loading};
@@ -326,6 +330,8 @@ pub struct UiFonts<'a> {
     system_provider: Option<Arc<dyn FontProvider>>,
     cjk_rows: CjkRows,
     interface: InterfaceFont,
+    candidates: Option<Arc<dyn FontCandidates>>,
+    os_locale: Option<String>,
 }
 
 impl<'a> UiFonts<'a> {
@@ -346,6 +352,8 @@ impl<'a> UiFonts<'a> {
             system_provider: None,
             cjk_rows: CjkRows::default(),
             interface: InterfaceFont::default(),
+            candidates: None,
+            os_locale: None,
         }
     }
 
@@ -464,10 +472,27 @@ impl<'a> UiFonts<'a> {
         self
     }
 
-    /// Build the stack and install it in `ctx`.
+    /// Register faces for other scripts on demand from `candidates` (gap 33): nothing beyond the
+    /// app and craft faces is installed until a character needs it. Off by default.
+    pub fn on_demand(mut self, candidates: Arc<dyn FontCandidates>) -> Self {
+        self.candidates = Some(candidates);
+        self
+    }
+
+    /// The OS locale (`zh-TW`), deciding the Han preference when the UI language is not CJK
+    /// ([`han_for_locale`]).
+    pub fn os_locale(mut self, locale: &str) -> Self {
+        self.os_locale = Some(locale.to_owned());
+        self
+    }
+
+    /// Build the stack and install it in `ctx`, with the on-demand loader when one is configured.
     pub fn install(&self, ctx: &egui::Context) -> Stack {
         let stack = self.stack();
         stack.install(ctx);
+        if let Some(candidates) = &self.candidates {
+            OnDemandFonts::new(candidates.clone(), han_for_locale(&self.ui_language, self.os_locale.as_deref())).install(ctx);
+        }
         stack
     }
 

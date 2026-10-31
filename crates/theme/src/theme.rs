@@ -349,6 +349,64 @@ pub enum TextSize {
 impl TextSize {
     /// Every step, smallest first.
     pub const ALL: [TextSize; 4] = [TextSize::Small, TextSize::Default, TextSize::Large, TextSize::Larger];
+
+    /// The step a Photoshop-style `interface.uiFontSize` value names (`tiny`, `small`, `medium`,
+    /// `large`: PhotoCraft's `UiFontSize`, Preferences › Interface › UI Font Size). `small` is
+    /// Photoshop's default and maps to [`TextSize::Default`]. Other text: `None`.
+    pub fn from_ui_font_size(value: &str) -> Option<TextSize> {
+        match value {
+            "tiny" => Some(TextSize::Small),
+            "small" => Some(TextSize::Default),
+            "medium" => Some(TextSize::Large),
+            "large" => Some(TextSize::Larger),
+            _ => None,
+        }
+    }
+
+    /// The `interface.uiFontSize` value of this step, the inverse of [`Self::from_ui_font_size`].
+    pub fn ui_font_size(self) -> &'static str {
+        match self {
+            TextSize::Small => "tiny",
+            TextSize::Default => "small",
+            TextSize::Large => "medium",
+            TextSize::Larger => "large",
+        }
+    }
+}
+
+/// The multipliers of the four text-size steps on the type roles, a runtime value an app may
+/// replace ([`TextSizeSteps::PHOTOSHOP`] for PhotoCraft's 10 / 12 / 14 / 16 pt ladder). Only the
+/// roles scale: faces, icon sizes and control heights don't, so Size and Text size stay
+/// independent. Scaled sizes round as every type size does (`values::TYPE_ROUNDING`). Wiring
+/// into `resolve` (an [`AppSizes`](crate::AppSizes) field) is a fill task; until then
+/// `values::text_size_factor` gives [`TextSizeSteps::SUITE`]'s factors.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextSizeSteps {
+    /// Multipliers in [`TextSize::ALL`] order; the second is 1.0.
+    pub factors: [f32; 4],
+}
+
+impl TextSizeSteps {
+    /// The suite's steps: 0.9, 1.0, 1.15, 1.3.
+    pub const SUITE: TextSizeSteps = TextSizeSteps { factors: [0.9, 1.0, 1.15, 1.3] };
+    /// Photoshop's UI Font Size ladder relative to Small (12 pt): Tiny 10, Medium 14, Large 16.
+    pub const PHOTOSHOP: TextSizeSteps = TextSizeSteps { factors: [10.0 / 12.0, 1.0, 14.0 / 12.0, 16.0 / 12.0] };
+
+    /// The multiplier of one step.
+    pub fn factor(self, size: TextSize) -> f32 {
+        match size {
+            TextSize::Small => self.factors[0],
+            TextSize::Default => self.factors[1],
+            TextSize::Large => self.factors[2],
+            TextSize::Larger => self.factors[3],
+        }
+    }
+}
+
+impl Default for TextSizeSteps {
+    fn default() -> Self {
+        TextSizeSteps::SUITE
+    }
 }
 
 /// The interface-font setting: the face the interface text draws with. Mono text keeps the suite's

@@ -10,6 +10,10 @@
 //! glyph, is left to the shaper.
 //!
 //! Levels are `u8` embedding levels: even runs left to right, odd runs right to left.
+//!
+//! For interface text that an app hands to egui (layer names in its own rows),
+//! [`is_rtl_paragraph`] gives a name's direction and [`elide`] cuts a right-to-left name at its
+//! logical end.
 
 use std::ops::Range;
 
@@ -299,6 +303,29 @@ pub fn visual_order(levels: &[u8]) -> Vec<usize> {
 /// need a mirrored glyph from the font instead.
 pub fn mirror(c: char) -> Option<char> {
     unicode_bidi_mirroring::get_mirrored(c)
+}
+
+/// Whether `text` reads right to left as a paragraph: its first strong character is Hebrew,
+/// Arabic or another right-to-left script (rule P2 without embeddings). Text with no strong
+/// character reads left to right.
+#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+// pc: crates/ui-egui/src/text/bidi_text.rs:11 `is_rtl_paragraph`.
+pub fn is_rtl_paragraph(text: &str) -> bool {
+    todo!()
+}
+
+/// A right-to-left `text` (by [`is_rtl_paragraph`]) cut at its logical end with "…" where it
+/// doesn't fit, for a name the app draws itself (PhotoCraft's layer rows,
+/// `panels/layer_row_ui.rs:132`). craft-ui's own rows can't call it: craft-text's `ui` feature
+/// depends on craft-ui. The start of the name stays and the "…" follows
+/// it in logical order, so egui draws it at the left, the end of a right-to-left line. `fits`
+/// measures a candidate. `None` when `text` fits as it is, or reads left to right: the caller
+/// elides that at its right end as usual. When nothing fits, the result is "…" alone.
+#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
+// pc: crates/ui-egui/src/text/bidi_text.rs:25 `elide` (binary search over whole chars, trailing
+// whitespace trimmed before the "…").
+pub fn elide(text: &str, fits: impl Fn(&str) -> bool) -> Option<String> {
+    todo!()
 }
 
 /// Does anything in the text need the full algorithm (strong right-to-left characters, Arabic

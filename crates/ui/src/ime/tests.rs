@@ -548,3 +548,21 @@ fn a_caret_past_a_tiny_or_unbounded_screen_stays_inside_it() {
     let nan = Rect::from_min_max(pos2(0.0, 0.0), pos2(f32::NAN, 600.0));
     assert_eq!(composer::caret_area(caret, nan), caret);
 }
+
+// With `set_committed`, the published IME output carries the committed text without the marked
+// text, and byte offsets that leave it out.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn surrounding_text_leaves_out_the_marked_text() {
+    todo!()
+}
+
+// After `reset`, preedit and commit events are dropped until `ImeResetCompleted` for that request
+// arrives; a completion for an older request changes nothing.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn reset_blocks_the_composition_until_it_completes() {
+    todo!()
+}
