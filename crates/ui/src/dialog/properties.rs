@@ -1,7 +1,6 @@
 //! [`PropertiesDialog`]: tabs of label and value rows (Document Properties, file info), editable
 //! or read-only.
 
-use craft_host::Host;
 use egui::{Context, Label, Ui};
 
 use super::dialog::{Dialog, Outcome};
