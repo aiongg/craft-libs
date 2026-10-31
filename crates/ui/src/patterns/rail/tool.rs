@@ -408,7 +408,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
     /// window is short. It must size to its content: its height is measured on one pass and used
     /// on the next, so a footer that fills the available height never settles.
     pub fn show(
-        mut self,
+        self,
         ui: &mut Ui,
         slots: &[ToolSlot<T>],
         current: &T,

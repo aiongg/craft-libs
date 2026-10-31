@@ -130,7 +130,7 @@ impl ToolbarDrawer {
         let Self { id, labels } = self;
         // Scoped by the Ui, so the same drawer drawn twice in a pass (once per theme in a variants
         // view) does not put one widget id on two layers.
-        let id = ui.id().with(id);
+        let id = ui.scope_id().with(id);
         let ctx = ui.ctx().clone();
         let labels = labels.unwrap_or_else(|| ToolbarDrawerLabels::of(ui));
         let tokens = Tokens::of(ui);
