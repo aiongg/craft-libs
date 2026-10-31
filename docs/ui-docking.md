@@ -10,8 +10,7 @@ Office apps that draw their own document with a few task panes beside it use
 ## Arrangements
 
 One model serves every app. What differs between apps is the default layout and a few
-`DockStyle` settings. An app builds its style with `DockStyle::from_ui`, `from_visuals` or
-`default` and then sets fields; new fields can be added, so the struct has no literal form
+`DockStyle` settings. An app builds its style with `DockStyle::from_ui` and then sets fields; new fields can be added, so the struct has no literal form
 outside the crate.
 
 | Arrangement | Layout | Style settings | Apps |
@@ -190,8 +189,8 @@ DockArea::new(id).show_content(ui, &layout, &DockConfig::default(), &mut content
 ```
 
 `DockWith { config, look }` pairs a config with a look the app built. The flat `DockStyle` is a spec
-too, and draws with the colours and sizes it holds (`DockLook::from_visuals`); `DockStyle::split`
-gives its two halves and `DockStyle::join` builds one from them.
+too, and draws with the colours and sizes it holds, the rest from the look it was built from;
+`DockStyle::split` gives its two halves and `DockStyle::join` builds one from them.
 
 Sizes follow the Size preset and colours follow the theme: tab strip, active and hover tab and the
 label font come from the `tab` family, the group border, drop previews, resize handles and iconic

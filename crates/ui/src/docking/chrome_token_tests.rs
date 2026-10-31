@@ -38,7 +38,7 @@ fn a_floating_frame_rounds_its_fill_outline_and_title_bar_and_casts_the_shadow()
         draw();
         rects(&draw())
     };
-    let base = ChromeStyle::from_visuals(&egui::Visuals::dark());
+    let base = ChromeStyle { radius: CornerRadius::ZERO, shadow: Shadow::NONE, ..crate::docking::testing::default_chrome() };
     let token = ChromeStyle { radius, shadow, ..base.clone() };
 
     let shapes = chrome(token.clone());
@@ -60,7 +60,7 @@ fn a_floating_frame_rounds_its_fill_outline_and_title_bar_and_casts_the_shadow()
 /// floating panel outside docking can draw the same chrome with `ChromeStyle::themed`.
 #[test]
 fn the_chrome_style_is_built_from_the_look() {
-    let mut look = DockLook::from_visuals(&egui::Visuals::light());
+    let mut look = crate::docking::testing::default_look();
     look.title_background = Color32::RED;
     look.title_text = Color32::GREEN;
     look.title_muted = Color32::BLUE;
@@ -86,7 +86,7 @@ fn the_chrome_style_is_built_from_the_look() {
 /// The diagonal grip is `drop_width` thick in the `grip` colour while the handle is hovered.
 #[test]
 fn the_grip_uses_the_grip_color_and_the_drop_width() {
-    let style = ChromeStyle { grip: Color32::YELLOW, drop_width: 3.0, ..ChromeStyle::from_visuals(&egui::Visuals::dark()) };
+    let style = ChromeStyle { grip: Color32::YELLOW, drop_width: 3.0, ..crate::docking::testing::default_chrome() };
     let ctx = Context::default();
     let id = Id::unique("frame");
     let corner = RECT.max - vec2(4.0, 4.0);
@@ -101,7 +101,7 @@ fn the_grip_uses_the_grip_color_and_the_drop_width() {
 /// `drop_preview_with` takes the outline width and fill factor from the look.
 #[test]
 fn a_drop_preview_follows_the_look() {
-    let mut look = DockLook::from_visuals(&egui::Visuals::dark());
+    let mut look = crate::docking::testing::default_look();
     look.drop = Color32::from_rgb(200, 100, 50);
     look.drop_width = 3.0;
     look.drop_fill = 0.5;
@@ -138,10 +138,10 @@ fn the_minimum_height_follows_the_title_height() {
         }
         smallest
     };
-    let visuals = ChromeStyle::from_visuals(&egui::Visuals::dark());
-    assert_eq!(visuals.title_height, super::chrome::TITLE_HEIGHT);
-    assert_eq!(minimum(visuals.clone()), super::chrome::TITLE_HEIGHT + 20.0);
-    assert_eq!(minimum(ChromeStyle { title_height: 18.0, ..visuals }), 18.0 + 20.0);
+    let themed = crate::docking::testing::default_chrome();
+    assert_eq!(themed.title_height, 14.0);
+    assert_eq!(minimum(themed.clone()), 14.0 + 20.0);
+    assert_eq!(minimum(ChromeStyle { title_height: 18.0, ..themed }), 18.0 + 20.0);
 }
 
 /// A resizable frame hands its contents the whole rect: the title bar starts at the frame's top,
@@ -149,7 +149,7 @@ fn the_minimum_height_follows_the_title_height() {
 #[test]
 fn a_resizable_frame_with_a_radius_draws_its_title_bar_from_the_top() {
     let radius = CornerRadius::same(6);
-    let style = ChromeStyle { radius, ..ChromeStyle::from_visuals(&egui::Visuals::dark()) };
+    let style = ChromeStyle { radius, ..crate::docking::testing::default_chrome() };
     let ctx = Context::default();
     let id = Id::unique("frame");
     let draw = || {
@@ -178,7 +178,7 @@ fn a_resizable_frame_with_a_radius_draws_its_title_bar_from_the_top() {
 /// color. Hover leaves the edge handles unpainted.
 #[test]
 fn a_focused_resize_handle_shows_the_focus_stroke() {
-    let style = ChromeStyle { focus: Color32::GOLD, focus_width: 2.0, ..ChromeStyle::from_visuals(&egui::Visuals::dark()) };
+    let style = ChromeStyle { focus: Color32::GOLD, focus_width: 2.0, ..crate::docking::testing::default_chrome() };
     let ctx = Context::default();
     let id = Id::unique("frame");
     let draw = |ctx: &Context| run(ctx, vec![], |ui| drop(FloatingFrame::new(id, RECT).show(ui.ctx(), &style, |_, _| ())));

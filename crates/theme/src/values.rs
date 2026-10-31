@@ -628,6 +628,35 @@ pub const DOCK_GHOST_STROKE: f32 = 0.6;
 pub const DOCK_TAB_FILL: f32 = 0.08;
 /// Alpha factor of the resize handle's stroke at hover and focus.
 pub const DOCK_GRIP_ALPHA: f32 = 0.5;
+/// Least width or height of a pane in a split.
+pub const DOCK_MIN_PANE: f32 = 40.0;
+/// Least width of the drag bar left of a group's header.
+pub const DOCK_DRAG_BAR_WIDTH: f32 = 40.0;
+/// Widest an iconic column gets by dragging its inner edge.
+pub const DOCK_ICONIC_MAX_WIDTH: f32 = 240.0;
+/// Width from which an iconic column shows panel names beside the icons.
+pub const DOCK_ICONIC_LABEL_WIDTH: f32 = 96.0;
+/// Height of an iconic column's flyout without a saved height.
+pub const DOCK_FLYOUT_HEIGHT: f32 = 320.0;
+/// Width of a group's tab strip overflow button.
+pub const DOCK_OVERFLOW_WIDTH: f32 = 22.0;
+/// Tallest list in a tab overflow or move menu.
+pub const DOCK_MENU_MAX_HEIGHT: f32 = 360.0;
+/// Width of a floating window by default.
+pub const FLOAT_WIDTH: f32 = 260.0;
+/// Height of a floating window by default, and the tallest a docked panel floats at.
+pub const FLOAT_HEIGHT: f32 = 320.0;
+/// Fitted to its content, a floating window is at least this tall.
+pub const FLOAT_MIN_FITTED_HEIGHT: f32 = 120.0;
+/// How far a window a command floats sits from the dock area's top-left corner, and from the
+/// window it cascades from.
+pub const FLOAT_CASCADE_OFFSET: f32 = 24.0;
+/// Distance from the pointer to the centre of the float hint.
+pub const FLOAT_HINT_OFFSET: f32 = 28.0;
+/// Narrowest a resized floating window gets.
+pub const FLOAT_MIN_WIDTH: f32 = 40.0;
+/// Room for content that a resized floating window keeps below its title bar.
+pub const FLOAT_MIN_BODY_HEIGHT: f32 = 20.0;
 /// Width of a floating window's border.
 pub const FLOAT_BORDER_WIDTH: f32 = 1.0;
 /// Corner radius of a floating window by default: square, lifted by its shadow.

@@ -165,23 +165,14 @@ pub struct DockStyle {
     pub wheel_selects_tabs: bool,
     /// A middle click on a tab closes its panel when the panel is closable.
     pub middle_click_closes_tabs: bool,
-}
-
-impl Default for DockStyle {
-    /// [`Self::from_visuals`] with egui's default visuals.
-    fn default() -> Self {
-        Self::from_visuals(&egui::Visuals::default())
-    }
+    /// The look this style was joined from, for the sizes and colors the fields above leave out.
+    pub(super) base: DockLook,
 }
 
 impl DockStyle {
-    /// Colors from the `ui`'s visuals; adjust fields afterwards.
+    /// The default config and the look of the `ui`'s theme; adjust fields afterwards.
     pub fn from_ui(ui: &Ui) -> Self {
-        Self::from_visuals(ui.visuals())
-    }
-
-    pub fn from_visuals(visuals: &egui::Visuals) -> Self {
-        Self::join(&DockConfig::default(), &DockLook::from_visuals(visuals))
+        Self::join(&DockConfig::default(), &DockLook::of(ui))
     }
 
     /// The flat style that draws and behaves as `config` and `look` do. It has one accent: the
@@ -193,7 +184,7 @@ impl DockStyle {
             tab_height: look.tab_height,
             gap: look.gap,
             body_gap: look.body_gap,
-            min_pane: c.min_pane,
+            min_pane: look.min_pane,
             background: look.background,
             tab_background: look.tab_strip,
             active_background: look.tab_active,
@@ -217,7 +208,7 @@ impl DockStyle {
             move_group_up_label: c.move_group_up_label,
             move_group_down_label: c.move_group_down_label,
             move_group_to_label: c.move_group_to_label,
-            drag_bar_width: c.drag_bar_width,
+            drag_bar_width: look.drag_bar_width,
             min_tab_width: config.tab_width_floor(look),
             floating_background: look.floating_background,
             floating_stroke: look.floating_stroke,
@@ -235,8 +226,8 @@ impl DockStyle {
             new_dock_band: c.new_dock_band,
             icon_size: look.icon_size,
             iconic_width: look.iconic_width,
-            iconic_max_width: c.iconic_max_width,
-            iconic_label_width: c.iconic_label_width,
+            iconic_max_width: look.iconic_max_width,
+            iconic_label_width: look.iconic_label_width,
             auto_collapse_label: c.auto_collapse_label,
             right_to_left: c.right_to_left,
             move_column_label: c.move_column_label,
@@ -262,12 +253,14 @@ impl DockStyle {
             tab_close_buttons: c.tab_close_buttons,
             wheel_selects_tabs: c.wheel_selects_tabs,
             middle_click_closes_tabs: c.middle_click_closes_tabs,
+            base: look.clone(),
         }
     }
 
     /// The behaviour and labels, and the look, of this style. The look's resize, drop and focus
     /// colors are the style's accent, and its tab, hover and selected-icon fills the active
-    /// fill. A minimum tab width equal to the font-derived default becomes `None`.
+    /// fill; what the style does not carry comes from the look it was joined from. A minimum tab width equal to the
+    /// font-derived default becomes `None`.
     pub fn split(&self) -> (DockConfig, DockLook) {
         let look = DockLook {
             tab_height: self.tab_height,
@@ -284,7 +277,6 @@ impl DockStyle {
             drop: self.accent,
             focus: self.accent,
             font: self.font.clone(),
-            tab_padding: super::look::TAB_PADDING,
             floating_background: self.floating_background,
             floating_stroke: self.floating_stroke,
             blocked_dim: self.blocked_dim,
@@ -297,11 +289,14 @@ impl DockStyle {
             title_text: self.text,
             title_muted: self.inactive_text,
             grip: self.accent,
-            ..DockLook::from_visuals(&egui::Visuals::default())
+            min_pane: self.min_pane,
+            drag_bar_width: self.drag_bar_width,
+            iconic_max_width: self.iconic_max_width,
+            iconic_label_width: self.iconic_label_width,
+            ..self.base.clone()
         };
         let derived = look.font.size * 2.5 + look.tab_padding;
         let config = DockConfig {
-            min_pane: self.min_pane,
             float_label: self.float_label.clone(),
             close_label: self.close_label.clone(),
             move_panel_to_label: self.move_panel_to_label.clone(),
@@ -317,7 +312,6 @@ impl DockStyle {
             move_group_up_label: self.move_group_up_label.clone(),
             move_group_down_label: self.move_group_down_label.clone(),
             move_group_to_label: self.move_group_to_label.clone(),
-            drag_bar_width: self.drag_bar_width,
             min_tab_width: (self.min_tab_width != derived).then_some(self.min_tab_width),
             edge_band: self.edge_band,
             side_edge_zones: self.side_edge_zones,
@@ -328,8 +322,6 @@ impl DockStyle {
             seam_band: self.seam_band,
             column_edge_band: self.column_edge_band,
             new_dock_band: self.new_dock_band,
-            iconic_max_width: self.iconic_max_width,
-            iconic_label_width: self.iconic_label_width,
             auto_collapse_label: self.auto_collapse_label.clone(),
             right_to_left: self.right_to_left,
             move_column_label: self.move_column_label.clone(),
@@ -436,21 +428,19 @@ impl<P> Default for DockOutput<P> {
     }
 }
 
-/// Room between the dock area's top-left corner and a unit a command floats.
-const FLOAT_INSET: f32 = 24.0;
-
-/// Size a command floats a panel at when its [`FloatSpace`] never drew it.
-#[cfg_attr(not(feature = "serde"), allow(dead_code))]
-pub(super) const DEFAULT_FLOAT: Vec2 = Vec2::new(260.0, 320.0);
-
 /// Where a docking command floats a panel, group or column when it gives no rect, and how the
 /// area draws its outer edge (see `DockCommand::to_actions`, feature `serde`). [`DockArea`]
 /// records one each frame; read it with [`float_space`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct FloatSpace<P> {
-    /// The rect the area drew in. A floated unit goes inside it, 24 points from its top-left
-    /// corner, so it stays clear of the app's menu bar.
+    /// The rect the area drew in. A floated unit goes inside it, [`Self::inset`] from its
+    /// top-left corner, so it stays clear of the app's menu bar.
     pub area: Rect,
+    /// Room between the area's top-left corner and a unit a command floats: `float.cascade_offset`.
+    pub inset: f32,
+    /// Size a command floats a panel at when the area never drew it: `float.width` by
+    /// `float.height`.
+    pub default_size: Vec2,
     /// What a drag floats from each drawn panel: the panel alone, its group and its dock column.
     pub(super) panels: Vec<(P, Vec2)>,
     pub(super) groups: Vec<(P, Vec2)>,
@@ -465,9 +455,20 @@ pub struct FloatSpace<P> {
 
 impl<P: PartialEq> FloatSpace<P> {
     /// An area with no recorded sizes: commands float a panel at 260x320, and a group or
-    /// column at its dock column's width (else 260) by 320.
+    /// column at its dock column's width (else 260) by 320, 24 points inside the area. These are
+    /// the Compact sizes of the `float` tokens; a [`DockArea`] records those of the theme it
+    /// draws with.
     pub fn new(area: Rect) -> Self {
-        Self { area, panels: Vec::new(), groups: Vec::new(), columns: Vec::new(), contents: Vec::new(), side_edge_zones: false }
+        Self {
+            area,
+            inset: 24.0,
+            default_size: Vec2::new(260.0, 320.0),
+            panels: Vec::new(),
+            groups: Vec::new(),
+            columns: Vec::new(),
+            contents: Vec::new(),
+            side_edge_zones: false,
+        }
     }
 
     /// For an area drawn with [`DockStyle::side_edge_zones`] when the area has not drawn yet
@@ -533,7 +534,7 @@ impl<P: PartialEq> FloatSpace<P> {
     /// shrunk to fit.
     pub(super) fn place(&self, size: Vec2) -> [f32; 4] {
         let size = size.min(self.area.size());
-        let min = (self.area.min + Vec2::splat(FLOAT_INSET)).min(self.area.max - size).max(self.area.min);
+        let min = (self.area.min + Vec2::splat(self.inset)).min(self.area.max - size).max(self.area.min);
         [min.x, min.y, size.x, size.y]
     }
 }
@@ -1359,7 +1360,13 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             output: DockOutput::default(),
             frame,
             iconic: super::render::Iconic::new(self.auto_collapse),
-            float_space: FloatSpace { contents, side_edge_zones: config.side_edge_zones, ..FloatSpace::new(rect) },
+            float_space: FloatSpace {
+                contents,
+                side_edge_zones: config.side_edge_zones,
+                inset: look.cascade_offset,
+                default_size: Vec2::new(look.float_width, look.float_height),
+                ..FloatSpace::new(rect)
+            },
             places,
             contents: content_index,
             dividers: Vec::new(),

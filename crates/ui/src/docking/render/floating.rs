@@ -38,7 +38,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// Size limits of a floating window: its title bar and, unless it is minimized, its tree.
     pub(super) fn window_limits(&self, window: &Floating<P>) -> PanelLimits {
         let chrome = self.window_chrome();
-        let tree = node_limits(&window.root, self.config, self.look, &*self.content);
+        let tree = node_limits(&window.root, self.look, &*self.content);
         let body = match window.minimized {
             true => (self.minimized_body(window), self.minimized_body(window)),
             false => (tree.min.y, tree.max.y),

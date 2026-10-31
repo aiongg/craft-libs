@@ -13,9 +13,6 @@ use crate::docking::{
 use crate::localized::{Word, Words};
 use crate::theme::StrokeExt;
 
-/// How far below the pointer the float hint sits, clear of the cursor.
-const HINT_OFFSET: f32 = 28.0;
-
 /// What the renderer draws when it is not the layout itself, and the targets that depend on it.
 pub(in crate::docking) struct FrameState<P> {
     /// View path to layout path of each split, when the view is not the layout.
@@ -299,7 +296,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let key = Words::of_ctx(ctx).get(modifier);
         let painter = self.preview_painter(ctx);
         let galley = painter.layout_no_wrap(self.config.float_hint_label.replace("{key}", &key), self.look.font.clone(), self.look.text);
-        let rect = Rect::from_center_size(pointer + vec2(0.0, HINT_OFFSET), galley.size() + vec2(2.0 * self.look.pad, self.look.pad));
+        let rect = Rect::from_center_size(pointer + vec2(0.0, self.look.hint_offset), galley.size() + vec2(2.0 * self.look.pad, self.look.pad));
         let rect = crate::docking::chrome::clamp(rect, self.float_bounds);
         painter.rect(
             rect,

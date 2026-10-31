@@ -1,6 +1,6 @@
 use std::{fmt::Debug, hash::Hash, sync::Arc};
 
-use egui::{Color32, Galley, Key, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
+use egui::{Color32, Galley, Key, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 
 use super::{Renderer, clamp_float, stripless};
 use crate::controls::{ControlSize, IconButton};
@@ -31,9 +31,6 @@ pub(super) struct TabGroup<'a, P> {
 
 /// The top band of a strip that drags the whole group.
 const BORDER_BAND: f32 = 4.0;
-
-/// Width of the "…" button that lists the panels a strip has no room for.
-const OVERFLOW_WIDTH: f32 = 22.0;
 
 /// Points of smooth (trackpad) scrolling that make one wheel notch.
 const WHEEL_NOTCH: f32 = 40.0;
@@ -93,7 +90,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             self.host_area(ui, "header", header, selected, |content, ui| content.group_header(ui, panels, selected, floating));
         }
         // The drag bar keeps its reserved width: tabs shrink, then overflow, before it narrows.
-        let bar_width = self.config.drag_bar_width.clamp(0.0, (strip.width() - header_width).max(0.0));
+        let bar_width = self.look.drag_bar_width.clamp(0.0, (strip.width() - header_width).max(0.0));
         let tabs_width = (strip.width() - header_width - bar_width).max(0.0);
         let tab_style = crate::tab_strip::Tab::<P>::style(&crate::theme::Tokens::of(ui));
         let widths: Vec<f32> = panels
@@ -117,7 +114,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         // The widest tabs shrink first, to a common width no narrower than `min_tab_width`; only
         // when every tab at that width cannot fit do the rest go to the overflow menu. A tab
         // narrower than its name cuts it with "…" and names it in a tooltip.
-        let (fit, extra_width) = fit_with_extra(&widths, active, tabs_width, wanted, self.config.tab_width_floor(self.look) + floor_close);
+        let (fit, extra_width) =
+            fit_with_extra(&widths, active, tabs_width, wanted, self.config.tab_width_floor(self.look) + floor_close, self.look.overflow_width);
         let owner = TabGroup { panels, selected, minimized, kind, rect };
         if menu_width > 0.0 {
             self.panel_menu_button(ui, mirror(Rect::from_min_max(pos2(strip.right() - menu_width, strip.top()), strip.max)), &owner, policy);
@@ -138,7 +136,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.panels_label));
             ui.painter().with_clip_rect(overflow).text(overflow.center(), egui::Align2::CENTER_CENTER, "…", self.look.font.clone(), self.look.text);
             egui::Popup::menu(&response).show(|ui| {
-                egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+                egui::ScrollArea::vertical().max_height(self.look.menu_max_height).show(ui, |ui| {
                     for index in &fit.overflow {
                         if let Some(panel) = panels.get(*index)
                             && self.menu_label(ui, panel).clicked()
@@ -330,7 +328,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let whole_window = matches!(owner.kind, GroupKind::Floating { .. }) && self.whole_window(panel);
         if floatable && !whole_window && self.menu_action(ui, &self.config.float_group_label.clone()) {
             let size = self.group_float_size(owner.panels, owner.rect.size());
-            let rect = clamp_float(Rect::from_min_size(owner.rect.min + vec2(24.0, 24.0), size), self.float_bounds);
+            let rect = clamp_float(Rect::from_min_size(owner.rect.min + Vec2::splat(self.look.cascade_offset), size), self.float_bounds);
             self.output.actions.push(Action::MoveGroup {
                 panel: panel.clone(),
                 to: Target::Float { rect: Some([rect.left(), rect.top(), rect.width(), rect.height()]) },
@@ -349,7 +347,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             let logical = self.config.move_group_to_label.clone();
             let text = self.content.action_label(ui, &logical, &self.look.font, self.look.text);
             let response = ui.menu_button(text, |ui| {
-                egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+                egui::ScrollArea::vertical().max_height(self.look.menu_max_height).show(ui, |ui| {
                     for target in &targets {
                         if self.menu_label(ui, target).clicked() {
                             self.output.actions.push(Action::MoveGroup {
@@ -500,7 +498,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &logical));
             if response.clicked() {
                 let size = self.float_size(panel, group.size());
-                let rect = clamp_float(Rect::from_min_size(group.min + vec2(24.0, 24.0), size), self.float_bounds);
+                let rect = clamp_float(Rect::from_min_size(group.min + Vec2::splat(self.look.cascade_offset), size), self.float_bounds);
                 self.output.actions.push(Action::Float { panel: panel.clone(), rect: [rect.left(), rect.top(), rect.width(), rect.height()] });
                 ui.close();
             }
@@ -510,7 +508,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if !targets.is_empty() {
             let text = self.content.action_label(ui, &self.config.move_panel_to_label, &self.look.font, self.look.text);
             let response = ui.menu_button(text, |ui| {
-                egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+                egui::ScrollArea::vertical().max_height(self.look.menu_max_height).show(ui, |ui| {
                     for target in &targets {
                         if self.menu_label(ui, target).clicked() {
                             self.output.actions.push(Action::Move {
@@ -544,17 +542,17 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
 /// Fit the panel tabs and the host's extra tabs (`extra` wide), which fit as one more tab that
 /// never overflows: in a row too narrow for every tab at its minimum width, the panel tabs
 /// overflow into the room the extra tabs leave at theirs. Returns the extra tabs' width.
-fn fit_with_extra(widths: &[f32], active: usize, available: f32, extra: f32, minimum: f32) -> (tabs::TabFit, f32) {
+fn fit_with_extra(widths: &[f32], active: usize, available: f32, extra: f32, minimum: f32, overflow_width: f32) -> (tabs::TabFit, f32) {
     if extra <= 0.0 {
-        return (tabs::fit(widths, active, available, minimum, OVERFLOW_WIDTH), 0.0);
+        return (tabs::fit(widths, active, available, minimum, overflow_width), 0.0);
     }
     let all: Vec<f32> = widths.iter().copied().chain([extra]).collect();
-    let mut fit = tabs::fit(&all, active, available, minimum, OVERFLOW_WIDTH);
+    let mut fit = tabs::fit(&all, active, available, minimum, overflow_width);
     if fit.overflow.is_empty() {
         let width = fit.shown.pop().filter(|(index, _)| *index == widths.len()).map_or(0.0, |(_, width)| width);
         return (fit, width);
     }
-    let fit = tabs::fit(widths, active, (available - extra.min(minimum)).max(0.0), minimum, OVERFLOW_WIDTH);
+    let fit = tabs::fit(widths, active, (available - extra.min(minimum)).max(0.0), minimum, overflow_width);
     let used = fit.shown.iter().map(|(_, width)| width).sum::<f32>() + fit.overflow_width;
     (fit, extra.min(available - used).max(0.0))
 }

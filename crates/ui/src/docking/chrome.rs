@@ -14,10 +14,7 @@ use craft_theme::scale::Stroke::W1;
 
 use crate::theme::StrokeExt;
 
-use super::{DockConfig, DockLook, DockStyle, PanelLimits, resize::AnchoredResize};
-
-/// Height of a floating window's title bar.
-pub const TITLE_HEIGHT: f32 = 14.0;
+use super::{DockConfig, DockLook, PanelLimits, resize::AnchoredResize};
 
 /// Names of the resize handles, appended to the frame id: `id.with(name)`.
 pub const RESIZE_HANDLES: [&str; 8] =
@@ -83,40 +80,18 @@ pub struct ChromeStyle {
     /// Fill of a selected or hovered control, such as an icon rail's open item.
     pub active_background: Color32,
     pub font: FontId,
+    /// Narrowest a resized frame gets.
+    pub min_width: f32,
+    /// Room for content that a resized frame keeps below its title bar.
+    pub min_body_height: f32,
     /// Mirror the title bar: buttons at the left, the title at the right.
     pub right_to_left: bool,
 }
 
 impl ChromeStyle {
+    /// The chrome of the `ui`'s theme, in the default direction: [`Self::themed`].
     pub fn from_ui(ui: &Ui) -> Self {
-        Self::from_visuals(ui.visuals())
-    }
-
-    /// The colors [`Self::from_dock`] takes from [`DockStyle::from_visuals`], without building
-    /// the dock style's labels.
-    pub fn from_visuals(visuals: &egui::Visuals) -> Self {
-        Self {
-            background: visuals.window_fill,
-            stroke: visuals.window_stroke,
-            title_background: visuals.extreme_bg_color,
-            text: visuals.text_color(),
-            weak_text: visuals.weak_text_color(),
-            accent: visuals.selection.stroke.color,
-            focus: visuals.selection.stroke.color,
-            focus_width: 1.0,
-            title_height: TITLE_HEIGHT,
-            pad: 6.0,
-            gap: 4.0,
-            grip: visuals.selection.stroke.color,
-            drop_width: 2.0,
-            title_text: visuals.text_color(),
-            title_muted: visuals.weak_text_color(),
-            radius: CornerRadius::ZERO,
-            shadow: Shadow::NONE,
-            active_background: visuals.widgets.active.bg_fill,
-            font: FontId::proportional(12.0),
-            right_to_left: false,
-        }
+        Self::themed(ui)
     }
 
     /// How far a rectangular body sits inside the frame's left, right and bottom edges so that its
@@ -158,32 +133,9 @@ impl ChromeStyle {
             shadow: look.floating_shadow,
             active_background: look.tab_active,
             font: look.font.clone(),
+            min_width: look.float_min_width,
+            min_body_height: look.float_min_body_height,
             right_to_left,
-        }
-    }
-
-    pub fn from_dock(style: &DockStyle) -> Self {
-        Self {
-            background: style.floating_background,
-            stroke: style.floating_stroke,
-            title_background: style.tab_background,
-            text: style.text,
-            weak_text: style.inactive_text,
-            accent: style.accent,
-            focus: style.accent,
-            focus_width: 1.0,
-            title_height: TITLE_HEIGHT,
-            pad: 6.0,
-            gap: style.gap,
-            grip: style.accent,
-            drop_width: 2.0,
-            title_text: style.text,
-            title_muted: style.inactive_text,
-            radius: CornerRadius::ZERO,
-            shadow: Shadow::NONE,
-            active_background: style.active_background,
-            font: style.font.clone(),
-            right_to_left: style.right_to_left,
         }
     }
 }
@@ -334,7 +286,10 @@ impl<'a> FloatingFrame<'a> {
         let mut resized = None;
         let mut started = None;
         let mut responses = Vec::new();
-        let limits = PanelLimits { min: self.limits.min.max(vec2(40.0, style.title_height + 20.0)).min(self.limits.max), ..self.limits };
+        let limits = PanelLimits {
+            min: self.limits.min.max(vec2(style.min_width, style.title_height + style.min_body_height)).min(self.limits.max),
+            ..self.limits
+        };
         let canceled = ui.input(|input| input.key_pressed(Key::Escape)) || crate::focus::lost(ui.ctx());
         for (name, handle, direction) in handles(rect) {
             let Some(handle) = clear_of_buttons(handle, buttons) else { continue };

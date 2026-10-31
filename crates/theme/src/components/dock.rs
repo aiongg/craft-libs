@@ -33,6 +33,20 @@ pub struct DockTokens {
     pub icon_pad: f32,
     /// Width of an iconic column: `size.rail.panel_width`.
     pub iconic_width: f32,
+    /// Least width or height of a pane in a split.
+    pub min_pane: f32,
+    /// Least width of the drag bar left of a group's header.
+    pub drag_bar_width: f32,
+    /// Widest an iconic column gets by dragging its inner edge.
+    pub iconic_max_width: f32,
+    /// Width from which an iconic column shows panel names beside the icons.
+    pub iconic_label_width: f32,
+    /// Height of an iconic column's flyout without a saved height.
+    pub flyout_height: f32,
+    /// Width of a group's tab strip overflow button.
+    pub overflow_width: f32,
+    /// Tallest list in a tab overflow or move menu.
+    pub menu_max_height: f32,
     /// Width of a drop outline and of the line under a dragged column.
     pub drop_width: f32,
     /// Width of a keyboard focus stroke.
@@ -143,6 +157,13 @@ impl Family for DockTokens {
         "iconic_width" 0.0..=1024.0 => iconic_width;
         "drop_width" 0.0..=1024.0 => drop_width;
         "focus_width" 0.0..=16.0 => focus_width;
+        "min_pane" 0.0..=512.0 => min_pane;
+        "drag_bar_width" 0.0..=512.0 => drag_bar_width;
+        "iconic_max_width" 0.0..=1024.0 => iconic_max_width;
+        "iconic_label_width" 0.0..=1024.0 => iconic_label_width;
+        "flyout_height" 0.0..=2048.0 => flyout_height;
+        "overflow_width" 0.0..=128.0 => overflow_width;
+        "menu_max_height" 0.0..=2048.0 => menu_max_height;
     };
 
     /// The Compact bar heights are the docking code's own 14, scaled by the control height of the size and rounded to whole points.
@@ -159,6 +180,13 @@ impl Family for DockTokens {
             icon_size: s.size.icon.lg,
             icon_pad: values::DOCK_ICON_PAD,
             iconic_width: s.size.rail.panel_width,
+            min_pane: values::DOCK_MIN_PANE,
+            drag_bar_width: values::DOCK_DRAG_BAR_WIDTH,
+            iconic_max_width: values::DOCK_ICONIC_MAX_WIDTH,
+            iconic_label_width: values::DOCK_ICONIC_LABEL_WIDTH,
+            flyout_height: values::DOCK_FLYOUT_HEIGHT,
+            overflow_width: values::DOCK_OVERFLOW_WIDTH,
+            menu_max_height: values::DOCK_MENU_MAX_HEIGHT,
             drop_width: values::DOCK_DROP_WIDTH,
             focus_width: values::DOCK_FOCUS_WIDTH,
             marker_radius: values::DOCK_MARKER_RADIUS,

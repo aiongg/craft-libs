@@ -338,7 +338,7 @@ fn side_edge_zones_are_40_pt_deep_or_a_quarter_of_the_bodys_smaller_side() {
 
 #[test]
 fn a_bodys_outer_thirds_are_its_sides_and_the_relatively_nearer_side_wins_at_a_corner() {
-    let fraction = DockStyle::default().side_zone_fraction;
+    let fraction = crate::docking::testing::default_style().side_zone_fraction;
     assert!((fraction - 1.0 / 3.0).abs() < 1e-6);
     // A 24 pt header over a 600 x 300 body.
     let rect = Rect::from_min_size(pos2(10.0, 20.0), vec2(600.0, 324.0));
@@ -369,7 +369,7 @@ fn a_bodys_outer_thirds_are_its_sides_and_the_relatively_nearer_side_wins_at_a_c
 
 #[test]
 fn a_drop_beside_a_group_previews_a_line_along_its_edge_and_a_group_without_tabs_has_no_middle() {
-    let style = DockStyle::from_visuals(&egui::Visuals::dark());
+    let style = crate::docking::testing::default_style();
     let rule = style.zone_rule();
     assert_eq!(rule, ZoneRule::Fraction { fraction: 1.0 / 3.0, line: 4.0 });
     assert_eq!(DockStyle { side_edge_zones: true, ..style }.zone_rule(), ZoneRule::Depth(SIDE_EDGE_ZONE_DEPTH));
@@ -392,7 +392,7 @@ fn a_drop_beside_a_group_previews_a_line_along_its_edge_and_a_group_without_tabs
 
 #[test]
 fn a_style_needs_a_drop_line_and_side_zones_of_at_most_half_the_body() {
-    let style = DockStyle::from_visuals(&egui::Visuals::dark());
+    let style = crate::docking::testing::default_style();
     assert!(style.valid());
     assert!(DockStyle { side_zone_fraction: 0.0, ..style.clone() }.valid());
     assert!(DockStyle { side_zone_fraction: 0.5, ..style.clone() }.valid());
@@ -1552,7 +1552,7 @@ fn a_strip_too_narrow_for_its_tabs_at_their_minimum_width_lists_the_others_in_th
     expected.push(6);
     assert_eq!(shown, expected);
     // As many tabs show as fit at the minimum width beside the drag bar and the "…" button.
-    let style = DockStyle::default();
+    let style = crate::docking::testing::default_style();
     let room = 260.0 - style.drag_bar_width - 22.0;
     assert!(shown.len() as f32 * style.min_tab_width <= room && (shown.len() + 1) as f32 * style.min_tab_width > room, "{shown:?}");
     h.get_by_role_and_label(Role::Button, "Panels").click();
@@ -1677,7 +1677,7 @@ fn collapsed_floating_height_cap_does_not_disable_keyboard_width_resizing() {
     }
     ctx.memory_mut(|memory| memory.request_focus(id));
     frame(vec![Event::Key { key: egui::Key::ArrowRight, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
-    assert_eq!(layout.floating[0].rect, [80.0, 70.0, 308.0, 40.0]);
+    assert_eq!(layout.floating[0].rect, [80.0, 70.0, 308.0, 14.0 + crate::docking::testing::STRIP]);
 }
 
 #[test]

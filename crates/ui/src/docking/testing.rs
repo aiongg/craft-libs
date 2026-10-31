@@ -15,6 +15,36 @@ use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Re
 
 use super::{DockArea, DockConfig, DockContent, DockLook, DockOutput, DockStyle, DockWith, Hit, Layout, Monitor};
 
+/// Runs `f` in a frame of a fresh context, so it sees the theme a default `Ui` carries.
+#[cfg(test)]
+pub(super) fn themed<R>(f: impl FnOnce(&Ui) -> R) -> R {
+    let mut out = None;
+    let mut f = Some(f);
+    let mut run = Context::default().run_ui(RawInput::default(), |ui| out = f.take().map(|f| f(ui)));
+    run.textures_delta.clear();
+    out.expect("the frame ran")
+}
+
+/// Height of a group's tab strip in the default theme: `tab.panel_height`.
+#[cfg(test)]
+pub(super) const STRIP: f32 = 28.0;
+
+/// The flat style, look and chrome of the default theme.
+#[cfg(test)]
+pub(super) fn default_style() -> DockStyle {
+    themed(DockStyle::from_ui)
+}
+
+#[cfg(test)]
+pub(super) fn default_look() -> DockLook {
+    themed(DockLook::of)
+}
+
+#[cfg(test)]
+pub(super) fn default_chrome() -> super::chrome::ChromeStyle {
+    themed(super::chrome::ChromeStyle::themed)
+}
+
 /// Pointer travel that starts a drag before moving to its destination.
 const NUDGE: egui::Vec2 = egui::Vec2::new(8.0, 6.0);
 
