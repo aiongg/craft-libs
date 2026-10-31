@@ -307,7 +307,7 @@ pub enum CanvasExtension {
     White,
     Black,
     Gray,
-    /// Picked in the colour picker, linear sRGB.
+    /// Picked in the colour picker, sRGB components 0..=1.
     Other([f32; 3]),
     /// Transparent, for a document without a Background layer (the list is disabled then).
     Transparent,
