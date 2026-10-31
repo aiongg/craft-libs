@@ -30,7 +30,7 @@ use super::view::CanvasView;
 use super::zoom::{self, ZoomAnimation, ZoomLadder};
 use crate::localized::Labels;
 use crate::theme::{ToEgui, UiTokens};
-use craft_theme::TypeRole;
+use craft_theme::{CanvasTokens, TypeRole};
 
 /// The navigation preferences, with Photoshop's defaults. The app stores them (craft-settings)
 /// and shows them in its Preferences; every navigation piece reads them from here.
@@ -792,9 +792,6 @@ pub struct RotateView {
 impl RotateView {
     /// Degrees Shift snaps to.
     pub const SNAP_DEG: f64 = 15.0;
-    /// The compass's side and its margin from the canvas's top-right corner, in points.
-    pub const COMPASS: f32 = 36.0;
-    pub const COMPASS_MARGIN: f32 = 10.0;
     /// The compass shows while the view is turned by more than this many degrees.
     const COMPASS_VISIBLE_DEG: f64 = 0.05;
 
@@ -881,13 +878,12 @@ impl RotateView {
         (rad.is_finite() && rad != 0.0 && deg.is_finite()).then_some(deg)
     }
 
-    /// The compass's rect in the canvas's top-right corner.
+    /// The compass's rect in the canvas's top-right corner: `canvas.compass` points square,
+    /// `canvas.compass_margin` from the edges.
     // pc: crates/ui-egui/src/canvas/rotate_view.rs:217 `compass_rect`.
-    pub fn compass_rect(canvas: ScreenRect) -> ScreenRect {
-        ScreenRect::from_min_size(
-            Pos2::new(canvas.right() - Self::COMPASS_MARGIN - Self::COMPASS, canvas.top() + Self::COMPASS_MARGIN),
-            ScreenVec::splat(Self::COMPASS),
-        )
+    pub fn compass_rect(canvas: ScreenRect, tokens: &UiTokens) -> ScreenRect {
+        let CanvasTokens { compass, compass_margin, .. } = tokens.component.canvas;
+        ScreenRect::from_min_size(Pos2::new(canvas.right() - compass_margin - compass, canvas.top() + compass_margin), ScreenVec::splat(compass))
     }
 
     /// Draw the compass (north is the document's up) while the view is turned (more than 0.05°)
@@ -899,7 +895,7 @@ impl RotateView {
         if !(view.rotation.is_finite() && view.rotation.abs() > Self::COMPASS_VISIBLE_DEG) {
             return CompassResponse::default();
         }
-        let rect = Self::compass_rect(view.rect);
+        let rect = Self::compass_rect(view.rect, tokens);
         let labels = NavigationLabels::of(ui);
         let response = ui.interact(rect, ui.scope_id().with("rotate-view-compass"), Sense::click());
         response.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), &labels.reset_rotation));

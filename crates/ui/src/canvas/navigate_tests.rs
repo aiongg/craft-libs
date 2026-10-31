@@ -285,6 +285,8 @@ fn angles_wrap_into_a_half_turn_each_way() {
 struct Compass {
     view: CanvasView,
     reset: bool,
+    /// The compass's centre, as the last pass placed it.
+    at: egui::Pos2,
 }
 
 fn click(h: &mut Harness<'_, Compass>, at: egui::Pos2) {
@@ -305,12 +307,13 @@ fn the_compass_shows_when_turned_and_a_click_resets() {
         Harness::<Compass>::builder().with_size(vec2(400.0, 300.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
             |ui, state: &mut Compass| {
                 let tokens = Tokens::of(ui);
+                state.at = RotateView::compass_rect(state.view.rect, &tokens).center();
                 state.reset |= RotateView::compass(ui, &state.view, &tokens).reset;
             },
-            Compass { view: upright, reset: false },
+            Compass { view: upright, reset: false, at: pos2(0.0, 0.0) },
         );
     h.run_steps(2);
-    let at = RotateView::compass_rect(rect).center();
+    let at = h.state().at;
     click(&mut h, at);
     assert!(!h.state().reset, "no compass at 0 degrees");
     h.state_mut().view = CanvasView { rotation: 30.0, ..upright };

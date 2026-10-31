@@ -198,13 +198,15 @@ impl Default for GridArgs {
 }
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![
+    let mut all = vec![
         typed_story!("primitives/grid/lines", Level::Primitives, "Grid", "Lines", GridArgs::default(), show_grid).on(Surface::Canvas),
         typed_story!("primitives/canvas/document", Level::Primitives, "Canvas", "Document", PlainArgs::default(), show_document).on(Surface::Canvas),
         typed_story!("primitives/canvas/scrollbars", Level::Primitives, "Canvas", "Scrollbars", ScrollbarsArgs::default(), show_scrollbars)
             .on(Surface::Canvas),
         typed_story!("primitives/readout/values", Level::Primitives, "Readout", "Values", NoArgs {}, show_readout).on(Surface::Canvas),
-    ]
+    ];
+    all.extend(super::core_stories::stories());
+    all
 }
 
 /// A point on the document: drag it (it claims the press), nudge it with the arrow keys while the

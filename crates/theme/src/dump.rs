@@ -7,16 +7,17 @@ use std::fmt::Write as _;
 
 use crate::{
     AngleDialTokens, AppShellTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BezierTokens, BorderColors, ButtonColors, ButtonTokens,
-    BySize, CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens,
-    CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens, Easing, Edge,
-    Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps, GradientEditorTokens,
-    GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens, IconButtonTokens, IconSizes,
-    InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens,
-    Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PopoverTokens, PopupTokens,
-    PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, ReadoutTokens, RefPointTokens,
-    Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens,
-    SpinnerTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, ThumbColors, ThumbSizes,
-    TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolbarTokens, TooltipTokens, TransformTokens, TypeRole, TypeStyle, TypeTokens,
+    BySize, CanvasTokens, CheckOffColors, CheckOnColors, CheckSwitchColors, CheckTokens, ColorPickerTokens, ColorRampTokens, ColorToken,
+    ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DialogTokens, Dimmed, DockTokens,
+    Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, FieldTokens, FloatTokens, FontSlot, FormSpacing, FormTokens, Gaps,
+    GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HistogramTokens,
+    IconButtonTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LevelsTokens, ListSizes, ListTokens, ListboxTokens,
+    MarqueeTokens, MenuHue, MenuTokens, Motion, MotionTokens, NoticeTokens, OptionsBarTokens, Pads, PanelFooterTokens, PanelHeaderTokens,
+    PanelTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes,
+    RailTokens, ReadoutTokens, RefPointTokens, Rgba, RulerTokens, ScrollTokens, SectionTokens, SegmentedTokens, ShapeTokens, SizeTokens,
+    SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens,
+    TabSizes, TabTokens, ThumbColors, ThumbSizes, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolbarTokens, TooltipTokens,
+    TransformTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -236,6 +237,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         badge,
         bezier,
         button,
+        canvas,
         check,
         color_picker,
         color_ramp,
@@ -287,6 +289,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         slider,
         slider_row,
         spinner,
+        split,
         status_bar,
         swatch,
         swatch_palette,
@@ -303,6 +306,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     badge_lines(out, badge);
     bezier_lines(out, bezier);
     button_lines(out, button);
+    canvas_lines(out, canvas);
     check_lines(out, check);
     color_picker_lines(out, color_picker);
     color_ramp_lines(out, color_ramp);
@@ -354,6 +358,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     slider_lines(out, slider);
     slider_row_lines(out, slider_row);
     spinner_lines(out, spinner);
+    split_lines(out, split);
     status_bar_lines(out, status_bar);
     swatch_lines(out, swatch);
     swatch_palette_lines(out, swatch_palette);
@@ -1551,6 +1556,17 @@ fn bezier_lines(out: &mut Lines, t: &BezierTokens) {
     out.line("bezier.close_anchor", len(*close_anchor));
     out.line("bezier.close_ring", len(*close_ring));
     out.line("bezier.close_offset", len(*close_offset));
+}
+
+fn canvas_lines(out: &mut Lines, t: &CanvasTokens) {
+    let CanvasTokens { compass, compass_margin } = t;
+    out.line("canvas.compass", len(*compass));
+    out.line("canvas.compass_margin", len(*compass_margin));
+}
+
+fn split_lines(out: &mut Lines, t: &SplitTokens) {
+    let SplitTokens { gap } = t;
+    out.line("split.gap", len(*gap));
 }
 
 fn ref_point_lines(out: &mut Lines, t: &RefPointTokens) {

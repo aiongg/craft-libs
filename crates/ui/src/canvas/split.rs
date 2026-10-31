@@ -40,9 +40,6 @@ pub enum SplitLayout {
 }
 
 impl SplitLayout {
-    /// Points between panes.
-    pub const GAP: f32 = 2.0;
-
     /// Number of panes.
     pub fn panes(self) -> usize {
         match self {
@@ -52,10 +49,11 @@ impl SplitLayout {
         }
     }
 
-    /// The panes' rects in `full`, the main view (pane 0) first, the others in reading order.
+    /// The panes' rects in `full`, `gap` points apart (`split.gap`), the main view (pane 0)
+    /// first, the others in reading order.
     // effectcraft: crates/ui-egui/src/panels/viewer/view.rs:5 `aux_views`.
-    pub fn rects(self, full: ScreenRect) -> Vec<ScreenRect> {
-        let half = Self::GAP / 2.0;
+    pub fn rects(self, gap: f32, full: ScreenRect) -> Vec<ScreenRect> {
+        let half = gap / 2.0;
         let c = full.center();
         let quad = |x0, y0, x1, y1| ScreenRect::from_min_max(pos2(x0, y0), pos2(x1, y1));
         match self {
@@ -111,7 +109,7 @@ impl SplitViews {
     /// {n}`, counted from 1 in reading order).
     // effectcraft: crates/ui-egui/src/panels/viewer/view.rs:5 `aux_views`, panels/viewers.rs:208 `activate`.
     pub fn show(self, ui: &mut Ui, rect: ScreenRect, mut pane: impl FnMut(&mut Ui, usize, ScreenRect)) -> SplitResponse {
-        let rects = self.layout.rects(rect);
+        let rects = self.layout.rects(Tokens::of(ui).component.split.gap, rect);
         let labels = SplitLabels::of(ui);
         let base = ui.make_persistent_id(self.id_salt);
         let pressed = ui.input(|i| i.pointer.button_pressed(PointerButton::Primary));
