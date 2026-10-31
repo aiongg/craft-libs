@@ -1,4 +1,3 @@
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! The JSON-lines wire format and the parameter validators every method uses.
 //!
 //! Request: `{"id": 1, "method": "ui.click", "params": {"x": 10, "y": 20}}` on one line. Reply:
@@ -9,9 +8,9 @@
 
 use std::io::Write;
 
-use serde_json::{Map, Value};
+use serde_json::{Value, json};
 
-/// Longest reply, in bytes; a longer one is replaced by an error reply naming the method.
+/// Longest reply, in bytes (the newline included); a longer one is replaced by an error reply.
 pub const MAX_RESPONSE_BYTES: usize = 8 << 20;
 /// Largest PNG a headless render may return or write: `automation PNG exceeds {MAX_PNG_BYTES}
 /// bytes` otherwise (PhotoCraft `crates/automation/src/budgets.rs:15`, checked at `:42`). The
@@ -27,29 +26,75 @@ pub struct Request {
 }
 
 impl Request {
-    /// Parse a line: `id` defaults to `null`, `method` to `""`, `params` to `{}`.
+    /// Parse a line: `id` defaults to `null`, `method` to `""`, `params` to `{}`. Text that is not
+    /// JSON is `bad JSON: {error}`.
     pub fn parse(line: &str) -> Result<Self, String> {
-        // pc: apps/photocraft/src/control_server.rs:110
-        todo!()
+        let msg: Value = serde_json::from_str(line).map_err(|e| format!("bad JSON: {e}"))?;
+        Ok(Self {
+            id: msg.get("id").cloned().unwrap_or(Value::Null),
+            method: msg.get("method").and_then(Value::as_str).unwrap_or("").to_owned(),
+            params: msg.get("params").cloned().unwrap_or_else(|| json!({})),
+        })
     }
 }
 
 /// `{"id", "ok": true, "result"}`.
 pub fn reply_ok(id: &Value, result: Value) -> Value {
-    // pc: crates/ui-egui/src/control/params.rs:58
-    todo!()
+    json!({"id": id, "ok": true, "result": result})
 }
 
 /// `{"id", "ok": false, "error"}`.
 pub fn reply_err(id: &Value, error: impl std::fmt::Display) -> Value {
-    // pc: crates/ui-egui/src/control/params.rs:62
-    todo!()
+    json!({"id": id, "ok": false, "error": error.to_string()})
 }
 
-/// Write `reply` as one line, replacing a reply over [`MAX_RESPONSE_BYTES`] by an error reply.
+struct LimitedWriter {
+    bytes: Vec<u8>,
+    maximum: usize,
+}
+
+impl Write for LimitedWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if buf.len() > self.maximum.saturating_sub(self.bytes.len()) {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("response exceeds {} bytes", self.maximum)));
+        }
+        self.bytes.try_reserve(buf.len()).map_err(|error| std::io::Error::other(format!("response allocation failed: {error}")))?;
+        self.bytes.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Serialize into a bounded buffer, failing as soon as `maximum` bytes would be passed.
+fn encode_with_limit(value: &Value, maximum: usize) -> std::io::Result<Vec<u8>> {
+    let mut writer = LimitedWriter { bytes: Vec::new(), maximum };
+    serde_json::to_writer(&mut writer, value).map_err(std::io::Error::from)?;
+    Ok(writer.bytes)
+}
+
+/// Write `reply` as one line, replacing a reply over [`MAX_RESPONSE_BYTES`] by an error reply with
+/// the same `id` and `response exceeds {MAX_RESPONSE_BYTES} bytes; operation may have completed`.
+/// The whole reply is encoded before anything is written, so no partial reply goes out.
 pub fn write_reply(out: &mut impl Write, reply: &Value) -> std::io::Result<()> {
-    // pc: crates/automation/src/budgets.rs:81
-    todo!()
+    let encoded = match encode_with_limit(reply, MAX_RESPONSE_BYTES - 1) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            let error = json!({
+                "id": reply.get("id").cloned().unwrap_or(Value::Null),
+                "ok": false,
+                "error": format!("response exceeds {MAX_RESPONSE_BYTES} bytes; operation may have completed"),
+            });
+            // Request ids arriving over the wire fit in MAX_REQUEST_BYTES, but a caller can build a
+            // reply directly, so the error is bounded too.
+            encode_with_limit(&error, MAX_RESPONSE_BYTES - 1)
+                .unwrap_or_else(|_| b"{\"id\":null,\"ok\":false,\"error\":\"response budget exceeded\"}".to_vec())
+        }
+    };
+    out.write_all(&encoded)?;
+    out.write_all(b"\n")
 }
 
 /// The pointer buttons a request may name.
@@ -66,69 +111,143 @@ pub struct Params<'a>(pub &'a Value);
 impl Params<'_> {
     /// `key` as a bool, `None` when absent.
     pub fn bool_field(&self, key: &str) -> Result<Option<bool>, String> {
-        // pc: crates/ui-egui/src/control/params.rs:67
-        todo!()
+        match self.0.get(key) {
+            None => Ok(None),
+            Some(v) => v.as_bool().map(Some).ok_or_else(|| format!("{key} must be a boolean")),
+        }
     }
 
     /// `key` as a non-negative integer.
     pub fn uint_field(&self, key: &str) -> Result<Option<u64>, String> {
-        // pc: crates/ui-egui/src/control/params.rs:76
-        todo!()
+        match self.0.get(key) {
+            None => Ok(None),
+            Some(v) if v.is_u64() => Ok(v.as_u64()),
+            Some(v) => v
+                .as_f64()
+                .filter(|f| f.fract() == 0.0 && *f >= 0.0)
+                .map(|f| Some(f as u64))
+                .ok_or_else(|| format!("{key} must be a non-negative integer")),
+        }
     }
 
     /// `key` as a finite number.
     pub fn num_field(&self, key: &str) -> Result<Option<f64>, String> {
-        // pc: crates/ui-egui/src/control/params.rs:85
-        todo!()
+        match self.0.get(key) {
+            None => Ok(None),
+            Some(v) => v.as_f64().filter(|f| f.is_finite()).map(Some).ok_or_else(|| format!("{key} must be a finite number")),
+        }
     }
 
     /// `key` as a finite number within `f32` range.
     pub fn f32_field(&self, key: &str) -> Result<Option<f64>, String> {
-        // pc: crates/ui-egui/src/control/params.rs:99
-        todo!()
+        match self.0.get(key) {
+            None => Ok(None),
+            Some(v) => v
+                .as_f64()
+                .filter(|f| f.abs() <= f64::from(f32::MAX))
+                .map(Some)
+                .ok_or_else(|| format!("{key} must be a finite number within f32 range")),
+        }
     }
 
     /// `key` as a string.
     pub fn str_field(&self, key: &str) -> Result<Option<&str>, String> {
-        // pc: crates/ui-egui/src/control/params.rs:183 (input_choice without the accepted list)
-        todo!()
+        self.choice(key, key, &[])
     }
 
-    /// The params must be an object with only `fields`; `what` names the method in errors.
-    pub fn only(&self, what: &str, fields: &[&str]) -> Result<&Map<String, Value>, String> {
-        // pc: crates/ui-egui/src/control/params.rs:160 (input_object)
-        todo!()
+    /// The value must be an object with only `fields`, returned with its null fields dropped so
+    /// they mean "omitted" (a typo must not reply ok after acting on a default). `what` is `None`
+    /// for a method's params (`params must be an object`, ``unknown field `x` (fields: a, b)``,
+    /// `null` is `{}`) and the object's name for a nested one (`modifiers must be an object`,
+    /// ``unknown modifiers field `x` (fields: a, b)``).
+    pub fn only(&self, what: Option<&str>, fields: &[&str]) -> Result<Value, String> {
+        let object = match (self.0, what) {
+            (Value::Null, None) => return Ok(json!({})),
+            (Value::Object(o), _) => o,
+            (_, what) => return Err(format!("{} must be an object", what.unwrap_or("params"))),
+        };
+        if let Some(key) = object.keys().find(|k| !fields.contains(&k.as_str())) {
+            let field = what.map_or_else(|| "field".to_owned(), |w| format!("{w} field"));
+            return Err(format!("unknown {field} `{key}` (fields: {})", fields.join(", ")));
+        }
+        Ok(Value::Object(object.iter().filter(|(_, v)| !v.is_null()).map(|(k, v)| (k.clone(), v.clone())).collect()))
     }
 
     /// `key` as a number within `range` (inclusive), `name` in the error.
     pub fn number_in(&self, key: &str, name: &str, range: Option<(f64, f64)>) -> Result<Option<f64>, String> {
-        // pc: crates/ui-egui/src/control/params.rs:174 (input_number)
-        todo!()
+        let n = self.num_field(key).map_err(|_| format!("{name} must be a finite number"))?;
+        match (n, range) {
+            (Some(n), Some((lo, hi))) if !(lo..=hi).contains(&n) => Err(format!("{name} must be between {lo} and {hi} (got {n})")),
+            _ => Ok(n),
+        }
     }
 
     /// `key` as one of `accepted`.
     pub fn choice<'v>(&'v self, key: &str, name: &str, accepted: &[&str]) -> Result<Option<&'v str>, String> {
-        // pc: crates/ui-egui/src/control/params.rs:183 (input_choice)
-        todo!()
+        match self.0.get(key) {
+            None => Ok(None),
+            Some(Value::String(s)) if accepted.is_empty() || accepted.contains(&s.as_str()) => Ok(Some(s)),
+            Some(Value::String(s)) => Err(format!("unknown {name} `{s}` ({})", accepted.join(", "))),
+            Some(_) => Err(format!("{name} must be a string")),
+        }
     }
 
-    /// `modifiers` as an object of the `flags` only, each a bool.
+    /// The modifier flags, top-level or grouped under `modifiers` (an object of the `flags`
+    /// only, each a bool, errors prefixed `modifiers.`). When grouped, the top-level flags are
+    /// ignored but still type-checked. Off the Mac `ctrl` and `command` carry the same value, as
+    /// egui expects (`egui::Modifiers::command`), so a request that sets only one reaches the
+    /// same shortcuts as a real Ctrl press; on the Mac they stay apart.
     pub fn modifiers(&self, flags: &[&str]) -> Result<egui::Modifiers, String> {
-        // pc: crates/ui-egui/src/control/params.rs:194 (input_modifiers), :223 (modifiers_from)
-        todo!()
+        for flag in flags {
+            self.bool_field(flag)?;
+        }
+        let grouped = match self.0.get("modifiers") {
+            None => None,
+            Some(m) => {
+                let m = Params(m).only(Some("modifiers"), flags)?;
+                for flag in flags {
+                    Params(&m).bool_field(flag).map_err(|e| format!("modifiers.{e}"))?;
+                }
+                Some(m)
+            }
+        };
+        let m = grouped.as_ref().unwrap_or(self.0);
+        let flag = |k: &str| m.get(k).and_then(Value::as_bool).unwrap_or(false);
+        let (ctrl, command) = (flag("ctrl"), flag("command"));
+        // Off the Mac, Ctrl is the shortcut key and egui wants `ctrl` and `command` to carry the same
+        // value, as a real Ctrl press delivers; on the Mac they are different keys.
+        Ok(egui::Modifiers {
+            shift: flag("shift"),
+            alt: flag("alt"),
+            command: if cfg!(target_os = "macos") { command } else { command || ctrl },
+            mac_cmd: cfg!(target_os = "macos") && command,
+            ctrl: if cfg!(target_os = "macos") { ctrl } else { command || ctrl },
+        })
     }
 
-    /// Deserialize `T` from the whole object; unknown fields are errors.
+    /// Deserialize `T` from the whole object, replacing the current value. `T` rejects unknown
+    /// fields itself (`#[serde(deny_unknown_fields)]`); a non-object is `{what} must be an
+    /// object` and a serde error is `{what}: {error}`.
     pub fn whole<T: serde::de::DeserializeOwned>(&self, what: &str) -> Result<T, String> {
-        // pc: crates/ui-egui/src/control/params.rs:132 (whole_object)
-        todo!()
+        let Some(patch) = self.0.as_object() else { return Err(format!("{what} must be an object")) };
+        let current = serde_json::to_value(self.0).map_err(|e| e.to_string())?;
+        drop(current);
+        serde_json::from_value(Value::Object(patch.clone())).map_err(|e| format!("{what}: {e}"))
     }
 
     /// `current` serialized, the object's fields merged over it, deserialized back: a partial
-    /// `ui.set`-style update.
+    /// `ui.set`-style update. A field `current` doesn't have is ``unknown {what} field `k` ``.
     pub fn merged_into<T: serde::Serialize + serde::de::DeserializeOwned>(&self, what: &str, current: &T) -> Result<T, String> {
-        // pc: crates/ui-egui/src/control/params.rs:109 (merged_object)
-        todo!()
+        let Some(patch) = self.0.as_object() else { return Err(format!("{what} must be an object")) };
+        let mut merged = serde_json::to_value(current).map_err(|e| e.to_string())?;
+        let Some(fields) = merged.as_object_mut() else { return Err(format!("{what} must be an object")) };
+        for (key, value) in patch {
+            if !fields.contains_key(key) {
+                return Err(format!("unknown {what} field `{key}`"));
+            }
+            fields.insert(key.clone(), value.clone());
+        }
+        serde_json::from_value(merged).map_err(|e| format!("{what}: {e}"))
     }
 }
 
