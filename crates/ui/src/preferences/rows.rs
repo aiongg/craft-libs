@@ -4,13 +4,14 @@
 use std::ops::RangeInclusive;
 
 use craft_theme::Rgba;
-use egui::{Align, Context, Id, Layout, Ui, vec2};
+use egui::{Align, Context, Id, Layout, Ui, UiBuilder, vec2};
 
 use super::body::PreferencesBody;
 use super::model::{PrefValue, RowKind, RowSpec};
 use super::model_trait::PreferencesModel;
 use crate::composites::{Field, LabelAlign};
 use crate::controls::{Checkbox, NumberField, Select, Swatch, TextField};
+use crate::direction;
 use crate::edit::EditEvent;
 use crate::localized::{LocaleNumbers, Unit};
 use crate::theme::{Tokens, TokensOf as _};
@@ -129,7 +130,16 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(
     match &row.kind {
         Kind::Bool(value) => {
             let mut checked = *value;
-            let edit = field.show(ui, |ui, _| Checkbox::bool(row.label.as_str(), &mut checked).id_salt(key).enabled(enabled).show(ui)).inner;
+            let show =
+                |ui: &mut Ui| field.show(ui, |ui, _| Checkbox::bool(row.label.as_str(), &mut checked).id_salt(key).enabled(enabled).show(ui)).inner;
+            let edit = if checks_at_start {
+                let rect = ui.available_rect_before_wrap();
+                let inset = widths.checks_inset;
+                let rect = if direction::is_rtl(ui) { rect.with_max_x(rect.right() - inset) } else { rect.with_min_x(rect.left() + inset) };
+                ui.scope_builder(UiBuilder::new().max_rect(rect), show).inner
+            } else {
+                show(ui)
+            };
             new_value = forward(&ctx, edit_id, edit.event, PrefValue::Bool(*value), PrefValue::Bool);
         }
         Kind::Choice { value, options } => {

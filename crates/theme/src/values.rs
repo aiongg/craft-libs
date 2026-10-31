@@ -521,6 +521,8 @@ pub const PREFERENCES_PAGE_INSET: f32 = 13.0;
 pub const PREFERENCES_PAGE_ROW_HEIGHT: f32 = 28.0;
 /// Width of a colour row's hex field at Compact (PhotoCraft's `hex_field`); Comfortable scales it by the control height.
 pub const PREFERENCES_HEX_WIDTH: f32 = 72.0;
+/// Inset of a `.checks()` group's check boxes from the label column, at every Size (PhotoCraft: the 24 pt least column width of the grid that holds them, with no column gap).
+pub const PREFERENCES_CHECKS_INSET: f32 = 24.0;
 /// Height given to a page body laid out in an unbounded rect, in points.
 pub const PREFERENCES_BODY_FALLBACK_HEIGHT: f32 = 600.0;
 

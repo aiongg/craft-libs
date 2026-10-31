@@ -878,6 +878,7 @@ preferences.text_width = 260
 preferences.page_inset = 13
 preferences.page_row_height = 28
 preferences.hex_width = 72
+preferences.checks_inset = 24
 preferences.body_fallback_height = 600
 preset.header_height = 24
 preset.grid_gap = 4
