@@ -485,6 +485,7 @@ dialog.body_gap = 10
 dialog.footer_gap = 10
 dialog.button_gap = 10
 dialog.button_min = 84
+dialog.side_gap = 4
 dialog.side_min = 96
 dialog.close_box = 24
 dialog.drag_pad = 7 7 4

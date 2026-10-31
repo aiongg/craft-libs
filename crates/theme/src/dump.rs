@@ -941,6 +941,7 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
         footer_gap,
         button_gap,
         button_min,
+        side_gap,
         side_min,
         close_box,
         drag_pad,
@@ -964,6 +965,7 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
     out.line("dialog.footer_gap", len(*footer_gap));
     out.line("dialog.button_gap", len(*button_gap));
     out.line("dialog.button_min", len(*button_min));
+    out.line("dialog.side_gap", len(*side_gap));
     out.line("dialog.side_min", len(*side_min));
     out.line("dialog.close_box", len(*close_box));
     out.line("dialog.drag_pad", format!("{} {} {}", len(drag_pad[0]), len(drag_pad[1]), len(drag_pad[2])));
