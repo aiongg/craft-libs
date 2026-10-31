@@ -1043,7 +1043,7 @@ where
     /// Follows the sweep a row reports and the end of its rename.
     fn row_event(&mut self, at: usize, event: &RowEvent<K>) {
         match event {
-            RowEvent::Toggle(EditEvent::Begin { id }) => {
+            RowEvent::Toggle(EditEvent::Begin { id, .. }) => {
                 self.state.sweep = Some(SweepOwner { key: self.rows.key(at).clone(), id: *id, column: None });
             }
             RowEvent::Toggle(EditEvent::Update { id, value, .. }) => {

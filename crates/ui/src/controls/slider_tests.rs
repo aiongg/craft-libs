@@ -216,7 +216,7 @@ fn button(pos: Pos2, pressed: bool) -> Event {
 
 fn begin<T: std::fmt::Debug>(event: Option<EditEvent<T>>) -> GestureId {
     match event {
-        Some(EditEvent::Begin { id }) => id,
+        Some(EditEvent::Begin { id, .. }) => id,
         other => panic!("expected Begin, got {other:?}"),
     }
 }

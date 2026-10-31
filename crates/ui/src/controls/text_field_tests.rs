@@ -337,7 +337,7 @@ fn button(pos: Pos2, pressed: bool) -> Event {
 
 fn begin(event: Option<EditEvent<String>>) -> GestureId {
     match event {
-        Some(EditEvent::Begin { id }) => id,
+        Some(EditEvent::Begin { id, .. }) => id,
         other => panic!("expected Begin, got {other:?}"),
     }
 }

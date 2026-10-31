@@ -311,7 +311,7 @@ fn pass(ctx: &egui::Context, drive: impl FnOnce(&mut ReorderGesture<u32>)) -> Op
 fn a_drag_is_one_gesture_from_begin_to_commit_or_cancel() {
     let ctx = egui::Context::default();
     let begin = pass(&ctx, ReorderGesture::begin);
-    let Some(EditEvent::Begin { id }) = begin else { panic!("a begin: {begin:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begin else { panic!("a begin: {begin:?}") };
     assert_eq!(pass(&ctx, |_| {}), None, "the target under the pointer is not an edit");
     let drop = mv(&[0], 2, After);
     let end = pass(&ctx, |g| g.end(DragEnd::Released(Some(drop.clone())), Modifiers::ALT));
@@ -324,7 +324,7 @@ fn a_drag_is_one_gesture_from_begin_to_commit_or_cancel() {
         (DragEnd::Released(None), CancelReason::Dismissed),
         (DragEnd::PayloadCleared, CancelReason::Dismissed),
     ] {
-        let Some(EditEvent::Begin { id }) = pass(&ctx, ReorderGesture::begin) else { panic!("a begin") };
+        let Some(EditEvent::Begin { id, .. }) = pass(&ctx, ReorderGesture::begin) else { panic!("a begin") };
         assert_eq!(pass(&ctx, |g| g.end(drag_end, Modifiers::NONE)), Some(EditEvent::cancel(id, reason)));
     }
 
@@ -335,11 +335,11 @@ fn a_drag_is_one_gesture_from_begin_to_commit_or_cancel() {
 #[test]
 fn a_drag_ends_on_cancel_all_and_on_a_pass_that_skips_its_control() {
     let ctx = egui::Context::default();
-    let Some(EditEvent::Begin { id }) = pass(&ctx, ReorderGesture::begin) else { panic!("a begin") };
+    let Some(EditEvent::Begin { id, .. }) = pass(&ctx, ReorderGesture::begin) else { panic!("a begin") };
     crate::edit::cancel_all(&ctx, CancelReason::External);
     assert_eq!(pass(&ctx, |g| assert!(!g.is_active())), Some(EditEvent::cancel(id, CancelReason::External)));
 
-    let Some(EditEvent::Begin { id }) = pass(&ctx, ReorderGesture::begin) else { panic!("a begin") };
+    let Some(EditEvent::Begin { id, .. }) = pass(&ctx, ReorderGesture::begin) else { panic!("a begin") };
     let mut live = true;
     ctx.run_ui(egui::RawInput::default(), |ui| live = crate::edit::is_live(ui.ctx(), id)).drop_without_applying_deltas();
     assert!(!live, "a pass without the control ends the drag");
