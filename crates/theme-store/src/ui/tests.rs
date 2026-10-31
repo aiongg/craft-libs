@@ -22,7 +22,7 @@ fn harness(draft: SelectionChange, favorites: Vec<ThemeId>) -> Harness<'static, 
     let page = Page { client: SuiteClient::memory(), draft, favorites, changed: false, toggled: None };
     Harness::builder().with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, page: &mut Page| {
-            let out = AppearancePage::new(&page.client, &mut page.draft).favorites(&page.favorites).show(ui);
+            let out = AppearancePage::new("appearance", &page.client, &mut page.draft).favorites(&page.favorites).show(ui);
             page.changed |= out.changed;
             page.toggled = page.toggled.take().or(out.favorite_toggled);
         },

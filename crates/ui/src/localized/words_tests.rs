@@ -149,8 +149,8 @@ fn localized_hooks_keep_their_keys() {
     let shown = |key: &str| Some(format!("<{key}>"));
     let dock = crate::docking::DockConfig::default().localized(shown);
     assert_eq!(
-        (dock.float_label.as_str(), dock.panel_menu_label.as_str(), dock.float_hint_label.as_str()),
-        ("<dock.float>", "<dock.panelMenu>", "<dock.floatHint>")
+        (dock.panels_label.as_str(), dock.panel_menu_label.as_str(), dock.float_hint_label.as_str()),
+        ("<dock.panels>", "<dock.panelMenu>", "<dock.floatHint>")
     );
     let presets = crate::presets::PresetLabels::default().localized(shown);
     assert_eq!(

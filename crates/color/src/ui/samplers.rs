@@ -136,7 +136,7 @@ impl ColorSamplers {
         for (index, point) in self.points.iter().enumerate() {
             let at = view.to_screen(Point::new(point[0], point[1]));
             // Double-stroked so the reticle reads on any pixel.
-            for (width, color) in [(3.0, Color32::from_black_alpha(170)), (1.0, Color32::WHITE)] {
+            for (width, color) in [(RETICLE_OUTLINE_WIDTH, Color32::from_black_alpha(RETICLE_OUTLINE_ALPHA)), (RETICLE_WIDTH, Color32::WHITE)] {
                 let stroke = Stroke::new(width, color);
                 painter.circle_stroke(at, sampler.marker_radius, stroke);
                 for direction in [vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0)] {
@@ -144,13 +144,24 @@ impl ColorSamplers {
                 }
             }
             // Upper right, so several points stay readable when they overlap.
-            let anchor = at + vec2(7.0, -7.0);
+            let anchor = at + NUMBER_OFFSET;
             let number = (index + 1).to_string();
-            painter.text(anchor + vec2(1.0, 1.0), Align2::LEFT_BOTTOM, &number, font.clone(), Color32::from_black_alpha(180));
+            painter.text(anchor + NUMBER_SHADOW_OFFSET, Align2::LEFT_BOTTOM, &number, font.clone(), Color32::from_black_alpha(NUMBER_SHADOW_ALPHA));
             painter.text(anchor, Align2::LEFT_BOTTOM, &number, font.clone(), Color32::WHITE);
         }
     }
 }
+
+/// The reticle's dark outline: 3 points, black at alpha 170, under the 1 point white stroke
+/// (PhotoCraft's, so it reads on any pixel).
+const RETICLE_OUTLINE_WIDTH: f32 = 3.0;
+const RETICLE_OUTLINE_ALPHA: u8 = 170;
+const RETICLE_WIDTH: f32 = 1.0;
+/// The point number's anchor from the point (upper right, so overlapping points stay readable)
+/// and its shadow's offset and alpha.
+const NUMBER_OFFSET: egui::Vec2 = vec2(7.0, -7.0);
+const NUMBER_SHADOW_OFFSET: egui::Vec2 = vec2(1.0, 1.0);
+const NUMBER_SHADOW_ALPHA: u8 = 180;
 
 /// The pixel that document position `pos` lands on, if it is inside a canvas `size` pixels large.
 fn pixel(pos: [f64; 2], size: [u32; 2]) -> Option<[f64; 2]> {

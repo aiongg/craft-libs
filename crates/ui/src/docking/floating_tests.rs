@@ -97,9 +97,6 @@ pub(super) fn frame_style(style: &mut DockStyle) {
     style.float_hint = true;
     style.wheel_selects_tabs = true;
     style.middle_click_closes_tabs = true;
-    style.float_label = "Undock Panel".into();
-    style.float_group_label = "Undock Panel Group".into();
-    style.close_group_label = "Close Panel Group".into();
 }
 
 struct Driver {
@@ -495,7 +492,7 @@ fn close_other_panels_keeps_only_the_chosen_tab() {
         h.run_steps(2);
     };
     open_menu(&mut h);
-    for label in ["Undock Panel", "Close Panel Group", "Undock Panel Group", "Close Other Panels in Group", "Maximize Frame"] {
+    for label in ["Float", "Close Tab Group", "Float Tab Group", "Close Other Panels in Group", "Maximize Frame"] {
         assert_eq!(h.query_all_by_label(label).count(), 1, "{label}");
     }
     assert_eq!(h.query_all_by_label("Minimize").count(), 0);
@@ -838,7 +835,7 @@ fn undock_panel_group_floats_one_group_of_a_floating_window() {
         h.run_steps(2);
     };
     menu(&mut h, 6);
-    h.get_by_label("Undock Panel Group").click();
+    h.get_by_label("Float Tab Group").click();
     h.run_steps(2);
     let actions = std::mem::take(&mut h.state_mut().2);
     assert!(matches!(&actions[..], [Action::MoveGroup { panel: 6, to: Target::Float { rect: Some(_) } }]), "{actions:?}");
@@ -850,7 +847,7 @@ fn undock_panel_group_floats_one_group_of_a_floating_window() {
     h.state_mut().1 = layout;
     h.run_steps(2);
     menu(&mut h, 5);
-    assert_eq!(h.query_all_by_label("Undock Panel Group").count(), 0);
+    assert_eq!(h.query_all_by_label("Float Tab Group").count(), 0);
 }
 
 #[test]

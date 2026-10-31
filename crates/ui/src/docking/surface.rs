@@ -21,26 +21,14 @@ pub struct DockStyle {
     pub border: Stroke,
     pub accent: Color32,
     pub font: FontId,
-    /// Localize these action labels in the application adapter.
-    pub float_label: String,
-    pub close_label: String,
-    /// Tab menu item that moves one panel into another group (submenu of target panels).
-    pub move_panel_to_label: String,
+    /// Localize these accessibility labels in the application adapter. The menu rows are [`crate::docking::panel_menu::PanelMenuLabels`].
     pub panels_label: String,
     pub resize_label: String,
     pub resize_window_label: String,
     /// Accessibility label of a group's drag bar and top border.
     pub move_group_label: String,
-    pub close_group_label: String,
     /// Tooltip and accessible name of the panel-menu button ([`Self::panel_menu_button`]).
     pub panel_menu_label: String,
-    pub minimize_label: String,
-    pub expand_label: String,
-    pub float_group_label: String,
-    pub move_group_up_label: String,
-    pub move_group_down_label: String,
-    /// Group menu item that moves the whole group into another group (submenu of targets).
-    pub move_group_to_label: String,
     /// Minimum width of the drag bar left of the group header. Tabs shrink, then overflow,
     /// before the bar narrows; a strip narrower than the header plus this width narrows it.
     pub drag_bar_width: f32,
@@ -111,27 +99,19 @@ pub struct DockStyle {
     pub iconic_max_width: f32,
     /// [D] An iconic column at least this wide shows panel names beside the icons.
     pub iconic_label_width: f32,
-    /// [D] Column menu item that toggles Auto-Collapse Iconic Panels.
-    pub auto_collapse_label: String,
     /// [D] Lay docks out right to left: `Side::Start` is the right edge. egui has no app-wide
     /// layout direction, so the host sets this from its locale. Splits keep their sides.
     pub right_to_left: bool,
     /// [D] Accessibility label of a column bar.
     pub move_column_label: String,
-    /// [D] Column menu and group menu items.
-    pub collapse_to_icons_label: String,
-    pub expand_panels_label: String,
-    /// [D] Accessibility labels of the column bar's »/« button, distinct from the menu items.
+    /// [D] Accessibility labels of the column bar's »/« button.
     pub collapse_column_label: String,
     pub expand_column_label: String,
     pub move_window_label: String,
     pub close_window_label: String,
     /// Group menu items Close Other Panels in Group, and Maximize Frame / Restore Frame Size
     /// for groups of the split tree, each shown when its flag is on.
-    pub close_others_label: String,
     pub close_others_item: bool,
-    pub maximize_label: String,
-    pub restore_frame_label: String,
     pub maximize_item: bool,
     /// Shown under the pointer while a drag offers a docking target, when [`Self::float_hint`]
     /// is on. `{key}` stands for the modifier that floats the drop instead: ⌘ on macOS, Ctrl
@@ -193,21 +173,11 @@ impl DockStyle {
             border: look.border,
             accent: look.drop,
             font: look.font.clone(),
-            float_label: c.float_label,
-            close_label: c.close_label,
-            move_panel_to_label: c.move_panel_to_label,
             panels_label: c.panels_label,
             resize_label: c.resize_label,
             resize_window_label: c.resize_window_label,
             move_group_label: c.move_group_label,
-            close_group_label: c.close_group_label,
             panel_menu_label: c.panel_menu_label,
-            minimize_label: c.minimize_label,
-            expand_label: c.expand_label,
-            float_group_label: c.float_group_label,
-            move_group_up_label: c.move_group_up_label,
-            move_group_down_label: c.move_group_down_label,
-            move_group_to_label: c.move_group_to_label,
             drag_bar_width: look.drag_bar_width,
             min_tab_width: config.tab_width_floor(look),
             floating_background: look.floating_background,
@@ -228,19 +198,13 @@ impl DockStyle {
             iconic_width: look.iconic_width,
             iconic_max_width: look.iconic_max_width,
             iconic_label_width: look.iconic_label_width,
-            auto_collapse_label: c.auto_collapse_label,
             right_to_left: c.right_to_left,
             move_column_label: c.move_column_label,
-            collapse_to_icons_label: c.collapse_to_icons_label,
-            expand_panels_label: c.expand_panels_label,
             collapse_column_label: c.collapse_column_label,
             expand_column_label: c.expand_column_label,
             move_window_label: c.move_window_label,
             close_window_label: c.close_window_label,
-            close_others_label: c.close_others_label,
             close_others_item: c.close_others_item,
-            maximize_label: c.maximize_label,
-            restore_frame_label: c.restore_frame_label,
             maximize_item: c.maximize_item,
             float_hint_label: c.float_hint_label,
             float_hint: c.float_hint,
@@ -297,21 +261,11 @@ impl DockStyle {
         };
         let derived = look.font.size * 2.5 + look.tab_padding;
         let config = DockConfig {
-            float_label: self.float_label.clone(),
-            close_label: self.close_label.clone(),
-            move_panel_to_label: self.move_panel_to_label.clone(),
             panels_label: self.panels_label.clone(),
             resize_label: self.resize_label.clone(),
             resize_window_label: self.resize_window_label.clone(),
             move_group_label: self.move_group_label.clone(),
-            close_group_label: self.close_group_label.clone(),
             panel_menu_label: self.panel_menu_label.clone(),
-            minimize_label: self.minimize_label.clone(),
-            expand_label: self.expand_label.clone(),
-            float_group_label: self.float_group_label.clone(),
-            move_group_up_label: self.move_group_up_label.clone(),
-            move_group_down_label: self.move_group_down_label.clone(),
-            move_group_to_label: self.move_group_to_label.clone(),
             min_tab_width: (self.min_tab_width != derived).then_some(self.min_tab_width),
             edge_band: self.edge_band,
             side_edge_zones: self.side_edge_zones,
@@ -322,19 +276,13 @@ impl DockStyle {
             seam_band: self.seam_band,
             column_edge_band: self.column_edge_band,
             new_dock_band: self.new_dock_band,
-            auto_collapse_label: self.auto_collapse_label.clone(),
             right_to_left: self.right_to_left,
             move_column_label: self.move_column_label.clone(),
-            collapse_to_icons_label: self.collapse_to_icons_label.clone(),
-            expand_panels_label: self.expand_panels_label.clone(),
             collapse_column_label: self.collapse_column_label.clone(),
             expand_column_label: self.expand_column_label.clone(),
             move_window_label: self.move_window_label.clone(),
             close_window_label: self.close_window_label.clone(),
-            close_others_label: self.close_others_label.clone(),
             close_others_item: self.close_others_item,
-            maximize_label: self.maximize_label.clone(),
-            restore_frame_label: self.restore_frame_label.clone(),
             maximize_item: self.maximize_item,
             float_hint_label: self.float_hint_label.clone(),
             float_hint: self.float_hint,

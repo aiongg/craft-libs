@@ -231,12 +231,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         policy: Permissions,
     ) -> PanelMenu<'e> {
         let config = self.config;
-        let words = <PanelMenuLabels as crate::localized::SharedLabels>::shared(ui);
+        let words = PanelMenuLabels::in_dock(ui);
         let labels = PanelMenuLabels {
             float: self.shaped(ui, &words.float),
             move_to: self.shaped(ui, &words.move_to),
             close: self.shaped(ui, &words.close),
             auto_collapse: self.shaped(ui, &words.auto_collapse),
+            ..(*words).clone()
         };
         let targets: Vec<String> = self.panel_targets(panel, policy).iter().map(|target| self.shaped_panel(ui, target)).collect();
         let mut group_entries = PanelMenu::group_entries(policy, &targets, config.close_menu_items, &labels);
@@ -275,21 +276,21 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let others_closable = owner.panels.iter().filter(|p| *p != panel).all(|p| self.permissions(p).closable);
         let mut rows: Vec<MenuEntry<GroupItem>> = Vec::new();
         if closable {
-            rows.push(MenuItem::new(self.shaped(ui, &config.close_group_label), GroupItem::CloseGroup).into());
+            rows.push(MenuItem::new(self.shaped(ui, &PanelMenuLabels::in_dock(ui).close_group), GroupItem::CloseGroup).into());
         }
         if self.minimizes(owner) {
-            let label = if owner.minimized { &config.expand_label } else { &config.minimize_label };
+            let label = if owner.minimized { &PanelMenuLabels::in_dock(ui).expand } else { &PanelMenuLabels::in_dock(ui).minimize };
             rows.push(MenuItem::new(self.shaped(ui, label), GroupItem::ToggleMinimized).into());
         }
         if owner.kind == GroupKind::Dock {
-            rows.push(MenuItem::new(self.shaped(ui, &config.collapse_to_icons_label), GroupItem::CollapseToIcons).into());
+            rows.push(MenuItem::new(self.shaped(ui, &PanelMenuLabels::in_dock(ui).collapse_to_icons), GroupItem::CollapseToIcons).into());
         }
         let whole_window = matches!(owner.kind, GroupKind::Floating { .. }) && self.whole_window(panel);
         if floatable && !whole_window {
-            rows.push(MenuItem::new(self.shaped(ui, &config.float_group_label), GroupItem::FloatGroup).into());
+            rows.push(MenuItem::new(self.shaped(ui, &PanelMenuLabels::in_dock(ui).float_group), GroupItem::FloatGroup).into());
         }
         if movable && owner.kind == GroupKind::Dock {
-            for (up, label) in [(true, &config.move_group_up_label), (false, &config.move_group_down_label)] {
+            for (up, label) in [(true, &PanelMenuLabels::in_dock(ui).move_group_up), (false, &PanelMenuLabels::in_dock(ui).move_group_down)] {
                 let steps = self.layout.can_step_group(panel, up, |p| self.permissions(p));
                 rows.push(MenuItem::new(self.shaped(ui, label), GroupItem::StepGroup(up)).enabled(steps).into());
             }
@@ -301,14 +302,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                 .enumerate()
                 .map(|(i, target)| MenuItem::new(self.shaped_panel(ui, target), GroupItem::MoveGroupTo(i)).into())
                 .collect();
-            rows.push(MenuItem::submenu(self.shaped(ui, &config.move_group_to_label), children).into());
+            rows.push(MenuItem::submenu(self.shaped(ui, &PanelMenuLabels::in_dock(ui).move_group_to), children).into());
         }
         if config.close_others_item && owner.panels.len() > 1 && others_closable && config.close_menu_items {
-            rows.push(MenuItem::new(self.shaped(ui, &config.close_others_label), GroupItem::CloseOthers).into());
+            rows.push(MenuItem::new(self.shaped(ui, &PanelMenuLabels::in_dock(ui).close_others), GroupItem::CloseOthers).into());
         }
         if config.maximize_item && owner.kind == GroupKind::Frame {
             let restore = self.frame.maximized.as_ref().is_some_and(|m| owner.panels.contains(m));
-            let label = if restore { &config.restore_frame_label } else { &config.maximize_label };
+            let label = if restore { &PanelMenuLabels::in_dock(ui).restore_frame } else { &PanelMenuLabels::in_dock(ui).maximize };
             rows.push(MenuItem::new(self.shaped(ui, label), GroupItem::ToggleMaximize).into());
         }
         rows
@@ -473,20 +474,20 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let closable = self.config.close_menu_items && all(&|p| p.closable);
         let movable = all(&|p| p.movable);
         let floatable = movable && all(&|p| p.floatable);
-        if closable && self.menu_action(ui, &self.config.close_group_label.clone()) {
+        if closable && self.menu_action(ui, &PanelMenuLabels::in_dock(ui).close_group.clone()) {
             self.output.actions.push(Action::CloseGroup { panel: panel.clone() });
         }
         if self.minimizes(owner) {
-            let label = if owner.minimized { self.config.expand_label.clone() } else { self.config.minimize_label.clone() };
+            let label = if owner.minimized { PanelMenuLabels::in_dock(ui).expand.clone() } else { PanelMenuLabels::in_dock(ui).minimize.clone() };
             if self.menu_action(ui, &label) {
                 self.output.actions.push(Action::SetMinimized { panel: panel.clone(), minimized: !owner.minimized });
             }
         }
-        if owner.kind == GroupKind::Dock && self.menu_action(ui, &self.config.collapse_to_icons_label.clone()) {
+        if owner.kind == GroupKind::Dock && self.menu_action(ui, &PanelMenuLabels::in_dock(ui).collapse_to_icons.clone()) {
             self.output.actions.push(Action::SetIconic { panel: panel.clone(), iconic: true });
         }
         let whole_window = matches!(owner.kind, GroupKind::Floating { .. }) && self.whole_window(panel);
-        if floatable && !whole_window && self.menu_action(ui, &self.config.float_group_label.clone()) {
+        if floatable && !whole_window && self.menu_action(ui, &PanelMenuLabels::in_dock(ui).float_group.clone()) {
             let size = self.group_float_size(owner.panels, owner.rect.size());
             let rect = clamp_float(Rect::from_min_size(owner.rect.min + Vec2::splat(self.look.cascade_offset), size), self.float_bounds);
             self.output.actions.push(Action::MoveGroup {
@@ -495,7 +496,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             });
         }
         if movable && owner.kind == GroupKind::Dock {
-            for (up, label) in [(true, self.config.move_group_up_label.clone()), (false, self.config.move_group_down_label.clone())] {
+            for (up, label) in
+                [(true, PanelMenuLabels::in_dock(ui).move_group_up.clone()), (false, PanelMenuLabels::in_dock(ui).move_group_down.clone())]
+            {
                 let steps = self.layout.can_step_group(panel, up, |p| self.permissions(p));
                 if ui.add_enabled_ui(steps, |ui| self.menu_action(ui, &label)).inner {
                     self.output.actions.push(Action::StepGroup { panel: panel.clone(), up });
@@ -504,7 +507,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         }
         let targets = if movable { self.group_targets(owner.panels) } else { Vec::new() };
         if !targets.is_empty() {
-            let logical = self.config.move_group_to_label.clone();
+            let logical = PanelMenuLabels::in_dock(ui).move_group_to.clone();
             let text = self.content.action_label(ui, &logical, &self.look.font, self.look.text);
             let response = ui.menu_button(text, |ui| {
                 egui::ScrollArea::vertical().max_height(self.look.menu_max_height).show(ui, |ui| {
@@ -661,7 +664,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     fn panel_menu_items(&mut self, ui: &mut Ui, owner: Option<&TabGroup<'_, P>>, panel: &P, policy: crate::docking::Permissions, group: Rect) {
         self.content.panel_menu(ui, panel);
         if policy.movable && policy.floatable {
-            let logical = self.config.float_label.clone();
+            let logical = PanelMenuLabels::in_dock(ui).float.clone();
             let text = self.content.action_label(ui, &logical, &self.look.font, self.look.text);
             let response = ui.button(text);
             response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &logical));
@@ -675,7 +678,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let targets: Vec<P> =
             if policy.movable { self.layout.move_targets(panel, |p| self.permissions(p)).into_iter().cloned().collect() } else { Vec::new() };
         if !targets.is_empty() {
-            let text = self.content.action_label(ui, &self.config.move_panel_to_label, &self.look.font, self.look.text);
+            let text = self.content.action_label(ui, &PanelMenuLabels::in_dock(ui).move_to, &self.look.font, self.look.text);
             let response = ui.menu_button(text, |ui| {
                 egui::ScrollArea::vertical().max_height(self.look.menu_max_height).show(ui, |ui| {
                     for target in &targets {
@@ -690,12 +693,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
                     }
                 });
             });
-            response.response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.move_panel_to_label));
+            let name = PanelMenuLabels::in_dock(ui).move_to.clone();
+            response.response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &name));
         }
         if policy.closable && self.config.close_menu_items {
-            let text = self.content.action_label(ui, &self.config.close_label, &self.look.font, self.look.text);
+            let text = self.content.action_label(ui, &PanelMenuLabels::in_dock(ui).close, &self.look.font, self.look.text);
             let response = ui.button(text);
-            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &self.config.close_label));
+            let name = PanelMenuLabels::in_dock(ui).close.clone();
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), &name));
             if response.clicked() {
                 self.output.actions.push(Action::Close { panel: panel.clone() });
                 ui.close();

@@ -208,7 +208,7 @@ const OK: Word = Word::keyed("pref.ok", "OK");
 const CANCEL: Word = Word::keyed("pref.cancel", "Cancel");
 const APPLY: Word = Word::keyed("pref.apply", "Apply");
 const RESET_SECTION: Word = Word::keyed("pref.resetSection", "Reset Section");
-const HEX_LABEL: Word = Word::keyed("pref.hexLabel", "Hex colour");
+const HEX_LABEL: Word = Word::keyed("pref.hexLabel", "Hex color");
 const DEFAULT_HINT: Word = Word::keyed("pref.defaultHint", "Default");
 
 impl PreferencesTexts {

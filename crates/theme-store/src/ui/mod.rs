@@ -96,7 +96,7 @@ pub struct AppearancePageResponse {
 /// impl CustomSettings<Prefs> for MyCustom {
 ///     fn row(&mut self, ui: &mut Ui, key: &str, _draft: &mut SettingsDraft) {
 ///         if key == "interface.appearance" {
-///             AppearancePage::new(&self.client, &mut self.appearance).favorites(&self.favorites).show(ui);
+///             AppearancePage::new("appearance", &self.client, &mut self.appearance).favorites(&self.favorites).show(ui);
 ///         }
 ///     }
 ///     fn apply(&mut self, _: &Prefs) -> Result<(), String> { self.client.change(std::mem::take(&mut self.appearance)); Ok(()) }
@@ -107,6 +107,7 @@ pub struct AppearancePageResponse {
 ///
 /// [`TextSize`]: craft_theme::TextSize
 pub struct AppearancePage<'a> {
+    id_salt: IdSalt,
     client: &'a SuiteClient,
     draft: &'a mut SelectionChange,
     favorites: &'a [ThemeId],
@@ -114,8 +115,9 @@ pub struct AppearancePage<'a> {
 }
 
 impl<'a> AppearancePage<'a> {
-    pub fn new(client: &'a SuiteClient, draft: &'a mut SelectionChange) -> Self {
-        Self { client, draft, favorites: &[], text_size: true }
+    /// `id_salt` must differ between appearance pages under one parent.
+    pub fn new(id_salt: impl AsIdSalt, client: &'a SuiteClient, draft: &'a mut SelectionChange) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), client, draft, favorites: &[], text_size: true }
     }
 
     /// The themes marked with a filled star.
@@ -134,7 +136,7 @@ impl<'a> AppearancePage<'a> {
     // pc: crates/ui-egui/src/prefs/prefs_ui/fields.rs:315 interface_groups (appearance group);
     // pc: crates/ui-egui/src/prefs/prefs_ui/appearance.rs:311 (mode list), :268 theme_row
     pub fn show(self, ui: &mut Ui) -> AppearancePageResponse {
-        let Self { client, draft, favorites, text_size } = self;
+        let Self { id_salt, client, draft, favorites, text_size } = self;
         let labels = AppearanceLabels::of(ui);
         let shown = draft.applied_to(&client.shown());
         let mode = shown.mode.unwrap_or(ModeChoice::System);
@@ -145,7 +147,7 @@ impl<'a> AppearancePage<'a> {
         };
         let themes = themes(client);
         let mut out = AppearancePageResponse::default();
-        FormGrid::new("craft_theme_store::appearance").label_align(LabelAlign::Start).show(ui, |form| {
+        FormGrid::new(id_salt).label_align(LabelAlign::Start).show(ui, |form| {
             let modes = [
                 (ModeChoice::System, labels.mode_system.as_str()),
                 (ModeChoice::Dark, labels.mode_dark.as_str()),

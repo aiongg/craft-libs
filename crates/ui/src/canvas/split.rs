@@ -87,11 +87,18 @@ pub struct SplitViews {
     id_salt: IdSalt,
     layout: SplitLayout,
     active: usize,
+    labels: Option<SplitLabels>,
 }
 
 impl SplitViews {
     pub fn new(id_salt: impl AsIdSalt, layout: SplitLayout) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), layout, active: 0 }
+        Self { id_salt: IdSalt::new(id_salt), layout, active: 0, labels: None }
+    }
+
+    /// The pane names, instead of the labels installed in the context.
+    pub fn labels(mut self, labels: SplitLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     /// The active pane (0 by default): drawn with a 1 pt edge in `line.focus`
@@ -108,7 +115,7 @@ impl SplitViews {
     // effectcraft: crates/ui-egui/src/panels/viewer/view.rs:5 `aux_views`, panels/viewers.rs:208 `activate`.
     pub fn show(self, ui: &mut Ui, rect: ScreenRect, mut pane: impl FnMut(&mut Ui, usize, ScreenRect)) -> SplitResponse {
         let rects = self.layout.rects(Tokens::of(ui).component.split.gap, rect);
-        let labels = SplitLabels::of(ui);
+        let labels = self.labels.clone().unwrap_or_else(|| SplitLabels::of(ui));
         let base = ui.make_persistent_id(self.id_salt);
         let pressed = ui.input(|i| i.pointer.button_pressed(PointerButton::Primary));
         let mut response = SplitResponse::default();

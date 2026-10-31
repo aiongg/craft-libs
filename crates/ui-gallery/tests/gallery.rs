@@ -757,7 +757,7 @@ fn closing_a_tab_fronts_the_overview_and_drops_the_story() {
     gallery.select(ids[1]);
     assert_eq!(gallery.selected(), Some(ids[1]));
     open_tab_menu(&ctx, &mut gallery, component);
-    click(&ctx, &mut gallery, "Close Panel", Role::Button);
+    click(&ctx, &mut gallery, "Close", Role::Button);
     assert_eq!(gallery.open_tabs(), [other]);
     assert_eq!(gallery.front_tab(), PanelId::View);
     gallery.open_component(component);
