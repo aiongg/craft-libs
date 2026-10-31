@@ -153,6 +153,29 @@ fn a_cell_gives_its_control_the_class_width_and_a_caption_that_is_not_selectable
     assert!(!caption.accesskit_node().data().supports_action(egui::accesskit::Action::Focus), "the caption is not a Tab stop");
 }
 
+#[test]
+fn a_cell_adds_the_colon_to_the_translated_caption_and_keeps_one_it_has() {
+    let (i18n, problems) = craft_i18n::I18n::new(&[("de", "\tStyle\tStil\n", "")], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let de = i18n.from_code("de").unwrap();
+    let mut harness = harness(Direction::Ltr, 400.0).build_ui(|ui| {
+        OptionsBar::new("test").show(ui, |bar| {
+            bar.body(|ui| {
+                let style = crate::localized::Words::of(ui).get(crate::localized::Word::plain("Style"));
+                OptionsBar::cell(ui, &style, CellWidth::Content, |ui, _| drop(ui.label("a")));
+                OptionsBar::cell(ui, "Size:", CellWidth::Content, |ui, _| drop(ui.label("b")));
+            });
+        });
+    });
+    craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" })
+        .i18n(std::sync::Arc::new(i18n))
+        .lang(de)
+        .install(&harness.ctx);
+    harness.run();
+    harness.get_by_label("Stil:");
+    harness.get_by_label("Size:");
+}
+
 /// Dragging a caption scrubs the field after it, and the gesture ends as one commit.
 #[test]
 fn dragging_a_caption_scrubs_its_field() {

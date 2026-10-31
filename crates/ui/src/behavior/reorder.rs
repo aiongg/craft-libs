@@ -274,7 +274,7 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> ReorderGesture<K> {
     /// Keeps the gesture and returns this frame's event.
     pub fn finish(self) -> Option<EditEvent<Move<K>>> {
         Some(match self.gesture.finish()? {
-            EditEvent::Begin { id } => EditEvent::Begin { id },
+            EditEvent::Begin { id, value } => EditEvent::Begin { id, value: value.flatten() },
             EditEvent::Cancel { id, reason } => EditEvent::Cancel { id, reason },
             EditEvent::Commit { id, value: Some(value), changed, modifiers } => EditEvent::Commit { id, value, changed, modifiers },
             EditEvent::Set { value: Some(value), modifiers } => EditEvent::Set { value, modifiers },

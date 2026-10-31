@@ -908,7 +908,7 @@ impl Press {
     fn under_way(&mut self, typed: &mut Typed<Numbers<'_>>) -> bool {
         if self.input.is_none() && !typed.is_typing() {
             let gesture = typed.gesture();
-            gesture.begin();
+            gesture.begin_with_value();
             self.input = gesture.input();
         }
         self.input.is_some() && typed.gesture().input() == self.input

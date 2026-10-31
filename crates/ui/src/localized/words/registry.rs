@@ -23,6 +23,7 @@ pub(super) const TABLES: &[&[Word]] = &[
     <crate::controls::ThumbRowLabels as Labels>::WORDS,
     <crate::list::ThumbSizeLabels as Labels>::WORDS,
     <crate::interface_scale::InterfaceScaleLabels as Labels>::WORDS,
+    crate::patterns::options_cell::WORDS,
     <crate::canvas::RefPointLabels as Labels>::WORDS,
     crate::controls::kbd::KEY_WORDS,
     <crate::canvas::RulerNames as Labels>::WORDS,

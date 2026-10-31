@@ -179,7 +179,7 @@ fn a_clockwise_dial_counts_from_12_oclock() {
 fn a_drag_is_one_gesture_and_esc_cancels_it() {
     let mut rig = Rig::new();
     rig.press(rig.at(vec2(20.0, 0.0)));
-    let Some(EditEvent::Begin { id }) = rig.event.clone() else { panic!("expected Begin, got {:?}", rig.event) };
+    let Some(EditEvent::Begin { id, .. }) = rig.event.clone() else { panic!("expected Begin, got {:?}", rig.event) };
     rig.frame(vec![]);
     assert_eq!(rig.event.as_ref().and_then(EditEvent::value), Some(&0.0), "the press points the needle");
     rig.drag(rig.at(vec2(0.0, -20.0)));
@@ -188,7 +188,7 @@ fn a_drag_is_one_gesture_and_esc_cancels_it() {
     assert!(matches!(rig.event, Some(EditEvent::Commit { id: c, value, changed: true, .. }) if c == id && value == 90.0), "{:?}", rig.event);
 
     rig.press(rig.at(vec2(-20.0, 0.0)));
-    let Some(EditEvent::Begin { id }) = rig.event.clone() else { panic!("expected Begin, got {:?}", rig.event) };
+    let Some(EditEvent::Begin { id, .. }) = rig.event.clone() else { panic!("expected Begin, got {:?}", rig.event) };
     rig.drag(rig.at(vec2(0.0, 20.0)));
     rig.frame(vec![pressed(Key::Escape, Modifiers::NONE)]);
     assert_eq!(rig.event, Some(EditEvent::Cancel { id, reason: CancelReason::Escape }));
@@ -388,7 +388,7 @@ fn typing_in_the_field_is_one_gesture_of_the_dial_response() {
         rig.frame(vec![]);
         events.extend(rig.event.clone());
     }
-    let Some(EditEvent::Begin { id }) = events.first().cloned() else { panic!("expected Begin first, got {events:?}") };
+    let Some(EditEvent::Begin { id, .. }) = events.first().cloned() else { panic!("expected Begin first, got {events:?}") };
     assert!(matches!(events.last(), Some(EditEvent::Commit { id: c, value, .. }) if *c == id && *value == 45.0), "{events:?}");
     assert_eq!(rig.angle, 45.0);
 }
@@ -433,7 +433,7 @@ fn typing_in_a_mixed_dials_field_commits_the_number() {
         rig.frame(vec![]);
         events.extend(rig.event.clone());
     }
-    let Some(EditEvent::Begin { id }) = events.first().cloned() else { panic!("expected Begin first, got {events:?}") };
+    let Some(EditEvent::Begin { id, .. }) = events.first().cloned() else { panic!("expected Begin first, got {events:?}") };
     assert!(matches!(events.last(), Some(EditEvent::Commit { id: c, value, .. }) if *c == id && *value == 45.0), "{events:?}");
     assert!(!events.iter().any(|e| matches!(e, EditEvent::Cancel { .. })), "{events:?}");
     assert_eq!(rig.angle, 45.0);

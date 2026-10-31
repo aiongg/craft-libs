@@ -202,7 +202,7 @@ fn sweep_gesture(ui: &Ui, scope: Id, column: usize) -> Gesture<u32> {
 /// row's edit.
 fn sweep_event<K>(event: Option<EditEvent<u32>>, edit: ToggleEdit<K>) -> Option<EditEvent<ToggleEdit<K>>> {
     match event? {
-        EditEvent::Begin { id } => Some(EditEvent::Begin { id }),
+        EditEvent::Begin { id, .. } => Some(EditEvent::begin(id)),
         EditEvent::Commit { id, changed, modifiers, .. } => Some(EditEvent::Commit { id, value: edit, changed, modifiers }),
         EditEvent::Cancel { id, reason } => Some(EditEvent::Cancel { id, reason }),
         // Inside an edit scope only the rows' updates go out.

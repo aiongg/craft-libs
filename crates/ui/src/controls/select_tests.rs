@@ -620,7 +620,7 @@ fn a_select_drawn_again_after_a_gap_starts_closed_without_its_gesture() {
     harness.key_press_modifiers(Modifiers::ALT, Key::ArrowDown);
     harness.run();
     let first = match harness.state().events[..] {
-        [EditEvent::Begin { id }] => id,
+        [EditEvent::Begin { id, .. }] => id,
         ref events => panic!("{events:?}"),
     };
     harness.state_mut().hidden = true;
@@ -633,7 +633,7 @@ fn a_select_drawn_again_after_a_gap_starts_closed_without_its_gesture() {
     assert!(harness.state().events.is_empty(), "{:?}", harness.state().events);
     harness.get_by_role(Role::ComboBox).click();
     harness.run();
-    assert!(matches!(harness.state().events[..], [EditEvent::Begin { id }] if id > first), "a new gesture: {:?}", harness.state().events);
+    assert!(matches!(harness.state().events[..], [EditEvent::Begin { id, .. }] if id > first), "a new gesture: {:?}", harness.state().events);
 }
 
 #[test]

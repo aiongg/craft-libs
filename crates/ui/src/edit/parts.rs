@@ -163,7 +163,8 @@ impl Kind {
     fn of<T>(event: &EditEvent<T>) -> Option<Self> {
         Some(match *event {
             EditEvent::Set { modifiers, .. } => Kind::Set { modifiers },
-            EditEvent::Begin { id } => Kind::Begin { id },
+            // The first value is not replayed: the part's next update or its commit carries it.
+            EditEvent::Begin { id, .. } => Kind::Begin { id },
             EditEvent::Update { id, modifiers, .. } => Kind::Update { id, modifiers },
             EditEvent::Commit { id, changed, modifiers, .. } => Kind::Commit { id, changed, modifiers },
             EditEvent::Cancel { .. } => return None,

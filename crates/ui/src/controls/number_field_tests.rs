@@ -265,7 +265,12 @@ impl Rig {
             return;
         }
         match event {
-            EditEvent::Begin { .. } => self.before = self.value,
+            EditEvent::Begin { value, .. } => {
+                self.before = self.value;
+                if let Some(value) = value.filter(|_| !self.on_commit) {
+                    self.value = (self.adjust)(value);
+                }
+            }
             EditEvent::Cancel { reason: CancelReason::External, .. } => {}
             EditEvent::Cancel { .. } => self.value = self.before,
             EditEvent::Commit { changed: false, .. } if self.mixed => {}
@@ -373,7 +378,7 @@ impl UndoMarks for Doc {
 
 fn begin_id(events: &[EditEvent<f64>]) -> GestureId {
     match events.first() {
-        Some(EditEvent::Begin { id }) => *id,
+        Some(EditEvent::Begin { id, .. }) => *id,
         other => panic!("expected Begin, got {other:?}"),
     }
 }
@@ -637,6 +642,18 @@ fn a_scrub_begins_updates_and_commits_a_step_a_point_with_shift_and_alt() {
     assert_eq!(rig.value, 25.0 + 10.0 * 12.0);
     rig.drag(rig.handle(), &[10.0, 25.0], Modifiers::ALT, true);
     assert_eq!(rig.value, 145.0 + 2.0, "a tenth as fast, the rest carried");
+}
+
+#[test]
+fn the_first_move_of_a_scrub_changes_the_value_in_that_pass() {
+    let mut rig = Rig::with(10.0, |r| r.scrub = true);
+    let n = rig.events.len();
+    rig.drag(rig.handle(), &[7.0], Modifiers::NONE, false);
+    assert_eq!(rig.value, 17.0);
+    rig.frame_with(Modifiers::NONE, vec![pointer(rig.handle() + vec2(7.0, 0.0), false)]);
+    let events = since(&rig, n);
+    let id = begin_id(&events);
+    assert_eq!(events, [EditEvent::begin_with(id, 17.0), commit(id, 17.0, true)]);
 }
 
 #[test]
@@ -1090,7 +1107,7 @@ fn a_scrub_the_host_ended_for_another_controls_change_goes_on_from_where_it_was(
     let events = since(&rig, n);
     let id = begin_id(&events);
     assert!(id > first);
-    assert_eq!(&events[1..], &[EditEvent::Update { id, value: 40.0, modifiers: Modifiers::NONE }, commit(id, 40.0, true)][..]);
+    assert_eq!(events, [EditEvent::begin_with(id, 40.0), commit(id, 40.0, true)], "the carried-on gesture's Begin has the value that began it");
     assert_eq!((rig.value, rig.doc.undo.len()), (40.0, 2));
 }
 

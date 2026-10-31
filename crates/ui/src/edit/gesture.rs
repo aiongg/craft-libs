@@ -180,6 +180,9 @@ struct Active<T> {
     held: bool,
     /// Carries on the input of a gesture the host ended: `Begin` waits for the first change.
     waits: bool,
+    /// The `Begin` carries the value when the frame that begins the gesture already changed it
+    /// ([`Gesture::begin_with_value`]).
+    first_value: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -427,7 +430,20 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             dragged: self.dragged(),
             held: false,
             waits: false,
+            first_value: false,
         });
+    }
+
+    /// [`begin`](Gesture::begin) for a drag whose first frame already moves the value: if the
+    /// value differs from the start when the `Begin` goes out, the `Begin` carries it, so the
+    /// host shows the first move in that frame. Still one event per frame. The `Begin` of a
+    /// gesture inside a part of a composite carries the value for the part, and the composite
+    /// reports it with the part's next update or its commit.
+    pub fn begin_with_value(&mut self) {
+        self.begin();
+        if let Phase::Active(a) = &mut self.stored.phase {
+            a.first_value = true;
+        }
     }
 
     /// Whether the active gesture holds its updates: while it does it reports none, whatever the
@@ -672,7 +688,11 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             }
             a.announced = true;
             if !self.scoped {
-                return Some(EditEvent::Begin { id: a.id });
+                let value = (a.first_value && a.current != a.start).then(|| a.current.clone());
+                if value.is_some() {
+                    a.reported = a.current.clone();
+                }
+                return Some(EditEvent::Begin { id: a.id, value });
             }
         }
         let due = match self.policy.update {

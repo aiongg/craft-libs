@@ -247,7 +247,7 @@ impl Rig {
     fn typing_run(&mut self) -> GestureId {
         self.focus_field();
         self.type_text("x");
-        let Some(EditEvent::Begin { id }) = self.field_event else { panic!("expected Begin, got {:?}", self.field_event) };
+        let Some(EditEvent::Begin { id, .. }) = self.field_event else { panic!("expected Begin, got {:?}", self.field_event) };
         self.frame(vec![]);
         assert_eq!(self.field_event, update(id, "Layer 1x".to_owned()));
         id
@@ -275,7 +275,7 @@ fn key_event(key: Key) -> Event {
 
 fn begin_id(event: Option<EditEvent<f32>>) -> GestureId {
     match event {
-        Some(EditEvent::Begin { id }) => id,
+        Some(EditEvent::Begin { id, .. }) => id,
         other => panic!("expected Begin, got {other:?}"),
     }
 }
@@ -498,7 +498,7 @@ fn a_commit_goes_out_in_its_frame_even_when_the_control_goes_with_it() {
     let mut rig = Rig::new(EditPolicy::default().update(UpdateRate::Debounced(Duration::from_secs(1))));
     rig.focus_field();
     rig.type_text("x");
-    let Some(EditEvent::Begin { id }) = rig.field_event else { panic!("expected Begin, got {:?}", rig.field_event) };
+    let Some(EditEvent::Begin { id, .. }) = rig.field_event else { panic!("expected Begin, got {:?}", rig.field_event) };
     rig.frame(vec![key_event(Key::Enter)]);
     assert_eq!(rig.field_event, commit(id, "Layer 1x".to_owned(), true));
     rig.draw_field = false;
@@ -526,7 +526,7 @@ fn a_typing_run_that_begins_and_commits_in_one_frame_is_a_set() {
 
     // A run over several frames is a gesture.
     rig.type_text("y");
-    let Some(EditEvent::Begin { id }) = rig.field_event else { panic!("expected Begin, got {:?}", rig.field_event) };
+    let Some(EditEvent::Begin { id, .. }) = rig.field_event else { panic!("expected Begin, got {:?}", rig.field_event) };
     rig.frame(vec![]);
     assert_eq!(rig.field_event, update(id, "Layer 1xy".to_owned()));
     rig.frame(vec![key_event(Key::Enter)]);
@@ -689,7 +689,7 @@ fn a_composites_gesture_ends_as_its_parts_run() {
         g.begin();
         g.update(1, Modifiers::NONE);
     });
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begun else { panic!("{begun:?}") };
     assert_eq!(pass(true, true, &|_| {}), update(id, 1));
     assert_eq!(pass(false, true, &|g| g.ended_by_part()), None, "the focus went, the part's run goes on");
     let interrupted = |g: &mut Gesture<i32>| {
@@ -798,14 +798,14 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
     let focused = |ctx: &Context| ctx.memory(|m| m.has_focus(a_id));
 
     let begun = pass(true, &typed(3), None, None);
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begun else { panic!("{begun:?}") };
     assert_eq!(pass(true, &idle, Some(EditEvent::set(7, Modifiers::NONE)), None), update(id, 3), "the step doesn't join the run");
     assert!(!focused(&ctx), "the step asked the run to end");
     assert_eq!(pass(false, &idle, None, None), commit(id, 3, true));
     assert_eq!(pass(false, &idle, None, None), Some(EditEvent::set(7, Modifiers::NONE)), "the step runs after the commit");
 
     let begun = pass(true, &typed(4), None, None);
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begun else { panic!("{begun:?}") };
     assert_eq!(pass(true, &idle, None, Some(5)), update(id, 4));
     assert!(!focused(&ctx), "the click asked the run to end");
     assert_eq!(pass(false, &idle, None, None), commit(id, 4, true));
@@ -829,7 +829,7 @@ fn a_composites_parts_make_one_gesture_and_a_click_waits_for_a_typing_run() {
     };
     let run = GestureId::next();
     let begun = pass(EditEvent::begin(run), |v, _| v);
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begun else { panic!("{begun:?}") };
     assert_eq!(pass(EditEvent::commit(run, 6, false, Modifiers::NONE), |v, _| v + 1), commit(id, 6, false));
 }
 
@@ -876,7 +876,7 @@ fn a_parts_edit_in_the_pass_the_composites_gesture_ends_follows_the_ending() {
         a(e, p, Some(EditEvent::begin(run)));
         b(e, p, None);
     });
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begun else { panic!("{begun:?}") };
     let committed = pass(&|e, p| {
         a(e, p, Some(EditEvent::commit(run, 5, true, Modifiers::NONE)));
         b(e, p, Some(EditEvent::set(9, Modifiers::NONE)));
@@ -897,7 +897,7 @@ fn a_parts_edit_in_the_pass_the_composites_gesture_ends_follows_the_ending() {
         b(e, p, None);
         a(e, p, Some(EditEvent::begin(run)));
     });
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begun else { panic!("{begun:?}") };
     let committed = pass(&|e, p| {
         b(e, p, Some(EditEvent::set(1, Modifiers::NONE)));
         a(e, p, Some(EditEvent::commit(run, 6, true, Modifiers::NONE)));
@@ -919,7 +919,7 @@ fn a_parts_edit_in_the_pass_the_composites_gesture_ends_follows_the_ending() {
         a(e, p, Some(EditEvent::begin(run)));
         b(e, p, None);
     });
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begun else { panic!("{begun:?}") };
     let committed = pass(&|e, p| {
         a(e, p, Some(EditEvent::commit(run, 8, true, Modifiers::NONE)));
         b(e, p, Some(EditEvent::set(4, Modifiers::NONE)));
@@ -980,17 +980,17 @@ fn a_composites_gesture_ends_as_its_owner_part_when_that_part_is_not_drawn() {
         g.update(4, Modifiers::NONE);
     };
     let begun = pass(Some((true, &typed)), None);
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begun else { panic!("{begun:?}") };
     assert_eq!(pass(Some((true, &|_| {})), None), None);
     let b = GestureId::next();
     assert_eq!(pass(None, Some(EditEvent::begin(b))), commit(id, 40, true), "the run's value no update carried");
     let begun = pass(None, Some(EditEvent::update(b, 7, Modifiers::NONE)));
-    let Some(EditEvent::Begin { id: next }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id: next, .. }) = begun else { panic!("{begun:?}") };
     assert_ne!(next, id);
     assert_eq!(pass(None, Some(EditEvent::commit(b, 7, true, Modifiers::NONE))), commit(next, 7, true));
 
     let begun = pass(Some((false, &typed)), None);
-    let Some(EditEvent::Begin { id: drag }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id: drag, .. }) = begun else { panic!("{begun:?}") };
     assert_eq!(pass(None, None), cancel(drag, CancelReason::Removed));
     assert_eq!(host.get(), 7);
 
@@ -998,7 +998,7 @@ fn a_composites_gesture_ends_as_its_owner_part_when_that_part_is_not_drawn() {
     // gesture as the run would end, with the run's value, although the owner isn't one of the
     // composite's focus owners.
     let begun = pass(Some((true, &typed)), None);
-    let Some(EditEvent::Begin { id: run }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id: run, .. }) = begun else { panic!("{begun:?}") };
     assert_eq!(pass(Some((true, &|_| {})), None), None);
     ctx.run_ui(RawInput::default(), |_| {}).drop_without_applying_deltas();
     assert!(!is_live(&ctx, run));
@@ -1040,7 +1040,7 @@ fn a_typing_run_whose_field_is_not_drawn_is_kept_as_one_step_with_everything_typ
         let mut rig = Rig::new(policy);
         rig.focus_field();
         rig.type_text("x");
-        let Some(EditEvent::Begin { id }) = rig.field_event else { panic!("expected Begin, got {:?}", rig.field_event) };
+        let Some(EditEvent::Begin { id, .. }) = rig.field_event else { panic!("expected Begin, got {:?}", rig.field_event) };
         rig.type_text("y");
 
         rig.draw_field = false;
@@ -1086,7 +1086,7 @@ impl Probe {
     /// Begins at `value` and has the host show `to`.
     fn preview(&mut self, value: f32, to: f32) -> GestureId {
         let (event, _) = self.frame(value, Gesture::begin);
-        let Some(EditEvent::Begin { id }) = event else { panic!("expected Begin, got {event:?}") };
+        let Some(EditEvent::Begin { id, .. }) = event else { panic!("expected Begin, got {event:?}") };
         assert_eq!(self.frame(value, |g| g.update(to, Modifiers::NONE)), (update(id, to), to));
         id
     }
@@ -1117,7 +1117,7 @@ fn a_host_value_changed_during_a_gesture_cancels_it() {
     // With updates off, the host's value is the start value until the commit.
     probe.policy = probe.policy.on_release_only(true);
     let (event, _) = probe.frame(70.0, Gesture::begin);
-    let Some(EditEvent::Begin { id }) = event else { panic!("expected Begin, got {event:?}") };
+    let Some(EditEvent::Begin { id, .. }) = event else { panic!("expected Begin, got {event:?}") };
     assert_eq!(probe.frame(70.0, |g| g.update(80.0, Modifiers::NONE)), (None, 80.0));
     assert_eq!(probe.frame(45.0, |_| {}), (cancel(id, CancelReason::External), 45.0));
 }
@@ -1136,20 +1136,20 @@ fn gesture_host_keeps_one_step_per_commit_restores_on_cancel_and_none_when_uncha
     let commit = |id, value, changed| EditEvent::Commit { id, value, changed, modifiers: Modifiers::NONE };
 
     let id = GestureId::next();
-    feed(&mut doc, vec![EditEvent::Begin { id }, update(id, 1), update(id, 2), update(id, 3), commit(id, 3, true)]);
+    feed(&mut doc, vec![EditEvent::Begin { id, value: None }, update(id, 1), update(id, 2), update(id, 3), commit(id, 3, true)]);
     assert_eq!((doc.now, doc.undo.len()), (3, 1));
 
     let id = GestureId::next();
-    feed(&mut doc, vec![EditEvent::Begin { id }, update(id, 7), update(id, 8), EditEvent::Cancel { id, reason: CancelReason::Escape }]);
+    feed(&mut doc, vec![EditEvent::Begin { id, value: None }, update(id, 7), update(id, 8), EditEvent::Cancel { id, reason: CancelReason::Escape }]);
     assert_eq!((doc.now, doc.undo.len()), (3, 1));
 
     let id = GestureId::next();
-    feed(&mut doc, vec![EditEvent::Begin { id }, update(id, 5), update(id, 3), commit(id, 3, false)]);
+    feed(&mut doc, vec![EditEvent::Begin { id, value: None }, update(id, 5), update(id, 3), commit(id, 3, false)]);
     assert_eq!((doc.now, doc.undo.len()), (3, 1));
 
     // A commit with a value no update carried applies it, still as one step.
     let id = GestureId::next();
-    feed(&mut doc, vec![EditEvent::Begin { id }, update(id, 4), commit(id, 6, true)]);
+    feed(&mut doc, vec![EditEvent::Begin { id, value: None }, update(id, 4), commit(id, 6, true)]);
     assert_eq!((doc.now, doc.undo.len()), (6, 2));
 
     feed(&mut doc, vec![EditEvent::Set { value: 9, modifiers: Modifiers::NONE }]);
@@ -1157,7 +1157,7 @@ fn gesture_host_keeps_one_step_per_commit_restores_on_cancel_and_none_when_uncha
 
     // An external change keeps the document as it is.
     let id = GestureId::next();
-    feed(&mut doc, vec![EditEvent::Begin { id }, update(id, 10), EditEvent::Cancel { id, reason: CancelReason::External }]);
+    feed(&mut doc, vec![EditEvent::Begin { id, value: None }, update(id, 10), EditEvent::Cancel { id, reason: CancelReason::External }]);
     assert_eq!((doc.now, doc.undo.len()), (10, 4));
 }
 
@@ -1173,7 +1173,7 @@ fn gesture_host_ends_the_gesture_under_way_when_a_set_arrives_and_ignores_it_aft
     // carried), then a set from another control.
     let run = GestureId::next();
     live::mark(&ctx, run, Ending::Commit { changed: true }, Some(std::sync::Arc::new(3)), true, None);
-    for event in [EditEvent::Begin { id: run }, update(run, 1), update(run, 2), set(9)] {
+    for event in [EditEvent::Begin { id: run, value: None }, update(run, 1), update(run, 2), set(9)] {
         host.handle(&ctx, &mut doc, event, Doc::set);
     }
     assert_eq!((doc.now, doc.undo.len()), (9, 2));
@@ -1186,7 +1186,7 @@ fn gesture_host_ends_the_gesture_under_way_when_a_set_arrives_and_ignores_it_aft
     // A drag (recorded as one to revert), then a set.
     let drag = GestureId::next();
     live::mark(&ctx, drag, Ending::Cancel, None, false, None);
-    for event in [EditEvent::Begin { id: drag }, update(drag, 5), set(7)] {
+    for event in [EditEvent::Begin { id: drag, value: None }, update(drag, 5), set(7)] {
         host.handle(&ctx, &mut doc, event, Doc::set);
     }
     assert_eq!((doc.now, doc.undo.len()), (7, 2));
@@ -1211,7 +1211,7 @@ fn gesture_ids_grow_across_contexts_and_memory_resets() {
 
     for (ctx, id, value) in [(&b, in_b, 2), (&a, after_reset, 3)] {
         for event in [
-            EditEvent::Begin { id },
+            EditEvent::Begin { id, value: None },
             EditEvent::Update { id, value, modifiers: Modifiers::NONE },
             EditEvent::Commit { id, value, changed: true, modifiers: Modifiers::NONE },
         ] {
@@ -1270,7 +1270,7 @@ impl Pad {
     /// Begins a gesture without the focus (a drag) and has the host show `to`.
     fn preview(&mut self, to: i32) -> GestureId {
         let (event, _) = self.frame(true, None, Gesture::begin);
-        let Some(EditEvent::Begin { id }) = event else { panic!("expected Begin, got {event:?}") };
+        let Some(EditEvent::Begin { id, .. }) = event else { panic!("expected Begin, got {event:?}") };
         assert_eq!(self.frame(true, None, |g| g.update(to, Modifiers::NONE)).0, update(id, to));
         id
     }
@@ -1411,7 +1411,7 @@ fn a_composites_gesture_ends_with_its_owners_value_after_the_host_ended_it() {
 
     // A run that changes nothing, a step on `b` that waits for it, then the bar's change.
     let (begun, _) = pass(&Gesture::begin, None, None);
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begun else { panic!("{begun:?}") };
     assert_eq!(pass(&idle, Some(EditEvent::set(7, Modifiers::NONE)), None), (None, (40, 0, 9)));
     assert_eq!(pass(&Gesture::commit, None, None), (commit(id, (40, 0), false), (40, 0, 9)));
     assert_eq!(pass(&idle, None, None), (Some(EditEvent::set((40, 7), Modifiers::NONE)), (40, 7, 9)));
@@ -1509,7 +1509,7 @@ impl Pairs {
         self.frame(vec![Event::PointerMoved(pos), button(pos, true), button(pos, false)]);
         self.frame(vec![]);
         let begun = self.frame(vec![Event::Text("x".to_owned())]);
-        let Some(EditEvent::Begin { id }) = begun else { panic!("expected Begin, got {begun:?}") };
+        let Some(EditEvent::Begin { id, .. }) = begun else { panic!("expected Begin, got {begun:?}") };
         assert_eq!(self.frame(vec![]), update(id, (40.0, "Layer 1x".to_owned())));
         id
     }
@@ -1539,7 +1539,7 @@ fn a_press_during_a_typing_run_runs_the_pass_after_its_commit_in_either_draw_ord
         rig.drag(0.0);
         let ending = if field_first { press + 1 } else { press };
         assert_eq!(rig.events[ending], commit(run, pair(40.0, "Layer 1x"), true), "{field_first}");
-        let Some(EditEvent::Begin { id }) = rig.events[ending + 1] else { panic!("{field_first}: {:?}", rig.events) };
+        let Some(EditEvent::Begin { id, .. }) = rig.events[ending + 1] else { panic!("{field_first}: {:?}", rig.events) };
         assert!(rig.events[press..ending].iter().all(Option::is_none), "{field_first}: {:?}", rig.events);
         rig.events.truncate(ending + 2);
         rig.drag(10.0);
@@ -1641,7 +1641,7 @@ fn a_part_event_during_another_parts_drag_waits_for_the_release() {
             let mut edits = parts::Edits::new(composite, &state, &outer, false);
             edits.replay(ui.ctx(), apply_pair);
             let part = |id: Id, x: f32| ui.interact(Rect::from_min_size(Pos2::new(x, 0.0), vec2(20.0, 20.0)), id, Sense::click());
-            if let Some(EditEvent::Begin { id } | EditEvent::Update { id, .. }) = &a {
+            if let Some(EditEvent::Begin { id, .. } | EditEvent::Update { id, .. }) = &a {
                 live::mark(ui.ctx(), *id, Ending::Commit { changed: true }, None, false, None);
             }
             let edit = EditResponse::new(part(a_id, 0.0), a.clone());
@@ -1658,7 +1658,7 @@ fn a_part_event_during_another_parts_drag_waits_for_the_release() {
     };
     let run = GestureId::next();
     let begun = pass(Some(EditEvent::begin(run)), None);
-    let Some(EditEvent::Begin { id }) = begun else { panic!("{begun:?}") };
+    let Some(EditEvent::Begin { id, .. }) = begun else { panic!("{begun:?}") };
     let step = Some(EditEvent::set(9, Modifiers::NONE));
     assert_eq!(pass(Some(EditEvent::update(run, 5, Modifiers::NONE)), step), update(id, (5, 0)), "the step doesn't join");
     assert_eq!(pass(Some(EditEvent::update(run, 6, Modifiers::NONE)), None), update(id, (6, 0)));
@@ -1750,7 +1750,7 @@ impl QueueRig {
                 let response = ui.interact(Rect::from_min_size(Pos2::new(30.0 * i as f32, 0.0), vec2(20.0, 20.0)), id, Sense::click());
                 let (part_event, ops) = edit.map_or((None, Vec::new()), |(event, ops)| (Some(event), ops));
                 match &part_event {
-                    Some(EditEvent::Begin { id } | EditEvent::Update { id, .. }) => runs[i] = Some(*id),
+                    Some(EditEvent::Begin { id, .. } | EditEvent::Update { id, .. }) => runs[i] = Some(*id),
                     Some(EditEvent::Commit { id, .. } | EditEvent::Cancel { id, .. }) => {
                         live::finish(ui.ctx(), *id);
                         runs[i] = None;
@@ -1781,7 +1781,7 @@ impl QueueRig {
     /// Begins a drag of part `a` and returns the composite's gesture.
     fn begin_drag(&mut self, run: GestureId) -> GestureId {
         match self.pass([Some((EditEvent::begin(run), Vec::new())), None, None]) {
-            Some(EditEvent::Begin { id }) => id,
+            Some(EditEvent::Begin { id, .. }) => id,
             other => panic!("expected Begin, got {other:?}"),
         }
     }
@@ -1924,7 +1924,7 @@ fn a_replayed_update_begins_the_gesture_and_the_entries_after_it_wait() {
     rig.press = Some(Id::unique("press"));
     let began = rig.pass([None, Some((upd(run, 4), vec![PairOp::Set(1, 4)])), None]);
     assert!(matches!(began, Some(EditEvent::Begin { .. })), "{began:?}");
-    let Some(EditEvent::Begin { id }) = began else { panic!("{began:?}") };
+    let Some(EditEvent::Begin { id, .. }) = began else { panic!("{began:?}") };
     assert_eq!(rig.pushed[1], parts::Pushed::Out, "the owner's live event of the run goes out");
     assert_eq!(rig.host, (6, 0));
     let step = rig.pass([None, Some((upd(run, 5), vec![PairOp::Set(1, 5)])), None]);
@@ -2179,4 +2179,38 @@ fn a_host_equals_the_reported_value_to_f32_precision_and_nothing_wider() {
             && !equals_to_f32(f64::INFINITY, 1.0)
             && !equals_to_f32(1.0, f64::NEG_INFINITY)
     );
+}
+
+#[test]
+fn a_begin_that_carries_the_first_value_previews_it_and_the_gesture_is_one_undo_step() {
+    #[derive(Default)]
+    struct Steps {
+        value: i32,
+        undo: Vec<i32>,
+    }
+    impl UndoMarks for Steps {
+        type Mark = usize;
+        fn undo_mark(&self) -> usize {
+            self.undo.len()
+        }
+        fn revert_to(&mut self, mark: usize) {
+            self.undo.truncate(mark);
+        }
+        fn squash_since(&mut self, mark: usize) {
+            self.undo.truncate(mark + 1);
+        }
+    }
+    let mut doc = Steps::default();
+    let ctx = Context::default();
+    let mut host = GestureHost::new();
+    let apply = |doc: &mut Steps, v: i32| {
+        doc.undo.push(doc.value);
+        doc.value = v;
+    };
+    let id = GestureId::next();
+    host.handle(&ctx, &mut doc, EditEvent::begin_with(id, 7), apply);
+    assert_eq!(doc.value, 7, "previewed by the Begin");
+    host.handle(&ctx, &mut doc, EditEvent::update(id, 9, Modifiers::NONE), apply);
+    host.handle(&ctx, &mut doc, EditEvent::commit(id, 9, true, Modifiers::NONE), apply);
+    assert_eq!((doc.value, doc.undo.len()), (9, 1));
 }

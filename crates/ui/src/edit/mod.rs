@@ -86,9 +86,12 @@ impl std::fmt::Display for GestureId {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum EditEvent<T> {
-    /// A gesture started; the host takes its "before" state (e.g. an undo mark).
+    /// A gesture started; the host takes its "before" state (e.g. an undo mark). `value` is the
+    /// gesture's value when the frame that began it already changed it (a scrub's first move):
+    /// the host previews it as it does an [`Update`](EditEvent::Update), and the gesture's next
+    /// update follows the policy's rate from this frame.
     #[non_exhaustive]
-    Begin { id: GestureId },
+    Begin { id: GestureId, value: Option<T> },
     /// The gesture's value changed, at the policy's [`UpdateRate`]; the host previews it.
     #[non_exhaustive]
     Update { id: GestureId, value: T, modifiers: Modifiers },
@@ -135,7 +138,12 @@ pub enum EditEvent<T> {
 impl<T> EditEvent<T> {
     /// [`Begin`](EditEvent::Begin).
     pub fn begin(id: GestureId) -> Self {
-        EditEvent::Begin { id }
+        EditEvent::Begin { id, value: None }
+    }
+
+    /// [`Begin`](EditEvent::Begin) of a gesture whose first frame already changed the value.
+    pub fn begin_with(id: GestureId, value: T) -> Self {
+        EditEvent::Begin { id, value: Some(value) }
     }
 
     /// [`Update`](EditEvent::Update).
@@ -163,23 +171,25 @@ impl<T> EditEvent<T> {
     /// The gesture the event belongs to; `None` for [`Set`](EditEvent::Set).
     pub fn id(&self) -> Option<GestureId> {
         match self {
-            EditEvent::Begin { id } | EditEvent::Update { id, .. } | EditEvent::Commit { id, .. } | EditEvent::Cancel { id, .. } => Some(*id),
+            EditEvent::Begin { id, .. } | EditEvent::Update { id, .. } | EditEvent::Commit { id, .. } | EditEvent::Cancel { id, .. } => Some(*id),
             EditEvent::Set { .. } => None,
         }
     }
 
-    /// The value the event carries, if any.
+    /// The value the event carries, if any (a [`Begin`](EditEvent::Begin) carries one when its
+    /// frame changed the value).
     pub fn value(&self) -> Option<&T> {
         match self {
             EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. } => Some(value),
-            EditEvent::Begin { .. } | EditEvent::Cancel { .. } => None,
+            EditEvent::Begin { value, .. } => value.as_ref(),
+            EditEvent::Cancel { .. } => None,
         }
     }
 
     /// The same event with its value converted, e.g. from a control's value to a document field.
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> EditEvent<U> {
         match self {
-            EditEvent::Begin { id } => EditEvent::Begin { id },
+            EditEvent::Begin { id, value } => EditEvent::Begin { id, value: value.map(f) },
             EditEvent::Update { id, value, modifiers } => EditEvent::Update { id, value: f(value), modifiers },
             EditEvent::Commit { id, value, changed, modifiers } => EditEvent::Commit { id, value: f(value), changed, modifiers },
             EditEvent::Cancel { id, reason } => EditEvent::Cancel { id, reason },

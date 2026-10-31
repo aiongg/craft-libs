@@ -118,14 +118,19 @@ impl<U: UndoMarks> GestureHost<U> {
             return;
         }
         match event {
-            EditEvent::Begin { id } => {
+            EditEvent::Begin { id, value } => {
                 self.interrupt(ctx, doc);
                 let apply: Apply<U> = Arc::new(move |doc, value| {
                     if let Some(value) = value.downcast_ref::<T>() {
                         apply(doc, value.clone());
                     }
                 });
-                self.active = Some(Under { id, mark: doc.undo_mark(), last: None, apply: Some(apply) });
+                let mark = doc.undo_mark();
+                let last = first_value(&value);
+                if let Some(value) = &last {
+                    apply(doc, value.as_ref());
+                }
+                self.active = Some(Under { id, mark, last, apply: Some(apply) });
             }
             EditEvent::Set { value, .. } => {
                 self.interrupt(ctx, doc);
@@ -250,4 +255,9 @@ impl<U: UndoMarks<Mark: fmt::Debug>> fmt::Debug for GestureHost<U> {
         let active = self.active.as_ref().map(|a| (a.id, &a.mark));
         f.debug_struct("GestureHost").field("active", &active).field("ended", &self.ended).finish()
     }
+}
+
+/// The value of a `Begin`, shared with the host's record of the gesture's last value.
+fn first_value<T: Clone + Send + Sync + 'static>(value: &Option<T>) -> Option<Arc<dyn Any + Send + Sync>> {
+    value.as_ref().map(|value| Arc::new(value.clone()) as Arc<dyn Any + Send + Sync>)
 }
