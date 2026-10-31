@@ -305,7 +305,7 @@ impl Convert<'_> {
 
     /// The rows of `nodes`. AppKit's own items ([`Node::Standard`]) have nothing to run here and
     /// are left out; a desktop or web layout has none.
-    fn entries(&self, nodes: &[Node]) -> Vec<MenuEntry<CommandRef>> {
+    pub(crate) fn entries(&self, nodes: &[Node]) -> Vec<MenuEntry<CommandRef>> {
         nodes
             .iter()
             .filter_map(|n| match n {

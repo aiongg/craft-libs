@@ -6,12 +6,10 @@
 //! reports [`LANGUAGE_COMMAND`] with the language code; the app stores it in its preferences and
 //! installs the catalog. No restart: craft-i18n switches at once.
 
-#![expect(unused_variables, unused_mut, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use craft_i18n::{I18n, Lang};
 use craft_keymap::CommandRef;
 
-use crate::model::Node;
+use crate::model::{Item, ItemRole, Node};
 
 /// The command every Language row runs, with `{"lang": "<code>"}` (`"auto"` for Automatic).
 // vectorcraft: crates/ui-egui/src/native_menu.rs:366 (`app.language` with `{"lang": …}`).
@@ -58,39 +56,63 @@ pub struct LanguageMenu {
 impl LanguageMenu {
     /// The menu of `rows` (English first), with `current` selected and an Automatic row.
     pub fn new(rows: Vec<LanguageRow>, current: LanguageChoice) -> Self {
-        todo!()
+        LanguageMenu { rows, current, automatic: true }
     }
 
     /// The menu of the languages `i18n` offers.
     // vectorcraft: crates/ui-egui/src/native_menu.rs:364 `language_node` (`Lang::for_picker`).
     pub fn from_i18n(i18n: &I18n, current: LanguageChoice) -> Self {
-        todo!()
+        let rows = i18n.languages().into_iter().map(|l| LanguageRow { code: i18n.code(l).to_owned(), name: i18n.name(l).to_owned() }).collect();
+        LanguageMenu::new(rows, current)
     }
 
     /// Whether the Automatic row and its separator show (on by default).
     pub fn automatic(mut self, on: bool) -> Self {
-        todo!()
+        self.automatic = on;
+        self
     }
 
     /// The rows as radio items running [`LANGUAGE_COMMAND`].
     pub fn items(&self, labels: &LanguageLabels) -> Vec<Node> {
-        todo!()
+        let mut nodes = Vec::new();
+        if self.automatic {
+            let on = self.current == LanguageChoice::Automatic;
+            let command = CommandRef::with_params(LANGUAGE_COMMAND, serde_json::json!({ "lang": "auto" }));
+            nodes.push(Node::Item(Item::new(command, labels.automatic.as_str()).radio(on)));
+            nodes.push(Node::Separator);
+        }
+        for row in &self.rows {
+            let on = matches!(&self.current, LanguageChoice::Code(c) if c.eq_ignore_ascii_case(&row.code));
+            let command = CommandRef::with_params(LANGUAGE_COMMAND, serde_json::json!({ "lang": row.code }));
+            nodes.push(Node::Item(Item::new(command, row.name.as_str()).radio(on)));
+        }
+        nodes
     }
 
     /// The "Language" submenu, tagged [`crate::ItemRole::Language`].
     pub fn node(&self, labels: &LanguageLabels) -> Node {
-        todo!()
+        Node::submenu(labels.language.as_str(), self.items(labels)).role(ItemRole::Language)
     }
 
     /// The choice a command made, `None` for any other command or an unknown parameter.
     pub fn chosen(command: &CommandRef) -> Option<LanguageChoice> {
-        todo!()
+        if command.id != LANGUAGE_COMMAND {
+            return None;
+        }
+        match command.params.get("lang")?.as_str()? {
+            "auto" => Some(LanguageChoice::Automatic),
+            "" => None,
+            code => Some(LanguageChoice::Code(code.to_owned())),
+        }
     }
 
     /// The language a choice means: the system's for Automatic, English for a code `i18n`
     /// doesn't have.
     pub fn resolve(choice: &LanguageChoice, i18n: &I18n) -> Lang {
-        todo!()
+        match choice {
+            LanguageChoice::Automatic => i18n.system_lang(),
+            LanguageChoice::Code(code) => i18n.from_code(code).unwrap_or(Lang::EN),
+        }
     }
 }
 

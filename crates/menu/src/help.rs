@@ -8,11 +8,9 @@
 //! [`HelpMenu`] builds that menu as model rows; the app runs the commands it reports, opening the
 //! link URLs with [`HelpMenu::url`].
 
-#![expect(unused_variables, unused_mut, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use craft_keymap::CommandRef;
 
-use crate::model::{Menu, Node};
+use crate::model::{Item, ItemRole, Menu, MenuRole, Node};
 
 /// A row of the Help menu kit. Each has a fixed command id (`help.<camelCase>`) so shortcuts,
 /// automation and the keymap catalog name it the same in every app.
@@ -42,12 +40,27 @@ impl HelpCommand {
     // pc: crates/engine/src/shell_commands.rs:96-98 (`help.reportIssue`, `help.systemInfo`,
     // `help.about`); crates/engine/src/cmd/updates_cmds.rs:120 (`help.checkForUpdates`).
     pub fn id(self) -> &'static str {
-        todo!()
+        match self {
+            HelpCommand::HelpCenter => "help.helpCenter",
+            HelpCommand::KeyboardShortcuts => "help.keyboardShortcuts",
+            HelpCommand::CheckForUpdates => "help.checkForUpdates",
+            HelpCommand::ReportIssue => "help.reportIssue",
+            HelpCommand::SystemInfo => "help.systemInfo",
+            HelpCommand::About => "help.about",
+        }
     }
 
     /// The row for a command, `None` for any other command (an app link included).
     pub fn of(command: &CommandRef) -> Option<HelpCommand> {
-        todo!()
+        const ALL: [HelpCommand; 6] = [
+            HelpCommand::HelpCenter,
+            HelpCommand::KeyboardShortcuts,
+            HelpCommand::CheckForUpdates,
+            HelpCommand::ReportIssue,
+            HelpCommand::SystemInfo,
+            HelpCommand::About,
+        ];
+        ALL.into_iter().find(|c| c.id() == command.id)
     }
 }
 
@@ -95,50 +108,79 @@ pub struct HelpMenu {
 impl HelpMenu {
     /// System Info… and About, nothing else.
     pub fn new(app_name: impl Into<String>) -> Self {
-        todo!()
+        HelpMenu { app_name: app_name.into(), system_info: true, ..HelpMenu::default() }
     }
 
     /// Adds "{app} Help", opening `url`.
     pub fn help_center(mut self, url: impl Into<String>) -> Self {
-        todo!()
+        self.help_center = Some(url.into());
+        self
     }
 
     /// Adds "Keyboard Shortcuts…".
     pub fn keyboard_shortcuts(mut self, on: bool) -> Self {
-        todo!()
+        self.keyboard_shortcuts = on;
+        self
     }
 
     /// Adds an app link after Keyboard Shortcuts… and the links before it.
     // pc: crates/ui-egui/src/links.rs:17 `COMMANDS`.
     pub fn link(mut self, link: HelpLink) -> Self {
-        todo!()
+        self.links.push(link);
+        self
     }
 
     /// Adds "Report an Issue…", opening `url`.
     pub fn report_issue(mut self, url: impl Into<String>) -> Self {
-        todo!()
+        self.report_issue = Some(url.into());
+        self
     }
 
     /// Adds "Check for Updates…" (never on the web build).
     pub fn check_for_updates(mut self, on: bool) -> Self {
-        todo!()
+        self.check_for_updates = on;
+        self
     }
 
     /// Whether System Info… shows (on by default).
     pub fn system_info(mut self, on: bool) -> Self {
-        todo!()
+        self.system_info = on;
+        self
     }
 
     /// The rows in the kit's order, with About tagged [`crate::ItemRole::About`].
     // pc: crates/ui-egui/src/menus/items.rs:185-197 (update check before the separator, then
     // System Info and About).
     pub fn nodes(&self, labels: &HelpLabels) -> Vec<Node> {
-        todo!()
+        let app = self.app_name.as_str();
+        let row = |command: HelpCommand, label: &str| Node::Item(Item::new(command.id(), label.replace("{app}", app)));
+        let mut nodes = Vec::new();
+        if self.help_center.is_some() {
+            nodes.push(row(HelpCommand::HelpCenter, &labels.help_center));
+        }
+        if self.keyboard_shortcuts {
+            nodes.push(row(HelpCommand::KeyboardShortcuts, &labels.keyboard_shortcuts));
+        }
+        nodes.extend(self.links.iter().map(|l| Node::Item(Item::new(l.id.as_str(), l.label.as_str()))));
+        if self.report_issue.is_some() {
+            nodes.push(row(HelpCommand::ReportIssue, &labels.report_issue));
+        }
+        if self.check_for_updates {
+            nodes.push(row(HelpCommand::CheckForUpdates, &labels.check_for_updates));
+        }
+        if !nodes.is_empty() {
+            nodes.push(Node::Separator);
+        }
+        if self.system_info {
+            nodes.push(row(HelpCommand::SystemInfo, &labels.system_info));
+        }
+        nodes.push(Node::Item(Item::new(HelpCommand::About.id(), labels.about.replace("{app}", app)).role(ItemRole::About)));
+        nodes
     }
 
     /// The Help menu ([`crate::MenuRole::Help`]) titled `labels.help`, with [`HelpMenu::nodes`].
     pub fn menu(&self, labels: &HelpLabels) -> Menu {
-        todo!()
+        Menu::new(labels.help.as_str(), self.nodes(labels)).role(MenuRole::Help)
     }
 
     /// The URL a Help row opens: Help Center, Report an Issue… or an app link. `None` for the
@@ -146,7 +188,14 @@ impl HelpMenu {
     /// and for other commands.
     // pc: crates/ui-egui/src/links.rs:20 `url_for`.
     pub fn url(&self, command: &CommandRef) -> Option<&str> {
-        todo!()
+        if let Some(link) = self.links.iter().find(|l| l.id == command.id) {
+            return Some(link.url.as_str());
+        }
+        match HelpCommand::of(command)? {
+            HelpCommand::HelpCenter => self.help_center.as_deref(),
+            HelpCommand::ReportIssue => self.report_issue.as_deref(),
+            _ => None,
+        }
     }
 }
 
