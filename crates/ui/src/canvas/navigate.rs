@@ -16,11 +16,13 @@
 //! # }
 //! ```
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-use egui::{Context, Event, Id, Key, Modifiers, Pos2, RawInput, Rect as ScreenRect, Response, Ui, Vec2 as ScreenVec};
+use egui::{Context, Event, Id, Key, Modifiers, Painter, Pos2, RawInput, Rect as ScreenRect, Response, Ui, Vec2 as ScreenVec};
 use kurbo::Size;
 
+use super::cursor::ToolCursor;
+use super::tool_host::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
 use super::view::CanvasView;
 use crate::theme::UiTokens;
 
@@ -125,16 +127,18 @@ impl WheelNavigation {
 
     /// This pass's wheel input over `canvas` (hovered, no popup above it) classified under
     /// `prefs`, or `None`. Consumes the scroll so a parent scroll area does not also move.
-    // pc: crates/ui-egui/src/canvas/wheel_nav.rs `wheel_events`, canvas.rs wheel handling.
+    // pc: crates/ui-egui/src/canvas/wheel_nav.rs:338 `read`, :350 `read_with`, :502 `wheel_events`,
+    // :528 `pinch_factor`, :245 `ease_zoom_delta`.
     pub fn read(ctx: &Context, canvas: &Response, prefs: &NavigationPrefs) -> Option<WheelAction> {
         todo!()
     }
 
     /// Apply `action` to `view` with the pointer at `pointer`: zooms anchor at
     /// [`zoom::wheel_anchor`](super::zoom::wheel_anchor) and clamp to the ladder's range; a
-    /// pan moves the view (within the scroll limits unless `prefs.overscroll`). Returns whether
-    /// the view changed.
-    // pc: crates/ui-egui/src/canvas.rs wheel → view_xform::zoom_about, canvas_autoscroll::scroll.
+    /// pan moves the view (within the scroll limits unless `prefs.overscroll`). At a zoom limit
+    /// the view stays put, as in Photoshop: a notch past 12800 % neither zooms nor slides the
+    /// image toward the pointer. Returns whether the view changed.
+    // pc: crates/ui-egui/src/canvas.rs:588 (`Zoom`: clamp, about `wheel_anchor`), :597 (`SnapZoom`: n ladder steps).
     pub fn apply(view: &mut CanvasView, action: WheelAction, pointer: Pos2, size: Size, prefs: &NavigationPrefs, pixels_per_point: f32) -> bool {
         todo!()
     }
@@ -358,9 +362,9 @@ impl RotateView {
 
     /// Draw the compass (north is the document's up) while the view is turned (more than 0.05°)
     /// and sense it: a click resets the angle. Returns whether it reset, and whether the pointer
-    /// is over it (no rotate drag starts there). A button with the name "Reset rotation" for
-    /// AccessKit.
-    // pc: crates/ui-egui/src/canvas/rotate_view.rs:230 `overlay`.
+    /// is over it (no rotate drag starts there). An AccessKit button named
+    /// [`NavigationLabels::reset_rotation`] from the labels installed in the context.
+    // pc: crates/ui-egui/src/canvas/rotate_view.rs:230 `overlay`, :224 `compass_visible`.
     pub fn compass(ui: &mut Ui, view: &CanvasView, tokens: &UiTokens) -> CompassResponse {
         todo!()
     }
@@ -373,4 +377,158 @@ pub struct CompassResponse {
     pub reset: bool,
     /// The pointer is over it.
     pub hovered: bool,
+}
+
+crate::words! {
+    /// The words of the navigation controls on the canvas.
+    #[non_exhaustive]
+    pub struct NavigationLabels {
+        /// The Rotate View compass's AccessKit name and tooltip.
+        reset_rotation: "navigate.resetRotation" = "Reset Rotation";
+    }
+}
+
+/// The Hand tool: a drag pans the view with the document under the pointer (the closed hand
+/// while dragging, the open hand otherwise); a release while still moving glides on with
+/// [`FlickPan`] when Flick Panning is on; Esc during the drag puts the view back. It does not
+/// autoscroll. The tool the Space key holds ([`MomentaryKeys`](super::MomentaryKeys)).
+#[derive(Clone, Debug, Default)]
+pub struct HandTool {
+    /// The view and pointer when the drag began.
+    start: Option<(CanvasView, Pos2)>,
+    /// The user's navigation preferences (Flick Panning, Overscroll), set by the app each pass.
+    pub prefs: NavigationPrefs,
+}
+
+impl CanvasTool for HandTool {
+    // pc: crates/ui-egui/src/canvas/tool_cursor.rs (Hand open/closed).
+    fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
+        todo!()
+    }
+
+    // pc: crates/ui-egui/src/canvas.rs:1930 (hand_pan, flick_pan::frame).
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+        todo!()
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {}
+
+    fn autoscrolls(&self) -> bool {
+        false
+    }
+}
+
+/// The Zoom tool: a click steps the ladder about the clicked point (Alt: out;
+/// [`zoom_clicked_point_to_center`](NavigationPrefs::zoom_clicked_point_to_center) centres it),
+/// a press held still zooms continuously ([`HoldZoom`](super::HoldZoom), Animated Zoom only), a
+/// drag scrubs or draws a zoom rectangle ([`ZoomDrag`](super::ZoomDrag), Scrubby Zoom). The cursor
+/// is the magnifier, with a minus while Alt is held or `out` is set (Zoom Out held by
+/// Alt+Space). At a zoom limit the view stays put.
+#[derive(Clone, Debug)]
+pub struct ZoomTool {
+    /// Zoom out instead of in (Alt+Space held); Alt flips it.
+    pub out: bool,
+    /// The document's size in document units (the ladder's lower limit).
+    pub size: Size,
+    pub prefs: NavigationPrefs,
+    hold: Option<super::HoldZoom>,
+    drag: Option<super::ZoomDrag>,
+}
+
+impl ZoomTool {
+    pub fn new(size: Size, prefs: NavigationPrefs) -> Self {
+        Self { out: false, size, prefs, hold: None, drag: None }
+    }
+}
+
+impl CanvasTool for ZoomTool {
+    fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
+        todo!()
+    }
+
+    // pc: crates/ui-egui/src/canvas.rs:697 (click step), :1138; zoom_hold.rs:65 `update`; tools/zoom_tool.rs:55 `drag`.
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+        todo!()
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    /// The hold advances on hovers too, so a press held perfectly still keeps zooming.
+    fn hover(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    /// The zoom rectangle while drawn.
+    // pc: crates/ui-egui/src/tools/zoom_tool.rs:105 `draw`.
+    fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
+        todo!()
+    }
+
+    fn autoscrolls(&self) -> bool {
+        false
+    }
+}
+
+/// The Rotate View tool: a drag turns the view about the canvas centre ([`RotateView`]); Esc or a
+/// double-click resets the angle to 0. The cursor is the rotate hand.
+#[derive(Clone, Debug, Default)]
+pub struct RotateViewTool {
+    drag: Option<(RotateView, CanvasView)>,
+}
+
+impl CanvasTool for RotateViewTool {
+    // pc: crates/ui-egui/src/canvas/rotate_view.rs:268 `cursor`.
+    fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
+        todo!()
+    }
+
+    // pc: crates/ui-egui/src/canvas/rotate_view.rs:186 `drag`.
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+        todo!()
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    /// Esc puts the angle back to 0 (not during a drag: that cancels it).
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+        todo!()
+    }
+
+    fn cancel(&mut self, cx: &mut ToolContext<'_>) {
+        todo!()
+    }
+
+    fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {}
+
+    fn autoscrolls(&self) -> bool {
+        false
+    }
 }

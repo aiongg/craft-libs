@@ -82,7 +82,7 @@ impl SplitViews {
         Self { id_salt: IdSalt::new(id_salt), layout, active: 0 }
     }
 
-    /// The active pane (0 by default): drawn with the accent edge (`focus.ring` colour, 1 pt)
+    /// The active pane (0 by default): drawn with a 1 pt edge in `line.focus`
     /// when there is more than one pane.
     pub fn active(mut self, active: usize) -> Self {
         self.active = active;
@@ -91,7 +91,8 @@ impl SplitViews {
 
     /// Lay out the panes in `rect` and call `pane(ui, index, rect)` for each, clipped to it; a
     /// press on an inactive pane reports it in [`SplitResponse::activated`] and does not reach
-    /// the pane's tool. Each pane is an AccessKit group named "View N".
+    /// the pane's tool. Each pane is an AccessKit group named with [`SplitLabels::view`] (`View
+    /// {n}`, counted from 1 in reading order).
     // effectcraft: crates/ui-egui/src/panels/viewer/view.rs:5 `aux_views`, panels/viewers.rs:208 `activate`.
     pub fn show(self, ui: &mut Ui, rect: ScreenRect, pane: impl FnMut(&mut Ui, usize, ScreenRect)) -> SplitResponse {
         todo!()
@@ -101,5 +102,14 @@ impl SplitViews {
     /// and rotation.
     pub fn follow(main: &CanvasView, panes: &mut [SplitPane]) {
         todo!()
+    }
+}
+
+crate::words! {
+    /// The words of split views.
+    #[non_exhaustive]
+    pub struct SplitLabels {
+        /// A pane's AccessKit name; `{n}` counts from 1.
+        view: "split.view" = "View {n}";
     }
 }

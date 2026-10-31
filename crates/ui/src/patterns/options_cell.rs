@@ -1,11 +1,15 @@
 //! [`OptionsBar::cell`]: a caption and a compact control, with a width class.
 
 use egui::text::LayoutJob;
-use egui::{Label, Response, Ui, vec2};
+use std::ops::RangeInclusive;
+
+use egui::{AsIdSalt, Label, Response, Ui, vec2};
 
 use super::options_bar::OptionsBar;
 use crate::controls::{CheckState, Checkbox, NumberField, Select};
 use crate::direction;
+use crate::edit::EditResponse;
+use crate::localized::units::{LengthUnit, UnitContext};
 use crate::localized::{LocaleNumbers, Unit, Word, Words};
 use crate::primitives::{Content, Text};
 use crate::story::StoryArgs;
@@ -75,6 +79,71 @@ impl OptionsBar {
     pub fn hint(ui: &mut Ui, text: &str) -> Response {
         ui.add(Text::new(text).content(Content::Faint))
     }
+
+    /// A number cell: [`cell`](Self::cell) with `field` at [`ControlSize::Sm`](craft_theme::ControlSize::Sm), scrubbed by
+    /// dragging the caption ([`NumberField::scrub_by`]), as Photoshop's "Size:" or "Tolerance:".
+    // pc: crates/ui-egui/src/panels/options_bar.rs:735 `opt_label` (a label before a value field scrubs it).
+    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
+    pub fn number_cell(ui: &mut Ui, caption: &str, width: CellWidth, field: NumberField<'_>) -> EditResponse<f64> {
+        todo!()
+    }
+
+    /// Photoshop's Opacity and Flow cell: the caption scrubs the percentage, 0.5 percentage
+    /// points per screen point measured from the press (no jump on the press), clamped to
+    /// 0..=100, one edit gesture per drag; the field is 0..=100 with `%`, no decimals, and a ▾ that
+    /// opens a pop-up slider ([`NumberField::popup_slider`], named after the caption). `value` is
+    /// the percentage. Width [`CellWidth::Sm`].
+    // pc: crates/ui-egui/src/panels/options_bar.rs:698 `scrub_pct_label`, :776 `percent_field`.
+    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
+    pub fn percent_cell(ui: &mut Ui, id_salt: impl AsIdSalt, caption: &str, value: f64, numbers: &LocaleNumbers) -> EditResponse<f64> {
+        todo!()
+    }
+
+    /// A length cell (the marquee's Fixed Size Width and Height): `pixels` shown in `unit` with
+    /// [`LengthUnit::decimals`] and its [`suffix`](LengthUnit::suffix), converted by `context`;
+    /// typed text may carry another unit (`2in`) or arithmetic
+    /// ([`expr::parse_with_units`](crate::controls::expr::parse_with_units)). The edit reports
+    /// pixels, clamped to `range` (pixels). Leaving the field re-reads the rounded text it showed,
+    /// which is not an edit: the pixels stay exact unless the shown value changed. A secondary
+    /// click on the field opens the units menu of `units`, as on the rulers
+    /// ([`LengthUnitLabels`](crate::localized::units::LengthUnitLabels) names); the pick comes
+    /// back in [`UnitCellResponse::unit_picked`]. Width [`CellWidth::Md`].
+    // pc: crates/ui-egui/src/panels/options_bar.rs:758 `fixed_size_field`, :747 `fixed_size_units`.
+    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
+    #[expect(clippy::too_many_arguments, reason = "a cell names every input of its field")]
+    pub fn unit_cell(
+        ui: &mut Ui,
+        id_salt: impl AsIdSalt,
+        caption: &str,
+        pixels: f64,
+        range: RangeInclusive<f64>,
+        unit: LengthUnit,
+        units: &[LengthUnit],
+        context: UnitContext,
+    ) -> UnitCellResponse {
+        todo!()
+    }
+
+    /// Scroll the bar so a control that just took the keyboard focus (Tab into a cell scrolled
+    /// out of a narrow bar) is in view, centred. Call once per pass inside the bar's scroll area,
+    /// after the cells. Skipped on a pass with a pointer press or release (reading a popup's newly
+    /// focused field during its opening click can undo the focus it just requested), and only for
+    /// a focused widget on this layer whose rect lies inside the bar's content.
+    // pc: crates/ui-egui/src/panels/options_bar.rs:7 `reveal_focused_control`.
+    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
+    pub fn reveal_focused_control(ui: &Ui) {
+        todo!()
+    }
+}
+
+/// What a [`OptionsBar::unit_cell`] did.
+#[derive(Clone, Debug)]
+pub struct UnitCellResponse {
+    /// The field's edit, in pixels.
+    pub edit: EditResponse<f64>,
+    /// A unit picked from the field's units menu: the app stores it (the ruler unit preference
+    /// in PhotoCraft, which the rulers share).
+    pub unit_picked: Option<LengthUnit>,
 }
 
 #[derive(Clone, Debug)]

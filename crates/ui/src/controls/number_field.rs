@@ -20,6 +20,7 @@ use super::field_wheel;
 use super::slider::{PressTurn, Scale, Track, labelled, pointer, press_turn, with_values};
 use super::text_field::{BoxState, field_box};
 use super::{IconButton, Slider, TextField, TextFieldStyle, TooltipExt as _, icon_size};
+use crate::behavior::scrub::travel;
 use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook, edit_menu};
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
@@ -288,6 +289,16 @@ impl<'a> NumberField<'a> {
     pub fn or_parse(mut self, parser: impl Fn(&str) -> Option<f64> + 'a) -> Self {
         self.fallback = Some(Box::new(parser));
         self
+    }
+
+    /// Read typed arithmetic ([`expr::parse`](super::expr::parse)) and relative entries
+    /// ([`expr::relative`](super::expr::relative): `*2`, `/4` on the field's value) on the
+    /// commit, after the locale's plain number and before an [`or_parse`](NumberField::or_parse)
+    /// reader. The text is handed over with the region's decimal mark as `.` and ASCII digits.
+    // pc: crates/ui-egui/src/widgets/fields.rs:373 `number_edit` → numeric_expression::parse.
+    #[expect(clippy::todo, unused_variables, unused_mut, reason = "skeleton: removed when the body lands")]
+    pub fn expressions(mut self, on: bool) -> Self {
+        todo!()
     }
 
     /// Up and Down, the wheel and screen-reader increments step to `next(value, direction)`
@@ -991,53 +1002,6 @@ struct Scrub {
     last: Option<(GestureId, Option<f64>)>,
     /// Where the pointer was asked to go at the screen's edge, until it is seen there.
     warp: Option<f32>,
-}
-
-/// How far from the screen's edge the pointer counts as at it, and how far inside the opposite
-/// edge it is put.
-const WRAP_EDGE: f32 = 2.0;
-
-/// What one pointer position adds to a scrub.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct Travel {
-    /// Points moved, not counting a warp.
-    pub(super) delta: f32,
-    /// The x to measure the next move from.
-    pub(super) last_x: f32,
-    /// The x the pointer was asked to go to and has not been seen at.
-    pub(super) warp: Option<f32>,
-    /// The x to move the pointer to now.
-    pub(super) send: Option<f32>,
-}
-
-/// The points the pointer moved from `last_x` to `x`. With the horizontal `edges` of the screen,
-/// a move that reaches one asks for the pointer at the other (`send`), once: the request stays
-/// pending until the pointer is seen nearer the target than it was, and the position that
-/// then shows up there is not a move. A pointer that stays where it was (a platform that does not
-/// move it) waits; one that moves elsewhere is an ordinary move, and the request is not sent
-/// again.
-pub(super) fn travel(last_x: f32, x: f32, warp: Option<f32>, edges: Option<(f32, f32)>) -> Travel {
-    let mut now = Travel { delta: x - last_x, last_x: x, warp: None, send: None };
-    if let Some(target) = warp {
-        if x == last_x {
-            return Travel { delta: 0.0, warp, ..now };
-        }
-        if (x - target).abs() < (x - last_x).abs() {
-            return Travel { delta: 0.0, ..now };
-        }
-        return Travel { warp, ..now };
-    }
-    if let Some((left, right)) = edges {
-        let target = if now.delta > 0.0 && x >= right - WRAP_EDGE {
-            Some(left + 2.0 * WRAP_EDGE)
-        } else if now.delta < 0.0 && x <= left + WRAP_EDGE {
-            Some(right - 2.0 * WRAP_EDGE)
-        } else {
-            None
-        };
-        (now.warp, now.send) = (target, target);
-    }
-    now
 }
 
 /// `range` in ascending order, a bound that is no number left open.

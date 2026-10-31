@@ -40,21 +40,27 @@ impl PixelGrid {
     /// Segments drawn at most; past this the rest of the grid is left off.
     pub const MAX_SEGMENTS: usize = 60_000;
 
-    /// Whether the grid shows at `device_zoom` (device pixels per document pixel).
+    /// Whether the grid shows at `device_zoom` (device pixels per document pixel): strictly
+    /// above [`MIN_ZOOM`](Self::MIN_ZOOM).
     // pc: crates/ui-egui/src/canvas/pixel_grid.rs:45 `shows_at`.
     pub fn shows_at(device_zoom: f64) -> bool {
         todo!()
     }
 
     /// How light the line is over a pixel of `luma`: 0 a white line, 1 a black one; smoothstep
-    /// across luma 0.35..0.75 in eight steps. Not a finite number reads as dark.
+    /// across luma 0.35..0.75, `x = clamp((luma − 0.35) / 0.4, 0, 1)`, `round(x²(3 − 2x) · 8) / 8`.
+    /// Not a finite number reads as 0.
     // pc: crates/ui-egui/src/canvas/pixel_grid.rs:51 `light_share`.
     pub fn light_share(luma: f32) -> f32 {
         todo!()
     }
 
-    /// The line colour over a pixel of straight-alpha `rgba` (0..=1), or `None` over a
-    /// transparent pixel.
+    /// The line colour over a pixel of straight-alpha `rgba` (0..=1), or `None` where alpha is
+    /// NaN or ≤ 0, or the result rounds to alpha 0. PhotoCraft's rule: `a = min(alpha, 1)`,
+    /// `luma = 0.299 r + 0.587 g + 0.114 b`, `shown = luma·a + 0.9·(1 − a)` (the checker's luma),
+    /// `t = light_share(shown)`, `white = STRENGTH·a·(1 − t)`, `black = STRENGTH·a·LIGHT_SCALE·t`;
+    /// the colour is grey `round(white / (white + black) · 255)` at alpha
+    /// `round((white + black) · 255)`, unmultiplied.
     // pc: crates/ui-egui/src/canvas/pixel_grid.rs:75 `cell_color`.
     pub fn cell_color(rgba: [f32; 4]) -> Option<Color32> {
         todo!()

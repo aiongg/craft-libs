@@ -5,8 +5,8 @@ use egui::accesskit::{Action, ActionData, ActionRequest, Node, Role, TreeId};
 use egui::epaint::{ClippedShape, Shape};
 use egui::{Context, CursorIcon, Event, Id, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, Ui, ViewportCommand, pos2, vec2};
 
-use super::number_field::{Travel, travel};
 use super::{NumberField, number_field};
+use crate::behavior::scrub::{Travel, travel};
 use crate::behavior::{Typing, TypingLook};
 use crate::direction::{self, Direction};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, GestureHost, GestureId, UndoMarks};

@@ -17,6 +17,8 @@ appearance = ["dep:zbus", "dep:futures-lite", "dep:async-channel", "dep:async-io
 browser = ["dep:wasm-bindgen", "dep:js-sys", "dep:web-sys"]
 ui = ["dep:egui"]
 theme = ["dep:craft-theme"]
+# Moving the system pointer (a scrub's screen-edge wrap).
+pointer = []
 
 [dependencies]
 egui = { workspace = true, optional = true }

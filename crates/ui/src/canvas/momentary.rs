@@ -9,7 +9,8 @@
 //! [`ToolHost::show`](super::ToolHost::show) instead of the selected one, and a drag that
 //! started with it finishes with it ([`ToolHost::in_gesture`](super::ToolHost::in_gesture)).
 //! Space during a marquee, lasso or shape drag repositions it: that is the tool's own key (its
-//! [`CanvasTool::key`](super::CanvasTool::key)), not a momentary tool.
+//! [`CanvasTool::key`](super::CanvasTool::key)), not a momentary tool. PhotoCraft's Cmd-held Move
+//! tool and the Brush's erase key are tool behaviour (step 7), not here.
 
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
@@ -40,9 +41,9 @@ impl MomentaryTool {
 ///
 /// ```no_run
 /// use craft_ui::canvas::{MomentaryKeys, MomentaryTool};
-/// # fn demo(ctx: &egui::Context, host: egui::Id, in_gesture: bool) {
+/// # fn demo(ctx: &egui::Context, canvas: egui::Id, drawing: bool) {
 /// let keys = MomentaryKeys::default();
-/// match keys.update(ctx, host, in_gesture) {
+/// match keys.update(ctx, canvas, drawing) {
 ///     Some(MomentaryTool::Hand) => { /* show the Hand tool this pass */ }
 ///     Some(MomentaryTool::ZoomIn | MomentaryTool::ZoomOut) => { /* the Zoom tool, in or out */ }
 ///     None => { /* the selected tool */ }
@@ -58,7 +59,7 @@ pub struct MomentaryKeys {
 
 impl Default for MomentaryKeys {
     /// Space; Cmd+Space (Ctrl+Space off the Mac); Alt+Space.
-    // pc: crates/engine/src/prefs.rs `TEMPORARY_TOOLS`.
+    // pc: crates/engine/src/prefs/shortcuts.rs:115 `TEMPORARY_TOOLS`.
     fn default() -> Self {
         Self {
             hand: KeyboardShortcut::new(Modifiers::NONE, Key::Space),
@@ -70,19 +71,23 @@ impl Default for MomentaryKeys {
 
 impl MomentaryKeys {
     /// The temporary tool the keys held in `input` ask for, in any order of pressing (Space then
-    /// Cmd, or Cmd then Space): Zoom Out wins over Zoom In when Alt is added, Zoom In over the
-    /// Hand. Pure; ignores whether a text field has the keys.
-    // pc: crates/ui-egui/src/input/hold_keys.rs:163 `held`, `active`.
+    /// Cmd, or Cmd then Space). Of the bindings whose key is down and whose modifiers are all held,
+    /// the one with the most modifiers wins (Cmd+Space beats Space); Alt held with Zoom In turns it
+    /// into Zoom Out unless Alt is part of Zoom In's own binding (Cmd+Alt+Space zooms out). Pure;
+    /// ignores whether a text field has the keys.
+    // pc: crates/ui-egui/src/input/hold_keys.rs:176 `held_tool`, :163 `held`.
     pub fn held(&self, input: &InputState) -> Option<MomentaryTool> {
         todo!()
     }
 
-    /// The temporary tool for this pass on the canvas whose tool host is `host`: the held keys
-    /// while no text field has the keyboard, latched while `in_gesture` (a drag started with the
-    /// Hand finishes with the Hand even after Space comes up; a drag started with the selected
-    /// tool ignores Space pressed during it). Consumes Space so a focused button does not click.
-    // pc: crates/ui-egui/src/input/hold_keys.rs `update` (latch), canvas.rs temporary tool.
-    pub fn update(&self, ctx: &Context, host: Id, in_gesture: bool) -> Option<MomentaryTool> {
+    /// The temporary tool for this pass on the canvas `canvas`: [`held`](Self::held) while no
+    /// text field has the keyboard, except while `drawing` (a marquee, lasso or shape is being
+    /// dragged: Space repositions it instead). A temporary tool in effect when the primary button
+    /// went down stays while it is down and on the pass it is released (the Move tool's release
+    /// commits the move), even after its keys come up. The latch lives in egui memory under
+    /// `canvas`.
+    // pc: crates/ui-egui/src/input/hold_keys.rs:240 `for_frame`, :232 `latch_id`.
+    pub fn update(&self, ctx: &Context, canvas: Id, drawing: bool) -> Option<MomentaryTool> {
         todo!()
     }
 }

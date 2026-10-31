@@ -567,3 +567,11 @@ fn a_quick_press_on_the_ruler_released_where_it_began_makes_no_guide() {
         assert!(h.state().guides.guides.is_empty() && h.state().guide_events.is_empty(), "{:?}", h.state().guide_events);
     }
 }
+
+// With units_menu set, a secondary click opens the menu, context stays None and a pick fills unit_picked.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn a_ruler_menu_pick_reports_the_unit() {
+    todo!()
+}

@@ -26,10 +26,15 @@
 //! - [`Typing`]: a line of text typed into egui's `TextEdit` and reported as one edit gesture per
 //!   typing run, used by [`TextField`](crate::controls::TextField),
 //!   [`SearchField`](crate::controls::SearchField) and [`ComboBox`](crate::controls::ComboBox).
+//! - [`scrub`]: a scrub's pointer travel and the screen-edge wrap's pointer warp ([`Scrub`]).
+//! - [`DigitKeys`]: Photoshop's number keys for opacity (1 = 10 %, 0 = 100 %, two digits exact).
 //! - [`nudge`]: an arrow key press as a move along the document axes (1 unit, Shift 10), for
 //!   canvas overlays.
 
 mod command_search;
+mod digit_keys;
+#[cfg(test)]
+mod digit_keys_tests;
 pub(crate) mod edit_menu;
 mod field_tab;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -46,11 +51,15 @@ mod radio_selection;
 mod reorder;
 #[cfg(test)]
 mod reorder_tests;
+pub mod scrub;
+#[cfg(test)]
+mod scrub_tests;
 #[cfg(test)]
 mod tests;
 mod typing;
 
 pub use command_search::{CommandSearch, Match, PaletteEntry};
+pub use digit_keys::{DigitEntry, DigitKeys};
 pub use edit_menu::{EditMenu, EditMenuLabels};
 pub use field_tab::FieldTab;
 pub use grid_drop::{GridDrop, GridGeometry, grid_drop};
@@ -66,5 +75,6 @@ pub use radio_selection::RadioSelection;
 pub use reorder::{
     Axis, DragEnd, DropPosition, ListDrag, Move, Reorder, ReorderGesture, Resolved, RowSpans, StackKey, UniformSpans, edge_scroll_speed,
 };
+pub use scrub::Scrub;
 pub use typing::{Codec, Escape, NotAValue, PlainText, Typed, Typing, TypingLook};
 pub(crate) use typing::{take_composing_keys, take_enter};

@@ -129,7 +129,7 @@ const MAX_PIXELS: f64 = 300_000.0;
 const PPI_RANGE: (f64, f64) = (1.0, 30_000.0);
 use crate::localized::units::CM_PER_INCH;
 
-/// The length unit of a size field: [`LengthUnit`], under the name Image Size and Canvas Size use.
+/// The length unit of a size field: [`LengthUnit`](crate::localized::units::LengthUnit), under the name Image Size and Canvas Size use.
 pub use crate::localized::units::LengthUnit as SizeUnit;
 
 /// Resolution units of Image Size.

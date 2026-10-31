@@ -7,5 +7,7 @@ pub mod browser;
 pub mod dialog_outcome;
 #[cfg(all(feature = "dialogs", not(target_arch = "wasm32")))]
 pub mod dialogs;
+#[cfg(feature = "pointer")]
+pub mod pointer;
 #[cfg(all(feature = "appearance", unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 mod process;

@@ -138,7 +138,7 @@ pub enum CheckerSize {
 
 impl CheckerSize {
     /// A square's side in screen points: 4, 8, 16; `None` draws no checkerboard.
-    // pc: crates/engine/src/prefs.rs:735 `TransparencyAndGamut::square`.
+    // pc: crates/engine/src/prefs.rs:736 `TransparencyAndGamut::square`.
     pub fn square(self) -> Option<f32> {
         match self {
             CheckerSize::None => None,

@@ -31,6 +31,8 @@ pub(super) const TABLES: &[&[Word]] = &[
     <crate::canvas::RulerNames as Labels>::WORDS,
     <crate::canvas::GuideNames as Labels>::WORDS,
     <crate::canvas::ScrollbarNames as Labels>::WORDS,
+    <crate::canvas::NavigationLabels as Labels>::WORDS,
+    <crate::canvas::SplitLabels as Labels>::WORDS,
     <crate::shell::CanvasLabels as Labels>::WORDS,
     <crate::composites::CurveLabels as Labels>::WORDS,
     <crate::composites::histogram::HistogramLabels as Labels>::WORDS,

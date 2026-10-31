@@ -158,9 +158,10 @@ pub fn wheel_anchor(view: &CanvasView, screen: Pos2, size: Size) -> Pos2 {
     todo!()
 }
 
-/// View › Zoom In (`dir` > 0) or Zoom Out (`dir` < 0): the next ladder rung, about the view's
-/// centre. Returns whether the zoom changed (it does not at a limit).
-// pc: crates/ui-egui/src/menus/view_cmds.rs zoom in/out → zoom_levels::step.
+/// View › Zoom In (`dir` > 0) or Zoom Out (`dir` < 0): the next ladder rung
+/// ([`ZoomLadder::step`]), the view's centre unchanged. Returns whether the zoom changed (it does
+/// not at a limit). The app starts a [`ZoomAnimation`] with no anchor when Animated Zoom is on.
+// pc: crates/ui-egui/src/panels/actions.rs:224 `"view.zoomIn"` / `"view.zoomOut"`.
 pub fn step_view(view: &mut CanvasView, dir: i32, size: Size, pixels_per_point: f32) -> bool {
     todo!()
 }

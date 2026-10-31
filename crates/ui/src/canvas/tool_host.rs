@@ -16,12 +16,14 @@
 //!    [`cancel`](CanvasTool::cancel), other keys go to [`key`](CanvasTool::key) while the canvas
 //!    has keyboard focus and no text field has the keys;
 //! 4. autoscrolls the view toward a pointer dragged past the canvas edge
-//!    (`navigate::Autoscroll`) and reports the move in the response;
+//!    ([`Autoscroll`](super::Autoscroll)) and reports the move in the response, together with
+//!    any view the tool asked for ([`ToolContext::set_view`]: the Hand, Zoom and Rotate View
+//!    tools) as [`ToolHostResponse::view`];
 //! 5. lets the tool [`paint`](CanvasTool::paint) and sets the cursor the tool returned through
 //!    the [`CursorHost`](super::CursorHost) (the OS pointer, a bitmap, or the painted tool icon
 //!    with its badge).
 //!
-//! A momentary tool (Space for the Hand, see `momentary::MomentaryKeys`) is the
+//! A momentary tool (Space for the Hand, see [`MomentaryKeys`](super::MomentaryKeys)) is the
 //! app's: it passes the temporary tool to `show` instead of the selected one; a drag in progress
 //! keeps the tool it started with until it ends.
 //!
@@ -115,9 +117,12 @@ pub struct ToolHostResponse {
     pub id: Id,
     /// The gesture's phase, when one began, moved or ended this pass.
     pub gesture: Option<ToolGesture>,
-    /// How far autoscroll moved the view, in document units: the app applies it to its view
-    /// (the host has only a copy).
+    /// How far autoscroll moved the view, in document units (already in [`view`](Self::view)).
     pub scrolled_by: Option<Vec2>,
+    /// The view after this pass's autoscroll and the tool's [`ToolContext::set_view`], when
+    /// either changed it: the app copies its centre, zoom and rotation back into its own view
+    /// (the host has only a copy).
+    pub view: Option<CanvasView>,
     /// The cursor the tool asked for, after the host set it: for a status bar or test.
     pub cursor: CursorIcon,
     /// The press this pass was [`ToolAction::Ignored`] by the tool: the app may use it.
@@ -154,6 +159,7 @@ pub struct ToolContext<'a> {
 #[derive(Clone, Debug, Default)]
 struct ToolRequests {
     cursor: Option<ToolCursor>,
+    view: Option<CanvasView>,
     readout: Option<Readout>,
     repaint: bool,
     keep_keys: bool,
@@ -169,6 +175,13 @@ impl<'a> ToolContext<'a> {
     /// Labelled values drawn beside the pointer this pass (a marquee's W and H).
     pub fn readout(&mut self, readout: Readout) {
         self.requests.readout = Some(readout);
+    }
+
+    /// Change the view (the Hand tool's pan, a Zoom tool click, Rotate View): the host reports it
+    /// in [`ToolHostResponse::view`] and later calls this pass see it in
+    /// [`view`](Self::view). The last request of a pass wins.
+    pub fn set_view(&mut self, view: CanvasView) {
+        self.requests.view = Some(view);
     }
 
     /// Ask for another pass (an animation, a held key that repeats).
