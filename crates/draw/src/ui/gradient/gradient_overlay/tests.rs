@@ -6,7 +6,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::Point;
 
 use super::story::{LineHost, english_names};
-use super::{GradientLineStyle, GradientOverlay, LineCursor, LineRelease};
+use super::{GradientLineStyle, GradientOverlay, LineCursor, LineRelease, TaggedStop};
 use crate::ui::gradient::stops::sample;
 use crate::ui::gradient::{ColorStop, GradientLabels, GradientStops, StopRef, StopRow, StopRows, StopRules};
 use crate::ui::gradient::{GradientExtent, GradientLine, LineGradient, LinePart};
@@ -43,6 +43,7 @@ struct Host {
     id: Option<Id>,
     events: Vec<EditEvent<LineGradient>>,
     color_requested: Vec<usize>,
+    color_tags: Vec<u64>,
     context: Option<LinePart>,
     hovered: Option<LinePart>,
     picked: Option<LinePart>,
@@ -70,6 +71,7 @@ fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
         id: None,
         events: Vec::new(),
         color_requested: Vec::new(),
+        color_tags: Vec::new(),
         context: None,
         hovered: None,
         picked: None,
@@ -121,7 +123,8 @@ fn harness(setup: impl FnOnce(&mut Host)) -> Harness<'static, Host> {
             host.host.apply(&r);
             host.typing.note(r.event.is_some());
             host.events.extend(r.event.clone());
-            host.color_requested.extend(r.color_requested.map(|(i, _)| i));
+            host.color_requested.extend(r.color_requested.map(|c| c.index));
+            host.color_tags.extend(r.color_requested.map(|c| c.tag));
             host.context = r.context.or(host.context);
             (host.id, host.hovered, host.claimed, host.picked) = (Some(r.id), r.hovered, r.claimed, r.picked);
             if let Some(guides) = &mut host.guides {
@@ -1241,7 +1244,7 @@ fn the_host_driven_press_track_release_match_show() {
         assert_eq!(overlay.release(&view, &press), LineRelease::Commit(state.clone()), "{part:?}");
         assert_eq!(state, value(&h), "{part:?}");
         if matches!(part, LinePart::Stop(_)) {
-            assert_eq!(end.selected.flatten(), selected(&h), "{part:?}");
+            assert_eq!(end.selected.flatten().map(|t| t.stop), selected(&h), "{part:?}");
         }
     }
 
@@ -1255,7 +1258,7 @@ fn the_host_driven_press_track_release_match_show() {
     let overlay = GradientOverlay::new("gradient", &base.line, &base.stops, english_names());
     let mut press = overlay.press(&view, &style, at, Modifiers::NONE).expect("a press");
     assert!(!overlay.track(&view, &style, &mut press, at, Modifiers::NONE).begun);
-    assert_eq!(overlay.release(&view, &press), LineRelease::Add { value: value(&h), selected: selected(&h).expect("selected") });
+    assert_eq!(overlay.release(&view, &press), LineRelease::Add { value: value(&h), selected: TaggedStop { stop: selected(&h).expect("selected"), tag: 0 } });
 
     let mut h = harness(|_| {});
     h.run();
@@ -1277,9 +1280,49 @@ fn the_host_driven_hit_and_double_click_follow_the_modifiers_and_the_parts() {
     assert_eq!(overlay.hit(&view, &style, at(100.0, 150.0), Modifiers::COMMAND), None);
     assert_eq!(overlay.hit(&view, &style, at(200.0, 40.0), Modifiers::NONE), None);
     assert_eq!(overlay.hit(&view, &style, at(300.0, 150.0), Modifiers::NONE), Some(LinePart::End));
-    assert_eq!(overlay.double_click(&view, &style, at(300.0, 150.0)).map(|(i, _)| i), Some(3));
+    assert_eq!(overlay.double_click(&view, &style, at(300.0, 150.0)).map(|c| (c.index, c.tag)), Some((3, 0)));
     assert_eq!(overlay.double_click(&view, &style, at(190.0, 150.0)), None);
     let frozen = GradientOverlay::new("gradient", &base.line, &base.stops, english_names()).editable(false);
     assert_eq!(frozen.hit(&view, &style, at(300.0, 150.0), Modifiers::NONE), None);
     assert!(frozen.press(&view, &style, at(300.0, 150.0), Modifiers::NONE).is_none());
+}
+
+#[test]
+fn results_carry_the_tag_of_the_stop_they_name_when_a_drag_reorders_the_stops() {
+    let style = line_style();
+    let mut h = harness(|_| {});
+    h.run();
+    let view = h.state().view.expect("drawn");
+    let base = gradient();
+    let overlay = GradientOverlay::new("gradient", &base.line, &base.stops, english_names());
+    let from = spots(&h).t(0.3);
+    let mut press = overlay.press(&view, &style, from, Modifiers::NONE).expect("a press");
+    assert_eq!(press.selects(), Some(TaggedStop { stop: StopRef::Color(1), tag: 7 }));
+    overlay.track(&view, &style, &mut press, from + vec2(2.0, 0.0), Modifiers::NONE);
+    // Past the stop at 0.6: the tagged stop is now the third.
+    let track = overlay.track(&view, &style, &mut press, spots(&h).t(0.7), Modifiers::NONE);
+    assert_eq!(track.selected, Some(Some(TaggedStop { stop: StopRef::Color(2), tag: 7 })));
+    let mid = overlay.press(&view, &style, spots(&h).t(0.45), Modifiers::NONE).expect("a press");
+    assert_eq!(mid.selects(), Some(TaggedStop { stop: StopRef::Midpoint(StopRow::Color, 1), tag: 7 }));
+
+    assert_eq!(base.part_tag(LinePart::Stop(1)), Some(7));
+    assert_eq!(base.part_tag(LinePart::Midpoint(1)), Some(7));
+    assert_eq!(base.part_tag(LinePart::End), None);
+    assert_eq!(overlay.double_click(&view, &style, spots(&h).t(0.3)).map(|c| (c.index, c.tag)), Some((1, 7)));
+
+    let at = spots(&h).t(0.3);
+    double_click(&mut h, at);
+    assert_eq!((h.state().color_requested.clone(), h.state().color_tags.clone()), (vec![1], vec![7]));
+}
+
+#[test]
+fn a_double_click_follows_the_context_option_for_the_double_click_delay() {
+    for (delay, asked) in [(0.1, 0), (1.0, 1)] {
+        let mut h = harness(|_| {});
+        h.ctx.options_mut(|o| o.input_options.max_double_click_delay = delay);
+        h.run();
+        let at = spots(&h).t(0.6);
+        double_click(&mut h, at);
+        assert_eq!(h.state().color_requested.len(), asked, "delay {delay}");
+    }
 }

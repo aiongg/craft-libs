@@ -6,7 +6,7 @@ mod keys;
 mod order_tests;
 mod parts;
 mod pointer;
-pub use pointer::{LinePress, LineRelease, LineTrack};
+pub use pointer::{ColorRequest, LinePress, LineRelease, LineTrack, TaggedStop};
 #[cfg(test)]
 mod share_tests;
 pub(crate) mod story;
@@ -15,7 +15,7 @@ mod tests;
 
 use std::f32::consts::FRAC_PI_2;
 
-use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Rect, Response, Shape, Stroke, Ui, vec2};
+use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, vec2};
 use kurbo::Point;
 
 use super::gradient_line::{at_screen, midpoint_location};
@@ -625,9 +625,9 @@ pub struct GradientOverlayResponse {
     /// A drag (Begin past the click slop, Update, Commit on release; Esc cancels it) or a stop
     /// added by a click on the line (Set).
     pub event: Option<EditEvent<LineGradient>>,
-    /// A double-click asked for the colour of colour stop `i`; the rect is its marker on screen,
-    /// for a picker opened beside it.
-    pub color_requested: Option<(usize, Rect)>,
+    /// A double-click, Enter or Space asked for the colour of a colour stop (its index and tag);
+    /// the rect is its marker on screen, for a picker opened beside it.
+    pub color_requested: Option<ColorRequest>,
     /// The part the keys act on, picked by the last press.
     pub picked: Option<LinePart>,
     /// The part a press at the pointer would take; `None` where it is the host's.

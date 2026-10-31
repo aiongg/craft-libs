@@ -9,7 +9,7 @@
 use egui::Pos2;
 use kurbo::{Point, Vec2};
 
-use crate::ui::gradient::GradientStops;
+use crate::ui::gradient::{GradientStops, StopRef, StopRow};
 
 /// Midpoint diamonds show only between stops farther apart than this, as the stop bar's do.
 pub const MIN_MIDPOINT_GAP: f32 = 0.001;
@@ -26,6 +26,28 @@ pub struct GradientLine {
 pub struct LineGradient {
     pub line: GradientLine,
     pub stops: GradientStops,
+}
+
+impl LineGradient {
+    /// The host's tag of the colour stop `stop` names; a midpoint has the tag of the stop before
+    /// it. `None` for opacity stops and indices past the row.
+    pub fn tag_of(&self, stop: StopRef) -> Option<u64> {
+        match stop {
+            StopRef::Color(i) | StopRef::Midpoint(StopRow::Color, i) => self.stops.color.get(i).map(|s| s.tag),
+            _ => None,
+        }
+    }
+
+    /// The tag of the colour stop `part` is, as [`tag_of`](Self::tag_of); `None` for the ends and
+    /// the line. For the parts [`GradientOverlayResponse`](crate::ui::gradient::GradientOverlayResponse)
+    /// reports (`picked`, `hovered`, `context`), read from the gradient the overlay showed.
+    pub fn part_tag(&self, part: LinePart) -> Option<u64> {
+        match part {
+            LinePart::Stop(i) => self.tag_of(StopRef::Color(i)),
+            LinePart::Midpoint(i) => self.tag_of(StopRef::Midpoint(StopRow::Color, i)),
+            _ => None,
+        }
+    }
 }
 
 /// The shape a gradient's style adds round the line.
