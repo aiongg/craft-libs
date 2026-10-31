@@ -9,18 +9,19 @@ use std::sync::Arc;
 use craft_cms::convert::CmykConverter;
 use craft_theme::{ColorModel, ControlSize, HsbModel, LabModel, ModelValues, RgbModel, Srgba};
 use egui::accesskit::Role;
-use egui::{Align, AsIdSalt, Id, IdSalt, Layout, Modifiers, Rect, Ui, UiBuilder, pos2, vec2};
+use egui::{Align, AsIdSalt, Id, IdSalt, Layout, Modifiers, Rect, Ui, UiBuilder, vec2};
 
-use super::picker::texts as picker_texts;
+use super::picker::{Inner, RowRule, row_line, texts as picker_texts};
 use super::{
-    AreaMode, ColorArea, ColorPickerLabels, ColorRamp, ColorStrip, ColorWarning, ColorWarningChip, ColorWheel, HexField, HexPairField, PairWell,
-    PickedColor, RampKind, SwatchPair, Well,
+    AreaMode, ColorArea, ColorPickerLabels, ColorRamp, ColorStrip, ColorWarning, ColorWarningChip, ColorWheel, HexField, PairWell, PickedColor,
+    RampKind, SwatchPair, Well,
 };
 use crate::{CmykModel, GrayModel, not_web_safe};
-use craft_ui::composites::PropertyRow;
-use craft_ui::controls::{NumberField, Slider};
+use craft_ui::controls::{IconButton, NumberField};
 use craft_ui::direction;
-use craft_ui::edit::EditEvent;
+use craft_ui::docking::panel_menu::PanelCommand;
+use craft_ui::edit::{EditEvent, EditPolicy};
+use craft_ui::icons::Icon;
 use craft_ui::localized::{LocaleNumbers, SharedLabels, Unit, Word, Words};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use craft_ui::primitives::{Gap, Row};
@@ -53,6 +54,8 @@ craft_ui::words! {
         foreground: "colorPanel.foreground" = "Foreground colour";
         background: "colorPanel.background" = "Background colour";
         wells: "colorPanel.wells" = "Colours";
+        add_to_swatches: "colorPanel.addToSwatches" = "Add to Swatches";
+        create_swatch: "colorPanel.createSwatch" = "Create new swatch";
     }
 }
 
@@ -183,12 +186,16 @@ pub enum PanelTarget {
 #[non_exhaustive]
 #[must_use = "the host applies the edit"]
 pub struct ColorPanelResponse {
-    /// An edit of the foreground or background colour (from the view, the sliders, the ramp or a
-    /// warning chip), with the colour it is for.
-    pub edit: Option<(PanelTarget, EditEvent<PickedColor>)>,
+    /// The edits of the foreground or background colour this pass (from the view, the sliders,
+    /// the ramp or a warning chip), in order, each with the colour it is for. Usually one; a
+    /// field that commits as a slider begins makes two.
+    pub edits: Vec<(PanelTarget, EditEvent<PickedColor>)>,
     /// A well was clicked while it was already the edited one: the app opens the
     /// [`ColorPickerDialog`](super::ColorPickerDialog) for it (Photoshop).
     pub open_picker: Option<PanelTarget>,
+    /// The Add to Swatches button under the Color Wheel was pressed: the app adds the colour of
+    /// this well to the swatches.
+    pub add_to_swatches: Option<PanelTarget>,
 }
 
 /// The Color panel.
@@ -245,9 +252,7 @@ impl<'a> ColorPanel<'a> {
         self
     }
 
-    /// Shows the panel and returns this frame's edit and picker request. The panel keeps the edit
-    /// events of one pass in order: a pass that makes more than one reports the first and the
-    /// rest in the passes after it.
+    /// Shows the panel and returns this frame's edits and requests.
     pub fn show(self, ui: &mut Ui) -> ColorPanelResponse {
         let Self { id_salt, state, colors, numbers, gamut, enabled, dynamic } = self;
         let id = ui.make_persistent_id(id_salt);
@@ -274,59 +279,67 @@ impl<'a> ColorPanel<'a> {
                 kept: ui.data(|d| d.get_temp::<Vec<ModelValues>>(kept_key)).unwrap_or_default(),
                 events: Vec::new(),
                 open_picker: None,
+                add_to_swatches: None,
             };
             body.show(ui, state);
             ui.data_mut(|d| d.insert_temp(kept_key, std::mem::take(&mut body.kept)));
-            (body.events, body.open_picker)
+            (body.events, body.open_picker, body.add_to_swatches)
         });
-        let (events, open_picker) = inner.inner;
-        let queue_key = id.with("queue");
-        let mut queue: Vec<(PanelTarget, EditEvent<PickedColor>)> = ui.data_mut(|d| d.remove_temp(queue_key)).unwrap_or_default();
-        queue.extend(events);
-        let edit = (!queue.is_empty()).then(|| queue.remove(0));
-        if !queue.is_empty() {
-            ui.data_mut(|d| d.insert_temp(queue_key, queue));
-            ui.ctx().request_repaint();
-        }
-        ColorPanelResponse { edit, open_picker }
+        let (edits, open_picker, add_to_swatches) = inner.inner;
+        ColorPanelResponse { edits, open_picker, add_to_swatches }
     }
 
-    /// The panel menu's entries, for the docking host's `panel_menu` hook
-    /// ([`DockContent::panel_menu`](craft_ui::docking::DockContent::panel_menu)): the nine modes
-    /// with a check mark on the current one, a separator, Copy Color as HTML (`color="#rrggbb"`)
-    /// and Copy Color's Hex Code (`rrggbb`) of the edited colour to the clipboard, a separator,
-    /// the four ramps with a check mark, a separator, Make Ramp Web Safe (checked when on).
-    pub fn panel_menu(ui: &mut Ui, state: &mut ColorPanelState, edited: Srgba) {
+    /// The panel menu's entries, for the docking host's
+    /// [`panel_menu_entries`](craft_ui::docking::DockContent::panel_menu_entries) hook: the nine
+    /// modes with a radio mark on the current one, a separator, Copy Color as HTML and Copy
+    /// Color's Hex Code, a separator, the four ramps with a radio mark, a separator, Make Ramp
+    /// Web Safe (checked when on). The host runs the chosen row's command with
+    /// [`run_command`](ColorPanel::run_command).
+    pub fn panel_menu(ui: &Ui, state: &ColorPanelState) -> Vec<MenuEntry<PanelCommand>> {
         let labels = ColorPanelLabels::shared(ui);
-        for mode in ColorPanelMode::ALL {
-            if check_item(ui, Role::MenuItemRadio, state.mode == mode, &mode.label(&labels)) {
-                state.mode = mode;
-                ui.close();
-            }
-        }
-        ui.separator();
-        let rgb = [edited.r, edited.g, edited.b];
-        if ui.button(&labels.copy_html).clicked() {
-            ui.ctx().copy_text(html_color(rgb));
-            ui.close();
-        }
-        if ui.button(&labels.copy_hex).clicked() {
-            ui.ctx().copy_text(hex_code(rgb));
-            ui.close();
-        }
-        ui.separator();
-        for ramp in ColorPanelRamp::ALL {
-            if check_item(ui, Role::MenuItemRadio, state.ramp == ramp, &ramp.label(&labels)) {
-                state.ramp = ramp;
-                ui.close();
-            }
-        }
-        ui.separator();
-        if check_item(ui, Role::MenuItemCheckBox, state.web_safe_ramp, &labels.web_safe_ramp) {
-            state.web_safe_ramp = !state.web_safe_ramp;
-            ui.close();
-        }
+        let mut entries: Vec<MenuEntry<PanelCommand>> =
+            ColorPanelMode::ALL.iter().map(|m| MenuItem::new(m.label(&labels), mode_command(*m)).radio(state.mode == *m).into()).collect();
+        entries.push(MenuEntry::Separator);
+        entries.push(MenuItem::new(labels.copy_html.clone(), COPY_HTML.to_owned()).into());
+        entries.push(MenuItem::new(labels.copy_hex.clone(), COPY_HEX.to_owned()).into());
+        entries.push(MenuEntry::Separator);
+        entries.extend(ramp_entries(&labels, state));
+        entries
     }
+
+    /// Runs the command of a chosen [`panel_menu`](ColorPanel::panel_menu) row (also the ramp's
+    /// context menu's): sets the mode or ramp, toggles Make Ramp Web Safe, or copies `edited` to
+    /// the clipboard as HTML (`color="#rrggbb"`) or as a hex code (`rrggbb`). Whether the command
+    /// was one of the panel's.
+    pub fn run_command(ctx: &egui::Context, state: &mut ColorPanelState, command: &str, edited: Srgba) -> bool {
+        let rgb = [edited.r, edited.g, edited.b];
+        if let Some(mode) = ColorPanelMode::ALL.into_iter().find(|m| mode_command(*m) == command) {
+            state.mode = mode;
+        } else if let Some(ramp) = ColorPanelRamp::ALL.into_iter().find(|r| ramp_command(*r) == command) {
+            state.ramp = ramp;
+        } else if command == WEB_SAFE {
+            state.web_safe_ramp = !state.web_safe_ramp;
+        } else if command == COPY_HTML {
+            ctx.copy_text(html_color(rgb));
+        } else if command == COPY_HEX {
+            ctx.copy_text(hex_code(rgb));
+        } else {
+            return false;
+        }
+        true
+    }
+}
+
+const COPY_HTML: &str = "colorPanel.copyHtml";
+const COPY_HEX: &str = "colorPanel.copyHex";
+const WEB_SAFE: &str = "colorPanel.webSafeRamp";
+
+fn mode_command(mode: ColorPanelMode) -> PanelCommand {
+    format!("colorPanel.mode.{mode:?}")
+}
+
+fn ramp_command(ramp: ColorPanelRamp) -> PanelCommand {
+    format!("colorPanel.ramp.{ramp:?}")
 }
 
 /// `color="#rrggbb"`, what Copy Color as HTML puts on the clipboard.
@@ -337,13 +350,6 @@ fn html_color(rgb: [f32; 3]) -> String {
 /// `rrggbb`, what Copy Color's Hex Code puts on the clipboard.
 fn hex_code(rgb: [f32; 3]) -> String {
     crate::format_hex(rgb).trim_start_matches('#').to_owned()
-}
-
-/// A panel menu row with a check mark column, announced as checked or not.
-fn check_item(ui: &mut Ui, role: Role, on: bool, label: &str) -> bool {
-    let response = ui.button(format!("{}{label}", if on { "\u{2714} " } else { "   " }));
-    response.widget_info(|| egui::WidgetInfo::selected(role, ui.is_enabled(), on, label));
-    response.clicked()
 }
 
 impl PanelTarget {
@@ -362,29 +368,13 @@ impl PanelTarget {
     }
 }
 
-/// A command of the ramp's context menu.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RampCommand {
-    Ramp(ColorPanelRamp),
-    WebSafe,
-}
-
-/// The ramp's context menu: the ramps and Make Ramp Web Safe, as the panel menu's last sections.
-fn ramp_entries(labels: &ColorPanelLabels, state: &ColorPanelState) -> Vec<MenuEntry<RampCommand>> {
-    let mut entries: Vec<MenuEntry<RampCommand>> =
-        ColorPanelRamp::ALL.iter().map(|r| MenuItem::new(r.label(labels), RampCommand::Ramp(*r)).radio(state.ramp == *r).into()).collect();
+/// The ramps and Make Ramp Web Safe: the panel menu's last sections and the ramp's context menu.
+fn ramp_entries(labels: &ColorPanelLabels, state: &ColorPanelState) -> Vec<MenuEntry<PanelCommand>> {
+    let mut entries: Vec<MenuEntry<PanelCommand>> =
+        ColorPanelRamp::ALL.iter().map(|r| MenuItem::new(r.label(labels), ramp_command(*r)).radio(state.ramp == *r).into()).collect();
     entries.push(MenuEntry::Separator);
-    entries.push(MenuItem::new(labels.web_safe_ramp.clone(), RampCommand::WebSafe).check(state.web_safe_ramp).into());
+    entries.push(MenuItem::new(labels.web_safe_ramp.clone(), WEB_SAFE.to_owned()).check(state.web_safe_ramp).into());
     entries
-}
-
-/// `add` in a column `width` wide at the reading end of the `Ui`.
-fn at_end<R>(ui: &mut Ui, width: f32, add: impl FnOnce(&mut Ui) -> R) -> R {
-    let full = ui.available_rect_before_wrap();
-    let width = width.min(full.width());
-    let x = if direction::is_rtl(ui) { full.left() } else { full.right() - width };
-    let rect = Rect::from_min_size(pos2(x, full.top()), vec2(width, full.height()));
-    ui.scope_builder(UiBuilder::new().max_rect(rect).layout(Layout::top_down_justified(Align::Min)), add).inner
 }
 
 /// What the panel draws and collects in one pass.
@@ -405,6 +395,7 @@ struct Body<'a> {
     kept: Vec<ModelValues>,
     events: Vec<(PanelTarget, EditEvent<PickedColor>)>,
     open_picker: Option<PanelTarget>,
+    add_to_swatches: Option<PanelTarget>,
 }
 
 impl Body<'_> {
@@ -595,39 +586,9 @@ impl Body<'_> {
         for (i, ch) in model.channels().iter().enumerate() {
             let name = self.word(ch.name);
             let value = f64::from(current.values[i]);
-            let range = f64::from(ch.min)..=f64::from(ch.max);
-            let field = if web {
-                let byte = value.clamp(0.0, 255.0) as u8;
-                PropertyRow::word(&name)
-                    .show(ui, |ui, _| {
-                        at_end(ui, width, |ui| {
-                            HexPairField::new((model.id(), "hex", i), name.as_str(), byte).enabled(enabled).show(ui).map(f64::from)
-                        })
-                    })
-                    .inner
-            } else {
-                let unit = self.unit(ch.unit);
-                PropertyRow::word(&name)
-                    .scrubs()
-                    .show(ui, |ui, row| {
-                        at_end(ui, width, |ui| {
-                            let field = NumberField::new((model.id(), "field", i), name.as_str(), value, numbers)
-                                .range(range.clone())
-                                .step(f64::from(ch.step))
-                                .decimals(0..=usize::from(ch.decimals))
-                                .unit(unit)
-                                .enabled(enabled);
-                            match row.scrub() {
-                                Some(label) => field.scrub_by(label),
-                                None => field,
-                            }
-                            .show(ui)
-                        })
-                    })
-                    .inner
-            };
-            if let Some(event) = field.event {
-                self.channel_event(model, current, i, event);
+            let mut rule = RowRule::of(ch);
+            if web {
+                rule.step = 51.0;
             }
             let mut track_values = basis;
             // The hue track is the whole spectrum, whatever the saturation and brightness.
@@ -635,18 +596,15 @@ impl Body<'_> {
                 track_values.values[1] = 100.0;
                 track_values.values[2] = 100.0;
             }
-            let step = if web { 51.0 } else { f64::from(ch.step) };
-            let slider = Slider::new((model.id(), "slider", i), name.as_str(), value, range)
-                .step(step)
-                .track_colors(model.track(i, &track_values))
-                .enabled(enabled)
-                .show(ui);
-            if let Some(event) = slider.event {
+            let track = model.track(i, &track_values);
+            let unit = self.unit(ch.unit);
+            let inner = Inner { policy: EditPolicy::default(), enabled, width, part: false };
+            let (field, slider) = row_line(ui, (model.id(), i), &name, value, &rule, unit, numbers, Some(track), web, inner);
+            for event in [field.event, slider.event].into_iter().flatten() {
                 self.channel_event(model, current, i, event);
             }
         }
     }
-
     /// Hue Cube or Brightness Cube: the area and the strip of `mode`.
     fn cube(&mut self, ui: &mut Ui, mode: AreaMode) {
         let model = mode.model();
@@ -695,6 +653,18 @@ impl Body<'_> {
         if let Some(event) = wheel.edit.event {
             self.model_event(&HsbModel, event);
         }
+        let tokens = Tokens::of(ui);
+        let side = IconButton::style(&tokens, ControlSize::Md).side;
+        let area = wheel.area;
+        let corner = if direction::is_rtl(ui) { area.left_bottom() + vec2(0.0, -side) } else { area.right_bottom() - vec2(side, side) };
+        let add = ui
+            .scope_builder(UiBuilder::new().max_rect(Rect::from_min_size(corner, vec2(side, side))), |ui| {
+                ui.add(IconButton::new(Icon::Plus, self.labels.add_to_swatches.as_str()).enabled(self.enabled))
+            })
+            .inner;
+        if add.on_hover_text(self.labels.create_swatch.as_str()).clicked() {
+            self.add_to_swatches = Some(self.target);
+        }
     }
 
     /// The ramp with the white and black boxes; Alt picks for the colour not edited, Shift-click
@@ -733,10 +703,8 @@ impl Body<'_> {
         }
         let entries = ramp_entries(&self.labels, state);
         let menu = ContextMenu::new(&entries).own_gestures(false).open_at(ramp.menu_at.map(OpenAt::Pointer)).show(ui, &ramp.bar);
-        match menu.chosen {
-            Some(RampCommand::Ramp(kind)) => state.ramp = kind,
-            Some(RampCommand::WebSafe) => state.web_safe_ramp = !state.web_safe_ramp,
-            None => {}
+        if let Some(command) = menu.chosen {
+            ColorPanel::run_command(ui.ctx(), state, &command, self.color());
         }
     }
 }

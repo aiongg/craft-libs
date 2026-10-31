@@ -503,7 +503,8 @@ impl<'a> ColorPicker<'a> {
             // Esc is the inner controls': each cancels its own gesture, which cancels this one.
             let outer = Gesture::load(ui, id, &host, self.policy.cancellable(false)).enabled(enabled);
             let start = outer.start().cloned();
-            let inner = Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width };
+            let inner =
+                Inner { policy: EditPolicy::default().cancellable(self.policy.cancellable).cost(self.policy.cost), enabled, width, part: true };
             let mut parts =
                 Parts { edits: Edits::new(id, &state.parts, &outer, edit::in_scope(ui)), models: &models, constrain: &constrain, web: &web };
             parts.replay(ui.ctx());
@@ -584,7 +585,7 @@ impl<'a> ColorPicker<'a> {
                 parts.typing(&field, ops::take(ui.ctx(), field.response.id).into_iter().map(channel_op(RowPart::Field)), map);
                 let (values, exact) = parts.value().values_in(model);
                 let track = self.dynamic_tracks.then(|| model.track(i, &values));
-                let slider = row_slider(ui, ("channel", i), &name, exact[i], &row, track, inner);
+                let slider = row_slider(ui, ("channel", i), &name, exact[i], &row, track, None, inner);
                 parts.push(&slider, ops::take(ui.ctx(), slider.response.id).into_iter().map(channel_op(RowPart::Slider)), map);
             }
             if models.len() > 1 {
@@ -607,7 +608,7 @@ impl<'a> ColorPicker<'a> {
         parts.typing(&field, ops::take(ui.ctx(), field.response.id).into_iter().map(|op| PickerOp::Alpha(RowPart::Field, op)), map);
         let now = parts.value();
         let opaque = now.color.with_alpha(1.0);
-        let slider = row_slider(ui, "alpha", &name, now.alpha, &ALPHA, Some(vec![opaque.with_alpha(0.0), opaque]), inner);
+        let slider = row_slider(ui, "alpha", &name, now.alpha, &ALPHA, Some(vec![opaque.with_alpha(0.0), opaque]), None, inner);
         parts.push(&slider, ops::take(ui.ctx(), slider.response.id).into_iter().map(|op| PickerOp::Alpha(RowPart::Slider, op)), map);
     }
 
@@ -712,11 +713,13 @@ impl<'a> ColorPicker<'a> {
 /// What the inner controls share: their policy, whether they take input, and the channel
 /// fields' width.
 #[derive(Clone, Copy, Debug)]
-struct Inner {
-    policy: EditPolicy,
-    enabled: bool,
+pub(super) struct Inner {
+    pub(super) policy: EditPolicy,
+    pub(super) enabled: bool,
     /// The width of every channel field ([`channel_width`]).
-    width: f32,
+    pub(super) width: f32,
+    /// The controls are parts of a picker, whose edit order their presses wait on.
+    pub(super) part: bool,
 }
 
 /// The width of every channel field, in either layout: the widest value of every built-in
@@ -743,17 +746,17 @@ fn channel_name(model: &dyn ColorModel, channel: usize, visible: &[&dyn ColorMod
 }
 
 /// How a slider row's or a channel field's value steps and settles: a channel's or the alpha's.
-struct RowRule {
-    range: RangeInclusive<f64>,
-    step: f64,
-    decimals: u8,
+pub(super) struct RowRule {
+    pub(super) range: RangeInclusive<f64>,
+    pub(super) step: f64,
+    pub(super) decimals: u8,
 }
 
 /// The alpha row's rule: 0–100 %, whole percents.
 const ALPHA: RowRule = RowRule { range: 0.0..=100.0, step: 1.0, decimals: 0 };
 
 impl RowRule {
-    fn of(channel: &Channel) -> RowRule {
+    pub(super) fn of(channel: &Channel) -> RowRule {
         RowRule { range: f64::from(channel.min)..=f64::from(channel.max), step: f64::from(channel.step), decimals: channel.decimals }
     }
 
@@ -769,6 +772,27 @@ impl RowRule {
     }
 }
 
+/// The number field of a channel row.
+#[allow(clippy::too_many_arguments)]
+fn row_number<'a>(
+    salt: impl AsIdSalt + Copy,
+    name: &str,
+    value: f64,
+    rule: &RowRule,
+    unit: Unit,
+    numbers: &'a LocaleNumbers,
+    inner: Inner,
+) -> NumberField<'a> {
+    NumberField::new(("field", salt), name, value, numbers)
+        .range(rule.range.clone())
+        .step(rule.step)
+        .decimals(0..=usize::from(rule.decimals))
+        .unit(unit)
+        .policy(inner.policy)
+        .part(inner.part)
+        .enabled(inner.enabled)
+}
+
 /// The word label `name` of a Compact slider row, which scrubs and names the number field at the
 /// row's end; the field's edit.
 #[allow(clippy::too_many_arguments)]
@@ -782,19 +806,11 @@ fn row_field(
     numbers: &LocaleNumbers,
     inner: Inner,
 ) -> EditResponse<f64> {
-    let Inner { policy, enabled, width } = inner;
     PropertyRow::word(name)
         .scrubs()
         .show(ui, |ui, row| {
-            at_end(ui, width, |ui| {
-                let field = NumberField::new(("field", salt), name, value, numbers)
-                    .range(rule.range.clone())
-                    .step(rule.step)
-                    .decimals(0..=usize::from(rule.decimals))
-                    .unit(unit)
-                    .policy(policy)
-                    .part(true)
-                    .enabled(enabled);
+            at_end(ui, inner.width, |ui| {
+                let field = row_number(salt, name, value, rule, unit, numbers, inner);
                 match row.scrub() {
                     Some(label) => field.scrub_by(label),
                     None => field,
@@ -805,7 +821,56 @@ fn row_field(
         .inner
 }
 
-/// The slider under a Compact row's label, over `track`'s colours; its edit.
+/// The one-line channel row of a docked panel (Photoshop's Color panel): the word label, the
+/// slider over `track` filling the line, and the number field (`hex`: a two-digit hex field of
+/// the 0 to 255 value) `inner.width` wide at its end. The field's edit, then the slider's.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn row_line(
+    ui: &mut Ui,
+    salt: impl AsIdSalt + Copy,
+    name: &str,
+    value: f64,
+    rule: &RowRule,
+    unit: Unit,
+    numbers: &LocaleNumbers,
+    track: Option<Vec<Srgba>>,
+    hex: bool,
+    inner: Inner,
+) -> (EditResponse<f64>, EditResponse<f64>) {
+    let gap = Gap::Inline.points(&Tokens::of(ui));
+    PropertyRow::word(name)
+        .scrubs()
+        .show(ui, |ui, row| {
+            let line = Vec2::new(ui.available_width(), 0.0);
+            ui.allocate_ui_with_layout(line, direction::row(ui), |ui| {
+                ui.spacing_mut().item_spacing.x = gap;
+                let slider_width = (ui.available_width() - inner.width - gap).max(0.0);
+                let slider = row_slider(ui, salt, name, value, rule, track, Some(slider_width), inner);
+                let field = ui
+                    .allocate_ui_with_layout(vec2(inner.width, 0.0), Layout::top_down_justified(Align::Min), |ui| {
+                        if hex {
+                            let byte = value.clamp(0.0, 255.0) as u8;
+                            hex::HexPairField::new((salt, "hex"), name, byte).policy(inner.policy).enabled(inner.enabled).show(ui).map(f64::from)
+                        } else {
+                            let field = row_number(salt, name, value, rule, unit, numbers, inner);
+                            match row.scrub() {
+                                Some(label) => field.scrub_by(label),
+                                None => field,
+                            }
+                            .show(ui)
+                        }
+                    })
+                    .inner;
+                (field, slider)
+            })
+            .inner
+        })
+        .inner
+}
+
+/// The slider under a Compact row's label, over `track`'s colours, `width` long when given; its
+/// edit.
+#[allow(clippy::too_many_arguments)]
 fn row_slider(
     ui: &mut Ui,
     salt: impl AsIdSalt + Copy,
@@ -813,10 +878,14 @@ fn row_slider(
     value: f64,
     rule: &RowRule,
     track: Option<Vec<Srgba>>,
+    width: Option<f32>,
     inner: Inner,
 ) -> EditResponse<f64> {
     let mut slider =
-        Slider::new(("slider", salt), name, value, rule.range.clone()).step(rule.step).policy(inner.policy).enabled(inner.enabled).part(true);
+        Slider::new(("slider", salt), name, value, rule.range.clone()).step(rule.step).policy(inner.policy).enabled(inner.enabled).part(inner.part);
+    if let Some(width) = width {
+        slider = slider.width(width);
+    }
     if let Some(stops) = track {
         slider = slider.track_colors(stops);
     }

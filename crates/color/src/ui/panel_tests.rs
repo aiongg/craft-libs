@@ -19,6 +19,7 @@ struct Rig {
     colors: [Srgba; 2],
     edits: Vec<(PanelTarget, EditEvent<super::PickedColor>)>,
     opened: Vec<PanelTarget>,
+    added: Vec<PanelTarget>,
     nodes: Vec<(NodeId, Node)>,
 }
 
@@ -34,6 +35,7 @@ impl Rig {
             colors: [RED, BLUE],
             edits: Vec::new(),
             opened: Vec::new(),
+            added: Vec::new(),
             nodes: Vec::new(),
         };
         rig.settle();
@@ -55,8 +57,9 @@ impl Rig {
             shown = Some(ColorPanel::new("panel", &mut self.state, self.colors, &numbers).show(ui));
         });
         let shown = shown.expect("shown");
-        self.edits.extend(shown.edit);
+        self.edits.extend(shown.edits);
         self.opened.extend(shown.open_picker);
+        self.added.extend(shown.add_to_swatches);
         self.nodes = output.platform_output.accesskit_update.clone().map(|u| u.nodes).unwrap_or_default();
         let commands = output.platform_output.commands.clone();
         output.drop_without_applying_deltas();
@@ -149,13 +152,12 @@ fn ramp_alt_targets_the_other_and_shift_cycles() {
 fn copy_entries_use_photoshops_formats() {
     let ctx = Context::default();
     install(&ctx, &Base::suite_default());
-    ctx.enable_accesskit();
     let mut state = ColorPanelState::default();
     let orange = Srgba::rgb(1.0, 0.5, 0.0);
-    let mut run = |events: Vec<Event>, ctx: &Context| {
-        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(320.0, 600.0))), events, ..Default::default() };
-        let output = ctx.run_ui(input, |ui| ColorPanel::panel_menu(ui, &mut state, orange));
-        let nodes = output.platform_output.accesskit_update.clone().map(|u| u.nodes).unwrap_or_default();
+    let mut entries = Vec::new();
+    let frame = |ctx: &Context, run: &mut dyn FnMut(&mut egui::Ui)| {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(320.0, 600.0))), ..Default::default() };
+        let output = ctx.run_ui(input, |ui| run(ui));
         let copied: Vec<String> = output
             .platform_output
             .commands
@@ -163,23 +165,33 @@ fn copy_entries_use_photoshops_formats() {
             .filter_map(|c| if let OutputCommand::CopyText(text) = c { Some(text.clone()) } else { None })
             .collect();
         output.drop_without_applying_deltas();
-        (nodes, copied)
-    };
-    run(vec![], &ctx);
-    let (nodes, _) = run(vec![], &ctx);
-    let centre = |name: &str| {
-        let node = nodes.iter().map(|(_, n)| n).find(|n| n.label() == Some(name)).unwrap_or_else(|| panic!("no row {name:?}"));
-        let b = node.bounds().expect("bounds");
-        pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
-    };
-    let mut copy = |name: &str| {
-        let at = centre(name);
-        run(vec![Event::PointerMoved(at), button(at, true, Modifiers::NONE)], &ctx);
-        let (_, copied) = run(vec![button(at, false, Modifiers::NONE)], &ctx);
         copied
     };
-    assert_eq!(copy("Copy Color as HTML"), ["color=\"#ff8000\""]);
-    assert_eq!(copy("Copy Color's Hex Code"), ["ff8000"]);
+    frame(&ctx, &mut |ui| entries = ColorPanel::panel_menu(ui, &ColorPanelState::default()));
+    let labels: Vec<&str> = entries.iter().filter_map(|e| e.item()).map(|i| i.label()).collect();
+    assert_eq!(labels.len(), 9 + 2 + 4 + 1);
+    assert_eq!(labels[9..11], ["Copy Color as HTML", "Copy Color's Hex Code"]);
+    assert_eq!(labels.last(), Some(&"Make Ramp Web Safe"));
+    let command = |label: &str| entries.iter().filter_map(|e| e.item()).find(|i| i.label() == label).and_then(|i| i.command()).cloned().expect("row");
+    let (html, hex) = (command("Copy Color as HTML"), command("Copy Color's Hex Code"));
+    assert_eq!(frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), &mut state, &html, orange))), ["color=\"#ff8000\""]);
+    assert_eq!(frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), &mut state, &hex, orange))), ["ff8000"]);
+
+    let wheel = command("Color Wheel");
+    frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), &mut state, &wheel, orange)));
+    assert_eq!(state.mode, ColorPanelMode::ColorWheel);
+    let safe = command("Make Ramp Web Safe");
+    frame(&ctx, &mut |ui| assert!(ColorPanel::run_command(ui.ctx(), &mut state, &safe, orange)));
+    assert!(state.web_safe_ramp);
+}
+
+/// The Add to Swatches button under the wheel asks the app to add the edited colour.
+#[test]
+fn add_to_swatches_reports_the_edited_well() {
+    let mut rig = Rig::new(ColorPanelMode::ColorWheel);
+    let b = rig.bounds(Role::Button, "Add to Swatches");
+    rig.click(b.center(), Modifiers::NONE);
+    assert_eq!(rig.added, [PanelTarget::Foreground]);
 }
 
 /// The panel never takes the focus when shown.
