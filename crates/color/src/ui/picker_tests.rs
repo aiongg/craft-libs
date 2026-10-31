@@ -423,12 +423,12 @@ fn a_sample_during_a_typing_run_commits_the_run_then_sets_the_sample() {
     rig.tab_to(0);
     rig.type_text("12");
     let typed = rig.color;
-    assert_eq!(kinds_of(&rig.events), ["Begin", "Update"]);
+    assert_eq!(kinds_of(&rig.events), ["Begin"], "the typed value is on the Begin");
     ColorPicker::sampled(&rig.ctx, rig.picker, Srgba::rgb(1.0, 0.6, 0.0));
     rig.settle();
-    assert_eq!(kinds_of(&rig.events), ["Begin", "Update", "Commit", "Set"], "the run's step, then the sample's");
-    assert!(matches!(rig.events[2], EditEvent::Commit { changed: true, .. }), "the typed value is kept");
-    assert_ne!(rig.events[0].id(), rig.events[3].id(), "two undo steps");
+    assert_eq!(kinds_of(&rig.events), ["Begin", "Commit", "Set"], "the run's step, then the sample's");
+    assert!(matches!(rig.events[1], EditEvent::Commit { changed: true, .. }), "the typed value is kept");
+    assert_ne!(rig.events[0].id(), rig.events[2].id(), "two undo steps");
     assert_ne!(hex(typed), hex(rig.color));
     assert_eq!(hex(rig.color), "#ff990080", "the sample with the committed alpha");
     assert_eq!(rig.focused_name(), None, "the field is out of editing");
@@ -452,9 +452,9 @@ fn a_press_during_a_typing_run_starts_from_the_value_it_commits() {
     let area = rig.area();
     rig.drag(area.center(), area.left_top() + vec2(area.width() * 0.75, area.height() * 0.25));
     let kinds: Vec<_> = rig.events.iter().map(kind).collect();
-    assert_eq!(kinds[..3], ["Begin", "Update", "Commit"], "the hue's run ends first: {kinds:?}");
-    assert!(matches!(rig.events[2], EditEvent::Commit { changed: false, .. }), "at its start");
-    assert_eq!((kinds[3], kinds.last()), ("Begin", Some(&"Commit")), "then the drag: {kinds:?}");
+    assert_eq!(kinds[..2], ["Begin", "Commit"], "the hue's run ends first: {kinds:?}");
+    assert!(matches!(rig.events[1], EditEvent::Commit { changed: false, .. }), "at its start");
+    assert_eq!((kinds[2], kinds.last()), ("Begin", Some(&"Commit")), "then the drag: {kinds:?}");
     assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
     assert_eq!(gestures(&rig).len(), 2);
     let model = rig.last_model().expect("HSB values");
@@ -468,9 +468,9 @@ fn a_press_during_a_typing_run_starts_from_the_value_it_commits() {
     let y = ((b.y0 + b.y1) / 2.0) as f32;
     rig.drag(pos2(b.x0 as f32 + 2.0, y), pos2(b.x1 as f32 - 2.0, y));
     let kinds: Vec<_> = rig.events.iter().map(kind).collect();
-    assert_eq!(kinds[..3], ["Begin", "Update", "Commit"], "{kinds:?}");
-    assert!(matches!(rig.events[2], EditEvent::Commit { changed: false, .. }), "once, when the field sees the focus go");
-    assert_eq!((kinds[3], kinds.last()), ("Begin", Some(&"Commit")), "the slider's drag: {kinds:?}");
+    assert_eq!(kinds[..2], ["Begin", "Commit"], "{kinds:?}");
+    assert!(matches!(rig.events[1], EditEvent::Commit { changed: false, .. }), "once, when the field sees the focus go");
+    assert_eq!((kinds[2], kinds.last()), ("Begin", Some(&"Commit")), "the slider's drag: {kinds:?}");
     assert!(!kinds.contains(&"Cancel"), "{kinds:?}");
     assert_eq!(rig.last_model().map(|m| m.values[1].round()), Some(100.0), "dragged to the end");
 }

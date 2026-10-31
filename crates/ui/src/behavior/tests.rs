@@ -88,7 +88,19 @@ fn type_ahead_matches_a_prefix_cycles_on_a_repeated_letter_skips_disabled_option
     assert_eq!(type_at(&ctx, "b", later + 0.2), Some("Blueberry"), "a repeated letter moves to the next option with it");
     assert_eq!(type_at(&ctx, "b", later + 0.4), Some("Banana"), "and wraps");
     let again = later + 0.4 + TYPE_AHEAD_PAUSE + 0.1;
-    assert_eq!(type_at(&ctx, "av", again), Some("Banana"), "\"Avocado\" is disabled: nothing matches, the active option stays");
+    assert_eq!(type_at(&ctx, "a", again), Some("Apple"));
+    assert_eq!(type_at(&ctx, "a", again + 0.1), Some("Apricot"));
+    assert_eq!(type_at(&ctx, "a", again + 0.2), Some("Apple"), "\"Avocado\" is disabled and skipped");
+}
+
+#[test]
+fn a_letter_that_matches_nothing_after_the_prefix_starts_a_new_prefix_with_itself() {
+    let ctx = egui::Context::default();
+    assert_eq!(type_at(&ctx, "b", 0.0), Some("Banana"));
+    assert_eq!(type_at(&ctx, "l", 0.1), Some("Blueberry"));
+    assert_eq!(type_at(&ctx, "a", 0.2), Some("Apple"), "\"bla\" matches nothing: \"a\" starts over");
+    assert_eq!(type_at(&ctx, "p", 0.3), Some("Apple"), "and goes on from there: \"ap\"");
+    assert_eq!(type_at(&ctx, "zb", 0.4), Some("Banana"), "\"z\" matches nothing and nothing starts with it, then \"b\"");
 }
 
 #[test]

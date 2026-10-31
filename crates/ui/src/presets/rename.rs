@@ -50,7 +50,12 @@ pub(super) fn show(ui: &mut Ui, bar: Id, owner: Id, current: &str, labels: &Pres
         ui.allocate_rect(child.min_rect(), egui::Sense::hover());
         let mut cancelled = false;
         match &edit.event {
-            Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => text.clone_from(value),
+            Some(
+                EditEvent::Begin { value: Some(value), .. }
+                | EditEvent::Update { value, .. }
+                | EditEvent::Set { value, .. }
+                | EditEvent::Commit { value, .. },
+            ) => text.clone_from(value),
             Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }) => cancelled = true,
             _ => {}
         }

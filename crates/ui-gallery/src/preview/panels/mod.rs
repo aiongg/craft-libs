@@ -88,9 +88,9 @@ pub(super) enum Outcome<T> {
 /// change.
 pub(super) fn resolve<T: Clone>(event: &EditEvent<f64>, current: &T, before: &mut Option<T>) -> Option<Outcome<T>> {
     match event {
-        EditEvent::Begin { .. } => {
+        EditEvent::Begin { value, .. } => {
             *before = Some(current.clone());
-            None
+            value.map(|value| Outcome::Apply { value, record: false })
         }
         EditEvent::Update { value, .. } => Some(Outcome::Apply { value: *value, record: false }),
         EditEvent::Commit { value, changed, .. } => {

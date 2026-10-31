@@ -25,7 +25,7 @@ use crate::behavior::{Codec, NotAValue, Typed, Typing, TypingLook, edit_menu};
 use crate::edit::ops::{Bound, ScalarOp};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
 use crate::icons::{self, Icon};
-use crate::localized::{LocaleNumbers, Unit, Words, first_field_id, incomplete, round_half_away, stepped};
+use crate::localized::{LocaleNumbers, Unit, Words, first_field_id, incomplete, on_grid, round_half_away, stepped};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, Stack, StateColors, Surface, SurfaceKind, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, variant_list};
@@ -76,7 +76,7 @@ enum Handle {
 ///     .scrub_label("W")
 ///     .show(ui);
 /// match edit.event {
-///     Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => width = value,
+///     Some(EditEvent::Begin { value: Some(value), .. } | EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => width = value,
 ///     // Begin and Cancel go to the document's undo history (`edit::GestureHost`).
 ///     _ => {}
 /// }
@@ -169,6 +169,7 @@ pub struct NumberField<'a> {
     enabled: bool,
     invalid: bool,
     keep_focus: bool,
+    max_chars: usize,
     part: bool,
     edit_menu: bool,
     unit_menu: Option<UnitMenu<'a>>,
@@ -232,6 +233,7 @@ impl<'a> NumberField<'a> {
             enabled: true,
             invalid: false,
             keep_focus: false,
+            max_chars: DEFAULT_MAX_CHARS,
             part: false,
             edit_menu: true,
             unit_menu: None,
@@ -393,6 +395,15 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// The most characters of the text that can read as a value (128 by default, PhotoCraft's
+    /// numeric input limit). A typed, pasted or input-method text longer than this is dropped
+    /// whole, not cut short; text that grows past it from shorter inputs stays in the box but
+    /// applies neither as typed nor on commit.
+    pub fn max_chars(mut self, max: usize) -> Self {
+        self.max_chars = max;
+        self
+    }
+
     /// Whether the field keeps the focus after Enter commits; off by default.
     pub fn keep_focus(mut self, keep: bool) -> Self {
         self.keep_focus = keep;
@@ -511,6 +522,7 @@ impl<'a> NumberField<'a> {
             fallback: self.fallback.as_deref(),
             bounds,
             grid: (self.snap_typed && self.step > 0.0 && self.step.is_finite() && bounds.0.is_finite() && bounds.1.is_finite()).then_some(self.step),
+            max_chars: self.max_chars,
         };
         let font = tokens.font(style.field.role);
         let parts = Parts::new(ui, &tokens, &style, &self, font.clone(), enabled);
@@ -558,6 +570,7 @@ impl<'a> NumberField<'a> {
             .enabled(self.enabled)
             .invalid(self.invalid)
             .keep_focus(self.keep_focus)
+            .reject_over(self.max_chars)
             .role(Role::SpinButton)
             .edit_menu(edit_menu)
             .event_filter(EventFilter { vertical_arrows: true, ..EventFilter::default() })
@@ -684,7 +697,7 @@ impl Follow {
     fn store(ui: &Ui, id: Id, gesture: Option<GestureId>, typing: bool, real: Option<f64>, event: Option<&EditEvent<f64>>) {
         let ended = matches!(event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. }));
         let follow = gesture.filter(|_| !ended).map(|gesture| {
-            let sent = matches!(event, Some(EditEvent::Update { value, .. }) if Some(*value) != real);
+            let sent = matches!(event, Some(EditEvent::Begin { value: Some(value), .. } | EditEvent::Update { value, .. }) if Some(*value) != real);
             Self { gesture, seen: real, typing, sent }
         });
         ui.data_mut(|d| match follow {
@@ -695,6 +708,9 @@ impl Follow {
         });
     }
 }
+
+/// The default of [`NumberField::max_chars`].
+const DEFAULT_MAX_CHARS: usize = 128;
 
 /// The step function of [`NumberField::steps_with`].
 type NextStep<'a> = dyn Fn(f64, i32) -> f64 + 'a;
@@ -785,7 +801,7 @@ impl<'n> Input<'n> {
                         Some((id, value)) if gesture.id() != Some(id) => value,
                         _ => *gesture.shown(),
                     };
-                    let to = Some(self.codec.settle(from.unwrap_or(self.base) + n * self.step));
+                    let to = Some(self.codec.settle(on_grid(from.unwrap_or(self.base), self.step, n)));
                     gesture.update(to, m);
                     scrub.last = gesture.id().map(|id| (id, to));
                 }
@@ -1079,6 +1095,8 @@ struct Numbers<'n> {
     bounds: (f64, f64),
     /// The step a typed value snaps to.
     grid: Option<f64>,
+    /// Longer text never reads as a value ([`NumberField::max_chars`]).
+    max_chars: usize,
 }
 
 impl Numbers<'_> {
@@ -1103,7 +1121,7 @@ impl Codec for Numbers<'_> {
     /// A plain number in the region's digits, with or without the unit; not what only the app's
     /// reader reads (arithmetic).
     fn applies_as_typed(&self, text: &str) -> bool {
-        self.numbers.parse(self.unit.strip(text)).is_ok()
+        text.chars().nth(self.max_chars).is_none() && self.numbers.parse(self.unit.strip(text)).is_ok()
     }
 
     fn format(&self, value: &Option<f64>) -> String {
@@ -1111,6 +1129,11 @@ impl Codec for Numbers<'_> {
     }
 
     fn parse(&self, text: &str, start: &Option<f64>) -> Result<Option<f64>, NotAValue> {
+        // Checked before any reader normalizes the text: 128 spaces and a 2 are not a 2.
+        if let Some(over) = text.chars().nth(self.max_chars) {
+            let reason = self.numbers.describe_in(craft_i18n::NumberError::Unexpected(over), &self.words);
+            return Err(NotAValue { reason, partial: false });
+        }
         let bare = self.unit.strip(text);
         // The text as shown stands for the value itself, with the decimals it doesn't show.
         if start.is_some() && bare == self.format(start) {

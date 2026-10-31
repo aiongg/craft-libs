@@ -435,7 +435,8 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
     /// [`begin`](Gesture::begin) for a drag whose first frame already moves the value: if the
     /// value differs from the start when the `Begin` goes out, the `Begin` carries it, so the
     /// host shows the first move in that frame, unless the policy holds updates back
-    /// ([`on_release_only`](EditPolicy::on_release_only)). Still one event per frame. The `Begin` of a
+    /// ([`on_release_only`](EditPolicy::on_release_only), or a [`Debounced`](UpdateRate::Debounced)
+    /// rate: the first value then goes out with the first update). Still one event per frame. The `Begin` of a
     /// gesture inside a part of a composite carries the value for the part, and the composite
     /// begins its own gesture with it in the same frame.
     pub fn begin_with_value(&mut self) {
@@ -694,7 +695,7 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> Gesture<T> {
             }
             a.announced = true;
             if !self.scoped {
-                let reports = !self.policy.on_release_only && !a.held;
+                let reports = !self.policy.on_release_only && !a.held && self.policy.update == UpdateRate::Realtime;
                 let value = (reports && a.first_value && a.current != a.start).then(|| a.current.clone());
                 if value.is_some() {
                     a.reported = a.current.clone();

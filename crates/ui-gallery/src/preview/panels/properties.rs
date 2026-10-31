@@ -180,7 +180,7 @@ fn adjustment(ui: &mut Ui, mock: &mut Mock, layer: &Layer, [brightness, contrast
         for event in row.edits() {
             let current = mock.doc.layer(layer.id).map_or_else(|| layer.kind.clone(), |l| l.kind.clone());
             state.drag = match event {
-                EditEvent::Update { value, .. } => Some((at, value)),
+                EditEvent::Begin { value: Some(value), .. } | EditEvent::Update { value, .. } => Some((at, value)),
                 _ => None,
             };
             match resolve(&event, &current, &mut state.adjust) {

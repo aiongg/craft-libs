@@ -155,7 +155,12 @@ impl Host {
         }
         if let Some(event) = edit.event {
             match &event {
-                EditEvent::Begin { .. } => self.before = Some(self.stops.clone()),
+                EditEvent::Begin { value, .. } => {
+                    self.before = Some(self.stops.clone());
+                    if let Some(value) = value {
+                        self.stops = value.clone();
+                    }
+                }
                 EditEvent::Cancel { reason, .. } if *reason != CancelReason::External => {
                     if let Some(before) = self.before.take() {
                         self.stops = before;
@@ -547,15 +552,15 @@ fn a_press_during_a_typing_run_waits_for_its_commit_and_edits_the_stops_it_leave
     click(&mut harness, field, PointerButton::Primary);
     harness.event(Event::Text("30".into()));
     harness.run();
-    assert_eq!(kinds(&harness.state().field_events), ["Begin", "Update"]);
+    assert_eq!(kinds(&harness.state().field_events), ["Begin"]);
 
     let at = harness.state().color_marker(1.0);
     press(&mut harness, at);
     let to = harness.state().color_marker(0.9);
     move_to(&mut harness, to);
     release(&mut harness, to);
-    assert_eq!(kinds(&harness.state().field_events), ["Begin", "Update", "Commit"]);
-    assert_eq!(harness.state().passes[0], harness.state().field_passes[2] + 1, "the drag begins in the pass after the run's commit");
+    assert_eq!(kinds(&harness.state().field_events), ["Begin", "Commit"]);
+    assert_eq!(harness.state().passes[0], harness.state().field_passes[1] + 1, "the drag begins in the pass after the run's commit");
     let kinds = harness.state().kinds();
     assert_eq!((kinds.first(), kinds.last()), (Some(&"Begin"), Some(&"Commit")), "{kinds:?}");
     assert!(!kinds.contains(&"Cancel"), "the drag starts from the typed value: {kinds:?}");
@@ -920,9 +925,9 @@ fn delete_removes_the_selected_stop_after_a_typing_run_and_is_off_at_the_minimum
     type_into(&mut harness, "Location", "30");
     let delete = button(&harness, "Delete stop").rect().center();
     click(&mut harness, delete, PointerButton::Primary);
-    assert_eq!(harness.state().kinds(), ["Begin", "Update", "Commit", "Set"]);
+    assert_eq!(harness.state().kinds(), ["Begin", "Commit", "Set"]);
     let passes = &harness.state().passes;
-    assert_eq!(passes[3], passes[2] + 1, "the delete sets in the pass after the run's commit: {passes:?}");
+    assert_eq!(passes[2], passes[1] + 1, "the delete sets in the pass after the run's commit: {passes:?}");
     assert_eq!(harness.state().locations(), [0.0, 1.0]);
     assert_eq!(selected(&harness), Some(StopRef::Color(1)));
     assert!(button(&harness, "Delete stop").accesskit_node().is_disabled(), "two stops are the minimum");
@@ -987,18 +992,18 @@ fn a_press_during_the_location_field_s_typing_run_waits_and_drags_from_the_commi
     let mut harness = rig(three());
     select(&mut harness, Some(StopRef::Color(1)));
     type_into(&mut harness, "Location", "30");
-    assert_eq!(harness.state().kinds(), ["Begin", "Update"]);
+    assert_eq!(harness.state().kinds(), ["Begin"]);
     let at = harness.state().color_marker(1.0);
     press(&mut harness, at);
     let to = harness.state().color_marker(0.9);
     move_to(&mut harness, to);
     release(&mut harness, to);
     let kinds = harness.state().kinds();
-    assert_eq!(kinds[..3], ["Begin", "Update", "Commit"], "the run commits first: {kinds:?}");
-    assert_eq!((kinds[3], kinds.last()), ("Begin", Some(&"Commit")), "{kinds:?}");
+    assert_eq!(kinds[..2], ["Begin", "Commit"], "the run commits first: {kinds:?}");
+    assert_eq!((kinds[2], kinds.last()), ("Begin", Some(&"Commit")), "{kinds:?}");
     assert!(!kinds.contains(&"Cancel"));
     let passes = &harness.state().passes;
-    assert_eq!(passes[3], passes[2] + 1, "the drag begins in the pass after the run's commit: {passes:?}");
+    assert_eq!(passes[2], passes[1] + 1, "the drag begins in the pass after the run's commit: {passes:?}");
     assert_eq!(harness.state().locations(), [0.0, 0.3, 0.9]);
 }
 
@@ -1068,7 +1073,7 @@ fn a_typed_location_keeps_its_decimals_and_a_drag_rounds_to_a_thousandth() {
     select(&mut harness, Some(StopRef::Color(1)));
     type_into(&mut harness, "Location", "33.333");
     key(&mut harness, Modifiers::NONE, Key::Enter);
-    assert_eq!(harness.state().kinds(), ["Begin", "Update", "Commit"]);
+    assert_eq!(harness.state().kinds(), ["Begin", "Commit"]);
     assert!((harness.state().stops.color[1].location - 0.33333).abs() < 1e-6, "{:?}", harness.state().locations());
     assert_eq!(spin(&harness, "Location").value().as_deref(), Some("33.333%"));
 

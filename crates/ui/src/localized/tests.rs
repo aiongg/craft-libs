@@ -271,15 +271,15 @@ fn number_field_keeps_a_value_it_shows_rounded_until_it_is_edited() {
 }
 
 #[test]
-fn steps_go_to_multiples_of_the_step() {
+fn steps_round_to_the_step_grid_then_add() {
     let (none, shift, cmd) = (Modifiers::NONE, Modifiers::SHIFT, Modifiers::COMMAND);
-    assert_eq!(stepped(5.1, 1.0, 6, none, 1.0), 6.0);
-    assert_eq!(stepped(5.1, 1.0, 6, none, -1.0), 5.0);
+    assert_eq!(stepped(55.6, 1.0, 6, none, 1.0), 57.0);
+    assert_eq!(stepped(55.4, 1.0, 6, none, -1.0), 54.0);
     assert_eq!(stepped(5.0, 1.0, 6, none, -2.0), 3.0);
     assert_eq!(stepped(5.4, 1.0, 6, shift, 1.0), 15.0, "Shift rounds to the step, then adds ten");
-    assert_eq!(round_half_away(stepped(1.23, 1.0, 2, cmd, 1.0), 2), 1.3, "a tenth with Ctrl/Cmd");
-    assert_eq!(stepped(5.1, 1.0, 0, cmd, 1.0), 6.0, "a count has no tenths");
-    assert_eq!(stepped(4.9999999, 1.0, 6, none, 1.0), 6.0, "within a millionth of a multiple is on it");
+    assert_eq!(round_half_away(stepped(1.23, 1.0, 2, cmd, 1.0), 2), 1.3, "a tenth with Ctrl/Cmd rounds to the tenths");
+    assert_eq!(round_half_away(stepped(1.26, 1.0, 2, cmd, -1.0), 2), 1.2);
+    assert_eq!(stepped(5.4, 1.0, 0, cmd, 1.0), 6.0, "a count has no tenths");
 }
 
 fn field_with(value: f64, add: impl FnMut(&mut Ui, &mut f64) -> Response + 'static) -> Harness<'static, f64> {
@@ -302,11 +302,11 @@ fn number_field_steps_with_arrow_keys_and_the_wheel() {
     h.run();
     h.key_press(Key::ArrowUp);
     h.run();
-    assert_eq!(*h.state(), 1.5, "to the next multiple of 0,5");
-    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("1,5"));
+    assert_eq!(*h.state(), 2.0, "1,3 rounds to 1,5 on the grid of 0,5, then a step up");
+    assert_eq!(h.get_by_role(Role::TextInput).value().as_deref(), Some("2"));
     h.key_press(Key::ArrowUp);
     h.run();
-    assert_eq!(*h.state(), 2.0);
+    assert_eq!(*h.state(), 2.5);
     h.key_press_modifiers(Modifiers::SHIFT, Key::ArrowDown);
     h.run();
     assert_eq!(*h.state(), 0.0, "ten steps down, clamped");

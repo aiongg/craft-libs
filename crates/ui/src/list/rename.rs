@@ -83,7 +83,14 @@ pub(super) fn show<K: Clone + Send + Sync + 'static>(ui: &mut Ui, row_id: Id, ke
     let mut text = draft;
     let mut cancelled = false;
     match &edit.event {
-        Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) => text.clone_from(value),
+        Some(
+            EditEvent::Begin { value: Some(value), .. }
+            | EditEvent::Update { value, .. }
+            | EditEvent::Set { value, .. }
+            | EditEvent::Commit { value, .. },
+        ) => {
+            text.clone_from(value);
+        }
         Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }) => cancelled = true,
         _ => {}
     }

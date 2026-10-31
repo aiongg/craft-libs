@@ -161,7 +161,13 @@ impl<'a, K> PresetFooter<'a, K> {
                 let range = *thumb_range.start()..=thumb_range.end().max(*thumb_range.start());
                 let edit =
                     Slider::new("thumb-size", labels.thumb_size.as_str(), value, range).size(ControlSize::Md).width(style.slider_width).show(start);
-                if let Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) = edit.event {
+                if let Some(
+                    EditEvent::Begin { value: Some(value), .. }
+                    | EditEvent::Update { value, .. }
+                    | EditEvent::Set { value, .. }
+                    | EditEvent::Commit { value, .. },
+                ) = edit.event
+                {
                     state.thumb = value as f32;
                 }
             }

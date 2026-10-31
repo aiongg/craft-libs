@@ -480,7 +480,13 @@ pub(super) fn show_dialog(ui: &mut Ui, args: &mut DialogArgs) {
                 .error((error || v.name.trim().is_empty()).then_some("Enter a name for the layer."))
                 .show(ui, |ui, invalid| TextField::new("name", "Name", &v.name).invalid(invalid).show(ui))
                 .inner;
-            if let Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) = edit.event {
+            if let Some(
+                EditEvent::Begin { value: Some(value), .. }
+                | EditEvent::Update { value, .. }
+                | EditEvent::Set { value, .. }
+                | EditEvent::Commit { value, .. },
+            ) = edit.event
+            {
                 v.name = value;
             }
             let _ = place(Field::new("Mode:")).show(ui, |ui, _| {
@@ -495,7 +501,13 @@ pub(super) fn show_dialog(ui: &mut Ui, args: &mut DialogArgs) {
             let edit = opacity
                 .show(ui, |ui, invalid| NumberField::new("opacity", "Opacity", v.opacity, &numbers).range(0.0..=100.0).invalid(invalid).show(ui))
                 .inner;
-            if let Some(EditEvent::Update { value, .. } | EditEvent::Set { value, .. } | EditEvent::Commit { value, .. }) = edit.event {
+            if let Some(
+                EditEvent::Begin { value: Some(value), .. }
+                | EditEvent::Update { value, .. }
+                | EditEvent::Set { value, .. }
+                | EditEvent::Commit { value, .. },
+            ) = edit.event
+            {
                 v.opacity = value;
             }
             let _ = Field::unlabelled().show(ui, |ui, _| Checkbox::bool("Use previous layer to create clipping mask", &mut v.clip).show(ui));

@@ -833,7 +833,12 @@ fn show_levels(ui: &mut Ui, args: &mut LevelsArgs) {
     let edit = editor.show(ui);
     let StoryLevels { channels, before, .. } = &mut host;
     match edit.event {
-        Some(EditEvent::Begin { .. }) => *before = Some(channels[channel]),
+        Some(EditEvent::Begin { value, .. }) => {
+            *before = Some(channels[channel]);
+            if let Some(value) = value {
+                channels[channel] = value;
+            }
+        }
         Some(EditEvent::Cancel { .. }) => {
             if let Some(b) = before.take() {
                 channels[channel] = b;

@@ -224,7 +224,12 @@ impl Rig {
             return;
         }
         match event {
-            EditEvent::Begin { .. } => self.before.clone_from(&self.value),
+            EditEvent::Begin { value, .. } => {
+                self.before.clone_from(&self.value);
+                if let Some(value) = value {
+                    self.value = value;
+                }
+            }
             EditEvent::Cancel { reason: CancelReason::External, .. } => {}
             EditEvent::Cancel { .. } => self.value.clone_from(&self.before),
             other => {
@@ -354,18 +359,18 @@ fn cancel(id: GestureId, reason: CancelReason) -> Option<EditEvent<String>> {
     Some(EditEvent::Cancel { id, reason })
 }
 
-/// Types `text` one character a frame into the focused field: Begin, then an update per
-/// character after the first.
+/// Types `text` one character a frame into the focused field: a Begin carrying the first
+/// character, then an update per character after the first.
 fn type_run(rig: &mut Rig, text: &str) -> GestureId {
     let mut typed = rig.value.clone();
     let mut chars = text.chars();
     let first = chars.next().expect("text");
     rig.type_text(&first.to_string());
-    let id = begin(rig.event.take());
-    // The first change goes out the frame after Begin.
-    rig.frame(vec![]);
     typed.push(first);
-    assert_eq!(rig.event, update(id, &typed));
+    let id = match rig.event.take() {
+        Some(EditEvent::Begin { id, value }) if value.as_deref() == Some(typed.as_str()) => id,
+        other => panic!("expected Begin carrying {typed:?}, got {other:?}"),
+    };
     for c in chars {
         rig.type_text(&c.to_string());
         typed.push(c);
@@ -743,7 +748,8 @@ mod ime {
         Event::Ime(ImeEvent::Commit(text.to_owned()))
     }
 
-    /// No event carries marked text: the composition's commit is the run's first change.
+    /// No event carries marked text: the composition's commit is the run's first change, which the
+    /// run's Begin carries.
     #[test]
     fn marked_text_is_never_a_value() {
         let mut rig = Rig::new("a");
@@ -756,7 +762,7 @@ mod ime {
         rig.frame(vec![]);
         events.extend(rig.event.take());
         let id = begin(events.first().cloned());
-        assert_eq!(events[1..], [update(id, "a日本語").unwrap()]);
+        assert_eq!(events, [EditEvent::begin_with(id, "a日本語".to_owned())]);
     }
 
     #[test]
@@ -829,9 +835,11 @@ mod ime {
         rig.ctx.memory_mut(|m| m.request_focus(rig.id));
         rig.key(Key::Backspace);
         let id = begin(rig.event.take());
+        assert_eq!(rig.value, "a", "the Begin carries the first change, with no marked text in it");
         rig.frame(vec![]);
-        assert_eq!(rig.event, update(id, "a"));
+        assert_eq!(rig.event, None);
         assert_eq!(rig.shown.as_deref(), Some("a"));
+        let _ = id;
         let state = egui::text_edit::TextEditState::load(&rig.ctx, rig.id).expect("state");
         assert_eq!(state.preedit(), None);
     }
@@ -1103,4 +1111,21 @@ fn installed_labels_survive_a_memory_reset() {
     crate::behavior::EditMenu::install(&rig.ctx, labels);
     rig.ctx.memory_mut(|m| *m = egui::Memory::default());
     assert_eq!(crate::behavior::EditMenu::labels(&rig.ctx).undo, "Widerrufen");
+}
+
+/// A debounced run promises the host no value before the wait ends: its Begin carries none, and
+/// the first character arrives with the update after the wait.
+#[test]
+fn a_debounced_runs_first_character_waits_for_the_update() {
+    let mut rig = Rig::new("");
+    rig.policy = EditPolicy::default().update(UpdateRate::Debounced(Duration::from_secs(1)));
+    rig.focus();
+    rig.type_text("a");
+    let id = begin(rig.event.take());
+    assert_eq!(rig.value, "", "the Begin carries no value");
+    rig.frame(vec![]);
+    assert_eq!(rig.event, None);
+    rig.time += 2.0;
+    rig.frame(vec![]);
+    assert_eq!(rig.event, update(id, "a"));
 }

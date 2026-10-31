@@ -186,6 +186,7 @@ pub struct Typing<'a, C: Codec = PlainText> {
     enabled: bool,
     password: bool,
     char_limit: usize,
+    reject_over: usize,
     escape: Escape,
     keep_focus: bool,
     role: Role,
@@ -255,6 +256,7 @@ impl<'a, C: Codec> Typing<'a, C> {
             enabled: true,
             password: false,
             char_limit: usize::MAX,
+            reject_over: usize::MAX,
             escape: Escape::PassThrough,
             keep_focus: false,
             role: Role::TextInput,
@@ -319,6 +321,15 @@ impl<'a, C: Codec> Typing<'a, C> {
     /// Shows a bullet per character; AccessKit reports a `PasswordInput`.
     pub fn password(mut self, password: bool) -> Self {
         self.password = password;
+        self
+    }
+
+    /// The most characters one input can bring: a text, paste or input-method event (marked or
+    /// committed) longer than `limit` is dropped whole before layout, unlike
+    /// [`char_limit`](Typing::char_limit), which cuts the input short. Short inputs that add up to
+    /// more are typed; the codec decides whether such text reads as a value.
+    pub fn reject_over(mut self, limit: usize) -> Self {
+        self.reject_over = limit;
         self
     }
 
@@ -440,6 +451,17 @@ impl<'a, C: Codec> Typing<'a, C> {
             state.clear_undoer();
         } else if let Some((range, text)) = &preedit {
             insert_chars(&mut buffer, range.start, text);
+        }
+        if focused && self.reject_over != usize::MAX {
+            let limit = self.reject_over;
+            ui.input_mut(|i| {
+                i.events.retain(|event| match event {
+                    Event::Text(t) | Event::Paste(t) | Event::Ime(egui::ImeEvent::Commit(t) | egui::ImeEvent::Preedit { text: t, .. }) => {
+                        t.chars().nth(limit).is_none()
+                    }
+                    _ => true,
+                })
+            });
         }
         state.store(ui.ctx(), id);
 
@@ -791,7 +813,7 @@ impl<C: Codec> Typed<C> {
             return;
         }
         if !self.gesture.is_active() {
-            self.gesture.begin();
+            self.gesture.begin_with_value();
         }
         let Some(start) = self.gesture.start().cloned() else { return };
         // The run's draft carries any mark from here.

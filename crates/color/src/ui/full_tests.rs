@@ -585,7 +585,7 @@ fn an_interrupted_typing_run_ends_as_its_field_would() {
     let mut rig = Rig::new(start);
     rig.tab_to("Saturation");
     rig.type_text("40");
-    assert_eq!(kinds(&rig.events), ["Begin", "Update"], "a number goes out as typed");
+    assert_eq!(kinds(&rig.events), ["Begin"], "a number goes out as typed, on the Begin");
     let id = begun(&rig);
     rig.shown = false;
     rig.frame(vec![]);

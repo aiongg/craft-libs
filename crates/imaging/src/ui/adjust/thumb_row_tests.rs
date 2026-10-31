@@ -533,9 +533,10 @@ fn a_press_that_waits_runs_the_pass_after_the_typing_runs_commit() {
     let pos = rig.field.as_ref().unwrap().rect.center();
     rig.tap(pos);
     rig.frame(vec![Event::Text("7".to_owned())]);
-    let run = begin(rig.field_event());
+    let event = rig.field_event();
+    let run = begin(event.clone());
+    assert_eq!(event, Some(EditEvent::begin_with(run, 7.0)), "the field's draft reaches the host on the Begin");
     rig.frame(vec![]);
-    assert_eq!(rig.field_event(), update(run, 7.0), "the field's draft reaches the host");
 
     // The field is drawn before the rows, so its Commit goes out one pass after the press.
     let at = rig.at(1, 100.0, 0.0);
