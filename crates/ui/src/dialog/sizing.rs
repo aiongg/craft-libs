@@ -127,102 +127,10 @@ impl SizingLabels {
 const MAX_PIXELS: f64 = 300_000.0;
 /// The least and greatest resolution, in pixels per inch.
 const PPI_RANGE: (f64, f64) = (1.0, 30_000.0);
-/// Points per inch: PostScript points, which a pica is 12 of.
-const POINTS_PER_INCH: f64 = 72.0;
-const CM_PER_INCH: f64 = 2.54;
+use crate::localized::units::CM_PER_INCH;
 
-/// A length unit of a size field. Pixels and percent are the pixel units; the rest are physical
-/// and convert through the resolution.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum SizeUnit {
-    Pixels,
-    Percent,
-    Inches,
-    Centimetres,
-    Millimetres,
-    Points,
-    Picas,
-}
-
-impl SizeUnit {
-    /// Every unit, in menu order.
-    pub const ALL: [SizeUnit; 7] =
-        [SizeUnit::Pixels, SizeUnit::Percent, SizeUnit::Inches, SizeUnit::Centimetres, SizeUnit::Millimetres, SizeUnit::Points, SizeUnit::Picas];
-
-    pub fn is_pixel_unit(self) -> bool {
-        matches!(self, SizeUnit::Pixels | SizeUnit::Percent)
-    }
-
-    /// Decimal places a field in this unit shows.
-    fn decimals(self) -> usize {
-        match self {
-            SizeUnit::Pixels => 0,
-            SizeUnit::Points | SizeUnit::Percent => 1,
-            SizeUnit::Millimetres | SizeUnit::Centimetres | SizeUnit::Picas => 2,
-            SizeUnit::Inches => 3,
-        }
-    }
-
-    /// The unit a typed suffix names (`px`, `in` or `"`, `cm`, `mm`, `pt`, `pc` or `pica`, `%` and
-    /// their long forms), in any case.
-    fn from_suffix(suffix: &str) -> Option<SizeUnit> {
-        Some(match suffix.to_ascii_lowercase().as_str() {
-            "px" | "pixel" | "pixels" => SizeUnit::Pixels,
-            "in" | "inch" | "inches" | "\"" => SizeUnit::Inches,
-            "cm" | "centimeter" | "centimeters" | "centimetre" | "centimetres" => SizeUnit::Centimetres,
-            "mm" | "millimeter" | "millimeters" | "millimetre" | "millimetres" => SizeUnit::Millimetres,
-            "pt" | "point" | "points" => SizeUnit::Points,
-            "pc" | "pica" | "picas" => SizeUnit::Picas,
-            "%" | "percent" => SizeUnit::Percent,
-            _ => return None,
-        })
-    }
-
-    /// Text typed in a field of this unit, with an optional unit suffix of its own (`2in` in a
-    /// pixel field), as the value in this unit.
-    fn parse_typed(self, text: &str, original_pixels: f64, pixels_per_inch: f64) -> Option<f64> {
-        let text = text.trim();
-        let end = text.find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | ',' | '-' | '+'))).unwrap_or(text.len());
-        let (number, suffix) = text.split_at(end);
-        let value: f64 = number.trim().replace(',', ".").parse().ok().filter(|v: &f64| v.is_finite())?;
-        let suffix = suffix.trim();
-        if suffix.is_empty() {
-            return Some(value);
-        }
-        let typed = SizeUnit::from_suffix(suffix)?;
-        Some(self.from_pixels(typed.to_pixels(value, original_pixels, pixels_per_inch), original_pixels, pixels_per_inch))
-    }
-
-    /// `pixels` in this unit, given the original pixel size (for percent) and the resolution.
-    // pc: crates/ui-egui/src/dialogs/sizing.rs:120 `to_unit`.
-    pub fn from_pixels(self, pixels: f64, original_pixels: f64, pixels_per_inch: f64) -> f64 {
-        let resolution = pixels_per_inch.max(1.0);
-        match self {
-            SizeUnit::Pixels => pixels,
-            SizeUnit::Percent => pixels / original_pixels.max(1.0) * 100.0,
-            SizeUnit::Inches => pixels / resolution,
-            SizeUnit::Centimetres => pixels / resolution * CM_PER_INCH,
-            SizeUnit::Millimetres => pixels / resolution * CM_PER_INCH * 10.0,
-            SizeUnit::Points => pixels / resolution * POINTS_PER_INCH,
-            SizeUnit::Picas => pixels / resolution * POINTS_PER_INCH / 12.0,
-        }
-    }
-
-    /// A value in this unit as pixels.
-    // pc: crates/ui-egui/src/dialogs/sizing.rs:132 `from_unit`.
-    pub fn to_pixels(self, value: f64, original_pixels: f64, pixels_per_inch: f64) -> f64 {
-        let resolution = pixels_per_inch.max(1.0);
-        match self {
-            SizeUnit::Pixels => value,
-            SizeUnit::Percent => value * original_pixels / 100.0,
-            SizeUnit::Inches => value * resolution,
-            SizeUnit::Centimetres => value / CM_PER_INCH * resolution,
-            SizeUnit::Millimetres => value / (CM_PER_INCH * 10.0) * resolution,
-            SizeUnit::Points => value / POINTS_PER_INCH * resolution,
-            SizeUnit::Picas => value / POINTS_PER_INCH * 12.0 * resolution,
-        }
-    }
-}
+/// The length unit of a size field: [`LengthUnit`], under the name Image Size and Canvas Size use.
+pub use crate::localized::units::LengthUnit as SizeUnit;
 
 /// Resolution units of Image Size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -27,6 +27,15 @@
 //! - [`ToolHost`] and [`CanvasTool`]: the on-canvas tool host one tool at a time runs on; [`ToolCursor`]
 //!   and [`CursorHost`]: the pointer over the canvas; [`PenInput`]: pen pressure, tilt and the eraser end;
 //!   [`SnapTargets`]: snapping geometry.
+//! - [`zoom`]: the zoom range and ladder ([`ZoomLadder`]), fit and fill, zoom about a point,
+//!   [`ZoomAnimation`], the Zoom tool's [`HoldZoom`] and [`ZoomDrag`], [`ZoomWindowFit`].
+//! - [`navigate`]: wheel, pinch and twist, page keys, flick pan, [`Autoscroll`], [`RotateView`],
+//!   all under the user's [`NavigationPrefs`]; [`ViewHistory`]: Go Back and Go Forward.
+//! - [`MomentaryKeys`] and [`SpringTool`]: temporary tools while a key is held.
+//! - [`RasterDisplay`]: the CPU raster path over a [`RasterSource`], with its [`Checkerboard`];
+//!   [`PixelGrid`]: the pixel grid above 500 %.
+//! - [`Pasteboard`]: the area around the pages and their [`PageFrame`]s; [`SplitViews`]: 1, 2 or
+//!   4 views of one document.
 //!
 //! Nudging with the arrow keys is [`behavior::nudge`](crate::behavior::nudge).
 //!
@@ -54,14 +63,20 @@ mod grid;
 pub mod guides;
 pub mod hit;
 pub(crate) mod marquee;
+mod momentary;
+pub mod navigate;
 mod part_focus;
+mod pasteboard;
+mod pixel_grid;
 mod pointer;
 pub mod quad;
+mod raster;
 mod readout;
 pub(crate) mod ref_point;
 pub(crate) mod rulers;
 mod scrollbars;
 mod snap;
+mod split;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
@@ -69,6 +84,8 @@ mod tool_host;
 mod turn;
 mod units;
 mod view;
+mod view_history;
+pub mod zoom;
 
 pub use crate::edit::order::Turn;
 pub use ::kurbo;
@@ -81,13 +98,19 @@ pub use marquee::{
     Constraint, Marquee, MarqueeDrag, MarqueeLook, MarqueeRect, MarqueeResponse, MarqueeShape, MarqueeStyle, fixed_size_pixels, marquee_pixels,
     square_pixels,
 };
+pub use momentary::{MomentaryKeys, MomentaryTool, SpringTool};
+pub use navigate::{Autoscroll, NavigationPrefs, RotateView};
 pub use part_focus::{Part, PartFocus, PartFocusResponse};
+pub use pasteboard::{PageBorder, PageFrame, Pasteboard, PasteboardColor, PasteboardResponse, PasteboardStyle};
+pub use pixel_grid::{GridSegment, PixelGrid};
 pub use pointer::{CanvasButtons, PenFeed, PenInput, PenSample};
+pub use raster::{CheckerColors, CheckerSize, Checkerboard, DetailPlan, MAX_TEXTURE, PixelRect, RasterDisplay, RasterResponse, RasterSource};
 pub use readout::{Readout, ReadoutStyle};
 pub use ref_point::{RefPointLabels, RefSize, ReferencePoint, ReferencePointStyle};
 pub use rulers::{RulerNames, RulerPart, RulerStyle, Rulers, RulersResponse};
 pub use scrollbars::{CanvasScrollbars, ScrollbarNames, ScrollbarStyle, ScrollbarsResponse};
 pub use snap::{SNAP_PX, SnapGesture, SnapKind, SnapLine, SnapOptions, SnapTarget, SnapTargets, union as snap_union};
+pub use split::{SplitLayout, SplitPane, SplitResponse, SplitViews};
 pub use tool_host::{CanvasTool, NoTool, SnapAt, ToolAction, ToolContext, ToolGesture, ToolHost, ToolHostResponse, ToolInput, ToolKey, ToolPointer};
 pub use turn::{
     PointerInk, SelectionBadge, distort_cursor, selection_badge_at, selection_badge_beside_pointer, selection_cursor, skew_cursor, turn_cursor,
@@ -95,3 +118,5 @@ pub use turn::{
 };
 pub use units::{RulerUnits, Ticks};
 pub use view::{CanvasView, resize_cursor};
+pub use view_history::{ViewHistory, ViewPlace};
+pub use zoom::{HoldZoom, ZoomAnimation, ZoomDrag, ZoomLadder, ZoomWindowFit};

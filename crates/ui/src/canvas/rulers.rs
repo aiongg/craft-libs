@@ -5,8 +5,8 @@ use crate::canvas::story::ViewArgs;
 use crate::localized::Labels as _;
 use egui::accesskit::{self, Role};
 use egui::{
-    Align2, AsIdSalt, Color32, Context, CursorIcon, FontId, Id, IdSalt, LayerId, Modifiers, Painter, Pos2, Rect as ScreenRect, Sense, Stroke, Ui,
-    WidgetInfo, pos2, vec2,
+    Align2, AsIdSalt, Color32, Context, CursorIcon, FontId, Id, IdSalt, LayerId, Modifiers, Painter, Pos2, Rect as ScreenRect, Response, Sense,
+    Stroke, Ui, WidgetInfo, pos2, vec2,
 };
 use kurbo::Point;
 
@@ -15,6 +15,7 @@ use super::guides::segment;
 use super::units::tick_snap;
 use super::{CanvasView, Guides, Orientation, RulerUnits, crisp, resize_cursor};
 use crate::edit::{EditEvent, EditPolicy, Gesture};
+use crate::localized::units::LengthUnit;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::Divider;
 use crate::story::{Level, Story, StoryChoice, Surface};
@@ -86,7 +87,11 @@ pub struct RulersResponse {
     /// the host puts the zero point back at the document's origin.
     pub reset_origin: bool,
     /// A ruler or the corner was clicked with the secondary button, for the host's units menu.
+    /// With [`Rulers::units_menu`] the rulers open the menu themselves and this stays `None`.
     pub context: Option<RulerPart>,
+    /// A unit picked from the rulers' own units menu ([`Rulers::units_menu`]): the host stores
+    /// it as the ruler unit preference.
+    pub unit_picked: Option<LengthUnit>,
 }
 
 /// The rulers' look, from [`Rulers::style`].
@@ -184,6 +189,7 @@ pub struct Rulers<'a> {
     snap: Option<Snap<'a>>,
     names: RulerNames,
     policy: EditPolicy,
+    units_menu: Option<(&'a [LengthUnit], LengthUnit)>,
 }
 
 /// The host's snapping of the zero point ([`Rulers::snap`]).
@@ -202,6 +208,7 @@ impl<'a> Rulers<'a> {
             snap: None,
             names,
             policy: EditPolicy::default(),
+            units_menu: None,
         }
     }
 
@@ -232,6 +239,15 @@ impl<'a> Rulers<'a> {
 
     pub fn policy(mut self, policy: EditPolicy) -> Self {
         self.policy = policy;
+        self
+    }
+
+    /// Photoshop's ruler menu: a secondary click on a ruler or the corner opens a menu of
+    /// `units` with `current` checked, and the pick comes back in
+    /// [`RulersResponse::unit_picked`]. Names from [`LengthUnitLabels`](crate::localized::units::LengthUnitLabels) installed in the context.
+    /// Without it the host gets [`RulersResponse::context`] and opens its own menu.
+    pub fn units_menu(mut self, units: &'a [LengthUnit], current: LengthUnit) -> Self {
+        self.units_menu = Some((units, current));
         self
     }
 
@@ -287,7 +303,7 @@ impl<'a> Rulers<'a> {
         let top = ScreenRect::from_min_max(pos2(full.left() + size, full.top()), pos2(full.right(), full.top() + size));
         let left = ScreenRect::from_min_max(pos2(full.left(), full.top() + size), pos2(full.left() + size, full.bottom()));
         let corner = ScreenRect::from_min_size(full.min, vec2(size, size));
-        let mut out = RulersResponse { id, origin: None, reset_origin: false, context: None };
+        let mut out = RulersResponse { id, origin: None, reset_origin: false, context: None, unit_picked: None };
 
         let painter = ui.painter_at(full);
         for r in [top, left, corner] {
@@ -349,6 +365,11 @@ impl<'a> Rulers<'a> {
             }
         }
         self.corner(ui, &style, view, &corner_response, id, &mut out);
+        if let Some((units, current)) = self.units_menu {
+            let pressed = [&top_response, &left_response, &corner_response].into_iter().find(|r| r.secondary_clicked()).cloned();
+            out.context = None;
+            out.unit_picked = units_menu(ui, id, pressed.as_ref(), units, current);
+        }
         out
     }
 
@@ -707,3 +728,11 @@ fn set_zero_dialog(ui: &mut Ui, key: Id, units: &RulerUnits, rulers: Id) {
 #[cfg(test)]
 #[path = "rulers_tests.rs"]
 mod tests;
+
+/// The rulers' units menu: opened at the pointer by `pressed` (a secondary click on a part this
+/// pass), kept open across passes under `id`, `current` checked. Returns the unit picked.
+// pc: crates/ui-egui/src/canvas/rulers.rs:79 `unit_menu`, :73 `unit_menu_items`.
+#[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands")]
+fn units_menu(ui: &mut Ui, id: Id, pressed: Option<&Response>, units: &[LengthUnit], current: LengthUnit) -> Option<LengthUnit> {
+    todo!()
+}

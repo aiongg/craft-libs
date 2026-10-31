@@ -37,6 +37,7 @@ mod tests;
 #[cfg(test)]
 mod words_tests;
 
+pub mod units;
 pub mod words;
 #[doc(hidden)]
 pub use egui as __egui;
