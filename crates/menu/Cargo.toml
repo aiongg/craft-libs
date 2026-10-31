@@ -8,6 +8,7 @@ rust-version.workspace = true
 repository.workspace = true
 
 [dependencies]
+craft-i18n = { workspace = true }
 craft-keymap = { workspace = true, features = ["ui"] }
 craft-quit = { workspace = true, features = ["ui"] }
 craft-theme = { workspace = true }

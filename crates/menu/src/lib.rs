@@ -79,9 +79,14 @@
 //! from egui.
 
 pub mod bar;
+mod context;
+mod documents;
 mod driver;
+mod help;
 mod keymap;
+mod language;
 mod layout;
+mod modal;
 mod model;
 mod palette;
 
@@ -90,13 +95,28 @@ pub mod mac;
 
 #[allow(deprecated)]
 pub use bar::{BarStyle, EnglishHook, Labeled, MenuBarOutput, MenuBarUi};
+pub use context::CommandContextMenu;
 pub use craft_keymap::{Chord, CommandRef};
+pub use documents::DOCUMENT_COMMAND_PREFIX;
 pub use driver::{Backend, ClipboardKeys, CommandHook, Dispatch, Event, Gate, NativeMenu, had_input};
+pub use help::{HelpCommand, HelpLabels, HelpLink, HelpMenu};
 pub use keymap::{ItemState, apply_keymap, apply_state};
+pub use language::{LANGUAGE_COMMAND, LanguageChoice, LanguageLabels, LanguageMenu, LanguageRow};
 pub use layout::{Clash, Layout, LayoutOptions, Target, desktop_layout, layout, mac_layout, web_layout};
+pub use modal::{ModalRules, NAVIGATION_COMMANDS, PendingRule};
 pub use model::{
     Builtin, Document, Item, ItemKind, ItemRole, Menu, MenuBar, MenuRole, Node, Platforms, Row, Standard, from_items, structure_key, tidy, window_key,
 };
 
+#[cfg(test)]
+mod context_tests;
+#[cfg(test)]
+mod documents_tests;
+#[cfg(test)]
+mod help_tests;
+#[cfg(test)]
+mod language_tests;
+#[cfg(test)]
+mod modal_tests;
 #[cfg(test)]
 mod tests;
