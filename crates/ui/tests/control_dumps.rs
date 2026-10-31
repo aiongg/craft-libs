@@ -47,7 +47,6 @@ fn role(role: TypeRole) -> &'static str {
         TypeRole::Title => "title",
         TypeRole::Heading => "heading",
         TypeRole::BodyLarge => "body_large",
-        TypeRole::Overline => "overline",
         TypeRole::Mono => "mono",
     }
 }
@@ -822,7 +821,7 @@ fn tab() {
             .line("text_height", s.text_height)
             .line("underline_width", s.underline_width)
             .line("underline_gap", s.underline_gap);
-        d.line("text_label_size", s.text_label.size).line("text_label_line_height", s.text_label.line_height).line("underline", s.underline);
+        d.line("text_label_role", role(s.text_label_role)).line("underline", s.underline);
         d.line("track", s.track).line("fill", s.fill);
     });
 }

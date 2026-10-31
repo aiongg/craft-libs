@@ -244,8 +244,8 @@ pub struct TabStyle {
     pub label_role_large: TypeRole,
     /// `tab.detail_role`.
     pub detail_role: TypeRole,
-    /// `tab.text_label`: the label of a text tab.
-    pub text_label: TypeStyle,
+    /// `tab.text_label_role`: the label role of a text tab.
+    pub text_label_role: TypeRole,
     /// Corners of the × under the pointer: `radius.control`.
     pub close_radius: f32,
     /// `tab.strip`, and `tab.active` behind the active tab and a tab under the pointer.
@@ -304,9 +304,10 @@ impl TabStyle {
         }
     }
 
-    /// The style of a label: `tab.text_label` for a text tab, else the label role of `large`.
+    /// The style of a label: `tab.text_label_role` for a text tab, else the label role of `large`.
     pub fn label_style(&self, tokens: &UiTokens, large: bool, text_only: bool) -> TypeStyle {
-        if text_only { self.text_label } else { tokens.typography.get(self.label_role(large)) }
+        let role = if text_only { self.text_label_role } else { self.label_role(large) };
+        tokens.typography.get(role)
     }
 
     /// This style for a text tab: the label at the tab's leading edge and `tab.text_gap` after it.
@@ -583,7 +584,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             label_role: t.label,
             label_role_large: t.label_large,
             detail_role: t.detail_role,
-            text_label: t.text_label,
+            text_label_role: t.text_label_role,
             close_radius: tokens.shape.radius.control,
             strip: t.strip.to_egui(),
             active: t.active.to_egui(),

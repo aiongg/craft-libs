@@ -42,7 +42,7 @@ pub struct SectionStyle {
     pub title_role: TypeRole,
     /// The title: `text.normal`.
     pub title: Color32,
-    /// The type role of a [`caption`](SectionHeader::caption) title: `overline`.
+    /// The type role of a [`caption`](SectionHeader::caption) title: `caption`.
     pub caption_role: TypeRole,
     /// A caption title: `text.faint`.
     pub caption: Color32,
@@ -101,7 +101,7 @@ impl<'a> SectionHeader<'a> {
         self
     }
 
-    /// Draws the title as a caption: the `overline` role in `text.faint`, with Latin letters in
+    /// Draws the title as a caption: the `caption` role in `text.faint`, with Latin letters in
     /// capitals (PhotoCraft's "PRESET DETAILS"). Other scripts, which have no capitals or are
     /// not case-mapped here, stay as written. AccessKit still names the header by the title as
     /// given.
@@ -135,7 +135,7 @@ impl<'a> SectionHeader<'a> {
             chevron_color: Content::Muted.color(tokens).to_egui(),
             title_role: TypeRole::BodyStrong,
             title: Content::Normal.color(tokens).to_egui(),
-            caption_role: TypeRole::Overline,
+            caption_role: TypeRole::Caption,
             caption: Content::Faint.color(tokens).to_egui(),
         }
     }

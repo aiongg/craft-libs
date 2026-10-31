@@ -12,7 +12,7 @@
 
 use super::{ComponentField, ContrastPair, Family, FieldKind, FloatField, OverrideValue, Semantic, SizeLeaf};
 use crate::color::Rgba;
-use crate::tokens::{FontSlot, TokenRef, TypeRole, TypeStyle};
+use crate::tokens::{TokenRef, TypeRole};
 use crate::values;
 
 /// Tab tokens.
@@ -66,8 +66,8 @@ pub struct TabTokens {
     pub label_large: TypeRole,
     /// Type role of the detail text.
     pub detail_role: TypeRole,
-    /// Type style of a text tab's label: PhotoCraft's category tabs at 13 pt.
-    pub text_label: TypeStyle,
+    /// Type role of a text tab's label.
+    pub text_label_role: TypeRole,
     /// Behind the strip: `surface.panel`, the active tab's colour (PhotoCraft's Pro themes pin a
     /// darker `tab_strip`).
     pub strip: Rgba,
@@ -252,7 +252,7 @@ impl Family for TabTokens {
             label: TypeRole::Label,
             label_large: TypeRole::Body,
             detail_role: TypeRole::Caption,
-            text_label: TypeStyle { size: values::TAB_TEXT_LABEL_SIZE, line_height: values::TAB_TEXT_LABEL_LINE_HEIGHT, font: FontSlot::Ui },
+            text_label_role: TypeRole::Body,
             strip: c.surface.panel,
             active: c.surface.panel,
             text: c.text.normal,

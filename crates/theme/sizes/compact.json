@@ -119,11 +119,6 @@
         "line_height": 16.0,
         "size": 11.5
       },
-      "overline": {
-        "font": "ui",
-        "line_height": 14.0,
-        "size": 11.0
-      },
       "title": {
         "font": "ui_semibold",
         "line_height": 18.0,

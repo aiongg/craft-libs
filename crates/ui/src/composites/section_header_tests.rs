@@ -337,15 +337,14 @@ fn painted_texts(add: impl FnOnce(&mut Ui)) -> Vec<egui::epaint::TextShape> {
 }
 
 #[test]
-fn a_caption_header_is_eleven_point_faint_capitals() {
+fn a_caption_header_uses_the_caption_role_faint_capitals() {
     let tokens = tokens();
     let texts = painted_texts(|ui| {
         let _ = SectionHeader::new("details", "Preset details").caption(true).show(ui, |_| {});
     });
     let shape = texts.iter().find(|t| t.galley.text() == "PRESET DETAILS").expect("the capitals are painted");
     let format = &shape.galley.job.sections[0].format;
-    assert_eq!(format.font_id.size, tokens.typography.overline.size);
-    assert_eq!(format.font_id.size, 11.0);
+    assert_eq!(format.font_id.size, tokens.typography.caption.size);
     assert_eq!(format.color, Content::Faint.color(&tokens).to_egui());
     let plain = painted_texts(|ui| {
         let _ = SectionHeader::new("details", "Preset details").show(ui, |_| {});

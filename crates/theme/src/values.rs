@@ -907,10 +907,6 @@ pub const TAB_TEXT_HEIGHT: f32 = 23.0;
 pub const TAB_UNDERLINE_WIDTH: f32 = 2.0;
 /// From the bottom of a text tab's label to the centre of its underline, in points.
 pub const TAB_UNDERLINE_GAP: f32 = 3.0;
-/// Size of a text tab's label in points (PhotoCraft's category tabs).
-pub const TAB_TEXT_LABEL_SIZE: f32 = 13.0;
-/// Line height of a text tab's label in points.
-pub const TAB_TEXT_LABEL_LINE_HEIGHT: f32 = 16.0;
 /// How far outside its strip a tab drag still resolves targets (PhotoCraft's `TEAR_OFF`).
 pub const TAB_TEAR_OFF: f32 = 24.0;
 

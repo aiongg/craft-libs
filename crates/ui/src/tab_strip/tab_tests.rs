@@ -27,6 +27,20 @@ fn style() -> TabStyle {
     style.expect("style")
 }
 
+/// The line height of the role a text tab's label resolves to.
+#[allow(clippy::expect_used)]
+fn text_label_line_height() -> f32 {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut height = None;
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        let tokens = Tokens::of(ui);
+        height = Some(Tab::<u8>::style(&tokens).label_style(&tokens, false, true).line_height);
+    })
+    .drop_without_applying_deltas();
+    height.expect("line height")
+}
+
 fn flatten(shape: &Shape, out: &mut Vec<Shape>) {
     match shape {
         Shape::Vec(shapes) => shapes.iter().for_each(|s| flatten(s, out)),
@@ -412,7 +426,7 @@ fn a_text_strip_underlines_the_selected_label_and_draws_the_hairline() {
     let (y, x, stroke) = underlines[0];
     assert_eq!(stroke.width, s.underline_width);
     let selected = placed[1].1;
-    let expected = selected.top() + s.text_label.line_height + s.underline_gap;
+    let expected = selected.top() + text_label_line_height() + s.underline_gap;
     assert!((y - expected).abs() <= 0.5, "underline at {y}, expected {expected}");
     assert!(selected.contains(pos2(*x.start(), selected.center().y)) && selected.contains(pos2(*x.end(), selected.center().y)));
     assert!((x.start() - selected.left()).abs() <= 0.5, "the label starts at the tab's leading edge");

@@ -887,8 +887,6 @@ pub enum TypeRole {
     Heading,
     /// Large regular text: a prominent text field.
     BodyLarge,
-    /// Small uppercase headers over a group of rows.
-    Overline,
     /// Code, numbers in tables.
     Mono,
 }
@@ -910,8 +908,6 @@ pub struct TypeTokens {
     pub heading: TypeStyle,
     /// Large regular text: a prominent text field.
     pub body_large: TypeStyle,
-    /// Small uppercase headers over a group of rows.
-    pub overline: TypeStyle,
     /// Code, numbers in tables.
     pub mono: TypeStyle,
 }
@@ -927,7 +923,6 @@ impl TypeTokens {
             TypeRole::Title => self.title,
             TypeRole::Heading => self.heading,
             TypeRole::BodyLarge => self.body_large,
-            TypeRole::Overline => self.overline,
             TypeRole::Mono => self.mono,
         }
     }
@@ -944,7 +939,6 @@ impl TypeTokens {
             title: s(self.title),
             heading: s(self.heading),
             body_large: s(self.body_large),
-            overline: s(self.overline),
             mono: s(self.mono),
         }
     }

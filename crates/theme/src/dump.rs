@@ -163,13 +163,12 @@ fn role(r: TypeRole) -> &'static str {
         TypeRole::Title => "title",
         TypeRole::Heading => "heading",
         TypeRole::BodyLarge => "body_large",
-        TypeRole::Overline => "overline",
         TypeRole::Mono => "mono",
     }
 }
 
 fn type_lines(out: &mut Lines, t: &TypeTokens) {
-    let TypeTokens { caption, label, body, body_strong, title, heading, body_large, overline, mono } = t;
+    let TypeTokens { caption, label, body, body_strong, title, heading, body_large, mono } = t;
     let roles = [
         ("caption", caption),
         ("label", label),
@@ -178,7 +177,6 @@ fn type_lines(out: &mut Lines, t: &TypeTokens) {
         ("title", title),
         ("heading", heading),
         ("body_large", body_large),
-        ("overline", overline),
         ("mono", mono),
     ];
     for (k, style) in roles {
@@ -800,7 +798,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
         label,
         label_large,
         detail_role,
-        text_label,
+        text_label_role,
         strip,
         active,
         text,
@@ -838,10 +836,7 @@ fn tab_lines(out: &mut Lines, t: &TabTokens) {
     out.line("tab.label", role(*label));
     out.line("tab.label_large", role(*label_large));
     out.line("tab.detail_role", role(*detail_role));
-    let TypeStyle { size, line_height, font } = text_label;
-    out.line("tab.text_label.size", len(*size));
-    out.line("tab.text_label.line_height", len(*line_height));
-    out.line("tab.text_label.font", slot(*font));
+    out.line("tab.text_label_role", role(*text_label_role));
     for (k, c) in [
         ("strip", strip),
         ("active", active),

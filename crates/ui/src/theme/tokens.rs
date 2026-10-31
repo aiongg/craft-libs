@@ -25,7 +25,7 @@ pub struct UiTokens {
     pub radius: Radii,
     pub shadow: Shadows,
     families: FontFamilies,
-    fonts: [FontId; 9],
+    fonts: [FontId; 8],
 }
 
 /// `shape.radius` as egui radii.
@@ -50,7 +50,7 @@ pub struct Shadows {
     pub knob: Shadow,
 }
 
-const ROLES: [TypeRole; 9] = [
+const ROLES: [TypeRole; 8] = [
     TypeRole::Caption,
     TypeRole::Label,
     TypeRole::Body,
@@ -58,7 +58,6 @@ const ROLES: [TypeRole; 9] = [
     TypeRole::Title,
     TypeRole::Heading,
     TypeRole::BodyLarge,
-    TypeRole::Overline,
     TypeRole::Mono,
 ];
 

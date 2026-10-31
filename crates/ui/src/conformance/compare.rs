@@ -13,7 +13,7 @@ use crate::theme::{UiTokens, tokens_in_mode};
 
 pub(super) type Rows = Vec<(String, String)>;
 
-const ROLES: [(&str, TypeRole); 9] = [
+const ROLES: [(&str, TypeRole); 8] = [
     ("caption", TypeRole::Caption),
     ("label", TypeRole::Label),
     ("body", TypeRole::Body),
@@ -21,7 +21,6 @@ const ROLES: [(&str, TypeRole); 9] = [
     ("title", TypeRole::Title),
     ("heading", TypeRole::Heading),
     ("body_large", TypeRole::BodyLarge),
-    ("overline", TypeRole::Overline),
     ("mono", TypeRole::Mono),
 ];
 

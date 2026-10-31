@@ -215,7 +215,6 @@ fn every_role_maps_to_its_slot_family_size_and_line_height() {
         TypeRole::Title,
         TypeRole::Heading,
         TypeRole::BodyLarge,
-        TypeRole::Overline,
         TypeRole::Mono,
     ] {
         let style = tokens.typography.get(role);

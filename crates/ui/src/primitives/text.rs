@@ -77,7 +77,6 @@ enum RoleArg {
     Heading,
     #[choice(name = "body_large")]
     BodyLarge,
-    Overline,
     Mono,
 }
 
@@ -91,7 +90,6 @@ impl RoleArg {
             RoleArg::Title => TypeRole::Title,
             RoleArg::Heading => TypeRole::Heading,
             RoleArg::BodyLarge => TypeRole::BodyLarge,
-            RoleArg::Overline => TypeRole::Overline,
             RoleArg::Mono => TypeRole::Mono,
         }
     }
