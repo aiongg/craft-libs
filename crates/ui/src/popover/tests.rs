@@ -528,3 +528,12 @@ fn a_select_in_a_popover_in_a_modal_is_in_front_of_both() {
     assert_eq!(h.state().mode, 1, "the click picked the row");
     assert_eq!(depth.load(std::sync::atomic::Ordering::Relaxed), 1, "the lists are sublayers of the modal, one level deep");
 }
+
+// An editor on a Popover with `outside(false)`: a row click in its Select's list leaves
+// `pressed_outside` false and the editor open; a press elsewhere makes it true (gap 115).
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn a_press_in_a_child_list_is_not_outside_for_a_host_with_its_own_close_rule() {
+    todo!()
+}

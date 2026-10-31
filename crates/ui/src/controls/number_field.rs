@@ -171,6 +171,18 @@ pub struct NumberField<'a> {
     part: bool,
     edit_menu: bool,
     unit_menu: Option<UnitMenu<'a>>,
+    presets: Option<&'a [(String, f64)]>,
+}
+
+/// The preset chevron of [`NumberField::presets`]: an [`IconButton`](super::IconButton) with the
+/// chevron glyph flush after the field, opening a [`ContextMenu`](crate::menu::ContextMenu) of
+/// the presets below it; a pick returns the value for the field to commit.
+// pc: crates/ui-egui/src/widgets/metric_field.rs (the chevron and its ComboBox) and
+// kerning_field's PressCombo; one menu here.
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn preset_menu(ui: &mut Ui, presets: &[(String, f64)]) -> Option<f64> {
+    let _ = (ui, presets);
+    todo!()
 }
 
 /// The rows of [`NumberField::unit_menu`] and where its pick goes.
@@ -211,6 +223,7 @@ impl<'a> NumberField<'a> {
             part: false,
             edit_menu: true,
             unit_menu: None,
+            presets: None,
         }
     }
 
@@ -382,6 +395,14 @@ impl<'a> NumberField<'a> {
         self
     }
 
+    /// A chevron after the field opens a menu of `(label, value)` presets (font sizes, kerning
+    /// steps, PhotoCraft's `metric_field`); a pick commits that value as one edit. The chevron is
+    /// a Tab stop that opens on Space, Enter or ↓; the field itself keeps the edit menu. Gap 56.
+    pub fn presets(mut self, presets: &'a [(String, f64)]) -> Self {
+        self.presets = Some(presets);
+        self
+    }
+
     /// Whether the field is a part of a composite reporting through one edit: a press on the
     /// scrub sources, the ▾ or the pop-up slider takes its turn from the edit order
     /// (`slider::press_turn`). While another control's typing run has the focus (a sibling
@@ -542,6 +563,9 @@ impl<'a> NumberField<'a> {
         }
         let popup_open = self.popup.is_some() && input.popup(ui, &mut typed, &self, rect, parts.popup_rect(rect), enabled);
         let response = typed.response().clone();
+        if let Some(presets) = self.presets.take().filter(|_| enabled) {
+            preset_menu(ui, presets);
+        }
         if let Some(UnitMenu { entries, picked }) = self.unit_menu.take().filter(|_| enabled) {
             let at = secondary.or_else(|| response.secondary_clicked().then(|| response.interact_pointer_pos()).flatten());
             let menu = ContextMenu::new(entries).size(self.size).own_gestures(false).open_at(at.map(OpenAt::Pointer)).show(ui, &response);

@@ -34,6 +34,8 @@ pub mod version;
 #[cfg(feature = "ui")]
 pub mod dialog;
 #[cfg(feature = "ui")]
+pub mod stack_dialogs;
+#[cfg(feature = "ui")]
 pub mod updater;
 
 pub use app::App;

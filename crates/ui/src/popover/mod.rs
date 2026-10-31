@@ -151,6 +151,18 @@ impl PopoverCtx {
     pub fn initial_focus(&self, id: Id) {
         self.initial.set(Some(id));
     }
+
+    /// Whether a primary press this pass landed outside the popover, its anchor and every popup
+    /// opened from inside it (a Select's list, a menu, a nested popover). For a host that keeps
+    /// an anchored editor open by its own rule ([`PopoverClose::outside`] off: PhotoCraft's stroke
+    /// editor stays while its options bar shows and closes on a press elsewhere): the host closes
+    /// on `true`, and a row picked in a child list is no press outside. Gap 115.
+    // new: `popup_list::family` and `pressed_into` behind the popover's own id, so app popups
+    // never need the popup_list internals.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    pub fn pressed_outside(&self) -> bool {
+        todo!()
+    }
 }
 
 /// What [`Popover::show`] returns while the popover is open.

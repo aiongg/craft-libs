@@ -1,0 +1,207 @@
+//! [`DialogFields`]: a dialog's values by key, so scripts and tests set and read them like a user,
+//! the dialog reopens with its last-used values, and Reset restores the opening ones.
+
+#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Serialize};
+
+/// One dialog value. The variants are the kinds a [`Param`](super::Param) produces; a dialog with
+/// its own body uses the same map with the kinds it needs.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[non_exhaustive]
+pub enum FieldValue {
+    Bool(bool),
+    /// Sliders, angles, resolutions: any real number.
+    Number(f64),
+    /// Integer fields, grid cells, counts.
+    Int(i64),
+    /// Free text and the id of a [`ParamKind::Choice`](super::ParamKind::Choice) option.
+    Text(String),
+    /// Linear sRGB components, as the colour picker hands them over.
+    Color([f32; 3]),
+    /// A 2D point in the parameter's own space (percent of the image for a blur centre).
+    Point([f64; 2]),
+    /// A row-major grid of integers (Custom filter's 5×5 kernel).
+    Grid(Vec<i64>),
+}
+
+impl From<bool> for FieldValue {
+    fn from(value: bool) -> Self {
+        FieldValue::Bool(value)
+    }
+}
+
+impl From<f64> for FieldValue {
+    fn from(value: f64) -> Self {
+        FieldValue::Number(value)
+    }
+}
+
+impl From<i64> for FieldValue {
+    fn from(value: i64) -> Self {
+        FieldValue::Int(value)
+    }
+}
+
+impl From<&str> for FieldValue {
+    fn from(value: &str) -> Self {
+        FieldValue::Text(value.to_owned())
+    }
+}
+
+impl From<String> for FieldValue {
+    fn from(value: String) -> Self {
+        FieldValue::Text(value)
+    }
+}
+
+/// The values of one dialog, keyed by the parameter key (`"radius"`, `"method"`). A dialog body
+/// reads and writes these; automation sets them before OK and reads them after; a test asserts
+/// them. Keys never start with `__`: the chrome keeps nothing in the map (PhotoCraft's `__filter`,
+/// `__origW`… markers become typed state on the dialog).
+///
+/// - [`snapshot`](DialogFields::snapshot) is taken when the dialog opens;
+///   [`reset`](DialogFields::reset) restores it (Alt+Cancel, Photoshop).
+/// - A [`ParamDialog`](super::ParamDialog) that remembers its values stores the whole map through
+///   craft-settings' `Remembered` on OK and loads it on open, then drops
+///   the keys the current parameter list does not have or whose value no longer fits.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct DialogFields {
+    values: BTreeMap<String, FieldValue>,
+    #[serde(skip)]
+    opening: BTreeMap<String, FieldValue>,
+}
+
+impl DialogFields {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Builds from `(key, value)` pairs.
+    pub fn from_pairs(pairs: impl IntoIterator<Item = (impl Into<String>, impl Into<FieldValue>)>) -> Self {
+        Self { values: pairs.into_iter().map(|(k, v)| (k.into(), v.into())).collect(), opening: BTreeMap::new() }
+    }
+
+    pub fn set(&mut self, key: impl Into<String>, value: impl Into<FieldValue>) {
+        self.values.insert(key.into(), value.into());
+    }
+
+    pub fn get(&self, key: &str) -> Option<&FieldValue> {
+        self.values.get(key)
+    }
+
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut FieldValue> {
+        self.values.get_mut(key)
+    }
+
+    pub fn remove(&mut self, key: &str) -> Option<FieldValue> {
+        self.values.remove(key)
+    }
+
+    pub fn contains(&self, key: &str) -> bool {
+        self.values.contains_key(key)
+    }
+
+    /// `Bool`, else `None`.
+    pub fn bool(&self, key: &str) -> Option<bool> {
+        match self.values.get(key)? {
+            FieldValue::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    /// `Number`, or an `Int` as a number.
+    pub fn number(&self, key: &str) -> Option<f64> {
+        match self.values.get(key)? {
+            FieldValue::Number(n) => Some(*n),
+            FieldValue::Int(i) => Some(*i as f64),
+            _ => None,
+        }
+    }
+
+    /// `Int`, or a whole `Number`.
+    // new: the lenient read a script needs (`"radius": 3` and `3.0` are the same value).
+    pub fn int(&self, key: &str) -> Option<i64> {
+        todo!()
+    }
+
+    pub fn text(&self, key: &str) -> Option<&str> {
+        match self.values.get(key)? {
+            FieldValue::Text(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn color(&self, key: &str) -> Option<[f32; 3]> {
+        match self.values.get(key)? {
+            FieldValue::Color(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    pub fn point(&self, key: &str) -> Option<[f64; 2]> {
+        match self.values.get(key)? {
+            FieldValue::Point(p) => Some(*p),
+            _ => None,
+        }
+    }
+
+    pub fn grid(&self, key: &str) -> Option<&[i64]> {
+        match self.values.get(key)? {
+            FieldValue::Grid(g) => Some(g),
+            _ => None,
+        }
+    }
+
+    /// Every `(key, value)` in key order.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &FieldValue)> + '_ {
+        self.values.iter().map(|(k, v)| (k.as_str(), v))
+    }
+
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    /// Records the current values as the opening ones. Dialogs call it on open; a host that
+    /// changes a value from outside the dialog (a script) does not move the snapshot.
+    // pc: crates/ui-egui/src/menus/view_cmds/dialogs.rs:71 (`__formOrig`) and
+    // crates/ui-egui/src/dialogs/sizing.rs:50 `reset` (`__orig*` keys).
+    pub fn snapshot(&mut self) {
+        todo!()
+    }
+
+    /// Restores the snapshot. Keys added since the snapshot are kept; keys removed since come
+    /// back. Returns whether anything changed.
+    // pc: crates/ui-egui/src/dialogs/dialog_alt_reset.rs:20 `apply` (per-marker reset) and
+    // crates/ui-egui/src/menus/view_cmds/dialogs.rs:81 `reset_form`.
+    pub fn reset(&mut self) -> bool {
+        todo!()
+    }
+
+    /// Whether any value differs from the snapshot (Reset is enabled only then).
+    // new.
+    pub fn changed(&self) -> bool {
+        todo!()
+    }
+
+    /// Keeps only the keys `allowed` names whose value passes `fits`: what a remembered map goes
+    /// through before it fills a reopened dialog, so a renamed or retyped parameter starts from
+    /// its default.
+    // pc: crates/ui-egui/src/dialogs/filter_dialog.rs:335 `rememberable` and :345 `restore_remembered`.
+    pub fn retain_fitting(&mut self, allowed: &[&str], fits: impl Fn(&str, &FieldValue) -> bool) {
+        todo!()
+    }
+}
+
+impl<K: Into<String>, V: Into<FieldValue>> FromIterator<(K, V)> for DialogFields {
+    fn from_iter<I: IntoIterator<Item = (K, V)>>(iter: I) -> Self {
+        Self::from_pairs(iter)
+    }
+}

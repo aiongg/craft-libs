@@ -125,6 +125,9 @@ pub struct TextField<'a> {
     keep_focus: bool,
     multiline: Option<usize>,
     edit_menu: bool,
+    width: Option<f32>,
+    trailing_arrow: bool,
+    id: Option<egui::Id>,
 }
 
 impl<'a> TextField<'a> {
@@ -147,6 +150,9 @@ impl<'a> TextField<'a> {
             keep_focus: false,
             multiline: None,
             edit_menu: true,
+            width: None,
+            trailing_arrow: false,
+            id: None,
         }
     }
 
@@ -231,7 +237,31 @@ impl<'a> TextField<'a> {
     }
 
     /// Shows the field and returns this frame's edit. The response covers the box.
+    /// A fixed width in points instead of the available width (a name field in an options bar).
+    /// Gap 70.
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
+        self
+    }
+
+    /// Leaves room at the trailing end for a host-drawn chevron (a field with a preset menu that
+    /// is not a [`NumberField`](super::NumberField)); the text does not run under it. Gap 70.
+    pub fn trailing_arrow(mut self, room: bool) -> Self {
+        self.trailing_arrow = room;
+        self
+    }
+
+    /// The `TextEdit` id, for a host that reads or writes the egui text state by id (PhotoCraft
+    /// selects all through it); by default it derives from `id_salt`. Gap 70.
+    pub fn id(mut self, id: egui::Id) -> Self {
+        self.id = Some(id);
+        self
+    }
+
     pub fn show(self, ui: &mut Ui) -> EditResponse<String> {
+        if self.width.is_some() || self.trailing_arrow || self.id.is_some() {
+            return self.show_sized(ui);
+        }
         let spec = Spec {
             id_salt: self.id_salt,
             label: &self.label,
@@ -252,6 +282,17 @@ impl<'a> TextField<'a> {
             edit_menu: self.edit_menu,
         };
         show_field(ui, &spec)
+    }
+
+    /// [`show`](TextField::show) with a fixed width, trailing-arrow room or an own id: the same
+    /// field, allocated at `width`, its text clipped before the arrow room, its `TextEdit` under
+    /// `id`.
+    // pc: crates/ui-egui/src/widgets/text_field.rs (`TextField::desired_width`, `trailing_arrow`,
+    // `id`); new on top of `Spec`.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    fn show_sized(self, ui: &mut Ui) -> EditResponse<String> {
+        let _ = ui;
+        todo!()
     }
 
     pub fn style(tokens: &UiTokens, size: ControlSize) -> TextFieldStyle {

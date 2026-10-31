@@ -68,6 +68,9 @@ pub mod number_field;
 #[cfg(test)]
 mod number_field_tests;
 mod option_list;
+pub mod point_picker;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod point_picker_tests;
 pub(crate) mod progress;
 pub(crate) mod radio;
 pub(crate) mod range_slider;
@@ -108,6 +111,7 @@ pub use kbd::{Kbd, KbdStyle};
 pub use link::{Link, LinkStyle};
 pub use number_field::{NumberField, NumberFieldStyle};
 pub(crate) use option_list::{pressed_on, released};
+pub use point_picker::{PointPicker, PointPickerStyle};
 pub use progress::{Progress, ProgressStyle};
 pub use radio::{PreparedRadioSet, RadioGroup, RadioSet, RadioStyle};
 pub use range_slider::RangeSlider;

@@ -43,7 +43,6 @@
 //! `applicationWillTerminate:` runs eframe's exit handling before the process ends. The process
 //! ends there, so code after `eframe::run_native` in `main` does not run; move it to `on_exit`.
 
-#[cfg(feature = "ui")]
 mod close;
 #[cfg(target_os = "macos")]
 mod macos;
@@ -51,8 +50,9 @@ mod macos;
 #[cfg(all(feature = "menu", target_os = "macos"))]
 mod menu;
 
+pub use close::{CloseAnswer, CloseGuard, CloseScope, GuardStep};
 #[cfg(feature = "ui")]
-pub use close::{QUIT_MENU_ID, on_close_request, on_menu_event};
+pub use close::{QUIT_MENU_ID, intercept_close, on_close_request, on_menu_event};
 
 /// Replace winit's default macOS app menu with one whose Quit (⌘Q) asks the app first.
 ///

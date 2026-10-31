@@ -58,6 +58,29 @@ impl EditMenu {
         let installed = ctx.plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone());
         installed.unwrap_or_else(|| EditMenuLabels::shared_ctx(ctx))
     }
+
+    /// The menu for a raw `egui::TextEdit` the host draws itself (PhotoCraft's ~25 sites that are
+    /// not library fields; gap 69). Call at the start of the pass, before the `TextEdit`, with the
+    /// id the `TextEdit` will have; then draw it; then call [`EditMenu::after_text_edit`] with its
+    /// response. The menu opens on a secondary click on the last pass's response, or on the Menu
+    /// key or Shift+F10 while the edit has the focus; a chosen command reaches the `TextEdit` as
+    /// the input its shortcut would send. Returns whether the field must keep its focus this pass
+    /// (a click on the menu is no click away).
+    // pc: crates/ui-egui/src/widgets/text_field_menu.rs (`TextFieldMenu`); here on `show` and
+    // `withdraw` with the raw response in place of a library field's.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    pub fn before_text_edit(ui: &Ui, field: Id, password: bool) -> bool {
+        let _ = (ui, field, password);
+        todo!()
+    }
+
+    /// The second half of [`EditMenu::before_text_edit`]: takes back the injected input and keeps
+    /// the focus on the edit when the menu asked for it.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    pub fn after_text_edit(ui: &Ui, field: Id, response: &egui::Response) {
+        let _ = (ui, field, response);
+        todo!()
+    }
 }
 
 /// The labels [`EditMenu::install`] set, kept as a plugin so that a reset of the context's memory

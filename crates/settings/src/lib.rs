@@ -38,6 +38,7 @@
 pub mod document;
 pub mod error;
 pub mod migrate;
+pub mod remember;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod paths;
@@ -50,6 +51,7 @@ pub use error::{LoadReport, MigrateError, ReadOnlyReason, SaveStatus, SectionErr
 pub use migrate::LegacyFile;
 #[cfg(not(target_arch = "wasm32"))]
 pub use paths::{Location, Portable, Probe, Resolved, Rule};
+pub use remember::{Remembered, RememberedSection};
 #[cfg(not(target_arch = "wasm32"))]
 pub use store::{OpenOptions, SettingsStore, SharedSettings};
 pub use toml_edit::DocumentMut;

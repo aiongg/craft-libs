@@ -1,5 +1,7 @@
-//! Route an egui window close through the platform quit.
+//! Route an egui window close through the platform quit, and [`CloseGuard`]: the unsaved-changes
+//! decision for closing documents, closing all, quitting and Revert.
 
+#[cfg(feature = "ui")]
 use egui::{Context, ViewportCommand, ViewportId};
 
 /// Call once per frame at the end of `eframe::App::logic`, after the app's own close decision.
@@ -13,6 +15,7 @@ use egui::{Context, ViewportCommand, ViewportId};
 /// Returns whether it took the close over. `false` means there was no close request, the app had
 /// already cancelled it this frame, or the platform has no quit of its own, and eframe goes on as
 /// it would without this call.
+#[cfg(feature = "ui")]
 pub fn on_close_request(ctx: &Context) -> bool {
     take_over_close(ctx, crate::quit)
 }
@@ -30,6 +33,7 @@ pub const QUIT_MENU_ID: &str = "craft-quit.quit";
 /// for the close button and [`on_close_request`] then quits. Returns whether the item was Quit;
 /// other items are left to the caller. Safe to call from a menu-event handler between frames:
 /// egui keeps the command for the next frame.
+#[cfg(feature = "ui")]
 pub fn on_menu_event(ctx: &Context, id: &str) -> bool {
     if id != QUIT_MENU_ID {
         return false;
@@ -39,6 +43,7 @@ pub fn on_menu_event(ctx: &Context, id: &str) -> bool {
 }
 
 /// [`on_close_request`] with the platform quit passed in. `quit` returns whether it quits.
+#[cfg(feature = "ui")]
 fn take_over_close(ctx: &Context, quit: impl FnOnce() -> bool) -> bool {
     if ctx.viewport_id() != ViewportId::ROOT || !ctx.input(|i| i.viewport().close_requested()) {
         return false;
@@ -54,7 +59,169 @@ fn take_over_close(ctx: &Context, quit: impl FnOnce() -> bool) -> bool {
     true
 }
 
+/// Holds a window close while the app asks about unsaved documents. Call in `logic` when the
+/// root window was asked to close and `unsaved` documents exist: it sends `CancelClose` and
+/// returns `true`, and the app starts a [`CloseGuard`] for [`CloseScope::Quit`]. Without unsaved
+/// documents it returns `false` and [`on_close_request`] takes the close as usual.
+// pc: crates/ui-egui/src/dialogs/discard_ui.rs:124 `guard_window_close`.
+#[cfg(feature = "ui")]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+pub fn intercept_close(ctx: &Context, unsaved: bool) -> bool {
+    let _ = (ctx, unsaved);
+    todo!()
+}
+
+/// What the user set out to do; it decides the question's wording and what Cancel stops.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CloseScope {
+    /// Close one or more documents (a tab's close box, File › Close, Close All).
+    Close,
+    /// File › Exit / Quit, the window's close box, the Quit menu item.
+    Quit,
+    /// File › Revert on one document: "Revert … to the last saved version?".
+    Revert,
+}
+
+/// The user's answer for one document.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CloseAnswer {
+    Save,
+    DontSave,
+    Cancel,
+}
+
+/// What the app does next after an answer or a save.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GuardStep<D> {
+    /// Save `D` (Save As when it has no file); then report [`CloseGuard::saved`] or
+    /// [`CloseGuard::save_failed`].
+    Save(D),
+    /// Close `D` without saving.
+    Discard(D),
+    /// Ask about the next document: show the prompt for [`CloseGuard::current`].
+    Ask(D),
+    /// Cancel stopped the whole operation; nothing more closes and a quit does not happen.
+    Cancelled,
+    /// Every document is answered and closed: finish the operation (close the window, quit).
+    Finished,
+}
+
+/// The unsaved-changes decision, one document at a time, egui-free. The app keeps one while
+/// the operation runs: it asks the current document's question (craft-ui's
+/// `UnsavedChangesDialog`), feeds the answer in, saves or discards as told, and finishes or stops
+/// on the step it gets back. `D` is the app's document id.
+///
+/// - Documents are asked in the order given. [`CloseAnswer::Cancel`] at any point ends the
+///   operation ([`GuardStep::Cancelled`]); documents already closed stay closed.
+/// - "Apply to All" (spec question 3): [`answer_all`](CloseGuard::answer_all) applies one answer
+///   to every remaining document, Save included: each is saved in turn, and a cancelled Save As
+///   or a failed save stops the operation.
+/// - A failed save keeps the document open and stops the operation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CloseGuard<D> {
+    scope: CloseScope,
+    pending: std::collections::VecDeque<D>,
+    saving: Option<D>,
+    apply_to_all: Option<CloseAnswer>,
+    cancelled: bool,
+}
+
+impl<D: Clone + PartialEq> CloseGuard<D> {
+    /// Starts the decision for `modified`, the documents with unsaved changes in asking order.
+    /// An empty list is already [`GuardStep::Finished`].
+    pub fn new(scope: CloseScope, modified: impl IntoIterator<Item = D>) -> Self {
+        Self { scope, pending: modified.into_iter().collect(), saving: None, apply_to_all: None, cancelled: false }
+    }
+
+    pub fn scope(&self) -> CloseScope {
+        self.scope
+    }
+
+    /// The document whose question is open, if any.
+    pub fn current(&self) -> Option<&D> {
+        self.pending.front()
+    }
+
+    /// How many documents still wait, the current one included; the prompt shows "Apply to All"
+    /// when it is more than one.
+    pub fn remaining(&self) -> usize {
+        self.pending.len()
+    }
+
+    /// The user answered for the current document.
+    // pc: crates/ui-egui/src/dialogs/discard_ui.rs:343 `apply` and :149 `advance`.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    pub fn answer(&mut self, answer: CloseAnswer) -> GuardStep<D> {
+        let _ = answer;
+        todo!()
+    }
+
+    /// The user answered with "Apply to All": the same answer for every remaining document.
+    // new: Photoshop's Apply to All; PhotoCraft asks one by one.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    pub fn answer_all(&mut self, answer: CloseAnswer) -> GuardStep<D> {
+        let _ = answer;
+        todo!()
+    }
+
+    /// The save of the document from [`GuardStep::Save`] finished: it is closed and the guard
+    /// moves on.
+    // pc: crates/ui-egui/src/dialogs/discard_ui.rs:244 `saved_document`.
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    pub fn saved(&mut self) -> GuardStep<D> {
+        todo!()
+    }
+
+    /// The save failed or Save As was cancelled: the document stays open and the operation stops.
+    // pc: crates/ui-egui/src/dialogs/discard_ui.rs:210 `save` (the `false` branch).
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    pub fn save_failed(&mut self) -> GuardStep<D> {
+        todo!()
+    }
+
+    /// A document closed elsewhere while the guard ran (a script): it is no longer asked about.
+    pub fn forget(&mut self, doc: &D) {
+        self.pending.retain(|d| d != doc);
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.cancelled || (self.pending.is_empty() && self.saving.is_none())
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled
+    }
+}
+
 #[cfg(test)]
+mod guard_tests {
+    // Save, Don't Save and Cancel each move the guard as the step says; Cancel on the second
+    // document leaves the first closed and the rest open.
+    #[test]
+    #[ignore = "skeleton"]
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    fn each_answer_moves_to_the_next_document_and_cancel_stops_the_rest() {
+        todo!()
+    }
+
+    // Apply to All with Save saves each document in turn; a failed save stops the operation.
+    #[test]
+    #[ignore = "skeleton"]
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    fn apply_to_all_saves_every_document_and_a_failed_save_stops() {
+        todo!()
+    }
+
+    // A close request with unsaved documents is held (CancelClose) and the app is told to ask.
+    #[test]
+    #[ignore = "skeleton"]
+    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+    fn intercept_close_holds_the_window_while_documents_are_unsaved() {
+        todo!()
+    }
+}
+
+#[cfg(all(test, feature = "ui"))]
 mod tests {
     use std::cell::Cell;
 
