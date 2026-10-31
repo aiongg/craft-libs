@@ -95,7 +95,8 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [`craft-settings`](crates/settings/README.md): `config.toml` settings storage for every app: platform folders, portable mode and overrides, atomic saves while running, backup, damaged-file recovery and schema migrations. Policy in [docs/settings-storage.md](docs/settings-storage.md).
 - [`craft-text`](crates/text/README.md): text processing below the composer. Its `hyphen` module finds
   hyphenation points, with a bundled US English dictionary and patterns and optional hypher patterns
-  for 47 more languages (one cargo feature each).
+  for 47 more languages (one cargo feature each). With `ui`, the canvas text editor, Character and
+  Paragraph controls, text style panels and Check Spelling dialog; `spell` and `quotes` without egui.
 - [`craft-ui`](crates/ui/README.md): SVG catalogs, icon buttons, tabs, pane controls, transactional docking, print settings and theme helpers for egui frontends;
   assets, themes, localization and command handling stay in each app. Requires Rust 1.95 or later.
 - `craft-ui-macros`: the `StoryArgs` and `StoryChoice` derives for `craft_ui::story`; use them through `craft-ui`.

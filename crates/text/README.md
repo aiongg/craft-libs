@@ -9,6 +9,10 @@ plain text and a language and return what layout needs before it shapes and plac
 | `segment` | `segment` (default) | Line-break opportunities with kinsoku; Thai, Lao, Khmer and Burmese words; grapheme-cluster emergency breaks |
 | `bidi` | `bidi` (default) | Bidirectional text: embedding levels, line reordering, mirroring |
 | `linebreak` | `linebreak` (default) | Line breaking on a box/glue/penalty model |
+| `spell` | `spell` | Spelling with a bundled US English word list (SCOWL 50), suggestions and the user's words |
+| `quotes` | `quotes` | Smart quotes: typed straight quotes become the language's quotation marks |
+| `ui` | `ui` | On craft-ui: the canvas text editor, Character and Paragraph controls, text style panels, Check Spelling dialog |
+| | `font-picker` | The Character controls' family field is craft-font-manager's font picker |
 
 Language features (`spanish`, `german`, …, `all-languages`) add the data for one language to every
 module that uses it, and turn those modules on. Build with `default-features = false` to leave
