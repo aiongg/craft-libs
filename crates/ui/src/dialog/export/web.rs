@@ -341,12 +341,27 @@ impl StackDialog for SaveForWebDialog {
 /// at 64 colours.
 // pc: crates/ui-egui/src/dialogs/file_ui/web.rs:61 variants
 pub fn four_up_variants(settings: &WebSettings) -> [WebSettings; 2] {
-    todo!()
+    [2u16, 4].map(|divisor| {
+        let mut variant = settings.clone();
+        match settings.format {
+            WebFormat::Jpeg | WebFormat::WebP if !(settings.format == WebFormat::WebP && settings.lossless) => {
+                variant.quality = (f64::from(settings.quality) / f64::from(divisor)).round().max(1.0) as u8;
+            }
+            WebFormat::Gif | WebFormat::Png8 => {
+                variant.colors = (f64::from(settings.colors) / f64::from(divisor)).round().max(2.0) as u16;
+            }
+            _ => {
+                variant.format = if divisor == 2 { WebFormat::Png8 } else { WebFormat::Gif };
+                variant.colors = 256 / divisor;
+            }
+        }
+        variant
+    })
 }
 
 /// Seconds to download `bytes` at `kbps` kilobits per second, rounded up: `ceil(bytes × 8 /
 /// (kbps × 1000))`; the caption uses 56.6, Photoshop's modem estimate.
 // pc: crates/ui-egui/src/dialogs/file_ui/web.rs:166 (download estimate in web_pane)
 pub fn download_seconds(bytes: u64, kbps: f64) -> u64 {
-    todo!()
+    (bytes as f64 * 8.0 / (kbps * 1000.0)).ceil() as u64
 }

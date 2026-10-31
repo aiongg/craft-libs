@@ -106,7 +106,24 @@ impl ExportFormat {
     /// PhotoCraft's list: PNG, JPG, WebP, TIFF, TGA, ICO.
     // pc: crates/ui-egui/src/dialogs/export_dialog.rs:18 FORMATS
     pub fn standard() -> Vec<ExportFormat> {
-        todo!()
+        let format = |id, name, quality, lossless, transparency, bits: &'static [u8], max_side| ExportFormat {
+            id,
+            name,
+            extension: id,
+            quality,
+            lossless,
+            transparency,
+            bits,
+            max_side,
+        };
+        vec![
+            format("png", "PNG", false, false, true, &[], None),
+            format("jpg", "JPG", true, false, false, &[], None),
+            format("webp", "WebP", true, true, true, &[], None),
+            format("tif", "TIFF", false, false, true, &[], None),
+            format("tga", "TGA", false, false, true, &[24, 32], None),
+            format("ico", "ICO", false, false, true, &[], Some(256)),
+        ]
     }
 }
 
@@ -306,8 +323,15 @@ impl StackDialog for ExportAsDialog {
 /// becomes `fallback` ("layer" for per-layer exports, the document name otherwise).
 // pc: crates/ui-egui/src/dialogs/export_dialog.rs:231 export_name
 pub fn export_file_name(name: &str, fallback: &str) -> String {
-    todo!()
+    let name: String = name.chars().take(MAX_NAME_CHARS).map(|c| if c.is_control() || RESERVED.contains(c) { '_' } else { c }).collect();
+    let name = name.trim().trim_matches('.');
+    if name.is_empty() { fallback.to_owned() } else { name.to_owned() }
 }
+
+const MAX_NAME_CHARS: usize = 80;
+const RESERVED: &str = "<>:\"/\\|?*";
+/// The largest side an export can have, in pixels.
+const MAX_PIXELS: f64 = 300_000.0;
 
 /// The paths of a multi-file export: the first is `first` (its overwrite is the save picker's
 /// question); file `i` (0-based) after it is `{stem}-{i + 1}-{name}.{ext}` beside it, `name`
@@ -317,7 +341,28 @@ pub fn export_file_name(name: &str, fallback: &str) -> String {
 /// downloads).
 // pc: crates/ui-egui/src/dialogs/export_dialog.rs:239 batch_paths
 pub fn numbered_paths(first: &Path, names: &[&str], exists: impl Fn(&Path) -> bool) -> Vec<PathBuf> {
-    todo!()
+    let parent = first.parent().unwrap_or_else(|| Path::new(""));
+    let stem = first.file_stem().and_then(|s| s.to_str()).unwrap_or("layers");
+    let ext = first.extension().and_then(|e| e.to_str()).unwrap_or("png");
+    names
+        .iter()
+        .enumerate()
+        .map(|(i, name)| {
+            if i == 0 {
+                return first.to_path_buf();
+            }
+            let name = export_file_name(name, "layer");
+            let mut candidate = parent.join(format!("{stem}-{}-{name}.{ext}", i + 1));
+            if !cfg!(target_arch = "wasm32") {
+                let mut suffix = 1u64;
+                while exists(&candidate) {
+                    candidate = parent.join(format!("{stem}-{}-{name}-{suffix}.{ext}", i + 1));
+                    suffix = suffix.saturating_add(1);
+                }
+            }
+            candidate
+        })
+        .collect()
 }
 
 /// Why a size was refused.
@@ -334,7 +379,15 @@ pub enum SizeError {
 /// [`SizeError::Pixels`].
 // pc: crates/ui-egui/src/dialogs/export_dialog.rs:353 resize_from_scale (MAX_PX :335)
 pub fn resize_from_scale(source: (u32, u32), scale: f64) -> Result<(u32, u32), SizeError> {
-    todo!()
+    if !scale.is_finite() || !(1.0..=1000.0).contains(&scale) {
+        return Err(SizeError::Scale);
+    }
+    let side = |source: u32| (f64::from(source.max(1)) * scale / 100.0).round().max(1.0);
+    let (width, height) = (side(source.0), side(source.1));
+    if width > MAX_PIXELS || height > MAX_PIXELS {
+        return Err(SizeError::Pixels);
+    }
+    Ok((width as u32, height as u32))
 }
 
 /// The output size after the user typed `width` (`edited_width`) or `height`: the typed side is
@@ -343,5 +396,20 @@ pub fn resize_from_scale(source: (u32, u32), scale: f64) -> Result<(u32, u32), S
 /// the scale it amounts to, in percent of the edited side.
 // pc: crates/ui-egui/src/dialogs/export_dialog.rs:366 resize_from_side, :345 finite_px
 pub fn resize_from_side(source: (u32, u32), width: f64, height: f64, lock: bool, edited_width: bool) -> Result<((u32, u32), f64), SizeError> {
-    todo!()
+    let (source_width, source_height) = (f64::from(source.0.max(1)), f64::from(source.1.max(1)));
+    let (width, height) = if edited_width {
+        let width = finite_pixels(width)?;
+        let height = if lock { finite_pixels((source_height * width / source_width).max(1.0))? } else { finite_pixels(height)? };
+        (width, height)
+    } else {
+        let height = finite_pixels(height)?;
+        let width = if lock { finite_pixels((source_width * height / source_height).max(1.0))? } else { finite_pixels(width)? };
+        (width, height)
+    };
+    let scale = if edited_width { width / source_width * 100.0 } else { height / source_height * 100.0 };
+    Ok(((width as u32, height as u32), scale))
+}
+
+fn finite_pixels(value: f64) -> Result<f64, SizeError> {
+    if value.is_finite() && (1.0..=MAX_PIXELS).contains(&value) { Ok(value.round()) } else { Err(SizeError::Pixels) }
 }
