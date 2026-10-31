@@ -917,6 +917,9 @@ name = "craft-dialogs"
 version = "0.1.0"
 dependencies = [
  "block2 0.6.2",
+ "craft-host",
+ "craft-ui",
+ "egui",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
@@ -1135,6 +1138,7 @@ dependencies = [
  "async-channel",
  "async-io",
  "async-process",
+ "craft-atomic",
  "craft-theme",
  "egui",
  "futures-lite",
@@ -1234,7 +1238,9 @@ version = "0.1.0"
 dependencies = [
  "craft-atomic",
  "craft-theme",
+ "craft-ui",
  "dirs",
+ "egui",
  "serde",
  "serde_json",
  "tempfile",
