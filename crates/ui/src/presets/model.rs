@@ -106,11 +106,26 @@ pub struct PresetRow<K> {
     pub dimmed: bool,
     /// A tooltip other than the label.
     pub tooltip: Option<String>,
+    /// The name a screen reader reads, instead of the label (and caption): the label stays what
+    /// a rename starts from.
+    pub accessible_name: Option<String>,
 }
 
 impl<K> PresetRow<K> {
     fn new(key: K, label: impl Into<String>, depth: usize, kind: PresetKind) -> Self {
-        Self { key, label: label.into(), depth, kind, count: None, caption: None, icon: None, preview: None, dimmed: false, tooltip: None }
+        Self {
+            key,
+            label: label.into(),
+            depth,
+            kind,
+            count: None,
+            caption: None,
+            icon: None,
+            preview: None,
+            dimmed: false,
+            tooltip: None,
+            accessible_name: None,
+        }
     }
 
     /// A group or folder at `depth`.
@@ -162,6 +177,13 @@ impl<K> PresetRow<K> {
     #[must_use]
     pub fn tooltip(mut self, text: impl Into<String>) -> Self {
         self.tooltip = Some(text.into());
+        self
+    }
+
+    /// Sets the name a screen reader reads, instead of the label.
+    #[must_use]
+    pub fn accessible_name(mut self, name: impl Into<String>) -> Self {
+        self.accessible_name = Some(name.into());
         self
     }
 

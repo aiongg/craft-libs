@@ -6,13 +6,18 @@ use std::collections::HashSet;
 use craft_cms::convert::CmykConverter;
 use craft_theme::Srgba;
 use craft_ui::behavior::{DropPosition, Move};
+use craft_ui::composites::{NoticeCenter, Tone};
+use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::Labels as _;
+use craft_ui::localized::Words;
+use craft_ui::localized::words::Counted;
+use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::presets::{FooterEvent, PresetBrowser, PresetEvent, PresetFooter, PresetLabels, PresetReorder, PresetRow, PresetState};
-use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Ui};
+use egui::{AsIdSalt, Color32, Context, CornerRadius, Id, IdSalt, Ui};
 
 use super::PickedColor;
-use crate::palette::{SwatchColor, SwatchEntry, SwatchFormat, SwatchGroup};
+use crate::palette::{SwatchColor, SwatchEntry, SwatchFormat, SwatchGroup, SwatchNote, SwatchReport};
 
 craft_ui::words! {
     /// The Swatches panel's words, English by default.
@@ -34,10 +39,46 @@ craft_ui::words! {
         added: "swatches.added" = "Added swatch {name}";
         /// The panel's name for a screen reader.
         title: "swatches.title" = "Swatches";
+        /// The notice title after an import that changed something; the lines are the notes.
+        notice_import: "swatches.noticeImport" = "Swatches imported with changes";
+        /// The notice title after an export that changed something.
+        notice_export: "swatches.noticeExport" = "Swatches exported with changes";
+        groups_flattened: "swatches.groupsFlattened" = "The format has no groups; the swatches were written as one list.";
+        /// The notes below are the plural forms of counted words; `{n}` is the count.
+        book_read: "swatches.bookRead" = "{n} colour-book colours were read as black.";
+        book_left_out: "swatches.bookLeftOut" = "{n} colour-book colours were left out.";
+        skipped: "swatches.skipped" = "{n} colours in a model that cannot be read were skipped.";
+        converted: "swatches.converted" = "{n} colours were converted to RGB.";
+        kinds_dropped: "swatches.kindsDropped" = "{n} spot or global colours were written as process colours.";
+        truncated: "swatches.truncated" = "{n} colours past the 256 the format holds were left out.";
+        names_cut: "swatches.namesCut" = "{n} names were cut to the length the format holds.";
         /// The value read for a colour-book colour, which the panel cannot show.
         book_color: "swatches.bookColor" = "Colour book colour";
     }
 }
+
+const NOTE_BOOK_READ: Counted =
+    Counted::new("swatches.bookRead", "{n} colour-book colour was read as black.", "{n} colour-book colours were read as black.");
+const NOTE_BOOK_LEFT_OUT: Counted =
+    Counted::new("swatches.bookLeftOut", "{n} colour-book colour was left out.", "{n} colour-book colours were left out.");
+const NOTE_SKIPPED: Counted = Counted::new(
+    "swatches.skipped",
+    "{n} colour in a model that cannot be read was skipped.",
+    "{n} colours in a model that cannot be read were skipped.",
+);
+const NOTE_CONVERTED: Counted = Counted::new("swatches.converted", "{n} colour was converted to RGB.", "{n} colours were converted to RGB.");
+const NOTE_KINDS_DROPPED: Counted = Counted::new(
+    "swatches.kindsDropped",
+    "{n} spot or global colour was written as a process colour.",
+    "{n} spot or global colours were written as process colours.",
+);
+const NOTE_TRUNCATED: Counted = Counted::new(
+    "swatches.truncated",
+    "{n} colour past the 256 the format holds was left out.",
+    "{n} colours past the 256 the format holds were left out.",
+);
+const NOTE_NAMES_CUT: Counted =
+    Counted::new("swatches.namesCut", "{n} name was cut to the length the format holds.", "{n} names were cut to the length the format holds.");
 
 /// What the browser names its rows by. Swatch names are unique across the library and group names
 /// among groups, so both survive reordering.
@@ -70,7 +111,20 @@ impl Default for PanelState {
     }
 }
 
-/// Where [`SwatchesPanel::panel_menu`] leaves the row it made, for the panel to select and rename.
+const CMD_NEW_SWATCH: &str = "swatches.newSwatch";
+const CMD_NEW_GROUP: &str = "swatches.newGroup";
+const CMD_IMPORT: &str = "swatches.import";
+const CMD_REPLACE: &str = "swatches.replace";
+const CMD_EXPORT: &str = "swatches.export";
+const CMD_EXPORT_EXCHANGE: &str = "swatches.exportExchange";
+const CMD_RESET: &str = "swatches.reset";
+
+/// The panel's selection, for the menu commands (one Swatches panel per context).
+fn selection_id() -> Id {
+    Id::unique("craft-color-swatches-selection")
+}
+
+/// Where [`SwatchesPanel::run_command`] leaves the row it made, for the panel to select and rename.
 fn pending_id() -> Id {
     Id::unique("craft-color-swatches-pending")
 }
@@ -365,7 +419,8 @@ impl<'a> SwatchesPanel<'a> {
             rows.push(PresetRow::group(Key::Group(group.name.clone()), group.name.as_str(), 0).count(group.entries.len()));
             for entry in &group.entries {
                 let value = value_text(&entry.color, &labels.book_color);
-                rows.push(PresetRow::item(Key::Swatch(entry.name.clone()), entry.name.as_str(), 1).tooltip(format!("{}, {value}", entry.name)));
+                let named = format!("{}, {value}", entry.name);
+                rows.push(PresetRow::item(Key::Swatch(entry.name.clone()), entry.name.as_str(), 1).tooltip(named.clone()).accessible_name(named));
             }
         }
         let out = {
@@ -404,62 +459,133 @@ impl<'a> SwatchesPanel<'a> {
         if st.rename.is_some() {
             ui.ctx().request_repaint();
         }
-        ui.data_mut(|d| d.insert_temp(id, st));
+        let selected = st.selected.clone();
+        ui.data_mut(|d| {
+            d.insert_temp(selection_id(), selected);
+            d.insert_temp(id, st);
+        });
         response
     }
 
-    /// The panel menu's entries, for the docking host's `panel_menu` hook: New Swatch…, New
+    /// The panel menu's rows, for the docking host's `panel_menu_entries` hook: New Swatch…, New
     /// Swatch Group…, a separator, Import Swatches…, Replace Swatches…, Export Swatches… and
     /// Export Swatches for Exchange… (both disabled when the library has no swatch), a separator,
-    /// Reset Swatches. New Swatch, New Group and Reset act on `library` here; the file entries
-    /// come back as a [`SwatchesAction`].
+    /// Reset Swatches. The commands come back as `DockEvent::PanelCommand`; the host passes them
+    /// to [`run_command`](SwatchesPanel::run_command).
     // pc: crates/ui-egui/src/panels/swatches_ui.rs:208 `panel_menu`.
-    pub fn panel_menu(ui: &mut Ui, library: &mut SwatchLibrary, foreground: Srgba) -> Option<SwatchesAction> {
-        enum Choice {
-            New,
-            Group,
-            Reset,
-            File(SwatchesAction),
-        }
-        let labels = SwatchesLabels::of(ui);
+    pub fn panel_menu(ctx: &Context, library: &SwatchLibrary) -> Vec<MenuEntry<PanelCommand>> {
+        let labels = SwatchesLabels::of_ctx(ctx);
         let empty = library.total() == 0;
-        let mut choice = None;
-        let mut entry = |ui: &mut Ui, text: &str, enabled: bool, pick: Choice| {
-            if ui.add_enabled(enabled, egui::Button::new(text)).clicked() {
-                choice = Some(pick);
-            }
-        };
-        entry(ui, &labels.new_swatch, true, Choice::New);
-        entry(ui, &labels.new_group, true, Choice::Group);
-        ui.separator();
-        entry(ui, &labels.import, true, Choice::File(SwatchesAction::Import { replace: false }));
-        entry(ui, &labels.replace, true, Choice::File(SwatchesAction::Import { replace: true }));
-        entry(ui, &labels.export, !empty, Choice::File(SwatchesAction::Export(SwatchFormat::Aco)));
-        entry(ui, &labels.export_exchange, !empty, Choice::File(SwatchesAction::Export(SwatchFormat::Ase)));
-        ui.separator();
-        entry(ui, &labels.reset, true, Choice::Reset);
-        let choice = choice?;
-        ui.close();
-        let pending = match choice {
-            Choice::New => {
-                let at = library.add_numbered(SwatchColor::Rgb(foreground.to_rgb_array().map(|v| v.clamp(0.0, 1.0))), None, None, &labels.swatch_n);
+        let item = |label: &str, command: &str, enabled: bool| MenuEntry::from(MenuItem::new(label, command.to_owned()).enabled(enabled));
+        vec![
+            item(&labels.new_swatch, CMD_NEW_SWATCH, true),
+            item(&labels.new_group, CMD_NEW_GROUP, true),
+            MenuEntry::Separator,
+            item(&labels.import, CMD_IMPORT, true),
+            item(&labels.replace, CMD_REPLACE, true),
+            item(&labels.export, CMD_EXPORT, !empty),
+            item(&labels.export_exchange, CMD_EXPORT_EXCHANGE, !empty),
+            MenuEntry::Separator,
+            item(&labels.reset, CMD_RESET, true),
+        ]
+    }
+
+    /// Carries out a command of [`panel_menu`](SwatchesPanel::panel_menu). New Swatch adds the
+    /// foreground to the selected swatch's (or group's) group, as the footer's New does, and the
+    /// panel selects it and opens its name for editing in its next pass; New Swatch Group, and
+    /// Reset Swatches act on `library`. The file entries come back as an action.
+    pub fn run_command(ctx: &Context, command: &str, library: &mut SwatchLibrary, foreground: Srgba) -> SwatchesMenuResponse {
+        let labels = SwatchesLabels::of_ctx(ctx);
+        let mut response = SwatchesMenuResponse::default();
+        let pending = match command {
+            CMD_NEW_SWATCH => {
+                let selected = ctx.data(|d| d.get_temp::<Option<Key>>(selection_id())).flatten();
+                let group = selected.as_ref().and_then(|key| library.group_of(key));
+                let color = SwatchColor::Rgb(foreground.to_rgb_array().map(|v| v.clamp(0.0, 1.0)));
+                let at = library.add_numbered(color, None, group, &labels.swatch_n);
+                response.changed = true;
                 library.get(at).map(|e| Key::Swatch(e.name.clone()))
             }
-            Choice::Group => {
+            CMD_NEW_GROUP => {
                 let at = library.new_group(&labels.group);
+                response.changed = true;
                 Some(Key::Group(library.groups[at].name.clone()))
             }
-            Choice::Reset => {
+            CMD_RESET => {
                 library.groups = crate::palette::default_swatches();
+                response.changed = true;
                 None
             }
-            Choice::File(action) => return Some(action),
+            CMD_IMPORT => {
+                response.action = Some(SwatchesAction::Import { replace: false });
+                None
+            }
+            CMD_REPLACE => {
+                response.action = Some(SwatchesAction::Import { replace: true });
+                None
+            }
+            CMD_EXPORT => {
+                response.action = Some(SwatchesAction::Export(SwatchFormat::Aco));
+                None
+            }
+            CMD_EXPORT_EXCHANGE => {
+                response.action = Some(SwatchesAction::Export(SwatchFormat::Ase));
+                None
+            }
+            _ => None,
         };
         if let Some(key) = pending {
-            ui.data_mut(|d| d.insert_temp(pending_id(), Some(key)));
+            ctx.data_mut(|d| d.insert_temp(pending_id(), Some(key)));
+            ctx.request_repaint();
         }
-        None
+        response
     }
+
+    /// The notes of a swatch file read or written as sentences, in the words installed in `ctx`;
+    /// counts follow the locale's plural rules. `writing` tells an export's notes from an
+    /// import's, which word a colour-book colour differently.
+    pub fn note_lines(ctx: &Context, report: &SwatchReport, writing: bool) -> Vec<String> {
+        let labels = SwatchesLabels::of_ctx(ctx);
+        let words = Words::of_ctx(ctx);
+        let count = |counted: Counted, text: &str, n: usize| words.counted(ctx, counted, text, n as u64);
+        report
+            .notes
+            .iter()
+            .map(|note| match *note {
+                SwatchNote::BookColors(n) if writing => count(NOTE_BOOK_LEFT_OUT, &labels.book_left_out, n),
+                SwatchNote::BookColors(n) => count(NOTE_BOOK_READ, &labels.book_read, n),
+                SwatchNote::Skipped(n) => count(NOTE_SKIPPED, &labels.skipped, n),
+                SwatchNote::GroupsFlattened => labels.groups_flattened.clone(),
+                SwatchNote::ConvertedToRgb(n) => count(NOTE_CONVERTED, &labels.converted, n),
+                SwatchNote::KindsDropped(n) => count(NOTE_KINDS_DROPPED, &labels.kinds_dropped, n),
+                SwatchNote::Truncated(n) => count(NOTE_TRUNCATED, &labels.truncated, n),
+                SwatchNote::NamesCut(n) => count(NOTE_NAMES_CUT, &labels.names_cut, n),
+            })
+            .collect()
+    }
+
+    /// Posts the notes of an import (or, with `writing`, an export) to the app's notice center as
+    /// a warning, one line per note; `None` when there is nothing to say.
+    pub fn post_notes(ctx: &Context, center: &mut NoticeCenter, report: &SwatchReport, writing: bool) -> Option<u64> {
+        let lines = Self::note_lines(ctx, report, writing);
+        if lines.is_empty() {
+            return None;
+        }
+        let labels = SwatchesLabels::of_ctx(ctx);
+        let title = if writing { labels.notice_export } else { labels.notice_import };
+        center.post(title, lines, Tone::Warn, None, &[])
+    }
+}
+
+/// What [`SwatchesPanel::run_command`] did.
+#[derive(Debug, Default, PartialEq)]
+#[non_exhaustive]
+#[must_use = "the app saves a changed library and carries out the action"]
+pub struct SwatchesMenuResponse {
+    /// The library changed: the app saves it.
+    pub changed: bool,
+    /// A file entry the app carries out.
+    pub action: Option<SwatchesAction>,
 }
 
 /// The events of one pass applied to the library and the panel's state.
@@ -540,11 +666,7 @@ impl Actions<'_> {
     /// The foreground colour into the selected swatch's group, named and selected, then renamed
     /// in place (Photoshop asks for the name).
     fn new_swatch(&mut self) {
-        let group = match &self.st.selected {
-            Some(Key::Swatch(name)) => self.library.find(name).map(|at| at.group),
-            Some(Key::Group(name)) => self.library.groups.iter().position(|g| g.name == *name),
-            None => None,
-        };
+        let group = self.st.selected.as_ref().and_then(|key| self.library.group_of(key));
         let color = SwatchColor::Rgb(self.foreground.to_rgb_array().map(|v| v.clamp(0.0, 1.0)));
         let at = self.library.add_numbered(color, None, group, self.template);
         if let Some(entry) = self.library.get(at) {
@@ -573,6 +695,14 @@ impl Actions<'_> {
 }
 
 impl SwatchLibrary {
+    /// The index of the group `key` is, or is in.
+    fn group_of(&self, key: &Key) -> Option<usize> {
+        match key {
+            Key::Swatch(name) => self.find(name).map(|at| at.group),
+            Key::Group(name) => self.groups.iter().position(|g| g.name == *name),
+        }
+    }
+
     /// Whether `key` names a row of the library.
     fn has(&self, key: &Key) -> bool {
         match key {

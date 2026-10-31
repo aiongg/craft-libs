@@ -3,6 +3,7 @@
 use craft_cms::convert::CmykConverter;
 use craft_theme::{ModelValues, Srgba};
 use craft_ui::behavior::{DropPosition, Move};
+use craft_ui::composites::NoticeCenter;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Event, Modifiers, PointerButton, Pos2, Ui};
@@ -11,7 +12,7 @@ use egui_kittest::{Harness, Node};
 
 use super::swatches::Key;
 use super::{PickedColor, SwatchAt, SwatchLibrary, SwatchesAction, SwatchesPanel};
-use crate::palette::{SwatchColor, SwatchEntry, SwatchFormat, SwatchGroup};
+use crate::palette::{SwatchColor, SwatchEntry, SwatchFormat, SwatchGroup, SwatchNote, SwatchReport};
 
 struct Host {
     library: SwatchLibrary,
@@ -54,8 +55,8 @@ fn center(node: Node<'_>) -> Pos2 {
 }
 
 fn cell<'h>(harness: &'h Harness<'_, Host>, label: &str) -> Node<'h> {
-    let label = label.to_owned();
-    harness.get_by(move |n| matches!(n.role(), Role::TreeItem | Role::ListBoxOption) && n.label().as_deref() == Some(label.as_str()))
+    let prefix = format!("{label}, ");
+    harness.get_by(move |n| matches!(n.role(), Role::TreeItem | Role::ListBoxOption) && n.label().is_some_and(|l| l.starts_with(&prefix)))
 }
 
 fn click(harness: &mut Harness<'_, Host>, pos: Pos2, modifiers: Modifiers) {
@@ -109,38 +110,64 @@ fn add_picked_keeps_the_typed_model() {
     assert_eq!(library.get(plain).map(|e| &e.color), Some(&SwatchColor::Rgb([0.5, 0.5, 0.5])));
 }
 
-struct MenuHost {
-    library: SwatchLibrary,
-    action: Option<SwatchesAction>,
-}
-
-fn menu_harness(library: SwatchLibrary) -> Harness<'static, MenuHost> {
-    let mut harness =
-        Harness::<MenuHost>::builder().with_size([320.0, 320.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
-            |ui, host: &mut MenuHost| {
-                host.action = SwatchesPanel::panel_menu(ui, &mut host.library, Srgba::rgb(0.0, 0.0, 0.0)).or(host.action);
-            },
-            MenuHost { library, action: None },
-        );
-    harness.run();
-    harness
-}
-
 /// The export entries are disabled with no swatches.
 #[test]
 fn export_is_disabled_when_empty() {
-    let disabled = |library| {
-        let harness = menu_harness(library);
-        let state = |label: &str| harness.get_by_label(label).accesskit_node().is_disabled();
+    let ctx = egui::Context::default();
+    let enabled = |library: &SwatchLibrary| {
+        let entries = SwatchesPanel::panel_menu(&ctx, library);
+        let state = |label: &str| entries.iter().filter_map(|e| e.item()).find(|i| i.label() == label).map(|i| i.is_enabled());
         (state("Export Swatches…"), state("Export Swatches for Exchange…"), state("Import Swatches…"))
     };
-    assert_eq!(disabled(SwatchLibrary { groups: vec![SwatchGroup { name: "Empty".into(), entries: Vec::new() }] }), (true, true, false));
-    assert_eq!(disabled(library()), (false, false, false));
+    let empty = SwatchLibrary { groups: vec![SwatchGroup { name: "Empty".into(), entries: Vec::new() }] };
+    assert_eq!(enabled(&empty), (Some(false), Some(false), Some(true)));
+    assert_eq!(enabled(&library()), (Some(true), Some(true), Some(true)));
+}
 
-    let mut harness = menu_harness(library());
-    harness.get_by_label("Export Swatches…").click();
-    harness.run();
-    assert_eq!(harness.state().action, Some(SwatchesAction::Export(SwatchFormat::Aco)));
+/// The menu's New Swatch goes to the selected swatch's group, like the footer's, and the file
+/// entries come back as actions.
+#[test]
+fn menu_commands_use_the_panels_selection() {
+    let mut harness = harness(library());
+    let pink = center(cell(&harness, "Pink"));
+    click(&mut harness, pink, Modifiers::NONE);
+    let ctx = harness.ctx.clone();
+    let fg = harness.state().foreground;
+    let response = SwatchesPanel::run_command(&ctx, "swatches.newSwatch", &mut harness.state_mut().library, fg);
+    assert!(response.changed);
+    assert_eq!(harness.state().library.groups[1].entries.len(), 2);
+    let export = SwatchesPanel::run_command(&ctx, "swatches.exportExchange", &mut harness.state_mut().library, fg);
+    assert_eq!((export.changed, export.action), (false, Some(SwatchesAction::Export(SwatchFormat::Ase))));
+}
+
+/// A swatch's accessible name carries its value; the plain name stays the label.
+#[test]
+fn a_swatch_is_named_with_its_value() {
+    let harness = harness(library());
+    assert_eq!(cell(&harness, "Red").accesskit_node().label().as_deref(), Some("Red, #ff0000"));
+}
+
+/// Notes are worded in the panel, with plural forms for counts, and post as one notice.
+#[test]
+fn notes_are_worded_and_posted() {
+    let ctx = egui::Context::default();
+    let report = SwatchReport { notes: vec![SwatchNote::BookColors(1), SwatchNote::ConvertedToRgb(3), SwatchNote::GroupsFlattened] };
+    assert_eq!(
+        SwatchesPanel::note_lines(&ctx, &report, true),
+        [
+            "1 colour-book colour was left out.",
+            "3 colours were converted to RGB.",
+            "The format has no groups; the swatches were written as one list."
+        ]
+    );
+    assert_eq!(
+        SwatchesPanel::note_lines(&ctx, &SwatchReport { notes: vec![SwatchNote::BookColors(2)] }, false),
+        ["2 colour-book colours were read as black."]
+    );
+    let mut center = NoticeCenter::new();
+    assert_eq!(SwatchesPanel::post_notes(&ctx, &mut center, &SwatchReport::default(), false), None);
+    assert!(SwatchesPanel::post_notes(&ctx, &mut center, &report, true).is_some());
+    assert_eq!(center.notices()[0].title, "Swatches exported with changes");
 }
 
 /// Dragging and the Move to command keep names unique and the library whole.
