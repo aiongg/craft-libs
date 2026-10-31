@@ -1,8 +1,9 @@
 //! [`CharacterControls`] and [`ParagraphControls`] (F14.04): Photoshop's Character and Paragraph
 //! panels as controls for a panel body, a Properties section or a style options editor. Values
 //! are in points (sizes, leading, baseline shift, indents, spacing) and thousandths of an em
-//! (kerning, tracking); the fields show them in the app's type unit ([`TypeUnit`]). The controls
-//! change nothing themselves: each returns the one change the user made this pass.
+//! (kerning, tracking); the fields show them in the app's type unit (a [`LengthUnit`] and its
+//! [`UnitContext`]). The controls change nothing themselves: each returns the edit events of the
+//! changes the user made this pass.
 
 #[cfg(feature = "font-picker")]
 use std::sync::Arc;
@@ -12,16 +13,18 @@ use craft_font_manager::Catalog;
 #[cfg(feature = "font-picker")]
 use craft_font_manager::picker::{FontFilters, FontPicker, FontPickerSettings};
 use craft_ui::controls::expr::{self, ExprUnits};
-use craft_ui::controls::{CheckState, Checkbox, ControlSize, IconButton, NumberField, Select, Swatch, TextField};
+use craft_ui::controls::{CheckState, Checkbox, ControlSize, IconButton, Select, Swatch, TextField};
+use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy};
 use craft_ui::icons::Icon;
-use craft_ui::localized::units::{LengthUnit, UnitContext};
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
+use craft_ui::localized::units::{Length, LengthUnit, UnitContext};
+use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
+use craft_ui::patterns::unit_number_field;
 use craft_ui::primitives::{Content, Icon as Mark, Text};
 use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::{Color32, Ui, vec2};
+use egui::{AsIdSalt, Color32, IdSalt, Modifiers, Ui, vec2};
 
 craft_ui::words! {
     /// The Character controls' words, English by default (PhotoCraft's tooltips).
@@ -105,39 +108,22 @@ pub const TRACKING_PRESETS: [&[f32]; 3] = [&[-100.0, -75.0, -50.0, -25.0, -10.0,
 /// their names are the matching [`CharacterLabels`] fields.
 pub const OPENTYPE_FEATURES: [&str; 8] = ["liga", "calt", "dlig", "swsh", "salt", "titl", "ordn", "frac"];
 
-/// The unit the size fields show (Preferences › Units & Rulers › Type). Values stay in points.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub enum TypeUnit {
-    #[default]
-    Points,
-    /// Pixels at the document's resolution.
-    Pixels {
-        ppi: f32,
-    },
-    Millimeters,
+/// The word for `unit` in `labels`: `points`, `pixels` and `millimeters` are the installed
+/// language's, English "pt", "px", "mm"; another unit shows its own suffix.
+// pc: crates/ui-egui/src/tools/type_tool/defaults.rs:62 `type_unit`.
+fn unit_suffix(unit: LengthUnit, labels: &CharacterLabels) -> &str {
+    match unit {
+        LengthUnit::Points => &labels.points,
+        LengthUnit::Pixels => &labels.pixels,
+        LengthUnit::Millimetres => &labels.millimeters,
+        other => other.suffix(),
+    }
 }
 
-impl TypeUnit {
-    /// Shown units per point: 1, `ppi / 72` (`ppi` at least 1), 25.4 / 72.
-    // pc: crates/ui-egui/src/tools/type_tool/defaults.rs:62 `type_unit`.
-    pub fn per_point(self) -> f32 {
-        match self {
-            TypeUnit::Points => 1.0,
-            TypeUnit::Pixels { ppi } => ppi.max(1.0) / 72.0,
-            TypeUnit::Millimeters => 25.4 / 72.0,
-        }
-    }
-
-    /// The unit's word in `labels` (`points`, `pixels`, `millimeters`; English "pt", "px", "mm");
-    /// [`ParagraphControls`] uses the same words.
-    // pc: crates/ui-egui/src/tools/type_tool/defaults.rs:62 `type_unit`.
-    pub fn suffix(self, labels: &CharacterLabels) -> &str {
-        match self {
-            TypeUnit::Points => &labels.points,
-            TypeUnit::Pixels { .. } => &labels.pixels,
-            TypeUnit::Millimeters => &labels.millimeters,
-        }
-    }
+/// Shown units per point: 1 for points, `ppi / 72` for pixels (`ppi` at least 1), 25.4 / 72 for
+/// millimetres.
+fn per_point(unit: LengthUnit, context: UnitContext) -> f64 {
+    context.convert(Length { value: 1.0, unit: LengthUnit::Points }, unit).unwrap_or(1.0)
 }
 
 /// Leading: automatic (the font size × the paragraph's auto-leading, 120 % by default) or set.
@@ -232,22 +218,24 @@ pub enum CharacterChange {
 
 /// What the Character controls did this pass.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct CharacterResponse {
-    /// Every change made this pass, in the order of the controls (usually one; a preset pick
-    /// and a toggle in the same pass are two). The app applies them in order.
-    pub changes: Vec<CharacterChange>,
+pub struct CharacterControlsResponse {
+    /// The edit events of this pass, in the order of the controls (usually one; a preset pick and
+    /// a toggle in the same pass are two). A scrub or a typing run in a field is a gesture
+    /// (`Begin`, `Update`, then `Commit`, or `Cancel` on Esc): the app merges its steps into one
+    /// history step with a `GestureHost`. A preset, toggle or select is a `Set`. The app applies
+    /// them in order.
+    // pc: crates/ui-egui/src/tools/type_tool/defaults.rs:71 (the scrub coalesce key).
+    pub edits: Vec<EditEvent<CharacterChange>>,
     /// The family under the pointer in the open font list, for a live preview of the selected
     /// text (`FontPickerResponse::preview`; only with `font-picker`).
     pub preview_family: Option<String>,
-    /// The colour swatch was clicked: the app opens its colour picker and sets the colour.
-    pub pick_color: bool,
-    /// A field gesture is under way (a scrub, or a typing run before its Enter): the app merges
-    /// the changes of consecutive passes into one history step (Photoshop's single step per
-    /// scrub). The pass that ends the gesture carries the last change with this `false`; Esc
-    /// reports the value from before the gesture.
-    // pc: crates/ui-egui/src/tools/type_tool/defaults.rs:71 (the scrub coalesce key).
-    pub scrubbing: bool,
+    /// The colour swatch was clicked: the app opens its colour picker for this request (key
+    /// `"character.color"`) and sets the colour. Set for the one pass of the click.
+    pub pick_color: Option<ColorRequest>,
 }
+
+/// The key of the colour request the swatch makes.
+pub const COLOR_KEY: &str = "character.color";
 
 /// The Character panel's controls, in Photoshop's rows: family; style; size and leading; kerning
 /// and tracking; vertical and horizontal scale; baseline shift and colour; the style toggles
@@ -256,8 +244,8 @@ pub struct CharacterResponse {
 /// language when [`languages`](Self::languages) is given.
 ///
 /// ```ignore
-/// let r = CharacterControls::new(&values, &families, &styles).unit(TypeUnit::Points).show(ui);
-/// for change in r.changes { apply_to_selection(change) }
+/// let r = CharacterControls::new("character", &values, &families, &styles).unit(LengthUnit::Points, UnitContext::default()).show(ui);
+/// for edit in r.edits { gestures.handle(ctx, &mut doc, edit, apply_to_selection) }
 /// ```
 ///
 /// - Fields fill two columns of the available width with an icon label each (PhotoCraft's glyph
@@ -273,10 +261,11 @@ pub struct CharacterResponse {
 /// - A mixed value shows an empty field or an unpressed toggle; typing or pressing sets it for the
 ///   whole selection.
 pub struct CharacterControls<'a> {
+    id_salt: IdSalt,
     values: &'a CharacterValues,
     families: &'a [String],
     styles: &'a [String],
-    unit: TypeUnit,
+    unit: (LengthUnit, UnitContext),
     superscript: bool,
     languages: Option<&'a [(String, String)]>,
     #[cfg(feature = "font-picker")]
@@ -286,12 +275,13 @@ pub struct CharacterControls<'a> {
 
 impl<'a> CharacterControls<'a> {
     /// Controls for `values`, with the installed `families` and the current family's `styles`.
-    pub fn new(values: &'a CharacterValues, families: &'a [String], styles: &'a [String]) -> Self {
+    pub fn new(id_salt: impl AsIdSalt, values: &'a CharacterValues, families: &'a [String], styles: &'a [String]) -> Self {
         CharacterControls {
+            id_salt: IdSalt::new(id_salt),
             values,
             families,
             styles,
-            unit: TypeUnit::Points,
+            unit: (LengthUnit::Points, UnitContext::default()),
             superscript: false,
             languages: None,
             #[cfg(feature = "font-picker")]
@@ -300,8 +290,10 @@ impl<'a> CharacterControls<'a> {
         }
     }
 
-    pub fn unit(mut self, unit: TypeUnit) -> Self {
-        self.unit = unit;
+    /// The unit the size fields show (Preferences › Units & Rulers › Type) and what converts it:
+    /// the document's resolution for pixels. Values stay in points. Default points.
+    pub fn unit(mut self, unit: LengthUnit, context: UnitContext) -> Self {
+        self.unit = (unit, context);
         self
     }
 
@@ -333,21 +325,20 @@ impl<'a> CharacterControls<'a> {
 
     // pc: crates/ui-egui/src/tools/type_tool/panel.rs:215 `type_sections` (character half), :149
     // `metric_field`, :25 `opentype_row`; options_bar.rs:228 `kerning_label`.
-    pub fn show(self, ui: &mut Ui) -> CharacterResponse {
+    pub fn show(self, ui: &mut Ui) -> CharacterControlsResponse {
         let labels = self.labels.unwrap_or_else(|| CharacterLabels::of(ui));
         let values = self.values;
-        let scale = f64::from(self.unit.per_point());
-        let (length, context) = self.unit.length();
-        let suffix = self.unit.suffix(&labels).to_owned();
-        let template = format!("{{n}} {suffix}");
+        let (length, context) = self.unit;
+        let scale = per_point(length, context);
+        let suffix = unit_suffix(length, &labels).to_owned();
         let size_presets: Vec<(String, f32)> = SIZE_PRESETS.iter().map(|&p| (preset_label(f64::from(p) * scale, &suffix), p)).collect();
         let auto_row = [labels.auto.clone()];
         let tracking_presets: Vec<(String, f32)> =
             TRACKING_PRESETS.iter().flat_map(|group| group.iter()).map(|&p| (preset_label(f64::from(p), ""), p)).collect();
-        let mut pass = Pass::default();
+        let mut pass = Pass::new(ui);
         let auto_leading = values.size.map(|size| size * AUTO_LEADING);
 
-        ui.push_id("craft_text::character", |ui| {
+        ui.push_id(self.id_salt, |ui| {
             cell(ui, |ui| {
                 #[cfg(feature = "font-picker")]
                 if let Some((catalog, settings, filters)) = self.picker {
@@ -356,7 +347,7 @@ impl<'a> CharacterControls<'a> {
                     let r = FontPicker::new("family", catalog, &mut family).settings(&mut *settings).filters(filters).width(width).show(ui);
                     if let Some(picked) = r.picked {
                         settings.note_recent(&picked);
-                        pass.changes.push(CharacterChange::Family(picked));
+                        pass.set(CharacterChange::Family(picked));
                     }
                     pass.preview = r.preview;
                     return;
@@ -370,7 +361,7 @@ impl<'a> CharacterControls<'a> {
                     |i| self.families[i].clone(),
                     |i| self.families[i].clone(),
                 ) {
-                    pass.changes.push(CharacterChange::Family(family));
+                    pass.set(CharacterChange::Family(family));
                 }
             });
             cell(ui, |ui| {
@@ -383,7 +374,7 @@ impl<'a> CharacterControls<'a> {
                     |i| self.styles[i].clone(),
                     |i| self.styles[i].clone(),
                 ) {
-                    pass.changes.push(CharacterChange::Style(style));
+                    pass.set(CharacterChange::Style(style));
                 }
             });
 
@@ -397,7 +388,6 @@ impl<'a> CharacterControls<'a> {
                 unit: Some(length),
                 context,
                 suffix: suffix.clone(),
-                template: template.clone(),
                 presets: Vec::new(),
             };
             let plain = |salt, glyph, name: &str, value: Option<f32>, range: (f32, f32), suffix: &str| Metric {
@@ -410,7 +400,6 @@ impl<'a> CharacterControls<'a> {
                 unit: None,
                 context,
                 suffix: suffix.to_owned(),
-                template: if suffix.is_empty() { "{n}".to_owned() } else { format!("{{n}}{suffix}") },
                 presets: Vec::new(),
             };
 
@@ -430,12 +419,12 @@ impl<'a> CharacterControls<'a> {
                     pass.moved(moved, |p| CharacterChange::Leading(Leading::Points(p)));
                 }
                 if row == Some(0) {
-                    pass.changes.push(CharacterChange::Leading(Leading::Auto));
+                    pass.set(CharacterChange::Leading(Leading::Auto));
                 }
             });
             ui.columns(2, |cols| {
                 if let Some(kerning) = cell(&mut cols[0], |ui| kerning_field(ui, &labels, values.kerning)) {
-                    pass.changes.push(CharacterChange::Kerning(kerning));
+                    pass.set(CharacterChange::Kerning(kerning));
                 }
                 let tracking = Metric {
                     presets: tracking_presets.clone(),
@@ -469,7 +458,10 @@ impl<'a> CharacterControls<'a> {
                             .size(ControlSize::Sm)
                             .dimensions(width, ui.spacing().interact_size.y)
                             .mixed(values.color.is_none());
-                        pass.pick_color |= ui.add(swatch).clicked();
+                        if ui.add(swatch).clicked() {
+                            let current = values.color.unwrap_or(Color32::BLACK);
+                            pass.pick_color = Some(ColorRequest::new(COLOR_KEY, current.into()).title(labels.text_color.as_str()));
+                        }
                     });
                 });
             });
@@ -570,12 +562,12 @@ impl<'a> CharacterControls<'a> {
                     let current = values.language.as_deref();
                     let tags = |i: usize| languages[i].0.clone();
                     if let Some(tag) = choose(ui, "language", &labels.language, current, languages.len(), tags, |i| languages[i].1.clone()) {
-                        pass.changes.push(CharacterChange::Language(tag));
+                        pass.set(CharacterChange::Language(tag));
                     }
                 });
             }
         });
-        CharacterResponse { changes: pass.changes, preview_family: pass.preview, pick_color: pass.pick_color, scrubbing: pass.scrubbing }
+        CharacterControlsResponse { edits: pass.edits, preview_family: pass.preview, pick_color: pass.pick_color }
     }
 }
 
@@ -630,11 +622,9 @@ pub enum ParagraphChange {
 
 /// What the Paragraph controls did this pass.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct ParagraphResponse {
-    /// As [`CharacterResponse::changes`].
-    pub changes: Vec<ParagraphChange>,
-    /// As [`CharacterResponse::scrubbing`].
-    pub scrubbing: bool,
+pub struct ParagraphControlsResponse {
+    /// As [`CharacterControlsResponse::edits`].
+    pub edits: Vec<EditEvent<ParagraphChange>>,
 }
 
 /// The Paragraph panel's controls: the seven alignment buttons; the three direction buttons; left
@@ -644,19 +634,27 @@ pub struct ParagraphResponse {
 ///   justification needs a paragraph box or area type (Photoshop greys them).
 /// - Ranges in points: indents −1296–1296, space before and after 0–1296.
 pub struct ParagraphControls<'a> {
+    id_salt: IdSalt,
     values: &'a ParagraphValues,
-    unit: TypeUnit,
+    unit: (LengthUnit, UnitContext),
     point_text: bool,
     labels: Option<ParagraphLabels>,
 }
 
 impl<'a> ParagraphControls<'a> {
-    pub fn new(values: &'a ParagraphValues) -> Self {
-        ParagraphControls { values, unit: TypeUnit::Points, point_text: false, labels: None }
+    pub fn new(id_salt: impl AsIdSalt, values: &'a ParagraphValues) -> Self {
+        ParagraphControls {
+            id_salt: IdSalt::new(id_salt),
+            values,
+            unit: (LengthUnit::Points, UnitContext::default()),
+            point_text: false,
+            labels: None,
+        }
     }
 
-    pub fn unit(mut self, unit: TypeUnit) -> Self {
-        self.unit = unit;
+    /// As [`CharacterControls::unit`].
+    pub fn unit(mut self, unit: LengthUnit, context: UnitContext) -> Self {
+        self.unit = (unit, context);
         self
     }
 
@@ -673,15 +671,14 @@ impl<'a> ParagraphControls<'a> {
 
     // pc: crates/ui-egui/src/tools/type_tool/panel.rs:215 `type_sections` (paragraph half);
     // options_bar.rs:356 `direction_items`.
-    pub fn show(self, ui: &mut Ui) -> ParagraphResponse {
+    pub fn show(self, ui: &mut Ui) -> ParagraphControlsResponse {
         let char_labels = CharacterLabels::of(ui);
         let labels = self.labels.unwrap_or_else(|| ParagraphLabels::of(ui));
         let values = self.values;
-        let scale = f64::from(self.unit.per_point());
-        let (length, context) = self.unit.length();
-        let suffix = self.unit.suffix(&char_labels).to_owned();
-        let template = format!("{{n}} {suffix}");
-        let mut pass = Pass::default();
+        let (length, context) = self.unit;
+        let scale = per_point(length, context);
+        let suffix = unit_suffix(length, &char_labels).to_owned();
+        let mut pass = Pass::new(ui);
         let metric = |salt, glyph, name: &str, value: Option<f32>, range: (f32, f32)| Metric {
             salt,
             glyph,
@@ -692,11 +689,10 @@ impl<'a> ParagraphControls<'a> {
             unit: Some(length),
             context,
             suffix: suffix.clone(),
-            template: template.clone(),
             presets: Vec::new(),
         };
 
-        ui.push_id("craft_text::paragraph", |ui| {
+        ui.push_id(self.id_salt, |ui| {
             use TextAlign::*;
             let aligns = [
                 ("left", Icon::AlignLeft, &labels.left, Left),
@@ -758,54 +754,39 @@ impl<'a> ParagraphControls<'a> {
                 let mut state = values.hyphenate.map_or(CheckState::Mixed, CheckState::from);
                 let edit = Checkbox::new(&labels.hyphenate, &mut state).size(ControlSize::Sm).id_salt("hyphenate").show(ui);
                 if let Some(state) = edit.committed() {
-                    pass.changes.push(ParagraphChange::Hyphenate(*state == CheckState::Checked));
+                    pass.set(ParagraphChange::Hyphenate(*state == CheckState::Checked));
                 }
             });
         });
-        ParagraphResponse { changes: pass.changes, scrubbing: pass.scrubbing }
+        ParagraphControlsResponse { edits: pass.edits }
     }
 }
 
 /// Auto leading is the font size × 120 % (Photoshop's default).
 const AUTO_LEADING: f32 = 1.2;
 
-impl TypeUnit {
-    /// The unit as the length unit its typed text converts through.
-    fn length(self) -> (LengthUnit, UnitContext) {
-        match self {
-            TypeUnit::Points => (LengthUnit::Points, UnitContext::default()),
-            TypeUnit::Pixels { ppi } => (LengthUnit::Pixels, UnitContext { pixels_per_inch: f64::from(ppi.max(1.0)), ..UnitContext::default() }),
-            TypeUnit::Millimeters => (LengthUnit::Millimetres, UnitContext::default()),
-        }
-    }
-}
-
-/// What the controls collected this pass. Only the last change is kept: one control is used per
-/// pass.
+/// What the controls collected this pass.
 struct Pass<C> {
-    changes: Vec<C>,
-    scrubbing: bool,
+    edits: Vec<EditEvent<C>>,
     preview: Option<String>,
-    pick_color: bool,
-}
-
-impl<C> Default for Pass<C> {
-    fn default() -> Self {
-        Pass { changes: Vec::new(), scrubbing: false, preview: None, pick_color: false }
-    }
+    pick_color: Option<ColorRequest>,
+    modifiers: Modifiers,
 }
 
 impl<C> Pass<C> {
-    fn moved(&mut self, moved: Moved, change: impl FnOnce(f32) -> C) {
-        self.changes.push(change(moved.value));
-        self.scrubbing |= moved.live;
+    fn new(ui: &Ui) -> Self {
+        Pass { edits: Vec::new(), preview: None, pick_color: None, modifiers: ui.input(|i| i.modifiers) }
     }
-}
 
-/// A field's new value in points (or its own unit), and whether its gesture goes on.
-struct Moved {
-    value: f32,
-    live: bool,
+    /// A one-shot change: a preset, a toggle, a pick.
+    fn set(&mut self, change: C) {
+        self.edits.push(EditEvent::set(change, self.modifiers));
+    }
+
+    /// A field's event, its value turned into a change.
+    fn moved(&mut self, event: EditEvent<f32>, change: impl FnOnce(f32) -> C) {
+        self.edits.push(event.map(change));
+    }
 }
 
 /// A number field with a glyph label: `value` and `range` are in the model's unit, shown
@@ -820,7 +801,6 @@ struct Metric {
     unit: Option<LengthUnit>,
     context: UnitContext,
     suffix: String,
-    template: String,
     /// `(menu text, model value)`.
     presets: Vec<(String, f32)>,
 }
@@ -839,29 +819,20 @@ fn cell<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
     ui.allocate_ui_with_layout(size, direction::row(ui).with_main_justify(true), add).inner
 }
 
-fn field(ui: &mut Ui, m: Metric) -> Option<Moved> {
+fn field(ui: &mut Ui, m: Metric) -> Option<EditEvent<f32>> {
     field_rows(ui, m, &[]).0
 }
 
 /// [`field`] with `rows` before the presets in its menu; the second result is the row picked.
-fn field_rows(ui: &mut Ui, m: Metric, rows: &[String]) -> (Option<Moved>, Option<usize>) {
+fn field_rows(ui: &mut Ui, m: Metric, rows: &[String]) -> (Option<EditEvent<f32>>, Option<usize>) {
     let numbers = LocaleNumbers::of(ui);
     let scale = m.scale;
     let presets: Vec<(String, f64)> = m.presets.iter().map(|(text, value)| (text.clone(), f64::from(*value) * scale)).collect();
     let units = ExprUnits { unit: m.unit, suffix: &m.suffix, context: m.context };
-    let read = |text: &str| if m.suffix.is_empty() { expr::parse(text) } else { expr::parse_with_units(text, &units) };
     let (low, high) = (f64::from(m.range.0) * scale, f64::from(m.range.1) * scale);
     let shown = m.value.map_or(low, |v| f64::from(v) * scale).clamp(low, high);
-    let before = ui.make_persistent_id((m.salt, "before"));
-    let mut number = NumberField::new(m.salt, &m.name, shown, &numbers)
-        .range(low..=high)
-        .decimals(0..=2)
-        .unit(Unit::new(&m.template))
-        .expressions(true)
-        .or_parse(read)
-        .scrub_label(m.glyph)
-        .mixed(m.value.is_none())
-        .size(ControlSize::Sm);
+    let mut number =
+        unit_number_field(m.salt, &m.name, shown, &numbers, &units).range(low..=high).decimals(0..=2).scrub_label(m.glyph).mixed(m.value.is_none());
     if !presets.is_empty() {
         number = number.presets(&presets);
     }
@@ -872,20 +843,8 @@ fn field_rows(ui: &mut Ui, m: Metric, rows: &[String]) -> (Option<Moved>, Option
     // A picked preset is the model's own number: the field's rounded text would give 11.99 for 12 pt in mm.
     let model =
         |shown: f64| m.presets.iter().find(|(_, p)| (f64::from(*p) * scale - shown).abs() <= 0.0051).map_or((shown / scale) as f32, |(_, p)| *p);
-    let event = number.show(ui).event;
-    let moved = match event {
-        None => None,
-        Some(EditEvent::Begin { value, .. }) => {
-            ui.data_mut(|d| d.insert_temp(before, m.value));
-            value.map(|v| Moved { value: model(v), live: true })
-        }
-        Some(EditEvent::Update { value, .. }) => Some(Moved { value: model(value), live: true }),
-        Some(EditEvent::Set { value, .. }) => Some(Moved { value: model(value), live: false }),
-        Some(EditEvent::Commit { value, changed, .. }) => changed.then(|| Moved { value: model(value), live: false }),
-        Some(EditEvent::Cancel { .. }) => ui.data(|d| d.get_temp::<Option<f32>>(before)).flatten().map(|value| Moved { value, live: false }),
-        _ => None,
-    };
-    (moved, row)
+    let event = number.show(ui).event.map(|event| event.map(model));
+    (event, row)
 }
 
 /// A select over `count` choices, `current` selected (empty while the selection mixes values).
@@ -991,7 +950,7 @@ fn buttons<'a, C>(
         for (salt, icon, name, on, change) in items {
             let button = IconButton::new(icon, name).size(ControlSize::Sm).selected(on).enabled(allowed(&change)).id_salt(salt);
             if ui.add(button).clicked() {
-                pass.changes.push(change);
+                pass.set(change);
             }
         }
     });

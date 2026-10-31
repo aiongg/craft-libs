@@ -22,11 +22,12 @@
 //! the IME until the reset completes.
 //!
 //! ```ignore
-//! // Each pass while the layer is being edited, before the app's shortcuts:
-//! let r = editor.update(ctx, &mut layer_host);
-//! if r.commit { finish_editing(); }
-//! // After the layout of this pass, with the canvas painter:
-//! editor.paint(&painter, &view, &mut layer_host);
+//! // Each pass while the layer is being edited: the tool's `each_pass` runs `editor.update`
+//! // before the pointer and the app's shortcuts.
+//! let mut tool = TextEditorTool::new(&mut editor, &mut layer_host);
+//! let shown = ToolHost::new(canvas_id).show(ui, &view, &canvas, &mut tool);
+//! if tool.update_response().commit { finish_editing(); }
+//! // After the layout of this pass:
 //! let late = editor.finish_pass(ctx, &view, &mut layer_host); // events after a press
 //! if late.commit { finish_editing(); }
 //! ```
@@ -48,10 +49,6 @@ use crate::quotes::{QuoteStyle, smart_quotes};
 
 /// Most clicks in a run that select more: 2 a word, 3 a line, 4 a paragraph, 5 all text.
 const MAX_CLICKS: u32 = 5;
-/// A click continues a run when it comes within this many seconds and points of the last
-/// (egui's own double-click delay and distance).
-const MAX_CLICK_DELAY: f64 = 0.3;
-const MAX_CLICK_DISTANCE: f32 = 6.0;
 /// The caret's half period (Photoshop's rhythm).
 const BLINK_SECONDS: f64 = 0.530;
 
@@ -192,7 +189,7 @@ pub trait TextEditorHost {
 /// What the editor did this pass.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[must_use = "end the session on `commit` and `cancel`"]
-pub struct EditorResponse {
+pub struct TextEditorResponse {
     /// The text changed (typing, a composition, a paste, a delete).
     pub changed: bool,
     /// The selection or caret moved.
@@ -208,8 +205,8 @@ pub struct EditorResponse {
     pub took_keys: bool,
 }
 
-impl EditorResponse {
-    fn merge(&mut self, later: EditorResponse) {
+impl TextEditorResponse {
+    fn merge(&mut self, later: TextEditorResponse) {
         self.changed |= later.changed;
         self.selection_changed |= later.selection_changed;
         self.commit |= later.commit;
@@ -247,8 +244,6 @@ pub struct TextEditor {
     /// The converted segment within the marked text, in chars from its start.
     preedit_active: Option<Range<usize>>,
     composer: Composer,
-    /// The click run: count (1..=5), time and screen position of the last press.
-    clicks: (u32, f64, egui::Pos2),
     /// A drag is extending the selection, by the unit the press selected (the click run's count:
     /// 1 char, 2 word, 3 line, 4 paragraph).
     dragging: Option<u32>,
@@ -275,7 +270,7 @@ pub struct TextEditor {
     /// `update` held back a press and the events after it, until the press has moved the caret.
     after_press: bool,
     /// What the events after a press did, for [`finish_pass`](Self::finish_pass) to report.
-    late: EditorResponse,
+    late: TextEditorResponse,
 }
 
 impl TextEditor {
@@ -288,7 +283,6 @@ impl TextEditor {
             preedit: None,
             preedit_active: None,
             composer: Composer::new().with_owner(id),
-            clicks: (0, 0.0, egui::Pos2::ZERO),
             dragging: None,
             drag_origin: 0..0,
             smart_quotes: None,
@@ -300,7 +294,7 @@ impl TextEditor {
             canvas: None,
             ctx: None,
             after_press: false,
-            late: EditorResponse::default(),
+            late: TextEditorResponse::default(),
         }
     }
 
@@ -364,9 +358,9 @@ impl TextEditor {
     // delete, :356 move), ime_edit.rs:263 `ime_update` (marked text in the layer), :345 and :361
     // the delete-surrounding pair, editing.rs:141 `insert`, :171 `insert_typed`, :359
     // `commit_shortcut`, :108 copy, :131 cut.
-    pub fn update(&mut self, ctx: &Context, host: &mut impl TextEditorHost) -> EditorResponse {
+    pub fn update(&mut self, ctx: &Context, host: &mut impl TextEditorHost) -> TextEditorResponse {
         self.ctx = Some(ctx.clone());
-        self.late = EditorResponse::default();
+        self.late = TextEditorResponse::default();
         self.after_press = false;
         let held = ctx.input_mut(|i| i.events.iter().position(is_primary_press).map(|at| i.events.split_off(at)));
         let response = self.run(ctx, host);
@@ -400,7 +394,7 @@ impl TextEditor {
     }
 
     /// The input events in the context's input, once through.
-    fn run(&mut self, ctx: &Context, host: &mut impl TextEditorHost) -> EditorResponse {
+    fn run(&mut self, ctx: &Context, host: &mut impl TextEditorHost) -> TextEditorResponse {
         if std::mem::take(&mut self.composition_ended) {
             self.composer.discard(ctx);
         }
@@ -491,7 +485,7 @@ impl TextEditor {
         } else {
             consume_events(ctx, &pass);
         }
-        EditorResponse {
+        TextEditorResponse {
             changed: pass.changed,
             selection_changed: self.selection != before,
             commit: pass.commit,
@@ -540,27 +534,22 @@ impl TextEditor {
         }
     }
 
-    /// A press on the canvas at `at` (document units, `screen` on screen) at egui time `time`. Inside the text: places
-    /// the caret (Shift extends), counts the click run and selects by it, and starts a drag;
+    /// A press on the canvas at `at` (document units), the `clicks`-th of its run ([`click_count`]), at egui
+    /// time `time`. Inside the text: places the caret (Shift extends), selects by the click run's count, and starts a drag;
     /// applies the events [`update`](Self::update) held back behind the press at the new caret;
     /// returns `true`. Outside: ends a composition with its marked text kept and returns `false`,
     /// so the app ends the session (and may start one on the text under the pointer).
     // pc: crates/ui-egui/src/tools/type_tool/pointer.rs:107 `pointer_down`, :375
     // `next_click_count`, :389 `click_selection`, :429 `multi_click`.
-    pub fn press(&mut self, host: &mut impl TextEditorHost, at: Point, screen: egui::Pos2, modifiers: Modifiers, time: f64) -> bool {
+    pub fn press(&mut self, host: &mut impl TextEditorHost, at: Point, modifiers: Modifiers, clicks: u32, time: f64) -> bool {
         self.end_composition_state();
         if !host.contains(at) {
-            self.clicks = (0, time, screen);
             return false;
         }
         let (offset, line) = host.hit(at);
         let chars = host.text().chars().count();
         let offset = offset.min(chars);
-        let (previous, previous_time, previous_at) = self.clicks;
-        // egui counts a click as part of a run when it is soon enough and near enough.
-        let quick = previous > 0 && (0.0..=MAX_CLICK_DELAY).contains(&(time - previous_time)) && screen.distance(previous_at) <= MAX_CLICK_DISTANCE;
-        let count = next_click_count(previous, if quick { 2 } else { 1 });
-        self.clicks = (count, time, screen);
+        let count = click_count(clicks);
         self.selection.caret = offset;
         if !modifiers.shift {
             self.selection.anchor = offset;
@@ -655,7 +644,7 @@ impl TextEditor {
     ///
     /// Returns what the events after a press did (see [`update`](Self::update)): the app ends the
     /// session on its `commit` or `cancel` as on `update`'s.
-    pub fn finish_pass(&mut self, ctx: &Context, view: &CanvasView, host: &mut impl TextEditorHost) -> EditorResponse {
+    pub fn finish_pass(&mut self, ctx: &Context, view: &CanvasView, host: &mut impl TextEditorHost) -> TextEditorResponse {
         // The press never reached the editor (an overlay took it, or it fell outside the text):
         // what came after it applies at the caret as it is.
         self.resume(host);
@@ -1099,16 +1088,12 @@ pub fn click_selection(text: &str, at: usize, line: Option<Range<usize>>, count:
     }
 }
 
-/// The count of a click in a run: `egui_count` is egui's own (1, 2 or 3, after its delay and
-/// distance checks), `prev` the previous click's count (0 for none). A slow or distant click
-/// starts a new run; after five the run starts over.
+/// The selection unit of a click that is the `clicks`-th press of its run (the host's
+/// `ToolPointer::clicks`, which has no cap): 1 a caret, then 2 a word up to 5 all text; the sixth
+/// press starts over at 1.
 // pc: crates/ui-egui/src/tools/type_tool/pointer.rs:375 `next_click_count`.
-pub fn next_click_count(prev: u32, egui_count: u32) -> u32 {
-    match (egui_count, prev) {
-        (0 | 1, _) => 1,
-        (n, 0) => n.min(MAX_CLICKS),
-        (_, p) => p % MAX_CLICKS + 1,
-    }
+pub fn click_count(clicks: u32) -> u32 {
+    (clicks.max(1) - 1) % MAX_CLICKS + 1
 }
 
 /// The next word edge from char `from`: forward skips non-word chars then word chars (letters and
@@ -1168,11 +1153,12 @@ pub fn flow_key(key: Key, vertical: bool) -> Key {
 /// - Cursor: the I-beam (the vertical I-beam over vertical text); paint: the editor's paint.
 /// - No snapping; autoscroll on, so a selection drag past the edge scrolls.
 ///
-/// The app runs [`TextEditor::update`] before the tool host in a pass (it reads the keys and the
-/// input method; the events after a press wait for the press, which applies them at the caret it
-/// places) and [`TextEditor::finish_pass`] after it. The editor's per-pass work moves to the
-/// host's `CanvasTool::each_pass` hook when the hook exists; the `RefCell` around the host stays,
-/// because `paint` takes `&self` and the host's layout needs `&mut`.
+/// The tool's [`each_pass`](CanvasTool::each_pass) runs [`TextEditor::update`] first in every pass
+/// (it reads the keys and the input method; the events after a press wait for the press, which
+/// applies them at the caret it places), and takes the keys it used from the app's shortcuts. What
+/// it did is [`update_response`](Self::update_response), read after the tool host's `show`. The app
+/// runs [`TextEditor::finish_pass`] after `show`. The `RefCell` around the host stays, because
+/// `paint` takes `&self` and the host's layout needs `&mut`.
 ///
 /// The paragraph box's handles are not the editor's: the app draws them with the transform box
 /// before the tool host runs, so their presses never reach it.
@@ -1180,22 +1166,36 @@ pub struct TextEditorTool<'a, H: TextEditorHost> {
     pub editor: &'a mut TextEditor,
     // `CanvasTool::paint` takes `&self` and the host's layout calls take `&mut self`.
     host: RefCell<&'a mut H>,
+    update: TextEditorResponse,
 }
 
 impl<'a, H: TextEditorHost> TextEditorTool<'a, H> {
     pub fn new(editor: &'a mut TextEditor, host: &'a mut H) -> Self {
-        TextEditorTool { editor, host: RefCell::new(host) }
+        TextEditorTool { editor, host: RefCell::new(host), update: TextEditorResponse::default() }
+    }
+
+    /// What [`TextEditor::update`] did in this pass; the app ends the session on its `commit` and
+    /// `cancel`. Default before the tool host has run.
+    pub fn update_response(&self) -> TextEditorResponse {
+        self.update
     }
 }
 
 impl<H: TextEditorHost> CanvasTool for TextEditorTool<'_, H> {
+    fn each_pass(&mut self, cx: &mut ToolContext<'_>) {
+        self.update = self.editor.update(&cx.canvas.ctx, *self.host.get_mut());
+        if self.update.took_keys {
+            cx.keep_keys();
+        }
+    }
+
     fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
         let vertical = self.host.borrow().vertical();
         ToolCursor::System(if vertical { CursorIcon::VerticalText } else { CursorIcon::Text })
     }
 
     fn press(&mut self, pointer: &ToolPointer, _cx: &mut ToolContext<'_>) -> ToolAction {
-        if self.editor.press(*self.host.get_mut(), pointer.doc, pointer.screen, pointer.modifiers, pointer.time) {
+        if self.editor.press(*self.host.get_mut(), pointer.doc, pointer.modifiers, pointer.clicks, pointer.time) {
             ToolAction::Claimed
         } else {
             ToolAction::Ignored

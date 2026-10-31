@@ -717,6 +717,7 @@ fn section_lines(out: &mut Lines, t: &SectionTokens) {
 fn list_lines(out: &mut Lines, t: &ListTokens) {
     let ListTokens {
         row_height,
+        row_height_dense,
         thumb,
         thumb_pad,
         thumb_row_min,
@@ -765,6 +766,7 @@ fn list_lines(out: &mut Lines, t: &ListTokens) {
         labels,
     } = t;
     out.line("list.row_height", len(*row_height));
+    out.line("list.row_height_dense", len(*row_height_dense));
     let ThumbSizes { sm, md, lg } = thumb;
     out.line("list.thumb.sm", len(*sm));
     out.line("list.thumb.md", len(*md));
@@ -1492,10 +1494,9 @@ fn crop_lines(out: &mut Lines, t: &CropTokens) {
 }
 
 fn check_spelling_lines(out: &mut Lines, t: &CheckSpellingTokens) {
-    let CheckSpellingTokens { field_width, suggestions_height, suggestion_row } = t;
+    let CheckSpellingTokens { field_width, suggestions_height } = t;
     out.line("check_spelling.field_width", len(*field_width));
     out.line("check_spelling.suggestions_height", len(*suggestions_height));
-    out.line("check_spelling.suggestion_row", len(*suggestion_row));
 }
 
 fn font_picker_lines(out: &mut Lines, t: &FontPickerTokens) {
@@ -1508,8 +1509,7 @@ fn font_picker_lines(out: &mut Lines, t: &FontPickerTokens) {
 }
 
 fn text_styles_lines(out: &mut Lines, t: &TextStylesTokens) {
-    let TextStylesTokens { row_height, list_height } = t;
-    out.line("text_styles.row_height", len(*row_height));
+    let TextStylesTokens { list_height } = t;
     out.line("text_styles.list_height", len(*list_height));
 }
 

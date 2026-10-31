@@ -12,7 +12,7 @@
 //! if let Some(dialog) = dialogs.get_mut::<CheckSpellingDialog>() {
 //!     if let Some(action) = dialog.take_action() {
 //!         run_spelling_action(doc, &action, &mut settings);
-//!         dialog.set_items(find_misspellings(doc, dialog.all_layers(), dialog.ignored()));
+//!         dialog.set_items(find_misspellings(doc, dialog.all_layers_checked(), dialog.ignored()));
 //!     }
 //! }
 //! let _ = dialogs.take::<CheckSpellingDialog>(); // Done or the close box
@@ -123,7 +123,6 @@ pub struct CheckSpellingDialog {
     change_to: String,
     all_layers: bool,
     action: Option<SpellingAction>,
-    labels: Option<CheckSpellingLabels>,
     state: DialogState,
 }
 
@@ -131,26 +130,12 @@ impl CheckSpellingDialog {
     /// Over `items` from a first search (the current layer: Check All Layers off).
     pub fn new(items: Vec<SpellingItem>) -> Self {
         let change_to = items.first().and_then(|i| i.suggestions.first()).cloned().unwrap_or_default();
-        CheckSpellingDialog {
-            items,
-            index: 0,
-            ignored: Vec::new(),
-            change_to,
-            all_layers: false,
-            action: None,
-            labels: None,
-            state: DialogState::new(),
-        }
+        CheckSpellingDialog { items, index: 0, ignored: Vec::new(), change_to, all_layers: false, action: None, state: DialogState::new() }
     }
 
     /// Open with Check All Layers on.
-    pub fn all_layers_on(mut self, on: bool) -> Self {
+    pub fn all_layers(mut self, on: bool) -> Self {
         self.all_layers = on;
-        self
-    }
-
-    pub fn labels(mut self, labels: CheckSpellingLabels) -> Self {
-        self.labels = Some(labels);
         self
     }
 
@@ -171,7 +156,7 @@ impl CheckSpellingDialog {
     }
 
     /// Whether Check All Layers is on.
-    pub fn all_layers(&self) -> bool {
+    pub fn all_layers_checked(&self) -> bool {
         self.all_layers
     }
 
@@ -192,7 +177,7 @@ impl StackDialog for CheckSpellingDialog {
     // double-click on a suggestion, the action match). On `Dialog` + `Footer` (Done as OK, no
     // Cancel) with the right-hand button column.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<()>> {
-        let labels = self.labels.clone().unwrap_or_else(|| CheckSpellingLabels::of_ctx(ctx));
+        let labels = CheckSpellingLabels::of_ctx(ctx);
         let tokens = craft_ui::theme::current(ctx);
         let gap = tokens.component.dialog.button_gap;
         let sizes = tokens.component.check_spelling;
@@ -256,7 +241,7 @@ impl StackDialog for CheckSpellingDialog {
                         ui.set_max_width(sizes.field_width);
                         let out = List::new(("check-spelling", "suggestions"), labels.suggestions.as_str(), rows.as_slice())
                             .selection(&mut selection)
-                            .row_height(sizes.suggestion_row)
+                            .row_height(tokens.component.list.row_height_dense)
                             .max_height(sizes.suggestions_height)
                             .show(ui, |_, &key| ListRow::new(key, suggestions[key].as_str()).accessible_name(suggestions[key].as_str()));
                         for event in out.events {

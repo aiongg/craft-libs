@@ -173,20 +173,10 @@ impl OptionsBar {
         let shown = context.from_pixels(pixels, unit).map_or(f64::NAN, round);
         let entries = rulers::unit_entries(ui, units, unit);
         let mut picked = None;
-        let template = if unit == LengthUnit::Percent { "{n}%".to_owned() } else { format!("{{n}} {}", unit.suffix()) };
-        let reader = |text: &str| expr::parse_with_units(text, &ExprUnits { unit: Some(unit), suffix: unit.suffix(), context });
+        let units_of_field = ExprUnits { unit: Some(unit), suffix: unit.suffix(), context };
         let edit = Self::cell(ui, caption, CellWidth::Md, |ui, label| {
             let area = scrub_area(ui, label, label.id);
-            NumberField::new(salt, caption, shown, &numbers)
-                .range(bounds)
-                .decimals(0..=places)
-                .unit(Unit::new(&template))
-                .expressions(true)
-                .or_parse(reader)
-                .unit_menu(&entries, &mut picked)
-                .size(ControlSize::Sm)
-                .scrub_by(&area)
-                .show(ui)
+            unit_number_field(salt, caption, shown, &numbers, &units_of_field).range(bounds).unit_menu(&entries, &mut picked).scrub_by(&area).show(ui)
         });
         let to_pixels = |value: f64| {
             let exact = if (round(value) - shown).abs() < 0.5 / scale { pixels } else { context.to_pixels(value, unit).unwrap_or(pixels) };
@@ -204,6 +194,37 @@ impl OptionsBar {
     pub fn reveal_focused_control(ui: &Ui) {
         super::options_bar::reveal_focused_control(ui, FocusRing::style(&Tokens::of(ui)).outset());
     }
+}
+
+/// A [`NumberField`] for a number with a unit, as the length cells and the Character panel's size
+/// fields show it: `shown` is already in the field's unit; `units.suffix` follows the number
+/// (`{n} pt`, `{n}%` for a percentage, none for a plain number); typed text may carry another
+/// unit (`2in`) or arithmetic ([`expr::parse_with_units`]). Decimals follow
+/// [`LengthUnit::decimals`] (`0..=2` for a field with no length unit). The caller adds the range,
+/// the unit menu, presets and the scrub area.
+pub fn unit_number_field<'a>(
+    id_salt: impl AsIdSalt,
+    caption: &str,
+    shown: f64,
+    numbers: &'a LocaleNumbers,
+    units: &ExprUnits<'_>,
+) -> NumberField<'a> {
+    let places = units.unit.map_or(2, LengthUnit::decimals);
+    let template = match units.suffix {
+        "" => "{n}".to_owned(),
+        "%" => "{n}%".to_owned(),
+        suffix => format!("{{n}} {suffix}"),
+    };
+    let (unit, suffix, context) = (units.unit, units.suffix.to_owned(), units.context);
+    let reader = move |text: &str| {
+        if suffix.is_empty() { expr::parse(text) } else { expr::parse_with_units(text, &ExprUnits { unit, suffix: &suffix, context }) }
+    };
+    NumberField::new(id_salt, caption, shown, numbers)
+        .decimals(0..=places)
+        .unit(Unit::new(&template))
+        .expressions(true)
+        .or_parse(reader)
+        .size(ControlSize::Sm)
 }
 
 /// Percentage points a caption drag adds per screen point.
