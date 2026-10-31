@@ -121,3 +121,27 @@ fn opening_the_same_dialog_type_again_cancels_the_open_one() {
     assert_eq!(host.take::<Probe<1>>(), Some(DialogResult::Cancel));
     assert_eq!(host.stack().ids().count(), 1);
 }
+
+// `open_unless_open` refuses a second dialog of the type and leaves the first untouched; `open`
+// replaces it, and the replaced one's Cancel is the result to take (once).
+#[test]
+fn open_unless_open_refuses_and_open_replaces() {
+    let ctx = Context::default();
+    let mut host = DialogHost::new();
+    assert!(host.open_unless_open(Probe::<1>::new("first")).is_ok());
+    let refused = host.open_unless_open(Probe::<1>::new("second")).unwrap_err();
+    assert_eq!(refused.key, "second");
+    assert_eq!(host.get::<Probe<1>>().unwrap().key, "first");
+    assert_eq!(host.take::<Probe<1>>(), None);
+
+    host.open(Probe::<1>::new("third"));
+    assert_eq!(host.get::<Probe<1>>().unwrap().key, "third");
+    assert_eq!(host.take::<Probe<1>>(), Some(DialogResult::Cancel));
+    assert_eq!(host.take::<Probe<1>>(), None);
+
+    host.get_mut::<Probe<1>>().unwrap().finish = Some(DialogResult::Ok(5));
+    host.show(&ctx);
+    // An untaken result is dropped when a new `D` opens.
+    assert!(host.open_unless_open(Probe::<1>::new("fourth")).is_ok());
+    assert_eq!(host.take::<Probe<1>>(), None);
+}

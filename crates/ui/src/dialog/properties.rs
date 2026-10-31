@@ -8,7 +8,7 @@ use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::{DialogFields, FieldValue};
 use super::footer::Footer;
-use super::params::{Param, ParamKind, open_fields};
+use super::params::{Param, ParamKind, encode, open_fields, translated};
 use super::size::Width;
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
@@ -226,19 +226,5 @@ fn value_text(ctx: &egui::Context, param: &Param, value: &FieldValue, numbers: &
             format!("#{:02X}{:02X}{:02X}", encode(*r), encode(*g), encode(*b))
         }
         _ => String::new(),
-    }
-}
-
-/// An sRGB component in 0..=1 as a byte.
-fn encode(component: f32) -> u8 {
-    (component.clamp(0.0, 1.0) * 255.0).round() as u8
-}
-
-/// `text` in the installed Host's language: the catalog row of exactly this text, else the text
-/// (the same lookup `Param::row` makes for its labels).
-fn translated(ctx: &egui::Context, text: &str) -> String {
-    match Host::try_of_ctx(ctx) {
-        Some(host) => host.i18n().map_or(text, |i18n| i18n.t(host.lang(), text)).to_owned(),
-        None => text.to_owned(),
     }
 }

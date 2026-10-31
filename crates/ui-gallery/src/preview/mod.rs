@@ -126,7 +126,7 @@ impl AppPreview {
             .title(view.title, |ui| {
                 let mut guard = this.borrow_mut();
                 let this = &mut **guard;
-                chrome::title_bar(ui, &mut this.mock, &mut this.dock, &mut this.dialogs.0);
+                chrome::title_bar(ui, &mut this.mock, &mut this.dock, this.dialogs.host());
             })
             .options(view.options, |ui| {
                 let mut guard = this.borrow_mut();
@@ -154,7 +154,7 @@ impl AppPreview {
             dock::show(ui, &mut this.mock, &mut this.dock, Some(chrome))
         });
         let this = this.into_inner();
-        host_dialogs::show(&ctx, &mut this.dialogs.0, &mut this.mock);
+        host_dialogs::show(&ctx, this.dialogs.host(), &mut this.mock);
         tools::handle_keys(ui, &mut this.mock);
     }
 }

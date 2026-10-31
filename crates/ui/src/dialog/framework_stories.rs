@@ -231,9 +231,9 @@ fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
         "params",
         &mut args.open,
         (args.layout, preview),
-        || ParamDialog::new(("story-params", salt), "Radial Blur", Param::parse_list(FILTER_SPEC)).preview(preview).layout(layout),
+        || ParamDialog::new(format!("story-params-{}", salt.value()), "Radial Blur", Param::parse_list(FILTER_SPEC)).preview(preview).layout(layout),
         |_| {},
-        |fields| format!("OK, {}", fields_text(&fields)),
+        |done| format!("OK, {}", fields_text(&done.fields)),
     );
 }
 
@@ -246,9 +246,12 @@ fn show_form(ui: &mut Ui, args: &mut FormArgs) {
         "form",
         &mut args.open,
         (),
-        || CommandForm::new(("story-form", salt), "Go to Page", Param::parse_list(r#"{"page":u32=1,"select":bool}"#)).ok_label("Go"),
+        || {
+            CommandForm::new(format!("story-form-{}", salt.value()), "Go to Page", Param::parse_list(r#"{"page":u32=1,"select":bool}"#))
+                .ok_label("Go")
+        },
         |form| form.set_ok_enabled(enabled),
-        |fields| format!("OK, {}", fields_text(&fields)),
+        |done| format!("OK, {}", fields_text(&done.fields)),
     );
 }
 

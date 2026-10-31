@@ -2,6 +2,9 @@
 //! [`DialogHost`](super::DialogHost), with "Don't show again" where the question allows it.
 //! `prompt.rs` holds the general [`Prompt`](super::Prompt) these are built on.
 
+use std::any::Any;
+use std::fmt;
+
 use craft_settings::Remembered;
 use egui::{Context, Key};
 
@@ -18,7 +21,7 @@ crate::words! {
     pub struct PromptLabels {
         confirm_delete_title: "prompt.confirmDelete.title" = "Delete";
         confirm_delete_one: "prompt.confirmDelete.one" = "Delete {name}?";
-        confirm_delete_many: "prompt.confirmDelete.many" = "Delete {count} items? {names}";
+        confirm_delete_many: "prompt.confirmDelete.many" = "Delete {things}? {names}";
         delete: "prompt.delete" = "Delete";
         damaged_title: "prompt.damaged.title" = "Damaged file";
         damaged_message: "prompt.damaged.message" = "“{name}” has damaged data. Open it anyway?";
@@ -67,15 +70,48 @@ pub enum PromptChoice {
     Cancel,
 }
 
+/// What a [`StandardPrompt`] answers with: the choice and the [`tag`](StandardPrompt::tag) the
+/// app gave the prompt, so a result says which question it answers (the document, the path, the
+/// layers).
+pub struct PromptAnswer {
+    pub choice: PromptChoice,
+    tag: Option<Box<dyn Any + Send>>,
+}
+
+impl PromptAnswer {
+    /// The tag, when the prompt had one of type `T`.
+    pub fn tag<T: Any>(&self) -> Option<&T> {
+        self.tag.as_deref()?.downcast_ref()
+    }
+
+    /// Takes the tag out when it is a `T`; a tag of another type stays.
+    pub fn take_tag<T: Any>(&mut self) -> Option<T> {
+        match self.tag.take()?.downcast::<T>() {
+            Ok(tag) => Some(*tag),
+            Err(other) => {
+                self.tag = Some(other);
+                None
+            }
+        }
+    }
+}
+
+impl fmt::Debug for PromptAnswer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PromptAnswer").field("choice", &self.choice).field("tag", &self.tag.is_some()).finish()
+    }
+}
+
 /// A standard confirmation on the dialog host. The user sees a 420 pt wide question with the
 /// platform's button order, the default button focused, accelerator keys on Windows and Linux
 /// ([`Prompt`](super::Prompt)); with [`dont_show_again`](StandardPrompt::dont_show_again) a
 /// check box under the message. Esc and the close box cancel.
 ///
 /// ```ignore
-/// dialogs.open(StandardPrompt::confirm_delete(["Background"], 1).dont_show_again("layer.delete"));
+/// let prompt = StandardPrompt::confirm_delete(["Background"], 1).noun("{n} layer", "{n} layers").tag(doc_id);
+/// if dialogs.open_unless_open(prompt).is_err() { /* a prompt is already up */ }
 /// match dialogs.take::<StandardPrompt>() {
-///     Some(DialogResult::Ok(PromptChoice::Proceed)) => delete(),
+///     Some(DialogResult::Ok(mut answer)) if answer.choice == PromptChoice::Proceed => delete(answer.take_tag::<DocId>()),
 ///     _ => {}
 /// }
 /// ```
@@ -89,11 +125,13 @@ pub struct StandardPrompt {
     kind: PromptKind,
     skip_key: Option<String>,
     skip: bool,
+    tag: Option<Box<dyn Any + Send>>,
+    noun: Option<(String, String)>,
 }
 
 impl StandardPrompt {
     pub fn new(kind: PromptKind) -> Self {
-        Self { id: dialog_id(("standard-prompt", std::mem::discriminant(&kind))), kind, skip_key: None, skip: false }
+        Self { id: dialog_id(("standard-prompt", std::mem::discriminant(&kind))), kind, skip_key: None, skip: false, tag: None, noun: None }
     }
 
     // pc: crates/ui-egui/src/dialogs/delete_layer_prompt.rs:9 `intercept` (message, names, skip).
@@ -121,6 +159,21 @@ impl StandardPrompt {
         Self::new(PromptKind::TrashMask)
     }
 
+    /// Carries `tag` back in the [`PromptAnswer`], typed (a document id with the layer ids:
+    /// `(DocId, Vec<LayerId>)`); read it with [`PromptAnswer::tag`] or [`PromptAnswer::take_tag`].
+    pub fn tag<T: Any + Send>(mut self, tag: T) -> Self {
+        self.tag = Some(Box::new(tag));
+        self
+    }
+
+    /// The counted noun of the delete question, as the `one` and `other` forms with `{n}`
+    /// (`"{n} layer"`, `"{n} layers"`); plural rules of the language choose the form. The
+    /// default is "{n} item" and "{n} items".
+    pub fn noun(mut self, one: impl Into<String>, other: impl Into<String>) -> Self {
+        self.noun = Some((one.into(), other.into()));
+        self
+    }
+
     /// Adds the "Don't show again" box, remembered under `key`.
     pub fn dont_show_again(mut self, key: impl Into<String>) -> Self {
         self.skip_key = Some(key.into());
@@ -139,7 +192,7 @@ impl StandardPrompt {
     }
 
     /// The title, message and answers of the kind: `(role, label, key)`.
-    fn content(&self, labels: &PromptLabels) -> (String, String, Vec<(ButtonRole, String, Key)>) {
+    fn content(&self, ctx: &Context, labels: &PromptLabels) -> (String, String, Vec<(ButtonRole, String, Key)>) {
         let cancel = (ButtonRole::Cancel, "Cancel".to_owned(), Key::C);
         match &self.kind {
             PromptKind::ConfirmDelete { names, count } => {
@@ -150,7 +203,9 @@ impl StandardPrompt {
                     if *count > names.len() {
                         listed.push('…');
                     }
-                    craft_i18n::fmt(&labels.confirm_delete_many, &[("count", &count.to_string()), ("names", &listed)])
+                    let (one, other) = self.noun.as_ref().map_or(("{n} item", "{n} items"), |(one, other)| (one.as_str(), other.as_str()));
+                    let things = counted(ctx, *count, one, other);
+                    craft_i18n::fmt(&labels.confirm_delete_many, &[("things", &things), ("names", &listed)])
                 };
                 (labels.confirm_delete_title.clone(), message, vec![(ButtonRole::Default, labels.delete.clone(), Key::D), cancel])
             }
@@ -185,7 +240,7 @@ impl StandardPrompt {
 }
 
 impl StackDialog for StandardPrompt {
-    type Result = PromptChoice;
+    type Result = PromptAnswer;
 
     fn id(&self) -> DialogId {
         self.id
@@ -194,10 +249,10 @@ impl StackDialog for StandardPrompt {
     // pc: the prompt files named on the constructors; built on `Prompt::new(..).answer(..)` with
     // the labels from `PromptLabels::of_ctx`, the check box drawn in the message; on Proceed with
     // the box ticked, the skip is stored.
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<PromptChoice>> {
+    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<PromptAnswer>> {
         let labels = PromptLabels::of_ctx(ctx);
         let cancel = super::DialogLabels::of_ctx(ctx).cancel;
-        let (title, message, answers) = self.content(&labels);
+        let (title, message, answers) = self.content(ctx, &labels);
         let mut prompt = Prompt::new(("standard-prompt", std::mem::discriminant(&self.kind)), title, message).stack(stack);
         for (role, label, key) in answers {
             let label = if role == ButtonRole::Cancel { cancel.clone() } else { label };
@@ -220,6 +275,18 @@ impl StackDialog for StandardPrompt {
         if let (PromptChoice::Proceed, true, Some(key), Some(host)) = (choice, self.skip, &self.skip_key, craft_host::Host::try_of_ctx(ctx)) {
             Self::remembered(key).store(&host, &true);
         }
-        Some(DialogResult::Ok(choice))
+        Some(DialogResult::Ok(PromptAnswer { choice, tag: self.tag.take() }))
     }
+}
+
+/// `n` with its noun in the Host's language: plural rules and the catalog's `@plural` row, else
+/// the English forms.
+fn counted(ctx: &Context, n: usize, one: &str, other: &str) -> String {
+    let count = u64::try_from(n).unwrap_or(u64::MAX);
+    if let Some(host) = craft_host::Host::try_of_ctx(ctx)
+        && let Some(i18n) = host.i18n()
+    {
+        return i18n.trn(host.lang(), count, one, other);
+    }
+    craft_i18n::fmt(if n == 1 { one } else { other }, &[("n", &n.to_string())])
 }
