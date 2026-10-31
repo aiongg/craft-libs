@@ -8,7 +8,7 @@ use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::DialogFields;
 use super::footer::{DialogLabels, Footer, Reset};
-use super::params::{Param, draw_rows, first_field_focused, open_fields, take_color_press};
+use super::params::{Param, ParamResult, draw_rows, first_field_focused, open_fields, take_color_press};
 use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
@@ -27,10 +27,11 @@ use crate::localized::Labels as _;
 /// - The first field opens selected; Tab walks the fields; Enter is OK unless a multi-line field
 ///   owns it; Esc cancels. OK is disabled while [`ok_enabled`](CommandForm::ok_enabled) says so
 ///   (a required list is empty).
-/// - Result: the [`DialogFields`] at OK. Nothing is remembered across runs; a form always opens
+/// - Result: a [`ParamResult`], the form's [`key`](CommandForm::key) with the [`DialogFields`] at OK. Nothing is remembered across runs; a form always opens
 ///   with the values the host gave.
 pub struct CommandForm {
     id: DialogId,
+    key: String,
     title: String,
     params: Vec<Param>,
     fields: DialogFields,
@@ -43,9 +44,11 @@ pub struct CommandForm {
 
 impl CommandForm {
     /// A form for `params`, opening with their defaults.
-    pub fn new(key: impl std::hash::Hash + std::fmt::Debug, title: impl Into<String>, params: Vec<Param>) -> Self {
+    pub fn new(key: impl Into<String>, title: impl Into<String>, params: Vec<Param>) -> Self {
+        let key = key.into();
         Self {
-            id: dialog_id(key),
+            id: dialog_id(key.as_str()),
+            key,
             title: title.into(),
             params,
             fields: DialogFields::new(),
@@ -55,6 +58,11 @@ impl CommandForm {
             picked_color: None,
             state: DialogState::new(),
         }
+    }
+
+    /// The key the form was made with: which command it answers for. The result carries it.
+    pub fn key(&self) -> &str {
+        &self.key
     }
 
     /// Opening values that override the defaults.
@@ -102,7 +110,7 @@ impl CommandForm {
 }
 
 impl StackDialog for CommandForm {
-    type Result = DialogFields;
+    type Result = ParamResult;
 
     fn id(&self) -> DialogId {
         self.id
@@ -110,7 +118,7 @@ impl StackDialog for CommandForm {
 
     // pc: crates/ui-egui/src/menus/view_cmds/dialogs.rs:60 `form` and the `__form` body in
     // crates/ui-egui/src/dialogs.rs:177 `command_body_more`; the rows through `Param::row`.
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<DialogFields>> {
+    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<ParamResult>> {
         if !self.state.is_open() {
             open_fields(ctx, self.id, &self.params, &mut self.fields);
         }
@@ -132,7 +140,7 @@ impl StackDialog for CommandForm {
         );
         self.picked_color = take_color_press(ctx, self.id).or(self.picked_color.take());
         match shown.outcome? {
-            Outcome::Ok => Some(DialogResult::Ok(self.fields.clone())),
+            Outcome::Ok => Some(DialogResult::Ok(ParamResult { key: self.key.clone(), fields: self.fields.clone() })),
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
             Outcome::Reset => {
                 self.fields.reset();

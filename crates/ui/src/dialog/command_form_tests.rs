@@ -6,12 +6,12 @@ use egui::{Event, Key, Modifiers, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::{CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamKind};
+use super::{CommandForm, DialogFields, DialogHost, DialogResult, FieldValue, Param, ParamKind, ParamResult};
 use crate::theme::{Base, install};
 
 struct App {
     host: DialogHost,
-    answers: Vec<DialogResult<DialogFields>>,
+    answers: Vec<DialogResult<ParamResult>>,
 }
 
 fn form() -> CommandForm {
@@ -59,7 +59,8 @@ fn rows_follow_the_param_list_and_the_first_field_is_focused() {
     harness.get_by_label("Fit").click();
     harness.run();
     harness.run();
-    let [DialogResult::Ok(fields)] = &harness.state().answers[..] else { panic!("one OK, got {:?}", harness.state().answers) };
+    let [DialogResult::Ok(ParamResult { key, fields })] = &harness.state().answers[..] else { panic!("one OK, got {:?}", harness.state().answers) };
+    assert_eq!(key, "fit");
     assert_eq!((fields.int("width"), fields.text("name"), fields.bool("sharpen")), (Some(1200), Some("out"), Some(true)));
 }
 

@@ -230,7 +230,7 @@ fn show_form(ui: &mut Ui, args: &mut FormArgs) {
         (),
         || CommandForm::new("story-form", "Go to Page", Param::parse_list(r#"{"page":u32=1,"select":bool}"#)).ok_label("Go"),
         |form| form.set_ok_enabled(enabled),
-        |fields| format!("OK, {}", fields_text(&fields)),
+        |done| format!("OK, {}", fields_text(&done.fields)),
     );
 }
 
