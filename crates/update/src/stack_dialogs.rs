@@ -32,6 +32,7 @@ craft_ui::words! {
         download: "update.download" = "Download";
         later: "update.later" = "Later";
         whats_new: "update.whatsNew" = "What's New";
+        releases_listed: "update.releasesListed" = "All releases are listed at";
         installing: "update.installing" = "Installing…";
         check_title: "update.check.title" = "Check for Updates";
         checking: "update.checking" = "Checking for updates…";
@@ -263,6 +264,13 @@ impl StackDialog for UpdateCheckDialog {
                     }
                     Status::Failed(error) => {
                         Notice::new(error.as_str()).title(labels.failed.as_str()).tone(Tone::Bad).id_salt("failed").show(ui);
+                        if let Some(app) = subject.app {
+                            let url = app.releases_url();
+                            ui.horizontal_wrapped(|ui| {
+                                ui.add(Text::new(labels.releases_listed.as_str()).content(Content::Muted));
+                                ui.add(Link::new(url.as_str()).url(url.as_str()));
+                            });
+                        }
                     }
                     Status::Idle => {}
                 }
@@ -289,7 +297,10 @@ mod tests {
     fn harness(host: DialogHost) -> Harness<'static, DialogHost> {
         Harness::<DialogHost>::builder()
             .with_size(vec2(640.0, 480.0))
-            .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+            .with_context_setup(|ctx| {
+                install(ctx, &Base::suite_default());
+                craft_host::Host::builder(craft_host::AppInfo { id: "photocraft", name: "PhotoCraft", version: "1.0" }).build().install(ctx);
+            })
             .build_ui_state(|ui, host: &mut DialogHost| host.show(ui.ctx()), host)
     }
 
@@ -376,6 +387,8 @@ mod tests {
         harness.state_mut().get_mut::<UpdateCheckDialog>().unwrap().set_status(Status::Failed("no network".into()));
         harness.run_steps(3);
         assert!(harness.query_all_by_label_contains("no network").next().is_some());
+        assert!(harness.query_by_label("All releases are listed at").is_some());
+        assert!(harness.query_by_label("https://github.com/storytold/photocraft/releases").is_some());
         harness.get_by_label("Check Again").click();
         harness.run_steps(3);
         assert_eq!(harness.state_mut().take::<UpdateCheckDialog>(), Some(DialogResult::Ok(CheckChoice::CheckAgain)));
