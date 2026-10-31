@@ -956,6 +956,7 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
         resize_margin,
         keep_visible,
         scroll_min,
+        anchor_cell,
     } = t;
     out.line("dialog.pad", len(*pad));
     out.line("dialog.pad_roomy", len(*pad_roomy));
@@ -980,6 +981,7 @@ fn dialog_lines(out: &mut Lines, t: &DialogTokens) {
     out.line("dialog.resize_margin", len(*resize_margin));
     out.line("dialog.keep_visible", len(*keep_visible));
     out.line("dialog.scroll_min", len(*scroll_min));
+    out.line("dialog.anchor_cell", len(*anchor_cell));
 }
 
 fn form_lines(out: &mut Lines, t: &FormTokens) {

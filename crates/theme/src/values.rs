@@ -1371,6 +1371,8 @@ pub const DIALOG_RESIZE_MARGIN: f32 = 20.0;
 pub const DIALOG_KEEP_VISIBLE: f32 = 100.0;
 /// Least height of a scrolling dialog body (PhotoCraft `max(120)`).
 pub const DIALOG_SCROLL_MIN: f32 = 120.0;
+/// Side of one cell of Canvas Size's anchor grid (PhotoCraft `anchor_grid`, `cell = 24.0`).
+pub const DIALOG_ANCHOR_CELL: f32 = 24.0;
 /// Side of a popover's resize grip, in points (PhotoCraft's `GRIP`, `brush_picker.rs`).
 pub const POPOVER_GRIP_SIZE: f32 = 16.0;
 

@@ -500,6 +500,7 @@ dialog.window_margin = 24
 dialog.resize_margin = 20
 dialog.keep_visible = 100
 dialog.scroll_min = 120
+dialog.anchor_cell = 24
 dock.gap = 4
 dock.body_gap = 0
 dock.border_width = 1

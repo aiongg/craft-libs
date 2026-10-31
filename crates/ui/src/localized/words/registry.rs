@@ -5,6 +5,7 @@ use super::{Labels, Word};
 pub(super) const TABLES: &[&[Word]] = &[
     <crate::preferences::PreferencesTexts as Labels>::WORDS,
     <crate::dialog::DialogLabels as Labels>::WORDS,
+    <crate::dialog::SizingLabels as Labels>::WORDS,
     <crate::menu::MenuBarLabels as Labels>::WORDS,
     <crate::behavior::EditMenuLabels as Labels>::WORDS,
     <crate::patterns::PaletteLabels as Labels>::WORDS,
