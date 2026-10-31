@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use craft_host::Wake;
 use egui::FontDefinitions;
 
 use super::*;
@@ -124,4 +125,55 @@ fn deflated_defaults_match_egui_defaults() {
     let egui = FontDefinitions::default();
     assert!(!egui.font_data.is_empty(), "test builds enable egui's default_fonts");
     assert_eq!(deflated_default_definitions(), egui);
+}
+
+/// A source whose lookup is still running: it keeps the wake it was given.
+struct Slow {
+    wakes: std::sync::Mutex<Vec<Wake>>,
+}
+
+impl FontCandidates for Slow {
+    fn files(&self, _script: &str, _han: Option<Han>) -> Vec<PathBuf> {
+        Vec::new()
+    }
+
+    fn covers(&self, _data: &[u8], _c: char) -> Option<u32> {
+        None
+    }
+
+    fn pending(&self) -> bool {
+        true
+    }
+
+    fn wake_when_ready(&self, wake: Wake) {
+        self.wakes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(wake);
+    }
+}
+
+// While a background lookup runs the loader asks once to be woken and requests no timed repaint;
+// the lookup's wake then requests the frame.
+#[test]
+fn a_pending_lookup_wakes_the_ui_instead_of_polling() {
+    let slow = Arc::new(Slow { wakes: Default::default() });
+    let ctx = egui::Context::default();
+    let repaints = Arc::new(AtomicUsize::new(0));
+    let counter = repaints.clone();
+    ctx.set_request_repaint_callback(move |_| {
+        counter.fetch_add(1, Ordering::Relaxed);
+    });
+    OnDemandFonts::new(slow.clone(), None).install(&ctx);
+    pass(&ctx, "日");
+    for _ in 0..3 {
+        pass(&ctx, "日");
+    }
+    let output = ctx.run_ui(Default::default(), |ui| {
+        ui.label("日");
+    });
+    let delay = output.viewport_output.values().map(|v| v.repaint_delay).min();
+    assert_eq!(delay, Some(std::time::Duration::MAX), "no timer while the lookup runs");
+    let wakes = slow.wakes.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    assert_eq!(wakes.len(), 1, "asked once per lookup");
+    let before = repaints.load(Ordering::Relaxed);
+    wakes[0].wake();
+    assert_eq!(repaints.load(Ordering::Relaxed), before + 1, "the wake requests a frame");
 }

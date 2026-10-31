@@ -165,12 +165,7 @@ fn font_axes(ui: &mut Ui, _: &mut NoArgs) {
     let instances = [instance("Light", 300.0, 100.0), instance("Regular", 400.0, 100.0), instance("Bold Condensed", 700.0, 75.0)];
     let values = state(ui, "axes", || vec![(WGHT, 400.0), (WDTH, 100.0)]);
     let mut values = values.lock().unwrap_or_else(PoisonError::into_inner);
-    let response = AxisSliders::new(&axes, &mut values).instances(&instances).show(ui);
-    for (tag, value) in response.changed {
-        if let Some(at) = values.iter_mut().find(|(t, _)| *t == tag) {
-            at.1 = value;
-        }
-    }
+    let _ = AxisSliders::new("axes", &axes, &mut values).instances(&instances).show(ui);
 }
 
 /// The Glyphs panel over Ubuntu Light and Hack, editing, with three recent glyphs.
@@ -190,7 +185,7 @@ fn glyphs_panel(ui: &mut Ui, _: &mut NoArgs) {
     let families = ["Ubuntu".to_owned(), "Hack".to_owned()];
     let styles = [if family == "Hack" { "Regular" } else { "Light" }.to_owned()];
     *style = styles[0].clone();
-    GlyphsPanel::new(&FaceGlyphs, family, style, settings).editing(true).families(&families).styles(&styles).show(ui);
+    GlyphsPanel::new("glyphs", &FaceGlyphs, family, style, settings).editing(true).families(&families).styles(&styles).show(ui);
 }
 
 /// Glyphs of the shipped faces, drawn by skrifa's outlines.

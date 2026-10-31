@@ -15,7 +15,9 @@ use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Corner, Interactive, Surface, SurfaceKind};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
-use egui::{ColorImage, EventFilter, Id, Key, Modifiers, Rect, ScrollArea, TextureHandle, TextureId, TextureOptions, Ui, pos2, vec2};
+use egui::{
+    AsIdSalt, ColorImage, EventFilter, Id, IdSalt, Key, Modifiers, Rect, ScrollArea, TextureHandle, TextureId, TextureOptions, Ui, pos2, vec2,
+};
 use serde::{Deserialize, Serialize};
 
 craft_ui::words! {
@@ -146,6 +148,7 @@ pub struct GlyphsPanelResponse {
 /// - The font and style lists come from the app ([`families`](GlyphsPanel::families),
 ///   [`styles`](GlyphsPanel::styles)); without a list the name is shown as text.
 pub struct GlyphsPanel<'a> {
+    salt: IdSalt,
     source: &'a dyn GlyphSource,
     family: &'a mut String,
     style: &'a mut String,
@@ -214,8 +217,15 @@ fn code(c: char) -> String {
 }
 
 impl<'a> GlyphsPanel<'a> {
-    pub fn new(source: &'a dyn GlyphSource, family: &'a mut String, style: &'a mut String, settings: &'a mut GlyphsPanelSettings) -> Self {
-        GlyphsPanel { source, family, style, settings, families: &[], styles: &[], editing: false, labels: None }
+    /// `id_salt` names the panel to egui; give each panel on a screen its own.
+    pub fn new(
+        id_salt: impl AsIdSalt,
+        source: &'a dyn GlyphSource,
+        family: &'a mut String,
+        style: &'a mut String,
+        settings: &'a mut GlyphsPanelSettings,
+    ) -> Self {
+        GlyphsPanel { salt: IdSalt::new(id_salt), source, family, style, settings, families: &[], styles: &[], editing: false, labels: None }
     }
 
     /// Whether text is being edited (inserting is possible).
@@ -245,12 +255,12 @@ impl<'a> GlyphsPanel<'a> {
     // pc: crates/ui-egui/src/panels/type_panels_ui.rs:627 `glyphs_panel` (pickers, category
     // list, grid, zoom) and `:578 glyph_texture`, `:595 charmap`; recents through `:608 insert_glyph`.
     pub fn show(self, ui: &mut Ui) -> GlyphsPanelResponse {
-        let GlyphsPanel { source, family, style, settings, families, styles, editing, labels } = self;
+        let GlyphsPanel { salt, source, family, style, settings, families, styles, editing, labels } = self;
         let labels = labels.unwrap_or_else(|| GlyphsLabels::of(ui));
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         let mut response = GlyphsPanelResponse::default();
-        let panel = ui.scope_id().with("glyphs");
+        let panel = ui.scope_id().with(("glyphs", salt));
 
         // Font and style.
         let (family_before, style_before) = (family.clone(), style.clone());

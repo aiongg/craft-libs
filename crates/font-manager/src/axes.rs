@@ -5,7 +5,7 @@ use craft_ui::composites::SliderRow;
 use craft_ui::controls::Select;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
-use egui::{AsIdSalt, IdSalt, Ui};
+use egui::{AsIdSalt, IdSalt, Modifiers, Ui};
 use skrifa::raw::types::Tag;
 use skrifa::string::StringId;
 use skrifa::{FontRef, MetadataProvider as _};
@@ -13,13 +13,13 @@ use skrifa::{FontRef, MetadataProvider as _};
 craft_ui::words! {
     /// The words of the axis sliders, English by default.
     #[non_exhaustive]
-    pub struct AxesLabels {
-        weight: "axes.weight" = "Weight";
-        width: "axes.width" = "Width";
-        slant: "axes.slant" = "Slant";
-        italic: "axes.italic" = "Italic";
-        style: "axes.style" = "Style";
-        custom: "axes.custom" = "Custom";
+    pub struct AxisSlidersLabels {
+        weight: "axisSliders.weight" = "Weight";
+        width: "axisSliders.width" = "Width";
+        slant: "axisSliders.slant" = "Slant";
+        italic: "axisSliders.italic" = "Italic";
+        style: "axisSliders.style" = "Style";
+        custom: "axisSliders.custom" = "Custom";
     }
 }
 
@@ -94,10 +94,10 @@ pub fn matching_instance<'a>(instances: &'a [NamedInstance], values: &[([u8; 4],
 /// The label of an axis: its name when the font gives one, else the registered tag's
 /// (`Weight`, `Width`, `Slant`, `Italic`), else the tag itself.
 pub fn axis_label(axis: &FontAxis) -> String {
-    label_in(axis, &AxesLabels::default())
+    label_in(axis, &AxisSlidersLabels::default())
 }
 
-fn label_in(axis: &FontAxis, labels: &AxesLabels) -> String {
+fn label_in(axis: &FontAxis, labels: &AxisSlidersLabels) -> String {
     if !axis.name.is_empty() {
         return axis.name.clone();
     }
@@ -113,12 +113,11 @@ fn label_in(axis: &FontAxis, labels: &AxesLabels) -> String {
 /// What changed in the sliders this pass.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AxisSlidersResponse {
-    /// (tag, new value) for every axis the user moved this pass, with the values of a drag in
-    /// progress (live preview).
-    pub changed: Vec<([u8; 4], f32)>,
-    /// (tag, value) of the axes whose gesture ended this pass (a release, a typed value, a key
-    /// step, an instance pick): one edit for the host to record per gesture.
-    pub settled: Vec<([u8; 4], f32)>,
+    /// The gesture events of this pass, in drawing order, keyed by axis tag: a slider drag or a
+    /// field edit reports `Begin`, `Update` and `Commit`; a key step, a typed value and an
+    /// instance pick report `Set` (one per axis of the instance). The sliders have already stored
+    /// the values the events carry.
+    pub edits: Vec<([u8; 4], EditEvent<f32>)>,
     /// A named instance was picked from the list.
     pub instance: Option<NamedInstance>,
 }
@@ -145,8 +144,10 @@ struct Drawn {
 }
 
 impl<'a> AxisSliders<'a> {
-    pub fn new(axes: &'a [FontAxis], values: &'a mut Vec<([u8; 4], f32)>) -> Self {
-        AxisSliders { axes, instances: &[], values, drawn: Drawn::default(), salt: IdSalt::new("axes") }
+    /// `id_salt` names the sliders to egui; give each instance on a screen its own, such as the
+    /// layer or style they edit.
+    pub fn new(id_salt: impl AsIdSalt, axes: &'a [FontAxis], values: &'a mut Vec<([u8; 4], f32)>) -> Self {
+        AxisSliders { axes, instances: &[], values, drawn: Drawn::default(), salt: IdSalt::new(id_salt) }
     }
 
     /// What the layout draws for an axis `values` has no coordinate for: the style's `weight` on
@@ -154,13 +155,6 @@ impl<'a> AxisSliders<'a> {
     /// Without it an unset axis shows its default.
     pub fn drawn(mut self, weight: f32, italic: bool) -> Self {
         self.drawn = Drawn { weight: Some(weight), italic };
-        self
-    }
-
-    /// Names the sliders to egui (default `"axes"`); give each instance on a screen its own, such
-    /// as the layer or style they edit.
-    pub fn id_salt(mut self, salt: impl AsIdSalt) -> Self {
-        self.salt = IdSalt::new(salt);
         self
     }
 
@@ -172,7 +166,7 @@ impl<'a> AxisSliders<'a> {
 
     // pc: crates/ui-egui/src/tools/type_tool/fonts.rs:189 `axis_sliders` and `:166 axis_value`.
     pub fn show(self, ui: &mut Ui) -> AxisSlidersResponse {
-        let labels = AxesLabels::of(ui);
+        let labels = AxisSlidersLabels::of(ui);
         let numbers = LocaleNumbers::of(ui);
         let mut out = AxisSlidersResponse::default();
         let AxisSliders { axes, instances, values, drawn, salt } = self;
@@ -194,8 +188,7 @@ impl<'a> AxisSliders<'a> {
             {
                 for &(tag, value) in &instance.coordinates {
                     set_value(values, tag, value);
-                    out.changed.push((tag, value));
-                    out.settled.push((tag, value));
+                    out.edits.push((tag, EditEvent::set(value, Modifiers::NONE)));
                 }
                 out.instance = Some(instance.clone());
             }
@@ -210,18 +203,11 @@ impl<'a> AxisSliders<'a> {
                 .default_value(axis.default.clamp(axis.min, axis.max))
                 .show(ui);
             for event in row.edits() {
-                let (v, settled) = match &event {
-                    EditEvent::Update { value, .. } => (*value, false),
-                    EditEvent::Commit { value, changed, .. } => (*value, *changed),
-                    EditEvent::Set { value, .. } => (*value, true),
-                    _ => continue,
-                };
-                let v = (v as f32).clamp(axis.min, axis.max);
-                set_value(values, axis.tag, v);
-                out.changed.push((axis.tag, v));
-                if settled {
-                    out.settled.push((axis.tag, v));
+                let event = event.map(|v| (v as f32).clamp(axis.min, axis.max));
+                if let Some(&v) = event.value() {
+                    set_value(values, axis.tag, v);
                 }
+                out.edits.push((axis.tag, event));
             }
         }
         out

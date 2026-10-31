@@ -129,7 +129,6 @@ pub struct MissingFontsDialog {
     catalog: Arc<Catalog>,
     replacements: Vec<Option<String>>,
     default_family: String,
-    labels: Option<MissingFontsLabels>,
     state: DialogState<Vec<Option<String>>>,
 }
 
@@ -137,25 +136,13 @@ impl MissingFontsDialog {
     /// Over `rows` from [`document_fonts`]; only `Missing` rows get a replacement picker.
     pub fn new(catalog: Arc<Catalog>, rows: Vec<DocumentFontRow>) -> Self {
         let n = rows.len();
-        MissingFontsDialog {
-            rows,
-            catalog,
-            replacements: vec![None; n],
-            default_family: DEFAULT_FAMILY.to_owned(),
-            labels: None,
-            state: DialogState::new(),
-        }
+        MissingFontsDialog { rows, catalog, replacements: vec![None; n], default_family: DEFAULT_FAMILY.to_owned(), state: DialogState::new() }
     }
 
     /// The family a missing font gets when the user sets none (default `Inter`, PhotoCraft's
     /// default type family).
     pub fn default_family(mut self, family: impl Into<String>) -> Self {
         self.default_family = family.into();
-        self
-    }
-
-    pub fn labels(mut self, labels: MissingFontsLabels) -> Self {
-        self.labels = Some(labels);
         self
     }
 
@@ -175,8 +162,8 @@ impl StackDialog for MissingFontsDialog {
     // new: no PhotoCraft dialog (it only warns); layout as Photoshop's Missing Fonts window.
     // Rows on `Dialog` + `FormGrid`, footer through `Footer`.
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<MissingFontsResult>> {
-        let Self { rows, catalog, replacements, default_family, labels, state } = self;
-        let labels = labels.clone().unwrap_or_else(|| MissingFontsLabels::of_ctx(ctx));
+        let Self { rows, catalog, replacements, default_family, state } = self;
+        let labels = MissingFontsLabels::of_ctx(ctx);
         let missing = rows.iter().filter(|r| r.status == FontStatus::Missing).count();
         let message = Words::of_ctx(ctx).counted(ctx, MESSAGE, &labels.message, missing as u64);
         let footer = Footer::standard().ok(labels.replace.clone()).cancel(labels.dont_replace.clone());
@@ -235,8 +222,7 @@ fn replacement_field(
     #[cfg(feature = "font-picker")]
     let response = {
         let _ = (families, labels);
-        let salt = format!("missing-fonts-{i}");
-        let out = crate::picker::FontPicker::new(&salt, catalog, &mut current).show(ui);
+        let out = crate::picker::FontPicker::new(("missing-fonts", i), catalog, &mut current).show(ui);
         if let Some(picked) = out.picked {
             *chosen = Some(picked);
         }

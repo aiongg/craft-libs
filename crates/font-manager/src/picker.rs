@@ -21,7 +21,7 @@ use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::epaint::text::FontId;
 use egui::text::CCursorRange;
 use egui::text_edit::TextEditState;
-use egui::{Align2, Context, Event, Id, Key, Modifiers, Rect, Response, Sense, Ui, pos2, vec2};
+use egui::{Align2, AsIdSalt, Context, Event, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Ui, pos2, vec2};
 use serde::{Deserialize, Serialize};
 use skrifa::MetadataProvider as _;
 use skrifa::raw::{FontRef, TableProvider};
@@ -260,10 +260,10 @@ pub struct FontPickerResponse {
 ///   closes and restores the field text, Tab picks and moves on. While the IME composes, Enter,
 ///   Esc and the arrows belong to the composition; a later Enter picks. On the closed field the
 ///   wheel steps to the previous or next family in list order and picks it (Photoshop).
-/// - Platform: the list is a `Popover` and keeps the stable id `<salt>.popup`; on the web the
+/// - Platform: the list is a `Popover` and is keyed `(id_salt, "popup")`; on the web the
 ///   sample images are rendered from served faces as they arrive.
 pub struct FontPicker<'a> {
-    salt: &'a str,
+    salt: IdSalt,
     catalog: &'a Arc<Catalog>,
     current: &'a mut String,
     settings: Option<&'a mut FontPickerSettings>,
@@ -276,11 +276,11 @@ pub struct FontPicker<'a> {
 }
 
 impl<'a> FontPicker<'a> {
-    /// A picker over `catalog` editing `current` (the family name). `salt` keeps its ids apart from
-    /// other pickers in the same `Ui`.
-    pub fn new(salt: &'a str, catalog: &'a Arc<Catalog>, current: &'a mut String) -> Self {
+    /// A picker over `catalog` editing `current` (the family name). `id_salt` keeps its ids apart
+    /// from other pickers in the same `Ui`.
+    pub fn new(id_salt: impl AsIdSalt, catalog: &'a Arc<Catalog>, current: &'a mut String) -> Self {
         FontPicker {
-            salt,
+            salt: IdSalt::new(id_salt),
             catalog,
             current,
             settings: None,
@@ -479,7 +479,7 @@ impl<'a> FontPicker<'a> {
         let up = consume(ui, Key::ArrowUp);
         let tab = live && ui.input(|i| i.key_pressed(Key::Tab));
 
-        let mut field = TextField::new(format!("{}.field", self.salt), labels.search.clone(), &edit.text)
+        let mut field = TextField::new((self.salt, "field"), labels.search.clone(), &edit.text)
             .id(field_id)
             .trailing_arrow(true)
             .keep_focus(true)
@@ -559,7 +559,7 @@ impl<'a> FontPicker<'a> {
         let list_width = rect.width().max(sizes.list_width);
         let list_height = self.list_height.unwrap_or(sizes.list_height);
         let catalog = self.catalog;
-        let popup = Popover::new(format!("{}.popup", self.salt), PopoverAnchor::Control(field.response.clone()))
+        let popup = Popover::new((self.salt, "popup"), PopoverAnchor::Control(field.response.clone()))
             .close(PopoverClose::default().focus_left(false))
             .keep_anchor_focus(true)
             .toggle(arrow.id)
