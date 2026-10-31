@@ -188,3 +188,23 @@ fn custom_background_round_trips_through_the_app() {
     assert_eq!(settings(&harness).background, BackgroundContents::Custom([1.0, 0.5, 0.0]));
     assert!(!dialog(&harness).is_some_and(NewDocumentDialog::wants_color));
 }
+
+// Enter on a focused card applies it and creates, as PhotoCraft's Enter (the dialog confirms
+// whatever has the focus); the tabs are one Tab stop moved with the arrows.
+#[test]
+fn enter_on_a_card_creates_and_the_tabs_are_one_stop() {
+    let mut harness = open(NewDocumentDialog::new());
+    harness.get_by_role_and_label(Role::Tab, "Web").focus();
+    harness.run();
+    harness.key_press(Key::ArrowRight);
+    harness.run();
+    assert!(harness.get_by_role_and_label(Role::Tab, "Mobile").accesskit_node().is_focused(), "an arrow moves the tab focus");
+
+    harness.get_by_role_and_label(Role::Button, "Android 1080p").focus();
+    harness.run();
+    harness.key_press(Key::Enter);
+    harness.run();
+    let created = harness.state().results.first().cloned().flatten();
+    assert_eq!(created.map(|s| (s.size.width, s.size.height)), Some((1080, 1920)), "Enter applies the card and creates once");
+    assert_eq!(harness.state().results.len(), 1);
+}

@@ -686,6 +686,8 @@ impl NewDocumentDialog {
         let ids: Vec<Id> = tabs.iter().map(|(key, _)| Interactive::id_in(ui, ("new-document-tab", key.clone()))).collect();
         let pad = Pad::Control.points(&tokens);
         let mut picked = None;
+        let open = tabs.iter().position(|(key, _)| *key == self.tab);
+        let stop = GridNav::roving_stop(ui, &ids, open, true);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = Gap::Section.points(&tokens);
             for (i, (key, label)) in tabs.iter().enumerate() {
@@ -694,8 +696,11 @@ impl NewDocumentDialog {
                 let format = Text::format(&tokens, TypeRole::Label, content);
                 let galley = ui.painter().layout_job(LayoutJob::single_section(label.clone(), format.clone()));
                 let (_, rect) = ui.allocate_space(vec2(galley.size().x, galley.size().y + 2.0 * pad));
-                let response =
-                    Interactive::with_id(ids[i], Role::Tab, label.as_str()).selected(on).position_in_set(i).interact_at(ui, rect).finish(ui);
+                let mut element = Interactive::with_id(ids[i], Role::Tab, label.as_str()).selected(on).position_in_set(i);
+                if i != stop {
+                    element = element.sense(Sense::CLICK);
+                }
+                let response = element.interact_at(ui, rect).finish(ui);
                 if ui.is_rect_visible(rect) {
                     let top = rect.top() + pad;
                     ui.painter().galley(pos2(rect.left(), top), galley, format.color);
@@ -707,21 +712,8 @@ impl NewDocumentDialog {
                 if response.clicked() {
                     picked = Some(key.clone());
                 }
-                if response.has_focus() {
-                    let step = ui.input_mut(|input| {
-                        if input.consume_key(Modifiers::NONE, Key::ArrowRight) {
-                            Some(1_isize)
-                        } else if input.consume_key(Modifiers::NONE, Key::ArrowLeft) {
-                            Some(-1)
-                        } else {
-                            None
-                        }
-                    });
-                    if let Some(step) = step {
-                        let next = (i as isize + step).clamp(0, tabs.len() as isize - 1) as usize;
-                        picked = Some(tabs[next].0.clone());
-                        ui.memory_mut(|m| m.request_focus(ids[next]));
-                    }
+                if response.gained_focus() {
+                    picked = Some(key.clone());
                 }
             }
         });
