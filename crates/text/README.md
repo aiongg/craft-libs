@@ -39,6 +39,17 @@ Case, apostrophes (`don't`, `’s`), surrounding punctuation and compounds are h
 placed next to an apostrophe or a non-letter. `Dictionary::en_us()` also serves as an English word
 list, for example for spelling checks.
 
+## Spelling
+
+`craft_text::spell` (feature `spell`) checks words and suggests corrections. `Dictionary::english()`
+is SCOWL size 50 (American English, about 72,400 words), stored as raw deflate in
+`assets/spell/en-us-scowl-50.txt.deflate` (about 220 KB) and decoded once on first use with
+`miniz_oxide`. The text file has one word per line; `#10`, `#20`, `#35`, `#40` and `#50` lines set the
+SCOWL level (10 = most common) of the words after them. SCOWL's licence is in
+`assets/spell/LICENSE-SCOWL.txt` and NOTICE; an application that enables `spell` ships it. Other
+languages load their list with `Dictionary::from_list`. To rebuild the asset from a word list, compress
+it as raw deflate (zlib level 9, `wbits = -15`).
+
 ### Other languages
 
 Other languages use the patterns compiled into [hypher](https://crates.io/crates/hypher) 0.1.8.
