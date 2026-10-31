@@ -821,3 +821,36 @@ fn a_hex_focus_request_made_in_a_sizing_pass_reaches_the_field_in_the_pass_that_
     run(false, None);
     assert_eq!(ctx.memory(|m| m.focused()), Some(hex), "the shown pass took the request");
 }
+
+#[test]
+fn enter_presses_the_default_side_action_and_esc_the_cancel_one_as_a_dialog_footer_does() {
+    let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
+    rig.side = vec![
+        FooterButton::new(ButtonRole::Default, "OK"),
+        FooterButton::new(ButtonRole::Cancel, "Cancel"),
+        FooterButton::new(ButtonRole::Alternate, "Add to Swatches"),
+    ];
+    rig.settle();
+    assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"));
+    rig.type_text("ff0000");
+    rig.key(Key::Enter);
+    assert_eq!(hex(rig.color), "#ff0000", "Enter in the hex field applies it ...");
+    let roles: Vec<_> = rig.side_clicked.drain(..).map(|c| c.role).collect();
+    assert_eq!(roles, [ButtonRole::Default], "... and then answers the default action, as a footer does");
+
+    rig.key(Key::Escape);
+    let roles: Vec<_> = rig.side_clicked.drain(..).map(|c| c.role).collect();
+    assert_eq!(roles, [ButtonRole::Cancel]);
+
+    let tab = rig.rect(Role::Button, "Add to Swatches").center();
+    rig.click(tab);
+    rig.side_clicked.clear();
+    rig.key(Key::Enter);
+    assert!(rig.side_clicked.iter().all(|c| c.role != ButtonRole::Default), "a focused button presses itself, not the default");
+
+    rig.side_clicked.clear();
+    rig.ctx.memory_mut(|m| m.request_focus(rig.field));
+    rig.frame(vec![]);
+    rig.key(Key::Enter);
+    assert!(rig.side_clicked.is_empty(), "the focus is outside the picker");
+}

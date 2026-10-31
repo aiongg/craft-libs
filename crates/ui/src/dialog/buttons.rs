@@ -3,10 +3,14 @@
 
 use craft_theme::{ButtonVariant, ControlSize};
 use egui::os::OperatingSystem;
-use egui::{AsIdSalt, Context, Id, IdSalt, Response, Sense, Ui, vec2};
+use egui::{AsIdSalt, Context, Id, IdSalt, Key, Modifiers, Response, Sense, Ui, vec2};
 
+use super::Outcome;
+use super::dialog::is_enter_press;
+use super::keys::{EnterRule, KeyInput, resolve_keys};
 use crate::composites::measure;
 use crate::controls::Button;
+use crate::popup_list;
 use crate::theme::{Tokens, TokensOf};
 
 /// What a dialog button does, which decides where the platform's button order puts it.
@@ -188,6 +192,38 @@ impl FooterButtons {
         let width = self.column_width(column);
         column.spacing_mut().item_spacing.y = Tokens::of(column).component.dialog.button_gap;
         self.place_in(column, id, (0..self.buttons.len()).collect(), width)
+    }
+
+    /// The button Enter or Esc presses, as a dialog's footer answers them ([`resolve_keys`]):
+    /// Enter the enabled [`Default`](ButtonRole::Default) button unless a button of the row has the
+    /// focus (`shown`), Esc the enabled [`Cancel`](ButtonRole::Cancel) button; neither while a
+    /// popup is open or when the row is not `active`. The keys it answers are taken from the
+    /// input, so a dialog around the row does not answer them again.
+    pub(crate) fn key_click(&self, ctx: &Context, shown: &FooterButtonsResponse, active: bool) -> Option<Clicked> {
+        let (enter, escape) = ctx.input(|i| (i.events.iter().any(is_enter_press), i.key_pressed(Key::Escape) && i.modifiers.is_none()));
+        let outcome = resolve_keys(KeyInput {
+            enter,
+            escape,
+            modal: true,
+            active,
+            footer: true,
+            popup_open: popup_list::any_open(ctx),
+            button_focused: shown.focused,
+            default_enabled: shown.default.is_some(),
+            enter_rule: EnterRule::Default,
+        });
+        let role = match outcome? {
+            Outcome::Ok => ButtonRole::Default,
+            Outcome::Cancel => ButtonRole::Cancel,
+            _ => return None,
+        };
+        let index = self.buttons.iter().position(|b| b.role == role && b.enabled)?;
+        ctx.input_mut(|i| {
+            i.consume_key(Modifiers::NONE, Key::Escape);
+            i.events.retain(|event| !is_enter_press(event));
+        });
+        let nth = self.buttons[..index].iter().filter(|b| b.role == role).count();
+        Some(Clicked { index, role, nth })
     }
 
     fn place_in(&self, row: &mut Ui, id: Id, visit: Vec<usize>, min: f32) -> FooterButtonsResponse {

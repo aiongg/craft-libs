@@ -119,6 +119,7 @@ impl ColorPicker<'_> {
 
         let mut requested = false;
         let mut side_clicked = None;
+        let mut keys = None;
         top_row(ui, gap, |ui| {
             let side = style.area + gap + ColorStrip::outer_width(&style, style.strip_full);
             ui.allocate_ui_with_layout(vec2(side, 0.0), Layout::top_down_justified(Align::Min), |ui| {
@@ -160,12 +161,24 @@ impl ColorPicker<'_> {
                 ui.allocate_ui_with_layout(vec2(width, 0.0), Layout::top_down(Align::Min), |ui| {
                     ui.set_width(width);
                     ui.add_enabled_ui(inner.enabled, |ui| {
-                        side_clicked = buttons.place_column(ui, id.with("side-actions")).clicked;
+                        let shown = buttons.place_column(ui, id.with("side-actions"));
+                        side_clicked = shown.clicked;
+                        keys = Some(shown);
                     });
                 });
             }
         });
         let _ = radios.end(ui);
+        // Esc and a field's Enter take the focus away within the pass, so the keys go by where the
+        // focus was when the pass began, as a dialog's do.
+        let (inside_id, rect) = (id.with("side-keys-inside"), ui.min_rect());
+        let inside_before = ui.data(|d| d.get_temp::<bool>(inside_id)).unwrap_or(true);
+        let inside_now = ui.memory(|m| m.focused()).is_none_or(|f| ui.ctx().read_response(f).is_some_and(|r| rect.contains_rect(r.rect)));
+        ui.data_mut(|d| d.insert_temp(inside_id, inside_now));
+        if let Some(shown) = keys.filter(|_| inner.enabled) {
+            let buttons = FooterButtons::new((id, "side-actions"), self.side_actions.clone());
+            side_clicked = side_clicked.or(buttons.key_click(ui.ctx(), &shown, inside_before));
+        }
         (requested, side_clicked)
     }
 

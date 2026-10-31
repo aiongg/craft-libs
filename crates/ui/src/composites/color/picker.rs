@@ -430,7 +430,8 @@ impl<'a> ColorPicker<'a> {
     /// Buttons in a column at the trailing side of the Full layout, in the order given: a dialog's
     /// OK and Cancel, then actions such as Add to Swatches. They are the dialog footer's buttons
     /// ([`FooterButton`]; the [`Default`](crate::dialog::ButtonRole::Default) one is primary),
-    /// as wide as the longest label. The picker reports the click as
+    /// as wide as the longest label. Enter presses the Default one and Esc the Cancel one, as a
+    /// dialog footer does (not while a popup is open or the focus is outside the picker). The picker reports the click as
     /// [`side_clicked`](ColorPickerResponse::side_clicked) and the host acts on it, so a host
     /// that shows the picker in a [`Dialog`](crate::dialog::Dialog) with `Footer::none()` gives
     /// the dialog's answers itself. Full only.
