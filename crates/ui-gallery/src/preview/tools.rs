@@ -125,7 +125,7 @@ pub fn handle_keys(ui: &Ui, mock: &mut Mock) {
         || menu::bar::is_focused(ctx)
         || Popup::is_any_open(ctx)
         || popover::any_open(ctx)
-        || mock.dialog.is_some()
+        || craft_ui::dialog::any_modal(ctx)
         || ctx.text_edit_focused();
     if busy {
         return;

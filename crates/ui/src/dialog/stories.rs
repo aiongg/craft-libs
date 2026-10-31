@@ -114,7 +114,7 @@ fn lines(ui: &mut Ui, count: usize) {
 fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
     let tokens = crate::theme::current(ui.ctx());
     let (min, max) = args.width.width().range(&tokens.component.dialog, 2000.0);
-    let mut frame = DialogFrame::new("story-frame", "Canvas Size").roomy(args.roomy).width(min, max);
+    let mut frame = DialogFrame::new("story-frame", "Tool Options").roomy(args.roomy).width(min, max);
     if args.close_box {
         frame = frame.close_label(DialogLabels::of(ui).close);
     }
@@ -158,7 +158,7 @@ fn show_footer(ui: &mut Ui, args: &mut FooterArgs) {
         if args.alt_resets {
             footer = footer.reset(Reset::AltCancel("Reset".into()));
         }
-        let shown = Dialog::new("story-footer", "Canvas Size").modeless().width(Width::Compact).footer(footer).show(
+        let shown = Dialog::new("story-footer", "Tool Options").modeless().width(Width::Compact).footer(footer).show(
             ui.ctx(),
             &mut state,
             &mut (),

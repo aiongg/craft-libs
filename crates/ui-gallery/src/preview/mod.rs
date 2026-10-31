@@ -8,7 +8,6 @@
 
 mod canvas;
 mod chrome;
-mod dialog;
 mod dock;
 mod host_dialogs;
 mod model;
@@ -19,7 +18,6 @@ mod tools;
 
 use std::cell::RefCell;
 
-use craft_ui::dialog::DialogState;
 use craft_ui::localized::Labels as _;
 use craft_ui::patterns::LastUsed;
 use craft_ui::shell::{AppShell, BodyMode, CanvasLabels, CanvasShell, ScreenMode, WindowKey, take_tab_toggle};
@@ -27,7 +25,7 @@ use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::{Id, Rect, Ui, UiBuilder, Vec2, vec2};
 
 use dock::DockState;
-use model::{ImageSizeDraft, Mock, Tool};
+use model::{Mock, Tool};
 
 pub(crate) use story::stories;
 
@@ -43,7 +41,6 @@ pub struct AppPreview {
     dock: DockState,
     last_used: LastUsed<Tool>,
     home: bool,
-    image_size: DialogState<ImageSizeDraft>,
     dialogs: host_dialogs::Hosted,
 }
 
@@ -157,7 +154,6 @@ impl AppPreview {
             dock::show(ui, &mut this.mock, &mut this.dock, Some(chrome))
         });
         let this = this.into_inner();
-        dialog::show(ui, &mut this.mock, &mut this.image_size);
         host_dialogs::show(&ctx, &mut this.dialogs.0, &mut this.mock);
         tools::handle_keys(ui, &mut this.mock);
     }

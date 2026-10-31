@@ -151,7 +151,7 @@ fn state(ui: &Ui, name: &str) -> (SharedHost, egui::Id) {
 /// unsaved dialogs have one fixed id each, so two instances of a story drawn in the same pass
 /// (a component tab and a variants view) must not both show it.
 fn claim(ctx: &Context, name: &str, instance: egui::Id) -> bool {
-    let key = egui::Id::new(("craft_ui::dialog::framework_stories::claim", name));
+    let key = egui::Id::unique(("craft_ui::dialog::framework_stories::claim", name));
     let pass = ctx.cumulative_pass_nr();
     ctx.data_mut(|d| {
         let (claimed_pass, owner) = d.get_temp::<(u64, egui::Id)>(key).unwrap_or((u64::MAX, instance));
@@ -168,7 +168,6 @@ fn claim(ctx: &Context, name: &str, instance: egui::Id) -> bool {
 fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
     ui: &mut Ui,
     name: &str,
-    exclusive: bool,
     open: &mut bool,
     signature: S,
     make: impl FnOnce() -> D,
@@ -178,9 +177,6 @@ fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
     let (host, result_key) = state(ui, name);
     let signature_key = result_key.with("signature");
     let ctx = ui.ctx().clone();
-    if exclusive && !claim(&ctx, name, ui.id()) {
-        return;
-    }
     let mut host = lock(&host);
     if crate::story::dialog_shown(ui, *open) {
         let previous: Option<S> = ui.data(|d| d.get_temp::<Option<S>>(signature_key)).flatten();
@@ -224,7 +220,7 @@ const FILTER_SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom","angle":
 
 /// Gaussian Blur-style parameters on the host; OK shows the fields.
 fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
-    let salt = ui.id();
+    let salt = ui.scope_id();
     let layout = match args.layout {
         LayoutArg::SideColumn => ParamLayout::SideColumn,
         LayoutArg::BottomFooter => ParamLayout::BottomFooter,
@@ -233,7 +229,6 @@ fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
     drive(
         ui,
         "params",
-        false,
         &mut args.open,
         (args.layout, preview),
         || ParamDialog::new(("story-params", salt), "Radial Blur", Param::parse_list(FILTER_SPEC)).preview(preview).layout(layout),
@@ -244,12 +239,11 @@ fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
 
 /// A command form with Reset-free OK; OK is disabled while `ok enabled` is off.
 fn show_form(ui: &mut Ui, args: &mut FormArgs) {
-    let salt = ui.id();
+    let salt = ui.scope_id();
     let enabled = args.ok_enabled;
     drive(
         ui,
         "form",
-        false,
         &mut args.open,
         (),
         || CommandForm::new(("story-form", salt), "Go to Page", Param::parse_list(r#"{"page":u32=1,"select":bool}"#)).ok_label("Go"),
@@ -262,13 +256,15 @@ const ORIGINAL: PixelSize = PixelSize { width: 1200, height: 800, pixels_per_inc
 
 /// Image Size or Canvas Size on the host.
 fn show_size(ui: &mut Ui, args: &mut SizeArgs) {
+    if !claim(ui.ctx(), "size", ui.scope_id()) {
+        return;
+    }
     match args.kind {
         SizeKindArg::Image => {
             let method = if args.resample { Resample::Automatic } else { Resample::None };
             drive(
                 ui,
                 "size-image",
-                true,
                 &mut args.open,
                 method,
                 || ImageSizeDialog::new(ORIGINAL).resample(method),
@@ -281,7 +277,6 @@ fn show_size(ui: &mut Ui, args: &mut SizeArgs) {
         SizeKindArg::Canvas => drive(
             ui,
             "size-canvas",
-            true,
             &mut args.open,
             (),
             || CanvasSizeDialog::new(ORIGINAL),
@@ -293,6 +288,9 @@ fn show_size(ui: &mut Ui, args: &mut SizeArgs) {
 
 /// The standard prompts and the unsaved-changes question.
 fn show_prompt(ui: &mut Ui, args: &mut PromptArgs) {
+    if !claim(ui.ctx(), "prompt", ui.scope_id()) {
+        return;
+    }
     let several = args.several;
     let kind = match args.kind {
         PromptKindArg::ConfirmDelete => Some(if several {
@@ -309,13 +307,10 @@ fn show_prompt(ui: &mut Ui, args: &mut PromptArgs) {
         PromptKindArg::Unsaved => None,
     };
     match kind {
-        Some(kind) => {
-            drive(ui, "prompt", true, &mut args.open, (args.kind, several), || StandardPrompt::new(kind), |_| {}, |choice| format!("{choice:?}"))
-        }
+        Some(kind) => drive(ui, "prompt", &mut args.open, (args.kind, several), || StandardPrompt::new(kind), |_| {}, |choice| format!("{choice:?}")),
         None => drive(
             ui,
             "unsaved",
-            true,
             &mut args.open,
             several,
             || UnsavedChangesDialog::new(CloseScope::Close, "poster.psd").remaining(if several { 3 } else { 1 }),
@@ -327,7 +322,7 @@ fn show_prompt(ui: &mut Ui, args: &mut PromptArgs) {
 
 /// A two-tab Document Properties; read only shows values as text with a single OK.
 fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
-    let salt = ui.id();
+    let salt = ui.scope_id();
     let read_only = args.read_only;
     let tabs = || {
         vec![
@@ -354,7 +349,6 @@ fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
     drive(
         ui,
         "properties",
-        false,
         &mut args.open,
         read_only,
         || PropertiesDialog::new(("story-properties", salt), "Document Properties", tabs()).read_only(read_only),
@@ -365,12 +359,11 @@ fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
 
 /// An import report with `notes` lines, tones cycling.
 fn show_report(ui: &mut Ui, args: &mut ReportArgs) {
-    let salt = ui.id();
+    let salt = ui.scope_id();
     let count = args.notes;
     drive(
         ui,
         "report",
-        false,
         &mut args.open,
         count,
         || {
@@ -414,7 +407,7 @@ fn notice(key: (&'static str, egui::Id), title: &'static str, message: &'static 
 
 /// Three alerts enqueued in the ticked stages; they open one at a time in stage order.
 fn show_queue(ui: &mut Ui, args: &mut QueueArgs) {
-    let salt = ui.id();
+    let salt = ui.scope_id();
     let (host, result_key) = state(ui, "queue");
     let signature_key = result_key.with("signature");
     let signature = (args.recovery, args.warning, args.update);

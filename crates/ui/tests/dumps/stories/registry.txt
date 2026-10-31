@@ -97,7 +97,7 @@ composites/empty-state/canvas = EmptyState | Canvas | Panel | width=Number { val
 composites/empty-state/start-screen = EmptyState | Start screen | Panel | width=Number { value: 640.0, min: 200.0, max: 800.0 }; height=Number { value: 420.0, min: 200.0, max: 600.0 }
 composites/curve-editor/curves = CurveEditor | Curves | Panel | channel=Choice { options: ["RGB", "Red", "Green", "Blue"], index: 0 }; pencil=Bool(false); histogram=Bool(true); fields=Bool(true); width=Number { value: 300.0, min: 120.0, max: 400.0 }; values=Choice { options: ["levels", "percent"], index: 0 }; update rate=Choice { options: ["realtime", "debounced 300 ms"], index: 0 }; cancellable=Bool(true); on release only=Bool(false)
 composites/curve-editor/small = CurveEditor | Small | Panel | 
-composites/curve-editor/preview = CurvePreview | Preview | Panel | 
+composites/curve-editor/preview = CurvePreview | Live preview | Panel | 
 composites/curve-editor/corners = CurveEditor | Corners | Panel | 
 composites/histogram/tone = Histogram | Tone | Panel | channel=Choice { options: ["neutral", "red", "green", "blue", "cyan", "magenta", "yellow"], index: 1 }; stale=Bool(false); marker=Bool(true); width=Number { value: 256.0, min: 80.0, max: 400.0 }
 composites/histogram/rgb = Histogram | RGB | Panel | scale=Choice { options: ["peak", "typical"], index: 0 }; marker=Bool(false); width=Number { value: 256.0, min: 80.0, max: 400.0 }
@@ -154,7 +154,7 @@ patterns/dialog/properties = Dialog | Properties | Panel | open=Bool(true); read
 patterns/dialog/report = Dialog | Report | Panel | open=Bool(true); notes=Number { value: 6.0, min: 0.0, max: 40.0 }
 patterns/dialog/startup-queue = Dialog | Startup queue | Panel | recovery=Bool(true); warning=Bool(true); update=Bool(true)
 patterns/full-window/workspace = FullWindowDialog | Workspace | Panel | open=Bool(true); title strip=Bool(true); apply=Bool(false)
-patterns/dialog/preview = Dialog | Preview | Panel | open=Bool(true); preview=Bool(true); local history=Bool(true); compare button=Bool(true)
+patterns/dialog/preview = Dialog | Preview box | Panel | open=Bool(true); preview=Bool(true); local history=Bool(true); compare button=Bool(true)
 patterns/viewport/embedded = ViewportWindow | Embedded | Panel | open=Bool(true); app modal=Bool(false); scrim=Bool(false)
 patterns/preferences/window = PreferencesWindow | Window | Panel | search=Text(""); width=Number { value: 760.0, min: 560.0, max: 1040.0 }; height=Number { value: 480.0, min: 400.0, max: 800.0 }; rtl=Bool(false)
 patterns/options-bar/brush-and-transform = OptionsBar | Brush and transform | Chrome | narrow=Bool(false); session=Bool(true); disabled=Bool(false); two_rows=Bool(false); width=Number { value: 640.0, min: 160.0, max: 1200.0 }

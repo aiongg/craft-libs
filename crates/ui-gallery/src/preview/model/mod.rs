@@ -4,12 +4,12 @@
 mod doc;
 mod layers;
 mod properties;
-mod size;
 mod tools;
+
+use craft_ui::dialog::{ImageSizeResult, Resample};
 
 pub use doc::{Blend, Doc, Layer, LayerId, LayerKind};
 pub use properties::{AdjustField, Align, RectField};
-pub use size::{ImageSizeDraft, Resample, SizeUnit};
 pub use tools::{MarqueeStyle, MoveTarget, SampleSize, Tool, Tools};
 
 /// The foreground and background colours.
@@ -88,8 +88,6 @@ pub struct Mock {
     /// What happened to the document, oldest first.
     pub history: Vec<String>,
     pub status: String,
-    /// The Image Size dialog's draft while it is open.
-    pub dialog: Option<ImageSizeDraft>,
 }
 
 impl Default for Mock {
@@ -101,7 +99,6 @@ impl Default for Mock {
             view: View::default(),
             history: vec!["Open".to_owned()],
             status: String::new(),
-            dialog: None,
         }
     }
 }
@@ -148,21 +145,16 @@ impl Mock {
         }
     }
 
-    /// Opens the Image Size dialog's draft from the document.
-    pub fn open_image_size(&mut self) {
-        self.dialog = Some(ImageSizeDraft::new(self.doc.size));
-    }
-
-    /// Applies the draft and closes it. With resampling on the document takes the draft's pixel
+    /// Applies the Image Size dialog's answer. With resampling on the document takes the pixel
     /// size and the layers scale with it; off, the pixel count stays and only the resolution
     /// changes, as PhotoCraft's Image Size does.
-    pub fn apply_size(&mut self) {
-        let Some(draft) = self.dialog.take() else { return };
-        let size = draft.pixel_size();
-        if size == self.doc.size && draft.resolution == self.doc.resolution {
+    pub fn apply_size(&mut self, result: &ImageSizeResult) {
+        let size = [result.size.width, result.size.height];
+        let resample = result.resample != Resample::None;
+        if size == self.doc.size && result.size.pixels_per_inch == self.doc.resolution {
             return;
         }
-        if draft.resample && size != self.doc.size {
+        if resample && size != self.doc.size {
             let scale = [size[0] as f32 / self.doc.size[0] as f32, size[1] as f32 / self.doc.size[1] as f32];
             for layer in &mut self.doc.layers {
                 let [x, y, w, h] = layer.rect;
@@ -176,7 +168,7 @@ impl Mock {
             self.view.center = size.map(|s| f64::from(s) / 2.0);
         }
         self.doc.size = size;
-        self.doc.resolution = draft.resolution;
+        self.doc.resolution = result.size.pixels_per_inch;
         self.doc.modified = true;
         self.record("Image Size");
         self.status = format!("{} x {} px", size[0], size[1]);
@@ -185,6 +177,8 @@ impl Mock {
 
 #[cfg(test)]
 mod tests {
+    use craft_ui::dialog::PixelSize;
+
     use super::doc::adjust;
     use super::*;
 
@@ -255,36 +249,15 @@ mod tests {
         assert_eq!(doc.shown_color(1), Some([240, 140, 40]));
     }
 
-    #[test]
-    fn a_linked_size_keeps_the_ratio_in_either_unit() {
-        let mut draft = ImageSizeDraft::new([1200, 800]);
-        draft.set_width(600.0);
-        assert_eq!(draft.height, 400.0);
-        draft.set_height(100.0);
-        assert_eq!(draft.width, 150.0);
-        draft.link = false;
-        draft.set_width(10.0);
-        assert_eq!(draft.height, 100.0);
-        draft.link = true;
-        draft.set_unit(0, SizeUnit::Percent);
-        assert!((draft.width - 10.0 / 12.0).abs() < 1e-9);
-        draft.set_width(50.0);
-        assert_eq!(draft.pixel_size(), [600, 400]);
+    fn size_result(width: u32, height: u32, ppi: f64, resample: Resample) -> ImageSizeResult {
+        ImageSizeResult { size: PixelSize { width, height, pixels_per_inch: ppi }, resample, scale_styles: true }
     }
 
     #[test]
-    fn applying_the_size_resizes_the_document_and_cancel_leaves_it() {
+    fn applying_the_size_resizes_the_document() {
         let mut mock = Mock::default();
-        mock.open_image_size();
-        mock.dialog.as_mut().unwrap().set_width(600.0);
-        mock.dialog = None;
-        assert_eq!(mock.doc.size, [1200, 800], "closing the draft applies nothing");
-
-        mock.open_image_size();
-        mock.dialog.as_mut().unwrap().set_width(600.0);
-        mock.apply_size();
+        mock.apply_size(&size_result(600, 400, 72.0, Resample::Automatic));
         assert_eq!(mock.doc.size, [600, 400]);
-        assert!(mock.dialog.is_none());
         assert_eq!(mock.doc.layer(3).unwrap().rect, [250.0, 150.0, 250.0, 200.0], "resampled layers scale");
         assert_eq!(mock.status, "600 x 400 px");
         assert_eq!(mock.history.last().map(String::as_str), Some("Image Size"));
@@ -293,13 +266,7 @@ mod tests {
     #[test]
     fn without_resampling_only_the_resolution_changes() {
         let mut mock = Mock::default();
-        mock.open_image_size();
-        let draft = mock.dialog.as_mut().unwrap();
-        draft.set_resample(false);
-        draft.set_width(600.0);
-        assert_eq!((draft.width, draft.height), (1200.0, 800.0), "the pixel fields are fixed");
-        draft.resolution = 150.0;
-        mock.apply_size();
+        mock.apply_size(&size_result(1200, 800, 150.0, Resample::None));
         assert_eq!(mock.doc.size, [1200, 800]);
         assert_eq!(mock.doc.resolution, 150.0);
         assert_eq!(mock.doc.layer(3).unwrap().rect, [500.0, 300.0, 500.0, 400.0], "the layers stay");

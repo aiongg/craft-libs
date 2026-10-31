@@ -2,8 +2,9 @@
 
 use egui::Ui;
 
-use super::{Dialog, DialogState, Footer, Outcome, Width};
+use super::{Dialog, DialogLabels, DialogState, Footer, Outcome, Width};
 use crate::controls::{Button, Slider};
+use crate::localized::Labels as _;
 use crate::story::{Level, Story, StoryArgs};
 use crate::typed_story;
 
@@ -31,7 +32,7 @@ pub(crate) fn stories() -> Vec<Story> {
         "patterns/dialog/preview",
         Level::Patterns,
         "Dialog",
-        "Preview",
+        "Preview box",
         PreviewArgs { open: true, preview: true, local_history: true, compare_button: true },
         show_preview
     )]
@@ -46,7 +47,7 @@ fn show_preview(ui: &mut Ui, args: &mut PreviewArgs) {
         let mut fields = ui.data_mut(|d| d.get_temp::<Fields>(key)).unwrap_or(Fields { brightness: 0.0, contrast: 0.0 });
         let mut footer = Footer::standard();
         if args.preview {
-            footer = footer.preview("Preview");
+            footer = footer.preview(DialogLabels::of(ui).preview);
         }
         let compare = args.compare_button;
         let shows = state.preview().shows_result();

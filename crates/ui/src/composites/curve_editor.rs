@@ -1403,7 +1403,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_curves
         ),
         typed_story!("composites/curve-editor/small", Level::Composites, "CurveEditor", "Small", NoArgs {}, show_small),
-        typed_story!("composites/curve-editor/preview", Level::Composites, "CurvePreview", "Preview", NoArgs {}, show_preview),
+        typed_story!("composites/curve-editor/preview", Level::Composites, "CurvePreview", "Live preview", NoArgs {}, show_preview),
         typed_story!("composites/curve-editor/corners", Level::Composites, "CurveEditor", "Corners", NoArgs {}, show_corners),
     ]
 }

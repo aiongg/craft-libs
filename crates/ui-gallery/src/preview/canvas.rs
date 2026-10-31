@@ -226,7 +226,7 @@ pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) {
     // Esc belongs to the canvas when it has focus, or when it is hovered and nothing else has
     // focus (a rename or a popup keeps its Esc); never under a dialog.
     let escape = response.has_focus() || (response.hovered() && ctx.memory(|m| m.focused()).is_none());
-    if selection.is_some() && escape && mock.dialog.is_none() && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
+    if selection.is_some() && escape && !craft_ui::dialog::any_modal(&ctx) && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
         selection = None;
         mock.status.clear();
     }

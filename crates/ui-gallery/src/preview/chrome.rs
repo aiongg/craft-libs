@@ -10,7 +10,6 @@ use craft_ui::patterns::StatusBar;
 use craft_ui::title_bar::{CaptionFamily, Captions, Frame as WindowFrame, LeadingEnd, Title, TitleBar, WindowState};
 use egui::Ui;
 
-use super::dialog;
 use super::dock::DockState;
 use super::host_dialogs;
 use super::model::Mock;
@@ -66,7 +65,7 @@ fn menus(mock: &Mock, dock: &DockState) -> Vec<MenuItem<Command>> {
 
 fn run(command: Command, mock: &mut Mock, dock: &mut DockState, dialogs: &mut DialogHost) {
     match command {
-        Command::ImageSize => dialog::open_image_size(mock),
+        Command::ImageSize => host_dialogs::open_image_size(dialogs, mock),
         Command::NewLayer => mock.add_layer(),
         Command::DeleteLayer => mock.delete_selected(),
         Command::DeleteLayerAsk => host_dialogs::open_delete_layer(dialogs, mock),
