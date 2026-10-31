@@ -1359,6 +1359,7 @@ dependencies = [
  "craft-ui",
  "dirs",
  "egui",
+ "egui_kittest",
  "serde",
  "serde_json",
  "tempfile",
