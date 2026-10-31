@@ -55,8 +55,8 @@ pub use options::{
 pub use path_row::{OutputPathLabels, OutputPathResponse, OutputPathRow};
 pub use watermark::{Watermark, WatermarkEditor, WatermarkLabels, WatermarkStyle};
 pub use web::{
-    ColorTable, Dither, SaveForWebDialog, SaveForWebResult, WebFormat, WebLabels, WebMetadata, WebSettings, WebVariant, WebView, download_seconds,
-    four_up_variants,
+    ColorTable, Dither, MATTE_COLOR_KEY, SaveForWebDialog, SaveForWebResult, WebFormat, WebLabels, WebMetadata, WebSettings, WebVariant, WebView,
+    download_seconds, four_up_variants,
 };
 
 crate::words! {
@@ -91,6 +91,10 @@ crate::words! {
         ico_limit: "export.icoLimit" = "ICO is limited to 256 × 256 pixels";
         scale_range: "export.scaleRange" = "Scale must be within 1–1000 percent";
         pixel_range: "export.pixelRange" = "Export size must be within 1–300,000 pixels";
+        /// The size shown before any estimate is in.
+        no_estimate: "export.noEstimate" = "—";
+        /// The file name suggested for a document with none.
+        untitled: "export.untitled" = "Untitled";
     }
 }
 
@@ -337,9 +341,9 @@ impl ExportAsDialog {
 
     /// The file name the picker suggests: [`export_file_name`] of the document name plus the
     /// format's extension.
-    pub fn file_name(&self) -> String {
+    pub fn file_name(&self, labels: &ExportLabels) -> String {
         let extension = self.format().map_or("png", |format| format.extension);
-        format!("{}.{extension}", export_file_name(&self.file_name, UNTITLED))
+        format!("{}.{extension}", export_file_name(&self.file_name, &labels.untitled))
     }
 
     /// The settings and their revision when they changed since the last call; `None` otherwise.
@@ -435,12 +439,12 @@ impl ExportAsDialog {
 
     /// Queues the save picker for the current format.
     // pc: crates/ui-egui/src/dialogs/export_dialog.rs:1038 confirm
-    fn queue_save(&mut self, ctx: &Context, title: &str) {
+    fn queue_save(&mut self, ctx: &Context, labels: &ExportLabels) {
         let Some(host) = Host::try_of_ctx(ctx) else { return };
         let Some(format) = self.format() else { return };
         let request = PickRequest::save("export")
-            .title(title)
-            .file_name(self.file_name())
+            .title(labels.title.as_str())
+            .file_name(self.file_name(labels))
             .suggested_extension(format.extension)
             .filter(format.name, &[format.extension]);
         self.picking = Some(host.files().pick(request));
@@ -452,7 +456,7 @@ impl ExportAsDialog {
         match self.preview.as_ref().map(|preview| preview.estimate) {
             Some(SizeEstimate::Proxy(bytes)) => format!("{name}  {}", craft_i18n::fmt(&labels.estimate, &[("size", &human_bytes(bytes as f64))])),
             Some(SizeEstimate::Exact(bytes)) => format!("{name}  {}", craft_i18n::fmt(&labels.exact, &[("size", &human_bytes(bytes as f64))])),
-            None => format!("{name}  {}", craft_i18n::fmt(&labels.estimate, &[("size", NO_ESTIMATE)])),
+            None => format!("{name}  {}", craft_i18n::fmt(&labels.estimate, &[("size", labels.no_estimate.as_str())])),
         }
     }
 }
@@ -504,7 +508,7 @@ impl StackDialog for ExportAsDialog {
         }
         match shown.outcome {
             Some(Outcome::Ok) => {
-                self.queue_save(ctx, &labels.title);
+                self.queue_save(ctx, &labels);
                 None
             }
             Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
@@ -514,12 +518,6 @@ impl StackDialog for ExportAsDialog {
 }
 
 const REMEMBER_KEY: &str = "export.exportAs";
-
-/// The size shown before any estimate is in.
-const NO_ESTIMATE: &str = "—";
-
-/// The name suggested for a document with none.
-const UNTITLED: &str = "Untitled";
 
 /// The preview with the size line under it.
 fn preview_column(ui: &mut Ui, preview: Option<&ExportPreview>, side: f32, line: &str) {

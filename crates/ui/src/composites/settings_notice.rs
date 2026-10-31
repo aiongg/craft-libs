@@ -1,8 +1,9 @@
 //! [`SettingsNotices`]: what the user is told when settings can't be saved or couldn't be read.
 
-use craft_settings::{LoadReport, SaveStatus, TickResult};
+use craft_settings::{LoadReport, SaveStatus, SettingsError, TickResult};
 use egui::{Context, Ui};
 
+use super::status::StatusLine;
 use super::{Notice, Tone};
 use crate::localized::Labels as _;
 
@@ -23,16 +24,11 @@ crate::words! {
         reset_body: "settingsNotice.resetBody" = "The preferences file held values {app} can't read for {paths}. Those settings are back to their defaults; the rest of your preferences loaded.";
         /// `{path}`: where the unreadable file was moved.
         moved_aside: "settingsNotice.movedAside" = "Preferences were reset; the unreadable file was kept as {path}.";
+        /// What stands for the app's name in the messages when no [`Host`](craft_host::Host) is installed.
+        app_fallback: "settingsNotice.appFallback" = "The app";
         /// `{reason}`: why the store won't save (a newer version's file, a failed migration).
         read_only: "settingsNotice.readOnly" = "Preferences won't be saved: {reason}";
     }
-}
-
-/// A line for the status bar.
-#[derive(Clone, Debug, PartialEq)]
-pub struct StatusLine {
-    pub text: String,
-    pub tone: Tone,
 }
 
 /// The settings messages of one app run, after PhotoCraft's save and load reporting.
@@ -55,6 +51,15 @@ pub struct SettingsNotices {
     status: Option<StatusLine>,
     cant_save: Option<String>,
     reset: Option<Vec<String>>,
+}
+
+/// The cause of a failed save without `SettingsError`'s own lead-in, which the message
+/// "Couldn't save preferences: {error}" already says.
+fn save_error_text(error: &SettingsError) -> String {
+    match error {
+        SettingsError::Io(error) => error.to_string(),
+        SettingsError::ReadOnly(why) | SettingsError::Serialize(why) => why.clone(),
+    }
 }
 
 impl SettingsNotices {
@@ -88,7 +93,7 @@ impl SettingsNotices {
         match &result.status {
             SaveStatus::Failed(error) => {
                 self.failures = self.failures.saturating_add(1);
-                let error = error.to_string();
+                let error = save_error_text(error);
                 if self.failures == 1 {
                     let labels = SettingsNoticeLabels::of_ctx(ctx);
                     self.status = Some(StatusLine { text: craft_i18n::fmt(&labels.save_failed, &[("error", error.as_str())]), tone: Tone::Bad });
@@ -122,7 +127,7 @@ impl SettingsNotices {
     /// Draws the notices, newest first; nothing when there are none.
     pub fn show(&mut self, ui: &mut Ui) {
         let labels = SettingsNoticeLabels::of(ui);
-        let app = craft_host::Host::try_of_ctx(ui.ctx()).map_or_else(|| "The app".to_owned(), |host| host.app().name.to_owned());
+        let app = craft_host::Host::try_of_ctx(ui.ctx()).map_or_else(|| labels.app_fallback.clone(), |host| host.app().name.to_owned());
         if let Some(error) = &self.cant_save {
             let body = craft_i18n::fmt(&labels.cant_save_body, &[("app", app.as_str())]);
             Notice::new(format!("{error}\n{body}")).title(labels.cant_save_title.as_str()).tone(Tone::Bad).id_salt("settings-cant-save").show(ui);

@@ -24,6 +24,9 @@ crate::words! {
         tiff_title: "formatOptions.tiffTitle" = "TIFF Options";
         targa_title: "formatOptions.targaTitle" = "Targa Options";
         dds_title: "formatOptions.ddsTitle" = "DDS Options";
+        bc1: "formatOptions.bc1" = "BC1 / DXT1";
+        bc2: "formatOptions.bc2" = "BC2 / DXT3";
+        bc3: "formatOptions.bc3" = "BC3 / DXT5";
         image_options: "formatOptions.imageOptions" = "Image Options";
         quality: "formatOptions.quality" = "Quality";
         low: "formatOptions.low" = "Low";
@@ -354,12 +357,11 @@ impl StackDialog for DdsOptionsDialog {
             &mut options,
             |ui, options| {
                 let _ = SectionLabel::new(&labels.compression).show(ui);
-                // The block compressions keep their format names in every language.
                 let _ = RadioGroup::new("dds-compression", &labels.compression, &mut options.compression)
                     .item(DdsCompression::None, &labels.none)
-                    .item(DdsCompression::Bc1, "BC1 / DXT1")
-                    .item(DdsCompression::Bc2, "BC2 / DXT3")
-                    .item(DdsCompression::Bc3, "BC3 / DXT5")
+                    .item(DdsCompression::Bc1, &labels.bc1)
+                    .item(DdsCompression::Bc2, &labels.bc2)
+                    .item(DdsCompression::Bc3, &labels.bc3)
                     .show(ui);
                 ui.add_space(gap.stack);
                 let _ = Checkbox::bool(&labels.mipmaps, &mut options.mipmaps).show(ui);

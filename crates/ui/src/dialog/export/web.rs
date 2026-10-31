@@ -5,11 +5,12 @@ use std::path::PathBuf;
 
 use craft_host::{Host, PickId, PickRequest, Picked};
 use craft_settings::Remembered;
-use craft_theme::{Rgba, TypeRole};
+use craft_theme::{Rgba, Srgba, TypeRole};
 use egui::text::LayoutJob;
 use egui::{Color32, Context, CornerRadius, Label, Rect, Response, Sense, Stroke, TextureHandle, Ui, Vec2, vec2};
 use serde::{Deserialize, Serialize};
 
+use super::super::color_request::ColorRequest;
 use super::super::dialog::{Dialog, Outcome};
 use super::super::dialog_host::{DialogResult, StackDialog};
 use super::super::footer::Footer;
@@ -286,6 +287,8 @@ pub struct SaveForWebDialog {
     /// Shared pane zoom and centre; becomes the preview pane's state (F06.01) when that lands.
     nav: Nav,
     picking: Option<PickId>,
+    /// The request to hand out once.
+    color_request: Option<ColorRequest>,
     recalled: bool,
     state: DialogState<()>,
 }
@@ -313,6 +316,7 @@ impl SaveForWebDialog {
             original: Some(original),
             nav: Nav::FIT,
             picking: None,
+            color_request: None,
             recalled: false,
             state: DialogState::new(),
         }
@@ -363,6 +367,23 @@ impl SaveForWebDialog {
             wanted.push((2, revision, quarter));
         }
         wanted
+    }
+
+    /// The Matte swatch was pressed in the pass since the last call: the colour to ask the app's
+    /// picker for, keyed [`MATTE_COLOR_KEY`]. Returned once; answer with
+    /// [`set_color`](Self::set_color).
+    pub fn pick_color(&mut self) -> Option<ColorRequest> {
+        self.color_request.take()
+    }
+
+    /// The colour the app's picker returned for `key`: the matte, without alpha. Other keys are
+    /// ignored.
+    pub fn set_color(&mut self, key: &str, color: Srgba) {
+        if key == MATTE_COLOR_KEY {
+            let Rgba([r, g, b, _]) = color.to_rgba();
+            self.settings.matte = [r, g, b];
+            self.revision += 1;
+        }
     }
 
     /// An encoded pane; one for an older revision is dropped.
@@ -470,7 +491,7 @@ impl StackDialog for SaveForWebDialog {
         let tokens = crate::theme::current(ctx);
         let height = tokens.component.dialog.preview_pane[1] * 2.0;
         let (width, settings_width) = (tokens.component.export.web_width, tokens.component.export.web_settings_width);
-        let Self { name, fields, settings, presets, view, frames, frame, playing, variants, original, nav, state, .. } = self;
+        let Self { name, fields, settings, presets, view, frames, frame, playing, variants, original, nav, state, color_request, .. } = self;
         let shown = Dialog::with_id(self.id, labels.title.as_str())
             .stack(stack)
             .width(Width::Fixed(width))
@@ -487,7 +508,7 @@ impl StackDialog for SaveForWebDialog {
                         ui.set_width(settings_width);
                         let palette = preview.variants[0].as_ref().map_or(&[][..], |variant| variant.palette.as_slice());
                         egui::ScrollArea::vertical().id_salt("web-settings").max_height(preview.height).show(ui, |ui| {
-                            settings_column(ui, preview.fields, settings, presets, palette, &labels, &sizing, &numbers);
+                            settings_column(ui, preview.fields, settings, presets, palette, &labels, &sizing, &numbers, color_request);
                         });
                     });
                 });
@@ -846,6 +867,9 @@ fn is_preset(preset: &WebSettings, settings: &WebSettings) -> bool {
     *preset == WebSettings { percent: preset.percent, resample: preset.resample, ..settings.clone() }
 }
 
+/// The key of the colour request the Matte swatch makes.
+pub const MATTE_COLOR_KEY: &str = "web.matte";
+
 /// `#rrggbb` as three bytes.
 fn parse_matte(text: &str) -> Option<[u8; 3]> {
     let digits = text.trim().strip_prefix('#').unwrap_or(text.trim());
@@ -869,6 +893,7 @@ fn settings_column(
     labels: &WebLabels,
     sizing: &SizingLabels,
     numbers: &LocaleNumbers,
+    ask: &mut Option<ColorRequest>,
 ) {
     let gap = crate::theme::current(ui.ctx()).space.gap;
     FormGrid::new("web-settings").show(ui, |form| {
@@ -948,13 +973,19 @@ fn settings_column(
             form.row(&labels.matte, |ui, _| {
                 let [r, g, b] = settings.matte;
                 let hex = format!("#{r:02x}{g:02x}{b:02x}");
-                let edit = TextField::new("web-matte", labels.matte.as_str(), &hex)
-                    .width(crate::theme::current(ui.ctx()).component.export.web_field_width)
-                    .show(ui);
-                if let Some(matte) = edit.committed().and_then(|text| parse_matte(text)) {
-                    settings.matte = matte;
-                }
-                edit.response
+                ui.horizontal(|ui| {
+                    if ui.add(Swatch::new("web-matte-swatch", labels.matte.as_str(), Rgba([r, g, b, 255]))).clicked() {
+                        *ask = Some(ColorRequest::new(MATTE_COLOR_KEY, Srgba::from(Rgba([r, g, b, 255]))).title(labels.matte.as_str()));
+                    }
+                    let edit = TextField::new("web-matte", labels.matte.as_str(), &hex)
+                        .width(crate::theme::current(ui.ctx()).component.export.web_field_width)
+                        .show(ui);
+                    if let Some(matte) = edit.committed().and_then(|text| parse_matte(text)) {
+                        settings.matte = matte;
+                    }
+                    edit.response
+                })
+                .inner
             });
         }
         form.space(gap.row);

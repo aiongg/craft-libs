@@ -51,7 +51,7 @@ fn third_failure_raises_the_notice_and_success_clears_it() {
     notices.ticked(&ctx, &failed());
     let status = notices.take_status().expect("status on the first failure");
     assert_eq!(status.tone, Tone::Bad);
-    assert!(status.text.starts_with("Couldn't save preferences: ") && status.text.ends_with(". Retrying…"));
+    assert_eq!(status.text, "Couldn't save preferences: disk full. Retrying…", "the cause alone, without the error's own lead-in");
     assert!(notices.take_status().is_none(), "the status line is given once");
     assert!(!notices.has_notice());
 

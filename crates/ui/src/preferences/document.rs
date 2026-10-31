@@ -6,7 +6,7 @@ use std::sync::{Arc, OnceLock};
 
 use craft_host::Host;
 use craft_i18n::{I18n, Lang};
-use craft_theme::Rgba;
+use craft_theme::{Rgba, Srgba};
 use egui::{Context, Ui};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -268,7 +268,8 @@ pub trait CustomSettings<T> {
     /// Draws a page listed with [`SettingsDocument::custom_page`].
     fn page(&mut self, _ui: &mut Ui, _page: &str, _draft: &mut SettingsDraft) {}
     /// Dialogs opened from a custom row (a colour picker), drawn last in the window's viewport.
-    fn nested(&mut self, _ctx: &Context) {}
+    /// A dialog's answer goes into `draft`.
+    fn nested(&mut self, _ctx: &Context, _draft: &mut SettingsDraft) {}
     fn nested_open(&self) -> bool {
         false
     }
@@ -305,6 +306,12 @@ impl SettingsDraft {
         if let Ok(value) = toml::Value::try_from(value) {
             insert(&mut self.table, key, value);
         }
+    }
+
+    /// Writes the colour row `key` (the `#rrggbb` text a [`SettingRule::color`] row holds), for
+    /// the colour a picker opened from [`CustomSettings::nested`] returned.
+    pub fn set_color(&mut self, key: &str, color: Srgba) {
+        self.set(key, &Rgba::from(color).to_hex());
     }
 }
 
@@ -358,7 +365,7 @@ fn insert(table: &mut toml::Table, key: &str, value: toml::Value) {
 /// page into the draft, except rules marked [`keep_on_reset`](SettingRule::keep_on_reset).
 ///
 /// ```ignore
-/// let mut prefs = SettingsDocument::new(store.get().clone())
+/// let mut prefs = SettingsDocument::new(store.get().clone())?
 ///     .pages(StandardPage::ALL.map(PageInfo::from).to_vec())
 ///     .rules(photocraft_rules());
 /// // each pass while the window is open:
@@ -408,19 +415,21 @@ impl FieldOrder {
     }
 }
 
-fn table_of<T: Serialize>(value: &T) -> toml::Table {
-    toml::Table::try_from(value).unwrap_or_default()
+fn table_of<T: Serialize>(value: &T) -> Result<toml::Table, toml::ser::Error> {
+    toml::Table::try_from(value)
 }
 
 impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq> SettingsDocument<T> {
-    /// A document over `saved`, with the draft equal to it.
-    pub fn new(saved: T) -> Self {
-        let saved_table = table_of(&saved);
-        SettingsDocument {
+    /// A document over `saved`, with the draft equal to it. `Err` when `T` has no TOML form (a
+    /// map with non-string keys, a top-level value that is not a table): an empty draft would
+    /// reset every setting when Apply reads it back.
+    pub fn new(saved: T) -> Result<Self, toml::ser::Error> {
+        let saved_table = table_of(&saved)?;
+        Ok(SettingsDocument {
             order: FieldOrder::of(&saved),
             draft: SettingsDraft { table: saved_table.clone() },
             saved_table,
-            defaults: table_of(&T::default()),
+            defaults: table_of(&T::default())?,
             saved,
             pages: Vec::new(),
             custom_pages: Vec::new(),
@@ -430,7 +439,7 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq> SettingsDocu
             own: SettingsDocumentLabels::default(),
             texts: OnceLock::new(),
             applied: None,
-        }
+        })
     }
 }
 
@@ -487,18 +496,26 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
         self.texts = OnceLock::new();
     }
 
+    /// The app's custom part, for the app to open the dialog a [`PreferencesOutput::pick_color`](super::PreferencesOutput::pick_color)
+    /// request asks for.
+    pub fn custom_mut(&mut self) -> &mut C {
+        &mut self.custom
+    }
+
     /// The saved value the window started from (or last applied).
     pub fn saved(&self) -> &T {
         &self.saved
     }
 
-    /// Replaces the saved value and the draft (another instance changed the file).
-    pub fn reload(&mut self, saved: T) {
-        self.saved_table = table_of(&saved);
+    /// Replaces the saved value and the draft (another instance changed the file). `Err` leaves
+    /// the document as it was.
+    pub fn reload(&mut self, saved: T) -> Result<(), toml::ser::Error> {
+        self.saved_table = table_of(&saved)?;
         self.draft = SettingsDraft { table: self.saved_table.clone() };
         self.order = FieldOrder::of(&saved);
         self.saved = saved;
         self.texts = OnceLock::new();
+        Ok(())
     }
 
     /// The value Apply or OK committed, once.
@@ -817,9 +834,10 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
         let invalid = |error: String| craft_i18n::fmt(&self.own.invalid, &[("error", &error)]);
         let value: T =
             toml::Value::Table(self.draft.table.clone()).try_into().map_err(|error: toml::de::Error| invalid(error.message().to_owned()))?;
-        self.custom.apply(&value)?;
         // The serialized value is the next draft, as PhotoCraft takes the validated values back.
-        self.saved_table = table_of(&value);
+        let table = table_of(&value).map_err(|error| invalid(error.to_string()))?;
+        self.custom.apply(&value)?;
+        self.saved_table = table;
         self.draft = SettingsDraft { table: self.saved_table.clone() };
         self.saved = value.clone();
         self.applied = Some(value);
@@ -833,20 +851,24 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
 
     // pc: crates/ui-egui/src/prefs/prefs_ui/fields.rs:251 (Reset Section)
     fn reset_page(&mut self, page: &str) {
-        if let Some(defaults) = self.defaults.get(page).and_then(toml::Value::as_table)
-            && let Some(toml::Value::Table(draft)) = self.draft.table.get_mut(page)
-        {
-            for (key, value) in defaults {
-                if !self.rules.get(&format!("{page}.{key}")).is_some_and(|rule| rule.keep_on_reset) {
-                    draft.insert(key.clone(), value.clone());
+        if let Some(toml::Value::Table(defaults)) = self.defaults.get(page) {
+            // The page is replaced, so a key the defaults leave out (an `Option` that is `None`)
+            // goes too; only the `keep_on_reset` keys survive.
+            let mut reset = defaults.clone();
+            if let Some(toml::Value::Table(current)) = self.draft.table.get(page) {
+                for (key, value) in current {
+                    if self.rules.get(&format!("{page}.{key}")).is_some_and(|rule| rule.keep_on_reset) {
+                        reset.insert(key.clone(), value.clone());
+                    }
                 }
             }
+            self.draft.table.insert(page.to_owned(), toml::Value::Table(reset));
         }
         self.custom.reset_page(page);
     }
 
     fn nested(&mut self, ctx: &Context) {
-        self.custom.nested(ctx);
+        self.custom.nested(ctx, &mut self.draft);
     }
 
     fn nested_open(&self) -> bool {

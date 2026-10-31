@@ -92,3 +92,26 @@ fn star_click_toggles_favorite_without_picking() {
     assert_eq!(page.toggled.as_ref(), Some(&themes[1].id));
     assert_eq!(page.draft, SelectionChange::default());
 }
+
+// Tab into a row that has no chosen theme focuses its first chip and picks nothing; an arrow
+// then picks the chip it moves to.
+#[test]
+fn tab_into_a_row_without_a_choice_picks_nothing() {
+    let mut harness = harness(SelectionChange::default(), Vec::new());
+    harness.run();
+    for _ in 0..4 {
+        harness.key_press(Key::Tab);
+        harness.run();
+        if harness.get_all_by_role(Role::RadioButton).any(|chip| chip.is_focused()) {
+            break;
+        }
+    }
+    assert!(harness.get_all_by_role(Role::RadioButton).any(|chip| chip.is_focused()), "Tab reaches a chip");
+    harness.run();
+    assert_eq!(harness.state().draft, SelectionChange::default(), "Tab picked a theme");
+    assert!(!harness.state().changed);
+
+    harness.key_press(Key::ArrowRight);
+    harness.run();
+    assert!(harness.state().draft.theme_light.is_some() || harness.state().draft.theme_dark.is_some(), "an arrow picks");
+}
