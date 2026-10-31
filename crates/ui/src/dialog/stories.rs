@@ -8,7 +8,19 @@ use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::typed_story;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Dialog"];
+pub const COMPONENTS: &[&str] = &[
+    "Dialog",
+    "NewDocumentDialog",
+    "ExportAsDialog",
+    "SaveForWebDialog",
+    "JpegOptionsDialog",
+    "TiffOptionsDialog",
+    "TargaOptionsDialog",
+    "DdsOptionsDialog",
+    "WatermarkEditor",
+    "OutputPathRow",
+    "RecoveryDialog",
+];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum WidthArg {
@@ -101,6 +113,7 @@ pub(crate) fn stories() -> Vec<Story> {
     ];
     all.extend(super::stack_stories::stories());
     all.extend(super::framework_stories::stories());
+    all.extend(super::files_stories::stories());
     all
 }
 

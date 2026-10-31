@@ -163,17 +163,18 @@ pub(super) fn tone_icon(ui: &mut Ui, tone: Tone, size: IconSize, line_height: f3
 }
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["Notice"];
+pub const COMPONENTS: &[&str] = &["Notice", "SettingsNotices"];
 
 pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!(
+    let tones = typed_story!(
         "composites/notice/tones",
         Level::Composites,
         "Notice",
         "Tones",
         TonesArgs { announce: true, title: true, width: 320.0 },
         show_tones
-    )]
+    );
+    std::iter::once(tones).chain(super::settings_notice_stories::stories()).collect()
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]

@@ -7,6 +7,8 @@ pub mod egui_fork;
 pub use craft_ai_core as ai_core;
 #[cfg(feature = "atomic")]
 pub use craft_atomic as atomic;
+#[cfg(feature = "automation")]
+pub use craft_automation as automation;
 #[cfg(feature = "cms")]
 pub use craft_cms as cms;
 #[cfg(feature = "color")]
@@ -84,6 +86,8 @@ pub mod story {
         let mut all = craft_ui::story::registry();
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::stories());
+        #[cfg(feature = "dialogs")]
+        all.extend(craft_dialogs::ui::stories());
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::stories());
         #[cfg(feature = "font-manager")]
@@ -94,6 +98,8 @@ pub mod story {
         all.extend(craft_keymap::ui::stories());
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::stories());
+        #[cfg(feature = "theme-store")]
+        all.extend(craft_theme_store::ui::stories());
         all
     }
 }

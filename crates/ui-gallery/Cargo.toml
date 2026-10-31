@@ -22,7 +22,7 @@ required-features = ["capture"]
 
 [dependencies]
 # The crates with a UI side the gallery shows; font-manager joins on native targets below.
-craft = { workspace = true, features = ["ui", "color", "draw", "imaging", "keymap", "platform-appearance", "platform-theme", "serde", "text"] }
+craft = { workspace = true, features = ["ui", "color", "draw", "imaging", "keymap", "platform-appearance", "platform-theme", "serde", "text", "theme-store"] }
 craft-host = { workspace = true, features = ["ui"] }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true, features = ["serde"] }
@@ -36,7 +36,7 @@ serde_json = { version = "1", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # Its panel reads and installs fonts on disk and through the network.
-craft = { workspace = true, features = ["font-manager-picker"] }
+craft = { workspace = true, features = ["dialogs", "font-manager-font-picker"] }
 # The "System" interface face reads the installed fonts.
 craft-ui = { workspace = true, features = ["system_fonts"] }
 eframe = { version = "0.37", default-features = false, features = ["x11", "wayland"] }
