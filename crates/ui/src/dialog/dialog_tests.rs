@@ -608,3 +608,83 @@ fn a_resizable_dialog_with_a_tall_body_stays_in_the_window_and_scrolls() {
     assert!(ok.bottom() <= window.y, "{ok:?}");
     assert!(harness.get_by_label("Row 59").rect().top() > window.y, "the body is cut by its scroll area");
 }
+
+/// Dialog height and the body's laid-out and clipped heights, by step.
+#[derive(Clone, Copy, Debug, Default)]
+struct Cap {
+    dialog: f32,
+    body: f32,
+    overflows: bool,
+}
+
+fn cap_run(window: Vec2, footer: bool, steps: usize, body: impl Fn(&mut egui::Ui) + 'static) -> Vec<Cap> {
+    let seen = std::rc::Rc::new(std::cell::Cell::new(Cap::default()));
+    let out = seen.clone();
+    let mut harness = harness(window).build_ui_state(
+        move |ui, state: &mut DialogState| {
+            let ctx = ui.ctx().clone();
+            let mut height = 0.0;
+            let shown = Dialog::new("cap", "Cap")
+                .initial_focus(InitialFocus::None)
+                .footer(if footer { Footer::standard() } else { Footer::none() })
+                .show(&ctx, state, &mut (), |ui, ()| {
+                    body(ui);
+                    height = ui.min_rect().height();
+                });
+            let overflows = ctx.data(|d| d.get_temp::<bool>(dialog_id("cap").with("body-overflows"))).unwrap_or(false);
+            out.set(Cap { dialog: shown.rect.height(), body: height, overflows });
+        },
+        DialogState::new(),
+    );
+    (0..steps)
+        .map(|_| {
+            harness.step();
+            seen.get()
+        })
+        .collect()
+}
+
+fn beside_a_square(rows: usize, checkboxes: bool) -> impl Fn(&mut egui::Ui) {
+    move |ui| {
+        ui.horizontal_top(|ui| {
+            ui.allocate_exact_size(vec2(96.0, 96.0), egui::Sense::hover());
+            ui.vertical(|ui| {
+                for n in 0..rows {
+                    if checkboxes {
+                        let mut on = n % 2 == 0;
+                        ui.checkbox(&mut on, "Row");
+                    } else {
+                        ui.add_space(6.0);
+                        ui.label("Row");
+                    }
+                }
+            });
+        });
+    }
+}
+
+#[test]
+fn a_tall_body_reaches_its_height_by_the_second_pass() {
+    let run = cap_run(vec2(1440.0, 960.0), true, 8, |ui| {
+        for n in 0..32 {
+            ui.label(format!("Row {n}"));
+            ui.add_space(12.0);
+        }
+    });
+    assert!((run[1].dialog - run[7].dialog).abs() < 0.5, "settled by the second pass: {run:?}");
+    assert!(run[7].dialog <= 960.0, "the dialog fits the window: {run:?}");
+}
+
+#[test]
+fn a_body_of_a_square_and_a_column_is_capped_by_the_window_not_by_the_square() {
+    let run = cap_run(vec2(1440.0, 900.0), false, 8, beside_a_square(30, false));
+    let last = run[7];
+    assert!(!last.overflows, "the body fits under the window cap: {run:?}");
+    assert!(last.dialog > last.body && last.dialog < last.body + 80.0, "dialog is the body plus its chrome: {run:?}");
+}
+
+#[test]
+fn checkbox_rows_beside_a_square_are_not_clipped_at_the_square() {
+    let run = cap_run(vec2(1440.0, 900.0), false, 8, beside_a_square(5, true));
+    assert!(!run[7].overflows, "{run:?}");
+}

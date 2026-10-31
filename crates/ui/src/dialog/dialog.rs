@@ -466,10 +466,16 @@ impl<'a> Dialog<'a> {
                     if let Some((_, max)) = resize_sizes {
                         height = height.min((max.y - (chrome - 2.0 * pad) - below_used).max(t.scroll_min));
                     }
-                    let scrolled = ScrollArea::vertical().max_height(height).auto_shrink([body_mode == Body::Fit, true]).show(ui, |ui| {
-                        body(ui, fields);
-                        scroll_focus_into_view(ui);
-                    });
+                    // The body's room is the dialog's size from the pass before, which the footer and a
+                    // body that grew do not count in; the height is the cap, not what is left of that.
+                    let scrolled = ScrollArea::vertical()
+                        .max_height(height)
+                        .min_scrolled_height(height)
+                        .auto_shrink([body_mode == Body::Fit, true])
+                        .show(ui, |ui| {
+                            body(ui, fields);
+                            scroll_focus_into_view(ui);
+                        });
                     overflow_now.set(scrolled.content_size.y > scrolled.inner_rect.height() + 0.5);
                     let top = ui.min_rect().bottom();
                     below(ui, fields);
