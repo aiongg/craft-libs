@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! The UI-thread side of the control channel.
 //!
 //! A transport sends [`ControlRequest`]s; once per frame, between the input and the UI pass, the
@@ -17,9 +16,10 @@
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, Instant};
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
-use crate::screenshot::{Captures, DocumentId, Finished};
+use crate::screenshot::{Captures, DocumentId, Finished, screenshot_reply};
+use crate::synthetic::SyntheticInput;
 
 /// A reply: the JSON object the transport writes as one line.
 pub type ControlResponse = Value;
@@ -33,15 +33,19 @@ pub const REPLY_DEADLINE: Duration = Duration::from_secs(60);
 /// The error for a dispatched request with no reply in [`REPLY_DEADLINE`]: the command may still
 /// run and apply, so re-sending it blindly could apply an edit twice.
 pub fn timeout_error() -> String {
-    // pc: crates/ui-egui/src/control.rs:65
-    todo!()
+    format!(
+        "timeout: no reply in {}s — the command may still be running and may still apply, or the app was not drawing frames (display asleep, window fully occluded, or a long operation blocked the frame loop)",
+        REPLY_DEADLINE.as_secs()
+    )
 }
 
 /// The error for a request still queued when its deadline passed: dropped before dispatch, safe to
 /// re-send. Same `timeout` prefix as [`timeout_error`], which machines match on.
 pub fn expired_error() -> String {
-    // pc: crates/ui-egui/src/control.rs:75
-    todo!()
+    format!(
+        "timeout: not run — the request was still queued when its {}s deadline passed, so it was dropped before dispatch and is safe to re-send; the app was not drawing frames (display asleep, window fully occluded, or a long operation blocked the frame loop)",
+        REPLY_DEADLINE.as_secs()
+    )
 }
 
 /// One request from a transport, with where its reply goes.
@@ -58,14 +62,14 @@ pub struct ControlRequest {
 impl ControlRequest {
     /// A request with no deadline and a fresh reply channel (tests, in-process clients).
     pub fn new(method: impl Into<String>, params: Value) -> (Self, Receiver<ControlResponse>) {
-        // pc: crates/ui-egui/src/control.rs:93
-        todo!()
+        let (tx, rx) = std::sync::mpsc::channel();
+        (Self { method: method.into(), params, reply: tx, deadline: None, dispatch: Dispatch::default() }, rx)
     }
 
     /// `self` with its deadline [`REPLY_DEADLINE`] from now.
-    pub fn with_deadline(self) -> Self {
-        // pc: apps/photocraft/src/control_server.rs:113
-        todo!()
+    pub fn with_deadline(mut self) -> Self {
+        self.deadline = Some(Instant::now() + REPLY_DEADLINE);
+        self
     }
 }
 
@@ -74,18 +78,26 @@ impl ControlRequest {
 #[derive(Clone, Debug, Default)]
 pub struct Dispatch(std::sync::Arc<std::sync::atomic::AtomicU8>);
 
+const QUEUED: u8 = 0;
+const DISPATCHED: u8 = 1;
+const ABANDONED: u8 = 2;
+
 impl Dispatch {
+    /// Moves a queued request to `to`; returns the state it ends in.
+    fn settle(&self, to: u8) -> u8 {
+        use std::sync::atomic::Ordering;
+        self.0.compare_exchange(QUEUED, to, Ordering::AcqRel, Ordering::Acquire).map_or_else(|state| state, |_| to)
+    }
+
     /// The UI thread claims the request to run it: false once the transport gave up on it.
     pub fn start(&self) -> bool {
-        // pc: crates/ui-egui/src/control.rs:112
-        todo!()
+        self.settle(DISPATCHED) == DISPATCHED
     }
 
     /// The transport stops waiting: [`expired_error`] when the command can no longer run,
     /// [`timeout_error`] when it was dispatched and may still apply.
     pub fn give_up(&self) -> String {
-        // pc: crates/ui-egui/src/control.rs:118
-        todo!()
+        if self.settle(ABANDONED) == DISPATCHED { timeout_error() } else { expired_error() }
     }
 }
 
@@ -106,8 +118,10 @@ pub enum Outcome {
 impl Outcome {
     /// `Done` with an `ok` or `error` reply from a method's result.
     pub fn from_result(r: Result<Value, String>) -> Self {
-        // pc: crates/ui-egui/src/control.rs:143 (wrap)
-        todo!()
+        match r {
+            Ok(result) => Self::Done(json!({"ok": true, "result": result})),
+            Err(e) => Self::Done(json!({"ok": false, "error": e})),
+        }
     }
 }
 
@@ -128,24 +142,40 @@ pub struct ControlChannel {
 impl ControlChannel {
     /// Attach a transport's receiver (TCP, stdin, tests).
     pub fn new(rx: Receiver<ControlRequest>) -> Self {
-        // pc: crates/ui-egui/src/app/control.rs:5
-        todo!()
+        Self { rx, input_waiters: Vec::new(), job_waiters: Vec::new(), captures: Captures::default() }
     }
 
     /// The next request to run, claimed through [`Dispatch::start`]. Expired or abandoned
     /// requests are replied with [`expired_error`] here and skipped. `None` when the queue is
     /// empty this frame.
     pub fn next_request(&mut self) -> Option<ControlRequest> {
-        // pc: crates/ui-egui/src/app/control.rs:23
-        todo!()
+        while let Ok(req) = self.rx.try_recv() {
+            if req.deadline.is_some_and(|deadline| Instant::now() >= deadline) || !req.dispatch.start() {
+                let _ = req.reply.send(json!({"ok": false, "error": expired_error()}));
+                continue;
+            }
+            return Some(req);
+        }
+        None
     }
 
     /// Reply now, or park the reply on input, a job or a screenshot. `settle_ms` is the
     /// screenshot settle delay ([`crate::screenshot::settle_ms`] of the animation time);
     /// `document` the identity a screenshot is attributed to.
     pub fn settle(&mut self, req: ControlRequest, outcome: Outcome, document: Option<DocumentId>, settle_ms: f64) {
-        // pc: crates/ui-egui/src/app/control.rs:31
-        todo!()
+        let reply = req.reply;
+        match outcome {
+            Outcome::Done(v) => {
+                let _ = reply.send(v);
+            }
+            Outcome::AfterInput => self.input_waiters.push(reply),
+            Outcome::AfterJob(job) => self.job_waiters.push((job, reply)),
+            Outcome::Screenshot { token, path } => {
+                if let Err((reply, e)) = self.captures.admit(token, path, reply, document, settle_ms, Instant::now()) {
+                    let _ = reply.send(json!({"ok": false, "error": e}));
+                }
+            }
+        }
     }
 
     /// The pass that consumed the queued synthetic input ended: reply
@@ -153,37 +183,64 @@ impl ControlChannel {
     /// pass that reached the end of the UI with the synthetic queue empty; an early-returning pass
     /// keeps the waiters.
     pub fn input_processed(&mut self) {
-        // pc: crates/ui-egui/src/app/frame.rs:207
-        todo!()
+        for waiter in self.input_waiters.drain(..) {
+            let _ = waiter.send(json!({"ok": true, "result": null}));
+        }
     }
 
     /// The queued synthetic input was dropped (the window lost it, a modal took over): reply
     /// `{"ok": false, "error": "input cancelled: {reason}"}` to every [`Outcome::AfterInput`]
     /// waiter.
     pub fn input_cancelled(&mut self, reason: &str) {
-        // pc: crates/ui-egui/src/app/input.rs:112
-        todo!()
+        for waiter in self.input_waiters.drain(..) {
+            let _ = waiter.send(json!({"ok": false, "error": format!("input cancelled: {reason}")}));
+        }
+    }
+
+    /// PhotoCraft's `cancel_synthetic`: drop `input`'s queue and in-flight step, and fail every
+    /// [`Outcome::AfterInput`] waiter with `input cancelled: {reason}`, also when only waiters
+    /// remain (their input was already consumed). True when anything was pending or waiting.
+    pub fn cancel_input(&mut self, input: &mut SyntheticInput, reason: &str) -> bool {
+        let pending = input.cancel() || !self.input_waiters.is_empty();
+        self.input_cancelled(reason);
+        pending
     }
 
     /// Job `job` ended: reply to its waiters with `{"ok": true, "result": value}` for `Ok(value)`
     /// and `{"ok": false, "error": e}` for `Err(e)` (a cancelled job is `Err("cancelled")`).
     pub fn job_finished(&mut self, job: JobId, result: &Result<Value, String>) {
-        // pc: crates/ui-egui/src/jobs_ui.rs:458 (on_event)
-        todo!()
+        let reply = match result {
+            Ok(value) => json!({"ok": true, "result": value}),
+            Err(e) => json!({"ok": false, "error": e}),
+        };
+        self.job_waiters.retain(|(waiting, tx)| {
+            if *waiting == job {
+                let _ = tx.send(reply.clone());
+                false
+            } else {
+                true
+            }
+        });
     }
 
     /// Reply to finished screenshots with [`crate::screenshot::screenshot_reply`] (a capture
     /// error `e` as `{"ok": false, "error": e}`); `write` is the app's file authority for replies
     /// with a `path`.
     pub fn finish_captures(&mut self, finished: Vec<Finished>, write: &mut crate::screenshot::PngWriter<'_>) {
-        // pc: crates/ui-egui/src/app/screenshot.rs:32
-        todo!()
+        for f in finished {
+            let reply = match f.result {
+                Ok(image) => screenshot_reply(f.token, image, f.path.as_deref(), write),
+                Err(e) => json!({"ok": false, "error": e}),
+            };
+            if let Some(tx) = f.reply {
+                let _ = tx.send(reply);
+            }
+        }
     }
 
     /// Waiters of every kind, for `ui.inspect`'s `pending` count and tests.
     pub fn waiting(&self) -> usize {
-        // new: PhotoCraft reads the three vectors directly
-        todo!()
+        self.input_waiters.len() + self.job_waiters.len() + self.captures.pending()
     }
 }
 

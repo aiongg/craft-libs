@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Synthetic pointer and keyboard input: `ui.click`, `ui.move`, `ui.key`, `ui.type`.
 //!
 //! A request appends egui events to one queue. Each pass the app's raw input hook injects the
@@ -12,14 +11,34 @@
 
 use std::collections::VecDeque;
 
-use egui::{Event, Modifiers, PointerButton, Pos2, RawInput};
+use egui::{Event, Modifiers, PointerButton, Pos2, RawInput, pos2};
 use serde_json::Value;
+
+use crate::protocol::{BUTTONS, KEY_MODIFIERS, Params};
 
 /// Most clicks one `ui.click` may ask for (`count`).
 pub const MAX_CLICKS: u64 = 256;
 
 /// The reason [`Injected::Withdrawn`] gives [`crate::control::ControlChannel::input_cancelled`].
 pub const TARGET_CHANGED: &str = "the active document or focus changed while the input was queued";
+
+/// `x` and `y` in screen points, each defaulting to 0.
+fn coordinates(p: &Params<'_>) -> Result<(f32, f32), String> {
+    let x = p.number_in("x", "x", None)?.unwrap_or(0.0) as f32;
+    let y = p.number_in("y", "y", None)?.unwrap_or(0.0) as f32;
+    Ok((x, y))
+}
+
+/// Remove one contiguous run equal to `step` from `events` (eframe's preserved synthetic input).
+/// A no-op when the run is not present.
+fn remove_event_run(events: &mut Vec<Event>, step: &[Event]) {
+    if step.is_empty() || step.len() > events.len() {
+        return;
+    }
+    if let Some(pos) = events.windows(step.len()).position(|w| w == step) {
+        events.drain(pos..pos + step.len());
+    }
+}
 
 /// A validated `ui.click`.
 #[derive(Clone, Debug, PartialEq)]
@@ -36,15 +55,27 @@ impl Click {
     /// is an unsigned integer, default 1; over [`MAX_CLICKS`] is
     /// ``"`count` must be at most 256 (got {count})"``. Other errors are the `Params` validators'.
     pub fn from_params(params: &Value) -> Result<Self, String> {
-        // pc: crates/ui-egui/src/control/dispatch.rs:1014 (click, with click = true)
-        todo!()
+        let p = Params(params).only(None, &["x", "y", "button", "count"])?;
+        let p = Params(&p);
+        let (x, y) = coordinates(&p)?;
+        let button = match p.choice("button", "button", &BUTTONS)?.unwrap_or("left") {
+            "right" | "secondary" => PointerButton::Secondary,
+            "middle" => PointerButton::Middle,
+            _ => PointerButton::Primary,
+        };
+        let count = p.uint_field("count")?.unwrap_or(1);
+        if count > MAX_CLICKS {
+            return Err(format!("`count` must be at most {MAX_CLICKS} (got {count})"));
+        }
+        Ok(Self { at: pos2(x, y), button, count })
     }
 }
 
 /// A validated `ui.move`: `{x?, y?}` only, numbers, default 0.
 pub fn move_from_params(params: &Value) -> Result<Pos2, String> {
-    // pc: crates/ui-egui/src/control/dispatch.rs:1014 (click, with click = false)
-    todo!()
+    let p = Params(params).only(None, &["x", "y"])?;
+    let (x, y) = coordinates(&Params(&p))?;
+    Ok(pos2(x, y))
 }
 
 /// A validated `ui.key`: an egui key name (`Enter`, `A`, `F5`) with modifiers.
@@ -60,8 +91,11 @@ impl KeyPress {
     /// key is ``"missing `key`"``; a name `egui::Key::from_name` doesn't know is
     /// ``"unknown key `{name}`"``.
     pub fn from_params(params: &Value) -> Result<Self, String> {
-        // pc: crates/ui-egui/src/control/dispatch.rs:1045 (key)
-        todo!()
+        let p = Params(params).only(None, &["key", "modifiers", "shift", "alt", "command", "ctrl"])?;
+        let p = Params(&p);
+        let Some(name) = p.choice("key", "key", &[])? else { return Err("missing `key`".into()) };
+        let key = egui::Key::from_name(name).ok_or_else(|| format!("unknown key `{name}`"))?;
+        Ok(Self { key, modifiers: p.modifiers(&KEY_MODIFIERS)? })
     }
 }
 
@@ -92,34 +126,42 @@ impl SyntheticInput {
     /// `PointerMoved(at)`, then `count` times a press and a release of `button` at `at`, with
     /// default modifiers.
     pub fn click(&mut self, click: &Click) {
-        // pc: crates/ui-egui/src/control/dispatch.rs:1036
-        todo!()
+        let Click { at: pos, button, count } = *click;
+        self.queue.push_back(Event::PointerMoved(pos));
+        for _ in 0..count {
+            self.queue.push_back(Event::PointerButton { pos, button, pressed: true, modifiers: Modifiers::default() });
+            self.queue.push_back(Event::PointerButton { pos, button, pressed: false, modifiers: Modifiers::default() });
+        }
     }
 
     /// `PointerMoved(at)`.
     pub fn move_to(&mut self, at: Pos2) {
-        // pc: crates/ui-egui/src/control/dispatch.rs:1036
-        todo!()
+        self.queue.push_back(Event::PointerMoved(at));
     }
 
     /// `Event::Key` pressed, then released, both with `physical_key: None`, `repeat: false` and
     /// the key's modifiers.
     pub fn key(&mut self, key: &KeyPress) {
-        // pc: crates/ui-egui/src/control/dispatch.rs:1058
-        todo!()
+        let KeyPress { key, modifiers } = *key;
+        for pressed in [true, false] {
+            self.queue.push_back(Event::Key { key, physical_key: None, pressed, repeat: false, modifiers });
+        }
     }
 
     /// `Event::Text(text)`. The app checks `text` is given first (``"missing `text`"``).
     pub fn type_text(&mut self, text: &str) {
-        // pc: crates/ui-egui/src/control/dispatch.rs:1004
-        todo!()
+        self.queue.push_back(Event::Text(text.to_owned()));
     }
 
     /// The next step: queued events up to and including the first `PointerButton` or `Key`
     /// release, or all of them when none is a release.
     pub fn take_step(&mut self) -> Vec<Event> {
-        // pc: crates/ui-egui/src/app/input.rs:122
-        todo!()
+        let n = self
+            .queue
+            .iter()
+            .position(|e| matches!(e, Event::PointerButton { pressed: false, .. } | Event::Key { pressed: false, .. }))
+            .map_or(self.queue.len(), |i| i + 1);
+        self.queue.drain(..n).collect()
     }
 
     /// The raw input hook. With a step in flight: `target_matches` false withdraws it
@@ -128,28 +170,47 @@ impl SyntheticInput {
     /// and is the one in flight ([`Injected::Step`]). The app computes `target_matches` by
     /// comparing the document and focus it recorded at the last `Step` with now.
     pub fn inject(&mut self, raw: &mut RawInput, target_matches: bool) -> Injected {
-        // pc: crates/ui-egui/src/app/input.rs:43 (inject_synthetic; remove_event_run :5)
-        todo!()
+        if let Some(step) = &self.in_flight {
+            if !target_matches {
+                remove_event_run(&mut raw.events, step);
+                self.cancel();
+                return Injected::Withdrawn;
+            }
+            if self.again {
+                raw.events.extend(step.iter().cloned());
+                self.again = false;
+                return Injected::Again;
+            }
+            return Injected::Nothing;
+        }
+        let step = self.take_step();
+        if step.is_empty() {
+            return Injected::Nothing;
+        }
+        raw.events.extend(step.iter().cloned());
+        self.in_flight = Some(step);
+        Injected::Step
     }
 
     /// A UI pass handled the step in flight: drop it and let the next step in.
     pub fn pass_finished(&mut self) {
-        // pc: crates/ui-egui/src/app/input.rs:91 (finish_synthetic_pass)
-        todo!()
+        self.in_flight = None;
+        self.again = false;
     }
 
     /// The pass returned before handling input (fonts not ready): egui already consumed the
     /// events, so the next [`Self::inject`] appends the step again, once.
     pub fn pass_deferred(&mut self) {
-        // pc: crates/ui-egui/src/app/input.rs:99 (defer_synthetic_pass)
-        todo!()
+        self.again = self.in_flight.is_some();
     }
 
-    /// Drop the queue and the step in flight; true when anything was pending (the app then fails
-    /// the waiting replies with `ControlChannel::input_cancelled`).
+    /// Drop the queue and the step in flight; true when anything was pending (the app calls
+    /// `ControlChannel::cancel_input`, which also fails waiters when nothing was queued).
     pub fn cancel(&mut self) -> bool {
-        // pc: crates/ui-egui/src/app/input.rs:106 (cancel_synthetic)
-        todo!()
+        let pending = self.in_flight.take().is_some() || !self.queue.is_empty();
+        self.queue.clear();
+        self.again = false;
+        pending
     }
 
     /// Nothing queued and nothing in flight: the app's `AfterInput` waiters may be answered
