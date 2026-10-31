@@ -259,9 +259,6 @@ impl<'a> TextField<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> EditResponse<String> {
-        if self.width.is_some() || self.trailing_arrow || self.id.is_some() {
-            return self.show_sized(ui);
-        }
         let spec = Spec {
             id_salt: self.id_salt,
             label: &self.label,
@@ -280,19 +277,11 @@ impl<'a> TextField<'a> {
             keys: EventFilter::default(),
             multiline: self.multiline,
             edit_menu: self.edit_menu,
+            width: self.width,
+            trailing_arrow: self.trailing_arrow,
+            id: self.id,
         };
         show_field(ui, &spec)
-    }
-
-    /// [`show`](TextField::show) with a fixed width, trailing-arrow room or an own id: the same
-    /// field, allocated at `width`, its text clipped before the arrow room, its `TextEdit` under
-    /// `id`.
-    // pc: crates/ui-egui/src/widgets/text_field.rs (`TextField::desired_width`, `trailing_arrow`,
-    // `id`); new on top of `Spec`.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-    fn show_sized(self, ui: &mut Ui) -> EditResponse<String> {
-        let _ = ui;
-        todo!()
     }
 
     pub fn style(tokens: &UiTokens, size: ControlSize) -> TextFieldStyle {
@@ -447,6 +436,9 @@ impl<'a> SearchField<'a> {
             keys: self.keys,
             multiline: None,
             edit_menu: self.edit_menu,
+            width: None,
+            trailing_arrow: false,
+            id: None,
         };
         show_field(ui, &spec)
     }
@@ -474,6 +466,12 @@ struct Spec<'a> {
     keys: EventFilter,
     multiline: Option<usize>,
     edit_menu: bool,
+    /// A fixed width instead of the style's or the available one.
+    width: Option<f32>,
+    /// Room at the reading end for a host-drawn chevron.
+    trailing_arrow: bool,
+    /// The `TextEdit` id, else derived from `id_salt`.
+    id: Option<Id>,
 }
 
 /// Where the parts of a field go: the room kept at the reading start and end of the text, and
@@ -489,7 +487,7 @@ impl Layout {
     fn new(style: &TextFieldStyle, spec: &Spec<'_>, clear_side: f32) -> Self {
         let start = style.pad_x + spec.leading.map_or(0.0, |_| style.icon + style.gap);
         let inset = clear_inset(style.height, clear_side);
-        let end = spec.clear.map_or(style.pad_x, |_| inset + clear_side + style.gap);
+        let end = if spec.clear.is_some() || spec.trailing_arrow { inset + clear_side + style.gap } else { style.pad_x };
         Self { start, end, clear: clear_side }
     }
 
@@ -523,7 +521,11 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
     }
     let layout = Layout::new(&style, spec, IconButton::style(&tokens, CLEAR_SIZE).side);
     let enabled = spec.enabled && ui.is_enabled();
-    let width = if ui.layout().horizontal_justify() { ui.available_width() } else { style.width };
+    let width = match spec.width {
+        Some(width) => width,
+        None if ui.layout().horizontal_justify() => ui.available_width(),
+        None => style.width,
+    };
     let (left, right) = if direction::is_rtl(ui) { (layout.end, layout.start) } else { (layout.start, layout.end) };
     let font = tokens.font(style.role);
     // Further rows add a line of text; the box's own padding stays the first line's.
@@ -543,7 +545,7 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
         selected_text: style.selected_text,
         caret: style.caret,
     };
-    let id = ui.make_persistent_id(spec.id_salt);
+    let id = spec.id.unwrap_or_else(|| ui.make_persistent_id(spec.id_salt));
     let (escape, role) = match (spec.clear.is_some(), spec.multiline.is_some()) {
         (true, _) => (Escape::Clear, Role::SearchInput),
         (false, true) => (Escape::PassThrough, Role::MultilineTextInput),

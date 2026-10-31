@@ -172,6 +172,8 @@ pub struct NumberField<'a> {
     edit_menu: bool,
     unit_menu: Option<UnitMenu<'a>>,
     presets: Option<&'a [(String, f64)]>,
+    /// The box's width when [`show`](NumberField::show) lays it out beside the preset chevron.
+    box_width: Option<f32>,
 }
 
 /// The preset chevron of [`NumberField::presets`]: an [`IconButton`](super::IconButton) with the
@@ -179,10 +181,19 @@ pub struct NumberField<'a> {
 /// the presets below it; a pick returns the value for the field to commit.
 // pc: crates/ui-egui/src/widgets/metric_field.rs (the chevron and its ComboBox) and
 // kerning_field's PressCombo; one menu here.
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-fn preset_menu(ui: &mut Ui, presets: &[(String, f64)]) -> Option<f64> {
-    let _ = (ui, presets);
-    todo!()
+///
+/// Called inside the horizontal unit [`NumberField::show`] makes of the box and the chevron, so
+/// the chevron sits flush after the box (PhotoCraft's `metric_field` has no gap) and is centred
+/// on it. `id` is the field's, `label` its accessible name.
+fn preset_menu(ui: &mut Ui, id: Id, label: &str, size: ControlSize, presets: &[(String, f64)]) -> Option<f64> {
+    let side = IconButton::style(&Tokens::of(ui), size).side;
+    let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
+    let button = IconButton::new(Icon::ChevronDown, label).size(size).with_id(id.with("craft_ui::number_field::preset_button")).show_at(ui, rect);
+    let entries: Vec<MenuEntry<usize>> = presets.iter().enumerate().map(|(i, (name, _))| MenuItem::new(name, i).into()).collect();
+    let down = button.has_focus() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown));
+    let at = (button.clicked() || down).then_some(OpenAt::Rect(button.rect));
+    let menu = ContextMenu::new(&entries).size(size).own_gestures(false).open_at(at).show(ui, &button);
+    menu.chosen.and_then(|i| presets.get(i)).map(|(_, value)| *value)
 }
 
 /// The rows of [`NumberField::unit_menu`] and where its pick goes.
@@ -224,6 +235,7 @@ impl<'a> NumberField<'a> {
             edit_menu: true,
             unit_menu: None,
             presets: None,
+            box_width: None,
         }
     }
 
@@ -450,6 +462,24 @@ impl<'a> NumberField<'a> {
 
     /// Shows the field and returns this frame's edit. The response covers the box.
     pub fn show(mut self, ui: &mut Ui) -> EditResponse<f64> {
+        if self.presets.is_some() && self.box_width.is_none() {
+            // The box and the chevron are one unit whatever the parent layout; the chevron's room
+            // comes off a justified layout's width.
+            let side = IconButton::style(&Tokens::of(ui), self.size).side;
+            let justified = ui.layout().horizontal_justify();
+            let available = ui.available_width();
+            return ui
+                .horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    self.box_width = justified.then_some((available - side).max(0.0));
+                    self.show_unit(ui)
+                })
+                .inner;
+        }
+        self.show_unit(ui)
+    }
+
+    fn show_unit(mut self, ui: &mut Ui) -> EditResponse<f64> {
         let bounds = ordered(&self.range);
         if !(bounds.0.is_finite() && bounds.1.is_finite()) {
             debug_assert!(self.popup.is_none(), "a pop-up slider needs a finite range; set .range first");
@@ -499,7 +529,7 @@ impl<'a> NumberField<'a> {
         // composes.
         let arrows = if stepping && ui.memory(|m| m.has_focus(id)) && !Typing::composing(ui, id) { take_arrows(ui) } else { Vec::new() };
 
-        let width = if ui.layout().horizontal_justify() { ui.available_width() } else { style.field.width };
+        let width = self.box_width.unwrap_or_else(|| if ui.layout().horizontal_justify() { ui.available_width() } else { style.field.width });
         let look = TypingLook {
             size: vec2(width, style.field.height),
             margin: margin_x(parts.start, parts.end),
@@ -563,8 +593,10 @@ impl<'a> NumberField<'a> {
         }
         let popup_open = self.popup.is_some() && input.popup(ui, &mut typed, &self, rect, parts.popup_rect(rect), enabled);
         let response = typed.response().clone();
-        if let Some(presets) = self.presets.take().filter(|_| enabled) {
-            preset_menu(ui, presets);
+        if let Some(presets) = self.presets.take().filter(|_| enabled)
+            && let Some(value) = preset_menu(ui, id, &self.label, self.size, presets)
+        {
+            typed.commit_with(ui, Some(input.codec.settle(value)));
         }
         if let Some(UnitMenu { entries, picked }) = self.unit_menu.take().filter(|_| enabled) {
             let at = secondary.or_else(|| response.secondary_clicked().then(|| response.interact_pointer_pos()).flatten());
@@ -1339,6 +1371,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_right_to_left
         ),
         typed_story!("controls/number-field/unit-menu", Level::Controls, "Number field", "Unit menu", LocaleSizeArgs::default(), show_unit_menu),
+        typed_story!("controls/number-field/presets", Level::Controls, "Number field", "Presets", LocaleSizeArgs::default(), show_presets),
         typed_story!("controls/number-field/event-log", Level::Controls, "Number field", "Event log", PolicyArgs::default(), show_event_log),
     ]
 }
@@ -1427,6 +1460,27 @@ fn zoom_step(value: f64, notches: i32) -> f64 {
         true => stops.find(|s| *s > value).unwrap_or(value),
         false => stops.rfind(|s| *s < value).unwrap_or(value),
     }
+}
+
+/// A font size with a chevron menu of common sizes.
+fn show_presets(ui: &mut Ui, args: &mut LocaleSizeArgs) {
+    let size = args.size.control();
+    let numbers = args.locale.numbers();
+    let presets: Vec<(String, f64)> = [8.0, 9.0, 10.0, 12.0, 14.0, 18.0, 24.0, 36.0, 72.0].into_iter().map(|v| (format!("{v}"), v)).collect();
+    with_values(ui, "number-field-presets", [12.0], |ui, values| {
+        variant_list(ui, "number-field-presets", |form| {
+            labelled(form, "Font size", &format!("{}", values[0]), |ui| {
+                let edit = NumberField::new("number-field-preset", "Font size", values[0], &numbers)
+                    .range(1.0..=1000.0)
+                    .decimals(0..=1)
+                    .unit(Unit::new("{n} pt"))
+                    .presets(&presets)
+                    .size(size)
+                    .show(ui);
+                super::slider::store(&edit, &mut values[0])
+            });
+        });
+    });
 }
 
 /// Scrub labels and icons inside the field, and a label before it.
