@@ -208,7 +208,7 @@ impl Field {
         self
     }
 
-    /// Help text under the control, while there is no error.
+    /// Help text under the control, while there is no error. A line break starts a new paragraph.
     pub fn help(mut self, help: impl Into<String>) -> Self {
         self.help = Some(help.into()).filter(|h| !h.is_empty());
         self
@@ -279,9 +279,19 @@ impl Field {
                 add_control(ui, invalid)
             })
             .inner;
-        let message = message.map(|(text, color)| {
-            stack.add(Label::new(LayoutJob::single_section(text, role_format(&tokens, style.message_role, color))).selectable(false))
-        });
+        // Each line of the message is a paragraph of its own, so that a multi-paragraph help keeps
+        // its breaks and AccessKit reads each paragraph.
+        let message: Vec<Response> = message
+            .map(|(text, color)| {
+                text.split('\n')
+                    .filter(|paragraph| !paragraph.is_empty())
+                    .map(|paragraph| {
+                        let format = role_format(&tokens, style.message_role, color);
+                        stack.add(Label::new(LayoutJob::single_section(paragraph.to_owned(), format)).selectable(false))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
         let control_rect = control.control().rect;
         let mut row = stack.min_rect();
@@ -312,11 +322,11 @@ impl Field {
                         node.push_labelled_by(label.id.accesskit_id());
                     }
                 }
-                if let Some(message) = &message {
+                for message in &message {
                     node.push_described_by(message.id.accesskit_id());
-                    if invalid {
-                        node.set_error_message(message.id.accesskit_id());
-                    }
+                }
+                if invalid && let Some(first) = message.first() {
+                    node.set_error_message(first.id.accesskit_id());
                 }
                 if invalid {
                     node.set_invalid(Invalid::True);

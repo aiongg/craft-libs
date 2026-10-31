@@ -139,6 +139,7 @@ impl PreferencesHost for FakeHost {
                 .checks(),
             ],
             footnote: Some("Some options apply to new windows only."),
+            keywords: "",
             custom: false,
         };
         let tools = PageSpec::new(
@@ -151,7 +152,18 @@ impl PreferencesHost for FakeHost {
             ],
         );
         let plugins = PageSpec::new("plugins", "Plug-ins", vec![RowSpec::new("plugins.none", "Not shown", RowKind::Bool(false)).visible(false)]);
-        let advanced = PageSpec::new("advanced", "Advanced", vec![RowSpec::new("advanced.disks", "Scratch disks:", RowKind::Custom)]);
+        let gamma = match self.draft.get("advanced.gamma") {
+            Some(PrefValue::Float(v)) => *v,
+            _ => 20.0,
+        };
+        let advanced = PageSpec::new(
+            "advanced",
+            "Advanced",
+            vec![
+                RowSpec::new("advanced.disks", "Scratch disks:", RowKind::Custom).keywords("temp").help("Used when memory runs low."),
+                RowSpec::new("advanced.gamma", "Gamma:", RowKind::Float { value: gamma, range: 0.0..=100.0, decimals: 1, unit: None }).step(0.1),
+            ],
+        );
         vec![general, interface, tools, plugins, advanced]
     }
 

@@ -346,3 +346,16 @@ fn a_dimmed_page_in_the_list_is_described_as_unavailable_and_the_others_are_not(
     assert_eq!(empty.description().as_deref(), Some("These settings aren't available yet."));
     assert_eq!(h.get_by_role_and_label(Role::ListBoxOption, "Tools").accesskit_node().description(), None);
 }
+
+#[test]
+fn a_float_row_steps_by_the_hosts_step_even_when_the_range_is_wide() {
+    let mut h = open();
+    h.get_by_role_and_label(Role::ListBoxOption, "Advanced").click();
+    h.run();
+    h.get_by_role_and_label(Role::SpinButton, "Gamma:").focus();
+    h.run();
+    h.key_press(Key::ArrowUp);
+    h.run();
+    let Some(PrefValue::Float(v)) = h.state().host.draft.get("advanced.gamma") else { panic!("no value set") };
+    assert!((v - 20.1).abs() < 1e-9, "stepped by 0.1, got {v}");
+}

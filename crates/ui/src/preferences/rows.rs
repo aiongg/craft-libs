@@ -35,7 +35,7 @@ pub(super) enum Kind {
     Choice { value: String, options: Vec<(String, String)> },
     Color(Rgba),
     Int { value: i64, range: RangeInclusive<i64>, unit: Option<String> },
-    Float { value: f64, range: RangeInclusive<f64>, decimals: u8, unit: Option<String> },
+    Float { value: f64, range: RangeInclusive<f64>, decimals: u8, step: Option<f64>, unit: Option<String> },
     Text(String),
     Custom,
 }
@@ -51,7 +51,7 @@ impl ShownRow {
             RowKind::Color(c) => Kind::Color(*c),
             RowKind::Int { value, range, unit } => Kind::Int { value: *value, range: range.clone(), unit: unit.map(str::to_owned) },
             RowKind::Float { value, range, decimals, unit } => {
-                Kind::Float { value: *value, range: range.clone(), decimals: *decimals, unit: unit.map(str::to_owned) }
+                Kind::Float { value: *value, range: range.clone(), decimals: *decimals, step: row.step, unit: unit.map(str::to_owned) }
             }
             RowKind::Text(t) => Kind::Text((*t).to_owned()),
             RowKind::Custom => Kind::Custom,
@@ -156,12 +156,12 @@ pub(super) fn show_row<H: PreferencesHost + ?Sized>(
                 .inner;
             new_value = forward(&ctx, edit_id, edit.event, PrefValue::Int(*value), |v| PrefValue::Int(v.round() as i64));
         }
-        Kind::Float { value, range, decimals, unit } => {
+        Kind::Float { value, range, decimals, step, unit } => {
             let edit = field
                 .show(ui, |ui, invalid| {
                     let mut f = NumberField::new(key, row.label.as_str(), *value, numbers)
                         .range(range.clone())
-                        .step(step_for(range, *decimals))
+                        .step(step.unwrap_or_else(|| step_for(range, *decimals)))
                         .decimals(0..=usize::from(*decimals))
                         .enabled(enabled)
                         .invalid(invalid);

@@ -201,3 +201,15 @@ fn the_first_frame_already_shows_the_measured_column() {
     assert!((lefts[0] - lefts[1]).abs() < 0.5, "{lefts:?}");
     assert_eq!(frame(&ctx).0, 1, "an unchanged column lays out once");
 }
+
+#[test]
+fn a_help_text_keeps_its_paragraphs_each_under_the_one_before() {
+    let harness = harness(Direction::Ltr).build_ui(|ui| {
+        let _ = Field::new("Name:").help("First paragraph.\nSecond paragraph.").show(ui, |ui, _| TextField::new("name", "Name", "x").show(ui));
+    });
+    let (first, second) = (rect(&harness, "First paragraph."), rect(&harness, "Second paragraph."));
+    assert!(second.top() >= first.bottom(), "{first:?} {second:?}");
+    let node = text_input(&harness, "x");
+    let described = node.accesskit_node().data().described_by().len();
+    assert_eq!(described, 2, "both paragraphs describe the control");
+}
