@@ -224,7 +224,7 @@ fn a_zoom_rectangle_fits_its_area_and_a_tiny_one_is_a_click() {
     let mut view = view_at(1.0, 1.0);
     let before = view;
     let mut tiny = ZoomDrag::begin(&view, a, false, 1.0);
-    tiny.drag(&mut view, a + vec2(2.0, 2.0), PHOTO, 1.0);
+    tiny.drag(&mut view, a + vec2(3.5, 3.5), PHOTO, 1.0);
     tiny.release(&mut view, false, PHOTO, 1.0);
     assert_eq!(view, before);
 }

@@ -421,8 +421,9 @@ pub struct ZoomDrag {
 impl ZoomDrag {
     /// Horizontal drag in screen points that doubles (or halves) the zoom.
     pub const DOUBLING: f32 = 100.0;
-    /// A rectangle narrower or shorter than this many points is a click.
-    pub const CLICK: f32 = 3.0;
+    /// A rectangle narrower or shorter than this many points is a click (PhotoCraft's
+    /// `zoom_to_rect`: under 4 it steps the zoom at the press point).
+    pub const CLICK: f32 = 4.0;
 
     /// A drag pressed at `screen` on `view`. `scrubby` is the Zoom tool's Scrubby Zoom option.
     // pc: crates/ui-egui/src/tools/zoom_tool.rs:55 `drag` (b.started).
