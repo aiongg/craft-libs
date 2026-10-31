@@ -85,17 +85,28 @@ fn the_was_maximized_memory_is_per_window() {
 }
 
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-// command_id and from_command_id round-trip for the three modes; view.screenMode.cycle reads as None.
 fn screen_mode_command_ids_round_trip() {
-    todo!()
+    for mode in [ScreenMode::Standard, ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen] {
+        assert_eq!(ScreenMode::from_command_id(mode.command_id()), Some(mode));
+    }
+    assert_eq!(ScreenMode::FullScreenWithMenuBar.command_id(), "view.screenMode.fullScreenWithMenuBar");
+    assert_eq!(ScreenMode::from_command_id(CYCLE_COMMAND), None);
+    assert_eq!(ScreenMode::from_command_id("view.zoomIn"), None);
 }
 
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-// menu_entries gives three radio rows with the current mode chosen.
 fn screen_mode_menu_marks_the_current_mode() {
-    todo!()
+    use crate::menu::ItemKind;
+    let labels = ScreenModeLabels::default();
+    let entries = ScreenMode::FullScreen.menu_entries(&labels);
+    let rows: Vec<_> = entries.iter().filter_map(|e| e.item()).map(|i| (i.label().to_owned(), i.command().copied(), i.item_kind())).collect();
+    assert_eq!(
+        rows,
+        [
+            ("Standard Screen Mode".to_owned(), Some(ScreenMode::Standard), ItemKind::Radio(false)),
+            ("Full Screen Mode With Menu Bar".to_owned(), Some(ScreenMode::FullScreenWithMenuBar), ItemKind::Radio(false)),
+            ("Full Screen Mode".to_owned(), Some(ScreenMode::FullScreen), ItemKind::Radio(true)),
+        ]
+    );
+    assert_eq!(entries.len(), 3);
 }

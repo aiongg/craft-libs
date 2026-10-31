@@ -61,26 +61,32 @@ impl ScreenMode {
     /// The command id Photoshop and PhotoCraft use: `view.screenMode.standard`,
     /// `view.screenMode.fullScreenWithMenuBar`, `view.screenMode.fullScreen`. The F key's cycle is
     /// [`CYCLE_COMMAND`].
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     // pc: crates/ui-egui/src/menu_catalog.rs:659-661.
     pub fn command_id(self) -> &'static str {
-        todo!()
+        match self {
+            Self::Standard => "view.screenMode.standard",
+            Self::FullScreenWithMenuBar => "view.screenMode.fullScreenWithMenuBar",
+            Self::FullScreen => "view.screenMode.fullScreen",
+        }
     }
 
     /// The mode a command id selects, `None` for other ids (the cycle command included).
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     // pc: crates/ui-egui/src/input/shortcuts.rs:845 (Esc returns to `view.screenMode.standard`).
     pub fn from_command_id(id: &str) -> Option<ScreenMode> {
-        let _ = id;
-        todo!()
+        [Self::Standard, Self::FullScreenWithMenuBar, Self::FullScreen].into_iter().find(|mode| mode.command_id() == id)
     }
 
     /// View › Screen Mode: the three modes as radio rows, `self` chosen, each running its mode.
-    #[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
     // pc: crates/ui-egui/src/menu_catalog.rs:659-661 (View › Screen Mode).
     pub fn menu_entries(self, labels: &ScreenModeLabels) -> Vec<crate::menu::MenuEntry<ScreenMode>> {
-        let _ = labels;
-        todo!()
+        [
+            (Self::Standard, &labels.standard),
+            (Self::FullScreenWithMenuBar, &labels.full_screen_with_menu_bar),
+            (Self::FullScreen, &labels.full_screen),
+        ]
+        .into_iter()
+        .map(|(mode, label)| crate::menu::MenuItem::new(label.as_str(), mode).radio(mode == self).into())
+        .collect()
     }
 }
 
