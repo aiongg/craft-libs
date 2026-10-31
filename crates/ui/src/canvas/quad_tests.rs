@@ -501,3 +501,27 @@ fn the_effective_modifiers_and_kind_are_what_the_drag_acts_on() {
     assert_eq!(refused.drag_kind(BoxPart::Edge(1), none), None, "Distort leaves the edges alone");
     assert!(BoxRules { scale: ScaleRule::Free, ..BoxRules::default() }.drag_modifiers(BoxPart::Corner(2), none).shift);
 }
+
+/// PC `w_and_h_reject_or_clamp_hostile_typed_lengths`: a negative length typed with W and H linked
+/// mirrors that side (W −40 px of 100 px) and does not turn the box a half turn.
+#[test]
+fn a_negative_linked_length_mirrors_the_typed_side() {
+    let s = session();
+    let (w, h) = BoxState::linked_scale((1.0, 1.0), 0, -0.4);
+    assert!(eq6(w, -0.4) && eq6(h, 0.4), "{w} {h}");
+    let flipped = s.with_signed_scale(rect(), 0.0, w, h);
+    assert!(eq6(flipped.quad[1].x - flipped.quad[0].x, -40.0) && eq6(flipped.quad[3].y - flipped.quad[0].y, 20.0), "{:?}", flipped.quad);
+    let (sw, sh) = flipped.signed_scale(rect(), 0.0);
+    assert!(eq6(sw, -0.4) && eq6(sh, 0.4) && eq6(flipped.parts(rect(), 0.0).angle, 0.0));
+    // Typing H −20 px reaches the same box through the other side.
+    let (w, h) = BoxState::linked_scale((1.0, 1.0), 1, -0.4);
+    assert!(eq6(w, 0.4) && eq6(h, -0.4));
+    // Both sides negative is a half turn, which the box reads as positive sides at 180°.
+    let turned = s.with_signed_scale(rect(), 0.0, -0.4, -0.4);
+    let parts = turned.parts(rect(), 0.0);
+    assert!(eq6(parts.w, 0.4) && eq6(parts.h, 0.4) && eq6(parts.angle.abs(), 180.0), "{parts:?}");
+    // A zero side collapses without dividing by zero.
+    let (w, h) = BoxState::linked_scale((1.0, 1.0), 0, 0.0);
+    assert!(w == 0.0 && h == 0.0);
+    assert!(s.with_signed_scale(rect(), 0.0, w, h).quad.iter().all(|q| q.is_finite()));
+}

@@ -648,7 +648,12 @@ impl BoxState {
     /// angle turns it and the skews lean it, each about the reference point, which stays put.
     /// `skew_v` is the V skew the box reads with now ([`parts`](Self::parts)); fields equal to the
     /// current reading change nothing. Skews stop at ±[`SKEW_LIMIT`].
-    pub fn with_parts(&self, rect: Rect, skew_v: f64, to: Parts) -> Self {
+    pub fn with_parts(&self, rect: Rect, skew_v: f64, mut to: Parts) -> Self {
+        // Mirrored along both axes is a half turn, which is how `parts` reads it.
+        if to.w < 0.0 && to.h < 0.0 {
+            let turned = to.angle + 180.0;
+            (to.w, to.h, to.angle) = (-to.w, -to.h, if turned > 180.0 { turned - 360.0 } else { turned });
+        }
         let mut s = *self;
         let now = s.parts(rect, skew_v);
         if to.w != now.w || to.h != now.h {
@@ -663,6 +668,30 @@ impl BoxState {
             s = s.skewed_about_pivot(rect, skew_v, to.skew_h, to.skew_v);
         }
         s
+    }
+
+    /// The signed W and H factors of the box ([`parts`](Self::parts)): a mirrored side reads
+    /// negative.
+    pub fn signed_scale(&self, rect: Rect, skew_v: f64) -> (f64, f64) {
+        let p = self.parts(rect, skew_v);
+        (p.w, p.h)
+    }
+
+    /// The box with W and H set to the signed factors `w` and `h`, the angle and skews kept. A
+    /// negative factor mirrors that side instead of turning the box.
+    pub fn with_signed_scale(&self, rect: Rect, skew_v: f64, w: f64, h: f64) -> Self {
+        self.with_parts(rect, skew_v, Parts { w, h, ..self.parts(rect, skew_v) })
+    }
+
+    /// The signed factors `(w, h)` after the side on `axis` (0: W, 1: H) is set to `typed` with W
+    /// and H linked, from the factors `now`. The typed side takes `typed` with its sign; the other
+    /// scales by the same ratio's magnitude and keeps its sign, so a negative `typed` mirrors the
+    /// typed side where scaling both by it would turn the box a half turn.
+    pub fn linked_scale(now: (f64, f64), axis: usize, typed: f64) -> (f64, f64) {
+        let (side, other) = if axis == 0 { (now.0, now.1) } else { (now.1, now.0) };
+        let k = typed / nonzero(side);
+        let other = other * k.abs();
+        if axis == 0 { (typed, other) } else { (other, typed) }
     }
 
     /// One of the box's nine points, through the box's own frame (a distorted box's centre is
@@ -747,8 +776,9 @@ impl BoxState {
         self.columns(rect).map_or(none, |m| Frame::from_columns(m, skew_v))
     }
 
-    /// Scaled by `kx` and `ky` along the box's own axes about the reference point.
-    fn scaled_about_pivot(&self, kx: f64, ky: f64) -> Self {
+    /// Scaled by `kx` and `ky` along the box's own axes about the reference point. A negative
+    /// factor mirrors that axis; both negative is a half turn.
+    pub fn scaled_about_pivot(&self, kx: f64, ky: f64) -> Self {
         let Some(h) = Homography::unit_to_quad(self.quad) else { return *self };
         let Some(inv) = h.inverse() else { return *self };
         let p = inv.apply(self.pivot);
@@ -757,7 +787,7 @@ impl BoxState {
     }
 
     /// Turned by `radians` about the reference point.
-    fn turned_about_pivot(&self, radians: f64) -> Self {
+    pub fn turned_about_pivot(&self, radians: f64) -> Self {
         let turn = Affine::rotate_about(radians, self.pivot);
         BoxState { quad: self.quad.map(|q| turn * q), pivot: self.pivot }
     }
