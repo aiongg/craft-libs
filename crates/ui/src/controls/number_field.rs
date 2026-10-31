@@ -598,7 +598,7 @@ impl Follow {
 
     /// The host value the field gives its gesture this pass for the host's `real` one. While the
     /// host is consistent with the gesture, that is the gesture's last reported value: the host
-    /// shows it or stays mixed, or, in a typing run, keeps its value from the last pass or answers
+    /// shows it (to `f32` precision) or stays mixed, or, in a typing run, keeps its value from the last pass or answers
     /// the update the last pass sent. Otherwise it is `real`, and the gesture cancels as moved by
     /// something else.
     fn host(ui: &Ui, id: Id, real: Option<f64>) -> Option<f64> {
@@ -606,7 +606,7 @@ impl Follow {
         let Some(follow) = ui.data(|d| d.get_temp::<Self>(Self::key(id))).filter(|f| f.gesture == gesture) else { return real };
         let unmoved = real == follow.seen;
         let consistent = real == reported
-            || matches!((real, reported), (Some(real), Some(reported)) if edit::rounds_to(real, reported))
+            || matches!((real, reported), (Some(real), Some(reported)) if edit::equals_to_f32(real, reported))
             || (unmoved && (real.is_none() || follow.typing))
             || (follow.typing && follow.sent);
         if consistent { reported } else { real }

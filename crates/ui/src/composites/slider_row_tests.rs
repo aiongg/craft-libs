@@ -322,3 +322,46 @@ fn an_f32_host_keeps_the_gesture_through_a_drag_in_steps_of_a_hundredth_and_a_bi
     assert!((*last / 0.07).round() > 1.0 && (*last / 0.07 - (*last / 0.07).round()).abs() < 1e-9, "on the step: {last}");
     assert_eq!(*value, *last as f32);
 }
+
+/// A host that stores `v / 100` as an `f32` and shows it times 100 as an `f64` is a few `f32` ulps
+/// off the reported value: the drag still is one gesture.
+#[test]
+fn a_host_storing_a_scaled_f32_keeps_the_gesture_through_a_drag() {
+    type ScaledState = (f32, Vec<EditEvent<f64>>);
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, (stored, events): &mut ScaledState| {
+            let numbers = LocaleNumbers::from_tag("en");
+            ui.allocate_ui(vec2(260.0, 0.0), |ui| {
+                for event in SliderRow::new("opacity", "Opacity", f64::from(*stored) * 100.0, 0.0..=100.0, &numbers).step(0.01).show(ui).edits() {
+                    if let Some(v) = event.value() {
+                        *stored = (*v / 100.0) as f32;
+                    }
+                    events.push(event);
+                }
+            });
+        },
+        (0.0, Vec::new()),
+    );
+    harness.run();
+    let slider = harness.get_by(|n| n.role() == Role::Slider).rect();
+    let (start, y) = (slider.left() + 7.0, slider.center().y);
+    harness.input_mut().events.extend([
+        Event::PointerMoved(Pos2::new(start, y)),
+        Event::PointerButton { pos: Pos2::new(start, y), button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+    ]);
+    harness.run();
+    for dx in [9.0, 17.0, 26.0, 40.0, 55.0] {
+        harness.input_mut().events.push(Event::PointerMoved(Pos2::new(start + dx, y)));
+        harness.run();
+    }
+    harness.input_mut().events.push(Event::PointerButton {
+        pos: Pos2::new(start + 55.0, y),
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    });
+    harness.run();
+    let (_, events) = harness.state();
+    assert!(events.iter().all(|e| !matches!(e, EditEvent::Cancel { .. })), "the gesture is kept: {events:?}");
+    assert_eq!(events.iter().filter(|e| matches!(e, EditEvent::Commit { .. })).count(), 1, "{events:?}");
+}

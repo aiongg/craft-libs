@@ -158,3 +158,38 @@ fn the_table_is_one_tab_stop_and_a_listbox_of_options() {
     let name = rig.nodes.iter().find(|(id, _)| *id == focused).and_then(|(_, n)| n.label().map(str::to_owned));
     assert!(!name.is_some_and(|n| n.starts_with("Index")), "the next Tab leaves the table");
 }
+
+/// Enter on a focused cell opens the entry and nothing else: the dialog around the table reads
+/// the key after the body, so a press left in the input would also answer OK.
+#[test]
+fn enter_on_a_cell_in_a_dialog_opens_the_entry_without_answering_ok() {
+    use crate::dialog::{Dialog, DialogState, Footer};
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable as _;
+
+    #[derive(Default)]
+    struct App {
+        state: DialogState,
+        opened: Vec<usize>,
+        outcomes: Vec<crate::dialog::Outcome>,
+    }
+    let mut harness =
+        Harness::<App>::builder().with_size(vec2(640.0, 480.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, app: &mut App| {
+                let entries = (0..4).map(|i| (format!("Index {i}"), Srgba::rgb(i as f32 / 4.0, 0.2, 0.5)));
+                let shown = Dialog::new("table", "Colors").footer(Footer::standard()).show(&ui.ctx().clone(), &mut app.state, &mut (), |ui, ()| {
+                    let table = SwatchPalette::table("table", "Color Table", entries).show(ui);
+                    app.opened.extend(table.open);
+                });
+                app.outcomes.extend(shown.outcome);
+            },
+            App::default(),
+        );
+    harness.run();
+    harness.get_by(|n| n.role() == Role::ListBoxOption && n.label().as_deref() == Some("Index 1")).focus();
+    harness.run();
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert_eq!(harness.state().opened, [1], "Enter opens the focused entry");
+    assert!(harness.state().outcomes.is_empty(), "the dialog gets no Enter: {:?}", harness.state().outcomes);
+}

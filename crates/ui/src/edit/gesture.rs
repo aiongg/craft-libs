@@ -191,19 +191,22 @@ struct Cancelled {
 
 const STATE: &str = "craft_ui::edit::gesture";
 
-/// Whether a host that stores its value as an `f32` shows `reported`, an `f64` an update sent: its
-/// value is the `f32` rounding of it. That is the host's value moved by nothing but its own
-/// storage, not an outside change.
-pub(crate) fn rounds_to(host: f64, reported: f64) -> bool {
-    host == f64::from(reported as f32)
+/// Whether `host` is `reported`, an `f64` an update sent, as a host that keeps the value in `f32`
+/// shows it: equal to `f32` precision, a few `f32` ulps apart at most. That covers a host that
+/// stores the `f32` rounding of it, also through a linear scale (stored 0..1, shown ×100), and
+/// moves the host's value by nothing but its own storage, not an outside change. A host that
+/// rounds to a step or to display decimals differs by more, and is one.
+pub(crate) fn equals_to_f32(host: f64, reported: f64) -> bool {
+    host == reported
+        || host.is_finite() && reported.is_finite() && (host - reported).abs() <= 2.0 * f64::from(f32::EPSILON) * host.abs().max(reported.abs())
 }
 
 impl Gesture<f64> {
     /// The host value to give [`load`](Gesture::load) for the host's `value`: the gesture's last
-    /// reported value when `value` is its `f32` rounding ([`rounds_to`]), else `value`.
+    /// reported value when `value` equals it to `f32` precision ([`equals_to_f32`]), else `value`.
     pub(crate) fn host_value(ui: &Ui, id: Id, value: f64) -> f64 {
         match Self::reported(ui, id) {
-            Some((_, reported)) if rounds_to(value, reported) => reported,
+            Some((_, reported)) if equals_to_f32(value, reported) => reported,
             _ => value,
         }
     }
