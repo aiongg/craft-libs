@@ -224,7 +224,12 @@ impl Rig {
             return;
         }
         match event {
-            EditEvent::Begin { .. } => self.before.clone_from(&self.value),
+            EditEvent::Begin { value, .. } => {
+                self.before.clone_from(&self.value);
+                if let Some(value) = value {
+                    self.value = value;
+                }
+            }
             EditEvent::Cancel { reason: CancelReason::External, .. } => {}
             EditEvent::Cancel { .. } => self.value.clone_from(&self.before),
             other => {
@@ -354,18 +359,18 @@ fn cancel(id: GestureId, reason: CancelReason) -> Option<EditEvent<String>> {
     Some(EditEvent::Cancel { id, reason })
 }
 
-/// Types `text` one character a frame into the focused field: Begin, then an update per
-/// character after the first.
+/// Types `text` one character a frame into the focused field: a Begin carrying the first
+/// character, then an update per character after the first.
 fn type_run(rig: &mut Rig, text: &str) -> GestureId {
     let mut typed = rig.value.clone();
     let mut chars = text.chars();
     let first = chars.next().expect("text");
     rig.type_text(&first.to_string());
-    let id = begin(rig.event.take());
-    // The first change goes out the frame after Begin.
-    rig.frame(vec![]);
     typed.push(first);
-    assert_eq!(rig.event, update(id, &typed));
+    let id = match rig.event.take() {
+        Some(EditEvent::Begin { id, value }) if value.as_deref() == Some(typed.as_str()) => id,
+        other => panic!("expected Begin carrying {typed:?}, got {other:?}"),
+    };
     for c in chars {
         rig.type_text(&c.to_string());
         typed.push(c);
@@ -447,7 +452,7 @@ fn a_field_no_longer_drawn_keeps_the_text_no_update_reported_as_one_step() {
         rig.type_text("a");
         let id = begin(rig.event.take());
         rig.type_text("b");
-        assert_eq!((rig.event.clone(), rig.doc.text.as_str()), (None, ""), "{policy:?}");
+        assert_eq!((rig.event.clone(), rig.doc.text.as_str()), (None, if policy.on_release_only { "" } else { "a" }), "{policy:?}");
         rig.drawn = false;
         rig.frame(vec![]);
         assert_eq!(rig.ended, Some(EditEvent::Commit { id, value: (), changed: true, modifiers: Modifiers::NONE }), "{policy:?}");

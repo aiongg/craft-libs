@@ -791,7 +791,7 @@ impl<C: Codec> Typed<C> {
             return;
         }
         if !self.gesture.is_active() {
-            self.gesture.begin();
+            self.gesture.begin_with_value();
         }
         let Some(start) = self.gesture.start().cloned() else { return };
         // The run's draft carries any mark from here.
