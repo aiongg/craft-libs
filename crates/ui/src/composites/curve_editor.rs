@@ -412,10 +412,12 @@ impl<'a> CurveEditor<'a> {
     }
 
     /// The width of the editor at the active size when its value area is `value_side` wide: the
-    /// `side` that gives it, bars and insets included. A host without a `Ui` passes its context.
-    pub fn outer_width(ctx: &Context, value_side: f32) -> f32 {
+    /// `side` that gives it, insets included, and the bars and their gap unless `bars` is false
+    /// (the setting of [`bars`](Self::bars)). A host without a `Ui` passes its context.
+    pub fn outer_width(ctx: &Context, bars: bool, value_side: f32) -> f32 {
         let style = CurveEditor::style(&current(ctx));
-        value_side + style.bar + style.bar_gap + 2.0 * style.pad
+        let edge = if bars { style.bar + style.bar_gap } else { 0.0 };
+        value_side + edge + 2.0 * style.pad
     }
 
     /// Whether the gradient bars under the plot and at its left show, with the gap between them
