@@ -489,6 +489,9 @@ pub struct WarpStyle {
     pub arm: Stroke,
     /// The preview of a split line: `transform.line` of `overlay.stroke`.
     pub split: Stroke,
+    /// Under the split preview, so it reads on any image: `overlay.halo`, `handle.halo` wider on
+    /// each side.
+    pub split_halo: Stroke,
     /// Distance from an anchor or a handle within which a press takes it: `transform.hit`.
     pub hit: f32,
     /// Distance from the pointer within which a handle and its arm show, measured to the handle
@@ -738,6 +741,7 @@ impl<'a> WarpGrid<'a> {
             control: HandleStyle { size: t.warp_control, ..Handle::style(tokens, HandleShape::Round) },
             arm: Stroke::new(t.warp_minor, o.handle_stroke.to_egui()),
             split: Stroke::new(t.line, o.stroke.to_egui()),
+            split_halo: Stroke::new(t.line + 2.0 * tokens.component.handle.halo, o.halo.to_egui()),
             hit: t.hit,
             reveal: t.warp_reveal,
             flatten: tokens.component.bezier.flatten,
@@ -866,7 +870,9 @@ impl<'a> WarpGrid<'a> {
         self.paint(ui, view, &screen, &style, editable, [dragged, kept]);
         if let Some(at) = preview {
             for line in at.lines(self.mesh) {
-                stroke_path(&ui.painter_at(view.rect), view.affine() * line, f64::from(style.flatten), style.split);
+                for stroke in [style.split_halo, style.split] {
+                    stroke_path(&ui.painter_at(view.rect), view.affine() * line.clone(), f64::from(style.flatten), stroke);
+                }
             }
         }
         if focus.keyboard

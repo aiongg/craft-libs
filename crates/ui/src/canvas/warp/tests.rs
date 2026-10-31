@@ -507,6 +507,23 @@ fn a_split_tool_inserts_the_lines_it_names_at_the_click() {
     assert!(kinds(&h).is_empty());
 }
 
+/// The split preview line has a halo stroke under it, one per line.
+#[test]
+fn the_split_preview_line_has_a_halo_under_it() {
+    let mut h = harness(|host| host.split = Some(WarpSplit::Cross));
+    h.run();
+    let p = at_fraction(&h, 0.25, 0.4);
+    hover(&mut h, p, Modifiers::NONE);
+    let style = WarpGrid::style(&current(&h.ctx));
+    assert!(style.split_halo.width > style.split.width && style.split_halo.color != style.split.color);
+    let shapes: Vec<Shape> = h.output().shapes.iter().map(|c| c.shape.clone()).collect();
+    let paths: Vec<_> = flat(&shapes).into_iter().filter_map(|s| if let Shape::Path(p) = s { Some(p.stroke.clone()) } else { None }).collect();
+    let at = |stroke: egui::epaint::PathStroke| paths.iter().position(|s| *s == stroke);
+    let (halo, line) = (at(style.split_halo.into()).expect("a halo"), at(style.split.into()).expect("a line"));
+    assert!(halo < line, "the halo is drawn first");
+    assert_eq!(paths.iter().filter(|s| **s == style.split_halo.into()).count(), 2, "one halo per line");
+}
+
 #[test]
 fn the_preview_and_the_pointer_follow_the_split_tool() {
     for (split, lines, icon) in [
