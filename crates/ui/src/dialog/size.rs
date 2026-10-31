@@ -77,10 +77,11 @@ pub fn remembered_size(size: Vec2, opened: Vec2, max: Vec2) -> Option<Vec2> {
 /// How a dialog's body fits.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Body {
-    /// The body takes the height it needs.
+    /// The body takes the height it needs, at most [`scroll_height`]; a taller body scrolls
+    /// vertically under the title and above the footer, so the dialog never outgrows the window.
     #[default]
     Fit,
-    /// A vertical scroll area. A region drawn with [`Dialog::show_with_below`](super::Dialog::show_with_below)
+    /// As `Fit`, with the scroll area filling the content width. A region drawn with [`Dialog::show_with_below`](super::Dialog::show_with_below)
     /// stays under it, and the area leaves room for that region's measured height.
     Scroll,
 }
