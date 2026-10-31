@@ -11,6 +11,7 @@ repository.workspace = true
 # nothing new to their Cargo.lock. rfd without its `wayland` feature, which links libwayland-client
 # through pkg-config unless winit's `dlopen` is in the build too; the apps' own rfd keeps it on.
 [dependencies]
+craft-atomic = { workspace = true }
 craft-host = { workspace = true }
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
