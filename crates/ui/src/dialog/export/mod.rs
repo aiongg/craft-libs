@@ -49,20 +49,20 @@ use crate::primitives::Content;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 
 pub use options::{
-    DdsCompression, DdsOptions, DdsOptionsDialog, FormatOptionsLabels, JpegFormat, JpegOptions, JpegOptionsDialog, TargaOptionsDialog, TiffAnswer,
-    TiffOptionsDialog, jpeg_quality_label, jpeg_quality_percent,
+    DdsCompression, DdsOptions, DdsOptionsDialog, FormatOptionsLabels, JpegFormat, JpegOptions, JpegOptionsDialog, TargaOptions, TargaOptionsDialog,
+    TiffOptions, TiffOptionsDialog, jpeg_quality_label, jpeg_quality_percent,
 };
 pub use path_row::{OutputPathLabels, OutputPathResponse, OutputPathRow};
 pub use watermark::{Watermark, WatermarkEditor, WatermarkLabels, WatermarkStyle};
 pub use web::{
-    ColorTable, Dither, MATTE_COLOR_KEY, SaveForWebDialog, SaveForWebResult, WebFormat, WebLabels, WebMetadata, WebSettings, WebVariant, WebView,
-    download_seconds, four_up_variants,
+    ColorTable, Dither, MATTE_COLOR_KEY, SaveForWebDialog, SaveForWebLabels, SaveForWebOptions, SaveForWebResult, WebFormat, WebMetadata, WebVariant,
+    WebView, download_seconds, four_up_variants,
 };
 
 crate::words! {
     /// The words of Export As, English by default.
     #[non_exhaustive]
-    pub struct ExportLabels {
+    pub struct ExportAsLabels {
         title: "export.title" = "Export As";
         export: "export.export" = "Export…";
         format: "export.format" = "Format";
@@ -173,7 +173,7 @@ pub enum ExportProfile {
 /// Export As's values: the dialog's result and what it remembers between opens
 /// (`"export.exportAs"`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ExportSettings {
+pub struct ExportOptions {
     /// An [`ExportFormat::id`].
     pub format: String,
     /// 1–100; PhotoCraft's default 85 comes from its Export preference.
@@ -190,7 +190,7 @@ pub struct ExportSettings {
     pub bits: u8,
 }
 
-impl Default for ExportSettings {
+impl Default for ExportOptions {
     /// PNG at 100 %, aspect locked, quality 85, document profile embedded, no metadata.
     fn default() -> Self {
         Self {
@@ -245,10 +245,10 @@ pub struct ExportPreview {
     pub estimate: SizeEstimate,
 }
 
-/// What Export As returns: the settings and the path the user chose.
+/// What Export As returns: the options and the path the user chose.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExportAsResult {
-    pub settings: ExportSettings,
+    pub options: ExportOptions,
     pub path: PathBuf,
     /// The output size in pixels.
     pub width: u32,
@@ -280,7 +280,7 @@ pub struct ExportAsDialog {
     formats: Vec<ExportFormat>,
     source: (u32, u32),
     file_name: String,
-    settings: ExportSettings,
+    settings: ExportOptions,
     revision: u64,
     /// The revision the app last took with `wanted_preview`.
     taken: u64,
@@ -294,14 +294,14 @@ pub struct ExportAsDialog {
 }
 
 impl ExportAsDialog {
-    /// The dialog for a document of `width` × `height` pixels named `file_name` (no extension).
-    pub fn new(width: u32, height: u32, file_name: impl Into<String>) -> Self {
+    /// The dialog for the document named `file_name` (no extension) of `width` × `height` pixels.
+    pub fn new(file_name: impl Into<String>, width: u32, height: u32) -> Self {
         Self {
             id: dialog_id("export-as"),
             formats: ExportFormat::standard(),
             source: (width, height),
             file_name: file_name.into(),
-            settings: ExportSettings::default(),
+            settings: ExportOptions::default(),
             revision: 1,
             taken: 0,
             preview: None,
@@ -331,9 +331,9 @@ impl ExportAsDialog {
         self
     }
 
-    /// Opens with these settings instead of the remembered ones (a command run with arguments).
-    pub fn settings(mut self, settings: ExportSettings) -> Self {
-        self.settings = settings;
+    /// Opens with these options instead of the remembered ones (a command run with arguments).
+    pub fn initial(mut self, options: ExportOptions) -> Self {
+        self.settings = options;
         self.recalled = true;
         self.fit();
         self
@@ -341,13 +341,13 @@ impl ExportAsDialog {
 
     /// The file name the picker suggests: [`export_file_name`] of the document name plus the
     /// format's extension.
-    pub fn file_name(&self, labels: &ExportLabels) -> String {
+    pub fn file_name(&self, labels: &ExportAsLabels) -> String {
         let extension = self.format().map_or("png", |format| format.extension);
         format!("{}.{extension}", export_file_name(&self.file_name, &labels.untitled))
     }
 
     /// The settings and their revision when they changed since the last call; `None` otherwise.
-    pub fn wanted_preview(&mut self) -> Option<(u64, ExportSettings)> {
+    pub fn wanted_preview(&mut self) -> Option<(u64, ExportOptions)> {
         if self.revision == self.taken {
             return None;
         }
@@ -414,7 +414,7 @@ impl ExportAsDialog {
             return;
         }
         let Some(host) = Host::try_of_ctx(ctx) else { return };
-        let Some(last) = Remembered::<ExportSettings>::new(REMEMBER_KEY).recall(&host) else { return };
+        let Some(last) = Remembered::<ExportOptions>::new(REMEMBER_KEY).recall(&host) else { return };
         self.settings = last;
         self.fit();
         self.revision += 1;
@@ -440,7 +440,7 @@ impl ExportAsDialog {
 
     /// Queues the save picker for the current format.
     // pc: crates/ui-egui/src/dialogs/export_dialog.rs:1038 confirm
-    fn queue_save(&mut self, ctx: &Context, labels: &ExportLabels) {
+    fn queue_save(&mut self, ctx: &Context, labels: &ExportAsLabels) {
         let Some(host) = Host::try_of_ctx(ctx) else { return };
         let Some(format) = self.format() else { return };
         let request = PickRequest::save("export")
@@ -452,7 +452,7 @@ impl ExportAsDialog {
     }
 
     /// The size line under the preview: the format, then "≈ 1.2M" until the exact size is in.
-    fn size_line(&self, labels: &ExportLabels) -> String {
+    fn size_line(&self, labels: &ExportAsLabels) -> String {
         let name = self.format().map_or("", |format| format.name).to_uppercase();
         match self.preview.as_ref().map(|preview| preview.estimate) {
             Some(SizeEstimate::Proxy(bytes)) => format!("{name}  {}", craft_i18n::fmt(&labels.estimate, &[("size", &human_bytes(bytes as f64))])),
@@ -469,18 +469,22 @@ impl StackDialog for ExportAsDialog {
         self.id
     }
 
+    fn cancelled(&mut self, ctx: &Context) {
+        self.forget_pick(ctx);
+    }
+
     // pc: crates/ui-egui/src/dialogs/export_dialog.rs:869 body, :100 open (seed_remembered), :1038 write_export
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<ExportAsResult>> {
         self.recall(ctx);
         if let Some(path) = self.picked(ctx) {
             if let Some(host) = Host::try_of_ctx(ctx) {
-                Remembered::<ExportSettings>::new(REMEMBER_KEY).store(&host, &self.settings);
+                Remembered::<ExportOptions>::new(REMEMBER_KEY).store(&host, &self.settings);
             }
             self.state.close();
             let (width, height) = self.output_size();
-            return Some(DialogResult::Ok(ExportAsResult { settings: self.settings.clone(), path, width, height }));
+            return Some(DialogResult::Ok(ExportAsResult { options: self.settings.clone(), path, width, height }));
         }
-        let labels = ExportLabels::shared_ctx(ctx);
+        let labels = ExportAsLabels::shared_ctx(ctx);
         let numbers = LocaleNumbers::of_ctx(ctx);
         let before = self.settings.clone();
         let saving = self.picking.is_some();
@@ -552,10 +556,10 @@ fn settings_column(
     formats: &[ExportFormat],
     source: (u32, u32),
     size: (u32, u32),
-    settings: &mut ExportSettings,
+    settings: &mut ExportOptions,
     size_error: &mut Option<SizeError>,
     defaults: ExportFormatDefaults,
-    labels: &ExportLabels,
+    labels: &ExportAsLabels,
     numbers: &LocaleNumbers,
 ) {
     let sizing = SizingLabels::shared_ctx(ui.ctx());
@@ -773,9 +777,9 @@ pub fn numbered_paths(first: &Path, names: &[&str], exists: impl Fn(&Path) -> bo
 /// Why a size was refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SizeError {
-    /// The scale is not within 1–1000 %: [`ExportLabels::scale_range`].
+    /// The scale is not within 1–1000 %: [`ExportAsLabels::scale_range`].
     Scale,
-    /// A side is not within 1–300,000 px: [`ExportLabels::pixel_range`].
+    /// A side is not within 1–300,000 px: [`ExportAsLabels::pixel_range`].
     Pixels,
 }
 

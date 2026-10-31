@@ -60,7 +60,7 @@ fn enter_confirms_unless_cancel_is_focused() {
     harness.run();
     harness.key_press(Key::Enter);
     harness.run();
-    assert_eq!(harness.state().answers, [DialogResult::Ok(32)]);
+    assert_eq!(harness.state().answers, [DialogResult::Ok(TargaOptions { bits: 32 })]);
 
     let mut harness = self::harness(TiffOptionsDialog::new());
     harness.run();

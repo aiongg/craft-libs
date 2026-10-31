@@ -117,31 +117,31 @@ impl Harmony {
         Harmony::Pentagram,
     ];
 
-    /// The rule's name for the menu, English (a words key): "Split Complementary", "Triad 2".
-    // inv-vectorcraft: crates/color/src/harmony.rs:101 `label`.
-    pub fn label(self) -> &'static str {
+    /// The rule's id, camelCase as its serialised name ("splitComplementary", "highContrast2"): the
+    /// key of its name among the UI's words (`harmony.rule.<id>`).
+    pub fn id(self) -> &'static str {
         match self {
-            Harmony::Complementary => "Complementary",
-            Harmony::Complementary2 => "Complementary 2",
-            Harmony::SplitComplementary => "Split Complementary",
-            Harmony::LeftComplement => "Left Complement",
-            Harmony::RightComplement => "Right Complement",
-            Harmony::Analogous => "Analogous",
-            Harmony::Analogous2 => "Analogous 2",
-            Harmony::Monochromatic => "Monochromatic",
-            Harmony::Shades => "Shades",
-            Harmony::Triad => "Triad",
-            Harmony::Triad2 => "Triad 2",
-            Harmony::Triad3 => "Triad 3",
-            Harmony::Tetrad => "Tetrad",
-            Harmony::Tetrad2 => "Tetrad 2",
-            Harmony::Tetrad3 => "Tetrad 3",
-            Harmony::Compound => "Compound",
-            Harmony::Compound2 => "Compound 2",
-            Harmony::HighContrast => "High Contrast",
-            Harmony::HighContrast2 => "High Contrast 2",
-            Harmony::HighContrast3 => "High Contrast 3",
-            Harmony::Pentagram => "Pentagram",
+            Harmony::Complementary => "complementary",
+            Harmony::Complementary2 => "complementary2",
+            Harmony::SplitComplementary => "splitComplementary",
+            Harmony::LeftComplement => "leftComplement",
+            Harmony::RightComplement => "rightComplement",
+            Harmony::Analogous => "analogous",
+            Harmony::Analogous2 => "analogous2",
+            Harmony::Monochromatic => "monochromatic",
+            Harmony::Shades => "shades",
+            Harmony::Triad => "triad",
+            Harmony::Triad2 => "triad2",
+            Harmony::Triad3 => "triad3",
+            Harmony::Tetrad => "tetrad",
+            Harmony::Tetrad2 => "tetrad2",
+            Harmony::Tetrad3 => "tetrad3",
+            Harmony::Compound => "compound",
+            Harmony::Compound2 => "compound2",
+            Harmony::HighContrast => "highContrast",
+            Harmony::HighContrast2 => "highContrast2",
+            Harmony::HighContrast3 => "highContrast3",
+            Harmony::Pentagram => "pentagram",
         }
     }
 
@@ -372,8 +372,8 @@ mod tests {
         for base in [Srgba::rgb(0.9, 0.47, 0.16), Srgba::rgb(0.4, 0.4, 0.4)] {
             for (rule, n) in Harmony::ALL.into_iter().zip(counts) {
                 let colors = rule.apply(base);
-                assert_eq!(colors.len(), n, "{}", rule.label());
-                assert_eq!(colors[0], base, "{}", rule.label());
+                assert_eq!(colors.len(), n, "{}", rule.id());
+                assert_eq!(colors[0], base, "{}", rule.id());
             }
         }
         let red = Harmony::Complementary.apply(Srgba::rgb(1.0, 0.0, 0.0));
@@ -400,8 +400,8 @@ mod tests {
         let base = Srgba::rgb(0.24, 0.39, 0.87);
         for rule in Harmony::ALL {
             let theme = rule.theme(base);
-            assert_eq!(theme.len(), THEME_SIZE, "{}", rule.label());
-            assert_eq!(theme[0], base, "{}", rule.label());
+            assert_eq!(theme.len(), THEME_SIZE, "{}", rule.id());
+            assert_eq!(theme[0], base, "{}", rule.id());
         }
     }
 

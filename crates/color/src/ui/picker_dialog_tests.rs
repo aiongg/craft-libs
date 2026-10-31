@@ -211,6 +211,15 @@ fn a_canvas_sample_sets_the_new_colour_while_on_top() {
     assert_eq!(DropperState::armed(&rig.ctx), None);
 }
 
+/// The host closing the dialog from outside ends its armed dropper.
+#[test]
+fn a_host_cancel_disarms_the_dropper() {
+    let mut rig = Rig::open(ColorPickerDialog::foreground(BLUE));
+    assert_eq!(DropperState::armed(&rig.ctx), Some(rig.dialog().id));
+    rig.host.cancel::<ColorPickerDialog>(&rig.ctx);
+    assert_eq!(DropperState::armed(&rig.ctx), None);
+}
+
 /// Typed CMYK inks come back in the result's model values while they still give the colour.
 #[test]
 fn typed_cmyk_inks_come_back_in_the_result() {

@@ -2,13 +2,17 @@
 //! Reset on Alt+Cancel. The same [`Param`] list as [`ParamDialog`](super::ParamDialog), without
 //! preview, sliders or remembered values.
 
+use craft_theme::Srgba;
 use egui::{Context, Ui};
 
+use super::color_request::ColorRequest;
 use super::dialog::{Dialog, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
 use super::fields::DialogFields;
 use super::footer::{DialogLabels, Footer, Reset};
-use super::params::{FooterExtra, Param, ParamResult, PathRequest, draw_rows, first_field_focused, open_fields, take_color_press, take_path_press};
+use super::params::{
+    FooterExtra, Param, ParamResult, PathRequest, draw_rows, first_field_focused, open_fields, set_color_field, take_color_press, take_path_press,
+};
 use super::size::{Body, Width};
 use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
@@ -38,7 +42,7 @@ pub struct CommandForm {
     ok_label: Option<String>,
     ok_enabled: bool,
     width: Width,
-    picked_color: Option<String>,
+    picked_color: Option<ColorRequest>,
     picked_path: Option<PathRequest>,
     below: Option<Below>,
     history: bool,
@@ -139,10 +143,16 @@ impl CommandForm {
         &mut self.fields
     }
 
-    /// The key of the colour parameter whose swatch the user pressed, once: the host opens its
-    /// colour picker for it and writes the pick with `fields_mut().set(key, FieldValue::Color(..))`.
-    pub fn pick_color(&mut self) -> Option<String> {
+    /// The colour parameter whose swatch the user pressed, once: the host opens its colour picker
+    /// for the request (key = the parameter's key, title = its label, colour = the value shown) and
+    /// answers with [`set_color`](Self::set_color).
+    pub fn pick_color(&mut self) -> Option<ColorRequest> {
         self.picked_color.take()
+    }
+
+    /// The colour picker's answer for the parameter `key`; other keys are ignored.
+    pub fn set_color(&mut self, key: &str, color: Srgba) {
+        set_color_field(&self.params, &mut self.fields, key, color);
     }
 
     /// The Browse button of a [`Param::browse`] row the user pressed, once: the host opens its

@@ -45,7 +45,7 @@ pub struct RecoveredDocument {
 /// What the user chose for one document. Closing the dialog (Esc, the close box) is
 /// `DialogResult::Cancel`: the copy stays and is offered again at the next launch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RecoveryAction {
+pub enum RecoveryAnswer {
     /// Open the autosaved copy as an unsaved document.
     Recover,
     /// Delete the autosaved copy.
@@ -59,7 +59,7 @@ pub enum RecoveryAction {
 /// ago." and Discard and Recover (Recover is the default button). Esc or the close box keep the
 /// copy for the next launch. The app enqueues the first document at
 /// [`StartupStage::Recovery`](super::StartupStage::Recovery) and opens the next after taking each
-/// answer. Result: [`RecoveryAction`].
+/// answer. Result: [`RecoveryAnswer`].
 pub struct RecoveryDialog {
     id: DialogId,
     document: RecoveredDocument,
@@ -78,14 +78,14 @@ impl RecoveryDialog {
 }
 
 impl StackDialog for RecoveryDialog {
-    type Result = RecoveryAction;
+    type Result = RecoveryAnswer;
 
     fn id(&self) -> DialogId {
         self.id
     }
 
     // soundcraft: crates/ui-egui/src/dialogs/recovery.rs:8 show
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<RecoveryAction>> {
+    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<RecoveryAnswer>> {
         let labels = RecoveryLabels::of_ctx(ctx);
         let age = SystemTime::now().duration_since(self.document.saved).map_or_else(|_| labels.recently.clone(), |d| relative_age(ctx, d.as_secs()));
         let message = craft_i18n::fmt(&labels.message, &[("name", self.document.name.as_str()), ("age", age.as_str())]);
@@ -109,8 +109,8 @@ impl StackDialog for RecoveryDialog {
                 ui.label(message);
             });
         match shown.outcome? {
-            Outcome::Answer(ButtonRole::Default) => Some(DialogResult::Ok(RecoveryAction::Recover)),
-            Outcome::Answer(_) => Some(DialogResult::Ok(RecoveryAction::Discard)),
+            Outcome::Answer(ButtonRole::Default) => Some(DialogResult::Ok(RecoveryAnswer::Recover)),
+            Outcome::Answer(_) => Some(DialogResult::Ok(RecoveryAnswer::Discard)),
             Outcome::Cancel | Outcome::Close => Some(DialogResult::Cancel),
             _ => None,
         }

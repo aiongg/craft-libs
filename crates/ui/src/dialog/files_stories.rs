@@ -4,20 +4,21 @@
 //! app would compute are generated here, and the Host's file service answers every picker with
 //! Cancelled, so nothing opens a picker or writes a file.
 
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use craft_host::{AppInfo, Host, PickRequest};
+use craft_host::{AppInfo, FileError, Files, Host, PickAnswer, PickId, PickKind, PickRequest, Picked};
 use craft_settings::Remembered;
 use egui::{Color32, ColorImage, Context, Id, TextureHandle, TextureOptions, Ui};
 
 use super::export::{
-    DdsOptionsDialog, ExportAsDialog, ExportPreview, ExportSettings, ExportSize, JpegOptionsDialog, OutputPathRow, SaveForWebDialog, SizeEstimate,
-    TargaOptionsDialog, TiffOptionsDialog, Watermark, WatermarkEditor, WatermarkStyle, WebFormat, WebSettings, WebVariant,
+    DdsOptionsDialog, ExportAsDialog, ExportOptions, ExportPreview, ExportSize, JpegOptionsDialog, OutputPathRow, SaveForWebDialog,
+    SaveForWebOptions, SizeEstimate, TargaOptionsDialog, TiffOptionsDialog, Watermark, WatermarkEditor, WatermarkStyle, WebFormat, WebVariant,
 };
 use super::framework_stories::{claim, drive};
 use super::new_document::{PRESETS_KEY, RECENT_KEY};
 use super::{
-    Anchor, BackgroundContents, BitDepth, ColorMode, DocumentSettings, NewDocumentDialog, PixelSize, RecoveredDocument, RecoveryDialog, SizeUnit,
+    Anchor, BackgroundContents, BitDepth, ColorMode, DocumentOptions, NewDocumentDialog, PixelSize, RecoveredDocument, RecoveryDialog, SizeUnit,
 };
 use crate::edit::EditEvent;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
@@ -209,11 +210,68 @@ pub(super) fn stories() -> Vec<Story> {
     ]
 }
 
-/// Installs a Host with the default in-memory settings and a file service that cancels every
-/// picker, when the story runs without one.
+/// A file service for stories: every picker answers at once with a path in a made-up
+/// `/stories` folder (the suggested file name, else the purpose), so Save… and Browse… finish
+/// the way they do in an app. Nothing touches the disk.
+#[derive(Default)]
+struct StoryFiles {
+    state: std::sync::Mutex<StoryFilesState>,
+}
+
+#[derive(Default)]
+struct StoryFilesState {
+    next: u64,
+    answered: Vec<PickAnswer>,
+}
+
+impl Files for StoryFiles {
+    fn pick(&self, request: PickRequest) -> PickId {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        state.next += 1;
+        let id = PickId(state.next);
+        let folder = PathBuf::from("/stories");
+        let path = match request.kind {
+            PickKind::Folder => folder,
+            _ => folder.join(request.file_name.clone().unwrap_or_else(|| request.purpose.clone())),
+        };
+        state.answered.push(PickAnswer { id, request, picked: Picked::Paths(vec![path]) });
+        id
+    }
+
+    fn take_answer(&self, id: PickId) -> Option<Picked> {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        let at = state.answered.iter().position(|answer| answer.id == id)?;
+        Some(state.answered.remove(at).picked)
+    }
+
+    fn forget(&self, id: PickId) {
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).answered.retain(|answer| answer.id != id);
+    }
+
+    fn pick_pending(&self) -> bool {
+        false
+    }
+
+    fn read(&self, _path: &Path) -> Result<Vec<u8>, FileError> {
+        Err(FileError::Unsupported)
+    }
+
+    fn write(&self, _path: &Path, _bytes: &[u8]) -> Result<(), FileError> {
+        Err(FileError::Unsupported)
+    }
+
+    fn last_folder(&self, _purpose: &str) -> Option<PathBuf> {
+        None
+    }
+}
+
+/// Installs a Host with the default in-memory settings and [`StoryFiles`], when the story runs
+/// without one.
 fn ensure_host(ctx: &Context) {
     if Host::try_of_ctx(ctx).is_none() {
-        Host::builder(AppInfo { id: "craft-ui-stories", name: "Craft Stories", version: "0" }).install(ctx);
+        Host::builder(AppInfo { id: "craft-ui-stories", name: "Craft Stories", version: "0" })
+            .files(std::sync::Arc::new(StoryFiles::default()))
+            .install(ctx);
     }
 }
 
@@ -271,8 +329,8 @@ fn seed<T: serde::Serialize + serde::de::DeserializeOwned>(ctx: &Context, key: &
     }
 }
 
-fn recent_settings(width: u32, height: u32, ppi: f64, unit: SizeUnit, mode: ColorMode, depth: BitDepth) -> DocumentSettings {
-    DocumentSettings { size: PixelSize { width, height, pixels_per_inch: ppi }, unit, color_mode: mode, depth, ..DocumentSettings::default() }
+fn recent_settings(width: u32, height: u32, ppi: f64, unit: SizeUnit, mode: ColorMode, depth: BitDepth) -> DocumentOptions {
+    DocumentOptions { size: PixelSize { width, height, pixels_per_inch: ppi }, unit, color_mode: mode, depth, ..DocumentOptions::default() }
 }
 
 /// New Document with recent documents and saved presets in the Host's memory; the clipboard
@@ -290,7 +348,7 @@ fn show_new_document(ui: &mut Ui, args: &mut NewDocumentArgs) {
             recent_settings(1080, 1920, 72.0, SizeUnit::Pixels, ColorMode::Rgb, BitDepth::Eight),
         ],
     );
-    let saved = |name: &str, width, height, ppi, unit, mode| DocumentSettings {
+    let saved = |name: &str, width, height, ppi, unit, mode| DocumentOptions {
         name: name.to_owned(),
         ..recent_settings(width, height, ppi, unit, mode, BitDepth::Eight)
     };
@@ -330,7 +388,7 @@ fn show_new_document(ui: &mut Ui, args: &mut NewDocumentArgs) {
 }
 
 /// The file size the story's stand-in encoder reports for `settings`.
-fn export_bytes(settings: &ExportSettings, source: (u32, u32)) -> u64 {
+fn export_bytes(settings: &ExportOptions, source: (u32, u32)) -> u64 {
     let (width, height) = match settings.size {
         ExportSize::Scale(scale) => (f64::from(source.0) * scale / 100.0, f64::from(source.1) * scale / 100.0),
         ExportSize::Pixels { width, height } => (f64::from(width), f64::from(height)),
@@ -362,8 +420,8 @@ fn show_export_as(ui: &mut Ui, args: &mut ExportAsArgs) {
         &mut args.open,
         format,
         || {
-            ExportAsDialog::new(SOURCE.0, SOURCE.1, "poster.psd")
-                .settings(ExportSettings { format: format.id().to_owned(), ..ExportSettings::default() })
+            ExportAsDialog::new("poster.psd", SOURCE.0, SOURCE.1)
+                .initial(ExportOptions { format: format.id().to_owned(), ..ExportOptions::default() })
         },
         |dialog| {
             if !ready {
@@ -388,12 +446,12 @@ fn show_export_as(ui: &mut Ui, args: &mut ExportAsArgs) {
                 }
             }
         },
-        |result| format!("OK, {} {} x {} px", result.settings.format, result.width, result.height),
+        |result| format!("OK, {} {} x {} px", result.options.format, result.width, result.height),
     );
 }
 
-fn web_settings(format: WebFormat, edit: impl FnOnce(&mut WebSettings)) -> WebSettings {
-    let mut settings = WebSettings { format, ..WebSettings::default() };
+fn web_settings(format: WebFormat, edit: impl FnOnce(&mut SaveForWebOptions)) -> SaveForWebOptions {
+    let mut settings = SaveForWebOptions { format, ..SaveForWebOptions::default() };
     edit(&mut settings);
     settings
 }
@@ -460,7 +518,7 @@ fn show_save_for_web(ui: &mut Ui, args: &mut SaveForWebArgs) {
                 });
             }
         },
-        |result| format!("OK, {:?} {} x {} px", result.settings.format, result.width, result.height),
+        |result| format!("OK, {:?} {} x {} px", result.options.format, result.width, result.height),
     );
 }
 
@@ -506,7 +564,7 @@ fn show_targa(ui: &mut Ui, args: &mut TargaArgs) {
         return;
     }
     let bits = if args.alpha { 32 } else { 24 };
-    drive(ui, "targa-options", &mut args.open, bits, || TargaOptionsDialog::new(bits), |_| {}, |bits| format!("OK, {bits} bits/pixel"));
+    drive(ui, "targa-options", &mut args.open, bits, || TargaOptionsDialog::new(bits), |_| {}, |options| format!("OK, {} bits/pixel", options.bits));
 }
 
 fn show_dds(ui: &mut Ui, args: &mut TiffArgs) {

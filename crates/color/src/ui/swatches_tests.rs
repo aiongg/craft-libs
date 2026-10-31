@@ -1,23 +1,29 @@
 //! The Swatches panel on a kittest harness: clicks, New Swatch, the panel menu, and the library.
 
 use craft_cms::convert::CmykConverter;
+use std::sync::Arc;
+
+use craft_host::{AppInfo, Picked};
 use craft_theme::{ModelValues, Srgba};
 use craft_ui::behavior::{DropPosition, Move};
-use craft_ui::composites::NoticeCenter;
+use craft_ui::composites::{StatusLine, Tone};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Event, Modifiers, PointerButton, Pos2, Ui};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
+use super::lut_picker_tests::Scripted;
 use super::swatches::Key;
-use super::{PickedColor, SwatchAt, SwatchLibrary, SwatchesAction, SwatchesPanel};
+use super::{PickedColor, SwatchAt, SwatchLibrary, SwatchesPanel, SwatchesPanelResponse};
 use crate::palette::{SwatchColor, SwatchEntry, SwatchFormat, SwatchGroup, SwatchNote, SwatchReport};
 
 struct Host {
     library: SwatchLibrary,
     foreground: Srgba,
     used: Vec<(SwatchAt, Srgba, bool)>,
+    /// What the panel reported besides `used`, per pass.
+    reported: Vec<SwatchesPanelResponse>,
     time: f64,
 }
 
@@ -36,15 +42,28 @@ fn library() -> SwatchLibrary {
 }
 
 fn show(ui: &mut Ui, host: &mut Host) {
-    let response = SwatchesPanel::new("swatches", &mut host.library, CmykConverter::coated(), host.foreground).show(ui);
+    let response = SwatchesPanel::new("swatches", &mut host.library, host.foreground).cmyk(CmykConverter::coated()).show(ui);
     host.used.extend(response.used);
+    if response.imported.is_some() || response.exported.is_some() || response.status.is_some() {
+        host.reported.push(response);
+    }
 }
 
 fn harness(library: SwatchLibrary) -> Harness<'static, Host> {
-    let host = Host { library, foreground: Srgba::rgb(0.2, 0.4, 0.6), used: Vec::new(), time: 0.0 };
+    harness_on(library, None)
+}
+
+/// The panel with `files` as the installed host's file service (no host without it).
+fn harness_on(library: SwatchLibrary, files: Option<Arc<Scripted>>) -> Harness<'static, Host> {
+    let host = Host { library, foreground: Srgba::rgb(0.2, 0.4, 0.6), used: Vec::new(), reported: Vec::new(), time: 0.0 };
     let mut harness = Harness::<Host>::builder()
         .with_size([320.0, 320.0])
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .with_context_setup(move |ctx| {
+            install(ctx, &Base::suite_default());
+            if let Some(files) = &files {
+                craft_host::Host::builder(AppInfo { id: "test", name: "Test", version: "1" }).files(files.clone()).build().install(ctx);
+            }
+        })
         .build_ui_state(show, host);
     harness.run();
     harness
@@ -115,7 +134,7 @@ fn add_picked_keeps_the_typed_model() {
 fn export_is_disabled_when_empty() {
     let ctx = egui::Context::default();
     let enabled = |library: &SwatchLibrary| {
-        let entries = SwatchesPanel::panel_menu(&ctx, library);
+        let entries = SwatchesPanel::panel_menu(&ctx, "swatches", library);
         let state = |label: &str| entries.iter().filter_map(|e| e.item()).find(|i| i.label() == label).map(|i| i.is_enabled());
         (state("Export Swatches…"), state("Export Swatches for Exchange…"), state("Import Swatches…"))
     };
@@ -124,8 +143,8 @@ fn export_is_disabled_when_empty() {
     assert_eq!(enabled(&library()), (Some(true), Some(true), Some(true)));
 }
 
-/// The menu's New Swatch goes to the selected swatch's group, like the footer's, and the file
-/// entries come back as actions.
+/// The menu's New Swatch goes to the selected swatch's group, like the footer's, and only for
+/// the panel whose selection it is.
 #[test]
 fn menu_commands_use_the_panels_selection() {
     let mut harness = harness(library());
@@ -133,11 +152,86 @@ fn menu_commands_use_the_panels_selection() {
     click(&mut harness, pink, Modifiers::NONE);
     let ctx = harness.ctx.clone();
     let fg = harness.state().foreground;
-    let response = SwatchesPanel::run_command(&ctx, "swatches.newSwatch", &mut harness.state_mut().library, fg);
+    let new_swatch = "swatches.newSwatch".to_owned();
+    let response = SwatchesPanel::run_command(&ctx, "swatches", &mut harness.state_mut().library, &new_swatch, fg);
     assert!(response.changed);
     assert_eq!(harness.state().library.groups[1].entries.len(), 2);
-    let export = SwatchesPanel::run_command(&ctx, "swatches.exportExchange", &mut harness.state_mut().library, fg);
-    assert_eq!((export.changed, export.action), (false, Some(SwatchesAction::Export(SwatchFormat::Ase))));
+    let other = SwatchesPanel::run_command(&ctx, "another panel", &mut harness.state_mut().library, &new_swatch, fg);
+    assert!(other.changed);
+    assert_eq!(harness.state().library.groups[1].entries.len(), 2, "another panel has no selection");
+    assert_eq!(harness.state().library.groups[0].entries.len(), 3, "so the swatch goes to the first group");
+}
+
+/// Import and Replace pick a swatch file through the host's file service, and the panel reads it
+/// in the pass the answer arrives.
+#[test]
+fn import_and_replace_read_the_picked_file() {
+    let dir = std::env::temp_dir().join(format!("craft-swatches-import-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("brand.gpl");
+    std::fs::write(&path, "GIMP Palette\nName: Brand\n#\n  0 128 255 Sky\n").unwrap();
+    for (command, replace) in [("swatches.import", false), ("swatches.replace", true)] {
+        let files = Scripted::new(Picked::Paths(vec![path.clone()]));
+        let mut harness = harness_on(library(), Some(files.clone()));
+        let ctx = harness.ctx.clone();
+        let fg = harness.state().foreground;
+        let response = SwatchesPanel::run_command(&ctx, "swatches", &mut harness.state_mut().library, &command.to_owned(), fg);
+        assert!(!response.changed, "the library changes in the pass the answer arrives");
+        harness.run_steps(2);
+        let asked = files.asked.lock().unwrap().clone();
+        assert_eq!(asked.len(), 1);
+        assert_eq!(asked[0].purpose, "swatches");
+        assert_eq!(asked[0].kind, craft_host::PickKind::Open);
+        let names: Vec<&str> = harness.state().library.groups.iter().flat_map(|g| g.entries.iter().map(|e| e.name.as_str())).collect();
+        assert!(names.contains(&"Sky"), "{names:?}");
+        assert_eq!(names.contains(&"Red"), !replace, "{names:?}");
+        assert_eq!(harness.state().reported.len(), 1, "reported once");
+        assert!(harness.state().reported[0].imported.is_some());
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A file that is not a swatch file is a status line, not a change; a cancelled picker is nothing.
+#[test]
+fn a_bad_file_is_a_status_line_and_a_cancel_is_nothing() {
+    let dir = std::env::temp_dir().join(format!("craft-swatches-bad-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("junk.bin");
+    std::fs::write(&path, "nothing").unwrap();
+    let mut harness = harness_on(library(), Some(Scripted::new(Picked::Paths(vec![path]))));
+    let ctx = harness.ctx.clone();
+    let fg = harness.state().foreground;
+    let _ = SwatchesPanel::run_command(&ctx, "swatches", &mut harness.state_mut().library, &"swatches.import".to_owned(), fg);
+    harness.run_steps(2);
+    let _ = std::fs::remove_dir_all(&dir);
+    let status = harness.state().reported[0].status.clone();
+    assert_eq!(status, Some(StatusLine { text: "Swatches could not be imported: not a swatch file".into(), tone: Tone::Bad }));
+    assert_eq!(harness.state().library, library());
+
+    let mut harness = harness_on(library(), Some(Scripted::new(Picked::Cancelled)));
+    let ctx = harness.ctx.clone();
+    let _ = SwatchesPanel::run_command(&ctx, "swatches", &mut harness.state_mut().library, &"swatches.import".to_owned(), fg);
+    harness.run_steps(2);
+    assert!(harness.state().reported.is_empty());
+}
+
+/// Export asks for a path to write, and the panel writes the file there.
+#[test]
+fn export_writes_the_picked_path() {
+    let path = std::path::PathBuf::from("/swatches/brand.ase");
+    let files = Scripted::new(Picked::Paths(vec![path.clone()]));
+    let mut harness = harness_on(library(), Some(files.clone()));
+    let ctx = harness.ctx.clone();
+    let fg = harness.state().foreground;
+    let _ = SwatchesPanel::run_command(&ctx, "swatches", &mut harness.state_mut().library, &"swatches.exportExchange".to_owned(), fg);
+    harness.run_steps(2);
+    let asked = files.asked.lock().unwrap().clone();
+    assert_eq!((asked[0].kind, asked[0].suggested_extension.as_deref()), (craft_host::PickKind::Save, Some("ase")));
+    let written = files.written.lock().unwrap().clone();
+    assert_eq!(written.len(), 1);
+    assert_eq!(written[0].0, path);
+    assert_eq!(crate::palette::SwatchFormat::sniff(&written[0].1, "x.ase"), Some(SwatchFormat::Ase));
+    assert!(harness.state().reported[0].exported.is_some());
 }
 
 /// A swatch's accessible name carries its value; the plain name stays the label.
@@ -147,27 +241,23 @@ fn a_swatch_is_named_with_its_value() {
     assert_eq!(cell(&harness, "Red").accesskit_node().label().as_deref(), Some("Red, #ff0000"));
 }
 
-/// Notes are worded in the panel, with plural forms for counts, and post as one notice.
+/// Notes are worded in the panel, with plural forms for counts, and make one status line.
 #[test]
-fn notes_are_worded_and_posted() {
+fn notes_are_worded_and_make_a_status_line() {
     let ctx = egui::Context::default();
     let report = SwatchReport { notes: vec![SwatchNote::BookColors(1), SwatchNote::ConvertedToRgb(3), SwatchNote::GroupsFlattened] };
     assert_eq!(
         SwatchesPanel::note_lines(&ctx, &report, true),
-        [
-            "1 colour-book colour was left out.",
-            "3 colours were converted to RGB.",
-            "The format has no groups; the swatches were written as one list."
-        ]
+        ["1 color-book color was left out.", "3 colors were converted to RGB.", "The format has no groups; the swatches were written as one list."]
     );
     assert_eq!(
         SwatchesPanel::note_lines(&ctx, &SwatchReport { notes: vec![SwatchNote::BookColors(2)] }, false),
-        ["2 colour-book colours were read as black."]
+        ["2 color-book colors were read as black."]
     );
-    let mut center = NoticeCenter::new();
-    assert_eq!(SwatchesPanel::post_notes(&ctx, &mut center, &SwatchReport::default(), false), None);
-    assert!(SwatchesPanel::post_notes(&ctx, &mut center, &report, true).is_some());
-    assert_eq!(center.notices()[0].title, "Swatches exported with changes");
+    assert_eq!(SwatchesPanel::status_line(&ctx, &SwatchReport::default(), false), None);
+    let line = SwatchesPanel::status_line(&ctx, &report, true).expect("notes to say");
+    assert_eq!(line.tone, Tone::Warn);
+    assert!(line.text.starts_with("Swatches exported with changes: 1 color-book color was left out. 3 colors"), "{}", line.text);
 }
 
 /// Dragging and the Move to command keep names unique and the library whole.

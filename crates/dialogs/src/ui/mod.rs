@@ -42,7 +42,7 @@ impl ReplaceLabels {
     }
 }
 
-pub use file_list::{FileList, FileListLabels, FileListMode, FileListPicker, FileListResponse};
+pub use file_list::{FileList, FileListLabels, FileListMode, FileListPicker, FileListPickerResponse};
 pub use path_field::{PathField, PathFieldLabels, PathFieldResponse};
 
 /// The count words of the file service's egui parts (none yet), for the words registry.

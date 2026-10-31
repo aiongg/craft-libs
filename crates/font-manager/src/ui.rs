@@ -25,7 +25,7 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <crate::picker::FontPickerLabels as craft_ui::localized::Labels>::WORDS,
     <crate::glyphs::GlyphsLabels as craft_ui::localized::Labels>::WORDS,
     <crate::missing::MissingFontsLabels as craft_ui::localized::Labels>::WORDS,
-    <crate::axes::AxesLabels as craft_ui::localized::Labels>::WORDS,
+    <crate::axes::AxisSlidersLabels as craft_ui::localized::Labels>::WORDS,
 ];
 
 /// The count words of the Missing Fonts dialog: its plural forms are in [`WORDS`], this gives the

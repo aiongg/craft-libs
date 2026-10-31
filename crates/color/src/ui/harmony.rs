@@ -11,7 +11,8 @@ use crate::harmony::{Guide, GuideOptions, Harmony, Variation};
 use craft_ui::composites::PropertyRow;
 use craft_ui::controls::{Select, Slider, Swatch};
 use craft_ui::docking::panel_menu::PanelCommand;
-use craft_ui::localized::{Labels as _, Words};
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::{Labels as _, Word, Words};
 use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::primitives::Interactive;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
@@ -38,8 +39,8 @@ craft_ui::words! {
     }
 }
 
-/// The rules' names as words, keyed `harmony.rule.<camelCase id>` with [`Harmony::label`]'s
-/// English (21 entries, [`Harmony::ALL`]'s order).
+/// The rules' names as words, keyed `harmony.rule.<id>` with [`Harmony::id`] (21 entries,
+/// [`Harmony::ALL`]'s order).
 // inv-vectorcraft: crates/color/src/harmony.rs:101 `label`, :128 `id`.
 pub const HARMONY_WORDS: &[craft_ui::localized::Word] = &[
     craft_ui::localized::Word::keyed("harmony.rule.complementary", "Complementary"),
@@ -71,12 +72,13 @@ pub const HARMONY_WORDS: &[craft_ui::localized::Word] = &[
 pub struct HarmonyWheelResponse {
     /// The colour whose marker was pressed; it becomes the selected one.
     pub pressed: Option<usize>,
-    /// Colours moved: a marker dragged (new hue and saturation) or, for the selected colour,
-    /// the Brightness slider (new brightness); `[h°, s, b]` with `None` where it kept its value.
-    /// The host applies each with [`move_on_wheel`](crate::harmony::move_on_wheel), linked while a
-    /// rule is chosen. A pass reports the marker's move and the slider's, in that order, when both
-    /// happened.
-    pub moved: Vec<(usize, [Option<f32>; 3])>,
+    /// The edits of the colours this pass, each with the colour's index: a marker dragged (new hue
+    /// and saturation) or, for the selected colour, the Brightness slider (new brightness); the
+    /// value is `[h°, s, b]` with `None` where the edit kept the value. The host applies each value
+    /// with [`move_on_wheel`](crate::harmony::move_on_wheel), linked while a rule is chosen. A pass
+    /// reports the marker's edit and the slider's, in that order, when both happened. An edit with
+    /// no value (a cancel) is for the selected colour.
+    pub edits: Vec<(usize, EditEvent<[Option<f32>; 3]>)>,
 }
 
 /// A hue and saturation wheel at the selected colour's brightness (hue around, saturation
@@ -129,8 +131,11 @@ impl<'a> HarmonyWheel<'a> {
             .names(&names)
             .show(ui);
         response.pressed = disc.pressed;
-        if let Some(m) = disc.edit.event.as_ref().and_then(|e| e.value()) {
-            response.moved.push((m.marker, [Some(m.hue), Some(m.saturation), None]));
+        if let Some(event) = disc.edit.event {
+            let marker = event.value().map(|m| m.marker).or(selected);
+            if let Some(marker) = marker {
+                response.edits.push((marker, event.map(|m| [Some(m.hue), Some(m.saturation), None])));
+            }
         }
         let b = hsb.map_or(1.0, |c| c.b);
         let track = hsb.map(|c| [Srgba::from_hsb(Hsb { b: 0.0, ..c }), Srgba::from_hsb(Hsb { b: 1.0, ..c })]);
@@ -145,8 +150,8 @@ impl<'a> HarmonyWheel<'a> {
                 slider.show(ui)
             })
             .inner;
-        if let (Some(i), Some(v)) = (selected, edit.event.as_ref().and_then(|e| e.value())) {
-            response.moved.push((i, [None, None, Some((*v / 100.0) as f32)]));
+        if let (Some(i), Some(event)) = (selected, edit.event) {
+            response.edits.push((i, event.map(|v| [None, None, Some((v / 100.0) as f32)])));
         }
         response
     }
@@ -223,8 +228,8 @@ impl<'a> HarmonyPanel<'a> {
             response.set_base = chip.clicked();
             let mut rule = state.rule;
             let mut select = Select::new((salt, "rule"), labels.rule.as_str(), &mut rule);
-            for (rule, word) in Harmony::ALL.into_iter().zip(HARMONY_WORDS) {
-                select = select.option(rule, words.get(*word).into_owned());
+            for rule in Harmony::ALL {
+                select = select.option(rule, words.get(rule_word(rule)).into_owned());
             }
             let _ = select.show(ui);
             state.rule = rule;
@@ -310,7 +315,7 @@ impl<'a> HarmonyPanel<'a> {
     /// Warm/Cool, Show Vivid/Muted (the current one a checked radio), a separator, Save Colors as
     /// Swatches (enabled while the panel `id_salt` has cells selected) and Color Guide Options….
     /// The commands are [`HarmonyPanel::MENU_COMMANDS`]; run the chosen one with
-    /// [`run_menu_command`](Self::run_menu_command).
+    /// [`run_command`](Self::run_command).
     pub fn panel_menu(ctx: &Context, id_salt: impl AsIdSalt, state: &HarmonyPanelState) -> Vec<MenuEntry<PanelCommand>> {
         let labels = HarmonyLabels::of_ctx(ctx);
         let has_cells = ctx.data(|d| d.get_temp::<Vec<Srgba>>(colors_key(IdSalt::new(id_salt)))).is_some_and(|c| !c.is_empty());
@@ -334,8 +339,8 @@ impl<'a> HarmonyPanel<'a> {
     /// Runs the panel-menu `command` the dock reported: a variation is set in `state`; the others
     /// come back for the app. An id that is not one of [`MENU_COMMANDS`](Self::MENU_COMMANDS) does
     /// nothing.
-    pub fn run_menu_command(ctx: &Context, id_salt: impl AsIdSalt, state: &mut HarmonyPanelState, command: &str) -> Option<HarmonyMenuAction> {
-        match Self::MENU_COMMANDS.iter().position(|c| *c == command)? {
+    pub fn run_command(ctx: &Context, id_salt: impl AsIdSalt, state: &mut HarmonyPanelState, command: &PanelCommand) -> Option<HarmonyMenuAction> {
+        match Self::MENU_COMMANDS.iter().position(|c| *c == command.as_str())? {
             at @ 0..=2 => {
                 state.options.variation = Variation::ALL[at];
                 None
@@ -347,6 +352,12 @@ impl<'a> HarmonyPanel<'a> {
             _ => Some(HarmonyMenuAction::Options),
         }
     }
+}
+
+/// The word of `rule`'s name: the [`HARMONY_WORDS`] entry keyed with its id.
+fn rule_word(rule: Harmony) -> Word {
+    let id = format!("harmony.rule.{}", rule.id());
+    HARMONY_WORDS.iter().copied().find(|w| w.id == id).unwrap_or(Word::plain(rule.id()))
 }
 
 /// What the guide is made from; selected cells belong to the guide they were picked from.

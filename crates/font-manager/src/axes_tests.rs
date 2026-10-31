@@ -1,5 +1,6 @@
 //! Axes: reading and the sliders.
 
+use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Event, Modifiers, PointerButton, pos2};
@@ -102,26 +103,18 @@ struct State {
     axes: Vec<FontAxis>,
     instances: Vec<NamedInstance>,
     values: Vec<([u8; 4], f32)>,
-    changed: Vec<([u8; 4], f32)>,
-    settled: Vec<([u8; 4], f32)>,
+    edits: Vec<([u8; 4], EditEvent<f32>)>,
     picked: Option<String>,
 }
 
 fn harness() -> Harness<'static, State> {
     let data = variable_font();
-    let state = State {
-        axes: read_axes(&data, 0),
-        instances: read_named_instances(&data, 0),
-        values: vec![(WGHT, 400.0)],
-        changed: Vec::new(),
-        settled: Vec::new(),
-        picked: None,
-    };
+    let state =
+        State { axes: read_axes(&data, 0), instances: read_named_instances(&data, 0), values: vec![(WGHT, 400.0)], edits: Vec::new(), picked: None };
     Harness::<State>::builder().with_size([320.0, 300.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, s: &mut State| {
-            let r = AxisSliders::new(&s.axes, &mut s.values).instances(&s.instances).show(ui);
-            s.changed.extend(r.changed);
-            s.settled.extend(r.settled);
+            let r = AxisSliders::new("axes", &s.axes, &mut s.values).instances(&s.instances).show(ui);
+            s.edits.extend(r.edits);
             s.picked = r.instance.map(|i| i.name).or(s.picked.take());
         },
         state,
@@ -147,14 +140,16 @@ fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
     harness.run();
     harness.event(Event::PointerMoved(at(0.8)));
     harness.run();
-    assert!(!harness.state().changed.is_empty(), "the drag previews");
-    assert!(harness.state().settled.is_empty(), "nothing is settled mid-drag");
+    let commits = |edits: &[([u8; 4], EditEvent<f32>)]| edits.iter().filter(|(_, e)| matches!(e, EditEvent::Commit { .. })).count();
+    assert!(harness.state().edits.iter().any(|(_, e)| matches!(e, EditEvent::Update { .. } | EditEvent::Begin { .. })), "the drag previews");
+    assert_eq!(commits(&harness.state().edits), 0, "nothing is committed mid-drag");
     harness.event(button(at(0.8), false));
     harness.run();
     let s = harness.state();
-    assert_eq!(s.settled.len(), 1, "one edit per gesture: {:?}", s.settled);
-    let (tag, value) = s.settled[0];
+    assert_eq!(commits(&s.edits), 1, "one commit per gesture: {:?}", s.edits);
+    let (tag, value) = s.edits.iter().find_map(|(t, e)| matches!(e, EditEvent::Commit { .. }).then(|| (*t, *e.value().unwrap()))).unwrap();
     assert_eq!(tag, WGHT);
+    assert!(matches!(s.edits.first(), Some((_, EditEvent::Begin { .. }))), "the gesture begins first: {:?}", s.edits);
     assert!(value > 600.0 && value.fract() == 0.0, "whole units on a wide axis: {value}");
     assert_eq!(s.values.iter().find(|(t, _)| *t == WGHT).map(|v| v.1), Some(value));
 
@@ -166,7 +161,7 @@ fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
     assert_eq!(s.picked.as_deref(), Some("Bold"));
     for (tag, v) in [(WGHT, 700.0), (WDTH, 100.0), (GRAD, 0.0)] {
         assert_eq!(s.values.iter().find(|(t, _)| *t == tag).map(|x| x.1), Some(v), "{}", String::from_utf8_lossy(&tag));
-        assert!(s.settled.contains(&(tag, v)));
+        assert!(s.edits.iter().any(|(t, e)| *t == tag && matches!(e, EditEvent::Set { value, .. } if *value == v)), "{tag:?}");
     }
 }
 
@@ -175,18 +170,11 @@ fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
 #[test]
 fn unset_axes_show_the_drawn_style() {
     let data = variable_font();
-    let state = State {
-        axes: read_axes(&data, 0),
-        instances: read_named_instances(&data, 0),
-        values: Vec::new(),
-        changed: Vec::new(),
-        settled: Vec::new(),
-        picked: None,
-    };
+    let state = State { axes: read_axes(&data, 0), instances: read_named_instances(&data, 0), values: Vec::new(), edits: Vec::new(), picked: None };
     let mut harness =
         Harness::<State>::builder().with_size([320.0, 300.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
             |ui, s: &mut State| {
-                let _ = AxisSliders::new(&s.axes, &mut s.values).instances(&s.instances).drawn(700.0, false).id_salt("bold-layer").show(ui);
+                let _ = AxisSliders::new("bold-layer", &s.axes, &mut s.values).instances(&s.instances).drawn(700.0, false).show(ui);
             },
             state,
         );

@@ -115,7 +115,7 @@ pub use eyedropper::{
 pub use harmony::{
     HARMONY_WORDS, HarmonyLabels, HarmonyMenuAction, HarmonyPanel, HarmonyPanelResponse, HarmonyPanelState, HarmonyWheel, HarmonyWheelResponse,
 };
-pub use lut_picker::{LUT_WORDS, LutChoice, LutLabels, LutPicker, LutPickerResponse};
+pub use lut_picker::{LUT_WORDS, LutChoice, LutPicker, LutPickerLabels, LutPickerResponse};
 pub use paint_chip::{GradientPreview, Paint, PaintChip, PaintLabels, PaintList, PaintListResponse};
 pub use panel::{ColorPanel, ColorPanelLabels, ColorPanelMode, ColorPanelRamp, ColorPanelResponse, ColorPanelState, PanelTarget};
 pub use picker_dialog::{ColorPickerDialog, ColorPickerLabels, ColorPickerMemory, ColorPickerResult};
@@ -124,9 +124,7 @@ pub use samplers::{
     ColorSamplerLabels, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SAMPLER_HIT, SamplerError, SamplerReadout, SamplerReadouts, sampler_options,
 };
 pub use screen_picker::{CaptureResult, CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPickerLabels, StillCapture};
-pub use swatches::{
-    MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchLibrary, SwatchesAction, SwatchesLabels, SwatchesMenuResponse, SwatchesPanel, SwatchesPanelResponse,
-};
+pub use swatches::{MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchLibrary, SwatchesLabels, SwatchesMenuResponse, SwatchesPanel, SwatchesPanelResponse};
 
 use craft_ui::controls::slider::{self, Scale};
 use craft_ui::edit::{self, EditEvent};
@@ -251,7 +249,7 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <EyedropperLabels as Labels>::WORDS,
     <HarmonyLabels as Labels>::WORDS,
     HARMONY_WORDS,
-    <LutLabels as Labels>::WORDS,
+    <LutPickerLabels as Labels>::WORDS,
     LUT_WORDS,
     <PaintLabels as Labels>::WORDS,
     <ProfileLabels as Labels>::WORDS,

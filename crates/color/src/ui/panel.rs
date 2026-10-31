@@ -18,6 +18,7 @@ use super::{
 };
 use crate::{CmykModel, GrayModel, not_web_safe};
 use craft_ui::controls::{IconButton, NumberField};
+use craft_ui::dialog::ColorRequest;
 use craft_ui::direction;
 use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::edit::{EditEvent, EditPolicy};
@@ -48,11 +49,15 @@ craft_ui::words! {
         current_colors: "colorPanel.currentColors" = "Current Colors";
         web_safe_ramp: "colorPanel.webSafeRamp" = "Make Ramp Web Safe";
         color_ramp: "colorPanel.colorRamp" = "Color Ramp";
-        foreground: "colorPanel.foreground" = "Foreground colour";
-        background: "colorPanel.background" = "Background colour";
-        wells: "colorPanel.wells" = "Colours";
+        foreground: "colorPanel.foreground" = "Foreground color";
+        background: "colorPanel.background" = "Background color";
+        wells: "colorPanel.wells" = "Colors";
         add_to_swatches: "colorPanel.addToSwatches" = "Add to Swatches";
         create_swatch: "colorPanel.createSwatch" = "Create new swatch";
+        /// The title of the Color Picker opened for the foreground well.
+        picker_foreground: "colorPanel.pickerForeground" = "Color Picker (Foreground Color)";
+        /// The title of the Color Picker opened for the background well.
+        picker_background: "colorPanel.pickerBackground" = "Color Picker (Background Color)";
     }
 }
 
@@ -187,9 +192,10 @@ pub struct ColorPanelResponse {
     /// the ramp or a warning chip), in order, each with the colour it is for. Usually one; a
     /// field that commits as a slider begins makes two.
     pub edits: Vec<(PanelTarget, EditEvent<PickedColor>)>,
-    /// A well was clicked while it was already the edited one: the app opens the
-    /// [`ColorPickerDialog`](super::ColorPickerDialog) for it (Photoshop).
-    pub open_picker: Option<PanelTarget>,
+    /// A well was clicked while it was already the edited one, for this pass only: the app opens
+    /// the [`ColorPickerDialog`](super::ColorPickerDialog) from the request (Photoshop). Its key
+    /// is the well's [`PanelTarget::key`]; the colour is the well's.
+    pub pick_color: Option<ColorRequest>,
     /// The Add to Swatches button under the Color Wheel was pressed: the app adds the colour of
     /// this well to the swatches.
     pub add_to_swatches: Option<PanelTarget>,
@@ -218,7 +224,7 @@ pub struct ColorPanel<'a> {
     state: &'a mut ColorPanelState,
     colors: [Srgba; 2],
     numbers: &'a LocaleNumbers,
-    gamut: Option<&'a CmykConverter>,
+    cmyk: Option<&'a CmykConverter>,
     enabled: bool,
     dynamic: bool,
 }
@@ -226,13 +232,13 @@ pub struct ColorPanel<'a> {
 impl<'a> ColorPanel<'a> {
     /// The panel on the app's `[foreground, background]`.
     pub fn new(id_salt: impl AsIdSalt, state: &'a mut ColorPanelState, colors: [Srgba; 2], numbers: &'a LocaleNumbers) -> ColorPanel<'a> {
-        ColorPanel { id_salt: IdSalt::new(id_salt), state, colors, numbers, gamut: None, enabled: true, dynamic: true }
+        ColorPanel { id_salt: IdSalt::new(id_salt), state, colors, numbers, cmyk: None, enabled: true, dynamic: true }
     }
 
     /// The document's CMYK converter, for the CMYK sliders, the CMYK Spectrum ramp and the gamut
     /// warning; without it they use the built-in coated CMYK.
-    pub fn gamut(mut self, converter: &'a CmykConverter) -> ColorPanel<'a> {
-        self.gamut = Some(converter);
+    pub fn cmyk(mut self, converter: &'a CmykConverter) -> ColorPanel<'a> {
+        self.cmyk = Some(converter);
         self
     }
 
@@ -251,7 +257,7 @@ impl<'a> ColorPanel<'a> {
 
     /// Shows the panel and returns this frame's edits and requests.
     pub fn show(self, ui: &mut Ui) -> ColorPanelResponse {
-        let Self { id_salt, state, colors, numbers, gamut, enabled, dynamic } = self;
+        let Self { id_salt, state, colors, numbers, cmyk, enabled, dynamic } = self;
         let id = ui.make_persistent_id(id_salt);
         let words = Words::of(ui);
         let builder = UiBuilder::new()
@@ -268,22 +274,22 @@ impl<'a> ColorPanel<'a> {
                 target,
                 colors,
                 numbers,
-                converter: gamut.unwrap_or_else(|| CmykConverter::coated()),
+                converter: cmyk.unwrap_or_else(|| CmykConverter::coated()),
                 dynamic,
                 labels: ColorPanelLabels::shared(ui),
                 picker: ColorPickerLabels::shared(ui),
                 words,
                 kept: ui.data(|d| d.get_temp::<Vec<ModelValues>>(kept_key)).unwrap_or_default(),
                 events: Vec::new(),
-                open_picker: None,
+                pick_color: None,
                 add_to_swatches: None,
             };
             body.show(ui, state);
             ui.data_mut(|d| d.insert_temp(kept_key, std::mem::take(&mut body.kept)));
-            (body.events, body.open_picker, body.add_to_swatches)
+            (body.events, body.pick_color, body.add_to_swatches)
         });
-        let (edits, open_picker, add_to_swatches) = inner.inner;
-        ColorPanelResponse { edits, open_picker, add_to_swatches }
+        let (edits, pick_color, add_to_swatches) = inner.inner;
+        ColorPanelResponse { edits, pick_color, add_to_swatches }
     }
 
     /// The panel menu's entries, for the docking host's
@@ -291,9 +297,10 @@ impl<'a> ColorPanel<'a> {
     /// modes with a radio mark on the current one, a separator, Copy Color as HTML and Copy
     /// Color's Hex Code, a separator, the four ramps with a radio mark, a separator, Make Ramp
     /// Web Safe (checked when on). The host runs the chosen row's command with
-    /// [`run_command`](ColorPanel::run_command).
-    pub fn panel_menu(ui: &Ui, state: &ColorPanelState) -> Vec<MenuEntry<PanelCommand>> {
-        let labels = ColorPanelLabels::shared(ui);
+    /// [`run_command`](ColorPanel::run_command). `id_salt` is the panel's, as the other panels'
+    /// menus take it; the Color panel's rows depend on `state` alone.
+    pub fn panel_menu(ctx: &egui::Context, _id_salt: impl AsIdSalt, state: &ColorPanelState) -> Vec<MenuEntry<PanelCommand>> {
+        let labels = ColorPanelLabels::shared_ctx(ctx);
         let mut entries: Vec<MenuEntry<PanelCommand>> =
             ColorPanelMode::ALL.iter().map(|m| MenuItem::new(m.label(&labels), mode_command(*m)).radio(state.mode == *m).into()).collect();
         entries.push(MenuEntry::Separator);
@@ -308,11 +315,11 @@ impl<'a> ColorPanel<'a> {
     /// context menu's): sets the mode or ramp, toggles Make Ramp Web Safe, or copies `edited` to
     /// the clipboard as HTML (`color="#rrggbb"`) or as a hex code (`rrggbb`). Whether the command
     /// was one of the panel's.
-    pub fn run_command(ctx: &egui::Context, state: &mut ColorPanelState, command: &str, edited: Srgba) -> bool {
+    pub fn run_command(ctx: &egui::Context, _id_salt: impl AsIdSalt, state: &mut ColorPanelState, command: &PanelCommand, edited: Srgba) -> bool {
         let rgb = [edited.r, edited.g, edited.b];
-        if let Some(mode) = ColorPanelMode::ALL.into_iter().find(|m| mode_command(*m) == command) {
+        if let Some(mode) = ColorPanelMode::ALL.into_iter().find(|m| mode_command(*m) == *command) {
             state.mode = mode;
-        } else if let Some(ramp) = ColorPanelRamp::ALL.into_iter().find(|r| ramp_command(*r) == command) {
+        } else if let Some(ramp) = ColorPanelRamp::ALL.into_iter().find(|r| ramp_command(*r) == *command) {
             state.ramp = ramp;
         } else if command == WEB_SAFE {
             state.web_safe_ramp = !state.web_safe_ramp;
@@ -345,6 +352,19 @@ fn html_color(rgb: [f32; 3]) -> String {
 }
 
 impl PanelTarget {
+    /// The key of the [`ColorRequest`] for this colour's picker.
+    pub fn key(self) -> &'static str {
+        match self {
+            PanelTarget::Foreground => "colorPanel.foreground",
+            PanelTarget::Background => "colorPanel.background",
+        }
+    }
+
+    /// The target whose [`key`](PanelTarget::key) is `key`.
+    pub fn from_key(key: &str) -> Option<PanelTarget> {
+        [PanelTarget::Foreground, PanelTarget::Background].into_iter().find(|t| t.key() == key)
+    }
+
     fn index(self) -> usize {
         match self {
             PanelTarget::Foreground => 0,
@@ -386,7 +406,7 @@ struct Body<'a> {
     /// its 8-bit sRGB, so a grey keeps its hue and CMYK or Lab values keep what was typed.
     kept: Vec<ModelValues>,
     events: Vec<(PanelTarget, EditEvent<PickedColor>)>,
-    open_picker: Option<PanelTarget>,
+    pick_color: Option<ColorRequest>,
     add_to_swatches: Option<PanelTarget>,
 }
 
@@ -448,7 +468,11 @@ impl Body<'_> {
             SwatchPair::new("wells", self.labels.wells.clone(), wells, self.numbers).active(active).popover(false).enabled(self.enabled).show(ui);
         state.background = pair.active == Well::Secondary;
         if pair.clicked == Some(active) {
-            self.open_picker = Some(self.target);
+            let title = match self.target {
+                PanelTarget::Foreground => self.labels.picker_foreground.clone(),
+                PanelTarget::Background => self.labels.picker_background.clone(),
+            };
+            self.pick_color = Some(ColorRequest::new(self.target.key(), self.color()).title(title));
         }
     }
 
@@ -696,7 +720,7 @@ impl Body<'_> {
         let entries = ramp_entries(&self.labels, state);
         let menu = ContextMenu::new(&entries).own_gestures(false).open_at(ramp.menu_at.map(OpenAt::Pointer)).show(ui, &ramp.bar);
         if let Some(command) = menu.chosen {
-            ColorPanel::run_command(ui.ctx(), state, &command, self.color());
+            ColorPanel::run_command(ui.ctx(), self.id, state, &command, self.color());
         }
     }
 }

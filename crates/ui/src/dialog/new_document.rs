@@ -166,7 +166,7 @@ impl Orientation {
 /// Everything New Document creates a document from: the dialog's result, a saved preset, a
 /// recent card and the remembered last values are all this.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct DocumentSettings {
+pub struct DocumentOptions {
     /// The document name ("Untitled-1"); a preset's own name when saved as one.
     pub name: String,
     /// Width and height in pixels, and the resolution in pixels per inch.
@@ -183,7 +183,7 @@ pub struct DocumentSettings {
     pub artboard: bool,
 }
 
-impl Default for DocumentSettings {
+impl Default for DocumentOptions {
     /// PhotoCraft's default size: 2100 × 1500 px at 300 ppi (7 × 5 in), RGB, 8 bit, white.
     fn default() -> Self {
         Self {
@@ -228,7 +228,7 @@ impl DocumentPreset {
     /// `preset_unit`) and the resolution moved to the app's print or screen resolution, keeping
     /// a print preset's physical size.
     // pc: crates/ui-egui/src/dialogs/new_doc_ui.rs:208 at_pref_resolutions, :192 preset_unit
-    pub fn settings(&self, print_ppi: f64, screen_ppi: f64) -> DocumentSettings {
+    pub fn options(&self, print_ppi: f64, screen_ppi: f64) -> DocumentOptions {
         let print = self.is_print();
         let wanted = if print { print_ppi } else { screen_ppi };
         let (width, height, pixels_per_inch) = if !(wanted.is_finite() && wanted > 0.0) {
@@ -240,10 +240,10 @@ impl DocumentPreset {
         } else {
             (self.width, self.height, wanted)
         };
-        DocumentSettings {
+        DocumentOptions {
             size: PixelSize { width, height, pixels_per_inch },
             unit: if print { SizeUnit::Inches } else { SizeUnit::Pixels },
-            ..DocumentSettings::default()
+            ..DocumentOptions::default()
         }
     }
 }
@@ -374,7 +374,7 @@ impl PresetCategory {
 ///
 /// The dialog opens with the last created settings (`"newDocument.last"`, PhotoCraft's
 /// `file.new` memory) and stores them, and a recent entry, on Create. Result:
-/// [`DocumentSettings`].
+/// [`DocumentOptions`].
 ///
 /// ```ignore
 /// dialogs.open(NewDocumentDialog::new().clipboard(clip_size).background_color(bg));
@@ -390,7 +390,7 @@ pub struct NewDocumentDialog {
     screen_ppi: f64,
     profiles: Vec<(ColorMode, String)>,
     working: Vec<(ColorMode, String)>,
-    settings: DocumentSettings,
+    settings: DocumentOptions,
     /// The open tab's id.
     tab: String,
     /// The card the user picked in the open tab (the saved row in Saved).
@@ -404,8 +404,8 @@ pub struct NewDocumentDialog {
     /// Set once the remembered values were read (first pass, which has the Host).
     recalled: bool,
     state: DialogState,
-    recent: Vec<DocumentSettings>,
-    saved: Vec<DocumentSettings>,
+    recent: Vec<DocumentOptions>,
+    saved: Vec<DocumentOptions>,
     /// The page orientation picked with the two buttons; built-in cards turn with it.
     orientation: Option<Orientation>,
     /// The background before Custom… was chosen, for [`cancel_color`](NewDocumentDialog::cancel_color).
@@ -437,7 +437,7 @@ impl NewDocumentDialog {
             screen_ppi: 72.0,
             profiles: Vec::new(),
             working: Vec::new(),
-            settings: DocumentSettings::default(),
+            settings: DocumentOptions::default(),
             tab: "recent".to_owned(),
             selected_card: None,
             preset_name: None,
@@ -510,7 +510,7 @@ impl NewDocumentDialog {
     }
 
     /// The settings shown in the details column.
-    pub fn settings(&self) -> &DocumentSettings {
+    pub fn options(&self) -> &DocumentOptions {
         &self.settings
     }
 
@@ -556,7 +556,7 @@ struct Env<'a> {
 struct Card {
     title: String,
     /// What the card sets: the size and unit, or (a recent document) everything but the name.
-    settings: DocumentSettings,
+    settings: DocumentOptions,
     restores_all: bool,
     /// The hover text of a recent document, which names everything it restores.
     detail: Option<String>,
@@ -565,7 +565,7 @@ struct Card {
 }
 
 impl StackDialog for NewDocumentDialog {
-    type Result = DocumentSettings;
+    type Result = DocumentOptions;
 
     fn id(&self) -> DialogId {
         self.id
@@ -578,7 +578,7 @@ impl StackDialog for NewDocumentDialog {
     /// preset write `"newDocument.presets"` at once (they outlive a Close).
     // pc: crates/ui-egui/src/dialogs/new_doc_ui.rs:528 body (tabs :528, cards :578, details :643, saved :440, save_preset :482);
     // pc: crates/ui-egui/src/dialogs.rs:997 confirm, crates/ui-egui/src/app/files.rs:653 remember_new_document
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<DocumentSettings>> {
+    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<DocumentOptions>> {
         let labels = NewDocumentLabels::shared_ctx(ctx);
         if !self.recalled {
             self.recall(ctx, &labels);
@@ -618,8 +618,8 @@ impl NewDocumentDialog {
     fn recall(&mut self, ctx: &Context, labels: &NewDocumentLabels) {
         self.recalled = true;
         if let Some(host) = Host::try_of_ctx(ctx) {
-            let list = |key: &str, max: usize| -> Vec<DocumentSettings> {
-                let mut list = Remembered::<Vec<DocumentSettings>>::new(key).recall(&host).unwrap_or_default();
+            let list = |key: &str, max: usize| -> Vec<DocumentOptions> {
+                let mut list = Remembered::<Vec<DocumentOptions>>::new(key).recall(&host).unwrap_or_default();
                 list.retain(fits);
                 list.truncate(max);
                 list
@@ -627,7 +627,7 @@ impl NewDocumentDialog {
             self.recent = list(RECENT_KEY, MAX_RECENT);
             self.saved = list(PRESETS_KEY, MAX_SAVED);
             if self.clipboard.is_none()
-                && let Some(last) = Remembered::<DocumentSettings>::new(LAST_KEY).recall(&host).filter(fits)
+                && let Some(last) = Remembered::<DocumentOptions>::new(LAST_KEY).recall(&host).filter(fits)
             {
                 self.settings = last;
             }
@@ -636,7 +636,7 @@ impl NewDocumentDialog {
     }
 
     /// The settings Create returns, remembered as the last values and the newest recent entry.
-    fn create(&mut self, ctx: &Context, labels: &NewDocumentLabels) -> DocumentSettings {
+    fn create(&mut self, ctx: &Context, labels: &NewDocumentLabels) -> DocumentOptions {
         let mut settings = self.settings.clone();
         settings.name = settings.name.trim().to_owned();
         if settings.name.is_empty() {
@@ -646,15 +646,15 @@ impl NewDocumentDialog {
         remembered.name.clear();
         push_recent(&mut self.recent, remembered.clone(), MAX_RECENT);
         if let Some(host) = Host::try_of_ctx(ctx) {
-            Remembered::<DocumentSettings>::new(LAST_KEY).store(&host, &remembered);
-            Remembered::<Vec<DocumentSettings>>::new(RECENT_KEY).store(&host, &self.recent);
+            Remembered::<DocumentOptions>::new(LAST_KEY).store(&host, &remembered);
+            Remembered::<Vec<DocumentOptions>>::new(RECENT_KEY).store(&host, &self.recent);
         }
         settings
     }
 
     fn store_presets(&self, ctx: &Context) {
         if let Some(host) = Host::try_of_ctx(ctx) {
-            Remembered::<Vec<DocumentSettings>>::new(PRESETS_KEY).store(&host, &self.saved);
+            Remembered::<Vec<DocumentOptions>>::new(PRESETS_KEY).store(&host, &self.saved);
         }
     }
 
@@ -745,7 +745,7 @@ impl NewDocumentDialog {
     /// picked for Width and Height (inches otherwise), a screen preset in pixels.
     fn preset_card(&self, env: &Env<'_>, preset: &DocumentPreset) -> Card {
         let preset = self.oriented(preset);
-        let mut settings = preset.settings(self.print_ppi, self.screen_ppi);
+        let mut settings = preset.options(self.print_ppi, self.screen_ppi);
         if preset.is_print() && !self.settings.unit.is_pixel_unit() {
             settings.unit = self.settings.unit;
         }
@@ -764,7 +764,7 @@ impl NewDocumentDialog {
         let mut cards = Vec::new();
         if let Some(size) = self.clipboard {
             let preset = DocumentPreset::new(CLIPBOARD_ID, "Clipboard", size.width, size.height, size.pixels_per_inch);
-            let settings = DocumentSettings { size, unit: SizeUnit::Pixels, ..DocumentSettings::default() };
+            let settings = DocumentOptions { size, unit: SizeUnit::Pixels, ..DocumentOptions::default() };
             cards.push(Card {
                 title: preset_title(env.ctx, env.labels, &preset),
                 settings,
@@ -796,7 +796,7 @@ impl NewDocumentDialog {
     }
 
     /// A recent document takes the name of the built-in preset it matches.
-    fn recent_title(&self, env: &Env<'_>, recent: &DocumentSettings) -> String {
+    fn recent_title(&self, env: &Env<'_>, recent: &DocumentOptions) -> String {
         let listed =
             |p: &&DocumentPreset| (p.width, p.height, p.pixels_per_inch) == (recent.size.width, recent.size.height, recent.size.pixels_per_inch);
         let defaults = &self.recent_defaults;
@@ -810,7 +810,7 @@ impl NewDocumentDialog {
     fn apply_card(&mut self, card: &Card) {
         if card.restores_all {
             let name = std::mem::take(&mut self.settings.name);
-            self.settings = DocumentSettings { name, ..card.settings.clone() };
+            self.settings = DocumentOptions { name, ..card.settings.clone() };
             self.before_custom = None;
             self.awaiting_color = false;
             self.color_request = None;
@@ -1184,7 +1184,7 @@ impl NewDocumentDialog {
         if self.saved.len() >= MAX_SAVED {
             return Err(labels.too_many.clone());
         }
-        self.saved.push(DocumentSettings { name: name.to_owned(), ..self.settings.clone() });
+        self.saved.push(DocumentOptions { name: name.to_owned(), ..self.settings.clone() });
         Ok(())
     }
 
@@ -1311,7 +1311,7 @@ fn paint_page(ui: &Ui, rect: Rect, (width, height): (u32, u32), longer: f32, col
 }
 
 /// Whether `settings` fit what the dialog can show (a damaged remembered value does not).
-fn fits(settings: &DocumentSettings) -> bool {
+fn fits(settings: &DocumentOptions) -> bool {
     let side = |n: u32| (1..=MAX_PIXELS as u32).contains(&n);
     let ppi = settings.size.pixels_per_inch;
     side(settings.size.width)
@@ -1323,7 +1323,7 @@ fn fits(settings: &DocumentSettings) -> bool {
 }
 
 /// Whether two settings make the same document (the name and the display units apart).
-fn same_document(a: &DocumentSettings, b: &DocumentSettings) -> bool {
+fn same_document(a: &DocumentOptions, b: &DocumentOptions) -> bool {
     a.size == b.size && a.color_mode == b.color_mode && a.depth == b.depth && a.background == b.background && a.profile == b.profile
 }
 
@@ -1388,7 +1388,7 @@ fn background_label(labels: &NewDocumentLabels, background: BackgroundContents) 
 /// The size line of a card or a saved preset: "1800 × 1200 px @ 300 ppi", or inches for a print
 /// preset ("6 × 4 in @ 300 ppi"), numbers in the locale's format with at most two decimals.
 // pc: crates/ui-egui/src/dialogs/new_doc_ui.rs:412 size_line
-pub fn size_line(settings: &DocumentSettings, labels: &NewDocumentLabels, numbers: &LocaleNumbers) -> String {
+pub fn size_line(settings: &DocumentOptions, labels: &NewDocumentLabels, numbers: &LocaleNumbers) -> String {
     let numbers = numbers.clone().ungrouped();
     let size = settings.size;
     let unit = if settings.unit == SizeUnit::Percent { SizeUnit::Pixels } else { settings.unit };
@@ -1406,7 +1406,7 @@ pub fn size_line(settings: &DocumentSettings, labels: &NewDocumentLabels, number
 /// The recent list after creating `settings`: equal settings move to the front instead of
 /// repeating, and the list keeps at most `max` entries (20 in the dialog).
 // pc: crates/engine/src/cmd/document_preset_cmds.rs:244 add_recent (MAX_RECENT :19)
-pub fn push_recent(recent: &mut Vec<DocumentSettings>, settings: DocumentSettings, max: usize) {
+pub fn push_recent(recent: &mut Vec<DocumentOptions>, settings: DocumentOptions, max: usize) {
     recent.retain(|r| !same_document(r, &settings));
     recent.insert(0, settings);
     recent.truncate(max);

@@ -81,7 +81,7 @@ fn cancelling_a_parent_cancels_its_children() {
     assert_eq!(host.take::<Probe<2>>(), Some(DialogResult::Cancel));
 
     host.open_child(Probe::<2>::new("child"), parent);
-    assert!(host.cancel::<Probe<1>>());
+    assert!(host.cancel::<Probe<1>>(&ctx));
     assert!(host.is_empty() && host.stack().is_empty());
     assert_eq!(host.take::<Probe<1>>(), Some(DialogResult::Cancel));
     assert_eq!(host.take::<Probe<2>>(), Some(DialogResult::Cancel));
@@ -153,11 +153,12 @@ fn blur() -> ParamDialog {
 // A Cancel says which dialog it was, also when a second dialog of the type replaced the first.
 #[test]
 fn a_cancel_carries_the_dialogs_key() {
+    let ctx = Context::default();
     let mut host = DialogHost::new();
     host.open(blur());
     host.open(ParamDialog::new("sharpen", "Sharpen", Vec::new()));
     assert_eq!(host.take_keyed::<ParamDialog>().map(|(result, key)| (result.is_cancel(), key)), Some((true, Some("blur".to_owned()))));
-    assert!(host.cancel::<ParamDialog>());
+    assert!(host.cancel::<ParamDialog>(&ctx));
     assert_eq!(host.take_keyed::<ParamDialog>().map(|(result, key)| (result.is_cancel(), key)), Some((true, Some("sharpen".to_owned()))));
 }
 
@@ -192,4 +193,52 @@ fn confirm_answers_ok_for_automation() {
     let Some(DialogResult::Ok(answer)) = host.take::<ParamDialog>() else { panic!("an OK answer") };
     assert_eq!((answer.key(), answer.fields.int("radius")), ("blur", Some(8)));
     assert!(!host.confirm::<ParamDialog>(&ctx), "nothing open");
+}
+
+/// Counts the times the host told it that it was closed from outside.
+struct Releasing {
+    key: &'static str,
+    released: std::sync::Arc<std::sync::atomic::AtomicU32>,
+}
+
+impl StackDialog for Releasing {
+    type Result = ();
+
+    fn id(&self) -> DialogId {
+        dialog_id(self.key)
+    }
+
+    fn show(&mut self, _ctx: &Context, _stack: &DialogStack) -> Option<DialogResult<()>> {
+        None
+    }
+
+    fn cancelled(&mut self, _ctx: &Context) {
+        self.released.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+// A dialog closed from outside (cancel, replaced by a dialog of its type, parent closing) learns of
+// it in the same pass; one that finishes itself does not.
+#[test]
+fn a_dialog_closed_from_outside_is_told_so() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    };
+    let ctx = Context::default();
+    let count = Arc::new(AtomicU32::new(0));
+    let mut host = DialogHost::new();
+    host.open(Releasing { key: "a", released: count.clone() });
+    assert!(host.cancel::<Releasing>(&ctx));
+    assert_eq!(count.load(Ordering::SeqCst), 1);
+
+    host.open(Releasing { key: "b", released: count.clone() });
+    host.open(Releasing { key: "c", released: count.clone() });
+    host.show(&ctx);
+    assert_eq!(count.load(Ordering::SeqCst), 2, "the replaced dialog is told in the pass's show");
+
+    let parent = host.open(Probe::<1>::new("parent"));
+    host.open_child(Releasing { key: "d", released: count.clone() }, parent);
+    assert!(host.cancel::<Probe<1>>(&ctx));
+    assert_eq!(count.load(Ordering::SeqCst), 3, "a child is told when its parent closes");
 }

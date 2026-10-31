@@ -225,13 +225,15 @@ impl Params<'_> {
         })
     }
 
-    /// Deserialize `T` from the whole object, replacing the current value. `T` rejects unknown
-    /// fields itself (`#[serde(deny_unknown_fields)]`); a non-object is `{what} must be an
-    /// object` and a serde error is `{what}: {error}`.
-    pub fn whole<T: serde::de::DeserializeOwned>(&self, what: &str) -> Result<T, String> {
+    /// Deserialize `T` from the whole object, replacing `current`. A key `current` doesn't have
+    /// when serialized is ``unknown {what} field `k` ``, whether or not `T` denies unknown fields;
+    /// a non-object is `{what} must be an object` and a serde error is `{what}: {error}`.
+    pub fn whole<T: serde::Serialize + serde::de::DeserializeOwned>(&self, what: &str, current: &T) -> Result<T, String> {
         let Some(patch) = self.0.as_object() else { return Err(format!("{what} must be an object")) };
-        let current = serde_json::to_value(self.0).map_err(|e| e.to_string())?;
-        drop(current);
+        let known = serde_json::to_value(current).map_err(|e| e.to_string())?;
+        if let Some(key) = patch.keys().find(|k| known.as_object().is_none_or(|o| !o.contains_key(*k))) {
+            return Err(format!("unknown {what} field `{key}`"));
+        }
         serde_json::from_value(Value::Object(patch.clone())).map_err(|e| format!("{what}: {e}"))
     }
 

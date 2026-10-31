@@ -10,7 +10,7 @@ use egui::{ColorImage, TextureHandle, TextureOptions, vec2};
 use egui_kittest::kittest::Queryable as _;
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::web::{SaveForWebDialog, WebSettings, WebVariant};
+use super::web::{SaveForWebDialog, SaveForWebOptions, WebVariant};
 use super::*;
 use crate::dialog::DialogHost;
 use crate::theme::{Base, install};
@@ -36,6 +36,11 @@ impl StubFiles {
 
     fn requests(&self) -> Vec<PickRequest> {
         self.state.lock().unwrap().requests.clone()
+    }
+
+    /// Answers that came and were neither taken nor forgotten.
+    fn unclaimed(&self) -> usize {
+        self.state.lock().unwrap().answered.len()
     }
 }
 
@@ -114,7 +119,7 @@ fn web_dialog<'a>(harness: &'a mut Harness<'static, App>) -> &'a mut SaveForWebD
     harness.state_mut().host.get_mut::<SaveForWebDialog>().unwrap()
 }
 
-fn wanted(harness: &mut Harness<'static, App>) -> Vec<(usize, u64, WebSettings)> {
+fn wanted(harness: &mut Harness<'static, App>) -> Vec<(usize, u64, SaveForWebOptions)> {
     harness.state_mut().host.get_mut::<SaveForWebDialog>().unwrap().wanted_variants()
 }
 
@@ -220,7 +225,22 @@ fn save_waits_for_the_picker_and_a_cancelled_pick_keeps_the_dialog() {
     harness.run();
     let [DialogResult::Ok(result)] = harness.state().answers.as_slice() else { panic!("one answer expected") };
     assert_eq!((result.path.as_path(), result.width, result.height), (Path::new("/out/poster.jpg"), 1200, 800));
-    assert_eq!(result.settings, WebSettings::default());
+    assert_eq!(result.options, SaveForWebOptions::default());
+}
+
+// A host that closes the dialog while its picker is open (cancel, or another Save for Web opened
+// over it) drops the ticket, so the late answer is not left in the service.
+#[test]
+fn a_dialog_closed_by_the_host_forgets_its_pick() {
+    let (mut harness, files) = harness();
+    harness.get_by_label("Save…").click();
+    harness.run();
+    files.answer(1, Picked::Paths(vec![PathBuf::from("/out/poster.jpg")]));
+    assert_eq!(files.unclaimed(), 1);
+    let ctx = harness.ctx.clone();
+    assert!(harness.state_mut().host.cancel::<SaveForWebDialog>(&ctx));
+    assert_eq!(files.unclaimed(), 0, "the cancelled dialog's answer is dropped");
+    assert!(harness.state().answers.is_empty());
 }
 
 // The spinner of a pending preview repaints for ever, so these tests run a fixed number of steps.
@@ -247,7 +267,7 @@ fn export_harness() -> (Harness<'static, ExportApp>, Arc<StubFiles>) {
             },
             ExportApp { host: DialogHost::default(), answers: Vec::new() },
         );
-    harness.state_mut().host.open(ExportAsDialog::new(1200, 800, "poster"));
+    harness.state_mut().host.open(ExportAsDialog::new("poster", 1200, 800));
     harness.run_steps(6);
     (harness, files)
 }
@@ -304,9 +324,22 @@ fn export_as_shows_the_options_of_the_chosen_format() {
     harness.run_steps(6);
     let [DialogResult::Ok(result)] = harness.state().answers.as_slice() else { panic!("one answer expected") };
     assert_eq!(
-        (result.path.as_path(), result.settings.format.as_str(), result.width, result.height),
+        (result.path.as_path(), result.options.format.as_str(), result.width, result.height),
         (Path::new("/out/poster.ico"), "ico", 1200, 800)
     );
+}
+
+// Same for Export As: a cancel from the host drops the ticket of its open picker.
+#[test]
+fn export_as_closed_by_the_host_forgets_its_pick() {
+    let (mut harness, files) = export_harness();
+    harness.get_by_label("Export…").click();
+    harness.run_steps(6);
+    assert_eq!(files.requests().len(), 1);
+    files.answer(1, Picked::Paths(vec![PathBuf::from("/out/poster.png")]));
+    let ctx = harness.ctx.clone();
+    assert!(harness.state_mut().host.cancel::<ExportAsDialog>(&ctx));
+    assert_eq!(files.unclaimed(), 0);
 }
 
 // Export As asks for a new preview revision on each change and shows "≈" until the exact size.
@@ -314,7 +347,7 @@ fn export_as_shows_the_options_of_the_chosen_format() {
 fn export_as_preview_revisions_and_estimate() {
     let (mut harness, _) = export_harness();
     let (first, settings) = export_dialog(&mut harness).wanted_preview().unwrap();
-    assert_eq!(settings, ExportSettings::default());
+    assert_eq!(settings, ExportOptions::default());
     assert!(export_dialog(&mut harness).wanted_preview().is_none(), "nothing changed since the last call");
 
     choose(&mut harness, "Format", "JPG");

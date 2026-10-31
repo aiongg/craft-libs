@@ -88,7 +88,7 @@ type InfoLine<'a> = &'a dyn Fn(&Path) -> Option<String>;
 
 /// What the picker reported this pass.
 #[derive(Debug, Default)]
-pub struct FileListResponse {
+pub struct FileListPickerResponse {
     /// The list, mode or folder changed.
     pub changed: bool,
     /// Browse queued a picker; the answer fills the list on a later pass.
@@ -172,14 +172,14 @@ impl<'a> FileListPicker<'a> {
     /// Takes its own pick answers from `Host::of(ui).files()` by ticket.
     // pc: crates/ui-egui/src/dialogs/stack_dialog.rs:114 body, :92 browse, :81 open_files;
     // vectorcraft: crates/ui-egui/src/dialogs/place.rs (info lines); pdfcraft: crates/ui-egui/src/workflows/combine_ui/view.rs:470 keyboard
-    pub fn show(self, ui: &mut Ui) -> FileListResponse {
+    pub fn show(self, ui: &mut Ui) -> FileListPickerResponse {
         let Self { id_salt, list, request, folder_mode, open_files, folder_files, info } = self;
         let host = Host::of(ui);
         let labels = FileListLabels::of(ui);
         let tokens = Tokens::of(ui);
         let ticket_key = ui.scope_id().with((id_salt, "ticket"));
         let enabled = ui.is_enabled();
-        let mut response = FileListResponse::default();
+        let mut response = FileListPickerResponse::default();
 
         // The answer of this picker's Browse fills the list before it is drawn.
         if let Some(ticket) = ui.data(|d| d.get_temp::<PickId>(ticket_key))

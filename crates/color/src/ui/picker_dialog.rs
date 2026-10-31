@@ -258,6 +258,11 @@ impl StackDialog for ColorPickerDialog {
         self.id
     }
 
+    /// The host closed the dialog from outside: its dropper ends with it.
+    fn cancelled(&mut self, ctx: &Context) {
+        DropperState::disarm(ctx, self.id);
+    }
+
     // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:141 `open` and :169 `fields_with_web`
     // (recall memory; snap the opening colour when web-only, `opening` follows), :421 `body`
     // (built as craft-libs `crates/color/src/ui/dialog_tests.rs:82-105` composes it: `ColorPicker::new(..)

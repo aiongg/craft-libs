@@ -54,7 +54,7 @@ pub(crate) fn stories() -> Vec<crate::story::Story> {
 }
 
 pub use drag::{GhostThumb, paint_ghost};
-pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsResponse, findings_summary};
+pub use findings::{Finding, FindingLevel, FindingsLabels, FindingsList, FindingsListResponse, findings_summary};
 pub use row::{
     DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, ThumbSizeLabels, ThumbTarget, TrailingItem, drop_line,
     paint_drop_mark,

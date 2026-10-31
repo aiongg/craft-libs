@@ -31,71 +31,71 @@ use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 crate::words! {
     /// The words of Save for Web, English by default.
     #[non_exhaustive]
-    pub struct WebLabels {
-        title: "web.title" = "Save for Web (Legacy)";
+    pub struct SaveForWebLabels {
+        title: "saveForWeb.title" = "Save for Web (Legacy)";
         /// The accessible name of the view tabs.
-        view: "web.view" = "Preview";
-        format: "web.format" = "Format";
+        view: "saveForWeb.view" = "Preview";
+        format: "saveForWeb.format" = "Format";
         /// The accessible name of the zoom field.
-        zoom: "web.zoom" = "Zoom";
+        zoom: "saveForWeb.zoom" = "Zoom";
         /// The Preset list's entry for settings no preset has.
-        unnamed: "web.unnamed" = "[Unnamed]";
-        pan_hint: "web.panHint" = "Drag to pan · Scroll to zoom · Double-click to fit";
-        save: "web.save" = "Save…";
-        original: "web.original" = "Original";
-        optimized: "web.optimized" = "Optimized";
-        two_up: "web.twoUp" = "2-Up";
-        four_up: "web.fourUp" = "4-Up";
-        preset: "web.preset" = "Preset";
-        color_table: "web.colorTable" = "Color Table";
-        perceptual: "web.perceptual" = "Perceptual";
-        selective: "web.selective" = "Selective";
-        adaptive: "web.adaptive" = "Adaptive";
-        restrictive: "web.restrictive" = "Restrictive (Web)";
-        exact: "web.exact" = "Exact";
-        colors: "web.colors" = "Colors";
-        dither: "web.dither" = "Dither";
-        no_dither: "web.noDither" = "No Dither";
-        diffusion: "web.diffusion" = "Diffusion";
-        pattern: "web.pattern" = "Pattern";
-        noise: "web.noise" = "Noise";
-        amount: "web.amount" = "Amount";
-        transparency: "web.transparency" = "Transparency";
-        interlaced: "web.interlaced" = "Interlaced";
-        web_snap: "web.webSnap" = "Web Snap";
-        quality: "web.quality" = "Quality";
-        progressive: "web.progressive" = "Progressive";
-        optimized_box: "web.optimizedBox" = "Optimized";
-        lossless: "web.lossless" = "Lossless";
-        embed_profile: "web.embedProfile" = "Embed Color Profile";
-        matte: "web.matte" = "Matte";
-        convert_srgb: "web.convertSrgb" = "Convert to sRGB";
-        metadata: "web.metadata" = "Metadata";
-        metadata_none: "web.metadataNone" = "None";
-        metadata_copyright: "web.metadataCopyright" = "Copyright";
-        metadata_contact: "web.metadataContact" = "Copyright and Contact Info";
-        metadata_all: "web.metadataAll" = "All";
-        image_size: "web.imageSize" = "Image Size";
-        percent: "web.percent" = "Percent";
-        fit: "web.fit" = "Fit";
-        zoom_in: "web.zoomIn" = "Zoom In";
-        zoom_out: "web.zoomOut" = "Zoom Out";
-        actual: "web.actual" = "100%";
-        play: "web.play" = "Play";
-        pause: "web.pause" = "Pause";
+        unnamed: "saveForWeb.unnamed" = "[Unnamed]";
+        pan_hint: "saveForWeb.panHint" = "Drag to pan · Scroll to zoom · Double-click to fit";
+        save: "saveForWeb.save" = "Save…";
+        original: "saveForWeb.original" = "Original";
+        optimized: "saveForWeb.optimized" = "Optimized";
+        two_up: "saveForWeb.twoUp" = "2-Up";
+        four_up: "saveForWeb.fourUp" = "4-Up";
+        preset: "saveForWeb.preset" = "Preset";
+        color_table: "saveForWeb.colorTable" = "Color Table";
+        perceptual: "saveForWeb.perceptual" = "Perceptual";
+        selective: "saveForWeb.selective" = "Selective";
+        adaptive: "saveForWeb.adaptive" = "Adaptive";
+        restrictive: "saveForWeb.restrictive" = "Restrictive (Web)";
+        exact: "saveForWeb.exact" = "Exact";
+        colors: "saveForWeb.colors" = "Colors";
+        dither: "saveForWeb.dither" = "Dither";
+        no_dither: "saveForWeb.noDither" = "No Dither";
+        diffusion: "saveForWeb.diffusion" = "Diffusion";
+        pattern: "saveForWeb.pattern" = "Pattern";
+        noise: "saveForWeb.noise" = "Noise";
+        amount: "saveForWeb.amount" = "Amount";
+        transparency: "saveForWeb.transparency" = "Transparency";
+        interlaced: "saveForWeb.interlaced" = "Interlaced";
+        web_snap: "saveForWeb.webSnap" = "Web Snap";
+        quality: "saveForWeb.quality" = "Quality";
+        progressive: "saveForWeb.progressive" = "Progressive";
+        optimized_box: "saveForWeb.optimizedBox" = "Optimized";
+        lossless: "saveForWeb.lossless" = "Lossless";
+        embed_profile: "saveForWeb.embedProfile" = "Embed Color Profile";
+        matte: "saveForWeb.matte" = "Matte";
+        convert_srgb: "saveForWeb.convertSrgb" = "Convert to sRGB";
+        metadata: "saveForWeb.metadata" = "Metadata";
+        metadata_none: "saveForWeb.metadataNone" = "None";
+        metadata_copyright: "saveForWeb.metadataCopyright" = "Copyright";
+        metadata_contact: "saveForWeb.metadataContact" = "Copyright and Contact Info";
+        metadata_all: "saveForWeb.metadataAll" = "All";
+        image_size: "saveForWeb.imageSize" = "Image Size";
+        percent: "saveForWeb.percent" = "Percent";
+        fit: "saveForWeb.fit" = "Fit";
+        zoom_in: "saveForWeb.zoomIn" = "Zoom In";
+        zoom_out: "saveForWeb.zoomOut" = "Zoom Out";
+        actual: "saveForWeb.actual" = "100%";
+        play: "saveForWeb.play" = "Play";
+        pause: "saveForWeb.pause" = "Pause";
         /// `{frame}` of `{total}` animation frames.
-        frame: "web.frame" = "{frame} / {total}";
+        frame: "saveForWeb.frame" = "{frame} / {total}";
         /// `{name}`, `{width}` and `{height}`: the Original pane's second caption line (the first is
         /// "Original").
-        original_caption: "web.originalCaption" = "{name}  ·  {width} × {height} px";
+        original_caption: "saveForWeb.originalCaption" = "{name}  ·  {width} × {height} px";
         /// `{format}` and `{size}`: an encoded pane's first caption line ("JPEG  48.2K").
-        encoded_caption: "web.encodedCaption" = "{format}  {size}";
+        encoded_caption: "saveForWeb.encodedCaption" = "{format}  {size}";
         /// `{seconds}`: the second caption line.
-        download: "web.download" = "{seconds} sec @ 56.6 Kbps";
+        download: "saveForWeb.download" = "{seconds} sec @ 56.6 Kbps";
         /// `{count}`: appended to the second line for indexed formats.
-        color_count: "web.colorCount" = "  ·  {count} colors";
+        color_count: "saveForWeb.colorCount" = "  ·  {count} colors";
         /// Appended to the first line when the pane shows a reduced proxy.
-        proxy: "web.proxy" = "  ·  Proxy preview";
+        proxy: "saveForWeb.proxy" = "  ·  Proxy preview";
     }
 }
 
@@ -159,7 +159,7 @@ pub enum WebView {
 /// Save for Web's settings: the result, what is remembered (`"export.saveForWeb"`), and what the
 /// app encodes each variant with.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct WebSettings {
+pub struct SaveForWebOptions {
     pub format: WebFormat,
     /// 0–100 (JPEG, lossy WebP).
     pub quality: u8,
@@ -186,7 +186,7 @@ pub struct WebSettings {
     pub resample: Resample,
 }
 
-impl Default for WebSettings {
+impl Default for SaveForWebOptions {
     /// PhotoCraft's opening values: JPEG quality 60, Selective 128 colours, Diffusion 88 %,
     /// transparency, white matte, Optimized, Convert to sRGB, Copyright, 100 %, Bicubic.
     // pc: crates/ui-egui/src/dialogs/file_ui/web.rs:10 open_web (opening values)
@@ -234,7 +234,7 @@ pub struct WebVariant {
 /// What Save for Web returns.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SaveForWebResult {
-    pub settings: WebSettings,
+    pub options: SaveForWebOptions,
     pub path: PathBuf,
     pub width: u32,
     pub height: u32,
@@ -271,8 +271,8 @@ pub struct SaveForWebDialog {
     id: DialogId,
     name: String,
     fields: LinkedSizeFields,
-    settings: WebSettings,
-    presets: Vec<(String, WebSettings)>,
+    settings: SaveForWebOptions,
+    presets: Vec<(String, SaveForWebOptions)>,
     view: WebView,
     frames: u32,
     fps: f32,
@@ -302,7 +302,7 @@ impl SaveForWebDialog {
             id: dialog_id("save-for-web"),
             name: name.into(),
             fields: LinkedSizeFields::new(size),
-            settings: WebSettings::default(),
+            settings: SaveForWebOptions::default(),
             presets: Vec::new(),
             view: WebView::TwoUp,
             frames: 1,
@@ -324,7 +324,7 @@ impl SaveForWebDialog {
 
     /// The Preset list: PhotoCraft's twelve ("JPEG High", "PNG-24", "GIF 128 Dithered", …) come
     /// from its engine.
-    pub fn presets(mut self, presets: Vec<(String, WebSettings)>) -> Self {
+    pub fn presets(mut self, presets: Vec<(String, SaveForWebOptions)>) -> Self {
         self.presets = presets;
         self
     }
@@ -351,7 +351,7 @@ impl SaveForWebDialog {
     /// The panes to encode, `(index, revision, settings)`, when they changed since the last call:
     /// pane 0 in every view but Original, panes 1 and 2 in 4-Up ([`four_up_variants`]).
     // pc: crates/ui-egui/src/dialogs/file_ui/web.rs:61 variants (which panes a view draws)
-    pub fn wanted_variants(&mut self) -> Vec<(usize, u64, WebSettings)> {
+    pub fn wanted_variants(&mut self) -> Vec<(usize, u64, SaveForWebOptions)> {
         if self.revision == self.taken {
             return Vec::new();
         }
@@ -403,11 +403,11 @@ impl SaveForWebDialog {
         let Some(host) = Host::try_of_ctx(ctx) else { return };
         let Some(last) = Remembered::<Last>::new(REMEMBER_KEY).recall(&host) else { return };
         self.view = last.view;
-        self.settings = WebSettings { percent: 100.0, ..last.settings };
+        self.settings = SaveForWebOptions { percent: 100.0, ..last.settings };
         self.revision += 1;
     }
 
-    fn remember(&self, ctx: &Context, settings: Option<&WebSettings>) {
+    fn remember(&self, ctx: &Context, settings: Option<&SaveForWebOptions>) {
         let Some(host) = Host::try_of_ctx(ctx) else { return };
         let remembered = Remembered::<Last>::new(REMEMBER_KEY);
         let settings = settings.cloned().or_else(|| remembered.recall(&host).map(|last| last.settings)).unwrap_or_default();
@@ -473,6 +473,10 @@ impl StackDialog for SaveForWebDialog {
         self.id
     }
 
+    fn cancelled(&mut self, ctx: &Context) {
+        self.forget_pick(ctx);
+    }
+
     // pc: crates/ui-egui/src/dialogs/file_ui/web.rs:89 web_pane, :207 web_playback, :246 web_body (settings column), :439 web_size, :504 web_confirm;
     // pc: crates/ui-egui/src/dialogs/file_ui/web_preview.rs:169 Navigation
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<SaveForWebResult>> {
@@ -481,17 +485,17 @@ impl StackDialog for SaveForWebDialog {
             self.remember(ctx, Some(&self.settings));
             self.state.close();
             let size = self.fields.current;
-            return Some(DialogResult::Ok(SaveForWebResult { settings: self.settings.clone(), path, width: size.width, height: size.height }));
+            return Some(DialogResult::Ok(SaveForWebResult { options: self.settings.clone(), path, width: size.width, height: size.height }));
         }
         self.advance(ctx);
-        let labels = WebLabels::shared_ctx(ctx);
+        let labels = SaveForWebLabels::shared_ctx(ctx);
         let sizing = SizingLabels::shared_ctx(ctx);
         let numbers = LocaleNumbers::of_ctx(ctx);
         let before = (self.settings.clone(), self.fields.current, self.view, self.frame);
         let saving = self.picking.is_some();
         let tokens = crate::theme::current(ctx);
         let height = tokens.component.dialog.preview_pane[1] * 2.0;
-        let (width, settings_width) = (tokens.component.export.web_width, tokens.component.export.web_settings_width);
+        let (width, settings_width) = (tokens.component.export.web_width, tokens.component.export.settings_width);
         let Self { name, fields, settings, presets, view, frames, frame, playing, variants, original, nav, state, color_request, .. } = self;
         let shown = Dialog::with_id(self.id, labels.title.as_str())
             .stack(stack)
@@ -543,7 +547,7 @@ impl StackDialog for SaveForWebDialog {
 #[derive(Serialize, Deserialize)]
 struct Last {
     view: WebView,
-    settings: WebSettings,
+    settings: SaveForWebOptions,
 }
 
 const REMEMBER_KEY: &str = "export.saveForWeb";
@@ -662,7 +666,7 @@ struct Preview<'a> {
 }
 
 impl Preview<'_> {
-    fn controls(&mut self, ui: &mut Ui, labels: &WebLabels) {
+    fn controls(&mut self, ui: &mut Ui, labels: &SaveForWebLabels) {
         let gap = crate::theme::current(ui.ctx()).space.gap;
         Segmented::new("web-view", labels.view.as_str(), self.view)
             .item(WebView::Original, labels.original.as_str())
@@ -709,7 +713,7 @@ impl Preview<'_> {
         ui.add_space(gap.row);
     }
 
-    fn panes(&mut self, ui: &mut Ui, settings: &WebSettings, labels: &WebLabels) {
+    fn panes(&mut self, ui: &mut Ui, settings: &SaveForWebOptions, labels: &SaveForWebLabels) {
         let width = ui.available_width();
         let gap = ui.spacing().item_spacing;
         let full = vec2(width, self.height);
@@ -740,7 +744,7 @@ impl Preview<'_> {
 
     /// One pane of `size` with its two caption lines under the picture.
     // pc: crates/ui-egui/src/dialogs/file_ui/web.rs:89 web_pane (captions :148), web_preview.rs:197 paint
-    fn pane(&mut self, ui: &mut Ui, size: Vec2, pane: Pane, settings: &WebSettings, labels: &WebLabels) {
+    fn pane(&mut self, ui: &mut Ui, size: Vec2, pane: Pane, settings: &SaveForWebOptions, labels: &SaveForWebLabels) {
         let tokens = Tokens::of(ui);
         let line = tokens.typography.caption.line_height;
         let (texture, lines) = match pane {
@@ -867,22 +871,12 @@ pub(super) fn clamp_number(value: f64, range: RangeInclusive<f64>) -> f64 {
 }
 
 /// Whether `preset` is what the dialog shows apart from the size.
-fn is_preset(preset: &WebSettings, settings: &WebSettings) -> bool {
-    *preset == WebSettings { percent: preset.percent, resample: preset.resample, ..settings.clone() }
+fn is_preset(preset: &SaveForWebOptions, settings: &SaveForWebOptions) -> bool {
+    *preset == SaveForWebOptions { percent: preset.percent, resample: preset.resample, ..settings.clone() }
 }
 
 /// The key of the colour request the Matte swatch makes.
 pub const MATTE_COLOR_KEY: &str = "web.matte";
-
-/// `#rrggbb` as three bytes.
-fn parse_matte(text: &str) -> Option<[u8; 3]> {
-    let digits = text.trim().strip_prefix('#').unwrap_or(text.trim());
-    if digits.len() != 6 || !digits.is_ascii() {
-        return None;
-    }
-    let byte = |at: usize| u8::from_str_radix(&digits[at..at + 2], 16).ok();
-    Some([byte(0)?, byte(2)?, byte(4)?])
-}
 
 /// The settings column: Preset, Format, the format's options, Matte, Convert to sRGB, Metadata,
 /// the palette and Image Size.
@@ -891,10 +885,10 @@ fn parse_matte(text: &str) -> Option<[u8; 3]> {
 fn settings_column(
     ui: &mut Ui,
     size: &mut LinkedSizeFields,
-    settings: &mut WebSettings,
-    presets: &[(String, WebSettings)],
+    settings: &mut SaveForWebOptions,
+    presets: &[(String, SaveForWebOptions)],
     palette: &[[u8; 3]],
-    labels: &WebLabels,
+    labels: &SaveForWebLabels,
     sizing: &SizingLabels,
     numbers: &LocaleNumbers,
     ask: &mut Option<ColorRequest>,
@@ -912,7 +906,7 @@ fn settings_column(
             && let Some(index) = preset
         {
             let (percent, resample) = (settings.percent, settings.resample);
-            *settings = WebSettings { percent, resample, ..presets[index].1.clone() };
+            *settings = SaveForWebOptions { percent, resample, ..presets[index].1.clone() };
         }
 
         form.row(&labels.format, |ui, _| {
@@ -976,7 +970,7 @@ fn settings_column(
         if !matches!(settings.format, WebFormat::Png24 | WebFormat::WebP) || !settings.transparency {
             form.row(&labels.matte, |ui, _| {
                 let [r, g, b] = settings.matte;
-                let hex = format!("#{r:02x}{g:02x}{b:02x}");
+                let hex = Rgba([r, g, b, 255]).to_hex();
                 ui.horizontal(|ui| {
                     if ui.add(Swatch::new("web-matte-swatch", labels.matte.as_str(), Rgba([r, g, b, 255]))).clicked() {
                         *ask = Some(ColorRequest::new(MATTE_COLOR_KEY, Srgba::from(Rgba([r, g, b, 255]))).title(labels.matte.as_str()));
@@ -984,8 +978,9 @@ fn settings_column(
                     let edit = TextField::new("web-matte", labels.matte.as_str(), &hex)
                         .width(crate::theme::current(ui.ctx()).component.export.web_field_width)
                         .show(ui);
-                    if let Some(matte) = edit.committed().and_then(|text| parse_matte(text)) {
-                        settings.matte = matte;
+                    if let Some(matte) = edit.committed().and_then(|text| Srgba::from_hex(text)) {
+                        let Rgba([r, g, b, _]) = Rgba::from(matte);
+                        settings.matte = [r, g, b];
                     }
                     edit.response
                 })
@@ -1053,14 +1048,14 @@ fn settings_column(
     });
 }
 
-fn quality_row(form: &mut Form<'_>, settings: &mut WebSettings, labels: &WebLabels, numbers: &LocaleNumbers) {
+fn quality_row(form: &mut Form<'_>, settings: &mut SaveForWebOptions, labels: &SaveForWebLabels, numbers: &LocaleNumbers) {
     if let Some(value) = number_row(form, "web-quality", &labels.quality, numbers, f64::from(settings.quality), 0.0..=100.0) {
         settings.quality = clamp_number(value, 0.0..=100.0) as u8;
     }
 }
 
 /// The Dither list; WBMP has no Noise.
-fn dither_row(form: &mut Form<'_>, settings: &mut WebSettings, labels: &WebLabels, noise: bool) {
+fn dither_row(form: &mut Form<'_>, settings: &mut SaveForWebOptions, labels: &SaveForWebLabels, noise: bool) {
     form.row(&labels.dither, |ui, _| {
         let mut select = Select::new("web-dither", labels.dither.as_str(), &mut settings.dither)
             .option(Dither::None, labels.no_dither.as_str())
@@ -1077,7 +1072,7 @@ fn dither_row(form: &mut Form<'_>, settings: &mut WebSettings, labels: &WebLabel
 /// PNG-8 at half and a quarter of the colours; any other format as PNG-8 at 128 colours and GIF
 /// at 64 colours.
 // pc: crates/ui-egui/src/dialogs/file_ui/web.rs:61 variants
-pub fn four_up_variants(settings: &WebSettings) -> [WebSettings; 2] {
+pub fn four_up_variants(settings: &SaveForWebOptions) -> [SaveForWebOptions; 2] {
     [2u16, 4].map(|divisor| {
         let mut variant = settings.clone();
         match settings.format {

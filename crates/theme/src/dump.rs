@@ -2107,9 +2107,8 @@ fn new_document_lines(out: &mut Lines, t: &NewDocumentTokens) {
 }
 
 fn export_lines(out: &mut Lines, t: &ExportTokens) {
-    let ExportTokens { web_width, web_settings_width, web_field_width, settings_width, pane_gap } = t;
+    let ExportTokens { web_width, web_field_width, settings_width, pane_gap } = t;
     out.line("export.web_width", len(*web_width));
-    out.line("export.web_settings_width", len(*web_settings_width));
     out.line("export.web_field_width", len(*web_field_width));
     out.line("export.settings_width", len(*settings_width));
     out.line("export.pane_gap", len(*pane_gap));
