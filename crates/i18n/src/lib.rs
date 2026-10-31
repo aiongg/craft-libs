@@ -42,6 +42,7 @@ mod data {
     }
 }
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
 
@@ -77,8 +78,8 @@ impl Lang {
 struct Locale {
     code: String,
     /// The shared and the app's catalog text, parsed on first use.
-    shared: &'static str,
-    app: &'static str,
+    shared: Cow<'static, str>,
+    app: Cow<'static, str>,
     /// Plural forms `@plural` rows must list, for [`catalog::parse`].
     forms: usize,
     parsed: OnceLock<Parsed>,
@@ -106,7 +107,7 @@ impl Locale {
         self.parsed.get_or_init(|| {
             let mut problems = Vec::new();
             let mut rows: HashMap<String, HashMap<String, String>> = HashMap::new();
-            for (name, text) in [("common", self.shared), ("app", self.app)] {
+            for (name, text) in [("common", &self.shared), ("app", &self.app)] {
                 let (entries, errors) = catalog::parse(text, self.forms);
                 problems.extend(errors.into_iter().map(|e| format!("{}/{name}: {e}", self.code)));
                 for e in entries {
@@ -123,7 +124,7 @@ impl Locale {
     fn language_name(&self) -> Option<&str> {
         self.name
             .get_or_init(|| {
-                [self.app, self.shared].into_iter().find_map(|text| {
+                [&*self.app, &*self.shared].into_iter().find_map(|text| {
                     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
                     text.split('\n')
                         .filter(|line| line.starts_with("@id\tlanguage.name\t"))
@@ -157,9 +158,19 @@ impl I18n {
     /// to log. A locale's bad rows are logged (`log::warn!`) when it is first looked up in, and
     /// [`I18n::check_all`] lists them all.
     pub fn new(embedded: &'static Embedded, offered: &[&str]) -> (I18n, Vec<String>) {
+        Self::build(embedded.iter().map(|&(code, shared, app)| (code.into(), shared.into(), app.into())), offered)
+    }
+
+    /// [`I18n::new`] for catalogs the app holds as owned text (unpacked from a compressed bundle,
+    /// read from disk): (locale, shared catalog, the app's catalog), `""` for a missing one.
+    pub fn from_owned(catalogs: impl IntoIterator<Item = (String, String, String)>, offered: &[&str]) -> (I18n, Vec<String>) {
+        Self::build(catalogs.into_iter().map(|(code, shared, app)| (code.into(), shared.into(), app.into())), offered)
+    }
+
+    fn build(catalogs: impl Iterator<Item = (Cow<'static, str>, Cow<'static, str>, Cow<'static, str>)>, offered: &[&str]) -> (I18n, Vec<String>) {
         let mut problems = Vec::new();
         let mut locales = vec![bare("en"), bare("pseudo")];
-        for (code, shared, app) in embedded {
+        for (code, shared, app) in catalogs {
             let code = code.to_ascii_lowercase();
             if locales.iter().any(|l| l.code == code) {
                 problems.push(format!("{code}: reserved or embedded twice; skipped"));
@@ -661,8 +672,8 @@ fn is_region(subtag: &str) -> bool {
 fn bare(code: &str) -> Locale {
     Locale {
         code: code.to_owned(),
-        shared: "",
-        app: "",
+        shared: Cow::Borrowed(""),
+        app: Cow::Borrowed(""),
         forms: 1,
         parsed: OnceLock::new(),
         name: OnceLock::new(),
@@ -1202,6 +1213,19 @@ mod tests {
         assert_eq!(i.match_tag("ar_EG"), None);
         assert_eq!(i.match_tag("pt_PT"), i.from_code("pt-br"));
         assert_eq!(i.t(lang(&i, "pt-br"), "Undo"), "Desfazer");
+    }
+
+    #[test]
+    fn owned_catalogs_serve_like_embedded_ones() {
+        let unpacked = vec![
+            ("PT".to_owned(), "\tUndo\tDesfazer\n".to_owned(), "@id\tlanguage.name\tPortuguês\n".to_owned()),
+            ("pt-br".to_owned(), String::new(), "\tUndo\tDesfazer!\n".to_owned()),
+        ];
+        let (i, problems) = I18n::from_owned(unpacked, &["pt", "pt-br"]);
+        assert!(problems.is_empty(), "{problems:?}");
+        assert_eq!(i.t(lang(&i, "pt"), "Undo"), "Desfazer");
+        assert_eq!(i.t(lang(&i, "pt-br"), "Undo"), "Desfazer!");
+        assert_eq!(i.name(lang(&i, "pt")), "Português");
     }
 
     #[test]
