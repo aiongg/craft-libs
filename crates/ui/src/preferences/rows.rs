@@ -9,7 +9,7 @@ use egui::{Align, Context, Id, Layout, Ui, vec2};
 use super::body::PreferencesBody;
 use super::host::PreferencesHost;
 use super::model::{PrefValue, RowKind, RowSpec};
-use crate::composites::Field;
+use crate::composites::{Field, LabelAlign};
 use crate::controls::{Checkbox, NumberField, Select, Swatch, TextField};
 use crate::edit::EditEvent;
 use crate::localized::{LocaleNumbers, Unit};
@@ -114,7 +114,9 @@ pub(super) fn show_row<H: PreferencesHost + ?Sized>(
     let edit_id = ui.make_persistent_id(("preferences-before", key));
     let enabled = row.enabled;
     let mut new_value: Option<PrefValue> = None;
-    let field = if matches!(row.kind, Kind::Bool(_)) { Field::unlabelled() } else { Field::new(row.label.as_str()) };
+    let field = if matches!(row.kind, Kind::Bool(_)) { Field::unlabelled() } else { Field::new(row.label.as_str()).label_align(LabelAlign::Start) };
+    // PhotoCraft's number fields show no grouping separators.
+    let numbers = &numbers.clone().ungrouped();
     let field = match &row.help {
         Some(help) => field.help(help.as_str()),
         None => field,
@@ -162,7 +164,7 @@ pub(super) fn show_row<H: PreferencesHost + ?Sized>(
                     let mut f = NumberField::new(key, row.label.as_str(), *value, numbers)
                         .range(range.clone())
                         .step(step.unwrap_or_else(|| step_for(range, *decimals)))
-                        .decimals(0..=usize::from(*decimals))
+                        .decimals(usize::from(*decimals).min(1)..=usize::from(*decimals))
                         .enabled(enabled)
                         .invalid(invalid);
                     if let Some(unit) = unit {
@@ -188,7 +190,9 @@ pub(super) fn show_row<H: PreferencesHost + ?Sized>(
             field.show(ui, |ui, invalid| {
                 crate::direction::horizontal(ui, |ui| {
                     pressed = ui.add(Swatch::new((key, "swatch"), row.label.as_str(), *color).enabled(enabled)).clicked();
-                    let edit = TextField::new(key, hex_label, &shown).char_limit(HEX_CHARS).enabled(enabled).invalid(invalid).show(ui);
+                    let edit = fixed(ui, widths.hex_width, |ui| {
+                        TextField::new(key, hex_label, &shown).char_limit(HEX_CHARS).enabled(enabled).invalid(invalid).show(ui)
+                    });
                     focused = edit.response.has_focus();
                     event = edit.event;
                     edit.response
@@ -213,6 +217,9 @@ pub(super) fn show_row<H: PreferencesHost + ?Sized>(
             if !focused {
                 ctx.data_mut(|d| d.remove_temp::<String>(typed_id));
             }
+        }
+        Kind::Custom if row.label.is_empty() => {
+            ui.scope(|ui| host.custom_row(ui, key));
         }
         Kind::Custom => {
             field.show(ui, |ui, _| ui.scope(|ui| host.custom_row(ui, key)).response);

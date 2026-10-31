@@ -7,6 +7,7 @@ use egui::accesskit::{Invalid, Role};
 use egui::text::{LayoutJob, TextFormat};
 use egui::{AsIdSalt, Color32, Galley, IdSalt, InnerResponse, Label, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
 
+use super::form_grid::LabelAlign;
 use super::measure;
 use crate::behavior::FieldTab;
 use crate::controls::{Checkbox, NumberField, Select, TextField};
@@ -167,6 +168,7 @@ impl<T> FieldControl for EditResponse<T> {
 ///   [`above`](Field::above). In a [`FieldGroup`] the column is as wide as the group's widest
 ///   label, so the controls line up; alone, it is the label's own width. The text is the app's
 ///   string as given: a language that writes a colon after a label has it in its translation.
+///   [`label_align`](Field::label_align) puts it at the reading start of the column instead.
 /// - **A row without a label** ([`unlabelled`](Field::unlabelled): a check box that names
 ///   itself) starts at the group's control column.
 /// - **Help text** goes under the control in `caption`, `text.muted`. **Error text** takes its
@@ -187,24 +189,32 @@ pub struct Field {
     help: Option<String>,
     error: Option<String>,
     above: bool,
+    label_align: LabelAlign,
 }
 
 impl Field {
     /// A field labelled `label`, beside the control.
     pub fn new(label: impl Into<String>) -> Self {
-        Self { label: Some(label.into()), help: None, error: None, above: false }
+        Self { label: Some(label.into()), help: None, error: None, above: false, label_align: LabelAlign::End }
     }
 
     /// A row without a label, for a control that names itself (a check box, a switch): it starts
     /// at the control column of its [`FieldGroup`].
     pub fn unlabelled() -> Self {
-        Self { label: None, help: None, error: None, above: false }
+        Self { label: None, help: None, error: None, above: false, label_align: LabelAlign::End }
     }
 
     /// The label over the control rather than beside it, for narrow dialogs. The row spans the
     /// whole width and doesn't count towards its group's label column.
     pub fn above(mut self) -> Self {
         self.above = true;
+        self
+    }
+
+    /// Where the label sits in its column: [`LabelAlign::End`], against the control, by default;
+    /// [`LabelAlign::Start`] at the reading start, as a preferences page's labels.
+    pub fn label_align(mut self, align: LabelAlign) -> Self {
+        self.label_align = align;
         self
     }
 
@@ -312,7 +322,10 @@ impl Field {
         if let Some((label_ui, g)) = beside.as_mut() {
             let x = if rtl { rect.right() - column } else { rect.left() };
             let band = Rect::from_min_size(pos2(x, control_rect.top()), vec2(column, control_rect.height().min(style.label_band)));
-            let layout = direction::trailing(ui);
+            let layout = match self.label_align {
+                LabelAlign::End => direction::trailing(ui),
+                LabelAlign::Start => direction::row(ui),
+            };
             let added =
                 label_ui.scope_builder(UiBuilder::new().max_rect(band).layout(layout), |ui| ui.add(Label::new(Arc::clone(g)).selectable(false)));
             row = row.union(added.inner.rect);

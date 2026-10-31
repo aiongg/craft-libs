@@ -70,6 +70,25 @@ fn right_to_left_the_label_column_is_at_the_right() {
     assert!(res.left() > long.right());
 }
 
+/// A short and a long label with the labels at the reading start.
+fn start_form(ui: &mut Ui) {
+    FieldGroup::new("form").show(ui, |ui| {
+        let _ = Field::new("Name:").label_align(LabelAlign::Start).show(ui, |ui, _| TextField::new("name", "Name", "short").show(ui));
+        let _ = Field::new("Resolution:").label_align(LabelAlign::Start).show(ui, |ui, _| TextField::new("res", "Resolution", "long").show(ui));
+    });
+}
+
+#[test]
+fn start_aligned_labels_share_the_reading_start_of_the_column() {
+    let ltr = harness(Direction::Ltr).build_ui(start_form);
+    let (name, res) = (rect(&ltr, "Name:"), rect(&ltr, "Resolution:"));
+    assert!((name.left() - res.left()).abs() < 0.5, "{name:?} {res:?}");
+    assert!(name.right() < res.right());
+    let rtl = harness(Direction::Rtl).build_ui(start_form);
+    let (name, res) = (rect(&rtl, "Name:"), rect(&rtl, "Resolution:"));
+    assert!((name.right() - res.right()).abs() < 0.5, "{name:?} {res:?}");
+}
+
 #[test]
 fn above_puts_the_label_over_the_control_at_the_reading_start() {
     let harness = harness(Direction::Ltr).build_ui(|ui| {

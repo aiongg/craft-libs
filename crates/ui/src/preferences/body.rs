@@ -1,8 +1,10 @@
 //! [`PreferencesBody`]: the contents of the Preferences window in any `Ui`.
 
-use craft_theme::{ControlSize, Tone};
+use craft_theme::{ControlSize, Tone, TypeRole};
 use egui::accesskit::Role;
-use egui::{AsIdSalt, Context, Event, Id, IdSalt, Key, KeyboardShortcut, Modifiers, Rect, ScrollArea, Sense, Ui, UiBuilder, pos2};
+use egui::{
+    Align, AsIdSalt, Context, Event, Id, IdSalt, Key, KeyboardShortcut, Layout, Modifiers, Rect, ScrollArea, Sense, Ui, UiBuilder, pos2, vec2,
+};
 
 use super::host::PreferencesHost;
 use super::model::{Closed, PreferencesOutput, PreferencesTexts};
@@ -10,7 +12,7 @@ use super::rows::{RowsOut, ShownRow, show_row, typed_value};
 use super::search::{self, Listed};
 use super::state::PreferencesState;
 use crate::behavior::{RowInfo, Selection, SelectionMode};
-use crate::composites::{EmptyState, GroupBox, Notice, SectionHeader};
+use crate::composites::{EmptyState, GroupBox, Notice};
 use crate::controls::{Button, SearchField};
 use crate::dialog::{ButtonRole, EnterRule, FooterButton, FooterButtons, KeyInput, Platform, resolve_keys};
 use crate::direction;
@@ -33,6 +35,13 @@ pub struct PreferencesStyle {
     pub choice_width: f32,
     /// Width of a text row's control: `preferences.text_width`.
     pub text_width: f32,
+    /// Between the divider and the page's contents, and between them and the trailing edge:
+    /// `preferences.page_inset`.
+    pub page_inset: f32,
+    /// Height of a page list row: `preferences.page_row_height`.
+    pub page_row_height: f32,
+    /// Width of a colour row's hex field: `preferences.hex_width`.
+    pub hex_width: f32,
 }
 
 /// What a group of the shown page draws.
@@ -122,6 +131,9 @@ impl PreferencesBody {
             gap: tokens.space.gap.stack,
             choice_width: p.choice_width,
             text_width: p.text_width,
+            page_inset: p.page_inset,
+            page_row_height: p.page_row_height,
+            hex_width: p.hex_width,
         }
     }
 
@@ -151,9 +163,14 @@ impl PreferencesBody {
         let search_before = state.search.clone();
         let search_focused = state.search_focused;
 
-        let search = SearchField::new((id, "search"), texts.search_label.as_str(), &state.search, texts.clear_search.as_str())
-            .placeholder(texts.search_placeholder.as_str())
-            .show(ui);
+        // Justified, so that the field fills the width.
+        let search = ui
+            .allocate_ui_with_layout(vec2(ui.available_width(), 0.0), Layout::top_down_justified(Align::Min), |ui| {
+                SearchField::new((id, "search"), texts.search_label.as_str(), &state.search, texts.clear_search.as_str())
+                    .placeholder(texts.search_placeholder.as_str())
+                    .show(ui)
+            })
+            .inner;
         if let Some(value) = typed_value(search.event) {
             state.search = value;
         }
@@ -189,17 +206,24 @@ impl PreferencesBody {
         let content = Rect::from_min_max(rect.min, pos2(rect.max.x, (rect.max.y - footer_height).max(rect.min.y)));
         let list_width = style.list_width.min(content.width() / 2.0);
         let page_gap = style.page_gap;
+        let inset = page_gap / 2.0 + style.page_inset;
         let rtl = direction::is_rtl(ui);
         let (list_rect, page_rect, divider_x) = if rtl {
             (
                 Rect::from_min_max(pos2(content.right() - list_width, content.top()), content.max),
-                Rect::from_min_max(content.min, pos2(content.right() - list_width - page_gap, content.bottom())),
+                Rect::from_min_max(
+                    pos2(content.left() + style.page_inset, content.top()),
+                    pos2(content.right() - list_width - inset, content.bottom()),
+                ),
                 content.right() - list_width - page_gap / 2.0,
             )
         } else {
             (
                 Rect::from_min_max(content.min, pos2(content.left() + list_width, content.bottom())),
-                Rect::from_min_max(pos2(content.left() + list_width + page_gap, content.top()), content.max),
+                Rect::from_min_max(
+                    pos2(content.left() + list_width + inset, content.top()),
+                    pos2(content.right() - style.page_inset, content.bottom()),
+                ),
                 content.left() + list_width + page_gap / 2.0,
             )
         };
@@ -218,6 +242,7 @@ impl PreferencesBody {
                 .selection(&mut selection)
                 .mode(SelectionMode::Single)
                 .allow_empty(false)
+                .row_height(style.page_row_height)
                 .max_height(list_rect.height())
                 .show(&mut list_ui, |at, key| {
                     let row = ListRow::new(key.clone(), page_list[at].1.as_str()).dimmed(page_list[at].2);
@@ -246,14 +271,14 @@ impl PreferencesBody {
             );
             page_ui.set_clip_rect(page_rect.intersect(ui.clip_rect()));
             let searching = !query.trim().is_empty();
-            let reset_clicked = SectionHeader::new((id, "title"), page.title.as_str()).collapsible(false).show(&mut page_ui, |ui| {
-                let mut area = ScrollArea::vertical().id_salt("page-scroll").auto_shrink([false, false]);
-                if reset {
-                    area = area.vertical_scroll_offset(0.0);
-                }
-                area.show(ui, |ui| show_page(ui, host, page, &texts, searching, &mut rows_out)).inner
-            });
-            if reset_clicked.inner == Some(true) {
+            page_ui.add(Text::new(page.title.as_str()).role(TypeRole::Title));
+            page_ui.add_space(gap);
+            let mut area = ScrollArea::vertical().id_salt("page-scroll").auto_shrink([false, false]);
+            if reset {
+                area = area.vertical_scroll_offset(0.0);
+            }
+            let reset_clicked = area.show(&mut page_ui, |ui| show_page(ui, host, page, &texts, searching, &mut rows_out)).inner;
+            if reset_clicked {
                 host.reset_page(&page.id);
                 rows_out.edited = true;
             }

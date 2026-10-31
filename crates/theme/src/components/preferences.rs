@@ -17,6 +17,14 @@ pub struct PreferencesTokens {
     pub choice_width: f32,
     /// Width of a text row's control: `preferences.text_width`, 260 at Compact, scaled likewise.
     pub text_width: f32,
+    /// Between the divider and the page's contents, and between them and the trailing edge:
+    /// `preferences.page_inset`.
+    pub page_inset: f32,
+    /// Height of a page list row: `preferences.page_row_height`.
+    pub page_row_height: f32,
+    /// Width of a colour row's hex field: `preferences.hex_width`, 72 at Compact, scaled by the
+    /// control height.
+    pub hex_width: f32,
     /// Height of a page body laid out in an unbounded rect: `preferences.body_fallback_height`.
     pub body_fallback_height: f32,
 }
@@ -33,6 +41,9 @@ impl Family for PreferencesTokens {
         "page_gap" 0.0..=64.0 => page_gap;
         "choice_width" 0.0..=1024.0 => choice_width;
         "text_width" 0.0..=1024.0 => text_width;
+        "page_inset" 0.0..=64.0 => page_inset;
+        "page_row_height" 0.0..=1024.0 => page_row_height;
+        "hex_width" 0.0..=1024.0 => hex_width;
         "body_fallback_height" 0.0..=4096.0 => body_fallback_height;
     };
 
@@ -44,6 +55,9 @@ impl Family for PreferencesTokens {
             page_gap: s.space.pad.panel,
             choice_width: scale(values::PREFERENCES_CHOICE_WIDTH),
             text_width: scale(values::PREFERENCES_TEXT_WIDTH),
+            page_inset: values::PREFERENCES_PAGE_INSET,
+            page_row_height: values::PREFERENCES_PAGE_ROW_HEIGHT,
+            hex_width: scale(values::PREFERENCES_HEX_WIDTH),
             body_fallback_height: values::PREFERENCES_BODY_FALLBACK_HEIGHT,
         }
     }

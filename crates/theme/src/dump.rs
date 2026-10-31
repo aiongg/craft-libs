@@ -1179,11 +1179,14 @@ fn group_box_lines(out: &mut Lines, t: &GroupBoxTokens) {
 }
 
 fn preferences_lines(out: &mut Lines, t: &PreferencesTokens) {
-    let PreferencesTokens { list_width, page_gap, choice_width, text_width, body_fallback_height } = t;
+    let PreferencesTokens { list_width, page_gap, choice_width, text_width, page_inset, page_row_height, hex_width, body_fallback_height } = t;
     out.line("preferences.list_width", len(*list_width));
     out.line("preferences.page_gap", len(*page_gap));
     out.line("preferences.choice_width", len(*choice_width));
     out.line("preferences.text_width", len(*text_width));
+    out.line("preferences.page_inset", len(*page_inset));
+    out.line("preferences.page_row_height", len(*page_row_height));
+    out.line("preferences.hex_width", len(*hex_width));
     out.line("preferences.body_fallback_height", len(*body_fallback_height));
 }
 
