@@ -147,11 +147,28 @@ fn state(ui: &Ui, name: &str) -> (SharedHost, egui::Id) {
     (host, key.with("result"))
 }
 
+/// Whether this story instance may draw the dialog `name` in this pass. The size, prompt and
+/// unsaved dialogs have one fixed id each, so two instances of a story drawn in the same pass
+/// (a component tab and a variants view) must not both show it.
+fn claim(ctx: &Context, name: &str, instance: egui::Id) -> bool {
+    let key = egui::Id::new(("craft_ui::dialog::framework_stories::claim", name));
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| {
+        let (claimed_pass, owner) = d.get_temp::<(u64, egui::Id)>(key).unwrap_or((u64::MAX, instance));
+        if claimed_pass == pass && owner != instance {
+            return false;
+        }
+        d.insert_temp(key, (pass, instance));
+        true
+    })
+}
+
 /// Opens `D` while the story is shown and `open` is on, reopens it when `signature` changes (the
 /// arguments that build the dialog), and shows the answer as text under the tile once it closes.
 fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
     ui: &mut Ui,
     name: &str,
+    exclusive: bool,
     open: &mut bool,
     signature: S,
     make: impl FnOnce() -> D,
@@ -161,6 +178,9 @@ fn drive<D: StackDialog, S: PartialEq + Clone + Send + Sync + 'static>(
     let (host, result_key) = state(ui, name);
     let signature_key = result_key.with("signature");
     let ctx = ui.ctx().clone();
+    if exclusive && !claim(&ctx, name, ui.id()) {
+        return;
+    }
     let mut host = lock(&host);
     if crate::story::dialog_shown(ui, *open) {
         let previous: Option<S> = ui.data(|d| d.get_temp::<Option<S>>(signature_key)).flatten();
@@ -204,6 +224,7 @@ const FILTER_SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom","angle":
 
 /// Gaussian Blur-style parameters on the host; OK shows the fields.
 fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
+    let salt = ui.id();
     let layout = match args.layout {
         LayoutArg::SideColumn => ParamLayout::SideColumn,
         LayoutArg::BottomFooter => ParamLayout::BottomFooter,
@@ -212,9 +233,10 @@ fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
     drive(
         ui,
         "params",
+        false,
         &mut args.open,
         (args.layout, preview),
-        || ParamDialog::new("story-params", "Radial Blur", Param::parse_list(FILTER_SPEC)).preview(preview).layout(layout),
+        || ParamDialog::new(("story-params", salt), "Radial Blur", Param::parse_list(FILTER_SPEC)).preview(preview).layout(layout),
         |_| {},
         |fields| format!("OK, {}", fields_text(&fields)),
     );
@@ -222,13 +244,15 @@ fn show_params(ui: &mut Ui, args: &mut ParamsArgs) {
 
 /// A command form with Reset-free OK; OK is disabled while `ok enabled` is off.
 fn show_form(ui: &mut Ui, args: &mut FormArgs) {
+    let salt = ui.id();
     let enabled = args.ok_enabled;
     drive(
         ui,
         "form",
+        false,
         &mut args.open,
         (),
-        || CommandForm::new("story-form", "Go to Page", Param::parse_list(r#"{"page":u32=1,"select":bool}"#)).ok_label("Go"),
+        || CommandForm::new(("story-form", salt), "Go to Page", Param::parse_list(r#"{"page":u32=1,"select":bool}"#)).ok_label("Go"),
         |form| form.set_ok_enabled(enabled),
         |fields| format!("OK, {}", fields_text(&fields)),
     );
@@ -244,6 +268,7 @@ fn show_size(ui: &mut Ui, args: &mut SizeArgs) {
             drive(
                 ui,
                 "size-image",
+                true,
                 &mut args.open,
                 method,
                 || ImageSizeDialog::new(ORIGINAL).resample(method),
@@ -256,6 +281,7 @@ fn show_size(ui: &mut Ui, args: &mut SizeArgs) {
         SizeKindArg::Canvas => drive(
             ui,
             "size-canvas",
+            true,
             &mut args.open,
             (),
             || CanvasSizeDialog::new(ORIGINAL),
@@ -283,10 +309,13 @@ fn show_prompt(ui: &mut Ui, args: &mut PromptArgs) {
         PromptKindArg::Unsaved => None,
     };
     match kind {
-        Some(kind) => drive(ui, "prompt", &mut args.open, (args.kind, several), || StandardPrompt::new(kind), |_| {}, |choice| format!("{choice:?}")),
+        Some(kind) => {
+            drive(ui, "prompt", true, &mut args.open, (args.kind, several), || StandardPrompt::new(kind), |_| {}, |choice| format!("{choice:?}"))
+        }
         None => drive(
             ui,
             "unsaved",
+            true,
             &mut args.open,
             several,
             || UnsavedChangesDialog::new(CloseScope::Close, "poster.psd").remaining(if several { 3 } else { 1 }),
@@ -298,6 +327,7 @@ fn show_prompt(ui: &mut Ui, args: &mut PromptArgs) {
 
 /// A two-tab Document Properties; read only shows values as text with a single OK.
 fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
+    let salt = ui.id();
     let read_only = args.read_only;
     let tabs = || {
         vec![
@@ -324,9 +354,10 @@ fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
     drive(
         ui,
         "properties",
+        false,
         &mut args.open,
         read_only,
-        || PropertiesDialog::new("story-properties", "Document Properties", tabs()).read_only(read_only),
+        || PropertiesDialog::new(("story-properties", salt), "Document Properties", tabs()).read_only(read_only),
         |_| {},
         |fields| format!("OK, {}", fields_text(&fields)),
     );
@@ -334,10 +365,12 @@ fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
 
 /// An import report with `notes` lines, tones cycling.
 fn show_report(ui: &mut Ui, args: &mut ReportArgs) {
+    let salt = ui.id();
     let count = args.notes;
     drive(
         ui,
         "report",
+        false,
         &mut args.open,
         count,
         || {
@@ -348,7 +381,7 @@ fn show_report(ui: &mut Ui, args: &mut ReportArgs) {
                     _ => ReportNote::new(NoteTone::Error, format!("Image on page {} could not be read.", n + 1)),
                 })
                 .collect();
-            ReportDialog::new("story-report", "Import Report", format!("Imported {count} pages."), notes)
+            ReportDialog::new(("story-report", salt), "Import Report", format!("Imported {count} pages."), notes)
         },
         |_| {},
         |()| "OK".to_owned(),
@@ -358,7 +391,7 @@ fn show_report(ui: &mut Ui, args: &mut ReportArgs) {
 /// A notice that the host can queue.
 struct Notice {
     id: DialogId,
-    key: &'static str,
+    key: (&'static str, egui::Id),
     title: &'static str,
     message: &'static str,
 }
@@ -375,12 +408,13 @@ impl StackDialog for Notice {
     }
 }
 
-fn notice(key: &'static str, title: &'static str, message: &'static str) -> Notice {
+fn notice(key: (&'static str, egui::Id), title: &'static str, message: &'static str) -> Notice {
     Notice { id: dialog_id(key), key, title, message }
 }
 
 /// Three alerts enqueued in the ticked stages; they open one at a time in stage order.
 fn show_queue(ui: &mut Ui, args: &mut QueueArgs) {
+    let salt = ui.id();
     let (host, result_key) = state(ui, "queue");
     let signature_key = result_key.with("signature");
     let signature = (args.recovery, args.warning, args.update);
@@ -396,13 +430,16 @@ fn show_queue(ui: &mut Ui, args: &mut QueueArgs) {
         *host = DialogHost::new();
         // Enqueued in reverse stage order: the host sorts them.
         if args.update {
-            host.enqueue(StartupStage::Update, notice("story-queue-update", "Update available", "Version 2.0 is ready to download."));
+            host.enqueue(StartupStage::Update, notice(("story-queue-update", salt), "Update available", "Version 2.0 is ready to download."));
         }
         if args.warning {
-            host.enqueue(StartupStage::Warning, notice("story-queue-warning", "Graphics", "The GPU is not supported; drawing uses the CPU."));
+            host.enqueue(StartupStage::Warning, notice(("story-queue-warning", salt), "Graphics", "The GPU is not supported; drawing uses the CPU."));
         }
         if args.recovery {
-            host.enqueue(StartupStage::Recovery, notice("story-queue-recovery", "Recover documents", "2 documents were saved before the last quit."));
+            host.enqueue(
+                StartupStage::Recovery,
+                notice(("story-queue-recovery", salt), "Recover documents", "2 documents were saved before the last quit."),
+            );
         }
         ui.data_mut(|d| d.insert_temp(signature_key, signature));
     }
