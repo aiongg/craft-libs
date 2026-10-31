@@ -35,7 +35,8 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   and writing, transforms, rendering intents, black point compensation, soft proofing, gamut
   checks, 3D LUTs and built-in profiles (sRGB, Display P3, synthetic coated CMYK and others).
 - [`craft-color`](crates/color/README.md): colour picker, wells, swatch tables, ramps and the hex
-  field (`ui` feature).
+  field; the Color Picker dialog, droppers, eyedropper, samplers, screen picker, Color and Swatches
+  panels (`ui` feature); swatch files, the display transform and harmonies.
 - [`craft-crw`](crates/crw/README.md): clean-room Canon CRW (CIFF) raw decoder, from LightCraft:
   the heap container, the entropy coding derived by black-box analysis (frozen code tables), sensor
   black and white levels and as-shot white balance. The complete derivation record (plan, sources
