@@ -17,6 +17,8 @@ fn docked() -> Layout<u32> {
 #[derive(Default)]
 struct Host {
     locked: bool,
+    /// Calls of `panel_menu_entries`.
+    asked: usize,
 }
 
 impl DockContent<u32> for Host {
@@ -29,7 +31,11 @@ impl DockContent<u32> for Host {
     fn permissions(&self, _: &u32) -> Permissions {
         if self.locked { Permissions::PROTECTED } else { Permissions::default() }
     }
+    fn action_label(&mut self, _: &egui::Ui, logical: &str, _: &egui::FontId, _: egui::Color32) -> egui::WidgetText {
+        format!("«{logical}»").into()
+    }
     fn panel_menu_entries(&mut self, panel: &u32) -> Vec<MenuEntry<String>> {
+        self.asked += 1;
         vec![MenuItem::new(format!("Host Row {panel}"), "host.cmd".to_owned()).into()]
     }
 }
@@ -47,7 +53,7 @@ fn harness(locked: bool) -> Harness<'static, State> {
             let out = DockArea::new(Id::unique("panel-menu-area")).show_content(ui, &docked(), &style, &mut state.host);
             state.events.extend(out.events);
         },
-        State { host: Host { locked }, events: Vec::new() },
+        State { host: Host { locked, asked: 0 }, events: Vec::new() },
     );
     h.run_steps(2);
     h
@@ -64,7 +70,7 @@ fn panel_menu_lists_host_rows_then_group_items() {
     let mut h = harness(false);
     open_first_menu(&mut h);
     let y = |label: &str| h.get_by_label(label).rect().top();
-    let rows = [y("Host Row 3"), y("Float Panel"), y("Move Panel to Group"), y("Close Panel"), y("Close Tab Group")];
+    let rows = [y("Host Row 3"), y("«Float Panel»"), y("«Move Panel to Group»"), y("«Close Panel»"), y("«Close Tab Group»")];
     assert!(rows.windows(2).all(|pair| pair[0] < pair[1]), "{rows:?}");
 }
 
@@ -85,7 +91,7 @@ fn locked_group_hides_dock_rows() {
     let mut h = harness(true);
     open_first_menu(&mut h);
     assert_eq!(h.query_all_by_label("Host Row 3").count(), 1);
-    for label in ["Float Panel", "Move Panel to Group", "Close Panel", "Close Tab Group", "Float Tab Group"] {
+    for label in ["«Float Panel»", "«Move Panel to Group»", "«Close Panel»", "«Close Tab Group»", "«Float Tab Group»"] {
         assert_eq!(h.query_all_by_label(label).count(), 0, "{label}");
     }
 }
@@ -103,4 +109,23 @@ fn escape_returns_focus_to_menu_button() {
     h.run_steps(3);
     assert_eq!(h.query_all_by_label("Host Row 3").count(), 0, "Escape closes it");
     assert!(h.query_all_by_label("Panel Menu").next().unwrap().is_focused());
+}
+
+#[test]
+// The host is asked for its entries only while a menu opens or is open, not on every pass.
+fn host_entries_are_asked_only_for_an_open_menu() {
+    let mut h = harness(false);
+    h.run_steps(3);
+    assert_eq!(h.state().host.asked, 0, "closed menus ask nothing");
+    open_first_menu(&mut h);
+    assert!(h.state().host.asked > 0);
+}
+
+#[test]
+// Dock rows show the host's shaped action text, as the closure path does.
+fn dock_rows_use_the_hosts_action_text() {
+    let mut h = harness(false);
+    open_first_menu(&mut h);
+    assert_eq!(h.query_all_by_label("«Float Panel»").count(), 1);
+    assert_eq!(h.query_all_by_label("Float Panel").count(), 0);
 }
