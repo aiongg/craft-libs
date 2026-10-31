@@ -1,0 +1,28 @@
+[package]
+name = "craft-timeline"
+description = "Timelines for Craft apps: exact media time, frame rates, timecode, the playback clock, frame cache and frame server; the ruler, tracks, clips, keyframes, graph editor, transport and render queue."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# `Serialize` and `Deserialize` for the plain-data types (ticks, ranges, rates, views, markers).
+serde = ["dep:serde"]
+# The timeline widgets (`craft_timeline::ui`).
+ui = ["dep:craft-ui", "dep:egui", "serde"]
+# Screenshot and input tests of the widgets with egui_kittest (desktop only).
+screen-testing = ["ui", "craft-ui/screen-testing"]
+
+[dependencies]
+craft-ui = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+egui = { workspace = true, features = ["default_fonts", "serde"] }
