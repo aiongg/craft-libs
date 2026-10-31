@@ -2,7 +2,7 @@
 
 use craft_theme::{ControlSize, Srgba};
 use egui::accesskit::Role;
-use egui::{Align, AsIdSalt, Id, IdSalt, Key, Layout, Rect, Response, Sense, Ui, UiBuilder, Vec2};
+use egui::{Align, AsIdSalt, Id, IdSalt, Key, Layout, Modifiers, Rect, Response, Sense, Ui, UiBuilder, Vec2};
 
 use crate::behavior::{GridNav, RadioSelection};
 use crate::controls::{Swatch, TooltipExt as _};
@@ -165,7 +165,8 @@ impl SwatchPalette {
 ///   outline. Entries are told apart by index, so duplicates select one cell.
 /// - A click, Space or a screen reader's click reports the cell's index as
 ///   [`selected`](SwatchTableResponse::selected) when it is not the selected one. A double-click
-///   or Enter reports [`open`](SwatchTableResponse::open). The table edits no colour.
+///   or Enter reports [`open`](SwatchTableResponse::open); that Enter is taken out of the input,
+///   so a dialog around the table does not also answer OK. The table edits no colour.
 /// - Keys are the palette's: one Tab stop (the selected cell, else the first) and the arrows
 ///   through the cells as a grid, without selecting.
 /// - AccessKit: a `ListBox` named `label` with the number of cells; each cell a `ListBoxOption`
@@ -227,7 +228,12 @@ impl SwatchTable {
                     .tab_stop(i == stop)
                     .enabled(enabled);
                 let response = ui.add(swatch).tooltip(name.as_str());
-                if response.double_clicked() || (response.clicked() && enter) {
+                let by_enter = enter && response.clicked() && !response.double_clicked();
+                if by_enter {
+                    // The open request is the Enter's answer: left in the input, a dialog around the table would also take it as OK.
+                    ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Enter));
+                }
+                if response.double_clicked() || by_enter {
                     open = Some(i);
                 } else if response.clicked() && selected != Some(i) {
                     picked = Some(i);
