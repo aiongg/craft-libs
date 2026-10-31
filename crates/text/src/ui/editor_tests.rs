@@ -8,6 +8,7 @@ use egui::{Context, Event, Key, Modifiers, RawInput, Rect, pos2, vec2};
 
 use super::editor::*;
 use crate::quotes::QuoteStyle;
+use craft_ui::canvas::CanvasView;
 
 /// A text of lines at `\n`; char `c` of a line sits at x = c, line `l` at y = l.
 #[derive(Default)]
@@ -360,26 +361,58 @@ fn menu_insert_copy_and_cut() {
     assert!(out.platform_output.commands.is_empty());
 }
 
+fn preedit(text: &str) -> Event {
+    Event::Ime(egui::ImeEvent::Preedit { text: text.into(), active_range_chars: None })
+}
+
+fn commit(text: &str) -> Event {
+    Event::Ime(egui::ImeEvent::Commit(text.into()))
+}
+
 // Preedit "k", then "か": the host text holds "か" at the caret (kind Composing); commit "課" replaces it (Committed).
 #[test]
-#[ignore = "needs S4T-F13"]
-#[expect(clippy::todo, reason = "S4T-F13 fills this test")]
 fn marked_text_is_written_into_the_text_and_replaced() {
-    todo!()
+    let (ctx, mut editor, mut host) = setup("ab", 1);
+    let r = pass(&ctx, &mut editor, &mut host, 0.0, vec![preedit("k")]);
+    assert!(r.changed && host.text == "akb" && editor.preedit() == Some(1..2));
+    let _ = pass(&ctx, &mut editor, &mut host, 1.0, vec![preedit("か")]);
+    assert_eq!((host.text.as_str(), editor.preedit(), editor.selection()), ("aかb", Some(1..2), TextSelection::caret_at(2)));
+    assert_eq!(host.replaced.last().map(|r| r.2), Some(EditKind::Composing));
+    // The commit arrives after the marked text ended.
+    let _ = pass(&ctx, &mut editor, &mut host, 2.0, vec![preedit(""), commit("課")]);
+    assert_eq!((host.text.as_str(), editor.preedit(), editor.selection()), ("a課b", None, TextSelection::caret_at(2)));
+    assert_eq!(host.replaced.last(), Some(&(1..2, "課".to_string(), EditKind::Committed)));
 }
 
 // A press outside while composing keeps the marked text as typed and returns false.
 #[test]
-#[ignore = "needs S4T-F13"]
-#[expect(clippy::todo, reason = "S4T-F13 fills this test")]
 fn click_away_keeps_the_marked_text() {
-    todo!()
+    let (ctx, mut editor, mut host) = setup("ab", 1);
+    let _ = pass(&ctx, &mut editor, &mut host, 0.0, vec![preedit("か")]);
+    assert!(!click(&mut editor, &mut host, 0.0, 50.0, false, 1.0));
+    assert!(editor.preedit().is_none() && host.text == "aかb");
+    // The pass ends with the composer told; the next marked text starts after the kept one.
+    let view = CanvasView::new(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0)), Point::new(0.0, 0.0), 10.0);
+    let raw = RawInput { time: Some(1.0), screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))), ..Default::default() };
+    run(&ctx, raw, |ctx| {
+        let _ = editor.update(ctx, &mut host);
+        editor.finish_pass(ctx, &view, &mut host);
+    });
+    let _ = pass(&ctx, &mut editor, &mut host, 2.0, vec![preedit("き")]);
+    assert_eq!((host.text.as_str(), editor.preedit()), ("aかきb", Some(2..3)));
 }
 
 // `text_replaced` after the host undid the marked text clamps the selection and drops the preedit range.
 #[test]
-#[ignore = "needs S4T-F13"]
-#[expect(clippy::todo, reason = "S4T-F13 fills this test")]
 fn external_change_drops_the_marked_range() {
-    todo!()
+    let (ctx, mut editor, mut host) = setup("ab", 1);
+    let _ = pass(&ctx, &mut editor, &mut host, 0.0, vec![preedit("かな")]);
+    assert_eq!(editor.preedit(), Some(1..3));
+    host.text = "ab".into();
+    run(&ctx, RawInput::default(), |ctx| editor.text_replaced(ctx, &mut host));
+    assert!(editor.preedit().is_none());
+    assert_eq!(editor.selection(), TextSelection::caret_at(2));
+    // The platform's composition is fenced: its next marked text is ignored.
+    let r = pass(&ctx, &mut editor, &mut host, 1.0, vec![preedit("き")]);
+    assert!(!r.changed && host.text == "ab" && editor.preedit().is_none());
 }

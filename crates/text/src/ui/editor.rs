@@ -30,15 +30,17 @@
 //! editor.finish_pass(ctx, &view, &mut layer_host);
 //! ```
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: the input-method fences (S4T-F13) and the tool host impl (S4T-F14) land later")]
+#![expect(unused_variables, reason = "the default `style_key` takes no formatting")]
 
+use std::hash::{Hash, Hasher};
 use std::ops::Range;
 
 use craft_ui::canvas::CanvasView;
 use craft_ui::canvas::kurbo::Point;
 use craft_ui::ime::{Composer, Edit, surrounding_chars};
 use craft_ui::theme::ToEgui;
-use egui::{Color32, Context, Event, Id, Key, Modifiers, Painter, Shape, Stroke};
+use egui::ime_context::ImeMutationStamp;
+use egui::{Color32, Context, Event, Id, Key, Modifiers, Painter, Rect, Shape, Stroke};
 
 use crate::quotes::{QuoteStyle, smart_quotes};
 
@@ -200,7 +202,7 @@ pub struct EditorResponse {
     pub changed: bool,
     /// The selection or caret moved.
     pub selection_changed: bool,
-    /// The user committed: ⌘↩, Enter on the numeric keypad, or Esc when Esc commits
+    /// The user committed: ⌘↩, or Esc when Esc commits
     /// ([`TextEditor::esc_commits`], Photoshop's Use ESC Key to Commit Text, on by default). The
     /// app ends the session and keeps the text.
     pub commit: bool,
@@ -226,7 +228,7 @@ pub struct EditorResponse {
 /// - Keys: ←/→ by char (a selection collapses to its edge), ⌘←/→ by word, ↑/↓ by line, ⌘↑/↓ to
 ///   the text's start or end, Home/End to the line's edges, Shift extends any of them. ⌫ and ⌦ by
 ///   char, ⌥ by word, ⌘⌫ to the line start. ⌘A all, ⌘C ⌘X ⌘V the clipboard. Enter a line break;
-///   ⌘↩ and keypad Enter commit; Esc commits or cancels. The [`StyleKey`]s format. In vertical
+///   ⌘↩ commits; Esc commits or cancels. The [`StyleKey`]s format. In vertical
 ///   text the arrows turn with the flow.
 /// - Typed straight quotes become the language's marks while [`smart_quotes`](Self::smart_quotes)
 ///   is set; pasted text is kept as it is. Pasted line endings become `\n`.
@@ -254,6 +256,12 @@ pub struct TextEditor {
     /// The composition ended where no `Context` was at hand (a press, `set_selection`): the next
     /// pass tells the composer.
     composition_ended: bool,
+    /// The marked text as the editor last wrote it: the range in the host's text holds exactly
+    /// this while the composition is current.
+    preedit_text: String,
+    /// Length and hash of the host's text as the last pass left it; a different text at the next
+    /// pass was changed from outside.
+    seen: Option<(usize, u64)>,
 }
 
 impl TextEditor {
@@ -273,6 +281,8 @@ impl TextEditor {
             esc_commits: true,
             blink_start: 0.0,
             composition_ended: false,
+            preedit_text: String::new(),
+            seen: None,
         }
     }
 
@@ -322,12 +332,19 @@ impl TextEditor {
         if std::mem::take(&mut self.composition_ended) {
             self.composer.discard(ctx);
         }
+        // Before the composer reads this pass's events: a reset fence removes them.
+        if self.seen.is_some_and(|seen| seen != fingerprint(host.text())) {
+            if self.preedit.is_some() && self.preedit_is_current(&*host) {
+                self.composer.note_app_change(ctx);
+            } else {
+                self.text_replaced(ctx, host);
+            }
+        }
         let edits = self.composer.update(ctx, true);
         let time = ctx.input(|i| i.time);
         let before = self.selection;
         let chars = host.text().chars().count();
         self.selection = TextSelection { caret: self.selection.caret.min(chars), anchor: self.selection.anchor.min(chars) };
-        // needs: S4T-F13 — the host's text changed since the last pass: `text_replaced`.
         let mut pass = Pass::default();
         // The marked text an ended composition leaves behind until the next edit says whether a
         // commit replaces it.
@@ -336,8 +353,10 @@ impl TextEditor {
             if let Some(range) = ending.take() {
                 if let Edit::Insert(text) = &edit {
                     let text = text.replace("\r\n", "\n").replace('\r', "\n");
-                    // needs: S4T-F13 — stamp the committed text before and after, `note_commit`.
+                    let before = self.stamp(&*host, Some(range.clone()));
                     if self.replace(host, range, &text, EditKind::Committed) {
+                        let after = self.stamp(&*host, None);
+                        self.composer.note_commit(ctx, before, after);
                         pass.changed = true;
                     }
                     pass.took = true;
@@ -375,11 +394,11 @@ impl TextEditor {
                 }
                 Edit::DeleteSurrounding { before_chars, after_chars } => {
                     pass.took = true;
-                    pass.changed |= self.delete_around(host, before_chars, after_chars);
+                    pass.changed |= self.delete_around(ctx, host, before_chars, after_chars);
                 }
                 Edit::DeleteSurroundingBytes { before_bytes, after_bytes } => {
                     pass.took = true;
-                    pass.changed |= self.delete_around_bytes(host, before_bytes, after_bytes);
+                    pass.changed |= self.delete_around_bytes(ctx, host, before_bytes, after_bytes);
                 }
             }
         }
@@ -391,6 +410,7 @@ impl TextEditor {
         if pass.changed || self.selection != before {
             self.blink_start = time;
         }
+        self.seen = Some(fingerprint(host.text()));
         consume_events(ctx, &pass);
         EditorResponse {
             changed: pass.changed,
@@ -417,6 +437,7 @@ impl TextEditor {
         let changed = self.insert_text(ctx, host, text, kind);
         if changed {
             self.blink_start = ctx.input(|i| i.time);
+            self.seen = Some(fingerprint(host.text()));
         }
         changed
     }
@@ -436,6 +457,7 @@ impl TextEditor {
     pub fn cut(&mut self, ctx: &Context, host: &mut impl TextEditorHost) {
         if self.cut_selection(ctx, host) {
             self.blink_start = ctx.input(|i| i.time);
+            self.seen = Some(fingerprint(host.text()));
         }
     }
 
@@ -545,7 +567,23 @@ impl TextEditor {
     // pc: crates/ui-egui/src/tools/type_tool/ime_edit.rs:128 `sync_ime`, :222 `ime_geometry`, :86
     // `committed_text`.
     pub fn finish_pass(&mut self, ctx: &Context, view: &CanvasView, host: &mut impl TextEditorHost) {
-        todo!()
+        // A press or `set_selection` ended the composition in this pass: the composer learns of it
+        // before it publishes, so the platform drops its copy in the same pass.
+        if std::mem::take(&mut self.composition_ended) {
+            self.composer.discard(ctx);
+        }
+        // An application edit after `update` can have moved the marked text.
+        if self.preedit.is_some() && !self.preedit_is_current(&*host) {
+            self.text_replaced(ctx, host);
+        }
+        let text = host.text();
+        let at = |c: usize| text.char_indices().nth(c).map_or(text.len(), |(b, _)| b);
+        let preedit = self.preedit.clone().map(|r| at(r.start)..at(r.end));
+        self.composer.set_committed(text, at(self.selection.caret), at(self.selection.anchor), preedit);
+        let caret = self.selection.caret.min(text.chars().count());
+        if let Some(CaretLine { top, bottom }) = host.caret(caret, None) {
+            self.composer.set_caret(ctx, Rect::from_two_pos(view.to_screen(top), view.to_screen(bottom)).expand(1.0));
+        }
     }
 
     /// The host's text changed outside the editor (undo, redo, a panel edit, another view of the
@@ -554,14 +592,24 @@ impl TextEditor {
     // pc: crates/ui-egui/src/tools/type_tool/ime_edit.rs:70 `reconcile_preedit`, ime.rs:346
     // `prepare_reset` and :357 `complete_reset`, ime_edit.rs:117 `note_ime_application_change`.
     pub fn text_replaced(&mut self, ctx: &Context, host: &mut impl TextEditorHost) {
-        todo!()
+        let chars = host.text().chars().count();
+        self.selection = TextSelection { caret: self.selection.caret.min(chars), anchor: self.selection.anchor.min(chars) };
+        self.preedit = None;
+        self.preedit_active = None;
+        self.composition_ended = false;
+        self.composer.reset(ctx);
+        self.composer.note_app_change(ctx);
+        self.seen = Some(fingerprint(host.text()));
     }
 
     /// End the session's composition before the app commits or switches away: the marked text
     /// stays as typed and the platform drops its copy.
     // pc: crates/ui-egui/src/tools/type_tool/ime.rs:180 `interrupt_incoming`, editing.rs:353 `commit`.
-    pub fn end_composition(&mut self, ctx: &Context, host: &mut impl TextEditorHost) {
-        todo!()
+    pub fn end_composition(&mut self, ctx: &Context, _host: &mut impl TextEditorHost) {
+        self.preedit = None;
+        self.preedit_active = None;
+        self.composition_ended = false;
+        self.composer.discard(ctx);
     }
 }
 
@@ -602,6 +650,13 @@ fn consume_events(ctx: &Context, pass: &Pass) {
     });
 }
 
+/// Length and hash of `text`, to tell whether it changed between passes.
+fn fingerprint(text: &str) -> (usize, u64) {
+    let mut hasher = std::hash::DefaultHasher::new();
+    text.hash(&mut hasher);
+    (text.len(), hasher.finish())
+}
+
 /// The chars of `text` in `range`.
 fn char_slice(text: &str, range: &Range<usize>) -> String {
     text.chars().skip(range.start).take(range.len()).collect()
@@ -631,6 +686,19 @@ impl TextEditor {
         self.preedit_active = None;
     }
 
+    /// Whether the marked range still holds the text the composition wrote.
+    fn preedit_is_current(&self, host: &impl TextEditorHost) -> bool {
+        self.preedit.as_ref().is_some_and(|r| r.end <= host.text().chars().count() && char_slice(host.text(), r) == self.preedit_text)
+    }
+
+    /// The committed text and selection as the input method sees them: the marked text, if any,
+    /// left out. `preedit` is its range in the host's text now.
+    fn stamp(&self, host: &impl TextEditorHost, preedit: Option<Range<usize>>) -> ImeMutationStamp {
+        let text = host.text();
+        let at = |c: usize| text.char_indices().nth(c).map_or(text.len(), |(b, _)| b);
+        ImeMutationStamp::from_committed(text, at(self.selection.caret), at(self.selection.anchor), preedit.map(|r| at(r.start)..at(r.end)))
+    }
+
     /// Replace `range` through the host and put the caret after the new text.
     fn replace(&mut self, host: &mut impl TextEditorHost, range: Range<usize>, text: &str, kind: EditKind) -> bool {
         if !host.replace(range.clone(), text, kind) {
@@ -655,7 +723,7 @@ impl TextEditor {
             self.preedit_active = None;
             self.composer.discard(ctx);
         }
-        // needs: S4T-F13 — an application edit: `composer.note_app_change(ctx)`.
+        self.composer.note_app_change(ctx);
         true
     }
 
@@ -694,6 +762,7 @@ impl TextEditor {
         let range = marked.unwrap_or_else(|| self.clamped(chars));
         if self.replace(host, range.clone(), &text, EditKind::Composing) {
             self.preedit = Some(range.start..range.start + text.chars().count());
+            self.preedit_text = text;
             self.preedit_active = active;
             pass.changed = true;
         }
@@ -702,19 +771,19 @@ impl TextEditor {
 
     /// An input method's delete-surrounding: the chars around the marked text, or the selection,
     /// as counts of chars.
-    fn delete_around(&mut self, host: &mut impl TextEditorHost, before: usize, after: usize) -> bool {
+    fn delete_around(&mut self, ctx: &Context, host: &mut impl TextEditorHost, before: usize, after: usize) -> bool {
         let (start, end) = self.active_range(host);
-        self.delete_runs(host, start.saturating_sub(before), start, end, end.saturating_add(after))
+        self.delete_runs(ctx, host, start.saturating_sub(before), start, end, end.saturating_add(after))
     }
 
     /// As [`Self::delete_around`], counted in UTF-8 bytes; a count that ends inside a char leaves it.
-    fn delete_around_bytes(&mut self, host: &mut impl TextEditorHost, before: usize, after: usize) -> bool {
+    fn delete_around_bytes(&mut self, ctx: &Context, host: &mut impl TextEditorHost, before: usize, after: usize) -> bool {
         let (start, end) = self.active_range(host);
         let text = host.text();
         let head: String = text.chars().take(start).collect();
         let tail: String = text.chars().skip(end).collect();
         let (before, after) = surrounding_chars(&head, &tail, before, after);
-        self.delete_runs(host, start - before, start, end, end + after)
+        self.delete_runs(ctx, host, start - before, start, end, end + after)
     }
 
     /// The marked text, else the selection.
@@ -725,11 +794,12 @@ impl TextEditor {
     }
 
     /// Delete `from..start` and `end..to`, keeping `start..end` (and the caret in it).
-    fn delete_runs(&mut self, host: &mut impl TextEditorHost, from: usize, start: usize, end: usize, to: usize) -> bool {
+    fn delete_runs(&mut self, ctx: &Context, host: &mut impl TextEditorHost, from: usize, start: usize, end: usize, to: usize) -> bool {
         let to = to.min(host.text().chars().count());
         if from >= start && end >= to {
             return false;
         }
+        let before = self.stamp(&*host, self.preedit.clone());
         // The trailing run first, so the leading run's offsets stay valid.
         if end < to && !host.replace(end..to, "", EditKind::Deleted) {
             return false;
@@ -742,6 +812,8 @@ impl TextEditor {
         if let Some(r) = self.preedit.as_mut() {
             *r = r.start.saturating_sub(shift)..r.end.saturating_sub(shift);
         }
+        let after = self.stamp(&*host, self.preedit.clone());
+        self.composer.note_commit(ctx, before, after);
         true
     }
 
