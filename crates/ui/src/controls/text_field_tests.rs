@@ -748,7 +748,8 @@ mod ime {
         Event::Ime(ImeEvent::Commit(text.to_owned()))
     }
 
-    /// No event carries marked text: the composition's commit is the run's first change.
+    /// No event carries marked text: the composition's commit is the run's first change, which the
+    /// run's Begin carries.
     #[test]
     fn marked_text_is_never_a_value() {
         let mut rig = Rig::new("a");
@@ -761,7 +762,7 @@ mod ime {
         rig.frame(vec![]);
         events.extend(rig.event.take());
         let id = begin(events.first().cloned());
-        assert_eq!(events[1..], [update(id, "a日本語").unwrap()]);
+        assert_eq!(events, [EditEvent::begin_with(id, "a日本語".to_owned())]);
     }
 
     #[test]
@@ -834,9 +835,11 @@ mod ime {
         rig.ctx.memory_mut(|m| m.request_focus(rig.id));
         rig.key(Key::Backspace);
         let id = begin(rig.event.take());
+        assert_eq!(rig.value, "a", "the Begin carries the first change, with no marked text in it");
         rig.frame(vec![]);
-        assert_eq!(rig.event, update(id, "a"));
+        assert_eq!(rig.event, None);
         assert_eq!(rig.shown.as_deref(), Some("a"));
+        let _ = id;
         let state = egui::text_edit::TextEditState::load(&rig.ctx, rig.id).expect("state");
         assert_eq!(state.preedit(), None);
     }

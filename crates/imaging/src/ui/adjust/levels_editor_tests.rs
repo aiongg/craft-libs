@@ -333,7 +333,7 @@ fn a_press_on_a_row_during_a_typing_run_commits_the_run_then_drags_from_it() {
         let to = pos2(at(&harness, row, level).x, from.y);
         drag(&mut harness, from, to);
         let kinds = harness.state().kinds();
-        assert_eq!(kinds[..4], ["Begin", "Update", "Commit", "Begin"], "{field}: {kinds:?}");
+        assert_eq!(kinds[..3], ["Begin", "Commit", "Begin"], "{field}: {kinds:?}");
         assert_eq!(kinds.last(), Some(&"Commit"), "{field}: {kinds:?}");
         let undo = harness.state().undo.as_ref().map(|u| u.doc.undo.len());
         assert_eq!(undo, Some(2 * (step + 1)), "{field}: the run and the drag, one step each");
