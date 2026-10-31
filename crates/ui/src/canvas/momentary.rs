@@ -58,7 +58,7 @@ impl MomentaryTool {
 /// use craft_ui::canvas::{MomentaryKeys, MomentaryTool};
 /// # fn demo(ctx: &egui::Context, canvas: craft_ui::canvas::CanvasId, drawing: bool) {
 /// let keys = MomentaryKeys::default();
-/// match keys.update(ctx, canvas, drawing) {
+/// match keys.read(ctx, canvas, drawing) {
 ///     Some(MomentaryTool::Hand) => { /* show the Hand tool this pass */ }
 ///     Some(MomentaryTool::ZoomIn | MomentaryTool::ZoomOut) => { /* the Zoom tool, in or out */ }
 ///     None => { /* the selected tool */ }

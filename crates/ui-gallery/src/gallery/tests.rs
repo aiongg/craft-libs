@@ -343,6 +343,7 @@ const FIXED_WIDTH: &[&str] = &[
     "patterns/shell/tour",
     "patterns/shell/toolbar-drawer",
     "patterns/shell/start",
+    "composites/path-field/field",
 ];
 
 /// Stories that draw in layers of their own (dialogs, windows) and are placed on the screen, not
