@@ -18,7 +18,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use craft_host::ManualJobs;
 use craft_theme::Rgba;
 use craft_ui::behavior::{Axis, DropPosition, Move, Reorder, Selection};
-use craft_ui::canvas::textures::{LoadedPicture, Revision, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails, thumb_image};
+use craft_ui::canvas::textures::{
+    LoadFailure, LoadedPicture, Revision, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails, thumb_image,
+};
 use craft_ui::controls::{BadgeTone, Button};
 use craft_ui::direction::{self, Direction, HasDirection as _};
 use craft_ui::edit::EditEvent;
@@ -217,7 +219,7 @@ impl ThumbSource<usize> for Pictures {
         if self.mode == Mode::States {
             match id % 12 {
                 1 => return ThumbRender::Later(Box::new(move |_| Ok(LoadedPicture::Image(image)))),
-                2 => return ThumbRender::Later(Box::new(|_| Err("Fake failure".to_owned()))),
+                2 => return ThumbRender::Later(Box::new(|_| Err(LoadFailure::Message("Fake failure".to_owned())))),
                 _ => {}
             }
         }

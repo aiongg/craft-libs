@@ -122,6 +122,47 @@ fn queue_runs_inline_on_demand() {
     assert_eq!(drain(&queue), ["low"]);
 }
 
+// A key's next job that waited for its running inline job gets a lane when the inline run ends.
+#[test]
+fn queue_inline_run_spawns_a_lane_for_the_keys_next_job() {
+    let (queue, jobs, _) = queue(2);
+    let queue = Arc::new(queue);
+    let inner = Arc::clone(&queue);
+    queue.submit("a", Priority::VISIBLE, move |_| {
+        inner.submit("a", Priority::VISIBLE, |_| "second");
+        "first"
+    });
+    assert_eq!(jobs.waiting(), 1);
+    assert_eq!(queue.run_inline(1), 1);
+    assert_eq!(jobs.waiting(), 2);
+    jobs.run_all();
+    assert_eq!(drain(&queue), ["first", "second"]);
+}
+
+// A `Jobs` that drops the lane unrun (a thread that could not start) does not leave the lane counted.
+#[test]
+fn queue_gives_back_a_lane_the_host_dropped() {
+    use crate::Jobs;
+    struct Refusing(AtomicUsize, ManualJobs);
+    impl Jobs for Refusing {
+        fn spawn(&self, name: &str, job: Box<dyn FnOnce() + Send>) {
+            if self.0.load(Ordering::Relaxed) == 0 {
+                drop(job);
+            } else {
+                self.1.spawn(name, job);
+            }
+        }
+    }
+    let jobs = Arc::new(Refusing(AtomicUsize::new(0), ManualJobs::new()));
+    let queue = JobQueue::<&'static str, &'static str>::new(jobs.clone(), Wake::new(|| {}), QueueOptions { lanes: 1, name: "test" });
+    queue.submit("a", Priority::VISIBLE, |_| "a");
+    jobs.0.store(1, Ordering::Relaxed);
+    queue.submit("b", Priority::VISIBLE, |_| "b");
+    assert_eq!(jobs.1.waiting(), 1);
+    jobs.1.run_all();
+    assert_eq!(drain(&queue), ["b", "a"]);
+}
+
 // `shutdown` drops waiting jobs, cancels running ones, and returns true once they have ended.
 #[test]
 fn queue_shutdown_waits_for_running_jobs() {

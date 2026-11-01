@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use craft_host::ManualJobs;
 use egui::{Color32, ColorImage, Context, RawInput};
 
-use super::{LoadedPicture, LoaderOptions, Priority, Revision, TextureBudget, TextureCacheOptions, TextureLoader, TextureState};
+use super::{LoadFailure, LoadedPicture, LoaderOptions, Priority, Revision, TextureBudget, TextureCacheOptions, TextureLoader, TextureState};
 
 fn pass(ctx: &Context, run: impl FnOnce()) {
     let mut run = Some(run);
@@ -25,7 +25,7 @@ fn loader(ctx: &Context, lanes: usize, uploads_per_pass: usize) -> (TextureLoade
     (TextureLoader::in_context(ctx, "test", options), jobs)
 }
 
-fn counted(runs: &Arc<AtomicUsize>, side: usize) -> impl FnOnce(&craft_host::queue::Cancel) -> Result<LoadedPicture, String> + Send + 'static {
+fn counted(runs: &Arc<AtomicUsize>, side: usize) -> impl FnOnce(&craft_host::queue::Cancel) -> Result<LoadedPicture, LoadFailure> + Send + 'static {
     let runs = Arc::clone(runs);
     move |_| {
         runs.fetch_add(1, Ordering::Relaxed);
@@ -165,4 +165,79 @@ fn loader_stores_a_blank_answer_as_empty() {
     assert_eq!(jobs.waiting(), 0);
     assert_eq!(runs.load(Ordering::Relaxed), 1);
     assert_eq!(loader.cache().statistics().bytes, 0);
+}
+
+fn failing(failure: LoadFailure) -> impl FnOnce(&craft_host::queue::Cancel) -> Result<LoadedPicture, LoadFailure> + Send + 'static {
+    move |_| Err(failure)
+}
+
+fn settle(
+    ctx: &Context,
+    loader: &TextureLoader<u32>,
+    jobs: &ManualJobs,
+    job: impl FnOnce(&craft_host::queue::Cancel) -> Result<LoadedPicture, LoadFailure> + Send + 'static,
+) -> TextureState {
+    pass(ctx, || {
+        loader.submit(ctx, 1, Revision(1), Priority::VISIBLE, job);
+    });
+    jobs.run_all();
+    let mut state = TextureState::Missing;
+    pass(ctx, || state = loader.request(ctx, &1, Revision(1), Priority::VISIBLE, || failing(LoadFailure::Unreadable)));
+    state
+}
+
+// A job that panics is stored as a failure, and the key is not asked for again.
+#[test]
+fn loader_stores_a_panic_as_a_failure() {
+    let ctx = Context::default();
+    let (loader, jobs) = loader(&ctx, 1, 16);
+    let state = settle(&ctx, &loader, &jobs, |_| panic!("decoder bug"));
+    assert!(matches!(state, TextureState::Failed { .. }), "got {state:?}");
+    assert_eq!(jobs.waiting(), 0);
+}
+
+// A failure reason is worded on the UI thread; a message passes through.
+#[test]
+fn loader_words_the_failure_reason() {
+    let ctx = Context::default();
+    let (loader, jobs) = loader(&ctx, 1, 16);
+    assert_eq!(settle(&ctx, &loader, &jobs, failing(LoadFailure::Missing)), TextureState::Failed { message: "The file is missing".to_owned() });
+    loader.cache().forget(&1);
+    assert_eq!(settle(&ctx, &loader, &jobs, failing(LoadFailure::Message("bad".to_owned()))), TextureState::Failed { message: "bad".to_owned() });
+}
+
+// Without lanes the job runs in the next pass, so the submit asks for that pass.
+#[test]
+fn loader_without_lanes_requests_a_repaint_on_submit() {
+    let ctx = Context::default();
+    let (loader, _) = loader(&ctx, 0, 16);
+    for _ in 0..4 {
+        pass(&ctx, || {});
+    }
+    let repaint_delay = |run: &mut dyn FnMut()| {
+        let output = ctx.run_ui(RawInput::default(), |_| run());
+        output.viewport_output[&egui::ViewportId::ROOT].repaint_delay
+    };
+    assert!(repaint_delay(&mut || {}) > std::time::Duration::ZERO, "the control pass is already repainting");
+    let delay = repaint_delay(&mut || {
+        loader.submit(&ctx, 1, Revision(1), Priority::VISIBLE, failing(LoadFailure::Missing));
+    });
+    assert_eq!(delay, std::time::Duration::ZERO);
+}
+
+// After `shutdown` no job starts and a submit is dropped.
+#[test]
+fn loader_shutdown_drops_waiting_jobs() {
+    let ctx = Context::default();
+    let (loader, jobs) = loader(&ctx, 1, 16);
+    let runs = Arc::new(AtomicUsize::new(0));
+    pass(&ctx, || {
+        loader.submit(&ctx, 1, Revision(1), Priority::VISIBLE, counted(&runs, 4));
+    });
+    assert!(loader.shutdown(std::time::Duration::from_millis(10)));
+    pass(&ctx, || {
+        loader.submit(&ctx, 2, Revision(1), Priority::VISIBLE, counted(&runs, 4));
+    });
+    jobs.run_all();
+    assert_eq!(runs.load(Ordering::Relaxed), 0);
 }

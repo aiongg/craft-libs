@@ -11,6 +11,8 @@ use craft_host::queue::{Cancel, JobQueue, Priority, QueueOptions};
 use craft_host::{Host, Jobs, Wake};
 use egui::{AsIdSalt, Color32, ColorImage, Context, Id};
 
+use crate::localized::Labels;
+
 use super::cache::{Revision, TextureCache, TextureCacheOptions, TextureKey, TextureState};
 
 /// A loader's settings, read when it is created ([`TextureLoader::in_context`]).
@@ -56,8 +58,45 @@ impl From<ColorImage> for LoadedPicture {
     }
 }
 
-/// What a loader job returns: a [`LoadedPicture`], or a message for the failure tooltip.
-pub(crate) type LoadResult = Result<LoadedPicture, String>;
+/// Why a job made no picture. The loader words it on the UI thread when it stores the failure
+/// ([`TextureState::Failed`]'s message, the failure tooltip), so a job carries no English text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LoadFailure {
+    /// The file or page the picture comes from is gone.
+    Missing,
+    /// It exists but could not be read or decoded.
+    Unreadable,
+    /// The job panicked. The loader makes this itself.
+    Panicked,
+    /// The source's own message, already in the user's language (a decoder's error text).
+    Message(String),
+}
+
+crate::words! {
+    /// The words of a picture that could not be made.
+    pub(crate) struct LoadFailureLabels {
+        missing: "textures.missing" = "The file is missing";
+        unreadable: "textures.unreadable" = "The picture could not be read";
+        panicked: "textures.panicked" = "The picture could not be made";
+    }
+}
+
+impl LoadFailure {
+    /// The failure tooltip.
+    fn words(self, ctx: &Context) -> String {
+        let labels = LoadFailureLabels::of_ctx(ctx);
+        match self {
+            Self::Missing => labels.missing.clone(),
+            Self::Unreadable => labels.unreadable.clone(),
+            Self::Panicked => labels.panicked.clone(),
+            Self::Message(message) => message,
+        }
+    }
+}
+
+/// What a loader job returns: a [`LoadedPicture`], or why there is none.
+pub(crate) type LoadResult = Result<LoadedPicture, LoadFailure>;
 
 /// A key's job in flight: the revision it makes and when it was last asked for.
 struct Asked {
@@ -84,7 +123,7 @@ struct Inner<K> {
 /// let loader = TextureLoader::<PageKey>::in_context(ctx, "pages", LoaderOptions::default());
 /// let state = loader.request(ctx, &page, Revision::of(&doc.stamp()), Priority::VISIBLE, || {
 ///     let pdf = doc.clone_handle();
-///     move |cancel: &Cancel| pdf.render(page, cancel).map(LoadedPicture::from).map_err(|e| e.to_string())
+///     move |cancel: &Cancel| pdf.render(page, cancel).map(LoadedPicture::from).map_err(|e| LoadFailure::Message(e.to_string()))
 /// });
 /// ```
 ///
@@ -99,6 +138,8 @@ struct Inner<K> {
 ///   dropped from the queue ([`JobQueue::reprioritize`]): rows scrolled away, a panel closed. A
 ///   pass that does not draw the list asks for nothing, so its jobs are dropped at the next pass
 ///   that draws. Asked keys move to the priority they were last asked with.
+/// - **Failures.** A job returns a [`LoadFailure`]; the loader words it when it stores the failure.
+///   A job that panics is stored as [`LoadFailure::Panicked`].
 /// - **Waking.** The queue wakes the app through `ctx.request_repaint()` when a job finishes; no
 ///   timed repaint.
 /// - **Without lanes** (`lanes == 0`) the first call in a pass runs one job inline
@@ -170,7 +211,7 @@ impl<K: TextureKey> TextureLoader<K> {
     /// [`submit`](Self::submit). `job` is called only when a job is queued.
     pub fn request<J>(&self, ctx: &Context, key: &K, revision: Revision, priority: Priority, job: impl FnOnce() -> J) -> TextureState
     where
-        J: FnOnce(&Cancel) -> Result<LoadedPicture, String> + Send + 'static,
+        J: FnOnce(&Cancel) -> Result<LoadedPicture, LoadFailure> + Send + 'static,
     {
         match self.ask(ctx, key, revision, priority) {
             Some(state) => state,
@@ -204,18 +245,33 @@ impl<K: TextureKey> TextureLoader<K> {
         key: K,
         revision: Revision,
         priority: Priority,
-        job: impl FnOnce(&Cancel) -> Result<LoadedPicture, String> + Send + 'static,
+        job: impl FnOnce(&Cancel) -> Result<LoadedPicture, LoadFailure> + Send + 'static,
     ) -> TextureState {
         // lightcraft: crates/preview/src/pool.rs:182 `submit` (slot replace) through `JobQueue::submit`.
         let mut inner = self.begin_pass(ctx);
         let stand_in = self.cache.state(ctx, &key, revision).shown();
         inner.asked.insert(key.clone(), Asked { revision, priority, pass: ctx.cumulative_pass_nr() });
-        inner.queue.submit(key, priority, move |cancel| (revision, job(cancel)));
+        // A panicking job is a failure, not a key that stays Loading for good.
+        inner.queue.submit(key, priority, move |cancel| {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| job(cancel))).unwrap_or(Err(LoadFailure::Panicked));
+            (revision, result)
+        });
+        if inner.lanes == 0 {
+            // The job runs in the next pass's `begin_pass`; the web repaints only on input.
+            ctx.request_repaint();
+        }
         TextureState::Loading { stand_in }
     }
 }
 
 impl<K: TextureKey> TextureLoader<K> {
+    /// Stops the loader's queue: waiting jobs are dropped, running ones are cancelled, and the
+    /// call waits up to `timeout` for them to end ([`JobQueue::shutdown`]). Returns whether every
+    /// job has. For an app about to exit the process.
+    pub fn shutdown(&self, timeout: std::time::Duration) -> bool {
+        self.inner.lock().unwrap_or_else(PoisonError::into_inner).queue.shutdown(timeout)
+    }
+
     /// Locks the loader's state and, in the first call of a pass, runs the pass's work: an inline
     /// job when there are no lanes, dropping jobs nobody asked for, then storing finished results
     /// while the cache's upload allowance lasts. A result for another revision than the one last
@@ -256,7 +312,7 @@ impl<K: TextureKey> TextureLoader<K> {
                     self.cache.put(ctx, key.clone(), revision, image);
                 }
                 Ok(LoadedPicture::Blank) => self.cache.put_empty(ctx, key.clone(), revision),
-                Err(message) => self.cache.put_failure(ctx, key.clone(), revision, message),
+                Err(failure) => self.cache.put_failure(ctx, key.clone(), revision, failure.words(ctx)),
             }
             inner.asked.remove(&key);
         }
