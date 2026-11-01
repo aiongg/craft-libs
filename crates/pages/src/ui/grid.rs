@@ -2,12 +2,16 @@
 //! boundaries (violet) and the baseline grid (light blue, from its zoom threshold), each a
 //! hairline, drawn over the page under the selection.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use egui::{Color32, Painter};
-use kurbo::Rect;
+use egui::epaint::PathShape;
+use egui::{Color32, Painter, Shape};
+use kurbo::{Point, Rect};
 
 use craft_ui::canvas::CanvasView;
+use craft_ui::theme::{StrokeExt as _, scale};
+
+/// The share of its colour the baseline grid draws at (DesignCraft's `gamma_multiply(0.8)`): a
+/// proportion, not a size.
+const BASELINE_SHARE: f32 = 0.8;
 
 /// The most baseline grid lines drawn on a page: one per point of the tallest page (216 in),
 /// DesignCraft's `MAX_BASELINES`.
@@ -18,7 +22,9 @@ pub const MAX_BASELINES: usize = 216 * 72;
 /// skipped without walking them, however far up `start` is; an increment under 1 pt counts as 1.
 // designcraft: crates/ui-egui/src/canvas/page_decor.rs:19 `baseline_grid_lines`.
 pub fn baseline_lines(start: f64, increment: f64, height: f64) -> Vec<f64> {
-    todo!()
+    let step = increment.max(1.0);
+    let first = if start < 0.0 { start.rem_euclid(step) } else { start };
+    (0..MAX_BASELINES).map(|n| first + n as f64 * step).take_while(|y| *y < height).collect()
 }
 
 /// One page's grids, page points on the document.
@@ -67,6 +73,30 @@ impl<'a> PageGrids<'a> {
 
     // designcraft: crates/ui-egui/src/canvas/page_decor.rs:100 `draw_page_grids`.
     pub fn paint(self, painter: &Painter) {
-        todo!()
+        let line = |color| scale::Stroke::Hairline.egui(painter.ctx(), color);
+        let segment = |a: Point, b: Point, color| painter.line_segment([self.view.to_screen(a), self.view.to_screen(b)], line(color));
+        for grid in self.pages {
+            if let Some((start, increment)) = grid.baseline
+                && self.view.zoom >= self.threshold
+            {
+                let color = self.colors.baseline.gamma_multiply(BASELINE_SHARE);
+                for y in baseline_lines(start, increment, grid.page.height()) {
+                    let y = grid.page.y0 + y;
+                    segment(Point::new(grid.page.x0, y), Point::new(grid.page.x1, y), color);
+                }
+            }
+            painter.add(Shape::Path(PathShape::closed_line(self.view.quad(grid.margins).to_vec(), line(self.colors.margins))));
+            if grid.columns.len() > 1 {
+                let last = grid.columns.len() - 1;
+                for (i, column) in grid.columns.iter().enumerate() {
+                    if i > 0 {
+                        segment(Point::new(column.x0, column.y0), Point::new(column.x0, column.y1), self.colors.columns);
+                    }
+                    if i < last {
+                        segment(Point::new(column.x1, column.y0), Point::new(column.x1, column.y1), self.colors.columns);
+                    }
+                }
+            }
+        }
     }
 }
