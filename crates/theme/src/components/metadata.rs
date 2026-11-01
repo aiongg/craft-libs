@@ -11,6 +11,8 @@ pub struct MetadataTokens {
     pub column_gap: f32,
     /// Between rows: `metadata.row_gap`.
     pub row_gap: f32,
+    /// Above a group's title, except the first: `metadata.group_gap`.
+    pub group_gap: f32,
     /// The most the rows take before they scroll when the host gives no height: `metadata.max_height`.
     pub max_height: f32,
 }
@@ -25,11 +27,17 @@ impl Family for MetadataTokens {
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { MetadataTokens;
         "column_gap" 0.0..=64.0 => column_gap;
         "row_gap" 0.0..=64.0 => row_gap;
+        "group_gap" 0.0..=64.0 => group_gap;
         "max_height" 0.0..=4096.0 => max_height;
     };
 
     fn defaults(_: &Semantic<'_>) -> MetadataTokens {
-        MetadataTokens { column_gap: values::METADATA_COLUMN_GAP, row_gap: values::METADATA_ROW_GAP, max_height: values::METADATA_MAX_HEIGHT }
+        MetadataTokens {
+            column_gap: values::METADATA_COLUMN_GAP,
+            row_gap: values::METADATA_ROW_GAP,
+            group_gap: values::METADATA_GROUP_GAP,
+            max_height: values::METADATA_MAX_HEIGHT,
+        }
     }
 
     fn path(f: MetadataField) -> String {

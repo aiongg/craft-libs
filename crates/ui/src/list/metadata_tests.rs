@@ -8,7 +8,7 @@ use super::*;
 use crate::theme::{Base, install};
 
 fn row(name: &str, value: &str) -> MetadataRow {
-    MetadataRow { name: name.into(), value: value.into() }
+    MetadataRow::new(name, value)
 }
 
 fn sample() -> Vec<MetadataGroup> {
@@ -95,4 +95,73 @@ fn the_keys_move_the_lead_and_space_toggles_its_check() {
     harness.run();
     assert_eq!(harness.state().2, ["Model"]);
     assert!(harness.state().3);
+}
+
+fn picker_harness(groups: Vec<MetadataGroup>) -> Harness<'static, State> {
+    Harness::<State>::builder().with_size([420.0, 300.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        move |ui, (groups, query, chosen, changed)| {
+            *changed |= MetadataTable::new("meta", groups).filter(query).choose(chosen).show(ui).chosen_changed;
+        },
+        (groups, String::new(), Vec::new(), false),
+    )
+}
+
+// The picker stores a row's key, not its (translatable) name.
+#[test]
+fn the_picker_stores_the_rows_key() {
+    let groups = vec![MetadataGroup { name: String::new(), rows: vec![MetadataRow::new("Modell", "Alpha 7").key("model")] }];
+    let mut harness = picker_harness(groups);
+    harness.run();
+    harness.get_by_role_and_label(Role::CheckBox, "Show Modell").click();
+    harness.run();
+    assert_eq!(harness.state().2, ["model"]);
+}
+
+// A locked row shows checked and neither a click nor Space changes it.
+#[test]
+fn a_locked_row_cannot_be_unchecked() {
+    let groups =
+        vec![MetadataGroup { name: String::new(), rows: vec![MetadataRow::new("Name", "a.jpg").locked(), MetadataRow::new("Size", "1 MB")] }];
+    let mut harness = picker_harness(groups);
+    harness.run();
+    harness.get_by_role_and_label(Role::CheckBox, "Show Name").click();
+    harness.run();
+    harness.get_by_role_and_label(Role::SearchInput, "Filter fields").focus();
+    harness.run();
+    harness.key_press(egui::Key::ArrowDown);
+    harness.run();
+    harness.key_press(egui::Key::Space);
+    harness.run();
+    assert!(harness.state().2.is_empty());
+    assert!(!harness.state().3);
+}
+
+// End moves the lead to the last row and Home back to the first; Space then toggles that row.
+#[test]
+fn home_and_end_move_the_lead() {
+    let mut harness = harness(Vec::new(), true);
+    harness.run();
+    harness.get_by_role_and_label(Role::SearchInput, "Filter fields").focus();
+    harness.run();
+    harness.key_press(egui::Key::ArrowDown);
+    harness.run();
+    harness.key_press(egui::Key::End);
+    harness.run();
+    harness.key_press(egui::Key::Space);
+    harness.run();
+    harness.key_press(egui::Key::Home);
+    harness.run();
+    harness.key_press(egui::Key::Space);
+    harness.run();
+    assert_eq!(harness.state().2, ["dc:creator", "Exposure Time"]);
+}
+
+// A group's title has `metadata.group_gap` above it besides the row gap, the first has none.
+#[test]
+fn a_later_group_title_has_the_group_gap_above_it() {
+    let mut harness = harness(Vec::new(), false);
+    harness.run();
+    let model = harness.get_by_label("Model").rect();
+    let xmp = harness.get_by_label("XMP").rect();
+    assert!(xmp.top() - model.bottom() >= 6.0, "{} {}", xmp.top(), model.bottom());
 }

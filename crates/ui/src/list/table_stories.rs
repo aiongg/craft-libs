@@ -199,7 +199,7 @@ fn show_files(ui: &mut Ui, args: &mut FilesArgs) {
 fn metadata_groups(words: &TableStoryLabels) -> Vec<MetadataGroup> {
     let group = |name: &str, rows: &[(&str, &str)]| MetadataGroup {
         name: name.to_owned(),
-        rows: rows.iter().map(|(name, value)| MetadataRow { name: (*name).to_owned(), value: (*value).to_owned() }).collect(),
+        rows: rows.iter().map(|(name, value)| MetadataRow::new(*name, *value)).collect(),
     };
     vec![
         group(&words.group_camera, &[(&words.meta_make, "FUJIFILM"), (&words.meta_model, "X100V"), (&words.meta_lens, "23 mm f/2")]),

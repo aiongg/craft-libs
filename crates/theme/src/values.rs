@@ -1832,11 +1832,8 @@ pub const DROP_VEIL_MIN_WRAP: f32 = 200.0;
 /// Least height of an event log's details box (FilmCraft).
 pub const EVENT_LOG_DETAILS_HEIGHT: f32 = 70.0;
 
-/// Side of an event log's level glyph (FilmCraft).
-pub const EVENT_LOG_GLYPH: f32 = 10.0;
-
-/// The room an event log's level glyph takes (FilmCraft).
-pub const EVENT_LOG_GLYPH_BOX: f32 = 14.0;
+/// Vertical inset of an event log's details box (FilmCraft).
+pub const EVENT_LOG_DETAILS_PAD_Y: f32 = 4.0;
 
 /// Least width of an autocomplete list (GridCraft's formula bar).
 pub const AUTOCOMPLETE_MIN_WIDTH: f32 = 220.0;
@@ -1849,6 +1846,9 @@ pub const METADATA_COLUMN_GAP: f32 = 16.0;
 
 /// Between a metadata table's rows (LightCraft's grid spacing).
 pub const METADATA_ROW_GAP: f32 = 3.0;
+
+/// Above a metadata group's title, except the first (LightCraft).
+pub const METADATA_GROUP_GAP: f32 = 6.0;
 
 /// The most a metadata table's rows take before they scroll (LightCraft's dialog).
 pub const METADATA_MAX_HEIGHT: f32 = 440.0;
