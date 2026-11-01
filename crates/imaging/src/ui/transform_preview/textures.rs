@@ -1,11 +1,11 @@
 //! [`PreviewPixels`] and [`PreviewTextures`]: the moving pixels of a transform, read once and
 //! uploaded as a mip chain built on demand (task TR-T4).
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TR-T4)")]
+use std::sync::{Arc, Mutex, PoisonError};
 
-use std::sync::{Arc, Mutex};
+use egui::{Color32, ColorImage, Context, TextureHandle, TextureId, TextureOptions};
 
-use egui::{ColorImage, Context, TextureHandle, TextureId};
+use super::PreviewQuality;
 
 /// The app's pixels of the moving layer: premultiplied texels of which `base_uv` covers the
 /// source frame (the rest is padding up to the GPU's texture limit). The app reads them from its
@@ -20,15 +20,21 @@ pub struct PreviewPixels {
 impl PreviewPixels {
     /// `image` covering the source frame with `base_uv` of its extent (clamped to 0 to 1).
     pub fn new(image: ColorImage, base_uv: [f32; 2]) -> Self {
-        // pc: crates/ui-egui/src/tools/transform_tex.rs:47 (`base_uv` clamped).
-        todo!()
+        let base_uv = [base_uv[0].clamp(0.0, 1.0), base_uv[1].clamp(0.0, 1.0)];
+        Self { image, base_uv }
     }
 
     /// The pixels with `mask` applied: each texel's alpha (and its premultiplied colour) scaled
     /// by `1 − density × (1 − value)`, as the compositor applies a pixel mask.
-    pub fn masked(self, mask: &PreviewMask) -> Self {
-        // pc: crates/ui-egui/src/tools/transform_tex.rs:181 (`PreviewMask`).
-        todo!()
+    pub fn masked(mut self, mask: &PreviewMask) -> Self {
+        let density = mask.density.clamp(0.0, 1.0);
+        for (texel, &value) in self.image.pixels.iter_mut().zip(&mask.values) {
+            let keep = (1.0 - density * (1.0 - f32::from(value) / 255.0)).clamp(0.0, 1.0);
+            let [r, g, b, a] = texel.to_array();
+            let scale = |c: u8| (f32::from(c) * keep).round() as u8;
+            *texel = Color32::from_rgba_premultiplied(scale(r), scale(g), scale(b), scale(a));
+        }
+        self
     }
 }
 
@@ -66,7 +72,7 @@ pub struct TextureChoice {
 }
 
 /// One uploaded texture: its level, filter, display key and the uv extent covering the source.
-struct Level {
+pub(super) struct Level {
     choice: TextureChoice,
     display_key: u64,
     texture: TextureHandle,
@@ -79,22 +85,25 @@ struct Level {
 pub struct PreviewTextures {
     name: String,
     /// The CPU levels built so far, premultiplied; level 0 first.
-    images: Mutex<Vec<Arc<ColorImage>>>,
+    pub(super) images: Mutex<Vec<Arc<ColorImage>>>,
     base_uv: [f32; 2],
-    uploaded: Mutex<Vec<Level>>,
+    pub(super) uploaded: Mutex<Vec<Level>>,
 }
 
 impl PreviewTextures {
     /// Uploads `pixels` as level 0 (linear), named `name` in egui's texture manager.
     pub fn new(ctx: &Context, name: impl Into<String>, pixels: PreviewPixels) -> Self {
-        // pc: crates/ui-egui/src/tools/transform_tex.rs:44.
-        todo!()
+        let name = name.into();
+        let base_uv = pixels.base_uv;
+        let image = Arc::new(pixels.image);
+        let texture = ctx.load_texture(format!("{name}-0-linear"), Arc::clone(&image), TextureOptions::LINEAR);
+        let choice = TextureChoice::default();
+        Self { name, images: Mutex::new(vec![image]), base_uv, uploaded: Mutex::new(vec![Level { choice, display_key: 0, texture, uv: base_uv }]) }
     }
 
     /// The size of level 0 in texels.
     pub fn size(&self) -> [usize; 2] {
-        // pc: crates/ui-egui/src/tools/transform_tex.rs:57.
-        todo!()
+        self.images.lock().unwrap_or_else(PoisonError::into_inner).first().map_or([0, 0], |image| image.size)
     }
 
     /// The level and filter for a source pixel shown at `zoom` screen pixels per document pixel,
@@ -105,21 +114,76 @@ impl PreviewTextures {
     /// `scale ≤ CRISP_SCALE` (1.05). A product that is not finite or not positive gives level 0
     /// linear. Constants in [`PreviewQuality`](super::PreviewQuality).
     pub fn choose(zoom: f32, scale: f32, nearest: bool) -> TextureChoice {
-        // pc: crates/ui-egui/src/tools/transform_tex.rs:63 (`choose`).
-        todo!()
+        let screen = zoom * scale;
+        if !screen.is_finite() || screen <= 0.0 {
+            return TextureChoice::default();
+        }
+        if nearest {
+            return TextureChoice { level: 0, nearest: true };
+        }
+        if screen < PreviewQuality::MIP_BELOW {
+            let level = (1.0 / screen).log2().floor().clamp(0.0, PreviewQuality::MIP_LEVELS as f32) as u32;
+            return TextureChoice { level, nearest: false };
+        }
+        TextureChoice { level: 0, nearest: zoom >= PreviewQuality::CRISP_ZOOM && scale <= PreviewQuality::CRISP_SCALE }
     }
 
     /// The texture and its uv extent for [`choose`](Self::choose)'s answer, uploading that level
     /// and filter on first use; with `display`, the converted upload (the CPU level stays raw).
     pub fn pick(&self, ctx: &Context, choice: TextureChoice, display: Option<&PreviewDisplay>) -> (TextureId, [f32; 2]) {
-        // pc: crates/ui-egui/src/tools/transform_tex.rs:88 (`pick_display`).
-        todo!()
+        let display_key = display.map_or(0, |d| d.key);
+        let mut uploaded = self.uploaded.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(level) = uploaded.iter().find(|l| l.choice == choice && l.display_key == display_key) {
+            return (level.texture.id(), level.uv);
+        }
+        let Some((image, uv)) = self.level_image(choice.level) else {
+            return uploaded.first().map_or((TextureId::default(), [1.0, 1.0]), |l| (l.texture.id(), l.uv));
+        };
+        let image = display.map_or_else(|| Arc::clone(&image), |d| Arc::new((d.convert)(&image)));
+        let (options, filter) = if choice.nearest { (TextureOptions::NEAREST, "nearest") } else { (TextureOptions::LINEAR, "linear") };
+        let texture = ctx.load_texture(format!("{}-{}-{filter}", self.name, choice.level), image, options);
+        let id = texture.id();
+        // A new display key drops the old uploads, so a profile change does not pile up textures.
+        uploaded.retain(|l| l.display_key == display_key);
+        uploaded.push(Level { choice, display_key, texture, uv });
+        (id, uv)
     }
 
     /// Level `n` of the mip chain (built on demand, at most down to one texel) and its uv extent
     /// covering the source. The styled preview resamples from it.
     pub fn level_image(&self, n: u32) -> Option<(Arc<ColorImage>, [f32; 2])> {
-        // pc: crates/ui-egui/src/tools/transform_tex.rs:118 (`level_image`), :161 (`halve`).
-        todo!()
+        let mut images = self.images.lock().unwrap_or_else(PoisonError::into_inner);
+        while images.len() <= n as usize {
+            let previous = images.last()?;
+            if previous.size[0] <= 1 && previous.size[1] <= 1 {
+                break;
+            }
+            let next = Arc::new(halve(previous));
+            images.push(next);
+        }
+        let level = (images.len() - 1).min(n as usize);
+        let image = Arc::clone(images.get(level)?);
+        let base = images.first()?.size;
+        // Level k covers size × 2^k base texels; the last row or column may be padding.
+        let factor = (1u64 << level) as f32;
+        let uv = |axis: usize| (self.base_uv[axis] * base[axis] as f32 / (image.size[axis] as f32 * factor).max(1.0)).min(1.0);
+        let uv = [uv(0), uv(1)];
+        Some((image, uv))
     }
+}
+
+/// 2 × 2 box filter of a premultiplied image; an odd edge repeats its last row or column.
+fn halve(image: &ColorImage) -> ColorImage {
+    let [w, h] = image.size;
+    let (nw, nh) = (w.div_ceil(2).max(1), h.div_ceil(2).max(1));
+    let mut out = vec![Color32::TRANSPARENT; nw * nh];
+    let texel = |x: usize, y: usize| image.pixels.get(y.min(h.saturating_sub(1)) * w + x.min(w.saturating_sub(1))).copied().unwrap_or_default();
+    for (y, row) in out.chunks_mut(nw).enumerate() {
+        for (x, o) in row.iter_mut().enumerate() {
+            let quad = [texel(2 * x, 2 * y), texel(2 * x + 1, 2 * y), texel(2 * x, 2 * y + 1), texel(2 * x + 1, 2 * y + 1)];
+            let mean = |channel: fn(&Color32) -> u8| ((quad.iter().map(|p| u32::from(channel(p))).sum::<u32>() + 2) / 4) as u8;
+            *o = Color32::from_rgba_premultiplied(mean(Color32::r), mean(Color32::g), mean(Color32::b), mean(Color32::a));
+        }
+    }
+    ColorImage::new([nw, nh], out)
 }
