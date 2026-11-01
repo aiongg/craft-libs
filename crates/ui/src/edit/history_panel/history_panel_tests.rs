@@ -10,7 +10,7 @@ use super::{HistoryEvent, HistoryFeatures, HistoryLabels, HistoryOrder, HistoryP
 use crate::direction::{self, Direction};
 use crate::edit::snapshots::{HistorySource, SnapshotList};
 use crate::edit::steps::{HistoryStep, StepId, StepList, StepRows};
-use crate::localized::Labels as _;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::menu::MenuEntry;
 use crate::testing::HarnessExt as _;
 use crate::theme::{Base, install};
@@ -67,7 +67,7 @@ fn snapshots(count: usize) -> SnapshotList {
     let labels = SnapshotFormLabels::english();
     let mut list = SnapshotList::new();
     for n in 0..count {
-        list.add(Some(&format!("Snap {}", char::from(b'A' + n as u8))), &labels);
+        list.add(Some(&format!("Snap {}", char::from(b'A' + n as u8))), &labels, &LocaleNumbers::from_tag("en"));
     }
     list
 }

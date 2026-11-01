@@ -33,7 +33,7 @@ use crate::dialog::{CommandForm, DialogHost, DialogResult, Param, ParamKind};
 use crate::edit::snapshots::{HistoryOptions, HistorySource, HistorySourceChoice, SnapshotId, SnapshotList, history_options_form, new_snapshot_form};
 use crate::edit::steps::{HistoryStep, StepId, StepList, StepRows};
 use crate::icons::Icon;
-use crate::localized::Labels as _;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::menu::{MenuEntry, PressMenu};
 use crate::primitives::{Content, Gap, Row, Text};
 use crate::story::{Level, NoArgs, PatternStoryLabels, Story, StoryArgs, StoryChoice, StoryLabels};
@@ -117,10 +117,11 @@ impl HistoryStoryLabels {
     /// `count` snapshots named after the story's three names, then "Snapshot N" suggestions.
     pub(super) fn snapshot_list(&self, count: usize) -> SnapshotList {
         let labels = SnapshotFormLabels::english();
+        let numbers = LocaleNumbers::from_tag("en");
         let mut snapshots = SnapshotList::new();
         let names = [&self.snapshot_before, &self.snapshot_skin, &self.snapshot_final];
         for n in 0..count {
-            snapshots.add(names.get(n).map(|name| name.as_str()), &labels);
+            snapshots.add(names.get(n).map(|name| name.as_str()), &labels, &numbers);
         }
         snapshots
     }
@@ -239,7 +240,7 @@ impl Doc {
                 }
             }
             HistoryEvent::NewSnapshot { .. } => {
-                self.snapshots.add(None, &labels);
+                self.snapshots.add(None, &labels, &LocaleNumbers::from_tag("en"));
             }
             HistoryEvent::StepForward => {
                 let _ = self.steps.forward();
@@ -616,8 +617,9 @@ fn show_short_dock(ui: &mut Ui, args: &mut ShortDockArgs) {
         |words| {
             let mut snapshots = words.snapshot_list(3);
             let labels = SnapshotFormLabels::english();
+            let numbers = LocaleNumbers::from_tag("en");
             for _ in 0..3 {
-                snapshots.add(None, &labels);
+                snapshots.add(None, &labels, &numbers);
             }
             Doc::new(words.step_list(20, 14, false), snapshots)
         },
@@ -738,13 +740,14 @@ fn drive_form(ui: &mut Ui, name: &str, open: &mut bool, make: impl FnOnce(&Histo
 /// The New Snapshot form with its suggested name and the three From options.
 fn show_new_snapshot(ui: &mut Ui, args: &mut FormArgs) {
     let labels = SnapshotFormLabels::of(ui);
+    let numbers = LocaleNumbers::of(ui);
     drive_form(ui, "new-snapshot", &mut args.open, |words| {
         let from = vec![
             ("fullDocument".to_owned(), words.from_document.clone()),
             ("mergedLayers".to_owned(), words.from_merged.clone()),
             ("currentLayer".to_owned(), words.from_layer.clone()),
         ];
-        new_snapshot_form("story-new-snapshot", &labels, &SnapshotList::new().suggested_name(&labels), from)
+        new_snapshot_form("story-new-snapshot", &labels, &SnapshotList::new().suggested_name(&labels, &numbers), from)
     });
 }
 

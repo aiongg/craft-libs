@@ -16,9 +16,10 @@ use crate::icons::Icon;
 /// - States after the current one are later states (PhotoCraft's dimmed redo states).
 /// - [`limit`](Self::limit) is the most past states held, not counting the current state or
 ///   later states.
-/// - Every change bumps [`revision`](Self::revision): record, extend, go to, delete, clear,
-///   restore, evict, `set_label`, `set_non_linear`, `set_limit` when it drops states,
-///   `pin_source`. Reads never do.
+/// - Every change to the rows bumps [`revision`](Self::revision): record, extend, go to,
+///   delete, clear, restore, evict, `set_label`, `set_limit` when it drops states. Reads,
+///   `pin_source` and `set_non_linear` never do: the panel reads the source and the mode
+///   from the list, and a bump would follow-scroll and deselect.
 /// - The grouping rules (one state per gesture, keyed runs) are in `group.rs`:
 ///   [`mark`](Self::mark), [`squash_since`](Self::squash_since), [`revert_to`](Self::revert_to),
 ///   [`record_keyed`](Self::record_keyed).
@@ -122,10 +123,7 @@ impl StepList {
 
     /// Turns non-linear history on or off; the states stay where they are.
     pub fn set_non_linear(&mut self, non_linear: bool) {
-        if self.non_linear != non_linear {
-            self.non_linear = non_linear;
-            self.revision += 1;
-        }
+        self.non_linear = non_linear;
     }
 
     /// The number of states, at least 1.
@@ -307,7 +305,8 @@ impl StepList {
     /// Clear History: keeps only the current state. The other states are set aside, not
     /// reported as dropped, until the next record, delete or go to;
     /// [`restore_cleared`](Self::restore_cleared) brings them back (Edit › Undo of Clear
-    /// History). The pinned source is forgotten and comes back with the restore. Does nothing
+    /// History). A pin on the current state stays; a pin on another state is forgotten and comes back with
+    /// the restore. Does nothing
     /// (and keeps the revision) when the list holds one state.
     pub fn clear(&mut self) {
         if self.rows.len() == 1 {
@@ -317,8 +316,10 @@ impl StepList {
         self.forget_cleared();
         self.end_run();
         let current = self.rows[self.current].clone();
+        let keeps_pin = self.pinned == Some(current.id);
         let rows = std::mem::replace(&mut self.rows, vec![current]);
-        self.cleared = Some(Cleared { rows, current: self.current, pinned: self.pinned.take() });
+        let pinned = if keeps_pin { self.pinned } else { self.pinned.take() };
+        self.cleared = Some(Cleared { rows, current: self.current, pinned });
         self.current = 0;
         self.revision += 1;
     }
@@ -353,13 +354,9 @@ impl StepList {
     }
 
     /// Pins the history brush source to state `id`, or unpins with `None`. A pinned state is
-    /// never evicted. An id not in the list unpins. Bumps the revision when the pin changed.
+    /// never evicted. An id not in the list unpins. Does not change the revision.
     pub fn pin_source(&mut self, id: Option<StepId>) {
-        let id = id.filter(|id| self.row_of(*id).is_some());
-        if self.pinned != id {
-            self.pinned = id;
-            self.revision += 1;
-        }
+        self.pinned = id.filter(|id| self.row_of(*id).is_some());
     }
 
     /// The pinned state, if any.
