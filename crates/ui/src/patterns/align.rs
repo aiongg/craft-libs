@@ -1,11 +1,21 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`AlignBar`]: the Move tool's Align and Distribute controls in the options bar (F17.03).
 //! Photoshop shows them whenever the Move tool is active; they enable once enough layers are
 //! selected.
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use egui::{AsIdSalt, IdSalt, Response, Sense, Ui, vec2};
 
+use crate::controls::IconButton;
+use crate::direction;
 use crate::icons::Icon;
+use crate::localized::Labels as _;
+use crate::menu::{MenuEntry, MenuItem, PressMenu};
+use crate::primitives::Divider;
+use crate::theme::{Tokens, TokensOf as _};
+use craft_theme::ControlSize;
+
+/// A button's side and its icon's side (`tools/align_bar.rs:38`, `:42`).
+const BUTTON: f32 = 24.0;
+const ICON: f32 = 16.0;
 
 crate::words! {
     /// The align bar's words, English by default (Photoshop's Layer › Align and Distribute
@@ -75,18 +85,40 @@ impl AlignAction {
         AlignAction::DistributeVertically,
     ];
 
-    /// The action's icon: `align_left_edges`, `align_horizontal_centers`, …,
-    /// `distribute_horizontally`, `distribute_vertically` (the variant names in snake case). The
-    /// icon set has none of them yet: the icons task adds the 14 to `ui/icons/icons.toml` (Lucide's
-    /// `align-start-vertical` … `align-vertical-space-around`, Phosphor's `align-left` …, as the
-    /// file's other rows pair sets; PhotoCraft draws its own `align-edge-left` … `distribute-vertical`).
+    /// The action's icon: `AlignEdge*` for the six align actions, `Distribute*` for the eight
+    /// distribute ones (`ui/icons/icons.toml`; the distribute icons are drawn in the base set only,
+    /// as PhotoCraft draws them, and the packs fall back to it).
     pub fn icon(self) -> Icon {
-        todo!()
+        match self {
+            AlignAction::AlignLeftEdges => Icon::AlignEdgeLeft,
+            AlignAction::AlignHorizontalCenters => Icon::AlignEdgeHcenter,
+            AlignAction::AlignRightEdges => Icon::AlignEdgeRight,
+            AlignAction::AlignTopEdges => Icon::AlignEdgeTop,
+            AlignAction::AlignVerticalCenters => Icon::AlignEdgeVcenter,
+            AlignAction::AlignBottomEdges => Icon::AlignEdgeBottom,
+            AlignAction::DistributeTopEdges => Icon::DistributeTop,
+            AlignAction::DistributeVerticalCenters => Icon::DistributeVcenter,
+            AlignAction::DistributeBottomEdges => Icon::DistributeBottom,
+            AlignAction::DistributeLeftEdges => Icon::DistributeLeft,
+            AlignAction::DistributeHorizontalCenters => Icon::DistributeHcenter,
+            AlignAction::DistributeRightEdges => Icon::DistributeRight,
+            AlignAction::DistributeHorizontally => Icon::DistributeHorizontal,
+            AlignAction::DistributeVertically => Icon::DistributeVertical,
+        }
     }
 
     /// The action's own name ("Left Edges"); its group is [`is_align`](Self::is_align).
     pub fn label(self, labels: &AlignLabels) -> &str {
-        todo!()
+        match self {
+            AlignAction::AlignLeftEdges | AlignAction::DistributeLeftEdges => &labels.left_edges,
+            AlignAction::AlignHorizontalCenters | AlignAction::DistributeHorizontalCenters => &labels.horizontal_centers,
+            AlignAction::AlignRightEdges | AlignAction::DistributeRightEdges => &labels.right_edges,
+            AlignAction::AlignTopEdges | AlignAction::DistributeTopEdges => &labels.top_edges,
+            AlignAction::AlignVerticalCenters | AlignAction::DistributeVerticalCenters => &labels.vertical_centers,
+            AlignAction::AlignBottomEdges | AlignAction::DistributeBottomEdges => &labels.bottom_edges,
+            AlignAction::DistributeHorizontally => &labels.horizontally,
+            AlignAction::DistributeVertically => &labels.vertically,
+        }
     }
 
     pub fn is_align(self) -> bool {
@@ -160,6 +192,48 @@ impl<'a> AlignBar<'a> {
 
     // pc: crates/ui-egui/src/tools/align_bar.rs:32 options
     pub fn show(self, ui: &mut Ui) -> AlignBarResponse {
-        todo!()
+        let labels = self.labels.unwrap_or_else(|| AlignLabels::of(ui));
+        let name = |action: AlignAction| {
+            let group = if action.is_align() { &labels.align } else { &labels.distribute };
+            craft_i18n::fmt(&labels.tooltip, &[("group", group), ("action", action.label(&labels))])
+        };
+        let mut picked = None;
+        let inner = ui.scope_builder(egui::UiBuilder::new().id_salt(ui.make_persistent_id(self.id_salt)), |ui| {
+            direction::horizontal(ui, |ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                let button = |ui: &mut Ui, action: AlignAction, picked: &mut Option<AlignAction>| {
+                    let b = IconButton::new(action.icon(), name(action)).side(BUTTON).icon_size(ICON).enabled((self.enabled)(action)).id_salt(action);
+                    if ui.add(b).clicked() {
+                        *picked = Some(action);
+                    }
+                };
+                for action in AlignAction::ALIGN {
+                    button(ui, action, &mut picked);
+                }
+                if self.distribute == DistributeButtons::Row {
+                    let (rect, _) = ui.allocate_exact_size(vec2(1.0, BUTTON), Sense::hover());
+                    Divider::paint(ui.painter(), rect.center_top(), rect.center_bottom(), &Tokens::of(ui));
+                    for action in AlignAction::DISTRIBUTE {
+                        button(ui, action, &mut picked);
+                    }
+                }
+                let more = ui.add(IconButton::new(Icon::More, labels.more.clone()).side(BUTTON).icon_size(ICON).id_salt("more"));
+                let item = |action: AlignAction| {
+                    MenuItem::new(action.label(&labels), action)
+                        .icon(action.icon())
+                        .accessible_name(name(action))
+                        .enabled((self.enabled)(action))
+                        .into()
+                };
+                let mut entries: Vec<MenuEntry<AlignAction>> = AlignAction::ALIGN.into_iter().map(item).collect();
+                entries.push(MenuEntry::Separator);
+                entries.extend(AlignAction::DISTRIBUTE.into_iter().map(item));
+                if let Some(action) = PressMenu::new(&entries).size(ControlSize::Sm).show(ui, &more).chosen {
+                    picked = Some(action);
+                }
+            })
+            .response
+        });
+        AlignBarResponse { picked, response: inner.response }
     }
 }
