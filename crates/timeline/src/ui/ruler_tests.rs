@@ -164,3 +164,31 @@ fn scroll_bar_ends_zoom_and_middle_scrolls() {
     assert!(view.points_per_second < 10.0, "dragging the right end out zooms out: {view:?}");
     assert_eq!(view.start, Tick::ZERO, "the left end stays");
 }
+
+struct Marked {
+    view: TimeView,
+    markers: Vec<crate::markers::Marker>,
+    edits: Vec<super::markers::MarkerEdit>,
+    rect: Rect,
+}
+
+fn show_marked(ui: &mut Ui, app: &mut Marked) {
+    let out = TimelineRuler::new("ruler", &mut app.view, format(), secs(60.0)).markers(&app.markers).show(ui);
+    app.rect = out.response.rect;
+    app.edits.extend(out.markers);
+}
+
+// a marker in the ruler's marker band is a list option, and Cmd-click deletes it.
+#[test]
+fn ruler_shows_markers() {
+    use crate::markers::{Marker, MarkerColor, MarkerId};
+    let marker =
+        Marker { id: MarkerId(3), start: secs(2.0), duration: Tick::ZERO, name: "Cue".into(), comment: String::new(), color: MarkerColor(1) };
+    let mut harness =
+        harness(show_marked, Marked { view: TimeView::new(Tick::ZERO, 100.0), markers: vec![marker], edits: Vec::new(), rect: Rect::NOTHING });
+    harness.get_by_role_and_label(Role::ListBoxOption, "Cue");
+    let rect = harness.state().rect;
+    let on_flag = pos2(rect.left() + 200.0, rect.top() + rect.height() * 0.1);
+    harness.click_at_with(on_flag, egui::PointerButton::Primary, Modifiers::COMMAND);
+    assert_eq!(harness.state().edits, [super::markers::MarkerEdit::Delete(crate::markers::MarkerId(3))]);
+}

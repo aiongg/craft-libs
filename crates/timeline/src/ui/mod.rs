@@ -34,13 +34,13 @@ mod stories;
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod clips_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod graph_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod keyframes_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod markers_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod overview_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod panel_tests;

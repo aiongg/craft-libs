@@ -1442,3 +1442,18 @@ lucide = "funnel"
 phosphor = "funnel"
 carbon = "filter"
 tabler = "filter"
+
+[[icon]]
+name = "chart_line"
+directional = false
+lucide = "chart-line"
+phosphor = "chart-line"
+carbon = "chart--line"
+tabler = "chart-line"
+
+[[icon]]
+name = "split"
+directional = false
+lucide = "split"
+phosphor = "arrows-split"
+tabler = "arrows-split"

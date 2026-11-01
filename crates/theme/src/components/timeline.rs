@@ -66,6 +66,40 @@ pub struct TimelineTokens {
     pub ruler_tick_gap: f32,
     /// The drag length that moves a timecode field's value one frame: [`values::TIMELINE_SCRUB_STEP`].
     pub scrub_step: f32,
+    /// A marker flag's height at most (EffectCraft `markers_ui.rs:287`): [`values::TIMELINE_MARKER_HEIGHT`].
+    pub marker_height: f32,
+    /// A marker's hit width (`markers_ui.rs:310`): [`values::TIMELINE_MARKER_HIT`].
+    pub marker_hit: f32,
+    /// The room either side of a marker's name inside its box (`markers_ui.rs:304`): [`values::TIMELINE_MARKER_NAME_PAD`].
+    pub marker_name_pad: f32,
+    /// The room between a marker's flag and its name box (`markers_ui.rs:381`, `:389`): [`values::TIMELINE_MARKER_NAME_GAP`].
+    pub marker_name_gap: f32,
+    /// The room between a range marker's end and a name box after it (`markers_ui.rs:383`): [`values::TIMELINE_MARKER_END_GAP`].
+    pub marker_end_gap: f32,
+    /// A graph key's square (EffectCraft `graph.rs:543`): [`values::TIMELINE_GRAPH_KEY`].
+    pub graph_key: f32,
+    /// A graph key's hit square (`graph.rs:545`): [`values::TIMELINE_GRAPH_KEY_HIT`].
+    pub graph_key_hit: f32,
+    /// A graph handle's dot radius (`graph.rs:488`): [`values::TIMELINE_GRAPH_HANDLE`].
+    pub graph_handle: f32,
+    /// A graph handle's hit square (`graph.rs:490`): [`values::TIMELINE_GRAPH_HANDLE_HIT`].
+    pub graph_handle_hit: f32,
+    /// The room over the graph's plot (`graph.rs:412`): [`values::TIMELINE_GRAPH_TOP_INSET`].
+    pub graph_top_inset: f32,
+    /// The room between the plot's edge and its value labels (`graph.rs:441`): [`values::TIMELINE_GRAPH_LABEL_INSET`].
+    pub graph_label_inset: f32,
+    /// How far past the plot a key still counts as shown (`graph.rs:479`): [`values::TIMELINE_GRAPH_REACH`].
+    pub graph_reach: f32,
+    /// The graph's bottom bar (`graph.rs:411`): [`values::TIMELINE_GRAPH_BAR_HEIGHT`].
+    pub graph_bar_height: f32,
+    /// The room either side of the overview's runs (SoundCraft `universe.rs:61`): [`values::TIMELINE_OVERVIEW_INSET_X`].
+    pub overview_inset_x: f32,
+    /// The room over and under the overview's runs (`universe.rs:61`): [`values::TIMELINE_OVERVIEW_INSET_Y`].
+    pub overview_inset_y: f32,
+    /// How far the overview's view box reaches past the runs (`universe.rs:81`): [`values::TIMELINE_OVERVIEW_BOX_OUTSET`].
+    pub overview_box_outset: f32,
+    /// The least width the overview takes the time area to have (`universe.rs:80`): [`values::TIMELINE_OVERVIEW_VIEW_MIN`].
+    pub overview_view_min: f32,
 }
 
 /// Timeline tokens have no overridable field.
@@ -105,6 +139,23 @@ impl Family for TimelineTokens {
         "ruler_label_gap" 16.0..=512.0 => ruler_label_gap;
         "ruler_tick_gap" 2.0..=64.0 => ruler_tick_gap;
         "scrub_step" 0.25..=16.0 => scrub_step;
+        "marker_height" 4.0..=64.0 => marker_height;
+        "marker_hit" 4.0..=64.0 => marker_hit;
+        "marker_name_pad" 0.0..=32.0 => marker_name_pad;
+        "marker_name_gap" 0.0..=64.0 => marker_name_gap;
+        "marker_end_gap" 0.0..=32.0 => marker_end_gap;
+        "graph_key" 3.0..=32.0 => graph_key;
+        "graph_key_hit" 3.0..=48.0 => graph_key_hit;
+        "graph_handle" 1.0..=24.0 => graph_handle;
+        "graph_handle_hit" 3.0..=48.0 => graph_handle_hit;
+        "graph_top_inset" 0.0..=64.0 => graph_top_inset;
+        "graph_label_inset" 0.0..=32.0 => graph_label_inset;
+        "graph_reach" 0.0..=64.0 => graph_reach;
+        "graph_bar_height" 12.0..=128.0 => graph_bar_height;
+        "overview_inset_x" 0.0..=64.0 => overview_inset_x;
+        "overview_inset_y" 0.0..=64.0 => overview_inset_y;
+        "overview_box_outset" 0.0..=32.0 => overview_box_outset;
+        "overview_view_min" 1.0..=2048.0 => overview_view_min;
     };
 
     fn defaults(_: &Semantic<'_>) -> TimelineTokens {
@@ -138,6 +189,23 @@ impl Family for TimelineTokens {
             ruler_label_gap: values::TIMELINE_RULER_LABEL_GAP,
             ruler_tick_gap: values::TIMELINE_RULER_TICK_GAP,
             scrub_step: values::TIMELINE_SCRUB_STEP,
+            marker_height: values::TIMELINE_MARKER_HEIGHT,
+            marker_hit: values::TIMELINE_MARKER_HIT,
+            marker_name_pad: values::TIMELINE_MARKER_NAME_PAD,
+            marker_name_gap: values::TIMELINE_MARKER_NAME_GAP,
+            marker_end_gap: values::TIMELINE_MARKER_END_GAP,
+            graph_key: values::TIMELINE_GRAPH_KEY,
+            graph_key_hit: values::TIMELINE_GRAPH_KEY_HIT,
+            graph_handle: values::TIMELINE_GRAPH_HANDLE,
+            graph_handle_hit: values::TIMELINE_GRAPH_HANDLE_HIT,
+            graph_top_inset: values::TIMELINE_GRAPH_TOP_INSET,
+            graph_label_inset: values::TIMELINE_GRAPH_LABEL_INSET,
+            graph_reach: values::TIMELINE_GRAPH_REACH,
+            graph_bar_height: values::TIMELINE_GRAPH_BAR_HEIGHT,
+            overview_inset_x: values::TIMELINE_OVERVIEW_INSET_X,
+            overview_inset_y: values::TIMELINE_OVERVIEW_INSET_Y,
+            overview_box_outset: values::TIMELINE_OVERVIEW_BOX_OUTSET,
+            overview_view_min: values::TIMELINE_OVERVIEW_VIEW_MIN,
         }
     }
 
