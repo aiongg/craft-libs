@@ -1,7 +1,5 @@
 //! [`Symmetry`]: a painting symmetry's straight axes and their geometry. No egui.
 
-#![expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TO-S1)")]
-
 use kurbo::{Line, Point, Size, Vec2};
 
 /// The largest centre coordinate a symmetry keeps, in document units (PhotoCraft's).
@@ -45,27 +43,64 @@ impl Symmetry {
     /// beyond ±[`MAX_COORDINATE`]. The rotation wraps into 0 to 360.
     pub fn new(mode: SymmetryMode, center: Point, rotation: f64) -> Option<Symmetry> {
         // pc: crates/paint/src/symmetry.rs:41 `PresetSymmetry::new`.
-        todo!()
+        if !rotation.is_finite()
+            || !center.x.is_finite()
+            || !center.y.is_finite()
+            || center.x.abs() > MAX_COORDINATE
+            || center.y.abs() > MAX_COORDINATE
+        {
+            return None;
+        }
+        Some(Symmetry { mode, center, rotation: rotation.rem_euclid(360.0) })
     }
 
     /// The axes' unit directions: the first at 90° (Vertical, Dual), 0° (Horizontal) or 45°
     /// (Diagonal) plus the rotation, clockwise on screen; Dual adds the perpendicular.
     pub fn axes(&self) -> Vec<Vec2> {
         // pc: crates/paint/src/symmetry.rs:47 `directions`.
-        todo!()
+        let initial: f64 = match self.mode {
+            SymmetryMode::Horizontal => 0.0,
+            SymmetryMode::Diagonal => 45.0,
+            SymmetryMode::Vertical | SymmetryMode::Dual => 90.0,
+        };
+        let angle = (initial + self.rotation).to_radians();
+        let first = Vec2::new(angle.cos(), angle.sin());
+        if self.mode == SymmetryMode::Dual { vec![first, Vec2::new(-first.y, first.x)] } else { vec![first] }
     }
 
     /// Each axis clipped to the document `size` (`(0, 0)` to `size`), whether or not the centre is
     /// inside it; an axis that misses the document gives no segment.
     pub fn segments(&self, size: Size) -> Vec<Line> {
         // pc: crates/paint/src/symmetry.rs:73 `segments`.
-        todo!()
+        self.axes()
+            .into_iter()
+            .filter_map(|d| {
+                let (mut lo, mut hi) = (f64::NEG_INFINITY, f64::INFINITY);
+                for ((origin, direction), extent) in [(self.center.x, d.x), (self.center.y, d.y)].into_iter().zip([size.width, size.height]) {
+                    if direction.abs() < 1e-12 {
+                        if origin < 0.0 || origin > extent {
+                            return None;
+                        }
+                    } else {
+                        let (a, b) = (-origin / direction, (extent - origin) / direction);
+                        lo = lo.max(a.min(b));
+                        hi = hi.min(a.max(b));
+                    }
+                }
+                if !lo.is_finite() || !hi.is_finite() || hi < lo {
+                    return None;
+                }
+                Some(Line::new(self.center + d * lo, self.center + d * hi))
+            })
+            .collect()
     }
 
     /// The rotation handle: along the first axis from the centre, at `share` of the document's
     /// shorter side (`symmetry.handle_share`, 0.35), at least 1 unit.
     pub fn rotation_handle(&self, size: Size, share: f64) -> Point {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:227 `rotation_handle`.
-        todo!()
+        let d = self.axes().into_iter().next().unwrap_or(Vec2::new(1.0, 0.0));
+        let r = (size.width.min(size.height) * share).max(1.0);
+        self.center + d * r
     }
 }
