@@ -1555,3 +1555,31 @@ fn a_check_toggle_column_is_a_check_box() {
     };
     assert_eq!(boxes(CheckState::Unchecked), 1, "the box shows off the pointer");
 }
+
+// An end column sits after the trailing items at the trailing edge, `list.toggle_column` wide,
+// counted by `min_width`, and mirrors in a right-to-left interface; rows without one keep their
+// layout.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: K7")]
+fn an_end_toggle_column_sits_at_the_trailing_edge_and_mirrors() {
+    todo!()
+}
+
+// A sweep down an end column toggles the rows it crosses, and `ToggleEdit::column` is the index
+// in `toggle` order whatever the placement.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: K7")]
+fn a_sweep_over_an_end_column_reports_its_toggle_index() {
+    todo!()
+}
+
+// An always-visible column paints its off icon without the pointer in the dimmed colour (the
+// selected dimmed colour on a selected row); a plain column paints nothing there.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: K7")]
+fn an_always_visible_column_shows_its_off_icon_without_the_pointer() {
+    todo!()
+}

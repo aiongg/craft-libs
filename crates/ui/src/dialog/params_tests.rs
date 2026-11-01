@@ -510,3 +510,13 @@ fn a_number_row_is_unbounded_on_open_sides_and_clamped_on_bounded_ones() {
     let fields = open_dialog(&mut harness).expect("open").fields().clone();
     assert_eq!((fields.number("offset"), fields.number("count")), (Some(-5000.25), Some(10.0)));
 }
+
+// `ParamRows` draws one form row per parameter outside a dialog: a range as slider and field, a
+// choice as a select, a bool as a check box, a colour as a swatch whose press comes back as
+// `ParamRowsResponse::color`; `changed` reports an edit.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: K18")]
+fn param_rows_draw_range_choice_bool_and_colour() {
+    todo!()
+}

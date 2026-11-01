@@ -30,6 +30,10 @@ pub struct ToggleColumn {
     /// Drawn as a check box's box, not icons ([`check_box`](Self::check_box)).
     pub(super) boxed: bool,
     pub(super) tooltip: Option<String>,
+    /// Sits at the row's trailing end ([`at_end`](Self::at_end)).
+    pub(super) at_end: bool,
+    /// The off icon shows without the pointer ([`always_visible`](Self::always_visible)).
+    pub(super) always_visible: bool,
 }
 
 impl ToggleColumn {
@@ -49,6 +53,8 @@ impl ToggleColumn {
             check: false,
             boxed: false,
             tooltip: None,
+            at_end: false,
+            always_visible: false,
         }
     }
 
@@ -121,6 +127,34 @@ impl ToggleColumn {
     /// screen reader's.
     pub fn tooltip(mut self, tooltip: impl Into<String>) -> Self {
         self.tooltip = Some(tooltip.into());
+        self
+    }
+
+    /// The column sits at the row's trailing end instead of its reading start (default false):
+    /// Brush Settings' lock column. End columns follow the trailing items, in the order they were
+    /// added, from the reading start towards the edge; each is `list.toggle_column` wide, before
+    /// `list.trailing_pad`. The label and the trailing items give them their room first, and
+    /// [`min_width`](super::ListRow::min_width) counts them. They mirror with the row, take no
+    /// divider (the layer form's dividers follow the leading columns), and are not indented by
+    /// [`indented_toggles`](super::ListRow::indented_toggles). A sweep runs down the column as
+    /// down a leading one; [`ToggleEdit::column`] stays the index in
+    /// [`ListRow::toggle`](super::ListRow::toggle) order.
+    // pc: crates/ui-egui/src/panels/brush_panel.rs:325 (the lock 18 pt square centred 11 pt in
+    // from the row's right edge).
+    pub fn at_end(mut self, at_end: bool) -> Self {
+        self.at_end = at_end;
+        self
+    }
+
+    /// The off icon shows in every row, not only under the pointer (default false), in the row's
+    /// dimmed text colour (`list.text.dimmed`, `list.text.selected.dimmed` on a selected row);
+    /// the on icon and the hovered off icon are drawn as before. Photoshop shows the open lock on
+    /// every lockable Brush Settings row. Has no effect on a [check box](Self::check_box) cell,
+    /// which always shows.
+    // pc: crates/ui-egui/src/panels/brush_panel.rs:328-330 ("lock icons stay visible on every
+    // lockable section row"; `t.text` when on, `t.text_faint` when off).
+    pub fn always_visible(mut self, visible: bool) -> Self {
+        self.always_visible = visible;
         self
     }
 
@@ -272,7 +306,7 @@ pub(super) fn show<K: Clone>(
     if column.boxed || column.mixed {
         paint_check_or_mixed(ui, &response, column, cell.selected, style);
     } else {
-        paint(ui, response.rect, column, hovered, style);
+        paint(ui, response.rect, column, (hovered, cell.selected), style);
     }
     response
 }
@@ -328,7 +362,7 @@ fn passed_over(rect: Rect, pointer: Option<egui::Pos2>, delta: egui::Vec2) -> bo
     rect.x_range().contains(now.x) && before.min(now.y) <= rect.bottom() && before.max(now.y) >= rect.top()
 }
 
-fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, hovered: bool, style: &ListRowStyle) {
+fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, (hovered, selected): (bool, bool), style: &ListRowStyle) {
     if !ui.is_rect_visible(rect) {
         return;
     }
@@ -337,6 +371,9 @@ fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, hovered: bool, style: &List
         ui.painter().rect_filled(rect, 0.0, tint.fill.to_egui());
     }
     if !(column.on || hovered) {
+        if column.always_visible {
+            paint_off(ui, rect, column, selected, style);
+        }
         return;
     }
     let icon = if column.on { column.on_icon } else { column.off_icon };
@@ -346,6 +383,18 @@ fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, hovered: bool, style: &List
         None => style.icon,
     };
     icons::paint_in(ui, rect, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), color);
+}
+
+/// An [always visible](ToggleColumn::always_visible) cell that is off and not under the pointer:
+/// its off icon at `style.icon_size` in `style.dimmed`, or `style.selected_dimmed` on a selected
+/// row (`selected`), over the label colour fill `paint` already drew; as `paint` draws icons
+/// otherwise (`icons::paint_in` with `IconSize::Md.stroke()`).
+#[expect(clippy::todo, reason = "skeleton: K7")]
+fn paint_off(ui: &Ui, rect: Rect, column: &ToggleColumn, selected: bool, style: &ListRowStyle) {
+    // pc: crates/ui-egui/src/panels/brush_panel.rs:329-330 (`if *lock { t.text } else {
+    // t.text_faint }`, the "lock-open" icon at 12).
+    let _ = (ui, rect, column, selected, style);
+    todo!()
 }
 
 /// A [check box](ToggleColumn::check_box) or [mixed](ToggleColumn::mixed) cell in `response.rect`:
@@ -404,6 +453,6 @@ fn show_exclusive<K: Clone>(
     if let Some(tooltip) = &column.tooltip {
         response = response.tooltip(tooltip.as_str());
     }
-    paint(ui, response.rect, column, hovered, style);
+    paint(ui, response.rect, column, (hovered, cell.selected), style);
     response
 }

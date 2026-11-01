@@ -645,3 +645,42 @@ fn rail_edit_state_is_kept_per_rail() {
     edit_update(&ctx, a, |edit| edit.total = 5);
     assert_eq!((edit_state(&ctx, a).total, edit_state(&ctx, b).total), (5, 0));
 }
+
+// Risk 1 (gap 32): a `ToolRail` shown in a `FullWindowDialog` body docks at the body's start
+// edge under the title strip, at its metrics' width, and the body's remaining rect starts after
+// it. If it cannot, the smallest upstreamable egui change is `Panel::show_inside` taking a rect
+// (one commit on `aiongg/egui` `craft/interact-enabled`).
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: K18")]
+fn tool_rail_docks_inside_a_full_window_dialog() {
+    todo!()
+}
+
+// `ToolSlot::group_end` leaves `rail.group_gap` after the slot in one column, and after its row
+// in two; arrow keys still move between neighbouring buttons.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: K18")]
+fn tool_rail_group_gap_adds_space_after_the_slot() {
+    todo!()
+}
+
+// With `pick_by_key`, W picks the shared slot's last-used tool, Shift+W cycles Quick Selection
+// and Object Selection, R picks Refine Edge; hidden and disabled tools are skipped; the key is
+// consumed.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: K18")]
+fn tool_rail_pick_by_key_picks_and_shift_cycles_shared_letters() {
+    todo!()
+}
+
+// Letters go to a focused text field, an open menu and a dialog above the rail's own layer, and
+// without `pick_by_key` the rail reads no letters.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: K18")]
+fn tool_rail_pick_by_key_leaves_letters_to_text_fields_and_other_dialogs() {
+    todo!()
+}

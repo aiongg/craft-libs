@@ -42,23 +42,23 @@ pub enum ParamKind {
     Number { min: Option<f64>, max: Option<f64>, default: f64, step: f64, decimals: u32 },
     /// A check box.
     Bool { default: bool },
-    /// A [`Select`](crate::controls::Select) of `(id, label)` options; the field holds the id.
+    /// A [`Select`] of `(id, label)` options; the field holds the id.
     Choice { options: Vec<(String, String)>, default: Option<String> },
-    /// An [`AngleDial`](crate::controls::AngleDial) with its field, in degrees.
+    /// An [`AngleDial`] with its field, in degrees.
     Angle { default: f64 },
-    /// A [`Swatch`](crate::controls::Swatch) that opens the host's colour picker; `None`: unset
+    /// A [`Swatch`] that opens the host's colour picker; `None`: unset
     /// until picked.
     Color { default: Option<[f32; 3]> },
     /// A grid of `cells` integer fields, [`side`](ParamKind::grid_side) per row (Custom filter:
     /// `int[25]` is 5×5). A `cells` that is not square wraps every `round(sqrt(cells))` fields
     /// and the last row is short, as PhotoCraft lays it out.
     Grid { cells: usize, default: i64 },
-    /// A [`PointPicker`](crate::controls::PointPicker) over the preview image plus X and Y fields,
+    /// A [`PointPicker`] over the preview image plus X and Y fields,
     /// in percent of the image.
     Point { default: [f64; 2] },
     /// One of the document's channels by index, shown by name.
     Channel { names: Vec<String>, default: usize },
-    /// A [`TextField`](crate::controls::TextField).
+    /// A [`TextField`].
     Text { default: String },
     /// A number that may be unset: a "Custom" check box switches the field on. Unset the key is
     /// absent from the [`DialogFields`] (PhotoCraft's Batch quality: `null` keeps the command's
@@ -673,6 +673,73 @@ pub(super) fn first_field_focused<R>(ui: &mut Ui, id: DialogId, body: impl FnOnc
 pub(super) fn draw_rows(params: &[Param], dialog: DialogId, form: &mut Form<'_>, fields: &mut DialogFields, preview: Option<&SizedTexture>) {
     for param in params {
         param.row_in(dialog, form, fields, preview);
+    }
+}
+
+/// What [`ParamRows::show`] returns.
+#[allow(dead_code, reason = "reachable once dialog/mod.rs re-exports it (a root change for the lead)")]
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ParamRowsResponse {
+    /// The rows' form.
+    pub response: Response,
+    /// A row changed `fields` this pass (each pass of a slider drag, a keystroke that parsed).
+    pub changed: bool,
+    /// The colour parameter whose swatch was pressed this pass: the host opens its colour picker
+    /// for the request and writes the answer into the request's key as a
+    /// [`FieldValue::Color`].
+    pub color: Option<ColorRequest>,
+    /// The Browse button pressed this pass: the host picks a path and writes it into the
+    /// request's key as a [`FieldValue::Text`].
+    pub path: Option<PathRequest>,
+}
+
+/// The rows of a parameter list outside a [`ParamDialog`]: one form row per [`Param`], as the
+/// dialog draws them, in a panel the host lays out (Filter Gallery's effect settings in its side
+/// column).
+///
+/// ```ignore
+/// let rows = ParamRows::new("gallery-settings", catalog.params(effect.filter)).show(ui, &mut effect.fields);
+/// if let Some(request) = rows.color { app.pick_color(request) }
+/// ```
+///
+/// - Every [`ParamKind`] draws as in [`ParamDialog`] (labels translated through the host's
+///   `I18n`, [`enabled_when`](Param::enabled_when), hints and tooltips), in a
+///   [`FormGrid`] whose label column fits the panel.
+/// - Values live in the host's [`DialogFields`]; the rows fill a missing key with its parameter's
+///   default before drawing it. The host keeps its own history of `fields` (a
+///   [`LocalHistory`](super::LocalHistory) settled while no drag is in progress) and its own
+///   Reset.
+/// - No first-field focus: a panel opens without taking the keyboard.
+#[allow(dead_code, reason = "reachable once dialog/mod.rs re-exports it (a root change for the lead)")]
+#[must_use = "show the rows with `show`"]
+pub struct ParamRows<'a> {
+    id_salt: egui::IdSalt,
+    params: &'a [Param],
+    preview: Option<SizedTexture>,
+}
+
+#[allow(dead_code, reason = "reachable once dialog/mod.rs re-exports it (a root change for the lead)")]
+impl<'a> ParamRows<'a> {
+    pub fn new(id_salt: impl egui::AsIdSalt, params: &'a [Param]) -> Self {
+        Self { id_salt: egui::IdSalt::new(id_salt), params, preview: None }
+    }
+
+    /// The image a [`ParamKind::Point`] row picks over.
+    pub fn preview(mut self, image: SizedTexture) -> Self {
+        self.preview = Some(image);
+        self
+    }
+
+    /// Draws the rows over `fields`.
+    #[expect(clippy::todo, reason = "skeleton: K18")]
+    pub fn show(self, ui: &mut Ui, fields: &mut DialogFields) -> ParamRowsResponse {
+        // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:782-786 (the selected effect's parameters
+        // drawn from its spec in a scrolling column), with `draw_rows` in a `FormGrid` as
+        // `ParamDialog::show` draws its body here, and the presses taken with `take_color_press`
+        // and `take_path_press` under the rows' id (`ui.make_persistent_id(id_salt)`).
+        let _ = (self.id_salt, self.params, self.preview, ui, fields);
+        todo!()
     }
 }
 

@@ -1,18 +1,31 @@
-//! [`LocalHistory`]: undo and redo inside a dialog, so Cmd/Ctrl+Z steps the open dialog's own
-//! settings instead of reaching the document beneath it.
+//! [`LocalHistory`]: undo and redo inside a dialog or a tool session, so Cmd/Ctrl+Z steps the
+//! open dialog's own settings, or the session's draft, instead of reaching the document beneath
+//! it.
 //!
 //! A dialog keeps a [`LocalHistory`] of its settings and calls [`settle`](LocalHistory::settle)
 //! every pass. A change becomes one step once no edit is in progress, so a slider drag is one
 //! step rather than one per frame. [`Dialog::history`](super::Dialog::history) does this for a
 //! dialog; workspaces with their own stacks (Liquify, Filter Gallery, Wide Angle, Camera Raw) use
 //! `LocalHistory` and [`take_step`] directly.
+//!
+//! Tool sessions use it the same way: a draft the app owns while a tool is open (Free Transform,
+//! Puppet Warp, Perspective Warp, Crop) and the session of every full-window editor (Liquify,
+//! Select and Mask, Content-Aware Fill, Filter Gallery, Wide Angle, Vanishing Point) keep a
+//! `LocalHistory` of their draft value. Such a session settles after each `apply` with `busy`
+//! true while a gesture runs and during an arrow-key nudge run (the nudge pause), so a drag or a
+//! run of nudges is one step. The app routes Edit › Undo and Redo to the open session; no session
+//! binds ⌘Z itself.
+//!
+//! [`step`](LocalHistory::step) restores the whole value, so a session keeps its view state (zoom,
+//! pan, the picked part, the current tool) outside the value it records: Undo never moves the
+//! view.
 
 use egui::{Context, Key, Modifiers};
 
 /// Most steps a history keeps.
 const LIMIT: usize = 100;
 
-/// Undo and redo stacks of a dialog's settings `T`.
+/// Undo and redo stacks of a dialog's settings or a tool session's draft `T`, at most 100 steps.
 #[derive(Clone, Debug)]
 pub struct LocalHistory<T> {
     undo: Vec<T>,

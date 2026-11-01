@@ -355,16 +355,9 @@ pub struct SubRow {
     pub mask: bool,
 }
 
-/// One entry of the blend-mode list.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BlendChoice {
-    /// The app's key of the mode, reported back in events.
-    pub key: String,
-    /// The mode's name as shown.
-    pub label: String,
-    /// A separator before this entry (Photoshop's groups of modes).
-    pub separator_before: bool,
-}
+/// One entry of the blend-mode list, shared with the imaging editors (craft-imaging cannot
+/// depend on craft-layers).
+pub use craft_ui::controls::blend_choice::BlendChoice;
 
 /// The active layer's properties, for [`BlendRows`](super::rows::BlendRows).
 #[derive(Clone, Debug, PartialEq)]

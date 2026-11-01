@@ -614,7 +614,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
-    /// Adds a toggle column at the reading start, after those added before it.
+    /// Adds a toggle column at the reading start, after those added before it; one
+    /// [`at_end`](ToggleColumn::at_end) sits at the trailing end instead.
     pub fn toggle(mut self, column: ToggleColumn) -> Self {
         self.columns.push(column);
         self
@@ -974,6 +975,11 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let mut toggles = Vec::with_capacity(columns.len());
         for (index, column) in columns.iter().enumerate() {
             let cell = Cell { index, row_id, key: &key, row_label: &label, selected };
+            if column.at_end {
+                let at = end_cell(&geometry, &style, rect, &columns, index);
+                toggles.push(toggle::show(ui, &cell, column, (at, at), &style, &mut events));
+                continue;
+            }
             let offset = geometry.toggles_start + index as f32 * style.toggle_column;
             let at = geometry.span(rect, offset, style.toggle_column);
             // A sweep crosses an indented cell anywhere between the leading edge and the cell.
@@ -1101,6 +1107,24 @@ fn min_width(style: &ListRowStyle, (columns, indented): (usize, bool), column: f
     let required: f32 = items.iter().filter(|(_, optional)| !optional).map(|(w, _)| w + style.gap).sum();
     let leading = leading.map_or(0.0, |side| side + style.gap);
     columns as f32 * style.toggle_column * toggle_rooms(indented) + style.pad_x + column + leading + style.min_label + required + style.trailing_pad
+}
+
+/// The cell of the [end column](ToggleColumn::at_end) `index` of `columns` in a row of `rect`:
+/// `style.toggle_column` wide, the row's height, after the trailing items, the end columns in
+/// [`ListRow::toggle`] order towards the trailing edge, the last one `style.trailing_pad` from it;
+/// mirrored with the row ([`Geometry::span`]).
+///
+/// Filling it also changes the callers: [`min_width`] and [`Geometry::new`] count only the
+/// leading columns for the reading-start room and the dividers (`paint_background`'s
+/// `columns`), and reserve `n_end × style.toggle_column` at the trailing end before the trailing
+/// items are placed; a leading column's offset counts only the leading columns before it.
+/// Rows without end columns lay out exactly as before.
+#[expect(clippy::todo, reason = "skeleton: K7")]
+fn end_cell(geometry: &Geometry, style: &ListRowStyle, rect: Rect, columns: &[ToggleColumn], index: usize) -> Rect {
+    // pc: crates/ui-egui/src/panels/brush_panel.rs:325 (the lock's 18 pt square centred 11 pt in
+    // from the row's right edge, after the name).
+    let _ = (geometry, style, rect, columns, index);
+    todo!()
 }
 
 /// Where the parts of a row lie, as offsets from the reading start of the row.

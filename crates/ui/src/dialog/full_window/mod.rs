@@ -1,4 +1,65 @@
-//! [`FullWindowDialog`]: a modal workspace that fills the window (Liquify, Filter Gallery).
+//! [`FullWindowDialog`]: a modal workspace that fills the window (Liquify, Filter Gallery), and
+//! the regions its body is built from.
+//!
+//! The body calls the regions in layout order; each `egui::Panel` region carves its strip off
+//! what is left, and the canvas fills the rest:
+//!
+//! 1. the [`OptionsBar`](crate::patterns::OptionsBar), full width under the title strip;
+//! 2. the tool strip, a [`ToolRail`](crate::patterns::ToolRail) docked inside the dialog;
+//! 3. one or more [`FullWindowSide`] columns, stacked from the end edge inwards, with the footer
+//!    buttons in one of them;
+//! 4. a [`FullWindowZoomBar`] under the canvas, where the workspace has one (Filter Gallery);
+//! 5. the [`FullWindowCanvas`], drawing the app's image through
+//!    [`RasterDisplay`](crate::canvas::RasterDisplay) with one
+//!    [`CanvasTool`](crate::canvas::CanvasTool).
+//!
+//! [`FullWindowView`] is the view's plain data the workspace keeps beside its session (never in
+//! its [`LocalHistory`](super::LocalHistory)), [`FullWindowTitle`] the title strip's text, and
+//! [`PreviewStatus`] the request and result bookkeeping of a proxy preview the app computes.
+//!
+//! ```ignore
+//! FullWindowDialog::new("liquify")
+//!     .title(FullWindowTitle::new(&labels.name).subject(&layer).zoom(view.zoom_percent()).text(ctx))
+//!     .show(ctx, &mut dialog, &mut session, |ui, session, fx| {
+//!         OptionsBar::new("liquify-bar").show(ui, |bar| bar.body(|ui| options(ui, session)));
+//!         let rail = ToolRail::new("liquify-tools").pick_by_key(true).show(ui, &SLOTS, &tool, &mut last, |_, _| {});
+//!         let side = FullWindowSide::new("liquify-props")
+//!             .footer(SideFooter::bottom(vec![FooterButton::new(ButtonRole::Default, ok), FooterButton::new(ButtonRole::Cancel, cancel)]))
+//!             .show(ui, fx, |ui| properties(ui, session));
+//!         let canvas = FullWindowCanvas::new("liquify-view", &mut view).source(&image).tool(&mut brush).show(ui);
+//!     });
+//! ```
+
+mod canvas;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod canvas_tests;
+mod labels;
+mod preview;
+#[cfg(test)]
+mod preview_tests;
+mod side;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod side_tests;
+pub(crate) mod stories;
+mod style;
+mod title;
+#[cfg(test)]
+mod title_tests;
+mod view;
+#[cfg(test)]
+mod view_tests;
+mod zoom_bar;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod zoom_bar_tests;
+
+pub use canvas::{FullWindowCanvas, FullWindowCanvasOutput, RasterOverlay};
+pub use labels::FullWindowLabels;
+pub use preview::{PreviewStatus, PreviewTicket};
+pub use side::{FullWindowSide, FullWindowSideOutput, SideFooter, SideWidth};
+pub use style::FullWindowStyle;
+pub use title::FullWindowTitle;
+pub use view::{FullWindowView, FullWindowZoom, FullWindowZoomKeys};
+pub use zoom_bar::{FullWindowZoomBar, FullWindowZoomBarResponse};
 
 use egui::accesskit::Role;
 use egui::{Color32, Context, Id, Key, Modal, Modifiers, Order, Rect, Ui, UiBuilder, UiKind};
