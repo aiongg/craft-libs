@@ -420,8 +420,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             wheel_steps,
             fit,
             content,
-            // S5-F7 hides the text where this says.
-            text_shown: _,
+            text_shown,
             highlighted,
             placeholder,
             size,
@@ -472,7 +471,9 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
             action = Some(Action::Close { reason: CancelReason::Disabled, focus: false });
         }
 
-        let width = box_width(ui, id, &style.field, fit.then_some(&options), content.as_ref().map(|c| c.size.x));
+        // The text is shown unless a preview takes its place.
+        let (box_text, row_text) = (content.is_none() || text_shown == SelectText::Always, content.is_none() || text_shown != SelectText::Never);
+        let width = box_width(ui, id, &style.field, fit.then_some(&options), content.as_ref().map(|c| c.size.x), box_text);
         let (_, rect) = ui.allocate_space(vec2(width, style.field.height));
         let response = Interactive::with_id(id, Role::ComboBox, label.as_str())
             .expanded(state.open)
@@ -527,7 +528,8 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 .height(style.list.max_height + header)
                 .surface(style.popup);
             let menu = header_menu.as_ref().map(|m| m.gear(id));
-            let list = List { style: &style, size, id, chosen, enabled, wheel_steps, search: search.as_ref(), menu, content: content.as_ref() };
+            let list =
+                List { style: &style, size, id, chosen, enabled, wheel_steps, search: search.as_ref(), menu, content: content.as_ref(), row_text };
             keyed_active = pass.listbox.active();
             let mut menu_picked = None;
             pass.state.wheel.stepped = false;
@@ -603,7 +605,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> Select<'a, T> {
                 (content.paint)(painter, rect, &*value);
             }
         };
-        let leading = content.as_ref().filter(|_| shown_option.is_some()).map(|c| Leading { size: c.size, paint: &paint_value });
+        let leading = content.as_ref().filter(|_| shown_option.is_some()).map(|c| Leading { size: c.size, text: box_text, paint: &paint_value });
         let focused = open || ui.memory(|m| m.has_focus(id));
         paint_box(
             ui,
@@ -1313,6 +1315,8 @@ struct List<'l, T> {
     search: Option<&'l (String, String)>,
     menu: Option<GearMenu<'l>>,
     content: Option<&'l RowContent<'l, T>>,
+    /// The options' text shows beside their content ([`SelectText`]).
+    row_text: bool,
 }
 
 impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
@@ -1429,10 +1433,10 @@ impl<T: Clone + PartialEq + Send + Sync + 'static> List<'_, T> {
                 option,
                 text: &text,
                 icon: options.icon(option),
-                leading: self.content.map(|c| Leading { size: c.size, paint: &paint }),
+                leading: self.content.map(|c| Leading { size: c.size, text: self.row_text, paint: &paint }),
                 chosen: self.chosen == Some(option),
                 enabled: options.enabled(option),
-                tooltip: options.tooltip(option),
+                tooltip: options.tooltip(option).or_else(|| (!self.row_text).then_some(text.as_ref())),
             };
             let outcome = rows.show(ui, listbox, &row);
             if outcome.picked {
@@ -1556,9 +1560,13 @@ fn keep_active_shown<T: Clone + PartialEq>(listbox: &mut Listbox, shown: &Shown<
 
 /// The box's width: all the room in a justified layout, else `field.width`, or the width that
 /// fits `fit`'s options (not rows).
-fn box_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, fit: Option<&Options<'_, '_, T>>, content: Option<f32>) -> f32 {
+fn box_width<T: Clone + PartialEq>(ui: &Ui, id: Id, f: &TextFieldStyle, fit: Option<&Options<'_, '_, T>>, content: Option<f32>, text: bool) -> f32 {
     match fit {
         _ if ui.layout().horizontal_justify() => ui.available_width(),
+        Some(options) if !options.rows() && !text => {
+            let icon = if options.has_icons() { f.icon + f.gap } else { 0.0 };
+            (2.0 * f.pad_x + icon + content.unwrap_or(0.0) + f.gap + f.icon).ceil()
+        }
         Some(options) if !options.rows() => fitted_width(ui, id, f, options) + content.map_or(0.0, |w| w + f.gap),
         _ => f.width,
     }
@@ -1628,6 +1636,9 @@ fn paint_box(ui: &Ui, style: &SelectStyle, response: &egui::Response, content: B
     if let Some(leading) = content.leading {
         leading.paint(ui, start, rect.center().y);
         start += forward * (leading.size.x + f.gap);
+    }
+    if content.leading.is_some_and(|l| !l.text) {
+        return;
     }
     let (text, color) = match content.text {
         Some(text) => (text, text_color),

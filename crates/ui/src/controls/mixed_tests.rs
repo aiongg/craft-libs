@@ -1,16 +1,25 @@
 //! Mixed values.
-#![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+#![allow(clippy::expect_used, reason = "tests")]
+
+use super::mixed::{Apply, MixedValue};
 
 // `MixedValue::of`: none gives `None`, equal values `Same`, any difference `Mixed`.
 #[test]
-#[ignore = "skeleton"]
 fn the_shared_value_or_mixed() {
-    todo!()
+    assert_eq!(MixedValue::<i32>::of([]), None);
+    assert_eq!(MixedValue::of([3, 3, 3]), Some(MixedValue::Same(3)));
+    assert_eq!(MixedValue::of([3, 3, 4]), Some(MixedValue::Mixed));
+    assert_eq!(MixedValue::of([3, 4]).and_then(MixedValue::same), None);
 }
 
 // `Apply::change` is `None` until `apply` is on, and `None` again when the value equals the current one.
 #[test]
-#[ignore = "skeleton"]
 fn an_apply_row_changes_only_when_applied_and_different() {
-    todo!()
+    let mut row = Apply::of([1, 2]).expect("two items");
+    assert!(row.mixed && !row.apply, "opening the dialog applies nothing");
+    assert_eq!(row.change(&2), None);
+    row.apply = true;
+    assert_eq!(row.change(&2), Some(1));
+    assert_eq!(row.change(&1), None);
+    assert!(!Apply::of([5, 5]).expect("two items").mixed);
 }

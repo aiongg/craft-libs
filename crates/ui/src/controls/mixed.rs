@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Mixed values: what a field shows while a multi-selection's values differ, and the apply
 //! toggle of a bulk-edit dialog.
 //!
@@ -9,9 +8,12 @@
 //! [`MixedLabels::mixed`]). This module gives the host the value to feed them and PdfCraft's
 //! apply rows.
 
-use egui::{AsIdSalt, IdSalt, Ui};
+use egui::{AsIdSalt, IdSalt, Ui, Vec2};
 
+use super::Checkbox;
 use crate::edit::EditResponse;
+use crate::localized::Labels as _;
+use crate::primitives::{Content, Text};
 
 crate::words! {
     /// The words of mixed values, English by default.
@@ -36,7 +38,9 @@ impl<T: PartialEq> MixedValue<T> {
     /// (VectorCraft's `same` over the selected type objects, PdfCraft's `Change::from_values`).
     // vectorcraft: crates/ui-egui/src/panels/character.rs:60 (value, mixed, saw)
     pub fn of(values: impl IntoIterator<Item = T>) -> Option<Self> {
-        todo!()
+        let mut values = values.into_iter();
+        let first = values.next()?;
+        Some(if values.all(|value| value == first) { MixedValue::Same(first) } else { MixedValue::Mixed })
     }
 
     pub fn is_mixed(&self) -> bool {
@@ -67,13 +71,16 @@ impl<T: Clone + PartialEq> Apply<T> {
     /// The first item's value, `mixed` when another differs, not applied; `None` for no items.
     // pdfcraft: crates/ui-egui/src/tools/bulk_fields.rs:18 from_values
     pub fn of(values: impl IntoIterator<Item = T>) -> Option<Self> {
-        todo!()
+        let mut values = values.into_iter();
+        let value = values.next()?;
+        let mixed = values.any(|other| other != value);
+        Some(Apply { value, mixed, apply: false })
     }
 
     /// The value to write when applied and different from `current`.
     // pdfcraft: crates/ui-egui/src/tools/bulk_fields.rs:25 changed
     pub fn change(&self, current: &T) -> Option<T> {
-        todo!()
+        (self.apply && self.value != *current).then(|| self.value.clone())
     }
 }
 
@@ -107,6 +114,19 @@ impl<'a, T: Clone + PartialEq> ApplyRow<'a, T> {
     /// check's.
     // pdfcraft: crates/ui-egui/src/tools/bulk_fields.rs:205 row
     pub fn show(self, ui: &mut Ui, edit: impl FnOnce(&mut Ui, &mut T)) -> EditResponse<bool> {
-        todo!()
+        let Self { id_salt, label, apply, labels } = self;
+        let check = Checkbox::bool(label, &mut apply.apply).id_salt((id_salt, "apply")).show(ui);
+        let value = &mut apply.value;
+        ui.add_enabled_ui(apply.apply, |ui| {
+            ui.push_id((id_salt, "editor"), |ui| edit(ui, value));
+        });
+        if apply.mixed {
+            let labels = labels.unwrap_or_else(|| MixedLabels::of(ui));
+            ui.add(Text::new(labels.mixed).content(Content::Muted));
+        } else {
+            // The third cell of the grid row stays empty.
+            ui.allocate_space(Vec2::ZERO);
+        }
+        check
     }
 }
