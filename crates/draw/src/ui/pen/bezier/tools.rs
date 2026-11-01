@@ -4,12 +4,14 @@
 //! Each task wires its calls into `bezier/mod.rs` (`takes`, `start`, `track`, `edit`, `pointer`,
 //! `keys`, `paint`) and may change these private signatures.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land (tasks PE-B1, PE-C1)")]
+use egui::{Key, Modifiers, Pos2, Ui};
+use kurbo::Point;
 
-use egui::{Modifiers, Pos2, Ui};
-
-use super::{BezierHit, BezierOverlay, BezierResponse, BezierTool, Pass, PathEdit};
-use craft_ui::canvas::claim::{Claim, PrimaryPress};
+use super::{BezierHit, BezierOverlay, BezierResponse, BezierTool, Drag, KnotRef, Part, PartRef, Pass, PathEdit, PathSelection, Target};
+use crate::geometry::curvature::CURVATURE_T_RANGE;
+use craft_ui::behavior::nudge;
+use craft_ui::canvas::Claim;
+use craft_ui::canvas::claim::PrimaryPress;
 use craft_ui::edit::Gesture;
 
 impl BezierOverlay<'_> {
@@ -34,7 +36,7 @@ impl BezierOverlay<'_> {
     ///   subpath (those are the pen draft's: the first closes, the last retracts). Nothing else,
     ///   so the pen draft starts a path on empty canvas.
     /// - Curvature: an anchor or a segment, never a handle or empty canvas.
-    pub(super) fn tool_takes(&self, hit: &BezierHit, mods: Modifiers) -> bool {
+    pub(super) fn tool_takes(&self, hit: &BezierHit, _mods: Modifiers) -> bool {
         // pc: crates/ui-egui/src/tools/anchor_tools.rs:37-48 `target`, :57-84 `pen_auto` (ends
         // excluded :74-78); crates/ui-egui/src/tools/direct_select.rs:368-376 `curvature_target`.
         match self.tool {
@@ -47,7 +49,7 @@ impl BezierOverlay<'_> {
                     self.subpath(path, knot.subpath).is_some_and(|s| s.closed || (knot.knot != 0 && knot.knot + 1 != s.knots.len()))
                 }
             },
-            // Task PE-C1 takes anchors and segments.
+            BezierTool::Curvature => !matches!(hit, BezierHit::Handle { .. }),
             _ => false,
         }
     }
@@ -79,13 +81,18 @@ impl BezierOverlay<'_> {
     pub(super) fn hover_mark(&self, pass: &Pass<'_>, pointer: Pos2, mods: Modifiers) -> Option<BezierHit> {
         // pc: crates/ui-egui/src/tools/anchor_tools.rs:152-169 `draw_hover`, `draw_pen_hover`;
         // crates/ui-egui/src/tools/direct_select.rs:378-389 `curvature_hover`.
-        if !matches!(self.tool, BezierTool::AddAnchor | BezierTool::DeleteAnchor | BezierTool::AutoAddDelete) || mods.command {
+        if !matches!(self.tool, BezierTool::AddAnchor | BezierTool::DeleteAnchor | BezierTool::AutoAddDelete | BezierTool::Curvature) || mods.command
+        {
             return None;
         }
         if Claim::owner(&pass.ctx, pass.canvas.id).is_some_and(|owner| owner != pass.id) {
             return None;
         }
         let hit = self.hit_at(pass, pointer).filter(|hit| self.tool_takes(hit, mods))?;
+        if self.tool == BezierTool::Curvature {
+            // Every part it takes is one a press edits.
+            return Some(hit);
+        }
         // Only what a press would edit: an anchor under Add and a segment under Delete are taken
         // and do nothing (PhotoCraft draws no mark there).
         let mut would = BezierResponse { id: pass.id, event: None, select: None, insert: None, delete: None, context: None, claimed: false };
@@ -93,33 +100,75 @@ impl BezierOverlay<'_> {
         (would.insert.is_some() || would.delete.is_some()).then_some(hit)
     }
 
-    /// The Curvature tool's press (task PE-C1), the press's click count from
+    /// The Curvature tool's press (task PE-C1) on `hit`, the press's click count from
     /// [`PrimaryPress::clicks`]:
     ///
-    /// - second click of a double-click on an anchor: `gesture.set(ToggleCurvature)`, no drag;
+    /// - second click of a double-click on an anchor: a [`Target::Toggle`], reported as a
+    ///   `ToggleCurvature` Set on release, no drag;
     /// - an anchor: picks it and selects it alone; past `bezier.click_slop` a drag reports
     ///   `MoveCurvature { anchors: [it], by }` (Begin, Update, Commit; Esc cancels);
-    /// - a segment: an insert at the hit's `t` clamped to
-    ///   [`CURVATURE_T_RANGE`](crate::geometry::curvature::CURVATURE_T_RANGE); a drag reports
-    ///   `InsertCurvature { segment, t, by }` as one gesture, a click without drag one Set with
-    ///   `by` zero.
+    /// - a segment: an insert at the hit's `t` clamped to [`CURVATURE_T_RANGE`], selecting the
+    ///   new anchor; a drag reports `InsertCurvature { segment, t, by }` as one gesture, a click
+    ///   without drag one Set with `by` zero.
     ///
-    /// Returns the drag target the pass keeps (the private `Target` gains the two Curvature
-    /// kinds).
-    pub(super) fn curvature_press(&self, hit: BezierHit, press: PrimaryPress, ui: &Ui, gesture: &mut Gesture<PathEdit>, out: &mut BezierResponse) {
+    /// Returns the press the pass keeps.
+    pub(super) fn curvature_press(
+        &self,
+        hit: BezierHit,
+        press: PrimaryPress,
+        pass: &Pass<'_>,
+        parts: &[(Part, PartRef)],
+        picked: &mut Option<u64>,
+        out: &mut BezierResponse,
+    ) -> Drag {
         // pc: crates/ui-egui/src/tools/direct_select.rs:406-443 `curvature_press`, :391-404
         // `curvature_toggle_active`; crates/ui-egui/src/tools/vector_ui/curvature.rs:69-86
         // (double-click toggles). new: the click count is `PrimaryPress::clicks` (lead call 30).
-        todo!()
+        let drag = |target| Drag { press, target, began: false, cancelled: false, waits: None };
+        match hit {
+            BezierHit::Handle { .. } => Drag { press, target: Target::Nothing, began: false, cancelled: true, waits: None },
+            BezierHit::Anchor { path, knot } => {
+                *picked = parts.iter().find(|(_, r)| self.paths[r.path].key == path && r.knot == knot && r.side.is_none()).map(|(p, _)| p.key);
+                out.select = Some(PathSelection { path: Some(path), anchors: vec![knot], segment: None });
+                if press.clicks(&pass.ctx) == 2 {
+                    return drag(Target::Toggle { path, knot });
+                }
+                let from = self.knot(path, knot).map_or(Point::ZERO, |k| k.anchor);
+                drag(Target::CurvatureMove { path, knot, from })
+            }
+            BezierHit::Segment { path, segment, t } => {
+                let t = t.clamp(*CURVATURE_T_RANGE.start(), *CURVATURE_T_RANGE.end());
+                let from =
+                    self.subpath(path, segment.subpath).and_then(|s| s.segment(segment.knot)).map_or(Point::ZERO, |c| kurbo::ParamCurve::eval(&c, t));
+                let new = KnotRef::new(segment.subpath, segment.knot + 1);
+                *picked = None;
+                out.select = Some(PathSelection { path: Some(path), anchors: vec![new], segment: None });
+                drag(Target::CurvatureInsert { path, segment, t, from })
+            }
+        }
     }
 
     /// The Curvature tool's keys while the overlay has focus (task PE-C1): the arrows move the
     /// selected anchors as one `MoveCurvature` Set (1 unit, ⇧ 10: the overlay's
-    /// [`steps`](BezierOverlay::steps)); Enter toggles the picked anchor (`ToggleCurvature` Set);
-    /// Delete, Backspace, Insert, the Page keys and Esc as [`BezierTool::Direct`].
-    pub(super) fn curvature_keys(&self, ui: &Ui, gesture: &mut Gesture<PathEdit>, out: &mut BezierResponse) {
+    /// [`steps`](BezierOverlay::steps)); Enter toggles the picked anchor (`ToggleCurvature` Set).
+    /// A picked handle, Delete, Backspace, Insert, the Page keys and Esc are
+    /// [`BezierTool::Direct`]'s, which the caller runs after this.
+    pub(super) fn curvature_keys(&self, ui: &Ui, part: Option<PartRef>, gesture: &mut Gesture<PathEdit>) {
         // new: Photoshop's Curvature Pen moves points with the arrows; the toggle on Enter is the
         // keyboard path to the double-click (step7-pen "Path overlay: new tools").
-        todo!()
+        if part.is_some_and(|r| r.side.is_some()) {
+            return;
+        }
+        if let Some((by, _)) = nudge::read_with_alt(ui, self.steps.0, self.steps.1)
+            && let Some(path) = self.selection.path
+            && !self.selection.anchors.is_empty()
+        {
+            gesture.set(PathEdit::MoveCurvature { path, anchors: self.selection.anchors.clone(), by });
+        }
+        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter))
+            && let Some(r) = part
+        {
+            gesture.set(PathEdit::ToggleCurvature { path: self.paths[r.path].key, knot: r.knot });
+        }
     }
 }

@@ -269,6 +269,25 @@ enum Target {
         path: u64,
         knot: KnotRef,
     },
+    /// The Curvature tool's drag of one anchor, grabbed at `from`.
+    CurvatureMove {
+        path: u64,
+        knot: KnotRef,
+        from: Point,
+    },
+    /// The Curvature tool's insert into `segment` at `t`, dragged from `from`, the point of the
+    /// curve at `t`.
+    CurvatureInsert {
+        path: u64,
+        segment: KnotRef,
+        t: f64,
+        from: Point,
+    },
+    /// The second click of a double-click on an anchor: a toggle on release, never a drag.
+    Toggle {
+        path: u64,
+        knot: KnotRef,
+    },
     /// A press the overlay took that moves nothing (⇧ on a selected anchor deselects it).
     Nothing,
 }
@@ -680,6 +699,9 @@ impl<'a> BezierOverlay<'a> {
             self.anchor_click(hit, mods, out);
             return nothing;
         }
+        if self.tool == BezierTool::Curvature {
+            return self.curvature_press(hit, press, pass, parts, picked, out);
+        }
         let part_key = |path: u64, knot: KnotRef, side: Option<HandleSide>| {
             parts.iter().find(|(_, r)| self.paths[r.path].key == path && r.knot == knot && r.side == side).map(|(p, _)| p.key)
         };
@@ -745,7 +767,11 @@ impl<'a> BezierOverlay<'a> {
             return down.then_some(d);
         }
         if let Some(pointer) = pointer {
-            if !d.began && d.target != Target::Nothing && pointer.distance(d.press.origin) > pass.style.click_slop {
+            if !d.began
+                && d.target != Target::Nothing
+                && !matches!(d.target, Target::Toggle { .. })
+                && pointer.distance(d.press.origin) > pass.style.click_slop
+            {
                 gesture.begin();
                 d.began = true;
             }
@@ -768,6 +794,10 @@ impl<'a> BezierOverlay<'a> {
             gesture.commit();
         } else if let Target::Convert { path, knot } = d.target {
             gesture.set(PathEdit::Convert { path, knot, out: None });
+        } else if let Target::Toggle { path, knot } = d.target {
+            gesture.set(PathEdit::ToggleCurvature { path, knot });
+        } else if let Target::CurvatureInsert { path, segment, t, .. } = d.target {
+            gesture.set(PathEdit::InsertCurvature { path, segment, t, by: Vec2::ZERO });
         }
         None
     }
@@ -793,7 +823,15 @@ impl<'a> BezierOverlay<'a> {
                 let out = snapped(&BezierHit::Anchor { path, knot }, view.to_doc(pointer));
                 PathEdit::Convert { path, knot, out: Some(out) }
             }
-            Target::Nothing => return None,
+            &Target::CurvatureMove { path, knot, from } => {
+                let delta = if mods.shift { constrain(delta) } else { delta };
+                PathEdit::MoveCurvature { path, anchors: vec![knot], by: snapped(&BezierHit::Anchor { path, knot }, from + delta) - from }
+            }
+            &Target::CurvatureInsert { path, segment, t, from } => {
+                let delta = if mods.shift { constrain(delta) } else { delta };
+                PathEdit::InsertCurvature { path, segment, t, by: snapped(&BezierHit::Segment { path, segment, t }, from + delta) - from }
+            }
+            Target::Nothing | Target::Toggle { .. } => return None,
         })
     }
 
@@ -901,6 +939,9 @@ impl<'a> BezierOverlay<'a> {
             && let Some(path) = focused_path
         {
             out.select = Some(PathSelection { path: Some(path.key), anchors: path.knot_refs().collect(), segment: None });
+        }
+        if self.tool == BezierTool::Curvature {
+            self.curvature_keys(ui, part, gesture);
         }
         if let Some((by, alone)) = nudge::read_with_alt(ui, self.steps.0, self.steps.1) {
             match part {
@@ -1093,7 +1134,10 @@ fn target_hit(target: &Target) -> Option<BezierHit> {
         Target::Anchors { hit, .. } => Some(hit),
         Target::Handle { path, knot, side, .. } => Some(BezierHit::Handle { path, knot, side }),
         Target::Bend { path, segment, t, .. } => Some(BezierHit::Segment { path, segment, t }),
-        Target::Convert { path, knot } => Some(BezierHit::Anchor { path, knot }),
+        Target::Convert { path, knot } | Target::CurvatureMove { path, knot, .. } | Target::Toggle { path, knot } => {
+            Some(BezierHit::Anchor { path, knot })
+        }
+        Target::CurvatureInsert { path, segment, t, .. } => Some(BezierHit::Segment { path, segment, t }),
         Target::Nothing => None,
     }
 }

@@ -1,12 +1,12 @@
 //! Tests of the anchor tools (task PE-B1) and the Curvature tool (task PE-C1).
-#![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-use egui::{Event, Modifiers, PointerButton, Pos2, Sense, Shape, vec2};
+use egui::{Event, Key, Modifiers, PointerButton, Pos2, Sense, Shape, vec2};
 use egui_kittest::Harness;
 use kurbo::Point;
 
-use super::{BezierNames, BezierOverlay, BezierTool, EditPath, EditSubpath, Knot, KnotRef, PathSelection};
+use super::{BezierNames, BezierOverlay, BezierTool, EditPath, EditSubpath, Knot, KnotRef, PathEdit, PathSelection};
 use craft_ui::canvas::{CanvasView, RulerUnits};
+use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
 use craft_ui::theme::{Base, current, install};
 
@@ -22,6 +22,7 @@ struct Host {
     deletes: Vec<(u64, Vec<KnotRef>)>,
     selects: usize,
     claimed: bool,
+    events: Vec<EditEvent<PathEdit>>,
 }
 
 fn open(key: u64, y: f64) -> EditPath {
@@ -46,34 +47,43 @@ fn harness(tool: BezierTool) -> Harness<'static, Host> {
         deletes: Vec::new(),
         selects: 0,
         claimed: false,
+        events: Vec::new(),
     };
-    let mut h = Harness::<Host>::builder().with_size([480.0, 400.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
-        |ui, host: &mut Host| {
-            let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
-            let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
-            host.view = Some(view);
-            let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
-            let names = BezierNames::new("Paths", "In handle", "Out handle", "Selection", |i, n| format!("Anchor {i} of {n}"));
-            let response = BezierOverlay::new("paths", &host.paths, &host.selection, &px, &px, names).tool(host.tool).show(ui, &canvas, &view);
-            host.claimed |= response.claimed;
-            host.selects += usize::from(response.select.is_some());
-            if let Some((key, segment, t)) = response.insert {
-                host.inserts.push((key, segment, t));
-                if let Some(path) = host.paths.iter_mut().find(|p| p.key == key) {
-                    let _ = path.subpaths[segment.subpath].insert_at(segment.knot, t);
+    let mut h = Harness::<Host>::builder()
+        .with_size([480.0, 400.0])
+        .with_step_dt(0.02)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, host: &mut Host| {
+                let (rect, canvas) = ui.allocate_exact_size(vec2(400.0, 300.0), Sense::click_and_drag() - Sense::FOCUSABLE);
+                let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
+                host.view = Some(view);
+                let px = RulerUnits::pixels(LocaleNumbers::from_tag("en"));
+                let names = BezierNames::new("Paths", "In handle", "Out handle", "Selection", |i, n| format!("Anchor {i} of {n}"));
+                let response = BezierOverlay::new("paths", &host.paths, &host.selection, &px, &px, names).tool(host.tool).show(ui, &canvas, &view);
+                host.claimed |= response.claimed;
+                host.selects += usize::from(response.select.is_some());
+                if let Some(select) = response.select {
+                    host.selection = select;
                 }
-            }
-            if let Some((key, knots)) = response.delete {
-                host.deletes.push((key, knots.clone()));
-                if let Some(path) = host.paths.iter_mut().find(|p| p.key == key) {
-                    for k in knots {
-                        path.subpaths[k.subpath].remove_knot(k.knot);
+                host.events.extend(response.event);
+                if let Some((key, segment, t)) = response.insert {
+                    host.inserts.push((key, segment, t));
+                    if let Some(path) = host.paths.iter_mut().find(|p| p.key == key) {
+                        let _ = path.subpaths[segment.subpath].insert_at(segment.knot, t);
                     }
                 }
-            }
-        },
-        host,
-    );
+                if let Some((key, knots)) = response.delete {
+                    host.deletes.push((key, knots.clone()));
+                    if let Some(path) = host.paths.iter_mut().find(|p| p.key == key) {
+                        for k in knots {
+                            path.subpaths[k.subpath].remove_knot(k.knot);
+                        }
+                    }
+                }
+            },
+            host,
+        );
     h.run();
     h
 }
@@ -215,46 +225,145 @@ fn anchor_tools_draw_the_hover_mark_of_what_a_press_takes() {
     assert_eq!(count(&h, enlarged), 0, "Delete edits nothing on a segment");
 }
 
+fn kinds(h: &Harness<'_, Host>) -> Vec<&'static str> {
+    h.state()
+        .events
+        .iter()
+        .map(|e| match e {
+            EditEvent::Begin { .. } => "begin",
+            EditEvent::Update { .. } => "update",
+            EditEvent::Commit { .. } => "commit",
+            EditEvent::Cancel { .. } => "cancel",
+            EditEvent::Set { .. } => "set",
+            _ => "other",
+        })
+        .collect()
+}
+
+fn last_value(h: &Harness<'_, Host>) -> Option<PathEdit> {
+    h.state().events.iter().rev().find_map(|e| e.value().cloned())
+}
+
+fn drag(h: &mut Harness<'_, Host>, from: Pos2, by: egui::Vec2) {
+    h.event(Event::PointerMoved(from));
+    h.event(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.run();
+    for f in [0.5, 1.0] {
+        h.event(Event::PointerMoved(from + by * f));
+        h.run();
+    }
+    h.event(Event::PointerButton { pos: from + by, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    h.run();
+}
+
+fn near(a: kurbo::Vec2, b: kurbo::Vec2) -> bool {
+    (a - b).hypot() < 1e-3
+}
+
 // PE-C1. A drag from an anchor reports MoveCurvature Begin past the click slop, Update, Commit;
 // Esc cancels and the rest of the press does nothing.
 #[test]
-#[ignore = "skeleton"]
 fn curvature_tool_drags_an_anchor_and_reflows() {
-    todo!()
+    let mut h = harness(BezierTool::Curvature);
+    let at = screen(&h, 160.0, 60.0);
+    drag(&mut h, at, vec2(0.0, 30.0));
+    assert_eq!(kinds(&h).first(), Some(&"begin"), "{:?}", kinds(&h));
+    assert_eq!(kinds(&h).last(), Some(&"commit"));
+    let Some(PathEdit::MoveCurvature { path, anchors, by }) = last_value(&h) else { panic!("MoveCurvature: {:?}", last_value(&h)) };
+    assert_eq!((path, anchors), (1, vec![KnotRef::new(0, 1)]));
+    assert!(near(by, kurbo::Vec2::new(0.0, 30.0)), "{by:?}");
+    assert_eq!(h.state().selection, PathSelection { path: Some(1), anchors: vec![KnotRef::new(0, 1)], segment: None });
+
+    // The reflow is the model's: a smooth path moved by the commit has fresh handles.
+    let mut smooth = open(1, 60.0);
+    smooth.subpaths[0].knots.iter_mut().for_each(|k| k.smooth = true);
+    let before = smooth.clone();
+    assert!(PathEdit::MoveCurvature { path: 1, anchors: vec![KnotRef::new(0, 1)], by }.apply(&mut smooth));
+    assert_ne!(smooth.subpaths[0].knots[0].out_ctrl, before.subpaths[0].knots[0].out_ctrl);
+
+    // Esc cancels; the rest of the press does nothing.
+    let mut h = harness(BezierTool::Curvature);
+    let at = screen(&h, 160.0, 60.0);
+    h.event(Event::PointerMoved(at));
+    h.event(Event::PointerButton { pos: at, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.run();
+    for dy in [10.0, 20.0] {
+        h.event(Event::PointerMoved(at + vec2(0.0, dy)));
+        h.run();
+    }
+    h.key_press(Key::Escape);
+    h.run();
+    assert_eq!(kinds(&h).last(), Some(&"cancel"), "{:?}", kinds(&h));
+    let n = h.state().events.len();
+    h.event(Event::PointerMoved(at + vec2(0.0, 50.0)));
+    h.run();
+    h.event(Event::PointerButton { pos: at, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    h.run();
+    assert_eq!(h.state().events.len(), n);
 }
 
 // PE-C1. A drag from a segment is one InsertCurvature gesture with t clamped to 0.01..=0.99.
 #[test]
-#[ignore = "skeleton"]
 fn curvature_tool_insert_and_drag_is_one_gesture() {
-    todo!()
+    let mut h = harness(BezierTool::Curvature);
+    let at = screen(&h, 110.0, 60.0);
+    drag(&mut h, at, vec2(0.0, 24.0));
+    assert_eq!(kinds(&h).first(), Some(&"begin"), "{:?}", kinds(&h));
+    assert_eq!(kinds(&h).last(), Some(&"commit"));
+    assert!(kinds(&h).iter().all(|k| matches!(*k, "begin" | "update" | "commit")), "{:?}", kinds(&h));
+    let Some(PathEdit::InsertCurvature { path, segment, t, by }) = last_value(&h) else { panic!("InsertCurvature: {:?}", last_value(&h)) };
+    assert_eq!((path, segment), (1, KnotRef::new(0, 0)));
+    assert!(crate::geometry::curvature::CURVATURE_T_RANGE.contains(&t) && (t - 0.5).abs() < 0.05, "{t}");
+    assert!(near(by, kurbo::Vec2::new(0.0, 24.0)), "{by:?}");
+    assert_eq!(h.state().selection.anchors, vec![KnotRef::new(0, 1)], "the new anchor is selected");
 }
 
 // PE-C1. A click without drag on a segment reports one Set of InsertCurvature with `by` zero.
 #[test]
-#[ignore = "skeleton"]
 fn curvature_tool_click_on_a_segment_inserts_only() {
-    todo!()
+    let mut h = harness(BezierTool::Curvature);
+    assert!(click(&mut h, 110.0, 60.0, Modifiers::NONE));
+    assert_eq!(kinds(&h), ["set"]);
+    let Some(PathEdit::InsertCurvature { path, segment, by, .. }) = last_value(&h) else { panic!("InsertCurvature: {:?}", last_value(&h)) };
+    assert_eq!((path, segment, by), (1, KnotRef::new(0, 0), kurbo::Vec2::ZERO));
 }
 
 // PE-C1. The second click of a double-click on an anchor reports a ToggleCurvature Set.
 #[test]
-#[ignore = "skeleton"]
 fn curvature_tool_double_click_toggles_an_anchor() {
-    todo!()
+    let mut h = harness(BezierTool::Curvature);
+    click(&mut h, 160.0, 60.0, Modifiers::NONE);
+    assert!(h.state().events.is_empty(), "a single click on an anchor reports nothing");
+    click(&mut h, 160.0, 60.0, Modifiers::NONE);
+    assert_eq!(kinds(&h), ["set"]);
+    assert_eq!(last_value(&h), Some(PathEdit::ToggleCurvature { path: 1, knot: KnotRef::new(0, 1) }));
 }
 
 // PE-C1. A press on empty canvas is not claimed, so the pen draft shown after starts a path.
 #[test]
-#[ignore = "skeleton"]
 fn curvature_tool_does_not_claim_empty_canvas() {
-    todo!()
+    let mut h = harness(BezierTool::Curvature);
+    assert!(!click(&mut h, 360.0, 20.0, Modifiers::NONE));
+    assert!(h.state().events.is_empty());
+    assert!(click(&mut h, 110.0, 60.0, Modifiers::NONE), "a segment is claimed");
 }
 
 // PE-C1. With focus, the arrows report a MoveCurvature Set of the selected anchors (⇧ 10) and
 // Enter a ToggleCurvature Set of the picked anchor.
 #[test]
-#[ignore = "skeleton"]
 fn curvature_tool_keys_move_and_toggle() {
-    todo!()
+    let mut h = harness(BezierTool::Curvature);
+    click(&mut h, 160.0, 60.0, Modifiers::NONE);
+    let key = |h: &mut Harness<'_, Host>, modifiers: Modifiers, key: Key| {
+        h.key_press_modifiers(modifiers, key);
+        h.run();
+    };
+    key(&mut h, Modifiers::NONE, Key::ArrowRight);
+    let anchors = vec![KnotRef::new(0, 1)];
+    assert_eq!(last_value(&h), Some(PathEdit::MoveCurvature { path: 1, anchors: anchors.clone(), by: kurbo::Vec2::new(1.0, 0.0) }));
+    key(&mut h, Modifiers::SHIFT, Key::ArrowDown);
+    assert_eq!(last_value(&h), Some(PathEdit::MoveCurvature { path: 1, anchors, by: kurbo::Vec2::new(0.0, 10.0) }));
+    key(&mut h, Modifiers::NONE, Key::Enter);
+    assert_eq!(last_value(&h), Some(PathEdit::ToggleCurvature { path: 1, knot: KnotRef::new(0, 1) }));
+    assert_eq!(kinds(&h), ["set", "set", "set"]);
 }
