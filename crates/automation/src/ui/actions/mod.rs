@@ -39,5 +39,5 @@ pub use panel::{
 };
 pub use style::ActionsPanelStyle;
 
-/// The Actions panel's count words ("{n} step", "{n} action"), for the words registry (RG1).
+/// The Actions panel's count words ("{n} step", "{n} action"), for the words registry.
 pub const COUNTS: &[craft_ui::localized::words::Counted] = &[labels::STEPS, labels::ACTIONS];

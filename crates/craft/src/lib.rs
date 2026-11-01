@@ -9,6 +9,8 @@ pub use craft_ai_core as ai_core;
 pub use craft_atomic as atomic;
 #[cfg(feature = "automation")]
 pub use craft_automation as automation;
+#[cfg(feature = "browse")]
+pub use craft_browse as browse;
 #[cfg(feature = "cms")]
 pub use craft_cms as cms;
 #[cfg(feature = "color")]
@@ -35,6 +37,8 @@ pub use craft_imaging as imaging;
 pub use craft_jpeg as jpeg;
 #[cfg(feature = "keymap")]
 pub use craft_keymap as keymap;
+#[cfg(feature = "layers")]
+pub use craft_layers as layers;
 #[cfg(feature = "media")]
 pub use craft_media as media;
 #[cfg(feature = "menu")]
@@ -115,6 +119,10 @@ pub mod words {
     /// the picker, Glyphs panel, Missing Fonts dialog and axis sliders are listed.
     pub fn all() -> Vec<&'static [Word]> {
         let mut all: Vec<&'static [Word]> = craft_ui::localized::words::tables().to_vec();
+        #[cfg(feature = "automation")]
+        all.extend(craft_automation::ui::WORDS);
+        #[cfg(feature = "browse")]
+        all.extend(craft_browse::ui::WORDS);
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::WORDS);
         #[cfg(feature = "dialogs")]
@@ -127,6 +135,8 @@ pub mod words {
         all.extend(craft_imaging::ui::WORDS);
         #[cfg(feature = "keymap")]
         all.extend(craft_keymap::ui::WORDS);
+        #[cfg(feature = "layers")]
+        all.extend(craft_layers::ui::WORDS);
         #[cfg(feature = "print")]
         all.extend(craft_print::ui::WORDS);
         #[cfg(feature = "text")]
@@ -157,6 +167,10 @@ pub mod words {
     #[allow(unused_mut, reason = "each push is behind its crate's feature")]
     pub fn counts() -> Vec<&'static [Counted]> {
         let mut all: Vec<&'static [Counted]> = vec![craft_ui::localized::words::COUNTS];
+        #[cfg(feature = "automation")]
+        all.push(craft_automation::ui::COUNTS);
+        #[cfg(feature = "browse")]
+        all.push(craft_browse::ui::COUNTS);
         #[cfg(feature = "color")]
         all.push(craft_color::ui::COUNTS);
         #[cfg(feature = "dialogs")]

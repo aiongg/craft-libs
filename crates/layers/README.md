@@ -11,4 +11,6 @@ The Layers panel for Craft apps. The app implements `LayerTree`, a read-only vie
 | `options` | `LayersSettings` (the persisted section), `LayersOptions` and `LayersOptionsDialog` (Layers Panel Options: thumbnail size and contents, the five switches). |
 | `thumbs` | `LayerThumb`, `LayerThumbKind`, `ThumbContents`: the key the panel gives `craft_ui::canvas::textures::Thumbnails` for each thumbnail of a row; the app implements `ThumbSource` for it. |
 
+Its words are `craft_layers::ui::WORDS`.
+
 The crate is UI-only: egui and craft-ui are plain dependencies, and `screen-testing` is its only feature.

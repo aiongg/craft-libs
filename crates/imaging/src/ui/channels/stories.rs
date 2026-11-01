@@ -31,7 +31,7 @@ pub(crate) const COMPONENTS: &[&str] = &["Channels"];
 
 craft_ui::words! {
     /// The channel names and texts of the Channels stories; the app translates built-in names.
-    struct ChannelsStoryWords {
+    pub(crate) struct ChannelsStoryWords {
         finish_next: "channelsStory.finishNext" = "Finish next";
         reset: "channelsStory.reset" = "Reset";
         last_event: "channelsStory.lastEvent" = "Last event: {event}";

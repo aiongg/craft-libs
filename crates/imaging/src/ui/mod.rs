@@ -18,6 +18,15 @@ mod id_tests;
 mod words_tests;
 
 pub use adjust::{Levels, LevelsClip, LevelsEditor, LevelsLabels, LevelsStyle};
+pub use channels::{
+    ChannelKind, ChannelRow, ChannelsCommand, ChannelsEvent, ChannelsFooterButton, ChannelsLabels, ChannelsOutput, ChannelsPanel, ChannelsStyle,
+    ColorIndicates, OVERLAY_OPACITIES, OverlayPreset, targeted_row,
+};
+pub use scopes::{
+    COLORS_CHANNEL, ChannelOverlay, ClippingDiagnostic, ClippingFrame, ClippingMode, ClippingOverlay, ClippingWarnings, HistogramSet, ScopeChannel,
+    ScopeFrame, ScopeMenuAction, ScopePanel, ScopePanelLabels, ScopePanelOutput, ScopePanelState, ScopePanelStyle, ScopeReadout, ScopeSettings,
+    ScopeSource, ScopeView, ScopeZoneEdit, ToneZone, VectorscopeFrame, VectorscopePlot, ZoneChange, scope_point,
+};
 pub use warp::{
     WarpEdit, WarpGrid, WarpMesh, WarpNames, WarpPress, WarpRelease, WarpResponse, WarpSide, WarpSplit, WarpSplitAt, WarpSplitPress, WarpStyle,
     WarpTarget, WarpTrack,
@@ -34,5 +43,11 @@ pub fn stories() -> Vec<craft_ui::story::Story> {
 }
 
 /// The labels tables of the imaging widgets, for the words registry.
-pub const WORDS: &[&[craft_ui::localized::Word]] =
-    &[<WarpNames<'static> as craft_ui::localized::Labels>::WORDS, <LevelsLabels as craft_ui::localized::Labels>::WORDS];
+pub const WORDS: &[&[craft_ui::localized::Word]] = &[
+    <WarpNames<'static> as craft_ui::localized::Labels>::WORDS,
+    <LevelsLabels as craft_ui::localized::Labels>::WORDS,
+    <ChannelsLabels as craft_ui::localized::Labels>::WORDS,
+    <ScopePanelLabels as craft_ui::localized::Labels>::WORDS,
+    <channels::stories::ChannelsStoryWords as craft_ui::localized::Labels>::WORDS,
+    <scopes::stories::ScopeStoryLabels as craft_ui::localized::Labels>::WORDS,
+];

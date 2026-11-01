@@ -266,6 +266,7 @@ pub const COUNTS: &[Counted] = &[
     counts::EVENT_ERRORS,
     counts::EVENT_WARNINGS,
     counts::EVENT_MESSAGES,
+    crate::edit::history_panel::UNDO_ACTIONS,
 ];
 
 /// A labels struct: plain data whose every field is one [`Word`] of its table.

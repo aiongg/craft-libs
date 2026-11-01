@@ -15,3 +15,12 @@ pub mod rows;
 pub(crate) mod stories;
 pub mod thumbs;
 pub mod tree;
+
+/// The labels tables of the layers widgets, for the words registry.
+pub const WORDS: &[&[craft_ui::localized::Word]] = &[
+    <panel::LayersLabels as craft_ui::localized::Labels>::WORDS,
+    <options::LayersOptionsLabels as craft_ui::localized::Labels>::WORDS,
+    <filter::LayerFilterLabels as craft_ui::localized::Labels>::WORDS,
+    <rows::BlendRowsLabels as craft_ui::localized::Labels>::WORDS,
+    <stories::LayersStoryLabels as craft_ui::localized::Labels>::WORDS,
+];

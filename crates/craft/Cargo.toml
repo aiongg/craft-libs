@@ -19,6 +19,7 @@ toml = { version = "1.1", default-features = false, features = ["std", "parse", 
 craft-ai-core = { workspace = true, optional = true }
 craft-atomic = { workspace = true, optional = true }
 craft-automation = { workspace = true, optional = true }
+craft-browse = { workspace = true, optional = true }
 craft-cms = { workspace = true, optional = true }
 craft-color = { workspace = true, optional = true }
 craft-crw = { workspace = true, optional = true }
@@ -31,6 +32,7 @@ craft-font-store = { workspace = true, optional = true }
 craft-imaging = { workspace = true, optional = true }
 craft-jpeg = { workspace = true, optional = true }
 craft-keymap = { workspace = true, optional = true }
+craft-layers = { workspace = true, optional = true }
 craft-media = { workspace = true, optional = true }
 craft-menu = { workspace = true, optional = true }
 craft-pdf = { workspace = true, optional = true }
@@ -49,6 +51,7 @@ craft-ui = { workspace = true, optional = true }
 ui = [
     "dep:craft-ui",
     "dep:egui",
+    "craft-browse?/ui",
     "craft-color?/ui",
     "craft-dialogs?/ui",
     "craft-draw?/ui",
@@ -67,10 +70,13 @@ ui = [
 screen-testing = [
     "ui",
     "craft-ui/screen-testing",
+    "craft-automation?/screen-testing",
+    "craft-browse?/screen-testing",
     "craft-color?/screen-testing",
     "craft-draw?/screen-testing",
     "craft-imaging?/screen-testing",
     "craft-keymap?/screen-testing",
+    "craft-layers?/screen-testing",
     "craft-theme-store?/screen-testing",
     "craft-ui?/screen-testing",
     "craft-update?/screen-testing",
@@ -80,6 +86,8 @@ ai-core = ["dep:craft-ai-core"]
 atomic = ["dep:craft-atomic"]
 
 automation = ["dep:craft-automation"]
+
+browse = ["dep:craft-browse"]
 
 cms = ["dep:craft-cms"]
 
@@ -108,6 +116,8 @@ imaging = ["dep:craft-imaging"]
 jpeg = ["dep:craft-jpeg"]
 
 keymap = ["dep:craft-keymap"]
+
+layers = ["dep:craft-layers"]
 
 media = ["dep:craft-media"]
 media-bitstream = ["media", "craft-media/bitstream"]

@@ -183,4 +183,4 @@ cargo check --target wasm32-unknown-unknown -p craft-settings
 
 The tests in `tests/` write only to temporary folders and never touch the real config folder.
 
-On `wasm32` only the `Settings` trait, the document helpers and the error types are available.
+On `wasm32` the `Settings` trait, the document helpers, the error types, `Remembered` and `presets` (`PresetFolder`, with entries kept in the app's settings sections) are available.

@@ -1,7 +1,6 @@
 //! `HistoryLabels`, `UndoListLabels`, `SnapshotFormLabels`, `HistoryOptionsLabels`: every user-visible word (`history.*`, `undoList.*`, `snapshots.*`).
 //!
-//! Registered in task RG1 (the words registry and `UNDO_ACTIONS` in the kernel's counts), not in
-//! the skeleton. Menu rows and buttons are in Title Case, text only a screen reader reads in
+//! Menu rows and buttons are in Title Case, text only a screen reader reads in
 //! sentence case.
 
 use crate::localized::words::Counted;
@@ -38,6 +37,7 @@ crate::words! {
     pub struct UndoListLabels {
         list: "undoList.list" = "Undo History";
         cancel: "undoList.cancel" = "Cancel";
+        undo_actions: "undoList.undoActions" = "Undo {n} Actions";
     }
 }
 

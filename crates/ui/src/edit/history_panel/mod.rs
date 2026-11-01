@@ -14,6 +14,7 @@ mod undo_list;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod undo_list_tests;
 
+pub(crate) use labels::UNDO_ACTIONS;
 pub use labels::{HistoryLabels, HistoryOptionsLabels, SnapshotFormLabels, UndoListLabels};
 pub use panel::{HistoryEvent, HistoryFeatures, HistoryKey, HistoryOrder, HistoryOutput, HistoryPanel};
 pub use state::HistoryPanelState;

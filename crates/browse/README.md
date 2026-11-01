@@ -13,4 +13,4 @@ Browsing for Craft apps: folders and volumes, linked files, file thumbnails, and
 | `ui::compare` | `CompareTile`: one fitted image with zoom and pan shared across tiles and a caption strip; the two-pane and survey arrangements. |
 | `ui::relink` | `LinkList` (the Links panel) and `RelinkDialog` (find missing files, match options, folder search, candidates). |
 
-`places`, `links` and `thumbs` work without egui; the `ui` feature adds the widgets.
+`places`, `links` and `thumbs` work without egui; the `ui` feature adds the widgets, their words (`craft_browse::ui::WORDS`, `craft_browse::ui::COUNTS`) and root re-exports of each widget, its labels and its style.

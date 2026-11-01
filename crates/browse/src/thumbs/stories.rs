@@ -33,7 +33,7 @@ pub(crate) const COMPONENTS: &[&str] = &["File thumbnails"];
 
 craft_ui::words! {
     /// The words of the file thumbnail story.
-    struct FileThumbStoryWords {
+    pub(crate) struct FileThumbStoryWords {
         finish_next: "fileThumbStory.finishNext" = "Finish next";
         reload: "fileThumbStory.reload" = "File changed";
         plain: "fileThumbStory.plain" = "Plain image";

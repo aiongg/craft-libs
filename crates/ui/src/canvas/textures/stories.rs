@@ -38,7 +38,7 @@ pub(crate) const COMPONENTS: &[&str] = &["Texture cache", "Thumbnails", "Texture
 
 crate::words! {
     /// The words of the texture stories.
-    struct TextureStoryWords {
+    pub(crate) struct TextureStoryWords {
         finish_next: "textureStory.finishNext" = "Finish next";
         put: "textureStory.put" = "Put";
         put_next: "textureStory.putNext" = "Put next key";
