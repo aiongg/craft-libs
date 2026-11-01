@@ -41,10 +41,10 @@ const BAND: f64 = 0.008;
 
 /// The view the engine would build from a [`MaskViewRecipe`], drawn on the spot: the layer (the
 /// picture) with its mask raised to the recipe's floor, then each veil over it.
-struct Composite {
-    image: MockImage,
-    recipe: MaskViewRecipe,
-    revision: u64,
+pub(crate) struct Composite {
+    pub(crate) image: MockImage,
+    pub(crate) recipe: MaskViewRecipe,
+    pub(crate) revision: u64,
 }
 
 impl Composite {
