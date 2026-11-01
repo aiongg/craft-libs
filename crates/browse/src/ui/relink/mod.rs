@@ -1,8 +1,9 @@
 //! `LinkList` (the Links panel), `StatusBadge` and `RelinkDialog` (Link Media).
 //!
 //! ```ignore
-//! let out = LinkList::new("links", &links, monitor.statuses()).selection(&mut state.selection)
-//!     .state(&mut settings.links).thumbnails(&thumbs, &link_thumbs).show(ui);
+//! let out = LinkList::new("links", &links, monitor.statuses(), &mut state.links)
+//!     .thumbnails(&thumbs, &link_thumbs).show(ui);
+//! if out.settings_changed { settings.links = state.links.settings.clone() }
 //! for event in out.events {
 //!     match event {
 //!         LinkListEvent::Relink(keys) => relink_with_file_pick(keys),        // one file: Files::pick, no dialog
@@ -26,6 +27,6 @@ pub(crate) mod stories;
 mod style;
 
 pub use badge::StatusBadge;
-pub use dialog::{CandidateChecker, RelinkCriterion, RelinkDialog, RelinkLabels, RelinkOptions, RelinkOutcome, RelinkRow};
-pub use list::{LinkFilter, LinkList, LinkListEvent, LinkListLabels, LinkListOutput, LinkListState, LinkSort};
+pub use dialog::{CandidateChecker, RelinkColumn, RelinkCriterion, RelinkDialog, RelinkLabels, RelinkOptions, RelinkOutcome, RelinkRow};
+pub use list::{LinkFilter, LinkList, LinkListEvent, LinkListLabels, LinkListOutput, LinkListSettings, LinkListState, LinkSort};
 pub use style::RelinkStyle;

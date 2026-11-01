@@ -43,7 +43,7 @@ pub struct RelinkStyle {
 
 impl RelinkStyle {
     /// The style of `tokens`.
-    pub fn of(tokens: &UiTokens) -> RelinkStyle {
+    pub fn style(tokens: &UiTokens) -> RelinkStyle {
         let c = &tokens.color;
         let l = &tokens.component.link;
         RelinkStyle {

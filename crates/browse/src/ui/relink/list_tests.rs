@@ -3,20 +3,20 @@
 use std::collections::HashMap;
 
 use craft_docpath::links::{Link, LinkStatus};
-use craft_ui::behavior::Selection;
+use craft_ui::behavior::{Selection, SelectionPick};
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Modifiers, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
-use super::{LinkList, LinkListEvent, LinkListState};
+use super::{LinkFilter, LinkList, LinkListEvent, LinkListState};
 
 struct App {
     links: Vec<Link<u32>>,
     statuses: HashMap<u32, LinkStatus>,
-    selection: Selection<u32>,
-    state: LinkListState,
+    state: LinkListState<u32>,
+    settings_changed: usize,
     events: Vec<LinkListEvent<u32>>,
 }
 
@@ -34,15 +34,16 @@ fn app() -> App {
     ];
     let statuses =
         HashMap::from([(0, LinkStatus::Missing), (1, LinkStatus::Modified), (2, LinkStatus::Ok), (3, LinkStatus::Ok), (4, LinkStatus::Embedded)]);
-    App { links, statuses, selection: Selection::new(), state: LinkListState::default(), events: Vec::new() }
+    App { links, statuses, state: LinkListState::default(), settings_changed: 0, events: Vec::new() }
 }
 
 fn harness(app: App) -> Harness<'static, App> {
     let mut harness =
         Harness::<App>::builder().with_size(vec2(360.0, 320.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
             |ui: &mut Ui, app: &mut App| {
-                let App { links, statuses, selection, state, events } = app;
-                let out = LinkList::new("links", links, statuses).selection(selection).state(state).show(ui);
+                let App { links, statuses, state, settings_changed, events } = app;
+                let out = LinkList::new("links", links, statuses, state).show(ui);
+                *settings_changed += usize::from(out.settings_changed);
                 events.extend(out.events);
             },
             app,
@@ -58,7 +59,7 @@ fn row<'h>(harness: &'h Harness<'_, App>, name: &str) -> Node<'h> {
 
 fn select(harness: &mut Harness<'_, App>, keys: &[u32]) {
     let selection = Selection { items: keys.to_vec(), lead: keys.last().copied(), anchor: keys.last().copied() };
-    harness.state_mut().selection = selection;
+    harness.state_mut().state.selection = selection;
     harness.run();
 }
 
@@ -66,29 +67,66 @@ fn enabled(harness: &Harness<'_, App>, label: &str) -> bool {
     !harness.get_by_label(label).accesskit_node().is_disabled()
 }
 
-// VectorCraft's `click`: Shift ranges from the last plain click; with Cmd it adds; a hidden anchor makes it a plain click.
+// The list follows the library's selection rule: Shift ranges from the anchor, Cmd (also with Shift) toggles, and each change is reported with its pick.
 #[test]
-fn link_list_shift_click_ranges_from_the_last_plain_click() {
+fn link_list_follows_the_library_selection_rule() {
     let mut harness = harness(app());
     row(&harness, "b.png").click();
     harness.run();
     row(&harness, "d.png").click_modifiers(Modifiers::SHIFT);
     harness.run();
-    assert_eq!(harness.state().selection.items, [1, 2, 3]);
-    assert_eq!(harness.state().selection.anchor, Some(1));
+    assert_eq!(harness.state().state.selection.items, [1, 2, 3]);
+    assert_eq!(harness.state().state.selection.anchor, Some(1));
 
     row(&harness, "a.png").click_modifiers(Modifiers { shift: true, command: true, ..Modifiers::NONE });
     harness.run();
-    assert_eq!(harness.state().selection.items, [1, 2, 3, 0]);
+    assert_eq!(harness.state().state.selection.items, [1, 2, 3, 0], "Cmd wins over Shift: the row is added");
 
-    // Filtered to Modified, the anchor row `a.png`... is hidden: a Shift-click acts as a plain click.
-    harness.state_mut().selection = Selection { items: vec![0], lead: Some(0), anchor: Some(0) };
-    harness.state_mut().state.filter = super::LinkFilter::Modified;
+    row(&harness, "c.png").click_modifiers(Modifiers::COMMAND);
+    harness.run();
+    assert_eq!(harness.state().state.selection.items, [1, 3, 0], "Cmd-click on a selected row removes it");
+
+    let picks: Vec<SelectionPick> = harness
+        .state()
+        .events
+        .iter()
+        .filter_map(|event| if let LinkListEvent::Selection(change) = event { Some(change.pick) } else { None })
+        .collect();
+    assert_eq!(picks, [SelectionPick::Replace, SelectionPick::Range, SelectionPick::Toggle, SelectionPick::Toggle]);
+
+    // Filtered to Modified, the anchor and lead rows are hidden: a Shift-click selects the clicked row alone.
+    harness.state_mut().state.selection = Selection { items: vec![0], lead: Some(0), anchor: Some(0) };
+    harness.state_mut().state.settings.filter = LinkFilter::Modified;
     harness.run();
     row(&harness, "b.png").click_modifiers(Modifiers::SHIFT);
     harness.run();
-    assert_eq!(harness.state().selection.items, [1]);
-    assert!(harness.state().events.iter().any(|e| matches!(e, LinkListEvent::Selected)));
+    assert_eq!(harness.state().state.selection.items, [1]);
+}
+
+// A secondary click on an unselected row selects it first and reports the change.
+#[test]
+fn a_secondary_click_on_an_unselected_row_selects_it() {
+    let mut harness = harness(app());
+    select(&mut harness, &[0]);
+    harness.state_mut().events.clear();
+    row(&harness, "c.png").click_secondary();
+    harness.run();
+    assert_eq!(harness.state().state.selection.items, [2]);
+    assert!(harness.state().events.iter().any(|e| matches!(e, LinkListEvent::Selection(change) if change.row == Some(2))));
+}
+
+// Choosing Show Missing in the menu changes the settings, reports `settings_changed` once and hides the other rows.
+#[test]
+fn a_menu_choice_is_a_settings_change() {
+    let mut harness = harness(app());
+    assert_eq!(harness.state().settings_changed, 0);
+    harness.get_by_label("Links Menu").click();
+    harness.run_steps(8);
+    harness.get_by_label("Show Missing").click();
+    harness.run_steps(8);
+    assert_eq!(harness.state().state.settings.filter, LinkFilter::Missing);
+    assert_eq!(harness.state().settings_changed, 1);
+    assert_eq!(harness.query_all_by(|n| n.role() == Role::ListBoxOption).count(), 1, "only the missing link is listed");
 }
 
 // Update only with a Modified link selected; Edit Original not for a Missing one; Relink needs a selection.
