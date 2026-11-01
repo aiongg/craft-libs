@@ -111,22 +111,52 @@ impl NudgeKeys {
     /// [`Nudge`]; `None` (and nothing consumed) when no press qualifies or the keys are not free:
     /// a text field has focus, a popup or menu is open, or a modal layer is above
     /// [`layer`](Self::layer). Right +x and Down +y in every text direction.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn read(&self, ctx: &Context) -> Option<Nudge> {
         // pc: crates/ui-egui/src/tools/move_mods.rs:200 `arrow_keys` (`consume_key(base | mods, key)`
         // over SHIFT|ALT, SHIFT, ALT, NONE; 10 with Shift, else 1); the owner check is this module's
         // `reads` with `ui.layer_id()` replaced by `self.layer`.
-        todo!()
+        if !free(ctx, self.layer) {
+            return None;
+        }
+        ctx.input_mut(|i| {
+            let (at, nudge) = i.events.iter().enumerate().find_map(|(at, e)| match e {
+                Event::Key { key, pressed: true, modifiers, .. } => self.parse(*key, *modifiers).map(|n| (at, n)),
+                _ => None,
+            })?;
+            i.events.remove(at);
+            Some(nudge)
+        })
     }
 
     /// The [`Nudge`] a key the tool host passed on means, by the same rules as
     /// [`read`](Self::read), without consuming anything: the host already gave the key to one
     /// tool. A release (`pressed` false) is `None`; a repeat is a nudge. The owner check is the
     /// host's (it passes keys only while the canvas has the keyboard).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn from_key(&self, key: &ToolKey) -> Option<Nudge> {
         // new: the parser `read` uses, applied to `ToolKey { key, modifiers, pressed, .. }`.
-        todo!()
+        if !key.pressed {
+            return None;
+        }
+        self.parse(key.key, key.modifiers)
+    }
+
+    /// The nudge of one arrow press with exactly `base` plus Shift and, when read, Alt.
+    fn parse(&self, key: Key, modifiers: Modifiers) -> Option<Nudge> {
+        let dir = match key {
+            Key::ArrowLeft => Vec2::new(-1.0, 0.0),
+            Key::ArrowRight => Vec2::new(1.0, 0.0),
+            Key::ArrowUp => Vec2::new(0.0, -1.0),
+            Key::ArrowDown => Vec2::new(0.0, 1.0),
+            _ => return None,
+        };
+        let (shift, alt) =
+            [(false, false), (true, false), (false, true), (true, true)].into_iter().filter(|&(_, alt)| self.alt || !alt).find(|&(shift, alt)| {
+                let mut want = self.base;
+                want.shift |= shift;
+                want.alt |= alt;
+                modifiers.matches_exact(want)
+            })?;
+        Some(Nudge { by: dir * if shift { self.big_step } else { self.step }, shift, alt })
     }
 }
 
@@ -137,61 +167,23 @@ impl NudgeKeys {
 /// Reads nothing while a text field has focus, a popup is open or a modal layer is above `ui`.
 /// Equals `NudgeKeys::new().steps(step, big_step).layer(ui.layer_id())` read from `ui`'s context.
 pub fn read(ui: &Ui, step: f64, big_step: f64) -> Option<Vec2> {
-    if !reads(ui) {
-        return None;
-    }
-    ui.input_mut(|i| {
-        let at = i.events.iter().position(|e| arrow(e).is_some())?;
-        let (dir, shift) = arrow(&i.events[at])?;
-        i.events.remove(at);
-        Some(dir * if shift { big_step } else { step })
-    })
+    NudgeKeys::new().steps(step, big_step).layer(ui.layer_id()).read(ui.ctx()).map(|n| n.by)
 }
 
 /// [`read`] that also takes Alt and Alt+Shift, and reports whether Alt was held: an arrow with
 /// Alt moves a path's direction handle alone, without its partner (PhotoCraft's ⌥-drag).
 pub fn read_with_alt(ui: &Ui, step: f64, big_step: f64) -> Option<(Vec2, bool)> {
-    if !reads(ui) {
-        return None;
-    }
-    ui.input_mut(|i| {
-        let at = i.events.iter().position(|e| arrow_with_alt(e).is_some())?;
-        let (dir, shift, alt) = arrow_with_alt(&i.events[at])?;
-        i.events.remove(at);
-        Some((dir * if shift { big_step } else { step }, alt))
-    })
+    NudgeKeys::new().steps(step, big_step).alt(true).layer(ui.layer_id()).read(ui.ctx()).map(|n| (n.by, n.alt))
 }
 
 /// Whether the canvas's keys are free: no text field has focus, no popup is open and no modal layer
 /// is above `ui`.
 pub fn reads(ui: &Ui) -> bool {
-    let ctx = ui.ctx();
+    free(ui.ctx(), ui.layer_id())
+}
+
+fn free(ctx: &Context, layer: LayerId) -> bool {
     // A modal layer makes the owner `Dialog`; the layer check then tells the dialog's own ui from the canvas under it.
     let free = matches!(owner(ctx, &OwnerGate::default()), KeyOwner::App | KeyOwner::Widget | KeyOwner::Dialog);
-    free && ctx.memory(|m| m.allows_interaction(ui.layer_id()))
-}
-
-/// An arrow key press plain or with Shift: its unit direction and whether Shift is held.
-fn arrow(event: &Event) -> Option<(Vec2, bool)> {
-    match arrow_with_alt(event)? {
-        (dir, shift, false) => Some((dir, shift)),
-        _ => None,
-    }
-}
-
-/// An arrow key press with no modifier but Shift and Alt: its unit direction, whether Shift is
-/// held and whether Alt is.
-fn arrow_with_alt(event: &Event) -> Option<(Vec2, bool, bool)> {
-    let Event::Key { key, pressed: true, modifiers, .. } = event else { return None };
-    let dir = match key {
-        Key::ArrowLeft => Vec2::new(-1.0, 0.0),
-        Key::ArrowRight => Vec2::new(1.0, 0.0),
-        Key::ArrowUp => Vec2::new(0.0, -1.0),
-        Key::ArrowDown => Vec2::new(0.0, 1.0),
-        _ => return None,
-    };
-    [Modifiers::NONE, Modifiers::SHIFT, Modifiers::ALT, Modifiers::ALT | Modifiers::SHIFT]
-        .into_iter()
-        .find(|&m| modifiers.matches_exact(m))
-        .map(|m| (dir, m.shift, m.alt))
+    free && ctx.memory(|m| m.allows_interaction(layer))
 }
