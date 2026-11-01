@@ -42,7 +42,7 @@ mod keyframes_tests;
 mod markers_tests;
 #[cfg(test)]
 mod overview_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod panel_tests;
 #[cfg(test)]
 mod preview_tests;

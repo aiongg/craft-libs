@@ -36,7 +36,7 @@ craft_ui::words! {
 // The ruler's rows as shares of its height: the layout has no sizes of its own, so it scales with
 // `style.ruler_height` (FilmCraft: markers on the top row, labels at 24 of 44 pt, ticks on the
 // bottom edge, a 2 pt cache bar).
-const MARKER_BAND: f32 = 0.3;
+pub(super) const MARKER_BAND: f32 = 0.3;
 const WORK_BAND: (f32, f32) = (0.3, 0.42);
 const LABEL_LINE: f32 = 0.58;
 const MAJOR_TICK: f32 = 0.22;
@@ -48,10 +48,10 @@ const HEAD_HEIGHT: f32 = 0.3;
 /// The work area's end caps: their width.
 const CAP_WIDTH: f32 = 0.07;
 /// Natural-log zoom per point of wheel travel over the ruler.
-const WHEEL_ZOOM: f64 = 0.005;
+pub(super) const WHEEL_ZOOM: f64 = 0.005;
 /// Frames one arrow key steps, without and with Shift.
-const STEP_FRAMES: i64 = 1;
-const SHIFT_STEP_FRAMES: i64 = 5;
+pub(super) const STEP_FRAMES: i64 = 1;
+pub(super) const SHIFT_STEP_FRAMES: i64 = 5;
 
 /// Which part of the work-area bar a press took.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
