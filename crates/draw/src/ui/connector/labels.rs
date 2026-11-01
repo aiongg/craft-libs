@@ -21,6 +21,8 @@ craft_ui::words! {
     /// The words of [`ConnectorBar`](super::ConnectorBar) (FigCraft's; US spelling).
     #[non_exhaustive]
     pub struct ConnectorBarLabels {
+        /// The routing buttons' group name.
+        routing: "connectorBar.routing" = "Connector type";
         straight: "connectorBar.straight" = "Straight";
         elbow: "connectorBar.elbow" = "Elbow";
         curved: "connectorBar.curved" = "Curved";
