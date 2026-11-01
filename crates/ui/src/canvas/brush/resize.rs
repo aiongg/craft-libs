@@ -1,13 +1,12 @@
 //! Photoshop's on-canvas brush resize.
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-use egui::{Color32, Modifiers, Painter, PointerButton, Pos2};
+use egui::{Color32, Modifiers, Painter, PointerButton, Pos2, Stroke};
 use kurbo::Point;
 
 use super::{BrushStyle, TipFalloff};
 use crate::canvas::{CanvasView, Readout};
-use crate::edit::{EditEvent, GestureId};
-use crate::localized::LocaleNumbers;
+use crate::edit::{CancelReason, EditEvent, GestureId};
+use crate::localized::{LocaleNumbers, Unit};
 
 /// What the vertical travel of a resize changes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -92,6 +91,20 @@ pub struct BrushResize {
 }
 
 impl BrushResize {
+    /// The values for the pointer at `at`: [`track`](Self::track)'s rule.
+    fn values(run: &ResizeRun, view: &CanvasView, at: Pos2) -> BrushDimensions {
+        let zoom = if view.zoom.is_finite() && view.zoom > 0.0 { view.zoom } else { 1.0 };
+        let from = view.to_screen(run.anchor);
+        let finite = |v: f32| if v.is_finite() { f64::from(v) } else { 0.0 };
+        let (dx, dy) = (finite(at.x - from.x) / zoom, finite(at.y - from.y) / zoom);
+        let max = run.options.max_diameter.max(1.0);
+        let diameter = (run.start.diameter + 2.0 * dx).round().clamp(1.0, max);
+        let travel = f64::from(run.options.travel);
+        let shift = if travel.is_finite() && travel > 0.0 { dy * zoom / travel } else { 0.0 };
+        let level = ((run.start.level + shift).clamp(0.0, 1.0) * 100.0).round() / 100.0;
+        BrushDimensions { diameter, level }
+    }
+
     /// Whether a press of `button` with `modifiers` is a resize: Alt with the secondary button
     /// (Photoshop on Windows), or Ctrl + Alt with the primary (Control + Option on a Mac), on every
     /// platform. Alt with the primary alone is not (the painting tools' eyedropper). The tool
@@ -99,7 +112,9 @@ impl BrushResize {
     /// [`CanvasTool::button_for`](crate::canvas::CanvasTool::button_for).
     pub fn chord(button: PointerButton, modifiers: Modifiers) -> bool {
         // pc: crates/ui-egui/src/tools/brush_resize.rs:47 `is_gesture` (ctrl && alt), :53 `is_right_gesture` (alt).
-        todo!()
+        let alt_secondary = button == PointerButton::Secondary && modifiers.alt;
+        let ctrl_alt_primary = button == PointerButton::Primary && modifiers.alt && modifiers.ctrl;
+        alt_secondary || ctrl_alt_primary
     }
 
     /// Starts a resize at the screen point `at` from the brush's `start` values. A resize whose
@@ -109,7 +124,18 @@ impl BrushResize {
     pub fn begin(&mut self, view: &CanvasView, at: Pos2, start: BrushDimensions, options: &BrushResizeOptions) -> Option<EditEvent<BrushDimensions>> {
         // pc: crates/ui-egui/src/tools/brush_resize.rs:71 `pointer` Down (a new press ends any resize; start
         // (size, hardness or opacity); the anchor in document pixels).
-        todo!()
+        if !(at.x.is_finite() && at.y.is_finite() && view.zoom.is_finite() && view.zoom > 0.0) {
+            self.run = None;
+            return None;
+        }
+        let anchor = view.to_doc(at);
+        if !(anchor.x.is_finite() && anchor.y.is_finite()) {
+            self.run = None;
+            return None;
+        }
+        let id = GestureId::next();
+        self.run = Some(ResizeRun { id, anchor, start, now: start, options: *options });
+        Some(EditEvent::begin(id))
     }
 
     /// The pointer moved to `at` (screen). With `d` the screen offset from the anchor's screen
@@ -120,14 +146,24 @@ impl BrushResize {
     pub fn track(&mut self, view: &CanvasView, at: Pos2, modifiers: Modifiers) -> Option<EditEvent<BrushDimensions>> {
         // pc: crates/ui-egui/src/tools/brush_resize.rs:58 `resized`, :113 `update` (screen-relative delta
         // over the zoom; no event when nothing changed).
-        todo!()
+        let run = self.run.as_mut()?;
+        let now = Self::values(run, view, at);
+        if now == run.now {
+            return None;
+        }
+        run.now = now;
+        Some(EditEvent::update(run.id, now, modifiers))
     }
 
     /// The release at `at`: [`track`](Self::track)'s values, then `Commit` with `changed` false
     /// when they equal the start. `None` when no resize runs.
     pub fn finish(&mut self, view: &CanvasView, at: Pos2, modifiers: Modifiers) -> Option<EditEvent<BrushDimensions>> {
         // pc: crates/ui-egui/src/tools/brush_resize.rs:95 `pointer` Up.
-        todo!()
+        let run = self.run.as_mut()?;
+        let now = Self::values(run, view, at);
+        run.now = now;
+        let run = self.run.take()?;
+        Some(EditEvent::commit(run.id, now, now != run.start, modifiers))
     }
 
     /// Esc, a lost pointer or a disabled host: `Cancel` with
@@ -135,7 +171,8 @@ impl BrushResize {
     /// start values back. `None` when no resize runs.
     pub fn cancel(&mut self) -> Option<EditEvent<BrushDimensions>> {
         // new: decisions §2.5 (Photoshop has no cancel; step7-brush lead call 6).
-        todo!()
+        let run = self.run.take()?;
+        Some(EditEvent::cancel(run.id, CancelReason::Escape))
     }
 
     /// Whether a resize runs.
@@ -155,7 +192,12 @@ impl BrushResize {
     pub fn paint(&self, painter: &Painter, view: &CanvasView, style: &BrushStyle, falloff: &TipFalloff) {
         // pc: crates/ui-egui/src/tools/brush_resize.rs:142 `draw` (tip preview, then black α 140 at r + 0.5
         // and white α 220 at r: replaced by `CursorStyle`'s halo and line).
-        todo!()
+        let Some(run) = &self.run else { return };
+        let centre = view.to_screen(run.anchor);
+        falloff.paint(painter, centre, view.zoom as f32, run.options.tint);
+        let radius = ((run.now.diameter / 2.0 * view.zoom) as f32).max(1.0);
+        painter.circle_stroke(centre, radius + 0.5, Stroke::new(style.cursor.stroke, style.cursor.halo));
+        painter.circle_stroke(centre, radius, Stroke::new(style.cursor.stroke, style.cursor.line));
     }
 
     /// The readout beside the pointer: `labels.diameter` with the diameter as whole pixels
@@ -164,7 +206,15 @@ impl BrushResize {
     /// hands it to [`ToolContext::readout`](crate::canvas::ToolContext::readout).
     pub fn readout(&self, numbers: &LocaleNumbers, labels: &BrushResizeLabels) -> Option<Readout> {
         // pc: crates/ui-egui/src/tools/brush_resize.rs:153 (`Diameter:` "{size} px", `Hardness:` or `Opacity:` "{n}%").
-        todo!()
+        let run = self.run.as_ref()?;
+        let (label, level) = match run.options.level {
+            BrushLevel::Hardness => (&labels.hardness, run.now.level),
+            BrushLevel::Opacity => (&labels.opacity, run.now.level),
+            BrushLevel::Density => (&labels.density, run.now.level),
+        };
+        let unit = Unit::new("{n} px");
+        let pixels = format!("{}{}{}", unit.prefix(), numbers.count(run.now.diameter.round().max(0.0) as u64), unit.suffix());
+        Some(Readout::new("brush-resize-readout").row(labels.diameter.as_str(), pixels).row(label.as_str(), numbers.percent(level)))
     }
 }
 
