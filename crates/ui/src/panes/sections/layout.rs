@@ -36,6 +36,7 @@ impl<S> SectionState<S> {
 /// an undo step. The host applies them ([`SectionLayout::apply`]) or routes them through its
 /// commands (LightCraft's `view.sidebar*`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SectionEvent<S> {
     /// Move `section` before `before` (`None`: to the end). From a drag, Cmd/Ctrl+] and [, or Move
     /// Up and Move Down.

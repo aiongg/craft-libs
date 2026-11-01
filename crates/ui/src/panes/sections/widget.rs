@@ -2,19 +2,17 @@
 
 use craft_theme::TypeRole;
 use egui::accesskit::Role;
-use egui::emath::GuiRounding as _;
-use egui::{Align, Align2, AsIdSalt, CursorIcon, IdSalt, Key, Label, Modifiers, PointerButton, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
+use egui::{Align, AsIdSalt, IdSalt, Key, Label, Modifiers, PointerButton, Rect, Response, Ui, UiBuilder, pos2};
 
 use super::{SectionEvent, SectionKey, SectionLayout};
 use crate::behavior::DragBadge;
 use crate::composites::{SectionHeader, SectionStyle, live};
 use crate::controls::IconButton;
-use crate::direction;
-use crate::icons::{self, Icon, IconSize};
+use crate::icons::Icon;
 use crate::list::drop_line;
 use crate::localized::Labels as _;
-use crate::menu::{ContextMenu, ItemKind, MenuEntry, MenuItem};
-use crate::primitives::{Content, Interactive};
+use crate::menu::{ContextMenu, MenuEntry, MenuItem};
+use crate::primitives::Content;
 use crate::theme::{ToEgui, Tokens, TokensOf as _, role_format};
 
 /// A section header's button at the trailing edge (LightCraft: Albums' "+" opens Create Album;
@@ -136,7 +134,7 @@ crate::words! {
 /// - **Menu.** On a header (secondary click, Menu key, Shift+F10): Hide This Section, Move Up,
 ///   Move Down (disabled at the ends), a separator, a check item per available section (shown or
 ///   hidden), a separator, Reset (disabled when `is_default`). The host's fixed title block opens
-///   the same menu through [`ReorderableSections::menu`].
+///   the same entries through [`ReorderableSections::menu`].
 /// - **Pinned header.** The header of the open section whose own header scrolled out of the
 ///   enclosing `ScrollArea`'s view stays at the top (`surface.panel` fill, `line.divider` hairline
 ///   under it); fold, drag, menu and keys work on it; the next header pushes it up. Folding from
@@ -199,24 +197,16 @@ impl<'a, S: SectionKey> ReorderableSections<'a, S> {
                 let Some(info) = sections.iter().find(|i| i.section == section) else { continue };
                 let open = !self.layout.is_folded(section);
                 let start = ui.cursor().top();
-                ui.add_space(style.gap);
-                let hairline = style.hairline.width;
-                let (_, rect) = ui.allocate_space(vec2(ui.available_width(), hairline + style.row_height));
-                let row = Rect::from_min_max(pos2(rect.left(), rect.top() + hairline), rect.max);
-                ui.painter().hline(rect.x_range(), (rect.top() + hairline / 2.0).round_to_pixel_center(ui.pixels_per_point()), style.hairline);
-                let out = pass.header(ui, info, row, open, false);
-                events.extend(out.events);
-                buttons.extend(out.button.map(|b| (section, b)));
-                let mut bottom = row.bottom();
-                if open {
-                    ui.add_space(style.gap / 2.0);
+                let out = pass.header(ui, info, open, None, |ui| {
                     let rows = ui.push_id(section.id(), |ui| body(ui, section)).response;
                     if rows.rect.height() <= 0.0 {
                         pass.empty_hint(ui, info);
                     }
-                    bottom = ui.cursor().top();
-                }
-                placed.push(Placed { section, start, header: row, bottom, open });
+                });
+                let (header, bottom) = (out.row, if open { out.end } else { out.row.bottom() });
+                events.extend(out.events);
+                buttons.extend(out.button.map(|b| (section, b)));
+                placed.push(Placed { section, start, header, bottom, open });
             }
             if let Some(pinned) = placed.iter().find(|p| p.open && p.header.top() < pass.view.top() && p.bottom > pass.view.top())
                 && let Some(info) = sections.iter().find(|i| i.section == pinned.section)
@@ -226,7 +216,7 @@ impl<'a, S: SectionKey> ReorderableSections<'a, S> {
                 let band = Rect::from_x_y_ranges(pass.view.x_range(), row.y_range());
                 ui.painter().rect_filled(band, 0.0, pass.tokens.color.surface.panel.to_egui());
                 ui.painter().hline(pass.view.x_range(), row.bottom(), style.hairline);
-                let out = pass.header(ui, info, row, true, true);
+                let out = pass.header(ui, info, true, Some(row), |_| {});
                 if out.events.iter().any(|e| matches!(e, SectionEvent::Folded { .. })) {
                     // Folded from here: the section's own header comes into view in the same pass.
                     let own = Rect::from_x_y_ranges(pinned.header.x_range(), pinned.start..=pinned.header.bottom());
@@ -248,39 +238,13 @@ impl<'a, S: SectionKey> ReorderableSections<'a, S> {
         SectionsOutput { response: root.response, events, buttons }
     }
 
-    /// The section menu's items inside a menu the host opened (its fixed title block), for
-    /// `on` (a section, or `None` from the title block: no Hide, Move Up or Move Down). Returns
-    /// the chosen item's event.
-    pub fn menu(
-        ui: &mut Ui,
-        layout: &SectionLayout<S>,
-        sections: &[SectionInfo<S>],
-        on: Option<S>,
-        labels: &SectionsLabels,
-    ) -> Option<SectionEvent<S>> {
+    /// The section menu's entries for `on` (a section, or `None` from the host's title block: no
+    /// Hide, Move Up or Move Down); each carries the event it reports. The host shows them with
+    /// [`PressMenu`](crate::menu::PressMenu) on its title-block button.
+    pub fn menu(layout: &SectionLayout<S>, sections: &[SectionInfo<S>], on: Option<S>, labels: &SectionsLabels) -> Vec<MenuEntry<SectionEvent<S>>> {
         // lightcraft: crates/ui-egui/src/panels/left/sections.rs:315 (the header and My Photos menu).
         let visible = visible_sections(layout, sections);
-        let mut chosen = None;
-        for entry in menu_entries(layout, sections, &visible, on, labels) {
-            let item = match entry {
-                MenuEntry::Separator => {
-                    ui.separator();
-                    continue;
-                }
-                MenuEntry::Item(item) => item,
-            };
-            let response = match item.item_kind() {
-                ItemKind::Check(checked) => ui.selectable_label(checked, item.label()),
-                _ => ui.add_enabled(item.is_enabled(), egui::Button::new(item.label())),
-            };
-            if response.clicked() {
-                chosen = item.command().copied();
-            }
-        }
-        if chosen.is_some() {
-            ui.close();
-        }
-        chosen
+        menu_entries(layout, sections, &visible, on, labels)
     }
 }
 
@@ -358,6 +322,10 @@ struct Placed<S> {
 struct HeaderOut<S> {
     events: Vec<SectionEvent<S>>,
     button: Option<Response>,
+    /// The header row.
+    row: Rect,
+    /// Where the section ends: the cursor below its rows, or below the header while folded.
+    end: f32,
 }
 
 /// What every header of one `show` shares.
@@ -404,36 +372,50 @@ impl<'a, S: SectionKey> Pass<'a, S> {
         self.sections.iter().find(|i| i.section == section).map_or("", |i| i.title.as_str())
     }
 
-    /// One header in `row`: the chevron, the title, the folded count and the button; folding,
-    /// the drag's start, the keys and the menu. `pinned`: the copy kept at the top of the view.
-    fn header(&self, ui: &mut Ui, info: &SectionInfo<S>, row: Rect, open: bool, pinned: bool) -> HeaderOut<S> {
+    /// One header: the chevron, the title, the folded count and the button; folding, the drag's
+    /// start, the keys and the menu. `pinned`: the row of the copy kept at the top of the view
+    /// (drawn alone); otherwise the header is laid out at the cursor with `add_body` under it
+    /// while open.
+    fn header(&self, ui: &mut Ui, info: &SectionInfo<S>, open: bool, pinned: Option<Rect>, add_body: impl FnOnce(&mut Ui)) -> HeaderOut<S> {
         let section = info.section;
         let style = self.style;
-        let rtl = direction::is_rtl(ui);
         let ctx = ui.ctx().clone();
         let mut events = Vec::new();
 
-        let salt = IdSalt::new((if pinned { "pinned" } else { "header" }, section.id()));
-        let sensed = Interactive::salted(salt, Role::DisclosureTriangle, info.title.as_str())
-            .sense(Sense::click_and_drag())
-            .expanded(open)
-            .state_layer(false)
-            .interact_at(ui, row);
-        let clicked = sensed.response().clicked();
-        let response = sensed.finish(ui).on_hover_cursor(CursorIcon::PointingHand);
-        if clicked {
+        let mut folded_open = open;
+        let mut button: Option<Response> = None;
+        let salt = (if pinned.is_some() { "pinned" } else { "header" }, section.id());
+        let counted = (!open && self.show_counts).then_some(info.count).flatten();
+        let count_format = role_format(&self.tokens, style.caption_role, Content::Faint.color(&self.tokens).to_egui());
+        let controls = |ui: &mut Ui| {
+            if let Some(count) = counted {
+                ui.add(Label::new(egui::text::LayoutJob::single_section(count.to_string(), count_format)).selectable(false));
+            }
+            if let Some(info_button) = &info.button {
+                let id = if pinned.is_some() { "pinnedButton" } else { "button" };
+                let response = ui.add(
+                    IconButton::new(info_button.icon, info_button.label.as_str()).id_salt((id, section.id(), info_button.id)).side(style.row_height),
+                );
+                if response.clicked() {
+                    events.push(SectionEvent::Button { section, id: info_button.id });
+                }
+                button = Some(response);
+            }
+        };
+        let header = SectionHeader::new(salt, info.title.as_str()).open(&mut folded_open).drag(true).controls(controls);
+        let (response, end) = match pinned {
+            Some(row) => (header.show_row(ui, row), row.bottom()),
+            None => {
+                let shown = header.show(ui, add_body);
+                (shown.response, ui.cursor().top())
+            }
+        };
+        if response.changed() {
             events.push(SectionEvent::Folded { section, folded: open });
-            ctx.accesskit_node_builder(response.id, |node| node.set_expanded(!open));
         }
 
         // A press on the header's button is the button's, also when it turns into a drag.
-        let button_rect = info.button.as_ref().map(|_| {
-            let side = style.row_height;
-            let end = direction::end_x(ui, row);
-            let start = end - direction::forward(ui) * side;
-            Rect::from_x_y_ranges(start.min(end)..=start.max(end), row.y_range())
-        });
-        let on_button = button_rect.is_some_and(|r| ui.input(|i| i.pointer.press_origin()).is_some_and(|p| r.contains(p)));
+        let on_button = button.as_ref().is_some_and(|b| ui.input(|i| i.pointer.press_origin()).is_some_and(|p| b.rect.contains(p)));
         if response.drag_started_by(PointerButton::Primary) && !on_button {
             ctx.data_mut(|d| d.insert_temp(self.id.with("drag"), section));
         }
@@ -457,51 +439,7 @@ impl<'a, S: SectionKey> Pass<'a, S> {
         let entries = menu_entries(self.layout, self.sections, &self.visible, Some(section), &self.labels);
         events.extend(ContextMenu::new(&entries).show(ui, &response).chosen);
 
-        // Chevron, title and count.
-        let x = |offset: f32| if rtl { row.right() - offset } else { row.left() + offset };
-        let chevron = Rect::from_center_size(pos2(x(1.0 + style.chevron_box / 2.0), row.center().y), vec2(style.chevron_box, style.chevron_box));
-        icons::paint_in(
-            ui,
-            chevron,
-            if open { Icon::ChevronDown } else { Icon::ChevronRight },
-            icons::active(&ctx),
-            style.chevron,
-            IconSize::Sm.stroke(),
-            style.chevron_color,
-        );
-        let mut end = direction::end_x(ui, row);
-        if let Some(r) = button_rect {
-            end = direction::start_x(ui, r) - direction::forward(ui) * self.tokens.space.gap.inline;
-        }
-        if !open
-            && self.show_counts
-            && let Some(count) = info.count
-        {
-            let color = Content::Faint.color(&self.tokens).to_egui();
-            let align = if rtl { Align2::LEFT_CENTER } else { Align2::RIGHT_CENTER };
-            let at = ui.painter().text(pos2(end, row.center().y), align, count.to_string(), self.tokens.font(style.caption_role), color);
-            end = direction::start_x(ui, at) - direction::forward(ui) * self.tokens.space.gap.inline;
-        }
-        let start = x(style.title_offset);
-        if direction::forward(ui) * (end - start) >= 1.0 {
-            let band = Rect::from_x_y_ranges(start.min(end)..=start.max(end), row.y_range());
-            let format = role_format(&self.tokens, style.title_role, style.title);
-            let text = egui::text::LayoutJob::single_section(info.title.clone(), format);
-            ui.scope_builder(UiBuilder::new().max_rect(band).layout(direction::row(ui)), |ui| {
-                ui.add(Label::new(text).truncate().selectable(false));
-            });
-        }
-
-        let button = info.button.as_ref().zip(button_rect).map(|(button, rect)| {
-            let id = if pinned { "pinnedButton" } else { "button" };
-            let response =
-                IconButton::new(button.icon, button.label.as_str()).id_salt((id, section.id(), button.id)).side(style.row_height).show_at(ui, rect);
-            if response.clicked() {
-                events.push(SectionEvent::Button { section, id: button.id });
-            }
-            response
-        });
-        HeaderOut { events, button }
+        HeaderOut { events, button, row: response.rect, end }
     }
 
     /// An open section with nothing in it says so at the title's indent.
@@ -546,21 +484,18 @@ impl<'a, S: SectionKey> Pass<'a, S> {
         None
     }
 
-    /// Announces where a moved section is now. The host applies the move after this pass, so
-    /// the position is read on the next one; the announcement then stays in the tree (a screen
-    /// reader reads it when its text changes) until the next event.
+    /// Announces where a moved section goes: its place in the layout the move makes, read in the
+    /// pass that reports the move. The announcement stays in the tree (a screen reader reads it
+    /// when its text changes) until the next event.
     fn announce(&self, ui: &mut Ui, events: &[SectionEvent<S>]) {
         let ctx = ui.ctx().clone();
-        let (pending, text) = (self.id.with("moved"), self.id.with("announcement"));
-        if let Some(SectionEvent::Moved { section, .. }) = events.iter().rev().find(|e| matches!(e, SectionEvent::Moved { .. })) {
-            ctx.data_mut(|d| d.insert_temp(pending, *section));
-            ctx.request_repaint();
-            return;
-        }
-        if let Some(section) = ctx.data(|d| d.get_temp::<S>(pending)) {
-            ctx.data_mut(|d| d.remove::<S>(pending));
-            if let Some(position) = self.visible.iter().position(|s| *s == section) {
-                let (position, count) = ((position + 1).to_string(), self.visible.len().to_string());
+        let text = self.id.with("announcement");
+        if let Some(&SectionEvent::Moved { section, before }) = events.iter().rev().find(|e| matches!(e, SectionEvent::Moved { .. })) {
+            let mut next = self.layout.clone();
+            next.move_before(section, before);
+            let visible = visible_sections(&next, self.sections);
+            if let Some(position) = visible.iter().position(|s| *s == section) {
+                let (position, count) = ((position + 1).to_string(), visible.len().to_string());
                 let said = craft_i18n::fmt(&self.labels.moved, &[("title", self.title_of(section)), ("position", &position), ("count", &count)]);
                 ctx.data_mut(|d| d.insert_temp(text, said));
             }

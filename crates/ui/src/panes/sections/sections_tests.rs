@@ -7,6 +7,7 @@ use egui_kittest::{Harness, Node};
 
 use super::{ReorderableSections, SectionButton, SectionEvent, SectionInfo, SectionKey, SectionLayout};
 use crate::icons::Icon;
+use crate::menu::MenuEntry;
 use crate::theme::{Base, install};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -208,4 +209,33 @@ fn an_empty_section_shows_its_hint() {
     for hint in ["No Albums yet", "No Keywords yet"] {
         assert!(h.query_by(|n| n.role() == Role::Label && n.value().as_deref() == Some(hint)).is_some(), "{hint}");
     }
+}
+
+#[test]
+fn a_move_is_announced_in_the_pass_that_reports_it() {
+    let mut h = harness(App::new(), 400.0);
+    header(&h, "Albums").focus();
+    h.run_steps(1);
+    let key = Event::Key { key: Key::CloseBracket, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND };
+    send(&mut h, vec![key]);
+    assert_eq!(moves(h.state()), [SectionEvent::Moved { section: Albums, before: Some(ByDate) }]);
+    assert!(h.query_by_label("Albums moved to position 2 of 5").is_some(), "announced with the move, not a pass later");
+}
+
+#[test]
+fn the_menu_entries_carry_their_events() {
+    let app = App::new();
+    let labels = super::SectionsLabels::default();
+    let entries = ReorderableSections::menu(&app.layout, &app.sections, Some(Albums), &labels);
+    let events: Vec<_> = entries
+        .iter()
+        .filter_map(|e| match e {
+            MenuEntry::Item(item) => item.command().copied(),
+            MenuEntry::Separator => None,
+        })
+        .collect();
+    assert_eq!(events.first(), Some(&SectionEvent::Hidden(Albums)));
+    assert_eq!(events.last(), Some(&SectionEvent::Reset));
+    let from_title_block = ReorderableSections::menu(&app.layout, &app.sections, None, &labels);
+    assert_eq!(from_title_block.len(), entries.len() - 4, "no Hide, Move Up, Move Down or their separator");
 }
