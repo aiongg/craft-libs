@@ -53,6 +53,10 @@ pub struct ListDrag<K> {
     /// The rows dragged, in display order: the selection when the grabbed row is in it, else the
     /// grabbed row. A row inside another dragged row is not listed; it goes with that row.
     pub items: Vec<K>,
+    /// The row the pointer grabbed: one of `items`, or a row inside one of them. A drop that acts
+    /// on one row (a channel onto New, a state onto the trash) acts on this one, not on the first
+    /// of `items`.
+    pub grabbed: K,
     /// The grabbed row's label, for the ghost.
     pub label: String,
 }
@@ -64,9 +68,9 @@ impl<K: Clone + PartialEq> ListDrag<K> {
         let items = if selection.contains(&grabbed) {
             dragged_positions(order, selection).into_iter().map(|at| order.key(at).clone()).collect()
         } else {
-            vec![grabbed]
+            vec![grabbed.clone()]
         };
-        Self { list, items, label: label.into() }
+        Self { list, items, grabbed, label: label.into() }
     }
 }
 

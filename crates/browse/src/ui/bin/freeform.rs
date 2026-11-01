@@ -325,7 +325,7 @@ where
                 let keys: Vec<K> = moving.iter().map(|&i| list.keys[i].clone()).collect();
                 let press = ctx.input(|i| i.pointer.press_origin()).or(pointer).unwrap_or(area.min);
                 drag = Some(Drag { from: moving.iter().map(|&i| positions[i]).collect(), keys: keys.clone(), grabbed, press });
-                let payload = ListDrag { list: id, items: keys, label: item_of(model, &key).name };
+                let payload = ListDrag { list: id, items: keys, grabbed: key.clone(), label: item_of(model, &key).name };
                 events.push(BinEvent::Drag(payload.clone()));
                 DragAndDrop::set_payload(&ctx, payload);
             }

@@ -178,6 +178,7 @@ impl Surface<'_> {
 #[derive(Clone)]
 pub(super) struct Dragging<K> {
     pub items: Vec<K>,
+    pub grabbed: K,
     pub label: String,
     pub group: bool,
 }
