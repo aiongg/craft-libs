@@ -1,10 +1,17 @@
 //! The revisions panel: a compared copy's changes to accept or reject (N5.10).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_theme::{ButtonVariant, TypeRole};
+use craft_ui::controls::{Button, Link};
+use craft_ui::localized::{Labels as _, fmt};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, corner_radius};
+use egui::{Align, AsIdSalt, Color32, Frame, IdSalt, Layout, Margin, Response, Sense, Ui, Vec2};
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use super::ReviewStyle;
+use super::comments::text;
+use crate::revisions::{Revision, RevisionAction, RevisionKind};
 
-use crate::revisions::{Revision, RevisionAction};
+/// The detail lines a card shows.
+const DETAIL_LINES: usize = 8;
 
 craft_ui::words! {
     /// The panel's words, English by default (DeckCraft's, PowerPoint's).
@@ -54,7 +61,44 @@ impl<'a> RevisionsPanel<'a> {
 
     // deckcraft: crates/ui-egui/src/panels/comments.rs:5 `revisions`.
     pub fn show(self, ui: &mut Ui) -> RevisionsPanelOutput {
-        todo!()
+        let Self { id_salt, compared_with, by_position, revisions, labels } = self;
+        let labels = labels.unwrap_or_else(|| RevisionsLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let style = ReviewStyle::of(&tokens);
+        let id = ui.make_persistent_id(id_salt);
+        let muted = tokens.color.text.muted.to_egui();
+        let mut action = None;
+        let response = ui
+            .vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = tokens.space.gap.stack;
+                text(ui, &tokens, TypeRole::Body, muted, fmt(&labels.compared_with, &[("name", compared_with)]));
+                if by_position {
+                    text(ui, &tokens, TypeRole::Caption, muted, &labels.by_position);
+                }
+                if revisions.is_empty() {
+                    text(ui, &tokens, TypeRole::Body, tokens.color.text.normal.to_egui(), &labels.none_left);
+                    if ui.add(Button::new(&labels.end_review).id_salt(id.with("end"))).clicked() {
+                        action = Some(RevisionAction::EndReview);
+                    }
+                    return;
+                }
+                let count = revisions.len().to_string();
+                ui.horizontal(|ui| {
+                    if ui.add(Button::new(fmt(&labels.accept_all, &[("n", &count)])).id_salt(id.with("accept-all"))).clicked() {
+                        action = Some(RevisionAction::AcceptAll);
+                    }
+                    if ui.add(Button::new(fmt(&labels.reject_all, &[("n", &count)])).id_salt(id.with("reject-all"))).clicked() {
+                        action = Some(RevisionAction::RejectAll);
+                    }
+                });
+                for (index, revision) in revisions.iter().enumerate() {
+                    if let Some(chosen) = card(ui, &tokens, &style, &labels, id, index, revision) {
+                        action = Some(chosen);
+                    }
+                }
+            })
+            .response;
+        RevisionsPanelOutput { response, action }
     }
 }
 
@@ -63,4 +107,54 @@ impl<'a> RevisionsPanel<'a> {
 pub struct RevisionsPanelOutput {
     pub response: Response,
     pub action: Option<RevisionAction>,
+}
+
+/// The colour bar of `kind`.
+fn kind_color(style: &ReviewStyle, kind: RevisionKind) -> Color32 {
+    match kind {
+        RevisionKind::Inserted => style.revision_inserted,
+        RevisionKind::Deleted => style.revision_deleted,
+        RevisionKind::Changed => style.revision_changed,
+    }
+}
+
+/// One change: bar, heading link, Accept and Reject, then its detail lines.
+fn card(
+    ui: &mut Ui,
+    tokens: &craft_ui::theme::UiTokens,
+    style: &ReviewStyle,
+    labels: &RevisionsLabels,
+    id: egui::Id,
+    index: usize,
+    revision: &Revision,
+) -> Option<RevisionAction> {
+    let mut action = None;
+    let frame = Frame::new()
+        .fill(tokens.color.surface.raised.to_egui())
+        .corner_radius(corner_radius(tokens.shape.radius.control))
+        .inner_margin(Margin::same(tokens.space.pad.control as i8));
+    frame.show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.spacing_mut().item_spacing.y = tokens.space.gap.row;
+        ui.horizontal(|ui| {
+            let (bar, _) = ui.allocate_exact_size(Vec2::new(style.revision_bar_width, style.revision_bar_height), Sense::hover());
+            ui.painter().rect_filled(bar, 0.0, kind_color(style, revision.kind));
+            if ui.add(Link::new(&revision.heading).id_salt(id.with(("go", index)))).clicked() {
+                action = Some(RevisionAction::Go(index));
+            }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if ui.add(Button::new(&labels.reject).id_salt(id.with(("reject", index)))).clicked() {
+                    action = Some(RevisionAction::Reject(index));
+                }
+                if ui.add(Button::new(&labels.accept).variant(ButtonVariant::Primary).id_salt(id.with(("accept", index)))).clicked() {
+                    action = Some(RevisionAction::Accept(index));
+                }
+            });
+        });
+        let muted = tokens.color.text.muted.to_egui();
+        for detail in revision.details.iter().take(DETAIL_LINES) {
+            text(ui, tokens, TypeRole::Caption, muted, format!("\u{2022} {detail}"));
+        }
+    });
+    action
 }

@@ -1,7 +1,5 @@
 //! Saved signatures and initials, and the signature pad's draft (N5.04).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 /// The largest image file the Image tab takes: 4 MiB (PdfCraft's "Choose a PNG or JPEG image
 /// (up to 4 MiB)").
 pub const MAX_IMAGE_BYTES: usize = 4 << 20;
@@ -55,13 +53,22 @@ impl SignatureDraft {
     /// word of it.
     // pdfcraft: crates/ui-egui/src/tools/fill_sign.rs:97 `SigDraft::new`.
     pub fn new(initials: bool, name: &str) -> Self {
-        todo!()
+        let text = if initials {
+            name.split_whitespace().filter_map(|word| word.chars().next()).collect()
+        } else {
+            name.trim().to_string()
+        };
+        Self { text, initials, ..Self::default() }
     }
 
     /// Whether Apply is enabled: the current tab has something (text that isn't blank, a stroke,
     /// an image).
     pub fn ready(&self) -> bool {
-        todo!()
+        match self.tab {
+            SignatureTab::Type => !self.text.trim().is_empty(),
+            SignatureTab::Draw => self.strokes.iter().any(|stroke| stroke.len() > 1),
+            SignatureTab::Image | SignatureTab::Scan => self.image.is_some(),
+        }
     }
 
     /// Undo on the Draw tab: drop the last stroke.
@@ -78,6 +85,13 @@ impl SignatureDraft {
 
     /// What Apply saves: the current tab's content; `None` when not [`ready`](Self::ready).
     pub fn saved(&self) -> Option<SavedSignature> {
-        todo!()
+        if !self.ready() {
+            return None;
+        }
+        Some(match self.tab {
+            SignatureTab::Type => SavedSignature::Typed(self.text.trim().to_string()),
+            SignatureTab::Draw => SavedSignature::Drawn(self.strokes.clone()),
+            SignatureTab::Image | SignatureTab::Scan => SavedSignature::Image(self.image.clone()?),
+        })
     }
 }
