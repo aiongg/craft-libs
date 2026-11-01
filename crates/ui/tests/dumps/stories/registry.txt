@@ -175,9 +175,9 @@ composites/preset-picker/keeps-open = Preset picker | Keeps open | Panel | colum
 composites/named-preset/contour-buttons = Named preset | Contour buttons | Panel | clash=Bool(true)
 composites/named-preset/trace-menu = Named preset | Trace menu | Panel | custom=Bool(true)
 composites/named-preset/rtl = Named preset | Right to left | Panel | 
-primitives/textures/cache = Texture cache | Cache | Panel | entry budget=Number { value: 4.0, min: 2.0, max: 8.0 }; keys in view=Number { value: 3.0, min: 1.0, max: 8.0 }
-primitives/textures/thumbnails = Thumbnails | Thumbnails | Panel | background=Bool(true); fit=Choice { options: ["contain", "cover"], index: 0 }; checker=Bool(true); hold=Bool(false)
-primitives/textures/queue = Texture queue | Queue | Panel | prefetch=Bool(true)
+primitives/texture-cache/cache = Texture cache | Cache | Panel | entry budget=Number { value: 4.0, min: 2.0, max: 8.0 }; keys in view=Number { value: 3.0, min: 1.0, max: 8.0 }
+primitives/thumbnails/grid = Thumbnails | Thumbnails | Panel | background=Bool(true); fit=Choice { options: ["contain", "cover"], index: 0 }; checker=Bool(true); hold=Bool(false)
+primitives/texture-queue/queue = Texture queue | Queue | Panel | prefetch=Bool(true)
 patterns/navigator/document = Navigator | Document | Canvas | zoom=Number { value: 400.0, min: 10.0, max: 1600.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); proxy color=Choice { options: ["default", "red", "orange", "yellow", "green", "blue", "violet", "gray"], index: 0 }; preview waiting=Bool(false)
 patterns/navigator/whole-document = Navigator | Whole document | Canvas | proxy color=Choice { options: ["default", "red", "orange", "yellow", "green", "blue", "violet", "gray"], index: 0 }; preview waiting=Bool(false)
 patterns/navigator/options-dialog = Navigator | Options dialog | Canvas | open=Bool(true); proxy color=Choice { options: ["default", "red", "orange", "yellow", "green", "blue", "violet", "gray"], index: 0 }
@@ -190,8 +190,8 @@ composites/history-panel/newest-first = History panel | Newest first | Panel | n
 composites/history-panel/short-dock = History panel | Short dock | Panel | height=Number { value: 160.0, min: 120.0, max: 400.0 }
 composites/history-panel/menu = History panel | Menu | Panel | 
 composites/undo-list/popup = Undo list | Popup | Panel | steps=Number { value: 30.0, min: 1.0, max: 40.0 }; marked=Number { value: 3.0, min: 0.0, max: 40.0 }
-composites/history-forms/new-snapshot = History panel | New Snapshot form | Panel | open=Bool(true)
-composites/history-forms/options = History panel | History Options form | Panel | open=Bool(true)
+composites/history-panel/new-snapshot = History panel | New Snapshot form | Panel | open=Bool(true)
+composites/history-panel/options = History panel | History Options form | Panel | open=Bool(true)
 composites/reorderable-sections/sidebar = Reorderable sections | Sidebar | Panel | show counts=Bool(true); rows=Number { value: 4.0, min: 0.0, max: 30.0 }; albums button=Bool(true); local available=Bool(true); height=Number { value: 260.0, min: 120.0, max: 480.0 }
 patterns/dock-area/docked = DockArea | Docked | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/floating = DockArea | Floating | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }

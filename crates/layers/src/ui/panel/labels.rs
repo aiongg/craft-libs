@@ -18,6 +18,8 @@ craft_ui::words! {
         /// The mask chain's names: `{mask}` is "layer mask" or "vector mask".
         link_mask: "layers.linkMask" = "Link {mask} of {layer}";
         unlink_mask: "layers.unlinkMask" = "Unlink {mask} of {layer}";
+        /// The accessible name of the rename field.
+        name: "layers.name" = "Name";
         /// The effects triangle's names.
         expand_effects: "layers.expandEffects" = "Expand effects {layer}";
         collapse_effects: "layers.collapseEffects" = "Collapse effects {layer}";

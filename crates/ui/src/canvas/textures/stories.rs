@@ -8,7 +8,7 @@
 //! | Story id | Shows |
 //! |---|---|
 //! | `primitives/texture-cache/cache` | `TextureCache` with a small budget: Ready, Loading with stand-in, Empty, Failed, eviction as the key count grows, a `TextureStatistics` readout |
-//! | `primitives/thumbnails/thumbnails` | `Thumbnails` over `FakeThumbSource`: synchronous and background renders, portrait and landscape frames, a transparent picture on the checkerboard, `hold` |
+//! | `primitives/thumbnails/grid` | `Thumbnails` over `FakeThumbSource`: synchronous and background renders, portrait and landscape frames, a transparent picture on the checkerboard, `hold` |
 //! | `primitives/texture-queue/queue` | The order of visible, near and background requests with `ManualJobs`; requests scrolled away dropped |
 //!
 //! Story ids start with their level (`ids_are_unique_and_follow_the_level_component_story_form`),
@@ -70,7 +70,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_cache
         ),
         typed_story!(
-            "primitives/thumbnails/thumbnails",
+            "primitives/thumbnails/grid",
             Level::Primitives,
             "Thumbnails",
             "Thumbnails",

@@ -49,4 +49,4 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
 ];
 
 /// The count words of the browsing widgets, for the words registry.
-pub const COUNTS: &[craft_ui::localized::words::Counted] = &[bin::ITEMS, places::HIDDEN_PLACES];
+pub const COUNTS: &[craft_ui::localized::words::Counted] = &[bin::ITEMS, places::HIDDEN_PLACES, relink::SEARCHING];

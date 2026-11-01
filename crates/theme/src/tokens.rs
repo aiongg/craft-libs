@@ -857,7 +857,7 @@ pub struct PresetSizes {
     pub name_width: f32,
     /// The greatest height of the picker's popup.
     pub popup_max_height: f32,
-    /// The gap between the browser's list and its own footer.
+    /// The gap between the browser's list and its own footer (the `size.preset.footer_room` leaf).
     pub footer_room: f32,
 }
 

@@ -177,7 +177,10 @@ pub(super) fn show_body<T: LayerTree>(
         list = list.start_rename(LayerRowKey::Layer(layer));
     }
     let out = list.show(ui, |at, key| {
-        let row = build_row(cx, at, key);
+        let mut row = build_row(cx, at, key);
+        if matches!(key, LayerRowKey::Layer(_)) {
+            row = row.rename_field_name(&cx.labels.name);
+        }
         // A filtered view lists rows at their shown depth and paints them at the true one.
         match display.paint_depths.get(at) {
             Some(&depth) if depth != rows[at].depth => row.paint_depth(depth),

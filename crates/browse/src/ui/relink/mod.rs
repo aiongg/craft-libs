@@ -28,7 +28,7 @@ mod style;
 
 pub use badge::StatusBadge;
 pub use dialog::{
-    CandidateChecker, RelinkColumn, RelinkCriterion, RelinkDialog, RelinkLabels, RelinkLayout, RelinkOptions, RelinkOutcome, RelinkRow,
+    CandidateChecker, RelinkColumn, RelinkCriterion, RelinkDialog, RelinkLabels, RelinkLayout, RelinkOptions, RelinkOutcome, RelinkRow, SEARCHING,
 };
 pub use list::{LinkFilter, LinkList, LinkListEvent, LinkListLabels, LinkListOutput, LinkListSettings, LinkListState, LinkSort};
 pub use style::RelinkStyle;

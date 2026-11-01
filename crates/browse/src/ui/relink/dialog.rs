@@ -122,7 +122,7 @@ pub struct RelinkOutcome<K> {
 }
 
 /// The running search's progress line: `{n}` files indexed so far.
-const SEARCHING: Counted = Counted::new("browse.relink.searching", "Searching… {n} file", "Searching… {n} files");
+pub const SEARCHING: Counted = Counted::new("browse.relink.searching", "Searching… {n} file", "Searching… {n} files");
 
 craft_ui::words! {
     /// The dialog's words, English by default.
