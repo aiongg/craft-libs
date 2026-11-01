@@ -90,6 +90,7 @@ fn every_photocraft_button_icon_resolves_in_the_base_set() {
         (Icon::Note, "note"),
         (Icon::Ban, "ban"),
         (Icon::SwapHorizontal, "swap_horizontal"),
+        (Icon::SwapVertical, "swap_vertical"),
         (Icon::SplitCross, "split_cross"),
         (Icon::SplitVertical, "split_vertical"),
         (Icon::SplitHorizontal, "split_horizontal"),
