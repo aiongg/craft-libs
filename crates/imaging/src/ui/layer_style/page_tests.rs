@@ -13,17 +13,13 @@ use craft_ui::theme::{Base, install};
 use super::blending::{BlendingInput, blend_if_entry_label, blending_page};
 use super::labels::{BlendIfBarLabels, ContourFieldLabels, LayerStyleLabels};
 use super::page::{FieldEdit, PageInput, effect_page, first_invalid};
-use crate::layer_style::{
-    Blending, EffectId, EffectInstance, EffectKind, EffectSpec, FieldKind, LayerStyle, LayerStyleDraft, StyleParams, StyleValue,
-};
+use crate::layer_style::{Blending, EffectId, EffectInstance, EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, StyleParams, StyleValue};
 
 const SIZE: [f32; 2] = [360.0, 1800.0];
 
 /// Drop Shadow without its Contour row: the Contour field is task AD-10's.
 fn shadow_spec() -> EffectSpec {
-    let mut spec = EffectSpec::photoshop(EffectKind::DropShadow);
-    spec.fields.retain(|f| !matches!(f.kind, FieldKind::Contour { .. }));
-    spec
+    EffectSpec::photoshop(EffectKind::DropShadow)
 }
 
 struct PageRig {
