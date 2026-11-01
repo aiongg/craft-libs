@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 pub use cache::{FolderCache, Listing, Roots};
 #[cfg(not(target_arch = "wasm32"))]
 pub use directories::SystemDirectories;
-pub use directories::{Directories, Folder, StandardFolder, Volume};
+pub use directories::{Directories, FakeDirectories, Folder, StandardFolder, Volume};
 
 /// What kind of root a place is; the tree's icon, name and menu follow from it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
