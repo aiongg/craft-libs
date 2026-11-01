@@ -123,17 +123,38 @@ pub enum ClipboardError {
     Busy,
     /// The contents are larger than the limit for their kind, in bytes.
     TooLarge { limit: u64 },
-    /// What the platform said (a broken pipe on Wayland, a clipboard owner that never answered).
+    /// None of the flavours written can be put on this clipboard (only SVG or PDF on the system
+    /// clipboard, or an image the platform can't take).
+    NoFormat,
+    /// A bitmap whose pixels don't match its size ([`ClipboardImage::is_whole`]).
+    BadImage,
+    /// What the operating system said (a broken pipe on Wayland, a clipboard owner that never
+    /// answered): free text, in the system's language, not a [`PlatformText`].
     Other(String),
+}
+
+impl ClipboardError {
+    /// The library's own reason as a [`PlatformText`] the app looks up in its catalog, for the
+    /// `{error}` of [`CLIPBOARD_FAILED`]. `None` for [`Other`](Self::Other), whose text is the
+    /// system's. [`TooLarge`](Self::TooLarge) is [`CLIPBOARD_TOO_LARGE`] with its `{limit}`.
+    pub fn text(&self) -> Option<PlatformText> {
+        match self {
+            Self::Unavailable => Some(CLIPBOARD_UNREACHABLE),
+            Self::Busy => Some(CLIPBOARD_BUSY),
+            Self::TooLarge { .. } => Some(CLIPBOARD_TOO_LARGE),
+            Self::NoFormat => Some(CLIPBOARD_NO_FORMAT),
+            Self::BadImage => Some(CLIPBOARD_BAD_IMAGE),
+            Self::Other(_) => None,
+        }
+    }
 }
 
 impl std::fmt::Display for ClipboardError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Unavailable => f.write_str("the system clipboard can't be reached"),
-            Self::Busy => f.write_str("the clipboard is busy"),
-            Self::TooLarge { limit } => write!(f, "the clipboard holds more than {limit} bytes"),
             Self::Other(message) => f.write_str(message),
+            Self::TooLarge { limit } => f.write_str(&CLIPBOARD_TOO_LARGE.english.replace("{limit}", &format!("{limit} bytes"))),
+            other => f.write_str(other.text().map_or("", |text| text.english)),
         }
     }
 }
@@ -146,7 +167,16 @@ pub const CLIPBOARD_UNAVAILABLE: PlatformText =
 /// A paste over [`ClipboardLimits`]; `{limit}` is the limit as a file size ("1 GB").
 pub const CLIPBOARD_TOO_LARGE: PlatformText =
     PlatformText { id: "clipboard.tooLarge", english: "What's on the clipboard is too large to paste (more than {limit})." };
-/// Any other failure; `{error}` is [`ClipboardError`]'s text.
+/// [`ClipboardError::Unavailable`] as the `{error}` of [`CLIPBOARD_FAILED`].
+pub const CLIPBOARD_UNREACHABLE: PlatformText = PlatformText { id: "clipboard.unreachable", english: "the system clipboard can't be reached" };
+/// [`ClipboardError::Busy`] as the `{error}` of [`CLIPBOARD_FAILED`].
+pub const CLIPBOARD_BUSY: PlatformText = PlatformText { id: "clipboard.busy", english: "the clipboard is busy" };
+/// [`ClipboardError::NoFormat`] as the `{error}` of [`CLIPBOARD_FAILED`].
+pub const CLIPBOARD_NO_FORMAT: PlatformText = PlatformText { id: "clipboard.noFormat", english: "none of the formats can be put on the clipboard" };
+/// [`ClipboardError::BadImage`] as the `{error}` of [`CLIPBOARD_FAILED`].
+pub const CLIPBOARD_BAD_IMAGE: PlatformText = PlatformText { id: "clipboard.badImage", english: "the image's pixels don't match its size" };
+/// Any other failure; `{error}` is the reason: [`ClipboardError::text`] looked up in the catalog,
+/// or the system's own text of [`ClipboardError::Other`].
 pub const CLIPBOARD_FAILED: PlatformText = PlatformText { id: "clipboard.failed", english: "Couldn't use the clipboard: {error}" };
 
 /// What a write did.
@@ -166,8 +196,10 @@ pub enum Written {
 /// slow clipboard owner (an X11 client that never answers); the UI thread calls only
 /// [`Clipboard`]'s reads and writes, on a user's copy or paste.
 pub trait ClipboardBackend: Send {
-    /// Replaces the clipboard's contents with `flavours`, best first; none empties it.
-    fn write(&mut self, flavors: &[Flavor]) -> Result<(), ClipboardError>;
+    /// Replaces the clipboard's contents with `flavors`, best first; none empties it. A backend
+    /// holds fewer flavours than an app offers, so it answers the index in `flavors` of the one
+    /// it wrote (`0` when it emptied the clipboard); [`Clipboard::holds_ours`] compares that one.
+    fn write(&mut self, flavors: &[Flavor]) -> Result<usize, ClipboardError>;
     /// The first of `mimes` the clipboard holds, at most `limit` bytes of it (more is
     /// [`ClipboardError::TooLarge`]). [`BITMAP`] matches any bitmap, returned as an [`RGBA8`] flavor.
     fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavor>, ClipboardError>;
@@ -197,16 +229,17 @@ pub struct SystemClipboard {
     handle: Option<arboard::Clipboard>,
     unreadable: bool,
     decode: Option<Decode>,
+    presence: presence::Presence,
 }
 
 /// The app's decoder for encoded bitmaps ([`SystemClipboard::decoder`]).
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
-type Decode = Box<dyn Fn(&[u8]) -> Option<ClipboardImage> + Send>;
+pub(crate) type Decode = Box<dyn Fn(&[u8]) -> Option<ClipboardImage> + Send>;
 
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
 impl SystemClipboard {
     pub fn new() -> Self {
-        Self { handle: None, unreadable: false, decode: None }
+        Self { handle: None, unreadable: false, decode: None, presence: presence::Presence::new() }
     }
 
     /// Decodes a [`PNG`] flavor to pixels for [`ClipboardBackend::write`], which hands the
@@ -259,40 +292,234 @@ fn present<T>(read: Result<T, arboard::Error>, unconvertible: bool) -> Result<Op
     }
 }
 
+/// Whether the system clipboard offers a format, asked of the system without reading or decoding
+/// any content: Windows `IsClipboardFormatAvailable`, macOS the pasteboard's type list, Wayland
+/// the offer's MIME types (`wl_clipboard_rs::paste::get_mime_types`), X11 a `TARGETS` request.
+///
+/// The macOS and Windows code is not built on the Linux box; it is a few lines each and needs a
+/// check on those systems.
+#[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
+mod presence {
+    #[cfg(any(windows, target_os = "macos"))]
+    use super::{BITMAP, HTML, RGBA8, TEXT, URI_LIST};
+
+    pub(super) struct Presence {
+        #[cfg(any(windows, target_os = "macos"))]
+        _system: (),
+        #[cfg(not(any(windows, target_os = "macos")))]
+        x11: Option<x11::Targets>,
+    }
+
+    #[cfg(windows)]
+    impl Presence {
+        pub(super) fn new() -> Self {
+            Self { _system: () }
+        }
+
+        pub(super) fn any(&mut self, mimes: &[&str]) -> bool {
+            use clipboard_win::{formats, is_format_avail, register_format};
+            let registered = |name: &str| register_format(name).is_some_and(|format| is_format_avail(format.get()));
+            mimes.iter().any(|&mime| match mime {
+                TEXT => is_format_avail(formats::CF_UNICODETEXT),
+                HTML => registered("HTML Format"),
+                BITMAP | RGBA8 => registered("PNG") || is_format_avail(formats::CF_DIBV5) || is_format_avail(formats::CF_DIB),
+                URI_LIST => is_format_avail(formats::CF_HDROP),
+                _ => false,
+            })
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    impl Presence {
+        pub(super) fn new() -> Self {
+            Self { _system: () }
+        }
+
+        pub(super) fn any(&mut self, mimes: &[&str]) -> bool {
+            use objc2_app_kit::{NSPasteboard, NSPasteboardTypeFileURL, NSPasteboardTypeHTML, NSPasteboardTypeString, NSPasteboardTypeTIFF};
+            // `types` lists the formats on offer; no item's data is fetched.
+            let Some(types) = (unsafe { NSPasteboard::generalPasteboard().types() }) else { return false };
+            mimes.iter().any(|&mime| {
+                // Safety: the pasteboard type constants are valid for the life of the process.
+                let wanted = unsafe {
+                    match mime {
+                        TEXT => NSPasteboardTypeString,
+                        HTML => NSPasteboardTypeHTML,
+                        BITMAP | RGBA8 => NSPasteboardTypeTIFF,
+                        URI_LIST => NSPasteboardTypeFileURL,
+                        _ => return false,
+                    }
+                };
+                types.iter().any(|offered| offered.isEqualToString(wanted))
+            })
+        }
+    }
+
+    /// Linux and BSD. Wayland when `WAYLAND_DISPLAY` is set and the compositor has a data-control
+    /// protocol, else X11: the order arboard picks its own backend in.
+    #[cfg(not(any(windows, target_os = "macos")))]
+    impl Presence {
+        pub(super) fn new() -> Self {
+            Self { x11: None }
+        }
+
+        pub(super) fn any(&mut self, mimes: &[&str]) -> bool {
+            let offered = self.offered();
+            mimes.iter().any(|&mime| super::offered_has(&offered, mime))
+        }
+
+        fn offered(&mut self) -> Vec<String> {
+            use wl_clipboard_rs::paste::{ClipboardType, Error, Seat, get_mime_types};
+            if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+                match get_mime_types(ClipboardType::Regular, Seat::Unspecified) {
+                    Ok(types) => return types.into_iter().collect(),
+                    // Nothing is copied.
+                    Err(Error::NoSeats | Error::ClipboardEmpty | Error::NoMimeType) => return Vec::new(),
+                    Err(error) => log::debug!("no Wayland data control for the clipboard probe, trying X11: {error}"),
+                }
+            }
+            if self.x11.is_none() {
+                self.x11 = x11::Targets::connect();
+            }
+            self.x11.as_ref().map(x11::Targets::offered).unwrap_or_default()
+        }
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
+    mod x11 {
+        use std::time::{Duration, Instant};
+
+        use x11rb::connection::Connection;
+        use x11rb::protocol::Event;
+        use x11rb::protocol::xproto::{Atom, AtomEnum, ConnectionExt, CreateWindowAux, EventMask, WindowClass};
+        use x11rb::rust_connection::RustConnection;
+        use x11rb::{COPY_DEPTH_FROM_PARENT, CURRENT_TIME, NONE};
+
+        /// How long a `TARGETS` request waits for the owner. The probe's worker waits, not the UI.
+        const ANSWER_WAIT: Duration = Duration::from_millis(250);
+
+        /// A connection and a window that receive the clipboard owner's `TARGETS` answer.
+        pub(super) struct Targets {
+            conn: RustConnection,
+            window: u32,
+            clipboard: Atom,
+            targets: Atom,
+            property: Atom,
+        }
+
+        impl Targets {
+            pub(super) fn connect() -> Option<Self> {
+                let (conn, screen) = RustConnection::connect(None).ok()?;
+                let root = conn.setup().roots.get(screen)?.root;
+                let window = conn.generate_id().ok()?;
+                conn.create_window(
+                    COPY_DEPTH_FROM_PARENT,
+                    window,
+                    root,
+                    0,
+                    0,
+                    1,
+                    1,
+                    0,
+                    WindowClass::INPUT_OUTPUT,
+                    0,
+                    &CreateWindowAux::new().event_mask(EventMask::PROPERTY_CHANGE),
+                )
+                .ok()?;
+                let atom = |name: &[u8]| conn.intern_atom(false, name).ok()?.reply().ok().map(|reply| reply.atom);
+                let (clipboard, targets, property) = (atom(b"CLIPBOARD")?, atom(b"TARGETS")?, atom(b"CRAFT_CLIPBOARD_TARGETS")?);
+                Some(Self { conn, window, clipboard, targets, property })
+            }
+
+            /// The target names the CLIPBOARD owner offers; none when nobody owns it or answers.
+            pub(super) fn offered(&self) -> Vec<String> {
+                self.ask().unwrap_or_default()
+            }
+
+            fn ask(&self) -> Option<Vec<String>> {
+                self.conn.delete_property(self.window, self.property).ok()?;
+                self.conn.convert_selection(self.window, self.clipboard, self.targets, self.property, CURRENT_TIME).ok()?;
+                self.conn.flush().ok()?;
+                let end = Instant::now() + ANSWER_WAIT;
+                while Instant::now() < end {
+                    match self.conn.poll_for_event().ok()? {
+                        Some(Event::SelectionNotify(event)) if event.selection == self.clipboard => {
+                            if event.property == NONE {
+                                return None;
+                            }
+                            let reply =
+                                self.conn.get_property(true, self.window, self.property, AtomEnum::ATOM, 0, u32::MAX / 4).ok()?.reply().ok()?;
+                            let atoms: Vec<Atom> = reply.value32()?.collect();
+                            return Some(
+                                atoms
+                                    .into_iter()
+                                    .filter_map(|atom| {
+                                        let name = self.conn.get_atom_name(atom).ok()?.reply().ok()?.name;
+                                        String::from_utf8(name).ok()
+                                    })
+                                    .collect(),
+                            );
+                        }
+                        Some(_) => {}
+                        None => std::thread::sleep(Duration::from_millis(1)),
+                    }
+                }
+                None
+            }
+        }
+    }
+}
+
+/// Whether the target or MIME names a clipboard `offered` contain a format that [`SystemClipboard`]
+/// can read as `mime`. Text includes the X11 text targets; a bitmap is `image/png`, the only
+/// bitmap arboard reads on Linux.
+#[allow(dead_code, reason = "only the Linux and BSD probe maps names")]
+pub(crate) fn offered_has(offered: &[String], mime: &str) -> bool {
+    let any = |names: &[&str]| offered.iter().any(|offer| names.iter().any(|name| offer.eq_ignore_ascii_case(name)));
+    match mime {
+        TEXT => any(&["text/plain", "text/plain;charset=utf-8", "UTF8_STRING", "STRING", "TEXT"]),
+        HTML => any(&["text/html"]),
+        BITMAP | RGBA8 => any(&[PNG]),
+        URI_LIST => any(&[URI_LIST]),
+        _ => false,
+    }
+}
+
 /// What a write puts on the system clipboard.
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
-enum Put {
+pub(crate) enum Put {
     Clear,
     Image(ClipboardImage),
     Html { html: String, alt: Option<String> },
     Text(String),
 }
 
-/// The first flavor the system clipboard can hold, as what to put there.
+/// The first flavor the system clipboard can hold, as its index in `flavors` and what to put
+/// there.
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
-fn plan_write(flavors: &[Flavor], decode: Option<&Decode>) -> Result<Put, ClipboardError> {
+pub(crate) fn plan_write(flavors: &[Flavor], decode: Option<&Decode>) -> Result<(usize, Put), ClipboardError> {
     if flavors.is_empty() {
-        return Ok(Put::Clear);
+        return Ok((0, Put::Clear));
     }
     let text_of = |f: &Flavor| String::from_utf8_lossy(&f.data).into_owned();
-    for flavor in flavors {
+    for (index, flavor) in flavors.iter().enumerate() {
         match &*flavor.mime {
             RGBA8 => {
                 if let Some(image) = rgba8_image(&flavor.data).filter(ClipboardImage::is_whole) {
-                    return Ok(Put::Image(image));
+                    return Ok((index, Put::Image(image)));
                 }
             }
             PNG => {
                 if let Some(image) = decode.and_then(|decode| decode(&flavor.data)).filter(ClipboardImage::is_whole) {
-                    return Ok(Put::Image(image));
+                    return Ok((index, Put::Image(image)));
                 }
             }
-            HTML => return Ok(Put::Html { html: text_of(flavor), alt: flavors.iter().find(|f| f.mime == TEXT).map(text_of) }),
-            TEXT => return Ok(Put::Text(text_of(flavor))),
+            HTML => return Ok((index, Put::Html { html: text_of(flavor), alt: flavors.iter().find(|f| f.mime == TEXT).map(text_of) })),
+            TEXT => return Ok((index, Put::Text(text_of(flavor)))),
             _ => {}
         }
     }
-    Err(ClipboardError::Other("none of the formats can be put on the system clipboard".to_owned()))
+    Err(ClipboardError::NoFormat)
 }
 
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
@@ -305,8 +532,8 @@ impl Default for SystemClipboard {
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
 impl ClipboardBackend for SystemClipboard {
     // pc: apps/photocraft/src/services.rs:702 clipboard_set_image (open on first use, "clipboard is busy")
-    fn write(&mut self, flavors: &[Flavor]) -> Result<(), ClipboardError> {
-        let put = plan_write(flavors, self.decode.as_ref())?;
+    fn write(&mut self, flavors: &[Flavor]) -> Result<usize, ClipboardError> {
+        let (index, put) = plan_write(flavors, self.decode.as_ref())?;
         let handle = self.open()?;
         match put {
             Put::Clear => handle.clear(),
@@ -316,7 +543,8 @@ impl ClipboardBackend for SystemClipboard {
             Put::Html { html, alt } => handle.set_html(html, alt),
             Put::Text(text) => handle.set_text(text),
         }
-        .map_err(system_error)
+        .map_err(system_error)?;
+        Ok(index)
     }
 
     // vectorcraft: crates/ui-egui/src/sysclip.rs:27 SystemClipboard::read
@@ -328,7 +556,7 @@ impl ClipboardBackend for SystemClipboard {
                 BITMAP | RGBA8 => self.read_image(limit)?.map(|image| rgba8_flavor(&image)),
                 URI_LIST => {
                     let files = present(self.open()?.get().file_list(), false)?.filter(|files| !files.is_empty());
-                    files.map(|files| Flavor::new(URI_LIST, uri_list(&files).into_bytes()))
+                    files.map(|files| Flavor::new(URI_LIST, uri_list(&files, cfg!(windows)).into_bytes()))
                 }
                 _ => None,
             };
@@ -364,14 +592,7 @@ impl ClipboardBackend for SystemClipboard {
 
     // vectorcraft: crates/ui-egui/src/sysclip.rs:29 SystemClipboard::has
     fn has(&mut self, mimes: &[&str]) -> bool {
-        let Ok(handle) = self.open() else { return false };
-        mimes.iter().any(|&mime| match mime {
-            TEXT => handle.get().text().is_ok(),
-            HTML => handle.get().html().is_ok(),
-            BITMAP | RGBA8 => handle.get_image().is_ok(),
-            URI_LIST => handle.get().file_list().is_ok_and(|files| !files.is_empty()),
-            _ => false,
-        })
+        self.presence.any(mimes)
     }
 }
 
@@ -380,29 +601,52 @@ impl ClipboardBackend for SystemClipboard {
 /// pastes as events. Writes go out through `out` (on the web, egui's copy commands:
 /// [`copy_through_egui`]).
 ///
-/// [`offer`](Self::offer) holds one paste's flavours until the next offer; reads take from it.
+/// [`offer`](Self::offer) holds one paste's flavours for the pass it was offered in. The
+/// clipboard counts passes itself (`pass`, egui's `cumulative_pass_nr` for
+/// [`for_egui`](Self::for_egui)), so a menu Paste in a later pass finds nothing and
+/// [`Clipboard::has`] is false: the browser can't be read outside a paste event. The app does
+/// nothing at the end of a pass.
 pub struct EventClipboard {
     pasted: Vec<Flavor>,
+    offered_in: u64,
+    pass: PassClock,
     out: CopyOut,
 }
 
+/// The number of the host's current pass; it changes when a pass ends.
+type PassClock = Box<dyn Fn() -> u64 + Send>;
+
 /// Where an [`EventClipboard`]'s writes go.
-type CopyOut = Box<dyn FnMut(&[Flavor]) -> Result<(), ClipboardError> + Send>;
+type CopyOut = Box<dyn FnMut(&[Flavor]) -> Result<usize, ClipboardError> + Send>;
 
 impl EventClipboard {
-    pub fn new(out: impl FnMut(&[Flavor]) -> Result<(), ClipboardError> + Send + 'static) -> Self {
-        Self { pasted: Vec::new(), out: Box::new(out) }
+    /// `pass` answers the host's pass number (any counter that changes when a pass ends). `out`
+    /// puts the flavours where the host's copy goes and answers the index of the one it wrote
+    /// ([`ClipboardBackend::write`]).
+    pub fn new(pass: impl Fn() -> u64 + Send + 'static, out: impl FnMut(&[Flavor]) -> Result<usize, ClipboardError> + Send + 'static) -> Self {
+        Self { pasted: Vec::new(), offered_in: 0, pass: Box::new(pass), out: Box::new(out) }
     }
 
-    /// The first of `mimes` the last paste offered; [`BITMAP`] is any offered `image/*`.
+    /// The browser's clipboard under egui: passes are `ctx.cumulative_pass_nr()` and copies go
+    /// through [`copy_through_egui`]. With the `ui` feature.
+    #[cfg(feature = "ui")]
+    pub fn for_egui(ctx: &egui::Context) -> Self {
+        let (clock, out) = (ctx.clone(), ctx.clone());
+        Self::new(move || clock.cumulative_pass_nr(), move |flavors| copy_through_egui(&out, flavors))
+    }
+
+    /// The first of `mimes` this pass's paste offered; [`BITMAP`] is any offered `image/*`.
     fn offered(&self, mimes: &[&str]) -> Option<&Flavor> {
+        if (self.pass)() != self.offered_in {
+            return None;
+        }
         mimes.iter().find_map(|&mime| self.pasted.iter().find(|f| if mime == BITMAP { f.mime.starts_with("image/") } else { f.mime == mime }))
     }
 }
 
 impl ClipboardBackend for EventClipboard {
     // new: the browser has no clipboard read; PhotoCraft's web shell maps Event::PasteImage (apps/photocraft-web/src/web.rs:344)
-    fn write(&mut self, flavors: &[Flavor]) -> Result<(), ClipboardError> {
+    fn write(&mut self, flavors: &[Flavor]) -> Result<usize, ClipboardError> {
         (self.out)(flavors)
     }
 
@@ -438,9 +682,10 @@ impl ClipboardBackend for EventClipboard {
         self.offered(mimes).is_some()
     }
 
-    /// Holds one paste's flavours, best first, until the next offer.
+    /// Holds one paste's flavours, best first, until the pass it was offered in ends.
     fn offer(&mut self, flavors: Vec<Flavor>) {
         self.pasted = flavors;
+        self.offered_in = (self.pass)();
     }
 }
 
@@ -466,7 +711,7 @@ pub struct Clipboard {
 enum Ours {
     /// [`image_signature`] of a bitmap.
     Image(u64),
-    /// The first flavor written: its type and a hash of its bytes.
+    /// The flavor the backend wrote: its type and a hash of its bytes.
     Flavor { mime: String, hash: u64 },
 }
 
@@ -497,7 +742,7 @@ impl Clipboard {
     // pc: crates/ui-egui/src/app/clipboard.rs:13 export_os_clipboard
     pub fn write_image(&mut self, image: &ClipboardImage) -> Result<Written, ClipboardError> {
         if !image.is_whole() {
-            return Err(ClipboardError::Other("the image's pixels don't match its size".to_owned()));
+            return Err(ClipboardError::BadImage);
         }
         let written = self.write(&[rgba8_flavor(image)])?;
         if written == Written::Written {
@@ -506,13 +751,14 @@ impl Clipboard {
         Ok(written)
     }
 
-    /// Replaces the clipboard with `flavours`, best first, unless fenced.
+    /// Replaces the clipboard with `flavors`, best first, unless fenced. What
+    /// [`holds_ours`](Self::holds_ours) compares is the flavour the backend reports it wrote.
     pub fn write(&mut self, flavors: &[Flavor]) -> Result<Written, ClipboardError> {
         if self.synthetic {
             return Ok(Written::Fenced);
         }
-        self.backend.write(flavors)?;
-        self.ours = flavors.first().map(|f| Ours::Flavor { mime: f.mime.to_string(), hash: hash_bytes(&f.data) });
+        let wrote = self.backend.write(flavors)?;
+        self.ours = flavors.get(wrote).map(|f| Ours::Flavor { mime: f.mime.to_string(), hash: hash_bytes(&f.data) });
         Ok(Written::Written)
     }
 
@@ -561,7 +807,7 @@ impl Clipboard {
     }
 
     /// Does the clipboard still hold what this app wrote last (nothing copied since, here or in
-    /// another app)? Reads the clipboard's first flavour of the last write's type and compares
+    /// another app)? Reads the clipboard's flavour of the type the backend wrote last and compares
     /// it with what was written (an image by [`image_signature`]); for a pasted image the app
     /// already read, [`is_ours`](Self::is_ours) answers without another read.
     // vectorcraft: crates/ui-egui/src/sysclip.rs:25 SystemClipboard::holds_ours
@@ -727,22 +973,30 @@ pub fn flavors_from_event(event: &egui::Event) -> Option<Vec<Flavor>> {
     }
 }
 
-/// Writes `flavours` through egui's output (the web's clipboard): the first text flavour with
-/// `ctx.copy_text`, the first image with `OutputCommand::CopyImage`. With the `ui` feature.
+/// Writes the best of `flavors` through egui's output (the web's clipboard) and answers its
+/// index: the first text flavour with `ctx.copy_text`, or the first bitmap with
+/// `OutputCommand::CopyImage`, whichever comes first. One only: eframe's web code makes each
+/// command its own `navigator.clipboard` write, so a second command would replace the first.
+/// With the `ui` feature.
 #[cfg(feature = "ui")]
-// new: eframe's web integration owns navigator.clipboard
-pub fn copy_through_egui(ctx: &egui::Context, flavors: &[Flavor]) -> Result<(), ClipboardError> {
-    let mut copied = flavors.is_empty();
-    if let Some(text) = flavors.iter().find(|f| f.mime == TEXT) {
-        ctx.copy_text(String::from_utf8_lossy(&text.data).into_owned());
-        copied = true;
+// new: eframe's web integration owns navigator.clipboard (app_runner.rs: CopyText and CopyImage each write on their own)
+pub fn copy_through_egui(ctx: &egui::Context, flavors: &[Flavor]) -> Result<usize, ClipboardError> {
+    if flavors.is_empty() {
+        return Ok(0);
     }
-    let image = flavors.iter().find(|f| f.mime == RGBA8).and_then(|f| rgba8_image(&f.data)).filter(ClipboardImage::is_whole);
-    if let Some(image) = image {
-        ctx.copy_image(egui::ColorImage::from_rgba_unmultiplied([image.width as usize, image.height as usize], &image.rgba));
-        copied = true;
+    for (index, flavor) in flavors.iter().enumerate() {
+        if flavor.mime == TEXT {
+            ctx.copy_text(String::from_utf8_lossy(&flavor.data).into_owned());
+            return Ok(index);
+        }
+        if flavor.mime == RGBA8
+            && let Some(image) = rgba8_image(&flavor.data).filter(ClipboardImage::is_whole)
+        {
+            ctx.copy_image(egui::ColorImage::from_rgba_unmultiplied([image.width as usize, image.height as usize], &image.rgba));
+            return Ok(index);
+        }
     }
-    if copied { Ok(()) } else { Err(ClipboardError::Other("neither text nor a bitmap to copy".to_owned())) }
+    Err(ClipboardError::NoFormat)
 }
 
 /// Text types read under [`ClipboardLimits::text_bytes`]: plain, HTML and RTF text and SVG markup.
@@ -781,7 +1035,13 @@ fn parse_uri_list(list: &str) -> Vec<PathBuf> {
             let line = line.trim();
             let path = line.strip_prefix("file://")?;
             let path = path.strip_prefix("localhost").unwrap_or(path);
-            path.starts_with('/').then(|| PathBuf::from(percent_decode(path)))
+            let decoded = percent_decode(path);
+            // `file:///C:/Users/x` is the drive path `C:/Users/x` on Windows.
+            let decoded = match decoded.strip_prefix('/') {
+                Some(drive) if cfg!(windows) && drive.as_bytes().get(1) == Some(&b':') => drive.to_owned(),
+                _ => decoded,
+            };
+            path.starts_with('/').then(|| PathBuf::from(decoded))
         })
         .collect()
 }
@@ -806,14 +1066,17 @@ fn percent_decode(text: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// `files` as a `text/uri-list` (CRLF line ends, RFC 2483).
+/// `files` as a `text/uri-list` (CRLF line ends, RFC 2483). With `windows`, paths are drive paths
+/// and become `file:///C:/Users/…` (the drive kept, separators turned to `/`).
 #[cfg(all(feature = "clipboard", not(target_arch = "wasm32")))]
-fn uri_list(files: &[PathBuf]) -> String {
+pub(crate) fn uri_list(files: &[PathBuf], windows: bool) -> String {
     let mut list = String::new();
     for file in files {
+        let path = file.to_string_lossy();
+        let path = if windows { std::borrow::Cow::Owned(format!("/{}", path.replace('\\', "/"))) } else { path };
         list.push_str("file://");
-        for &byte in file.to_string_lossy().as_bytes() {
-            if byte.is_ascii_alphanumeric() || b"/-._~".contains(&byte) {
+        for &byte in path.as_bytes() {
+            if byte.is_ascii_alphanumeric() || b"/-._~".contains(&byte) || (windows && byte == b':') {
                 list.push(char::from(byte));
             } else {
                 list.push_str(&format!("%{byte:02X}"));
