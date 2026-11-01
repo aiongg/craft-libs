@@ -1,13 +1,13 @@
 //! [`PatternFillDialog`] (task SH-T12).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::sync::Arc;
 
 use egui::{Context, Painter, Rect};
 
-use super::{PatternFillLabels, PatternFillOptions, PatternSwatch};
-use craft_ui::dialog::{DialogId, DialogResult, DialogStack, DialogState, StackDialog, dialog_id};
+use super::{PatternFillEditor, PatternFillLabels, PatternFillOptions, PatternSwatch};
+use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, Outcome, StackDialog, Width, dialog_id};
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::Labels as _;
 
 /// The app's painter of a swatch's tile, shared with the dialog on the host.
 type Thumbnails = dyn Fn(&Painter, Rect, &PatternSwatch) + Send + Sync;
@@ -29,8 +29,12 @@ pub struct PatternFillDialog {
     thumbnails: Option<Arc<Thumbnails>>,
     /// The pass the values last changed in.
     changed: Option<u64>,
+    /// The pass the dialog last drew in.
+    pass: u64,
+    /// The values before the running gesture, which a cancelled gesture restores.
+    gesture_start: Option<PatternFillOptions>,
     labels: Option<PatternFillLabels>,
-    state: DialogState,
+    state: DialogState<PatternFillOptions>,
 }
 
 impl PatternFillDialog {
@@ -43,6 +47,8 @@ impl PatternFillDialog {
             swatches,
             thumbnails: None,
             changed: None,
+            pass: 0,
+            gesture_start: None,
             labels: None,
             state: DialogState::new(),
         }
@@ -67,8 +73,7 @@ impl PatternFillDialog {
 
     /// Whether the values changed in the last pass the dialog drew (the app refreshes its preview).
     pub fn changed(&self) -> bool {
-        // new: compares `changed` with the context's current pass.
-        todo!()
+        self.changed == Some(self.pass)
     }
 
     /// Whether the current values equal the ones it opened with.
@@ -85,8 +90,46 @@ impl StackDialog for PatternFillDialog {
     }
 
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<PatternFillOptions>> {
-        // pc: crates/ui-egui/src/dialogs/pattern_fill_ui.rs:52-72 `open`, `open_new` (100 %, 0°, linked),
-        // :100-157 (the live preview, Cancel changes nothing, an unchanged OK is a no-op), :159 `body`.
-        todo!()
+        // pc: crates/ui-egui/src/dialogs/pattern_fill_ui.rs:52-73 `open`, `open_new` (100 %, 0°, linked),
+        // :98-151 (`unchanged`, `confirm`, `display_doc`: the live preview, an unchanged OK is a no-op), :159 `body`.
+        let Self { id, current, swatches, thumbnails, changed, pass, gesture_start, labels, state, .. } = self;
+        let words = labels.clone().unwrap_or_else(|| PatternFillLabels::of_ctx(ctx));
+        *pass = ctx.cumulative_pass_nr();
+        let pass = *pass;
+        let shown = Dialog::with_id(*id, words.title.as_str()).stack(stack).width(Width::Compact).footer(Footer::standard()).show(
+            ctx,
+            state,
+            current,
+            |ui, fields| {
+                let mut editor = PatternFillEditor::new("pattern", fields, swatches).labels(words.clone());
+                if let Some(paint) = thumbnails.clone() {
+                    editor = editor.thumbnails(move |painter, rect, swatch| paint(painter, rect, swatch));
+                }
+                let Some(event) = editor.show(ui).event else { return };
+                match &event {
+                    EditEvent::Begin { .. } => {
+                        gesture_start.get_or_insert_with(|| fields.clone());
+                    }
+                    EditEvent::Cancel { .. } => {
+                        if let Some(start) = gesture_start.take() {
+                            *fields = start;
+                            *changed = Some(pass);
+                        }
+                        return;
+                    }
+                    EditEvent::Commit { .. } | EditEvent::Set { .. } => *gesture_start = None,
+                    _ => {}
+                }
+                if let Some(value) = event.value().filter(|value| *value != fields) {
+                    *fields = value.clone();
+                    *changed = Some(pass);
+                }
+            },
+        );
+        match shown.outcome {
+            Some(Outcome::Ok) => Some(DialogResult::Ok(current.clone())),
+            Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
+            _ => None,
+        }
     }
 }
