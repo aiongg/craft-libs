@@ -1,14 +1,17 @@
 //! The footer buttons and their drops (`ChannelsFooterButton`).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+#![expect(dead_code, reason = "ChannelsPanel::show (CH1) is their caller: removed when it lands")]
 
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use craft_ui::behavior::ListDrag;
+use craft_ui::composites::PanelFooter;
+use craft_ui::icons::Icon;
 use egui::Ui;
 
 use super::labels::ChannelsLabels;
-use super::model::{ChannelKind, ChannelRow, ChannelsEvent};
+use super::model::{ChannelKind, ChannelRow, ChannelsEvent, targeted_row};
 
 /// A button of the Channels footer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -44,7 +47,33 @@ pub(super) fn show_footer<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
 ) -> Vec<ChannelsEvent<K>> {
     // pc: crates/ui-egui/src/panels/channels_panel.rs:456-487 (the footer, Photoshop's order from the left);
     // pc: crates/ui-egui/src/panels/channels_panel.rs:528-540 `drop_action`.
-    todo!()
+    let target = targeted_row(rows);
+    let delete_enabled = target.is_some_and(|row| accepts_footer_drop(ChannelsFooterButton::Delete, row.kind));
+    let buttons = [
+        (ChannelsFooterButton::Delete, Icon::Trash, labels.delete.as_str(), delete_enabled),
+        (ChannelsFooterButton::New, Icon::Plus, labels.new.as_str(), true),
+        (ChannelsFooterButton::SaveSelection, Icon::RectDashed, labels.save_selection.as_str(), true),
+        (ChannelsFooterButton::LoadSelection, Icon::EllipseDashed, labels.load_selection.as_str(), true),
+    ];
+    let mut events = Vec::new();
+    PanelFooter::show(ui, |ui| {
+        for (button, icon, label, enabled) in buttons {
+            let response = ui.add_enabled_ui(enabled, |ui| PanelFooter::button(ui, icon, label)).inner;
+            if response.clicked() {
+                events.push(ChannelsEvent::Footer { button, key: target.map(|row| row.key.clone()) });
+            }
+            if button == ChannelsFooterButton::SaveSelection {
+                continue;
+            }
+            let dropped = PanelFooter::drop_target::<ListDrag<K>>(ui, &response, |drag| {
+                drag.items.first().and_then(|key| rows.iter().find(|row| row.key == *key)).is_some_and(|row| accepts_footer_drop(button, row.kind))
+            });
+            if let Some(key) = dropped.and_then(|drag| drag.items.first().cloned()) {
+                events.push(ChannelsEvent::FooterDrop { button, key });
+            }
+        }
+    });
+    events
 }
 
 /// Whether `button` takes a drop of a row of `kind`: Delete refuses the composite, colour
@@ -52,5 +81,9 @@ pub(super) fn show_footer<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
 /// takes none.
 pub(super) fn accepts_footer_drop(button: ChannelsFooterButton, kind: ChannelKind) -> bool {
     // pc: crates/ui-egui/src/panels/channels_panel.rs:528-540 `drop_action` (`None` for Delete on other rows).
-    todo!()
+    match button {
+        ChannelsFooterButton::Delete => !matches!(kind, ChannelKind::Composite | ChannelKind::Color | ChannelKind::QuickMask { .. }),
+        ChannelsFooterButton::New | ChannelsFooterButton::LoadSelection => true,
+        ChannelsFooterButton::SaveSelection => false,
+    }
 }
