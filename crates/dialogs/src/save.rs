@@ -297,3 +297,5 @@ pub const SAVE_FAILED: PlatformText = PlatformText { id: "save.failed", english:
 pub const SAVE_IN_PROGRESS: PlatformText = PlatformText { id: "save.inProgress", english: "Finish the save in progress before starting another." };
 /// The status line after a save; `{name}`.
 pub const SAVED: PlatformText = PlatformText { id: "save.saved", english: "Saved “{name}”" };
+/// Every [`PlatformText`] of the save flow, for the missing-translation report.
+pub const TEXTS: &[PlatformText] = &[SAVE_FAILED, SAVE_IN_PROGRESS, SAVED];

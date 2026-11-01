@@ -18,6 +18,15 @@ fn ear_clipping_splits_a_concave_polygon() {
 }
 
 #[test]
+fn ear_clipping_skips_repeated_and_collinear_vertices() {
+    // An area chart whose value is 0 at the right end: the top point equals the baseline point.
+    let chart = [pos2(0.0, 100.0), pos2(10.0, 50.0), pos2(20.0, 100.0), pos2(20.0, 100.0), pos2(0.0, 100.0)];
+    assert_eq!(triangulate(&chart).len(), 3);
+    let with_midpoint = [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(2.0, 0.0), pos2(2.0, 2.0), pos2(0.0, 2.0)];
+    assert_eq!(triangulate(&with_midpoint).len(), 6);
+}
+
+#[test]
 fn convexity_ignores_collinear_points() {
     let square = [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(2.0, 0.0), pos2(2.0, 2.0), pos2(0.0, 2.0)];
     assert!(is_convex(&square));

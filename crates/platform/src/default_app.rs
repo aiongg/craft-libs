@@ -250,3 +250,14 @@ pub const XDG_MIME_MISSING: PlatformText =
     PlatformText { id: "defaultApp.xdgMimeMissing", english: "xdg-mime isn't installed (it comes with xdg-utils)." };
 /// [`DefaultAppError::SettingsFailed`]; `{error}` is the system's reason.
 pub const DEFAULT_SETTINGS_FAILED: PlatformText = PlatformText { id: "defaultApp.settingsFailed", english: "Couldn't open Settings: {error}" };
+/// Every [`PlatformText`] of this module, for the missing-translation report ([`crate::texts`]).
+pub const TEXTS: &[PlatformText] = &[
+    DEFAULT_SETTINGS_OPENED,
+    DEFAULT_MADE,
+    DEFAULT_FAILED,
+    DEFAULT_ON_MAC,
+    DEFAULT_SANDBOXED,
+    DEFAULT_NOT_INSTALLED,
+    XDG_MIME_MISSING,
+    DEFAULT_SETTINGS_FAILED,
+];

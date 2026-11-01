@@ -2,7 +2,13 @@
 
 use egui::{Rect, pos2, vec2};
 
+use craft_theme::{Easing, Motion};
+
 use crate::motion::*;
+
+fn token(millis: u32) -> Motion {
+    Motion { millis, easing: Easing::Enter }
+}
 
 const VIEWPORT: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(1000.0, 600.0));
 
@@ -19,13 +25,47 @@ fn resting(glide: &mut CaretGlide, x: f32) {
     glide.frame(frame(bar(x, 100.0), 1, 10.0, 1));
 }
 
-// `ease`: 0 at 0, 1 at 1, above 1/3 at 0.07 and about 0.9 at 0.5; a non-finite input is 1.
+// `ease`: the token's curve, 0 at 0, 1 at 1, ahead of linear early on; a non-finite input is 1.
 #[test]
-fn the_glide_curve_is_words() {
-    assert_eq!((ease(0.0), ease(1.0)), (0.0, 1.0));
-    assert!(ease(0.07) > 1.0 / 3.0, "{}", ease(0.07));
-    assert!((ease(0.5) - 0.9).abs() < 0.02, "{}", ease(0.5));
-    assert_eq!((ease(f32::NAN), ease(f32::INFINITY), ease(2.0), ease(-1.0)), (1.0, 1.0, 1.0, 0.0));
+fn the_glide_curve_is_the_tokens() {
+    for easing in [Easing::Standard, Easing::Enter, Easing::Exit] {
+        assert!(ease(easing, 0.0).abs() < 1e-6 && (ease(easing, 1.0) - 1.0).abs() < 1e-6);
+        assert!((ease(easing, f32::NAN) - 1.0).abs() < 1e-6 && (ease(easing, 2.0) - 1.0).abs() < 1e-6 && ease(easing, -1.0).abs() < 1e-6);
+    }
+    assert!(ease(Easing::Enter, 0.07) > 1.0 / 3.0 && ease(Easing::Exit, 0.5) < 0.5);
+}
+
+// `CaretGlide::with_motion`: the glide follows the token's easing, not a fixed curve.
+#[test]
+fn the_caret_glide_reads_the_tokens_easing() {
+    let halfway = |easing| {
+        let mut glide = CaretGlide::with_motion(Motion { millis: 100, easing });
+        resting(&mut glide, 100.0);
+        glide.frame(CaretFrame { keys: true, ..frame(bar(200.0, 100.0), 2, 10.1, 2) });
+        glide.frame(frame(bar(200.0, 100.0), 2, 10.15, 3)).bar[0].x
+    };
+    assert!(halfway(Easing::Enter) > 150.0 && halfway(Easing::Exit) < 150.0);
+    // The themes' defaults keep the source curves: Word's (0, 0, 0, 1) for the caret, GridCraft's cubic ease-out for the outline.
+    let ctx = egui::Context::default();
+    crate::theme::install(&ctx, &crate::theme::Base::suite_default());
+    let tokens = crate::theme::current(&ctx);
+    assert_eq!(tokens.motion.caret.easing, Easing::Enter);
+    assert_eq!(tokens.motion.outline.easing, Easing::Standard);
+    let mut glide = CaretGlide::with_motion(tokens.motion.caret);
+    resting(&mut glide, 100.0);
+    glide.frame(CaretFrame { keys: true, ..frame(bar(200.0, 100.0), 2, 10.1, 2) });
+    let x = glide.frame(frame(bar(200.0, 100.0), 2, 10.15, 3)).bar[0].x;
+    assert!(x > 150.0, "Word's curve is past half way at half the time: {x}");
+}
+
+// `CaretGlide::reset`: a caret that reappears after being hidden, with no edit, is drawn in place.
+#[test]
+fn a_hidden_caret_reappears_without_fading_in_as_an_edit() {
+    let mut glide = CaretGlide::with_motion(token(100));
+    resting(&mut glide, 100.0);
+    glide.frame(CaretFrame { shown: false, keys: true, ..frame(bar(100.0, 100.0), 1, 10.1, 2) });
+    let back = glide.frame(CaretFrame { keys: true, ..frame(bar(100.0, 100.0), 1, 10.2, 3) });
+    assert_eq!((back.moving, glide.is_gliding()), (false, false), "the cause did not change, so it is no edit");
 }
 
 // `blink`: 1 for the first 0.53 s, then fades off over the fade time, off, and fades back on.
@@ -46,7 +86,7 @@ fn a_resting_caret_blinks_with_fades() {
 // `CaretGlide::frame`: a changed cause with `keys` glides from the old place (half way after a short time); with `pointer` it is at the target at once.
 #[test]
 fn a_key_move_glides_and_a_click_jumps() {
-    let mut keyed = CaretGlide::default();
+    let mut keyed = CaretGlide::with_motion(token(100));
     resting(&mut keyed, 100.0);
     let start = keyed.frame(CaretFrame { keys: true, ..frame(bar(200.0, 100.0), 2, 10.1, 2) });
     assert_eq!(start.bar, bar(100.0, 100.0));
@@ -59,7 +99,7 @@ fn a_key_move_glides_and_a_click_jumps() {
     assert_eq!(done.bar, bar(200.0, 100.0));
     assert!(!keyed.is_gliding());
 
-    let mut clicked = CaretGlide::default();
+    let mut clicked = CaretGlide::with_motion(token(100));
     resting(&mut clicked, 100.0);
     let at = clicked.frame(CaretFrame { pointer: true, ..frame(bar(200.0, 100.0), 2, 10.1, 2) });
     assert_eq!(at.bar, bar(200.0, 100.0));
@@ -69,22 +109,22 @@ fn a_key_move_glides_and_a_click_jumps() {
 // `CaretGlide::frame`: a new `view`, or a `frame_nr` two ahead, puts the caret at its target.
 #[test]
 fn a_view_change_or_a_skipped_frame_never_glides() {
-    let mut zoomed = CaretGlide::default();
+    let mut zoomed = CaretGlide::with_motion(token(100));
     resting(&mut zoomed, 100.0);
     let look = zoomed.frame(CaretFrame { keys: true, view: 2, ..frame(bar(200.0, 100.0), 2, 10.1, 2) });
     assert_eq!(look.bar, bar(200.0, 100.0));
 
-    let mut skipped = CaretGlide::default();
+    let mut skipped = CaretGlide::with_motion(token(100));
     resting(&mut skipped, 100.0);
     let look = skipped.frame(CaretFrame { keys: true, ..frame(bar(200.0, 100.0), 2, 10.1, 3) });
     assert_eq!(look.bar, bar(200.0, 100.0));
     assert!(!skipped.is_gliding());
 }
 
-// `CaretGlide::with_secs(0.0)`: the caret is at its target, opacity 0 or 1.
+// `CaretGlide::with_motion(token(0))`: the caret is at its target, opacity 0 or 1.
 #[test]
 fn zero_seconds_jumps_and_blinks_hard() {
-    let mut glide = CaretGlide::with_secs(0.0);
+    let mut glide = CaretGlide::with_motion(token(0));
     resting(&mut glide, 100.0);
     let moved = glide.frame(CaretFrame { keys: true, ..frame(bar(200.0, 100.0), 2, 10.1, 2) });
     assert_eq!((moved.bar, moved.opacity, moved.moving), (bar(200.0, 100.0), 1.0, false));
@@ -103,7 +143,7 @@ fn cell(x: f32, y: f32) -> Rect {
 // `OutlineGlide::frame`: a new selection glides; the same selection moved on screen is drawn on its cells.
 #[test]
 fn the_outline_glides_edge_by_edge_and_stays_on_scrolled_cells() {
-    let mut glide = OutlineGlide::default();
+    let mut glide = OutlineGlide::with_motion(token(120));
     glide.frame(outline(1, cell(100.0, 100.0), 10.0, 1));
     // The selection grows to the right: only the right edge travels.
     let wide = Rect::from_min_max(pos2(100.0, 100.0), pos2(292.0, 116.0));
@@ -126,7 +166,7 @@ fn the_outline_glides_edge_by_edge_and_stays_on_scrolled_cells() {
 // `OutlineGlide::frame`: another `place`, or `animate` false, puts the outline on its cells.
 #[test]
 fn no_glide_between_places_or_with_animate_off() {
-    let mut glide = OutlineGlide::default();
+    let mut glide = OutlineGlide::with_motion(token(120));
     glide.frame(outline(1, cell(100.0, 100.0), 10.0, 1));
     let elsewhere = OutlineFrame { place: 2, ..outline(2, cell(300.0, 200.0), 10.1, 2) };
     assert_eq!(glide.frame(elsewhere), cell(300.0, 200.0));
@@ -137,16 +177,16 @@ fn no_glide_between_places_or_with_animate_off() {
     assert!(!glide.is_gliding());
 }
 
-// `OutlineGlide::with_secs`: the glide takes the given time, and none at 0.
+// `OutlineGlide::with_motion`: the glide takes the given time, and none at 0.
 #[test]
 fn the_outline_glide_takes_the_time_it_is_given() {
     let wide = Rect::from_min_max(pos2(100.0, 100.0), pos2(292.0, 116.0));
-    let mut quick = OutlineGlide::with_secs(0.0);
+    let mut quick = OutlineGlide::with_motion(token(0));
     quick.frame(outline(1, cell(100.0, 100.0), 10.0, 1));
     assert_eq!(quick.frame(outline(2, wide, 10.1, 2)), wide);
     assert!(!quick.is_gliding());
 
-    let mut slow = OutlineGlide::with_secs(1.0);
+    let mut slow = OutlineGlide::with_motion(token(1000));
     slow.frame(outline(1, cell(100.0, 100.0), 10.0, 1));
     slow.frame(outline(2, wide, 10.1, 2));
     assert!(slow.frame(outline(2, wide, 10.1 + 0.5, 3)) != wide);

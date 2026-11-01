@@ -99,8 +99,25 @@ pub fn triangulate(points: &[Pos2]) -> Vec<u32> {
     if n < 3 {
         return Vec::new();
     }
-    let area: f32 = (0..n).map(|i| points[i].x * points[(i + 1) % n].y - points[(i + 1) % n].x * points[i].y).sum();
-    let mut indices: Vec<usize> = if area >= 0.0 { (0..n).collect() } else { (0..n).rev().collect() };
+    // Repeated and collinear vertices (an area chart whose value is 0 at an end) have no ear of
+    // their own and would make every ear test fail, so they are left out.
+    let mut kept: Vec<usize> = (0..n).collect();
+    let flat = |a: Pos2, b: Pos2, c: Pos2| ((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)).abs() <= 1e-3;
+    loop {
+        let m = kept.len();
+        if m < 3 {
+            return Vec::new();
+        }
+        let drop = (0..m).find(|&i| {
+            let (a, b, c) = (points[kept[(i + m - 1) % m]], points[kept[i]], points[kept[(i + 1) % m]]);
+            a == b || flat(a, b, c)
+        });
+        let Some(i) = drop else { break };
+        kept.remove(i);
+    }
+    let n = kept.len();
+    let area: f32 = (0..n).map(|i| points[kept[i]].x * points[kept[(i + 1) % n]].y - points[kept[(i + 1) % n]].x * points[kept[i]].y).sum();
+    let mut indices: Vec<usize> = if area >= 0.0 { kept } else { kept.into_iter().rev().collect() };
     let cross = |a: Pos2, b: Pos2, c: Pos2| (b - a).x * (c - b).y - (b - a).y * (c - b).x;
     let mut triangles = Vec::with_capacity((n - 2) * 3);
     while indices.len() > 3 {

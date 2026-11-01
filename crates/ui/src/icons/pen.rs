@@ -13,11 +13,14 @@ use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, pos2};
 /// stroke width (in points, already scaled: [`IconSize::stroke`](super::IconSize::stroke) for the
 /// suite's), radii and lengths are in units.
 ///
-/// ```ignore
+/// ```no_run
+/// # use craft_ui::icons::{IconPen, IconSize};
+/// # fn draw(painter: &egui::Painter, rect: egui::Rect, color: egui::Color32) {
 /// let pen = IconPen::new(&painter, rect, IconSize::Md.stroke(), color);
 /// pen.circle(12.0, 12.0, 8.0);
 /// pen.line(12.0, 4.0, 12.0, 20.0);
 /// pen.arrow_tip(20.0, 12.0, 1.0, 0.0);
+/// # }
 /// ```
 #[derive(Clone, Copy)]
 pub struct IconPen<'a> {
@@ -124,20 +127,25 @@ impl<'a> IconPen<'a> {
     // figcraft: crates/ui-egui/src/icons.rs:250 capsule
     pub fn capsule(&self, a: (f32, f32), b: (f32, f32), r: f32) {
         let theta = (b.1 - a.1).atan2(b.0 - a.0);
-        let outline: Vec<(f32, f32)> = arc_points(b.0, b.1, r, theta - FRAC_PI_2, theta + FRAC_PI_2)
+        let outline: Vec<(f32, f32)> = arc_points_screen(b.0, b.1, r, theta - FRAC_PI_2, theta + FRAC_PI_2)
             .into_iter()
-            .chain(arc_points(a.0, a.1, r, theta + FRAC_PI_2, theta + 3.0 * FRAC_PI_2))
+            .chain(arc_points_screen(a.0, a.1, r, theta + FRAC_PI_2, theta + 3.0 * FRAC_PI_2))
             .map(|p| (p.x, p.y))
             .collect();
         self.polyline(&outline, true);
     }
 }
 
-/// The points of an arc around `(cx, cy)` of radius `r` from `a0` to `a1` radians (y down), in
-/// `ceil(|a1 − a0| · r · 1.5)` steps clamped to 6–48: smooth at icon sizes without wasting
-/// vertices.
+/// The points of an arc around `(cx, cy)` of radius `r` from `a0` to `a1` degrees, counter-clockwise
+/// on screen (y up, as [`IconPen::arc`]), in `ceil(|a1 − a0| · r · 1.5)` steps (the angle in
+/// radians) clamped to 6–48: smooth at icon sizes without wasting vertices.
 // figcraft: crates/ui-egui/src/icons.rs:241 arc_pts
 pub fn arc_points(cx: f32, cy: f32, r: f32, a0: f32, a1: f32) -> Vec<Pos2> {
+    arc_points_screen(cx, cy, r, -a0.to_radians(), -a1.to_radians())
+}
+
+/// [`arc_points`] with the angles in radians, y down (the angle runs clockwise on screen).
+fn arc_points_screen(cx: f32, cy: f32, r: f32, a0: f32, a1: f32) -> Vec<Pos2> {
     let steps = ((a1 - a0).abs() * r * 1.5).ceil().clamp(6.0, 48.0) as usize;
     (0..=steps)
         .map(|i| {

@@ -216,6 +216,19 @@ fn elided_text_keeps_the_full_text_where_it_cuts_elsewhere() {
     );
 }
 
+// `Text::max_width` without an elision or truncate wraps at the width instead of cutting one line.
+#[test]
+fn a_width_cap_without_elision_wraps() {
+    const TEXT: &str = "A layer name that is long enough to need several lines";
+    let mut harness = harness().with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(|ui| {
+        ui.add(Text::new(TEXT).max_width(80.0));
+    });
+    harness.run();
+    let node = harness.query_by(|n| n.label().as_deref() == Some(TEXT) || n.value().as_deref() == Some(TEXT)).expect("the label's node");
+    assert!(node.rect().width() <= 80.5, "{:?}", node.rect());
+    assert!(node.rect().height() > 30.0, "it wraps onto several lines: {:?}", node.rect());
+}
+
 #[test]
 fn truncated_text_keeps_the_full_text_in_its_tooltip_and_accesskit_node() {
     const FULL: &str = "A long layer name that does not fit in the panel";

@@ -1892,8 +1892,15 @@ pub const RATING_BADGE_STEP: (f32, f32) = (9.0, 13.0);
 /// Duration of a text caret's glide, in milliseconds (WordCraft's `caret_glide.rs`, measured from Word).
 pub const MOTION_CARET_MS: u32 = 100;
 
+/// Easing of a text caret's glide: Word's `cubic-bezier(0, 0, 0, 1)` (WordCraft's `caret_glide.rs`).
+pub const MOTION_CARET_EASING: Easing = Easing::Enter;
+
 /// Duration of a selection outline's glide, in milliseconds (GridCraft's `selection_glide.rs`).
 pub const MOTION_OUTLINE_MS: u32 = 120;
+
+/// Easing of a selection outline's glide. GridCraft's `ease_out` is `1 - (1 - t)^3` (0.875 at the
+/// half way); `Standard` reaches 0.878 there and is the closest of the three curves.
+pub const MOTION_OUTLINE_EASING: Easing = Easing::Standard;
 
 /// Width of the About window (PhotoCraft).
 pub const ABOUT_WIDTH: f32 = 700.0;

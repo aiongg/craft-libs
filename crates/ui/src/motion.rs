@@ -13,28 +13,20 @@
 //! if look.moving { ctx.request_repaint() }
 //! ```
 
+use craft_theme::{Easing, Motion};
 use egui::{Context, Pos2, Rect, pos2};
 
-/// How long a caret's glide, and each fade of its blink, takes when the host gives no time: 100 ms
-/// (WordCraft, measured from Word for Windows 16.0 at 144 Hz), the default of the `motion.caret`
-/// token. Hosts build their glide with `CaretGlide::with_secs(motion_secs(tokens.motion.caret))`.
-pub const CARET_GLIDE_SECS: f64 = 0.10;
 /// A resting caret is on for this long, then off for as long: 530 ms (Word's, and the Windows
 /// default).
 pub const CARET_BLINK_SECS: f64 = 0.53;
-/// How long an outline's glide takes when the host gives no time: 120 ms (GridCraft's estimate of
-/// Excel's cell cursor), the default of the `motion.outline` token. Hosts build their glide with
-/// `OutlineGlide::with_secs(motion_secs(tokens.motion.outline))`.
-pub const OUTLINE_GLIDE_SECS: f64 = 0.12;
 /// Moves shorter than this (points) don't glide.
 pub const MIN_MOVE: f32 = 0.5;
 /// How far outside the view a glide may start or end (points); a move from or to further away
 /// is drawn in place.
 pub const OFFSCREEN_SLACK: f32 = 48.0;
 
-/// A motion token's duration in seconds, for [`CaretGlide::with_secs`] and
-/// [`OutlineGlide::with_secs`] (0 with reduced motion).
-pub fn motion_secs(motion: craft_theme::Motion) -> f64 {
+/// A motion token's duration in seconds (0 with reduced motion).
+pub fn motion_secs(motion: Motion) -> f64 {
     f64::from(motion.millis) / 1000.0
 }
 
@@ -47,12 +39,10 @@ pub fn glides_allowed(ctx: &Context) -> bool {
     !crate::theme::current(ctx).motion.reduced && ctx.global_style().animation_time > 0.0
 }
 
-/// Word's glide curve, `cubic-bezier(0, 0, 0, 1)`, in closed form: `3 s^(2/3) − 2 s` for `s`
-/// clamped to 0–1 (a non-finite `s` is 1).
-// wordcraft: crates/ui-egui/src/caret_glide.rs:282 ease
-pub fn ease(s: f32) -> f32 {
-    let s = if s.is_finite() { s.clamp(0.0, 1.0) } else { 1.0 };
-    3.0 * s.powf(2.0 / 3.0) - 2.0 * s
+/// The glide curve of a motion token at progress `s`, clamped to 0–1 (a non-finite `s` is 1).
+// wordcraft: crates/ui-egui/src/caret_glide.rs:282 ease (Word's curve; the token's `easing` stands in)
+pub fn ease(easing: Easing, s: f32) -> f32 {
+    easing.at(if s.is_finite() { s } else { 1.0 })
 }
 
 /// A resting caret's opacity `since` seconds after its blink restarted: 1 for the first
@@ -113,7 +103,7 @@ pub struct CaretLook {
 /// A caret's motion between frames, after WordCraft's caret glide (Word for Windows' caret).
 ///
 /// - A key or typing moves the caret: it glides from where it was heading to its new place in
-///   [`CARET_GLIDE_SECS`] on [`ease`]; another move before it arrives starts from the old glide's
+///   the `motion.caret` token's time on its easing; another move before it arrives starts from the old glide's
 ///   end. The time is the same for one character and a whole line.
 /// - A click moves it: no glide. A move by the host (a script, the control channel): no glide and
 ///   no fade.
@@ -133,6 +123,7 @@ pub struct CaretLook {
 #[derive(Clone, Debug)]
 pub struct CaretGlide {
     secs: f64,
+    easing: Easing,
     target: Option<CaretBar>,
     opacity: f32,
     /// From, to, and when it set off.
@@ -143,23 +134,18 @@ pub struct CaretGlide {
     frame_nr: u64,
 }
 
-impl Default for CaretGlide {
-    fn default() -> Self {
-        Self::with_secs(CARET_GLIDE_SECS)
-    }
-}
-
 impl CaretGlide {
-    /// A caret whose glides and fades take `secs` (0 or less: it jumps and blinks hard; a
-    /// non-finite value is the default; at most 10 s, for looking at it slowed down).
+    /// A caret whose glides and fades take the token's time and glide on its easing (a time of 0:
+    /// it jumps and blinks hard; at most 10 s, for looking at it slowed down). Hosts pass
+    /// `tokens.motion.caret`.
     // wordcraft: crates/ui-egui/src/caret_glide.rs:140 with_secs
-    pub fn with_secs(secs: f64) -> Self {
-        let secs = if secs.is_finite() { secs.clamp(0.0, 10.0) } else { CARET_GLIDE_SECS };
-        Self { secs, target: None, opacity: 0.0, glide: None, fade: None, cause: 0, view: 0, frame_nr: 0 }
+    pub fn with_motion(motion: Motion) -> Self {
+        let secs = motion_secs(motion).clamp(0.0, 10.0);
+        Self { secs, easing: motion.easing, target: None, opacity: 0.0, glide: None, fade: None, cause: 0, view: 0, frame_nr: 0 }
     }
 
     /// Advances to this pass and says how to draw the caret. The host passes
-    /// [`glides_allowed`] through `secs` by building the glide with `with_secs(0.0)` when it is
+    /// [`glides_allowed`] through the token's time, building the glide with a `millis` of 0 when it is
     /// false. Call it after the pass's events are applied (see the type's doc).
     // wordcraft: crates/ui-egui/src/caret_glide.rs:158 frame
     pub fn frame(&mut self, f: CaretFrame) -> CaretLook {
@@ -214,7 +200,7 @@ impl CaretGlide {
         }
         let bar = match self.glide {
             Some((from, to, started)) => match progress(f.now, started, self.secs) {
-                Some(s) => lerp(from, to, ease(s)),
+                Some(s) => lerp(from, to, ease(self.easing, s)),
                 None => {
                     self.glide = None;
                     f.target
@@ -249,9 +235,14 @@ impl CaretGlide {
         self.glide.is_some()
     }
 
-    /// Forgets the caret: the next [`frame`](Self::frame) puts it at its target, with no glide.
+    /// Forgets where the caret was drawn: the next [`frame`](Self::frame) puts it at its target, with no glide.
     pub fn reset(&mut self) {
-        *self = Self::with_secs(self.secs);
+        // What the host showed (the cause, the view, the frame) stays: the caret reappearing is
+        // not an edit.
+        self.target = None;
+        self.opacity = 0.0;
+        self.glide = None;
+        self.fade = None;
     }
 }
 
@@ -281,7 +272,7 @@ pub struct OutlineFrame {
 ///
 /// - The selection changed (keys, a click, a drag, any command): the outline, and whatever the
 ///   host draws with it (fill, fill handle), glides from where it is drawn now to the new cells
-///   in the glide's time ([`OUTLINE_GLIDE_SECS`] by default), each edge on its own, so extending a selection grows it edge by
+///   in the `motion.outline` token's time and easing, each edge on its own, so extending a selection grows it edge by
 ///   edge and a held arrow key reads as one motion.
 /// - The same cells moved on screen (scrolling, zoom, a resized column): the outline stays on
 ///   its cells. The glide is kept as each edge's distance from its target, decaying to zero, so
@@ -291,6 +282,7 @@ pub struct OutlineFrame {
 #[derive(Clone, Debug)]
 pub struct OutlineGlide {
     secs: f64,
+    easing: Easing,
     place: u64,
     selection: u64,
     drawn: Option<Rect>,
@@ -300,18 +292,12 @@ pub struct OutlineGlide {
     frame_nr: u64,
 }
 
-impl Default for OutlineGlide {
-    fn default() -> Self {
-        Self::with_secs(OUTLINE_GLIDE_SECS)
-    }
-}
-
 impl OutlineGlide {
-    /// An outline whose glides take `secs` (0 or less: it jumps; a non-finite value is the default;
-    /// at most 10 s).
-    pub fn with_secs(secs: f64) -> Self {
-        let secs = if secs.is_finite() { secs.clamp(0.0, 10.0) } else { OUTLINE_GLIDE_SECS };
-        Self { secs, place: 0, selection: 0, drawn: None, offset: [0.0; 4], started: 0.0, gliding: false, frame_nr: 0 }
+    /// An outline whose glides take the token's time on its easing (a time of 0: it jumps; at
+    /// most 10 s). Hosts pass `tokens.motion.outline`.
+    pub fn with_motion(motion: Motion) -> Self {
+        let secs = motion_secs(motion).clamp(0.0, 10.0);
+        Self { secs, easing: motion.easing, place: 0, selection: 0, drawn: None, offset: [0.0; 4], started: 0.0, gliding: false, frame_nr: 0 }
     }
 
     /// Advances to this frame; returns where to draw the outline (screen points).
@@ -335,7 +321,7 @@ impl OutlineGlide {
         // Arrived when the time is up (or the clock went backwards).
         let progress = if self.secs > 0.0 { (f.now - self.started) / self.secs } else { 1.0 };
         self.gliding = self.offset != [0.0; 4] && (0.0..1.0).contains(&progress);
-        let left = if self.gliding { 1.0 - ease_out(progress as f32) } else { 0.0 };
+        let left = if self.gliding { 1.0 - ease(self.easing, progress as f32) } else { 0.0 };
         let [l, t, r, b] = self.offset.map(|o| o * left);
         let drawn = Rect::from_min_max(pos2(f.target.min.x + l, f.target.min.y + t), pos2(f.target.max.x + r, f.target.max.y + b));
         self.drawn = Some(drawn);
@@ -367,12 +353,6 @@ fn distance(a: CaretBar, b: CaretBar) -> f32 {
 
 fn is_finite(b: CaretBar) -> bool {
     b[0].x.is_finite() && b[0].y.is_finite() && b[1].x.is_finite() && b[1].y.is_finite()
-}
-
-/// Decelerating curve of the outline's glide: quick off the mark, soft landing.
-fn ease_out(t: f32) -> f32 {
-    let r = 1.0 - t.clamp(0.0, 1.0);
-    1.0 - r * r * r
 }
 
 /// Each edge's distance from `to` back to `from`. No glide (all zero) when either end is off the

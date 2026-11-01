@@ -801,6 +801,7 @@ fn size_presets_text_size_shape_and_motion() {
 
     assert_eq!((compact.motion.hover.millis, compact.motion.open.millis), (80, 150));
     assert_eq!((compact.motion.caret.millis, compact.motion.outline.millis), (100, 120));
+    assert_eq!((compact.motion.caret.easing, compact.motion.outline.easing), (Easing::Enter, Easing::Standard));
     let still = resolve(&def, Appearance { reduced_motion: true, ..app(Mode::Dark, Contrast::Standard) }, None).tokens;
     assert_eq!((still.motion.hover.millis, still.motion.open.millis, still.motion.r#move.millis), (0, 0, 0));
     assert_eq!((still.motion.caret.millis, still.motion.outline.millis), (0, 0));
