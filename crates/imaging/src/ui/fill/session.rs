@@ -84,6 +84,14 @@ pub struct FillLimits {
     pub points: usize,
 }
 
+impl FillLimits {
+    /// The message for a stroke or edit that would pass `points`.
+    pub fn points_message(&self) -> String {
+        // pc: crates/ui-egui/src/dialogs/caf_ui/preview.rs:84 `points_limit`.
+        format!("at most {} points in all sampling strokes and lasso edits: undo some, or reset", self.points)
+    }
+}
+
 /// What a Reset button resets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FillReset {
@@ -111,53 +119,93 @@ pub struct FillSession {
 impl FillSession {
     /// Points in the strokes and lasso edits so far, against [`FillLimits::points`]; `extra` is a
     /// stroke in progress.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA1")]
     pub fn points_used(&self, extra: Option<&SamplingStroke>) -> usize {
         // pc: crates/ui-egui/src/dialogs/caf_ui.rs:342 `points_used`.
-        todo!()
+        let strokes: usize = self.strokes.iter().chain(extra).map(|stroke| stroke.points.len()).sum();
+        let lassos: usize = self.fill_edits.iter().map(FillAreaEdit::points_len).sum();
+        strokes + lassos
     }
 
     /// Whether a new stroke may begin (or a stroke in progress take another point): `Err` with "at
     /// most N sampling strokes: undo some, or reset the sampling area" or the points message ("at
     /// most N points in all sampling strokes and lasso edits: undo some, or reset").
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA1")]
     pub fn may_begin_stroke(&self, limits: &FillLimits) -> Result<(), String> {
         // pc: crates/ui-egui/src/dialogs/caf_ui.rs:353 `begin_stroke` (the checks), :371
         // `extend_stroke`; caf_ui/preview.rs:84 `points_limit`.
-        todo!()
+        if self.strokes.len() >= limits.edits {
+            return Err(format!("at most {} sampling strokes: undo some, or reset the sampling area", limits.edits));
+        }
+        if self.points_used(None) >= limits.points {
+            return Err(limits.points_message());
+        }
+        Ok(())
     }
 
     /// Records a finished stroke.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA1")]
     pub fn add_stroke(&mut self, stroke: SamplingStroke) {
         // pc: crates/ui-egui/src/dialogs/caf_ui.rs:389 `end_stroke`.
-        todo!()
+        self.strokes.push(stroke);
     }
 
     /// Records a fill-area edit within `limits`, or returns why not ("at most N lasso edits: undo
     /// some, or reset the fill area"; the points message). An edit the app then finds empties the
     /// fill area is taken back by the workspace (`ContentAwareFillWorkspace::refuse_fill_edit`).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA1")]
     pub fn add_fill_edit(&mut self, edit: FillAreaEdit, limits: &FillLimits) -> Result<(), String> {
-        // pc: crates/ui-egui/src/dialogs/caf_ui/lifecycle.rs:196 `fill_edit`.
-        todo!()
+        // pc: crates/ui-egui/src/dialogs/caf_ui/lifecycle.rs:196 `fill_edit` (the count first,
+        // then the points; a total equal to the limit passes).
+        if self.fill_edits.len() >= limits.edits {
+            return Err(format!("at most {} lasso edits: undo some, or reset the fill area", limits.edits));
+        }
+        if self.points_used(None) + edit.points_len() > limits.points {
+            return Err(limits.points_message());
+        }
+        self.fill_edits.push(edit);
+        Ok(())
     }
 
     /// A new sampling option: the strokes start over. Nothing changes when the option is the same
     /// and there are no strokes.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA1")]
     pub fn set_sampling(&mut self, sampling: SamplingMode) -> bool {
         // pc: crates/ui-egui/src/dialogs/caf_ui/lifecycle.rs:224 `set_sampling`.
-        todo!()
+        if self.sampling == sampling && self.strokes.is_empty() {
+            return false;
+        }
+        self.strokes.clear();
+        self.sampling = sampling;
+        true
     }
 
     /// A Reset: [`FillReset::Sampling`] and [`FillReset::All`] change the session and `settings`,
     /// [`FillReset::Fill`] only `settings`, [`FillReset::FillArea`] only the fill edits. Returns
     /// whether the session changed.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA1")]
     pub fn reset(&mut self, what: FillReset, settings: &mut FillSettings) -> bool {
         // pc: crates/ui-egui/src/dialogs/caf_ui/lifecycle.rs:238 `reset`.
-        todo!()
+        let defaults = FillSettings::default();
+        match what {
+            FillReset::Fill => {
+                settings.color_adaptation = defaults.color_adaptation;
+                settings.rotation = defaults.rotation;
+                settings.scale = defaults.scale;
+                settings.mirror = defaults.mirror;
+                false
+            }
+            FillReset::Sampling => {
+                settings.sample_all_layers = defaults.sample_all_layers;
+                settings.sampling = defaults.sampling;
+                self.set_sampling(SamplingMode::Auto)
+            }
+            FillReset::FillArea => {
+                let changed = !self.fill_edits.is_empty();
+                self.fill_edits.clear();
+                changed
+            }
+            FillReset::All => {
+                let changed = *self != FillSession::default();
+                *self = FillSession::default();
+                *settings = defaults;
+                changed
+            }
+        }
     }
 }
 
@@ -225,9 +273,18 @@ pub struct FillCommand {
 
 impl FillCommand {
     /// The command for `session` with `settings`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA1")]
     pub fn new(session: &FillSession, settings: &FillSettings) -> FillCommand {
         // pc: crates/ui-egui/src/dialogs/caf_ui/preview.rs:65 `plan_params`.
-        todo!()
+        FillCommand {
+            sampling: session.sampling,
+            sample_all_layers: settings.sample_all_layers,
+            color_adaptation: settings.color_adaptation,
+            rotation_adaptation: settings.rotation,
+            scale: settings.scale,
+            mirror: settings.mirror,
+            output: settings.output,
+            fill_edits: session.fill_edits.clone(),
+            strokes: session.strokes.clone(),
+        }
     }
 }
