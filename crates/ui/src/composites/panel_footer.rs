@@ -9,14 +9,20 @@ use std::sync::Arc;
 
 use egui::{Rect, Response, Stroke, Ui, UiBuilder, pos2, vec2};
 
+use crate::behavior::set_drop_hint;
 use crate::controls::IconButton;
 use crate::direction;
 use crate::icons::Icon;
+use crate::list::{DropMark, paint_drop_mark};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::patterns::rail::flyout::paint_corner_triangle;
 use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
+
+/// A footer button's label, kept under its response id for the drop hint.
+#[derive(Clone)]
+struct ButtonLabel(String);
 
 /// A panel footer's bar, rule and buttons, from [`PanelFooter::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -139,11 +145,21 @@ impl PanelFooter {
     ///   list or before it (egui clears a payload only at the end of the release pass). A list that
     ///   drags only to its footer refuses every row target with
     ///   [`Reorder::accepts`](crate::behavior::Reorder::accepts).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn drop_target<P: Any + Send + Sync>(ui: &Ui, button: &Response, accepts: impl FnOnce(&P) -> bool) -> Option<Arc<P>> {
         // pc: crates/ui-egui/src/panels/layer_drag.rs:40 `dropped_on` (outline while over, true on release);
         // the label for the hint is kept by `button_in` in egui temp data under the response id.
-        todo!()
+        let hovered = button.dnd_hover_payload::<P>()?;
+        if !accepts(&hovered) {
+            return None;
+        }
+        if ui.input(|i| i.pointer.any_released()) {
+            return button.dnd_release_payload::<P>();
+        }
+        paint_drop_mark(ui, button.rect, DropMark::Into);
+        if let Some(label) = ui.data(|d| d.get_temp::<ButtonLabel>(button.id)) {
+            set_drop_hint(ui.ctx(), label.0);
+        }
+        None
     }
 
     fn button_in(ui: &mut Ui, icon: Icon, label: &str, menu: Option<bool>) -> Response {
@@ -151,6 +167,7 @@ impl PanelFooter {
         let side = tokens.component.panel_footer.button;
         let (_, square) = ui.allocate_space(vec2(side, side));
         let response = IconButton::new(icon, label).size(ControlSize::Md).show_at(ui, square);
+        ui.data_mut(|d| d.insert_temp(response.id, ButtonLabel(label.to_owned())));
         if let Some(open) = menu {
             let rail = &tokens.component.rail;
             if ui.is_rect_visible(response.rect) {

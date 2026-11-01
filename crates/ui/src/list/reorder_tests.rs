@@ -10,6 +10,7 @@ use egui_kittest::{Harness, Node};
 use super::drag::{show_copy, show_flat, show_refused, show_tree};
 use super::*;
 use crate::behavior::{Axis, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
+use crate::composites::PanelFooter;
 use crate::edit::{CancelReason, EditEvent};
 use crate::story::NoArgs;
 use crate::testing::a11y;
@@ -399,27 +400,149 @@ fn the_drop_target_follows_the_pointer_in_the_same_pass() {
 // `into_rows` accepting the dragged rows: the middle of a row without children is an Into target
 // (marker Into, Move position Into); a row it refuses keeps halves.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn into_rows_offers_into_on_a_row_without_children() {
-    todo!()
+    let mut harness = Harness::<Host>::builder()
+        .with_size([320.0, 300.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, host: &mut Host| {
+                let reorder = Reorder::new(Axis::Vertical).into_rows(|_, &key: &usize| key != 5);
+                let out = List::new("list", "Layers", host.rows.as_slice())
+                    .selection(&mut host.selection)
+                    .max_height(LIST_HEIGHT)
+                    .reorder(reorder)
+                    .show(ui, |_, &key| ListRow::new(key, format!("Row {key}")));
+                if DragAndDrop::payload::<ListDrag<usize>>(ui.ctx()).is_some() && host.targets.last() != Some(&out.drop_target) {
+                    host.targets.push(out.drop_target.clone());
+                }
+            },
+            Host::new(10),
+        );
+    harness.run();
+    grab(&mut harness, 1);
+    hover_row(&mut harness, 3, 0.5);
+    assert_eq!(harness.state().targets.last(), Some(&mv(&[1], 3, DropPosition::Into)), "the middle of an accepting row is Into");
+    hover_row(&mut harness, 3, 0.1);
+    assert_eq!(harness.state().targets.last(), Some(&mv(&[1], 3, DropPosition::Before)), "its top edge is still Before");
+    hover_row(&mut harness, 5, 0.5);
+    assert_eq!(harness.state().targets.last(), Some(&mv(&[1], 5, DropPosition::After)), "a refused row keeps halves");
+    hover_row(&mut harness, 1, 0.5);
+    assert_eq!(harness.state().targets.last(), Some(&None), "a dragged row never takes itself");
+}
+
+/// A list with a footer button, drawn after the list or before it.
+struct Footer {
+    rows: Vec<RowInfo<usize>>,
+    selection: Selection<usize>,
+    first: bool,
+    accept: bool,
+    reorders: Vec<Reordered>,
+    dropped: Option<Vec<usize>>,
+    hints: Vec<String>,
+    button: Option<egui::Rect>,
+}
+
+fn show_footer(ui: &mut Ui, host: &mut Footer) {
+    fn footer_button(ui: &mut Ui, host: &mut Footer) {
+        let delete = PanelFooter::button(ui, crate::icons::Icon::Trash, "Delete layer");
+        host.button = Some(delete.rect);
+        let accept = host.accept;
+        if let Some(drag) = PanelFooter::drop_target::<ListDrag<usize>>(ui, &delete, |_| accept) {
+            host.dropped = Some(drag.items.clone());
+        }
+        if let Some(hint) = crate::behavior::drop_hint(ui.ctx()) {
+            host.hints.push(hint);
+        }
+    }
+    if host.first {
+        footer_button(ui, host);
+    }
+    let out = List::new("list", "Layers", host.rows.as_slice())
+        .selection(&mut host.selection)
+        .max_height(LIST_HEIGHT)
+        .reorder(Reorder::new(Axis::Vertical))
+        .show(ui, |_, &key| ListRow::new(key, format!("Row {key}")));
+    for event in out.events {
+        if let ListEvent::Reorder(event) = event {
+            host.reorders.push(event);
+        }
+    }
+    if !host.first {
+        footer_button(ui, host);
+    }
+}
+
+fn footer_harness(first: bool, accept: bool) -> Harness<'static, Footer> {
+    let host = Footer {
+        rows: (0..6).map(RowInfo::leaf).collect(),
+        selection: Selection::only(0),
+        first,
+        accept,
+        reorders: Vec::new(),
+        dropped: None,
+        hints: Vec::new(),
+        button: None,
+    };
+    let mut harness = Harness::<Footer>::builder()
+        .with_size([320.0, 400.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(show_footer, host);
+    harness.run();
+    harness
+}
+
+fn footer_move(harness: &mut Harness<'_, Footer>, pos: Pos2, pressed: Option<bool>) {
+    harness.event(Event::PointerMoved(pos));
+    if let Some(pressed) = pressed {
+        harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+    }
+    harness.run();
+}
+
+/// Presses on Row 1 and moves over the footer button, returning the button's centre.
+fn drag_to_footer(harness: &mut Harness<'_, Footer>) -> Pos2 {
+    let rect = harness.get_by_label("Row 1").rect();
+    footer_move(harness, rect.center(), Some(true));
+    footer_move(harness, rect.center() + vec2(0.0, 8.0), None);
+    let target = harness.state().button.unwrap_or(egui::Rect::NOTHING).center();
+    assert!(target.x.is_finite(), "the footer button is shown");
+    footer_move(harness, target, None);
+    target
 }
 
 // A row drag released over a `PanelFooter` button below the list: the list reports
 // Cancel(Dismissed) and `PanelFooter::drop_target` returns the ListDrag in the same pass, with the
 // footer drawn after the list and with it drawn before.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_release_over_a_footer_button_delivers_the_list_drag() {
-    todo!()
+    for first in [false, true] {
+        let mut harness = footer_harness(first, true);
+        let target = drag_to_footer(&mut harness);
+        footer_move(&mut harness, target, Some(false));
+        let host = harness.state();
+        assert_eq!(host.dropped, Some(vec![1]), "the footer takes the payload (footer first: {first})");
+        assert!(
+            host.reorders.iter().any(|e| matches!(e, EditEvent::Cancel { reason: CancelReason::Dismissed, .. })),
+            "the list ends as dismissed (footer first: {first}): {:?}",
+            host.reorders
+        );
+        assert!(DragAndDrop::payload::<ListDrag<usize>>(&harness.ctx).is_none(), "the drop took the payload");
+    }
 }
 
 // While a drag hovers a footer button, `drop_target` paints the Into outline and sets the drop hint
 // when `accepts` takes the payload, and paints nothing, sets no hint and returns None when it refuses.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn a_footer_button_outlines_only_an_accepted_drag() {
-    todo!()
+    let mut harness = footer_harness(false, true);
+    drag_to_footer(&mut harness);
+    assert_eq!(harness.state().hints.last().map(String::as_str), Some("Delete layer"), "an accepted drag announces the button");
+
+    let mut harness = footer_harness(false, false);
+    let target = drag_to_footer(&mut harness);
+    assert!(harness.state().hints.is_empty(), "a refused drag shows nothing");
+    footer_move(&mut harness, target, Some(false));
+    assert_eq!(harness.state().dropped, None, "a refused payload is never returned");
 }
