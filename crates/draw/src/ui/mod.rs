@@ -1,14 +1,30 @@
 //! The draw tools' widgets, for egui.
 //!
 //! - [`gradient`]: the gradient stop bar ([`GradientEditor`]), its palette and swatch, the stop
-//!   rules ([`gradient::stops`]) and the on-canvas [`GradientOverlay`] with the geometry of its
-//!   line ([`gradient::gradient_line`]).
+//!   rules ([`gradient::stops`]), the on-canvas [`GradientOverlay`] with the geometry of its
+//!   line ([`gradient::gradient_line`]) and the [`GradientMapEditor`].
 //! - [`pen`]: the [`PenDraft`] of the Pen tool and the [`BezierOverlay`] that edits paths, with the
-//!   path model they share ([`EditPath`]).
-//! - [`crop`]: the [`CropFrame`] of the Crop tool, its composition guides, and the
-//!   [`PerspectiveCropQuad`].
-//! - [`transform`]: the [`TransformBox`] of Free Transform and the options bar's
-//!   [`TransformFields`].
+//!   path model they share ([`EditPath`]), and the [`PathOptionsPopover`].
+//! - [`stroke`]: the [`StrokeEditor`], the [`StrokeButton`] that opens it and the [`StrokePreview`].
+//! - [`corner`]: the [`CornerWidgets`] for corner radii.
+//! - [`crop`]: the [`CropFrame`] of the Crop tool, its composition guides, the [`PerspectiveCropQuad`],
+//!   the [`CropTool`] with its [`CropSession`], and the [`CropOptionsBar`].
+//! - [`transform`]: the [`TransformBox`] of Free Transform, the options bar's [`TransformFields`],
+//!   the [`TransformSession`] with its [`TransformOverlay`] and the [`TransformBar`].
+//! - [`measure`]: the [`RulerTool`] with its [`RulerBar`], and [`box_distances`] between boxes.
+//! - [`symmetry`]: the [`Symmetry`] guides with their [`SymmetryOverlay`], [`SymmetryMenu`] and
+//!   the [`SymmetryTransform`] that mirrors a stroke.
+//! - [`shape`] and [`shape_drag`]: the shape layer's [`ShapePanel`] and [`ShapeOptionsBar`]; the
+//!   [`ShapeDragTool`] and its [`CreateShapeDialog`].
+//! - [`mod@slice`]: the [`SliceTool`], its [`SliceOverlay`], [`SliceBar`] and dialogs.
+//! - [`artboard`] and [`add_beside`]: the [`ArtboardTool`], its [`ArtboardBar`] and
+//!   [`ArtboardProperties`]; the add-beside buttons ([`AddBesideHandles`]).
+//! - [`connector`]: the [`ConnectorTool`], its [`ConnectorOverlay`] and [`ConnectorBar`].
+//! - [`pattern`] and [`picture_fill`]: the [`PatternFillEditor`] and [`PictureFillEditor`].
+//! - [`brush_presets`] and [`brush_settings`]: the [`BrushPresetPicker`], [`BrushPresetChip`] and
+//!   [`BrushSettingsPanel`].
+//!
+//! The main types of each module are also re-exported here.
 
 pub mod add_beside;
 pub(crate) mod add_beside_stories;
@@ -35,6 +51,29 @@ pub mod transform;
 #[cfg(test)]
 mod words_tests;
 
+pub use add_beside::{AddBesideHandles, AddBesideLabels, AddBesideResponse, AddBesideStyle, AddSide};
+pub use artboard::{
+    ArtboardBackground, ArtboardBar, ArtboardBarOutput, ArtboardEvent, ArtboardItem, ArtboardLabels, ArtboardPreset, ArtboardProperties,
+    ArtboardPropertiesOutput, ArtboardRules, ArtboardStyle, ArtboardTool, ArtboardToolLabels,
+};
+pub use brush_presets::{
+    BrushCardLabels, BrushCardStyle, BrushPick, BrushPickerLabels, BrushPickerSettings, BrushPickerState, BrushPickerStyle, BrushPickerValues,
+    BrushPresetCards, BrushPresetChip, BrushPresetChipResponse, BrushPresetChipStyle, BrushPresetPicker, BrushPresetPickerOutput,
+};
+pub use brush_settings::{
+    BrushPanelAction, BrushSection, BrushSectionEvent, BrushSectionKind, BrushSectionList, BrushSettingsLabels, BrushSettingsOutput,
+    BrushSettingsPanel, BrushSettingsStyle, BrushSizeField, BrushStrokeStrip, DynamicControl, TipEllipse,
+};
+pub use connector::{
+    ConnectionSite, ConnectionTarget, ConnectorBar, ConnectorBarEvent, ConnectorBarLabels, ConnectorBarOutput, ConnectorDraft, ConnectorEnd,
+    ConnectorEndKind, ConnectorEvent, ConnectorItem, ConnectorLine, ConnectorOverlay, ConnectorStyle, ConnectorTool, ConnectorToolLabels,
+};
+pub use corner::{CornerEdit, CornerKind, CornerRadii, CornerStyle, CornerWidgets, CornerWidgetsLabels, CornerWidgetsResponse};
+pub use crop::{
+    CropBarEvent, CropBarLabels, CropBarOutput, CropBarStyle, CropCommit, CropDocument, CropEvent, CropFill, CropInput, CropOptionsBar,
+    CropOptionsMenu, CropOptionsMenuResponse, CropOutput, CropOverlayMenu, CropPresetChoice, CropRatio, CropSession, CropSettings, CropSizePreset,
+    CropTarget, CropTool, CropToolPass, CropUserPreset, ResolutionUnit,
+};
 pub use crop::{
     CropBox, CropFrame, CropGuide, CropLabels, CropNames, CropPress, CropPressKind, CropReadout, CropRelease, CropResponse, CropShield, CropStyle,
     CropTrack, GuideShow, PerspectiveCropNames, PerspectiveCropQuad, PerspectiveCropResponse, PerspectiveCropStyle, PerspectiveHit, PerspectiveQuad,
@@ -42,17 +81,49 @@ pub use crop::{
 };
 pub use gradient::{
     ColorRequest, ColorStop, GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientExtent, GradientGroup, GradientItem,
-    GradientLabels, GradientLine, GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, GradientPalette, GradientRamp,
-    GradientRampStyle, GradientRef, GradientStops, GradientSwatch, LineCursor, LineGradient, LinePart, LinePress, LineRelease, LineTrack,
-    OpacityStop, PaletteLayout, Sampler as StopSampler, StopDrop, StopRef, StopRow, StopRows, StopRules, TaggedStop, default_sampler,
+    GradientLabels, GradientLine, GradientLineNames, GradientLineStyle, GradientMap, GradientMapEditor, GradientMapLabels, GradientMapOutput,
+    GradientOverlay, GradientOverlayResponse, GradientPalette, GradientRamp, GradientRampStyle, GradientRef, GradientStops, GradientSwatch,
+    LineCursor, LineGradient, LinePart, LinePress, LineRelease, LineTrack, OpacityStop, PaletteLayout, Sampler as StopSampler, StopDrop, StopRef,
+    StopRow, StopRows, StopRules, TaggedStop, default_sampler,
+};
+pub use measure::{MIN_LINE, MeasureStyle, RulerBar, RulerBarLabels, RulerBarOutput, RulerLine, RulerTool, RulerToolLabels, box_distances};
+pub use pattern::{PatternColors, PatternFillDialog, PatternFillEditor, PatternFillLabels, PatternFillOptions, PatternSwatch};
+pub use pen::{
+    AnchorsShown, HitMark, PATH_OPTIONS_COLOR_KEY, PathMode, PathOptionsLabels, PathOptionsPopover, PathOptionsPopoverResponse, PathOptionsSettings,
+    PathTool, PenMode, SegmentMark,
 };
 pub use pen::{
     BezierHit, BezierNames, BezierOverlay, BezierResponse, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef,
     MAX_ANCHORS, PathEdit, PathSelection, PenDraft, PenNames, PenResponse, PenStyle,
 };
+pub use picture_fill::{PictureFill, PictureFillEditor, PictureFillEvent, PictureFillLabels, PictureFillOutput, PictureMode};
+pub use shape::{
+    LiveShape, ShapeAppearance, ShapeChange, ShapeLabels, ShapeOptionsBar, ShapeOptionsOutput, ShapePaint, ShapePanel, ShapePanelOutput,
+    ShapeToolSettings,
+};
+pub use shape_drag::{
+    CreateShapeDialog, CreateShapeLabels, CreateShapeOptions, CreatedShape, ShapeDragEvent, ShapeDragOptions, ShapeDragStyle, ShapeDragTool,
+    ShapeDragToolLabels, ShapeKind,
+};
+pub use slice::{
+    DivideBy, DivideSlices, DivideSlicesDialog, SliceBar, SliceBarOutput, SliceCommand, SliceEvent, SliceItem, SliceKind, SliceLabels, SliceMode,
+    SliceOptions, SliceOptionsDialog, SliceOverlay, SliceStyle, SliceTool, SliceToolLabels, SliceToolSettings,
+};
+pub use stroke::{
+    DashUnit, LineCap, LineJoin, LineStyle, StrokeAlign, StrokeButton, StrokeButtonResponse, StrokeEditor, StrokeEditorResponse, StrokeEditorStyle,
+    StrokeLabels, StrokePreview, StrokeStyle,
+};
+pub use symmetry::{
+    Symmetry, SymmetryChoice, SymmetryCommand, SymmetryEvent, SymmetryLabels, SymmetryMenu, SymmetryMenuResponse, SymmetryMode, SymmetryOverlay,
+    SymmetryStyle, SymmetryTransform,
+};
 pub use transform::{
     BarGroups, BoxPress, BoxRelease, BoxTrack, FieldLabel, ParseContext, RotateZone, SizeUnit, TransformBox, TransformBoxResponse, TransformField,
     TransformFieldLabels, TransformFields, TransformLabels, TransformNames, TransformRow, TransformStyle, paint_pivot,
+};
+pub use transform::{
+    Interpolation, TransformBar, TransformBarLabels, TransformBarOutput, TransformChoice, TransformEdit, TransformMenuLabels, TransformOverlay,
+    TransformOverlayResponse, TransformPhase, TransformPreset, TransformRequest, TransformResult, TransformSession, TransformSettings, TransformWarp,
 };
 
 craft_ui::story::register! {

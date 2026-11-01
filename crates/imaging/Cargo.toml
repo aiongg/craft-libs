@@ -1,6 +1,6 @@
 [package]
 name = "craft-imaging"
-description = "Raster image editing for Craft apps: the warp grid, the levels editor, the Channels panel and the scopes."
+description = "Raster image editing for Craft apps: warps, adjustments, layer styles, selection tools and masks, the full-window editors, the Channels panel and the scopes."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,6 +1,6 @@
 [package]
 name = "craft-draw"
-description = "Vector and shape tools for Craft apps: gradient editing, pen, crop and free transform."
+description = "Vector and shape tools for Craft apps: gradient editing, pen, stroke, shapes, crop, free transform, measure, symmetry and brush presets."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

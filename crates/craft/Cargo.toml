@@ -99,7 +99,7 @@ dialogs = ["dep:craft-dialogs"] # native only: rfd's folder picker and file path
 
 docpath = ["dep:craft-docpath"]
 
-draw = ["dep:craft-draw", "color"]
+draw = ["dep:craft-draw", "color", "settings"]
 
 font-catalog = ["dep:craft-font-catalog"]
 font-catalog-system = ["font-catalog", "craft-font-catalog/system"]
