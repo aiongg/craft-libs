@@ -1,10 +1,19 @@
 //! [`FullWindowZoomBar`]: Filter Gallery's zoom bar under a full-window canvas.
 
-use egui::{IdSalt, Response, Ui};
+use std::sync::Arc;
+
+use egui::{AsIdSalt, Frame, IdSalt, Panel, Response, Ui, UiBuilder};
 
 use super::labels::FullWindowLabels;
-use super::view::FullWindowView;
-use egui::AsIdSalt;
+use super::style::FullWindowStyle;
+use super::view::{FullWindowView, FullWindowZoom};
+use crate::controls::{IconButton, Progress, Select};
+use crate::direction;
+use crate::icons::Icon;
+use crate::localized::{LocaleNumbers, SharedLabels as _, Unit};
+use crate::primitives::{Content, Text};
+use crate::theme::{Tokens, TokensOf as _};
+use craft_theme::{ControlSize, TypeRole};
 
 /// What [`FullWindowZoomBar::show`] returns.
 #[derive(Clone, Debug)]
@@ -78,13 +87,94 @@ impl<'a> FullWindowZoomBar<'a> {
         self
     }
 
-    #[expect(clippy::todo, reason = "skeleton: K17")]
+    /// Draws the bar in `ui` (the bottom of the dialog's body) and applies what the user did to
+    /// the view.
     pub fn show(self, ui: &mut Ui) -> FullWindowZoomBarResponse {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:673-700 (the strip 30 high on `t.dock`,
         // padding 10 × 3, buttons "minus" and "plus" at 22, the select of Fit in View and six
         // zooms with the off-menu value inserted in order, the 90 × 6 progress bar, else
         // "Preview N ms" in `t.text_faint` at 11 pt).
-        let _ = (self.id_salt, self.view, self.progress, self.note, self.labels, ui);
-        todo!()
+        let Self { id_salt, view, progress, note, labels } = self;
+        let tokens = Tokens::of(ui);
+        let style = FullWindowStyle::of(&tokens);
+        let labels = labels.map_or_else(|| FullWindowLabels::shared(ui), Arc::new);
+        let numbers = LocaleNumbers::of(ui);
+        let id = ui.make_persistent_id(id_salt);
+        let mut changed = false;
+
+        let shown = Panel::bottom(id.with("panel"))
+            .exact_size(style.zoom_bar_height)
+            .resizable(false)
+            .show_separator_line(false)
+            .frame(Frame::NONE.fill(style.zoom_bar_fill))
+            .show(ui, |ui| {
+                let room = ui.max_rect().shrink2(style.zoom_bar_pad);
+                let strip = UiBuilder::new().max_rect(room).layout(direction::row(ui)).id_salt("strip");
+                ui.scope_builder(strip, |ui| {
+                    // The ladder's two ends: a button is disabled where a step would not move.
+                    let can = |dir: i32| {
+                        let mut probe = *view;
+                        probe.step(dir)
+                    };
+                    let (can_out, can_in) = (can(-1), can(1));
+                    for (icon, label, dir) in [(Icon::Minus, &labels.zoom_out, -1), (Icon::Plus, &labels.zoom_in, 1)] {
+                        let button = IconButton::new(icon, label.as_str()).size(ControlSize::Sm).enabled(if dir > 0 { can_in } else { can_out });
+                        if ui.add(button).clicked() {
+                            changed |= view.apply(if dir > 0 { FullWindowZoom::In } else { FullWindowZoom::Out });
+                        }
+                    }
+
+                    // The select's value: 0 for Fit in View, else the zoom in tenths of a percent.
+                    let mut value = if view.is_fit() { FIT } else { tenths(view.zoom_percent()) };
+                    let mut zooms = MENU.to_vec();
+                    if value != FIT && !zooms.contains(&value) {
+                        zooms.push(value);
+                        zooms.sort_unstable();
+                    }
+                    let unit = Unit::new("{n}%");
+                    let mut select = Select::new(id.with("zoom"), labels.zoom.as_str(), &mut value).size(ControlSize::Sm).fit(true);
+                    select = select.option(FIT, labels.fit_in_view.as_str());
+                    for zoom in zooms {
+                        let text = format!("{}{}{}", unit.prefix(), numbers.format(zoom as f64 / 10.0, 0..=1), unit.suffix());
+                        select = select.option(zoom, text);
+                    }
+                    let edit = select.show(ui);
+                    if let Some(picked) = edit.event.as_ref().and_then(|event| event.value()).copied() {
+                        if picked == FIT {
+                            changed |= view.apply(FullWindowZoom::Fit);
+                        } else if view.is_fit() || picked != tenths(view.zoom_percent()) {
+                            view.set_zoom(picked as f64 / 1000.0);
+                            changed = true;
+                        }
+                    }
+
+                    match progress {
+                        Some(Some(fraction)) => {
+                            ui.add(Progress::new(fraction).width(style.progress.x).label(labels.updating.as_str()));
+                        }
+                        Some(None) => {
+                            ui.add(Progress::indeterminate().width(style.progress.x).label(labels.updating.as_str()));
+                        }
+                        None => {
+                            if let Some(note) = note.as_deref().filter(|n| !n.is_empty()) {
+                                let text = Text::new(note).role(TypeRole::Caption).content(Content::Faint).truncate();
+                                ui.add(text.max_width(ui.available_width()));
+                            }
+                        }
+                    }
+                });
+            });
+        FullWindowZoomBarResponse { response: shown.response, changed }
     }
+}
+
+/// The select's value for Fit in View.
+const FIT: i64 = 0;
+
+/// The menu's zooms in tenths of a percent: 12.5 %, 25 %, 50 %, 100 %, 200 %, 400 %.
+const MENU: [i64; 6] = [125, 250, 500, 1000, 2000, 4000];
+
+/// `percent` in tenths, the select's value for a zoom.
+fn tenths(percent: f64) -> i64 {
+    (percent * 10.0).round() as i64
 }
