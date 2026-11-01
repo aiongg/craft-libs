@@ -13,11 +13,12 @@ workspace = true
 [features]
 default = []
 # The timeline widgets (`craft_timeline::ui`).
-ui = ["dep:craft-ui", "dep:egui"]
+ui = ["dep:craft-theme", "dep:craft-ui", "dep:egui"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
 screen-testing = ["ui", "craft-ui/screen-testing"]
 
 [dependencies]
+craft-theme = { workspace = true, optional = true }
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 serde = { workspace = true }
@@ -25,3 +26,6 @@ web-time = "1.1"
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts", "serde"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+egui_kittest = { version = "0.37", features = ["wgpu"] }
