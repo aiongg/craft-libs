@@ -17,6 +17,7 @@ use egui::{
     Pos2, Rect, RectAlign, Response, Sense, Shape, Ui, pos2, vec2,
 };
 
+use super::common_stories::ControlStoryLabels;
 use super::expr;
 use super::field_wheel;
 use super::slider::{PressTurn, Scale, Track, labelled, pointer, press_turn, with_values};
@@ -1645,6 +1646,7 @@ pub(crate) fn stories() -> Vec<Story> {
 /// Plain, with a unit, mixed, invalid, with a pop-up slider, and disabled.
 fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
     let words = StoryLabels::of(ui);
+    let story = ControlStoryLabels::of(ui);
     let size = args.size.control();
     let numbers = args.locale.numbers();
     let sum = |text: &str| text.split_once('+').and_then(|(a, b)| Some(a.trim().parse::<f64>().ok()? + b.trim().parse::<f64>().ok()?));
@@ -1668,7 +1670,7 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
                     .show(ui);
                 super::slider::store(&edit, unit)
             });
-            labelled(form, "Mixed", &format!("{}", *mixed), |ui| {
+            labelled(form, &story.mixed, &format!("{}", *mixed), |ui| {
                 let edit =
                     NumberField::new("number-field-mixed", "Size", *mixed, &numbers).unit(Unit::new("{n} pt")).mixed(is_mixed).size(size).show(ui);
                 if edit.event.as_ref().is_some_and(|e| matches!(e, EditEvent::Set { .. } | EditEvent::Commit { changed: true, .. })) {
@@ -1691,7 +1693,7 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
                 super::slider::store(&edit, opacity)
             });
             labelled(form, "Zoom stops", &format!("{}", *zoom), |ui| {
-                let edit = NumberField::new("number-field-zoom", "Zoom", *zoom, &numbers)
+                let edit = NumberField::new("number-field-zoom", &story.zoom, *zoom, &numbers)
                     .range(0.1..=12_800.0)
                     .decimals(0..=1)
                     .unit(Unit::new("{n}%"))
@@ -1710,8 +1712,8 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
                     .show(ui)
                     .response
             });
-            labelled(form, "Not a number", &f64::NAN.to_string(), |ui| {
-                NumberField::new("number-field-nan", "Not a number", f64::NAN, &numbers).size(size).show(ui).response
+            labelled(form, &story.not_a_number, &f64::NAN.to_string(), |ui| {
+                NumberField::new("number-field-nan", &story.not_a_number, f64::NAN, &numbers).size(size).show(ui).response
             });
         });
     });
@@ -1792,6 +1794,7 @@ fn show_unit_menu(ui: &mut Ui, args: &mut LocaleSizeArgs) {
 }
 
 fn show_scrub(ui: &mut Ui, args: &mut LocaleSizeArgs) {
+    let story = ControlStoryLabels::of(ui);
     let size = args.size.control();
     let numbers = args.locale.numbers();
     with_values(ui, "number-field-scrub", [1920.0, 1080.0, 15.0, 4.0, 50.0], |ui, values| {
@@ -1829,8 +1832,8 @@ fn show_scrub(ui: &mut Ui, args: &mut LocaleSizeArgs) {
                     .show(ui);
                 super::slider::store(&edit, wrapped)
             });
-            form.row("Radius", |ui, label| {
-                let field = NumberField::new("number-field-radius", "Radius", *radius, &numbers).range(0.0..=500.0).unit(Unit::new("{n} px")).size(size);
+            form.row(&story.field_radius, |ui, label| {
+                let field = NumberField::new("number-field-radius", &story.field_radius, *radius, &numbers).range(0.0..=500.0).unit(Unit::new("{n} px")).size(size);
                 let edit = match label.scrub() {
                     Some(label) => field.scrub_by(label),
                     None => field,
