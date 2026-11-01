@@ -1,8 +1,6 @@
 //! [`TransformOverlay`]: the open session's box on the canvas, which drives a
 //! [`TransformBox`](super::TransformBox) and turns its reports into [`TransformEdit`]s.
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TR-T8)")]
-
 use egui::{AsIdSalt, Id, IdSalt, Modifiers, Response, Ui};
 use kurbo::Point;
 
@@ -10,7 +8,7 @@ use craft_ui::canvas::quad::{BoxPart, BoxRules};
 use craft_ui::canvas::{CanvasView, RulerUnits};
 use craft_ui::edit::EditPolicy;
 
-use super::{TransformEdit, TransformLabels, TransformNames, TransformSession, TransformSettings, TransformWarp};
+use super::{TransformBox, TransformEdit, TransformLabels, TransformNames, TransformPhase, TransformSession, TransformSettings, TransformWarp};
 
 /// The host's snapping as [`TransformBox::snap`](super::TransformBox::snap) takes it.
 type Snap<'a> = Box<dyn Fn(BoxPart, Point, Modifiers) -> Point + 'a>;
@@ -140,6 +138,44 @@ impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
     pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> TransformOverlayResponse<W> {
         // pc: crates/ui-egui/src/tools/transform_tool/pointer.rs:65 (`pointer`), :60
         // (`accepts_outside_click`). The box's own behaviour is `TransformBox::show`.
-        todo!()
+        let id = ui.make_persistent_id(self.id_salt);
+        if self.session.phase() == TransformPhase::Warp {
+            return TransformOverlayResponse { id, edits: Vec::new(), claimed: false, hovered: None, picked: None };
+        }
+        let session = self.session;
+        let defaults = TransformSettings::default();
+        let mut rules = self.rules.unwrap_or_else(|| session.box_rules(self.settings.unwrap_or(&defaults)));
+        // The session's mode and what it allows win over the app's rules.
+        rules.mode = session.current_mode();
+        rules.allow = session.allows();
+        let mut tbox = TransformBox::new(self.id_salt, session.state(), self.names)
+            .rules(rules)
+            .reference_point(session.reference_point())
+            .pixel_grid(self.pixel_grid)
+            .start(session.rect(), session.skew_v())
+            .policy(self.policy);
+        if let Some((x, y)) = self.units {
+            tbox = tbox.units(x, y);
+        }
+        if let Some(labels) = self.readout {
+            tbox = tbox.readout(labels);
+        }
+        if let Some(snap) = self.snap {
+            tbox = tbox.snap(snap);
+        }
+        if let Some(modifiers) = self.modifiers {
+            tbox = tbox.modifiers(modifiers);
+        }
+        let shown = tbox.show(ui, canvas, view);
+        let mut edits = Vec::new();
+        if let Some(event) = shown.event {
+            edits.push(TransformEdit::Box(event));
+        }
+        if shown.apply {
+            edits.push(TransformEdit::Commit);
+        } else if shown.discard {
+            edits.push(TransformEdit::Cancel);
+        }
+        TransformOverlayResponse { id: shown.id, edits, claimed: shown.claimed, hovered: shown.hovered, picked: shown.picked }
     }
 }
