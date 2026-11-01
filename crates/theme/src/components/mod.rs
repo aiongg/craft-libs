@@ -41,6 +41,7 @@ mod bezier;
 mod breadcrumb;
 mod button;
 mod canvas;
+mod channels;
 mod check;
 mod check_spelling;
 mod chip;
@@ -76,11 +77,13 @@ mod guide;
 mod handle;
 mod harmony;
 mod histogram;
+mod history;
 mod icon_button;
 mod icon_picker;
 mod identify;
 mod inspector;
 mod kbd;
+mod layers;
 mod levels;
 mod list;
 mod list_manager;
@@ -129,6 +132,7 @@ mod table;
 mod text_editor;
 mod text_styles;
 mod theme_chip;
+mod thumbnail;
 mod title_bar;
 mod toast;
 mod toggle_button;
@@ -159,6 +163,7 @@ pub use bezier::{BezierField, BezierTokens};
 pub use breadcrumb::{BreadcrumbField, BreadcrumbTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
 pub use canvas::{CanvasField, CanvasTokens};
+pub use channels::{ChannelsField, ChannelsTokens};
 pub use check::{CheckField, CheckOffColors, CheckOffPart, CheckOnColors, CheckOnPart, CheckSwitchColors, CheckSwitchPart, CheckTokens};
 pub use check_spelling::{CheckSpellingField, CheckSpellingTokens};
 pub use chip::{ChipField, ChipTokens};
@@ -194,10 +199,12 @@ pub use guide::{GuideField, GuideTokens};
 pub use handle::{HandleField, HandleTokens};
 pub use harmony::{HarmonyField, HarmonyTokens};
 pub use histogram::{HistogramField, HistogramTokens};
+pub use history::{HistoryField, HistoryTokens};
 pub use icon_button::{IconButtonField, IconButtonTokens};
 pub use icon_picker::{IconPickerField, IconPickerTokens};
 pub use inspector::{InspectorField, InspectorTokens};
 pub use kbd::{KbdField, KbdTokens};
+pub use layers::{LayersField, LayersTokens};
 pub use levels::{LevelsField, LevelsTokens};
 pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
 pub use list_manager::{ListManagerField, ListManagerTokens};
@@ -246,6 +253,7 @@ pub use table::{TableField, TableTokens};
 pub use text_editor::{TextEditorField, TextEditorTokens};
 pub use text_styles::{TextStylesField, TextStylesTokens};
 pub use theme_chip::{ThemeChipField, ThemeChipTokens};
+pub use thumbnail::{ThumbnailField, ThumbnailTokens};
 pub use title_bar::{TitleBarField, TitleBarTokens};
 pub use toast::{ToastField, ToastTokens};
 pub use toggle_button::{ToggleButtonField, ToggleButtonTokens};
@@ -849,6 +857,8 @@ families! {
     new_document: NewDocumentTokens => NewDocument(NewDocumentField);
     /// Theme chips: the small preview of a theme in the Appearance page.
     theme_chip: ThemeChipTokens => ThemeChip(ThemeChipField);
+    /// Picture thumbnails: the checkerboard, the empty cell and the failure icon.
+    thumbnail: ThumbnailTokens => Thumbnail(ThumbnailField);
     /// Angle dials: the round face and needle that point in a direction.
     angle_dial: AngleDialTokens => AngleDial(AngleDialField);
     /// The app shell: the backdrop behind the document and the edge reveal zone.
@@ -863,6 +873,8 @@ families! {
     canvas: CanvasTokens => Canvas(CanvasField);
     /// Check boxes, radio buttons and switches.
     check: CheckTokens => Check(CheckField);
+    /// The Channels panel: the thumbnail side and the spot channel's ink swatch.
+    channels: ChannelsTokens => Channels(ChannelsField);
     /// Colour pickers: the sizes of the area, strip, compare swatch and marker.
     color_picker: ColorPickerTokens => ColorPicker(ColorPickerField);
     /// Colour ramps: the bar under the slider rows, with its white and black boxes.
@@ -917,12 +929,16 @@ families! {
     harmony: HarmonyTokens => Harmony(HarmonyField);
     /// Histograms: the plot height and the fill and backdrop alphas.
     histogram: HistogramTokens => Histogram(HistogramField);
+    /// The History panel: the snapshot thumbnail and the Undo list's width.
+    history: HistoryTokens => History(HistoryField);
     /// Square icon-only buttons.
     icon_button: IconButtonTokens => IconButton(IconButtonField);
     /// Inspectors: the body of a Properties panel and its target header.
     inspector: InspectorTokens => Inspector(InspectorField);
     /// Key chords and keycaps.
     kbd: KbdTokens => Kbd(KbdField);
+    /// The Layers panel: indicators, mask badges, blend rows and the filter bar.
+    layers: LayersTokens => Layers(LayersField);
     /// Levels editors: the triangle thumbs and output bar under a histogram.
     levels: LevelsTokens => Levels(LevelsField);
     /// Lists: the rows of a list or tree panel.

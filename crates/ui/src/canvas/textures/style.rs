@@ -21,16 +21,13 @@ pub struct ThumbnailStyle {
     pub failed_icon: Color32,
 }
 
-/// The style of `tokens`. Until the `thumbnail` token family exists (task TK1), the values come
-/// from the tokens they will derive from: the swatch checkerboard's pinned pair (250 and 214
-/// grey, `values::SWATCH_CHECKER`), PhotoCraft's cell 5 (`layer_row.rs:534`), `field.fill` and
-/// `text.muted`.
+/// The style of `tokens`: the `thumbnail` family.
 pub(super) fn style(tokens: &UiTokens) -> ThumbnailStyle {
-    let swatch = &tokens.component.swatch;
+    let thumbnail = &tokens.component.thumbnail;
     ThumbnailStyle {
-        checker: [swatch.checker_a.to_egui(), swatch.checker_b.to_egui()],
-        checker_cell: 5.0,
-        placeholder: tokens.component.field.fill.rest.to_egui(),
-        failed_icon: tokens.color.text.muted.to_egui(),
+        checker: [thumbnail.checker_a.to_egui(), thumbnail.checker_b.to_egui()],
+        checker_cell: thumbnail.checker_cell,
+        placeholder: thumbnail.placeholder.to_egui(),
+        failed_icon: thumbnail.failed_icon.to_egui(),
     }
 }
