@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! What the user sees while dragging: the [`DragBadge`] at the pointer saying what is dragged
 //! or what a release would do, the per-frame [drop hint](set_drop_hint) a target gives it, and
 //! the [`DropVeil`] over the window while files from outside hover over it.
@@ -11,7 +10,45 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
 
-use egui::{AsIdSalt, Context, IdSalt};
+use craft_theme::TypeRole;
+use egui::accesskit::Role;
+use egui::{Area, AsIdSalt, Context, CursorIcon, Frame, Id, IdSalt, LayerId, Margin, Order, Sense, Stroke, StrokeKind, WidgetInfo, pos2, vec2};
+
+use crate::composites::live::{Politeness, region};
+use crate::direction;
+use crate::localized::words::Counted;
+use crate::localized::{Labels as _, Words};
+use crate::theme::{ToEgui as _, corner_radius};
+
+/// The badge's text for a number of items. S5C-F9 moves it into the kernel's `counts` and
+/// [`COUNTS`](crate::localized::words::COUNTS).
+const COUNT: Counted = Counted::new("drag.count", "{n} item", "{n} items");
+
+/// Where the badge sits from the pointer (LightCraft's `pos + vec2(14, 10)`).
+const BADGE_OFFSET: egui::Vec2 = vec2(14.0, 10.0);
+/// The badge's padding.
+const BADGE_PAD: Margin = Margin::symmetric(9, 3);
+/// The veil's frame: its distance from the window edge, corner radius and stroke width.
+const VEIL_FRAME_INSET: f32 = 10.0;
+const VEIL_FRAME_RADIUS: f32 = 12.0;
+const VEIL_FRAME_STROKE: f32 = 2.0;
+/// The veil's card: corner radius, space between lines, top and side padding.
+const CARD_RADIUS: f32 = 10.0;
+const CARD_GAP: f32 = 8.0;
+const CARD_PAD_Y: f32 = 24.0;
+const CARD_PAD_X: f32 = 32.0;
+/// The lines wrap at the window's width less this, at least [`MIN_WRAP`].
+const WRAP_MARGIN: f32 = 120.0;
+const MIN_WRAP: f32 = 200.0;
+
+fn hint_id() -> Id {
+    Id::NULL.with("craft_ui::behavior::drag_feedback::hint")
+}
+
+/// The id of the badge's or the veil's layer.
+pub(super) fn layer_id(kind: &'static str, salt: IdSalt) -> Id {
+    Id::NULL.with(("craft_ui::behavior::drag_feedback", kind)).with_salt(salt)
+}
 
 crate::words! {
     /// The words of drag feedback, English by default.
@@ -72,7 +109,31 @@ impl<'a> DragBadge<'a> {
 
     // lightcraft: crates/ui-egui/src/panels/grid.rs:1120 drag_feedback; panels/left/albums.rs:366 (album drag)
     pub fn show(self, ctx: &Context) {
-        todo!()
+        let Self { id_salt, text, count, labels } = self;
+        let Some(pointer) = ctx.input(|i| i.pointer.latest_pos()) else { return };
+        let text = drop_hint(ctx).or_else(|| text.map(Cow::into_owned)).unwrap_or_else(|| {
+            let labels = labels.unwrap_or_else(|| DragFeedbackLabels::of_ctx(ctx));
+            Words::of_ctx(ctx).counted(ctx, COUNT, &labels.count, count.unwrap_or(0) as u64)
+        });
+        let tokens = crate::theme::current(ctx);
+        let (fill, ink) = (tokens.color.accent.solid.to_egui(), tokens.color.text.on_accent.to_egui());
+        let font = tokens.font(TypeRole::BodyStrong);
+        let rtl = direction::is_rtl(ctx);
+        let (pivot, at) = if rtl {
+            (egui::Align2::RIGHT_TOP, pointer + vec2(-BADGE_OFFSET.x, BADGE_OFFSET.y))
+        } else {
+            (egui::Align2::LEFT_TOP, pointer + BADGE_OFFSET)
+        };
+        ctx.set_cursor_icon(CursorIcon::Grabbing);
+        Area::new(layer_id("badge", id_salt)).order(Order::Tooltip).interactable(false).pivot(pivot).fixed_pos(at).show(ctx, |ui| {
+            let galley = ui.painter().layout_no_wrap(text.clone(), font, ink);
+            let size = galley.size() + BADGE_PAD.sum();
+            let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
+            ui.painter().rect_filled(rect, corner_radius(tokens.shape.radius.pill.min(size.y / 2.0)), fill);
+            ui.painter().galley(rect.min + vec2(f32::from(BADGE_PAD.left), f32::from(BADGE_PAD.top)), galley, ink);
+            response.widget_info(|| WidgetInfo::labeled(Role::Label, true, &text));
+        });
+        ctx.request_repaint();
     }
 }
 
@@ -81,13 +142,15 @@ impl<'a> DragBadge<'a> {
 /// takes is under way, before the badge is shown; the hint lasts this pass only.
 // lightcraft: crates/ui-egui/src/panels/grid.rs:1115 drag_hint
 pub fn set_drop_hint(ctx: &Context, text: impl Into<String>) {
-    todo!()
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| d.insert_temp(hint_id(), (pass, text.into())));
 }
 
 /// This pass's drop hint, if a target gave one.
 // lightcraft: crates/ui-egui/src/panels/grid.rs:1133 (hint for this frame)
 pub fn drop_hint(ctx: &Context) -> Option<String> {
-    todo!()
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data(|d| d.get_temp::<(u64, String)>(hint_id())).filter(|(set, _)| *set == pass).map(|(_, text)| text)
 }
 
 /// The files hovering over the window this pass, from egui's `hovered_files`.
@@ -104,7 +167,11 @@ impl HoveredFiles {
     /// This pass's hovering files; empty when none.
     // lightcraft: crates/ui-egui/src/drop_overlay.rs:81 (count, known)
     pub fn of(ctx: &Context) -> Self {
-        todo!()
+        ctx.input(|i| {
+            let paths: Vec<PathBuf> = i.raw.hovered_files.iter().filter_map(|f| f.path.clone()).filter(|p| !p.as_os_str().is_empty()).collect();
+            let unnamed = i.raw.hovered_files.len() - paths.len();
+            Self { paths, unnamed }
+        })
     }
 
     pub fn is_empty(&self) -> bool {
@@ -145,6 +212,39 @@ impl<'a> DropVeil<'a> {
 
     // lightcraft: crates/ui-egui/src/drop_overlay.rs:73 show
     pub fn show(self, ctx: &Context) {
-        todo!()
+        let Self { id_salt, lines } = self;
+        let tokens = crate::theme::current(ctx);
+        let c = &tokens.color;
+        let (accent, raised, ink) = (c.accent.solid.to_egui(), c.surface.raised.to_egui(), c.text.normal.to_egui());
+        let screen = ctx.content_rect();
+        let id = layer_id("veil", id_salt);
+        // The scrim and its frame go on the layer first, under the card the area adds.
+        let painter = ctx.layer_painter(LayerId::new(Order::Tooltip, id));
+        painter.rect_filled(screen, 0.0, c.surface.scrim.to_egui());
+        painter.rect_stroke(screen.shrink(VEIL_FRAME_INSET), VEIL_FRAME_RADIUS, Stroke::new(VEIL_FRAME_STROKE, accent), StrokeKind::Inside);
+        let wrap = (screen.width() - WRAP_MARGIN).max(MIN_WRAP);
+        let font = tokens.font(TypeRole::Title);
+        let galleys: Vec<_> = lines.iter().map(|line| painter.layout(line.clone(), font.clone(), ink, wrap)).collect();
+        let width = galleys.iter().fold(0.0f32, |w, g| w.max(g.size().x));
+        let height = galleys.iter().map(|g| g.size().y).sum::<f32>() + CARD_GAP * galleys.len().saturating_sub(1) as f32;
+        let margin = Margin::symmetric(CARD_PAD_X as i8, CARD_PAD_Y as i8);
+        Area::new(id).order(Order::Tooltip).interactable(false).pivot(egui::Align2::CENTER_CENTER).fixed_pos(screen.center()).show(ctx, |ui| {
+            let live_id = id.with("live");
+            region(ui, live_id, Role::Alert, Politeness::Polite, |ui, labels| {
+                for line in lines {
+                    labels.add(line.clone());
+                }
+                Frame::NONE.fill(raised).stroke(Stroke::new(1.0, accent)).corner_radius(CARD_RADIUS).inner_margin(margin).show(ui, |ui| {
+                    let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+                    let mut y = rect.top();
+                    for galley in galleys {
+                        let size = galley.size();
+                        ui.painter().galley(pos2(rect.center().x - size.x / 2.0, y), galley, ink);
+                        y += size.y + CARD_GAP;
+                    }
+                });
+            });
+        });
+        ctx.request_repaint();
     }
 }
