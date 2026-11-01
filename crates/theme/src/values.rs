@@ -2559,6 +2559,16 @@ pub const CONNECTOR_END_HANDLE: f32 = 5.0;
 pub const CONNECTOR_PATH_HANDLE: f32 = 3.5;
 /// An end within this many screen points of a site glues to it: `connector.attach_reach`.
 pub const CONNECTOR_ATTACH_REACH: f32 = 10.0;
+/// An end or path handle within this many screen points of a press is grabbed: `connector.handle_reach`.
+pub const CONNECTOR_HANDLE_REACH: f32 = 8.0;
+/// An elbow run shorter than this many screen points has no path handle: `connector.min_run`.
+pub const CONNECTOR_MIN_RUN: f32 = 28.0;
+/// A target is hit within this many screen points of its bounds: `connector.target_tolerance`.
+pub const CONNECTOR_TARGET_TOLERANCE: f32 = 2.0;
+/// A path handle's ring width: `connector.path_ring`.
+pub const CONNECTOR_PATH_RING: f32 = 1.0;
+/// The hovered target's outline width: `connector.drop_outline`.
+pub const CONNECTOR_DROP_OUTLINE: f32 = 1.0;
 
 // --- vanishing_point ---
 /// A plane's outline width: `vanishing_point.line`.
