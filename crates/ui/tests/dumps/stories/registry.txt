@@ -163,6 +163,36 @@ composites/preset-browser/tool-presets = Preset browser | Tool presets | Panel |
 composites/preset-browser/reorder = Preset browser | Reorder | Panel | view=Choice { options: ["grid", "list"], index: 0 }; size=Number { value: 36.0, min: 16.0, max: 96.0 }
 composites/preset-browser/popover-grid = Preset browser | Popover grid | Panel | view=Choice { options: ["grid", "list"], index: 0 }; size=Number { value: 40.0, min: 16.0, max: 96.0 }
 composites/preset-browser/short-list = Preset browser | Short list | Panel | view=Choice { options: ["grid", "list"], index: 1 }; size=Number { value: 28.0, min: 16.0, max: 96.0 }
+composites/preset-browser/footer-in-panel = Preset browser | Footer in panel | Panel | height=Number { value: 180.0, min: 100.0, max: 400.0 }; slider=Bool(true); new group=Bool(true); count=Bool(true)
+composites/preset-browser/drop-on-canvas = Preset browser | Drop on canvas | Panel | canvas height=Number { value: 120.0, min: 60.0, max: 240.0 }
+composites/preset-browser/hover-preview = Preset browser | Hover preview | Panel | preview height=Number { value: 80.0, min: 40.0, max: 200.0 }
+composites/preset-library/groups-and-folders = Preset library | Groups and folders | Panel | height=Number { value: 260.0, min: 120.0, max: 400.0 }; drag groups=Bool(true)
+composites/preset-picker/pattern-grid = Preset picker | Pattern grid | Panel | columns=Number { value: 6.0, min: 2.0, max: 10.0 }
+composites/preset-picker/shape-groups = Preset picker | Shape groups | Panel | columns=Number { value: 7.0, min: 3.0, max: 10.0 }
+composites/preset-picker/contour-with-files = Preset picker | Contour with files | Panel | columns=Number { value: 4.0, min: 2.0, max: 8.0 }; split=Bool(false)
+composites/preset-picker/names-list = Preset picker | Names list | Panel | editable=Bool(true)
+composites/preset-picker/keeps-open = Preset picker | Keeps open | Panel | columns=Number { value: 5.0, min: 2.0, max: 8.0 }; mode=Choice { options: ["thumbnail", "name", "Thumbnail and name"], index: 0 }
+composites/named-preset/contour-buttons = Named preset | Contour buttons | Panel | clash=Bool(true)
+composites/named-preset/trace-menu = Named preset | Trace menu | Panel | custom=Bool(true)
+composites/named-preset/rtl = Named preset | Right to left | Panel | 
+primitives/textures/cache = Texture cache | Cache | Panel | entry budget=Number { value: 4.0, min: 2.0, max: 8.0 }; keys in view=Number { value: 3.0, min: 1.0, max: 8.0 }
+primitives/textures/thumbnails = Thumbnails | Thumbnails | Panel | background=Bool(true); fit=Choice { options: ["contain", "cover"], index: 0 }; checker=Bool(true); hold=Bool(false)
+primitives/textures/queue = Texture queue | Queue | Panel | prefetch=Bool(true)
+patterns/navigator/document = Navigator | Document | Canvas | zoom=Number { value: 400.0, min: 10.0, max: 1600.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); proxy color=Choice { options: ["default", "red", "orange", "yellow", "green", "blue", "violet", "gray"], index: 0 }; preview waiting=Bool(false)
+patterns/navigator/whole-document = Navigator | Whole document | Canvas | proxy color=Choice { options: ["default", "red", "orange", "yellow", "green", "blue", "violet", "gray"], index: 0 }; preview waiting=Bool(false)
+patterns/navigator/options-dialog = Navigator | Options dialog | Canvas | open=Bool(true); proxy color=Choice { options: ["default", "red", "orange", "yellow", "green", "blue", "violet", "gray"], index: 0 }
+composites/history-panel/states = History panel | States | Panel | footer=Bool(true); width=Number { value: 260.0, min: 180.0, max: 420.0 }; height=Number { value: 340.0, min: 160.0, max: 520.0 }
+composites/history-panel/snapshots = History panel | Snapshots | Panel | thumbnails=Bool(true); rename in progress=Bool(true); source on a snapshot=Bool(true)
+composites/history-panel/source = History panel | Source | Panel | source=Choice { options: ["state", "default (oldest)", "none (state gone)"], index: 0 }
+composites/history-panel/non-linear = History panel | Non-linear | Panel | non-linear=Bool(true)
+composites/history-panel/branches = History panel | Branches | Panel | 
+composites/history-panel/newest-first = History panel | Newest first | Panel | newest first=Bool(true)
+composites/history-panel/short-dock = History panel | Short dock | Panel | height=Number { value: 160.0, min: 120.0, max: 400.0 }
+composites/history-panel/menu = History panel | Menu | Panel | 
+composites/undo-list/popup = Undo list | Popup | Panel | steps=Number { value: 30.0, min: 1.0, max: 40.0 }; marked=Number { value: 3.0, min: 0.0, max: 40.0 }
+composites/history-forms/new-snapshot = History panel | New Snapshot form | Panel | open=Bool(true)
+composites/history-forms/options = History panel | History Options form | Panel | open=Bool(true)
+composites/reorderable-sections/sidebar = Reorderable sections | Sidebar | Panel | show counts=Bool(true); rows=Number { value: 4.0, min: 0.0, max: 30.0 }; albums button=Bool(true); local available=Bool(true); height=Number { value: 260.0, min: 120.0, max: 480.0 }
 patterns/dock-area/docked = DockArea | Docked | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/floating = DockArea | Floating | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }
 patterns/dock-area/drag = DockArea | Drag | Own | width=Number { value: 640.0, min: 360.0, max: 960.0 }; locale=Choice { options: ["en", "ar"], index: 0 }

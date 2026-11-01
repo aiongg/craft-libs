@@ -1,4 +1,4 @@
-//! Stories of the tile grid (not registered; task ST8). The spec's ids `browse/grid-*` begin with
+//! Stories of the tile grid. The spec's ids `browse/grid-*` begin with
 //! their level here, as the gallery requires:
 //!
 //! | Story id | Shows |
@@ -8,12 +8,9 @@
 //! | `patterns/browse/grid-states` | pending, failed, offline, unreadable, rejected, disabled, dimmed, stack, badges in every slot and tone; RTL |
 //! | `patterns/browse/grid-reorder` | cards with the insert line, Alt copy, marquee |
 //!
-//! Registering them (task RG2) adds `stories()` and `COMPONENTS` ("TileGrid") to the browse
-//! stories. The tiles are generated from their key, the pictures are gradients of the right
+//! The tiles are generated from their key, the pictures are gradients of the right
 //! aspect, and the grid's events change the story's fake model (ratings, removal, reorder, zoom).
 //! Pending pictures wait on a `ManualJobs`, one per "Finish next".
-
-#![expect(dead_code, reason = "not registered until RG2 adds `stories()` and `COMPONENTS` to the browse stories")]
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -38,8 +35,8 @@ use super::{
     TileSource, TileStatus, TileZoom,
 };
 
-/// The components this module has stories for. RG2 makes this `pub const COMPONENTS`.
-pub(crate) const COMPONENTS: &[&str] = &["TileGrid"];
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Tile grid"];
 
 craft_ui::words! {
     /// The sample text of the tile grid stories, English by default.
@@ -343,7 +340,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/browse/grid-justified",
             Level::Patterns,
-            "TileGrid",
+            "Tile grid",
             "Justified",
             JustifiedArgs { row_height: 110.0, groups: true, badges: BadgesArg::Auto, height: 420.0 },
             show_justified
@@ -351,13 +348,20 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/browse/grid-cards",
             Level::Patterns,
-            "TileGrid",
+            "Tile grid",
             "Cards",
             CardsArgs { caption: true, check_mode: false, keys: KeysArg::Digits, height: 420.0 },
             show_cards
         ),
-        typed_story!("patterns/browse/grid-states", Level::Patterns, "TileGrid", "States", StatesArgs { rtl: false, height: 420.0 }, show_states),
-        typed_story!("patterns/browse/grid-reorder", Level::Patterns, "TileGrid", "Reorder", ReorderArgs { rtl: false, height: 360.0 }, show_reorder),
+        typed_story!("patterns/browse/grid-states", Level::Patterns, "Tile grid", "States", StatesArgs { rtl: false, height: 420.0 }, show_states),
+        typed_story!(
+            "patterns/browse/grid-reorder",
+            Level::Patterns,
+            "Tile grid",
+            "Reorder",
+            ReorderArgs { rtl: false, height: 360.0 },
+            show_reorder
+        ),
     ]
 }
 

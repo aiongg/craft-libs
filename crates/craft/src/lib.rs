@@ -88,6 +88,10 @@ pub mod story {
     /// feature is on.
     pub fn all() -> Vec<Story> {
         let mut all = craft_ui::story::registry();
+        #[cfg(feature = "automation")]
+        all.extend(craft_automation::ui::stories());
+        #[cfg(feature = "browse")]
+        all.extend(craft_browse::ui::stories());
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::stories());
         #[cfg(feature = "dialogs")]
@@ -100,6 +104,8 @@ pub mod story {
         all.extend(craft_imaging::ui::stories());
         #[cfg(feature = "keymap")]
         all.extend(craft_keymap::ui::stories());
+        #[cfg(feature = "layers")]
+        all.extend(craft_layers::ui::stories());
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::stories());
         #[cfg(feature = "theme-store")]

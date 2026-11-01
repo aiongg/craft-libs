@@ -1,14 +1,11 @@
-//! Stories of the Channels panel (not registered; task ST1): the panel over fake rows, a
+//! Stories of the Channels panel: the panel over fake rows, a
 //! `FakeThumbSource` and `ManualJobs`, with story words; each at 240 pt wide with its footer. The
 //! story is the app: it keeps the rows and applies the panel's events (target, eyes, rename,
 //! reorder, footer buttons, menu commands), so drag and drop run live.
 //!
 //! Ids start with their level (the gallery requires it), so the spec's `imaging/channels/*` are
 //! `patterns/channels/rgb`, `/cmyk`, `/alpha-and-spot`, `/quick-mask-and-layer-mask`,
-//! `/multichannel`, `/empty`, all of the component "Channels". Registering them (task RG2) adds
-//! `stories()` and `COMPONENTS` to the imaging stories.
-
-#![expect(dead_code, reason = "not registered until RG2 adds `stories()` and `COMPONENTS` to the imaging stories")]
+//! `/multichannel`, `/empty`, all of the component "Channels".
 
 use std::sync::Arc;
 
@@ -25,9 +22,8 @@ use egui::{Ui, vec2};
 
 use super::{ChannelKind, ChannelRow, ChannelsCommand, ChannelsEvent, ChannelsFooterButton, ChannelsPanel, ColorIndicates};
 
-/// The components this module has stories for. RG2 makes this `pub const COMPONENTS` and adds the
-/// module to the imaging stories.
-pub(crate) const COMPONENTS: &[&str] = &["Channels"];
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Channels"];
 
 craft_ui::words! {
     /// The channel names and texts of the Channels stories; the app translates built-in names.

@@ -1,9 +1,8 @@
-//! Stories of the media bin (not registered; task ST8): `composites/media-bin/list`,
+//! Stories of the media bin: `composites/media-bin/list`,
 //! `composites/media-bin/icon`, `composites/media-bin/freeform`.
 //!
 //! The spec's ids `browse/bin-list`, `browse/bin-icon` and `browse/bin-freeform` become
-//! `composites/media-bin/…`: the gallery requires a story id to start with its level. Registering
-//! them (task RG2) adds `stories()` to the browse stories and the component to `COMPONENTS`.
+//! `composites/media-bin/…`: the gallery requires a story id to start with its level.
 //!
 //! Each story keeps a [`Demo`] in egui memory: a small project tree ([`Project`], the bin's
 //! `BinModel`), the bin's state, the selection, the Freeform cards and the last event. The story
@@ -12,8 +11,6 @@
 //! stories differ in the view they open in and their args; the footer switches views in any of
 //! them. Pictures come from a `FakeThumbSource` whose renders are jobs on a `ManualJobs`, one per
 //! "Finish next". Nothing decodes, spawns a thread or polls on a timer.
-
-#![expect(dead_code, reason = "not registered until RG2 adds `stories()` and `COMPONENTS` to the browse stories")]
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
@@ -33,9 +30,8 @@ use egui::{Ui, Vec2, vec2};
 use super::{BinEntry, BinEvent, BinFooterAction, BinItem, BinModel, BinState, BinView, FreeformCard, MediaBin, OpenHow};
 use crate::ui::grid::{BadgeKind, BadgeSlot, TileBadge, TileLabels, TileStatus};
 
-/// The components this module has stories for. RG2 makes this `pub const COMPONENTS` and adds the
-/// module to the browse stories.
-pub(crate) const COMPONENTS: &[&str] = &["Media bin"];
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Media bin"];
 
 const COMPONENT: &str = "Media bin";
 
@@ -144,7 +140,6 @@ impl Node {
 /// The app's project: the `BinModel` the bin reads and the story edits.
 struct Project {
     nodes: Vec<Node>,
-    offline_text: String,
     linked_tip: String,
 }
 
@@ -174,7 +169,6 @@ impl Project {
                 Node::item(30, "Title.psd", None, Icon::Image, None),
                 Node::item(31, "Rough cut", None, Icon::Layers, Some("00:04:00")),
             ],
-            offline_text: tiles.offline.clone(),
             linked_tip: labels.linked.clone(),
         }
     }

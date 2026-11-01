@@ -1,4 +1,4 @@
-//! Stories of the Layers panel (not registered until task RG2), over [`MockLayers`] and a fake
+//! Stories of the Layers panel, over [`MockLayers`] and a fake
 //! thumbnail source (`FakeThumbSource` behind [`StorySource`]). The thumbnails render
 //! synchronously, so no job queue and no stepping button are needed; every string the stories
 //! add goes through [`LayersStoryLabels`].
@@ -28,8 +28,6 @@
 //!
 //! The options dialog's id starts with `composites` (the skeleton's `dialogs/…` is not a story
 //! level).
-
-#![expect(dead_code, reason = "the stories are registered by task RG2")]
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 

@@ -1,6 +1,4 @@
-//! Stories of the Actions panel (task ST7), not registered yet. Registering them (task RG2) adds
-//! `stories()` to the facade's automation stories, [`ActionsStoryLabels`] to the words registry,
-//! `COMPONENTS` (`"Actions panel"`) and regenerates the registry dump.
+//! Stories of the Actions panel.
 //!
 //! Every story uses fakes: an `ActionList` built in the story, a fake `ActionsHost` (step labels
 //! from the command id, a recording flag, pending steps), and story words (the gallery's
@@ -13,8 +11,6 @@
 //! | `patterns/automation/actions/recording` | a recording row with pending steps and the dot |
 //! | `patterns/automation/actions/button-mode` | the six colours, gray and none |
 //! | `patterns/automation/actions/empty` | the empty state |
-
-#![expect(dead_code, reason = "registered by task RG2")]
 
 use std::collections::BTreeMap;
 
@@ -54,6 +50,9 @@ craft_ui::words! {
 }
 
 /// The four stories above.
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Actions panel"];
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!("patterns/automation/actions/sets", Level::Patterns, "Actions panel", "Sets", NoArgs {}, show_sets),

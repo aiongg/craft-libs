@@ -1,6 +1,4 @@
-//! Stories of the scope panel (task ST6), not registered yet. Registering them (task RG2) adds
-//! `stories()` to `craft_imaging::ui`'s `register!` list, [`ScopeStoryLabels`] to `WORDS`, a
-//! `COMPONENTS` constant (`"Scope panel"`) and regenerates the registry dump.
+//! Stories of the scope panel.
 //!
 //! Every story uses fakes: histograms generated from a seed (RGB and CMYK modes), a vectorscope
 //! counted from generated pixels, a generated preview image for the clipping overlay, and story
@@ -17,8 +15,6 @@
 //! | `patterns/imaging/scopes/tone-zones` | five zones, the hover band, a drag |
 //! | `patterns/imaging/scopes/vectorscope` | the cloud, the hover target; args: red position, skin line |
 //! | `patterns/imaging/scopes/clipping` | the warnings on and off, the overlay over a generated image |
-
-#![expect(dead_code, reason = "not registered until RG2")]
 
 use craft_ui::canvas::textures::{Revision, TextureCache, TextureCacheOptions};
 use craft_ui::composites::ChannelColor;
@@ -54,6 +50,9 @@ craft_ui::words! {
 }
 
 /// The eight stories above.
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Scope panel"];
+
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!("patterns/imaging/scopes/compact", Level::Patterns, "Scope panel", "Compact", ModeArgs::default(), show_compact),

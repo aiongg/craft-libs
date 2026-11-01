@@ -18,6 +18,20 @@ pub use grid::{TileGrid, TileLabels, TileStyle};
 pub use places::{PlacesLabels, PlacesStyle, PlacesTree};
 pub use relink::{LinkList, LinkListLabels, RelinkDialog, RelinkLabels, RelinkStyle};
 
+craft_ui::story::register! {
+    crate::thumbs::stories,
+    bin::stories,
+    grid::stories,
+    places::stories,
+    compare::stories,
+    relink::stories,
+}
+
+/// The stories of the browsing widgets.
+pub fn stories() -> Vec<craft_ui::story::Story> {
+    registry()
+}
+
 /// The labels tables of the browsing widgets, for the words registry.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <grid::TileLabels as craft_ui::localized::Labels>::WORDS,

@@ -1,6 +1,4 @@
-//! Stories of the History panel and the undo list (task ST3). Registering them (task RG2) adds
-//! `stories()` to the edit stories and `HistoryPanel`, `UndoList` to `story::DECLARED`; this file
-//! declares no `COMPONENTS` before then (the story test counts those lines).
+//! Stories of the History panel and the undo list.
 //!
 //! Every story uses fakes: a `StepList` and a `SnapshotList` built in the story,
 //! `FakeThumbSource<SnapshotId>` for the snapshot thumbnails; no document and no platform. Every
@@ -20,8 +18,6 @@
 //! | `composites/undo-list/popup` | WordCraft's list with 30 steps, three marked, footer "Undo 3 Actions", and the Cancel row |
 //! | `composites/history-forms/new-snapshot` | the New Snapshot form with Name and From |
 //! | `composites/history-forms/options` | the History Options form with one extra row |
-
-#![expect(dead_code, reason = "not registered until task RG2")]
 
 use std::borrow::Cow;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -408,13 +404,16 @@ struct FormArgs {
     open: bool,
 }
 
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["History panel", "Undo list"];
+
 /// The stories above.
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
             "composites/history-panel/states",
             Level::Composites,
-            "HistoryPanel",
+            "History panel",
             "States",
             StatesArgs { footer: true, width: 260.0, height: 340.0 },
             show_states
@@ -422,7 +421,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-panel/snapshots",
             Level::Composites,
-            "HistoryPanel",
+            "History panel",
             "Snapshots",
             SnapshotsArgs { thumbnails: true, rename: true, source_on_snapshot: true },
             show_snapshots
@@ -430,7 +429,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-panel/source",
             Level::Composites,
-            "HistoryPanel",
+            "History panel",
             "Source",
             SourceArgs { source: SourceArg::State },
             show_source
@@ -438,16 +437,16 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-panel/non-linear",
             Level::Composites,
-            "HistoryPanel",
+            "History panel",
             "Non-linear",
             NonLinearArgs { non_linear: true },
             show_non_linear
         ),
-        typed_story!("composites/history-panel/branches", Level::Composites, "HistoryPanel", "Branches", NoArgs {}, show_branches),
+        typed_story!("composites/history-panel/branches", Level::Composites, "History panel", "Branches", NoArgs {}, show_branches),
         typed_story!(
             "composites/history-panel/newest-first",
             Level::Composites,
-            "HistoryPanel",
+            "History panel",
             "Newest first",
             NewestFirstArgs { newest_first: true },
             show_newest_first
@@ -455,17 +454,17 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-panel/short-dock",
             Level::Composites,
-            "HistoryPanel",
+            "History panel",
             "Short dock",
             ShortDockArgs { height: 160.0 },
             show_short_dock
         ),
-        typed_story!("composites/history-panel/menu", Level::Composites, "HistoryPanel", "Menu", NoArgs {}, show_menu),
-        typed_story!("composites/undo-list/popup", Level::Composites, "UndoList", "Popup", UndoArgs { steps: 30, marked: 3 }, show_undo_list),
+        typed_story!("composites/history-panel/menu", Level::Composites, "History panel", "Menu", NoArgs {}, show_menu),
+        typed_story!("composites/undo-list/popup", Level::Composites, "Undo list", "Popup", UndoArgs { steps: 30, marked: 3 }, show_undo_list),
         typed_story!(
             "composites/history-forms/new-snapshot",
             Level::Composites,
-            "HistoryPanel",
+            "History panel",
             "New Snapshot form",
             FormArgs { open: true },
             show_new_snapshot
@@ -473,7 +472,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "composites/history-forms/options",
             Level::Composites,
-            "HistoryPanel",
+            "History panel",
             "History Options form",
             FormArgs { open: true },
             show_options
@@ -708,6 +707,10 @@ fn drive_form(ui: &mut Ui, name: &str, open: &mut bool, make: impl FnOnce(&Histo
     let result_key = key.with("result");
     let host: Arc<Mutex<DialogHost>> = ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, Arc::<Mutex<DialogHost>>::default).clone());
     let ctx = ui.ctx().clone();
+    // The form has one fixed id: only one instance shown in a pass draws it.
+    if !crate::story::dialog_claim(&ctx, &format!("history-form-{name}"), ui.scope_id()) {
+        return;
+    }
     let mut host = host.lock().unwrap_or_else(PoisonError::into_inner);
     if crate::story::dialog_shown(ui, *open) {
         if !host.is_open::<CommandForm>() {
@@ -752,27 +755,4 @@ fn show_options(ui: &mut Ui, args: &mut FormArgs) {
         let extra = vec![Param::new("visibilityUndoable", &words.visibility_undoable, ParamKind::Bool { default: false })];
         history_options_form("story-history-options", &labels, &HistoryOptions { non_linear: false }, extra)
     });
-}
-
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
-mod tests {
-    use egui_kittest::Harness;
-
-    use super::stories;
-    use crate::theme::{Base, install};
-
-    // Each story shows for a few passes with its default args, forms open included.
-    #[test]
-    fn every_story_shows_with_its_default_args() {
-        let all = stories();
-        assert_eq!(all.len(), 11);
-        for story in all {
-            let mut args = story.defaults();
-            let mut harness = Harness::builder()
-                .with_size([700.0, 600.0])
-                .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
-                .build_ui(move |ui| (story.show)(ui, &mut args));
-            harness.run();
-        }
-    }
 }

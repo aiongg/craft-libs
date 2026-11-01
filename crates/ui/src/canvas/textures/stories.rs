@@ -1,6 +1,4 @@
-//! Stories of the textures (task ST1): stubs, not registered. Registering them (task RG2) adds
-//! `stories()` to the canvas stories, the components to `COMPONENTS` and regenerates the registry
-//! dump; until then `every_story_shows_with_its_default_args` would run the `todo!()` bodies.
+//! Stories of the textures.
 //!
 //! Every story uses fakes: [`FakeThumbSource`](super::FakeThumbSource) and a
 //! [`ManualJobs`](craft_host::ManualJobs) in the options' `jobs`, with a "Finish next" button that
@@ -16,8 +14,6 @@
 //! Story ids start with their level (`ids_are_unique_and_follow_the_level_component_story_form`),
 //! so these are `Level::Primitives` stories with the component names in [`COMPONENTS`].
 
-#![expect(dead_code, reason = "not registered until RG2 adds `stories()` and `COMPONENTS` to the canvas stories")]
-
 use std::sync::Arc;
 
 use craft_host::ManualJobs;
@@ -32,9 +28,8 @@ use crate::localized::Labels as _;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::typed_story;
 
-/// The components this module has stories for. RG2 makes this `pub const COMPONENTS` and adds the
-/// module to `story::DECLARED`.
-pub(crate) const COMPONENTS: &[&str] = &["Texture cache", "Thumbnails", "Texture queue"];
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Texture cache", "Thumbnails", "Texture queue"];
 
 crate::words! {
     /// The words of the texture stories.

@@ -1,16 +1,12 @@
-//! Stories of the places tree (not registered; task ST8): `patterns/browse/places` (the spec's
+//! Stories of the places tree: `patterns/browse/places` (the spec's
 //! `browse/places` under its level). Roots (standard folders, volumes, favourites, recents, the
 //! session root), the reveal of the current folder, the hidden-places row and a drop.
-//!
-//! Registering it (task RG2) adds `stories()` and `COMPONENTS` ("PlacesTree") to the browse stories.
 //!
 //! `FakeDirectories` is an in-memory tree with a removable and a network volume. Its listings run
 //! on a `ManualJobs`: unless "slow listings" is on, the story finishes the waiting jobs at the
 //! start of each pass; with it on, "Finish next" runs one, so the Loading row can be seen. The
 //! tree's events go to the story's `PlacesSettings` and current folder. A draggable photo
 //! shows the drop: only folders under Photos take it.
-
-#![expect(dead_code, reason = "not registered until RG2 adds `stories()` and `COMPONENTS` to the browse stories")]
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -28,8 +24,8 @@ use egui::{DragAndDrop, Id, Sense, Ui, vec2};
 use super::{PlaceExtra, PlacesEvent, PlacesTree};
 use crate::places::{Directories, Folder, FolderCache, PlaceGroupKind, Places, PlacesInput, PlacesSettings, StandardFolder, Volume};
 
-/// The components this module has stories for. RG2 makes this `pub const COMPONENTS`.
-pub(crate) const COMPONENTS: &[&str] = &["PlacesTree"];
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Places tree"];
 
 craft_ui::words! {
     /// The sample text of the places story, English by default.
@@ -54,7 +50,7 @@ pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
         "patterns/browse/places",
         Level::Patterns,
-        "PlacesTree",
+        "Places tree",
         "Places",
         PlacesArgs { slow_listings: false, favorites: true, volumes: true, recent: true, height: 380.0 },
         show_places

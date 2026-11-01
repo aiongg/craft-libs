@@ -90,6 +90,11 @@ impl Host {
         Host { lang, ..self.clone() }
     }
 
+    /// A copy with another file service; install it to switch the pickers.
+    pub fn with_files(&self, files: Arc<dyn Files>) -> Host {
+        Host { files, ..self.clone() }
+    }
+
     /// The stored value of section `S`, or `S::default()` when it is missing or does not fit `S`.
     pub fn setting<S: Section>(&self) -> S {
         self.settings.read(S::KEY).and_then(|table| table.try_into().ok()).unwrap_or_default()

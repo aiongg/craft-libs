@@ -1,16 +1,13 @@
-//! Stories of file thumbnails (not registered; task ST1): `primitives/file-thumbnails/source`
+//! Stories of file thumbnails: `primitives/file-thumbnails/source`
 //! (`Thumbnails` over a `FileThumbSource` with a fake decoder: loading, quick preview as stand-in,
 //! stand-in during reload, Failed, Ready).
 //!
 //! The spec's id `browse/thumbs/file-source` becomes `primitives/file-thumbnails/source`: the gallery
-//! requires a story id to start with its level. Registering it (task RG2) adds `stories()` to the
-//! browse stories and the component to `COMPONENTS`.
+//! requires a story id to start with its level.
 //!
 //! The story decodes nothing real. A job stats its file, so the tiles name the running executable
 //! (a file that exists) with a variant per tile; the decoder answers by variant. One tile names a
 //! path that does not exist. Jobs run on a `ManualJobs`, one per "Finish next".
-
-#![expect(dead_code, reason = "not registered until RG2 adds `stories()` and `COMPONENTS` to the browse stories")]
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,9 +24,8 @@ use egui::{Sense, Ui, vec2};
 
 use super::{DecodeRequest, DecodedThumb, FileThumbKey, FileThumbOptions, FileThumbSource, ThumbDecoder, ThumbError};
 
-/// The components this module has stories for. RG2 makes this `pub const COMPONENTS` and adds the
-/// module to the browse stories.
-pub(crate) const COMPONENTS: &[&str] = &["File thumbnails"];
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["File thumbnails"];
 
 craft_ui::words! {
     /// The words of the file thumbnail story.

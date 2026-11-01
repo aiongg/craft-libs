@@ -1,8 +1,4 @@
-//! Stories of the Navigator (task ST5). Not registered yet: registering them (task RG2) adds
-//! `stories()` to the canvas stories, `Navigator` to `COMPONENTS` and regenerates the registry
-//! dump; until then `every_story_shows_with_its_default_args` does not run them. No `COMPONENTS`
-//! constant is declared here before RG2 (craft-ui's `every_declared_component_has_a_story`
-//! counts them).
+//! Stories of the Navigator.
 //!
 //! Every story uses fakes: a generated gradient image put into a story-local `TextureCache` for
 //! `NavigatorPreview::Texture`, a `CanvasView` the story keeps in egui memory, and story words
@@ -11,11 +7,9 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `patterns/canvas/navigator/document` | a landscape document, the view zoomed to 400 %; args: zoom, rotation, flip, proxy colour, preview waiting |
-//! | `patterns/canvas/navigator/whole-document` | the fit view: the proxy covers the preview |
-//! | `patterns/canvas/navigator/options-dialog` | Panel Options with the colour list and Custom… |
-
-#![expect(dead_code, reason = "registered by task RG2")]
+//! | `patterns/navigator/document` | a landscape document, the view zoomed to 400 %; args: zoom, rotation, flip, proxy colour, preview waiting |
+//! | `patterns/navigator/whole-document` | the fit view: the proxy covers the preview |
+//! | `patterns/navigator/options-dialog` | Panel Options with the colour list and Custom… |
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -97,11 +91,14 @@ struct OptionsArgs {
     proxy: ColorArg,
 }
 
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Navigator"];
+
 /// The three stories above.
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "patterns/canvas/navigator/document",
+            "patterns/navigator/document",
             Level::Patterns,
             "Navigator",
             "Document",
@@ -110,7 +107,7 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "patterns/canvas/navigator/whole-document",
+            "patterns/navigator/whole-document",
             Level::Patterns,
             "Navigator",
             "Whole document",
@@ -119,7 +116,7 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "patterns/canvas/navigator/options-dialog",
+            "patterns/navigator/options-dialog",
             Level::Patterns,
             "Navigator",
             "Options dialog",

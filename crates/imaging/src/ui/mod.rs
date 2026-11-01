@@ -35,6 +35,8 @@ pub use warp::{
 craft_ui::story::register! {
     warp::story,
     adjust,
+    channels::stories,
+    scopes::stories,
 }
 
 /// The stories of the imaging widgets.

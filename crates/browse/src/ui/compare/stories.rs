@@ -1,13 +1,10 @@
-//! Stories of the compare tile (not registered; task ST8): `patterns/browse/compare-pair` and
+//! Stories of the compare tile: `patterns/browse/compare-pair` and
 //! `patterns/browse/compare-survey` (the spec's `browse/compare-*` under their level). Two tiles
 //! with one shared zoom and pan, the render pills and the rejected veil; twelve tiles at 3:2 in
 //! the survey arrangement.
 //!
-//! Registering them (task RG2) adds `stories()` and `COMPONENTS` ("CompareTile") to the browse
-//! stories. The pictures are generated in the story (a gradient with a grid, so zoom and pan
+//! The pictures are generated in the story (a gradient with a grid, so zoom and pan
 //! show). A click makes a pane active and a double click toggles Fit and 100 %, as an app would.
-
-#![expect(dead_code, reason = "not registered until RG2 adds `stories()` and `COMPONENTS` to the browse stories")]
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -26,8 +23,8 @@ use kurbo::Point;
 use super::{CompareCaption, CompareImage, ComparePair, CompareStyle, CompareTile, RenderState, survey_columns};
 use crate::ui::grid::TileFlag;
 
-/// The components this module has stories for. RG2 makes this `pub const COMPONENTS`.
-pub(crate) const COMPONENTS: &[&str] = &["CompareTile"];
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Compare tile"];
 
 craft_ui::words! {
     /// The sample text of the compare stories, English by default.
@@ -47,7 +44,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/browse/compare-pair",
             Level::Patterns,
-            "CompareTile",
+            "Compare tile",
             "Pair",
             PairArgs { right: RightState::Ready, rejected: false, flagged: true, rtl: false, height: 340.0 },
             show_pair
@@ -55,7 +52,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/browse/compare-survey",
             Level::Patterns,
-            "CompareTile",
+            "Compare tile",
             "Survey",
             SurveyArgs { count: 12, height: 360.0 },
             show_survey

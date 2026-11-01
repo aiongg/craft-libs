@@ -1,9 +1,6 @@
-//! Stories of the Links panel and Link Media dialog (not registered; task ST8):
+//! Stories of the Links panel and Link Media dialog:
 //! `patterns/browse/link-list` and `patterns/browse/relink-dialog` (the spec's `browse/link-list`
 //! and `browse/relink-dialog` under their level).
-//!
-//! Registering them (task RG2) adds `stories()` and `COMPONENTS` ("LinkList", "RelinkDialog") to
-//! the browse stories.
 //!
 //! `FakeLinkFiles` is an in-memory file set with a same file, a different file and a folder
 //! tree. The dialog's search and checks run on a `ManualJobs`: unless "slow search" is on the
@@ -11,8 +8,6 @@
 //! so the progress line and Stop can be tried. Browse… and Locate… answer from a scripted
 //! `Files` on a story `Host`. The list's events change the story's fake statuses, as an app's
 //! commands would.
-
-#![expect(dead_code, reason = "not registered until RG2 adds `stories()` and `COMPONENTS` to the browse stories")]
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io;
@@ -36,8 +31,8 @@ use egui::{Context, Ui, vec2};
 
 use super::{LinkFilter, LinkList, LinkListEvent, LinkListState, LinkSort, RelinkDialog, RelinkOptions, RelinkOutcome, RelinkRow};
 
-/// The components this module has stories for. RG2 makes this `pub const COMPONENTS`.
-pub(crate) const COMPONENTS: &[&str] = &["LinkList", "RelinkDialog"];
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Link list", "Relink dialog"];
 
 craft_ui::words! {
     /// The sample text of the link stories, English by default.
@@ -62,7 +57,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/browse/link-list",
             Level::Patterns,
-            "LinkList",
+            "Link list",
             "Link list",
             ListArgs { filter: FilterArg::All, sort: SortArg::Name, thumbnails: SizeArg::Small, info_open: true, actions: true, height: 380.0 },
             show_list
@@ -70,7 +65,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!(
             "patterns/browse/relink-dialog",
             Level::Patterns,
-            "RelinkDialog",
+            "Relink dialog",
             "Relink dialog",
             DialogArgs { open: true, relink_others: true, exact_names: false, slow_search: false },
             show_dialog
@@ -348,12 +343,23 @@ impl Files for ScriptedFiles {
     }
 }
 
-/// Installs a Host with the scripted files when the story runs without one.
+/// Gives the installed Host the scripted files (the gallery's Host answers every picker with
+/// Cancelled), or installs a Host with them when the story runs without one. A Host installed
+/// again afterwards is replaced again on the next pass.
 fn ensure_host(ctx: &Context) {
-    if Host::try_of_ctx(ctx).is_none() {
-        Host::builder(AppInfo { id: "craft-browse-stories", name: "Craft Stories", version: "0" })
-            .files(Arc::new(ScriptedFiles::default()))
-            .install(ctx);
+    let key = egui::Id::unique("craft_browse::relink::stories::host");
+    let current = Host::try_of_ctx(ctx);
+    let ours = ctx.data(|d| d.get_temp::<usize>(key));
+    if current.as_ref().is_some_and(|host| Some(Arc::as_ptr(host) as usize) == ours) {
+        return;
+    }
+    let files = Arc::new(ScriptedFiles::default());
+    match current {
+        Some(host) => host.with_files(files).install(ctx),
+        None => Host::builder(AppInfo { id: "craft-browse-stories", name: "Craft Stories", version: "0" }).files(files).install(ctx),
+    }
+    if let Some(host) = Host::try_of_ctx(ctx) {
+        ctx.data_mut(|d| d.insert_temp(key, Arc::as_ptr(&host) as usize));
     }
 }
 

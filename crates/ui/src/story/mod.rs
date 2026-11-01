@@ -337,6 +337,11 @@ register! {
     #[cfg(feature = "window-frame")]
     crate::title_bar::stories,
     crate::presets::stories,
+    crate::presets::stories_library,
+    crate::canvas::textures::stories,
+    crate::canvas::navigator::stories,
+    crate::edit::history_panel::stories,
+    crate::panes::sections::stories,
     crate::docking,
     crate::docking::shell_stories,
     crate::dialog::stories,

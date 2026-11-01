@@ -16,6 +16,15 @@ pub(crate) mod stories;
 pub mod thumbs;
 pub mod tree;
 
+craft_ui::story::register! {
+    stories,
+}
+
+/// The stories of the layers widgets.
+pub fn stories() -> Vec<craft_ui::story::Story> {
+    registry()
+}
+
 /// The labels tables of the layers widgets, for the words registry.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <panel::LayersLabels as craft_ui::localized::Labels>::WORDS,

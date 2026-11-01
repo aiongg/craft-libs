@@ -1,13 +1,10 @@
-//! Stories of the reorderable sections (not registered; task ST8): `composites/reorderable-sections/sidebar`
+//! Stories of the reorderable sections: `composites/reorderable-sections/sidebar`
 //! (the spec's `panes/sections`: the gallery requires a story id to start with its level). Five
-//! sections, drag, pinned header, header button, hidden, folded counts and the menu. No
-//! `COMPONENTS` declaration until RG2 adds it to `story::DECLARED`.
+//! sections, drag, pinned header, header button, hidden, folded counts and the menu.
 //!
 //! The story keeps a `SectionLayout` and applies every event to it, so folding, dragging, hiding
 //! and the menu change what it shows. Local starts folded and Keywords hidden. The Albums
 //! button adds an album, which shows in the Albums count and rows.
-
-#![expect(dead_code, reason = "not registered until task RG2 adds `stories()` and `ReorderableSections` to the gallery")]
 
 use egui::{IdSalt, ScrollArea, Ui};
 
@@ -18,8 +15,8 @@ use crate::primitives::{Content, Text};
 use crate::story::{Level, Story, StoryArgs};
 use crate::typed_story;
 
-/// The components this module has stories for. RG2 makes this `pub const COMPONENTS`.
-pub(crate) const COMPONENTS: &[&str] = &["ReorderableSections"];
+/// The components this module has stories for.
+pub const COMPONENTS: &[&str] = &["Reorderable sections"];
 
 crate::words! {
     /// The sample text of the sections story, English by default.
@@ -47,7 +44,7 @@ pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
         "composites/reorderable-sections/sidebar",
         Level::Composites,
-        "ReorderableSections",
+        "Reorderable sections",
         "Sidebar",
         SidebarArgs { show_counts: true, rows: 4, albums_button: true, local_available: true, height: 260.0 },
         show_sidebar

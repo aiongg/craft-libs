@@ -1,7 +1,5 @@
 //! `MockLayers`: a `LayerTree` for stories and tests.
 
-#![expect(dead_code, reason = "`fifty` and the builders are used by the stories, which stay unregistered until task RG2")]
-
 use std::cell::Cell;
 
 use craft_theme::LabelColor;
@@ -198,6 +196,7 @@ impl MockLayers {
     }
 
     /// `count` pixel layers at the top level, for the 10,000-row test; counts the `info` calls.
+    #[cfg(test)]
     pub(crate) fn flat(count: usize) -> Self {
         // new: `tree_with_ten_thousand_layers_builds_rows_in_view_only`.
         let mut tree = Self::default();
@@ -209,6 +208,7 @@ impl MockLayers {
     }
 
     /// How many times `info` was called since the last [`take_info_calls`](Self::take_info_calls).
+    #[cfg(test)]
     pub(crate) fn take_info_calls(&self) -> usize {
         // new: a `Cell<usize>` counter.
         self.info_calls.replace(0)

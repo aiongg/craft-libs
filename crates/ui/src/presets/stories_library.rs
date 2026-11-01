@@ -1,6 +1,4 @@
-//! Stories of the preset library, the named preset row and the picker (task ST4). Registering
-//! them (task RG2) adds `stories()` to the preset stories and the components to
-//! `story::DECLARED`; this file declares no `COMPONENTS` before then.
+//! Stories of the preset library, the named preset row and the picker.
 //!
 //! Every story uses fakes: a fake `Files` as the step 4 stories use, so Load…, Replace…, Save…
 //! and Import… show with no platform; every string goes through story words.
@@ -19,12 +17,6 @@
 //! | `composites/named-preset/contour-buttons` | style `Buttons`: New… with the suggested name, a name clash error, Load…, Save… |
 //! | `composites/named-preset/trace-menu` | style `Menu`: Save as New Preset…, Rename…, Delete, "Custom" when nothing matches |
 //! | `composites/named-preset/rtl` | the row and the picker in right to left |
-//!
-//! Registration (task RG2): `COMPONENTS` = `["Preset browser", "Preset library", "Preset picker",
-//! "Named preset"]` (the first is also in `presets/stories.rs`), and `stories()` appended to the
-//! preset stories' `stories()`.
-
-#![expect(dead_code, reason = "not registered until task RG2 adds `stories()` to the gallery")]
 
 use std::collections::HashSet;
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
@@ -45,6 +37,9 @@ use crate::localized::Labels as _;
 use crate::primitives::{Content, Text};
 use crate::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::typed_story;
+
+/// The components this module has stories for. "Preset browser" is listed in `presets/stories.rs`.
+pub const COMPONENTS: &[&str] = &["Preset library", "Preset picker", "Named preset"];
 
 /// The stories above.
 pub(crate) fn stories() -> Vec<Story> {
@@ -262,10 +257,23 @@ impl Files for StoryFiles {
     }
 }
 
-/// Installs a Host with the fake file service when the story runs without one.
+/// Gives the installed Host the fake file service (the gallery's Host answers every picker with
+/// Cancelled), or installs a Host with it when the story runs without one. A Host the app or the
+/// gallery installs again afterwards is replaced again on the next pass.
 fn ensure_host(ctx: &Context) {
-    if Host::try_of_ctx(ctx).is_none() {
-        Host::builder(AppInfo { id: "craft-ui-stories", name: "Craft Stories", version: "0" }).files(Arc::new(StoryFiles::default())).install(ctx);
+    let key = egui::Id::unique("craft_ui::presets::stories_library::host");
+    let current = Host::try_of_ctx(ctx);
+    let ours = ctx.data(|d| d.get_temp::<usize>(key));
+    if current.as_ref().is_some_and(|host| Some(Arc::as_ptr(host) as usize) == ours) {
+        return;
+    }
+    let files = Arc::new(StoryFiles::default());
+    match current {
+        Some(host) => host.with_files(files).install(ctx),
+        None => Host::builder(AppInfo { id: "craft-ui-stories", name: "Craft Stories", version: "0" }).files(files).install(ctx),
+    }
+    if let Some(host) = Host::try_of_ctx(ctx) {
+        ctx.data_mut(|d| d.insert_temp(key, Arc::as_ptr(&host) as usize));
     }
 }
 
