@@ -26,14 +26,17 @@
 //! }
 //! ```
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use craft_ui::behavior::{DisplayOrder, Move, Selection, SelectionChange};
+use craft_ui::behavior::{Axis, DisplayOrder, DragBadge, DropPosition, ListDrag, Move, Reorder, Selection, SelectionChange, SelectionPick};
+use craft_ui::canvas::textures::{ThumbnailOptions, Thumbnails};
 use craft_ui::edit::EditEvent;
-use craft_ui::list::{CaptionPlace, ContextMenuRequest, TileContent, TileEvent, TileSource, TileZoom};
+use craft_ui::icons::Icon;
+use craft_ui::list::{
+    CaptionPlace, ContextMenuRequest, ThumbnailSlider, TileContent, TileEvent, TileGrid, TileGroup, TileLayout, TileMark, TileSource, TileZoom,
+};
 use craft_ui::localized::words::Counted;
-use craft_ui::theme::UiTokens;
-use egui::{Pos2, Rect, Response, Ui};
+use craft_ui::localized::{Labels as _, Words};
+use craft_ui::theme::{Tokens, TokensOf as _, UiTokens};
+use egui::{DragAndDrop, Key, Pos2, Rect, Response, Ui};
 
 use super::style::PageThumbnailsStyle;
 use super::view::PageSource;
@@ -86,7 +89,27 @@ pub struct ThumbnailMarks {
 /// `items` go before or after page `target`) in a document of `count` pages.
 // pdfcraft: crates/ui-egui/src/panels/pages.rs:283 `moved_index`.
 pub fn moved_page(mv: &Move<usize>, p: usize, count: usize) -> usize {
-    todo!()
+    if p >= count {
+        return p;
+    }
+    let mut items = mv.items.clone();
+    items.sort_unstable();
+    items.dedup();
+    let before = |limit: usize| (0..limit).filter(|q| !items.contains(q)).count();
+    // Where the moved pages start among the others; a target among the moved pages leaves the
+    // slot at its own edge.
+    let slot = match mv.position {
+        DropPosition::After if !items.contains(&mv.target) => before(mv.target + 1),
+        _ => before(mv.target),
+    };
+    let moved = match items.iter().position(|item| *item == p) {
+        Some(k) => slot + k,
+        None => {
+            let rest = before(p);
+            if rest >= slot { rest + items.len() } else { rest }
+        }
+    };
+    moved.min(count - 1)
 }
 
 /// What the panel reports, in the order it happened this pass.
@@ -268,7 +291,100 @@ impl<'a> PageThumbnails<'a> {
     // `page_drag`, :277 `panel_gap`; deckcraft: crates/ui-egui/src/panels/thumbs.rs:116 `list`
     // (sections, number at the left, hidden and animation marks, New Slide).
     pub fn show(self, ui: &mut Ui) -> PageThumbnailsOutput {
-        todo!()
+        let Self { id_salt, source, picked, current, editable, mut zoom, caption_place, sections, marks, new_page_row, labels } = self;
+        let labels = labels.unwrap_or_else(|| ThumbnailLabels::of(ui));
+        let style = Self::style(&Tokens::of(ui));
+        let id = Self::id_in(ui, id_salt);
+        let ctx = ui.ctx().clone();
+        let count = source.page_count();
+
+        if let Some(zoom) = zoom.as_deref_mut() {
+            let began = id.with("zoom began");
+            let width = ui.available_width().clamp(ThumbnailSlider::extent(ui).1, ThumbnailSlider::extent(ui).0);
+            let edit = ThumbnailSlider::new((id, "size"), *zoom, THUMBNAIL_ZOOM).width(width).show(ui);
+            match edit.event {
+                Some(EditEvent::Begin { value, .. }) => {
+                    ctx.data_mut(|d| d.insert_temp(began, *zoom));
+                    if let Some(value) = value {
+                        *zoom = value as f32;
+                    }
+                }
+                Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => *zoom = value as f32,
+                Some(EditEvent::Cancel { .. }) => {
+                    if let Some(start) = ctx.data(|d| d.get_temp::<f32>(began)) {
+                        *zoom = start;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let scale = zoom.as_deref().copied().unwrap_or(1.0);
+
+        let aspect = if count == 0 { 1.0 } else { aspect_of(source, 0) };
+        let side = (style.usual_width * scale).min((ui.available_width() - style.panel_inset).max(0.0));
+        let tiles = PageTiles { source, keys: (0..count).collect(), marks, labels: &labels };
+        let thumbnails = Thumbnails::<usize>::in_context(&ctx, (id_salt, "pictures"), ThumbnailOptions::default());
+
+        let words = Words::of(ui);
+        let pages_text = words.get(PAGES.word);
+        let groups: Vec<TileGroup> = sections
+            .iter()
+            .map(|section| TileGroup {
+                start: section.first,
+                count: section.count,
+                title: section.name.clone(),
+                detail: words.counted(&ctx, PAGES, &pages_text, section.count as u64),
+            })
+            .collect();
+        let open: Vec<bool> = sections.iter().map(|section| section.open).collect();
+
+        let delete_pressed = ui.input(|i| i.modifiers.is_none() && (i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace)));
+        let was_empty = picked.is_empty();
+        let escape_pressed =
+            ui.input(|i| i.key_pressed(Key::Escape) && !i.pointer.any_down()) && !DragAndDrop::has_payload_of_type::<ListDrag<usize>>(&ctx);
+
+        let mut grid = TileGrid::new(id_salt, &tiles)
+            .layout(TileLayout::Cards { side, aspect, caption: true })
+            .selection(&mut *picked)
+            .thumbnails(&thumbnails, source)
+            .rating_keys(craft_ui::list::RatingKeys::None)
+            .space(craft_ui::list::SpaceAction::Toggle)
+            .label(labels.pages.clone())
+            .current(current)
+            .caption_place(caption_place);
+        if !groups.is_empty() {
+            grid = grid.groups(&groups).group_disclosure(&open).group_menus(true);
+        }
+        if editable {
+            grid = grid.reorder(Reorder::new(Axis::Horizontal)).file_drops(true);
+        }
+        if new_page_row {
+            grid = grid.new_item_row(labels.new_page.clone());
+        }
+        let out = grid.show(ui);
+
+        if let Some(drag) = DragAndDrop::payload::<ListDrag<usize>>(&ctx).filter(|drag| drag.list == id) {
+            let text = words.counted(&ctx, PAGES, &pages_text, drag.items.len() as u64);
+            DragBadge::new((id, "drag"), text).show(&ctx);
+        }
+
+        // Esc makes egui drop focus at the start of its pass, so the Esc rule reads the last pass's.
+        let focus_key = id.with("focused");
+        let was_focused = ctx.data(|d| d.get_temp::<bool>(focus_key)).unwrap_or(false);
+        let focused = ctx.memory(|m| m.has_focus(id));
+        ctx.data_mut(|d| d.insert_temp(focus_key, focused));
+        let mut events = page_events(out.events, count, editable, zoom);
+        // The grid reports Remove for a picked set only; with nothing picked the key deletes the
+        // current page.
+        if editable && was_empty && delete_pressed && focused && count > 1 && current < count {
+            events.push(ThumbnailEvent::Delete(vec![current]));
+        }
+        // The grid has no Esc of its own outside a drag or a marquee.
+        if escape_pressed && !was_empty && was_focused {
+            *picked = Selection::new();
+            events.push(ThumbnailEvent::Picked(SelectionChange { pick: SelectionPick::Clear, row: None, selection: Selection::new() }));
+        }
+        PageThumbnailsOutput { response: out.response, events, drop_target: out.drop_target, file_gap: out.file_gap }
     }
 }
 
@@ -284,20 +400,18 @@ struct PageTiles<'a> {
 
 impl DisplayOrder<usize> for PageTiles<'_> {
     fn len(&self) -> usize {
-        // new: the source's page count.
-        todo!()
+        self.keys.len()
     }
 
     fn key(&self, at: usize) -> &usize {
-        // new: `&self.keys[at]`.
-        todo!()
+        &self.keys[at]
     }
 }
 
 impl TileSource<usize> for PageTiles<'_> {
     fn aspect(&self, at: usize) -> f32 {
         // pdfcraft: crates/ui-egui/src/panels/pages.rs:90 (each thumbnail keeps its page's aspect).
-        todo!()
+        aspect_of(self.source, at)
     }
 
     /// The name is the page label; the accessible name [`ThumbnailLabels::page`] with it, then
@@ -305,8 +419,26 @@ impl TileSource<usize> for PageTiles<'_> {
     /// tipped [`ThumbnailLabels::animated`] from the marks.
     fn content(&self, at: usize, content: &mut TileContent) {
         // deckcraft: crates/ui-egui/src/panels/thumbs.rs:116 `list` (number, hidden and animation marks).
-        todo!()
+        let label = self.source.page_label(at);
+        let marks = self.marks.map(|marks| marks(at)).unwrap_or_default();
+        let mut accessible = vec![self.labels.page.replace("{label}", &label)];
+        if marks.hidden {
+            accessible.push(self.labels.hidden.clone());
+        }
+        if marks.animated {
+            accessible.push(self.labels.animated.clone());
+            content.marks.push(TileMark { icon: Icon::Star, tip: self.labels.animated.clone() });
+        }
+        content.name = label;
+        content.hidden = marks.hidden;
+        content.accessible_name = Some(accessible.join(", "));
     }
+}
+
+/// Page `at`'s width over its height; 1 for a page without a size.
+fn aspect_of(source: &dyn PageSource, at: usize) -> f32 {
+    let size = source.page_size(at);
+    if size.width > 0.0 && size.height > 0.0 { (size.width / size.height) as f32 } else { 1.0 }
 }
 
 /// The grid's events as the panel's, in order: `Selection` → [`ThumbnailEvent::Picked`], then
@@ -318,5 +450,37 @@ impl TileSource<usize> for PageTiles<'_> {
 /// `NewPage`; `Zoom` steps `zoom` on [`THUMBNAIL_ZOOM`]. Everything else is dropped.
 fn page_events(events: Vec<TileEvent<usize>>, page_count: usize, editable: bool, zoom: Option<&mut f32>) -> Vec<ThumbnailEvent> {
     // pdfcraft: crates/ui-egui/src/panels/pages.rs:90 `pages` (click goes, Delete keeps a page).
-    todo!()
+    let mut out = Vec::new();
+    let mut zoom = zoom;
+    let mut events = events.into_iter().peekable();
+    while let Some(event) = events.next() {
+        match event {
+            TileEvent::Selection(change) => {
+                // A secondary click picks the page for its menu without going to it.
+                let menu = matches!(events.peek(), Some(TileEvent::ContextMenu(request)) if request.row == change.row);
+                let go = (change.pick == SelectionPick::Replace && !menu).then_some(change.row).flatten();
+                out.push(ThumbnailEvent::Picked(change));
+                out.extend(go.map(ThumbnailEvent::Go));
+            }
+            TileEvent::Clicked(page) => out.push(ThumbnailEvent::Go(page)),
+            TileEvent::Activate(page) => out.push(ThumbnailEvent::Open(page)),
+            TileEvent::Remove(pages) => {
+                if editable && !pages.is_empty() && pages.len() < page_count {
+                    out.push(ThumbnailEvent::Delete(pages));
+                }
+            }
+            TileEvent::Reorder(edit) if editable => out.push(ThumbnailEvent::Reorder(edit)),
+            TileEvent::ContextMenu(request) => out.push(ThumbnailEvent::ContextMenu(request)),
+            TileEvent::GroupOpen { group, open } => out.push(ThumbnailEvent::SectionOpen { section: group, open }),
+            TileEvent::GroupContextMenu { group, anchor, pointer } => out.push(ThumbnailEvent::SectionMenu { section: group, anchor, pointer }),
+            TileEvent::NewItem => out.push(ThumbnailEvent::NewPage),
+            TileEvent::Zoom(step) => {
+                if let Some(zoom) = zoom.as_deref_mut() {
+                    *zoom = THUMBNAIL_ZOOM.step(*zoom, step);
+                }
+            }
+            _ => {}
+        }
+    }
+    out
 }
