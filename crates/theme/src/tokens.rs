@@ -845,6 +845,20 @@ pub struct PresetSizes {
     pub caption_gap: f32,
     /// Width of the thumbnail size slider.
     pub slider_width: f32,
+    /// Width of a wide picker field's thumbnail (custom shapes).
+    pub picker_wide_width: f32,
+    /// Height of a wide picker field's thumbnail.
+    pub picker_wide_height: f32,
+    /// Side of a square picker field's thumbnail (patterns, contours).
+    pub picker_square: f32,
+    /// Side of a cell in the picker's popup.
+    pub picker_cell: f32,
+    /// Width of the named preset row's Name field.
+    pub name_width: f32,
+    /// The greatest height of the picker's popup.
+    pub popup_max_height: f32,
+    /// The gap between the browser's list and its own footer.
+    pub footer_room: f32,
 }
 
 /// The font a type role uses. `craft_ui::fonts` maps each slot to a face.

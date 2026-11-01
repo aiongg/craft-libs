@@ -31,6 +31,7 @@ macro_rules! sizes {
 }
 
 mod about;
+mod actions;
 mod align;
 mod alt_text;
 mod angle_dial;
@@ -92,6 +93,7 @@ mod listbox;
 mod marquee;
 mod menu;
 mod metadata;
+mod navigator;
 mod new_document;
 mod notice;
 mod options_bar;
@@ -114,6 +116,7 @@ mod ref_point;
 mod reset_dot;
 mod ruler;
 mod sampler;
+mod scopes;
 mod screen_picker;
 mod scroll;
 mod section;
@@ -155,6 +158,7 @@ use identify::Identify;
 use super::tokens::{ColorTokens, ElevationTokens, ShapeTokens, SizeTokens, SpaceTokens, TokenRef, TypeTokens};
 
 pub use about::{AboutField, AboutTokens};
+pub use actions::{ActionsField, ActionsTokens};
 pub use align::{AlignField, AlignTokens};
 pub use alt_text::{AltTextField, AltTextTokens};
 pub use angle_dial::{AngleDialField, AngleDialTokens};
@@ -215,6 +219,7 @@ pub use listbox::{ListboxField, ListboxTokens};
 pub use marquee::{MarqueeField, MarqueeTokens};
 pub use menu::{MenuField, MenuHue, MenuTint, MenuTintPart, MenuTokens};
 pub use metadata::{MetadataField, MetadataTokens};
+pub use navigator::{NavigatorField, NavigatorTokens};
 pub use new_document::{NewDocumentField, NewDocumentTokens};
 pub use notice::{NoticeField, NoticeTokens, Tone};
 pub use options_bar::{OptionsBarField, OptionsBarTokens};
@@ -237,6 +242,7 @@ pub use ref_point::{RefPointField, RefPointTokens};
 pub use reset_dot::{ResetDotField, ResetDotTokens};
 pub use ruler::{RulerField, RulerTokens};
 pub use sampler::{SamplerField, SamplerTokens};
+pub use scopes::{ScopesField, ScopesTokens};
 pub use screen_picker::{ScreenPickerField, ScreenPickerTokens};
 pub use scroll::{ScrollField, ScrollTokens};
 pub use section::{SectionField, SectionTokens};
@@ -867,6 +873,12 @@ families! {
     tile: TileTokens => Tile(TileField);
     /// Link Media: the status badge, links table, candidate list and preview.
     link: LinkTokens => Link(LinkField);
+    /// The Navigator: the preview box, the proxy rectangle and the zoom row's gap.
+    navigator: NavigatorTokens => Navigator(NavigatorField);
+    /// The scope panel: warning buttons, statistics, All Channels plots and the vectorscope.
+    scopes: ScopesTokens => Scopes(ScopesField);
+    /// The Actions panel: row heights, the indent and the Button Mode fills.
+    actions: ActionsTokens => Actions(ActionsField);
     /// Angle dials: the round face and needle that point in a direction.
     angle_dial: AngleDialTokens => AngleDial(AngleDialField);
     /// The app shell: the backdrop behind the document and the edge reveal zone.

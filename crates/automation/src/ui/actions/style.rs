@@ -11,13 +11,13 @@ use crate::actions::ActionColor;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ActionsPanelStyle {
-    /// A set header's height: `actions.set_row_height` (24).
+    /// A set header's height: `actions.set_row_height`.
     pub set_row_height: f32,
-    /// An action row's height: `actions.row_height` (26).
+    /// An action row's height: `actions.row_height`.
     pub row_height: f32,
-    /// A step row's height: `actions.step_row_height` (20).
+    /// A step row's height: `actions.step_row_height`.
     pub step_row_height: f32,
-    /// The indent of an action inside a set: `actions.indent` (14).
+    /// The indent of an action inside a set: `actions.indent`.
     pub indent: f32,
     /// Button Mode fills, red to violet: `actions.color.*`, the same in every theme.
     pub fills: [Color32; 6],
@@ -25,7 +25,7 @@ pub struct ActionsPanelStyle {
     pub gray: Color32,
     /// Button Mode's fill for no colour: `surface.raised` (lead call L34).
     pub no_color: Color32,
-    /// A label on a coloured fill: black 20 (`rgb(20, 20, 20)`).
+    /// A label on a coloured fill: `actions.color.label`.
     pub label_on_color: Color32,
     /// A label on no colour: `text.normal`.
     pub label: Color32,
@@ -56,22 +56,19 @@ impl ActionsPanelStyle {
 
 impl ActionsPanel<'_> {
     /// The Actions panel's look in `tokens`.
-    ///
-    /// Skeleton values are PhotoCraft's literals; TK2 swaps them for the `actions.*` tokens.
     pub fn style(tokens: &UiTokens) -> ActionsPanelStyle {
-        // pc: crates/ui-egui/src/panels/actions.rs:297-313 `button_fill`, `button_label_color`; :831 (24), :1040 and :1114 (230/60/60).
-        let rgb = Color32::from_rgb;
+        let (a, c) = (&tokens.component.actions, &tokens.color);
         ActionsPanelStyle {
-            set_row_height: 24.0,
-            row_height: 26.0,
-            step_row_height: 20.0,
-            indent: 14.0,
-            fills: [rgb(196, 64, 64), rgb(204, 120, 40), rgb(196, 176, 48), rgb(56, 140, 72), rgb(48, 104, 176), rgb(120, 72, 168)],
-            gray: tokens.color.text.muted.to_egui(),
-            no_color: tokens.color.surface.raised.to_egui(),
-            label_on_color: rgb(20, 20, 20),
-            label: tokens.color.text.normal.to_egui(),
-            recording: tokens.color.status.bad.solid.to_egui(),
+            set_row_height: a.set_row_height,
+            row_height: a.row_height,
+            step_row_height: a.step_row_height,
+            indent: a.indent,
+            fills: a.colors.map(|rgba| rgba.to_egui()),
+            gray: c.text.muted.to_egui(),
+            no_color: c.surface.raised.to_egui(),
+            label_on_color: a.label_on_color.to_egui(),
+            label: c.text.normal.to_egui(),
+            recording: c.status.bad.solid.to_egui(),
         }
     }
 }

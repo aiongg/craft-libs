@@ -1,6 +1,6 @@
 //! [`PresetStyle`]: the preset browser's sizes and colours from the `preset` tokens, with the
-//! selected ring from `swatch`, and the insertion line from `list`; [`PresetSizes`]: the
-//! picker's, the named row's and the footer's sizes from the `size.preset.*` leaves.
+//! selected ring from `swatch`, the insertion line from `list`, and the picker's, the named row's
+//! and the footer's sizes from the `size.preset.*` leaves.
 
 use craft_theme::{Rgba, SwatchTokens};
 use egui::{Color32, CornerRadius, Stroke, Vec2};
@@ -62,6 +62,20 @@ pub struct PresetStyle {
     pub checker: [Color32; 2],
     /// Side of a checkerboard cell: `swatch.checker_cell`.
     pub checker_cell: f32,
+    /// A [`PickerThumb::Wide`](super::picker::PickerThumb::Wide) field's thumbnail (custom
+    /// shapes): `size.preset.picker_wide_width` by `size.preset.picker_wide_height`.
+    pub picker_wide: Vec2,
+    /// A [`PickerThumb::Square`](super::picker::PickerThumb::Square) field's thumbnail
+    /// (patterns, contours): `size.preset.picker_square`.
+    pub picker_square: f32,
+    /// The side of a cell in the picker's popup: `size.preset.picker_cell`.
+    pub picker_cell: f32,
+    /// The width of the named preset row's Name field: `size.preset.name_width`.
+    pub name_width: f32,
+    /// The greatest height of the picker's popup: `size.preset.popup_max_height`.
+    pub popup_max_height: f32,
+    /// The gap between the browser's list and its own footer: `size.preset.footer_room`.
+    pub footer_room: f32,
     swatch: SwatchTokens,
 }
 
@@ -70,6 +84,7 @@ impl PresetStyle {
     pub fn from_tokens(tokens: &UiTokens) -> Self {
         let p = &tokens.component.preset;
         let (s, l) = (&tokens.component.swatch, &tokens.component.list);
+        let z = &tokens.size.preset;
         Self {
             header_height: p.header_height,
             grid_gap: p.grid_gap,
@@ -95,6 +110,12 @@ impl PresetStyle {
             insert_width: l.drop_width,
             checker: [s.checker_a.to_egui(), s.checker_b.to_egui()],
             checker_cell: s.checker_cell,
+            picker_wide: Vec2::new(z.picker_wide_width, z.picker_wide_height),
+            picker_square: z.picker_square,
+            picker_cell: z.picker_cell,
+            name_width: z.name_width,
+            popup_max_height: z.popup_max_height,
+            footer_room: z.footer_room,
             swatch: *s,
         }
     }
@@ -103,38 +124,5 @@ impl PresetStyle {
     /// checkerboard: the inner edge of a swatch cell that is not flush.
     pub fn inner_edge(&self, color: Rgba) -> Color32 {
         self.swatch.inner_edge(color).to_egui()
-    }
-}
-
-/// The sizes of the picker, the named preset row and the browser's own footer, from the
-/// `size.preset.*` leaves (Size data an app overrides through its sizes table). Kept apart from
-/// [`PresetStyle`], whose fields the preset dump lists. Painting code reads these sizes from here
-/// and nowhere else; no body names a number for them.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct PresetSizes {
-    /// A [`PickerThumb::Wide`](super::picker::PickerThumb::Wide) field's thumbnail (custom
-    /// shapes): `size.preset.picker_wide`.
-    pub picker_wide: Vec2,
-    /// A [`PickerThumb::Square`](super::picker::PickerThumb::Square) field's thumbnail
-    /// (patterns, contours): `size.preset.picker_square`.
-    pub picker_square: f32,
-    /// The side of a cell in the picker's popup: `size.preset.picker_cell`.
-    pub picker_cell: f32,
-    /// The width of the named preset row's Name field: `size.preset.name_width`.
-    pub name_width: f32,
-    /// The greatest height of the picker's popup: `size.preset.popup_max_height`.
-    pub popup_max_height: f32,
-    /// The gap between the browser's list and its own footer: `size.preset.footer_room`.
-    pub footer_room: f32,
-}
-
-impl PresetSizes {
-    /// The sizes for the installed Size preset and the app's overrides.
-    #[expect(clippy::todo, reason = "skeleton: task TK2 adds the `size.preset.*` leaves and reads them here")]
-    pub fn from_tokens(tokens: &UiTokens) -> Self {
-        // new: the six `size.preset.*` leaves (values and sources in specs/step6a-presets.md, "Proposed tokens").
-        let _ = tokens;
-        todo!()
     }
 }
