@@ -1,5 +1,4 @@
-//! Stories of the places tree: `patterns/browse/places` (the spec's
-//! `browse/places` under its level). Roots (standard folders, volumes, favourites, recents, the
+//! Stories of the places tree: `patterns/places-tree/places`. Roots (standard folders, volumes, favourites, recents, the
 //! session root), the reveal of the current folder, the hidden-places row and a drop.
 //!
 //! `FakeDirectories` is an in-memory tree with a removable and a network volume. Its listings run
@@ -8,22 +7,22 @@
 //! tree's events go to the story's `PlacesSettings` and current folder. A draggable photo
 //! shows the drop: only folders under Photos take it.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use craft_host::queue::Cancel;
 use craft_host::{ManualJobs, Wake};
 use craft_ui::behavior::{DragBadge, ListDrag};
 use craft_ui::controls::Button;
 use craft_ui::localized::Labels as _;
+use craft_ui::localized::fmt;
 use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs};
+use craft_ui::story::{Level, Story, StoryArgs, StoryLabels, lock, shared};
 use craft_ui::typed_story;
 use egui::{DragAndDrop, Id, Sense, Ui, vec2};
 
 use super::{PlacesEvent, PlacesTree};
-use crate::places::{Directories, Folder, FolderCache, PlaceGroupKind, Places, PlacesInput, PlacesSettings, StandardFolder, Volume};
+use crate::places::{FakeDirectories, FolderCache, PlaceGroupKind, Places, PlacesInput, PlacesSettings, StandardFolder, Volume};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Places tree"];
@@ -33,23 +32,18 @@ craft_ui::words! {
     #[non_exhaustive]
     pub struct PlacesStoryLabels {
         rename: "placesStory.rename" = "Rename Folder…";
-        finish_next: "placesStory.finishNext" = "Finish next";
         waiting: "placesStory.waiting" = "{n} listings waiting";
         drag_photo: "placesStory.dragPhoto" = "Drag this photo onto a folder under Photos";
-        photo: "placesStory.photo" = "Photo 7";
         browsing: "placesStory.browsing" = "Browsing: {path}";
-        last_event: "placesStory.lastEvent" = "Last event: {event}";
-        no_event: "placesStory.noEvent" = "No event yet";
         camera_card: "placesStory.cameraCard" = "Camera Card";
         archive: "placesStory.archive" = "Archive";
-        places: "placesStory.places" = "Places";
     }
 }
 
 /// The stories above.
 pub(crate) fn stories() -> Vec<Story> {
     vec![typed_story!(
-        "patterns/browse/places",
+        "patterns/places-tree/places",
         Level::Patterns,
         "Places tree",
         "Places",
@@ -79,44 +73,27 @@ fn path(text: &str) -> PathBuf {
 
 /// `/home/u` holds Documents, Pictures and Photos; Photos holds 2024 and 2025; 2024 holds Trip
 /// and Studio; the card holds DCIM and the archive Old.
-struct FakeDirectories {
-    card: String,
-    archive: String,
-}
-
-impl Directories for FakeDirectories {
-    fn standard(&self) -> Vec<(StandardFolder, PathBuf)> {
-        vec![
-            (StandardFolder::Home, path("/home/u")),
-            (StandardFolder::Documents, path("/home/u/Documents")),
-            (StandardFolder::Pictures, path("/home/u/Pictures")),
-            (StandardFolder::Music, path("/home/u/Music")),
-        ]
+fn directories(card: &str, archive: &str) -> FakeDirectories {
+    let mut fake = FakeDirectories::new()
+        .standard_folder(StandardFolder::Home, "/home/u")
+        .standard_folder(StandardFolder::Documents, "/home/u/Documents")
+        .standard_folder(StandardFolder::Pictures, "/home/u/Pictures")
+        .standard_folder(StandardFolder::Music, "/home/u/Music")
+        .volume(Volume { path: path("/media/card"), name: card.to_owned(), network: false, removable: true })
+        .volume(Volume { path: path("/mnt/archive"), name: archive.to_owned(), network: true, removable: false });
+    for folder in [
+        "/home/u/Documents",
+        "/home/u/Music",
+        "/home/u/Photos/2024/Studio",
+        "/home/u/Photos/2024/Trip",
+        "/home/u/Photos/2025",
+        "/home/u/Pictures/Screenshots",
+        "/media/card/DCIM",
+        "/mnt/archive/Old",
+    ] {
+        fake = fake.folder(folder);
     }
-
-    fn volumes(&self) -> Vec<Volume> {
-        vec![
-            Volume { path: path("/media/card"), name: self.card.clone(), network: false, removable: true },
-            Volume { path: path("/mnt/archive"), name: self.archive.clone(), network: true, removable: false },
-        ]
-    }
-
-    fn subfolders(&self, folder: &Path, _: &Cancel) -> std::io::Result<Vec<Folder>> {
-        let names: &[&str] = match folder.to_str().unwrap_or_default() {
-            "/home/u" => &["Documents", "Music", "Photos", "Pictures"],
-            "/home/u/Photos" => &["2024", "2025"],
-            "/home/u/Photos/2024" => &["Studio", "Trip"],
-            "/home/u/Pictures" => &["Screenshots"],
-            "/media/card" => &["DCIM"],
-            "/mnt/archive" => &["Old"],
-            _ => &[],
-        };
-        Ok(names.iter().map(|name| Folder { path: folder.join(name), name: (*name).into() }).collect())
-    }
-
-    fn unlisted_ancestors(&self, _: &Path) -> Vec<PathBuf> {
-        Vec::new()
-    }
+    fake
 }
 
 /// What the story keeps between passes.
@@ -131,7 +108,7 @@ struct Demo {
 impl Demo {
     fn new(ctx: &egui::Context, words: &PlacesStoryLabels) -> Self {
         let jobs = Arc::new(ManualJobs::new());
-        let directories = Arc::new(FakeDirectories { card: words.camera_card.clone(), archive: words.archive.clone() });
+        let directories = Arc::new(directories(&words.camera_card, &words.archive));
         let repaint = ctx.clone();
         let cache = FolderCache::new(directories, jobs.clone(), Wake::new(move || repaint.request_repaint()));
         let settings = PlacesSettings {
@@ -146,16 +123,16 @@ impl Demo {
 
 fn show_places(ui: &mut Ui, args: &mut PlacesArgs) {
     let words = PlacesStoryLabels::of(ui);
-    let id = ui.make_persistent_id("craft-browse-places-story");
-    let shared = ui.data_mut(|data| data.get_temp_mut_or_insert_with(id, || Arc::new(std::sync::Mutex::new(Demo::new(ui.ctx(), &words)))).clone());
-    let mut demo = shared.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let shared_words = StoryLabels::of(ui);
+    let demo = shared(ui, "places", || Demo::new(ui.ctx(), &words));
+    let mut demo = lock(&demo);
 
     if args.slow_listings {
-        ui.horizontal(|ui| {
-            if ui.add(Button::new(words.finish_next.clone()).enabled(demo.jobs.waiting() > 0)).clicked() {
+        ui.horizontal_wrapped(|ui| {
+            if ui.add(Button::new(shared_words.finish_next.clone()).enabled(demo.jobs.waiting() > 0)).clicked() {
                 demo.jobs.run_next();
             }
-            ui.add(Text::new(words.waiting.replace("{n}", &demo.jobs.waiting().to_string())).content(Content::Muted));
+            ui.add(Text::new(fmt(&words.waiting, &[("n", &demo.jobs.waiting().to_string())])).content(Content::Muted));
         });
     } else if demo.jobs.run_all() > 0 {
         ui.ctx().request_repaint();
@@ -189,16 +166,17 @@ fn show_places(ui: &mut Ui, args: &mut PlacesArgs) {
         places
     };
 
-    let photo = ListDrag { list: Id::NULL.with("places-story"), items: vec![7u32], grabbed: 7, label: words.photo.clone() };
-    ui.horizontal(|ui| {
-        let response = ui.add(egui::Label::new(words.photo.clone()).sense(Sense::drag()));
+    let photo_name = fmt(&shared_words.photo_n, &[("n", "7")]);
+    let photo = ListDrag { list: Id::NULL.with("places-story"), items: vec![7u32], grabbed: 7, label: photo_name.clone() };
+    ui.horizontal_wrapped(|ui| {
+        let response = ui.add(egui::Label::new(photo_name.clone()).sense(Sense::drag()));
         if response.drag_started() {
             DragAndDrop::set_payload(ui.ctx(), photo.clone());
         }
         ui.add(Text::new(words.drag_photo.clone()).content(Content::Muted));
     });
     if DragAndDrop::has_payload_of_type::<ListDrag<u32>>(ui.ctx()) {
-        DragBadge::new("places-story-drag", words.photo.clone()).show(ui.ctx());
+        DragBadge::new("places-story-drag", photo_name.clone()).show(ui.ctx());
     }
 
     let rename = words.rename.clone();
@@ -222,11 +200,11 @@ fn show_places(ui: &mut Ui, args: &mut PlacesArgs) {
         demo.last = Some(format!("{event:?}"));
     }
     if let Some(current) = &demo.current {
-        ui.add(Text::new(words.browsing.replace("{path}", &current.display().to_string())).content(Content::Muted));
+        ui.add(Text::new(fmt(&words.browsing, &[("path", &current.display().to_string())])).content(Content::Muted));
     }
     let last = match &demo.last {
-        Some(event) => words.last_event.replace("{event}", event),
-        None => words.no_event.clone(),
+        Some(event) => fmt(&shared_words.last_event, &[("event", event.as_str())]),
+        None => shared_words.no_event.clone(),
     };
     ui.add(Text::new(last).content(Content::Muted));
 }

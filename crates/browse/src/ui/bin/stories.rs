@@ -1,9 +1,6 @@
 //! Stories of the media bin: `composites/media-bin/list`,
 //! `composites/media-bin/icon`, `composites/media-bin/freeform`.
 //!
-//! The spec's ids `browse/bin-list`, `browse/bin-icon` and `browse/bin-freeform` become
-//! `composites/media-bin/…`: the gallery requires a story id to start with its level.
-//!
 //! Each story keeps a [`Demo`] in egui memory: a small project tree ([`Project`], the bin's
 //! `BinModel`), the bin's state, the selection, the Freeform cards and the last event. The story
 //! applies the bin's events as an app would: view state through `BinState::apply`, and renames,
@@ -12,7 +9,7 @@
 //! them. Pictures come from a `FakeThumbSource` whose renders are jobs on a `ManualJobs`, one per
 //! "Finish next". Nothing decodes, spawns a thread or polls on a timer.
 
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::Arc;
 
 use craft_host::ManualJobs;
 use craft_theme::Rgba;
@@ -23,7 +20,7 @@ use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
 use craft_ui::list::{TableColumn, ThumbSize};
 use craft_ui::localized::Labels as _;
-use craft_ui::story::{Level, Story, StoryArgs};
+use craft_ui::story::{Level, Story, StoryArgs, StoryLabels, lock, shared};
 use craft_ui::typed_story;
 use egui::{Ui, Vec2, vec2};
 
@@ -45,10 +42,6 @@ craft_ui::words! {
         new_sequence: "binStory.newSequence" = "Sequence {n}";
         new_bin: "binStory.newBin" = "Bin {n}";
         linked: "binStory.linked" = "Linked";
-        finish_next: "binStory.finishNext" = "Finish next";
-        /// The line under a story; `{event}` is the last event the bin reported.
-        last_event: "binStory.lastEvent" = "Last event: {event}";
-        no_event: "binStory.noEvent" = "No event yet.";
     }
 }
 
@@ -93,7 +86,7 @@ const WIDTH: f32 = 760.0;
 
 /// One entry of the story's project.
 #[derive(Clone)]
-struct Node {
+pub(crate) struct Node {
     key: u32,
     name: String,
     parent: Option<u32>,
@@ -122,7 +115,7 @@ impl Node {
         }
     }
 
-    fn bin(key: u32, name: &str, parent: Option<u32>) -> Self {
+    pub(crate) fn bin(key: u32, name: &str, parent: Option<u32>) -> Self {
         Self {
             key,
             name: name.to_owned(),
@@ -138,14 +131,15 @@ impl Node {
     }
 }
 
-/// The app's project: the `BinModel` the bin reads and the story edits.
-struct Project {
+/// The app's project: the `BinModel` the bin reads, and the stories and tests edit.
+pub(crate) struct FakeProject {
     nodes: Vec<Node>,
     linked_tip: String,
 }
 
-impl Project {
-    fn new(labels: &BinStoryLabels, tiles: &TileLabels) -> Self {
+impl FakeProject {
+    /// The story's project: two bins, a nested one, and items in every status.
+    fn sample(labels: &BinStoryLabels, tiles: &TileLabels) -> Self {
         let mut beach = Node::item(10, "Beach.mov", Some(1), Icon::Image, Some("00:12:04"));
         beach.range = Some((0.2, 0.7));
         beach.linked = true;
@@ -172,6 +166,29 @@ impl Project {
             ],
             linked_tip: labels.linked.clone(),
         }
+    }
+
+    /// The small project the bin's tests use: no icons, durations or statuses.
+    #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+    pub(crate) fn minimal() -> Self {
+        let plain = |key, name: &str, parent| Node { icon: None, ..Node::item(key, name, parent, Icon::File, None) };
+        Self {
+            nodes: vec![
+                Node::bin(1, "Footage", None),
+                Node::bin(2, "Archive", None),
+                plain(10, "Beach.mov", Some(1)),
+                plain(11, "Clip.mov", Some(1)),
+                plain(20, "Old beach.mov", Some(2)),
+                plain(30, "Title.psd", None),
+            ],
+            linked_tip: String::new(),
+        }
+    }
+
+    /// Adds `node` to the project.
+    #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+    pub(crate) fn push(&mut self, node: Node) {
+        self.nodes.push(node);
     }
 
     fn node(&self, key: u32) -> Option<&Node> {
@@ -232,7 +249,7 @@ impl Project {
     }
 }
 
-impl BinModel<u32> for Project {
+impl BinModel<u32> for FakeProject {
     fn children(&self, parent: Option<&u32>, out: &mut Vec<BinEntry<u32>>) {
         for node in &self.nodes {
             if node.parent == parent.copied() {
@@ -281,7 +298,7 @@ impl BinModel<u32> for Project {
 
 /// What a story keeps between passes.
 struct Demo {
-    project: Project,
+    project: FakeProject,
     state: BinState<u32>,
     selection: Selection<u32>,
     columns: Vec<TableColumn<String>>,
@@ -293,7 +310,7 @@ struct Demo {
 
 impl Demo {
     fn new(view: BinView, labels: &BinStoryLabels, tiles: &TileLabels) -> Self {
-        let project = Project::new(labels, tiles);
+        let project = FakeProject::sample(labels, tiles);
         let mut state = BinState::default();
         state.settings.view = view;
         state.expanded.insert(1);
@@ -396,19 +413,11 @@ fn describe(event: &BinEvent<u32>) -> String {
     }
 }
 
-fn shared(ui: &Ui, name: &str, init: impl FnOnce() -> Demo) -> Arc<Mutex<Demo>> {
-    let key = ui.make_persistent_id(("craft_browse::bin::stories", name));
-    ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, || Arc::new(Mutex::new(init()))).clone())
-}
-
-fn lock(demo: &Mutex<Demo>) -> MutexGuard<'_, Demo> {
-    demo.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
 /// Draws the bin for the story `name`, applies its events and shows the last one.
 fn show_bin(ui: &mut Ui, name: &str, view: BinView, configure: impl FnOnce(&mut Demo) -> (bool, Option<f32>)) {
     let labels = BinStoryLabels::of(ui);
     let tiles = TileLabels::of(ui);
+    let shared_words = StoryLabels::of(ui);
     let demo = shared(ui, name, || Demo::new(view, &labels, &tiles));
     let mut demo = lock(&demo);
     let (hover_scrub, snap) = configure(&mut demo);
@@ -417,7 +426,7 @@ fn show_bin(ui: &mut Ui, name: &str, view: BinView, configure: impl FnOnce(&mut 
     let thumbs = Thumbnails::<u32>::in_context(ui.ctx(), ("craft_browse::bin::stories", name), options);
     let source = FakeThumbSource::<u32>::new().aspect(16, 9).later(true);
 
-    if ui.add(Button::new(labels.finish_next.clone()).enabled(demo.jobs.waiting() > 0)).clicked() {
+    if ui.add(Button::new(shared_words.finish_next.clone()).enabled(demo.jobs.waiting() > 0)).clicked() {
         demo.jobs.run_next();
     }
     let width = ui.available_width().min(WIDTH);
@@ -440,8 +449,8 @@ fn show_bin(ui: &mut Ui, name: &str, view: BinView, configure: impl FnOnce(&mut 
         demo.apply(event, &labels);
     }
     let line = match &demo.last_event {
-        Some(event) => craft_i18n::fmt(&labels.last_event, &[("event", event.as_str())]),
-        None => labels.no_event.clone(),
+        Some(event) => craft_ui::localized::fmt(&shared_words.last_event, &[("event", event.as_str())]),
+        None => shared_words.no_event.clone(),
     };
     ui.label(line);
 }

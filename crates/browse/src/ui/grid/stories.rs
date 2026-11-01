@@ -1,19 +1,18 @@
-//! Stories of the tile grid. The spec's ids `browse/grid-*` begin with
-//! their level here, as the gallery requires:
+//! Stories of the tile grid. The spec's ids `browse/grid-*` are `<level>/<component>/<story>`
+//! here, as the gallery requires:
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `patterns/browse/grid-justified` | 50 000 tiles in justified rows, date-like groups with a pinned header, badge bar Auto, selection, wheel |
-//! | `patterns/browse/grid-cards` | square cards with captions, rating row, check mode, the zoom slider |
-//! | `patterns/browse/grid-states` | pending, failed, offline, unreadable, rejected, disabled, dimmed, stack, badges in every slot and tone; RTL |
-//! | `patterns/browse/grid-reorder` | cards with the insert line, Alt copy, marquee |
+//! | `patterns/tile-grid/justified` | 50 000 tiles in justified rows, date-like groups with a pinned header, badge bar Auto, selection, wheel |
+//! | `patterns/tile-grid/cards` | square cards with captions, rating row, check mode, the zoom slider |
+//! | `patterns/tile-grid/states` | pending, failed, offline, unreadable, rejected, disabled, dimmed, stack, badges in every slot and tone; RTL |
+//! | `patterns/tile-grid/reorder` | cards with the insert line, Alt copy, marquee |
 //!
 //! The tiles are generated from their key, the pictures are gradients of the right
 //! aspect, and the grid's events change the story's fake model (ratings, removal, reorder, zoom).
 //! Pending pictures wait on a `ManualJobs`, one per "Finish next".
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::Arc;
 
 use craft_host::ManualJobs;
 use craft_theme::Rgba;
@@ -27,14 +26,15 @@ use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, lock, shared};
 use craft_ui::typed_story;
 use egui::Ui;
 use egui::ecolor::Hsva;
 
+use super::fake::FakeTiles;
 use super::{
     BadgeKind, BadgeSlot, BadgeVisibility, RatingKeys, ThumbnailSlider, TileBadge, TileContent, TileEvent, TileFlag, TileGrid, TileGroup, TileLayout,
-    TileSource, TileStatus, TileZoom,
+    TileStatus, TileZoom,
 };
 
 /// The components this module has stories for.
@@ -44,17 +44,12 @@ craft_ui::words! {
     /// The sample text of the tile grid stories, English by default.
     #[non_exhaustive]
     pub struct GridStoryLabels {
-        photo_n: "gridStory.photoN" = "Photo {n}";
         group_title: "gridStory.groupTitle" = "Group {n}";
         group_detail: "gridStory.groupDetail" = "{n} photos";
-        duplicate: "gridStory.duplicate" = "Duplicate";
         duplicate_tip: "gridStory.duplicateTip" = "Duplicate of another photo";
         slot_tip: "gridStory.slotTip" = "Badge in this corner";
         offline_band: "gridStory.offlineBand" = "Offline";
-        finish_next: "gridStory.finishNext" = "Finish next";
         waiting: "gridStory.waiting" = "{n} pictures waiting";
-        last_event: "gridStory.lastEvent" = "Last event: {event}";
-        no_event: "gridStory.noEvent" = "No event yet";
         photos: "gridStory.photos" = "Photos";
     }
 }
@@ -78,119 +73,90 @@ fn aspect_of(id: usize) -> f32 {
     [1.5, 0.75, 1.0, 1.78, 0.67, 1.33][mix(id) % 6]
 }
 
+/// Moves or copies `mv.items` next to `mv.target` in `tiles`. A copy gets fresh ids.
+fn apply_move(tiles: &mut FakeTiles, mv: &Move<usize>) {
+    let mut items = mv.items.clone();
+    if mv.copy {
+        let first = tiles.keys.iter().max().map_or(0, |max| max + 1);
+        items = (first..first + items.len()).collect();
+    } else {
+        tiles.keys.retain(|key| !mv.items.contains(key));
+    }
+    let at = tiles.keys.iter().position(|key| *key == mv.target).unwrap_or(tiles.keys.len());
+    let at = if mv.position == DropPosition::After { at + 1 } else { at };
+    let at = at.min(tiles.keys.len());
+    tiles.keys.splice(at..at, items);
+    tiles.changed();
+}
+
 /// The fake photos: keys are ids in display order, content comes from the id.
-struct Photos {
-    keys: Vec<usize>,
-    ratings: HashMap<usize, u8>,
-    revision: u64,
-    mode: Mode,
-    words: GridStoryLabels,
+fn photos(count: usize, mode: Mode, labels: &StoryLabels, words: GridStoryLabels) -> FakeTiles {
+    let mut tiles = FakeTiles::new(count);
+    tiles.aspect = Box::new(aspect_of);
+    let labels = labels.clone();
+    tiles.describe = Box::new(move |id, content| {
+        content.name = craft_i18n::fmt(&labels.photo_n, &[("n", &(id + 1).to_string())]);
+        describe(mode, &words, &labels, id, content);
+    });
+    tiles
 }
 
-impl Photos {
-    fn new(count: usize, mode: Mode, words: GridStoryLabels) -> Self {
-        Self { keys: (0..count).collect(), ratings: HashMap::new(), revision: 0, mode, words }
-    }
+fn badge(words: &GridStoryLabels, slot: BadgeSlot, tone: BadgeTone, kind: BadgeKind) -> TileBadge {
+    TileBadge { slot, kind, tone, tip: words.slot_tip.clone() }
+}
 
-    fn changed(&mut self) {
-        self.revision += 1;
-    }
-
-    /// Moves or copies `mv.items` next to `mv.target`. A copy gets fresh ids.
-    fn apply_move(&mut self, mv: &Move<usize>) {
-        let mut items = mv.items.clone();
-        if mv.copy {
-            let first = self.keys.iter().max().map_or(0, |max| max + 1);
-            items = (first..first + items.len()).collect();
-        } else {
-            self.keys.retain(|key| !mv.items.contains(key));
+fn describe(mode: Mode, words: &GridStoryLabels, labels: &StoryLabels, id: usize, content: &mut TileContent) {
+    match mode {
+        Mode::Photos => {
+            content.rating = Some((mix(id) % 6) as u8);
+            if id.is_multiple_of(11) {
+                content.flag = Some(TileFlag::Picked);
+            }
+            if id.is_multiple_of(17) {
+                content.flag = Some(TileFlag::Rejected);
+                content.rejected = true;
+            }
+            if id.is_multiple_of(5) {
+                content.label_color =
+                    Some([Rgba::rgb(220, 70, 60), Rgba::rgb(230, 170, 40), Rgba::rgb(70, 160, 90), Rgba::rgb(70, 120, 220)][id / 5 % 4]);
+            }
+            if id.is_multiple_of(13) {
+                let kind = BadgeKind::Text(labels.duplicate.clone());
+                let mut duplicate = badge(words, BadgeSlot::EndTop, BadgeTone::Neutral, kind);
+                duplicate.tip = words.duplicate_tip.clone();
+                content.badges.push(duplicate);
+            }
         }
-        let at = self.keys.iter().position(|key| *key == mv.target).unwrap_or(self.keys.len());
-        let at = if mv.position == DropPosition::After { at + 1 } else { at };
-        let at = at.min(self.keys.len());
-        self.keys.splice(at..at, items);
-        self.changed();
-    }
-
-    fn badge(&self, slot: BadgeSlot, tone: BadgeTone, kind: BadgeKind) -> TileBadge {
-        TileBadge { slot, kind, tone, tip: self.words.slot_tip.clone() }
-    }
-}
-
-impl craft_ui::behavior::DisplayOrder<usize> for Photos {
-    fn len(&self) -> usize {
-        self.keys.len()
-    }
-
-    fn key(&self, at: usize) -> &usize {
-        &self.keys[at]
-    }
-}
-
-impl TileSource<usize> for Photos {
-    fn aspect(&self, at: usize) -> f32 {
-        aspect_of(self.keys[at])
-    }
-
-    fn aspects_revision(&self) -> u64 {
-        self.revision * 1_000_003 + self.keys.len() as u64
-    }
-
-    fn content(&self, at: usize, content: &mut TileContent) {
-        let id = self.keys[at];
-        content.name = self.words.photo_n.replace("{n}", &(id + 1).to_string());
-        match self.mode {
-            Mode::Photos => {
-                content.rating = Some(self.ratings.get(&id).copied().unwrap_or((mix(id) % 6) as u8));
-                if id.is_multiple_of(11) {
-                    content.flag = Some(TileFlag::Picked);
-                }
-                if id.is_multiple_of(17) {
+        Mode::States => {
+            content.rating = Some(3);
+            match id % 12 {
+                2 => content.status = TileStatus::Failed,
+                3 => content.status = TileStatus::Offline(words.offline_band.clone()),
+                4 => content.status = TileStatus::Unreadable,
+                5 => {
                     content.flag = Some(TileFlag::Rejected);
                     content.rejected = true;
                 }
-                if id.is_multiple_of(5) {
-                    content.label_color =
-                        Some([Rgba::rgb(220, 70, 60), Rgba::rgb(230, 170, 40), Rgba::rgb(70, 160, 90), Rgba::rgb(70, 120, 220)][id / 5 % 4]);
-                }
-                if id.is_multiple_of(13) {
-                    content.badges.push(self.badge(BadgeSlot::EndTop, BadgeTone::Neutral, BadgeKind::Text(self.words.duplicate.clone())));
-                    if let Some(badge) = content.badges.last_mut() {
-                        badge.tip = self.words.duplicate_tip.clone();
+                6 => content.enabled = false,
+                7 => content.dimmed = true,
+                8 => content.stack = Some(4),
+                9 => {
+                    let tones = [BadgeTone::Neutral, BadgeTone::Accent, BadgeTone::Warn, BadgeTone::Bad];
+                    let slots = [BadgeSlot::StartTop, BadgeSlot::EndTop, BadgeSlot::StartBottom, BadgeSlot::EndBottom];
+                    for (slot, tone) in slots.into_iter().zip(tones) {
+                        content.badges.push(badge(words, slot, tone, BadgeKind::Glyph(Icon::Star)));
                     }
                 }
-            }
-            Mode::States => {
-                content.rating = Some(self.ratings.get(&id).copied().unwrap_or(3));
-                match id % 12 {
-                    2 => content.status = TileStatus::Failed,
-                    3 => content.status = TileStatus::Offline(self.words.offline_band.clone()),
-                    4 => content.status = TileStatus::Unreadable,
-                    5 => {
-                        content.flag = Some(TileFlag::Rejected);
-                        content.rejected = true;
-                    }
-                    6 => content.enabled = false,
-                    7 => content.dimmed = true,
-                    8 => content.stack = Some(4),
-                    9 => {
-                        let tones = [BadgeTone::Neutral, BadgeTone::Accent, BadgeTone::Warn, BadgeTone::Bad];
-                        let slots = [BadgeSlot::StartTop, BadgeSlot::EndTop, BadgeSlot::StartBottom, BadgeSlot::EndBottom];
-                        for (slot, tone) in slots.into_iter().zip(tones) {
-                            content.badges.push(self.badge(slot, tone, BadgeKind::Glyph(Icon::Star)));
-                        }
-                    }
-                    10 => {
-                        content.badges.push(self.badge(BadgeSlot::EndTop, BadgeTone::Accent, BadgeKind::Text("1/3".to_owned())));
-                        content.badges.push(self.badge(BadgeSlot::EndTop, BadgeTone::Warn, BadgeKind::Glyph(Icon::Warning)));
-                        content.badges.push(self.badge(BadgeSlot::EndTop, BadgeTone::Bad, BadgeKind::Glyph(Icon::Warning)));
-                    }
-                    11 => {
-                        content.flag = Some(TileFlag::Picked);
-                        content.label_color = Some(Rgba::rgb(70, 120, 220));
-                    }
-                    _ => {}
+                10 => {
+                    content.badges.push(badge(words, BadgeSlot::EndTop, BadgeTone::Accent, BadgeKind::Text("1/3".to_owned())));
+                    content.badges.push(badge(words, BadgeSlot::EndTop, BadgeTone::Warn, BadgeKind::Glyph(Icon::Warning)));
+                    content.badges.push(badge(words, BadgeSlot::EndTop, BadgeTone::Bad, BadgeKind::Glyph(Icon::Warning)));
                 }
+                11 => {
+                    content.flag = Some(TileFlag::Picked);
+                    content.label_color = Some(Rgba::rgb(70, 120, 220));
+                }
+                _ => {}
             }
         }
     }
@@ -229,22 +195,13 @@ impl ThumbSource<usize> for Pictures {
 
 /// What a story keeps between passes.
 struct Demo {
-    photos: Photos,
+    photos: FakeTiles,
     selection: Selection<usize>,
     groups: Vec<TileGroup>,
     zoom: f32,
     zoom_before: f32,
     jobs: Arc<ManualJobs>,
     last: Option<String>,
-}
-
-fn shared(ui: &Ui, name: &str, init: impl FnOnce() -> Demo) -> Arc<Mutex<Demo>> {
-    let key = ui.make_persistent_id(("craft_browse::grid::stories", name));
-    ui.data_mut(|data| data.get_temp_mut_or_insert_with(key, || Arc::new(Mutex::new(init()))).clone())
-}
-
-fn lock(state: &Mutex<Demo>) -> MutexGuard<'_, Demo> {
-    state.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// Groups of `size` tiles over `count`.
@@ -256,8 +213,8 @@ fn groups(count: usize, size: usize, words: &GridStoryLabels) -> Vec<TileGroup> 
             TileGroup {
                 start,
                 count: len,
-                title: words.group_title.replace("{n}", &(n + 1).to_string()),
-                detail: words.group_detail.replace("{n}", &len.to_string()),
+                title: craft_i18n::fmt(&words.group_title, &[("n", &(n + 1).to_string())]),
+                detail: craft_i18n::fmt(&words.group_detail, &[("n", &len.to_string())]),
             }
         })
         .collect()
@@ -273,6 +230,7 @@ struct Setup<'a> {
     reorder: bool,
     use_groups: bool,
     height: f32,
+    mode: Mode,
 }
 
 /// Draws the grid and applies its events to the demo.
@@ -280,7 +238,7 @@ fn show_grid(ui: &mut Ui, demo: &mut Demo, setup: &Setup) {
     let words = GridStoryLabels::of(ui);
     let options = ThumbnailOptions { lanes: 1, jobs: Some(demo.jobs.clone()), ..ThumbnailOptions::default() };
     let thumbs = Thumbnails::<usize>::in_context(ui.ctx(), ("craft-browse-grid-stories", setup.salt), options);
-    let pictures = Pictures { mode: demo.photos.mode };
+    let pictures = Pictures { mode: setup.mode };
     let Demo { photos, selection, groups, .. } = &mut *demo;
     let mut grid = TileGrid::new(setup.salt, &*photos)
         .layout(setup.layout)
@@ -315,7 +273,7 @@ fn show_grid(ui: &mut Ui, demo: &mut Demo, setup: &Setup) {
             }
             TileEvent::Reorder(edit @ (EditEvent::Commit { .. } | EditEvent::Set { .. })) => {
                 if let Some(mv) = edit.value() {
-                    demo.photos.apply_move(mv);
+                    apply_move(&mut demo.photos, mv);
                 }
             }
             TileEvent::Zoom(step) => demo.zoom = TileZoom::Ladder.step(demo.zoom, *step),
@@ -328,10 +286,10 @@ fn show_grid(ui: &mut Ui, demo: &mut Demo, setup: &Setup) {
 }
 
 fn status_line(ui: &mut Ui, demo: &Demo) {
-    let words = GridStoryLabels::of(ui);
+    let labels = StoryLabels::of(ui);
     let text = match &demo.last {
-        Some(event) => words.last_event.replace("{event}", event),
-        None => words.no_event.clone(),
+        Some(event) => craft_i18n::fmt(&labels.last_event, &[("event", event.as_str())]),
+        None => labels.no_event.clone(),
     };
     ui.add(Text::new(text).content(Content::Muted));
 }
@@ -340,7 +298,7 @@ fn status_line(ui: &mut Ui, demo: &Demo) {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "patterns/browse/grid-justified",
+            "patterns/tile-grid/justified",
             Level::Patterns,
             "Tile grid",
             "Justified",
@@ -348,22 +306,15 @@ pub(crate) fn stories() -> Vec<Story> {
             show_justified
         ),
         typed_story!(
-            "patterns/browse/grid-cards",
+            "patterns/tile-grid/cards",
             Level::Patterns,
             "Tile grid",
             "Cards",
             CardsArgs { caption: true, check_mode: false, keys: KeysArg::Digits, height: 420.0 },
             show_cards
         ),
-        typed_story!("patterns/browse/grid-states", Level::Patterns, "Tile grid", "States", StatesArgs { rtl: false, height: 420.0 }, show_states),
-        typed_story!(
-            "patterns/browse/grid-reorder",
-            Level::Patterns,
-            "Tile grid",
-            "Reorder",
-            ReorderArgs { rtl: false, height: 360.0 },
-            show_reorder
-        ),
+        typed_story!("patterns/tile-grid/states", Level::Patterns, "Tile grid", "States", StatesArgs { rtl: false, height: 420.0 }, show_states),
+        typed_story!("patterns/tile-grid/reorder", Level::Patterns, "Tile grid", "Reorder", ReorderArgs { rtl: false, height: 360.0 }, show_reorder),
     ]
 }
 
@@ -416,10 +367,11 @@ struct JustifiedArgs {
 
 fn show_justified(ui: &mut Ui, args: &mut JustifiedArgs) {
     let words = GridStoryLabels::of(ui);
+    let labels = StoryLabels::of(ui);
     let state = shared(ui, "justified", || {
         let count = 50_000;
         Demo {
-            photos: Photos::new(count, Mode::Photos, words.clone()),
+            photos: photos(count, Mode::Photos, &labels, words.clone()),
             selection: Selection::new(),
             groups: groups(count, 500, &words),
             zoom: 1.0,
@@ -438,6 +390,7 @@ fn show_justified(ui: &mut Ui, args: &mut JustifiedArgs) {
         reorder: false,
         use_groups: args.groups,
         height: args.height,
+        mode: Mode::Photos,
     };
     show_grid(ui, &mut demo, &setup);
     status_line(ui, &demo);
@@ -459,8 +412,9 @@ const CARD_SIDE: f32 = 120.0;
 
 fn show_cards(ui: &mut Ui, args: &mut CardsArgs) {
     let words = GridStoryLabels::of(ui);
+    let labels = StoryLabels::of(ui);
     let state = shared(ui, "cards", || Demo {
-        photos: Photos::new(240, Mode::Photos, words.clone()),
+        photos: photos(240, Mode::Photos, &labels, words.clone()),
         selection: Selection::only(2),
         groups: Vec::new(),
         zoom: 1.0,
@@ -489,6 +443,7 @@ fn show_cards(ui: &mut Ui, args: &mut CardsArgs) {
         reorder: false,
         use_groups: false,
         height: args.height,
+        mode: Mode::Photos,
     };
     show_grid(ui, &mut demo, &setup);
     status_line(ui, &demo);
@@ -512,8 +467,9 @@ fn with_direction(ui: &mut Ui, rtl: bool, add: impl FnOnce(&mut Ui)) {
 
 fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
     let words = GridStoryLabels::of(ui);
+    let labels = StoryLabels::of(ui);
     let state = shared(ui, "states", || Demo {
-        photos: Photos::new(24, Mode::States, words.clone()),
+        photos: photos(24, Mode::States, &labels, words.clone()),
         selection: Selection::only(0),
         groups: Vec::new(),
         zoom: 1.0,
@@ -523,10 +479,10 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
     });
     let mut demo = lock(&state);
     ui.horizontal(|ui| {
-        if ui.add(Button::new(words.finish_next.clone()).enabled(demo.jobs.waiting() > 0)).clicked() {
+        if ui.add(Button::new(labels.finish_next.clone()).enabled(demo.jobs.waiting() > 0)).clicked() {
             demo.jobs.run_next();
         }
-        ui.add(Text::new(words.waiting.replace("{n}", &demo.jobs.waiting().to_string())).content(Content::Muted));
+        ui.add(Text::new(craft_i18n::fmt(&words.waiting, &[("n", &demo.jobs.waiting().to_string())])).content(Content::Muted));
     });
     let setup = Setup {
         salt: "grid-states",
@@ -537,6 +493,7 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
         reorder: false,
         use_groups: false,
         height: args.height,
+        mode: Mode::States,
     };
     with_direction(ui, args.rtl, |ui| show_grid(ui, &mut demo, &setup));
     status_line(ui, &demo);
@@ -552,8 +509,9 @@ struct ReorderArgs {
 
 fn show_reorder(ui: &mut Ui, args: &mut ReorderArgs) {
     let words = GridStoryLabels::of(ui);
+    let labels = StoryLabels::of(ui);
     let state = shared(ui, "reorder", || Demo {
-        photos: Photos::new(24, Mode::Photos, words.clone()),
+        photos: photos(24, Mode::Photos, &labels, words.clone()),
         selection: Selection::new(),
         groups: Vec::new(),
         zoom: 1.0,
@@ -571,6 +529,7 @@ fn show_reorder(ui: &mut Ui, args: &mut ReorderArgs) {
         reorder: true,
         use_groups: false,
         height: args.height,
+        mode: Mode::Photos,
     };
     with_direction(ui, args.rtl, |ui| show_grid(ui, &mut demo, &setup));
     status_line(ui, &demo);

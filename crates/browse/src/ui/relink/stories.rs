@@ -1,6 +1,5 @@
 //! Stories of the Links panel and Link Media dialog:
-//! `patterns/browse/link-list` and `patterns/browse/relink-dialog` (the spec's `browse/link-list`
-//! and `browse/relink-dialog` under their level).
+//! `patterns/link-list/list` and `patterns/relink-dialog/dialog`.
 //!
 //! `FakeLinkFiles` is an in-memory file set with a same file, a different file and a folder
 //! tree. The dialog's search and checks run on a `ManualJobs`: unless "slow search" is on the
@@ -9,25 +8,25 @@
 //! `Files` on a story `Host`. The list's events change the story's fake statuses, as an app's
 //! commands would.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::io;
+use std::collections::HashMap;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
 use craft_docpath::Refused;
-use craft_docpath::links::{FileInfo, FolderEntry, Link, LinkFiles, LinkIdentity, LinkStatus};
-use craft_host::{AppInfo, FileError, Files, Host, Jobs, ManualJobs, PickAnswer, PickId, PickKind, PickRequest, Picked};
+use craft_docpath::links::{FakeLinkFiles, Link, LinkIdentity, LinkStatus, identity_of};
+use craft_host::{FileError, Files, Jobs, ManualJobs, PickAnswer, PickId, PickKind, PickRequest, Picked};
 use craft_ui::behavior::Selection;
 use craft_ui::canvas::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
 use craft_ui::controls::Button;
-use craft_ui::dialog::{DialogHost, DialogResult};
 use craft_ui::list::ThumbSize;
 use craft_ui::localized::Labels as _;
+use craft_ui::localized::fmt;
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, claim, dialog_closed, dialog_shown};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, drive, ensure_files, lock, shared};
 use craft_ui::typed_story;
-use egui::{Context, Ui, vec2};
+use egui::{Ui, vec2};
 
 use super::{LinkFilter, LinkList, LinkListEvent, LinkListSettings, LinkListState, LinkSort, RelinkDialog, RelinkOptions, RelinkOutcome, RelinkRow};
 
@@ -40,12 +39,8 @@ craft_ui::words! {
     pub struct LinkStoryLabels {
         media_missing: "linkStory.mediaMissing" = "Media missing";
         clip_n: "linkStory.clipN" = "Clip {n}";
-        finish_next: "linkStory.finishNext" = "Finish next";
         waiting: "linkStory.waiting" = "{n} jobs waiting";
-        last_event: "linkStory.lastEvent" = "Last event: {event}";
-        no_event: "linkStory.noEvent" = "No event yet";
-        result: "linkStory.result" = "Linked {linked}, left offline {offline}";
-        cancelled: "linkStory.cancelled" = "Cancelled";
+        outcome: "linkStory.outcome" = "Linked {linked}, left offline {offline}";
         info_path: "linkStory.infoPath" = "Path: {path}";
         info_none: "linkStory.infoNone" = "No link selected";
     }
@@ -55,7 +50,7 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "patterns/browse/link-list",
+            "patterns/link-list/list",
             Level::Patterns,
             "Link list",
             "Link list",
@@ -63,7 +58,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_list
         ),
         typed_story!(
-            "patterns/browse/relink-dialog",
+            "patterns/relink-dialog/dialog",
             Level::Patterns,
             "Relink dialog",
             "Relink dialog",
@@ -79,55 +74,15 @@ fn path(text: &str) -> PathBuf {
 
 const STAMP: Duration = Duration::from_secs(1);
 
-/// The identity every link was recorded with: 3 bytes, fingerprint 7.
-fn recorded() -> LinkIdentity {
-    LinkIdentity { size: 3, fingerprint: 7, modified: Some(SystemTime::UNIX_EPOCH + STAMP) }
-}
+/// `STAMP` in whole seconds, as `FakeLinkFiles::with` takes it.
+const STAMP_SECS: u64 = 1;
 
-/// Files by path: size and fingerprint.
-#[derive(Default)]
-struct FakeLinkFiles(Mutex<BTreeMap<PathBuf, (u64, u64)>>);
+/// What the dialog's files hold: three bytes that the stored links were recorded with.
+const SAME: &[u8] = b"abc";
 
-impl FakeLinkFiles {
-    fn put(&self, path: &str, size: u64, fingerprint: u64) {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner).insert(path.into(), (size, fingerprint));
-    }
-
-    fn get(&self, path: &Path) -> Option<(u64, u64)> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner).get(path).copied()
-    }
-}
-
-impl LinkFiles for FakeLinkFiles {
-    fn stat(&self, path: &Path) -> Option<FileInfo> {
-        self.get(path).map(|(size, _)| FileInfo { size, modified: Some(SystemTime::UNIX_EPOCH + STAMP) })
-    }
-
-    fn identity(&self, path: &Path) -> io::Result<LinkIdentity> {
-        let (size, fingerprint) = self.get(path).ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?;
-        Ok(LinkIdentity { size, fingerprint, modified: Some(SystemTime::UNIX_EPOCH + STAMP) })
-    }
-
-    fn list(&self, dir: &Path) -> io::Result<Vec<FolderEntry>> {
-        let files = self.0.lock().unwrap_or_else(PoisonError::into_inner);
-        let mut folders = BTreeSet::new();
-        let mut entries = Vec::new();
-        for file in files.keys() {
-            let Ok(rest) = file.strip_prefix(dir) else { continue };
-            let mut parts = rest.components();
-            let Some(first) = parts.next() else { continue };
-            let child = dir.join(first);
-            let name = first.as_os_str().to_string_lossy().into_owned();
-            if parts.next().is_some() {
-                if folders.insert(child.clone()) {
-                    entries.push(FolderEntry { path: child, name, is_dir: true, is_link: false });
-                }
-            } else {
-                entries.push(FolderEntry { path: child, name, is_dir: false, is_link: false });
-            }
-        }
-        Ok(entries)
-    }
+/// The identity every link was recorded with: the bytes [`SAME`], modified at `STAMP`.
+fn recorded() -> Option<LinkIdentity> {
+    identity_of(&mut Cursor::new(SAME), SAME.len() as u64, Some(SystemTime::UNIX_EPOCH + STAMP)).ok()
 }
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
@@ -196,7 +151,7 @@ impl ListArgs {
 }
 
 fn link(key: u32, name: &str, page: Option<u32>, embedded: bool) -> Link<u32> {
-    Link { key, name: name.into(), stored: format!("/shoot/{name}"), identity: Some(recorded()), page, embedded }
+    Link { key, name: name.into(), stored: format!("/shoot/{name}"), identity: recorded(), page, embedded }
 }
 
 /// What the list story keeps between passes.
@@ -254,9 +209,9 @@ impl ListDemo {
 
 fn show_list(ui: &mut Ui, args: &mut ListArgs) {
     let words = LinkStoryLabels::of(ui);
-    let id = ui.make_persistent_id("craft-browse-link-list-story");
-    let state = ui.data_mut(|data| data.get_temp_mut_or_insert_with(id, || Arc::new(Mutex::new(ListDemo::new()))).clone());
-    let mut demo = state.lock().unwrap_or_else(PoisonError::into_inner);
+    let shared_words = StoryLabels::of(ui);
+    let state = shared(ui, "list", ListDemo::new);
+    let mut demo = lock(&state);
     let current = ListArgs { ..*args };
     if demo.shown_args.as_ref() != Some(&current) {
         demo.state.settings = current.settings();
@@ -267,7 +222,7 @@ fn show_list(ui: &mut Ui, args: &mut ListArgs) {
     let pictures = FakeThumbSource::<u32>::new().aspect(4, 3);
     let lead_path = demo.state.selection.lead.and_then(|lead| demo.links.iter().find(|link| link.key == lead)).map(|link| link.stored.clone());
     let info = match lead_path {
-        Some(stored) => words.info_path.replace("{path}", &stored),
+        Some(stored) => fmt(&words.info_path, &[("path", &stored)]),
         None => words.info_none.clone(),
     };
     let ListDemo { links, statuses, state, .. } = &mut *demo;
@@ -291,8 +246,8 @@ fn show_list(ui: &mut Ui, args: &mut ListArgs) {
         }
     }
     let text = match &demo.last {
-        Some(event) => words.last_event.replace("{event}", event),
-        None => words.no_event.clone(),
+        Some(event) => fmt(&shared_words.last_event, &[("event", event.as_str())]),
+        None => shared_words.no_event.clone(),
     };
     ui.add(Text::new(text).content(Content::Muted));
 }
@@ -343,26 +298,6 @@ impl Files for ScriptedFiles {
     }
 }
 
-/// Gives the installed Host the scripted files (the gallery's Host answers every picker with
-/// Cancelled), or installs a Host with them when the story runs without one. A Host installed
-/// again afterwards is replaced again on the next pass.
-fn ensure_host(ctx: &Context) {
-    let key = egui::Id::unique("craft_browse::relink::stories::host");
-    let current = Host::try_of_ctx(ctx);
-    let ours = ctx.data(|d| d.get_temp::<usize>(key));
-    if current.as_ref().is_some_and(|host| Some(Arc::as_ptr(host) as usize) == ours) {
-        return;
-    }
-    let files = Arc::new(ScriptedFiles::default());
-    match current {
-        Some(host) => host.with_files(files).install(ctx),
-        None => Host::builder(AppInfo { id: "craft-browse-stories", name: "Craft Stories", version: "0" }).files(files).install(ctx),
-    }
-    if let Some(host) = Host::try_of_ctx(ctx) {
-        ctx.data_mut(|d| d.insert_temp(key, Arc::as_ptr(&host) as usize));
-    }
-}
-
 #[derive(StoryArgs, Debug, PartialEq)]
 struct DialogArgs {
     open: bool,
@@ -379,22 +314,17 @@ struct DialogArgs {
 
 /// What the dialog story keeps between passes.
 struct DialogDemo {
-    host: DialogHost,
     jobs: Arc<ManualJobs>,
     files: Arc<FakeLinkFiles>,
-    signature: Option<(bool, bool)>,
-    result: Option<String>,
+    scripted: Arc<ScriptedFiles>,
 }
 
 impl DialogDemo {
     fn new() -> Self {
-        let files = Arc::new(FakeLinkFiles::default());
-        files.put("/new/shoot/a.mov", 3, 7);
-        files.put("/new/shoot/b.mov", 3, 7);
-        files.put("/new/shoot/c.mov", 9, 1);
-        files.put("/new/other/d.mov", 3, 7);
-        files.put("/new/readme.txt", 5, 5);
-        Self { host: DialogHost::new(), jobs: Arc::new(ManualJobs::new()), files, signature: None, result: None }
+        let same = |files: FakeLinkFiles, path: &str| files.with(path, SAME, STAMP_SECS);
+        let files = ["/new/shoot/a.mov", "/new/shoot/b.mov", "/new/other/d.mov"].into_iter().fold(FakeLinkFiles::new(), same);
+        let files = files.with("/new/shoot/c.mov", b"nine byte", STAMP_SECS).with("/new/readme.txt", b"hello", STAMP_SECS);
+        Self { jobs: Arc::new(ManualJobs::new()), files: Arc::new(files), scripted: Arc::new(ScriptedFiles::default()) }
     }
 
     fn rows(words: &LinkStoryLabels) -> Vec<RelinkRow<u32>> {
@@ -408,11 +338,11 @@ impl DialogDemo {
                         key: n as u32,
                         name: file.clone(),
                         stored: format!("/old/shoot/{file}"),
-                        identity: Some(recorded()),
+                        identity: recorded(),
                         page: None,
                         embedded: false,
                     },
-                    owner: words.clip_n.replace("{n}", &(n + 1).to_string()),
+                    owner: fmt(&words.clip_n, &[("n", &(n + 1).to_string())]),
                     status: words.media_missing.clone(),
                 }
             })
@@ -421,61 +351,45 @@ impl DialogDemo {
 }
 
 fn describe(outcome: &RelinkOutcome<u32>, words: &LinkStoryLabels) -> String {
-    words.result.replace("{linked}", &outcome.linked.len().to_string()).replace("{offline}", &outcome.offline.len().to_string())
+    fmt(&words.outcome, &[("linked", &outcome.linked.len().to_string()), ("offline", &outcome.offline.len().to_string())])
 }
 
 fn show_dialog(ui: &mut Ui, args: &mut DialogArgs) {
     let ctx = ui.ctx().clone();
-    ensure_host(&ctx);
     let words = LinkStoryLabels::of(ui);
-    let id = ui.make_persistent_id("craft-browse-relink-story");
-    let state = ui.data_mut(|data| data.get_temp_mut_or_insert_with(id, || Arc::new(Mutex::new(DialogDemo::new()))).clone());
-    let mut demo = state.lock().unwrap_or_else(PoisonError::into_inner);
+    let shared_words = StoryLabels::of(ui);
+    let state = shared(ui, "dialog", DialogDemo::new);
+    let demo = lock(&state);
+    let _files = ensure_files(&ctx, demo.scripted.clone());
 
     if args.slow_search {
-        ui.horizontal(|ui| {
-            if ui.add(Button::new(words.finish_next.clone()).enabled(demo.jobs.waiting() > 0)).clicked() {
+        ui.horizontal_wrapped(|ui| {
+            if ui.add(Button::new(shared_words.finish_next.clone()).enabled(demo.jobs.waiting() > 0)).clicked() {
                 demo.jobs.run_next();
             }
-            ui.add(Text::new(words.waiting.replace("{n}", &demo.jobs.waiting().to_string())).content(Content::Muted));
+            ui.add(Text::new(fmt(&words.waiting, &[("n", &demo.jobs.waiting().to_string())])).content(Content::Muted));
         });
     } else if demo.jobs.run_all() > 0 {
         ctx.request_repaint();
     }
 
-    if dialog_shown(ui, args.open) && claim(&ctx, "relink", ui.scope_id()) {
-        let signature = (args.relink_others, args.exact_names);
-        if demo.signature.is_some_and(|previous| previous != signature) {
-            demo.host.cancel::<RelinkDialog<u32>>(&ctx);
-            demo.host.take::<RelinkDialog<u32>>();
-        }
-        demo.signature = Some(signature);
-        if !demo.host.is_open::<RelinkDialog<u32>>() {
+    let (relink_others, exact_names) = (args.relink_others, args.exact_names);
+    drive::<RelinkDialog<u32>, _>(
+        ui,
+        "relink",
+        &mut args.open,
+        (relink_others, exact_names),
+        || {
             let options = RelinkOptions {
-                relink_others: args.relink_others,
-                exact_names: args.exact_names,
+                relink_others,
+                exact_names,
                 folder: Some(path("/new")),
                 jobs: Some(demo.jobs.clone() as Arc<dyn Jobs>),
                 ..RelinkOptions::default()
             };
-            let dialog = RelinkDialog::new(DialogDemo::rows(&words), demo.files.clone(), options);
-            demo.host.open(dialog);
-            demo.result = None;
-        }
-        demo.host.show(&ctx);
-        if let Some(result) = demo.host.take::<RelinkDialog<u32>>() {
-            demo.result = Some(match result {
-                DialogResult::Ok(outcome) => describe(&outcome, &words),
-                DialogResult::Cancel => words.cancelled.clone(),
-            });
-            dialog_closed(ui, &mut args.open);
-        }
-    } else {
-        demo.host.cancel::<RelinkDialog<u32>>(&ctx);
-        demo.host.take::<RelinkDialog<u32>>();
-        demo.signature = None;
-    }
-    if let Some(result) = &demo.result {
-        ui.label(result.clone());
-    }
+            RelinkDialog::new(DialogDemo::rows(&words), demo.files.clone(), options)
+        },
+        |_| {},
+        |outcome| describe(&outcome, &words),
+    );
 }

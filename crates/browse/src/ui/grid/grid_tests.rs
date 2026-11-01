@@ -15,55 +15,17 @@ use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Ui, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
+use super::fake::FakeTiles;
 use super::groups::pinned_rect;
 use super::layout::{ArrangeSpacing, arrange};
 use super::paint::badge_rects;
-use super::{BadgeVisibility, RatingKeys, SpaceAction, TileContent, TileEvent, TileGrid, TileGroup, TileLayout, TileSource, TileStyle};
+use super::{BadgeVisibility, RatingKeys, SpaceAction, TileContent, TileEvent, TileGrid, TileGroup, TileLayout, TileStyle};
 
 /// Cmd on a Mac and Ctrl elsewhere, as a platform reports it: `ctrl` with the abstract `command`.
 const CMD: Modifiers = Modifiers { alt: false, ctrl: true, shift: false, mac_cmd: false, command: true };
 
 /// Cards of this side with a caption: six to a row in the 640 point harness.
 const CARD: TileLayout = TileLayout::Cards { side: 100.0, aspect: 1.0, caption: true };
-
-/// The fake tiles: keys are positions, names `Tile {n}`.
-struct Tiles {
-    count: usize,
-    keys: Vec<usize>,
-    aspects: Vec<f32>,
-    rated: Option<u8>,
-    disabled: Vec<usize>,
-    asked: RefCell<BTreeSet<usize>>,
-}
-
-impl Tiles {
-    fn new(count: usize) -> Self {
-        Self { count, keys: (0..count).collect(), aspects: Vec::new(), rated: None, disabled: Vec::new(), asked: RefCell::default() }
-    }
-}
-
-impl craft_ui::behavior::DisplayOrder<usize> for Tiles {
-    fn len(&self) -> usize {
-        self.count
-    }
-
-    fn key(&self, at: usize) -> &usize {
-        &self.keys[at]
-    }
-}
-
-impl TileSource<usize> for Tiles {
-    fn aspect(&self, at: usize) -> f32 {
-        self.aspects.get(at).copied().unwrap_or(1.0)
-    }
-
-    fn content(&self, at: usize, content: &mut TileContent) {
-        self.asked.borrow_mut().insert(at);
-        content.name = format!("Tile {at}");
-        content.rating = self.rated;
-        content.enabled = !self.disabled.contains(&at);
-    }
-}
 
 /// Records which tiles the grid asked a picture for; every picture is blank.
 #[derive(Default)]
@@ -83,7 +45,7 @@ impl ThumbSource<usize> for Pictures {
 }
 
 struct Host {
-    tiles: Tiles,
+    tiles: FakeTiles,
     pictures: Pictures,
     selection: Selection<usize>,
     events: Vec<TileEvent<usize>>,
@@ -103,7 +65,7 @@ struct Host {
 impl Host {
     fn new(count: usize) -> Self {
         Self {
-            tiles: Tiles::new(count),
+            tiles: FakeTiles::new(count),
             pictures: Pictures::default(),
             selection: Selection::new(),
             events: Vec::new(),
@@ -276,7 +238,7 @@ fn click_shift_and_command_pick_as_in_a_list() {
 fn arrows_move_the_lead_over_ragged_rows_keeping_the_column() {
     let mut host = Host::new(24);
     host.layout = TileLayout::Justified { row_height: 90.0 };
-    host.tiles.aspects = (0..24).map(|i| if i < 12 { 0.6 } else { 2.0 }).collect();
+    host.tiles.aspect = Box::new(|i| if i < 12 { 0.6 } else { 2.0 });
     let mut harness = harness(host);
     // The rows as drawn: tiles grouped by their top.
     let mut drawn: Vec<(usize, f32)> =
