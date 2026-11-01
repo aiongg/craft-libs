@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! Open files that change on disk (N10.02): another app or a build rewrites a document that is
 //! open, and the app reloads it or says so.
 //!
@@ -17,11 +16,12 @@
 //! that reads it with [`FileWatch::take_changes`].
 
 use std::collections::HashMap;
-use std::fs::Metadata;
+use std::fs::{File, Metadata};
 use std::hash::Hash;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
 use craft_host::Wake;
@@ -48,14 +48,26 @@ pub struct FileStamp {
 impl FileStamp {
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:42 Stamp::of
     pub fn of(meta: &Metadata) -> FileStamp {
-        todo!()
+        #[cfg(unix)]
+        let extra = {
+            use std::os::unix::fs::MetadataExt;
+            [meta.dev(), meta.ino(), meta.ctime().cast_unsigned(), meta.ctime_nsec().cast_unsigned()]
+        };
+        #[cfg(windows)]
+        let extra = {
+            use std::os::windows::fs::MetadataExt;
+            [meta.creation_time(), meta.last_write_time(), 0, 0]
+        };
+        #[cfg(not(any(unix, windows)))]
+        let extra = [0; 4];
+        FileStamp { len: meta.len(), modified: meta.modified().ok(), extra }
     }
 
     /// The file at `path` now, following a symlink (Save writes through it); `None` when it is
     /// missing, not a file or can't be read.
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:72 Stamp::at
     pub fn at(path: &Path) -> Option<FileStamp> {
-        todo!()
+        std::fs::metadata(path).ok().filter(Metadata::is_file).map(|m| FileStamp::of(&m))
     }
 
     pub fn len(&self) -> u64 {
@@ -71,7 +83,15 @@ impl FileStamp {
     /// version the app knows before reporting a change.
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:59 metadata_only_candidate
     pub fn metadata_only_change(self, other: FileStamp) -> bool {
-        todo!()
+        #[cfg(unix)]
+        {
+            self.len == other.len && self.modified == other.modified && self.extra.get(..2) == other.extra.get(..2)
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = other;
+            false
+        }
     }
 }
 
@@ -143,8 +163,15 @@ pub struct FileWatch<K> {
     epochs: HashMap<K, u64>,
     /// What the worker was last told, so an unchanged list sends nothing.
     sent: Vec<(K, PathBuf)>,
+    /// The version each document came from (its open, reload or last save). Unlike `known`, a
+    /// version found on disk and handed to the app is not recorded here, so
+    /// [`FileWatch::disk_differs`] still sees that the file is not the one the document came from.
+    basis: HashMap<K, (PathBuf, FileStamp)>,
+    /// `known` or `epochs` changed since the worker was last told.
+    dirty: bool,
     /// Tests: no thread; [`FileWatch::tick`] looks once.
     inline: bool,
+    local: Watcher<K>,
 }
 
 impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
@@ -160,7 +187,10 @@ impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
             known: HashMap::new(),
             epochs: HashMap::new(),
             sent: Vec::new(),
+            basis: HashMap::new(),
+            dirty: false,
             inline: false,
+            local: Watcher::default(),
         }
     }
 
@@ -182,25 +212,54 @@ impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
     /// again on the next call.
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:343 watch_files, :374 send_to_watcher, :118 Watcher::set
     pub fn set(&mut self, files: impl IntoIterator<Item = (K, PathBuf)>) {
-        todo!()
+        let files: Vec<(K, PathBuf)> = files.into_iter().collect();
+        if !self.dirty && files == self.sent {
+            return;
+        }
+        let list: Vec<WatchEntry<K>> = files
+            .iter()
+            .map(|(key, path)| {
+                let known = self.known.get(key).filter(|(own, _)| own == path).map(|(_, stamp)| *stamp);
+                (key.clone(), path.clone(), known, self.epoch_of(key))
+            })
+            .collect();
+        let known_keys: Vec<K> = self.known.keys().filter(|k| !files.iter().any(|(key, _)| key == *k)).cloned().collect();
+        for key in known_keys {
+            self.known.remove(&key);
+            self.basis.remove(&key);
+            self.epochs.remove(&key);
+        }
+        if self.deliver(list) {
+            self.sent = files;
+            self.dirty = false;
+        }
     }
 
     /// The app just read or wrote `key`'s file at `path`: that version is not a change, and
     /// anything found before it is stale.
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:296 known_now
     pub fn known_now(&mut self, key: K, path: &Path) {
-        todo!()
+        self.known_as(key, path, FileStamp::at(path));
     }
 
     /// Records `stamp`, taken before the file was read, as the version `key` came from.
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:301 known_as
     pub fn known_as(&mut self, key: K, path: &Path, stamp: Option<FileStamp>) {
-        todo!()
+        if let Some(stamp) = stamp {
+            self.known.insert(key.clone(), (path.to_path_buf(), stamp));
+            self.basis.insert(key.clone(), (path.to_path_buf(), stamp));
+        }
+        let epoch = self.epochs.entry(key).or_default();
+        *epoch = epoch.wrapping_add(1);
+        self.dirty = true;
     }
 
     /// Stops tracking `key` (its document closed).
     pub fn forget(&mut self, key: &K) {
-        todo!()
+        self.known.remove(key);
+        self.basis.remove(key);
+        self.epochs.remove(key);
+        self.dirty = true;
     }
 
     /// Whether the file at `path` is another version than the one `key` came from: something
@@ -211,20 +270,243 @@ impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:313 disk_differs
     // pc: crates/ui-egui/src/app/files.rs:539 changed_on_disk
     pub fn disk_differs(&self, key: &K, path: &Path, saved: Option<&[u8]>) -> bool {
-        todo!()
+        let (Some(now), Some((own, basis))) = (FileStamp::at(path), self.basis.get(key)) else { return false };
+        if own != path || now == *basis {
+            return false;
+        }
+        !(now.metadata_only_change(*basis) && saved.is_some_and(|bytes| contents_match(path, now, bytes)))
     }
 
     /// The changes found since the last call, oldest first, without the stale ones (another
     /// file than the key's now, an older epoch, or the version the app recorded).
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:401 file_changed (the checks before reloading)
     pub fn take_changes(&mut self) -> Vec<Changed<K>> {
-        todo!()
+        let found = std::mem::take(&mut *self.found.lock().unwrap_or_else(PoisonError::into_inner));
+        let mut changes = Vec::new();
+        for change in found {
+            let same_file = self.sent.iter().any(|(key, path)| *key == change.key && *path == change.path);
+            let current = self.epoch_of(&change.key) == change.epoch;
+            let recorded = self.known.get(&change.key).is_some_and(|(path, stamp)| *path == change.path && *stamp == change.stamp);
+            if !same_file || !current || recorded {
+                continue;
+            }
+            self.known.insert(change.key.clone(), (change.path.clone(), change.stamp));
+            changes.push(change);
+        }
+        changes
     }
 
     /// With [`inline`](Self::inline): looks at every watched file once. Does nothing otherwise.
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:137 Watcher::tick
     pub fn tick(&mut self) {
-        todo!()
+        if !self.inline {
+            return;
+        }
+        let (found, _) = self.local.tick(&self.policy);
+        self.found.lock().unwrap_or_else(PoisonError::into_inner).extend(found);
+    }
+}
+
+impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
+    fn epoch_of(&self, key: &K) -> u64 {
+        self.epochs.get(key).copied().unwrap_or(0)
+    }
+
+    /// Hands `list` to the watcher, starting the worker when needed. `false`: not delivered (the
+    /// worker couldn't start or ended); the next [`set`](Self::set) tries again.
+    fn deliver(&mut self, list: Vec<WatchEntry<K>>) -> bool {
+        if self.inline {
+            self.local.set(list);
+            return true;
+        }
+        if self.inbox.is_none() {
+            if list.is_empty() {
+                return true;
+            }
+            let (tx, rx) = mpsc::channel();
+            let out = Arc::clone(&self.found);
+            let (wake, policy) = (self.wake.clone(), self.policy.clone());
+            if std::thread::Builder::new().name("craft-file-watch".into()).spawn(move || run(&rx, &out, &wake, &policy)).is_err() {
+                return false;
+            }
+            self.inbox = Some(tx);
+        }
+        let delivered = self.inbox.as_ref().is_some_and(|tx| tx.send(list).is_ok());
+        if !delivered {
+            self.inbox = None;
+        }
+        delivered
+    }
+}
+
+/// The watcher's record of one file.
+struct Entry<K> {
+    key: K,
+    path: PathBuf,
+    epoch: u64,
+    known: Option<FileStamp>,
+    /// A changed version seen once, waiting to be seen unchanged again.
+    pending: Option<FileStamp>,
+}
+
+/// Looks at the watched files: on the worker thread, or on the caller's in tests.
+struct Watcher<K> {
+    files: Vec<Entry<K>>,
+}
+
+impl<K> Default for Watcher<K> {
+    fn default() -> Self {
+        Self { files: Vec::new() }
+    }
+}
+
+impl<K: Clone + Eq + Hash> Watcher<K> {
+    /// Watches `list` from now on. A file watched already keeps its pending change; a version
+    /// the app knows replaces the watcher's own.
+    fn set(&mut self, list: Vec<WatchEntry<K>>) {
+        let old = std::mem::take(&mut self.files);
+        self.files = list
+            .into_iter()
+            .map(|(key, path, known, epoch)| {
+                let prev = old.iter().find(|e| e.key == key && e.path == path);
+                Entry { known: known.or(prev.and_then(|e| e.known)), pending: prev.and_then(|e| e.pending), key, path, epoch }
+            })
+            .collect();
+    }
+
+    /// Looks at every file once: the new versions found, and whether a file is still changing
+    /// (look again after [`SETTLE`] rather than [`IDLE`]).
+    fn tick(&mut self, policy: &ReadPolicy) -> (Vec<Changed<K>>, bool) {
+        let mut found = Vec::new();
+        let mut settling = false;
+        for e in &mut self.files {
+            // Missing (deleted, or being replaced) or unreadable: the document stays as it is.
+            let Some(now) = FileStamp::at(&e.path) else {
+                e.pending = None;
+                continue;
+            };
+            let known = *e.known.get_or_insert(now);
+            if now == known {
+                e.pending = None;
+                continue;
+            }
+            if e.pending != Some(now) {
+                e.pending = Some(now);
+                settling = true;
+                continue;
+            }
+            e.pending = None;
+            let bytes = match policy {
+                ReadPolicy::Stamp => None,
+                ReadPolicy::Whole { tail, complete } => match read_whole(&e.path, now, *tail, complete) {
+                    Version::Ready(bytes) => Some(bytes),
+                    // Not a whole file in this version (a build that failed or paused): wait for
+                    // the next one.
+                    Version::Incomplete => {
+                        e.known = Some(now);
+                        continue;
+                    }
+                    // Changed again while being read, or held by its writer: look again soon.
+                    Version::Busy => {
+                        settling = true;
+                        continue;
+                    }
+                },
+            };
+            e.known = Some(now);
+            found.push(Changed { key: e.key.clone(), path: e.path.clone(), stamp: now, bytes, epoch: e.epoch });
+        }
+        (found, settling)
+    }
+}
+
+/// What a changed file turned out to be.
+enum Version {
+    Ready(Arc<Vec<u8>>),
+    Incomplete,
+    Busy,
+}
+
+/// Reads `path` if it is still the version `stamp` and `complete` accepts its last `tail` bytes
+/// (read first). The whole file is then read into a buffer of exactly its size.
+fn read_whole(path: &Path, stamp: FileStamp, tail: usize, complete: &Complete) -> Version {
+    // Windows refuses to open a file its writer holds exclusively: not ready yet.
+    let Ok(mut file) = File::open(path) else { return Version::Busy };
+    let Ok(meta) = file.metadata() else { return Version::Busy };
+    if FileStamp::of(&meta) != stamp {
+        return Version::Busy;
+    }
+    let Ok(size) = usize::try_from(meta.len()) else { return Version::Incomplete };
+    let mut end = vec![0u8; size.min(tail)];
+    let Ok(back) = i64::try_from(end.len()) else { return Version::Incomplete };
+    if file.seek(SeekFrom::End(-back)).is_err() || file.read_exact(&mut end).is_err() {
+        return Version::Busy;
+    }
+    if !complete(&end) {
+        return Version::Incomplete;
+    }
+    let mut bytes = Vec::new();
+    // Too big to hold: the open version stays.
+    if bytes.try_reserve_exact(size).is_err() {
+        return Version::Incomplete;
+    }
+    if file.seek(SeekFrom::Start(0)).is_err() || file.read_to_end(&mut bytes).is_err() {
+        return Version::Busy;
+    }
+    // Still that version, under that name: a writer may have replaced the file meanwhile.
+    if bytes.len() != size || FileStamp::at(path) != Some(stamp) {
+        return Version::Busy;
+    }
+    Version::Ready(Arc::new(bytes))
+}
+
+/// Whether the file at `path` still has `stamp` and holds exactly `expected`. A replacement,
+/// changed bytes or any read failure is "no".
+fn contents_match(path: &Path, stamp: FileStamp, expected: &[u8]) -> bool {
+    let Ok(mut file) = File::open(path) else { return false };
+    if !file.metadata().is_ok_and(|m| FileStamp::of(&m) == stamp) {
+        return false;
+    }
+    let mut buffer = [0u8; 8192];
+    for chunk in expected.chunks(buffer.len()) {
+        let Some(out) = buffer.get_mut(..chunk.len()) else { return false };
+        if file.read_exact(out).is_err() || out != chunk {
+            return false;
+        }
+    }
+    let mut extra = [0];
+    matches!(file.read(&mut extra), Ok(0)) && file.metadata().is_ok_and(|m| FileStamp::of(&m) == stamp) && FileStamp::at(path) == Some(stamp)
+}
+
+/// The worker thread: watches the newest list the app sent and hands back new versions, waking
+/// the app for them. It ends when the app (the inbox's sender) is gone.
+fn run<K: Clone + Eq + Hash>(inbox: &mpsc::Receiver<Vec<WatchEntry<K>>>, out: &Mutex<Vec<Changed<K>>>, wake: &Wake, policy: &ReadPolicy) {
+    let mut watcher = Watcher::default();
+    // `None`: nothing to watch, so block until there is.
+    let mut wait = None;
+    loop {
+        let message = match wait {
+            None => inbox.recv().map_err(|_| RecvTimeoutError::Disconnected),
+            Some(wait) => inbox.recv_timeout(wait),
+        };
+        match message {
+            Ok(list) => watcher.set(list),
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => return,
+        }
+        while let Ok(list) = inbox.try_recv() {
+            watcher.set(list);
+        }
+        if watcher.files.is_empty() {
+            wait = None;
+            continue;
+        }
+        let (found, settling) = watcher.tick(policy);
+        if !found.is_empty() {
+            out.lock().unwrap_or_else(PoisonError::into_inner).extend(found);
+            wake.wake();
+        }
+        wait = Some(if settling { SETTLE } else { IDLE });
     }
 }
 
