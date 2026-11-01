@@ -202,3 +202,33 @@ fn arrow_keys_on_a_focused_column_edge_resize_the_column() {
     harness.run();
     assert_eq!(width(&harness, "Name"), 60.0, "not below the least width");
 }
+
+/// The x of the text shape that draws `text`, as painted this pass.
+fn painted_x(harness: &Harness<'_, Host>, text: &str) -> Option<f32> {
+    fn find(shape: &egui::Shape, text: &str) -> Option<f32> {
+        match shape {
+            egui::Shape::Text(t) if t.galley.text() == text => Some(t.pos.x),
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|s| find(s, text)),
+            _ => None,
+        }
+    }
+    harness.output().shapes.iter().find_map(|s| find(&s.shape, text))
+}
+
+// During an edge drag the header cell and the body cell of a column start at the same x in the same pass.
+#[test]
+fn the_header_and_the_body_agree_on_widths_during_an_edge_drag() {
+    let mut harness = harness();
+    let grip = edge(&harness, "Name").rect().center();
+    harness.event(Event::PointerMoved(grip));
+    harness.run();
+    press(&mut harness, grip, PointerButton::Primary, true);
+    let start = painted_x(&harness, "Size").expect("the header is painted");
+    for step in 1..=3 {
+        harness.event(Event::PointerMoved(grip + egui::vec2(12.0 * step as f32, 0.0)));
+        harness.step();
+        let (header, body) = (painted_x(&harness, "Size").unwrap_or_default(), painted_x(&harness, "size 0").unwrap_or(f32::MAX));
+        assert!((header - body).abs() < 0.6, "step {step}: header text at {header}, body text at {body}");
+        assert!(header > start, "the column to the left is widening");
+    }
+}

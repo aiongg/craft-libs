@@ -597,7 +597,7 @@ fn table_style(tokens: &UiTokens) -> TableStyle {
         header_pressed: tokens.color.state.pressed.to_egui(),
         drop_line: tokens.color.accent.solid.to_egui(),
         drop_line_width: 2.5,
-        stripe: tokens.color.state.hover.to_egui(),
+        stripe: list.stripe.to_egui(),
     }
 }
 
@@ -830,6 +830,17 @@ enum HeaderCommand {
     Reset,
 }
 
+/// What a header cell and its edge reported, kept to draw them once the widths are settled.
+struct CellDraw {
+    /// Index of the column in the app's columns.
+    at: usize,
+    response: Response,
+    dragged: bool,
+    /// While another header is dragged over this one: whether the drop line is at its leading side.
+    drop_leading: Option<bool>,
+    edge: Response,
+}
+
 /// What the header's widgets ask for, applied in order once every header has been read.
 enum HeaderAction<C> {
     Sort(C),
@@ -893,6 +904,7 @@ where
         let escape = ctx.input(|i| i.key_pressed(Key::Escape)) || crate::focus::lost(&ctx);
         let mut from = 0.0;
         let order = shown.clone();
+        let mut cells: Vec<CellDraw> = Vec::new();
         for (position, (&at, &width)) in order.iter().zip(widths.iter()).enumerate() {
             let column = &self.columns[at];
             let (min_x, max_x) = self.span(from, width);
@@ -925,17 +937,15 @@ where
             });
 
             let being_dragged = dragging.as_ref().is_some_and(|p| p.column == column.key);
-            self.paint_cell(ui, rect, column, sorting, &response, being_dragged);
 
             if self.movable && response.drag_started() {
                 DragAndDrop::set_payload(&ctx, HeaderDrag { table: self.id, column: column.key.clone() });
             }
             let after = |r: &Response| r.ctx.pointer_latest_pos().is_some_and(|p| (p.x > rect.center().x) != self.rtl);
-            if response.dnd_hover_payload::<HeaderDrag<C>>().is_some_and(|d| d.table == self.id && d.column != column.key) {
-                let leading = after(&response) == self.rtl;
-                let x = if leading { rect.left() } else { rect.right() };
-                ui.painter().with_clip_rect(rect.expand(3.0)).vline(x, rect.y_range(), Stroke::new(style.drop_line_width, style.drop_line));
-            }
+            let drop_leading = response
+                .dnd_hover_payload::<HeaderDrag<C>>()
+                .is_some_and(|d| d.table == self.id && d.column != column.key)
+                .then(|| after(&response) == self.rtl);
             if let Some(dragged) = response.dnd_release_payload::<HeaderDrag<C>>().filter(|d| d.table == self.id && d.column != column.key) {
                 actions.push(HeaderAction::Move { column: dragged.column.clone(), to: column.key.clone(), after: after(&response) });
             }
@@ -982,18 +992,18 @@ where
             let edge_x = if self.rtl { rect.left() } else { rect.right() };
             let edge = Rect::from_min_max(pos2(edge_x - style.grip_width / 2.0, rect.top()), pos2(edge_x + style.grip_width / 2.0, rect.bottom()));
             let resize_name = craft_i18n::fmt(&self.labels.resize_column, &[("column", column.label.as_str())]);
-            let accent = self.tokens.color.accent.solid.to_egui();
             let handle = ResizeHandle::new(
                 self.id.with(("edge", at)),
                 SplitAxis::Horizontal,
                 edge,
                 &resize_name,
-                ResizeHandleStyle { hovered: accent.gamma_multiply(0.5), dragged: accent, focused: self.tokens.color.line.focus.to_egui() },
+                ResizeHandleStyle { hovered: Color32::TRANSPARENT, dragged: Color32::TRANSPARENT, focused: Color32::TRANSPARENT },
             )
             .hit_margin(0.0)
             .value(width, column.min_width..=MAX_WIDTH)
             .reversed(self.rtl)
             .show(ui);
+            cells.push(CellDraw { at, response: response.clone(), dragged: being_dragged, drop_leading, edge: handle.response.clone() });
             if handle.response.hovered() || handle.response.dragged() {
                 ctx.set_cursor_icon(CursorIcon::ResizeColumn);
             }
@@ -1015,7 +1025,44 @@ where
         let entries = self.menu_entries(layout);
         let chosen = ContextMenu::new(&entries).own_gestures(false).open_at(menu_at).show(ui, &strip).chosen;
 
-        self.apply(&ctx, actions, chosen, layout, shown, widths, &mut state.widths_before_drag, pass.events);
+        self.apply(actions, chosen, layout, shown, widths, &mut state.widths_before_drag, pass.events);
+        self.paint(ui, layout, shown, widths, &cells);
+    }
+
+    /// Draws the cells and edges at the widths the pass ended with, so the header and the body
+    /// agree.
+    fn paint(&self, ui: &Ui, layout: &TableLayout<C>, shown: &[usize], widths: &[f32], cells: &[CellDraw]) {
+        let style = self.style;
+        let accent = self.tokens.color.accent.solid.to_egui();
+        let focus = self.tokens.color.line.focus.to_egui();
+        let mut from = 0.0;
+        for (&at, &width) in shown.iter().zip(widths) {
+            let column = &self.columns[at];
+            let (min_x, max_x) = self.span(from, width);
+            let rect = Rect::from_min_max(pos2(min_x, self.rect.top()), pos2(max_x, self.rect.bottom()));
+            from += width;
+            let Some(cell) = cells.iter().find(|c| c.at == at) else { continue };
+            let sorting = layout.sort.as_ref().filter(|sort| sort.column == column.key).map(|sort| sort.order);
+            self.paint_cell(ui, rect, column, sorting, &cell.response, cell.dragged);
+            if let Some(leading) = cell.drop_leading {
+                let x = if leading { rect.left() } else { rect.right() };
+                ui.painter().with_clip_rect(rect.expand(3.0)).vline(x, rect.y_range(), Stroke::new(style.drop_line_width, style.drop_line));
+            }
+            let edge_x = if self.rtl { rect.left() } else { rect.right() };
+            let edge = Rect::from_min_max(pos2(edge_x - style.grip_width / 2.0, rect.top()), pos2(edge_x + style.grip_width / 2.0, rect.bottom()));
+            let fill = if cell.edge.dragged() {
+                Some(accent)
+            } else if cell.edge.has_focus() {
+                Some(focus)
+            } else if cell.edge.hovered() {
+                Some(accent.gamma_multiply(0.5))
+            } else {
+                None
+            };
+            if let Some(fill) = fill {
+                ui.painter().rect_filled(edge, 0.0, fill);
+            }
+        }
     }
 
     /// Draws one header cell: its fill, label, sort chevron and focus ring.
@@ -1053,7 +1100,6 @@ where
     #[expect(clippy::too_many_arguments, reason = "the pieces of one pass")]
     fn apply<K>(
         &self,
-        ctx: &Context,
         actions: Vec<HeaderAction<C>>,
         chosen: Option<HeaderCommand>,
         layout: &mut TableLayout<C>,
@@ -1115,7 +1161,6 @@ where
             events.push(TableEvent::Layout);
             *shown = shown_columns(self.columns, layout);
             *widths = resolve_widths(self.columns, shown, layout, self.rect.width());
-            ctx.request_repaint();
         }
     }
 
