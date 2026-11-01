@@ -30,8 +30,11 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [`craft-ai-core`](crates/ai-core/README.md): the data model and contract for AI in the Craft Apps (connections, models, tools, requests, jobs, consent, history, route spec). Pure, no I/O, wasm-safe. Contract in [docs/ai-shared-layer.md](docs/ai-shared-layer.md).
 - [`craft-pdf`](crates/pdf/README.md): independently optional PDF parsing, interpretation, rasterization and guarded authoring. Apps retain layout, fonts, editing and export policy; writer-only consumers do not enable the shared reader.
 
-- [`craft-automation`](crates/automation/README.md): drive a running app from tests, agents and the CLI: control channel, screenshot queue, frame profiler and trace (native only).
+- [`craft-automation`](crates/automation/README.md): drive a running app from tests, agents and the CLI: control channel, screenshot queue, frame profiler and trace (native only); recorded actions, their playback and the Actions panel (every target).
 - [`craft-atomic`](crates/atomic/README.md): Crash-safe atomic file writing and replacement with same-directory staging, directory fsync, Apple `F_FULLFSYNC` fallback, transient lock backoff, and fault injection for the Craft suite.
+- [`craft-browse`](crates/browse/README.md): browsing: standard folders, volumes and lazy folder
+  listings, linked-file statuses kept current, file thumbnails decoded by the app in jobs, and
+  (`ui` feature) the tile grid, media bin, places tree, compare tile, links list and relink dialog.
 - [`craft-cms`](crates/cms/README.md): pure-Rust ICC v2/v4 colour management: profile parsing
   and writing, transforms, rendering intents, black point compensation, soft proofing, gamut
   checks, 3D LUTs and built-in profiles (sRGB, Display P3, synthetic coated CMYK and others).
@@ -81,6 +84,9 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   scopes, conflicts, user overrides stored through craft-settings and import of other
   applications' shortcut sets. Command catalogs, file readers and the shortcut editor UI stay
   in each app.
+- [`craft-layers`](crates/layers/README.md): the Layers panel over the app's `LayerTree`: rows
+  with thumbnails and masks, blend, opacity, lock and fill rows, the filter bar, Layers Panel
+  Options, drag and drop, and events the app applies with its own commands and undo. UI-only.
 - [`craft-media`](crates/media/README.md): bit-level I/O (`bitstream`), clean-room MP4/MOV
   (`isobmff`) and Matroska/WebM (`matroska`) demuxers and muxers, from FilmCraft, and an ISO BMFF
   box reader. Containers only; codecs stay in each app.

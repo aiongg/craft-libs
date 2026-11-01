@@ -1,6 +1,9 @@
 //! The data the host supplies to a [`PresetBrowser`](super::PresetBrowser): its flat display list
 //! of groups and items, the shape of a cell, and what the thumbnail closure is told.
 
+mod apply;
+mod library;
+
 use std::fmt;
 use std::sync::Arc;
 

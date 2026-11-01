@@ -1,0 +1,31 @@
+[package]
+name = "craft-layers"
+description = "The Layers panel for Craft apps over the app's layer tree: rows, thumbnails, blend and lock rows, the filter bar and the panel options."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+# UI-only: egui and craft-ui are plain dependencies, so there is no `ui` feature.
+[features]
+default = []
+# Screenshot and input tests of the panel with egui_kittest (desktop only).
+screen-testing = ["craft-ui/screen-testing"]
+
+[dependencies]
+craft-i18n = { workspace = true }
+craft-theme = { workspace = true }
+craft-ui = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+egui = { workspace = true, features = ["default_fonts", "serde"] }
+serde_json = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+egui_kittest = { version = "0.37", features = ["wgpu"] }

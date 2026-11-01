@@ -26,6 +26,7 @@ use crate::localized::Labels as _;
 use serde::{Deserialize, Serialize};
 
 mod rail;
+pub mod sections;
 
 #[allow(deprecated)]
 pub use rail::{RAIL_BUTTON, RAIL_WIDTH, Rail, RailItem, RailOutput, RailRequest};

@@ -3,8 +3,13 @@
 //! - [`warp`]: the [`WarpGrid`] on a canvas, the mesh of PhotoCraft's Edit › Transform › Warp, its
 //!   anchors and handles dragged and nudged.
 //! - [`adjust`]: the [`LevelsEditor`], a channel's levels over its histogram.
+//! - [`channels`]: the Channels panel.
+//! - [`scopes`]: the scope panel (histogram, statistics, tone zones, vectorscope) and the
+//!   clipping overlay.
 
 pub mod adjust;
+pub mod channels;
+pub mod scopes;
 pub mod warp;
 
 #[cfg(test)]

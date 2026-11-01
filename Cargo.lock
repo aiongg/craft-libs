@@ -969,12 +969,32 @@ dependencies = [
  "craft-platform",
  "craft-ui",
  "egui",
+ "egui_kittest",
  "getrandom 0.3.4",
  "log",
  "png 0.17.16",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "craft-browse"
+version = "0.1.0"
+dependencies = [
+ "craft-docpath",
+ "craft-host",
+ "craft-i18n",
+ "craft-platform",
+ "craft-settings",
+ "craft-theme",
+ "craft-ui",
+ "egui",
+ "egui_kittest",
+ "kurbo 0.13.1",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -1172,6 +1192,8 @@ dependencies = [
  "egui",
  "egui_kittest",
  "kurbo 0.13.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1199,6 +1221,19 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
+]
+
+[[package]]
+name = "craft-layers"
+version = "0.1.0"
+dependencies = [
+ "craft-i18n",
+ "craft-theme",
+ "craft-ui",
+ "egui",
+ "egui_kittest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1338,6 +1373,7 @@ dependencies = [
  "craft-host",
  "dirs",
  "serde",
+ "serde_json",
  "tempfile",
  "toml",
  "toml_edit",

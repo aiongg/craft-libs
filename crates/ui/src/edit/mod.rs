@@ -38,11 +38,14 @@
 //! Named `EditEvent` rather than `Edit`, which is [`crate::ime::Edit`].
 
 mod gesture;
+pub mod history_panel;
 mod host;
 mod live;
 pub mod ops;
 pub mod order;
 pub mod parts;
+pub mod snapshots;
+pub mod steps;
 pub(crate) mod story;
 #[cfg(test)]
 mod tests;
