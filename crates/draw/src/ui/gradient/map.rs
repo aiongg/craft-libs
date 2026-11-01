@@ -15,7 +15,9 @@ use craft_ui::icons::Icon;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::popover::{Popover, PopoverAnchor};
+use craft_ui::presets::PresetStyle;
 use craft_ui::primitives::{Gap, Stack};
+use craft_ui::theme::{Tokens, TokensOf as _};
 
 use super::{
     ColorStop, GradientEditor, GradientGroup, GradientLabels, GradientPalette, GradientRef, GradientStops, PaletteLayout, Sampler, StopRef, StopRows,
@@ -23,8 +25,6 @@ use super::{
 
 /// Most colour stops a Gradient Map keeps.
 const MAX_STOPS: usize = 64;
-/// The preset list's height before it scrolls (pc: `gradient_map.rs:166` `.height(420.0)`).
-const PRESET_LIST_HEIGHT: f32 = 420.0;
 /// Fewest colour stops a Gradient Map keeps.
 const MIN_STOPS: usize = 2;
 
@@ -257,6 +257,8 @@ impl<'a> GradientMapEditor<'a> {
         }
         let mut pick = None;
         let mut import = false;
+        // pc: `gradient_map.rs:166` `.height(420.0)`; the token is the preset popups' height.
+        let list_height = PresetStyle::from_tokens(&Tokens::of(ui)).popup_max_height;
         Popover::new((id, "popover"), PopoverAnchor::Control(button.clone())).toggle(button.id).label(labels.preset.as_str()).show(
             ui,
             &mut open,
@@ -270,7 +272,7 @@ impl<'a> GradientMapEditor<'a> {
                 let mut palette = GradientPalette::new((id, "presets"), labels.preset.as_str(), self.presets)
                     .layout(PaletteLayout::List)
                     .rows(StopRows::ColorOnly)
-                    .max_height(PRESET_LIST_HEIGHT);
+                    .max_height(list_height);
                 if let Some(sampler) = self.sampler {
                     palette = palette.sampler(sampler);
                 }
