@@ -92,6 +92,11 @@ fn registered_labels_localized_with_identity_equal_their_english() {
     identity_holds::<crate::ui::brush_presets::BrushCardLabels>();
     identity_holds::<crate::ui::brush_presets::stories::BrushPresetStoryLabels>();
     identity_holds::<crate::ui::symmetry::SymmetryLabels>();
+    identity_holds::<crate::ui::transform::session_stories::TransformSessionStoryLabels>();
+    identity_holds::<crate::ui::measure::stories::MeasureStoryLabels>();
+    identity_holds::<crate::ui::symmetry::stories::SymmetryStoryLabels>();
+    identity_holds::<crate::ui::crop::stories_tool::CropStoryLabels>();
+    identity_holds::<crate::ui::stroke::stories::StrokeStoryLabels>();
     identity_holds::<crate::ui::transform::TransformBarLabels>();
     identity_holds::<crate::ui::transform::TransformMenuLabels>();
     identity_holds::<crate::ui::crop::CropBarLabels>();

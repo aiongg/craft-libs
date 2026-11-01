@@ -67,8 +67,7 @@ pub fn stories() -> Vec<craft_ui::story::Story> {
 pub const COUNTS: &[craft_ui::localized::words::Counted] = &[select::OUTLINE_POINTS, warp::perspective::PLANES, wide_angle::CONSTRAINTS];
 
 /// The plural forms of [`COUNTS`], as a words table.
-const COUNT_WORDS: &[craft_ui::localized::Word] =
-    &[select::OUTLINE_POINTS.word, warp::perspective::PLANES.word, wide_angle::CONSTRAINTS.word];
+const COUNT_WORDS: &[craft_ui::localized::Word] = &[select::OUTLINE_POINTS.word, warp::perspective::PLANES.word, wide_angle::CONSTRAINTS.word];
 
 /// The labels tables of the imaging widgets, for the words registry.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[

@@ -290,7 +290,7 @@ impl CanvasTool for MoveTool {
 }
 
 /// The locked axis of a move: free without ⇧.
-fn axis<'a>(labels: &'a MoveStoryLabels, delta: Vec2, shift: bool) -> &'a str {
+fn axis(labels: &MoveStoryLabels, delta: Vec2, shift: bool) -> &str {
     if !shift || delta == Vec2::ZERO {
         &labels.free
     } else if delta.y == 0.0 {

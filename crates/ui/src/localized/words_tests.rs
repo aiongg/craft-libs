@@ -327,3 +327,13 @@ fn switching_the_hosts_language_changes_words_and_numbers_on_the_next_pass_and_a
     let (again, again_numbers, _) = pass(&ctx);
     assert!(Arc::ptr_eq(&german, &again) && Arc::ptr_eq(&numbers, &again_numbers));
 }
+
+#[test]
+fn canvas_and_full_window_labels_localized_with_identity_equal_their_english() {
+    identity_holds::<crate::canvas::brush::BrushResizeLabels>();
+    identity_holds::<crate::canvas::selection::SelectionFrameLabels>();
+    identity_holds::<crate::canvas::selection::GripSetLabels>();
+    identity_holds::<crate::canvas::marquee::fields::ConstraintFieldsLabels>();
+    identity_holds::<crate::canvas::before_after::BeforeAfterLabels>();
+    identity_holds::<crate::dialog::full_window::FullWindowLabels>();
+}

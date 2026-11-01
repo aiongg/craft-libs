@@ -322,14 +322,19 @@ fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
         let tool = rail(ui, "frame-tools", 1, true);
         let levels = ui.data(|d| d.get_temp::<[f64; 2]>(levels_id)).unwrap_or([50.0, 100.0]);
         let mut next = levels;
-        FullWindowSide::new("frame-properties").width(SideWidth::Wide).header(own.properties.as_str()).footer(footer(ui, footer_top)).show(ui, fx, |ui| {
-            for (level, label) in next.iter_mut().zip([&words.size, &words.opacity]) {
-                if let Some(&value) = Slider::new(label.as_str(), label.as_str(), *level, 1.0..=100.0).show(ui).event.as_ref().and_then(|e| e.value())
-                {
-                    *level = value;
+        FullWindowSide::new("frame-properties").width(SideWidth::Wide).header(own.properties.as_str()).footer(footer(ui, footer_top)).show(
+            ui,
+            fx,
+            |ui| {
+                for (level, label) in next.iter_mut().zip([&words.size, &words.opacity]) {
+                    if let Some(&value) =
+                        Slider::new(label.as_str(), label.as_str(), *level, 1.0..=100.0).show(ui).event.as_ref().and_then(|e| e.value())
+                    {
+                        *level = value;
+                    }
                 }
-            }
-        });
+            },
+        );
         ui.data_mut(|d| d.insert_temp(levels_id, next));
         if second_side {
             FullWindowSide::new("frame-extra").header(words.tools.as_str()).show(ui, fx, |ui| {

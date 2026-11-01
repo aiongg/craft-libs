@@ -108,6 +108,7 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <crop::CropBarLabels as craft_ui::localized::Labels>::WORDS,
     <crop::stories_tool::CropStoryLabels as craft_ui::localized::Labels>::WORDS,
     <stroke::StrokeLabels as craft_ui::localized::Labels>::WORDS,
+    <stroke::stories::StrokeStoryLabels as craft_ui::localized::Labels>::WORDS,
     <brush_settings::BrushSettingsLabels as craft_ui::localized::Labels>::WORDS,
     <brush_settings::stories::BrushSettingsStoryLabels as craft_ui::localized::Labels>::WORDS,
     <pen::PathOptionsLabels as craft_ui::localized::Labels>::WORDS,

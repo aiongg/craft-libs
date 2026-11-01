@@ -51,6 +51,7 @@ fn registered_labels_localized_with_identity_equal_their_english() {
     identity_holds::<crate::ui::blend_keys_stories::BlendKeysStoryLabels>();
     identity_holds::<crate::ui::mask_view::MaskViewLabels>();
     identity_holds::<crate::ui::select::SelectLabels>();
+    identity_holds::<crate::ui::select::stories::SelectToolStoryLabels>();
     identity_holds::<crate::ui::vanishing_point::VanishingPointLabels>();
     identity_holds::<crate::ui::vanishing_point::stories::VanishingPointStoryLabels>();
     identity_holds::<crate::ui::select_mask::SelectMaskLabels>();

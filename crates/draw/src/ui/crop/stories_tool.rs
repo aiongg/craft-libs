@@ -289,7 +289,10 @@ fn run(ui: &mut Ui, kept: &mut Kept, pane: &Pane) -> Option<super::CropOutput> {
                 CropBarEvent::Commit => kept.tool.apply(&kept.settings, &document, kept.view),
                 CropBarEvent::Cancel => kept.tool.discard(),
                 CropBarEvent::NewPreset => {
-                    kept.last = kept.settings.preset_name(&super::CropBarLabels::of(ui)).map(|name| craft_i18n::fmt(&own.new_preset_named, &[("name", &name)]));
+                    kept.last = kept
+                        .settings
+                        .preset_name(&super::CropBarLabels::of(ui))
+                        .map(|name| craft_i18n::fmt(&own.new_preset_named, &[("name", &name)]));
                     None
                 }
                 CropBarEvent::DeletePreset => {
