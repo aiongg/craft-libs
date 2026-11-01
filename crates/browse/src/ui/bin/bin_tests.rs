@@ -12,65 +12,14 @@ use egui::{DragAndDrop, Id, Key, Modifiers, PointerButton, Pos2, Ui, Vec2, pos2,
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use super::{BinEntry, BinEvent, BinItem, BinModel, BinState, BinView, FreeformCard, MediaBin, OpenHow};
+use super::stories::{FakeProject, Node};
+use super::{BinEvent, BinState, BinView, FreeformCard, MediaBin, OpenHow};
 
 /// Cmd on a Mac and Ctrl elsewhere, as a platform reports it: `ctrl` with the abstract `command`.
 const CMD: Modifiers = Modifiers { alt: false, ctrl: true, shift: false, mac_cmd: false, command: true };
 
-/// A bin tree of `(key, name, parent, is a bin)`.
-struct Project {
-    nodes: Vec<(u32, &'static str, Option<u32>, bool)>,
-}
-
-impl Project {
-    fn new() -> Self {
-        Self {
-            nodes: vec![
-                (1, "Footage", None, true),
-                (2, "Archive", None, true),
-                (10, "Beach.mov", Some(1), false),
-                (11, "Clip.mov", Some(1), false),
-                (20, "Old beach.mov", Some(2), false),
-                (30, "Title.psd", None, false),
-            ],
-        }
-    }
-}
-
-impl BinModel<u32> for Project {
-    fn children(&self, parent: Option<&u32>, out: &mut Vec<BinEntry<u32>>) {
-        for &(key, _, p, bin) in &self.nodes {
-            if p == parent.copied() {
-                out.push(if bin { BinEntry::Bin(key) } else { BinEntry::Item(key) });
-            }
-        }
-    }
-
-    fn item(&self, key: &u32, item: &mut BinItem) {
-        if let Some(node) = self.nodes.iter().find(|n| n.0 == *key) {
-            item.name = node.1.to_owned();
-        }
-    }
-
-    fn cell(&self, key: &u32, column: &str) -> String {
-        format!("{column} {key}")
-    }
-
-    fn is_bin(&self, key: &u32) -> bool {
-        self.nodes.iter().any(|n| n.0 == *key && n.3)
-    }
-
-    fn parent(&self, key: &u32) -> Option<u32> {
-        self.nodes.iter().find(|n| n.0 == *key).and_then(|n| n.2)
-    }
-
-    fn count(&self, bin: &u32) -> usize {
-        self.nodes.iter().filter(|n| n.2 == Some(*bin)).map(|n| if n.3 { self.count(&n.0) } else { 1 }).sum()
-    }
-}
-
 struct Host {
-    project: Project,
+    project: FakeProject,
     state: BinState<u32>,
     selection: Selection<u32>,
     columns: Vec<TableColumn<String>>,
@@ -88,7 +37,7 @@ impl Host {
         let mut state = BinState::default();
         state.expanded.insert(1);
         Self {
-            project: Project::new(),
+            project: FakeProject::minimal(),
             state,
             selection: Selection::new(),
             columns: vec![TableColumn::new("name".to_owned(), "Name"), TableColumn::new("duration".to_owned(), "Duration")],
@@ -349,7 +298,7 @@ fn zoom_keys_step_the_icon_size_in_the_list_view() {
 #[test]
 fn an_empty_bin_has_a_disclosure_triangle() {
     let mut host = Host::new();
-    host.project.nodes.push((3, "Empty", None, true));
+    host.project.push(Node::bin(3, "Empty", None));
     let harness = harness(host);
     assert_eq!(row(&harness, "Empty").accesskit_node().data().is_expanded(), Some(false));
     assert_eq!(row(&harness, "Title.psd").accesskit_node().data().is_expanded(), None);
