@@ -11,9 +11,6 @@ repository.workspace = true
 default = []
 # `FontsPanel`: the whole interface as one egui panel.
 ui = ["dep:egui", "dep:craft-ui", "dep:craft-host", "dep:serde", "dep:log", "dep:epaint_default_fonts", "dep:skrifa"]
-# `FontPicker`: the font family field with its list (stars, recents, previews, filters, similar
-# fonts) for text tools and panels. On `ui`; apps that only show the fonts panel leave it off.
-font-picker = ["ui"]
 
 [dependencies]
 craft-font-catalog = { workspace = true }

@@ -32,7 +32,7 @@ match store.update(&base, SelectionChange::pick_theme(&picked)) {
 | `SuiteDir` | `CRAFT_SUITE_DIR` (empty: in memory), in memory for isolated apps, else `ArtCraft/themes` in the local config folder |
 | `Store` | `load_selection`, `update`, `import`, `delete`, `export`, `library`, `load_theme`, `theme` (a `resolve` lookup) |
 | `SelectionChange` | the fields the user changed (`theme_light`, `theme_dark`, `mode`, `contrast`, `size`, `text_size`); only these are written, each merged on its own |
-| `Accepted` | `suite` (craft-theme's `SuiteChoice`: each field `None` until a user chooses it), `revision`, `library_revision`; serde with feature `serde`, for the copy apps keep in their preferences |
+| `Accepted` | `suite` (craft-theme's `SuiteChoice`: each field `None` until a user chooses it), `revision`, `library_revision`; serde, for the copy apps keep in their preferences |
 | `StoreError` | `Busy`, `Conflict { disk }`, `IdExists`, `InUse`, … ; nothing on disk changed |
 | `Problem` | damaged, too new or unreadable files; the store keeps its last accepted state |
 | `ThemeRecord`, `ThemeEntry`, `format` | a parsed user theme file (`craft-design-theme` v1, craft-theme's `format`) with its stored bytes, unknown keys included; the library skips files in another format, such as the pilot's `craft-theme` |
@@ -74,7 +74,7 @@ has the details.
 
 In memory, each `Store` has its own state: open one per process and share it.
 
-Feature `testing` adds `SAMPLE_THEME_JSON` with its pinned colours (`sample_colors`), for each
+The `testing` module has `SAMPLE_THEME_JSON` with its pinned colours (`sample_colors`), for each
 app's adapter test, and `FailingFs`, a file system that fails one step of a write.
 
 The lock file and revision protocol, the re-check before the rename, the failure handling and the

@@ -15,7 +15,7 @@ Fonts tab; the standalone app
 | `glyphs` | `ui` | `GlyphsPanel`: the character grid of a face with categories, zoom and Recently Used; the app supplies the glyphs through `GlyphSource`. Sizes are the `glyphs.*` tokens |
 | `missing` | `ui` | `document_fonts`, `missing_font_warnings` and `MissingFontsDialog`: which fonts a document names are not installed, and a replacement for each |
 | `axes` | `ui` | `read_axes`, `read_named_instances` and `AxisSliders`: a variable face's axes as sliders with a Style list of its named instances |
-| `picker` | `font-picker` | `FontPicker`: the family field with its list (stars, recents, class and feature filters, similar fonts, previews) |
+| `picker` | `ui` | `FontPicker`: the family field with its list (stars, recents, class and feature filters, similar fonts, previews) |
 
 The stories (`patterns/font-picker/*`, `patterns/glyphs-panel/panel`, `patterns/missing-fonts/dialog`, `composites/font-axes/sliders`) use the two faces egui ships.
 

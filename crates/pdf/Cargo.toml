@@ -18,7 +18,6 @@ raster = ["interpret", "dep:hayro", "dep:bytemuck"]
 write = ["dep:krilla", "dep:thiserror"]
 write-pdf = ["write", "krilla/pdf"]
 write-simple-text = ["write", "krilla/simple-text"]
-serde = ["dep:serde"]
 
 [dependencies]
 hayro-syntax = { workspace = true, optional = true }
@@ -27,7 +26,7 @@ hayro = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 krilla = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

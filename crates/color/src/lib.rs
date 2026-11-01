@@ -4,8 +4,7 @@
 //! Without `ui`, the crate has the helpers that need no egui: [`AreaMode`], [`GrayModel`],
 //! [`CmykModel`], web-safe colours ([`web_safe`], [`not_web_safe`]), swatch files ([`palette`]), the display transform ([`display`]) and colour
 //! harmonies ([`harmony`]).
-//! The `serde` feature derives `Serialize` and `Deserialize` for [`AreaMode`] (and for
-//! `ui::RampKind`), as its [`key`](AreaMode::key), and for the swatch and harmony settings types.
+//! [`AreaMode`] (and `ui::RampKind`) serialize as their [`key`](AreaMode::key); the swatch and harmony settings types serialize too.
 
 mod cmyk;
 pub mod display;

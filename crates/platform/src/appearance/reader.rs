@@ -31,7 +31,6 @@ impl Reading {
     }
 }
 
-#[cfg(feature = "theme")]
 impl From<Reading> for craft_theme::SystemAppearance {
     fn from(reading: Reading) -> Self {
         craft_theme::SystemAppearance {
@@ -150,7 +149,6 @@ mod tests {
         assert_eq!(Reading::default(), Reading { theme: None, contrast: None, reduced_motion: None });
     }
 
-    #[cfg(feature = "theme")]
     #[test]
     fn a_reading_converts_to_the_themes_system_appearance() {
         use craft_theme::{Contrast as C, Mode, SystemAppearance};

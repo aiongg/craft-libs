@@ -232,7 +232,6 @@ fn opacity_is_a_percent() {
     assert_eq!(s.fill(CANVAS, true).map(|c| c.a()), Some(64));
 }
 
-#[cfg(feature = "serde")]
 #[test]
 fn older_settings_get_the_defaults() {
     let s: CropShield = serde_json::from_str(r#"{"enabled": false}"#).unwrap();

@@ -70,8 +70,7 @@ impl<T> ToolSlot<T> {
 }
 
 /// The tool each slot showed last. Plain data the host keeps with its workspace.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LastUsed<T> {
     tools: Vec<(SlotId, T)>,
 }

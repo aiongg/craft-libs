@@ -30,9 +30,9 @@ macro_rules! choice {
     ($(#[$m:meta])* $name:ident { $($(#[$vm:meta])* $v:ident = $id:literal, $label:literal;)+ } default $d:ident) => {
         $(#[$m])*
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        #[derive(serde::Serialize, serde::Deserialize)]
         pub enum $name {
-            $($(#[$vm])* #[cfg_attr(feature = "serde", serde(rename = $id))] $v,)+
+            $($(#[$vm])* #[serde(rename = $id)] $v,)+
         }
 
         impl Choice for $name {
@@ -278,8 +278,8 @@ impl Encryption {
 }
 
 /// PDF export settings (the dialog's sections; what a preset stores).
-#[derive(Clone, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default, rename_all = "camelCase"))]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct PdfSettings {
     pub standard: Standard,
     pub compatibility: Compatibility,
@@ -310,8 +310,8 @@ pub struct PdfSettings {
 }
 
 /// Resampling and compression of one kind of image.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default, rename_all = "camelCase"))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct ImageCompression {
     pub downsample: Downsample,
     /// Target resolution (ppi).
@@ -329,8 +329,8 @@ impl Default for ImageCompression {
 }
 
 /// Resampling and compression of monochrome images.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default, rename_all = "camelCase"))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct MonoCompression {
     pub downsample: Downsample,
     pub ppi: f64,
@@ -345,8 +345,8 @@ impl Default for MonoCompression {
 }
 
 /// The Compression section.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default, rename_all = "camelCase"))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct CompressionSettings {
     pub color: ImageCompression,
     pub gray: ImageCompression,
@@ -362,8 +362,8 @@ impl Default for CompressionSettings {
 }
 
 /// Printer's marks (Marks and Bleeds section).
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default, rename_all = "camelCase"))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct MarkSettings {
     pub trim: bool,
     pub registration: bool,
@@ -390,8 +390,8 @@ impl MarkSettings {
 }
 
 /// Bleed (Marks and Bleeds section), in points.
-#[derive(Clone, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default, rename_all = "camelCase"))]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct BleedSettings {
     /// Use the document's bleed instead of the values below.
     pub use_document: bool,
@@ -413,8 +413,8 @@ impl BleedSettings {
 pub const DOCUMENT_CMYK: &str = "Document CMYK";
 
 /// The Output section.
-#[derive(Clone, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default, rename_all = "camelCase"))]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct OutputSettings {
     pub conversion: ColorConversion,
     /// Destination profile name (empty: the document's profile; [`DOCUMENT_CMYK`]: the CMYK
@@ -431,8 +431,8 @@ pub struct OutputSettings {
 }
 
 /// The Advanced section.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default, rename_all = "camelCase"))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct AdvancedSettings {
     /// Embed whole fonts when more than this share (%) of their characters is used.
     pub font_subset_percent: f64,
@@ -450,12 +450,12 @@ impl Default for AdvancedSettings {
 
 /// The Security section. Passwords are never part of a saved preset: save with
 /// [`PdfSettings::clear_passwords`] applied.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default, rename_all = "camelCase"))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct SecuritySettings {
-    #[cfg_attr(feature = "serde", serde(skip_serializing))]
+    #[serde(skip_serializing)]
     pub open_password: String,
-    #[cfg_attr(feature = "serde", serde(skip_serializing))]
+    #[serde(skip_serializing)]
     pub permissions_password: String,
     pub printing: Printing,
     pub changes: Changes,

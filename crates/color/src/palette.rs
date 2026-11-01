@@ -18,8 +18,8 @@ use craft_cms::convert::CmykConverter;
 use craft_theme::{Hsb, Lab, Srgba};
 
 /// A swatch file format.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum SwatchFormat {
     /// Photoshop swatches (`.aco`, binary, versions 1 and 2): RGB, HSB, CMYK, Lab and grey
     /// colours with names, no groups. Colour-book colours are kept as they are.
@@ -95,9 +95,8 @@ impl SwatchFormat {
 }
 
 /// A swatch colour in its own model.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(tag = "model", content = "values", rename_all = "camelCase"))]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "model", content = "values", rename_all = "camelCase")]
 pub enum SwatchColor {
     /// Encoded RGB, 0–1 each, in the RGB working space.
     Rgb([f32; 3]),
@@ -142,8 +141,8 @@ impl SwatchColor {
 }
 
 /// How an `.ase` file marks a colour.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum SwatchKind {
     #[default]
     Process,
@@ -152,12 +151,11 @@ pub enum SwatchKind {
 }
 
 /// One named swatch.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SwatchEntry {
     pub name: String,
     pub color: SwatchColor,
-    #[cfg_attr(feature = "serde", serde(default))]
+    #[serde(default)]
     pub kind: SwatchKind,
 }
 
@@ -170,8 +168,7 @@ impl SwatchEntry {
 
 /// A named group of swatches, as the Swatches panel shows them. A file without groups reads as
 /// one group named after the file.
-#[derive(Clone, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SwatchGroup {
     pub name: String,
     pub entries: Vec<SwatchEntry>,

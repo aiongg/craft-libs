@@ -409,7 +409,6 @@ fn a_waiting_press_keeps_the_modifiers_it_arrived_with() {
     assert!(!picks.is_empty() && picks.iter().all(|p| p.other), "the pick is Alt's: {picks:?}");
 }
 
-#[cfg(feature = "serde")]
 #[test]
 fn a_ramp_kind_reads_and_writes_its_name() {
     for (kind, name) in [

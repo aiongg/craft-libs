@@ -2,9 +2,8 @@
 //! Shared lifecycle mechanics; application state, theme choices and file policy stay in hosts.
 #[cfg(feature = "appearance")]
 pub mod appearance;
-#[cfg(feature = "autosave")]
 pub mod autosave;
-#[cfg(all(test, feature = "autosave"))]
+#[cfg(test)]
 mod autosave_tests;
 #[cfg(all(feature = "browser", target_arch = "wasm32"))]
 pub mod browser;
@@ -12,7 +11,6 @@ pub mod browser;
 pub mod clipboard;
 #[cfg(all(test, feature = "clipboard"))]
 mod clipboard_tests;
-#[cfg(feature = "clock")]
 pub mod clock;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod default_app;
@@ -21,7 +19,6 @@ mod default_app_tests;
 pub mod dialog_outcome;
 #[cfg(all(feature = "dialogs", not(target_arch = "wasm32")))]
 pub mod dialogs;
-#[cfg(feature = "logs")]
 pub mod logs;
 mod message;
 pub mod open;
@@ -35,9 +32,8 @@ pub mod pointer;
 mod process;
 #[cfg(feature = "screen")]
 pub mod screen;
-#[cfg(feature = "session")]
 pub mod session;
-#[cfg(all(test, feature = "session"))]
+#[cfg(test)]
 mod session_tests;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod temp;

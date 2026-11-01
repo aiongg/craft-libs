@@ -9,11 +9,6 @@ repository.workspace = true
 
 [features]
 default = []
-# `SAMPLE_THEME_JSON` and its expected colours for app adapter tests, and a fault-injecting
-# file system for write-failure tests.
-testing = []
-# serde for `Accepted`, which apps keep in their preferences, and craft-theme's selection types in it.
-serde = ["dep:serde", "craft-theme/serde"]
 # `craft_theme_store::ui`: the Preferences appearance page and its theme chips.
 ui = ["dep:craft-ui", "dep:egui"]
 # Input and screenshot tests of the appearance page with egui_kittest (desktop only).
@@ -23,7 +18,7 @@ screen-testing = ["ui", "dep:egui_kittest", "craft-ui/screen-testing"]
 craft-theme = { workspace = true }
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 egui_kittest = { version = "0.37", optional = true }
 

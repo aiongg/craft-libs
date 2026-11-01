@@ -21,7 +21,6 @@ const APP: AppInfo = AppInfo { id: "fonts-story", name: "Fonts story", version: 
 /// The labels tables of the picker, Glyphs panel, Missing Fonts dialog and axis sliders, for the
 /// facade's catalog extraction. The fonts panel keeps its words in a catalog of its own.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[
-    #[cfg(feature = "font-picker")]
     <crate::picker::FontPickerLabels as craft_ui::localized::Labels>::WORDS,
     <crate::glyphs::GlyphsLabels as craft_ui::localized::Labels>::WORDS,
     <crate::missing::MissingFontsLabels as craft_ui::localized::Labels>::WORDS,

@@ -235,7 +235,6 @@ fn built_in_presets_are_valid_described_and_named_for_the_app() {
     assert!(builtin_preset("Nope", "VectorCraft").is_none());
 }
 
-#[cfg(feature = "serde")]
 mod json {
     use serde_json::json;
 
