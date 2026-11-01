@@ -3,8 +3,9 @@
 
 use egui::{Id, Ui};
 
-use super::{Level, Story, StoryArgs};
+use super::{Level, PatternStoryLabels, Story, StoryArgs};
 use crate::ComboBox;
+use crate::localized::Labels as _;
 use crate::typed_story;
 
 /// The components this module has stories for.
@@ -35,7 +36,7 @@ fn show(ui: &mut Ui, args: &mut StockArgs) {
         ui.horizontal(|ui| {
             let _ = ui.button("Button");
             ui.add(egui::Button::new("Selected").selected(true));
-            let _ = ui.small_button("Small");
+            let _ = ui.small_button(&PatternStoryLabels::of(ui).small);
         });
 
         let mut checked = kept(ui, "check", true);

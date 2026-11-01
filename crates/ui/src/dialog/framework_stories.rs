@@ -12,7 +12,7 @@ use super::{
     StandardPrompt, StartupStage, UnsavedChangesDialog, dialog_id,
 };
 use crate::localized::Labels as _;
-use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryChoice};
 use crate::typed_story;
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
@@ -327,21 +327,22 @@ fn show_prompt(ui: &mut Ui, args: &mut PromptArgs) {
 fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
     let salt = ui.scope_id();
     let read_only = args.read_only;
+    let words = PatternStoryLabels::of(ui);
     let tabs = || {
         vec![
             PropertiesTab::new(
-                "General",
+                &words.general,
                 vec![
                     PropertyRow::Value { label: "File:".to_owned(), text: "poster.psd".to_owned() },
                     PropertyRow::Value { label: "Size:".to_owned(), text: "1200 \u{d7} 800 px".to_owned() },
                     PropertyRow::Space,
-                    PropertyRow::Heading("Description".to_owned()),
+                    PropertyRow::Heading(words.description.clone()),
                     PropertyRow::Field(Param::new("title", "Title:", super::ParamKind::Text { default: "Poster".to_owned() })),
                     PropertyRow::Field(Param::new("author", "Author:", super::ParamKind::Text { default: String::new() })),
                 ],
             ),
             PropertiesTab::new(
-                "Advanced",
+                &words.advanced,
                 vec![
                     PropertyRow::Field(Param::new("compress", "Compress:", super::ParamKind::Bool { default: true })),
                     PropertyRow::Value { label: "Colour profile:".to_owned(), text: "sRGB IEC61966-2.1".to_owned() },

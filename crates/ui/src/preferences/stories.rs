@@ -8,7 +8,7 @@ use egui::{Ui, vec2};
 use super::{GroupSpec, PageSpec, PrefValue, PreferencesBody, PreferencesModel, RowKind, RowSpec};
 use crate::direction::{self, Direction};
 use crate::localized::Labels as _;
-use crate::story::{Level, Story, StoryArgs, StoryLabels};
+use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryLabels};
 use crate::typed_story;
 
 /// The components this module has stories for.
@@ -48,6 +48,7 @@ pub(crate) struct FakeHost {
     pub nested: bool,
     /// The sample labels pages and rows share with registered words.
     pub labels: StoryLabels,
+    pub pattern_labels: PatternStoryLabels,
 }
 
 impl FakeHost {
@@ -65,7 +66,16 @@ impl FakeHost {
         ] {
             saved.insert(k.to_owned(), v);
         }
-        Self { draft: saved.clone(), saved, log: Vec::new(), fail: None, can_ok: true, nested: false, labels: StoryLabels::default() }
+        Self {
+            draft: saved.clone(),
+            saved,
+            log: Vec::new(),
+            fail: None,
+            can_ok: true,
+            nested: false,
+            labels: StoryLabels::default(),
+            pattern_labels: PatternStoryLabels::default(),
+        }
     }
 
     fn text(&self, key: &str) -> &str {
@@ -101,7 +111,7 @@ impl PreferencesModel for FakeHost {
         };
         let general = PageSpec::new(
             "general",
-            "General",
+            &self.pattern_labels.general,
             vec![
                 RowSpec::new(
                     "general.language",
@@ -148,7 +158,7 @@ impl PreferencesModel for FakeHost {
         };
         let advanced = PageSpec::new(
             "advanced",
-            "Advanced",
+            &self.pattern_labels.advanced,
             vec![
                 RowSpec::new("advanced.disks", "Scratch disks:", RowKind::Custom).keywords("temp").help("Used when memory runs low."),
                 RowSpec::new("advanced.gamma", "Gamma:", RowKind::Float { value: gamma, range: 0.0..=100.0, decimals: 1, unit: None }).step(0.1),
@@ -220,6 +230,7 @@ fn show_window(ui: &mut Ui, args: &mut WindowArgs) {
     let host_id = key.with("host");
     let mut host: FakeHost = ctx.data_mut(|d| d.get_temp::<FakeHostBox>(host_id)).map(|b| b.0).unwrap_or_else(FakeHost::new);
     host.labels = StoryLabels::of(ui);
+    host.pattern_labels = PatternStoryLabels::of(ui);
     let size = vec2(args.width.min(ui.available_width()), args.height);
     ui.allocate_ui(size, |ui| {
         ui.set_min_size(size);
@@ -247,6 +258,7 @@ impl Clone for FakeHostBox {
             can_ok: self.0.can_ok,
             nested: self.0.nested,
             labels: self.0.labels.clone(),
+            pattern_labels: self.0.pattern_labels.clone(),
         })
     }
 }

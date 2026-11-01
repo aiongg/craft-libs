@@ -12,7 +12,7 @@ use crate::controls::Button;
 use crate::localized::Labels as _;
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Content, Text};
-use crate::story::{Level, NoArgs, Story, StoryArgs, Surface};
+use crate::story::{Level, NoArgs, PatternStoryLabels, Story, StoryArgs, Surface};
 use crate::typed_story;
 
 /// The components these stories cover.
@@ -54,7 +54,7 @@ fn show_panel_menu(ui: &mut Ui, _args: &mut NoArgs) {
     if let Some(choice) = menu.show(ui, &button) {
         ui.data_mut(|d| d.insert_temp(last, format!("{choice:?}")));
     }
-    let text = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());
+    let text = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| PatternStoryLabels::of(ui).nothing_chosen);
     ui.add(Text::new(text).content(Content::Muted));
 }
 

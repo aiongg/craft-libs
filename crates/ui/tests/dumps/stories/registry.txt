@@ -220,7 +220,7 @@ patterns/shell/status-readout = StatusReadout | Readout | Chrome |
 patterns/shell/toolbar-drawer = ToolbarDrawer | Drawer | Chrome | 
 patterns/shell/notice-center = NoticeCenter | Notices | Canvas | 
 patterns/shell/start = StartScreen | Start | Own | view=Choice { options: ["grid", "list"], index: 0 }; sort=Choice { options: ["opened", "name", "created"], index: 0 }; empty=Bool(false)
-patterns/canvas/selection-bar = SelectionBar | Bar | Canvas | above=Bool(true)
+patterns/canvas/selection-bar = SelectionBar | Bar | Canvas | over=Bool(true)
 patterns/canvas/tool-pill = ToolPill | Pill | Canvas | top=Bool(false)
 patterns/inspector/properties = Inspector | Properties | Panel | target=Choice { options: ["layer", "document"], index: 0 }; empty=Bool(false)
 patterns/toolbar/vertical-liquify = Toolbar | Vertical | Own | 

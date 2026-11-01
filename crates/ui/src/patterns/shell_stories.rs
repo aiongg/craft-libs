@@ -6,7 +6,8 @@ use egui::{Rect, Ui, vec2};
 
 use super::rail::tool::story_slots;
 use super::{DrawerGroup, StatusBar, StatusItem, StatusReadout, StatusValues, ToolbarDrawer, Tour, TourEvent, TourStep};
-use crate::story::{Level, NoArgs, Story, Surface};
+use crate::localized::Labels as _;
+use crate::story::{Level, NoArgs, PatternStoryLabels, Story, Surface};
 use crate::typed_story;
 
 /// The components these stories cover.
@@ -63,7 +64,7 @@ fn show_readout(ui: &mut Ui, _args: &mut NoArgs) {
         scratch_sizes: Some((1_300_000_000, 8_000_000_000)),
         efficiency: Some(100),
         timing: Some(Duration::from_millis(400)),
-        current_tool: Some("Brush".to_owned()),
+        current_tool: Some(PatternStoryLabels::of(ui).brush),
         layer_count: Some(12),
     };
     StatusBar::new("readout-story").show(ui, |bar| {
@@ -84,7 +85,8 @@ fn show_readout(ui: &mut Ui, _args: &mut NoArgs) {
 fn show_drawer(ui: &mut Ui, _args: &mut NoArgs) {
     let area = ui.allocate_space(vec2(ui.available_width().min(520.0), 360.0)).1;
     let rail = Rect::from_min_size(area.min, vec2(40.0, area.height()));
-    let slots = story_slots();
+    let words = PatternStoryLabels::of(ui);
+    let slots = story_slots(&words);
     let groups = [
         DrawerGroup { label: "Select".to_owned(), tools: slots[1].tools.iter().chain(&slots[2].tools).cloned().collect() },
         DrawerGroup { label: "Paint".to_owned(), tools: slots[5].tools.iter().chain(&slots[8].tools).cloned().collect() },

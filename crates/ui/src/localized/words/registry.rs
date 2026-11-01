@@ -62,6 +62,7 @@ pub(super) const TABLES: &[&[Word]] = &[
     <crate::composites::SettingsNoticeLabels as Labels>::WORDS,
     <crate::preferences::SettingsDocumentLabels as Labels>::WORDS,
     <crate::story::StoryLabels as Labels>::WORDS,
+    <crate::story::PatternStoryLabels as Labels>::WORDS,
     <crate::controls::common_stories::ControlStoryLabels as Labels>::WORDS,
     <crate::list::table_stories::TableStoryLabels as Labels>::WORDS,
     <crate::dialog::GuidesLabels as Labels>::WORDS,
