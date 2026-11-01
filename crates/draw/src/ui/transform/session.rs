@@ -25,15 +25,14 @@
 //! # };
 //! ```
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TR-T2)")]
-
 use kurbo::{Point, Rect};
 
 use craft_ui::canvas::quad::{Anchor9, BoxAllow, BoxRules, BoxState, Homography, ScaleRule, TransformMode};
 use craft_ui::dialog::LocalHistory;
+use craft_ui::dialog::Step;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::units::LengthUnit;
-use craft_ui::menu::MenuEntry;
+use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::words;
 
 use super::TransformRow;
@@ -159,7 +158,14 @@ impl TransformPreset {
     /// Horizontal `(−1, 1, 0)`, Flip Vertical `(1, −1, 0)`.
     pub fn scale_and_turn(self) -> (f64, f64, f64) {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:329 (`box_preset`).
-        todo!()
+        use std::f64::consts::{FRAC_PI_2, PI};
+        match self {
+            TransformPreset::Rotate180 => (1.0, 1.0, PI),
+            TransformPreset::Rotate90Clockwise => (1.0, 1.0, FRAC_PI_2),
+            TransformPreset::Rotate90CounterClockwise => (1.0, 1.0, -FRAC_PI_2),
+            TransformPreset::FlipHorizontal => (-1.0, 1.0, 0.0),
+            TransformPreset::FlipVertical => (1.0, -1.0, 0.0),
+        }
     }
 }
 
@@ -181,13 +187,17 @@ impl Interpolation {
     /// PhotoCraft's id: "bicubic", "bilinear", "nearest".
     pub fn id(self) -> &'static str {
         // pc: crates/ui-egui/src/tools/transform_tool/options_bar.rs:241 (the select's options).
-        todo!()
+        match self {
+            Interpolation::Bicubic => "bicubic",
+            Interpolation::Bilinear => "bilinear",
+            Interpolation::NearestNeighbor => "nearest",
+        }
     }
 
     /// The choice with PhotoCraft's `id`; `None` for any other text.
     pub fn from_id(id: &str) -> Option<Interpolation> {
         // pc: crates/ui-egui/src/tools/transform_tool/options_bar.rs:241.
-        todo!()
+        Interpolation::ALL.into_iter().find(|choice| choice.id() == id)
     }
 }
 
@@ -408,7 +418,19 @@ impl<W: TransformWarp> TransformSession<W> {
     pub fn homography(&self) -> Option<Homography> {
         // pc: crates/ui-egui/src/tools/transform_tool/draw.rs:113 (`Homography::rect_to_quad` of
         // the unit square, then the box).
-        todo!()
+        let (w, h) = (self.rect.width(), self.rect.height());
+        if !(w.abs() > 1e-9 && h.abs() > 1e-9) {
+            return None;
+        }
+        let unit = Homography::unit_to_quad(self.draft.state.quad)?;
+        // The box's map after the frame's affine map onto the unit square.
+        let (x0, y0) = (self.rect.x0, self.rect.y0);
+        let row = |i: usize| {
+            let r = unit.row(i);
+            [r[0] / w, r[1] / h, r[2] - r[0] * x0 / w - r[1] * y0 / h]
+        };
+        let rows = [row(0), row(1), row(2)];
+        rows.iter().flatten().all(|v| v.is_finite()).then(|| Homography::from_rows(rows))
     }
 
     /// The box rules for the current mode and what the content allows, with the settings' scaling
@@ -417,7 +439,13 @@ impl<W: TransformWarp> TransformSession<W> {
     pub fn box_rules(&self, settings: &TransformSettings) -> BoxRules {
         // new: one place maps the session and the settings to `BoxRules` (the PhotoCraft port maps
         // its preferences in its own `transform_tool/pointer.rs`).
-        todo!()
+        BoxRules {
+            mode: self.draft.mode,
+            scale: settings.scale_rule(),
+            aspect_linked: settings.aspect_linked,
+            allow: self.allow,
+            ..BoxRules::default()
+        }
     }
 
     /// Whether committing now would change nothing: the box on the frame's corners and, in the
@@ -426,13 +454,19 @@ impl<W: TransformWarp> TransformSession<W> {
     pub fn is_untouched(&self) -> bool {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:65 (warp identity), :70 (box on
         // the frame's corners).
-        todo!()
+        let identity = self.draft.warp.as_ref().is_none_or(TransformWarp::is_identity);
+        identity && self.draft.state.quad == BoxState::from_rect(self.rect).quad
     }
 
     /// What a commit applies; `None` when [untouched](Self::is_untouched).
     pub fn result(&self) -> Option<TransformResult<W>> {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:63.
-        todo!()
+        if self.is_untouched() {
+            return None;
+        }
+        // An identity warp over a moved box is the box alone; the app applies a box transform.
+        let warp = self.draft.warp.clone().filter(|warp| !warp.is_identity());
+        Some(TransformResult { rect: self.rect, state: self.draft.state, interpolation: self.draft.interpolation, warp })
     }
 
     /// Applies one edit; `now` is the pass's input time in seconds (the nudge pause reads it).
@@ -455,7 +489,46 @@ impl<W: TransformWarp> TransformSession<W> {
     pub fn apply(&mut self, edit: TransformEdit<W>, now: f64) -> Option<TransformRequest<W>> {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:352 (`intercept`: presets, warp
         // refusal), :13 (`commit`); begin.rs:736 (`leave_warp`).
-        todo!()
+        let nudge = matches!(&edit, TransformEdit::Box(EditEvent::Set { .. }));
+        if !nudge {
+            // Whatever comes after a run of nudges ends the run: the nudges are their own step.
+            self.end_nudges();
+        }
+        match edit {
+            TransformEdit::Box(event) => self.gesture(event, now, nudge, |draft, state| draft.state = *state),
+            TransformEdit::Fields(event) => self.gesture(event, now, false, |draft, row| {
+                draft.state = row.state;
+                draft.skew_v = row.skew_v;
+            }),
+            TransformEdit::Mode(mode) => self.draft.mode = mode,
+            TransformEdit::Preset(preset) => {
+                if self.draft.warp.is_none() {
+                    let (kx, ky, angle) = preset.scale_and_turn();
+                    self.draft.state = self.draft.state.scaled_about_pivot(kx, ky).turned_about_pivot(angle);
+                }
+            }
+            TransformEdit::Interpolation(interpolation) => self.draft.interpolation = interpolation,
+            TransformEdit::ReferencePoint(show) => self.reference_point = show,
+            TransformEdit::Pivot(anchor) => self.draft.state.pivot = self.draft.state.point_at(anchor),
+            TransformEdit::WarpRequested => {
+                if self.draft.warp.is_none() {
+                    return Some(TransformRequest::NeedWarp { rect: self.rect, state: self.draft.state });
+                }
+            }
+            TransformEdit::Warp(warp) => self.draft.warp = Some(warp),
+            TransformEdit::LeaveWarp => self.draft.warp = None,
+            TransformEdit::Commit => {
+                self.before = None;
+                return Some(self.result().map_or(TransformRequest::CloseUntouched, TransformRequest::Apply));
+            }
+            TransformEdit::Cancel => {
+                if let Some(before) = self.before.take() {
+                    self.draft = before;
+                }
+                return Some(TransformRequest::Discard);
+            }
+        }
+        None
     }
 
     /// Records an undo step when the draft has come to rest changed. Call once per pass after the
@@ -466,7 +539,14 @@ impl<W: TransformWarp> TransformSession<W> {
     pub fn settle(&mut self, now: f64, busy: bool) {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:258 (`track_steps`), :270
         // (`nudge`).
-        todo!()
+        let nudging = match (self.last_nudge, self.nudge_pause) {
+            (Some(at), Some(pause)) => now - at < pause,
+            _ => false,
+        };
+        if !nudging {
+            self.last_nudge = None;
+        }
+        self.history.settle(&self.draft, busy || self.dragging() || nudging);
     }
 
     /// Edit › Undo while the session is open (the app routes it here; the session reads no undo
@@ -474,13 +554,13 @@ impl<W: TransformWarp> TransformSession<W> {
     /// interpolation and the warp together. False while a gesture runs or with nothing to undo.
     pub fn undo(&mut self) -> bool {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:376 (`step`).
-        todo!()
+        self.step(Step::Undo)
     }
 
     /// Steps forward one undone step; false while a gesture runs or with nothing to redo.
     pub fn redo(&mut self) -> bool {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:376.
-        todo!()
+        self.step(Step::Redo)
     }
 
     pub fn can_undo(&self) -> bool {
@@ -499,6 +579,78 @@ impl<W: TransformWarp> TransformSession<W> {
     /// Content-Aware Scale rows are the app's to add, greyed while a box is open.
     pub fn menu(&self, labels: &TransformMenuLabels) -> Vec<MenuEntry<TransformChoice>> {
         // pc: crates/ui-egui/src/canvas/canvas_tool_menu.rs:75 (`TRANSFORM_MENU`).
-        todo!()
+        let warping = self.phase() == TransformPhase::Warp;
+        let allow = self.allow;
+        let mode = |label: &str, mode: TransformMode, allowed: bool, checked: bool| {
+            MenuEntry::from(MenuItem::new(label, TransformChoice::Mode(mode)).radio(checked && !warping).enabled(allowed))
+        };
+        let free = self.draft.mode == TransformMode::Free;
+        let preset = |label: &str, preset: TransformPreset| MenuEntry::from(MenuItem::new(label, TransformChoice::Preset(preset)).enabled(!warping));
+        vec![
+            mode(&labels.free_transform, TransformMode::Free, true, free),
+            mode(&labels.scale, TransformMode::Free, true, false),
+            mode(&labels.rotate, TransformMode::Rotate, allow.rotate, self.draft.mode == TransformMode::Rotate),
+            mode(&labels.skew, TransformMode::Skew, allow.skew, self.draft.mode == TransformMode::Skew),
+            mode(&labels.distort, TransformMode::Distort, allow.distort, self.draft.mode == TransformMode::Distort),
+            mode(&labels.perspective, TransformMode::Perspective, allow.distort, self.draft.mode == TransformMode::Perspective),
+            MenuEntry::from(MenuItem::new(&labels.warp, TransformChoice::Warp).radio(warping)),
+            MenuEntry::Separator,
+            preset(&labels.rotate_180, TransformPreset::Rotate180),
+            preset(&labels.rotate_90_clockwise, TransformPreset::Rotate90Clockwise),
+            preset(&labels.rotate_90_counter_clockwise, TransformPreset::Rotate90CounterClockwise),
+            MenuEntry::Separator,
+            preset(&labels.flip_horizontal, TransformPreset::FlipHorizontal),
+            preset(&labels.flip_vertical, TransformPreset::FlipVertical),
+        ]
+    }
+
+    /// Ends a run of nudges: records them as their own step before the next edit.
+    fn end_nudges(&mut self) {
+        if self.last_nudge.take().is_some() && !self.dragging() {
+            self.history.settle(&self.draft, false);
+        }
+    }
+
+    /// One box or field event. A Begin takes the draft as `before`; a Set outside a gesture is a
+    /// typed field or, with `nudge`, an arrow nudge. Edits to the box are ignored in the Warp
+    /// phase, where the mesh is the box (PhotoCraft refuses nudges there).
+    fn gesture<T>(&mut self, event: EditEvent<T>, now: f64, nudge: bool, set: impl Fn(&mut TransformDraft<W>, &T)) {
+        if self.draft.warp.is_some() {
+            return;
+        }
+        match event {
+            EditEvent::Begin { value, .. } => {
+                self.before = Some(self.draft.clone());
+                if let Some(value) = value {
+                    set(&mut self.draft, &value);
+                }
+            }
+            EditEvent::Update { value, .. } => set(&mut self.draft, &value),
+            EditEvent::Commit { value, .. } => {
+                set(&mut self.draft, &value);
+                self.before = None;
+            }
+            EditEvent::Cancel { .. } => {
+                if let Some(before) = self.before.take() {
+                    self.draft = before;
+                }
+            }
+            EditEvent::Set { value, .. } => {
+                set(&mut self.draft, &value);
+                if nudge {
+                    self.last_nudge = Some(now);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Undo or redo one step; refused while a gesture runs.
+    fn step(&mut self, step: Step) -> bool {
+        if self.dragging() {
+            return false;
+        }
+        self.last_nudge = None;
+        self.history.step(&mut self.draft, step)
     }
 }
