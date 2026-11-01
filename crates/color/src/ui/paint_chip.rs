@@ -3,7 +3,9 @@
 //! [`PaintList`], named paints in rows with their chips.
 //!
 //! The gradient editor is craft-draw's, and craft-draw depends on craft-color, so the chip takes
-//! the editor's body from the host ([`PaintChip::gradient_editor`]).
+//! the editor's body from the host ([`PaintChip::gradient_editor`]); so do the Pattern and Picture
+//! tabs ([`PaintChip::pattern_editor`], [`PaintChip::picture_editor`]: craft-draw's
+//! `PatternFillEditor` and `PictureFillEditor`).
 
 use craft_theme::Srgba;
 use egui::accesskit::HasPopup;
@@ -29,6 +31,39 @@ craft_ui::words! {
     }
 }
 
+craft_ui::words! {
+    /// The paint popover's Pattern and Picture tabs, English by default (Photoshop's Pattern,
+    /// PowerPoint's Picture). Kept apart from [`PaintLabels`] until task RG1 registers them.
+    #[non_exhaustive]
+    pub struct PaintKindLabels {
+        pattern: "paint.pattern" = "Pattern";
+        picture: "paint.picture" = "Picture";
+        /// The chip's value for a screen reader: `{name}` the pattern's name.
+        pattern_named: "paint.patternNamed" = "Pattern: {name}";
+        /// The chip's value for a screen reader: `{name}` the picture's name.
+        picture_named: "paint.pictureNamed" = "Picture: {name}";
+    }
+}
+
+craft_ui::words! {
+    /// The row actions of [`PaintList`] (FigCraft's Selection colors; US spelling).
+    #[non_exhaustive]
+    pub struct PaintListLabels {
+        /// A row's chip: opens the picker.
+        edit: "paintList.edit" = "Edit color";
+        hex: "paintList.hex" = "Color";
+        invalid: "paintList.invalid" = "Invalid color";
+        opacity: "paintList.opacity" = "Opacity";
+        detach_style: "paintList.detachStyle" = "Detach style";
+        detach_variable: "paintList.detachVariable" = "Detach variable";
+        styles: "paintList.styles" = "Color styles";
+        variables: "paintList.variables" = "Color variables";
+        select_users: "paintList.selectUsers" = "Select layers with this color";
+        add: "paintList.add" = "Add";
+        remove: "paintList.remove" = "Remove";
+    }
+}
+
 /// A gradient as the chip draws it: stops at 0–1 along a left-to-right ramp. The gradient itself
 /// (angle, style, midpoints) is the host's; it gives this preview with the paint.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -36,17 +71,64 @@ pub struct GradientPreview {
     pub stops: Vec<(f32, Srgba)>,
 }
 
-/// A paint: none, a solid colour, or a gradient.
+/// A pattern or picture as the chip draws it: the host's texture of the image (a pattern's tile,
+/// tiled across the chip; a picture, stretched to it) and its name for a screen reader. The
+/// pattern or picture itself is the host's.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ImagePreview {
+    /// "Bubbles", "photo.png".
+    pub name: String,
+    /// The image's texture, `None` while the host has none (the chip shows the field fill).
+    pub texture: Option<egui::TextureId>,
+    /// The image's size in pixels (a pattern tile's size, so the chip tiles it at 1:1).
+    pub size: [f32; 2],
+}
+
+/// A paint: none, a solid colour, a gradient, a pattern or a picture. More kinds may come: a
+/// `match` on it outside craft-color needs a `_` arm.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Paint {
     None,
     Solid(Srgba),
     Gradient(GradientPreview),
+    /// A pattern fill (Photoshop's shape Pattern tab, PowerPoint's Pattern fill).
+    Pattern(ImagePreview),
+    /// A picture fill (PowerPoint's Picture or texture fill).
+    Picture(ImagePreview),
+}
+
+/// The kinds of paint, as the chip's tabs and an app's fill-type switch (`Segmented<FillKind>` or
+/// a radio list) name them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FillKind {
+    None,
+    Solid,
+    Gradient,
+    Pattern,
+    Picture,
+}
+
+impl FillKind {
+    /// The kind of `paint`.
+    pub fn of(paint: &Paint) -> FillKind {
+        match paint {
+            Paint::None => FillKind::None,
+            Paint::Solid(_) => FillKind::Solid,
+            Paint::Gradient(_) => FillKind::Gradient,
+            Paint::Pattern(_) => FillKind::Pattern,
+            Paint::Picture(_) => FillKind::Picture,
+        }
+    }
 }
 
 /// The host's gradient editor body, drawn in the popover's Gradient tab: it edits the host's
 /// gradient and returns the new preview when it changed.
 type GradientEditor<'a> = dyn FnMut(&mut Ui) -> Option<GradientPreview> + 'a;
+
+/// The host's pattern or picture editor body, drawn in the popover's Pattern or Picture tab: it
+/// edits the host's fill and returns the new preview when it changed.
+type ImageEditor<'a> = dyn FnMut(&mut Ui) -> Option<ImagePreview> + 'a;
 
 /// A paint chip, 30 by 22 points in PhotoCraft (the `swatch` control's Md size here).
 ///
@@ -54,11 +136,14 @@ type GradientEditor<'a> = dyn FnMut(&mut Ui) -> Option<GradientPreview> + 'a;
 ///   left-to-right ramp through its stops; No Color is the field fill with a red diagonal
 ///   (`status.danger`) from bottom left to top right. Edge: `line.control_edge`, the focus ring
 ///   when focused.
-/// - Click, Enter or Space opens a popover: a segmented No Color / Solid / Gradient switch, then
-///   the Compact [`ColorPicker`](super::ColorPicker) (Solid, with the screen eyedropper) or the
-///   host's gradient editor (Gradient). Switching to Solid starts from the last solid colour (or
-///   the fallback), to Gradient from the host's default gradient
-///   ([`default_gradient`](Self::default_gradient)).
+/// - Click, Enter or Space opens a popover: a segmented No Color / Solid / Gradient / Pattern /
+///   Picture switch ([`kinds`](Self::kinds): Gradient, Pattern and Picture only when the host gave
+///   their editor), then the Compact [`ColorPicker`](super::ColorPicker) (Solid, with the screen
+///   eyedropper) or the host's editor. Switching to Solid starts from the last solid colour (or
+///   the fallback), to Gradient, Pattern or Picture from the host's default
+///   ([`default_gradient`](Self::default_gradient)). Without the new editors the chip and popover
+///   are as before (PhotoCraft's look).
+/// - A pattern draws its tile across the chip; a picture is stretched to it.
 /// - Edits: a switch is a [`Set`](craft_ui::edit::EditEvent::Set); picker gestures report as the
 ///   picker does. Alpha is kept through a screen sample.
 /// - AccessKit: a `ColorWell` named by `label`, its value the hex or "No Color"/"Gradient".
@@ -70,6 +155,8 @@ pub struct PaintChip<'a> {
     numbers: &'a LocaleNumbers,
     none_allowed: bool,
     gradient: Option<(GradientPreview, Box<GradientEditor<'a>>)>,
+    pattern: Option<(ImagePreview, Box<ImageEditor<'a>>)>,
+    picture: Option<(ImagePreview, Box<ImageEditor<'a>>)>,
     enabled: bool,
 }
 
@@ -77,7 +164,18 @@ impl<'a> PaintChip<'a> {
     /// A chip for `paint`; `fallback` is the solid colour a switch to Solid starts from when the
     /// paint has none.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, paint: &'a Paint, fallback: Srgba, numbers: &'a LocaleNumbers) -> PaintChip<'a> {
-        PaintChip { id_salt: IdSalt::new(id_salt), label: label.into(), paint, fallback, numbers, none_allowed: true, gradient: None, enabled: true }
+        PaintChip {
+            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
+            paint,
+            fallback,
+            numbers,
+            none_allowed: true,
+            gradient: None,
+            pattern: None,
+            picture: None,
+            enabled: true,
+        }
     }
 
     /// Whether No Color is offered; on by default (a stroke can be none, a text colour cannot).
@@ -97,9 +195,36 @@ impl<'a> PaintChip<'a> {
         self
     }
 
+    /// The Pattern tab: `default_pattern` is what a switch to Pattern sets, `editor` draws the
+    /// host's editor (craft-draw's `PatternFillEditor`). Without it there is no Pattern tab.
+    pub fn pattern_editor(mut self, default_pattern: ImagePreview, editor: impl FnMut(&mut Ui) -> Option<ImagePreview> + 'a) -> PaintChip<'a> {
+        self.pattern = Some((default_pattern, Box::new(editor)));
+        self
+    }
+
+    /// The Picture tab: `default_picture` is what a switch to Picture sets, `editor` draws the
+    /// host's editor (craft-draw's `PictureFillEditor`). Without it there is no Picture tab.
+    pub fn picture_editor(mut self, default_picture: ImagePreview, editor: impl FnMut(&mut Ui) -> Option<ImagePreview> + 'a) -> PaintChip<'a> {
+        self.picture = Some((default_picture, Box::new(editor)));
+        self
+    }
+
     pub fn enabled(mut self, enabled: bool) -> PaintChip<'a> {
         self.enabled = enabled;
         self
+    }
+
+    /// The tabs the popover shows, in order: No Color (when allowed), Solid, then Gradient,
+    /// Pattern and Picture when the host gave their editors.
+    pub fn kinds(&self) -> Vec<FillKind> {
+        let offered = [
+            (FillKind::None, self.none_allowed),
+            (FillKind::Solid, true),
+            (FillKind::Gradient, self.gradient.is_some()),
+            (FillKind::Pattern, self.pattern.is_some()),
+            (FillKind::Picture, self.picture.is_some()),
+        ];
+        offered.into_iter().filter_map(|(kind, on)| on.then_some(kind)).collect()
     }
 
     /// The gradient a switch to Gradient sets, when the host gave an editor.
@@ -110,8 +235,13 @@ impl<'a> PaintChip<'a> {
     // pc: crates/ui-egui/src/tools/shape_paint_ui.rs:64 `swatch` (the chip at :72, the ramp at
     // :80, No Color at :103, the popover tabs at :133); built on `ColorPopover`'s popover and
     // `ColorPicker` Compact, `Segmented` for the tabs.
+    // pc: crates/ui-egui/src/tools/shape_paint_ui.rs:21-24 (the swatches never offered a pattern);
+    // crates/ui-egui/src/panels/preset_panels.rs:277-279 (the pattern grid meant for paint popups).
+    // inv-deckcraft: crates/ui-egui/src/panels/format_shape.rs:369-375 (the fill types).
+    // new: the Pattern and Picture tabs are task SH-T14's; until then they never show.
+    #[expect(clippy::todo, reason = "skeleton: the Pattern and Picture tabs land in task SH-T14")]
     pub fn show(self, ui: &mut Ui) -> EditResponse<Paint> {
-        let Self { id_salt, label, paint, fallback, numbers, none_allowed, gradient, enabled } = self;
+        let Self { id_salt, label, paint, fallback, numbers, none_allowed, gradient, pattern, picture, enabled } = self;
         let ctx = ui.ctx().clone();
         let labels = PaintLabels::of(ui);
         let tokens = Tokens::of(ui);
@@ -142,6 +272,7 @@ impl<'a> PaintChip<'a> {
             Paint::None => labels.no_color.clone(),
             Paint::Solid(color) => Swatch::hex(color.to_rgba()),
             Paint::Gradient(_) => labels.gradient.clone(),
+            Paint::Pattern(_) | Paint::Picture(_) => image_value(&PaintKindLabels::of(ui), paint),
         };
         ctx.accesskit_node_builder(response.id, |node| node.set_value(value));
 
@@ -193,6 +324,7 @@ impl<'a> PaintChip<'a> {
                         Tab::None => Paint::None,
                         Tab::Solid => Paint::Solid(remembered),
                         Tab::Gradient => Paint::Gradient(gradient.as_ref().map(|(g, _)| g.clone()).unwrap_or_default()),
+                        Tab::Pattern | Tab::Picture => todo!(),
                     };
                     event = Some(EditEvent::set(next, Modifiers::NONE));
                 }
@@ -237,6 +369,10 @@ impl<'a> PaintChip<'a> {
                             event = Some(EditEvent::set(Paint::Gradient(edited), Modifiers::NONE));
                         }
                     }
+                    Paint::Pattern(_) | Paint::Picture(_) => {
+                        let _ = (&pattern, &picture);
+                        todo!()
+                    }
                 }
             });
         ctx.data_mut(|d| d.insert_temp(state_id, Open { open, clicked }));
@@ -270,6 +406,8 @@ enum Tab {
     None,
     Solid,
     Gradient,
+    Pattern,
+    Picture,
 }
 
 impl Tab {
@@ -278,6 +416,8 @@ impl Tab {
             Paint::None => Tab::None,
             Paint::Solid(_) => Tab::Solid,
             Paint::Gradient(_) => Tab::Gradient,
+            Paint::Pattern(_) => Tab::Pattern,
+            Paint::Picture(_) => Tab::Picture,
         }
     }
 }
@@ -309,7 +449,34 @@ fn paint_paint(painter: &Painter, rect: Rect, paint: &Paint, style: &SwatchStyle
             painter.line_segment([inner.left_bottom(), inner.right_top()], Stroke::new(1.5, tokens.color.status.bad.fg.to_egui()));
             outline(painter);
         }
+        Paint::Pattern(preview) | Paint::Picture(preview) => paint_image(painter, rect, paint, preview, style, tokens, enabled, ppp),
     }
+}
+
+/// Draws a pattern tiled across `rect` at the tile's pixel size, or a picture stretched to it,
+/// over the checkerboard; the field fill while the preview has no texture; then the edge.
+#[expect(clippy::too_many_arguments, reason = "the chip painter's arguments plus the preview")]
+#[expect(unused_variables, clippy::todo, reason = "skeleton: task SH-T14")]
+fn paint_image(
+    painter: &Painter,
+    rect: Rect,
+    paint: &Paint,
+    preview: &ImagePreview,
+    style: &SwatchStyle,
+    tokens: &UiTokens,
+    enabled: bool,
+    ppp: f32,
+) {
+    // inv-deckcraft: crates/ui-egui/src/panels/fillui.rs:478-515 (pattern cells painted in their
+    // colours). new: `Mesh` with the texture's UVs repeating per tile for a pattern.
+    todo!()
+}
+
+/// The chip's value for a screen reader: "Pattern: Bubbles", "Picture: photo.png".
+#[expect(unused_variables, clippy::todo, reason = "skeleton: task SH-T14")]
+fn image_value(labels: &PaintKindLabels, paint: &Paint) -> String {
+    // new: `pattern_named` or `picture_named` with the preview's name.
+    todo!()
 }
 
 /// The gradient's stops as a mesh across `rect`, held flat before the first and after the last.
@@ -332,14 +499,124 @@ fn ramp(rect: Rect, preview: &GradientPreview) -> Mesh {
     mesh
 }
 
+/// How a paint is bound (FigCraft's colour style or variable).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PaintLinkKind {
+    Style,
+    Variable,
+}
+
+/// A row's binding: the style's or variable's name, shown as a badge after the paint's name, with
+/// a Detach button when [`PaintListOptions::bind`] is on.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PaintLink {
+    pub name: String,
+    pub kind: PaintLinkKind,
+}
+
+/// What a row shows beyond the chip and the name, by index in the list's paints.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct PaintRow {
+    /// The style or variable the paint is bound to.
+    pub link: Option<PaintLink>,
+}
+
+impl PaintRow {
+    /// A row bound to `link`.
+    pub fn linked(link: PaintLink) -> Self {
+        PaintRow { link: Some(link) }
+    }
+}
+
+/// The row actions a [`PaintList`] offers; all off by default (the list is then PhotoCraft's).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct PaintListOptions {
+    /// A click on a row's chip opens the colour picker on it.
+    pub edit: bool,
+    /// A hex field per row.
+    pub hex: bool,
+    /// An opacity field per row (percent).
+    pub opacity: bool,
+    /// Bind and Detach buttons (styles and variables).
+    pub bind: bool,
+    /// "Select layers with this color".
+    pub select_users: bool,
+    /// An Add button under the rows.
+    pub add: bool,
+    /// A Remove button per row.
+    pub remove: bool,
+}
+
+impl PaintListOptions {
+    /// FigCraft's Selection colors: edit, hex, opacity, bind and select users.
+    pub const SELECTION_COLORS: PaintListOptions =
+        PaintListOptions { edit: true, hex: true, opacity: true, bind: true, select_users: true, add: false, remove: false };
+
+    /// Whether any row action is on.
+    pub fn any(&self) -> bool {
+        self.edit || self.hex || self.opacity || self.bind || self.select_users || self.add || self.remove
+    }
+}
+
+/// A row action of [`PaintList`], by row index.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum PaintListEvent {
+    /// The chip's picker edited the paint (as [`PaintChip`] reports).
+    Edit {
+        row: usize,
+        event: EditEvent<Paint>,
+    },
+    /// A hex typed and committed.
+    Hex {
+        row: usize,
+        color: Srgba,
+    },
+    /// The opacity field: `Set` when typed, a gesture when scrubbed; 0–1.
+    Opacity {
+        row: usize,
+        event: EditEvent<f32>,
+    },
+    /// Bind the paint to a style or variable: the app opens its picker.
+    Bind {
+        row: usize,
+    },
+    /// Detach the row's style or variable.
+    Detach {
+        row: usize,
+    },
+    /// Select the layers that use this paint.
+    SelectUsers {
+        row: usize,
+    },
+    Add,
+    Remove {
+        row: usize,
+    },
+    /// Renamed in place (also in [`PaintListResponse::renamed`]).
+    Rename {
+        row: usize,
+        name: String,
+    },
+}
+
 /// Named paints in rows: the chip, then the name; a click on a row selects it, a double-click
 /// renames it in place. The Paints list of a document (PhotoCraft's shape paints; FigCraft's
 /// and VectorCraft's document colours).
+///
+/// With [`options`](Self::options) a row also offers FigCraft's Selection colors actions, after
+/// the name: a chip click edits the paint, a hex field, an opacity field, the binding's badge with
+/// Bind and Detach ([`rows`](Self::rows)), "Select layers with this color", and Remove; Add under
+/// the rows. Each reports a `PaintListEvent`; every control is a Tab stop in the row's order.
 pub struct PaintList<'a> {
     id_salt: IdSalt,
     label: String,
     paints: &'a [(String, Paint)],
     selected: Option<usize>,
+    options: PaintListOptions,
+    rows: &'a [PaintRow],
 }
 
 /// What [`PaintList::show`] returns.
@@ -349,11 +626,13 @@ pub struct PaintListResponse {
     pub selected: Option<usize>,
     /// A row was renamed: its index and new name.
     pub renamed: Option<(usize, String)>,
+    /// The row actions this pass, in order (with [`PaintList::options`]); a rename is here too.
+    pub events: Vec<PaintListEvent>,
 }
 
 impl<'a> PaintList<'a> {
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, paints: &'a [(String, Paint)]) -> PaintList<'a> {
-        PaintList { id_salt: IdSalt::new(id_salt), label: label.into(), paints, selected: None }
+        PaintList { id_salt: IdSalt::new(id_salt), label: label.into(), paints, selected: None, options: PaintListOptions::default(), rows: &[] }
     }
 
     pub fn selected(mut self, selected: Option<usize>) -> PaintList<'a> {
@@ -361,10 +640,25 @@ impl<'a> PaintList<'a> {
         self
     }
 
+    /// The row actions offered; none by default.
+    pub fn options(mut self, options: PaintListOptions) -> PaintList<'a> {
+        self.options = options;
+        self
+    }
+
+    /// Each paint's row data (its binding), by index; rows past the end have none.
+    pub fn rows(mut self, rows: &'a [PaintRow]) -> PaintList<'a> {
+        self.rows = rows;
+        self
+    }
+
     // pc: crates/ui-egui/src/tools/shape_paint_ui.rs:64 (the chip per row); rows on
     // `craft_ui::list` with an in-place `TextField` rename.
     pub fn show(self, ui: &mut Ui) -> PaintListResponse {
-        let Self { id_salt, label, paints, selected } = self;
+        if self.options.any() {
+            return self.show_with_actions(ui);
+        }
+        let Self { id_salt, label, paints, selected, .. } = self;
         let tokens = Tokens::of(ui);
         let chip = tokens.component.paint_chip;
         let style = Swatch::style(&tokens, craft_theme::ControlSize::Md);
@@ -379,14 +673,29 @@ impl<'a> PaintList<'a> {
                 paint_paint(painter, rect, paint, style, tokens, enabled, ppp);
             })
         });
-        let mut response = PaintListResponse { selected, renamed: None };
+        let mut response = PaintListResponse { selected, renamed: None, events: Vec::new() };
         for event in output.events {
             match event {
                 ListEvent::Selection(change) => response.selected = change.row.or(response.selected),
-                ListEvent::Row(RowEvent::Renamed { row, text }) => response.renamed = Some((row, text)),
+                ListEvent::Row(RowEvent::Renamed { row, text }) => {
+                    response.events.push(PaintListEvent::Rename { row, name: text.clone() });
+                    response.renamed = Some((row, text));
+                }
                 _ => {}
             }
         }
         response
+    }
+
+    /// [`show`](Self::show) with row actions: the rows as before plus the trailing items of
+    /// [`PaintListOptions`], and the Add button under them.
+    #[expect(clippy::todo, reason = "skeleton: task SH-T14")]
+    fn show_with_actions(self, ui: &mut Ui) -> PaintListResponse {
+        // inv-figcraft: crates/ui-egui/src/panels/selection_colors.rs:1-130 (per row a swatch that
+        // opens the picker, hex, opacity, style or variable bind and detach, "Select layers with this
+        // color").
+        // new: `ListRow` trailing items (`HexField`, `NumberField`, `IconButton`s).
+        let _ = (self, ui);
+        todo!()
     }
 }

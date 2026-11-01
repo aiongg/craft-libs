@@ -1,0 +1,35 @@
+//! The words of the Connector tool and its bar, English by default.
+
+craft_ui::words! {
+    /// What a screen reader reads for the Connector tool's parts.
+    #[non_exhaustive]
+    pub struct ConnectorNames {
+        group: "connector.group" = "Connector";
+        /// The start end glued to `{target}` (the app's object name).
+        start_attached: "connector.startAttached" = "Start, attached to {target}";
+        start_free: "connector.startFree" = "Start, free";
+        end_attached: "connector.endAttached" = "End, attached to {target}";
+        end_free: "connector.endFree" = "End, free";
+        /// A path handle: `{index}` from 1 of `{count}`.
+        bend: "connector.bend" = "Bend {index} of {count}";
+        /// The "+" buttons' group.
+        add_connected: "connector.addConnected" = "Add a connected shape";
+    }
+}
+
+craft_ui::words! {
+    /// The words of [`ConnectorBar`](super::ConnectorBar) (FigCraft's; US spelling).
+    #[non_exhaustive]
+    pub struct ConnectorBarLabels {
+        straight: "connectorBar.straight" = "Straight";
+        elbow: "connectorBar.elbow" = "Elbow";
+        curved: "connectorBar.curved" = "Curved";
+        start: "connectorBar.start" = "Start point";
+        end: "connectorBar.end" = "End point";
+        line_style: "connectorBar.lineStyle" = "Stroke style";
+        solid: "connectorBar.solid" = "Solid";
+        dashed: "connectorBar.dashed" = "Dash";
+        /// A weight row: `{weight}` in points.
+        weight: "connectorBar.weight" = "Stroke weight {weight}";
+    }
+}
