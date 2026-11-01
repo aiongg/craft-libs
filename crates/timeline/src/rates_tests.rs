@@ -55,6 +55,6 @@ fn insane_rates_count_as_the_default() {
         assert_eq!(bad.frame_duration(), default.frame_duration());
         assert_eq!(bad.frame_at(Tick(TICKS_PER_SECOND)), default.frame_at(Tick(TICKS_PER_SECOND)));
         assert_eq!(bad.tick_of(7), default.tick_of(7));
-        assert_eq!(bad.timecode_base(), 30);
+        assert_eq!(bad.timecode_base(), 24);
     }
 }

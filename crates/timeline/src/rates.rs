@@ -6,7 +6,7 @@ use crate::time::{TICKS_PER_SECOND, Tick};
 
 /// A frame rate as an exact rational, `num / den` frames a second. Rates come from files, so
 /// every frame computation goes through [`sane`](Self::sane) and a zero or negative rate counts
-/// as the default (29.97).
+/// as the default (23.976, as FilmCraft).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct FrameRate {
     pub num: i64,
@@ -15,7 +15,7 @@ pub struct FrameRate {
 
 impl Default for FrameRate {
     fn default() -> Self {
-        Self::FPS_29_97
+        Self::FPS_23_976
     }
 }
 
