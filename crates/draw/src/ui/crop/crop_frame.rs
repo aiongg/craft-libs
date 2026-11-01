@@ -1,11 +1,11 @@
 //! [`CropFrame`]: the Crop tool's frame, shield, composition guides and Classic-mode gestures.
 
-use egui::{Color32, Context, CursorIcon, Id, IdSalt, Key, Mesh, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, pos2};
+use egui::{Color32, Context, CursorIcon, Event, Id, IdSalt, Key, Mesh, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, pos2};
 use kurbo::{Point, Rect, Vec2};
 
 use super::crop_guides::CropGuide;
 use crate::ui::transform::transform_box::{fixed, key_part, outset, part_key, pos};
-use craft_ui::behavior::nudge;
+use craft_ui::behavior::nudge::{self, NudgeKeys};
 use craft_ui::canvas::claim::PrimaryPress;
 use craft_ui::canvas::quad::BoxPart;
 use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits, ToolKey, ToolParts, crisp, resize_cursor, turn_cursor};
@@ -1030,13 +1030,48 @@ impl<'a> CropFrame<'a> {
     /// `None`; the host passes keys only while the canvas or the tool's parts have the keyboard and
     /// no text field claims them. `picked` is `None` unless the tool's parts group has the
     /// keyboard ([`CropResponse::picked`] has the same rule in `show`).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the body is extracted from `keys` in task TO-C3")]
     pub fn key(&self, key: &ToolKey, view: &mut CanvasView, picked: Option<BoxPart>) -> Option<CropKeyAction> {
-        // new: the body of the private `keys` below without the input reads, which
-        // `keys` keeps: it turns each consumed press into a `ToolKey` and calls this, so `show`
-        // and the host share one body (lead call 32). Arrows parse through
-        // `NudgeKeys::new().from_key` (task K1).
-        todo!()
+        // new: the body `keys` shares with `show` (lead call 32).
+        if !key.pressed || !self.state.is_finite() {
+            return None;
+        }
+        match key.key {
+            Key::Enter if key.modifiers.matches_logically(Modifiers::NONE) => return Some(CropKeyAction::Apply),
+            Key::Escape if key.modifiers.matches_logically(Modifiers::NONE) => return Some(CropKeyAction::Discard),
+            _ => {}
+        }
+        let mut image_nudge = false;
+        let mut swapped = false;
+        let next = if let Some(nudge) = NudgeKeys::new().from_key(key) {
+            let by = nudge.by;
+            match picked.unwrap_or(BoxPart::Inside) {
+                // The image moves under the frame: the frame goes the other way.
+                BoxPart::Inside if self.image => {
+                    image_nudge = true;
+                    self.state.moved(-image_mode::screen_step(view, by))
+                }
+                part => self.nudged(part, by),
+            }
+        } else if key.key == Key::X && key.modifiers.matches_logically(Modifiers::NONE) {
+            swapped = true;
+            self.state.swapped()
+        } else {
+            return None;
+        };
+        let next = Some(next).filter(CropBox::is_finite)?;
+        let next = match self.bounds {
+            Some(bounds) => within(next, bounds, next.rect.size() != self.state.rect.size(), self.ratio.is_some()).unwrap_or(*self.state),
+            None => next,
+        };
+        if image_nudge {
+            // The view follows the frame, so the frame stays put on screen.
+            view.center += next.center() - self.state.center();
+        }
+        if swapped && self.image && self.auto_center {
+            *view = Self::view_for(&next, view);
+            view.center = next.center();
+        }
+        Some(CropKeyAction::Set(next))
     }
 
     /// The frame's keyboard parts on `view` for a host-driven tool's
@@ -1077,36 +1112,27 @@ impl<'a> CropFrame<'a> {
         if !idle {
             return;
         }
-        let mut image_nudge = false;
-        let mut swapped = false;
-        let next = if let Some(by) = nudge::read(ui, nudge::STEP, nudge::BIG_STEP) {
-            match picked.unwrap_or(BoxPart::Inside) {
-                // The image moves under the frame: the frame goes the other way.
-                BoxPart::Inside if self.image => {
-                    image_nudge = true;
-                    Some(self.state.moved(-image_mode::screen_step(view, by)))
-                }
-                part => Some(self.nudged(part, by)),
+        let press = |key| ToolKey { key, modifiers: Modifiers::NONE, pressed: true, repeat: false };
+        let action = if nudge::reads(ui) {
+            // The first arrow press of the pass, or X.
+            let taken = ui.input_mut(|i| {
+                let at = i.events.iter().position(|e| match e {
+                    Event::Key { key, pressed: true, modifiers, .. } => {
+                        NudgeKeys::new().from_key(&ToolKey { key: *key, modifiers: *modifiers, pressed: true, repeat: false }).is_some()
+                    }
+                    _ => false,
+                });
+                at.map(|at| i.events.remove(at))
+            });
+            match taken {
+                Some(Event::Key { key, modifiers, .. }) => self.key(&ToolKey { key, modifiers, pressed: true, repeat: false }, view, picked),
+                _ if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::X)) => self.key(&press(Key::X), view, picked),
+                _ => None,
             }
-        } else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::X)) {
-            swapped = true;
-            Some(self.state.swapped())
         } else {
             None
         };
-        if let Some(next) = next.filter(CropBox::is_finite) {
-            let next = match self.bounds {
-                Some(bounds) => within(next, bounds, next.rect.size() != self.state.rect.size(), self.ratio.is_some()).unwrap_or(*self.state),
-                None => next,
-            };
-            if image_nudge {
-                // The view follows the frame, so the frame stays put on screen.
-                view.center += next.center() - self.state.center();
-            }
-            if swapped && self.image && self.auto_center {
-                *view = Self::view_for(&next, view);
-                view.center = next.center();
-            }
+        if let Some(CropKeyAction::Set(next)) = action {
             gesture.set(next);
         }
     }
