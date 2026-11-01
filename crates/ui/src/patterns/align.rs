@@ -141,7 +141,7 @@ impl<'a> AlignBar<'a> {
         Self { id_salt: IdSalt::new(id_salt), enabled: Box::new(|_| true), distribute: DistributeButtons::Menu, labels: None }
     }
 
-    /// The words; [`AlignLabels::of`] the `Ui` when not called.
+    /// The words; `AlignLabels::of(ui)` (the installed catalog's) when not called.
     pub fn labels(mut self, labels: AlignLabels) -> Self {
         self.labels = Some(labels);
         self
