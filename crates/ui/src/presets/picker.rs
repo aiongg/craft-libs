@@ -145,6 +145,7 @@ pub struct PresetPicker<'a, K> {
     files: Option<&'a PresetFiles<'a, K>>,
     split: bool,
     labels: Option<PresetPickerLabels>,
+    closed_name: Option<String>,
 }
 
 impl<'a, K> PresetPicker<'a, K> {
@@ -165,7 +166,15 @@ impl<'a, K> PresetPicker<'a, K> {
             files: None,
             split: false,
             labels: None,
+            closed_name: None,
         }
+    }
+
+    /// The name the closed field shows and AccessKit reads instead of the selected row's label
+    /// (the named row's "{name} (built-in)"); the popup's cells keep their labels.
+    pub(super) fn closed_name(mut self, name: Option<String>) -> Self {
+        self.closed_name = name;
+        self
     }
 
     /// The current preset; `None` shows "Custom".
@@ -262,7 +271,8 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetPicker<'_, K> {
     /// field's and the cells').
     pub fn show(self, ui: &mut Ui, mut thumb: impl FnMut(&Painter, Rect, ThumbInfo<'_, K>)) -> PresetPickerResponse<K> {
         // pc: crates/ui-egui/src/panels/preset_panels.rs:256-310 (`pattern_picker`, `pattern_grid`: thumbnail side :257, 6 columns); crates/ui-egui/src/panels/preset_panels/panels.rs:334-380 (`shape_picker`: field thumbnail :340, popup height :356); crates/ui-egui/src/dialogs/layer_style/contour.rs:93-198 (`row` and its popup, 4 columns). Every size is a `PresetStyle` field
-        let Self { id_salt, label, rows, selected, columns, field, close, view, shape, can_rename, can_delete, files, split, labels } = self;
+        let Self { id_salt, label, rows, selected, columns, field, close, view, shape, can_rename, can_delete, files, split, labels, closed_name } =
+            self;
         let tokens = Tokens::of(ui);
         let style = PresetStyle::from_tokens(&tokens);
         let select = Select::style(&tokens, ControlSize::Md);
@@ -278,7 +288,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetPicker<'_, K> {
         let mut mem = ctx.data(|d| d.get_temp::<Memory<K>>(id.with("memory"))).unwrap_or(Memory { open: false, state: PresetState::new() });
 
         let current = selected.and_then(|key| rows.iter().find(|row| row.key == *key));
-        let name = current.map_or_else(|| words.custom.clone(), |row| row.label.clone());
+        let name = closed_name.or_else(|| current.map(|row| row.label.clone())).unwrap_or_else(|| words.custom.clone());
         let access = craft_i18n::fmt(&words.field, &[("label", label.as_str()), ("name", name.as_str())]);
 
         // The closed field: padding, thumbnail, name, chevron.
