@@ -25,6 +25,7 @@ kurbo = "0.13"
 thiserror = "2"
 craft-atomic = { path = "crates/atomic" }
 craft-automation = { path = "crates/automation" }
+craft-browse = { path = "crates/browse" }
 craft = { path = "crates/craft" }
 craft-cms = { path = "crates/cms" }
 craft-color = { path = "crates/color" }
@@ -42,6 +43,7 @@ craft-i18n = { path = "crates/i18n" }
 craft-imaging = { path = "crates/imaging" }
 craft-jpeg = { path = "crates/jpeg" }
 craft-keymap = { path = "crates/keymap" }
+craft-layers = { path = "crates/layers" }
 craft-media = { path = "crates/media" }
 craft-menu = { path = "crates/menu" }
 craft-prepress = { path = "crates/prepress" }

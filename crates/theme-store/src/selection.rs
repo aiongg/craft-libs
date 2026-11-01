@@ -14,8 +14,8 @@ pub const MAX_SELECTION_BYTES: usize = 64 * 1024;
 /// `selection.json` as last read or written by this store. With feature `serde`, apps save it in
 /// their preferences (`last_suite`) and pass it back with
 /// [`StoreOptions::last_accepted`](crate::StoreOptions::last_accepted).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Accepted {
     /// Empty until some app writes a choice: no file, no `suite` key, or no field in it.
     pub suite: SuiteChoice,
@@ -252,7 +252,7 @@ fn parse_suite(suite: &Map<String, Value>, version: u64) -> Result<SuiteChoice, 
         contrast: choice_field(suite, "contrast", &CONTRASTS)?,
         motion: choice_field(suite, "motion", &MOTIONS)?,
         size: choice_field(suite, "size", &SIZES)?,
-        text_size: choice_field(suite, "text_size", &TEXT_SIZES)?,
+        text_size: choice_field(suite, "text_size", &TEXT_SIZES_READ)?,
     })
 }
 
@@ -275,7 +275,17 @@ const CONTRASTS: [(ContrastChoice, &str); 3] =
 const MOTIONS: [(MotionChoice, &str); 3] = [(MotionChoice::System, "system"), (MotionChoice::Full, "full"), (MotionChoice::Reduced, "reduced")];
 const SIZES: [(Size, &str); 2] = [(Size::Compact, "compact"), (Size::Comfortable, "comfortable")];
 const TEXT_SIZES: [(TextSize, &str); 4] =
-    [(TextSize::Small, "small"), (TextSize::Default, "default"), (TextSize::Large, "large"), (TextSize::Larger, "larger")];
+    [(TextSize::Tiny, "tiny"), (TextSize::Small, "small"), (TextSize::Medium, "medium"), (TextSize::Large, "large")];
+/// [`TEXT_SIZES`] plus the names of the former steps (`default`, `larger`) that no new name
+/// shares, so a file written before the rename still loads.
+const TEXT_SIZES_READ: [(TextSize, &str); 6] = [
+    (TextSize::Tiny, "tiny"),
+    (TextSize::Small, "small"),
+    (TextSize::Medium, "medium"),
+    (TextSize::Large, "large"),
+    (TextSize::Small, "default"),
+    (TextSize::Large, "larger"),
+];
 
 fn choice_field<T: Copy>(suite: &Map<String, Value>, key: &str, names: &[(T, &str)]) -> Result<Option<T>, SelectionError> {
     match suite.get(key) {
@@ -372,7 +382,7 @@ mod tests {
             contrast: ContrastChoice::System,
             motion: MotionChoice::System,
             size: Size::Compact,
-            text_size: TextSize::Default,
+            text_size: TextSize::Small,
         }
     }
 
@@ -419,8 +429,12 @@ mod tests {
     fn each_new_field_merges_on_its_own() {
         let base = choice(Some("craft.artcraft"), None);
         // Another app set the dark slot, contrast and text size; this one the light slot and size.
-        let disk =
-            SuiteChoice { theme_dark: Some(id("craft.pro")), contrast: Some(ContrastChoice::High), text_size: Some(TextSize::Large), ..base.clone() };
+        let disk = SuiteChoice {
+            theme_dark: Some(id("craft.pro")),
+            contrast: Some(ContrastChoice::High),
+            text_size: Some(TextSize::Medium),
+            ..base.clone()
+        };
         let mine = SelectionChange::theme_light(id("craft.pro-light-gray")).then(SelectionChange::size(Size::Comfortable));
         let merged = merge(&base, &disk, &mine).unwrap();
         assert_eq!(
@@ -432,14 +446,14 @@ mod tests {
                 contrast: Some(ContrastChoice::High),
                 motion: None,
                 size: Some(Size::Comfortable),
-                text_size: Some(TextSize::Large),
+                text_size: Some(TextSize::Medium),
             }
         );
         // The same field changed elsewhere conflicts, one field at a time.
         for change in [
             SelectionChange::theme_dark(id("craft.studio")),
             SelectionChange::contrast(ContrastChoice::Standard),
-            SelectionChange::text_size(TextSize::Small),
+            SelectionChange::text_size(TextSize::Tiny),
         ] {
             assert_eq!(merge(&base, &disk, &change), None, "{change:?}");
         }
@@ -466,7 +480,6 @@ mod tests {
         assert_eq!(salvage(Some(b"{ not json"), &base), base);
     }
 
-    #[cfg(feature = "serde")]
     #[test]
     fn accepted_round_trips_through_serde() {
         let suite =
@@ -475,6 +488,17 @@ mod tests {
         let json = serde_json::to_string(&accepted).unwrap();
         assert_eq!(serde_json::from_str::<Accepted>(&json).unwrap(), accepted);
         assert_eq!(serde_json::from_str::<Accepted>("{}").unwrap(), Accepted::default());
+    }
+
+    #[test]
+    fn text_sizes_saved_under_the_former_names_still_load() {
+        let read = |name: &str| {
+            let text = format!(r#"{{"schema_version":2,"revision":1,"library_revision":1,"suite":{{"text_size":"{name}"}},"written_by":"x"}}"#);
+            parse_selection(text.as_bytes()).unwrap().accepted.suite.text_size
+        };
+        assert_eq!(read("default"), Some(TextSize::Small));
+        assert_eq!(read("larger"), Some(TextSize::Large));
+        assert_eq!(read("medium"), Some(TextSize::Medium));
     }
 
     #[test]
@@ -488,7 +512,7 @@ mod tests {
             contrast: ContrastChoice::High,
             motion: MotionChoice::System,
             size: Size::Comfortable,
-            text_size: TextSize::Larger,
+            text_size: TextSize::Large,
             ..sel("craft.graphite", ModeChoice::Dark)
         };
         let next = Accepted { suite: whole.into(), revision: 5, library_revision: 2 };
@@ -501,14 +525,13 @@ mod tests {
             back["suite"],
             json!({
                 "theme": {"light": "craft.graphite", "dark": "craft.graphite", "later": 1},
-                "mode": "dark", "contrast": "high", "motion": "system", "size": "comfortable", "text_size": "larger", "later": true
+                "mode": "dark", "contrast": "high", "motion": "system", "size": "comfortable", "text_size": "large", "later": true
             })
         );
         assert_eq!(back["written_by"], "test 1.0");
         assert_eq!(parse_selection(&out).unwrap().accepted, next);
     }
 
-    #[cfg(feature = "serde")]
     #[test]
     fn choice_names_match_craft_themes_serde() {
         for (c, name) in MODES {

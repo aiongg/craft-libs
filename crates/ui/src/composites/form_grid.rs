@@ -123,7 +123,7 @@ impl FormGrid {
         measure::group(ui, TAG, id_salt, |ui| {
             let spacing = ui.spacing().item_spacing;
             ui.spacing_mut().item_spacing.y = style.row_gap;
-            add_rows(&mut Form { ui, style, align, tokens, spacing, rows: 0, link: None })
+            add_rows(&mut Form { ui, style, align, tokens, spacing, rows: 0, link: None, disabled: false, last_row: None })
         })
     }
 }
@@ -140,6 +140,10 @@ pub struct Form<'a> {
     rows: usize,
     /// The rows being added inside [`Form::linked`].
     link: Option<Linked>,
+    /// Rows added while set are drawn disabled, label included.
+    disabled: bool,
+    /// The whole-row response of the row added last.
+    last_row: Option<Response>,
 }
 
 /// What the rows of a [`Form::linked`] scope measured, for the bracket drawn after them.
@@ -156,6 +160,16 @@ impl Form<'_> {
     /// The context the grid is drawn in, for a row builder that translates its labels.
     pub fn ctx(&self) -> &egui::Context {
         self.ui.ctx()
+    }
+
+    /// The response over the whole of the row added last (label and control), for a hover tip.
+    pub fn last_row(&self) -> Option<&Response> {
+        self.last_row.as_ref()
+    }
+
+    /// Draws the rows added from now on disabled, label and control, until called with `false`.
+    pub fn set_disabled(&mut self, disabled: bool) {
+        self.disabled = disabled;
     }
 
     /// A row of `label` and the control `add_control` draws in a row of the control column; the
@@ -317,13 +331,18 @@ impl Form<'_> {
                 LabelAlign::End => direction::trailing(ui),
                 LabelAlign::Start => direction::row(ui),
             };
-            ui.scope_builder(UiBuilder::new().max_rect(band).layout(layout), |ui| ui.add(Label::new(galley).selectable(false))).inner
+            let builder = UiBuilder::new().max_rect(band).layout(layout);
+            let builder = if self.disabled { builder.disabled() } else { builder };
+            ui.scope_builder(builder, |ui| ui.add(Label::new(galley).selectable(false))).inner
         });
         if let Some(label) = &label_response {
             row = label.rect;
         }
         let mut cell = ui.new_child(UiBuilder::new().max_rect(control_rect).layout(direction::column(ui)));
         cell.spacing_mut().item_spacing = self.spacing;
+        if self.disabled {
+            cell.disable();
+        }
         let control = direction::horizontal(&mut cell, |ui| add_control(ui, &RowLabel::new(label_response.as_ref(), true))).inner;
         row = row.union(cell.min_rect());
         if let Some(link) = &mut self.link {
@@ -348,6 +367,7 @@ impl Form<'_> {
         }
         drop(cell);
         let response = ui.allocate_rect(row, Sense::hover());
+        self.last_row = Some(response.clone());
         InnerResponse::new(control, response)
     }
 }
@@ -415,7 +435,9 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut ImageSizeArgs) {
         method: 0,
     });
     let numbers = LocaleNumbers::from_tag("en");
-    let unit_menu = |ui: &mut Ui, id: &'static str, label: &'static str, unit: &mut usize| {
+    use crate::localized::Labels as _;
+    let words = crate::dialog::SizingLabels::of(ui);
+    let unit_menu = |ui: &mut Ui, id: &'static str, label: &str, unit: &mut usize| {
         let mut select = Select::new(id, label, unit);
         for (i, name) in UNITS.into_iter().enumerate() {
             select = select.option(i, name);
@@ -428,24 +450,24 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut ImageSizeArgs) {
         .min_label_width(90.0)
         .show(ui, |form| {
             let bytes = |w: f64, h: f64| format!("{:.1}M", w * h * 4.0 / (1024.0 * 1024.0));
-            form.value("Image Size:", format!("{} (was {})", bytes(v.width, v.height), bytes(1200.0, 800.0)));
-            form.value("Dimensions:", format!("{} px × {} px", v.width.round(), v.height.round()));
+            form.value(&words.image_size, format!("{} (was {})", bytes(v.width, v.height), bytes(1200.0, 800.0)));
+            form.value(&words.dimensions, format!("{} px × {} px", v.width.round(), v.height.round()));
             form.space(6.0);
             let mut constrain = v.constrain;
             let (mut width, mut height) = (None, None);
-            form.linked("Constrain proportions", &mut constrain, |form| {
+            form.linked(&words.constrain, &mut constrain, |form| {
                 width = form
-                    .row("Width:", |ui, _| {
+                    .row(&words.width, |ui, _| {
                         let edit = NumberField::new("width", "Width", v.width, &numbers).range(1.0..=300000.0).decimals(0..=0).show(ui);
-                        let _ = unit_menu(ui, "width-unit", "Width unit", &mut v.unit);
+                        let _ = unit_menu(ui, "width-unit", &words.width_unit, &mut v.unit);
                         edit
                     })
                     .inner
                     .event;
                 height = form
-                    .row("Height:", |ui, _| {
+                    .row(&words.height, |ui, _| {
                         let edit = NumberField::new("height", "Height", v.height, &numbers).range(1.0..=300000.0).decimals(0..=0).show(ui);
-                        let _ = unit_menu(ui, "height-unit", "Height unit", &mut v.unit);
+                        let _ = unit_menu(ui, "height-unit", &words.height_unit, &mut v.unit);
                         edit
                     })
                     .inner
@@ -455,18 +477,18 @@ pub(super) fn show_image_size(ui: &mut Ui, args: &mut ImageSizeArgs) {
             apply(width, &mut v.width);
             apply(height, &mut v.height);
             let resolution = form
-                .row("Resolution:", |ui, _| {
+                .row(&words.resolution, |ui, _| {
                     let edit = NumberField::new("resolution", "Resolution", v.resolution, &numbers).range(1.0..=30000.0).decimals(0..=0).show(ui);
-                    ui.label("Pixels/Inch");
+                    ui.label(&words.pixels_per_inch);
                     edit
                 })
                 .inner;
             apply(resolution.event, &mut v.resolution);
             form.space(4.0);
             form.unlabelled(|ui| {
-                let check = Checkbox::bool("Resample", &mut v.resample).show(ui);
+                let check = Checkbox::bool(&words.resample, &mut v.resample).show(ui);
                 if v.resample {
-                    let mut select = Select::new("resample-method", "Resample method", &mut v.method);
+                    let mut select = Select::new("resample-method", &words.resample_method, &mut v.method);
                     for (i, name) in METHODS.into_iter().enumerate() {
                         select = select.option(i, name);
                     }

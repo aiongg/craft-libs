@@ -7,11 +7,13 @@ use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Image, ImageSource, Rect
 
 use super::TooltipExt as _;
 use super::button::content_color;
+use super::common_stories::ControlStoryLabels;
 use super::{SizeDisabledArgs, salt};
 use crate::direction;
 use crate::icons::{self, Icon, IconSize};
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Corner, Gap, Interactive, Row, StateColors, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, ToneArg};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, ToneArg};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
@@ -80,6 +82,7 @@ pub struct IconButton<'a> {
     icon_size: Option<f32>,
     side: Option<f32>,
     on: Option<&'a mut bool>,
+    when_on: Option<(IconSource<'a>, String)>,
     selected: Option<bool>,
     show_tooltip: bool,
     shortcut: Option<String>,
@@ -102,6 +105,7 @@ impl<'a> IconButton<'a> {
             icon_size: None,
             side: None,
             on: None,
+            when_on: None,
             selected: None,
             show_tooltip: true,
             shortcut: None,
@@ -136,6 +140,13 @@ impl<'a> IconButton<'a> {
     /// A toggle: a click flips `on`, and the button reports the new state in the same frame.
     pub fn toggle(mut self, on: &'a mut bool) -> Self {
         self.on = Some(on);
+        self
+    }
+
+    /// For a [`toggle`](IconButton::toggle): the icon and accessible name while the value is on,
+    /// taken after this frame's click. `new`'s icon and label are the off state.
+    pub fn when_on(mut self, icon: impl Into<IconSource<'a>>, label: impl Into<String>) -> Self {
+        self.when_on = Some((icon.into(), label.into()));
         self
     }
 
@@ -275,16 +286,21 @@ impl IconButton<'_> {
         } else if let Some(selected) = self.selected {
             element = element.checked(selected);
         }
-        let response = match rect {
-            Some(rect) => element.interact_at(ui, rect).finish(ui),
-            None => element.show(ui, vec2(style.side, style.side)),
+        let sensed = match rect {
+            Some(rect) => element.interact_at(ui, rect),
+            None => element.interact(ui, vec2(style.side, style.side)),
         };
-        // The state after this frame's click, which the fill shows too.
+        // The state after this frame's click, which the fill, the icon and the name show too.
         let on = self.selected.unwrap_or(false) || on.is_some_and(|on| *on);
+        let (icon, label) = match self.when_on {
+            Some((icon, label)) if on => (icon, label),
+            _ => (self.icon, self.label),
+        };
+        let response = sensed.label(label.as_str()).finish(ui);
         let color = content_color(ui, if on { &style.selected_text } else { &style.text }, &response, true);
         if ui.is_rect_visible(response.rect) {
             let rect = Rect::from_center_size(response.rect.center(), vec2(style.icon, style.icon)).round_to_pixels(ui.pixels_per_point());
-            match self.icon {
+            match icon {
                 IconSource::Library(icon) => icons::paint_in(ui, rect, icon, icons::active(ui.ctx()), style.icon, IconSize::Sm.stroke(), color),
                 IconSource::Image(source) => Image::new(source).tint(color).paint_at(ui, rect),
             }
@@ -299,9 +315,9 @@ impl IconButton<'_> {
                 if response.ctx.has_accesskit_node(response.id) {
                     response.ctx.accesskit_node_builder(response.id, |node| node.set_description(shortcut.as_str()));
                 }
-                format!("{}  ({shortcut})", self.label)
+                format!("{label}  ({shortcut})")
             }
-            None => self.label.clone(),
+            None => label.clone(),
         };
         if self.show_tooltip {
             response.tooltip(tip)
@@ -321,8 +337,15 @@ impl Widget for IconButton<'_> {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Icon button"];
 
-const SAMPLES: [(Icon, &str); 5] =
-    [(Icon::Undo, "Undo"), (Icon::Redo, "Redo"), (Icon::Copy, "Copy"), (Icon::Trash, "Delete"), (Icon::Settings, "Settings")];
+fn samples(words: &ControlStoryLabels) -> [(Icon, String); 5] {
+    [
+        (Icon::Undo, words.icon_undo.clone()),
+        (Icon::Redo, words.icon_redo.clone()),
+        (Icon::Copy, words.icon_copy.clone()),
+        (Icon::Trash, words.delete.clone()),
+        (Icon::Settings, "Settings".to_owned()),
+    ]
+}
 
 #[derive(StoryArgs, Debug, PartialEq)]
 struct PlainArgs {
@@ -355,12 +378,17 @@ fn show_plain(ui: &mut Ui, args: &mut PlainArgs) {
     let size = args.size.control();
     let enabled = !args.disabled;
     let (tooltip, badge, tone) = (args.show_tooltip, args.badge, args.tone.tone());
+    let samples = samples(&ControlStoryLabels::of(ui));
     let state_id = ui.scope_id().with("icon-button-plain-count");
     let (mut count, mut tool) = ui.data(|d| d.get_temp::<(u32, usize)>(state_id).unwrap_or_default());
     Row::new(Gap::Inline).show(ui, |ui| {
-        for (icon, label) in SAMPLES {
-            let mut button =
-                IconButton::new(icon, label).size(size).tone(tone).enabled(enabled).show_tooltip(tooltip).id_salt(("icon-button-plain", label));
+        for (icon, label) in samples.iter().cloned() {
+            let mut button = IconButton::new(icon, label.clone())
+                .size(size)
+                .tone(tone)
+                .enabled(enabled)
+                .show_tooltip(tooltip)
+                .id_salt(("icon-button-plain", label));
             if badge {
                 button = button.badge(Srgba::new(0.9, 0.2, 0.2, 1.0));
             }
@@ -371,14 +399,14 @@ fn show_plain(ui: &mut Ui, args: &mut PlainArgs) {
     });
     ui.add(Text::new(format!("Clicked {count} times")).content(Content::Muted));
     Row::new(Gap::Inline).show(ui, |ui| {
-        for (i, (icon, label)) in SAMPLES.into_iter().enumerate() {
-            let button = IconButton::new(icon, label).size(size).tone(tone).enabled(enabled).selected(tool == i).show_tooltip(tooltip);
+        for (i, (icon, label)) in samples.iter().cloned().enumerate() {
+            let button = IconButton::new(icon, label.clone()).size(size).tone(tone).enabled(enabled).selected(tool == i).show_tooltip(tooltip);
             if ui.add(button.id_salt(("icon-button-tool", label))).clicked() {
                 tool = i;
             }
         }
     });
-    ui.add(Text::new(format!("Selected: {}", SAMPLES[tool].1)).content(Content::Muted));
+    ui.add(Text::new(format!("Selected: {}", samples[tool].1)).content(Content::Muted));
     ui.data_mut(|d| d.insert_temp(state_id, (count, tool)));
 }
 
@@ -391,11 +419,12 @@ fn show_app_icon(ui: &mut Ui, args: &mut SizeDisabledArgs) {
     let source = || ImageSource::Bytes { uri: "bytes://craft-ui-story/app-icon.svg".into(), bytes: egui::load::Bytes::Static(APP_ICON) };
     let state_id = ui.scope_id().with("icon-button-app-icon-selected");
     let mut selected = ui.data(|d| d.get_temp::<bool>(state_id).unwrap_or(true));
+    let image = StoryLabels::of(ui).image;
     Row::new(Gap::Inline).show(ui, |ui| {
-        let small = IconButton::new(source(), "Image").side(24.0).icon_size(14.0).enabled(enabled).id_salt("icon-button-app-small");
+        let small = IconButton::new(source(), image.as_str()).side(24.0).icon_size(14.0).enabled(enabled).id_salt("icon-button-app-small");
         ui.add(small);
         let large =
-            IconButton::new(source(), "Image").side(34.0).icon_size(20.0).selected(selected).enabled(enabled).id_salt("icon-button-app-large");
+            IconButton::new(source(), image.as_str()).side(34.0).icon_size(20.0).selected(selected).enabled(enabled).id_salt("icon-button-app-large");
         if ui.add(large).clicked() {
             selected = !selected;
         }

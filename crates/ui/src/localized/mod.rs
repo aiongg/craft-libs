@@ -20,7 +20,7 @@ use std::rc::Rc;
 use std::sync::{Arc, LazyLock};
 
 use craft_host::Host;
-use craft_i18n::{Format, I18n, Lang, NumberError};
+use craft_i18n::{DateFormat, Format, I18n, Lang, NumberError};
 use egui::emath::{Numeric, round_to_decimals};
 use egui::plugin::Plugin;
 use egui::response::Flags;
@@ -37,12 +37,22 @@ mod tests;
 #[cfg(test)]
 mod words_tests;
 
+mod age;
+#[cfg(test)]
+mod age_tests;
+mod label_color;
+#[cfg(test)]
+mod label_color_tests;
 pub mod units;
 #[cfg(test)]
 mod units_tests;
 pub mod words;
+pub use age::{AGE_SHOWN_AS_DATE, AgeLabels, AgeStyle, relative_age};
+/// craft-i18n's placeholder formatter, for family crates that depend on craft-ui alone.
+pub use craft_i18n::fmt;
 #[doc(hidden)]
 pub use egui as __egui;
+pub use label_color::LabelColorLabels;
 pub use words::{Labels, SharedLabels, Word, Words};
 
 /// How long a [`LocalizedDragValue`] keeps marking text it could not read after reverting, in
@@ -98,6 +108,25 @@ impl LocaleNumbers {
     /// A count in the locale's digits and grouping: `1,234`, `1.234`.
     pub(crate) fn count(&self, n: u64) -> String {
         self.format(n as f64, 0..=0)
+    }
+
+    /// `ratio` as a whole percentage in the region's form: `50%`, `50 %`.
+    pub(crate) fn percent(&self, ratio: f64) -> String {
+        self.format.percent(ratio, 0)
+    }
+
+    /// A year in the region's digits with at least four of them and no grouping: `2026`, `٢٠٢٦`.
+    pub(crate) fn year(&self, year: i32) -> String {
+        let text = self.format.number_ungrouped(f64::from(year.unsigned_abs()), 0);
+        let zero = self.format.number_ungrouped(0.0, 0);
+        let pad = 4usize.saturating_sub(text.chars().count());
+        let sign = if year < 0 { "-" } else { "" };
+        format!("{sign}{}{text}", zero.repeat(pad))
+    }
+
+    /// A whole number below the grouping threshold in the region's digits: a day of the month.
+    pub(crate) fn small(&self, n: u32) -> String {
+        self.format.number_ungrouped(f64::from(n), 0)
     }
 
     /// The error tooltips from `i18n`'s catalog in `lang`: the plain rows keyed by the English
@@ -432,6 +461,13 @@ impl Plugin for Derived {
     fn debug_name(&self) -> &'static str {
         "craft_ui::localized::derived"
     }
+}
+
+/// How dates are written in `ctx`'s Host: its `I18n`'s region at the time of the call (so a later
+/// [`I18n::set_dates`] shows at once), English (US) conventions without a Host.
+pub(crate) fn dates(ctx: &Context) -> Arc<DateFormat> {
+    static ENGLISH: LazyLock<Arc<DateFormat>> = LazyLock::new(|| Arc::new(DateFormat::from_tag("en-US")));
+    Host::try_of_ctx(ctx).and_then(|host| host.i18n().map(I18n::dates)).unwrap_or_else(|| Arc::clone(&ENGLISH))
 }
 
 /// The words and numbers of `ctx`'s Host, rebuilt only when a different Host (or the same one in

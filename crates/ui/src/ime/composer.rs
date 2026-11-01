@@ -2,8 +2,8 @@ use std::ops::Range;
 
 use egui::{
     Context, Event, IMEPurpose, Id, ImeEvent, Key, Modifiers, Rect,
-    ime_context::{ImeContextTracker, ImeObservation, ImeTarget},
-    output::IMEOutput,
+    ime_context::{CommittedText, ImeContextTracker, ImeObservation, ImeResetId, ImeTarget},
+    output::{IMEOutput, IMESurroundingText, IMESurroundingTextPayload},
 };
 
 /// Seconds after a composition ends in which the IME's own confirm, cancel and edit keys
@@ -125,6 +125,27 @@ pub struct Composer {
     /// The context generation egui's `IMEOutput` carries: new whenever the composer turns the
     /// IME on again, changes purpose, or skipped a pass.
     context: ImeContextTracker,
+    /// The editor's bounded committed text around the caret, for the platform's surrounding text.
+    committed: Option<IMESurroundingTextPayload>,
+    /// The fence for a composition whose text was replaced from outside, until egui reports its
+    /// completion.
+    reset: Option<Reset>,
+    /// The owner, generation and purpose of the last IME output this composer wrote.
+    published: Option<OutputKey>,
+}
+
+/// An IME output's owner, context generation and purpose: what a reset request is bound to.
+type OutputKey = (Id, u64, IMEPurpose);
+
+/// Where a reset fence stands. While one exists the composer drops the input method's events.
+#[derive(Clone, Copy, Debug)]
+enum Reset {
+    /// Not yet requested: the next published output carries the request.
+    Wanted,
+    /// Requested with the output `context`; waits for `ImeResetCompleted` with this id.
+    Awaiting { id: ImeResetId, context: OutputKey },
+    /// egui could not allocate a request for `context`; the block stays.
+    Failed { context: OutputKey },
 }
 
 impl Default for Composer {
@@ -145,6 +166,9 @@ impl Default for Composer {
             on: false,
             owner: Id::unique("craft_ui::ime::Composer"),
             context: ImeContextTracker::new(),
+            committed: None,
+            reset: None,
+            published: None,
         }
     }
 }
@@ -167,6 +191,10 @@ impl Clone for Composer {
             on: self.on,
             owner: self.owner,
             context: ImeContextTracker::new(),
+            committed: self.committed.clone(),
+            // The clone is a new context: its own output carries the request.
+            reset: self.reset.map(|_| Reset::Wanted),
+            published: None,
         }
     }
 }
@@ -210,6 +238,11 @@ impl Composer {
         let pass = self.start_pass(ctx);
         if !editing || ctx.text_edit_focused() {
             self.on = false;
+            self.published = None;
+            // The request's output is gone; the block stays until a new request completes.
+            if self.reset.is_some() {
+                self.reset = Some(Reset::Wanted);
+            }
             self.context.observe(ctx.viewport_id(), None);
             if self.output_pass == Some((ctx.viewport_id(), pass)) {
                 if super::window::recording(ctx) {
@@ -237,8 +270,11 @@ impl Composer {
     }
 
     /// The caret in screen points (`ctx.layer_transform_to_global(layer) * rect` for a canvas
-    /// on a transformed layer), after this pass's edits moved it. Put it at the start of the
-    /// marked text, or of its active segment, so candidates don't cover what is being typed.
+    /// on a transformed layer), after this pass's edits moved it. An editor that writes the marked
+    /// text into its own text puts it at the end of the marked text, where the caret is (the
+    /// candidate window opens there, as in PhotoCraft); an editor that draws the marked text apart
+    /// puts it at the start of the marked text, or of its active segment, so candidates don't cover
+    /// what is being typed.
     ///
     /// Call it after [`Self::update`] in every pass that edits; until the first call the
     /// candidate window has no position.
@@ -288,12 +324,13 @@ impl Composer {
     /// byte range, which the published text leaves out. Call after [`Self::update`] in every pass
     /// that edits, before [`Self::set_caret`], which publishes it. An editor that never calls it
     /// publishes no surrounding text, as now.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-    // pc: crates/ui-egui/src/tools/type_tool/ime_edit.rs:86 `committed_text` (passed to
-    // `ImeObservation::committed` in `sync_ime`, :128); the fork bounds the copy
-    // (`MAX_IME_SURROUNDING_TEXT_BYTES`).
     pub fn set_committed(&mut self, text: &str, cursor: usize, anchor: usize, preedit: Option<Range<usize>>) {
-        todo!()
+        // Only the bounded window is copied. Offsets that don't fit the text, or a selection wider
+        // than the bound, leave the surrounding text unavailable.
+        self.committed = match IMESurroundingText::from_text(text, cursor, anchor, preedit) {
+            IMESurroundingText::Available(payload) => Some(payload),
+            IMESurroundingText::Unavailable => None,
+        };
     }
 
     /// Record that the editor applied an input method's commit or delete-surrounding: `before`
@@ -302,21 +339,17 @@ impl Composer {
     /// the change came from its own input and keeps its state; any other change of the text is
     /// [`Self::note_app_change`]. Only after the editor accepted the change; never for marked
     /// text. Returns whether the fork's tracker accepted the receipt.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-    // pc: crates/ui-egui/src/tools/type_tool/ime_edit.rs:110 `note_ime_apply`
-    // (`ImeContextTracker::note_input_method_apply`).
     pub fn note_commit(&mut self, ctx: &Context, before: egui::ime_context::ImeMutationStamp, after: egui::ime_context::ImeMutationStamp) -> bool {
-        todo!()
+        let viewport = ctx.viewport_id();
+        self.context.note_input_method_apply(viewport, ctx.cumulative_frame_nr_for(viewport), self.target(), before, after)
     }
 
     /// Record that the editor's text changed by something other than the input method (typing
     /// without a composition, paste, cut, delete, undo, a toolbar action), so the platform
     /// refreshes its surrounding text.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-    // pc: crates/ui-egui/src/tools/type_tool/ime_edit.rs:117 `note_ime_application_change`
-    // (`ImeContextTracker::note_application_change`).
     pub fn note_app_change(&mut self, ctx: &Context) -> bool {
-        todo!()
+        let viewport = ctx.viewport_id();
+        self.context.note_application_change(viewport, ctx.cumulative_frame_nr_for(viewport), self.target())
     }
 
     /// The text under a composition was replaced from outside the editor (undo, another view of
@@ -328,11 +361,48 @@ impl Composer {
     /// again when that output's owner, generation or purpose changed; a completion for an older
     /// request is ignored. When egui can't allocate a request the block stays: there is no
     /// timeout (the fork's rule: keep stale-input protection).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the body lands")]
-    // pc: crates/ui-egui/src/tools/type_tool/ime.rs:335 `allocate_reset`, :346 `prepare_reset`,
-    // :357 `complete_reset`, :326 `suspend_reset`, :408 `finish_reset_pass` (`ResetPhase`, :53).
     pub fn reset(&mut self, ctx: &Context) {
-        todo!()
+        self.start_pass(ctx);
+        let time = ctx.input(|i| i.time);
+        // With no composition and no fence there is nothing for the platform to cancel, and a
+        // host that never completes a request would block input for no reason.
+        if !self.is_composing() && self.reset.is_none() && !self.awaits_commit(time) {
+            return;
+        }
+        self.preedit.clear();
+        self.active = None;
+        self.guard = None;
+        self.kept = None;
+        self.last_commit = None;
+        self.interrupt = true;
+        self.interrupted = true;
+        // Any earlier id is retired: only the new request's completion opens the input again.
+        self.reset = Some(Reset::Wanted);
+        if self.on && self.output_pass == Some((ctx.viewport_id(), ctx.cumulative_pass_nr())) {
+            self.write_output(ctx);
+        }
+    }
+
+    fn target(&self) -> ImeTarget {
+        ImeTarget::new(self.owner, 0)
+    }
+
+    /// Makes the pending reset request for `context`, unless egui will discard this pass or the
+    /// same context already has one.
+    fn request_reset(&mut self, ctx: &Context, context: OutputKey) {
+        let Some(reset) = self.reset else { return };
+        if ctx.will_discard() {
+            return;
+        }
+        match reset {
+            Reset::Awaiting { context: old, .. } | Reset::Failed { context: old } if old == context => {}
+            _ => {
+                self.reset = Some(match ctx.request_ime_reset(ctx.viewport_id()) {
+                    Some(id) => Reset::Awaiting { id, context },
+                    None => Reset::Failed { context },
+                });
+            }
+        }
     }
 
     /// The state machine behind [`Self::update`], for apps that read events elsewhere and for
@@ -355,9 +425,21 @@ impl Composer {
         for event in events {
             let follows_enter = std::mem::take(&mut after_enter);
             let keep = match event {
+                // A stale composition can't write into the replaced text: its events are dropped
+                // until the platform has completed the reset.
+                Event::Ime(_) if self.reset.is_some() => false,
                 Event::Ime(ime) => {
                     self.ime(ime, time, follows_enter, &mut out.edits);
                     false
+                }
+                Event::ImeResetCompleted { request_id } => {
+                    if let Some(Reset::Awaiting { id, context }) = self.reset
+                        && id == *request_id
+                        && self.published == Some(context)
+                    {
+                        self.reset = None;
+                    }
+                    true
                 }
                 Event::Key { key, pressed, repeat, modifiers, .. } => {
                     self.modifiers = *modifiers;
@@ -572,13 +654,16 @@ impl Composer {
         let viewport = ctx.viewport_id();
         self.output_pass = Some((viewport, ctx.cumulative_pass_nr()));
         let rect = self.caret.unwrap_or(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1.0, 1.0)));
-        let observation =
-            ImeObservation::new(ctx.cumulative_frame_nr_for(viewport), ctx.cumulative_pass_nr_for(viewport), ImeTarget::new(self.owner, 0))
-                .purpose(self.purpose);
+        let observation = ImeObservation::new(ctx.cumulative_frame_nr_for(viewport), ctx.cumulative_pass_nr_for(viewport), self.target())
+            .purpose(self.purpose)
+            .committed(self.committed.as_ref().map(|c| CommittedText::new(&c.text, c.cursor, c.anchor)));
         // `None` only once egui's process-wide generation counter has run out.
         let Some(context) = self.context.observe(viewport, Some(observation)) else {
             return;
         };
+        let key = (context.owner, context.context_generation, context.purpose);
+        self.published = Some(key);
+        self.request_reset(ctx, key);
         let mut ime = IMEOutput::new(context.owner, context.context_generation, context.purpose, rect, rect);
         ime.should_interrupt_composition = interrupt;
         ime.change_cause = context.change_cause;

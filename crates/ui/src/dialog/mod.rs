@@ -35,9 +35,14 @@
 //! the popup family's. Each part has a pure `style` function, dumped under
 //! `crates/ui/tests/dumps/components/`.
 
+mod about;
+mod about_stories;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod about_tests;
 mod alert;
 mod blocking;
 mod buttons;
+mod color_request;
 mod command_form;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod command_form_tests;
@@ -52,6 +57,7 @@ pub mod export;
 mod fields;
 #[cfg(test)]
 mod fields_tests;
+mod files_stories;
 mod focus_scroll;
 mod footer;
 #[cfg(test)]
@@ -64,8 +70,16 @@ mod full_window;
 pub(crate) mod full_window_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod full_window_tests;
+mod guides;
+mod guides_stories;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod guides_tests;
 mod history;
 mod keys;
+mod list_manager;
+mod list_manager_stories;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod list_manager_tests;
 mod new_document;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod new_document_tests;
@@ -73,6 +87,10 @@ mod params;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod params_tests;
 pub mod pass;
+mod password;
+mod password_stories;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod password_tests;
 mod placement;
 #[cfg(test)]
 mod placement_tests;
@@ -111,9 +129,14 @@ mod unsaved;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod unsaved_tests;
 
+pub use about::{
+    AboutDialog, AboutInfo, AboutLabels, AboutLink, AboutTab, CommitShare, Contributor, ContributorSort, Credits, ModelCredit, NameMode,
+    commit_share, sorted_contributors,
+};
 pub use alert::Alert;
 pub use blocking::BlockingOverlay;
 pub use buttons::{ButtonRole, Clicked, FooterButton, FooterButtons, FooterButtonsResponse, Platform, order};
+pub use color_request::ColorRequest;
 pub use command_form::CommandForm;
 pub use dialog::focus_inside;
 pub use dialog::{Backdrop, Dialog, DialogResponse, InitialFocus, Outcome};
@@ -122,20 +145,27 @@ pub use fields::{DialogFields, FieldValue};
 pub use footer::{DialogLabels, Footer, FooterFx, Reset};
 pub use frame::{DialogFrame, DialogFrameResponse, DialogFrameStyle};
 pub use full_window::{FullWindowDialog, FullWindowFx};
+pub use guides::{
+    GUIDE_LAYOUT_COLOR_KEY, GuideAxis, GuideColor, GuideLayoutDialog, GuideLayoutError, GuideLayoutLines, GuideLayoutOptions, GuideLayoutPreset,
+    GuideLayoutResult, GuideLines, GuidePreview, GuideRect, GuideTarget, GuideUnits, GuidesLabels, NEW_GUIDE_COLOR_KEY, NewGuideDialog,
+    NewGuideOptions,
+};
 pub use history::{LocalHistory, Step, take_step};
 pub use keys::{EnterRule, KeyInput, resolve_keys};
+pub use list_manager::{ActionEnabled, ListManagerAction, ListManagerChoice, ListManagerDialog, ListManagerEntry, ListManagerLabels};
 pub use new_document::{
-    BackgroundContents, BitDepth, ColorMode, DocumentPreset, DocumentSettings, NewDocumentDialog, NewDocumentLabels, Orientation, PresetCategory,
-    push_recent, size_line,
+    BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, DocumentOptions, DocumentPreset, NewDocumentDialog, NewDocumentLabels,
+    Orientation, PresetCategory, push_recent, size_line,
 };
-pub use params::{Param, ParamDialog, ParamKind, ParamLayout, ParamResult};
+pub use params::{CustomRow, Param, ParamDialog, ParamKind, ParamLayout, ParamResult, PathKind, PathRequest};
 pub use pass::any_modal;
+pub use password::{PasswordAnswer, PasswordDialog, PasswordLabels, PasswordPurpose, PasswordStrength, Secret, password_strength};
 pub use placement::{PlaceKey, keep_on_screen, next_pin};
 pub use preview::Preview;
 pub use prompt::{Prompt, accelerator_labels};
 pub use prompts::{PromptAnswer, PromptChoice, PromptKind, PromptLabels, StandardPrompt};
 pub use properties::{PropertiesDialog, PropertiesTab, PropertyRow};
-pub use recovery::{RecoveredDocument, RecoveryAction, RecoveryDialog, RecoveryLabels, relative_age};
+pub use recovery::{RecoveredDocument, RecoveryAnswer, RecoveryDialog, RecoveryLabels};
 pub use report::{NoteTone, ReportDialog, ReportLabels, ReportNote};
 pub use size::{Body, Resize, ResizeMax, Width, remembered_size, scroll_height};
 pub use sizing::{

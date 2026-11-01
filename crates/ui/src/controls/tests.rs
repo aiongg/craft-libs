@@ -16,7 +16,7 @@ pub(super) fn theme(id: &str) -> ThemeDef {
 }
 
 pub(super) fn tokens_of(theme: &ThemeDef, mode: Mode) -> UiTokens {
-    let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let appearance = Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     UiTokens::new(resolve(theme, appearance, None).tokens, appearance, mode, FontFamilies::default())
 }
 
@@ -105,7 +105,7 @@ fn links_are_underlined_in_the_accent_colour_and_high_contrast_reads_accent_text
         let style = Link::style(&t);
         assert_eq!((style.color, style.stroke.color, style.stroke.width), (t.color.accent.solid.to_egui(), t.color.accent.solid.to_egui(), 1.0));
     }
-    let high = Appearance { mode: Mode::Dark, contrast: Contrast::High, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let high = Appearance { mode: Mode::Dark, contrast: Contrast::High, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     let t = UiTokens::new(resolve(&theme("craft.pro"), high, None).tokens, high, Mode::Dark, FontFamilies::default());
     assert_eq!(Link::style(&t).color, t.color.accent.text.to_egui());
 }
@@ -842,7 +842,7 @@ fn marks_and_the_badge_ring_read_on_the_control_surfaces() {
     for t in builtins() {
         for mode in [Mode::Light, Mode::Dark] {
             for (contrast, min) in [(Contrast::Standard, 3.0), (Contrast::High, 4.5)] {
-                let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+                let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
                 let tokens = UiTokens::new(resolve(t, appearance, None).tokens, appearance, mode, FontFamilies::default());
                 let c = &tokens.color;
                 let ring = IconButton::style(&tokens, ControlSize::Md).badge_edge;

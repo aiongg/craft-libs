@@ -9,7 +9,8 @@
 //!
 //! Stroke sets (Lucide, Tabler) are drawn with the suite's stroke width ([`IconSize::stroke`]),
 //! whatever the size; fill sets (Phosphor, Carbon) as drawn. [`Icon::directional`] icons mirror
-//! in a right-to-left interface ([`crate::direction`]).
+//! in a right-to-left interface ([`crate::direction`]). [`IconPen`] draws icons in code on the
+//! sets' 24-unit grid, for glyphs no set has.
 //!
 //! ```
 //! use craft_ui::icons::{self, Icon, IconSize};
@@ -20,6 +21,9 @@
 //! ```
 
 mod compare;
+pub mod pen;
+#[cfg(test)]
+mod pen_tests;
 mod raster;
 mod svg_set;
 #[cfg(test)]
@@ -37,6 +41,7 @@ use crate::direction;
 use crate::theme::{Tokens, TokensOf};
 
 pub use compare::stories;
+pub use pen::{IconPen, arc_points};
 #[allow(deprecated, reason = "re-export of the deprecated catalog")]
 pub use svg_set::{SvgIconSet, SvgStyle};
 pub use tools::ToolIcon;
@@ -93,14 +98,19 @@ pub fn paint(ui: &Ui, rect: Rect, icon: Icon, size: IconSize, color: Color32) {
 
 /// Draws `icon` from `set`, `points` wide with strokes `stroke` points wide, centred in `rect`.
 pub fn paint_in(ui: &Ui, rect: Rect, icon: Icon, set: IconSet, points: f32, stroke: f32, color: Color32) {
-    let ctx = ui.ctx();
+    paint_on(ui.painter(), rect, icon, set, points, stroke, color);
+}
+
+/// [`paint_in`] on a painter, for code that is handed one (a list row's glyph slot).
+pub fn paint_on(painter: &egui::Painter, rect: Rect, icon: Icon, set: IconSet, points: f32, stroke: f32, color: Color32) {
+    let ctx = painter.ctx();
     let ppp = ctx.pixels_per_point();
     let px = pixels(points, ppp);
     let texture = texture_in(ctx, icon, set, px, stroke * ppp);
     let side = px as f32 / ppp;
     let min = (rect.center() - vec2(side, side) / 2.0).round_to_pixels(ppp);
     let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-    ui.painter().image(texture, Rect::from_min_size(min, vec2(side, side)), uv, color);
+    painter.image(texture, Rect::from_min_size(min, vec2(side, side)), uv, color);
 }
 
 /// The texture of `icon` from the context's set at `px` × `px` pixels, with the standard stroke.

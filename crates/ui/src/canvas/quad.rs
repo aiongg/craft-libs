@@ -827,6 +827,17 @@ impl BoxState {
 pub struct Homography([f64; 9]);
 
 impl Homography {
+    /// The map with these rows of (x, y, w) coefficients, applied to (x, y, 1).
+    pub fn from_rows(rows: [[f64; 3]; 3]) -> Homography {
+        let [[a, b, c], [d, e, f], [g, h, i]] = rows;
+        Homography([a, b, c, d, e, f, g, h, i])
+    }
+
+    /// Row `i` (0 to 2) of the matrix: the coefficients of x, y and the constant.
+    pub fn row(&self, i: usize) -> [f64; 3] {
+        [self.0[i * 3], self.0[i * 3 + 1], self.0[i * 3 + 2]]
+    }
+
     /// The map taking (0, 0), (1, 0), (1, 1), (0, 1) to `q`'s corners; `None` for a degenerate
     /// box.
     pub fn unit_to_quad(q: [Point; 4]) -> Option<Homography> {

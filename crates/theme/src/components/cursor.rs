@@ -14,6 +14,9 @@ pub struct CursorTokens {
     pub crosshair_reach: f32,
     /// Empty space round the hotspot where the crosshair arms begin: `cursor.crosshair_gap`.
     pub crosshair_gap: f32,
+    /// Length of each arm of the painting tools' precise crosshair, which has no gap:
+    /// `cursor.precise_reach`.
+    pub precise_reach: f32,
     /// Half the side of a selection badge's glyph: `cursor.badge_half`.
     pub badge_half: f32,
     /// Distance of the badge from the hotspot, right and down, beside a painted crosshair:
@@ -57,6 +60,7 @@ impl Family for CursorTokens {
     const SIZES: &'static [SizeLeaf<Self>] = sizes! { CursorTokens;
         "crosshair_reach" 0.0..=64.0 => crosshair_reach;
         "crosshair_gap" 0.0..=64.0 => crosshair_gap;
+        "precise_reach" 0.0..=64.0 => precise_reach;
         "badge_half" 0.0..=1024.0 => badge_half;
         "badge_offset" 0.0..=64.0 => badge_offset;
         "badge_beside_x" 0.0..=1024.0 => badge_beside_x;
@@ -78,6 +82,7 @@ impl Family for CursorTokens {
         CursorTokens {
             crosshair_reach: values::CURSOR_CROSSHAIR_REACH,
             crosshair_gap: values::CURSOR_CROSSHAIR_GAP,
+            precise_reach: values::CURSOR_PRECISE_REACH,
             badge_half: values::CURSOR_BADGE_HALF,
             badge_offset: values::CURSOR_BADGE_OFFSET,
             badge_beside_x: values::CURSOR_BADGE_BESIDE.0,

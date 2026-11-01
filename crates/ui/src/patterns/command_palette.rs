@@ -12,7 +12,7 @@ use crate::localized::{Labels as _, Words};
 use crate::menu::row::{Columns, MenuStyle, RowContent, RowPainter, RowState};
 use crate::menu::{self, ItemKind, MenuEntry, MenuItem};
 use crate::primitives::{Content, Divider, Interactive, Surface, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Level, Story, StoryArgs};
+use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryLabels};
 use crate::theme::{ToEgui, UiTokens, current};
 use crate::typed_story;
 use craft_theme::{ControlSize, TypeRole};
@@ -448,14 +448,14 @@ fn item(label: &str, command: &'static str) -> MenuEntry<&'static str> {
 }
 
 /// PhotoCraft's palette: the menu commands, its tools, a disabled command and a recent list.
-fn entries() -> Vec<PaletteEntry<&'static str>> {
+fn entries(all: &str, words: &PatternStoryLabels) -> Vec<PaletteEntry<&'static str>> {
     use egui::{Key, KeyboardShortcut};
     let chord = |key| Kbd::new(&KeyboardShortcut::new(Modifiers::COMMAND, key));
     let menus = vec![
         MenuItem::submenu(
-            "Edit",
+            words.edit.as_str(),
             vec![
-                MenuItem::new("Search", "edit.search").shortcut(chord(Key::F)).into(),
+                MenuItem::new(words.search.as_str(), "edit.search").shortcut(chord(Key::F)).into(),
                 MenuItem::new("Redo", "edit.redo").enabled(false).shortcut(chord(Key::Y)).into(),
             ],
         ),
@@ -469,12 +469,13 @@ fn entries() -> Vec<PaletteEntry<&'static str>> {
                 .into(),
             ],
         ),
-        MenuItem::submenu("Select", vec![MenuItem::new("All", "select.all").shortcut(chord(Key::A)).into(), item("Deselect", "select.none")]),
+        MenuItem::submenu("Select", vec![MenuItem::new(all, "select.all").shortcut(chord(Key::A)).into(), item("Deselect", "select.none")]),
         MenuItem::submenu("Filter", vec![MenuItem::submenu("Blur", vec![item("Gaussian Blur…", "filter.gaussian")]).into()]),
     ];
     let mut entries = PaletteEntry::from_menu(&menus);
     entries.extend(
-        [("tool:brush", "Brush"), ("tool:eraser", "Eraser"), ("tool:move", "Move")].map(|(id, label)| PaletteEntry::new(id, label).kind("Tool")),
+        [("tool:brush", &words.brush), ("tool:eraser", &words.eraser), ("tool:move", &words.move_tool)]
+            .map(|(id, label)| PaletteEntry::new(id, label).kind("Tool")),
     );
     entries
 }
@@ -488,7 +489,7 @@ fn show_palette(ui: &mut Ui, args: &mut PaletteArgs) {
     let (mut recents, mut last): (Vec<&'static str>, Option<String>) = ctx
         .data(|d| d.get_temp(key))
         .unwrap_or_else(|| (if args.recents { vec!["image.levels", "tool:brush", "edit.search"] } else { Vec::new() }, None));
-    let entries = entries();
+    let entries = entries(&StoryLabels::of(ui).all, &PatternStoryLabels::of(ui));
     let mut open = true;
     if let Some(entry) = CommandPalette::new("story-palette", &entries).recents(&mut recents).show(&ctx, &mut open) {
         last = Some(entry.label().to_owned());

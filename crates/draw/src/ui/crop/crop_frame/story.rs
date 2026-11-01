@@ -161,7 +161,8 @@ fn frame_on_canvas(
     view: ViewArgs,
     configure: impl for<'a> FnOnce(CropFrame<'a>) -> CropFrame<'a>,
 ) -> (super::CropResponse, Kept, egui::Id) {
-    let canvas = document(ui, view, "Document");
+    let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+    let canvas = document(ui, view, &document_name);
     let key = ui.scope_id().with("crop-frame-story");
     let mut kept: Kept = ui.data(|d| d.get_temp(key)).unwrap_or(Kept { frame: CropBox::upright(START), before: None });
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
@@ -255,7 +256,8 @@ fn show_image_mode(ui: &mut Ui, args: &mut ImageModeArgs) {
     let shield = CropShield::default().fill(canvas_colour, false);
     let key = ui.scope_id().with("crop-frame-image-story");
     let saved: Option<ImageKept> = ui.data(|d| d.get_temp(key));
-    let canvas = document_with(ui, ViewArgs::default(), "Document", 0.0, |rect, ppp| {
+    let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+    let canvas = document_with(ui, ViewArgs::default(), &document_name, 0.0, |rect, ppp| {
         let base = saved.map_or_else(|| CanvasView::new(rect, DOC.center(), 1.0 / ppp), |s| s.view);
         CanvasView { rect, ..base }
     });

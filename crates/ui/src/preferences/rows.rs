@@ -3,7 +3,7 @@
 
 use std::ops::RangeInclusive;
 
-use craft_theme::Rgba;
+use craft_theme::{Rgba, Srgba};
 use egui::{Align, Context, Id, Layout, Ui, UiBuilder, vec2};
 
 use super::body::PreferencesBody;
@@ -11,6 +11,7 @@ use super::model::{PrefValue, RowKind, RowSpec};
 use super::model_trait::PreferencesModel;
 use crate::composites::{Field, LabelAlign};
 use crate::controls::{Checkbox, NumberField, Select, Swatch, TextField};
+use crate::dialog::ColorRequest;
 use crate::direction;
 use crate::edit::EditEvent;
 use crate::localized::{LocaleNumbers, Unit};
@@ -67,7 +68,7 @@ pub(super) struct RowsOut {
     /// A row was edited.
     pub edited: bool,
     /// A colour swatch was pressed.
-    pub pick_color: Option<String>,
+    pub pick_color: Option<ColorRequest>,
 }
 
 /// The value to hand the host for `event`. A gesture's start is kept so that a cancelled gesture
@@ -216,7 +217,7 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(
                 .inner
             });
             if pressed {
-                out.pick_color = Some(key.to_owned());
+                out.pick_color = Some(ColorRequest::new(key, Srgba::from(*color)).title(row.label.as_str()));
             }
             // Text that is not a colour yet stays in the field while it has the focus.
             new_value = match forward(&ctx, edit_id, event, PrefValue::Color(*color), PrefValue::Text) {

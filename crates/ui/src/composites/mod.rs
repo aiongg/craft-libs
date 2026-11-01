@@ -74,6 +74,7 @@ pub mod live;
 pub(crate) mod measure;
 pub(crate) mod notice;
 pub(crate) mod notice_center;
+pub(crate) mod notice_center_stories;
 #[cfg(test)]
 mod notice_center_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -94,11 +95,13 @@ pub(crate) mod section_label;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod section_label_tests;
 mod settings_notice;
+mod settings_notice_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod settings_notice_tests;
 pub(crate) mod slider_row;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod slider_row_tests;
+pub mod status;
 pub(crate) mod toast;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod toast_tests;
@@ -112,12 +115,13 @@ pub use form_grid::{Form, FormGrid, FormStyle, LabelAlign};
 pub use group_box::{GroupBox, GroupBoxStyle};
 pub use histogram::{BinCount, ChannelColor, Histogram, HistogramData, HistogramLook, HistogramResponse, HistogramScale, HistogramStyle};
 pub use notice::{Notice, NoticeStyle};
-pub use notice_center::{NoticeCenter, NoticeCenterLabels, NoticeEnd, PostedNotice};
-pub use panel_footer::{PanelFooter, PanelFooterStyle};
+pub use notice_center::{NoticeCenter, NoticeCenterLabels, NoticeEnd, NoticePost, PostedNotice};
+pub use panel_footer::{FooterAction, PanelFooter, PanelFooterStyle};
 pub use panel_header::{PanelHeader, PanelHeaderResponse, PanelHeaderStyle};
 pub use property_row::{LabelKind, PropertyGroup, PropertyLabel, PropertyPair, PropertyRow, PropertyStyle, RowLabel};
 pub use section_header::{SectionHeader, SectionStyle};
 pub use section_label::{SectionLabel, SectionLabelStyle};
-pub use settings_notice::{SAVE_NOTICE_AFTER, SettingsNoticeLabels, SettingsNotices, StatusLine};
+pub use settings_notice::{SAVE_NOTICE_AFTER, SettingsNoticeLabels, SettingsNotices};
 pub use slider_row::{SliderRow, SliderRowResponse, SliderRowStyle};
+pub use status::StatusLine;
 pub use toast::{Toast, ToastEnd, ToastStack, ToastStyle};

@@ -15,13 +15,15 @@ use egui::{
     StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
+use super::common_stories::ControlStoryLabels;
 use super::{RangeSlider, Swatch, field_wheel, gradient_track};
 use crate::composites::Form;
 use crate::edit::ops::{self, Bound, ScalarOp};
 use crate::edit::order::{self, Turn};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, EditResponse, Gesture, GestureHost, GestureId, PolicyArgs, UndoMarks};
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Gap, Interactive, Stack, StateLayer, Surface, SurfaceEdge, SurfaceKind, SurfaceStyle, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, variant_list};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, variant_list};
 use crate::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format, scale};
 use crate::typed_story;
 
@@ -164,6 +166,7 @@ pub struct Slider {
     mark_labels: Vec<(f64, String)>,
     thumb: SliderThumb,
     ticks: usize,
+    value_text: Option<String>,
 }
 
 impl Slider {
@@ -195,6 +198,7 @@ impl Slider {
             mark_labels: Vec::new(),
             thumb: SliderThumb::Round,
             ticks: 0,
+            value_text: None,
         }
     }
 
@@ -257,6 +261,14 @@ impl Slider {
     /// Non-finite or non-positive steps are ignored.
     pub fn wheel_step(mut self, step: f64) -> Self {
         self.wheel_step = Some(step).filter(|s| s.is_finite() && *s > 0.0);
+        self
+    }
+
+    /// The value a screen reader reads after the label ("40 %"), in the words and numbers of the
+    /// user's locale, instead of the bare number. The numeric value, bounds and step are still
+    /// reported, so increment, decrement and set-value requests work as without it.
+    pub fn value_text(mut self, text: impl Into<String>) -> Self {
+        self.value_text = Some(text.into());
         self
     }
 
@@ -341,11 +353,12 @@ impl Slider {
         let labels = self.laid_out_labels(ui, &tokens);
         let label_height = labels.iter().map(|(_, galley)| galley.size().y).fold(0.0, f32::max);
         let below = if labels.is_empty() { 0.0 } else { label_height + 2.0 * style.mark };
-        let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
-            .sense(Sense::drag())
-            .enabled(self.enabled)
-            .state_layer(false)
-            .interact(ui, vec2(self.width.unwrap_or(style.width), style.height + below));
+        let mut element =
+            Interactive::salted(self.id_salt, Role::Slider, self.label.as_str()).sense(Sense::drag()).enabled(self.enabled).state_layer(false);
+        if let Some(text) = &self.value_text {
+            element = element.value(text.as_str());
+        }
+        let sensed = element.interact(ui, vec2(self.width.unwrap_or(style.width), style.height + below));
         let response = sensed.response().clone();
         let track = Track::new(Rect::from_min_size(response.rect.min, vec2(response.rect.width(), style.height)), &style, scale);
         let track = if self.track_colors.is_some() { track.with_height(style.gradient_height) } else { track };
@@ -1193,10 +1206,14 @@ fn slider_row_with(
 /// Sliders at the minimum, the middle and the maximum.
 fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
     let look = Look::of(args.size, args.disabled);
+    let words = StoryLabels::of(ui);
+    let story = ControlStoryLabels::of(ui);
     with_values(ui, "slider-values", [0.0, 50.0, 100.0, 25.0, 100.0, 50.0, 30.0], |ui, values| {
         variant_list(ui, "slider-values", |form| {
             let (minimum_to_maximum, shaped) = values.split_at_mut(3);
-            for (i, (label, value)) in ["Minimum", "Middle", "Maximum"].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate() {
+            for (i, (label, value)) in
+                [story.minimum.as_str(), words.middle.as_str(), words.maximum.as_str()].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate()
+            {
                 let (default, wheel, fill) = (args.default_value, args.wheel_unfocused, !args.unfilled);
                 slider_row_with(form, look, &format!("slider-values-{i}"), label, value, None, |slider| {
                     let slider = slider.wheel_unfocused(wheel).fill(fill);
@@ -1213,8 +1230,8 @@ fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
                 let slider = Slider::new("slider-log", "Log", *log, 1.0..=1000.0).scale(SliderScale::Log);
                 store(&slider.size(size).enabled(enabled).show(ui), log)
             });
-            labelled(form, "Marks", &format!("{marked:.1}"), |ui| {
-                let slider = Slider::new("slider-marks", "Marks", *marked, 0.0..=100.0).marks(&[0.0, 25.0, 50.0, 100.0]);
+            labelled(form, &story.marks, &format!("{marked:.1}"), |ui| {
+                let slider = Slider::new("slider-marks", &story.marks, *marked, 0.0..=100.0).marks(&[0.0, 25.0, 50.0, 100.0]);
                 store(&slider.size(size).enabled(enabled).show(ui), marked)
             });
             labelled(form, "Triangle, ticks", &format!("{triangle:.1}"), |ui| {
@@ -1253,11 +1270,12 @@ fn show_disabled(ui: &mut Ui, args: &mut SliderArgs) {
 /// around the slider and its value.
 fn show_right_to_left(ui: &mut Ui, args: &mut SliderArgs) {
     let look = Look::of(args.size, args.disabled);
+    let words = StoryLabels::of(ui);
     with_values(ui, "slider-rtl", [25.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let note = "With the direction set to right to left the label moves to the right. The slider keeps its geometry: the value grows to the right and the arrow keys act as they are.";
             ui.add(Text::new(note).content(Content::Muted));
-            variant_list(ui, "slider-rtl", |form| slider_row(form, look, "slider-rtl", "Opacity", &mut values[0], Some(1.0)));
+            variant_list(ui, "slider-rtl", |form| slider_row(form, look, "slider-rtl", &words.opacity, &mut values[0], Some(1.0)));
         });
     });
 }
@@ -1354,6 +1372,7 @@ impl LogState {
 /// Cmd/Ctrl+Z undoes a step, or cancels the gesture under way (it works during a drag).
 fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
     let policy = edit::policy(args);
+    let story = ControlStoryLabels::of(ui);
     let state_id = ui.scope_id().with("slider-event-log");
     let mut state = ui.data(|d| d.get_temp::<LogState>(state_id)).unwrap_or_default();
     if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
@@ -1368,7 +1387,7 @@ fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
                 edit.response
             });
             let range = state.doc.range;
-            labelled(form, "Range", &format!("{:.0} to {:.0}", range.0, range.1), |ui| {
+            labelled(form, &story.range, &format!("{:.0} to {:.0}", range.0, range.1), |ui| {
                 let edit = RangeSlider::new("slider-log-range", ("Range from", "Range to"), range, 0.0..=100.0).step(1.0).policy(policy).show(ui);
                 state.handle(ui, "range slider", edit.event, |doc, value| doc.edit(|d| d.range = value));
                 edit.response

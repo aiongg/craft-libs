@@ -29,21 +29,18 @@
 
 #[cfg(feature = "bidi")]
 pub mod bidi;
-#[cfg(feature = "find")]
 pub mod find;
-#[cfg(all(test, feature = "find"))]
+#[cfg(test)]
 mod find_tests;
 #[cfg(feature = "hyphen")]
 pub mod hyphen;
 #[cfg(feature = "linebreak")]
 pub mod linebreak;
-#[cfg(feature = "lists")]
 pub mod lists;
-#[cfg(all(test, feature = "lists"))]
+#[cfg(test)]
 mod lists_tests;
-#[cfg(feature = "quotes")]
 pub mod quotes;
-#[cfg(all(test, feature = "quotes"))]
+#[cfg(test)]
 mod quotes_tests;
 #[cfg(feature = "segment")]
 pub mod segment;
@@ -51,9 +48,8 @@ pub mod segment;
 pub mod spell;
 #[cfg(all(test, feature = "spell"))]
 mod spell_tests;
-#[cfg(feature = "styles")]
 pub mod styles;
-#[cfg(all(test, feature = "styles"))]
+#[cfg(test)]
 mod styles_tests;
 #[cfg(feature = "ui")]
 pub mod ui;

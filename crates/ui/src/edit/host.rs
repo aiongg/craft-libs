@@ -39,8 +39,9 @@ pub trait UndoMarks {
 ///   edits into one undo step ([`UndoMarks::squash_since`]); an unchanged commit reverts to the
 ///   mark instead, leaving no step.
 /// - `Cancel` reverts to the mark. A cancel for an [external](CancelReason::External) change
-///   leaves the document as it is, the gesture's steps included: reverting would also take
-///   back the change.
+///   leaves the document as it is, the gesture's steps included (reverting would also take
+///   back the change), and folds them into one undo step ([`UndoMarks::squash_since`]) so
+///   later edits do not join them.
 /// - `Set` applies the value: one undo step.
 /// - A `Begin` or `Set` while another gesture is under way first ends that gesture as its
 ///   control recorded ([`Ending`]): a typing run is kept as one step, a drag is reverted. A
@@ -155,10 +156,12 @@ impl<U: UndoMarks> GestureHost<U> {
                 None => {}
             },
             EditEvent::Cancel { id, reason } => {
-                if let Some(a) = self.take(id)
-                    && reason != CancelReason::External
-                {
-                    doc.revert_to(a.mark);
+                if let Some(a) = self.take(id) {
+                    if reason == CancelReason::External {
+                        doc.squash_since(a.mark);
+                    } else {
+                        doc.revert_to(a.mark);
+                    }
                 }
             }
         }

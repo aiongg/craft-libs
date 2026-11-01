@@ -201,7 +201,7 @@ impl UnitContext {
 }
 
 /// A number in a length unit.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Length {
     pub value: f64,
     pub unit: LengthUnit,

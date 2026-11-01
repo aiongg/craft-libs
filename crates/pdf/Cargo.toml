@@ -26,8 +26,10 @@ hayro = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 krilla = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
+serde = { workspace = true }
 
 [dev-dependencies]
+serde_json = { workspace = true }
 hayro-syntax = "=0.7.2"
 hayro-interpret = { version = "=0.7.0", default-features = false }
 hayro-cmap = "=0.1.0"

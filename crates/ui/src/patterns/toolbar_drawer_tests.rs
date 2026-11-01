@@ -65,13 +65,13 @@ impl App {
     }
 
     fn frame(&mut self, ui: &mut Ui) {
-        let out = ToolRail::new("tools").edit_toolbar("Edit Toolbar…").show(ui, &self.slots, &"move", &mut self.last, |_, _| {});
+        let out = ToolRail::new("tools").edit_toolbar("Edit Toolbar…").editing(self.open).show(ui, &self.slots, &"move", &mut self.last, |_, _| {});
         egui::CentralPanel::default().show(ui, |ui| ui.label("Document"));
         if out.edit_toolbar {
             self.open = !self.open;
         }
         if self.open {
-            let result: ToolbarDrawerOutput<Tool> = ToolbarDrawer::new("edit").show(ui, out.rect, &self.groups, &self.slots);
+            let result: ToolbarDrawerOutput<Tool> = ToolbarDrawer::new("edit").rail("tools").show(ui, out.rect, &self.groups, &self.slots);
             for edit in result.edits {
                 self.slots = apply_toolbar_edit(&self.slots, &edit, &defaults());
                 self.edits.push(edit);

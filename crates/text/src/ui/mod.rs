@@ -57,3 +57,16 @@ mod style_panel_tests;
 pub mod tabs_dialog;
 #[cfg(test)]
 mod tabs_dialog_tests;
+
+pub use stories::stories;
+
+/// The count words of the text interface (none yet), for the facade's catalog extraction.
+pub const COUNTS: &[craft_ui::localized::words::Counted] = &[];
+
+/// Every labels table of the text interface, for the facade's catalog extraction.
+pub const WORDS: &[&[craft_ui::localized::Word]] = &[
+    <character::CharacterLabels as craft_ui::localized::Labels>::WORDS,
+    <character::ParagraphLabels as craft_ui::localized::Labels>::WORDS,
+    <style_panel::TextStylesLabels as craft_ui::localized::Labels>::WORDS,
+    <spelling::CheckSpellingLabels as craft_ui::localized::Labels>::WORDS,
+];

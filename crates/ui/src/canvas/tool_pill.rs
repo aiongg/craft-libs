@@ -89,8 +89,7 @@ impl ToolPill {
         let tokens = Tokens::of(ui);
         let rail = &tokens.component.rail;
         let (side, gap, pad) = (rail.button, rail.gap, rail.pad_y);
-        // Clear of the canvas's scroll bars along its edges.
-        let inset = tokens.component.scroll.canvas_width + pad;
+        let inset = tokens.component.tool_pill.inset;
         let visible = visible_slots(slots, &[]);
         let count = visible.len() as f32;
         let natural = count * side + (count - 1.0).max(0.0) * gap + 2.0 * pad;

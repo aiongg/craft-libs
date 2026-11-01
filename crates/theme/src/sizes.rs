@@ -67,6 +67,16 @@ pub struct ComponentSizes {
     pub toast_pad: f32,
     /// `toast.inset`: from the host's reading-end and bottom edges to the stack.
     pub toast_inset: [f32; 2],
+    /// `channels.thumb`: side of a Channels row's thumbnail when the app sets none.
+    pub channels_thumb: f32,
+    /// `tile.gap`: between media tiles.
+    pub tile_gap: f32,
+    /// `tile.inset`: from the grid's edge to its first tile.
+    pub tile_inset: f32,
+    /// `tile.group_header`: height of a tile group's header.
+    pub tile_group_header: f32,
+    /// `tile.caption_gap`: between a tile's picture and its caption.
+    pub tile_caption_gap: f32,
 }
 
 /// A size set: what a [`Size`] choice stands for.
@@ -179,6 +189,13 @@ pub(crate) fn leaves<'a>(b: &'a mut Preset, c: &'a mut ComponentSizes) -> Vec<Le
         "base.size.preset.cell_radius" Num 0.0..=32.0 => s.preset.cell_radius;
         "base.size.preset.caption_gap" Num 0.0..=16.0 => s.preset.caption_gap;
         "base.size.preset.slider_width" Num 48.0..=240.0 => s.preset.slider_width;
+        "base.size.preset.picker_square" Num 8.0..=256.0 => s.preset.picker_square;
+        "base.size.preset.picker_cell" Num 8.0..=256.0 => s.preset.picker_cell;
+        "base.size.preset.picker_wide_width" Num 8.0..=256.0 => s.preset.picker_wide_width;
+        "base.size.preset.picker_wide_height" Num 8.0..=256.0 => s.preset.picker_wide_height;
+        "base.size.preset.name_width" Num 48.0..=480.0 => s.preset.name_width;
+        "base.size.preset.popup_max_height" Num 120.0..=1024.0 => s.preset.popup_max_height;
+        "base.size.preset.footer_room" Num 0.0..=32.0 => s.preset.footer_room;
     }
     let sp = &mut b.space;
     leaves! { out;
@@ -249,6 +266,11 @@ pub(crate) fn leaves<'a>(b: &'a mut Preset, c: &'a mut ComponentSizes) -> Vec<Le
         "components.toolbar.overflow" Num 16.0..=64.0 => c.toolbar_overflow;
         "components.toast.pad" Num 0.0..=32.0 => c.toast_pad;
         "components.toast.inset" Pair 0.0..=64.0 => c.toast_inset;
+        "components.channels.thumb" Num 12.0..=96.0 => c.channels_thumb;
+        "components.tile.gap" Num 0.0..=32.0 => c.tile_gap;
+        "components.tile.inset" Num 0.0..=32.0 => c.tile_inset;
+        "components.tile.group_header" Num 16.0..=96.0 => c.tile_group_header;
+        "components.tile.caption_gap" Num 0.0..=16.0 => c.tile_caption_gap;
     }
     out
 }

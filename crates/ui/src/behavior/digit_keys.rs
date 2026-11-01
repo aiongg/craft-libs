@@ -6,6 +6,8 @@
 
 use egui::{Context, Event, Key};
 
+use crate::focus::key_owner::{canvas_keys_free, claimed_presses};
+
 /// A number key entry: the percentage and whether Shift was held.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DigitEntry {
@@ -20,7 +22,7 @@ pub struct DigitEntry {
 /// ```no_run
 /// use craft_ui::behavior::DigitKeys;
 /// # fn demo(ctx: &egui::Context, keys: &mut DigitKeys, painting_tool: bool) {
-/// if let Some(entry) = keys.handle(ctx, painting_tool) {
+/// if let Some(entry) = keys.read(ctx, painting_tool) {
 ///     // set the brush opacity (entry.shift: flow) to entry.percent
 /// }
 /// # }
@@ -56,29 +58,37 @@ impl DigitKeys {
     /// when `enabled` (a tool with an opacity is current) and no widget has keyboard focus,
     /// consuming them. Returns the last entry of the pass.
     // pc: crates/ui-egui/src/input/opacity_keys.rs:61 `handle`, :44 `digit`.
-    pub fn handle(&mut self, ctx: &Context, enabled: bool) -> Option<DigitEntry> {
-        if !enabled || ctx.memory(|m| m.focused().is_some()) {
+    pub fn read(&mut self, ctx: &Context, enabled: bool) -> Option<DigitEntry> {
+        if !enabled || !canvas_keys_free(ctx) {
             return None;
         }
+        let claimed = claimed_presses(ctx);
         let presses: Vec<(u8, bool)> = ctx.input_mut(|i| {
             let mut out = Vec::new();
-            i.events.retain(|e| match e {
-                // The physical key, so Shift+digit is still a digit whatever symbol the layout
-                // puts there.
-                Event::Key { key, physical_key, pressed: true, repeat, modifiers } if !modifiers.command && !modifiers.ctrl && !modifiers.alt => {
-                    match physical_key.and_then(digit).or_else(|| digit(*key)) {
-                        Some(d) => {
-                            // A held key's auto-repeat is one digit, not a second one typed
-                            // quickly; it is consumed all the same.
-                            if !repeat {
-                                out.push((d, modifiers.shift));
+            let mut at = 0;
+            i.events.retain(|e| {
+                at += 1;
+                let claimed = claimed.get(at - 1).copied().unwrap_or(false);
+                match e {
+                    // The physical key, so Shift+digit is still a digit whatever symbol the layout
+                    // puts there.
+                    Event::Key { key, physical_key, pressed: true, repeat, modifiers }
+                        if !modifiers.command && !modifiers.ctrl && !modifiers.alt && !claimed =>
+                    {
+                        match physical_key.and_then(digit).or_else(|| digit(*key)) {
+                            Some(d) => {
+                                // A held key's auto-repeat is one digit, not a second one typed
+                                // quickly; it is consumed all the same.
+                                if !repeat {
+                                    out.push((d, modifiers.shift));
+                                }
+                                false
                             }
-                            false
+                            None => true,
                         }
-                        None => true,
                     }
+                    _ => true,
                 }
-                _ => true,
             });
             out
         });

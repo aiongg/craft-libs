@@ -6,13 +6,18 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
 use super::*;
+use crate::composites::FooterAction;
+use crate::icons::Icon;
+use crate::menu::{MenuEntry, MenuItem};
 use crate::theme::{Base, install};
 
 struct Host {
     rows: Vec<PresetRow<u32>>,
     state: PresetState<u32>,
     events: Vec<PresetEvent<u32>>,
-    footer: Vec<FooterEvent>,
+    footer: Vec<PresetFooterEvent<u32>>,
+    context_menu: bool,
+    action_enabled: bool,
     time: f64,
 }
 
@@ -26,16 +31,26 @@ fn library() -> Vec<PresetRow<u32>> {
 }
 
 fn show(ui: &mut Ui, host: &mut Host) {
-    let Host { rows, state, events, footer, .. } = host;
-    let out = PresetBrowser::new("presets", "Presets", state, rows).toolbar(true).show(ui, |painter, rect, _| {
-        painter.rect_filled(rect, 0.0, egui::Color32::RED);
-    });
+    let Host { rows, state, events, footer, context_menu, action_enabled, .. } = host;
+    let out = PresetBrowser::new("presets", "Presets", state, rows)
+        .toolbar(true)
+        .context_menu(*context_menu)
+        .extra_items([MenuEntry::from(MenuItem::new("Apply to Canvas", "apply".to_owned()))])
+        .show(ui, |painter, rect, _| {
+            painter.rect_filled(rect, 0.0, egui::Color32::RED);
+        });
     events.extend(out.events);
-    footer.extend(PresetFooter::new(state, &PresetLabels::default()).count(4).show(ui));
+    footer.extend(
+        PresetFooter::new("footer", state)
+            .labels(&PresetLabels::default())
+            .count(4)
+            .action(FooterAction::new("apply", Icon::Check, "Apply to Canvas").enabled(*action_enabled))
+            .show(ui),
+    );
 }
 
 fn harness(rows: Vec<PresetRow<u32>>) -> Harness<'static, Host> {
-    let host = Host { rows, state: PresetState::new(), events: Vec::new(), footer: Vec::new(), time: 0.0 };
+    let host = Host { rows, state: PresetState::new(), events: Vec::new(), footer: Vec::new(), context_menu: true, action_enabled: true, time: 0.0 };
     let mut harness = Harness::<Host>::builder()
         .with_size([320.0, 360.0])
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
@@ -113,6 +128,28 @@ fn the_context_menu_deletes_and_moves_a_preset() {
 }
 
 #[test]
+fn a_host_row_reports_menu_with_its_command_and_the_target() {
+    let mut h = harness(library());
+    let at = cell(&h, "Brush 2");
+    click_with(&mut h, at, PointerButton::Secondary);
+    let pos = menu_item(&h, "Apply to Canvas");
+    click(&mut h, pos);
+    assert_eq!(take(&mut h), vec![PresetEvent::Menu { target: 2, command: "apply".to_owned() }]);
+}
+
+#[test]
+fn a_browser_with_the_context_menu_off_opens_none() {
+    let mut h = harness(library());
+    h.state_mut().context_menu = false;
+    let at = cell(&h, "Brush 2");
+    click_with(&mut h, at, PointerButton::Secondary);
+    frame(&mut h, vec![]);
+    assert!(h.query_all_by_role(Role::MenuItem).next().is_none(), "no menu opened");
+    frame(&mut h, vec![Event::Key { key: Key::F10, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::SHIFT }]);
+    assert!(h.query_all_by_role(Role::MenuItem).next().is_none(), "Shift+F10 opens none either");
+}
+
+#[test]
 fn rename_from_the_menu_commits_with_enter() {
     let mut h = harness(library());
     let at = cell(&h, "Brush 2");
@@ -167,9 +204,23 @@ fn the_search_field_filters_and_the_view_buttons_switch_the_view() {
 fn footer_buttons_report_and_the_empty_library_says_so() {
     let mut h = harness(Vec::new());
     assert!(present(&h, "No presets"));
-    for (label, event) in [("New", FooterEvent::New), ("New Group", FooterEvent::NewGroup), ("Delete", FooterEvent::Delete)] {
+    for (label, event) in [("New", PresetFooterEvent::New), ("New Group", PresetFooterEvent::NewGroup), ("Delete", PresetFooterEvent::Delete)] {
         let pos = center(&h, label);
         click(&mut h, pos);
         assert_eq!(std::mem::take(&mut h.state_mut().footer), vec![event], "{label}");
     }
+}
+
+#[test]
+fn a_host_footer_action_reports_its_id_unless_it_is_disabled() {
+    let mut h = harness(library());
+    let pos = h.get_by_label("Apply to Canvas").rect().center();
+    click(&mut h, pos);
+    assert_eq!(std::mem::take(&mut h.state_mut().footer), vec![PresetFooterEvent::Custom("apply")]);
+
+    h.state_mut().action_enabled = false;
+    h.run();
+    let pos = h.get_by_label("Apply to Canvas").rect().center();
+    click(&mut h, pos);
+    assert!(h.state().footer.is_empty(), "a disabled action takes no click: {:?}", h.state().footer);
 }

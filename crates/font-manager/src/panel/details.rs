@@ -12,7 +12,7 @@ use egui::{
 
 use crate::index::{Family, FontFile, Index, script_name, source_label};
 use crate::panel::app::{Detail, FontsPanel, Pending, category_label, family_key, regular, source_name, style_count, style_name};
-use crate::panel::faces::Owner;
+use crate::panel::faces::{FaceFonts, Owner};
 use crate::panel::i18n::{self, fmt, tl, tn};
 use crate::panel::jobs::Kind;
 use crate::panel::widgets::{self, Glyph, Skin};
@@ -139,7 +139,7 @@ impl FontsPanel {
                 Owner::Installed => Arc::clone(&self.catalog),
                 Owner::Preview => Arc::clone(&self.previews),
             };
-            if let crate::panel::faces::Shown::Ready(family) = self.faces.family(ui.ctx(), &catalog, owner, &face) {
+            if let crate::panel::faces::Shown::Ready(family) = FaceFonts::shared(ui.ctx()).family(ui.ctx(), &catalog, owner, &face) {
                 let top = ui.cursor().top();
                 let end = direction::end_x(ui, ui.max_rect()) - direction::forward(ui) * (s.h() + 24.0);
                 let anchor = if direction::is_rtl(ui) { egui::Align2::LEFT_TOP } else { egui::Align2::RIGHT_TOP };
@@ -469,7 +469,7 @@ impl FontsPanel {
                     Owner::Installed => Arc::clone(&self.catalog),
                     Owner::Preview => Arc::clone(&self.previews),
                 };
-                match self.faces.family(ui.ctx(), &catalog, *owner, face) {
+                match FaceFonts::shared(ui.ctx()).family(ui.ctx(), &catalog, *owner, face) {
                     crate::panel::faces::Shown::Ready(family) => (family, s.p.ink),
                     crate::panel::faces::Shown::Loading => {
                         ui.allocate_space(vec2(width, size * 1.3));

@@ -197,6 +197,27 @@ mod tests {
         i18n.file_size(Lang::EN, bytes, style)
     }
 
+    // EffectCraft's three size texts are FileSize styles: Home `12 KB`/`3.4 MB` (BINARY,
+    // byte_symbol, whole kilobytes), Settings `12.3 MB` (DECIMAL), Project `512 KB` rounded up
+    // with two decimals in GB (BINARY, smallest Kilo, unit_decimals Giga 2); DeckCraft's backstage
+    // `512 bytes`, `1.2 MB` (BINARY, largest Mega).
+    #[test]
+    fn the_apps_size_texts_are_styles() {
+        let home = FileSize::BINARY.byte_symbol().unit_decimals(SizeUnit::Kilo, 0);
+        assert_eq!(en(12 * 1024, home), "12 KB");
+        assert_eq!(en(3_565_158, home), "3.4 MB");
+        assert_eq!(en(512, home), "512 B");
+        assert_eq!(en(12_300_000, FileSize::DECIMAL), "12.3 MB");
+        let project = FileSize::BINARY.smallest(SizeUnit::Kilo).unit_decimals(SizeUnit::Kilo, 0).unit_decimals(SizeUnit::Giga, 2);
+        assert_eq!(en(512 * 1024, project), "512 KB");
+        assert_eq!(en(100, project), "1 KB");
+        assert_eq!(en(3 << 29, project), "1.50 GB");
+        let backstage = FileSize::BINARY.largest(SizeUnit::Mega);
+        assert_eq!(en(512, backstage), "512 bytes");
+        assert_eq!(en(1_258_291, backstage), "1.2 MB");
+        assert_eq!(en(5 << 30, backstage), "5,120.0 MB");
+    }
+
     #[test]
     fn binary_decimal_and_iec_steps() {
         assert_eq!(en(512, FileSize::BINARY), "512 bytes");

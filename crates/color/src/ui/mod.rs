@@ -107,7 +107,7 @@ pub use strip::ColorStrip;
 pub use wheel::{ColorWheel, ColorWheelResponse, ColorWheelStyle, WheelGeometry, WheelPart};
 
 pub use choice::{ChosenColor, ColorChoice, ColorChoiceLabels, ColorChoiceResponse, NamedColor};
-pub use droppers::{DropperButton, DropperKind, DropperResponse, DropperState, DropperTool};
+pub use droppers::{DropperButton, DropperButtonResponse, DropperKind, DropperState, DropperTool};
 pub use eyedropper::{
     EyedropperLabels, EyedropperOptions, EyedropperOptionsBar, EyedropperPick, EyedropperTool, SampleSize, SampleSource, SamplingRingStyle,
     eyedropper_ring,
@@ -115,22 +115,22 @@ pub use eyedropper::{
 pub use harmony::{
     HARMONY_WORDS, HarmonyLabels, HarmonyMenuAction, HarmonyPanel, HarmonyPanelResponse, HarmonyPanelState, HarmonyWheel, HarmonyWheelResponse,
 };
-pub use lut_picker::{LUT_WORDS, LutChoice, LutLabels, LutPicker, LutPickerResponse};
+pub use lut_picker::{LUT_WORDS, LutChoice, LutPicker, LutPickerLabels, LutPickerResponse};
 pub use paint_chip::{GradientPreview, Paint, PaintChip, PaintLabels, PaintList, PaintListResponse};
 pub use panel::{ColorPanel, ColorPanelLabels, ColorPanelMode, ColorPanelRamp, ColorPanelResponse, ColorPanelState, PanelTarget};
 pub use picker_dialog::{ColorPickerDialog, ColorPickerLabels, ColorPickerMemory, ColorPickerResult};
 pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileLabels, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus};
 pub use samplers::{
-    ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SAMPLER_HIT, SamplerError, SamplerLabels, SamplerReadout, sampler_options, sampler_readouts,
+    ColorSamplerLabels, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SAMPLER_HIT, SamplerError, SamplerReadout, SamplerReadouts, sampler_options,
 };
-pub use screen_picker::{LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPickerLabels};
-pub use swatches::{SwatchAt, SwatchLibrary, SwatchesAction, SwatchesLabels, SwatchesPanel, SwatchesPanelResponse};
+pub use screen_picker::{CaptureResult, CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPickerLabels, StillCapture};
+pub use swatches::{MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchLibrary, SwatchesLabels, SwatchesMenuResponse, SwatchesPanel, SwatchesPanelResponse};
 
 use craft_ui::controls::slider::{self, Scale};
 use craft_ui::edit::{self, EditEvent};
 use craft_ui::localized::{Labels, LocaleNumbers};
 use craft_ui::primitives::{Content, Gap, Row, Stack, Text};
-use craft_ui::story::{Level, SizeArg, Story, StoryArgs, StoryChoice};
+use craft_ui::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, StoryLabels};
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use craft_ui::typed_story;
 
@@ -240,27 +240,59 @@ fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> Str
     }
 }
 
+craft_ui::words! {
+    /// The sample text of the colour stories, English by default.
+    #[non_exhaustive]
+    pub struct ColorStoryLabels {
+        hex_color: "colorStory.hexColor" = "Hex color";
+    }
+}
+
 /// The labels tables of the colour widgets, for the words registry.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     picker::WORDS,
+    <ColorStoryLabels as Labels>::WORDS,
     <ColorChoiceLabels as Labels>::WORDS,
     <ColorPanelLabels as Labels>::WORDS,
     <ColorPickerLabels as Labels>::WORDS,
     <EyedropperLabels as Labels>::WORDS,
     <HarmonyLabels as Labels>::WORDS,
     HARMONY_WORDS,
-    <LutLabels as Labels>::WORDS,
+    <LutPickerLabels as Labels>::WORDS,
     LUT_WORDS,
     <PaintLabels as Labels>::WORDS,
     <ProfileLabels as Labels>::WORDS,
-    <SamplerLabels as Labels>::WORDS,
+    <ColorSamplerLabels as Labels>::WORDS,
     <ScreenPickerLabels as Labels>::WORDS,
     <SwatchesLabels as Labels>::WORDS,
 ];
 
+/// The count words of the colour widgets: their plural forms are in [`WORDS`], these give the
+/// singular forms a catalog extraction needs.
+pub const COUNTS: &[craft_ui::localized::words::Counted] = swatches::COUNTS;
+
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] =
-    &["ColorArea", "ColorDisc", "ColorPicker", "ColorPopover", "ColorRamp", "ColorWheel", "HexField", "SwatchPair", "SwatchPalette"];
+pub const COMPONENTS: &[&str] = &[
+    "ColorArea",
+    "ColorChoice",
+    "ColorDisc",
+    "ColorPanel",
+    "ColorPicker",
+    "ColorPickerDialog",
+    "ColorPopover",
+    "ColorRamp",
+    "ColorSamplers",
+    "ColorWheel",
+    "EyedropperOptionsBar",
+    "HarmonyPanel",
+    "HexField",
+    "LutPicker",
+    "PaintChip",
+    "ProfileMismatchDialog",
+    "SwatchPair",
+    "SwatchPalette",
+    "SwatchesPanel",
+];
 
 #[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
 enum ModeArg {
@@ -415,6 +447,7 @@ pub fn stories() -> Vec<Story> {
     stories.extend(wheel_stories::stories());
     stories.extend(ramp_stories::stories());
     stories.extend(disc_stories::stories());
+    stories.extend(colour_stories::stories());
     stories
 }
 
@@ -535,7 +568,11 @@ fn show_hex_field(ui: &mut Ui, args: &mut HexFieldArgs) {
         let (color, last) = &mut state[0];
         let digits = if args.digits == DigitsArg::One { 1 } else { 2 };
         ui.set_width(160.0);
-        let edit = HexField::new("color-hex-field", "Hex colour", *color).digits(digits).alpha(args.alpha).enabled(!args.disabled).show(ui);
+        let edit = HexField::new("color-hex-field", &ColorStoryLabels::of(ui).hex_color, *color)
+            .digits(digits)
+            .alpha(args.alpha)
+            .enabled(!args.disabled)
+            .show(ui);
         if let Some(event) = &edit.event {
             if let Some(c) = event.value() {
                 *color = *c;
@@ -576,7 +613,8 @@ fn show_palette_table(ui: &mut Ui, args: &mut PaletteTableArgs) {
             };
             (format!("Index {i}: {}", color.to_rgba().to_hex()), color)
         });
-        let mut table = SwatchPalette::table("color-palette-table", "Color Table", entries).selected(*selected).enabled(!args.disabled);
+        let mut table =
+            SwatchPalette::table("color-palette-table", &StoryLabels::of(ui).color_table, entries).selected(*selected).enabled(!args.disabled);
         if args.sixteen_columns {
             table = table.columns(16);
         } else {

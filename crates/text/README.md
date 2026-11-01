@@ -10,12 +10,18 @@ plain text and a language and return what layout needs before it shapes and plac
 | `bidi` | `bidi` (default) | Bidirectional text: embedding levels, line reordering, mirroring |
 | `linebreak` | `linebreak` (default) | Line breaking on a box/glue/penalty model |
 | `spell` | `spell` | Spelling with a bundled US English word list (SCOWL 50), suggestions and the user's words |
-| `quotes` | `quotes` | Smart quotes: typed straight quotes become the language's quotation marks |
-| `find` | `find` | Find and replace patterns (Acrobat's and Word's options, Word's `^` codes and wildcards) and the matches across pages |
-| `styles` | `styles` | Named style lists: folders in names, the next free name |
-| `lists` | `lists` | Bullet and number markers per list level; the number styles page numbers use too |
-| `ui` | `ui` | On craft-ui: the canvas text editor, Character and Paragraph controls and the Paragraph dialog, text style panels and the style chip, Check Spelling dialog; the text ruler, Tabs dialog, notes editor, Columns and Hyperlink dialogs, find bar and Find and Replace |
+| `quotes` | always | Smart quotes: typed straight quotes become the language's quotation marks |
+| `find` | always | Find and replace patterns (Acrobat's and Word's options, Word's `^` codes and wildcards) and the matches across pages |
+| `styles` | always | Named style lists: folders in names, the next free name |
+| `lists` | always | Bullet and number markers per list level; the number styles page numbers use too |
+| `ui::editor` | `ui` | `TextEditor` and `TextEditorTool`: the text editor on a canvas over a `TextEditorHost`; input methods through craft-ui's `Composer`. Caret and underline sizes are the `text_editor.*` tokens |
+| `ui::character` | `ui` | `CharacterControls` and `ParagraphControls`: Photoshop's Character and Paragraph panels |
+| `ui::style_panel` | `ui` | `TextStylesPanel`: the Character Styles and Paragraph Styles panels |
+| `ui::spelling` | `ui` | `CheckSpellingDialog` and the user's words as a settings section |
+| `ui::ruler`, `ui::tabs_dialog`, `ui::notes`, `ui::columns`, `ui::hyperlink`, `ui::find` | `ui` | The paged-text controls: the text ruler, Tabs dialog, notes editor, Columns and Hyperlink dialogs, find bar and Find and Replace |
 | | `font-picker` | The Character controls' family field is craft-font-manager's font picker |
+
+The `ui` stories (`patterns/text-editor/canvas`, `patterns/character/*`, `patterns/text-styles/panel`, `patterns/check-spelling/dialog`) are in `craft::story::all()` with the `text` and `ui` features of the `craft` facade.
 
 Language features (`spanish`, `german`, …, `all-languages`) add the data for one language to every
 module that uses it, and turn those modules on. Build with `default-features = false` to leave
@@ -41,6 +47,17 @@ in this order:
 Case, apostrophes (`don't`, `’s`), surrounding punctuation and compounds are handled; no break is
 placed next to an apostrophe or a non-letter. `Dictionary::en_us()` also serves as an English word
 list, for example for spelling checks.
+
+## Spelling
+
+`craft_text::spell` (feature `spell`) checks words and suggests corrections. `Dictionary::english()`
+is SCOWL size 50 (American English, about 72,400 words), stored as raw deflate in
+`assets/spell/en-us-scowl-50.txt.deflate` (about 220 KB) and decoded once on first use with
+`miniz_oxide`. The text file has one word per line; `#10`, `#20`, `#35`, `#40` and `#50` lines set the
+SCOWL level (10 = most common) of the words after them. SCOWL's licence is in
+`assets/spell/LICENSE-SCOWL.txt` and NOTICE; an application that enables `spell` ships it. Other
+languages load their list with `Dictionary::from_list`. To rebuild the asset from a word list, compress
+it as raw deflate (zlib level 9, `wbits = -15`).
 
 ### Other languages
 

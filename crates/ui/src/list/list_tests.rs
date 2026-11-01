@@ -12,7 +12,7 @@ use super::*;
 use crate::behavior::{RowInfo, Selection};
 use crate::edit::EditEvent;
 use crate::testing::a11y;
-use crate::theme::{Base, install};
+use crate::theme::{Base, Tokens, TokensOf as _, install};
 
 const LIST_HEIGHT: f32 = 200.0;
 
@@ -505,7 +505,7 @@ fn type_ahead_is_off_by_default_and_moves_by_label_when_on() {
 #[test]
 fn the_list_story_names_every_control() {
     for mixed in [false, true] {
-        let mut args = RowsArgs { selection: SelectionArg::Multiple, mixed_heights: mixed, height: 320.0 };
+        let mut args = RowsArgs { selection: SelectionArg::Multiple, mixed_heights: mixed, striped: false, height: 320.0 };
         let harness = Harness::builder()
             .with_size([400.0, 420.0])
             .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
@@ -585,4 +585,200 @@ fn type_ahead_skips_sections() {
     harness.event(Event::Text("c".into()));
     harness.run();
     assert_eq!(harness.state().selection, Selection::only(3));
+}
+
+/// A reordering list of three layer rows with an extra thumbnail each; the thumbnails' rects of
+/// the last pass and the events reported.
+type Dragging = (Vec<RowInfo<usize>>, std::cell::RefCell<Vec<Rect>>, Vec<ListEvent<usize>>);
+
+// In a reordering list, a ThumbDrag row event starts no row drag (no ListDrag payload, no Begin);
+// a drag from the row's label still does.
+#[test]
+fn a_thumbnail_drag_starts_no_row_drag() {
+    use crate::behavior::{Axis, ListDrag, Reorder};
+    use egui::DragAndDrop;
+    let mut harness = Harness::<Dragging>::builder()
+        .with_size([320.0, 300.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, (rows, thumbs, events): &mut Dragging| {
+                thumbs.get_mut().clear();
+                let thumbs = &*thumbs;
+                let out = List::new("list", "Layers", rows.as_slice()).reorder(Reorder::new(Axis::Vertical)).show(ui, |_, &key| {
+                    ListRow::new(key, format!("Row {key}"))
+                        .thumb(ThumbSize::Medium, |_, _| {})
+                        .extra_thumb(|_, rect| thumbs.borrow_mut().push(rect))
+                        .thumb_drags(true)
+                });
+                events.extend(out.events);
+            },
+            ((0..3).map(RowInfo::leaf).collect(), std::cell::RefCell::default(), Vec::new()),
+        );
+    harness.run();
+    let drag = |harness: &mut Harness<'_, Dragging>, start: Pos2| {
+        harness.event(egui::Event::PointerMoved(start));
+        harness.run();
+        harness.event(egui::Event::PointerButton { pos: start, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+        harness.run();
+        for dy in [8.0, 20.0, 40.0] {
+            harness.event(egui::Event::PointerMoved(start + vec2(0.0, dy)));
+            harness.run();
+        }
+    };
+    let release = |harness: &mut Harness<'_, Dragging>| {
+        harness.event(egui::Event::PointerButton { pos: Pos2::ZERO, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+        harness.run();
+    };
+    let thumb = harness.state().1.borrow()[0].center();
+    drag(&mut harness, thumb);
+    assert!(DragAndDrop::payload::<ListDrag<usize>>(&harness.ctx).is_none(), "a thumbnail drag leaves the payload to the host");
+    assert!(
+        harness.state().2.iter().all(|e| !matches!(e, ListEvent::Reorder(_)))
+            && harness.state().2.iter().any(|e| matches!(e, ListEvent::Row(RowEvent::ThumbDrag { .. }))),
+        "{:?}",
+        harness.state().2
+    );
+    release(&mut harness);
+    harness.state_mut().2.clear();
+
+    let label = harness.get_by_label("Row 0").rect().center() + vec2(40.0, 0.0);
+    drag(&mut harness, label);
+    assert!(DragAndDrop::payload::<ListDrag<usize>>(&harness.ctx).is_some(), "a drag from the label starts the row drag");
+    assert!(harness.state().2.iter().any(|e| matches!(e, ListEvent::Reorder(_))));
+}
+
+/// A list with a rename and drag policy, for the hooks a list gives its host.
+struct Hooks {
+    rows: Vec<RowInfo<usize>>,
+    events: Vec<ListEvent<usize>>,
+    drawn: Vec<(usize, Rect)>,
+    icons: std::cell::RefCell<Vec<(usize, Rect)>>,
+    paint_depth: Option<usize>,
+    widths: Option<(f32, f32, f32)>,
+    start_rename: Option<usize>,
+}
+
+fn hooks(rows: Vec<RowInfo<usize>>, tree: bool) -> Harness<'static, Hooks> {
+    use crate::behavior::{Axis, Reorder};
+    let mut harness = Harness::<Hooks>::builder()
+        .with_size([320.0, 300.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            move |ui, h: &mut Hooks| {
+                h.icons.get_mut().clear();
+                let (icons, paint_depth) = (&h.icons, h.paint_depth);
+                let mut list = List::new("hooks", "Hooks", h.rows.as_slice())
+                    .tree(tree)
+                    .reorder(Reorder::new(Axis::Vertical))
+                    .can_rename(|&key| key != 1)
+                    .can_drag(|&key| key != 1);
+                if let Some(key) = h.start_rename.take() {
+                    list = list.start_rename(key);
+                }
+                let out = list.show(ui, |_, &key| {
+                    let mut row =
+                        ListRow::new(key, format!("Row {key}")).rename_field_name("Name").glyph(move |_, rect| icons.borrow_mut().push((key, rect)));
+                    if let (2, Some(depth)) = (key, paint_depth) {
+                        row = row.paint_depth(depth);
+                    }
+                    row
+                });
+                if h.widths.is_none() {
+                    let row = ListRow::new(0usize, "x");
+                    let tree = row.min_width_in_tree(ui, true);
+                    h.widths = Some((row.min_width(ui), tree, ListRow::<usize>::style(&Tokens::of(ui)).disclosure));
+                }
+                h.drawn = out.rows;
+                h.events.extend(out.events);
+            },
+            Hooks { rows, events: Vec::new(), drawn: Vec::new(), icons: Default::default(), paint_depth: None, widths: None, start_rename: None },
+        );
+    harness.run();
+    harness
+}
+
+fn press_drag(harness: &mut Harness<'_, Hooks>, start: Pos2) {
+    harness.event(Event::PointerMoved(start));
+    harness.run();
+    harness.event(Event::PointerButton { pos: start, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    harness.run();
+    for dy in [8.0, 20.0, 40.0] {
+        harness.event(Event::PointerMoved(start + vec2(0.0, dy)));
+        harness.run();
+    }
+}
+
+#[test]
+fn a_double_click_on_the_label_of_a_row_that_cannot_be_renamed_reports_it_before_the_activation() {
+    let mut harness = hooks((0..3).map(RowInfo::leaf).collect(), false);
+    let at = harness.get_by_label("Row 1").rect().center() + vec2(40.0, 0.0);
+    harness.run_steps(30);
+    for _ in 0..2 {
+        harness.event(Event::PointerMoved(at));
+        for pressed in [true, false] {
+            harness.event(Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        }
+        harness.run();
+    }
+    let events = &harness.state().events;
+    let double: Vec<_> =
+        events.iter().filter(|e| matches!(e, ListEvent::Row(RowEvent::LabelDoubleClicked { .. }) | ListEvent::Activate(_))).collect();
+    assert_eq!(double, [&ListEvent::Row(RowEvent::LabelDoubleClicked { row: 1 }), &ListEvent::Activate(1)], "{events:?}");
+}
+
+#[test]
+fn a_refused_row_starts_no_drag_and_an_allowed_row_does() {
+    use crate::behavior::ListDrag;
+    use egui::DragAndDrop;
+    let mut harness = hooks((0..3).map(RowInfo::leaf).collect(), false);
+    let refused = harness.get_by_label("Row 1").rect().center();
+    press_drag(&mut harness, refused);
+    assert!(DragAndDrop::payload::<ListDrag<usize>>(&harness.ctx).is_none(), "no payload for a refused row");
+    assert!(harness.state().events.iter().all(|e| !matches!(e, ListEvent::Reorder(_))), "{:?}", harness.state().events);
+    harness.event(Event::PointerButton { pos: refused, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    harness.run();
+
+    let allowed = harness.get_by_label("Row 0").rect().center();
+    press_drag(&mut harness, allowed);
+    assert!(DragAndDrop::payload::<ListDrag<usize>>(&harness.ctx).is_some());
+}
+
+#[test]
+fn the_output_lists_the_rects_of_the_rows_drawn() {
+    let harness = hooks((0..3).map(RowInfo::leaf).collect(), false);
+    for (key, rect) in &harness.state().drawn {
+        assert_eq!(rect.round(), harness.get_by_label(&format!("Row {key}")).rect().round());
+    }
+    assert_eq!(harness.state().drawn.iter().map(|(k, _)| *k).collect::<Vec<_>>(), [0, 1, 2]);
+}
+
+#[test]
+fn the_rename_field_takes_the_name_the_row_gives() {
+    let mut harness = hooks((0..3).map(RowInfo::leaf).collect(), false);
+    harness.state_mut().start_rename = Some(0);
+    harness.run();
+    assert_eq!(harness.get_by_role(Role::TextInput).accesskit_node().label().as_deref(), Some("Name"));
+}
+
+#[test]
+fn the_tree_width_adds_the_disclosure_column_of_a_group() {
+    let harness = hooks((0..3).map(RowInfo::leaf).collect(), true);
+    let (plain, tree, disclosure) = harness.state().widths.expect("measured");
+    assert_eq!(tree - plain, disclosure);
+}
+
+#[test]
+fn a_paint_depth_indents_the_row_as_the_true_depth_does() {
+    let rows = |depth| vec![RowInfo::group(0, true), RowInfo::leaf(1).at_depth(1), RowInfo::leaf(2).at_depth(depth)];
+    let x_of = |harness: &Harness<'_, Hooks>| harness.state().icons.borrow().iter().find(|(k, _)| *k == 2).map(|(_, r)| r.left()).unwrap();
+    let deep = hooks(rows(1), true);
+    let plain = x_of(&deep);
+    let mut filtered = hooks(rows(0), true);
+    filtered.state_mut().paint_depth = Some(1);
+    filtered.run();
+    assert_eq!(x_of(&filtered), plain);
+    let unpainted = hooks(rows(0), true);
+    assert!(x_of(&unpainted) < plain, "without a paint depth the row sits at its list depth");
 }

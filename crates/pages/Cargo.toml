@@ -12,16 +12,14 @@ workspace = true
 
 [features]
 default = []
-# Serde impls of the page setup, view defaults and page ranges.
-serde = ["dep:serde", "craft-text/serde"]
 # The page widgets (`craft_pages::ui`), on craft-ui.
-ui = ["dep:craft-ui", "dep:egui", "dep:craft-host", "serde"]
+ui = ["dep:craft-ui", "dep:egui", "dep:craft-host"]
 
 [dependencies]
 # `numbering` formats page numbers with craft-text's list number styles.
-craft-text = { workspace = true, default-features = false, features = ["lists"] }
+craft-text = { workspace = true, default-features = false }
 kurbo = { workspace = true }
-serde = { workspace = true, optional = true }
+serde = { workspace = true }
 craft-ui = { workspace = true, optional = true }
 craft-host = { workspace = true, features = ["ui"], optional = true }
 egui = { workspace = true, optional = true }

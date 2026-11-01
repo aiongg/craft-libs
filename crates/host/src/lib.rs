@@ -1,6 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 mod files;
+pub mod queue;
+#[cfg(test)]
+mod queue_tests;
 mod services;
 
 use std::sync::Arc;
@@ -10,7 +13,9 @@ use craft_i18n::{I18n, Lang};
 pub use files::{FileError, FileFilter, Files, NoPickFiles, PickAnswer, PickId, PickKind, PickRequest, Picked};
 #[cfg(not(target_arch = "wasm32"))]
 pub use services::ThreadJobs;
-pub use services::{AppInfo, Commands, InlineJobs, Jobs, MemorySections, NoCommands, Section, SectionStore};
+pub use services::{AppInfo, Commands, InlineJobs, Jobs, ManualJobs, MemorySections, NoCommands, Section, SectionStore, Wake};
+#[cfg(feature = "ui")]
+pub use ui::HostScope;
 
 /// The app's shared services, built once at startup and installed on the egui context.
 /// Every library feature reads them with `Host::of(ui)`; none takes them as parameters.
@@ -76,9 +81,20 @@ impl Host {
         &*self.jobs
     }
 
+    /// [`Host::jobs`] as the shared handle, for code that keeps it (a
+    /// [`JobQueue`](queue::JobQueue) spawns its lanes on it).
+    pub fn jobs_shared(&self) -> &Arc<dyn Jobs> {
+        &self.jobs
+    }
+
     /// A copy in another language; install it to switch the interface.
     pub fn with_lang(&self, lang: Lang) -> Host {
         Host { lang, ..self.clone() }
+    }
+
+    /// A copy with another file service; install it to switch the pickers.
+    pub fn with_files(&self, files: Arc<dyn Files>) -> Host {
+        Host { files, ..self.clone() }
     }
 
     /// The stored value of section `S`, or `S::default()` when it is missing or does not fit `S`.
@@ -179,10 +195,31 @@ mod ui {
         }
     }
 
+    /// Puts the host that was installed before back when it drops; see [`Host::install_scoped`].
+    #[must_use = "the host stays installed only while the scope is held"]
+    pub struct HostScope {
+        ctx: Context,
+        before: Option<Arc<Host>>,
+    }
+
+    impl Drop for HostScope {
+        fn drop(&mut self) {
+            self.ctx.plugin_or_default::<Installed>().lock().0 = self.before.take();
+        }
+    }
+
     impl Host {
         /// Stores the host in a context plugin, so a memory reset leaves it installed.
         pub fn install(self, ctx: &Context) {
             ctx.plugin_or_default::<Installed>().lock().0 = Some(Arc::new(self));
+        }
+
+        /// Installs the host until the returned scope drops, then puts back the host that was
+        /// installed before (or none). A story swaps a service this way for the time it draws, so
+        /// the next story sees the app's own host again.
+        pub fn install_scoped(self, ctx: &Context) -> HostScope {
+            let before = ctx.plugin_or_default::<Installed>().lock().0.replace(Arc::new(self));
+            HostScope { ctx: ctx.clone(), before }
         }
 
         /// The installed host, or `None`. Library words and numbers use this and fall back to
@@ -264,5 +301,21 @@ mod tests {
         Host::builder(APP).lang(Lang::PSEUDO).install(&ctx);
         ctx.memory_mut(|m| *m = Default::default());
         assert_eq!(Host::try_of_ctx(&ctx).map(|h| h.lang()), Some(Lang::PSEUDO));
+    }
+
+    #[cfg(feature = "ui")]
+    #[test]
+    fn a_scoped_host_gives_way_to_the_one_installed_before() {
+        let ctx = egui::Context::default();
+        {
+            let _scope = Host::builder(APP).lang(Lang::PSEUDO).build().install_scoped(&ctx);
+            assert_eq!(Host::try_of_ctx(&ctx).map(|h| h.lang()), Some(Lang::PSEUDO));
+        }
+        assert!(Host::try_of_ctx(&ctx).is_none(), "no host was installed before");
+        Host::builder(APP).install(&ctx);
+        {
+            let _scope = Host::builder(APP).lang(Lang::PSEUDO).build().install_scoped(&ctx);
+        }
+        assert_eq!(Host::try_of_ctx(&ctx).map(|h| h.lang()), Some(Lang::EN));
     }
 }

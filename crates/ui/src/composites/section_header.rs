@@ -3,16 +3,16 @@
 use craft_theme::{ControlSize, Stroke as Hairline, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, CursorIcon, IdSalt, InnerResponse, Label, Rect, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
+use egui::{Color32, CursorIcon, IdSalt, InnerResponse, Label, Rect, Response, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
 
 use super::{PropertyGroup, PropertyLabel, PropertyRow, measure};
 use crate::controls::{IconButton, NumberField};
 use crate::direction;
 use crate::edit::{EditEvent, EditResponse};
 use crate::icons::{self, Icon, IconSize};
-use crate::localized::LocaleNumbers;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Interactive};
-use crate::story::{Level, Story, StoryArgs};
+use crate::story::{Level, Story, StoryArgs, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
@@ -84,6 +84,7 @@ pub struct SectionHeader<'a> {
     open: Option<&'a mut bool>,
     controls: Option<Controls<'a>>,
     caption: bool,
+    drag: bool,
 }
 
 impl<'a> SectionHeader<'a> {
@@ -91,7 +92,7 @@ impl<'a> SectionHeader<'a> {
     /// stays when the title changes (a language switch), and two sections of one title keep
     /// separate states.
     pub fn new(id_salt: impl egui::AsIdSalt, title: impl Into<String>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), title: title.into(), collapsible: true, open: None, controls: None, caption: false }
+        Self { id_salt: IdSalt::new(id_salt), title: title.into(), collapsible: true, open: None, controls: None, caption: false, drag: false }
     }
 
     /// Whether the section can be closed; on by default. Off, the header is its title only and the
@@ -107,6 +108,14 @@ impl<'a> SectionHeader<'a> {
     /// given.
     pub fn caption(mut self, caption: bool) -> Self {
         self.caption = caption;
+        self
+    }
+
+    /// Senses drags on the row as well as clicks: the response reports `drag_started` and the
+    /// drag's progress for the host to reorder sections by (a press on a control in
+    /// [`controls`](Self::controls) is the control's). Off by default.
+    pub fn drag(mut self, drag: bool) -> Self {
+        self.drag = drag;
         self
     }
 
@@ -144,14 +153,32 @@ impl<'a> SectionHeader<'a> {
     /// header row's, marked changed on the frame the section opens or closes; the inner value is
     /// the body's result, `None` while closed.
     pub fn show<R>(self, ui: &mut Ui, add_body: impl FnOnce(&mut Ui) -> R) -> InnerResponse<Option<R>> {
-        let tokens = Tokens::of(ui);
-        let style = SectionHeader::style(&tokens, ui.pixels_per_point());
+        let style = SectionHeader::style(&Tokens::of(ui), ui.pixels_per_point());
         let hairline = style.hairline.width;
-        let rtl = direction::is_rtl(ui);
         ui.add_space(style.gap);
         let (_, rect) = ui.allocate_space(vec2(ui.available_width(), hairline + style.row_height));
         let row = Rect::from_min_max(pos2(rect.left(), rect.top() + hairline), rect.max);
         ui.painter().hline(rect.x_range(), (rect.top() + hairline / 2.0).round_to_pixel_center(ui.pixels_per_point()), style.hairline);
+        let (response, open) = self.show_in(ui, row);
+        let inner = open.then(|| {
+            ui.add_space(style.gap / 2.0);
+            add_body(ui)
+        });
+        InnerResponse::new(inner, response)
+    }
+
+    /// The header row alone, in `row`: no hairline, gap or body. For a header the host places
+    /// itself, such as a copy pinned to the top of a scroll area; the host draws what surrounds it.
+    /// The response is the row's, marked changed on the frame the section opens or closes.
+    pub fn show_row(self, ui: &mut Ui, row: Rect) -> Response {
+        self.show_in(ui, row).0
+    }
+
+    /// The row's response and whether the section is open after this pass's click.
+    fn show_in(self, ui: &mut Ui, row: Rect) -> (Response, bool) {
+        let tokens = Tokens::of(ui);
+        let style = SectionHeader::style(&tokens, ui.pixels_per_point());
+        let rtl = direction::is_rtl(ui);
 
         let id = ui.make_persistent_id(self.id_salt);
         let stored = || ui.ctx().data_mut(|d| d.get_persisted::<bool>(id)).unwrap_or(true);
@@ -160,12 +187,11 @@ impl<'a> SectionHeader<'a> {
             (true, Some(host)) => **host,
             (true, None) => stored(),
         };
+        let sense = if self.drag { Sense::click_and_drag() } else { Sense::click() };
 
         let mut response = if self.collapsible {
-            let element = Interactive::salted(self.id_salt, Role::DisclosureTriangle, self.title.as_str())
-                .sense(Sense::click())
-                .expanded(open)
-                .state_layer(false);
+            let element =
+                Interactive::salted(self.id_salt, Role::DisclosureTriangle, self.title.as_str()).sense(sense).expanded(open).state_layer(false);
             let sensed = element.interact_at(ui, row);
             let clicked = sensed.response().clicked();
             let response = sensed.finish(ui).on_hover_cursor(CursorIcon::PointingHand);
@@ -176,7 +202,7 @@ impl<'a> SectionHeader<'a> {
             }
             response
         } else {
-            ui.interact(row, id, Sense::hover())
+            ui.interact(row, id, if self.drag { Sense::drag() } else { Sense::hover() })
         };
         if self.collapsible && response.clicked() {
             response.mark_changed();
@@ -226,11 +252,7 @@ impl<'a> SectionHeader<'a> {
             });
         }
 
-        let inner = open.then(|| {
-            ui.add_space(style.gap / 2.0);
-            add_body(ui)
-        });
-        InnerResponse::new(inner, response)
+        (response, open)
     }
 }
 
@@ -315,12 +337,13 @@ fn apply(edit: &EditResponse<f64>, value: &mut f64) {
 
 /// The rows of a Transform section: W and H with a link toggle, X and Y.
 fn transform_rows(ui: &mut Ui, v: &mut Values, numbers: &LocaleNumbers) {
+    let words = StoryLabels::of(ui);
     PropertyGroup::new("section-transform").show(ui, |ui| {
         let linked = &mut v.linked;
         let (w, _, h) = PropertyRow::pair(PropertyLabel::glyph("W"), PropertyLabel::glyph("H").redundant())
             .show_linked(
                 ui,
-                |ui, _| NumberField::new("w", "Width", v.w, numbers).show(ui),
+                |ui, _| NumberField::new("w", &words.width, v.w, numbers).show(ui),
                 |ui| {
                     ui.add(
                         IconButton::new(if *linked { Icon::Link } else { Icon::Unlink }, "Link width and height")
@@ -328,7 +351,7 @@ fn transform_rows(ui: &mut Ui, v: &mut Values, numbers: &LocaleNumbers) {
                             .toggle(linked),
                     )
                 },
-                |ui, _| NumberField::new("h", "Height", v.h, numbers).show(ui),
+                |ui, _| NumberField::new("h", &words.height, v.h, numbers).show(ui),
             )
             .inner;
         apply(&w, &mut v.w);
@@ -342,11 +365,12 @@ fn transform_rows(ui: &mut Ui, v: &mut Values, numbers: &LocaleNumbers) {
 }
 
 fn opacity_row(ui: &mut Ui, v: &mut Values, numbers: &LocaleNumbers) {
+    let words = StoryLabels::of(ui);
     PropertyGroup::new("section-appearance").show(ui, |ui| {
-        let edit = PropertyRow::word("Opacity")
+        let edit = PropertyRow::word(&words.opacity)
             .scrubs()
             .show(ui, |ui, row| {
-                let field = NumberField::new("opacity", "Opacity", v.opacity, numbers);
+                let field = NumberField::new("opacity", &words.opacity, v.opacity, numbers);
                 match row.scrub() {
                     Some(label) => field.scrub_by(label),
                     None => field,

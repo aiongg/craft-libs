@@ -2,7 +2,7 @@
 
 use egui::Ui;
 
-use super::{Alert, BlockingOverlay, ButtonRole, Dialog, DialogLabels, DialogStack, DialogState, Footer, Outcome, Prompt, dialog_id};
+use super::{Alert, BlockingOverlay, ButtonRole, Dialog, DialogLabels, DialogStack, DialogState, Footer, Outcome, Prompt, UnsavedLabels, dialog_id};
 use crate::localized::Labels as _;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::typed_story;
@@ -115,7 +115,7 @@ fn show_question(ui: &mut Ui, args: &mut QuestionArgs) {
     }
     let german = args.translated_labels;
     let (yes, no, cancel) = if german { ("Ja", "Nein", "Abbrechen".to_owned()) } else { ("Yes", "No", DialogLabels::of(ui).cancel) };
-    let answer = Prompt::new("story-prompt", "Unsaved changes", "Do you want to save the changes before closing?")
+    let answer = Prompt::new("story-prompt", UnsavedLabels::of(ui).title, "Do you want to save the changes before closing?")
         .answer(ButtonRole::Default, yes, Some(egui::Key::Y))
         .answer(ButtonRole::Alternate, no, Some(egui::Key::N))
         .answer(ButtonRole::Cancel, cancel, Some(egui::Key::C))

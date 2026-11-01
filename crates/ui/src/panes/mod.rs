@@ -23,10 +23,10 @@ use crate::docking::chrome::{self, ChromeStyle, FloatingFrame, MoveStep, TitleBa
 use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 use crate::localized::Labels as _;
 
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 mod rail;
+pub mod sections;
 
 #[allow(deprecated)]
 pub use rail::{RAIL_BUTTON, RAIL_WIDTH, Rail, RailItem, RailOutput, RailRequest};
@@ -44,8 +44,7 @@ const FLOAT_GRAB: Vec2 = vec2(40.0, 12.0);
 
 /// A logical edge of the host area. `Start` is left in left-to-right interfaces and right in
 /// right-to-left ones.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Edge {
     Start,
     End,
@@ -53,16 +52,14 @@ pub enum Edge {
 }
 
 /// Where a pane is shown.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Place {
     Docked(Edge),
     Floating,
 }
 
 /// The persisted layout of one pane. The app stores it where it keeps its preferences.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PaneState {
     pub place: Place,
     /// Width of a side pane or height of a bottom pane, in points. `None`: the pane's default.

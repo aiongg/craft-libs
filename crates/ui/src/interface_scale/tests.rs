@@ -40,7 +40,6 @@ fn codes_round_trip_and_off_step_values_are_kept() {
     assert_eq!(InterfaceScale::percent(1000).code(), "300");
 }
 
-#[cfg(feature = "serde")]
 #[test]
 fn serde_writes_the_pc_strings() {
     assert_eq!(serde_json::to_string(&InterfaceScale::Auto).unwrap_or_default(), "\"auto\"");

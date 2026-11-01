@@ -48,7 +48,8 @@ pub fn format_pages(pages: &[usize]) -> String {
 
 /// Which pages of a From/To range count.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Subset {
     /// All pages in range.
     #[default]
@@ -62,7 +63,8 @@ pub enum Subset {
 /// Acrobat's Page Range Options: All pages, or Pages from `from` to `to` (1-based), and a subset.
 /// Shared by the Header & Footer, Watermark and Background dialogs in PdfCraft.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct PageRange {
     pub all: bool,
     pub from: usize,

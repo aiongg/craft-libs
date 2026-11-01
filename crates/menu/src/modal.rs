@@ -6,7 +6,7 @@
 //! shortcuts and menus; Camera Raw and the full-window workspaces (Liquify, Select and Mask) block
 //! every command; a pending crop greys most of Image, Layer and Select but leaves the view and
 //! Help commands. [`ModalRules`] says that per command, and [`Gate::allows_under`] applies it.
-//! The app sets the rules every frame beside the gate ([`crate::NativeMenu::set_modal_rules`],
+//! The app sets the rules when they change, beside the gate ([`crate::NativeMenu::set_modal_rules`],
 //! [`crate::MenuBarUi::modal_rules`], [`crate::CommandContextMenu::modal_rules`]).
 
 use std::fmt;
@@ -17,9 +17,8 @@ use craft_keymap::CommandRef;
 use crate::driver::Gate;
 use crate::model::{Builtin, Item};
 
-/// The view commands Photoshop runs while a dialog is open: Zoom In, Zoom Out, Fit on Screen and
-/// 100 %, by PhotoCraft's ids. An app whose ids differ passes its own list.
-pub const NAVIGATION_COMMANDS: [&str; 4] = ["view.zoomIn", "view.zoomOut", "view.fitOnScreen", "view.actualPixels"];
+/// The view commands that run while a dialog is open; the list [`craft_keymap::ui::KeyGate::in_dialogs`] uses.
+pub use craft_keymap::ui::NAVIGATION_COMMANDS;
 
 /// Whether a command may run while a pending operation (an uncommitted crop) is open.
 pub type PendingRule = Arc<dyn Fn(&CommandRef) -> bool + Send + Sync>;

@@ -5,7 +5,6 @@
 use super::color::Rgba;
 use super::ramp::Mode;
 use super::scale::{Duration, Easing, Elevation};
-use super::theme::TextSize;
 use super::tokens::{ColorToken, StatusKind};
 
 use Bg::{HaloOver, Token};
@@ -412,16 +411,6 @@ pub(super) const RULES: &[PairRule] = &[
     // the same reason.
 ];
 
-/// Multiplier on type sizes and line heights per text-size step.
-pub const fn text_size_factor(t: TextSize) -> f32 {
-    match t {
-        TextSize::Small => 0.9,
-        TextSize::Default => 1.0,
-        TextSize::Large => 1.15,
-        TextSize::Larger => 1.3,
-    }
-}
-
 /// Scaled type sizes round to multiples of this, in points.
 pub const TYPE_ROUNDING: f32 = 0.5;
 
@@ -730,9 +719,6 @@ pub const COLOR_PICKER_GRID_ROW_GAP: f32 = 2.0;
 /// Compact gap between one model's last channel row and the next model's first (PhotoCraft: a 3
 /// point row between two row gaps).
 pub const COLOR_PICKER_GRID_GROUP_GAP: f32 = 7.0;
-/// Compact least width of the Full picker's OK, Cancel and Add to Swatches buttons (PhotoCraft's
-/// `.max(96.0)`).
-pub const COLOR_PICKER_SIDE_BUTTON_MIN: f32 = 96.0;
 
 /// The control height the Compact colour wheel, ramp and gradient palette sizes are set for;
 /// other sizes scale them by their control height over this.
@@ -863,8 +849,15 @@ pub const GRADIENT_EDITOR_DROP_LINE: f32 = 2.0;
 /// Opacity of the hover fill of a list row (PhotoCraft `hover.gamma_multiply(0.5)`:
 /// `layer_row.rs:285`, `history.rs:63`, `channels_panel.rs`, `actions.rs`).
 pub const LIST_HOVER_OPACITY: f32 = 0.5;
+/// Opacity of `state.hover` as the stripe of a striped list (PdfCraft's `striped(true)` fills with
+/// egui's `faint_bg_color`, white at 2% in both modes: "visible, but barely so"); lighter than the
+/// hover fill.
+pub const LIST_STRIPE_OPACITY: f32 = 0.25;
 /// Opacity of the accent tint over the hover fill of a layer-form row (`layer_row.rs:286`).
 pub const LIST_LAYER_TINT_OPACITY: f32 = 0.12;
+/// Height of a dense list row, in a panel's short list (PhotoCraft's `styles_panel` and
+/// `spelling_window` rows).
+pub const LIST_ROW_HEIGHT_DENSE: f32 = 22.0;
 /// Added to a list row's thumbnail side for the row's height.
 pub const LIST_THUMB_PAD: f32 = 8.0;
 /// Width of a list's drop marker line and outline (PhotoCraft, DesignCraft and docking).
@@ -988,6 +981,8 @@ pub const HANDLE_HIT: f32 = 14.0;
 pub const CURSOR_CROSSHAIR_REACH: f32 = 8.0;
 /// Empty space round the hotspot where a painted crosshair's arms begin.
 pub const CURSOR_CROSSHAIR_GAP: f32 = 2.0;
+/// Length of each arm of the painting tools' precise crosshair, which has no gap (PhotoCraft's).
+pub const CURSOR_PRECISE_REACH: f32 = 6.0;
 /// Half the side of a selection badge's glyph (PhotoCraft's `badge_glyph` size).
 pub const CURSOR_BADGE_HALF: f32 = 3.5;
 /// Distance of a selection badge from the hotspot, right and down, beside a painted crosshair.
@@ -1036,6 +1031,27 @@ pub const GUIDE_DOT_RADIUS: f32 = 0.6;
 pub const GUIDE_MEASURE_CAP: f32 = 4.0;
 /// Padding of a distance's label, beside and above the text.
 pub const GUIDE_MEASURE_PAD: (f32, f32) = (8.0, 4.0);
+
+/// Width of Guide Layout's Number field (PhotoCraft).
+pub const GUIDE_NUMBER_WIDTH: f32 = 68.0;
+
+/// Width of Guide Layout's Width and Height fields (PhotoCraft).
+pub const GUIDE_SIZE_WIDTH: f32 = 60.0;
+
+/// Width of the field of each Margin side in Guide Layout (PhotoCraft).
+pub const GUIDE_MARGIN_WIDTH: f32 = 64.0;
+
+/// Width of New Guide's Position field (PhotoCraft).
+pub const GUIDE_POSITION_WIDTH: f32 = 120.0;
+
+/// Width of New Guide's Color list (PhotoCraft).
+pub const GUIDE_COLOR_WIDTH: f32 = 140.0;
+
+/// Width of Guide Layout's Preset and Target lists (PhotoCraft).
+pub const GUIDE_LAYOUT_LIST_WIDTH: f32 = 222.0;
+
+/// Width of Guide Layout's Color list (PhotoCraft).
+pub const GUIDE_LAYOUT_COLOR_WIDTH: f32 = 174.0;
 
 /// Width of a transform box's line and a warp mesh's patch boundaries, in points, at every Size
 /// (PhotoCraft's).
@@ -1132,8 +1148,60 @@ pub const CANVAS_COMPASS: f32 = 36.0;
 /// Distance of the compass from the canvas's top and right edges (PhotoCraft's `M`).
 pub const CANVAS_COMPASS_MARGIN: f32 = 10.0;
 
+/// Width of the Change To field and the suggestion list (PhotoCraft's `spelling_window`).
+pub const CHECK_SPELLING_FIELD_WIDTH: f32 = 240.0;
+/// Height of the suggestion list (PhotoCraft's `spelling_window`).
+pub const CHECK_SPELLING_SUGGESTIONS_HEIGHT: f32 = 110.0;
+
+/// Default height of the open list (PhotoCraft's `FONT_LIST_HEIGHT`, `FONT_LIST_WIDTH` and `CLASS_COLUMN_WIDTH`).
+pub const FONT_PICKER_LIST_HEIGHT: f32 = 440.0;
+/// Least width of the open list (PhotoCraft's `FONT_LIST_HEIGHT`, `FONT_LIST_WIDTH` and `CLASS_COLUMN_WIDTH`).
+pub const FONT_PICKER_LIST_WIDTH: f32 = 420.0;
+/// Width of the class list (PhotoCraft's `FONT_LIST_HEIGHT`, `FONT_LIST_WIDTH` and `CLASS_COLUMN_WIDTH`).
+pub const FONT_PICKER_CLASS_COLUMN: f32 = 118.0;
+/// Width of a row's class glyph (PhotoCraft's `FONT_LIST_HEIGHT`, `FONT_LIST_WIDTH` and `CLASS_COLUMN_WIDTH`).
+pub const FONT_PICKER_CLASS_GLYPH: f32 = 28.0;
+/// Height of the Missing Fonts dialog's Document Fonts list (new; Photoshop's list shows about seven rows).
+pub const FONT_PICKER_MISSING_LIST_HEIGHT: f32 = 160.0;
+
+/// Height of the list (PhotoCraft's `styles_panel`).
+pub const TEXT_STYLES_LIST_HEIGHT: f32 = 220.0;
+
+/// Height of the Glyphs panel's grid, in points (PhotoCraft's `glyphs_panel` scroll area).
+pub const GLYPHS_GRID_HEIGHT: f32 = 260.0;
+/// Glyph cell size when the settings have none.
+pub const GLYPHS_CELL: f32 = 32.0;
+/// Smallest and largest cell of the zoom slider.
+pub const GLYPHS_CELL_MIN: f32 = 24.0;
+pub const GLYPHS_CELL_MAX: f32 = 64.0;
+/// Space between a cell's edge and its glyph.
+pub const GLYPHS_GLYPH_INSET: f32 = 3.0;
+/// Side of a Recently Used cell, and the distance between cells.
+pub const GLYPHS_RECENT_CELL: f32 = 24.0;
+pub const GLYPHS_RECENT_PITCH: f32 = 26.0;
+/// Space between the Recently Used strip's edge and its first cell and top.
+pub const GLYPHS_RECENT_PAD: f32 = 1.0;
+/// Space between a Recently Used cell's edge and its glyph.
+pub const GLYPHS_RECENT_GLYPH_INSET: f32 = 2.0;
+
+/// Width of the text caret's halo and line, in points (PhotoCraft's `CARET_STROKES`).
+pub const TEXT_EDITOR_CARET_HALO: f32 = 3.0;
+pub const TEXT_EDITOR_CARET_LINE: f32 = 1.0;
+/// Share of the accent the selection fill keeps (alpha 110 of 255).
+pub const TEXT_EDITOR_SELECTION_ALPHA: f32 = 110.0 / 255.0;
+/// Underline widths of marked text and of the segment being converted.
+pub const TEXT_EDITOR_PREEDIT_UNDERLINE: f32 = 1.5;
+pub const TEXT_EDITOR_ACTIVE_UNDERLINE: f32 = 3.0;
+
 /// Points between split view panes (EffectCraft's `view.rs`).
 pub const SPLIT_GAP: f32 = 2.0;
+/// Width of the line round the active split pane.
+pub const SPLIT_ACTIVE_EDGE: f32 = 1.0;
+
+/// Points between a page's top edge and its name on the pasteboard.
+pub const PASTEBOARD_NAME_GAP: f32 = 4.0;
+/// Width of a page's outline on the pasteboard (Border: Line).
+pub const PASTEBOARD_OUTLINE_WIDTH: f32 = 1.0;
 
 /// Side of the compact reference point picker, in points, at every Size (PhotoCraft's options bar).
 pub const REF_POINT_COMPACT: f32 = 16.0;
@@ -1515,3 +1583,537 @@ pub const HARMONY_STRIP: f32 = 20.0;
 pub const HARMONY_ROW: f32 = 18.0;
 /// Compact height of a variation cell.
 pub const HARMONY_CELL: f32 = 17.0;
+
+/// Least width of a card in the start screen grid (PhotoCraft's).
+pub const START_CARD_MIN: f32 = 260.0;
+
+/// Widest a card in the start screen grid grows (PhotoCraft's).
+pub const START_CARD_MAX: f32 = 360.0;
+
+/// Width of a tour card's contents (PhotoCraft's).
+pub const TOUR_CARD_WIDTH: f32 = 340.0;
+
+/// Gap between a tour target's highlight and its card (PhotoCraft's).
+pub const TOUR_TARGET_GAP: f32 = 12.0;
+
+/// How far a tour highlight stands off its target at rest (PhotoCraft's).
+pub const TOUR_HIGHLIGHT_OFFSET: f32 = 3.0;
+
+/// How far a tour highlight pulse adds to its offset (PhotoCraft's).
+pub const TOUR_HIGHLIGHT_PULSE: f32 = 2.0;
+
+/// Height of the selection bar (PhotoCraft's).
+pub const SELECTION_BAR_HEIGHT: f32 = 36.0;
+
+/// Gap between a selection and the bar below it (PhotoCraft's).
+pub const SELECTION_BAR_GAP_BELOW: f32 = 14.0;
+
+/// Gap between a selection and the bar above it (PhotoCraft's).
+pub const SELECTION_BAR_GAP_ABOVE: f32 = 8.0;
+
+/// Selection bar inset from the canvas edge (PhotoCraft's).
+pub const SELECTION_BAR_INSET: f32 = 8.0;
+
+/// Selection bar width before it is measured (PhotoCraft's).
+pub const SELECTION_BAR_FIRST_WIDTH: f32 = 420.0;
+
+/// Width of the selection bar grip (PhotoCraft's).
+pub const SELECTION_BAR_GRIP_WIDTH: f32 = 12.0;
+
+/// Height of the selection bar grip (PhotoCraft's).
+pub const SELECTION_BAR_GRIP_HEIGHT: f32 = 20.0;
+
+/// Radius of a selection bar grip dot (PhotoCraft's).
+pub const SELECTION_BAR_GRIP_DOT: f32 = 1.0;
+
+/// Distance between selection bar grip dots (PhotoCraft's).
+pub const SELECTION_BAR_GRIP_PITCH: f32 = 4.0;
+
+/// Content width of the dialog (PhotoCraft).
+pub const NEW_DOCUMENT_WIDTH: f32 = 800.0;
+
+/// Size of a preset card (PhotoCraft).
+pub const NEW_DOCUMENT_CARD: [f32; 2] = [164.0, 112.0];
+
+/// Columns of cards the grid shows before it scrolls (PhotoCraft).
+pub const NEW_DOCUMENT_CARD_COLUMNS: usize = 3;
+
+/// Rows of cards the grid shows before it scrolls (PhotoCraft).
+pub const NEW_DOCUMENT_CARD_ROWS: usize = 3;
+
+/// Longer side of the page icon on a card (PhotoCraft).
+pub const NEW_DOCUMENT_PAGE_ICON: f32 = 30.0;
+
+/// Side of the square the page icon sits in (PhotoCraft).
+pub const NEW_DOCUMENT_PAGE_BOX: f32 = 40.0;
+
+/// From a card's top to the centre of its page icon (PhotoCraft).
+pub const NEW_DOCUMENT_CARD_ICON_CENTER: f32 = 34.0;
+
+/// From a card's top to the centre of its name (PhotoCraft).
+pub const NEW_DOCUMENT_CARD_TITLE_CENTER: f32 = 70.0;
+
+/// From a card's top to the centre of its size line (PhotoCraft).
+pub const NEW_DOCUMENT_CARD_LINE_CENTER: f32 = 97.0;
+
+/// Room beside the card grid for its scroll bar (PhotoCraft).
+pub const NEW_DOCUMENT_SCROLL_ROOM: f32 = 16.0;
+
+/// Height of the Saved list (PhotoCraft).
+pub const NEW_DOCUMENT_SAVED_HEIGHT: f32 = 320.0;
+
+/// Height of a row of the Saved list (PhotoCraft).
+pub const NEW_DOCUMENT_SAVED_ROW: f32 = 32.0;
+
+/// Content width of Save for Web (PhotoCraft).
+pub const EXPORT_WEB_WIDTH: f32 = 900.0;
+
+/// Width of Save for Web's Matte field (PhotoCraft).
+pub const EXPORT_WEB_FIELD_WIDTH: f32 = 80.0;
+
+/// Width of the settings column of Export As and Save for Web (PhotoCraft: 248 and 250).
+pub const EXPORT_SETTINGS_WIDTH: f32 = 250.0;
+
+/// Between Export As's settings and its preview (PhotoCraft).
+pub const EXPORT_PANE_GAP: f32 = 12.0;
+
+/// Width of Save PDF's section list (VectorCraft).
+pub const EXPORT_PDF_LIST_WIDTH: f32 = 150.0;
+
+/// Width of Save PDF's section content (VectorCraft).
+pub const EXPORT_PDF_CONTENT_WIDTH: f32 = 500.0;
+
+/// Height of Save PDF's section content before it scrolls (VectorCraft).
+pub const EXPORT_PDF_CONTENT_HEIGHT: f32 = 360.0;
+
+/// Between Save PDF's section list and its content (VectorCraft).
+pub const EXPORT_PDF_GAP: f32 = 14.0;
+
+/// Width of the Save PDF dialog: list, gap and content.
+pub const EXPORT_PDF_WIDTH: f32 = EXPORT_PDF_LIST_WIDTH + EXPORT_PDF_GAP + EXPORT_PDF_CONTENT_WIDTH;
+
+/// Size of a chip (PhotoCraft).
+pub const THEME_CHIP_SIZE: [f32; 2] = [30.0, 26.0];
+
+/// From the outline to the fill (PhotoCraft).
+pub const THEME_CHIP_INSET: f32 = 3.0;
+
+/// Height of the chrome strip along the top of the fill (PhotoCraft).
+pub const THEME_CHIP_STRIP: f32 = 5.0;
+
+/// Radius of the accent dot (PhotoCraft).
+pub const THEME_CHIP_DOT_RADIUS: f32 = 2.5;
+
+/// From the fill's bottom end corner to the dot's centre, on both axes (PhotoCraft).
+pub const THEME_CHIP_DOT_OFFSET: f32 = 6.0;
+
+/// Corner radius of the outline (PhotoCraft).
+pub const THEME_CHIP_OUTLINE_RADIUS: f32 = 3.0;
+
+/// Corner radius of the fill (PhotoCraft).
+pub const THEME_CHIP_FILL_RADIUS: f32 = 2.0;
+
+/// Radius of the favourite star's badge (PhotoCraft).
+pub const THEME_CHIP_BADGE_RADIUS: f32 = 7.0;
+
+/// How far the badge's centre sits inside the chip's top end corner, as `[x, y]` (PhotoCraft).
+pub const THEME_CHIP_BADGE_INSET: [f32; 2] = [3.0, 3.0];
+
+/// Between two chips, with room for the badge that overhangs a corner (PhotoCraft).
+pub const THEME_CHIP_GAP: f32 = 6.0;
+
+/// Radius of the summary's status dot (PhotoCraft).
+pub const FINDINGS_STATUS_DOT: f32 = 4.5;
+
+/// Size of the list box (PhotoCraft).
+pub const FILE_LIST_SIZE: [f32; 2] = [300.0, 160.0];
+
+/// Least width of a button beside the list (PhotoCraft).
+pub const FILE_LIST_BUTTON_MIN: f32 = 120.0;
+
+// Step 5 controls (S5C-F8).
+
+/// Side of a table header's sort chevron (PdfCraft's Combine Files table).
+pub const TABLE_SORT_GLYPH: f32 = 12.0;
+
+/// From a header's text to its sort chevron (PdfCraft: the chevron's centre 14 past the label with a 12 chevron).
+pub const TABLE_SORT_GAP: f32 = 8.0;
+
+/// Width of a column edge's grab strip: three points either side of the edge.
+pub const TABLE_GRIP_WIDTH: f32 = 6.0;
+
+/// Width of the drop line of a moved column (PdfCraft).
+pub const TABLE_DROP_LINE_WIDTH: f32 = 2.5;
+
+/// Least width of a table column that sets none of its own (room for a short word).
+pub const TABLE_MIN_COLUMN: f32 = 40.0;
+
+/// How far past a header cell the drop line of a moved column may reach: it straddles the cell's edge, so its half width and a little more.
+pub const TABLE_DROP_LINE_SLACK: f32 = 3.0;
+
+/// Height of a chip, small and medium (LightCraft's keyword chip 22 and filter chip 18).
+pub const CHIP_HEIGHT: (f32, f32) = (18.0, 22.0);
+
+/// Between a chip's edge and its label (LightCraft).
+pub const CHIP_PAD_X: f32 = 8.0;
+
+/// Width of a chip's remove target (LightCraft's `CROSS_W`).
+pub const CHIP_REMOVE_WIDTH: f32 = 22.0;
+
+/// Between chips and between lines of chips (LightCraft).
+pub const CHIP_GAP: f32 = 6.0;
+
+/// Reach of a chip's remove cross from its centre (LightCraft).
+pub const CHIP_CROSS_ARM: f32 = 3.5;
+
+/// Stroke width of a chip's remove cross (LightCraft).
+pub const CHIP_CROSS_STROKE: f32 = 1.5;
+
+/// Side of an icon picker's cell (DeckCraft's `icon_cell`).
+pub const ICON_PICKER_CELL: f32 = 36.0;
+
+/// Between an icon picker's cells (PhotoCraft's preset panels).
+pub const ICON_PICKER_GAP: f32 = 3.0;
+
+/// Between an icon picker's cell edge and its icon (DeckCraft).
+pub const ICON_PICKER_INSET: f32 = 6.0;
+
+/// Most an icon picker's grid takes before it scrolls (DeckCraft's `max_height(420.0)`).
+pub const ICON_PICKER_MAX_HEIGHT: f32 = 420.0;
+
+/// Width of a split button's arrow part (VectorCraft).
+pub const SPLIT_BUTTON_ARROW_WIDTH: f32 = 18.0;
+
+/// Between a split button's divider and its top and bottom edge (VectorCraft).
+pub const SPLIT_BUTTON_DIVIDER_INSET: f32 = 5.0;
+
+/// Side of the chevron between breadcrumb segments (LightCraft).
+pub const BREADCRUMB_SEPARATOR: f32 = 16.0;
+
+/// Space beside a breadcrumb segment's text and either side of a chevron (LightCraft).
+pub const BREADCRUMB_GAP: f32 = 4.0;
+
+/// The room one breadcrumb segment counts for when deciding how many fit (LightCraft).
+pub const BREADCRUMB_MIN_SEGMENT: f32 = 80.0;
+
+/// Least side of a date picker's cell (LightCraft).
+pub const DATE_CELL: f32 = 26.0;
+
+/// Between a date picker's cells (LightCraft).
+pub const DATE_GAP: f32 = 2.0;
+
+/// Width of a date picker's popup (LightCraft).
+pub const DATE_POPUP_WIDTH: f32 = 220.0;
+
+/// Padding either side of a month or year cell's text (LightCraft).
+pub const DATE_CELL_PAD: f32 = 6.0;
+
+/// Radius of a reset dot's circle (VectorCraft).
+pub const RESET_DOT_RADIUS: f32 = 3.0;
+
+/// Corner radius of a reset dot's state fills (VectorCraft).
+pub const RESET_DOT_CORNER: f32 = 3.0;
+
+/// Distance of a drag badge from the pointer, across (LightCraft's `pos + vec2(14, 10)`).
+pub const DRAG_BADGE_OFFSET_X: f32 = 14.0;
+
+/// Distance of a drag badge from the pointer, down (LightCraft).
+pub const DRAG_BADGE_OFFSET_Y: f32 = 10.0;
+
+/// Padding beside a drag badge's text (LightCraft).
+pub const DRAG_BADGE_PAD_X: f32 = 9.0;
+
+/// Padding above and below a drag badge's text (LightCraft).
+pub const DRAG_BADGE_PAD_Y: f32 = 3.0;
+
+/// Distance of a drop veil's frame from the window's edge (LightCraft).
+pub const DROP_VEIL_INSET: f32 = 10.0;
+
+/// Stroke width of a drop veil's frame (LightCraft).
+pub const DROP_VEIL_FRAME_WIDTH: f32 = 2.0;
+
+/// Corner radius of a drop veil's frame (LightCraft).
+pub const DROP_VEIL_FRAME_RADIUS: f32 = 12.0;
+
+/// Corner radius of a drop veil's card (LightCraft).
+pub const DROP_VEIL_CARD_RADIUS: f32 = 10.0;
+
+/// Between a drop veil card's lines (LightCraft).
+pub const DROP_VEIL_CARD_GAP: f32 = 8.0;
+
+/// Padding at the sides of a drop veil's card (LightCraft).
+pub const DROP_VEIL_CARD_PAD_X: f32 = 32.0;
+
+/// Padding at the top and bottom of a drop veil's card (LightCraft).
+pub const DROP_VEIL_CARD_PAD_Y: f32 = 24.0;
+
+/// A drop veil's lines wrap at the window's width less this (LightCraft).
+pub const DROP_VEIL_WRAP_MARGIN: f32 = 120.0;
+
+/// The least width a drop veil's lines wrap at (LightCraft).
+pub const DROP_VEIL_MIN_WRAP: f32 = 200.0;
+
+/// Least height of an event log's details box (FilmCraft).
+pub const EVENT_LOG_DETAILS_HEIGHT: f32 = 70.0;
+
+/// Vertical inset of an event log's details box (FilmCraft).
+pub const EVENT_LOG_DETAILS_PAD_Y: f32 = 4.0;
+
+/// Least width of an autocomplete list (GridCraft's formula bar).
+pub const AUTOCOMPLETE_MIN_WIDTH: f32 = 220.0;
+
+/// Between an editor's bottom edge and its autocomplete list (GridCraft).
+pub const AUTOCOMPLETE_GAP: f32 = 4.0;
+
+/// Between a metadata table's name and value columns (LightCraft's grid spacing).
+pub const METADATA_COLUMN_GAP: f32 = 16.0;
+
+/// Between a metadata table's rows (LightCraft's grid spacing).
+pub const METADATA_ROW_GAP: f32 = 3.0;
+
+/// Above a metadata group's title, except the first (LightCraft).
+pub const METADATA_GROUP_GAP: f32 = 6.0;
+
+/// The most a metadata table's rows take before they scroll (LightCraft's dialog).
+pub const METADATA_MAX_HEIGHT: f32 = 440.0;
+
+/// Side of a rating row's star, small and medium (LightCraft's `widgets/rating.rs`).
+pub const RATING_STAR: (f32, f32) = (12.0, 14.0);
+
+/// Side of a rating row's star cell, small and medium (LightCraft).
+pub const RATING_CELL: (f32, f32) = (15.0, 19.0);
+
+/// Side of a painted badge star, small and medium (LightCraft's film-strip and grid badges).
+pub const RATING_BADGE_STAR: (f32, f32) = (8.0, 12.0);
+
+/// From one painted badge star to the next, small and medium (LightCraft).
+pub const RATING_BADGE_STEP: (f32, f32) = (9.0, 13.0);
+
+/// Duration of a text caret's glide, in milliseconds (WordCraft's `caret_glide.rs`, measured from Word).
+pub const MOTION_CARET_MS: u32 = 100;
+
+/// Easing of a text caret's glide: Word's `cubic-bezier(0, 0, 0, 1)` (WordCraft's `caret_glide.rs`).
+pub const MOTION_CARET_EASING: Easing = Easing::Enter;
+
+/// Duration of a selection outline's glide, in milliseconds (GridCraft's `selection_glide.rs`).
+pub const MOTION_OUTLINE_MS: u32 = 120;
+
+/// Easing of a selection outline's glide. GridCraft's `ease_out` is `1 - (1 - t)^3` (0.875 at the
+/// half way); `Standard` reaches 0.878 there and is the closest of the three curves.
+pub const MOTION_OUTLINE_EASING: Easing = Easing::Standard;
+
+/// Width of the About window (PhotoCraft).
+pub const ABOUT_WIDTH: f32 = 700.0;
+
+/// Height of the About window's Contributors list (PhotoCraft).
+pub const ABOUT_LIST_HEIGHT: f32 = 340.0;
+
+/// Gaps between the names of the About grab bag (PhotoCraft).
+pub const ABOUT_BAG_GAP: [f32; 2] = [14.0, 8.0];
+
+/// Width of the About window's community button (the module's constant).
+pub const ABOUT_COMMUNITY_WIDTH: f32 = 220.0;
+
+/// Least width of the About tables' flexible column (PhotoCraft).
+pub const ABOUT_FLEX_MIN: f32 = 110.0;
+
+/// Width of the password dialog (PdfCraft).
+pub const PASSWORD_WIDTH: f32 = 400.0;
+
+/// Size of a list manager's list box (GridCraft).
+pub const LIST_MANAGER_LIST: [f32; 2] = [330.0, 200.0];
+
+/// Least width of a list manager's buttons (GridCraft).
+pub const LIST_MANAGER_BUTTON_WIDTH: f32 = 100.0;
+
+/// Between a list manager's list and its buttons (the module's constant).
+pub const LIST_MANAGER_COLUMN_GAP: f32 = 12.0;
+
+/// Between an align bar's buttons and its ⋯ button at the Compact size (PhotoCraft's `add_space(6.0)`); scaled with the control height.
+pub const ALIGN_MENU_GAP: f32 = 6.0;
+
+/// Most height of a tree picker's list (the module's constant).
+pub const TREE_PICKER_LIST_HEIGHT: f32 = 320.0;
+
+/// Least width of a tree picker's popup (the module's constant).
+pub const TREE_PICKER_MIN_POPUP_WIDTH: f32 = 220.0;
+
+/// Width of an alt text editor's box (the module's constant).
+pub const ALT_TEXT_BOX_WIDTH: f32 = 340.0;
+
+/// Least gap between an alt text editor's rows (the module's constant).
+pub const ALT_TEXT_ROW_GAP: f32 = 6.0;
+
+/// Side of a checkerboard cell behind a translucent thumbnail (PhotoCraft `layer_row.rs:534`).
+pub const THUMBNAIL_CHECKER_CELL: f32 = 5.0;
+
+/// Side of a spot channel's ink swatch on its thumbnail (PhotoCraft `channels_panel.rs:245`).
+pub const CHANNELS_SPOT_SWATCH: f32 = 9.0;
+
+/// Side of a History snapshot's thumbnail (PhotoCraft `history.rs:284`).
+pub const HISTORY_SNAPSHOT_THUMB: f32 = 28.0;
+/// Width of the Undo list popup (WordCraft `chrome.rs:153`).
+pub const HISTORY_UNDO_LIST_WIDTH: f32 = 210.0;
+
+/// Box of a Layers indicator icon (PhotoCraft `layer_row_ui.rs`, `ICON_W` with its padding).
+pub const LAYERS_INDICATOR_ICON: f32 = 14.0;
+/// Width of the Layers effects triangle (PhotoCraft `TRIANGLE_W`).
+pub const LAYERS_INDICATOR_TRIANGLE: f32 = 10.0;
+/// Box of a Layers mask badge (PhotoCraft `mask_thumbs_ui.rs`).
+pub const LAYERS_MASK_BADGE: f32 = 9.0;
+/// Least width of the Layers blend select before the "Opacity:" label hides.
+pub const LAYERS_BLEND_MIN_WIDTH: f32 = 80.0;
+/// Width of the Layers Opacity and Fill fields, without the pop-up arrow.
+pub const LAYERS_PERCENT_FIELD_WIDTH: f32 = 66.0;
+/// Width of the Layers filter type select (PhotoCraft `layer_filter_ui.rs`).
+pub const LAYERS_FILTER_TYPE_WIDTH: f32 = 64.0;
+/// Panel Options' sample side as a factor of the row thumbnail.
+pub const LAYERS_OPTIONS_SAMPLE_SCALE: f32 = 2.0;
+/// Space after the Layers filter type select (PhotoCraft `layer_filter_ui.rs`).
+pub const LAYERS_FILTER_TYPE_GAP: f32 = 4.0;
+/// Room kept free between the "Opacity:" label and its field (PhotoCraft `opacity_row_layout`).
+pub const LAYERS_BLEND_LABEL_SLACK: f32 = 16.0;
+/// Least width of the blend select when the row is too narrow for anything else (PhotoCraft
+/// `opacity_row_layout`).
+pub const LAYERS_BLEND_FLOOR_WIDTH: f32 = 40.0;
+/// Space between the blend, Opacity, Lock and Fill rows (PhotoCraft `ROW_GAP`).
+pub const LAYERS_BLEND_ROW_GAP: f32 = 4.0;
+/// Ink of the Type layer's kind tile, the same in every theme like its paper (PhotoCraft
+/// `layer_row.rs`).
+pub const LAYERS_KIND_TYPE_INK: Rgba = Rgba::rgb(40, 40, 40);
+/// Space between the effects triangle and the `fx` mark (PhotoCraft `layer_row_ui.rs`).
+pub const LAYERS_INDICATOR_FX_GAP: f32 = 1.0;
+/// Stroke of the cross over a disabled mask.
+pub const LAYERS_MASK_CROSS_WIDTH: f32 = 1.5;
+/// How far the cross over a disabled mask is inset from its thumbnail.
+pub const LAYERS_MASK_CROSS_INSET: f32 = 1.0;
+/// Stroke of the Smart Filters indicator's rings.
+pub const LAYERS_INDICATOR_RING_WIDTH: f32 = 1.0;
+
+/// Side of a media tile's flag glyph in its badge bar (LightCraft `grid.rs`).
+pub const TILE_FLAG: f32 = 14.0;
+/// Side of a media tile's colour dot (LightCraft: radius 5).
+pub const TILE_DOT: f32 = 10.0;
+/// Height of a media tile's badge bar (LightCraft `grid.rs:878`).
+pub const TILE_BAR: f32 = 24.0;
+/// Side of a media tile's check box in check mode (LightCraft `import/body.rs:417`).
+pub const TILE_CHECKBOX: f32 = 16.0;
+/// Margin of the scrim behind a media tile's check box (LightCraft `import/body.rs:417`).
+pub const TILE_CHECKBOX_BACKDROP: f32 = 2.0;
+/// Height of a media tile's badge pill (LightCraft).
+pub const TILE_BADGE_HEIGHT: f32 = 16.0;
+/// Height of a media tile's status band (FilmCraft).
+pub const TILE_STATUS_BAND: f32 = 20.0;
+/// Height of a media tile's In/Out range bar (FilmCraft).
+pub const TILE_RANGE_BAR: f32 = 4.0;
+/// Width of a media tile's selection ring (PhotoCraft preset ring).
+pub const TILE_RING_WIDTH: f32 = 2.0;
+/// Width of a media tile's hover ring (PhotoCraft preset ring).
+pub const TILE_RING_HOVER_WIDTH: f32 = 1.0;
+/// Width of the halo outside a media tile's selection ring (PhotoCraft preset ring).
+pub const TILE_RING_HALO_WIDTH: f32 = 1.0;
+/// Share of the grid's height one wheel notch scrolls (LightCraft `WHEEL_STRIP_SHARE`).
+pub const TILE_WHEEL_SHARE: f32 = 1.0 / 3.0;
+/// Opacity of the veil over a rejected tile, as a factor of `surface.scrim` (LightCraft alpha 110).
+pub const TILE_VEIL_ALPHA: f32 = 0.45;
+/// Height of the compare tile's caption strip (LightCraft `compare.rs:219`).
+pub const TILE_COMPARE_CAPTION: f32 = 26.0;
+/// Margin around the compare panes (LightCraft).
+pub const TILE_COMPARE_MARGIN: f32 = 18.0;
+/// Gap between the compare panes (LightCraft).
+pub const TILE_COMPARE_GAP: f32 = 16.0;
+/// Room the compare caption needs to keep the name (LightCraft).
+pub const TILE_COMPARE_NAME_ROOM: f32 = 110.0;
+/// Side of the media bin's label chip (FilmCraft `project_views.rs`).
+pub const TILE_BIN_CHIP: f32 = 12.0;
+/// Radius of the media bin's label chip (FilmCraft `project_views.rs`).
+pub const TILE_BIN_CHIP_RADIUS: f32 = 2.5;
+
+/// Side of a link status badge (VideoCraft).
+pub const LINK_BADGE: f32 = 16.0;
+/// Size of the Link Media preview box (FilmCraft `media_dialogs.rs`).
+pub const LINK_PREVIEW: [f32; 2] = [192.0, 108.0];
+/// Height of the Link Media candidate list (FilmCraft).
+pub const LINK_CANDIDATES_HEIGHT: f32 = 108.0;
+/// Least height of the Link Media table (FilmCraft).
+pub const LINK_TABLE_MIN: f32 = 90.0;
+/// Greatest height of the Link Media table (FilmCraft).
+pub const LINK_TABLE_MAX: f32 = 320.0;
+/// Share of the window's height the Link Media table takes before its clamp (FilmCraft).
+pub const LINK_TABLE_SHARE: f32 = 0.3;
+/// Greatest width of the Link Media dialog (FilmCraft).
+pub const LINK_DIALOG_MAX_WIDTH: f32 = 760.0;
+
+/// The Navigator's default proxy rectangle colour (PhotoCraft `navigator.rs`).
+pub const NAVIGATOR_PROXY: Rgba = Rgba::rgb(255, 84, 84);
+/// The Navigator proxy's stroke width (PhotoCraft `navigator.rs:105`).
+pub const NAVIGATOR_PROXY_WIDTH: f32 = 1.5;
+/// Width of the halo under the navigator's proxy outline.
+pub const NAVIGATOR_HALO: f32 = 1.0;
+/// Corner radius of the proxy on an upright view.
+pub const NAVIGATOR_PROXY_RADIUS: f32 = 2.0;
+/// Space between the Navigator's preview box and the fitted document.
+pub const NAVIGATOR_INSET: f32 = 8.0;
+/// The least height of the Navigator's preview box.
+pub const NAVIGATOR_MIN_PREVIEW: f32 = 40.0;
+/// Side of the Navigator's checkerboard square.
+pub const NAVIGATOR_CHECKER: f32 = 6.0;
+/// The gap above the Navigator's zoom row and between its controls (PhotoCraft `navigator.rs:109`).
+pub const NAVIGATOR_ROW_GAP: f32 = 4.0;
+/// The Navigator's named proxy colours after Default: red, orange, yellow, green, blue, violet,
+/// gray.
+pub const NAVIGATOR_PROXY_COLORS: [Rgba; 7] = [
+    Rgba::rgb(255, 84, 84),
+    Rgba::rgb(255, 160, 60),
+    Rgba::rgb(255, 214, 64),
+    Rgba::rgb(92, 214, 110),
+    Rgba::rgb(84, 160, 255),
+    Rgba::rgb(176, 124, 255),
+    Rgba::rgb(200, 200, 200),
+];
+
+/// A clipping warning button's side (PhotoCraft `camera_raw_scope_ui.rs:389`).
+pub const SCOPES_WARNING_SIZE: f32 = 18.0;
+/// The gap between the scope statistics columns (PhotoCraft `histogram_panel.rs:721`).
+pub const SCOPES_STATISTICS_GAP: f32 = 6.0;
+/// Each per-channel plot of All Channels View (PhotoCraft `histogram_panel.rs:797`).
+pub const SCOPES_ALL_CHANNELS_HEIGHT: f32 = 90.0;
+/// The vectorscope rings' alpha (PhotoCraft `camera_raw_scope_ui.rs:461`).
+pub const SCOPES_VECTOR_RING_ALPHA: f32 = 0.45;
+/// The smallest half-side of a vectorscope cloud dot (PhotoCraft `camera_raw_scope_ui.rs:471`).
+pub const SCOPES_VECTOR_DOT_MIN: f32 = 0.7;
+/// The largest half-side of a vectorscope cloud dot.
+pub const SCOPES_VECTOR_DOT_MAX: f32 = 3.0;
+/// The scope hover readout badge's height (PhotoCraft `camera_raw_scope_ui.rs:397`).
+pub const SCOPES_HOVER_BADGE_HEIGHT: f32 = 20.0;
+/// The hovered zone band's alpha (PhotoCraft `camera_raw_scope_ui.rs:417`).
+pub const SCOPES_ZONE_ALPHA: f32 = 0.055;
+/// The vectorscope's smallest default height (PhotoCraft `camera_raw_scope_ui.rs:511`).
+pub const SCOPES_VECTOR_HEIGHT_MIN: f32 = 100.0;
+/// The vectorscope's largest default height.
+pub const SCOPES_VECTOR_HEIGHT_MAX: f32 = 220.0;
+/// The vectorscope's margin between the outer ring and the plot's edge, which holds the hue
+/// letters (PhotoCraft `camera_raw_scope_ui.rs:443`).
+pub const SCOPES_VECTOR_MARGIN: f32 = 14.0;
+/// The inset of a clipping warning's triangle in its button (PhotoCraft `camera_raw_scope_ui.rs:352`).
+pub const SCOPES_WARNING_INSET: f32 = 3.0;
+
+/// A set header's height in the Actions panel (PhotoCraft `actions.rs:831`).
+pub const ACTIONS_SET_ROW_HEIGHT: f32 = 24.0;
+/// An action row's height in the Actions panel.
+pub const ACTIONS_ROW_HEIGHT: f32 = 26.0;
+/// A step row's height in the Actions panel.
+pub const ACTIONS_STEP_ROW_HEIGHT: f32 = 20.0;
+/// The radius of the dot on the action being recorded (PhotoCraft `actions.rs:1040`).
+pub const ACTIONS_RECORDING_DOT_RADIUS: f32 = 4.0;
+/// The Button Mode fills, red to violet (PhotoCraft `actions.rs:297-313`).
+pub const ACTIONS_COLORS: [Rgba; 6] = [
+    Rgba::rgb(196, 64, 64),
+    Rgba::rgb(204, 120, 40),
+    Rgba::rgb(196, 176, 48),
+    Rgba::rgb(56, 140, 72),
+    Rgba::rgb(48, 104, 176),
+    Rgba::rgb(120, 72, 168),
+];
+/// A Button Mode label on a coloured fill (PhotoCraft `actions.rs:297-313`).
+pub const ACTIONS_LABEL_ON_COLOR: Rgba = Rgba::rgb(20, 20, 20);

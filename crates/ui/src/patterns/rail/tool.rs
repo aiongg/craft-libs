@@ -15,7 +15,7 @@ use crate::localized::Labels as _;
 use crate::panes::Edge;
 use crate::patterns::panel::ScrollBarLabels;
 use crate::patterns::toolbar_drawer::DropAt;
-use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
+use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 use egui::AsIdSalt;
@@ -70,8 +70,7 @@ impl<T> ToolSlot<T> {
 }
 
 /// The tool each slot showed last. Plain data the host keeps with its workspace.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LastUsed<T> {
     tools: Vec<(SlotId, T)>,
 }
@@ -366,6 +365,13 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         self
     }
 
+    /// The host has the Edit Toolbar drawer open: the rail takes drags and shows drop targets. The
+    /// host sets it from the Edit Toolbar button and the drawer's close.
+    pub fn editing(mut self, editing: bool) -> Self {
+        self.editing = editing;
+        self
+    }
+
     /// The tools hidden by the user's toolbar settings.
     pub fn hidden(mut self, hidden: &'a [T]) -> Self {
         self.hidden = hidden;
@@ -401,14 +407,13 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
     /// window is short. It must size to its content: its height is measured on one pass and used
     /// on the next, so a footer that fills the available height never settles.
     pub fn show(
-        mut self,
+        self,
         ui: &mut Ui,
         slots: &[ToolSlot<T>],
         current: &T,
         last_used: &mut LastUsed<T>,
         footer: impl FnOnce(&mut Ui, RailFooter),
     ) -> ToolRailOutput<T> {
-        self.editing = editing(ui.ctx());
         let left = self.left(ui);
         let tokens = Tokens::of(ui);
         let metrics = Self::metrics(&tokens, self.columns);
@@ -444,7 +449,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         out.rect = shown.response.rect;
         let (columns, rtl, total) = (self.columns, direction::is_rtl(ui), slots.len());
         let button = self.edit_toolbar.is_some().then(|| id.with("edit-toolbar"));
-        edit_update(ui.ctx(), |edit| {
+        edit_update(ui.ctx(), self.id_salt, |edit| {
             *edit = RailEdit { rect: Some(out.rect), placed, total, columns, rtl, button, ..std::mem::take(edit) };
         });
         out
@@ -528,7 +533,8 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
                 Self::arrows(ui, grid.columns, &cells);
             }
             if self.editing {
-                let target = pointer_target(ui.ctx(), full, placed, grid.columns, rtl, slots.len()).or_else(|| edit_state(ui.ctx()).target);
+                let target =
+                    pointer_target(ui.ctx(), full, placed, grid.columns, rtl, slots.len()).or_else(|| edit_state(ui.ctx(), self.id_salt).target);
                 if let Some(target) = target {
                     paint_target(ui, grid.columns, rtl, placed, target);
                 }
@@ -630,8 +636,6 @@ pub(crate) struct Placed {
 /// What the rail and the Edit Toolbar drawer tell each other, kept in egui temp data by window.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RailEdit {
-    /// The pass the drawer last drew in.
-    pub drawer_pass: Option<u64>,
     /// Where the rail was drawn.
     pub rect: Option<Rect>,
     pub placed: Vec<Placed>,
@@ -645,23 +649,19 @@ pub(crate) struct RailEdit {
     pub target: Option<DropAt>,
 }
 
-fn edit_id(ctx: &Context) -> Id {
-    Id::unique("craft-ui-rail-edit").with(ctx.viewport_id())
+/// The state of the rail `rail` in this viewport: two rails (or two drawers) do not share it.
+fn edit_id(ctx: &Context, rail: IdSalt) -> Id {
+    Id::unique("craft-ui-rail-edit").with(ctx.viewport_id()).with(rail)
 }
 
-pub(crate) fn edit_state(ctx: &Context) -> RailEdit {
-    let id = edit_id(ctx);
+pub(crate) fn edit_state(ctx: &Context, rail: IdSalt) -> RailEdit {
+    let id = edit_id(ctx, rail);
     ctx.data(|d| d.get_temp::<RailEdit>(id)).unwrap_or_default()
 }
 
-pub(crate) fn edit_update(ctx: &Context, update: impl FnOnce(&mut RailEdit)) {
-    let id = edit_id(ctx);
+pub(crate) fn edit_update(ctx: &Context, rail: IdSalt, update: impl FnOnce(&mut RailEdit)) {
+    let id = edit_id(ctx, rail);
     ctx.data_mut(|d| update(d.get_temp_mut_or_default::<RailEdit>(id)));
-}
-
-/// The drawer drew in this pass or the one before: the rail takes drags and shows drop targets.
-fn editing(ctx: &Context) -> bool {
-    edit_state(ctx).drawer_pass.is_some_and(|pass| pass + 1 >= ctx.cumulative_pass_nr())
 }
 
 /// Where the payload being dragged would drop on the rail, when the pointer is over `bounds`.
@@ -672,8 +672,8 @@ fn pointer_target(ctx: &Context, bounds: Rect, placed: &[Placed], columns: usize
 }
 
 /// [`pointer_target`] over the rail as the last pass drew it.
-pub(crate) fn dragged_target(ctx: &Context) -> Option<DropAt> {
-    let edit = edit_state(ctx);
+pub(crate) fn dragged_target(ctx: &Context, rail: IdSalt) -> Option<DropAt> {
+    let edit = edit_state(ctx, rail);
     pointer_target(ctx, edit.rect?, &edit.placed, edit.columns, edit.rtl, edit.total)
 }
 
@@ -784,10 +784,10 @@ pub const COMPONENTS: &[&str] = &["ToolRail"];
 
 type StoryTool = &'static str;
 
-fn story_slots() -> Vec<ToolSlot<StoryTool>> {
+pub(crate) fn story_slots(words: &PatternStoryLabels) -> Vec<ToolSlot<StoryTool>> {
     let tool = |id, icon, label: &str, key: &str| RailTool::new(id, icon, label).shortcut(key);
     vec![
-        ToolSlot::new(0, vec![tool("move", Icon::Move, "Move", "V")]),
+        ToolSlot::new(0, vec![tool("move", Icon::Move, &words.move_tool, "V")]),
         ToolSlot::new(
             1,
             vec![
@@ -798,14 +798,14 @@ fn story_slots() -> Vec<ToolSlot<StoryTool>> {
             ],
         ),
         ToolSlot::new(2, vec![tool("lasso", Icon::Lasso, "Lasso", "L"), tool("magnetic", Icon::LassoMagnetic, "Magnetic Lasso", "L")]),
-        ToolSlot::new(3, vec![tool("crop", Icon::Crop, "Crop", "C"), tool("perspective", Icon::PerspectiveCrop, "Perspective Crop", "C")]),
+        ToolSlot::new(3, vec![tool("crop", Icon::Crop, &words.crop, "C"), tool("perspective", Icon::PerspectiveCrop, "Perspective Crop", "C")]),
         ToolSlot::new(4, vec![tool("eyedropper", Icon::Eyedropper, "Eyedropper", "I"), tool("ruler", Icon::Ruler, "Ruler", "I")]),
-        ToolSlot::new(5, vec![tool("brush", Icon::Brush, "Brush", "B"), tool("pencil", Icon::Pencil, "Pencil", "B")]),
+        ToolSlot::new(5, vec![tool("brush", Icon::Brush, &words.brush, "B"), tool("pencil", Icon::Pencil, "Pencil", "B")]),
         ToolSlot::new(6, vec![tool("stamp", Icon::Stamp, "Clone Stamp", "S")]),
         ToolSlot::new(
             7,
             vec![
-                tool("eraser", Icon::Eraser, "Eraser", "E"),
+                tool("eraser", Icon::Eraser, &words.eraser, "E"),
                 tool("background", Icon::EraserBackground, "Background Eraser", "E"),
                 tool("magic", Icon::EraserMagic, "Magic Eraser", "E"),
             ],
@@ -853,7 +853,8 @@ fn show_story(ui: &mut Ui, args: &mut ToolArgs) {
     let current = ui.data(|d| d.get_temp::<StoryTool>(state)).unwrap_or("brush");
     let mut last_used = ui.data(|d| d.get_temp::<LastUsed<StoryTool>>(state.with("last"))).unwrap_or_default();
     let mode = ui.data(|d| d.get_temp::<StoryTool>(state.with("mode"))).unwrap_or("standard");
-    let slots = story_slots();
+    let slots = story_slots(&PatternStoryLabels::of(ui));
+    let screen_modes = crate::shell::ScreenModeLabels::of(ui);
     let mut new_mode = None;
     let out = ui
         .allocate_ui(vec2(160.0, height), |ui| {
@@ -867,11 +868,14 @@ fn show_story(ui: &mut Ui, args: &mut ToolArgs) {
                         let style = FlyoutButton::<StoryTool>::style(&Tokens::of(ui)).icon_button;
                         ui.add(IconButton::new(Icon::LayerMask, "Quick Mask Mode").with_style(style).shortcut("Q"));
                         let modes = [
-                            FlyoutItem::new("standard", Icon::AppWindow, "Standard Screen Mode"),
-                            FlyoutItem::new("full", Icon::Maximize2, "Full Screen Mode"),
+                            FlyoutItem::new("standard", Icon::AppWindow, &screen_modes.standard),
+                            FlyoutItem::new("full", Icon::Maximize2, &screen_modes.full_screen),
                         ];
-                        let (icon, label) =
-                            if mode == "full" { (Icon::Maximize2, "Full Screen Mode") } else { (Icon::AppWindow, "Standard Screen Mode") };
+                        let (icon, label) = if mode == "full" {
+                            (Icon::Maximize2, screen_modes.full_screen.as_str())
+                        } else {
+                            (Icon::AppWindow, screen_modes.standard.as_str())
+                        };
                         let button = FlyoutButton::new("screen-mode", icon, label).items(&modes).current(&mode).shortcut("F");
                         let response = button.show(ui);
                         new_mode = response.chosen.or_else(|| response.clicked.then_some(if mode == "full" { "standard" } else { "full" }));

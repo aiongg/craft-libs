@@ -24,7 +24,8 @@ pub const PAGE_NUMBER_STYLES: [NumberStyle; 8] = [
 /// the number where `include_prefix` says (InDesign's Section Prefix, "Include Prefix when
 /// Numbering Pages").
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct PageNumbering {
     pub style: NumberStyle,
     /// The first page's number, 1 or more.

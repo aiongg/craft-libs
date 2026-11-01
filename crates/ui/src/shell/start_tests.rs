@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use craft_i18n::Collator;
 use egui::accesskit::Role;
 use egui::{Context, Event, Key, Modifiers, PointerButton};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -54,7 +55,7 @@ fn start_screen_reports_new_open_and_recent() {
     assert_eq!(*actions.borrow(), [StartAction::New, StartAction::Open, StartAction::OpenRecent(PathBuf::from("/work/b.psd"))]);
     // The card is named by the file and described by its folder and age.
     let node = card(&harness, "a.psd");
-    assert_eq!(node.accesskit_node().description().as_deref(), Some("/work, 1 day ago"));
+    assert_eq!(node.accesskit_node().description().as_deref(), Some("/work, Yesterday"));
 
     // Arrow keys move between the cards and Enter opens the focused one.
     let focused = Actions::default();
@@ -130,10 +131,19 @@ fn recent_files_sort_by_opened_name_and_created() {
     let mut files =
         vec![file("banana", Some(10), Some(3)), file("Cherry", None, None), file("apple", Some(30), Some(1)), file("Date", Some(20), Some(2))];
     let names = |files: &[RecentFile]| files.iter().map(|f| f.name.clone()).collect::<Vec<_>>();
-    sort_recent(&mut files, RecentSort::Opened);
+    let collator = Collator::new("en");
+    sort_recent(&mut files, RecentSort::Opened, &collator);
     assert_eq!(names(&files), ["apple", "Date", "banana", "Cherry"]);
-    sort_recent(&mut files, RecentSort::Name);
+    sort_recent(&mut files, RecentSort::Name, &collator);
     assert_eq!(names(&files), ["apple", "banana", "Cherry", "Date"]);
-    sort_recent(&mut files, RecentSort::Created);
+    sort_recent(&mut files, RecentSort::Created, &collator);
     assert_eq!(names(&files), ["banana", "Date", "apple", "Cherry"]);
+}
+
+// Digits sort by value: "a2" comes before "a10", which the plain folded key put the other way.
+#[test]
+fn names_sort_with_digits_by_value() {
+    let mut files = vec![file("a10", None, None), file("a2", None, None), file("a1", None, None)];
+    sort_recent(&mut files, RecentSort::Name, &Collator::new("en"));
+    assert_eq!(files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["a1", "a2", "a10"]);
 }

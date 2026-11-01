@@ -4,12 +4,13 @@
 
 use egui::accesskit::Role;
 use egui::{CursorIcon, DragAndDrop, Event, Key, Modifiers, PointerButton, Pos2, Sense, Ui, vec2};
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
 use super::drag::{show_copy, show_flat, show_refused, show_tree};
 use super::*;
 use crate::behavior::{Axis, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
+use crate::composites::PanelFooter;
 use crate::edit::{CancelReason, EditEvent};
 use crate::story::NoArgs;
 use crate::testing::a11y;
@@ -394,4 +395,246 @@ fn the_drop_target_follows_the_pointer_in_the_same_pass() {
     harness.event(Event::PointerMoved(pos));
     harness.step();
     assert_eq!(harness.state_mut().take_targets(), [mv(&[1], 6, DropPosition::Before)]);
+}
+
+// `into_rows` accepting the dragged rows: the middle of a row without children is an Into target
+// (marker Into, Move position Into); a row it refuses keeps halves.
+#[test]
+fn into_rows_offers_into_on_a_row_without_children() {
+    let mut harness = Harness::<Host>::builder()
+        .with_size([320.0, 300.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, host: &mut Host| {
+                let reorder = Reorder::new(Axis::Vertical).into_rows(|_, &key: &usize| key != 5);
+                let out = List::new("list", "Layers", host.rows.as_slice())
+                    .selection(&mut host.selection)
+                    .max_height(LIST_HEIGHT)
+                    .reorder(reorder)
+                    .show(ui, |_, &key| ListRow::new(key, format!("Row {key}")));
+                if DragAndDrop::payload::<ListDrag<usize>>(ui.ctx()).is_some() && host.targets.last() != Some(&out.drop_target) {
+                    host.targets.push(out.drop_target.clone());
+                }
+            },
+            Host::new(10),
+        );
+    harness.run();
+    grab(&mut harness, 1);
+    hover_row(&mut harness, 3, 0.5);
+    assert_eq!(harness.state().targets.last(), Some(&mv(&[1], 3, DropPosition::Into)), "the middle of an accepting row is Into");
+    hover_row(&mut harness, 3, 0.1);
+    assert_eq!(harness.state().targets.last(), Some(&mv(&[1], 3, DropPosition::Before)), "its top edge is still Before");
+    hover_row(&mut harness, 5, 0.5);
+    assert_eq!(harness.state().targets.last(), Some(&mv(&[1], 5, DropPosition::After)), "a refused row keeps halves");
+    hover_row(&mut harness, 1, 0.5);
+    assert_eq!(harness.state().targets.last(), Some(&None), "a dragged row never takes itself");
+}
+
+/// How the footer's Delete is shown.
+#[derive(Clone, Copy, PartialEq)]
+enum FooterKind {
+    /// `PanelFooter::button` and `drop_target`, in a `Ui` enabled as given.
+    Plain(bool),
+    /// `PanelFooter::drop_button`, enabled as given.
+    DropAware(bool),
+}
+
+/// A list with a footer button, drawn after the list or before it.
+struct Footer {
+    rows: Vec<RowInfo<usize>>,
+    selection: Selection<usize>,
+    first: bool,
+    accept: bool,
+    kind: FooterKind,
+    reorders: Vec<Reordered>,
+    dropped: Option<ListDrag<usize>>,
+    hints: Vec<String>,
+    button: Option<egui::Rect>,
+    /// Per pass: whether a drag was over the button when the pass began, and whether the button
+    /// was enabled in that pass.
+    passes: Vec<(bool, bool)>,
+}
+
+fn show_footer(ui: &mut Ui, host: &mut Footer) {
+    fn footer_button(ui: &mut Ui, host: &mut Footer) {
+        let dragging = DragAndDrop::has_any_payload(ui.ctx());
+        let accept = host.accept;
+        let (delete, dropped) = match host.kind {
+            FooterKind::Plain(enabled) => {
+                let delete = ui.add_enabled_ui(enabled, |ui| PanelFooter::button(ui, crate::icons::Icon::Trash, "Delete layer")).inner;
+                let dropped = PanelFooter::drop_target::<ListDrag<usize>>(ui, &delete, |_| accept);
+                (delete, dropped)
+            }
+            FooterKind::DropAware(enabled) => {
+                PanelFooter::drop_button::<ListDrag<usize>>(ui, crate::icons::Icon::Trash, "Delete layer", enabled, |_| accept)
+            }
+        };
+        host.button = Some(delete.rect);
+        host.passes.push((dragging && ui.rect_contains_pointer(delete.rect), delete.enabled()));
+        if let Some(drag) = dropped {
+            host.dropped = Some((*drag).clone());
+        }
+        if let Some(hint) = crate::behavior::drop_hint(ui.ctx()) {
+            host.hints.push(hint);
+        }
+    }
+    if host.first {
+        footer_button(ui, host);
+    }
+    let out = List::new("list", "Layers", host.rows.as_slice())
+        .selection(&mut host.selection)
+        .max_height(LIST_HEIGHT)
+        .reorder(Reorder::new(Axis::Vertical))
+        .show(ui, |_, &key| ListRow::new(key, format!("Row {key}")));
+    for event in out.events {
+        if let ListEvent::Reorder(event) = event {
+            host.reorders.push(event);
+        }
+    }
+    if !host.first {
+        footer_button(ui, host);
+    }
+}
+
+fn footer_harness(first: bool, accept: bool) -> Harness<'static, Footer> {
+    footer_harness_with(first, accept, FooterKind::Plain(true), Selection::only(0))
+}
+
+fn footer_harness_with(first: bool, accept: bool, kind: FooterKind, selection: Selection<usize>) -> Harness<'static, Footer> {
+    let host = Footer {
+        rows: (0..6).map(RowInfo::leaf).collect(),
+        selection,
+        first,
+        accept,
+        kind,
+        reorders: Vec::new(),
+        dropped: None,
+        hints: Vec::new(),
+        button: None,
+        passes: Vec::new(),
+    };
+    let mut harness = Harness::<Footer>::builder()
+        .with_size([320.0, 400.0])
+        .with_step_dt(0.05)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(show_footer, host);
+    harness.run();
+    harness
+}
+
+fn footer_move(harness: &mut Harness<'_, Footer>, pos: Pos2, pressed: Option<bool>) {
+    harness.event(Event::PointerMoved(pos));
+    if let Some(pressed) = pressed {
+        harness.event(Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+    }
+    harness.run();
+}
+
+/// Presses on Row 1 and moves over the footer button, returning the button's centre.
+fn drag_to_footer(harness: &mut Harness<'_, Footer>) -> Pos2 {
+    let rect = harness.get_by_label("Row 1").rect();
+    footer_move(harness, rect.center(), Some(true));
+    footer_move(harness, rect.center() + vec2(0.0, 8.0), None);
+    let target = harness.state().button.unwrap_or(egui::Rect::NOTHING).center();
+    assert!(target.x.is_finite(), "the footer button is shown");
+    footer_move(harness, target, None);
+    target
+}
+
+// A row drag released over a `PanelFooter` button below the list: the list reports
+// Cancel(Dismissed) and `PanelFooter::drop_target` returns the ListDrag in the same pass, with the
+// footer drawn after the list and with it drawn before.
+#[test]
+fn a_release_over_a_footer_button_delivers_the_list_drag() {
+    for first in [false, true] {
+        let mut harness = footer_harness(first, true);
+        let target = drag_to_footer(&mut harness);
+        footer_move(&mut harness, target, Some(false));
+        let host = harness.state();
+        assert_eq!(host.dropped.as_ref().map(|d| d.items.clone()), Some(vec![1]), "the footer takes the payload (footer first: {first})");
+        assert!(
+            host.reorders.iter().any(|e| matches!(e, EditEvent::Cancel { reason: CancelReason::Dismissed, .. })),
+            "the list ends as dismissed (footer first: {first}): {:?}",
+            host.reorders
+        );
+        assert!(DragAndDrop::payload::<ListDrag<usize>>(&harness.ctx).is_none(), "the drop took the payload");
+    }
+}
+
+// While a drag hovers a footer button, `drop_target` paints the Into outline and sets the drop hint
+// when `accepts` takes the payload, and paints nothing, sets no hint and returns None when it refuses.
+#[test]
+fn a_footer_button_outlines_only_an_accepted_drag() {
+    let mut harness = footer_harness(false, true);
+    drag_to_footer(&mut harness);
+    assert_eq!(harness.state().hints.last().map(String::as_str), Some("Delete layer"), "an accepted drag announces the button");
+
+    let mut harness = footer_harness(false, false);
+    let target = drag_to_footer(&mut harness);
+    assert!(harness.state().hints.is_empty(), "a refused drag shows nothing");
+    footer_move(&mut harness, target, Some(false));
+    assert_eq!(harness.state().dropped, None, "a refused payload is never returned");
+}
+
+/// Whether the last pass painted the Into drop outline (the list's drop colour) inside `rect`.
+fn painted_drop_mark(harness: &Harness<'_, Footer>, rect: egui::Rect) -> bool {
+    let drop = ListRow::<u8>::style(&crate::theme::current(&harness.ctx)).drop;
+    harness.output().shapes.iter().any(|s| match &s.shape {
+        egui::Shape::Rect(r) => r.stroke.color == drop && rect.expand(1.0).contains_rect(r.rect),
+        _ => false,
+    })
+}
+
+// A drag of a row inside a selection carries the whole selection and names the grabbed row, which a
+// footer that acts on one row uses.
+#[test]
+fn a_footer_drop_names_the_grabbed_row_of_a_selection() {
+    let selection = Selection { items: vec![0, 1, 2], lead: Some(0), anchor: Some(0) };
+    let mut harness = footer_harness_with(false, true, FooterKind::Plain(true), selection);
+    let target = drag_to_footer(&mut harness);
+    footer_move(&mut harness, target, Some(false));
+    let dropped = harness.state().dropped.clone();
+    assert_eq!(dropped.as_ref().map(|d| d.items.clone()), Some(vec![0, 1, 2]), "the selection is dragged");
+    assert_eq!(dropped.map(|d| d.grabbed), Some(1), "the grabbed row, not the first one");
+}
+
+// A disabled footer button takes no drop: no outline, no hint, no payload on release.
+#[test]
+fn a_disabled_footer_button_takes_no_drop_and_draws_no_mark() {
+    let mut harness = footer_harness_with(false, true, FooterKind::Plain(false), Selection::only(0));
+    let target = drag_to_footer(&mut harness);
+    let button = harness.state().button.unwrap_or(egui::Rect::NOTHING);
+    assert!(harness.state().hints.is_empty(), "no hint over a disabled button");
+    assert!(!painted_drop_mark(&harness, button), "no outline over a disabled button");
+    footer_move(&mut harness, target, Some(false));
+    assert_eq!(harness.state().dropped, None, "a disabled button takes nothing");
+
+    let mut harness = footer_harness_with(false, true, FooterKind::Plain(true), Selection::only(0));
+    drag_to_footer(&mut harness);
+    let button = harness.state().button.unwrap_or(egui::Rect::NOTHING);
+    assert!(painted_drop_mark(&harness, button), "the check sees the outline of an enabled button");
+}
+
+// A drop-aware button disabled for a click is enabled in every pass that starts with an accepted
+// drag over it, takes the drop, and is disabled again once the drag is gone.
+#[test]
+fn a_drop_button_is_enabled_while_an_accepted_drag_is_over_it() {
+    let mut harness = footer_harness_with(false, true, FooterKind::DropAware(false), Selection::only(0));
+    assert!(harness.get_by_label("Delete layer").accesskit_node().is_disabled(), "disabled without a drag");
+    let target = drag_to_footer(&mut harness);
+    assert!(!harness.get_by_label("Delete layer").accesskit_node().is_disabled(), "enabled under the accepted drag");
+    assert_eq!(harness.state().hints.last().map(String::as_str), Some("Delete layer"), "and announced");
+    let passes = harness.state().passes.clone();
+    assert!(passes.iter().any(|&(over, _)| over), "a pass began with the drag over the button");
+    assert!(passes.iter().all(|&(over, enabled)| enabled == over), "enabled exactly in the passes the drag is over it: {passes:?}");
+    footer_move(&mut harness, target, Some(false));
+    assert_eq!(harness.state().dropped.as_ref().map(|d| d.items.clone()), Some(vec![1]), "the drop is taken");
+    assert!(harness.get_by_label("Delete layer").accesskit_node().is_disabled(), "disabled again after the drop");
+
+    let mut harness = footer_harness_with(false, false, FooterKind::DropAware(false), Selection::only(0));
+    let target = drag_to_footer(&mut harness);
+    assert!(harness.get_by_label("Delete layer").accesskit_node().is_disabled(), "a refused drag leaves it disabled");
+    footer_move(&mut harness, target, Some(false));
+    assert_eq!(harness.state().dropped, None);
 }

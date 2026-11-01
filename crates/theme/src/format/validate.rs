@@ -212,7 +212,7 @@ impl Check {
                     continue;
                 }
                 for contrast in [Contrast::Standard, Contrast::High] {
-                    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+                    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
                     let unsettled = resolve::unsettled_references(t, appearance, app);
                     let mut names: Vec<String> = unsettled.iter().map(|&(_, key)| key.path()).collect();
                     names.sort();

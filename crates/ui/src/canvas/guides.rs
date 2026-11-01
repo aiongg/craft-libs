@@ -557,6 +557,7 @@ impl<'a> Guides<'a> {
         // in PhotoCraft, unless a text field or a popup has the keys. The host's request
         // (`Guides::request_delete`) acts wherever the pointer is.
         let requested = Guides::take_delete_request(&ctx, id);
+        Guides::note_active(&ctx, id, self.interactive);
         let keys = (focused || canvas.contains_pointer() || canvas.has_focus()) && nudge::reads(ui);
         if self.interactive && drag.is_none() && (keys || requested) {
             self.delete(ui, &order, &mut gesture, &mut out, DeleteFrom { keys, requested, focused });
@@ -855,10 +856,38 @@ impl<'a> Guides<'a> {
     /// key and clear the selection, or, with keyboard focus, select the next guide. Taken in
     /// this pass if the guides are shown after the call, otherwise in the next; a request the
     /// guides did not see by then lapses.
-    pub fn request_delete(ctx: &Context, guides: Id) {
+    ///
+    /// Returns whether `guides` were interactive in this pass or the last; `false` when they were
+    /// not (hidden, another tool, [`interactive`](Self::interactive) off), and nothing is asked.
+    pub fn request_delete(ctx: &Context, guides: Id) -> bool {
+        if Guides::active_id(ctx) != Some(guides) {
+            return false;
+        }
         let now = ctx.cumulative_pass_nr();
         ctx.data_mut(|d| d.insert_temp(delete_key(guides), now));
         ctx.request_repaint();
+        true
+    }
+
+    /// The [`id`](GuidesResponse::id) of the guides that were shown
+    /// [interactive](Self::interactive) in this pass or the last, for a host route that has only
+    /// the [`Context`] (the global Delete shortcut): pass it to [`Self::request_delete`]. `None`
+    /// once they stop being shown interactive. With several interactive guides, the one shown
+    /// last.
+    pub fn active_id(ctx: &Context) -> Option<Id> {
+        let (id, at) = ctx.data(|d| d.get_temp::<(Id, u64)>(active_key()))?;
+        (ctx.cumulative_pass_nr().saturating_sub(at) <= 1).then_some(id)
+    }
+
+    fn note_active(ctx: &Context, id: Id, interactive: bool) {
+        let now = ctx.cumulative_pass_nr();
+        ctx.data_mut(|d| {
+            if interactive {
+                d.insert_temp(active_key(), (id, now));
+            } else if d.get_temp::<(Id, u64)>(active_key()).is_some_and(|(active, _)| active == id) {
+                d.remove::<(Id, u64)>(active_key());
+            }
+        });
     }
 
     fn take_delete_request(ctx: &Context, guides: Id) -> bool {
@@ -929,6 +958,10 @@ impl<'a> Guides<'a> {
     fn color(&self, g: &Guide, selected: Option<u64>, style: &GuideStyle) -> Color32 {
         if selected == Some(g.key) { style.selected } else { g.color.unwrap_or(style.color) }
     }
+}
+
+fn active_key() -> Id {
+    Id::NULL.with("craft_ui::canvas::Guides::active")
 }
 
 fn delete_key(guides: Id) -> Id {
@@ -1250,7 +1283,8 @@ fn show_guides(ui: &mut Ui, args: &mut GuidesArgs) {
         g.line = line;
         g.locked = args.locked && g.key == 2;
     }
-    let canvas = super::story::document(ui, args.view, "Document");
+    let document_name = crate::story::StoryLabels::of(ui).document;
+    let canvas = super::story::document(ui, args.view, &document_name);
     let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
     let names = GuideNames::of(ui);
     let mut guides =
@@ -1266,7 +1300,8 @@ fn show_guides(ui: &mut Ui, args: &mut GuidesArgs) {
 /// Two boxes on the story document: the moving one's top aligned with the other's, 80 units to its
 /// right.
 fn show_smart_guides(ui: &mut Ui, args: &mut super::story::PlainArgs) {
-    let canvas = super::story::document(ui, args.view, "Document");
+    let document_name = crate::story::StoryLabels::of(ui).document;
+    let canvas = super::story::document(ui, args.view, &document_name);
     let view = &canvas.view;
     let painter = ui.painter_at(view.rect);
     let still = Rect::new(120.0, 80.0, 280.0, 200.0);

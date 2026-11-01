@@ -1,8 +1,9 @@
 //! [`PresetStyle`]: the preset browser's sizes and colours from the `preset` tokens, with the
-//! selected ring from `swatch`, and the insertion line from `list`.
+//! selected ring from `swatch`, the insertion line from `list`, and the picker's, the named row's
+//! and the footer's sizes from the same family.
 
 use craft_theme::{Rgba, SwatchTokens};
-use egui::{Color32, CornerRadius, Stroke};
+use egui::{Color32, CornerRadius, Stroke, Vec2};
 
 use crate::theme::{ToEgui, UiTokens, corner_radius};
 
@@ -61,6 +62,20 @@ pub struct PresetStyle {
     pub checker: [Color32; 2],
     /// Side of a checkerboard cell: `swatch.checker_cell`.
     pub checker_cell: f32,
+    /// A [`PickerThumb::Wide`](super::picker::PickerThumb::Wide) field's thumbnail (custom
+    /// shapes): `preset.picker_wide_width` by `preset.picker_wide_height`.
+    pub picker_wide: Vec2,
+    /// A [`PickerThumb::Square`](super::picker::PickerThumb::Square) field's thumbnail
+    /// (patterns, contours): `preset.picker_square`.
+    pub picker_square: f32,
+    /// The side of a cell in the picker's popup: `preset.picker_cell`.
+    pub picker_cell: f32,
+    /// The width of the named preset row's Name field: `preset.name_width`.
+    pub name_width: f32,
+    /// The greatest height of the picker's popup: `preset.popup_max_height`.
+    pub popup_max_height: f32,
+    /// The gap between the browser's list and its own footer: `preset.footer_room`.
+    pub footer_room: f32,
     swatch: SwatchTokens,
 }
 
@@ -94,6 +109,12 @@ impl PresetStyle {
             insert_width: l.drop_width,
             checker: [s.checker_a.to_egui(), s.checker_b.to_egui()],
             checker_cell: s.checker_cell,
+            picker_wide: Vec2::new(p.picker_wide_width, p.picker_wide_height),
+            picker_square: p.picker_square,
+            picker_cell: p.picker_cell,
+            name_width: p.name_width,
+            popup_max_height: p.popup_max_height,
+            footer_room: p.footer_room,
             swatch: *s,
         }
     }

@@ -20,6 +20,7 @@ use egui::{
 use super::PresetBrowser;
 use super::drag::{Dragging, Order, PresetReorder, Surface, all_shown};
 use super::event::{PresetEvent, PresetOutput};
+use super::footer;
 use super::labels::PresetLabels;
 use super::layout::{Metrics, VisualRow, VisualRows, shown};
 use super::model::{PresetRow, ThumbInfo, has_captions};
@@ -164,6 +165,9 @@ struct Pass<'p, K, F> {
     area: Rect,
     marks: Vec<Mark>,
     tokens: Arc<UiTokens>,
+    drop_zone: Option<Rect>,
+    context_menu: bool,
+    hovered: Option<K>,
 }
 
 pub(super) fn show<'a, K, F>(browser: PresetBrowser<'a, K>, id: Id, ui: &mut Ui, paint: F) -> PresetOutput<K>
@@ -172,6 +176,7 @@ where
     F: FnMut(&Painter, Rect, ThumbInfo<'_, K>),
 {
     let PresetBrowser {
+        id_salt,
         label,
         state: pstate,
         rows,
@@ -184,14 +189,25 @@ where
         labels,
         can_rename,
         view_lock,
-        max_height,
-        min_height,
+        mut max_height,
+        mut min_height,
         shrink_to_content,
+        drop_zone,
+        context_menu,
+        footer,
         ..
     } = browser;
     let tokens = Tokens::of(ui);
     let row_style = ListRow::<K>::style(&tokens);
     let style = PresetStyle::from_tokens(&tokens);
+    if footer.is_some() {
+        // The list takes what the footer leaves, so both fit with no one-pass lag.
+        let available = ui.available_height();
+        let list = (max_height.map_or(available, |h| h.min(available)) - footer::footer_height(ui)).max(0.0);
+        max_height = Some(list);
+        // egui's 64 pt scroll minimum would push the footer out of a short browser.
+        min_height = Some(min_height.unwrap_or(0.0).min(list));
+    }
     let rtl = direction::is_rtl(ui);
     let view = view_lock.unwrap_or(pstate.view);
     let mut st = State::<K>::load(ui.ctx(), id);
@@ -262,13 +278,16 @@ where
         area: Rect::NOTHING,
         marks: Vec::new(),
         tokens,
+        drop_zone,
+        context_menu,
+        hovered: None,
     };
 
     pass.end_for_gone_rows();
     if focused && !pass.st.focused && FocusRing::visible(ui.ctx()) {
         pass.st.reveal = pass.lead_key();
     }
-    if focused && ui.is_enabled() && pass.st.renaming.is_none() && !popup_list::any_open(ui.ctx()) {
+    if focused && ui.is_enabled() && pass.st.renaming.is_none() && !popup_list::any_open_beyond_drawing(ui.ctx()) {
         let page = pass.st.viewport.map_or(1, |h| spans.page(pass.st.offset..pass.st.offset + h));
         pass.keys(ui, page);
     }
@@ -311,7 +330,7 @@ where
         })
         .response;
 
-    pass.drag_frame(ui, response.rect.width());
+    let dropped = pass.drag_frame(ui, response.rect.width());
     if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
         pass.focus = true;
     }
@@ -321,6 +340,9 @@ where
     let gesture_event = pass.gesture.take().and_then(ReorderGesture::finish);
     if let Some(event) = gesture_event {
         pass.events.push(PresetEvent::Reorder(event));
+    }
+    if let Some((key, pos, modifiers)) = dropped {
+        pass.events.push(PresetEvent::DropAt { key, pos, modifiers });
     }
     let focused = ui.memory(|m| m.has_focus(id));
     let active = pass.lead_row.map(|(row, _)| row).filter(|_| focused);
@@ -337,7 +359,12 @@ where
     if focused {
         ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false }));
     }
-    let drag = pass.st.drag.as_ref().map(|d| ListDrag { list: id, items: d.items.clone(), label: d.label.clone() });
+    let drag = pass.st.drag.as_ref().map(|d| ListDrag { list: id, items: d.items.clone(), grabbed: d.grabbed.clone(), label: d.label.clone() });
+    let hovered = pass.hovered.take().filter(|_| drag.is_none());
+    if let Some(options) = footer {
+        let pressed = footer::show_below(ui, id_salt, options, pass.pstate, &labels, thumb_range);
+        pass.events.extend(pressed.into_iter().map(PresetEvent::Footer));
+    }
     let events = pass.events;
     st.focused = focused;
     if (measured - width).abs() > 0.5 {
@@ -347,7 +374,7 @@ where
     } else {
         st.store(ui.ctx(), id);
     }
-    PresetOutput { response, events, drag }
+    PresetOutput { response, events, drag, hovered }
 }
 
 impl<'p, K, F> Pass<'p, K, F>
@@ -382,7 +409,8 @@ where
         if self.st.renaming.take_if(|key| self.order.position(key).is_none()).is_some() {
             self.ctx.request_repaint();
         }
-        if !self.gesture.as_ref().is_some_and(ReorderGesture::is_active) && self.st.drag.take().is_some() && self.has_payload() {
+        // Without a gesture (a drop zone and no `reorder`) the drag lives as long as its payload.
+        if self.gesture.as_ref().is_some_and(|g| !g.is_active()) && self.st.drag.take().is_some() && self.has_payload() {
             DragAndDrop::clear_payload(&self.ctx);
         }
         if self.st.drag.take_if(|drag| !all_shown(&self.order, &drag.items)).is_some() {
@@ -444,6 +472,7 @@ where
                 self.events.push(PresetEvent::Activate { key: key.clone(), modifiers });
             }
             Command::Rename => self.st.renaming = Some(key.clone()),
+            Command::Menu if !self.context_menu => {}
             Command::Menu => {
                 let anchor = self.st.lead_rect.unwrap_or(Rect::NOTHING);
                 self.st.menu = Some(MenuRequest { key: key.clone(), anchor, pointer: None });
@@ -641,6 +670,9 @@ where
         if let Some(caption) = &row.caption {
             list_row = list_row.detail(caption.clone());
         }
+        if let Some(name) = &row.accessible_name {
+            list_row = list_row.accessible_name(name.clone());
+        }
         if let Some(preview) = &row.preview {
             let (aspect, paint) = (preview.aspect, preview.paint.clone());
             let width = (side * aspect).max(1.0);
@@ -650,6 +682,9 @@ where
             });
         }
         let hovered = ui.rect_contains_pointer(rect) && ui.is_enabled();
+        if hovered {
+            self.hovered = Some(row.key.clone());
+        }
         let ctx = self.ctx.clone();
         let icon_color = self.row_style.icon;
         let paint = &mut self.paint;
@@ -695,9 +730,10 @@ where
             let thumb = Rect::from_min_size(cell.min, self.metrics.shape.size(self.metrics.thumb));
             let selected = self.selected == Some(&row.key);
             let (index, size) = siblings(&self.order, pos);
-            let name = match &row.caption {
-                Some(caption) => format!("{}, {caption}", row.label),
-                None => row.label.clone(),
+            let name = match (&row.accessible_name, &row.caption) {
+                (Some(name), _) => name.clone(),
+                (None, Some(caption)) => format!("{}, {caption}", row.label),
+                (None, None) => row.label.clone(),
             };
             let role = if self.tree { Role::TreeItem } else { Role::ListBoxOption };
             let id = self.id.with(("preset-cell", &row.key));
@@ -718,6 +754,9 @@ where
             });
             let response = response.tooltip(row.tooltip.clone().unwrap_or_else(|| row.label.clone()));
             let hovered = response.hovered() && ui.is_enabled();
+            if hovered {
+                self.hovered = Some(row.key.clone());
+            }
             if ui.is_rect_visible(cell) {
                 self.paint_cell(ui, row, cell, thumb, radius, ThumbInfo { key: &row.key, size: thumb.size(), selected, hovered });
             }
@@ -813,13 +852,15 @@ where
                 self.events.push(PresetEvent::Select { key: key.clone(), modifiers });
             }
         }
-        if self.rules.is_some() && self.st.drag.is_none() && response.drag_started_by(PointerButton::Primary) {
+        if (self.rules.is_some() || self.drop_zone.is_some()) && self.st.drag.is_none() && response.drag_started_by(PointerButton::Primary) {
             self.start_drag(key, &row.label, row.is_group());
         }
         if response.secondary_clicked() {
             self.focus = true;
             self.set_lead(pos);
-            self.st.menu = Some(MenuRequest { key: key.clone(), anchor: response.rect, pointer: response.interact_pointer_pos() });
+            if self.context_menu {
+                self.st.menu = Some(MenuRequest { key: key.clone(), anchor: response.rect, pointer: response.interact_pointer_pos() });
+            }
         }
         if ui.input(|i| i.has_accesskit_action_request(response.id, Action::Focus)) {
             self.set_lead(pos);
@@ -832,20 +873,21 @@ where
         if group && !self.reorder.is_some_and(|r| r.groups) {
             return;
         }
-        let Some(gesture) = self.gesture.as_mut() else { return };
-        gesture.begin();
-        if !gesture.is_active() {
-            return;
+        if let Some(gesture) = self.gesture.as_mut() {
+            gesture.begin();
+            if !gesture.is_active() {
+                return;
+            }
         }
-        let payload = ListDrag { list: self.id, items: vec![key.clone()], label: label.to_owned() };
-        self.st.drag = Some(Dragging { items: payload.items.clone(), label: payload.label.clone(), group });
+        let payload = ListDrag { list: self.id, items: vec![key.clone()], grabbed: key.clone(), label: label.to_owned() };
+        self.st.drag = Some(Dragging { items: payload.items.clone(), grabbed: payload.grabbed.clone(), label: payload.label.clone(), group });
         DragAndDrop::set_payload(&self.ctx, payload);
     }
 
     /// Ends the drag under way when it was released, Esc was pressed or the window lost the
     /// focus; otherwise draws the ghost and the copy cursor.
-    fn drag_frame(&mut self, ui: &Ui, width: f32) {
-        let Some(drag) = self.st.drag.take() else { return };
+    fn drag_frame(&mut self, ui: &Ui, width: f32) -> Option<(K, Pos2, Modifiers)> {
+        let drag = self.st.drag.take()?;
         let ctx = self.ctx.clone();
         let (released, down, modifiers, pointer) =
             ui.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.modifiers, i.pointer.latest_pos()));
@@ -860,8 +902,16 @@ where
             None
         };
         if let Some(end) = end {
+            let dropped = match (&end, self.drop_zone, pointer) {
+                (DragEnd::Released(None), Some(zone), Some(pos)) if !drag.group && zone.contains(pos) => {
+                    // The release is the drop: no other widget may take the payload.
+                    DragAndDrop::clear_payload(&ctx);
+                    drag.items.first().map(|key| (key.clone(), pos, modifiers))
+                }
+                _ => None,
+            };
             self.end_drag(end, modifiers);
-            return;
+            return dropped;
         }
         if self.rules.is_some_and(|rules| rules.copies(modifiers)) {
             ctx.set_cursor_icon(CursorIcon::Copy);
@@ -880,6 +930,7 @@ where
             paint_ghost(ui, self.id, &self.row_style, &drag.label, pointer, width, Some((self.style.ghost_thumb, &ghost)));
         }
         self.st.drag = Some(drag);
+        None
     }
 
     /// Whether egui's drag and drop holds this browser's rows.
@@ -943,4 +994,18 @@ fn paint_icon(painter: &Painter, ctx: &Context, rect: Rect, icon: Icon, points: 
     let side = px as f32 / ppp;
     let at = Rect::from_center_size(rect.center(), vec2(side, side));
     painter.image(icons::texture(ctx, icon, px), at, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), color);
+}
+
+impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a, K> {
+    /// A rect outside the browser (a canvas, a timeline, a layer list) where a dragged preset can
+    /// be dropped: a release inside it ends the drag (with `reorder`, as `Reorder(Cancel(Dismissed))`)
+    /// and then reports [`PresetEvent::DropAt`] with the pointer position, in the same pass, and
+    /// clears the payload. Groups dropped there report nothing. One zone per browser; Styles'
+    /// "the layer under the pointer" is the host reading `pos`. Without [`reorder`](Self::reorder)
+    /// presets still drag, to the zone and to host widgets only: the list has no drop targets, no
+    /// `Reorder` events and no groups drag.
+    pub fn drop_zone(mut self, zone: egui::Rect) -> Self {
+        self.drop_zone = Some(zone);
+        self
+    }
 }

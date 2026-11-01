@@ -8,6 +8,7 @@ use egui_kittest::{Harness, HarnessBuilder};
 
 use super::row::{LayersArgs, ThumbArg, show_layers};
 use super::*;
+use crate::controls::CheckState;
 use crate::direction::{self, Direction};
 use crate::edit::{EditEvent, GestureHost, UndoMarks};
 use crate::icons::Icon;
@@ -253,6 +254,62 @@ fn a_thumbnail_sets_the_row_height_and_is_framed() {
     }
     assert_eq!(s.height(ThumbSize::None, false), s.row_height);
     assert!(s.height(ThumbSize::None, true) > s.row_height, "a detail line makes the row taller");
+}
+
+#[test]
+fn a_glyph_takes_the_icon_slot_without_a_frame() {
+    let (ctx, s) = (context(), style());
+    let mut painted = Rect::NOTHING;
+    let mut glyph_row = (0.0, 0.0);
+    let drawn = shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let row = ListRow::new(1u8, "Layer").glyph(|_, rect| painted = rect).show(ui);
+            glyph_row = (row.min_width, row.response.rect.height());
+        })
+    });
+    let mut icon_row = (0.0, 0.0);
+    let mut icon_label = Rect::NOTHING;
+    let mut glyph_label = Rect::NOTHING;
+    shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let row = ListRow::new(1u8, "Layer").icon(Icon::Layers).show(ui);
+            icon_row = (row.min_width, row.response.rect.height());
+            icon_label = row.label;
+            glyph_label = ListRow::new(1u8, "Layer").glyph(|_, _| {}).show(ui).label;
+        })
+    });
+    assert_eq!(painted.size(), vec2(s.icon_size, s.icon_size), "the slot is the icon's square");
+    assert_eq!(glyph_row, icon_row, "width and height are those of an icon row");
+    assert_eq!(glyph_label.left(), icon_label.left());
+    assert!(!drawn.iter().any(|s2| matches!(s2, Shape::Rect(r) if r.stroke.color == s.thumb_border)), "no frame");
+    // The last one set wins.
+    let (mut glyph_first, mut icon_first) = (false, false);
+    shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let _ = ListRow::new(1u8, "A").glyph(|_, _| glyph_first = true).icon(Icon::Layers).show(ui);
+        })
+    });
+    shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let _ = ListRow::new(1u8, "A").icon(Icon::Layers).glyph(|_, _| icon_first = true).show(ui);
+        })
+    });
+    assert!(!glyph_first && icon_first);
+}
+
+#[test]
+fn a_striped_row_is_filled_with_the_stripe_under_the_state_fills() {
+    let (ctx, s) = (context(), style());
+    let row = |striped, selected| {
+        shapes(&ctx, |ui| {
+            panel(ui, 240.0, |ui| {
+                let _ = ListRow::new(1u8, "Layer").striped(striped).selected(selected).show(ui);
+            })
+        })
+    };
+    assert!(fills(&row(false, false)).is_empty());
+    assert_eq!(fills(&row(true, false)).iter().map(|r| r.fill).collect::<Vec<_>>(), [s.stripe]);
+    assert_eq!(fills(&row(true, true)).iter().map(|r| r.fill).collect::<Vec<_>>(), [s.stripe, s.selected], "the selected fill paints over it");
 }
 
 #[test]
@@ -1258,4 +1315,243 @@ fn paint_drop_mark_draws_what_a_row_draws() {
         let Some(Shape::Rect(outer)) = hosted.first() else { panic!("{mark:?}: a halo") };
         assert!(at.contains_rect(outer.rect), "{mark:?}: inside the rect given");
     }
+}
+
+/// A row's tooltip shows on hover even when the label is not cut.
+#[test]
+fn tooltip_shows_on_hover_for_a_label_that_fits() {
+    let mut harness = harness::<()>(Direction::Ltr).build_ui(|ui| {
+        panel(ui, 300.0, |ui| {
+            let _ = ListRow::new(1u8, "a.png").tooltip("/photos/a.png").show(ui);
+        });
+    });
+    harness.run();
+    assert!(harness.query_by_label("/photos/a.png").is_none(), "no tooltip before hover");
+    harness.event(Event::PointerMoved(pos2(40.0, 10.0)));
+    harness.run_steps(30);
+    assert!(harness.query_by_label("/photos/a.png").is_some(), "the tooltip shows");
+}
+
+/// Rows of one exclusive column (`ToggleColumn::exclusive`), `on` at most one of them.
+struct Exclusive {
+    on: Option<usize>,
+    events: Vec<EditEvent<ToggleEdit<usize>>>,
+}
+
+fn exclusive_rows(ui: &mut Ui, state: &mut Exclusive) {
+    panel(ui, 240.0, |ui| {
+        for row in 0..3 {
+            let column = ToggleColumn::new("Source {row}", Icon::Eye, Icon::EyeOff, state.on == Some(row)).exclusive(true);
+            let out = ListRow::new(row, format!("Row {row}")).toggle(column).show(ui);
+            for event in out.events {
+                if let RowEvent::Toggle(event) = event {
+                    if let EditEvent::Set { value, .. } = &event {
+                        state.on = Some(value.row);
+                    }
+                    state.events.push(event);
+                }
+            }
+        }
+    });
+}
+
+// An exclusive column: a click on an off cell reports one Set with `on: true`; a press dragged over
+// three rows reports nothing more and sweeps none; a click on the on cell reports nothing.
+#[test]
+fn an_exclusive_toggle_column_does_not_sweep() {
+    let mut harness = harness(Direction::Ltr).build_ui_state(exclusive_rows, Exclusive { on: Some(0), events: Vec::new() });
+    harness.run();
+    let cell = |harness: &Harness<'_, Exclusive>, row: usize| harness.get_by_label(&format!("Source Row {row}")).rect().center();
+    harness.get_by_label("Source Row 2").click();
+    harness.run();
+    let [EditEvent::Set { value, .. }] = &harness.state().events[..] else { panic!("{:?}", harness.state().events) };
+    assert_eq!((value.row, value.column, value.on), (2, 0, true));
+    assert_eq!(harness.state().on, Some(2));
+
+    // A drag from the on cell down over the others reports nothing.
+    harness.state_mut().events.clear();
+    let (start, end) = (cell(&harness, 2), cell(&harness, 0));
+    harness.event(Event::PointerMoved(start));
+    harness.run();
+    harness.event(button(start, true, Modifiers::NONE));
+    harness.run();
+    for t in [0.5, 1.0] {
+        harness.event(Event::PointerMoved(start + (end - start) * t));
+        harness.run();
+    }
+    harness.event(button(end, false, Modifiers::NONE));
+    harness.run();
+    assert!(harness.state().events.is_empty(), "no sweep, no click: {:?}", harness.state().events);
+    // A click on the on cell reports nothing either.
+    harness.get_by_label("Source Row 2").click();
+    harness.run();
+    assert!(harness.state().events.is_empty());
+}
+
+// A plain row with `rule(true)` paints one `list.divider` hairline on its bottom pixel; a layer
+// row with dividers on paints it once.
+#[test]
+fn a_plain_row_can_draw_a_rule_under_itself() {
+    let ctx = context();
+    let s = style();
+    let hairlines = |rule: bool, layer: bool, size: Size| {
+        shapes(&ctx, |ui| {
+            scope(ui, |o| o.size = Some(size), |ui| panel(ui, 240.0, |ui| drop(ListRow::new(1u8, "Row").rule(rule).layer(layer).show(ui))))
+        })
+        .into_iter()
+        .filter(|shape| matches!(shape, Shape::LineSegment { stroke, .. } if *stroke == s.divider))
+        .count()
+    };
+    assert_eq!(hairlines(false, false, Size::Comfortable), 0);
+    assert_eq!(hairlines(true, false, Size::Comfortable), 1);
+    assert_eq!(hairlines(true, true, Size::Comfortable), 1, "a layer row with dividers off draws only the rule");
+    assert_eq!(hairlines(true, true, Size::Compact), 1, "with dividers on the bottom hairline is drawn once");
+}
+
+// With `thumb_drags(true)` a drag from the extra thumbnail reports ThumbDrag { which: Extra(0) };
+// a drag from the first thumbnail reports none; without the switch none is reported.
+#[test]
+fn a_drag_from_an_extra_thumbnail_reports_thumb_drag() {
+    for (switch, from, expected) in
+        [(true, ThumbTarget::Extra(0), Some(ThumbTarget::Extra(0))), (true, ThumbTarget::First, None), (false, ThumbTarget::Extra(0), None)]
+    {
+        let mut h = harness::<Thumbs>(Direction::Ltr).build_ui_state(
+            move |ui, (_, painted, events, _): &mut Thumbs| {
+                painted.get_mut().clear();
+                let painted = &*painted;
+                let shown = ListRow::new(1u8, "Layer")
+                    .thumb(ThumbSize::Medium, |_, rect| painted.borrow_mut().push(rect))
+                    .extra_thumb(|_, rect| painted.borrow_mut().push(rect))
+                    .thumb_drags(switch)
+                    .show(ui);
+                events.extend(shown.events);
+            },
+            (None, std::cell::RefCell::default(), Vec::new(), 0),
+        );
+        h.run();
+        let [first, second] = h.state().1.borrow()[..] else { panic!("two thumbnails") };
+        let start = if from == ThumbTarget::First { first } else { second }.center();
+        h.event(Event::PointerMoved(start));
+        h.run();
+        h.event(button(start, true, Modifiers::NONE));
+        h.run();
+        for dy in [10.0, 30.0] {
+            h.event(Event::PointerMoved(start + vec2(0.0, dy)));
+            h.run();
+        }
+        h.event(button(start + vec2(0.0, 30.0), false, Modifiers::NONE));
+        h.run();
+        let drags: Vec<_> = h.state().2.iter().filter_map(|e| if let RowEvent::ThumbDrag { which, .. } = e { Some(*which) } else { None }).collect();
+        assert_eq!(drags, expected.into_iter().collect::<Vec<_>>(), "switch {switch}, from {from:?}");
+    }
+}
+
+/// One mixed or plain column on each of three rows.
+struct IncludeCells {
+    mixed: [bool; 3],
+    on: [bool; 3],
+    events: Vec<EditEvent<ToggleEdit<usize>>>,
+}
+
+fn include_cells(ui: &mut Ui, state: &mut IncludeCells) {
+    panel(ui, 240.0, |ui| {
+        for row in 0..3 {
+            let column = ToggleColumn::new("Include {row}", Icon::Check, Icon::Check, state.on[row]).mixed(state.mixed[row]).check(true);
+            let out = ListRow::new(row, format!("Row {row}")).toggle(column).show(ui);
+            for event in out.events {
+                if let RowEvent::Toggle(event) = event {
+                    if let EditEvent::Update { value, .. } | EditEvent::Set { value, .. } = &event {
+                        state.on[value.row] = value.on;
+                        state.mixed[value.row] = false;
+                    }
+                    state.events.push(event);
+                }
+            }
+        }
+    });
+}
+
+// A mixed column: AccessKit toggled Mixed; a click reports `on: true`; a sweep from an off cell
+// across a mixed one sets it on too; a mixed icon cell paints its on icon in `list.text.dimmed`.
+#[test]
+fn a_mixed_toggle_cell_turns_on() {
+    let state = IncludeCells { mixed: [false, true, false], on: [false; 3], events: Vec::new() };
+    let mut harness = harness_with_cells(state);
+    assert_eq!(harness.get_by_label("Include Row 1").accesskit_node().toggled(), Some(egui::accesskit::Toggled::Mixed));
+    harness.get_by_label("Include Row 1").click();
+    harness.run();
+    // A pointer click is a one-row sweep: Begin, Update, Commit.
+    let updates: Vec<_> = harness
+        .state()
+        .events
+        .iter()
+        .filter_map(|e| if let EditEvent::Update { value, .. } = e { Some((value.row, value.on)) } else { None })
+        .collect();
+    assert_eq!(updates, [(1, true)], "a click on a mixed cell turns it on");
+
+    // A sweep from an off cell across a mixed one sets it on as well.
+    let mut harness = harness_with_cells(IncludeCells { mixed: [false, true, false], on: [false; 3], events: Vec::new() });
+    let (start, end) = (harness.get_by_label("Include Row 0").rect().center(), harness.get_by_label("Include Row 2").rect().center());
+    harness.event(Event::PointerMoved(start));
+    harness.run();
+    harness.event(button(start, true, Modifiers::NONE));
+    harness.run();
+    for t in [0.25, 0.5, 1.0] {
+        harness.event(Event::PointerMoved(start + (end - start) * t));
+        harness.run();
+    }
+    harness.event(button(end, false, Modifiers::NONE));
+    harness.run();
+    assert_eq!(harness.state().on, [true; 3]);
+
+    // The icon cell of a mixed column paints its on icon in the dimmed text colour.
+    let s = style();
+    let ctx = context();
+    let drawn = shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| drop(ListRow::new(1u8, "Row").toggle(ToggleColumn::eye("Visibility {row}", false).mixed(true)).show(ui)))
+    });
+    let tinted = |color: egui::Color32| {
+        let hex = format!("#{:02X}_{:02X}_{:02X}", color.r(), color.g(), color.b());
+        drawn.iter().any(|shape| format!("{shape:?}").contains(&hex))
+    };
+    assert!(tinted(s.dimmed), "the mixed eye is drawn in the dimmed colour");
+}
+
+fn harness_with_cells(state: IncludeCells) -> Harness<'static, IncludeCells> {
+    let mut harness = harness(Direction::Ltr).build_ui_state(include_cells, state);
+    harness.run();
+    harness
+}
+
+// `check(true)` makes the cell a CheckBox (a plain column stays a Button); `check_box` paints the
+// check box's box in every state (outline off, check on, dash mixed) and keeps it shown off hover.
+#[test]
+fn a_check_toggle_column_is_a_check_box() {
+    let mut harness = harness::<()>(Direction::Ltr).build_ui(|ui| {
+        panel(ui, 240.0, |ui| {
+            let _ = ListRow::new(1u8, "Plain").toggle(ToggleColumn::eye("Visibility {row}", true)).show(ui);
+            let _ = ListRow::new(2u8, "Check").toggle(ToggleColumn::eye("Include {row}", true).check(true)).show(ui);
+        });
+    });
+    harness.run();
+    assert_eq!(harness.get_by_label("Visibility Plain").accesskit_node().role(), Role::Button);
+    assert_eq!(harness.get_by_label("Include Check").accesskit_node().role(), Role::CheckBox);
+
+    let ctx = context();
+    let segments = |state| {
+        shapes(&ctx, |ui| panel(ui, 240.0, |ui| drop(ListRow::new(1u8, "Row").toggle(ToggleColumn::check_box("Include {row}", state)).show(ui))))
+            .into_iter()
+            .filter(|shape| matches!(shape, Shape::LineSegment { .. }))
+            .count()
+    };
+    assert_eq!(segments(CheckState::Unchecked), 0, "an off box has no mark");
+    assert_eq!(segments(CheckState::Checked), 2, "the check is two segments");
+    assert_eq!(segments(CheckState::Mixed), 1, "the dash is one");
+    let boxes = |state| {
+        shapes(&ctx, |ui| panel(ui, 240.0, |ui| drop(ListRow::new(1u8, "Row").toggle(ToggleColumn::check_box("Include {row}", state)).show(ui))))
+            .iter()
+            .filter(|shape| matches!(shape, Shape::Rect(r) if r.stroke.width > 0.0 && r.rect.width() == r.rect.height()))
+            .count()
+    };
+    assert_eq!(boxes(CheckState::Unchecked), 1, "the box shows off the pointer");
 }

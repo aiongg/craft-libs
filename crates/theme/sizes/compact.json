@@ -49,9 +49,16 @@
       "preset": {
         "caption_gap": 2.0,
         "cell_radius": 2.0,
+        "footer_room": 4.0,
         "grid_gap": 4.0,
         "grid_inset": 8.0,
         "header_height": 24.0,
+        "name_width": 150.0,
+        "picker_cell": 40.0,
+        "picker_square": 40.0,
+        "picker_wide_height": 22.0,
+        "picker_wide_width": 36.0,
+        "popup_max_height": 320.0,
         "slider_width": 90.0
       },
       "rail": {
@@ -134,6 +141,9 @@
       },
       "pad_x": 14.0
     },
+    "channels": {
+      "thumb": 28.0
+    },
     "command_palette": {
       "row_height": 32.0
     },
@@ -152,6 +162,12 @@
     },
     "status_bar": {
       "field_width": 64.0
+    },
+    "tile": {
+      "caption_gap": 2.0,
+      "gap": 6.0,
+      "group_header": 40.0,
+      "inset": 4.0
     },
     "toast": {
       "inset": [

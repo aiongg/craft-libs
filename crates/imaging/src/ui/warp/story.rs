@@ -196,7 +196,8 @@ fn show_warp(ui: &mut Ui, args: &mut WarpArgs) {
         .data(|d| d.get_temp::<(GridArg, WarpHost)>(key))
         .filter(|(g, _)| *g == grid)
         .map_or_else(|| WarpHost::new(WarpMesh::identity(PICTURE, size, size)), |(_, host)| host);
-    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
+    let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
     let view = &canvas.view;
     paint_picture(ui, view, &host.mesh);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());

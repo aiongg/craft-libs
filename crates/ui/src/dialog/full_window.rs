@@ -236,7 +236,8 @@ impl<'a> FullWindowDialog<'a> {
             }
             initial_focus
         });
-        if outcome.is_some_and(Outcome::closes) {
+        let closed = outcome.is_some_and(Outcome::closes);
+        if closed {
             if let Some(focus) = state.return_focus() {
                 ctx.memory_mut(|m| m.request_focus(focus));
             }
@@ -244,6 +245,7 @@ impl<'a> FullWindowDialog<'a> {
         }
         DialogResponse {
             outcome,
+            closed,
             rect: shown.response.rect,
             outer,
             opened,

@@ -151,7 +151,7 @@ pub mod title_bar;
 #[cfg(feature = "ui")]
 mod viewports;
 
-#[cfg(feature = "restore")]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod restore;
 
 pub use list::{Closed, WindowId, WindowList};

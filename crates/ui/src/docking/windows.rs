@@ -7,10 +7,6 @@ use std::hash::Hash;
 
 use egui::Rect;
 
-/// The cascade step of floating windows, `craft_window::CASCADE_STEP`; craft-window is an
-/// optional dependency of this crate.
-const CASCADE_STEP: f32 = 28.0;
-
 use super::arrange::cascade_rects;
 use super::{Action, Layout};
 
@@ -68,8 +64,10 @@ impl<D: Clone + Eq + Hash> DocumentWindows<D> {
     }
 
     /// Every document into its own floating window, cascaded from `area`'s top left. A floating
-    /// window that already holds one document keeps its id.
-    pub fn float_all(&mut self, area: Rect, size: egui::Vec2) {
+    /// window that already holds one document keeps its id. `step` is the cascade offset: the
+    /// host passes `craft_window::CASCADE_STEP`, the one value for document windows (craft-window
+    /// is an optional dependency of this crate).
+    pub fn float_all(&mut self, area: Rect, size: egui::Vec2, step: f32) {
         let mut next = self.fresh_id();
         let kept: Vec<(u64, &D)> = self.floating.iter().filter(|(g, _)| g.documents.len() == 1).map(|(g, _)| (g.id, &g.documents[0])).collect();
         let mut entries: Vec<(u64, D)> = Vec::new();
@@ -90,7 +88,7 @@ impl<D: Clone + Eq + Hash> DocumentWindows<D> {
             };
             entries.push((id, document.clone()));
         }
-        let rects = cascade_rects(area, size, entries.len(), CASCADE_STEP);
+        let rects = cascade_rects(area, size, entries.len(), step);
         self.docked.clear();
         self.floating = entries
             .into_iter()

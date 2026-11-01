@@ -257,8 +257,8 @@ fn state_saved_with_the_removed_compare_fields_loads() {
 }
 
 /// Stories whose content has a width of its own and so cannot shrink to a narrow tile: pictures
-/// of a document or a window, rows of controls that do not wrap, event logs and floating
-/// layers. The tile's clip cuts them at the tile's edges.
+/// of a document or a window, rows of controls that do not wrap, event logs, floating layers and
+/// a panel shown at its least width. The tile's clip cuts them at the tile's edges.
 const FIXED_WIDTH: &[&str] = &[
     "controls/point-picker/picker",
     "specimens/icons/compare",
@@ -287,6 +287,8 @@ const FIXED_WIDTH: &[&str] = &[
     "primitives/pen-draft/draw",
     "patterns/keyboard-shortcuts/dialog",
     "patterns/fonts-panel/panel",
+    "patterns/glyphs-panel/panel",
+    "patterns/text-styles/panel",
     "primitives/gradient-line/edit",
     "primitives/gradient-line/with-editor",
     "foundations/edit/log",
@@ -312,7 +314,16 @@ const FIXED_WIDTH: &[&str] = &[
     "composites/list/reorder-copy",
     "composites/menu/context-menu",
     "composites/color/full",
+    "patterns/color/swatches",
+    "patterns/color/eyedropper-options",
+    "patterns/color/samplers",
+    "patterns/color/harmony",
     "patterns/preferences/window",
+    "patterns/settings-document/window",
+    "patterns/file-list-picker/picker",
+    "patterns/appearance-page/page",
+    "composites/watermark-editor/group",
+    "composites/output-path-row/row",
     "patterns/options-bar/brush-and-transform",
     "patterns/options-bar/cells",
     "patterns/app-preview/photo-editor",
@@ -329,6 +340,17 @@ const FIXED_WIDTH: &[&str] = &[
     "patterns/dialog/preview",
     "patterns/full-window/workspace",
     "patterns/viewport/embedded",
+    "patterns/shell/tour",
+    "patterns/shell/toolbar-drawer",
+    "patterns/shell/start",
+    "composites/path-field/field",
+    // A table has several columns, each with a width of its own.
+    "composites/table/files",
+    "composites/event-log/events",
+    // A dialog drawn in place, with a canvas for the layout preview beside its fields.
+    "patterns/dialog/guide-layout",
+    // The Layers panel at its least width: Comfortable rows with Large thumbnails need about 299 pt.
+    "composites/layers-panel/sizes",
 ];
 
 /// Stories that draw in layers of their own (dialogs, windows) and are placed on the screen, not
@@ -342,6 +364,10 @@ const FLOATING: &[&str] = &[
     "patterns/dialog/preview",
     "patterns/full-window/workspace",
     "patterns/viewport/embedded",
+    "patterns/shell/tour",
+    "patterns/shell/toolbar-drawer",
+    "patterns/font-picker/field",
+    "patterns/font-picker/filters",
 ];
 
 /// How far a focus ring, edge or shadow may reach past its widget; the tile's margin takes it.

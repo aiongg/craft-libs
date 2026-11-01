@@ -36,7 +36,7 @@ fn sel(theme: &str, mode: ModeChoice) -> Selection {
         contrast: ContrastChoice::System,
         motion: MotionChoice::System,
         size: Size::Compact,
-        text_size: TextSize::Default,
+        text_size: TextSize::Small,
     }
 }
 

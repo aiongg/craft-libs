@@ -122,14 +122,12 @@ impl InterfaceScale {
     }
 }
 
-#[cfg(feature = "serde")]
 impl serde::Serialize for InterfaceScale {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.code())
     }
 }
 
-#[cfg(feature = "serde")]
 impl<'de> serde::Deserialize<'de> for InterfaceScale {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let code = <std::borrow::Cow<'de, str>>::deserialize(deserializer)?;

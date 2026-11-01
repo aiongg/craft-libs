@@ -199,9 +199,23 @@ for event in viewports.show(
 
 Immediate viewports repaint every window when one repaints, so cache expensive per-window drawing.
 
+## Desktop and work area
+
+`craft_window::desktop` is a public module (no feature of its own): `Backend` and the desktop
+detection read the environment and, on Wayland, the compositor's registry. With the `ui` feature it
+adds the part of the window the user can see:
+
+- `visible_part(content, monitor, inner, state)` is the pure rule and `visible_rect(ctx)` reads it from
+  the viewport info: the content rect cut to the monitor, keeping `TASKBAR` clear at the monitor's
+  bottom. egui does not expose the OS work area, so this is an estimate, not an OS query.
+  `craft_ui`'s menus size and place themselves by it.
+- `fits(outer, monitor)` and `fit_window(ctx)`: a window larger than its monitor is maximized once,
+  which puts it in the work area. Call `fit_window` once the monitor is known.
+- `WindowMode` (`Normal`, `Maximized`, `FullScreen`): full screen covers the taskbar on purpose.
+
 ## Window restore
 
-Feature `restore` (no egui): `craft_window::restore`.
+`craft_window::restore` (no egui).
 
 - `place(saved, monitors, home, &Defaults) -> Placement` is pure. First launch: the default size fitted
   to the home monitor, maximized when it does not fit. Saved sizes are points at interface zoom 1.

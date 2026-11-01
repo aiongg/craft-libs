@@ -22,7 +22,7 @@ use craft_ui::theme::{Tokens, TokensOf as _};
 /// use craft_ui::localized::LocaleNumbers;
 /// # egui::__run_test_ui(|ui| { let mut color = Rgba::rgb(0x33, 0x66, 0x99);
 /// let numbers = LocaleNumbers::from_tag("en");
-/// let edit = ColorReadout::new("readout", "Hex colour", color, &numbers).show(ui);
+/// let edit = ColorReadout::new("readout", "Hex color", color, &numbers).show(ui);
 /// if let Some(c) = edit.event.as_ref().and_then(|e| e.value()) {
 ///     color = *c;
 /// }

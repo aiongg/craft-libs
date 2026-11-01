@@ -2,7 +2,7 @@
 //! 81): the Shortcuts For areas, the app's own tabs beside the shortcuts (PhotoCraft's Menus and
 //! Toolbar), and the dialog's state as automation reads it.
 //!
-//! Undo, Take It and Go to Conflict, the Set row and Summarize… are the dialog's already; the Set
+//! Undo, Accept and Go to Conflict, the Set row and Summarize… are the dialog's already; the Set
 //! row's `.kys` export is an [`super::Options::export_formats`] entry the app writes with
 //! [`crate::import::kys::write`].
 

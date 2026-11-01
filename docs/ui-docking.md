@@ -118,7 +118,7 @@ an optional saved arrangement for Reset, and `locked`.
 | `reset(default)` | Return to the saved arrangement, or to `default` for a built-in workspace. |
 | `validate` | Check a loaded workspace before use. |
 
-With the `serde` feature, `Workspace`, `Layout` and `Action` serialize. Files without a version
+`Workspace`, `Layout` and `Action` serialize. Files without a version
 are v1 and load unchanged. craft-ui does not choose where files go; the app does.
 
 ## Rendering
@@ -411,7 +411,7 @@ A flyout fits its content the same way, without the title bar.
 
 ## Commands
 
-With the `serde` feature, `DockCommand<P>` is the shared control vocabulary. The app puts the
+`DockCommand<P>` is the shared control vocabulary. The app puts the
 command id under `"command"` in the params and deserializes them. craft-ui has no `serde_json`
 dependency.
 

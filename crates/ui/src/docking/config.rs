@@ -8,26 +8,14 @@ use crate::localized::{Labels as _, Words};
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct DockConfig {
-    /// Localize these action labels in the application adapter.
-    pub float_label: String,
-    pub close_label: String,
-    /// Tab menu item that moves one panel into another group (submenu of target panels).
-    pub move_panel_to_label: String,
+    /// Localize these accessibility labels in the application adapter. The menu rows are [`crate::docking::panel_menu::PanelMenuLabels`].
     pub panels_label: String,
     pub resize_label: String,
     pub resize_window_label: String,
     /// Accessibility label of a group's drag bar and top border.
     pub move_group_label: String,
-    pub close_group_label: String,
     /// Tooltip and accessible name of the panel-menu button ([`Self::panel_menu_button`]).
     pub panel_menu_label: String,
-    pub minimize_label: String,
-    pub expand_label: String,
-    pub float_group_label: String,
-    pub move_group_up_label: String,
-    pub move_group_down_label: String,
-    /// Group menu item that moves the whole group into another group (submenu of targets).
-    pub move_group_to_label: String,
     /// Narrowest a tab gets before the tabs that do not fit go to the overflow menu. `None`:
     /// about three characters and the "…" at the look's font size, plus the tab's padding (52.75 pt
     /// in Compact: the Label role's 11.5 pt font and 24 pt padding), so it
@@ -78,27 +66,19 @@ pub struct DockConfig {
     /// [D] Width of the band along the docked area's left and right edges, and inside an empty
     /// dock, that makes a new dock (28 pt).
     pub new_dock_band: f32,
-    /// [D] Column menu item that toggles Auto-Collapse Iconic Panels.
-    pub auto_collapse_label: String,
     /// [D] Lay docks out right to left: `Side::Start` is the right edge. egui has no app-wide
     /// layout direction, so the host sets this from its locale. Splits keep their sides.
     pub right_to_left: bool,
     /// [D] Accessibility label of a column bar.
     pub move_column_label: String,
-    /// [D] Column menu and group menu items.
-    pub collapse_to_icons_label: String,
-    pub expand_panels_label: String,
-    /// [D] Accessibility labels of the column bar's »/« button, distinct from the menu items.
+    /// [D] Accessibility labels of the column bar's »/« button.
     pub collapse_column_label: String,
     pub expand_column_label: String,
     pub move_window_label: String,
     pub close_window_label: String,
     /// Group menu items Close Other Panels in Group, and Maximize Frame / Restore Frame Size
     /// for groups of the split tree, each shown when its flag is on.
-    pub close_others_label: String,
     pub close_others_item: bool,
-    pub maximize_label: String,
-    pub restore_frame_label: String,
     pub maximize_item: bool,
     /// Shown under the pointer while a drag offers a docking target, when [`Self::float_hint`]
     /// is on. `{key}` stands for the modifier that floats the drop instead: ⌘ on macOS, Ctrl
@@ -137,21 +117,11 @@ pub struct DockConfig {
 impl Default for DockConfig {
     fn default() -> Self {
         Self {
-            float_label: String::new(),
-            close_label: String::new(),
-            move_panel_to_label: String::new(),
             panels_label: String::new(),
             resize_label: String::new(),
             resize_window_label: String::new(),
             move_group_label: String::new(),
-            close_group_label: String::new(),
             panel_menu_label: String::new(),
-            minimize_label: String::new(),
-            expand_label: String::new(),
-            float_group_label: String::new(),
-            move_group_up_label: String::new(),
-            move_group_down_label: String::new(),
-            move_group_to_label: String::new(),
             min_tab_width: None,
             edge_band: 28.0,
             side_edge_zones: false,
@@ -162,19 +132,13 @@ impl Default for DockConfig {
             seam_band: 28.0,
             column_edge_band: 28.0,
             new_dock_band: 28.0,
-            auto_collapse_label: String::new(),
             right_to_left: false,
             move_column_label: String::new(),
-            collapse_to_icons_label: String::new(),
-            expand_panels_label: String::new(),
             collapse_column_label: String::new(),
             expand_column_label: String::new(),
             move_window_label: String::new(),
             close_window_label: String::new(),
-            close_others_label: String::new(),
             close_others_item: false,
-            maximize_label: String::new(),
-            restore_frame_label: String::new(),
             maximize_item: false,
             float_hint_label: String::new(),
             float_hint: false,

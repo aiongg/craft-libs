@@ -97,9 +97,6 @@ pub(super) fn frame_style(style: &mut DockStyle) {
     style.float_hint = true;
     style.wheel_selects_tabs = true;
     style.middle_click_closes_tabs = true;
-    style.float_label = "Undock Panel".into();
-    style.float_group_label = "Undock Panel Group".into();
-    style.close_group_label = "Close Panel Group".into();
 }
 
 struct Driver {
@@ -495,7 +492,7 @@ fn close_other_panels_keeps_only_the_chosen_tab() {
         h.run_steps(2);
     };
     open_menu(&mut h);
-    for label in ["Undock Panel", "Close Panel Group", "Undock Panel Group", "Close Other Panels in Group", "Maximize Frame"] {
+    for label in ["Float", "Close Tab Group", "Float Tab Group", "Close Other Panels in Group", "Maximize Frame"] {
         assert_eq!(h.query_all_by_label(label).count(), 1, "{label}");
     }
     assert_eq!(h.query_all_by_label("Minimize").count(), 0);
@@ -838,7 +835,7 @@ fn undock_panel_group_floats_one_group_of_a_floating_window() {
         h.run_steps(2);
     };
     menu(&mut h, 6);
-    h.get_by_label("Undock Panel Group").click();
+    h.get_by_label("Float Tab Group").click();
     h.run_steps(2);
     let actions = std::mem::take(&mut h.state_mut().2);
     assert!(matches!(&actions[..], [Action::MoveGroup { panel: 6, to: Target::Float { rect: Some(_) } }]), "{actions:?}");
@@ -850,7 +847,7 @@ fn undock_panel_group_floats_one_group_of_a_floating_window() {
     h.state_mut().1 = layout;
     h.run_steps(2);
     menu(&mut h, 5);
-    assert_eq!(h.query_all_by_label("Undock Panel Group").count(), 0);
+    assert_eq!(h.query_all_by_label("Float Tab Group").count(), 0);
 }
 
 #[test]
@@ -909,26 +906,157 @@ fn an_in_window_floating_window_fades_only_while_its_title_bar_drag_highlights_a
     assert!(window_of(&d.layout, 8).is_some());
 }
 
+/// A frame host's pass: the titled frame at the host's stored rect, which follows `moved` as a
+/// host's does. Returns what the frame reported.
+struct Titled {
+    ctx: Context,
+    id: Id,
+    rect: Rect,
+    time: f64,
+    dock: Option<(Layout<u32>, bool)>,
+    limits: PanelLimits,
+    contents: f32,
+    auto: bool,
+}
+
+type Reported = (Option<Rect>, Option<chrome::FrameDrop<u32>>, Option<f32>, Rect);
+
+impl Titled {
+    fn new(rect: Rect) -> Self {
+        Self {
+            ctx: Context::default(),
+            id: Id::unique("titled-frame"),
+            rect,
+            time: 0.0,
+            dock: None,
+            limits: PanelLimits::default(),
+            contents: 40.0,
+            auto: false,
+        }
+    }
+
+    fn step(&mut self, events: Vec<Event>) -> Reported {
+        use chrome::{ChromeStyle, FloatingFrame, TitleBar};
+        self.time += 1.0 / 60.0;
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
+            events,
+            focused: true,
+            time: Some(self.time),
+            ..Default::default()
+        };
+        let mut reported = None;
+        let (id, rect, limits, contents, auto, dock) = (self.id, self.rect, self.limits, self.contents, self.auto, self.dock.clone());
+        done(self.ctx.run_ui(input, |ui| {
+            let style = ChromeStyle::from_ui(ui);
+            let mut content = Content::default();
+            if let Some((layout, _)) = &dock {
+                let dock_style = DockStyle::from_ui(ui);
+                DockArea::new(Id::unique(AREA)).show_content(ui, layout, &dock_style, &mut content);
+            }
+            let into = dock.as_ref().filter(|(_, on)| *on).map(|_| Id::unique(AREA));
+            let bar = TitleBar::new(id.with("bar"), "Move window").title("Styles").close("Close window");
+            let shown = FloatingFrame::new(id, rect).limits(limits).auto_height(auto).dock_into(into).title_bar(bar).show_titled::<_, u32>(
+                ui.ctx(),
+                &style,
+                |ui, _| {
+                    ui.allocate_space(vec2(50.0, contents));
+                },
+            );
+            reported = Some((shown.moved, shown.dropped, shown.content_height, shown.frame.rect));
+        }));
+        let reported = reported.unwrap();
+        if let Some(moved) = reported.0 {
+            self.rect = moved;
+        }
+        reported
+    }
+
+    fn title_point(&self) -> egui::Pos2 {
+        let height = crate::docking::testing::default_chrome().title_height;
+        pos2(self.rect.left() + 20.0, self.rect.top() + height * 0.5 + 2.0)
+    }
+}
+
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 // A title-bar drag moves a titled frame and reports the new rect; Escape returns it to the start rect.
 fn titled_frame_moves_with_its_title_bar() {
-    todo!()
+    let start = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 200.0));
+    let mut frame = Titled::new(start);
+    frame.step(vec![]);
+    frame.step(vec![]);
+    let grab = frame.title_point();
+    frame.step(vec![Event::PointerMoved(grab), button(grab, true)]);
+    frame.step(vec![Event::PointerMoved(grab + vec2(10.0, 5.0))]);
+    let (moved, ..) = frame.step(vec![Event::PointerMoved(grab + vec2(60.0, 40.0))]);
+    assert_eq!(moved, Some(start.translate(vec2(60.0, 40.0))));
+    let escape = Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE };
+    let (moved, dropped, ..) = frame.step(vec![escape]);
+    assert_eq!(moved, Some(start), "Escape restores the start rect");
+    assert!(dropped.is_none());
+
+    // Released elsewhere: stays floating where it was dropped.
+    let mut frame = Titled::new(start);
+    frame.step(vec![]);
+    frame.step(vec![]);
+    frame.step(vec![Event::PointerMoved(grab), button(grab, true)]);
+    frame.step(vec![Event::PointerMoved(grab + vec2(10.0, 5.0))]);
+    frame.step(vec![Event::PointerMoved(grab + vec2(60.0, 40.0))]);
+    let (moved, dropped, ..) = frame.step(vec![button(grab + vec2(60.0, 40.0), false)]);
+    assert_eq!(dropped, Some(chrome::FrameDrop::Float(start.translate(vec2(60.0, 40.0)))));
+    assert_eq!(moved, Some(start.translate(vec2(60.0, 40.0))));
 }
 
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 // With auto_height the frame is as tall as its contents and the title bar, never shorter than the limits.
 fn auto_height_frame_fits_its_contents() {
-    todo!()
+    let title = crate::docking::testing::default_chrome().title_height;
+    let mut frame = Titled::new(Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 500.0)));
+    frame.auto = true;
+    frame.contents = 120.0;
+    frame.step(vec![]);
+    let (.., content, rect) = frame.step(vec![]);
+    assert_eq!(content, Some(120.0));
+    assert!((rect.height() - (title + 120.0)).abs() < 0.5, "{rect:?}");
+    assert_eq!(rect.width(), 300.0);
+
+    frame.contents = 60.0;
+    frame.step(vec![]);
+    let (.., rect) = frame.step(vec![]);
+    assert!((rect.height() - (title + 60.0)).abs() < 0.5, "shrinks with the contents: {rect:?}");
+
+    frame.limits = PanelLimits { min: vec2(0.0, 200.0), ..Default::default() };
+    frame.step(vec![]);
+    let (.., rect) = frame.step(vec![]);
+    assert_eq!(rect.height(), 200.0, "the limits' minimum holds");
 }
 
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 // Releasing a dragged titled frame over a dock zone reports FrameDrop::Dock with that zone's proposal.
 fn titled_frame_drag_can_dock() {
-    todo!()
+    let start = Rect::from_min_size(pos2(450.0, 300.0), vec2(250.0, 150.0));
+    let mut frame = Titled::new(start);
+    frame.dock = Some((frames(), true));
+    frame.step(vec![]);
+    frame.step(vec![]);
+    let strip = frame.ctx.read_response(Id::unique(AREA).with(("tab", &1u32))).expect("tab 1 drawn").rect.center();
+    let grab = frame.title_point();
+    frame.step(vec![Event::PointerMoved(grab), button(grab, true)]);
+    frame.step(vec![Event::PointerMoved(grab + vec2(8.0, 6.0))]);
+    frame.step(vec![Event::PointerMoved(strip)]);
+    let (_, dropped, ..) = frame.step(vec![button(strip, false)]);
+    let Some(chrome::FrameDrop::Dock(proposal)) = dropped else { panic!("{dropped:?}") };
+    assert_eq!(proposal.anchor, 1);
+    assert!(matches!(proposal.placement, Placement::Tab { before: None }), "{:?}", proposal.placement);
+
+    // Without dock_into the same release leaves the frame floating.
+    let mut frame = Titled::new(start);
+    frame.dock = Some((frames(), false));
+    frame.step(vec![]);
+    frame.step(vec![]);
+    frame.step(vec![Event::PointerMoved(grab), button(grab, true)]);
+    frame.step(vec![Event::PointerMoved(grab + vec2(8.0, 6.0))]);
+    frame.step(vec![Event::PointerMoved(strip)]);
+    let (_, dropped, ..) = frame.step(vec![button(strip, false)]);
+    assert!(matches!(dropped, Some(chrome::FrameDrop::Float(_))), "{dropped:?}");
 }

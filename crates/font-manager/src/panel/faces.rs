@@ -7,11 +7,11 @@
 //! touched: the host's fonts stay as they are.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::{Catalog, FaceInfo};
 use egui::epaint::text::{Blob, FontInsert, FontPriority, InsertFontFamily, VariationCoords};
-use egui::{Context, FontData, FontFamily, FontTweak};
+use egui::{Context, FontData, FontFamily, FontTweak, Id};
 
 const MAX_REGISTERED: usize = 64;
 const PER_FRAME: usize = 6;
@@ -33,8 +33,31 @@ pub enum Shown {
     Unavailable,
 }
 
+/// The one registry of a context: the panel and every font picker draw through it, so a frame's
+/// faces are counted together and neither evicts the other's.
+#[derive(Clone)]
+pub struct SharedFaces(Arc<Mutex<FaceFonts>>);
+
+impl SharedFaces {
+    /// Starts the frame, once however many callers do.
+    pub fn begin_frame(&self, ctx: &Context) {
+        self.lock().begin_frame(ctx);
+    }
+
+    /// The family that draws `face`, once egui has loaded it.
+    pub fn family(&self, ctx: &Context, catalog: &Catalog, owner: Owner, face: &FaceInfo) -> Shown {
+        self.lock().family(ctx, catalog, owner, face)
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, FaceFonts> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
 #[derive(Default)]
 pub struct FaceFonts {
+    /// The context frame [`FaceFonts::begin_frame`] last ran in.
+    began: Option<u64>,
     /// Each face's family and the frame it was last drawn in.
     registered: HashMap<String, (FontFamily, u64)>,
     failed: HashSet<String>,
@@ -52,7 +75,17 @@ fn key(owner: Owner, face: &FaceInfo) -> String {
 }
 
 impl FaceFonts {
-    pub fn begin_frame(&mut self, ctx: &Context) {
+    /// The registry shared by everything drawing faces in `ctx`.
+    pub fn shared(ctx: &Context) -> SharedFaces {
+        let id = Id::unique("craft-font-manager-faces");
+        SharedFaces(ctx.data_mut(|d| d.get_temp_mut_or_insert_with(id, || Arc::new(Mutex::new(FaceFonts::default()))).clone()))
+    }
+
+    fn begin_frame(&mut self, ctx: &Context) {
+        let frame = ctx.cumulative_frame_nr();
+        if self.began.replace(frame) == Some(frame) {
+            return;
+        }
         self.budget = PER_FRAME;
         let stale = self.next_frame();
         if !stale.is_empty() {
@@ -138,5 +171,17 @@ mod tests {
         assert_eq!(stale.len(), 20);
         assert!(stale.keys().all(|k| k[5..].parse::<usize>().unwrap() < 20));
         assert_eq!(faces.registered.len(), MAX_REGISTERED);
+    }
+
+    #[test]
+    fn one_registry_serves_every_owner_and_a_frame_begins_once() {
+        let ctx = Context::default();
+        let (a, b) = (FaceFonts::shared(&ctx), FaceFonts::shared(&ctx));
+        assert!(Arc::ptr_eq(&a.0, &b.0));
+        a.begin_frame(&ctx);
+        a.lock().budget = 0;
+        b.begin_frame(&ctx);
+        assert_eq!(a.lock().budget, 0, "the second owner's begin does not reset the frame");
+        assert_eq!(a.lock().frame, 1, "nor count another frame");
     }
 }

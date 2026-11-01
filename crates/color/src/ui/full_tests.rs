@@ -259,7 +259,7 @@ fn full_layout_puts_the_channels_in_two_columns_beside_the_area_with_radios_choo
     let left = ["Hue", "Saturation", "Brightness", "Red", "Green", "Blue"];
     let right = ["Lightness", "Green-red", "Blue-yellow", "Cyan", "Magenta", "Yellow", "Black"];
     let fields: Vec<Rect> = left.iter().chain(&right).map(|n| rig.rect(Role::SpinButton, n)).collect();
-    let hex_field = rig.rect(Role::TextInput, "Hex colour");
+    let hex_field = rig.rect(Role::TextInput, "Hex color");
     let (l, r) = fields.split_at(left.len());
     assert!(l.iter().all(|f| f.left() == l[0].left()) && r.iter().all(|f| f.left() == r[0].left()), "two aligned columns");
     assert!(area.right() < l[0].left() && l[0].right() < r[0].left(), "the area, then H S B R G B, then L a b and the host's model");
@@ -337,14 +337,14 @@ fn typed_host_model_values_survive_in_the_grid_while_the_colour_is_the_same() {
 fn compare_and_warnings_set_their_colours_and_are_named_buttons() {
     let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
     rig.compare = Some(Srgba::rgb(1.0, 0.0, 0.0));
-    rig.warnings = vec![("Not a web colour", Srgba::rgb(0.2, 0.4, 0.6)), ("Out of gamut for printing", Srgba::rgb(0.0, 0.6, 0.4))];
+    rig.warnings = vec![("Not a web color", Srgba::rgb(0.2, 0.4, 0.6)), ("Out of gamut for printing", Srgba::rgb(0.0, 0.6, 0.4))];
     rig.settle();
-    assert_eq!(rig.node(Role::Image, "New colour").value(), Some("#336699"));
-    assert_eq!(rig.node(Role::Button, "Restore current colour").value(), Some("#ff0000"));
-    let new = rig.rect(Role::Image, "New colour");
-    let current = rig.rect(Role::Button, "Restore current colour");
+    assert_eq!(rig.node(Role::Image, "New color").value(), Some("#336699"));
+    assert_eq!(rig.node(Role::Button, "Restore current color").value(), Some("#ff0000"));
+    let new = rig.rect(Role::Image, "New color");
+    let current = rig.rect(Role::Button, "Restore current color");
     assert!(new.bottom() <= current.top() && new.left() == current.left(), "new over current");
-    rig.node(Role::Button, "Not a web colour");
+    rig.node(Role::Button, "Not a web color");
 
     rig.click(current.center());
     assert_eq!(kinds(&rig.events), ["Set"]);
@@ -362,7 +362,7 @@ fn compare_and_warnings_set_their_colours_and_are_named_buttons() {
 fn the_full_picker_opens_with_the_hex_text_selected_and_focus_hex_selects_it_on_request() {
     let mut rig = Rig::new(Rgba::rgb(0x1a, 0x2b, 0x3c).into());
     rig.settle();
-    assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"), "the hex field has the focus on open");
+    assert_eq!(rig.focused_name().as_deref(), Some("Hex color"), "the hex field has the focus on open");
     rig.type_text("123456");
     assert_eq!(hex(rig.color), "#123456", "typing replaces the selected text");
 
@@ -373,7 +373,7 @@ fn the_full_picker_opens_with_the_hex_text_selected_and_focus_hex_selects_it_on_
     rig.frame(vec![]);
     rig.shown = true;
     rig.settle();
-    assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"));
+    assert_eq!(rig.focused_name().as_deref(), Some("Hex color"));
 
     // The Compact picker only on request.
     let mut rig = Rig::new(Rgba::rgb(0x1a, 0x2b, 0x3c).into());
@@ -383,7 +383,7 @@ fn the_full_picker_opens_with_the_hex_text_selected_and_focus_hex_selects_it_on_
     assert_eq!(rig.focused_name().as_deref(), Some("Before"));
     ColorPicker::focus_hex(&rig.ctx, rig.picker);
     rig.settle();
-    assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"));
+    assert_eq!(rig.focused_name().as_deref(), Some("Hex color"));
     rig.type_text("abcdef");
     assert_eq!(hex(rig.color), "#abcdef");
 }
@@ -404,7 +404,7 @@ fn inside_an_edit_scope_the_full_picker_sends_only_updates_and_its_radios_none()
     rig.key(Key::Enter);
     let area = rig.rect(Role::Slider, "Green-red and blue-yellow");
     rig.click(area.center());
-    let current = rig.rect(Role::Button, "Restore current colour");
+    let current = rig.rect(Role::Button, "Restore current color");
     rig.click(current.center());
     assert_eq!(hex(rig.color), "#ff0000");
     assert!(rig.events.len() >= 3, "{:?}", rig.events);
@@ -517,7 +517,7 @@ fn a_restore_click_that_ends_a_typing_run_restores_the_current_colour() {
     rig.tab_to("Hue");
     rig.type_text("12");
     rig.events.clear();
-    let current = rig.rect(Role::Button, "Restore current colour");
+    let current = rig.rect(Role::Button, "Restore current color");
     rig.click(current.center());
     let kinds = kinds(&rig.events);
     assert_eq!(kinds.iter().filter(|k| **k == "Commit").count(), 1, "the typed hue is committed: {kinds:?}");
@@ -539,7 +539,7 @@ fn a_screen_readers_compare_click_during_a_typing_run_ends_the_run_and_restores(
     let target = rig
         .nodes
         .iter()
-        .find(|(_, n)| n.role() == Role::Button && rig.name(n) == "Restore current colour")
+        .find(|(_, n)| n.role() == Role::Button && rig.name(n) == "Restore current color")
         .map(|(id, _)| *id)
         .expect("restore button");
     rig.frame(vec![Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
@@ -561,7 +561,7 @@ fn a_screen_readers_compare_click_during_a_typing_run_ends_the_run_and_restores(
 fn an_area_tap_that_ends_a_partial_hex_run_sets_the_tapped_colour() {
     let start = Srgba::rgb(0.2, 0.4, 0.6);
     let mut rig = Rig::new(start);
-    rig.tab_to("Hex colour");
+    rig.tab_to("Hex color");
     rig.type_text("AB");
     let area = rig.rect(Role::Slider, "Saturation and brightness");
     let at = area.left_top() + vec2(area.width() * 0.9, area.height() * 0.1);
@@ -622,12 +622,12 @@ fn an_interrupted_typing_run_ends_as_its_field_would() {
 fn pasted_hex_text_is_parsed_whole() {
     let start = Srgba::rgb(0.2, 0.4, 0.6);
     let mut rig = Rig::new(start);
-    rig.tab_to("Hex colour");
+    rig.tab_to("Hex color");
     rig.frame(vec![Event::Paste("#AABBCCDD".to_owned())]);
     rig.settle();
     assert_eq!(hex(rig.color), hex(start), "eight digits without alpha are not cut to six");
 
-    rig.tab_to("Hex colour");
+    rig.tab_to("Hex color");
     rig.frame(vec![Event::Paste("  #aabbcc ".to_owned())]);
     rig.settle();
     assert_eq!(hex(rig.color), "#aabbcc");
@@ -652,7 +652,7 @@ fn a_picker_shown_again_without_focus_on_open_leaves_the_focus() {
     rig.settle();
     rig.shown = true;
     rig.settle();
-    assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"), "a dialog's picker takes it when it opens");
+    assert_eq!(rig.focused_name().as_deref(), Some("Hex color"), "a dialog's picker takes it when it opens");
 }
 
 #[test]
@@ -670,7 +670,7 @@ fn two_warning_chips_in_one_ui_keep_their_own_clicks() {
         let output = ctx.run_ui(input, |ui| {
             ui.horizontal(|ui| {
                 for salt in ["first", "second"] {
-                    let warning = ColorWarning::new("Not a web colour", Srgba::rgb(0.2, 0.4, 0.6));
+                    let warning = ColorWarning::new("Not a web color", Srgba::rgb(0.2, 0.4, 0.6));
                     let response = ColorWarningChip::new(salt, warning).show(ui);
                     seen.push((response.rect, response.id, response.clicked()));
                 }
@@ -712,7 +712,7 @@ fn only_web_colors_snaps_every_control_and_reports_the_snapped_model_values_in_h
     let strip = rig.rect(Role::Slider, "Hue");
     rig.click(strip.center() + vec2(0.0, 17.0));
     assert!(is_web(rig.color), "{}", hex(rig.color));
-    rig.tab_to("Hex colour");
+    rig.tab_to("Hex color");
     rig.type_text("123456");
     assert_eq!(hex(rig.color), "#003366");
     rig.tab_to("Red");
@@ -767,7 +767,7 @@ fn side_actions_stack_in_a_column_at_the_trailing_side_and_report_their_click() 
     assert!(ok.min.x == cancel.min.x && cancel.min.x == add.min.x, "one column");
     assert!(ok.max.y <= cancel.min.y && cancel.max.y <= add.min.y, "in the listed order, top to bottom");
     assert!(ok.width() == add.width(), "as wide as the longest label");
-    let hex = rig.rect(Role::TextInput, "Hex colour");
+    let hex = rig.rect(Role::TextInput, "Hex color");
     let area = rig.rect(Role::Slider, "Saturation and brightness");
     assert!(ok.min.x >= area.max.x, "beside the area, at the trailing side");
     assert!(ok.max.x >= hex.max.x && add.max.y < hex.min.y, "over the channel grid, in the picker's width");
@@ -834,14 +834,14 @@ fn enter_presses_the_default_side_action_and_esc_the_cancel_one_as_a_dialog_foot
         FooterButton::new(ButtonRole::Alternate, "Add to Swatches"),
     ];
     rig.settle();
-    assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"));
+    assert_eq!(rig.focused_name().as_deref(), Some("Hex color"));
     rig.type_text("ff0000");
     rig.key(Key::Enter);
     assert_eq!(hex(rig.color), "#ff0000", "Enter in the hex field applies it ...");
     let roles: Vec<_> = rig.side_clicked.drain(..).map(|c| c.role).collect();
     assert_eq!(roles, [ButtonRole::Default], "... and then answers the default action, as a footer does");
 
-    rig.tab_to("Hex colour");
+    rig.tab_to("Hex color");
     rig.key(Key::Escape);
     let roles: Vec<_> = rig.side_clicked.drain(..).map(|c| c.role).collect();
     assert_eq!(roles, [ButtonRole::Cancel]);
@@ -980,7 +980,7 @@ fn the_enter_that_opens_a_picker_does_not_press_its_side_action() {
     let mut rig = Rig::new(Srgba::rgb(0.2, 0.4, 0.6));
     rig.side = vec![FooterButton::new(ButtonRole::Default, "OK"), FooterButton::new(ButtonRole::Cancel, "Cancel")];
     rig.settle();
-    assert_eq!(rig.focused_name().as_deref(), Some("Hex colour"), "the focus is inside when the picker goes");
+    assert_eq!(rig.focused_name().as_deref(), Some("Hex color"), "the focus is inside when the picker goes");
     // It stays hidden for a few frames, then opens on this very Enter, with the old state of its keys.
     rig.shown = false;
     rig.settle();

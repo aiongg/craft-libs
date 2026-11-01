@@ -13,6 +13,7 @@
 mod catalog;
 #[cfg(feature = "collate")]
 mod collate;
+mod date;
 mod fold;
 mod format;
 mod number;
@@ -20,7 +21,7 @@ mod region;
 mod scripts;
 mod size;
 
-/// The CLDR number and plural data for every CLDR locale, from `data/generate.sh`.
+/// The CLDR number, plural and date data for every CLDR locale, from `data/generate.sh`.
 mod data {
     use std::sync::OnceLock;
 
@@ -40,6 +41,18 @@ mod data {
             })
             .as_ref()
     }
+
+    /// The date, time, name and week data (with the digits they use), read once; `None` if the
+    /// blob doesn't load.
+    pub(crate) fn dates_provider() -> Option<&'static LocaleFallbackProvider<BlobDataProvider>> {
+        static PROVIDER: OnceLock<Option<LocaleFallbackProvider<BlobDataProvider>>> = OnceLock::new();
+        PROVIDER
+            .get_or_init(|| {
+                let blob = BlobDataProvider::try_new_from_static_blob(include_bytes!("../data/dates.postcard")).ok()?;
+                Some(LocaleFallbackProvider::new(blob, LocaleFallbacker::new().static_to_owned()))
+            })
+            .as_ref()
+    }
 }
 
 use std::borrow::Cow;
@@ -52,6 +65,9 @@ use unicode_bidi::{BidiClass, bidi_class};
 
 #[cfg(feature = "collate")]
 pub use collate::Collator;
+pub use date::{
+    CalendarDate, CalendarKind, DateFormat, DateLength, DateStyle, DateTime, LocalDate, NameLength, TimePrecision, TimeZone, Weekday, utc_stamp,
+};
 pub use fold::{Folded, Folder};
 pub use format::{Digits, Format};
 pub use number::{NumberError, parse_number};
@@ -149,6 +165,8 @@ pub struct I18n {
     system: OnceLock<Lang>,
     /// [`I18n::format`]; the system region's until [`I18n::set_format`].
     format: RwLock<Option<Arc<Format>>>,
+    /// [`I18n::dates`]; the system region's until [`I18n::set_dates`].
+    dates: RwLock<Option<Arc<DateFormat>>>,
 }
 
 impl I18n {
@@ -202,7 +220,7 @@ impl I18n {
                 l.chain = chain;
             }
         }
-        (I18n { locales, pseudo: Mutex::default(), system: OnceLock::new(), format: RwLock::default() }, problems)
+        (I18n { locales, pseudo: Mutex::default(), system: OnceLock::new(), format: RwLock::default(), dates: RwLock::default() }, problems)
     }
 
     /// Parse every locale and list every problem, `<locale>/<common|app>: line N: …`, for a test or
@@ -329,6 +347,13 @@ impl I18n {
         }
         let mut slot = self.format.write().unwrap_or_else(PoisonError::into_inner);
         Arc::clone(slot.get_or_insert_with(|| Arc::new(Format::new(&Region::system(), Digits::Locale))))
+    }
+
+    /// Write numbers and dates in `region` with `digits`: the user's region setting, in one call
+    /// so the two cannot differ.
+    pub fn set_region(&self, region: &Region, digits: Digits) {
+        self.set_format(Format::new(region, digits));
+        self.set_dates(DateFormat::new(region).with_digits(digits));
     }
 
     /// Write numbers as `format` does from now on: the user's region setting, or Latin digits.
@@ -924,6 +949,24 @@ mod tests {
         let i = all(P).0;
         assert_eq!(i.trn(Lang::EN, 1, "{n} file", "{n} files"), "1 file");
         assert_eq!(i.trn(lang(&i, "fr"), 2, "{n} x", "{n} xs"), "2 xs");
+    }
+
+    // One region call sets the numbers and the dates: de-DE writes `1.234` and `Oktober 2026`.
+    #[test]
+    fn set_region_sets_numbers_and_dates() {
+        let i = all(P).0;
+        i.set_region(&Region::from_tag("de-DE"), Digits::Locale);
+        assert_eq!(i.format().integer(1234), "1.234");
+        assert_eq!(i.dates().year_month(2026, 10), "Oktober 2026");
+        i.set_region(&Region::from_tag("ar-EG"), Digits::Locale);
+        assert_eq!(i.format().integer(12), "\u{661}\u{662}");
+        assert!(i.dates().year_month(2026, 10).contains('\u{662}'), "the locale's digits in dates");
+        i.set_region(&Region::from_tag("ar-EG"), Digits::Latin);
+        assert_eq!(i.format().integer(12), "12");
+        let at = DateTime { date: CalendarDate { year: 2026, month: 10, day: 31 }, hour: 14, minute: 5, second: 0 };
+        let text = i.dates().format(at, DateStyle::DATE_TIME);
+        assert!(text.contains("2026") && !text.chars().any(|c| ('\u{660}'..='\u{669}').contains(&c)), "{text}");
+        assert!(i.dates().year_month(2026, 10).contains("2026"));
     }
 
     #[test]

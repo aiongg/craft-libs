@@ -27,6 +27,10 @@ crate::words! {
         default_hint: "dialog.defaultHint" = "Default";
         /// The accessible name of a dialog frame's close box.
         close: "dialog.close" = "Close";
+        /// The button after a text row that picks a file or folder.
+        browse: "dialog.browse" = "Browse…";
+        /// The check box that switches an optional number on.
+        custom: "dialog.custom" = "Custom";
     }
 }
 
@@ -148,6 +152,7 @@ pub struct Footer<'a> {
     alternates: Vec<String>,
     extras: Vec<String>,
     ok_enabled: bool,
+    ok_stays_open: bool,
     apply_enabled: bool,
     ok_when: Option<Enabled<'a>>,
     apply_when: Option<Enabled<'a>>,
@@ -172,6 +177,7 @@ impl<'a> Footer<'a> {
             alternates: Vec::new(),
             extras: Vec::new(),
             ok_enabled: true,
+            ok_stays_open: false,
             apply_enabled: true,
             ok_when: None,
             apply_when: None,
@@ -268,6 +274,14 @@ impl<'a> Footer<'a> {
         self
     }
 
+    /// Whether OK (and Enter) answers [`Outcome::Ok`](super::Outcome::Ok) without closing the
+    /// dialog: the host acts on each press, and the dialog closes on Cancel or an
+    /// [`alternate`](Footer::alternate) such as Done (Relink's Link). Off by default.
+    pub fn ok_stays_open(mut self, stays: bool) -> Self {
+        self.ok_stays_open = stays;
+        self
+    }
+
     pub fn apply_enabled(mut self, enabled: bool) -> Self {
         self.apply_enabled = enabled;
         self
@@ -293,7 +307,7 @@ impl<'a> Footer<'a> {
         self.apply_enabled = self.apply_when.take().map_or(self.apply_enabled, |f| f());
     }
 
-    /// Opts in to Alt turning Cancel into Reset.
+    /// Opts in to Alt turning Cancel into Reset (in the row and in the [`side`](Footer::side) column).
     pub fn reset(mut self, reset: Reset) -> Self {
         self.reset = Some(reset);
         self
@@ -346,6 +360,10 @@ impl<'a> Footer<'a> {
 
     pub(super) fn enter_rule(&self) -> EnterRule {
         self.enter
+    }
+
+    pub(super) fn keeps_ok_open(&self) -> bool {
+        self.ok_stays_open
     }
 
     fn resolve_labels(&mut self, ui: &Ui) {
@@ -450,7 +468,8 @@ impl<'a> Footer<'a> {
         let t = tokens.component.dialog;
         let mut labels: Vec<(ButtonRole, String)> = Vec::new();
         labels.extend(self.ok.get(&self.labels.ok).map(|l| (ButtonRole::Default, l)));
-        labels.extend(self.cancel.get(&self.labels.cancel).map(|l| (ButtonRole::Cancel, l)));
+        let reset = self.alt_reset(ui).map(str::to_owned);
+        labels.extend(self.cancel.get(&self.labels.cancel).map(|l| (ButtonRole::Cancel, reset.clone().unwrap_or(l))));
         let extras_from = labels.len();
         labels.extend(self.extras.iter().map(|l| (ButtonRole::Alternate, l.clone())));
         let width = labels.iter().fold(t.side_min, |w, (_, label)| w.max(Button::new(label.as_str()).natural_width(ui)));
@@ -488,6 +507,7 @@ impl<'a> Footer<'a> {
                     run.extra = Some(index - extras_from);
                 } else {
                     run.clicked = Some(Clicked { index, role: *role, nth: 0 });
+                    run.reset = reset.is_some() && *role == ButtonRole::Cancel;
                 }
             }
         }

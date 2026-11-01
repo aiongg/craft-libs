@@ -2,7 +2,7 @@
 //! through it; craft-dialogs implements it over the native panels, apps on wasm over the browser.
 //!
 //! Pickers never block the frame: [`Files::pick`] returns a [`PickId`] at once and the answer
-//! arrives on a later pass through [`Files::take_pick`]. One picker shows at a time; later
+//! arrives on a later pass through [`Files::take_answer`]. One picker shows at a time; later
 //! requests wait in order. The service remembers the last folder per [`PickRequest::purpose`]
 //! and applies the extension policy to a saved name before the app sees it.
 
@@ -118,6 +118,26 @@ pub enum Picked {
     Contents(Vec<(String, Vec<u8>)>),
 }
 
+impl Picked {
+    /// The first chosen path; on wasm the first file's name. `None` when cancelled.
+    pub fn first_path(&self) -> Option<PathBuf> {
+        match self {
+            Picked::Paths(paths) => paths.first().cloned(),
+            Picked::Contents(files) => files.first().map(|(name, _)| PathBuf::from(name)),
+            Picked::Cancelled => None,
+        }
+    }
+
+    /// Every chosen path; on wasm the files' names. Empty when cancelled.
+    pub fn paths(&self) -> Vec<PathBuf> {
+        match self {
+            Picked::Paths(paths) => paths.clone(),
+            Picked::Contents(files) => files.iter().map(|(name, _)| PathBuf::from(name)).collect(),
+            Picked::Cancelled => Vec::new(),
+        }
+    }
+}
+
 /// One answered pick.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PickAnswer {
@@ -162,14 +182,15 @@ impl From<std::io::Error> for FileError {
 /// The file service. Pickers are queued and answered later; reads and writes are synchronous
 /// (features run large ones through [`Jobs`](crate::Jobs)).
 pub trait Files: Send + Sync {
-    /// Queues a picker; the answer comes back from [`take_pick`](Files::take_pick) on a later
-    /// pass. The ticket lets a feature match the answer to what it asked.
+    /// Queues a picker; the answer comes back from [`take_answer`](Files::take_answer) on a
+    /// later pass. The ticket lets a feature match the answer to what it asked.
     fn pick(&self, request: PickRequest) -> PickId;
-    /// The next answered pick, oldest first. A feature that takes an answer it did not ask for
-    /// (another ticket) hands it back with [`return_pick`](Files::return_pick).
-    fn take_pick(&self) -> Option<PickAnswer>;
-    /// Puts an answer back at the front of the answered queue.
-    fn return_pick(&self, answer: PickAnswer);
+    /// The answer of ticket `id`, once it has come; it is removed. Other tickets' answers stay
+    /// where they are, so a feature that never asks for its answer blocks no other feature.
+    fn take_answer(&self, id: PickId) -> Option<Picked>;
+    /// Drops ticket `id`: its answer, if it has come, and the answer that has yet to come. An
+    /// owner that closes with a pick outstanding calls it.
+    fn forget(&self, id: PickId);
     /// Whether a picker is on screen or waiting.
     fn pick_pending(&self) -> bool;
     fn read(&self, path: &Path) -> Result<Vec<u8>, FileError>;
@@ -196,13 +217,14 @@ impl Files for NoPickFiles {
         id
     }
 
-    fn take_pick(&self) -> Option<PickAnswer> {
+    fn take_answer(&self, id: PickId) -> Option<Picked> {
         let mut answered = self.answered.lock().unwrap_or_else(|e| e.into_inner());
-        if answered.is_empty() { None } else { Some(answered.remove(0)) }
+        let at = answered.iter().position(|a| a.id == id)?;
+        Some(answered.remove(at).picked)
     }
 
-    fn return_pick(&self, answer: PickAnswer) {
-        self.answered.lock().unwrap_or_else(|e| e.into_inner()).insert(0, answer);
+    fn forget(&self, id: PickId) {
+        self.answered.lock().unwrap_or_else(|e| e.into_inner()).retain(|a| a.id != id);
     }
 
     fn pick_pending(&self) -> bool {
@@ -242,5 +264,33 @@ fn with_path(e: std::io::Error, path: &Path) -> FileError {
         FileError::NotFound(_) => FileError::NotFound(path.to_owned()),
         FileError::PermissionDenied(_) => FileError::PermissionDenied(path.to_owned()),
         other => other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // An answer nobody asks for does not hide another ticket's answer.
+    #[test]
+    fn an_orphaned_answer_blocks_no_other_pick() {
+        let files = NoPickFiles::default();
+        let orphan = files.pick(PickRequest::open("a"));
+        let wanted = files.pick(PickRequest::open("b"));
+        assert_eq!(files.take_answer(wanted), Some(Picked::Cancelled));
+        assert_eq!(files.take_answer(wanted), None);
+        files.forget(orphan);
+        assert_eq!(files.take_answer(orphan), None);
+    }
+
+    #[test]
+    fn picked_reads_paths_and_names() {
+        let paths = Picked::Paths(vec!["/a/b.png".into(), "/c.png".into()]);
+        assert_eq!(paths.first_path(), Some(PathBuf::from("/a/b.png")));
+        assert_eq!(paths.paths().len(), 2);
+        let contents = Picked::Contents(vec![("x.png".into(), vec![1])]);
+        assert_eq!(contents.first_path(), Some(PathBuf::from("x.png")));
+        assert_eq!(Picked::Cancelled.first_path(), None);
+        assert!(Picked::Cancelled.paths().is_empty());
     }
 }

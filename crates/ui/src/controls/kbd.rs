@@ -7,6 +7,8 @@ use egui::os::OperatingSystem;
 use egui::text::LayoutJob;
 use egui::{Color32, Key, KeyboardShortcut, ModifierNames, Modifiers, Rect, Response, Sense, Ui, Vec2, Widget, WidgetInfo, pos2, vec2};
 
+use super::common_stories::ControlStoryLabels;
+use crate::localized::Labels as _;
 use crate::localized::{Word, Words};
 use crate::primitives::{Content, Surface, SurfaceKind, SurfaceStyle};
 use crate::story::NoArgs;
@@ -300,8 +302,9 @@ pub(crate) fn stories() -> Vec<Story> {
 
 /// A few chords in macOS and other notation side by side.
 fn show(ui: &mut Ui, keycaps: bool) {
+    let other = ControlStoryLabels::of(ui).os_other.clone();
     variant_list(ui, "kbd-chords", |form| {
-        for (os, name) in [(OperatingSystem::Mac, "macOS"), (OperatingSystem::Nix, "Other")] {
+        for (os, name) in [(OperatingSystem::Mac, "macOS"), (OperatingSystem::Nix, other.as_str())] {
             variant_cluster(form, name, |ui| {
                 for (modifiers, key) in CHORDS {
                     ui.add(Kbd::new(&KeyboardShortcut::new(modifiers, key)).keycaps(keycaps).os(os));

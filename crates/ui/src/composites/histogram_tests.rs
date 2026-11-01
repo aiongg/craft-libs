@@ -514,6 +514,35 @@ fn a_histogram_without_selection_senses_nothing() {
     assert!(a11y::tab_order(&mut harness).is_empty());
 }
 
+// An interactive plot without a selection is one Tab stop that takes drags and double-clicks for
+// the host, and it reports the level under the pointer.
+#[test]
+fn an_interactive_plot_is_one_tab_stop_that_reports_the_hosts_gestures() {
+    let mut harness = harness(Direction::Ltr).build_ui_state(
+        |ui, seen: &mut (bool, bool, bool)| {
+            let shown = Histogram::new("h", "Histogram").tone(&[1u32, 5, 2], ChannelColor::Neutral).interactive(true).show(ui);
+            seen.0 |= shown.response.double_clicked();
+            seen.1 |= shown.response.dragged();
+            seen.2 |= shown.selection.is_some();
+        },
+        (false, false, false),
+    );
+    harness.run();
+    assert_eq!(a11y::tab_order(&mut harness).len(), 1);
+    let at = harness.get_by_label("Histogram").rect().center();
+    harness.event(Event::PointerMoved(at));
+    harness.run();
+    harness.input_mut().events.extend([true, false, true, false].map(|pressed| Event::PointerButton {
+        pos: at,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    }));
+    harness.step();
+    harness.run();
+    assert_eq!(*harness.state(), (true, false, false), "a double-click reaches the host and changes no selection");
+}
+
 #[test]
 fn markers_draw_a_caption_each_and_name_it() {
     let mut harness = harness(Direction::Ltr).build_ui(|ui| {

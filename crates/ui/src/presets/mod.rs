@@ -15,9 +15,11 @@ pub mod labels;
 pub(crate) mod layout;
 pub mod menu;
 pub mod model;
+pub mod picker;
 pub mod rename;
 pub mod state;
 pub(crate) mod stories;
+pub(crate) mod stories_library;
 pub mod style;
 pub mod toolbar;
 pub mod view;
@@ -32,12 +34,12 @@ use std::rc::Rc;
 use egui::{AsIdSalt, IdSalt, Painter, Rect, Ui, vec2};
 
 use crate::composites::EmptyState;
+use crate::menu::MenuEntry;
 
 pub use drag::PresetReorder;
 pub use event::{PresetEvent, PresetOutput};
-pub use footer::{FooterEvent, PresetFooter};
+pub use footer::{PresetFooter, PresetFooterEvent, PresetFooterOptions};
 pub use labels::PresetLabels;
-pub use menu::PresetExtra;
 pub use model::{CellShape, PresetKind, PresetRow, Preview, ThumbInfo};
 pub use state::{DefaultOpen, PresetState, PresetView};
 pub use style::PresetStyle;
@@ -90,13 +92,16 @@ pub struct PresetBrowser<'a, K> {
     can_rename: Option<KeyTest<'a, K>>,
     can_delete: Option<KeyTest<'a, K>>,
     can_move: Option<KeyTest<'a, K>>,
-    extra_items: Vec<PresetExtra>,
+    extra_items: Vec<MenuEntry<String>>,
+    context_menu: bool,
     toolbar: bool,
     start_rename: Option<K>,
     view_lock: Option<PresetView>,
     max_height: Option<f32>,
     min_height: Option<f32>,
     shrink_to_content: bool,
+    footer: Option<PresetFooterOptions<'a>>,
+    drop_zone: Option<Rect>,
 }
 
 impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a, K> {
@@ -119,12 +124,15 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
             can_delete: None,
             can_move: None,
             extra_items: Vec::new(),
+            context_menu: true,
             toolbar: false,
             start_rename: None,
             view_lock: None,
             max_height: None,
             min_height: None,
             shrink_to_content: false,
+            footer: None,
+            drop_zone: None,
         }
     }
 
@@ -192,10 +200,17 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
         self
     }
 
-    /// Entries added to the context menu after the standard ones; choosing one reports
-    /// [`PresetEvent::Extra`].
-    pub fn extra_items(mut self, items: impl IntoIterator<Item = PresetExtra>) -> Self {
+    /// Rows added to the context menu after the standard ones (items, submenus and separators);
+    /// choosing one reports [`PresetEvent::Menu`] with the row's command.
+    pub fn extra_items(mut self, items: impl IntoIterator<Item = MenuEntry<String>>) -> Self {
         self.extra_items = items.into_iter().collect();
+        self
+    }
+
+    /// Whether a right-click or Shift+F10 opens the context menu (default yes). A browser whose
+    /// host renames and deletes nowhere has no use for it.
+    pub fn context_menu(mut self, context_menu: bool) -> Self {
+        self.context_menu = context_menu;
         self
     }
 
@@ -250,6 +265,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
         let labels = self.labels.clone().unwrap_or_else(|| Rc::new(<PresetLabels as crate::localized::Labels>::of(ui)));
         let (can_rename, can_delete, can_move) = (self.can_rename.clone(), self.can_delete.clone(), self.can_move.clone());
         let extras = std::mem::take(&mut self.extra_items);
+        let context_menu = self.context_menu;
         if self.toolbar {
             toolbar::show(ui, self.state, &labels, self.view_lock.is_none());
         }
@@ -269,11 +285,18 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
                 if let Some(short) = min_height.map(|min| min - response.rect.height()).filter(|&short| short > 0.0) {
                     ui.allocate_space(vec2(0.0, short));
                 }
-                PresetOutput { response, events: Vec::new(), drag: None }
+                let events = match self.footer.take() {
+                    Some(options) => footer::show_below(ui, self.id_salt, options, self.state, &labels, self.thumb_range.clone())
+                        .into_iter()
+                        .map(PresetEvent::Footer)
+                        .collect(),
+                    None => Vec::new(),
+                };
+                PresetOutput { response, events, drag: None, hovered: None }
             }
             None => view::show(self, id, ui, thumb),
         };
-        if message.is_none() {
+        if message.is_none() && context_menu {
             let spec = menu::Spec {
                 rows,
                 labels: &labels,

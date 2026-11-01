@@ -46,6 +46,16 @@ impl<T> MenuEntry<T> {
     }
 }
 
+impl<T> MenuEntry<T> {
+    /// The same entry with every command turned into `f(command)`.
+    pub fn map<U>(&self, f: &impl Fn(&T) -> U) -> MenuEntry<U> {
+        match self {
+            MenuEntry::Item(item) => MenuEntry::Item(item.map(f)),
+            MenuEntry::Separator => MenuEntry::Separator,
+        }
+    }
+}
+
 impl<T> From<MenuItem<T>> for MenuEntry<T> {
     fn from(item: MenuItem<T>) -> Self {
         MenuEntry::Item(item)
@@ -89,6 +99,8 @@ pub struct MenuItem<T> {
     keyed: bool,
     tint: Option<Srgba>,
     tooltip: Option<String>,
+    keep_open: bool,
+    accessible_name: Option<String>,
     action: Action<T>,
 }
 
@@ -116,6 +128,8 @@ impl<T> MenuItem<T> {
             keyed: true,
             tint: None,
             tooltip: None,
+            keep_open: false,
+            accessible_name: None,
             action,
         }
     }
@@ -191,12 +205,63 @@ impl<T> MenuItem<T> {
         self
     }
 
+    /// Running the row leaves the menu open, so the user flips several settings in one visit
+    /// (PhotoCraft's panel "…" menus: the crop options' Use Classic Mode and Show Cropped Area,
+    /// the Actions panel's Shift and Command checks, EffectCraft's Columns menu). For check and
+    /// radio rows; on a plain row or a submenu it does nothing. The menu reports the command
+    /// ([`MenuResponse::chosen`](super::MenuResponse::chosen)) and stays open with the row
+    /// highlighted; the host changes the setting, and the next pass's entries show the new
+    /// mark. Any other row, a click outside and Esc close the menu as usual.
+    ///
+    /// Not for the menus of a [`MenuBar`](super::MenuBar): the bar does not enforce it, but a bar's
+    /// menus close on every run.
+    pub fn keep_open(mut self, keep_open: bool) -> Self {
+        self.keep_open = keep_open;
+        self
+    }
+
+    /// Whether running the row leaves the menu open: a check or radio row marked
+    /// [`keep_open`](Self::keep_open).
+    pub fn keeps_open(&self) -> bool {
+        self.keep_open && self.kind != ItemKind::Plain && matches!(self.action, Action::Run(_))
+    }
+
+    /// The name AccessKit reports for the row, when the visible label is not it: a label shaped
+    /// for display (a script's contextual forms, a mnemonic suffix) while the plain text is what
+    /// assistive technology should read. Default: the label.
+    pub fn accessible_name(mut self, name: impl Into<String>) -> Self {
+        self.accessible_name = Some(name.into()).filter(|n| !n.is_empty());
+        self
+    }
+
     pub fn label(&self) -> &str {
         &self.label
     }
 
     pub fn item_kind(&self) -> ItemKind {
         self.kind
+    }
+
+    /// The same row with every command under it turned into `f(command)`.
+    pub fn map<U>(&self, f: &impl Fn(&T) -> U) -> MenuItem<U> {
+        MenuItem {
+            label: self.label.clone(),
+            english: self.english.clone(),
+            icon: self.icon,
+            shortcut: self.shortcut.clone(),
+            kind: self.kind,
+            enabled: self.enabled,
+            mnemonic: self.mnemonic,
+            keyed: self.keyed,
+            tint: self.tint,
+            tooltip: self.tooltip.clone(),
+            keep_open: self.keep_open,
+            accessible_name: self.accessible_name.clone(),
+            action: match &self.action {
+                Action::Run(command) => Action::Run(f(command)),
+                Action::Submenu(children) => Action::Submenu(children.iter().map(|entry| entry.map(f)).collect()),
+            },
+        }
     }
 
     /// The command, or `None` for a submenu.
@@ -221,6 +286,10 @@ impl<T> MenuItem<T> {
 
     pub(crate) fn tint_of(&self) -> Option<Srgba> {
         self.tint
+    }
+
+    pub(crate) fn accessible_name_of(&self) -> Option<&str> {
+        self.accessible_name.as_deref()
     }
 
     pub(crate) fn tooltip_of(&self) -> Option<&str> {
@@ -268,4 +337,19 @@ pub(crate) fn at_path<'e, T>(entries: &'e [MenuEntry<T>], path: &[usize]) -> Opt
         level = level.get(i)?.item()?.children()?;
     }
     level.get(last)?.item()
+}
+
+#[cfg(test)]
+mod map_tests {
+    use super::{MenuEntry, MenuItem};
+
+    #[test]
+    fn map_turns_every_command_in_a_row_and_its_submenu() {
+        let row = MenuItem::submenu("Color", vec![MenuItem::new("Red", 1).into(), MenuEntry::Separator]);
+        let mapped = row.map(&|n| n * 10);
+        let Some([MenuEntry::Item(red), MenuEntry::Separator]) = mapped.children() else { panic!("a row and a separator") };
+        assert_eq!(red.command(), Some(&10));
+        let MenuEntry::Item(single) = MenuEntry::from(MenuItem::new("Blue", 2)).map(&|n| n + 1) else { panic!("an item") };
+        assert_eq!(single.command(), Some(&3));
+    }
 }

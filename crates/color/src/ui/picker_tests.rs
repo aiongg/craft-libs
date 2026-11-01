@@ -179,7 +179,7 @@ impl Rig {
     }
 
     fn hex_text(&self) -> String {
-        self.node(Role::TextInput, "Hex colour").value().unwrap_or_default().to_owned()
+        self.node(Role::TextInput, "Hex color").value().unwrap_or_default().to_owned()
     }
 
     fn area(&self) -> Rect {
@@ -230,7 +230,7 @@ fn hex_field_shows_uppercase_keeps_partial_typing_and_reverts_invalid_text_on_bl
         rig.focus_hex();
         rig.type_text(invalid);
         assert_eq!(hex(rig.color), "#1a2b3c", "{invalid:?} is not a colour");
-        assert!(rig.node(Role::TextInput, "Hex colour").invalid().is_some(), "{invalid:?} is marked invalid");
+        assert!(rig.node(Role::TextInput, "Hex color").invalid().is_some(), "{invalid:?} is marked invalid");
         rig.blur();
         assert_eq!(rig.hex_text(), "1A2B3C", "{invalid:?} reverts on blur");
     }
@@ -379,9 +379,9 @@ fn accesskit_names_the_parts_and_dialog_tab_visits_only_the_fields() {
         let sliders = if name == "Hue" { 2 } else { 1 };
         assert_eq!(rig.nodes(Role::Slider, name).len(), sliders, "{name}: the slider (and the strip) share the field's name");
     }
-    rig.node(Role::TextInput, "Hex colour");
+    rig.node(Role::TextInput, "Hex color");
     rig.node(Role::Button, "Pick screen color");
-    let switch = rig.node(Role::Button, "Colour model: HSB");
+    let switch = rig.node(Role::Button, "Color model: HSB");
     assert_eq!(switch.has_popup(), Some(HasPopup::Menu), "the model switch is named for its purpose and its visible label");
 
     rig.focus(rig.fields.0);
@@ -390,7 +390,7 @@ fn accesskit_names_the_parts_and_dialog_tab_visits_only_the_fields() {
         rig.key(Key::Tab, Modifiers::NONE);
         order.push(rig.focused_name().unwrap_or_default());
     }
-    assert_eq!(order, ["Hue", "Saturation", "Brightness", "Hex colour", "Opacity", "After"], "Tab skips the area, strip, sliders and menu");
+    assert_eq!(order, ["Hue", "Saturation", "Brightness", "Hex color", "Opacity", "After"], "Tab skips the area, strip, sliders and menu");
 }
 
 #[test]
@@ -609,17 +609,17 @@ fn the_model_switch_menu_switches_the_rows() {
         let b = node.bounds().expect("bounds");
         pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32)
     };
-    let at = center(rig.node(Role::Button, "Colour model: HSB"));
+    let at = center(rig.node(Role::Button, "Color model: HSB"));
     rig.frame(vec![Event::PointerMoved(at), button(at, true)]);
     rig.frame(vec![button(at, false)]);
     rig.settle();
-    assert_eq!(rig.node(Role::Button, "Colour model: HSB").is_expanded(), Some(true));
+    assert_eq!(rig.node(Role::Button, "Color model: HSB").is_expanded(), Some(true));
     assert_eq!(rig.node(Role::MenuItemRadio, "HSB").toggled(), Some(Toggled::True), "the current model is checked");
     let at = center(rig.node(Role::MenuItemRadio, "RGB"));
     rig.frame(vec![Event::PointerMoved(at), button(at, true)]);
     rig.frame(vec![button(at, false)]);
     rig.settle();
-    rig.node(Role::Button, "Colour model: RGB");
+    rig.node(Role::Button, "Color model: RGB");
     rig.node(Role::SpinButton, "Red");
     assert!(rig.nodes(Role::SpinButton, "Hue").is_empty());
 }
@@ -655,7 +655,7 @@ fn every_word_the_picker_translates_is_a_listed_key() {
         }
     }
     let asked = asked.into_inner();
-    for key in ["OKLCH hue", "HSB hue", "Saturation and brightness", "{label}:", "Colour model: {model}"] {
+    for key in ["OKLCH hue", "HSB hue", "Saturation and brightness", "{label}:", "Color model: {model}"] {
         assert!(asked.contains(key), "{key} is asked for");
     }
     let unlisted: Vec<_> = asked.iter().filter(|k| !listed.contains(&k.as_str())).collect();

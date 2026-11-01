@@ -36,7 +36,8 @@ pub const MAX_COUNT: u32 = 1000;
 
 /// How the Find what text is read. The default is a plain search ignoring case.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default, rename_all = "camelCase"))]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct FindOptions {
     pub match_case: bool,
     /// Whole words only: a match starts and ends at a word boundary.

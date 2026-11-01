@@ -492,6 +492,14 @@ fn accesskit_sees_menu_roles_checked_states_submenus_and_shortcuts() {
 }
 
 #[test]
+// A row shaped for display keeps the plain text as its AccessKit name.
+fn a_row_reports_its_accessible_name() {
+    let mut d = Driver::new(vec![MenuItem::new("shaped", "a").accessible_name("Plain name").into()]);
+    d.click("Open");
+    assert!(d.node("Plain name").is_some() && d.node("shaped").is_none());
+}
+
+#[test]
 fn rows_are_as_wide_as_the_widest_and_at_least_the_menus_width() {
     let mut d = Driver::new(vec![item("A", "a"), item("A much longer row than the least width of a menu holds", "b")]);
     d.click("Open");
@@ -1091,7 +1099,7 @@ fn fills(d: &Driver) -> Vec<egui::Color32> {
 
 fn tokens_in(theme: &craft_theme::ThemeDef, mode: craft_theme::Mode, contrast: craft_theme::Contrast) -> crate::theme::UiTokens {
     use craft_theme::{Appearance, Size, TextSize};
-    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     crate::theme::UiTokens::new(craft_theme::resolve(theme, appearance, None).tokens, appearance, mode, crate::theme::FontFamilies::default())
 }
 

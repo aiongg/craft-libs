@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
 
-use crate::{Answer, Dialogs, FileDialog, Kind, Message, MessageResult, Reply, Request, STOPPED, filter};
+use crate::{Answer, Dialogs, FileDialog, Kind, Message, MessageResult, Reply, Request, STOPPED, Wake, filter};
 
 /// No window: `show_pending(None::<&NoWindow>)`.
 struct NoWindow;
@@ -33,7 +33,7 @@ type Shown = Rc<RefCell<Vec<(Request, Reply)>>>;
 fn held() -> (Dialogs<Rc<str>>, Shown, Arc<AtomicUsize>) {
     let wakes = Arc::new(AtomicUsize::new(0));
     let counter = wakes.clone();
-    let mut dialogs = Dialogs::new(Arc::new(move || {
+    let mut dialogs = Dialogs::new(Wake::new(move || {
         counter.fetch_add(1, Ordering::SeqCst);
     }));
     let shown = Rc::new(RefCell::new(Vec::new()));
@@ -97,7 +97,7 @@ fn a_cancelled_dialog_answers_cancelled_and_closes() {
 
 #[test]
 fn the_override_answers_every_request_on_a_later_take() {
-    let mut dialogs: Dialogs<u32> = Dialogs::new(Arc::new(|| {}));
+    let mut dialogs: Dialogs<u32> = Dialogs::new(Wake::none());
     let seen = Rc::new(RefCell::new(Vec::new()));
     let log = seen.clone();
     dialogs.set_override(Some(Box::new(move |request: &Request| {
@@ -123,7 +123,7 @@ fn the_override_answers_every_request_on_a_later_take() {
 
 #[test]
 fn a_panicking_override_answers_unavailable() {
-    let mut dialogs: Dialogs<u32> = Dialogs::new(Arc::new(|| {}));
+    let mut dialogs: Dialogs<u32> = Dialogs::new(Wake::none());
     dialogs.set_override(Some(Box::new(|_: &Request| panic!("test override"))));
     dialogs.ask(FileDialog::open(), 1);
     dialogs.show_pending(NONE);
@@ -165,7 +165,7 @@ fn a_worker_that_ends_without_answering_closes_the_dialog() {
 
 #[test]
 fn a_panic_while_showing_answers_unavailable_and_moves_on() {
-    let mut dialogs: Dialogs<u32> = Dialogs::new(Arc::new(|| {}));
+    let mut dialogs: Dialogs<u32> = Dialogs::new(Wake::none());
     let shown = Rc::new(RefCell::new(0));
     let count = shown.clone();
     dialogs.set_custom(move |_, reply| {

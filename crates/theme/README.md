@@ -13,7 +13,7 @@ theme authors and app developers.
 use craft_theme::{Appearance, Contrast, Mode, Size, TextSize, builtins, resolve};
 
 let theme = builtins().iter().find(|t| t.id.as_str() == "craft.graphite").unwrap();
-let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Default, reduced_motion: false };
+let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
 let resolved = resolve(theme, appearance, None);
 // resolved.tokens: colours, shape, size, space and type tokens; resolved.warnings: contrast misses.
 ```
@@ -55,5 +55,5 @@ a failing pin is kept and reported, with every component pair it makes fail; in 
 The `craft-theme check <file>... [--json]` binary parses and validates theme files and prints
 contrast warnings for every appearance. It exits 1 if any file has an error.
 
-Feature `serde` adds `Serialize`/`Deserialize` to the selection types and the enums they hold:
+The selection types and the enums they hold implement `Serialize`/`Deserialize`:
 colours as `"#rrggbb[aa]"`, ids as strings, enums in snake_case.

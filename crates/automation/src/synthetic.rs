@@ -1,8 +1,9 @@
 //! Synthetic pointer and keyboard input: `ui.click`, `ui.move`, `ui.key`, `ui.type`.
 //!
-//! A request appends egui events to one queue. Each pass the app's raw input hook injects the
-//! next step ([`SyntheticInput::take_step`]: the events up to and including the first release),
-//! so successive clicks and key presses land on separate passes as real input does. A step stays
+//! A request appends frames of egui events to one queue, built by
+//! [`craft_ui::testing::events`] (the sequence the test harness plays too). Each pass the app's
+//! raw input hook injects the next step ([`SyntheticInput::take_step`]: one frame), so a move, a
+//! press, a release and a key's down and up land on separate passes as real input does. A step stays
 //! in flight until a UI pass has handled it ([`SyntheticInput::pass_finished`]); a pass that
 //! returned before handling input ([`SyntheticInput::pass_deferred`]) gets the same step again,
 //! once. A step queued for one document or focus is withdrawn when either changed before the pass
@@ -11,6 +12,7 @@
 
 use std::collections::VecDeque;
 
+use craft_ui::testing::events;
 use egui::{Event, Modifiers, PointerButton, Pos2, RawInput, pos2};
 use serde_json::Value;
 
@@ -117,51 +119,38 @@ pub enum Injected {
 /// Queued synthetic events and the step in flight.
 #[derive(Debug, Default)]
 pub struct SyntheticInput {
-    queue: VecDeque<Event>,
+    queue: VecDeque<Vec<Event>>,
     in_flight: Option<Vec<Event>>,
     again: bool,
 }
 
 impl SyntheticInput {
-    /// `PointerMoved(at)`, then `count` times a press and a release of `button` at `at`, with
-    /// default modifiers.
+    /// A move to `at`, then `count` times a press and a release of `button`
+    /// ([`events::click`]), one frame each, with default modifiers.
     pub fn click(&mut self, click: &Click) {
-        let Click { at: pos, button, count } = *click;
-        self.queue.push_back(Event::PointerMoved(pos));
-        for _ in 0..count {
-            self.queue.push_back(Event::PointerButton { pos, button, pressed: true, modifiers: Modifiers::default() });
-            self.queue.push_back(Event::PointerButton { pos, button, pressed: false, modifiers: Modifiers::default() });
-        }
+        let Click { at, button, count } = *click;
+        self.queue.extend(events::click(at, button, count, Modifiers::NONE));
     }
 
     /// `PointerMoved(at)`.
     pub fn move_to(&mut self, at: Pos2) {
-        self.queue.push_back(Event::PointerMoved(at));
+        self.queue.push_back(vec![Event::PointerMoved(at)]);
     }
 
-    /// `Event::Key` pressed, then released, both with `physical_key: None`, `repeat: false` and
-    /// the key's modifiers.
+    /// `key` pressed, then released ([`events::key_press`]): the modifiers announced with the
+    /// press and cleared with the release, `physical_key` set to the key.
     pub fn key(&mut self, key: &KeyPress) {
-        let KeyPress { key, modifiers } = *key;
-        for pressed in [true, false] {
-            self.queue.push_back(Event::Key { key, physical_key: None, pressed, repeat: false, modifiers });
-        }
+        self.queue.extend(events::key_press(key.key, key.modifiers));
     }
 
-    /// `Event::Text(text)`. The app checks `text` is given first (``"missing `text`"``).
+    /// `Event::Text(text)` ([`events::text`]). The app checks `text` is given first (``"missing `text`"``).
     pub fn type_text(&mut self, text: &str) {
-        self.queue.push_back(Event::Text(text.to_owned()));
+        self.queue.extend(events::text(text));
     }
 
-    /// The next step: queued events up to and including the first `PointerButton` or `Key`
-    /// release, or all of them when none is a release.
+    /// The next step: the next queued frame's events, empty when nothing is queued.
     pub fn take_step(&mut self) -> Vec<Event> {
-        let n = self
-            .queue
-            .iter()
-            .position(|e| matches!(e, Event::PointerButton { pressed: false, .. } | Event::Key { pressed: false, .. }))
-            .map_or(self.queue.len(), |i| i + 1);
-        self.queue.drain(..n).collect()
+        self.queue.pop_front().unwrap_or_default()
     }
 
     /// The raw input hook. With a step in flight: `target_matches` false withdraws it

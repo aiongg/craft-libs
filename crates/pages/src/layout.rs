@@ -30,7 +30,8 @@ pub const ZOOM_RANGE: RangeInclusive<f64> = 0.08..=64.0;
 
 /// How pages are placed across the view.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "kebab-case"))]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum PageDisplay {
     /// One page across (Acrobat's Single Page, Word's One Page and Page Width).
     #[default]
@@ -51,7 +52,8 @@ impl PageDisplay {
 /// The fit modes. A fit recomputes the zoom whenever the viewport or the pages change; a zoom the
 /// user sets is [`Fit::None`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "kebab-case"))]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum Fit {
     /// Fit Width (Word's Page Width): the widest page, or the widest spread, fills the width.
     #[default]
@@ -222,7 +224,8 @@ pub fn parse_display_token(token: &str) -> Option<(PageDisplay, bool)> {
 /// How a newly opened document is shown (Preferences › Documents and view). A file that asks for
 /// its own layout or zoom gets that instead.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct ViewDefaults {
     pub display: PageDisplay,
     pub continuous: bool,

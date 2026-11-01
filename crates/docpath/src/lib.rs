@@ -18,6 +18,9 @@
 //!   document, or a [`Refused`] that says why it may not be opened. Use it to open files.
 //! - [`resolve`] is the same without the absolute check, for callers that only display or compare
 //!   the result.
+//! - [`links`] keeps a document's linked files: their status, the identity check that refuses a
+//!   different file, folder remaps and folder searches. It reads files only through its
+//!   `LinkFiles` trait; the functions above stay lexical.
 //!
 //! # Colons
 //!
@@ -74,6 +77,11 @@
 //! assert_eq!(resolve(r"\\other\share\logo.png", Some(doc)), Err(Refused::Network));
 //! assert_eq!(resolve_absolute("img/logo.png", None), Err(Refused::Invalid));
 //! ```
+
+pub mod links;
+pub mod names;
+#[cfg(test)]
+mod names_tests;
 
 use std::fmt;
 use std::path::{MAIN_SEPARATOR, Path, PathBuf};

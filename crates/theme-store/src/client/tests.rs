@@ -97,11 +97,11 @@ fn quick_picks_never_conflict_with_each_other() {
     // Picks of different fields while one is on its way merge into one queued change.
     client.change(SelectionChange::theme_light(id("craft.soft")));
     client.change(SelectionChange::contrast(ContrastChoice::High));
-    client.change(SelectionChange::text_size(TextSize::Large));
+    client.change(SelectionChange::text_size(TextSize::Medium));
     let expected = SuiteChoice {
         theme_light: Some(id("craft.soft")),
         contrast: Some(ContrastChoice::High),
-        text_size: Some(TextSize::Large),
+        text_size: Some(TextSize::Medium),
         ..choice("craft.graphite", ModeChoice::Dark)
     };
     assert_eq!(client.shown(), expected);

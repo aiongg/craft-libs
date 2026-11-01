@@ -140,3 +140,15 @@ fn a_pack_without_an_icon_draws_the_base_set_file() {
         assert_eq!(rasterise(icon, set, 16, 3.0, false), rasterise(icon, IconSet::BASE, 16, 1.5, false), "{} in {}", icon.name(), set.id());
     }
 }
+
+/// The tile grid's Picked flag and the relink dialog's Update (LC45).
+#[test]
+fn the_flag_and_refresh_icons_are_drawn_in_every_set() {
+    for (icon, name) in [(Icon::Flag, "flag"), (Icon::Refresh, "refresh")] {
+        assert_eq!(icon.name(), name);
+        assert!(!icon.directional(), "{name}");
+        for set in IconSet::ALL {
+            assert!(icon.drawn_in(set), "{name} in {}", set.id());
+        }
+    }
+}
