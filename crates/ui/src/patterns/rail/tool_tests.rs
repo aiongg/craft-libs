@@ -1,7 +1,7 @@
 //! `ToolRail` tests: the pure slot rules, then the rail driven by input.
 
 use egui::accesskit::{HasPopup, Orientation, Role, Toggled};
-use egui::{Context, Event, Key, Modifiers, PointerButton, Pos2, Rect, Ui, vec2};
+use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, Rect, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
@@ -109,6 +109,10 @@ struct App {
     footer: Option<RailFooter>,
     footer_area: Option<Rect>,
     tall_footer: bool,
+    keys: bool,
+    field: bool,
+    modal: bool,
+    text: String,
 }
 
 impl App {
@@ -130,6 +134,10 @@ impl App {
             footer: None,
             footer_area: None,
             tall_footer: false,
+            keys: false,
+            field: false,
+            modal: false,
+            text: String::new(),
         }
     }
 
@@ -137,7 +145,7 @@ impl App {
         let mut footer = None;
         let mut footer_area = None;
         let tall_footer = self.tall_footer;
-        let mut rail = ToolRail::new("tools").edge(self.edge).columns(self.columns).hidden(&self.hidden).label("Tools");
+        let mut rail = ToolRail::new("tools").edge(self.edge).columns(self.columns).hidden(&self.hidden).label("Tools").pick_by_key(self.keys);
         if self.chrome {
             rail = rail.column_toggle("Toolbar").edit_toolbar("Edit Toolbar…");
         }
@@ -150,7 +158,16 @@ impl App {
                 let _ = ui.button("F3");
             }
         });
-        egui::CentralPanel::default().show(ui, |ui| ui.label("Document"));
+        egui::CentralPanel::default().show(ui, |ui| {
+            ui.label("Document");
+            if self.field {
+                let field = ui.add(egui::TextEdit::singleline(&mut self.text).id(Id::unique("field")));
+                field.widget_info(|| egui::WidgetInfo::labeled(Role::TextInput, true, "Name"));
+            }
+        });
+        if self.modal {
+            egui::Modal::new(Id::unique("modal")).show(ui.ctx(), |ui| ui.label("Modal body"));
+        }
         if let Some(tool) = out.select {
             self.current = tool;
             self.selects.push(tool);
@@ -651,36 +668,174 @@ fn rail_edit_state_is_kept_per_rail() {
 // it. If it cannot, the smallest upstreamable egui change is `Panel::show_inside` taking a rect
 // (one commit on `aiongg/egui` `craft/interact-enabled`).
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: K18")]
 fn tool_rail_docks_inside_a_full_window_dialog() {
-    todo!()
+    use crate::dialog::{DialogState, FullWindowDialog};
+    struct Dock {
+        state: DialogState<()>,
+        rail: Rect,
+        rest: Rect,
+        selects: Vec<Tool>,
+        slots: Vec<ToolSlot<Tool>>,
+        last: LastUsed<Tool>,
+    }
+    let window = Rect::from_min_size(Pos2::new(10.0, 20.0), vec2(700.0, 500.0));
+    let mut h =
+        Harness::builder().with_size(vec2(800.0, 600.0)).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
+            move |ui, d: &mut Dock| {
+                let Dock { state, rail, rest, selects, slots, last } = d;
+                FullWindowDialog::new("dock").title("Dock").rect(window).show(ui.ctx(), state, &mut (), |ui, _, _| {
+                    let out = ToolRail::new("tools").pick_by_key(true).show(ui, slots, &"move", last, |_, _| {});
+                    selects.extend(out.select);
+                    *rail = out.rect;
+                    *rest = ui.available_rect_before_wrap();
+                });
+            },
+            Dock {
+                state: DialogState::new(),
+                rail: Rect::NOTHING,
+                rest: Rect::NOTHING,
+                selects: Vec::new(),
+                slots: slots(),
+                last: LastUsed::default(),
+            },
+        );
+    h.run_steps(4);
+    let width = {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let mut width = 0.0;
+        ctx.run_ui(egui::RawInput::default(), |ui| width = ToolRail::<Tool>::metrics(&Tokens::of(ui), 1).width).drop_without_applying_deltas();
+        width
+    };
+    let d = h.state();
+    assert_eq!(d.rail.left(), window.left(), "at the body's start edge");
+    assert!(d.rail.top() > window.top(), "under the title strip: {:?}", d.rail);
+    assert_eq!(d.rail.width(), width);
+    assert_eq!(d.rest.left(), d.rail.right(), "the rest of the body starts after the rail");
+    assert_eq!(d.rest.right(), window.right());
+
+    // The rail is in the top modal layer, so it reads its letters there.
+    step_keys(&mut h, Key::B, Modifiers::NONE);
+    assert_eq!(h.state().selects, ["brush"]);
+}
+
+fn step_keys<S>(h: &mut Harness<'_, S>, key: Key, modifiers: Modifiers) {
+    for pressed in [true, false] {
+        h.input_mut().events.push(Event::Key { key, physical_key: None, pressed, repeat: false, modifiers });
+        h.run_steps(1);
+    }
 }
 
 // `ToolSlot::group_end` leaves `rail.group_gap` after the slot in one column, and after its row
 // in two; arrow keys still move between neighbouring buttons.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: K18")]
 fn tool_rail_group_gap_adds_space_after_the_slot() {
-    todo!()
+    let gap = {
+        let ctx = Context::default();
+        install(&ctx, &Base::suite_default());
+        let mut gap = 0.0;
+        ctx.run_ui(egui::RawInput::default(), |ui| gap = Tokens::of(ui).component.rail.group_gap).drop_without_applying_deltas();
+        gap
+    };
+    assert!(gap > 0.0);
+    let distance = |h: &Harness<'_, App>, from: &str, to: &str| rect(h, to).top() - rect(h, from).top();
+
+    let plain = harness(App::new());
+    let mut app = App::new();
+    app.slots[0] = std::mem::replace(&mut app.slots[0], ToolSlot::new(0, Vec::new())).group_end(true);
+    let mut one = harness(app);
+    assert_eq!(distance(&one, "Move", "Brush"), distance(&plain, "Move", "Brush") + gap);
+    assert_eq!(distance(&one, "Brush", "Stamp"), distance(&plain, "Brush", "Stamp"), "other gaps are unchanged");
+    one.get_by_label("Move").focus();
+    one.run_steps(2);
+    key(&mut one, Key::ArrowDown);
+    assert_eq!(focused(&one).as_deref(), Some("Brush"));
+
+    let mut app = App::new();
+    app.columns = 2;
+    let two_plain = harness(app);
+    let mut app = App::new();
+    app.columns = 2;
+    app.slots[0] = std::mem::replace(&mut app.slots[0], ToolSlot::new(0, Vec::new())).group_end(true);
+    let two = harness(app);
+    assert_eq!(rect(&two, "Move").top(), rect(&two, "Brush").top(), "Brush stays in Move's row");
+    assert_eq!(distance(&two, "Move", "Stamp"), distance(&two_plain, "Move", "Stamp") + gap, "the gap follows the row");
+}
+
+fn select_slots() -> Vec<ToolSlot<Tool>> {
+    vec![
+        ToolSlot::new(
+            0,
+            vec![RailTool::new("quick", Icon::Brush, "Quick").shortcut("W"), RailTool::new("object", Icon::Pencil, "Object").shortcut("W")],
+        ),
+        ToolSlot::new(1, vec![RailTool::new("refine", Icon::Stamp, "Refine").shortcut("R")]),
+        ToolSlot::new(2, vec![RailTool::new("lasso", Icon::Eraser, "Lasso").shortcut("L")]),
+        ToolSlot::new(
+            3,
+            vec![{
+                let mut tool = RailTool::new("zoom", Icon::Move, "Zoom").shortcut("Z");
+                tool.enabled = false;
+                tool
+            }],
+        ),
+    ]
+}
+
+fn keyed_app() -> App {
+    let mut app = App::new();
+    app.slots = select_slots();
+    app.current = "refine";
+    app.keys = true;
+    app.last.set(0, "object");
+    app
 }
 
 // With `pick_by_key`, W picks the shared slot's last-used tool, Shift+W cycles Quick Selection
 // and Object Selection, R picks Refine Edge; hidden and disabled tools are skipped; the key is
 // consumed.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: K18")]
 fn tool_rail_pick_by_key_picks_and_shift_cycles_shared_letters() {
-    todo!()
+    let mut app = keyed_app();
+    app.hidden = vec!["lasso"];
+    let mut h = harness(app);
+    step_keys(&mut h, Key::W, Modifiers::NONE);
+    assert_eq!(h.state().selects, ["object"], "the slot's last-used tool");
+    step_keys(&mut h, Key::W, Modifiers::SHIFT);
+    assert_eq!(h.state().selects, ["object", "quick"], "Shift cycles from the current tool");
+    step_keys(&mut h, Key::W, Modifiers::SHIFT);
+    assert_eq!(h.state().selects, ["object", "quick", "object"]);
+    step_keys(&mut h, Key::R, Modifiers::NONE);
+    assert_eq!(h.state().selects.last(), Some(&"refine"));
+    let picked = h.state().selects.len();
+    step_keys(&mut h, Key::R, Modifiers::SHIFT);
+    assert_eq!(h.state().selects.len(), picked + 1, "Shift picks a letter only one tool has");
+
+    step_keys(&mut h, Key::L, Modifiers::NONE);
+    step_keys(&mut h, Key::Z, Modifiers::NONE);
+    assert_eq!(h.state().selects.len(), picked + 1, "hidden and disabled tools are not picked");
 }
 
 // Letters go to a focused text field, an open menu and a dialog above the rail's own layer, and
 // without `pick_by_key` the rail reads no letters.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: K18")]
 fn tool_rail_pick_by_key_leaves_letters_to_text_fields_and_other_dialogs() {
-    todo!()
+    let mut app = keyed_app();
+    app.keys = false;
+    let mut h = harness(app);
+    step_keys(&mut h, Key::W, Modifiers::NONE);
+    assert!(h.state().selects.is_empty(), "off by default");
+
+    let mut app = keyed_app();
+    app.field = true;
+    let mut h = harness(app);
+    h.get_by_role(Role::TextInput).focus();
+    h.run_steps(2);
+    step_keys(&mut h, Key::W, Modifiers::NONE);
+    assert!(h.state().selects.is_empty(), "a text field has the keyboard");
+
+    let mut app = keyed_app();
+    app.modal = true;
+    let mut h = harness(app);
+    step_keys(&mut h, Key::W, Modifiers::NONE);
+    assert!(h.state().selects.is_empty(), "a dialog above the rail has the keyboard");
 }

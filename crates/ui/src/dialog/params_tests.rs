@@ -515,8 +515,52 @@ fn a_number_row_is_unbounded_on_open_sides_and_clamped_on_bounded_ones() {
 // choice as a select, a bool as a check box, a colour as a swatch whose press comes back as
 // `ParamRowsResponse::color`; `changed` reports an edit.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: K18")]
 fn param_rows_draw_range_choice_bool_and_colour() {
-    todo!()
+    use super::ParamRows;
+    struct Rows {
+        params: Vec<Param>,
+        fields: DialogFields,
+        changed: bool,
+        color: Option<String>,
+    }
+    let mut params = params();
+    params.push(Param::new(
+        "method",
+        "Method:",
+        ParamKind::Choice {
+            options: vec![("spin".to_owned(), "Spin".to_owned()), ("zoom".to_owned(), "Zoom".to_owned())],
+            default: Some("zoom".to_owned()),
+        },
+    ));
+    let mut harness = HarnessBuilder::default()
+        .with_size(vec2(400.0, 400.0))
+        .with_os(OperatingSystem::Nix)
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, rows: &mut Rows| {
+                let shown = ParamRows::new("rows", &rows.params).show(ui, &mut rows.fields);
+                rows.changed = shown.changed;
+                rows.color = shown.color.map(|request| request.key);
+            },
+            Rows { params, fields: DialogFields::new(), changed: false, color: None },
+        );
+    harness.run();
+    let state = harness.state();
+    assert!(!state.changed, "filling defaults is not an edit");
+    assert_eq!((state.fields.number("radius"), state.fields.bool("monochromatic")), (Some(1.0), Some(false)));
+    assert_eq!(state.fields.text("method"), Some("zoom"));
+    harness.get_by_role_and_label(Role::SpinButton, "Radius:");
+    harness.get_by_role_and_label(Role::CheckBox, "Monochromatic");
+    harness.get_by_label("Method:");
+
+    harness.get_by_role_and_label(Role::CheckBox, "Monochromatic").click();
+    harness.run_steps(1);
+    assert!(harness.state().changed);
+    assert_eq!(harness.state().fields.bool("monochromatic"), Some(true));
+    harness.run_steps(2);
+    assert!(!harness.state().changed);
+
+    harness.get_by_label("Tint:").click();
+    harness.run_steps(1);
+    assert_eq!(harness.state().color.as_deref(), Some("tint"));
 }

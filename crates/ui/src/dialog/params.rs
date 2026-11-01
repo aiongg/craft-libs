@@ -729,14 +729,22 @@ impl<'a> ParamRows<'a> {
     }
 
     /// Draws the rows over `fields`.
-    #[expect(clippy::todo, reason = "skeleton: K18")]
     pub fn show(self, ui: &mut Ui, fields: &mut DialogFields) -> ParamRowsResponse {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:782-786 (the selected effect's parameters
-        // drawn from its spec in a scrolling column), with `draw_rows` in a `FormGrid` as
-        // `ParamDialog::show` draws its body here, and the presses taken with `take_color_press`
-        // and `take_path_press` under the rows' id (`ui.make_persistent_id(id_salt)`).
-        let _ = (self.id_salt, self.params, self.preview, ui, fields);
-        todo!()
+        // drawn from its spec in a scrolling column).
+        let id = ui.make_persistent_id(self.id_salt);
+        for param in self.params {
+            if !fields.contains(&param.key)
+                && let Some(value) = param.kind.default_value()
+            {
+                fields.set(param.key.as_str(), value);
+            }
+        }
+        let before = fields.clone();
+        let preview = self.preview.as_ref();
+        let shown = FormGrid::new(id).show(ui, |form| draw_rows(self.params, id, form, fields, preview));
+        let ctx = ui.ctx();
+        ParamRowsResponse { response: shown.response, changed: *fields != before, color: take_color_press(ctx, id), path: take_path_press(ctx, id) }
     }
 }
 
