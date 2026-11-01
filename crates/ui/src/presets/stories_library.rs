@@ -23,10 +23,10 @@ use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use craft_host::{AppInfo, FileError, Files, Host, PickAnswer, PickId, PickKind, PickRequest, Picked};
+use craft_host::{FileError, Files, HostScope, PickAnswer, PickId, PickKind, PickRequest, Picked};
 use egui::ecolor::Hsva;
 use egui::epaint::Shape;
-use egui::{Color32, Context, Painter, Pos2, Rect, Sense, StrokeKind, Ui, Vec2, pos2, vec2};
+use egui::{Color32, Painter, Pos2, Rect, Sense, StrokeKind, Ui, Vec2, pos2, vec2};
 
 use super::menu::{NamedPresetEvent, NamedPresetRow, NamedPresetStyle, PresetExport, PresetFileEvent, PresetFiles};
 use super::model::{GroupPath, PresetError, PresetId, PresetKey, PresetLibrary};
@@ -35,7 +35,7 @@ use super::{PresetBrowser, PresetEvent, PresetFooterEvent, PresetFooterOptions, 
 use crate::controls::slider::with_values;
 use crate::localized::Labels as _;
 use crate::primitives::{Content, Text};
-use crate::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, StoryLabels};
+use crate::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, StoryLabels, ensure_files, lock, shared};
 use crate::typed_story;
 
 /// The components this module has stories for. "Preset browser" is listed in `presets/stories.rs`.
@@ -257,24 +257,12 @@ impl Files for StoryFiles {
     }
 }
 
-/// Gives the installed Host the fake file service (the gallery's Host answers every picker with
-/// Cancelled), or installs a Host with it when the story runs without one. A Host the app or the
-/// gallery installs again afterwards is replaced again on the next pass.
-fn ensure_host(ctx: &Context) {
-    let key = egui::Id::unique("craft_ui::presets::stories_library::host");
-    let current = Host::try_of_ctx(ctx);
-    let ours = ctx.data(|d| d.get_temp::<usize>(key));
-    if current.as_ref().is_some_and(|host| Some(Arc::as_ptr(host) as usize) == ours) {
-        return;
-    }
-    let files = Arc::new(StoryFiles::default());
-    match current {
-        Some(host) => host.with_files(files).install(ctx),
-        None => Host::builder(AppInfo { id: "craft-ui-stories", name: "Craft Stories", version: "0" }).files(files).install(ctx),
-    }
-    if let Some(host) = Host::try_of_ctx(ctx) {
-        ctx.data_mut(|d| d.insert_temp(key, Arc::as_ptr(&host) as usize));
-    }
+/// The story's fake file service as the Host's until the returned scope drops. The service is
+/// kept in egui memory, so a picker's answer reaches the pass that asks for it.
+fn story_files(ui: &Ui) -> HostScope {
+    let files = shared(ui, "files", || Arc::new(StoryFiles::default()) as Arc<dyn Files>);
+    let files = lock(&files).clone();
+    ensure_files(ui.ctx(), files)
 }
 
 /// The names in a loaded file, one per line.
@@ -314,17 +302,20 @@ fn ink(painter: &Painter) -> egui::Stroke {
 }
 
 fn paint_pattern(painter: &Painter, rect: Rect, n: u32) {
-    let painter = painter.with_clip_rect(rect);
-    let stroke = ink(&painter);
+    let stroke = ink(painter);
     let step = rect.height() / (3.0 + (n % 5) as f32 * 2.0);
     let mut at = 0.0;
     while at < rect.width() + rect.height() {
-        let (a, b) = if n.is_multiple_of(2) {
-            (rect.left_top() + vec2(at, 0.0), rect.left_top() + vec2(at - rect.height(), rect.height()))
+        // Each line is cut to the rect here, so no shape reaches past it.
+        let segment = if n.is_multiple_of(2) {
+            let (from, to) = ((at - rect.width()).max(0.0), at.min(rect.height()));
+            (from < to).then(|| (rect.left_top() + vec2(at - from, from), rect.left_top() + vec2(at - to, to)))
         } else {
-            (rect.left_top() + vec2(at, 0.0), rect.left_top() + vec2(at, rect.height()))
+            (at <= rect.width()).then(|| (rect.left_top() + vec2(at, 0.0), rect.left_top() + vec2(at, rect.height())))
         };
-        painter.line_segment([a, b], stroke);
+        if let Some((a, b)) = segment {
+            painter.line_segment([a, b], stroke);
+        }
         at += step;
     }
 }
@@ -817,7 +808,7 @@ struct ContourArgs {
 
 /// Delete works on the user's contours only; Load…, Replace… and Save… go through the fake `Files`.
 fn show_contour_files(ui: &mut Ui, args: &mut ContourArgs) {
-    ensure_host(ui.ctx());
+    let _files = story_files(ui);
     let words = PresetLibraryStoryLabels::of(ui);
     let start = (Contours::new(&words), 0u32);
     with_values(ui, "preset-contour-files", [start], |ui, values| {
@@ -1069,7 +1060,7 @@ fn named_status(ui: &mut Ui, host: &Named) {
 
 /// The contour editor's row: a thumbnail field, New…, Load… and Save….
 fn show_contour_buttons(ui: &mut Ui, args: &mut ButtonsArgs) {
-    ensure_host(ui.ctx());
+    let _files = story_files(ui);
     let words = PresetLibraryStoryLabels::of(ui);
     let names: Vec<String> = (1..=4).map(|n| numbered(&words.contour, n)).collect();
     with_values(ui, "named-contour-buttons", [Named::new(&names)], |ui, values| {
@@ -1104,7 +1095,7 @@ struct TraceArgs {
 
 /// Image Trace's row: a `Name` field and one Manage menu.
 fn show_trace_menu(ui: &mut Ui, args: &mut TraceArgs) {
-    ensure_host(ui.ctx());
+    let _files = story_files(ui);
     let words = PresetLibraryStoryLabels::of(ui);
     let names: Vec<String> = [&words.trace_default, &words.trace_high, &words.trace_low, &words.trace_three, &words.trace_sketch, &words.trace_line]
         .into_iter()
@@ -1141,7 +1132,7 @@ fn show_trace_menu(ui: &mut Ui, args: &mut TraceArgs) {
 
 /// The row and a picker take the interface direction of the gallery: choose right to left there.
 fn show_rtl(ui: &mut Ui, _args: &mut NoArgs) {
-    ensure_host(ui.ctx());
+    let _files = story_files(ui);
     let words = PresetLibraryStoryLabels::of(ui);
     let story = StoryLabels::of(ui);
     let names: Vec<String> = (1..=4).map(|n| numbered(&words.contour, n)).collect();
