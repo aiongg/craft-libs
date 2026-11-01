@@ -239,7 +239,8 @@ fn show_paths(ui: &mut Ui, args: &mut EditArgs) {
         ToolArg::Direct => BezierTool::Direct,
     };
     let handles = if args.handles == HandlesArg::All { HandlesShown::All } else { HandlesShown::Selected };
-    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
+    let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
     let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
     let names = BezierNames::of(ui);
     let response = BezierOverlay::new("story-bezier", &host.paths, &host.selection, &px, &px, names).tool(tool).handles(handles).show(

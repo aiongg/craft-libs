@@ -1283,7 +1283,8 @@ fn show_guides(ui: &mut Ui, args: &mut GuidesArgs) {
         g.line = line;
         g.locked = args.locked && g.key == 2;
     }
-    let canvas = super::story::document(ui, args.view, "Document");
+    let document_name = crate::story::StoryLabels::of(ui).document;
+    let canvas = super::story::document(ui, args.view, &document_name);
     let px = RulerUnits::pixels(crate::localized::LocaleNumbers::from_tag("en").ungrouped());
     let names = GuideNames::of(ui);
     let mut guides =
@@ -1299,7 +1300,8 @@ fn show_guides(ui: &mut Ui, args: &mut GuidesArgs) {
 /// Two boxes on the story document: the moving one's top aligned with the other's, 80 units to its
 /// right.
 fn show_smart_guides(ui: &mut Ui, args: &mut super::story::PlainArgs) {
-    let canvas = super::story::document(ui, args.view, "Document");
+    let document_name = crate::story::StoryLabels::of(ui).document;
+    let canvas = super::story::document(ui, args.view, &document_name);
     let view = &canvas.view;
     let painter = ui.painter_at(view.rect);
     let still = Rect::new(120.0, 80.0, 280.0, 200.0);

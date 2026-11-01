@@ -8,10 +8,12 @@ use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Pos2, Rect, Ui, Vec2, pos2, 
 use super::button::content_color;
 use super::check::{IndicatorColors, Labelled, Layout, Paint, indicator_shapes, label_colors};
 use super::checkbox::LONG_LABEL;
+use super::common_stories::ControlStoryLabels;
 use super::slider::knob;
 use super::{SizeArgs, salt};
 use crate::direction::{self, Direction};
 use crate::edit::{EditPolicy, EditResponse, Gesture};
+use crate::localized::Labels as _;
 use crate::primitives::{Divider, Gap, Interactive, Stack, StateLayer, Surface, SurfaceKind, SurfaceStyle};
 use crate::story::{Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -192,10 +194,11 @@ pub(crate) fn stories() -> Vec<Story> {
 /// Off and on, enabled and disabled, a long label. The enabled ones flip.
 fn show_states(ui: &mut Ui, args: &mut SizeArgs) {
     let size = args.size.control();
+    let words = ControlStoryLabels::of(ui);
     let state_id = ui.scope_id().with("switch-states");
     let mut on = ui.data(|d| d.get_temp::<[bool; 3]>(state_id).unwrap_or([false, true, true]));
     Stack::new(Gap::Stack).show(ui, |ui| {
-        for (i, label) in ["Off", "On", LONG_LABEL].into_iter().enumerate() {
+        for (i, label) in [words.off.as_str(), words.on.as_str(), LONG_LABEL].into_iter().enumerate() {
             let _ = Switch::new(label, &mut on[i]).size(size).id_salt(("switch", i)).show(ui);
         }
         for (i, (label, mut fixed)) in [("Disabled (off)", false), ("Disabled (on)", true)].into_iter().enumerate() {

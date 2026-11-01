@@ -6,7 +6,8 @@ use egui::{Pos2, Sense, Ui, vec2};
 use super::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use crate::controls::{Button, SearchField, Select, Slider};
 use crate::direction::{self, Direction, HasDirection as _};
-use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::localized::Labels as _;
+use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryChoice};
 use crate::typed_story;
 
 /// The components this module has stories for.
@@ -105,7 +106,7 @@ fn show_anchored(ui: &mut Ui, args: &mut AnchoredArgs) {
             }
             (PopoverAnchor::Point(demo.at.unwrap_or(canvas.rect.center())), None)
         } else {
-            let chip = ui.add(Button::new("Brush"));
+            let chip = ui.add(Button::new(PatternStoryLabels::of(ui).brush));
             if chip.clicked() {
                 demo.open = !demo.open;
             }

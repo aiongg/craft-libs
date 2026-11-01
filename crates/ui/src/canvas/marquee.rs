@@ -17,7 +17,7 @@ use kurbo::{Point, Rect};
 use super::{CanvasView, Claim, Readout};
 use crate::edit::order::Turn;
 use crate::edit::{EditEvent, EditPolicy, Gesture};
-use crate::localized::{LocaleNumbers, Unit};
+use crate::localized::{Labels as _, LocaleNumbers, Unit};
 use crate::story::{Level, Story, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, current};
 use crate::typed_story;
@@ -755,7 +755,8 @@ pub(crate) fn stories() -> Vec<Story> {
 /// committed rectangle stays as the selection and the arrow keys nudge it while the canvas has
 /// focus; a click deselects. The width and height follow the pointer in a readout.
 fn show_drag(ui: &mut Ui, args: &mut DragArgs) {
-    let canvas = super::story::document(ui, args.view, "Document");
+    let document_name = crate::story::StoryLabels::of(ui).document;
+    let canvas = super::story::document(ui, args.view, &document_name);
     let (response, view) = (&canvas.response, &canvas.view);
     let look = args.look.look();
     let shape = match args.shape {

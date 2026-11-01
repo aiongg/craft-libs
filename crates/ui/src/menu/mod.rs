@@ -46,6 +46,7 @@ use egui::{Id, Key, KeyboardShortcut, Modifiers, Ui};
 
 use crate::controls::{Button, Kbd};
 use crate::icons::Icon;
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Gap, Row, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs};
 use crate::typed_story;
@@ -65,6 +66,17 @@ struct MenusArgs {
 struct IconsArgs {
     size: SizeArg,
     icons: bool,
+}
+
+crate::words! {
+    /// The sample text of the menu stories, English by default.
+    #[non_exhaustive]
+    pub struct MenuStoryLabels {
+        file: "menuStory.file" = "File";
+        edit: "menuStory.edit" = "Edit";
+        view: "menuStory.view" = "View";
+        nothing_chosen: "menuStory.nothingChosen" = "Nothing chosen";
+    }
 }
 
 pub(crate) fn stories() -> Vec<Story> {
@@ -171,17 +183,18 @@ fn long_menu(rows: usize) -> Vec<MenuEntry<Command>> {
 fn show_menus(ui: &mut Ui, args: &mut MenusArgs) {
     let size = args.size.control();
     let edit = edit_menu(args.icons);
+    let words = MenuStoryLabels::of(ui);
     let long = long_menu(args.rows.max(1) as usize);
     let last = Id::unique("craft-ui-menu-story-last");
     Row::new(Gap::Section).show(ui, |ui| {
-        for (label, entries) in [("Edit", &edit), ("Long", &long)] {
+        for (label, entries) in [(words.edit.as_str(), &edit), ("Long", &long)] {
             let button = ui.add(Button::new(label));
             let shown = PressMenu::new(entries).size(size).show(ui, &button);
             if let Some(command) = shown.chosen {
                 ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
             }
         }
-        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());
+        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| words.nothing_chosen.clone());
         ui.add(Text::new(chosen).content(Content::Muted));
     });
 }
@@ -191,6 +204,7 @@ fn show_menus(ui: &mut Ui, args: &mut MenusArgs) {
 /// setting leaves the menu up for the next one).
 fn show_context_menu(ui: &mut Ui, args: &mut IconsArgs) {
     let size = args.size.control();
+    let words = MenuStoryLabels::of(ui);
     let mut entries = edit_menu(args.icons);
     let last = Id::unique("craft-ui-context-menu-story-last");
     let guides = Id::unique("craft-ui-context-menu-story-guides");
@@ -205,7 +219,7 @@ fn show_context_menu(ui: &mut Ui, args: &mut IconsArgs) {
             }
             ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
         }
-        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());
+        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| words.nothing_chosen.clone());
         ui.add(Text::new(chosen).content(Content::Muted));
     });
 }
@@ -215,15 +229,16 @@ fn show_press_menu(ui: &mut Ui, args: &mut IconsArgs) {
     let size = args.size.control();
     let edit = edit_menu(args.icons);
     let long = long_menu(30);
+    let words = MenuStoryLabels::of(ui);
     let last = Id::unique("craft-ui-press-menu-story-last");
     Row::new(Gap::Section).show(ui, |ui| {
-        for (label, entries) in [("Edit", &edit), ("Long", &long)] {
+        for (label, entries) in [(words.edit.as_str(), &edit), ("Long", &long)] {
             let button = ui.add(Button::new(label));
             if let Some(command) = PressMenu::new(entries).size(size).show(ui, &button).chosen {
                 ui.data_mut(|d| d.insert_temp(last, format!("{command:?}")));
             }
         }
-        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| "Nothing chosen".to_owned());
+        let chosen = ui.data(|d| d.get_temp::<String>(last)).unwrap_or_else(|| words.nothing_chosen.clone());
         ui.add(Text::new(chosen).content(Content::Muted));
     });
 }

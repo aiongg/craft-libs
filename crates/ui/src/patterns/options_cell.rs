@@ -15,7 +15,7 @@ use crate::localized::Labels as _;
 use crate::localized::units::{LengthUnit, UnitContext};
 use crate::localized::{LocaleNumbers, Unit, Word, Words};
 use crate::primitives::{Content, FocusRing, Text};
-use crate::story::{StoryArgs, StoryLabels};
+use crate::story::{PatternStoryLabels, StoryArgs, StoryLabels};
 use crate::theme::{Tokens, TokensOf};
 use craft_theme::{ControlSize, TypeRole};
 
@@ -307,13 +307,14 @@ pub(super) fn show_story(ui: &mut Ui, args: &mut BarArgs) {
     let state_id = ui.scope_id().with("options-bar-demo");
     let mut demo = ui.data(|d| d.get_temp::<Demo>(state_id)).unwrap_or_default();
     let numbers = LocaleNumbers::from_tag("en-US");
+    let pattern_words = PatternStoryLabels::of(ui);
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         let mut finished = None;
         OptionsBar::new("options-bar-demo").narrow(narrow).show(ui, |bar| {
             bar.leading(|ui| {
-                OptionsBar::home(ui, &mut demo.home, "Home");
-                OptionsBar::tool_icon(ui, crate::icons::Icon::Brush, "Brush");
+                OptionsBar::home(ui, &mut demo.home, &pattern_words.home);
+                OptionsBar::tool_icon(ui, crate::icons::Icon::Brush, &pattern_words.brush);
             });
             if two_rows {
                 bar.row(|ui| brush_cells(ui, &numbers, &mut demo.size, &mut demo.opacity, &mut demo.mode));

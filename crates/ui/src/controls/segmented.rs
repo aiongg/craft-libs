@@ -11,10 +11,12 @@ use egui::{AsIdSalt, Color32, CornerRadius, Galley, IdSalt, Rect, Response, Sens
 
 use super::TooltipExt as _;
 use super::button::content_color;
+use super::common_stories::ControlStoryLabels;
 use super::{SizeDisabledArgs, icon_size};
 use crate::behavior::RadioSelection;
 use crate::direction;
 use crate::icons::{self, Icon};
+use crate::localized::Labels as _;
 use crate::primitives::{Content, Corner, Gap, Interactive, Stack, StateColors, Text};
 use crate::story::{Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
@@ -233,10 +235,19 @@ impl Segmented<'static, ()> {
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Segmented"];
 
-const TEXT_ITEMS: [&str; 5] = ["New", "Add", "Subtract", "Intersect", "Exclude"];
+fn text_items(words: &ControlStoryLabels) -> [String; 5] {
+    [words.mode_new.clone(), "Add".to_owned(), "Subtract".to_owned(), "Intersect".to_owned(), "Exclude".to_owned()]
+}
 
-const ICON_ITEMS: [(Icon, &str); 5] =
-    [(Icon::Move, "Move"), (Icon::Hand, "Hand"), (Icon::Brush, "Brush"), (Icon::Eraser, "Eraser"), (Icon::Eyedropper, "Eyedropper")];
+fn icon_items(words: &ControlStoryLabels) -> [(Icon, String); 5] {
+    [
+        (Icon::Move, words.icon_move.clone()),
+        (Icon::Hand, "Hand".to_owned()),
+        (Icon::Brush, words.icon_brush.clone()),
+        (Icon::Eraser, words.icon_eraser.clone()),
+        (Icon::Eyedropper, "Eyedropper".to_owned()),
+    ]
+}
 
 pub(crate) fn stories() -> Vec<Story> {
     vec![
@@ -256,16 +267,17 @@ fn with_choices(ui: &mut Ui, key: &str, show: impl FnOnce(&mut Ui, &mut [usize; 
 /// Three and five text segments.
 fn show_text(ui: &mut Ui, args: &mut SizeDisabledArgs) {
     let (size, enabled) = (args.size.control(), !args.disabled);
+    let items = text_items(&ControlStoryLabels::of(ui));
     with_choices(ui, "segmented-text", |ui, choices| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             for (n, choice) in [3, 5].into_iter().zip(choices.iter_mut()) {
                 let mut control = Segmented::new(("segmented-text", n), format!("Combine ({n})"), choice).size(size).enabled(enabled);
-                for (i, label) in TEXT_ITEMS.iter().take(n).enumerate() {
-                    control = control.item(i, *label);
+                for (i, label) in items.iter().take(n).enumerate() {
+                    control = control.item(i, label.as_str());
                 }
                 control.show(ui);
             }
-            ui.add(Text::new(format!("Selected: {}, {}", TEXT_ITEMS[choices[0]], TEXT_ITEMS[choices[1]])).content(Content::Muted));
+            ui.add(Text::new(format!("Selected: {}, {}", items[choices[0]], items[choices[1]])).content(Content::Muted));
         });
     });
 }
@@ -273,12 +285,13 @@ fn show_text(ui: &mut Ui, args: &mut SizeDisabledArgs) {
 /// Three and five icon segments.
 fn show_icons(ui: &mut Ui, args: &mut SizeDisabledArgs) {
     let (size, enabled) = (args.size.control(), !args.disabled);
+    let items = icon_items(&ControlStoryLabels::of(ui));
     with_choices(ui, "segmented-icons", |ui, choices| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             for (n, choice) in [3, 5].into_iter().zip(choices.iter_mut()) {
                 let mut control = Segmented::new(("segmented-icons", n), format!("Tool ({n})"), choice).size(size).enabled(enabled);
-                for (i, (icon, label)) in ICON_ITEMS.iter().take(n).enumerate() {
-                    control = control.icon_item(i, *icon, *label);
+                for (i, (icon, label)) in items.iter().take(n).enumerate() {
+                    control = control.icon_item(i, *icon, label.as_str());
                 }
                 control.show(ui);
             }

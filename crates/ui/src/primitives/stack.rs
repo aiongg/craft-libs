@@ -5,6 +5,7 @@ use egui::{Frame, InnerResponse, Margin, Ui, vec2};
 
 use crate::direction;
 use crate::inspect::{self, RecordKind};
+use crate::localized::Labels as _;
 use crate::story::{Level, Story, StoryArgs, StoryChoice};
 use crate::theme::{Tokens, TokensOf, margin};
 use crate::typed_story;
@@ -217,7 +218,18 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
+crate::words! {
+    /// The sample text of the stack and row stories, English by default.
+    #[non_exhaustive]
+    pub struct StackStoryLabels {
+        first: "stackStory.first" = "First";
+        second: "stackStory.second" = "Second";
+        third: "stackStory.third" = "Third";
+    }
+}
+
 fn show_stack(ui: &mut Ui, args: &mut GapsArgs) {
+    let words = StackStoryLabels::of(ui);
     let stack = Stack::new(args.gap.gap());
     let stack = match args.pad.pad() {
         Some(pad) => stack.pad(pad),
@@ -225,7 +237,7 @@ fn show_stack(ui: &mut Ui, args: &mut GapsArgs) {
     };
     outlined(ui, |ui| {
         stack.show(ui, |ui| {
-            for name in ["First", "Second", "Third"] {
+            for name in [&words.first, &words.second, &words.third] {
                 ui.add(super::Text::new(name));
             }
         });
@@ -233,6 +245,7 @@ fn show_stack(ui: &mut Ui, args: &mut GapsArgs) {
 }
 
 fn show_row(ui: &mut Ui, args: &mut GapsArgs) {
+    let words = StackStoryLabels::of(ui);
     let row = Row::new(args.gap.gap());
     let row = match args.pad.pad() {
         Some(pad) => row.pad(pad),
@@ -240,7 +253,7 @@ fn show_row(ui: &mut Ui, args: &mut GapsArgs) {
     };
     outlined(ui, |ui| {
         row.show(ui, |ui| {
-            for name in ["First", "Second", "Third"] {
+            for name in [&words.first, &words.second, &words.third] {
                 ui.add(super::Text::new(name));
             }
         });

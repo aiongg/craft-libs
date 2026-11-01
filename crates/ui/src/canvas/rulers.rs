@@ -588,7 +588,8 @@ fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
     use kurbo::Rect;
 
     let tokens = Tokens::of(ui);
-    let canvas = super::story::document_in(ui, args.view, "Document", tokens.component.ruler.size);
+    let document_name = crate::story::StoryLabels::of(ui).document;
+    let canvas = super::story::document_in(ui, args.view, &document_name, tokens.component.ruler.size);
     let (response, view, full) = (&canvas.response, &canvas.view, canvas.full);
 
     let key = ui.scope_id().with("rulers-story");

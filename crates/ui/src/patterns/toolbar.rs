@@ -8,9 +8,10 @@ use crate::controls::{IconButton, Kbd};
 use crate::direction;
 use crate::icons::Icon;
 use crate::layout::fit_toolbar;
+use crate::localized::Labels as _;
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::Divider;
-use crate::story::{Level, NoArgs, Story, StoryArgs, Surface};
+use crate::story::{Level, NoArgs, PatternStoryLabels, Story, StoryArgs, StoryLabels, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
@@ -435,7 +436,10 @@ fn show_vertical(ui: &mut Ui, _: &mut NoArgs) {
     let id = ui.scope_id().with("toolbar-vertical");
     let mut selected = ui.data(|d| d.get_temp::<(usize, usize)>(id)).unwrap_or((0, 0));
     ui.allocate_ui(vec2(ui.available_width(), 480.0), |ui| {
-        let mut toolbar = Toolbar::new("liquify-tools", Orientation::Vertical).label("Liquify tools").selected(Some(selected));
+        let mut toolbar = Toolbar::new("liquify-tools", Orientation::Vertical)
+            .label("Liquify tools")
+            .more_label(&PatternStoryLabels::of(ui).more)
+            .selected(Some(selected));
         let mut index = 0;
         for group in LIQUIFY {
             let items: Vec<_> = group
@@ -462,7 +466,11 @@ fn show_horizontal(ui: &mut Ui, args: &mut WidthArgs) {
     ui.allocate_ui(vec2(width, 0.0), |ui| {
         ui.set_max_width(width);
         let mut grid = state.1;
-        let mut toolbar = Toolbar::new("horizontal-tools", Orientation::Horizontal).label("Tools").selected(Some(state.0)).overflow(true);
+        let mut toolbar = Toolbar::new("horizontal-tools", Orientation::Horizontal)
+            .label(&StoryLabels::of(ui).tools)
+            .more_label(&PatternStoryLabels::of(ui).more)
+            .selected(Some(state.0))
+            .overflow(true);
         let mut index = 0;
         for group in &LIQUIFY[..2] {
             let items: Vec<_> = group

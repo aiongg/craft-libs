@@ -10,9 +10,9 @@ use crate::controls::{IconButton, NumberField};
 use crate::direction;
 use crate::edit::{EditEvent, EditResponse};
 use crate::icons::{self, Icon, IconSize};
-use crate::localized::LocaleNumbers;
+use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Interactive};
-use crate::story::{Level, Story, StoryArgs};
+use crate::story::{Level, Story, StoryArgs, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
@@ -315,12 +315,13 @@ fn apply(edit: &EditResponse<f64>, value: &mut f64) {
 
 /// The rows of a Transform section: W and H with a link toggle, X and Y.
 fn transform_rows(ui: &mut Ui, v: &mut Values, numbers: &LocaleNumbers) {
+    let words = StoryLabels::of(ui);
     PropertyGroup::new("section-transform").show(ui, |ui| {
         let linked = &mut v.linked;
         let (w, _, h) = PropertyRow::pair(PropertyLabel::glyph("W"), PropertyLabel::glyph("H").redundant())
             .show_linked(
                 ui,
-                |ui, _| NumberField::new("w", "Width", v.w, numbers).show(ui),
+                |ui, _| NumberField::new("w", &words.width, v.w, numbers).show(ui),
                 |ui| {
                     ui.add(
                         IconButton::new(if *linked { Icon::Link } else { Icon::Unlink }, "Link width and height")
@@ -328,7 +329,7 @@ fn transform_rows(ui: &mut Ui, v: &mut Values, numbers: &LocaleNumbers) {
                             .toggle(linked),
                     )
                 },
-                |ui, _| NumberField::new("h", "Height", v.h, numbers).show(ui),
+                |ui, _| NumberField::new("h", &words.height, v.h, numbers).show(ui),
             )
             .inner;
         apply(&w, &mut v.w);
@@ -342,11 +343,12 @@ fn transform_rows(ui: &mut Ui, v: &mut Values, numbers: &LocaleNumbers) {
 }
 
 fn opacity_row(ui: &mut Ui, v: &mut Values, numbers: &LocaleNumbers) {
+    let words = StoryLabels::of(ui);
     PropertyGroup::new("section-appearance").show(ui, |ui| {
-        let edit = PropertyRow::word("Opacity")
+        let edit = PropertyRow::word(&words.opacity)
             .scrubs()
             .show(ui, |ui, row| {
-                let field = NumberField::new("opacity", "Opacity", v.opacity, numbers);
+                let field = NumberField::new("opacity", &words.opacity, v.opacity, numbers);
                 match row.scrub() {
                     Some(label) => field.scrub_by(label),
                     None => field,

@@ -144,6 +144,14 @@ struct Layers {
     dragging: bool,
 }
 
+crate::words! {
+    /// The sample text of the reorder stories, English by default.
+    #[non_exhaustive]
+    pub struct DragStoryLabels {
+        delete: "dragStory.delete" = "Delete";
+    }
+}
+
 impl Layers {
     fn new(preset: Preset, words: &StoryLabels) -> Self {
         let flat: Vec<(String, usize, bool)> = (1..=24).map(|n| (format!("Layer {n}"), 0, false)).collect();
@@ -456,7 +464,7 @@ fn show_story(ui: &mut Ui, preset: Preset) {
                 }
             }
         }
-        let response = ui.add(Button::new("Delete").icon(Icon::Trash));
+        let response = ui.add(Button::new(&DragStoryLabels::of(ui).delete).icon(Icon::Trash));
         if let Some(drag) = response.dnd_release_payload::<ListDrag<usize>>() {
             doc.take(&drag.items);
             doc.selection = Selection::default();

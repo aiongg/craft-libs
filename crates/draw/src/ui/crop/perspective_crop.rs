@@ -788,7 +788,8 @@ fn show_story(ui: &mut Ui, args: &mut PerspectiveArgs) {
     let mut quad: PerspectiveQuad = ui.data(|d| d.get_temp(key)).unwrap_or(None);
     let before_key = key.with("before");
     let mut before: PerspectiveQuad = ui.data(|d| d.get_temp(before_key)).unwrap_or(None);
-    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, "Document");
+    let document_name = <craft_ui::story::StoryLabels as craft_ui::localized::Labels>::of(ui).document;
+    let canvas = craft_ui::testing::canvas_story::document(ui, args.view, &document_name);
     let view = &canvas.view;
     ui.painter_at(view.rect).add(Shape::convex_polygon(
         PAGE.iter().map(|&p| view.to_screen(p)).collect(),

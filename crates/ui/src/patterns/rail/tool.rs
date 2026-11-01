@@ -15,7 +15,7 @@ use crate::localized::Labels as _;
 use crate::panes::Edge;
 use crate::patterns::panel::ScrollBarLabels;
 use crate::patterns::toolbar_drawer::DropAt;
-use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
+use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryChoice, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 use egui::AsIdSalt;
@@ -784,10 +784,10 @@ pub const COMPONENTS: &[&str] = &["ToolRail"];
 
 type StoryTool = &'static str;
 
-pub(crate) fn story_slots() -> Vec<ToolSlot<StoryTool>> {
+pub(crate) fn story_slots(words: &PatternStoryLabels) -> Vec<ToolSlot<StoryTool>> {
     let tool = |id, icon, label: &str, key: &str| RailTool::new(id, icon, label).shortcut(key);
     vec![
-        ToolSlot::new(0, vec![tool("move", Icon::Move, "Move", "V")]),
+        ToolSlot::new(0, vec![tool("move", Icon::Move, &words.move_tool, "V")]),
         ToolSlot::new(
             1,
             vec![
@@ -798,14 +798,14 @@ pub(crate) fn story_slots() -> Vec<ToolSlot<StoryTool>> {
             ],
         ),
         ToolSlot::new(2, vec![tool("lasso", Icon::Lasso, "Lasso", "L"), tool("magnetic", Icon::LassoMagnetic, "Magnetic Lasso", "L")]),
-        ToolSlot::new(3, vec![tool("crop", Icon::Crop, "Crop", "C"), tool("perspective", Icon::PerspectiveCrop, "Perspective Crop", "C")]),
+        ToolSlot::new(3, vec![tool("crop", Icon::Crop, &words.crop, "C"), tool("perspective", Icon::PerspectiveCrop, "Perspective Crop", "C")]),
         ToolSlot::new(4, vec![tool("eyedropper", Icon::Eyedropper, "Eyedropper", "I"), tool("ruler", Icon::Ruler, "Ruler", "I")]),
-        ToolSlot::new(5, vec![tool("brush", Icon::Brush, "Brush", "B"), tool("pencil", Icon::Pencil, "Pencil", "B")]),
+        ToolSlot::new(5, vec![tool("brush", Icon::Brush, &words.brush, "B"), tool("pencil", Icon::Pencil, "Pencil", "B")]),
         ToolSlot::new(6, vec![tool("stamp", Icon::Stamp, "Clone Stamp", "S")]),
         ToolSlot::new(
             7,
             vec![
-                tool("eraser", Icon::Eraser, "Eraser", "E"),
+                tool("eraser", Icon::Eraser, &words.eraser, "E"),
                 tool("background", Icon::EraserBackground, "Background Eraser", "E"),
                 tool("magic", Icon::EraserMagic, "Magic Eraser", "E"),
             ],
@@ -853,7 +853,8 @@ fn show_story(ui: &mut Ui, args: &mut ToolArgs) {
     let current = ui.data(|d| d.get_temp::<StoryTool>(state)).unwrap_or("brush");
     let mut last_used = ui.data(|d| d.get_temp::<LastUsed<StoryTool>>(state.with("last"))).unwrap_or_default();
     let mode = ui.data(|d| d.get_temp::<StoryTool>(state.with("mode"))).unwrap_or("standard");
-    let slots = story_slots();
+    let slots = story_slots(&PatternStoryLabels::of(ui));
+    let screen_modes = crate::shell::ScreenModeLabels::of(ui);
     let mut new_mode = None;
     let out = ui
         .allocate_ui(vec2(160.0, height), |ui| {
@@ -867,11 +868,14 @@ fn show_story(ui: &mut Ui, args: &mut ToolArgs) {
                         let style = FlyoutButton::<StoryTool>::style(&Tokens::of(ui)).icon_button;
                         ui.add(IconButton::new(Icon::LayerMask, "Quick Mask Mode").with_style(style).shortcut("Q"));
                         let modes = [
-                            FlyoutItem::new("standard", Icon::AppWindow, "Standard Screen Mode"),
-                            FlyoutItem::new("full", Icon::Maximize2, "Full Screen Mode"),
+                            FlyoutItem::new("standard", Icon::AppWindow, &screen_modes.standard),
+                            FlyoutItem::new("full", Icon::Maximize2, &screen_modes.full_screen),
                         ];
-                        let (icon, label) =
-                            if mode == "full" { (Icon::Maximize2, "Full Screen Mode") } else { (Icon::AppWindow, "Standard Screen Mode") };
+                        let (icon, label) = if mode == "full" {
+                            (Icon::Maximize2, screen_modes.full_screen.as_str())
+                        } else {
+                            (Icon::AppWindow, screen_modes.standard.as_str())
+                        };
                         let button = FlyoutButton::new("screen-mode", icon, label).items(&modes).current(&mode).shortcut("F");
                         let response = button.show(ui);
                         new_mode = response.chosen.or_else(|| response.clicked.then_some(if mode == "full" { "standard" } else { "full" }));

@@ -17,7 +17,7 @@ use crate::docking::DockLook;
 use crate::icons::{self, Icon, IconSize};
 use crate::localized::Labels as _;
 use crate::primitives::Content;
-use crate::story::{Level, Story, StoryArgs, StoryChoice};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
@@ -362,6 +362,7 @@ fn show_story(ui: &mut Ui, args: &mut InspectorArgs) {
     let mut open = ui.data(|d| d.get_temp::<Open>(open_id)).unwrap_or(Open { transform: true, appearance: true });
     let values = kept.values;
     let numbers = LocaleNumbers::from_tag("en");
+    let story_words = StoryLabels::of(ui);
     let (header, target) = if layer {
         (InspectorHeader::new(Icon::Layers, "Layer 1").kind("Pixel layer"), "layer-1")
     } else {
@@ -384,7 +385,7 @@ fn show_story(ui: &mut Ui, args: &mut InspectorArgs) {
             });
             if layer {
                 SectionHeader::new("appearance", "Appearance").open(&mut open.appearance).show(ui, |ui| {
-                    keep(&mut kept, Slider::new("opacity", "Opacity", values.opacity, 0.0..=100.0).show(ui).event, |v, o| v.opacity = o);
+                    keep(&mut kept, Slider::new("opacity", &story_words.opacity, values.opacity, 0.0..=100.0).show(ui).event, |v, o| v.opacity = o);
                 });
             }
         });

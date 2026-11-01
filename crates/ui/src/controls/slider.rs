@@ -15,6 +15,7 @@ use egui::{
     StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
+use super::common_stories::ControlStoryLabels;
 use super::{RangeSlider, Swatch, field_wheel, gradient_track};
 use crate::composites::Form;
 use crate::edit::ops::{self, Bound, ScalarOp};
@@ -1195,11 +1196,12 @@ fn slider_row_with(
 fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
     let look = Look::of(args.size, args.disabled);
     let words = StoryLabels::of(ui);
+    let story = ControlStoryLabels::of(ui);
     with_values(ui, "slider-values", [0.0, 50.0, 100.0, 25.0, 100.0, 50.0, 30.0], |ui, values| {
         variant_list(ui, "slider-values", |form| {
             let (minimum_to_maximum, shaped) = values.split_at_mut(3);
             for (i, (label, value)) in
-                ["Minimum", words.middle.as_str(), words.maximum.as_str()].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate()
+                [story.minimum.as_str(), words.middle.as_str(), words.maximum.as_str()].into_iter().zip(minimum_to_maximum.iter_mut()).enumerate()
             {
                 let (default, wheel, fill) = (args.default_value, args.wheel_unfocused, !args.unfilled);
                 slider_row_with(form, look, &format!("slider-values-{i}"), label, value, None, |slider| {
@@ -1217,8 +1219,8 @@ fn show_values(ui: &mut Ui, args: &mut ValuesArgs) {
                 let slider = Slider::new("slider-log", "Log", *log, 1.0..=1000.0).scale(SliderScale::Log);
                 store(&slider.size(size).enabled(enabled).show(ui), log)
             });
-            labelled(form, "Marks", &format!("{marked:.1}"), |ui| {
-                let slider = Slider::new("slider-marks", "Marks", *marked, 0.0..=100.0).marks(&[0.0, 25.0, 50.0, 100.0]);
+            labelled(form, &story.marks, &format!("{marked:.1}"), |ui| {
+                let slider = Slider::new("slider-marks", &story.marks, *marked, 0.0..=100.0).marks(&[0.0, 25.0, 50.0, 100.0]);
                 store(&slider.size(size).enabled(enabled).show(ui), marked)
             });
             labelled(form, "Triangle, ticks", &format!("{triangle:.1}"), |ui| {
@@ -1257,11 +1259,12 @@ fn show_disabled(ui: &mut Ui, args: &mut SliderArgs) {
 /// around the slider and its value.
 fn show_right_to_left(ui: &mut Ui, args: &mut SliderArgs) {
     let look = Look::of(args.size, args.disabled);
+    let words = StoryLabels::of(ui);
     with_values(ui, "slider-rtl", [25.0], |ui, values| {
         Stack::new(Gap::Stack).show(ui, |ui| {
             let note = "With the direction set to right to left the label moves to the right. The slider keeps its geometry: the value grows to the right and the arrow keys act as they are.";
             ui.add(Text::new(note).content(Content::Muted));
-            variant_list(ui, "slider-rtl", |form| slider_row(form, look, "slider-rtl", "Opacity", &mut values[0], Some(1.0)));
+            variant_list(ui, "slider-rtl", |form| slider_row(form, look, "slider-rtl", &words.opacity, &mut values[0], Some(1.0)));
         });
     });
 }
@@ -1358,6 +1361,7 @@ impl LogState {
 /// Cmd/Ctrl+Z undoes a step, or cancels the gesture under way (it works during a drag).
 fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
     let policy = edit::policy(args);
+    let story = ControlStoryLabels::of(ui);
     let state_id = ui.scope_id().with("slider-event-log");
     let mut state = ui.data(|d| d.get_temp::<LogState>(state_id)).unwrap_or_default();
     if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Z)) {
@@ -1372,7 +1376,7 @@ fn show_event_log(ui: &mut Ui, args: &mut PolicyArgs) {
                 edit.response
             });
             let range = state.doc.range;
-            labelled(form, "Range", &format!("{:.0} to {:.0}", range.0, range.1), |ui| {
+            labelled(form, &story.range, &format!("{:.0} to {:.0}", range.0, range.1), |ui| {
                 let edit = RangeSlider::new("slider-log-range", ("Range from", "Range to"), range, 0.0..=100.0).step(1.0).policy(policy).show(ui);
                 state.handle(ui, "range slider", edit.event, |doc, value| doc.edit(|d| d.range = value));
                 edit.response

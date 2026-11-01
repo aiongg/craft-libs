@@ -7,8 +7,9 @@ use super::gesture::{drag_open, long_press, long_press_wait, reclick_closes};
 use crate::controls::{IconButton, IconButtonStyle, Kbd};
 use crate::direction;
 use crate::icons::Icon;
+use crate::localized::Labels as _;
 use crate::menu::{Menu, MenuEntry, MenuItem};
-use crate::story::{Level, Story, StoryArgs, Surface};
+use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 use craft_theme::ControlSize;
@@ -365,10 +366,11 @@ struct FlyoutArgs {
 fn show_story(ui: &mut Ui, args: &mut FlyoutArgs) {
     let count = args.items;
     let selected = args.selected;
+    let words = PatternStoryLabels::of(ui);
     let all = [
-        FlyoutItem::new("brush", Icon::Brush, "Brush").shortcut("B"),
+        FlyoutItem::new("brush", Icon::Brush, &words.brush).shortcut("B"),
         FlyoutItem::new("stamp", Icon::Stamp, "Stamp").shortcut("N"),
-        FlyoutItem::new("eraser", Icon::Eraser, "Eraser").shortcut("E"),
+        FlyoutItem::new("eraser", Icon::Eraser, &words.eraser).shortcut("E"),
     ];
     let items = &all[..count.clamp(1, all.len())];
     let state = ui.make_persistent_id("flyout-story-state");
