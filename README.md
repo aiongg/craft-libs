@@ -105,8 +105,8 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 
 - [`craft-review`](crates/review/README.md): review: the comments panel, comment pins, thread
   popover and composer, Acrobat's annotation tool, the signature pad, version history and the
-  revisions panel (`ui` feature); presence, voting, cursor chat and join over the app's own
-  transport (`collab` feature).
+  revisions panel, presence, voting, cursor chat and join over the app's own transport (`ui`
+  feature).
 - [`craft-settings`](crates/settings/README.md): `config.toml` settings storage for every app: platform folders, portable mode and overrides, atomic saves while running, backup, damaged-file recovery and schema migrations, plus remembered dialog options and preset folders (also on wasm32). Policy in [docs/settings-storage.md](docs/settings-storage.md).
 - [`craft-table`](crates/table/README.md): spreadsheet widgets: the cell grid with Excel's
   keys, outline bands, the PivotTable field list, the condition builder, chart painting, slicers,

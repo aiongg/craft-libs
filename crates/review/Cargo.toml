@@ -12,12 +12,8 @@ workspace = true
 
 [features]
 default = []
-# `Serialize` and `Deserialize` for the plain-data types (threads, annotations, signatures, versions).
-serde = ["dep:serde", "kurbo/serde"]
-# Collaboration: presence, voting, cursor chat and join, over a `CollabTransport` the app implements.
-collab = []
-# The review widgets (`craft_review::ui`); the saved signatures need `serde`.
-ui = ["dep:craft-ui", "dep:craft-host", "dep:egui", "serde"]
+# The review widgets (`craft_review::ui`).
+ui = ["dep:craft-ui", "dep:craft-host", "dep:egui"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
 screen-testing = ["ui", "craft-ui/screen-testing"]
 
@@ -25,8 +21,8 @@ screen-testing = ["ui", "craft-ui/screen-testing"]
 craft-host = { workspace = true, optional = true }
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
-kurbo = { workspace = true }
-serde = { workspace = true, optional = true }
+kurbo = { workspace = true, features = ["serde"] }
+serde = { workspace = true }
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts", "serde"] }

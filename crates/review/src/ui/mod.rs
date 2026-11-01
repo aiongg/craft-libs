@@ -9,7 +9,7 @@
 //! - [`signature`] has the [`SignaturePadDialog`] and [`paint_signature`].
 //! - [`versions`] has the [`VersionHistoryPanel`] and the [`VersionPreviewBanner`].
 //! - [`revisions`] has the [`RevisionsPanel`].
-//! - With `collab`: [`presence`] ([`PeopleBar`], [`RemoteCursors`]), [`vote`] ([`VotePill`]),
+//! - Collaboration: [`presence`] ([`PeopleBar`], [`RemoteCursors`]), [`vote`] ([`VotePill`]),
 //!   [`chat`] ([`CursorChatBox`]) and [`join`] ([`JoinField`]).
 
 pub mod annotate;
@@ -19,20 +19,16 @@ pub mod signature;
 pub mod thread;
 pub mod versions;
 
-#[cfg(feature = "collab")]
 pub mod chat;
-#[cfg(feature = "collab")]
 pub mod join;
-#[cfg(feature = "collab")]
 pub mod presence;
-#[cfg(feature = "collab")]
 pub mod vote;
 
 mod stories;
 
 #[cfg(test)]
 mod annotate_tests;
-#[cfg(all(test, feature = "collab"))]
+#[cfg(test)]
 mod collab_tests;
 #[cfg(test)]
 mod comments_tests;
@@ -54,13 +50,9 @@ pub use thread::{
 };
 pub use versions::{VersionAction, VersionHistoryPanel, VersionPreviewBanner, VersionsLabels};
 
-#[cfg(feature = "collab")]
 pub use chat::{CursorChatBox, paint_chat_bubble};
-#[cfg(feature = "collab")]
 pub use join::{JoinField, JoinLabels};
-#[cfg(feature = "collab")]
 pub use presence::{PeopleBar, PeopleBarResponse, PresenceLabels, RemoteCursors, paint_avatar, paint_pointer};
-#[cfg(feature = "collab")]
 pub use vote::{VoteLabels, VotePill};
 
 use craft_ui::localized::{Labels, Word};
@@ -78,8 +70,7 @@ pub const WORDS: &[&[Word]] = &[
     <SignatureLabels as Labels>::WORDS,
     <VersionsLabels as Labels>::WORDS,
     <RevisionsLabels as Labels>::WORDS,
+    <PresenceLabels as Labels>::WORDS,
+    <VoteLabels as Labels>::WORDS,
+    <JoinLabels as Labels>::WORDS,
 ];
-
-/// The labels tables of the collaboration widgets.
-#[cfg(feature = "collab")]
-pub const COLLAB_WORDS: &[&[Word]] = &[<PresenceLabels as Labels>::WORDS, <VoteLabels as Labels>::WORDS, <JoinLabels as Labels>::WORDS];

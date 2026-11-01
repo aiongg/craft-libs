@@ -6,13 +6,12 @@
 
 use kurbo::{Point, Rect, Vec2};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
 pub struct AnnotationId(pub u64);
 
 /// What an annotation is (PDF annotation subtypes as Acrobat names them).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum AnnotationKind {
     /// A sticky note.
     #[default]
@@ -112,8 +111,7 @@ impl AnnotationKind {
 
 /// An annotation as the overlay draws and edits it; the app maps its document's annotations to
 /// these and back.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Annotation {
     pub id: AnnotationId,
     pub page: usize,

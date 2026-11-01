@@ -20,8 +20,7 @@ pub const ROLL_PT: f32 = 2.5;
 pub const SNAP_PT: f32 = 9.0;
 
 /// A clip's start (In) or end (Out).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ClipEdge {
     In,
     Out,

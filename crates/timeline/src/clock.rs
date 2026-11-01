@@ -151,8 +151,7 @@ impl PlaybackClock {
 /// How the view follows the playhead while playing. SoundCraft's five Scrolling modes; FilmCraft's
 /// Timeline Playback Auto-Scrolling is `None` (No Scroll), `Page` (Page Scroll) and `Center`
 /// (Smooth Scroll).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum FollowMode {
     /// The view stays where it is.
     None,

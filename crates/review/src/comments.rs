@@ -3,13 +3,12 @@
 
 #![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
 pub struct ThreadId(pub u64);
 
 /// Where a thread is.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CommentAnchor {
     /// A point on a page, in page units (PdfCraft's sticky notes and markups).
     Page { page: usize, at: [f64; 2] },
@@ -34,8 +33,7 @@ impl CommentAnchor {
 }
 
 /// Acrobat's review statuses, set as a status reply.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ReviewStatus {
     #[default]
     None,
@@ -52,16 +50,14 @@ impl ReviewStatus {
 }
 
 /// An emoji reaction and who gave it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Reaction {
     pub emoji: String,
     pub people: Vec<String>,
 }
 
 /// One message in a thread; the first is the comment, the rest replies.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CommentMessage {
     pub author: String,
     /// Unix seconds.
@@ -74,8 +70,7 @@ pub struct CommentMessage {
 }
 
 /// A comment and its replies.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CommentThread {
     pub id: ThreadId,
     pub anchor: CommentAnchor,
@@ -101,8 +96,7 @@ impl CommentThread {
 }
 
 /// How the panel orders threads (Acrobat's Sort by).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum CommentSort {
     #[default]
     Page,

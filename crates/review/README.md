@@ -9,6 +9,6 @@ The core is egui-free:
 - `signature`: saved signatures and initials (drawn, typed, image) and the signature pad's draft.
 - `versions`: saved versions and branches, with autosaves grouped.
 - `revisions`: the changes of a compared copy, to accept or reject.
-- `collab` (feature `collab`): participants and their cursors, voting sessions, cursor chat and joining by code, over a `CollabTransport` the app implements. The library has no network.
+- `collab`: participants and their cursors, voting sessions, cursor chat and joining by code, over a `CollabTransport` the app implements. The library has no network.
 
-With the `ui` feature, `craft_review::ui` has the `CommentsPanel`, `CommentPins`, `ThreadPopover` and `CommentComposer`, the `AnnotateTool` (a canvas tool) with its `AnnotationOverlay` and `AnnotationToolbar`, the `SignaturePadDialog`, the `VersionHistoryPanel`, the `RevisionsPanel`, and with `collab` the `PeopleBar`, `RemoteCursors`, `VotePill`, `CursorChatBox` and `JoinField`.
+With the `ui` feature, `craft_review::ui` has the `CommentsPanel`, `CommentPins`, `ThreadPopover` and `CommentComposer`, the `AnnotateTool` (a canvas tool) with its `AnnotationOverlay` and `AnnotationToolbar`, the `SignaturePadDialog`, the `VersionHistoryPanel`, the `RevisionsPanel`, and the collaboration widgets `PeopleBar`, `RemoteCursors`, `VotePill`, `CursorChatBox` and `JoinField`.

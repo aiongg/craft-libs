@@ -20,8 +20,8 @@ pub const VIEW_EXTENT_PAST_END: Tick = Tick(600 * TICKS_PER_SECOND);
 
 /// A point or a duration in time, in ticks. Arithmetic saturates at the `i64` limits;
 /// representable results stay exact.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
 pub struct Tick(pub i64);
 
 impl Tick {
@@ -136,8 +136,7 @@ impl SubAssign for Tick {
 
 /// A half-open range `[start, start + duration)`. A zero or negative duration is empty and
 /// overlaps nothing.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct TimeRange {
     pub start: Tick,
     pub duration: Tick,
@@ -182,8 +181,7 @@ impl TimeRange {
 ///
 /// Screen x is `left + (t − start) × points_per_second`, where `left` is the x of the time
 /// area's left edge (right of the track headers).
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TimeView {
     pub start: Tick,
     pub points_per_second: f64,

@@ -1,6 +1,6 @@
-//! Review: comment threads, annotations, signatures, version history and revisions; with the
-//! `collab` feature, presence, voting, cursor chat and joining over the app's transport. With
-//! the `ui` feature, [`ui`] has the review widgets.
+//! Review: comment threads, annotations, signatures, version history and revisions; presence,
+//! voting, cursor chat and joining over the app's transport ([`collab`]). With the `ui` feature,
+//! [`ui`] has the review widgets.
 //!
 //! Review data is the app's document data: every widget reads it and reports edits; nothing here
 //! owns or stores it.
@@ -11,7 +11,6 @@ pub mod revisions;
 pub mod signature;
 pub mod versions;
 
-#[cfg(feature = "collab")]
 pub mod collab;
 
 #[cfg(feature = "ui")]

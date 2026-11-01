@@ -9,8 +9,7 @@ use crate::time::Tick;
 /// A frame rate as an exact rational, `num / den` frames a second. Rates come from files, so
 /// every frame computation goes through [`sane`](Self::sane) and a zero or negative rate counts
 /// as the default (29.97).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct FrameRate {
     pub num: i64,
     pub den: i64,
@@ -134,8 +133,8 @@ impl FrameRate {
 }
 
 /// An audio sample rate in hertz.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(transparent))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
 pub struct SampleRate(pub u32);
 
 impl Default for SampleRate {
@@ -180,8 +179,7 @@ impl SampleRate {
 }
 
 /// A pixel aspect ratio, `num / den` (1/1 is square pixels).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct PixelAspect {
     pub num: u32,
     pub den: u32,

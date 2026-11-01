@@ -7,8 +7,7 @@
 pub const MAX_IMAGE_BYTES: usize = 4 << 20;
 
 /// A signature image: straight RGBA, transparency kept.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SignatureImage {
     pub width: u32,
     pub height: u32,
@@ -16,8 +15,7 @@ pub struct SignatureImage {
 }
 
 /// A signature or initials kept for reuse.
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum SavedSignature {
     /// Strokes in pad units (0…1 on both axes of the pad's box).
     Drawn(Vec<Vec<[f32; 2]>>),

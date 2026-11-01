@@ -12,8 +12,7 @@ use crate::time::Tick;
 
 /// How time is shown (Premiere: Timecode, Feet + Frames 16 mm / 35 mm, Frames, Audio Samples;
 /// After Effects' frame numbers; seconds for scripts).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum TimeDisplay {
     /// `HH:MM:SS:FF`, `HH;MM;SS;FF` for drop-frame; three frame digits from 100 fps.
     #[default]
@@ -45,8 +44,7 @@ impl TimeDisplay {
 
 /// Everything a time display needs: the rate, drop-frame, the display, the sample rate (for
 /// [`TimeDisplay::AudioSamples`]) and the first frame's number.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct TimeFormat {
     pub rate: FrameRate,
     pub drop_frame: bool,
