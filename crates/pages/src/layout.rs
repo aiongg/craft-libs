@@ -30,9 +30,6 @@ pub const SCREEN_POINTS_PER_POINT: f64 = 96.0 / 72.0;
 /// The zooms a page view shows, 8 % to 6400 % (Acrobat's range; PdfCraft clamps to it).
 pub const ZOOM_RANGE: RangeInclusive<f64> = 0.08..=64.0;
 
-/// The scales `place_pages` accepts (WordCraft's scale guard).
-const PLACEMENT_SCALE: RangeInclusive<f64> = 0.01..=10.0;
-
 /// The page size a non-finite or tiny page counts as, page points.
 const FALLBACK_PAGE: f64 = 72.0;
 
@@ -44,7 +41,11 @@ fn sane_dim(v: f64) -> f64 {
 }
 
 fn sane_scale(scale: f64) -> f64 {
-    if scale.is_finite() { scale.clamp(*PLACEMENT_SCALE.start(), *PLACEMENT_SCALE.end()) } else { SCREEN_POINTS_PER_POINT }
+    if scale.is_finite() {
+        scale.clamp(ZOOM_RANGE.start() * SCREEN_POINTS_PER_POINT, ZOOM_RANGE.end() * SCREEN_POINTS_PER_POINT)
+    } else {
+        SCREEN_POINTS_PER_POINT
+    }
 }
 
 fn sane_extent(v: f64) -> f64 {
@@ -162,8 +163,9 @@ pub struct PagedLayout {
 ///   at least `min_columns`, at most the page count), each slot as wide as the widest page plus
 ///   the markup area; a narrower page is centred in its slot, keeping its markup area beside it.
 ///
-/// Sizes that aren't finite or are below 1 pt count as 72 pt; scale outside 0.01–10 is clamped
-/// (WordCraft's `sane_dim` and scale guard).
+/// Sizes that aren't finite or are below 1 pt count as 72 pt (WordCraft's `sane_dim`); the scale
+/// is clamped to [`ZOOM_RANGE`] × [`SCREEN_POINTS_PER_POINT`], so every zoom the view offers lays
+/// out as shown.
 // pdfcraft: crates/ui-egui/src/canvas/zoom.rs:306 `layout`; wordcraft:
 // crates/ui-egui/src/canvas/geometry.rs:126 `columns_for`, :139 `place_pages`.
 pub fn place_pages(sizes: &[Size], scale: f64, viewport: Size, options: &LayoutOptions, spacing: &PageSpacing) -> PagedLayout {
