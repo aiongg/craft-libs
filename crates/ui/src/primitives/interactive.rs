@@ -409,6 +409,13 @@ impl Sensed {
         self
     }
 
+    /// The accessible name, as settled after sensing: a toggle that is named for what a click
+    /// does next.
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.report.label = label.into();
+        self
+    }
+
     /// Selected or not, as settled after sensing.
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = Some(selected);

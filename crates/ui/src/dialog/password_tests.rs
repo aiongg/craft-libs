@@ -107,4 +107,6 @@ fn eye_button_applies_in_its_own_pass() {
     harness.get_by_label("Show password").click();
     harness.step();
     assert_eq!(harness.get_by_label("Password").accesskit_node().role(), Role::TextInput, "the text shows in the pass of the press");
+    harness.get_by_label("Hide password");
+    assert!(harness.query_by_label("Show password").is_none(), "the button is named for the new state in the same pass");
 }

@@ -273,8 +273,6 @@ impl StackDialog for PasswordDialog {
                     });
                     ui.add_space(ui.spacing().item_spacing.y);
                 }
-                let hidden = !*reveal;
-                let eye = if hidden { (Icon::Eye, labels.show.as_str()) } else { (Icon::EyeOff, labels.hide.as_str()) };
                 let strength = (setting && !input.is_empty()).then(|| {
                     let (word, status) = match password_strength(input.expose()) {
                         PasswordStrength::Weak => (&labels.weak, StatusKind::Bad),
@@ -296,11 +294,13 @@ impl StackDialog for PasswordDialog {
                         // same pass; the row runs from the reading end.
                         let size = vec2(ui.available_width(), ui.spacing().interact_size.y);
                         ui.allocate_ui_with_layout(size, crate::direction::trailing(ui), |ui| {
-                            let button = ui.add(IconButton::new(eye.0, eye.1));
-                            if button.clicked() {
-                                *reveal = !*reveal;
-                                eye_pressed = true;
-                            }
+                            let button = ui.add(
+                                IconButton::new(Icon::Eye, labels.show.as_str())
+                                    .when_on(Icon::EyeOff, labels.hide.as_str())
+                                    .toggle(&mut *reveal)
+                                    .id_salt("eye"),
+                            );
+                            eye_pressed = button.clicked();
                             let edit = TextField::new(id.with("password"), labels.hint.as_str(), input.expose())
                                 .placeholder(if setting { "" } else { labels.hint.as_str() })
                                 .password(!*reveal)
