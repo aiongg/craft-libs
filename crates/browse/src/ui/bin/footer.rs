@@ -1,8 +1,8 @@
-//! The bin footer: view buttons, zoom, the host's actions and their drops (`BinFooterAction`).
+//! The bin footer: view buttons, zoom, the host's actions and their drops (`FooterAction`).
 
 use craft_ui::behavior::ListDrag;
 use craft_ui::canvas::textures::TextureKey;
-use craft_ui::composites::PanelFooter;
+use craft_ui::composites::{FooterAction, PanelFooter};
 use craft_ui::controls::{ControlSize, Segmented};
 use craft_ui::icons::Icon;
 use craft_ui::list::{SortOrder, TableColumn, TableEvent, TableSort};
@@ -11,43 +11,6 @@ use egui::{Id, Ui};
 
 use super::{BinEvent, BinLabels, BinView};
 use crate::ui::grid::{ThumbnailSlider, TileZoom};
-
-/// A host button in the bin's footer (FilmCraft: Automate to Sequence, Find, New Item, Clear).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BinFooterAction {
-    /// The id reported in `BinEvent::Footer` and `FooterDrop`.
-    pub id: &'static str,
-    /// The glyph.
-    pub icon: Icon,
-    /// The tooltip and accessible name, translated.
-    pub label: String,
-    /// Whether a drag of items may drop on it (FilmCraft's New Item makes a sequence from a clip).
-    pub accepts_drops: bool,
-    /// Enabled.
-    pub enabled: bool,
-}
-
-impl BinFooterAction {
-    /// An enabled action that takes no drops.
-    pub fn new(id: &'static str, icon: Icon, label: impl Into<String>) -> Self {
-        // filmcraft: crates/ui-egui/src/panels/project.rs:555 (`footer` buttons).
-        Self { id, icon, label: label.into(), accepts_drops: false, enabled: true }
-    }
-
-    /// Lets a drag of items drop on it.
-    #[must_use]
-    pub fn accepts_drops(self, on: bool) -> Self {
-        // filmcraft: crates/ui-egui/src/panels/project.rs:555 (a clip dropped on New Item makes a sequence).
-        Self { accepts_drops: on, ..self }
-    }
-
-    /// Enables or disables it.
-    #[must_use]
-    pub fn enabled(self, on: bool) -> Self {
-        // new: builder.
-        Self { enabled: on, ..self }
-    }
-}
 
 /// The zoom slider's key step, in points.
 pub(super) const ZOOM_STEP: f32 = 8.0;
@@ -59,7 +22,7 @@ pub(super) struct FooterInput<'a> {
     pub icon_size: f32,
     pub zoom_range: (f32, f32),
     pub default_size: f32,
-    pub actions: &'a [BinFooterAction],
+    pub actions: &'a [FooterAction],
     pub columns: &'a [TableColumn<String>],
     pub icon_sort: Option<&'a (String, bool)>,
     pub labels: &'a BinLabels,
@@ -74,7 +37,7 @@ enum SortPick {
 
 /// Draws the footer: a `PanelFooter` (height `panel_footer`) with the view `Segmented` (List,
 /// Icon, Freeform glyphs), a `ThumbnailSlider`, Sort Icons (Icon view), each action as an
-/// `IconButton` followed by `PanelFooter::drop_target::<ListDrag<K>>` when it accepts drops, and
+/// `PanelFooter::button`, or `PanelFooter::drop_button::<ListDrag<K>>` when it accepts drops, and
 /// New Bin. Returns the footer's events.
 pub(super) fn footer_events<K: TextureKey>(ui: &mut Ui, input: &FooterInput<'_>) -> Vec<BinEvent<K>> {
     // filmcraft: crates/ui-egui/src/panels/project.rs:555 (`footer`).
@@ -87,15 +50,18 @@ pub(super) fn footer_events<K: TextureKey>(ui: &mut Ui, input: &FooterInput<'_>)
             events.push(BinEvent::NewBin);
         }
         for action in actions.iter().rev() {
-            let button = ui.add_enabled_ui(action.enabled, |ui| PanelFooter::button(ui, action.icon, &action.label)).inner;
-            if button.clicked() {
-                events.push(BinEvent::Footer(action.id));
-            }
-            if action.accepts_drops
-                && action.enabled
-                && let Some(drag) = PanelFooter::drop_target::<ListDrag<K>>(ui, &button, |drag| !drag.items.is_empty())
-            {
-                events.push(BinEvent::FooterDrop { action: action.id, items: drag.items.clone() });
+            if action.accepts_drops {
+                // The enabled state goes in as an argument: a disabled `Ui` would keep the button
+                // disabled under an accepted drag.
+                let (button, dropped) =
+                    PanelFooter::drop_button::<ListDrag<K>>(ui, action.icon, &action.label, action.enabled, |drag| !drag.items.is_empty());
+                if let Some(drag) = dropped {
+                    events.push(BinEvent::FooterDrop { button: action.id, rows: drag.items.clone() });
+                } else if button.clicked() {
+                    events.push(BinEvent::Footer { button: action.id });
+                }
+            } else if ui.add_enabled_ui(action.enabled, |ui| PanelFooter::button(ui, action.icon, &action.label)).inner.clicked() {
+                events.push(BinEvent::Footer { button: action.id });
             }
         }
         if view != BinView::List {

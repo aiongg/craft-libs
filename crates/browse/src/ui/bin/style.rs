@@ -1,7 +1,10 @@
 //! `BinStyle`.
 
+use craft_ui::canvas::textures::TextureKey;
 use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::Color32;
+
+use super::MediaBin;
 
 /// The bin's own look; the rest is the table, list, panel and footer families'. The chip is the `tile` family's;
 /// the colours are the semantic tokens'.
@@ -22,9 +25,9 @@ pub struct BinStyle {
     pub count: Color32,
 }
 
-impl BinStyle {
-    /// The style of `tokens`.
-    pub fn of(tokens: &UiTokens) -> BinStyle {
+impl<K: TextureKey, M: ?Sized> MediaBin<'_, K, M> {
+    /// The bin's own look from the tokens.
+    pub fn style(tokens: &UiTokens) -> BinStyle {
         let c = &tokens.color;
         let t = &tokens.component.tile;
         BinStyle {

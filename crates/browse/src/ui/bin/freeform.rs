@@ -20,7 +20,7 @@ use egui::{
 
 use super::icon::{ASPECT, CardList, entries_of, paint_bin_face};
 use super::list::{inside_any, item_of, open_event};
-use super::{BinEvent, BinModel, BinState, BinStyle, ThumbPair};
+use super::{BinEvent, BinModel, BinState, MediaBin, ThumbPair};
 use crate::ui::grid::{TileLabels, TileStyle, TileZoom, card_size, fit_name};
 
 /// A card in the Freeform view, where the host stores it.
@@ -101,7 +101,7 @@ where
     let ctx = ui.ctx().clone();
     let tokens = Tokens::of(ui);
     let style = TileStyle::style(&tokens);
-    let bin_style = BinStyle::of(&tokens);
+    let bin_style = MediaBin::<'_, K, M>::style(&tokens);
     let tile_labels = TileLabels::shared(ui);
     let searching = !state.search.trim().is_empty();
     let (entries, _) = entries_of(model, state);

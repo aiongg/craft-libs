@@ -27,8 +27,9 @@ use craft_ui::story::{Level, Story, StoryArgs};
 use craft_ui::typed_story;
 use egui::{Ui, Vec2, vec2};
 
-use super::{BinEntry, BinEvent, BinFooterAction, BinItem, BinModel, BinState, BinView, FreeformCard, MediaBin, OpenHow};
+use super::{BinEntry, BinEvent, BinItem, BinModel, BinState, BinView, FreeformCard, MediaBin, OpenHow};
 use crate::ui::grid::{BadgeKind, BadgeSlot, TileBadge, TileLabels, TileStatus};
+use craft_ui::composites::FooterAction;
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Media bin"];
@@ -284,7 +285,7 @@ struct Demo {
     state: BinState<u32>,
     selection: Selection<u32>,
     columns: Vec<TableColumn<String>>,
-    actions: Vec<BinFooterAction>,
+    actions: Vec<FooterAction>,
     cards: Vec<FreeformCard<u32>>,
     jobs: Arc<ManualJobs>,
     last_event: Option<String>,
@@ -304,7 +305,7 @@ impl Demo {
                 TableColumn::new("name".to_owned(), labels.name.clone()),
                 TableColumn::new("duration".to_owned(), labels.duration.clone()).sortable(true),
             ],
-            actions: vec![BinFooterAction::new("newItem", Icon::Plus, labels.new_item.clone()).accepts_drops(true)],
+            actions: vec![FooterAction::new("newItem", Icon::Plus, labels.new_item.clone()).accepts_drops(true)],
             cards: Vec::new(),
             jobs: Arc::new(ManualJobs::new()),
             last_event: None,
@@ -335,7 +336,7 @@ impl Demo {
     fn apply(&mut self, event: &BinEvent<u32>, labels: &BinStoryLabels) {
         self.state.apply(event);
         match event {
-            BinEvent::Rename { key, name } => {
+            BinEvent::Rename { key, text: name } => {
                 if let Some(node) = self.project.nodes.iter_mut().find(|n| n.key == *key) {
                     node.name.clone_from(name);
                 }
@@ -352,7 +353,7 @@ impl Demo {
                 self.cards.retain(|c| self.project.node(c.key).is_some());
                 self.selection = Selection::new();
             }
-            BinEvent::Footer("newItem") => self.add_sequence(labels),
+            BinEvent::Footer { button: "newItem" } => self.add_sequence(labels),
             BinEvent::FooterDrop { .. } => self.add_sequence(labels),
             BinEvent::NewBin => {
                 let key = self.project.next_key();

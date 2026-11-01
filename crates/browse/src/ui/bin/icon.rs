@@ -11,7 +11,7 @@ use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{DragAndDrop, Id, Rect, Response, Ui};
 
 use super::list::{inside_any, item_of, open_event, sort_entries};
-use super::{BinEntry, BinEvent, BinLabels, BinModel, BinState, BinStyle, ThumbPair};
+use super::{BinEntry, BinEvent, BinLabels, BinModel, BinState, BinStyle, MediaBin, ThumbPair};
 use crate::ui::grid::{BadgeVisibility, RatingKeys, SpaceAction, TileContent, TileEvent, TileGrid, TileLayout, TileSource, TileZoom};
 
 /// The cards' picture is 16:9 (FilmCraft's).
@@ -144,7 +144,7 @@ where
     let IconInput { id, model, state, selection, thumbnails, hover_scrub, zoom_range, default_size, labels } = input;
     let ctx = ui.ctx().clone();
     let tokens = Tokens::of(ui);
-    let bin_style = BinStyle::of(&tokens);
+    let bin_style = MediaBin::<'_, K, M>::style(&tokens);
     let (entries, user_order) = entries_of(model, state);
     let cards = CardList::new(model, entries);
     let size = state.settings.icon_size;
