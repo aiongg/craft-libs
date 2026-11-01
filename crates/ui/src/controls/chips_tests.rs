@@ -56,7 +56,6 @@ mod field {
 
     // In a harness: a click on the × reports `removed`, on the name `clicked`; Delete on the focused chip reports `removed` and the focus moves on.
     #[test]
-    #[ignore = "needs S5S-F5 text::elided_galley"]
     fn the_cross_removes_and_the_name_clicks() {
         let mut harness = harness(&["alpha", "beta", "gamma"], None);
         harness.run();
@@ -78,7 +77,6 @@ mod field {
 
     // In a harness: with `max_lines(1)` the hidden chips are counted on "+N more", whose menu removes one.
     #[test]
-    #[ignore = "needs S5S-F5 text::elided_galley"]
     fn chips_past_the_last_line_go_behind_more() {
         let names = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"];
         let mut harness = harness(&names, Some(1));

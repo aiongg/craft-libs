@@ -50,7 +50,6 @@ mod bar {
 
     // In a harness: clicking an ancestor reports `opened`; the last segment is not a button.
     #[test]
-    #[ignore = "needs S5S-F5 text::elided_galley"]
     fn a_click_on_an_ancestor_opens_it_and_the_last_never_reports() {
         let mut harness = harness("/photos/2026/trip", 480.0);
         harness.run();
@@ -68,7 +67,6 @@ mod bar {
 
     // In a harness: a narrow bar shows the last segments and a "…" button whose menu opens a hidden one.
     #[test]
-    #[ignore = "needs S5S-F5 text::elided_galley"]
     fn segments_that_do_not_fit_go_behind_an_ellipsis() {
         let mut harness = harness("/a/b/c/d/e", 200.0);
         harness.run();
