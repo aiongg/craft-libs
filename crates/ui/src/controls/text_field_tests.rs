@@ -1234,15 +1234,19 @@ fn a_host_layouter_lays_the_text_out() {
         ui.fonts_mut(|f| f.layout_job(egui::text::LayoutJob::simple(text.to_owned(), font, egui::Color32::RED, wrap)))
     };
     let mut drawn = Vec::new();
+    let mut text_rect = egui::Rect::NOTHING;
     let output = ctx.run_ui(RawInput::default(), |ui| {
-        let _ = TextField::new("host", "Notes", "abc").layouter(&layouter).show(ui);
+        text_rect = TextField::new("host", "Notes", "abc").layouter(&layouter).show_with_text_rect(ui).1;
     });
     for clipped in &output.shapes {
         if let egui::Shape::Text(t) = &clipped.shape {
-            drawn.push((t.galley.text().to_owned(), t.galley.job.sections[0].format.font_id.clone()));
+            drawn.push((t.galley.text().to_owned(), t.galley.job.sections[0].format.font_id.clone(), t.pos));
         }
     }
     output.drop_without_applying_deltas();
     assert!(seen.borrow().iter().any(|t| t == "abc"));
-    assert!(drawn.iter().any(|(text, font)| text == "abc" && *font == egui::FontId::monospace(20.0)), "{drawn:?}");
+    assert!(
+        drawn.iter().any(|(text, font, pos)| text == "abc" && *font == egui::FontId::monospace(20.0) && pos.x == text_rect.min.x),
+        "{drawn:?} {text_rect:?}"
+    );
 }

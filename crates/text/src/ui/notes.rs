@@ -9,7 +9,7 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use craft_ui::controls::{ControlSize, TextField};
+use craft_ui::controls::TextField;
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::Content;
@@ -234,18 +234,17 @@ impl<'a> NotesEditor<'a> {
             *laid.borrow_mut() = Some((notes, galley.clone()));
             galley
         };
-        let edit = TextField::new(self.id_salt, labels.notes.as_str(), &plain)
+        let (edit, text_rect) = TextField::new(self.id_salt, labels.notes.as_str(), &plain)
             .placeholder(labels.placeholder.as_str())
             .multiline(rows)
             .layouter(&layouter)
-            .show(ui);
+            .show_with_text_rect(ui);
         let changed = match edit.event.as_ref() {
             Some(EditEvent::Commit { changed: false, .. }) | None => None,
             Some(event) => event.value().map(|text| self.notes.typed(text).unwrap_or_else(|| NotesText::from_plain(text))),
         };
         if let Some((notes, galley)) = laid.into_inner() {
-            let origin = text_origin(ui, edit.response.rect);
-            look.paint_markers(&ui.painter().with_clip_rect(edit.response.rect), &notes, &galley, origin);
+            look.paint_markers(&ui.painter().with_clip_rect(edit.response.rect), &notes, &galley, text_rect.min);
         }
         NotesResponse { changed, response: edit.response }
     }
@@ -430,14 +429,4 @@ impl Look {
 #[cfg(test)]
 pub(super) fn notes_galley(ui: &Ui, notes: &NotesText, zoom: f32, width: f32) -> Arc<Galley> {
     Look::of(ui, zoom).galley(ui, notes, width)
-}
-
-/// Where a multi-line text field of `rect` puts its text: `field.pad_x` in from the start edge
-/// and the field's first-line margin down (`TextField` aligns the text to the top left).
-fn text_origin(ui: &Ui, rect: egui::Rect) -> Pos2 {
-    let tokens = Tokens::of(ui);
-    let style = TextField::style(&tokens, ControlSize::Md);
-    let font = tokens.families().font_id(tokens.typography.get(style.role));
-    let line = ui.fonts_mut(|f| f.row_height(&font)) + ui.spacing().extra_text_line_spacing;
-    rect.min + vec2(style.pad_x, ((style.height - line) / 2.0).max(0.0).round())
 }

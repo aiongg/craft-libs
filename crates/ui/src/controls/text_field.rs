@@ -292,6 +292,13 @@ impl<'a> TextField<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> EditResponse<String> {
+        self.show_with_text_rect(ui).0
+    }
+
+    /// [`show`](TextField::show) and the rect of the laid-out text this pass, in screen
+    /// coordinates (an empty rect at the text's start in an empty field): a host draws over the
+    /// text, such as a list marker, relative to it.
+    pub fn show_with_text_rect(self, ui: &mut Ui) -> (EditResponse<String>, Rect) {
         let spec = Spec {
             id_salt: self.id_salt,
             label: &self.label,
@@ -475,7 +482,7 @@ impl<'a> SearchField<'a> {
             id: None,
             layouter: None,
         };
-        show_field(ui, &spec)
+        show_field(ui, &spec).0
     }
 }
 
@@ -548,7 +555,7 @@ fn clear_inset(height: f32, side: f32) -> f32 {
 
 const CLEAR_SIZE: ControlSize = ControlSize::Sm;
 
-fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
+fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> (EditResponse<String>, Rect) {
     let tokens = Tokens::of(ui);
     let mut style = TextField::style(&tokens, spec.size);
     if let Some(role) = spec.role {
@@ -624,7 +631,8 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
             typed.clear(ui);
         }
     }
-    typed.end(ui)
+    let text_rect = typed.text_rect();
+    (typed.end(ui), text_rect)
 }
 
 /// What a field-like box shows: [`TextField`]'s, `NumberField`'s, and a closed `Select`'s
