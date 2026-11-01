@@ -1,11 +1,29 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`ListManagerDialog`]: a named list with a name box and a column of buttons that run, edit,
 //! create or delete entries (N9.09, from GridCraft's Macros dialog, after Excel's).
 
-use egui::Context;
+use craft_theme::TypeRole;
+use egui::{Context, Key, Modifiers, vec2};
 
+use super::dialog::{Dialog, InitialFocus, Outcome};
 use super::dialog_host::{DialogResult, StackDialog};
+use super::footer::{DialogLabels, Footer};
+use super::size::Width;
 use super::stack::{DialogId, DialogStack, dialog_id};
+use super::state::DialogState;
+use crate::behavior::{ClaimedKey, KeyClaim, RowInfo, Selection, SelectionMode};
+use crate::controls::{Button, TextField};
+use crate::list::{List, ListEvent, ListRow};
+use crate::localized::Labels as _;
+use crate::primitives::{Content, Text};
+use crate::text::text_width;
+use crate::theme::{ToEgui, Tokens, TokensOf, role_format};
+
+/// The list's size in points (GridCraft `macro_ui.rs:407`).
+const LIST_SIZE: egui::Vec2 = vec2(330.0, 200.0);
+/// The action buttons' width (GridCraft `macro_ui.rs:440`).
+const BUTTON_WIDTH: f32 = 100.0;
+/// Between the list and the button column.
+const COLUMN_GAP: f32 = 12.0;
 
 crate::words! {
     /// The list manager's standard button words, English by default; the app's own actions
@@ -141,6 +159,7 @@ pub struct ListManagerDialog {
     searchable: bool,
     name: String,
     pressed: Option<ListChoice>,
+    state: DialogState<()>,
 }
 
 impl ListManagerDialog {
@@ -158,6 +177,7 @@ impl ListManagerDialog {
             searchable: false,
             name: String::new(),
             pressed: None,
+            state: DialogState::new(),
         }
     }
 
@@ -171,7 +191,7 @@ impl ListManagerDialog {
         self
     }
 
-    /// Shown in the list, italic and dim, when it has no rows ("This workbook has no scripts or
+    /// Shown in the list, dim, when it has no rows ("This workbook has no scripts or
     /// macros.").
     pub fn empty_text(mut self, text: impl Into<String>) -> Self {
         self.empty = text.into();
@@ -215,6 +235,202 @@ impl StackDialog for ListManagerDialog {
 
     // gridcraft: crates/ui-egui/src/macro_ui.rs:367 macros_dialog
     fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<ListChoice>> {
-        todo!()
+        let cancel_label = DialogLabels::of_ctx(ctx).cancel;
+        let id = self.id;
+        let Self { title, name_label, entries, actions, empty, note, searchable, name, pressed, state, .. } = self;
+        let width = LIST_SIZE.x + COLUMN_GAP + BUTTON_WIDTH;
+        let mut chosen: Option<usize> = None;
+        let mut cancelled = false;
+        let response = Dialog::with_id(id, title.as_str())
+            .stack(stack)
+            .width(Width::Fixed(width))
+            .footer(Footer::none())
+            .initial_focus(InitialFocus::FirstField)
+            .show(ctx, state, &mut (), |ui, ()| {
+                let ctx = ui.ctx().clone();
+                let field_id = id.with("name");
+                let folder = craft_i18n::Folder::new("");
+                let mut label_height = 0.0;
+                ui.horizontal_top(|ui| {
+                    ui.spacing_mut().item_spacing.x = COLUMN_GAP;
+                    ui.vertical(|ui| {
+                        ui.set_width(LIST_SIZE.x);
+                        label_height = ui.add(Text::new(name_label.as_str())).rect.height() + ui.spacing().item_spacing.y;
+                        // Up and Down move the selection while the box has the focus, Enter runs.
+                        let boxed = ctx.memory(|m| m.has_focus(field_id));
+                        if boxed {
+                            KeyClaim::claim(
+                                &ctx,
+                                field_id,
+                                &[Key::ArrowUp, Key::ArrowDown, Key::Enter].map(|key| ClaimedKey::exact(Modifiers::NONE, key)),
+                            );
+                        }
+                        let shown = visible(entries, &folder, name, *searchable);
+                        let mut reveal = None;
+                        if boxed {
+                            let step = ui.input_mut(|i| {
+                                i32::from(i.consume_key(Modifiers::NONE, Key::ArrowDown)) - i32::from(i.consume_key(Modifiers::NONE, Key::ArrowUp))
+                            });
+                            if step != 0 && !shown.is_empty() {
+                                let current = shown.iter().position(|&e| is_named(&entries[e], &folder, name));
+                                let target = match (current, step > 0) {
+                                    (Some(c), true) => (c + 1).min(shown.len() - 1),
+                                    (Some(c), false) => c.saturating_sub(1),
+                                    (None, true) => 0,
+                                    (None, false) => shown.len() - 1,
+                                };
+                                *name = entries[shown[target]].name.clone();
+                                reveal = Some(entries[shown[target]].id.clone());
+                            }
+                        }
+                        let edit = TextField::new(id.with("name-box"), name_label.as_str(), name.as_str()).id(field_id).keep_focus(true).show(ui);
+                        if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+                            name.clone_from(value);
+                        }
+                        let shown = visible(entries, &folder, name, *searchable);
+                        if edit.submitted {
+                            chosen = Some(0).filter(|&first| actions.get(first).is_some_and(|a| is_enabled(a, entries, &folder, name)));
+                        }
+                        let mut selection =
+                            entries.iter().find(|e| is_named(e, &folder, name)).map_or_else(Selection::new, |e| Selection::only(e.id.clone()));
+                        let rows: Vec<RowInfo<String>> = shown.iter().map(|&e| RowInfo::leaf(entries[e].id.clone())).collect();
+                        let tokens = Tokens::of(ui);
+                        let detail_font = role_format(&tokens, TypeRole::Body, Content::Faint.color(&tokens).to_egui()).font_id;
+                        let detail_widths: Vec<f32> = entries
+                            .iter()
+                            .map(|e| e.detail.as_deref().filter(|d| !d.is_empty()).map_or(0.0, |d| text_width(ui, d, &detail_font) + COLUMN_GAP))
+                            .collect();
+                        ui.allocate_ui(LIST_SIZE, |ui| {
+                            if entries.is_empty() {
+                                ui.add(Text::new(empty.as_str()).content(Content::Faint));
+                                return;
+                            }
+                            let mut list = List::new(id.with("list"), title.as_str(), rows.as_slice())
+                                .selection(&mut selection)
+                                .mode(SelectionMode::Single)
+                                .allow_empty(true)
+                                .max_height(LIST_SIZE.y);
+                            if let Some(key) = reveal {
+                                list = list.reveal(key);
+                            }
+                            let out = list.show(ui, |_, key| {
+                                let Some(index) = entries.iter().position(|e| e.id == *key) else { return ListRow::new(key.clone(), "") };
+                                let entry = &entries[index];
+                                let row = ListRow::new(key.clone(), entry.name.as_str());
+                                match entry.detail.as_deref().filter(|d| !d.is_empty()) {
+                                    Some(detail) => {
+                                        let detail = detail.to_owned();
+                                        row.description(detail.clone()).trailing_item(detail_widths[index], move |ui| {
+                                            ui.add(Text::new(detail).content(Content::Faint));
+                                        })
+                                    }
+                                    None => row,
+                                }
+                            });
+                            for event in out.events {
+                                let activated = matches!(event, ListEvent::Activate(_));
+                                match event {
+                                    ListEvent::Selection(change) => {
+                                        if let Some(entry) = change.row.and_then(|row| entries.iter().find(|e| e.id == row)) {
+                                            name.clone_from(&entry.name);
+                                        }
+                                    }
+                                    ListEvent::Clicked(key) | ListEvent::Activate(key) => {
+                                        if let Some(entry) = entries.iter().find(|e| e.id == key) {
+                                            name.clone_from(&entry.name);
+                                        }
+                                        if chosen.is_none() && activated {
+                                            chosen =
+                                                Some(0).filter(|&first| actions.get(first).is_some_and(|a| is_enabled(a, entries, &folder, name)));
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            if out.response.has_focus()
+                                && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete))
+                                && let Some(index) = actions.iter().position(|a| a.id == "delete")
+                                && is_enabled(&actions[index], entries, &folder, name)
+                            {
+                                chosen = Some(index);
+                            }
+                        });
+                    });
+                    ui.vertical(|ui| {
+                        ui.add_space(label_height);
+                        for (index, action) in actions.iter().enumerate() {
+                            let enabled = is_enabled(action, entries, &folder, name);
+                            let response =
+                                ui.add(Button::new(action.label.as_str()).id_salt((id, "action", index)).min_width(BUTTON_WIDTH).enabled(enabled));
+                            let response = match &action.tooltip {
+                                Some(tip) => response.on_hover_text(tip.as_str()).on_disabled_hover_text(tip.as_str()),
+                                None => response,
+                            };
+                            if response.clicked() {
+                                chosen = Some(index);
+                            }
+                        }
+                        ui.add_space(ui.spacing().item_spacing.y);
+                        if ui.add(Button::new(cancel_label.as_str()).id_salt((id, "cancel")).min_width(BUTTON_WIDTH)).clicked() {
+                            cancelled = true;
+                        }
+                    });
+                });
+                ui.add_space(ui.spacing().item_spacing.y);
+                let description = entries.iter().find(|e| is_named(e, &folder, name)).map(|e| e.description.clone()).unwrap_or_default();
+                ui.add(Text::new(description_label(&ctx)));
+                ui.add(Text::new(if description.is_empty() { " ".to_owned() } else { description }).content(Content::Muted));
+                if let Some(note) = note {
+                    ui.add_space(ui.spacing().item_spacing.y);
+                    ui.add(Text::new(note.as_str()).role(TypeRole::Caption).content(Content::Muted));
+                }
+            });
+        if cancelled || matches!(response.outcome, Some(Outcome::Cancel | Outcome::Close)) {
+            return Some(DialogResult::Cancel);
+        }
+        let action = actions.get(chosen?)?;
+        let found = entries.iter().find(|e| is_named(e, &craft_i18n::Folder::new(""), name) && action_accepts(action, e));
+        let choice = ListChoice { action: action.id.clone(), entry: found.map(|e| e.id.clone()), name: name.trim().to_owned() };
+        if action.closes {
+            Some(DialogResult::Ok(choice))
+        } else {
+            *pressed = Some(choice);
+            None
+        }
     }
+}
+
+/// Whether the name box names `entry`: its trimmed text equals the entry's name, case ignored.
+fn is_named(entry: &ListEntry, folder: &craft_i18n::Folder, name: &str) -> bool {
+    folder.fold(&entry.name).as_str() == folder.fold(name.trim()).as_str()
+}
+
+/// Whether `action` takes `entry` as its target.
+fn action_accepts(action: &ListAction, entry: &ListEntry) -> bool {
+    match action.enabled {
+        ActionEnabled::OnEntry { kind } => kind.is_none_or(|k| k == entry.kind),
+        ActionEnabled::Always | ActionEnabled::OnNewName => true,
+    }
+}
+
+/// The action's button state for the name box's text.
+fn is_enabled(action: &ListAction, entries: &[ListEntry], folder: &craft_i18n::Folder, name: &str) -> bool {
+    match action.enabled {
+        ActionEnabled::Always => true,
+        ActionEnabled::OnEntry { .. } => entries.iter().any(|e| is_named(e, folder, name) && action_accepts(action, e)),
+        ActionEnabled::OnNewName => !name.trim().is_empty() && !entries.iter().any(|e| is_named(e, folder, name)),
+    }
+}
+
+/// The indices of the rows the list shows: all of them, or with `searchable` those whose folded
+/// name contains the folded text of the box.
+fn visible(entries: &[ListEntry], folder: &craft_i18n::Folder, name: &str, searchable: bool) -> Vec<usize> {
+    let query = folder.fold(name.trim());
+    (0..entries.len())
+        .filter(|&i| !searchable || query.as_str().is_empty() || folder.fold(&entries[i].name).as_str().contains(query.as_str()))
+        .collect()
+}
+
+fn description_label(ctx: &Context) -> String {
+    ListManagerLabels::of_ctx(ctx).description
 }

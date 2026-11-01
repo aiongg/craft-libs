@@ -114,7 +114,7 @@ pub struct EventLogOutput {
 ///   `text.muted` ([`EventLogLabels::error_count`], `warning_count`, `message_count`, with the locale's plural
 ///   forms), then Clear All at the end.
 /// - **Rows** (newest first, those at or above the filter's level): a [`ListRow`](super::ListRow)
-///   22 points high with the level glyph ([`paint_event_glyph`]) 10 points in, the message
+///   22 points high with the level glyph ([`paint_event_glyph`]) in the icon slot, the message
 ///   (with "(×n)" for a repeated one, [`EventLogLabels::repeated`]) clipped before the age, and
 ///   the age at the end in the `Caption` role and `text.faint`
 ///   ([`relative_age`](crate::localized::relative_age) of `now_ms - time_ms` in whole seconds; a
@@ -223,7 +223,8 @@ impl<'a> EventLog<'a> {
                     let glyph_tokens = &tokens;
                     ListRow::new(id, message)
                         .accessible_name(name)
-                        .thumb_sized(vec2(GLYPH_BOX, GLYPH_BOX), move |painter, rect| paint_event_glyph(painter, glyph_tokens, rect.center(), level))
+                        .glyph(move |painter, rect| paint_event_glyph(painter, glyph_tokens, rect.center(), level))
+                        .striped(at % 2 == 1)
                         .trailing_item(age_width, move |ui| {
                             ui.add(Text::new(age).role(TypeRole::Caption).content(Content::Faint));
                         })
