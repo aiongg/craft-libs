@@ -8,6 +8,24 @@ crate::words! {
     pub struct StoryLabels {
         percent: "story.percent" = "{n}%";
         all: "story.all" = "All";
+        about_blurb: "story.aboutBlurb" = "Studio, a native image editor.";
+        about_community: "story.aboutCommunity" = "Join the community";
+        about_source: "story.aboutSource" = "Source code";
+        about_website: "story.aboutWebsite" = "Website";
+        document: "story.document" = "Document";
+        macro_brighten: "story.macroBrighten" = "Brighten";
+        macro_brighten_info: "story.macroBrightenInfo" = "Raises the exposure by one stop.";
+        macro_name: "story.macroName" = "Macro name:";
+        macro_resize: "story.macroResize" = "Resize for Web";
+        macro_resize_info: "story.macroResizeInfo" = "Scales to 1600 px wide and exports a JPEG.";
+        macro_sharpen: "story.macroSharpen" = "Sharpen";
+        macro_sharpen_info: "story.macroSharpenInfo" = "Unsharp mask, 80 percent, radius 1.2.";
+        macros: "story.macros" = "Macros";
+        macros_empty: "story.macrosEmpty" = "No macros recorded yet.";
+        macros_note: "story.macrosNote" = "Recorded macros run on the active document.";
+        picked: "story.picked" = "Picked: {action}";
+        result_ok: "story.resultOk" = "OK, {value}";
+        last_link: "story.lastLink" = "Link opened: {url}";
         amount: "story.amount" = "Amount";
         app_name: "story.appName" = "Studio";
         applies_at_next_launch: "story.appliesAtNextLaunch" = "Applies at next launch.";

@@ -115,6 +115,10 @@ pub(crate) fn stories() -> Vec<Story> {
     all.extend(super::stack_stories::stories());
     all.extend(super::framework_stories::stories());
     all.extend(super::files_stories::stories());
+    all.extend(super::guides_stories::stories());
+    all.extend(super::about_stories::stories());
+    all.extend(super::password_stories::stories());
+    all.extend(super::list_manager_stories::stories());
     all
 }
 

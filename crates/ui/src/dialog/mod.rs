@@ -36,6 +36,7 @@
 //! `crates/ui/tests/dumps/components/`.
 
 mod about;
+mod about_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod about_tests;
 mod alert;
@@ -70,11 +71,13 @@ pub(crate) mod full_window_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod full_window_tests;
 mod guides;
+mod guides_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod guides_tests;
 mod history;
 mod keys;
 mod list_manager;
+mod list_manager_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod list_manager_tests;
 mod new_document;
@@ -85,6 +88,7 @@ mod params;
 mod params_tests;
 pub mod pass;
 mod password;
+mod password_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod password_tests;
 mod placement;

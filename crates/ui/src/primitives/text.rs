@@ -189,6 +189,14 @@ pub(crate) fn stories() -> Vec<Story> {
             },
             show_truncate
         ),
+        typed_story!(
+            "primitives/text/elide",
+            Level::Primitives,
+            "Text",
+            "Elide",
+            ElideArgs { text: "IMG_2024_summer_holiday_final_edit.psd".into(), width: 180.0 },
+            show_elide
+        ),
     ]
 }
 
@@ -225,6 +233,28 @@ fn show_contents(ui: &mut Ui, _: &mut NoArgs) {
                 }
             }
         }
+    });
+}
+
+#[derive(StoryArgs, Debug, PartialEq)]
+struct ElideArgs {
+    text: String,
+    #[arg(range = 40.0..=400.0)]
+    width: f32,
+}
+
+/// One line each, shortened at the end, the middle and the start, a path by dropping leading
+/// folders, and a right-to-left name that keeps its logical start.
+fn show_elide(ui: &mut Ui, args: &mut ElideArgs) {
+    let width = args.width.min(ui.available_width());
+    let path = "/home/ada/Pictures/2026/summer holiday/IMG_2024_summer_holiday_final_edit.psd";
+    let right_to_left = "שם קובץ ארוך מאוד שלא נכנס בשורה אחת של הפאנל.psd";
+    crate::story::variant_list(ui, "text-elide", |form| {
+        for (name, at) in [("End", ElideAt::End), ("Middle", ElideAt::Middle), ("Start", ElideAt::Start)] {
+            crate::story::variant_row(form, name, |ui| ui.add(Text::new(args.text.as_str()).elide(at).max_width(width)));
+        }
+        crate::story::variant_row(form, "Path", |ui| ui.add(Text::new(path).elide_path().max_width(width)));
+        crate::story::variant_row(form, "RTL", |ui| ui.add(Text::new(right_to_left).elide(ElideAt::End).max_width(width)));
     });
 }
 
