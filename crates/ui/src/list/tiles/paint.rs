@@ -40,7 +40,9 @@ pub struct TileLook<'a> {
     pub content: &'a TileContent,
     /// The picture's rect.
     pub picture: Rect,
-    /// Where the caption goes, under the picture; none for a tile without one.
+    /// Where the caption goes: under the picture, or beside it, top aligned, in the column at its
+    /// reading start (`CaptionPlace::Start`: the name is then centred in the column, a hidden
+    /// tile's name is slashed and its marks are drawn under it); none for a tile without one.
     pub caption: Option<Rect>,
     /// Whether the tile is selected.
     pub selected: bool,
@@ -125,9 +127,6 @@ pub fn paint_tile<K: TextureKey>(
     // lightcraft: crates/ui-egui/src/panels/grid.rs:766 (`cell`, `paint_cell_thumbnail` :816, `paint_cell_caption` :848, `paint_cell_badges` :878).
     let tokens = Tokens::of(ui);
     let content = look.content;
-    if content.hidden || !content.marks.is_empty() {
-        super::strip::paint_hidden_and_marks();
-    }
     let mut faded = ui.painter().clone();
     if !content.enabled {
         faded.multiply_opacity(DISABLED_OPACITY);
@@ -154,6 +153,7 @@ pub fn paint_tile<K: TextureKey>(
     if content.rejected || content.dimmed {
         painter.rect_filled(p, 0.0, style.veil);
     }
+    super::strip::paint_hidden_and_marks(painter, &tokens, style, look, pen.set);
     pen.range_and_scrub();
     let floor = pen.status_band(labels);
     let bar = Rect::from_min_max(pos2(p.left(), floor - style.bar), pos2(p.right(), floor));
@@ -325,6 +325,12 @@ impl Pen<'_> {
     fn caption(&self) {
         let (style, content, look) = (self.style, self.look.content, self.look);
         let Some(caption) = look.caption else { return };
+        if super::strip::is_start(look) {
+            if let Some((galley, at)) = super::strip::start_name(self.painter, self.tokens, style, look) {
+                self.painter.galley(at, galley, style.caption);
+            }
+            return;
+        }
         let name_color = if matches!(content.status, TileStatus::Offline(_)) {
             self.tokens.color.status.bad.fg.to_egui()
         } else if look.selected {
@@ -426,5 +432,6 @@ pub(super) fn accessible_name(ctx: &egui::Context, content: &TileContent, labels
         details.push(stack_text(ctx, labels, n));
     }
     details.extend(content.badges.iter().map(|b| b.tip.clone()).filter(|tip| !tip.is_empty()));
+    details.extend(content.marks.iter().map(|m| m.tip.clone()).filter(|tip| !tip.is_empty()));
     if details.is_empty() { content.name.clone() } else { fmt(&labels.tile_name, &[("name", &content.name), ("details", &details.join(", "))]) }
 }

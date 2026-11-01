@@ -8,18 +8,20 @@ use crate::canvas::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource, 
 use crate::controls::{ControlSize, Rating};
 use crate::direction::{self, Direction};
 use crate::edit::EditEvent;
+use crate::icons::Icon;
 use crate::testing::{HarnessExt as _, events};
 use crate::theme::{Base, current, install};
-use egui::accesskit::Role;
+use egui::accesskit::{AriaCurrent, Role};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Ui, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
+use super::TileMark;
 use super::fake::FakeTiles;
 use super::groups::pinned_rect;
 use super::layout::{ArrangeSpacing, arrange};
 use super::paint::badge_rects;
-use super::{BadgeVisibility, RatingKeys, SpaceAction, TileContent, TileEvent, TileGrid, TileGroup, TileLayout, TileStyle};
+use super::{BadgeVisibility, CaptionPlace, RatingKeys, SpaceAction, TileContent, TileEvent, TileGrid, TileGroup, TileLayout, TileStyle};
 
 /// Cmd on a Mac and Ctrl elsewhere, as a platform reports it: `ctrl` with the abstract `command`.
 const CMD: Modifiers = Modifiers { alt: false, ctrl: true, shift: false, mac_cmd: false, command: true };
@@ -62,6 +64,15 @@ struct Host {
     start_rename: Option<usize>,
     /// The last pass's `TileGridOutput::drop_target`.
     drop_target: Option<Move<usize>>,
+    /// The strip builders.
+    current: Option<usize>,
+    caption_place: CaptionPlace,
+    group_open: Option<Vec<bool>>,
+    group_menus: bool,
+    new_item: Option<String>,
+    file_drops: bool,
+    /// The last pass's `TileGridOutput::file_gap`.
+    file_gap: Option<usize>,
 }
 
 impl Host {
@@ -83,6 +94,13 @@ impl Host {
             renamable: false,
             start_rename: None,
             drop_target: None,
+            current: None,
+            caption_place: CaptionPlace::Below,
+            group_open: None,
+            group_menus: false,
+            new_item: None,
+            file_drops: false,
+            file_gap: None,
         }
     }
 
@@ -109,6 +127,13 @@ fn show(ui: &mut Ui, host: &mut Host) {
         renamable,
         start_rename,
         drop_target,
+        current,
+        caption_place,
+        group_open,
+        group_menus,
+        new_item,
+        file_drops,
+        file_gap,
         ..
     } = host;
     let mut grid = TileGrid::new("grid", &*tiles)
@@ -129,9 +154,20 @@ fn show(ui: &mut Ui, host: &mut Host) {
     if let Some(key) = start_rename.take() {
         grid = grid.start_rename(key);
     }
+    grid = grid.caption_place(*caption_place).group_menus(*group_menus).file_drops(*file_drops);
+    if let Some(key) = *current {
+        grid = grid.current(key);
+    }
+    if let Some(open) = group_open {
+        grid = grid.group_disclosure(open);
+    }
+    if let Some(label) = new_item {
+        grid = grid.new_item_row(label.clone());
+    }
     let output = grid.show(ui);
     events.extend(output.events);
     *drop_target = output.drop_target;
+    *file_gap = output.file_gap;
 }
 
 fn harness(host: Host) -> Harness<'static, Host> {
@@ -754,47 +790,126 @@ fn two_thumbnail_sliders_with_one_salt_in_two_scopes_have_two_ids() {
     assert_ne!(ids[0], ids[1]);
 }
 
-// The strip parts (craft-pages' thumbnails): `current` draws the current ring on a tile that is not
-// selected, marks its option `aria_current`, and a new current tile scrolls into view.
+// The strip parts (craft-pages' thumbnails): `current` marks its option `aria_current` without
+// selecting it, and a new current tile scrolls into view.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-fn current_tile_is_ringed_and_revealed() {
-    todo!()
+fn current_tile_is_marked_and_revealed() {
+    let mut host = Host::new(60);
+    host.current = Some(0);
+    let mut harness = harness(host);
+    assert_eq!(tile(&harness, 0).accesskit_node().aria_current(), Some(AriaCurrent::Page));
+    harness.state_mut().current = Some(55);
+    harness.run_steps(8);
+    assert_eq!(tile(&harness, 55).accesskit_node().aria_current(), Some(AriaCurrent::Page));
+    assert!(harness.query_by_label_contains("Tile 0,").is_none() && harness.query_by_label("Tile 0").is_none(), "scrolled away from the first row");
+    assert!(selected(&harness).is_empty(), "the current tile is not selected");
 }
 
-// `CaptionPlace::Start`: the name sits beside the picture at the reading start (the right in RTL),
-// a hidden tile's name has the slash and its picture the veil, and a mark's tip joins the accessible name.
+// `CaptionPlace::Start`: the card is wider by the caption column and has no caption band; the
+// column sits at the reading start (the right in RTL); a mark's tip joins the accessible name.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-fn start_captions_show_names_marks_and_hidden_tiles() {
-    todo!()
+fn start_captions_widen_the_card_and_name_their_marks() {
+    for direction in [Direction::Ltr, Direction::Rtl] {
+        let mut host = Host::new(6);
+        host.caption_place = CaptionPlace::Start;
+        host.direction = direction;
+        host.tiles.describe = Box::new(|key, content| {
+            content.hidden = key == 1;
+            if key == 2 {
+                content.marks = vec![TileMark { icon: Icon::Star, tip: "Has animations".to_owned() }];
+            }
+        });
+        let harness = harness(host);
+        let style = style(&harness);
+        let cell = tile(&harness, 0).rect();
+        assert_eq!(cell.size(), vec2(100.0 + style.start_caption_width, 100.0), "{direction:?}");
+        let panel = harness.get_by_role(Role::ListBox).rect();
+        match direction {
+            Direction::Ltr => assert!(cell.left() - panel.left() < 2.0 * style.inset, "{cell:?}"),
+            Direction::Rtl => assert!(panel.right() - cell.right() < 2.0 * style.inset, "{cell:?}"),
+        }
+        assert_eq!(tile(&harness, 2).accesskit_node().label().as_deref(), Some("Tile 2, Has animations"));
+    }
 }
 
 // `group_disclosure`: a chevron click reports GroupOpen without picking the group; a closed
-// group's tiles are skipped by Down and absent from AccessKit; `group_menus` reports
-// GroupContextMenu on a secondary click on a header.
+// group's tiles are skipped by Down and absent from AccessKit; `group_menus`
+// reports GroupContextMenu on a secondary click on a header.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn closed_groups_hide_their_tiles_and_headers_report_menus() {
-    todo!()
+    let mut host = Host::new(12);
+    host.groups = [(0, 4, "Monday"), (4, 8, "Tuesday")]
+        .into_iter()
+        .map(|(start, count, title)| TileGroup { start, count, title: title.to_owned(), detail: String::new() })
+        .collect();
+    host.group_open = Some(vec![false, true]);
+    host.group_menus = true;
+    let mut harness = harness(host);
+    assert!(harness.query_by_label("Tile 0").is_none(), "tiles of a closed group are not built");
+    assert!(harness.query_by_label("Tile 4").is_some());
+
+    // Down from the first tile of the open group lands in its second row.
+    click(&mut harness, 4);
+    key(&mut harness, Modifiers::NONE, Key::ArrowDown);
+    assert_eq!(selected(&harness), [9]);
+    key(&mut harness, Modifiers::NONE, Key::ArrowLeft);
+    key(&mut harness, Modifiers::NONE, Key::Home);
+    key(&mut harness, Modifiers::NONE, Key::ArrowUp);
+    assert_eq!(selected(&harness), [4], "the closed group's tiles are out of reach");
+
+    harness.state_mut().take();
+    let chevron = harness.get_by_label("Expand Monday").rect().center();
+    harness.click_at(chevron);
+    harness.run_steps(8);
+    let events = harness.state_mut().take();
+    assert!(events.iter().any(|e| matches!(e, TileEvent::GroupOpen { group: 0, open: true })), "{events:?}");
+    assert!(!events.iter().any(|e| matches!(e, TileEvent::GroupPicked { .. })), "{events:?}");
+    assert_eq!(selected(&harness), [4], "the chevron does not pick the group");
+
+    let header = harness.get_by_label("Tuesday").rect().center();
+    harness.click_at_with(header, PointerButton::Secondary, Modifiers::NONE);
+    harness.run_steps(8);
+    let events = harness.state_mut().take();
+    assert!(events.iter().any(|e| matches!(e, TileEvent::GroupContextMenu { group: 1, .. })), "{events:?}");
 }
 
 // `new_item_row`: a click, and Enter after Tab from the grid, report NewItem.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn new_item_row_reports_new_item() {
-    todo!()
+    let mut host = Host::new(6);
+    host.new_item = Some("New Slide".to_owned());
+    let mut harness = harness(host);
+    let button = harness.get_by_label("New Slide").rect().center();
+    harness.click_at(button);
+    harness.run_steps(8);
+    let events = harness.state_mut().take();
+    assert_eq!(events.iter().filter(|e| matches!(e, TileEvent::NewItem)).count(), 1, "{events:?}");
+
+    click(&mut harness, 0);
+    harness.state_mut().take();
+    key(&mut harness, Modifiers::NONE, Key::Tab);
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    let events = harness.state_mut().take();
+    assert!(events.iter().any(|e| matches!(e, TileEvent::NewItem)), "{events:?}");
+    assert!(!events.iter().any(|e| matches!(e, TileEvent::Activate(_))), "{events:?}");
 }
 
 // `file_drops`: a hovered file over the gap after tile 2 reports `file_gap == Some(3)`; none without
 // a hovered file.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn file_drops_report_the_gap() {
-    todo!()
+    let mut host = Host::new(6);
+    host.file_drops = true;
+    let mut harness = harness(host);
+    let gap = style(&harness).gap;
+    let tile_2 = picture(&harness, 2);
+    harness.event(Event::PointerMoved(pos2(tile_2.right() + gap / 2.0, tile_2.center().y)));
+    harness.run_steps(2);
+    assert_eq!(harness.state().file_gap, None, "no file is hovering");
+    harness.input_mut().hovered_files.push(egui::HoveredFile::default());
+    harness.run_steps(2);
+    assert_eq!(harness.state().file_gap, Some(3));
+    harness.input_mut().hovered_files.clear();
+    harness.run_steps(2);
+    assert_eq!(harness.state().file_gap, None);
 }
