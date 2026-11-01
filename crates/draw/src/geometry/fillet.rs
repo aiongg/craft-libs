@@ -4,7 +4,7 @@
 //! app's engine rounds its polygons and stars with it, so the widget always sits on the arc the
 //! engine draws.
 
-#![expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands (task PE-A5)")]
+use std::f64::consts::FRAC_PI_2;
 
 use kurbo::{Point, Vec2};
 
@@ -29,9 +29,9 @@ impl Fillet {
     /// How far the arc's centre moves per unit of radius: `bisector / sin(half_angle)`. A right
     /// angle's is `(±1, ±1)`. The corner widgets project a drag on it.
     pub fn step(&self) -> Vec2 {
-        // pc: crates/ui-egui/src/tools/corner_radius.rs:75-79 (`bisector / sin`, `None` below 1e-9;
-        // `half_angle` is never that small here).
-        todo!()
+        // pc: crates/ui-egui/src/tools/corner_radius.rs:75-79 (`bisector / sin`; `half_angle` is
+        // never small enough here for the division to blow up).
+        self.bisector / self.half_angle.sin()
     }
 }
 
@@ -46,5 +46,34 @@ impl Fillet {
 /// large radius (PhotoCraft passes 1e12) to get the largest one the vertex takes.
 pub fn fillet(prev: Point, vertex: Point, next: Point, radius: f64) -> Option<Fillet> {
     // pc: crates/vector/src/shapes.rs:128-165 `fillet` (constants as there).
-    todo!()
+    if radius.is_nan() || radius <= 0.0 {
+        return None;
+    }
+    let unit = |to: Point| {
+        let d = to - vertex;
+        let len = d.hypot();
+        (len > 1e-9).then(|| (d / len, len))
+    };
+    let (u1, l1) = unit(prev)?;
+    let (u2, l2) = unit(next)?;
+    let half = u1.dot(u2).clamp(-1.0, 1.0).acos() / 2.0;
+    if !(1e-6..=FRAC_PI_2 - 1e-6).contains(&half) {
+        return None;
+    }
+    let radius = radius.min(l1.min(l2) / 2.0 * half.tan());
+    let sum = u1 + u2;
+    let len = sum.hypot();
+    if len < 1e-9 {
+        return None;
+    }
+    let bisector = sum / len;
+    let tangent = radius / half.tan();
+    Some(Fillet {
+        centre: vertex + bisector * (radius / half.sin()),
+        from: vertex + u1 * tangent,
+        to: vertex + u2 * tangent,
+        radius,
+        bisector,
+        half_angle: half,
+    })
 }
