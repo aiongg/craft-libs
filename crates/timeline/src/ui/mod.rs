@@ -46,7 +46,7 @@ mod overview_tests;
 mod panel_tests;
 #[cfg(test)]
 mod preview_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod render_queue_tests;
 #[cfg(test)]
 mod ruler_tests;
