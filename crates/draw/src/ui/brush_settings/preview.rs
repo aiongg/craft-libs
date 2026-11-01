@@ -1,11 +1,15 @@
 //! The stroke preview: Photoshop's S-curve test stroke as data ([`PreviewStroke`]) and the strip
 //! that shows the app's rendering of it ([`BrushStrokeStrip`]).
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-use craft_ui::canvas::textures::Revision;
-use egui::{AsIdSalt, ColorImage, IdSalt, Response, Ui};
+use std::sync::Arc;
+
+use craft_ui::canvas::textures::{Revision, TextureCache, TextureCacheOptions};
+use craft_ui::localized::SharedLabels as _;
+use craft_ui::theme::{Tokens, TokensOf as _};
+use egui::{AsIdSalt, Color32, ColorImage, IdSalt, Rect, Response, Role, Sense, StrokeKind, Ui, WidgetInfo, pos2, vec2};
 
 use super::labels::BrushSettingsLabels;
+use super::style::BrushSettingsStyle;
 
 /// One point of the test stroke, in pixels of the strip image.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -53,14 +57,25 @@ impl PreviewStroke {
     /// The samples, in drawing order.
     pub fn samples(&self) -> Vec<PreviewSample> {
         // pc: crates/ui-egui/src/panels/brush_preview.rs:119-127 (n = 64, x = 10 + s (w − 20), y = h/2 − sin(2πs) 0.22 h, pressure max(sin(πs), 0.05))
-        todo!()
+        let (w, h) = (f64::from(self.width), f64::from(self.height));
+        let last = (Self::SAMPLES - 1) as f64;
+        (0..Self::SAMPLES)
+            .map(|i| {
+                let s = i as f64 / last;
+                PreviewSample {
+                    x: Self::MARGIN + s * (w - 2.0 * Self::MARGIN),
+                    y: h / 2.0 - (s * std::f64::consts::TAU).sin() * h * Self::AMPLITUDE,
+                    pressure: ((s * std::f64::consts::PI).sin() as f32).max(Self::PRESSURE_FLOOR),
+                }
+            })
+            .collect()
     }
 
     /// The scale for a brush `diameter` pixels across: `min(1, FIT × height / max(diameter, 1))`.
     /// The engine multiplies the brush size (and a dual brush's) by it, at least 1 pixel.
     pub fn fit(&self, diameter: f64) -> f64 {
         // pc: crates/ui-egui/src/panels/brush_preview.rs:111-113 (k = min(1, 0.55 h / size); sizes floored at 1)
-        todo!()
+        (Self::FIT * f64::from(self.height) / diameter.max(1.0)).min(1.0)
     }
 }
 
@@ -96,6 +111,27 @@ impl BrushStrokeStrip {
     pub fn show(self, ui: &mut Ui, make: impl FnOnce([usize; 2]) -> ColorImage) -> Response {
         // pc: crates/ui-egui/src/panels/brush_panel.rs:388-391 (strip on `field` fill; replaced: `SigCache` by `TextureCache`)
         // pc: crates/ui-egui/src/panels/brush_preview.rs:16-40 `SigCache` (one slot per strip, re-render on a new signature)
-        todo!()
+        let Self { id_salt, revision, labels } = self;
+        let labels = labels.map(Arc::new).unwrap_or_else(|| BrushSettingsLabels::shared(ui));
+        let tokens = Tokens::of(ui);
+        let style = BrushSettingsStyle::of(&tokens);
+        let radius = tokens.radius.control;
+        let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), style.strip_height), Sense::hover());
+        let ppp = ui.ctx().pixels_per_point();
+        let pixels = [rect.width(), rect.height()].map(|side| (side * ppp).round().max(1.0) as usize);
+        if ui.is_rect_visible(rect) {
+            let cache = TextureCache::<()>::in_context(ui.ctx(), id_salt, TextureCacheOptions::frames());
+            let picture = cache.get_or_put(ui.ctx(), (), Revision::of(&(revision, pixels)), || make(pixels));
+            let painter = ui.painter();
+            painter.rect_filled(rect, radius, style.strip_fill);
+            painter.add(
+                egui::epaint::RectShape::filled(rect, radius, Color32::WHITE)
+                    .with_texture(picture.id, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0))),
+            );
+            painter.rect_stroke(rect, radius, style.strip_border, StrokeKind::Inside);
+        }
+        let name = labels.stroke_preview.clone();
+        response.widget_info(|| WidgetInfo::labeled(Role::Image, ui.is_enabled(), &name));
+        response
     }
 }
