@@ -26,7 +26,7 @@ use craft_ui::localized::units::LengthUnit;
 use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryLabels, drive, lock, shared};
+use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryLabels, dialog_closed, dialog_shown, drive, lock, shared};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_ui::typed_story;
 use egui::{Ui, vec2};
@@ -615,11 +615,11 @@ fn page_preview(ui: &mut Ui, args: &mut DialogArgs) {
     in_area(ui, AREA_ASPECT, |ui| {
         let _ = PageThumbnails::new("behind", &pages, &mut demo.picked, demo.at).show(ui);
     });
-    if args.open {
+    if dialog_shown(ui, args.open) {
         let shown: Vec<usize> = (0..PREVIEW_PAGES).collect();
         let out = PagePreview::new("preview", &pages, &shown, &mut demo.at).show(ui.ctx());
         if out.closed {
-            args.open = false;
+            dialog_closed(ui, &mut args.open);
         }
     }
 }
