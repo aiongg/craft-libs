@@ -14,14 +14,14 @@ mod tools;
 mod tools_tests;
 
 use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, vec2};
-use kurbo::{Affine, BezPath, CubicBez, ParamCurve as _, ParamCurveNearest as _, PathEl, Point, Rect, Vec2};
+use kurbo::{Affine, BezPath, CubicBez, ParamCurve as _, PathEl, Point, Rect, Vec2};
 
 pub use mark::{AnchorsShown, HitMark, SegmentMark};
 pub use model::{EditPath, EditSubpath, HandleSide, Knot, KnotRef, PathEdit, PathSelection};
 
 use craft_ui::behavior::nudge;
 use craft_ui::canvas::claim::PrimaryPress;
-use craft_ui::canvas::{CanvasView, Claim, Marquee, MarqueeDrag, MarqueeLook, Part, PartFocus, RulerUnits, hit};
+use craft_ui::canvas::{CanvasView, Claim, Marquee, MarqueeDrag, MarqueeLook, Part, PartFocus, RulerUnits};
 use craft_ui::edit::order::Turn;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::words::format_in;
@@ -487,14 +487,12 @@ impl<'a> BezierOverlay<'a> {
     }
 
     /// How a clicked segment shows; [`SegmentMark::HandlesOnly`] by default (gap row 36).
-    // Task PE-A3 makes `paint` read it; until then the selected segment draws as `Line`.
     pub fn segment_mark(mut self, mark: SegmentMark) -> Self {
         self.segment_mark = mark;
         self
     }
 
     /// Whether anchors and handles show; [`AnchorsShown::All`] by default (gap row 38).
-    // Task PE-A3 makes `paint`, `parts` and the hit test read it.
     pub fn anchors(mut self, anchors: AnchorsShown) -> Self {
         self.anchors = anchors;
         self
@@ -504,7 +502,6 @@ impl<'a> BezierOverlay<'a> {
     /// for paths without a colour of their own, a [`thickness`](PathOptionsSettings::thickness)
     /// replaces `bezier.line` (and `bezier.selected_segment` grows by the same amount). The
     /// rubber band setting is the pen draft's. None by default: the tokens' look.
-    // Task PE-A3 applies it in `show` before `paint`.
     pub fn path_options(mut self, options: &'a PathOptionsSettings) -> Self {
         self.path_options = Some(options);
         self
@@ -538,8 +535,18 @@ impl<'a> BezierOverlay<'a> {
         let ctx = ui.ctx().clone();
         let id = ui.make_persistent_id(self.id_salt);
         let style = self.look.unwrap_or_else(|| BezierOverlay::style(&Tokens::of(ui)));
-        let limited = self.paths.iter().map(EditPath::anchor_count).sum::<usize>() > MAX_ANCHORS;
-        let shown = if limited { Vec::new() } else { self.shown_handles(view) };
+        let mut style = style;
+        if let Some(options) = self.path_options {
+            if let Some([r, g, b]) = options.color {
+                style.color = Color32::from_rgb(r, g, b);
+            }
+            if let Some(thickness) = options.thickness {
+                style.selected_segment += thickness - style.line;
+                style.line = thickness;
+            }
+        }
+        let limited = self.anchors == AnchorsShown::Hidden || self.paths.iter().map(EditPath::anchor_count).sum::<usize>() > MAX_ANCHORS;
+        let shown = if limited { Vec::new() } else { hit_test::shown_handles(self.paths, self.selection, self.handles, view) };
         let pass = Pass { ctx: ctx.clone(), id, canvas, view, style, shown, limited };
         let editing = self.tool != BezierTool::Show && ui.is_enabled();
         let mut out = BezierResponse { id, event: None, select: None, insert: None, delete: None, context: None, claimed: false };
@@ -981,73 +988,9 @@ impl<'a> BezierOverlay<'a> {
         parts
     }
 
-    /// The handles to show, in path order, in then out, leaving out retracted ones.
-    fn shown_handles(&self, view: &CanvasView) -> Vec<Shown> {
-        let mut shown = Vec::new();
-        let sel = self.selection;
-        for (index, path) in self.paths.iter().enumerate() {
-            let segment_ends = sel.segment.filter(|_| sel.path == Some(path.key)).and_then(|s| {
-                let (a, b) = path.subpaths.get(s.subpath)?.segment_ends(s.knot)?;
-                Some((KnotRef::new(s.subpath, a), KnotRef::new(s.subpath, b)))
-            });
-            for knot_ref in path.knot_refs() {
-                let Some(knot) = path.knot(knot_ref) else { continue };
-                for side in [HandleSide::In, HandleSide::Out] {
-                    let wanted = match self.handles {
-                        HandlesShown::All => true,
-                        HandlesShown::Selected => {
-                            sel.has_anchor(path.key, knot_ref)
-                                || segment_ends
-                                    .is_some_and(|(a, b)| (side == HandleSide::Out && a == knot_ref) || (side == HandleSide::In && b == knot_ref))
-                        }
-                    };
-                    if wanted && !knot.retracted(side) {
-                        shown.push(Shown { path: index, knot: knot_ref, side, at: view.to_screen(knot.handle(side)) });
-                    }
-                }
-            }
-        }
-        shown
-    }
-
-    /// What is under `pointer`: the shown handles first, then anchors, then segments; the nearest
-    /// within `bezier.hit` of each kind, of equal distances the path drawn last.
+    /// What is under `pointer`, as [`BezierOverlay::hit_test`] answers it for this pass.
     fn hit_at(&self, pass: &Pass<'_>, pointer: Pos2) -> Option<BezierHit> {
-        let reach = pass.style.hit;
-        let nearest = |best: &mut Option<(BezierHit, f32)>, hit: BezierHit, d: f32| {
-            if d <= reach && best.is_none_or(|(_, bd)| d <= bd) {
-                *best = Some((hit, d));
-            }
-        };
-        let mut best = None;
-        for s in &pass.shown {
-            let path = self.paths[s.path].key;
-            nearest(&mut best, BezierHit::Handle { path, knot: s.knot, side: s.side }, hit::point(pointer, s.at));
-        }
-        if best.is_none() && !pass.limited {
-            for path in self.paths {
-                for k in path.knot_refs() {
-                    if let Some(knot) = path.knot(k) {
-                        nearest(&mut best, BezierHit::Anchor { path: path.key, knot: k }, hit::point(pointer, pass.view.to_screen(knot.anchor)));
-                    }
-                }
-            }
-        }
-        if best.is_none() {
-            let to_screen = pass.view.affine();
-            let p = Point::new(f64::from(pointer.x), f64::from(pointer.y));
-            for path in self.paths {
-                for (s, sub) in path.subpaths.iter().enumerate() {
-                    for i in 0..sub.segment_count() {
-                        let Some(c) = sub.segment(i) else { continue };
-                        let nearest_t = map_cubic(to_screen, c).nearest(p, 1e-3);
-                        let d = nearest_t.distance_sq.sqrt() as f32;
-                        nearest(&mut best, BezierHit::Segment { path: path.key, segment: KnotRef::new(s, i), t: nearest_t.t }, d);
-                    }
-                }
-            }
-        }
-        best.map(|(hit, _)| hit)
+        hit_test::hit_in(self.paths, &pass.shown, !pass.limited, pass.view, pointer, pass.style.hit)
     }
 
     /// Draws the outlines, the selected segment, the shown handles and the anchors.
@@ -1062,7 +1005,8 @@ impl<'a> BezierOverlay<'a> {
             for sub in &path.subpaths {
                 outline(&painter, to_screen * sub.bez_path(), tolerance, Stroke::new(style.line, color));
             }
-            if let Some(s) = self.selection.segment.filter(|_| self.selection.path == Some(path.key))
+            if self.segment_mark == SegmentMark::Line
+                && let Some(s) = self.selection.segment.filter(|_| self.selection.path == Some(path.key))
                 && let Some(c) = path.subpaths.get(s.subpath).and_then(|sub| sub.segment(s.knot))
             {
                 let mut seg = BezPath::new();
@@ -1090,35 +1034,14 @@ impl<'a> BezierOverlay<'a> {
             }
         }
         if let Some(hit) = self.highlight {
-            self.paint_highlight(&painter, pass, hit, ppp);
+            self.paint_highlight(&painter, pass, hit);
         }
     }
 
     /// The hover look of the Add, Delete and Convert Anchor tools on `hit`.
-    fn paint_highlight(&self, painter: &Painter, pass: &Pass<'_>, hit: BezierHit, ppp: f32) {
-        let (style, view) = (&pass.style, pass.view);
-        let Some(path) = self.paths.iter().find(|p| p.key == hit.path()) else { return };
-        let color = path.color.unwrap_or(style.color);
-        let tolerance = f64::from(style.flatten);
-        let (anchor, _, control) = style.looks(path.color);
-        let (point, shape, base) = match hit {
-            BezierHit::Segment { segment, .. } => {
-                if let Some(c) = path.subpaths.get(segment.subpath).and_then(|sub| sub.segment(segment.knot)) {
-                    let mut seg = BezPath::new();
-                    seg.move_to(c.p0);
-                    seg.curve_to(c.p1, c.p2, c.p3);
-                    let seg = view.affine() * seg;
-                    outline(painter, seg.clone(), tolerance, Stroke::new(style.selected_segment + 2.0 * style.highlight_halo, style.halo));
-                    outline(painter, seg, tolerance, Stroke::new(style.selected_segment, color));
-                }
-                return;
-            }
-            BezierHit::Anchor { knot, .. } => (path.knot(knot).map(|k| k.anchor), HandleShape::Square, anchor),
-            BezierHit::Handle { knot, side, .. } => (path.knot(knot).map(|k| k.handle(side)), HandleShape::Rotate, control),
-        };
-        if let Some(at) = point {
-            let look = adjusted(base, |h| h.size = style.highlight_anchor);
-            painter.extend(Handle::shapes_with(&look, shape, view.to_screen(at), ppp));
+    fn paint_highlight(&self, painter: &Painter, pass: &Pass<'_>, hit: BezierHit) {
+        if let Some(path) = self.paths.iter().find(|p| p.key == hit.path()) {
+            HitMark::new(path, hit).paint(painter, pass.view, &pass.style);
         }
     }
 
