@@ -1,11 +1,13 @@
 //! `TileZoom`, `ZoomStep` and `ThumbnailSlider`: the size of tiles, by steps or continuously.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::ops::RangeInclusive;
 
-use craft_ui::edit::EditResponse;
+use craft_ui::controls::{ControlSize, IconButton, Slider};
+use craft_ui::edit::{EditEvent, EditResponse};
+use craft_ui::icons::Icon;
 use egui::{AsIdSalt, Ui};
+
+use super::TileLabels;
 
 /// A step of the tile size, from Cmd/Ctrl + / − / 0 or the slider's end glyphs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -37,13 +39,32 @@ impl TileZoom {
     /// `value ± step` clamped; `Reset` gives 1.0 or `default`.
     pub fn step(&self, value: f32, step: ZoomStep) -> f32 {
         // pdfcraft: crates/ui-egui/src/workflows/combine_grid.rs:50 (`ZOOM_STEPS` and the step search below it).
-        todo!()
+        const TOLERANCE: f32 = 0.001;
+        match *self {
+            TileZoom::Ladder => {
+                let ladder = Self::LADDER;
+                let (first, last) = (ladder[0], ladder[ladder.len() - 1]);
+                match step {
+                    ZoomStep::Reset => 1.0,
+                    ZoomStep::In => ladder.iter().copied().find(|s| *s > value + TOLERANCE).unwrap_or(last),
+                    ZoomStep::Out => ladder.iter().rev().copied().find(|s| *s < value - TOLERANCE).unwrap_or(first),
+                }
+            }
+            TileZoom::Range { min, max, step: by, default } => match step {
+                ZoomStep::Reset => default.clamp(min, max),
+                ZoomStep::In => (value + by).clamp(min, max),
+                ZoomStep::Out => (value - by).clamp(min, max),
+            },
+        }
     }
 
     /// The slider's range: the ladder's ends, or `min..=max`.
     pub fn range(&self) -> RangeInclusive<f32> {
         // filmcraft: crates/ui-egui/src/panels/project.rs:555 (`footer`: Zoom slider 48–400).
-        todo!()
+        match *self {
+            TileZoom::Ladder => Self::LADDER[0]..=Self::LADDER[Self::LADDER.len() - 1],
+            TileZoom::Range { min, max, .. } => min..=max,
+        }
     }
 }
 
@@ -60,23 +81,69 @@ pub struct ThumbnailSlider {
 }
 
 impl ThumbnailSlider {
+    fn marks() -> [f64; 11] {
+        TileZoom::LADDER.map(f64::from)
+    }
+
     /// The slider for `value` (the host's current size).
     pub fn new(id_salt: impl AsIdSalt, value: f32, zoom: TileZoom) -> Self {
         // filmcraft: crates/ui-egui/src/panels/project.rs:555 (`footer`: the zoom slider).
-        todo!()
+        Self { id_salt: egui::Id::NULL.with(egui::IdSalt::new(id_salt)), value, zoom, label: TileLabels::default().thumbnail_size }
     }
 
     /// The accessible name (default `TileLabels::thumbnail_size`).
     #[must_use]
     pub fn label(self, label: impl Into<String>) -> Self {
         // new: builder.
-        todo!()
+        Self { label: label.into(), ..self }
     }
 
     /// Draws the glyphs and the slider; the host applies `Update`, `Commit` and `Set`, and
     /// restores on `Cancel`.
     pub fn show(self, ui: &mut Ui) -> EditResponse<f64> {
         // new: Bridge's slider; composed of `IconButton`, `Slider`, `IconButton`.
-        todo!()
+        let labels = TileLabels::default();
+        let range = self.zoom.range();
+        let (low, high) = (*range.start(), *range.end());
+        let mut step = None;
+        let mut response = None;
+        ui.horizontal(|ui| {
+            let out = ui
+                .add(
+                    IconButton::new(Icon::GridSmall, labels.smaller.as_str())
+                        .size(ControlSize::Md)
+                        .enabled(self.value > low)
+                        .id_salt((self.id_salt, "out")),
+                )
+                .clicked();
+            if out {
+                step = Some(ZoomStep::Out);
+            }
+            let mut slider = Slider::new(self.id_salt, self.label.as_str(), self.value, range.clone())
+                .size(ControlSize::Md)
+                .default_value(self.zoom.step(self.value, ZoomStep::Reset));
+            slider = match self.zoom {
+                TileZoom::Ladder => slider.marks(&Self::marks()),
+                TileZoom::Range { step, .. } => slider.step(step),
+            };
+            response = Some(slider.show(ui));
+            let more = ui
+                .add(
+                    IconButton::new(Icon::Grid, labels.larger.as_str())
+                        .size(ControlSize::Md)
+                        .enabled(self.value < high)
+                        .id_salt((self.id_salt, "in")),
+                )
+                .clicked();
+            if more {
+                step = Some(ZoomStep::In);
+            }
+        });
+        let mut out = response.expect("the slider is drawn");
+        if let Some(step) = step {
+            let modifiers = ui.input(|i| i.modifiers);
+            out.event = Some(EditEvent::set(f64::from(self.zoom.step(self.value, step)), modifiers));
+        }
+        out
     }
 }
