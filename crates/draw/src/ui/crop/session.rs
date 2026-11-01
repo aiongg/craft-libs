@@ -3,13 +3,11 @@
 //! Redo while a crop is pending, decides what leaving the tool does, and gives the frame back when
 //! the app refuses a commit. Plain data: no egui state, no document access.
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TO-C2)")]
-
 use kurbo::{Rect, Size};
 
 use super::crop_frame::CropBox;
 use craft_ui::canvas::CanvasView;
-use craft_ui::dialog::LocalHistory;
+use craft_ui::dialog::{LocalHistory, Step};
 
 /// The app's identity of a document (its id, never reused while the app runs). A frame belongs
 /// to the document it was made for.
@@ -61,7 +59,7 @@ impl CropDocument {
 }
 
 /// One state of the box's own history: the frame and whether it is the untouched default.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct CropStep {
     pub frame: Option<CropBox>,
     pub default_frame: bool,
@@ -125,6 +123,8 @@ pub struct CropKept {
     step: CropStep,
     history: Option<LocalHistory<CropStep>>,
     view: Option<CanvasView>,
+    frame_for: Option<(CropDocKey, Size)>,
+    editing: bool,
 }
 
 /// The Crop tool's pending frame. The tool ([`CropTool`](super::CropTool)) owns one and drives
@@ -152,9 +152,21 @@ pub struct CropSession {
     straighten: StraightenState,
     /// The frame a ratio-field edit began with (#7752).
     ratio_base: Option<CropBox>,
+    /// The latest settled step: what [`revert`](Self::revert) goes back to while a drag runs
+    /// ([`LocalHistory`] does not expose it).
+    settled: CropStep,
 }
 
 impl CropSession {
+    fn current(&self) -> CropStep {
+        CropStep { frame: self.frame, default_frame: self.default_frame }
+    }
+
+    fn adopt(&mut self, step: CropStep) {
+        self.frame = step.frame;
+        self.default_frame = step.default_frame;
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -186,7 +198,13 @@ impl CropSession {
     /// drawn frame was dropped, so the tool reports [`CropEvent::Discard`](super::CropEvent).
     pub fn for_document(&mut self, key: CropDocKey) -> bool {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:590 `cancel_stale`.
-        todo!()
+        let stale = self.frame_for.is_some_and(|(held, _)| held != key);
+        if !stale {
+            return false;
+        }
+        let drawn = self.pending();
+        self.clear();
+        drawn
     }
 
     /// Makes the default frame when there is none and no gesture runs (`dragging` false): the
@@ -196,14 +214,38 @@ impl CropSession {
     pub fn ensure_frame(&mut self, document: &CropDocument, dragging: bool) -> bool {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:345 `ensure_frame`, :350 `frame` (the Crop-tool
         // half; the leave half is `leave`).
-        todo!()
+        let made_for = Some((document.key, document.size));
+        if self.default_frame && self.frame_for != made_for && !dragging {
+            self.frame = None;
+            self.default_frame = false;
+        }
+        if self.frame.is_some() || dragging {
+            return false;
+        }
+        let canvas = document.canvas();
+        let usable = |r: &Rect| r.width() > 0.0 && r.height() > 0.0;
+        if !usable(&canvas) {
+            return false;
+        }
+        let rect = document.selection.map(|s| s.intersect(canvas)).filter(usable).unwrap_or(canvas);
+        self.frame = Some(CropBox::upright(rect));
+        self.default_frame = true;
+        self.frame_for = made_for;
+        self.editing = false;
+        self.settled = self.current();
+        self.history = Some(LocalHistory::new(&self.settled));
+        true
     }
 
     /// The first press on the frame since it was made: [`editing`](Self::editing) from now on.
     /// Returns true when that is new.
     pub fn press(&mut self) -> bool {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:608 `press`.
-        todo!()
+        let new = self.frame.is_some() && !self.editing;
+        if new {
+            self.editing = true;
+        }
+        new
     }
 
     /// A gesture, key or refit set the frame: it is no longer the default (`keep_default` true for
@@ -213,38 +255,65 @@ impl CropSession {
     pub fn set(&mut self, frame: CropBox, keep_default: bool, busy: bool) {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:862 `release` (`changed`), :879 `push_press_step`,
         // :675 `keyed`; dialog/history.rs `LocalHistory::settle`.
-        todo!()
+        if self.history.is_none() {
+            self.history = Some(LocalHistory::new(&self.settled));
+        }
+        self.frame = Some(frame);
+        if !keep_default {
+            self.default_frame = false;
+        }
+        if !self.default_frame {
+            self.editing = true;
+        }
+        let now = self.current();
+        if let Some(history) = &mut self.history {
+            history.settle(&now, busy);
+        }
+        if !busy {
+            self.settled = now;
+        }
     }
 
     /// A drag ended without a frame (too small, Esc): the frame and its default mark go back to
     /// the last step.
     pub fn revert(&mut self) {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:889 `restore_frame`.
-        todo!()
+        let back = self.settled;
+        self.adopt(back);
     }
 
     /// Edit › Undo while a crop is pending: the frame one box step back, or `None` when there is
     /// nothing to undo.
     pub fn undo(&mut self) -> Option<CropBox> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:510 `step` (the view half is the tool's).
-        todo!()
+        self.step(Step::Undo)
     }
 
     /// Edit › Redo while a crop is pending: as [`undo`](Self::undo), forward.
     pub fn redo(&mut self) -> Option<CropBox> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:510 `step`.
-        todo!()
+        self.step(Step::Redo)
+    }
+
+    fn step(&mut self, step: Step) -> Option<CropBox> {
+        let mut now = self.current();
+        if !self.history.as_mut()?.step(&mut now, step) {
+            return None;
+        }
+        self.adopt(now);
+        self.settled = now;
+        now.frame
     }
 
     /// Whether Edit › Undo and Redo have a box step to go to (their menu items' enabled state).
     pub fn can_undo(&self) -> bool {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:483 `is_enabled`.
-        todo!()
+        self.history.as_ref().is_some_and(LocalHistory::can_undo)
     }
 
     pub fn can_redo(&self) -> bool {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:483 `is_enabled`.
-        todo!()
+        self.history.as_ref().is_some_and(LocalHistory::can_redo)
     }
 
     /// Another tool was picked. `keeps_pending`: a gesture on the frame still runs, or the pen's
@@ -253,7 +322,17 @@ impl CropSession {
     pub fn leave(&mut self, keeps_pending: bool) -> LeaveFrame {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:350 `frame` (the leave half), :401 `keeps_pending`,
         // :408 `commit_on_leave`.
-        todo!()
+        self.straighten.disarm();
+        let Some(frame) = self.frame else { return LeaveFrame::Nothing };
+        if keeps_pending {
+            return LeaveFrame::Kept;
+        }
+        self.editing = false;
+        if self.default_frame {
+            self.clear();
+            return LeaveFrame::Dropped;
+        }
+        LeaveFrame::Apply(frame)
     }
 
     /// Drops the frame, its history, the default mark, the editing state and Straighten: Esc, ⊘,
@@ -261,21 +340,26 @@ impl CropSession {
     /// [`ensure_frame`](Self::ensure_frame) makes a new default frame.
     pub fn clear(&mut self) {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:424 `cancel`, :437 `clear_history`.
-        todo!()
+        *self = Self::default();
     }
 
     /// Keeps the frame, the box history and `view` (an Image-mode host's turned view) before the
     /// app runs its crop command.
     pub fn keep(&self, view: Option<CanvasView>) -> CropKept {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:464 `keep`.
-        todo!()
+        CropKept { step: self.current(), history: self.history.clone(), view, frame_for: self.frame_for, editing: self.editing }
     }
 
     /// The crop command refused the frame: the frame, its default mark and its box history come
     /// back, and the view kept with them for the host to adopt.
     pub fn restore(&mut self, kept: CropKept) -> Option<CanvasView> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:469 `restore`.
-        todo!()
+        self.adopt(kept.step);
+        self.settled = kept.step;
+        self.history = kept.history;
+        self.frame_for = kept.frame_for;
+        self.editing = kept.editing;
+        kept.view
     }
 
     /// The frame a ratio-field edit fits from: the frame when the edit began (`editing` true on
@@ -283,7 +367,15 @@ impl CropSession {
     /// to 16 : 3 does not shrink the frame first (#7752). `None` without a frame.
     pub fn ratio_base(&mut self, editing: bool) -> Option<CropBox> {
         // pc: crates/ui-egui/src/panels/options_bar.rs:489-500 (the `crop-ratio-edit-base` memory).
-        todo!()
+        if editing {
+            if self.ratio_base.is_none() {
+                self.ratio_base = self.frame;
+            }
+            self.ratio_base
+        } else {
+            self.ratio_base = None;
+            self.frame
+        }
     }
 
     /// Straighten's state.
