@@ -20,7 +20,7 @@ use crate::{
     MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
     PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes,
     PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens,
-    Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectTokens,
+    Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectMaskTokens, SelectTokens,
     SelectionBarTokens, SelectionFrameTokens, ShapeDragTokens, ShapeTokens, SizeTokens, SliceTokens, SliderRowTokens, SliderTokens, SpaceTokens,
     SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, StrokeEditorTokens, SwatchColor, SwatchPaletteTokens,
     SwatchTokens, SymmetryTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes,
@@ -325,6 +325,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         wide_angle,
         blur_pins,
         liquify,
+        select_mask,
         filter_gallery,
         color_ramp,
         color_wheel,
@@ -461,6 +462,7 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     wide_angle_lines(out, wide_angle);
     blur_pins_lines(out, blur_pins);
     liquify_lines(out, liquify);
+    select_mask_lines(out, select_mask);
     filter_gallery_lines(out, filter_gallery);
     color_ramp_lines(out, color_ramp);
     color_wheel_lines(out, color_wheel);
@@ -3172,6 +3174,13 @@ fn liquify_lines(out: &mut Lines, t: &LiquifyTokens) {
     out.line("liquify.mask_opacity", len(*mask_opacity));
     out.line("liquify.freeze", hex(*freeze));
     out.line("liquify.thaw", hex(*thaw));
+}
+
+fn select_mask_lines(out: &mut Lines, t: &SelectMaskTokens) {
+    let SelectMaskTokens { close_reach, click_reach, trail } = t;
+    out.line("select_mask.close_reach", len(*close_reach));
+    out.line("select_mask.click_reach", len(*click_reach));
+    out.line("select_mask.trail", hex(*trail));
 }
 
 fn filter_gallery_lines(out: &mut Lines, t: &FilterGalleryTokens) {

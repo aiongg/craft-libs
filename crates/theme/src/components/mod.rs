@@ -140,6 +140,7 @@ mod scroll;
 mod section;
 mod segmented;
 mod select;
+mod select_mask;
 mod selection_bar;
 mod selection_frame;
 mod shape_drag;
@@ -292,6 +293,7 @@ pub use scroll::{ScrollField, ScrollTokens};
 pub use section::{SectionField, SectionTokens};
 pub use segmented::{SegmentedField, SegmentedTokens};
 pub use select::{SelectField, SelectTokens};
+pub use select_mask::{SelectMaskField, SelectMaskTokens};
 pub use selection_bar::{SelectionBarField, SelectionBarTokens};
 pub use selection_frame::{SelectionFrameField, SelectionFrameTokens};
 pub use shape_drag::{ShapeDragField, ShapeDragTokens};
@@ -1067,6 +1069,8 @@ families! {
     segmented: SegmentedTokens => Segmented(SegmentedField);
     /// Selection tools: the lasso close reach, the Magnetic Lasso fastening point and closing ring.
     select: SelectTokens => Select(SelectField);
+    /// Select and Mask's canvas marks: the polygon close reach, the Object Selection click reach and the stroke colour.
+    select_mask: SelectMaskTokens => SelectMask(SelectMaskField);
     /// Hover outlines: the object under the pointer.
     hover: HoverTokens => Hover(HoverField);
     /// Selection frames: the box, key object line, centre mark and dashed outline.

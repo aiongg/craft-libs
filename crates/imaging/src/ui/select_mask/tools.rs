@@ -17,15 +17,9 @@ use super::SelectMaskLabels;
 use super::edits::{EditMode, ObjectTarget, RefineStroke, SelectMaskEdit, round_point};
 use crate::ui::select::SelectToolStyle;
 
-/// How near the first vertex a click closes the Polygonal Lasso, in screen points (PhotoCraft's
-/// 6; the selection tools' `select.close_radius` is 8, so Select and Mask keeps its own).
-const POLYGON_CLOSE_REACH: f64 = 6.0;
-/// A drag of Object Selection shorter than this many screen points is a click.
-const OBJECT_CLICK_REACH: f64 = 4.0;
-/// The distance between the points of a freehand Lasso, in document pixels.
+/// The distance between the points of a freehand Lasso, in document pixels: a sampling step of the
+/// edit's points, not a size on screen (PhotoCraft's).
 const FREEHAND_STEP: f64 = 0.5;
-/// The opacity of the stroke being drawn over the accent (PhotoCraft's alpha 110).
-const TRAIL_OPACITY: f32 = 0.43;
 
 /// The tools of Select and Mask's strip, with Photoshop's letters. Quick Selection and Object
 /// Selection share the W slot, Lasso and Polygonal Lasso the L slot.
@@ -331,7 +325,7 @@ fn report(events: &mut Vec<SelectMaskEvent>, refine: bool, id: GestureId, phase:
 
 /// What the gesture of `tool` over `points` makes, or `None` while it makes nothing (a Lasso with
 /// fewer than 3 points). `zoom` turns an Object Selection drag into screen points.
-fn build(tool: SelectMaskTool, options: &SelectMaskToolOptions, add: bool, points: &[Point], zoom: f64) -> Option<Built> {
+fn build(tool: SelectMaskTool, options: &SelectMaskToolOptions, add: bool, points: &[Point], zoom: f64, click_reach: f64) -> Option<Built> {
     // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:554 `finish`.
     let mode = if add { EditMode::Add } else { EditMode::Subtract };
     let first = *points.first()?;
@@ -346,7 +340,7 @@ fn build(tool: SelectMaskTool, options: &SelectMaskToolOptions, add: bool, point
         SelectMaskTool::Object => {
             let last = *points.last()?;
             let (width, height) = (last.x - first.x, last.y - first.y);
-            let target = if width.abs().max(height.abs()) * zoom < OBJECT_CLICK_REACH {
+            let target = if width.abs().max(height.abs()) * zoom < click_reach {
                 ObjectTarget::Point(round_point([first.x, first.y]))
             } else {
                 let (origin, size) = (round_point([first.x, first.y]), round_point([width, height]));
@@ -394,7 +388,7 @@ impl SelectMaskCanvasTool<'_> {
 
     /// What the gesture over `points` makes now.
     fn built(&self, add: bool, points: &[Point], cx: &ToolContext<'_>) -> Option<Built> {
-        build(self.tool, self.options, add, points, cx.view.zoom)
+        build(self.tool, self.options, add, points, cx.view.zoom, f64::from(cx.tokens.component.select_mask.click_reach))
     }
 
     /// Writes the values of a resize to the options; a cancelled resize puts the start back.
@@ -442,7 +436,10 @@ impl SelectMaskCanvasTool<'_> {
 
     fn press_polygon(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:590-603 `begin` (PolygonalLasso), :1796-1802.
-        let reach = DraftReach { close: POLYGON_CLOSE_REACH, same_point: SelectToolStyle::of(cx.tokens).reach().same_point };
+        let reach = DraftReach {
+            close: f64::from(cx.tokens.component.select_mask.close_reach),
+            same_point: SelectToolStyle::of(cx.tokens).reach().same_point,
+        };
         let add = self.options.add;
         let canvas = &mut *self.canvas;
         let draft = canvas.polygon.get_or_insert_with(|| OutlineDraft::new(DraftKind::Polygonal, reach));
@@ -641,7 +638,7 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         if let Some((_, tool, _, points)) = &canvas.gesture {
             match tool {
                 SelectMaskTool::Quick | SelectMaskTool::Brush | SelectMaskTool::RefineEdge => {
-                    let ink = cx.tokens.color.accent.solid.to_egui().gamma_multiply(TRAIL_OPACITY);
+                    let ink = cx.tokens.component.select_mask.trail.to_egui();
                     let radius = (self.options.sizes.get(*tool) / 2.0 * cx.view.zoom) as f32;
                     let line: Vec<_> = points.iter().map(|p| cx.view.to_screen(*p)).collect();
                     for &at in &line {

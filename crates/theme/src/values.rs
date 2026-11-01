@@ -2612,6 +2612,14 @@ pub const LIQUIFY_LASSO: f32 = 1.5;
 /// The freeze mask's opacity over the image: `liquify.mask_opacity`.
 pub const LIQUIFY_MASK_OPACITY: f32 = 0.5;
 
+// --- select_mask ---
+/// A click this near the Polygonal Lasso's first vertex closes it: `select_mask.close_reach`.
+pub const SELECT_MASK_CLOSE_REACH: f32 = 6.0;
+/// An Object Selection drag shorter than this is a click: `select_mask.click_reach`.
+pub const SELECT_MASK_CLICK_REACH: f32 = 4.0;
+/// The opacity of the accent for the stroke being drawn: `select_mask.trail`.
+pub const SELECT_MASK_TRAIL_OPACITY: f32 = 0.43;
+
 // --- filter_gallery ---
 /// A filter thumbnail's width: `filter_gallery.thumb_width`.
 pub const FILTER_GALLERY_THUMB_WIDTH: f32 = 80.0;
