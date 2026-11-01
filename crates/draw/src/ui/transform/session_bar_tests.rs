@@ -1,35 +1,155 @@
 //! Tests of the session's options bar (task TR-T9).
-#![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-// Box phase: fields, interpolation, Show Reference Point, cancel, commit, switch in Tab order;
-// Content-Aware subset: position and size only, no switch; Warp phase: the warp group, cancel,
-// commit, Reset warp, the switch pressed.
+use egui::Context;
+use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable as _;
+use kurbo::Rect;
+
+use super::{BarGroups, Interpolation, TransformBar, TransformEdit, TransformSession, TransformSettings};
+use craft_ui::theme::{Base, install};
+
+const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
+
+struct Host {
+    session: TransformSession<()>,
+    settings: TransformSettings,
+    groups: BarGroups,
+    mode_switch: bool,
+    edits: Vec<String>,
+    reset: bool,
+}
+
+fn host(session: TransformSession<()>) -> Host {
+    Host { session, settings: TransformSettings::default(), groups: BarGroups::ALL, mode_switch: true, edits: Vec::new(), reset: false }
+}
+
+fn harness(host: Host) -> Harness<'static, Host> {
+    let mut h =
+        Harness::<Host>::builder().with_size([1800.0, 80.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, host: &mut Host| {
+                let out = ui
+                    .horizontal(|ui| {
+                        TransformBar::new("bar", &host.session)
+                            .groups(host.groups)
+                            .mode_switch(host.mode_switch)
+                            .settings(&mut host.settings)
+                            .show(ui)
+                    })
+                    .inner;
+                host.reset |= out.reset_warp;
+                for edit in out.edits {
+                    host.edits.push(match &edit {
+                        TransformEdit::Fields(_) => "fields".to_owned(),
+                        TransformEdit::Interpolation(i) => format!("interpolation {}", i.id()),
+                        TransformEdit::ReferencePoint(on) => format!("reference {on}"),
+                        TransformEdit::WarpRequested => "warp".to_owned(),
+                        TransformEdit::LeaveWarp => "leave warp".to_owned(),
+                        TransformEdit::Commit => "commit".to_owned(),
+                        TransformEdit::Cancel => "cancel".to_owned(),
+                        _ => "other".to_owned(),
+                    });
+                    host.session.apply(edit, 0.0);
+                }
+            },
+            host,
+        );
+    h.run();
+    h
+}
+
+fn warping() -> TransformSession<()> {
+    let mut session = TransformSession::new(RECT);
+    session.apply(TransformEdit::Warp(()), 0.0);
+    session
+}
+
+fn left(h: &Harness<'_, Host>, label: &str) -> f32 {
+    h.get_all_by_label(label).next().unwrap_or_else(|| panic!("{label}")).rect().left()
+}
+
+fn shown(h: &Harness<'_, Host>, label: &str) -> bool {
+    h.query_all_by_label(label).next().is_some()
+}
+
 #[test]
-#[ignore = "skeleton"]
 fn the_bar_shows_fields_interpolation_check_and_buttons_in_phase_order() {
-    todo!()
+    let h = harness(host(TransformSession::new(RECT)));
+    let order = [
+        left(&h, "X position"),
+        left(&h, "Width"),
+        left(&h, "Interpolation:"),
+        left(&h, "Show Reference Point"),
+        left(&h, "Cancel transform"),
+        left(&h, "Commit transform"),
+        left(&h, "Switch between free transform and warp modes"),
+    ];
+    assert!(order.windows(2).all(|w| w[0] < w[1]), "{order:?}");
+
+    // The Content-Aware subset: position and size, no switch, no check.
+    let mut subset = host(TransformSession::new(RECT));
+    subset.groups = BarGroups { reference: false, angle: false, skew: false, interpolation: false, ..BarGroups::ALL };
+    subset.mode_switch = false;
+    let h = harness(subset);
+    assert!(shown(&h, "X position") && shown(&h, "Width") && shown(&h, "Commit transform"));
+    assert!(!shown(&h, "Switch between free transform and warp modes") && !shown(&h, "Angle") && !shown(&h, "Interpolation:"));
+
+    // The Warp phase: the app's group instead of the fields, Reset warp, the switch.
+    let h = harness(host(warping()));
+    assert!(!shown(&h, "X position") && !shown(&h, "Show Reference Point"));
+    let order = [left(&h, "Cancel warp"), left(&h, "Commit warp"), left(&h, "Reset warp"), left(&h, "Switch between free transform and warp modes")];
+    assert!(order.windows(2).all(|w| w[0] < w[1]), "{order:?}");
 }
 
-// The buttons' accessible names are "Commit transform" and "Cancel transform" in the Box phase and
-// "Commit warp" and "Cancel warp" in the Warp phase; tooltips add Enter and Esc.
 #[test]
-#[ignore = "skeleton"]
 fn commit_and_cancel_buttons_carry_the_phase_names_and_keys() {
-    todo!()
+    let mut h = harness(host(TransformSession::new(RECT)));
+    assert!(shown(&h, "Commit transform") && shown(&h, "Cancel transform") && !shown(&h, "Commit warp"));
+    h.get_by_label("Commit transform").click();
+    h.run();
+    h.get_by_label("Cancel transform").click();
+    h.run();
+    assert_eq!(h.state().edits, ["commit", "cancel"]);
+
+    let h = harness(host(warping()));
+    assert!(shown(&h, "Commit warp") && shown(&h, "Cancel warp") && !shown(&h, "Commit transform"));
+    // The key names are in the tooltips (`OptionsBar::commit_cancel`).
+    let mut h = h;
+    h.get_by_label("Commit warp").hover();
+    h.run();
+    h.run();
+    assert!(h.query_by_label_contains("Enter").is_some(), "the commit tooltip names Enter");
 }
 
-// The check reports ReferencePoint and writes `show_reference_point` into the settings; the
-// interpolation select reports Interpolation and writes the setting.
 #[test]
-#[ignore = "skeleton"]
 fn the_check_and_the_interpolation_report_edits_and_write_the_settings() {
-    todo!()
+    let mut h = harness(host(TransformSession::new(RECT)));
+    h.get_by_label("Show Reference Point").click();
+    h.run();
+    assert!(h.state().settings.show_reference_point && h.state().session.reference_point());
+    assert_eq!(h.state().edits, ["reference true"]);
+
+    h.get_by_label("Interpolation").click();
+    h.run();
+    h.get_by_label("Nearest Neighbor").click();
+    h.run();
+    assert_eq!(h.state().settings.interpolation, Interpolation::NearestNeighbor);
+    assert_eq!(h.state().session.interpolation(), Interpolation::NearestNeighbor);
+    assert_eq!(h.state().edits.last().map(String::as_str), Some("interpolation nearest"));
 }
 
-// The switch reports WarpRequested in the Box phase and LeaveWarp in the Warp phase; Reset warp
-// sets `reset_warp`.
 #[test]
-#[ignore = "skeleton"]
 fn the_switch_asks_for_a_warp_and_reset_asks_for_an_identity_warp() {
-    todo!()
+    let mut h = harness(host(TransformSession::new(RECT)));
+    h.get_by_label("Switch between free transform and warp modes").click();
+    h.run();
+    assert_eq!(h.state().edits, ["warp"]);
+    assert!(!h.state().reset);
+
+    let mut h = harness(host(warping()));
+    h.get_by_label("Reset warp").click();
+    h.run();
+    assert!(h.state().reset);
+    h.get_by_label("Switch between free transform and warp modes").click();
+    h.run();
+    assert_eq!(h.state().edits, ["leave warp"]);
 }
