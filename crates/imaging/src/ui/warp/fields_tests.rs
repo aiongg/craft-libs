@@ -42,26 +42,20 @@ fn host(style: &str) -> Host {
 }
 
 fn harness(host: Host) -> Harness<'static, Host> {
-    let mut h = Harness::builder()
-        .with_size([900.0, 120.0])
-        .allow_missing_glyphs()
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
-        .build_ui_state(
-            |ui, host: &mut Host| {
-                let out = ui
-                    .horizontal(|ui| {
-                        WarpFields::new("warp-fields", &host.styles, host.values.clone()).split(host.split).on_type(host.on_type).show(ui)
-                    })
-                    .inner;
-                for edit in out.edits {
-                    if let WarpFieldsEdit::Split(split) = &edit {
-                        host.split = *split;
-                    }
-                    host.edits.push(edit);
+    let mut h = Harness::builder().with_size([900.0, 120.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, host: &mut Host| {
+            let out = ui
+                .horizontal(|ui| WarpFields::new("warp-fields", &host.styles, host.values.clone()).split(host.split).on_type(host.on_type).show(ui))
+                .inner;
+            for edit in out.edits {
+                if let WarpFieldsEdit::Split(split) = &edit {
+                    host.split = *split;
                 }
-            },
-            host,
-        );
+                host.edits.push(edit);
+            }
+        },
+        host,
+    );
     h.run_steps(3);
     h
 }

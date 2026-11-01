@@ -1,8 +1,7 @@
 //! [`WarpFields`]: the Warp group of a transform's options bar: Split icons, Grid menu, warp style,
 //! orientation and Bend, H and V (task TR-T5).
 
-use egui::load::Bytes;
-use egui::{AsIdSalt, IdSalt, ImageSource, Ui};
+use egui::{AsIdSalt, IdSalt, Ui};
 
 use craft_theme::ControlSize;
 use craft_ui::controls::{IconButton, NumberField, Select};
@@ -44,16 +43,6 @@ const EVEN_KNOT: f64 = 1e-4;
 
 /// The range of Bend, H and V in percent.
 const DISTORTION_RANGE: std::ops::RangeInclusive<f64> = -100.0..=100.0;
-
-// The Split icons, on the 24-unit grid the icon sets use: a square cut by the line the tool adds,
-// white so the button's tint gives the colour (PhotoCraft `split_icon`).
-const SPLIT_CROSS: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M6.5 12h11M12 6.5v11"/><circle cx="12" cy="12" r="1.7" fill="#fff"/></svg>"##;
-const SPLIT_VERTICAL: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M12 6.5v11"/><circle cx="12" cy="12" r="2.4"/></svg>"##;
-const SPLIT_HORIZONTAL: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M6.5 12h11"/><circle cx="12" cy="12" r="2.4"/></svg>"##;
-
-fn split_image(uri: &'static str, svg: &'static [u8]) -> ImageSource<'static> {
-    ImageSource::Bytes { uri: uri.into(), bytes: Bytes::Static(svg) }
-}
 
 /// One warp style of the style select, as the app lists them (Photoshop's 15 styles, None and
 /// Custom; the styles are the app's warp model).
@@ -217,13 +206,9 @@ impl<'a> WarpFields<'a> {
             OptionsBar::group(ui, !on_type, |ui| {
                 OptionsBar::cell(ui, &labels.split, CellWidth::Content, |ui, _| {
                     let tools = [
-                        (WarpSplit::Cross, split_image("bytes://craft-imaging/warp-split-cross.svg", SPLIT_CROSS), &labels.split_crosswise),
-                        (WarpSplit::Vertical, split_image("bytes://craft-imaging/warp-split-vertical.svg", SPLIT_VERTICAL), &labels.split_vertically),
-                        (
-                            WarpSplit::Horizontal,
-                            split_image("bytes://craft-imaging/warp-split-horizontal.svg", SPLIT_HORIZONTAL),
-                            &labels.split_horizontally,
-                        ),
+                        (WarpSplit::Cross, Icon::SplitCross, &labels.split_crosswise),
+                        (WarpSplit::Vertical, Icon::SplitVertical, &labels.split_vertically),
+                        (WarpSplit::Horizontal, Icon::SplitHorizontal, &labels.split_horizontally),
                     ];
                     for (tool, image, name) in tools {
                         let armed = split == Some(tool);

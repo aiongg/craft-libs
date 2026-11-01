@@ -1434,3 +1434,21 @@ lucide = "calendar"
 phosphor = "calendar"
 carbon = "calendar"
 tabler = "calendar"
+
+[[icon]]
+name = "split_cross"
+directional = false
+lucide = "grid-2x2"
+phosphor = "squares-four"
+
+[[icon]]
+name = "split_vertical"
+directional = false
+lucide = "square-split-horizontal"
+phosphor = "square-split-horizontal"
+
+[[icon]]
+name = "split_horizontal"
+directional = false
+lucide = "square-split-vertical"
+phosphor = "square-split-vertical"
