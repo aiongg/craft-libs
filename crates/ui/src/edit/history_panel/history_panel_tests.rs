@@ -891,3 +891,17 @@ fn snapshot_rows_request_their_thumbnails() {
     }
     assert!(asked.iter().all(|(key, _)| key.get() <= 2), "{asked:?}");
 }
+
+// Choosing Rename… in the menu requests a repaint in that pass, so the field opens without further input.
+#[test]
+fn the_menu_choice_requests_a_repaint() {
+    let mut host = Host::states(4, 3);
+    host.doc.snapshots = snapshots(2);
+    let mut harness = harness(host);
+    row(&harness, "Snap B").click_secondary();
+    harness.run();
+    harness.get_by_label(&HistoryLabels::english().rename).click();
+    harness.step();
+    let delay = harness.output().viewport_output[&egui::ViewportId::ROOT].repaint_delay;
+    assert!(delay.is_zero(), "{delay:?}");
+}
