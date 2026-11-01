@@ -1,9 +1,7 @@
 //! [`box_distances`]: the distances between two boxes, as lines and measures for the existing
 //! [`SmartGuides`](craft_ui::canvas::SmartGuides). No egui state.
 
-#![expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TO-R1)")]
-
-use kurbo::Rect;
+use kurbo::{Point, Rect};
 
 use craft_ui::canvas::{Measure, Orientation, SmartLine};
 
@@ -30,5 +28,41 @@ pub fn box_distances(a: Rect, b: Rect, label: impl Fn(f64, Orientation) -> Strin
     // pc: crates/ui-egui/src/tools/move_distance.rs:50 `measure` (each `Measure { horizontal, at,
     // from, to }` becomes a `Measure` with its label; each extension `[x0, y0, x1, y1]` a
     // `SmartLine` with `extension: true`).
-    todo!()
+    let (mut lines, mut measures) = (Vec::new(), Vec::new());
+    let coords = [a.x0, a.y0, a.x1, a.y1, b.x0, b.y0, b.x1, b.y1];
+    if !coords.iter().all(|v| v.is_finite()) {
+        return (lines, measures);
+    }
+    let (a, b) = ([a.x0, a.y0, a.x1, a.y1], [b.x0, b.y0, b.x1, b.y1]);
+    for horizontal in [true, false] {
+        // Spans along the measured axis (`sa`, `sb`) and across it (`oa`, `ob`).
+        let (k, o) = if horizontal { (0, 1) } else { (1, 0) };
+        let (sa, sb) = ([a[k], a[k + 2]], [b[k], b[k + 2]]);
+        let (oa, ob) = ([a[o], a[o + 2]], [b[o], b[o + 2]]);
+        let (lo, hi) = (oa[0].max(ob[0]), oa[1].min(ob[1]));
+        let at = if lo < hi { (lo + hi) / 2.0 } else { f64::midpoint(oa[0], oa[1]) };
+        // Each pair: the two ends, and which of them lies on `b`'s edge.
+        let pairs = if sa[1] <= sb[0] {
+            vec![(sa[1], sb[0], sb[0])]
+        } else if sb[1] <= sa[0] {
+            vec![(sb[1], sa[0], sb[1])]
+        } else {
+            vec![(sa[0].min(sb[0]), sa[0].max(sb[0]), sb[0]), (sa[1].min(sb[1]), sa[1].max(sb[1]), sb[1])]
+        };
+        // A point on the measured axis (`s`) and across it (`across`).
+        let point = |s: f64, across: f64| if horizontal { Point::new(s, across) } else { Point::new(across, s) };
+        let orientation = if horizontal { Orientation::Horizontal } else { Orientation::Vertical };
+        for (from, to, edge) in pairs {
+            if to - from <= 0.0 {
+                continue;
+            }
+            measures.push(Measure { a: point(from, at), b: point(to, at), label: label(to - from, orientation) });
+            // The line ends beside `b`: extend `b`'s edge to it.
+            if at < ob[0] || at > ob[1] {
+                let near = if at < ob[0] { ob[0] } else { ob[1] };
+                lines.push(SmartLine { a: point(edge, near), b: point(edge, at), extension: true });
+            }
+        }
+    }
+    (lines, measures)
 }
