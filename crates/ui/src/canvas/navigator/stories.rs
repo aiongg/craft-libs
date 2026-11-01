@@ -215,7 +215,7 @@ type SharedHost = Arc<Mutex<DialogHost>>;
 /// the tile.
 fn show_options(ui: &mut Ui, args: &mut OptionsArgs) {
     let ctx = ui.ctx().clone();
-    if !crate::story::dialog_claim(&ctx, "navigator-options", ui.scope_id()) {
+    if !crate::story::claim(&ctx, "navigator-options", ui.scope_id()) {
         return;
     }
     let host_key = ui.make_persistent_id("craft_ui::canvas::navigator::stories::host");

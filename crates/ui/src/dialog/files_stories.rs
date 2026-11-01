@@ -1,13 +1,14 @@
 //! Stories of the file dialogs: New Document, Export As, Save for Web, the format option
 //! dialogs, the watermark group, the output path row and Recovery. Every dialog opens on a
 //! [`DialogHost`](super::DialogHost) like the framework stories; pictures and size estimates the
-//! app would compute are generated here, and the Host's file service answers every picker with
-//! Cancelled, so nothing opens a picker or writes a file.
+//! app would compute are generated here, and a story file service answers every picker with a
+//! made-up path, so nothing opens a picker or writes a file.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use craft_host::{AppInfo, FileError, Files, Host, PickAnswer, PickId, PickKind, PickRequest, Picked};
+use craft_host::{FileError, Files, Host, HostScope, PickAnswer, PickId, PickKind, PickRequest, Picked};
 use craft_settings::Remembered;
 use egui::{Color32, ColorImage, Context, Id, TextureHandle, TextureOptions, Ui};
 
@@ -16,14 +17,13 @@ use super::export::{
     DdsOptionsDialog, ExportAsDialog, ExportOptions, ExportPreview, ExportSize, JpegOptionsDialog, OutputPathRow, SaveForWebDialog,
     SaveForWebOptions, SizeEstimate, TargaOptionsDialog, TiffOptionsDialog, Watermark, WatermarkEditor, WatermarkStyle, WebFormat, WebVariant,
 };
-use super::framework_stories::{claim, drive};
 use super::new_document::{PRESETS_KEY, RECENT_KEY};
 use super::{
     Anchor, BackgroundContents, BitDepth, ColorMode, DocumentOptions, NewDocumentDialog, PixelSize, RecoveredDocument, RecoveryDialog, SizeUnit,
 };
 use crate::edit::EditEvent;
 use crate::localized::Labels as _;
-use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
+use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, drive, ensure_files};
 use crate::typed_story;
 
 #[derive(StoryArgs, Debug, PartialEq)]
@@ -300,14 +300,14 @@ impl Files for StoryFiles {
     }
 }
 
-/// Installs a Host with the default in-memory settings and [`StoryFiles`], when the story runs
-/// without one.
-fn ensure_host(ctx: &Context) {
-    if Host::try_of_ctx(ctx).is_none() {
-        Host::builder(AppInfo { id: "craft-ui-stories", name: "Craft Stories", version: "0" })
-            .files(std::sync::Arc::new(StoryFiles::default()))
-            .install(ctx);
-    }
+/// Gives the story [`StoryFiles`] as the Host's file service until the returned scope drops. One
+/// `StoryFiles` serves every story of this module, so a pick made in one pass is answered in the
+/// next.
+fn story_files(ctx: &Context) -> HostScope {
+    let files = ctx.data_mut(|d| {
+        d.get_temp_mut_or_insert_with(Id::unique("craft_ui::files_stories::files"), || Arc::new(StoryFiles::default()) as Arc<dyn Files>).clone()
+    });
+    ensure_files(ctx, files)
 }
 
 /// A sky, a sun and hills, with each channel reduced to `levels` steps so a lower quality looks
@@ -371,10 +371,7 @@ fn recent_settings(width: u32, height: u32, ppi: f64, unit: SizeUnit, mode: Colo
 /// New Document with recent documents and saved presets in the Host's memory; the clipboard
 /// argument adds the Clipboard card.
 fn show_new_document(ui: &mut Ui, args: &mut NewDocumentArgs) {
-    if !claim(ui.ctx(), "new-document", ui.scope_id()) {
-        return;
-    }
-    ensure_host(ui.ctx());
+    let _files = story_files(ui.ctx());
     seed(
         ui.ctx(),
         RECENT_KEY,
@@ -443,9 +440,7 @@ fn export_bytes(settings: &ExportOptions, source: (u32, u32)) -> u64 {
 /// Export As of a 4000 x 3000 px document. The preview and the estimate answer each revision
 /// of the settings, as the app's job would.
 fn show_export_as(ui: &mut Ui, args: &mut ExportAsArgs) {
-    if !claim(ui.ctx(), "export-as", ui.scope_id()) {
-        return;
-    }
+    let _files = story_files(ui.ctx());
     const SOURCE: (u32, u32) = (4000, 3000);
     let (format, ready, exact) = (args.format, args.preview, args.exact);
     let ctx = ui.ctx().clone();
@@ -509,9 +504,7 @@ impl craft_pdf::settings::ProfileCatalog for StoryProfiles {
 /// Save PDF of a poster in an RGB document, with two profiles. The file service answers every
 /// picker with Cancelled, so the dialog stays open on Save PDF.
 fn show_pdf_export(ui: &mut Ui, args: &mut PdfExportArgs) {
-    if !claim(ui.ctx(), "pdf-export", ui.scope_id()) {
-        return;
-    }
+    let _files = story_files(ui.ctx());
     let words = StoryLabels::of(ui);
     let preset = args.preset;
     drive(
@@ -538,9 +531,7 @@ fn web_settings(format: WebFormat, edit: impl FnOnce(&mut SaveForWebOptions)) ->
 
 /// Save for Web of a 1200 x 800 px document with stand-in encodes for every pane the dialog asks for.
 fn show_save_for_web(ui: &mut Ui, args: &mut SaveForWebArgs) {
-    if !claim(ui.ctx(), "save-for-web", ui.scope_id()) {
-        return;
-    }
+    let _files = story_files(ui.ctx());
     const SIZE: (u32, u32) = (1200, 800);
     let (animation, presets) = (args.animation, args.presets);
     let ctx = ui.ctx().clone();
@@ -603,9 +594,6 @@ fn show_save_for_web(ui: &mut Ui, args: &mut SaveForWebArgs) {
 }
 
 fn show_jpeg(ui: &mut Ui, args: &mut JpegArgs) {
-    if !claim(ui.ctx(), "jpeg-options", ui.scope_id()) {
-        return;
-    }
     let (quality, own) = (args.quality, args.own);
     drive(
         ui,
@@ -619,9 +607,6 @@ fn show_jpeg(ui: &mut Ui, args: &mut JpegArgs) {
 }
 
 fn show_tiff(ui: &mut Ui, args: &mut TiffArgs) {
-    if !claim(ui.ctx(), "tiff-options", ui.scope_id()) {
-        return;
-    }
     drive(
         ui,
         "tiff-options",
@@ -640,17 +625,11 @@ fn show_tiff(ui: &mut Ui, args: &mut TiffArgs) {
 }
 
 fn show_targa(ui: &mut Ui, args: &mut TargaArgs) {
-    if !claim(ui.ctx(), "targa-options", ui.scope_id()) {
-        return;
-    }
     let bits = if args.alpha { 32 } else { 24 };
     drive(ui, "targa-options", &mut args.open, bits, || TargaOptionsDialog::new(bits), |_| {}, |options| format!("OK, {} bits/pixel", options.bits));
 }
 
 fn show_dds(ui: &mut Ui, args: &mut TiffArgs) {
-    if !claim(ui.ctx(), "dds-options", ui.scope_id()) {
-        return;
-    }
     drive(
         ui,
         "dds-options",
@@ -673,7 +652,7 @@ fn watermark_of(style: StyleArg, vertical: bool) -> Watermark {
 /// The watermark rows inline. The args pick the starting watermark; the rows edit it, and the
 /// line under them reports the value.
 fn show_watermark(ui: &mut Ui, args: &mut WatermarkArgs) {
-    ensure_host(ui.ctx());
+    let _files = story_files(ui.ctx());
     let key = ui.make_persistent_id("craft_ui::files_stories::watermark");
     let start = (args.style, args.vertical);
     let (shown, mut watermark): (Option<(StyleArg, bool)>, Watermark) =
@@ -696,7 +675,7 @@ fn show_watermark(ui: &mut Ui, args: &mut WatermarkArgs) {
 
 /// The output template row; a picked template or a typed one replaces the path.
 fn show_output_path(ui: &mut Ui, args: &mut OutputPathArgs) {
-    ensure_host(ui.ctx());
+    let _files = story_files(ui.ctx());
     let key = ui.make_persistent_id("craft_ui::files_stories::output-path");
     let start = args.chosen;
     let (shown, mut path): (Option<bool>, String) = ui.data(|d| d.get_temp(key)).unwrap_or((None, String::new()));
@@ -724,9 +703,6 @@ fn show_output_path(ui: &mut Ui, args: &mut OutputPathArgs) {
 
 /// Recovery for one autosaved document.
 fn show_recovery(ui: &mut Ui, args: &mut RecoveryArgs) {
-    if !claim(ui.ctx(), "recovery", ui.scope_id()) {
-        return;
-    }
     let (age, blocked) = (args.age, args.blocked);
     drive(
         ui,

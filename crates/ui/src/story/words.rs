@@ -54,6 +54,23 @@ crate::words! {
         start: "story.start" = "Start";
         elide_path: "story.elidePath" = "Path";
         elide_rtl: "story.elideRtl" = "RTL";
+        /// The answer a dialog story shows under its tile once the dialog closes.
+        result: "story.result" = "Result: {result}";
+        /// In an Overview tile, opens the story's dialog.
+        show_dialog: "story.showDialog" = "Show dialog";
+        /// The last event a panel story reported.
+        last_event: "story.lastEvent" = "Last event: {event}";
+        no_event: "story.noEvent" = "No event yet";
+        /// Runs the next waiting background job in a story that steps them by hand.
+        finish_next: "story.finishNext" = "Finish next";
+        reset: "story.reset" = "Reset";
+        cancelled: "story.cancelled" = "Cancelled";
+        waiting: "story.waiting" = "Waiting";
+        /// A sample picture's name.
+        photo_n: "story.photoN" = "Photo {n}";
+        portrait: "story.portrait" = "Portrait";
+        duplicate: "story.duplicate" = "Duplicate";
+        delete: "story.delete" = "Delete";
     }
 }
 

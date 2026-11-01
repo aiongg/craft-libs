@@ -152,6 +152,7 @@ pub struct Footer<'a> {
     alternates: Vec<String>,
     extras: Vec<String>,
     ok_enabled: bool,
+    ok_stays_open: bool,
     apply_enabled: bool,
     ok_when: Option<Enabled<'a>>,
     apply_when: Option<Enabled<'a>>,
@@ -176,6 +177,7 @@ impl<'a> Footer<'a> {
             alternates: Vec::new(),
             extras: Vec::new(),
             ok_enabled: true,
+            ok_stays_open: false,
             apply_enabled: true,
             ok_when: None,
             apply_when: None,
@@ -272,6 +274,14 @@ impl<'a> Footer<'a> {
         self
     }
 
+    /// Whether OK (and Enter) answers [`Outcome::Ok`](super::Outcome::Ok) without closing the
+    /// dialog: the host acts on each press, and the dialog closes on Cancel or an
+    /// [`alternate`](Footer::alternate) such as Done (Relink's Link). Off by default.
+    pub fn ok_stays_open(mut self, stays: bool) -> Self {
+        self.ok_stays_open = stays;
+        self
+    }
+
     pub fn apply_enabled(mut self, enabled: bool) -> Self {
         self.apply_enabled = enabled;
         self
@@ -350,6 +360,10 @@ impl<'a> Footer<'a> {
 
     pub(super) fn enter_rule(&self) -> EnterRule {
         self.enter
+    }
+
+    pub(super) fn keeps_ok_open(&self) -> bool {
+        self.ok_stays_open
     }
 
     fn resolve_labels(&mut self, ui: &Ui) {

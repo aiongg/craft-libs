@@ -1,12 +1,13 @@
-//! Stories of the file list picker and the path field. The Host's file service answers every
-//! picker with Cancelled, so Browse opens nothing.
+//! Stories of the file list picker and the path field. Their file service answers every picker
+//! with Cancelled, so Browse opens nothing.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use craft_host::{AppInfo, Host, PickRequest};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice};
+use craft_host::{Files, NoPickFiles, PickRequest};
+use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, ensure_files};
 use craft_ui::typed_story;
-use egui::{Context, Ui};
+use egui::{Context, Id, Ui};
 
 use super::{FileList, FileListMode, FileListPicker, PathField};
 
@@ -66,12 +67,11 @@ pub(super) fn stories() -> Vec<Story> {
     ]
 }
 
-/// Installs a Host with in-memory settings and a file service that cancels every picker, when
-/// the story runs without one.
-fn ensure_host(ctx: &Context) {
-    if Host::try_of_ctx(ctx).is_none() {
-        Host::builder(AppInfo { id: "craft-dialogs-stories", name: "Craft Stories", version: "0" }).install(ctx);
-    }
+/// The stories' file service, which cancels every picker; one for every story of this module.
+fn story_files(ctx: &Context) -> Arc<dyn Files> {
+    ctx.data_mut(|d| {
+        d.get_temp_mut_or_insert_with(Id::unique("craft_dialogs::ui::story::files"), || Arc::new(NoPickFiles::default()) as Arc<dyn Files>).clone()
+    })
 }
 
 const NAMES: [&str; 8] = ["IMG_0412.jpg", "IMG_0413.jpg", "cover-final.psd", "portrait.tif", "sky-study.png", "logo.svg", "scan-07.tif", "notes.txt"];
@@ -95,7 +95,7 @@ fn info(path: &Path) -> Option<String> {
 
 /// The picker over a list kept in egui memory; the args choose the starting list.
 fn show_file_list(ui: &mut Ui, args: &mut FileListArgs) {
-    ensure_host(ui.ctx());
+    let _files = ensure_files(ui.ctx(), story_files(ui.ctx()));
     let mode = match args.mode {
         ModeArg::Files => FileListMode::Files,
         ModeArg::Folder => FileListMode::Folder,
@@ -127,7 +127,7 @@ fn show_file_list(ui: &mut Ui, args: &mut FileListArgs) {
 
 /// The path field over a value kept in egui memory; typing a path and Enter replace it.
 fn show_path_field(ui: &mut Ui, args: &mut PathFieldArgs) {
-    ensure_host(ui.ctx());
+    let _files = ensure_files(ui.ctx(), story_files(ui.ctx()));
     let key = ui.make_persistent_id("craft_dialogs::ui::path-field-story");
     let (shown, mut value): (Option<PathArg>, String) = ui.data(|d| d.get_temp(key)).unwrap_or((None, String::new()));
     if shown != Some(args.path) {

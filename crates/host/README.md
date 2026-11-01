@@ -25,6 +25,9 @@ Every service has a default, so a test writes `Host::builder(app).install(ctx)`:
 `queue::JobQueue` runs prioritised background work with one job per key on the host's `Jobs`.
 Stories and tests step it with `ManualJobs`, which keeps each job until `run_next` runs it.
 
+`Host::install_scoped` installs a host until the returned `HostScope` drops, then puts back the
+one installed before. A story swaps in a fake service this way for the time it draws.
+
 ## Boundaries
 
 - Depends on `craft-i18n`, `serde` and `toml` only. Implementations depend on this crate:

@@ -6,9 +6,9 @@ use std::borrow::Cow;
 
 use egui::Ui;
 
-use super::framework_stories::{claim, drive};
 use super::{AboutDialog, AboutInfo, AboutLink, AboutTab, Contributor, Credits, ModelCredit};
 use crate::localized::Labels as _;
+use crate::story::drive;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::typed_story;
 
@@ -96,9 +96,6 @@ fn credits() -> Credits {
 
 /// About over sample credits; the tab argument picks the tab it opens on.
 fn show_about(ui: &mut Ui, args: &mut AboutArgs) {
-    if !claim(ui.ctx(), "about", ui.scope_id()) {
-        return;
-    }
     let (tab, community, words, ctx) = (args.tab, args.community, StoryLabels::of(ui), ui.ctx().clone());
     let link_key = ui.make_persistent_id("craft_ui::dialog::about_stories::link");
     drive(

@@ -6,12 +6,12 @@
 use craft_theme::Rgba;
 use egui::Ui;
 
-use super::framework_stories::{claim, drive};
 use super::{GuideLayoutDialog, GuideLines, GuideRect, GuideUnits, NewGuideDialog};
 use crate::canvas::story::{self as canvas_story, ViewArgs};
 use crate::canvas::{Guide, GuideNames, Guides, Orientation, RulerUnits};
 use crate::localized::units::LengthUnit;
 use crate::localized::{Labels as _, LocaleNumbers};
+use crate::story::drive;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::typed_story;
 
@@ -96,12 +96,8 @@ fn picked_color() -> craft_theme::Srgba {
     Rgba::rgb(0xe0, 0x6c, 0x1f).into()
 }
 
-/// New Guide and Edit Selected Guides are one dialog with one fixed id, so they share one claim.
 /// New Guide: Orientation, Position in the ruler unit, Color with Custom… answered by the story.
 fn show_new_guide(ui: &mut Ui, args: &mut NewGuideArgs) {
-    if !claim(ui.ctx(), "new-guide-dialog", ui.scope_id()) {
-        return;
-    }
     let (ruler, words) = (args.ruler, StoryLabels::of(ui));
     drive(
         ui,
@@ -123,9 +119,6 @@ fn show_new_guide(ui: &mut Ui, args: &mut NewGuideArgs) {
 
 /// Edit Selected Guides: the same dialog over a guide that already exists.
 fn show_edit_guides(ui: &mut Ui, args: &mut EditGuidesArgs) {
-    if !claim(ui.ctx(), "new-guide-dialog", ui.scope_id()) {
-        return;
-    }
     let (ruler, horizontal, words) = (args.ruler, args.horizontal, StoryLabels::of(ui));
     drive(
         ui,
@@ -154,9 +147,6 @@ const ARTBOARDS: [GuideRect; 2] = [GuideRect { x0: 40.0, y0: 40.0, x1: 300.0, y1
 /// New Guide Layout with its live preview drawn on the story canvas: the dialog's guides while
 /// it is open, the document's own guides otherwise.
 fn show_guide_layout(ui: &mut Ui, args: &mut GuideLayoutArgs) {
-    if !claim(ui.ctx(), "guide-layout", ui.scope_id()) {
-        return;
-    }
     let (ruler, existing, artboards, words) = (args.ruler, args.existing, args.artboards, StoryLabels::of(ui));
     let lines = if existing { GuideLines { vertical: vec![320.0], horizontal: vec![200.0] } } else { GuideLines::default() };
     let mut preview = None;

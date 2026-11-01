@@ -62,6 +62,9 @@
 //!   a function or a frame share one local wrapper macro that expands to `typed_story!` calls
 //!   (as `dock_story!` and `bar_story!` do), because a closure inside `typed_story!` cannot
 //!   capture the wrapper's parameters.
+//! - Stories of panels and dialogs keep their state with [`shared`], open their dialog with
+//!   [`drive`] and swap in a fake file service with [`ensure_files`]. Sample text they share
+//!   ("Last event: {event}", "Finish next") is in [`StoryLabels`].
 //! - The gallery reads and edits the erased [`Args`] (`story.defaults()`, [`Arg`], [`ArgValue`]);
 //!   a story reads its own struct only.
 //!
@@ -76,6 +79,9 @@
 mod args;
 mod choices;
 mod colours;
+mod harness;
+#[cfg(test)]
+mod harness_tests;
 mod pattern_words;
 mod stock_egui;
 #[cfg(test)]
@@ -88,9 +94,11 @@ pub use args::{Arg, ArgValue, Args, NoArgs, StoryArgs, StoryChoice, show_typed};
 pub use choices::{SizeArg, ToneArg};
 /// `#[derive(StoryArgs)]` and `#[derive(StoryChoice)]`; see the traits.
 pub use craft_ui_macros::{StoryArgs, StoryChoice};
+pub use harness::{claim, drive, ensure_files, lock, shared};
 pub use pattern_words::PatternStoryLabels;
 pub use words::StoryLabels;
 
+use crate::localized::Labels as _;
 use crate::{composites, controls, primitives};
 
 /// Where a story's component sits in the design system, in the order the gallery lists them.
@@ -395,27 +403,11 @@ pub fn dialog_shown(ui: &mut egui::Ui, open: bool) -> bool {
     }
     let key = ui.make_persistent_id("craft_ui::story::overview_dialog_open");
     let mut shown = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
-    if !shown && ui.add(crate::controls::Button::new("Show dialog")).clicked() {
+    if !shown && ui.add(crate::controls::Button::new(StoryLabels::of(ui).show_dialog)).clicked() {
         shown = true;
         ui.data_mut(|d| d.insert_temp(key, true));
     }
     shown
-}
-
-/// Whether this story instance may draw the dialog `name` in this pass. A dialog has one fixed
-/// id, so two instances of a story drawn in the same pass (a component tab and a variants view)
-/// must not both show it: only the first to ask in a pass does.
-pub fn dialog_claim(ctx: &egui::Context, name: &str, instance: egui::Id) -> bool {
-    let key = egui::Id::unique(("craft_ui::story::dialog_claim", name));
-    let pass = ctx.cumulative_pass_nr();
-    ctx.data_mut(|d| {
-        let (claimed_pass, owner) = d.get_temp::<(u64, egui::Id)>(key).unwrap_or((u64::MAX, instance));
-        if claimed_pass == pass && owner != instance {
-            return false;
-        }
-        d.insert_temp(key, (pass, instance));
-        true
-    })
 }
 
 /// The dialog was closed: clears `open` in a component's tab, the tile's own state in an Overview tile.
