@@ -1249,7 +1249,7 @@ pub(crate) fn stories() -> Vec<Story> {
         Level::Composites,
         "List",
         "10,000 rows",
-        RowsArgs { selection: SelectionArg::Multiple, mixed_heights: false, height: 320.0 },
+        RowsArgs { selection: SelectionArg::Multiple, mixed_heights: false, striped: false, height: 320.0 },
         show_rows
     )]
 }
@@ -1267,6 +1267,7 @@ pub(super) struct RowsArgs {
     pub(super) selection: SelectionArg,
     #[arg(name = "mixed heights")]
     pub(super) mixed_heights: bool,
+    pub(super) striped: bool,
     #[arg(range = 120.0..=600.0)]
     pub(super) height: f32,
 }
@@ -1295,14 +1296,16 @@ impl Rows {
 }
 
 /// 10,000 layers with an eye column (Cmd/Ctrl+, hides the selected layers), rename by double
-/// click or F2, and with mixed heights a taller row with a detail line every fourth row. The line
-/// under the list shows the last default action or context menu asked for.
+/// click or F2, with mixed heights a taller row with a detail line every fourth row, and striped
+/// rows (every second one filled, as a table does). The line under the list shows the last
+/// default action or context menu asked for.
 pub(super) fn show_rows(ui: &mut Ui, args: &mut RowsArgs) {
     let mode = match args.selection {
         SelectionArg::Single => SelectionMode::Single,
         SelectionArg::Multiple => SelectionMode::Multiple,
     };
     let mixed = args.mixed_heights;
+    let striped = args.striped;
     let height = args.height;
     let style = ListRow::<'_, usize>::style(&Tokens::of(ui));
     let (plain, tall) = (style.height(ThumbSize::None, false), style.height(ThumbSize::None, true));
@@ -1320,7 +1323,8 @@ pub(super) fn show_rows(ui: &mut Ui, args: &mut RowsArgs) {
             let row = ListRow::new(key, names[key].clone())
                 .toggle(ToggleColumn::eye("Visibility {row}", visible[key]).key(hide))
                 .dimmed(!visible[key])
-                .layer(true);
+                .layer(true)
+                .striped(striped && at % 2 == 1);
             if mixed && at % 4 == 3 { row.detail("Smart filter") } else { row }
         });
         for event in out.events {

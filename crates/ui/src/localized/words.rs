@@ -230,6 +230,12 @@ pub(crate) mod counts {
     pub(crate) const HOURS_AGO_SHORT: Counted = Counted::new("age.hoursShort", "{n} h ago", "{n} h ago");
     pub(crate) const ABOUT_PRS: Counted = Counted::new("about.prs", "{n} PR", "{n} PRs");
     pub(crate) const ABOUT_COMMITS: Counted = Counted::new("about.commitCount", "{n} commit", "{n} commits");
+    pub(crate) const MORE: Counted = Counted::new("chips.more", "+{n} more", "+{n} more");
+    pub(crate) const STARS: Counted = Counted::new("rating.stars", "{n} star", "{n} stars");
+    pub(crate) const DRAG_ITEMS: Counted = Counted::new("drag.count", "{n} item", "{n} items");
+    pub(crate) const EVENT_ERRORS: Counted = Counted::new("events.errorCount", "{n} error", "{n} errors");
+    pub(crate) const EVENT_WARNINGS: Counted = Counted::new("events.warningCount", "{n} warning", "{n} warnings");
+    pub(crate) const EVENT_MESSAGES: Counted = Counted::new("events.messageCount", "{n} message", "{n} messages");
 }
 
 /// The kernel's count words: every one `craft-ui` writes with [`Words::counted`]. A facade lists
@@ -254,6 +260,12 @@ pub const COUNTS: &[Counted] = &[
     counts::HOURS_AGO_SHORT,
     counts::ABOUT_PRS,
     counts::ABOUT_COMMITS,
+    counts::MORE,
+    counts::STARS,
+    counts::DRAG_ITEMS,
+    counts::EVENT_ERRORS,
+    counts::EVENT_WARNINGS,
+    counts::EVENT_MESSAGES,
 ];
 
 /// A labels struct: plain data whose every field is one [`Word`] of its table.

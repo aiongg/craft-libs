@@ -9,13 +9,10 @@ use crate::behavior::{ClaimedKey, KeyClaim};
 use crate::direction;
 use crate::edit::{EditEvent, EditResponse};
 use crate::icons::{self, Icon, IconSize};
-use crate::localized::words::Counted;
+use crate::localized::words::counts;
 use crate::localized::{Labels as _, Words};
 use crate::primitives::{Corner, Interactive};
 use crate::theme::{ToEgui, Tokens, TokensOf as _};
-
-/// The star's accessible name; S5C-F9 moves it to the kernel's `counts`.
-const STARS: Counted = Counted::new("rating.stars", "{n} star", "{n} stars");
 
 crate::words! {
     /// The rating's words, English by default.
@@ -25,8 +22,8 @@ crate::words! {
         rating: "rating.rating" = "Rating";
         /// A star's accessible name: `{n}` its rating. A
         /// [`Counted`](crate::localized::words::Counted) word ("{n} star", "{n} stars"),
-        /// written with [`Words::counted`](crate::localized::Words::counted); S5C-F9 adds it to
-        /// the kernel's `counts` and [`COUNTS`](crate::localized::words::COUNTS).
+        /// written with [`Words::counted`](crate::localized::Words::counted); its forms are in
+        /// the kernel's [`COUNTS`](crate::localized::words::COUNTS).
         stars: "rating.stars" = "{n} stars";
         /// The value read for no rating.
         unrated: "rating.unrated" = "Unrated";
@@ -131,7 +128,7 @@ impl<'a> Rating<'a> {
         let (rtl, forward) = (direction::is_rtl(ui), direction::forward(ui));
         let current = (*rating).min(MAX_STARS);
         let words = Words::of_ctx(&ctx);
-        let stars_name = |n: u8| words.counted(&ctx, STARS, &labels.stars, u64::from(n));
+        let stars_name = |n: u8| words.counted(&ctx, counts::STARS, &labels.stars, u64::from(n));
 
         let (_, strip) = ui.allocate_space(vec2(cell * f32::from(MAX_STARS), cell));
         let group = ui.new_child(

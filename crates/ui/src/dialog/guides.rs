@@ -61,8 +61,6 @@ crate::words! {
         picker_title: "guides.pickerTitle" = "Color Picker (Guides)";
         /// New Guide Layout's colour swatch name and its picker title.
         layout_color: "guides.layoutColor" = "Guide color";
-        /// The position field's error for text that isn't a length.
-        bad_position: "guides.badPosition" = "Enter a position such as 2 cm, 50% or 100 px.";
         layout_title: "guides.layout" = "New Guide Layout";
         preset: "guides.preset" = "Preset:";
         preset_custom: "guides.presetCustom" = "Custom";

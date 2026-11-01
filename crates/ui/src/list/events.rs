@@ -10,16 +10,11 @@ use serde::{Deserialize, Serialize};
 use super::{List, ListEvent, ListRow};
 use crate::behavior::{RowInfo, Selection, SelectionMode};
 use crate::controls::{Button, Select};
-use crate::localized::words::Counted;
+use crate::localized::words::counts;
 use crate::localized::{AgeStyle, LocaleNumbers, SharedLabels as _, Words, relative_age};
 use crate::primitives::{Content, Text};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use craft_theme::TypeRole;
-
-/// The count words of the bar, until S5C-F9 moves them into the kernel's `counts`.
-const ERROR_COUNT: Counted = Counted::new("events.errorCount", "{n} error", "{n} errors");
-const WARNING_COUNT: Counted = Counted::new("events.warningCount", "{n} warning", "{n} warnings");
-const MESSAGE_COUNT: Counted = Counted::new("events.messageCount", "{n} message", "{n} messages");
 
 crate::words! {
     /// The log's words, English by default.
@@ -42,9 +37,8 @@ crate::words! {
         details: "events.details" = "{level} · {source} · {time}";
         /// The count words beside the level glyphs, also their accessible names; each is a
         /// [`Counted`](crate::localized::words::Counted) word written with
-        /// [`Words::counted`](crate::localized::Words::counted). S5C-F9 adds
-        /// `Counted::new("events.errorCount", "{n} error", "{n} errors")` and the two below to the
-        /// kernel's `counts` and [`COUNTS`](crate::localized::words::COUNTS).
+        /// [`Words::counted`](crate::localized::Words::counted); their
+        /// forms are in the kernel's [`COUNTS`](crate::localized::words::COUNTS).
         error_count: "events.errorCount" = "{n} errors";
         warning_count: "events.warningCount" = "{n} warnings";
         message_count: "events.messageCount" = "{n} messages";
@@ -163,9 +157,9 @@ impl<'a> EventLog<'a> {
                     .option(EventLevel::Error, labels.errors.as_str())
                     .show(ui);
                 for (glyph_level, count, text) in [
-                    (EventLevel::Error, ERROR_COUNT, &labels.error_count),
-                    (EventLevel::Warning, WARNING_COUNT, &labels.warning_count),
-                    (EventLevel::Info, MESSAGE_COUNT, &labels.message_count),
+                    (EventLevel::Error, counts::EVENT_ERRORS, &labels.error_count),
+                    (EventLevel::Warning, counts::EVENT_WARNINGS, &labels.warning_count),
+                    (EventLevel::Info, counts::EVENT_MESSAGES, &labels.message_count),
                 ] {
                     let n = events.iter().filter(|e| e.level == glyph_level).count() as u64;
                     let (rect, _) = ui.allocate_exact_size(vec2(log.glyph_box, log.glyph_box), Sense::hover());

@@ -52,7 +52,7 @@ mod row;
 mod row_tests;
 pub(crate) mod spans;
 mod table;
-mod table_stories;
+pub(crate) mod table_stories;
 #[cfg(test)]
 mod table_tests;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -64,10 +64,17 @@ mod tree_tests;
 mod view;
 
 /// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["ListRow", "List", "TreeRow", "FindingsList"];
+pub const COMPONENTS: &[&str] = &["ListRow", "List", "TreeRow", "FindingsList", "Table", "MetadataTable", "EventLog"];
 
 pub(crate) fn stories() -> Vec<crate::story::Story> {
-    row::stories().into_iter().chain(view::stories()).chain(tree::stories()).chain(drag::stories()).chain(findings_stories::stories()).collect()
+    row::stories()
+        .into_iter()
+        .chain(view::stories())
+        .chain(tree::stories())
+        .chain(drag::stories())
+        .chain(findings_stories::stories())
+        .chain(table_stories::stories())
+        .collect()
 }
 
 pub use drag::{GhostThumb, paint_ghost};
