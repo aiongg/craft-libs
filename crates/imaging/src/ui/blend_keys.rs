@@ -13,11 +13,9 @@
 //! }
 //! ```
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use egui::{Context, Key};
 
-use craft_ui::focus::key_owner::OwnerGate;
+use craft_ui::focus::key_owner::{KeyOwner, OwnerGate, owner};
 
 /// Photoshop's ⇧⌥ letter positions: the 26 lettered blend modes. Darker Color, Lighter Color,
 /// Subtract and Divide have no letter; list them with [`BlendKeyEntry::unlettered`].
@@ -112,13 +110,68 @@ impl BlendShortcut {
     /// The position's letter key, as each variant's doc says.
     pub fn letter(self) -> Key {
         // pc: crates/ui-egui/src/input/blend_keys.rs:41-72 `letter_pick` (the table).
-        todo!()
+        match self {
+            BlendShortcut::Normal => Key::N,
+            BlendShortcut::Dissolve => Key::I,
+            BlendShortcut::Behind => Key::Q,
+            BlendShortcut::Clear => Key::R,
+            BlendShortcut::PassThrough => Key::P,
+            BlendShortcut::Darken => Key::K,
+            BlendShortcut::Multiply => Key::M,
+            BlendShortcut::ColorBurn => Key::B,
+            BlendShortcut::LinearBurn => Key::A,
+            BlendShortcut::Lighten => Key::G,
+            BlendShortcut::Screen => Key::S,
+            BlendShortcut::ColorDodge => Key::D,
+            BlendShortcut::LinearDodge => Key::W,
+            BlendShortcut::Overlay => Key::O,
+            BlendShortcut::SoftLight => Key::F,
+            BlendShortcut::HardLight => Key::H,
+            BlendShortcut::VividLight => Key::V,
+            BlendShortcut::LinearLight => Key::J,
+            BlendShortcut::PinLight => Key::Z,
+            BlendShortcut::HardMix => Key::L,
+            BlendShortcut::Difference => Key::E,
+            BlendShortcut::Exclusion => Key::X,
+            BlendShortcut::Hue => Key::U,
+            BlendShortcut::Saturation => Key::T,
+            BlendShortcut::Color => Key::C,
+            BlendShortcut::Luminosity => Key::Y,
+        }
     }
 
     /// The position whose letter is `key`, or `None` for any other key.
     pub fn from_key(key: Key) -> Option<BlendShortcut> {
         // pc: crates/ui-egui/src/input/blend_keys.rs:41-72 `letter_pick`.
-        todo!()
+        Some(match key {
+            Key::N => BlendShortcut::Normal,
+            Key::I => BlendShortcut::Dissolve,
+            Key::Q => BlendShortcut::Behind,
+            Key::R => BlendShortcut::Clear,
+            Key::P => BlendShortcut::PassThrough,
+            Key::K => BlendShortcut::Darken,
+            Key::M => BlendShortcut::Multiply,
+            Key::B => BlendShortcut::ColorBurn,
+            Key::A => BlendShortcut::LinearBurn,
+            Key::G => BlendShortcut::Lighten,
+            Key::S => BlendShortcut::Screen,
+            Key::D => BlendShortcut::ColorDodge,
+            Key::W => BlendShortcut::LinearDodge,
+            Key::O => BlendShortcut::Overlay,
+            Key::F => BlendShortcut::SoftLight,
+            Key::H => BlendShortcut::HardLight,
+            Key::V => BlendShortcut::VividLight,
+            Key::J => BlendShortcut::LinearLight,
+            Key::Z => BlendShortcut::PinLight,
+            Key::L => BlendShortcut::HardMix,
+            Key::E => BlendShortcut::Difference,
+            Key::X => BlendShortcut::Exclusion,
+            Key::U => BlendShortcut::Hue,
+            Key::T => BlendShortcut::Saturation,
+            Key::C => BlendShortcut::Color,
+            Key::Y => BlendShortcut::Luminosity,
+            _ => return None,
+        })
     }
 }
 
@@ -228,13 +281,64 @@ impl<'a, K: Clone + PartialEq> BlendKeys<'a, K> {
     /// Reads and removes this pass's blend mode key presses (the type's rules) and returns the
     /// entry they pick, or `None`.
     pub fn consume(self, ctx: &Context) -> Option<BlendKeyPick<K>> {
-        // pc: crates/ui-egui/src/input/blend_keys.rs:83 `handle` (:86-106: `retain` over pressed
-        // keys with Shift and neither ⌘ nor Ctrl; ⌥ letters through `letter_pick(key)` then
-        // `physical_key`; Plus or Equals +1, Minus −1), :18 `stepped`, :264 `pick_mode` (a mode
-        // the menu lacks does nothing; Behind returns); crates/ui-egui/src/input/shortcuts.rs:859-861
-        // (before the tool letters). new: `focus::key_owner::owner` must be `KeyOwner::App`.
-        todo!()
+        // pc: crates/ui-egui/src/input/blend_keys.rs:83 `handle` (:86-106), :18 `stepped`, :264
+        // `pick_mode`; crates/ui-egui/src/input/shortcuts.rs:859-861. new: `KeyOwner::App` gate.
+        if owner(ctx, &self.gate) != KeyOwner::App {
+            return None;
+        }
+        let presses: Vec<Press> = ctx.input_mut(|i| {
+            let mut out = Vec::new();
+            i.events.retain(|e| {
+                let egui::Event::Key { key, physical_key, pressed: true, modifiers, .. } = e else {
+                    return true;
+                };
+                if !modifiers.shift || modifiers.command || modifiers.ctrl {
+                    return true;
+                }
+                if modifiers.alt {
+                    // The layout's letter first; on a Mac the Option key turns the letter into
+                    // another character that may arrive as some other key.
+                    match BlendShortcut::from_key(*key).or_else(|| physical_key.and_then(BlendShortcut::from_key)) {
+                        Some(shortcut) => out.push(Press::Letter(shortcut)),
+                        None => return true,
+                    }
+                } else {
+                    match key {
+                        Key::Plus | Key::Equals => out.push(Press::Step(1)),
+                        Key::Minus => out.push(Press::Step(-1)),
+                        _ => return true,
+                    }
+                }
+                false
+            });
+            out
+        });
+        let mut current = self.current;
+        let mut pick = None;
+        for press in presses {
+            match press {
+                Press::Step(step) => {
+                    if let Some(entry) = stepped(self.entries, current, step) {
+                        current = Some(&entry.key);
+                        pick = Some(BlendKeyPick::Stepped(entry.key.clone()));
+                    }
+                }
+                Press::Letter(shortcut) => {
+                    if let Some(entry) = self.entries.iter().find(|e| e.shortcut == Some(shortcut)) {
+                        current = Some(&entry.key);
+                        pick = Some(BlendKeyPick::Lettered(entry.key.clone()));
+                    }
+                }
+            }
+        }
+        pick
     }
+}
+
+/// One consumed key press.
+enum Press {
+    Step(i32),
+    Letter(BlendShortcut),
 }
 
 /// The entry `step` places after (or before, when negative) `current` in `entries`, wrapping; an
@@ -242,5 +346,12 @@ impl<'a, K: Clone + PartialEq> BlendKeys<'a, K> {
 /// empty list.
 fn stepped<'e, K: PartialEq>(entries: &'e [BlendKeyEntry<K>], current: Option<&K>, step: i32) -> Option<&'e BlendKeyEntry<K>> {
     // pc: crates/ui-egui/src/input/blend_keys.rs:18 `stepped` (`rem_euclid`; unlisted: 0 or n − 1).
-    todo!()
+    let n = i32::try_from(entries.len()).ok().filter(|n| *n > 0)?;
+    let at = current.and_then(|c| entries.iter().position(|e| e.key == *c)).and_then(|i| i32::try_from(i).ok());
+    let next = match at {
+        Some(i) => (i + step).rem_euclid(n),
+        None if step > 0 => 0,
+        None => n - 1,
+    };
+    entries.get(usize::try_from(next).ok()?)
 }
