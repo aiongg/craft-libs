@@ -76,6 +76,7 @@ mod autocomplete;
 #[cfg(test)]
 mod autocomplete_tests;
 pub(crate) mod badge;
+pub mod blend_choice;
 mod breadcrumb;
 #[cfg(test)]
 mod breadcrumb_tests;

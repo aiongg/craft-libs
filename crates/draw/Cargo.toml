@@ -13,17 +13,18 @@ workspace = true
 [features]
 default = []
 # The tool widgets (`craft_draw::ui`).
-ui = ["dep:craft-ui", "dep:egui", "dep:craft-color", "craft-color/ui", "dep:kurbo"]
+ui = ["dep:craft-ui", "dep:egui", "dep:craft-color", "craft-color/ui"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
 screen-testing = ["ui", "craft-ui/screen-testing", "craft-color/screen-testing"]
 
 [dependencies]
 craft-color = { workspace = true, optional = true }
+craft-host = { workspace = true }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true }
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
-kurbo = { workspace = true, optional = true }
+kurbo = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]

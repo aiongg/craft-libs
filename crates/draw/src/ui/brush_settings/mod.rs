@@ -1,0 +1,1 @@
+//! The Brush Settings panel.

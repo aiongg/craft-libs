@@ -42,6 +42,7 @@ mod lut_picker_tests;
 mod paint_chip;
 #[cfg(test)]
 mod paint_chip_tests;
+mod paint_stories;
 mod pair;
 mod pair_stories;
 #[cfg(test)]

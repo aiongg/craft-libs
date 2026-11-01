@@ -10,9 +10,26 @@
 //! - [`transform`]: the [`TransformBox`] of Free Transform and the options bar's
 //!   [`TransformFields`].
 
+pub mod add_beside;
+pub(crate) mod add_beside_stories;
+#[cfg(test)]
+mod add_beside_tests;
+pub mod artboard;
+pub mod brush_presets;
+pub mod brush_settings;
+pub mod connector;
+pub mod corner;
 pub mod crop;
 pub mod gradient;
+pub mod measure;
+pub mod pattern;
 pub mod pen;
+pub mod picture_fill;
+pub mod shape;
+pub mod shape_drag;
+pub mod slice;
+pub mod stroke;
+pub mod symmetry;
 pub mod transform;
 
 #[cfg(test)]

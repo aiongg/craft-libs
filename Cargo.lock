@@ -1080,6 +1080,7 @@ name = "craft-draw"
 version = "0.1.0"
 dependencies = [
  "craft-color",
+ "craft-host",
  "craft-i18n",
  "craft-theme",
  "craft-ui",

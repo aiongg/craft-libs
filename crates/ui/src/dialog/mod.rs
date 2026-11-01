@@ -66,7 +66,7 @@ mod footer_pure_tests;
 mod footer_tests;
 mod frame;
 pub(crate) mod framework_stories;
-mod full_window;
+pub mod full_window;
 pub(crate) mod full_window_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod full_window_tests;

@@ -2,6 +2,10 @@
 //! [`MarqueeDrag`], the press-drag-release gesture that sizes one.
 
 mod ants;
+pub mod fields;
+pub(crate) mod fields_stories;
+#[cfg(test)]
+mod fields_tests;
 #[cfg(test)]
 mod tests;
 

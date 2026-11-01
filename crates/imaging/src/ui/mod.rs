@@ -8,9 +8,27 @@
 //!   clipping overlay.
 
 pub mod adjust;
+pub mod blend_keys;
+pub(crate) mod blend_keys_stories;
+#[cfg(test)]
+mod blend_keys_tests;
+pub mod blur_pins;
 pub mod channels;
+pub mod fill;
+pub mod filter_gallery;
+pub mod layer_style;
+pub mod liquify;
+pub mod live_preview;
+pub mod mask_view;
+pub(crate) mod mock_image;
 pub mod scopes;
+pub mod select;
+pub mod select_mask;
+pub mod selection;
+pub mod transform_preview;
+pub mod vanishing_point;
 pub mod warp;
+pub mod wide_angle;
 
 #[cfg(test)]
 mod id_tests;

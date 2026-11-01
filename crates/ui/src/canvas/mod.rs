@@ -64,20 +64,29 @@
 //! # });
 //! ```
 
+pub mod before_after;
+pub mod brush;
 mod canvas_id;
 pub mod claim;
+#[cfg(test)]
+mod claim_tests;
 pub(crate) mod core_stories;
 mod crisp;
 mod cursor;
 #[cfg(test)]
 mod cursor_tests;
+pub mod draft;
+#[cfg(test)]
+mod draft_tests;
 pub mod geom;
 #[cfg(test)]
 mod geom_tests;
 mod grid;
 pub mod guides;
 pub mod hit;
-pub(crate) mod marquee;
+pub mod hover;
+pub(crate) mod hover_stories;
+pub mod marquee;
 mod momentary;
 #[cfg(test)]
 mod momentary_tests;
@@ -103,10 +112,12 @@ mod readout;
 pub(crate) mod ref_point;
 pub(crate) mod rulers;
 mod scrollbars;
+pub mod selection;
 mod selection_bar;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod selection_bar_tests;
 mod selection_operation;
+pub(crate) mod selection_stories;
 pub(crate) mod shell_stories;
 mod snap;
 #[cfg(test)]
@@ -115,6 +126,10 @@ mod split;
 #[cfg(test)]
 mod split_tests;
 pub(crate) mod story;
+pub mod straight_line;
+pub(crate) mod straight_line_stories;
+#[cfg(test)]
+mod straight_line_tests;
 #[cfg(test)]
 mod tests;
 pub mod textures;
