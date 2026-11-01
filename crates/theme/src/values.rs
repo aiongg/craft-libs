@@ -2095,6 +2095,105 @@ pub const SHEET_FILTER_BUTTON_MAX: f32 = 18.0;
 /// The filter button's inset from the header cell's corner.
 pub const SHEET_FILTER_BUTTON_INSET: f32 = 2.0;
 
+/// Between pages, and between rows.
+pub const PAGES_GAP: f32 = 14.0;
+/// Above the first and below the last row.
+pub const PAGES_MARGIN: f32 = 28.0;
+/// Kept clear at each side of the pages.
+pub const PAGES_SIDE: f32 = 70.0;
+/// What Hide White Space leaves above and below each page's text area.
+pub const PAGES_WHITE_SPACE_PAD: f32 = 6.0;
+/// The seam Hide White Space draws between pages.
+pub const PAGES_SEAM: f32 = 1.0;
+/// The thumbnail width at zoom 1.
+pub const THUMBNAILS_USUAL_WIDTH: f32 = 150.0;
+/// What the panel keeps free beside the thumbnails.
+pub const THUMBNAILS_PANEL_INSET: f32 = 40.0;
+/// A cell's padding around its thumbnail.
+pub const THUMBNAILS_CELL_PAD: f32 = 16.0;
+/// Between rows of cells.
+pub const THUMBNAILS_ROW_GAP: f32 = 4.0;
+/// The current page's border.
+pub const THUMBNAILS_CURRENT_BORDER: f32 = 2.0;
+/// The border of the other pages.
+pub const THUMBNAILS_BORDER: f32 = 1.0;
+/// A picked page's outline.
+pub const THUMBNAILS_PICKED_OUTLINE: f32 = 1.5;
+/// The drop bar's width.
+pub const THUMBNAILS_DROP_BAR: f32 = 3.0;
+/// The outline round the current and picked slides of a strip.
+pub const THUMBNAILS_STRIP_OUTLINE: f32 = 3.0;
+/// How far outward the strip outline sits.
+pub const THUMBNAILS_STRIP_OUTLINE_OFFSET: f32 = 2.0;
+/// How far either side of an edge grabs it.
+pub const MARGINS_EDGE_GRAB: f32 = 4.0;
+/// A section's inset from its band, top and bottom.
+pub const HEADER_FOOTER_INSET: f32 = 3.0;
+/// The dashed outline of a hovered empty section.
+pub const HEADER_FOOTER_HINT_OUTLINE: f32 = 1.0;
+/// The edited section's outline and its neighbours'.
+pub const HEADER_FOOTER_EDIT_OUTLINE: f32 = 1.0;
+/// Corner radius of the selection rects.
+pub const TEXT_SELECTION_RADIUS: f32 = 1.0;
+/// The column rectangle's outline while dragging.
+pub const TEXT_SELECTION_COLUMN_OUTLINE: f32 = 1.0;
+/// Alpha of the the selection tint.
+pub const TEXT_SELECTION_FILL_ALPHA: u8 = 70;
+/// Corner radius of the current match.
+pub const FIND_CURRENT_RADIUS: f32 = 2.0;
+/// How much the current match grows past the others.
+pub const FIND_CURRENT_GROW: f32 = 1.0;
+/// Alpha of the a match's tint (`find.match`).
+pub const FIND_MATCHED_ALPHA: u8 = 90;
+/// Alpha of the the current match's tint.
+pub const FIND_CURRENT_ALPHA: u8 = 110;
+/// The bar's outline.
+pub const COLUMN_BAR_OUTLINE: f32 = 1.0;
+/// A divider at rest.
+pub const COLUMN_BAR_DIVIDER: f32 = 1.5;
+/// A divider hovered, dragged or focused.
+pub const COLUMN_BAR_DIVIDER_ACTIVE: f32 = 3.0;
+/// How far either side of a divider grabs it.
+pub const COLUMN_BAR_GRAB: f32 = 4.0;
+/// Between columns.
+pub const READING_COLUMN_GAP: f32 = 18.0;
+/// Room under the columns for the page-turn bar.
+pub const READING_NAV_BAR: f32 = 44.0;
+/// One column per this much width.
+pub const READING_COLUMN_TARGET: f32 = 295.0;
+/// The least column width.
+pub const READING_COLUMN_MIN: f32 = 192.0;
+/// A port's side.
+pub const FRAME_MARKS_PORT: f32 = 8.5;
+/// A port's distance from the frame's corner.
+pub const FRAME_MARKS_PORT_INSET: f32 = 10.0;
+/// The overset mark's arm length.
+pub const FRAME_MARKS_OVERSET_ARM: f32 = 5.0;
+/// The overset mark's stroke.
+pub const FRAME_MARKS_OVERSET_STROKE: f32 = 1.5;
+/// The least hidden-character mark size.
+pub const FRAME_MARKS_MARK_MIN: f32 = 6.0;
+/// The largest hidden-character mark size.
+pub const FRAME_MARKS_MARK_MAX: f32 = 40.0;
+/// The square's side.
+pub const EDGE_PICKER_SIDE: f32 = 64.0;
+/// The lines' inset from the square.
+pub const EDGE_PICKER_INSET: f32 = 8.0;
+/// A chosen line.
+pub const EDGE_PICKER_LINE_ON: f32 = 2.5;
+/// A line not chosen.
+pub const EDGE_PICKER_LINE_OFF: f32 = 1.0;
+/// The line under the pointer.
+pub const EDGE_PICKER_LINE_HOVER: f32 = 3.0;
+/// A square's side.
+pub const TABLE_SIZE_CELL: f32 = 16.0;
+/// The space between squares.
+pub const TABLE_SIZE_GAP: f32 = 2.0;
+/// The range outline.
+pub const CELL_SELECTION_OUTLINE: f32 = 1.0;
+/// Alpha of the the selected cells' tint.
+pub const CELL_SELECTION_FILL_ALPHA: u8 = 110;
+
 /// Side of a media tile's flag glyph in its badge bar (LightCraft `grid.rs`).
 pub const TILE_FLAG: f32 = 14.0;
 /// Side of a media tile's colour dot (LightCraft: radius 5).

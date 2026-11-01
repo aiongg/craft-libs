@@ -7,9 +7,7 @@
 //! Proportions of a token size (a hidden slide's opacity, a mark's share of the ascent) are named
 //! constants beside their widget (lead call 38), not tokens.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the token task lands")]
-
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::{Color32, Stroke};
 
 use crate::layout::PageSpacing;
@@ -23,7 +21,16 @@ pub struct PageViewStyle {
 
 impl PageViewStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        let t = &tokens.component.pages;
+        Self {
+            spacing: PageSpacing {
+                gap: f64::from(t.gap),
+                margin: f64::from(t.margin),
+                side: f64::from(t.side),
+                white_space_pad: f64::from(t.white_space_pad),
+                seam: f64::from(t.seam),
+            },
+        }
     }
 }
 
@@ -58,7 +65,21 @@ pub struct PageThumbnailsStyle {
 
 impl PageThumbnailsStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        let t = &tokens.component.thumbnails;
+        Self {
+            usual_width: t.usual_width,
+            panel_inset: t.panel_inset,
+            cell_pad: t.cell_pad,
+            row_gap: t.row_gap,
+            current_border: t.current_border,
+            border: t.border,
+            picked_outline: t.picked_outline,
+            strip_outline: t.strip_outline,
+            strip_outline_offset: t.strip_outline_offset,
+            drop_bar: t.drop_bar,
+            wash: tokens.component.list.selected.to_egui(),
+            accent: tokens.color.accent.solid.to_egui(),
+        }
     }
 }
 
@@ -74,7 +95,7 @@ pub struct MarginHandlesStyle {
 
 impl MarginHandlesStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        Self { edge_grab: tokens.component.margins.edge_grab, shade: tokens.component.ruler.margin_shade.to_egui() }
     }
 }
 
@@ -93,7 +114,14 @@ pub struct HeaderFooterStyle {
 
 impl HeaderFooterStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        let t = &tokens.component.header_footer;
+        let c = &tokens.color;
+        Self {
+            inset: t.inset,
+            hint: Stroke::new(t.hint_outline, c.line.control_edge.to_egui()),
+            editing: Stroke::new(t.edit_outline, c.accent.solid.to_egui()),
+            neighbour: Stroke::new(t.edit_outline, c.line.control_edge.to_egui()),
+        }
     }
 }
 
@@ -116,7 +144,16 @@ pub struct TextSelectStyle {
 
 impl TextSelectStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        let (s, f) = (&tokens.component.text_selection, &tokens.component.find);
+        Self {
+            selection: s.fill.to_egui(),
+            found: f.matched.to_egui(),
+            current: f.current.to_egui(),
+            radius: s.radius,
+            current_radius: f.current_radius,
+            current_grow: f.current_grow,
+            column_outline: Stroke::new(s.column_outline, tokens.color.accent.solid.to_egui()),
+        }
     }
 }
 
@@ -139,7 +176,16 @@ pub struct ColumnBarStyle {
 
 impl ColumnBarStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        let t = &tokens.component.column_bar;
+        let c = &tokens.color;
+        Self {
+            height: tokens.size.control.md,
+            outline: Stroke::new(t.outline, c.line.control_edge.to_egui()),
+            radius: tokens.shape.radius.control,
+            divider: Stroke::new(t.divider, c.line.control_edge.to_egui()),
+            divider_active: Stroke::new(t.divider_active, c.accent.solid.to_egui()),
+            grab: t.grab,
+        }
     }
 }
 
@@ -158,7 +204,8 @@ pub struct ReadingStyle {
 
 impl ReadingStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        let t = &tokens.component.reading;
+        Self { column_gap: t.column_gap, nav_bar: t.nav_bar, column_target: t.column_target, column_min: t.column_min }
     }
 }
 
@@ -181,7 +228,16 @@ pub struct FrameMarksStyle {
 
 impl FrameMarksStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        let t = &tokens.component.frame_marks;
+        Self {
+            port: t.port,
+            port_inset: t.port_inset,
+            overset: t.overset.to_egui(),
+            overset_arm: t.overset_arm,
+            overset_stroke: t.overset_stroke,
+            mark_min: t.mark_min,
+            mark_max: t.mark_max,
+        }
     }
 }
 
@@ -204,7 +260,16 @@ pub struct EdgePickerStyle {
 
 impl EdgePickerStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        let t = &tokens.component.edge_picker;
+        Self {
+            side: t.side,
+            inset: t.inset,
+            fill: t.fill.to_egui(),
+            line_on: t.line_on,
+            line_off: t.line_off,
+            line_off_color: t.line_off_color.to_egui(),
+            line_hover: t.line_hover,
+        }
     }
 }
 
@@ -218,7 +283,8 @@ pub struct TableSizeStyle {
 
 impl TableSizeStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        let t = &tokens.component.table_size;
+        Self { cell: t.cell, gap: t.gap }
     }
 }
 
@@ -233,6 +299,7 @@ pub struct CellSelectionStyle {
 
 impl CellSelectionStyle {
     pub fn of(tokens: &UiTokens) -> Self {
-        todo!()
+        let t = &tokens.component.cell_selection;
+        Self { fill: t.fill.to_egui(), outline: Stroke::new(t.outline, tokens.color.accent.solid.to_egui()) }
     }
 }

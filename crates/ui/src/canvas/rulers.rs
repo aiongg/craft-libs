@@ -120,6 +120,8 @@ pub struct RulerStyle {
     pub label: Color32,
     /// The pointer's marker and the cross hairs of a zero point drag: 1 point of `text.normal`.
     pub marker: Stroke,
+    /// The margin part of a strip, where the text part keeps `fill`: `ruler.margin_shade`.
+    pub margin_shade: Color32,
 }
 
 crate::words! {
@@ -288,6 +290,7 @@ impl<'a> Rulers<'a> {
             tick: Stroke::new(1.0, c.text.faint.to_egui()),
             label: c.text.muted.to_egui(),
             marker: Stroke::new(1.0, c.text.normal.to_egui()),
+            margin_shade: r.margin_shade.to_egui(),
         }
     }
 

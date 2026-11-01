@@ -3,6 +3,7 @@
 //! and Text size (a 16 point strip has no room for larger labels).
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
+use crate::color::Rgba;
 use crate::values;
 
 /// Ruler tokens.
@@ -23,6 +24,8 @@ pub struct RulerTokens {
     pub tick_mid: f32,
     /// Length of the other minor ticks: `ruler.tick_minor`.
     pub tick_minor: f32,
+    /// The margin part of a ruler, where the text part keeps the ruler's fill: `ruler.margin_shade`, `surface.sunken`.
+    pub margin_shade: Rgba,
 }
 
 /// Rulers have no overridable field: their sizes come from the code, as every size does.
@@ -42,7 +45,7 @@ impl Family for RulerTokens {
         "tick_minor" 0.0..=1024.0 => tick_minor;
     };
 
-    fn defaults(_: &Semantic<'_>) -> RulerTokens {
+    fn defaults(s: &Semantic<'_>) -> RulerTokens {
         RulerTokens {
             size: values::RULER_SIZE,
             label: values::RULER_LABEL,
@@ -51,6 +54,7 @@ impl Family for RulerTokens {
             step_min: values::RULER_STEP_MIN,
             tick_mid: values::RULER_TICK_MID,
             tick_minor: values::RULER_TICK_MINOR,
+            margin_shade: s.color.surface.sunken,
         }
     }
 
@@ -74,7 +78,7 @@ impl Family for RulerTokens {
         match f {}
     }
 
-    // No colours of its own: it draws in semantic tokens.
+    // Draws in semantic tokens; the margin shade sits beside `surface.chrome` strips.
     fn pairs() -> Vec<ContrastPair> {
         Vec::new()
     }
