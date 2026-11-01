@@ -2,11 +2,19 @@
 
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::time::Duration;
 
-use craft_host::Jobs;
-use craft_host::queue::{Cancel, JobQueue};
+#[cfg(target_arch = "wasm32")]
+use craft_host::InlineJobs;
+#[cfg(not(target_arch = "wasm32"))]
+use craft_host::ThreadJobs;
+use craft_host::queue::{Cancel, JobQueue, Priority, QueueOptions};
+use craft_host::{Host, Jobs, Wake};
 use egui::Context;
 use kurbo::Point;
+
+use super::HoverOutline;
+use crate::theme::current;
 
 /// A miss suppresses new lookups within this many document pixels of it, on each axis.
 const MISS_REACH: i64 = 2;
@@ -112,9 +120,16 @@ impl<R: Send + 'static> HoverLookup<R> {
     /// wasm32) with no host. One lane; the wake is `ctx.request_repaint()`. Stories and tests pass
     /// a [`ManualJobs`](craft_host::ManualJobs).
     pub fn new(ctx: &Context, jobs: Option<Arc<dyn Jobs>>) -> Self {
-        // new: as `TextureLoader::in_context` (crates/ui/src/canvas/textures/loader.rs:182-200: the
-        // host's jobs, the repaint wake), with `QueueOptions { lanes: 1, name: "craft-hover" }`.
-        todo!()
+        let jobs = jobs.unwrap_or_else(|| match Host::try_of_ctx(ctx) {
+            Some(host) => Arc::clone(host.jobs_shared()),
+            None => default_jobs(),
+        });
+        let wake = {
+            let ctx = ctx.clone();
+            Wake::new(move || ctx.request_repaint())
+        };
+        let queue = JobQueue::new(jobs, wake, QueueOptions { lanes: 1, name: "craft-hover" });
+        Self { queue, revision: 0, key: 0, pixel: None, since: 0.0, job: None, next_job: 0, misses: VecDeque::new(), shown: None }
     }
 
     /// Advances the lookup for this pass (see the type's rules) and returns what to show.
@@ -124,24 +139,97 @@ impl<R: Send + 'static> HoverLookup<R> {
     where
         J: FnOnce(&Cancel) -> HoverAnswer<R> + Send + 'static,
     {
-        // pc: crates/ui-egui/src/tools/object_finder.rs:81-137 `update` (freshness by revision and key
-        // :92-95, empty-layer hint :97-101, pixel and time :103-106, a finished job into the shown
-        // result or the misses (64) :108-126, the shown region serves points inside it :127-130, the
-        // 2 px miss test and the debounce :131-134, busy :135); :26 `DEBOUNCE` 0.12 s, read here
-        // from `HoverOutline::style` (`hover.debounce_ms`). The thread per lookup becomes one
-        // `JobQueue` lane.
-        todo!()
+        let (pressed, now) = ctx.input(|i| (i.pointer.any_down(), i.time));
+        let at = query.at.filter(|p| p.x.is_finite() && p.y.is_finite());
+        let (Some(at), true, false) = (at, query.enabled, pressed) else {
+            self.clear();
+            return HoverUpdate { shown: None, pending: false, hint: None };
+        };
+        if query.revision != self.revision || query.key != self.key {
+            self.clear();
+            self.revision = query.revision;
+            self.key = query.key;
+        }
+        let px = pixel_of(at);
+        if self.pixel != Some(px) {
+            self.pixel = Some(px);
+            self.since = now;
+            // A job for another pixel is of no use any more.
+            self.cancel_job();
+        }
+        if query.empty_here {
+            self.cancel_job();
+            self.shown = None;
+            return HoverUpdate { shown: None, pending: false, hint: Some(HoverHint::EmptySampledLayer) };
+        }
+        while let Some(done) = self.queue.try_recv() {
+            let Some((number, pixel)) = self.job else { continue };
+            if done.key != number {
+                continue;
+            }
+            self.job = None;
+            match done.result {
+                HoverAnswer::Found(r) => self.shown = Some(r),
+                HoverAnswer::Nothing => {
+                    self.misses.push_back(pixel);
+                    if self.misses.len() > MISSES_KEPT {
+                        self.misses.pop_front();
+                    }
+                }
+            }
+        }
+        if self.shown.as_ref().is_some_and(|r| !(query.covers)(r, at)) {
+            self.shown = None;
+        }
+        let missed = self.misses.iter().any(|m| (m[0] - px[0]).abs() <= MISS_REACH && (m[1] - px[1]).abs() <= MISS_REACH);
+        let debounce = HoverOutline::style(&current(ctx)).debounce.as_secs_f64();
+        let rested = now - self.since >= debounce;
+        if self.shown.is_none() && self.job.is_none() && !missed {
+            if rested {
+                let number = self.next_job;
+                self.next_job += 1;
+                self.job = Some((number, px));
+                self.queue.submit(number, Priority::VISIBLE, job(at));
+            } else {
+                ctx.request_repaint_after(Duration::from_secs_f64((debounce - (now - self.since)).max(0.0)));
+            }
+        }
+        let pending = self.job.is_some() || (self.shown.is_none() && !missed && !rested);
+        HoverUpdate { shown: self.shown.as_ref(), pending, hint: None }
     }
 
     /// Drops the shown result, the misses and a running job (a tool change, the canvas closed).
     pub fn clear(&mut self) {
-        // pc: crates/ui-egui/src/tools/object_finder.rs:159-162 `clear`.
-        todo!()
+        self.cancel_job();
+        self.shown = None;
+        self.misses.clear();
+        self.pixel = None;
     }
 
     /// The result shown on the last update, if any.
     pub fn shown(&self) -> Option<&R> {
-        // new: the field.
-        todo!()
+        self.shown.as_ref()
     }
+
+    /// Forgets the running job; the queue drops it unrun or discards its answer.
+    fn cancel_job(&mut self) {
+        if let Some((number, _)) = self.job.take() {
+            self.queue.reprioritize(|k, p| if *k == number { None } else { Some(p) });
+        }
+    }
+}
+
+/// The document pixel containing `p`.
+fn pixel_of(p: Point) -> [i64; 2] {
+    [p.x.floor() as i64, p.y.floor() as i64]
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn default_jobs() -> Arc<dyn Jobs> {
+    Arc::new(ThreadJobs)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn default_jobs() -> Arc<dyn Jobs> {
+    Arc::new(InlineJobs)
 }

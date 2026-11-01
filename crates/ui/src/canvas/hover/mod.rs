@@ -19,8 +19,6 @@
 //! # }
 //! ```
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 mod lookup;
 mod style;
 #[cfg(test)]
@@ -28,10 +26,14 @@ mod tests;
 
 use std::sync::Arc;
 
-use egui::{AsIdSalt, Color32, IdSalt, Ui};
-use kurbo::{BezPath, Rect};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use egui::epaint::{PathShape, PathStroke, Vertex};
+use egui::{AsIdSalt, Color32, ColorImage, Id, IdSalt, Mesh, Shape, Stroke, TextureHandle, TextureOptions, Ui, pos2};
+use kurbo::{BezPath, PathEl, Rect};
 
 use super::CanvasView;
+use crate::theme::current;
 
 pub use lookup::{HoverAnswer, HoverHint, HoverLookup, HoverQuery, HoverUpdate};
 pub use style::HoverStyle;
@@ -90,34 +92,53 @@ impl HoverMask {
     /// non-finite `bounds` give a 1 × 1 mask with no coverage.
     pub fn sampled(bounds: Rect, coverage: impl Fn(f64, f64) -> f32) -> HoverMask {
         // pc: crates/ui-egui/src/tools/object_finder.rs:172-195 `overlay_image` (step =
-        // ceil(max(w, h) / TEX_MAX), samples at bbox.x0 + tx * step; TEX_MAX 768 at :28). The colour
-        // and the edge test move to `HoverOutline::show`; a global counter gives `generation`.
-        todo!()
+        // ceil(max(w, h) / TEX_MAX), samples at bbox.x0 + tx * step).
+        static GENERATIONS: AtomicU64 = AtomicU64::new(0);
+        let generation = GENERATIONS.fetch_add(1, Ordering::Relaxed);
+        let finite = bounds.x0.is_finite() && bounds.y0.is_finite() && bounds.x1.is_finite() && bounds.y1.is_finite();
+        if !finite || bounds.width() <= 0.0 || bounds.height() <= 0.0 {
+            return HoverMask { bounds, size: [1, 1], coverage: Arc::from(vec![0u8]), generation };
+        }
+        let (w, h) = (bounds.width().ceil().max(1.0), bounds.height().ceil().max(1.0));
+        let step = (w.max(h) / Self::MAX_TEXELS as f64).ceil().max(1.0);
+        let (tw, th) = ((w / step).ceil() as usize, (h / step).ceil() as usize);
+        let mut texels = Vec::with_capacity(tw * th);
+        for ty in 0..th {
+            for tx in 0..tw {
+                let c = coverage(bounds.x0 + tx as f64 * step, bounds.y0 + ty as f64 * step);
+                let c = if c.is_finite() { c.clamp(0.0, 1.0) } else { 0.0 };
+                texels.push((c * 255.0).round() as u8);
+            }
+        }
+        HoverMask { bounds, size: [tw, th], coverage: Arc::from(texels), generation }
     }
 
     /// The mask's extent in document units.
     pub fn bounds(&self) -> Rect {
-        // new: the field.
-        todo!()
+        self.bounds
     }
 
     /// Texels across and down.
     pub fn size(&self) -> [usize; 2] {
-        // new: the field.
-        todo!()
+        self.size
     }
 
     /// The coverage of texel `(x, y)`, 0..=1; 0 outside the mask.
     pub fn coverage(&self, x: usize, y: usize) -> f32 {
-        // new: coverage[y * width + x] / 255.
-        todo!()
+        let [w, h] = self.size;
+        if x >= w || y >= h {
+            return 0.0;
+        }
+        f32::from(self.coverage[y * w + x]) / 255.0
     }
 
     /// Whether texel `(x, y)` is on the mask's edge: covered at 0.5 or more, and on the texture's
     /// border or beside a texel (left, right, above, below) covered less than 0.5.
     pub fn is_edge(&self, x: usize, y: usize) -> bool {
         // pc: crates/ui-egui/src/tools/object_finder.rs:180-190 (the four-neighbour edge test).
-        todo!()
+        let [w, h] = self.size;
+        let on = |x: usize, y: usize| self.coverage(x, y) >= 0.5;
+        on(x, y) && (x == 0 || y == 0 || x + 1 == w || y + 1 == h || !on(x - 1, y) || !on(x + 1, y) || !on(x, y - 1) || !on(x, y + 1))
     }
 }
 
@@ -159,7 +180,84 @@ impl HoverOutline {
         // pc: crates/ui-egui/src/tools/object_finder.rs:164-168 `overlay` (0.42 × coverage, edge
         // 0.95), :218-233 (texture keyed by the region, one quad mesh through the view).
         // vectorcraft: crates/ui-egui/src/canvas/overlays.rs:20-24 (the path in its layer colour, 1.5).
-        // The sizes and alphas come from `HoverOutline::style`.
-        todo!()
+        let Some(shape) = &self.shape else { return };
+        let style = Self::style(&current(ui.ctx()));
+        let colour = self.colour.unwrap_or(style.colour);
+        let painter = ui.painter().with_clip_rect(view.rect);
+        let stroke = Stroke::new(style.outline, colour);
+        match shape {
+            HoverShape::Rect(rect) => {
+                // The line sits outside the rectangle: grow it by half the width.
+                let half = view.doc_len(style.outline / 2.0);
+                let half_x = f64::from(style.outline / 2.0) / view.zoom_x();
+                let grown = Rect::new(rect.x0 - half_x, rect.y0 - half, rect.x1 + half_x, rect.y1 + half);
+                painter.add(Shape::closed_line(view.quad(grown).to_vec(), stroke));
+            }
+            HoverShape::Path(path) => {
+                let screen = view.affine() * path.clone();
+                let mut points = Vec::new();
+                let emit = |points: &mut Vec<egui::Pos2>, closed: bool| {
+                    if points.len() > 1 {
+                        let line = std::mem::take(points);
+                        painter.add(if closed {
+                            Shape::Path(PathShape { points: line, closed: true, fill: Color32::TRANSPARENT, stroke: PathStroke::from(stroke) })
+                        } else {
+                            Shape::line(line, stroke)
+                        });
+                    }
+                    points.clear();
+                };
+                kurbo::flatten(screen.elements().iter().copied(), 0.25, |el| match el {
+                    PathEl::MoveTo(p) => {
+                        emit(&mut points, false);
+                        points.push(pos2(p.x as f32, p.y as f32));
+                    }
+                    PathEl::LineTo(p) => points.push(pos2(p.x as f32, p.y as f32)),
+                    PathEl::ClosePath => emit(&mut points, true),
+                    _ => {}
+                });
+                emit(&mut points, false);
+            }
+            HoverShape::Mask(mask) => {
+                let id = Id::unique("craft_ui::canvas::HoverOutline").with(self.id_salt);
+                let cached = ui.ctx().data(|d| d.get_temp::<(u64, Color32, TextureHandle)>(id));
+                let texture = match cached {
+                    Some((generation, c, texture)) if generation == mask.generation && c == colour => texture,
+                    _ => {
+                        let texture = ui.ctx().load_texture("craft-hover-mask", mask_image(mask, colour, &style), TextureOptions::LINEAR);
+                        ui.ctx().data_mut(|d| d.insert_temp(id, (mask.generation, colour, texture.clone())));
+                        texture
+                    }
+                };
+                let corners = view.quad(mask.bounds);
+                let uvs = [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(1.0, 1.0), pos2(0.0, 1.0)];
+                let mut mesh = Mesh::with_texture(texture.id());
+                for (pos, uv) in corners.into_iter().zip(uvs) {
+                    mesh.vertices.push(Vertex { pos, uv, color: Color32::WHITE });
+                }
+                mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
+                painter.add(Shape::mesh(mesh));
+            }
+        }
     }
+}
+
+/// The tint image of `mask` in `colour`: coverage × `fill_alpha`, edge texels at `edge_alpha`.
+fn mask_image(mask: &HoverMask, colour: Color32, style: &HoverStyle) -> ColorImage {
+    let [w, h] = mask.size;
+    let mut pixels = Vec::with_capacity(w * h);
+    for y in 0..h {
+        for x in 0..w {
+            let c = mask.coverage(x, y);
+            let alpha = if c <= 0.0 {
+                0.0
+            } else if mask.is_edge(x, y) {
+                style.edge_alpha
+            } else {
+                style.fill_alpha * c
+            };
+            pixels.push(Color32::from_rgba_unmultiplied(colour.r(), colour.g(), colour.b(), (alpha.clamp(0.0, 1.0) * 255.0).round() as u8));
+        }
+    }
+    ColorImage::new([w, h], pixels)
 }
