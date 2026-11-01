@@ -1,33 +1,150 @@
 //! The Paragraph dialog.
 
+use craft_ui::dialog::{DialogHost, DialogResult};
+use craft_ui::localized::units::LengthUnit;
+use craft_ui::theme::{Base, install};
+use egui::accesskit::Role;
+use egui::{Event, Key, vec2};
+use egui_kittest::kittest::Queryable as _;
+use egui_kittest::{Harness, HarnessBuilder};
+
+use super::paragraph_dialog::{sample_plan, *};
+
+struct App {
+    host: DialogHost,
+    answers: Vec<ParagraphAnswer>,
+}
+
+fn start() -> ParagraphFormat {
+    ParagraphFormat {
+        align: Some(ParagraphAlign::Left),
+        before_text: Some(0.0),
+        after_text: None,
+        special: Some(SpecialIndent::None),
+        by: Some(0.0),
+        space_before: Some(0.0),
+        space_after: Some(0.0),
+        line_spacing: Some(LineSpacing::Multiple(1.5)),
+    }
+}
+
+fn open(format: ParagraphFormat) -> Harness<'static, App> {
+    let mut host = DialogHost::default();
+    host.open(ParagraphDialog::new(format).unit(LengthUnit::Inches));
+    let mut harness =
+        HarnessBuilder::default().with_size(vec2(900.0, 1100.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+            |ui, app: &mut App| {
+                app.host.show(ui.ctx());
+                if let Some(DialogResult::Ok(answer)) = app.host.take::<ParagraphDialog>() {
+                    app.answers.push(answer);
+                }
+            },
+            App { host, answers: Vec::new() },
+        );
+    harness.run();
+    harness
+}
+
+fn type_into(harness: &mut Harness<'_, App>, field: &str, text: &str) {
+    harness.get_by_role_and_label(Role::SpinButton, field).focus();
+    harness.run();
+    harness.event(Event::Text(text.into()));
+    harness.run();
+    harness.key_press(Key::Tab);
+    harness.run();
+}
+
+fn choose(harness: &mut Harness<'_, App>, list: &str, option: &str) {
+    harness.get_by_role_and_label(Role::ComboBox, list).click();
+    harness.run();
+    harness.get_by_label(option).click();
+    harness.run();
+}
+
+fn format(harness: &Harness<'_, App>) -> ParagraphFormat {
+    harness.state().host.get::<ParagraphDialog>().expect("open").format().clone()
+}
+
 // Before text 0.5 in, Hanging by 0.25 in, Exactly 18 pt returns 36, Hanging, 18 and LineSpacing::Exactly(18.0).
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn ok_returns_the_format_in_points() {
-    todo!()
+    let mut harness = open(start());
+    type_into(&mut harness, "Before text", "0.5");
+    choose(&mut harness, "Special", "Hanging");
+    type_into(&mut harness, "By", "0.25");
+    choose(&mut harness, "Line spacing", "Exactly");
+    harness.get_by_label("OK").click();
+    harness.run();
+    let answer = harness.state().answers.last().cloned().expect("OK answers");
+    assert!(!answer.open_tabs);
+    let f = answer.format;
+    assert_eq!(
+        (f.before_text, f.special, f.by, f.line_spacing),
+        (Some(36.0), Some(SpecialIndent::Hanging), Some(18.0), Some(LineSpacing::Exactly(18.0)))
+    );
 }
 
 // Choosing Exactly with At 1.5 sets At to 18; choosing Double sets Multiple(2.0).
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn line_spacing_presets_fix_their_at_value() {
-    todo!()
+    let mut harness = open(start());
+    choose(&mut harness, "Line spacing", "Exactly");
+    assert_eq!(format(&harness).line_spacing, Some(LineSpacing::Exactly(18.0)));
+    choose(&mut harness, "Line spacing", "Double");
+    assert_eq!(format(&harness).line_spacing, Some(LineSpacing::Multiple(2.0)));
+    choose(&mut harness, "Line spacing", "Multiple");
+    assert_eq!(format(&harness).line_spacing, Some(LineSpacing::Multiple(2.0)), "a multiple stays when Multiple is chosen");
 }
 
-// "abc" in Spacing before keeps the dialog open with the field's message.
+// A value out of range shows the field's message and OK waits for a fix; "abc" in Spacing before is not
+// taken. (The number field marks rejected text itself and keeps the value from before.)
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
-fn a_field_that_doesnt_parse_refuses_ok() {
-    todo!()
+fn a_value_out_of_range_refuses_ok_with_its_message() {
+    let mut harness = open(ParagraphFormat { space_before: Some(2000.0), ..start() });
+    harness.get_by_label_contains("Spacing before must be from");
+    harness.get_by_label("OK").click();
+    harness.run();
+    assert!(harness.state().host.get::<ParagraphDialog>().is_some() && harness.state().answers.is_empty(), "OK refused");
+
+    type_into(&mut harness, "Spacing before", "12");
+    assert_eq!(format(&harness).space_before, Some(12.0));
+    assert!(harness.query_by_label_contains("Spacing before must be from").is_none());
+    type_into(&mut harness, "Spacing before", "abc");
+    assert_eq!(format(&harness).space_before, Some(12.0), "text that is not a number is not taken");
+    harness.get_by_label("OK").click();
+    harness.run();
+    assert_eq!(harness.state().answers.last().and_then(|a| a.format.space_before), Some(12.0));
 }
 
 // Tabs… returns Ok with open_tabs true and the format as edited.
 #[test]
-#[ignore = "skeleton"]
-#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
 fn tabs_button_answers_with_open_tabs() {
-    todo!()
+    let mut harness = open(start());
+    type_into(&mut harness, "Spacing after", "6");
+    harness.get_by_label("Tabs…").click();
+    harness.run();
+    let answer = harness.state().answers.last().cloned().expect("Tabs… answers");
+    assert!(answer.open_tabs);
+    assert_eq!(answer.format, ParagraphFormat { space_after: Some(6.0), ..start() });
+    assert!(harness.state().host.get::<ParagraphDialog>().is_none());
+}
+
+// The preview's lines follow the indents: a hanging indent pulls the first line out, and a
+// paragraph's spacing moves the lines under it.
+#[test]
+fn the_preview_lays_out_the_values() {
+    let format = ParagraphFormat {
+        before_text: Some(36.0),
+        special: Some(SpecialIndent::Hanging),
+        by: Some(18.0),
+        space_before: Some(10.0),
+        line_spacing: Some(LineSpacing::Exactly(20.0)),
+        ..ParagraphFormat::default()
+    };
+    let plan = sample_plan(&format, 400.0, 12.0);
+    let subject: Vec<_> = plan.rows.iter().filter(|r| r.subject).collect();
+    assert_eq!((subject[0].rect.left(), subject[1].rect.left()), (36.0, 54.0));
+    assert_eq!(subject[1].rect.height(), 20.0);
+    assert_eq!(subject[0].rect.top(), 3.0 * 12.0 + 10.0);
+    assert!(!subject[2].full && subject[0].full);
 }
