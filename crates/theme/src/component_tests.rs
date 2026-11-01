@@ -731,6 +731,8 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 1
             // Rating: the star.
             + 1
+            // Navigator: the proxy rectangle.
+            + 1
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));

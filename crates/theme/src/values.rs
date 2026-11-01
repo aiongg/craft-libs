@@ -2021,3 +2021,66 @@ pub const LINK_TABLE_MAX: f32 = 320.0;
 pub const LINK_TABLE_SHARE: f32 = 0.3;
 /// Greatest width of the Link Media dialog (FilmCraft).
 pub const LINK_DIALOG_MAX_WIDTH: f32 = 760.0;
+
+/// The Navigator's default proxy rectangle colour (PhotoCraft `navigator.rs`).
+pub const NAVIGATOR_PROXY: Rgba = Rgba::rgb(255, 84, 84);
+/// The Navigator proxy's stroke width (PhotoCraft `navigator.rs:105`).
+pub const NAVIGATOR_PROXY_WIDTH: f32 = 1.5;
+/// The Navigator proxy's corner radius on an upright view.
+pub const NAVIGATOR_PROXY_RADIUS: f32 = 2.0;
+/// Space between the Navigator's preview box and the fitted document.
+pub const NAVIGATOR_INSET: f32 = 8.0;
+/// The least height of the Navigator's preview box.
+pub const NAVIGATOR_MIN_PREVIEW: f32 = 40.0;
+/// Side of the Navigator's checkerboard square.
+pub const NAVIGATOR_CHECKER: f32 = 6.0;
+/// The gap above the Navigator's zoom row and between its controls (PhotoCraft `navigator.rs:109`).
+pub const NAVIGATOR_ROW_GAP: f32 = 4.0;
+/// The Navigator's named proxy colours after Default: red, orange, yellow, green, blue, violet,
+/// gray.
+pub const NAVIGATOR_PROXY_COLORS: [Rgba; 7] = [
+    Rgba::rgb(255, 84, 84),
+    Rgba::rgb(255, 160, 60),
+    Rgba::rgb(255, 214, 64),
+    Rgba::rgb(92, 214, 110),
+    Rgba::rgb(84, 160, 255),
+    Rgba::rgb(176, 124, 255),
+    Rgba::rgb(200, 200, 200),
+];
+
+/// A clipping warning button's side (PhotoCraft `camera_raw_scope_ui.rs:389`).
+pub const SCOPES_WARNING_SIZE: f32 = 18.0;
+/// The gap between the scope statistics columns (PhotoCraft `histogram_panel.rs:721`).
+pub const SCOPES_STATISTICS_GAP: f32 = 6.0;
+/// Each per-channel plot of All Channels View (PhotoCraft `histogram_panel.rs:797`).
+pub const SCOPES_ALL_CHANNELS_HEIGHT: f32 = 90.0;
+/// The vectorscope rings' alpha (PhotoCraft `camera_raw_scope_ui.rs:461`).
+pub const SCOPES_VECTOR_RING_ALPHA: f32 = 0.45;
+/// The smallest half-side of a vectorscope cloud dot (PhotoCraft `camera_raw_scope_ui.rs:471`).
+pub const SCOPES_VECTOR_DOT_MIN: f32 = 0.7;
+/// The largest half-side of a vectorscope cloud dot.
+pub const SCOPES_VECTOR_DOT_MAX: f32 = 3.0;
+/// The scope hover readout badge's height (PhotoCraft `camera_raw_scope_ui.rs:397`).
+pub const SCOPES_HOVER_BADGE_HEIGHT: f32 = 20.0;
+/// The hovered zone band's alpha (PhotoCraft `camera_raw_scope_ui.rs:417`).
+pub const SCOPES_ZONE_ALPHA: f32 = 0.055;
+
+/// A set header's height in the Actions panel (PhotoCraft `actions.rs:831`).
+pub const ACTIONS_SET_ROW_HEIGHT: f32 = 24.0;
+/// An action row's height in the Actions panel.
+pub const ACTIONS_ROW_HEIGHT: f32 = 26.0;
+/// A step row's height in the Actions panel.
+pub const ACTIONS_STEP_ROW_HEIGHT: f32 = 20.0;
+/// The indent of an action inside a set.
+pub const ACTIONS_INDENT: f32 = 14.0;
+/// The Button Mode fills, red to violet (PhotoCraft `actions.rs:297-313`).
+pub const ACTIONS_COLORS: [Rgba; 6] = [
+    Rgba::rgb(196, 64, 64),
+    Rgba::rgb(204, 120, 40),
+    Rgba::rgb(196, 176, 48),
+    Rgba::rgb(56, 140, 72),
+    Rgba::rgb(48, 104, 176),
+    Rgba::rgb(120, 72, 168),
+];
+/// A Button Mode label on a coloured fill (PhotoCraft `actions.rs:297-313`).
+pub const ACTIONS_LABEL_ON_COLOR: Rgba = Rgba::rgb(20, 20, 20);

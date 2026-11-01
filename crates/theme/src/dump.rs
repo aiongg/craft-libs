@@ -6,23 +6,23 @@
 use std::fmt::Write as _;
 
 use crate::{
-    AboutTokens, AlignTokens, AltTextTokens, AngleDialTokens, AppShellTokens, AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone,
-    BarSizes, BezierTokens, BorderColors, BreadcrumbTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, ChannelsTokens, CheckOffColors,
-    CheckOnColors, CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens,
-    CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DateTokens, DialogTokens, Dimmed, DockTokens,
-    DragTokens, DropVeilTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, EventLogTokens, ExportTokens, EyedropperTokens,
-    FieldTokens, FileListTokens, FindingsTokens, FloatTokens, FontPickerTokens, FontSlot, FormSpacing, FormTokens, Gaps, GlyphsTokens,
-    GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens,
-    HistogramTokens, HistoryTokens, IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayersTokens,
-    LevelsTokens, LinkTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens, MetadataTokens, Motion,
-    MotionTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens,
-    PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens,
-    RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens,
-    ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens, ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens,
-    SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens,
-    TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens,
-    TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens,
-    TreePickerTokens, TypeRole, TypeStyle, TypeTokens,
+    AboutTokens, ActionsTokens, AlignTokens, AltTextTokens, AngleDialTokens, AppShellTokens, AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens,
+    BadgeTone, BarSizes, BezierTokens, BorderColors, BreadcrumbTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, ChannelsTokens,
+    CheckOffColors, CheckOnColors, CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens, ColorRampTokens, ColorToken,
+    ColorWheelTokens, CommandPaletteTokens, ComponentTokens, ControlSizes, CropTokens, CursorTokens, CurveTokens, DateTokens, DialogTokens, Dimmed,
+    DockTokens, DragTokens, DropVeilTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens, EventLogTokens, ExportTokens,
+    EyedropperTokens, FieldTokens, FileListTokens, FindingsTokens, FloatTokens, FontPickerTokens, FontSlot, FormSpacing, FormTokens, Gaps,
+    GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens, GroupBoxTokens, GuideTokens, HandleTokens,
+    HarmonyTokens, HistogramTokens, HistoryTokens, IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor,
+    LayersTokens, LevelsTokens, LinkTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MenuHue, MenuTokens,
+    MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
+    PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes,
+    PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens,
+    Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectionBarTokens,
+    ShapeTokens, SizeTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States,
+    StatusBarTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens,
+    ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone,
+    ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -139,7 +139,21 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.tab.close_icon", len(*close_icon));
     out.line("size.tab.rounded", rounded);
     out.line("size.tab.dividers", dividers);
-    let PresetSizes { header_height, grid_gap, grid_inset, cell_radius, caption_gap, slider_width } = preset;
+    let PresetSizes {
+        header_height,
+        grid_gap,
+        grid_inset,
+        cell_radius,
+        caption_gap,
+        slider_width,
+        picker_wide_width,
+        picker_wide_height,
+        picker_square,
+        picker_cell,
+        name_width,
+        popup_max_height,
+        footer_room,
+    } = preset;
     for (k, v) in [
         ("header_height", header_height),
         ("grid_gap", grid_gap),
@@ -147,6 +161,13 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         ("cell_radius", cell_radius),
         ("caption_gap", caption_gap),
         ("slider_width", slider_width),
+        ("picker_wide_width", picker_wide_width),
+        ("picker_wide_height", picker_wide_height),
+        ("picker_square", picker_square),
+        ("picker_cell", picker_cell),
+        ("name_width", name_width),
+        ("popup_max_height", popup_max_height),
+        ("footer_room", footer_room),
     ] {
         out.line(&format!("size.preset.{k}"), len(*v));
     }
@@ -265,6 +286,9 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         thumbnail,
         tile,
         link,
+        navigator,
+        scopes,
+        actions,
         app_shell,
         badge,
         bezier,
@@ -451,6 +475,9 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     thumbnail_lines(out, thumbnail);
     tile_lines(out, tile);
     link_lines(out, link);
+    navigator_lines(out, navigator);
+    scopes_lines(out, scopes);
+    actions_lines(out, actions);
     channels_lines(out, channels);
     layers_lines(out, layers);
     history_lines(out, history);
@@ -2115,6 +2142,53 @@ fn tile_lines(out: &mut Lines, t: &TileTokens) {
     out.line("tile.scrub", hex(*scrub));
     out.line("tile.marquee.fill", hex(*marquee_fill));
     out.line("tile.marquee.line", hex(*marquee_line));
+}
+
+fn navigator_lines(out: &mut Lines, t: &NavigatorTokens) {
+    let NavigatorTokens { proxy, proxy_width, proxy_radius, inset, min_preview, checker, row_gap, proxy_colors } = t;
+    out.line("navigator.proxy", hex(*proxy));
+    out.line("navigator.proxy_width", len(*proxy_width));
+    out.line("navigator.proxy_radius", len(*proxy_radius));
+    out.line("navigator.inset", len(*inset));
+    out.line("navigator.min_preview", len(*min_preview));
+    out.line("navigator.checker", len(*checker));
+    out.line("navigator.row_gap", len(*row_gap));
+    for (name, c) in ["red", "orange", "yellow", "green", "blue", "violet", "gray"].into_iter().zip(proxy_colors) {
+        out.line(&format!("navigator.proxy_color.{name}"), hex(*c));
+    }
+}
+
+fn scopes_lines(out: &mut Lines, t: &ScopesTokens) {
+    let ScopesTokens {
+        warning_size,
+        statistics_gap,
+        all_channels_height,
+        vector_ring_alpha,
+        vector_dot_min,
+        vector_dot_max,
+        hover_badge_height,
+        zone_alpha,
+    } = t;
+    out.line("scopes.warning_size", len(*warning_size));
+    out.line("scopes.statistics_gap", len(*statistics_gap));
+    out.line("scopes.all_channels_height", len(*all_channels_height));
+    out.line("scopes.vector_ring_alpha", len(*vector_ring_alpha));
+    out.line("scopes.vector_dot_min", len(*vector_dot_min));
+    out.line("scopes.vector_dot_max", len(*vector_dot_max));
+    out.line("scopes.hover_badge_height", len(*hover_badge_height));
+    out.line("scopes.zone_alpha", len(*zone_alpha));
+}
+
+fn actions_lines(out: &mut Lines, t: &ActionsTokens) {
+    let ActionsTokens { set_row_height, row_height, step_row_height, indent, colors, label_on_color } = t;
+    out.line("actions.set_row_height", len(*set_row_height));
+    out.line("actions.row_height", len(*row_height));
+    out.line("actions.step_row_height", len(*step_row_height));
+    out.line("actions.indent", len(*indent));
+    for (name, c) in ["red", "orange", "yellow", "green", "blue", "violet"].into_iter().zip(colors) {
+        out.line(&format!("actions.color.{name}"), hex(*c));
+    }
+    out.line("actions.color.label", hex(*label_on_color));
 }
 
 fn link_lines(out: &mut Lines, t: &LinkTokens) {

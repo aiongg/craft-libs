@@ -189,6 +189,13 @@ pub(crate) fn leaves<'a>(b: &'a mut Preset, c: &'a mut ComponentSizes) -> Vec<Le
         "base.size.preset.cell_radius" Num 0.0..=32.0 => s.preset.cell_radius;
         "base.size.preset.caption_gap" Num 0.0..=16.0 => s.preset.caption_gap;
         "base.size.preset.slider_width" Num 48.0..=240.0 => s.preset.slider_width;
+        "base.size.preset.picker_square" Num 8.0..=256.0 => s.preset.picker_square;
+        "base.size.preset.picker_cell" Num 8.0..=256.0 => s.preset.picker_cell;
+        "base.size.preset.picker_wide_width" Num 8.0..=256.0 => s.preset.picker_wide_width;
+        "base.size.preset.picker_wide_height" Num 8.0..=256.0 => s.preset.picker_wide_height;
+        "base.size.preset.name_width" Num 48.0..=480.0 => s.preset.name_width;
+        "base.size.preset.popup_max_height" Num 120.0..=1024.0 => s.preset.popup_max_height;
+        "base.size.preset.footer_room" Num 0.0..=32.0 => s.preset.footer_room;
     }
     let sp = &mut b.space;
     leaves! { out;

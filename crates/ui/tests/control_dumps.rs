@@ -359,6 +359,9 @@ fn preset_style() {
         d.line("cell_radius", s.cell_radius.nw).line("caption_gap", s.caption_gap).line("slider_width", s.slider_width);
         d.line("thumb_list_min", s.thumb_list_min).line("thumb_list_max", s.thumb_list_max).line("ghost_thumb", s.ghost_thumb);
         d.line("toolbar_gap", s.toolbar_gap);
+        d.line("picker_wide.width", s.picker_wide.x).line("picker_wide.height", s.picker_wide.y).line("picker_square", s.picker_square);
+        d.line("picker_cell", s.picker_cell).line("name_width", s.name_width).line("popup_max_height", s.popup_max_height);
+        d.line("footer_room", s.footer_room);
         for (key, stroke) in [("border", s.border), ("ring.hover", s.ring_hover), ("ring.selected", s.ring_selected), ("ring.halo", s.ring_halo)] {
             d.line(&format!("{key}.width"), stroke.width).line(&format!("{key}.color"), stroke.color);
         }
