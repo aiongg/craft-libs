@@ -493,6 +493,16 @@ pub fn any_open(ctx: &Context) -> bool {
     Popup::is_any_open(ctx) || ctx.data(|d| d.get_temp::<OpenLists>(key)).is_some_and(|l| l.0.iter().any(|l| l.pass + 1 >= pass))
 }
 
+/// [`any_open`] for a widget drawn inside a popup: the popups whose contents are drawing (the
+/// popover a preset browser sits in) don't count, so the widget keeps its keys; any other open
+/// popup does, such as the menu it opened itself.
+pub(crate) fn any_open_beyond_drawing(ctx: &Context) -> bool {
+    let (key, pass) = (open_lists_id(ctx), ctx.cumulative_pass_nr());
+    let drawing = ctx.data(|d| d.get_temp::<Drawing>(Drawing::key(ctx))).unwrap_or_default().0;
+    Popup::is_any_open(ctx)
+        || ctx.data(|d| d.get_temp::<OpenLists>(key)).is_some_and(|l| l.0.iter().any(|l| l.pass + 1 >= pass && !drawing.contains(&l.popup)))
+}
+
 /// Whether an open popup owns the keyboard: any popup [`any_open`] counts except the non-modal
 /// popovers, which let command chords through (PhotoCraft's stroke editor). A popup opened from a
 /// non-modal popover (its Select list) owns the keys.

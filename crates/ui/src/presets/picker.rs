@@ -567,7 +567,6 @@ mod tests {
 
     // Tab to the field, Down opens the popover with focus inside, arrows and Enter pick, focus returns to the field.
     #[test]
-    #[ignore = "the browser ignores keys while any popup is open (presets/view.rs:271, PR2's file), and the picker's own popover counts; the test passes once that guard lets the browser's enclosing popover through"]
     fn picker_opens_with_down_and_picks_with_enter_and_returns_focus() {
         let mut state = host(9);
         state.selected = Some(2);

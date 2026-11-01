@@ -268,7 +268,7 @@ where
     if focused && !pass.st.focused && FocusRing::visible(ui.ctx()) {
         pass.st.reveal = pass.lead_key();
     }
-    if focused && ui.is_enabled() && pass.st.renaming.is_none() && !popup_list::any_open(ui.ctx()) {
+    if focused && ui.is_enabled() && pass.st.renaming.is_none() && !popup_list::any_open_beyond_drawing(ui.ctx()) {
         let page = pass.st.viewport.map_or(1, |h| spans.page(pass.st.offset..pass.st.offset + h));
         pass.keys(ui, page);
     }
