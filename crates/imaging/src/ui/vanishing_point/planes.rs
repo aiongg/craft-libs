@@ -22,17 +22,27 @@ pub struct VanishingPlane {
 impl VanishingPlane {
     /// The map from the unit square to the plane (`Homography::unit_to_quad`), `None` for a
     /// degenerate plane.
-    #[expect(clippy::todo, reason = "skeleton: task WS-VP1")]
     pub fn homography(&self) -> Option<Homography> {
         // pc: crates/algo/src/vanishing.rs:77 `VpPlane::homography`.
-        todo!()
+        Homography::unit_to_quad(self.corners.map(|c| Point::new(c[0], c[1])))
     }
 
     /// The middles of the four edges (0 top, 1 right, 2 bottom, 3 left): the edge nodes.
-    #[expect(clippy::todo, reason = "skeleton: task WS-VP1")]
+    ///
+    /// The middles are the plane's own (the image of the unit square's edge middles, which
+    /// perspective moves off the corners' midpoints). A degenerate plane has no map: its nodes are
+    /// the corners' midpoints.
     pub fn edge_nodes(&self) -> [[f64; 2]; 4] {
-        // pc: crates/ui-egui/src/dialogs/vp_ui.rs:649 `edge_nodes`.
-        todo!()
+        // pc: crates/ui-egui/src/dialogs/vp_ui.rs:649 `edge_nodes` (`None` there for a degenerate
+        // plane; the array here falls back to the midpoints).
+        let q = &self.corners;
+        let Some(h) = self.homography() else {
+            return std::array::from_fn(|i| [(q[i][0] + q[(i + 1) % 4][0]) / 2.0, (q[i][1] + q[(i + 1) % 4][1]) / 2.0]);
+        };
+        [(0.5, 0.0), (1.0, 0.5), (0.5, 1.0), (0.0, 0.5)].map(|(u, v)| {
+            let at = h.apply(Point::new(u, v));
+            [at.x, at.y]
+        })
     }
 }
 
@@ -104,7 +114,6 @@ pub trait VanishingScene {
 /// Fits torn plane `index`'s depth (or with `rotate` its angle, 1..=179 degrees) so the middle of
 /// its far edge comes as near `at` as it can: a search over the values with
 /// [`VanishingScene::resolve`]. `None` when nothing fits.
-#[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-VP1")]
 pub fn fit_torn(
     scene: &dyn VanishingScene,
     planes: &[VanishingPlane],
@@ -113,14 +122,84 @@ pub fn fit_torn(
     rotate: bool,
     at: [f64; 2],
 ) -> Option<TornPlane> {
-    // pc: crates/ui-egui/src/dialogs/vp_ui.rs:430 `fit_torn`.
-    todo!()
+    // pc: crates/ui-egui/src/dialogs/vp_ui.rs:430 `fit_torn`. PhotoCraft rebuilds the scene by hand;
+    // here `resolve` over the planes up to `index` (later planes cannot change this one).
+    let t = torn.get(index).copied().flatten().filter(|t| t.from < index && index < planes.len())?;
+    let upto = &planes[..=index];
+    let mut chain: Vec<Option<TornPlane>> = (0..=index).map(|i| torn.get(i).copied().flatten()).collect();
+    let edge = PlaneEdge::ALL.iter().position(|e| *e == t.edge)?;
+    let mut miss = |angle: f64, depth: f64| -> f64 {
+        chain[index] = Some(TornPlane { angle, depth, ..t });
+        let Some(c) = scene.resolve(upto, &chain).get(index).map(|p| p.corners) else { return f64::MAX };
+        if c.iter().flatten().all(|v| *v == 0.0) {
+            return f64::MAX;
+        }
+        let (a, b) = (c[edge], c[(edge + 1) % 4]);
+        let d = ((a[0] + b[0]) / 2.0 - at[0]).hypot((a[1] + b[1]) / 2.0 - at[1]);
+        if d.is_finite() { d } else { f64::MAX }
+    };
+    let best = |values: &mut dyn Iterator<Item = f64>, miss: &mut dyn FnMut(f64) -> f64| {
+        values.map(|v| (miss(v), v)).filter(|m| m.0 < f64::MAX).min_by(|a, b| a.0.total_cmp(&b.0)).map(|m| m.1)
+    };
+    if rotate {
+        let coarse = best(&mut (1..180).map(f64::from), &mut |a| miss(a, t.depth))?;
+        let fine = best(&mut (-10..=10).map(|k| coarse + f64::from(k) / 10.0), &mut |a| miss(a, t.depth)).unwrap_or(coarse);
+        Some(TornPlane { angle: fine.clamp(1.0, 179.0), ..t })
+    } else {
+        let coarse = best(&mut (0..=160).map(|k| 0.02 * 1.06f64.powi(k)), &mut |d| miss(t.angle, d))?;
+        let fine = best(&mut (-10..=10).map(|k| coarse * (1.0 + f64::from(k) * 0.006)), &mut |d| miss(t.angle, d)).unwrap_or(coarse);
+        Some(TornPlane { depth: fine.clamp(0.02, 1000.0), ..t })
+    }
 }
 
 /// The plane after dragging edge node `edge` to `at`: the edge slides along the plane's own
 /// perspective as it was at the press (`at_press`, the plane's map then).
-#[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-VP1")]
 pub fn slide_edge(at_press: &Homography, edge: usize, at: [f64; 2]) -> Option<VanishingPlane> {
     // pc: crates/ui-egui/src/dialogs/vp_ui.rs:770 `slid_quad`, :718 `drag_to` (Edge).
-    todo!()
+    let inv = at_press.inverse()?;
+    let p = inv.apply(Point::new(at[0], at[1]));
+    let (u, v) = (p.x, p.y);
+    // The plane's (u, v) rectangle after the move.
+    let (u0, v0, u1, v1) = match edge {
+        0 => (0.0, v.min(0.99), 1.0, 1.0),
+        1 => (0.0, 0.0, u.max(0.01), 1.0),
+        2 => (0.0, 0.0, 1.0, v.max(0.01)),
+        _ => (u.min(0.99), 0.0, 1.0, 1.0),
+    };
+    // Part of the rectangle on or beyond the plane's horizon cannot follow the perspective.
+    let [g, h, c] = at_press.row(2);
+    let w = |u: f64, v: f64| g * u + h * v + c;
+    let side = w(0.5, 0.5).signum();
+    let uv = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+    if uv.iter().any(|q| w(q[0], q[1]) * side <= 1e-9 * w(0.5, 0.5).abs()) {
+        return None;
+    }
+    let corners = uv.map(|q| {
+        let at = at_press.apply(Point::new(q[0], q[1]));
+        [at.x, at.y]
+    });
+    (!corners_invalid(&corners)).then_some(VanishingPlane { corners })
+}
+
+/// PhotoCraft's `VpPlane::check` is `Invalid` (crates/algo/src/vanishing.rs:139): a corner that is
+/// not finite or beyond 1e9, an edge under a pixel, corners that do not all turn the same way, a
+/// corner sharper than 1 degree, or no map. The scene's [`VanishingScene::check`] cannot be asked
+/// here (`slide_edge` has no scene).
+fn corners_invalid(q: &[[f64; 2]; 4]) -> bool {
+    if q.iter().flatten().any(|v| !v.is_finite() || v.abs() > 1e9) {
+        return true;
+    }
+    let e = |i: usize| [q[(i + 1) % 4][0] - q[i][0], q[(i + 1) % 4][1] - q[i][1]];
+    let mut turns = [0.0; 4];
+    for (i, t) in turns.iter_mut().enumerate() {
+        let (a, b) = (e(i), e((i + 1) % 4));
+        let (la, lb) = (a[0].hypot(a[1]), b[0].hypot(b[1]));
+        if la < 1.0 || lb < 1.0 {
+            return true;
+        }
+        *t = (a[0] * b[1] - a[1] * b[0]) / (la * lb);
+    }
+    let same_sign = turns.iter().all(|v| *v > 0.0) || turns.iter().all(|v| *v < 0.0);
+    let min = turns.iter().fold(f64::MAX, |m, v| m.min(v.abs()));
+    !same_sign || min < 1f64.to_radians().sin() || Homography::unit_to_quad(q.map(|c| Point::new(c[0], c[1]))).is_none()
 }
