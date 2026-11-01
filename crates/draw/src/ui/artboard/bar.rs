@@ -1,12 +1,17 @@
 //! [`ArtboardBar`]: the Artboard tool's options bar cells (task SH-T8).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use egui::{AsIdSalt, IdSalt, Ui};
+use egui::{AsIdSalt, IdSalt, Modifiers, Ui};
 use kurbo::Size;
 
 use super::{ArtboardItem, ArtboardLabels, ArtboardPreset};
+use craft_theme::ControlSize;
+use craft_ui::controls::{Button, NumberField, Select};
 use craft_ui::edit::EditEvent;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::patterns::{CellWidth, OptionsBar};
+
+/// The smallest and largest side of a board, pixels (PhotoCraft's field range).
+pub(super) const SIDE: std::ops::RangeInclusive<f64> = 1.0..=300_000.0;
 
 /// What [`ArtboardBar::show`] reports.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -48,6 +53,52 @@ impl<'a> ArtboardBar<'a> {
     pub fn show(self, ui: &mut Ui) -> ArtboardBarOutput {
         // pc: crates/ui-egui/src/tools/artboard_tool.rs:293-338 `options_bar` (Size :303, Custom :305,
         // W :311, H :313, Make Portrait :318, Make Landscape :321, Add New Artboard :331).
-        todo!()
+        let labels = self.labels.clone().unwrap_or_else(|| ArtboardLabels::of(ui));
+        let numbers = LocaleNumbers::of(ui);
+        let sm = ControlSize::Sm;
+        let bar_id = ui.make_persistent_id(self.id_salt);
+        let mut out = ArtboardBarOutput::default();
+        let size = self.selected.map(|b| Size::new(b.rect.width().abs(), b.rect.height().abs()));
+        let shown = size.unwrap_or(Size::ZERO);
+        OptionsBar::group(ui, size.is_some(), |ui| {
+            OptionsBar::cell(ui, &labels.size, CellWidth::Content, |ui, _| {
+                // The preset the board's size matches, else Custom.
+                let mut choice = self.presets.iter().position(|p| p.size == shown);
+                let mut select = Select::new((bar_id, "preset"), &labels.preset, &mut choice).option(None, labels.custom.as_str());
+                for (i, preset) in self.presets.iter().enumerate() {
+                    select = select.option(Some(i), preset.name.as_str());
+                }
+                let pick = select.size(sm).show(ui);
+                if let Some(EditEvent::Commit { value: Some(i), modifiers, .. } | EditEvent::Set { value: Some(i), modifiers, .. }) = pick.event
+                    && let Some(preset) = self.presets.get(i)
+                {
+                    out.size = Some(EditEvent::set(preset.size, modifiers));
+                }
+            });
+            let side = |ui: &mut Ui, salt: &str, caption: &str, name: &str, value: f64, other: f64, width_first: bool| {
+                OptionsBar::cell(ui, caption, CellWidth::Md, |ui, caption| {
+                    let edit =
+                        NumberField::new((bar_id, salt), name, value, &numbers).range(SIDE).decimals(0..=0).size(sm).scrub_by(caption).show(ui);
+                    edit.event.map(|e| e.map(|v| if width_first { Size::new(v, other) } else { Size::new(other, v) }))
+                })
+            };
+            let (width_event, height_event) = (
+                side(ui, "w", &labels.width, &labels.width_name, shown.width, shown.height, true),
+                side(ui, "h", &labels.height, &labels.height_name, shown.height, shown.width, false),
+            );
+            out.size = out.size.take().or(width_event).or(height_event);
+            // Make Portrait is for a board wider than tall, Make Landscape for one taller than wide.
+            let swapped = Size::new(shown.height, shown.width);
+            let set = |size| EditEvent::set(size, Modifiers::NONE);
+            if shown.width > shown.height && ui.add(Button::new(labels.make_portrait.as_str()).size(sm).id_salt("portrait")).clicked() {
+                out.size = Some(set(swapped));
+            }
+            if shown.height > shown.width && ui.add(Button::new(labels.make_landscape.as_str()).size(sm).id_salt("landscape")).clicked() {
+                out.size = Some(set(swapped));
+            }
+        });
+        OptionsBar::divider(ui);
+        out.add_new = ui.add(Button::new(labels.add_new.as_str()).size(sm).id_salt("add-new")).clicked();
+        out
     }
 }
