@@ -1,7 +1,23 @@
 //! [`WarpGrid`]: the mesh of a warp (PhotoCraft's Edit › Transform › Warp) on a canvas: patch
 //! boundaries, anchors and their handles, dragged by the pointer and moved from the keyboard.
+//!
+//! Beside it: the Warp group of the options bar ([`WarpFields`]), Puppet Warp ([`pin`]),
+//! Perspective Warp ([`perspective`]) and the one painter of a deformed mesh's lines
+//! ([`paint_mesh`]).
 
+mod fields;
+pub(crate) mod fields_stories;
+#[cfg(test)]
+mod fields_tests;
+mod mesh;
+pub mod perspective;
+pub mod pin;
 pub mod story;
+mod style;
+
+pub use fields::{WarpFieldValues, WarpFields, WarpFieldsEdit, WarpFieldsLabels, WarpFieldsOutput, WarpGridChoice, WarpStyleEntry};
+pub use mesh::paint_mesh;
+pub use style::{MeshStyle, PerspectiveWarpStyle, PinWarpStyle};
 
 use std::borrow::Cow;
 

@@ -325,6 +325,8 @@ pub struct TransformBox<'a> {
     policy: EditPolicy,
     modifiers: Option<Modifiers>,
     pixel_grid: bool,
+    /// Read by hit, press, the part list and the paint (task TR-T8).
+    reference_point: bool,
 }
 
 impl<'a> TransformBox<'a> {
@@ -345,7 +347,18 @@ impl<'a> TransformBox<'a> {
             policy: EditPolicy::default(),
             modifiers: None,
             pixel_grid: false,
+            reference_point: true,
         }
+    }
+
+    /// Whether the reference point shows; true by default. False (Photoshop CC 2019 and later
+    /// with Show Reference Point off) hides it: it is not drawn, not hit, not a Page-key stop and
+    /// not in the AccessKit parts, and ⌥-press away from the handles does nothing. Its stored
+    /// position still pivots ⌥ scaling and rotating, and the box carries it along as before.
+    // new: Photoshop's Show Reference Point (S7-transform LC2); PhotoCraft always shows it.
+    pub fn reference_point(mut self, shown: bool) -> Self {
+        self.reference_point = shown;
+        self
     }
 
     /// The mode, scaling rule, aspect link, what the content allows and the rotate step;

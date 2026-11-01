@@ -1,0 +1,503 @@
+//! [`TransformSession`]: the draft of a Free Transform while its box is open (PhotoCraft's
+//! `TransformSession` and its `Steps`), headless and testable.
+//!
+//! The session is a plain value the app owns. Widgets ([`TransformOverlay`](super::TransformOverlay),
+//! [`TransformBar`](super::TransformBar)) never change it: they report [`TransformEdit`]s, and
+//! the app hands each to [`TransformSession::apply`] in the order they came. The session keeps its
+//! own Undo and Redo ([`LocalHistory`]); the app routes Edit › Undo and Redo to
+//! [`undo`](TransformSession::undo) and [`redo`](TransformSession::redo) while it is open. It never
+//! touches the document: a commit gives the app a [`TransformResult`] to run as its own command.
+//!
+//! The warp of the Warp phase is the app's type `W` (decisions §2.1: the drawing library cannot
+//! name the imaging library's mesh). The session only stores, clones and compares it, and asks
+//! [`TransformWarp::is_identity`] whether there is anything to apply.
+//!
+//! ```
+//! use craft_draw::ui::transform::{TransformEdit, TransformRequest, TransformSession};
+//! use kurbo::Rect;
+//!
+//! // A session over a layer's bounds, without a warp type.
+//! let session: TransformSession = TransformSession::new(Rect::new(0.0, 0.0, 200.0, 100.0));
+//! assert!(!session.dragging());
+//! # let _ = |s: &mut TransformSession, now: f64| match s.apply(TransformEdit::Commit, now) {
+//! #     Some(TransformRequest::Apply(_result)) => {}
+//! #     _ => {}
+//! # };
+//! ```
+
+#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TR-T2)")]
+
+use kurbo::{Point, Rect};
+
+use craft_ui::canvas::quad::{Anchor9, BoxAllow, BoxRules, BoxState, Homography, ScaleRule, TransformMode};
+use craft_ui::dialog::LocalHistory;
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::units::LengthUnit;
+use craft_ui::menu::MenuEntry;
+use craft_ui::words;
+
+use super::TransformRow;
+
+/// The app's warp as the session holds it in the Warp phase. The session clones and compares it
+/// and asks whether it changes anything; the warp model itself stays the app's (PhotoCraft's
+/// `Warp` in `photocraft-geom`).
+pub trait TransformWarp: Clone + PartialEq {
+    /// Whether committing this warp would change nothing: the untouched default grid of the box.
+    /// An app whose type layers commit an identity warp (a Warp Text set back to None) answers
+    /// false for those.
+    fn is_identity(&self) -> bool;
+}
+
+/// No warp: a session that never enters the Warp phase (VectorCraft's Free Transform, Content-Aware
+/// Scale).
+impl TransformWarp for () {
+    fn is_identity(&self) -> bool {
+        true
+    }
+}
+
+/// Which part of Free Transform is open: the box, or the warp mesh over it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TransformPhase {
+    /// The box with its handles ([`TransformBox`](super::TransformBox)).
+    #[default]
+    Box,
+    /// The app's warp over the box (imaging's `WarpGrid`); the box itself does not draw.
+    Warp,
+}
+
+/// Something a widget or a menu reports to the open session. The app applies each with
+/// [`TransformSession::apply`], in order, in the pass it came in.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TransformEdit<W> {
+    /// The overlay's drags and arrow keys on the box: a gesture (Begin, Update, Commit, Cancel)
+    /// or a Set (a nudge). Cancel restores the box the gesture began on.
+    Box(EditEvent<BoxState>),
+    /// The bar's X, Y, W, H, angle and skew fields: the box and the V skew it reads with
+    /// (`TransformFields`). Each report is built from the box at the run's start.
+    Fields(EditEvent<TransformRow>),
+    /// The right-click menu's or Edit › Transform's mode. Scale picks [`TransformMode::Free`].
+    Mode(TransformMode),
+    /// Rotate 180°, Rotate 90° Clockwise or Counter Clockwise, Flip Horizontal or Vertical: turns
+    /// the open box about the reference point without committing it (Photoshop; PhotoCraft
+    /// `intercept`).
+    Preset(TransformPreset),
+    /// The bar's interpolation select. Session state: it joins the next undo step with the box.
+    Interpolation(Interpolation),
+    /// The bar's Show Reference Point check. View state, not an undo step.
+    ReferencePoint(bool),
+    /// The reference point picker beside the fields: the pivot moves to that point of the box.
+    Pivot(Anchor9),
+    /// The bar's Free Transform / Warp switch, or Warp in the menu, from the Box phase. The
+    /// session answers [`TransformRequest::NeedWarp`]; the app builds its warp and reports
+    /// [`Warp`](Self::Warp).
+    WarpRequested,
+    /// The app's new or edited warp. From the Box phase it enters the Warp phase; the box and the
+    /// warp are one undo step.
+    Warp(W),
+    /// The switch from the Warp phase: drops the warp; the box stays as it was (PhotoCraft
+    /// `leave_warp`).
+    LeaveWarp,
+    /// Enter, a click outside, a double click inside, or the bar's commit button.
+    Commit,
+    /// Esc with no drag running, or the bar's cancel button.
+    Cancel,
+}
+
+/// What the app does after an edit.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TransformRequest<W> {
+    /// Commit with something to apply: the app runs its transform command with the result and
+    /// closes the session.
+    Apply(TransformResult<W>),
+    /// Commit of an untouched session: the app closes it without a document step. What the
+    /// session began with (a ⌥⌘T copy, a placed file) stays (PhotoCraft `commit.rs:71`).
+    CloseUntouched,
+    /// Cancel: the app closes the session and takes back what it made for it.
+    Discard,
+    /// [`TransformEdit::WarpRequested`]: the app builds its warp from the box (`rect` mapped onto
+    /// `state`, a smart object's own warp first) and answers [`TransformEdit::Warp`].
+    NeedWarp { rect: Rect, state: BoxState },
+}
+
+/// What a commit applies: the source frame, the box it was moved to, the interpolation, and the
+/// warp when the Warp phase was open.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TransformResult<W> {
+    /// The source frame the session began on (the layer's bounds).
+    pub rect: Rect,
+    /// The box: `rect`'s corners moved, and the reference point.
+    pub state: BoxState,
+    pub interpolation: Interpolation,
+    /// The app's warp, when the session ended in the Warp phase.
+    pub warp: Option<W>,
+}
+
+/// Edit › Transform's presets while a box is open (PhotoCraft `box_preset`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TransformPreset {
+    Rotate180,
+    Rotate90Clockwise,
+    Rotate90CounterClockwise,
+    FlipHorizontal,
+    FlipVertical,
+}
+
+impl TransformPreset {
+    /// Every preset, in the menu's order.
+    pub const ALL: [TransformPreset; 5] = [
+        TransformPreset::Rotate180,
+        TransformPreset::Rotate90Clockwise,
+        TransformPreset::Rotate90CounterClockwise,
+        TransformPreset::FlipHorizontal,
+        TransformPreset::FlipVertical,
+    ];
+
+    /// What the preset does to the box, as `(kx, ky, angle)`: a scale along the box's own axes,
+    /// then a turn in radians, clockwise on screen, both about the reference point. Rotate 180° is
+    /// `(1, 1, π)`, Rotate 90° Clockwise `(1, 1, π/2)`, Counter Clockwise `(1, 1, −π/2)`, Flip
+    /// Horizontal `(−1, 1, 0)`, Flip Vertical `(1, −1, 0)`.
+    pub fn scale_and_turn(self) -> (f64, f64, f64) {
+        // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:329 (`box_preset`).
+        todo!()
+    }
+}
+
+/// How the transform resamples the moving pixels: PhotoCraft's three choices (LC11). The app maps
+/// them to its engine; [`id`](Self::id) gives PhotoCraft's ids.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Interpolation {
+    #[default]
+    Bicubic,
+    Bilinear,
+    NearestNeighbor,
+}
+
+impl Interpolation {
+    /// Every choice, in the select's order.
+    pub const ALL: [Interpolation; 3] = [Interpolation::Bicubic, Interpolation::Bilinear, Interpolation::NearestNeighbor];
+
+    /// PhotoCraft's id: "bicubic", "bilinear", "nearest".
+    pub fn id(self) -> &'static str {
+        // pc: crates/ui-egui/src/tools/transform_tool/options_bar.rs:241 (the select's options).
+        todo!()
+    }
+
+    /// The choice with PhotoCraft's `id`; `None` for any other text.
+    pub fn from_id(id: &str) -> Option<Interpolation> {
+        // pc: crates/ui-egui/src/tools/transform_tool/options_bar.rs:241.
+        todo!()
+    }
+}
+
+/// A pick in the box's right-click menu ([`TransformSession::menu`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TransformChoice {
+    /// Free Transform, Scale (as Free), Rotate, Skew, Distort, Perspective: apply as
+    /// [`TransformEdit::Mode`].
+    Mode(TransformMode),
+    /// Warp: apply as [`TransformEdit::WarpRequested`].
+    Warp,
+    /// Apply as [`TransformEdit::Preset`].
+    Preset(TransformPreset),
+}
+
+/// Free Transform's persisted section: the app keeps it with its preferences. Unknown fields are
+/// ignored, missing ones take their defaults.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TransformSettings {
+    /// PhotoCraft's Use Legacy Free Transform: corners stretch freely and ⇧ keeps the proportions
+    /// ([`ScaleRule::Free`]). Off by default: corners keep the proportions and ⇧ frees them
+    /// (Photoshop CC 2019 and later, LC1).
+    pub legacy: bool,
+    /// The W and H fields' link (the chain button), kept between sessions.
+    pub aspect_linked: bool,
+    /// Show Reference Point: off by default (Photoshop CC 2019 and later, LC2). Hidden, the point
+    /// is not drawn, hit or picked; its stored position still pivots ⌥ scaling and rotating.
+    pub show_reference_point: bool,
+    /// The interpolation a new session starts with.
+    pub interpolation: Interpolation,
+    /// The W and H fields' unit; [`LengthUnit::Percent`] by default.
+    pub size_unit: Option<LengthUnit>,
+}
+
+impl TransformSettings {
+    /// The scaling rule [`legacy`](Self::legacy) picks.
+    pub fn scale_rule(&self) -> ScaleRule {
+        if self.legacy { ScaleRule::Free } else { ScaleRule::Proportional }
+    }
+}
+
+words! {
+    /// The words of the box's right-click menu ([`TransformSession::menu`]), Photoshop's and
+    /// PhotoCraft's order (`canvas_tool_menu.rs:75`). `Default` is English.
+    pub struct TransformMenuLabels {
+        free_transform: "transformMenu.freeTransform" = "Free Transform";
+        scale: "transformMenu.scale" = "Scale";
+        rotate: "transformMenu.rotate" = "Rotate";
+        skew: "transformMenu.skew" = "Skew";
+        distort: "transformMenu.distort" = "Distort";
+        perspective: "transformMenu.perspective" = "Perspective";
+        warp: "transformMenu.warp" = "Warp";
+        rotate_180: "transformMenu.rotate180" = "Rotate 180°";
+        rotate_90_clockwise: "transformMenu.rotate90Clockwise" = "Rotate 90° Clockwise";
+        rotate_90_counter_clockwise: "transformMenu.rotate90CounterClockwise" = "Rotate 90° Counter Clockwise";
+        flip_horizontal: "transformMenu.flipHorizontal" = "Flip Horizontal";
+        flip_vertical: "transformMenu.flipVertical" = "Flip Vertical";
+    }
+}
+
+/// What one undo step of the session holds: everything Undo restores together. View state (the
+/// reference point's visibility, the picked part, the zoom) stays outside it, so Undo never moves
+/// the view.
+#[derive(Clone, Debug, PartialEq)]
+struct TransformDraft<W> {
+    state: BoxState,
+    skew_v: f64,
+    mode: TransformMode,
+    interpolation: Interpolation,
+    warp: Option<W>,
+}
+
+/// The draft of one Free Transform: the source frame, the box, its mode and V skew, the
+/// interpolation, the app's warp in the Warp phase, and the session's undo steps.
+///
+/// - Changes only through [`apply`](Self::apply). [`settle`](Self::settle), once per pass, records
+///   an undo step whenever the draft has come to rest changed: once per drag, typing run or run
+///   of arrow nudges within the [nudge pause](Self::nudge_pause).
+/// - [`undo`](Self::undo) and [`redo`](Self::redo) are the app's Edit commands while the session is
+///   open; both are refused while a drag runs. The session binds no key.
+/// - No serde (LC7): the app builds its own record from the getters.
+#[derive(Clone, Debug)]
+pub struct TransformSession<W = ()> {
+    /// The source frame (the layer's bounds); fixed for the session.
+    rect: Rect,
+    /// What the content allows (type refuses distort and perspective).
+    allow: BoxAllow,
+    draft: TransformDraft<W>,
+    history: LocalHistory<TransformDraft<W>>,
+    /// The draft when the running gesture began: a Cancel restores it.
+    before: Option<TransformDraft<W>>,
+    /// Show Reference Point (view state).
+    reference_point: bool,
+    /// The app's Nudge Bundle Pause in seconds; `None` never folds nudges.
+    nudge_pause: Option<f64>,
+    /// When the latest arrow nudge was applied (the `now` of [`apply`](Self::apply)).
+    last_nudge: Option<f64>,
+}
+
+impl<W: TransformWarp> TransformSession<W> {
+    /// A session on the source frame `rect`, its box on the frame's corners and its reference
+    /// point at the centre, in [`TransformMode::Free`] with bicubic interpolation.
+    pub fn new(rect: Rect) -> Self {
+        Self::with_state(rect, BoxState::from_rect(rect))
+    }
+
+    /// A session on `rect` whose box starts at `state`: Content-Aware Move's placed box, a box
+    /// reopened after a failed commit.
+    pub fn with_state(rect: Rect, state: BoxState) -> Self {
+        let draft = TransformDraft { state, skew_v: 0.0, mode: TransformMode::Free, interpolation: Interpolation::default(), warp: None };
+        Self {
+            rect,
+            allow: BoxAllow::default(),
+            history: LocalHistory::new(&draft),
+            draft,
+            before: None,
+            reference_point: false,
+            nudge_pause: None,
+            last_nudge: None,
+        }
+    }
+
+    /// The mode the session opens in (Edit › Transform › Rotate opens in Rotate).
+    pub fn mode(mut self, mode: TransformMode) -> Self {
+        self.draft.mode = mode;
+        self.history = LocalHistory::new(&self.draft);
+        self
+    }
+
+    /// What the content allows; everything by default.
+    pub fn allow(mut self, allow: BoxAllow) -> Self {
+        self.allow = allow;
+        self
+    }
+
+    /// The persisted section the session opens with: its interpolation and whether the reference
+    /// point shows.
+    pub fn settings(mut self, settings: &TransformSettings) -> Self {
+        self.draft.interpolation = settings.interpolation;
+        self.reference_point = settings.show_reference_point;
+        self.history = LocalHistory::new(&self.draft);
+        self
+    }
+
+    /// The app's Nudge Bundle Pause, in seconds: arrow nudges each within this of the one before
+    /// are one undo step (PhotoCraft `commit.rs:270`, `input/nudge_bundle.rs`). `None` (the
+    /// default) makes every nudge its own step. The library reads no preference (LC6).
+    pub fn nudge_pause(mut self, seconds: Option<f64>) -> Self {
+        self.nudge_pause = seconds;
+        self
+    }
+
+    /// The source frame.
+    pub fn rect(&self) -> Rect {
+        self.rect
+    }
+
+    /// The box.
+    pub fn state(&self) -> &BoxState {
+        &self.draft.state
+    }
+
+    /// The box's corners, clockwise from the source frame's top left.
+    pub fn quad(&self) -> [Point; 4] {
+        self.draft.state.quad
+    }
+
+    /// The reference point, in document units.
+    pub fn pivot(&self) -> Point {
+        self.draft.state.pivot
+    }
+
+    /// The V skew the fields read the box with, in degrees.
+    pub fn skew_v(&self) -> f64 {
+        self.draft.skew_v
+    }
+
+    /// The current mode.
+    pub fn current_mode(&self) -> TransformMode {
+        self.draft.mode
+    }
+
+    /// What the content allows.
+    pub fn allows(&self) -> BoxAllow {
+        self.allow
+    }
+
+    pub fn interpolation(&self) -> Interpolation {
+        self.draft.interpolation
+    }
+
+    /// Whether the reference point shows (Show Reference Point).
+    pub fn reference_point(&self) -> bool {
+        self.reference_point
+    }
+
+    /// [`TransformPhase::Warp`] while the session holds a warp.
+    pub fn phase(&self) -> TransformPhase {
+        if self.draft.warp.is_some() { TransformPhase::Warp } else { TransformPhase::Box }
+    }
+
+    /// The app's warp in the Warp phase.
+    pub fn warp(&self) -> Option<&W> {
+        self.draft.warp.as_ref()
+    }
+
+    /// Whether a gesture (a box drag, a field scrub or typing run) is running: between its Begin
+    /// and its Commit or Cancel.
+    pub fn dragging(&self) -> bool {
+        self.before.is_some()
+    }
+
+    /// The map from the source frame to the box: the source frame's corners to the unit square,
+    /// then [`Homography::unit_to_quad`] of the box. Carried content (marching ants, S7-select's
+    /// `SelectionOverlay::mapped`) follows the box through it. `None` for a degenerate box (three
+    /// corners on a line, or the frame empty).
+    pub fn homography(&self) -> Option<Homography> {
+        // pc: crates/ui-egui/src/tools/transform_tool/draw.rs:113 (`Homography::rect_to_quad` of
+        // the unit square, then the box).
+        todo!()
+    }
+
+    /// The box rules for the current mode and what the content allows, with the settings' scaling
+    /// rule and aspect link and the library's rotate step (15° with ⇧, LC3). The overlay uses them
+    /// unless the app passes its own.
+    pub fn box_rules(&self, settings: &TransformSettings) -> BoxRules {
+        // new: one place maps the session and the settings to `BoxRules` (the PhotoCraft port maps
+        // its preferences in its own `transform_tool/pointer.rs`).
+        todo!()
+    }
+
+    /// Whether committing now would change nothing: the box on the frame's corners and, in the
+    /// Warp phase, an [identity](TransformWarp::is_identity) warp. Mode and interpolation alone
+    /// change nothing.
+    pub fn is_untouched(&self) -> bool {
+        // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:65 (warp identity), :70 (box on
+        // the frame's corners).
+        todo!()
+    }
+
+    /// What a commit applies; `None` when [untouched](Self::is_untouched).
+    pub fn result(&self) -> Option<TransformResult<W>> {
+        // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:63.
+        todo!()
+    }
+
+    /// Applies one edit; `now` is the pass's input time in seconds (the nudge pause reads it).
+    ///
+    /// - `Box` and `Fields`: Begin takes the draft as `before`, Update and Commit set the box (and
+    ///   the V skew from a field row), Cancel puts `before` back. A Set is an arrow nudge or a
+    ///   typed field: it sets the box and, for a nudge, notes `now` as the latest nudge.
+    /// - `Mode`, `Interpolation`: set them; `ReferencePoint` sets the view state; `Pivot` moves the
+    ///   reference point to [`BoxState::point_at`].
+    /// - `Preset`: [`TransformPreset::scale_and_turn`] about the reference point
+    ///   ([`BoxState::scaled_about_pivot`], [`BoxState::turned_about_pivot`]); refused in the Warp
+    ///   phase, as PhotoCraft refuses it ("Commit or cancel the transform first").
+    /// - `WarpRequested` in the Box phase answers [`TransformRequest::NeedWarp`] with the current
+    ///   box; `Warp(w)` stores the warp (entering the Warp phase); `LeaveWarp` drops it.
+    /// - `Commit` answers [`TransformRequest::Apply`] with [`result`](Self::result), or
+    ///   [`TransformRequest::CloseUntouched`]; `Cancel` answers [`TransformRequest::Discard`].
+    ///   While a gesture runs, `Commit` and `Cancel` first end it as the box does (a Cancel of the
+    ///   gesture restores `before`; the box reports that itself, so a lone `Cancel` here means
+    ///   discard).
+    pub fn apply(&mut self, edit: TransformEdit<W>, now: f64) -> Option<TransformRequest<W>> {
+        // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:352 (`intercept`: presets, warp
+        // refusal), :13 (`commit`); begin.rs:736 (`leave_warp`).
+        todo!()
+    }
+
+    /// Records an undo step when the draft has come to rest changed. Call once per pass after the
+    /// edits, with `busy` true while the app has a pointer button down, a text field focused or a
+    /// warp drag running (PhotoCraft `commit.rs:258`). The session adds its own gesture and the
+    /// nudge pause: within [`nudge_pause`](Self::nudge_pause) seconds of the latest nudge it is
+    /// still busy, so a run of nudges is one step.
+    pub fn settle(&mut self, now: f64, busy: bool) {
+        // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:258 (`track_steps`), :270
+        // (`nudge`).
+        todo!()
+    }
+
+    /// Steps back one undo step: the box, the reference point, the V skew, the mode, the
+    /// interpolation and the warp together. False while a gesture runs or with nothing to undo.
+    pub fn undo(&mut self) -> bool {
+        // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:376 (`step`).
+        todo!()
+    }
+
+    /// Steps forward one undone step; false while a gesture runs or with nothing to redo.
+    pub fn redo(&mut self) -> bool {
+        // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:376.
+        todo!()
+    }
+
+    pub fn can_undo(&self) -> bool {
+        self.history.can_undo()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        self.history.can_redo()
+    }
+
+    /// The box's right-click menu: Free Transform, Scale, Rotate, Skew, Distort, Perspective, Warp,
+    /// a separator, Rotate 180°, Rotate 90° Clockwise, Rotate 90° Counter Clockwise, a separator,
+    /// Flip Horizontal, Flip Vertical. The current mode is checked (Scale counts as Free
+    /// Transform, LC10); modes the content refuses (Distort, Perspective under
+    /// `allow.distort == false`) and every preset in the Warp phase are disabled. Puppet Warp and
+    /// Content-Aware Scale rows are the app's to add, greyed while a box is open.
+    pub fn menu(&self, labels: &TransformMenuLabels) -> Vec<MenuEntry<TransformChoice>> {
+        // pc: crates/ui-egui/src/canvas/canvas_tool_menu.rs:75 (`TRANSFORM_MENU`).
+        todo!()
+    }
+}
