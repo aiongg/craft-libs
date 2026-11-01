@@ -58,7 +58,7 @@ impl StepList {
     /// atomic, which `record` reads. A new mark replaces an open one (the `GestureHost` ends a
     /// gesture before the next begins).
     pub fn mark(&self) -> StepMark {
-        // fc: crates/engine/src/lib.rs:969-990 (`undo_mark`); new: the run inside the list (Lead call 5).
+        // filmcraft: crates/engine/src/lib.rs:969-990 (`undo_mark`); new: the run inside the list (Lead call 5).
         todo!()
     }
 
@@ -66,7 +66,7 @@ impl StepList {
     /// made stays, with the label of its first record. Does nothing for a mark that is not the
     /// newest or whose state has left the list.
     pub fn squash_since(&mut self, mark: StepMark) {
-        // vc: crates/engine/src/cmd/menucmds.rs:213 (`squash`); new: the run is one state already, so this only closes it.
+        // vectorcraft: crates/engine/src/cmd/menucmds.rs:213 (`squash`); new: the run is one state already, so this only closes it.
         todo!()
     }
 
@@ -76,7 +76,7 @@ impl StepList {
     /// (PhotoCraft's `rollback`). A mark whose state has left the list does nothing. Bumps the
     /// revision only when a state was taken back.
     pub fn revert_to(&mut self, mark: StepMark) {
-        // pc: crates/ops/src/lib.rs:427-455 (`rollback`); fc: crates/engine/src/lib.rs:978 (`revert_to`)
+        // pc: crates/ops/src/lib.rs:427-455 (`rollback`); filmcraft: crates/engine/src/lib.rs:978 (`revert_to`)
         todo!()
     }
 

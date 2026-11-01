@@ -87,7 +87,7 @@ impl PresetPanelMenu {
         labels: &PresetLabels,
         options: &PresetMenuOptions<'_, K>,
     ) -> Vec<MenuEntry<PanelCommand>> {
-        // new: E11 (Grid View, List View in every preset panel); color: crates/color/src/ui/swatches.rs:525 (`panel_menu`)
+        // new: E11 (Grid View, List View in every preset panel); craft-libs: crates/color/src/ui/swatches.rs:525 (`panel_menu`)
         todo!()
     }
 
@@ -101,7 +101,7 @@ impl PresetPanelMenu {
         command: &PanelCommand,
         options: &PresetMenuOptions<'_, K>,
     ) -> Option<PresetMenuAction> {
-        // color: crates/color/src/ui/swatches.rs:549-640 (`run_command`)
+        // craft-libs: crates/color/src/ui/swatches.rs:549-640 (`run_command`)
         todo!()
     }
 }

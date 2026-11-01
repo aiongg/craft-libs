@@ -42,7 +42,7 @@ pub(super) struct MenuFacts {
 impl MenuFacts {
     /// The id the facts of the panel `id_salt` are kept under.
     pub(super) fn id(id_salt: impl AsIdSalt) -> Id {
-        // text: crates/text/src/ui/style_panel.rs:333-340 (`MenuFacts::of(ctx, IdSalt::new(id_salt))`)
+        // craft-libs: crates/text/src/ui/style_panel.rs:333-340 (`MenuFacts::of(ctx, IdSalt::new(id_salt))`)
         todo!()
     }
 

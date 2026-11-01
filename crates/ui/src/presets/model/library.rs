@@ -245,7 +245,7 @@ impl<T> PresetLibrary<T> {
     /// [`PresetError::NameTaken`] when another preset has it ignoring case (a change of case of
     /// its own name is allowed).
     pub fn rename(&mut self, id: PresetId, name: &str) -> Result<PresetChange, PresetError> {
-        // settings: crates/settings/src/profiles.rs:87-104 (names compare without case)
+        // craft-libs: crates/settings/src/profiles.rs:87-104 (names compare without case)
         todo!()
     }
 

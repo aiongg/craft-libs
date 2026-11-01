@@ -129,7 +129,7 @@ impl<'a, K> PresetFiles<'a, K> {
     /// the file and reports it. Call it every pass where the component lives (the picker and the
     /// named row call it themselves); it costs one memory lookup while no pick is open.
     pub fn take_events(&self, ctx: &Context, id_salt: impl AsIdSalt) -> PresetFilesOutput {
-        // color: crates/color/src/ui/swatches.rs:663-700 (`finish_file_pick`)
+        // craft-libs: crates/color/src/ui/swatches.rs:663-700 (`finish_file_pick`)
         todo!()
     }
 
@@ -143,7 +143,7 @@ impl<'a, K> PresetFiles<'a, K> {
     /// Starts the pick of one of [`entries`](Self::entries)' commands for the component
     /// `id_salt`; returns false for another command or without a host.
     pub(crate) fn start(&self, ctx: &Context, id_salt: impl AsIdSalt, command: &str, selected: Option<&K>) -> bool {
-        // color: crates/color/src/ui/swatches.rs:641-661 (`start_file_pick`: forget the old ticket, keep the new one in egui data)
+        // craft-libs: crates/color/src/ui/swatches.rs:641-661 (`start_file_pick`: forget the old ticket, keep the new one in egui data)
         todo!()
     }
 }

@@ -95,7 +95,7 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
     /// The presets of `kind` ("plugin", "curve", "export") under `config_dir`, the settings
     /// store's folder; `None` keeps nothing.
     pub fn new(config_dir: Option<&Path>, kind: &str) -> Self {
-        // settings: crates/settings/src/profiles.rs:75 (`Profiles::new(config_dir)`)
+        // craft-libs: crates/settings/src/profiles.rs:75 (`Profiles::new(config_dir)`)
         todo!()
     }
 
@@ -114,26 +114,26 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
     /// The names of the readable presets, sorted ignoring case. A missing folder is an empty
     /// list; corrupt and oversized files are left out (and left on disk).
     pub fn list(&self) -> Vec<String> {
-        // settings: crates/settings/src/profiles.rs:80 (`list`, sorted ignoring case); soundcraft: crates/ui-egui/src/panels/plugins.rs:162 (`preset_dir`, `*.json`)
+        // craft-libs: crates/settings/src/profiles.rs:80 (`list`, sorted ignoring case); soundcraft: crates/ui-egui/src/panels/plugins.rs:162 (`preset_dir`, `*.json`)
         todo!()
     }
 
     /// Reads preset `name` (matched ignoring case).
     pub fn load(&self, name: &str) -> Result<T, PresetFolderError> {
-        // settings: crates/settings/src/profiles.rs:106
+        // craft-libs: crates/settings/src/profiles.rs:106
         todo!()
     }
 
     /// Writes `value` as preset `name`, replacing a preset whose name matches ignoring case (the
     /// file takes the new spelling). Creates the folder when needed.
     pub fn save(&self, name: &str, value: &T) -> Result<(), PresetFolderError> {
-        // settings: crates/settings/src/profiles.rs:87-104 (`save` replaces a name that matches ignoring case)
+        // craft-libs: crates/settings/src/profiles.rs:87-104 (`save` replaces a name that matches ignoring case)
         todo!()
     }
 
     /// Deletes preset `name` (matched ignoring case).
     pub fn delete(&self, name: &str) -> Result<(), PresetFolderError> {
-        // settings: crates/settings/src/profiles.rs:112
+        // craft-libs: crates/settings/src/profiles.rs:112
         todo!()
     }
 
@@ -146,14 +146,14 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
 
     /// The file of preset `name` as bytes, for an export the user saves with `Files`.
     pub fn export(&self, name: &str) -> Result<Vec<u8>, PresetFolderError> {
-        // settings: crates/settings/src/profiles.rs:119 (`export`); the bytes go through the host's `Files`.
+        // craft-libs: crates/settings/src/profiles.rs:119 (`export`); the bytes go through the host's `Files`.
         todo!()
     }
 
     /// Imports the bytes of a file the user picked: checks the size and the envelope's `format`,
     /// takes `file_name`'s stem as the name, numbers a taken one, saves it, and returns the name.
     pub fn import(&self, file_name: &str, bytes: &[u8]) -> Result<String, PresetFolderError> {
-        // settings: crates/settings/src/profiles.rs:127 (`import`: stem as name, " 2", " 3" when taken)
+        // craft-libs: crates/settings/src/profiles.rs:127 (`import`: stem as name, " 2", " 3" when taken)
         todo!()
     }
 
