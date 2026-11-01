@@ -3,8 +3,6 @@
 //! One rule draws, previews and edits Curvature paths everywhere: the pen draft's Curvature mode,
 //! `BezierTool::Curvature` on finished paths, `EditSubpath::reflow`, and an app's engine.
 
-#![expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands (task PE-A2)")]
-
 use std::ops::RangeInclusive;
 
 use kurbo::Point;
@@ -32,7 +30,40 @@ pub const CURVATURE_T_RANGE: RangeInclusive<f64> = 0.01..=0.99;
 ///
 /// The result has one entry per anchor.
 pub fn curvature_handles(anchors: &[Point], corners: &[bool], closed: bool) -> Vec<(Point, Point)> {
-    // pc: crates/vector/src/edit.rs:281-327 `curvature_knots` (constants and order as there: inner
-    // anchors first, then the open ends from their neighbours' handles; `1e-9` as the zero length).
-    todo!()
+    // pc: crates/vector/src/edit.rs:281-327 `curvature_knots`.
+    const ZERO: f64 = 1e-9;
+    let n = anchors.len();
+    let mut handles: Vec<(Point, Point)> = anchors.iter().map(|&a| (a, a)).collect();
+    let unit = |a: Point, b: Point| {
+        let l = a.distance(b);
+        (l > ZERO).then(|| (b - a) / l)
+    };
+    let corner = |i: usize| corners.get(i).copied().unwrap_or(false);
+    let inner = |i: usize| closed || (i > 0 && i + 1 < n);
+    for (i, &p) in anchors.iter().enumerate() {
+        if n < 3 || corner(i) || !inner(i) {
+            continue;
+        }
+        let prev = anchors[(i + n - 1) % n];
+        let next = anchors[(i + 1) % n];
+        let Some(d) = unit(prev, next).or_else(|| unit(p, next)) else { continue };
+        handles[i] = (p - d * (prev.distance(p) / 3.0), p + d * (p.distance(next) / 3.0));
+    }
+    if !closed && n >= 3 {
+        for (end, neighbour, first) in [(0, 1, true), (n - 1, n - 2, false)] {
+            if corner(end) {
+                continue;
+            }
+            let p = anchors[end];
+            let aim = if first { handles[neighbour].0 } else { handles[neighbour].1 };
+            let Some(d) = unit(p, aim) else { continue };
+            let h = p + d * (p.distance(anchors[neighbour]) / 3.0);
+            if first {
+                handles[end].1 = h;
+            } else {
+                handles[end].0 = h;
+            }
+        }
+    }
+    handles
 }
