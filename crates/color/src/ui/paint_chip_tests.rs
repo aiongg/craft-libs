@@ -90,3 +90,41 @@ fn the_chip_names_its_paint() {
     assert_eq!(value(Paint::Gradient(GradientPreview::default())).as_deref(), Some("Gradient"));
     assert_eq!(value(Paint::Solid(Srgba::rgb(1.0, 0.0, 0.0))).as_deref(), Some("#ff0000"));
 }
+
+// Task SH-T14: the Pattern and Picture tabs and the paint list's row actions.
+
+// `kinds()` lists Pattern and Picture only with their editors; a chip with both shows five tabs,
+// and a switch to Pattern reports `Set(Paint::Pattern(default))`.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: task SH-T14")]
+fn paint_chip_pattern_and_picture_tabs_only_when_offered() {
+    todo!()
+}
+
+// Without `pattern_editor` and `picture_editor` the chip and popover read as before: three tabs,
+// the same AccessKit values.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: task SH-T14")]
+fn paint_chip_without_new_tabs_is_unchanged() {
+    todo!()
+}
+
+// With `PaintListOptions::SELECTION_COLORS`: a chip click and a picker drag report `Edit`, a typed
+// hex `Hex`, an opacity scrub an `Opacity` gesture, Detach on a bound row `Detach`, the select
+// button `SelectUsers`.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: task SH-T14")]
+fn paint_list_rows_edit_hex_opacity_bind_and_select_users() {
+    todo!()
+}
+
+// A rename reports `Rename` (and `renamed`); Remove reports `Remove { row }`; Add reports `Add`.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: task SH-T14")]
+fn paint_list_rename_and_remove_are_set_events() {
+    todo!()
+}

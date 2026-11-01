@@ -70,11 +70,22 @@ pub struct PageFrame {
     pub name: Option<String>,
     /// The page's own fill under the document (an artboard's background), or `None` for none.
     pub fill: Option<Color32>,
+    /// An artboard's edge: `Some(true)` for the active board (a 1 pt `accent.solid` edge, its name
+    /// in `text.primary`), `Some(false)` for another board (a 1 pt `overlay.artboard` edge outside,
+    /// name in `text.muted`); `None` for a plain page (only the border preference draws).
+    pub active: Option<bool>,
 }
 
 impl PageFrame {
     pub fn new(rect: Rect) -> Self {
-        Self { rect, name: None, fill: None }
+        Self { rect, name: None, fill: None, active: None }
+    }
+
+    /// Marks the frame as an artboard, the active one when `active` (PhotoCraft highlights the
+    /// active board).
+    pub fn active(mut self, active: bool) -> Self {
+        self.active = Some(active);
+        self
     }
 
     pub fn name(mut self, name: impl Into<String>) -> Self {
@@ -201,12 +212,16 @@ impl<'a> Pasteboard<'a> {
                     painter.add(Shape::closed_line(quad.to_vec(), style.outline));
                 }
             }
+            let name_color = match page.active {
+                Some(active) => artboard_edge(&painter, &quad, bounds, aligned, active, ui),
+                None => style.name_color,
+            };
             let Some(name) = &page.name else { continue };
             let corner = view.to_screen(Point::new(page.rect.x0.min(page.rect.x1), page.rect.y0.min(page.rect.y1)));
             let at = Pos2::new(corner.x, corner.y - style.name_gap);
-            let galley = painter.layout_no_wrap(name.clone(), style.name_font.clone(), style.name_color);
+            let galley = painter.layout_no_wrap(name.clone(), style.name_font.clone(), name_color);
             let rect = Align2::LEFT_BOTTOM.anchor_size(at, galley.size());
-            painter.galley(rect.min, galley, style.name_color);
+            painter.galley(rect.min, galley, name_color);
             if rect.intersects(view.rect) {
                 let id = ui.make_persistent_id(self.id_salt).with(("name", i));
                 let sensed = ui.interact(rect, id, Sense::click());
@@ -276,6 +291,16 @@ impl<'a> Pasteboard<'a> {
 fn clip(r: Rect, canvas: Rect) -> Option<Rect> {
     let c = Rect::new(r.x0.max(canvas.x0), r.y0.max(canvas.y0), r.x1.min(canvas.x1), r.y1.min(canvas.y1));
     (c.x1 > c.x0 && c.y1 > c.y0).then_some(c)
+}
+
+/// Draws an artboard's edge round `quad` (`bounds` when the view is axis-aligned): `pasteboard.outline_width`
+/// (1) outside, in `accent.solid` when `active`, else `overlay.artboard` (black at alpha 90); and
+/// returns its name's colour, `text.primary` when active, else `text.muted`.
+#[expect(unused_variables, clippy::todo, reason = "skeleton: task SH-T8 (the `overlay.artboard` colour lands in TK3)")]
+fn artboard_edge(painter: &egui::Painter, quad: &[Pos2; 4], bounds: egui::Rect, aligned: bool, active: bool, ui: &Ui) -> Color32 {
+    // pc: crates/ui-egui/src/canvas/artboard_ui.rs:92-103 `draw_frames` (accent for the active board,
+    // black at alpha 90 outside otherwise; the name in `text` or `text_dim`).
+    todo!()
 }
 
 /// A convex quad as a mesh, so a turned view paints the parallelogram and not its bounding box.
