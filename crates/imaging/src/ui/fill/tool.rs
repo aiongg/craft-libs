@@ -95,9 +95,9 @@ impl FillToolOptions {
 
     /// The mode of a stroke pressed with the bar at `brush_add`: Alt reverses it.
     ///
-    /// The host gives a brush that takes the resize chord the secondary button while Alt is held
-    /// ([`CanvasTool::button_for`]), so Alt with the primary button reaches the tool only where
-    /// the app routes a primary press with Alt to it.
+    /// The brush takes the primary button always and the secondary while Alt is held
+    /// ([`CanvasTool::takes`]), so an Alt + primary press reaches it and reverses the mode, while
+    /// Alt + right-drag resizes.
     pub fn stroke_mode(brush_add: bool, alt: bool) -> EditMode {
         if brush_add != alt { EditMode::Add } else { EditMode::Subtract }
     }
@@ -243,10 +243,10 @@ impl CanvasTool for FillCanvasTool<'_> {
         }
     }
 
-    fn button_for(&self, modifiers: Modifiers) -> PointerButton {
-        // new: the brush resize chord (`BrushResize::chord`): Alt takes the secondary button,
-        // Control + Alt stays on the primary.
-        if self.tool == FillTool::SamplingBrush && modifiers.alt && !modifiers.ctrl { PointerButton::Secondary } else { PointerButton::Primary }
+    fn takes(&self, button: PointerButton, modifiers: Modifiers) -> bool {
+        // new: the brush resize chord (`BrushResize::chord`): the primary button always, the
+        // secondary while Alt is held on the sampling brush.
+        button == PointerButton::Primary || (self.tool == FillTool::SamplingBrush && button == PointerButton::Secondary && modifiers.alt)
     }
 
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {

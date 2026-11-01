@@ -3150,10 +3150,11 @@ fn vanishing_point_lines(out: &mut Lines, t: &VanishingPointTokens) {
 }
 
 fn wide_angle_lines(out: &mut Lines, t: &WideAngleTokens) {
-    let WideAngleTokens { line, end, hit, halo_width, halo } = t;
+    let WideAngleTokens { line, end, hit, min_drag, halo_width, halo } = t;
     out.line("wide_angle.line", len(*line));
     out.line("wide_angle.end", len(*end));
     out.line("wide_angle.hit", len(*hit));
+    out.line("wide_angle.min_drag", len(*min_drag));
     out.line("wide_angle.halo_width", len(*halo_width));
     out.line("wide_angle.halo", hex(*halo));
 }

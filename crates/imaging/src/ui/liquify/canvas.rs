@@ -1,6 +1,6 @@
 //! Liquify's canvas: the canvas tool, the backdrop layering, the mesh (task WS-LQ2).
 
-use egui::{Color32, ColorImage, Context, Modifiers, Painter, PointerButton, Pos2, Shape, Stroke};
+use egui::{Color32, ColorImage, Modifiers, Painter, PointerButton, Pos2, Shape, Stroke};
 
 use craft_ui::canvas::brush::{
     BrushCursor, BrushDimensions, BrushLevel, BrushResize, BrushResizeLabels, BrushResizeOptions, BrushStyle, BrushTip, TipFalloff,
@@ -175,8 +175,6 @@ pub struct LiquifyCanvas {
     at: [f64; 2],
     /// The input time of the stroke's latest dab, for the tools that act while the brush rests.
     last_dab: f64,
-    /// For `button_for`, which has no context: whether the secondary button is down.
-    ctx: Option<Context>,
     hand: HandTool,
     zoom: ZoomTool,
 }
@@ -191,7 +189,6 @@ impl Default for LiquifyCanvas {
             resize_from: None,
             at: [0.0; 2],
             last_dab: 0.0,
-            ctx: None,
             hand: HandTool::default(),
             zoom: ZoomTool::new(Size::ZERO, NavigationOptions::default()),
         }
@@ -217,13 +214,6 @@ impl LiquifyCanvas {
     /// A stroke, a lasso or a resize is in progress: the history waits (`settle(.., busy)`).
     pub fn busy(&self) -> bool {
         self.recorder.is_active() || self.lasso.is_some() || self.resize.active()
-    }
-
-    /// Lets `button_for`, which has no context, see the pointer buttons.
-    pub(super) fn attach(&mut self, ctx: &Context) {
-        if self.ctx.is_none() {
-            self.ctx = Some(ctx.clone());
-        }
     }
 
     /// The Hand tool for a document of `size`.
@@ -272,8 +262,8 @@ fn acts_at_rest(tool: LiquifyTool) -> bool {
 ///   select tokens through `SelectToolStyle::reach`); the release closes it into a stroke with
 ///   `amount` 1, or 0 when Alt was held at the press; drawn in `liquify.freeze` (thaw:
 ///   `liquify.thaw`).
-/// - Alt + right-drag, or Control + Alt + drag ([`BrushResize::chord`]; `button_for` gives the
-///   secondary button while Alt is held and the secondary button is the one pressed): a
+/// - Alt + right-drag, or Control + Alt + drag ([`BrushResize::chord`]; `takes` accepts the
+///   secondary button while Alt is held): a
 ///   [`BrushResize`] with `BrushLevel::Density`, `max_diameter` 15000; horizontal travel sets the
 ///   size, vertical the density over `brush.resize_travel`; the outline stays at the anchor; no
 ///   stroke. Each update writes `settings.brush`.
@@ -360,13 +350,11 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         )
     }
 
-    fn button_for(&self, modifiers: Modifiers) -> PointerButton {
+    fn takes(&self, button: PointerButton, modifiers: Modifiers) -> bool {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:676 `brush_resize_gesture` (Alt with the
-        // secondary button, or Ctrl and Alt). The host reads one button per press, so Alt takes
-        // the secondary button only when that is the one pressed: Alt with the primary button
-        // still paints with the alternate tool.
-        let secondary = self.canvas.ctx.as_ref().is_some_and(|ctx| ctx.input(|i| i.pointer.button_down(PointerButton::Secondary)));
-        if modifiers.alt && !modifiers.ctrl && secondary { PointerButton::Secondary } else { PointerButton::Primary }
+        // secondary button, or Ctrl and Alt). The primary button always paints (Alt reverses to
+        // the alternate tool); the secondary starts the resize chord while Alt is held.
+        button == PointerButton::Primary || (button == PointerButton::Secondary && modifiers.alt)
     }
 
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {

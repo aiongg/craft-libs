@@ -515,9 +515,10 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         }
     }
 
-    fn button_for(&self, modifiers: Modifiers) -> PointerButton {
-        // new: the brush resize chord (`BrushResize::chord`), as Liquify's.
-        if self.tool.brushes() && modifiers.alt && !modifiers.ctrl { PointerButton::Secondary } else { PointerButton::Primary }
+    fn takes(&self, button: PointerButton, modifiers: Modifiers) -> bool {
+        // new: the brush resize chord (`BrushResize::chord`), as Liquify's: the primary button
+        // always, the secondary while Alt is held on a brush.
+        button == PointerButton::Primary || (self.tool.brushes() && button == PointerButton::Secondary && modifiers.alt)
     }
 
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {

@@ -15,6 +15,9 @@ pub struct WideAngleStyle {
     pub end: f32,
     /// How near a right-click must pass a curve to open its menu: `wide_angle.hit` (10).
     pub hit: f32,
+    /// A drag shorter than this many screen points adds no constraint: `wide_angle.min_drag` (6;
+    /// PhotoCraft's 6.0).
+    pub min_drag: f32,
     /// Free: `accent`; Horizontal: `status.warn.fg`; Vertical: `status.bad.fg` (PhotoCraft
     /// `t.accent`, `t.warning`, `t.danger`).
     pub free: Color32,
@@ -35,6 +38,7 @@ impl WideAngleStyle {
             line: w.line,
             end: w.end,
             hit: w.hit,
+            min_drag: w.min_drag,
             free: tokens.color.accent.solid.to_egui(),
             horizontal: tokens.color.status.warn.fg.to_egui(),
             vertical: tokens.color.status.bad.fg.to_egui(),

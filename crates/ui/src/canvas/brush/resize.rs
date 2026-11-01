@@ -109,7 +109,7 @@ impl BrushResize {
     /// (Photoshop on Windows), or Ctrl + Alt with the primary (Control + Option on a Mac), on every
     /// platform. Alt with the primary alone is not (the painting tools' eyedropper). The tool
     /// takes the secondary button with Alt through
-    /// [`CanvasTool::button_for`](crate::canvas::CanvasTool::button_for).
+    /// [`CanvasTool::takes`](crate::canvas::CanvasTool::takes).
     pub fn chord(button: PointerButton, modifiers: Modifiers) -> bool {
         // pc: crates/ui-egui/src/tools/brush_resize.rs:47 `is_gesture` (ctrl && alt), :53 `is_right_gesture` (alt).
         let alt_secondary = button == PointerButton::Secondary && modifiers.alt;

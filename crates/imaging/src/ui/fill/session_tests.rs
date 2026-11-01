@@ -7,7 +7,7 @@ use craft_ui::canvas::{CanvasId, CanvasView, SelectionOperation, ToolHost, ToolI
 use craft_ui::dialog::{LocalHistory, Step};
 use craft_ui::edit::EditEvent;
 use craft_ui::theme::{Base, install};
-use egui::{Modifiers, Sense, pos2, vec2};
+use egui::{Event, Modifiers, PointerButton, Sense, pos2, vec2};
 use egui_kittest::Harness;
 
 use super::session::{FillCommand, FillLimits, FillReset, FillSession, FillSettings, SamplingMode, SamplingStroke};
@@ -65,6 +65,19 @@ fn up(h: &mut Harness<'_, Rig>, at: (f64, f64)) {
     input(h, ToolInput::Up { doc: Point::new(at.0, at.1), modifiers: NONE });
 }
 
+/// A real pointer press or release (screen and document points coincide).
+fn press_button(h: &mut Harness<'_, Rig>, button: PointerButton, at: (f64, f64), pressed: bool, modifiers: Modifiers) {
+    let pos = pos2(at.0 as f32, at.1 as f32);
+    h.event_modifiers(Event::PointerMoved(pos), modifiers);
+    h.event_modifiers(Event::PointerButton { pos, button, pressed, modifiers }, modifiers);
+    h.step();
+}
+
+fn move_to(h: &mut Harness<'_, Rig>, at: (f64, f64), modifiers: Modifiers) {
+    h.event_modifiers(Event::PointerMoved(pos2(at.0 as f32, at.1 as f32)), modifiers);
+    h.step();
+}
+
 fn events(h: &mut Harness<'_, Rig>) -> Vec<FillEvent> {
     h.state_mut().canvas.take_events()
 }
@@ -114,14 +127,17 @@ fn square_points() -> Vec<[f64; 2]> {
 // stroke keeps its points from before the drag threshold.
 #[test]
 fn fill_brush_adds_in_custom_and_subtracts_in_auto_and_alt_reverses() {
-    // Alt reverses the bar's mode. (The host gives Alt to the resize chord's secondary button, so
-    // a primary press with Alt is tested on the rule itself.)
+    // Alt reverses the bar's mode, on the rule and on a real Alt + primary press through the host.
     for (mode, alt, expected) in [
         (SamplingMode::Auto, true, EditMode::Add),
         (SamplingMode::Rectangular, true, EditMode::Add),
         (SamplingMode::Custom, true, EditMode::Subtract),
     ] {
         assert_eq!(FillToolOptions::stroke_mode(mode.brush_adds(), alt), expected, "{mode:?}, alt");
+        let mut h = rig(FillTool::SamplingBrush, mode.brush_adds(), FillSession::default(), GENEROUS);
+        press_button(&mut h, PointerButton::Primary, (10.0, 10.0), true, Modifiers::ALT);
+        press_button(&mut h, PointerButton::Primary, (10.0, 10.0), false, Modifiers::ALT);
+        assert_eq!(committed(&events(&mut h)).0.mode, expected, "{mode:?}, Alt + primary press");
     }
     for (mode, expected) in
         [(SamplingMode::Custom, EditMode::Add), (SamplingMode::Auto, EditMode::Subtract), (SamplingMode::Rectangular, EditMode::Subtract)]
@@ -149,6 +165,19 @@ fn fill_brush_adds_in_custom_and_subtracts_in_auto_and_alt_reverses() {
     assert_eq!(events(&mut h), []);
     assert!((h.state().options.brush_size - 40.0).abs() < f64::EPSILON);
     assert!(!h.state().canvas.busy());
+    // Alt + right-drag resizes the same way and paints nothing.
+    let mut h = rig(FillTool::SamplingBrush, true, FillSession::default(), GENEROUS);
+    press_button(&mut h, PointerButton::Secondary, (100.0, 100.0), true, Modifiers::ALT);
+    assert!(h.state().canvas.busy());
+    move_to(&mut h, (110.0, 100.0), Modifiers::ALT);
+    press_button(&mut h, PointerButton::Secondary, (110.0, 100.0), false, Modifiers::ALT);
+    assert_eq!(events(&mut h), []);
+    assert!((h.state().options.brush_size - 40.0).abs() < f64::EPSILON);
+    assert!(!h.state().canvas.busy());
+    // The secondary button without Alt is not the brush's.
+    press_button(&mut h, PointerButton::Secondary, (100.0, 100.0), true, NONE);
+    assert!(!h.state().canvas.busy());
+    press_button(&mut h, PointerButton::Secondary, (100.0, 100.0), false, NONE);
     // A click is a one-point stroke.
     let mut h = rig(FillTool::SamplingBrush, true, FillSession::default(), GENEROUS);
     down(&mut h, (10.0, 10.0), NONE);

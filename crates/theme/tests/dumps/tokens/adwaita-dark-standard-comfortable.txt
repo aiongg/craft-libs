@@ -734,6 +734,7 @@ vanishing_point.halo = #000000a0
 wide_angle.line = 2
 wide_angle.end = 3.5
 wide_angle.hit = 10
+wide_angle.min_drag = 6
 wide_angle.halo_width = 2.5
 wide_angle.halo = #000000a0
 blur_pins.dot = 5
