@@ -752,3 +752,41 @@ fn a_press_during_a_typing_run_begins_after_the_runs_commit_but_the_pens_draft_n
     h.step();
     assert_eq!(draft(&h).knots.len(), 2, "no wait: {:?}", &h.state().events[before..]);
 }
+
+// Task PE-C2 from here.
+
+// Auto Add/Delete on: a press on a draft segment inserts an anchor and on an inner anchor deletes
+// it (Updates); with ⇧ held the press adds an anchor as usual.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn pen_auto_add_delete_edits_the_draft_and_shift_turns_it_off() {
+    todo!()
+}
+
+// `sensing(false)`: the draft draws and Enter still ends it, but a press is not claimed and adds
+// nothing (gap row 39).
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn pen_sensing_off_draws_but_takes_no_press() {
+    todo!()
+}
+
+// `closes` is true over the first anchor of a two-anchor draft and false elsewhere and while a
+// press is down.
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn pen_closes_flag_is_true_over_the_first_anchor() {
+    todo!()
+}
+
+// The Pen's rubber band shows only with `PathOptionsSettings::rubber_band` on; without path
+// options it does not show (Photoshop's default).
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: removed when the body lands")]
+fn pen_rubber_band_follows_the_path_options() {
+    todo!()
+}

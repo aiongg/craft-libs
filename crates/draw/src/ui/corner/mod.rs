@@ -1,1 +1,91 @@
-//! The corner widgets that round a shape's corners on the canvas.
+//! The corner widgets that round a shape's corners on the canvas (F09.02): [`CornerWidgets`].
+//!
+//! The app turns each selected live shape (a rectangle, a polygon, a star, VectorCraft's corner
+//! anchors) into a [`CornerTarget`], shows the widgets, and applies the [`CornerEdit`] they
+//! report. The geometry is [`fillet`](crate::geometry::fillet::fillet)'s, so a widget sits on the
+//! arc the app's engine draws.
+
+mod geometry;
+#[cfg(test)]
+mod geometry_tests;
+mod labels;
+pub(crate) mod stories;
+mod style;
+#[cfg(test)]
+mod tests;
+mod widgets;
+
+use kurbo::Point;
+
+pub use labels::CornerWidgetsLabels;
+pub use style::CornerStyle;
+pub use widgets::{CornerWidgets, CornerWidgetsResponse};
+
+/// How a corner is cut. Only shown and cycled with [`CornerWidgets::kinds`] (VectorCraft).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum CornerKind {
+    /// A circular arc tangent to both edges.
+    #[default]
+    Round,
+    /// An arc bulging into the shape.
+    InvertedRound,
+    /// A straight cut between the two tangent points.
+    Chamfer,
+}
+
+impl CornerKind {
+    /// The kind ⌥-click turns this one into: Round, Inverted Round, Chamfer, then Round again.
+    pub fn next(self) -> CornerKind {
+        // vectorcraft: crates/tools/src/corners.rs:5-6 (⌥-click cycles round, inverted round, chamfer).
+        match self {
+            CornerKind::Round => CornerKind::InvertedRound,
+            CornerKind::InvertedRound => CornerKind::Chamfer,
+            CornerKind::Chamfer => CornerKind::Round,
+        }
+    }
+}
+
+/// One corner of a target, in document units: its vertex, its neighbours along the outline (the
+/// sharp polygon's, not the rounded one's), its radius now and its kind.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CornerPoint {
+    pub vertex: Point,
+    pub prev: Point,
+    pub next: Point,
+    pub radius: f64,
+    pub kind: CornerKind,
+}
+
+/// A shape whose corners the widgets round: the host's key, its corners in outline order, and
+/// whether each corner takes its own radius (`individual`: rectangles, so ⌥ changes one corner)
+/// or every corner shares one (polygons, stars: ⌥ is ignored).
+#[derive(Clone, Debug, PartialEq)]
+pub struct CornerTarget {
+    pub key: u64,
+    pub corners: Vec<CornerPoint>,
+    pub individual: bool,
+}
+
+/// A corner of a target: the target's key and the corner's index in
+/// [`CornerTarget::corners`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CornerRef {
+    pub target: u64,
+    pub corner: usize,
+}
+
+/// A target's radii after an edit: one per corner, in the target's order (equal for a target
+/// without `individual`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct CornerRadii {
+    pub key: u64,
+    pub radii: Vec<f64>,
+}
+
+/// The value of the widgets' edit events: the new radii of every shown target that changed.
+/// The host applies all of them as one history step (PhotoCraft: one `shape.edit` per layer under
+/// one coalesce key).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CornerEdit {
+    pub targets: Vec<CornerRadii>,
+}
