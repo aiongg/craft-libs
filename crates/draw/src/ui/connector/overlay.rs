@@ -1,13 +1,12 @@
 //! [`ConnectorOverlay`]: a selected connector's handles and a target's attach points (task
 //! SH-T10).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use egui::Painter;
+use egui::epaint::CubicBezierShape;
+use egui::{Color32, Painter, Pos2, Shape, Stroke};
 use kurbo::Point;
 
 use super::{ConnectionTarget, ConnectorStyle};
-use crate::geometry::connector::Routing;
+use crate::geometry::connector::{Routing, path_handles};
 use craft_ui::canvas::CanvasView;
 
 /// Draws what the Connector tool shows over the document, for the tool and for an app that shows
@@ -22,6 +21,22 @@ pub struct ConnectorOverlay<'a> {
     points: &'a [Point],
     routing: Routing,
     handles: bool,
+}
+
+/// An elbow run shorter than this many attach reaches on screen has no path handle: its handle
+/// would sit on its neighbours' (FigCraft's `MIN_RUN_PX`, 28, is under three of its reaches).
+const MIN_RUN_REACHES: f32 = 2.0; // design: allow(a ratio of two tokens, not a size)
+
+/// The path handles of the route through `points` that are drawn and can be grabbed at `view`'s
+/// zoom: [`path_handles`] without the elbow runs too short on screen to hold one. The portion is
+/// the index [`reshaped`](crate::geometry::connector::reshaped) takes.
+pub(super) fn visible_path_handles(points: &[Point], routing: Routing, view: &CanvasView, style: &ConnectorStyle) -> Vec<(usize, Point)> {
+    let min = style.attach_reach * MIN_RUN_REACHES;
+    let long = |i: usize| match (points.get(i), points.get(i + 1)) {
+        (Some(&a), Some(&b)) => view.to_screen(a).distance(view.to_screen(b)) >= min,
+        _ => false,
+    };
+    path_handles(points, routing).into_iter().filter(|&(i, _)| routing == Routing::Curved || long(i)).collect()
 }
 
 impl<'a> ConnectorOverlay<'a> {
@@ -40,7 +55,31 @@ impl<'a> ConnectorOverlay<'a> {
     pub fn paint(&self, painter: &Painter, view: &CanvasView, style: &ConnectorStyle) {
         // inv-figcraft: crates/ui-egui/src/canvas/overlays.rs:364-376 (path handles 3.5 accent with a
         // 1 pt white ring, end handles 5 white with a 1.5 pt accent ring).
-        todo!()
+        // new: the route itself (FigCraft draws it in the document); the path handle's ring is
+        // `connector.line` wide (FigCraft's is 1 pt; no token).
+        let screen: Vec<Pos2> = self.points.iter().map(|&p| view.to_screen(p)).collect();
+        if screen.len() < 2 {
+            return;
+        }
+        match (self.routing, screen.as_slice()) {
+            (Routing::Curved, &[a, b, c, d]) => {
+                painter.add(CubicBezierShape::from_points_stroke([a, b, c, d], false, Color32::TRANSPARENT, style.line))
+            }
+            _ => painter.add(Shape::line(screen.clone(), style.line)),
+        };
+        if !self.handles {
+            return;
+        }
+        let ring = Stroke::new(style.line.width, style.handle_fill);
+        for (_, at) in visible_path_handles(self.points, self.routing, view, style) {
+            let c = view.to_screen(at);
+            painter.circle_filled(c, style.path_handle, style.line.color);
+            painter.circle_stroke(c, style.path_handle, ring);
+        }
+        for end in [screen.first(), screen.last()].into_iter().flatten() {
+            painter.circle_filled(*end, style.end_handle, style.handle_fill);
+            painter.circle_stroke(*end, style.end_handle, style.line);
+        }
     }
 
     /// Draws `target`'s sites through `view`, `active` (a site index) as the larger see-through
@@ -48,6 +87,12 @@ impl<'a> ConnectorOverlay<'a> {
     pub fn paint_sites(painter: &Painter, view: &CanvasView, style: &ConnectorStyle, target: &ConnectionTarget, active: Option<u32>) {
         // inv-figcraft: crates/ui-egui/src/canvas/overlays.rs:407-418 `attach_points` (7 at accent ×
         // 0.25 for the active one, else 4 white; 1.5 pt accent ring).
-        todo!()
+        for site in target.side_sites() {
+            let c = view.to_screen(site.point);
+            let (radius, fill) =
+                if active == Some(site.index) { (style.attach_active, style.attach_active_fill) } else { (style.attach, style.handle_fill) };
+            painter.circle_filled(c, radius, fill);
+            painter.circle_stroke(c, radius, style.line);
+        }
     }
 }
