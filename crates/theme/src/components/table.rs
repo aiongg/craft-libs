@@ -1,4 +1,4 @@
-//! Tables: the header's height, the sort chevron, the column edges' grab strip and the drop line of a moving column. The row's height, padding and colours are the list family's. Sizes only: the colours are the surface, text and state tokens of the controls inside, and no theme overrides these.
+//! Tables: the header's height, the sort chevron, the column edges' grab strip, the drop line of a moving column and the least column width. The row's height, padding and colours are the list family's. Sizes only: the colours are the surface, text and state tokens of the controls inside and the dock dividers' look for the column edges, and no theme overrides these.
 
 use super::{ContrastPair, Family, FieldKind, OverrideValue, Semantic, SizeLeaf};
 use crate::values;
@@ -17,6 +17,10 @@ pub struct TableTokens {
     pub grip_width: f32,
     /// Width of the line that shows where a moved column lands: `table.drop_line_width`.
     pub drop_line_width: f32,
+    /// Least width of a column that sets none: `table.min_column`.
+    pub min_column: f32,
+    /// How far the drop line reaches past the header cell it marks: `table.drop_line_slack`.
+    pub drop_line_slack: f32,
 }
 
 /// No overridable field: the sizes come from the code, as every size does.
@@ -32,6 +36,8 @@ impl Family for TableTokens {
         "sort_gap" 0.0..=64.0 => sort_gap;
         "grip_width" 0.0..=64.0 => grip_width;
         "drop_line_width" 0.0..=16.0 => drop_line_width;
+        "min_column" 0.0..=256.0 => min_column;
+        "drop_line_slack" 0.0..=16.0 => drop_line_slack;
     };
 
     fn defaults(s: &Semantic<'_>) -> TableTokens {
@@ -41,6 +47,8 @@ impl Family for TableTokens {
             sort_gap: values::TABLE_SORT_GAP,
             grip_width: values::TABLE_GRIP_WIDTH,
             drop_line_width: values::TABLE_DROP_LINE_WIDTH,
+            min_column: values::TABLE_MIN_COLUMN,
+            drop_line_slack: values::TABLE_DROP_LINE_SLACK,
         }
     }
 

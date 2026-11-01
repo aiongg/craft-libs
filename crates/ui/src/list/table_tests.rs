@@ -13,12 +13,39 @@ fn columns() -> Vec<TableColumn<&'static str>> {
 // `TableSort::clicked`: the sorting column flips its order; another column starts ascending.
 #[test]
 fn a_header_click_flips_the_sorting_column_and_sorts_another_ascending() {
-    let first = TableSort::clicked(None, "name");
+    let first = TableSort::clicked(None, "name", SortOrder::Ascending);
     assert_eq!(first, TableSort { column: "name", order: SortOrder::Ascending });
-    let flipped = TableSort::clicked(Some(&first), "name");
+    let flipped = TableSort::clicked(Some(&first), "name", SortOrder::Ascending);
     assert_eq!(flipped.order, SortOrder::Descending);
-    let other = TableSort::clicked(Some(&flipped), "size");
+    let other = TableSort::clicked(Some(&flipped), "size", SortOrder::Ascending);
     assert_eq!(other, TableSort { column: "size", order: SortOrder::Ascending });
+}
+
+// A column that sorts descending first starts there; the same column then flips.
+#[test]
+fn a_click_sorts_in_the_columns_first_order() {
+    let first = TableSort::clicked(None, "pages", SortOrder::Descending);
+    assert_eq!(first, TableSort { column: "pages", order: SortOrder::Descending });
+    assert_eq!(TableSort::clicked(Some(&first), "pages", SortOrder::Descending).order, SortOrder::Ascending);
+    assert_eq!(TableSort::clicked(Some(&first), "size", SortOrder::Descending).order, SortOrder::Descending);
+}
+
+// Hiding the sorting column clears the sort; hiding another keeps it; a stored layout whose
+// sorting column is hidden comes back unsorted.
+#[test]
+fn hiding_the_sorting_column_drops_the_sort() {
+    let sort = TableSort { column: "pages", order: SortOrder::Descending };
+    let mut layout = TableLayout::new(&columns());
+    layout.sort = Some(sort);
+    layout.set_visible(&"size", false);
+    assert_eq!(layout.sort, Some(sort));
+    layout.set_visible(&"pages", false);
+    assert_eq!(layout.sort, None);
+    layout.set_visible(&"pages", true);
+    assert_eq!(layout.sort, None, "showing it again doesn't bring the sort back");
+
+    let stored = TableLayout { order: vec![], hidden: vec!["pages"], widths: vec![], sort: Some(sort) };
+    assert_eq!(stored.repaired(&columns()).sort, None);
 }
 
 // `TableSort::apply` is stable and reverses the comparison for Descending.

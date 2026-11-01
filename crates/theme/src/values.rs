@@ -1724,6 +1724,12 @@ pub const TABLE_GRIP_WIDTH: f32 = 6.0;
 /// Width of the drop line of a moved column (PdfCraft).
 pub const TABLE_DROP_LINE_WIDTH: f32 = 2.5;
 
+/// Least width of a table column that sets none of its own (room for a short word).
+pub const TABLE_MIN_COLUMN: f32 = 40.0;
+
+/// How far past a header cell the drop line of a moved column may reach: it straddles the cell's edge, so its half width and a little more.
+pub const TABLE_DROP_LINE_SLACK: f32 = 3.0;
+
 /// Height of a chip, small and medium (LightCraft's keyword chip 22 and filter chip 18).
 pub const CHIP_HEIGHT: (f32, f32) = (18.0, 22.0);
 

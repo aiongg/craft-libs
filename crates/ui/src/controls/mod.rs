@@ -176,6 +176,7 @@ pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle};
 pub use chips::{Chip, ChipField, ChipFieldResponse, ChipLabels, chip_lines};
 pub use combo_box::ComboBox;
 pub use craft_theme::{ButtonVariant, ControlSize};
+pub(crate) use date::date_format;
 pub use date::{DateLabels, DatePicker, DatePrecision, PickedDate, month_grid};
 pub use icon_button::{IconButton, IconButtonStyle, IconSource};
 pub use icon_picker::{IconPicker, IconPickerGroup, IconPickerItem, IconPickerLabels, IconPickerOutput, icon_matches};

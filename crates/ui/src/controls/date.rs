@@ -370,7 +370,7 @@ fn system_today() -> Option<PickedDate> {
 }
 
 /// The installed host's date format, else English (US) conventions kept in the context.
-fn date_format(ctx: &egui::Context) -> Arc<DateFormat> {
+pub(crate) fn date_format(ctx: &egui::Context) -> Arc<DateFormat> {
     if let Some(dates) = Host::try_of_ctx(ctx).and_then(|host| host.i18n().map(|i18n| i18n.dates())) {
         return dates;
     }
