@@ -1,11 +1,15 @@
 //! [`WarpFields`]: the Warp group of a transform's options bar: Split icons, Grid menu, warp style,
 //! orientation and Bend, H and V (task TR-T5).
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TR-T5)")]
+use egui::load::Bytes;
+use egui::{AsIdSalt, IdSalt, ImageSource, Ui};
 
-use egui::{AsIdSalt, IdSalt, Ui};
-
+use craft_theme::ControlSize;
+use craft_ui::controls::{IconButton, NumberField, Select};
 use craft_ui::edit::EditEvent;
+use craft_ui::icons::Icon;
+use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::patterns::{CellWidth, OptionsBar};
 use craft_ui::words;
 
 use super::{WarpMesh, WarpSplit};
@@ -33,6 +37,22 @@ words! {
         horizontal_name: "warpFields.horizontalName" = "Horizontal distortion";
         vertical_name: "warpFields.verticalName" = "Vertical distortion";
     }
+}
+
+/// How far a knot may lie from an even one and still read as even (PhotoCraft `warp_grid_id`).
+const EVEN_KNOT: f64 = 1e-4;
+
+/// The range of Bend, H and V in percent.
+const DISTORTION_RANGE: std::ops::RangeInclusive<f64> = -100.0..=100.0;
+
+// The Split icons, on the 24-unit grid the icon sets use: a square cut by the line the tool adds,
+// white so the button's tint gives the colour (PhotoCraft `split_icon`).
+const SPLIT_CROSS: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M6.5 12h11M12 6.5v11"/><circle cx="12" cy="12" r="1.7" fill="#fff"/></svg>"##;
+const SPLIT_VERTICAL: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M12 6.5v11"/><circle cx="12" cy="12" r="2.4"/></svg>"##;
+const SPLIT_HORIZONTAL: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M6.5 12h11"/><circle cx="12" cy="12" r="2.4"/></svg>"##;
+
+fn split_image(uri: &'static str, svg: &'static [u8]) -> ImageSource<'static> {
+    ImageSource::Bytes { uri: uri.into(), bytes: Bytes::Static(svg) }
 }
 
 /// One warp style of the style select, as the app lists them (Photoshop's 15 styles, None and
@@ -66,13 +86,34 @@ impl WarpGridChoice {
     /// of them; otherwise Custom.
     pub fn of(mesh: &WarpMesh) -> WarpGridChoice {
         // pc: crates/ui-egui/src/tools/transform_tool/options_bar.rs:480 (`warp_grid_id`).
-        todo!()
+        let columns = mesh.us.len().saturating_sub(1);
+        let rows = mesh.vs.len().saturating_sub(1);
+        let even = |knots: &[f64]| {
+            let n = knots.len().saturating_sub(1);
+            n > 0 && knots.iter().enumerate().all(|(i, v)| (v - i as f64 / n as f64).abs() < EVEN_KNOT)
+        };
+        if columns != rows || !even(&mesh.us) || !even(&mesh.vs) {
+            return WarpGridChoice::Custom;
+        }
+        match columns {
+            1 => WarpGridChoice::Default,
+            3 => WarpGridChoice::Three,
+            4 => WarpGridChoice::Four,
+            5 => WarpGridChoice::Five,
+            _ => WarpGridChoice::Custom,
+        }
     }
 
     /// The patches per side a pick asks for: Default 1, Three 3, Four 4, Five 5, Custom none.
     pub fn size(self) -> Option<usize> {
         // pc: crates/ui-egui/src/tools/transform_tool/options_bar.rs:443.
-        todo!()
+        match self {
+            WarpGridChoice::Custom => None,
+            WarpGridChoice::Default => Some(1),
+            WarpGridChoice::Three => Some(3),
+            WarpGridChoice::Four => Some(4),
+            WarpGridChoice::Five => Some(5),
+        }
     }
 }
 
@@ -168,6 +209,86 @@ impl<'a> WarpFields<'a> {
     pub fn show(self, ui: &mut Ui) -> WarpFieldsOutput {
         // pc: crates/ui-egui/src/tools/transform_tool/options_bar.rs:358 (`warp_fields`), :410
         // (`warp_mesh_fields`), :501 (`split_icon`).
-        todo!()
+        let Self { id_salt, styles, values, labels, split, on_type } = self;
+        let sm = ControlSize::Sm;
+        let numbers = LocaleNumbers::of(ui);
+        let mut out = WarpFieldsOutput::default();
+        ui.push_id(id_salt, |ui| {
+            OptionsBar::group(ui, !on_type, |ui| {
+                OptionsBar::cell(ui, &labels.split, CellWidth::Content, |ui, _| {
+                    let tools = [
+                        (WarpSplit::Cross, split_image("bytes://craft-imaging/warp-split-cross.svg", SPLIT_CROSS), &labels.split_crosswise),
+                        (WarpSplit::Vertical, split_image("bytes://craft-imaging/warp-split-vertical.svg", SPLIT_VERTICAL), &labels.split_vertically),
+                        (
+                            WarpSplit::Horizontal,
+                            split_image("bytes://craft-imaging/warp-split-horizontal.svg", SPLIT_HORIZONTAL),
+                            &labels.split_horizontally,
+                        ),
+                    ];
+                    for (tool, image, name) in tools {
+                        let armed = split == Some(tool);
+                        let button = IconButton::new(image, name.as_str()).size(sm).selected(armed).id_salt(("split", tool as u8));
+                        if ui.add(button).clicked() {
+                            out.edits.push(WarpFieldsEdit::Split(if armed { None } else { Some(tool) }));
+                        }
+                    }
+                });
+                OptionsBar::divider(ui);
+                OptionsBar::cell(ui, &labels.grid, CellWidth::Content, |ui, _| {
+                    let mut grid = values.grid;
+                    let pick = Select::new("grid", labels.grid_name.as_str(), &mut grid)
+                        .option(WarpGridChoice::Custom, labels.custom.as_str())
+                        .option(WarpGridChoice::Default, labels.default_grid.as_str())
+                        .option(WarpGridChoice::Three, labels.three.as_str())
+                        .option(WarpGridChoice::Four, labels.four.as_str())
+                        .option(WarpGridChoice::Five, labels.five.as_str())
+                        .size(sm)
+                        .show(ui);
+                    if let Some(&picked) = pick.event.as_ref().and_then(EditEvent::value)
+                        && picked != values.grid
+                        && let Some(size) = picked.size()
+                    {
+                        out.edits.push(WarpFieldsEdit::Grid(size));
+                    }
+                });
+            });
+            OptionsBar::divider(ui);
+            OptionsBar::cell(ui, &labels.warp, CellWidth::Content, |ui, _| {
+                let mut style = values.style.clone();
+                let select = styles
+                    .iter()
+                    .filter(|entry| !(on_type && entry.custom))
+                    .fold(Select::new("style", labels.warp_name.as_str(), &mut style), |select, entry| {
+                        select.option(entry.key.clone(), entry.label.as_str())
+                    });
+                let pick = select.size(sm).show(ui);
+                if let Some(picked) = pick.event.as_ref().and_then(EditEvent::value)
+                    && *picked != values.style
+                {
+                    out.edits.push(WarpFieldsEdit::Style(picked.clone()));
+                }
+            });
+            // The orientation and the fields are always there and act only on a preset style.
+            let preset = styles.iter().any(|entry| entry.key == values.style && entry.preset);
+            OptionsBar::group(ui, preset, |ui| {
+                let button =
+                    IconButton::new(Icon::SwapHorizontal, labels.orientation.as_str()).size(sm).selected(values.vertical).id_salt("orientation");
+                if ui.add(button).clicked() {
+                    out.edits.push(WarpFieldsEdit::Orientation { vertical: !values.vertical });
+                }
+                let fields: [(&str, &str, &str, f64, fn(EditEvent<f64>) -> WarpFieldsEdit); 3] = [
+                    ("bend", &labels.bend, labels.bend.trim_end_matches(':'), values.bend, WarpFieldsEdit::Bend),
+                    ("horizontal", &labels.horizontal, &labels.horizontal_name, values.horizontal, WarpFieldsEdit::Horizontal),
+                    ("vertical", &labels.vertical, &labels.vertical_name, values.vertical_distortion, WarpFieldsEdit::Vertical),
+                ];
+                for (salt, caption, name, value, edit) in fields {
+                    let field = NumberField::new(salt, name, value, &numbers).range(DISTORTION_RANGE).decimals(0..=0).unit(Unit::new("{n}%"));
+                    if let Some(event) = OptionsBar::number_cell(ui, caption, CellWidth::Sm, field).event {
+                        out.edits.push(edit(event));
+                    }
+                }
+            });
+        });
+        out
     }
 }
