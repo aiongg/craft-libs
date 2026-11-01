@@ -1,14 +1,21 @@
 //! The Brush Settings panel frame ([`BrushSettingsPanel`]).
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use std::sync::Arc;
+
 use craft_ui::canvas::textures::Revision;
-use egui::{AsIdSalt, ColorImage, IdSalt, Response, Ui};
+use craft_ui::controls::{ControlSize, IconButton};
+use craft_ui::icons::Icon;
+use craft_ui::localized::SharedLabels as _;
+use craft_ui::primitives::Divider;
+use craft_ui::theme::{Tokens, TokensOf as _};
+use egui::{AsIdSalt, Color32, ColorImage, IdSalt, Response, ScrollArea, Ui, vec2};
 
 use super::labels::BrushSettingsLabels;
-use super::sections::{BrushSection, BrushSectionEvent};
+use super::preview::BrushStrokeStrip;
+use super::sections::{BrushSection, BrushSectionEvent, BrushSectionKind, BrushSectionList};
+use super::style::BrushSettingsStyle;
 
 /// The buttons beside the stroke strip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -102,7 +109,74 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushSettingsPane
     /// in [`BrushSettingsOutput::body`].
     pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui, &K) -> R) -> BrushSettingsOutput<K, R> {
         // pc: crates/ui-egui/src/panels/brush_panel.rs:351-412 `settings_tab` (list, vline, scroll pane max 450 greyed when off, hairline, strip and buttons)
-        todo!()
+        let Self { id_salt, sections, selected, link, can_update, strip, labels } = self;
+        let labels = labels.map(Arc::new).unwrap_or_else(|| BrushSettingsLabels::shared(ui));
+        let tokens = Tokens::of(ui);
+        let style = BrushSettingsStyle::of(&tokens);
+        let gap = tokens.space.gap.inline;
+        let button_side = IconButton::style(&tokens, ControlSize::Md).side;
+
+        // The pane shown: the selected pane section, else the first one.
+        let is_pane = |section: &&BrushSection<K>| section.kind == BrushSectionKind::Pane;
+        let shown =
+            selected.and_then(|key| sections.iter().filter(is_pane).find(|section| section.key == *key)).or_else(|| sections.iter().find(is_pane));
+
+        // The strip, its gaps and the hairline are reserved; the list and the pane share the rest.
+        let hairline = ui.pixels_per_point().recip();
+        let pane_height = (ui.available_height() - style.strip_height - 2.0 * gap - hairline).max(0.0);
+
+        let mut body_result = None;
+        let mut section_events = Vec::new();
+        let mut action = None;
+        let response = ui
+            .vertical(|ui| {
+                ui.allocate_ui(vec2(ui.available_width(), pane_height), |ui| {
+                    ui.horizontal_top(|ui| {
+                        let list = BrushSectionList::new((&id_salt, "sections"), sections)
+                            .selected(shown.map(|section| &section.key))
+                            .link(link)
+                            .labels((*labels).clone())
+                            .show(ui);
+                        section_events = list.events;
+                        Divider::vertical().show(ui);
+                        ui.vertical(|ui| {
+                            let Some(section) = shown else { return };
+                            ScrollArea::vertical()
+                                .id_salt((&id_salt, "pane", &section.key))
+                                .max_height(pane_height)
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    body_result = Some(ui.add_enabled_ui(!section.is_off(), |ui| body(ui, &section.key)).inner);
+                                });
+                        });
+                    });
+                });
+                ui.add_space(gap);
+                Divider::horizontal().show(ui);
+                ui.add_space(gap);
+                ui.horizontal_top(|ui| {
+                    let strip_width = (ui.available_width() - button_side - ui.spacing().item_spacing.x).max(0.0);
+                    ui.allocate_ui(vec2(strip_width, style.strip_height), |ui| {
+                        let (revision, make) =
+                            strip.unwrap_or_else(|| (Revision::of(&()), Box::new(|[w, h]| ColorImage::filled([w, h], Color32::TRANSPARENT))));
+                        BrushStrokeStrip::new((&id_salt, "strip"), revision).labels((*labels).clone()).show(ui, make);
+                    });
+                    ui.vertical(|ui| {
+                        let button = |ui: &mut Ui, name: &str, icon: Icon, enabled: bool, which: BrushPanelAction| {
+                            let response = ui.add(IconButton::new(icon, name).id_salt((&id_salt, "action", which)).enabled(enabled));
+                            response.clicked().then_some(which)
+                        };
+                        let pressed = [
+                            button(ui, &labels.new_preset, Icon::Plus, true, BrushPanelAction::NewPreset),
+                            button(ui, &labels.reset, Icon::Undo, true, BrushPanelAction::Reset),
+                            button(ui, &labels.update, Icon::Check, can_update, BrushPanelAction::UpdatePreset),
+                        ];
+                        action = pressed.into_iter().flatten().next();
+                    });
+                });
+            })
+            .response;
+        BrushSettingsOutput { response, sections: section_events, action, body: body_result }
     }
 }
 
