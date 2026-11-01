@@ -1425,3 +1425,21 @@ fn a_list_opened_after_a_press_in_its_modal_is_in_front_of_the_modal() {
     click(&mut harness, row);
     assert_eq!(harness.state().value, 1, "the click picked the row");
 }
+
+#[test]
+fn id_in_is_the_id_of_the_select_a_dialog_names_in_initial_focus() {
+    let mut harness = harness().build_ui_state(
+        |ui, ids: &mut Option<(egui::Id, egui::Id)>| {
+            ui.scope(|ui| {
+                let mut value = 0;
+                let before = Select::id_in(ui, "blend");
+                let response = Select::new("blend", "Blend mode", &mut value).option(0, "Normal").show(ui).response;
+                *ids = Some((before, response.id));
+            });
+        },
+        None,
+    );
+    harness.run();
+    let (named, shown) = harness.state().expect("the select was shown");
+    assert_eq!(named, shown);
+}

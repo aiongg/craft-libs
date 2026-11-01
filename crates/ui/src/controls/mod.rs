@@ -125,6 +125,8 @@ pub mod preview_select;
 mod preview_select_tests;
 pub(crate) mod progress;
 pub(crate) mod radio;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod radio_tests;
 pub(crate) mod range_slider;
 mod rating;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
@@ -172,7 +174,7 @@ pub use badge::{Badge, BadgeLook, BadgeStyle, BadgeTone};
 pub use breadcrumb::{BreadcrumbBar, BreadcrumbBarResponse, BreadcrumbLabels, BreadcrumbStyle, Crumb, path_crumbs};
 pub use button::{Button, ButtonStyle, ButtonTone};
 pub use check::IndicatorColors;
-pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle};
+pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle, paint_box};
 pub use chips::{Chip, ChipField, ChipFieldLabels, ChipFieldResponse, ChipStyle, chip_lines};
 pub use combo_box::ComboBox;
 pub use craft_theme::{ButtonVariant, ControlSize};
@@ -188,7 +190,7 @@ pub(crate) use option_list::{pressed_on, released};
 pub use point_picker::{PointPicker, PointPickerStyle};
 pub use preview_select::{LineStyle, LineWeights, SelectText, paint_line_style};
 pub use progress::{Progress, ProgressStyle};
-pub use radio::{PreparedRadioSet, RadioGroup, RadioSet, RadioStyle};
+pub use radio::{PreparedRadioSet, RadioGroup, RadioOption, RadioSet, RadioStyle};
 pub use range_slider::RangeSlider;
 pub use rating::{MAX_STARS, Rating, RatingLabels, RatingStyle, paint_rating};
 pub use reset_dot::{ResetDot, ResetDotLabels, ResetDotStyle};

@@ -219,7 +219,7 @@ impl Checkbox<'static, CheckState> {
 
 /// The box alone in `rect`, in the colours of `response`'s state: for a row that has its own
 /// focus stop and so can't hold a [`Checkbox`].
-pub(crate) fn paint_box(ui: &Ui, style: &CheckboxStyle, rect: Rect, state: CheckState, response: &egui::Response) {
+pub fn paint_box(ui: &Ui, style: &CheckboxStyle, rect: Rect, state: CheckState, response: &egui::Response) {
     let on = state != CheckState::Unchecked;
     let paint = Paint::now(ui, if on { &style.on } else { &style.off }, response);
     ui.painter().add(box_shape(rect, style.radius, style.outline, paint));

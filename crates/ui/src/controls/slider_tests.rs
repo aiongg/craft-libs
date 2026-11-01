@@ -1173,3 +1173,16 @@ fn an_unfilled_track_paints_no_fill_shape() {
     assert_eq!(fills(true), 1, "the filled part is one shape");
     assert_eq!(fills(false), 0);
 }
+
+#[test]
+fn value_text_is_what_a_screen_reader_reads_beside_the_numeric_value() {
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::{NodeT as _, Queryable as _};
+
+    let mut harness = Harness::builder().with_size([320.0, 120.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(|ui| {
+        let _ = Slider::new("opacity", "Opacity", 40.0, 0.0..=100.0).value_text("40 %").show(ui);
+    });
+    harness.run();
+    let node = harness.get_by_label("Opacity").accesskit_node();
+    assert_eq!((node.value(), node.numeric_value(), node.max_numeric_value()), (Some("40 %".to_owned()), Some(40.0), Some(100.0)));
+}

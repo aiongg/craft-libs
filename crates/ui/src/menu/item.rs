@@ -48,7 +48,7 @@ impl<T> MenuEntry<T> {
 
 impl<T> MenuEntry<T> {
     /// The same entry with every command turned into `f(command)`.
-    pub(crate) fn map<U>(&self, f: &impl Fn(&T) -> U) -> MenuEntry<U> {
+    pub fn map<U>(&self, f: &impl Fn(&T) -> U) -> MenuEntry<U> {
         match self {
             MenuEntry::Item(item) => MenuEntry::Item(item.map(f)),
             MenuEntry::Separator => MenuEntry::Separator,
@@ -243,7 +243,7 @@ impl<T> MenuItem<T> {
     }
 
     /// The same row with every command under it turned into `f(command)`.
-    pub(crate) fn map<U>(&self, f: &impl Fn(&T) -> U) -> MenuItem<U> {
+    pub fn map<U>(&self, f: &impl Fn(&T) -> U) -> MenuItem<U> {
         MenuItem {
             label: self.label.clone(),
             english: self.english.clone(),
@@ -337,4 +337,19 @@ pub(crate) fn at_path<'e, T>(entries: &'e [MenuEntry<T>], path: &[usize]) -> Opt
         level = level.get(i)?.item()?.children()?;
     }
     level.get(last)?.item()
+}
+
+#[cfg(test)]
+mod map_tests {
+    use super::{MenuEntry, MenuItem};
+
+    #[test]
+    fn map_turns_every_command_in_a_row_and_its_submenu() {
+        let row = MenuItem::submenu("Color", vec![MenuItem::new("Red", 1).into(), MenuEntry::Separator]);
+        let mapped = row.map(&|n| n * 10);
+        let Some([MenuEntry::Item(red), MenuEntry::Separator]) = mapped.children() else { panic!("a row and a separator") };
+        assert_eq!(red.command(), Some(&10));
+        let MenuEntry::Item(single) = MenuEntry::from(MenuItem::new("Blue", 2)).map(&|n| n + 1) else { panic!("an item") };
+        assert_eq!(single.command(), Some(&3));
+    }
 }

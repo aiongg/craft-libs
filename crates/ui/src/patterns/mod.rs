@@ -61,7 +61,7 @@ pub use command_palette::{CommandPalette, CommandPaletteStyle, PaletteLabels};
 pub use inspector::{Inspector, InspectorHeader, InspectorStyle};
 pub use options_bar::{CommitCancel, OptionsBar, OptionsBarSlots, OptionsBarStyle};
 pub use options_cell::{CellWidth, UnitCellResponse, unit_number_field};
-pub use panel::{Panel, PanelOutput, PanelStyle};
+pub use panel::{Panel, PanelOutput, PanelStyle, ScrollBarLabels};
 pub use rail::{FlyoutButton, FlyoutItem, FlyoutResponse, FlyoutStyle, PanelRail, PanelRailItem, PanelRailOutput, PanelRailRequest, PanelRailStyle};
 pub use rail::{LastUsed, RailFooter, RailMetrics, RailTool, SlotId, ToolRail, ToolRailOutput, ToolSlot, shown_tool, visible_slots};
 pub use status_bar::{StatusBar, StatusBarSlots, StatusBarStyle, StatusProgress, StatusProgressOutput};
