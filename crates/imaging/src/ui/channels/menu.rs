@@ -1,7 +1,6 @@
 //! The row and panel menus (`ChannelsCommand`, `ChannelsPanel::panel_menu`,
 //! `ChannelsPanel::run_command`).
 
-
 use std::fmt::Debug;
 use std::hash::Hash;
 
