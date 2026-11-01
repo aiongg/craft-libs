@@ -29,7 +29,7 @@
 //! [`PreviewTicket`](craft_ui::dialog::full_window::PreviewTicket), which numbers the requests of a
 //! full-window editor so older results are dropped.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+#![expect(dead_code, clippy::todo, reason = "skeleton: the stories land with ST-AD1")]
 
 mod damage;
 mod draft;
