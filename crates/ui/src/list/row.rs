@@ -275,6 +275,8 @@ pub struct ListRowStyle {
     pub hover: Color32,
     pub selected: Color32,
     pub selected_hover: Color32,
+    /// `list.stripe`: behind every second row of a striped list, under the hover and selected fills.
+    pub stripe: Color32,
     /// The hairlines: `list.divider`, one physical pixel.
     pub divider: Stroke,
     /// `list.thumb.border` and `list.thumb.border.selected`.
@@ -383,6 +385,8 @@ pub struct ListRow<'a, K> {
     accessible_name: Option<String>,
     columns: Vec<ToggleColumn>,
     icon: Option<Icon>,
+    glyph: Option<Thumbnail<'a>>,
+    striped: bool,
     thumb: ThumbSize,
     thumbnail: Option<Thumbnail<'a>>,
     thumb_width: Option<f32>,
@@ -433,6 +437,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             accessible_name: None,
             columns: Vec::new(),
             icon: None,
+            glyph: None,
+            striped: false,
             thumb: ThumbSize::None,
             thumbnail: None,
             thumb_width: None,
@@ -517,7 +523,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     fn extent(&self, style: &ListRowStyle) -> (f32, Option<f32>) {
         let disclosure = self.branch.map_or(0.0, |b| if b.group { style.disclosure } else { 0.0 });
         let marker = if self.clipped { style.icon_size } else { 0.0 };
-        (disclosure + marker, leading_width(style, self.thumb, self.icon.is_some(), self.thumb_width, &self.extras))
+        (disclosure + marker, leading_width(style, self.thumb, self.icon.is_some() || self.glyph.is_some(), self.thumb_width, &self.extras))
     }
 
     /// The row's key.
@@ -577,6 +583,25 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// An icon before the label. A thumbnail takes its place.
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
+        self.glyph = None;
+        self
+    }
+
+    /// A glyph painted by `paint` before the label, in the icon's slot: the same place and size as
+    /// [`icon`](ListRow::icon) (`size.icon.md` square, centred on the row), with no frame, for a
+    /// status mark the host draws itself. `paint` draws into the painter, clipped to that rect. The
+    /// row's width and AccessKit tree are those of a row with an icon. It replaces an icon, and an
+    /// icon replaces it (the last one set wins). A thumbnail takes its place.
+    pub fn glyph(mut self, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
+        self.glyph = Some(Box::new(paint));
+        self.icon = None;
+        self
+    }
+
+    /// Fills the row with `list.stripe` under the hover and selected fills, for every second row
+    /// of a striped list (the host counts the rows).
+    pub fn striped(mut self, striped: bool) -> Self {
+        self.striped = striped;
         self
     }
 
@@ -751,6 +776,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             hover: l.hover.to_egui(),
             selected: l.selected.to_egui(),
             selected_hover: l.selected_hover.to_egui(),
+            stripe: l.stripe.to_egui(),
             divider: Stroke::new(Hairline::Hairline.width(1.0), l.divider.to_egui()),
             thumb_border: l.thumb_border.to_egui(),
             thumb_border_selected: l.thumb_border_selected.to_egui(),
@@ -782,6 +808,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             accessible_name,
             columns,
             icon,
+            glyph,
+            striped,
             thumb,
             thumbnail,
             thumb_width,
@@ -846,7 +874,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
 
         let side = style.thumb_side(thumb);
         let first_width = (side > 0.0).then(|| thumb_width.unwrap_or(side));
-        let leading = leading_width(&style, thumb, icon.is_some(), thumb_width, &extras);
+        let leading = leading_width(&style, thumb, icon.is_some() || glyph.is_some(), thumb_width, &extras);
         let extras = if side > 0.0 && thumb != ThumbSize::None { extras } else { Vec::new() };
         let widths: Vec<(f32, bool)> = trailing.iter().map(|t| (t.width, t.optional)).collect();
         let min_width = min_width(&style, (columns.len(), indented_toggles), column, leading, &widths);
@@ -857,7 +885,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         let visible = ui.is_rect_visible(rect);
         let hovered = ui.rect_contains_pointer(rect) && ui.is_enabled();
         if visible {
-            paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer }, columns.len(), &geometry);
+            paint_background(ui, &style, rect, Fill { selected, lit: hovered || highlight, layer, striped }, columns.len(), &geometry);
         }
 
         let mut toggles = Vec::with_capacity(columns.len());
@@ -921,8 +949,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
                 {
                     events.push(RowEvent::ThumbClicked { row: key.clone(), which: *which });
                 }
-            } else if let Some(icon) = icon {
-                icons::paint_in(ui, at, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), style.icon);
+            } else {
+                paint_icon_slot(ui, &style, at, glyph, icon);
             }
         }
 
@@ -1081,9 +1109,10 @@ struct Fill {
     selected: bool,
     lit: bool,
     layer: bool,
+    striped: bool,
 }
 
-fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, lit, layer }: Fill, columns: usize, geometry: &Geometry) {
+fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, lit, layer, striped }: Fill, columns: usize, geometry: &Geometry) {
     let fill = match (selected, lit, layer) {
         // The layer form shows no change under the pointer once selected.
         (true, _, true) => style.layer_selected,
@@ -1095,6 +1124,9 @@ fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, 
     };
     let painter = ui.painter();
     let radius = corner_radius(if layer { style.layer_radius } else { style.radius });
+    if striped {
+        painter.rect_filled(rect, radius, style.stripe);
+    }
     if fill != Color32::TRANSPARENT {
         painter.rect_filled(rect, radius, fill);
     }
@@ -1183,6 +1215,15 @@ fn paint_thumb(ui: &Ui, style: &ListRowStyle, at: Rect, thumbnail: Option<Thumbn
     }
     let color = if selected { style.thumb_border_selected } else { style.thumb_border };
     ui.painter().rect_stroke(at, corner_radius(style.thumb_radius), Stroke::new(1.0, color), StrokeKind::Outside);
+}
+
+/// The icon, or the host's glyph, in the slot `at`.
+fn paint_icon_slot(ui: &Ui, style: &ListRowStyle, at: Rect, glyph: Option<Thumbnail<'_>>, icon: Option<Icon>) {
+    if let Some(paint) = glyph {
+        paint(&ui.painter().with_clip_rect(at), at);
+    } else if let Some(icon) = icon {
+        icons::paint_in(ui, at, icon, icons::active(ui.ctx()), style.icon_size, IconSize::Md.stroke(), style.icon);
+    }
 }
 
 /// The label, and the detail line under it, centred in `band` and cut with an ellipsis.

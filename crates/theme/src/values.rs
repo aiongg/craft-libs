@@ -849,6 +849,10 @@ pub const GRADIENT_EDITOR_DROP_LINE: f32 = 2.0;
 /// Opacity of the hover fill of a list row (PhotoCraft `hover.gamma_multiply(0.5)`:
 /// `layer_row.rs:285`, `history.rs:63`, `channels_panel.rs`, `actions.rs`).
 pub const LIST_HOVER_OPACITY: f32 = 0.5;
+/// Opacity of `state.hover` as the stripe of a striped list (PdfCraft's `striped(true)` fills with
+/// egui's `faint_bg_color`, white at 2% in both modes: "visible, but barely so"); lighter than the
+/// hover fill.
+pub const LIST_STRIPE_OPACITY: f32 = 0.25;
 /// Opacity of the accent tint over the hover fill of a layer-form row (`layer_row.rs:286`).
 pub const LIST_LAYER_TINT_OPACITY: f32 = 0.12;
 /// Height of a dense list row, in a panel's short list (PhotoCraft's `styles_panel` and

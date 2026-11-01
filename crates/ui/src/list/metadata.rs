@@ -79,7 +79,7 @@ pub struct MetadataTableOutput {
 ///
 /// - **Rows.** Each group's name on a line of its own in the `BodyStrong` role, its fields under
 ///   it in two columns: the name in the `Label` role and `text.muted`, the value in the `Body`
-///   role, wrapping; striped rows (the proposed `list.stripe`), 16 points between the columns and 3 between
+///   role, wrapping; striped rows (`list.stripe`), 16 points between the columns and 3 between
 ///   rows (LightCraft's grid spacing). The name column is as wide as the widest name, at most a
 ///   third of the table. Values are selectable text, so the user copies part of one with the
 ///   platform's keys.
@@ -176,9 +176,9 @@ struct Body<'a> {
     tokens: &'a crate::theme::UiTokens,
 }
 
-/// The fill of every other row, until the theme has `list.stripe`.
+/// The fill of every other row: `list.stripe`.
 fn stripe_fill(tokens: &crate::theme::UiTokens) -> Color32 {
-    tokens.color.state.hover.to_egui()
+    crate::list::ListRow::<()>::style(tokens).stripe
 }
 
 fn toggle(chosen: &mut Vec<String>, name: &str) {

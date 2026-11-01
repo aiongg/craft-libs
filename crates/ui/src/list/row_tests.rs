@@ -256,6 +256,62 @@ fn a_thumbnail_sets_the_row_height_and_is_framed() {
 }
 
 #[test]
+fn a_glyph_takes_the_icon_slot_without_a_frame() {
+    let (ctx, s) = (context(), style());
+    let mut painted = Rect::NOTHING;
+    let mut glyph_row = (0.0, 0.0);
+    let drawn = shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let row = ListRow::new(1u8, "Layer").glyph(|_, rect| painted = rect).show(ui);
+            glyph_row = (row.min_width, row.response.rect.height());
+        })
+    });
+    let mut icon_row = (0.0, 0.0);
+    let mut icon_label = Rect::NOTHING;
+    let mut glyph_label = Rect::NOTHING;
+    shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let row = ListRow::new(1u8, "Layer").icon(Icon::Layers).show(ui);
+            icon_row = (row.min_width, row.response.rect.height());
+            icon_label = row.label;
+            glyph_label = ListRow::new(1u8, "Layer").glyph(|_, _| {}).show(ui).label;
+        })
+    });
+    assert_eq!(painted.size(), vec2(s.icon_size, s.icon_size), "the slot is the icon's square");
+    assert_eq!(glyph_row, icon_row, "width and height are those of an icon row");
+    assert_eq!(glyph_label.left(), icon_label.left());
+    assert!(!drawn.iter().any(|s2| matches!(s2, Shape::Rect(r) if r.stroke.color == s.thumb_border)), "no frame");
+    // The last one set wins.
+    let (mut glyph_first, mut icon_first) = (false, false);
+    shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let _ = ListRow::new(1u8, "A").glyph(|_, _| glyph_first = true).icon(Icon::Layers).show(ui);
+        })
+    });
+    shapes(&ctx, |ui| {
+        panel(ui, 240.0, |ui| {
+            let _ = ListRow::new(1u8, "A").icon(Icon::Layers).glyph(|_, _| icon_first = true).show(ui);
+        })
+    });
+    assert!(!glyph_first && icon_first);
+}
+
+#[test]
+fn a_striped_row_is_filled_with_the_stripe_under_the_state_fills() {
+    let (ctx, s) = (context(), style());
+    let row = |striped, selected| {
+        shapes(&ctx, |ui| {
+            panel(ui, 240.0, |ui| {
+                let _ = ListRow::new(1u8, "Layer").striped(striped).selected(selected).show(ui);
+            })
+        })
+    };
+    assert!(fills(&row(false, false)).is_empty());
+    assert_eq!(fills(&row(true, false)).iter().map(|r| r.fill).collect::<Vec<_>>(), [s.stripe]);
+    assert_eq!(fills(&row(true, true)).iter().map(|r| r.fill).collect::<Vec<_>>(), [s.stripe, s.selected], "the selected fill paints over it");
+}
+
+#[test]
 fn optional_items_drop_out_before_the_label_gets_too_narrow() {
     let s = style();
     let mut seen = Vec::new();
