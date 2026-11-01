@@ -62,12 +62,55 @@ pub fn stories() -> Vec<craft_ui::story::Story> {
     registry()
 }
 
+/// The count words of the imaging widgets: their plural forms are in [`WORDS`], these give the
+/// singular forms a catalog extraction needs.
+pub const COUNTS: &[craft_ui::localized::words::Counted] = &[select::OUTLINE_POINTS, warp::perspective::PLANES, wide_angle::CONSTRAINTS];
+
+/// The plural forms of [`COUNTS`], as a words table.
+const COUNT_WORDS: &[craft_ui::localized::Word] =
+    &[select::OUTLINE_POINTS.word, warp::perspective::PLANES.word, wide_angle::CONSTRAINTS.word];
+
 /// The labels tables of the imaging widgets, for the words registry.
 pub const WORDS: &[&[craft_ui::localized::Word]] = &[
+    COUNT_WORDS,
     <WarpNames<'static> as craft_ui::localized::Labels>::WORDS,
     <LevelsLabels as craft_ui::localized::Labels>::WORDS,
     <ChannelsLabels as craft_ui::localized::Labels>::WORDS,
     <ScopePanelLabels as craft_ui::localized::Labels>::WORDS,
     <channels::stories::ChannelsStoryLabels as craft_ui::localized::Labels>::WORDS,
     <scopes::stories::ScopeStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <adjust::AdjustLabels as craft_ui::localized::Labels>::WORDS,
+    <adjust::stories::AdjustStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <liquify::LiquifyLabels as craft_ui::localized::Labels>::WORDS,
+    <liquify::stories::LiquifyStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <filter_gallery::FilterGalleryLabels as craft_ui::localized::Labels>::WORDS,
+    <filter_gallery::stories::GalleryStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <wide_angle::WideAngleLabels as craft_ui::localized::Labels>::WORDS,
+    <layer_style::LayerStyleLabels as craft_ui::localized::Labels>::WORDS,
+    <layer_style::BlendIfBarLabels as craft_ui::localized::Labels>::WORDS,
+    <layer_style::ContourFieldLabels as craft_ui::localized::Labels>::WORDS,
+    <layer_style::stories::LayerStyleStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <blur_pins::BlurPinsLabels as craft_ui::localized::Labels>::WORDS,
+    <blur_pins::stories::BlurPinsStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <fill::FillLabels as craft_ui::localized::Labels>::WORDS,
+    <fill::stories::FillStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <live_preview::stories::PreviewStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <warp::perspective::stories::PerspectiveStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <warp::perspective::PerspectiveWarpLabels as craft_ui::localized::Labels>::WORDS,
+    <warp::perspective::PerspectiveBarLabels as craft_ui::localized::Labels>::WORDS,
+    <warp::fields_stories::WarpFieldsStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <warp::WarpFieldsLabels as craft_ui::localized::Labels>::WORDS,
+    <warp::pin::stories::PinWarpStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <warp::pin::PinWarpLabels as craft_ui::localized::Labels>::WORDS,
+    <warp::pin::PinWarpBarLabels as craft_ui::localized::Labels>::WORDS,
+    <blend_keys_stories::BlendKeysStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <mask_view::MaskViewLabels as craft_ui::localized::Labels>::WORDS,
+    <select::SelectLabels as craft_ui::localized::Labels>::WORDS,
+    <vanishing_point::VanishingPointLabels as craft_ui::localized::Labels>::WORDS,
+    <vanishing_point::stories::VanishingPointStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <select_mask::SelectMaskLabels as craft_ui::localized::Labels>::WORDS,
+    <select_mask::stories::SelectMaskStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <selection::stories::SelectionStoryLabels as craft_ui::localized::Labels>::WORDS,
+    <selection::SelectionOverlayLabels as craft_ui::localized::Labels>::WORDS,
+    <transform_preview::stories::TransformPreviewStoryLabels as craft_ui::localized::Labels>::WORDS,
 ];
