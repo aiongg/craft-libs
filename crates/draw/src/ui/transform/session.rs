@@ -469,7 +469,8 @@ impl<W: TransformWarp> TransformSession<W> {
         todo!()
     }
 
-    /// Steps back one undo step: the box, the reference point, the V skew, the mode, the
+    /// Edit › Undo while the session is open (the app routes it here; the session reads no undo
+    /// key): steps back one undo step: the box, the reference point, the V skew, the mode, the
     /// interpolation and the warp together. False while a gesture runs or with nothing to undo.
     pub fn undo(&mut self) -> bool {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:376 (`step`).

@@ -3,12 +3,12 @@
 //! `COMPONENTS`, and regenerates the registry dump; until then the gallery would run the `todo!()`
 //! bodies.
 //!
-//! The story composites the recipe itself over a fake portrait (`mock_image`) and a fake soft mask,
-//! so every view shows without an engine. Every string goes through story words.
+//! The story composites the recipe itself over `MockImage` with `MockImage::subject` as the soft
+//! mask (the house), so every view shows without an engine. Every string goes through story words.
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `patterns/mask-view/modes` | The seven views over the fake portrait; the opacity kept per view; Show Edge; Show Original; hold X |
+//! | `patterns/mask-view/modes` | The seven views over the picture; the opacity kept per view; Show Edge; Show Original; hold X |
 
 #![expect(dead_code, clippy::todo, reason = "skeleton: removed when the bodies land")]
 

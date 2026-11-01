@@ -198,7 +198,8 @@ impl PerspectiveSession {
         todo!()
     }
 
-    /// Steps back one undo step; false while a drag runs or with nothing to undo.
+    /// Edit › Undo while the session is open (the app routes it here; the session reads no undo
+    /// key): steps back one undo step; false while a drag runs or with nothing to undo.
     pub fn undo(&mut self) -> bool {
         // new: as `settle`.
         todo!()

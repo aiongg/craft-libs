@@ -4,7 +4,7 @@
 //! gallery would run the `todo!()` bodies.
 //!
 //! The stories run the workspace over `MockImage` through a fake `SelectMaskSource` that
-//! composites the recipe over a fake soft mask (no engine), answering each ticket at once. Every
+//! composites the recipe over `MockImage::subject` (no engine), answering each ticket at once. Every
 //! string goes through story words.
 //!
 //! | Story id | Shows |

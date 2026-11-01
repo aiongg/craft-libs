@@ -13,8 +13,19 @@
 //! Select and Mask, Content-Aware Fill, Filter Gallery, Wide Angle, Vanishing Point) keep a
 //! `LocalHistory` of their draft value. Such a session settles after each `apply` with `busy`
 //! true while a gesture runs and during an arrow-key nudge run (the nudge pause), so a drag or a
-//! run of nudges is one step. The app routes Edit › Undo and Redo to the open session; no session
-//! binds ⌘Z itself.
+//! run of nudges is one step.
+//!
+//! The undo keys go to whoever owns the keyboard ([`key_owner::owner`](crate::focus::key_owner::owner)),
+//! the same rule for every session:
+//! - A session on the app's canvas (Free Transform, Puppet Warp, Perspective Warp, Crop, the Pen
+//!   draft) reads no undo key. The app's shortcuts run there, so its keymap runs
+//!   Edit › Undo and Redo, and the app routes them to the open session (`undo`, `redo`; the Pen
+//!   draft's `remove_last`) before the document.
+//! - A dialog or full-window editor is modal: while it is the top modal layer no app shortcut
+//!   reaches the app ([`KeyOwner::Dialog`](crate::focus::key_owner::KeyOwner::Dialog),
+//!   [`KeyOwner::Blocked`](crate::focus::key_owner::KeyOwner::Blocked)), so it reads Undo and Redo
+//!   itself with [`take_step`]. A full-window editor also offers `step(Step)` for a native Edit menu,
+//!   which still reaches the app while the modal is open.
 //!
 //! [`step`](LocalHistory::step) restores the whole value, so a session keeps its view state (zoom,
 //! pan, the picked part, the current tool) outside the value it records: Undo never moves the

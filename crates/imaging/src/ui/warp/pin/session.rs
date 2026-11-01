@@ -242,7 +242,8 @@ impl PinWarpSession {
         todo!()
     }
 
-    /// Steps back one undo step and rebinds `solver`; false while a drag runs or with nothing to
+    /// Edit › Undo while the session is open (the app routes it here; the session reads no undo
+    /// key): steps back one undo step and rebinds `solver`; false while a drag runs or with nothing to
     /// undo.
     pub fn undo(&mut self, solver: &mut dyn PinSolver) -> bool {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:70 (`undo`), :61 (`restore`).

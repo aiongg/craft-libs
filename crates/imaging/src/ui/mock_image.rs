@@ -1,10 +1,13 @@
-//! [`MockImage`]: a generated picture for the workspace stories (task ST-WS1).
+//! [`MockImage`]: the one generated picture of craft-imaging's stories (task ST-SE2): the selection
+//! and mask-view stories and every full-window editor's stories draw it.
 //!
 //! Original art drawn by code, so the stories show a photo-like image without a file: a gradient
 //! sky, two hills, a lake, a sun disc and a few hard-edged shapes (a house, a fence) whose edges
-//! give the selection and fill tools something to find. 1600 × 1067 by default (3:2).
+//! give the selection and fill tools something to find. 1600 × 1067 by default (3:2). The house is
+//! the picture's subject: [`subject`](MockImage::subject) is its soft-edged mask, the one the
+//! selection, mask-view and Select and Mask stories show.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: task ST-WS1")]
+#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: task ST-SE2")]
 
 use egui::ColorImage;
 
@@ -37,6 +40,13 @@ impl MockImage {
     /// The colour at document pixel `(x, y)`, sRGBA unmultiplied: sky, sun, hills, lake, shapes.
     pub(crate) fn pixel(&self, x: f64, y: f64) -> [u8; 4] {
         // new: original art for the stories.
+        todo!()
+    }
+
+    /// The subject's coverage at document pixel `(x, y)`, 0 to 1: 1 inside the house, falling to
+    /// 0 over a few pixels across its edge (a soft mask, as a refined selection has), 0 elsewhere.
+    pub(crate) fn subject(&self, x: f64, y: f64) -> f32 {
+        // new: the house's rectangle and roof from `pixel`'s shapes, with a smoothstep edge.
         todo!()
     }
 }
