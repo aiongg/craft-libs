@@ -1,10 +1,18 @@
 //! [`RulerBar`]: the Ruler tool's options bar body: the seven readouts, Use Measurement Scale,
 //! Straighten Layer and Clear.
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TO-R3)")]
+use std::sync::Arc;
 
 use super::model::RulerLine;
-use craft_ui::patterns::OptionsBarSlots;
+use super::style::MeasureStyle;
+use craft_theme::TypeRole;
+use craft_ui::controls::{Button, Checkbox};
+use craft_ui::localized::{LocaleNumbers, SharedLabels as _};
+use craft_ui::patterns::{OptionsBar, OptionsBarSlots};
+use craft_ui::primitives::{Content, Text};
+use craft_ui::theme::{Tokens, TokensOf as _};
+use egui::accesskit::Role;
+use egui::{Ui, UiBuilder};
 
 craft_ui::words! {
     /// The Ruler options bar's words, English by default.
@@ -88,6 +96,49 @@ impl<'a> RulerBar<'a> {
     pub fn add_to(self, slots: &mut OptionsBarSlots<'a>) {
         // pc: crates/ui-egui/src/tools/analysis_ui.rs:497 `options_bar` (the Ruler branch), :489
         // `readout` (11 pt dim caption, monospace value, `{v:.2}`, 6 pt gap).
-        todo!()
+        let Self { line, use_scale, factor, labels, output } = self;
+        slots.body(move |ui| {
+            let labels = labels.map(Arc::new).unwrap_or_else(|| RulerBarLabels::shared(ui));
+            let gap = MeasureStyle::of(&Tokens::of(ui)).readout_gap;
+            let numbers = LocaleNumbers::of(ui);
+            let reading = line.map(|line| {
+                let reading = line.reading();
+                if *use_scale { reading.scaled(factor) } else { reading }
+            });
+            let value = |v: Option<f64>| v.map_or_else(String::new, |v| numbers.format(v, 2..=2));
+            let readouts = [
+                (&labels.x, reading.map(|r| r.x)),
+                (&labels.y, reading.map(|r| r.y)),
+                (&labels.w, reading.map(|r| r.w)),
+                (&labels.h, reading.map(|r| r.h)),
+                (&labels.angle, reading.map(|r| r.angle)),
+                (&labels.l1, reading.map(|r| r.l1)),
+                (&labels.l2, reading.and_then(|r| r.l2)),
+            ];
+            for (caption, v) in readouts {
+                readout(ui, caption, &value(v), gap);
+            }
+            OptionsBar::divider(ui);
+            let _ = Checkbox::bool(labels.use_scale.clone(), use_scale).show(ui);
+            OptionsBar::divider(ui);
+            let enabled = line.is_some();
+            let straighten = ui.add(Button::new(labels.straighten_layer.to_string()).enabled(enabled)).clicked();
+            let clear = ui.add(Button::new(labels.clear.to_string()).enabled(enabled)).clicked();
+            if let Some(output) = output {
+                output.straighten_layer |= straighten;
+                output.clear |= clear;
+            }
+        });
     }
+}
+
+/// One caption and value, a labelled group for AccessKit ("X", "1.00"), then the gap.
+fn readout(ui: &mut Ui, caption: &str, value: &str, gap: f32) {
+    let name = caption.trim_end_matches([':', '\u{ff1a}']).trim_end();
+    let builder = UiBuilder::new().accessibility_role(Role::Group).accessibility_label(name).layout(*ui.layout());
+    ui.scope_builder(builder, |ui| {
+        ui.add(Text::new(caption).role(TypeRole::Caption).content(Content::Muted));
+        ui.add(Text::new(value).role(TypeRole::Mono));
+    });
+    ui.add_space(gap);
 }
