@@ -6,15 +6,15 @@ use std::sync::Arc;
 use craft_docpath::links::{Link, LinkStatus};
 use craft_platform::open::natural_cmp;
 use craft_theme::TypeRole;
-use craft_ui::behavior::{RowInfo, Selection};
+use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionPick};
 use craft_ui::canvas::textures::{Priority, TextureKey, TextureState, ThumbPaint, ThumbRequest, ThumbSource, Thumbnails};
 use craft_ui::composites::{EmptyState, PanelFooter, SectionHeader};
 use craft_ui::icons::Icon;
 use craft_ui::list::{List, ListEvent, ListRow, ThumbSize};
-use craft_ui::localized::{SharedLabels as _, Words};
+use craft_ui::localized::{LocaleNumbers, SharedLabels as _, Words, fmt};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use craft_ui::theme::{Tokens, TokensOf as _, role_format};
-use egui::{AsIdSalt, Context, Id, IdSalt, Label, Modifiers, Response, ScrollArea, Ui, vec2};
+use egui::{AsIdSalt, Context, Id, IdSalt, Label, Response, ScrollArea, Ui, vec2};
 
 use super::{RelinkStyle, StatusBadge};
 
@@ -44,10 +44,10 @@ pub enum LinkSort {
     Status,
 }
 
-/// The list's saved choices (VectorCraft's panel options); the host stores it.
+/// The list's saved choices (VectorCraft's panel options); the host stores them.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
-pub struct LinkListState {
+pub struct LinkListSettings {
     /// The filter.
     pub filter: LinkFilter,
     /// The order.
@@ -58,13 +58,30 @@ pub struct LinkListState {
     pub info_open: bool,
 }
 
+/// What the app keeps for a [`LinkList`]: the selection (session state the app reads) and the
+/// saved [`LinkListSettings`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LinkListState<K> {
+    /// The selected links.
+    pub selection: Selection<K>,
+    /// The saved choices.
+    pub settings: LinkListSettings,
+}
+
+impl<K> Default for LinkListState<K> {
+    fn default() -> Self {
+        Self { selection: Selection::default(), settings: LinkListSettings::default() }
+    }
+}
+
 /// What the list reported, in order. Each is a `Set` the host runs as its own command, one undo
 /// step each.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LinkListEvent<K> {
-    /// The selection changed; already applied.
-    Selected,
+    /// The selection changed (a click, a key, a secondary click on an unselected row); already
+    /// applied to [`LinkListState::selection`].
+    Selection(SelectionChange<K>),
     /// Relink…: a file pick for the selection (Photoshop, InDesign).
     Relink(Vec<K>),
     /// Relink to Folder…: a folder pick for the selection.
@@ -81,8 +98,6 @@ pub enum LinkListEvent<K> {
     Reveal(K),
     /// Go To Link (double click).
     GoTo(K),
-    /// The state changed (filter, sort, thumbnails, info section); the host saves it.
-    State,
 }
 
 /// What [`LinkList::show`] returns.
@@ -93,44 +108,46 @@ pub struct LinkListOutput<K> {
     pub response: Response,
     /// What happened, in order.
     pub events: Vec<LinkListEvent<K>>,
+    /// The [`LinkListSettings`] changed (filter, sort, thumbnails, info section); the host saves them.
+    pub settings_changed: bool,
 }
 
 craft_ui::words! {
     /// The Links panel's words, English by default.
     #[non_exhaustive]
     pub struct LinkListLabels {
-        list: "browse.links" = "Links";
-        show_all: "browse.linksShowAll" = "Show All";
-        show_missing: "browse.linksShowMissing" = "Show Missing";
-        show_modified: "browse.linksShowModified" = "Show Modified";
-        show_embedded: "browse.linksShowEmbedded" = "Show Embedded";
-        sort_name: "browse.linksSortName" = "Sort by Name";
-        sort_kind: "browse.linksSortKind" = "Sort by Kind";
-        sort_status: "browse.linksSortStatus" = "Sort by Status";
-        relink: "browse.linksRelink" = "Relink…";
-        relink_folder: "browse.linksRelinkFolder" = "Relink to Folder…";
-        find_missing: "browse.linksFindMissing" = "Find Missing Links…";
-        update: "browse.linksUpdate" = "Update Link";
-        edit_original: "browse.linksEditOriginal" = "Edit Original";
-        break_link: "browse.linksBreak" = "Break Link";
-        reveal: "browse.linksReveal" = "Reveal in Finder";
-        go_to: "browse.linksGoTo" = "Go to Link";
-        info: "browse.linksInfo" = "Link Info";
+        list: "browse.links.list" = "Links";
+        show_all: "browse.links.showAll" = "Show All";
+        show_missing: "browse.links.showMissing" = "Show Missing";
+        show_modified: "browse.links.showModified" = "Show Modified";
+        show_embedded: "browse.links.showEmbedded" = "Show Embedded";
+        sort_name: "browse.links.sortName" = "Sort by Name";
+        sort_kind: "browse.links.sortKind" = "Sort by Kind";
+        sort_status: "browse.links.sortStatus" = "Sort by Status";
+        relink: "browse.links.relink" = "Relink…";
+        relink_folder: "browse.links.relinkFolder" = "Relink to Folder…";
+        find_missing: "browse.links.findMissing" = "Find Missing Links…";
+        update: "browse.links.update" = "Update Link";
+        edit_original: "browse.links.editOriginal" = "Edit Original";
+        break_link: "browse.links.break" = "Break Link";
+        reveal: "browse.links.reveal" = "Reveal in Finder";
+        go_to: "browse.links.goTo" = "Go to Link";
+        info: "browse.links.info" = "Link Info";
         /// `{n}` the page.
-        page: "browse.linksPage" = "Page {n}";
-        missing: "browse.linksMissing" = "Missing";
-        modified: "browse.linksModified" = "Modified";
-        unreadable: "browse.linksUnreadable" = "Unreadable";
+        page: "browse.links.page" = "Page {n}";
+        missing: "browse.links.missing" = "Missing";
+        modified: "browse.links.modified" = "Modified";
+        unreadable: "browse.links.unreadable" = "Unreadable";
         /// `{reason}` from `Refused`'s words.
-        refused: "browse.linksRefused" = "Not followed: {reason}";
-        refused_network: "browse.linksRefusedNetwork" = "the path is on another computer";
-        refused_device: "browse.linksRefusedDevice" = "the path names a device, not a file";
-        refused_url: "browse.linksRefusedUrl" = "the link is not a file path";
-        refused_invalid: "browse.linksRefusedInvalid" = "the path is not valid";
-        embedded: "browse.linksEmbedded" = "Embedded";
-        thumbnails: "browse.linksThumbnails" = "Thumbnails";
-        menu: "browse.linksMenu" = "Links Menu";
-        empty: "browse.linksEmpty" = "No links";
+        refused: "browse.links.refused" = "Not followed: {reason}";
+        refused_network: "browse.links.refusedNetwork" = "the path is on another computer";
+        refused_device: "browse.links.refusedDevice" = "the path names a device, not a file";
+        refused_url: "browse.links.refusedUrl" = "the link is not a file path";
+        refused_invalid: "browse.links.refusedInvalid" = "the path is not valid";
+        embedded: "browse.links.embedded" = "Embedded";
+        thumbnails: "browse.links.thumbnails" = "Thumbnails";
+        menu: "browse.links.menu" = "Links Menu";
+        empty: "browse.links.empty" = "No links";
     }
 }
 
@@ -142,34 +159,32 @@ type ThumbPair<'a, K> = (&'a Thumbnails<K>, &'a dyn ThumbSource<K>);
 
 /// The Links panel (N5.05): rows of the document's links with thumbnail, name, page and status.
 ///
-/// - **Rows.** `ListRow`s, striped: thumbnail per `LinkListState::thumbnails` (`ThumbSize`,
+/// - **Rows.** `ListRow`s, striped: thumbnail per `LinkListSettings::thumbnails` (`ThumbSize`,
 ///   through `Thumbnails` keyed by the link key: `state` asked before the row is built, `paint`
 ///   in its thumbnail closure), name, page ([`LinkListLabels::page`] in `Caption` `text.faint`),
 ///   the [`StatusBadge`](super::StatusBadge) as a trailing item; filtered by `filter` and sorted
 ///   by `sort`.
-/// - **Selection.** A click replaces; Cmd toggles; Shift selects the range from the last click
-///   made without Shift (with Cmd adds); a Shift-click whose anchor row is filtered out acts as a
-///   plain click (VectorCraft's `click`); double click: `GoTo`.
+/// - **Selection.** The library's `ListSelection` rules ([`LinkListEvent::Selection`] carries each
+///   change); double click: `GoTo`. A secondary click on an unselected row selects it first.
 /// - **Actions** (the row under the list, `.actions(true)`; also the panel menu): Relink… (needs
 ///   a selection), Relink to Folder… (a selection), Update Link (any selected is Modified), Edit
 ///   Original (any selected is linked and not missing), Break Link (any linked), Reveal (one
 ///   linked, not missing), Go to Link (one). Find Missing Links… (any link missing).
 /// - **Filter and sort** in the panel menu, radio items; the thumbnail size too; all in
-///   `LinkListState` (`State` reported).
+///   [`LinkListSettings`] (`settings_changed` reported).
 /// - **Info section.** A `SectionHeader` "Link Info" (`info_open`) with the rows the host gives in
 ///   `.info(..)` (path, size, modified, dimensions, page).
 /// - **AccessKit.** A `ListBox`; each row named "name, Page n, status in words", `selected`.
 ///
 /// The action row has the buttons Relink…, Update Link, Edit Original, Go to Link and Break Link
 /// and a menu button; the panel menu behind it (also the list's context menu) has every action
-/// besides the filter, sort and thumbnail choices. Without `.selection(..)` or `.state(..)` the
-/// list keeps its own in egui memory under its id.
+/// besides the filter, sort and thumbnail choices. The app's [`LinkListState`] goes to
+/// [`new`](LinkList::new).
 pub struct LinkList<'a, K: TextureKey> {
     id_salt: IdSalt,
     links: &'a [Link<K>],
     statuses: &'a HashMap<K, LinkStatus>,
-    selection: Option<&'a mut Selection<K>>,
-    state: Option<&'a mut LinkListState>,
+    state: &'a mut LinkListState<K>,
     thumbnails: Option<ThumbPair<'a, K>>,
     actions: bool,
     info: Option<Slot<'a>>,
@@ -178,36 +193,10 @@ pub struct LinkList<'a, K: TextureKey> {
 
 impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
     /// The list of `links` with their known `statuses` (from `LinkMonitor::statuses`; a link
-    /// without one shows no badge).
-    pub fn new(id_salt: impl AsIdSalt, links: &'a [Link<K>], statuses: &'a HashMap<K, LinkStatus>) -> Self {
+    /// without one shows no badge), over the app's `state`.
+    pub fn new(id_salt: impl AsIdSalt, links: &'a [Link<K>], statuses: &'a HashMap<K, LinkStatus>, state: &'a mut LinkListState<K>) -> Self {
         // vectorcraft: crates/ui-egui/src/panels/links.rs:300 (`show`).
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            links,
-            statuses,
-            selection: None,
-            state: None,
-            thumbnails: None,
-            actions: true,
-            info: None,
-            labels: None,
-        }
-    }
-
-    /// The selection.
-    #[must_use]
-    pub fn selection(mut self, selection: &'a mut Selection<K>) -> Self {
-        // new: builder.
-        self.selection = Some(selection);
-        self
-    }
-
-    /// The saved filter, sort, thumbnails and info state.
-    #[must_use]
-    pub fn state(mut self, state: &'a mut LinkListState) -> Self {
-        // vectorcraft: crates/ui-egui/src/panels/links.rs:56 (`options`).
-        self.state = Some(state);
-        self
+        Self { id_salt: IdSalt::new(id_salt), links, statuses, state, thumbnails: None, actions: true, info: None, labels: None }
     }
 
     /// Row thumbnails keyed by the link key.
@@ -244,23 +233,22 @@ impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
 
     /// Draws the panel body and reports what happened.
     pub fn show(self, ui: &mut Ui) -> LinkListOutput<K> {
-        // vectorcraft: crates/ui-egui/src/panels/links.rs:300 (`show`), :280 (`click`).
-        let Self { id_salt, links, statuses, selection, state, thumbnails, actions, info, labels } = self;
+        // vectorcraft: crates/ui-egui/src/panels/links.rs:300 (`show`).
+        let Self { id_salt, links, statuses, state, thumbnails, actions, info, labels } = self;
+        let LinkListState { selection, settings } = state;
         let tokens = Tokens::of(ui);
         let labels = labels.map_or_else(|| LinkListLabels::shared(ui), Arc::new);
-        let style = RelinkStyle::of(&tokens);
+        let style = RelinkStyle::style(&tokens);
         let row_style = ListRow::<K>::style(&tokens);
         let id = ui.make_persistent_id(id_salt);
-        let (state_slot, selection_slot, menu_slot) = (id.with("state"), id.with("selection"), id.with("menu-open"));
+        let menu_slot = id.with("menu-open");
         let ctx = ui.ctx().clone();
 
-        let saved = state.as_deref().cloned().or_else(|| ctx.data(|d| d.get_temp::<LinkListState>(state_slot))).unwrap_or_default();
-        let before = selection.as_deref().cloned().or_else(|| ctx.data(|d| d.get_temp::<Selection<K>>(selection_slot))).unwrap_or_default();
+        let saved = settings.clone();
         let mut working = saved.clone();
 
         let shown = visible_links(links, statuses, working.filter, working.sort);
-        let keys: Vec<K> = shown.iter().map(|link| link.key.clone()).collect();
-        let order: Vec<RowInfo<K>> = keys.iter().cloned().map(RowInfo::leaf).collect();
+        let order: Vec<RowInfo<K>> = shown.iter().map(|link| RowInfo::leaf(link.key.clone())).collect();
 
         let ppp = ui.pixels_per_point();
         let footer = if actions { PanelFooter::reserved_height(&PanelFooter::style(&tokens, ppp)) } else { 0.0 };
@@ -271,7 +259,6 @@ impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
 
         let side = row_style.thumb_side(working.thumbnails);
         let cx = RowContext { ctx: ctx.clone(), thumbnails, side, labels: &labels, style, statuses };
-        let mut sel = before.clone();
         let mut events = Vec::new();
         let mut commands = Vec::new();
 
@@ -281,26 +268,24 @@ impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
             if shown.is_empty() {
                 EmptyState::new(labels.empty.clone()).show(ui);
             } else {
-                let mut list_sel = before.clone();
                 let out = List::new((id, "list"), labels.list.clone(), order.as_slice())
-                    .selection(&mut list_sel)
+                    .selection(&mut *selection)
                     .thumbnails(working.thumbnails)
                     .max_height(list_height)
                     .show(ui, |at, _| link_row(&cx, shown[at], at));
-                let modifiers = ui.input(|input| input.modifiers);
-                let clicked: Vec<&K> =
-                    out.events.iter().filter_map(|event| if let ListEvent::Clicked(key) = event { Some(key) } else { None }).collect();
                 let mut menu_request = None;
-                for event in &out.events {
+                for event in out.events {
                     match event {
-                        ListEvent::Clicked(key) => sel = pick(&sel, &keys, key, modifiers),
-                        ListEvent::Selection(change) if !change.row.as_ref().is_some_and(|row| clicked.contains(&row)) => {
-                            sel = change.selection.clone();
-                        }
-                        ListEvent::Activate(key) => events.push(LinkListEvent::GoTo(key.clone())),
+                        ListEvent::Selection(change) => events.push(LinkListEvent::Selection(change)),
+                        ListEvent::Activate(key) => events.push(LinkListEvent::GoTo(key)),
                         ListEvent::ContextMenu(request) => {
                             if let Some(row) = request.row.as_ref().filter(|_| !request.selected) {
-                                sel = Selection::only(row.clone());
+                                *selection = Selection::only(row.clone());
+                                events.push(LinkListEvent::Selection(SelectionChange {
+                                    pick: SelectionPick::Replace,
+                                    row: Some(row.clone()),
+                                    selection: selection.clone(),
+                                }));
                             }
                             menu_request = Some(request.pointer.map_or(OpenAt::Rect(request.anchor), OpenAt::Pointer));
                         }
@@ -309,7 +294,7 @@ impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
                 }
                 list_response = Some((out.response, menu_request));
             }
-            let facts = Facts::of(&shown, &sel, links, statuses);
+            let facts = Facts::of(&shown, selection, links, statuses);
             let entries = menu_entries(ui, &labels, &facts, &working);
             if let Some((response, request)) = &list_response {
                 let menu = ContextMenu::new(&entries).own_gestures(false).open_at(*request).show(ui, response);
@@ -329,29 +314,13 @@ impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
             list_response.map(|(response, _)| response)
         });
 
-        let facts = Facts::of(&shown, &sel, links, statuses);
+        let facts = Facts::of(&shown, selection, links, statuses);
         for command in commands {
             facts.run(command, &mut working, &mut events);
         }
-        if sel != before {
-            events.insert(0, LinkListEvent::Selected);
-        }
-        if working != saved {
-            events.push(LinkListEvent::State);
-        }
-        match state {
-            Some(slot) => *slot = working,
-            None => {
-                ctx.data_mut(|d| d.insert_temp(state_slot, working));
-            }
-        }
-        match selection {
-            Some(slot) => *slot = sel,
-            None => {
-                ctx.data_mut(|d| d.insert_temp(selection_slot, sel));
-            }
-        }
-        LinkListOutput { response: inner.response, events }
+        let settings_changed = working != saved;
+        *settings = working;
+        LinkListOutput { response: inner.response, events, settings_changed }
     }
 }
 
@@ -407,53 +376,27 @@ fn visible_links<'a, K: TextureKey>(links: &'a [Link<K>], statuses: &HashMap<K, 
     shown
 }
 
-/// The selection after a click on `key` among the shown `order` (VectorCraft's `click`): plain
-/// replaces and sets the anchor; Cmd toggles and sets the anchor; Shift selects the rows from
-/// the anchor to `key` (with Cmd adds them) and keeps the anchor. A Shift-click whose anchor is
-/// not shown acts as a click without Shift.
-fn pick<K: TextureKey>(selection: &Selection<K>, order: &[K], key: &K, modifiers: Modifiers) -> Selection<K> {
-    let position = |key: &K| order.iter().position(|k| k == key);
-    let Some(at) = position(key) else { return selection.clone() };
-    if modifiers.shift
-        && let Some(from) = selection.anchor.as_ref().and_then(position)
-    {
-        let range = &order[from.min(at)..=from.max(at)];
-        let mut items = if modifiers.command { selection.items.clone() } else { Vec::new() };
-        let added: Vec<K> = range.iter().filter(|k| !items.contains(k)).cloned().collect();
-        items.extend(added);
-        return Selection { items, lead: Some(key.clone()), anchor: selection.anchor.clone() };
-    }
-    if modifiers.command {
-        let mut items = selection.items.clone();
-        match items.iter().position(|k| k == key) {
-            Some(index) => {
-                items.remove(index);
-            }
-            None => items.push(key.clone()),
-        }
-        let lead = if items.contains(key) { Some(key.clone()) } else { items.last().cloned() };
-        Selection { items, lead, anchor: Some(key.clone()) }
-    } else {
-        Selection::only(key.clone())
-    }
-}
-
 /// The row of `link`: striped by position, with its thumbnail, page and status badge.
 fn link_row<'r, K: TextureKey + std::fmt::Debug>(cx: &'r RowContext<'r, K>, link: &'r Link<K>, at: usize) -> ListRow<'r, K> {
     let status = status_of(link, cx.statuses);
     let words = status.map(|status| StatusBadge::words(status, cx.labels)).unwrap_or_default();
-    let page = link.page.map(|n| cx.labels.page.replace("{n}", &n.to_string()));
+    let numbers = LocaleNumbers::of_ctx(&cx.ctx);
+    let page = link.page.map(|n| fmt(&cx.labels.page, &[("n", &numbers.format(f64::from(n), 0..=0))]));
     let mut name = vec![link.name.clone()];
     name.extend(page.clone());
     if !words.is_empty() {
         name.push(words.clone());
     }
     let mut row = ListRow::new(link.key.clone(), link.name.clone()).striped(at % 2 == 1).accessible_name(name.join(", "));
-    if !words.is_empty() {
-        row = row.tooltip(words);
-    }
+    let mut tooltip = vec![words];
     if cx.side > 0.0 {
-        row = with_thumbnail(row, cx, link);
+        let (thumbed, failure) = with_thumbnail(row, cx, link);
+        row = thumbed;
+        tooltip.extend(failure);
+    }
+    tooltip.retain(|line| !line.is_empty());
+    if !tooltip.is_empty() {
+        row = row.tooltip(tooltip.join("\n"));
     }
     let style = cx.style;
     row = row.trailing_item(style.badge, move |ui| {
@@ -473,22 +416,28 @@ fn link_row<'r, K: TextureKey + std::fmt::Debug>(cx: &'r RowContext<'r, K>, link
     row
 }
 
-/// `row` with the link's picture from the cache, or the placeholder without a cache.
-fn with_thumbnail<'r, K: TextureKey + std::fmt::Debug>(row: ListRow<'r, K>, cx: &'r RowContext<'r, K>, link: &Link<K>) -> ListRow<'r, K> {
+/// `row` with the link's picture from the cache, or the placeholder without a cache; and the
+/// failure message when the picture could not be made.
+fn with_thumbnail<'r, K: TextureKey + std::fmt::Debug>(
+    row: ListRow<'r, K>,
+    cx: &'r RowContext<'r, K>,
+    link: &Link<K>,
+) -> (ListRow<'r, K>, Option<String>) {
     let side = cx.side;
     let request = ThumbRequest::for_cell(side, cx.ctx.pixels_per_point());
     let picture = cx.thumbnails.map(|(thumbnails, source)| (thumbnails, thumbnails.state(&cx.ctx, source, &link.key, &request, Priority::VISIBLE)));
-    let mut row = row;
-    if let Some((_, TextureState::Failed { message })) = &picture {
-        row = row.tooltip(message.clone());
-    }
-    row.thumb_sized(vec2(side, side), move |painter, rect| {
+    let failure = match &picture {
+        Some((_, TextureState::Failed { message })) => Some(message.clone()),
+        _ => None,
+    };
+    let row = row.thumb_sized(vec2(side, side), move |painter, rect| {
         let drawn = picture.as_ref().is_some_and(|(thumbnails, state)| thumbnails.paint(painter, rect, state, &ThumbPaint::default()));
         if !drawn {
             let placeholder = Thumbnails::<K>::style(&craft_ui::theme::current(painter.ctx())).placeholder;
             painter.rect_filled(rect, 0.0, placeholder);
         }
-    })
+    });
+    (row, failure)
 }
 
 /// What the selected rows allow, over the shown links in their order.
@@ -543,7 +492,7 @@ impl<K: TextureKey> Facts<K> {
     }
 
     /// Runs `command`: an action reports its event, a choice changes `state`.
-    fn run(&self, command: Command, state: &mut LinkListState, events: &mut Vec<LinkListEvent<K>>) {
+    fn run(&self, command: Command, state: &mut LinkListSettings, events: &mut Vec<LinkListEvent<K>>) {
         if !self.enabled(command) {
             return;
         }
@@ -580,7 +529,7 @@ enum Command {
 }
 
 /// The panel menu: the actions, then the filter, the sort and the thumbnail size as radio items.
-fn menu_entries<K: TextureKey>(ui: &Ui, labels: &LinkListLabels, facts: &Facts<K>, state: &LinkListState) -> Vec<MenuEntry<Command>> {
+fn menu_entries<K: TextureKey>(ui: &Ui, labels: &LinkListLabels, facts: &Facts<K>, state: &LinkListSettings) -> Vec<MenuEntry<Command>> {
     let action = |label: &str, command: Command| MenuItem::new(label, command).enabled(facts.enabled(command)).into();
     let choice = |label: &str, command: Command, chosen: bool| MenuItem::new(label, command).radio(chosen).into();
     let words = Words::of(ui);
@@ -625,7 +574,7 @@ fn footer_buttons<K: TextureKey>(
 ) {
     let buttons = [
         (Command::Relink, Icon::Link, &labels.relink),
-        (Command::Update, Icon::Redo, &labels.update),
+        (Command::Update, Icon::Refresh, &labels.update),
         (Command::EditOriginal, Icon::Pencil, &labels.edit_original),
         (Command::GoTo, Icon::Target, &labels.go_to),
         (Command::BreakLink, Icon::Unlink, &labels.break_link),
@@ -641,28 +590,4 @@ fn footer_buttons<K: TextureKey>(
     let menu = ContextMenu::new(entries).own_gestures(false).open_at(open_at).show(ui, &button);
     commands.extend(menu.chosen);
     ui.ctx().data_mut(|d| d.insert_temp(menu_slot, menu.open));
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn selection(items: &[u8], anchor: u8) -> Selection<u8> {
-        Selection { items: items.to_vec(), lead: items.last().copied(), anchor: Some(anchor) }
-    }
-
-    const ORDER: [u8; 5] = [0, 1, 2, 3, 4];
-
-    // Shift ranges from the last click made without Shift; with Cmd it adds; a hidden anchor makes it a plain click.
-    #[test]
-    fn shift_ranges_from_the_anchor_and_a_hidden_anchor_is_a_plain_click() {
-        let click = pick(&Selection::new(), &ORDER, &1, Modifiers::NONE);
-        assert_eq!(click, Selection::only(1));
-        let range = pick(&click, &ORDER, &3, Modifiers::SHIFT);
-        assert_eq!((range.items.as_slice(), range.anchor), (&[1, 2, 3][..], Some(1)));
-        let added = pick(&selection(&[0, 4], 4), &ORDER, &2, Modifiers { shift: true, command: true, ..Modifiers::NONE });
-        assert_eq!(added.items, [0, 4, 2, 3]);
-        let hidden = pick(&selection(&[9], 9), &ORDER, &2, Modifiers::SHIFT);
-        assert_eq!(hidden, Selection::only(2));
-    }
 }

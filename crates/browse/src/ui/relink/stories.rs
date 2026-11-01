@@ -29,7 +29,7 @@ use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, claim, dialog_closed
 use craft_ui::typed_story;
 use egui::{Context, Ui, vec2};
 
-use super::{LinkFilter, LinkList, LinkListEvent, LinkListState, LinkSort, RelinkDialog, RelinkOptions, RelinkOutcome, RelinkRow};
+use super::{LinkFilter, LinkList, LinkListEvent, LinkListSettings, LinkListState, LinkSort, RelinkDialog, RelinkOptions, RelinkOutcome, RelinkRow};
 
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Link list", "Relink dialog"];
@@ -171,8 +171,8 @@ struct ListArgs {
 }
 
 impl ListArgs {
-    fn state(&self) -> LinkListState {
-        LinkListState {
+    fn settings(&self) -> LinkListSettings {
+        LinkListSettings {
             filter: match self.filter {
                 FilterArg::All => LinkFilter::All,
                 FilterArg::Missing => LinkFilter::Missing,
@@ -203,8 +203,7 @@ fn link(key: u32, name: &str, page: Option<u32>, embedded: bool) -> Link<u32> {
 struct ListDemo {
     links: Vec<Link<u32>>,
     statuses: HashMap<u32, LinkStatus>,
-    selection: Selection<u32>,
-    state: LinkListState,
+    state: LinkListState<u32>,
     shown_args: Option<ListArgs>,
     last: Option<String>,
 }
@@ -232,7 +231,13 @@ impl ListDemo {
             links.push(link(key, name, page, status == LinkStatus::Embedded));
             statuses.insert(key, status);
         }
-        Self { links, statuses, selection: Selection::only(2), state: LinkListState::default(), shown_args: None, last: None }
+        Self {
+            links,
+            statuses,
+            state: LinkListState { selection: Selection::only(2), settings: LinkListSettings::default() },
+            shown_args: None,
+            last: None,
+        }
     }
 
     fn set_status(&mut self, keys: &[u32], status: LinkStatus) {
@@ -254,26 +259,21 @@ fn show_list(ui: &mut Ui, args: &mut ListArgs) {
     let mut demo = state.lock().unwrap_or_else(PoisonError::into_inner);
     let current = ListArgs { ..*args };
     if demo.shown_args.as_ref() != Some(&current) {
-        demo.state = current.state();
+        demo.state.settings = current.settings();
         demo.shown_args = Some(current);
     }
 
     let thumbs = Thumbnails::<u32>::in_context(ui.ctx(), "craft-browse-link-list-story", ThumbnailOptions::default());
     let pictures = FakeThumbSource::<u32>::new().aspect(4, 3);
-    let lead_path = demo.selection.lead.and_then(|lead| demo.links.iter().find(|link| link.key == lead)).map(|link| link.stored.clone());
+    let lead_path = demo.state.selection.lead.and_then(|lead| demo.links.iter().find(|link| link.key == lead)).map(|link| link.stored.clone());
     let info = match lead_path {
         Some(stored) => words.info_path.replace("{path}", &stored),
         None => words.info_none.clone(),
     };
-    let ListDemo { links, statuses, selection, state, .. } = &mut *demo;
-    let list = LinkList::new("link-list-story", links, statuses)
-        .selection(selection)
-        .state(state)
-        .thumbnails(&thumbs, &pictures)
-        .actions(args.actions)
-        .info(move |ui| {
-            ui.label(info);
-        });
+    let ListDemo { links, statuses, state, .. } = &mut *demo;
+    let list = LinkList::new("link-list-story", links, statuses, state).thumbnails(&thumbs, &pictures).actions(args.actions).info(move |ui| {
+        ui.label(info);
+    });
     let events = ui
         .allocate_ui(vec2(ui.available_width(), args.height), |ui| {
             ui.set_min_height(args.height);
@@ -286,7 +286,7 @@ fn show_list(ui: &mut Ui, args: &mut ListArgs) {
             LinkListEvent::BreakLink(keys) => demo.set_status(keys, LinkStatus::Embedded),
             _ => {}
         }
-        if !matches!(event, LinkListEvent::Selected | LinkListEvent::State) {
+        if !matches!(event, LinkListEvent::Selection(_)) {
             demo.last = Some(format!("{event:?}"));
         }
     }

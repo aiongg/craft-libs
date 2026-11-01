@@ -4,6 +4,7 @@ use craft_docpath::Refused;
 use craft_docpath::links::LinkStatus;
 use craft_theme::TypeRole;
 use craft_ui::icons::{self, Icon, IconSize};
+use craft_ui::localized::fmt;
 use craft_ui::theme::{current, role_format};
 use egui::{Align2, Color32, Painter, Pos2, Rect, Shape, Stroke, vec2};
 
@@ -73,7 +74,7 @@ impl StatusBadge {
                     Refused::Url => &labels.refused_url,
                     Refused::Invalid => &labels.refused_invalid,
                 };
-                labels.refused.replace("{reason}", reason)
+                fmt(&labels.refused, &[("reason", reason)])
             }
             _ => String::new(),
         }
