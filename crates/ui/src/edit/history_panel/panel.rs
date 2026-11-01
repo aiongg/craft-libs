@@ -15,7 +15,7 @@ use crate::edit::steps::{StepId, StepRows};
 use crate::icons::Icon;
 use crate::list::{List, ListEvent, ListRow, RowEvent, ThumbSize, ToggleColumn};
 use crate::localized::Labels as _;
-use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
+use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt, facts_id};
 use crate::theme::{Tokens, TokensOf as _};
 
 /// Which parts of the panel an app shows. The default is PhotoCraft's full set: everything but
@@ -79,7 +79,7 @@ pub enum HistoryEvent {
     /// The source column was clicked on a row that is not the source.
     SetSource(HistorySource),
     /// A snapshot was renamed in place; `name` is trimmed and not blank.
-    RenameSnapshot { id: SnapshotId, name: String },
+    RenameSnapshot { id: SnapshotId, text: String },
     /// Delete this state: the trash with no snapshot selected, a drop of a state on the trash, or
     /// the menu's Delete.
     DeleteStep(StepId),
@@ -150,16 +150,19 @@ pub struct HistoryOutput {
 ///   a snapshot selected, the panel deselects it. A click on a snapshot reports
 ///   `SelectSnapshot`. A click on the source cell reports `SetSource` and does not step; on the
 ///   current source nothing; a press does not sweep other rows. Double-click or F2 on a snapshot
-///   renames it in place (the list's rename field, whole name selected; Enter or a click away
+///   renames it in place (the list's rename field named [`HistoryLabels::name`], whole name selected; Enter or a click away
 ///   reports `RenameSnapshot`, Esc cancels, a blank name keeps the old one); states cannot be
-///   renamed. A snapshot's context menu has Rename… and Delete; state rows have none.
+///   renamed. A snapshot's context menu has Rename… and Delete; state rows have none. Rename… is kept in
+///   the [`HistoryPanelState`] and starts in the next pass; [`start_rename`](Self::start_rename)
+///   starts a rename in the pass it is given.
 /// - **Drag to the trash.** A state (not the oldest; in linear history not a later one) or a
-///   snapshot drags with the list's ghost; a drop on the footer's trash reports `DeleteStep` or
+///   snapshot drags with the list's ghost (`List::can_drag`: a row History cannot delete starts no
+///   drag); a drop on the footer's trash reports `DeleteStep` or
 ///   `DeleteSnapshot`; Esc or a release elsewhere does nothing. The list's `Reorder` refuses every
 ///   target, so the drop is the drag's only effect (the list's own `Begin` and `Cancel` are not
 ///   reported).
 /// - **Scroll.** The current row scrolls into view only when `StepRows::revision` moved since the
-///   last pass (a new state, a jump, another document), the row is hidden and no snapshot is
+///   last pass of this panel (a new state, a jump, or another document: the state's serial changed), the row is hidden and no snapshot is
 ///   selected; no animation. Other changes leave the scroll where the user put it.
 /// - **Keys** (list focused): Up and Down move the selection by one row and report `GoTo` or
 ///   `SelectSnapshot` for it (one event per pass for the last target under key repeat); Home and
@@ -187,11 +190,13 @@ pub struct HistoryPanel<'a> {
     pub(super) features: HistoryFeatures,
     pub(super) order: HistoryOrder,
     pub(super) labels: Option<HistoryLabels>,
+    pub(super) start_rename: Option<SnapshotId>,
 }
 
 impl<'a> HistoryPanel<'a> {
     /// A panel over `steps` (a `StepList` or the app's own [`StepRows`]), keeping its snapshot
-    /// selection and scroll memory in `state`.
+    /// selection in `state`. Keep one [`HistoryPanelState`] per document: its instance serial
+    /// separates the documents' scroll offsets and rename drafts under one `id_salt`.
     pub fn new(id_salt: impl AsIdSalt, steps: &'a dyn StepRows, state: &'a mut HistoryPanelState) -> Self {
         Self {
             id_salt: IdSalt::new(id_salt),
@@ -203,6 +208,7 @@ impl<'a> HistoryPanel<'a> {
             features: HistoryFeatures::default(),
             order: HistoryOrder::default(),
             labels: None,
+            start_rename: None,
         }
     }
 
@@ -238,6 +244,15 @@ impl<'a> HistoryPanel<'a> {
         self
     }
 
+    /// Starts the in-place rename of snapshot `id` in this pass, as the list's rename field would
+    /// open it (the whole name selected). The app calls it in the pass it handles its own command
+    /// for it; the snapshot's context menu does the same through the panel's state. Ignored when
+    /// the snapshot is not shown.
+    pub fn start_rename(mut self, id: SnapshotId) -> Self {
+        self.start_rename = Some(id);
+        self
+    }
+
     /// The panel's words (default English).
     pub fn labels(mut self, labels: HistoryLabels) -> Self {
         self.labels = Some(labels);
@@ -255,18 +270,20 @@ impl<'a> HistoryPanel<'a> {
     /// `history.snapshot_thumb` ([`HistoryPanel::style`]).
     ///
     /// The footer is `footer::show_footer`; the menu facts are stored with
-    /// `menu::MenuFacts::store` keyed by `id_salt`.
+    /// `menu::MenuFacts::store` under `facts_id(id_salt)`.
     pub fn show(self, ui: &mut Ui) -> HistoryOutput {
         // pc: crates/ui-egui/src/panels/history.rs:5-160 (`history_panel`: rows :44-114, source column :196-209, snapshot rows :273-334, follow-scroll :31-41)
-        let HistoryPanel { id_salt, steps, state, snapshots, source, thumbnails, features, order, labels } = self;
+        let HistoryPanel { id_salt, steps, state, snapshots, source, thumbnails, features, order, labels, start_rename } = self;
         let labels = labels.unwrap_or_else(|| HistoryLabels::of(ui));
         let tokens = Tokens::of(ui);
         let sizes = HistoryPanel::style(&tokens);
         let row_style = ListRow::<HistoryKey>::style(&tokens);
         let ctx = ui.ctx().clone();
-        let list_id = ui.make_persistent_id(id_salt);
-        let rename_key = list_id.with("rename-snapshot");
-        let menu_key = list_id.with("menu-snapshot");
+        // Snapshot ids restart in every document, so the list is salted with the state's serial:
+        // a rename draft and a scroll offset belong to one document.
+        let list_salt = (id_salt.value(), state.serial);
+        let list_id = List::id_in(ui, list_salt);
+        let panel_id = ui.make_persistent_id(id_salt);
 
         let revision = steps.revision();
         let len = steps.len();
@@ -302,32 +319,44 @@ impl<'a> HistoryPanel<'a> {
             0.0
         };
 
-        let seen = state.seen.replace(revision);
-        let mut list = List::new(id_salt, &labels.list, order_rows.as_slice())
+        let row_of = |id: StepId| (0..len).find(|&at| steps.id(at) == id);
+        let accepts = |key: &HistoryKey| match *key {
+            HistoryKey::Snapshot(_) => true,
+            HistoryKey::Step(id) => row_of(id).is_some_and(|at| steps.can_delete(at) && (steps.is_non_linear() || !steps.is_later(at))),
+        };
+        // The follow-scroll fires when the revision or the document (the state's serial) changed
+        // since the last pass this panel drew.
+        let shown_key = panel_id.with("shown");
+        let shown = (state.serial, revision);
+        let moved = ui.data_mut(|d| {
+            let last = d.get_temp::<(u64, u64)>(shown_key);
+            d.insert_temp(shown_key, shown);
+            last != Some(shown)
+        });
+        let mut list = List::new(list_salt, &labels.list, order_rows.as_slice())
             .selection(&mut selection)
             .mode(SelectionMode::Single)
             .allow_empty(false)
             .tree(tree)
             .heights(move |at| if at < first_state { snapshot_height } else { state_height })
             .can_rename(|key| matches!(key, HistoryKey::Snapshot(_)))
+            .can_drag(|key| features.delete && accepts(key))
             .reorder(Reorder::new(Axis::Vertical).accepts(|_, _| false))
             .max_height((ui.available_height() - reserved).max(0.0));
-        if seen != Some(revision) && selected_snapshot.is_none() {
+        if moved && selected_snapshot.is_none() {
             list = list.reveal(HistoryKey::Step(current_id));
         }
-        if let Some(id) = ui.data_mut(|d| {
-            let id = d.get_temp::<SnapshotId>(rename_key);
-            d.remove::<SnapshotId>(rename_key);
-            id
-        }) {
+        if let Some(id) = start_rename.or_else(|| state.rename.take()).filter(|id| snaps.iter().any(|snap| snap.id == *id)) {
             list = list.start_rename(HistoryKey::Snapshot(id));
         }
 
         let out = list.show(ui, |at, key| match *key {
             HistoryKey::Snapshot(id) => {
                 let snap = snaps.iter().find(|snap| snap.id == id);
-                let mut row =
-                    ListRow::new(*key, snap.map_or("", |snap| snap.name.as_str())).description(&labels.snapshot).rule(at + 1 == first_state);
+                let mut row = ListRow::new(*key, snap.map_or("", |snap| snap.name.as_str()))
+                    .description(&labels.snapshot)
+                    .rename_field_name(&labels.name)
+                    .rule(at + 1 == first_state);
                 if features.source {
                     row = row.toggle(source_column(&labels, source == Some(HistorySource::Snapshot(id))));
                 }
@@ -379,12 +408,12 @@ impl<'a> HistoryPanel<'a> {
                 ListEvent::Row(RowEvent::Renamed { row: HistoryKey::Snapshot(id), text }) => {
                     let name = text.trim();
                     if !name.is_empty() && snaps.iter().any(|snap| snap.id == id && snap.name != name) {
-                        events.push(HistoryEvent::RenameSnapshot { id, name: name.to_owned() });
+                        events.push(HistoryEvent::RenameSnapshot { id, text: name.to_owned() });
                     }
                 }
                 ListEvent::ContextMenu(request) => {
                     if let Some(HistoryKey::Snapshot(id)) = request.row {
-                        ui.data_mut(|d| d.insert_temp(menu_key, id));
+                        state.menu_row = Some(id);
                         open_menu = Some(request.pointer.map_or(OpenAt::Rect(request.anchor), OpenAt::Pointer));
                     }
                 }
@@ -396,7 +425,6 @@ impl<'a> HistoryPanel<'a> {
             Some(HistoryKey::Step(id)) if id != current_id => events.push(HistoryEvent::GoTo(id)),
             Some(HistoryKey::Step(_)) if selected_snapshot.is_some() => {
                 state.clear_snapshot();
-                ctx.request_repaint();
             }
             _ => {}
         }
@@ -407,13 +435,10 @@ impl<'a> HistoryPanel<'a> {
         ];
         let menu = ContextMenu::new(&entries).open_at(open_menu).own_gestures(false).show(ui, &out.response);
         if let Some(command) = menu.chosen
-            && let Some(id) = ui.data(|d| d.get_temp::<SnapshotId>(menu_key))
+            && let Some(id) = state.menu_row
         {
             match command {
-                SnapshotCommand::Rename => {
-                    ui.data_mut(|d| d.insert_temp(rename_key, id));
-                    ctx.request_repaint();
-                }
+                SnapshotCommand::Rename => state.rename = Some(id),
                 SnapshotCommand::Delete => events.push(HistoryEvent::DeleteSnapshot(id)),
             }
         }
@@ -422,15 +447,18 @@ impl<'a> HistoryPanel<'a> {
             Some(id) => Some(HistoryKey::Snapshot(id)),
             None => steps.can_delete(current).then_some(HistoryKey::Step(current_id)),
         };
-        let row_of = |id: StepId| (0..len).find(|&at| steps.id(at) == id);
-        let accepts = |key: &HistoryKey| match *key {
-            HistoryKey::Snapshot(_) => true,
-            HistoryKey::Step(id) => row_of(id).is_some_and(|at| steps.can_delete(at) && (steps.is_non_linear() || !steps.is_later(at))),
-        };
-        MenuFacts { features, can_forward: current + 1 < len, can_backward: current > 0, delete: trash, can_clear: len > 1, current: current_id }
-            .store(&ctx, MenuFacts::id(id_salt));
+        MenuFacts {
+            features,
+            can_forward: current + 1 < len,
+            can_backward: current > 0,
+            delete: trash,
+            can_clear: len > 1,
+            current: current_id,
+            rows_revision: revision,
+        }
+        .store(&ctx, facts_id(id_salt));
         if has_footer {
-            let spec = FooterSpec { features: &features, labels: &labels, trash, accepts: &accepts, current: current_id };
+            let spec = FooterSpec { features: &features, labels: &labels, trash, list: list_id, accepts: &accepts, current: current_id };
             events.extend(show_footer(ui, &spec));
         }
         HistoryOutput { response: out.response, events }

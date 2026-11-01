@@ -8,7 +8,7 @@ use super::state::HistoryPanelState;
 use crate::docking::panel_menu::PanelCommand;
 use crate::edit::steps::StepId;
 use crate::localized::Labels;
-use crate::menu::{MenuEntry, MenuItem};
+use crate::menu::{MenuEntry, MenuItem, facts_id};
 
 /// The menu's commands.
 pub(super) const CMD_STEP_FORWARD: &str = "history.stepForward";
@@ -21,7 +21,7 @@ pub(super) const CMD_NEW_DOCUMENT: &str = "history.newDocument";
 pub(super) const CMD_OPTIONS: &str = "history.options";
 
 /// What the menu's enabled rules need, stored in egui memory by `HistoryPanel::show` each pass
-/// under an id made from the panel's `id_salt` alone (as `TextStylesPanel`'s facts), so the dock
+/// under [`facts_id`] of the panel's `id_salt` alone (as `TextStylesPanel`'s facts), so the dock
 /// can build the menu without the panel's `Ui`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct MenuFacts {
@@ -37,13 +37,17 @@ pub(super) struct MenuFacts {
     pub(super) can_clear: bool,
     /// The current state, for New Document.
     pub(super) current: StepId,
+    /// The `StepRows::revision` of the pass: a snapshot selection made at another revision is
+    /// stale and does not decide Delete.
+    pub(super) rows_revision: u64,
 }
 
 impl MenuFacts {
-    /// The id the facts of the panel `id_salt` are kept under.
+    /// The id the facts of the panel are kept under, from the raw salt a public entry point is
+    /// given (`show` has the stored `IdSalt` and calls [`facts_id`] itself).
     pub(super) fn id(id_salt: impl AsIdSalt) -> Id {
         // craft-libs: crates/text/src/ui/style_panel.rs:333-340 (`MenuFacts::of(ctx, IdSalt::new(id_salt))`)
-        Id::NULL.with(IdSalt::new(id_salt))
+        facts_id(IdSalt::new(id_salt))
     }
 
     /// Stores the facts for this pass.
@@ -128,14 +132,15 @@ impl HistoryPanel<'_> {
 
 impl MenuFacts {
     /// The event a command runs, `None` for a command that is not the panel's, a row of a feature
-    /// that is off, or a disabled row. The selected snapshot decides Delete.
+    /// that is off, or a disabled row. The selected snapshot decides Delete while it was selected at
+    /// the stored revision.
     fn action(&self, state: &HistoryPanelState, command: &str) -> Option<HistoryEvent> {
         let features = &self.features;
         match command {
             CMD_STEP_FORWARD => self.can_forward.then_some(HistoryEvent::StepForward),
             CMD_STEP_BACKWARD => self.can_backward.then_some(HistoryEvent::StepBackward),
             CMD_NEW_SNAPSHOT => features.snapshots.then_some(HistoryEvent::NewSnapshot { dialog: true }),
-            CMD_DELETE if features.delete => match state.selected.map(|(id, _)| id) {
+            CMD_DELETE if features.delete => match state.selected.filter(|&(_, revision)| revision == self.rows_revision).map(|(id, _)| id) {
                 Some(id) => Some(HistoryEvent::DeleteSnapshot(id)),
                 None => match self.delete? {
                     HistoryKey::Snapshot(id) => Some(HistoryEvent::DeleteSnapshot(id)),
@@ -158,7 +163,7 @@ mod tests {
     use super::*;
 
     fn facts(delete: Option<HistoryKey>, can_forward: bool, can_backward: bool, can_clear: bool) -> MenuFacts {
-        MenuFacts { features: HistoryFeatures::default(), can_forward, can_backward, delete, can_clear, current: StepId::new(3) }
+        MenuFacts { features: HistoryFeatures::default(), can_forward, can_backward, delete, can_clear, current: StepId::new(3), rows_revision: 0 }
     }
 
     fn enabled(entries: &[MenuEntry<PanelCommand>]) -> Vec<(String, bool)> {
@@ -179,6 +184,19 @@ mod tests {
         let after = enabled(&HistoryPanel::panel_menu(&ctx, "h", &state));
         let off: Vec<_> = after.iter().filter(|(_, on)| !*on).map(|(c, _)| c.as_str()).collect();
         assert_eq!(off, [CMD_STEP_FORWARD]);
+    }
+
+    // A snapshot selected at another revision does not decide Delete.
+    #[test]
+    fn a_stale_selection_does_not_decide_delete() {
+        let step = HistoryKey::Step(StepId::new(3));
+        let mut stored = facts(Some(step), true, true, true);
+        stored.rows_revision = 5;
+        let mut state = HistoryPanelState::new();
+        state.snapshot_selected(crate::edit::snapshots::SnapshotId::new(1), 4);
+        assert_eq!(stored.action(&state, CMD_DELETE), Some(HistoryEvent::DeleteStep(StepId::new(3))));
+        state.snapshot_selected(crate::edit::snapshots::SnapshotId::new(1), 5);
+        assert_eq!(stored.action(&state, CMD_DELETE), Some(HistoryEvent::DeleteSnapshot(crate::edit::snapshots::SnapshotId::new(1))));
     }
 
     // Rows of a feature that is off leave out their separators too.

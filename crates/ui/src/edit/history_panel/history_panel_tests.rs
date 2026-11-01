@@ -1,19 +1,25 @@
 //! Screen and AccessKit tests of the History panel (task ST3; they need the `history` style from TK1).
 
 use egui::accesskit::{Role, Toggled};
-use egui::{Event, Key, Modifiers, PointerButton, Pos2, Ui, vec2};
+use std::cell::RefCell;
+
+use egui::{DragAndDrop, Event, Id, Key, Modifiers, PointerButton, Pos2, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
+use super::HistoryKey;
 use super::stories::{BranchRows, Doc, HistoryStoryLabels};
 use super::{HistoryEvent, HistoryFeatures, HistoryLabels, HistoryOrder, HistoryPanel, SnapshotFormLabels};
+use crate::behavior::ListDrag;
+use crate::canvas::textures::{FakeThumbSource, Revision, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails};
 use crate::direction::{self, Direction};
+use crate::edit::snapshots::SnapshotId;
 use crate::edit::snapshots::{HistorySource, SnapshotList};
 use crate::edit::steps::{HistoryStep, StepId, StepList, StepRows};
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::menu::MenuEntry;
 use crate::testing::HarnessExt as _;
-use crate::theme::{Base, install};
+use crate::theme::{Base, TokensOf as _, install};
 
 /// The panel over a fake document; the host carries out the panel's events as an app would.
 struct Host {
@@ -302,7 +308,9 @@ fn the_source_cell_sets_the_source_and_does_not_step() {
     assert!(harness.state().events.is_empty(), "a click on the source row's cell does nothing: {:?}", harness.state().events);
 }
 
-// Press on one source cell, drag over three rows, release: one `SetSource` at most, for the pressed row.
+// A press and release on one source cell reports exactly one `SetSource`, for that row. Dragged over
+// three rows and released on another row's cell, the press is no click and reports nothing (the
+// exclusive column has no sweep).
 #[test]
 fn a_press_on_the_source_cell_does_not_sweep_other_rows() {
     let mut harness = harness(Host::states(8, 6));
@@ -310,12 +318,18 @@ fn a_press_on_the_source_cell_does_not_sweep_other_rows() {
     let start = source_cell(&harness, "State 2").rect().center();
     let end = source_cell(&harness, "State 5").rect().center();
     pointer(&mut harness, start, Some(true));
+    pointer(&mut harness, start + vec2(1.0, 1.0), None);
+    pointer(&mut harness, start, Some(false));
+    let sets: Vec<_> = harness.state().events.iter().filter(|e| matches!(e, HistoryEvent::SetSource(_))).cloned().collect();
+    assert_eq!(sets, [HistoryEvent::SetSource(HistorySource::Step(pressed))]);
+
+    let mut harness = self::harness(Host::states(8, 6));
+    pointer(&mut harness, start, Some(true));
     for share in [0.25, 0.5, 0.75, 1.0] {
         pointer(&mut harness, start + (end - start) * share, None);
     }
     pointer(&mut harness, end, Some(false));
-    let sets: Vec<_> = harness.state().events.iter().filter(|e| matches!(e, HistoryEvent::SetSource(_))).cloned().collect();
-    assert!(sets.is_empty() || sets == [HistoryEvent::SetSource(HistorySource::Step(pressed))], "{sets:?}");
+    assert!(harness.state().events.is_empty(), "{:?}", harness.state().events);
 }
 
 // Double-click opens the rename field; Enter reports `RenameSnapshot`, Esc cancels, a blank name reports nothing.
@@ -334,7 +348,7 @@ fn double_click_renames_a_snapshot_in_place() {
     key(&mut harness, Key::Enter);
     assert_eq!(field(&harness), None);
     let renames: Vec<_> = harness.state().events.iter().filter(|e| matches!(e, HistoryEvent::RenameSnapshot { .. })).cloned().collect();
-    assert_eq!(renames, [HistoryEvent::RenameSnapshot { id: first, name: "Sky".to_owned() }]);
+    assert_eq!(renames, [HistoryEvent::RenameSnapshot { id: first, text: "Sky".to_owned() }]);
     assert_eq!(harness.state().doc.snapshots.get(first).map(|s| s.name.as_str()), Some("Sky"));
 
     harness.state_mut().take_events();
@@ -541,7 +555,6 @@ fn enabled(rows: &[(String, bool)], command: &str) -> bool {
 
 // Step Forward, Step Backward, Delete and Clear History follow the rows; New Snapshot and New Document always enabled.
 #[test]
-#[ignore = "fix pass: HistoryPanel::show stores the menu facts under MenuFacts::id(IdSalt) with the salt already wrapped, so panel_menu and run_command called with the same salt never find them (panel.rs)"]
 fn the_menu_enables_rows_by_state() {
     let always = ["history.newSnapshot", "history.newDocument", "history.options"];
     let cases = [
@@ -567,7 +580,6 @@ fn the_menu_enables_rows_by_state() {
 
 // `run_command(delete)` with a snapshot selected reports `DeleteSnapshot` and clears the selection.
 #[test]
-#[ignore = "fix pass: HistoryPanel::show stores the menu facts under MenuFacts::id(IdSalt) with the salt already wrapped, so panel_menu and run_command called with the same salt never find them (panel.rs)"]
 fn delete_in_the_menu_removes_the_selected_snapshot() {
     let mut host = Host::states(5, 2);
     host.doc.snapshots = snapshots(1);
@@ -579,6 +591,7 @@ fn delete_in_the_menu_removes_the_selected_snapshot() {
     let event = HistoryPanel::run_command(&ctx, "history", &mut harness.state_mut().doc.panel, &command);
     assert_eq!(event, Some(HistoryEvent::DeleteSnapshot(snapshot)));
     assert_eq!(harness.state().doc.panel.selected_snapshot(), None);
+    harness.run();
 
     let event = HistoryPanel::run_command(&ctx, "history", &mut harness.state_mut().doc.panel, &command);
     let current = id(&harness, 2);
@@ -681,4 +694,200 @@ fn the_footer_leaves_out_buttons_for_features_that_are_off() {
     assert_eq!(buttons(HistoryFeatures { delete: false, ..HistoryFeatures::default() }), [false, true, true]);
     let none = HistoryFeatures { snapshots: false, source: false, new_document: false, delete: false, delete_later: false, options: false };
     assert_eq!(buttons(none), [false, false, false]);
+}
+
+// Rename… in a snapshot's context menu opens the rename field; Delete reports `DeleteSnapshot`.
+#[test]
+fn a_snapshots_context_menu_renames_and_deletes() {
+    let mut host = Host::states(4, 3);
+    host.doc.snapshots = snapshots(2);
+    let second = host.doc.snapshots.iter().nth(1).expect("a snapshot").id;
+    let mut harness = harness(host);
+    row(&harness, "Snap B").click_secondary();
+    harness.run();
+    harness.get_by_label(&HistoryLabels::english().rename).click();
+    harness.run();
+    let field = harness.query_by_role(Role::TextInput).and_then(|n| n.value());
+    assert_eq!(field.as_deref(), Some("Snap B"), "the menu's Rename… opens the row's field");
+    key(&mut harness, Key::Escape);
+
+    pause(&mut harness);
+    row(&harness, "Snap B").click_secondary();
+    harness.run();
+    harness.get_by_label(&HistoryLabels::english().delete).click();
+    harness.run();
+    assert_eq!(harness.state().events, [HistoryEvent::DeleteSnapshot(second)]);
+}
+
+// `HistoryPanel::start_rename` opens the field in the pass it is given.
+#[test]
+fn start_rename_opens_the_field_in_the_same_pass() {
+    let mut host = Host::states(4, 3);
+    host.doc.snapshots = snapshots(2);
+    let first = host.doc.snapshots.iter().next().expect("a snapshot").id;
+    let mut harness = Harness::builder().with_size([260.0, 420.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        move |ui, host: &mut Host| {
+            HistoryPanel::new("history", &host.doc.steps, &mut host.doc.panel)
+                .snapshots(&host.doc.snapshots)
+                .start_rename(first)
+                .show(ui)
+                .events
+                .len();
+        },
+        host,
+    );
+    harness.step();
+    let field = harness.query_by_role(Role::TextInput).and_then(|n| n.value());
+    assert_eq!(field.as_deref(), Some("Snap A"));
+}
+
+// An open rename does not carry over to another document's snapshot with the same id.
+#[test]
+fn a_rename_draft_never_crosses_documents() {
+    let mut host = Host::states(4, 3);
+    host.doc.snapshots = snapshots(2);
+    let mut harness = harness(host);
+    let center = row(&harness, "Snap A").rect().center();
+    double_click(&mut harness, center);
+    assert!(harness.query_by_role(Role::TextInput).is_some(), "the field is open in the first document");
+
+    let mut other = Doc::new(numbered(4, 3), snapshots(2));
+    std::mem::swap(&mut harness.state_mut().doc, &mut other);
+    harness.run();
+    assert!(harness.query_by_role(Role::TextInput).is_none(), "the second document shows no field");
+    key(&mut harness, Key::Enter);
+    assert!(harness.state().events.iter().all(|e| !matches!(e, HistoryEvent::RenameSnapshot { .. })), "{:?}", harness.state().events);
+}
+
+// Showing another document reveals its current row, also when its state saw this revision before.
+#[test]
+fn another_document_reveals_its_current_row() {
+    let mut harness = build(Host::states(30, 29), [260.0, 220.0], false);
+    let center = list(&harness).rect().center();
+    harness.wheel_at(center, vec2(0.0, 1e5));
+    harness.run_steps(20);
+    assert!(shown(&harness, "State 0") && !shown(&harness, "State 29"), "the user scrolled the first document to the top");
+
+    let mut other = Doc::new(numbered(30, 29), SnapshotList::new());
+    std::mem::swap(&mut harness.state_mut().doc, &mut other);
+    harness.run_steps(5);
+    assert!(shown(&harness, "State 29"), "the second document shows its current row");
+    harness.wheel_at(center, vec2(0.0, 1e5));
+    harness.run_steps(20);
+    assert!(!shown(&harness, "State 29"));
+
+    std::mem::swap(&mut harness.state_mut().doc, &mut other);
+    harness.run_steps(5);
+    assert!(shown(&harness, "State 29"), "back in the first document the current row is revealed again");
+}
+
+// The trash is enabled only by an accepted drag: a later state with non-linear history, current at the oldest.
+#[test]
+fn a_non_linear_drop_of_a_later_state_deletes_it_while_the_oldest_is_current() {
+    let trash = button_label(|labels| &labels.delete_button);
+    let mut steps = numbered(6, 0);
+    steps.set_non_linear(true);
+    let mut harness = harness(Host::new(steps, SnapshotList::new()));
+    assert!(harness.get_by_label(&trash).accesskit_node().is_disabled());
+    let target = id(&harness, 4);
+    let (from, to) = (row(&harness, "State 4").rect().center(), harness.get_by_label(&trash).rect().center());
+    harness.drag(from, to, Modifiers::NONE);
+    harness.run_steps(5);
+    assert_eq!(harness.state().events, [HistoryEvent::DeleteStep(target)]);
+}
+
+// A drop acts on the grabbed row, and a payload from another list is refused.
+#[test]
+fn the_trash_refuses_a_drag_from_another_list() {
+    let trash = button_label(|labels| &labels.delete_button);
+    let mut harness = harness(Host::states(6, 0));
+    let outside = list(&harness).rect().center() + vec2(0.0, 120.0);
+    let on_trash = harness.get_by_label(&trash).rect().center();
+    pointer(&mut harness, outside, Some(true));
+    let payload = ListDrag {
+        list: Id::unique("another list"),
+        items: vec![HistoryKey::Step(id(&harness, 2))],
+        grabbed: HistoryKey::Step(id(&harness, 2)),
+        label: "State 2".to_owned(),
+    };
+    DragAndDrop::set_payload(&harness.ctx, payload);
+    pointer(&mut harness, on_trash, None);
+    assert!(harness.get_by_label(&trash).accesskit_node().is_disabled(), "a foreign payload does not enable the trash");
+    pointer(&mut harness, on_trash, Some(false));
+    assert!(harness.state().events.is_empty(), "{:?}", harness.state().events);
+    assert!(harness.state().hints.is_empty(), "{:?}", harness.state().hints);
+}
+
+// A row History cannot delete starts no drag: no payload and no ghost.
+#[test]
+fn a_row_that_cannot_be_deleted_starts_no_drag() {
+    let mut harness = harness(Host::states(6, 3));
+    let from = row(&harness, "State 0").rect().center();
+    pointer(&mut harness, from, Some(true));
+    pointer(&mut harness, from + vec2(0.0, 12.0), None);
+    pointer(&mut harness, from + vec2(0.0, 40.0), None);
+    assert!(!DragAndDrop::has_payload_of_type::<ListDrag<HistoryKey>>(&harness.ctx));
+}
+
+// The footer is a toolbar named by `HistoryLabels::footer`.
+#[test]
+fn the_footer_is_a_named_toolbar() {
+    let harness = harness(Host::states(3, 1));
+    let toolbar = harness.get_by_role(Role::Toolbar);
+    assert_eq!(toolbar.accesskit_node().label().as_deref(), Some(HistoryLabels::english().footer.as_str()));
+}
+
+/// A source that records each key it is asked about.
+struct Recorder {
+    asked: RefCell<Vec<(SnapshotId, ThumbRequest)>>,
+    inner: FakeThumbSource<SnapshotId>,
+}
+
+impl ThumbSource<SnapshotId> for Recorder {
+    fn revision(&self, key: &SnapshotId, request: &ThumbRequest) -> Revision {
+        self.asked.borrow_mut().push((*key, *request));
+        self.inner.revision(key, request)
+    }
+
+    fn render(&self, key: &SnapshotId, request: &ThumbRequest) -> ThumbRender {
+        self.inner.render(key, request)
+    }
+}
+
+// Each visible snapshot row asks the app's source for a picture of the snapshot thumbnail side; state rows ask for none.
+#[test]
+fn snapshot_rows_request_their_thumbnails() {
+    let source = Recorder { asked: RefCell::new(Vec::new()), inner: FakeThumbSource::new() };
+    let host = {
+        let mut host = Host::states(4, 3);
+        host.doc.snapshots = snapshots(2);
+        host
+    };
+    let side = RefCell::new(0.0_f32);
+    let mut harness = Harness::builder().with_size([260.0, 420.0]).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+        |ui, host: &mut Host| {
+            let thumbs = Thumbnails::<SnapshotId>::in_context(ui.ctx(), "history-test.thumbs", ThumbnailOptions::default());
+            *side.borrow_mut() = HistoryPanel::style(&crate::theme::Tokens::of(ui)).snapshot_thumb;
+            HistoryPanel::new("history", &host.doc.steps, &mut host.doc.panel)
+                .snapshots(&host.doc.snapshots)
+                .thumbnails(&thumbs, &source)
+                .show(ui)
+                .events
+                .len();
+        },
+        host,
+    );
+    harness.run();
+    drop(harness);
+    let ids: Vec<SnapshotId> = {
+        let list = snapshots(2);
+        list.iter().map(|snap| snap.id).collect()
+    };
+    let asked = source.asked.into_inner();
+    let expected = ThumbRequest::for_cell(side.into_inner(), 1.0).side;
+    for id in ids {
+        let request = asked.iter().find(|(key, _)| *key == id).map(|(_, request)| request.side);
+        assert_eq!(request, Some(expected), "snapshot {id:?} is asked for at the thumbnail side");
+    }
+    assert!(asked.iter().all(|(key, _)| key.get() <= 2), "{asked:?}");
 }
