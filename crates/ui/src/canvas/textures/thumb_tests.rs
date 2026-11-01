@@ -1,7 +1,8 @@
 //! `Thumbnails`, `ThumbRequest`, `thumb_image` and `fit_rect` over `FakeThumbSource`.
 
-#![expect(clippy::todo, reason = "task XT fills thumbnails_later_renders_arrive_through_the_queue")]
+use std::sync::Arc;
 
+use craft_host::ManualJobs;
 use egui::{Context, Rect, Ui, pos2, vec2};
 
 use super::{FakeThumbSource, MAX_TEXTURE, Priority, TextureState, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails, fit_rect, thumb_image};
@@ -53,11 +54,24 @@ fn thumbnails_hold_keeps_shown_pictures() {
     assert_eq!(updated.id, shown.id);
 }
 
-// A Later render shows Missing (placeholder) until ManualJobs runs it, then Ready (task XT).
+// A Later render shows no picture (Loading without a stand-in) until ManualJobs runs it, then Ready.
 #[test]
-#[ignore = "task XT: needs the loader and queue tests"]
 fn thumbnails_later_renders_arrive_through_the_queue() {
-    todo!()
+    let ctx = Context::default();
+    let jobs = Arc::new(ManualJobs::new());
+    let thumbs = Thumbnails::<u32>::in_context(&ctx, "later", ThumbnailOptions { lanes: 1, jobs: Some(jobs.clone()), ..ThumbnailOptions::default() });
+    let source = FakeThumbSource::<u32>::new().later(true);
+    let mut state = TextureState::Missing;
+    pass(&ctx, |_| state = ask(&thumbs, &ctx, &source, 1));
+    assert_eq!(state, TextureState::Loading { stand_in: None });
+    assert_eq!(jobs.waiting(), 1);
+    pass(&ctx, |_| state = ask(&thumbs, &ctx, &source, 1));
+    assert_eq!(state, TextureState::Loading { stand_in: None });
+    assert_eq!(jobs.waiting(), 1);
+    assert!(jobs.run_next());
+    pass(&ctx, |_| state = ask(&thumbs, &ctx, &source, 1));
+    assert!(matches!(state, TextureState::Ready(_)), "got {state:?}");
+    assert_eq!(jobs.waiting(), 0);
 }
 
 // `paint` returns false for Empty and draws the placeholder for Missing and the icon for Failed.
