@@ -125,11 +125,11 @@ pub type HeaderExtra<'a> = Box<dyn FnMut(&mut Ui, &TrackInfo<'_>) + 'a>;
 /// - While playing, the view follows the playhead by the [`FollowMode`]; a jump while stopped
 ///   reveals it ([`TimeView::scroll_to_reveal`](crate::TimeView::scroll_to_reveal)).
 /// - A drop of media from the app is the app's (it reads the pointer over
-///   [`TimelineResponse::row_at_pointer`]).
+///   [`TimelineOutput::row_at_pointer`]).
 /// - Keyboard: the panel is a focus region (F6 reaches it); the time area is one Tab stop
 ///   whose Left / Right step the playhead a frame (Shift: five frames, Premiere's), Home / End
-///   go to the start and end, Up / Down to the previous and next edit point (the app's, through
-///   [`TimelineModel`]); the header switches are Tab stops in row order; Delete on selected
+///   go to the start and end, Up / Down to the previous and next edit point
+///   ([`TimelineModel::edit_points`]), each a [`TimelineEdit::Playhead`] `Set`; the header switches are Tab stops in row order; Delete on selected
 ///   clips is the app's shortcut (the panel claims no keys beyond these).
 /// - AccessKit: the time area is a `Group` named by [`TimelineLabels::panel`]; each track a
 ///   `Row`; each clip a `Button` named by its name with its start and duration as the value

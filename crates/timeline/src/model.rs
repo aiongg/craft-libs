@@ -105,6 +105,12 @@ pub trait TimelineModel {
         &[]
     }
 
+    /// The edit points (cuts on targeted tracks) Up and Down move the playhead to, in time
+    /// order; Premiere's Go to Previous / Next Edit Point.
+    fn edit_points(&self) -> Vec<Tick> {
+        Vec::new()
+    }
+
     /// Mark In and Mark Out.
     fn in_out(&self) -> (Option<Tick>, Option<Tick>) {
         (None, None)

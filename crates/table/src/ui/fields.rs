@@ -63,7 +63,7 @@ pub enum FieldListEdit {
         field: String,
     },
     /// A field's menu (Move to …, Move Up, Move Down), or a drag between or inside the areas,
-    /// as one gesture of the kernel's [`Move`](craft_ui::behavior::Move) (the list's reorder):
+    /// as one gesture of the kernel's [`Move`] (the list's reorder):
     /// the app previews `Update`s and applies the `Commit`.
     Move {
         to: FieldArea,

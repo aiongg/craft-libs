@@ -59,7 +59,7 @@ pub type TextQuads = Box<dyn Fn(kurbo::Point, kurbo::Point) -> Vec<[kurbo::Point
 ///   [`behavior::nudge`](craft_ui::behavior::nudge) (one point, Shift ten) as `Set`s.
 /// - A double-click (from [`ToolPointer::clicks`](craft_ui::canvas::ToolPointer)) on a note or
 ///   text box opens its text for editing; the app's page text and selection reach the tool in
-///   [`CanvasTool::each_pass`](craft_ui::canvas::CanvasTool::each_pass) through the public fields.
+///   [`CanvasTool::each_pass`] through the public fields.
 /// - Locked annotations are selected but never moved.
 pub struct AnnotateTool {
     pub tool: AnnotationTool,
