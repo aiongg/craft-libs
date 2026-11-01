@@ -221,6 +221,15 @@ struct State {
 }
 
 impl Popover {
+    /// The id a popover named `id_salt` gets in `ui`: the layer it draws on and the key of its state.
+    pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
+        Self::id_of(ui, IdSalt::new(id_salt))
+    }
+
+    fn id_of(ui: &Ui, id_salt: IdSalt) -> Id {
+        ui.make_persistent_id(id_salt)
+    }
+
     /// A popover named by `id_salt`, hanging from `anchor`.
     pub fn new(id_salt: impl AsIdSalt, anchor: PopoverAnchor) -> Self {
         Self {
@@ -277,7 +286,7 @@ impl Popover {
     pub fn show<R>(self, ui: &mut Ui, open: &mut bool, add: impl FnOnce(&mut Ui, &PopoverCtx) -> R) -> Option<PopoverResponse<R>> {
         let Self { id_salt, anchor, size, close, toggle, group, label, keep_anchor_focus } = self;
         let ctx = ui.ctx().clone();
-        let id = ui.make_persistent_id(id_salt);
+        let id = Self::id_of(ui, id_salt);
         let state_id = id.with(STATE);
         let control = match &anchor {
             PopoverAnchor::Control(response) => Some(response.clone()),

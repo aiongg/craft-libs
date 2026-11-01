@@ -329,8 +329,7 @@ impl<'a> DatePicker<'a> {
         let current = *value;
         let mut chosen: Option<Option<PickedDate>> = None;
         let popup_salt = (id_salt, "popup");
-        // The popover hashes its salt again when it makes its id.
-        let popup_id = ui.make_persistent_id(IdSalt::new(popup_salt));
+        let popup_id = Popover::id_in(ui, popup_salt);
         let shown = Popover::new(popup_salt, PopoverAnchor::Control(response.clone()))
             .size(PopoverSize::Fit)
             .close(PopoverClose::default())

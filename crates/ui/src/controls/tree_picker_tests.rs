@@ -144,4 +144,24 @@ mod picker {
         harness.run();
         assert_eq!(harness.state().value, Some(7));
     }
+
+    // A pointer click on a row of the open popup picks it: the popup's layer must not swallow its own presses.
+    #[test]
+    fn clicking_a_row_with_the_pointer_picks_it() {
+        let mut harness = harness();
+        harness.run();
+        harness.get_by_role(Role::ComboBox).click();
+        harness.run();
+        harness.run();
+        let at = harness.get_by_label("Family").rect().center();
+        harness.hover_at(at);
+        harness.run();
+        for pressed in [true, false] {
+            harness.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+            harness.run();
+        }
+        harness.run();
+        assert_eq!(harness.state().value, Some(4));
+        assert!(items(&harness).is_empty(), "the popup closed");
+    }
 }
