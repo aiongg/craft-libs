@@ -556,7 +556,8 @@ where
     /// table's rows have no label of their own, since the host draws every cell.
     ///
     /// - **Rows.** The first shown column (in the layout's order, whichever column that is)
-    ///   carries the tree: an indent of [`Branch::steps`] levels of `list.indent`, then the
+    ///   carries the tree: an indent of `list.indent` per level (a leaf inside a group one level
+    ///   more, past its parent's triangle, as a list's tree rows), then the
     ///   `list.disclosure` column with a group's triangle, then the cell. The indent shrinks
     ///   before the cell gets narrower than `list.min_label`; the triangle column doesn't
     ///   ([`ListRow`]'s rule). A double click on that column's edge fits the widest cell plus its
@@ -1011,7 +1012,8 @@ where
         }
         if response.secondary_clicked() {
             self.focus = true;
-            let request = ContextMenuRequest { row: None, selected: false, anchor: response.rect, pointer: response.interact_pointer_pos(), toggle: None };
+            let request =
+                ContextMenuRequest { row: None, selected: false, anchor: response.rect, pointer: response.interact_pointer_pos(), toggle: None };
             self.events.push(TableEvent::ContextMenu(request));
         }
     }
@@ -1533,37 +1535,32 @@ where
         let role = if branch.is_some() { Role::TreeItem } else { Role::Row };
         let tree = pass.tree.as_ref();
         let mut opened: Vec<OpenChange<K>> = Vec::new();
-        let scope =
-            ui.scope_builder(UiBuilder::new().id_salt(("row", &key)).max_rect(rect).sense(Sense::CLICK).accessibility_role(role), |ui| {
-                let mut from = 0.0;
-                for (position, (&column, &width)) in self.shown.iter().zip(self.widths).enumerate() {
-                    let (min_x, max_x) =
-                        if self.rtl { (rect.right() - from - width, rect.right() - from) } else { (rect.left() + from, rect.left() + from + width) };
-                    from += width;
-                    let cell_rect = Rect::from_min_max(pos2(min_x, rect.top()), pos2(max_x, rect.bottom()));
-                    let mut inner = cell_rect.shrink2(vec2(style.cell_pad_x, 0.0));
-                    if position == 0
-                        && let (Some(tree), Some(branch)) = (tree, &branch)
-                    {
-                        inner = self.tree_lead(ui, tree, inner, branch, &key, &mut opened);
-                    }
-                    let column = &self.columns[column];
-                    let context = CellContext { selected, text, numeric: column.align == Align::Max };
-                    ui.scope_builder(
-                        UiBuilder::new()
-                            .id_salt(("cell", position))
-                            .max_rect(inner)
-                            .layout(cell_layout(column, self.rtl))
-                            .accessibility_role(Role::Cell),
-                        |ui| {
-                            ui.set_clip_rect(cell_rect.intersect(ui.clip_rect()));
-                            ui.visuals_mut().override_text_color = Some(text);
-                            ui.ctx().accesskit_node_builder(ui.scope_id(), |node| node.set_column_index(position));
-                            cell(ui, &key, &column.key, &context);
-                        },
-                    );
+        let scope = ui.scope_builder(UiBuilder::new().id_salt(("row", &key)).max_rect(rect).sense(Sense::CLICK).accessibility_role(role), |ui| {
+            let mut from = 0.0;
+            for (position, (&column, &width)) in self.shown.iter().zip(self.widths).enumerate() {
+                let (min_x, max_x) =
+                    if self.rtl { (rect.right() - from - width, rect.right() - from) } else { (rect.left() + from, rect.left() + from + width) };
+                from += width;
+                let cell_rect = Rect::from_min_max(pos2(min_x, rect.top()), pos2(max_x, rect.bottom()));
+                let mut inner = cell_rect.shrink2(vec2(style.cell_pad_x, 0.0));
+                if position == 0
+                    && let (Some(tree), Some(branch)) = (tree, &branch)
+                {
+                    inner = self.tree_lead(ui, tree, inner, branch, &key, &mut opened);
                 }
-            });
+                let column = &self.columns[column];
+                let context = CellContext { selected, text, numeric: column.align == Align::Max };
+                ui.scope_builder(
+                    UiBuilder::new().id_salt(("cell", position)).max_rect(inner).layout(cell_layout(column, self.rtl)).accessibility_role(Role::Cell),
+                    |ui| {
+                        ui.set_clip_rect(cell_rect.intersect(ui.clip_rect()));
+                        ui.visuals_mut().override_text_color = Some(text);
+                        ui.ctx().accesskit_node_builder(ui.scope_id(), |node| node.set_column_index(position));
+                        cell(ui, &key, &column.key, &context);
+                    },
+                );
+            }
+        });
         let response = scope.response;
         if let Some(branch) = &branch {
             tree_item(ui, &response, branch, &key, &mut opened);
@@ -1594,7 +1591,8 @@ where
         }
         if response.secondary_clicked() {
             pass.focus = true;
-            let request = ContextMenuRequest { row: Some(key.clone()), selected, anchor: rect, pointer: response.interact_pointer_pos(), toggle: None };
+            let request =
+                ContextMenuRequest { row: Some(key.clone()), selected, anchor: rect, pointer: response.interact_pointer_pos(), toggle: None };
             pass.events.push(TableEvent::ContextMenu(request));
         }
         if ui.input(|i| i.has_accesskit_action_request(response.id, Action::Focus)) && pass.selection.lead.as_ref() != Some(&key) {
@@ -1620,7 +1618,15 @@ where
     /// pushed to `opened` as `OpenChange`s. Mirrored in a right-to-left layout. Returns what is
     /// left of `inner` for the host's cell.
     #[expect(unused_variables, clippy::ptr_arg, clippy::todo, reason = "skeleton: removed when the bodies land")]
-    fn tree_lead<K: Clone>(&self, ui: &mut Ui, tree: &TreeRows<'_, K>, inner: Rect, branch: &Branch, key: &K, opened: &mut Vec<OpenChange<K>>) -> Rect {
+    fn tree_lead<K: Clone>(
+        &self,
+        ui: &mut Ui,
+        tree: &TreeRows<'_, K>,
+        inner: Rect,
+        branch: &Branch,
+        key: &K,
+        opened: &mut Vec<OpenChange<K>>,
+    ) -> Rect {
         // craft-ui: crates/ui/src/list/row.rs:1074 `Geometry::new` (the indent shrinks, the
         // triangle column doesn't); crates/ui/src/list/tree.rs:164 `show_disclosure`.
         todo!()

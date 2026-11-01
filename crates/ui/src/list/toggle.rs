@@ -36,7 +36,19 @@ impl ToggleColumn {
     /// pointer while off. `name` is the cell's name for a screen reader, translated by the host as
     /// a whole pattern with `{row}` for the row's label: "Visibility {row}" (PhotoCraft).
     pub fn new(name: impl Into<String>, on_icon: Icon, off_icon: Icon, on: bool) -> Self {
-        Self { name: name.into(), on_icon, off_icon, on, key: None, label: None, exclusive: false, mixed: false, check: false, boxed: false, tooltip: None }
+        Self {
+            name: name.into(),
+            on_icon,
+            off_icon,
+            on,
+            key: None,
+            label: None,
+            exclusive: false,
+            mixed: false,
+            check: false,
+            boxed: false,
+            tooltip: None,
+        }
     }
 
     /// A check box column, as the Actions panel's include cell: [`check`](Self::check)`(true)`,

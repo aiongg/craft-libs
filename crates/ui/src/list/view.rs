@@ -1099,7 +1099,8 @@ where
         }
         if response.secondary_clicked() {
             self.focus = true;
-            let request = ContextMenuRequest { row: None, selected: false, anchor: response.rect, pointer: response.interact_pointer_pos(), toggle: None };
+            let request =
+                ContextMenuRequest { row: None, selected: false, anchor: response.rect, pointer: response.interact_pointer_pos(), toggle: None };
             self.events.push(ListEvent::ContextMenu(request));
         }
     }
