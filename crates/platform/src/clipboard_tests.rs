@@ -22,9 +22,9 @@ impl Fake {
 }
 
 impl ClipboardBackend for Fake {
-    fn write(&mut self, flavors: &[Flavor]) -> Result<(), ClipboardError> {
+    fn write(&mut self, flavors: &[Flavor]) -> Result<usize, ClipboardError> {
         *self.0.lock().unwrap() = flavors.to_vec();
-        Ok(())
+        Ok(0)
     }
     fn read(&mut self, mimes: &[&str], _limit: u64) -> Result<Option<Flavor>, ClipboardError> {
         let held = self.0.lock().unwrap();
@@ -118,7 +118,7 @@ fn event_clipboard_reads_the_offered_paste() {
     let sink = out.clone();
     let mut clipboard = Clipboard::new(EventClipboard::new(move |flavors| {
         sink.lock().unwrap().extend_from_slice(flavors);
-        Ok(())
+        Ok(0)
     }));
     assert_eq!(clipboard.read_text(), Ok(None));
     clipboard.offer_paste(vec![
@@ -145,8 +145,8 @@ struct Slow {
 }
 
 impl ClipboardBackend for Slow {
-    fn write(&mut self, _: &[Flavor]) -> Result<(), ClipboardError> {
-        Ok(())
+    fn write(&mut self, _: &[Flavor]) -> Result<usize, ClipboardError> {
+        Ok(0)
     }
     fn read(&mut self, _: &[&str], _: u64) -> Result<Option<Flavor>, ClipboardError> {
         Ok(None)
@@ -207,4 +207,100 @@ fn probe_answers_off_the_ui_thread_and_stops_on_drop() {
     assert_eq!(probe.pasteable(true), Some(false));
     drop(probe);
     assert!(start.elapsed() < PROBE_STOP_WAIT + Duration::from_millis(500), "a stuck owner doesn't hold the UI");
+}
+
+/// A backend that can't hold the first flavour (SVG, as arboard can't) and says it wrote the rest.
+struct SkipsFirst(Fake);
+
+impl ClipboardBackend for SkipsFirst {
+    fn write(&mut self, flavors: &[Flavor]) -> Result<usize, ClipboardError> {
+        self.0.write(&flavors[1..])?;
+        Ok(1)
+    }
+    fn read(&mut self, mimes: &[&str], limit: u64) -> Result<Option<Flavor>, ClipboardError> {
+        self.0.read(mimes, limit)
+    }
+    fn read_image(&mut self, limit: u64) -> Result<Option<ClipboardImage>, ClipboardError> {
+        self.0.read_image(limit)
+    }
+    fn read_files(&mut self, limit: usize) -> Result<Option<Vec<PathBuf>>, ClipboardError> {
+        self.0.read_files(limit)
+    }
+    fn has(&mut self, mimes: &[&str]) -> bool {
+        self.0.has(mimes)
+    }
+}
+
+// VectorCraft offers SVG first; a backend that holds only the text must have its own flavour
+// compared, so holds_ours is true after the write and false once another app copied.
+#[test]
+fn holds_ours_compares_the_flavor_the_backend_wrote() {
+    let fake = Fake::default();
+    let mut clipboard = Clipboard::new(SkipsFirst(fake.clone()));
+    let flavors = [Flavor::new(SVG, b"<svg/>".to_vec()), Flavor::text("label")];
+    assert_eq!(clipboard.write(&flavors).unwrap(), Written::Written);
+    assert!(clipboard.holds_ours());
+    fake.copy_elsewhere(vec![Flavor::text("theirs")]);
+    assert!(!clipboard.holds_ours());
+}
+
+// An offered paste is readable in the pass that delivered it only: after end_pass a later Paste
+// command finds nothing and has() is false.
+#[test]
+fn an_offered_paste_ends_with_its_pass() {
+    let mut clipboard = Clipboard::new(EventClipboard::new(|_| Ok(0)));
+    clipboard.offer_paste(vec![Flavor::text("pasted")]);
+    assert!(clipboard.has(&[TEXT]));
+    assert_eq!(clipboard.read_text().unwrap().as_deref(), Some("pasted"));
+    clipboard.end_pass();
+    assert!(!clipboard.has(&[TEXT]));
+    assert_eq!(clipboard.read_text(), Ok(None));
+}
+
+// The library's own reasons are PlatformTexts with an id; only the system's text is free.
+#[test]
+fn library_reasons_are_platform_texts() {
+    for error in
+        [ClipboardError::Unavailable, ClipboardError::Busy, ClipboardError::TooLarge { limit: 7 }, ClipboardError::NoFormat, ClipboardError::BadImage]
+    {
+        let text = error.text().unwrap();
+        assert!(text.id.starts_with("clipboard."), "{error:?}");
+    }
+    assert_eq!(ClipboardError::Other("EPIPE".into()).text(), None);
+    assert_eq!(ClipboardError::Other("EPIPE".into()).to_string(), "EPIPE");
+    assert_eq!(ClipboardError::Busy.to_string(), CLIPBOARD_BUSY.english);
+    assert!(ClipboardError::TooLarge { limit: 7 }.to_string().contains("7 bytes"));
+}
+
+// A Windows drive path is a file URI with three slashes, the drive colon kept and `\` turned to `/`;
+// other bytes are escaped.
+#[test]
+fn windows_paths_become_file_uris() {
+    let list = uri_list(&[PathBuf::from(r"C:\Users\Ann Lee\a.png")], true);
+    assert_eq!(list, "file:///C:/Users/Ann%20Lee/a.png\r\n");
+    let list = uri_list(&[PathBuf::from("/tmp/a b.png")], false);
+    assert_eq!(list, "file:///tmp/a%20b.png\r\n");
+}
+
+// The system clipboard's plan names the flavour it writes: for SVG, PDF, PNG, text it is the text,
+// index 3 (no decoder, so the PNG is skipped); SVG alone cannot be written.
+#[test]
+fn the_system_plan_names_the_flavor_it_writes() {
+    let flavors = [Flavor::new(SVG, b"<svg/>".to_vec()), Flavor::new(PDF, Vec::new()), Flavor::new(PNG, vec![0]), Flavor::text("label")];
+    assert_eq!(plan_write(&flavors, None).map(|(index, _)| index), Ok(3));
+    assert!(matches!(plan_write(&flavors[..2], None), Err(ClipboardError::NoFormat)));
+}
+
+// Two copy commands in one pass reach the browser as two writes, the second replacing the first,
+// so copy_through_egui sends the best flavour only and says which.
+#[cfg(feature = "ui")]
+#[test]
+fn the_web_copy_sends_one_flavor() {
+    let ctx = egui::Context::default();
+    let flavors = [Flavor::new(SVG, b"<svg/>".to_vec()), Flavor::text("label"), rgba8_flavor(&image(1))];
+    let mut wrote = None;
+    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| wrote = Some(copy_through_egui(ui.ctx(), &flavors)));
+    assert_eq!(wrote, Some(Ok(1)));
+    output.textures_delta.clear();
+    assert_eq!(output.platform_output.commands.len(), 1);
 }
