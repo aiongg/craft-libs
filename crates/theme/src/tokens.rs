@@ -217,6 +217,14 @@ pub struct OverlayColors {
     pub crop_invalid: Rgba,
     /// Canvas grid.
     pub grid: Rgba,
+    /// A grip at rest (CadCraft's blue).
+    pub grip: Rgba,
+    /// A grip under the pointer.
+    pub grip_warm: Rgba,
+    /// A grip being dragged.
+    pub grip_hot: Rgba,
+    /// A grip's outline.
+    pub grip_stroke: Rgba,
 }
 
 /// Chart and histogram colours.
@@ -324,6 +332,10 @@ impl ColorTokens {
                 crop_guide: c,
                 crop_invalid: c,
                 grid: c,
+                grip: c,
+                grip_warm: c,
+                grip_hot: c,
+                grip_stroke: c,
             },
             data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c, cyan: c, magenta: c, yellow: c, scope: c },
             caption: CaptionColors { close_hover: c, close_text: c, inactive: c },
@@ -524,6 +536,14 @@ color_tokens! {
     OverlayCropInvalid = "overlay.crop_invalid" => overlay.crop_invalid;
     /// `overlay.grid`
     OverlayGrid = "overlay.grid" => overlay.grid;
+    /// `overlay.grip`
+    OverlayGrip = "overlay.grip" => overlay.grip;
+    /// `overlay.grip_warm`
+    OverlayGripWarm = "overlay.grip_warm" => overlay.grip_warm;
+    /// `overlay.grip_hot`
+    OverlayGripHot = "overlay.grip_hot" => overlay.grip_hot;
+    /// `overlay.grip_stroke`
+    OverlayGripStroke = "overlay.grip_stroke" => overlay.grip_stroke;
     /// `data.series.0`
     DataSeries0 = "data.series.0" => data.series[0];
     /// `data.series.1`

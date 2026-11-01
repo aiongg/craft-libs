@@ -4,8 +4,8 @@
 use egui::Color32;
 
 use super::{GripSet, SelectionFrame};
-use crate::primitives::HandleStyle;
-use crate::theme::UiTokens;
+use crate::primitives::{Handle, HandleShape, HandleStyle};
+use crate::theme::{ToEgui, UiTokens};
 
 /// What [`SelectionFrame`] and [`SelectionOutline`](super::SelectionOutline) draw.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -57,21 +57,41 @@ pub struct GripSetStyle {
 
 impl SelectionFrame<'_> {
     /// The selection frame's look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `selection_frame` lands in task TK1")]
     pub fn style(tokens: &UiTokens) -> SelectionFrameStyle {
         // designcraft: crates/ui-egui/src/canvas/frames.rs:180 (key 3), :249 (centre 3.5);
         // cadcraft: crates/ui-egui/src/canvas/draw.rs:269 (1.5 dashed); the handle from
         // `Handle::style(tokens, HandleShape::Square)`.
-        todo!()
+        let f = &tokens.component.selection_frame;
+        SelectionFrameStyle {
+            colour: tokens.color.overlay.line.to_egui(),
+            line: f.line,
+            key_line: f.key_line,
+            centre: f.centre,
+            outline: f.outline,
+            dash: f.dash,
+            gap: f.gap,
+            grow_step: f.grow_step,
+            handle: Handle::style(tokens, HandleShape::Square),
+        }
     }
 }
 
 impl GripSet<'_> {
     /// The grips' look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `grip` lands in task TK1")]
     pub fn style(tokens: &UiTokens) -> GripSetStyle {
         // cadcraft: crates/ui-egui/src/canvas.rs:1062-1074 (warm 2, fills, 1 pt #103080 outline);
         // crates/ui-egui/src/canvas/grips.rs:71-75 (size), :95 (hit 3).
-        todo!()
+        let (g, o) = (&tokens.component.grip, &tokens.color.overlay);
+        GripSetStyle {
+            size: g.size,
+            midpoint_height: g.midpoint_height,
+            stroke: g.stroke,
+            hit_pad: g.hit_pad,
+            warm_pad: g.warm_pad,
+            cold: o.grip.to_egui(),
+            warm: o.grip_warm.to_egui(),
+            hot: o.grip_hot.to_egui(),
+            outline: o.grip_stroke.to_egui(),
+        }
     }
 }

@@ -39,6 +39,8 @@ pub struct RailTokens {
     pub row_gap: f32,
     /// Between the buttons of a panel rail: the inline gap.
     pub panel_gap: f32,
+    /// After a tool-rail slot that ends a group: the inline gap.
+    pub group_gap: f32,
     /// Above and below the buttons, and how far the edge line runs past the rail at each end:
     /// `space.pad.panel`.
     pub pad_y: f32,
@@ -177,6 +179,7 @@ impl Family for RailTokens {
         "gap" 0.0..=64.0 => gap;
         "row_gap" 0.0..=64.0 => row_gap;
         "panel_gap" 0.0..=64.0 => panel_gap;
+        "group_gap" 0.0..=64.0 => group_gap;
         "pad_y" 0.0..=32.0 => pad_y;
         "toggle_height" 0.0..=1024.0 => toggle_height;
         "toggle_icon" 0.0..=1024.0 => toggle_icon;
@@ -199,6 +202,7 @@ impl Family for RailTokens {
             gap: s.space.gap.inline / 2.0,
             row_gap: (s.space.gap.inline * values::RAIL_ROW_GAP_RATIO).round(),
             panel_gap: s.space.gap.inline,
+            group_gap: s.space.gap.inline,
             pad_y: s.space.pad.panel,
             toggle_height: values::RAIL_TOGGLE_HEIGHT,
             toggle_icon: values::RAIL_TOGGLE_ICON,

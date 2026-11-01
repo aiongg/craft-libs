@@ -621,6 +621,23 @@ fn crop_and_grid_overlay_colours_are_fixed() {
     }
 }
 
+/// Grips sit on the document, so they keep CadCraft's colours in every built-in mode.
+#[test]
+fn grip_overlay_colours_are_fixed() {
+    for theme in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            if matches!((theme.variants, mode), (Variants::LightOnly, Mode::Dark) | (Variants::DarkOnly, Mode::Light)) {
+                continue;
+            }
+            let c = resolve(theme, app(mode, Contrast::Standard), None).tokens.color;
+            assert_eq!(c.overlay.grip, hex("#2f6bff"));
+            assert_eq!(c.overlay.grip_warm, hex("#ff7f9f"));
+            assert_eq!(c.overlay.grip_hot, hex("#ff3b3b"));
+            assert_eq!(c.overlay.grip_stroke, hex("#103080"));
+        }
+    }
+}
+
 #[test]
 fn pins_replace_defaults_and_aliases_follow() {
     let mut def = grey_blue();

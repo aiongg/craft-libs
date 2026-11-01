@@ -3,7 +3,7 @@
 
 use egui::{Color32, Stroke, Vec2};
 
-use crate::theme::UiTokens;
+use crate::theme::{ToEgui, UiTokens};
 
 /// What the full-window regions paint with, from [`FullWindowStyle::of`]. Painting and layout
 /// code reads sizes and colours from here and nowhere else.
@@ -47,12 +47,28 @@ pub struct FullWindowStyle {
 
 impl FullWindowStyle {
     /// The style for the installed theme.
-    #[expect(clippy::todo, reason = "skeleton: TK1 adds the full_window tokens and fills this")]
     pub fn of(tokens: &UiTokens) -> Self {
         // new: the `full_window.*` family (step7-workspaces.md "Proposed tokens"); every field
         // above names its leaf. The note and error colours are the semantic `text.faint` and
         // `status.bad.fg`.
-        let _ = tokens;
-        todo!()
+        let (w, c) = (&tokens.component.full_window, &tokens.color);
+        let hairline = |colour: craft_theme::Rgba| Stroke::new(1.0, colour.to_egui());
+        FullWindowStyle {
+            side_width: w.side_width,
+            side_width_wide: w.side_width_wide,
+            side_pad: Vec2::new(w.side_pad_x, w.side_pad_y),
+            side_fill: w.side_fill.to_egui(),
+            side_divider: hairline(w.side_divider),
+            footer_gap: w.footer_gap,
+            canvas_fill: w.canvas_fill.to_egui(),
+            canvas_margin: w.canvas_margin,
+            canvas_outline: hairline(w.canvas_outline),
+            zoom_bar_height: w.zoom_bar_height,
+            zoom_bar_pad: Vec2::new(w.zoom_bar_pad_x, w.zoom_bar_pad_y),
+            zoom_bar_fill: w.side_fill.to_egui(),
+            progress: Vec2::new(w.progress_width, w.progress_height),
+            note: c.text.faint.to_egui(),
+            error: c.status.bad.fg.to_egui(),
+        }
     }
 }

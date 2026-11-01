@@ -5,7 +5,7 @@ use std::time::Duration;
 use egui::Color32;
 
 use super::HoverOutline;
-use crate::theme::UiTokens;
+use crate::theme::{ToEgui, UiTokens};
 
 /// What [`HoverOutline`] draws and how [`HoverLookup`](super::HoverLookup) waits. Every size is a
 /// token; the same at every Size (the outline sits on the document).
@@ -30,10 +30,17 @@ pub struct HoverStyle {
 
 impl HoverOutline {
     /// The hover look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `hover` lands in task TK1")]
     pub fn style(tokens: &UiTokens) -> HoverStyle {
         // pc: crates/ui-egui/src/tools/move_hover.rs:130 (1.5, accent);
         // crates/ui-egui/src/tools/object_finder.rs:26 (0.12 s), :166 (0.95, 0.42), :206 (40 ms).
-        todo!()
+        let h = &tokens.component.hover;
+        HoverStyle {
+            colour: tokens.color.overlay.line.to_egui(),
+            outline: h.outline,
+            fill_alpha: h.fill_alpha,
+            edge_alpha: h.edge_alpha,
+            debounce: Duration::from_millis(h.debounce_ms.max(0.0).round() as u64),
+            busy: Duration::from_millis(h.busy_ms.max(0.0).round() as u64),
+        }
     }
 }

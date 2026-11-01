@@ -1,10 +1,9 @@
 //! The look of the brush cursor and the resize gesture.
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 use egui::Color32;
 
-use crate::canvas::CursorStyle;
-use crate::theme::UiTokens;
+use crate::canvas::{CursorHost, CursorStyle};
+use crate::theme::{ToEgui, UiTokens};
 
 /// The sizes and colours of the brush pointers and the resize gesture: the cursor family's
 /// [`CursorStyle`] and the kernel leaves of the `brush` family. The same at every Size (they sit
@@ -30,7 +29,13 @@ pub struct BrushStyle {
 impl BrushStyle {
     /// The style from `tokens`.
     pub fn of(tokens: &UiTokens) -> Self {
-        // new: token task TK1 adds the `brush` family; `cursor` is `CursorHost::style(tokens)`.
-        todo!()
+        let b = &tokens.component.brush;
+        BrushStyle {
+            cursor: CursorHost::style(tokens),
+            tip_min_radius: b.tip_min_radius,
+            tip_min_crosshair: b.tip_min_crosshair,
+            resize_travel: b.resize_travel,
+            preview_tint: b.preview_tint.to_egui(),
+        }
     }
 }

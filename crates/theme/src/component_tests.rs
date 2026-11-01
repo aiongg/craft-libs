@@ -733,6 +733,10 @@ fn component_paths_round_trip_and_stay_clear_of_semantic_groups() {
             + 1
             // Navigator: the proxy rectangle.
             + 1
+            // Brush: the preview tint and the card fill; full window: the side column's fill and
+            // divider, the canvas region's fill and outline.
+            + 2
+            + 4
     );
     for &f in ComponentField::ALL {
         assert_eq!(ComponentField::from_path(&f.path()), Some(f));
