@@ -7,8 +7,6 @@
 //! `press`, `drag`, `release` and `key` calls and paints [`points`](OutlineDraft::points) itself
 //! (`Marquee::polyline` with [`MarqueeLook::Drawing`](super::MarqueeLook::Drawing)).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use egui::Modifiers;
 use kurbo::Point;
 
@@ -157,7 +155,13 @@ impl OutlineDraft {
     pub fn for_document(&mut self, key: u64) -> Option<DraftEvent> {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:95-100 `cancel_stale` (tool or document changed);
         // crates/ui-egui/src/canvas/gesture.rs:214-223 `polygon_cancel_stale`.
-        todo!()
+        let stale = self.is_open() && self.document.is_some_and(|d| d != key);
+        self.document = Some(key);
+        if stale {
+            self.reset();
+            return Some(DraftEvent::Cancelled);
+        }
+        None
     }
 
     /// The primary button went down at `at`; `has_selection` is whether the document has a
@@ -185,7 +189,48 @@ impl OutlineDraft {
         // pc: crates/ui-egui/src/canvas/gesture.rs:174-195 `polygon_click` (8 / zoom close with 3 or
         // more points; ⇧ not ⌥ through `constrained_polygon_point` :157-169, not for the first
         // vertex; ⌥ with nothing selected is not subtract :186-189).
-        todo!()
+        if !at.at.x.is_finite() || !at.at.y.is_finite() {
+            return None;
+        }
+        if !self.is_open() {
+            let alt_starts_straight = at.modifiers.alt && !has_selection;
+            let intent = if alt_starts_straight { Modifiers { alt: false, ..at.modifiers } } else { at.modifiers };
+            self.points.push(at.at);
+            self.cursor = Some(at.at);
+            self.down = true;
+            self.polygonal = match self.kind {
+                DraftKind::Freehand => false,
+                DraftKind::Mixed => alt_starts_straight,
+                DraftKind::Polygonal => true,
+            };
+            self.alt_from_press = self.kind == DraftKind::Mixed && intent.alt;
+            return Some(DraftEvent::Started { intent });
+        }
+        if self.kind == DraftKind::Mixed
+            && let Some(closed @ DraftEvent::Closed { .. }) = self.modifiers_changed(at.modifiers)
+        {
+            return Some(closed);
+        }
+        if self.hits_start(at) {
+            return self.close();
+        }
+        if !self.polygonal {
+            return None;
+        }
+        let mut vertex = at.at;
+        if self.kind == DraftKind::Polygonal
+            && at.modifiers.shift
+            && !at.modifiers.alt
+            && let Some(&last) = self.points.last()
+        {
+            vertex = turn_to_45(last, vertex);
+        }
+        self.cursor = Some(vertex);
+        self.down = true;
+        if self.append(vertex) {
+            self.straight.push(self.points.len() - 1);
+        }
+        Some(DraftEvent::Changed)
     }
 
     /// The pointer moved to `at` with the button down. Freehand and Mixed: the point is added
@@ -195,14 +240,28 @@ impl OutlineDraft {
     pub fn drag(&mut self, at: DraftPoint) -> Option<DraftEvent> {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:208-236 (while the button is down the outline
         // follows the pointer, ⌥ or not; `append` skips a repeated point :102-106).
-        todo!()
+        if !self.down {
+            return self.hover(at);
+        }
+        if !self.is_open() || !at.at.x.is_finite() || !at.at.y.is_finite() {
+            return None;
+        }
+        if self.kind != DraftKind::Polygonal || at.modifiers.alt {
+            self.append(at.at);
+        }
+        self.cursor = Some(at.at);
+        Some(DraftEvent::Changed)
     }
 
     /// The pointer moved to `at` with the button up: only the rubber band follows (hover moves
     /// never become vertices). [`DraftEvent::Changed`] while an outline is open.
     pub fn hover(&mut self, at: DraftPoint) -> Option<DraftEvent> {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:245-246 (hover moves update only the rubber band).
-        todo!()
+        if !self.is_open() || !at.at.x.is_finite() || !at.at.y.is_finite() {
+            return None;
+        }
+        self.cursor = Some(at.at);
+        Some(DraftEvent::Changed)
     }
 
     /// The primary button went up at `at`. Freehand: closes. Mixed: closes unless straight
@@ -210,7 +269,17 @@ impl OutlineDraft {
     /// waits. A release that closes an outline of fewer than 3 points cancels it.
     pub fn release(&mut self, at: DraftPoint) -> Option<DraftEvent> {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:237-239 (`up && down && !polygonal` commits).
-        todo!()
+        if !self.is_open() || !self.down {
+            return None;
+        }
+        self.down = false;
+        if at.at.x.is_finite() && at.at.y.is_finite() {
+            self.cursor = Some(at.at);
+        }
+        if self.polygonal {
+            return Some(DraftEvent::Changed);
+        }
+        self.close()
     }
 
     /// The held modifiers changed. Mixed only: ⌥ pressed after the press (or pressed again after
@@ -221,7 +290,26 @@ impl OutlineDraft {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:108-125 `modifiers` (⌥ held before the press means
         // subtract until released and pressed again; ⌥ released with the button up closes; with the
         // button down the cursor is anchored as a vertex).
-        todo!()
+        if self.kind != DraftKind::Mixed || !self.is_open() {
+            return None;
+        }
+        if self.alt_from_press && !modifiers.alt {
+            self.alt_from_press = false;
+        }
+        let was = self.polygonal;
+        let now = modifiers.alt && !self.alt_from_press;
+        if was && !now && !self.down {
+            return self.close();
+        }
+        if !was
+            && now
+            && self.down
+            && let Some(cursor) = self.cursor
+        {
+            self.append(cursor);
+        }
+        self.polygonal = now;
+        (was != now).then_some(DraftEvent::Changed)
     }
 
     /// Removes the last vertex while [`takes_retract`](Self::takes_retract); removing the only
@@ -230,7 +318,17 @@ impl OutlineDraft {
     pub fn retract(&mut self) -> Option<DraftEvent> {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:60-75 `undo_last_vertex`;
         // crates/ui-egui/src/canvas/gesture.rs:199-207 `polygon_retract`.
-        todo!()
+        if !self.takes_retract() {
+            return None;
+        }
+        if self.points.len() <= 1 {
+            self.reset();
+            return Some(DraftEvent::Cancelled);
+        }
+        self.points.pop();
+        let len = self.points.len();
+        self.straight.retain(|&i| i < len);
+        Some(DraftEvent::Changed)
     }
 
     /// Closes an open outline (Enter, a double-click): [`DraftEvent::Closed`] with 3 or more
@@ -238,57 +336,106 @@ impl OutlineDraft {
     pub fn close(&mut self) -> Option<DraftEvent> {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:284-286 (a double-click commits);
         // crates/ui-egui/src/canvas/gesture.rs:232-240 `commit_polygon` (3 or more points).
-        todo!()
+        if !self.is_open() {
+            return None;
+        }
+        let points = std::mem::take(&mut self.points);
+        let straight = std::mem::take(&mut self.straight);
+        self.reset();
+        Some(if points.len() >= 3 { DraftEvent::Closed { points, straight } } else { DraftEvent::Cancelled })
     }
 
     /// Drops an open outline: [`DraftEvent::Cancelled`]; `None` with no outline.
     pub fn cancel(&mut self) -> Option<DraftEvent> {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:272-276 (focus lost drops the outline).
-        todo!()
+        if !self.is_open() {
+            return None;
+        }
+        self.reset();
+        Some(DraftEvent::Cancelled)
     }
 
     /// The outline's points so far, in document units; empty with no outline.
     pub fn points(&self) -> &[Point] {
         // new: the field.
-        todo!()
+        &self.points
     }
 
     /// Indices into [`points`](Self::points) whose incoming segment is straight.
     pub fn straight(&self) -> &[usize] {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:29-34 `Lasso::straight`.
-        todo!()
+        &self.straight
     }
 
     /// The rubber band from the last vertex to the pointer while straight segments are on and
     /// the button is up, for the tool to paint; `None` otherwise.
     pub fn rubber_band(&self) -> Option<[Point; 2]> {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:231-236 (the rubber band's free end is `cursor`).
-        todo!()
+        if !self.polygonal || self.down {
+            return None;
+        }
+        Some([*self.points.last()?, self.cursor?])
     }
 
     /// Whether a press at `at` would close the outline (the tool's close cursor or ring): the
     /// same test as [`press`](Self::press).
     pub fn hits_start(&self, at: DraftPoint) -> bool {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:167-170.
-        todo!()
+        if self.points.len() < 3 {
+            return false;
+        }
+        let zoom = at.zoom.max(0.01);
+        let near = |q: Point, reach: f64| (q - at.at).hypot() < reach / zoom;
+        near(self.points[0], self.reach.close) || self.points.last().is_some_and(|&last| near(last, self.reach.same_point))
     }
 
     /// Whether an outline is open.
     pub fn is_open(&self) -> bool {
         // new: points not empty.
-        todo!()
+        !self.points.is_empty()
     }
 
     /// Whether the primary button is down on an open outline.
     pub fn is_down(&self) -> bool {
         // new: the field.
-        todo!()
+        self.down && self.is_open()
     }
 
     /// Whether [`retract`](Self::retract) acts: an outline is open and the button is up (between
     /// clicks). A freehand stroke with the button held is never retracted.
     pub fn takes_retract(&self) -> bool {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:50-58 `waiting_for_vertex`.
-        todo!()
+        self.is_open() && !self.down
     }
+
+    /// Adds `p` unless it equals the last point; whether it was added.
+    fn append(&mut self, p: Point) -> bool {
+        if self.points.last() == Some(&p) {
+            return false;
+        }
+        self.points.push(p);
+        true
+    }
+
+    /// Back to an empty draft (the document key stays).
+    fn reset(&mut self) {
+        self.points.clear();
+        self.straight.clear();
+        self.cursor = None;
+        self.down = false;
+        self.polygonal = false;
+        self.alt_from_press = false;
+    }
+}
+
+/// `point` turned about `from` to the nearest multiple of 45°, keeping its distance.
+fn turn_to_45(from: Point, point: Point) -> Point {
+    // pc: crates/ui-egui/src/canvas/gesture.rs:157-169 `constrained_polygon_point`.
+    let delta = point - from;
+    let length = delta.hypot();
+    if !length.is_finite() || length == 0.0 {
+        return point;
+    }
+    let angle = (delta.y.atan2(delta.x) / std::f64::consts::FRAC_PI_4).round() * std::f64::consts::FRAC_PI_4;
+    Point::new(from.x + length * angle.cos(), from.y + length * angle.sin())
 }

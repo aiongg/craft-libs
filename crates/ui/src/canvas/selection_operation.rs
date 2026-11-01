@@ -59,11 +59,16 @@ impl SelectionOperation {
     /// modifiers of the press (or [`DraftEvent::Started`](super::draft::DraftEvent::Started)'s
     /// `intent`) and keeps the answer for the gesture; the mode badge before the press follows the
     /// live modifiers through the same call.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn resolve(bar: SelectionOperation, modifiers: Modifiers, has_selection: bool) -> SelectionOperation {
         // pc: crates/ui-egui/src/canvas/tool_feedback.rs:55-86 `selection_mode` (modifiers over the
         // bar), :92-100 `document_selection_mode` (⌥ with nothing selected and a New bar is New).
-        todo!()
+        let operation = if modifiers.shift || modifiers.alt { Self::from_modifiers(modifiers) } else { bar };
+        let nothing_to_combine = modifiers.alt && !has_selection && bar == SelectionOperation::New;
+        if nothing_to_combine && matches!(operation, SelectionOperation::Subtract | SelectionOperation::Intersect) {
+            SelectionOperation::New
+        } else {
+            operation
+        }
     }
 
     /// The badge beside the selection pointer: `Add` a plus, `Subtract` a minus, `Intersect` a
