@@ -12,6 +12,14 @@ pub struct EffectLayer {
     pub visible: bool,
 }
 
+impl EffectLayer {
+    /// A visible layer of `filter` with the catalog's defaults (none for a key the catalog lacks).
+    fn of(filter: &str, catalog: &dyn FilterCatalog) -> Self {
+        let fields = catalog.filter(filter).map(|found| found.defaults()).unwrap_or_default();
+        Self { filter: filter.to_owned(), fields, visible: true }
+    }
+}
+
 /// A change of the stack, as the columns report it. Each is one undo step, except `Fields` during
 /// a slider drag (the history settles when the drag ends).
 #[derive(Clone, Debug, PartialEq)]
@@ -42,18 +50,63 @@ pub struct FilterGallerySession {
 
 impl FilterGallerySession {
     /// One effect layer of `filter` with its defaults (a new gallery: the last filter used).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-FG1")]
     pub fn new(filter: &str, catalog: &dyn FilterCatalog) -> Self {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:42 `EffectLayer::new`, :334 `open_on`.
-        todo!()
+        Self { effects: vec![EffectLayer::of(filter, catalog)] }
     }
 
     /// Applies `change`, keeping `selected` on the layer it named (a new or moved layer is
     /// selected). Returns whether the stack changed.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-FG1")]
     pub fn apply(&mut self, change: EffectChange, catalog: &dyn FilterCatalog, selected: &mut usize) -> bool {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:137 `set_filter`, :144 `add`, :151
         // `delete`, :164 `move_to`.
-        todo!()
+        let count = self.effects.len();
+        if count == 0 {
+            return false;
+        }
+        let current = (*selected).min(count - 1);
+        let changed = match change {
+            EffectChange::SetFilter { index, filter } => match self.effects.get_mut(index) {
+                Some(effect) if effect.filter != filter && catalog.filter(&filter).is_some() => {
+                    *effect = EffectLayer { visible: effect.visible, ..EffectLayer::of(&filter, catalog) };
+                    true
+                }
+                _ => false,
+            },
+            EffectChange::Fields { index, fields } => match self.effects.get_mut(index) {
+                Some(effect) if effect.fields != fields => {
+                    effect.fields = fields;
+                    true
+                }
+                _ => false,
+            },
+            EffectChange::Add => {
+                let copy = self.effects[current].clone();
+                self.effects.insert(current + 1, copy);
+                *selected = current + 1;
+                true
+            }
+            EffectChange::Delete if count > 1 => {
+                self.effects.remove(current);
+                *selected = current.saturating_sub(1);
+                true
+            }
+            EffectChange::Move { from, to } if from < count && to < count && from != to => {
+                let effect = self.effects.remove(from);
+                self.effects.insert(to, effect);
+                *selected = to;
+                true
+            }
+            EffectChange::Visible { index, visible } => match self.effects.get_mut(index) {
+                Some(effect) if effect.visible != visible => {
+                    effect.visible = visible;
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        };
+        *selected = (*selected).min(self.effects.len() - 1);
+        changed
     }
 }

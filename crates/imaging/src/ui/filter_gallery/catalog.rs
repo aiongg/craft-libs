@@ -1,6 +1,6 @@
 //! Filter Gallery's catalog: the app's filters, their categories and parameters (task WS-FG1).
 
-use craft_ui::dialog::{DialogFields, Param};
+use craft_ui::dialog::{DialogFields, Param, ParamKind};
 
 /// One filter of the gallery: its key in the app's command (`"filter.artistic.cutout"`), its
 /// label in English (translated through the app's `I18n` like `Param` labels), its category key,
@@ -19,10 +19,17 @@ impl GalleryFilter {
     /// The filter's defaults as fields: each Range's default, each Choice's default (or its first
     /// option), each Bool, and colour parameters (Neon Glow's) at their default; other kinds are
     /// left out.
-    #[expect(clippy::todo, reason = "skeleton: task WS-FG1")]
     pub fn defaults(&self) -> DialogFields {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:51 `default_params`.
-        todo!()
+        let mut fields = DialogFields::new();
+        for param in &self.params {
+            if matches!(param.kind, ParamKind::Range { .. } | ParamKind::Choice { .. } | ParamKind::Bool { .. } | ParamKind::Color { .. })
+                && let Some(value) = param.kind.default_value()
+            {
+                fields.set(param.key.clone(), value);
+            }
+        }
+        fields
     }
 }
 
