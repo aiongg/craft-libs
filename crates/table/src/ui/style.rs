@@ -3,8 +3,7 @@
 use craft_ui::theme::UiTokens;
 
 /// The sizes the spreadsheet widgets read, one `sheet.*` token each, at 100 % sheet zoom (the
-/// widgets scale them by the zoom). Proposed in the step 6b spec with GridCraft's values; a token
-/// task adds the `sheet` family to craft-theme and fills [`of`](Self::of). The family is
+/// widgets scale them by the zoom). craft-theme's `sheet` family holds GridCraft's values. The family is
 /// `sheet`, not `table`: `table.*` is the kernel's list table.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -36,9 +35,22 @@ pub struct SheetStyle {
 
 impl SheetStyle {
     /// The style from the theme's tokens: `SheetStyle::of(&Tokens::of(ui))`.
-    // new: one style per family (step 6a's `LayersStyle::of`); filled by the token task.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land")]
     pub fn of(tokens: &UiTokens) -> SheetStyle {
-        todo!()
+        let t = &tokens.component.sheet;
+        SheetStyle {
+            column_header_height: t.column_header_height,
+            row_header_digit: t.row_header_digit,
+            row_header_padding: t.row_header_padding,
+            outline_lane: t.outline_lane,
+            slicer_header: t.slicer_header,
+            slicer_tile: t.slicer_tile,
+            slicer_gap: t.slicer_gap,
+            slicer_padding: t.slicer_padding,
+            slicer_clear: t.slicer_clear,
+            error_tag: t.error_tag,
+            filter_button_min: t.filter_button_min,
+            filter_button_max: t.filter_button_max,
+            filter_button_inset: t.filter_button_inset,
+        }
     }
 }

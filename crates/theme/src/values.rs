@@ -1990,6 +1990,111 @@ pub const LAYERS_MASK_CROSS_INSET: f32 = 1.0;
 /// Stroke of the Smart Filters indicator's rings.
 pub const LAYERS_INDICATOR_RING_WIDTH: f32 = 1.0;
 
+/// The timecode and toolbar strip over the track headers.
+pub const TIMELINE_TOP_HEIGHT: f32 = 58.0;
+/// The ruler's height.
+pub const TIMELINE_RULER_HEIGHT: f32 = 44.0;
+/// The scroll bar's height.
+pub const TIMELINE_SCROLLBAR_HEIGHT: f32 = 17.0;
+/// The least thumb length of the scroll bar.
+pub const TIMELINE_SCROLL_THUMB_MIN: f32 = 34.0;
+/// The divider between video and audio tracks.
+pub const TIMELINE_DIVIDER_HEIGHT: f32 = 5.0;
+/// The Mix row at the bottom.
+pub const TIMELINE_MIX_ROW_HEIGHT: f32 = 34.0;
+/// The track headers' default width.
+pub const TIMELINE_HEADER_WIDTH: f32 = 204.0;
+/// A new video track's height.
+pub const TIMELINE_VIDEO_TRACK_HEIGHT: f32 = 60.0;
+/// A new audio track's height.
+pub const TIMELINE_AUDIO_TRACK_HEIGHT: f32 = 56.0;
+/// The least a track's height can be dragged to.
+pub const TIMELINE_TRACK_HEIGHT_MIN: f32 = 8.0;
+/// The most a track's height can be dragged to.
+pub const TIMELINE_TRACK_HEIGHT_MAX: f32 = 600.0;
+/// The colour label strip at a header's leading edge.
+pub const TIMELINE_LABEL_STRIP: f32 = 5.0;
+/// How near a snap target must be.
+pub const TIMELINE_SNAP_DISTANCE: f32 = 9.0;
+/// The widest a clip's edge zone gets on each side of an edge.
+pub const TIMELINE_EDGE_ZONE: f32 = 7.0;
+/// The distance from a cut within which the Selection tool rolls.
+pub const TIMELINE_ROLL_ZONE: f32 = 2.5;
+/// The room `TimeView::fit` leaves.
+pub const TIMELINE_FIT_MARGIN: f32 = 10.0;
+/// A transport button's square.
+pub const TIMELINE_TRANSPORT_BUTTON: f32 = 28.0;
+/// A keyframe glyph's box.
+pub const TIMELINE_KEYFRAME_GLYPH: f32 = 15.0;
+/// A hold key's square inside the glyph box.
+pub const TIMELINE_KEYFRAME_HOLD: f32 = 9.0;
+/// A bezier key's circle radius.
+pub const TIMELINE_KEYFRAME_BEZIER: f32 = 5.5;
+/// How near the playhead or another key a Shift-dragged key snaps.
+pub const TIMELINE_KEYFRAME_SNAP: f32 = 8.0;
+/// The keyframe navigator's arrow box width.
+pub const TIMELINE_KEYFRAME_ARROW_WIDTH: f32 = 14.0;
+/// The keyframe navigator's arrow box height.
+pub const TIMELINE_KEYFRAME_ARROW_HEIGHT: f32 = 20.0;
+/// The room between the keyframe navigator's parts.
+pub const TIMELINE_KEYFRAME_NAV_STEP: f32 = 16.0;
+/// A marker flag's width.
+pub const TIMELINE_MARKER_WIDTH: f32 = 8.0;
+/// How near a work-area end must be to grab it.
+pub const TIMELINE_WORK_AREA_GRAB: f32 = 8.0;
+/// The least room between two ruler labels.
+pub const TIMELINE_RULER_LABEL_GAP: f32 = 110.0;
+/// The least room between two ruler ticks.
+pub const TIMELINE_RULER_TICK_GAP: f32 = 12.0;
+/// The drag length that moves a timecode field's value one frame.
+pub const TIMELINE_SCRUB_STEP: f32 = 1.0;
+/// A comment pin's size.
+pub const REVIEW_PIN: f32 = 28.0;
+/// Pins nearer than this gather into a cluster.
+pub const REVIEW_CLUSTER_RADIUS: f32 = 24.0;
+/// The thread popover's width.
+pub const REVIEW_POPOVER_WIDTH: f32 = 300.0;
+/// The version history's timeline dot column.
+pub const REVIEW_VERSION_DOT_X: f32 = 20.0;
+/// The version history's text column.
+pub const REVIEW_VERSION_TEXT_X: f32 = 36.0;
+/// A cursor chat bubble's width.
+pub const REVIEW_CHAT_WIDTH: f32 = 220.0;
+/// A cursor chat bubble's corner radius.
+pub const REVIEW_CHAT_RADIUS: f32 = 14.0;
+/// The join field's width.
+pub const REVIEW_JOIN_WIDTH: f32 = 196.0;
+/// The revision card's colour bar width.
+pub const REVIEW_REVISION_BAR_WIDTH: f32 = 4.0;
+/// The revision card's colour bar height.
+pub const REVIEW_REVISION_BAR_HEIGHT: f32 = 16.0;
+/// The column headers' height.
+pub const SHEET_COLUMN_HEADER_HEIGHT: f32 = 21.0;
+/// The row headers' width per digit of the last visible row.
+pub const SHEET_ROW_HEADER_DIGIT: f32 = 7.0;
+/// The room around the row header's digits.
+pub const SHEET_ROW_HEADER_PADDING: f32 = 14.0;
+/// One outline lane.
+pub const SHEET_OUTLINE_LANE: f32 = 15.0;
+/// A slicer's header.
+pub const SHEET_SLICER_HEADER: f32 = 26.0;
+/// A slicer's value tile.
+pub const SHEET_SLICER_TILE: f32 = 22.0;
+/// The gap between slicer tiles.
+pub const SHEET_SLICER_GAP: f32 = 3.0;
+/// The padding round a slicer's tiles.
+pub const SHEET_SLICER_PADDING: f32 = 6.0;
+/// A slicer's clear button.
+pub const SHEET_SLICER_CLEAR: f32 = 16.0;
+/// The error checking tag's square.
+pub const SHEET_ERROR_TAG: f32 = 18.0;
+/// The filter button's least side.
+pub const SHEET_FILTER_BUTTON_MIN: f32 = 10.0;
+/// The filter button's largest side.
+pub const SHEET_FILTER_BUTTON_MAX: f32 = 18.0;
+/// The filter button's inset from the header cell's corner.
+pub const SHEET_FILTER_BUTTON_INSET: f32 = 2.0;
+
 /// Side of a media tile's flag glyph in its badge bar (LightCraft `grid.rs`).
 pub const TILE_FLAG: f32 = 14.0;
 /// Side of a media tile's colour dot (LightCraft: radius 5).
