@@ -3,7 +3,8 @@
 //! Every story uses fakes: a `StepList` and a `SnapshotList` built in the story,
 //! `FakeThumbSource<SnapshotId>` for the snapshot thumbnails; no document and no platform. Every
 //! string goes through story words. The panel's events are carried out on the story's fake
-//! document, so clicks, drops and renames change what the story shows.
+//! document, so clicks, drops and renames change what the story shows. A panel story draws the
+//! panel at the tile's width, as a dock does.
 //!
 //! | Story id | Shows |
 //! |---|---|
@@ -14,34 +15,31 @@
 //! | `composites/history-panel/branches` | EffectCraft-style tree rows with depth and off-line rows dimmed (a `StepRows` fake) |
 //! | `composites/history-panel/newest-first` | LightCraft's order, no footer features |
 //! | `composites/history-panel/short-dock` | 6 snapshots and 20 states in a 160 pt dock: the rows scroll above the footer |
-//! | `composites/history-panel/menu` | the panel menu in each enabled combination |
+//! | `composites/history-panel/menu` | the panel menu beside a real panel: its rows enable from what the panel stores, and a chosen row runs on the document |
 //! | `composites/undo-list/popup` | WordCraft's list with 30 steps, three marked, footer "Undo 3 Actions", and the Cancel row |
-//! | `composites/history-forms/new-snapshot` | the New Snapshot form with Name and From |
-//! | `composites/history-forms/options` | the History Options form with one extra row |
+//! | `composites/history-panel/new-snapshot` | the New Snapshot form with Name and From |
+//! | `composites/history-panel/options` | the History Options form with one extra row |
 
+use egui::{Ui, vec2};
 use std::borrow::Cow;
-use std::sync::{Arc, Mutex, PoisonError};
-
-use egui::{IdSalt, Ui, vec2};
 
 use super::labels::{HistoryOptionsLabels, SnapshotFormLabels};
-use super::menu::MenuFacts;
-use super::{HistoryEvent, HistoryFeatures, HistoryKey, HistoryOrder, HistoryPanel, HistoryPanelState, UndoList};
+use super::{HistoryEvent, HistoryFeatures, HistoryOrder, HistoryPanel, HistoryPanelState, UndoList};
 use crate::canvas::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
 use crate::controls::Button;
-use crate::dialog::{CommandForm, DialogHost, DialogResult, Param, ParamKind};
+use crate::dialog::{CommandForm, Param, ParamKind, StackDialog};
 use crate::edit::snapshots::{HistoryOptions, HistorySource, HistorySourceChoice, SnapshotId, SnapshotList, history_options_form, new_snapshot_form};
 use crate::edit::steps::{HistoryStep, StepId, StepList, StepRows};
 use crate::icons::Icon;
 use crate::localized::{Labels as _, LocaleNumbers};
-use crate::menu::{MenuEntry, PressMenu};
-use crate::primitives::{Content, Gap, Row, Text};
-use crate::story::{Level, NoArgs, PatternStoryLabels, Story, StoryArgs, StoryChoice, StoryLabels};
+use crate::menu::PressMenu;
+use crate::primitives::{Content, Text};
+use crate::story::{self, Level, NoArgs, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::typed_story;
 
 crate::words! {
     /// The sample text of the History stories, English by default: the names of the steps and
-    /// snapshots, the story's own controls and the From options of the New Snapshot form.
+    /// snapshots, the panel menu's button and the From options of the New Snapshot form.
     #[non_exhaustive]
     pub struct HistoryStoryLabels {
         open: "historyStory.open" = "Open";
@@ -60,13 +58,7 @@ crate::words! {
         snapshot_skin: "historyStory.snapshotSkin" = "Skin smoothed";
         snapshot_final: "historyStory.snapshotFinal" = "Final colours";
         step_n: "historyStory.stepN" = "Step {n}";
-        last_event: "historyStory.lastEvent" = "Last event: {event}";
-        no_event: "historyStory.noEvent" = "No event yet";
-        reset: "historyStory.reset" = "Reset";
-        menu_fresh: "historyStory.menuFresh" = "Before the first pass";
-        menu_middle: "historyStory.menuMiddle" = "Middle of history";
-        menu_oldest: "historyStory.menuOldest" = "At the oldest state";
-        menu_snapshot: "historyStory.menuSnapshot" = "Snapshot selected";
+        panel_menu: "historyStory.panelMenu" = "Panel menu";
         from_document: "historyStory.fromDocument" = "Full Document";
         from_merged: "historyStory.fromMerged" = "Merged Layers";
         from_layer: "historyStory.fromLayer" = "Current Layer";
@@ -203,11 +195,13 @@ pub(super) struct Doc {
     pub(super) rows: Option<BranchRows>,
     /// The last event the panel reported.
     pub(super) last: Option<HistoryEvent>,
+    /// A snapshot whose rename the next pass starts.
+    pub(super) rename: Option<SnapshotId>,
 }
 
 impl Doc {
     pub(super) fn new(steps: StepList, snapshots: SnapshotList) -> Self {
-        Doc { steps, snapshots, panel: HistoryPanelState::new(), source: HistorySourceChoice::default(), rows: None, last: None }
+        Doc { steps, snapshots, panel: HistoryPanelState::new(), source: HistorySourceChoice::default(), rows: None, last: None, rename: None }
     }
 
     /// Carries out what the panel reported, as an app does: jumps, restores a snapshot as one new
@@ -262,20 +256,21 @@ struct PanelOptions {
     features: HistoryFeatures,
     order: HistoryOrder,
     thumbnails: bool,
+    /// The dock's width, kept to the space the story has.
     width: f32,
     height: f32,
-    /// Start a rename on the second snapshot, once.
-    rename: bool,
+    /// Show the panel menu's button under the panel.
+    menu: bool,
 }
 
 impl PanelOptions {
     fn new(salt: &'static str, width: f32, height: f32) -> Self {
-        PanelOptions { salt, features: HistoryFeatures::default(), order: HistoryOrder::default(), thumbnails: true, width, height, rename: false }
+        PanelOptions { salt, features: HistoryFeatures::default(), order: HistoryOrder::default(), thumbnails: true, width, height, menu: false }
     }
 }
 
-/// The story's document, kept in egui memory under `name` and rebuilt when `signature` changes or
-/// Reset is pressed; `show` draws the story over it.
+/// The story's document, kept per story instance under `name` and rebuilt when `signature`
+/// changes or Reset is pressed; `show` draws the story over it.
 fn with_doc<S: PartialEq + Clone + Send + Sync + 'static>(
     ui: &mut Ui,
     name: &str,
@@ -283,12 +278,10 @@ fn with_doc<S: PartialEq + Clone + Send + Sync + 'static>(
     make: impl FnOnce(&HistoryStoryLabels) -> Doc,
     show: impl FnOnce(&mut Ui, &mut Doc, &HistoryStoryLabels),
 ) {
-    type Slot<S> = Arc<Mutex<Option<(S, Doc)>>>;
     let words = HistoryStoryLabels::of(ui);
-    let key = ui.make_persistent_id(("craft_ui::edit::history_panel::stories", name));
-    let slot: Slot<S> = ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, || Slot::<S>::new(Mutex::new(None))).clone());
-    let mut slot = slot.lock().unwrap_or_else(PoisonError::into_inner);
-    if ui.add(Button::new(&words.reset)).clicked() {
+    let slot = story::shared(ui, name, || None::<(S, Doc)>);
+    let mut slot = story::lock(&slot);
+    if ui.add(Button::new(&StoryLabels::of(ui).reset)).clicked() {
         *slot = None;
     }
     if slot.as_ref().is_none_or(|(kept, _)| *kept != signature) {
@@ -299,23 +292,27 @@ fn with_doc<S: PartialEq + Clone + Send + Sync + 'static>(
     }
 }
 
-/// Draws the panel over `doc` in a dock of the options' size, carries out its events and names
-/// the last one under it.
+/// Names the last event the panel reported under it.
+fn show_last_event(ui: &mut Ui, doc: &Doc) {
+    let words = StoryLabels::of(ui);
+    let text = match &doc.last {
+        Some(event) => craft_i18n::fmt(&words.last_event, &[("event", &format!("{event:?}"))]),
+        None => words.no_event.clone(),
+    };
+    ui.add(Text::new(text).content(Content::Muted));
+}
+
+/// Draws the panel over `doc` in a dock of the options' size (at most the width the story has),
+/// carries out its events and names the last one under it.
 fn show_panel(ui: &mut Ui, doc: &mut Doc, words: &HistoryStoryLabels, options: &PanelOptions) {
     let ctx = ui.ctx().clone();
     let thumbnails = Thumbnails::<SnapshotId>::in_context(&ctx, "history-story.thumbs", ThumbnailOptions::default());
     let pictures = FakeThumbSource::<SnapshotId>::new();
     let source = doc.source.resolve(&doc.steps, &doc.snapshots);
+    let rename = doc.rename.take();
     let mut events = Vec::new();
-    ui.allocate_ui(vec2(options.width, options.height), |ui| {
-        let mut rename = None;
-        if options.rename {
-            let rename_once = ui.make_persistent_id(("craft_ui::edit::history_panel::stories::rename", options.salt));
-            if ui.data(|d| d.get_temp::<bool>(rename_once)).is_none() {
-                ui.data_mut(|d| d.insert_temp(rename_once, true));
-                rename = doc.snapshots.iter().nth(1).map(|snapshot| snapshot.id);
-            }
-        }
+    let width = options.width.min(ui.available_width());
+    ui.allocate_ui(vec2(width, options.height), |ui| {
         let rows: &dyn StepRows = match &doc.rows {
             Some(rows) => rows,
             None => &doc.steps,
@@ -336,11 +333,17 @@ fn show_panel(ui: &mut Ui, doc: &mut Doc, words: &HistoryStoryLabels, options: &
     for event in events {
         doc.apply(event);
     }
-    let text = match &doc.last {
-        Some(event) => words.last_event.replace("{event}", &format!("{event:?}")),
-        None => words.no_event.clone(),
-    };
-    ui.add(Text::new(text).content(Content::Muted));
+    if options.menu {
+        // The menu reads what the panel stored in this pass.
+        let entries = HistoryPanel::panel_menu(&ctx, options.salt, &doc.panel);
+        let button = ui.add(Button::new(&words.panel_menu));
+        if let Some(command) = PressMenu::new(&entries).show(ui, &button).chosen
+            && let Some(event) = HistoryPanel::run_command(&ctx, options.salt, &mut doc.panel, &command)
+        {
+            doc.apply(event);
+        }
+    }
+    show_last_event(ui, doc);
 }
 
 #[derive(StoryArgs, Debug, PartialEq)]
@@ -464,7 +467,7 @@ pub(crate) fn stories() -> Vec<Story> {
         typed_story!("composites/history-panel/menu", Level::Composites, "History panel", "Menu", NoArgs {}, show_menu),
         typed_story!("composites/undo-list/popup", Level::Composites, "Undo list", "Popup", UndoArgs { steps: 30, marked: 3 }, show_undo_list),
         typed_story!(
-            "composites/history-forms/new-snapshot",
+            "composites/history-panel/new-snapshot",
             Level::Composites,
             "History panel",
             "New Snapshot form",
@@ -472,7 +475,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_new_snapshot
         ),
         typed_story!(
-            "composites/history-forms/options",
+            "composites/history-panel/options",
             Level::Composites,
             "History panel",
             "History Options form",
@@ -504,13 +507,13 @@ fn show_states(ui: &mut Ui, args: &mut StatesArgs) {
 }
 
 /// Three snapshots above the states, the second selected, the source on the third snapshot, and a
-/// rename running on the second.
+/// rename running on the second (started again when the args change).
 fn show_snapshots(ui: &mut Ui, args: &mut SnapshotsArgs) {
     let (thumbnails, rename, on_snapshot) = (args.thumbnails, args.rename, args.source_on_snapshot);
     with_doc(
         ui,
         "snapshots",
-        on_snapshot,
+        (on_snapshot, rename),
         |words| {
             let mut doc = Doc::new(words.step_list(8, 5, false), words.snapshot_list(3));
             if on_snapshot && let Some(snapshot) = doc.snapshots.iter().nth(2) {
@@ -519,13 +522,13 @@ fn show_snapshots(ui: &mut Ui, args: &mut SnapshotsArgs) {
             if let Some(id) = doc.snapshots.iter().nth(1).map(|snapshot| snapshot.id) {
                 doc.apply(HistoryEvent::SelectSnapshot(id));
                 doc.last = None;
+                doc.rename = rename.then_some(id);
             }
             doc
         },
         |ui, doc, words| {
             let mut options = PanelOptions::new("history-snapshots", 280.0, 380.0);
             options.thumbnails = thumbnails;
-            options.rename = rename;
             show_panel(ui, doc, words, &options);
         },
     );
@@ -628,136 +631,86 @@ fn show_short_dock(ui: &mut Ui, args: &mut ShortDockArgs) {
     );
 }
 
-/// The panel menu in four combinations of what the panel last stored.
+/// The panel menu beside a real panel: its rows enable from what the panel stores, so jumping to
+/// the oldest state or selecting a snapshot changes them, and a chosen row runs on the document.
 fn show_menu(ui: &mut Ui, _args: &mut NoArgs) {
-    let words = HistoryStoryLabels::of(ui);
-    let picked = StoryLabels::of(ui).picked;
-    let none = PatternStoryLabels::of(ui).nothing_chosen;
-    let ctx = ui.ctx().clone();
-    let current = StepId::new(3);
-    let facts = |delete: Option<HistoryKey>, can_forward: bool, can_backward: bool, can_clear: bool| MenuFacts {
-        features: HistoryFeatures::default(),
-        can_forward,
-        can_backward,
-        delete,
-        can_clear,
-        current,
-        rows_revision: 0,
-    };
-    let snapshot = SnapshotId::new(1);
-    let mut selected = HistoryPanelState::new();
-    selected.snapshot_selected(snapshot, 0);
-    let cases: [(&str, &str, Option<MenuFacts>, HistoryPanelState); 4] = [
-        (&words.menu_fresh, "history-menu-fresh", None, HistoryPanelState::new()),
-        (&words.menu_middle, "history-menu-middle", Some(facts(Some(HistoryKey::Step(current)), true, true, true)), HistoryPanelState::new()),
-        (&words.menu_oldest, "history-menu-oldest", Some(facts(None, true, false, true)), HistoryPanelState::new()),
-        (&words.menu_snapshot, "history-menu-snapshot", Some(facts(Some(HistoryKey::Snapshot(snapshot)), false, true, true)), selected),
-    ];
-    let last = ui.make_persistent_id("craft_ui::edit::history_panel::stories::menu-last");
-    Row::new(Gap::Section).show(ui, |ui| {
-        for (label, salt, stored, state) in &cases {
-            if let Some(stored) = stored {
-                stored.store(&ctx, MenuFacts::id(*salt));
-            }
-            let entries: Vec<MenuEntry<String>> = HistoryPanel::panel_menu(&ctx, *salt, state);
-            let button = ui.add(Button::new(*label));
-            if let Some(command) = PressMenu::new(&entries).show(ui, &button).chosen {
-                ui.data_mut(|d| d.insert_temp(last, command));
-            }
-        }
-    });
-    let text = match ui.data(|d| d.get_temp::<String>(last)) {
-        Some(command) => picked.replace("{action}", &command),
-        None => none,
-    };
-    ui.add(Text::new(text).content(Content::Muted));
+    with_doc(
+        ui,
+        "menu",
+        (),
+        |words| Doc::new(words.step_list(8, 4, false), words.snapshot_list(3)),
+        |ui, doc, words| {
+            let mut options = PanelOptions::new("history-menu", 260.0, 300.0);
+            options.menu = true;
+            show_panel(ui, doc, words, &options);
+        },
+    );
 }
 
 /// WordCraft's undo list: `steps` actions, `marked` of them marked, in a popup frame. Clicking a
 /// row or pressing Enter names the count under it.
 fn show_undo_list(ui: &mut Ui, args: &mut UndoArgs) {
     let words = HistoryStoryLabels::of(ui);
+    let numbers = LocaleNumbers::of(ui);
     let mut steps = StepList::new(HistoryStep::new(words.open.as_str()));
     steps.set_limit(args.steps.max(StepList::DEFAULT_LIMIT));
     for n in 1..=args.steps {
-        let _ = steps.record(HistoryStep::new(words.step_n.replace("{n}", &n.to_string())));
+        let _ = steps.record(HistoryStep::new(craft_i18n::fmt(&words.step_n, &[("n", &numbers.count(n as u64))])));
     }
     let marked = args.marked.min(args.steps);
-    let applied = ui.make_persistent_id("craft_ui::edit::history_panel::stories::undo-marked");
-    let reported = ui.make_persistent_id("craft_ui::edit::history_panel::stories::undo-event");
+    let reported = story::shared(ui, "undo-event", || None::<String>);
     egui::Frame::popup(ui.style()).show(ui, |ui| {
-        if ui.data(|d| d.get_temp::<usize>(applied)) != Some(marked) {
-            ui.data_mut(|d| d.insert_temp(applied, marked));
-            let mark: Option<usize> = marked.checked_sub(1);
-            let list_id = ui.make_persistent_id(IdSalt::new("history-undo-list"));
-            ui.data_mut(|d| d.insert_temp(list_id.with("mark"), mark));
-        }
-        if let Some(event) = UndoList::new("history-undo-list", &steps).show(ui).event {
-            ui.data_mut(|d| d.insert_temp(reported, format!("{event:?}")));
+        // The mark applies on a list's first show: a new mark is a new list.
+        let list = UndoList::new(("history-undo-list", marked), &steps).marked(marked.checked_sub(1));
+        if let Some(event) = list.show(ui).event {
+            *story::lock(&reported) = Some(format!("{event:?}"));
         }
     });
-    let text = match ui.data(|d| d.get_temp::<String>(reported)) {
-        Some(event) => words.last_event.replace("{event}", &event),
-        None => words.no_event.clone(),
+    let story_words = StoryLabels::of(ui);
+    let text = match &*story::lock(&reported) {
+        Some(event) => craft_i18n::fmt(&story_words.last_event, &[("event", event)]),
+        None => story_words.no_event.clone(),
     };
     ui.add(Text::new(text).content(Content::Muted));
-}
-
-/// Opens `make()` on a dialog host kept under `name` while `open` is on, and names the fields the
-/// user confirmed under the story.
-fn drive_form(ui: &mut Ui, name: &str, open: &mut bool, make: impl FnOnce(&HistoryStoryLabels) -> CommandForm) {
-    let words = HistoryStoryLabels::of(ui);
-    let key = ui.make_persistent_id(("craft_ui::edit::history_panel::stories::form", name));
-    let result_key = key.with("result");
-    let host: Arc<Mutex<DialogHost>> = ui.data_mut(|d| d.get_temp_mut_or_insert_with(key, Arc::<Mutex<DialogHost>>::default).clone());
-    let ctx = ui.ctx().clone();
-    // The form has one fixed id: only one instance shown in a pass draws it.
-    if !crate::story::claim(&ctx, &format!("history-form-{name}"), ui.scope_id()) {
-        return;
-    }
-    let mut host = host.lock().unwrap_or_else(PoisonError::into_inner);
-    if crate::story::dialog_shown(ui, *open) {
-        if !host.is_open::<CommandForm>() {
-            host.open(make(&words));
-            ui.data_mut(|d| d.remove_temp::<String>(result_key));
-        }
-        host.show(&ctx);
-        if let Some(result) = host.take::<CommandForm>() {
-            if let DialogResult::Ok(done) = result {
-                let fields: Vec<String> = done.fields.iter().map(|(key, value)| format!("{key} = {value:?}")).collect();
-                let text = StoryLabels::of(ui).result_ok.replace("{value}", &fields.join(", "));
-                ui.data_mut(|d| d.insert_temp(result_key, text));
-            }
-            crate::story::dialog_closed(ui, open);
-        }
-    } else {
-        host.cancel::<CommandForm>(&ctx);
-        host.take::<CommandForm>();
-    }
-    if let Some(text) = ui.data(|d| d.get_temp::<String>(result_key)) {
-        ui.add(Text::new(text).content(Content::Muted));
-    }
 }
 
 /// The New Snapshot form with its suggested name and the three From options.
 fn show_new_snapshot(ui: &mut Ui, args: &mut FormArgs) {
     let labels = SnapshotFormLabels::of(ui);
     let numbers = LocaleNumbers::of(ui);
-    drive_form(ui, "new-snapshot", &mut args.open, |words| {
-        let from = vec![
-            ("fullDocument".to_owned(), words.from_document.clone()),
-            ("mergedLayers".to_owned(), words.from_merged.clone()),
-            ("currentLayer".to_owned(), words.from_layer.clone()),
-        ];
-        new_snapshot_form("story-new-snapshot", &labels, &SnapshotList::new().suggested_name(&labels, &numbers), from)
-    });
+    let words = HistoryStoryLabels::of(ui);
+    let from = vec![
+        ("fullDocument".to_owned(), words.from_document.clone()),
+        ("mergedLayers".to_owned(), words.from_merged.clone()),
+        ("currentLayer".to_owned(), words.from_layer.clone()),
+    ];
+    let name = SnapshotList::new().suggested_name(&labels, &numbers);
+    let describe = describe_fields(ui);
+    story::drive(ui, "new-snapshot", &mut args.open, (), || new_snapshot_form("story-new-snapshot", &labels, &name, from), |_| {}, describe);
 }
 
 /// The History Options form with the app's extra check box after Allow Non-Linear History.
 fn show_options(ui: &mut Ui, args: &mut FormArgs) {
     let labels = HistoryOptionsLabels::of(ui);
-    drive_form(ui, "options", &mut args.open, |words| {
-        let extra = vec![Param::new("visibilityUndoable", &words.visibility_undoable, ParamKind::Bool { default: false })];
-        history_options_form("story-history-options", &labels, &HistoryOptions { non_linear: false }, extra)
-    });
+    let words = HistoryStoryLabels::of(ui);
+    let extra = vec![Param::new("visibilityUndoable", &words.visibility_undoable, ParamKind::Bool { default: false })];
+    let describe = describe_fields(ui);
+    story::drive(
+        ui,
+        "options",
+        &mut args.open,
+        (),
+        || history_options_form("story-history-options", &labels, &HistoryOptions { non_linear: false }, extra),
+        |_| {},
+        describe,
+    );
+}
+
+/// Words the fields a form returned: `key = value` pairs.
+fn describe_fields(ui: &Ui) -> impl FnOnce(<CommandForm as StackDialog>::Result) -> String + use<> {
+    let template = StoryLabels::of(ui).result_ok.clone();
+    move |done| {
+        let fields: Vec<String> = done.fields.iter().map(|(key, value)| format!("{key} = {value:?}")).collect();
+        craft_i18n::fmt(&template, &[("value", &fields.join(", "))])
+    }
 }
