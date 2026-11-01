@@ -2,7 +2,7 @@
 
 use std::cell::Cell;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use craft_docpath::links::{
     Candidate, CandidateProblem, Link, LinkFiles, LinkSearch, MatchCriteria, SearchEnd, SearchHit, SearchUpdate, check_candidate, derive_remap, rank,
@@ -90,8 +90,9 @@ pub struct RelinkOptions {
     /// Without jobs and without a `Host` the dialog can't run a search: Search stays disabled.
     pub jobs: Option<Arc<dyn Jobs>>,
     /// The table's saved columns (order, hidden, widths, sort); `None` starts from the default
-    /// layout. The dialog returns the layout it ends with in [`RelinkOutcome::layout`].
-    pub layout: Option<TableLayout<RelinkColumn>>,
+    /// layout. The dialog writes every change into the handle, so the host reads the layout
+    /// after any outcome (Done, Cancel, Esc) from its own clone of it.
+    pub layout: RelinkLayout,
 }
 
 impl Default for RelinkOptions {
@@ -105,21 +106,19 @@ impl Default for RelinkOptions {
             folder: None,
             document: None,
             jobs: None,
-            layout: None,
+            layout: RelinkLayout::default(),
         }
     }
 }
 
 /// What Done returns: every link the dialog made and every row left offline, applied by the
 /// host as one undo step.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RelinkOutcome<K> {
     /// The links relinked, each with its checked candidate (path and identity to store).
     pub linked: Vec<(K, Candidate)>,
     /// The links the user left offline.
     pub offline: Vec<K>,
-    /// The table's layout as the user left it, for the host to save.
-    pub layout: TableLayout<RelinkColumn>,
 }
 
 /// The running search's progress line: `{n}` files indexed so far.
@@ -192,8 +191,8 @@ craft_ui::words! {
 ///   other missing row it fits (`Remap::apply`, `resolve_absolute`, then the checks in a job) is
 ///   linked; rows that fail stay missing. Leave Offline and Leave All Offline mark rows. Done
 ///   returns the outcome; Cancel and Esc return nothing; Esc while a pick is open closes the pick
-///   only; the dialog does not see the key. The table sorts by column and returns its layout in
-///   [`RelinkOutcome::layout`]. A network or device link is refused before any read.
+///   only; the dialog does not see the key. The table sorts by column and saves its layout
+///   through [`RelinkOptions::layout`] with every outcome. A network or device link is refused before any read.
 /// - **Never blocks.** The search and every check are jobs; results arrive through `Wake`.
 /// - **AccessKit.** `Dialog`; the table a `Table`; candidates a `ListBox`; the progress a live
 ///   region.
@@ -210,6 +209,39 @@ enum Fate {
     Missing,
     Linked,
     Offline,
+}
+
+/// The dialog table's layout, shared with the host: the host keeps a clone, the dialog writes
+/// each change into it, and the host saves [`get`](RelinkLayout::get) when the dialog has closed.
+#[derive(Clone, Debug)]
+pub struct RelinkLayout(Arc<Mutex<TableLayout<RelinkColumn>>>);
+
+impl RelinkLayout {
+    /// A handle holding `layout`, e.g. the one read back from settings.
+    pub fn new(layout: TableLayout<RelinkColumn>) -> Self {
+        Self(Arc::new(Mutex::new(layout)))
+    }
+
+    /// The layout now.
+    pub fn get(&self) -> TableLayout<RelinkColumn> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+
+    fn set(&self, layout: &TableLayout<RelinkColumn>) {
+        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = layout.clone();
+    }
+}
+
+impl Default for RelinkLayout {
+    /// Every column in order, nothing hidden, unsorted.
+    fn default() -> Self {
+        Self::new(TableLayout {
+            order: vec![RelinkColumn::Owner, RelinkColumn::FileName, RelinkColumn::FilePath, RelinkColumn::Status],
+            hidden: Vec::new(),
+            widths: Vec::new(),
+            sort: None,
+        })
+    }
 }
 
 /// The dialog table's columns: the keys of its saved [`TableLayout`].
@@ -303,12 +335,7 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> RelinkDialog<K> {
     pub fn new(rows: Vec<RelinkRow<K>>, files: Arc<dyn LinkFiles>, options: RelinkOptions) -> Self {
         // filmcraft: crates/ui-egui/src/panels/media_dialogs.rs:146 (`link_media`).
         let folder = options.folder.as_ref().map(|f| f.display().to_string()).unwrap_or_default();
-        let options_layout = options.layout.clone().unwrap_or_else(|| TableLayout {
-            order: vec![RelinkColumn::Owner, RelinkColumn::FileName, RelinkColumn::FilePath, RelinkColumn::Status],
-            hidden: Vec::new(),
-            widths: Vec::new(),
-            sort: None,
-        });
+        let options_layout = options.layout.get();
         let row_sel = if rows.is_empty() { Selection::new() } else { Selection::only(0) };
         let model = Model {
             fates: vec![Fate::Missing; rows.len()],
@@ -452,7 +479,7 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> Model<K> {
 
     fn outcome(&mut self) -> RelinkOutcome<K> {
         self.search = None;
-        RelinkOutcome { linked: std::mem::take(&mut self.linked), offline: std::mem::take(&mut self.offline), layout: self.layout.clone() }
+        RelinkOutcome { linked: std::mem::take(&mut self.linked), offline: std::mem::take(&mut self.offline) }
     }
 
     /// Empties the candidate list and stops the search: the selected row changed or was resolved.
@@ -742,6 +769,9 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> Model<K> {
                     RelinkColumn::Status => drop(colored(ui, TypeRole::Body, bad, &row.status)),
                 }
             });
+        if self.layout != self.options.layout.get() {
+            self.options.layout.set(&self.layout);
+        }
         if self.row_sel.lead.is_none() {
             // A row stays selected while any is missing.
             self.row_sel = before.map_or_else(Selection::new, Selection::only);

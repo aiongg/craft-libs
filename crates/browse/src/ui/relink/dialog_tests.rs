@@ -14,7 +14,7 @@ use egui::{Key, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use super::{RelinkDialog, RelinkOptions, RelinkOutcome, RelinkRow};
+use super::{RelinkColumn, RelinkDialog, RelinkLayout, RelinkOptions, RelinkOutcome, RelinkRow};
 
 const STAMP: u64 = 1;
 
@@ -350,12 +350,15 @@ fn a_search_is_one_job() {
     assert_eq!(candidates(&harness), 1, "the hit is listed");
 }
 
-// The columns sort and the layout comes back with the outcome.
+// The columns sort and the sort reaches the host's layout handle.
 #[test]
 fn the_table_sorts_and_returns_its_layout() {
     let files = files(&[]);
     let jobs = Arc::new(ManualJobs::new());
-    let mut harness = harness(vec![row(1, "Clip A", "/old/a.mov"), row(2, "Clip B", "/old/b.mov")], &files, &jobs, "/new", false);
+    let mut setup = setup(&jobs, "/new", false);
+    let layout = RelinkLayout::default();
+    setup.options.layout = layout.clone();
+    let mut harness = start(vec![row(1, "Clip A", "/old/a.mov"), row(2, "Clip B", "/old/b.mov")], &files, setup);
     let a_first = |harness: &Harness<'_, App>| harness.get_by_label("Clip A").rect().min.y < harness.get_by_label("Clip B").rect().min.y;
     assert!(a_first(&harness), "unsorted rows keep their order");
     for _ in 0..2 {
@@ -363,9 +366,23 @@ fn the_table_sorts_and_returns_its_layout() {
         harness.run();
     }
     assert!(!a_first(&harness), "a second click on the header sorts the other way round");
-    click(&mut harness, "Leave All Offline");
-    let DialogResult::Ok(outcome) = done(&mut harness) else { panic!("cancelled") };
-    assert!(outcome.layout.sort.is_some(), "the sort is part of the outcome");
+    assert!(layout.get().sort.is_some(), "the sort reaches the host's handle");
+}
+
+// The layout reaches the host's handle when the dialog is cancelled too.
+#[test]
+fn cancel_returns_the_changed_layout() {
+    let files = files(&[]);
+    let jobs = Arc::new(ManualJobs::new());
+    let mut setup = setup(&jobs, "/new", false);
+    let layout = RelinkLayout::default();
+    setup.options.layout = layout.clone();
+    let mut harness = start(vec![row(1, "Clip A", "/old/a.mov")], &files, setup);
+    harness.get_by(|n| n.role() == Role::ColumnHeader && n.label().is_some_and(|l| l.starts_with("File Name"))).click();
+    harness.run();
+    click(&mut harness, "Cancel");
+    assert!(matches!(harness.state().result, Some(DialogResult::Cancel)));
+    assert_eq!(layout.get().sort.map(|s| s.column), Some(RelinkColumn::FileName));
 }
 
 // Without jobs and without a Host, Search stays disabled.

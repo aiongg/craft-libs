@@ -27,6 +27,8 @@ pub(crate) mod stories;
 mod style;
 
 pub use badge::StatusBadge;
-pub use dialog::{CandidateChecker, RelinkColumn, RelinkCriterion, RelinkDialog, RelinkLabels, RelinkOptions, RelinkOutcome, RelinkRow};
+pub use dialog::{
+    CandidateChecker, RelinkColumn, RelinkCriterion, RelinkDialog, RelinkLabels, RelinkLayout, RelinkOptions, RelinkOutcome, RelinkRow,
+};
 pub use list::{LinkFilter, LinkList, LinkListEvent, LinkListLabels, LinkListOutput, LinkListSettings, LinkListState, LinkSort};
 pub use style::RelinkStyle;

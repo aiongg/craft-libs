@@ -9,7 +9,7 @@
 //! for change in monitor.take_changes() {
 //!     if change.status == LinkStatus::Modified { prefs.update_links.act(change.key) }   // Automatically, Ask, Manually
 //! }
-//! LinkList::new("links", &links, monitor.statuses()).show(ui);
+//! LinkList::new("links", &links, monitor.statuses(), &mut state.links).show(ui);
 //! ```
 
 #[cfg(test)]
