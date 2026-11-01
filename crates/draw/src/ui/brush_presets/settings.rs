@@ -1,5 +1,4 @@
 //! The Brush Preset picker's persisted view ([`BrushPickerSettings`]).
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 use std::ops::RangeInclusive;
 
@@ -36,7 +35,8 @@ impl BrushPickerSettings {
     /// (one that isn't a finite number gives 1), and every part on when none is.
     pub fn restored(self) -> Self {
         // pc: crates/ui-egui/src/tools/brush_picker.rs:134-155 `restore` (clamp to SCALE_RANGE; non-finite keeps the default; none on gives all)
-        todo!()
+        let scale = if self.scale.is_finite() { self.scale.clamp(*Self::SCALE_RANGE.start(), *Self::SCALE_RANGE.end()) } else { 1.0 };
+        Self { parts: self.parts.normalised(), scale }
     }
 }
 
@@ -44,13 +44,15 @@ impl<K> BrushCardsState<K> {
     /// The part of this state that persists.
     pub fn settings(&self) -> BrushPickerSettings {
         // new: the parts and the scale, as stored.
-        todo!()
+        BrushPickerSettings { parts: self.parts, scale: self.scale }
     }
 
     /// Sets the parts and scale from `settings`, [`restored`](BrushPickerSettings::restored)
     /// first.
     pub fn restore(&mut self, settings: &BrushPickerSettings) {
         // pc: crates/ui-egui/src/tools/brush_picker.rs:134-155 `restore`
-        todo!()
+        let BrushPickerSettings { parts, scale } = settings.restored();
+        self.parts = parts;
+        self.scale = scale;
     }
 }
