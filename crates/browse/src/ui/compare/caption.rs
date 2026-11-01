@@ -4,6 +4,8 @@ use craft_theme::{Rgba, TypeRole};
 use craft_ui::controls::{ControlSize, Rating, paint_rating};
 use craft_ui::direction;
 use craft_ui::icons::{self, Icon, IconSize};
+use craft_ui::localized::Words;
+use craft_ui::localized::words::counts;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 use egui::text::LayoutJob;
 use egui::{Pos2, Rect, Ui, pos2, vec2};
@@ -59,11 +61,12 @@ impl CompareCaption {
 
     /// The entries after the name in the accessible name: the rating, then the flag, each led by
     /// ", ".
-    fn details(&self, labels: &CompareLabels) -> String {
+    fn details(&self, ctx: &egui::Context, labels: &CompareLabels) -> String {
         let mut details = String::new();
         if let Some(n) = self.rating.filter(|n| *n > 0) {
             details.push_str(", ");
-            details.push_str(&craft_i18n::fmt(&labels.stars, &[("n", &n.min(5).to_string())]));
+            let words = Words::of_ctx(ctx);
+            details.push_str(&words.counted(ctx, counts::STARS, &words.get(counts::STARS.word), u64::from(n.min(5))));
         }
         match self.flag {
             Some(TileFlag::Picked) => details.extend([", ", labels.picked.as_str()]),
@@ -121,7 +124,7 @@ impl CompareCaption {
         {
             let slot = Rect::from_min_size(pos2(at(offset, flag_side), rect.center().y - flag_side / 2.0), vec2(flag_side, flag_side));
             let (icon, color) = match flag {
-                TileFlag::Picked => (Icon::Check, tokens.color.status.good.fg.to_egui()),
+                TileFlag::Picked => (Icon::Flag, tokens.color.status.good.fg.to_egui()),
                 TileFlag::Rejected => (Icon::Ban, tokens.color.status.bad.fg.to_egui()),
             };
             icons::paint_on(&painter, slot, icon, icons::active(ui.ctx()), flag_side, IconSize::Sm.stroke(), color);
@@ -133,7 +136,7 @@ impl CompareCaption {
             let center: Pos2 = pos2(at(offset, tile.dot) + tile.dot / 2.0, rect.center().y);
             painter.circle_filled(center, tile.dot / 2.0, color.to_egui());
         }
-        let name = craft_i18n::fmt(&labels.tile_name, &[("label", &self.label), ("name", &self.name), ("details", &self.details(labels))]);
+        let name = craft_i18n::fmt(&labels.tile_name, &[("label", &self.label), ("name", &self.name), ("details", &self.details(ui.ctx(), labels))]);
         CaptionPainted { name, name_shown }
     }
 }
