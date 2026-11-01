@@ -63,10 +63,12 @@ pub enum SelectMaskEdit {
 impl SelectMaskEdit {
     /// The points the edit carries, against `SelectMaskLimits::edit_points` (an Object edit and
     /// the buttons carry none).
-    #[expect(clippy::todo, reason = "skeleton: task WS-SM1")]
     pub fn points_len(&self) -> usize {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:510 `points_in`.
-        todo!()
+        match self {
+            SelectMaskEdit::Quick { points, .. } | SelectMaskEdit::Brush { points, .. } | SelectMaskEdit::Lasso { points, .. } => points.len(),
+            SelectMaskEdit::Object { .. } | SelectMaskEdit::Subject { .. } | SelectMaskEdit::Clear | SelectMaskEdit::Invert => 0,
+        }
     }
 }
 

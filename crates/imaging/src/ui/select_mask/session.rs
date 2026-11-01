@@ -1,6 +1,7 @@
 //! Select and Mask's session (what OK applies, with undo), its limits and its remembered settings
 //! (task WS-SM1).
 
+use craft_theme::Srgba;
 use serde::{Deserialize, Serialize};
 
 use crate::selection::ColorIndicates;
@@ -94,10 +95,11 @@ impl Default for RefineSettings {
 impl RefineSettings {
     /// Turning Decontaminate Colors on moves Output To from Selection or Layer Mask to New Layer
     /// with Mask.
-    #[expect(clippy::todo, reason = "skeleton: task WS-SM1")]
     pub fn follow_decontaminate(&mut self) {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:266 `follow_decontaminate`.
-        todo!()
+        if self.decontaminate && matches!(self.output, OutputTo::Selection | OutputTo::LayerMask) {
+            self.output = OutputTo::NewLayerWithMask;
+        }
     }
 }
 
@@ -131,35 +133,53 @@ pub struct SelectMaskCommand {
 impl SelectMaskSession {
     /// Adds a tool edit within `limits`, or returns why not ("at most 4096 edits: undo some, or
     /// reset"; "at most 100000 points in all edits: undo some, or reset") and changes nothing.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-SM1")]
     pub fn add_edit(&mut self, edit: SelectMaskEdit, limits: &SelectMaskLimits) -> Result<(), String> {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:522 `add_edit`.
-        todo!()
+        if self.edits.len() >= limits.edits {
+            return Err(format!("at most {} edits: undo some, or reset", limits.edits));
+        }
+        let held: usize = self.edits.iter().map(SelectMaskEdit::points_len).sum();
+        if held + edit.points_len() > limits.edit_points {
+            return Err(format!("at most {} points in all edits: undo some, or reset", limits.edit_points));
+        }
+        self.edits.push(edit);
+        Ok(())
     }
 
     /// Adds a Refine Edge Brush stroke within `limits`, or returns why not ("at most 4096 Refine
     /// Edge Brush strokes: undo some, or reset"; "at most 100000 points in all Refine Edge Brush
     /// strokes: undo some, or reset").
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-SM1")]
     pub fn add_stroke(&mut self, stroke: RefineStroke, limits: &SelectMaskLimits) -> Result<(), String> {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:538 `add_stroke`.
-        todo!()
+        if self.strokes.len() >= limits.strokes {
+            return Err(format!("at most {} Refine Edge Brush strokes: undo some, or reset", limits.strokes));
+        }
+        let held: usize = self.strokes.iter().map(|s| s.points.len()).sum();
+        if held + stroke.points.len() > limits.stroke_points {
+            return Err(format!("at most {} points in all Refine Edge Brush strokes: undo some, or reset", limits.stroke_points));
+        }
+        self.strokes.push(stroke);
+        Ok(())
     }
 
     /// The Reset button: no edits, no strokes, the default refinement values. One undo step that
     /// gives back what it replaced. (PhotoCraft's also reset the view; the view is not session
     /// state here.)
-    #[expect(clippy::todo, reason = "skeleton: task WS-SM1")]
     pub fn reset(&mut self) {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:701 `reset`.
-        todo!()
+        *self = Self::default();
     }
 
     /// OK's parameters with the bar's Sample All Layers and whether a layer mask is refined.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-SM1")]
     pub fn command(&self, sample_all_layers: bool, target_mask: bool) -> SelectMaskCommand {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:803 `commit_params`.
-        todo!()
+        SelectMaskCommand {
+            refine: self.refine.clone(),
+            sample_all_layers,
+            edits: self.edits.clone(),
+            strokes: self.strokes.clone(),
+            target: target_mask.then_some("mask"),
+        }
     }
 }
 
@@ -188,26 +208,52 @@ pub struct SelectMaskSettings {
 }
 
 impl Default for SelectMaskSettings {
-    #[expect(clippy::todo, reason = "skeleton: task WS-SM1")]
     fn default() -> Self {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:166-188 `SmOpts::default`; the
-        // opacities from `MaskViewMode::default_opacity` (100 where a view has none).
-        todo!()
+        // opacities from `MaskViewMode::default_opacity` (100 where a view has none), which
+        // `MaskViewState::default` already takes.
+        let view = MaskViewState::default();
+        let [r, g, b, _] = view.overlay_color.to_rgba().0;
+        Self {
+            view: view.mode,
+            opacities: view.opacities,
+            show_edge: view.show_edge,
+            show_original: view.show_original,
+            overlay_color: [r, g, b],
+            overlay_indicates: view.overlay_indicates,
+            real_time: true,
+            high_quality: false,
+            refine: RefineSettings::default(),
+            remember: false,
+        }
     }
 }
 
 impl SelectMaskSettings {
     /// The view state the workspace starts with (`hide_view` off).
-    #[expect(clippy::todo, reason = "skeleton: task WS-SM1")]
     pub fn view_state(&self) -> MaskViewState {
         // new: the settings carry `MaskViewState`'s persisted fields (it has no serde).
-        todo!()
+        let [r, g, b] = self.overlay_color.map(|v| f32::from(v) / 255.0);
+        MaskViewState {
+            mode: self.view,
+            opacities: self.opacities,
+            show_edge: self.show_edge,
+            show_original: self.show_original,
+            hide_view: false,
+            overlay_color: Srgba::rgb(r, g, b),
+            overlay_indicates: self.overlay_indicates,
+        }
     }
 
     /// Takes the view's persisted fields from `state`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-SM1")]
     pub fn take_view(&mut self, state: &MaskViewState) {
         // new: the inverse of `view_state`.
-        todo!()
+        let [r, g, b, _] = state.overlay_color.to_rgba().0;
+        self.view = state.mode;
+        self.opacities = state.opacities;
+        self.show_edge = state.show_edge;
+        self.show_original = state.show_original;
+        self.overlay_color = [r, g, b];
+        self.overlay_indicates = state.overlay_indicates;
     }
 }
