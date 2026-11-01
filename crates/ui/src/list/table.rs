@@ -735,6 +735,12 @@ where
 }
 
 impl Table<'static, (), (), [()]> {
+    /// The id a table made with `id_salt` shows under in `ui`, the key of its focus and memory
+    /// (see [`Interactive::id_in`](crate::primitives::Interactive::id_in)).
+    pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
+        ui.make_persistent_id(IdSalt::new(id_salt))
+    }
+
     /// The table's look from the tokens.
     // new: the `table.*` tokens
     pub fn style(tokens: &UiTokens) -> TableStyle {

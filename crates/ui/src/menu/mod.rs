@@ -15,6 +15,7 @@
 //! - [`mnemonics`]: whether menus have mnemonics here (off on macOS); [`set_mnemonics`] overrides.
 //! - [`any_open`]: whether any menu is open, for the app's single-key shortcuts, which wait
 //!   meanwhile.
+//! - [`facts_id`]: the id a panel keeps what its panel menu needs under.
 //!
 //! Menus draw with the list box rows' tokens (`listbox.*`) and their own `menu.*` (least width,
 //! shortcut gap, scroll strip, the accent-filled active row); [`Menu::style`] is the pure style
@@ -22,6 +23,7 @@
 
 pub mod bar;
 mod context;
+mod facts;
 mod item;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod keep_open_tests;
@@ -35,6 +37,7 @@ mod tests;
 
 pub use bar::{MenuBar, MenuBarLabels, MenuBarResponse};
 pub use context::{ContextMenu, OpenAt};
+pub use facts::facts_id;
 pub use item::{ItemKind, MenuEntry, MenuItem};
 pub use mnemonic::{mnemonics, set_mnemonics};
 pub use nav::MenuStep;

@@ -515,6 +515,14 @@ where
     }
 }
 
+impl List<'static, (), [()]> {
+    /// The id a list made with `id_salt` shows under in `ui`, the key of its focus and memory (see
+    /// [`Interactive::id_in`](crate::primitives::Interactive::id_in)).
+    pub fn id_in(ui: &Ui, id_salt: impl AsIdSalt) -> Id {
+        ui.make_persistent_id(IdSalt::new(id_salt))
+    }
+}
+
 /// What a list keeps between frames, in egui memory under its id.
 #[derive(Clone)]
 struct State<K> {
