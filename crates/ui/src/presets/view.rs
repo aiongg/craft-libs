@@ -20,6 +20,7 @@ use egui::{
 use super::PresetBrowser;
 use super::drag::{Dragging, Order, PresetReorder, Surface, all_shown};
 use super::event::{PresetEvent, PresetOutput};
+use super::footer;
 use super::labels::PresetLabels;
 use super::layout::{Metrics, VisualRow, VisualRows, shown};
 use super::model::{PresetRow, ThumbInfo, has_captions};
@@ -164,6 +165,8 @@ struct Pass<'p, K, F> {
     area: Rect,
     marks: Vec<Mark>,
     tokens: Arc<UiTokens>,
+    drop_zone: Option<Rect>,
+    hovered: Option<K>,
 }
 
 pub(super) fn show<'a, K, F>(browser: PresetBrowser<'a, K>, id: Id, ui: &mut Ui, paint: F) -> PresetOutput<K>
@@ -184,14 +187,24 @@ where
         labels,
         can_rename,
         view_lock,
-        max_height,
-        min_height,
+        mut max_height,
+        mut min_height,
         shrink_to_content,
+        drop_zone,
+        footer,
         ..
     } = browser;
     let tokens = Tokens::of(ui);
     let row_style = ListRow::<K>::style(&tokens);
     let style = PresetStyle::from_tokens(&tokens);
+    if footer.is_some() {
+        // The list takes what the footer leaves, so both fit with no one-pass lag.
+        let available = ui.available_height();
+        let list = (max_height.map_or(available, |h| h.min(available)) - footer::footer_height(ui)).max(0.0);
+        max_height = Some(list);
+        // egui's 64 pt scroll minimum would push the footer out of a short browser.
+        min_height = Some(min_height.unwrap_or(0.0).min(list));
+    }
     let rtl = direction::is_rtl(ui);
     let view = view_lock.unwrap_or(pstate.view);
     let mut st = State::<K>::load(ui.ctx(), id);
@@ -262,6 +275,8 @@ where
         area: Rect::NOTHING,
         marks: Vec::new(),
         tokens,
+        drop_zone,
+        hovered: None,
     };
 
     pass.end_for_gone_rows();
@@ -311,7 +326,7 @@ where
         })
         .response;
 
-    pass.drag_frame(ui, response.rect.width());
+    let dropped = pass.drag_frame(ui, response.rect.width());
     if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
         pass.focus = true;
     }
@@ -321,6 +336,9 @@ where
     let gesture_event = pass.gesture.take().and_then(ReorderGesture::finish);
     if let Some(event) = gesture_event {
         pass.events.push(PresetEvent::Reorder(event));
+    }
+    if let Some((key, pos, modifiers)) = dropped {
+        pass.events.push(PresetEvent::DropAt { key, pos, modifiers });
     }
     let focused = ui.memory(|m| m.has_focus(id));
     let active = pass.lead_row.map(|(row, _)| row).filter(|_| focused);
@@ -339,6 +357,11 @@ where
     }
     let drag = pass.st.drag.as_ref().map(|d| ListDrag { list: id, items: d.items.clone(), label: d.label.clone() });
     let events = pass.events;
+    let hovered = pass.hovered.take().filter(|_| drag.is_none());
+    let footer = match footer {
+        Some(options) => footer::show_below(ui, options, pass.pstate, &labels, thumb_range),
+        None => Vec::new(),
+    };
     st.focused = focused;
     if (measured - width).abs() > 0.5 {
         st.width = Some((avail, measured));
@@ -347,8 +370,7 @@ where
     } else {
         st.store(ui.ctx(), id);
     }
-    // PR2: set `hovered` here (the item cell or row under the pointer, `None` during a drag).
-    PresetOutput { response, events, drag, hovered: None, footer: Vec::new() }
+    PresetOutput { response, events, drag, hovered, footer }
 }
 
 impl<'p, K, F> Pass<'p, K, F>
@@ -654,6 +676,9 @@ where
             });
         }
         let hovered = ui.rect_contains_pointer(rect) && ui.is_enabled();
+        if hovered {
+            self.hovered = Some(row.key.clone());
+        }
         let ctx = self.ctx.clone();
         let icon_color = self.row_style.icon;
         let paint = &mut self.paint;
@@ -723,6 +748,9 @@ where
             });
             let response = response.tooltip(row.tooltip.clone().unwrap_or_else(|| row.label.clone()));
             let hovered = response.hovered() && ui.is_enabled();
+            if hovered {
+                self.hovered = Some(row.key.clone());
+            }
             if ui.is_rect_visible(cell) {
                 self.paint_cell(ui, row, cell, thumb, radius, ThumbInfo { key: &row.key, size: thumb.size(), selected, hovered });
             }
@@ -849,8 +877,8 @@ where
 
     /// Ends the drag under way when it was released, Esc was pressed or the window lost the
     /// focus; otherwise draws the ghost and the copy cursor.
-    fn drag_frame(&mut self, ui: &Ui, width: f32) {
-        let Some(drag) = self.st.drag.take() else { return };
+    fn drag_frame(&mut self, ui: &Ui, width: f32) -> Option<(K, Pos2, Modifiers)> {
+        let drag = self.st.drag.take()?;
         let ctx = self.ctx.clone();
         let (released, down, modifiers, pointer) =
             ui.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.modifiers, i.pointer.latest_pos()));
@@ -865,8 +893,16 @@ where
             None
         };
         if let Some(end) = end {
+            let dropped = match (&end, self.drop_zone, pointer) {
+                (DragEnd::Released(None), Some(zone), Some(pos)) if !drag.group && zone.contains(pos) => {
+                    // The release is the drop: no other widget may take the payload.
+                    DragAndDrop::clear_payload(&ctx);
+                    drag.items.first().map(|key| (key.clone(), pos, modifiers))
+                }
+                _ => None,
+            };
             self.end_drag(end, modifiers);
-            return;
+            return dropped;
         }
         if self.rules.is_some_and(|rules| rules.copies(modifiers)) {
             ctx.set_cursor_icon(CursorIcon::Copy);
@@ -885,6 +921,7 @@ where
             paint_ghost(ui, self.id, &self.row_style, &drag.label, pointer, width, Some((self.style.ghost_thumb, &ghost)));
         }
         self.st.drag = Some(drag);
+        None
     }
 
     /// Whether egui's drag and drop holds this browser's rows.
@@ -961,27 +998,4 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a,
         self.drop_zone = Some(zone);
         self
     }
-}
-
-/// [`PresetBrowser::show`] for a browser with a [`footer`](PresetBrowser::footer) or a
-/// [`drop_zone`](PresetBrowser::drop_zone) (task PR2, which folds this into the one `show`
-/// path and may change `mod.rs`'s `show` for it):
-///
-/// - the list takes `max_height.min(available) - footer::footer_height(ui)`, so list and footer
-///   fit the height with no one-pass lag; the footer is drawn below the list with
-///   `footer::show_options` and its presses go to `PresetOutput::footer`;
-/// - a release of the browser's own drag (`ListDrag<K>` payload of this browser's id, an item)
-///   with the pointer inside the zone: `Reorder(Cancel(Dismissed))`, then `DropAt { key, pos,
-///   modifiers }`, then the payload is cleared (`DragAndDrop::clear_payload`), all in this pass;
-///   the port's canvas-drop block is the model;
-/// - `hovered` as in the plain path.
-#[expect(clippy::todo, reason = "skeleton: task PR2")]
-pub(super) fn show_with_extras<K, F>(browser: PresetBrowser<'_, K>, ui: &mut Ui, paint: F) -> PresetOutput<K>
-where
-    K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
-    F: FnMut(&Painter, Rect, ThumbInfo<'_, K>),
-{
-    // pc: crates/ui-egui/src/panels/preset_panels.rs:354 (`FOOTER_GUESS`); pc-port: crates/ui-egui/src/panels/preset_panels.rs:514-537 (canvas drop, footer height)
-    let _ = (browser, ui, paint);
-    todo!()
 }

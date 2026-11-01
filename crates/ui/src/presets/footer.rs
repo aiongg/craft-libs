@@ -255,19 +255,36 @@ impl<'a> PresetFooterOptions<'a> {
 
 /// The height the browser keeps for its footer below the list: `PanelFooter::reserved_height`
 /// (from `panel_footer.*` tokens, not measured, so there is no one-pass lag and no
-/// `FOOTER_GUESS`) plus [`PresetStyle::footer_room`](super::style::PresetStyle::footer_room).
+/// `FOOTER_GUESS`), [`PresetStyle::footer_room`](super::style::PresetStyle::footer_room) and the
+/// vertical item spacing that follows the list.
 /// The list takes `max_height.min(available) - footer_height`.
-#[expect(dead_code, reason = "skeleton: called by `view::show_with_extras` (task PR2)")]
 pub(super) fn footer_height(ui: &Ui) -> f32 {
     // pc: crates/ui-egui/src/panels/preset_panels.rs:354 (`FOOTER_GUESS` 32, measured last frame); new: Lead call 4.
     let tokens = Tokens::of(ui);
     let style = PanelFooter::style(&tokens, ui.pixels_per_point());
-    PanelFooter::reserved_height(&style) + super::style::PresetStyle::from_tokens(&tokens).footer_room
+    PanelFooter::reserved_height(&style) + super::style::PresetStyle::from_tokens(&tokens).footer_room + ui.spacing().item_spacing.y
+}
+
+/// [`show_options`] with `footer_room` above it and no other spacing, so the browser's height
+/// is the list's plus [`footer_height`].
+pub(super) fn show_below<K>(
+    ui: &mut Ui,
+    options: PresetFooterOptions<'_>,
+    state: &mut PresetState<K>,
+    labels: &PresetLabels,
+    thumb_range: RangeInclusive<f32>,
+) -> Vec<FooterEvent> {
+    let room = PresetStyle::from_tokens(&Tokens::of(ui)).footer_room;
+    ui.scope(|ui| {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        ui.add_space(room);
+        show_options(ui, options, state, labels, thumb_range)
+    })
+    .inner
 }
 
 /// Draws `options` as the browser's footer, below the list, with `PresetFooter`'s layout:
 /// writes `state.thumb` within `thumb_range` and returns the presses.
-#[expect(dead_code, reason = "skeleton: called by `view::show_with_extras` (task PR2)")]
 pub(super) fn show_options<K>(
     ui: &mut Ui,
     options: PresetFooterOptions<'_>,
