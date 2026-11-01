@@ -7,14 +7,14 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `patterns/imaging/scopes/compact` | Compact View; arg: RGB or CMYK mode |
-//! | `patterns/imaging/scopes/expanded` | Expanded View with the Channel and Source rows and statistics; arg: mode |
-//! | `patterns/imaging/scopes/all-channels` | All Channels View; arg: mode |
-//! | `patterns/imaging/scopes/colors-overlay` | the Colors channel, light and ink |
-//! | `patterns/imaging/scopes/adjusted-over-original` | the outlined original and the stale mark |
-//! | `patterns/imaging/scopes/tone-zones` | five zones, the hover band, a drag |
-//! | `patterns/imaging/scopes/vectorscope` | the cloud, the hover target; args: red position, skin line |
-//! | `patterns/imaging/scopes/clipping` | the warnings on and off, the overlay over a generated image |
+//! | `patterns/scope-panel/compact` | Compact View; arg: RGB or CMYK mode |
+//! | `patterns/scope-panel/expanded` | Expanded View with the Channel and Source rows and statistics; arg: mode |
+//! | `patterns/scope-panel/all-channels` | All Channels View; arg: mode |
+//! | `patterns/scope-panel/colors-overlay` | the Colors channel, light and ink |
+//! | `patterns/scope-panel/adjusted-over-original` | the outlined original and the stale mark |
+//! | `patterns/scope-panel/tone-zones` | five zones, the hover band, a drag |
+//! | `patterns/scope-panel/vectorscope` | the cloud, the hover target; args: red position, skin line |
+//! | `patterns/scope-panel/clipping` | the warnings on and off, the overlay over a generated image |
 
 use craft_ui::canvas::textures::{Revision, TextureCache, TextureCacheOptions};
 use craft_ui::composites::ChannelColor;
@@ -30,53 +30,42 @@ use super::{
     ScopePanelState, ScopeSettings, ScopeSource, ScopeView, ToneZone, VectorscopeFrame, ZoneChange,
 };
 use crate::scopes::{ClippingMask, HUES, SATURATIONS, Vectorscope, hue_saturation};
+use crate::ui::ChannelsLabels;
 
 craft_ui::words! {
-    /// The channel and source names the scope stories show (the host's words, not the panel's).
+    /// The channel and source names the scope stories show (the host's words, not the panel's); the
+    /// colour channels' names are [`ChannelsLabels`]'.
     #[non_exhaustive]
     pub struct ScopeStoryLabels {
         rgb: "scopesStory.rgb" = "RGB";
-        red: "scopesStory.red" = "Red";
-        green: "scopesStory.green" = "Green";
-        blue: "scopesStory.blue" = "Blue";
         cmyk: "scopesStory.cmyk" = "CMYK";
-        cyan: "scopesStory.cyan" = "Cyan";
-        magenta: "scopesStory.magenta" = "Magenta";
-        yellow: "scopesStory.yellow" = "Yellow";
         black: "scopesStory.black" = "Black";
         luminosity: "scopesStory.luminosity" = "Luminosity";
         selected_layer: "scopesStory.selectedLayer" = "Selected Layer";
     }
 }
 
-/// The eight stories above.
 /// The components this module has stories for.
 pub const COMPONENTS: &[&str] = &["Scope panel"];
 
+/// The eight stories above.
 pub(crate) fn stories() -> Vec<Story> {
     vec![
-        typed_story!("patterns/imaging/scopes/compact", Level::Patterns, "Scope panel", "Compact", ModeArgs::default(), show_compact),
-        typed_story!("patterns/imaging/scopes/expanded", Level::Patterns, "Scope panel", "Expanded", ModeArgs::default(), show_expanded),
-        typed_story!("patterns/imaging/scopes/all-channels", Level::Patterns, "Scope panel", "All channels", ModeArgs::default(), show_all_channels),
-        typed_story!("patterns/imaging/scopes/colors-overlay", Level::Patterns, "Scope panel", "Colors overlay", NoArgs {}, show_colors_overlay),
+        typed_story!("patterns/scope-panel/compact", Level::Patterns, "Scope panel", "Compact", ModeArgs::default(), show_compact),
+        typed_story!("patterns/scope-panel/expanded", Level::Patterns, "Scope panel", "Expanded", ModeArgs::default(), show_expanded),
+        typed_story!("patterns/scope-panel/all-channels", Level::Patterns, "Scope panel", "All channels", ModeArgs::default(), show_all_channels),
+        typed_story!("patterns/scope-panel/colors-overlay", Level::Patterns, "Scope panel", "Colors overlay", NoArgs {}, show_colors_overlay),
         typed_story!(
-            "patterns/imaging/scopes/adjusted-over-original",
+            "patterns/scope-panel/adjusted-over-original",
             Level::Patterns,
             "Scope panel",
             "Adjusted over original",
             ModeArgs::default(),
             show_adjusted
         ),
-        typed_story!("patterns/imaging/scopes/tone-zones", Level::Patterns, "Scope panel", "Tone zones", NoArgs {}, show_tone_zones),
-        typed_story!(
-            "patterns/imaging/scopes/vectorscope",
-            Level::Patterns,
-            "Scope panel",
-            "Vectorscope",
-            VectorscopeArgs::default(),
-            show_vectorscope
-        ),
-        typed_story!("patterns/imaging/scopes/clipping", Level::Patterns, "Scope panel", "Clipping", ClippingArgs::default(), show_clipping),
+        typed_story!("patterns/scope-panel/tone-zones", Level::Patterns, "Scope panel", "Tone zones", NoArgs {}, show_tone_zones),
+        typed_story!("patterns/scope-panel/vectorscope", Level::Patterns, "Scope panel", "Vectorscope", VectorscopeArgs::default(), show_vectorscope),
+        typed_story!("patterns/scope-panel/clipping", Level::Patterns, "Scope panel", "Clipping", ClippingArgs::default(), show_clipping),
     ]
 }
 
@@ -156,17 +145,17 @@ struct Curve {
 
 /// The mode's channels in list order, the composite first and Luminosity last. `shift` moves
 /// every hill, which is how the adjusted histogram differs from the original.
-fn curves(mode: ModeArg, words: &ScopeStoryLabels, shift: f32) -> Vec<Curve> {
+fn curves(mode: ModeArg, words: &ScopeStoryLabels, names: &ChannelsLabels, shift: f32) -> Vec<Curve> {
     let colours: Vec<(&'static str, &String, ChannelColor, f32)> = match mode {
         ModeArg::Rgb => vec![
-            ("red", &words.red, ChannelColor::Red, 150.0),
-            ("green", &words.green, ChannelColor::Green, 110.0),
-            ("blue", &words.blue, ChannelColor::Blue, 70.0),
+            ("red", &names.red, ChannelColor::Red, 150.0),
+            ("green", &names.green, ChannelColor::Green, 110.0),
+            ("blue", &names.blue, ChannelColor::Blue, 70.0),
         ],
         ModeArg::Cmyk => vec![
-            ("cyan", &words.cyan, ChannelColor::Cyan, 70.0),
-            ("magenta", &words.magenta, ChannelColor::Magenta, 100.0),
-            ("yellow", &words.yellow, ChannelColor::Yellow, 130.0),
+            ("cyan", &names.cyan, ChannelColor::Cyan, 70.0),
+            ("magenta", &names.magenta, ChannelColor::Magenta, 100.0),
+            ("yellow", &names.yellow, ChannelColor::Yellow, 130.0),
             ("black", &words.black, ChannelColor::Neutral, 40.0),
         ],
     };
@@ -223,9 +212,10 @@ struct Look {
 fn histogram(ui: &mut Ui, key: &str, mode: ModeArg, settings: ScopeSettings, look: Look) {
     with_values(ui, key, [ScopePanelState { settings, range: None }], |ui, state| {
         let words = ScopeStoryLabels::of(ui);
+        let names = ChannelsLabels::of(ui);
         let entire_image = ScopePanelLabels::of(ui).entire_image;
-        let adjusted = curves(mode, &words, if look.original { 25.0 } else { 0.0 });
-        let before = curves(mode, &words, 0.0);
+        let adjusted = curves(mode, &words, &names, if look.original { 25.0 } else { 0.0 });
+        let before = curves(mode, &words, &names, 0.0);
         let channels = scope_channels(&adjusted);
         let originals = scope_channels(&before);
         let mut set = HistogramSet::new(&channels).stale(look.stale);
@@ -293,7 +283,8 @@ fn show_tone_zones(ui: &mut Ui, _args: &mut NoArgs) {
     with_values(ui, "scopes-tone-zones", [start], |ui, hosts| {
         let host = &mut hosts[0];
         let words = ScopeStoryLabels::of(ui);
-        let curves = curves(ModeArg::Rgb, &words, 0.0);
+        let names = ChannelsLabels::of(ui);
+        let curves = curves(ModeArg::Rgb, &words, &names, 0.0);
         let channels = scope_channels(&curves);
         let frame = ScopeFrame::histogram(HistogramSet::new(&channels));
         let zones = ToneZone::CAMERA_RAW;
@@ -374,7 +365,8 @@ fn show_vectorscope(ui: &mut Ui, args: &mut VectorscopeArgs) {
         host.applied = Some((args.red_right, args.skin_line));
 
         let words = ScopeStoryLabels::of(ui);
-        let curves = curves(ModeArg::Rgb, &words, 0.0);
+        let names = ChannelsLabels::of(ui);
+        let curves = curves(ModeArg::Rgb, &words, &names, 0.0);
         let channels = scope_channels(&curves);
         let counts = Vectorscope::from_rgba(&scope_pixels());
         let (hue, saturation) = hue_saturation([0.88, 0.66, 0.54]);
@@ -425,11 +417,12 @@ fn show_clipping(ui: &mut Ui, args: &mut ClippingArgs) {
         let pixels = image_pixels();
         let Some(mask) = ClippingMask::from_rgba(IMAGE_SIZE, &pixels) else { return };
         let words = ScopeStoryLabels::of(ui);
+        let names = ChannelsLabels::of(ui);
         let curves: Vec<Curve> = [
             ("rgb", &words.rgb, ChannelColor::Neutral),
-            ("red", &words.red, ChannelColor::Red),
-            ("green", &words.green, ChannelColor::Green),
-            ("blue", &words.blue, ChannelColor::Blue),
+            ("red", &names.red, ChannelColor::Red),
+            ("green", &names.green, ChannelColor::Green),
+            ("blue", &names.blue, ChannelColor::Blue),
         ]
         .into_iter()
         .enumerate()
