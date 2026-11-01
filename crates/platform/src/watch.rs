@@ -79,8 +79,9 @@ impl FileStamp {
     }
 
     /// Only the Unix change time differs from `other`: the metadata may have changed without a
-    /// content edit (LaunchServices, Finder tags). The watcher then compares the bytes with the
-    /// version the app knows before reporting a change.
+    /// content edit (LaunchServices, Finder tags). [`FileWatch::disk_differs`] then compares the
+    /// bytes; the watcher itself reports such a change, and the app compares it with the bytes it
+    /// saved.
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:59 metadata_only_candidate
     pub fn metadata_only_change(self, other: FileStamp) -> bool {
         #[cfg(unix)]
@@ -200,14 +201,19 @@ impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
     }
 
     /// No worker thread: each [`tick`](Self::tick) looks at every file once, on the caller's
-    /// thread. For tests and wasm (where nothing is watched: there are no paths).
+    /// thread. For tests and wasm (where nothing is watched: there are no paths). A change is
+    /// reported by the second tick that sees the same new version, as the worker reports it after
+    /// [`SETTLE`]: one look can't tell a finished write from one in progress, and waiting inside a
+    /// tick would block the caller.
     pub fn inline(mut self) -> Self {
         self.inline = true;
         self
     }
 
     /// The files to watch from now on, each with the app's key. A file watched already keeps its
-    /// pending change; one left out stops being watched. Allocates nothing when the list is the
+    /// pending change; one left out stops being watched but keeps its recorded version, so
+    /// [`disk_differs`](Self::disk_differs) still answers for it (the app may watch only while a
+    /// preference is on). Records go only through [`forget`](Self::forget). Allocates nothing when the list is the
     /// one sent last. Starts the worker on the first file; a worker that couldn't start is tried
     /// again on the next call.
     // pdfcraft: crates/ui-egui/src/platform/file_watch.rs:343 watch_files, :374 send_to_watcher, :118 Watcher::set
@@ -223,12 +229,6 @@ impl<K: Clone + Eq + Hash + Send + 'static> FileWatch<K> {
                 (key.clone(), path.clone(), known, self.epoch_of(key))
             })
             .collect();
-        let known_keys: Vec<K> = self.known.keys().filter(|k| !files.iter().any(|(key, _)| key == *k)).cloned().collect();
-        for key in known_keys {
-            self.known.remove(&key);
-            self.basis.remove(&key);
-            self.epochs.remove(&key);
-        }
         if self.deliver(list) {
             self.sent = files;
             self.dirty = false;

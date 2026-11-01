@@ -56,8 +56,29 @@ pub enum DefaultAppError {
     NotInstalled,
     /// Linux: running inside a Flatpak sandbox.
     Sandboxed,
+    /// Linux: `xdg-mime` isn't installed (it comes with xdg-utils).
+    XdgMimeMissing,
+    /// Windows: Settings didn't open; the system's reason, cut to 200 characters.
+    SettingsFailed(String),
     /// What the system said, cut to 200 characters (WordCraft's `MAX_ERROR`).
     Failed(String),
+}
+
+impl DefaultAppError {
+    /// The library's own message for this error, or `None` for [`Failed`](Self::Failed), whose
+    /// text is the system's and goes into [`DEFAULT_FAILED`]'s `{error}`. Placeholders: `{app}`
+    /// for [`DEFAULT_ON_MAC`] and [`DEFAULT_NOT_INSTALLED`]'s `{desktop_id}`, `{error}` for
+    /// [`DEFAULT_SETTINGS_FAILED`].
+    pub fn text(&self) -> Option<PlatformText> {
+        match self {
+            Self::Unsupported => Some(DEFAULT_ON_MAC),
+            Self::NotInstalled => Some(DEFAULT_NOT_INSTALLED),
+            Self::Sandboxed => Some(DEFAULT_SANDBOXED),
+            Self::XdgMimeMissing => Some(XDG_MIME_MISSING),
+            Self::SettingsFailed(_) => Some(DEFAULT_SETTINGS_FAILED),
+            Self::Failed(_) => None,
+        }
+    }
 }
 
 /// Makes the app the default for its types, or opens the system page that does. Blocks for the
@@ -66,7 +87,7 @@ pub enum DefaultAppError {
 pub fn make_default(app: &AppIdentity) -> Result<DefaultApp, DefaultAppError> {
     if cfg!(windows) {
         let uri = settings_uri(&app.registered_name);
-        crate::open::open_external(&uri).map_err(|e| DefaultAppError::Failed(cut(&format!("couldn't open Settings: {e}"))))?;
+        crate::open::open_external(&uri).map_err(|e| DefaultAppError::SettingsFailed(cut(&e.to_string())))?;
         Ok(DefaultApp::SettingsOpened)
     } else if cfg!(target_os = "macos") {
         Err(DefaultAppError::Unsupported)
@@ -108,7 +129,7 @@ fn xdg_make_default(app: &AppIdentity) -> Result<DefaultApp, DefaultAppError> {
         return Err(DefaultAppError::NotInstalled);
     }
     let out = Command::new("xdg-mime").args(["default", app.desktop_id.as_str()]).args(&app.mime_types).output().map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => DefaultAppError::Failed("xdg-mime isn't installed (it comes with xdg-utils)".into()),
+        std::io::ErrorKind::NotFound => DefaultAppError::XdgMimeMissing,
         _ => DefaultAppError::Failed(cut(&format!("couldn't run xdg-mime: {e}"))),
     })?;
     if out.status.success() {
@@ -216,3 +237,16 @@ pub const DEFAULT_ON_MAC: PlatformText = PlatformText {
     id: "defaultApp.mac",
     english: "To open files with {app}, select one in the Finder, choose File › Get Info, pick {app} under Open with, and click Change All.",
 };
+/// [`DefaultAppError::Sandboxed`]; `{app}` is the app's name.
+pub const DEFAULT_SANDBOXED: PlatformText = PlatformText {
+    id: "defaultApp.sandboxed",
+    english: "The Flatpak sandbox can't change default apps; choose {app} under Open With in your file manager or system settings.",
+};
+/// [`DefaultAppError::NotInstalled`]; `{desktop_id}` is the desktop entry's file name.
+pub const DEFAULT_NOT_INSTALLED: PlatformText =
+    PlatformText { id: "defaultApp.notInstalled", english: "{desktop_id} isn't installed (an AppImage needs desktop integration first)." };
+/// [`DefaultAppError::XdgMimeMissing`].
+pub const XDG_MIME_MISSING: PlatformText =
+    PlatformText { id: "defaultApp.xdgMimeMissing", english: "xdg-mime isn't installed (it comes with xdg-utils)." };
+/// [`DefaultAppError::SettingsFailed`]; `{error}` is the system's reason.
+pub const DEFAULT_SETTINGS_FAILED: PlatformText = PlatformText { id: "defaultApp.settingsFailed", english: "Couldn't open Settings: {error}" };

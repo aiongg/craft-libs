@@ -30,15 +30,24 @@ fn stems_drop_the_extension_the_app_adds() {
 }
 
 // "a.txt", "a 2.txt" taken: Space gives "a 3.txt", Parenthesized "a (2).txt" when only "a.txt"
-// is taken; "photo 2.jpg" counts on to "photo 3.jpg"; a name with no extension numbers its end.
+// is taken; "photo (2).jpg" counts on to "photo (3).jpg"; a name with no extension numbers its end.
 #[test]
 fn taken_names_are_numbered_before_the_extension() {
     let taken = |names: &'static [&'static str]| move |n: &str| names.contains(&n);
     assert_eq!(unique_file_name("a.txt", CopyNumbering::Space, taken(&["a.txt", "a 2.txt"])), "a 3.txt");
     assert_eq!(unique_file_name("a.txt", CopyNumbering::Parenthesized, taken(&["a.txt"])), "a (2).txt");
     assert_eq!(unique_file_name("a.txt", CopyNumbering::Parenthesized, taken(&[])), "a.txt");
-    assert_eq!(unique_file_name("photo 2.jpg", CopyNumbering::Space, taken(&["photo 2.jpg"])), "photo 3.jpg");
     assert_eq!(unique_file_name("photo (2).jpg", CopyNumbering::Parenthesized, taken(&["photo (2).jpg"])), "photo (3).jpg");
     assert_eq!(unique_file_name("notes", CopyNumbering::Parenthesized, taken(&["notes"])), "notes (2)");
     assert_eq!(unique_file_name("a.tar.gz", CopyNumbering::Space, taken(&["a.tar.gz"])), "a.tar 2.gz");
+}
+
+// Space style (Finder) never counts on a number that is already in the name: the number goes
+// after the whole stem.
+#[test]
+fn space_numbering_keeps_a_number_in_the_name() {
+    let taken = |names: &'static [&'static str]| move |n: &str| names.contains(&n);
+    assert_eq!(unique_file_name("Invoice 2026.pdf", CopyNumbering::Space, taken(&["Invoice 2026.pdf"])), "Invoice 2026 2.pdf");
+    assert_eq!(unique_file_name("Chapter 1.docx", CopyNumbering::Space, taken(&["Chapter 1.docx", "Chapter 1 2.docx"])), "Chapter 1 3.docx");
+    assert_eq!(unique_file_name("photo 2.jpg", CopyNumbering::Space, taken(&["photo 2.jpg"])), "photo 2 2.jpg");
 }

@@ -22,6 +22,7 @@
 
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use craft_host::{FileFilter, Files, PickId, PickRequest};
 use craft_platform::PlatformText;
@@ -54,6 +55,10 @@ pub struct SaveDocument<D> {
     pub filters: Vec<FileFilter>,
     /// The picker's remembered-folder purpose (`"document"`).
     pub purpose: String,
+    /// The bytes the app last wrote or read for the document's file (PdfCraft's `saved_bytes`).
+    /// When only the file's change time differs (Finder tags, LaunchServices), equal bytes are no
+    /// change on disk, so Save doesn't ask. `None` asks on any difference.
+    pub saved: Option<Arc<Vec<u8>>>,
 }
 
 /// What the app does next.
@@ -184,12 +189,19 @@ impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
         Some(SaveStep::Cancelled { key })
     }
 
-    /// The write the last [`SaveStep::Write`] asked for succeeded: the flow is free again and
+    /// The write the last [`SaveStep::Write`] asked for succeeded: the flow is free again (only for
+    /// the write of `key`; a finished write of another document leaves the pending save alone) and
     /// the watcher records the file's new version, so the app's own save never reads as a change
     /// on disk (not for [`SaveTarget::Copy`], whose file isn't the document's).
     pub fn written(&mut self, watch: &mut FileWatch<D>, key: D, path: &Path) {
-        let target = match self.pending.take() {
-            Some(Pending::Writing { target, .. }) => target,
+        let target = match &self.pending {
+            Some(Pending::Writing { key: running, target }) if *running == key => {
+                let target = *target;
+                self.pending = None;
+                target
+            }
+            // Another document's write (its save was cancelled), or none of this flow's: the
+            // save in progress, if any, is left alone.
             _ => SaveTarget::As,
         };
         if target != SaveTarget::Copy {
@@ -213,7 +225,7 @@ impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
 impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
     /// Writes `path`, the document's own file, unless another app changed it.
     fn confirm(&mut self, watch: &FileWatch<D>, document: SaveDocument<D>, target: SaveTarget, path: PathBuf) -> SaveStep<D> {
-        if watch.disk_differs(&document.key, &path, None) {
+        if watch.disk_differs(&document.key, &path, document.saved.as_deref().map(Vec::as_slice)) {
             let key = document.key.clone();
             self.pending = Some(Pending::Asking { document, target, path: path.clone() });
             return SaveStep::AskChangedOnDisk { key, path };

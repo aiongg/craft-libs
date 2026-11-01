@@ -5,9 +5,10 @@
 //! folder under the name the app is about to use. So a [`TempDir`] is created exclusively with
 //! owner-only permissions (`0700` on Unix; plain create elsewhere), under a name with the process
 //! id and a counter, retried only on `AlreadyExists`; its files are created with `create_new`
-//! (`O_EXCL`, which refuses an existing path, a symlink included) and mode `0600`. A directory
-//! the app finds already there is used only when it is a real directory, not a symlink, with no
-//! group or other permission bits.
+//! (`O_EXCL`, which refuses an existing path, a symlink included) and mode `0600`. A name that
+//! exists already is never reused: creation fails with `AlreadyExists` and the next name is
+//! tried. [`is_private_dir`] is for an app that keeps a folder of its own between runs and
+//! checks it before use.
 //!
 //! [`TempDir`] removes its folder and everything in it on drop (DeckCraft's print previews); a
 //! [`TempFiles`] owns several and removes each when asked or on drop.
@@ -114,7 +115,9 @@ fn check_plain(name: &str) -> std::io::Result<()> {
 }
 
 /// Whether `meta` is a folder the app may reuse: a directory, not a symlink, with no group or
-/// other permission bits (always true for a directory on platforms without Unix modes).
+/// other permission bits (always true for a directory on platforms without Unix modes). `meta`
+/// must come from `std::fs::symlink_metadata`: `std::fs::metadata` follows a symlink, so its
+/// `is_symlink()` is never true.
 // cadcraft: crates/ui-egui/src/control.rs:609 is_private_shot_dir
 pub fn is_private_dir(meta: &Metadata) -> bool {
     if !meta.is_dir() || meta.file_type().is_symlink() {

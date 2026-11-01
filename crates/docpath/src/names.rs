@@ -103,9 +103,11 @@ pub fn is_reserved_device_name(stem: &str) -> bool {
 
 /// `name`, or the first of `name 2.ext`, `name 3.ext`, … ([`CopyNumbering::Space`]) or
 /// `name (2).ext`, `name (3).ext`, … ([`CopyNumbering::Parenthesized`]) that `taken` says is
-/// free. The number goes before the last extension; a name that already ends in a copy number of
-/// `style`'s form counts on from it (`photo 2.jpg` → `photo 3.jpg`, `photo (2).jpg` →
-/// `photo (3).jpg`). Stops after 10 000 tries and returns the last candidate.
+/// free. The number goes before the last extension. With [`Parenthesized`](CopyNumbering::Parenthesized)
+/// a name that already ends in a copy number counts on from it (`photo (2).jpg` →
+/// `photo (3).jpg`). With [`Space`](CopyNumbering::Space) a trailing number is part of the name,
+/// as in Finder, which adds its number after the whole stem (`Chapter 1.docx` →
+/// `Chapter 1 2.docx`, `Invoice 2026.pdf` → `Invoice 2026 2.pdf`). Stops after 10 000 tries and returns the last candidate.
 // new: PdfCraft, DeckCraft and the export dialog (`numbered_paths`) each number names their own way
 pub fn unique_file_name(name: &str, style: CopyNumbering, taken: impl Fn(&str) -> bool) -> String {
     const MAX_TRIES: u32 = 10_000;
@@ -116,9 +118,9 @@ pub fn unique_file_name(name: &str, style: CopyNumbering, taken: impl Fn(&str) -
         Some(dot) if dot > 0 && dot + 1 < name.len() => name.split_at(dot),
         _ => (name, ""),
     };
-    let (root, last) = match split_copy_number(base, style) {
-        Some((root, n)) => (root, n),
-        None => (base, 1),
+    let (root, last) = match style {
+        CopyNumbering::Parenthesized => split_copy_number(base).unwrap_or((base, 1)),
+        CopyNumbering::Space => (base, 1),
     };
     let mut candidate = String::new();
     for n in (last + 1)..=last.saturating_add(MAX_TRIES) {
@@ -133,13 +135,10 @@ pub fn unique_file_name(name: &str, style: CopyNumbering, taken: impl Fn(&str) -
     candidate
 }
 
-/// `base` without a trailing copy number of `style`'s form, and that number.
-fn split_copy_number(base: &str, style: CopyNumbering) -> Option<(&str, u32)> {
+/// `base` without a trailing ` (n)` copy number, and that number.
+fn split_copy_number(base: &str) -> Option<(&str, u32)> {
     let (root, number) = base.rsplit_once(' ')?;
-    let digits = match style {
-        CopyNumbering::Space => number,
-        CopyNumbering::Parenthesized => number.strip_prefix('(')?.strip_suffix(')')?,
-    };
+    let digits = number.strip_prefix('(')?.strip_suffix(')')?;
     if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }

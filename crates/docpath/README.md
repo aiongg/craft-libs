@@ -22,4 +22,4 @@ makes safe file names from user text. No dependencies beyond the standard librar
 - `is_plain_file_name` and `is_reserved_device_name`: the checks the two functions use.
 - `unique_file_name(name, CopyNumbering, taken)`: the first free `name 2.ext` (`Space`, Finder) or
   `name (2).ext` (`Parenthesized`, Explorer and GNOME Files; `CopyNumbering::platform()` picks the
-  platform's), numbered before the last extension and counting on from a trailing copy number.
+  platform's), numbered before the last extension; `Parenthesized` counts on from a trailing `(n)`, `Space` keeps a trailing number as part of the name (`Chapter 1 2.docx`).

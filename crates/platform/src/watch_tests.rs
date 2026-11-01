@@ -129,3 +129,19 @@ fn disk_differs_ignores_metadata_only_changes() {
     std::fs::write(&path, "rewritten").unwrap();
     assert!(watch.disk_differs(&1, &path, Some(b"content")));
 }
+
+// Watching nothing keeps the recorded versions: Save still notices another writer. Only forget
+// drops a record.
+#[test]
+fn unwatched_documents_keep_their_records() {
+    let dir = TempDir::new("craft-watch-test").unwrap();
+    let path = file(&dir, "doc.txt", "one");
+    let mut watch = watcher();
+    watch.known_now(1, &path);
+    watch.set([(1, path.clone())]);
+    watch.set([]);
+    std::fs::write(&path, "two!").unwrap();
+    assert!(watch.disk_differs(&1, &path, None));
+    watch.forget(&1);
+    assert!(!watch.disk_differs(&1, &path, None));
+}

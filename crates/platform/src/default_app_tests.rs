@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use crate::default_app::{application_dirs, path_from_arg, rejoin_split_paths};
+use crate::default_app::{DefaultAppError, application_dirs, path_from_arg, rejoin_split_paths};
 
 // file:///a%20b.pdf and file://localhost/x decode to paths; http://, file://host/x, plain paths
 // and non-UTF-8 escapes pass through; file:///C:/x.pdf is C:/x.pdf on Windows.
@@ -46,4 +46,23 @@ fn application_dirs_follow_the_xdg_spec() {
     );
     assert_eq!(application_dirs(Some(""), Some(""), None), [p("/usr/local/share/applications"), p("/usr/share/applications")]);
     assert_eq!(application_dirs(Some("rel"), None, Some("also-rel")), [p("/usr/local/share/applications"), p("/usr/share/applications")]);
+}
+
+// Every error the library words itself has a message with an id; only the system's own text
+// (`Failed`) is free.
+#[test]
+fn library_errors_have_messages() {
+    let errors = [
+        DefaultAppError::Unsupported,
+        DefaultAppError::NotInstalled,
+        DefaultAppError::Sandboxed,
+        DefaultAppError::XdgMimeMissing,
+        DefaultAppError::SettingsFailed("x".into()),
+    ];
+    let ids: Vec<_> = errors.iter().map(|e| e.text().unwrap().id).collect();
+    let mut unique = ids.clone();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(unique.len(), ids.len());
+    assert!(DefaultAppError::Failed("x".into()).text().is_none());
 }

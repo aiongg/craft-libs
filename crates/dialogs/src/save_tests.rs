@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use craft_host::{FileError, FileFilter, Files, PickId, PickRequest, Picked};
 use craft_platform::watch::FileWatch;
@@ -71,6 +71,7 @@ fn document(path: Option<&Path>, name: &str) -> SaveDocument<u32> {
         extension: "pdf".into(),
         filters: vec![FileFilter::new("PDF", &["pdf"])],
         purpose: "document".into(),
+        saved: None,
     }
 }
 
@@ -214,4 +215,53 @@ fn one_save_at_a_time_and_cancel_forgets_the_ticket() {
     files.answer(files.last_ticket(), Picked::Paths(vec![PathBuf::from("/x/c.pdf")]));
     assert!(matches!(flow.take_pick(&files, &watch), Some(SaveStep::Write { target: SaveTarget::Copy, .. })));
     assert_eq!(flow.start(&files, &watch, document(None, "B"), SaveTarget::As), SaveStep::Busy);
+}
+
+// A write that finishes for another document (its save was cancelled) leaves a newer save alone.
+#[test]
+fn a_late_write_does_not_free_another_save() {
+    let (files, mut watch, mut flow) = (ScriptedFiles::default(), watch(), SaveFlow::new());
+    assert_eq!(
+        flow.start(&files, &watch, document(Some(Path::new("/x/a.pdf")), "a.pdf"), SaveTarget::InPlace),
+        SaveStep::Write { key: 7, path: PathBuf::from("/x/a.pdf"), target: SaveTarget::InPlace }
+    );
+    assert_eq!(flow.cancel(&files), Some(SaveStep::Cancelled { key: 7 }));
+    let mut other = document(None, "B");
+    other.key = 8;
+    assert_eq!(flow.start(&files, &watch, other, SaveTarget::As), SaveStep::Picking);
+    let ticket = files.last_ticket();
+
+    flow.written(&mut watch, 7, Path::new("/x/a.pdf"));
+    assert!(flow.is_busy(), "the pick of the other document is still open");
+    files.answer(ticket, Picked::Paths(vec![PathBuf::from("/x/b.pdf")]));
+    assert_eq!(flow.take_pick(&files, &watch), Some(SaveStep::Write { key: 8, path: PathBuf::from("/x/b.pdf"), target: SaveTarget::As }));
+    flow.written(&mut watch, 8, Path::new("/x/b.pdf"));
+    assert!(!flow.is_busy());
+}
+
+// Only the change time differs (a permission change stands for Finder tags): with the bytes the
+// app saved Save writes without asking; without them, or with other bytes, it asks.
+#[cfg(unix)]
+#[test]
+fn a_change_time_only_difference_with_equal_bytes_does_not_ask() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = scratch("ctime");
+    let file = dir.join("a.pdf");
+    std::fs::write(&file, b"content").unwrap();
+    let (files, mut watch, mut flow) = (ScriptedFiles::default(), watch(), SaveFlow::new());
+    watch.known_now(7, &file);
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o640)).unwrap();
+
+    let ask = SaveStep::AskChangedOnDisk { key: 7, path: file.clone() };
+    let write = SaveStep::Write { key: 7, path: file.clone(), target: SaveTarget::InPlace };
+    let mut doc = document(Some(&file), "a.pdf");
+    assert_eq!(flow.start(&files, &watch, doc.clone(), SaveTarget::InPlace), ask, "no saved bytes");
+    flow.cancel(&files);
+    doc.saved = Some(Arc::new(b"other".to_vec()));
+    assert_eq!(flow.start(&files, &watch, doc.clone(), SaveTarget::InPlace), ask, "other bytes");
+    flow.cancel(&files);
+    doc.saved = Some(Arc::new(b"content".to_vec()));
+    assert_eq!(flow.start(&files, &watch, doc, SaveTarget::InPlace), write);
+    std::fs::remove_dir_all(dir).ok();
 }
