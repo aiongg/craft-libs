@@ -42,34 +42,48 @@ impl SelectionOperation {
 
     /// The operation `modifiers` ask for: Shift and Alt `Intersect`, Shift `Add`, Alt `Subtract`,
     /// else `New`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn from_modifiers(modifiers: Modifiers) -> SelectionOperation {
-        // pc: crates/ui-egui/src/panels/channels_panel.rs:40 `load_operation` (match (shift, alt)).
-        todo!()
+        match (modifiers.shift, modifiers.alt) {
+            (true, true) => SelectionOperation::Intersect,
+            (true, false) => SelectionOperation::Add,
+            (false, true) => SelectionOperation::Subtract,
+            (false, false) => SelectionOperation::New,
+        }
     }
 
     /// The badge beside the selection pointer: `Add` a plus, `Subtract` a minus, `Intersect` a
     /// cross, `New` none ([`SelectionBadge::New`]).
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn badge(self) -> SelectionBadge {
-        // new: one name per operation; `selection_cursor` draws the badge.
-        todo!()
+        match self {
+            SelectionOperation::New => SelectionBadge::New,
+            SelectionOperation::Add => SelectionBadge::Add,
+            SelectionOperation::Subtract => SelectionBadge::Subtract,
+            SelectionOperation::Intersect => SelectionBadge::Intersect,
+        }
     }
 
     /// The operation's stable name for commands and settings: `"new"`, `"add"`, `"subtract"`,
     /// `"intersect"` (PhotoCraft's `select.loadSelection` operation values).
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub const fn name(self) -> &'static str {
-        // pc: crates/ui-egui/src/panels/channels_panel.rs:40 `load_operation` (the same four strings).
-        todo!()
+        match self {
+            SelectionOperation::New => "new",
+            SelectionOperation::Add => "add",
+            SelectionOperation::Subtract => "subtract",
+            SelectionOperation::Intersect => "intersect",
+        }
     }
 
     /// The operation's name in the language of `words`, for menus and tooltips
     /// ([`SelectionOperationLabels`]).
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn label(self, words: &Words) -> Cow<'static, str> {
-        // new: as `ThumbSize::label`, one word per variant in `ALL` order.
-        todo!()
+        let labels = words.labels::<SelectionOperationLabels>();
+        let text = match self {
+            SelectionOperation::New => &labels.new,
+            SelectionOperation::Add => &labels.add,
+            SelectionOperation::Subtract => &labels.subtract,
+            SelectionOperation::Intersect => &labels.intersect,
+        };
+        Cow::Owned(text.clone())
     }
 }
 
@@ -85,11 +99,23 @@ crate::words! {
 
 #[cfg(test)]
 mod tests {
+    use egui::Modifiers;
+
+    use super::*;
+
     // None gives New, Shift Add, Alt Subtract, Shift and Alt Intersect; Command and Ctrl change nothing.
     #[test]
-    #[ignore = "skeleton"]
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     fn selection_operation_follows_modifiers() {
-        todo!()
+        let shift = Modifiers::SHIFT;
+        let alt = Modifiers::ALT;
+        assert_eq!(SelectionOperation::from_modifiers(Modifiers::NONE), SelectionOperation::New);
+        assert_eq!(SelectionOperation::from_modifiers(shift), SelectionOperation::Add);
+        assert_eq!(SelectionOperation::from_modifiers(alt), SelectionOperation::Subtract);
+        assert_eq!(SelectionOperation::from_modifiers(shift | alt), SelectionOperation::Intersect);
+        assert_eq!(SelectionOperation::from_modifiers(Modifiers::COMMAND | Modifiers::CTRL), SelectionOperation::New);
+        assert_eq!(SelectionOperation::from_modifiers(Modifiers::COMMAND | shift), SelectionOperation::Add);
+        for operation in SelectionOperation::ALL {
+            assert_eq!(operation.badge() == SelectionBadge::New, operation == SelectionOperation::New);
+        }
     }
 }
