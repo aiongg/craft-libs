@@ -14,6 +14,7 @@ primitives/interactive/element = Interactive | Element | Panel | role=Choice { o
 primitives/text/roles = Text | Roles | Panel | content=Choice { options: ["normal", "muted", "faint", "disabled", "accent", "on_accent", "on_status", "on_selected"], index: 0 }
 primitives/text/contents = Text | Contents | Panel | 
 primitives/text/truncate = Text | Truncate | Panel | role=Choice { options: ["caption", "label", "body", "body_strong", "title", "heading", "body_large", "mono"], index: 2 }; text=Text("A long layer name that does not fit in the panel and ends in an ellipsis"); width=Number { value: 160.0, min: 40.0, max: 400.0 }
+primitives/text/elide = Text | Elide | Panel | text=Text("IMG_2024_summer_holiday_final_edit.psd"); width=Number { value: 180.0, min: 40.0, max: 400.0 }
 primitives/icon/sizes = Icon | Sizes | Panel | content=Choice { options: ["normal", "muted", "faint", "disabled", "accent", "on_accent", "on_status", "on_selected"], index: 0 }
 primitives/handle/shapes = Handle | Shapes | Canvas | 
 primitives/grid/lines = Grid | Lines | Canvas | zoom=Number { value: 100.0, min: 10.0, max: 800.0 }; rotation=Number { value: 0.0, min: -180.0, max: 180.0 }; flip=Bool(false); aspect=Number { value: 1.0, min: 0.5, max: 2.0 }; ppp=Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }; style=Choice { options: ["solid", "dashed", "dots", "crossings"], index: 0 }; subdivisions=Number { value: 4.0, min: 1.0, max: 10.0 }; spacing=Number { value: 80.0, min: 10.0, max: 200.0 }
@@ -175,6 +176,12 @@ patterns/dds-options-dialog/dialog = DdsOptionsDialog | Dialog | Panel | open=Bo
 composites/watermark-editor/group = WatermarkEditor | Group | Panel | style=Choice { options: ["text", "graphic"], index: 0 }; vertical=Bool(false); width=Number { value: 360.0, min: 240.0, max: 480.0 }
 composites/output-path-row/row = OutputPathRow | Row | Panel | templates=Bool(true); file chosen=Bool(false)
 patterns/recovery-dialog/dialog = RecoveryDialog | Dialog | Panel | open=Bool(true); age=Choice { options: ["seconds", "minutes", "hours", "days"], index: 1 }; recover blocked=Bool(false)
+patterns/dialog/new-guide = Dialog | New Guide | Panel | open=Bool(true); ruler=Choice { options: ["pixels", "inches", "millimetres"], index: 0 }
+patterns/dialog/edit-guides = Dialog | Edit Selected Guides | Panel | open=Bool(true); ruler=Choice { options: ["pixels", "inches", "millimetres"], index: 0 }; horizontal guide=Bool(false)
+patterns/dialog/guide-layout = Dialog | New Guide Layout | Panel | open=Bool(true); ruler=Choice { options: ["pixels", "inches", "millimetres"], index: 0 }; existing guides=Bool(true); artboards=Bool(false)
+patterns/dialog/about = Dialog | About | Panel | open=Bool(true); tab=Choice { options: ["about", "contributors", "models"], index: 0 }; community button=Bool(true)
+patterns/dialog/password = Dialog | Password | Panel | open=Bool(true); purpose=Choice { options: ["open", "permissions", "set"], index: 0 }; wrong password=Bool(false)
+patterns/dialog/list-manager = Dialog | List manager | Panel | open=Bool(true); searchable=Bool(false); empty=Bool(false); note=Bool(true)
 patterns/full-window/workspace = FullWindowDialog | Workspace | Panel | open=Bool(true); title strip=Bool(true); apply=Bool(false)
 patterns/dialog/preview = Dialog | Preview box | Panel | open=Bool(true); preview=Bool(true); local history=Bool(true); compare button=Bool(true)
 patterns/viewport/embedded = ViewportWindow | Embedded | Panel | open=Bool(true); app modal=Bool(false); scrim=Bool(false)
@@ -182,6 +189,7 @@ patterns/preferences/window = PreferencesWindow | Window | Panel | search=Text("
 patterns/settings-document/window = SettingsDocument | Window | Panel | search=Text(""); width=Number { value: 760.0, min: 560.0, max: 1040.0 }; height=Number { value: 480.0, min: 400.0, max: 800.0 }
 patterns/options-bar/brush-and-transform = OptionsBar | Brush and transform | Chrome | narrow=Bool(false); session=Bool(true); disabled=Bool(false); two_rows=Bool(false); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
 patterns/options-bar/cells = OptionsBar | Value cells | Chrome | narrow=Bool(false); expressions=Bool(true); digit keys=Bool(true)
+patterns/align-bar/bar = AlignBar | Align bar | Panel | distribute=Choice { options: ["menu", "row"], index: 0 }; distribute enabled=Bool(true)
 patterns/status-bar/photocraft = StatusBar | PhotoCraft | Chrome | message=Text("Saved to Documents"); error=Bool(false); render_path=Bool(true); width=Number { value: 640.0, min: 160.0, max: 1200.0 }
 patterns/status-bar/job = StatusBar | Job | Chrome | 
 patterns/status-bar/error = StatusBar | Error | Chrome | message=Text("Couldn't save: the disk is full"); error=Bool(true); render_path=Bool(true); width=Number { value: 640.0, min: 160.0, max: 1200.0 }

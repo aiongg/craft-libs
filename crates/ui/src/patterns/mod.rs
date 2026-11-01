@@ -18,6 +18,7 @@
 //! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
 
 pub(crate) mod align;
+pub(crate) mod align_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod align_tests;
 pub(crate) mod command_palette;
