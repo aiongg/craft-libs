@@ -1,11 +1,20 @@
 //! [`SelectionFrame`]: the box round selected objects, with eight grips and a movable inside.
 
-use egui::{AsIdSalt, Color32, Context, Id, IdSalt, Modifiers, Response, Ui};
+use egui::{AsIdSalt, Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Pos2, Response, Shape, Stroke, Ui, vec2};
+use kurbo::{Point, Vec2};
 
 use crate::behavior::nudge;
-use crate::canvas::quad::{BoxPart, BoxRules, BoxState};
-use crate::canvas::{CanvasView, RulerUnits};
-use crate::edit::{EditEvent, EditPolicy};
+use crate::canvas::claim::PrimaryPress;
+use crate::canvas::quad::{self, BoxPart, BoxRules, BoxState};
+use crate::canvas::{CanvasView, Claim, Part, PartFocus, RulerUnits, resize_cursor};
+use crate::edit::order::Turn;
+use crate::edit::{EditEvent, EditPolicy, Gesture};
+use crate::localized::Labels;
+use crate::popup_list;
+use crate::primitives::{FocusRing, Handle, HandleShape};
+use crate::theme::{ToEgui, current};
+
+use super::SelectionFrameStyle;
 
 crate::words! {
     /// The AccessKit names of a [`SelectionFrame`] and its parts, English by default (the corner
@@ -207,8 +216,8 @@ impl<'a> SelectionFrame<'a> {
 
     /// Gives the frame `id` ([`SelectionFrameResponse::id`]) the keyboard.
     pub fn focus(ctx: &Context, id: Id) {
-        // new: as `TransformBox::focus` (crates/draw/src/ui/transform/transform_box.rs:452).
-        todo!()
+        // as `TransformBox::focus` (crates/draw/src/ui/transform/transform_box.rs:452).
+        ctx.memory_mut(|m| m.request_focus(id));
     }
 
     /// Draws the frame over `view` and senses through the host's `canvas` response. The host
@@ -222,7 +231,453 @@ impl<'a> SelectionFrame<'a> {
         // (crates/draw/src/ui/transform/transform_box.rs:457-582, `press_pass` :667, `track_pass`
         // :713, `keys` :765, `parts` :796, `paint` :897) without rotation, the reference point, the
         // readout or apply and discard; the look from `SelectionFrame::style`.
-        // `rules: None` is `BoxRules::resize_only()` (K2's body, batch 1).
-        todo!()
+        let ctx = ui.ctx().clone();
+        let style = SelectionFrame::style(&current(&ctx));
+        let rules = self.rules.unwrap_or_else(BoxRules::resize_only);
+        let labels = self.labels.clone().unwrap_or_else(|| SelectionFrameLabels::of(ui));
+        let id = ui.make_persistent_id(self.id_salt);
+        let mut out = SelectionFrameResponse { id, event: None, picked: None, hovered: None, claimed: false };
+        let mut picked: Option<BoxPart> = ctx.data(|d| d.get_temp(pick_key(id)));
+
+        // A drag whose press ended while the frame was not shown is dropped, and its gesture with it.
+        let mut drag: Option<Drag> =
+            ctx.data(|d| d.get_temp(drag_key(id))).filter(|d: &Drag| d.press.holds(&ctx) || (d.waits && Claim::is_owner(&ctx, canvas.id, id)));
+        let waited = drag.is_some_and(|d| d.waits);
+        if let Some(d) = &mut drag
+            && d.waits
+        {
+            match Claim::turn(&ctx, canvas.id, id) {
+                Turn::Waits => {}
+                Turn::Runs => {
+                    d.waits = false;
+                    d.core.rebase(self.state);
+                }
+                Turn::Now => drag = None,
+            }
+        }
+        if drag.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) {
+            drag = self.press_pass(ui, canvas, view, &style, &rules, id);
+            if let Some(d) = drag {
+                picked = Some(d.core.part);
+            }
+        }
+        let reported = Gesture::<BoxState>::reported(ui, id).map(|(_, value)| value);
+        let host = match drag {
+            Some(d) if d.core.began && !d.cancelled && (*self.state == d.core.at_press || Some(*self.state) == reported) => {
+                reported.unwrap_or(d.core.at_press)
+            }
+            _ => *self.state,
+        };
+        let mut gesture = Gesture::load(ui, id, &host, self.policy).focus_owners(&[]).enabled(ui.is_enabled());
+        if let Some(d) = &mut drag
+            && d.core.began
+            && !d.cancelled
+            && !gesture.is_active()
+        {
+            d.cancelled = true;
+        }
+        // Esc before the first move ends the press as it would end its drag.
+        if let Some(d) = &mut drag
+            && !d.core.began
+            && !d.cancelled
+            && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
+        {
+            d.cancelled = true;
+        }
+        if let Some(d) = &mut drag
+            && !d.waits
+            && !d.cancelled
+        {
+            self.track_pass(&ctx, view, &rules, d, &mut gesture);
+        }
+
+        let shown = *gesture.shown();
+        let screen = on_screen(view, &shown);
+        let parts = self.parts(&screen, &shown, &rules, &labels, &style);
+        let mut focus = PartFocus::new(id, labels.group.clone()).parts(&parts).picked(picked.map(part_key));
+        focus = focus.value(self.group_value(&shown));
+        let focus = focus.show(ui, canvas);
+        if let Some(pick) = focus.pick {
+            picked = pick.and_then(key_part);
+        }
+        if drag.is_none_or(|d| d.cancelled) {
+            // The arrows are the keyboard's: without the focus they stay with the host.
+            self.keys(ui, drag.is_none() && focus.focused, picked, &rules, &mut gesture);
+        }
+
+        let dragging = drag.filter(|d| d.core.began && !d.cancelled);
+        let other = Claim::owner(&ctx, canvas.id).is_some_and(|owner| owner != id);
+        if let Some(d) = dragging {
+            self.cursor(&ctx, view, &screen, d.core.part);
+        } else if drag.is_none()
+            && !other
+            && let Some(pointer) = canvas.hover_pos()
+        {
+            let base = on_screen(view, self.state);
+            out.hovered = self.takes(&base, pointer, &style, &rules);
+            if let Some(part) = out.hovered {
+                self.cursor(&ctx, view, &base, part);
+            }
+        }
+
+        out.event = gesture.finish();
+        out.claimed = Claim::is_owner(&ctx, canvas.id, id);
+        out.picked = picked;
+        let held = drag.filter(|d| d.waits || ctx.input(|i| i.pointer.primary_down()));
+        ctx.data_mut(|data| {
+            match held {
+                Some(d) => {
+                    data.insert_temp(drag_key(id), d);
+                }
+                None => {
+                    data.remove::<Drag>(drag_key(id));
+                }
+            }
+            match picked {
+                Some(p) => {
+                    data.insert_temp(pick_key(id), p);
+                }
+                None => {
+                    data.remove::<BoxPart>(pick_key(id));
+                }
+            }
+        });
+        self.paint(ui, view, &screen, &style, &rules, picked, focus.keyboard);
+        out
     }
+
+    /// The modifiers the frame reads: its [`modifiers`](Self::modifiers) if set, else `held`.
+    fn mods(&self, held: Modifiers) -> Modifiers {
+        self.modifiers.unwrap_or(held)
+    }
+
+    /// The part a press at screen point `p` takes from the box mapped to the screen; `None` where
+    /// the press is the tool's (outside, a part the rules refuse).
+    fn takes(&self, screen: &BoxState, p: Pos2, style: &SelectionFrameStyle, rules: &BoxRules) -> Option<BoxPart> {
+        // Grips off: no tolerance, so only the inside is left. The frame has no reference point:
+        // it is moved out of reach.
+        let reach = if self.grips { f64::from(style.handle.hit) } else { 0.0 };
+        let far = Point::new(f64::INFINITY, f64::INFINITY);
+        let part = BoxState { pivot: far, ..*screen }.part_at(Point::new(f64::from(p.x), f64::from(p.y)), reach);
+        match part {
+            BoxPart::Outside | BoxPart::Pivot => None,
+            part => rules.allows(part).then_some(part),
+        }
+    }
+
+    /// A press on the canvas read from the input: the part it takes, claimed for the frame.
+    fn press_pass(&self, ui: &Ui, canvas: &Response, view: &CanvasView, style: &SelectionFrameStyle, rules: &BoxRules, id: Id) -> Option<Drag> {
+        let ctx = ui.ctx();
+        if !ui.is_enabled() || !ctx.input(|i| i.pointer.primary_pressed()) {
+            return None;
+        }
+        let press = PrimaryPress::current(ctx)?;
+        if !(view.rect.contains(press.origin) && canvas.contains_pointer()) {
+            return None;
+        }
+        let part = self.takes(&on_screen(view, self.state), press.origin, style, rules)?;
+        if !Claim::take(ctx, canvas.id, id) {
+            return None;
+        }
+        let from = view.to_doc(press.origin);
+        let core = Press { part, at_press: *self.state, start: centred(self.state), from, origin: press.origin, began: false, last: *self.state };
+        let waits = Claim::turn(ctx, canvas.id, id) == Turn::Waits;
+        Some(Drag { core, press, cancelled: false, waits })
+    }
+
+    /// One pass of a drag read from the input: begins it on the first move, updates it, ends it
+    /// on the release.
+    fn track_pass(&self, ctx: &Context, view: &CanvasView, rules: &BoxRules, d: &mut Drag, gesture: &mut Gesture<BoxState>) {
+        let (pointer, down, input_mods) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
+        let mods = self.mods(input_mods);
+        if let Some(pointer) = pointer {
+            d.core.last = *gesture.shown();
+            if !d.core.began && pointer != d.core.origin && rules.allows(d.core.part) {
+                gesture.begin();
+                d.core.began = gesture.is_active();
+            }
+            if d.core.began {
+                let core = &d.core;
+                let dragged = quad::drag(&core.start, &core.last, core.part, core.from, view.to_doc(pointer), mods, rules);
+                d.core.last = dragged;
+                gesture.update(dragged, mods);
+            }
+        }
+        if !down && d.core.began {
+            gesture.commit();
+        }
+    }
+
+    /// The arrows, when `idle` (no press held, the frame focused).
+    fn keys(&self, ui: &Ui, idle: bool, picked: Option<BoxPart>, rules: &BoxRules, gesture: &mut Gesture<BoxState>) {
+        let ctx = ui.ctx();
+        if !idle || !ui.is_enabled() || ctx.text_edit_focused() || popup_list::any_open(ctx) || !ctx.memory(|m| m.allows_interaction(ui.layer_id())) {
+            return;
+        }
+        let (step, big) = self.steps;
+        let Some(by) = nudge::read(ui, step, big) else { return };
+        let part = picked.filter(|&p| rules.allows(p) && (self.grips || p == BoxPart::Inside)).unwrap_or(BoxPart::Inside);
+        gesture.set(self.nudged(part, by, rules));
+    }
+
+    /// The box after an arrow key moves `part` by `by`: as a plain drag of the part would.
+    fn nudged(&self, part: BoxPart, by: Vec2, rules: &BoxRules) -> BoxState {
+        let s = centred(self.state);
+        let at = match part {
+            BoxPart::Corner(i) => s.quad[usize::from(i % 4)],
+            BoxPart::Edge(i) => s.quad[usize::from(i % 4)].midpoint(s.quad[usize::from(i + 1) % 4]),
+            BoxPart::Inside | BoxPart::Outside | BoxPart::Pivot => return self.state.moved(by),
+        };
+        quad::drag(&s, &s, part, at, at + by, Modifiers::NONE, rules)
+    }
+
+    /// The group's value: `value`, else the bounds in the units, else none.
+    fn group_value(&self, shown: &BoxState) -> String {
+        if let Some(value) = &self.value {
+            return value.clone();
+        }
+        let Some((ux, uy)) = self.units else { return String::new() };
+        let (min, max) = bounds(shown);
+        [ux.format_value(min.x, 0.0), uy.format_value(min.y, 0.0), ux.format_value(max.x, min.x), uy.format_value(max.y, min.y)].join(", ")
+    }
+
+    /// The keyboard parts: the whole frame, then (with grips) the corners and the edges, without
+    /// those the rules refuse.
+    fn parts(&self, screen: &BoxState, shown: &BoxState, rules: &BoxRules, labels: &SelectionFrameLabels, style: &SelectionFrameStyle) -> Vec<Part> {
+        let reach = egui::Vec2::splat(2.0 * style.handle.hit);
+        let q = &shown.quad;
+        let mut out = Vec::with_capacity(9);
+        let bounds = egui::Rect::from_points(&screen.quad.map(pos));
+        out.push(Part {
+            key: part_key(BoxPart::Inside),
+            name: labels.whole.clone(),
+            value: self.value.clone().or_else(|| Some(self.group_value(shown)).filter(|v| !v.is_empty())),
+            rect: bounds,
+            selected: false,
+        });
+        if self.grips {
+            let corners = [&labels.top_left, &labels.top_right, &labels.bottom_right, &labels.bottom_left];
+            let edges = [&labels.top, &labels.right, &labels.bottom, &labels.left];
+            let handles = (0..4u8)
+                .map(|i| (BoxPart::Corner(i), q[usize::from(i)], corners[usize::from(i)]))
+                .chain((0..4u8).map(|i| (BoxPart::Edge(i), q[usize::from(i)].midpoint(q[usize::from(i + 1) % 4]), edges[usize::from(i)])));
+            for (part, at, name) in handles {
+                if !rules.allows(part) {
+                    continue;
+                }
+                let value = self.units.map(|(x, y)| format!("{}, {}", x.format_value(at.x, 0.0), y.format_value(at.y, 0.0)));
+                let centre = pos(screen_point(screen, part).unwrap_or(Point::ZERO));
+                out.push(Part { key: part_key(part), name: name.clone(), value, rect: egui::Rect::from_center_size(centre, reach), selected: false });
+            }
+        }
+        out
+    }
+
+    /// The pointer for `part`.
+    fn cursor(&self, ctx: &Context, view: &CanvasView, screen: &BoxState, part: BoxPart) {
+        let q = &screen.quad;
+        let mid = |k: usize| q[k % 4].midpoint(q[(k + 1) % 4]);
+        let icon = match part {
+            BoxPart::Corner(i) => {
+                // Along the corner's bisector on screen, out of the box.
+                let out = -bisector(screen, usize::from(i));
+                resize_cursor(view, view.unmap_vec(out))
+            }
+            BoxPart::Edge(i) => {
+                let i = usize::from(i);
+                let across = mid(i) - mid(i + 2);
+                resize_cursor(view, view.unmap_vec(vec2(across.x as f32, across.y as f32)))
+            }
+            BoxPart::Inside => CursorIcon::Move,
+            BoxPart::Outside | BoxPart::Pivot => CursorIcon::Default,
+        };
+        ctx.set_cursor_icon(icon);
+    }
+
+    /// Draws the box line, the centre mark, the grips and, after keyboard input, the focus round
+    /// the picked part.
+    #[expect(clippy::too_many_arguments, reason = "one pass's state, passed once")]
+    fn paint(
+        &self,
+        ui: &Ui,
+        view: &CanvasView,
+        screen: &BoxState,
+        style: &SelectionFrameStyle,
+        rules: &BoxRules,
+        picked: Option<BoxPart>,
+        keyboard: bool,
+    ) {
+        let painter = ui.painter_at(view.rect);
+        let colour = self.colour.unwrap_or(style.colour);
+        let width = if self.key_object { style.key_line } else { style.line };
+        let corners = screen.quad.map(pos);
+        painter.add(Shape::closed_line(corners.to_vec(), Stroke::new(width, colour)));
+        if self.centre_mark {
+            let centre = pos(screen.quad[0].midpoint(screen.quad[2]));
+            painter.rect_filled(egui::Rect::from_center_size(centre, egui::Vec2::splat(style.centre)), 0.0, colour);
+        }
+        let mut handle = style.handle;
+        handle.stroke.color = colour;
+        handle.size += f32::from(self.grow) * style.grow_step;
+        let ppp = ui.pixels_per_point();
+        if self.grips {
+            for i in 0..4u8 {
+                for part in [BoxPart::Corner(i), BoxPart::Edge(i)] {
+                    if let Some(at) = screen_point(screen, part).filter(|_| rules.allows(part)) {
+                        painter.extend(Handle::shapes_with(&handle, HandleShape::Square, pos(at), ppp));
+                    }
+                }
+            }
+        }
+        if !keyboard {
+            return;
+        }
+        match picked.filter(|&p| p != BoxPart::Inside && self.grips && rules.allows(p)) {
+            Some(part) => {
+                if let Some(at) = screen_point(screen, part) {
+                    PartFocus::ring(&painter, egui::Rect::from_center_size(pos(at), egui::Vec2::splat(handle.size)));
+                }
+            }
+            None => {
+                let ring = FocusRing::style(&current(ui.ctx()));
+                let halo = current(ui.ctx()).component.handle.halo;
+                let focus_halo = Stroke::new(ring.stroke.width + 2.0 * halo, current(ui.ctx()).color.overlay.halo.to_egui());
+                let line = outset(&corners, width / 2.0 + ring.offset + ring.stroke.width / 2.0);
+                painter.add(Shape::closed_line(line.to_vec(), focus_halo));
+                painter.add(Shape::closed_line(line.to_vec(), ring.stroke));
+            }
+        }
+    }
+}
+
+/// The press of a drag: the part taken, the box at the press and the box the drag works from.
+#[derive(Clone, Copy, Debug)]
+struct Press {
+    part: BoxPart,
+    at_press: BoxState,
+    /// `at_press` with the reference point at its centre, so ⌥ scales about the centre.
+    start: BoxState,
+    /// The press in document space.
+    from: Point,
+    /// The press in canvas space.
+    origin: Pos2,
+    began: bool,
+    /// The box the drag last produced.
+    last: BoxState,
+}
+
+impl Press {
+    /// Takes the host's box as the press's start when its turn comes: a typing run that ended
+    /// first may have changed it.
+    fn rebase(&mut self, state: &BoxState) {
+        self.at_press = *state;
+        self.last = *state;
+        self.start = centred(state);
+    }
+}
+
+/// A drag [`SelectionFrame::show`] keeps between passes.
+#[derive(Clone, Copy, Debug)]
+struct Drag {
+    core: Press,
+    press: PrimaryPress,
+    /// Esc, an outside change or a missed pass ended the gesture; the rest of the press does
+    /// nothing.
+    cancelled: bool,
+    /// The press waits for another control's typing run to end ([`Claim::turn`]); nothing of it
+    /// has run.
+    waits: bool,
+}
+
+fn drag_key(id: Id) -> Id {
+    id.with("craft_ui::canvas::SelectionFrame::drag")
+}
+
+fn pick_key(id: Id) -> Id {
+    id.with("craft_ui::canvas::SelectionFrame::picked")
+}
+
+/// The [`Part`] key of a box part.
+fn part_key(part: BoxPart) -> u64 {
+    match part {
+        BoxPart::Inside | BoxPart::Outside | BoxPart::Pivot => 0,
+        BoxPart::Corner(i) => 1 + u64::from(i % 4),
+        BoxPart::Edge(i) => 5 + u64::from(i % 4),
+    }
+}
+
+fn key_part(key: u64) -> Option<BoxPart> {
+    match key {
+        0 => Some(BoxPart::Inside),
+        1..=4 => Some(BoxPart::Corner((key - 1) as u8)),
+        5..=8 => Some(BoxPart::Edge((key - 5) as u8)),
+        _ => None,
+    }
+}
+
+/// `state` with the reference point at the centre of its quad.
+fn centred(state: &BoxState) -> BoxState {
+    BoxState { pivot: state.quad[0].midpoint(state.quad[2]), ..*state }
+}
+
+/// The box's corner extremes in document units.
+fn bounds(state: &BoxState) -> (Point, Point) {
+    let fold = |f: fn(f64, f64) -> f64, init: f64, get: fn(&Point) -> f64| state.quad.iter().map(get).fold(init, f);
+    (
+        Point::new(fold(f64::min, f64::INFINITY, |p| p.x), fold(f64::min, f64::INFINITY, |p| p.y)),
+        Point::new(fold(f64::max, f64::NEG_INFINITY, |p| p.x), fold(f64::max, f64::NEG_INFINITY, |p| p.y)),
+    )
+}
+
+/// The box as `view` draws it, in screen points.
+fn on_screen(view: &CanvasView, s: &BoxState) -> BoxState {
+    let a = view.affine();
+    BoxState { quad: s.quad.map(|p| a * p), pivot: a * s.pivot }
+}
+
+fn pos(p: Point) -> Pos2 {
+    Pos2::new(p.x as f32, p.y as f32)
+}
+
+/// The handle's screen position; `None` for the inside and the outside.
+fn screen_point(screen: &BoxState, part: BoxPart) -> Option<Point> {
+    let q = &screen.quad;
+    match part {
+        BoxPart::Corner(i) => Some(q[usize::from(i % 4)]),
+        BoxPart::Edge(i) => Some(q[usize::from(i % 4)].midpoint(q[usize::from(i + 1) % 4])),
+        BoxPart::Inside | BoxPart::Outside | BoxPart::Pivot => None,
+    }
+}
+
+/// Corner `i`'s bisector on screen, into the box; zero for a collapsed corner.
+fn bisector(screen: &BoxState, i: usize) -> egui::Vec2 {
+    let q = &screen.quad;
+    let unit = |to: Point| {
+        let d = to - q[i];
+        let l = d.hypot();
+        if l.is_finite() && l > 1e-9 { d / l } else { Vec2::ZERO }
+    };
+    let s = unit(q[(i + 1) % 4]) + unit(q[(i + 3) % 4]);
+    let l = s.hypot();
+    if l.is_finite() && l > 1e-6 { vec2((s.x / l) as f32, (s.y / l) as f32) } else { egui::Vec2::ZERO }
+}
+
+/// The closed polygon `corners` moved `by` points outward, each corner along its mitre (kept
+/// within four times `by` at a sharp corner).
+fn outset(corners: &[Pos2; 4], by: f32) -> [Pos2; 4] {
+    let area: f32 = (0..4).map(|i| corners[i].x * corners[(i + 1) % 4].y - corners[(i + 1) % 4].x * corners[i].y).sum();
+    let side = if area >= 0.0 { 1.0 } else { -1.0 };
+    let normal = |a: Pos2, b: Pos2| {
+        let d = (b - a).normalized();
+        vec2(d.y, -d.x) * side
+    };
+    std::array::from_fn(|i| {
+        let (prev, here, next) = (corners[(i + 3) % 4], corners[i], corners[(i + 1) % 4]);
+        let (n1, n2) = (normal(prev, here), normal(here, next));
+        let sum = n1 + n2;
+        let k = 1.0 + n1.dot(n2);
+        let mitre = if k > 1e-3 && sum.is_finite() { sum * (by / k) } else { n1 * by };
+        let mitre = if mitre.length() > 4.0 * by { mitre.normalized() * 4.0 * by } else { mitre };
+        here + mitre
+    })
 }

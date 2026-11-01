@@ -17,8 +17,6 @@
 //!
 //! [`EditEvent`]: crate::edit::EditEvent
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 mod bands;
 mod frame;
 mod grips;
