@@ -5,6 +5,8 @@ craft_ui::words! {
     /// The words of [`ShapePanel`](super::ShapePanel) and [`ShapeOptionsBar`](super::ShapeOptionsBar).
     #[non_exhaustive]
     pub struct ShapeLabels {
+        /// The panel's accessible name.
+        properties: "shape.properties" = "Shape properties";
         /// The Appearance section (the shape's look, not the app's theme).
         appearance: "shape.appearance" = "Appearance";
         /// The live shape section.
