@@ -13,8 +13,8 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `shells/vanishing-point/planes` | Valid, questionable and invalid planes, a torn-off wall; click a plane to select it and show its nodes; Create Plane's pending corners |
-//! | `shells/vanishing-point/stamp` | The source cross, the foreshortened ring under the pointer, the paste image on a plane |
+//! | `patterns/vanishing-point/planes` | Valid, questionable and invalid planes, a torn-off wall; click a plane to select it and show its nodes; Create Plane's pending corners |
+//! | `patterns/vanishing-point/stamp` | The source cross, the foreshortened ring under the pointer, the paste image on a plane |
 
 #![expect(dead_code, reason = "task RG2 registers the stories")]
 
@@ -52,8 +52,8 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "shells/vanishing-point/planes",
-            Level::Shells,
+            "patterns/vanishing-point/planes",
+            Level::Patterns,
             "VanishingPointWorkspace",
             "Planes",
             PlanesArgs { tool: PlaneTool::Edit, grid_size: 100.0 },
@@ -61,8 +61,8 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "shells/vanishing-point/stamp",
-            Level::Shells,
+            "patterns/vanishing-point/stamp",
+            Level::Patterns,
             "VanishingPointWorkspace",
             "Stamp",
             StampArgs { paste: true, aligned: true, diameter: 80.0 },

@@ -15,9 +15,9 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `shells/content-aware-fill/brush` | The sampling tint, the three sampling options, Indicates both ways |
-//! | `shells/content-aware-fill/lasso` | The fill area's ants, the four operations, Expand and Contract |
-//! | `shells/content-aware-fill/preview` | The Preview panel framed on the sampling window, recomputing, failed |
+//! | `patterns/content-aware-fill/brush` | The sampling tint, the three sampling options, Indicates both ways |
+//! | `patterns/content-aware-fill/lasso` | The fill area's ants, the four operations, Expand and Contract |
+//! | `patterns/content-aware-fill/preview` | The Preview panel framed on the sampling window, recomputing, failed |
 
 #![expect(dead_code, reason = "task RG2 registers the stories")]
 
@@ -54,8 +54,8 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "shells/content-aware-fill/brush",
-            Level::Shells,
+            "patterns/content-aware-fill/brush",
+            Level::Patterns,
             "ContentAwareFillWorkspace",
             "Brush",
             BrushArgs { open: true, sampling: SamplingArg::Auto, indicates: IndicatesArg::SamplingArea, show_tint: true, opacity: 50.0 },
@@ -63,8 +63,8 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "shells/content-aware-fill/lasso",
-            Level::Shells,
+            "patterns/content-aware-fill/lasso",
+            Level::Patterns,
             "ContentAwareFillWorkspace",
             "Lasso",
             LassoArgs { operation: OperationArg::New, grow_by: 12.0 },
@@ -72,8 +72,8 @@ pub(crate) fn stories() -> Vec<Story> {
         )
         .on(Surface::Canvas),
         typed_story!(
-            "shells/content-aware-fill/preview",
-            Level::Shells,
+            "patterns/content-aware-fill/preview",
+            Level::Patterns,
             "ContentAwareFillWorkspace",
             "Preview",
             PreviewArgs { open: true, preview: PreviewArg::Ready },

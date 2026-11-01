@@ -13,26 +13,27 @@
 //!
 //! | Story id | Shows |
 //! |---|---|
-//! | `shells/select-mask/views` | The seven views with their opacities, Show Edge and Show Original |
-//! | `shells/select-mask/tools` | Each tool's options bar, a Polygonal Lasso in progress, Refine Hair and Object Aware disabled with their reasons |
-//! | `shells/select-mask/refine` | Edge Detection and Global Refinements, Output To with Decontaminate Colors, the limit message |
+//! | `patterns/select-mask/views` | The seven views with their opacities, Show Edge and Show Original |
+//! | `patterns/select-mask/tools` | Each tool's options bar, a Polygonal Lasso in progress, Refine Hair and Object Aware disabled with their reasons |
+//! | `patterns/select-mask/refine` | Edge Detection and Global Refinements, Output To with Decontaminate Colors, the limit message |
 
 #![expect(dead_code, reason = "task RG2 registers the stories")]
 
-use craft_ui::canvas::{Checkerboard, PixelRect, RasterSource};
+use craft_ui::canvas::{Checkerboard, RasterSource};
 use craft_ui::dialog::full_window::FullWindowCanvas;
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::{Content, Text};
 use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, Surface, dialog_closed, dialog_shown, lock, shared};
 use craft_ui::typed_story;
-use egui::{Color32, ColorImage, Key, Modifiers, Ui, vec2};
+use egui::{Key, Modifiers, Ui, vec2};
 
 use super::{
     BrushSizes, OutputTo, SelectMaskBar, SelectMaskCanvas, SelectMaskEvent, SelectMaskLabels, SelectMaskLimits, SelectMaskOpen, SelectMaskPanel,
     SelectMaskSession, SelectMaskSettings, SelectMaskSource, SelectMaskTool, SelectMaskToolOptions, SelectMaskWorkspace,
 };
 use crate::trace::MaskSource;
-use crate::ui::mask_view::{MaskCoverage, MaskViewMode, MaskViewRecipe, MaskViewState, VeilMask};
+use crate::ui::mask_view::stories::Composite;
+use crate::ui::mask_view::{MaskViewMode, MaskViewRecipe, MaskViewState};
 use crate::ui::mock_image::{MockImage, MockSubject};
 use crate::ui::selection::SelectionOverlay;
 use craft_ui::edit::EditEvent;
@@ -56,19 +57,26 @@ craft_ui::words! {
 pub(crate) fn stories() -> Vec<Story> {
     vec![
         typed_story!(
-            "shells/select-mask/views",
-            Level::Shells,
+            "patterns/select-mask/views",
+            Level::Patterns,
             "SelectMaskWorkspace",
             "Views",
             ViewsArgs { open: true, view: ViewArg::OnionSkin, opacity: 50.0, show_edge: false, show_original: false },
             show_views
         )
         .on(Surface::Canvas),
-        typed_story!("shells/select-mask/tools", Level::Shells, "SelectMaskWorkspace", "Tools", ToolsArgs { tool: ToolArg::Polygonal }, show_tools)
-            .on(Surface::Canvas),
         typed_story!(
-            "shells/select-mask/refine",
-            Level::Shells,
+            "patterns/select-mask/tools",
+            Level::Patterns,
+            "SelectMaskWorkspace",
+            "Tools",
+            ToolsArgs { tool: ToolArg::Polygonal },
+            show_tools
+        )
+        .on(Surface::Canvas),
+        typed_story!(
+            "patterns/select-mask/refine",
+            Level::Patterns,
             "SelectMaskWorkspace",
             "Refine",
             RefineArgs { smart_radius: true, decontaminate: true, limit_message: false },
@@ -171,79 +179,6 @@ struct RefineArgs {
 const LIMITS: SelectMaskLimits = SelectMaskLimits { edits: 4096, edit_points: 100_000, strokes: 4096, stroke_points: 100_000 };
 /// The tools frame's height as a fraction of its width.
 const FRAME_RATIO: f32 = 0.6;
-/// Show Edge's band: its half width as a fraction of the picture's width.
-const BAND: f64 = 0.008;
-
-/// The view the engine would build from a recipe, drawn on the spot: the layer (the picture) with
-/// its mask raised to the recipe's floor, then each veil over it.
-struct Composite {
-    image: MockImage,
-    recipe: MaskViewRecipe,
-    revision: u64,
-}
-
-impl Composite {
-    fn coverage(&self, x: f64, y: f64) -> f32 {
-        match self.recipe.coverage {
-            MaskCoverage::Refined => self.image.subject(x, y),
-            MaskCoverage::Original => f32::from(self.image.subject_distance(x, y) < 0.0),
-            MaskCoverage::EdgeBand => {
-                let reach = BAND * f64::from(self.image.size()[0]);
-                (1.0 - (self.image.subject_distance(x, y).abs() / reach).clamp(0.0, 1.0)) as f32
-            }
-        }
-    }
-
-    fn at(&self, x: f64, y: f64) -> Color32 {
-        let [r, g, b, _] = self.image.pixel(x, y);
-        if self.recipe.hidden {
-            return Color32::from_rgb(r, g, b);
-        }
-        let c = self.coverage(x, y);
-        let mut colour = [f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0];
-        let mut alpha = self.recipe.layer_floor.map_or(1.0, |floor| c + (1.0 - c) * floor);
-        for veil in &self.recipe.veils {
-            let mask = match veil.mask {
-                VeilMask::Everywhere => 1.0,
-                VeilMask::Coverage => c,
-                VeilMask::Inverse => 1.0 - c,
-            };
-            let on = veil.opacity * mask * veil.color.a;
-            let out = on + alpha * (1.0 - on);
-            if out > 0.0 {
-                let over = [veil.color.r, veil.color.g, veil.color.b];
-                for (channel, over) in colour.iter_mut().zip(over) {
-                    *channel = (over * on + *channel * alpha * (1.0 - on)) / out;
-                }
-            }
-            alpha = out;
-        }
-        let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
-        Color32::from_rgba_unmultiplied(byte(colour[0]), byte(colour[1]), byte(colour[2]), byte(alpha))
-    }
-}
-
-impl RasterSource for Composite {
-    fn size(&self) -> [u32; 2] {
-        self.image.size()
-    }
-
-    fn revision(&self) -> u64 {
-        self.revision
-    }
-
-    fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
-        let [columns, rows] = out.size;
-        let factor = f64::from(factor.max(1));
-        for row in 0..rows {
-            let y = f64::from(region.y0) + (row as f64 + 0.5) * factor;
-            for column in 0..columns {
-                out.pixels[row * columns + column] = self.at(f64::from(region.x0) + (column as f64 + 0.5) * factor, y);
-            }
-        }
-    }
-}
-
 /// The fake source: the composite and the subject as the refined selection.
 struct MockSelectMask {
     composite: Composite,
