@@ -19,18 +19,33 @@ pub enum FillAreaEdit {
 }
 
 impl FillAreaEdit {
+    /// A polygon needs this many points.
+    const LASSO_MIN_POINTS: usize = 3;
+    /// Expand and Contract's range in pixels.
+    pub const GROW_RANGE: (f64, f64) = (1.0, 100.0);
+
     /// The Lasso's edit for a closed polygon with `operation`; `None` under 3 points.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA1")]
     pub fn lasso(operation: SelectionOperation, points: Vec<[f64; 2]>) -> Option<FillAreaEdit> {
-        // pc: crates/ui-egui/src/dialogs/caf_ui/controls.rs:135-140 (3 points or more).
-        todo!()
+        // pc: crates/ui-egui/src/dialogs/caf_ui/controls.rs:118-141 (3 points or more; the ops
+        // are caf_ui.rs:96 `LASSO_OPS`).
+        if points.len() < Self::LASSO_MIN_POINTS {
+            return None;
+        }
+        Some(match operation {
+            SelectionOperation::New => FillAreaEdit::New { points },
+            SelectionOperation::Add => FillAreaEdit::Add { points },
+            SelectionOperation::Subtract => FillAreaEdit::Subtract { points },
+            SelectionOperation::Intersect => FillAreaEdit::Intersect { points },
+        })
     }
 
     /// Expand or Contract by `by`, clamped to 1..=100.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-CA1")]
     pub fn grow(expand: bool, by: f64) -> FillAreaEdit {
-        // pc: crates/ui-egui/src/dialogs/caf_ui/view.rs:62-68, controls.rs:74 (the clamp).
-        todo!()
+        // pc: crates/ui-egui/src/dialogs/caf_ui/view.rs:62-69 (the buttons and the field,
+        // range 1..=100), controls.rs:72-75 (the control channel's clamp). A non-finite amount
+        // falls to the least.
+        let by = if by.is_finite() { by.clamp(Self::GROW_RANGE.0, Self::GROW_RANGE.1) } else { Self::GROW_RANGE.0 };
+        if expand { FillAreaEdit::Expand { by } } else { FillAreaEdit::Contract { by } }
     }
 
     /// The points the edit carries, against `FillLimits::points`.
