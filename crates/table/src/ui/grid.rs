@@ -105,14 +105,14 @@ pub struct GridLayout {
 /// rect's centre line on screen ([`mirror_x`](Self::mirror_x)), so layout and hit tests stay
 /// one code path.
 #[derive(Clone, Debug)]
-pub struct GridGeometry {
+pub struct SheetGeometry {
     layout: GridLayout,
     cells: Rect,
     header: Vec2,
     frozen_size: Vec2,
 }
 
-impl GridGeometry {
+impl SheetGeometry {
     /// Column headers `style.column_header_height` high at 100 % zoom (zoomed, but never below
     /// [`HEADER_MIN_ZOOM`] of it), row headers wide enough for the digits of the last visible row
     /// plus 200 (`(digits × style.row_header_digit + style.row_header_padding) × zoom`, at least
@@ -387,7 +387,7 @@ impl<'a, M: GridModel> CellGrid<'a, M> {
 pub struct CellGridResponse {
     pub response: Response,
     /// This pass's geometry (for the app's editor, objects and overlays).
-    pub geometry: GridGeometry,
+    pub geometry: SheetGeometry,
     pub selection_changed: bool,
     pub edits: Vec<GridEdit>,
 }

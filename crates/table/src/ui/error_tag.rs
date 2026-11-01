@@ -13,7 +13,7 @@ craft_ui::words! {
 }
 
 use super::grid::CellRef;
-use super::grid::GridGeometry;
+use super::grid::SheetGeometry;
 
 /// Excel's error checking tag (GridCraft): a `sheet.error_tag` square ([`SheetStyle`](super::SheetStyle))
 /// left of `cell` (right of it when it would cover the row headings), not drawn when outside the
@@ -24,14 +24,14 @@ use super::grid::GridGeometry;
 pub struct ErrorTag<'a> {
     id_salt: IdSalt,
     cell: CellRef,
-    geometry: &'a GridGeometry,
+    geometry: &'a SheetGeometry,
     problem: &'a str,
     fixes: &'a [&'a str],
     labels: Option<ErrorTagLabels>,
 }
 
 impl<'a> ErrorTag<'a> {
-    pub fn new(id_salt: impl egui::AsIdSalt, cell: CellRef, geometry: &'a GridGeometry, problem: &'a str, fixes: &'a [&'a str]) -> Self {
+    pub fn new(id_salt: impl egui::AsIdSalt, cell: CellRef, geometry: &'a SheetGeometry, problem: &'a str, fixes: &'a [&'a str]) -> Self {
         Self { id_salt: IdSalt::new(id_salt), cell, geometry, problem, fixes, labels: None }
     }
 

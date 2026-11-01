@@ -4,7 +4,7 @@
 
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
-use super::grid::GridGeometry;
+use super::grid::SheetGeometry;
 
 craft_ui::words! {
     /// The band buttons' accessible names, English by default (Excel's).
@@ -66,13 +66,13 @@ pub struct OutlineBand<'a> {
     id_salt: IdSalt,
     rows: &'a OutlineAxis,
     columns: &'a OutlineAxis,
-    geometry: &'a GridGeometry,
+    geometry: &'a SheetGeometry,
     zoom: f32,
     labels: Option<OutlineBandLabels>,
 }
 
 impl<'a> OutlineBand<'a> {
-    pub fn new(id_salt: impl AsIdSalt, rows: &'a OutlineAxis, columns: &'a OutlineAxis, geometry: &'a GridGeometry, zoom: f32) -> Self {
+    pub fn new(id_salt: impl AsIdSalt, rows: &'a OutlineAxis, columns: &'a OutlineAxis, geometry: &'a SheetGeometry, zoom: f32) -> Self {
         Self { id_salt: IdSalt::new(id_salt), rows, columns, geometry, zoom, labels: None }
     }
 

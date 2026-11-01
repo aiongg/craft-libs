@@ -1,7 +1,7 @@
 //! The table widgets, for egui. The look follows Excel (GridCraft), the condition builder
 //! LightCraft's smart-collection rules.
 //!
-//! - [`grid`] has the cell-selection model, [`LineIndex`], [`GridGeometry`] and the [`CellGrid`].
+//! - [`grid`] has the cell-selection model, [`LineIndex`], [`SheetGeometry`] and the [`CellGrid`].
 //! - [`conditions`] has the [`ConditionBuilder`].
 //! - [`outline`] has the [`OutlineBand`].
 //! - [`fields`] has the [`FieldListPane`].
@@ -57,8 +57,8 @@ pub use error_tag::{ErrorTag, ErrorTagLabels, ErrorTagResponse};
 pub use fields::{FieldArea, FieldListEdit, FieldListLabels, FieldListPane, FieldListPaneOutput, PivotField, ReportLayout};
 pub use filter::{FilterButton, FilterButtonLabels, filter_button_rect};
 pub use grid::{
-    CellAdvance, CellDirection, CellGrid, CellGridResponse, CellRange, CellRef, CellSelection, CellSpace, GridEdit, GridGeometry, GridLayout,
-    GridMenuTarget, GridModel, GridState, HEADER_MIN_ZOOM, LineIndex, SHEET_COLUMNS, SHEET_ROWS, absolute_range_reference, absolute_reference,
+    CellAdvance, CellDirection, CellGrid, CellGridResponse, CellRange, CellRef, CellSelection, CellSpace, GridEdit, GridLayout, GridMenuTarget,
+    GridModel, GridState, HEADER_MIN_ZOOM, LineIndex, SHEET_COLUMNS, SHEET_ROWS, SheetGeometry, absolute_range_reference, absolute_reference,
     column_letters,
 };
 pub use outline::{OutlineAction, OutlineAxis, OutlineBand, OutlineBandLabels, OutlineBandOutput, OutlineGroup};
