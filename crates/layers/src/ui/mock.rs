@@ -1,9 +1,10 @@
 //! `MockLayers`: a `LayerTree` for stories and tests.
 
-#![expect(dead_code, clippy::todo, reason = "skeleton: `fifty` (ST2) and the not yet used helpers")]
+#![expect(dead_code, reason = "`fifty` and the builders are used by the stories, which stay unregistered until task RG2")]
 
 use std::cell::Cell;
 
+use craft_theme::LabelColor;
 use craft_ui::menu::{MenuEntry, MenuItem};
 
 use super::tree::{
@@ -86,8 +87,114 @@ impl MockLayers {
     /// smart object with Smart Filters, effects open and closed, a locked layer, the Background,
     /// a hidden layer (story `composites/layers/panel/tree`).
     pub(crate) fn fifty() -> Self {
-        // new: the spec's story tree.
-        todo!()
+        let mut tree = Self::default();
+        let header = tree.add(None, named("Header", LayerKind::Group, |_| {}), true);
+        let logo = tree.add(Some(header), named("Logo", LayerKind::Group, |_| {}), true);
+        let marks = tree.add(Some(logo), named("Marks", LayerKind::Group, |_| {}), true);
+        tree.add(Some(marks), named("Mark A", LayerKind::Pixel, |i| i.linked = true), false);
+        tree.add(Some(marks), named("Mark B", LayerKind::Pixel, |i| i.linked = true), false);
+        tree.add(Some(logo), named("Ring", LayerKind::Shape, |i| i.masks.push(mask(LayerPart::VectorMask, true, true))), false);
+        tree.add(Some(header), named("Title", LayerKind::Text, |_| {}), false);
+        tree.add(Some(header), named("Tagline", LayerKind::Pixel, |i| i.masks.push(mask(LayerPart::LayerMask, true, false))), false);
+
+        let photo = tree.add(None, named("Photo", LayerKind::Group, |_| {}), true);
+        tree.add(
+            Some(photo),
+            named("Curves 1", LayerKind::Adjustment, |i| {
+                i.masks.push(mask(LayerPart::LayerMask, false, true));
+                i.blend_key = String::from("multiply");
+                i.blend_label = Some(String::from("Multiply"));
+            }),
+            false,
+        );
+        tree.add(Some(photo), named("Retouch", LayerKind::Pixel, |i| i.clipped = true), false);
+        tree.add(
+            Some(photo),
+            named("Dodge", LayerKind::Pixel, |i| {
+                i.clipped = true;
+                i.blend_key = String::from("colorDodge");
+                i.blend_label = Some(String::from("Color Dodge"));
+            }),
+            false,
+        );
+        let portrait = tree.add(
+            Some(photo),
+            named("Portrait", LayerKind::Pixel, |i| {
+                i.masks.push(mask(LayerPart::LayerMask, true, true));
+                i.masks.push(mask(LayerPart::VectorMask, true, false));
+            }),
+            false,
+        );
+        let backdrop = tree.add(Some(photo), named("Backdrop", LayerKind::SmartObject, |i| i.has_smart_filters = true), false);
+        tree.layer_mut(backdrop).effects_open = true;
+        tree.layer_mut(backdrop).smart_filters = Some(SubRows {
+            header: SubRow { label: String::from("Smart Filters"), on: true, eye_shown: true, icon: None, mask: true },
+            items: vec![sub_row("Gaussian Blur"), SubRow { on: false, ..sub_row("Unsharp Mask") }, sub_row("Camera Raw Filter")],
+        });
+        let glow = tree.add(Some(photo), named("Glow", LayerKind::Pixel, |i| i.has_effects = true), false);
+        tree.layer_mut(glow).effects_open = true;
+        tree.layer_mut(glow).effects = Some(effects(&["Outer Glow", "Color Overlay"]));
+        let outline = tree.add(Some(photo), named("Outline", LayerKind::Pixel, |i| i.has_effects = true), false);
+        tree.layer_mut(outline).effects = Some(effects(&["Stroke"]));
+
+        let details = tree.add(None, named("Details", LayerKind::Group, |_| {}), false);
+        tree.add(Some(details), named("Dust", LayerKind::Pixel, |_| {}), false);
+        tree.add(Some(details), named("Scratches", LayerKind::Pixel, |_| {}), false);
+        let grain = tree.add(Some(details), named("Grain", LayerKind::Group, |_| {}), true);
+        tree.add(Some(grain), named("Fine", LayerKind::Pixel, |_| {}), false);
+        tree.add(Some(grain), named("Coarse", LayerKind::Pixel, |_| {}), false);
+
+        tree.add(None, named("Solid Color 1", LayerKind::Fill, |i| i.masks.push(mask(LayerPart::LayerMask, true, true))), false);
+        tree.add(None, named("Gradient Fill 1", LayerKind::Fill, |_| {}), false);
+        tree.add(None, named("Hue/Saturation 1", LayerKind::Adjustment, |_| {}), false);
+        tree.add(
+            None,
+            named("Levels 2", LayerKind::Adjustment, |i| {
+                i.masks.push(mask(LayerPart::LayerMask, true, true));
+                i.label = Some(LabelColor::Blue);
+            }),
+            false,
+        );
+        tree.add(None, named("Rectangle 1", LayerKind::Shape, |_| {}), false);
+        tree.add(None, named("Ellipse 1", LayerKind::Shape, |i| i.locks.position = true), false);
+        tree.add(
+            None,
+            named("Headline", LayerKind::Text, |i| i.warning = Some(String::from("This layer uses a font that is not installed."))),
+            false,
+        );
+        tree.add(None, named("Paper", LayerKind::Pixel, |i| i.locks.transparency = true), false);
+        tree.add(None, named("Stamp", LayerKind::Pixel, |i| i.locks.pixels = true), false);
+        tree.add(
+            None,
+            named("Hidden Note", LayerKind::Pixel, |i| {
+                i.visible = false;
+                i.dimmed = true;
+            }),
+            false,
+        );
+        tree.add(None, named("Green Pass", LayerKind::Pixel, |i| i.label = Some(LabelColor::Green)), false);
+        let archive = tree.add(None, named("Archive", LayerKind::Group, |_| {}), false);
+        for n in 1..=3 {
+            tree.add(Some(archive), named(&format!("Old {n}"), LayerKind::Pixel, |_| {}), false);
+        }
+        tree.add(None, named("Placed Photo", LayerKind::Image, |_| {}), false);
+        let mut n = 1;
+        while tree.layers.len() < 49 {
+            tree.add(None, named(&format!("Sketch {n}"), LayerKind::Pixel, |_| {}), false);
+            n += 1;
+        }
+        tree.add(
+            None,
+            named("Background", LayerKind::Pixel, |i| {
+                i.background = true;
+                i.renamable = false;
+                i.thumb_loads_selection = false;
+                i.locks = LayerLocks { all: true, ..LayerLocks::default() };
+            }),
+            false,
+        );
+        tree.selection = LayerSelection { layers: vec![portrait], active: Some(portrait), target: LayerPart::Pixels };
+        tree
     }
 
     /// `count` pixel layers at the top level, for the 10,000-row test; counts the `info` calls.
@@ -109,6 +216,19 @@ impl MockLayers {
 }
 
 impl MockLayers {
+    /// Appends a layer under `parent` with the next id; returns the id.
+    pub(crate) fn add(&mut self, parent: Option<u32>, info: LayerInfo, open: bool) -> u32 {
+        let id = u32::try_from(self.layers.len() + 1).expect("the mock tree holds fewer than 2^32 layers");
+        self.push(id, parent, info, open);
+        id
+    }
+
+    /// The layer with `id`; the mock tree has it.
+    pub(crate) fn layer_mut(&mut self, id: u32) -> &mut MockLayer {
+        let at = self.layers.iter().position(|layer| layer.id == id).expect("the layer is in the mock tree");
+        &mut self.layers[at]
+    }
+
     fn push(&mut self, id: u32, parent: Option<u32>, info: LayerInfo, open: bool) {
         self.layers.push(MockLayer { id, parent, info, open, effects_open: false, effects: None, smart_filters: None });
     }
@@ -118,7 +238,25 @@ impl MockLayers {
     }
 }
 
-fn sub_row(label: &str) -> SubRow {
+fn named(name: &str, kind: LayerKind, edit: impl FnOnce(&mut LayerInfo)) -> LayerInfo {
+    let mut info = LayerInfo::new(name, kind);
+    edit(&mut info);
+    info
+}
+
+fn mask(part: LayerPart, enabled: bool, linked: bool) -> MaskInfo {
+    MaskInfo { part, enabled, linked }
+}
+
+/// An "Effects" group with one row per name.
+pub(crate) fn effects(names: &[&str]) -> SubRows {
+    SubRows {
+        header: SubRow { label: String::from("Effects"), on: true, eye_shown: true, icon: None, mask: false },
+        items: names.iter().map(|name| sub_row(name)).collect(),
+    }
+}
+
+pub(crate) fn sub_row(label: &str) -> SubRow {
     SubRow { label: label.to_owned(), on: true, eye_shown: true, icon: None, mask: false }
 }
 
