@@ -231,6 +231,8 @@ impl BeforeAfter {
         // the split, a click or drag anywhere on the picture sets it, `ResizeHorizontal`, 2 pt line,
         // 20 pt knob with a two-way glyph).
         // new: keys, RTL and AccessKit as the type's doc says; the look from `BeforeAfter::style`.
+        // needs: lead an `Icon::SwapVertical` (icons.toml, lucide "arrow-up-down") for the
+        // SplitStacked knob; the Split knob uses `Icon::SwapHorizontal`.
         todo!()
     }
 }

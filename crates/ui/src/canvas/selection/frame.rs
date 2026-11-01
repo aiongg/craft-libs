@@ -222,6 +222,7 @@ impl<'a> SelectionFrame<'a> {
         // (crates/draw/src/ui/transform/transform_box.rs:457-582, `press_pass` :667, `track_pass`
         // :713, `keys` :765, `parts` :796, `paint` :897) without rotation, the reference point, the
         // readout or apply and discard; the look from `SelectionFrame::style`.
+        // needs: A `BoxRules::resize_only()` (task K2) for `rules: None`.
         todo!()
     }
 }
