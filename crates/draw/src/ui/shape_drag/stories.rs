@@ -214,11 +214,8 @@ fn show_drag(ui: &mut Ui, args: &mut DragArgs) {
         match event {
             ShapeDragEvent::Gesture(EditEvent::Commit { value, changed: true, .. }) => kept.shapes.push(value),
             ShapeDragEvent::Click { at, kind, .. } if CreateShapeDialog::supports(kind) => {
-                let dialog = CreateShapeOptions::initial(kind, at).units(units(RulerArg::Pixels)).tool(
-                    args.corner_radius,
-                    args.sides,
-                    args.star_ratio,
-                );
+                let dialog =
+                    CreateShapeOptions::initial(kind, at).units(units(RulerArg::Pixels)).tool(args.corner_radius, args.sides, args.star_ratio);
                 kept.dialogs.open(CreateShapeDialog::new(dialog));
             }
             _ => {}

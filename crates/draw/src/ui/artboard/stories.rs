@@ -18,9 +18,7 @@
 use egui::{Color32, Ui};
 use kurbo::{Point, Rect, Size, Vec2};
 
-use super::{
-    ArtboardBackground, ArtboardBar, ArtboardEvent, ArtboardItem, ArtboardPreset, ArtboardProperties, ArtboardRules, ArtboardTool,
-};
+use super::{ArtboardBackground, ArtboardBar, ArtboardEvent, ArtboardItem, ArtboardPreset, ArtboardProperties, ArtboardRules, ArtboardTool};
 use crate::ui::add_beside::AddSide;
 use craft_ui::canvas::{PageFrame, Pasteboard, ToolHost};
 use craft_ui::controls::Button;
@@ -73,14 +71,7 @@ pub(crate) fn stories() -> Vec<Story> {
             show_tool
         )
         .on(Surface::Canvas),
-        typed_story!(
-            "draw/artboard-bar",
-            Level::Composites,
-            "ArtboardBar",
-            "Bar",
-            BarArgs { selection: true, wide: true },
-            show_bar
-        ),
+        typed_story!("draw/artboard-bar", Level::Composites, "ArtboardBar", "Bar", BarArgs { selection: true, wide: true }, show_bar),
         typed_story!(
             "draw/artboard-properties",
             Level::Composites,
@@ -238,10 +229,7 @@ impl ToolKept {
                 self.note = craft_i18n::fmt(&words.opened, &[("name", &name)]);
             }
             ArtboardEvent::FitObject { at } => {
-                self.note = craft_i18n::fmt(
-                    &words.fit,
-                    &[("x", &numbers.format(at.x, 0..=0)), ("y", &numbers.format(at.y, 0..=0))],
-                );
+                self.note = craft_i18n::fmt(&words.fit, &[("x", &numbers.format(at.x, 0..=0)), ("y", &numbers.format(at.y, 0..=0))]);
             }
             ArtboardEvent::Leave => self.selected.clear(),
         }
@@ -286,11 +274,7 @@ fn show_tool(ui: &mut Ui, args: &mut ToolArgs) {
             *kept = ToolKept::new(&words);
         }
         let names: Vec<&str> = kept.selected.iter().filter_map(|&i| kept.boards.get(i)).map(|b| b.name.as_str()).collect();
-        let selection = if names.is_empty() {
-            words.none.clone()
-        } else {
-            craft_i18n::fmt(&words.selected, &[("names", &names.join(", "))])
-        };
+        let selection = if names.is_empty() { words.none.clone() } else { craft_i18n::fmt(&words.selected, &[("names", &names.join(", "))]) };
         status(ui, if kept.note.is_empty() { selection } else { format!("{selection} · {}", kept.note) });
     });
 }
@@ -331,23 +315,18 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
         });
     });
     if let Some(out) = shown {
-        if let Some(size) = out.size.as_ref().and_then(|e| BarKept::done(e)) {
+        if let Some(size) = out.size.as_ref().and_then(EditEvent::value).copied() {
             kept.size = size;
         }
         kept.added += usize::from(out.add_new);
     }
     let numbers = LocaleNumbers::of(ui);
-    let size = craft_i18n::fmt(
-        &words.size,
-        &[("width", &numbers.format(kept.size.width, 0..=0)), ("height", &numbers.format(kept.size.height, 0..=0))],
+    let size =
+        craft_i18n::fmt(&words.size, &[("width", &numbers.format(kept.size.width, 0..=0)), ("height", &numbers.format(kept.size.height, 0..=0))]);
+    status(
+        ui,
+        if kept.added > 0 { format!("{size} · {}", craft_i18n::fmt(&words.added, &[("name", &board_name(&words, 1 + kept.added))])) } else { size },
     );
-    status(ui, if kept.added > 0 { format!("{size} · {}", craft_i18n::fmt(&words.added, &[("name", &board_name(&words, 1 + kept.added))])) } else { size });
-}
-
-impl BarKept {
-    fn done(event: &EditEvent<Size>) -> Option<Size> {
-        ToolKept::done(event).or_else(|| event.value().copied())
-    }
 }
 
 // --- properties ---
@@ -381,12 +360,8 @@ fn show_properties(ui: &mut Ui, args: &mut PropertiesArgs) {
         BackgroundArg::Custom => ArtboardBackground::Custom(accent),
     };
     let seed = (args.background, args.x.to_bits(), args.y.to_bits());
-    let fresh = || ArtboardItem {
-        name: board_name(&words, 1),
-        rect: Rect::from_origin_size(Point::new(args.x, args.y), BOARD),
-        locked: false,
-        background,
-    };
+    let fresh =
+        || ArtboardItem { name: board_name(&words, 1), rect: Rect::from_origin_size(Point::new(args.x, args.y), BOARD), locked: false, background };
     let state = shared(ui, "properties", || (seed, fresh()));
     let mut kept = lock(&state);
     if kept.0 != seed {

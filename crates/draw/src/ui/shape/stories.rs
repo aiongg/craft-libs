@@ -78,7 +78,6 @@ struct FakeShape {
 
 impl FakeShape {
     fn new(shape: LiveShape, locked: bool) -> Self {
-        
         let look = ShapeAppearance::new(Paint::None, Paint::None, 0.0).locked(locked);
         Self { shape, look, stroke_open: false, before: None, note: String::new() }
     }
@@ -120,9 +119,9 @@ impl FakeShape {
             ShapeChange::StrokeWidth(width) => self.look.stroke_width = width,
             ShapeChange::StrokeStyle(style) => self.look.stroke_style = style,
             ShapeChange::Size { width: w, height: h } => match &mut self.shape {
-                LiveShape::Rect { width, height, .. }
-                | LiveShape::Ellipse { width, height }
-                | LiveShape::Polygon { width, height, .. } => (*width, *height) = (w, h),
+                LiveShape::Rect { width, height, .. } | LiveShape::Ellipse { width, height } | LiveShape::Polygon { width, height, .. } => {
+                    (*width, *height) = (w, h)
+                }
                 LiveShape::Line { .. } => {}
             },
             ShapeChange::Radii(next) => {
@@ -292,10 +291,7 @@ fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
     let ctx = ui.ctx().clone();
     let key = kept_key(ui, "bar");
     let tokens = Tokens::of(ui);
-    let fresh = || BarKept {
-        settings: ShapeToolSettings::default(),
-        fake: FakeShape::new(LiveShape::Line { weight: 3.0 }, false).themed(&tokens),
-    };
+    let fresh = || BarKept { settings: ShapeToolSettings::default(), fake: FakeShape::new(LiveShape::Line { weight: 3.0 }, false).themed(&tokens) };
     let mut kept: BarKept = ctx.data(|d| d.get_temp(key)).unwrap_or_else(fresh);
     kept.fake.look.locked = args.locked;
     let BarKept { settings, fake } = &mut kept;
