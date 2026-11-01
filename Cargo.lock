@@ -1082,6 +1082,7 @@ dependencies = [
  "craft-color",
  "craft-host",
  "craft-i18n",
+ "craft-settings",
  "craft-theme",
  "craft-ui",
  "egui",

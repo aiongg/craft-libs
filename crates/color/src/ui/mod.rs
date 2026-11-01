@@ -117,7 +117,10 @@ pub use harmony::{
     HARMONY_WORDS, HarmonyLabels, HarmonyMenuAction, HarmonyPanel, HarmonyPanelResponse, HarmonyPanelState, HarmonyWheel, HarmonyWheelResponse,
 };
 pub use lut_picker::{LUT_WORDS, LutChoice, LutPicker, LutPickerLabels, LutPickerResponse};
-pub use paint_chip::{GradientPreview, Paint, PaintChip, PaintLabels, PaintList, PaintListResponse};
+pub use paint_chip::{
+    FillKind, GradientPreview, ImagePreview, Paint, PaintChip, PaintKindLabels, PaintLabels, PaintLink, PaintLinkKind, PaintList, PaintListEvent,
+    PaintListLabels, PaintListOptions, PaintListResponse, PaintRow,
+};
 pub use panel::{ColorPanel, ColorPanelLabels, ColorPanelMode, ColorPanelRamp, ColorPanelResponse, ColorPanelState, PanelTarget};
 pub use picker_dialog::{ColorPickerDialog, ColorPickerLabels, ColorPickerMemory, ColorPickerResult};
 pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileLabels, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus};
