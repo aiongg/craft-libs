@@ -176,7 +176,7 @@ pub use checkbox::{CheckState, CheckValue, Checkbox, CheckboxStyle};
 pub use chips::{Chip, ChipField, ChipFieldLabels, ChipFieldResponse, ChipStyle, chip_lines};
 pub use combo_box::ComboBox;
 pub use craft_theme::{ButtonVariant, ControlSize};
-pub use date::{DatePicker, DatePickerLabels, DatePickerStyle, DatePrecision, PickedDate, month_grid};
+pub use date::{DatePicker, DatePickerLabels, DatePickerStyle, DatePrecision, PickedDate, local_month_grid, month_grid};
 pub use icon_button::{IconButton, IconButtonStyle, IconSource};
 pub use icon_picker::{IconPicker, IconPickerGroup, IconPickerItem, IconPickerLabels, IconPickerOutput, IconPickerStyle, icon_matches};
 pub use kbd::{Kbd, KbdStyle};

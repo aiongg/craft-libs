@@ -24,6 +24,10 @@
 //! Years outside ±9999 are kept, written with as many digits as they need (EffectCraft's and
 //! PdfCraft's 400-year-cycle rule), never collapsed to the epoch.
 
+mod local;
+
+pub use local::{CalendarKind, LocalDate};
+
 use std::fmt;
 use std::ops::Range;
 use std::sync::{Arc, OnceLock, PoisonError};
@@ -315,6 +319,9 @@ struct Cache {
     names: OnceLock<Option<Names>>,
     year_month: OnceLock<Option<FixedCalendarDateTimeFormatter<Gregorian, YM>>>,
     first_weekday: OnceLock<Option<Weekday>>,
+    calendar: OnceLock<Option<icu_calendar::AnyCalendar>>,
+    year_offset: OnceLock<Option<i32>>,
+    local_year_month: OnceLock<Option<DateTimeFormatter<YM>>>,
     order: OnceLock<[Field; 3]>,
 }
 
@@ -546,18 +553,22 @@ impl DateFormat {
     /// The order of the numeric fields in the region's short date, read off a date written in it.
     fn field_order(&self) -> [Field; 3] {
         *self.cache.order.get_or_init(|| {
-            const PROBE: DateTime = DateTime { date: CalendarDate { year: 2033, month: 11, day: 22 }, hour: 0, minute: 0, second: 0 };
+            // The year ends in 33 and the month and day are 11 and 22, in the display calendar,
+            // since that is the order a typed date follows.
+            let probe_year = self.century_start() + 33;
             let numeric = |length: DateLength| -> Option<[Field; 3]> {
-                let (icu, _) = to_icu(PROBE)?;
-                let formatter = self.load_formatter(Some(length), None, true, true)?;
+                let date = self.from_local(LocalDate { year: probe_year, month: 11, day: 22 })?;
+                let (icu, _) = to_icu(DateTime { date, hour: 0, minute: 0, second: 0 })?;
+                let formatter = self.load_formatter(Some(length), None, true, false)?;
                 let mut out = Spliced::default();
                 formatter.write(&icu, &mut out).ok()?;
                 let runs = digit_runs(&out.text);
                 let [a, b, c] = runs.as_slice() else { return None };
-                let field = |run: &str| match run.parse::<u32>().ok()? {
+                let field = |run: &str| match run.parse::<i32>().ok()? {
                     11 => Some(Field::Month),
                     22 => Some(Field::Day),
-                    33 | 2033 => Some(Field::Year),
+                    33 => Some(Field::Year),
+                    y if y == probe_year => Some(Field::Year),
                     _ => None,
                 };
                 Some([field(a)?, field(b)?, field(c)?])
@@ -566,27 +577,47 @@ impl DateFormat {
         })
     }
 
+    /// The first year of the display calendar's century that holds 2026, where two-digit years
+    /// are read: 2000, 2500 in the Buddhist calendar, 1400 in the Persian.
+    fn century_start(&self) -> i32 {
+        self.to_local(CalendarDate { year: 2026, month: 1, day: 1 }).map_or(2000, |l| l.year.div_euclid(100) * 100)
+    }
+
     /// A date typed in the region's short or medium form (`10/31/2026`, `31.10.2026`,
-    /// `2026-10-31` always), for a date field. Two-digit years are 2000 to 2099. Digits are
-    /// `0`–`9`. `None` when the text isn't a valid date.
+    /// `2026-10-31`), for a date field, in the display calendar: a Thai `31/10/2569` and a Persian
+    /// `۱۴۰۵/۰۸/۰۹` are the Gregorian 2026-10-31. Two-digit years are in the display calendar's
+    /// current century (2000 to 2099, 1400 to 1499 in Persian). Digits are any script's.
+    /// `None` when the text isn't a valid date.
     pub fn parse_date(&self, text: &str) -> Option<CalendarDate> {
+        let text: String = text.chars().map(|c| ascii_digit(c).unwrap_or(c)).collect();
         if text.chars().any(|c| c.is_alphanumeric() && !c.is_ascii_digit()) {
             return None;
         }
-        let runs = digit_runs(text);
+        let runs = digit_runs(&text);
         let [a, b, c] = runs.as_slice() else { return None };
         let order = if a.len() == 4 { [Field::Year, Field::Month, Field::Day] } else { self.field_order() };
         let (mut year, mut month, mut day) = (None, None, None);
         for (field, run) in order.into_iter().zip([a, b, c]) {
             let value: i64 = run.parse().ok()?;
             match field {
-                Field::Year => year = Some(if run.len() <= 2 { 2000 + value } else { value }),
+                Field::Year => year = Some(if run.len() <= 2 { i64::from(self.century_start()) + value } else { value }),
                 Field::Month => month = Some(u8::try_from(value).ok()?),
                 Field::Day => day = Some(u8::try_from(value).ok()?),
             }
         }
-        CalendarDate::new(year?, month?, day?)
+        let (year, month, day) = (year?, month?, day?);
+        if self.calendar_kind() == CalendarKind::Gregorian {
+            return CalendarDate::new(year, month, day);
+        }
+        self.from_local(LocalDate { year: i32::try_from(year).ok()?, month, day })
     }
+}
+
+/// The value of a decimal digit of any script that writes its ten digits in a row.
+fn ascii_digit(c: char) -> Option<char> {
+    const ZEROS: [u32; 18] =
+        [0x660, 0x6F0, 0x7C0, 0x966, 0x9E6, 0xA66, 0xAE6, 0xB66, 0xBE6, 0xC66, 0xCE6, 0xD66, 0xE50, 0xED0, 0xF20, 0x1040, 0x17E0, 0xFF10];
+    ZEROS.iter().find_map(|&zero| (c as u32).checked_sub(zero).filter(|d| *d < 10)).and_then(|d| char::from_digit(d, 10))
 }
 
 /// The maximal runs of `0`–`9` in `text`.
@@ -817,5 +848,31 @@ mod tests {
     #[test]
     fn calendar_keyword_overrides_the_region() {
         assert_eq!(DateFormat::from_tag("th-TH-u-ca-gregory").format(AFTERNOON, DateStyle::DATE), "31 ต.ค. 2026");
+    }
+
+    #[test]
+    fn local_dates_convert_to_and_from_the_display_calendar() {
+        let day = CalendarDate { year: 2026, month: 10, day: 31 };
+        let thai = LocalDate { year: 2569, month: 10, day: 31 };
+        let persian = LocalDate { year: 1405, month: 8, day: 9 };
+        let (th, fa, us) = (DateFormat::from_tag("th-TH"), DateFormat::from_tag("fa-IR"), DateFormat::from_tag("en-US"));
+        assert_eq!((th.to_local(day), th.from_local(thai)), (Some(thai), Some(day)));
+        assert_eq!((fa.to_local(day), fa.from_local(persian)), (Some(persian), Some(day)));
+        assert_eq!(
+            (th.calendar_kind(), fa.calendar_kind(), us.calendar_kind()),
+            (CalendarKind::Buddhist, CalendarKind::Persian, CalendarKind::Gregorian)
+        );
+        assert_eq!((th.local_year_offset(), fa.local_year_offset(), us.local_year_offset()), (Some(543), None, Some(0)));
+        assert_eq!([1, 7, 12].map(|m| fa.local_days_in_month(1405, m)), [31, 30, 29]);
+        assert_eq!(fa.from_local(LocalDate { year: 1405, month: 12, day: 30 }), None, "1405 is no leap year");
+    }
+
+    #[test]
+    fn typed_dates_read_in_the_display_calendar() {
+        let day = Some(CalendarDate { year: 2026, month: 10, day: 31 });
+        assert_eq!(DateFormat::from_tag("th-TH").parse_date("31/10/2569"), day);
+        assert_eq!(DateFormat::from_tag("fa-IR").parse_date("۱۴۰۵/۰۸/۰۹"), day);
+        assert_eq!(DateFormat::from_tag("fa-IR").parse_date("۱۴۰۵/۸/۹"), day);
+        assert_eq!(DateFormat::from_tag("en-US").parse_date("10/31/2026"), day);
     }
 }

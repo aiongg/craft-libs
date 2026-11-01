@@ -68,6 +68,74 @@ fn a_value_is_in_bounds_when_any_day_is() {
     assert!(PickedDate::year(1999).in_bounds(None, None));
 }
 
+// Thailand: the Day page's title and a Year page count Buddhist years, and the cells still hold Gregorian dates.
+#[test]
+fn thai_pages_show_buddhist_years_and_pick_gregorian_dates() {
+    let (th, numbers) = (DateFormat::from_tag("th-TH"), LocaleNumbers::from_tag("th-TH"));
+    let day_view = View::open(Some(PickedDate::day(2026, 10, 31)), None, &DatePrecision::ALL, &th);
+    assert_eq!((day_view.year, day_view.month, day_view.active), (2569, 10, 31));
+    let page = Page::of(&day_view, &th, &numbers);
+    assert!(page.title(&day_view, &numbers, &th).ends_with("2569"), "{}", page.title(&day_view, &numbers, &th));
+    let last = page.cells.iter().flatten().find(|c| c.key == 31).unwrap();
+    assert_eq!(last.date, PickedDate::day(2026, 10, 31));
+
+    let year_view = View { precision: DatePrecision::Year, ..day_view }.switched(DatePrecision::Year, &th);
+    let page = Page::of(&year_view, &th, &numbers);
+    let year = page.cells.iter().flatten().find(|c| c.key == 2569).unwrap();
+    assert_eq!((year.text.as_str(), year.date), ("2569", PickedDate::year(2026)));
+}
+
+// Persian: Aban 1405 has 30 days and starts on a Friday (2026-10-23), six blanks after a Saturday week start; a picked day is its Gregorian date.
+#[test]
+fn a_persian_month_grid_has_its_own_length_and_start() {
+    let (fa, numbers) = (DateFormat::from_tag("fa-IR"), LocaleNumbers::from_tag("fa-IR"));
+    let grid = local_month_grid(&fa, 1405, 8);
+    assert_eq!((grid.iter().take_while(|d| d.is_none()).count(), grid.iter().flatten().count(), grid.len() % 7), (6, 30, 0));
+    assert_eq!(local_month_grid(&fa, 1405, 1).iter().flatten().count(), 31);
+    assert_eq!(local_month_grid(&fa, 1405, 12).iter().flatten().count(), 29);
+    let view = View { precision: DatePrecision::Day, year: 1405, month: 8, active: 1 };
+    let page = Page::of(&view, &fa, &numbers);
+    let day = |key| page.cells.iter().flatten().find(|c| c.key == key).unwrap();
+    assert_eq!((day(1).date, day(9).date), (PickedDate::day(2026, 10, 23), PickedDate::day(2026, 10, 31)));
+    assert_eq!(day(1).text, "\u{6f1}", "Persian digits");
+}
+
+// Paging runs from Esfand (29 days) into the next Farvardin and back, keeping the active day within the month.
+#[test]
+fn paging_crosses_the_persian_year_end() {
+    let fa = DateFormat::from_tag("fa-IR");
+    let esfand = View { precision: DatePrecision::Day, year: 1405, month: 12, active: 29 };
+    let next = esfand.paged(true, &fa);
+    assert_eq!((next.year, next.month, next.active), (1406, 1, 29));
+    let back = View { active: 31, ..next }.paged(false, &fa);
+    assert_eq!((back.year, back.month, back.active), (1405, 12, 29), "Esfand 1405 has 29 days");
+    let page = Page::of(&next, &fa, &LocaleNumbers::from_tag("fa-IR"));
+    assert_eq!(page.cells.iter().flatten().next().unwrap().date, PickedDate::day(2027, 3, 21), "1 Farvardin 1406");
+}
+
+// A Persian month or year is no Gregorian month, so the Month and Year pages count Gregorian ones.
+#[test]
+fn persian_month_and_year_pages_count_gregorian_months() {
+    let fa = DateFormat::from_tag("fa-IR");
+    let day = View { precision: DatePrecision::Day, year: 1405, month: 8, active: 9 };
+    let month = day.switched(DatePrecision::Month, &fa);
+    assert_eq!((month.year, month.month), (2026, 10));
+    let back = month.switched(DatePrecision::Day, &fa);
+    assert_eq!((back.year, back.month), (1405, 7), "2026-10-01 falls in Mehr");
+}
+
+// The screen-reader name of a cell is the date in the calendar the grid shows.
+#[test]
+fn cell_names_follow_the_shown_calendar() {
+    for (tag, year) in [("th-TH", "2569"), ("fa-IR", "\u{6f1}\u{6f4}\u{6f0}\u{6f5}"), ("en-US", "2026")] {
+        let (dates, numbers) = (DateFormat::from_tag(tag), LocaleNumbers::from_tag(tag));
+        let view = View::open(Some(PickedDate::day(2026, 10, 31)), None, &DatePrecision::ALL, &dates);
+        let page = Page::of(&view, &dates, &numbers);
+        let cell = page.cells.iter().flatten().find(|c| c.date == PickedDate::day(2026, 10, 31)).unwrap();
+        assert!(cell.name.contains(year), "{tag}: {}", cell.name);
+    }
+}
+
 // `month_grid`: August 2026 starts on a Saturday: five blanks from Monday, six from Sunday; the length is a multiple of 7.
 #[test]
 fn the_month_grid_starts_on_the_week_start() {
