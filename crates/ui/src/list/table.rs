@@ -2041,7 +2041,7 @@ where
                             let band = name_rect.get().unwrap_or(inner);
                             name_rect.set(Some(band));
                             if let Some(label) = &renaming {
-                                rename::show(ui, field_id, &key, label, band, &mut renamed);
+                                rename::show(ui, field_id, &key, label, column.label(), band, &mut renamed);
                             }
                         }
                     },
