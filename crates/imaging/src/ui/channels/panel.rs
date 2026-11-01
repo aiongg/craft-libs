@@ -154,7 +154,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'a,
 }
 
 /// The kind of the row `key`.
-fn kind_of<'r, K: PartialEq>(rows: &'r [ChannelRow<K>], key: &K) -> Option<ChannelKind> {
+fn kind_of<K: PartialEq>(rows: &[ChannelRow<K>], key: &K) -> Option<ChannelKind> {
     rows.iter().find(|row| &row.key == key).map(|row| row.kind)
 }
 
