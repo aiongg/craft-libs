@@ -334,7 +334,6 @@ fn fill_settings_and_command_serialise_as_photocraft() {
 // `rebase` clears the history and keeps the strokes and edits; `refuse_fill_edit` takes the last
 // edit back with no redo.
 #[test]
-#[ignore = "needs WS-CA2: `rebase` and `refuse_fill_edit` are the workspace's"]
 fn fill_rebase_clears_history_and_a_refused_edit_is_taken_back() {
     let mut w = ContentAwareFillWorkspace::new(FillOpen::new([100, 100], "Layer 1", GENEROUS));
     w.session.add_stroke(stroke(&[[1.0, 1.0]]));
