@@ -1,7 +1,7 @@
 //! Drag and drop: `Reorder` rules, payloads, transfers, sub-row reorder and the drop preview.
 
-use craft_ui::behavior::{DropPosition, ListDrag, Move, Reorder, RowInfo};
-use craft_ui::edit::EditEvent;
+use craft_ui::behavior::{DropPosition, ListDrag, Move, Reorder};
+use craft_ui::edit::{CancelReason, EditEvent};
 use egui::{DragAndDrop, Modifiers, Ui};
 
 use super::context::PanelContext;
@@ -16,7 +16,7 @@ use crate::ui::tree::{LayerKind, LayerPart, LayerRowKey, LayerTree, SubRowGroup}
 /// else the top half Before and the bottom half After; the gaps and the space under the last row
 /// are drop zones), the 2 pt marker or outline, the ghost with the grabbed row's name, the edge
 /// scroll, Esc and release-elsewhere cancels.
-pub(super) fn reorder<'a, T: LayerTree>(cx: &'a PanelContext<'a, T>, _rows: &'a [RowInfo<LayerRowKey<T::Id>>]) -> Reorder<'a, LayerRowKey<T::Id>> {
+pub(super) fn reorder<'a, T: LayerTree>(cx: &'a PanelContext<'a, T>) -> Reorder<'a, LayerRowKey<T::Id>> {
     // pc: crates/ui-egui/src/panels/layer_drag.rs:86-183 `layer_drag_and_drop` (0.3 to 0.7 Into on groups, Alt copies);
     // pc: crates/ui-egui/src/panels/layer_drag.rs:189-222 `layer_drop_zone` (gaps and the space below the rows).
     Reorder::default()
@@ -30,7 +30,8 @@ pub(super) fn reorder<'a, T: LayerTree>(cx: &'a PanelContext<'a, T>, _rows: &'a 
 /// Whether the panel takes the move `mv` (the marker shows only where it does):
 ///
 /// - layer rows onto a layer row, Before, After or Into a group: when
-///   [`LayerTree::accepts_drop`] does;
+///   [`LayerTree::accepts_drop`] does; Before or After one of a layer's effects or Smart Filter
+///   rows is a drop After that layer (its rows belong to it), and Into one is refused;
 /// - effects rows or Smart Filter rows `Into` another layer's row: a transfer (the whole row is
 ///   outlined); onto their own layer: refused;
 /// - a Smart Filter row Before or After another Smart Filter row of the same layer: a reorder of
@@ -41,7 +42,11 @@ pub(super) fn accepts_move<T: LayerTree>(tree: &T, mv: &Move<LayerRowKey<T::Id>>
     // pc: crates/ui-egui/src/panels/layer_drag.rs:288-299 `fx_drop` (effects onto a layer, outlined);
     // pc: crates/ui-egui/src/panels/smart_ui.rs:352-410 `drop_on_row`, `reorder_target`, `reorder_drop`.
     match layer_drop(mv) {
-        Some(LayerDrop::Layers(_)) => tree.accepts_drop(mv, modifiers),
+        Some(LayerDrop::Layers(layers)) => {
+            // The app sees the move as the drop makes it: relative to a layer row.
+            let target = LayerRowKey::Layer(layers.target);
+            tree.accepts_drop(&Move { items: mv.items.clone(), target, position: layers.position, copy: mv.copy }, modifiers)
+        }
         // Smart Filters go only onto a smart object; Photoshop and PhotoCraft take no others.
         Some(LayerDrop::Transfer(transfer)) => {
             transfer.rows.iter().all(|row| !matches!(row, LayerRowKey::Filters(..))) || tree.info(&transfer.to).kind == LayerKind::SmartObject
@@ -62,9 +67,16 @@ pub(super) fn layer_drop<Id: Clone + PartialEq>(mv: &Move<LayerRowKey<Id>>) -> O
         return None;
     }
     if mv.items.iter().all(LayerRowKey::is_layer) {
-        let LayerRowKey::Layer(target) = &mv.target else { return None };
+        // The space under a layer's last sub-row, and a place before one, are below the layer.
+        let (target, position) = match (&mv.target, mv.position) {
+            (LayerRowKey::Layer(target), position) => (target, position),
+            (LayerRowKey::Effects(owner, _) | LayerRowKey::Filters(owner, _), DropPosition::Before | DropPosition::After) => {
+                (owner, DropPosition::After)
+            }
+            _ => return None,
+        };
         let layers = mv.items.iter().map(|key| key.layer().clone()).collect();
-        return Some(LayerDrop::Layers(LayerMove { layers, target: target.clone(), position: mv.position, copy: mv.copy }));
+        return Some(LayerDrop::Layers(LayerMove { layers, target: target.clone(), position, copy: mv.copy }));
     }
     // Sub-rows: all of one layer and one group.
     let layer = mv.items[0].layer();
@@ -102,8 +114,9 @@ fn sub_row_group<Id>(key: &LayerRowKey<Id>) -> Option<SubRowGroup> {
 }
 
 /// The panel's event for the list's reorder edit: the same gesture (`Begin`, `Commit`, `Cancel`,
-/// or a stacking key's `Set`) carrying [`layer_drop`] of the move. A `Commit` or `Set` whose move
-/// means nothing is dropped.
+/// or a stacking key's `Set`) carrying [`layer_drop`] of the move. A `Commit` whose move means
+/// nothing becomes `Cancel` with [`CancelReason::Dismissed`], so the app's `Begin` ends; a `Set`
+/// whose move means nothing is dropped.
 pub(super) fn drop_event<Id: Clone + PartialEq>(edit: EditEvent<Move<LayerRowKey<Id>>>) -> Option<LayersEvent<Id>> {
     // new: the list's `ListEvent::Reorder` gesture, mapped.
     let drop = match edit {
@@ -111,7 +124,10 @@ pub(super) fn drop_event<Id: Clone + PartialEq>(edit: EditEvent<Move<LayerRowKey
             Some(drop) => EditEvent::begin_with(id, drop),
             None => EditEvent::begin(id),
         },
-        EditEvent::Commit { id, value, changed, modifiers, .. } => EditEvent::commit(id, layer_drop(&value)?, changed, modifiers),
+        EditEvent::Commit { id, value, changed, modifiers, .. } => match layer_drop(&value) {
+            Some(drop) => EditEvent::commit(id, drop, changed, modifiers),
+            None => EditEvent::cancel(id, CancelReason::Dismissed),
+        },
         EditEvent::Cancel { id, reason, .. } => EditEvent::cancel(id, reason),
         EditEvent::Set { value, modifiers, .. } => EditEvent::set(layer_drop(&value)?, modifiers),
         // The panel reports no per-frame updates of a drag; the preview is `drop_preview`.

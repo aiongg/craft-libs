@@ -276,7 +276,12 @@ fn disabled_mask_is_crossed_out_and_badges_follow_the_setting() {
     install(&ctx, &Base::suite_default());
     let style = LayersStyle::of(&current(&ctx));
     let crosses = |shapes: &[Shape]| {
-        shapes.iter().filter(|s| matches!(s, Shape::LineSegment { stroke, .. } if stroke.color == style.mask_disabled && stroke.width == 1.5)).count()
+        shapes
+            .iter()
+            .filter(
+                |s| matches!(s, Shape::LineSegment { stroke, .. } if stroke.color == style.mask_disabled && stroke.width == style.mask_cross_width),
+            )
+            .count()
     };
     let badges = |shapes: &[Shape]| {
         shapes
@@ -425,6 +430,12 @@ fn rows_are_list_box_options_with_state_in_the_description() {
         "pixel layer, locked, linked, layer mask, vector mask, effects, hidden, layer mask targeted"
     );
     assert_eq!(row_description(&labels, &LayerInfo::new("Plain", LayerKind::Group), None), "group");
+
+    // The warning is read with the row, after the app's own description.
+    let mut warned = LayerInfo::new("Warned", LayerKind::Pixel);
+    warned.description = Some(String::from("opacity 50%"));
+    warned.warning = Some(String::from("Missing font"));
+    assert_eq!(row_description(&labels, &warned, None), "pixel layer, opacity 50%, Missing font");
 
     let mut tree = busy();
     tree.selection.target = LayerPart::VectorMask;

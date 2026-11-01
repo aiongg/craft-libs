@@ -29,32 +29,32 @@ use crate::ui::tree::{LayerPart, LayerRowKey, SubRowGroup};
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub enum LayersEvent<Id> {
+pub enum LayersEvent<K> {
     /// A click on a row (Cmd/Ctrl toggles, Shift extends), a selection key, or a click on the
     /// empty space below the rows (`Clear`). A right-click outside the selection selects the row
     /// first. The app sets its selection by the pick and its target from `part`.
-    Select(LayerSelect<Id>),
+    Select(LayerSelect<K>),
     /// An eye or lock cell: a click is a `Set`, a drag down the column a gesture that sets every
     /// row crossed to the first row's new state. One undo step per gesture.
-    Toggle(LayerToggle<Id>),
+    Toggle(LayerToggle<K>),
     /// Alt-click on an eye: show only this layer, or restore when it already is (Photoshop).
-    ShowOnly(LayerRowKey<Id>),
+    ShowOnly(LayerRowKey<K>),
     /// A pick in the eye cell's colour menu (None and the label colours): for every selected
     /// layer when the row is in a multi-selection, else for the row.
     LabelColor {
         /// The layers to colour.
-        rows: Vec<Id>,
+        rows: Vec<K>,
         /// The colour; `None` for none.
         color: Option<LabelColor>,
     },
     /// A group asked to open or close: its triangle (Alt for every group), ← and →, a screen
     /// reader, or the reveal of the active layer. A view change: no undo step.
-    Open(OpenChange<Id>),
+    Open(OpenChange<K>),
     /// A layer's effects and Smart Filter rows asked to open or close: the `fx` triangle, or
     /// Shift+→ and Shift+← on the lead; `all` (Alt) for every layer.
     FxOpen {
         /// The layer.
-        layer: Id,
+        layer: K,
         /// Open or close.
         open: bool,
         /// Every layer takes the state.
@@ -63,7 +63,7 @@ pub enum LayersEvent<Id> {
     /// A rename committed: never empty after trimming, never the unchanged name.
     Rename {
         /// The layer.
-        layer: Id,
+        layer: K,
         /// The new name, trimmed.
         text: String,
     },
@@ -73,7 +73,7 @@ pub enum LayersEvent<Id> {
     Activate {
         /// The row: a layer, or an effects or Smart Filter row (Layer Style on that effect, the
         /// filter's options).
-        row: LayerRowKey<Id>,
+        row: LayerRowKey<K>,
         /// What was double-clicked.
         on: ActivateOn,
     },
@@ -83,7 +83,7 @@ pub enum LayersEvent<Id> {
     /// thumbnail fits the layer on screen.
     ThumbClick {
         /// The layer.
-        layer: Id,
+        layer: K,
         /// The thumbnail.
         part: LayerPart,
         /// The modifiers held.
@@ -92,7 +92,7 @@ pub enum LayersEvent<Id> {
     /// The chain before a mask thumbnail: link or unlink the mask.
     MaskLink {
         /// The layer.
-        layer: Id,
+        layer: K,
         /// The mask.
         part: LayerPart,
         /// The state asked for.
@@ -104,7 +104,7 @@ pub enum LayersEvent<Id> {
     /// A drag of rows: `Begin`, then `Commit` with the drop or `Cancel` (Esc, focus lost, released
     /// elsewhere, a dragged row removed); a stacking key (Cmd/Ctrl+] and [, Shift to the ends) is
     /// one `Set`. One undo step per drop.
-    Drop(EditEvent<LayerDrop<Id>>),
+    Drop(EditEvent<LayerDrop<K>>),
     /// A click on a footer button.
     Footer(LayersFooterAction),
     /// Rows dropped on a footer button: Delete deletes layers, clears effects, removes filters,
@@ -113,12 +113,12 @@ pub enum LayersEvent<Id> {
         /// The button.
         button: LayersFooterButton,
         /// What was dropped: layer rows, effects or filter rows, or one [`LayerRowKey::Mask`].
-        rows: Vec<LayerRowKey<Id>>,
+        rows: Vec<LayerRowKey<K>>,
     },
     /// A pick in the host's row menu ([`LayersPanel::row_menu`](super::LayersPanel::row_menu)).
     Menu {
         /// Where the menu was opened.
-        target: MenuTarget<Id>,
+        target: MenuTarget<K>,
         /// The host's command.
         command: String,
     },

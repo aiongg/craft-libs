@@ -6,7 +6,7 @@ use craft_ui::canvas::textures::{Priority, TextureState, ThumbPaint, ThumbReques
 use craft_ui::icons::{self, Icon, IconSize};
 use craft_ui::list::{ListRow, ThumbSize, ThumbTarget, ToggleColumn};
 use craft_ui::theme::current;
-use egui::{Color32, Painter, Rect};
+use egui::{Painter, Rect};
 
 use super::context::{PanelContext, ThumbHost};
 use super::indicators::{add_indicators, paint_mask_marks};
@@ -77,7 +77,7 @@ pub(super) fn build_row<'r, T: LayerTree>(cx: &'r PanelContext<'r, T>, at: usize
 pub(super) fn row_height<T: LayerTree>(cx: &PanelContext<'_, T>, row: &RowInfo<LayerRowKey<T::Id>>, thumbnail_size: ThumbSize) -> f32 {
     // pc: crates/ui-egui/src/panels/layers_panel_ui.rs:178-192 `thumbnail_geometry`;
     // pc: crates/ui-egui/src/panels/smart_ui.rs:78-85 `smart_filters_header_geometry` (`max(22, thumb + 6)`, unified to the row rule).
-    let dense = current(&cx.ctx).component.list.row_height_dense;
+    let dense = cx.row_style.row_height_dense;
     match &row.key {
         LayerRowKey::Layer(_) | LayerRowKey::Mask(..) => cx.row_style.height(thumbnail_size, false),
         LayerRowKey::Filters(id, None)
@@ -115,10 +115,14 @@ pub(super) fn ask_near_thumbnails<T: LayerTree>(cx: &PanelContext<'_, T>, rows: 
     }
 }
 
+/// The kind tile glyph's share of the tile's shorter side (drawing geometry: it scales with the
+/// thumbnail).
+const KIND_GLYPH_SHARE: f32 = 0.64;
+
 /// Paints the kind tile of a row whose thumbnail source answered `Blank`: a folder for a group,
 /// the adjustment glyph for an adjustment layer, a "T" on a light tile for a type layer, the
 /// `thumbnail.placeholder` fill for any other kind; the tile fills `rect` (the row frames it).
-pub(super) fn paint_kind_tile(painter: &Painter, rect: Rect, kind: LayerKind, _style: &LayersStyle) {
+pub(super) fn paint_kind_tile(painter: &Painter, rect: Rect, kind: LayerKind, style: &LayersStyle) {
     // pc: crates/ui-egui/src/panels/layer_row.rs:507-517 (folder and `contrast` tiles on `t.field`,
     // the "T" tile); the Pro look's square corners (one layout).
     let ctx = painter.ctx();
@@ -126,12 +130,12 @@ pub(super) fn paint_kind_tile(painter: &Painter, rect: Rect, kind: LayerKind, _s
     let thumb = Thumbnails::<()>::style(&tokens);
     let glyph = ListRow::<()>::style(&tokens).icon;
     let set = icons::active(ctx);
-    let points = (rect.width().min(rect.height()) * 0.64).max(0.0);
+    let points = (rect.width().min(rect.height()) * KIND_GLYPH_SHARE).max(0.0);
     let (fill, icon, color) = match kind {
         LayerKind::Group => (thumb.placeholder, Some(Icon::Folder), glyph),
         LayerKind::Adjustment => (thumb.placeholder, Some(Icon::Contrast), glyph),
         // The type tile is paper with ink: the same in every theme, like the checkerboard.
-        LayerKind::Text => (thumb.checker[0], Some(Icon::Text), Color32::from_gray(40)), // design: allow(type tile ink)
+        LayerKind::Text => (thumb.checker[0], Some(Icon::Text), style.kind_type_ink),
         _ => (thumb.placeholder, None, glyph),
     };
     painter.rect_filled(rect, 0.0, fill);
@@ -143,7 +147,7 @@ pub(super) fn paint_kind_tile(painter: &Painter, rect: Rect, kind: LayerKind, _s
 /// The row's description for a screen reader: the kind word, then each flag that holds
 /// ("clipped", "locked", "linked", "layer mask", "vector mask", "disabled mask", "effects",
 /// "Smart Filters", "hidden"), then the target words when `target` is given (the active row),
-/// then `info.description`, joined with ", ".
+/// then `info.description`, then `info.warning`, joined with ", ".
 pub(super) fn row_description(labels: &LayersLabels, info: &LayerInfo, target: Option<LayerPart>) -> String {
     // new: the spec's AccessKit table (`step6a-layers.md`); PhotoCraft names painted rows only.
     let kind = match info.kind {
@@ -180,6 +184,7 @@ pub(super) fn row_description(labels: &LayersLabels, info: &LayerInfo, target: O
     let mut words: Vec<&str> = std::iter::once(kind.as_str()).chain(flags.iter().filter(|(on, _)| *on).map(|(_, word)| word.as_str())).collect();
     words.extend(target.map(String::as_str));
     words.extend(info.description.as_deref());
+    words.extend(info.warning.as_deref());
     words.join(", ")
 }
 
