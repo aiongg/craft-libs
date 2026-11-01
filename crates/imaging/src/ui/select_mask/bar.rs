@@ -2,8 +2,14 @@
 
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
+use craft_theme::ControlSize;
+use craft_ui::controls::{Button, Checkbox, IconButton, NumberField, TooltipExt as _};
+use craft_ui::icons::Icon;
+use craft_ui::localized::{LocaleNumbers, Unit};
+use craft_ui::patterns::{CellWidth, OptionsBar};
+
 use super::SelectMaskLabels;
-use super::tools::{SelectMaskTool, SelectMaskToolOptions};
+use super::tools::{BrushSizes, SelectMaskTool, SelectMaskToolOptions};
 
 /// What [`SelectMaskBar::show`] reports.
 #[derive(Clone, Debug)]
@@ -22,7 +28,6 @@ pub struct SelectMaskBarOutput {
 /// Object Selection Sample All Layers; for the editing tools Select Subject and Refine Hair, drawn
 /// disabled with the tooltip "Refine Hair needs hair detection, which isn't available yet" (lead
 /// call 28).
-#[expect(dead_code, reason = "skeleton: `show` (task WS-SM2) reads the fields")]
 pub struct SelectMaskBar<'a> {
     id_salt: IdSalt,
     tool: SelectMaskTool,
@@ -35,9 +40,69 @@ impl<'a> SelectMaskBar<'a> {
         Self { id_salt: IdSalt::new(id_salt), tool, options, labels }
     }
 
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-SM2")]
     pub fn show(self, ui: &mut Ui) -> SelectMaskBarOutput {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1497 `options_bar`.
-        todo!()
+        let Self { id_salt, tool, options, labels } = self;
+        let mut changed = false;
+        let mut select_subject = false;
+        let (changed_ref, subject_ref) = (&mut changed, &mut select_subject);
+        let response = OptionsBar::new(id_salt).show(ui, move |bar| {
+            bar.leading(move |ui| {
+                OptionsBar::tool_icon(ui, tool.icon(), tool.label(labels));
+            });
+            bar.body(move |ui| {
+                let sm = ControlSize::Sm;
+                let numbers = LocaleNumbers::of(ui);
+                if tool.edits() {
+                    for (add, icon, name, salt) in [(true, Icon::Plus, &labels.add, "add"), (false, Icon::Minus, &labels.subtract, "subtract")] {
+                        let button = IconButton::new(icon, name.as_str()).size(sm).selected(options.add == add).id_salt(salt);
+                        if ui.add(button).clicked() && options.add != add {
+                            options.add = add;
+                            *changed_ref = true;
+                        }
+                    }
+                    OptionsBar::divider(ui);
+                }
+                if tool.brushes() {
+                    let size = options.sizes.get(tool);
+                    let field = NumberField::new("size", labels.size.as_str(), size, &numbers)
+                        .range(BrushSizes::RANGE)
+                        .decimals(0..=0)
+                        .unit(Unit::new("{n} px"));
+                    if let Some(value) =
+                        OptionsBar::number_cell(ui, &labels.size, CellWidth::Md, field).event.as_ref().and_then(|e| e.value()).copied()
+                        && value != size
+                    {
+                        options.sizes.set(tool, value);
+                        *changed_ref = true;
+                    }
+                }
+                if tool == SelectMaskTool::Brush
+                    && let Some(value) = OptionsBar::percent_cell(ui, "hardness", &labels.hardness, options.hardness, &numbers)
+                        .event
+                        .as_ref()
+                        .and_then(|e| e.value())
+                        .copied()
+                    && value != options.hardness
+                {
+                    options.hardness = value.clamp(0.0, 100.0);
+                    *changed_ref = true;
+                }
+                if matches!(tool, SelectMaskTool::Quick | SelectMaskTool::RefineEdge | SelectMaskTool::Object)
+                    && Checkbox::bool(labels.sample_all_layers.as_str(), &mut options.sample_all_layers).size(sm).show(ui).response.changed()
+                {
+                    *changed_ref = true;
+                }
+                if tool.edits() {
+                    OptionsBar::divider(ui);
+                    if ui.add(Button::new(labels.select_subject.as_str()).size(sm)).clicked() {
+                        *subject_ref = true;
+                    }
+                    // Hair detection is not available: the button says so.
+                    ui.add_enabled(false, Button::new(labels.refine_hair.as_str()).size(sm)).tooltip(labels.refine_hair_missing.as_str());
+                }
+            });
+        });
+        SelectMaskBarOutput { response, changed, select_subject }
     }
 }
