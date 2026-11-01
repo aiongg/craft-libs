@@ -393,7 +393,7 @@ impl StepList {
     }
 
     /// Ends the open grouping run, gesture or keyed.
-    fn end_run(&mut self) {
+    pub(super) fn end_run(&mut self) {
         self.run = None;
         self.closed = self.marks.load(Ordering::Relaxed);
     }
@@ -410,7 +410,7 @@ impl StepList {
     /// Removes row `at`, reports its id and keeps `current` on the same state (or the row before,
     /// when the current state itself goes). A removed pinned state stays recorded as the pin, so
     /// [`source`](Self::source) is `None` until a new one is set.
-    fn remove_row(&mut self, at: usize) {
+    pub(super) fn remove_row(&mut self, at: usize) {
         let row = self.rows.remove(at);
         self.dropped.push(row.id);
         if at < self.current || (at == self.current && at > 0) {
