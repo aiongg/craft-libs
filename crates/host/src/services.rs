@@ -125,7 +125,6 @@ impl Jobs for InlineJobs {
 /// its next run) queues it behind the others; the lock is not held while a job runs.
 #[derive(Default)]
 pub struct ManualJobs {
-    #[expect(dead_code, reason = "skeleton: removed when the bodies land")]
     waiting: Mutex<std::collections::VecDeque<Box<dyn FnOnce() + Send>>>,
 }
 
@@ -135,32 +134,33 @@ impl ManualJobs {
     }
 
     /// Runs the oldest waiting job; false when none waits.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn run_next(&self) -> bool {
         // new: the stories' "Finish next" button and the queue tests.
-        todo!()
+        let job = self.waiting.lock().unwrap_or_else(|e| e.into_inner()).pop_front();
+        job.map(|job| job()).is_some()
     }
 
     /// Runs jobs until none waits, including the ones they spawn, and returns how many ran.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn run_all(&self) -> usize {
         // new: a test that only needs every job done.
-        todo!()
+        let mut ran = 0;
+        while self.run_next() {
+            ran += 1;
+        }
+        ran
     }
 
     /// How many jobs wait.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn waiting(&self) -> usize {
         // new: stories show it beside the "Finish next" button.
-        todo!()
+        self.waiting.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 }
 
 impl Jobs for ManualJobs {
     /// Queues `job` behind the waiting ones; `name` is not kept.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     fn spawn(&self, _name: &str, job: Box<dyn FnOnce() + Send>) {
         // new: see `ManualJobs`.
-        todo!()
+        self.waiting.lock().unwrap_or_else(|e| e.into_inner()).push_back(job);
     }
 }
