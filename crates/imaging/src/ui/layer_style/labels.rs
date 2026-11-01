@@ -1,5 +1,4 @@
-//! The words of the Layer Style dialog, the Blend If bar and the contour field (task AD-8 fills
-//! the lookups).
+//! The words of the Layer Style dialog, the Blend If bar and the contour field.
 
 use crate::layer_style::EffectKind;
 
@@ -120,31 +119,103 @@ craft_ui::words! {
 
 impl LayerStyleLabels {
     /// The name of `kind` ("Drop Shadow").
-    #[expect(clippy::todo, reason = "skeleton: task AD-8")]
     pub fn effect(&self, kind: EffectKind) -> &str {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:53-64 `KINDS` (the second column).
-        let _ = kind;
-        todo!()
+        match kind {
+            EffectKind::BevelEmboss => &self.bevel_emboss,
+            EffectKind::Stroke => &self.stroke,
+            EffectKind::InnerShadow => &self.inner_shadow,
+            EffectKind::InnerGlow => &self.inner_glow,
+            EffectKind::Satin => &self.satin,
+            EffectKind::ColorOverlay => &self.color_overlay,
+            EffectKind::GradientOverlay => &self.gradient_overlay,
+            EffectKind::PatternOverlay => &self.pattern_overlay,
+            EffectKind::OuterGlow => &self.outer_glow,
+            EffectKind::DropShadow => &self.drop_shadow,
+        }
     }
 
     /// The label of a built-in field key (`"distance"` → "Distance"); `None` for a key the
     /// built-in tables don't have, so the page shows the spec's own label. Bevel & Emboss's
     /// `contour` check is "Contour", its `contourName` row has no label, `contourRange` is
     /// "Range".
-    #[expect(clippy::todo, reason = "skeleton: task AD-8")]
     pub fn field(&self, key: &str) -> Option<&str> {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:90-216 `spec` (keys and labels).
-        let _ = key;
-        todo!()
+        let label = match key {
+            "blend" => &self.blend_mode,
+            "color" => &self.color,
+            "opacity" => &self.opacity,
+            "fillOpacity" => &self.fill_opacity,
+            "angle" => &self.angle,
+            "useGlobalLight" => &self.use_global_light,
+            "distance" => &self.distance,
+            "spread" => &self.spread,
+            "choke" => &self.choke,
+            "size" => &self.size,
+            "contour" => &self.contour,
+            "noise" => &self.noise,
+            "knocksOut" => &self.knocks_out,
+            "technique" => &self.technique,
+            "source" => &self.source,
+            "range" | "contourRange" => &self.range,
+            "position" => &self.position,
+            "overprint" => &self.overprint,
+            "from" => &self.from,
+            "to" => &self.to,
+            "reverse" => &self.reverse,
+            "style" => &self.style,
+            "scale" => &self.scale,
+            "method" => &self.method,
+            "pattern" => &self.pattern,
+            "link" => &self.link,
+            "depth" => &self.depth,
+            "direction" => &self.direction,
+            "soften" => &self.soften,
+            "altitude" => &self.altitude,
+            "glossContour" => &self.gloss_contour,
+            "highlightBlend" => &self.highlight_mode,
+            "highlightColor" => &self.highlight_color,
+            "highlightOpacity" => &self.highlight_opacity,
+            "shadowBlend" => &self.shadow_mode,
+            "shadowColor" => &self.shadow_color,
+            "shadowOpacity" => &self.shadow_opacity,
+            "invert" => &self.invert,
+            _ => return None,
+        };
+        Some(label)
     }
 
     /// The label of a built-in choice value (`"chiselHard"` → "Chisel Hard"; Gradient Overlay's
     /// `"angle"` style → "Angle"); `None` for another value.
-    #[expect(clippy::todo, reason = "skeleton: task AD-8")]
     pub fn choice(&self, value: &str) -> Option<&str> {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:91-97 (choice tables), :1084-1094 (methods).
-        let _ = value;
-        todo!()
+        let label = match value {
+            "softer" => &self.softer,
+            "precise" => &self.precise,
+            "edge" => &self.edge,
+            "center" => &self.center,
+            "outside" => &self.outside,
+            "inside" => &self.inside,
+            "linear" => &self.linear,
+            "radial" => &self.radial,
+            "angle" => &self.angle_style,
+            "reflected" => &self.reflected,
+            "diamond" => &self.diamond,
+            "inner" => &self.inner_bevel,
+            "outer" => &self.outer_bevel,
+            "emboss" => &self.emboss,
+            "pillow" => &self.pillow_emboss,
+            "smooth" => &self.smooth,
+            "chiselHard" => &self.chisel_hard,
+            "chiselSoft" => &self.chisel_soft,
+            "up" => &self.up,
+            "down" => &self.down,
+            "perceptual" => &self.perceptual,
+            "classic" => &self.classic,
+            "custom" => &self.custom,
+            _ => return None,
+        };
+        Some(label)
     }
 }
 
