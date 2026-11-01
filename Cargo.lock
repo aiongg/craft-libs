@@ -1223,6 +1223,8 @@ dependencies = [
  "hayro-syntax",
  "krilla",
  "kurbo 0.13.1",
+ "serde",
+ "serde_json",
  "thiserror 2.0.21",
  "ttf-parser",
  "wasm-bindgen-test",

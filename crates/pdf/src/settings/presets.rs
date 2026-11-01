@@ -9,10 +9,13 @@ use super::{
 
 /// A named set of PDF settings: a built-in preset or one the user saved.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct PdfPreset {
     pub name: String,
     /// What the preset is for.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "String::is_empty"))]
     pub description: String,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub settings: PdfSettings,
 }
 

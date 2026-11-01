@@ -234,3 +234,61 @@ fn built_in_presets_are_valid_described_and_named_for_the_app() {
     assert_eq!(builtin_preset("default", "VectorCraft").unwrap().name, "VectorCraft Default");
     assert!(builtin_preset("Nope", "VectorCraft").is_none());
 }
+
+#[cfg(feature = "serde")]
+mod json {
+    use serde_json::json;
+
+    use super::*;
+
+    fn settings(v: serde_json::Value) -> PdfSettings {
+        serde_json::from_value(v).unwrap()
+    }
+
+    #[test]
+    fn json_is_camel_case_and_partial_objects_keep_defaults() {
+        let d = PdfSettings::default();
+        let v = serde_json::to_value(&d).unwrap();
+        assert_eq!(v["compatibility"], "1.7");
+        assert_eq!(v["standard"], "none");
+        assert_eq!(v["compression"]["compressText"], true);
+        assert_eq!(v["compression"]["color"]["abovePpi"], 450.0);
+        assert_eq!(v["advanced"]["overprint"], "preserve");
+        assert_eq!(serde_json::from_value::<PdfSettings>(v).unwrap(), d, "round-trips");
+        let s = settings(json!({"compatibility": "1.5", "marks": {"trim": true}, "compression": {"gray": {"downsample": "bicubic"}}}));
+        assert_eq!(s.compatibility, Compatibility::Pdf15);
+        assert!(s.marks.trim && s.marks.weight == 0.25);
+        assert_eq!(s.compression.gray.downsample, Downsample::Bicubic);
+        assert_eq!(s.compression.gray.ppi, 300.0);
+        assert!(s.compression.compress_text);
+        for bad in [json!({"compatibility": "1.2"}), json!({"standard": "pdfX9"}), json!({"marks": {"trim": "yes"}})] {
+            assert!(serde_json::from_value::<PdfSettings>(bad.clone()).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn passwords_are_never_serialized() {
+        let s = settings(json!({"security": {"openPassword": "secret", "permissionsPassword": "owner"}}));
+        assert_eq!(s.security.open_password, "secret");
+        let text = serde_json::to_string(&s).unwrap();
+        assert!(!text.contains("secret") && !text.contains("owner") && !text.contains("Password"), "{text}");
+    }
+
+    #[test]
+    fn checks_see_settings_read_from_json() {
+        assert_eq!(settings(json!({"standard": "pdfX4"})).check(&Profiles).unwrap_err().id, "standardVersion");
+        assert_eq!(settings(json!({"standard": "pdfX4", "compatibility": "1.6"})).check(&Profiles), Ok(()));
+        assert_eq!(settings(json!({"compression": {"color": {"ppi": 5}}})).check(&Profiles).unwrap_err().id, "compressionPpi");
+    }
+
+    #[test]
+    fn presets_round_trip_as_json() {
+        for p in builtin_presets("VectorCraft") {
+            let back: PdfPreset = serde_json::from_value(serde_json::to_value(&p).unwrap()).unwrap();
+            assert_eq!(back, p, "{}", p.name);
+        }
+        let bare: PdfPreset = serde_json::from_value(json!({"name": "Mine"})).unwrap();
+        assert_eq!((bare.name.as_str(), bare.description.as_str(), bare.settings.clone()), ("Mine", "", PdfSettings::default()));
+        assert!(serde_json::to_value(&bare).unwrap().get("description").is_none());
+    }
+}
