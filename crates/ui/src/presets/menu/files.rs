@@ -1,12 +1,12 @@
 //! Preset files: Load…, Save… and Export through the host's `Files`, picked and finished inside the component (`PresetFiles`, `PresetFileEvent`, `PresetExport`).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use craft_host::{Host, PickId, PickRequest, Picked};
+use egui::{AsIdSalt, Context, Id, IdSalt};
 
-use egui::{AsIdSalt, Context};
-
-use crate::composites::StatusLine;
+use crate::composites::{StatusLine, Tone};
 use crate::docking::panel_menu::PanelCommand;
-use crate::menu::MenuEntry;
+use crate::localized::Labels as _;
+use crate::menu::{MenuEntry, MenuItem};
 
 /// The menu commands of the file entries.
 pub(crate) const CMD_LOAD: &str = "presetFiles.load";
@@ -26,6 +26,28 @@ crate::words! {
         read_failed: "presetFiles.readFailed" = "Could not read {file}: {reason}";
         write_failed: "presetFiles.writeFailed" = "Could not save {file}: {reason}";
     }
+}
+
+/// The pick a menu command started, kept in egui memory until its answer arrives.
+#[derive(Clone)]
+struct Pending {
+    ticket: PickId,
+    job: Job,
+}
+
+#[derive(Clone)]
+enum Job {
+    Load { replace: bool },
+    Save(PresetExport),
+}
+
+fn pick_id(salt: IdSalt) -> Id {
+    Id::unique(("craft-ui-preset-files", salt))
+}
+
+/// A file's name without its folder.
+fn name_of(path: &std::path::Path) -> String {
+    path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned())
 }
 
 /// What a Save… writes: the app's bytes and the suggested file name.
@@ -125,25 +147,116 @@ impl<'a, K> PresetFiles<'a, K> {
         self
     }
 
+    fn words(&self, ctx: &Context) -> PresetFileLabels {
+        self.labels.clone().unwrap_or_else(|| PresetFileLabels::of_ctx(ctx))
+    }
+
     /// Finishes a pick of the component `id_salt` answered since the last pass: reads or writes
     /// the file and reports it. Call it every pass where the component lives (the picker and the
     /// named row call it themselves); it costs one memory lookup while no pick is open.
     pub fn take_events(&self, ctx: &Context, id_salt: impl AsIdSalt) -> PresetFilesOutput {
-        // craft-libs: crates/color/src/ui/swatches.rs:663-700 (`finish_file_pick`)
-        todo!()
+        let salt = IdSalt::new(id_salt);
+        let key = pick_id(salt);
+        let mut out = PresetFilesOutput::default();
+        let Some(pending) = ctx.data(|d| d.get_temp::<Pending>(key)) else { return out };
+        let Some(host) = Host::try_of_ctx(ctx) else { return out };
+        let Some(picked) = host.files().take_answer(pending.ticket) else { return out };
+        ctx.data_mut(|d| d.remove::<Pending>(key));
+        let labels = self.words(ctx);
+        let line = |template: &str, file: &str, reason: Option<String>, tone: Tone| {
+            let reason = reason.unwrap_or_default();
+            Some(StatusLine { text: craft_i18n::fmt(template, &[("file", file), ("reason", &reason)]), tone })
+        };
+        match pending.job {
+            Job::Load { replace } => {
+                let file = match picked {
+                    Picked::Cancelled => return out,
+                    Picked::Paths(paths) => paths.into_iter().next().map(|path| {
+                        let name = name_of(&path);
+                        host.files().read(&path).map(|bytes| (name.clone(), bytes)).map_err(|error| (name, error.to_string()))
+                    }),
+                    Picked::Contents(files) => files.into_iter().next().map(|(name, bytes)| Ok((name, bytes))),
+                };
+                match file {
+                    None => {}
+                    Some(Ok((file_name, bytes))) => {
+                        out.status = line(&labels.loaded, &file_name, None, Tone::Good);
+                        out.events.push(PresetFileEvent::Loaded { file_name, bytes, replace });
+                    }
+                    Some(Err((name, reason))) => out.status = line(&labels.read_failed, &name, Some(reason), Tone::Bad),
+                }
+            }
+            Job::Save(export) => {
+                let Some(path) = picked.first_path() else { return out };
+                let name = name_of(&path);
+                match host.files().write(&path, &export.bytes) {
+                    Ok(()) => {
+                        out.status = line(&labels.saved, &name, None, Tone::Good);
+                        out.events.push(PresetFileEvent::Saved { file_name: name });
+                    }
+                    Err(error) => out.status = line(&labels.write_failed, &name, Some(error.to_string()), Tone::Bad),
+                }
+            }
+        }
+        out
     }
 
     /// The menu rows: Load…, Replace… (with `replace`), Save… (with `export`, enabled when it
     /// returns bytes for `selected`), commands [`CMD_LOAD`], [`CMD_REPLACE`], [`CMD_SAVE`].
     pub(crate) fn entries(&self, ctx: &Context, selected: Option<&K>) -> Vec<MenuEntry<PanelCommand>> {
-        // pc: crates/ui-egui/src/dialogs/layer_style/contour.rs:183-191 (Load Contours…, Replace Contours…, Save Contours… enabled with user contours)
-        todo!()
+        let labels = self.words(ctx);
+        let item = |label: &str, command: &str, enabled: bool| MenuEntry::from(MenuItem::new(label, command.to_owned()).enabled(enabled));
+        let mut out = vec![item(&labels.load, CMD_LOAD, true)];
+        if self.replace {
+            out.push(item(&labels.replace, CMD_REPLACE, true));
+        }
+        if let Some(export) = &self.export {
+            out.push(item(&labels.save, CMD_SAVE, export(selected).is_some()));
+        }
+        out
     }
 
     /// Starts the pick of one of [`entries`](Self::entries)' commands for the component
     /// `id_salt`; returns false for another command or without a host.
     pub(crate) fn start(&self, ctx: &Context, id_salt: impl AsIdSalt, command: &str, selected: Option<&K>) -> bool {
-        // craft-libs: crates/color/src/ui/swatches.rs:641-661 (`start_file_pick`: forget the old ticket, keep the new one in egui data)
-        todo!()
+        let job = match command {
+            CMD_LOAD => Job::Load { replace: false },
+            CMD_REPLACE if self.replace => Job::Load { replace: true },
+            CMD_SAVE => match self.export.as_ref().and_then(|export| export(selected)) {
+                Some(export) => Job::Save(export),
+                None => return false,
+            },
+            _ => return false,
+        };
+        let Some(host) = Host::try_of_ctx(ctx) else { return false };
+        let key = pick_id(IdSalt::new(id_salt));
+        if let Some(old) = ctx.data(|d| d.get_temp::<Pending>(key)) {
+            host.files().forget(old.ticket);
+        }
+        let labels = self.words(ctx);
+        let label = match command {
+            CMD_LOAD => &labels.load,
+            CMD_REPLACE => &labels.replace,
+            _ => &labels.save,
+        };
+        let title = label.trim_end_matches('…');
+        let extensions: Vec<&str> = self.extensions.iter().map(String::as_str).collect();
+        let request = match &job {
+            Job::Load { .. } => PickRequest::open(self.purpose.as_str()).title(title).filter(self.name.as_str(), &extensions),
+            Job::Save(export) => {
+                let mut request = PickRequest::save(self.purpose.as_str())
+                    .title(title)
+                    .file_name(export.file_name.as_str())
+                    .filter(self.name.as_str(), &extensions);
+                if let Some(first) = extensions.first() {
+                    request = request.suggested_extension(*first);
+                }
+                request
+            }
+        };
+        let ticket = host.files().pick(request);
+        ctx.data_mut(|d| d.insert_temp(key, Pending { ticket, job }));
+        ctx.request_repaint();
+        true
     }
 }
