@@ -24,6 +24,8 @@
 mod bin_tests;
 mod footer;
 mod freeform;
+#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
+mod freeform_tests;
 mod icon;
 mod list;
 mod search;
@@ -396,6 +398,7 @@ pub struct MediaBin<'a, K: TextureKey, M: ?Sized> {
     snap: Option<f32>,
     zoom_range: (f32, f32),
     labels: Option<BinLabels>,
+    rename: Option<K>,
 }
 
 impl<'a, K, M> MediaBin<'a, K, M>
@@ -420,6 +423,7 @@ where
             snap: None,
             zoom_range: (MIN_ICON_SIZE, MAX_ICON_SIZE),
             labels: None,
+            rename: None,
         }
     }
 
@@ -487,6 +491,16 @@ where
     }
 
     /// The words.
+    /// Opens the in-place rename of `key` in this pass, as F2 would: in the List view the name
+    /// cell's field (`Table::start_rename`), in the Icon view the card's caption
+    /// (`TileGrid::start_rename`). The Freeform view has no rename field and ignores it. Call it
+    /// in the pass that handles the host's Rename command; ignored when `key` is not shown.
+    #[must_use]
+    pub fn start_rename(self, key: K) -> Self {
+        // new: builder, as every rename-capable component has.
+        Self { rename: Some(key), ..self }
+    }
+
     #[must_use]
     pub fn labels(self, labels: BinLabels) -> Self {
         // new: builder.
@@ -496,7 +510,8 @@ where
     /// Draws the panel and reports what happened.
     pub fn show(self, ui: &mut Ui) -> BinOutput<K> {
         // filmcraft: crates/ui-egui/src/panels/project.rs:389 (`body`: breadcrumb, search, count, preview, view, footer).
-        let Self { id_salt, state, model, selection, thumbnails, columns, hover_scrub, header, actions, freeform, snap, zoom_range, labels } = self;
+        let Self { id_salt, state, model, selection, thumbnails, columns, hover_scrub, header, actions, freeform, snap, zoom_range, labels, rename } =
+            self;
         let id = ui.make_persistent_id(id_salt);
         let labels = labels.unwrap_or_else(|| BinLabels::of(ui));
         let tokens = Tokens::of(ui);
@@ -606,6 +621,7 @@ where
                     labels: &labels,
                     zoom_range,
                     default_size: DEFAULT_ICON_SIZE,
+                    rename: rename.clone(),
                 };
                 let (response, mut list_events) = list::list_view(ui, input);
                 events.append(&mut list_events);
@@ -622,6 +638,7 @@ where
                     zoom_range,
                     default_size: DEFAULT_ICON_SIZE,
                     labels: &labels,
+                    rename,
                 };
                 let (response, mut icon_events) = icon::icon_view(ui, input);
                 events.append(&mut icon_events);
@@ -638,6 +655,7 @@ where
                     snap,
                     zoom_range,
                     default_size: DEFAULT_ICON_SIZE,
+                    labels: &labels,
                 };
                 let (response, mut freeform_events) = freeform::freeform_view(ui, input);
                 events.append(&mut freeform_events);

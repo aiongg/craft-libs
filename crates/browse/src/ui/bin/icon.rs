@@ -10,7 +10,7 @@ use craft_ui::list::{DropMark, SortOrder, TableSort, paint_drop_mark};
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{DragAndDrop, Id, Rect, Response, Ui};
 
-use super::list::{inside_any, item_of, open_event, sort_entries};
+use super::list::{drop_items, inside_any, item_of, open_event, sort_entries};
 use super::{BinEntry, BinEvent, BinLabels, BinModel, BinState, BinStyle, MediaBin, ThumbPair};
 use crate::ui::grid::{BadgeVisibility, RatingKeys, SpaceAction, TileContent, TileEvent, TileGrid, TileLayout, TileSource, TileZoom};
 
@@ -28,6 +28,7 @@ pub(super) struct IconInput<'a, K: TextureKey, M: ?Sized> {
     pub zoom_range: (f32, f32),
     pub default_size: f32,
     pub labels: &'a BinLabels,
+    pub rename: Option<K>,
 }
 
 /// The cards of the shown bin in display order: bins before items, in the model's order or the
@@ -132,6 +133,10 @@ pub(super) fn paint_bin_face<K: TextureKey>(ui: &Ui, picture: Rect, style: &BinS
 /// - A reorder gesture released over a bin card's middle is a drop into the bin (`Drop`, after a
 ///   `Reorder(Cancel)`); between cards in User Order it is `Reorder`; in a sorted order or a
 ///   search only drops into bins are offered. A release on the background is `Drop { into: None }`.
+/// - F2, a slow click on the selected card's caption and `MediaBin::start_rename` open the caption's
+///   rename field (`Rename` on commit; an empty text reports nothing).
+/// - A release on the view's background drops into the shown bin only the items the model holds
+///   elsewhere, and never a bin into itself.
 /// - Cmd/Ctrl + / − / 0 and a pinch are `Zoom(Set)` steps of the footer slider's range.
 /// - The grid has no stars, flags or check boxes here (`RatingKeys::None`, `BadgeVisibility::Never`);
 ///   Space toggles the lead.
@@ -141,7 +146,7 @@ where
     M: BinModel<K> + ?Sized,
 {
     // filmcraft: crates/ui-egui/src/panels/project_views.rs:835 (`card`), :923 (`bin_card`), :821 (`hover_time`).
-    let IconInput { id, model, state, selection, thumbnails, hover_scrub, zoom_range, default_size, labels } = input;
+    let IconInput { id, model, state, selection, thumbnails, hover_scrub, zoom_range, default_size, labels, rename } = input;
     let ctx = ui.ctx().clone();
     let tokens = Tokens::of(ui);
     let bin_style = MediaBin::<'_, K, M>::style(&tokens);
@@ -159,6 +164,7 @@ where
         .rating_keys(RatingKeys::None)
         .badges(BadgeVisibility::Never)
         .label(labels.icon_view.as_str())
+        .renamable(true)
         .reorder(
             Reorder::new(Axis::Horizontal)
                 .into_rows(|_, row| model.is_bin(row))
@@ -172,6 +178,9 @@ where
         });
     if let Some((thumbs, source)) = &item_thumbs {
         grid = grid.thumbnails(thumbs, source);
+    }
+    if let Some(key) = rename {
+        grid = grid.start_rename(key);
     }
     let out = grid.show(ui);
     let response = out.response;
@@ -193,19 +202,25 @@ where
                 zoomed = zoom.step(zoomed, step);
                 events.push(BinEvent::Zoom(EditEvent::set(f64::from(zoomed), modifiers)));
             }
+            TileEvent::Renamed { key, text } if !text.is_empty() => events.push(BinEvent::Rename { key, text }),
             TileEvent::Reorder(EditEvent::Commit { id: gesture, value, .. }) if value.position == DropPosition::Into => {
                 dropped_in_bin = true;
                 if user_order {
                     events.push(BinEvent::Reorder(EditEvent::cancel(gesture, CancelReason::Dismissed)));
                 }
-                events.push(BinEvent::Drop { items: value.items, into: Some(value.target) });
+                if let Some(items) = drop_items(model, Some(&value.target), &value.items) {
+                    events.push(BinEvent::Drop { items, into: Some(value.target) });
+                }
             }
             TileEvent::Reorder(event) if user_order => events.push(BinEvent::Reorder(event)),
             _ => {}
         }
     }
-    if !dropped_in_bin && let Some(payload) = response.dnd_release_payload::<ListDrag<K>>() {
-        events.push(BinEvent::Drop { items: payload.items.clone(), into: None });
+    if !dropped_in_bin
+        && let Some(payload) = response.dnd_release_payload::<ListDrag<K>>()
+        && let Some(items) = drop_items(model, state.shown.as_ref(), &payload.items)
+    {
+        events.push(BinEvent::Drop { items, into: None });
     }
 
     // The outline of the bin a drag would drop into.

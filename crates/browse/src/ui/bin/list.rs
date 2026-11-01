@@ -36,6 +36,7 @@ pub(super) struct ListInput<'a, K: TextureKey, M: ?Sized> {
     pub labels: &'a BinLabels,
     pub zoom_range: (f32, f32),
     pub default_size: f32,
+    pub rename: Option<K>,
 }
 
 /// The bin a foreign drag is over: its key and the rows' vertical range.
@@ -59,7 +60,7 @@ where
     M: BinModel<K> + ?Sized,
 {
     // filmcraft: crates/ui-egui/src/panels/project_views.rs:497 (`list_view`), :687 (`list_bin`), :457 (`slow_click_rename`).
-    let ListInput { id, model, state, selection, thumbnails, columns, labels, zoom_range, default_size } = input;
+    let ListInput { id, model, state, selection, thumbnails, columns, labels, zoom_range, default_size, rename } = input;
     let ctx = ui.ctx().clone();
     let mut events: Vec<BinEvent<K>> = Vec::new();
 
@@ -121,14 +122,17 @@ where
     let reorder = Reorder::new(Axis::Vertical)
         .accepts(|mv, _| if mv.position == DropPosition::Into { !inside_any(model, &mv.target, &mv.items) } else { user_order });
     let name_column = NAME.to_owned();
-    let out = Table::new(salt, labels.list_view.as_str(), columns, &mut state.settings.columns, rows.as_slice())
+    let mut table = Table::new(salt, labels.list_view.as_str(), columns, &mut state.settings.columns, rows.as_slice())
         .selection(&mut *selection)
         .labels(table_labels)
         .tree(|key| item_of(model, key).name)
         .reorder(reorder)
         .renamable(name_column)
-        .thumbnails(thumb)
-        .show(ui, |ui, key, column, cx| cells.cell(ui, key, column, cx));
+        .thumbnails(thumb);
+    if let Some(key) = rename {
+        table = table.start_rename(key);
+    }
+    let out = table.show(ui, |ui, key, column, cx| cells.cell(ui, key, column, cx));
     let foreign = cells.foreign;
     let response = out.response;
 

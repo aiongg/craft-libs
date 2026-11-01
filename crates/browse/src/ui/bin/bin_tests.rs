@@ -510,12 +510,13 @@ fn icon_cards_drop_into_bins_and_the_background() {
     let drops: Vec<_> = harness.state().events.iter().filter(|e| matches!(e, BinEvent::Drop { .. })).cloned().collect();
     assert_eq!(drops, [BinEvent::Drop { items: vec![30], into: Some(2) }], "{:?}", harness.state().events);
 
-    // In User Order the space past the last card is a move to the end; in a sorted order it is a drop into the shown bin.
+    // In User Order the space past the last card is a move to the end; in a sorted order it is a drop into the shown
+    // bin, which reports nothing for a card the shown bin already holds (LC59).
     harness.state_mut().state.settings.icon_sort = Some(("name".to_owned(), false));
     harness.run();
     harness.state_mut().events.clear();
     harness.drag(card_rect(&harness, "Archive").center(), pos2(300.0, 330.0), Modifiers::NONE);
     harness.run_steps(4);
     let drops: Vec<_> = harness.state().events.iter().filter(|e| matches!(e, BinEvent::Drop { .. })).cloned().collect();
-    assert_eq!(drops, [BinEvent::Drop { items: vec![2], into: None }], "{:?}", harness.state().events);
+    assert!(drops.is_empty(), "{:?}", harness.state().events);
 }
