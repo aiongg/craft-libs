@@ -810,13 +810,11 @@ impl CanvasTool for VanishingPointPass<'_> {
 
 impl VanishingPointEditor {
     /// The corners clicked so far with Create Plane (for drawing).
-    #[cfg_attr(not(test), expect(dead_code, reason = "task WS-VP2 draws from it"))]
     pub(super) fn pending(&self) -> &[[f64; 2]] {
         &self.pending
     }
 
     /// The pointer's last position in document pixels, for the rubber band and the stamp ring.
-    #[expect(dead_code, reason = "task WS-VP2 draws from it")]
     pub(super) fn pointer(&self) -> Option<[f64; 2]> {
         self.pointer
     }
