@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use craft_host::queue::Cancel;
-use craft_ui::canvas::textures::{LoadedPicture, Revision, ThumbRender, ThumbRequest, ThumbSource};
+use craft_ui::canvas::textures::{LoadFailure, LoadedPicture, Revision, ThumbRender, ThumbRequest, ThumbSource};
 use egui::ColorImage;
 
 use super::{DecodeRequest, DecodedThumb, FileThumbKey, StoreKey, ThumbDecoder, ThumbError, ThumbStore};
@@ -103,9 +103,6 @@ impl FileThumbSource {
     }
 }
 
-/// The message of a file that isn't there.
-const MISSING: &str = "The file is missing";
-
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
@@ -132,13 +129,14 @@ struct Job {
 }
 
 impl Job {
-    fn run(self, cancel: &Cancel) -> Result<LoadedPicture, String> {
+    fn run(self, cancel: &Cancel) -> Result<LoadedPicture, LoadFailure> {
         match self.pictures(cancel) {
             Ok(thumb) => Ok(LoadedPicture::Image(to_image(thumb))),
             Err(ThumbError::Unsupported) => Ok(LoadedPicture::Blank),
-            Err(ThumbError::Missing) => Err(MISSING.to_owned()),
-            Err(ThumbError::Failed(message)) => Err(message),
-            Err(ThumbError::Cancelled) => Err("cancelled".to_owned()),
+            Err(ThumbError::Missing) => Err(LoadFailure::Missing),
+            Err(ThumbError::Failed(message)) => Err(LoadFailure::Message(message)),
+            // The queue discards a cancelled job's result; one that arrives is the decoder's own cancel.
+            Err(ThumbError::Cancelled) => Err(LoadFailure::Unreadable),
         }
     }
 

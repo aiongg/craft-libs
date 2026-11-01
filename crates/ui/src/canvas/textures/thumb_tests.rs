@@ -133,3 +133,17 @@ fn fit_rect_keeps_the_aspect() {
     assert_eq!(fit_rect(cell, vec2(4.0, 3.0)), Rect::from_min_size(pos2(0.0, 5.0), vec2(40.0, 30.0)));
     assert_eq!(fit_rect(cell, vec2(0.0, 3.0)), cell);
 }
+
+// `paint_placeholder` fills the rect with one shape in the placeholder colour.
+#[test]
+fn thumbnails_paint_the_placeholder_alone() {
+    let ctx = Context::default();
+    let mut drawn = 0;
+    pass(&ctx, |ui| {
+        let shapes = |ui: &Ui| ui.ctx().graphics(|graphics| graphics.get(ui.layer_id()).map_or(0, |list| list.all_entries().len()));
+        let before = shapes(ui);
+        Thumbnails::<u32>::paint_placeholder(ui.painter(), Rect::from_min_size(pos2(10.0, 10.0), vec2(32.0, 32.0)));
+        drawn = shapes(ui) - before;
+    });
+    assert_eq!(drawn, 1);
+}

@@ -15,7 +15,7 @@ use egui::{AsIdSalt, Color32, ColorImage, Context, Id, Painter, Rect, Vec2, pos2
 
 use super::MAX_TEXTURE;
 use super::cache::{CachedTexture, Revision, TextureCache, TextureCacheOptions, TextureKey, TextureState};
-use super::loader::{LoadedPicture, LoaderOptions, TextureLoader};
+use super::loader::{LoadFailure, LoadedPicture, LoaderOptions, TextureLoader};
 use super::style::{self, ThumbnailStyle};
 use crate::icons::{self, Icon, IconSize};
 use crate::theme::UiTokens;
@@ -49,9 +49,9 @@ impl ThumbRequest {
 
 /// A background render: runs on a queue lane, checks the [`Cancel`] between steps, and returns the
 /// picture ([`LoadedPicture::Image`]), [`LoadedPicture::Blank`] when the key turns out to have no
-/// picture (state `Empty`, as [`ThumbRender::Blank`]), or a message for the failure tooltip. It
+/// picture (state `Empty`, as [`ThumbRender::Blank`]), or the [`LoadFailure`] the tooltip words. It
 /// owns what it reads (an `Arc` of the node, a path), never a borrow of the document.
-pub type ThumbJob = Box<dyn FnOnce(&Cancel) -> Result<LoadedPicture, String> + Send>;
+pub type ThumbJob = Box<dyn FnOnce(&Cancel) -> Result<LoadedPicture, LoadFailure> + Send>;
 
 /// What a [`ThumbSource`] renders for a key.
 pub enum ThumbRender {
@@ -353,11 +353,11 @@ impl<K: TextureKey> Thumbnails<K> {
                 true
             }
             TextureState::Missing | TextureState::Loading { stand_in: None } => {
-                painter.rect_filled(rect, 0.0, style.placeholder);
+                Self::paint_placeholder(painter, rect);
                 true
             }
             TextureState::Failed { .. } => {
-                painter.rect_filled(rect, 0.0, style.placeholder);
+                Self::paint_placeholder(painter, rect);
                 let tokens = crate::theme::current(painter.ctx());
                 let points = IconSize::Sm.points(&tokens).min(rect.width().min(rect.height()) - 4.0).max(0.0);
                 let set = icons::active(painter.ctx());
@@ -365,6 +365,20 @@ impl<K: TextureKey> Thumbnails<K> {
                 true
             }
         }
+    }
+
+    /// Fills `rect` with the placeholder look, for widgets that need it without a [`TextureState`]
+    /// (a row with no cache). [`paint`](Self::paint) draws it for `Missing`, `Loading` and `Failed`.
+    pub fn paint_placeholder(painter: &Painter, rect: Rect) {
+        let rect = rect.round_to_pixels(painter.ctx().pixels_per_point());
+        painter.rect_filled(rect, 0.0, Self::style(&crate::theme::current(painter.ctx())).placeholder);
+    }
+
+    /// Stops the queue of `Later` renders and waits up to `timeout` for the running ones to end
+    /// ([`TextureLoader::shutdown`]); returns whether they have. For an app about to exit the
+    /// process.
+    pub fn shutdown(&self, timeout: Duration) -> bool {
+        self.loader.shutdown(timeout)
     }
 
     /// Freezes the shown pictures while `hold`: no render starts and no job is queued; `state`
@@ -514,7 +528,7 @@ impl<K: Hash + PartialEq + Clone + Send + 'static> ThumbSource<K> for FakeThumbS
             return ThumbRender::Blank;
         }
         if self.failing.contains(key) {
-            return ThumbRender::Later(Box::new(|_| Err("Fake failure".to_owned())));
+            return ThumbRender::Later(Box::new(|_| Err(LoadFailure::Message("Fake failure".to_owned()))));
         }
         let [width, height] = self.aspect;
         let frame = thumb_size([width, height], request.side);

@@ -210,10 +210,47 @@ impl<K: Clone + Eq, R> State<K, R> {
     }
 }
 
+/// Holds a lane's claim on `lanes_alive` until the lane starts; dropped unrun, it releases the
+/// claim.
+struct LaneGuard<K, R>(Option<Arc<Shared<K, R>>>);
+
+impl<K, R> Drop for LaneGuard<K, R> {
+    fn drop(&mut self) {
+        if let Some(shared) = self.0.take() {
+            shared.state.lock().unwrap_or_else(|e| e.into_inner()).lanes_alive -= 1;
+        }
+    }
+}
+
 impl<K: Clone + Eq + Send + 'static, R: Send + 'static> Shared<K, R> {
+    /// Spawns a lane through [`Jobs::spawn`]; the caller has counted it in `lanes_alive`. When
+    /// the host drops the closure unrun (a thread that could not start, a dropped `ManualJobs`),
+    /// the guard gives the count back.
     fn spawn_lane(self: &Arc<Self>) {
-        let shared = Arc::clone(self);
-        self.jobs.spawn(self.options.name, Box::new(move || shared.lane()));
+        let mut guard = LaneGuard(Some(Arc::clone(self)));
+        self.jobs.spawn(
+            self.options.name,
+            Box::new(move || {
+                if let Some(shared) = guard.0.take() {
+                    shared.lane();
+                }
+            }),
+        );
+    }
+
+    /// Spawns a lane when fewer than `lanes` are alive and a job can start.
+    fn spawn_lane_if_free(self: &Arc<Self>) {
+        let spawn = {
+            let mut state = self.lock();
+            let spawn = !state.stopped && state.lanes_alive < self.options.lanes && state.best().is_some();
+            if spawn {
+                state.lanes_alive += 1;
+            }
+            spawn
+        };
+        if spawn {
+            self.spawn_lane();
+        }
     }
 
     /// One run of a lane: one job, then the next run when work waits.
@@ -311,11 +348,12 @@ impl<K: Clone + Eq + Hash + Send + 'static, R: Send + 'static> JobQueue<K, R> {
 
     /// Queues `job` for `key` at `priority`, replacing a waiting job of the same key (the replaced
     /// one is dropped unrun). When fewer than `lanes` lanes are alive, a lane is spawned through
-    /// [`Jobs::spawn`] with [`QueueOptions::name`]. A job for a key that is running waits until
+    /// [`Jobs::spawn`] with [`QueueOptions::name`] (a spawn that drops the lane unrun gives its
+    /// place back, so the next submit tries again). A job for a key that is running waits until
     /// that one ends. After [`shutdown`](Self::shutdown) the job is dropped.
     // lightcraft: crates/preview/src/pool.rs:182 `submit`.
     pub fn submit(&self, key: K, priority: Priority, job: impl FnOnce(&Cancel) -> R + Send + 'static) {
-        let spawn = {
+        {
             let mut state = self.shared.lock();
             if state.stopped {
                 return;
@@ -324,15 +362,8 @@ impl<K: Clone + Eq + Hash + Send + 'static, R: Send + 'static> JobQueue<K, R> {
             state.seq += 1;
             let seq = state.seq;
             state.queued.push(Queued { key, priority, seq, job: Box::new(job) });
-            let spawn = state.lanes_alive < self.shared.options.lanes && state.best().is_some();
-            if spawn {
-                state.lanes_alive += 1;
-            }
-            spawn
-        };
-        if spawn {
-            self.shared.spawn_lane();
         }
+        self.shared.spawn_lane_if_free();
     }
 
     /// Re-ranks the waiting jobs and the running ones: `f(key, priority)` returns the new priority,
@@ -396,6 +427,9 @@ impl<K: Clone + Eq + Hash + Send + 'static, R: Send + 'static> JobQueue<K, R> {
             self.shared.run(started, false);
             ran += 1;
         }
+        // The last inline job may have been the only thing keeping a waiting job of its key from
+        // starting: give that job a lane.
+        self.shared.spawn_lane_if_free();
         ran
     }
 
