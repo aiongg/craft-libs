@@ -1,13 +1,22 @@
 //! [`CropOptionsBar`]: the Crop tool's options in the body and trailing slots of
 //! [`OptionsBar`](craft_ui::patterns::OptionsBar).
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TO-C5)")]
+use egui::{AsIdSalt, IdSalt, Ui};
+use kurbo::Size;
 
-use egui::{AsIdSalt, IdSalt};
-
-use super::options::{CropSettings, CropUserPreset};
-use super::session::CropDocument;
-use craft_ui::patterns::OptionsBarSlots;
+use super::menus::{CropOptionsMenu, CropOverlayMenu};
+use super::options::{
+    CROP_RATIOS, CROP_SIZES, CropFill, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropUserPreset, FIELD_MAX, RATIO_DECIMALS,
+    RATIO_MAX, ResolutionUnit,
+};
+use super::session::{CropDocKey, CropDocument};
+use craft_theme::ControlSize;
+use craft_ui::controls::{Button, Checkbox, IconButton, NumberField, Select, TextField};
+use craft_ui::edit::EditEvent;
+use craft_ui::icons::Icon;
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::patterns::{CellWidth, OptionsBar, OptionsBarSlots};
+use craft_ui::theme::{Tokens, TokensOf as _};
 
 craft_ui::words! {
     /// The words of the Crop tool's options bar and its overlay and gear menus, English by
@@ -202,6 +211,335 @@ impl<'a> CropOptionsBar<'a> {
         // `dropdown`; crop_size.rs:316 `fields`, :287 `text_field`; crop_straighten.rs:166
         // `options_button`. The two slots get disjoint halves of the output (`events` to the body,
         // `end` to the trailing slot).
-        todo!()
+        let Self { id_salt, settings, labels, document, user_presets, straighten, output } = self;
+        let (events, end) = match output {
+            Some(CropBarOutput { events, end }) => (Some(events), Some(end)),
+            None => (None, None),
+        };
+        let trailing_labels = labels.clone();
+        slots.body(move |ui| {
+            let labels = labels.unwrap_or_else(|| CropBarLabels::of(ui));
+            let mut scratch = Vec::new();
+            let events = events.unwrap_or(&mut scratch);
+            let bar = Body { settings, labels: &labels, document, user_presets, straighten };
+            ui.push_id(id_salt, |ui| bar.show(ui, events));
+        });
+        slots.trailing(move |ui| {
+            let labels = trailing_labels.unwrap_or_else(|| CropBarLabels::of(ui));
+            let pressed = OptionsBar::commit_cancel(ui, &labels.commit, &labels.cancel);
+            let event = if pressed.commit {
+                Some(CropBarEvent::Commit)
+            } else if pressed.cancel {
+                Some(CropBarEvent::Cancel)
+            } else {
+                None
+            };
+            if let (Some(end), Some(event)) = (end, event) {
+                *end = Some(event);
+            }
+        });
     }
+}
+
+/// What the ratio fields did this pass.
+#[derive(Default)]
+struct RatioPass {
+    changed: bool,
+    /// A field has the focus or is scrubbed.
+    active: bool,
+}
+
+/// The body slot's cells.
+struct Body<'a, 'l> {
+    settings: &'a mut CropSettings,
+    labels: &'l CropBarLabels,
+    document: Option<&'a CropDocument>,
+    user_presets: &'a [CropUserPreset],
+    straighten: bool,
+}
+
+impl Body<'_, '_> {
+    fn show(self, ui: &mut Ui, events: &mut Vec<CropBarEvent>) {
+        let Self { settings, labels, document, user_presets, straighten } = self;
+        let sm = ControlSize::Sm;
+        let numbers = LocaleNumbers::of(ui);
+        let tokens = Tokens::of(ui);
+        let field_width = OptionsBar::style(&tokens, false).fields[0];
+        let doc = document.copied().unwrap_or_else(|| CropDocument::new(CropDocKey(0), Size::ZERO));
+        let has_document = document.is_some();
+
+        preset_list(ui, settings, labels, &doc, has_document, user_presets, events);
+        if settings.ratio == CropRatio::Size {
+            size_fields(ui, settings, labels, &numbers, field_width, events);
+        } else {
+            ratio_fields(ui, settings, labels, &doc, has_document, &numbers, field_width, events);
+        }
+        OptionsBar::divider(ui);
+        if ui.add(Button::new(labels.clear.as_str()).size(sm)).clicked() {
+            settings.clear();
+            events.push(CropBarEvent::Ratio { editing: false });
+        }
+        if ui.add(IconButton::new(Icon::Ruler, labels.straighten.as_str()).size(sm).selected(straighten).id_salt("straighten")).clicked() {
+            events.push(CropBarEvent::Straighten);
+        }
+        CropOverlayMenu::new("overlay", settings).labels(labels).show(ui);
+        if CropOptionsMenu::new("options", &mut settings.shield).labels(labels).show(ui).pick_color {
+            events.push(CropBarEvent::PickShieldColor);
+        }
+        let _ = Checkbox::bool(labels.delete_pixels.as_str(), &mut settings.delete_pixels).size(sm).show(ui).response;
+        OptionsBar::cell(ui, &labels.fill, CellWidth::Content, |ui, _| {
+            let mut fill = settings.fill;
+            let pick = Select::new("fill", labels.fill.trim_end_matches(':'), &mut fill)
+                .option(CropFill::Background, labels.fill_background.as_str())
+                .option(CropFill::ContentAware, labels.fill_content_aware.as_str())
+                .size(sm)
+                .show(ui);
+            if let Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = pick.event {
+                settings.fill = value;
+            }
+        });
+    }
+}
+
+/// The name of ratio preset `i` of [`CROP_RATIOS`].
+fn ratio_name(labels: &CropBarLabels, i: usize) -> &str {
+    match i {
+        0 => &labels.ratio_original,
+        1 => &labels.ratio_square,
+        2 => &labels.ratio_4_5,
+        3 => &labels.ratio_5_7,
+        4 => &labels.ratio_2_3,
+        _ => &labels.ratio_16_9,
+    }
+}
+
+/// The name of size preset `i` of [`CROP_SIZES`]: its values as New Crop Preset… would name them.
+fn size_name(labels: &CropBarLabels, i: usize) -> String {
+    let Some(preset) = CROP_SIZES.get(i) else { return String::new() };
+    let size = CropSizeFields {
+        width: preset.width.to_owned(),
+        height: preset.height.to_owned(),
+        resolution: preset.resolution.to_owned(),
+        resolution_unit: ResolutionUnit::PixelsPerInch,
+    };
+    CropSettings { ratio: CropRatio::Size, size, ..CropSettings::default() }.preset_name(labels).unwrap_or_default()
+}
+
+/// The preset list: Ratio, W x H x Resolution, the ratio presets, the size presets, the user's
+/// presets, Front Image, then New Crop Preset… and Delete Crop Preset….
+fn preset_list(
+    ui: &mut Ui,
+    settings: &mut CropSettings,
+    labels: &CropBarLabels,
+    doc: &CropDocument,
+    has_document: bool,
+    user_presets: &[CropUserPreset],
+    events: &mut Vec<CropBarEvent>,
+) {
+    let current = settings.choice(user_presets);
+    let mut shown = current;
+    let mut select = Select::new("presets", labels.presets.as_str(), &mut shown)
+        .option(CropPresetChoice::Free, labels.ratio.as_str())
+        .option(CropPresetChoice::Size, labels.size_mode.as_str());
+    for i in 0..CROP_RATIOS.len() {
+        select = select.option(CropPresetChoice::Ratio(i), ratio_name(labels, i));
+        if CROP_RATIOS.get(i) == Some(&CropRatio::Original) {
+            select = select.option_enabled(has_document);
+        }
+    }
+    for i in 0..CROP_SIZES.len() {
+        select = select.option(CropPresetChoice::SizePreset(i), size_name(labels, i));
+    }
+    for (i, preset) in user_presets.iter().enumerate() {
+        select = select.option(CropPresetChoice::User(i), preset.name.as_str());
+    }
+    select = select
+        .option(CropPresetChoice::FrontImage, labels.front_image.as_str())
+        .option_enabled(has_document)
+        .separator()
+        .option(CropPresetChoice::NewPreset, labels.new_preset.as_str())
+        .option_enabled(settings.preset_name(labels).is_some())
+        .option(CropPresetChoice::DeletePreset, labels.delete_preset.as_str())
+        .option_enabled(!user_presets.is_empty())
+        .size(ControlSize::Sm);
+    let pick = select.show(ui);
+    let Some(EditEvent::Commit { value: choice, .. } | EditEvent::Set { value: choice, .. }) = pick.event else { return };
+    match choice {
+        CropPresetChoice::NewPreset => events.push(CropBarEvent::NewPreset),
+        CropPresetChoice::DeletePreset => events.push(CropBarEvent::DeletePreset),
+        choice => {
+            if settings.choose(choice, doc, user_presets) {
+                events.push(CropBarEvent::Ratio { editing: false });
+            }
+        }
+    }
+}
+
+/// The two ratio fields with ⇄ between them.
+#[expect(clippy::too_many_arguments, reason = "the bar's inputs")]
+fn ratio_fields(
+    ui: &mut Ui,
+    settings: &mut CropSettings,
+    labels: &CropBarLabels,
+    doc: &CropDocument,
+    has_document: bool,
+    numbers: &LocaleNumbers,
+    width: f32,
+    events: &mut Vec<CropBarEvent>,
+) {
+    let shown = settings.shown_ratio_fields(doc);
+    let mut pass = RatioPass::default();
+    ratio_field(ui, 0, &labels.width, shown, settings, numbers, width, &mut pass);
+    let original = settings.ratio == CropRatio::Original;
+    let swap = ui
+        .add(IconButton::new(Icon::SwapHorizontal, labels.swap.as_str()).size(ControlSize::Sm).enabled(has_document || !original).id_salt("swap"))
+        .clicked();
+    ratio_field(ui, 1, &labels.height, shown, settings, numbers, width, &mut pass);
+    if swap {
+        if original {
+            settings.swap(doc);
+        } else {
+            settings.swap_fields();
+        }
+        pass.changed = true;
+    }
+    if pass.changed {
+        events.push(CropBarEvent::Ratio { editing: pass.active });
+    }
+}
+
+/// One ratio field: `shown` is both fields' numbers as drawn; an empty field is 0.
+#[expect(clippy::too_many_arguments, reason = "the bar's inputs")]
+fn ratio_field(
+    ui: &mut Ui,
+    side: usize,
+    name: &str,
+    shown: [f64; 2],
+    settings: &mut CropSettings,
+    numbers: &LocaleNumbers,
+    width: f32,
+    pass: &mut RatioPass,
+) {
+    let current = shown.get(side).copied().unwrap_or(0.0);
+    let edit = NumberField::optional(("ratio-field", side), name, (current > 0.0).then_some(current), numbers)
+        .range(0.0..=RATIO_MAX)
+        .decimals(0..=RATIO_DECIMALS)
+        .size(ControlSize::Sm)
+        .width(width)
+        .show_optional(ui);
+    pass.active |= edit.response.has_focus() || edit.response.dragged();
+    let start = edit.response.id.with("ratio-start");
+    let apply = |settings: &mut CropSettings, pass: &mut RatioPass, value: Option<f64>| {
+        let new = value.unwrap_or(0.0);
+        if (new - current).abs() < 0.5 * 10f64.powi(-(RATIO_DECIMALS as i32)) {
+            return;
+        }
+        // The other side keeps what the bar shows, so an Original ratio becomes its sides.
+        if let Some(other) = settings.ratio_fields.get_mut(1 - side) {
+            *other = shown.get(1 - side).copied().unwrap_or(0.0);
+        }
+        settings.set_ratio_field(side, new);
+        pass.changed = true;
+    };
+    match edit.event {
+        Some(EditEvent::Begin { value, .. }) => {
+            ui.data_mut(|d| d.insert_temp(start, (settings.ratio, settings.ratio_fields)));
+            if let Some(value) = value {
+                apply(settings, pass, value);
+            }
+        }
+        Some(EditEvent::Cancel { .. }) => {
+            if let Some((ratio, fields)) = ui.data_mut(|d| d.remove_temp::<(CropRatio, [f64; 2])>(start)) {
+                settings.ratio = ratio;
+                settings.ratio_fields = fields;
+                pass.changed = true;
+            }
+        }
+        Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) => apply(settings, pass, value),
+        Some(_) | None => {}
+    }
+}
+
+/// W, ⇄, H, Resolution and its unit, in W × H × Resolution mode.
+fn size_fields(
+    ui: &mut Ui,
+    settings: &mut CropSettings,
+    labels: &CropBarLabels,
+    numbers: &LocaleNumbers,
+    width: f32,
+    events: &mut Vec<CropBarEvent>,
+) {
+    let sm = ControlSize::Sm;
+    let mut changed = false;
+    changed |= length_field(ui, "width", &labels.width, &mut settings.size.width, width);
+    if ui.add(IconButton::new(Icon::SwapHorizontal, labels.swap.as_str()).size(sm).id_salt("swap")).clicked() {
+        settings.swap_fields();
+        changed = true;
+    }
+    changed |= length_field(ui, "height", &labels.height, &mut settings.size.height, width);
+
+    let resolution = settings.size.resolution.trim().replace(',', ".").parse::<f64>().ok().filter(|v| v.is_finite() && *v > 0.0);
+    let edit = NumberField::optional("resolution", labels.resolution.as_str(), resolution, numbers)
+        .range(0.0..=FIELD_MAX)
+        .decimals(0..=2)
+        .size(sm)
+        .width(width)
+        .show_optional(ui);
+    if let Some(EditEvent::Update { value, .. } | EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = edit.event {
+        let text = match value.filter(|v| *v > 0.0) {
+            Some(v) => CropSizeFields::normalize_resolution(&v.to_string(), &settings.size.resolution),
+            None => String::new(),
+        };
+        if text != settings.size.resolution {
+            settings.size.resolution = text;
+            changed = true;
+        }
+    }
+
+    let mut unit = settings.size.resolution_unit;
+    let pick = Select::new("resolution-unit", labels.resolution_unit.as_str(), &mut unit)
+        .option(ResolutionUnit::PixelsPerInch, labels.pixels_per_inch.as_str())
+        .option(ResolutionUnit::PixelsPerCentimetre, labels.pixels_per_centimetre.as_str())
+        .size(sm)
+        .show(ui);
+    if let Some(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) = pick.event
+        && value != settings.size.resolution_unit
+    {
+        // The same resolution in the other unit, as in Photoshop.
+        if let Some(v) = resolution {
+            let converted = if value == ResolutionUnit::PixelsPerCentimetre { v / 2.54 } else { v * 2.54 };
+            settings.size.resolution = CropSizeFields::normalize_resolution(&converted.to_string(), &settings.size.resolution);
+        }
+        settings.size.resolution_unit = value;
+        changed = true;
+    }
+    if changed {
+        events.push(CropBarEvent::Ratio { editing: false });
+    }
+}
+
+/// A length field: what is typed stays while the field has the focus and becomes the normalised
+/// length when the typing run ends. Returns whether `value` changed.
+fn length_field(ui: &mut Ui, salt: &'static str, name: &str, value: &mut String, width: f32) -> bool {
+    let typed_id = ui.scope_id().with((salt, "typed"));
+    let typed = ui.data(|d| d.get_temp::<String>(typed_id));
+    let edit =
+        TextField::new(salt, name, typed.as_deref().unwrap_or(value)).placeholder(name).size(ControlSize::Sm).width(width).char_limit(32).show(ui);
+    match edit.event {
+        Some(EditEvent::Begin { value: Some(text), .. } | EditEvent::Update { value: text, .. }) => {
+            ui.data_mut(|d| d.insert_temp(typed_id, text));
+        }
+        Some(EditEvent::Commit { value: text, .. } | EditEvent::Set { value: text, .. }) => {
+            ui.data_mut(|d| d.remove_temp::<String>(typed_id));
+            let next = CropSizeFields::normalize_length(&text, value);
+            let changed = next != *value;
+            *value = next;
+            return changed;
+        }
+        Some(EditEvent::Cancel { .. }) => {
+            ui.data_mut(|d| d.remove_temp::<String>(typed_id));
+        }
+        _ => {}
+    }
+    false
 }
