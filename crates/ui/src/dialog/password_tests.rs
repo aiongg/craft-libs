@@ -1,5 +1,6 @@
 //! `PasswordDialog`.
 
+use egui::accesskit::Role;
 use egui::{Event, Key};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
@@ -94,4 +95,16 @@ fn set_password_needs_a_matching_second_entry() {
     harness.run();
     let Some(DialogResult::Ok(answer)) = harness.state_mut().answers.pop() else { panic!("OK answers") };
     assert_eq!(answer.secret.expose(), "Abcdefgh1234");
+}
+
+// The eye button's press applies in the pass that handles it: the field's AccessKit role is a
+// password input before and a plain text input right after, with no further input.
+#[test]
+fn eye_button_applies_in_its_own_pass() {
+    let mut harness = harness(PasswordDialog::open("report.pdf"));
+    harness.run();
+    assert_eq!(harness.get_by_label("Password").accesskit_node().role(), Role::PasswordInput);
+    harness.get_by_label("Show password").click();
+    harness.step();
+    assert_eq!(harness.get_by_label("Password").accesskit_node().role(), Role::TextInput, "the text shows in the pass of the press");
 }

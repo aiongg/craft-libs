@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use craft_theme::TypeRole;
+use craft_theme::{StatusKind, TypeRole};
 use egui::accesskit::{Invalid, Role};
 use egui::text::{LayoutJob, TextFormat};
 use egui::{AsIdSalt, Color32, Galley, IdSalt, InnerResponse, Label, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
@@ -188,6 +188,7 @@ impl<T> FieldControl for EditResponse<T> {
 pub struct Field {
     label: Option<String>,
     help: Option<String>,
+    help_status: Option<StatusKind>,
     error: Option<String>,
     above: bool,
     label_align: LabelAlign,
@@ -196,13 +197,13 @@ pub struct Field {
 impl Field {
     /// A field labelled `label`, beside the control.
     pub fn new(label: impl Into<String>) -> Self {
-        Self { label: Some(label.into()), help: None, error: None, above: false, label_align: LabelAlign::End }
+        Self { label: Some(label.into()), help: None, help_status: None, error: None, above: false, label_align: LabelAlign::End }
     }
 
     /// A row without a label, for a control that names itself (a check box, a switch): it starts
     /// at the control column of its [`FieldGroup`].
     pub fn unlabelled() -> Self {
-        Self { label: None, help: None, error: None, above: false, label_align: LabelAlign::End }
+        Self { label: None, help: None, help_status: None, error: None, above: false, label_align: LabelAlign::End }
     }
 
     /// A row without a label whose control starts at the group's left edge, under the label
@@ -229,6 +230,13 @@ impl Field {
     /// Help text under the control, while there is no error. A line break starts a new paragraph.
     pub fn help(mut self, help: impl Into<String>) -> Self {
         self.help = Some(help.into()).filter(|h| !h.is_empty());
+        self
+    }
+
+    /// Draws the help text in the foreground of status `kind` (`status.<kind>.fg`) instead of
+    /// the muted colour: a password strength line in red, orange or green.
+    pub fn help_status(mut self, kind: StatusKind) -> Self {
+        self.help_status = Some(kind);
         self
     }
 
@@ -267,7 +275,7 @@ impl Field {
         let label = if self.above { None } else { label_text.clone().map(|text| one_line(ui, text, label_format.clone())) };
         let message = match (self.error, self.help) {
             (Some(error), _) => Some((error, style.error)),
-            (None, Some(help)) => Some((help, style.help)),
+            (None, Some(help)) => Some((help, self.help_status.map_or(style.help, |kind| tokens.color.status.get(kind).fg.to_egui()))),
             (None, None) => None,
         };
 

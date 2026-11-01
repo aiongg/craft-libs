@@ -34,6 +34,7 @@ pub struct Text {
     truncate: bool,
     elide: Option<Elision>,
     max_width: Option<f32>,
+    italic: bool,
 }
 
 /// How [`Text`] shortens what doesn't fit, beyond egui's own end truncation.
@@ -45,7 +46,7 @@ enum Elision {
 
 impl Text {
     pub fn new(text: impl Into<String>) -> Self {
-        Self { text: text.into(), role: TypeRole::Body, content: Content::Normal, truncate: false, elide: None, max_width: None }
+        Self { text: text.into(), role: TypeRole::Body, content: Content::Normal, truncate: false, elide: None, max_width: None, italic: false }
     }
 
     pub fn role(mut self, role: TypeRole) -> Self {
@@ -55,6 +56,12 @@ impl Text {
 
     pub fn content(mut self, content: Content) -> Self {
         self.content = content;
+        self
+    }
+
+    /// Slanted: an empty-list line.
+    pub fn italic(mut self) -> Self {
+        self.italic = true;
         self
     }
 
@@ -99,6 +106,7 @@ impl Widget for Text {
         // `Ui`'s, so in a row taller than the line it would sit below the centred widgets
         // beside it, such as a link.
         format.valign = ui.text_valign();
+        format.italics = self.italic;
         if self.elide.is_some() || self.max_width.is_some() {
             return self.show_elided(ui, format);
         }
