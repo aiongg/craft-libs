@@ -70,11 +70,6 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <character::ParagraphLabels as craft_ui::localized::Labels>::WORDS,
     <style_panel::TextStylesLabels as craft_ui::localized::Labels>::WORDS,
     <spelling::CheckSpellingLabels as craft_ui::localized::Labels>::WORDS,
-];
-
-/// The labels tables of the paged-text controls (6b), for the facade's catalog extraction once
-/// the registration task adds them to [`WORDS`] (that changes the catalog dumps).
-pub const PAGED_WORDS: &[&[craft_ui::localized::Word]] = &[
     <ruler::TextRulerLabels as craft_ui::localized::Labels>::WORDS,
     <tabs_dialog::TabStopsLabels as craft_ui::localized::Labels>::WORDS,
     <character::ParagraphDialogLabels as craft_ui::localized::Labels>::WORDS,
@@ -84,4 +79,5 @@ pub const PAGED_WORDS: &[&[craft_ui::localized::Word]] = &[
     <hyperlink::HyperlinkLabels as craft_ui::localized::Labels>::WORDS,
     #[cfg(feature = "find")]
     <find::FindLabels as craft_ui::localized::Labels>::WORDS,
+    <paged_stories::PagedStoryLabels as craft_ui::localized::Labels>::WORDS,
 ];

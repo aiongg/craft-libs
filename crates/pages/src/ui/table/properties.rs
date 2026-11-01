@@ -20,6 +20,8 @@ craft_ui::words! {
         rows: "table.rows" = "Rows";
         columns: "table.columns" = "Columns";
         row_height: "table.rowHeight" = "Row Height";
+        /// The row height's length field (the select above it is "Row Height").
+        row_height_value: "table.rowHeightValue" = "Height";
         at_least: "table.atLeast" = "At Least";
         exactly: "table.exactly" = "Exactly";
         column_width: "table.columnWidth" = "Column Width";
@@ -198,7 +200,7 @@ impl Panel {
             mode_text,
             &[RowHeight::AtLeast, RowHeight::Exactly],
         );
-        self.length(ui, edits, &labels.row_height, "row-height", v.row_height, TableChange::RowHeight);
+        self.length(ui, edits, &labels.row_height_value, "row-height", v.row_height, TableChange::RowHeight);
         self.length(ui, edits, &labels.column_width, "column-width", v.column_width, TableChange::ColumnWidth);
         if button(ui, &labels.distribute_rows, true, Some(&labels.distribute_rows_tip)) {
             set(edits, TableChange::DistributeRows);

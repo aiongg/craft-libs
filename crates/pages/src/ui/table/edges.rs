@@ -21,6 +21,10 @@ craft_ui::words! {
         left: "edges.left" = "Left Border";
         right: "edges.right" = "Right Border";
         inside_horizontal: "edges.insideH" = "Inside Horizontal Border";
+        /// The paragraph picker's name for the inside horizontal line (DesignCraft).
+        between: "edges.between" = "Between";
+        /// The tooltip on the picker's square (InDesign's Stroke proxy).
+        hint: "edges.hint" = "Click a line to include or exclude it. Double-click selects all outer or all inner lines; triple-click selects or clears all.";
         inside_vertical: "edges.insideV" = "Inside Vertical Border";
         all: "edges.all" = "All Borders";
         none: "edges.none" = "No Border";
@@ -193,7 +197,7 @@ impl<'a> EdgePicker<'a> {
         for (cell, &key) in order.iter().enumerate() {
             let (a, b) = lines[key as usize];
             let sense = if cell == stop { Sense::click() } else { Sense::CLICK };
-            let name = edge_name(&labels, key);
+            let name = edge_name(&labels, key, self.paragraph);
             let sensed = Interactive::with_id(ids[cell], Role::CheckBox, name)
                 .checked(self.edges.get(key))
                 .sense(sense)
@@ -241,7 +245,7 @@ impl<'a> EdgePicker<'a> {
                 painter.line_segment([a, b], Stroke::new(width, if on { accent } else { style.line_off_color }));
             }
         }
-        let mut response = square;
+        let mut response = square.on_hover_text(labels.hint.as_str());
         if changed {
             response.mark_changed();
         }
@@ -268,12 +272,13 @@ fn order_rows(order: &[EdgeKey]) -> [usize; 3] {
     [1, order.len() - 2, 1]
 }
 
-fn edge_name(labels: &EdgePickerLabels, key: EdgeKey) -> String {
+fn edge_name(labels: &EdgePickerLabels, key: EdgeKey, paragraph: bool) -> String {
     match key {
         EdgeKey::Top => labels.top.clone(),
         EdgeKey::Bottom => labels.bottom.clone(),
         EdgeKey::Left => labels.left.clone(),
         EdgeKey::Right => labels.right.clone(),
+        EdgeKey::InsideHorizontal if paragraph => labels.between.clone(),
         EdgeKey::InsideHorizontal => labels.inside_horizontal.clone(),
         EdgeKey::InsideVertical => labels.inside_vertical.clone(),
     }
