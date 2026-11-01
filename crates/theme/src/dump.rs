@@ -2246,10 +2246,9 @@ fn drop_veil_lines(out: &mut Lines, t: &DropVeilTokens) {
 }
 
 fn event_log_lines(out: &mut Lines, t: &EventLogTokens) {
-    let EventLogTokens { details_height, glyph, glyph_box } = t;
+    let EventLogTokens { details_height, details_pad_y } = t;
     out.line("event_log.details_height", len(*details_height));
-    out.line("event_log.glyph", len(*glyph));
-    out.line("event_log.glyph_box", len(*glyph_box));
+    out.line("event_log.details_pad_y", len(*details_pad_y));
 }
 
 fn autocomplete_lines(out: &mut Lines, t: &AutocompleteTokens) {
@@ -2259,9 +2258,10 @@ fn autocomplete_lines(out: &mut Lines, t: &AutocompleteTokens) {
 }
 
 fn metadata_lines(out: &mut Lines, t: &MetadataTokens) {
-    let MetadataTokens { column_gap, row_gap, max_height } = t;
+    let MetadataTokens { column_gap, row_gap, group_gap, max_height } = t;
     out.line("metadata.column_gap", len(*column_gap));
     out.line("metadata.row_gap", len(*row_gap));
+    out.line("metadata.group_gap", len(*group_gap));
     out.line("metadata.max_height", len(*max_height));
 }
 

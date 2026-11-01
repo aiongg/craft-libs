@@ -7,7 +7,7 @@ use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{Align, AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Layout, Modifiers, Rect, Response, Sense, Ui, UiBuilder, vec2};
 
-use crate::behavior::{ClaimedKey, KeyClaim};
+use crate::behavior::{ClaimedKey, KeyClaim, ListKey, ListSelection, RowInfo, Selection, SelectionMode};
 use crate::controls::checkbox::paint_box;
 use crate::controls::{CheckState, Checkbox, SearchField};
 use crate::localized::SharedLabels as _;
@@ -39,11 +39,41 @@ crate::words! {
 
 /// One field: its name and its value, as the app formats them.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct MetadataRow {
     /// "Exposure Time", "dc:creator".
     pub name: String,
     /// "1/250 s"; may run to several lines, which wrap.
     pub value: String,
+    /// What the column picker stores for this field, when that is not the name (the name
+    /// may be translated or renamed).
+    pub key: Option<String>,
+    /// The column picker shows the field checked and its check can't be changed (FilmCraft's Name
+    /// column).
+    pub locked: bool,
+}
+
+impl MetadataRow {
+    pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
+        Self { name: name.into(), value: value.into(), key: None, locked: false }
+    }
+
+    /// The column picker stores `key` for this field instead of its name.
+    pub fn key(mut self, key: impl Into<String>) -> Self {
+        self.key = Some(key.into());
+        self
+    }
+
+    /// The column picker shows this field checked and can't change it.
+    pub fn locked(mut self) -> Self {
+        self.locked = true;
+        self
+    }
+
+    /// What the column picker stores for this field: its key, else its name.
+    pub fn picker_key(&self) -> &str {
+        self.key.as_deref().unwrap_or(&self.name)
+    }
 }
 
 /// A titled group of fields ("Camera", "EXIF", "XMP"); a group with an empty name has no title
@@ -60,7 +90,7 @@ pub struct MetadataGroup {
 pub struct MetadataTableOutput {
     /// The rows: their focus and their rect.
     pub response: Response,
-    /// A check of the column picker changed: the chosen names have changed.
+    /// A check of the column picker changed: the chosen keys have changed.
     pub chosen_changed: bool,
 }
 
@@ -75,20 +105,25 @@ pub struct MetadataTableOutput {
 ///   it in two columns: the name in the `Label` role and `text.muted`, the value in the `Body`
 ///   role, wrapping; striped rows (`list.stripe`), 16 points between the columns and 3 between
 ///   rows (LightCraft's grid spacing). The name column is as wide as the widest name, at most a
-///   third of the table. Values are selectable text, so the user copies part of one with the
+///   third of the table. A group's title has `metadata.group_gap` above it, except the first.
+///   Values are selectable text, so the user copies part of one with the
 ///   platform's keys.
 /// - **Filter** ([`filter`](Self::filter)): a [`SearchField`](crate::controls::SearchField) over
 ///   the rows keeps the fields whose name or value holds the typed text, ignoring case
 ///   ([`filter_metadata`]); a group with none left is hidden. The field keeps the focus while
 ///   the user types; ↓ moves into the rows.
-/// - **Column picker** ([`choose`](Self::choose)): a [`Checkbox`](crate::controls::Checkbox)
-///   before each field, checked while its name is in `chosen`; checking adds the name at the end,
-///   unchecking removes it. The app shows the chosen fields as columns (FilmCraft's Project
-///   panel Metadata Display).
+/// - **Column picker** ([`choose`](Self::choose)): the box of a
+///   [`Checkbox`](crate::controls::Checkbox) (painted by `paint_box` on an
+///   [`Interactive`](crate::primitives::Interactive), as the row has its own focus stop) before
+///   each field, checked while the field's [`picker_key`](MetadataRow::picker_key) is in
+///   `chosen`; checking adds the key at the end, unchecking removes it. A
+///   [locked](MetadataRow::locked) field shows checked and ignores clicks and Space. The app
+///   shows the chosen fields as columns (FilmCraft's Project panel Metadata Display).
 /// - **Empty.** [`MetadataLabels::none`] with no rows, [`MetadataLabels::no_match`] when the
 ///   filter hides them all, in `text.muted`.
 /// - **Keys and AccessKit.** The rows are one Tab stop, a `Table` with a `Row` per field and
-///   `Cell`s for name and value; ↑ and ↓ move the focused row and scroll it into view. With
+///   `Cell`s for name and value; ↑ ↓ Page Up Page Down Home End move the focused row and scroll
+///   it into view ([`ListSelection::target`]). With
 ///   the column picker, Space toggles the focused row's check (claimed with
 ///   [`KeyClaim`](crate::behavior::KeyClaim), so the app's Space hand doesn't take it). The
 ///   filter's typing and the checks are handled in the pass they arrive, in order.
@@ -113,7 +148,7 @@ impl<'a> MetadataTable<'a> {
         self
     }
 
-    /// A check before each field, for the names in `chosen`.
+    /// A check before each field, for the keys in `chosen`.
     pub fn choose(mut self, chosen: &'a mut Vec<String>) -> Self {
         self.chosen = Some(chosen);
         self
@@ -182,12 +217,12 @@ fn stripe_fill(tokens: &crate::theme::UiTokens) -> Color32 {
     crate::list::ListRow::<()>::style(tokens).stripe
 }
 
-fn toggle(chosen: &mut Vec<String>, name: &str) {
-    match chosen.iter().position(|c| c == name) {
+fn toggle(chosen: &mut Vec<String>, key: &str) {
+    match chosen.iter().position(|c| c == key) {
         Some(at) => {
             chosen.remove(at);
         }
-        None => chosen.push(name.to_owned()),
+        None => chosen.push(key.to_owned()),
     }
 }
 
@@ -201,7 +236,8 @@ impl Body<'_> {
             ui.add(Text::new(text.as_str()).content(Content::Muted));
             return false;
         }
-        let names: Vec<&str> = groups.iter().flat_map(|g| g.rows.iter().map(|r| r.name.as_str())).collect();
+        let flat_rows: Vec<&MetadataRow> = groups.iter().flat_map(|g| g.rows.iter()).collect();
+        let names: Vec<&str> = flat_rows.iter().map(|r| r.name.as_str()).collect();
         let lead_key = rows_id.with("lead");
         let mut lead = ui.data(|d| d.get_temp::<usize>(lead_key)).unwrap_or(0).min(total - 1);
         let focused = ui.memory(|m| m.has_focus(rows_id));
@@ -211,20 +247,29 @@ impl Body<'_> {
             if chosen.is_some() {
                 KeyClaim::claim(ui.ctx(), rows_id, &[ClaimedKey::exact(Modifiers::NONE, Key::Space)]);
             }
-            let (down, up, space) = ui.input_mut(|input| {
-                (
-                    input.consume_key(Modifiers::NONE, Key::ArrowDown),
-                    input.consume_key(Modifiers::NONE, Key::ArrowUp),
-                    chosen.is_some() && input.consume_key(Modifiers::NONE, Key::Space),
-                )
+            let space = chosen.is_some() && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Space));
+            let order: Vec<RowInfo<usize>> = (0..total).map(RowInfo::leaf).collect();
+            let lead_only = Selection::only(lead);
+            let page = (ui.available_height().min(max_height)
+                / (tokens.typography.get(TypeRole::Label).line_height + tokens.component.metadata.row_gap)) as usize;
+            let steps = [Key::ArrowDown, Key::ArrowUp, Key::PageDown, Key::PageUp, Key::Home, Key::End].into_iter().filter_map(|key| {
+                let pressed = ui.input_mut(|input| input.consume_key(Modifiers::NONE, key));
+                pressed.then(|| ListKey::from_key(key, Modifiers::NONE, false)).flatten()
             });
-            if down || up {
-                lead = if down { (lead + 1).min(total - 1) } else { lead.saturating_sub(1) };
-                scroll_to_lead = true;
+            for key in steps.collect::<Vec<_>>() {
+                if let ListKey::Select { step, .. } = key
+                    && let Some(to) = ListSelection::new(SelectionMode::Single).target(&lead_only, order.as_slice(), step, page)
+                {
+                    lead = to;
+                    scroll_to_lead = true;
+                }
             }
             if space && let Some(chosen) = chosen.as_deref_mut() {
-                toggle(chosen, names[lead]);
-                changed = true;
+                let row = flat_rows[lead];
+                if !row.locked {
+                    toggle(chosen, row.picker_key());
+                    changed = true;
+                }
             }
         }
 
@@ -254,8 +299,11 @@ impl Body<'_> {
             egui::ScrollArea::vertical().id_salt("scroll").max_height(max_height).auto_shrink([false, true]).content_margin(0.0).show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = tokens.component.metadata.row_gap;
                 let mut flat = 0;
-                for group in groups {
+                for (group_at, group) in groups.iter().enumerate() {
                     if !group.name.is_empty() {
+                        if group_at > 0 {
+                            ui.add_space(tokens.component.metadata.group_gap);
+                        }
                         ui.add(Text::new(group.name.as_str()).role(TypeRole::BodyStrong));
                     }
                     for (at, row) in group.rows.iter().enumerate() {
@@ -285,14 +333,15 @@ impl Body<'_> {
                                     let name = craft_i18n::fmt(&labels.show_field, &[("name", row.name.as_str())]);
                                     let sensed = Interactive::salted(IdSalt::new(("check", &key)), Role::CheckBox, name)
                                         .sense(Sense::CLICK)
+                                        .enabled(!row.locked)
                                         .state_layer(false)
                                         .interact_at(ui, box_rect);
                                     let clicked = sensed.response().clicked();
                                     if clicked {
-                                        toggle(chosen, &row.name);
+                                        toggle(chosen, row.picker_key());
                                         changed = true;
                                     }
-                                    let state = CheckState::from(chosen.contains(&row.name));
+                                    let state = CheckState::from(row.locked || chosen.iter().any(|c| c == row.picker_key()));
                                     let response = sensed.checked(state == CheckState::Checked).finish(ui);
                                     if ui.is_rect_visible(box_rect) {
                                         paint_box(ui, &check_style, box_rect, state, &response);

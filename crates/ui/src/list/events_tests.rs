@@ -92,3 +92,13 @@ fn clear_all_reports_and_drops_the_selection() {
     assert!(harness.state().2);
     assert_eq!(harness.state().1.selected, None);
 }
+
+// The details box shows in the pass of the click, not the next one.
+#[test]
+fn the_details_show_in_the_pass_of_the_click() {
+    let mut harness = harness(EventLevel::Info);
+    harness.run();
+    harness.get_by_role_and_label(Role::ListBoxOption, "Warning: Disk almost full, 3 minutes ago").click();
+    harness.step();
+    harness.get_by_label("Warning · Auto-save · 3 minutes ago");
+}

@@ -145,20 +145,33 @@ pub(super) fn text(ui: &mut Ui, tokens: &UiTokens, role: TypeRole, color: Color3
     ui.add(Label::new(LayoutJob::single_section(text.to_owned(), role_format(tokens, role, color))).wrap())
 }
 
-/// The icon of `tone` in a box of the icon's width and `line_height`, centred on the line. It has
-/// no AccessKit node. Neutral has none: nothing is allocated.
-pub(super) fn tone_icon(ui: &mut Ui, tone: Tone, size: IconSize, line_height: f32, color: Color32) {
-    let icon = match tone {
-        Tone::Neutral => return,
+/// The icon that marks `tone`; neutral has none.
+fn tone_glyph(tone: Tone) -> Option<icons::Icon> {
+    Some(match tone {
+        Tone::Neutral => return None,
         Tone::Info => icons::Icon::Info,
         Tone::Good => icons::Icon::Success,
         Tone::Warn => icons::Icon::Warning,
         Tone::Bad => icons::Icon::Error,
-    };
+    })
+}
+
+/// The icon of `tone` in a box of the icon's width and `line_height`, centred on the line. It has
+/// no AccessKit node. Neutral has none: nothing is allocated.
+pub(crate) fn tone_icon(ui: &mut Ui, tone: Tone, size: IconSize, line_height: f32, color: Color32) {
+    let Some(icon) = tone_glyph(tone) else { return };
     let points = size.points(&Tokens::of(ui));
     let (_, rect) = ui.allocate_space(vec2(points, line_height.max(points)));
     if ui.is_rect_visible(rect) {
         icons::paint(ui, rect, icon, size, color);
+    }
+}
+
+/// The icon of `tone` centred in `rect` on a painter, for a slot that has no `Ui` (a list row's
+/// glyph).
+pub(crate) fn paint_tone_icon(painter: &egui::Painter, rect: egui::Rect, tokens: &UiTokens, tone: Tone, size: IconSize, color: Color32) {
+    if let Some(icon) = tone_glyph(tone) {
+        icons::paint_on(painter, rect, icon, icons::active(painter.ctx()), size.points(tokens), size.stroke(), color);
     }
 }
 

@@ -98,14 +98,19 @@ pub fn paint(ui: &Ui, rect: Rect, icon: Icon, size: IconSize, color: Color32) {
 
 /// Draws `icon` from `set`, `points` wide with strokes `stroke` points wide, centred in `rect`.
 pub fn paint_in(ui: &Ui, rect: Rect, icon: Icon, set: IconSet, points: f32, stroke: f32, color: Color32) {
-    let ctx = ui.ctx();
+    paint_on(ui.painter(), rect, icon, set, points, stroke, color);
+}
+
+/// [`paint_in`] on a painter, for code that is handed one (a list row's glyph slot).
+pub fn paint_on(painter: &egui::Painter, rect: Rect, icon: Icon, set: IconSet, points: f32, stroke: f32, color: Color32) {
+    let ctx = painter.ctx();
     let ppp = ctx.pixels_per_point();
     let px = pixels(points, ppp);
     let texture = texture_in(ctx, icon, set, px, stroke * ppp);
     let side = px as f32 / ppp;
     let min = (rect.center() - vec2(side, side) / 2.0).round_to_pixels(ppp);
     let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-    ui.painter().image(texture, Rect::from_min_size(min, vec2(side, side)), uv, color);
+    painter.image(texture, Rect::from_min_size(min, vec2(side, side)), uv, color);
 }
 
 /// The texture of `icon` from the context's set at `px` × `px` pixels, with the standard stroke.
