@@ -83,32 +83,43 @@ pub struct ClippingMask {
 
 impl ClippingMask {
     /// A mask of `size` where nothing clips.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn new(size: [usize; 2]) -> Self {
-        // new: two zeroed vectors of `size[0] * size[1]` (saturating).
-        todo!()
+        let len = size[0].saturating_mul(size[1]);
+        Self { size, shadows: vec![ChannelMask::NONE; len], highlights: vec![ChannelMask::NONE; len] }
     }
 
     /// [`clipping`] of each pixel of `pixels` (straight RGBA, row by row), which holds `size[0] ×
     /// size[1]` pixels; `None` when the length differs. Desktop builds may count rows in parallel
     /// later; the result is the same.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn from_rgba(size: [usize; 2], pixels: &[[f32; 4]]) -> Option<Self> {
-        // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:621-623 (`clipping(*p)` per proxy pixel).
-        todo!()
+        if size[0].checked_mul(size[1])? != pixels.len() {
+            return None;
+        }
+        let (shadows, highlights) = pixels
+            .iter()
+            .map(|pixel| {
+                let clipped = clipping(*pixel);
+                (clipped.shadows, clipped.highlights)
+            })
+            .unzip();
+        Some(Self { size, shadows, highlights })
     }
 
     /// The pixel at column `x`, row `y`; nothing clips outside the mask.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn at(&self, x: usize, y: usize) -> ClippedChannels {
-        // new: index `y * size[0] + x`.
-        todo!()
+        if x >= self.size[0] || y >= self.size[1] {
+            return ClippedChannels::default();
+        }
+        let index = y * self.size[0] + x;
+        match (self.shadows.get(index), self.highlights.get(index)) {
+            (Some(shadows), Some(highlights)) => ClippedChannels { shadows: *shadows, highlights: *highlights },
+            _ => ClippedChannels::default(),
+        }
     }
 
     /// The channels that clip anywhere: what the warning triangles fill with.
-    #[expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn any(&self) -> ClippedChannels {
-        // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:402-403 (`sh`, `hi` folded from the per-channel counts).
-        todo!()
+        let fold = |masks: &[ChannelMask]| masks.iter().fold(ChannelMask::NONE, |all, mask| all.union(*mask));
+        ClippedChannels { shadows: fold(&self.shadows), highlights: fold(&self.highlights) }
     }
 }
