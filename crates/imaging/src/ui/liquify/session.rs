@@ -1,0 +1,194 @@
+//! Liquify's session (the steps the engine replays) and its settings (task WS-LQ1).
+
+use serde::{Deserialize, Serialize};
+
+use super::tools::{LiquifyBrush, LiquifyTool};
+
+/// One brush stroke or Freeze Lasso polygon as the engine replays it: the tool that painted (with
+/// Alt at the press already applied: [`LiquifyTool::alternate`]), the brush at the press and the
+/// points. Serialised as PhotoCraft's `LiquifyStroke` (`photocraft_algo::liquify`), so the app can
+/// pass it on unchanged.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiquifyStroke {
+    pub tool: LiquifyTool,
+    /// Brush diameter in document pixels.
+    pub size: f64,
+    /// 0..=100.
+    pub density: f64,
+    /// 0..=100.
+    pub pressure: f64,
+    /// 0..=100: the speed of the tools that act while the pointer rests.
+    pub rate: f64,
+    /// `[x, y, pressure]` in document pixels; a lasso's points carry pressure 1 and end where they
+    /// began.
+    pub points: Vec<[f64; 3]>,
+    /// The Freeze Lasso only: 1 freezes the polygon, 0 thaws it (Alt at the press).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amount: Option<f64>,
+}
+
+/// A whole-field operation, recorded and replayed like a stroke.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LiquifyGlobal {
+    /// The Reconstruct button: scales the unfrozen field towards zero by `amount` percent.
+    Reconstruct { amount: f64 },
+    /// Mask Options › Mask All: freezes everything.
+    MaskAll,
+    /// Mask Options › None (and ⌘D): thaws everything.
+    MaskNone,
+    /// Mask Options › Invert All (and ⌘I).
+    InvertAll,
+}
+
+/// One recorded step of the session, in replay order.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LiquifyStep {
+    Stroke(LiquifyStroke),
+    Global(LiquifyGlobal),
+}
+
+/// What OK applies and the history snapshots: the recorded steps. Restore All empties it (one
+/// undo step, where PhotoCraft's could not be undone). The brush, view options and the tool are
+/// [`LiquifySettings`], outside the history: undo never changes them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LiquifySession {
+    steps: Vec<LiquifyStep>,
+}
+
+impl LiquifySession {
+    /// A session holding `steps` (a smart filter opened again).
+    pub fn from_steps(steps: Vec<LiquifyStep>) -> Self {
+        Self { steps }
+    }
+
+    /// The steps in replay order.
+    pub fn steps(&self) -> &[LiquifyStep] {
+        &self.steps
+    }
+
+    /// Records a finished stroke. A stroke without points records nothing; a lasso of fewer than 3
+    /// points records nothing, and one whose last point is more than half a pixel from the first
+    /// gets the first point again at its end.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-LQ1")]
+    pub fn record(&mut self, stroke: LiquifyStroke) {
+        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:291 `end`, :299 `close_lasso`.
+        todo!()
+    }
+
+    /// Records a whole-field operation.
+    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-LQ1")]
+    pub fn record_global(&mut self, op: LiquifyGlobal) {
+        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:319 `global`.
+        todo!()
+    }
+
+    /// Restore All: drops every step.
+    #[expect(clippy::todo, reason = "skeleton: task WS-LQ1")]
+    pub fn restore_all(&mut self) {
+        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:361 `restore_all`.
+        todo!()
+    }
+
+    /// The strokes recorded so far (for the app's status line; PhotoCraft's "N stroke(s)").
+    pub fn len(&self) -> usize {
+        self.steps.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.steps.is_empty()
+    }
+}
+
+/// Show Mesh's Mesh Size. PhotoCraft's mesh has 64, 40 or 24 cells across the document's longer
+/// side (`liquify_ui.rs:1250`); the app builds [`LiquifyMesh`](super::LiquifyMesh) for it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MeshSize {
+    Small,
+    #[default]
+    Medium,
+    Large,
+}
+
+impl MeshSize {
+    pub const ALL: [MeshSize; 3] = [MeshSize::Small, MeshSize::Medium, MeshSize::Large];
+}
+
+/// Show Backdrop › Mode, as Photoshop draws it (measured on its Liquify): In Front lays the
+/// backdrop over the image at the Opacity, Behind lays the image over the backdrop at the Opacity,
+/// Blend fades the image to 100 − Opacity under the backdrop at the Opacity.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BackdropMode {
+    #[default]
+    InFront,
+    Behind,
+    Blend,
+}
+
+impl BackdropMode {
+    pub const ALL: [BackdropMode; 3] = [BackdropMode::InFront, BackdropMode::Behind, BackdropMode::Blend];
+}
+
+/// Show Backdrop › Use.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BackdropUse {
+    /// The document as it is, the liquified layer included (as Photoshop).
+    #[default]
+    AllLayers,
+    /// One layer alone, by the app's id. A layer that is gone shows All Layers.
+    Layer(u64),
+}
+
+/// Liquify's remembered settings: the tool, the brush, Reconstruct's amount and the view options.
+/// Persisted by the app (serde, every field defaulted, so an old or partial record loads); never in
+/// the session's history. Defaults: Forward Warp; size 100, density 50, pressure 100, rate 80;
+/// amount 100; mesh off at Medium; mask shown; backdrop off, All Layers, In Front, opacity 50.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LiquifySettings {
+    pub tool: LiquifyTool,
+    pub brush: LiquifyBrush,
+    /// Brush Reconstruct Options › Amount, 0..=100.
+    pub reconstruct_amount: f64,
+    pub show_mesh: bool,
+    pub mesh_size: MeshSize,
+    pub show_mask: bool,
+    pub show_backdrop: bool,
+    pub backdrop: BackdropUse,
+    pub backdrop_mode: BackdropMode,
+    /// 0..=100.
+    pub backdrop_opacity: f64,
+}
+
+impl Default for LiquifySettings {
+    fn default() -> Self {
+        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:69-88 `LiquifyOpts::default`.
+        Self {
+            tool: LiquifyTool::ForwardWarp,
+            brush: LiquifyBrush::default(),
+            reconstruct_amount: 100.0,
+            show_mesh: false,
+            mesh_size: MeshSize::Medium,
+            show_mask: true,
+            show_backdrop: false,
+            backdrop: BackdropUse::AllLayers,
+            backdrop_mode: BackdropMode::InFront,
+            backdrop_opacity: 50.0,
+        }
+    }
+}
+
+impl LiquifySettings {
+    /// The settings with every number in its range (size 1..=15000, the others 0..=100) and
+    /// non-finite numbers back to their defaults: what the app calls after loading a record.
+    #[expect(clippy::todo, reason = "skeleton: task WS-LQ1")]
+    pub fn clamped(self) -> Self {
+        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:97 `LiquifyOpts::apply` (the clamps).
+        todo!()
+    }
+}

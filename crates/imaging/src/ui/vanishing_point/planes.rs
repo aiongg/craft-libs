@@ -1,0 +1,126 @@
+//! Vanishing Point's planes as data and the app's scene geometry (task WS-VP1).
+
+use serde::{Deserialize, Serialize};
+
+use craft_ui::canvas::kurbo::Point;
+use craft_ui::canvas::quad::Homography;
+
+/// The most planes a session holds (PhotoCraft `MAX_PLANES`, so the control channel can't make it
+/// allocate without bound).
+pub const MAX_PLANES: usize = 64;
+
+/// The most grid lines drawn per direction (PhotoCraft `MAX_LINES`).
+pub const MAX_GRID_LINES: usize = 200;
+
+/// A plane's four corners in document pixels, in the scene's order (top-left, top-right,
+/// bottom-right, bottom-left after [`VanishingScene::normalized`]).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct VanishingPlane {
+    pub corners: [[f64; 2]; 4],
+}
+
+impl VanishingPlane {
+    /// The map from the unit square to the plane (`Homography::unit_to_quad`), `None` for a
+    /// degenerate plane.
+    #[expect(clippy::todo, reason = "skeleton: task WS-VP1")]
+    pub fn homography(&self) -> Option<Homography> {
+        // pc: crates/algo/src/vanishing.rs:77 `VpPlane::homography`.
+        todo!()
+    }
+
+    /// The middles of the four edges (0 top, 1 right, 2 bottom, 3 left): the edge nodes.
+    #[expect(clippy::todo, reason = "skeleton: task WS-VP1")]
+    pub fn edge_nodes(&self) -> [[f64; 2]; 4] {
+        // pc: crates/ui-egui/src/dialogs/vp_ui.rs:649 `edge_nodes`.
+        todo!()
+    }
+}
+
+/// An edge of a plane, as the engine names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PlaneEdge {
+    Top,
+    Right,
+    Bottom,
+    Left,
+}
+
+impl PlaneEdge {
+    pub const ALL: [PlaneEdge; 4] = [PlaneEdge::Top, PlaneEdge::Right, PlaneEdge::Bottom, PlaneEdge::Left];
+}
+
+/// A plane torn off an edge of an earlier plane (the engine's `{"from", "edge", "angle",
+/// "depth"}`): it follows its parent when that is edited.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TornPlane {
+    /// The parent plane's index, always below this plane's.
+    pub from: usize,
+    pub edge: PlaneEdge,
+    /// Degrees between the planes (90: perpendicular).
+    pub angle: f64,
+    /// Extent as a multiple of the parent's adjacent side.
+    pub depth: f64,
+}
+
+/// How believable a plane is: the grid and outline in `accent` (valid), `status.warn.fg`
+/// (questionable) or `status.bad.fg` (invalid; drawn as its outline only).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PlaneCheck {
+    Valid,
+    Questionable,
+    Invalid,
+}
+
+/// The app's perspective geometry (lead call 45; PhotoCraft's `photocraft_algo::vanishing`): the
+/// camera solved from the first plane, torn planes, the check, the plane under a point, the
+/// foreshortened stamp ring and the clone source.
+pub trait VanishingScene {
+    /// The plane with its corners in the scene's order.
+    fn normalized(&self, plane: VanishingPlane) -> VanishingPlane;
+
+    /// The planes with every torn plane's corners rebuilt from its parent (a torn plane that
+    /// cannot be rebuilt has all-zero corners). `planes[0]` is always drawn.
+    fn resolve(&self, planes: &[VanishingPlane], torn: &[Option<TornPlane>]) -> Vec<VanishingPlane>;
+
+    fn check(&self, planes: &[VanishingPlane], index: usize) -> PlaneCheck;
+
+    /// The topmost plane under `at`.
+    fn plane_at(&self, planes: &[VanishingPlane], at: [f64; 2]) -> Option<usize>;
+
+    /// Plane `index`'s frame: the unit square onto the plane, and its sides' lengths in the
+    /// scene (for the grid's spacing and the paste's extent).
+    fn frame(&self, planes: &[VanishingPlane], index: usize) -> Option<(Homography, f64, f64)>;
+
+    /// The stamp brush's ring of `diameter` at `at`, foreshortened on the plane there, in
+    /// document points; `None` off every plane.
+    fn stamp_ring(&self, planes: &[VanishingPlane], at: [f64; 2], diameter: f64) -> Option<Vec<Point>>;
+
+    /// Where the clone source is for the brush at `at`, a stroke that began at `anchor` with
+    /// `source` (PhotoCraft `vanishing::clone_source`).
+    fn clone_source(&self, planes: &[VanishingPlane], source: [f64; 2], anchor: [f64; 2], at: [f64; 2]) -> Option<[f64; 2]>;
+}
+
+/// Fits torn plane `index`'s depth (or with `rotate` its angle, 1..=179 degrees) so the middle of
+/// its far edge comes as near `at` as it can: a search over the values with
+/// [`VanishingScene::resolve`]. `None` when nothing fits.
+#[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-VP1")]
+pub fn fit_torn(
+    scene: &dyn VanishingScene,
+    planes: &[VanishingPlane],
+    torn: &[Option<TornPlane>],
+    index: usize,
+    rotate: bool,
+    at: [f64; 2],
+) -> Option<TornPlane> {
+    // pc: crates/ui-egui/src/dialogs/vp_ui.rs:430 `fit_torn`.
+    todo!()
+}
+
+/// The plane after dragging edge node `edge` to `at`: the edge slides along the plane's own
+/// perspective as it was at the press (`at_press`, the plane's map then).
+#[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-VP1")]
+pub fn slide_edge(at_press: &Homography, edge: usize, at: [f64; 2]) -> Option<VanishingPlane> {
+    // pc: crates/ui-egui/src/dialogs/vp_ui.rs:770 `slid_quad`, :718 `drag_to` (Edge).
+    todo!()
+}
