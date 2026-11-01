@@ -63,7 +63,8 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
-/// The area the view gets and the picture inside it, in points: a story-local size.
+/// The area the view gets (narrower when the story is) and the picture inside it, in points: a
+/// story-local size.
 const AREA: [f32; 2] = [520.0, 300.0];
 const PICTURE: [f32; 2] = [200.0, 140.0];
 /// Strength of the tone the "after" fake adds to the gradient.
@@ -110,8 +111,10 @@ fn paint_fake(painter: &Painter, tokens: &crate::theme::UiTokens, pane: &BeforeA
     painter.add(Shape::mesh(mesh));
 }
 
+/// The picture in the middle of `area`, shrunk to fit a pane narrower than the story's own size.
 fn picture_in(area: Rect) -> Rect {
-    Rect::from_center_size(area.center(), vec2(PICTURE[0], PICTURE[1]))
+    let scale = (0.95 * area.width() / PICTURE[0]).min(0.95 * area.height() / PICTURE[1]).min(1.0);
+    Rect::from_center_size(area.center(), vec2(PICTURE[0], PICTURE[1]) * scale)
 }
 
 fn mode_name(mode: BeforeAfterMode, own: &BeforeAfterStoryLabels) -> &str {
@@ -138,7 +141,7 @@ fn show_modes(ui: &mut Ui, args: &mut ModesArgs) {
     let own = BeforeAfterStoryLabels::of(ui);
     let key = ui.make_persistent_id("before-after-modes-story");
     let mut fraction: f32 = ui.data(|d| d.get_temp(key)).unwrap_or(0.5);
-    let (area, _) = ui.allocate_exact_size(vec2(AREA[0], AREA[1]), egui::Sense::hover());
+    let (area, _) = ui.allocate_exact_size(vec2(AREA[0].min(ui.available_width()), AREA[1]), egui::Sense::hover());
     let tokens = Tokens::of(ui);
     let view = BeforeAfter::new("before-after-modes-story", args.mode.mode()).fraction(fraction).captions(args.captions);
     // The picture sits in the middle of the after pane.
@@ -170,7 +173,7 @@ fn show_divider(ui: &mut Ui, args: &mut DividerArgs) {
     let own = BeforeAfterStoryLabels::of(ui);
     let key = ui.make_persistent_id("before-after-divider-story");
     let mut fraction: f32 = ui.data(|d| d.get_temp(key)).unwrap_or(0.5);
-    let (area, _) = ui.allocate_exact_size(vec2(AREA[0], AREA[1]), egui::Sense::hover());
+    let (area, _) = ui.allocate_exact_size(vec2(AREA[0].min(ui.available_width()), AREA[1]), egui::Sense::hover());
     let tokens = Tokens::of(ui);
     let mode = if args.stacked { BeforeAfterMode::SplitStacked } else { BeforeAfterMode::Split };
     let view = BeforeAfter::new("before-after-divider-story", mode)

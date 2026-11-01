@@ -316,12 +316,30 @@ fn the_bar_scale_sets_the_zoom_and_a_story_scale_applies_once_and_keyboard_zoom_
     assert!((ctx.zoom_factor() - own).abs() < 1e-4, "back to the gallery's scale: {}", ctx.zoom_factor());
 }
 
-/// Frames until the tree has settled, then the last one's AccessKit tree.
+/// The AccessKit tree once the overview's tiles stop moving. Selecting a component scrolls the
+/// overview to its tile with egui's scroll animation, which takes many frames; a click aimed at a
+/// node while the overview still scrolls lands where the node was.
 fn settled_tree(ctx: &Context, gallery: &mut Gallery) -> craft_ui::inspect::AccessTree {
+    use egui::accesskit::Role;
+    let tiles = |tree: &craft_ui::inspect::AccessTree| -> Vec<_> {
+        tree.walk(tree.root())
+            .into_iter()
+            .filter_map(|(id, _)| tree.node(id).filter(|n| n.role() == Role::Button).map(|n| (id, n.bounds())))
+            .filter(|(id, _)| tree.name(*id).is_some_and(|n| n.starts_with("Select ")))
+            .collect()
+    };
     for _ in 0..3 {
         frame(ctx, gallery);
     }
-    tree_of(ctx, gallery)
+    let mut tree = tree_of(ctx, gallery);
+    for _ in 0..120 {
+        let next = tree_of(ctx, gallery);
+        if tiles(&next) == tiles(&tree) {
+            return next;
+        }
+        tree = next;
+    }
+    panic!("the overview still scrolls after 120 frames");
 }
 
 /// The nodes named `name` with the given role.
@@ -682,6 +700,21 @@ fn neighbour_of(gallery: &Gallery, component: &str) -> &'static str {
     stories.iter().filter(|s| s.level == level && s.component != component).map(|s| s.component).min_by_key(|c| c.to_lowercase()).unwrap()
 }
 
+/// The first component by name whose tile shares a row with `component`'s. Selecting
+/// `component` scrolls its row to the top of the overview, so a tile in a row above it is out of
+/// view and a pointer aimed at it hits nothing.
+fn neighbour_in_row(tree: &craft_ui::inspect::AccessTree, gallery: &Gallery, component: &str) -> &'static str {
+    use egui::accesskit::Role;
+    let top =
+        |t: &str| named(tree, &format!("Select {t}"), Role::Button).first().and_then(|id| tree.node(*id)).and_then(|n| n.bounds()).map(|b| b.y0);
+    let row = top(component).expect("the component's tile");
+    let stories = gallery.stories();
+    let level = stories.iter().find(|s| s.component == component).map(|s| s.level).expect("a story of the component");
+    let mut others: Vec<_> = stories.iter().filter(|s| s.level == level && s.component != component).map(|s| s.component).collect();
+    others.sort_by_key(|c| c.to_lowercase());
+    others.into_iter().find(|t| top(t) == Some(row)).expect("a tile beside the component's")
+}
+
 fn story_name(gallery: &Gallery, id: &str) -> &'static str {
     gallery.stories().iter().find(|s| s.id == id).map(|s| s.name).expect("a story")
 }
@@ -932,9 +965,9 @@ fn a_pointer_click_on_a_tiles_heading_or_a_label_in_its_story_selects_the_tile()
     ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
     let (component, _) = component_with_stories(&gallery);
-    let neighbour = neighbour_of(&gallery, component);
     gallery.select_component(component);
     let tree = settled_tree(&ctx, &mut gallery);
+    let neighbour = neighbour_in_row(&tree, &gallery, component);
     let tile = named(&tree, &format!("Select {neighbour}"), Role::Button)[0];
     let tb = tree.node(tile).and_then(|n| n.bounds()).unwrap();
     let heading: Vec<_> = named(&tree, neighbour, Role::Label)
@@ -951,15 +984,26 @@ fn a_pointer_click_on_a_tiles_heading_or_a_label_in_its_story_selects_the_tile()
         .filter(|s| s.level == gallery.stories().iter().find(|o| o.component == component).unwrap().level)
         .map(|s| s.component)
         .collect();
-    gallery.select_component(component);
-    let tree = settled_tree(&ctx, &mut gallery);
-    let (title, label) = titles
-        .iter()
-        .filter(|t| **t != component)
-        .find_map(|t| {
-            let tile = named(&tree, &format!("Select {t}"), Role::Button).first().copied()?;
-            // On screen: a tile below the fold has no pixels to click.
-            labels_in_tile(&tree, tile, t).into_iter().find(|l| tree.node(*l).and_then(|n| n.bounds()).is_some_and(|b| b.y1 < 780.0)).map(|l| (*t, l))
+    // Selecting a tile scrolls its row to the top of the view; the tiles on screen below it may
+    // have no label, so the selection moves along the level until one does.
+    let on_screen = |selected: &str, tree: &craft_ui::inspect::AccessTree| {
+        let top = named(tree, &format!("Select {selected}"), Role::Button).first().and_then(|id| tree.node(*id)).and_then(|n| n.bounds())?.y0;
+        titles.iter().filter(|t| **t != selected).find_map(|t| {
+            let tile = named(tree, &format!("Select {t}"), Role::Button).first().copied()?;
+            // On screen: a tile below the fold or scrolled above the view has no pixels to click.
+            labels_in_tile(tree, tile, t)
+                .into_iter()
+                .find(|l| tree.node(*l).and_then(|n| n.bounds()).is_some_and(|b| b.y0 >= top && b.y1 < 780.0))
+                .map(|l| (*t, l))
+        })
+    };
+    let (tree, title, label) = std::iter::once(component)
+        .chain(titles.iter().copied().filter(|t| *t != component))
+        .find_map(|selected| {
+            gallery.select_component(selected);
+            let tree = settled_tree(&ctx, &mut gallery);
+            let (title, label) = on_screen(selected, &tree)?;
+            Some((tree, title, label))
         })
         .expect("a tile with a label in its story");
     pointer_click(&ctx, &mut gallery, center_of(&tree, label));
@@ -1036,9 +1080,9 @@ fn a_double_click_on_a_tile_header_opens_the_component() {
     ctx.enable_accesskit();
     let mut gallery = Gallery::new(None);
     let (component, _) = component_with_stories(&gallery);
-    let neighbour = neighbour_of(&gallery, component);
     gallery.select_component(component);
     let tree = settled_tree(&ctx, &mut gallery);
+    let neighbour = neighbour_in_row(&tree, &gallery, component);
     let tile = named(&tree, &format!("Select {neighbour}"), Role::Button)[0];
     let tb = tree.node(tile).and_then(|n| n.bounds()).unwrap();
     // The heading, not the Reset or Open buttons at the other end.

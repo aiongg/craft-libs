@@ -359,10 +359,11 @@ fn show_tool(ui: &mut Ui, args: &mut ToolArgs) {
         if ui.add(Button::new(words.reset.as_str())).clicked() {
             *board = Board::new(args.routing);
         }
-        let event = if board.note.is_empty() { words.no_event.clone() } else { board.note.clone() };
-        let line = craft_i18n::fmt(&own.status, &[("count", &board.items.len().to_string()), ("event", &event)]);
-        ui.add(Text::new(line).content(Content::Muted));
     });
+    // On a line of its own: beside the buttons it is wider than a gallery tile.
+    let event = if board.note.is_empty() { words.no_event.clone() } else { board.note.clone() };
+    let line = craft_i18n::fmt(&own.status, &[("count", &board.items.len().to_string()), ("event", &event)]);
+    ui.add(Text::new(line).content(Content::Muted));
 }
 
 // --- routes ---
