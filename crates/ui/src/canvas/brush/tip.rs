@@ -83,7 +83,7 @@ impl Default for TipPose {
 impl TipPose {
     /// No pose: the document's axes.
     pub const fn upright() -> TipPose {
-        TipPose { x_axis: Vec2::new(1.0, 0.0), y_axis: Vec2::new(0.0, 1.0) }
+        TipPose { x_axis: Vec2::new(1.0, 0.0), y_axis: Vec2::new(0.0, 1.0) } // design: allow(unit axes, not sizes)
     }
 
     /// The pose of a pen: the tip turned clockwise by `degrees` (the app's angle from its shape

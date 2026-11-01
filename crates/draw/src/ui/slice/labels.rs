@@ -3,16 +3,16 @@
 craft_ui::words! {
     /// What a screen reader and the status bar read for the Slice tools.
     #[non_exhaustive]
-    pub struct SliceNames {
-        group: "slice.group" = "Slices";
+    pub struct SliceToolLabels {
+        group: "sliceTool.group" = "Slices";
         /// A slice part: `{number}` two digits, `{origin}` one of the origin words, `{width}`,
         /// `{height}`, `{x}`, `{y}` in pixels.
-        slice: "slice.slice" = "Slice {number}, {origin}, {width} by {height} at {x}, {y}";
-        user: "slice.user" = "user slice";
-        auto: "slice.auto" = "auto slice";
-        layer: "slice.layer" = "layer slice";
+        slice: "sliceTool.slice" = "Slice {number}, {origin}, {width} by {height} at {x}, {y}";
+        user: "sliceTool.user" = "user slice";
+        auto: "sliceTool.auto" = "auto slice";
+        layer: "sliceTool.layer" = "layer slice";
         /// The status text of [`SliceRefusal::Locked`](super::SliceRefusal::Locked) (PhotoCraft's).
-        locked: "slice.locked" = "Slices are locked (View › Lock Slices)";
+        locked: "sliceTool.locked" = "Slices are locked (View › Lock Slices)";
     }
 }
 

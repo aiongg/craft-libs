@@ -38,7 +38,7 @@ mod tool;
 mod tool_tests;
 
 pub use bar::{ConnectorBar, ConnectorBarEvent, ConnectorBarOutput, ConnectorLine};
-pub use labels::{ConnectorBarLabels, ConnectorNames};
+pub use labels::{ConnectorBarLabels, ConnectorToolLabels};
 pub use overlay::ConnectorOverlay;
 pub use style::ConnectorStyle;
 pub use tool::ConnectorTool;

@@ -202,8 +202,8 @@ type DiameterOf<'a, K> = Box<dyn Fn(&K) -> Option<f64> + 'a>;
 /// - **Cells.** Grid view only. The cell shape follows the parts ([`BrushCardLayout::cell_size`]);
 ///   the width is `brush.card_max` width × [`BrushCardsState::scale`], with the browser's
 ///   `preset.grid_gap` between cells.
-/// - **Look.** The tile on `brush.card_fill`, the hover fill `list.hover`, the selected fill
-///   `list.selected`; the selected ring is the browser's (`preset.ring.*`). Name in `text.muted`
+/// - **Look.** The tile on `brush.card_fill`, the hover fill `state.hover`, the selected fill
+///   `state.selected`; the selected ring is the browser's (`preset.ring.*`). Name in `text.muted`
 ///   (`label` role), size number in `text.faint` (`caption` role); the text keeps its size at
 ///   every scale.
 /// - **Pointer.** A click selects (`Select`); a double-click activates (`Activate`); drag

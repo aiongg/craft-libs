@@ -14,7 +14,7 @@ pub struct BeforeAfterStyle {
     /// The divider line's colour: the overlay's light mark, white in every theme
     /// (`overlay.handle_fill`; LightCraft's white line).
     pub line_colour: Color32,
-    /// The halo under the line, `handle.halo` wider on each side: `overlay.halo`.
+    /// The halo under the line, `before_after.halo` wider on each side: `overlay.halo`.
     pub halo: Color32,
     pub halo_width: f32,
     /// The knob's diameter: `before_after.knob` (20, FigCraft `dev_compare.rs:356`).

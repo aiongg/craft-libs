@@ -39,7 +39,7 @@ mod tool_tests;
 
 pub use bar::{SliceBar, SliceBarOutput};
 pub use dialogs::{DivideBy, DivideSlices, DivideSlicesDialog, SliceKind, SliceOptions, SliceOptionsDialog};
-pub use labels::{SliceLabels, SliceNames};
+pub use labels::{SliceLabels, SliceToolLabels};
 pub use overlay::SliceOverlay;
 pub use style::SliceStyle;
 pub use tool::SliceTool;

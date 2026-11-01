@@ -5,7 +5,7 @@
 use egui::Painter;
 use kurbo::{Point, Rect};
 
-use super::{ConnectionTarget, ConnectorEnd, ConnectorEndKind, ConnectorEvent, ConnectorItem, ConnectorNames};
+use super::{ConnectionTarget, ConnectorEnd, ConnectorEndKind, ConnectorEvent, ConnectorItem, ConnectorToolLabels};
 use crate::geometry::connector::Routing;
 use craft_ui::canvas::{CanvasTool, SnapGesture, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
 use craft_ui::edit::GestureId;
@@ -35,7 +35,7 @@ use craft_ui::edit::GestureId;
 ///   `AddConnected`.
 /// - Esc cancels the drag; Delete is the app's.
 ///
-/// Keyboard parts: group [`ConnectorNames::group`]; the end handles ("Start, attached to
+/// Keyboard parts: group [`ConnectorToolLabels::group`]; the end handles ("Start, attached to
 /// Rectangle 2", "End, free") and path handles ("Bend 1 of 2") are parts; Page keys pick, arrows
 /// move a path handle by the nudge step or move a picked end to the next target in the group's
 /// order.
@@ -47,7 +47,7 @@ pub struct ConnectorTool {
     connected: Option<Rect>,
     snap_free_end: Option<bool>,
     custom_preview: bool,
-    names: Option<ConnectorNames>,
+    labels: Option<ConnectorToolLabels>,
     events: Vec<ConnectorEvent>,
     drag: Option<Drag>,
     /// The target and site under the pointer (hover and drag), for the attach points.
@@ -111,8 +111,8 @@ impl ConnectorTool {
     }
 
     /// The words; the installed ones by default.
-    pub fn names(&mut self, names: ConnectorNames) -> &mut Self {
-        self.names = Some(names);
+    pub fn labels(&mut self, labels: ConnectorToolLabels) -> &mut Self {
+        self.labels = Some(labels);
         self
     }
 
@@ -187,7 +187,7 @@ impl CanvasTool for ConnectorTool {
 
     fn parts(&self, cx: &ToolContext<'_>) -> Option<ToolParts> {
         // new: the selected connector's ends (keys 0, 1) and path handles (2 + portion), named by
-        // `ConnectorNames`.
+        // `ConnectorToolLabels`.
         todo!()
     }
 

@@ -15,12 +15,13 @@ pub struct ArtboardStyle {
     pub preview: Stroke,
     /// A drag shorter than this many screen points draws nothing: `artboard.click_slop` (3).
     pub click_slop: f32,
-    /// Handle size and reach: `handle.size` (7), `handle.hit` (14).
+    /// Handle size and reach from the `Handle` painter, `Handle::style(tokens, HandleShape::Square)`
+    /// (7 and 14).
     pub handle: f32,
     pub handle_hit: f32,
     /// A handle's fill: `overlay.handle_fill` (white).
     pub handle_fill: Color32,
-    /// A handle's edge: `handle.stroke` (1) of `accent.solid`.
+    /// A handle's edge: `Handle::style`'s stroke width in `accent.solid`.
     pub handle_edge: Stroke,
 }
 

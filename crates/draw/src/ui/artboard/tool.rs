@@ -5,7 +5,7 @@
 use egui::Painter;
 use kurbo::{Point, Rect};
 
-use super::{ArtboardEvent, ArtboardItem, ArtboardNames, ArtboardRules};
+use super::{ArtboardEvent, ArtboardItem, ArtboardRules, ArtboardToolLabels};
 use crate::ui::add_beside::AddSide;
 use craft_ui::canvas::{CanvasTool, SnapGesture, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
 use craft_ui::edit::GestureId;
@@ -38,8 +38,8 @@ use craft_ui::edit::GestureId;
 /// end edges (`Resize`); Delete reports `Delete`; Enter `OpenOptions`; Insert adds a board on the
 /// right of the picked one.
 ///
-/// Keyboard parts: the boards are one Tab stop, group [`ArtboardNames::group`], each board a part
-/// named as [`ArtboardNames::board`] ("Artboard 2, 1080 by 1920 at 0, 0") with its selected state;
+/// Keyboard parts: the boards are one Tab stop, group [`ArtboardToolLabels::group`], each board a part
+/// named as [`ArtboardToolLabels::board`] ("Artboard 2, 1080 by 1920 at 0, 0") with its selected state;
 /// Page keys pick a board.
 ///
 /// Cursor: resize arrows over the selected board's handles, turned with the view
@@ -54,7 +54,7 @@ pub struct ArtboardTool {
     items: Vec<ArtboardItem>,
     selected: Vec<usize>,
     rules: ArtboardRules,
-    names: Option<ArtboardNames>,
+    labels: Option<ArtboardToolLabels>,
     events: Vec<ArtboardEvent>,
     drag: Option<Drag>,
     /// The "+" button under the pointer, for the cursor and the hover look.
@@ -97,8 +97,8 @@ impl ArtboardTool {
     }
 
     /// The words; the installed ones by default.
-    pub fn names(&mut self, names: ArtboardNames) -> &mut Self {
-        self.names = Some(names);
+    pub fn labels(&mut self, labels: ArtboardToolLabels) -> &mut Self {
+        self.labels = Some(labels);
         self
     }
 
@@ -169,7 +169,7 @@ impl CanvasTool for ArtboardTool {
     }
 
     fn parts(&self, cx: &ToolContext<'_>) -> Option<ToolParts> {
-        // new: one part per board (key = its index), named by `ArtboardNames::board`.
+        // new: one part per board (key = its index), named by `ArtboardToolLabels::board`.
         todo!()
     }
 

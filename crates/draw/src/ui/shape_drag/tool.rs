@@ -6,7 +6,7 @@
 use egui::Painter;
 use kurbo::{Point, Vec2};
 
-use super::{ShapeDragEvent, ShapeDragNames, ShapeDragOptions, ShapeDragRules, ShapeKind};
+use super::{ShapeDragEvent, ShapeDragOptions, ShapeDragRules, ShapeDragToolLabels, ShapeKind};
 use crate::geometry::shape::ShapeGeometry;
 use craft_ui::canvas::{CanvasTool, SnapGesture, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
 use craft_ui::edit::GestureId;
@@ -46,7 +46,7 @@ pub struct ShapeDragTool {
     rules: ShapeDragRules,
     /// The tool paints the outline; on by default.
     preview: Option<bool>,
-    names: Option<ShapeDragNames>,
+    labels: Option<ShapeDragToolLabels>,
     events: Vec<ShapeDragEvent>,
     drag: Option<Drag>,
 }
@@ -96,8 +96,8 @@ impl ShapeDragTool {
     }
 
     /// The words; the installed ones by default.
-    pub fn names(&mut self, names: ShapeDragNames) -> &mut Self {
-        self.names = Some(names);
+    pub fn labels(&mut self, labels: ShapeDragToolLabels) -> &mut Self {
+        self.labels = Some(labels);
         self
     }
 

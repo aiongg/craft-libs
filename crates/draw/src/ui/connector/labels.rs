@@ -3,17 +3,17 @@
 craft_ui::words! {
     /// What a screen reader reads for the Connector tool's parts.
     #[non_exhaustive]
-    pub struct ConnectorNames {
-        group: "connector.group" = "Connector";
+    pub struct ConnectorToolLabels {
+        group: "connectorTool.group" = "Connector";
         /// The start end glued to `{target}` (the app's object name).
-        start_attached: "connector.startAttached" = "Start, attached to {target}";
-        start_free: "connector.startFree" = "Start, free";
-        end_attached: "connector.endAttached" = "End, attached to {target}";
-        end_free: "connector.endFree" = "End, free";
+        start_attached: "connectorTool.startAttached" = "Start, attached to {target}";
+        start_free: "connectorTool.startFree" = "Start, free";
+        end_attached: "connectorTool.endAttached" = "End, attached to {target}";
+        end_free: "connectorTool.endFree" = "End, free";
         /// A path handle: `{index}` from 1 of `{count}`.
-        bend: "connector.bend" = "Bend {index} of {count}";
+        bend: "connectorTool.bend" = "Bend {index} of {count}";
         /// The "+" buttons' group.
-        add_connected: "connector.addConnected" = "Add a connected shape";
+        add_connected: "connectorTool.addConnected" = "Add a connected shape";
     }
 }
 

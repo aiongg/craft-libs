@@ -15,7 +15,7 @@ mod overlay_tests;
 mod session_tests;
 
 pub use bar::{PerspectiveBar, PerspectiveBarLabels, PerspectiveBarOutput};
-pub use overlay::{PerspectiveLabels, PerspectiveResponse, PerspectiveWarp};
+pub use overlay::{PerspectiveWarp, PerspectiveWarpLabels, PerspectiveWarpResponse};
 pub use session::{
     LINK_DISTANCE, PLANE_MINIMUM, PerspectiveEdit, PerspectiveSession, Plane, PlaneCorner, PlaneMode, Straighten, linked_corners, straighten, unify,
 };

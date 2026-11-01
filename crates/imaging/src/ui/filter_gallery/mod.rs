@@ -4,7 +4,7 @@
 //! (layer, 66%)": the preview canvas at the start with a [`FullWindowZoomBar`] under it, the
 //! category folders in a Standard middle column ([`FilterTree`]), and the settings column at the
 //! end edge with OK and Cancel at its top (`SideFooter::top`), the Filter select and the effect's
-//! parameters ([`EffectSettings`]) and the effect-layer stack ([`EffectStack`]). No tool strip and
+//! parameters ([`EffectParameters`]) and the effect-layer stack ([`EffectStack`]). No tool strip and
 //! no options bar; a drag on the preview pans (the Hand tool is the canvas's only tool).
 //!
 //! The session is the stack ([`FilterGallerySession`]) with [`LocalHistory`] undo. The app's
@@ -21,10 +21,10 @@
 
 mod catalog;
 mod labels;
+mod parameters;
 mod session;
 #[cfg(test)]
 mod session_tests;
-mod settings;
 mod stack;
 pub(crate) mod stories;
 mod tree;
@@ -33,8 +33,8 @@ mod tree_tests;
 
 pub use catalog::{FilterCatalog, FilterCategory, GalleryFilter, GalleryThumb};
 pub use labels::FilterGalleryLabels;
+pub use parameters::{EffectParameters, EffectParametersResponse};
 pub use session::{EffectChange, EffectLayer, FilterGallerySession};
-pub use settings::{EffectSettings, EffectSettingsResponse};
 pub use stack::{EffectStack, EffectStackResponse};
 pub use tree::{FilterTree, FilterTreeResponse};
 

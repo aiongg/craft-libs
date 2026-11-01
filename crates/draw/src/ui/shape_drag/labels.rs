@@ -4,11 +4,11 @@ craft_ui::words! {
     /// What a screen reader and the status bar read for a Shape tool. The tool has no parts; its
     /// keyboard route is Enter, which reports a click at the view centre.
     #[non_exhaustive]
-    pub struct ShapeDragNames {
+    pub struct ShapeDragToolLabels {
         /// The canvas value while a shape is being drawn: `{width}` and `{height}` in the ruler unit.
-        drawing: "shapeDrag.drawing" = "Drawing {width} by {height}";
+        drawing: "shapeDragTool.drawing" = "Drawing {width} by {height}";
         /// The status hint while a Shape tool is active.
-        hint: "shapeDrag.hint" = "Drag to draw · Click or press Enter to set a size";
+        hint: "shapeDragTool.hint" = "Drag to draw · Click or press Enter to set a size";
     }
 }
 

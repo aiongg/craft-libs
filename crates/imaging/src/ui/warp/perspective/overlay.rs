@@ -14,7 +14,7 @@ use crate::ui::warp::PerspectiveWarpStyle;
 
 words! {
     /// The AccessKit words of [`PerspectiveWarp`]. `Default` is English.
-    pub struct PerspectiveLabels {
+    pub struct PerspectiveWarpLabels {
         group: "perspectiveWarp.group" = "Perspective Warp";
         corner: "perspectiveWarp.corner" = "Plane {plane}, corner {corner}";
         linked: "perspectiveWarp.linked" = "linked";
@@ -46,7 +46,7 @@ words! {
 pub struct PerspectiveWarp<'a> {
     id_salt: IdSalt,
     session: &'a PerspectiveSession,
-    labels: PerspectiveLabels,
+    labels: PerspectiveWarpLabels,
     units: Option<(&'a RulerUnits, &'a RulerUnits)>,
     modifiers: Option<Modifiers>,
     policy: EditPolicy,
@@ -54,7 +54,7 @@ pub struct PerspectiveWarp<'a> {
 
 /// What [`PerspectiveWarp::show`] reported this pass.
 #[derive(Clone, Debug, PartialEq)]
-pub struct PerspectiveResponse {
+pub struct PerspectiveWarpResponse {
     pub id: Id,
     /// The edits in order; the app applies each with [`PerspectiveSession::apply`].
     pub edits: Vec<PerspectiveEdit>,
@@ -73,14 +73,14 @@ impl<'a> PerspectiveWarp<'a> {
         Self {
             id_salt: IdSalt::new(id_salt),
             session,
-            labels: PerspectiveLabels::default(),
+            labels: PerspectiveWarpLabels::default(),
             units: None,
             modifiers: None,
             policy: EditPolicy::default(),
         }
     }
 
-    pub fn labels(mut self, labels: PerspectiveLabels) -> Self {
+    pub fn labels(mut self, labels: PerspectiveWarpLabels) -> Self {
         self.labels = labels;
         self
     }
@@ -108,7 +108,7 @@ impl<'a> PerspectiveWarp<'a> {
 
     /// Draws the planes (thirds, outline, corners), the rubber band and the picked corner's focus
     /// ring over `view`, and senses through the host's `canvas` response.
-    pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> PerspectiveResponse {
+    pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> PerspectiveWarpResponse {
         // pc: crates/ui-egui/src/tools/perspective_ui.rs:202 (`pointer`), :284 (`draw`), :82
         // (`corner_at`), :97 (`snap`), :238 (the 4-unit minimum).
         todo!()

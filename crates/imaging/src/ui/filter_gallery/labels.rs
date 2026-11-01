@@ -7,17 +7,17 @@ craft_ui::words! {
     #[non_exhaustive]
     pub struct FilterGalleryLabels {
         /// The title's name.
-        name: "gallery.name" = "Filter Gallery";
+        name: "filterGallery.name" = "Filter Gallery";
         /// The middle column's accessible name.
-        filters: "gallery.filters" = "Filters";
+        filters: "filterGallery.filters" = "Filters";
         /// The settings column's accessible name.
-        settings: "gallery.settings" = "Settings";
-        filter: "gallery.filter" = "Filter";
-        effect_layers: "gallery.effectLayers" = "Effect Layers";
-        move_up: "gallery.moveUp" = "Move effect layer up";
-        move_down: "gallery.moveDown" = "Move effect layer down";
-        new_layer: "gallery.newLayer" = "New effect layer";
-        delete_layer: "gallery.deleteLayer" = "Delete effect layer";
-        visibility: "gallery.visibility" = "Visibility";
+        settings: "filterGallery.settings" = "Settings";
+        filter: "filterGallery.filter" = "Filter";
+        effect_layers: "filterGallery.effectLayers" = "Effect Layers";
+        move_up: "filterGallery.moveUp" = "Move effect layer up";
+        move_down: "filterGallery.moveDown" = "Move effect layer down";
+        new_layer: "filterGallery.newLayer" = "New effect layer";
+        delete_layer: "filterGallery.deleteLayer" = "Delete effect layer";
+        visibility: "filterGallery.visibility" = "Visibility";
     }
 }

@@ -39,7 +39,7 @@ mod tool;
 mod tool_tests;
 
 pub use dialog::{CreateShapeDialog, CreateShapeOptions, CreatedShape};
-pub use labels::{CreateShapeLabels, ShapeDragNames};
+pub use labels::{CreateShapeLabels, ShapeDragToolLabels};
 pub use style::ShapeDragStyle;
 pub use tool::ShapeDragTool;
 

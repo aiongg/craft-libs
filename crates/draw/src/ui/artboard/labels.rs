@@ -3,12 +3,12 @@
 craft_ui::words! {
     /// What a screen reader reads for the Artboard tool's parts.
     #[non_exhaustive]
-    pub struct ArtboardNames {
-        group: "artboard.group" = "Artboards";
+    pub struct ArtboardToolLabels {
+        group: "artboardTool.group" = "Artboards";
         /// A board part: `{index}` from 1, `{width}`, `{height}`, `{x}`, `{y}` in pixels.
-        board: "artboard.board" = "Artboard {index}, {width} by {height} at {x}, {y}";
+        board: "artboardTool.board" = "Artboard {index}, {width} by {height} at {x}, {y}";
         /// The "+" buttons' group.
-        add_beside: "artboard.addBeside" = "Add artboard beside";
+        add_beside: "artboardTool.addBeside" = "Add artboard beside";
     }
 }
 

@@ -26,7 +26,7 @@ pub struct RasterOverlay<'a> {
 impl<'a> RasterOverlay<'a> {
     /// `source` covers the image at one texel per `texel` pixels (at least 1).
     pub fn new(source: &'a dyn RasterSource, texel: u32) -> Self {
-        Self { source, texel: texel.max(1), tint: Color32::WHITE }
+        Self { source, texel: texel.max(1), tint: Color32::WHITE } // design: allow(white is the tint that leaves texels as they are)
     }
 
     /// Multiplies the overlay's texels by `tint` (white, the default, draws them as they are):

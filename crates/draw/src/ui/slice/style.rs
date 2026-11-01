@@ -41,7 +41,8 @@ pub struct SliceStyle {
     /// A drag no wider and no taller than this, in document pixels, is a click:
     /// `slice.click_slop` (2).
     pub click_slop: f32,
-    /// Handle size and reach: `handle.size` (7), `handle.hit` (14).
+    /// Handle size and reach from the `Handle` painter, `Handle::style(tokens, HandleShape::Square)`
+    /// (7 and 14).
     pub handle: f32,
     pub handle_hit: f32,
     /// A handle's fill: `overlay.handle_fill`.

@@ -65,10 +65,10 @@ impl ConnectionSide {
     /// The way out of the side (y down); zero for [`Auto`](Self::Auto).
     pub fn normal(self) -> Vec2 {
         match self {
-            ConnectionSide::Top => Vec2::new(0.0, -1.0),
-            ConnectionSide::Right => Vec2::new(1.0, 0.0),
-            ConnectionSide::Bottom => Vec2::new(0.0, 1.0),
-            ConnectionSide::Left => Vec2::new(-1.0, 0.0),
+            ConnectionSide::Top => Vec2::new(0.0, -1.0),   // design: allow(a unit direction, not a size)
+            ConnectionSide::Right => Vec2::new(1.0, 0.0),  // design: allow(a unit direction, not a size)
+            ConnectionSide::Bottom => Vec2::new(0.0, 1.0), // design: allow(a unit direction, not a size)
+            ConnectionSide::Left => Vec2::new(-1.0, 0.0),  // design: allow(a unit direction, not a size)
             ConnectionSide::Auto => Vec2::ZERO,
         }
     }

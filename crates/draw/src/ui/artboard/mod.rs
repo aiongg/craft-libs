@@ -39,7 +39,7 @@ mod tool;
 mod tool_tests;
 
 pub use bar::{ArtboardBar, ArtboardBarOutput};
-pub use labels::{ArtboardLabels, ArtboardNames};
+pub use labels::{ArtboardLabels, ArtboardToolLabels};
 pub use properties::{ArtboardProperties, ArtboardPropertiesOutput};
 pub use style::ArtboardStyle;
 pub use tool::ArtboardTool;

@@ -1,4 +1,4 @@
-//! [`EffectSettings`]: the selected effect layer's filter select and parameters (task WS-FG2).
+//! [`EffectParameters`]: the selected effect layer's filter select and parameters (task WS-FG2).
 
 use egui::{AsIdSalt, IdSalt, Ui};
 
@@ -8,10 +8,10 @@ use super::FilterGalleryLabels;
 use super::catalog::{FilterCategory, GalleryFilter};
 use super::session::{EffectChange, EffectLayer};
 
-/// What [`EffectSettings::show`] reports.
+/// What [`EffectParameters::show`] reports.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct EffectSettingsResponse {
+pub struct EffectParametersResponse {
     /// The rows' response (`changed`, a colour or path request).
     pub rows: Option<ParamRowsResponse>,
     /// A filter picked in the select, or the fields changed.
@@ -19,11 +19,11 @@ pub struct EffectSettingsResponse {
     pub dragging: bool,
 }
 
-/// The right column's settings: the Filter select (every filter, grouped by category) and the
+/// The right column's parameters: the Filter select (every filter, grouped by category) and the
 /// selected effect layer's parameters through `ParamRows` (lead call 38). A colour row asks the
 /// app through `ParamRowsResponse::color`.
 #[expect(dead_code, reason = "skeleton: `show` (task WS-FG2) reads the fields")]
-pub struct EffectSettings<'a> {
+pub struct EffectParameters<'a> {
     id_salt: IdSalt,
     index: usize,
     effect: &'a EffectLayer,
@@ -32,7 +32,7 @@ pub struct EffectSettings<'a> {
     labels: &'a FilterGalleryLabels,
 }
 
-impl<'a> EffectSettings<'a> {
+impl<'a> EffectParameters<'a> {
     /// The settings of `effect` (at `index` in the stack), whose filter is `filter` (`None`: a
     /// filter the app no longer has, shown with no rows).
     pub fn new(
@@ -47,7 +47,7 @@ impl<'a> EffectSettings<'a> {
     }
 
     #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-FG2")]
-    pub fn show(self, ui: &mut Ui) -> EffectSettingsResponse {
+    pub fn show(self, ui: &mut Ui) -> EffectParametersResponse {
         // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:774-831 (the select, the parameter rows).
         todo!()
     }

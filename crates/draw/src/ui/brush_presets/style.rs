@@ -38,9 +38,9 @@ pub struct BrushCardStyle {
     pub radius: CornerRadius,
     /// The tile: `brush.card_fill` (`surface.raised` at 90 % in gamma space, opaque).
     pub fill: Color32,
-    /// The tile under the pointer: `list.hover`.
+    /// The tile under the pointer: `state.hover`.
     pub hover: Color32,
-    /// The current preset's tile: `list.selected` (the ring is the browser's `preset.ring.*`).
+    /// The current preset's tile: `state.selected` (the ring is the browser's `preset.ring.*`).
     pub selected: Color32,
     /// The name: `text.muted`, `label` role.
     pub name: Color32,
@@ -93,9 +93,9 @@ pub struct BrushPresetChipStyle {
     pub tip: f32,
     /// The tip image's centre from the chip's leading top corner: `brush.chip_tip_at` (14, 11).
     pub tip_at: Vec2,
-    /// The chevron's side: `icon_button.chevron` via `Icon` sizes (10).
+    /// The chevron's side: `brush.chip_chevron` (10).
     pub chevron: f32,
-    /// The hover and open fill: `button.ghost.hover`.
+    /// The hover and open fill: `state.hover`.
     pub hover: Color32,
     /// The size number: `text.muted`, `caption` role.
     pub number: Color32,

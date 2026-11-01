@@ -6,7 +6,7 @@ use craft_theme::Srgba;
 use egui::Painter;
 use kurbo::{Point, Rect};
 
-use super::{SliceEvent, SliceItem, SliceMode, SliceNames, SliceRules, SliceToolSettings};
+use super::{SliceEvent, SliceItem, SliceMode, SliceRules, SliceToolLabels, SliceToolSettings};
 use craft_ui::canvas::{CanvasTool, SnapGesture, ToolAction, ToolContext, ToolCursor, ToolKey, ToolParts, ToolPointer};
 use craft_ui::edit::GestureId;
 
@@ -41,8 +41,8 @@ use craft_ui::edit::GestureId;
 /// Locked ([`locked`](Self::locked)): a press selects, draws and moves nothing and reports
 /// `Refused(Locked)`.
 ///
-/// Keyboard parts: the slices are one Tab stop (`CanvasTool::parts`), group [`SliceNames::group`],
-/// each slice a part named as [`SliceNames::slice`] ("Slice 03, user slice, 120 by 80 at 40, 40");
+/// Keyboard parts: the slices are one Tab stop (`CanvasTool::parts`), group [`SliceToolLabels::group`],
+/// each slice a part named as [`SliceToolLabels::slice`] ("Slice 03, user slice, 120 by 80 at 40, 40");
 /// Page keys pick, arrows move the picked user slice, Delete deletes it, Enter opens its options.
 ///
 /// Paint: the [`SliceOverlay`](super::SliceOverlay) of the items, the selected slice's handles
@@ -59,7 +59,7 @@ pub struct SliceTool {
     hide_auto: bool,
     settings: SliceToolSettings,
     rules: SliceRules,
-    names: Option<SliceNames>,
+    labels: Option<SliceToolLabels>,
     events: Vec<SliceEvent>,
     drag: Option<Drag>,
 }
@@ -134,8 +134,8 @@ impl SliceTool {
     }
 
     /// The words; the installed ones by default.
-    pub fn names(&mut self, names: SliceNames) -> &mut Self {
-        self.names = Some(names);
+    pub fn labels(&mut self, labels: SliceToolLabels) -> &mut Self {
+        self.labels = Some(labels);
         self
     }
 
@@ -210,7 +210,7 @@ impl CanvasTool for SliceTool {
     }
 
     fn parts(&self, cx: &ToolContext<'_>) -> Option<ToolParts> {
-        // new: one part per visible slice (key = its number), named by `SliceNames::slice`.
+        // new: one part per visible slice (key = its number), named by `SliceToolLabels::slice`.
         todo!()
     }
 
