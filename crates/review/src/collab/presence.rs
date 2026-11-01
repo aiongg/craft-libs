@@ -1,7 +1,5 @@
 //! Who is in a shared document, and where their pointer is (N5.07).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use super::chat::CursorChat;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -43,12 +41,23 @@ pub struct Participant {
 /// ones preferred, upper case; "?" for none.
 // figcraft: crates/engine/src/sharing/live.rs:354 `initials`.
 pub fn initials(name: &str) -> String {
-    todo!()
+    let firsts = |alphanumeric: bool| -> String {
+        name.split_whitespace().filter_map(|word| word.chars().next()).filter(|c| !alphanumeric || c.is_alphanumeric()).take(2).collect()
+    };
+    let mut letters = firsts(true);
+    if letters.is_empty() {
+        letters = firsts(false);
+    }
+    if letters.is_empty() { "?".into() } else { letters.to_uppercase() }
 }
 
 /// The next drawn position of a cursor shown at `shown` heading for `target`, `dt` seconds later
 /// (clamped to 0…0.1): the gap closes by `1 − e^(−GLIDE·dt)`; with `reduce_motion` it jumps.
 // figcraft: crates/ui-egui/src/live.rs:319 (in `draw`).
 pub fn glide(shown: [f64; 2], target: [f64; 2], dt: f64, reduce_motion: bool) -> [f64; 2] {
-    todo!()
+    if reduce_motion {
+        return target;
+    }
+    let closed = 1.0 - (-dt.clamp(0.0, 0.1) * GLIDE).exp();
+    [shown[0] + (target[0] - shown[0]) * closed, shown[1] + (target[1] - shown[1]) * closed]
 }

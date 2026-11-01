@@ -1,10 +1,19 @@
 //! The voting pill on a board (N5.08).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
+use craft_theme::{ButtonVariant, TypeRole};
+use craft_ui::controls::{Button, NumberField, Select};
+use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
+use craft_ui::popover::{Popover, PopoverAnchor};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
-use crate::collab::{CollabRequest, CollabTransport};
+use super::comments::text;
+use crate::collab::{CollabRequest, CollabTransport, VoteScope};
+
+/// Votes per person a new vote starts with.
+const DEFAULT_VOTES: u32 = 3;
+/// Most votes per person (FigCraft's field takes 1 to 99, `board_facilitate.rs:208`).
+const MAX_VOTES: u32 = 99;
 
 craft_ui::words! {
     /// The vote's words, English by default (FigCraft's).
@@ -53,7 +62,46 @@ impl<'a> VotePill<'a> {
 
     /// Start vote, End vote and Results come back as [`CollabRequest`]s.
     pub fn show(self, ui: &mut Ui) -> VotePillOutput {
-        todo!()
+        let Self { id_salt, transport, editable, labels } = self;
+        let labels = labels.unwrap_or_else(|| VoteLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let id = ui.make_persistent_id(id_salt);
+        let vote = transport.vote();
+        let mut requests = Vec::new();
+        let response = ui
+            .horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = tokens.space.gap.inline;
+                match vote.as_ref().filter(|vote| !vote.ended) {
+                    Some(running) => {
+                        let left = text(
+                            ui,
+                            &tokens,
+                            TypeRole::Body,
+                            tokens.color.text.normal.to_egui(),
+                            fmt(&labels.votes_left, &[("n", &running.left().to_string())]),
+                        );
+                        left.on_hover_text(&labels.hint);
+                        if editable && ui.add(Button::new(&labels.end).id_salt("end")).clicked() {
+                            requests.push(CollabRequest::EndVote);
+                        }
+                    }
+                    None => {
+                        if editable {
+                            let button = ui.add(Button::new(&labels.voting_session).id_salt("session"));
+                            if let Some(request) = start_popover(ui, id, &button, &labels) {
+                                requests.push(request);
+                            }
+                        }
+                        if vote.as_ref().is_some_and(|vote| vote.has_history || vote.ended)
+                            && ui.add(Button::new(&labels.results).id_salt("results")).clicked()
+                        {
+                            requests.push(CollabRequest::ShowResults);
+                        }
+                    }
+                }
+            })
+            .response;
+        VotePillOutput { response, requests }
     }
 }
 
@@ -63,4 +111,59 @@ pub struct VotePillOutput {
     pub response: Response,
     /// Start vote, End vote or Results, in order.
     pub requests: Vec<CollabRequest>,
+}
+
+/// What the Voting session popover remembers between passes.
+#[derive(Clone, Copy)]
+struct Draft {
+    open: bool,
+    per_person: u32,
+    scope: VoteScope,
+}
+
+/// The popover under the Voting session button: votes per person, what to vote on, Start vote.
+/// The request when Start vote (or Enter in the number field) ran.
+fn start_popover(ui: &mut Ui, id: egui::Id, button: &Response, labels: &VoteLabels) -> Option<CollabRequest> {
+    let tokens = Tokens::of(ui);
+    let state_id = id.with("draft");
+    let mut draft = ui.data(|data| data.get_temp(state_id)).unwrap_or(Draft { open: false, per_person: DEFAULT_VOTES, scope: VoteScope::All });
+    if button.clicked() {
+        draft.open = !draft.open;
+    }
+    let numbers = LocaleNumbers::of(ui);
+    let mut start = false;
+    let mut open = draft.open;
+    Popover::new(id.with("popover"), PopoverAnchor::Control(button.clone())).toggle(button.id).label(&labels.voting_session).show(
+        ui,
+        &mut open,
+        |ui, pop| {
+            ui.spacing_mut().item_spacing.y = tokens.space.gap.row;
+            text(ui, &tokens, TypeRole::BodyStrong, tokens.color.text.normal.to_egui(), &labels.voting_session);
+            text(ui, &tokens, TypeRole::Label, tokens.color.text.muted.to_egui(), &labels.votes_per_person);
+            let votes = NumberField::new(id.with("votes"), &labels.votes_per_person, draft.per_person, &numbers)
+                .range(1..=MAX_VOTES)
+                .step(1.0)
+                .decimals(0..=0)
+                .show(ui);
+            pop.initial_focus(votes.response.id);
+            if let Some(value) = votes.event.as_ref().and_then(|event| event.value()) {
+                draft.per_person = value.round().clamp(1.0, f64::from(MAX_VOTES)) as u32;
+            }
+            text(ui, &tokens, TypeRole::Label, tokens.color.text.muted.to_egui(), &labels.vote_on);
+            let _ = Select::new(id.with("scope"), &labels.vote_on, &mut draft.scope)
+                .option(VoteScope::All, &labels.all)
+                .option(VoteScope::Stickies, &labels.stickies)
+                .option(VoteScope::Selection, &labels.selection)
+                .show(ui);
+            let go = ui.add(Button::new(&labels.start).variant(ButtonVariant::Primary).id_salt("start")).clicked();
+            start = go || votes.submitted;
+        },
+    );
+    draft.open = open;
+    let request = start.then_some(CollabRequest::StartVote { per_person: draft.per_person, scope: draft.scope });
+    if start {
+        draft.open = false;
+    }
+    ui.data_mut(|data| data.insert_temp(state_id, draft));
+    request
 }

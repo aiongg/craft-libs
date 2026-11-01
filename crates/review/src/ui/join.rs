@@ -1,10 +1,14 @@
 //! The join field: enter a session code or an invite link (N5.11).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
+use craft_theme::{ButtonVariant, TypeRole};
+use craft_ui::controls::{Button, TextField};
+use craft_ui::localized::Labels as _;
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
-use crate::collab::{CollabRequest, CollabTransport};
+use super::comments::text;
+use super::style::ReviewStyle;
+use crate::collab::{CollabRequest, CollabTransport, JoinState};
 
 craft_ui::words! {
     /// The field's words, English by default (FigCraft's).
@@ -61,7 +65,65 @@ impl<'a> JoinField<'a> {
     // figcraft: crates/ui-egui/src/live.rs:718 `join_field`, `:738` `start_join`, `:759`
     // `join_progress`, `:808` `retry_join`.
     pub fn show(self, ui: &mut Ui) -> JoinFieldOutput {
-        todo!()
+        let Self { id_salt, transport, typed, width, focus, labels } = self;
+        let labels = labels.unwrap_or_else(|| JoinLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let style = ReviewStyle::of(&tokens);
+        let id = ui.make_persistent_id(id_salt);
+        let field_id = id.with("field");
+        // What the last join started with: a failed join tries again with it.
+        let last_id = id.with("last");
+        let state = transport.join_state();
+        let mut requests = Vec::new();
+        let response = ui
+            .vertical(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(tokens.space.gap.inline, tokens.space.gap.row);
+                let mut join = false;
+                ui.horizontal(|ui| {
+                    let field = TextField::new(id.with("text"), &labels.name, typed.as_str())
+                        .id(field_id)
+                        .placeholder(&labels.hint)
+                        .width(width.unwrap_or(style.join_width))
+                        .show(ui);
+                    if let Some(value) = field.event.as_ref().and_then(|event| event.value()) {
+                        value.clone_into(typed);
+                    }
+                    if focus {
+                        ui.memory_mut(|memory| memory.request_focus(field_id));
+                    }
+                    let filled = !typed.trim().is_empty() && !state.pending();
+                    join = ui.add_enabled(filled, Button::new(&labels.join).variant(ButtonVariant::Primary).id_salt("join")).clicked();
+                    join |= field.submitted && filled;
+                });
+                if join {
+                    let code = typed.trim().to_owned();
+                    typed.clear();
+                    ui.data_mut(|data| data.insert_temp(last_id, code.clone()));
+                    requests.push(CollabRequest::Join(code));
+                }
+                match &state {
+                    JoinState::Joining | JoinState::Reconnecting { .. } => {
+                        ui.horizontal(|ui| {
+                            text(ui, &tokens, TypeRole::Body, tokens.color.text.muted.to_egui(), &labels.joining);
+                            if ui.add(Button::new(&labels.cancel).id_salt("cancel")).clicked() {
+                                requests.push(CollabRequest::CancelJoin);
+                            }
+                        });
+                    }
+                    JoinState::Failed(reason) => {
+                        text(ui, &tokens, TypeRole::Body, tokens.color.status.bad.fg.to_egui(), reason);
+                        let last: Option<String> = ui.data(|data| data.get_temp(last_id));
+                        if let Some(last) = last
+                            && ui.add(Button::new(&labels.retry).id_salt("retry")).clicked()
+                        {
+                            requests.push(CollabRequest::Join(last));
+                        }
+                    }
+                    JoinState::Idle | JoinState::Joined => {}
+                }
+            })
+            .response;
+        JoinFieldOutput { response, requests }
     }
 }
 

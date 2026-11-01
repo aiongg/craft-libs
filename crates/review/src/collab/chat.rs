@@ -1,7 +1,5 @@
 //! Cursor chat: a short message next to your pointer that others see (N5.09).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 /// Seconds a bubble stays after its last change (FigCraft `live.rs:76`).
 pub const CHAT_HOLD_S: f64 = 5.0;
 /// Seconds it takes to fade out after that (`live.rs:77`).
@@ -17,5 +15,13 @@ pub struct CursorChat {
 /// 0 over [`CHAT_FADE_S`]; with `reduce_motion` it stays 1 until the fade would end, then 0.
 // figcraft: crates/ui-egui/src/live.rs:214 `chat_fade`.
 pub fn chat_alpha(age: f64, reduce_motion: bool) -> f32 {
-    todo!()
+    if age < CHAT_HOLD_S {
+        1.0
+    } else if age >= CHAT_HOLD_S + CHAT_FADE_S {
+        0.0
+    } else if reduce_motion {
+        1.0
+    } else {
+        (1.0 - (age - CHAT_HOLD_S) / CHAT_FADE_S) as f32
+    }
 }
