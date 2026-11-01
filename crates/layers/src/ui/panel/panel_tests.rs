@@ -10,13 +10,13 @@ use craft_ui::menu::MenuItem;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{CursorIcon, DragAndDrop, Event, Key, Modifiers, PointerButton, Pos2, Rect, Shape, Ui, vec2};
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
 use super::{ActivateOn, LayerColumn, LayerDrop, LayerMove, LayersEvent, LayersFooterButton, LayersPanel};
 use crate::ui::mock::MockLayers;
 use crate::ui::options::LayersSettings;
-use crate::ui::tree::{LayerPart, LayerRowKey, LayerSelection};
+use crate::ui::tree::{LayerInfo, LayerKind, LayerPart, LayerRowKey, LayerSelection};
 
 struct App {
     tree: MockLayers,
@@ -29,6 +29,8 @@ struct App {
     panel_min_width: f32,
     /// The modifiers the test holds.
     held: Modifiers,
+    /// The layer whose Rename Layer… the app handled in the last pass.
+    rename: Option<u32>,
 }
 
 impl App {
@@ -42,6 +44,7 @@ impl App {
             min_width: 0.0,
             panel_min_width: 0.0,
             held: Modifiers::NONE,
+            rename: None,
         }
     }
 }
@@ -78,16 +81,24 @@ fn apply(tree: &mut MockLayers, event: &LayersEvent<u32>) {
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
-    let panel = LayersPanel::new("layers", &app.tree)
+    let mut panel = LayersPanel::new("layers", &app.tree)
         .settings(&mut app.settings)
         .lock_column(app.lock_column)
         .row_menu(|_| vec![MenuItem::new("Rename Layer…", String::from("renameLayer")).into()]);
+    if let Some(layer) = app.rename.take() {
+        panel = panel.start_rename(layer);
+    }
     app.panel_min_width = panel.min_width(ui);
     let out = panel.show(ui);
     app.min_width = out.min_width;
     app.preview = out.drop_preview;
     for event in &out.events {
         apply(&mut app.tree, event);
+        if let LayersEvent::Menu { target, command } = event
+            && command == "renameLayer"
+        {
+            app.rename = Some(*target.row.layer());
+        }
     }
     app.events.extend(out.events);
 }
@@ -382,7 +393,6 @@ fn eye_click_alt_click_and_sweep_report_one_event_or_gesture() {
 
 // An Alt-click on an eye is `ShowOnly` and no toggle that hides the row again.
 #[test]
-#[ignore = "body.rs `toggle_event` (about line 480): the gesture of an Alt-click still ends in a `Toggle` Commit with the row's new state after `ShowOnly`"]
 fn alt_click_on_an_eye_reports_show_only_without_a_hiding_commit() {
     let mut h = harness();
     h.click(eye(&h, "Title"), Modifiers::ALT);
@@ -390,6 +400,8 @@ fn alt_click_on_an_eye_reports_show_only_without_a_hiding_commit() {
     assert!(events.contains(&LayersEvent::ShowOnly(LayerRowKey::Layer(4))), "{events:?}");
     let hides = toggles(&events).into_iter().any(|t| matches!(&t.edit, EditEvent::Commit { value, .. } if !value.on));
     assert!(!hides, "{events:?}");
+    assert!(toggles(&events).is_empty(), "the gesture reports no toggle at all: {events:?}");
+    assert_eq!(events.iter().filter(|e| matches!(e, LayersEvent::ShowOnly(_))).count(), 1, "{events:?}");
 }
 
 // A pick in the eye's colour menu reports `LabelColor` for every selected layer.
@@ -601,7 +613,6 @@ fn keys_walk_rows_open_groups_activate_and_rename() {
 
 // Shift+→ reports `FxOpen` for the lead, Alt+Shift+→ for every layer.
 #[test]
-#[ignore = "body bug: `fx_key` tests focus on `ui.make_persistent_id(salt)` (body.rs:133) but the list's id is built from `IdSalt::new(salt)`, so the key is never seen"]
 fn shift_right_opens_effects_and_alt_opens_all_layers() {
     let mut h = harness();
     h.click(at(&h, "Styled", 0.5), Modifiers::NONE);
@@ -685,12 +696,11 @@ fn drop_zones_into_above_below_and_between_rows() {
         h.hover(at(&h, "Title", share));
         assert_eq!(target(&h), Some((4, position)), "a layer row has halves only: {share}");
     }
+    // The rows touch: the seam between two rows is a drop zone too.
     let (above, below) = (rect(&h, "Title"), rect(&h, "Levels 1"));
-    let gap = below.top() - above.bottom();
-    if gap > 0.5 {
-        h.hover(Pos2::new(above.center().x, above.bottom() + gap / 2.0));
-        assert!(target(&h).is_some(), "the gap between rows is a drop zone");
-    }
+    assert!((below.top() - above.bottom()).abs() < 0.5, "the rows touch: {above:?} {below:?}");
+    h.hover(Pos2::new(above.center().x, above.bottom()));
+    assert!(target(&h).is_some_and(|(row, _)| row == 4 || row == 5), "the seam between rows is a drop zone: {:?}", target(&h));
     h.hover(Pos2::new(200.0, rect(&h, "Background").bottom() + 20.0));
     assert_eq!(target(&h), Some((9, DropPosition::After)), "the space below the last row");
     h.release(Pos2::new(200.0, rect(&h, "Background").bottom() + 20.0));
@@ -789,19 +799,19 @@ fn rows_masks_and_effects_dropped_on_footer_buttons_report_footer_drop() {
     }
 }
 
-// A mask thumbnail dragged shows the mask's name beside the pointer.
+// A mask thumbnail dragged shows the mask's title beside the pointer.
 #[test]
 fn a_mask_drag_paints_its_ghost_beside_the_pointer() {
     let mut h = harness();
     let masks = h.thumb_centres("Masked");
     let from = Pos2::new(*masks.last().expect("a mask thumbnail"), rect(&h, "Masked").center().y);
-    assert_eq!(painted_texts(&h, "layer mask"), 0);
+    assert_eq!(painted_texts(&h, "Layer Mask"), 0);
     h.grab(from);
     h.hover(from + vec2(30.0, 40.0));
-    assert_eq!(painted_texts(&h, "layer mask"), 1, "the ghost");
+    assert_eq!(painted_texts(&h, "Layer Mask"), 1, "the ghost");
     h.release(from + vec2(30.0, 40.0));
     h.run();
-    assert_eq!(painted_texts(&h, "layer mask"), 0, "gone after the drop");
+    assert_eq!(painted_texts(&h, "Layer Mask"), 0, "gone after the drop");
 }
 
 // The list scrolls while a drag is near its top or bottom edge.
@@ -851,14 +861,84 @@ fn lock_column_reports_toggle_events() {
 
 // Rename Layer… in the row menu starts the rename of the row.
 #[test]
-#[ignore = "Rename Layer… from the row menu is not wired: the panel has no `LayersPanel::start_rename` (L8 As built); a later fix adds it"]
 fn rename_layer_from_the_row_menu_starts_the_rename() {
     let mut h = harness();
     h.click(at(&h, "Title", 0.5), Modifiers::NONE);
     h.take();
-    h.get_by_label("Visibility Title").click_secondary();
+    row(&h, "Title").click_secondary();
     h.run();
     h.get_by_label("Rename Layer…").click();
     h.run();
     assert!(h.query_by_role(Role::TextInput).is_some(), "the name is being edited");
+}
+
+// A new active layer inside a closed group opens the group and scrolls to the layer in the same
+// pass; later passes leave the scroll position alone.
+#[test]
+fn a_new_active_layer_in_a_closed_group_is_revealed_once() {
+    let mut tree = MockLayers::flat(40);
+    let group = tree.add(None, LayerInfo::new("Bottom Group", LayerKind::Group), false);
+    let buried = tree.add(Some(group), LayerInfo::new("Buried", LayerKind::Pixel), false);
+    let mut h = harness_of(App::new(tree));
+    let list = h.get_by_role(Role::Tree).rect();
+    assert!(h.query_by_label("Buried").is_none(), "the group is closed");
+
+    h.select(&[buried], buried);
+    h.run_steps(20);
+    assert!(h.state().events.iter().any(|e| matches!(e, LayersEvent::Open(c) if c.row == group && c.open)), "the group opens");
+    h.run_steps(20);
+    let revealed = rect(&h, "Buried");
+    assert!(list.contains_rect(revealed), "{revealed:?} in {list:?}");
+
+    h.hover(list.center());
+    h.event(Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: vec2(0.0, 2000.0),
+        phase: egui::TouchPhase::Move,
+        modifiers: Modifiers::NONE,
+        source: egui::MouseWheelSource::Unknown,
+    });
+    h.run_steps(20);
+    h.run_steps(20);
+    assert!(h.query_by_label("Buried").is_none_or(|n| !list.contains_rect(n.rect())), "the list is not scrolled back to the row");
+}
+
+// A right-click on the eye of an effects row opens the row menu with that row as the target; the
+// layer's colour menu opens only from a layer's eye.
+#[test]
+fn right_click_on_a_sub_row_eye_opens_the_row_menu_with_the_sub_row() {
+    let mut tree = MockLayers::sample();
+    tree.layer_mut(7).effects_open = true;
+    let mut h = harness_of(App::new(tree));
+    h.get_by_label("Visibility Drop Shadow").click_secondary();
+    h.run_steps(20);
+    assert!(h.query_by_label("Red").is_none(), "no colour menu");
+    h.get_by_label("Rename Layer…").click();
+    h.run_steps(20);
+    let menus: Vec<_> = h.take().into_iter().filter_map(|e| if let LayersEvent::Menu { target, .. } = e { Some(target.row) } else { None }).collect();
+    assert_eq!(menus, [LayerRowKey::Effects(7, Some(0))]);
+}
+
+// The eye menu checks the colour the layers share and none when they differ.
+#[test]
+fn eye_menu_checks_only_a_colour_the_rows_share() {
+    let mut tree = MockLayers::sample();
+    tree.layer_mut(4).info.label = Some(LabelColor::Red);
+    tree.layer_mut(5).info.label = Some(LabelColor::Red);
+    let mut h = harness_of(App::new(tree));
+    h.select(&[4, 5], 4);
+    h.get_by_label("Visibility Title").click_secondary();
+    h.run_steps(20);
+    assert!(h.get_by_label("Red").accesskit_node().toggled().is_some_and(|t| t == egui::accesskit::Toggled::True), "shared colour is checked");
+    h.key(Key::Escape, Modifiers::NONE);
+    h.run_steps(20);
+
+    h.state_mut().tree.layer_mut(5).info.label = Some(LabelColor::Blue);
+    h.run_steps(20);
+    h.get_by_label("Visibility Title").click_secondary();
+    h.run_steps(20);
+    assert!(
+        !h.get_by_label("Red").accesskit_node().toggled().is_some_and(|t| t == egui::accesskit::Toggled::True),
+        "differing colours: none checked"
+    );
 }

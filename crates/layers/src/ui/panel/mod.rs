@@ -36,13 +36,13 @@ use std::cell::RefCell;
 use craft_ui::behavior::ListDrag;
 use craft_ui::canvas::textures::{ThumbSource, Thumbnails};
 use craft_ui::composites::PanelFooter;
-use craft_ui::list::{List, ListRow, paint_ghost};
+use craft_ui::list::{ListRow, paint_ghost};
 use craft_ui::localized::Labels as _;
 use craft_ui::menu::MenuEntry;
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{AsIdSalt, DragAndDrop, Id, IdSalt, KeyboardShortcut, Response, Ui};
 
-use body::{min_width, shared_display_rows, show_body};
+use body::{list_id, min_width, reveal_plan, shared_display_rows, show_body};
 use context::{PanelContext, RowMenu, RowSink, ThumbHost, Trailing};
 use drag::{drop_preview, reorder};
 use footer::show_footer;
@@ -110,6 +110,7 @@ pub struct LayersPanel<'a, T: LayerTree> {
     row_menu: Option<Box<RowMenu<'a, T::Id>>>,
     trailing: Option<Trailing<'a, T::Id>>,
     reveal: Option<T::Id>,
+    rename: Option<T::Id>,
 }
 
 /// What [`LayersPanel::show`] returns.
@@ -150,6 +151,7 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
             row_menu: None,
             trailing: None,
             reveal: None,
+            rename: None,
         }
     }
 
@@ -231,6 +233,14 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
         self
     }
 
+    /// Opens the rename field of `layer`'s row this pass, where the layer is renamable: the app
+    /// calls it in the pass it handles its Rename Layer… command from the row menu, as it calls
+    /// [`List::start_rename`](craft_ui::list::List::start_rename).
+    pub fn start_rename(mut self, layer: T::Id) -> Self {
+        self.rename = Some(layer);
+        self
+    }
+
     /// The least width the panel needs at the current settings: a group row one level deep with
     /// a layer thumbnail and one mask, the lock column and the trailing furniture when set, and
     /// the footer's buttons. A host sets its dock's minimum from it.
@@ -270,7 +280,7 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
     /// Builds the pass's `PanelContext`, then in order: the filter bar (its edits change the
     /// filter; no event), [`BlendRows`](super::rows::BlendRows) (its edits are
     /// [`LayersEvent::Properties`]), the rows (`body::show_body` over
-    /// `body::shared_display_rows`, with `drag::reorder`), the row menus (`menu::show_row_menus`),
+    /// `body::shared_display_rows`, with `drag::reorder`; the reveal's opens are listed open in the same pass), the row menus (`menu::show_row_menus`),
     /// the footer (`footer::show_footer`). Events are reported in that order; the drop preview
     /// is `drag::drop_preview` of the body's drop target.
     pub fn show(mut self, ui: &mut Ui) -> LayersOutput<T::Id> {
@@ -312,22 +322,23 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
                 ui.add_space(ui.spacing().item_spacing.y);
             }
 
-            let rows = shared_display_rows(&cx.ctx, id, self.tree, filter);
+            let reveal = reveal_plan(&cx, self.reveal.clone());
+            let display = shared_display_rows(&cx.ctx, id, self.tree, filter, &reveal.opened());
             let list_height = (ui.available_height() - footer_height).max(0.0);
-            let (body, list_id) = ui
+            let (body, list) = ui
                 .scope(|ui| {
                     ui.set_max_height(list_height);
-                    let body = show_body(ui, &cx, &rows, Some(reorder(&cx)), self.reveal.clone());
-                    let list_id = List::id_in(ui, id.with("list"));
-                    paint_mask_ghost(ui, &cx, list_id, body.response.rect.width());
-                    (body, list_id)
+                    let body = show_body(ui, &cx, &display, Some(reorder(&cx)), reveal, self.rename.clone());
+                    let list = list_id(ui, id);
+                    paint_mask_ghost(ui, &cx, list, body.response.rect.width());
+                    (body, list)
                 })
                 .inner;
             preview = drop_preview(body.drop_target.as_ref(), cx.options);
             min = panel_min_width(ui, body.min_width);
             events.extend(body.events);
             events.extend(show_row_menus(ui, &cx, &body.response, self.row_menu.as_deref(), body.menu));
-            events.extend(show_footer(ui, &cx, list_id));
+            events.extend(show_footer(ui, &cx, list));
         });
 
         note_drawn(&cx.ctx, self.id_salt);

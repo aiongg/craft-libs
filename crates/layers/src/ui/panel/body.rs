@@ -21,34 +21,48 @@ use crate::ui::filter::LayerFilter;
 use crate::ui::tree::{LayerInfo, LayerPart, LayerRowKey, LayerSelection, LayerTree, SubRowGroup};
 
 /// The panel's rows in display order: [`LayerTree::children`] from the top level, topmost first,
-/// a group above its children; children of a closed group (`is_open` false) left out; under a
-/// layer whose `effects_open` is true, its Smart Filters rows (header, then items) and its
-/// effects rows ([`LayerTree::sub_rows`]) as leaf rows one level deeper.
+/// a group above its children; children of a closed group (`is_open` false and not in `opened`)
+/// left out; under a layer whose `effects_open` is true, its Smart Filters rows (header, then
+/// items) and its effects rows ([`LayerTree::sub_rows`]) as leaf rows one level deeper.
 ///
 /// With an [`active`](LayerFilter::active) `filter`, every group's contents are listed whether
 /// open or not, rows the filter doesn't [`show`](LayerFilter::shows) are left out (groups too,
-/// since no kind matches them), and the rest keep their depth. Sub-rows follow their layer.
+/// since no kind matches them). A row's list depth is its number of shown ancestors, so the
+/// list finds the right parent for Left, drops and the accessibility tree; its painted depth
+/// ([`DisplayRows::paint_depths`]) stays the true one. Sub-rows follow their layer.
 ///
+/// `opened` names groups the panel opens this pass (a reveal): they list their contents already.
 /// Groups are rows with `has_children` (open as `is_open`, all open while filtered), so the list
 /// draws their triangles and takes `Into` drops on them.
-pub(super) fn display_rows<T: LayerTree>(tree: &T, filter: &LayerFilter) -> Vec<RowInfo<LayerRowKey<T::Id>>> {
+pub(super) fn display_rows<T: LayerTree>(tree: &T, filter: &LayerFilter, opened: &[T::Id]) -> DisplayRows<T::Id> {
     let filtered = filter.active();
-    let mut rows = Vec::new();
-    push_level(tree, filter, filtered, tree.children(None), 0, &mut rows);
-    rows
+    let mut out = DisplayRows { rows: Vec::new(), paint_depths: Vec::new() };
+    let level = Level { shown: 0, true_depth: 0 };
+    push_level(tree, filter, filtered, opened, tree.children(None), level, &mut out);
+    out
+}
+
+/// What [`display_rows`] returns.
+pub(super) struct DisplayRows<Id> {
+    /// The rows, with the list's depth.
+    pub(super) rows: Vec<RowInfo<LayerRowKey<Id>>>,
+    /// Each row's depth as painted: its depth in the layer tree.
+    pub(super) paint_depths: Vec<usize>,
 }
 
 /// [`display_rows`], kept in egui memory under `id` while [`LayerTree::revision`] and the filter
-/// are what they were in the last pass; built again when either changes or the tree gives no
-/// revision.
-pub(super) fn shared_display_rows<T: LayerTree>(ctx: &Context, id: Id, tree: &T, filter: &LayerFilter) -> Arc<Vec<RowInfo<LayerRowKey<T::Id>>>> {
-    let Some(revision) = tree.revision() else { return Arc::new(display_rows(tree, filter)) };
+/// are what they were in the last pass; built again when either changes, when the filter is
+/// active (it reads fields the revision doesn't cover), when the panel opens groups this pass
+/// (`opened`) or when the tree gives no revision.
+pub(super) fn shared_display_rows<T: LayerTree>(ctx: &Context, id: Id, tree: &T, filter: &LayerFilter, opened: &[T::Id]) -> Arc<DisplayRows<T::Id>> {
+    let revision = tree.revision().filter(|_| !filter.active() && opened.is_empty());
+    let Some(revision) = revision else { return Arc::new(display_rows(tree, filter, opened)) };
     let key = id.with("display-rows");
     let cached = ctx.data(|d| d.get_temp::<CachedRows<T::Id>>(key));
     if let Some(cached) = cached.filter(|c| c.revision == revision && c.filter == *filter) {
         return cached.rows;
     }
-    let rows = Arc::new(display_rows(tree, filter));
+    let rows = Arc::new(display_rows(tree, filter, opened));
     ctx.data_mut(|d| d.insert_temp(key, CachedRows { revision, filter: filter.clone(), rows: Arc::clone(&rows) }));
     rows
 }
@@ -98,43 +112,51 @@ pub(super) struct BodyOutput<Id> {
 ///   is dropped. A click on the empty space is `Clear`. A right-click outside the selection
 ///   selects the row first (`Replace`).
 /// - `Row(Toggle)` → [`LayersEvent::Toggle`] (`Visibility` for column 0, `Lock` for the lock
-///   column); an `Update` or `Set` with Alt on the eye → [`LayersEvent::ShowOnly`] instead.
+///   column); a gesture whose first value is on the eye with Alt held → [`LayersEvent::ShowOnly`]
+///   once and nothing else.
 /// - `Row(Renamed)` → [`LayersEvent::Rename`] with the trimmed text, dropped when empty or
 ///   unchanged; Tab and Shift+Tab continue on the next and previous renamable row (the list).
 /// - `Activate` → [`LayersEvent::Activate`]: `Thumbnail(part)` when a `ThumbClicked` of the same
-///   pass names a thumbnail, `Name` for a double click on the label of a non-renamable layer, else
-///   `Row` (also Enter).
+///   pass names a thumbnail, `Name` when the list reports a double click on the label
+///   ([`RowEvent::LabelDoubleClicked`]) of a layer, else `Row` (also Enter).
 /// - `Row(LinkToggled)` → [`LayersEvent::MaskLink`] for the mask at that extra thumbnail.
 /// - `Open` → [`LayersEvent::Open`] for layer rows.
 /// - `ContextMenu` → `menu`: with `toggle: Some(0)` (the eye column,
-///   [`ContextMenuRequest::toggle`](craft_ui::list::ContextMenuRequest::toggle)) the colour menu
-///   for the selection or the row; any other `toggle` reports nothing; else the row menu with `part` from the thumbnail
-///   rects in `cx.sink.thumbs` under the pointer, `on_selection` from the request.
+///   [`ContextMenuRequest::toggle`](craft_ui::list::ContextMenuRequest::toggle)) on a layer row the
+///   colour menu for the selection or the row, `current` the colour the layers share; the eye of
+///   an effects or Smart Filters row and the rest of any row open the row menu with `part` from
+///   the thumbnail rects in `cx.sink.thumbs` under the pointer, `on_selection` from the request;
+///   any other `toggle` reports nothing.
 /// - `Reorder` → [`drop_event`](super::drag::drop_event).
 /// - `Row(ThumbDrag)` → [`start_mask_drag`](super::drag::start_mask_drag).
 /// - **Keys** while the list has the focus, besides the list's own: Shift+→ and Shift+← on the
 ///   lead report [`LayersEvent::FxOpen`] (Alt: `all`) when the lead layer has effects or Smart
 ///   Filters; the menu keys open the row menu at the lead.
-/// - **Reveal**: when the active layer differs from the last pass's (not on the panel's first
-///   pass), [`reveal_opens`] reports `Open` events for its closed ancestors and the list reveals
-///   its row; `reveal` does the same for a layer the app names.
+/// - **Reveal**: `reveal` ([`reveal_plan`]) is the `Open` events for the closed ancestors of the
+///   active layer when it differs from the last pass's (not on the panel's first pass) or of a
+///   layer the app names, and the row to scroll to. The display order lists those groups as open
+///   already, so the list reveals the row in the same pass.
+/// - **Rename**: `rename` opens the rename field of that layer's row ([`List::start_rename`]).
 /// - **Thumbnails**: after the list, [`ask_near_thumbnails`](super::row::ask_near_thumbnails).
 /// - **Cursor**: while Cmd/Ctrl is held over a thumbnail that loads a selection, the pointing hand
 ///   with `CursorBadge::{Add, Subtract, Intersect}` for Shift, Alt, Shift+Alt.
 pub(super) fn show_body<T: LayerTree>(
     ui: &mut Ui,
     cx: &PanelContext<'_, T>,
-    rows: &[RowInfo<LayerRowKey<T::Id>>],
+    display: &DisplayRows<T::Id>,
     reorder: Option<Reorder<'_, LayerRowKey<T::Id>>>,
-    reveal: Option<T::Id>,
+    reveal: RevealPlan<T::Id>,
+    rename: Option<T::Id>,
 ) -> BodyOutput<T::Id> {
     let tree = cx.tree;
+    let rows = display.rows.as_slice();
     let salt = cx.id.with("list");
-    let list_id = ui.make_persistent_id(salt);
+    let list_id = list_id(ui, cx.id);
     let mut selection = list_selection(&cx.ctx, cx.id, &cx.selection);
     let mut events: Vec<LayersEvent<T::Id>> = Vec::new();
 
-    let reveal_key = reveal_target(cx, rows, reveal, &mut events);
+    let reveal_key = reveal.target.filter(|id| rows.iter().any(|row| matches!(&row.key, LayerRowKey::Layer(k) if k == id))).map(LayerRowKey::Layer);
+    events.extend(reveal.opens.into_iter().map(LayersEvent::Open));
 
     if let Some(event) = fx_key(ui, cx, list_id) {
         events.push(event);
@@ -151,7 +173,17 @@ pub(super) fn show_body<T: LayerTree>(
     if let Some(key) = reveal_key {
         list = list.reveal(key);
     }
-    let out = list.show(ui, |at, key| build_row(cx, at, key));
+    if let Some(layer) = rename {
+        list = list.start_rename(LayerRowKey::Layer(layer));
+    }
+    let out = list.show(ui, |at, key| {
+        let row = build_row(cx, at, key);
+        // A filtered view lists rows at their shown depth and paints them at the true one.
+        match display.paint_depths.get(at) {
+            Some(&depth) if depth != rows[at].depth => row.paint_depth(depth),
+            _ => row,
+        }
+    });
 
     let mut menu = None;
     map_events(ui, cx, list_id, &out.events, &mut events, &mut menu);
@@ -161,6 +193,11 @@ pub(super) fn show_body<T: LayerTree>(
     thumb_load_cursor(ui, cx, &out.response);
 
     BodyOutput { events, drop_target: out.drop_target, menu, min_width: min_width(ui, cx), response: out.response }
+}
+
+/// The id of the panel `id`'s list in `ui`.
+pub(super) fn list_id(ui: &Ui, panel: Id) -> Id {
+    List::id_in(ui, panel.with("list"))
 }
 
 /// Whether a click with `modifiers` on the thumbnail of `part` reports
@@ -187,7 +224,7 @@ pub(super) fn reveal_opens<T: LayerTree>(tree: &T, active: Option<&T::Id>, previ
     closed_ancestor_opens(tree, active)
 }
 
-/// The least width of the panel's rows: the [`ListRow::min_width`](craft_ui::list::ListRow::min_width)
+/// The least width of the panel's rows: the [`ListRow::min_width_in_tree`](craft_ui::list::ListRow::min_width_in_tree)
 /// of a group row one level deep with a layer thumbnail and one mask at the current thumbnail
 /// size, the lock column and the app's trailing furniture when given. Thumbnails never shrink;
 /// below it the name is cut.
@@ -203,8 +240,7 @@ pub(super) fn min_width<T: LayerTree>(ui: &Ui, cx: &PanelContext<'_, T>) -> f32 
     if let Some(trailing) = cx.trailing {
         row = row.trailing_item(trailing.width, |_| {});
     }
-    // The group's disclosure column is the list's own and not part of a row the host builds.
-    row.min_width(ui) + cx.row_style.disclosure
+    row.min_width_in_tree(ui, true)
 }
 
 /// The display order kept between passes.
@@ -212,7 +248,7 @@ pub(super) fn min_width<T: LayerTree>(ui: &Ui, cx: &PanelContext<'_, T>) -> f32 
 struct CachedRows<Id> {
     revision: u64,
     filter: LayerFilter,
-    rows: Arc<Vec<RowInfo<LayerRowKey<Id>>>>,
+    rows: Arc<DisplayRows<Id>>,
 }
 
 /// The selection the list produced in the last pass, so a Shift range keeps its anchor while the
@@ -227,13 +263,14 @@ fn same_layers<Id: PartialEq>(a: &[Id], b: &[Id]) -> bool {
     a.len() == b.len() && a.iter().all(|id| b.contains(id))
 }
 
-/// A toggle gesture in progress: where it started, and the `Begin` held back until a value says
-/// where that is.
+/// A toggle gesture in progress: where it started, the `Begin` held back until a value says
+/// where that is, and whether it turned out to be Show Only (its events are swallowed).
 #[derive(Clone)]
-struct ToggleStart<Id> {
+pub(super) struct ToggleStart<Id> {
     id: craft_ui::edit::GestureId,
     start: Option<(LayerRowKey<Id>, LayerColumn)>,
     begin: Option<EditEvent<ToggleEdit<LayerRowKey<Id>>>>,
+    show_only: bool,
 }
 
 fn leaf<Id>(key: LayerRowKey<Id>, depth: usize) -> RowInfo<LayerRowKey<Id>> {
@@ -242,52 +279,69 @@ fn leaf<Id>(key: LayerRowKey<Id>, depth: usize) -> RowInfo<LayerRowKey<Id>> {
     row
 }
 
-/// Appends the rows of `children` (the layers of one level, at `depth`) and, unfiltered, of the
-/// open groups among them.
+/// The depths of the rows of one level: among the shown rows, and in the layer tree.
+#[derive(Clone, Copy)]
+struct Level {
+    shown: usize,
+    true_depth: usize,
+}
+
+impl<Id> DisplayRows<Id> {
+    fn push(&mut self, row: RowInfo<LayerRowKey<Id>>, true_depth: usize) {
+        self.rows.push(row);
+        self.paint_depths.push(true_depth);
+    }
+}
+
+/// Appends the rows of `children` (the layers of one level) and, unfiltered, of the open groups
+/// among them.
 fn push_level<T: LayerTree>(
     tree: &T,
     filter: &LayerFilter,
     filtered: bool,
+    opened: &[T::Id],
     children: Vec<T::Id>,
-    depth: usize,
-    rows: &mut Vec<RowInfo<LayerRowKey<T::Id>>>,
+    level: Level,
+    out: &mut DisplayRows<T::Id>,
 ) {
     for id in children {
         let below = tree.children(Some(&id));
         let shown = !filtered || filter.shows(&tree.info(&id));
-        let open = filtered || (!below.is_empty() && tree.is_open(&id));
-        let at = rows.len();
+        let open = filtered || (!below.is_empty() && (tree.is_open(&id) || opened.contains(&id)));
+        let at = out.rows.len();
         if shown {
-            let mut row = leaf(LayerRowKey::Layer(id.clone()), depth);
+            let mut row = leaf(LayerRowKey::Layer(id.clone()), level.shown);
             row.has_children = !below.is_empty();
             row.open = row.has_children && open;
-            rows.push(row);
-            push_sub_rows(tree, &id, depth + 1, rows);
+            out.push(row, level.true_depth);
+            push_sub_rows(tree, &id, Level { shown: level.shown + 1, true_depth: level.true_depth + 1 }, out);
         }
-        let after_sub_rows = rows.len();
+        let after_sub_rows = out.rows.len();
         if open {
-            push_level(tree, filter, filtered, below, depth + 1, rows);
+            let inner = Level { shown: level.shown + usize::from(shown), true_depth: level.true_depth + 1 };
+            push_level(tree, filter, filtered, opened, below, inner, out);
         }
         if shown && filtered {
             // A group with no match inside has nothing to open.
-            rows[at].has_children = rows.len() > after_sub_rows;
-            rows[at].open = rows[at].has_children;
+            out.rows[at].has_children = out.rows.len() > after_sub_rows;
+            out.rows[at].open = out.rows[at].has_children;
         }
     }
 }
 
 /// The Smart Filters rows, then the effects rows, of a layer that shows them.
-fn push_sub_rows<T: LayerTree>(tree: &T, id: &T::Id, depth: usize, rows: &mut Vec<RowInfo<LayerRowKey<T::Id>>>) {
+fn push_sub_rows<T: LayerTree>(tree: &T, id: &T::Id, level: Level, out: &mut DisplayRows<T::Id>) {
     if !tree.effects_open(id) {
         return;
     }
+    let mut leaf_row = |key: LayerRowKey<T::Id>| out.push(leaf(key, level.shown), level.true_depth);
     if let Some(sub) = tree.sub_rows(id, SubRowGroup::SmartFilters) {
-        rows.push(leaf(LayerRowKey::Filters(id.clone(), None), depth));
-        rows.extend((0..sub.items.len()).map(|i| leaf(LayerRowKey::Filters(id.clone(), Some(i)), depth)));
+        leaf_row(LayerRowKey::Filters(id.clone(), None));
+        (0..sub.items.len()).for_each(|i| leaf_row(LayerRowKey::Filters(id.clone(), Some(i))));
     }
     if let Some(sub) = tree.sub_rows(id, SubRowGroup::Effects) {
-        rows.push(leaf(LayerRowKey::Effects(id.clone(), None), depth));
-        rows.extend((0..sub.items.len()).map(|i| leaf(LayerRowKey::Effects(id.clone(), Some(i)), depth)));
+        leaf_row(LayerRowKey::Effects(id.clone(), None));
+        (0..sub.items.len()).for_each(|i| leaf_row(LayerRowKey::Effects(id.clone(), Some(i))));
     }
 }
 
@@ -305,49 +359,37 @@ fn closed_ancestor_opens<T: LayerTree>(tree: &T, id: &T::Id) -> Vec<OpenChange<T
     opens
 }
 
-/// The row the list scrolls to this pass. A new active layer (or the app's `reveal`) reports the
-/// `Open` events for its closed ancestors; the row exists in the display order only once the app
-/// has applied them, so the scroll waits for the next pass.
-fn reveal_target<T: LayerTree>(
-    cx: &PanelContext<'_, T>,
-    rows: &[RowInfo<LayerRowKey<T::Id>>],
-    named: Option<T::Id>,
-    events: &mut Vec<LayersEvent<T::Id>>,
-) -> Option<LayerRowKey<T::Id>> {
-    let tree = cx.tree;
+/// What this pass reveals: the layer the list scrolls to and the `Open` events for its closed
+/// ancestors.
+pub(super) struct RevealPlan<Id> {
+    /// The layer to scroll into view, when it has a row.
+    pub(super) target: Option<Id>,
+    /// The `Open` events, outermost group first. The display order lists these groups as open
+    /// already, so the row exists in this pass.
+    pub(super) opens: Vec<OpenChange<Id>>,
+}
+
+impl<Id: Clone> RevealPlan<Id> {
+    /// The groups the display order lists as open this pass.
+    pub(super) fn opened(&self) -> Vec<Id> {
+        self.opens.iter().map(|open| open.row.clone()).collect()
+    }
+}
+
+/// The reveal of this pass. A new active layer (or the app's `named` layer) reveals its row and
+/// opens its closed ancestors.
+pub(super) fn reveal_plan<T: LayerTree>(cx: &PanelContext<'_, T>, named: Option<T::Id>) -> RevealPlan<T::Id> {
     let active = cx.selection.active.clone();
     let seen = cx.id.with("active-layer");
     let previous: Option<Option<T::Id>> = cx.ctx.data(|d| d.get_temp(seen));
     cx.ctx.data_mut(|d| d.insert_temp(seen, active.clone()));
-    let in_rows = |id: &T::Id| rows.iter().any(|row| matches!(&row.key, LayerRowKey::Layer(k) if k == id));
-
-    let waiting = cx.id.with("reveal-waiting");
-    let carried: Option<T::Id> = cx.ctx.data(|d| d.get_temp::<Option<T::Id>>(waiting)).flatten();
-    let mut reveal = carried.filter(|id| in_rows(id)).map(LayerRowKey::Layer);
-    let mut next = None;
-
-    let (target, opens) = match named {
-        Some(id) => {
-            let opens = closed_ancestor_opens(tree, &id);
-            (Some(id), opens)
-        }
-        None => {
-            let opens = reveal_opens(tree, active.as_ref(), previous.as_ref().map(Option::as_ref));
-            (active.filter(|_| !opens.is_empty() || previous.as_ref().is_some_and(|p| *p != cx.selection.active)), opens)
-        }
-    };
-    if let Some(id) = target {
-        if opens.is_empty() {
-            if in_rows(&id) {
-                reveal = Some(LayerRowKey::Layer(id));
-            }
-        } else {
-            next = Some(id);
-            events.extend(opens.into_iter().map(LayersEvent::Open));
-        }
+    if let Some(id) = named {
+        let opens = closed_ancestor_opens(cx.tree, &id);
+        return RevealPlan { target: Some(id), opens };
     }
-    cx.ctx.data_mut(|d| d.insert_temp(waiting, next));
-    reveal
+    let opens = reveal_opens(cx.tree, active.as_ref(), previous.as_ref().map(Option::as_ref));
+    let changed = previous.as_ref().is_some_and(|p| *p != cx.selection.active);
+    RevealPlan { target: active.filter(|_| changed), opens }
 }
 
 /// Shift+→ and Shift+← (Alt: every layer) on the active layer, when it has effects or Smart
@@ -402,7 +444,6 @@ fn map_events<T: LayerTree>(
 ) {
     let tree = cx.tree;
     let modifiers = ui.input(|i| i.modifiers);
-    let double_click = ui.input(|i| i.pointer.button_double_clicked(egui::PointerButton::Primary));
     let mut consumed = vec![false; list.len()];
     let activated: Vec<&LayerRowKey<T::Id>> = list.iter().filter_map(|e| if let ListEvent::Activate(row) = e { Some(row) } else { None }).collect();
     let mut produced: Option<ProducedSelection<T::Id>> = None;
@@ -447,7 +488,7 @@ fn map_events<T: LayerTree>(
                     _ => None,
                 }) {
                     ActivateOn::Thumbnail(thumb_part(row, &tree.info(row.layer()), which))
-                } else if double_click && row.is_layer() && !tree.info(row.layer()).renamable {
+                } else if row.is_layer() && list.iter().any(|e| matches!(e, ListEvent::Row(RowEvent::LabelDoubleClicked { row: r }) if r == row)) {
                     ActivateOn::Name
                 } else {
                     ActivateOn::Row
@@ -461,7 +502,7 @@ fn map_events<T: LayerTree>(
             }
             ListEvent::ContextMenu(request) => context_menu(cx, request, events, menu, &mut produced),
             ListEvent::Reorder(edit) => events.extend(drop_event(edit.clone())),
-            ListEvent::Row(RowEvent::Toggle(edit)) => toggle_event(edit, &mut starts, events),
+            ListEvent::Row(RowEvent::Toggle(edit)) => toggle_event(edit, modifiers, &mut starts, events),
             ListEvent::Row(RowEvent::Renamed { row: LayerRowKey::Layer(id), text }) => {
                 let text = text.trim();
                 if !text.is_empty() && text != tree.info(id).name {
@@ -477,7 +518,7 @@ fn map_events<T: LayerTree>(
             ListEvent::Row(RowEvent::ThumbDrag { row, which }) => {
                 let info = tree.info(row.layer());
                 let part = thumb_part(row, &info, *which);
-                let label = if part == LayerPart::VectorMask { &cx.labels.vector_mask } else { &cx.labels.layer_mask };
+                let label = if part == LayerPart::VectorMask { &cx.labels.vector_mask_title } else { &cx.labels.layer_mask_title };
                 start_mask_drag(ui, list_id, row.layer().clone(), part, label);
             }
             _ => {}
@@ -511,29 +552,41 @@ fn context_menu<T: LayerTree>(
     let Some(row) = &request.row else { return };
     let layer = row.layer();
     let at = request.pointer.map_or(OpenAt::Rect(request.anchor), OpenAt::Pointer);
-    match request.toggle {
-        Some(0) => {
-            let rows = if cx.selection.layers.contains(layer) { cx.selection.layers.clone() } else { vec![layer.clone()] };
-            *menu = Some(MenuRequest::Eye { rows, current: cx.tree.info(layer).label, at });
+    // A sub-row's eye is the row's own: its right-click opens the row menu like the rest of the row.
+    let eye = request.toggle == Some(0) && matches!(row, LayerRowKey::Layer(_));
+    if eye {
+        let rows = if cx.selection.layers.contains(layer) { cx.selection.layers.clone() } else { vec![layer.clone()] };
+        let mut labels = rows.iter().map(|id| cx.tree.info(id).label);
+        let first = labels.next().flatten();
+        let current = if labels.all(|label| label == first) { first } else { None };
+        *menu = Some(MenuRequest::Eye { rows, current, at });
+    } else if request.toggle.is_none() || matches!(row, LayerRowKey::Effects(..) | LayerRowKey::Filters(..)) {
+        let part = request
+            .pointer
+            .and_then(|p| cx.sink.borrow().thumbs.iter().find(|(key, _, rect)| key == row && rect.contains(p)).map(|(_, part, _)| *part));
+        if !request.selected {
+            events.push(LayersEvent::Select(LayerSelect { layer: Some(layer.clone()), pick: SelectionPick::Replace, part }));
+            *produced = Some(ProducedSelection { layers: vec![layer.clone()], anchor: Some(LayerRowKey::Layer(layer.clone())) });
         }
-        Some(_) => {}
-        None => {
-            let part = request
-                .pointer
-                .and_then(|p| cx.sink.borrow().thumbs.iter().find(|(key, _, rect)| key == row && rect.contains(p)).map(|(_, part, _)| *part));
-            if !request.selected {
-                events.push(LayersEvent::Select(LayerSelect { layer: Some(layer.clone()), pick: SelectionPick::Replace, part }));
-                *produced = Some(ProducedSelection { layers: vec![layer.clone()], anchor: Some(LayerRowKey::Layer(layer.clone())) });
-            }
-            let on_selection = request.selected && cx.selection.layers.len() > 1;
-            *menu = Some(MenuRequest::Row { target: MenuTarget { row: row.clone(), part, on_selection }, at });
-        }
+        let on_selection = request.selected && cx.selection.layers.len() > 1;
+        *menu = Some(MenuRequest::Row { target: MenuTarget { row: row.clone(), part, on_selection }, at });
+    }
+}
+
+/// The modifiers an edit carries; `None` for the phases that carry none.
+fn edit_modifiers<T>(edit: &EditEvent<T>) -> Option<Modifiers> {
+    match edit {
+        EditEvent::Update { modifiers, .. } | EditEvent::Commit { modifiers, .. } | EditEvent::Set { modifiers, .. } => Some(*modifiers),
+        _ => None,
     }
 }
 
 /// Maps an eye or lock edit. A sweep's `Begin` waits until a value names the row it started on.
+/// A gesture whose first value is on an eye with Alt held is Show Only: it reports
+/// [`LayersEvent::ShowOnly`] once and nothing else, however the gesture goes on.
 fn toggle_event<Id: Clone + PartialEq>(
     edit: &EditEvent<ToggleEdit<LayerRowKey<Id>>>,
+    held: Modifiers,
     starts: &mut Vec<ToggleStart<Id>>,
     events: &mut Vec<LayersEvent<Id>>,
 ) {
@@ -555,26 +608,29 @@ fn toggle_event<Id: Clone + PartialEq>(
     let at = starts.iter().position(|s| s.id == gesture);
     if let Some(value) = edit.value() {
         let at = at.unwrap_or_else(|| {
-            starts.push(ToggleStart { id: gesture, start: None, begin: None });
+            starts.push(ToggleStart { id: gesture, start: None, begin: None, show_only: false });
             starts.len() - 1
         });
         if starts[at].start.is_none() {
-            starts[at].start = Some((value.row.clone(), column_of(value)));
-            if let Some(begin) = starts[at].begin.take() {
-                events.push(toggle(&value.row, column_of(value), &begin));
+            let column = column_of(value);
+            starts[at].start = Some((value.row.clone(), column));
+            let alt = edit_modifiers(edit).unwrap_or(held).alt;
+            if alt && column == LayerColumn::Visibility {
+                starts[at].show_only = true;
+                starts[at].begin = None;
+                events.push(LayersEvent::ShowOnly(value.row.clone()));
+            } else if let Some(begin) = starts[at].begin.take() {
+                events.push(toggle(&value.row, column, &begin));
             }
         }
-        let (row, column) = starts[at].start.clone().expect("the start is set above");
-        match edit {
-            EditEvent::Update { modifiers, .. } if modifiers.alt && column_of(value) == LayerColumn::Visibility => {
-                events.push(LayersEvent::ShowOnly(value.row.clone()));
-            }
-            _ => events.push(toggle(&row, column, edit)),
+        if !starts[at].show_only {
+            let (row, column) = starts[at].start.clone().expect("the start is set above");
+            events.push(toggle(&row, column, edit));
         }
     } else if matches!(edit, EditEvent::Begin { .. }) {
-        starts.push(ToggleStart { id: gesture, start: None, begin: Some(edit.clone()) });
+        starts.push(ToggleStart { id: gesture, start: None, begin: Some(edit.clone()), show_only: false });
     } else if let Some(at) = at {
-        let start = starts[at].start.clone();
+        let start = starts[at].start.clone().filter(|_| !starts[at].show_only);
         if let Some((row, column)) = start {
             events.push(toggle(&row, column, edit));
         }
@@ -582,6 +638,15 @@ fn toggle_event<Id: Clone + PartialEq>(
     if matches!(edit, EditEvent::Commit { .. } | EditEvent::Cancel { .. }) {
         starts.retain(|s| s.id != gesture);
     }
+}
+
+#[cfg(test)]
+pub(super) fn toggle_event_for_tests<Id: Clone + PartialEq>(
+    edit: &EditEvent<ToggleEdit<LayerRowKey<Id>>>,
+    starts: &mut Vec<ToggleStart<Id>>,
+    events: &mut Vec<LayersEvent<Id>>,
+) {
+    toggle_event(edit, Modifiers::NONE, starts, events);
 }
 
 /// While Cmd/Ctrl is held over a thumbnail that loads a selection: the pointing hand with the
