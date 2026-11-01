@@ -1,4 +1,3 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! File › Save and File › Save As with their guards (N10.07), on the file service's pickers
 //! ([`Files`]) and the watcher's file versions ([`FileWatch`]).
 //!
@@ -24,7 +23,7 @@
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
-use craft_host::{FileFilter, Files, PickId};
+use craft_host::{FileFilter, Files, PickId, PickRequest};
 use craft_platform::PlatformText;
 use craft_platform::watch::FileWatch;
 
@@ -83,7 +82,7 @@ pub enum SaveStep<D> {
 enum Pending<D> {
     Picking { document: SaveDocument<D>, target: SaveTarget, ticket: PickId },
     Asking { document: SaveDocument<D>, target: SaveTarget, path: PathBuf },
-    Writing { key: D, path: PathBuf, target: SaveTarget },
+    Writing { key: D, target: SaveTarget },
 }
 
 /// Save and Save As for an app's documents, one save at a time.
@@ -124,7 +123,13 @@ impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
     // pdfcraft: crates/ui-egui/src/editing/save.rs:41 save_then, :125 save_doc_to_then
     // pc: crates/ui-egui/src/app/files.rs:165 save_dialog_flow
     pub fn start(&mut self, files: &dyn Files, watch: &FileWatch<D>, document: SaveDocument<D>, target: SaveTarget) -> SaveStep<D> {
-        todo!()
+        if self.pending.is_some() {
+            return SaveStep::Busy;
+        }
+        match document.path.clone() {
+            Some(path) if target == SaveTarget::InPlace && !is_mail_temp_copy(&path) => self.confirm(watch, document, target, path),
+            _ => self.open_picker(files, document, target),
+        }
     }
 
     /// The picker's answer, once it has come ([`Files::take_answer`] of the flow's own ticket;
@@ -134,20 +139,33 @@ impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
     /// Call it every pass while [`is_busy`](Self::is_busy).
     // pc: crates/ui-egui/src/app/files.rs:205 pick_save continuation
     pub fn take_pick(&mut self, files: &dyn Files, watch: &FileWatch<D>) -> Option<SaveStep<D>> {
-        todo!()
+        let Some(Pending::Picking { ticket, .. }) = &self.pending else { return None };
+        let picked = files.take_answer(*ticket)?;
+        let Some(Pending::Picking { document, target, .. }) = self.pending.take() else { return None };
+        let Some(path) = picked.first_path() else { return Some(SaveStep::Cancelled { key: document.key }) };
+        if document.path.as_deref() == Some(path.as_path()) {
+            return Some(self.confirm(watch, document, target, path));
+        }
+        self.pending = Some(Pending::Writing { key: document.key.clone(), target });
+        Some(SaveStep::Write { key: document.key, path, target })
     }
 
-    /// The changed-on-disk question's Replace: write over the changed file.
+    /// The changed-on-disk question's Replace: write over the changed file. [`SaveStep::Busy`]
+    /// when no such question is open.
     // pdfcraft: crates/ui-egui/src/editing/save.rs:141 overwrite_changed_file
     pub fn replace(&mut self) -> SaveStep<D> {
-        todo!()
+        let Some(Pending::Asking { document, target, path }) = self.pending.take() else { return SaveStep::Busy };
+        self.pending = Some(Pending::Writing { key: document.key.clone(), target });
+        SaveStep::Write { key: document.key, path, target }
     }
 
     /// The changed-on-disk question's Save As: leave the file on disk as it is and ask where to
     /// put this version.
     // pdfcraft: crates/ui-egui/src/editing/save.rs:150 save_changed_file_elsewhere
     pub fn save_elsewhere(&mut self, files: &dyn Files) -> SaveStep<D> {
-        todo!()
+        let Some(Pending::Asking { document, target, .. }) = self.pending.take() else { return SaveStep::Busy };
+        let target = if target == SaveTarget::Copy { target } else { SaveTarget::As };
+        self.open_picker(files, document, target)
     }
 
     /// Cancels the save in progress: [`SaveStep::Cancelled`] for its document; `None` when
@@ -155,25 +173,77 @@ impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
     /// answer never reaches another save. The app calls it when the changed-on-disk question
     /// or a format options dialog is cancelled, and when the document closes mid-save.
     pub fn cancel(&mut self, files: &dyn Files) -> Option<SaveStep<D>> {
-        todo!()
+        let key = match self.pending.take()? {
+            Pending::Picking { document, ticket, .. } => {
+                files.forget(ticket);
+                document.key
+            }
+            Pending::Asking { document, .. } => document.key,
+            Pending::Writing { key, .. } => key,
+        };
+        Some(SaveStep::Cancelled { key })
     }
 
     /// The write the last [`SaveStep::Write`] asked for succeeded: the flow is free again and
     /// the watcher records the file's new version, so the app's own save never reads as a change
     /// on disk (not for [`SaveTarget::Copy`], whose file isn't the document's).
     pub fn written(&mut self, watch: &mut FileWatch<D>, key: D, path: &Path) {
-        todo!()
+        let target = match self.pending.take() {
+            Some(Pending::Writing { target, .. }) => target,
+            _ => SaveTarget::As,
+        };
+        if target != SaveTarget::Copy {
+            watch.known_now(key, path);
+        }
     }
 
     /// The write failed; the flow is free again. The app shows [`SAVE_FAILED`].
     pub fn failed(&mut self, key: &D) {
-        todo!()
+        if matches!(&self.pending, Some(Pending::Writing { key: running, .. }) if running == key) {
+            self.pending = None;
+        }
     }
 
     /// A save is running: a picker, a question or a write.
     pub fn is_busy(&self) -> bool {
         self.pending.is_some()
     }
+}
+
+impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
+    /// Writes `path`, the document's own file, unless another app changed it.
+    fn confirm(&mut self, watch: &FileWatch<D>, document: SaveDocument<D>, target: SaveTarget, path: PathBuf) -> SaveStep<D> {
+        if watch.disk_differs(&document.key, &path, None) {
+            let key = document.key.clone();
+            self.pending = Some(Pending::Asking { document, target, path: path.clone() });
+            return SaveStep::AskChangedOnDisk { key, path };
+        }
+        self.pending = Some(Pending::Writing { key: document.key.clone(), target });
+        SaveStep::Write { key: document.key, path, target }
+    }
+
+    fn open_picker(&mut self, files: &dyn Files, document: SaveDocument<D>, target: SaveTarget) -> SaveStep<D> {
+        let mut request =
+            PickRequest::save(document.purpose.clone()).file_name(suggested_name(&document)).suggested_extension(document.extension.clone());
+        request.filters = document.filters.clone();
+        request.directory = save_dialog_folder(document.path.as_deref());
+        let ticket = files.pick(request);
+        self.pending = Some(Pending::Picking { document, target, ticket });
+        SaveStep::Picking
+    }
+}
+
+/// The name the picker suggests: the document's name with its extension made `extension`. A new
+/// document's name ("Untitled-2", "v1.2 notes") gets the extension appended; a document with a
+/// file has a real file name, so its extension is replaced.
+fn suggested_name<D>(document: &SaveDocument<D>) -> String {
+    if document.extension.is_empty() {
+        return document.name.clone();
+    }
+    let suffix = format!(".{}", document.extension);
+    let name =
+        if document.path.is_some() { Path::new(&document.name).with_extension("").to_string_lossy().into_owned() } else { document.name.clone() };
+    if name.to_ascii_lowercase().ends_with(&suffix) { name } else { format!("{name}{suffix}") }
 }
 
 /// Whether `path` is the temporary copy an email client opened an attachment from, so that Save
@@ -185,7 +255,16 @@ impl<D: Clone + Eq + Hash + Send + 'static> SaveFlow<D> {
 /// and in any case, so it is testable on every platform.
 // pdfcraft: crates/ui-egui/src/editing/save.rs:226 is_mail_temp_copy
 pub fn is_mail_temp_copy(path: &Path) -> bool {
-    todo!()
+    let p = path.to_string_lossy().replace('\\', "/").to_ascii_lowercase();
+    // Outlook's cache holds `<marker><random folder>/<file>`: exactly one folder, then the file.
+    let in_outlook_cache = |marker: &str| {
+        p.split_once(marker)
+            .is_some_and(|(_, rest)| matches!(rest.split('/').collect::<Vec<_>>()[..], [dir, file] if !dir.is_empty() && !file.is_empty()))
+    };
+    in_outlook_cache("/inetcache/content.outlook/")
+        || in_outlook_cache("/temporary internet files/content.outlook/")
+        || p.contains("/packages/microsoft.outlookforwindows_")
+        || p.contains("/library/containers/com.apple.mail/data/library/mail downloads/")
 }
 
 /// The folder a save picker opens in for a document stored at `path`: the document's own
@@ -194,7 +273,9 @@ pub fn is_mail_temp_copy(path: &Path) -> bool {
 /// (`\\server\share\dir\f.pdf` gives `\\server\share\dir`).
 // pdfcraft: crates/ui-egui/src/editing/save.rs:244 save_dialog_folder
 pub fn save_dialog_folder(path: Option<&Path>) -> Option<PathBuf> {
-    todo!()
+    let path = path.filter(|p| !is_mail_temp_copy(p))?;
+    let parent = path.parent()?;
+    (!parent.as_os_str().is_empty()).then(|| parent.to_path_buf())
 }
 
 /// "Couldn't save {name}: {error}".
