@@ -71,7 +71,7 @@ impl<'a> UndoList<'a> {
 
     /// Shows the list in the popup's `Ui`.
     pub fn show(self, ui: &mut Ui) -> UndoListOutput {
-        // wordcraft: crates/ui-egui/src/chrome.rs:102-200 (`undo_list`: W 210 :153, ROW 20 :154, 18 rows :159, footer :127-135, Cancel row :185-197)
+        // wordcraft: crates/ui-egui/src/chrome.rs:102-200 (`undo_list`: width :153 (`HistoryPanelStyle::undo_list_width`), row height :154 (`list.row_height`), 18 rows :159, footer :127-135, Cancel row :185-197)
         todo!()
     }
 }

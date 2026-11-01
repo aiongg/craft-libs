@@ -1,8 +1,9 @@
 //! [`PresetStyle`]: the preset browser's sizes and colours from the `preset` tokens, with the
-//! selected ring from `swatch`, and the insertion line from `list`.
+//! selected ring from `swatch`, and the insertion line from `list`; [`PresetSizes`]: the
+//! picker's, the named row's and the footer's sizes from the `size.preset.*` leaves.
 
 use craft_theme::{Rgba, SwatchTokens};
-use egui::{Color32, CornerRadius, Stroke};
+use egui::{Color32, CornerRadius, Stroke, Vec2};
 
 use crate::theme::{ToEgui, UiTokens, corner_radius};
 
@@ -105,29 +106,35 @@ impl PresetStyle {
     }
 }
 
-/// The sizes of the picker, the named preset row and the browser's own footer. Task TK2 adds the
-/// `size.preset.*` leaves (Compact values below; Comfortable scales the three picker sizes by
-/// the control height as `paint_chip.size` does, and `name_width` is 180) and replaces these
-/// constants with `PresetStyle` fields; the preset dump changes then, in RG2.
-pub(crate) mod sizes {
-    #![expect(dead_code, reason = "skeleton: read by the picker, named row and footer bodies (PR2, PR4, PR7)")]
+/// The sizes of the picker, the named preset row and the browser's own footer, from the
+/// `size.preset.*` leaves (Size data an app overrides through its sizes table). Kept apart from
+/// [`PresetStyle`], whose fields the preset dump lists. Painting code reads these sizes from here
+/// and nowhere else; no body names a number for them.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct PresetSizes {
+    /// A [`PickerThumb::Wide`](super::picker::PickerThumb::Wide) field's thumbnail (custom
+    /// shapes): `size.preset.picker_wide`.
+    pub picker_wide: Vec2,
+    /// A [`PickerThumb::Square`](super::picker::PickerThumb::Square) field's thumbnail
+    /// (patterns, contours): `size.preset.picker_square`.
+    pub picker_square: f32,
+    /// The side of a cell in the picker's popup: `size.preset.picker_cell`.
+    pub picker_cell: f32,
+    /// The width of the named preset row's Name field: `size.preset.name_width`.
+    pub name_width: f32,
+    /// The greatest height of the picker's popup: `size.preset.popup_max_height`.
+    pub popup_max_height: f32,
+    /// The gap between the browser's list and its own footer: `size.preset.footer_room`.
+    pub footer_room: f32,
+}
 
-    /// `size.preset.picker_wide`: a `PickerThumb::Wide` field's thumbnail, PhotoCraft's shape
-    /// picker 36 × 22 (`panels/preset_panels/panels.rs:334`).
-    pub(crate) const PICKER_WIDE: [f32; 2] = [36.0, 22.0];
-    /// `size.preset.picker_square`: a `PickerThumb::Square` field's thumbnail, PhotoCraft's
-    /// pattern picker 40 (`panels/preset_panels.rs:257`); Contour's 36 takes it.
-    pub(crate) const PICKER_SQUARE: f32 = 40.0;
-    /// `size.preset.picker_cell`: a popup cell, PhotoCraft's pattern and Contour popups 40; the
-    /// shape popup's 32 takes it.
-    pub(crate) const PICKER_CELL: f32 = 40.0;
-    /// `size.preset.name_width`: the named row's Name field, the Contour Editor's 150
-    /// (`dialogs/layer_style/contour.rs:408`).
-    pub(crate) const NAME_WIDTH: f32 = 150.0;
-    /// `size.preset.popup_max_height`: the picker popup's greatest height, the shape picker's 320
-    /// (`panels/preset_panels/panels.rs:356`).
-    pub(crate) const POPUP_MAX_HEIGHT: f32 = 320.0;
-    /// `size.preset.footer_room`: the gap between the list and the browser's footer,
-    /// `space.gap.inline` (the port's `Space::S4`, `panels/preset_panels.rs:523`).
-    pub(crate) const FOOTER_ROOM: f32 = 4.0;
+impl PresetSizes {
+    /// The sizes for the installed Size preset and the app's overrides.
+    #[expect(clippy::todo, reason = "skeleton: task TK2 adds the `size.preset.*` leaves and reads them here")]
+    pub fn from_tokens(tokens: &UiTokens) -> Self {
+        // new: the six `size.preset.*` leaves (values and sources in specs/step6a-presets.md, "Proposed tokens").
+        let _ = tokens;
+        todo!()
+    }
 }

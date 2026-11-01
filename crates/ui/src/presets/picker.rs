@@ -13,10 +13,11 @@ use super::{CellShape, PresetEvent, PresetRow, PresetView, ThumbInfo};
 /// a shape, never a size.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum PickerThumb {
-    /// `size.preset.picker_square` (40): patterns, contours.
+    /// [`PresetSizes::picker_square`](super::style::PresetSizes::picker_square): patterns,
+    /// contours.
     #[default]
     Square,
-    /// `size.preset.picker_wide` (36 × 22): custom shapes.
+    /// [`PresetSizes::picker_wide`](super::style::PresetSizes::picker_wide): custom shapes.
     Wide,
 }
 
@@ -94,9 +95,10 @@ pub struct PresetPickerResponse<K> {
 ///   `ThumbnailAndName` modes ("Custom" with nothing selected), and a chevron at the end. One Tab
 ///   stop. A click toggles the popover; Down, Alt+Down, Enter or Space open it.
 /// - **Popup.** A `Popover` card holding a `PresetBrowser` in grid view (or `view(List)`), no
-///   toolbar and no footer, `shrink_to_content`, at most `size.preset.popup_max_height` (320)
-///   high, `columns` cells per row of `size.preset.picker_cell` (40) with the browser's cell look
-///   (2 pt accent ring on the selected cell). Focus moves into the browser (arrows move the lead,
+///   toolbar and no footer, `shrink_to_content`, at most
+///   [`PresetSizes::popup_max_height`](super::style::PresetSizes::popup_max_height) high,
+///   `columns` cells per row of [`PresetSizes::picker_cell`](super::style::PresetSizes::picker_cell)
+///   with the browser's cell look (its selected ring). Focus moves into the browser (arrows move the lead,
 ///   Space selects, Enter activates); Esc and a press outside close it and return focus to the
 ///   field. Group headers show for grouped rows. Its view state lives in egui memory: the picker
 ///   has nothing for the app to store.
@@ -226,7 +228,7 @@ impl<'a, K> PresetPicker<'a, K> {
     /// Shows the field and, while open, its popover; `thumb` paints a preset's thumbnail (the
     /// field's and the cells').
     pub fn show(self, ui: &mut Ui, thumb: impl FnMut(&Painter, Rect, ThumbInfo<'_, K>)) -> PresetPickerResponse<K> {
-        // pc: crates/ui-egui/src/panels/preset_panels.rs:256-310 (`pattern_picker`, `pattern_grid`: 40 pt, 4 pt gaps, 6 columns); crates/ui-egui/src/panels/preset_panels/panels.rs:334-380 (`shape_picker`: 36 × 22, max 320 :356); crates/ui-egui/src/dialogs/layer_style/contour.rs:93-198 (`row` and its popup, 4 columns)
+        // pc: crates/ui-egui/src/panels/preset_panels.rs:256-310 (`pattern_picker`, `pattern_grid`: thumbnail side :257, 6 columns); crates/ui-egui/src/panels/preset_panels/panels.rs:334-380 (`shape_picker`: field thumbnail :340, popup height :356); crates/ui-egui/src/dialogs/layer_style/contour.rs:93-198 (`row` and its popup, 4 columns). Every size is a `PresetSizes` field
         todo!()
     }
 }
@@ -250,7 +252,7 @@ mod tests {
         todo!()
     }
 
-    // With `columns(6)` the popup lays out 6 cells of `size.preset.picker_cell` per row.
+    // With `columns(6)` the popup lays out 6 cells of `PresetSizes::picker_cell` per row.
     #[test]
     #[ignore = "skeleton"]
     fn picker_popup_shows_columns_cells_per_row() {

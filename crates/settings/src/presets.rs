@@ -1,21 +1,35 @@
-//! One file per preset in `<config>/presets/<kind>/`: atomic writes, name checks, and import and export by bytes (`PresetFolder`, `PresetFolderError`).
-//!
-//! Disk only, as `Profiles`: web apps keep presets in a settings section (`Remembered`).
+//! The presets of one kind, one entry per preset (`PresetFolder`, `PresetFolderError`): name
+//! checks, the file format, and import and export by bytes. On desktop the entries are files in
+//! `<config>/presets/<kind>/`; on every target, the web build included, they can live in the
+//! app's settings sections instead, the store library features already save through
+//! (`craft_host::SectionStore`).
 
-#![cfg(not(target_arch = "wasm32"))]
 #![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
 use std::io;
 use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::PathBuf;
+use std::sync::Arc;
 
+use craft_host::SectionStore;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 /// The folder beside `config.toml` that holds the preset folders, one per kind.
 pub const PRESETS_DIR: &str = "presets";
 
-/// The greatest size of a preset file: 1 MiB.
+/// The settings section that holds presets kept with [`PresetFolder::in_settings`]: one table per
+/// kind, each entry a preset's name and its file text.
+///
+/// ```toml
+/// [presets.curve]
+/// "Strong Contrast" = '{"format":"curve","version":1,"points":[[0,0],[64,48],[255,255]]}'
+/// ```
+pub const PRESETS_SECTION: &str = "presets";
+
+/// The greatest size of a preset file or settings entry: 1 MiB.
 pub const MAX_FILE_BYTES: u64 = 1 << 20;
 
 /// The longest preset name, in characters (`Profiles`' limit).
@@ -41,7 +55,8 @@ pub enum PresetFolderError {
     /// `version`).
     Unreadable(String),
     /// The folder can't be read or written; `io::ErrorKind::Unsupported` when the folder has no
-    /// place on disk (`PresetFolder::new(None, ..)`).
+    /// place on disk (`PresetFolder::new(None, ..)`). Presets kept in settings never give it: a
+    /// section write can't fail, and the settings store reports its own save errors.
     Io(io::Error),
 }
 
@@ -66,40 +81,71 @@ impl From<io::Error> for PresetFolderError {
     }
 }
 
-/// The presets of one kind, one JSON file per preset: `<config>/presets/<kind>/<name>.json`.
-/// For SoundCraft's plugin presets, LightCraft's curve presets and FilmCraft's export presets;
-/// next to the settings file as `Profiles` (`<config>/profiles`) and PhotoCraft's brush store
-/// (`<config dir>/Presets`), so portable mode carries them.
+/// The presets of one kind, one entry per preset. For SoundCraft's plugin presets, LightCraft's
+/// curve presets and FilmCraft's export presets.
 ///
+/// - **Where.** [`new`](Self::new) (desktop): one JSON file per preset in
+///   `<config>/presets/<kind>/<name>.json`, next to the settings file as `Profiles`
+///   (`<config>/profiles`) and PhotoCraft's brush store (`<config dir>/Presets`), so portable mode
+///   carries them and users can copy the files. [`in_settings`](Self::in_settings) (every target):
+///   one entry per preset in the [`PRESETS_SECTION`] settings section, through the same
+///   `SectionStore` the app gives its `Host` (`SharedSettings` on desktop; on the web the app's
+///   store over browser storage). The web build has no file system, so a web app keeps its
+///   presets there. A `Host` whose sections are a `MemorySections` keeps them until the page
+///   closes. On desktop, prefer files: settings put every preset inside the settings file.
 /// - **File format.** `{"format": "<kind>", "version": 1, ...fields of T}`: `T` serializes as a
 ///   map whose fields sit beside the two envelope keys (SoundCraft's plugin preset shape).
-///   Unknown fields are ignored on load.
+///   Unknown fields are ignored on load. A settings entry is the same text as a string, so
+///   [`export`](Self::export) gives the same bytes in both places and a preset moves between them
+///   unchanged.
 /// - **Names** compare without case. [`list`](Self::list) sorts them ignoring case;
 ///   [`save`](Self::save) replaces a preset whose name matches ignoring case;
 ///   [`import`](Self::import) takes the file's stem as the name and numbers a taken one ("X 2",
-///   "X 3", …).
-/// - **Writes** are atomic (`craft_atomic::atomic_write`). Reads skip a corrupt or oversized
-///   file and leave it on disk.
+///   "X 3", …). The name rules are the same in settings, so every preset can be exported as
+///   `<name>.json`.
+/// - **Writes.** A file is written atomically (`craft_atomic::atomic_write`). A settings write
+///   reads the section, changes this kind's table and writes the section back
+///   (`SectionStore::write`); the settings store saves it with its next save. Reads skip a
+///   corrupt or oversized file or entry and leave it where it is.
 /// - **No folder** (`new(None, ..)`): an empty list, and every write is
 ///   `Io(ErrorKind::Unsupported)`.
 /// - **Threads.** One save, load or delete the user asked for may run in the pass (one small
-///   file). [`list`](Self::list) reads every file of the folder: call it at start-up or from a
-///   job, not every pass.
+///   file or one section write). [`list`](Self::list) on a folder reads every file of the folder:
+///   call it at start-up or from a job, not every pass. In settings it reads the section only.
 pub struct PresetFolder<T> {
-    pub(crate) dir: Option<PathBuf>,
+    pub(crate) place: PresetPlace,
     pub(crate) kind: String,
     pub(crate) value: PhantomData<fn() -> T>,
 }
 
+/// Where a [`PresetFolder`] keeps its entries.
+pub(crate) enum PresetPlace {
+    /// `<config>/presets/<kind>`; `None` without a config folder.
+    #[cfg(not(target_arch = "wasm32"))]
+    Folder(Option<PathBuf>),
+    /// This kind's table in the [`PRESETS_SECTION`] section of `store`.
+    Settings(Arc<dyn SectionStore>),
+}
+
 impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
-    /// The presets of `kind` ("plugin", "curve", "export") under `config_dir`, the settings
-    /// store's folder; `None` keeps nothing.
+    /// The presets of `kind` ("plugin", "curve", "export") as files under `config_dir`, the
+    /// settings store's folder; `None` keeps nothing. Desktop only.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new(config_dir: Option<&Path>, kind: &str) -> Self {
         // craft-libs: crates/settings/src/profiles.rs:75 (`Profiles::new(config_dir)`)
         todo!()
     }
 
-    /// The folder, `<config>/presets/<kind>`; `None` without a config folder.
+    /// The presets of `kind` as entries of the [`PRESETS_SECTION`] settings section in
+    /// `settings`: the store the app gave its `Host` (`HostBuilder::settings`). Every target; the
+    /// web build's only place for presets.
+    pub fn in_settings(settings: Arc<dyn SectionStore>, kind: &str) -> Self {
+        // craft-libs: crates/settings/src/remember.rs:68 (`Remembered::store`: a value inside a library section through the Host's store)
+        todo!()
+    }
+
+    /// The folder, `<config>/presets/<kind>`; `None` without a config folder and for presets
+    /// kept in settings.
     pub fn dir(&self) -> Option<&Path> {
         // new: the stored path.
         todo!()
@@ -111,8 +157,8 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
         todo!()
     }
 
-    /// The names of the readable presets, sorted ignoring case. A missing folder is an empty
-    /// list; corrupt and oversized files are left out (and left on disk).
+    /// The names of the readable presets, sorted ignoring case. A missing folder or table is an
+    /// empty list; corrupt and oversized files or entries are left out (and left where they are).
     pub fn list(&self) -> Vec<String> {
         // craft-libs: crates/settings/src/profiles.rs:80 (`list`, sorted ignoring case); soundcraft: crates/ui-egui/src/panels/plugins.rs:162 (`preset_dir`, `*.json`)
         todo!()
@@ -125,7 +171,7 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
     }
 
     /// Writes `value` as preset `name`, replacing a preset whose name matches ignoring case (the
-    /// file takes the new spelling). Creates the folder when needed.
+    /// file or entry takes the new spelling). Creates the folder or the kind's table when needed.
     pub fn save(&self, name: &str, value: &T) -> Result<(), PresetFolderError> {
         // craft-libs: crates/settings/src/profiles.rs:87-104 (`save` replaces a name that matches ignoring case)
         todo!()
@@ -144,7 +190,8 @@ impl<T: Serialize + DeserializeOwned> PresetFolder<T> {
         todo!()
     }
 
-    /// The file of preset `name` as bytes, for an export the user saves with `Files`.
+    /// The file of preset `name` as bytes (a settings entry's text), for an export the user saves
+    /// with `Files`.
     pub fn export(&self, name: &str) -> Result<Vec<u8>, PresetFolderError> {
         // craft-libs: crates/settings/src/profiles.rs:119 (`export`); the bytes go through the host's `Files`.
         todo!()
@@ -206,6 +253,21 @@ mod tests {
     #[test]
     #[ignore = "skeleton"]
     fn preset_folder_without_a_folder_keeps_nothing() {
+        todo!()
+    }
+
+    // `in_settings` over a `MemorySections`: save, list, load, rename and delete; the section's
+    // `curve` table holds each name with its file text, and another kind's table is untouched.
+    #[test]
+    #[ignore = "skeleton"]
+    fn presets_in_settings_live_in_the_kinds_table_of_the_section() {
+        todo!()
+    }
+
+    // A preset saved in settings exports bytes that a folder imports and loads equal, and back.
+    #[test]
+    #[ignore = "skeleton"]
+    fn a_preset_moves_between_settings_and_a_folder_unchanged() {
         todo!()
     }
 }

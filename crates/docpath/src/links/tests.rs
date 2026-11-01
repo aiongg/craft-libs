@@ -57,3 +57,10 @@ fn the_search_never_follows_directory_links_and_stops_at_the_limit() {
 fn a_cancelled_search_stops_and_reports_nothing_more() {
     todo!()
 }
+
+// `Link<String>` with an identity (and a `None` modified time) and `MatchCriteria` come back equal through serde_json; `{}` reads as `MatchCriteria::default()`.
+#[test]
+#[ignore = "skeleton"]
+fn a_link_and_the_match_criteria_survive_a_serde_round_trip() {
+    todo!()
+}

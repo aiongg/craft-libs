@@ -29,6 +29,8 @@ use std::io::{self, Read, Seek};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+use serde::{Deserialize, Serialize};
+
 use crate::Refused;
 
 pub use candidate::{Candidate, CandidateProblem, MatchCriteria, check_candidate, rank};
@@ -42,8 +44,9 @@ pub use system::SystemLinkFiles;
 /// Files up to twice this are hashed whole.
 pub const FINGERPRINT_SPAN: usize = 1 << 20;
 
-/// One linked file of a document, as the app stores it.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// One linked file of a document, as the app stores it (serde, so it goes into the document
+/// as it is).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Link<K> {
     /// The app's key for the link (an asset id, an item id).
     pub key: K,
@@ -62,8 +65,9 @@ pub struct Link<K> {
 
 /// What tells two versions of a file apart without keeping its bytes: the size, a fingerprint
 /// of its first and last [`FINGERPRINT_SPAN`] bytes (the whole file up to twice that), and the
-/// modification time. The app stores the three fields in its document.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// modification time. Serde, so the app stores it in its document as it is (inside [`Link`] or
+/// beside its own link record).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct LinkIdentity {
     /// Length in bytes.
     pub size: u64,

@@ -5,12 +5,17 @@
 
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use super::{Link, LinkFiles, LinkIdentity};
 
 /// Which properties a candidate must share with the missing file (the relink dialog's "Match
 /// file properties" checks the library knows). An app's own properties (duration, timecode, frame
 /// size) are its `RelinkCriterion`s, checked by its `CandidateChecker` after [`check_candidate`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Serde with defaults for missing fields, so an app keeps the user's last choices in its
+/// settings (FilmCraft stores its `MatchOptions`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct MatchCriteria {
     /// The file name without its extension, compared ignoring case. Default on.
     pub file_name: bool,

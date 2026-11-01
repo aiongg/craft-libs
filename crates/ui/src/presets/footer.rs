@@ -255,13 +255,14 @@ impl<'a> PresetFooterOptions<'a> {
 
 /// The height the browser keeps for its footer below the list: `PanelFooter::reserved_height`
 /// (from `panel_footer.*` tokens, not measured, so there is no one-pass lag and no
-/// `FOOTER_GUESS`) plus `size.preset.footer_room` (`style::sizes::FOOTER_ROOM` until TK2). The
-/// list takes `max_height.min(available) - footer_height`.
+/// `FOOTER_GUESS`) plus [`PresetSizes::footer_room`](super::style::PresetSizes::footer_room).
+/// The list takes `max_height.min(available) - footer_height`.
 #[expect(dead_code, reason = "skeleton: called by `view::show_with_extras` (task PR2)")]
 pub(super) fn footer_height(ui: &Ui) -> f32 {
     // pc: crates/ui-egui/src/panels/preset_panels.rs:354 (`FOOTER_GUESS` 32, measured last frame); new: Lead call 4.
-    let style = PanelFooter::style(&Tokens::of(ui), ui.pixels_per_point());
-    PanelFooter::reserved_height(&style) + super::style::sizes::FOOTER_ROOM
+    let tokens = Tokens::of(ui);
+    let style = PanelFooter::style(&tokens, ui.pixels_per_point());
+    PanelFooter::reserved_height(&style) + super::style::PresetSizes::from_tokens(&tokens).footer_room
 }
 
 /// Draws `options` as the browser's footer, below the list, with `PresetFooter`'s layout:
