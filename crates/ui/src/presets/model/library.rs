@@ -1,7 +1,5 @@
 //! The preset library: groups, nested folders and presets with unique names, and the browser rows made from them (`PresetKey`, `GroupPath`, `PresetLibrary`, `PresetChange`, `PresetError`).
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use serde::{Deserialize, Serialize};
 
 use super::PresetRow;
@@ -228,8 +226,19 @@ impl<T> PresetLibrary<T> {
     /// (PhotoCraft's `unique_name`, here ignoring case). An empty or blank name is
     /// [`PresetError::EmptyName`]; a path that names no group is [`PresetError::NoGroup`].
     pub fn add(&mut self, group: &GroupPath, name: &str, value: T) -> Result<PresetId, PresetError> {
-        // pc: crates/engine/src/presets.rs:293 (`unique_name`, "base 2", "base 3")
-        todo!()
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(PresetError::EmptyName);
+        }
+        if self.group(group).is_none() {
+            return Err(PresetError::NoGroup);
+        }
+        let name = self.unique_name(name);
+        let id = PresetId(self.next_id);
+        self.next_id += 1;
+        let target = self.group_mut(group).ok_or(PresetError::NoGroup)?;
+        target.items.push(PresetItem { id, name, value });
+        Ok(id)
     }
 
     /// Adds a group under `parent` (the root for a top group) named `base`, numbered "Group 2",
@@ -237,125 +246,301 @@ impl<T> PresetLibrary<T> {
     /// than the nesting allows ([`PresetError::TooDeep`]: a top group is always allowed; a folder
     /// at depth `d` below its top group needs `d <= nesting`).
     pub fn new_group(&mut self, parent: &GroupPath, base: &str) -> Result<GroupPath, PresetError> {
-        // pc: crates/engine/src/presets.rs:293 (`unique_name`)
-        todo!()
+        let base = base.trim();
+        if base.is_empty() {
+            return Err(PresetError::EmptyName);
+        }
+        if parent.depth() > 0 && parent.depth() > self.nesting {
+            return Err(PresetError::TooDeep);
+        }
+        let siblings = self.group(parent).ok_or(PresetError::NoGroup)?;
+        let taken = |n: &str| siblings.groups.iter().any(|g| same_name(&g.name, n));
+        let name =
+            if taken(base) { (2..).map(|i| format!("{base} {i}")).find(|n| !taken(n)).unwrap_or_else(|| base.to_owned()) } else { base.to_owned() };
+        let path = parent.child(name.clone());
+        let target = self.group_mut(parent).ok_or(PresetError::NoGroup)?;
+        target.groups.push(PresetGroup { name, items: Vec::new(), groups: Vec::new() });
+        Ok(path)
     }
 
     /// Renames preset `id`: trimmed; [`PresetError::EmptyName`] for a blank name,
     /// [`PresetError::NameTaken`] when another preset has it ignoring case (a change of case of
     /// its own name is allowed).
     pub fn rename(&mut self, id: PresetId, name: &str) -> Result<PresetChange, PresetError> {
-        // craft-libs: crates/settings/src/profiles.rs:87-104 (names compare without case)
-        todo!()
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(PresetError::EmptyName);
+        }
+        if self.get(id).is_none() {
+            return Err(PresetError::NoPreset);
+        }
+        if self.items().iter().any(|i| i.id != id && same_name(&i.name, name)) {
+            return Err(PresetError::NameTaken);
+        }
+        let item = self.get_mut(id).ok_or(PresetError::NoPreset)?;
+        item.name = name.to_owned();
+        Ok(PresetChange::Renamed { id, name: item.name.clone() })
     }
 
     /// Renames group `path` among its siblings, with the same rules as [`rename`](Self::rename).
     pub fn rename_group(&mut self, path: &GroupPath, name: &str) -> Result<PresetChange, PresetError> {
-        // new: group names are unique among siblings.
-        todo!()
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(PresetError::EmptyName);
+        }
+        let parent = path.parent().ok_or(PresetError::NoGroup)?;
+        let siblings = self.group(&parent).ok_or(PresetError::NoGroup)?;
+        if !siblings.groups.iter().any(|g| g.name == path.name()) {
+            return Err(PresetError::NoGroup);
+        }
+        if siblings.groups.iter().any(|g| g.name != path.name() && same_name(&g.name, name)) {
+            return Err(PresetError::NameTaken);
+        }
+        let group = self.group_mut(path).ok_or(PresetError::NoGroup)?;
+        group.name = name.to_owned();
+        Ok(PresetChange::GroupRenamed { from: path.clone(), to: parent.child(name) })
     }
 
     /// Deletes preset `id`.
     pub fn delete(&mut self, id: PresetId) -> Result<PresetChange, PresetError> {
-        // new: the browser's Delete.
-        todo!()
+        let group = self.group_of(id).ok_or(PresetError::NoPreset)?;
+        let target = self.group_mut(&group).ok_or(PresetError::NoGroup)?;
+        target.items.retain(|i| i.id != id);
+        Ok(PresetChange::Deleted(id))
     }
 
     /// Deletes group `path` and everything inside it. The root cannot be deleted
     /// ([`PresetError::NoGroup`]).
     pub fn delete_group(&mut self, path: &GroupPath) -> Result<PresetChange, PresetError> {
-        // new: the browser's Delete Group.
-        todo!()
+        let parent = path.parent().ok_or(PresetError::NoGroup)?;
+        let removed = {
+            let siblings = self.group_mut(&parent).ok_or(PresetError::NoGroup)?;
+            let at = siblings.groups.iter().position(|g| g.name == path.name()).ok_or(PresetError::NoGroup)?;
+            siblings.groups.remove(at)
+        };
+        let mut items = Vec::new();
+        collect_ids(&removed, &mut items);
+        Ok(PresetChange::GroupDeleted { path: path.clone(), items })
     }
 
     /// Moves preset `id` to the end of group `to` (Move to).
     pub fn move_to(&mut self, id: PresetId, to: &GroupPath) -> Result<PresetChange, PresetError> {
-        // new: the browser's Move to.
-        todo!()
+        let from = self.group_of(id).ok_or(PresetError::NoPreset)?;
+        if self.group(to).is_none() {
+            return Err(PresetError::NoGroup);
+        }
+        let source = self.group_mut(&from).ok_or(PresetError::NoGroup)?;
+        let at = source.items.iter().position(|i| i.id == id).ok_or(PresetError::NoPreset)?;
+        let item = source.items.remove(at);
+        let target = self.group_mut(to).ok_or(PresetError::NoGroup)?;
+        target.items.push(item);
+        Ok(PresetChange::Moved { id, to: to.clone() })
     }
 
     /// Preset `id`.
     pub fn get(&self, id: PresetId) -> Option<&PresetItem<T>> {
-        // new: a walk of the groups.
-        todo!()
+        find_item(&self.root, id)
     }
 
     /// Preset `id`, to change its value.
     pub fn get_mut(&mut self, id: PresetId) -> Option<&mut PresetItem<T>> {
-        // new: a walk of the groups.
-        todo!()
+        find_item_mut(&mut self.root, id)
     }
 
     /// The group at `path` (the root for the empty path).
     pub fn group(&self, path: &GroupPath) -> Option<&PresetGroup<T>> {
-        // new: a walk by name.
-        todo!()
+        path.names().iter().try_fold(&self.root, |group, name| group.groups.iter().find(|g| g.name == *name))
     }
 
     /// The group that holds preset `id`.
     pub fn group_of(&self, id: PresetId) -> Option<GroupPath> {
-        // new: a walk of the groups.
-        todo!()
+        find_group_of(&self.root, id, &GroupPath::root())
     }
 
     /// Why `name` cannot be a new preset's name, if it cannot: blank, or taken ignoring case.
     /// For a named row's `check_name`.
     pub fn name_error(&self, name: &str) -> Option<PresetError> {
-        // new: the rules of `add` without the numbering.
-        todo!()
+        if name.trim().is_empty() {
+            Some(PresetError::EmptyName)
+        } else if self.is_taken(name.trim()) {
+            Some(PresetError::NameTaken)
+        } else {
+            None
+        }
     }
 
     /// The number of presets.
     pub fn total(&self) -> usize {
-        // new: a count over the groups.
-        todo!()
+        self.items().len()
     }
 
     /// Every preset, in display order (root presets, then each group's presets and folders depth
     /// first).
     pub fn items(&self) -> Vec<&PresetItem<T>> {
-        // new: the order of `rows`.
-        todo!()
+        let mut out = Vec::new();
+        collect_items(&self.root, &mut out);
+        out
     }
 
     /// The browser's display rows: the root's presets at depth 0, then each group as a header
     /// row (depth = its depth - 1, `count` = the presets inside it and its folders) followed by
     /// its presets (depth = the group's depth) and its folders, depth first.
     pub fn rows(&self) -> Vec<PresetRow<PresetKey<PresetId>>> {
-        // pc-port: crates/ui-egui/src/panels/preset_panels.rs:331-379 (`GroupView`, `ItemView`, `"group:"` keys this replaces)
-        todo!()
+        let mut rows = Vec::new();
+        for item in &self.root.items {
+            rows.push(PresetRow::item(PresetKey::Item(item.id), item.name.clone(), 0));
+        }
+        for group in &self.root.groups {
+            push_group_rows(group, &GroupPath::root(), &mut rows);
+        }
+        rows
+    }
+
+    fn group_mut(&mut self, path: &GroupPath) -> Option<&mut PresetGroup<T>> {
+        path.names().iter().try_fold(&mut self.root, |group, name| group.groups.iter_mut().find(|g| g.name == *name))
+    }
+
+    fn is_taken(&self, name: &str) -> bool {
+        self.items().iter().any(|i| same_name(&i.name, name))
+    }
+
+    /// `base`, or "base 2", "base 3", … so the name is free across the library.
+    fn unique_name(&self, base: &str) -> String {
+        if !self.is_taken(base) {
+            return base.to_owned();
+        }
+        (2..).map(|i| format!("{base} {i}")).find(|n| !self.is_taken(n)).unwrap_or_else(|| base.to_owned())
+    }
+}
+
+fn same_name(a: &str, b: &str) -> bool {
+    a.to_lowercase() == b.to_lowercase()
+}
+
+fn collect_items<'a, T>(group: &'a PresetGroup<T>, out: &mut Vec<&'a PresetItem<T>>) {
+    out.extend(group.items.iter());
+    for child in &group.groups {
+        collect_items(child, out);
+    }
+}
+
+fn collect_ids<T>(group: &PresetGroup<T>, out: &mut Vec<PresetId>) {
+    out.extend(group.items.iter().map(|i| i.id));
+    for child in &group.groups {
+        collect_ids(child, out);
+    }
+}
+
+fn find_item<T>(group: &PresetGroup<T>, id: PresetId) -> Option<&PresetItem<T>> {
+    group.items.iter().find(|i| i.id == id).or_else(|| group.groups.iter().find_map(|g| find_item(g, id)))
+}
+
+fn find_item_mut<T>(group: &mut PresetGroup<T>, id: PresetId) -> Option<&mut PresetItem<T>> {
+    if let Some(at) = group.items.iter().position(|i| i.id == id) {
+        return Some(&mut group.items[at]);
+    }
+    group.groups.iter_mut().find_map(|g| find_item_mut(g, id))
+}
+
+fn find_group_of<T>(group: &PresetGroup<T>, id: PresetId, path: &GroupPath) -> Option<GroupPath> {
+    if group.items.iter().any(|i| i.id == id) {
+        return Some(path.clone());
+    }
+    group.groups.iter().find_map(|g| find_group_of(g, id, &path.child(g.name.clone())))
+}
+
+fn count_items<T>(group: &PresetGroup<T>) -> usize {
+    group.items.len() + group.groups.iter().map(count_items).sum::<usize>()
+}
+
+/// The header row of `group` (inside `parent`), then its presets and its folders.
+fn push_group_rows<T>(group: &PresetGroup<T>, parent: &GroupPath, rows: &mut Vec<PresetRow<PresetKey<PresetId>>>) {
+    let path = parent.child(group.name.clone());
+    rows.push(PresetRow::group(PresetKey::Group(path.clone()), group.name.clone(), path.depth() - 1).count(count_items(group)));
+    for item in &group.items {
+        rows.push(PresetRow::item(PresetKey::Item(item.id), item.name.clone(), path.depth()));
+    }
+    for child in &group.groups {
+        push_group_rows(child, &path, rows);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    #![expect(clippy::todo, reason = "skeleton: removed when the bodies land")]
+    use std::collections::HashSet;
+
+    use super::*;
+    use crate::presets::PresetKind;
+
+    fn sample() -> PresetLibrary<u32> {
+        let mut lib = PresetLibrary::new().with_nesting(3);
+        lib.add(&GroupPath::root(), "Loose", 0).unwrap();
+        let a = lib.new_group(&GroupPath::root(), "A").unwrap();
+        lib.add(&a, "Red", 1).unwrap();
+        let folder = lib.new_group(&a, "Inner").unwrap();
+        lib.add(&folder, "Blue", 2).unwrap();
+        lib.add(&a, "Green", 3).unwrap();
+        lib
+    }
 
     // `rows()` lists root presets, groups, folders and presets with the right depths, counts and order.
     #[test]
-    #[ignore = "skeleton"]
     fn library_rows_list_groups_folders_and_items_with_counts() {
-        todo!()
+        let rows = sample().rows();
+        let got: Vec<_> = rows.iter().map(|r| (r.label.as_str(), r.depth, r.kind, r.count)).collect();
+        assert_eq!(
+            got,
+            [
+                ("Loose", 0, PresetKind::Item, None),
+                ("A", 0, PresetKind::Group, Some(3)),
+                ("Red", 1, PresetKind::Item, None),
+                ("Green", 1, PresetKind::Item, None),
+                ("Inner", 1, PresetKind::Group, Some(1)),
+                ("Blue", 2, PresetKind::Item, None),
+            ]
+        );
     }
 
     // Adding "Red" twice gives "Red 2"; renaming another preset to "red" is `NameTaken`; a blank name is `EmptyName`.
     #[test]
-    #[ignore = "skeleton"]
     fn library_names_are_unique_ignoring_case_and_numbered_on_add() {
-        todo!()
+        let mut lib = PresetLibrary::new();
+        let root = GroupPath::root();
+        let first = lib.add(&root, "Red", 1).unwrap();
+        let second = lib.add(&root, " red ", 2).unwrap();
+        assert_eq!(lib.get(first).unwrap().name, "Red");
+        assert_eq!(lib.get(second).unwrap().name, "red 2");
+        assert_eq!(lib.rename(second, "RED"), Err(PresetError::NameTaken));
+        assert!(lib.rename(first, "RED").is_ok());
+        assert_eq!(lib.rename(second, "  "), Err(PresetError::EmptyName));
+        assert_eq!(lib.add(&root, "", 3), Err(PresetError::EmptyName));
+        assert_eq!(lib.name_error("red 2"), Some(PresetError::NameTaken));
+        let g = lib.new_group(&root, "Group").unwrap();
+        assert_eq!(lib.new_group(&root, "group").unwrap(), GroupPath::new(["group 2"]));
+        assert_eq!(lib.rename_group(&g, "GROUP 2"), Err(PresetError::NameTaken));
     }
 
     // A nested library (three levels, values) survives a JSON round trip unchanged, ids and next id included.
     #[test]
-    #[ignore = "skeleton"]
     fn library_round_trips_through_serde() {
-        todo!()
+        let mut lib = sample();
+        let gone = lib.add(&GroupPath::root(), "Gone", 9).unwrap();
+        lib.delete(gone).unwrap();
+        let json = serde_json::to_string(&lib).unwrap();
+        let back: PresetLibrary<u32> = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, lib);
+        let mut back = back;
+        assert_eq!(back.add(&GroupPath::root(), "Next", 0).unwrap().get(), gone.get() + 1);
     }
 
     // `PresetKey::group(["A"])` is not `PresetKey::item("A")`, and both work as hash keys side by side.
     #[test]
-    #[ignore = "skeleton"]
     fn preset_key_distinguishes_a_group_from_an_item_of_the_same_name() {
-        todo!()
+        let group: PresetKey<String> = PresetKey::group(["A"]);
+        let item = PresetKey::item("A".to_owned());
+        assert_ne!(group, item);
+        let keys: HashSet<_> = [group.clone(), item.clone()].into_iter().collect();
+        assert_eq!(keys.len(), 2);
+        assert!(keys.contains(&group) && keys.contains(&item));
     }
 }
