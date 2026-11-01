@@ -4,7 +4,7 @@
 //! Options, Duplicate, New and Delete at the right. The styles, their attributes and the
 //! commands are the app's; the panel reports what the user asked for.
 
-use craft_ui::behavior::{RowInfo, Selection};
+use craft_ui::behavior::{Axis, ListDrag, Reorder, RowInfo, Selection, SelectionPick};
 use craft_ui::composites::{PanelFooter, StatusLine, Tone};
 use craft_ui::controls::Kbd;
 use craft_ui::docking::panel_menu::PanelCommand;
@@ -12,6 +12,8 @@ use craft_ui::icons::Icon;
 use craft_ui::list::{List, ListEvent, ListRow};
 use craft_ui::localized::{Labels as _, Words};
 use craft_ui::menu::{MenuEntry, MenuItem};
+
+use crate::styles::dragged_styles;
 use egui::{AsIdSalt, Context, Id, IdSalt, Key, KeyboardShortcut, Modifiers, PointerButton, Response, Ui, UiBuilder};
 
 mod picker;
@@ -73,6 +75,8 @@ struct MenuFacts {
     target: bool,
     overridden: bool,
     current: Option<u64>,
+    /// How many rows the panel's multi-row highlight holds.
+    highlighted: usize,
 }
 
 const CMD_CLEAR_OVERRIDE: &str = "textStyles.clearOverride";
@@ -100,6 +104,8 @@ impl MenuFacts {
             CMD_CLEAR_OVERRIDE => (self.target && self.overridden).then_some(TextStyleAction::ClearOverride),
             CMD_REDEFINE => (self.target && self.current.is_some_and(|id| id != 0 || paragraph)).then_some(TextStyleAction::Redefine),
             CMD_NEW => Some(TextStyleAction::New { from_selection: self.target }),
+            CMD_DUPLICATE if self.highlighted > 1 => Some(TextStyleAction::DuplicateHighlighted),
+            CMD_DELETE if self.highlighted > 1 => Some(TextStyleAction::DeleteHighlighted),
             CMD_DUPLICATE => editable.map(TextStyleAction::Duplicate),
             CMD_DELETE => editable.filter(|id| *id != 0).map(TextStyleAction::Delete),
             CMD_OPTIONS => editable.map(TextStyleAction::Options),
@@ -241,11 +247,8 @@ impl<'a> TextStylesPanel<'a> {
     // pc: crates/ui-egui/src/panels/type_panels_ui.rs:215 `styles_panel` (rows, "+" marker,
     // click / Alt-click / double-click, footer buttons and their conditions).
     pub fn show(self, ui: &mut Ui) -> TextStylesPanelResponse {
-        // The multi-row highlight (`highlighted`) is wired by the step 6b fill.
-        let TextStylesPanel { id_salt, kind, rows, state, current, overridden, target, text_selected, highlighted: _highlighted, labels } = self;
+        let TextStylesPanel { id_salt, kind, rows, state, current, overridden, target, text_selected, mut highlighted, labels } = self;
         let selected = &mut state.selected;
-        let facts = MenuFacts { kind, target, overridden, current };
-        ui.data_mut(|d| d.insert_temp(Id::NULL.with(id_salt), facts));
         let labels = labels.unwrap_or_else(|| TextStylesLabels::of_ctx(ui.ctx()));
         let paragraph = kind == TextStyleKind::Paragraph;
         let alt = alt_name(ui.ctx());
@@ -257,36 +260,55 @@ impl<'a> TextStylesPanel<'a> {
         // The footer acts on the row selected in the panel, which is the current style until the
         // user picks another.
         let shown = selected.or(current);
-        let mut selection = shown.map_or_else(Selection::new, Selection::only);
+        let mut own = shown.map_or_else(Selection::new, Selection::only);
+        let list_id = List::id_in(ui, (id_salt, kind));
+        if let Some(highlight) = highlighted.as_deref_mut() {
+            let listed = |id: &u64| rows.iter().any(|row| row.id == *id);
+            highlight.items.retain(listed);
+            highlight.lead = highlight.lead.filter(listed);
+            highlight.anchor = highlight.anchor.filter(listed);
+        }
+        let many = highlighted.is_some();
+        let selection = highlighted.as_deref_mut().unwrap_or(&mut own);
+        let held = selection.items.clone();
         let infos: Vec<RowInfo<u64>> = rows.iter().map(|row| RowInfo::leaf(row.id)).collect();
         let tokens = craft_ui::theme::current(ui.ctx());
         let list_label = if paragraph { &labels.paragraph_styles } else { &labels.character_styles };
-        let out = List::new((id_salt, kind), list_label.as_str(), infos.as_slice())
-            .selection(&mut selection)
+        let mut list = List::new((id_salt, kind), list_label.as_str(), infos.as_slice())
+            .selection(selection)
             .row_height(tokens.component.list.row_height_dense)
-            .max_height(tokens.component.text_styles.list_height)
-            .show(ui, |at, &id| {
-                let row = &rows[at];
-                let is_current = target && current == Some(id);
-                let marked = is_current && overridden;
-                let none = id == 0 && !paragraph;
-                let name = if marked { format!("{}+", row.name) } else { row.name.clone() };
-                let spoken = if marked { format!("{}, {}", row.name, labels.overridden) } else { row.name.clone() };
-                ListRow::new(id, name)
-                    .accessible_name(spoken)
-                    .description(if none { labels.no_character_style.clone() } else { tip.clone() })
-                    .dimmed(none)
-                    .highlight(is_current && shown != Some(id))
-            });
+            .max_height(tokens.component.text_styles.list_height);
+        if many {
+            list = list.can_drag(|_| true).reorder(Reorder::new(Axis::Vertical).accepts(|_, _| false));
+        }
+        let out = list.show(ui, |at, &id| {
+            let row = &rows[at];
+            let is_current = target && current == Some(id);
+            let marked = is_current && overridden;
+            let none = id == 0 && !paragraph;
+            let name = if marked { format!("{}+", row.name) } else { row.name.clone() };
+            let spoken = if marked { format!("{}, {}", row.name, labels.overridden) } else { row.name.clone() };
+            ListRow::new(id, name)
+                .accessible_name(spoken)
+                .description(if none { labels.no_character_style.clone() } else { tip.clone() })
+                .dimmed(none)
+                .highlight(is_current && !held.contains(&id))
+        });
         let (alt_held, double) = ui.input(|i| (i.modifiers.alt, i.pointer.button_double_clicked(PointerButton::Primary)));
         let mut picked = *selected;
+        // ⇧- and ⌘/Ctrl-clicks of the highlight change it and leave the text as it is.
+        let mut highlighting = false;
         for event in out.events {
             match event {
                 ListEvent::Selection(change) => {
-                    if let Some(id) = change.row {
+                    highlighting = many && matches!(change.pick, SelectionPick::Range | SelectionPick::Toggle);
+                    if many {
+                        picked = change.selection.lead.or(picked);
+                    } else if let Some(id) = change.row {
                         picked = Some(id);
                     }
                 }
+                ListEvent::Clicked(_) if highlighting => highlighting = false,
                 ListEvent::Clicked(id) => {
                     picked = Some(id);
                     if target && !paragraph && !text_selected {
@@ -310,36 +332,51 @@ impl<'a> TextStylesPanel<'a> {
                 _ => {}
             }
         }
-        if out.response.has_focus()
-            && let Some(id) = picked.or(shown).filter(|id| *id != 0)
-            && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete))
-        {
-            action = Some(TextStyleAction::Delete(id));
-        }
         if picked != *selected {
             *selected = picked;
         }
-
+        let kept: Vec<u64> = highlighted.as_deref().map(|highlight| highlight.items.clone()).unwrap_or_default();
+        let facts = MenuFacts { kind, target, overridden, current, highlighted: kept.len() };
+        ui.data_mut(|d| d.insert_temp(Id::NULL.with(id_salt), facts));
         let footer_state = TextStylesState { selected: *selected };
+        if out.response.has_focus() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete)) {
+            if kept.len() > 1 {
+                action = Some(TextStyleAction::DeleteHighlighted);
+            } else if let Some(id) = picked.or(shown).filter(|id| *id != 0) {
+                action = Some(TextStyleAction::Delete(id));
+            }
+        }
+
+        let listed: Vec<u64> = rows.iter().map(|row| row.id).collect();
         let mut run = |command: &str| {
             if let Some(found) = facts.action(&footer_state, command) {
                 action = Some(found);
             }
         };
+        let mut dropped_on_new = None;
+        let mut dropped_on_delete = None;
         PanelFooter::show(ui, |ui| {
             let left = ui.max_rect();
-            ui.scope_builder(UiBuilder::new().max_rect(left).layout(craft_ui::direction::row(ui)), |ui| {
-                if PanelFooter::button(ui, Icon::Ban, &labels.clear_override).clicked() {
-                    run(CMD_CLEAR_OVERRIDE);
-                }
-                if PanelFooter::button(ui, Icon::Check, &labels.redefine).clicked() {
-                    run(CMD_REDEFINE);
-                }
+            // A child, not a scope: a scope would move the cursor of the buttons at the other end.
+            let mut start = ui.new_child(UiBuilder::new().max_rect(left).layout(craft_ui::direction::row(ui)));
+            if PanelFooter::button(&mut start, Icon::Ban, &labels.clear_override).clicked() {
+                run(CMD_CLEAR_OVERRIDE);
+            }
+            if PanelFooter::button(&mut start, Icon::Check, &labels.redefine).clicked() {
+                run(CMD_REDEFINE);
+            }
+            let (delete, dropped) = PanelFooter::drop_button::<ListDrag<u64>>(ui, Icon::Trash, &labels.delete, true, |drag| {
+                drag.list == list_id && drag.items.iter().any(|id| *id != 0)
             });
-            if PanelFooter::button(ui, Icon::Trash, &labels.delete).clicked() {
+            dropped_on_delete = dropped;
+            if delete.clicked() {
                 run(CMD_DELETE);
             }
-            if PanelFooter::button(ui, Icon::Plus, &labels.new_style).clicked() {
+            let (new, dropped) = PanelFooter::drop_button::<ListDrag<u64>>(ui, Icon::Plus, &labels.new_style, true, |drag| {
+                drag.list == list_id && drag.items.iter().any(|id| *id != 0 || paragraph)
+            });
+            dropped_on_new = dropped;
+            if new.clicked() {
                 run(CMD_NEW);
             }
             if PanelFooter::button(ui, Icon::Copy, &labels.duplicate).clicked() {
@@ -349,6 +386,21 @@ impl<'a> TextStylesPanel<'a> {
                 run(CMD_OPTIONS);
             }
         });
+        // A dragged row carries every highlighted style when it is one of them, else itself.
+        if let Some(drag) = dropped_on_delete {
+            action = if dragged_styles(&kept, &listed, &drag.grabbed).len() > 1 {
+                Some(TextStyleAction::DeleteHighlighted)
+            } else {
+                (drag.grabbed != 0).then_some(TextStyleAction::Delete(drag.grabbed))
+            };
+        }
+        if let Some(drag) = dropped_on_new {
+            action = if dragged_styles(&kept, &listed, &drag.grabbed).len() > 1 {
+                Some(TextStyleAction::DuplicateHighlighted)
+            } else {
+                (drag.grabbed != 0 || paragraph).then_some(TextStyleAction::Duplicate(drag.grabbed))
+            };
+        }
         TextStylesPanelResponse { action, status, response: out.response }
     }
 }
@@ -367,6 +419,7 @@ impl TextStylesPanel<'_> {
             target: false,
             overridden: false,
             current: None,
+            highlighted: 0,
         });
         let item =
             |label: &str, command: &str| MenuEntry::from(MenuItem::new(label, command.to_owned()).enabled(facts.action(state, command).is_some()));
