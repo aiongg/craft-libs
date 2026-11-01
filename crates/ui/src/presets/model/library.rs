@@ -396,7 +396,7 @@ impl<T> PresetLibrary<T> {
         rows
     }
 
-    fn group_mut(&mut self, path: &GroupPath) -> Option<&mut PresetGroup<T>> {
+    pub(super) fn group_mut(&mut self, path: &GroupPath) -> Option<&mut PresetGroup<T>> {
         path.names().iter().try_fold(&mut self.root, |group, name| group.groups.iter_mut().find(|g| g.name == *name))
     }
 
@@ -413,7 +413,7 @@ impl<T> PresetLibrary<T> {
     }
 }
 
-fn same_name(a: &str, b: &str) -> bool {
+pub(super) fn same_name(a: &str, b: &str) -> bool {
     a.to_lowercase() == b.to_lowercase()
 }
 
