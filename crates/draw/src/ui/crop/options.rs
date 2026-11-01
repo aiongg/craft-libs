@@ -1,0 +1,337 @@
+//! [`CropSettings`]: the Crop tool's options as one persisted section: the ratio or the
+//! W × H × Resolution fields, the overlay and its show rule, the shield, Delete Cropped Pixels and
+//! Fill. Typed lengths stay text until used, so a half-typed "4 i" survives a pass, and parse
+//! through [`Length::parse`] when the tool needs a number.
+//!
+//! [`Length::parse`]: craft_ui::localized::units::Length::parse
+
+#![expect(clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TO-C1)")]
+
+use super::bar::CropBarLabels;
+use super::crop_guides::{CropGuide, CropShield, GuideShow};
+use super::session::CropDocument;
+
+/// The largest number a ratio side keeps: 99,999 (PhotoCraft's ratio fields).
+pub const RATIO_MAX: f64 = 99_999.0;
+/// Decimals a ratio side keeps and shows: 3, so 1.414 : 1 (ISO A sizes) survives (#6487).
+pub const RATIO_DECIMALS: usize = 3;
+/// The largest number a length or resolution field keeps: 1e9 (the crop command refuses what is
+/// past a canvas or resolution limit with its own message).
+pub const FIELD_MAX: f64 = 1e9;
+
+/// What the frame's proportions follow.
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CropRatio {
+    /// No ratio: the bar's "Ratio" entry with empty fields. A ratio field with one side typed
+    /// stays free until the other side is typed ([`CropSettings::ratio_fields`]).
+    #[default]
+    Free,
+    /// The document's own proportions ("Original Ratio"); the fields show its size.
+    Original,
+    /// Width to height as typed or picked, both sides positive and at most [`RATIO_MAX`].
+    Sides { width: f64, height: f64 },
+    /// W × H × Resolution: the frame holds W : H while it is drawn, and the commit resamples to
+    /// [`CropSettings::target`].
+    Size,
+}
+
+/// The resolution field's unit.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ResolutionUnit {
+    /// px/in.
+    #[default]
+    PixelsPerInch,
+    /// px/cm; one px/cm is 2.54 px/in.
+    PixelsPerCentimetre,
+}
+
+/// The W, H and Resolution fields of W × H × Resolution mode, as typed: "4 in", "1024 px",
+/// "300". Empty means unset. Perspective Crop's options bar uses the same fields.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CropSizeFields {
+    /// A length with its unit, or empty.
+    pub width: String,
+    /// A length with its unit, or empty.
+    pub height: String,
+    /// A positive number, or empty for the document's resolution.
+    pub resolution: String,
+    pub resolution_unit: ResolutionUnit,
+}
+
+/// What the area a turned or extending crop uncovers is filled with.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CropFill {
+    /// "Background (Default)": the background colour or transparency.
+    #[default]
+    Background,
+    /// "Content-Aware Fill": filled from the surroundings (the engine's). Generative Expand is
+    /// not offered.
+    ContentAware,
+}
+
+/// The size the commit resamples to: W and H in pixels (unrounded; the app rounds, at least 1)
+/// and the resolution in px/in it sets, when one was typed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CropTarget {
+    pub width: f64,
+    pub height: f64,
+    pub resolution: Option<f64>,
+}
+
+/// One built-in size preset: the W, H and Resolution text it fills in px/in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CropSizePreset {
+    pub width: &'static str,
+    pub height: &'static str,
+    pub resolution: &'static str,
+}
+
+/// A crop preset the user saved (tool presets of the Crop tool, stored by the app). The bar lists
+/// them after the built-in presets and fills the settings from the one picked.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CropUserPreset {
+    /// At most 255 characters (PhotoCraft's `MAX_NAME`); the app's New Crop Preset dialog
+    /// suggests [`CropSettings::preset_name`].
+    pub name: String,
+    pub ratio: CropRatio,
+    /// The fields of a [`CropRatio::Size`] preset; empty for a ratio preset.
+    pub size: CropSizeFields,
+}
+
+/// An entry of the options bar's preset list, in the list's order: Ratio, W × H × Resolution, the
+/// ratio presets, the size presets, the user's presets, Front Image, then New Crop Preset… and
+/// Delete Crop Preset….
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CropPresetChoice {
+    /// "Ratio": a free ratio with empty fields.
+    Free,
+    /// "W x H x Resolution".
+    Size,
+    /// [`CROP_RATIOS`]`[i]`.
+    Ratio(usize),
+    /// [`CROP_SIZES`]`[i]`.
+    SizePreset(usize),
+    /// The user's preset at this index of the list the app gave the bar.
+    User(usize),
+    /// "Front Image": W, H and the resolution from the document, at once (never kept as a mode).
+    FrontImage,
+    /// "New Crop Preset…": the app opens its dialog.
+    NewPreset,
+    /// "Delete Crop Preset…": the app opens its dialog.
+    DeletePreset,
+}
+
+/// The built-in ratio presets after "Ratio" and "W x H x Resolution": Original Ratio, 1 : 1
+/// (Square), 4 : 5 (8 : 10), 5 : 7, 2 : 3 (4 : 6), 16 : 9. Their names are
+/// [`CropBarLabels`]' `ratio_*` words, in this order.
+// pc: crates/ui-egui/src/panels/chrome_ui.rs:278 `CROP_RATIOS` (its first entry, "Ratio", is
+// `CropPresetChoice::Free`).
+pub const CROP_RATIOS: [CropRatio; 6] = [
+    CropRatio::Original,
+    CropRatio::Sides { width: 1.0, height: 1.0 },
+    CropRatio::Sides { width: 4.0, height: 5.0 },
+    CropRatio::Sides { width: 5.0, height: 7.0 },
+    CropRatio::Sides { width: 2.0, height: 3.0 },
+    CropRatio::Sides { width: 16.0, height: 9.0 },
+];
+
+/// Photoshop's built-in size presets, all in px/in. The list shows each by
+/// [`CropSettings::preset_name`] of its values ("4 x 5 in 300 ppi").
+// pc: crates/ui-egui/src/tools/crop_size.rs:38 `PRESETS`.
+pub const CROP_SIZES: [CropSizePreset; 8] = [
+    CropSizePreset { width: "4 in", height: "5 in", resolution: "300" },
+    CropSizePreset { width: "8.5 in", height: "11 in", resolution: "300" },
+    CropSizePreset { width: "1024 px", height: "768 px", resolution: "92" },
+    CropSizePreset { width: "1280 px", height: "800 px", resolution: "113" },
+    CropSizePreset { width: "1366 px", height: "768 px", resolution: "135" },
+    CropSizePreset { width: "4 in", height: "6 in", resolution: "300" },
+    CropSizePreset { width: "5 in", height: "7 in", resolution: "300" },
+    CropSizePreset { width: "8 in", height: "10 in", resolution: "300" },
+];
+
+/// The Crop tool's options. The app keeps it in its settings (it persists between runs); the
+/// options bar edits it in place, the tool reads it each pass and reports key changes (O, ⇧O, H,
+/// P, I, X) as [`CropEvent::Settings`](super::CropEvent::Settings). Every field defaults on its
+/// own, so older settings load.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CropSettings {
+    pub ratio: CropRatio,
+    /// The ratio fields as shown while one side is still empty (0): a pair with both sides
+    /// positive becomes [`CropRatio::Sides`]; an incomplete pair is a free ratio that keeps the
+    /// side typed first.
+    pub ratio_fields: [f64; 2],
+    /// W × H × Resolution's fields.
+    pub size: CropSizeFields,
+    /// Delete Cropped Pixels: on by default (Photoshop).
+    pub delete_pixels: bool,
+    pub fill: CropFill,
+    /// The overlay inside the frame (Rule of Thirds by default), when it shows (Auto) and its
+    /// orientation (Triangle and Golden Spiral have more than one).
+    pub guide: CropGuide,
+    pub guide_show: GuideShow,
+    pub guide_orientation: u8,
+    /// The gear menu's options: Classic Mode, Show Cropped Area, Auto Center Preview and the
+    /// shield.
+    pub shield: CropShield,
+}
+
+impl Default for CropSettings {
+    fn default() -> Self {
+        Self {
+            ratio: CropRatio::Free,
+            ratio_fields: [0.0, 0.0],
+            size: CropSizeFields::default(),
+            delete_pixels: true,
+            fill: CropFill::Background,
+            guide: CropGuide::default(),
+            guide_show: GuideShow::default(),
+            guide_orientation: 0,
+            shield: CropShield::default(),
+        }
+    }
+}
+
+impl CropSettings {
+    /// The width-to-height ratio every frame gesture holds: the document's for
+    /// [`CropRatio::Original`], the sides' for [`CropRatio::Sides`], W : H of the
+    /// [`target`](Self::target) for [`CropRatio::Size`]; `None` for a free ratio and for any
+    /// ratio that is not a positive finite number.
+    pub fn ratio_value(&self, document: &CropDocument) -> Option<f64> {
+        // pc: crates/ui-egui/src/tools/crop_ui.rs:217 `preset_ratio`; crop_size.rs:146 `ratio`.
+        todo!()
+    }
+
+    /// The size the commit resamples to, in W × H × Resolution mode with both W and H holding
+    /// lengths; `None` otherwise (W or H empty is a free crop: no resample). Physical lengths
+    /// convert at the typed resolution, else at the document's; points and picas at the
+    /// document's points per inch. A bare number is in pixels.
+    pub fn target(&self, document: &CropDocument) -> Option<CropTarget> {
+        // pc: crates/ui-egui/src/tools/crop_size.rs:131 `target`, :122 `resolution_ppi` (px/cm × 2.54),
+        // :71 `parse_length` (positive, at most 1e9, no percent, ',' read as '.').
+        todo!()
+    }
+
+    /// Applies a pick from the preset list: Free clears the ratio fields; Size turns W × H ×
+    /// Resolution on; a ratio preset sets the ratio and its fields; a size preset fills W, H and
+    /// the resolution in px/in and turns W × H × Resolution on; a user preset takes its ratio and
+    /// fields; Front Image fills W, H in px and the resolution from `document`
+    /// ([`front_image`](Self::front_image)). New and Delete change nothing. Returns whether the
+    /// settings changed, so the tool refits the frame.
+    pub fn choose(&mut self, choice: CropPresetChoice, document: &CropDocument, user: &[CropUserPreset]) -> bool {
+        // pc: crates/ui-egui/src/tools/crop_size.rs:255 `chosen`, :169 `select_custom_ratio`;
+        // crop_presets.rs:180 `apply_choice`.
+        todo!()
+    }
+
+    /// The entry the preset list shows as chosen: the latest user preset whose values match,
+    /// else the built-in size preset whose fields match exactly, else the mode or ratio entry,
+    /// else [`CropPresetChoice::Free`] for a typed ratio.
+    pub fn choice(&self, user: &[CropUserPreset]) -> CropPresetChoice {
+        // pc: crates/ui-egui/src/tools/crop_presets.rs:120 `button_label`.
+        todo!()
+    }
+
+    /// The bar's Clear: W, H and the resolution in W × H × Resolution mode (the mode stays), else
+    /// the ratio and its fields.
+    pub fn clear(&mut self) {
+        // pc: crates/ui-egui/src/tools/crop_size.rs:230 `clear_ratio`.
+        todo!()
+    }
+
+    /// The Crop tool's X: swaps W and H in W × H × Resolution mode, else swaps the ratio's sides
+    /// (Original becomes the document's size turned on its side). Returns false when there is
+    /// nothing to swap (a free ratio).
+    pub fn swap(&mut self, document: &CropDocument) -> bool {
+        // pc: crates/ui-egui/src/tools/crop_ui.rs:721 `swap_orientation` (the options half),
+        // :713 `swapped_ratio`; crop_size.rs:239 `swap`.
+        todo!()
+    }
+
+    /// The bar's ⇄ between the two fields: always swaps them, in either mode (Perspective Crop
+    /// shows the W and H fields without the mode).
+    pub fn swap_fields(&mut self) {
+        // pc: crates/ui-egui/src/tools/crop_size.rs:249 `swap_fields`; panels/options_bar.rs:483 (the
+        // ratio pair).
+        todo!()
+    }
+
+    /// Front Image (the list entry and the I key): W × H × Resolution with W and H the document's
+    /// size in px and the resolution the document's in the field's unit.
+    pub fn front_image(&mut self, document: &CropDocument) {
+        // pc: crates/ui-egui/src/tools/crop_size.rs:211 `front_image`.
+        todo!()
+    }
+
+    /// Sets one ratio field as typed or scrubbed (`side` 0 is the width), keeping the other: a
+    /// complete pair becomes [`CropRatio::Sides`] (rounded to [`RATIO_DECIMALS`]), an incomplete
+    /// one a free ratio that keeps both fields.
+    pub fn set_ratio_field(&mut self, side: usize, value: f64) {
+        // pc: crates/ui-egui/src/tools/crop_size.rs:179 `set_custom_ratio_fields`, :161
+        // `custom_ratio_fields` (what the fields show).
+        todo!()
+    }
+
+    /// The two numbers the ratio fields show: the ratio's sides when one is set (Original: the
+    /// document's size), else [`ratio_fields`](Self::ratio_fields).
+    pub fn shown_ratio_fields(&self, document: &CropDocument) -> [f64; 2] {
+        // pc: crates/ui-egui/src/tools/crop_size.rs:161 `custom_ratio_fields`.
+        todo!()
+    }
+
+    /// O: the next overlay, at its first orientation.
+    pub fn cycle_guide(&mut self) {
+        // pc: crates/ui-egui/src/tools/crop_overlay.rs:247 `cycle`.
+        todo!()
+    }
+
+    /// ⇧O: the overlay's next orientation (nothing for an overlay with one).
+    pub fn cycle_orientation(&mut self) {
+        // pc: crates/ui-egui/src/tools/crop_overlay.rs:261 `cycle_orientation`.
+        todo!()
+    }
+
+    /// Picks overlay `guide`; another overlay starts at its first orientation.
+    pub fn set_guide(&mut self, guide: CropGuide) {
+        // pc: crates/ui-egui/src/tools/crop_overlay.rs:253 `set_overlay`.
+        todo!()
+    }
+
+    /// The name New Crop Preset… suggests: "4 x 5 in 300 ppi" (one unit for both sides), "4 in x
+    /// 300 px" (different units), with " 300 px/cm" for a px/cm resolution, or "2 : 3" for a ratio;
+    /// `None` when there is nothing to save (Original, a free ratio, W or H empty). The number
+    /// words come from `labels` (`ppi`, `px/cm`).
+    pub fn preset_name(&self, labels: &CropBarLabels) -> Option<String> {
+        // pc: crates/ui-egui/src/tools/crop_presets.rs:85 `savable`, :78 `number`; crop_size.rs:84
+        // `format_length` (the unit's decimals, at least 2, trailing zeros dropped).
+        todo!()
+    }
+}
+
+impl CropSizeFields {
+    /// The resolution in px/in, or `None` when the field is empty or not a positive number.
+    pub fn resolution_ppi(&self) -> Option<f64> {
+        // pc: crates/ui-egui/src/tools/crop_size.rs:122 `resolution_ppi`.
+        todo!()
+    }
+
+    /// What a length field keeps once its typing run ends: the length normalised ("4in" → "4 in";
+    /// a bare number keeps the unit `previous` had, pixels for an empty field), empty for an empty
+    /// field, and `previous` for text that is not a length.
+    pub fn normalize_length(typed: &str, previous: &str) -> String {
+        // pc: crates/ui-egui/src/tools/crop_size.rs:97 `normalize_length`, :91 `field_unit`.
+        todo!()
+    }
+
+    /// What the resolution field keeps once its typing run ends: a positive number (two
+    /// decimals at most), empty, or `previous`.
+    pub fn normalize_resolution(typed: &str, previous: &str) -> String {
+        // pc: crates/ui-egui/src/tools/crop_size.rs:111 `normalize_resolution`.
+        todo!()
+    }
+}

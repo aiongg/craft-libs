@@ -1186,3 +1186,22 @@ fn enter_is_ignored_while_another_widget_has_the_focus() {
     h.run();
     assert_eq!(h.state().applied, 0, "Enter belongs to the focused button");
 }
+
+// Every key `show` reads (Enter, Esc, the arrows with and without ⇧ on the whole frame and on a
+// picked corner, X, and an Image-mode arrow that moves the view) gives through `CropFrame::key` the
+// action and frame `show` reports for the same press, and a release gives nothing (task TO-C3).
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: task TO-C3")]
+fn host_keys_equal_show_keys() {
+    todo!()
+}
+
+// `CropFrame::parts` names the group "Crop frame" with the "W × H, X, Y, angle°" value and lists
+// the whole frame, four corners and four edges with the rects `show` gives AccessKit (task TO-C3).
+#[test]
+#[ignore = "skeleton"]
+#[expect(clippy::todo, reason = "skeleton: task TO-C3")]
+fn host_parts_equal_show_parts() {
+    todo!()
+}
