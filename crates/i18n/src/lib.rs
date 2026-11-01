@@ -21,7 +21,7 @@ mod region;
 mod scripts;
 mod size;
 
-/// The CLDR number and plural data for every CLDR locale, from `data/generate.sh`.
+/// The CLDR number, plural and date data for every CLDR locale, from `data/generate.sh`.
 mod data {
     use std::sync::OnceLock;
 
@@ -37,6 +37,18 @@ mod data {
         PROVIDER
             .get_or_init(|| {
                 let blob = BlobDataProvider::try_new_from_static_blob(include_bytes!("../data/numbers.postcard")).ok()?;
+                Some(LocaleFallbackProvider::new(blob, LocaleFallbacker::new().static_to_owned()))
+            })
+            .as_ref()
+    }
+
+    /// The date, time, name and week data (with the digits they use), read once; `None` if the
+    /// blob doesn't load.
+    pub(crate) fn dates_provider() -> Option<&'static LocaleFallbackProvider<BlobDataProvider>> {
+        static PROVIDER: OnceLock<Option<LocaleFallbackProvider<BlobDataProvider>>> = OnceLock::new();
+        PROVIDER
+            .get_or_init(|| {
+                let blob = BlobDataProvider::try_new_from_static_blob(include_bytes!("../data/dates.postcard")).ok()?;
                 Some(LocaleFallbackProvider::new(blob, LocaleFallbacker::new().static_to_owned()))
             })
             .as_ref()
@@ -151,6 +163,8 @@ pub struct I18n {
     system: OnceLock<Lang>,
     /// [`I18n::format`]; the system region's until [`I18n::set_format`].
     format: RwLock<Option<Arc<Format>>>,
+    /// [`I18n::dates`]; the system region's until [`I18n::set_dates`].
+    dates: RwLock<Option<Arc<DateFormat>>>,
 }
 
 impl I18n {
@@ -204,7 +218,7 @@ impl I18n {
                 l.chain = chain;
             }
         }
-        (I18n { locales, pseudo: Mutex::default(), system: OnceLock::new(), format: RwLock::default() }, problems)
+        (I18n { locales, pseudo: Mutex::default(), system: OnceLock::new(), format: RwLock::default(), dates: RwLock::default() }, problems)
     }
 
     /// Parse every locale and list every problem, `<locale>/<common|app>: line N: …`, for a test or

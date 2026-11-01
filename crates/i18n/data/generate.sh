@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Regenerates the number and plural data in this directory from Unicode CLDR, for every CLDR
-# locale: 10 KB, of which CLDR's modern-coverage locales alone would be 7 KB. Lookups fall back
-# at run time, so a locale whose data matches its parent's is left out.
+# Regenerates the number, plural and date data in this directory from Unicode CLDR, for every CLDR
+# locale: 10 KB of numbers (CLDR's modern-coverage locales alone would be 7 KB) and 340 KB of
+# dates. Lookups fall back at run time, so a locale whose data matches its parent's is left out.
 #
 # Needs `cargo install icu4x-datagen --version 2.3.0` (the ICU4X minor version in Cargo.toml)
 # and python3. Downloads CLDR's JSON release once into $CACHE.
@@ -19,5 +19,15 @@ TMPDIR=$CACHE icu4x-datagen --format blob --overwrite \
     --out "$HERE/numbers.postcard"
 
 ZIP=$CACHE/icu4x-source-cache/github.com/unicode-org/cldr-json/releases/download/$CLDR/cldr-$CLDR-json-full.zip
+# Gregorian dates and times, month and weekday names, and week data. The markers are those the
+# date formatters, name patterns and WeekInformation load; digits come from the decimal markers.
+TMPDIR=$CACHE icu4x-datagen --format blob --overwrite \
+    --cldr-tag "$CLDR" \
+    --markers CalendarWeekV1 DatetimeNamesDayperiodV1 DatetimeNamesMonthGregorianV1 \
+    DatetimeNamesWeekdayV1 DatetimeNamesYearGregorianV1 DatetimePatternsDateGregorianV1 \
+    DatetimePatternsGlueV1 DatetimePatternsTimeV1 DecimalDigitsV1 DecimalSymbolsV1 \
+    --locales full --deduplication maximal \
+    --out "$HERE/dates.postcard"
+
 python3 -I "$HERE/locales.py" "$ZIP" "$CLDR" > "$HERE/locales.rs.tmp"
 mv "$HERE/locales.rs.tmp" "$HERE/locales.rs"
