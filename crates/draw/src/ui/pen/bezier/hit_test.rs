@@ -1,9 +1,10 @@
 //! [`BezierOverlay::hit_test`]: the part of a path under a screen point, without a pass.
 
 use egui::Pos2;
+use kurbo::{ParamCurveNearest as _, Point};
 
-use super::{BezierHit, BezierOverlay, EditPath, HandlesShown, PathSelection};
-use craft_ui::canvas::CanvasView;
+use super::{BezierHit, BezierOverlay, EditPath, HandleSide, HandlesShown, KnotRef, MAX_ANCHORS, PathSelection, Shown, map_cubic};
+use craft_ui::canvas::{CanvasView, hit};
 
 impl BezierOverlay<'_> {
     /// The part of `paths` under the screen point `at`, answered as the overlay's press would
@@ -16,7 +17,6 @@ impl BezierOverlay<'_> {
     ///
     /// Hosts use it for a tool's hover cursor or for their own tool logic (PhotoCraft's Add and
     /// Delete Anchor targets) without showing an overlay.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands (task PE-A3)")]
     pub fn hit_test(
         paths: &[EditPath],
         selection: &PathSelection,
@@ -26,8 +26,74 @@ impl BezierOverlay<'_> {
         reach: f32,
     ) -> Option<BezierHit> {
         // pc: crates/vector/src/edit.rs:337 `hit` (handles, anchors, segments; nearest per kind).
-        // new: the body of the private `hit_at` and `shown_handles` moved here; `hit_at` then
-        // calls this with the pass's handles.
-        todo!()
+        let shown = shown_handles(paths, selection, handles, view);
+        let anchors = paths.iter().map(EditPath::anchor_count).sum::<usize>() <= MAX_ANCHORS;
+        hit_in(paths, &shown, anchors, view, at, reach)
     }
+}
+
+/// The handles to show, in path order, in then out, leaving out retracted ones.
+pub(super) fn shown_handles(paths: &[EditPath], sel: &PathSelection, handles: HandlesShown, view: &CanvasView) -> Vec<Shown> {
+    let mut shown = Vec::new();
+    for (index, path) in paths.iter().enumerate() {
+        let segment_ends = sel.segment.filter(|_| sel.path == Some(path.key)).and_then(|s| {
+            let (a, b) = path.subpaths.get(s.subpath)?.segment_ends(s.knot)?;
+            Some((KnotRef::new(s.subpath, a), KnotRef::new(s.subpath, b)))
+        });
+        for knot_ref in path.knot_refs() {
+            let Some(knot) = path.knot(knot_ref) else { continue };
+            for side in [HandleSide::In, HandleSide::Out] {
+                let wanted = match handles {
+                    HandlesShown::All => true,
+                    HandlesShown::Selected => {
+                        sel.has_anchor(path.key, knot_ref)
+                            || segment_ends
+                                .is_some_and(|(a, b)| (side == HandleSide::Out && a == knot_ref) || (side == HandleSide::In && b == knot_ref))
+                    }
+                };
+                if wanted && !knot.retracted(side) {
+                    shown.push(Shown { path: index, knot: knot_ref, side, at: view.to_screen(knot.handle(side)) });
+                }
+            }
+        }
+    }
+    shown
+}
+
+/// The hit among `shown` handles, then (with `anchors`) anchors, then segments.
+pub(super) fn hit_in(paths: &[EditPath], shown: &[Shown], anchors: bool, view: &CanvasView, pointer: Pos2, reach: f32) -> Option<BezierHit> {
+    let nearest = |best: &mut Option<(BezierHit, f32)>, hit: BezierHit, d: f32| {
+        if d <= reach && best.is_none_or(|(_, bd)| d <= bd) {
+            *best = Some((hit, d));
+        }
+    };
+    let mut best = None;
+    for s in shown {
+        let path = paths[s.path].key;
+        nearest(&mut best, BezierHit::Handle { path, knot: s.knot, side: s.side }, hit::point(pointer, s.at));
+    }
+    if best.is_none() && anchors {
+        for path in paths {
+            for k in path.knot_refs() {
+                if let Some(knot) = path.knot(k) {
+                    nearest(&mut best, BezierHit::Anchor { path: path.key, knot: k }, hit::point(pointer, view.to_screen(knot.anchor)));
+                }
+            }
+        }
+    }
+    if best.is_none() {
+        let to_screen = view.affine();
+        let p = Point::new(f64::from(pointer.x), f64::from(pointer.y));
+        for path in paths {
+            for (s, sub) in path.subpaths.iter().enumerate() {
+                for i in 0..sub.segment_count() {
+                    let Some(c) = sub.segment(i) else { continue };
+                    let nearest_t = map_cubic(to_screen, c).nearest(p, 1e-3);
+                    let d = nearest_t.distance_sq.sqrt() as f32;
+                    nearest(&mut best, BezierHit::Segment { path: path.key, segment: KnotRef::new(s, i), t: nearest_t.t }, d);
+                }
+            }
+        }
+    }
+    best.map(|(hit, _)| hit)
 }
