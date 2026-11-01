@@ -22,6 +22,17 @@ pub struct FolderIndex {
 /// counts), and stopping after `limit` files (`truncated`). `cancelled` is asked before each
 /// folder; when it says yes the walk ends with what it has. Unreadable folders are skipped.
 pub fn index_folder(root: &Path, limit: usize, files: &dyn LinkFiles, cancelled: &dyn Fn() -> bool) -> FolderIndex {
+    index_folder_reporting(root, limit, files, cancelled, &mut |_| {})
+}
+
+/// [`index_folder`] that calls `indexed(n)` after each file it adds, `n` being the count so far.
+pub(super) fn index_folder_reporting(
+    root: &Path,
+    limit: usize,
+    files: &dyn LinkFiles,
+    cancelled: &dyn Fn() -> bool,
+    indexed: &mut dyn FnMut(usize),
+) -> FolderIndex {
     // filmcraft: crates/engine/src/relink.rs:478 (`index_folder`: breadth first, dot files and folder links skipped).
     let mut index = FolderIndex::default();
     let mut queue = VecDeque::from([root.to_path_buf()]);
@@ -49,6 +60,7 @@ pub fn index_folder(root: &Path, limit: usize, files: &dyn LinkFiles, cancelled:
             }
             index.by_name.entry(entry.name.to_lowercase()).or_default().push(entry.path);
             index.files += 1;
+            indexed(index.files);
         }
     }
     index
