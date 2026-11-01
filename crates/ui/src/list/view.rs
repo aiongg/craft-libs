@@ -11,19 +11,19 @@ use egui::containers::scroll_area::ScrollSource;
 use egui::mutex::Mutex;
 use egui::os::OperatingSystem;
 use egui::{
-    Align, AsIdSalt, Context, CornerRadius, CursorIcon, DragAndDrop, Event, EventFilter, Id, IdSalt, Key, KeyboardShortcut, Layout, Modifiers,
-    PointerButton, Pos2, Rect, Response, ScrollArea, Sense, Ui, UiBuilder, WidgetInfo, pos2, text::LayoutJob, vec2,
+    Align, AsIdSalt, Context, CornerRadius, Event, EventFilter, Id, IdSalt, Key, KeyboardShortcut, Layout, Modifiers, PointerButton, Pos2, Rect,
+    Response, ScrollArea, Sense, Ui, UiBuilder, WidgetInfo, pos2, text::LayoutJob, vec2,
 };
 
-use super::drag::{self, Dragging};
+use super::drag::{DragOutcome, Dragging, RowDrag};
 use super::rename;
-use super::row::{DropMark, ListRow, ListRowStyle, RenameEnd, RowEvent, RowResponse, ThumbSize, row_id};
+use super::row::{ListRow, RenameEnd, RowEvent, RowResponse, ThumbSize, row_id};
 use super::spans::Spans;
 use super::toggle::{self, ToggleColumn, ToggleEdit};
 use super::tree::{self, Branch, OpenChange, TreeText};
 use crate::behavior::{
-    Axis, DisplayOrder, DragEnd, DropPosition, ListDrag, ListKey, ListOptions, ListSelection, Listbox, Move, Reorder, ReorderGesture, Resolved,
-    RowInfo, Selection, SelectionChange, SelectionMode, StackKey, TreeMove, first_item, tree_key,
+    Axis, DisplayOrder, ListKey, ListOptions, ListSelection, Listbox, Move, Reorder, RowInfo, Selection, SelectionChange, SelectionMode, StackKey,
+    TreeMove, first_item, tree_key,
 };
 use crate::composites::SectionLabel;
 use crate::direction;
@@ -409,6 +409,7 @@ where
             Heights::Fixed(height) => Spans::uniform(*height, rows.len()),
             Heights::Mixed(height) => Spans::mixed(rows.len(), height),
         };
+        let dragging = state.drag.take();
         let mut pass = Pass {
             ctx: ui.ctx().clone(),
             rows,
@@ -422,10 +423,7 @@ where
             row_rects: Vec::new(),
             focus: false,
             lead_row: None,
-            id,
-            reorder: reorder.as_ref(),
-            target: None,
-            drag_gesture: reorder.is_some().then(|| ReorderGesture::load(ui, id)),
+            drag: RowDrag::load(ui, id, reorder.as_ref(), dragging),
             tree,
             tree_text: tree_text.unwrap_or_else(|| TreeText::shared(ui)),
             rtl: direction::is_rtl(ui),
@@ -451,7 +449,7 @@ where
             menu_key = pass.keys(ui, page, type_ahead, id);
         }
 
-        let scroll_to = pass.scroll_target(&spans).or_else(|| pass.drag_scroll(&spans));
+        let scroll_to = pass.scroll_target(&spans).or_else(|| pass.drag.scroll(&spans, pass.state.offset, pass.state.view));
         let multiple = mode == SelectionMode::Multiple;
         let scroll_bar_label = scroll_bar_label.unwrap_or_else(|| ScrollBarLabels::name(ui));
         let builder = UiBuilder::new()
@@ -481,7 +479,7 @@ where
             })
             .response;
 
-        pass.drag_frame(ui, &style, response.rect.width());
+        pass.drag.frame(ui, &style, response.rect.width());
         pass.background(&response);
         if menu_key {
             pass.menu_for_lead(response.rect);
@@ -489,7 +487,9 @@ where
         if pass.focus {
             ui.memory_mut(|m| m.request_focus(id));
         }
-        if let Some(event) = pass.drag_gesture.take().and_then(ReorderGesture::finish) {
+        let DragOutcome { dragging, event, drop_target } = pass.drag.finish();
+        pass.state.drag = dragging;
+        if let Some(event) = event {
             pass.events.push(ListEvent::Reorder(event));
         }
         let focused = ui.memory(|m| m.has_focus(id));
@@ -517,7 +517,6 @@ where
             }
         });
         FocusRing::paint_if(ui, response.rect, CornerRadius::ZERO, focused && rows.is_empty());
-        let drop_target = pass.state.drag.as_ref().and(pass.target.as_ref()).map(|t| t.mv.clone());
         let events = pass.events;
         let rows = pass.row_rects;
         if focused {
@@ -637,12 +636,7 @@ struct Pass<'p, K, O: ?Sized, F> {
     focus: bool,
     /// The lead row's id and rect, once drawn.
     lead_row: Option<(Id, Rect)>,
-    id: Id,
-    reorder: Option<&'p Reorder<'p, K>>,
-    /// Where a drag under way drops this frame.
-    target: Option<Resolved<K>>,
-    /// The drag's edit gesture, in a list that reorders.
-    drag_gesture: Option<ReorderGesture<K>>,
+    drag: RowDrag<'p, K>,
     tree: bool,
     tree_text: Arc<TreeText>,
     rtl: bool,
@@ -703,12 +697,7 @@ where
                 self.events.push(ListEvent::Row(RowEvent::Toggle(cancel)));
             }
         }
-        if !self.drag_gesture.as_ref().is_some_and(ReorderGesture::is_active) && self.state.drag.take().is_some() && self.has_payload() {
-            DragAndDrop::clear_payload(&self.ctx);
-        }
-        if self.state.drag.take_if(|drag| !drag::all_shown(self.rows, &drag.items)).is_some() {
-            self.end_drag(DragEnd::Removed, Modifiers::NONE);
-        }
+        self.drag.end_for_gone_rows(self.rows);
     }
 
     /// Opens the rename of `key` where it can be renamed, committing another open one.
@@ -743,7 +732,7 @@ where
         let mac = matches!(ui.ctx().os(), OperatingSystem::Mac | OperatingSystem::IOS);
         let column_keys = self.column_keys();
         let renames = self.lead_at().is_some_and(|at| self.renamable(self.rows.key(at)));
-        let stacks = self.reorder.is_some();
+        let stacks = self.drag.reorders();
         let mut commands = Vec::new();
         ui.input_mut(|i| {
             i.events.retain(|event| {
@@ -897,15 +886,15 @@ where
         let content = ui.max_rect();
         let width = content.width();
         ui.set_min_height(spans.total());
-        self.target = self.drop_target(ui, spans, content.min.y);
+        self.drag.resolve(ui, self.rows, spans, content.min.y);
         let lead = self.lead_at();
         let position = |key: Option<&K>| key.and_then(|k| self.rows.position(k));
         let mut drawn: Vec<usize> = spans.in_view(viewport.min.y..viewport.max.y).collect();
         drawn.extend(lead.filter(|_| focused));
         drawn.extend(position(self.state.renaming.as_ref().map(|r| &r.key)));
         drawn.extend(position(self.state.sweep.as_ref().map(|s| &s.key)));
-        drawn.extend(position(self.state.drag.as_ref().map(|d| &d.grabbed)));
-        drawn.extend(self.target.as_ref().map(|t| t.at));
+        drawn.extend(position(self.drag.grabbed()));
+        drawn.extend(self.drag.target_at());
         drawn.sort_unstable();
         drawn.dedup();
         let mut rows_ui = ui.new_child(UiBuilder::new().id_salt("rows").max_rect(content).layout(Layout::top_down(Align::Min)));
@@ -943,7 +932,7 @@ where
             }
             _ => false,
         };
-        let mark = self.target.as_ref().filter(|t| t.at == at).map(|t| drop_mark(t.mv.position));
+        let mark = self.drag.mark(at);
         let row = row.selected(self.selection.contains(&key)).focused(lead && focused).renaming(renaming).drop_mark(mark);
         let out = row.show_at(ui, rect);
         self.row_rects.push((key.clone(), rect));
@@ -1061,12 +1050,7 @@ where
         }
         // A drag from a thumbnail of a row with `thumb_drags` is the host's, not a row drag.
         let thumb_drag = out.events.iter().any(|event| matches!(event, RowEvent::ThumbDrag { .. }));
-        if self.reorder.is_some()
-            && self.state.drag.is_none()
-            && !thumb_drag
-            && self.can_drag.is_none_or(|can| can(key))
-            && response.drag_started_by(PointerButton::Primary)
-        {
+        if self.drag.can_start() && !thumb_drag && self.can_drag.is_none_or(|can| can(key)) && response.drag_started_by(PointerButton::Primary) {
             self.start_drag(at, key);
         }
         // A toggle cell senses its own clicks, so its secondary click is read from its response.
@@ -1153,103 +1137,16 @@ where
     /// A stacking key: the selected rows move one row, or to an end. The lead is revealed next
     /// frame, once the host has moved it.
     fn stack_key(&mut self, key: StackKey, modifiers: Modifiers) {
-        let Some(mv) = self.reorder.and_then(|reorder| reorder.key_move(self.rows, &self.selection.items, key, modifiers)) else { return };
-        let Some(gesture) = self.drag_gesture.as_mut().filter(|g| !g.is_active()) else { return };
-        gesture.set(mv);
+        if !self.drag.stack(self.rows, &self.selection.items, key, modifiers) {
+            return;
+        }
         self.state.reveal_next = self.lead_at().map(|at| self.rows.key(at).clone());
     }
 
     /// Starts a drag of the row `key` at `at`: the selection when it holds the row, else the row.
     fn start_drag(&mut self, at: usize, key: &K) {
         let label = (self.build)(at, key).label().to_owned();
-        let payload = ListDrag::new(self.id, self.rows, &self.selection.items, key.clone(), label);
-        let Some(gesture) = self.drag_gesture.as_mut() else { return };
-        gesture.begin();
-        if !gesture.is_active() {
-            return;
-        }
-        self.state.drag = Some(Dragging { items: payload.items.clone(), grabbed: key.clone(), label: payload.label.clone() });
-        DragAndDrop::set_payload(&self.ctx, payload);
-    }
-
-    /// The target of the drag under way, while the pointer is over the rows' viewport; `top` is
-    /// where the rows start on the screen.
-    fn drop_target(&self, ui: &Ui, spans: &Spans, top: f32) -> Option<Resolved<K>> {
-        let (drag, reorder) = (self.state.drag.as_ref()?, self.reorder?);
-        let (pointer, modifiers) = ui.input(|i| (i.pointer.hover_pos(), i.modifiers));
-        if !ui.rect_contains_pointer(ui.clip_rect()) {
-            return None;
-        }
-        reorder.resolve(self.rows, spans, pointer?.y - top, &drag.items, modifiers)
-    }
-
-    /// The scroll offset while a drag is held near the top or bottom edge of the list.
-    fn drag_scroll(&self, spans: &Spans) -> Option<f32> {
-        let (reorder, view) = (self.reorder?, self.state.view?);
-        self.state.drag.as_ref()?;
-        let pointer = self.ctx.pointer_latest_pos()?;
-        let delta = reorder.auto_scroll(pointer, view, self.ctx.input(|i| i.stable_dt));
-        let offset = (self.state.offset + delta).clamp(0.0, (spans.total() - view.height()).max(0.0));
-        if offset == self.state.offset {
-            return None;
-        }
-        self.ctx.request_repaint();
-        Some(offset)
-    }
-
-    /// Ends the drag under way when it was released, Esc was pressed or the window lost the
-    /// focus; otherwise draws the ghost and the copy cursor.
-    fn drag_frame(&mut self, ui: &Ui, style: &ListRowStyle, width: f32) {
-        let Some(drag) = self.state.drag.take() else { return };
-        let ctx = self.ctx.clone();
-        let (released, down, modifiers, pointer) =
-            ui.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.modifiers, i.pointer.latest_pos()));
-        let end = if crate::focus::lost(&ctx) {
-            Some(DragEnd::FocusLost)
-        } else if released || !down {
-            Some(DragEnd::Released(self.target.as_ref().map(|t| t.mv.clone())))
-        } else if !self.has_payload() {
-            // egui's drag and drop takes Esc and drops the payload before the gesture sees the key.
-            Some(if egui::DragAndDrop::aborted_by_escape(&ctx) { DragEnd::Escape } else { DragEnd::PayloadCleared })
-        } else {
-            None
-        };
-        if let Some(end) = end {
-            self.end_drag(end, modifiers);
-            return;
-        }
-        if self.reorder.is_some_and(|reorder| reorder.copies(modifiers)) {
-            ctx.set_cursor_icon(CursorIcon::Copy);
-        }
-        if let Some(pointer) = pointer {
-            drag::paint_ghost(ui, self.id, style, &drag.label, pointer, width, None);
-        }
-        self.state.drag = Some(drag);
-    }
-
-    /// Whether egui's drag and drop holds this list's rows.
-    fn has_payload(&self) -> bool {
-        DragAndDrop::payload::<ListDrag<K>>(&self.ctx).is_some_and(|payload| payload.list == self.id)
-    }
-
-    /// Reports the end of a drag. A drop on the list or a cancel clears the payload, so no other
-    /// widget takes it; a release elsewhere leaves it to the widget under the pointer.
-    fn end_drag(&mut self, end: DragEnd<K>, modifiers: Modifiers) {
-        if !matches!(end, DragEnd::Released(None)) && self.has_payload() {
-            DragAndDrop::clear_payload(&self.ctx);
-        }
-        if let Some(gesture) = self.drag_gesture.as_mut() {
-            gesture.end(end, modifiers);
-        }
-    }
-}
-
-/// The marker of a drop at `position` of its target row.
-fn drop_mark(position: DropPosition) -> DropMark {
-    match position {
-        DropPosition::Before => DropMark::Before,
-        DropPosition::After => DropMark::After,
-        DropPosition::Into => DropMark::Into,
+        self.drag.start(self.rows, &self.selection.items, key.clone(), label);
     }
 }
 
