@@ -1,5 +1,6 @@
 //! [`Table`]: rows of cells under a header of columns the user sorts, resizes, hides and moves.
 
+use std::cell::Cell;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -15,14 +16,18 @@ use egui::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::row::{ListRow, RowEvent};
+use super::drag::{DragOutcome, Dragging, RowDrag};
+use super::rename;
+use super::row::{ListRow, RenameEnd, RowEvent, ThumbSize, paint_drop_mark};
 use super::spans::Spans;
 use super::tree::{self, Branch, OpenChange, TreeText};
 use super::view::ContextMenuRequest;
 use crate::behavior::{
-    ClaimedKey, DisplayOrder, KeyClaim, ListKey, ListSelection, Selection, SelectionChange, SelectionMode, TreeMove, first_item, tree_key,
+    ClaimedKey, DisplayOrder, KeyClaim, ListKey, ListSelection, Move, Reorder, Selection, SelectionChange, SelectionMode, StackKey, TreeMove,
+    first_item, tree_key,
 };
 use crate::direction;
+use crate::edit::EditEvent;
 use crate::icons::{self, Icon, IconSize};
 use crate::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis};
 use crate::localized::SharedLabels as _;
@@ -203,26 +208,54 @@ impl<C> TableColumn<C> {
 
 /// What a cell is drawn with, given to the cell closure of [`Table::show`].
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CellContext {
+pub struct CellContext<'a> {
     /// The row is selected.
     pub selected: bool,
     /// The text colour of the row: `list.text.selected` in a selected row, `list.text` otherwise.
     pub text: Color32,
     /// The column is [numeric](TableColumn::numeric).
     pub numeric: bool,
+    /// The row's rename field is open in this cell (the table's
+    /// [rename column](Table::renamable)): the cell draws what comes before the name and then
+    /// [`name`](Self::name), which leaves the rest of the cell to the field.
+    pub renaming: bool,
+    /// In the rename column, where [`name`](Self::name) put the name.
+    name: Option<&'a Cell<Option<Rect>>>,
 }
 
-impl CellContext {
+impl CellContext<'_> {
     /// `text` in the body role and the row's text colour, with tabular figures in a numeric
     /// column. The library's `Text` takes its colour from the content, not from the row, so a
-    /// cell drawn with it keeps the unselected colour in a selected row.
+    /// cell drawn with it keeps the unselected colour in a selected row. The text isn't
+    /// selectable, so a press on it is the row's (click, drag).
     pub fn label(&self, ui: &mut Ui, text: impl Into<String>) -> Response {
+        ui.add(Label::new(self.job(ui, text.into())).selectable(false))
+    }
+
+    /// The row's name in the table's [rename column](Table::renamable): [`label`](Self::label)
+    /// cut with an ellipsis. While the row is [`renaming`](Self::renaming) it draws nothing and
+    /// takes the rest of the cell for the rename field. The table reads the name's rect: a slow
+    /// click on it opens the rename. A rename column whose cell draws no name gives the field and
+    /// the slow click the whole cell.
+    pub fn name(&self, ui: &mut Ui, text: impl Into<String>) -> Response {
+        let response = if self.renaming {
+            ui.allocate_exact_size(ui.available_size(), Sense::hover()).1
+        } else {
+            ui.add(Label::new(self.job(ui, text.into())).selectable(false).truncate())
+        };
+        if let Some(name) = self.name {
+            name.set(Some(response.rect));
+        }
+        response
+    }
+
+    fn job(&self, ui: &Ui, text: String) -> LayoutJob {
         let mut format = role_format(&Tokens::of(ui), TypeRole::Body, self.text);
         format.valign = ui.text_valign();
         if self.numeric {
             format = tabular(format);
         }
-        ui.add(Label::new(LayoutJob::single_section(text.into(), format)))
+        LayoutJob::single_section(text, format)
     }
 }
 
@@ -378,6 +411,29 @@ pub enum TableEvent<K, C> {
     /// open state ([`TreeState::apply`](super::TreeState::apply) or its own model) and gives the
     /// next pass the new display order.
     Open(OpenChange<K>),
+    /// A move of rows the host makes, in a table that [reorders](Table::reorder), as one edit
+    /// gesture, as [`ListEvent::Reorder`](super::ListEvent::Reorder) reports it for a list: a drag
+    /// reports `Begin`, then `Commit` with the move on a drop on a target, or `Cancel`
+    /// (`Dismissed` for a release anywhere else, which leaves the [`ListDrag`](crate::behavior::ListDrag)
+    /// payload to the widget under the pointer); a stacking key reports `Set`. Where a drag would
+    /// drop is [`TableOutput::drop_target`], not an edit.
+    Reorder(EditEvent<Move<K>>),
+    /// A rename ended with text other than the row's name; the text may be empty and the host
+    /// decides what that means. Reported before the [`RenameEnded`](Self::RenameEnded) of the same
+    /// pass.
+    Renamed {
+        /// The row.
+        row: K,
+        /// The new text.
+        text: String,
+    },
+    /// The row's rename field closed, by commit or by Esc.
+    RenameEnded {
+        /// The row.
+        row: K,
+        /// How it ended; Tab and Shift+Tab go on to rename the next and previous row.
+        end: RenameEnd,
+    },
 }
 
 /// What [`Table::show`] returns: a composite of header, edges and body, as
@@ -390,6 +446,9 @@ pub struct TableOutput<K, C> {
     pub response: Response,
     /// What happened this pass, in order.
     pub events: Vec<TableEvent<K, C>>,
+    /// While a drag of rows is under way, where it drops this pass: the target the marker shows,
+    /// `None` over no target. The move itself comes as [`TableEvent::Reorder`]'s `Commit`.
+    pub drop_target: Option<Move<K>>,
 }
 
 /// A sortable table with resizable, hideable and movable columns, after PdfCraft's Combine Files
@@ -472,6 +531,13 @@ pub struct TableOutput<K, C> {
 ///   (`selected`) and each cell a `Cell`.
 /// - **Tree.** [`tree`](Self::tree) indents the rows by their depth in the display order and adds
 ///   the tree keys and roles; see there.
+/// - **Reorder.** With [`reorder`](Self::reorder), rows drag and drop as a [`List`](super::List)'s
+///   do; see there.
+/// - **Rename.** With [`renamable`](Self::renamable), rows rename in place in one column; see
+///   there.
+/// - **Row height.** [`thumbnails`](Self::thumbnails) sets the row height for a thumbnail in the
+///   cells: `list.*`'s height for the size ([`ListRowStyle::height`](super::ListRowStyle::height)),
+///   as a list's rows.
 pub struct Table<'a, K, C, O: ?Sized> {
     id_salt: IdSalt,
     label: String,
@@ -484,9 +550,14 @@ pub struct Table<'a, K, C, O: ?Sized> {
     movable: bool,
     max_height: Option<f32>,
     labels: Option<TableLabels>,
-    /// Set by [`tree`](Self::tree): each row's name for its disclosure triangle.
-    tree: Option<RowName<'a, K>>,
+    /// Set by [`row_name`](Self::row_name) and [`tree`](Self::tree).
+    name: Option<RowName<'a, K>>,
+    tree: bool,
     tree_text: Option<TreeText>,
+    reorder: Option<Reorder<'a, K>>,
+    rename: Option<(C, CanRename<'a, K>)>,
+    start_rename: Option<K>,
+    thumbnails: ThumbSize,
 }
 
 impl<'a, K, C, O> Table<'a, K, C, O>
@@ -510,8 +581,13 @@ where
             movable: true,
             max_height: None,
             labels: None,
-            tree: None,
+            name: None,
+            tree: false,
             tree_text: None,
+            reorder: None,
+            rename: None,
+            start_rename: None,
+            thumbnails: ThumbSize::None,
         }
     }
 
@@ -580,7 +656,80 @@ where
     ///   siblings (`position_in_set`, `size_of_set`); a screen reader's Expand and Collapse report
     ///   [`TableEvent::Open`]. Cells stay `Cell`s.
     pub fn tree(mut self, row_name: impl Fn(&K) -> String + 'a) -> Self {
-        self.tree = Some(Box::new(row_name));
+        self.name = Some(Box::new(row_name));
+        self.tree = true;
+        self
+    }
+
+    /// Each row's name: the label of a drag's ghost and payload, and the text a rename starts
+    /// from. A [tree](Self::tree) table has it already. A table's rows have no label of their own,
+    /// since the host draws every cell, so rows drag and rename only in a table with names.
+    pub fn row_name(mut self, row_name: impl Fn(&K) -> String + 'a) -> Self {
+        self.name = Some(Box::new(row_name));
+        self
+    }
+
+    /// Rows drag and move by the rules of `reorder`, as a [`List`](super::List)'s rows do
+    /// ([`List::reorder`](super::List::reorder)); the table needs a [`row_name`](Self::row_name).
+    ///
+    /// - **Drag.** A drag of a row takes the selection when the row is in it, else the row alone,
+    ///   without changing the selection. It is egui's [`DragAndDrop`] payload
+    ///   [`ListDrag`](crate::behavior::ListDrag) (with the grabbed row), so other widgets take
+    ///   drops from it; the ghost ([`paint_ghost`](super::paint_ghost)) shows the grabbed row's
+    ///   name beside the pointer. The view scrolls while the pointer is held near its top or bottom
+    ///   edge.
+    /// - **Targets.** [`Reorder`]'s: a group's middle (or a row [`into_rows`](Reorder::into_rows)
+    ///   takes) is `Into`, the halves before and after it; [`accepts`](Reorder::accepts) refuses
+    ///   the host's own. The target row shows the list's marker
+    ///   ([`paint_drop_mark`](super::paint_drop_mark)). A table whose rows drag only to other
+    ///   widgets refuses every target with `accepts`.
+    /// - **End.** A release over a target reports the move ([`TableEvent::Reorder`] `Commit`) and
+    ///   takes the payload; a release anywhere else leaves the payload to the widget under the
+    ///   pointer, drawn after the table in the same pass; Esc and focus loss cancel.
+    /// - **Keys.** Cmd+] and Cmd+[ (Ctrl off macOS) move the selection one row, Shift to the ends
+    ///   (a `Set`).
+    pub fn reorder(mut self, reorder: Reorder<'a, K>) -> Self {
+        self.reorder = Some(reorder);
+        self
+    }
+
+    /// Rows rename in place in `column`, as a [`List`](super::List)'s rows do; the table needs a
+    /// [`row_name`](Self::row_name), which the field starts from.
+    ///
+    /// - **Start.** F2 on the lead, [`start_rename`](Self::start_rename) (a context menu's
+    ///   Rename), or a slow click: a click on the name ([`CellContext::name`]) of the row that is
+    ///   already the only one selected, with no modifier, opens the field once the double-click
+    ///   time has passed without a second click (a double click activates the row). One rename at
+    ///   a time; starting another commits the open one.
+    /// - **Field.** A [`TextField`](crate::controls::TextField) with the whole name selected, in
+    ///   the rest of the cell after what it draws before the name, named by the column's label.
+    ///   Enter, Tab, Shift+Tab or the focus leaving commit; Tab and Shift+Tab go on to the next
+    ///   and previous row; Esc cancels; unchanged text renames nothing. It reports
+    ///   [`TableEvent::Renamed`] and [`TableEvent::RenameEnded`]. The row stays drawn while it
+    ///   scrolls away, and commits when it leaves the rows.
+    pub fn renamable(self, column: C) -> Self {
+        self.can_rename(column, |_| true)
+    }
+
+    /// Rows rename in place in `column` where `can_rename` says so; see
+    /// [`renamable`](Self::renamable).
+    pub fn can_rename(mut self, column: C, can_rename: impl Fn(&K) -> bool + 'a) -> Self {
+        self.rename = Some((column, Box::new(can_rename)));
+        self
+    }
+
+    /// Opens the rename field of the row `key` (a context menu's Rename), committing any other
+    /// open rename, where the row can be renamed.
+    pub fn start_rename(mut self, key: K) -> Self {
+        self.start_rename = Some(key);
+        self
+    }
+
+    /// The row height for a thumbnail of `thumb` in the cells (default none: `list.row_height`),
+    /// from [`ListRowStyle::height`](super::ListRowStyle::height). The host draws the thumbnail at
+    /// [`ListRowStyle::thumb_side`](super::ListRowStyle::thumb_side).
+    pub fn thumbnails(mut self, thumb: ThumbSize) -> Self {
+        self.thumbnails = thumb;
         self
     }
 
@@ -591,13 +740,34 @@ where
     }
 
     // pdfcraft: crates/ui-egui/src/workflows/combine_ui/table.rs:32 table, :96 heading, :167 table_body
-    pub fn show(self, ui: &mut Ui, mut cell: impl FnMut(&mut Ui, &K, &C, &CellContext)) -> TableOutput<K, C> {
-        let Table { id_salt, label, columns, layout, rows, selection, mode, striped, movable, max_height, labels, tree, tree_text } = self;
+    pub fn show(self, ui: &mut Ui, mut cell: impl FnMut(&mut Ui, &K, &C, &CellContext<'_>)) -> TableOutput<K, C> {
+        let Table {
+            id_salt,
+            label,
+            columns,
+            layout,
+            rows,
+            selection,
+            mode,
+            striped,
+            movable,
+            max_height,
+            labels,
+            name,
+            tree,
+            tree_text,
+            reorder,
+            rename,
+            start_rename,
+            thumbnails,
+        } = self;
         let labels = labels.map_or_else(|| TableLabels::shared(ui), Arc::new);
-        let tree = tree.as_deref().map(|name| TreeRows { name, text: tree_text.map_or_else(|| TreeText::shared(ui), Arc::new) });
+        let names = name.as_deref();
+        let tree = names.filter(|_| tree).map(|name| TreeRows { name, text: tree_text.map_or_else(|| TreeText::shared(ui), Arc::new) });
         let is_tree = tree.is_some();
         let tokens = Tokens::of(ui);
         let style = table_style(&tokens);
+        let list_style = ListRow::<'_, K>::style(&tokens);
         let rules = ListSelection::new(mode);
         let id = ui.make_persistent_id(id_salt);
         let rtl = direction::is_rtl(ui);
@@ -609,10 +779,37 @@ where
             None => &mut own,
         };
         let focused = ui.memory(|m| m.has_focus(id));
-        let spans = Spans::uniform(style.row_height, rows.len());
+        let row_height = list_style.height(thumbnails, false);
+        let spans = Spans::uniform(row_height, rows.len());
         let mut events: Vec<TableEvent<K, C>> = Vec::new();
-        let mut pass = Pass { rows, rules, selection, events: &mut events, focus: false, lead_row: None, reveal: state.reveal.take(), tree };
+        // Rows drag and rename only with names: a drag's label, a rename's start text.
+        let (rename_column, can_rename) = rename.as_ref().filter(|_| names.is_some()).map(|(column, can)| (column, can.as_ref())).unzip();
+        let mut pass = Pass {
+            ctx: ui.ctx().clone(),
+            id,
+            rows,
+            rules,
+            selection,
+            events: &mut events,
+            focus: false,
+            lead_row: None,
+            reveal: state.reveal.take(),
+            reveal_next: None,
+            tree,
+            names,
+            can_rename,
+            renaming: state.renaming.take(),
+            slow: state.slow.take(),
+            drag: RowDrag::load(ui, id, reorder.as_ref().filter(|_| names.is_some()), state.drag.take()),
+        };
 
+        pass.end_for_gone_rows();
+        if let Some(key) = start_rename {
+            pass.start_rename(key);
+        }
+        if let Some(key) = state.reveal_next.take() {
+            pass.reveal = Some(key);
+        }
         if focused && !state.focused && FocusRing::visible(ui.ctx()) {
             pass.reveal = pass.lead_at().map(|at| rows.key(at).clone());
         }
@@ -622,7 +819,7 @@ where
             let page = state.viewport.map_or(1, |h| spans.page(state.offset..state.offset + h));
             menu_key = pass.keys(ui, page, mac);
         }
-        let scroll_to = pass.scroll_target(&spans, state.offset, state.viewport);
+        let scroll_to = pass.scroll_target(&spans, state.offset, state.viewport).or_else(|| pass.drag.scroll(&spans, state.offset, state.view));
 
         let mut shown = shown_columns(columns, layout);
         // A solid scroll bar takes room from the columns once the rows overflow.
@@ -665,7 +862,7 @@ where
                         let Some(height) = viewport_height else { return 0.0 };
                         let visible = spans.in_view(offset..offset + height);
                         let tree = is_tree && first.as_ref() == Some(&column.key);
-                        widest_cell(ui, rows, visible, column, rtl, tree, &style, &mut cell)
+                        widest_cell(ui, rows, visible, column, rtl, tree, row_height, &mut cell)
                     };
                     header.show(ui, layout, &mut shown, &mut widths, &mut state, &mut pass, &mut fit);
 
@@ -682,20 +879,29 @@ where
                         spans: &spans,
                         focused,
                         header_height,
+                        rename: rename_column,
                     };
                     body.draw(ui, viewport, &mut pass, &mut cell);
                 });
                 state.offset = out.state.clamped_offset().y;
                 state.viewport = Some((out.inner_rect.height() - header_height).max(0.0));
+                let body = out.inner_rect.with_min_y((out.inner_rect.top() + header_height).min(out.inner_rect.bottom()));
+                state.view = Some(body);
             })
             .response;
 
+        pass.drag.frame(ui, &list_style, response.rect.width());
+        pass.settle_slow_click(ui);
         pass.background(&response);
         if menu_key {
             pass.menu_for_lead(response.rect);
         }
         if pass.focus {
             ui.memory_mut(|m| m.request_focus(id));
+        }
+        let DragOutcome { dragging, event: reorder_event, drop_target } = pass.drag.finish();
+        if let Some(event) = reorder_event {
+            pass.events.push(TableEvent::Reorder(event));
         }
         let focused = ui.memory(|m| m.has_focus(id));
         let active = pass.lead_row.map(|(row, _)| row).filter(|_| focused);
@@ -728,9 +934,13 @@ where
         }
         state.focused = focused;
         state.reveal = pass.reveal.take();
+        state.reveal_next = pass.reveal_next.take();
+        state.renaming = pass.renaming.take();
+        state.slow = pass.slow.take();
+        state.drag = dragging;
         state.own = own;
         state.store(ui.ctx(), id);
-        TableOutput { response, events }
+        TableOutput { response, events, drop_target }
     }
 }
 
@@ -836,12 +1046,51 @@ struct State<K, C> {
     focused: bool,
     /// The layout's widths before the edge drag under way, put back by Esc or focus loss.
     widths_before_drag: Option<Vec<(C, f32)>>,
+    /// A row to scroll into view next pass, once the host has moved it.
+    reveal_next: Option<K>,
+    /// The body's viewport on the screen in the last pass.
+    view: Option<Rect>,
+    drag: Option<Dragging<K>>,
+    renaming: Option<Renaming<K>>,
+    slow: Option<SlowClick<K>>,
 }
 
 impl<K, C> Default for State<K, C> {
     fn default() -> Self {
-        Self { own: Selection::default(), reveal: None, offset: 0.0, viewport: None, focused: false, widths_before_drag: None }
+        Self {
+            own: Selection::default(),
+            reveal: None,
+            offset: 0.0,
+            viewport: None,
+            focused: false,
+            widths_before_drag: None,
+            reveal_next: None,
+            view: None,
+            drag: None,
+            renaming: None,
+            slow: None,
+        }
     }
+}
+
+/// The open rename: its row, and the row's name when it was last drawn.
+#[derive(Clone)]
+struct Renaming<K> {
+    key: K,
+    label: String,
+}
+
+/// A click on the name of the row that was the only one selected, at `time` (egui's input
+/// time): the rename opens once the double-click time has passed without another click.
+#[derive(Clone)]
+struct SlowClick<K> {
+    key: K,
+    time: f64,
+}
+
+/// The id a row's rename field keeps its draft under.
+fn rename_id<K: Hash + Debug>(table: Id, key: &K) -> Id {
+    table.with(("rename", key))
 }
 
 impl<K: Clone + Send + Sync + 'static, C: Clone + Send + Sync + 'static> State<K, C> {
@@ -863,9 +1112,14 @@ enum Command {
         right: bool,
         all: bool,
     },
+    /// A stacking key, in a table that reorders.
+    Stack(StackKey, Modifiers),
 }
 
-fn take_command(key: Key, modifiers: Modifiers, mac: bool, tree: bool) -> Option<Command> {
+fn take_command(key: Key, modifiers: Modifiers, mac: bool, tree: bool, stacks: bool) -> Option<Command> {
+    if stacks && let Some(stack) = StackKey::from_key(key, modifiers, mac) {
+        return Some(Command::Stack(stack, modifiers));
+    }
     if (key == Key::Menu && modifiers.matches_exact(Modifiers::NONE)) || (key == Key::F10 && modifiers.matches_exact(Modifiers::SHIFT)) {
         return Some(Command::Menu);
     }
@@ -873,11 +1127,14 @@ fn take_command(key: Key, modifiers: Modifiers, mac: bool, tree: bool) -> Option
         let all = modifiers.matches_exact(Modifiers::ALT);
         return (all || modifiers.matches_exact(Modifiers::NONE)).then_some(Command::Tree { right: key == Key::ArrowRight, all });
     }
-    ListKey::from_key(key, modifiers, mac).filter(|key| *key != ListKey::Rename).map(Command::List)
+    ListKey::from_key(key, modifiers, mac).map(Command::List)
 }
 
-/// A row's name in a tree table ([`Table::tree`]).
+/// A row's name ([`Table::row_name`]).
 type RowName<'a, K> = Box<dyn Fn(&K) -> String + 'a>;
+
+/// Which rows rename ([`Table::can_rename`]).
+type CanRename<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
 
 /// A tree table's parts, set by [`Table::tree`].
 struct TreeRows<'p, K> {
@@ -888,6 +1145,8 @@ struct TreeRows<'p, K> {
 
 /// The selection and the events of one pass, shared by the header and the body.
 struct Pass<'p, K, C, O: ?Sized> {
+    ctx: Context,
+    id: Id,
     rows: &'p O,
     rules: ListSelection,
     selection: &'p mut Selection<K>,
@@ -897,8 +1156,14 @@ struct Pass<'p, K, C, O: ?Sized> {
     /// The lead row's id and rect, once drawn.
     lead_row: Option<(Id, Rect)>,
     reveal: Option<K>,
+    reveal_next: Option<K>,
     /// Set in a tree table.
     tree: Option<TreeRows<'p, K>>,
+    names: Option<&'p (dyn Fn(&K) -> String + 'p)>,
+    can_rename: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
+    renaming: Option<Renaming<K>>,
+    slow: Option<SlowClick<K>>,
+    drag: RowDrag<'p, K>,
 }
 
 impl<K, C, O> Pass<'_, K, C, O>
@@ -930,13 +1195,19 @@ where
     /// Takes the list keys of the focused body; true when the Menu key or Shift+F10 asked for the
     /// lead's context menu.
     fn keys(&mut self, ui: &Ui, page: usize, mac: bool) -> bool {
+        if self.renaming.is_some() {
+            return false;
+        }
         let mut commands = Vec::new();
         let tree = self.tree.is_some();
+        let stacks = self.drag.reorders();
+        let renames = self.lead_at().is_some_and(|at| self.renamable(self.rows.key(at)));
         let rtl = direction::is_rtl(ui);
         ui.input_mut(|i| {
             i.events.retain(|event| {
                 let Event::Key { key, pressed: true, modifiers, .. } = event else { return true };
-                match take_command(*key, *modifiers, mac, tree) {
+                match take_command(*key, *modifiers, mac, tree, stacks) {
+                    Some(Command::List(ListKey::Rename)) if !renames => true,
                     Some(command) => {
                         commands.push(command);
                         false
@@ -947,6 +1218,7 @@ where
         });
         let mut menu = false;
         for command in commands {
+            self.slow = None;
             match command {
                 Command::List(key) => self.list_key(key, page),
                 Command::Menu => {
@@ -954,9 +1226,134 @@ where
                     menu = true;
                 }
                 Command::Tree { right, all } => self.tree_key(right != rtl, all),
+                Command::Stack(key, modifiers) => {
+                    if self.drag.stack(self.rows, &self.selection.items, key, modifiers) {
+                        self.reveal_next = self.lead_at().map(|at| self.rows.key(at).clone());
+                    }
+                }
             }
         }
         menu
+    }
+
+    /// The pointer on the row `key` at `at`, drawn at `rect`; `name` is where its name is in the
+    /// rename column. A click selects by the selection rules and, on the name of the row that was
+    /// already the only one selected, starts a slow click; a double click activates; a primary
+    /// drag starts a drag of rows; a secondary click asks for the row's context menu.
+    fn row_pointer(&mut self, ui: &Ui, at: usize, key: &K, rect: Rect, response: &Response, name: Option<Rect>) {
+        let modifiers = ui.input(|i| i.modifiers);
+        if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
+            self.focus = true;
+        }
+        if response.double_clicked() {
+            self.slow = None;
+            self.events.push(TableEvent::Activate(key.clone()));
+        } else if response.clicked() {
+            let alone = self.selection.items.len() == 1 && self.selection.contains(key);
+            let on_name = name.zip(response.interact_pointer_pos()).is_some_and(|(name, pointer)| name.contains(pointer));
+            let slow = alone && on_name && !modifiers.any() && self.renamable(key);
+            self.slow = slow.then(|| SlowClick { key: key.clone(), time: ui.input(|i| i.time) });
+            if let Some(change) = self.rules.click(self.selection, self.rows, at, modifiers) {
+                self.apply(change);
+            }
+        }
+        if response.drag_started_by(PointerButton::Primary)
+            && self.drag.can_start()
+            && let Some(name) = self.names
+        {
+            self.slow = None;
+            self.drag.start(self.rows, &self.selection.items, key.clone(), name(key));
+        }
+        if response.secondary_clicked() {
+            self.slow = None;
+            self.focus = true;
+            let selected = self.selection.contains(key);
+            let request =
+                ContextMenuRequest { row: Some(key.clone()), selected, anchor: rect, pointer: response.interact_pointer_pos(), toggle: None };
+            self.events.push(TableEvent::ContextMenu(request));
+        }
+        if ui.input(|i| i.has_accesskit_action_request(response.id, Action::Focus)) && self.selection.lead.as_ref() != Some(key) {
+            self.selection.lead = Some(key.clone());
+            self.focus = true;
+        }
+    }
+
+    fn renamable(&self, key: &K) -> bool {
+        self.can_rename.is_some_and(|can| can(key))
+    }
+
+    /// Commits the open rename of a row that left the rows, and ends the drag of one
+    /// ([`RowDrag::end_for_gone_rows`]).
+    fn end_for_gone_rows(&mut self) {
+        if let Some(open) = self.renaming.take_if(|open| self.rows.position(&open.key).is_none()) {
+            self.commit_rename(open, RenameEnd::Removed);
+        }
+        self.drag.end_for_gone_rows(self.rows);
+    }
+
+    /// Opens the rename of `key` where it can be renamed, committing another open one.
+    fn start_rename(&mut self, key: K) {
+        if !self.renamable(&key) || self.renaming.as_ref().is_some_and(|open| open.key == key) {
+            return;
+        }
+        if let Some(open) = self.renaming.take() {
+            self.commit_rename(open, RenameEnd::Blur);
+        }
+        self.slow = None;
+        self.renaming = Some(Renaming { key: key.clone(), label: String::new() });
+        self.reveal = Some(key);
+    }
+
+    /// Ends a rename whose row doesn't show its field any more, with the text typed into it.
+    fn commit_rename(&mut self, open: Renaming<K>, end: RenameEnd) {
+        let typed = rename::take_draft(&self.ctx, rename_id(self.id, &open.key));
+        if let Some(text) = typed.filter(|text| *text != open.label) {
+            self.events.push(TableEvent::Renamed { row: open.key.clone(), text });
+        }
+        self.events.push(TableEvent::RenameEnded { row: open.key, end });
+    }
+
+    /// Reports what the rename field of the row at `at` reported; a rename that ends with Tab or
+    /// Shift+Tab goes on to the next or previous row, Enter and Esc give the table the focus.
+    fn rename_event(&mut self, at: usize, event: RowEvent<K>) {
+        match event {
+            RowEvent::Renamed { row, text } => self.events.push(TableEvent::Renamed { row, text }),
+            RowEvent::RenameEnded { row, end } => {
+                self.renaming = None;
+                self.events.push(TableEvent::RenameEnded { row, end });
+                let next = match end {
+                    RenameEnd::Tab => Some(at + 1),
+                    RenameEnd::ShiftTab => at.checked_sub(1),
+                    RenameEnd::Enter | RenameEnd::Escape => {
+                        self.focus = true;
+                        None
+                    }
+                    RenameEnd::Blur | RenameEnd::Removed => None,
+                };
+                if let Some(next) = next.filter(|&n| n < self.rows.len() && !self.rows.is_section(n)) {
+                    self.start_rename(self.rows.key(next).clone());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Opens the rename a slow click asked for once the double-click time has passed, while its
+    /// row is still the only one selected; until then, asks for a repaint at that time.
+    fn settle_slow_click(&mut self, ui: &Ui) {
+        let Some(pending) = self.slow.take() else { return };
+        let alone = self.selection.items.len() == 1 && self.selection.contains(&pending.key);
+        if !alone || self.renaming.is_some() {
+            return;
+        }
+        let now = ui.input(|i| i.time);
+        let due = pending.time + ui.ctx().options(|o| o.input_options.max_double_click_delay);
+        if now >= due {
+            self.start_rename(pending.key);
+        } else {
+            ui.ctx().request_repaint_after_secs((due - now) as f32);
+            self.slow = Some(pending);
+        }
     }
 
     /// The tree keys on the lead ([`Table::tree`]): toward the end opens a closed group or moves
@@ -1032,7 +1429,11 @@ where
                     self.events.push(TableEvent::Activate(lead));
                 }
             }
-            ListKey::Rename => {}
+            ListKey::Rename => {
+                if let Some(lead) = lead.clone() {
+                    self.start_rename(lead);
+                }
+            }
         }
         self.reveal = self.selection.lead.clone().or(lead);
     }
@@ -1481,8 +1882,8 @@ fn widest_cell<K, C, O>(
     column: &TableColumn<C>,
     rtl: bool,
     tree: bool,
-    style: &TableStyle,
-    cell: &mut impl FnMut(&mut Ui, &K, &C, &CellContext),
+    row_height: f32,
+    cell: &mut impl FnMut(&mut Ui, &K, &C, &CellContext<'_>),
 ) -> f32
 where
     K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
@@ -1490,8 +1891,8 @@ where
 {
     let list = ListRow::<'_, K>::style(&Tokens::of(ui));
     let text = list.text;
-    let context = CellContext { selected: false, text, numeric: column.align == Align::Max };
-    let area = Rect::from_min_size(ui.max_rect().min, vec2(MAX_WIDTH, style.row_height));
+    let context = CellContext { selected: false, text, numeric: column.align == Align::Max, renaming: false, name: None };
+    let area = Rect::from_min_size(ui.max_rect().min, vec2(MAX_WIDTH, row_height));
     let mut widest: f32 = 0.0;
     for at in visible.filter(|&at| !rows.is_section(at)) {
         let builder = UiBuilder::new().id_salt(("fit", at)).max_rect(area).layout(cell_layout(column, rtl)).invisible().sizing_pass();
@@ -1521,15 +1922,18 @@ struct Body<'a, C> {
     focused: bool,
     /// The header above the first row, which the rows scroll under.
     header_height: f32,
+    /// The column rows rename in.
+    rename: Option<&'a C>,
 }
 
 impl<C> Body<'_, C>
 where
     C: Clone + PartialEq + Debug + Send + Sync + 'static,
 {
-    /// Lays out the rows in view, and the lead while the table has the focus (the active
-    /// descendant).
-    fn draw<K, O>(&self, ui: &mut Ui, viewport: Rect, pass: &mut Pass<'_, K, C, O>, cell: &mut impl FnMut(&mut Ui, &K, &C, &CellContext))
+    /// Lays out the rows in view, and those that must stay drawn: the lead while the table has
+    /// the focus (the active descendant), the row being renamed (its field has the focus), the
+    /// row a drag grabbed (egui's drag state is its) and the drag's target.
+    fn draw<K, O>(&self, ui: &mut Ui, viewport: Rect, pass: &mut Pass<'_, K, C, O>, cell: &mut impl FnMut(&mut Ui, &K, &C, &CellContext<'_>))
     where
         K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
         O: DisplayOrder<K> + ?Sized,
@@ -1542,9 +1946,14 @@ where
             ui.add(Text::new(self.labels.empty.as_str()).content(Content::Muted));
             return;
         }
+        pass.drag.resolve(ui, pass.rows, self.spans, content.min.y + header);
         let lead = pass.lead_at();
+        let position = |key: Option<&K>| key.and_then(|k| pass.rows.position(k));
         let mut drawn: Vec<usize> = self.spans.in_view(viewport.min.y..viewport.max.y - header).collect();
         drawn.extend(lead.filter(|_| self.focused));
+        drawn.extend(position(pass.renaming.as_ref().map(|r| &r.key)));
+        drawn.extend(position(pass.drag.grabbed()));
+        drawn.extend(pass.drag.target_at());
         drawn.sort_unstable();
         drawn.dedup();
         for at in drawn {
@@ -1561,7 +1970,7 @@ where
         rect: Rect,
         lead: bool,
         pass: &mut Pass<'_, K, C, O>,
-        cell: &mut impl FnMut(&mut Ui, &K, &C, &CellContext),
+        cell: &mut impl FnMut(&mut Ui, &K, &C, &CellContext<'_>),
     ) where
         K: Clone + Eq + Hash + Debug + Send + Sync + 'static,
         O: DisplayOrder<K> + ?Sized,
@@ -1587,9 +1996,18 @@ where
         let text = if selected { list.selected_text } else { list.text };
         let branch = pass.tree.as_ref().map(|_| branch_at(pass.rows, at));
         let role = if branch.is_some() { Role::TreeItem } else { Role::Row };
+        // The name the open rename of this row started from, as the row shows it now.
+        let renaming = pass.renaming.as_mut().filter(|open| open.key == key).zip(pass.names).map(|(open, name)| {
+            open.label = name(&key);
+            open.label.clone()
+        });
+        let field_id = rename_id(pass.id, &key);
+        let name_rect: Cell<Option<Rect>> = Cell::new(None);
+        let mut renamed = Vec::new();
         let tree = pass.tree.as_ref();
         let mut opened: Vec<OpenChange<K>> = Vec::new();
-        let scope = ui.scope_builder(UiBuilder::new().id_salt(("row", &key)).max_rect(rect).sense(Sense::CLICK).accessibility_role(role), |ui| {
+        let sense = if pass.drag.reorders() { Sense::click_and_drag() } else { Sense::CLICK };
+        let scope = ui.scope_builder(UiBuilder::new().id_salt(("row", &key)).max_rect(rect).sense(sense).accessibility_role(role), |ui| {
             let mut from = 0.0;
             for (position, (&column, &width)) in self.shown.iter().zip(self.widths).enumerate() {
                 let (min_x, max_x) =
@@ -1603,7 +2021,14 @@ where
                     inner = self.tree_lead(ui, tree, inner, branch, &key, &mut opened);
                 }
                 let column = &self.columns[column];
-                let context = CellContext { selected, text, numeric: column.align == Align::Max };
+                let rename_column = self.rename == Some(&column.key);
+                let context = CellContext {
+                    selected,
+                    text,
+                    numeric: column.align == Align::Max,
+                    renaming: rename_column && renaming.is_some(),
+                    name: rename_column.then_some(&name_rect),
+                };
                 ui.scope_builder(
                     UiBuilder::new().id_salt(("cell", position)).max_rect(inner).layout(cell_layout(column, self.rtl)).accessibility_role(Role::Cell),
                     |ui| {
@@ -1611,6 +2036,14 @@ where
                         ui.visuals_mut().override_text_color = Some(text);
                         ui.ctx().accesskit_node_builder(ui.scope_id(), |node| node.set_column_index(position));
                         cell(ui, &key, &column.key, &context);
+                        if rename_column {
+                            // A cell that drew no name gives the whole cell to the name.
+                            let band = name_rect.get().unwrap_or(inner);
+                            name_rect.set(Some(band));
+                            if let Some(label) = &renaming {
+                                rename::show(ui, field_id, &key, label, column.label(), band, &mut renamed);
+                            }
+                        }
                     },
                 );
             }
@@ -1620,6 +2053,9 @@ where
             tree_item(ui, &response, branch, &key, &mut opened);
         }
         pass.events.extend(opened.into_iter().map(TableEvent::Open));
+        if let Some(mark) = pass.drag.mark(at) {
+            paint_drop_mark(ui, rect, mark);
+        }
         if lead {
             pass.lead_row = Some((response.id, rect));
             FocusRing::paint_if(ui, rect, CornerRadius::ZERO, self.focused);
@@ -1636,26 +2072,9 @@ where
             node.add_action(Action::Focus);
             node.add_action(Action::ScrollIntoView);
         });
-        let modifiers = ui.input(|i| i.modifiers);
-        if response.is_pointer_button_down_on() || response.clicked_by(PointerButton::Primary) {
-            pass.focus = true;
-        }
-        if response.double_clicked() {
-            pass.events.push(TableEvent::Activate(key.clone()));
-        } else if response.clicked()
-            && let Some(change) = pass.rules.click(pass.selection, pass.rows, at, modifiers)
-        {
-            pass.apply(change);
-        }
-        if response.secondary_clicked() {
-            pass.focus = true;
-            let request =
-                ContextMenuRequest { row: Some(key.clone()), selected, anchor: rect, pointer: response.interact_pointer_pos(), toggle: None };
-            pass.events.push(TableEvent::ContextMenu(request));
-        }
-        if ui.input(|i| i.has_accesskit_action_request(response.id, Action::Focus)) && pass.selection.lead.as_ref() != Some(&key) {
-            pass.selection.lead = Some(key);
-            pass.focus = true;
+        pass.row_pointer(ui, at, &key, rect, &response, name_rect.get());
+        for event in renamed {
+            pass.rename_event(at, event);
         }
     }
 }

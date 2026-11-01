@@ -7,12 +7,13 @@ use std::sync::Arc;
 
 use egui::mutex::Mutex;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{Id, LayerId, Order, Painter, Pos2, Rect, Stroke, StrokeKind, Ui, pos2, vec2};
+use egui::{Context, CursorIcon, DragAndDrop, Id, LayerId, Modifiers, Order, Painter, Pos2, Rect, Stroke, StrokeKind, Ui, pos2, vec2};
 
-use super::row::{ListRow, ListRowStyle, RowEvent};
+use super::row::{DropMark, ListRow, ListRowStyle, RowEvent};
+use super::spans::Spans;
 use super::toggle::ToggleColumn;
 use super::view::{List, ListEvent};
-use crate::behavior::{Axis, DisplayOrder, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
+use crate::behavior::{Axis, DisplayOrder, DragEnd, DropPosition, ListDrag, Move, Reorder, ReorderGesture, Resolved, RowInfo, Selection, StackKey};
 use crate::controls::button::Button;
 use crate::direction;
 use crate::edit::EditEvent;
@@ -44,6 +45,186 @@ pub(super) fn all_shown<K: Eq + Hash>(rows: &(impl DisplayOrder<K> + ?Sized), it
         missing.remove(rows.key(at));
     }
     missing.is_empty()
+}
+
+/// One pass of the row drag of a list or a table that [reorders](Reorder): the drag under way,
+/// which its owner keeps between passes, the drag's edit gesture, and where it drops this pass.
+///
+/// The owner loads it at the start of the pass, calls [`end_for_gone_rows`](Self::end_for_gone_rows)
+/// before reading input, [`start`](Self::start) when a row reports a primary drag start,
+/// [`resolve`](Self::resolve) before drawing the rows (in the coordinates of their spans), draws
+/// [`mark`](Self::mark) on the target row, calls [`frame`](Self::frame) after the rows, and
+/// [`finish`](Self::finish)es it in the same pass.
+pub(super) struct RowDrag<'p, K> {
+    ctx: Context,
+    /// The id of the list or table, which the payload names.
+    list: Id,
+    reorder: Option<&'p Reorder<'p, K>>,
+    gesture: Option<ReorderGesture<K>>,
+    dragging: Option<Dragging<K>>,
+    target: Option<Resolved<K>>,
+}
+
+impl<'p, K: Clone + Eq + Hash + Send + Sync + 'static> RowDrag<'p, K> {
+    /// The drag of the list `list` in this pass, with the drag its last pass kept.
+    pub(super) fn load(ui: &Ui, list: Id, reorder: Option<&'p Reorder<'p, K>>, dragging: Option<Dragging<K>>) -> Self {
+        let gesture = reorder.is_some().then(|| ReorderGesture::load(ui, list));
+        Self { ctx: ui.ctx().clone(), list, reorder, gesture, dragging, target: None }
+    }
+
+    /// Forgets a drag that ended without the list (Esc, [`cancel_all`](crate::edit::cancel_all),
+    /// a pass that didn't draw it), and cancels one whose rows left `rows` with `Removed`.
+    pub(super) fn end_for_gone_rows(&mut self, rows: &(impl DisplayOrder<K> + ?Sized)) {
+        if !self.gesture.as_ref().is_some_and(ReorderGesture::is_active) && self.dragging.take().is_some() && self.has_payload() {
+            DragAndDrop::clear_payload(&self.ctx);
+        }
+        if self.dragging.take_if(|drag| !all_shown(rows, &drag.items)).is_some() {
+            self.end(DragEnd::Removed, Modifiers::NONE);
+        }
+    }
+
+    /// Whether a row may start a drag: the list reorders and no drag is under way.
+    pub(super) fn can_start(&self) -> bool {
+        self.gesture.is_some() && self.dragging.is_none()
+    }
+
+    /// The row the drag under way grabbed, which stays drawn while the drag lasts (egui's drag
+    /// state is its response's).
+    pub(super) fn grabbed(&self) -> Option<&K> {
+        self.dragging.as_ref().map(|drag| &drag.grabbed)
+    }
+
+    /// Starts a drag of the row `grabbed`, named `label`: the selection when it holds the row,
+    /// else the row ([`ListDrag::new`]).
+    pub(super) fn start(&mut self, rows: &(impl DisplayOrder<K> + ?Sized), selection: &[K], grabbed: K, label: String) {
+        let payload = ListDrag::new(self.list, rows, selection, grabbed.clone(), label);
+        let Some(gesture) = self.gesture.as_mut() else { return };
+        gesture.begin();
+        if !gesture.is_active() {
+            return;
+        }
+        self.dragging = Some(Dragging { items: payload.items.clone(), grabbed, label: payload.label.clone() });
+        DragAndDrop::set_payload(&self.ctx, payload);
+    }
+
+    /// Finds the target of the drag under way while the pointer is over `ui`'s clip rect (the
+    /// rows' viewport); `top` is where the rows start on the screen.
+    pub(super) fn resolve(&mut self, ui: &Ui, rows: &(impl DisplayOrder<K> + ?Sized), spans: &Spans, top: f32) {
+        self.target = None;
+        let (Some(drag), Some(reorder)) = (self.dragging.as_ref(), self.reorder) else { return };
+        let (pointer, modifiers) = ui.input(|i| (i.pointer.hover_pos(), i.modifiers));
+        let Some(pointer) = pointer.filter(|_| ui.rect_contains_pointer(ui.clip_rect())) else { return };
+        self.target = reorder.resolve(rows, spans, pointer.y - top, &drag.items, modifiers);
+    }
+
+    /// The position in the display order of the row the drag drops on this pass.
+    pub(super) fn target_at(&self) -> Option<usize> {
+        self.target.as_ref().map(|t| t.at)
+    }
+
+    /// The marker of the row at `at`, when the drag drops on it.
+    pub(super) fn mark(&self, at: usize) -> Option<DropMark> {
+        self.target.as_ref().filter(|t| t.at == at).map(|t| drop_mark(t.mv.position))
+    }
+
+    /// The scroll offset while the drag is held near the top or bottom edge of `view`, the rows'
+    /// viewport on the screen, scrolled to `offset`.
+    pub(super) fn scroll(&self, spans: &Spans, offset: f32, view: Option<Rect>) -> Option<f32> {
+        let (reorder, view) = (self.reorder?, view?);
+        self.dragging.as_ref()?;
+        let pointer = self.ctx.pointer_latest_pos()?;
+        let delta = reorder.auto_scroll(pointer, view, self.ctx.input(|i| i.stable_dt));
+        let to = (offset + delta).clamp(0.0, (spans.total() - view.height()).max(0.0));
+        if to == offset {
+            return None;
+        }
+        self.ctx.request_repaint();
+        Some(to)
+    }
+
+    /// Whether the list reorders: its rows sense drags.
+    pub(super) fn reorders(&self) -> bool {
+        self.gesture.is_some()
+    }
+
+    /// A stacking key on the `selected` rows of `rows`, while no drag is under way: reports the
+    /// move as a `Set`. Returns whether there was one.
+    pub(super) fn stack(&mut self, rows: &(impl DisplayOrder<K> + ?Sized), selected: &[K], key: StackKey, modifiers: Modifiers) -> bool {
+        let Some(mv) = self.reorder.and_then(|reorder| reorder.key_move(rows, selected, key, modifiers)) else { return false };
+        let Some(gesture) = self.gesture.as_mut().filter(|g| !g.is_active()) else { return false };
+        gesture.set(mv);
+        true
+    }
+
+    /// Ends the drag under way when it was released, Esc was pressed or the window lost the
+    /// focus; otherwise draws the ghost (`width` wide at most) and the copy cursor.
+    pub(super) fn frame(&mut self, ui: &Ui, style: &ListRowStyle, width: f32) {
+        let Some(drag) = self.dragging.take() else { return };
+        let (released, down, modifiers, pointer) =
+            ui.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.modifiers, i.pointer.latest_pos()));
+        let end = if crate::focus::lost(&self.ctx) {
+            Some(DragEnd::FocusLost)
+        } else if released || !down {
+            Some(DragEnd::Released(self.target.as_ref().map(|t| t.mv.clone())))
+        } else if !self.has_payload() {
+            // egui's drag and drop takes Esc and drops the payload before the gesture sees the key.
+            Some(if DragAndDrop::aborted_by_escape(&self.ctx) { DragEnd::Escape } else { DragEnd::PayloadCleared })
+        } else {
+            None
+        };
+        if let Some(end) = end {
+            self.end(end, modifiers);
+            return;
+        }
+        if self.reorder.is_some_and(|reorder| reorder.copies(modifiers)) {
+            self.ctx.set_cursor_icon(CursorIcon::Copy);
+        }
+        if let Some(pointer) = pointer {
+            paint_ghost(ui, self.list, style, &drag.label, pointer, width, None);
+        }
+        self.dragging = Some(drag);
+    }
+
+    /// What the pass leaves.
+    pub(super) fn finish(self) -> DragOutcome<K> {
+        let drop_target = self.dragging.as_ref().and(self.target).map(|t| t.mv);
+        DragOutcome { dragging: self.dragging, event: self.gesture.and_then(ReorderGesture::finish), drop_target }
+    }
+
+    /// Whether egui's drag and drop holds this list's rows.
+    fn has_payload(&self) -> bool {
+        DragAndDrop::payload::<ListDrag<K>>(&self.ctx).is_some_and(|payload| payload.list == self.list)
+    }
+
+    /// Ends the drag. A drop on the list or a cancel clears the payload, so no other widget takes
+    /// it; a release elsewhere leaves it to the widget under the pointer.
+    fn end(&mut self, end: DragEnd<K>, modifiers: Modifiers) {
+        if !matches!(end, DragEnd::Released(None)) && self.has_payload() {
+            DragAndDrop::clear_payload(&self.ctx);
+        }
+        if let Some(gesture) = self.gesture.as_mut() {
+            gesture.end(end, modifiers);
+        }
+    }
+}
+
+/// What a pass of a [`RowDrag`] leaves.
+pub(super) struct DragOutcome<K> {
+    /// The drag to keep for the next pass.
+    pub(super) dragging: Option<Dragging<K>>,
+    /// The pass's reorder event.
+    pub(super) event: Option<EditEvent<Move<K>>>,
+    /// Where a drag under way drops this pass.
+    pub(super) drop_target: Option<Move<K>>,
+}
+
+/// The marker of a drop at `position` of its target row.
+pub(super) fn drop_mark(position: DropPosition) -> DropMark {
+    match position {
+        DropPosition::Before => DropMark::Before,
+        DropPosition::After => DropMark::After,
+        DropPosition::Into => DropMark::Into,
+    }
 }
 
 /// Paints the thumbnail of a ghost into the rect, a square of the given side.

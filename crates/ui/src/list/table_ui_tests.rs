@@ -1,13 +1,15 @@
 //! `Table` in a harness.
 
 use egui::accesskit::{Role, SortDirection};
-use egui::{Event, Key, Modifiers, PointerButton, Pos2};
+use egui::{DragAndDrop, Event, Key, Modifiers, PointerButton, Pos2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::*;
-use crate::behavior::{RowInfo, Selection};
+use crate::behavior::{Axis, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
+use crate::controls::Button;
 use crate::direction::{self, Direction};
+use crate::edit::{CancelReason, EditEvent};
 use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
 
 type Col = &'static str;
@@ -20,6 +22,17 @@ struct Host {
     events: Vec<TableEvent<usize, Col>>,
     /// Shows the rows as a tree named "Row {key}".
     tree: bool,
+    /// Rows drag (named "Row {key}"); a button "Target" below the table takes the dropped rows.
+    reorder: bool,
+    /// With `reorder`, `accepts` refuses every row target.
+    refuse: bool,
+    /// The rows rename in the Name column (named "Row {key}").
+    rename: bool,
+    thumbnails: ThumbSize,
+    /// Each pass's drop target while a drag is under way.
+    targets: Vec<Option<Move<usize>>>,
+    /// The payload the "Target" button took.
+    dropped: Option<ListDrag<usize>>,
 }
 
 impl Host {
@@ -30,7 +43,20 @@ impl Host {
             TableColumn::new("size", "Size").min_width(50.0).hideable(true),
         ];
         let layout = TableLayout::new(&columns);
-        Host { columns, layout, rows: (0..5).map(RowInfo::leaf).collect(), selection: Selection::only(0), events: Vec::new(), tree: false }
+        Host {
+            columns,
+            layout,
+            rows: (0..5).map(RowInfo::leaf).collect(),
+            selection: Selection::only(0),
+            events: Vec::new(),
+            tree: false,
+            reorder: false,
+            refuse: false,
+            rename: false,
+            thumbnails: ThumbSize::None,
+            targets: Vec::new(),
+            dropped: None,
+        }
     }
 
     fn take_events(&mut self) -> Vec<TableEvent<usize, Col>> {
@@ -39,14 +65,34 @@ impl Host {
 }
 
 fn show(ui: &mut egui::Ui, host: &mut Host) {
-    let Host { columns, layout, rows, selection, events, tree } = host;
-    let mut table = Table::new("files", "Files", columns, layout, rows.as_slice()).selection(selection);
+    let Host { columns, layout, rows, selection, events, tree, reorder, refuse, rename, thumbnails, targets, dropped } = host;
+    let mut table = Table::new("files", "Files", columns, layout, rows.as_slice())
+        .selection(selection)
+        .row_name(|key| format!("Row {key}"))
+        .thumbnails(*thumbnails);
     if *tree {
         table = table.tree(|key| format!("Row {key}"));
     }
+    if *reorder {
+        let refuse = *refuse;
+        table = table.reorder(Reorder::new(Axis::Vertical).accepts(move |_, _| !refuse)).max_height(160.0);
+    }
+    if *rename {
+        table = table.renamable("name");
+    }
     let out = table.show(ui, |ui, row, column, cx| {
-        cx.label(ui, format!("{column} {row}"));
+        if *column == "name" {
+            cx.name(ui, format!("{column} {row}"));
+        } else {
+            cx.label(ui, format!("{column} {row}"));
+        }
     });
+    if *reorder {
+        targets.push(out.drop_target.clone());
+        if let Some(drag) = ui.add(Button::new("Target")).dnd_release_payload::<ListDrag<usize>>() {
+            *dropped = Some((*drag).clone());
+        }
+    }
     events.extend(out.events);
 }
 
@@ -638,4 +684,218 @@ fn a_tree_table_exposes_tree_items() {
     request(&harness, &closed, egui::accesskit::Action::Expand);
     harness.run();
     assert_eq!(opens(harness.state_mut().take_events()), [OpenChange { row: 2, open: true, all: false }]);
+}
+
+fn drag_host() -> Host {
+    let mut host = Host::new();
+    host.reorder = true;
+    host
+}
+
+/// The rect of the row at `at` in the display order.
+fn row_rect(harness: &Harness<'_, Host>, at: usize) -> egui::Rect {
+    rows(harness)[at]
+}
+
+/// A point in the row at `at`, `share` of the way down.
+fn in_row(harness: &Harness<'_, Host>, at: usize, share: f32) -> Pos2 {
+    let rect = row_rect(harness, at);
+    Pos2::new(rect.center().x, rect.top() + rect.height() * share)
+}
+
+fn hover(harness: &mut Harness<'_, Host>, pos: Pos2) {
+    harness.event(Event::PointerMoved(pos));
+    harness.run();
+}
+
+/// Presses on the row at `at` and moves past egui's drag threshold.
+fn grab(harness: &mut Harness<'_, Host>, at: usize) {
+    let start = in_row(harness, at, 0.5);
+    hover(harness, start);
+    press(harness, start, PointerButton::Primary, true);
+    hover(harness, start + egui::vec2(0.0, 8.0));
+}
+
+fn release(harness: &mut Harness<'_, Host>, pos: Pos2) {
+    hover(harness, pos);
+    press(harness, pos, PointerButton::Primary, false);
+}
+
+fn table_payload(harness: &Harness<'_, Host>) -> Option<ListDrag<usize>> {
+    DragAndDrop::payload::<ListDrag<usize>>(&harness.ctx).map(|p| (*p).clone())
+}
+
+/// The reorder events since the last call.
+fn reorders(harness: &mut Harness<'_, Host>) -> Vec<EditEvent<Move<usize>>> {
+    harness
+        .state_mut()
+        .take_events()
+        .into_iter()
+        .filter_map(|event| match event {
+            TableEvent::Reorder(event) => Some(event),
+            _ => None,
+        })
+        .collect()
+}
+
+// A row drag carries the `ListDrag` payload with the grabbed row and its name; over another row the
+// table resolves `Reorder`'s target and draws its marker; the release reports the move as a Commit
+// and takes the payload.
+#[test]
+fn a_row_dragged_onto_another_row_reports_the_move() {
+    let mut harness = harness_with(drag_host(), Direction::Ltr);
+    grab(&mut harness, 1);
+    assert!(matches!(reorders(&mut harness)[..], [EditEvent::Begin { .. }]));
+    let drag = table_payload(&harness).expect("the payload");
+    assert_eq!((drag.items.as_slice(), drag.grabbed, drag.label.as_str()), (&[1][..], 1, "Row 1"));
+
+    harness.state_mut().targets.clear();
+    let over = in_row(&harness, 3, 0.75);
+    hover(&mut harness, over);
+    let after = Move { items: vec![1], target: 3, position: DropPosition::After, copy: false };
+    assert_eq!(harness.state().targets.last(), Some(&Some(after.clone())));
+    let line = row_rect(&harness, 3);
+    let drop = list_style().drop;
+    assert!(
+        shapes(&harness).iter().any(|shape| matches!(shape, egui::Shape::Rect(r) if r.fill == drop && (r.rect.bottom() - line.bottom()).abs() < 4.0)),
+        "the After marker on the target row"
+    );
+    release(&mut harness, over);
+    let ends = reorders(&mut harness);
+    assert!(matches!(&ends[..], [EditEvent::Commit { value, .. }] if *value == after), "{ends:?}");
+    assert!(table_payload(&harness).is_none(), "a drop on the table takes the payload");
+    assert_eq!(harness.state().dropped, None);
+    assert_eq!(harness.state().selection.items, [0], "a drag doesn't change the selection");
+}
+
+// A table whose `accepts` refuses every row target drags only to other widgets: no target over its
+// rows, and a release over a widget after it leaves that widget the payload (the selection, with
+// the grabbed row) while the table reports Cancel(Dismissed).
+#[test]
+fn a_row_dragged_to_another_widget_leaves_it_the_payload() {
+    let mut host = drag_host();
+    host.refuse = true;
+    host.selection = Selection { items: vec![2, 1], lead: Some(2), anchor: Some(1) };
+    let mut harness = harness_with(host, Direction::Ltr);
+    grab(&mut harness, 1);
+    reorders(&mut harness);
+    harness.state_mut().targets.clear();
+    let over = in_row(&harness, 3, 0.75);
+    hover(&mut harness, over);
+    assert_eq!(harness.state().targets.last(), Some(&None), "every row target refused");
+    let target = harness.get_by_role_and_label(Role::Button, "Target").rect().center();
+    release(&mut harness, target);
+    let ends = reorders(&mut harness);
+    assert!(matches!(ends[..], [EditEvent::Cancel { reason: CancelReason::Dismissed, .. }]), "{ends:?}");
+    let dropped = harness.state().dropped.clone().expect("the button took the rows");
+    assert_eq!((dropped.items.as_slice(), dropped.grabbed), (&[1, 2][..], 1), "the selection in display order, and the row grabbed");
+}
+
+// Esc ends a row drag as Cancel(Escape) and drops the payload; the release after it moves nothing.
+#[test]
+fn escape_cancels_a_row_drag() {
+    let mut harness = harness_with(drag_host(), Direction::Ltr);
+    grab(&mut harness, 1);
+    reorders(&mut harness);
+    let over = in_row(&harness, 3, 0.75);
+    hover(&mut harness, over);
+    harness.key_press(Key::Escape);
+    harness.run();
+    let ends = reorders(&mut harness);
+    assert!(matches!(ends[..], [EditEvent::Cancel { reason: CancelReason::Escape, .. }]), "{ends:?}");
+    assert!(table_payload(&harness).is_none());
+    release(&mut harness, over);
+    assert!(reorders(&mut harness).is_empty(), "the rest of a cancelled drag does nothing");
+}
+
+fn rename_host() -> Host {
+    let mut host = Host::new();
+    host.rename = true;
+    host
+}
+
+/// The renames reported since the last call.
+fn renames(harness: &mut Harness<'_, Host>) -> Vec<TableEvent<usize, Col>> {
+    harness.state_mut().take_events().into_iter().filter(|e| matches!(e, TableEvent::Renamed { .. } | TableEvent::RenameEnded { .. })).collect()
+}
+
+fn click_at(harness: &mut Harness<'_, Host>, pos: Pos2) {
+    hover(harness, pos);
+    press(harness, pos, PointerButton::Primary, true);
+    press(harness, pos, PointerButton::Primary, false);
+}
+
+// F2 opens the lead's rename field with its name; typed text and Enter report Renamed then
+// RenameEnded(Enter). F2 and Esc report only RenameEnded(Escape).
+#[test]
+fn f2_renames_the_lead_and_esc_cancels() {
+    let mut harness = harness_with(rename_host(), Direction::Ltr);
+    let row = in_row(&harness, 1, 0.5);
+    click_at(&mut harness, row);
+    harness.run_steps(10);
+    renames(&mut harness);
+    harness.key_press(Key::F2);
+    harness.run();
+    let field = harness.get_by_role(Role::TextInput);
+    assert_eq!(field.value().as_deref(), Some("Row 1"), "the field starts from the row's name");
+    harness.event(Event::Text("Cover".into()));
+    harness.run();
+    harness.key_press(Key::Enter);
+    harness.run();
+    assert_eq!(
+        renames(&mut harness),
+        [TableEvent::Renamed { row: 1, text: "Cover".into() }, TableEvent::RenameEnded { row: 1, end: RenameEnd::Enter }]
+    );
+    assert!(harness.query_by_role(Role::TextInput).is_none());
+
+    harness.key_press(Key::F2);
+    harness.run();
+    harness.event(Event::Text("Draft".into()));
+    harness.run();
+    harness.key_press(Key::Escape);
+    harness.run();
+    assert_eq!(renames(&mut harness), [TableEvent::RenameEnded { row: 1, end: RenameEnd::Escape }]);
+}
+
+// A click on the name of the row that is already the only one selected opens its rename once the
+// double-click time has passed; a double click there activates the row instead.
+#[test]
+fn a_slow_click_on_the_selected_rows_name_renames_it() {
+    let mut harness = harness_with(rename_host(), Direction::Ltr);
+    let name = harness.get_by_label("name 0").rect().center();
+    click_at(&mut harness, name);
+    assert!(harness.query_by_role(Role::TextInput).is_none(), "not before the double-click time");
+    harness.run_steps(10);
+    assert!(harness.query_by_role(Role::TextInput).is_some(), "the slow click opened the rename");
+    harness.key_press(Key::Escape);
+    harness.run_steps(10);
+    harness.state_mut().take_events();
+
+    hover(&mut harness, name);
+    // One pass per press and release: `run` may step on toward the slow click's repaint.
+    for pressed in [true, false, true, false] {
+        harness.event(Event::PointerButton { pos: name, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        harness.step();
+    }
+    harness.run_steps(10);
+    assert!(harness.query_by_role(Role::TextInput).is_none(), "a double click doesn't rename");
+    assert!(harness.state_mut().take_events().contains(&TableEvent::Activate(0)));
+}
+
+// Rows take a list row's height for the thumbnail size (`ListRowStyle::height`), not
+// `list.row_height`: Small is taller than no thumbnail and Large taller than Medium. Small and
+// Medium both reach `list.thumb_row_min` in the suite's tokens.
+#[test]
+fn rows_take_the_list_row_height_of_the_thumbnail_size() {
+    let height = |thumbnails| {
+        let mut host = Host::new();
+        host.thumbnails = thumbnails;
+        rows(&harness_with(host, Direction::Ltr))[0].height()
+    };
+    let style = list_style();
+    for size in [ThumbSize::None, ThumbSize::Small, ThumbSize::Medium, ThumbSize::Large] {
+        assert_eq!(height(size), style.height(size, false), "{size:?}");
+    }
+    assert!(height(ThumbSize::None) < height(ThumbSize::Small));
+    assert!(height(ThumbSize::Medium) < height(ThumbSize::Large));
 }
