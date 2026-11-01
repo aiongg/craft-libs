@@ -622,3 +622,37 @@ fn child_lists_are_closed_when_the_popover_was_not_shown_in_a_pass() {
     assert!(h.state().open, "the editor is open again");
     assert!(h.query_by_role_and_label(Role::ListBoxOption, "B").is_none(), "its list is closed");
 }
+
+#[test]
+fn a_swallowing_popovers_closing_press_reaches_nothing() {
+    // The "After" button lies outside the popover; a press on it closes the popover without
+    // clicking it, only when the popover swallows its closing press.
+    let clicked = |swallow: bool| {
+        let mut h =
+            Harness::<(Host, bool, bool)>::builder().with_size(SCREEN).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
+                |ui, (host, swallow, clicked)| {
+                    let chip = ui.button("Chip");
+                    if chip.clicked() {
+                        host.open = !host.open;
+                    }
+                    let popover = Popover::new("p", PopoverAnchor::Control(chip.clone()))
+                        .toggle(chip.id)
+                        .close(PopoverClose::default().swallow_outside(*swallow));
+                    let _ = popover.show(ui, &mut host.open, |ui, _| ui.label("Inside"));
+                    ui.add_space(300.0);
+                    if ui.button("After").clicked() {
+                        *clicked = true;
+                    }
+                },
+                (Host { open: true, ..Host::default() }, swallow, false),
+            );
+        h.run();
+        h.run();
+        let after = h.get_by_label("After").rect().center();
+        click(&mut h, after);
+        let (host, _, clicked) = h.state();
+        (host.open, *clicked)
+    };
+    assert_eq!(clicked(false), (false, true), "without the option the press also clicks");
+    assert_eq!(clicked(true), (false, false), "it closes and the press reaches nothing");
+}

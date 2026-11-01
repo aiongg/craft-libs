@@ -136,7 +136,6 @@ impl Claim {
 /// [`PrimaryPress::clicks`] both read it, so a double click counts the same for a tool and an
 /// overlay.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[expect(dead_code, reason = "skeleton: removed when the bodies land")]
 struct ClickRun {
     count: u32,
     time: f64,
@@ -150,10 +149,22 @@ struct ClickRun {
 /// run (`count + 1`, saturating); any other press starts a new run of 1. A press nobody asks about
 /// is not counted. The tool host counts its presses here too (task K4 replaces its own
 /// `HostState::clicks` with this), injected presses at their screen point.
-#[expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 pub(crate) fn click_count(ctx: &Context, time: f64, at: Pos2) -> u32 {
     // new: the rule of `tool_host.rs:675` `Run::press_clicks`, moved to one counter (step7-pen lead call 30).
-    todo!()
+    let key = Id::unique("craft-ui-click-run");
+    let (delay, distance) = ctx.options(|o| (o.input_options.max_double_click_delay, o.input_options.max_click_dist));
+    ctx.data_mut(|d| {
+        let last = d.get_temp::<ClickRun>(key);
+        if let Some(run) = last.filter(|r| r.time == time && r.at == at) {
+            return run.count;
+        }
+        let count = match last {
+            Some(r) if (0.0..delay).contains(&(time - r.time)) && at.distance(r.at) < distance => r.count.saturating_add(1),
+            _ => 1,
+        };
+        d.insert_temp(key, ClickRun { count, time, at });
+        count
+    })
 }
 
 /// The buttons other than the primary one.
@@ -201,10 +212,9 @@ impl PrimaryPress {
     /// The count the tool host gives the same press in [`ToolPointer::clicks`](super::ToolPointer::clicks),
     /// from one counter (`click_count` with the press's time and origin). The pen's Curvature
     /// mode reads it for its double click; nothing else changes egui's own double-click state.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
     pub fn clicks(self, ctx: &Context) -> u32 {
-        // new: step7-pen lead call 30; `click_count(ctx, self.time, self.origin)`.
-        todo!()
+        // new: step7-pen lead call 30.
+        click_count(ctx, self.time, self.origin)
     }
 
     /// The queue key of `overlay`'s input for this press: a later press of the same overlay never

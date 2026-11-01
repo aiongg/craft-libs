@@ -490,11 +490,17 @@ impl Popover {
 /// `Memory::allow_presses_in` for each rect. Called every pass the popover shows with
 /// [`PopoverClose::swallow_outside`] on; egui applies it from the next pass, so the press that
 /// closes the popover is the first one swallowed.
-#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn swallow_closing_press(ctx: &Context, family: &[Id], allowed: &[Rect]) {
     // pc: crates/ui-egui/src/tools/shape_stroke_ui.rs:164 `dismiss_from_canvas` (the press that closes
     // the stroke popover is consumed, release included); the menus' `swallow_outside_press(true)` and `swallow_presses_outside` (`menu/popup.rs:238`, `:243`).
-    todo!()
+    ctx.memory_mut(|m| {
+        for &id in family {
+            m.swallow_presses_outside(LayerId::new(Order::Foreground, id));
+        }
+        for &rect in allowed {
+            m.allow_presses_in(rect);
+        }
+    });
 }
 
 /// Registers `id` as the open popover of `group` and asks the one it replaces to close.
