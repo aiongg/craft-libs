@@ -194,7 +194,7 @@ fn check_messages_come_from_words_with_their_values() {
     let mut settings = PdfSettings::default();
     settings.compression.color.ppi = 5.0;
     let error = settings.check_values().unwrap_err();
-    assert_eq!(labels.error_text(&error, &settings), "Compression › Color images › to must be 9–2400 ppi (got 5)");
+    assert_eq!(labels.error_text(&error), "Compression › Color images › to must be 9–2400 ppi (got 5)");
 
     let settings = PdfSettings {
         output: craft_pdf::settings::OutputSettings {
@@ -205,7 +205,7 @@ fn check_messages_come_from_words_with_their_values() {
         ..PdfSettings::default()
     };
     let error = settings.check(&Profiles).unwrap_err();
-    assert_eq!(labels.error_text(&error, &settings), "Destination: no RGB or CMYK profile is called “Nowhere”");
+    assert_eq!(labels.error_text(&error), "Destination: no RGB or CMYK profile is called “Nowhere”");
 
     let settings = PdfSettings {
         compatibility: Compatibility::Pdf14,
@@ -213,12 +213,12 @@ fn check_messages_come_from_words_with_their_values() {
         ..PdfSettings::default()
     };
     let error = settings.check_values().unwrap_err();
-    assert_eq!(labels.error_text(&error, &settings), "PDF 1.4 passwords can have up to 32 ASCII characters (PDF 1.7 and later take any)");
+    assert_eq!(labels.error_text(&error), "PDF 1.4 passwords can have up to 32 ASCII characters (PDF 1.7 and later take any)");
 
     let translated = PdfExportLabels::default().localized(|key| (key == "pdfExport.checkPasswordLegacy").then(|| "{version}: {limit}".to_owned()));
-    assert_eq!(translated.error_text(&error, &settings), "PDF 1.4: 32");
-    let unknown = SettingsError { id: "newRule", message: "a new rule".to_owned() };
-    assert_eq!(labels.error_text(&unknown, &settings), "a new rule");
+    assert_eq!(translated.error_text(&error), "PDF 1.4: 32");
+    let unknown = SettingsError { id: "newRule", message: "a new rule".to_owned(), values: Vec::new() };
+    assert_eq!(labels.error_text(&unknown), "a new rule");
 }
 
 // The Summary lists the options that differ from the chosen preset, and says so when none do.

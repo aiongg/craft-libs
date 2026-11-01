@@ -223,7 +223,7 @@ impl PdfExportDialog {
     /// Why Save PDF is disabled: a refused setting, or a range the document doesn't have.
     fn blocked(&self, labels: &PdfExportLabels) -> Option<String> {
         if let Some(error) = self.error() {
-            return Some(labels.error_text(&error, &self.settings));
+            return Some(labels.error_text(&error));
         }
         let text = self.artboards.range.trim();
         let count = self.artboard_count?;
@@ -395,8 +395,7 @@ impl StackDialog for PdfExportDialog {
         let base = self.presets().into_iter().find(|preset| preset.name == self.preset).map(|preset| preset.settings).unwrap_or_default();
         let changed = summary::changes(&labels, &self.settings, &base);
         let preset_text = labels.preset_name(&self.preset, &self.app);
-        let warnings: Vec<String> =
-            self.settings.warnings(&*self.catalog).iter().map(|warning| labels.warning_text(warning, &self.settings)).collect();
+        let warnings: Vec<String> = self.settings.warnings(&*self.catalog).iter().map(|warning| labels.warning_text(warning)).collect();
         let saving = self.picking.is_some();
         let standard_before = self.settings.standard;
         let (mut chosen, mut saved) = (None, false);

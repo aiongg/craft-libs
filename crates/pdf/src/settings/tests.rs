@@ -55,6 +55,7 @@ fn a_standard_with_the_wrong_pdf_version_is_refused() {
     let e = refused(&x4);
     assert_eq!(e.id, "standardVersion");
     assert!(e.message.contains("PDF/X-4:2010 files can't be PDF 1.7"), "{e}");
+    assert_eq!((e.value("standard"), e.value("version")), (Some("PDF/X-4:2010"), Some("PDF 1.7")));
     assert_eq!(PdfSettings { compatibility: Compatibility::Pdf16, ..x4 }.check(&Profiles), Ok(()));
     let a = PdfSettings { standard: Standard::PdfA2b, compatibility: Compatibility::Pdf20, ..Default::default() };
     assert!(refused(&a).message.contains("PDF/A-2b"));
@@ -125,6 +126,7 @@ fn a_missing_or_wrong_destination_profile_is_refused() {
     assert_eq!(dest(DOCUMENT_CMYK, Standard::None).check(&()).unwrap_err().id, "destinationUnknown");
     let e = refused(&dest("Nope", Standard::None));
     assert_eq!(e.message, "output.destination: no RGB or CMYK profile is called “Nope”");
+    assert_eq!(e.value("name"), Some("Nope"));
     assert_eq!(refused(&dest("Dot Gain 20%", Standard::None)).id, "destinationUnknown");
     let e = refused(&dest("sRGB", Standard::PdfX1a));
     assert_eq!(e.id, "destinationRgb");
@@ -277,7 +279,9 @@ mod json {
     fn checks_see_settings_read_from_json() {
         assert_eq!(settings(json!({"standard": "pdfX4"})).check(&Profiles).unwrap_err().id, "standardVersion");
         assert_eq!(settings(json!({"standard": "pdfX4", "compatibility": "1.6"})).check(&Profiles), Ok(()));
-        assert_eq!(settings(json!({"compression": {"color": {"ppi": 5}}})).check(&Profiles).unwrap_err().id, "compressionPpi");
+        let ppi = settings(json!({"compression": {"color": {"ppi": 5}}})).check(&Profiles).unwrap_err();
+        assert_eq!(ppi.id, "compressionPpi");
+        assert_eq!((ppi.value("field"), ppi.value("range"), ppi.value("value")), (Some("compression.color.ppi"), Some("9–2400 ppi"), Some("5")));
     }
 
     #[test]

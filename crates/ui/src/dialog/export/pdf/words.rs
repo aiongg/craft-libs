@@ -1,6 +1,6 @@
 //! The words of the Save PDF dialog, and the wording of craft-pdf's checks and warnings.
 
-use craft_pdf::settings::{PdfSettings, SettingsError, SettingsWarning};
+use craft_pdf::settings::{SettingsError, SettingsWarning};
 
 crate::words! {
     /// The words of Save PDF, English by default.
@@ -249,15 +249,16 @@ impl PdfExportLabels {
         }
     }
 
-    /// The words of a refused setting; craft-pdf's English message for an id this table doesn't
-    /// know.
-    pub(super) fn error_text(&self, error: &SettingsError, settings: &PdfSettings) -> String {
-        let standard = settings.standard.label();
-        let version = settings.compatibility.label();
-        let message = error.message.as_str();
-        let name = message.split_once('“').and_then(|(_, rest)| rest.split_once('”')).map_or("", |(name, _)| name);
-        let limit = message.split_once("up to ").map_or("", |(_, rest)| rest.split(|c: char| !c.is_ascii_digit()).next().unwrap_or(""));
-        let fill = |word: &str| craft_i18n::fmt(word, &[("standard", standard), ("version", version), ("name", name), ("limit", limit)]);
+    /// The words of a refused setting, filled from the values the check reports; craft-pdf's
+    /// English message for an id this table doesn't know.
+    pub(super) fn error_text(&self, error: &SettingsError) -> String {
+        let value = |key: &str| error.value(key).unwrap_or_default().to_owned();
+        let fill = |word: &str| {
+            craft_i18n::fmt(
+                word,
+                &[("standard", &value("standard")), ("version", &value("version")), ("name", &value("name")), ("limit", &value("limit"))],
+            )
+        };
         match error.id {
             "standardVersion" => fill(&self.check_standard_version),
             "standardEditing" => fill(&self.check_standard_editing),
@@ -273,27 +274,17 @@ impl PdfExportLabels {
             "intentGray" => fill(&self.check_intent_gray),
             "intentUnknownX4" => fill(&self.check_intent_unknown_x4),
             "intentUnknown" => fill(&self.check_intent_unknown),
-            "compressionPpi" | "compressionAbovePpi" | "marksWeight" | "marksOffset" | "bleedSide" | "fontSubsetPercent" => {
-                // "{path} must be {low}–{high}{unit} (got {value})"
-                let parsed = message.split_once(" must be ").and_then(|(path, rest)| {
-                    let (range, got) = rest.split_once(" (got ")?;
-                    Some((path, range, got.strip_suffix(')')?))
-                });
-                match parsed {
-                    Some((path, range, value)) => craft_i18n::fmt(
-                        &self.check_range,
-                        &[("field", &super::summary::option_label(self, path)), ("range", range), ("value", value)],
-                    ),
-                    None => message.to_owned(),
-                }
-            }
-            _ => message.to_owned(),
+            "compressionPpi" | "compressionAbovePpi" | "marksWeight" | "marksOffset" | "bleedSide" | "fontSubsetPercent" => craft_i18n::fmt(
+                &self.check_range,
+                &[("field", &super::summary::option_label(self, &value("field"))), ("range", &value("range")), ("value", &value("value"))],
+            ),
+            _ => error.message.clone(),
         }
     }
 
     /// The words of a warning, craft-pdf's English message where no word exists.
-    pub(super) fn warning_text(&self, warning: &SettingsWarning, settings: &PdfSettings) -> String {
-        let version = settings.compatibility.label();
+    pub(super) fn warning_text(&self, warning: &SettingsWarning) -> String {
+        let version = warning.value("version").unwrap_or_default();
         match warning.id {
             "layersVersion" => self.warn_layers_version.clone(),
             "fontSubsetThreshold" => self.warn_font_subset.clone(),
@@ -301,7 +292,7 @@ impl PdfExportLabels {
             "plaintextMetadataVersion" => craft_i18n::fmt(&self.warn_plaintext_version, &[("version", version)]),
             "weakKey" => craft_i18n::fmt(&self.warn_weak_key, &[("version", version)]),
             "pdfaOutputIntent" => self.warn_pdfa_intent.clone(),
-            "intentNotEmbedded" => craft_i18n::fmt(&self.warn_intent_not_embedded, &[("name", settings.output.output_intent.trim())]),
+            "intentNotEmbedded" => craft_i18n::fmt(&self.warn_intent_not_embedded, &[("name", warning.value("name").unwrap_or_default())]),
             "conditionNeedsIntent" => self.warn_condition_needs_intent.clone(),
             _ => warning.message.clone(),
         }
