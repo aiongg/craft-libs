@@ -6,7 +6,7 @@ use egui::{Event, Key, Modifiers, PointerButton, Pos2, Ui, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, Node};
 
-use super::footer::FooterEvent;
+use super::footer::PresetFooterEvent;
 use super::view::State;
 use super::*;
 use crate::behavior::{DropPosition, Move};
@@ -27,9 +27,11 @@ struct Host {
     /// Shows a footer under the browser.
     footer: bool,
     zone: Option<egui::Rect>,
+    /// Whether the browser reorders (a drop zone alone otherwise).
+    reorder: bool,
     max_height: Option<f32>,
     hovered: Option<Key32>,
-    footer_events: Vec<FooterEvent>,
+    footer_events: Vec<PresetFooterEvent<u32>>,
     /// The height the browser and its footer took in the last frame.
     height: f32,
     bottom: f32,
@@ -47,6 +49,7 @@ impl Host {
             time: 0.0,
             footer: false,
             zone: None,
+            reorder: true,
             max_height: None,
             hovered: None,
             footer_events: Vec::new(),
@@ -70,11 +73,14 @@ fn library() -> Vec<PresetRow<Key32>> {
 }
 
 fn show(ui: &mut Ui, host: &mut Host) {
-    let Host { rows, state, selected, events, painted, lead, footer, zone, max_height, hovered, footer_events, height, bottom, .. } = host;
+    let Host { rows, state, selected, events, painted, lead, footer, zone, reorder, max_height, hovered, footer_events, height, bottom, .. } = host;
     let id = ui.make_persistent_id(egui::IdSalt::new("presets"));
     *painted = 0;
     let top = ui.cursor().min.y;
-    let mut browser = PresetBrowser::new("presets", "Presets", state, rows).selected(selected.as_ref()).reorder(PresetReorder::items_and_groups());
+    let mut browser = PresetBrowser::new("presets", "Presets", state, rows).selected(selected.as_ref());
+    if *reorder {
+        browser = browser.reorder(PresetReorder::items_and_groups());
+    }
     if *footer {
         browser = browser.footer(PresetFooterOptions::new());
     }
@@ -91,7 +97,10 @@ fn show(ui: &mut Ui, host: &mut Host) {
     *height = ui.min_rect().max.y - top;
     *bottom = ui.min_rect().max.y;
     *hovered = out.hovered;
-    footer_events.extend(out.footer);
+    footer_events.extend(out.events.iter().filter_map(|event| match event {
+        PresetEvent::Footer(press) => Some(press.clone()),
+        _ => None,
+    }));
     events.extend(out.events);
     *lead = State::<Key32>::load(ui.ctx(), id).lead;
 }
@@ -463,7 +472,7 @@ mod footer_and_drop_zone {
             let at = harness.get_by_label(label).rect().center();
             click(&mut harness, at);
         }
-        assert_eq!(harness.state().footer_events, [FooterEvent::New, FooterEvent::NewGroup, FooterEvent::Delete]);
+        assert_eq!(harness.state().footer_events, [PresetFooterEvent::New, PresetFooterEvent::NewGroup, PresetFooterEvent::Delete]);
     }
 
     #[test]
@@ -505,6 +514,32 @@ mod footer_and_drop_zone {
         let last = events.last().expect("events");
         assert!(matches!(last, PresetEvent::DropAt { key: 1, pos, .. } if *pos == to), "{events:?}");
         assert!(egui::DragAndDrop::payload::<crate::behavior::ListDrag<Key32>>(&harness.ctx).is_none(), "the payload is cleared");
+    }
+
+    #[test]
+    fn a_drop_zone_without_reorder_still_takes_a_dragged_preset() {
+        let mut host = zoned();
+        host.reorder = false;
+        let mut harness = harness(host);
+        let from = center(&harness, "Brush 1");
+        let to = Pos2::new(150.0, 250.0);
+        drag(&mut harness, from, to);
+        let events = harness.state_mut().take();
+        assert!(reorders(&events).is_empty(), "no in-list targets and no gesture: {events:?}");
+        assert!(matches!(events.last(), Some(PresetEvent::DropAt { key: 1, pos, .. }) if *pos == to), "{events:?}");
+        assert!(egui::DragAndDrop::payload::<crate::behavior::ListDrag<Key32>>(&harness.ctx).is_none(), "the payload is cleared");
+    }
+
+    #[test]
+    fn a_browser_without_reorder_or_a_zone_drags_nothing() {
+        let mut host = zoned();
+        host.reorder = false;
+        host.zone = None;
+        let mut harness = harness(host);
+        let from = center(&harness, "Brush 1");
+        drag(&mut harness, from, Pos2::new(150.0, 250.0));
+        let events = harness.state_mut().take();
+        assert!(!events.iter().any(|e| matches!(e, PresetEvent::DropAt { .. } | PresetEvent::Reorder(_))), "{events:?}");
     }
 
     #[test]

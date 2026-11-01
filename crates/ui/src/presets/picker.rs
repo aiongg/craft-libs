@@ -394,6 +394,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetPicker<'_, K> {
             }
             mem.state.view = view;
             mem.state.thumb = style.picker_cell;
+            let menu = can_rename.is_some() || can_delete.is_some();
             let (rename, delete) = (can_rename.clone(), can_delete.clone());
             let out = PresetBrowser::new(BROWSER, label.as_str(), &mut mem.state, rows)
                 .selected(selected)
@@ -403,6 +404,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetPicker<'_, K> {
                 .can_rename(move |key| rename.as_ref().is_some_and(|test| test(key)))
                 .can_delete(move |key| delete.as_ref().is_some_and(|test| test(key)))
                 .can_move(|_| false)
+                .context_menu(menu)
                 .shrink_to_content(true)
                 .max_height(style.popup_max_height)
                 .show(ui, &mut thumb);
@@ -473,6 +475,8 @@ mod tests {
         close: PickerClose,
         columns: usize,
         user_from: Key32,
+        /// Gives the picker neither `can_rename` nor `can_delete`.
+        plain: bool,
         picked: Vec<Key32>,
         activated: Vec<Key32>,
         events: Vec<PresetEvent<Key32>>,
@@ -489,6 +493,7 @@ mod tests {
             close: PickerClose::OnSelect,
             columns: 6,
             user_from: Key32::MAX,
+            plain: false,
             picked: Vec::new(),
             activated: Vec::new(),
             events: Vec::new(),
@@ -503,19 +508,18 @@ mod tests {
         let tokens = Tokens::of(ui);
         host.cell_side = PresetStyle::from_tokens(&tokens).picker_cell;
         host.cells.clear();
-        let Host { rows, selected, close, columns, user_from, picked, activated, events, cells, .. } = host;
+        let Host { rows, selected, close, columns, user_from, plain, picked, activated, events, cells, .. } = host;
         let user_from = *user_from;
-        let out = PresetPicker::new("picker", "Pattern", rows)
-            .selected(selected.as_ref())
-            .columns(*columns)
-            .close(*close)
-            .can_delete(move |key| *key >= user_from)
-            .show(ui, |painter, rect, info| {
-                if !info.selected {
-                    cells.push(rect);
-                }
-                painter.rect_filled(rect, 0.0, Color32::RED);
-            });
+        let mut picker = PresetPicker::new("picker", "Pattern", rows).selected(selected.as_ref()).columns(*columns).close(*close);
+        if !*plain {
+            picker = picker.can_delete(move |key| *key >= user_from);
+        }
+        let out = picker.show(ui, |painter, rect, info| {
+            if !info.selected {
+                cells.push(rect);
+            }
+            painter.rect_filled(rect, 0.0, Color32::RED);
+        });
         picked.extend(out.picked);
         activated.extend(out.activated);
         events.extend(out.events);
@@ -663,5 +667,20 @@ mod tests {
         let at = delete.rect().center();
         click(&mut harness, at);
         assert_eq!(harness.state().events, [PresetEvent::Delete(8)]);
+    }
+
+    // PhotoCraft's pickers have no context menu: without `can_rename` or `can_delete` right-click opens none.
+    #[test]
+    fn picker_without_rename_or_delete_has_no_context_menu() {
+        let mut state = host(9);
+        state.plain = true;
+        let mut harness = harness(state);
+        let pos = field(&harness, "Pattern: Custom").rect().center();
+        click(&mut harness, pos);
+        let at = cell(&harness, "Brush 2").rect().center();
+        click_with(&mut harness, at, PointerButton::Secondary);
+        harness.run();
+        assert!(harness.query_by_label("Delete").is_none() && harness.query_by_label("Rename…").is_none(), "no menu");
+        assert!(is_open(&harness), "the popup stays open");
     }
 }

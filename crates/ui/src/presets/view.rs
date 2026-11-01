@@ -166,6 +166,7 @@ struct Pass<'p, K, F> {
     marks: Vec<Mark>,
     tokens: Arc<UiTokens>,
     drop_zone: Option<Rect>,
+    context_menu: bool,
     hovered: Option<K>,
 }
 
@@ -175,6 +176,7 @@ where
     F: FnMut(&Painter, Rect, ThumbInfo<'_, K>),
 {
     let PresetBrowser {
+        id_salt,
         label,
         state: pstate,
         rows,
@@ -191,6 +193,7 @@ where
         mut min_height,
         shrink_to_content,
         drop_zone,
+        context_menu,
         footer,
         ..
     } = browser;
@@ -276,6 +279,7 @@ where
         marks: Vec::new(),
         tokens,
         drop_zone,
+        context_menu,
         hovered: None,
     };
 
@@ -356,12 +360,12 @@ where
         ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false }));
     }
     let drag = pass.st.drag.as_ref().map(|d| ListDrag { list: id, items: d.items.clone(), grabbed: d.grabbed.clone(), label: d.label.clone() });
-    let events = pass.events;
     let hovered = pass.hovered.take().filter(|_| drag.is_none());
-    let footer = match footer {
-        Some(options) => footer::show_below(ui, options, pass.pstate, &labels, thumb_range),
-        None => Vec::new(),
-    };
+    if let Some(options) = footer {
+        let pressed = footer::show_below(ui, id_salt, options, pass.pstate, &labels, thumb_range);
+        pass.events.extend(pressed.into_iter().map(PresetEvent::Footer));
+    }
+    let events = pass.events;
     st.focused = focused;
     if (measured - width).abs() > 0.5 {
         st.width = Some((avail, measured));
@@ -370,7 +374,7 @@ where
     } else {
         st.store(ui.ctx(), id);
     }
-    PresetOutput { response, events, drag, hovered, footer }
+    PresetOutput { response, events, drag, hovered }
 }
 
 impl<'p, K, F> Pass<'p, K, F>
@@ -405,7 +409,8 @@ where
         if self.st.renaming.take_if(|key| self.order.position(key).is_none()).is_some() {
             self.ctx.request_repaint();
         }
-        if !self.gesture.as_ref().is_some_and(ReorderGesture::is_active) && self.st.drag.take().is_some() && self.has_payload() {
+        // Without a gesture (a drop zone and no `reorder`) the drag lives as long as its payload.
+        if self.gesture.as_ref().is_some_and(|g| !g.is_active()) && self.st.drag.take().is_some() && self.has_payload() {
             DragAndDrop::clear_payload(&self.ctx);
         }
         if self.st.drag.take_if(|drag| !all_shown(&self.order, &drag.items)).is_some() {
@@ -467,6 +472,7 @@ where
                 self.events.push(PresetEvent::Activate { key: key.clone(), modifiers });
             }
             Command::Rename => self.st.renaming = Some(key.clone()),
+            Command::Menu if !self.context_menu => {}
             Command::Menu => {
                 let anchor = self.st.lead_rect.unwrap_or(Rect::NOTHING);
                 self.st.menu = Some(MenuRequest { key: key.clone(), anchor, pointer: None });
@@ -846,13 +852,15 @@ where
                 self.events.push(PresetEvent::Select { key: key.clone(), modifiers });
             }
         }
-        if self.rules.is_some() && self.st.drag.is_none() && response.drag_started_by(PointerButton::Primary) {
+        if (self.rules.is_some() || self.drop_zone.is_some()) && self.st.drag.is_none() && response.drag_started_by(PointerButton::Primary) {
             self.start_drag(key, &row.label, row.is_group());
         }
         if response.secondary_clicked() {
             self.focus = true;
             self.set_lead(pos);
-            self.st.menu = Some(MenuRequest { key: key.clone(), anchor: response.rect, pointer: response.interact_pointer_pos() });
+            if self.context_menu {
+                self.st.menu = Some(MenuRequest { key: key.clone(), anchor: response.rect, pointer: response.interact_pointer_pos() });
+            }
         }
         if ui.input(|i| i.has_accesskit_action_request(response.id, Action::Focus)) {
             self.set_lead(pos);
@@ -865,10 +873,11 @@ where
         if group && !self.reorder.is_some_and(|r| r.groups) {
             return;
         }
-        let Some(gesture) = self.gesture.as_mut() else { return };
-        gesture.begin();
-        if !gesture.is_active() {
-            return;
+        if let Some(gesture) = self.gesture.as_mut() {
+            gesture.begin();
+            if !gesture.is_active() {
+                return;
+            }
         }
         let payload = ListDrag { list: self.id, items: vec![key.clone()], grabbed: key.clone(), label: label.to_owned() };
         self.st.drag = Some(Dragging { items: payload.items.clone(), grabbed: payload.grabbed.clone(), label: payload.label.clone(), group });
@@ -989,11 +998,12 @@ fn paint_icon(painter: &Painter, ctx: &Context, rect: Rect, icon: Icon, points: 
 
 impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> PresetBrowser<'a, K> {
     /// A rect outside the browser (a canvas, a timeline, a layer list) where a dragged preset can
-    /// be dropped: a release inside it ends the drag's gesture as `Reorder(Cancel(Dismissed))`
+    /// be dropped: a release inside it ends the drag (with `reorder`, as `Reorder(Cancel(Dismissed))`)
     /// and then reports [`PresetEvent::DropAt`] with the pointer position, in the same pass, and
     /// clears the payload. Groups dropped there report nothing. One zone per browser; Styles'
-    /// "the layer under the pointer" is the host reading `pos`. Needs
-    /// [`reorder`](Self::reorder): without it nothing drags.
+    /// "the layer under the pointer" is the host reading `pos`. Without [`reorder`](Self::reorder)
+    /// presets still drag, to the zone and to host widgets only: the list has no drop targets, no
+    /// `Reorder` events and no groups drag.
     pub fn drop_zone(mut self, zone: egui::Rect) -> Self {
         self.drop_zone = Some(zone);
         self

@@ -2,7 +2,7 @@
 
 use egui::{Modifiers, Pos2, Response};
 
-use super::footer::FooterEvent;
+use super::footer::PresetFooterEvent;
 use crate::behavior::{ListDrag, Move};
 use crate::edit::EditEvent;
 use crate::list::OpenChange;
@@ -63,12 +63,15 @@ pub enum PresetEvent<K> {
         /// The modifiers held at the release.
         modifiers: Modifiers,
     },
-    /// An entry the host added to the context menu was chosen for `key`.
-    Extra {
+    /// A button of the [`footer`](super::PresetBrowser::footer) was pressed, in the order it
+    /// happened among the other events.
+    Footer(PresetFooterEvent<K>),
+    /// A row the host added to the context menu was chosen for `target`.
+    Menu {
         /// The preset or group the menu was opened on.
-        key: K,
-        /// The id the host gave the entry.
-        id: &'static str,
+        target: K,
+        /// The command the host gave the row.
+        command: String,
     },
 }
 
@@ -88,7 +91,4 @@ pub struct PresetOutput<K> {
     /// show the photo with it); `None` off the list, over a header, or while a drag is under way.
     /// A field, not an event: a pass without a change sends nothing.
     pub hovered: Option<K>,
-    /// The buttons of the [`footer`](super::PresetBrowser::footer) pressed this pass, in order;
-    /// empty without one.
-    pub footer: Vec<FooterEvent>,
 }
