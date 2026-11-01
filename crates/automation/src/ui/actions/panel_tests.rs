@@ -14,40 +14,14 @@ use egui_kittest::{Harness, Node};
 use serde_json::Value;
 
 use super::labels::ActionsLabels;
-use super::panel::{ActionPlace, ActionSelection, ActionsEvent, ActionsHost, ActionsPanel, ActionsPanelState, ShortcutChoice, show_body};
+use super::panel::{ActionPlace, ActionSelection, ActionsEvent, ActionsPanel, ActionsPanelState, ShortcutChoice, show_body};
+use super::stories::FakeActionsHost;
 use crate::actions::{Action, ActionColor, ActionList, ActionStep, ActionsFile};
-
-/// The app: labels for steps, the recording it runs and the steps recorded so far.
-#[derive(Default)]
-struct Host {
-    recording: Option<usize>,
-    pending: Vec<ActionStep>,
-    /// The shortcut of every action.
-    shortcut: Option<ShortcutChoice>,
-}
-
-impl ActionsHost for Host {
-    fn step_label(&self, step: &ActionStep) -> String {
-        format!("Run {}", step.command)
-    }
-
-    fn shortcut(&self, _: &Action) -> Option<ShortcutChoice> {
-        self.shortcut
-    }
-
-    fn recording(&self) -> Option<usize> {
-        self.recording
-    }
-
-    fn pending_steps(&self, action: usize) -> &[ActionStep] {
-        if self.recording == Some(action) { &self.pending } else { &[] }
-    }
-}
 
 struct App {
     state: ActionsPanelState,
     list: ActionList,
-    host: Host,
+    host: FakeActionsHost,
     events: Vec<ActionsEvent>,
     height: f32,
     settings_changed: bool,
@@ -75,7 +49,15 @@ fn list() -> ActionList {
 }
 
 fn app(list: ActionList) -> App {
-    App { state: ActionsPanelState::default(), list, host: Host::default(), events: Vec::new(), height: 320.0, settings_changed: false, rename: None }
+    App {
+        state: ActionsPanelState::default(),
+        list,
+        host: FakeActionsHost { command_prefix: "Run ".to_owned(), ..FakeActionsHost::default() },
+        events: Vec::new(),
+        height: 320.0,
+        settings_changed: false,
+        rename: None,
+    }
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
@@ -493,7 +475,7 @@ fn actions_panel_record_button_shows_the_recording_and_ignores_the_click() {
 fn actions_panel_context_menu_shortcut_and_color() {
     let labels = ActionsLabels::english();
     let mut app = app(list());
-    app.host.shortcut = Some(ShortcutChoice { key: 3, shift: false, command: false });
+    app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice { key: 3, shift: false, command: false });
     let mut harness = panel_harness(app);
 
     // Check rows keep the menu open, so both can be ticked; each tick is reported at once.
@@ -543,7 +525,7 @@ fn actions_panel_context_menu_shortcut_and_color() {
 fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
     let labels = ActionsLabels::english();
     let mut app = app(list());
-    app.host.shortcut = Some(ShortcutChoice { key: 3, shift: false, command: false });
+    app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice { key: 3, shift: false, command: false });
     let mut harness = panel_harness(app);
     item(&harness, "Sharpen").click();
     harness.run();
