@@ -5,13 +5,18 @@
 //! read and set the criteria (PhotoCraft's `ui.set layerFilter {by, kinds, name, mode}`) without
 //! the panel.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 #[cfg(test)]
 mod tests;
 
+use craft_theme::ControlSize;
+use craft_ui::controls::{IconButton, SearchField, Select};
+use craft_ui::edit::EditEvent;
+use craft_ui::icons::Icon;
+use craft_ui::localized::Labels as _;
+use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::{AsIdSalt, IdSalt, Response, Ui};
 
+use super::panel::LayersStyle;
 use super::tree::{BlendChoice, LayerInfo, LayerKind};
 
 /// What the Layers panel filters by: the filter bar's type select (PhotoCraft's three types;
@@ -107,7 +112,11 @@ impl LayerFilter {
     /// Kind only once a kind is toggled, Name only once the trimmed text is not empty.
     pub fn active(&self) -> bool {
         // pc: crates/ui-egui/src/panels/layer_filter_ui.rs:40-46 `Filter::active`.
-        todo!()
+        match self.by {
+            FilterBy::Kind => !self.kinds.is_empty(),
+            FilterBy::Name => !self.name.trim().is_empty(),
+            FilterBy::Mode => true,
+        }
     }
 
     /// Whether a layer is listed under this filter: always when the filter isn't
@@ -116,7 +125,14 @@ impl LayerFilter {
     /// `info.blend_key == mode`.
     pub fn shows(&self, info: &LayerInfo) -> bool {
         // pc: crates/ui-egui/src/panels/layer_filter_ui.rs:49-59 `Filter::shows`.
-        todo!()
+        if !self.active() {
+            return true;
+        }
+        match self.by {
+            FilterBy::Kind => info.kind.filter_kind().is_some_and(|kind| self.kinds.contains(&kind)),
+            FilterBy::Name => info.name.to_lowercase().contains(&self.name.trim().to_lowercase()),
+            FilterBy::Mode => info.blend_key == self.mode,
+        }
     }
 }
 
@@ -139,6 +155,8 @@ craft_ui::words! {
         search: "layers.filter.search" = "Search";
         /// The name field's name for a screen reader.
         search_layers: "layers.filter.searchLayers" = "Search layers";
+        /// The name field's clear button.
+        clear_search: "layers.filter.clearSearch" = "Clear search";
         /// The mode select's name for a screen reader.
         blend_mode: "layers.filter.blendMode" = "Filter blend mode";
     }
@@ -204,6 +222,77 @@ impl<'a> LayerFilterBar<'a> {
     pub fn show(self, ui: &mut Ui) -> LayerFilterOutput {
         // pc: crates/ui-egui/src/panels/layer_filter_ui.rs:122-158 `bar` (gap 2, type select 64,
         // kind buttons 22, name field, mode dropdown).
-        todo!()
+        let Self { id_salt, filter, blend_modes, labels } = self;
+        let labels = labels.unwrap_or_else(|| LayerFilterLabels::of(ui));
+        let style = LayersStyle::of(&Tokens::of(ui));
+        let size = ControlSize::Sm;
+        let mut changed = false;
+        let row = ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = style.filter_gap;
+            let mut by = filter.by;
+            let picked = Select::new((id_salt, "by"), labels.filter_type.as_str(), &mut by)
+                .option(FilterBy::Kind, labels.kind.as_str())
+                .option(FilterBy::Name, labels.name.as_str())
+                .option(FilterBy::Mode, labels.mode.as_str())
+                .width(style.filter_type_width)
+                .size(size)
+                .show(ui);
+            if picked.event.as_ref().and_then(EditEvent::value).is_some() && by != filter.by {
+                filter.by = by;
+                changed = true;
+            }
+            match filter.by {
+                FilterBy::Kind => {
+                    let kinds = [
+                        (FilterKind::Pixel, Icon::Image, &labels.pixel),
+                        (FilterKind::Adjustment, Icon::AdjustmentLayer, &labels.adjustment),
+                        (FilterKind::Type, Icon::Text, &labels.type_layers),
+                        (FilterKind::Shape, Icon::Square, &labels.shape),
+                        (FilterKind::SmartObject, Icon::AppWindow, &labels.smart_object),
+                    ];
+                    for (kind, icon, tip) in kinds {
+                        let was = filter.kinds.contains(&kind);
+                        let mut on = was;
+                        ui.add(IconButton::new(icon, tip.as_str()).size(size).toggle(&mut on).id_salt((id_salt, kind.name())));
+                        if on != was {
+                            if on {
+                                filter.kinds.push(kind);
+                            } else {
+                                filter.kinds.retain(|k| *k != kind);
+                            }
+                            changed = true;
+                        }
+                    }
+                }
+                FilterBy::Name => {
+                    let edit = SearchField::new((id_salt, "name"), labels.search_layers.as_str(), &filter.name, labels.clear_search.as_str())
+                        .placeholder(labels.search.as_str())
+                        .size(size)
+                        .show(ui);
+                    if let Some(text) = edit.event.as_ref().and_then(EditEvent::value)
+                        && *text != filter.name
+                    {
+                        filter.name.clone_from(text);
+                        changed = true;
+                    }
+                }
+                FilterBy::Mode => {
+                    let mut mode = filter.mode.clone();
+                    let mut select = Select::new((id_salt, "mode"), labels.blend_mode.as_str(), &mut mode).width(ui.available_width()).size(size);
+                    for choice in blend_modes {
+                        if choice.separator_before {
+                            select = select.separator();
+                        }
+                        select = select.option(choice.key.clone(), choice.label.as_str());
+                    }
+                    let picked = select.show(ui);
+                    if picked.event.as_ref().and_then(EditEvent::value).is_some() && mode != filter.mode {
+                        filter.mode = mode;
+                        changed = true;
+                    }
+                }
+            }
+        });
+        LayerFilterOutput { changed, response: row.response }
     }
 }
