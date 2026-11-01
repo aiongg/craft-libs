@@ -20,6 +20,7 @@
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod grid_tests;
+mod fake;
 mod groups;
 mod keys;
 mod layout;
