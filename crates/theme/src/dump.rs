@@ -2365,6 +2365,23 @@ fn timeline_lines(out: &mut Lines, t: &TimelineTokens) {
         ruler_label_gap,
         ruler_tick_gap,
         scrub_step,
+        marker_height,
+        marker_hit,
+        marker_name_pad,
+        marker_name_gap,
+        marker_end_gap,
+        graph_key,
+        graph_key_hit,
+        graph_handle,
+        graph_handle_hit,
+        graph_top_inset,
+        graph_label_inset,
+        graph_reach,
+        graph_bar_height,
+        overview_inset_x,
+        overview_inset_y,
+        overview_box_outset,
+        overview_view_min,
     } = t;
     out.line("timeline.top_height", len(*top_height));
     out.line("timeline.ruler_height", len(*ruler_height));
@@ -2395,6 +2412,23 @@ fn timeline_lines(out: &mut Lines, t: &TimelineTokens) {
     out.line("timeline.ruler_label_gap", len(*ruler_label_gap));
     out.line("timeline.ruler_tick_gap", len(*ruler_tick_gap));
     out.line("timeline.scrub_step", len(*scrub_step));
+    out.line("timeline.marker_height", len(*marker_height));
+    out.line("timeline.marker_hit", len(*marker_hit));
+    out.line("timeline.marker_name_pad", len(*marker_name_pad));
+    out.line("timeline.marker_name_gap", len(*marker_name_gap));
+    out.line("timeline.marker_end_gap", len(*marker_end_gap));
+    out.line("timeline.graph_key", len(*graph_key));
+    out.line("timeline.graph_key_hit", len(*graph_key_hit));
+    out.line("timeline.graph_handle", len(*graph_handle));
+    out.line("timeline.graph_handle_hit", len(*graph_handle_hit));
+    out.line("timeline.graph_top_inset", len(*graph_top_inset));
+    out.line("timeline.graph_label_inset", len(*graph_label_inset));
+    out.line("timeline.graph_reach", len(*graph_reach));
+    out.line("timeline.graph_bar_height", len(*graph_bar_height));
+    out.line("timeline.overview_inset_x", len(*overview_inset_x));
+    out.line("timeline.overview_inset_y", len(*overview_inset_y));
+    out.line("timeline.overview_box_outset", len(*overview_box_outset));
+    out.line("timeline.overview_view_min", len(*overview_view_min));
 }
 
 fn review_lines(out: &mut Lines, t: &ReviewTokens) {

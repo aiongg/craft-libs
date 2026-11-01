@@ -1,13 +1,36 @@
 //! The graph editor: keyframed values (or their speed) as curves over time (N1.08).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use craft_ui::behavior::{Selection, SelectionChange};
-use craft_ui::edit::EditEvent;
-use egui::{AsIdSalt, Color32, IdSalt, Rect, Response, Ui};
+use craft_theme::TypeRole;
+use craft_ui::behavior::{ClaimedKey, KeyClaim, ListSelection, RowInfo, Selection, SelectionChange, SelectionMode, SelectionPick};
+use craft_ui::canvas::Orientation;
+use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
+use craft_ui::icons::Icon;
+use craft_ui::localized::Labels as _;
+use craft_ui::patterns::{Toolbar, ToolbarItem};
+use craft_ui::primitives::{Corner, FocusRing};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format, scale};
+use egui::accesskit::Role;
+use egui::{
+    Align2, AsIdSalt, Color32, EventFilter, Id, IdSalt, Key, Modifiers, PointerButton, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui,
+    UiBuilder, WidgetInfo, pos2, vec2,
+};
 
 use super::keyframes::{KeyframeId, KeyframeInterpolation};
+use super::ruler::ruler_ticks;
+use super::style::TimelineStyle;
 use crate::time::{Tick, TimeView};
+use crate::timecode::TimeFormat;
+
+/// The value range shows about this many grid lines (EffectCraft `graph.rs:439`).
+const GRID_LINES: f64 = 6.0;
+/// The share of the value span the auto range adds each side (`graph.rs:352`).
+const AUTO_MARGIN: f64 = 0.08;
+/// The share of the span Fit Selection adds each side, and the least it adds in value units
+/// (`graph.rs:790`, `:789`).
+const FIT_MARGIN: f64 = 0.15;
+const FIT_MARGIN_MIN: f64 = 1.0;
+/// Points of Ctrl-wheel travel per factor of e in the value range (`graph.rs:386`).
+const WHEEL_POINTS: f64 = 200.0;
 
 craft_ui::words! {
     /// The bottom bar's tooltips, English by default (EffectCraft `graph.rs:611`).
@@ -151,6 +174,7 @@ pub struct GraphEditor<'a> {
     range: &'a mut GraphRange,
     playhead: Tick,
     labels: Option<GraphEditorLabels>,
+    format: Option<TimeFormat>,
 }
 
 impl<'a> GraphEditor<'a> {
@@ -161,7 +185,7 @@ impl<'a> GraphEditor<'a> {
         view: &'a TimeView,
         range: &'a mut GraphRange,
     ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), curves, selection, view, range, playhead: Tick::ZERO, labels: None }
+        Self { id_salt: IdSalt::new(id_salt), curves, selection, view, range, playhead: Tick::ZERO, labels: None, format: None }
     }
 
     pub fn playhead(mut self, t: Tick) -> Self {
@@ -174,13 +198,590 @@ impl<'a> GraphEditor<'a> {
         self
     }
 
+    /// The time format of the time lines, and the frame the arrow keys move keys by; without one
+    /// there are no time lines and the arrows move a key one point of the view.
+    pub fn format(mut self, format: TimeFormat) -> Self {
+        self.format = Some(format);
+        self
+    }
+
     // effectcraft: crates/ui-egui/src/panels/graph.rs:407 `show`, `:356` `box_select`, `:379`
     // `wheel_zoom`, `:611` `button_bar`, `:740` `fit_selection`, `:842` `HandleGrab`.
     pub fn show(self, ui: &mut Ui, rect: Rect) -> GraphEditorOutput {
-        todo!()
+        let Self { id_salt, curves, selection, view, range, playhead, labels, format } = self;
+        let labels = labels.unwrap_or_else(|| GraphEditorLabels::of(ui));
+        let tokens = Tokens::of(ui);
+        let style = TimelineStyle::of(&tokens);
+        let enabled = ui.is_enabled();
+        let id = ui.make_persistent_id(id_salt);
+        let bar = Rect::from_min_max(pos2(rect.left(), (rect.bottom() - style.graph_bar_height).max(rect.top())), rect.max);
+        let plot = Rect::from_min_max(pos2(rect.left(), (rect.top() + style.graph_top_inset).min(bar.top())), pos2(rect.right(), bar.top()));
+        let response = ui.interact(plot, id, Sense::click_and_drag());
+        let modifiers = ui.input(|i| i.modifiers);
+
+        // Gestures: the keys' move, a handle's move. Both carry the change from where the
+        // pointer went down.
+        let (keys_id, handle_id) = (id.with("keys"), id.with("handle"));
+        let reported_keys = Gesture::<GraphKeyMove>::reported(ui, keys_id).map_or(GraphKeyMove::default(), |(_, delta)| delta);
+        let reported_handle = Gesture::<(Tick, f64)>::reported(ui, handle_id).map_or((Tick::ZERO, 0.0), |(_, delta)| delta);
+        let mut moving = Gesture::load(ui, keys_id, &reported_keys, EditPolicy::default()).enabled(enabled);
+        let mut pulling = Gesture::load(ui, handle_id, &reported_handle, EditPolicy::default()).enabled(enabled);
+        let key_drag_key = id.with("key drag");
+        let handle_drag_key = id.with("handle drag");
+        let marquee_key = id.with("marquee");
+        if !moving.is_active() {
+            ui.data_mut(|d| d.remove::<KeyDrag>(key_drag_key));
+        }
+        if !pulling.is_active() {
+            ui.data_mut(|d| d.remove::<HandleDrag>(handle_drag_key));
+        }
+        let key_drag = ui.data(|d| d.get_temp::<KeyDrag>(key_drag_key));
+        let handle_drag = ui.data(|d| d.get_temp::<HandleDrag>(handle_drag_key));
+        let dragging = moving.is_active() || pulling.is_active();
+
+        // The value range: fitted to the curves unless the user set it.
+        if range.auto_zoom && !dragging {
+            let (low, high) = auto_range(curves, range.mode);
+            (range.low, range.high) = (low, high);
+        }
+        let (low, high) = (range.low, range.high);
+        let span = (high - low).max(f64::EPSILON);
+        let y_of = |value: f64| plot.bottom() - ((value - low) / span) as f32 * plot.height();
+        let value_at = |y: f32| low + f64::from(plot.bottom() - y) / f64::from(plot.height().max(f32::EPSILON)) * span;
+        let x_of = |time: Tick| view.x_of(time, plot.left());
+        let time_at = |x: f32| view.time_at(x, plot.left());
+
+        let mut out = GraphEditorOutput { response, selection: None, keys_moved: None, handle_moved: None, action: None };
+        let step = nice_step(span / GRID_LINES);
+        let frame = format
+            .as_ref()
+            .map_or_else(|| Tick::from_seconds_f64(1.0 / view.points_per_second.max(f64::EPSILON)), |format| format.rate.frame_duration());
+        let order = key_order(curves);
+        let rules = ListSelection::new(SelectionMode::Multiple);
+        let position = |key: KeyframeId| order.iter().position(|row| row.key == key);
+
+        // The keys as the gestures show them.
+        let (moved, pulled) = (*moving.shown(), *pulling.shown());
+        let key_at = |key: &GraphKey| {
+            let shifted = key_drag.as_ref().is_some_and(|drag| drag.group.contains(&key.id));
+            let (dt, dv) = if shifted { (moved.dt, moved.dv) } else { (Tick::ZERO, 0.0) };
+            pos2(x_of(key.time + dt), y_of(key.value + dv))
+        };
+        let handle_at = |key: &GraphKey, side: HandleSide, at: (Tick, f64)| match handle_drag {
+            Some(grab) if grab.key == key.id && grab.side == side => pos2(x_of(grab.time + pulled.0), y_of(grab.value + pulled.1)),
+            _ => {
+                let shifted = key_drag.as_ref().is_some_and(|drag| drag.group.contains(&key.id));
+                let (dt, dv) = if shifted { (moved.dt, moved.dv) } else { (Tick::ZERO, 0.0) };
+                pos2(x_of(at.0 + dt), y_of(at.1 + dv))
+            }
+        };
+
+        if enabled {
+            // Keys and handles take the pointer before the plot's own drag.
+            for (index, curve) in curves.iter().enumerate() {
+                for key in &curve.keys {
+                    let on = selection.contains(&key.id);
+                    for (side, handle) in [(HandleSide::In, key.in_handle), (HandleSide::Out, key.out_handle)] {
+                        let Some(at) = handle.filter(|_| on) else { continue };
+                        let hit = Rect::from_center_size(handle_at(key, side, at), vec2(style.graph_handle_hit, style.graph_handle_hit));
+                        let handle_response = ui.interact(hit, id.with(("handle", index, key.id.0, side as u8)), Sense::drag());
+                        if handle_response.drag_started_by(PointerButton::Primary)
+                            && let Some(press) = ui.input(|i| i.pointer.press_origin())
+                        {
+                            out.response.request_focus();
+                            let grab = HandleDrag { press, key: key.id, side, time: at.0, value: at.1, broken: modifiers.alt };
+                            ui.data_mut(|d| d.insert_temp(handle_drag_key, grab));
+                            pulling.begin();
+                        }
+                        if let Some(grab) =
+                            ui.data(|d| d.get_temp::<HandleDrag>(handle_drag_key)).filter(|grab| grab.key == key.id && grab.side == side)
+                            && handle_response.dragged_by(PointerButton::Primary)
+                            && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+                        {
+                            let (time_ok, value_ok) = axes(modifiers.shift, pos.x - grab.press.x, pos.y - grab.press.y);
+                            let dt = if time_ok { time_at(pos.x) - time_at(grab.press.x) } else { Tick::ZERO };
+                            let dv = if value_ok { value_at(pos.y) - value_at(grab.press.y) } else { 0.0 };
+                            pulling.update((dt, dv), modifiers);
+                        }
+                        if handle_response.drag_stopped() {
+                            pulling.commit();
+                        }
+                    }
+                    let center = key_at(key);
+                    if !plot.expand(style.graph_reach).contains(center) && !key_drag.as_ref().is_some_and(|drag| drag.group.contains(&key.id)) {
+                        continue;
+                    }
+                    let hit = Rect::from_center_size(center, vec2(style.graph_key_hit, style.graph_key_hit));
+                    let key_response = ui.interact(hit, id.with(("key", index, key.id.0)), Sense::click_and_drag());
+                    if key_response.drag_started_by(PointerButton::Primary)
+                        && let Some(press) = ui.input(|i| i.pointer.press_origin())
+                    {
+                        out.response.request_focus();
+                        let additive = modifiers.shift || modifiers.command;
+                        let mut group = selection.items.clone();
+                        if !selection.contains(&key.id) {
+                            let mut next = if additive { Selection { items: group, ..Selection::new() } } else { Selection::new() };
+                            next.items.push(key.id);
+                            next.lead = Some(key.id);
+                            next.anchor = Some(key.id);
+                            group = next.items.clone();
+                            let pick = if additive { SelectionPick::Toggle } else { SelectionPick::Replace };
+                            out.selection = Some(SelectionChange { pick, row: Some(key.id), selection: next });
+                        }
+                        ui.data_mut(|d| d.insert_temp(key_drag_key, KeyDrag { press, group }));
+                        moving.begin();
+                    }
+                    if let Some(grab) = ui.data(|d| d.get_temp::<KeyDrag>(key_drag_key))
+                        && key_response.dragged_by(PointerButton::Primary)
+                        && grab.group.contains(&key.id)
+                        && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+                    {
+                        let (time_ok, value_ok) = axes(modifiers.shift, pos.x - grab.press.x, pos.y - grab.press.y);
+                        let dt = if time_ok { time_at(pos.x) - time_at(grab.press.x) } else { Tick::ZERO };
+                        let dv = if value_ok { value_at(pos.y) - value_at(grab.press.y) } else { 0.0 };
+                        moving.update(GraphKeyMove { dt, dv }, modifiers);
+                    }
+                    if key_response.drag_stopped() {
+                        moving.commit();
+                    }
+                    if key_response.clicked_by(PointerButton::Primary) {
+                        out.response.request_focus();
+                        // Shift toggles a key as Cmd/Ctrl does (After Effects').
+                        let toggles = Modifiers { command: modifiers.command || modifiers.shift, ..Modifiers::NONE };
+                        out.selection = position(key.id).and_then(|at| rules.click(selection, order.as_slice(), at, toggles));
+                    }
+                }
+            }
+
+            // The plot itself: a click on empty graph clears, a drag box-selects.
+            let marquee = MarqueeCx { marquee_key, plot, rules: &rules, dragging, modifiers };
+            marquee_select(ui, &mut out, &marquee, selection, curves, &key_at);
+
+            // The wheel with Ctrl zooms the value range about its middle and ends auto-zoom.
+            wheel_zoom(ui, &out.response, range);
+
+            // Keyboard: arrows move the selected keys, F9 the Easy Ease family, Delete deletes.
+            keyboard(ui, id, &mut out, selection, (step, frame), &mut moving);
+        }
+
+        out.keys_moved = moving.finish();
+        out.handle_moved = match handle_drag {
+            Some(grab) => pulling.finish_as(|(dt, dv)| HandleMove {
+                key: grab.key,
+                side: grab.side,
+                time: grab.time + dt,
+                value: grab.value + dv,
+                broken: grab.broken,
+            }),
+            None => {
+                let _ = pulling.finish();
+                None
+            }
+        };
+
+        let frame_of_plot = PlotFrame { rect, plot, low, high, step, playhead, marquee_key };
+        paint_plot(ui, &tokens, &style, &frame_of_plot, (curves, selection, view, format.as_ref()), (&x_of, &y_of, &key_at, &handle_at));
+        FocusRing::paint_radius(ui, plot, Corner::Control.radius(&tokens), &out.response);
+        let name = match range.mode {
+            GraphMode::Value => labels.value_graph.as_str(),
+            GraphMode::Speed => labels.speed_graph.as_str(),
+        };
+        out.response.widget_info(|| WidgetInfo::labeled(Role::Group, enabled, name));
+        let count = selection.items.len().to_string();
+        ui.ctx().accesskit_node_builder(out.response.id, |node| node.set_value(count.as_str()));
+
+        bottom_bar(ui, (id, bar), &tokens, &labels, range, (curves, selection), &mut out);
+        out
     }
 }
 
+/// What the plot's box selection needs besides the selection itself.
+struct MarqueeCx<'a> {
+    marquee_key: Id,
+    plot: Rect,
+    rules: &'a ListSelection,
+    dragging: bool,
+    modifiers: Modifiers,
+}
+
+/// The plot itself: a click on empty graph clears, a drag box-selects (Shift adds, Esc cancels).
+fn marquee_select(
+    ui: &mut Ui,
+    out: &mut GraphEditorOutput,
+    cx: &MarqueeCx<'_>,
+    selection: &Selection<KeyframeId>,
+    curves: &[GraphCurve],
+    key_at: &dyn Fn(&GraphKey) -> Pos2,
+) {
+    let MarqueeCx { marquee_key, plot, rules, dragging, modifiers } = *cx;
+    if out.response.drag_started_by(PointerButton::Primary)
+        && !dragging
+        && let Some(origin) = ui.input(|i| i.pointer.press_origin())
+    {
+        out.response.request_focus();
+        let base = if modifiers.shift { selection.clone() } else { Selection::new() };
+        ui.data_mut(|d| d.insert_temp(marquee_key, Marquee { origin, base }));
+    }
+    if out.response.drag_stopped() {
+        ui.data_mut(|d| d.remove::<Marquee>(marquee_key));
+    }
+    if let Some(marquee) = ui.data(|d| d.get_temp::<Marquee>(marquee_key)) {
+        let cancelled = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
+        if cancelled {
+            ui.data_mut(|d| d.remove::<Marquee>(marquee_key));
+        }
+        let next = if cancelled {
+            Some(marquee.base.clone())
+        } else {
+            ui.input(|i| i.pointer.interact_pos())
+                .map(|pos| marquee.extended(Rect::from_two_pos(marquee.origin, pos).intersect(plot), curves, &key_at))
+        };
+        if let Some(next) = next.filter(|next| next != selection) {
+            out.selection = Some(SelectionChange {
+                pick: if next.is_empty() { SelectionPick::Clear } else { SelectionPick::Replace },
+                row: next.lead,
+                selection: next,
+            });
+        }
+    }
+    if out.response.clicked_by(PointerButton::Primary) {
+        out.response.request_focus();
+        if !modifiers.shift && !modifiers.command {
+            out.selection = rules.click_empty(selection);
+        }
+    }
+}
+
+/// The wheel with Ctrl zooms the value range about its middle and ends auto-zoom.
+fn wheel_zoom(ui: &Ui, response: &Response, range: &mut GraphRange) {
+    let (low, high) = (range.low, range.high);
+    if response.hovered() {
+        let (dy, zoom) = ui.input(|i| (i.smooth_scroll_delta.y, i.modifiers.command));
+        if zoom && dy != 0.0 {
+            let factor = (-f64::from(dy) / WHEEL_POINTS).exp();
+            let middle = (low + high) / 2.0;
+            (range.low, range.high) = (middle - (middle - low) * factor, middle + (high - middle) * factor);
+            range.auto_zoom = false;
+        }
+    }
+}
+
+/// The plot's keys: arrows move the selected keys, F9 the Easy Ease family, Delete deletes.
+fn keyboard(
+    ui: &Ui,
+    id: Id,
+    out: &mut GraphEditorOutput,
+    selection: &Selection<KeyframeId>,
+    (step, frame): (f64, Tick),
+    moving: &mut Gesture<GraphKeyMove>,
+) {
+    if out.response.has_focus() {
+        ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, vertical_arrows: true, ..EventFilter::default() }));
+        KeyClaim::claim(ui.ctx(), id, &[ClaimedKey::exact(Modifiers::NONE, Key::Delete)]);
+        let mut nudge = GraphKeyMove::default();
+        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowLeft)) {
+            nudge.dt = Tick(-frame.0);
+        }
+        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowRight)) {
+            nudge.dt = frame;
+        }
+        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) {
+            nudge.dv = step;
+        }
+        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown)) {
+            nudge.dv = -step;
+        }
+        if nudge != GraphKeyMove::default() && !selection.is_empty() {
+            moving.set(nudge);
+        }
+        // The most specific chord first: a plain F9 also matches the same key with Shift.
+        if ui.input_mut(|i| i.consume_key(Modifiers::CTRL | Modifiers::SHIFT, Key::F9)) {
+            out.action = Some(GraphAction::EasyEaseOut);
+        } else if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, Key::F9)) {
+            out.action = Some(GraphAction::EasyEaseIn);
+        } else if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F9)) {
+            out.action = Some(GraphAction::EasyEase);
+        }
+        if !selection.is_empty() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete)) {
+            out.action = Some(GraphAction::Delete);
+        }
+    }
+}
+
+/// The plot's place and range, and what it marks.
+struct PlotFrame {
+    rect: Rect,
+    plot: Rect,
+    low: f64,
+    high: f64,
+    step: f64,
+    playhead: Tick,
+    marquee_key: Id,
+}
+
+/// What the plot shows: the curves, the selection, the time view and the time format.
+type PlotData<'a> = (&'a [GraphCurve], &'a Selection<KeyframeId>, &'a TimeView, Option<&'a TimeFormat>);
+/// How the plot places things: time to x, value to y, a key's centre, a handle's centre.
+type PlotMaps<'a> = (&'a dyn Fn(Tick) -> f32, &'a dyn Fn(f64) -> f32, KeyAt<'a>, HandleAt<'a>);
+type KeyAt<'a> = &'a dyn Fn(&GraphKey) -> Pos2;
+type HandleAt<'a> = &'a dyn Fn(&GraphKey, HandleSide, (Tick, f64)) -> Pos2;
+
+/// The grid, curves, keys, handles, box selection and playhead.
+fn paint_plot(
+    ui: &Ui,
+    tokens: &UiTokens,
+    style: &TimelineStyle,
+    frame: &PlotFrame,
+    (curves, selection, view, format): PlotData<'_>,
+    (x_of, y_of, key_at, handle_at): PlotMaps<'_>,
+) {
+    let PlotFrame { rect, plot, low, high, step, playhead, marquee_key } = *frame;
+    let color = &tokens.color;
+    let ppp = ui.pixels_per_point();
+    let hairline = scale::Stroke::Hairline.width(ppp);
+    let painter = ui.painter().with_clip_rect(rect);
+    painter.rect_filled(plot, egui::CornerRadius::ZERO, color.surface.sunken.to_egui());
+    let plot_painter = ui.painter().with_clip_rect(plot);
+    let grid = Stroke::new(hairline, color.line.divider.to_egui());
+    if let Some(format) = &format {
+        for tick in ruler_ticks(format, view, plot.width(), style).iter().filter(|tick| tick.major) {
+            let x = x_of(tick.at);
+            plot_painter.line_segment([pos2(x, plot.top()), pos2(x, plot.bottom())], grid);
+        }
+    }
+    let text = role_format(tokens, TypeRole::Caption, color.text.faint.to_egui());
+    let mut line = (low / step).ceil() * step;
+    while line <= high {
+        let y = y_of(line);
+        plot_painter.line_segment([pos2(plot.left(), y), pos2(plot.right(), y)], grid);
+        plot_painter.text(
+            pos2(plot.left() + style.graph_label_inset, y - hairline),
+            Align2::LEFT_BOTTOM,
+            format_value(line, step),
+            text.font_id.clone(),
+            text.color,
+        );
+        line += step;
+    }
+    let dimension_colors = [color.data.red, color.data.green, color.data.blue, color.data.yellow];
+    let mut next_color = 0;
+    let curve_width = scale::Stroke::W1_5.width(ppp);
+    let line_width = scale::Stroke::W1.width(ppp);
+    let handle_color = color.data.yellow.to_egui();
+    for (index, curve) in curves.iter().enumerate() {
+        let stroke_color = curve.color.unwrap_or_else(|| {
+            let picked = dimension_colors[next_color % dimension_colors.len()].to_egui();
+            next_color += 1;
+            picked
+        });
+        let points: Vec<Pos2> = curve.samples.iter().map(|&(time, value)| pos2(x_of(time), y_of(value))).collect();
+        plot_painter.add(Shape::line(points, Stroke::new(curve_width, stroke_color)));
+        for key in &curve.keys {
+            let center = key_at(key);
+            if !plot.expand(style.graph_reach).contains(center) {
+                continue;
+            }
+            let on = selection.contains(&key.id);
+            if on {
+                for (side, handle) in [(HandleSide::In, key.in_handle), (HandleSide::Out, key.out_handle)] {
+                    let Some(at) = handle else { continue };
+                    let end = handle_at(key, side, at);
+                    plot_painter.line_segment([center, end], Stroke::new(line_width, handle_color));
+                    plot_painter.circle_filled(end, style.graph_handle, handle_color);
+                }
+            }
+            let square = Rect::from_center_size(center, vec2(style.graph_key, style.graph_key));
+            let fill = if on { color.accent.solid } else { color.text.normal }.to_egui();
+            plot_painter.rect_filled(square, egui::CornerRadius::ZERO, fill);
+            plot_painter.rect_stroke(square, egui::CornerRadius::ZERO, Stroke::new(line_width, stroke_color), StrokeKind::Outside);
+        }
+        let _ = index;
+    }
+    if let Some(marquee) = ui.data(|d| d.get_temp::<Marquee>(marquee_key))
+        && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+    {
+        let area = Rect::from_two_pos(marquee.origin, pos).intersect(plot);
+        plot_painter.rect_filled(area, egui::CornerRadius::ZERO, color.accent.soft.to_egui());
+        plot_painter.rect_stroke(area, egui::CornerRadius::ZERO, Stroke::new(hairline, color.accent.border.to_egui()), StrokeKind::Inside);
+    }
+    let x = x_of(playhead);
+    plot_painter.line_segment([pos2(x, plot.top()), pos2(x, plot.bottom())], Stroke::new(line_width, color.accent.solid.to_egui()));
+}
+
+/// The bottom bar: the graph type, display toggles, fits, separate dimensions and the keyframe
+/// interpolation buttons.
+fn bottom_bar(
+    ui: &mut Ui,
+    (id, bar): (Id, Rect),
+    tokens: &UiTokens,
+    labels: &GraphEditorLabels,
+    range: &mut GraphRange,
+    (curves, selection): (&[GraphCurve], &Selection<KeyframeId>),
+    out: &mut GraphEditorOutput,
+) {
+    let color = &tokens.color;
+    let hairline = scale::Stroke::Hairline.width(ui.pixels_per_point());
+    let painter = ui.painter().with_clip_rect(bar);
+    painter.rect_filled(bar, egui::CornerRadius::ZERO, color.surface.panel.to_egui());
+    painter.line_segment([bar.left_top(), bar.right_top()], Stroke::new(hairline, color.line.divider.to_egui()));
+    let (mut value_on, mut speed_on) = (range.mode == GraphMode::Value, range.mode == GraphMode::Speed);
+    let (mut selected_on, mut zoom_on, mut separate_on) = (range.selected_only, range.auto_zoom, range.separate_dimensions);
+    let mut bar_ui = ui.new_child(UiBuilder::new().max_rect(bar));
+    let toolbar = Toolbar::new(id.with("bar"), Orientation::Horizontal)
+        .group([
+            ToolbarItem::new(Icon::ChartLine, labels.value_graph.as_str()).toggle(&mut value_on),
+            ToolbarItem::new(Icon::Gauge, labels.speed_graph.as_str()).toggle(&mut speed_on),
+        ])
+        .group([
+            ToolbarItem::new(Icon::Pointer, labels.show_selected.as_str()).toggle(&mut selected_on),
+            ToolbarItem::new(Icon::Scaling, labels.auto_zoom.as_str()).toggle(&mut zoom_on),
+            ToolbarItem::new(Icon::Scan, labels.fit_selection.as_str()),
+            ToolbarItem::new(Icon::Maximize2, labels.fit_all.as_str()),
+        ])
+        .group([ToolbarItem::new(Icon::Split, labels.separate.as_str()).toggle(&mut separate_on)])
+        .group([
+            ToolbarItem::new(Icon::Square, labels.hold.as_str()),
+            ToolbarItem::new(Icon::Diamond, labels.linear.as_str()),
+            ToolbarItem::new(Icon::Circle, labels.auto_bezier.as_str()),
+            ToolbarItem::new(Icon::Spline, labels.easy_ease.as_str()),
+            ToolbarItem::new(Icon::ChevronRight, labels.easy_ease_in.as_str()),
+            ToolbarItem::new(Icon::ChevronLeft, labels.easy_ease_out.as_str()),
+        ])
+        .overflow(true)
+        .show(&mut bar_ui);
+    match toolbar.clicked {
+        Some((0, 0)) => range.mode = GraphMode::Value,
+        Some((0, 1)) => range.mode = GraphMode::Speed,
+        Some((1, 0)) => range.selected_only = !range.selected_only,
+        Some((1, 1)) => range.auto_zoom = !range.auto_zoom,
+        Some((1, 2)) => {
+            if let Some((low, high)) = fit_selection(curves, selection, range.mode) {
+                (range.low, range.high, range.auto_zoom) = (low, high, false);
+            }
+            out.action = Some(GraphAction::FitSelection);
+        }
+        Some((1, 3)) => {
+            range.auto_zoom = true;
+            out.action = Some(GraphAction::FitAll);
+        }
+        Some((2, 0)) => range.separate_dimensions = !range.separate_dimensions,
+        Some((3, item)) => {
+            out.action = Some(
+                [
+                    GraphAction::Hold,
+                    GraphAction::Linear,
+                    GraphAction::AutoBezier,
+                    GraphAction::EasyEase,
+                    GraphAction::EasyEaseIn,
+                    GraphAction::EasyEaseOut,
+                ][item],
+            );
+        }
+        _ => {}
+    }
+}
+
+/// The unique keys of `curves` in order of appearance, for the kernel's selection rules.
+fn key_order(curves: &[GraphCurve]) -> Vec<RowInfo<KeyframeId>> {
+    let mut seen: Vec<KeyframeId> = Vec::new();
+    for key in curves.iter().flat_map(|curve| &curve.keys) {
+        if !seen.contains(&key.id) {
+            seen.push(key.id);
+        }
+    }
+    seen.into_iter().map(RowInfo::leaf).collect()
+}
+
+/// Which axes a drag may move on (time, value): both, or with Shift the one the pointer moved
+/// more along (EffectCraft `graph.rs:853`).
+fn axes(shift: bool, dx: f32, dy: f32) -> (bool, bool) {
+    if shift { (dx.abs() >= dy.abs(), dy.abs() > dx.abs()) } else { (true, true) }
+}
+
+/// A key drag under way: where the pointer went down and the keys that move.
+#[derive(Clone)]
+struct KeyDrag {
+    press: Pos2,
+    group: Vec<KeyframeId>,
+}
+
+/// A handle drag under way: where the pointer went down and the handle grabbed, with its place
+/// then.
+#[derive(Clone, Copy)]
+struct HandleDrag {
+    press: Pos2,
+    key: KeyframeId,
+    side: HandleSide,
+    time: Tick,
+    value: f64,
+    broken: bool,
+}
+
+/// A box selection under way: where it began and the selection it adds to.
+#[derive(Clone)]
+struct Marquee {
+    origin: Pos2,
+    base: Selection<KeyframeId>,
+}
+
+impl Marquee {
+    /// The base selection with the keys whose centres are inside `area`.
+    fn extended(&self, area: Rect, curves: &[GraphCurve], center_of: &impl Fn(&GraphKey) -> Pos2) -> Selection<KeyframeId> {
+        let mut next = self.base.clone();
+        for key in curves.iter().flat_map(|curve| &curve.keys).filter(|key| area.contains(center_of(key))) {
+            if !next.contains(&key.id) {
+                next.items.push(key.id);
+            }
+            next.lead = Some(key.id);
+            next.anchor = Some(key.id);
+        }
+        next
+    }
+}
+
+/// The value range around the selected keys (and their handles), in Fit Selection to View: a
+/// lone key also frames its neighbours, and the speed graph frames the curve between the first
+/// and last selected key (EffectCraft `graph.rs:740`).
+fn fit_selection(curves: &[GraphCurve], selection: &Selection<KeyframeId>, mode: GraphMode) -> Option<(f64, f64)> {
+    let mut bounds: Option<(f64, f64)> = None;
+    let mut include = |value: f64| {
+        bounds = Some(bounds.map_or((value, value), |(low, high)| (low.min(value), high.max(value))));
+    };
+    for curve in curves {
+        let chosen: Vec<usize> = (0..curve.keys.len()).filter(|&at| selection.contains(&curve.keys[at].id)).collect();
+        for &at in &chosen {
+            let key = &curve.keys[at];
+            include(key.value);
+            for (_, value) in key.in_handle.iter().chain(key.out_handle.iter()) {
+                include(*value);
+            }
+        }
+        let (Some(&first), Some(&last)) = (chosen.first(), chosen.last()) else { continue };
+        let (from, to) = if first == last { (first.saturating_sub(1), (last + 1).min(curve.keys.len() - 1)) } else { (first, last) };
+        if first == last {
+            include(curve.keys[from].value);
+            include(curve.keys[to].value);
+        }
+        if mode == GraphMode::Speed {
+            let (start, end) = (curve.keys[from].time, curve.keys[to].time);
+            for &(time, value) in curve.samples.iter().filter(|(time, _)| *time >= start && *time <= end) {
+                let _ = time;
+                include(value);
+            }
+        }
+    }
+    let (low, high) = bounds?;
+    let margin = ((high - low) * FIT_MARGIN).max(FIT_MARGIN_MIN);
+    Some((low - margin, high + margin))
+}
+
+/// A grid line's label: as many decimals as the step needs, no negative zero.
+// effectcraft: crates/ui-egui/src/panels/graph.rs:826 `fmt`.
+fn format_value(value: f64, step: f64) -> String {
+    let decimals = if step >= 1.0 { 0 } else { (-step.log10()).ceil() as usize };
+    let text = format!("{value:.decimals$}");
+    if text.trim_start_matches('-').chars().all(|c| c == '0' || c == '.') { text.trim_start_matches('-').to_owned() } else { text }
+}
 /// What the graph editor did this pass.
 #[must_use]
 pub struct GraphEditorOutput {
@@ -195,12 +796,37 @@ pub struct GraphEditorOutput {
 /// 3.5, 7.5); `|raw|` at least 1e-9.
 // effectcraft: crates/ui-egui/src/panels/graph.rs:805 `nice_step`.
 pub fn nice_step(raw: f64) -> f64 {
-    todo!()
+    let raw = raw.abs().max(1e-9);
+    let magnitude = 10f64.powf(raw.log10().floor());
+    let scaled = raw / magnitude;
+    magnitude
+        * if scaled < 1.5 {
+            1.0
+        } else if scaled < 3.5 {
+            2.0
+        } else if scaled < 7.5 {
+            5.0
+        } else {
+            10.0
+        }
 }
 
 /// The value range that shows `curves` (samples, keys and handles) with an 8 % margin each side:
 /// 0…100 without values, at least 0 at the bottom for `mode` Speed, a flat range one unit high.
 // effectcraft: crates/ui-egui/src/panels/graph.rs:328 `auto_range`.
 pub fn auto_range(curves: &[GraphCurve], mode: GraphMode) -> (f64, f64) {
-    todo!()
+    let mut values = curves.iter().flat_map(|curve| {
+        let keys = curve.keys.iter().flat_map(|key| [Some(key.value), key.in_handle.map(|handle| handle.1), key.out_handle.map(|handle| handle.1)]);
+        curve.samples.iter().map(|sample| sample.1).chain(keys.flatten())
+    });
+    let Some(first) = values.next() else { return (0.0, 100.0) };
+    let (mut low, mut high) = values.fold((first, first), |(low, high), value| (low.min(value), high.max(value)));
+    if mode == GraphMode::Speed {
+        low = low.min(0.0);
+    }
+    if (high - low).abs() < 1e-9 {
+        high = low + 1.0;
+    }
+    let margin = (high - low) * AUTO_MARGIN;
+    (low - margin, high + margin)
 }

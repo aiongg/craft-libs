@@ -2048,6 +2048,40 @@ pub const TIMELINE_RULER_LABEL_GAP: f32 = 110.0;
 pub const TIMELINE_RULER_TICK_GAP: f32 = 12.0;
 /// The drag length that moves a timecode field's value one frame.
 pub const TIMELINE_SCRUB_STEP: f32 = 1.0;
+/// A marker flag's height at most (EffectCraft `markers_ui.rs:287`).
+pub const TIMELINE_MARKER_HEIGHT: f32 = 10.0;
+/// A marker's hit width (`markers_ui.rs:310`).
+pub const TIMELINE_MARKER_HIT: f32 = 10.0;
+/// The room either side of a marker's name inside its box (`markers_ui.rs:304`).
+pub const TIMELINE_MARKER_NAME_PAD: f32 = 4.0;
+/// The room between a marker's flag and its name box (`markers_ui.rs:381`, `:389`).
+pub const TIMELINE_MARKER_NAME_GAP: f32 = 6.0;
+/// The room between a range marker's end and a name box after it (`markers_ui.rs:383`).
+pub const TIMELINE_MARKER_END_GAP: f32 = 3.0;
+/// A graph key's square (EffectCraft `graph.rs:543`).
+pub const TIMELINE_GRAPH_KEY: f32 = 7.0;
+/// A graph key's hit square (`graph.rs:545`).
+pub const TIMELINE_GRAPH_KEY_HIT: f32 = 11.0;
+/// A graph handle's dot radius (`graph.rs:488`).
+pub const TIMELINE_GRAPH_HANDLE: f32 = 3.5;
+/// A graph handle's hit square (`graph.rs:490`).
+pub const TIMELINE_GRAPH_HANDLE_HIT: f32 = 10.0;
+/// The room over the graph's plot (`graph.rs:412`).
+pub const TIMELINE_GRAPH_TOP_INSET: f32 = 6.0;
+/// The room between the plot's edge and its value labels (`graph.rs:441`).
+pub const TIMELINE_GRAPH_LABEL_INSET: f32 = 4.0;
+/// How far past the plot a key still counts as shown (`graph.rs:479`).
+pub const TIMELINE_GRAPH_REACH: f32 = 6.0;
+/// The graph's bottom bar (`graph.rs:411`).
+pub const TIMELINE_GRAPH_BAR_HEIGHT: f32 = 28.0;
+/// The room either side of the overview's runs (SoundCraft `universe.rs:61`).
+pub const TIMELINE_OVERVIEW_INSET_X: f32 = 8.0;
+/// The room over and under the overview's runs (`universe.rs:61`).
+pub const TIMELINE_OVERVIEW_INSET_Y: f32 = 4.0;
+/// How far the overview's view box reaches past the runs (`universe.rs:81`).
+pub const TIMELINE_OVERVIEW_BOX_OUTSET: f32 = 2.0;
+/// The least width the overview takes the time area to have (`universe.rs:80`).
+pub const TIMELINE_OVERVIEW_VIEW_MIN: f32 = 100.0;
 /// A comment pin's size.
 pub const REVIEW_PIN: f32 = 28.0;
 /// Pins nearer than this gather into a cluster.

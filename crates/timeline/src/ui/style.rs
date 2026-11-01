@@ -69,6 +69,40 @@ pub struct TimelineStyle {
     /// A drag of this length moves a timecode field's value one frame:
     /// `timeline.scrub_step`.
     pub scrub_step: f32,
+    /// A marker flag's height at most (EffectCraft `markers_ui.rs:287`): `timeline.marker_height`.
+    pub marker_height: f32,
+    /// A marker's hit width (`markers_ui.rs:310`): `timeline.marker_hit`.
+    pub marker_hit: f32,
+    /// The room either side of a marker's name inside its box (`markers_ui.rs:304`): `timeline.marker_name_pad`.
+    pub marker_name_pad: f32,
+    /// The room between a marker's flag and its name box (`markers_ui.rs:381`, `:389`): `timeline.marker_name_gap`.
+    pub marker_name_gap: f32,
+    /// The room between a range marker's end and a name box after it (`markers_ui.rs:383`): `timeline.marker_end_gap`.
+    pub marker_end_gap: f32,
+    /// A graph key's square (EffectCraft `graph.rs:543`): `timeline.graph_key`.
+    pub graph_key: f32,
+    /// A graph key's hit square (`graph.rs:545`): `timeline.graph_key_hit`.
+    pub graph_key_hit: f32,
+    /// A graph handle's dot radius (`graph.rs:488`): `timeline.graph_handle`.
+    pub graph_handle: f32,
+    /// A graph handle's hit square (`graph.rs:490`): `timeline.graph_handle_hit`.
+    pub graph_handle_hit: f32,
+    /// The room over the graph's plot (`graph.rs:412`): `timeline.graph_top_inset`.
+    pub graph_top_inset: f32,
+    /// The room between the plot's edge and its value labels (`graph.rs:441`): `timeline.graph_label_inset`.
+    pub graph_label_inset: f32,
+    /// How far past the plot a key still counts as shown (`graph.rs:479`): `timeline.graph_reach`.
+    pub graph_reach: f32,
+    /// The graph's bottom bar (`graph.rs:411`): `timeline.graph_bar_height`.
+    pub graph_bar_height: f32,
+    /// The room either side of the overview's runs (SoundCraft `universe.rs:61`): `timeline.overview_inset_x`.
+    pub overview_inset_x: f32,
+    /// The room over and under the overview's runs (`universe.rs:61`): `timeline.overview_inset_y`.
+    pub overview_inset_y: f32,
+    /// How far the overview's view box reaches past the runs (`universe.rs:81`): `timeline.overview_box_outset`.
+    pub overview_box_outset: f32,
+    /// The least width the overview takes the time area to have (`universe.rs:80`): `timeline.overview_view_min`.
+    pub overview_view_min: f32,
 }
 
 impl TimelineStyle {
@@ -105,6 +139,23 @@ impl TimelineStyle {
             ruler_label_gap: t.ruler_label_gap,
             ruler_tick_gap: t.ruler_tick_gap,
             scrub_step: t.scrub_step,
+            marker_height: t.marker_height,
+            marker_hit: t.marker_hit,
+            marker_name_pad: t.marker_name_pad,
+            marker_name_gap: t.marker_name_gap,
+            marker_end_gap: t.marker_end_gap,
+            graph_key: t.graph_key,
+            graph_key_hit: t.graph_key_hit,
+            graph_handle: t.graph_handle,
+            graph_handle_hit: t.graph_handle_hit,
+            graph_top_inset: t.graph_top_inset,
+            graph_label_inset: t.graph_label_inset,
+            graph_reach: t.graph_reach,
+            graph_bar_height: t.graph_bar_height,
+            overview_inset_x: t.overview_inset_x,
+            overview_inset_y: t.overview_inset_y,
+            overview_box_outset: t.overview_box_outset,
+            overview_view_min: t.overview_view_min,
         }
     }
 }
