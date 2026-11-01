@@ -605,8 +605,8 @@ fn drop_changes_something<K>(order: &(impl DisplayOrder<K> + ?Sized), positions:
 
 /// `into_rows(dragged, key of the row at at)`, false for a row that is itself dragged (a row never
 /// goes into itself; `drop_changes_something` refuses it too).
-#[expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 fn row_takes_into<K: PartialEq>(into_rows: &IntoRows<'_, K>, order: &(impl DisplayOrder<K> + ?Sized), at: usize, dragged: &[K]) -> bool {
     // pc: crates/ui-egui/src/panels/layer_drag.rs:288 `fx_drop` (any layer row but the source takes dragged effects).
-    todo!()
+    let key = order.key(at);
+    !dragged.contains(key) && into_rows(dragged, key)
 }
