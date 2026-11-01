@@ -42,7 +42,6 @@ crate::words! {
 }
 
 /// The undo list's footer, "Undo 1 Action" or "Undo {n} Actions" (WordCraft `chrome.rs:130-132`).
-#[expect(dead_code, reason = "skeleton: read by `UndoList::show` (task H6)")]
 pub(crate) const UNDO_ACTIONS: Counted = Counted::new("undoList.undoActions", "Undo {n} Action", "Undo {n} Actions");
 
 crate::words! {
