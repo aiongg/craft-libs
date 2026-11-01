@@ -44,6 +44,7 @@ mod badge;
 mod before_after;
 mod bezier;
 mod blend_if;
+mod blur_pins;
 mod breadcrumb;
 mod brush;
 mod button;
@@ -73,6 +74,7 @@ mod export;
 mod eyedropper;
 mod field;
 mod file_list;
+mod filter_gallery;
 mod findings;
 mod float;
 mod font_picker;
@@ -101,6 +103,7 @@ mod layers;
 mod levels;
 mod line_guide;
 mod link;
+mod liquify;
 mod list;
 mod list_manager;
 mod listbox;
@@ -168,6 +171,8 @@ mod tooltip;
 mod tour;
 mod transform;
 mod tree_picker;
+mod vanishing_point;
+mod wide_angle;
 
 use std::fmt;
 
@@ -192,6 +197,7 @@ pub use badge::{BadgeColors, BadgeField, BadgePart, BadgeStyle, BadgeTokens, Bad
 pub use before_after::{BeforeAfterField, BeforeAfterTokens};
 pub use bezier::{BezierField, BezierTokens};
 pub use blend_if::{BlendIfField, BlendIfTokens};
+pub use blur_pins::{BlurPinsField, BlurPinsTokens};
 pub use breadcrumb::{BreadcrumbField, BreadcrumbTokens};
 pub use brush::{BrushField, BrushTokens};
 pub use button::{ButtonColors, ButtonField, ButtonPart, ButtonTokens, ButtonVariant};
@@ -221,6 +227,7 @@ pub use export::{ExportField, ExportTokens};
 pub use eyedropper::{EyedropperField, EyedropperTokens};
 pub use field::{BorderColors, BorderState, Dimmed, FieldField, FieldPart, FieldTokens};
 pub use file_list::{FileListField, FileListTokens};
+pub use filter_gallery::{FilterGalleryField, FilterGalleryTokens};
 pub use findings::{FindingsField, FindingsTokens};
 pub use float::{FloatField, FloatTokens};
 pub use font_picker::{FontPickerField, FontPickerTokens};
@@ -248,6 +255,7 @@ pub use layers::{LayersField, LayersTokens};
 pub use levels::{LevelsField, LevelsTokens};
 pub use line_guide::{LineGuideField, LineGuideTokens};
 pub use link::{LinkField, LinkTokens};
+pub use liquify::{LiquifyField, LiquifyTokens};
 pub use list::{LabelColor, LabelPart, LabelTint, ListField, ListTokens};
 pub use list_manager::{ListManagerField, ListManagerTokens};
 pub use listbox::{ListboxField, ListboxTokens};
@@ -315,6 +323,8 @@ pub use tooltip::{TooltipField, TooltipTokens};
 pub use tour::{TourField, TourTokens};
 pub use transform::{TransformField, TransformTokens};
 pub use tree_picker::{TreePickerField, TreePickerTokens};
+pub use vanishing_point::{VanishingPointField, VanishingPointTokens};
+pub use wide_angle::{WideAngleField, WideAngleTokens};
 
 /// The semantic tokens that component defaults derive from. It holds no component tokens, so no
 /// family's defaults can depend on another's. Fields are added as families need them.
@@ -1097,6 +1107,16 @@ families! {
     artboard: ArtboardTokens => Artboard(ArtboardField);
     /// The Connector tool: the route, attach points, handles and the ghost.
     connector: ConnectorTokens => Connector(ConnectorField);
+    /// Vanishing Point's marks: plane outlines, grid, nodes and the stamp ring's halo.
+    vanishing_point: VanishingPointTokens => VanishingPoint(VanishingPointField);
+    /// Adaptive Wide Angle's constraint marks.
+    wide_angle: WideAngleTokens => WideAngle(WideAngleField);
+    /// The blur pins' marks: dots, the amount ring, shape handles and grab reach.
+    blur_pins: BlurPinsTokens => BlurPins(BlurPinsField);
+    /// Liquify's marks on the canvas: the Freeze Lasso and the freeze mask.
+    liquify: LiquifyTokens => Liquify(LiquifyField);
+    /// The Filter Gallery's thumbnail and stack sizes.
+    filter_gallery: FilterGalleryTokens => FilterGallery(FilterGalleryField);
     /// Selection bars: the floating bar of actions beside a selection.
     selection_bar: SelectionBarTokens => SelectionBar(SelectionBarField);
     /// Sliders: a track filled to the value, with a thumb on it.

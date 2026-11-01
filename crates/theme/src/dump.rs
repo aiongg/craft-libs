@@ -7,25 +7,25 @@ use std::fmt::Write as _;
 
 use crate::{
     AboutTokens, ActionsTokens, AddBesideTokens, AdjustTokens, AlignTokens, AltTextTokens, AngleDialTokens, AppShellTokens, ArtboardTokens,
-    AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BeforeAfterTokens, BezierTokens, BlendIfTokens, BorderColors,
-    BreadcrumbTokens, BrushTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, ChannelsTokens, CheckOffColors, CheckOnColors,
+    AutocompleteTokens, BadgePart, BadgeStyle, BadgeTokens, BadgeTone, BarSizes, BeforeAfterTokens, BezierTokens, BlendIfTokens, BlurPinsTokens,
+    BorderColors, BreadcrumbTokens, BrushTokens, ButtonColors, ButtonTokens, BySize, CanvasTokens, ChannelsTokens, CheckOffColors, CheckOnColors,
     CheckSpellingTokens, CheckSwitchColors, CheckTokens, ChipTokens, ColorPickerTokens, ColorRampTokens, ColorToken, ColorWheelTokens,
     CommandPaletteTokens, ComponentTokens, ConnectorTokens, ConstrainTokens, ControlSizes, CornerTokens, CropTokens, CursorTokens, CurveTokens,
     DateTokens, DialogTokens, Dimmed, DockTokens, DragTokens, DropVeilTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens,
-    EventLogTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens, FindingsTokens, FloatTokens, FontPickerTokens, FontSlot,
-    FormSpacing, FormTokens, FullWindowTokens, Gaps, GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens, GridTokens,
-    GripTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, HistoryTokens, HoverTokens, IconButtonTokens,
+    EventLogTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens, FilterGalleryTokens, FindingsTokens, FloatTokens, FontPickerTokens,
+    FontSlot, FormSpacing, FormTokens, FullWindowTokens, Gaps, GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens,
+    GridTokens, GripTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, HistoryTokens, HoverTokens, IconButtonTokens,
     IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayerStyleTokens, LayersTokens, LevelsTokens, LineGuideTokens,
-    LinkTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MeasureTokens, MenuHue, MenuTokens, MetadataTokens, Motion,
-    MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens,
-    PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens,
-    PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, Rgba, RulerTokens, SamplerTokens,
-    ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectTokens, SelectionBarTokens, SelectionFrameTokens,
-    ShapeDragTokens, ShapeTokens, SizeTokens, SliceTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens,
-    StartTokens, States, StatusBarTokens, StrokeEditorTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, SymmetryTokens, TabSizes, TabTokens,
-    TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TitleBarTokens,
-    ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens,
-    TypeRole, TypeStyle, TypeTokens,
+    LinkTokens, LiquifyTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MeasureTokens, MenuHue, MenuTokens,
+    MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, Pads, PaintChipTokens,
+    PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes,
+    PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens,
+    Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectTokens,
+    SelectionBarTokens, SelectionFrameTokens, ShapeDragTokens, ShapeTokens, SizeTokens, SliceTokens, SliderRowTokens, SliderTokens, SpaceTokens,
+    SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens, StrokeEditorTokens, SwatchColor, SwatchPaletteTokens,
+    SwatchTokens, SymmetryTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes,
+    ThumbnailTokens, TileTokens, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens,
+    TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens, VanishingPointTokens, WideAngleTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -321,6 +321,11 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
         slice,
         artboard,
         connector,
+        vanishing_point,
+        wide_angle,
+        blur_pins,
+        liquify,
+        filter_gallery,
         color_ramp,
         color_wheel,
         command_palette,
@@ -452,6 +457,11 @@ fn component_lines(out: &mut Lines, c: &ComponentTokens) {
     slice_lines(out, slice);
     artboard_lines(out, artboard);
     connector_lines(out, connector);
+    vanishing_point_lines(out, vanishing_point);
+    wide_angle_lines(out, wide_angle);
+    blur_pins_lines(out, blur_pins);
+    liquify_lines(out, liquify);
+    filter_gallery_lines(out, filter_gallery);
     color_ramp_lines(out, color_ramp);
     color_wheel_lines(out, color_wheel);
     command_palette_lines(out, command_palette);
@@ -3120,4 +3130,51 @@ fn connector_lines(out: &mut Lines, t: &ConnectorTokens) {
     out.line("connector.end_handle", len(*end_handle));
     out.line("connector.path_handle", len(*path_handle));
     out.line("connector.attach_reach", len(*attach_reach));
+}
+
+fn vanishing_point_lines(out: &mut Lines, t: &VanishingPointTokens) {
+    let VanishingPointTokens { line, line_selected, grid, grid_alpha, node, pending, halo_width, source_arm, halo } = t;
+    out.line("vanishing_point.line", len(*line));
+    out.line("vanishing_point.line_selected", len(*line_selected));
+    out.line("vanishing_point.grid", len(*grid));
+    out.line("vanishing_point.grid_alpha", len(*grid_alpha));
+    out.line("vanishing_point.node", len(*node));
+    out.line("vanishing_point.pending", len(*pending));
+    out.line("vanishing_point.halo_width", len(*halo_width));
+    out.line("vanishing_point.source_arm", len(*source_arm));
+    out.line("vanishing_point.halo", hex(*halo));
+}
+
+fn wide_angle_lines(out: &mut Lines, t: &WideAngleTokens) {
+    let WideAngleTokens { line, end, hit, halo_width, halo } = t;
+    out.line("wide_angle.line", len(*line));
+    out.line("wide_angle.end", len(*end));
+    out.line("wide_angle.hit", len(*hit));
+    out.line("wide_angle.halo_width", len(*halo_width));
+    out.line("wide_angle.halo", hex(*halo));
+}
+
+fn blur_pins_lines(out: &mut Lines, t: &BlurPinsTokens) {
+    let BlurPinsTokens { dot, grab, ring, ring_band, handle, line_grab } = t;
+    out.line("blur_pins.dot", len(*dot));
+    out.line("blur_pins.grab", len(*grab));
+    out.line("blur_pins.ring", len(*ring));
+    out.line("blur_pins.ring_band", len(*ring_band));
+    out.line("blur_pins.handle", len(*handle));
+    out.line("blur_pins.line_grab", len(*line_grab));
+}
+
+fn liquify_lines(out: &mut Lines, t: &LiquifyTokens) {
+    let LiquifyTokens { lasso, mask_opacity, freeze, thaw } = t;
+    out.line("liquify.lasso", len(*lasso));
+    out.line("liquify.mask_opacity", len(*mask_opacity));
+    out.line("liquify.freeze", hex(*freeze));
+    out.line("liquify.thaw", hex(*thaw));
+}
+
+fn filter_gallery_lines(out: &mut Lines, t: &FilterGalleryTokens) {
+    let FilterGalleryTokens { thumb_width, thumb_height, stack_height } = t;
+    out.line("filter_gallery.thumb_width", len(*thumb_width));
+    out.line("filter_gallery.thumb_height", len(*thumb_height));
+    out.line("filter_gallery.stack_height", len(*stack_height));
 }

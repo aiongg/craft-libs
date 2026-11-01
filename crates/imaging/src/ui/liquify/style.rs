@@ -2,7 +2,7 @@
 
 use egui::Color32;
 
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// What Liquify draws on the canvas besides the mesh (`warp::MeshStyle`) and the brush outline
 /// (`craft_ui::canvas::brush::BrushStyle`).
@@ -21,9 +21,9 @@ pub struct LiquifyStyle {
 }
 
 impl LiquifyStyle {
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `liquify` lands in task TK4")]
     pub fn of(tokens: &UiTokens) -> LiquifyStyle {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:1142-1149 (lasso colours).
-        todo!()
+        let l = &tokens.component.liquify;
+        LiquifyStyle { freeze: l.freeze.to_egui(), thaw: l.thaw.to_egui(), lasso_width: l.lasso, mask_opacity: l.mask_opacity }
     }
 }

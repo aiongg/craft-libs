@@ -2,7 +2,7 @@
 
 use egui::Color32;
 
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui, UiTokens};
 
 /// The planes' and the stamp's look: the `vanishing_point` family, the same at every Size.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -32,10 +32,24 @@ pub struct VanishingPointStyle {
 }
 
 impl VanishingPointStyle {
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `vanishing_point` lands in task TK4")]
     pub fn of(tokens: &UiTokens) -> VanishingPointStyle {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:1091-1135 (widths, alpha, nodes), :1148-1187
         // (the stamp ring and cross with the 2.5 pt black alpha-160 halo).
-        todo!()
+        let v = &tokens.component.vanishing_point;
+        VanishingPointStyle {
+            line: v.line,
+            line_selected: v.line_selected,
+            grid: v.grid,
+            grid_alpha: v.grid_alpha,
+            node: v.node,
+            pending: v.pending,
+            halo: v.halo.to_egui(),
+            halo_width: v.halo_width,
+            source_arm: v.source_arm,
+            node_fill: Color32::WHITE,
+            valid: tokens.color.accent.solid.to_egui(),
+            questionable: tokens.color.status.warn.fg.to_egui(),
+            invalid: tokens.color.status.bad.fg.to_egui(),
+        }
     }
 }
