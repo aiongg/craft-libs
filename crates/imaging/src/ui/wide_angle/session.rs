@@ -46,10 +46,14 @@ pub struct WideAngleConstraint {
 impl WideAngleConstraint {
     /// A drag from `a` to `b` with Shift held at the release or not: Shift makes it Horizontal or
     /// Vertical by the larger of the two deltas (Horizontal on a tie), else Free.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-WA1")]
     pub fn from_drag(a: Point, b: Point, shift: bool) -> WideAngleConstraint {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:300-305.
-        todo!()
+        let orientation = match shift {
+            true if (b.x - a.x).abs() >= (b.y - a.y).abs() => ConstraintOrientation::Horizontal,
+            true => ConstraintOrientation::Vertical,
+            false => ConstraintOrientation::Free,
+        };
+        WideAngleConstraint { a: [a.x, a.y], b: [b.x, b.y], orientation }
     }
 }
 
@@ -96,10 +100,37 @@ impl Default for WideAngleSession {
 
 impl WideAngleSession {
     /// Applies `edit`; an index out of range changes nothing. Returns whether it changed.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: task WS-WA1")]
     pub fn apply(&mut self, edit: WideAngleConstraintEdit) -> bool {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:232 `constraint_menu`, :402-425.
-        todo!()
+        match edit {
+            WideAngleConstraintEdit::Add(constraint) => {
+                self.constraints.push(constraint);
+                true
+            }
+            WideAngleConstraintEdit::Orient { index, orientation } => match self.constraints.get_mut(index) {
+                Some(constraint) if constraint.orientation != orientation => {
+                    constraint.orientation = orientation;
+                    true
+                }
+                _ => false,
+            },
+            WideAngleConstraintEdit::Delete(index) => {
+                index < self.constraints.len() && {
+                    self.constraints.remove(index);
+                    true
+                }
+            }
+            WideAngleConstraintEdit::Move { index, by } => match self.constraints.get_mut(index) {
+                Some(constraint) if by.iter().all(|d| d.is_finite()) && by != [0.0, 0.0] => {
+                    for end in [&mut constraint.a, &mut constraint.b] {
+                        end[0] += by[0];
+                        end[1] += by[1];
+                    }
+                    true
+                }
+                _ => false,
+            },
+        }
     }
 }
 
