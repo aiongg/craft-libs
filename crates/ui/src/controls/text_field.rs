@@ -2,12 +2,14 @@
 //! `TextEdit` through [`behavior::Typing`](crate::behavior::Typing).
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use craft_theme::{ControlSize, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{
-    Align2, AsIdSalt, Color32, CornerRadius, EventFilter, Id, IdSalt, Key, Modifiers, Rect, Response, Shape, Stroke, StrokeKind, Ui, pos2, vec2,
+    Align2, AsIdSalt, Color32, CornerRadius, EventFilter, Galley, Id, IdSalt, Key, Modifiers, Rect, Response, Shape, Stroke, StrokeKind, Ui, pos2,
+    vec2,
 };
 
 use super::common_stories::ControlStoryLabels;
@@ -130,6 +132,20 @@ pub struct TextField<'a> {
     width: Option<f32>,
     trailing_arrow: bool,
     id: Option<egui::Id>,
+    layouter: Option<HostLayout<'a>>,
+}
+
+/// A host's galley builder: the text and the wrap width in, the galley out.
+type Layouter<'a> = &'a dyn Fn(&Ui, &str, f32) -> Arc<Galley>;
+
+/// A host's galley builder; the wrapper keeps [`TextField`] `Debug` and `Clone`.
+#[derive(Clone, Copy)]
+struct HostLayout<'a>(&'a dyn Fn(&Ui, &str, f32) -> Arc<Galley>);
+
+impl std::fmt::Debug for HostLayout<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("HostLayout")
+    }
 }
 
 impl<'a> TextField<'a> {
@@ -155,6 +171,7 @@ impl<'a> TextField<'a> {
             width: None,
             trailing_arrow: false,
             id: None,
+            layouter: None,
         }
     }
 
@@ -266,7 +283,22 @@ impl<'a> TextField<'a> {
         self
     }
 
+    /// Lays the text out with the host's `layouter` (its text and the wrap width in, the galley
+    /// out) instead of the field's own: runs of different formats, for example. The field keeps
+    /// its keys, focus, undo and menu; the host keeps the galley's text equal to the text given.
+    pub fn layouter(mut self, layouter: &'a dyn Fn(&Ui, &str, f32) -> Arc<Galley>) -> Self {
+        self.layouter = Some(HostLayout(layouter));
+        self
+    }
+
     pub fn show(self, ui: &mut Ui) -> EditResponse<String> {
+        self.show_with_text_rect(ui).0
+    }
+
+    /// [`show`](TextField::show) and the rect of the laid-out text this pass, in screen
+    /// coordinates (an empty rect at the text's start in an empty field): a host draws over the
+    /// text, such as a list marker, relative to it.
+    pub fn show_with_text_rect(self, ui: &mut Ui) -> (EditResponse<String>, Rect) {
         let spec = Spec {
             id_salt: self.id_salt,
             label: &self.label,
@@ -288,6 +320,7 @@ impl<'a> TextField<'a> {
             width: self.width,
             trailing_arrow: self.trailing_arrow,
             id: self.id,
+            layouter: self.layouter.map(|l| l.0),
         };
         show_field(ui, &spec)
     }
@@ -447,8 +480,9 @@ impl<'a> SearchField<'a> {
             width: None,
             trailing_arrow: false,
             id: None,
+            layouter: None,
         };
-        show_field(ui, &spec)
+        show_field(ui, &spec).0
     }
 }
 
@@ -480,6 +514,7 @@ struct Spec<'a> {
     trailing_arrow: bool,
     /// The `TextEdit` id, else derived from `id_salt`.
     id: Option<Id>,
+    layouter: Option<Layouter<'a>>,
 }
 
 /// Where the parts of a field go: the room kept at the reading start and end of the text, and
@@ -520,7 +555,7 @@ fn clear_inset(height: f32, side: f32) -> f32 {
 
 const CLEAR_SIZE: ControlSize = ControlSize::Sm;
 
-fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
+fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> (EditResponse<String>, Rect) {
     let tokens = Tokens::of(ui);
     let mut style = TextField::style(&tokens, spec.size);
     if let Some(role) = spec.role {
@@ -575,6 +610,10 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
         Some(rows) => typing.multiline(rows),
         None => typing,
     };
+    let typing = match spec.layouter {
+        Some(layouter) => typing.layouter(layouter),
+        None => typing,
+    };
     // The box goes under the text, which `TextEdit` paints as it runs.
     let under = ui.painter().add(Shape::Noop);
     let mut typed = typing.show(ui, &look);
@@ -592,7 +631,8 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> EditResponse<String> {
             typed.clear(ui);
         }
     }
-    typed.end(ui)
+    let text_rect = typed.text_rect();
+    (typed.end(ui), text_rect)
 }
 
 /// What a field-like box shows: [`TextField`]'s, `NumberField`'s, and a closed `Select`'s
