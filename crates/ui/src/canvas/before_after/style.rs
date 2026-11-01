@@ -3,7 +3,9 @@
 use egui::{Color32, FontId};
 
 use super::BeforeAfter;
-use crate::theme::UiTokens;
+use craft_theme::TypeRole;
+
+use crate::theme::{ToEgui, UiTokens};
 
 /// What [`BeforeAfter`] draws besides the host's pictures.
 #[derive(Clone, Debug, PartialEq)]
@@ -35,10 +37,23 @@ pub struct BeforeAfterStyle {
 
 impl BeforeAfter {
     /// The before and after look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `before_after` lands in task TK1")]
     pub fn style(tokens: &UiTokens) -> BeforeAfterStyle {
         // lightcraft: crates/ui-egui/src/panels/detail.rs:479 (6 each side), :486 (14 each side);
         // figcraft: crates/ui-egui/src/panels/dev_compare.rs:354 (2 pt), :356 (knob radius 10).
-        todo!()
+        let (b, c) = (&tokens.component.before_after, &tokens.color);
+        BeforeAfterStyle {
+            line: b.line,
+            line_colour: c.overlay.handle_fill.to_egui(),
+            halo: c.overlay.halo.to_egui(),
+            halo_width: b.halo,
+            knob: b.knob,
+            knob_fill: c.accent.strong.to_egui(),
+            knob_glyph: c.text.on_strong.to_egui(),
+            gap_side: b.gap_side,
+            gap_stacked: b.gap_stacked,
+            caption_gap: b.caption_gap,
+            caption_font: tokens.font(TypeRole::Label),
+            caption_colour: c.text.muted.to_egui(),
+        }
     }
 }

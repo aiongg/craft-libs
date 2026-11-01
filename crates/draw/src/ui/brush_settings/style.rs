@@ -1,7 +1,6 @@
 //! The look of the Brush Settings panel and its shared rows, from the `brush` token family.
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui, UiTokens};
 use egui::{Color32, Stroke, Vec2};
 
 /// The sizes of the Brush Settings panel, its section list, its stroke strip and the Brush Tip
@@ -54,8 +53,27 @@ pub struct BrushSettingsStyle {
 impl BrushSettingsStyle {
     /// The style from `tokens`.
     pub fn of(tokens: &UiTokens) -> Self {
-        // new: token task TK1 (pc: crates/ui-egui/src/panels/brush_panel.rs:56-57, :250-330; brush_sections.rs:266-282).
-        todo!()
+        // pc: crates/ui-egui/src/panels/brush_panel.rs:56-57, :250-330; brush_sections.rs:266-282.
+        let (b, c, field) = (&tokens.component.brush, &tokens.color, &tokens.component.field);
+        BrushSettingsStyle {
+            panel_width: b.panel_width,
+            section_list_width: b.section_list_width,
+            section_row: b.section_row,
+            section_box: b.section_box,
+            section_lock: b.section_lock,
+            section_name_inset: b.section_name_inset,
+            section_switch_gap: b.section_switch_gap,
+            lock_on: c.text.normal.to_egui(),
+            lock_off: c.text.faint.to_egui(),
+            strip_height: b.strip_height,
+            strip_fill: field.fill.rest.to_egui(),
+            strip_border: Stroke::new(1.0, field.border.rest.to_egui()),
+            divider: Stroke::new(1.0, c.line.divider.to_egui()),
+            control_select: b.control_select,
+            tip_grid_cell: Vec2::from(b.tip_grid_cell),
+            tip_grid_thumb: b.tip_grid_thumb,
+            tip_grid_max: b.tip_grid_max,
+        }
     }
 }
 
@@ -96,7 +114,23 @@ pub struct TipEllipseStyle {
 impl TipEllipseStyle {
     /// The style from `tokens`.
     pub fn of(tokens: &UiTokens) -> Self {
-        // new: token task TK1 (pc: crates/ui-egui/src/panels/brush_sections.rs:192-242).
-        todo!()
+        // pc: crates/ui-egui/src/panels/brush_sections.rs:192-242.
+        let (b, c, field) = (&tokens.component.brush, &tokens.color, &tokens.component.field);
+        TipEllipseStyle {
+            size: b.ellipse_size,
+            disc: b.ellipse_disc,
+            radius: b.ellipse_radius,
+            dot: b.ellipse_dot,
+            grab: b.ellipse_grab,
+            line: b.ellipse_line,
+            arrow_reach: b.ellipse_arrow_reach,
+            head: Vec2::from(b.ellipse_head),
+            disc_fill: field.fill.rest.to_egui(),
+            disc_border: Stroke::new(1.0, field.border.rest.to_egui()),
+            cross: Stroke::new(1.0, c.line.divider.to_egui()),
+            ellipse: c.text.normal.to_egui(),
+            accent: c.accent.solid.to_egui(),
+            dot_fill: c.overlay.handle_fill.to_egui(),
+        }
     }
 }

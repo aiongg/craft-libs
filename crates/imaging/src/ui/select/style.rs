@@ -1,8 +1,15 @@
 //! [`SelectToolStyle`]: the selection tools' sizes and colours, from tokens (task TK1).
 
 use craft_ui::canvas::draft::DraftReach;
-use craft_ui::theme::UiTokens;
+use craft_ui::theme::{ToEgui, UiTokens};
 use egui::Color32;
+
+/// The share of `overlay.halo`'s alpha under the closing ring (PhotoCraft's black at alpha 200).
+const RING_HALO_ALPHA: f32 = 0.78;
+/// The share of `overlay.halo`'s alpha in the width circle's dark ring (alpha 140).
+const WIDTH_RING_DARK_ALPHA: f32 = 0.55;
+/// The share of `overlay.handle_fill`'s alpha in the width circle's light ring (alpha 220).
+const WIDTH_RING_LIGHT_ALPHA: f32 = 0.86;
 
 /// What the selection tools draw with and how near a press closes an outline. Every size is a
 /// token of the `select` family, the same at every Size (the marks sit on the document). The
@@ -45,13 +52,27 @@ pub struct SelectToolStyle {
 
 impl SelectToolStyle {
     /// The selection tools' look in `tokens`.
-    #[expect(unused_variables, clippy::todo, reason = "skeleton: the token family `select` lands in task TK1")]
     pub fn of(tokens: &UiTokens) -> SelectToolStyle {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:48 (`SAME_POINT` 3), :170 (8);
         // crates/ui-egui/src/tools/magnetic_lasso_ui.rs:81 (8), :426-428 (5 × 5, white, 1 pt black),
         // :434-436 (offset 12, radius 4, 3 pt black alpha 200, 1.2 pt white), :444-446 (the width
         // circle: black alpha 140 at `r + 0.5`, white alpha 220 at `r`).
-        todo!()
+        let (s, o) = (&tokens.component.select, &tokens.color.overlay);
+        SelectToolStyle {
+            close_radius: f64::from(s.close_radius),
+            same_point: f64::from(s.same_point),
+            fastening: s.fastening,
+            fastening_fill: o.handle_fill.to_egui(),
+            fastening_stroke: o.handle_stroke.to_egui(),
+            ring_radius: s.ring_radius,
+            ring_offset: s.ring_offset,
+            ring_halo: s.ring_halo,
+            ring_halo_color: o.halo.faded(RING_HALO_ALPHA).to_egui(),
+            ring_line: s.ring_line,
+            ring_line_color: o.handle_fill.to_egui(),
+            width_ring_dark: o.halo.faded(WIDTH_RING_DARK_ALPHA).to_egui(),
+            width_ring_light: o.handle_fill.faded(WIDTH_RING_LIGHT_ALPHA).to_egui(),
+        }
     }
 
     /// The close radii an [`OutlineDraft`](craft_ui::canvas::draft::OutlineDraft) takes.

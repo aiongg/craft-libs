@@ -256,6 +256,11 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::OverlayCropInvalid => Fixed(Rgba::rgb(0xe5, 0x3e, 0x3e)),
         // Drawn over the document, not the panel, so one colour in both modes (PhotoCraft's default).
         T::OverlayGrid => Fixed(Rgba::rgb(0x8c, 0x8c, 0x8c)),
+        // CadCraft's pinned grip colours; grips sit on the document, so one value in both modes.
+        T::OverlayGrip => Fixed(Rgba::rgb(0x2f, 0x6b, 0xff)),
+        T::OverlayGripWarm => Fixed(Rgba::rgb(0xff, 0x7f, 0x9f)),
+        T::OverlayGripHot => Fixed(Rgba::rgb(0xff, 0x3b, 0x3b)),
+        T::OverlayGripStroke => Fixed(Rgba::rgb(0x10, 0x30, 0x80)),
         T::DataSeries0 => series(0),
         T::DataSeries1 => series(1),
         T::DataSeries2 => series(2),
@@ -2117,3 +2122,219 @@ pub const ACTIONS_COLORS: [Rgba; 6] = [
 ];
 /// A Button Mode label on a coloured fill (PhotoCraft `actions.rs:297-313`).
 pub const ACTIONS_LABEL_ON_COLOR: Rgba = Rgba::rgb(20, 20, 20);
+
+// --- select ---
+/// A press this near the first point closes an outline, in screen points: `select.close_radius`.
+pub const SELECT_CLOSE_RADIUS: f32 = 8.0;
+/// A press this near the last point is the same click again: `select.same_point`.
+pub const SELECT_SAME_POINT: f32 = 3.0;
+/// Side of a Magnetic Lasso fastening point: `select.fastening`.
+pub const SELECT_FASTENING: f32 = 5.0;
+/// Radius of the Magnetic Lasso closing ring: `select.ring_radius`.
+pub const SELECT_RING_RADIUS: f32 = 4.0;
+/// Offset of the ring right of and below the pointer: `select.ring_offset`.
+pub const SELECT_RING_OFFSET: f32 = 12.0;
+/// Width of the ring halo: `select.ring_halo`.
+pub const SELECT_RING_HALO: f32 = 3.0;
+/// Width of the ring line: `select.ring_line`.
+pub const SELECT_RING_LINE: f32 = 1.2;
+
+// --- hover ---
+/// Line width of a rect or path outline: `hover.outline`.
+pub const HOVER_OUTLINE: f32 = 1.5;
+/// A mask texel's alpha per unit of coverage: `hover.fill_alpha`.
+pub const HOVER_FILL_ALPHA: f32 = 0.42;
+/// A mask edge texel's alpha: `hover.edge_alpha`.
+pub const HOVER_EDGE_ALPHA: f32 = 0.95;
+/// How long the pointer rests before a lookup, in milliseconds: `hover.debounce_ms`.
+pub const HOVER_DEBOUNCE_MS: f32 = 120.0;
+/// Repaint interval while a lookup runs, in milliseconds: `hover.busy_ms`.
+pub const HOVER_BUSY_MS: f32 = 40.0;
+
+// --- selection_frame ---
+/// The box line and a solid outline: `selection_frame.line`.
+pub const SELECTION_FRAME_LINE: f32 = 1.0;
+/// The key object's box line: `selection_frame.key_line`.
+pub const SELECTION_FRAME_KEY_LINE: f32 = 3.0;
+/// The centre mark's side: `selection_frame.centre`.
+pub const SELECTION_FRAME_CENTRE: f32 = 3.5;
+/// A dashed outline's width: `selection_frame.outline`.
+pub const SELECTION_FRAME_OUTLINE: f32 = 1.5;
+/// A dashed outline's dash: `selection_frame.dash`.
+pub const SELECTION_FRAME_DASH: f32 = 4.0;
+/// A dashed outline's gap: `selection_frame.gap`.
+pub const SELECTION_FRAME_GAP: f32 = 3.0;
+/// What one grow step adds to a grip: `selection_frame.grow_step`.
+pub const SELECTION_FRAME_GROW_STEP: f32 = 1.0;
+
+// --- grip ---
+/// A square grip's side, a midpoint's width: `grip.size`.
+pub const GRIP_SIZE: f32 = 10.0;
+/// A midpoint grip's height: `grip.midpoint_height`.
+pub const GRIP_MIDPOINT_HEIGHT: f32 = 5.0;
+/// The outline width: `grip.stroke`.
+pub const GRIP_STROKE: f32 = 1.0;
+/// The hit area beyond a grip's bounds: `grip.hit_pad`.
+pub const GRIP_HIT_PAD: f32 = 3.0;
+/// The warm area beyond a grip's bounds: `grip.warm_pad`.
+pub const GRIP_WARM_PAD: f32 = 2.0;
+
+// --- constrain ---
+/// Screen points within which a press copies instead of moves: `constrain.copy_reach`.
+pub const CONSTRAIN_COPY_REACH: f32 = 2.0;
+/// Screen points a stroke travels before its direction locks: `constrain.stroke_lock`.
+pub const CONSTRAIN_STROKE_LOCK: f32 = 3.0;
+
+// --- line_guide ---
+/// The line width: `line_guide.width`.
+pub const LINE_GUIDE_WIDTH: f32 = 1.0;
+/// The halo's extra width: `line_guide.halo`.
+pub const LINE_GUIDE_HALO: f32 = 3.0;
+
+// --- before_after ---
+/// The divider line's width: `before_after.line`.
+pub const BEFORE_AFTER_LINE: f32 = 2.0;
+/// The halo's extra width on each side of the line: `before_after.halo`.
+pub const BEFORE_AFTER_HALO: f32 = 1.0;
+/// The knob's diameter: `before_after.knob`.
+pub const BEFORE_AFTER_KNOB: f32 = 20.0;
+/// Between two side-by-side panes: `before_after.gap_side`.
+pub const BEFORE_AFTER_GAP_SIDE: f32 = 12.0;
+/// Between two stacked panes: `before_after.gap_stacked`.
+pub const BEFORE_AFTER_GAP_STACKED: f32 = 28.0;
+/// Below a caption: `before_after.caption_gap`.
+pub const BEFORE_AFTER_CAPTION_GAP: f32 = 4.0;
+
+// --- brush ---
+/// Screen points of vertical resize travel from level 0 to 1: `brush.resize_travel`.
+pub const BRUSH_RESIZE_TRAVEL: f32 = 200.0;
+/// Below this on-screen radius the outline is unreadable and the crosshair shows: `brush.tip_min_radius`.
+pub const BRUSH_TIP_MIN_RADIUS: f32 = 3.0;
+/// The arm of that crosshair: `brush.tip_min_crosshair`.
+pub const BRUSH_TIP_MIN_CROSSHAIR: f32 = 4.0;
+/// The picker's width before the user drags its grip: `brush.picker_width`.
+pub const BRUSH_PICKER_WIDTH: f32 = 300.0;
+/// Its height: `brush.picker_height`.
+pub const BRUSH_PICKER_HEIGHT: f32 = 420.0;
+/// Its least width: `brush.picker_min_width`.
+pub const BRUSH_PICKER_MIN_WIDTH: f32 = 230.0;
+/// Its least height: `brush.picker_min_height`.
+pub const BRUSH_PICKER_MIN_HEIGHT: f32 = 170.0;
+/// The Size and Hardness block's greatest width: `brush.picker_head_max`.
+pub const BRUSH_PICKER_HEAD_MAX: f32 = 350.0;
+/// The least height of the card list: `brush.picker_list_min`.
+pub const BRUSH_PICKER_LIST_MIN: f32 = 80.0;
+/// Between the head and the search row, and around the hairline: `brush.picker_gap`.
+pub const BRUSH_PICKER_GAP: f32 = 6.0;
+/// Room the footer slider leaves for the grip: `brush.picker_grip_room`.
+pub const BRUSH_PICKER_GRIP_ROOM: f32 = 20.0;
+/// Padding inside a card's tile: `brush.card_pad`.
+pub const BRUSH_CARD_PAD: f32 = 4.0;
+/// The tile's inset in its cell, at both ends: `brush.card_inset`.
+pub const BRUSH_CARD_INSET: f32 = 4.0;
+/// The tip cell's width: `brush.card_tip_width`.
+pub const BRUSH_CARD_TIP_WIDTH: f32 = 46.0;
+/// The tip thumbnail's base side: `brush.card_tip_base`.
+pub const BRUSH_CARD_TIP_BASE: f32 = 44.8;
+/// The name row's height: `brush.card_name_height`.
+pub const BRUSH_CARD_NAME_HEIGHT: f32 = 20.0;
+/// The name's inset from the row's ends: `brush.card_name_inset`.
+pub const BRUSH_CARD_NAME_INSET: f32 = 6.0;
+/// The stroke's inset from the tip cell: `brush.card_stroke_inset`.
+pub const BRUSH_CARD_STROKE_INSET: f32 = 8.0;
+/// The stroke's least width: `brush.card_stroke_min`.
+pub const BRUSH_CARD_STROKE_MIN: f32 = 24.0;
+/// The stroke's greatest width: `brush.card_stroke_max`.
+pub const BRUSH_CARD_STROKE_MAX: f32 = 260.0;
+/// The stroke's height: `brush.card_stroke_height`.
+pub const BRUSH_CARD_STROKE_HEIGHT: f32 = 36.0;
+/// A full card, width then height: `brush.card_max`.
+pub const BRUSH_CARD_MAX: [f32; 2] = [300.0, 70.0];
+/// A tip-only cell, width then height: `brush.card_tip_only`.
+pub const BRUSH_CARD_TIP_ONLY: [f32; 2] = [60.0, 70.0];
+/// A tip-and-name cell, width then height: `brush.card_tip_name`.
+pub const BRUSH_CARD_TIP_NAME: [f32; 2] = [150.0, 70.0];
+/// The card tile's corner radius: `brush.card_radius`.
+pub const BRUSH_CARD_RADIUS: f32 = 3.0;
+/// The options-bar chip, width then height: `brush.chip`.
+pub const BRUSH_CHIP: [f32; 2] = [44.0, 30.0];
+/// The chip's tip image side: `brush.chip_tip`.
+pub const BRUSH_CHIP_TIP: f32 = 14.0;
+/// The tip image's centre from the chip's leading top corner: `brush.chip_tip_at`.
+pub const BRUSH_CHIP_TIP_AT: [f32; 2] = [14.0, 11.0];
+/// The chip's chevron side: `brush.chip_chevron`.
+pub const BRUSH_CHIP_CHEVRON: f32 = 10.0;
+/// The Brush Settings panel's preferred width: `brush.panel_width`.
+pub const BRUSH_PANEL_WIDTH: f32 = 540.0;
+/// The section list's width: `brush.section_list_width`.
+pub const BRUSH_SECTION_LIST_WIDTH: f32 = 150.0;
+/// A section row's height: `brush.section_row`.
+pub const BRUSH_SECTION_ROW: f32 = 23.0;
+/// The enable box's side: `brush.section_box`.
+pub const BRUSH_SECTION_BOX: f32 = 13.0;
+/// The lock's hit area then its icon: `brush.section_lock`.
+pub const BRUSH_SECTION_LOCK: [f32; 2] = [18.0, 12.0];
+/// Where section names start: `brush.section_name_inset`.
+pub const BRUSH_SECTION_NAME_INSET: f32 = 20.0;
+/// Before the first switch row: `brush.section_switch_gap`.
+pub const BRUSH_SECTION_SWITCH_GAP: f32 = 6.0;
+/// The stroke strip's height: `brush.strip_height`.
+pub const BRUSH_STRIP_HEIGHT: f32 = 76.0;
+/// The Control select's width in a dynamic control row: `brush.control_select`.
+pub const BRUSH_CONTROL_SELECT: f32 = 130.0;
+/// The tip ellipse widget's side: `brush.ellipse_size`.
+pub const BRUSH_ELLIPSE_SIZE: f32 = 84.0;
+/// The disc's radius: `brush.ellipse_disc`.
+pub const BRUSH_ELLIPSE_DISC: f32 = 40.0;
+/// The ellipse's major radius: `brush.ellipse_radius`.
+pub const BRUSH_ELLIPSE_RADIUS: f32 = 34.0;
+/// A roundness dot's radius: `brush.ellipse_dot`.
+pub const BRUSH_ELLIPSE_DOT: f32 = 4.0;
+/// How near a dot a press grabs it: `brush.ellipse_grab`.
+pub const BRUSH_ELLIPSE_GRAB: f32 = 7.0;
+/// The ellipse outline and arrow width: `brush.ellipse_line`.
+pub const BRUSH_ELLIPSE_LINE: f32 = 1.5;
+/// How far the arrow reaches past the ellipse: `brush.ellipse_arrow_reach`.
+pub const BRUSH_ELLIPSE_ARROW_REACH: f32 = 5.0;
+/// The arrow head's length then width: `brush.ellipse_head`.
+pub const BRUSH_ELLIPSE_HEAD: [f32; 2] = [7.0, 8.0];
+/// A cell of the grid of tips, width then height: `brush.tip_grid_cell`.
+pub const BRUSH_TIP_GRID_CELL: [f32; 2] = [44.0, 50.0];
+/// A tip's side in that grid before its size scale: `brush.tip_grid_thumb`.
+pub const BRUSH_TIP_GRID_THUMB: f32 = 34.0;
+/// The grid's greatest height: `brush.tip_grid_max`.
+pub const BRUSH_TIP_GRID_MAX: f32 = 104.0;
+
+// --- full_window ---
+/// A standard side column: `full_window.side.width`.
+pub const FULL_WINDOW_SIDE_WIDTH: f32 = 300.0;
+/// A wide side column: `full_window.side.width_wide`.
+pub const FULL_WINDOW_SIDE_WIDTH_WIDE: f32 = 350.0;
+/// The padding inside a side column, across: `full_window.side.pad_x`.
+pub const FULL_WINDOW_SIDE_PAD_X: f32 = 14.0;
+/// The padding inside a side column, along: `full_window.side.pad_y`.
+pub const FULL_WINDOW_SIDE_PAD_Y: f32 = 12.0;
+/// The room kept on each side of a fitted image: `full_window.canvas.margin`.
+pub const FULL_WINDOW_CANVAS_MARGIN: f32 = 20.0;
+/// The zoom bar's height: `full_window.zoom_bar.height`.
+pub const FULL_WINDOW_ZOOM_BAR_HEIGHT: f32 = 30.0;
+/// The zoom bar's padding, across: `full_window.zoom_bar.pad_x`.
+pub const FULL_WINDOW_ZOOM_BAR_PAD_X: f32 = 10.0;
+/// The zoom bar's padding, along: `full_window.zoom_bar.pad_y`.
+pub const FULL_WINDOW_ZOOM_BAR_PAD_Y: f32 = 3.0;
+/// The zoom bar's progress bar width: `full_window.progress.width`.
+pub const FULL_WINDOW_PROGRESS_WIDTH: f32 = 90.0;
+/// The progress bar's height: `full_window.progress.height`.
+pub const FULL_WINDOW_PROGRESS_HEIGHT: f32 = 6.0;
+
+/// Alpha (of 255) of the brush resize preview's default tint (PhotoCraft's).
+pub const BRUSH_PREVIEW_ALPHA: u8 = 110;
+/// Share of `surface.raised` a brush card's tile keeps (PhotoCraft darkens it to 90 %).
+pub const BRUSH_CARD_FILL_SHARE: f32 = 0.9;
+
+/// `c` with each colour channel multiplied by `share`, in gamma (sRGB) space.
+pub(super) fn darkened(c: Rgba, share: f32) -> Rgba {
+    let [r, g, b, a] = c.0;
+    let k = |v: u8| (f32::from(v) * share + 0.5) as u8;
+    Rgba([k(r), k(g), k(b), a])
+}
