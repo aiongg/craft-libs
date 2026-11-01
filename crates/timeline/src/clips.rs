@@ -2,7 +2,7 @@
 //! a drag reports. The edit rules (ripple, linked partners, overwrite) stay the app's: the library
 //! reports the gesture, the app applies it.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
+use std::cmp::Ordering;
 
 use crate::model::{ClipId, TrackId};
 use crate::time::{Tick, TimeRange, TimeView};
@@ -59,7 +59,30 @@ pub struct EdgeHit {
 /// `None` for a clip without a finite positive width.
 // filmcraft: crates/ui-egui/src/panels/timeline_hit.rs:195 `zone`.
 pub fn edge_zone(width: f32, zones: &EdgeZones) -> Option<f32> {
-    todo!()
+    (width.is_finite() && width > 0.0).then(|| zones.edge.min(width / 3.0))
+}
+
+/// A clip edge within reach of the pointer.
+struct Reach {
+    clip: ClipId,
+    edge: ClipEdge,
+    inside: bool,
+    distance: f32,
+}
+
+impl Reach {
+    /// Inside beats outside, then the nearer edge; an exact tie (right on a cut) goes to the
+    /// later clip's In edge.
+    fn beats(&self, other: &Reach) -> bool {
+        if self.inside != other.inside {
+            return self.inside;
+        }
+        match self.distance.partial_cmp(&other.distance) {
+            Some(Ordering::Less) => true,
+            Some(Ordering::Greater) => false,
+            _ => self.edge == ClipEdge::In && other.edge != ClipEdge::In,
+        }
+    }
 }
 
 /// The edge of `clips` (one track's, in any order) a pointer at `x` grabs. Of several in reach,
@@ -67,7 +90,21 @@ pub fn edge_zone(width: f32, zones: &EdgeZones) -> Option<f32> {
 /// #259: two touching clips share the cut, and the press goes to the clip it is over).
 // filmcraft: crates/ui-egui/src/panels/timeline_hit.rs:200 `edge_at`, `:167` `Reach::beats`.
 pub fn edge_at(clips: &[(ClipId, TimeRange)], view: &TimeView, left: f32, x: f32, zones: &EdgeZones) -> Option<EdgeHit> {
-    todo!()
+    let mut best: Option<Reach> = None;
+    for (clip, range) in clips {
+        let (x0, x1) = (view.x_of(range.start, left), view.x_of(range.end(), left));
+        let Some(zone) = edge_zone(x1 - x0, zones) else { continue };
+        for (edge, into) in [(ClipEdge::In, x - x0), (ClipEdge::Out, x1 - x)] {
+            if !(-zone..=zone).contains(&into) {
+                continue;
+            }
+            let reach = Reach { clip: *clip, edge, inside: into >= 0.0, distance: into.abs() };
+            if best.as_ref().is_none_or(|b| reach.beats(b)) {
+                best = Some(reach);
+            }
+        }
+    }
+    best.map(|r| EdgeHit { clip: r.clip, edge: r.edge, inside: r.inside, distance: r.distance })
 }
 
 /// The trim the Selection tool starts at an edge: Cmd+Shift rolls, Cmd ripples, else a regular
@@ -76,7 +113,15 @@ pub fn edge_at(clips: &[(ClipId, TimeRange)], view: &TimeView, left: f32, x: f32
 /// `zones.roll`, a clip on the other side) it rolls, elsewhere on the edge it ripples.
 // filmcraft: crates/ui-egui/src/panels/timeline_hit.rs:26 `selection_trim_kind`.
 pub fn selection_trim(command: bool, shift: bool, no_modifier: bool, distance: f32, has_neighbour: bool, zones: &EdgeZones) -> TrimKind {
-    todo!()
+    if command && shift {
+        TrimKind::Roll
+    } else if command {
+        TrimKind::Ripple
+    } else if no_modifier {
+        if has_neighbour && distance <= zones.roll { TrimKind::Roll } else { TrimKind::Ripple }
+    } else {
+        TrimKind::Trim
+    }
 }
 
 /// An edit a clip drag reports, as the value of an `EditEvent` gesture: the app previews each
@@ -114,7 +159,14 @@ pub fn marquee_clips(
     a: [f32; 2],
     b: [f32; 2],
 ) -> Vec<ClipId> {
-    todo!()
+    let (x0, x1) = (a[0].min(b[0]), a[0].max(b[0]));
+    let (y0, y1) = (a[1].min(b[1]), a[1].max(b[1]));
+    let (from, to) = (view.time_at(x0, left), view.time_at(x1, left));
+    rows.iter()
+        .filter(|(_, top, bottom)| *top <= y1 && *bottom >= y0)
+        .flat_map(|(track, _, _)| clips.iter().filter(move |(_, t, range)| t == track && range.start < to && range.end() > from))
+        .map(|(clip, _, _)| *clip)
+        .collect()
 }
 
 /// Times a drag snaps to: clip starts and ends (but the dragged clips'), the playhead (but not
@@ -159,5 +211,13 @@ impl Extend<Tick> for SnapTargets {
 // filmcraft: crates/ui-egui/src/panels/timeline/snap.rs:15 `snap_to` (distance in screen
 // points, nearest wins).
 pub fn snap_time(targets: &SnapTargets, t: Tick, view: &TimeView, tolerance: f32) -> (Tick, Option<Tick>) {
-    todo!()
+    let x = view.x_of(t, 0.0);
+    let mut best: Option<(f32, Tick)> = None;
+    for &target in targets.times() {
+        let distance = (view.x_of(target, 0.0) - x).abs();
+        if distance < tolerance && best.is_none_or(|(d, _)| distance < d) {
+            best = Some((distance, target));
+        }
+    }
+    best.map_or((t, None), |(_, target)| (target, Some(target)))
 }
