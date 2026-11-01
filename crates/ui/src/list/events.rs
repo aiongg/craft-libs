@@ -1,11 +1,30 @@
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
 //! [`EventLog`]: the warnings and errors of commands and background work, newest first, with a
 //! level filter, counts and the selected event's details.
 
-use egui::{AsIdSalt, IdSalt, Painter, Pos2, Response, Ui};
+use std::sync::Arc;
+use std::time::Duration;
+
+use egui::{Align2, AsIdSalt, Color32, CornerRadius, IdSalt, Painter, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, UiBuilder, vec2};
 use serde::{Deserialize, Serialize};
 
-use crate::theme::UiTokens;
+use super::{List, ListEvent, ListRow};
+use crate::behavior::{RowInfo, Selection, SelectionMode};
+use crate::controls::{Button, Select};
+use crate::localized::words::Counted;
+use crate::localized::{AgeStyle, LocaleNumbers, SharedLabels as _, Words, relative_age};
+use crate::primitives::{Content, Text};
+use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
+use craft_theme::TypeRole;
+
+/// The count words of the bar, until S5C-F9 moves them into the kernel's `counts`.
+const ERROR_COUNT: Counted = Counted::new("events.errorCount", "{n} error", "{n} errors");
+const WARNING_COUNT: Counted = Counted::new("events.warningCount", "{n} warning", "{n} warnings");
+const MESSAGE_COUNT: Counted = Counted::new("events.messageCount", "{n} message", "{n} messages");
+
+/// The least height of the details box.
+const DETAILS_HEIGHT: f32 = 70.0;
+/// The room the level glyph takes in the bar and in a row.
+const GLYPH_BOX: f32 = 14.0;
 
 crate::words! {
     /// The log's words, English by default.
@@ -133,7 +152,114 @@ impl<'a> EventLog<'a> {
 
     // filmcraft: crates/ui-egui/src/panels/events.rs:52 events
     pub fn show(self, ui: &mut Ui) -> EventLogOutput {
-        todo!()
+        let Self { id_salt, events, state, now_ms, labels } = self;
+        let labels = labels.map_or_else(|| EventLogLabels::shared(ui), Arc::new);
+        let tokens = Tokens::of(ui);
+        let ctx = ui.ctx().clone();
+        let words = Words::of_ctx(&ctx);
+        let scope = ui.scope_builder(UiBuilder::new().id_salt(id_salt), |ui| {
+            let mut clear_all = false;
+            let mut level = state.min_level;
+            crate::direction::horizontal(ui, |ui| {
+                let _ = Select::new("filter", labels.filter.as_str(), &mut level)
+                    .option(EventLevel::Info, labels.all.as_str())
+                    .option(EventLevel::Warning, labels.warnings.as_str())
+                    .option(EventLevel::Error, labels.errors.as_str())
+                    .show(ui);
+                for (glyph_level, count, text) in [
+                    (EventLevel::Error, ERROR_COUNT, &labels.error_count),
+                    (EventLevel::Warning, WARNING_COUNT, &labels.warning_count),
+                    (EventLevel::Info, MESSAGE_COUNT, &labels.message_count),
+                ] {
+                    let n = events.iter().filter(|e| e.level == glyph_level).count() as u64;
+                    let (rect, _) = ui.allocate_exact_size(vec2(GLYPH_BOX, GLYPH_BOX), Sense::hover());
+                    paint_event_glyph(ui.painter(), &tokens, rect.center(), glyph_level);
+                    ui.add(Text::new(words.counted(&ctx, count, text, n)).content(Content::Muted));
+                }
+                ui.with_layout(crate::direction::trailing(ui), |ui| {
+                    clear_all = ui.add(Button::new(labels.clear_all.as_str())).clicked();
+                });
+            });
+            state.min_level = level;
+            if clear_all {
+                state.selected = None;
+            }
+
+            // Newest first: the app appends, so the log reads backwards.
+            let visible: Vec<&LogEvent> = events.iter().rev().filter(|e| e.level >= state.min_level).collect();
+            let selected = state.selected.and_then(|id| visible.iter().find(|e| e.id == id).copied());
+            if visible.is_empty() {
+                ui.add(Text::new(labels.none.as_str()).content(Content::Faint));
+                return clear_all;
+            }
+            ctx.request_repaint_after(Duration::from_secs(60));
+
+            let details_height = if selected.is_some() { DETAILS_HEIGHT + ui.spacing().item_spacing.y } else { 0.0 };
+            let rows: Vec<RowInfo<u64>> = visible.iter().map(|e| RowInfo::leaf(e.id)).collect();
+            let mut selection = state.selected.filter(|_| selected.is_some()).map_or_else(Selection::new, Selection::only);
+            let caption = role_format(&tokens, TypeRole::Caption, Color32::PLACEHOLDER).font_id;
+            let numbers = LocaleNumbers::of_ctx(&ctx);
+            let output = List::new("rows", "Events", rows.as_slice())
+                .mode(SelectionMode::Single)
+                .selection(&mut selection)
+                .max_height((ui.available_height() - details_height).max(20.0))
+                .show(ui, |at, &id| {
+                    let event = visible[at];
+                    let age = relative_age(&ctx, now_ms.saturating_sub(event.time_ms) / 1000, AgeStyle::Long);
+                    let message = match event.count {
+                        0 | 1 => event.message.clone(),
+                        n => {
+                            craft_i18n::fmt(&labels.repeated, &[("message", event.message.as_str()), ("count", numbers.count(u64::from(n)).as_str())])
+                        }
+                    };
+                    let level_word = match event.level {
+                        EventLevel::Info => &labels.info,
+                        EventLevel::Warning => &labels.warning,
+                        EventLevel::Error => &labels.error,
+                    };
+                    let name = format!("{level_word}: {message}, {age}");
+                    let age_width = ctx.fonts_mut(|f| f.layout_no_wrap(age.clone(), caption.clone(), Color32::PLACEHOLDER).size().x).ceil();
+                    let level = event.level;
+                    let glyph_tokens = &tokens;
+                    ListRow::new(id, message)
+                        .accessible_name(name)
+                        .thumb_sized(vec2(GLYPH_BOX, GLYPH_BOX), move |painter, rect| paint_event_glyph(painter, glyph_tokens, rect.center(), level))
+                        .trailing_item(age_width, move |ui| {
+                            ui.add(Text::new(age).role(TypeRole::Caption).content(Content::Faint));
+                        })
+                });
+            let before = state.selected;
+            for event in &output.events {
+                match event {
+                    ListEvent::Selection(change) => state.selected = change.selection.items.first().copied(),
+                    // A click on the selected row deselects it.
+                    ListEvent::Clicked(id) if before == Some(*id) => state.selected = None,
+                    _ => {}
+                }
+            }
+
+            if let Some(event) = selected {
+                let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), DETAILS_HEIGHT), Sense::hover());
+                let field = &tokens.component.field;
+                ui.painter().rect_filled(rect, CornerRadius::from(field.radius), field.fill.rest.to_egui());
+                let inner = rect.shrink2(vec2(field.pad_x, 4.0));
+                let level_word = match event.level {
+                    EventLevel::Info => &labels.info,
+                    EventLevel::Warning => &labels.warning,
+                    EventLevel::Error => &labels.error,
+                };
+                let age = relative_age(&ctx, now_ms.saturating_sub(event.time_ms) / 1000, AgeStyle::Long);
+                let line =
+                    craft_i18n::fmt(&labels.details, &[("level", level_word.as_str()), ("source", event.source.as_str()), ("time", age.as_str())]);
+                ui.scope_builder(UiBuilder::new().max_rect(inner).id_salt("details"), |ui| {
+                    ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+                    ui.add(Text::new(line).role(TypeRole::Label).content(Content::Muted));
+                    ui.add(Text::new(event.message.as_str()));
+                });
+            }
+            clear_all
+        });
+        EventLogOutput { response: scope.response, clear_all: scope.inner }
     }
 }
 
@@ -144,5 +270,30 @@ impl<'a> EventLog<'a> {
 /// 1 point lower).
 // filmcraft: crates/ui-egui/src/panels/events.rs:24 glyph
 pub fn paint_event_glyph(painter: &Painter, tokens: &UiTokens, center: Pos2, level: EventLevel) {
-    todo!()
+    let status = &tokens.color.status;
+    let color = match level {
+        EventLevel::Info => status.info.fg,
+        EventLevel::Warning => status.warn.fg,
+        EventLevel::Error => status.bad.fg,
+    }
+    .to_egui();
+    match level {
+        EventLevel::Info => {
+            painter.circle_filled(center, 5.0, color);
+        }
+        EventLevel::Warning => {
+            let points = vec![center + vec2(0.0, -6.0), center + vec2(6.0, 5.0), center + vec2(-6.0, 5.0)];
+            painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
+        }
+        EventLevel::Error => {
+            painter.rect_filled(Rect::from_center_size(center, vec2(10.0, 10.0)), CornerRadius::same(2), color);
+        }
+    }
+    let (mark, drop) = match level {
+        EventLevel::Info => ("i", 0.0),
+        EventLevel::Warning => ("!", 1.0),
+        EventLevel::Error => ("!", 0.0),
+    };
+    let font = role_format(tokens, TypeRole::Caption, Color32::PLACEHOLDER).font_id;
+    painter.text(center + vec2(0.0, drop), Align2::CENTER_CENTER, mark, font, tokens.color.text.on_status.to_egui());
 }
