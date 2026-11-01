@@ -1,13 +1,16 @@
 //! [`PerspectiveBar`]: Perspective Warp's options bar (task TR-T13).
 
-#![expect(dead_code, clippy::todo, unused_variables, reason = "skeleton: removed when the bodies land (task TR-T13)")]
+use egui::{AsIdSalt, IdSalt, Modifiers, Ui};
 
-use egui::{AsIdSalt, IdSalt, Ui};
-
+use craft_theme::ControlSize;
+use craft_ui::controls::{Button, Segmented, TooltipExt as _};
+use craft_ui::edit::EditEvent;
+use craft_ui::localized::Words;
 use craft_ui::localized::words::Counted;
+use craft_ui::patterns::OptionsBar;
 use craft_ui::words;
 
-use super::{PerspectiveEdit, PerspectiveSession};
+use super::{PerspectiveEdit, PerspectiveSession, PlaneMode, Straighten};
 
 /// The plane count in Layout mode: "{n} plane", "{n} planes" (registered by RG1).
 pub(crate) const PLANES: Counted = Counted::new("perspectiveBar.planes", "{n} plane", "{n} planes");
@@ -66,6 +69,49 @@ impl<'a> PerspectiveBar<'a> {
     /// Draws the bar into the options bar's `ui`.
     pub fn show(self, ui: &mut Ui) -> PerspectiveBarOutput {
         // pc: crates/ui-egui/src/tools/perspective_ui.rs:310 (`options_bar`).
-        todo!()
+        let Self { id_salt, session, labels } = self;
+        let sm = ControlSize::Sm;
+        let planes = session.planes().len();
+        let mut out = PerspectiveBarOutput::default();
+        ui.push_id(id_salt, |ui| {
+            let mut mode = session.mode();
+            let tabs = Segmented::new("mode", labels.mode.as_str(), &mut mode)
+                .item(PlaneMode::Layout, labels.layout.as_str())
+                .item(PlaneMode::Warp, labels.warp.as_str())
+                .item_enabled(planes > 0)
+                .size(sm)
+                .show(ui);
+            if tabs.changed() {
+                out.edits.push(PerspectiveEdit::Mode(mode));
+            }
+            OptionsBar::divider(ui);
+            match session.mode() {
+                PlaneMode::Warp => {
+                    for (label, tip, how) in [
+                        (&labels.straighten, &labels.straighten_tip, Straighten::Vertical),
+                        (&labels.level, &labels.level_tip, Straighten::Horizontal),
+                        (&labels.both, &labels.both_tip, Straighten::Both),
+                    ] {
+                        if ui.add(Button::new(label.as_str()).size(sm)).tooltip(tip.as_str()).clicked() {
+                            out.edits.push(PerspectiveEdit::Straighten(how));
+                        }
+                    }
+                }
+                PlaneMode::Layout => {
+                    let words = Words::of(ui);
+                    let text = words.get(PLANES.word);
+                    let count = words.counted(ui.ctx(), PLANES, &text, planes as u64);
+                    OptionsBar::hint(ui, &count);
+                    if ui.add_enabled(planes > 0, Button::new(labels.remove_planes.as_str()).size(sm)).clicked() {
+                        out.edits.push(PerspectiveEdit::Planes(EditEvent::set(Vec::new(), Modifiers::NONE)));
+                    }
+                }
+            }
+            OptionsBar::divider(ui);
+            let pressed = OptionsBar::commit_cancel(ui, &labels.commit, &labels.cancel);
+            out.discard = pressed.cancel;
+            out.apply = pressed.commit;
+        });
+        out
     }
 }
