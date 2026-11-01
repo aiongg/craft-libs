@@ -2,8 +2,6 @@
 //! placement, the hide rules, the hit test and the drag maths. Document units unless a name says
 //! screen.
 
-#![cfg_attr(not(test), expect(dead_code, reason = "CornerWidgets::show calls these (task PE-B4)"))]
-
 use egui::Pos2;
 use kurbo::{Point, Vec2};
 
