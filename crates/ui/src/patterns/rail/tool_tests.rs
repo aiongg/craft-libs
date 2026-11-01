@@ -839,3 +839,20 @@ fn tool_rail_pick_by_key_leaves_letters_to_text_fields_and_other_dialogs() {
     step_keys(&mut h, Key::W, Modifiers::NONE);
     assert!(h.state().selects.is_empty(), "a dialog above the rail has the keyboard");
 }
+
+// Alt, Ctrl and Command with a letter belong to the tools' gestures and the shortcuts, so the rail
+// picks nothing (Alt + Shift + letter doesn't cycle either); a held letter picks once.
+#[test]
+fn tool_rail_pick_by_key_ignores_modified_letters_and_repeats() {
+    let mut h = harness(keyed_app());
+    for modifiers in [Modifiers::ALT, Modifiers::ALT | Modifiers::SHIFT, Modifiers::CTRL, Modifiers::COMMAND] {
+        step_keys(&mut h, Key::W, modifiers);
+    }
+    assert!(h.state().selects.is_empty(), "a modified letter picks nothing");
+
+    for repeat in [false, true, true] {
+        h.input_mut().events.push(Event::Key { key: Key::R, physical_key: None, pressed: true, repeat, modifiers: Modifiers::NONE });
+        h.run_steps(1);
+    }
+    assert_eq!(h.state().selects, ["refine"], "the repeats of a held letter pick nothing");
+}

@@ -200,14 +200,15 @@ impl Default for FullWindowZoomKeys {
 }
 
 impl FullWindowZoomKeys {
-    /// The first of these chords pressed this pass, consumed. `None` while a text field has the
-    /// keyboard (it keeps ⌘+ and ⌘− for its own text), or when `ui`'s layer is not the top modal
-    /// layer (a dialog the workspace opened is above it).
+    /// The first of these chords pressed this pass, consumed. `None` unless the keys are free for
+    /// `ui`'s layer ([`keys_free`](crate::focus::key_owner::keys_free)): a text field keeps ⌘+ and
+    /// ⌘− for its own text, a dialog the workspace opened above it has them, and so does an open
+    /// popup, menu or popover.
     pub fn take(&self, ui: &Ui) -> Option<FullWindowZoom> {
         // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:742-743 ("⌘+ / ⌘− / ⌘0 / ⌘1 (or their
         // overrides) zoom the preview, not the canvas behind it").
         let ctx = ui.ctx();
-        if ctx.text_edit_focused() || ctx.memory(|m| m.top_modal_layer()) != Some(ui.layer_id()) {
+        if !crate::focus::key_owner::keys_free(ctx, ui.layer_id()) {
             return None;
         }
         let groups = [

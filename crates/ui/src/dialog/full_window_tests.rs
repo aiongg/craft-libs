@@ -19,10 +19,22 @@ struct App {
     outcomes: Vec<Outcome>,
     footer_rect: Rect,
     last: Option<DialogResponse>,
+    steps: Vec<Step>,
+    keys_free: bool,
 }
 
 fn harness(enter: EnterRule) -> Harness<'static, App> {
-    let app = App { state: DialogState::new(), open: true, enter, behind_clicks: 0, outcomes: Vec::new(), footer_rect: Rect::NOTHING, last: None };
+    let app = App {
+        state: DialogState::new(),
+        open: true,
+        enter,
+        behind_clicks: 0,
+        outcomes: Vec::new(),
+        footer_rect: Rect::NOTHING,
+        last: None,
+        steps: Vec::new(),
+        keys_free: false,
+    };
     HarnessBuilder::default()
         .with_size(WINDOW)
         .with_os(OperatingSystem::Nix)
@@ -40,6 +52,8 @@ fn harness(enter: EnterRule) -> Harness<'static, App> {
                 let mut footer = Rect::NOTHING;
                 let shown = FullWindowDialog::new("liquify").title("Liquify").enter(app.enter).show(ctx, &mut app.state, &mut (), |ui, (), fx| {
                     ui.label("Workspace");
+                    app.steps.extend(fx.take_step(ui));
+                    app.keys_free = fx.keys_free(ui);
                     let row = fx.buttons(
                         ui,
                         strip,
@@ -133,4 +147,18 @@ fn the_canvas_helpers_stay_out_of_the_dialog() {
     assert!(pass::any_modal(&harness.ctx));
     let window = Rect::from_min_size(pos2(0.0, 0.0), WINDOW);
     assert_eq!(pass::free_pointer_over(&harness.ctx, window), None);
+}
+
+// ⌘Z and ⇧⌘Z step the workspace's history while it is the top modal, from any focus; a text field
+// takes the keys from `keys_free` but not from the history.
+#[test]
+fn the_workspace_reads_undo_and_redo_and_frees_its_keys_as_the_top_modal() {
+    let mut harness = harness(EnterRule::Default);
+    harness.run();
+    assert!(harness.state().keys_free);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, Key::Z);
+    harness.run();
+    harness.key_press_modifiers(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::Z);
+    harness.run();
+    assert_eq!(harness.state().steps, [Step::Undo, Step::Redo]);
 }

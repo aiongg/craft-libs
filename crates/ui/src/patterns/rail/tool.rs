@@ -416,6 +416,8 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
     /// - Shift + the letter cycles the tools that share it, in slot order, from the current tool
     ///   (or the shown one when the current tool doesn't share the letter), skipping disabled
     ///   tools. A letter only one tool has picks that tool with Shift too.
+    /// - The modifiers match exactly: Alt, Ctrl or Command with a letter picks nothing (Shift only
+    ///   cycles). A held key picks once; its repeats are consumed and ignored.
     /// - The pick is [`ToolRailOutput::select`], and the key is consumed. Disabled and
     ///   [hidden](Self::hidden) tools are never picked.
     /// - Letters are read only when they are free for this rail: no text field, menu, popup list
@@ -675,33 +677,14 @@ fn group_gap(ui: &mut Ui, grid: &Grid, column: usize) {
     ui.add_space(grid.group_gap);
 }
 
-/// Whether letters are free for a rail drawn in `ui`: no menu, popup list, popover or text field
-/// has the keyboard, and either no modal layer is open or `ui` is in the top one.
-fn letters_free(ui: &Ui) -> bool {
-    let ctx = ui.ctx();
-    if crate::menu::any_open(ctx)
-        || crate::popup_list::owns_keys(ctx)
-        || crate::popup_list::passive_open(ctx)
-        || crate::menu::bar::is_focused(ctx)
-        || ctx.text_edit_focused()
-    {
-        return false;
-    }
-    match ctx.memory(|m| m.top_modal_layer()) {
-        Some(top) => top == ui.layer_id(),
-        None => !crate::viewport::ViewportWindow::any_app_modal(ctx),
-    }
-}
-
 /// The tool [`ToolRail::pick_by_key`] picks this pass, consuming its key: the rules in that
 /// builder's doc, over [`visible_slots`] of `slots` without `hidden`, with [`shown_tool`] for a
 /// plain letter. `None` when no letter of a visible tool was pressed or the keys are not free
-/// for the rail (checked against `focus::key_owner::owner`, `KeyClaim::claimed` and
-/// `ui.layer_id()` against the top modal layer).
+/// for the rail (`focus::key_owner::keys_free` for `ui.layer_id()`, and `KeyClaim::claimed`).
 fn picked_by_key<T: Clone + PartialEq>(ui: &Ui, slots: &[ToolSlot<T>], hidden: &[T], current: &T, last_used: &LastUsed<T>) -> Option<T> {
     // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1392-1404 (Shift+W and Shift+L flip the
     // shared slot's tool; W, R, B, L, H, Z pick, W and L the slot's last-used tool).
-    if !letters_free(ui) {
+    if !crate::focus::key_owner::keys_free(ui.ctx(), ui.layer_id()) {
         return None;
     }
     let visible = visible_slots(slots, hidden);
@@ -720,9 +703,24 @@ fn picked_by_key<T: Clone + PartialEq>(ui: &Ui, slots: &[ToolSlot<T>], hidden: &
     }
     for c in letters {
         let Some(key) = Key::from_name(&c.to_string()) else { continue };
+        // Exact modifiers (Alt, Ctrl and Command belong to the tools' own gestures and to the
+        // shortcuts), and a held key picks once: its repeats are consumed without picking.
         let pressed = |modifiers: Modifiers| {
             let shortcut = egui::KeyboardShortcut::new(modifiers, key);
-            !crate::behavior::KeyClaim::claimed(ui.ctx(), &shortcut) && ui.input_mut(|input| input.consume_shortcut(&shortcut))
+            if crate::behavior::KeyClaim::claimed(ui.ctx(), &shortcut) {
+                return false;
+            }
+            ui.input_mut(|input| {
+                let mut fresh = false;
+                input.events.retain(|event| match event {
+                    egui::Event::Key { key: k, pressed: true, repeat, modifiers: m, .. } if *k == key && m.matches_exact(modifiers) => {
+                        fresh |= !repeat;
+                        false
+                    }
+                    _ => true,
+                });
+                fresh
+            })
         };
         let shift = pressed(Modifiers::SHIFT);
         if !shift && !pressed(Modifiers::NONE) {

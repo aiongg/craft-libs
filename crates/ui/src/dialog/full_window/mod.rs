@@ -67,6 +67,7 @@ use egui::{Color32, Context, Id, Key, Modal, Modifiers, Order, Rect, Ui, UiBuild
 use super::buttons::{ButtonRole, FooterButton, FooterButtons, FooterButtonsResponse, Platform};
 use super::dialog::{DialogResponse, InitialFocus, Outcome, is_enter_press};
 use super::footer::{DialogLabels, FooterCx, FooterRun};
+use super::history::{self, Step};
 use super::keys::{EnterRule, KeyInput, resolve_keys};
 use super::pass::{self, Entry};
 use super::state::DialogState;
@@ -86,6 +87,27 @@ pub struct FullWindowFx {
 }
 
 impl FullWindowFx {
+    /// Whether the workspace's single keys (tool letters, brackets, zoom chords) are free: `ui`'s
+    /// layer is the top modal layer, no text field is editing, and no popup, menu or popover has
+    /// the keyboard ([`focus::key_owner::keys_free`](crate::focus::key_owner::keys_free)).
+    pub fn keys_free(&self, ui: &Ui) -> bool {
+        crate::focus::key_owner::keys_free(ui.ctx(), ui.layer_id())
+    }
+
+    /// Undo ([`Step::Undo`]) or Redo ([`Step::Redo`]) pressed this pass, consumed, while `ui`'s
+    /// layer is the top modal layer (a dialog the workspace opened above it takes the keys).
+    /// Read it before the body so a field's own edit chords don't take ⌘Z first: the workspace
+    /// keeps one history, so the step applies with any focus, a text field included. Before
+    /// stepping, cancel the active tool's gesture with
+    /// `CancelReason::UndoDuringGesture`.
+    pub fn take_step(&self, ui: &Ui) -> Option<Step> {
+        let ctx = ui.ctx();
+        if ctx.memory(|m| m.top_modal_layer()) != Some(ui.layer_id()) {
+            return None;
+        }
+        history::take_step(ctx)
+    }
+
     /// Shows `buttons` in the platform's order against the trailing edge of `rect` (Liquify: the
     /// bottom of its right panel; Filter Gallery: under its settings column). Enter and Esc are
     /// resolved by the dialog: Enter answers [`Outcome::Ok`] while the
