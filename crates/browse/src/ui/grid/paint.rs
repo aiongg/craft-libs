@@ -256,7 +256,7 @@ impl Pen<'_> {
         if let Some(flag) = content.flag {
             let area = slot(style.flag);
             let (icon, color) = match flag {
-                TileFlag::Picked => (Icon::Check, self.tokens.color.status.good.fg.to_egui()),
+                TileFlag::Picked => (Icon::Flag, self.tokens.color.status.good.fg.to_egui()),
                 TileFlag::Rejected => (Icon::Ban, self.tokens.color.status.bad.fg.to_egui()),
             };
             icons::paint_on(self.painter, area, icon, self.set, style.flag, IconSize::Sm.stroke(), color);
