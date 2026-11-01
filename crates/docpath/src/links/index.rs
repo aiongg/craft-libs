@@ -1,8 +1,6 @@
 //! `index_folder`: the files of a folder tree by lower-cased name, for the relink search.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 
 use super::LinkFiles;
@@ -25,5 +23,33 @@ pub struct FolderIndex {
 /// folder; when it says yes the walk ends with what it has. Unreadable folders are skipped.
 pub fn index_folder(root: &Path, limit: usize, files: &dyn LinkFiles, cancelled: &dyn Fn() -> bool) -> FolderIndex {
     // filmcraft: crates/engine/src/relink.rs:478 (`index_folder`: breadth first, dot files and folder links skipped).
-    todo!()
+    let mut index = FolderIndex::default();
+    let mut queue = VecDeque::from([root.to_path_buf()]);
+    while let Some(dir) = queue.pop_front() {
+        if cancelled() {
+            break;
+        }
+        let Ok(mut entries) = files.list(&dir) else { continue };
+        entries.sort_by(|a, b| a.name.cmp(&b.name));
+        for entry in entries {
+            if entry.name.starts_with('.') {
+                continue;
+            }
+            if entry.is_dir {
+                queue.push_back(entry.path);
+                continue;
+            }
+            // A link counts only when it leads to a regular file; `stat` is `None` for a folder.
+            if entry.is_link && files.stat(&entry.path).is_none() {
+                continue;
+            }
+            if index.files >= limit {
+                index.truncated = true;
+                return index;
+            }
+            index.by_name.entry(entry.name.to_lowercase()).or_default().push(entry.path);
+            index.files += 1;
+        }
+    }
+    index
 }

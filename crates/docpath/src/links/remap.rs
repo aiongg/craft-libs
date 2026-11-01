@@ -1,9 +1,8 @@
 //! Folder remaps (one relink carries to the other missing links) and Relink to Folder.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 use std::path::{Path, PathBuf};
 
+use super::candidate::last_component;
 use super::{Link, LinkFiles};
 
 /// The folder change one relink implies: links under `from` move under `to`. Separators are `/`
@@ -22,7 +21,12 @@ impl Remap {
     /// [`resolve_absolute`](crate::resolve_absolute) before they check the file.
     pub fn apply(&self, path: &str) -> Option<String> {
         // filmcraft: crates/engine/src/relink.rs:306 (`apply_remap`).
-        todo!()
+        let path = path.replace('\\', "/");
+        let rest = path.strip_prefix(self.from.trim_end_matches('/'))?;
+        if !(rest.is_empty() || rest.starts_with('/')) {
+            return None;
+        }
+        Some(format!("{}{rest}", self.to.trim_end_matches('/')))
     }
 }
 
@@ -32,7 +36,16 @@ impl Remap {
 /// `C:\shoot\day1\a.mov` → `/Volumes/T7/shoot/day1/a.mov` gives `C:` → `/Volumes/T7`.
 pub fn derive_remap(old: &str, new: &str) -> Option<Remap> {
     // filmcraft: crates/engine/src/relink.rs:288 (`derive_remap`).
-    todo!()
+    let (old, new) = (old.replace('\\', "/"), new.replace('\\', "/"));
+    let old_parts: Vec<&str> = old.split('/').collect();
+    let new_parts: Vec<&str> = new.split('/').collect();
+    let equal = old_parts.iter().rev().zip(new_parts.iter().rev()).take_while(|(a, b)| a == b).count();
+    if equal == 0 {
+        return None;
+    }
+    let from = old_parts[..old_parts.len() - equal].join("/");
+    let to = new_parts[..new_parts.len() - equal].join("/");
+    (from != to).then_some(Remap { from, to })
 }
 
 /// Where `link`'s file would be in `folder`: its stored file name (the last component, `/` or
@@ -42,7 +55,24 @@ pub fn derive_remap(old: &str, new: &str) -> Option<Remap> {
 /// `a\b`, `file:%2Ftmp%2Fx.png`, `C:x.png`, `NUL` give `None`).
 pub fn folder_match<K>(link: &Link<K>, folder: &Path, extension: Option<&str>) -> Option<PathBuf> {
     // designcraft: crates/engine/src/cmd/links.rs:474 (`relink_folder`: plain name directly in the folder).
-    todo!()
+    let name = last_component(&link.stored);
+    if extension.is_some_and(|e| e.contains(['/', '\\', '\0'])) {
+        return None;
+    }
+    // A name that resolves to another path (a `file:` URL, a drive-relative `C:x.png`) is not a
+    // plain name even though it holds no separator.
+    let plain = crate::names::is_plain_file_name(name)
+        && !name.contains('\0')
+        && crate::classify(name) == crate::PathKind::Local
+        && crate::resolve(name, None).is_ok_and(|p| p == Path::new(name));
+    if !plain {
+        return None;
+    }
+    let name = match extension {
+        Some(e) => Path::new(name).with_extension(e).into_os_string(),
+        None => name.into(),
+    };
+    Some(folder.join(name))
 }
 
 /// Relink to Folder: for each of `links`, its [`folder_match`] in `folder` when
@@ -50,5 +80,13 @@ pub fn folder_match<K>(link: &Link<K>, folder: &Path, extension: Option<&str>) -
 /// that found none, both in `links` order. Reads the disk: call it in a job.
 pub fn folder_matches<K: Clone>(links: &[Link<K>], folder: &Path, extension: Option<&str>, files: &dyn LinkFiles) -> (Vec<(K, PathBuf)>, Vec<K>) {
     // designcraft: crates/engine/src/cmd/links.rs:493 (the loop over the links; `notFound`).
-    todo!()
+    let mut found = Vec::new();
+    let mut not_found = Vec::new();
+    for link in links {
+        match folder_match(link, folder, extension).filter(|p| files.stat(p).is_some()) {
+            Some(path) => found.push((link.key.clone(), path)),
+            None => not_found.push(link.key.clone()),
+        }
+    }
+    (found, not_found)
 }

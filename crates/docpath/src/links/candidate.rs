@@ -1,9 +1,10 @@
 //! `check_candidate` and `rank`: whether a file may replace a missing link, and the order the
 //! relink dialog lists candidates in.
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
+use std::cmp::Ordering;
+use std::iter::Peekable;
 use std::path::{Path, PathBuf};
+use std::str::Chars;
 
 use serde::{Deserialize, Serialize};
 
@@ -29,7 +30,7 @@ pub struct MatchCriteria {
 impl Default for MatchCriteria {
     fn default() -> Self {
         // filmcraft: crates/engine/src/relink.rs:161 (`MatchOptions::default`: name, extension, clip id on).
-        todo!()
+        Self { file_name: true, extension: true, same_file: true }
     }
 }
 
@@ -78,7 +79,38 @@ pub struct Candidate {
 /// problems; `score` as [`Candidate::score`] says. Reads the file: call it in a job.
 pub fn check_candidate<K>(link: &Link<K>, path: &Path, criteria: &MatchCriteria, files: &dyn LinkFiles) -> Candidate {
     // filmcraft: crates/engine/src/relink.rs:202 (`check_candidate`; the media checks stay FilmCraft's).
-    todo!()
+    let (wanted_name, wanted_ext) = split_ext(last_component(&link.stored));
+    let found_file = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
+    let (found_name, found_ext) = split_ext(&found_file);
+    let name_ok = wanted_name.eq_ignore_ascii_case(found_name);
+    let ext_ok = wanted_ext.eq_ignore_ascii_case(found_ext);
+    let mut c = Candidate { path: path.to_path_buf(), ok: false, same_file: None, problems: Vec::new(), identity: None, score: 0 };
+    if criteria.file_name && !name_ok {
+        c.problems.push(CandidateProblem::NameDiffers { found: found_name.to_string(), wanted: wanted_name.to_string() });
+    }
+    if criteria.extension && !ext_ok {
+        c.problems.push(CandidateProblem::ExtensionDiffers { found: found_ext.to_string(), wanted: wanted_ext.to_string() });
+    }
+    match files.identity(path) {
+        Ok(found) => {
+            c.identity = Some(found);
+            if let Some(wanted) = link.identity {
+                let same = wanted.size == found.size && wanted.fingerprint == found.fingerprint;
+                c.same_file = Some(same);
+                if criteria.same_file && !same {
+                    c.problems.push(CandidateProblem::DifferentFile { found: found.size, wanted: wanted.size });
+                }
+            }
+        }
+        Err(e) => {
+            c.problems.push(CandidateProblem::Unreadable(e.to_string()));
+            c.score = score(&c, name_ok, ext_ok);
+            return c;
+        }
+    }
+    c.ok = c.problems.is_empty();
+    c.score = score(&c, name_ok, ext_ok);
+    c
 }
 
 /// Sorts `candidates` best first: by `score` descending, then by path with
@@ -86,5 +118,63 @@ pub fn check_candidate<K>(link: &Link<K>, path: &Path, criteria: &MatchCriteria,
 /// the same file is always first.
 pub fn rank(candidates: &mut [Candidate]) {
     // filmcraft: crates/engine/src/relink.rs:281 (`score`: identity first, then name, extension).
-    todo!()
+    candidates.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| natural_cmp(&a.path.to_string_lossy(), &b.path.to_string_lossy())));
+}
+
+/// The ranking weights: same file 8, same name 4, same extension 2, passes 1.
+fn score(c: &Candidate, name_ok: bool, ext_ok: bool) -> u32 {
+    u32::from(c.same_file == Some(true)) * 8 + u32::from(name_ok) * 4 + u32::from(ext_ok) * 2 + u32::from(c.ok)
+}
+
+/// The text after the last `/` or `\`.
+pub(super) fn last_component(path: &str) -> &str {
+    path.rsplit(['/', '\\']).next().unwrap_or(path)
+}
+
+/// A file name split at its last dot into stem and extension; a leading dot is part of the stem.
+fn split_ext(name: &str) -> (&str, &str) {
+    match name.rfind('.') {
+        Some(i) if i > 0 => (&name[..i], &name[i + 1..]),
+        _ => (name, ""),
+    }
+}
+
+/// File-name order as people sort: runs of ASCII digits compare by value, other characters
+/// compare ignoring case, and an exact comparison breaks ties. The same order as
+/// `craft_platform::open::natural_cmp`, which this crate cannot depend on.
+fn natural_cmp(a: &str, b: &str) -> Ordering {
+    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
+    loop {
+        match (x.peek().copied(), y.peek().copied()) {
+            (None, None) => return a.cmp(b),
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
+                let (m, n) = (digit_run(&mut x), digit_run(&mut y));
+                let (m, n) = (m.trim_start_matches('0'), n.trim_start_matches('0'));
+                match m.len().cmp(&n.len()).then_with(|| m.cmp(n)) {
+                    Ordering::Equal => {}
+                    o => return o,
+                }
+            }
+            (Some(c), Some(d)) => {
+                x.next();
+                y.next();
+                match c.to_lowercase().cmp(d.to_lowercase()) {
+                    Ordering::Equal => {}
+                    o => return o,
+                }
+            }
+        }
+    }
+}
+
+/// Takes the run of ASCII digits at the front of `it`.
+fn digit_run(it: &mut Peekable<Chars>) -> String {
+    let mut run = String::new();
+    while let Some(c) = it.peek().copied().filter(char::is_ascii_digit) {
+        run.push(c);
+        it.next();
+    }
+    run
 }

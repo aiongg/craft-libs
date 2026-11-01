@@ -14,8 +14,6 @@
 //! | Search a folder tree for the missing files | [`LinkSearch`], run as a job |
 //! | Stories and tests | a fake [`LinkFiles`] |
 
-#![expect(unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
 mod candidate;
 mod index;
 mod remap;
@@ -123,7 +121,7 @@ impl LinkStatus {
     /// "Missing" filter and the relink dialog's set are these links.
     pub fn is_missing(self) -> bool {
         // new: one rule for the filter, the relink dialog's set and Edit Original's enablement.
-        todo!()
+        matches!(self, Self::Missing | Self::Unreadable | Self::Refused(_))
     }
 }
 
@@ -151,7 +149,22 @@ pub trait LinkFiles: Send + Sync {
 /// three inputs, so identities FilmCraft stored stay valid: copy its body.
 pub fn fingerprint(size: u64, head: &[u8], tail: &[u8]) -> u64 {
     // filmcraft: crates/engine/src/relink.rs:31 (`fingerprint`).
-    todo!()
+    let mut h: u64 = 0x243f_6a88_85a3_08d3 ^ size.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    let mut mix = |w: u64| {
+        h = (h ^ w).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+        h ^= h >> 29;
+    };
+    for part in [head, tail] {
+        let (chunks, rest) = part.as_chunks::<8>();
+        for c in chunks {
+            mix(u64::from_le_bytes(*c));
+        }
+        let mut last = [0u8; 8];
+        last[..rest.len()].copy_from_slice(rest);
+        mix(u64::from_le_bytes(last) ^ (rest.len() as u64) << 56);
+        mix(part.len() as u64);
+    }
+    h
 }
 
 /// The identity of a file read from `file`, whose length is `size` and modification time
@@ -160,7 +173,16 @@ pub fn fingerprint(size: u64, head: &[u8], tail: &[u8]) -> u64 {
 /// A short read is an error (the file changed while it was read).
 pub fn identity_of(file: &mut (impl Read + Seek), size: u64, modified: Option<SystemTime>) -> io::Result<LinkIdentity> {
     // filmcraft: crates/engine/src/relink.rs:59 (`identity_of`: head, then the tail or the rest).
-    todo!()
+    let span = FINGERPRINT_SPAN as u64;
+    let mut head = vec![0u8; size.min(span) as usize];
+    file.read_exact(&mut head)?;
+    let tail_len = if size > 2 * span { span } else { size - head.len() as u64 };
+    let mut tail = vec![0u8; tail_len as usize];
+    if size > 2 * span {
+        file.seek(io::SeekFrom::Start(size - span))?;
+    }
+    file.read_exact(&mut tail)?;
+    Ok(LinkIdentity { size, fingerprint: fingerprint(size, &head, &tail), modified })
 }
 
 /// The status of `link` in the document at `document` (its path, if it has one), in this order:
@@ -179,5 +201,22 @@ pub fn identity_of(file: &mut (impl Read + Seek), size: u64, modified: Option<Sy
 /// are hashed whole; larger files accept the head-and-tail risk (lead call 34).
 pub fn status<K>(link: &Link<K>, document: Option<&Path>, files: &dyn LinkFiles) -> LinkStatus {
     // designcraft: crates/engine/src/cmd/links.rs:158 (`status`: embedded, refused, missing, modified).
-    todo!()
+    if link.embedded {
+        return LinkStatus::Embedded;
+    }
+    let path = match crate::resolve_absolute(&link.stored, document) {
+        Ok(path) => path,
+        Err(reason) => return LinkStatus::Refused(reason),
+    };
+    let Some(info) = files.stat(&path) else { return LinkStatus::Missing };
+    let Some(recorded) = link.identity else { return LinkStatus::Ok };
+    // A stamp without a modification time proves nothing, so it never short-cuts the check.
+    if info.size == recorded.size && info.modified.is_some() && info.modified == recorded.modified {
+        return LinkStatus::Ok;
+    }
+    match files.identity(&path) {
+        Err(_) => LinkStatus::Unreadable,
+        Ok(now) if now.size == recorded.size && now.fingerprint == recorded.fingerprint => LinkStatus::Ok,
+        Ok(_) => LinkStatus::Modified,
+    }
 }
