@@ -1,14 +1,21 @@
 //! [`BlendIfBar`]: one Blend If slider (This Layer or Underlying Layer) with its four handles
 //! (task AD-10).
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land (task AD-10)")]
+use egui::accesskit::{Action, ActionData, Role};
+use egui::{AsIdSalt, Color32, EventFilter, Id, IdSalt, Key, Modifiers, Pos2, Rect, Sense, Shape, Stroke, Ui, vec2};
 
-use egui::{AsIdSalt, Color32, IdSalt, Ui};
-
-use craft_ui::edit::{EditPolicy, EditResponse};
+use craft_ui::direction;
+use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
+use craft_ui::localized::Labels as _;
+use craft_ui::primitives::Interactive;
+use craft_ui::theme::{Tokens, TokensOf as _};
 
 use super::labels::BlendIfBarLabels;
+use super::style::BlendIfBarStyle;
 use crate::layer_style::BlendIfRange;
+
+/// How many vertical strips draw the ramp (PhotoCraft's resolution of the grey scale).
+const STRIPS: usize = 32;
 
 /// The face of the black handles: grey 20, an image tone (not a token).
 // pc: crates/ui-egui/src/dialogs/layer_style.rs:1442.
@@ -74,6 +81,213 @@ impl BlendIfBar {
         // pc: crates/ui-egui/src/dialogs/layer_style.rs:1333-1344 (readout above the bar),
         // :1368-1454 `blend_if_bar` (ramp, nearest handle, drag rules, triangles).
         // new: keys, Tab stops and AccessKit (lead call L17); look from `BlendIfBar::style`.
-        todo!()
+        let Self { id_salt, layer, range, labels, policy, enabled } = self;
+        let tokens = Tokens::of(ui);
+        let style = BlendIfBar::style(&tokens);
+        let labels = labels.unwrap_or_else(|| BlendIfBarLabels::of(ui));
+        let id = ui.make_persistent_id(id_salt);
+        let enabled = enabled && ui.is_enabled();
+        let mut gesture = Gesture::load(ui, id, &range, policy).enabled(enabled);
+
+        let width = ui.available_width().clamp(style.width_min, style.width_max);
+        // The readout's line is as high as its text; the text itself is painted once the drag of
+        // this pass has moved the handles.
+        let line = ui.painter().layout_no_wrap(readout(&range), style.readout_font.clone(), style.readout_colour).size().y;
+        let (readout_rect, _) = ui.allocate_exact_size(vec2(width, line), Sense::hover());
+        let (rect, _) = ui.allocate_exact_size(vec2(width, style.height), Sense::hover());
+        let response = ui.interact(rect, id, Sense::CLICK | Sense::DRAG);
+        let ramp = Rect::from_min_size(rect.min + vec2(style.inset, 0.0), vec2(width - 2.0 * style.inset, style.ramp));
+        let handle_id = |i: usize| id.with(("handle", i));
+
+        if enabled {
+            let focused = (0..4).find(|&i| ui.memory(|m| m.has_focus(handle_id(i))));
+            if let Some(h) = focused {
+                keys(ui, &mut gesture, h, handle_id(h));
+            }
+            pointer(ui, &response, &mut gesture, ramp, id, &handle_id);
+        }
+        let value = *gesture.shown();
+
+        paint_readout(ui, &style, readout_rect, &value);
+        paint_ramp(ui, &style, ramp);
+        paint_handles(ui, &style, &labels, &layer, ramp, value, &handle_id, enabled);
+
+        let event = gesture.finish();
+        EditResponse::new(response, event)
+    }
+}
+
+/// "0 / 20    255": a split side as "low / high", an unsplit one as its level.
+fn readout(range: &BlendIfRange) -> String {
+    let side = |low: u8, high: u8| if low == high { low.to_string() } else { format!("{low} / {high}") };
+    let [a, b, c, d] = range.0;
+    format!("{}    {}", side(a, b), side(c, d))
+}
+
+fn paint_readout(ui: &Ui, style: &BlendIfBarStyle, rect: Rect, range: &BlendIfRange) {
+    let align = if direction::is_rtl(ui) { egui::Align2::LEFT_TOP } else { egui::Align2::RIGHT_TOP };
+    let at = if direction::is_rtl(ui) { rect.left_top() } else { rect.right_top() };
+    ui.painter().text(at, align, readout(range), style.readout_font.clone(), style.readout_colour);
+}
+
+/// The black-to-white ramp as vertical strips with an outline. It never mirrors: it is a tone
+/// scale.
+fn paint_ramp(ui: &Ui, style: &BlendIfBarStyle, ramp: Rect) {
+    for strip in 0..STRIPS {
+        let (x0, x1) = (ramp.left() + ramp.width() * strip as f32 / STRIPS as f32, ramp.left() + ramp.width() * (strip + 1) as f32 / STRIPS as f32);
+        let grey = (255.0 * (strip as f32 + 0.5) / STRIPS as f32) as u8;
+        ui.painter().rect_filled(Rect::from_x_y_ranges(x0..=x1, ramp.y_range()), 0.0, Color32::from_gray(grey));
+    }
+    ui.painter().rect_stroke(ramp, 0.0, Stroke::new(craft_theme::Stroke::W1.width(1.0), style.ramp_border), egui::StrokeKind::Outside);
+}
+
+fn x_of(ramp: Rect, level: u8) -> f32 {
+    ramp.left() + ramp.width() * f32::from(level) / 255.0
+}
+
+fn level_at(ramp: Rect, x: f32) -> u8 {
+    (((x - ramp.left()) / ramp.width().max(1.0)) * 255.0).round().clamp(0.0, 255.0) as u8
+}
+
+/// The handle a press at `x` takes: the nearest; between two coinciding halves, the one on the
+/// pointer's side.
+fn nearest(ramp: Rect, range: BlendIfRange, x: f32) -> usize {
+    let q = range.0;
+    let near = (0..4).min_by(|a, b| (x_of(ramp, q[*a]) - x).abs().total_cmp(&(x_of(ramp, q[*b]) - x).abs())).unwrap_or(0);
+    match near {
+        0 | 1 if q[0] == q[1] => usize::from(x > x_of(ramp, q[0])),
+        2 | 3 if q[2] == q[3] => 2 + usize::from(x > x_of(ramp, q[2])),
+        n => n,
+    }
+}
+
+/// Takes the presses of `key` with exactly `modifiers` held and returns how many there were.
+fn take_exact(ui: &Ui, modifiers: Modifiers, key: Key) -> usize {
+    ui.input_mut(|i| {
+        let before = i.events.len();
+        i.events.retain(
+            |event| !matches!(event, egui::Event::Key { key: k, pressed: true, modifiers: m, .. } if *k == key && m.matches_exact(modifiers)),
+        );
+        before - i.events.len()
+    })
+}
+
+/// ← and → move the focused handle's pair one level, ⇧ ten, ⌥ only the focused half; a screen
+/// reader's increment, decrement and set-value do the same. Each press is one `Set`.
+fn keys(ui: &Ui, gesture: &mut Gesture<BlendIfRange>, h: usize, id: Id) {
+    ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, ..Default::default() }));
+    let step = |gesture: &mut Gesture<BlendIfRange>, by: i32, split: bool| {
+        let current = *gesture.shown();
+        let to = (i32::from(current.0[h]) + by).clamp(0, 255) as u8;
+        gesture.set(current.moved(h, to, split));
+    };
+    for (modifiers, by, split) in [(Modifiers::ALT, 1, true), (Modifiers::SHIFT, 10, false), (Modifiers::NONE, 1, false)] {
+        for (key, sign) in [(Key::ArrowLeft, -1), (Key::ArrowRight, 1)] {
+            for _ in 0..take_exact(ui, modifiers, key) {
+                step(gesture, sign * by, split);
+            }
+        }
+    }
+    let (up, down) = ui.input(|i| (i.num_accesskit_action_requests(id, Action::Increment), i.num_accesskit_action_requests(id, Action::Decrement)));
+    for _ in 0..up {
+        step(gesture, 1, false);
+    }
+    for _ in 0..down {
+        step(gesture, -1, false);
+    }
+    let set = ui.input(|i| {
+        i.accesskit_action_requests(id, Action::SetValue)
+            .filter_map(|r| match r.data {
+                Some(ActionData::NumericValue(v)) if v.is_finite() => Some(v),
+                _ => None,
+            })
+            .last()
+    });
+    if let Some(v) = set {
+        let current = *gesture.shown();
+        gesture.set(current.moved(h, v.round().clamp(0.0, 255.0) as u8, false));
+    }
+}
+
+/// A press picks the nearest handle and focuses it; a drag moves it by [`BlendIfRange::moved`],
+/// alone while Alt is held.
+fn pointer(ui: &Ui, response: &egui::Response, gesture: &mut Gesture<BlendIfRange>, ramp: Rect, id: Id, handle_id: &dyn Fn(usize) -> Id) {
+    let grab = id.with("grab");
+    let pos = response.interact_pointer_pos();
+    if response.clicked()
+        && let Some(Pos2 { x, .. }) = pos
+    {
+        let h = nearest(ramp, *gesture.shown(), x);
+        ui.memory_mut(|m| m.request_focus(handle_id(h)));
+    }
+    if response.drag_started()
+        && let Some(Pos2 { x, .. }) = pos
+    {
+        let h = nearest(ramp, *gesture.shown(), x);
+        ui.data_mut(|d| d.insert_temp(grab, h));
+        ui.memory_mut(|m| m.request_focus(handle_id(h)));
+        gesture.begin();
+    }
+    if response.dragged()
+        && let (Some(h), Some(pos)) = (ui.data(|d| d.get_temp::<usize>(grab)), pos)
+    {
+        let modifiers = ui.input(|i| i.modifiers);
+        let moved = gesture.shown().moved(h, level_at(ramp, pos.x), modifiers.alt);
+        gesture.update(moved, modifiers);
+    }
+    if response.drag_stopped() {
+        gesture.commit();
+    }
+}
+
+/// The four triangles under the ramp: a split pair shows two half triangles, an unsplit pair one
+/// whole triangle. Each handle is a Tab stop and an AccessKit slider.
+#[expect(clippy::too_many_arguments, reason = "one pass of drawing, named parts of one bar")]
+fn paint_handles(
+    ui: &mut Ui,
+    style: &BlendIfBarStyle,
+    labels: &BlendIfBarLabels,
+    layer: &str,
+    ramp: Rect,
+    value: BlendIfRange,
+    handle_id: &dyn Fn(usize) -> Id,
+    enabled: bool,
+) {
+    let q = value.0;
+    // Centred in the room under the ramp.
+    let top = ramp.bottom() + (style.height - style.ramp - style.handle_height) / 2.0;
+    let half = style.handle_width / 2.0;
+    let edge = Stroke::new(craft_theme::Stroke::W1.width(1.0), style.handle_edge);
+    let names = [&labels.black_low, &labels.black_high, &labels.white_low, &labels.white_high];
+    for (pair, face) in [(0, BLACK_FACE), (2, WHITE_FACE)] {
+        let whole = q[pair] == q[pair + 1];
+        for (side, h) in [(-1.0_f32, pair), (1.0, pair + 1)] {
+            let x = x_of(ramp, q[h]);
+            // The half this handle owns: the whole triangle when the pair is not split.
+            let (left, right) = if whole {
+                (x - half, x + half)
+            } else if side < 0.0 {
+                (x - half, x)
+            } else {
+                (x, x + half)
+            };
+            let rect = Rect::from_x_y_ranges(left..=right, top..=top + style.handle_height);
+            let name = labels.handle.replace("{handle}", names[h]).replace("{layer}", layer);
+            let sensed = Interactive::with_id(handle_id(h), Role::Slider, name)
+                .sense(Sense::focusable_noninteractive())
+                .enabled(enabled)
+                .state_layer(false)
+                .interact_at(ui, rect)
+                .numeric(f64::from(q[h]), 0.0..=255.0, 1.0)
+                .value(q[h].to_string());
+            sensed.finish(ui);
+            // Draw a whole triangle once, from the pair's first handle.
+            if whole && side > 0.0 {
+                continue;
+            }
+            let apex = egui::pos2(x, top);
+            let points = vec![apex, egui::pos2(right, rect.bottom()), egui::pos2(left, rect.bottom())];
+            ui.painter().add(Shape::convex_polygon(points, face, edge));
+        }
     }
 }
