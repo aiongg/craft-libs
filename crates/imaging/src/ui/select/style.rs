@@ -36,6 +36,11 @@ pub struct SelectToolStyle {
     /// The ring's line over the halo: `select.ring_line` (1.2) of `overlay.handle_fill`.
     pub ring_line: f32,
     pub ring_line_color: Color32,
+    /// The Magnetic Lasso's width circle with Other Cursors › Precise: a 1 pt ring of
+    /// `overlay.halo` at 0.55 half a point outside a 1 pt ring of `overlay.handle_fill` at 0.86
+    /// (PhotoCraft's black at alpha 140 and white at alpha 220).
+    pub width_ring_dark: Color32,
+    pub width_ring_light: Color32,
 }
 
 impl SelectToolStyle {
@@ -44,7 +49,8 @@ impl SelectToolStyle {
     pub fn of(tokens: &UiTokens) -> SelectToolStyle {
         // pc: crates/ui-egui/src/tools/lasso_ui.rs:48 (`SAME_POINT` 3), :170 (8);
         // crates/ui-egui/src/tools/magnetic_lasso_ui.rs:81 (8), :426-428 (5 × 5, white, 1 pt black),
-        // :434-436 (offset 12, radius 4, 3 pt black alpha 200, 1.2 pt white).
+        // :434-436 (offset 12, radius 4, 3 pt black alpha 200, 1.2 pt white), :444-446 (the width
+        // circle: black alpha 140 at `r + 0.5`, white alpha 220 at `r`).
         todo!()
     }
 

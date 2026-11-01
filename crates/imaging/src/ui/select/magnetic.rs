@@ -230,7 +230,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
 
     /// The system crosshair; with [`set_precise_cursor`](MagneticLassoTool::set_precise_cursor)
     /// `paint` adds the width circle (`width · zoom`, at least 2 pt) round it, a 1 pt dark ring
-    /// outside a 1 pt light one.
+    /// outside a 1 pt light one (`SelectToolStyle::width_ring_dark`, `width_ring_light`).
     fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
         // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:440-449 `cursor`.
         todo!()
