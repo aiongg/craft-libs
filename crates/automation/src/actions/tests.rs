@@ -201,3 +201,31 @@ fn action_player_pauses_for_a_dialog_step() {
     assert_eq!((report.ran, report.paused_at, report.failed), (1, None, None));
     assert_eq!(runner.ran, ["a", "c"]);
 }
+
+// The panel's toggle events carry the state a cell takes: the `set_*` calls are idempotent and
+// bump the revision only when they change something.
+#[test]
+fn action_list_set_calls_are_idempotent() {
+    let mut list = list_of(vec![action("A", &["a", "b"])]);
+    let start = list.revision();
+    list.set_step(0, 1, true).unwrap();
+    list.set_all(0, true).unwrap();
+    list.set_dialog(0, 1, false).unwrap();
+    assert_eq!(list.revision(), start, "nothing changed");
+    list.set_step(0, 1, false).unwrap();
+    assert_eq!(list.actions[0].include(), ActionInclude::Partial);
+    list.set_dialog(0, 0, true).unwrap();
+    assert!(list.actions[0].dialogs.contains(&0));
+    list.set_all(0, false).unwrap();
+    assert_eq!(list.actions[0].include(), ActionInclude::None);
+    assert_eq!(list.set_step(0, 5, true), Err(ActionListError::NoSuchStep { action: 0, step: 5 }));
+}
+
+// Every colour but `None` maps to its own label colour, so the shared colour words name it.
+#[test]
+fn action_colors_map_to_label_colors() {
+    assert_eq!(ActionColor::None.label_color(), None);
+    let mapped: Vec<_> = ActionColor::ALL.iter().skip(1).map(|color| color.label_color().map(|label| label.name())).collect();
+    let names: Vec<_> = ActionColor::ALL.iter().skip(1).map(|color| Some(color.name())).collect();
+    assert_eq!(mapped, names);
+}

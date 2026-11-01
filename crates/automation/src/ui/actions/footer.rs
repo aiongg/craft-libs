@@ -1,9 +1,10 @@
 //! The Actions footer (`PanelFooter`): Stop, Record, Play, New Set, New Action, Delete and the
 //! Button Mode toggle.
 
+use craft_ui::behavior::ListDrag;
 use craft_ui::composites::{PanelFooter, Tone};
 use craft_ui::icons::Icon;
-use egui::{Response, Ui};
+use egui::{Id, Response, Ui};
 
 use super::labels::ActionsLabels;
 use super::panel::{ActionSelection, ActionsEvent, ActionsHost, ActionsPanelState, delete_event};
@@ -19,13 +20,14 @@ use crate::actions::ActionList;
 /// | Play selection | `Play` | `Play { action, from }`: the selected action from 0, a selected step's action from that step, else the first action (index 0) | some action, not recording |
 /// | Create new set | `NewFolder` | `NewSet` | not recording |
 /// | Create new action | `Plus` | `BeginRecording { into: None }` | not recording |
-/// | Delete | `Trash` | `Delete(selection)` | a selection, and while recording only a step |
+/// | Delete | `Trash` | `Delete(selection)`; a row of this list dropped on it reports `Delete(row)` | a selection, and while recording only a step; a dropped row is accepted on the same rule |
 /// | Button Mode | `ToggleRight`, pressed button | toggles [`ActionsSettings::button_mode`](super::ActionsSettings::button_mode) in `state` | not recording |
 ///
 /// PhotoCraft's "Button Mode" small text button becomes a pressed icon button in the one footer
 /// look (lead call L21: the panel menu's check row has the same state).
 pub(super) fn footer(
     ui: &mut Ui,
+    list_id: Id,
     state: &mut ActionsPanelState,
     list: &ActionList,
     host: Option<&dyn ActionsHost>,
@@ -50,8 +52,14 @@ pub(super) fn footer(
         if mode.inner.clicked() {
             state.settings.button_mode = !state.settings.button_mode;
         }
-        if plain(ui, Icon::Trash, &labels.delete, delete.is_some()).clicked() {
+        let (trash, dropped) = PanelFooter::drop_button::<ListDrag<ActionSelection>>(ui, Icon::Trash, &labels.delete, delete.is_some(), |drag| {
+            !playing && drag.list == list_id && delete_event(&drag.grabbed, recording.is_some()).is_some()
+        });
+        if trash.clicked() {
             events.extend(delete);
+        }
+        if let Some(drag) = dropped {
+            events.extend(delete_event(&drag.grabbed, recording.is_some()));
         }
         if plain(ui, Icon::Plus, &labels.new_action, hosted && idle).clicked() {
             events.push(ActionsEvent::BeginRecording { into: None });

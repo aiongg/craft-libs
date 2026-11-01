@@ -17,8 +17,8 @@ pub struct ActionsPanelStyle {
     pub row_height: f32,
     /// A step row's height: `actions.step_row_height`.
     pub step_row_height: f32,
-    /// The indent of an action inside a set: `actions.indent`.
-    pub indent: f32,
+    /// The radius of the recording dot: `actions.recording_dot_radius`.
+    pub recording_dot_radius: f32,
     /// Button Mode fills, red to violet: `actions.color.*`, the same in every theme.
     pub fills: [Color32; 6],
     /// Button Mode's gray fill: `text.muted`.
@@ -62,7 +62,7 @@ impl ActionsPanel<'_> {
             set_row_height: a.set_row_height,
             row_height: a.row_height,
             step_row_height: a.step_row_height,
-            indent: a.indent,
+            recording_dot_radius: a.recording_dot_radius,
             fills: a.colors.map(|rgba| rgba.to_egui()),
             gray: c.text.muted.to_egui(),
             no_color: c.surface.raised.to_egui(),

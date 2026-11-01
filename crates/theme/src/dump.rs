@@ -2180,11 +2180,11 @@ fn scopes_lines(out: &mut Lines, t: &ScopesTokens) {
 }
 
 fn actions_lines(out: &mut Lines, t: &ActionsTokens) {
-    let ActionsTokens { set_row_height, row_height, step_row_height, indent, colors, label_on_color } = t;
+    let ActionsTokens { set_row_height, row_height, step_row_height, recording_dot_radius, colors, label_on_color } = t;
     out.line("actions.set_row_height", len(*set_row_height));
     out.line("actions.row_height", len(*row_height));
     out.line("actions.step_row_height", len(*step_row_height));
-    out.line("actions.indent", len(*indent));
+    out.line("actions.recording_dot_radius", len(*recording_dot_radius));
     for (name, c) in ["red", "orange", "yellow", "green", "blue", "violet"].into_iter().zip(colors) {
         out.line(&format!("actions.color.{name}"), hex(*c));
     }

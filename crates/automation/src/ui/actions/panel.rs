@@ -8,7 +8,7 @@ use craft_ui::behavior::{Axis, DropPosition, Move, Reorder, Selection, Selection
 use craft_ui::composites::{EmptyState, PanelFooter};
 use craft_ui::edit::EditEvent;
 use craft_ui::icons::Icon;
-use craft_ui::list::{List, ListEvent, ListRow, OpenChange, RowEvent};
+use craft_ui::list::{List, ListEvent, ListRow, OpenChange, RowEvent, ToggleEdit};
 use craft_ui::localized::SharedLabels as _;
 use craft_ui::primitives::Interactive;
 use craft_ui::theme::{Tokens, TokensOf as _, role_format};
@@ -17,9 +17,9 @@ use egui::{Align2, AsIdSalt, CornerRadius, CursorIcon, Id, IdSalt, Key, Modifier
 use super::footer::footer;
 use super::labels::ActionsLabels;
 use super::menu::show_context_menu;
-use super::rows::{ActionRows, row, toggle_edit_event};
+use super::rows::{ActionRows, row};
 use super::style::ActionsPanelStyle;
-use crate::actions::{Action, ActionColor, ActionList, ActionStep};
+use crate::actions::{Action, ActionColor, ActionList, ActionStep, moved_index};
 
 /// What the panel asks of the app while it draws: words and state the list does not hold.
 pub trait ActionsHost {
@@ -78,6 +78,11 @@ pub enum ActionSelection {
 
 /// What the panel keeps between passes. The app holds it beside the [`ActionList`]; only
 /// `settings` is persisted.
+///
+/// The panel remaps `selected` itself when it reports a [`Reorder`](ActionsEvent::Reorder)
+/// that moves a row, since it owns the selection. After a [`Delete`](ActionsEvent::Delete) the
+/// app clears `selected` (the panel cannot tell which rows the delete removed). An open rename
+/// field belongs to the list; a drag ends it, so a move never leaves one open.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ActionsPanelState {
     /// The persisted section.
@@ -86,8 +91,6 @@ pub struct ActionsPanelState {
     pub selected: Option<ActionSelection>,
     /// The expanded actions, by name (names are unique, so expansion survives moves).
     pub expanded: BTreeSet<String>,
-    /// The action whose name is being edited in place.
-    pub renaming: Option<usize>,
 }
 
 /// A function-key shortcut chosen in the context menu (Photoshop's Action Options).
@@ -132,6 +135,22 @@ pub enum ActionPlace {
     },
 }
 
+impl ActionPlace {
+    /// Where dropping `mv` lands in `list`, or `None` when the drop is not allowed (more than one
+    /// row, a copy, or a place the tree does not take). An action goes before or after another
+    /// action (into its set), into a set (as its first), before the first set (loose) or before
+    /// a later set (at the end of the set before it, where the drop line is drawn); a step goes
+    /// before or after a step of any action or into an action as its first. The app applies a
+    /// [`Reorder`](ActionsEvent::Reorder) with this: [`ActionList::move_action`] and
+    /// [`ActionList::assign_set`] for an action, [`ActionList::move_step`] for a step.
+    pub fn of(list: &ActionList, mv: &Move<ActionSelection>) -> Option<ActionPlace> {
+        if mv.copy || mv.items.len() != 1 {
+            return None;
+        }
+        place(list, &mv.items[0], &mv.target, mv.position)
+    }
+}
+
 /// What the user did, in order. Each is one app command (PhotoCraft's `actions.*`); edits that
 /// need no app logic are applied by the app with the matching [`ActionList`] call.
 #[derive(Clone, Debug, PartialEq)]
@@ -161,40 +180,22 @@ pub enum ActionsEvent {
     /// Delete this row ([`ActionList::delete_action`], [`ActionList::delete_step`]; a set deletes
     /// its actions, the app confirms).
     Delete(ActionSelection),
-    /// An in-place rename ended with `name` ([`ActionList::rename`]).
+    /// An in-place rename ended with `text` ([`ActionList::rename`]).
     Rename {
         /// The action.
         action: usize,
         /// The new name, as typed.
-        name: String,
+        text: String,
     },
-    /// A row was dragged ([`ActionList::move_action`], [`ActionList::assign_set`],
-    /// [`ActionList::move_step`]).
-    Move {
-        /// The dragged row.
-        source: ActionSelection,
-        /// Where it goes.
-        to: ActionPlace,
-    },
-    /// The include cell of a step ([`ActionList::toggle_step`]).
-    ToggleStep {
-        /// The action.
-        action: usize,
-        /// The step.
-        step: usize,
-    },
-    /// The include cell of an action row ([`ActionList::toggle_all`]).
-    ToggleAll {
-        /// The action.
-        action: usize,
-    },
-    /// The dialog cell of a step ([`ActionList::toggle_dialog`]).
-    ToggleDialog {
-        /// The action.
-        action: usize,
-        /// The step.
-        step: usize,
-    },
+    /// A row was dragged, as the list reports the gesture: apply the `Commit` or `Set` with
+    /// [`ActionPlace::of`] ([`ActionList::move_action`], [`ActionList::assign_set`],
+    /// [`ActionList::move_step`]) and restore on `Cancel`.
+    Reorder(EditEvent<Move<ActionSelection>>),
+    /// A press or sweep on the include or dialog column, as the list reports the gesture (one
+    /// undo step per sweep; Esc cancels it). Each `Update`, `Commit` and `Set` names a cell
+    /// and the state it takes: column 0 of a step row is [`ActionList::set_step`], column 0 of an
+    /// action row [`ActionList::set_all`], column 1 of a step row [`ActionList::set_dialog`].
+    Toggle(EditEvent<ToggleEdit<ActionSelection>>),
     /// The context menu's Color ([`ActionList::set_color`]).
     SetColor {
         /// The action.
@@ -250,16 +251,17 @@ pub struct ActionsPanelOutput {
 /// when off), the pending steps of a recording after them. The include and dialog cells sit at
 /// the reading start of action and step rows: the list's toggle columns (the include cell a check
 /// box, the dialog cell the `Icon::Note` column). Row heights are `actions.set_row_height`,
-/// `actions.row_height` and `actions.step_row_height`; an action in a set is indented
-/// `actions.indent`. With no actions: an [`EmptyState`](craft_ui::composites::EmptyState) with the
+/// `actions.row_height` and `actions.step_row_height`; an action in a set sits one tree
+/// level in, as the list indents it. With no actions: an [`EmptyState`](craft_ui::composites::EmptyState) with the
 /// Record glyph and [`ActionsLabels::empty`]. Under the list the footer ([`PanelFooter`](craft_ui::composites::PanelFooter)).
 ///
 /// **Pointer.** A click selects a row; a click on the disclosure toggles it (Alt-click opens or
 /// closes all); a double-click on an action's name renames it in place (Enter commits, Esc
 /// cancels), elsewhere on an action row plays it, on a set toggles it. The include cell toggles a
 /// step, or every step of an action (all on unless all already are); the dialog cell toggles the
-/// step's dialog flag. A press on a cell sweeps down the column as on the Layers eye, one toggle
-/// event per row whose state changes. A drag moves an action (into or out of a set) or a step (within or between
+/// step's dialog flag. A press on a cell sweeps down the column as on the Layers eye, reported as one
+/// [`Toggle`](ActionsEvent::Toggle) gesture (one undo step; Esc restores the rows). An action
+/// with no steps has no include cell. A drag moves an action (into or out of a set) or a step (within or between
 /// actions); the list auto-scrolls within 22 points of its edge, 8 per pass, and draws the drop
 /// line. Right-click on an action opens Keyboard Shortcuts and Color; on a set, Save Set….
 ///
@@ -290,12 +292,13 @@ pub struct ActionsPanel<'a> {
     pub(super) host: Option<&'a dyn ActionsHost>,
     pub(super) labels: Option<ActionsLabels>,
     pub(super) enabled: bool,
+    pub(super) rename: Option<usize>,
 }
 
 impl<'a> ActionsPanel<'a> {
     /// A panel over `list` with `state`; `id_salt` keeps its scroll, focus, rename and drag.
     pub fn new(id_salt: impl AsIdSalt, state: &'a mut ActionsPanelState, list: &'a ActionList) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), state, list, host: None, labels: None, enabled: true }
+        Self { id_salt: IdSalt::new(id_salt), state, list, host: None, labels: None, enabled: true, rename: None }
     }
 
     /// The app's side; without one, steps show their command ids and nothing records or plays.
@@ -310,6 +313,13 @@ impl<'a> ActionsPanel<'a> {
         self
     }
 
+    /// Opens the in-place rename of `action`, committing any other open one (the app's Rename
+    /// command). Call it in the pass that handles the command.
+    pub fn start_rename(mut self, action: usize) -> Self {
+        self.rename = Some(action);
+        self
+    }
+
     /// Whether the panel takes input (default true).
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
@@ -321,7 +331,7 @@ impl<'a> ActionsPanel<'a> {
     pub fn show(self, ui: &mut Ui) -> ActionsPanelOutput {
         // pc: crates/ui-egui/src/panels/actions.rs:906 `panel` (rows, selection, rename, play, drag, auto-scroll :1153);
         // new: on `List` in tree mode (L20), keys and AccessKit from the list.
-        let Self { id_salt, state, list, host, labels, enabled } = self;
+        let Self { id_salt, state, list, host, labels, enabled, rename } = self;
         let tokens = Tokens::of(ui);
         let labels = labels.map_or_else(|| ActionsLabels::shared(ui), Arc::new);
         let style = ActionsPanel::style(&tokens);
@@ -332,8 +342,8 @@ impl<'a> ActionsPanel<'a> {
         let inner = ui.scope(|ui| {
             ui.spacing_mut().item_spacing = Vec2::ZERO;
             ui.add_enabled_ui(enabled, |ui| {
-                let mut events = show_body(ui, id, state, list, host, &labels, &style, height);
-                events.extend(footer(ui, state, list, host, &labels));
+                let mut events = show_body(ui, id, state, list, host, &labels, &style, height, rename);
+                events.extend(footer(ui, list_id(ui, id), state, list, host, &labels));
                 events
             })
             .inner
@@ -341,6 +351,11 @@ impl<'a> ActionsPanel<'a> {
         let settings_changed = state.settings != settings_before;
         ActionsPanelOutput { response: inner.response, events: inner.inner, settings_changed }
     }
+}
+
+/// The id the tree's list shows under, which its rows' drags carry as `ListDrag::list`.
+pub(super) fn list_id(ui: &Ui, id: Id) -> Id {
+    List::id_in(ui, (id, "list"))
 }
 
 /// The part of the panel above the footer, `height` tall: the empty state, Button Mode's buttons or
@@ -355,6 +370,7 @@ pub(super) fn show_body(
     labels: &ActionsLabels,
     style: &ActionsPanelStyle,
     height: f32,
+    rename: Option<usize>,
 ) -> Vec<ActionsEvent> {
     if list.actions().is_empty() && list.sets().is_empty() {
         let width = ui.available_width();
@@ -368,7 +384,7 @@ pub(super) fn show_body(
         let scroll = ScrollArea::vertical().id_salt((id, "buttons")).max_height(height).auto_shrink([false, false]);
         return scroll.show(ui, |ui| button_mode(ui, list, style)).inner;
     }
-    show_tree(ui, id, state, list, host, labels, style, height)
+    show_tree(ui, id, state, list, host, labels, style, height, rename)
 }
 
 /// The tree on a [`List`] in tree mode, and the events of what happened on it.
@@ -382,6 +398,7 @@ fn show_tree(
     labels: &ActionsLabels,
     style: &ActionsPanelStyle,
     height: f32,
+    rename: Option<usize>,
 ) -> Vec<ActionsEvent> {
     let editable = !host.is_some_and(|host| host.playing());
     let rows = ActionRows::build(list, state, host);
@@ -395,7 +412,7 @@ fn show_tree(
         .can_rename(|key| editable && matches!(key, ActionSelection::Action(_)));
     if editable {
         widget = widget.reorder(Reorder::new(Axis::Vertical).accepts(|mv, _| accepts_move(list, mv)));
-        if let Some(index) = state.renaming {
+        if let Some(index) = rename {
             widget = widget.start_rename(ActionSelection::Action(index));
         }
     }
@@ -408,6 +425,7 @@ fn show_tree(
     let focused = out.response.has_focus();
     let mut events = Vec::new();
     let mut request = None;
+    let mut moves = Vec::new();
     let open_before = (state.expanded.len(), state.settings.collapsed_sets.len());
     for event in &out.events {
         match event {
@@ -419,14 +437,20 @@ fn show_tree(
                 }
                 _ => {}
             },
-            ListEvent::Row(RowEvent::Toggle(edit)) if editable => events.extend(toggle_edit_event(edit, list)),
+            ListEvent::Row(RowEvent::Toggle(edit)) if editable => events.push(ActionsEvent::Toggle(edit.clone())),
             ListEvent::Row(RowEvent::Renamed { row: ActionSelection::Action(action), text }) if editable => {
                 if !text.trim().is_empty() && list.action(*action).is_some_and(|current| current.name != text.trim()) {
-                    events.push(ActionsEvent::Rename { action: *action, name: text.clone() });
+                    events.push(ActionsEvent::Rename { action: *action, text: text.clone() });
                 }
             }
-            ListEvent::Row(RowEvent::RenameEnded { .. }) => state.renaming = None,
-            ListEvent::Reorder(EditEvent::Commit { value, .. } | EditEvent::Set { value, .. }) if editable => events.extend(move_event(list, value)),
+            ListEvent::Reorder(edit) if editable => {
+                if let EditEvent::Commit { value, changed: true, .. } | EditEvent::Set { value, .. } = edit
+                    && let Some(place) = ActionPlace::of(list, value)
+                {
+                    moves.push((value.items[0].clone(), place));
+                }
+                events.push(ActionsEvent::Reorder(edit.clone()));
+            }
             ListEvent::ContextMenu(asked) => request = Some(asked.clone()),
             _ => {}
         }
@@ -435,6 +459,9 @@ fn show_tree(
         ui.ctx().request_repaint();
     }
     state.selected = selection.items.first().cloned();
+    for (source, to) in &moves {
+        state.selected = state.selected.take().map(|selected| remapped(selected, source, to));
+    }
     if focused && editable && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Delete)) {
         events.extend(state.selected.as_ref().and_then(|selected| delete_event(selected, host.is_some_and(|host| host.recording().is_some()))));
     }
@@ -499,8 +526,9 @@ fn reveal_key(ui: &Ui, id: Id, list: &ActionList, host: Option<&dyn ActionsHost>
 
 /// Where dropping `source` at `position` of `target` lands in the list, or `None` when the drop
 /// is not allowed: an action goes before or after another action (into its set), into a set (as
-/// its first) or before the first set (loose); a step goes before or after a step of any action
-/// or into an action as its first.
+/// its first), before the first set (loose) or before a later set (at the end of the set before
+/// it, where the drop line is drawn); a step goes before or after a step of any action or into
+/// an action as its first.
 fn place(list: &ActionList, source: &ActionSelection, target: &ActionSelection, position: DropPosition) -> Option<ActionPlace> {
     // pc: crates/ui-egui/src/panels/actions.rs:1153 (drag), `actions.assignSet`, `actions.moveStep`.
     let len = list.actions().len();
@@ -510,12 +538,20 @@ fn place(list: &ActionList, source: &ActionSelection, target: &ActionSelection, 
             Some(ActionPlace::Action { index: at - usize::from(*from < at), set: list.set_of(*over).map(str::to_owned) })
         }
         (ActionSelection::Action(from), ActionSelection::Set(name)) => {
+            let sets = list.sets();
+            let previous_set = sets.iter().position(|set| set == name).and_then(|at| at.checked_sub(1)).map(|at| sets[at]);
             let at = match position {
                 DropPosition::Into => list.actions().iter().position(|action| action.set.as_deref() == Some(name.as_str())).unwrap_or(len),
-                DropPosition::Before => list.actions().iter().rposition(|action| action.set.is_none()).map_or(0, |last| last + 1),
+                DropPosition::Before => match previous_set {
+                    Some(previous) => list.actions().iter().rposition(|action| action.set.as_deref() == Some(previous)).map_or(len, |last| last + 1),
+                    None => list.actions().iter().rposition(|action| action.set.is_none()).map_or(0, |last| last + 1),
+                },
                 DropPosition::After => return None,
             };
-            let set = (position == DropPosition::Into).then(|| name.clone());
+            let set = match position {
+                DropPosition::Into => Some(name.clone()),
+                _ => previous_set.map(str::to_owned),
+            };
             Some(ActionPlace::Action { index: at - usize::from(*from < at), set })
         }
         (ActionSelection::Step(from, step), ActionSelection::Step(over, at))
@@ -531,16 +567,29 @@ fn place(list: &ActionList, source: &ActionSelection, target: &ActionSelection, 
     }
 }
 
-/// Whether the list takes the move `mv`: one row, not a copy, to a place [`place`] knows.
+/// Whether the list takes the move `mv`: one row, not a copy, to a place [`ActionPlace::of`] knows.
 fn accepts_move(list: &ActionList, mv: &Move<ActionSelection>) -> bool {
-    !mv.copy && mv.items.len() == 1 && place(list, &mv.items[0], &mv.target, mv.position).is_some()
+    ActionPlace::of(list, mv).is_some()
 }
 
-/// The `Move` event of a list move.
-fn move_event(list: &ActionList, mv: &Move<ActionSelection>) -> Option<ActionsEvent> {
-    let source = mv.items.first().filter(|_| !mv.copy)?.clone();
-    let to = place(list, &source, &mv.target, mv.position)?;
-    Some(ActionsEvent::Move { source, to })
+/// Where `selected` is after `source` moved to `to`: the moved row and the rows it passed follow
+/// the list's own shifts.
+fn remapped(selected: ActionSelection, source: &ActionSelection, to: &ActionPlace) -> ActionSelection {
+    match (source, to) {
+        (ActionSelection::Action(from), ActionPlace::Action { index, .. }) => match selected {
+            ActionSelection::Action(at) => ActionSelection::Action(moved_index(at, *from, *index)),
+            ActionSelection::Step(at, step) => ActionSelection::Step(moved_index(at, *from, *index), step),
+            set @ ActionSelection::Set(_) => set,
+        },
+        (ActionSelection::Step(from, moved), ActionPlace::Step { action: into, index }) => match selected {
+            ActionSelection::Step(at, step) if at == *from && step == *moved => ActionSelection::Step(*into, *index),
+            ActionSelection::Step(at, step) if at == *from && from == into => ActionSelection::Step(at, moved_index(step, *moved, *index)),
+            ActionSelection::Step(at, step) if at == *from && step > *moved => ActionSelection::Step(at, step - 1),
+            ActionSelection::Step(at, step) if at == *into && step >= *index => ActionSelection::Step(at, step + 1),
+            other => other,
+        },
+        _ => selected,
+    }
 }
 
 /// Button Mode's body: each action of `list` in display order as a full-width button in its
