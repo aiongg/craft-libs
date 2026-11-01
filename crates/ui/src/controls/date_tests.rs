@@ -1,11 +1,37 @@
 //! `PickedDate` rules, the calendar grid and `DatePicker` in a harness.
 
-use craft_i18n::Weekday;
+use craft_i18n::{DateFormat, Weekday};
+
+use super::date::{Page, View};
+use crate::localized::LocaleNumbers;
 
 use super::*;
 
 fn parse(text: &str) -> Option<PickedDate> {
     PickedDate::parse(text)
+}
+
+// The grid, its titles and the Month cells' names follow the region: ar-EG writes the digits of its
+// own, de-DE puts the month name first in the title and its own names on the cells.
+#[test]
+fn pages_write_the_regions_digits_and_year_month_titles() {
+    let (ar_numbers, de_numbers) = (LocaleNumbers::from_tag("ar-EG"), LocaleNumbers::from_tag("de-DE"));
+    let (de, us) = (DateFormat::from_tag("de-DE"), DateFormat::from_tag("en-US"));
+    let day_view = View { precision: DatePrecision::Day, year: 2026, month: 10, active: 1 };
+    let page = Page::of(&day_view, &de, &ar_numbers);
+    let first = page.cells.iter().flatten().next().unwrap();
+    assert_eq!(first.text, "\u{661}", "the day in Arabic-Indic digits");
+    assert_eq!(page.title(&day_view, &ar_numbers, &de), "Oktober 2026");
+    assert_eq!(page.title(&day_view, &de_numbers, &us), "October 2026");
+
+    let month_view = View { precision: DatePrecision::Month, ..day_view };
+    let page = Page::of(&month_view, &de, &de_numbers);
+    assert_eq!(page.cells[9].as_ref().unwrap().name, "Oktober 2026");
+    let year_view = View { precision: DatePrecision::Year, ..day_view };
+    let page = Page::of(&year_view, &us, &ar_numbers);
+    assert_eq!(page.cells[0].as_ref().unwrap().text, ar_numbers.year(2016));
+    assert_eq!(ar_numbers.year(987), "\u{660}\u{669}\u{668}\u{667}", "years pad to four digits");
+    assert_eq!(de_numbers.year(2026), "2026", "no grouping");
 }
 
 // `parse`: "2026", "2026-08", "2026-08-14T10:00" read; "2026-02-30" and "2026-13" do not; `iso` writes them back.

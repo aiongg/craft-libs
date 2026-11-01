@@ -347,6 +347,13 @@ impl I18n {
         Arc::clone(slot.get_or_insert_with(|| Arc::new(Format::new(&Region::system(), Digits::Locale))))
     }
 
+    /// Write numbers (in the locale's own digits) and dates in `region`: the user's region
+    /// setting, in one call so the two cannot differ.
+    pub fn set_region(&self, region: &Region) {
+        self.set_format(Format::new(region, Digits::Locale));
+        self.set_dates(DateFormat::new(region));
+    }
+
     /// Write numbers as `format` does from now on: the user's region setting, or Latin digits.
     pub fn set_format(&self, format: Format) {
         *self.format.write().unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(format));
@@ -940,6 +947,15 @@ mod tests {
         let i = all(P).0;
         assert_eq!(i.trn(Lang::EN, 1, "{n} file", "{n} files"), "1 file");
         assert_eq!(i.trn(lang(&i, "fr"), 2, "{n} x", "{n} xs"), "2 xs");
+    }
+
+    // One region call sets the numbers and the dates: de-DE writes `1.234` and `Oktober 2026`.
+    #[test]
+    fn set_region_sets_numbers_and_dates() {
+        let i = all(P).0;
+        i.set_region(&Region::from_tag("de-DE"));
+        assert_eq!(i.format().integer(1234), "1.234");
+        assert_eq!(i.dates().year_month(2026, 10), "Oktober 2026");
     }
 
     #[test]

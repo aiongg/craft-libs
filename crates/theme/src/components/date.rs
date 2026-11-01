@@ -7,15 +7,17 @@ use crate::values;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct DateTokens {
-    /// Least width and height of a day, month or year cell: `date.cell`.
+    /// Least width and height of a day, month or year cell: `date.cell`. Fixed: seven columns of
+    /// cells fill the fixed popup width.
     pub cell: f32,
-    /// Between cells: `date.gap`.
+    /// Between cells: `date.gap`. Fixed with the cell.
     pub gap: f32,
-    /// Width of the popup: `date.popup_width`.
+    /// Width of the popup: `date.popup_width`. Fixed: it is seven cells and their gaps.
     pub popup_width: f32,
-    /// Side of the Previous and Next buttons: `date.page_button`.
+    /// Side of the Previous and Next buttons: `date.page_button`. The medium control size, so it
+    /// follows Compact and Comfortable and app overrides.
     pub page_button: f32,
-    /// Either side of the text of a month or year cell: `date.cell_pad`.
+    /// Either side of the text of a month or year cell: `date.cell_pad`. Fixed.
     pub cell_pad: f32,
 }
 
@@ -34,12 +36,12 @@ impl Family for DateTokens {
         "cell_pad" 0.0..=64.0 => cell_pad;
     };
 
-    fn defaults(_: &Semantic<'_>) -> DateTokens {
+    fn defaults(s: &Semantic<'_>) -> DateTokens {
         DateTokens {
             cell: values::DATE_CELL,
             gap: values::DATE_GAP,
             popup_width: values::DATE_POPUP_WIDTH,
-            page_button: values::DATE_PAGE_BUTTON,
+            page_button: s.size.control.md,
             cell_pad: values::DATE_CELL_PAD,
         }
     }

@@ -1778,9 +1778,6 @@ pub const DATE_GAP: f32 = 2.0;
 /// Width of a date picker's popup (LightCraft).
 pub const DATE_POPUP_WIDTH: f32 = 220.0;
 
-/// Side of a date picker's Previous and Next buttons (LightCraft).
-pub const DATE_PAGE_BUTTON: f32 = 24.0;
-
 /// Padding either side of a month or year cell's text (LightCraft).
 pub const DATE_CELL_PAD: f32 = 6.0;
 
