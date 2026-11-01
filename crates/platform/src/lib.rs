@@ -2,22 +2,18 @@
 //! Shared lifecycle mechanics; application state, theme choices and file policy stay in hosts.
 #[cfg(feature = "appearance")]
 pub mod appearance;
-#[cfg(feature = "autosave")]
 pub mod autosave;
-#[cfg(all(test, feature = "autosave"))]
+#[cfg(test)]
 mod autosave_tests;
 #[cfg(all(feature = "browser", target_arch = "wasm32"))]
 pub mod browser;
-#[cfg(feature = "clock")]
 pub mod clock;
 pub mod dialog_outcome;
 #[cfg(all(feature = "dialogs", not(target_arch = "wasm32")))]
 pub mod dialogs;
-#[cfg(feature = "logs")]
 pub mod logs;
-#[cfg(feature = "open")]
 pub mod open;
-#[cfg(all(test, feature = "open"))]
+#[cfg(test)]
 mod open_tests;
 #[cfg(feature = "pacing")]
 pub mod pacing;

@@ -7,13 +7,8 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 
-[features]
-default = []
-# `From<ecolor::Color32>` for `Rgba`, for callers that hold egui colours.
-ecolor = ["dep:ecolor"]
-
 [dependencies]
-ecolor = { workspace = true, optional = true }
+ecolor = { workspace = true }
 serde = { workspace = true }
 log = "0.4"
 serde_json = { workspace = true }

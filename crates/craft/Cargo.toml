@@ -126,16 +126,11 @@ pdf-write-simple-text = ["pdf", "craft-pdf/write-simple-text"]
 
 platform = ["dep:craft-platform"]
 platform-appearance = ["platform", "craft-platform/appearance"]
-platform-autosave = ["platform", "craft-platform/autosave"]
 platform-browser = ["platform", "craft-platform/browser"]
-platform-clock = ["platform", "craft-platform/clock"]
 platform-dialogs = ["platform", "craft-platform/dialogs"]
-platform-logs = ["platform", "craft-platform/logs"]
-platform-open = ["platform", "craft-platform/open"]
 platform-pacing = ["platform", "craft-platform/pacing"]
 platform-pointer = ["platform", "craft-platform/pointer"]
 platform-screen = ["platform", "craft-platform/screen"]
-platform-theme = ["platform", "craft-platform/theme"]
 platform-usage = ["platform", "craft-platform/usage"]
 
 prepress = ["dep:craft-prepress"]
@@ -210,8 +205,6 @@ text-turkish = ["text", "craft-text/turkish"]
 text-turkmen = ["text", "craft-text/turkmen"]
 text-ukrainian = ["text", "craft-text/ukrainian"]
 
-theme-ecolor = ["craft-theme/ecolor"]
-
 theme-store = ["dep:craft-theme-store"]
 
 ui-color_fonts = ["ui", "craft-ui/color_fonts"]
@@ -225,7 +218,6 @@ update = ["dep:craft-update"] # native only: downloads and installs through getr
 update-local-mirror = ["update", "craft-update/local-mirror"]
 
 window = ["dep:craft-window"]
-window-restore = ["window", "craft-window/restore"] # native only: the window-restore store
 window-restore-eframe = ["window", "craft-window/restore-eframe"] # native only: the window-restore store
 window-restore-ui = ["window", "craft-window/restore-ui"] # native only: the window-restore store
 window-restore-ui-glow = ["window", "craft-window/restore-ui-glow"] # native only: the window-restore store

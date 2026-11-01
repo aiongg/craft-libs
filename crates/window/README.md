@@ -215,7 +215,7 @@ adds the part of the window the user can see:
 
 ## Window restore
 
-Feature `restore` (no egui): `craft_window::restore`.
+`craft_window::restore` (no egui).
 
 - `place(saved, monitors, home, &Defaults) -> Placement` is pure. First launch: the default size fitted
   to the home monitor, maximized when it does not fit. Saved sizes are points at interface zoom 1.

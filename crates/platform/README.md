@@ -1,25 +1,25 @@
 # craft-platform
 
 Small platform lifecycle services for Craft applications. Application state, settings, palettes,
-document policy and native command routing remain in their current owners. Defaults add only serde and
-serde_json. Enable only the services a host uses.
+document policy and native command routing remain in their current owners. Only the services a host enables
+pull in heavier dependencies.
 
 | Feature | Shared responsibility |
 | --- | --- |
 | default | Typed dialog outcomes; no backend or toolkit. |
 | `dialogs` | Reserve waiting workers before eager UI-thread native picker creation; serial requests, failure delivery and completion wakeups. The backend factory belongs to the app. |
-| `theme` | `From<appearance::Reading> for craft_theme::SystemAppearance`, so a host hands the OS answer to `Base::resolve`. |
+| always | `From<appearance::Reading> for craft_theme::SystemAppearance`, so a host hands the OS answer to `Base::resolve`. |
 | `ui` | Combine with `dialogs` for the deferred-close guard or with `appearance` for native theme mapping. |
 | `pointer` | Move the system pointer (`pointer::warp`), installed by the app as craft-ui's `Scrub::install_warp` service for a scrub's screen-edge wrap; macOS only, `false` elsewhere. |
 | `appearance` | Linux/BSD XDG desktop preference observation (colour scheme, contrast, reduced motion, button layout); browser contrast and motion media queries; owned cancellable subscriptions, bounded reads/helper capture, legacy compatibility and reconnect. |
 | `browser` | Wasm download link/object URL ownership, cleanup on setup failure or abandonment, and cleanup timer registration before clicking. |
-| `clock` | `clock::Clock`: monotonic seconds (`web-time`, so also in the browser) for animation, autosave and deadlines, with a manual mode tests set and advance; `monotonic_ms`, `unix_ms`. |
+| always | `clock::Clock`: monotonic seconds (`web-time`, so also in the browser) for animation, autosave and deadlines, with a manual mode tests set and advance; `monotonic_ms`, `unix_ms`. |
 | `pacing` | `FrameCap` (desktop frame-rate cap without vsync), `WindowVisibility` (shown or hidden from the viewport info), `WorkBudget`/`WorkSlice` (background work per call, paused or sliced while hidden), `repaint_in`, `paint_while_hidden`. Adds `clock` and egui. |
-| `logs` | The app log: `log` records to standard error and `<dir>/<app>.log` with `RUST_LOG`-style filters, rotation to `.1`/`.2`, per-instance logs while another instance runs, a size cap; `logs::crash`: the panic hook, crash log, last panic for the error window, and `catch`. |
+| always | The app log: `log` records to standard error and `<dir>/<app>.log` with `RUST_LOG`-style filters, rotation to `.1`/`.2`, per-instance logs while another instance runs, a size cap; `logs::crash`: the panic hook, crash log, last panic for the error window, and `catch`. |
 | always | `session::Session` and `SessionKeeper`: the documents open at the last quit and where the user was in each, stored in the app's settings (serde) for a "Reopen Last Session" preference; `to_reopen` skips what is already open; a stored list longer than 64 documents is cut. No egui. |
 | `usage` | `usage::sample`: the process's resident memory and the memory it may still use (`MemorySample`, `None` when unknown), for the status readout's Scratch and Efficiency items. Linux reads `/proc`; other platforms return `None`. |
-| `open` | `open::FileIntake` with `IntakeSender` (the app's Apple Events and second-instance hand-over feed it): one queue for files the OS asks the app to open and files dropped on the window (`DroppedFile`, `DropTarget`: canvas, tab strip or window); `natural_cmp` and `same_file` for opening order and duplicates; `reveal` and `open_external`; the shared open-error texts. No egui. |
-| `autosave` | `autosave::Autosave` (the timer: which documents are due, results by revision), `recovery_dir`, `adopt_legacy_recovery` and `RecoveryStore`: the recovery folder of copies with a JSON sidecar each (`RecoveryEntry`, the fields craft-ui's `RecoveryDialog` lists), `AUTOSAVE_FAILED`. The app serializes its documents. |
+| always | `open::FileIntake` with `IntakeSender` (the app's Apple Events and second-instance hand-over feed it): one queue for files the OS asks the app to open and files dropped on the window (`DroppedFile`, `DropTarget`: canvas, tab strip or window); `natural_cmp` and `same_file` for opening order and duplicates; `reveal` and `open_external`; the shared open-error texts. No egui. |
+| always | `autosave::Autosave` (the timer: which documents are due, results by revision), `recovery_dir`, `adopt_legacy_recovery` and `RecoveryStore`: the recovery folder of copies with a JSON sidecar each (`RecoveryEntry`, the fields craft-ui's `RecoveryDialog` lists), `AUTOSAVE_FAILED`. The app serializes its documents. |
 | `screen` | Screen capture for the screen colour picker (`craft_platform::screen`). |
 
 

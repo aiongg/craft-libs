@@ -14,7 +14,7 @@ workspace = true
 craft-fonts-build = { workspace = true }
 craft-host = { workspace = true, features = ["ui"] }
 craft-i18n = { workspace = true, features = ["collate"] }
-craft-theme = { workspace = true, features = ["ecolor"] }
+craft-theme = { workspace = true }
 craft-ui-macros = { workspace = true }
 craft-window = { workspace = true, features = ["ui"], optional = true }
 egui = { workspace = true }

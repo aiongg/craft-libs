@@ -20,7 +20,7 @@ screen-testing = ["ui", "craft-ui/screen-testing", "craft-color/screen-testing"]
 [dependencies]
 craft-color = { workspace = true, optional = true }
 craft-i18n = { workspace = true }
-craft-theme = { workspace = true, features = ["ecolor"] }
+craft-theme = { workspace = true }
 craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 kurbo = { workspace = true, optional = true }
