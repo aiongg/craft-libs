@@ -347,11 +347,11 @@ impl I18n {
         Arc::clone(slot.get_or_insert_with(|| Arc::new(Format::new(&Region::system(), Digits::Locale))))
     }
 
-    /// Write numbers (in the locale's own digits) and dates in `region`: the user's region
-    /// setting, in one call so the two cannot differ.
-    pub fn set_region(&self, region: &Region) {
-        self.set_format(Format::new(region, Digits::Locale));
-        self.set_dates(DateFormat::new(region));
+    /// Write numbers and dates in `region` with `digits`: the user's region setting, in one call
+    /// so the two cannot differ.
+    pub fn set_region(&self, region: &Region, digits: Digits) {
+        self.set_format(Format::new(region, digits));
+        self.set_dates(DateFormat::new(region).with_digits(digits));
     }
 
     /// Write numbers as `format` does from now on: the user's region setting, or Latin digits.
@@ -953,9 +953,18 @@ mod tests {
     #[test]
     fn set_region_sets_numbers_and_dates() {
         let i = all(P).0;
-        i.set_region(&Region::from_tag("de-DE"));
+        i.set_region(&Region::from_tag("de-DE"), Digits::Locale);
         assert_eq!(i.format().integer(1234), "1.234");
         assert_eq!(i.dates().year_month(2026, 10), "Oktober 2026");
+        i.set_region(&Region::from_tag("ar-EG"), Digits::Locale);
+        assert_eq!(i.format().integer(12), "\u{661}\u{662}");
+        assert!(i.dates().year_month(2026, 10).contains('\u{662}'), "the locale's digits in dates");
+        i.set_region(&Region::from_tag("ar-EG"), Digits::Latin);
+        assert_eq!(i.format().integer(12), "12");
+        let at = DateTime { date: CalendarDate { year: 2026, month: 10, day: 31 }, hour: 14, minute: 5, second: 0 };
+        let text = i.dates().format(at, DateStyle::DATE_TIME);
+        assert!(text.contains("2026") && !text.chars().any(|c| ('\u{660}'..='\u{669}').contains(&c)), "{text}");
+        assert!(i.dates().year_month(2026, 10).contains("2026"));
     }
 
     #[test]

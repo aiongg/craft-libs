@@ -34,7 +34,7 @@ use icu_provider::buf::AsDeserializingBufferProvider;
 use icu_time::Time;
 use writeable::{Part, PartsWrite, TryWriteable, Writeable};
 
-use crate::{HourCycle, I18n, Region, data};
+use crate::{Digits, HourCycle, I18n, Region, data};
 
 /// Days in a 400-year Gregorian cycle, after which the calendar (and the weekday) repeats.
 const CYCLE_DAYS: i64 = 146_097;
@@ -241,6 +241,8 @@ pub struct DateFormat {
     locale: String,
     /// The region's clock where the system sets one apart from the locale.
     hour_cycle: Option<crate::HourCycle>,
+    /// Write `0`–`9` whatever the locale's digits are.
+    latin_digits: bool,
     /// Formatters and names, built on first use and shared by clones.
     cache: Arc<Cache>,
 }
@@ -325,7 +327,13 @@ impl PartsWrite for Spliced {
 impl DateFormat {
     /// The format for `region`'s time locale and clock.
     pub fn new(region: &Region) -> DateFormat {
-        Self { locale: region.time.clone(), hour_cycle: region.hour_cycle, cache: Arc::default() }
+        Self { locale: region.time.clone(), hour_cycle: region.hour_cycle, latin_digits: false, cache: Arc::default() }
+    }
+
+    /// This format writing `0`–`9` for [`Digits::Latin`], else the locale's own digits. Formatters
+    /// are rebuilt on first use.
+    pub fn with_digits(self, digits: Digits) -> DateFormat {
+        DateFormat { latin_digits: digits == Digits::Latin, cache: Arc::default(), ..self }
     }
 
     /// The format for a locale tag (`de-CH`), with the locale's clock.
@@ -397,8 +405,11 @@ impl DateFormat {
             return String::new();
         }
         let slot = style.date.map_or(0, |d| d as usize + 1) * 3 + style.time.map_or(0, |t| t as usize + 1);
-        let formatter =
-            self.cache.formatters.get(slot).and_then(|cell| cell.get_or_init(|| self.load_formatter(style.date, style.time, false)).as_ref());
+        let formatter = self
+            .cache
+            .formatters
+            .get(slot)
+            .and_then(|cell| cell.get_or_init(|| self.load_formatter(style.date, style.time, self.latin_digits)).as_ref());
         let Some(((icu, true_year), formatter)) = to_icu(at).zip(formatter) else {
             return plain(at, style);
         };
@@ -456,7 +467,7 @@ impl DateFormat {
         let month = month.clamp(1, 12);
         let formatter = self.cache.year_month.get_or_init(|| {
             let provider = data::dates_provider()?;
-            let locale = self.icu_locale(false);
+            let locale = self.icu_locale(self.latin_digits);
             FixedCalendarDateTimeFormatter::try_new_with_buffer_provider(provider, (&locale).into(), YM::long()).ok()
         });
         let at = DateTime { date: CalendarDate { year, month, day: 1 }, hour: 0, minute: 0, second: 0 };
