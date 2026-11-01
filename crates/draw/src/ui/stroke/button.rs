@@ -1,10 +1,20 @@
 //! [`StrokeButton`]: the opener that shows the stroke's style and opens the editor in a popover.
 
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use craft_theme::{ControlSize, TypeRole};
+use egui::accesskit::Role;
+use egui::text::LayoutJob;
+use egui::{AsIdSalt, IdSalt, Rect, Response, ScrollArea, Stroke, Ui, pos2, vec2};
 
-use super::{StrokeEditorStyle, StrokeField, StrokeLabels, StrokeSections, StrokeStyle};
+use super::editor::{body_width, line_style_name};
+use super::{StrokeEditor, StrokeEditorStyle, StrokeField, StrokeLabels, StrokePreview, StrokeSections, StrokeStyle};
+use craft_ui::controls::{Select, TooltipExt as _};
+use craft_ui::direction;
 use craft_ui::edit::EditEvent;
-use craft_ui::localized::LocaleNumbers;
+use craft_ui::icons::{self, Icon, IconSize};
+use craft_ui::localized::{Labels as _, LocaleNumbers};
+use craft_ui::popover::{Popover, PopoverAnchor, PopoverClose};
+use craft_ui::primitives::{Corner, Interactive, SurfaceKind, Text};
+use craft_ui::theme::{Tokens, TokensOf as _, role_format};
 
 /// What [`StrokeButton::show`] reports.
 #[derive(Clone, Debug)]
@@ -47,11 +57,8 @@ pub struct StrokeButtonResponse {
 /// - The editor in it opens from the value, or from [`StrokeStyle::default`] when the value fails
 ///   [`StrokeStyle::validate`].
 pub struct StrokeButton<'a> {
-    #[expect(dead_code, reason = "skeleton: read by task PE-B3")]
     id_salt: IdSalt,
-    #[expect(dead_code, reason = "skeleton: read by task PE-B3")]
     value: &'a StrokeStyle,
-    #[expect(dead_code, reason = "skeleton: read by task PE-B3")]
     numbers: &'a LocaleNumbers,
     enabled: bool,
     closed: bool,
@@ -124,13 +131,120 @@ impl<'a> StrokeButton<'a> {
     }
 
     /// Adds the opener to `ui` and, while `open`, the popover. The host owns `open`.
-    #[expect(clippy::todo, unused_variables, reason = "skeleton: removed when the body lands (task PE-B3)")]
     pub fn show(self, ui: &mut Ui, open: &mut bool) -> StrokeButtonResponse {
         // pc: crates/ui-egui/src/tools/shape_stroke_ui/editor.rs:81-110 `button` (label :91,
         // opener 138 wide :92, toggle :94-104, close on target or value change :105-108),
         // :249-258 (Esc returns focus, a press outside closes), :37-77 `style_button`;
         // crates/ui-egui/src/tools/shape_stroke_ui.rs:164-186 `dismiss_from_canvas` (the closing
         // press reaches nothing). new: craft-ui `Popover` with `PopoverClose::swallow_outside`.
-        todo!()
+        let tokens = Tokens::of(ui);
+        let look = self.look.unwrap_or_else(|| StrokeEditor::style(&tokens));
+        let labels = self.labels.unwrap_or_else(|| StrokeLabels::of(ui));
+        let field = Select::style(&tokens, ControlSize::Md).field;
+        let id = ui.make_persistent_id(self.id_salt);
+        let name = if self.enabled { line_style_name(&labels, self.value).to_owned() } else { labels.no_color.clone() };
+
+        let response = Interactive::salted(IdSalt::new((id, "opener")), Role::Button, labels.title.as_str())
+            .value(name.as_str())
+            .surface(SurfaceKind::Sunken)
+            .corner(Corner::Control)
+            .expanded(*open)
+            .show(ui, vec2(look.opener_width, look.opener_height));
+        let response = response.tooltip(labels.title.as_str());
+        if response.clicked() {
+            *open = !*open;
+        }
+        if ui.is_rect_visible(response.rect) {
+            let enabled = ui.is_enabled();
+            let color = if enabled { field.text } else { field.text_disabled };
+            let rect = response.rect;
+            let forward = direction::forward(ui);
+            let chevron = Rect::from_center_size(
+                pos2(direction::end_x(ui, rect) - forward * (field.pad_x + field.icon / 2.0), rect.center().y),
+                vec2(field.icon, field.icon),
+            );
+            let job = LayoutJob::single_section(name, role_format(&tokens, field.role, color));
+            let galley = ui.painter().layout_job(job);
+            let text_start = direction::start_x(ui, rect) + forward * field.pad_x;
+            let text_end = text_start + forward * galley.size().x;
+            let at = if forward > 0.0 { text_start } else { text_start - galley.size().x };
+            ui.painter().galley(pos2(at, rect.center().y - galley.size().y / 2.0), galley, color);
+            let (from, to) = (text_end + forward * field.gap, chevron.center().x - forward * (field.icon / 2.0 + field.gap));
+            let sample = Rect::from_x_y_ranges(from.min(to)..=from.max(to), rect.y_range()).shrink2(vec2(0.0, field.gap));
+            if self.enabled {
+                let preview = StrokePreview::new(self.value, look.sample_stroke, look.sample_color).margin(0.0);
+                ui.painter().extend(preview.shapes(sample));
+            } else {
+                let painter = ui.painter();
+                painter.line_segment([sample.left_center(), sample.right_center()], Stroke::new(look.sample_stroke * OFF_LINE, look.off_line));
+                let half = sample.height() / 2.0;
+                painter.line_segment(
+                    [sample.center() + vec2(-half / 2.0, half), sample.center() + vec2(half / 2.0, -half)],
+                    Stroke::new(look.sample_stroke * OFF_SLASH, look.off_slash),
+                );
+            }
+            icons::paint(ui, chevron, Icon::ChevronDown, IconSize::Sm, color);
+        }
+
+        // The popover closes when the target or the value changes from outside: what it opened
+        // with, or what the editor last reported, is what the host holds next.
+        let key = id.with("opened");
+        if *open {
+            let seen = ui.data(|d| d.get_temp::<Opened>(key));
+            match seen {
+                Some(opened) if opened.target != self.target || opened.value != *self.value => *open = false,
+                Some(_) => {}
+                None => ui.data_mut(|d| {
+                    d.insert_temp(key, Opened { target: self.target, value: self.value.clone() });
+                }),
+            }
+        }
+        if !*open {
+            ui.data_mut(|d| d.remove::<Opened>(key));
+        }
+
+        let value = if self.value.validate().is_ok() { self.value.clone() } else { StrokeStyle::default() };
+        let width = body_width(ui, &look);
+        let height = ui.ctx().content_rect().height() - 2.0 * look.screen_margin;
+        let popover = Popover::new((id, "popover"), PopoverAnchor::Control(response.clone()))
+            .close(PopoverClose::default().swallow_outside(true))
+            .toggle(response.id)
+            .label(labels.title.as_str())
+            .show(ui, open, |ui, _| {
+                ui.set_width(width);
+                ui.add(Text::new(labels.title.clone()).role(TypeRole::BodyStrong));
+                let editor = StrokeEditor::new((id, "editor"), &value, self.numbers)
+                    .sections(self.sections)
+                    .closed(self.closed)
+                    .corners(self.corners)
+                    .labels(labels.clone())
+                    .look(look)
+                    .report_same_preset(!self.enabled);
+                ScrollArea::vertical().max_height(height).auto_shrink([false, true]).show(ui, |ui| editor.show(ui)).inner
+            });
+        let (mut event, mut field) = (None, None);
+        if let Some(popover) = popover {
+            let reported = popover.inner;
+            if let Some(next) = reported.event.as_ref().and_then(EditEvent::value) {
+                let opened = Opened { target: self.target, value: next.clone() };
+                ui.data_mut(|d| {
+                    d.insert_temp(key, opened);
+                });
+            }
+            (event, field) = (reported.event, reported.field);
+        }
+        StrokeButtonResponse { response, event, field }
     }
+}
+
+/// The off sample's line and slash widths, as shares of the sample stroke (PhotoCraft 1 and 1.5
+/// beside 2.5).
+const OFF_LINE: f32 = 0.4;
+const OFF_SLASH: f32 = 0.6;
+
+/// What the popover opened with, or last reported.
+#[derive(Clone)]
+struct Opened {
+    target: Option<u64>,
+    value: StrokeStyle,
 }
