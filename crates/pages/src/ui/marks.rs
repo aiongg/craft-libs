@@ -3,16 +3,22 @@
 //! of a story; the overset mark (a red + in the out port) on a frame whose story doesn't fit;
 //! frame outlines with their in and out ports.
 
-#![expect(dead_code, unused_variables, clippy::todo, reason = "skeleton: removed when the bodies land")]
-
-use egui::Painter;
+use egui::epaint::PathShape;
+use egui::{Align2, Color32, FontId, Painter, Pos2, Shape, Stroke, vec2};
 use kurbo::{Point, Rect};
 
 use craft_ui::canvas::CanvasView;
+use craft_ui::theme::{StrokeExt as _, current, scale};
+
+use super::style::FrameMarksStyle;
 
 /// A hidden-character mark's size as a share of the font's ascent (DesignCraft): a proportion
 /// (lead call 38).
 pub const MARK_SHARE: f32 = 0.75;
+
+/// The threaded triangle's corners as shares of the port's side from its centre: the two back
+/// corners and the tip (DesignCraft draws -2, +2.5 and -2 on a 8.5 port).
+const TRIANGLE: [(f32, f32); 3] = [(-0.235, -0.295), (0.295, 0.0), (-0.235, 0.295)];
 
 /// A hidden-character mark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -47,7 +53,13 @@ impl HiddenMark {
     /// layout, not a character).
     // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:315 `hidden_marks`.
     pub fn of(c: char) -> Option<HiddenMark> {
-        todo!()
+        match c {
+            ' ' => Some(HiddenMark::Space),
+            '\t' => Some(HiddenMark::Tab),
+            '\u{2028}' => Some(HiddenMark::LineBreak),
+            '\u{A0}' => Some(HiddenMark::NoBreakSpace),
+            _ => None,
+        }
     }
 }
 
@@ -114,6 +126,42 @@ impl<'a> TextFrameMarks<'a> {
     // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:271 `draw_hidden_characters`;
     // crates/ui-egui/src/canvas/frames.rs:349 `port_pos`, :292 (overset marks).
     pub fn paint(self, painter: &Painter) {
-        todo!()
+        let style = FrameMarksStyle::of(&current(painter.ctx()));
+        let line = |color| scale::Stroke::Hairline.egui(painter.ctx(), color);
+        if self.hidden_characters {
+            for placed in self.marks {
+                let size = (placed.ascent as f32 * MARK_SHARE * self.view.zoom as f32).clamp(style.mark_min, style.mark_max);
+                let align = if placed.centred { Align2::CENTER_BOTTOM } else { Align2::LEFT_BOTTOM };
+                painter.text(self.view.to_screen(placed.at), align, placed.mark.glyph(), FontId::proportional(size), self.color);
+            }
+        }
+        for frame in self.frames {
+            let corners = self.view.quad(frame.bounds);
+            painter.add(Shape::Path(PathShape::closed_line(corners.to_vec(), line(self.color))));
+            let in_port = port_centre(corners[0], corners[1], style.port_inset);
+            let out_port = port_centre(corners[2], corners[3], style.port_inset);
+            for (centre, threaded, is_out) in [(in_port, frame.threaded_in, false), (out_port, frame.threaded_out, true)] {
+                let square = egui::Rect::from_center_size(centre, vec2(style.port, style.port));
+                painter.rect_filled(square, 0.0, Color32::WHITE);
+                painter.rect_stroke(square, 0.0, line(self.color), egui::StrokeKind::Inside);
+                if is_out && frame.overset {
+                    let arm = style.overset_arm;
+                    let stroke = Stroke::new(style.overset_stroke, style.overset);
+                    painter.line_segment([centre - vec2(arm, 0.0), centre + vec2(arm, 0.0)], stroke);
+                    painter.line_segment([centre - vec2(0.0, arm), centre + vec2(0.0, arm)], stroke);
+                } else if threaded {
+                    let points = TRIANGLE.iter().map(|&(x, y)| centre + vec2(x, y) * style.port).collect();
+                    painter.add(Shape::convex_polygon(points, self.color, Stroke::NONE));
+                }
+            }
+        }
     }
+}
+
+/// The port's centre on the edge from `corner` toward `other`: `inset` along it, never past the
+/// edge's middle on a small frame.
+fn port_centre(corner: Pos2, other: Pos2, inset: f32) -> Pos2 {
+    let edge = other - corner;
+    let length = edge.length();
+    if length > f32::EPSILON { corner + edge * (inset.min(length / 2.0) / length) } else { corner }
 }
