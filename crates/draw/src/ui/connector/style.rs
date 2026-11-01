@@ -29,6 +29,18 @@ pub struct ConnectorStyle {
     /// An end within this many screen points of a site glues to it: `connector.attach_reach` (10,
     /// FigCraft's `ATTACH_PX`).
     pub attach_reach: f32,
+    /// An end or path handle within this many screen points of a press is grabbed:
+    /// `connector.handle_reach` (8, FigCraft's `END_HANDLE_PX`).
+    pub handle_reach: f32,
+    /// An elbow run shorter than this many screen points has no path handle:
+    /// `connector.min_run` (28, FigCraft's `MIN_RUN_PX`).
+    pub min_run: f32,
+    /// A target is hit within this many screen points of its bounds: `connector.target_tolerance` (2).
+    pub target_tolerance: f32,
+    /// A path handle's ring: `connector.path_ring` (1) of `overlay.handle_fill`.
+    pub path_ring: Stroke,
+    /// The hovered target's outline: `connector.drop_outline` (1) of `accent.solid`.
+    pub drop_outline: Stroke,
 }
 
 impl ConnectorTool {
@@ -48,6 +60,11 @@ impl ConnectorTool {
             handle_fill: c.overlay.handle_fill.to_egui(),
             click_slop: k.click_slop,
             attach_reach: k.attach_reach,
+            handle_reach: k.handle_reach,
+            min_run: k.min_run,
+            target_tolerance: k.target_tolerance,
+            path_ring: Stroke::new(k.path_ring, c.overlay.handle_fill.to_egui()),
+            drop_outline: Stroke::new(k.drop_outline, accent),
         }
     }
 }

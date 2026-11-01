@@ -287,8 +287,7 @@ impl ConnectorTool {
         // numbered sites glues only within the radius of one).
         let free = Placed { end: ConnectorEnd::Free(at), route: RouteEnd::Point(at), target: None, active: None };
         let reach = view.doc_len(style.attach_reach);
-        // The hit tolerance is a line's width on screen (FigCraft's is 2 points).
-        let slack = view.doc_len(style.line.width);
+        let slack = view.doc_len(style.target_tolerance);
         let Some(t) = self.targets.iter().find(|t| t.bounds.abs().inflate(slack, slack).contains(at)) else { return free };
         let b = t.bounds.abs();
         let target = Some(t.id);
@@ -368,8 +367,7 @@ impl ConnectorTool {
     /// else the nearest path handle.
     fn handle_at(&self, at: Pos2, cx: &ToolContext<'_>) -> Option<Grab> {
         // inv-figcraft: crates/engine/src/boards/board/connectors.rs:184-191 `end_handle_at` and
-        // reshape.rs:73-79 `path_handle_at` (the nearest within `END_HANDLE_PX` 8; here the attach
-        // reach).
+        // reshape.rs:73-79 `path_handle_at` (the nearest within `END_HANDLE_PX` 8).
         let item = self.selected.as_ref()?;
         let (_, _, points) = self.geometry()?;
         let style = Self::style(cx.tokens);
@@ -377,14 +375,14 @@ impl ConnectorTool {
         let dist = |p: Point| hit::point(at, view.to_screen(p));
         let ends = [(ConnectorEndKind::Start, points.first()), (ConnectorEndKind::End, points.last())];
         let end =
-            ends.into_iter().filter_map(|(k, p)| Some((k, dist(*p?)))).filter(|&(_, d)| d <= style.attach_reach).min_by(|a, b| a.1.total_cmp(&b.1));
+            ends.into_iter().filter_map(|(k, p)| Some((k, dist(*p?)))).filter(|&(_, d)| d <= style.handle_reach).min_by(|a, b| a.1.total_cmp(&b.1));
         if let Some((kind, _)) = end {
             return Some(Grab::End(kind));
         }
         visible_path_handles(&points, item.routing, view, &style)
             .into_iter()
             .map(|(portion, p)| (portion, dist(p)))
-            .filter(|&(_, d)| d <= style.attach_reach)
+            .filter(|&(_, d)| d <= style.handle_reach)
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .map(|(portion, _)| Grab::Path(portion))
     }
@@ -610,7 +608,7 @@ impl CanvasTool for ConnectorTool {
         if let Some((id, active)) = self.hover
             && let Some(t) = self.targets.iter().find(|t| t.id == id)
         {
-            painter.add(Shape::closed_line(view.quad(t.bounds.abs()).to_vec(), style.line));
+            painter.add(Shape::closed_line(view.quad(t.bounds.abs()).to_vec(), style.drop_outline));
             ConnectorOverlay::paint_sites(painter, view, &style, t, active);
         }
         let Some(d) = self.drag.as_ref().filter(|d| d.began) else {
@@ -650,7 +648,7 @@ impl CanvasTool for ConnectorTool {
         let labels = self.words(cx);
         let style = Self::style(cx.tokens);
         let view = cx.view;
-        let reach = style.attach_reach;
+        let reach = style.handle_reach;
         let around = |p: Point| egui::Rect::from_center_size(view.to_screen(p), egui::vec2(2.0 * reach, 2.0 * reach));
         let end_name = |end: &ConnectorEnd, attached: &str, free: &str| match end {
             ConnectorEnd::Glued { target, .. } => craft_i18n::fmt(attached, &[("target", &target.to_string())]),

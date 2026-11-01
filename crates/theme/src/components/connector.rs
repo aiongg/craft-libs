@@ -31,6 +31,16 @@ pub struct ConnectorTokens {
     pub path_handle: f32,
     /// An end within this many screen points of a site glues to it: `connector.attach_reach`.
     pub attach_reach: f32,
+    /// An end or path handle within this many screen points of a press is grabbed: `connector.handle_reach`.
+    pub handle_reach: f32,
+    /// An elbow run shorter than this many screen points has no path handle: `connector.min_run`.
+    pub min_run: f32,
+    /// A target is hit within this many screen points of its bounds: `connector.target_tolerance`.
+    pub target_tolerance: f32,
+    /// A path handle's ring width: `connector.path_ring`.
+    pub path_ring: f32,
+    /// The hovered target's outline width: `connector.drop_outline`.
+    pub drop_outline: f32,
 }
 
 /// This family has no overridable field: its sizes come from the code, as every size does.
@@ -53,6 +63,11 @@ impl Family for ConnectorTokens {
         "end_handle" 0.0..=64.0 => end_handle;
         "path_handle" 0.0..=64.0 => path_handle;
         "attach_reach" 0.0..=128.0 => attach_reach;
+        "handle_reach" 0.0..=128.0 => handle_reach;
+        "min_run" 0.0..=128.0 => min_run;
+        "target_tolerance" 0.0..=128.0 => target_tolerance;
+        "path_ring" 0.0..=128.0 => path_ring;
+        "drop_outline" 0.0..=128.0 => drop_outline;
     };
 
     fn defaults(_: &Semantic<'_>) -> ConnectorTokens {
@@ -69,6 +84,11 @@ impl Family for ConnectorTokens {
             end_handle: values::CONNECTOR_END_HANDLE,
             path_handle: values::CONNECTOR_PATH_HANDLE,
             attach_reach: values::CONNECTOR_ATTACH_REACH,
+            handle_reach: values::CONNECTOR_HANDLE_REACH,
+            min_run: values::CONNECTOR_MIN_RUN,
+            target_tolerance: values::CONNECTOR_TARGET_TOLERANCE,
+            path_ring: values::CONNECTOR_PATH_RING,
+            drop_outline: values::CONNECTOR_DROP_OUTLINE,
         }
     }
 

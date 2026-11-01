@@ -2,7 +2,7 @@
 //! SH-T10).
 
 use egui::epaint::CubicBezierShape;
-use egui::{Color32, Painter, Pos2, Shape, Stroke};
+use egui::{Color32, Painter, Pos2, Shape};
 use kurbo::Point;
 
 use super::{ConnectionTarget, ConnectorStyle};
@@ -23,15 +23,11 @@ pub struct ConnectorOverlay<'a> {
     handles: bool,
 }
 
-/// An elbow run shorter than this many attach reaches on screen has no path handle: its handle
-/// would sit on its neighbours' (FigCraft's `MIN_RUN_PX`, 28, is under three of its reaches).
-const MIN_RUN_REACHES: f32 = 2.0; // design: allow(a ratio of two tokens, not a size)
-
 /// The path handles of the route through `points` that are drawn and can be grabbed at `view`'s
 /// zoom: [`path_handles`] without the elbow runs too short on screen to hold one. The portion is
 /// the index [`reshaped`](crate::geometry::connector::reshaped) takes.
 pub(super) fn visible_path_handles(points: &[Point], routing: Routing, view: &CanvasView, style: &ConnectorStyle) -> Vec<(usize, Point)> {
-    let min = style.attach_reach * MIN_RUN_REACHES;
+    let min = style.min_run;
     let long = |i: usize| match (points.get(i), points.get(i + 1)) {
         (Some(&a), Some(&b)) => view.to_screen(a).distance(view.to_screen(b)) >= min,
         _ => false,
@@ -55,8 +51,7 @@ impl<'a> ConnectorOverlay<'a> {
     pub fn paint(&self, painter: &Painter, view: &CanvasView, style: &ConnectorStyle) {
         // inv-figcraft: crates/ui-egui/src/canvas/overlays.rs:364-376 (path handles 3.5 accent with a
         // 1 pt white ring, end handles 5 white with a 1.5 pt accent ring).
-        // new: the route itself (FigCraft draws it in the document); the path handle's ring is
-        // `connector.line` wide (FigCraft's is 1 pt; no token).
+        // new: the route itself (FigCraft draws it in the document).
         let screen: Vec<Pos2> = self.points.iter().map(|&p| view.to_screen(p)).collect();
         if screen.len() < 2 {
             return;
@@ -70,11 +65,10 @@ impl<'a> ConnectorOverlay<'a> {
         if !self.handles {
             return;
         }
-        let ring = Stroke::new(style.line.width, style.handle_fill);
         for (_, at) in visible_path_handles(self.points, self.routing, view, style) {
             let c = view.to_screen(at);
             painter.circle_filled(c, style.path_handle, style.line.color);
-            painter.circle_stroke(c, style.path_handle, ring);
+            painter.circle_stroke(c, style.path_handle, style.path_ring);
         }
         for end in [screen.first(), screen.last()].into_iter().flatten() {
             painter.circle_filled(*end, style.end_handle, style.handle_fill);

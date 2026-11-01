@@ -3121,6 +3121,11 @@ fn connector_lines(out: &mut Lines, t: &ConnectorTokens) {
         end_handle,
         path_handle,
         attach_reach,
+        handle_reach,
+        min_run,
+        target_tolerance,
+        path_ring,
+        drop_outline,
     } = t;
     out.line("connector.line", len(*line));
     out.line("connector.attach", len(*attach));
@@ -3134,6 +3139,11 @@ fn connector_lines(out: &mut Lines, t: &ConnectorTokens) {
     out.line("connector.end_handle", len(*end_handle));
     out.line("connector.path_handle", len(*path_handle));
     out.line("connector.attach_reach", len(*attach_reach));
+    out.line("connector.handle_reach", len(*handle_reach));
+    out.line("connector.min_run", len(*min_run));
+    out.line("connector.target_tolerance", len(*target_tolerance));
+    out.line("connector.path_ring", len(*path_ring));
+    out.line("connector.drop_outline", len(*drop_outline));
 }
 
 fn vanishing_point_lines(out: &mut Lines, t: &VanishingPointTokens) {
