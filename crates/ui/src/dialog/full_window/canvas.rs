@@ -1,13 +1,21 @@
 //! [`FullWindowCanvas`]: the canvas region of a full-window dialog, and [`RasterOverlay`], a
 //! further image drawn over it at a texel scale.
 
-use egui::{Color32, IdSalt, Painter, Response, Ui};
-use kurbo::Point;
+use egui::accesskit::Role;
+use egui::epaint::StrokeKind;
+use egui::{AsIdSalt, Color32, ColorImage, CursorIcon, EventFilter, IdSalt, Painter, PointerButton, Rect, Response, Sense, Ui, WidgetInfo};
+use kurbo::{Point, Size};
 
 use super::labels::FullWindowLabels;
+use super::style::FullWindowStyle;
 use super::view::{FullWindowView, FullWindowZoomKeys};
-use crate::canvas::{CanvasTool, CanvasView, Checkerboard, NavigationOptions, RasterSource, ToolGesture, ToolKey};
-use egui::AsIdSalt;
+use crate::canvas::navigate::{WheelNavigation, pan};
+use crate::canvas::{
+    CanvasId, CanvasTool, CanvasView, Checkerboard, HandTool, MomentaryKeys, MomentaryTool, NavigationOptions, NoTool, PixelRect, RasterDisplay,
+    RasterSource, ToolGesture, ToolHost, ToolKey, ZoomAnimation, ZoomTool,
+};
+use crate::localized::{Labels as _, LocaleNumbers};
+use crate::theme::current;
 
 type PaintMarks<'a> = Box<dyn FnOnce(&Painter, &CanvasView) + 'a>;
 
@@ -16,7 +24,6 @@ type PaintMarks<'a> = Box<dyn FnOnce(&Painter, &CanvasView) + 'a>;
 /// image pixels each way (a reduced proxy's factor; 1 for full resolution), and it is drawn
 /// through a [`RasterDisplay`](crate::canvas::RasterDisplay) of its own over the same view, so it
 /// lines up with the image at every zoom.
-#[expect(dead_code, reason = "skeleton: K16 draws the overlays")]
 pub struct RasterOverlay<'a> {
     pub(super) source: &'a dyn RasterSource,
     pub(super) texel: u32,
@@ -170,25 +177,169 @@ impl<'a> FullWindowCanvas<'a> {
     }
 
     /// Draws the canvas in the rest of `ui` (the dialog's body after the other regions).
-    #[expect(clippy::todo, reason = "skeleton: K16")]
     pub fn show(self, ui: &mut Ui) -> FullWindowCanvasOutput {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1912-1936 (the area on `t.canvas`, fit
         // with a 20 pt margin, the hovered canvas surrendering a button's focus so Space pans,
         // `exp(scroll / 200)` wheel zoom replaced by `WheelNavigation`), gallery_ui.rs:660-672
         // (checkerboard, the image, its 1 pt `t.separator` outline outside, drag pans).
-        let _ = (
-            self.id_salt,
-            self.view,
-            self.source,
-            self.checkerboard,
-            self.overlays,
-            self.tool,
-            self.navigation,
-            self.zoom_keys,
-            self.painter,
-            self.labels,
-            ui,
-        );
-        todo!()
+        let Self { id_salt, view: window_view, source, checkerboard, overlays, tool, navigation, zoom_keys, painter: marks, labels } = self;
+        let ctx = ui.ctx().clone();
+        let style = FullWindowStyle::of(&current(&ctx));
+        let labels = labels.unwrap_or_else(|| FullWindowLabels::of(ui));
+        let ppp = ui.pixels_per_point();
+        let rect = ui.available_rect_before_wrap();
+        ui.allocate_rect(rect, Sense::hover());
+        let canvas = CanvasId::new(ui, id_salt);
+        let response = canvas.interact(ui, rect, Sense::click_and_drag() | Sense::FOCUSABLE);
+        // The arrow keys belong to the tool on the canvas instead of moving focus.
+        let arrows = EventFilter { horizontal_arrows: true, vertical_arrows: true, ..EventFilter::default() };
+        ctx.memory_mut(|m| m.set_focus_lock_filter(response.id, arrows));
+        crate::focus::key_owner::register_canvas(&ctx, response.id);
+
+        let pixels = source.map_or([0, 0], |s| s.size());
+        let doc = Size::new(f64::from(pixels[0]), f64::from(pixels[1]));
+        if let Some(zoom) = zoom_keys.take(ui) {
+            window_view.apply(zoom);
+        }
+        let mut view = window_view.canvas_view(rect, pixels, style.canvas_margin, ppp);
+
+        WheelNavigation::configure(&ctx);
+        if let Some(action) = WheelNavigation::read(&ctx, &response, &navigation) {
+            let at = response.hover_pos().unwrap_or(rect.center());
+            WheelNavigation::apply(&mut view, action, at, doc, &navigation, ppp);
+        }
+        if response.dragged_by(PointerButton::Middle) {
+            pan(&mut view, response.drag_delta());
+            ctx.set_cursor_icon(CursorIcon::Grabbing);
+        }
+        window_view.take(&view, ppp);
+
+        let temporary = Self::temporary_tool(&ctx, &response, canvas);
+        let tools_key = canvas.with("navigation-tools");
+        let mut tools = ctx
+            .data(|d| d.get_temp::<NavigationTools>(tools_key))
+            .unwrap_or_else(|| NavigationTools { hand: HandTool::new(doc, navigation), zoom: ZoomTool::new(doc, navigation) });
+        tools.hand.size = doc;
+        tools.hand.prefs = navigation;
+        tools.zoom.size = doc;
+        tools.zoom.prefs = navigation;
+        tools.zoom.out = temporary == Some(MomentaryTool::ZoomOut);
+
+        let shown = ZoomAnimation::shown(&ctx, canvas, &view, navigation.animated_zoom);
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 0.0, style.canvas_fill);
+        if let Some(source) = source {
+            let mut display = RasterDisplay::new((canvas.id(), "image"));
+            if let Some(checker) = checkerboard {
+                display = display.checkerboard(checker);
+            }
+            display.show(ui, &shown, source);
+            let corners = shown.quad(kurbo::Rect::new(0.0, 0.0, doc.width, doc.height));
+            painter.rect_stroke(Rect::from_points(&corners), 0.0, style.canvas_outline, StrokeKind::Outside);
+            for (n, overlay) in overlays.iter().enumerate() {
+                let scaled = overlay_view(&shown, overlay.texel);
+                let tinted = Tinted { source: overlay.source, tint: overlay.tint };
+                RasterDisplay::new((canvas.id(), "overlay", n)).show(ui, &scaled, &tinted);
+            }
+        }
+        if let Some(marks) = marks {
+            marks(&painter, &shown);
+        }
+
+        let mut none = NoTool;
+        let mut user = tool;
+        let active: &mut dyn CanvasTool = match (temporary, user.as_deref_mut()) {
+            (Some(MomentaryTool::Hand), _) => &mut tools.hand,
+            (Some(MomentaryTool::ZoomIn | MomentaryTool::ZoomOut), _) => &mut tools.zoom,
+            (None, Some(tool)) => tool,
+            (None, None) => &mut none,
+        };
+        let hosted = ToolHost::new(canvas).document(doc).navigation(navigation).keys(!ctx.text_edit_focused()).show(ui, &shown, &response, active);
+        ctx.data_mut(|d| d.insert_temp(tools_key, tools));
+        if let Some(changed) = hosted.view {
+            view = CanvasView { rect: view.rect, ..changed };
+            window_view.take(&view, ppp);
+        }
+
+        let name = labels.canvas.clone();
+        response.widget_info(|| WidgetInfo::labeled(Role::Canvas, true, name.as_str()));
+        let percent = LocaleNumbers::of(ui).percent(window_view.zoom());
+        ctx.accesskit_node_builder(response.id, |node| node.set_value(percent.as_str()));
+
+        let hover = response.hover_pos().filter(|_| response.hovered()).map(|at| view.to_doc(at));
+        FullWindowCanvasOutput { view, response, gesture: hosted.gesture, hover, took_key: hosted.took_key }
+    }
+
+    /// The temporary tool this pass: Space the Hand, Cmd+Space Zoom In, Alt+Space Zoom Out, while
+    /// the pointer is over the canvas or it has the focus and no text field has the keyboard. A
+    /// tool in effect when the primary button went down stays until the button is up, and a
+    /// drag that began without one finishes without one. The keys are read here, not through
+    /// [`MomentaryKeys::read`], which stands aside while a modal layer is open.
+    fn temporary_tool(ctx: &egui::Context, response: &Response, canvas: CanvasId) -> Option<MomentaryTool> {
+        let keys = MomentaryKeys::default();
+        let (down, released, pressed) = ctx.input(|i| (i.pointer.primary_down(), i.pointer.primary_released(), i.pointer.primary_pressed()));
+        let latch = canvas.with("momentary-latch");
+        let latched = ctx.data(|d| d.get_temp::<Option<MomentaryTool>>(latch)).flatten();
+        let tool = if (down || released) && !pressed {
+            latched
+        } else if (response.hovered() || response.has_focus()) && !ctx.text_edit_focused() {
+            ctx.input(|i| keys.held(i))
+        } else {
+            None
+        };
+        if tool.is_some()
+            && let Some(focused) = ctx.memory(|m| m.focused()).filter(|id| *id != response.id)
+        {
+            // A focused button would take Space as a click.
+            ctx.memory_mut(|m| m.surrender_focus(focused));
+        }
+        ctx.data_mut(|d| d.insert_temp(latch, if down { tool } else { None }));
+        tool
+    }
+}
+
+/// The Hand and Zoom tools a momentary key brings up, kept in egui memory between passes.
+#[derive(Clone)]
+struct NavigationTools {
+    hand: HandTool,
+    zoom: ZoomTool,
+}
+
+/// `view` for an overlay at one texel per `texel` image pixels: the same screen rect as the image.
+pub(super) fn overlay_view(view: &CanvasView, texel: u32) -> CanvasView {
+    let texel = f64::from(texel);
+    CanvasView { zoom: view.zoom * texel, center: Point::new(view.center.x / texel, view.center.y / texel), ..*view }
+}
+
+/// A [`RasterOverlay`]'s source with its texels multiplied by the tint.
+pub(super) struct Tinted<'a> {
+    pub(super) source: &'a dyn RasterSource,
+    pub(super) tint: Color32,
+}
+
+impl RasterSource for Tinted<'_> {
+    fn size(&self) -> [u32; 2] {
+        self.source.size()
+    }
+
+    fn revision(&self) -> u64 {
+        self.source.revision() ^ u64::from(u32::from_le_bytes(self.tint.to_array())).rotate_left(32)
+    }
+
+    fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
+        self.source.read(region, factor, out);
+        if self.tint != Color32::WHITE {
+            // design: allow(white is the tint that leaves texels as they are)
+            let times = |a: u8, b: u8| ((u16::from(a) * u16::from(b) + 127) / 255) as u8;
+            for texel in &mut out.pixels {
+                let t = self.tint;
+                *texel = Color32::from_rgba_premultiplied(
+                    times(texel.r(), t.r()),
+                    times(texel.g(), t.g()),
+                    times(texel.b(), t.b()),
+                    times(texel.a(), t.a()),
+                );
+            }
+        }
     }
 }
