@@ -114,3 +114,29 @@ fn labels_name_the_panes() {
     assert_eq!(harness.query_all_by_label("Ansicht 1").count(), 1);
     assert_eq!(harness.query_all_by_label("View 1").count(), 0);
 }
+
+#[test]
+fn the_first_pane_is_drawn_first_and_keeps_its_place() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let run = |first: Option<usize>| {
+        let mut calls = Vec::new();
+        let input = RawInput { screen_rect: Some(full()), ..RawInput::default() };
+        ctx.run_ui(input, |ui| {
+            let mut split = SplitViews::new("order", SplitLayout::Two);
+            if let Some(f) = first {
+                split = split.first(f);
+            }
+            split.show(ui, full(), |_, pane, rect| calls.push((pane, rect)));
+        })
+        .drop_without_applying_deltas();
+        calls
+    };
+    let by_default = run(None);
+    assert_eq!(by_default.iter().map(|c| c.0).collect::<Vec<_>>(), [1, 0]);
+    let right_first = run(Some(0));
+    assert_eq!(right_first.iter().map(|c| c.0).collect::<Vec<_>>(), [0, 1]);
+    let mut sorted = right_first.clone();
+    sorted.reverse();
+    assert_eq!(sorted, by_default, "the rects do not move");
+}

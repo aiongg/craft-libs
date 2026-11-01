@@ -77,19 +77,13 @@ impl<'a> SyncedViews<'a> {
             Lead::Right => 0,
         };
         let mut responses: [Option<PageViewResponse>; 2] = [None, None];
-        let mut follower_drawn = false;
-        SplitViews::new(self.id_salt, SplitLayout::Two).active(active).show(ui, rect, |ui, pane, _| {
+        SplitViews::new(self.id_salt, SplitLayout::Two).active(active).first(active).show(ui, rect, |ui, pane, _| {
             let this = if pane == 1 { Lead::Left } else { Lead::Right };
             if this == lead {
                 responses[pane] = Some(half(ui, leader, this));
-                // The follower came first in reading order: it catches up on the next pass.
-                if follower_drawn && follow(leader, follower, last_offset) {
-                    ui.ctx().request_repaint();
-                }
             } else {
                 follow(leader, follower, last_offset);
                 responses[pane] = Some(half(ui, follower, this));
-                follower_drawn = true;
             }
         });
         ui.advance_cursor_after_rect(rect);

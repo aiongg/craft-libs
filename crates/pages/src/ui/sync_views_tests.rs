@@ -73,7 +73,7 @@ fn the_follower_takes_the_leaders_zoom_and_scroll() {
     let app = harness.state_mut();
     app.right.zoom = 2.0;
     app.right.offset = (0.0, 400.0);
-    harness.run_steps(3);
+    harness.step();
     let app = harness.state();
     assert_eq!(app.left.zoom, 2.0);
     assert_eq!(app.left.offset, app.right.offset);
@@ -83,6 +83,6 @@ fn the_follower_takes_the_leaders_zoom_and_scroll() {
     harness.run();
     assert_eq!(harness.state().pair.lead, Lead::Left);
     harness.state_mut().left.zoom = 1.0;
-    harness.run_steps(3);
+    harness.step();
     assert_eq!(harness.state().right.zoom, 1.0);
 }
